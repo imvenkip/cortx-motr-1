@@ -27,6 +27,8 @@
    - @ref DLD-ovw
    - @ref DLD-def
    - @ref DLD-req
+   - @ref DLD-depends
+   - @ref DLD-highlights
    - @ref DLD-fspec
       - @ref DLD-fspec-ds
       - @ref DLD-fspec-if
@@ -34,12 +36,12 @@
       - @ref DLD-fspec-cli
       - @ref DLD-fspec-usecases
    - @ref DLD-lspec
-      - @ref DLD-lspec-ovw
+      - @ref DLD-lspec-comps
       - @ref DLD-lspec-sc1
       - @ref DLD-lspec-state
       - @ref DLD-lspec-thread
       - @ref DLD-lspec-numa
-      - @ref DLD-conformance
+   - @ref DLD-conformance
    - @ref DLD-ut
    - @ref DLD-st
    - @ref DLD-O
@@ -47,16 +49,27 @@
 
    @see Detailed functional specifications in @ref DLDDFS.
 
-   @note This page is designed to be viewed both through a text editor
-   and in a browser after Doxygen processing.
-
 
    <hr>
    @section DLD-ovw Overview
-   This document is intended to be a style guide for a detail level
-   design specification.  All such specifications must start with an
-   Overview section that briefly describes the document and provides any
-   additional instructions or hints on how to read it.
+   <i>All specifications must start with an Overview section that briefly
+   describes the document and provides any additional instructions or hints on
+   how to best read the specification.</i>
+
+   This document is intended to be a style guide for a detail level design
+   specification, and is designed to be viewed both through a text editor and
+   in a browser after Doxygen processing.
+
+   You can use this document as a template by deleting all content but
+   retaining the sections referenced above and the overall Doxygen structure of
+   a page with one or more component modules.
+
+   It is recommended that you retain the italicized instructions that follow
+   the formally recognized section headers, until at least the DLD review
+   phase.  You may leave the instructions in the final document if you wish.
+
+   Please check your grammar and punctuation, and run the document through
+   a spelling checker during your DLDR phase.
 
    <b>Purpose of a DLD</b><br>
    The purpose of the Detailed Level Design (DLD) specification of a
@@ -80,7 +93,7 @@
    functional specification of the component interfaces.
 
    <b>Formatting language</b><br>
-   Doxygen is the formatting tool of choice.  The doxgyen @@page
+   Doxygen is the formatting tool of choice.  The Doxgyen @@page
    format is used to define a separate top-level browsable element
    that contains the body of the DLD. The @@section and @@subsection
    formatting commands are used to provide internal structure.
@@ -88,28 +101,27 @@
    main browser window, as well as displayed as a top-level element in the
    explorer side-bar.
 
+   Detailed functional specifications follow the DLD using @@defgroup
+   commands for each component module.
+
    <b>Layout of the DLD</b><br>
-   The DLD specification is required to be sectioned in a stylized manner
-   as demonstrated by this guide. It is similar to the sectioning found
+   The DLD specification is required to be sectioned in the specific manner
+   illustrated by this document.  It is similar to the sectioning found
    in a High Level Design.
 
-   Not all sections may be applicable to the component in question,
-   but mandatory section may not be omitted.  Instead, it should be
-   provided with a disclaimer body indicating that the section does
-   not apply to the component along with an explanation.  Additional
-   sections or sub-sectioning may be added as required.
-
-   @todo Improve the Doxygen style sheet
-
-   @see <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>,
-   an older document on which this style guide is partially based.
+   Not all sections may be applicable to the design, but
+   mandatory section may not be omitted.  If a mandatory section does not apply
+   it should clearly be marked as non-applicable, along with an explanation.
+   Additional sections or sub-sectioning may be added as required.
 
    <hr>
    @section DLD-def Definitions
-   Mandatory.
-   The DLD shall provide definitions of the terms introduced by the
-   specification, as well as the relevant terms used by the
-   specification but described elsewhere.
+   <i>Mandatory.
+   The DLD shall provide definitions of the terms and concepts
+   introduced by the design, as well as the relevant terms used by the
+   specification but described elsewhere.  References to the
+   C2 Glossary are permitted and encouraged.  Agreed upon terminology
+   should be incorporated in the glossary.</i>
 
    Previously defined terms:
    - <b>Logical Specification</b> This explains how the component works.
@@ -117,17 +129,18 @@
 
    New terms:
    - <b>Detailed Functional Specification</b> This provides
-     documentation of al the data structures and interfaces (internal
+     documentation of ll the data structures and interfaces (internal
      and external).
-   - <b>State model</b> This explains the lifecycle of component data
+   - <b>State model</b> This explains the life cycle of component data
      structures.
    - <b>Concurrency and threading model</b> This explains how the the
      component works in a multi-threaded environment.
 
    <hr>
    @section DLD-req Requirements
-   Mandatory.
-   The DLD shall state the requirements that it attempts to meet.
+   <i>Mandatory.
+   The DLD shall state the requirements that it attempts to meet.</i>
+
    They should be expressed in a list, thusly:
    - <b>R.DLD.Structured</b> The DLD shall be decomposed into a standard
    set of section.  Sub-sections may be used to further decompose the
@@ -141,16 +154,40 @@
    the lifetime of the code.
 
    <hr>
+   @section DLD-depends Dependencies
+   <i>Mandatory. Identify other components on which this specification
+   depends.</i>
+
+   The DLD specification style guide depends on the HLD and AR
+   specifications as they identify requirements, use cases, \&c..
+
+   <hr>
+   @section DLD-highlights Design Highlights
+   <i>Mandatory. This section briefly summarises the key design
+   decisions that are important for understanding the functional and
+   logical specifications, and enumerates topics that need special
+   attention.</i>
+
+   - The DLD specification requires formal sectioning to address specific
+   aspects of the design.
+   - The DLD is with the code, and the specification is designed to be
+   viewed either as text or through Doxygen.
+   - This document can be used as a template.
+
+   <hr>
    @section DLD-fspec Functional Specification
-   This section describes the external interfaces of the component and
-   briefly identifies the consumers of these interfaces.
+   <i>Mandatory. This section describes the external interfaces of the
+   component, showing what the component does to address the requirements.
+   It also briefly identifies the consumers of these interfaces.</i>
 
    @subsection DLD-fspec-ds Data structures
-   Mandatory for programatic interfaces.
+   <i>Mandatory for programmatic interfaces.
    Components with programming interfaces should provide an
    enumeration and <i>brief</i> description of the major data structures
    defined by this component.  No details of the data structure are
-   required here, just the salient points. For example:
+   required here, just the salient points.</i>
+
+For example:
 
 <table border="0">
 <tr><td>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</td><td>
@@ -174,11 +211,11 @@ struct dld_sample_ds1 {
    described elsewhere.
 
    @subsection DLD-fspec-if Interfaces
-   Mandatory for programatic interfaces.
+   <i>Mandatory for programmatic interfaces.
    Components with programming interfaces should provide an
-   enumeration and <i>brief</i> description
-   of the programming interfaces.  The section may be further organized
-   by function. For example
+   enumeration and brief description of the programming interfaces.</i>
+
+   The section may be further organized by function. For example
         - @ref DLD-fspec-if-cons "Constructors and Destructors"
 	- <b>Accessors and invariants</b>
 	- <b>Operational interfaces</b>
@@ -191,86 +228,93 @@ struct dld_sample_ds1 {
 
    <h4>@anchor DLD-fspec-if-cons Constructors and destructors</h4>
    This is an example of a sub-sub-section.
-   The doxygen style-sheet does not seem to have definitions for
+   The Doxygen style-sheet does not seem to have definitions for
    the @<h4> HTML tag.
 
    @subsection DLD-fspec-cli Command Usage
-   Mandatory for command line programs.
+   <i>Mandatory for command line programs.
    Components that provide programs would provide a specification of the
    command line invocation arguments.
-
    In addition, the format of any any structured file consumed or produced
-   by the interface must be described in this section.
+   by the interface must be described in this section.</i>
 
-   @subsection DLD-fspec-usecases Recipies
-   This section could briefly explain what sequence of interface calls or
+   @subsection DLD-fspec-usecases Recipes
+   <i>This section could briefly explain what sequence of interface calls or
    what program invocation flags are required to solve specific usage
    scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.
-
-   There is no @@subsubsection tag in Doxygen, so use bold-faced caption
-   paragraphs to further sub-section each recipie.
+   back to the HLD for the component.</i>
 
 
    <hr>
    @section DLD-lspec Logical Specification
-   Mandatory.
-   This section describes the internal design of the component. It has
-   many subsections, some of which are mandatory.
-   The designer should feel free to use sub-sectioning to decompose the
-   design into logical disjoint pieces.
+   <i>Mandatory.
+   This section describes the internal design of the component, explaining
+   how the functional specification is met.  Sub-components and diagrams
+   of their interaction should go into this section.
+   The section is divided into subsections, some of which are mandatory.
+   The designer should feel free to use additional sub-sectioning
+   if needed.</i>
 
-   Any of these sub-sections can utilize diagrams if needed.
-   UML and sequence diagrams often illustrate points better than
-   any written explanation.  For example:
-   <img src="../../doc/dld-sample-uml.png">
+   @subsection DLD-lspec-comps Component Overview
+   <i>Mandatory.
+   This section describes the internal logical decomposition.
+   A diagram of the interaction between internal components is useful.</i>
+
+   UML and sequence diagrams often illustrate points better than any written
+   explanation.  However, please remember that every diagram <i>must</i> be
+   accompanied by an explanation.
+
    An image is relatively easy to load, provided you remember that the
-   doxygen output is viewed from the doc/html directory, so all paths
-   should be relative to that frame of reference.  I found that a PNG
-   format image from Visio shows up with the correct image size while
-   a GIF image was wrongly sized.
+   Doxygen output is viewed from the doc/html directory, so all paths
+   should be relative to that frame of reference.  For example:
+   <img src="../../doc/dld-sample-uml.png">
+   I found that a PNG format image from Visio shows up with the correct
+   image size while a GIF image was wrongly sized.  Your experience may
+   be different, so please ensure that you validate the Doxygen output
+   for correct image rendering.
 
-   @subsection DLD-lspec-ovw Design overview
-   Mandatory.
-   This section provides a brief overview of the design, its
-   internal logical decomposition if any, etc.
-
-   Diagrams are always useful.  Doxygen is limited in its internal
-   support for diagrams.  One of the promising built in support commands
-   is @@msc, which is used to run @c mscgen.  This is used to create
-   sequence diagrams. For example:
-   @msc
-  a,b,c;
-
-  a->b [ label = "ab()" ] ;
-  b->c [ label = "bc(TRUE)"];
-  c=>c [ label = "process(1)" ];
-  c=>c [ label = "process(2)" ];
-  ...;
-  c=>c [ label = "process(n)" ];
-  c=>c [ label = "process(END)" ];
-  a<<=c [ label = "callback()"];
-  ---  [ label = "If more to run", ID="*" ];
-  a->a [ label = "next()"];
-  a->c [ label = "ac1()\nac2()"];
-  b<-c [ label = "cb(TRUE)"];
-  b->b [ label = "stalled(...)"];
-  a<-b [ label = "ab() = FALSE"];
-   @endmsc
-   Note that when entering commands for @c mscgen, do not include the
-   <tt>msc { ... }</tt> block delimiters.
-
-   You need the @c mscgen program installed on your system - it is part
-   of the Scientific Linux based DevVM.
+   If an external tool, such as Visio, is used to create an
+   image, the source of that image (e.g. the Visio @c .vsd file)
+   should be checked into the source tree so that future maintainers can
+   modify the figure.  This applies to all non-embedded image source files,
+   not just Visio.
 
 
    @subsection DLD-lspec-sc1 Sub-component1 design
-   This section describes the design of <i>Sub-component1</i>. \&c
+   <i>This section describes the design of sub-component. Feel free to
+   add any additional sectioning to describe logically distinct
+   subcomponents.</i>
+
+   Doxygen is limited in its internal support for diagrams.  One of the
+   promising built in support commands is @@msc, which is used to run @c
+   mscgen.  This is used to create sequence diagrams. For example:
+   @msc
+   a,b,c;
+
+   a->b [ label = "ab()" ] ;
+   b->c [ label = "bc(TRUE)"];
+   c=>c [ label = "process(1)" ];
+   c=>c [ label = "process(2)" ];
+   ...;
+   c=>c [ label = "process(n)" ];
+   c=>c [ label = "process(END)" ];
+   a<<=c [ label = "callback()"];
+   ---  [ label = "If more to run", ID="*" ];
+   a->a [ label = "next()"];
+   a->c [ label = "ac1()\nac2()"];
+   b<-c [ label = "cb(TRUE)"];
+   b->b [ label = "stalled(...)"];
+   a<-b [ label = "ab() = FALSE"];
+   @endmsc
+   Note that when entering commands for @c mscgen, do not include the
+   <tt>msc { ... }</tt> block delimiters.
+   You need the @c mscgen program installed on your system - it is part
+   of the Scientific Linux based DevVM.
 
    @subsection DLD-lspec-state State Specification
-   Mandatory.
+   <i>Mandatory.
    This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.
+   whether externally exposed or purely internal.</i>
 
    Diagrams are almost essential here. Use the @@dot support built
    into Doxygen.  Here, for example, is a figure from the "rpc/session.h"
@@ -286,7 +330,7 @@ struct dld_sample_ds1 {
        S4 [label="Active"]
        S5 [label="Terminating"]
        S6 [label="Terminated"]
-       S7 [label="Uninitialzed"]
+       S7 [label="Uninitialized"]
        S8 [label="Failed"]
        S0 -> S1 [label="allocate"]
        S1 -> S2 [label="c2_rpc_conn_init()"]
@@ -304,21 +348,21 @@ struct dld_sample_ds1 {
    The @c dot program is part of the Scientific Linux DevVM.
 
    @subsection DLD-lspec-thread Threading and Concurrency Model
-   Mandatory.
+   <i>Mandatory.
    This section describes the threading and concurrency model.
    It describes the various asynchronous threads of operation, identifies
    the critical sections and synchronization primitives used
-   (such as semaphores, locks mutexes and condition variables).
+   (such as semaphores, locks, mutexes and condition variables).</i>
 
-   It clearly explains all aspects of synchronization, including locking
+   This section must explain all aspects of synchronization, including locking
    order protocols, existential protection of objects by their state, etc.
+   A diagram illustrating lock scope would be very useful here.
 
-   Diagrams are very useful here.
 
    @subsection DLD-lspec-numa NUMA optimizations
-   Mandatory for components with programatic interfaces.
+   <i>Mandatory for components with programmatic interfaces.
    This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.
+   associating the utilizing thread to a single processor.</i>
 
    Conversely, it can describe if sub-optimal behavior arises due
    to contention for shared component resources by multiple processors.
@@ -326,13 +370,15 @@ struct dld_sample_ds1 {
    The section is marked mandatory because it forces the designer to
    consider these aspects of concurrency.
 
-   @subsection DLD-conformance Conformance
-   Mandatory.
+   <hr>
+   @section DLD-conformance Conformance
+   <i>Mandatory.
    This section cites each requirement in the @ref DLD-req section,
-   and explains briefly how the DLD meets the requirement.
+   and explains briefly how the DLD meets the requirement.</i>
+
    Note the subtle difference in that <b>I</b> tags are used instead of
    the <b>R</b> tags of the requirements section.  The @b I of course,
-   stands for "implements".
+   stands for "implements":
 
    - <b>I.DLD.Structured</b> The DLD specification provides a structural
    breakdown along the lines of the HLD specification.  This makes it
@@ -354,8 +400,8 @@ struct dld_sample_ds1 {
 
    <hr>
    @section DLD-ut Unit Tests
-   Mandatory.
-   This section describes the unit tests that will be designed.
+   <i>Mandatory.
+   This section describes the unit tests that will be designed.</i>
 
    Unit tests should be planned for all interfaces exposed by the component.
    Testing should not just include correctness tests, but should also
@@ -380,8 +426,8 @@ struct dld_sample_ds1 {
 
    <hr>
    @section DLD-st System Tests
-   Mandatory.
-   This section describes the system testing done, if applicable.
+   <i>Mandatory.
+   This section describes the system testing done, if applicable.</i>
 
    Testing should relate to specific use cases described in the HLD if
    possible.
@@ -389,15 +435,18 @@ struct dld_sample_ds1 {
 
    <hr>
    @section DLD-O Analysis
-   This section estimates the performance of the component, in terms of
+   <i>This section estimates the performance of the component, in terms of
    resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.
+   ideally described in big-O notation.</i>
 
    <hr>
    @section DLD-ref References
-   References to other documents are essential.  In particular a link
-   to the HLD for the DLD should be provided.
-   - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>
+   <i>Mandatory. Provide references to other documents and components that
+   are cited or used in the design.
+   In particular a link to the HLD for the DLD should be provided.</i>
+
+   - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>,
+   an older document on which this style guide is partially based.
    - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Doxygen
    Manual</a>
    - <a href="http://www.graphviz.org">Graphviz - Graph Visualization
@@ -411,7 +460,6 @@ struct dld_sample_ds1 {
    @brief Detailed functional specifications of a hypothetical component.
 
    This page is part of the DLD style template.
-
    Detailed functional specifications go into a component specific
    module described by a Doxygen group.
 
@@ -419,9 +467,13 @@ struct dld_sample_ds1 {
    sure that the @@addtogroup Doxygen command is used in the other
    files.
 
-   A component is not constrainted to have only one module.  If multiple
-   modules are present, make sure that the DLD and the modules
-   cross-reference each other, as shown below.
+   A component is not constrained to have only one module.  If multiple
+   modules are present you may use multiple @@defgroup commands to create
+   individual module documentation for each component.
+   Please make sure that the DLD and the modules cross-reference each other, as
+   shown below.
+   If multiple components are present, it is good idea to use separate
+   header files for the additional components.
 
    @see The @ref DLD "Colibri Sample DLD" its @ref DLD-fspec and
    its @ref DLD-lspec-thread
