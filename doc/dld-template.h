@@ -166,6 +166,9 @@ struct dld_sample_ds1 {
    The value of this field is inversely proportional to the square of the
    number of lines of comments in the DLD.
 </td></tr></table>
+   Note the indentation above, accomplished by means of an HTML table
+   is purely for visual effect in the Doxygen output. A real DLD should
+   not use this construct.
 
    The section could also describe what use it makes of data structures
    described elsewhere.
@@ -357,7 +360,7 @@ struct dld_sample_ds1 {
    Unit tests should be planned for all interfaces exposed by the component.
    Testing should not just include correctness tests, but should also
    test failure situations.  This includes testing of <i>expected</i>
-   returnerror codes when presented with invalid input or when encountering
+   return error codes when presented with invalid input or when encountering
    unexpected data or state.
    Note that assertions are not testable - the unit test program
    terminates!
