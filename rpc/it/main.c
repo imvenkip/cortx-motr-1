@@ -430,7 +430,7 @@ void send_ping_fop(int nr)
 	uint32_t			 nr_mod;
 	uint32_t			 nr_arr_member;
 	int				 i;
-	c2_time_t			 timeout;
+	//c2_time_t			 timeout;
 	struct c2_fop_type		*ftype;
 
 	nr_mod = cctx.pc_nr_ping_bytes % 8;
@@ -458,9 +458,9 @@ void send_ping_fop(int nr)
 	ftype->ft_ri_type = &c2_rpc_item_type_ping;
 	item->ri_session = &cctx.pc_rpc_session;
 	c2_rpc_post(item);
-	c2_time_set(&timeout, 60, 0);
-	timeout = c2_time_add(c2_time_now(), timeout);
-	c2_rpc_reply_timedwait(item, timeout);
+	//c2_time_set(&timeout, 60, 0);
+	//timeout = c2_time_add(c2_time_now(), timeout);
+	//c2_rpc_reply_timedwait(item, timeout);
 }
 
 /* Get stats from rpcmachine and print them */
@@ -732,7 +732,6 @@ void client_init()
 		send_ping_fop(i);
 	}
 */
-#if 0
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
@@ -741,7 +740,6 @@ void client_init()
 			C2_RPC_SESSION_IDLE,
 			timeout);
 	C2_ASSERT(cctx.pc_rpc_session.s_state == C2_RPC_SESSION_IDLE);
-#endif
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to terminate session\n");
