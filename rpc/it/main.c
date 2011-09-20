@@ -260,7 +260,6 @@ void server_rqh_init(int dummy)
 		c2_mutex_unlock(&c2_exec_queue_mutex);
 		item = container_of(q1, struct c2_rpc_item,
 				ri_dummy_qlinkage);
-		//C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
 		printf("REQH: got item [%d] %p\n", count, item);
 		fop = c2_rpc_item_to_fop(item);
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
@@ -431,6 +430,7 @@ void send_ping_fop(int nr)
 	uint32_t			 nr_mod;
 	uint32_t			 nr_arr_member;
 	int				 i;
+	//c2_time_t			 timeout;
 	struct c2_fop_type		*ftype;
 
 	nr_mod = cctx.pc_nr_ping_bytes % 8;
@@ -461,6 +461,9 @@ void send_ping_fop(int nr)
 	ftype->ft_ri_type = &c2_rpc_item_type_ping;
 	item->ri_session = &cctx.pc_rpc_session;
 	c2_rpc_post(item);
+	//c2_time_set(&timeout, 60, 0);
+	//timeout = c2_time_add(c2_time_now(), timeout);
+	//c2_rpc_reply_timedwait(item, timeout);
 }
 
 /* Get stats from rpcmachine and print them */
@@ -506,15 +509,6 @@ void print_stats(bool client, bool server)
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nAvg latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 
 	stats = &rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING];
@@ -547,15 +541,6 @@ void print_stats(bool client, bool server)
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nAvg latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 }
 

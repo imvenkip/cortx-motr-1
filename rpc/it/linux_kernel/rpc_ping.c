@@ -107,8 +107,6 @@ struct ping_ctx {
 	int					 pc_nr_ping_bytes;
 	/* number of client threads */
 	int					 pc_nr_client_threads;
-	/* switch to identify which type of fops have to be sent to rpc */
-	int					 pc_fop_switch;
 };
 
 #ifdef __KERNEL__
@@ -195,12 +193,6 @@ enum {
 /* Default number of client threads*/
 enum {
 	NR_CLIENT_THREADS = 1,
-};
-
-/* Switch for PING or IO fops */
-enum {
-	PING = 1,
-	IO,
 };
 
 enum {
@@ -326,7 +318,6 @@ void server_rqh_init(int dummy)
 		c2_mutex_unlock(&c2_exec_queue_mutex);
 		item = container_of(q1, struct c2_rpc_item,
 				ri_dummy_qlinkage);
-		C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
 		printf("REQH: got item [%d] %p\n", count, item);
 		fop = c2_rpc_item_to_fop(item);
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
@@ -411,10 +402,8 @@ void server_init(int dummy)
 	}
 	#else
 	sctx.pc_lhostname = "localhost";
-	#endif
-
-	//strcpy(hostbuf, "127.0.0.1");
 	strcpy(hostbuf, remote_hostaddr);
+	#endif
 
 	/* Init server side network domain */
 	rc = c2_net_domain_init(&sctx.pc_dom, sctx.pc_xprt);
@@ -455,7 +444,7 @@ void server_init(int dummy)
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			&sctx.pc_dom, addr_local);
+			&sctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -474,9 +463,8 @@ void server_init(int dummy)
 	}
 	#else
 	sctx.pc_rhostname = "localhost";
-	#endif
-	//strcpy(hostbuf, "127.0.0.1");
 	strcpy(hostbuf, local_hostaddr);
+	#endif
 
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
 	printf("Client Addr = %s\n",addr_remote);
@@ -499,59 +487,6 @@ void server_init(int dummy)
 
 cleanup:
 	do_cleanup();
-}
-#endif
-
-#ifndef __KERNEL__
-#define nfiles                   64
-#define ndatafids                8
-#define nfops                    256
-extern struct c2_fop_file_fid          *form_fids;
-extern uint64_t                        *file_offsets;
-extern struct c2_fop_io_vec           **form_write_iovecs;
-
-int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
-void init_fids(void);
-void populate_fids(void);
-void init_file_io_patterns(void);
-struct c2_fop *form_get_new_fop(void);
-
-/**
-  Init the data required for IO fops
- */
-void io_fop_data_init(void)
-{
-        C2_ALLOC_ARR(form_fids, nfiles);
-        init_fids();
-        populate_fids();
-        C2_ALLOC_ARR(file_offsets, ndatafids);
-        init_file_io_patterns();
-        C2_ALLOC_ARR(form_write_iovecs, nfops);
-}
-
-struct c2_mutex fid_mutex;
-
-/**
-  Create a random IO fop (either read or write) and post it to rpc layer
- */
-void send_random_io_fop(int nr)
-{
-        struct c2_fop           *fop;
-        struct c2_rpc_item      *item = NULL;
-
-	c2_mutex_lock(&fid_mutex);
-        fop = form_get_new_fop();
-	c2_mutex_unlock(&fid_mutex);
-        item = &fop->f_item;
-        c2_rpc_frm_item_populate_param(&fop->f_item);
-        item->ri_deadline = 0;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_group = NULL;
-	item->ri_mach = &cctx.pc_rpc_mach;
-        c2_rpc_item_type_attach(fop->f_type);
-        c2_rpc_item_attach(item);
-        item->ri_session = &cctx.pc_rpc_session;
-        c2_rpc_post(item);
 }
 #endif
 
@@ -665,25 +600,6 @@ void print_stats(bool client, bool server)
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 	#endif
 
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
-	#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-        usec += (uint64_t) (sec * 1000000);
-        printf("\nAvg latency    (usecs)   = %llu\n", usec);
-	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("Avg Throughput (MB/sec)  = %llu\n", thruput);
-	}
-	#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nAvg latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
-	#endif
 	printf("*********************************************\n");
 
 	stats = &rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING];
@@ -737,25 +653,6 @@ void print_stats(bool client, bool server)
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 	#endif
 
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
-	#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-        usec += (uint64_t) (sec * 1000000);
-	printf("\nAvg latency    (usecs)   = %llu\n", usec);
-	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("Avg Throughput (MB/sec)  = %llu\n", thruput);
-	}
-	#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nAvg latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
-	#endif
 	printf("*********************************************\n");
 }
 
@@ -792,8 +689,9 @@ void client_init(void)
 	}
 	#else
 	cctx.pc_lhostname = "localhost";
-	#endif
 	strcpy(hostbuf, local_hostaddr);
+	#endif
+
 	/* Init client side network domain */
 	rc = c2_net_domain_init(&cctx.pc_dom, cctx.pc_xprt);
 	if(rc != 0) {
@@ -851,8 +749,9 @@ void client_init(void)
 	}
 	#else
 	cctx.pc_rhostname = "localhost";
-	#endif
 	strcpy(hostbuf, remote_hostaddr);
+	#endif
+
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, cctx.pc_rport, RID);
 	printf("Server Addr = %s\n",addr_remote);
 
@@ -938,22 +837,12 @@ void client_init(void)
 		printf("Timeout for session create \n");
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
-	//io_fop_data_init();
-	#ifndef __KERNEL__
-	c2_mutex_init(&fid_mutex);
-	#endif
+
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		if (cctx.pc_fop_switch == PING)
-			rc = C2_THREAD_INIT(&client_thread[i], int,
-					NULL, &send_ping_fop,
-					0, "client_%d", i);
-		#ifndef __KERNEL__
-		else if (cctx.pc_fop_switch == IO)
-			rc = C2_THREAD_INIT(&client_thread[i], int,
-					NULL, &send_random_io_fop,
-					0, "client_%d", i);
-		#endif
+		rc = C2_THREAD_INIT(&client_thread[i], int,
+				NULL, &send_ping_fop,
+				0, "client_%d", i);
 		C2_ASSERT(rc == 0);
 	}
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
@@ -1004,9 +893,6 @@ void client_init(void)
 		printf("RPC connection terminate call successful \n");
 	}
 
-	#ifndef __KERNEL__
-	c2_mutex_fini(&fid_mutex);
-	#endif
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
@@ -1040,8 +926,7 @@ int main(int argc, char *argv[])
 	bool			 server = false;
 	bool			 client = false;
 	#ifndef __KERNEL__
-	bool			 pingfops = false;
-	bool			 iofops = false;
+	bool			 verbose = false;
 	const char		*server_name = NULL;
 	const char		*client_name = NULL;
 	int			 server_port = 0;
@@ -1063,8 +948,10 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 	#endif
-	c2_ping_fop_init();
+
 	c2_addb_choose_default_level(AEL_WARN);
+	c2_ping_fop_init();
+
 	#ifndef __KERNEL__
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
@@ -1076,12 +963,9 @@ int main(int argc, char *argv[])
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('P', "server port", "%i", &server_port),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
-		C2_FORMATARG('t', "number of client threads", "%i",
-							&nr_client_threads),
+		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
-		C2_FLAGARG('i', "send io fops", &iofops),
-		C2_FLAGARG('d', "send ping data fops", &pingfops),
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -1095,7 +979,6 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_ping_items = NR_PING_ITEMS;
 	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
-	cctx.pc_fop_switch = PING;
 
 	/* Set if passed through command line interface */
 	#ifdef __KERNEL__
@@ -1135,10 +1018,7 @@ int main(int argc, char *argv[])
 		cctx.pc_nr_ping_bytes = nr_ping_bytes;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
-	if (pingfops)
-		cctx.pc_fop_switch = PING;
-	if (iofops)
-		cctx.pc_fop_switch = IO;
+
 	#endif
 	/* Client part */
 	if(client) {

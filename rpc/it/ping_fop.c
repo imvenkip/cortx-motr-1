@@ -83,9 +83,20 @@ uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
 /* Init for ping reply fom */
 int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
+/*
+void c2_ping_fop_replied(struct c2_rpc_item *item, int rc)
+{
+	C2_PRE(item != NULL);
+	C2_PRE(c2_chan_has_waiters(&item->ri_chan));
+
+	c2_chan_signal(&item->ri_chan);
+}
+*/
+
 struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
+        //.rito_replied = c2_ping_fop_replied,
         .rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
@@ -146,16 +157,6 @@ struct c2_rpc_item_type c2_rpc_item_type_ping_rep = {
         .rit_ops = &rpc_item_ping_rep_type_ops,
 	.rit_flags = C2_RPC_ITEM_TYPE_REPLY
 };
-
-#if 0
-/**
- * FOP definitions for ping fop and its reply
- */
-C2_FOP_TYPE_DECLARE(c2_fop_ping, "Ping",
-		c2_fop_ping_opcode, &c2_fop_ping_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "Ping Reply",
-		c2_fop_ping_rep_opcode, &c2_fop_ping_rep_ops);
-#endif
 
 /* Ping fop assignment */
 C2_FOP_TYPE_DECLARE_NEW(c2_fop_ping, "ping fop",

@@ -27,11 +27,7 @@
 #include "lib/rwlock.h"
 #include "addb/addb.h"
 
-struct c2_fid;
 struct c2_fop;
-struct c2_fop_io_vec;
-struct c2_fop_file_fid;
-struct c2_rpc_slot;
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
@@ -48,13 +44,13 @@ struct c2_rpc_slot;
    The rpc items cache is grouped into several lists, either in the list
    of unbound items in some slot or list of ready items on a slot.
    Each list contains rpc items destined for given endpoint.
-   These lists are sorted by timeouts. So the items with least timeout
+   These lists are sorted by deadlines. So the items with least deadline 
    will be at the HEAD of list.
    Refer to the HLD of RPC Formation -
    https://docs.google.com/a/xyratex.com/Doc?docid=0AXXBPOl-5oGtZGRzMzZ2NXdfMGQ0ZjNweGdz&hl=en
 
    Formation is done on basis of various criterion
-   - timeout, including URGENT items (timeout = 0)
+   - deadline, including URGENT items (deadline = 0)
    - priority
    - rpc group
    - max_message_size (max permissible size of RPC object)
@@ -74,7 +70,7 @@ struct c2_rpc_slot;
    - deletion of rpc item.
    - change of parameter for an rpc item.
    - reply received.
-   - deadline expired (timeout) of an rpc item.
+   - deadline expired of an rpc item.
    - slot becomes idle.
    - unbounded item is added to the sessions list.
    - c2_net_buffer sent to destination, hence free it.
@@ -229,7 +225,7 @@ struct c2_rpc_frm_prio_list {
 struct c2_rpc_frm_sm {
 	/** Back link to struct c2_rpc_formation. */
 	struct c2_rpc_formation		*fs_formation;
-	/** Mutex protecting the unit from concurrent access. */
+	/** Mutex protecting the state machine from concurrent access. */
 	struct c2_mutex			 fs_lock;
 	/** Linkage into the list of formation state machines anchored
 	    at c2_rpc_formation::rf_frm_sm_list. */
@@ -245,9 +241,8 @@ struct c2_rpc_frm_sm {
 	    through c2_rpc::r_linkage. */
 	struct c2_list			 fs_rpcs;
 	/** Array of lists (one per priority band) containing unformed
-	    rpc items sorted according to increasing order of timeout. */
-	struct c2_rpc_frm_prio_list
-		fs_unformed_prio[C2_RPC_ITEM_PRIO_NR];
+	    rpc items sorted according to increasing order of deadline. */
+	struct c2_rpc_frm_prio_list	 fs_unformed[C2_RPC_ITEM_PRIO_NR];
 	/** Network layer attributes for buffer transfer. */
 	uint64_t			 fs_max_msg_size;
 	uint64_t			 fs_max_frags;
@@ -270,6 +265,8 @@ struct c2_rpc_frm_sm {
 	/** Number of timed out rpc items. If this number is greater
 	    than zero, formation algorithm will be invoked. */
 	uint64_t			 fs_timedout_items_nr;
+	/** Number of items still to be formed. */
+	uint64_t			 fs_items_left;
 };
 
 /**
@@ -292,6 +289,25 @@ struct c2_rpc_frm_buffer {
 };
 
 /**
+   c2_rpc is a container of c2_rpc_items.
+ */
+struct c2_rpc {
+	/** Linkage into list of rpc objects just formed or into the list
+	    of rpc objects which are ready to be sent on wire. */
+	struct c2_list_link		 r_linkage;
+	/** List of member rpc items. */
+	struct c2_list			 r_items;
+	/** Items in this rpc are sent via this session. */
+	struct c2_rpc_session		*r_session;
+	/** Formation attributes (buffer, magic) for the rpc. */
+	struct c2_rpc_frm_buffer	 r_fbuf;
+};
+
+void c2_rpcobj_init(struct c2_rpc *rpc);
+
+void c2_rpcobj_fini(struct c2_rpc *rpc);
+
+/**
    Connects resultant rpc item with its coalesced constituent rpc items.
    When a reply is received for a coalesced rpc item, it will find out
    the requesting coalesced rpc item and using this data structure,
@@ -304,8 +320,6 @@ struct c2_rpc_frm_item_coalesced {
 	struct c2_list_link		 ic_linkage;
 	/** Resultant coalesced rpc item */
 	struct c2_rpc_item		*ic_resultant_item;
-	/** No of constituent rpc items. */
-	uint64_t			 ic_member_nr;
 	/** List of constituent rpc items for this coalesced item linked
 	    through c2_rpc_item::ri_coalesced_linkage. */
 	struct c2_list			 ic_member_list;
@@ -335,50 +349,6 @@ struct c2_rpc_frm_group {
 };
 
 /**
-   Enumeration of internal and external events.
- */
-enum c2_rpc_frm_evt_id {
-	/** Slot ready to send next item. */
-	C2_RPC_FRM_EXTEVT_RPCITEM_READY = 0,
-	/** Reply received for an rpc item. */
-	C2_RPC_FRM_EXTEVT_RPCITEM_REPLY_RECEIVED,
-	/** Deadline expired for rpc item. */
-	C2_RPC_FRM_EXTEVT_RPCITEM_TIMEOUT,
-	/** Slot has become idle */
-	C2_RPC_FRM_EXTEVT_SLOT_IDLE,
-	/** Freestanding (unbounded) item added to session */
-	C2_RPC_FRM_EXTEVT_UBRPCITEM_ADDED,
-	/** An unsolicited rpc item is added. For this item, no replies
-	    are expected and they should be sent as unbound items. */
-	C2_RPC_FRM_EXTEVT_USRPCITEM_ADDED,
-	/** Network buffer can be freed */
-	C2_RPC_FRM_EXTEVT_NET_BUFFER_FREE,
-	/** RPC item removed from cache. */
-	C2_RPC_FRM_EXTEVT_RPCITEM_REMOVED,
-	/** Parameter change for rpc item. */
-	C2_RPC_FRM_EXTEVT_RPCITEM_CHANGED,
-	/** Max number of external events. */
-	C2_RPC_FRM_EXTEVT_NR,
-
-	/** Execution succeeded in current state. */
-	C2_RPC_FRM_INTEVT_STATE_SUCCEEDED = C2_RPC_FRM_EXTEVT_NR,
-	/** Execution failed in current state. */
-	C2_RPC_FRM_INTEVT_STATE_FAILED,
-	/** Execution completed, exit the state machine. */
-	C2_RPC_FRM_INTEVT_DONE,
-	/** Max number of events. */
-	C2_RPC_FRM_INTEVT_NR
-};
-
-/**
-   Event object for rpc formation state machine.
- */
-struct c2_rpc_frm_sm_event {
-	/** Event identifier. */
-	enum c2_rpc_frm_evt_id se_event;
-};
-
-/**
    Callback function for deletion of an rpc item from the rpc items cache.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
@@ -392,7 +362,7 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
 int c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
 				 enum c2_rpc_item_priority prio);
 
-int c2_rpc_frm_item_timeout_set(struct c2_rpc_item *item,
+int c2_rpc_frm_item_deadline_set(struct c2_rpc_item *item,
 				c2_time_t deadline);
 
 int c2_rpc_frm_item_group_set(struct c2_rpc_item *item,

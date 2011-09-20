@@ -776,10 +776,10 @@ out:
 	C2_POST(c2_rpc_conn_invariant(conn));
 	C2_POST(conn->c_state == C2_RPC_CONN_TERMINATED ||
 		conn->c_state == C2_RPC_CONN_FAILED);
+	rpc_chan_put(conn->c_rpcchan);
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 	/* Release the reference on c2_rpc_chan structure being used. */
-	rpc_chan_put(conn->c_rpcchan);
 }
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
