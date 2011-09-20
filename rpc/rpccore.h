@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -138,8 +139,6 @@
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
-struct c2_rpc_item;
-
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -165,22 +164,8 @@ enum c2_rpc_item_priority {
 
 #include "rpc/formation.h"
 
-/*Macro to enable RPC grouping test and debug code */
-
-#ifdef RPC_GRP_DEBUG
-#define MAX_RPC_ITEMS 6
-#define NO_OF_ENDPOINTS 3
-int32_t rpc_arr_index;
-int seed_val;
-#endif
-
-/* Number of default receive c2_net_buffers to be used with
-   each transfer machine.*/
-enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 128,
-};
-
 struct c2_rpc;
+struct c2_rpc_item;
 struct c2_addb_rec;
 struct c2_rpc_formation;
 struct c2_rpc_conn;
@@ -338,32 +323,6 @@ struct c2_update_stream {
         struct c2_mutex			   us_guard;
 };
 
-/** TBD in 'DLD RPC FOP:core wire formats':
-    c2_rpc is a container of c2_rpc_items. */
-struct c2_rpc {
-	/** Linkage into list of rpc objects just formed or into the list
-	    of rpc objects which are ready to be sent on wire. */
-	struct c2_list_link		 r_linkage;
-	struct c2_list			 r_items;
-
-	/** Items in this container should be sent via this session */
-	struct c2_rpc_session		*r_session;
-	/** Formation attributes (buffer, magic) for the rpc. */
-	struct c2_rpc_frm_buffer	 r_fbuf;
-};
-
-/**
-   Initialize an rpc object.
-   @param rpc - rpc object to be initialized
- */
-void c2_rpcobj_init(struct c2_rpc *rpc);
-
-/**
-   Finalize an rpc object.
-   @param rpc - rpc object to be finalized
- */
-void c2_rpcobj_fini(struct c2_rpc *rpc);
-
 /**
    Possible values for flags from c2_rpc_item_type.
  */
@@ -420,34 +379,13 @@ struct c2_rpc_item_type (itype) = {                      \
 	.rit_ops = (ops)                                 \
 };
 
-/**
-   Post an unsolicited item to rpc layer.
-   @param conn - c2_rpc_conn structure from which this item will be posted.
-   @param item - input rpc item.
-   @retval - 0 if routine succeeds, -ve with proper error code otherwise.
- */
-int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
-		struct c2_rpc_item *item);
+int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
+				 struct c2_rpc_item *item);
 
-/**
-   Tell whether given item is bound.
-   @param item - Input rpc item
-   @retval - TRUE if bound, FALSE otherwise.
- */
 bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
 
-/**
-   Tell whether given item is unbound.
-   @param item - Input rpc item
-   @retval - TRUE if unbound, FALSE otherwise.
- */
 bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
-/**
-   Tell whether given item is unsolicited.
-   @param item - Input rpc item
-   @retval - TRUE if unsolicited, FALSE otherwise.
- */
 bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
 
 enum c2_rpc_item_state {
@@ -492,21 +430,11 @@ enum {
    included in every item being sent via RPC layer core to emulate relationship
    similar to inheritance and to allow extening the set of rpc_items without
    modifying core rpc headers.
-
-   Example:
-   struct c2_fop {
-	//...
-	struct c2_rpc_item f_item;
-	//...
-   };
+   @see c2_fop.
  */
 struct c2_rpc_item {
 	struct c2_rpcmachine		*ri_mach;
 	struct c2_chan			 ri_chan;
-	/** linakge to list of rpc items in a c2_rpc_formation_list */
-	struct c2_list_link		 ri_linkage;
-	struct c2_ref			 ri_ref;
-
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
 	struct c2_rpc_group		*ri_group;
@@ -538,10 +466,8 @@ struct c2_rpc_item {
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Dummy queue linkage to dummy reqh */
 	struct c2_queue_link		 ri_dummy_qlinkage;
-	/** Entry time into rpc layer */
-	c2_time_t			 ri_rpc_entry_time;
-	/** Entry time into rpc layer */
-	c2_time_t			 ri_rpc_exit_time;
+	/** Time spent in rpc layer. */
+	c2_time_t			 ri_rpc_time;
 };
 
 /** Enum to distinguish if the path is incoming or outgoing */
@@ -560,10 +486,8 @@ struct c2_rpc_stats {
 	uint64_t	rs_items_nr;
 	/** Number of bytes processed */
 	uint64_t	rs_bytes_nr;
-	/** Instanteneous Latency */
-	c2_time_t	rs_i_lat;
-	/** Average Latency */
-	c2_time_t	rs_avg_lat;
+	/** Cumulative latency. */
+	c2_time_t	rs_cumu_lat;
 	/** Min Latency */
 	c2_time_t	rs_min_lat;
 	/** Max Latency */
@@ -583,10 +507,9 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
  */
 void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
 
-/**
-   Initialises RPC item.
- */
-int c2_rpc_item_init(struct c2_rpc_item *item);
+void c2_rpc_item_init(struct c2_rpc_item *item);
+
+void c2_rpc_item_fini(struct c2_rpc_item *item);
 
 void c2_rpc_item_fini(struct c2_rpc_item *item);
 
@@ -600,76 +523,18 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
  */
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
-/** DEFINITIONS of RPC layer core DLD: */
-
-/** c2_rpc_formation_list is a structure which represents groups
-    of c2_rpc_items, sorted by some criteria (endpoint,...) */
-struct c2_rpc_formation_list {
-	/* linkage into list of all classification lists in a c2_rpc_processing */
-	struct c2_list_link re_linkage;
-
-	/** listss of c2_rpc_items going to the same endpoint */
-	struct c2_list re_items;
-	struct c2_net_end_point *endpoint;
-	/*Mutex to guard this list */
-	struct c2_mutex re_guard;
-};
-
-/** Group of rpc items to be transmitted in the same
-    update stream
- */
 struct c2_rpc_group {
-	struct c2_rpcmachine *rg_mach;
-	/** c2_list<c2_rpc_item> list of rpc items */
-	struct c2_list rg_items;
+	struct c2_rpcmachine	*rg_mach;
+	/** List of rpc items linked through c2_rpc_item:ri_group_linkage. */
+	struct c2_list		 rg_items;
 	/** expected number of items in the group */
-	size_t rg_expected;
-        /** number of items for which no reply is yet received. */
-        uint32_t nr_residual;
-        /** set to a (negated) error code when there was an error in
-	    processing of an item in the group. */
-        int32_t rg_rc;
+	uint64_t		 rg_expected;
         /** lock protecting fields of the struct */
-        struct c2_mutex rg_guard;
+        struct c2_mutex		 rg_guard;
 	/** signalled when a reply is received or an error happens
 	     (usually a timeout). */
-	struct c2_chan rg_chan;
-	/** Flag to debug */
-	int rg_grpid;
+	struct c2_chan		 rg_chan;
 };
-
-/**
-   Different settings and presets of c2_rpc_processing.
- */
-struct c2_rpc_processing_ctl {
-};
-
-/**
-   RPC processing context used in grouping/formation/output stages.
- */
-struct c2_rpc_processing {
-	struct c2_rpc_processing_ctl crp_ctl;
-
-	/** GROUPING RELATED DATA: */
-	/**  c2_list<c2_rpc_formation_list>: list of groups sorted by endpoints */
-	struct c2_list  crp_formation_lists;
-
-	/** FORMATION RELATED DATA: */
-	/** c2_list<c2_rpc>: list of formed RPC items */
-	struct c2_list crp_form;
-
-	struct c2_list crp_us_list; /* list of update streams in this machine */
-
-	struct c2_mutex crp_guard; /* lock protecting fields of the struct */
-
-	/** OUTPUT RELATED DATA: */
-};
-
-/**
-   Transfer machine callback vector for transfer machines created by
-   rpc layer.
- */
-extern struct c2_net_tm_callbacks c2_rpc_tm_callbacks;
 
 /**
    This structure contains list of {endpoint, transfer_mc} tuples
@@ -687,7 +552,10 @@ struct c2_rpc_ep_aggr {
 };
 
 /**
-   A physical node can have multiple endpoints associated with it.
+   Struct c2_rpc_chan provides information about a target network endpoint.
+   An rpc machine (struct c2_rpcmachine) contains list of c2_rpc_chan structures
+   targeting different net endpoints.
+   Rationale A physical node can have multiple endpoints associated with it.
    And multiple services can share endpoints for transport.
    The rule of thumb is to use one transfer machine per endpoint.
    So to make sure that services using same endpoint,
@@ -720,7 +588,6 @@ struct c2_rpcmachine {
 	struct c2_rpc_ep_aggr		 cr_ep_aggr;
 	/* Formation module associated with this rpcmachine. */
 	struct c2_rpc_formation		 cr_formation;
-	struct c2_rpc_processing	 cr_processing;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		*cr_dom;
 	/** List of rpc connections
@@ -743,19 +610,6 @@ struct c2_rpcmachine {
 };
 
 /**
-   This routine does all the network activities associated with given
-   rpc machine. This includes creation of new c2_rpc_chan structure
-   which internally initializes a transfer mc, then starting the
-   transfer mc and allocate some net buffers meant to receive messages.
-   @param machine - concerned c2_rpcmachine.
-   @param net_dom - Network domain associated with given rpcmachine.
-   @param ep_addr - End point address to associate with the transfer mc.
- */
-int c2_rpcmachine_net_init(struct c2_rpcmachine *machine,
-		struct c2_net_domain *net_dom,
-		const char *ep_addr);
-
-/**
    Construct rpc core layer
    @return 0 success
    @return -ENOMEM failure
@@ -770,13 +624,11 @@ void c2_rpc_core_fini(void);
    module, a formation module, sending/receiving logic and statistics
    components are associated.
 
-   @param machine - Input rpcmachine object.
-   @param dom - cob domain that contains cobs representing slots
-   @param net_dom - Network domain, this rpcmachine is associated with.
-   @param ep_addr - End point address to associate with the transfer mc.
+   @param machine Input rpcmachine object.
+   @param dom cob domain that contains cobs representing slots
+   @param net_dom Network domain, this rpcmachine is associated with.
+   @param ep_addr Source end point address to associate with the transfer mc.
    @pre c2_rpc_core_init().
-   @return 0 success
-   @return -ENOMEM failure
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
@@ -790,39 +642,10 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
  */
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
 
-/* @name processing_if PROCESSING IFs: @{ */
-
-/**
-   Submit rpc item into processing engine
-   or change parameters (priority, caching policy
-   and group membership) of an already submitted item.
-
-   @param us update stream used to send the group or NULL for
-	  "unbounded items" that don't need update stream semantics.
-   @param item rpc item being sent
-   @param prio priority of processing of this item
-   @param deadline maximum processing time of this item
-
-
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
-   @return 0  success
-   @return <0 failure
- */
-int c2_rpc_submit(struct c2_service_id		*srvid,
-		  struct c2_update_stream	*us,
-		  struct c2_rpc_item		*item,
-		  enum c2_rpc_item_priority	prio,
-		  const c2_time_t		*deadline);
-
-int c2_rpc_reply_submit(struct c2_rpc_item	*request,
-			struct c2_rpc_item	*reply,
-			struct c2_db_tx		*tx);
-
 /**
   Posts an unbound item to the rpc layer.
 
-  The item will be send trough one of item->ri_session slots.
+  The item will be sent through one of item->ri_session slots.
 
   The rpc layer will try to send the item out not later than
   item->ri_deadline and with priority of item->ri_priority.
@@ -858,17 +681,6 @@ int c2_rpc_reply_post(struct c2_rpc_item *request,
 		      struct c2_rpc_item *reply);
 
 /**
-   Cancel submitted RPC-item
-   @param item rpc item being sent
-
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
-   @return 0  success
-   @return -EBUSY if item is in SENT, REPLIED or FINALIZED state
- */
-int c2_rpc_cancel(struct c2_rpc_item *item);
-
-/**
    Generate group used to treat rpc items as a group.
 
    @param machine rpcmachine operation applied to.
@@ -894,7 +706,7 @@ int c2_rpc_group_open(struct c2_rpcmachine *machine,
    @return 0  success
    @return <0 failure
  */
-int c2_rpc_group_close(struct c2_rpcmachine *machine, struct c2_rpc_group *group);
+int c2_rpc_group_close(struct c2_rpc_group *group);
 
 /**
    Submit rpc item group into processing engine.
@@ -928,7 +740,7 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
  */
-int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t *timeout);
+int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t timeout);
 
 /**
    Wait for the reply on group of items being sent.
@@ -969,49 +781,29 @@ int c2_rpc_update_stream_get(struct c2_rpcmachine *machine,
 */
 void c2_rpc_update_stream_put(struct c2_update_stream *us);
 
-/** @} end name processing_if */
-
 /**
    @name stat_ifs STATISTICS IFs
-    Iterfaces, returning different properties of rpcmachine.
-    @{
+   Iterfaces, returning different properties of rpcmachine.
+   @{
  */
-
-/**
-   Returns the count of items in the cache selected by priority
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
-   @param machine rpcmachine operation applied to.
-   @param prio priority of cache
-
-   @return itmes count in cache selected by priority
- */
-size_t c2_rpc_cache_item_count(struct c2_rpcmachine *machine,
-			       enum c2_rpc_item_priority prio);
-
-/**
-   Returns count of RPC items in processing
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
-   @param machine rpcmachine operation applied to.
-
-   @return count of RPCs in processing
- */
-size_t c2_rpc_rpc_count(struct c2_rpcmachine *machine);
 
 /**
    Returns average time spent in the cache for one RPC-item
    @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
-   @param time[out] average time spent in processing on one RPC
+   @param path Incoming or outgoing path of rpc item.
  */
-void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
-			      c2_time_t		   *time);
+c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
+			       const enum c2_rpc_item_path path);
 
 /**
    Returns transmission speed in bytes per second.
    @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
+   @param path Incoming or outgoing path of rpc item.
  */
-size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
+size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
+			    const enum c2_rpc_item_path path);
 
 /** @} end name stat_ifs */
 
