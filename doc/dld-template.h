@@ -137,6 +137,8 @@
    functional specification section.
    - <b>R.DLD.How</b> The DLD shall explain its inner algorithms through
    a logical specification section.
+   - <b>R.DLD.Maintainable</b> The DLD shall be easily maintainable during
+   the lifetime of the code.
 
    <hr>
    @section DLD-fspec Functional Specification
@@ -151,7 +153,7 @@
    required here, just the salient points. For example:
 
 <table border="0">
-<tr><td>&nbrsp; &nbrsp; &nbrsp; &nbrsp; &nbrsp; &nbrsp;</td><td>
+<tr><td>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</td><td>
    The @c dld_sample_ds1 structure tracks the density of the
    electro-magnetic field with the following:
 @code
@@ -218,15 +220,46 @@ struct dld_sample_ds1 {
    Any of these sub-sections can utilize diagrams if needed.
    UML and sequence diagrams often illustrate points better than
    any written explanation.  For example:
-   <img src="../../doc/dld-sample.gif" alt="doc/dld-sample.gif">
+   <img src="../../doc/dld-sample-uml.png">
    An image is relatively easy to load, provided you remember that the
    doxygen output is viewed from the doc/html directory, so all paths
-   should be relative to that frame of reference.
+   should be relative to that frame of reference.  I found that a PNG
+   format image from Visio shows up with the correct image size while
+   a GIF image was wrongly sized.
 
    @subsection DLD-lspec-ovw Design overview
    Mandatory.
    This section provides a brief overview of the design, its
    internal logical decomposition if any, etc.
+
+   Diagrams are always useful.  Doxygen is limited in its internal
+   support for diagrams.  One of the promising built in support commands
+   is @@msc, which is used to run @c mscgen.  This is used to create
+   sequence diagrams. For example:
+   @msc
+  a,b,c;
+
+  a->b [ label = "ab()" ] ;
+  b->c [ label = "bc(TRUE)"];
+  c=>c [ label = "process(1)" ];
+  c=>c [ label = "process(2)" ];
+  ...;
+  c=>c [ label = "process(n)" ];
+  c=>c [ label = "process(END)" ];
+  a<<=c [ label = "callback()"];
+  ---  [ label = "If more to run", ID="*" ];
+  a->a [ label = "next()"];
+  a->c [ label = "ac1()\nac2()"];
+  b<-c [ label = "cb(TRUE)"];
+  b->b [ label = "stalled(...)"];
+  a<-b [ label = "ab() = FALSE"];
+   @endmsc
+   Note that when entering commands for @c mscgen, do not include the
+   <tt>msc { ... }</tt> block delimiters.
+
+   You need the @c mscgen program installed on your system - it is part
+   of the Scientific Linux based DevVM.
+
 
    @subsection DLD-lspec-sc1 Sub-component1 design
    This section describes the design of <i>Sub-component1</i>. \&c
@@ -236,11 +269,12 @@ struct dld_sample_ds1 {
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.
 
-   Diagrams are almost essential here. Use the dot support built
+   Diagrams are almost essential here. Use the @@dot support built
    into Doxygen.  Here, for example, is a figure from the "rpc/session.h"
    file:
    @dot
    digraph example {
+       size = "5,6"
        node [shape=record, fontname=Helvetica, fontsize=10]
        S0 [label="", shape="plaintext", layer=""]
        S1 [label="Uninitialized"]
@@ -264,6 +298,7 @@ struct dld_sample_ds1 {
        S8 -> S7 [label="c2_rpc_conn_fini()"]
    }
    @enddot
+   The @c dot program is part of the Scientific Linux DevVM.
 
    @subsection DLD-lspec-thread Threading and Concurrency Model
    Mandatory.
@@ -285,14 +320,34 @@ struct dld_sample_ds1 {
    Conversely, it can describe if sub-optimal behavior arises due
    to contention for shared component resources by multiple processors.
 
-   The section is marked mandatory because if forces the designer to
+   The section is marked mandatory because it forces the designer to
    consider these aspects of concurrency.
 
    @subsection DLD-conformance Conformance
    Mandatory.
    This section cites each requirement in the @ref DLD-req section,
    and explains briefly how the DLD meets the requirement.
+   Note the subtle difference in that <b>I</b> tags are used instead of
+   the <b>R</b> tags of the requirements section.  The @b I of course,
+   stands for "implements".
 
+   - <b>I.DLD.Structured</b> The DLD specification provides a structural
+   breakdown along the lines of the HLD specification.  This makes it
+   easy to understand and analyse the various facets of the design.
+   - <b>I.DLD.What</b> The DLD style guide requires that a
+   DLD contain a Functional Specification section.
+   - <b>I.DLD.How</b> The DLD style guide requires that a
+   DLD contain a Logical Specification section.
+   - <b>I.DLD.Maintainable</b> The DLD style guide requires that the
+   DLD be written in the main header file of the component.
+   It can be maintained along with the code, without
+   requiring one to resort to other documents and tools.  The only
+   exception to this would be for images referenced by the DLD specification,
+   as Doxygen does not provide sufficient support for this purpose.
+
+   This section is meant as a cross check for the DLD writer to ensure
+   that all requirements have been addressed.  It is recommended that you
+   fill it in as part of the DLD review.
 
    <hr>
    @section DLD-ut Unit Tests
@@ -340,10 +395,11 @@ struct dld_sample_ds1 {
    References to other documents are essential.  In particular a link
    to the HLD for the DLD should be provided.
    - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>
-   - <a href="http://www.stack.nl/~dimitri/doxygen/maual.html">Doxygen
+   - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Doxygen
    Manual</a>
    - <a href="http://www.graphviz.org">Graphviz - Graph Visualization
-   Software</b> for documentation on the @c dot command.
+   Software</a> for documentation on the @c dot command.
+   - <a href="http://www.mcternan.me.uk/mscgen">Mscgen home page</a>
 
  */
 
