@@ -31,9 +31,6 @@
 
 #include "cob/cob.h"
 
-#ifdef __KERNEL__
-#define printf printk
-#endif
 /**
    @addtogroup cob
    @{
@@ -742,12 +739,6 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 				nskey->cnk_name.b_data,
 				nsrec.cnr_stobid.si_bits.u_hi,
 				nsrec.cnr_stobid.si_bits.u_lo);
-		#else
-		printf("[%llu:%llu:%s] -> [%llu:%llu]\n", nskey->cnk_pfid.si_bits.u_hi,
-				nskey->cnk_pfid.si_bits.u_lo,
-				nskey->cnk_name.b_data,
-				nsrec.cnr_stobid.si_bits.u_hi,
-				nsrec.cnr_stobid.si_bits.u_lo);
 		#endif
 	}
 
@@ -756,8 +747,8 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_tx_commit(&tx);
-	
-}	
+
+}
 
 void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 {
@@ -784,11 +775,6 @@ void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 				key.si_bits.u_lo,
 				rec.cfb_version.vn_lsn,
 				rec.cfb_version.vn_vc);
-		#else	
-		printf("[%llu:%llu] -> [%llu:%llu]\n", key.si_bits.u_hi,
-				key.si_bits.u_lo,
-				rec.cfb_version.vn_lsn,
-				rec.cfb_version.vn_vc);
 		#endif
 	}
 
@@ -797,8 +783,8 @@ void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_tx_commit(&tx);
-	
-}	
+
+}
 /** @} end group cob */
 
 /*
