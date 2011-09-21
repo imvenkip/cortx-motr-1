@@ -1168,14 +1168,11 @@ void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
 void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpcmachine *mach, const enum c2_rpc_item_path path)
 {
-	struct c2_rpc_stats	*st;
-
 	C2_PRE(rpcobj != NULL);
 	C2_PRE(mach != NULL);
 
-	st = &mach->cr_rpc_stats[path];
 	c2_mutex_lock(&mach->cr_stats_mutex);
-	st->rs_rpcs_nr++;
+	mach->cr_rpc_stats[path].rs_rpcs_nr++;
 	c2_mutex_unlock(&mach->cr_stats_mutex);
 }
 

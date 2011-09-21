@@ -90,7 +90,6 @@ static void frm_item_rpc_stats_set(struct c2_rpc *rpc)
 		return;
 	first_item = c2_list_entry((c2_list_first(&rpc->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
-	rpc->r_session = first_item->ri_session;
 	rpcobj_exit_stats_set(rpc,
 			first_item->ri_session->s_conn->c_rpcmachine,
 			C2_RPC_PATH_OUTGOING);

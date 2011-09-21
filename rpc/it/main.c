@@ -490,7 +490,7 @@ void print_stats(bool client, bool server)
 			stats->rs_rpcs_nr);
 	packing_density = (double) stats->rs_items_nr /
 		(double)stats->rs_rpcs_nr;
-	printf("RPC packing density = %lf\n", packing_density);
+	printf("RPC packing density      = %lf\n", packing_density);
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
@@ -527,7 +527,7 @@ void print_stats(bool client, bool server)
 			stats->rs_rpcs_nr);
 	packing_density = (double) stats->rs_items_nr /
 		(double) stats->rs_rpcs_nr;
-	printf("RPC packing density = %lf\n", packing_density);
+	printf("RPC packing density      = %lf\n", packing_density);
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
