@@ -224,7 +224,7 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
    Helper function used by encode/decode ops of each item type (rito_encode,
    rito_decode) for decoding an rpc item into/from a bufvec
 */
-static int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
+int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 		       enum c2_bufvec_what what)
 {
 	int		 rc;
@@ -455,7 +455,6 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 		rc = item_type->rit_ops->rito_decode(item_type, &item, &cur);
 		if (rc != 0)
 			return rc;
-		item->ri_src_ep = nb->nb_ep;
 		item_verify(item);
 		offset += item_type->rit_ops->rito_item_size(item);
 		if (offset > len)

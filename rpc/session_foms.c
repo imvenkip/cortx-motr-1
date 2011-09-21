@@ -64,6 +64,7 @@ struct c2_fom_type c2_rpc_fom_conn_establish_type = {
 int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_establish_rep *reply;
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpc_fop_conn_establish     *request;
 	struct c2_rpc_fom_conn_establish     *fom_ce;
 	struct c2_fop                        *fop;
@@ -74,10 +75,10 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	struct c2_rpc_slot                   *slot;
 	int                                   rc;
 
-	fom_ce = container_of(fom, struct c2_rpc_fom_conn_establish, fce_gen);
+	C2_PRE(fom != NULL);
 
-	C2_PRE(fom != NULL && fom_ce != NULL && fom_ce->fce_fop != NULL &&
-			fom_ce->fce_fop_rep != NULL);
+	fom_ce = container_of(fom, struct c2_rpc_fom_conn_establish, fce_gen);
+	C2_ASSERT(fom_ce->fce_fop != NULL && fom_ce->fce_fop_rep != NULL);
 
 	/* Request fop */
 	fop = fom_ce->fce_fop;
@@ -91,7 +92,15 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 
 	/* request item */
 	item = &fop->f_item;
-	C2_ASSERT(item->ri_mach != NULL && item->ri_src_ep != NULL);
+
+	/*
+	 * On receiver side CONN_ESTABLISH fop is wrapped in
+	 * c2_rpc_fop_conn_etablish_ctx object.
+	 * See conn_establish_item_decode()
+	 */
+	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
+	C2_ASSERT(ctx != NULL && ctx->cec_sender_ep != NULL &&
+				 ctx->cec_rpcmachine != NULL);
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL) {
@@ -99,7 +108,8 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		goto out;
 	}
 
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_src_ep, item->ri_mach,
+	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep,
+				  ctx->cec_rpcmachine,
 				  &item->ri_slot_refs[0].sr_uuid);
 	if (rc != 0)
 		goto out_free;
@@ -162,6 +172,9 @@ out_free:
 	c2_free(conn);
 
 out:
+	c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
+	c2_free(ctx);
+
 	/*
 	 * IMPORTANT: No reply is sent if conn establishing is failed.
 	 *
@@ -242,8 +255,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	}
 
 	item = &fop->f_item;
-	C2_ASSERT(item->ri_mach != NULL &&
-		  item->ri_session != NULL);
+	C2_ASSERT(item->ri_session != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
@@ -339,7 +351,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	reply->rstr_session_id = session_id = request->rst_session_id;
 
 	item = &fom_st->fst_fop->f_item;
-	C2_ASSERT(item->ri_mach != NULL);
+	C2_ASSERT(item->ri_session != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
@@ -430,7 +442,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	reply->ctr_sender_id = request->ct_sender_id;
 
 	item = &fop->f_item;
-	C2_ASSERT(item->ri_mach != NULL);
+	C2_ASSERT(item->ri_session != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);

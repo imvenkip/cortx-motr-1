@@ -392,7 +392,8 @@ struct c2_rpc_slot_ref {
    else
 	report REPLY_RECEIVED to appropriate slot
  */
-int c2_rpc_item_received(struct c2_rpc_item *item);
+int c2_rpc_item_received(struct c2_rpc_item   *item,
+			 struct c2_rpcmachine *machine);
 
 /**
    Adds an item to slot->sl_item_list, without triggering
@@ -477,6 +478,13 @@ struct c2_rpc_slot_ops {
    Returns true iff given rpc item is conn_establish.
  */
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
+
+/**
+   @see c2_rpc_fop_conn_establish_ctx for more information.
+ */
+void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
+					struct c2_net_end_point *ep,
+					struct c2_rpcmachine    *machine);
 
 /**
    Helper routine, internal to rpc module.

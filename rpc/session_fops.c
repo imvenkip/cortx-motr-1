@@ -41,7 +41,8 @@
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
 #include "rpc/session_internal.h"
-#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
+#include "rpc/rpc_onwire.h" /* item_encdec() */
+
 /**
    @addtogroup rpc_session
 
@@ -93,6 +94,7 @@ int c2_rpc_fop_conn_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_conn_establish *fom_ce;
 	struct c2_fom                    *fom;
+	struct c2_fop                    *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -108,12 +110,16 @@ int c2_rpc_fop_conn_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_conn_establish_ops;
 
 	fom_ce->fce_fop = fop;
-	fom_ce->fce_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt,
-						NULL);
-	if (fom_ce->fce_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_ce);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_ce->fce_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
@@ -123,6 +129,7 @@ int c2_rpc_fop_session_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_session_establish *fom_se;
 	struct c2_fom                       *fom;
+	struct c2_fop                       *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -137,12 +144,16 @@ int c2_rpc_fop_session_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_session_establish_ops;
 
 	fom_se->fse_fop = fop;
-	fom_se->fse_fop_rep = c2_fop_alloc(
-				&c2_rpc_fop_session_establish_rep_fopt, NULL);
-	if (fom_se->fse_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_session_establish_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_se);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_se->fse_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
@@ -153,6 +164,7 @@ int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
 {
 	struct c2_rpc_fom_session_terminate *fom_st;
 	struct c2_fom                       *fom;
+	struct c2_fop                       *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -167,12 +179,16 @@ int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
 	fom->fo_ops = &c2_rpc_fom_session_terminate_ops;
 
 	fom_st->fst_fop = fop;
-	fom_st->fst_fop_rep = c2_fop_alloc(
-				&c2_rpc_fop_session_terminate_rep_fopt, NULL);
-	if (fom_st->fst_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_st);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_st->fst_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
@@ -182,6 +198,7 @@ int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_conn_terminate *fom_ct;
 	struct c2_fom                    *fom;
+	struct c2_fop                    *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -196,12 +213,16 @@ int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_conn_terminate_ops;
 
 	fom_ct->fct_fop = fop;
-	fom_ct->fct_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_terminate_rep_fopt,
-						NULL);
-	if (fom_ct->fct_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_ct);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_ct->fct_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
@@ -299,16 +320,75 @@ int c2_rpc_session_fop_init(void)
 	return result;
 }
 
+void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
+					struct c2_net_end_point *ep,
+					struct c2_rpcmachine    *machine)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+
+	C2_PRE(item != NULL && ep != NULL && machine != NULL);
+
+	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
+				cec_fop.f_item);
+	C2_ASSERT(ctx != NULL);
+
+	ctx->cec_sender_ep = ep;
+	ctx->cec_rpcmachine = machine;
+}
+static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
+				      struct c2_rpc_item     **item,
+				      struct c2_bufvec_cursor *cur)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+	struct c2_fop                        *fop;
+	int                                   rc;
+
+	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
+	C2_PRE(item_type == &c2_rpc_item_conn_establish);
+
+	*item = NULL;
+
+	C2_ALLOC_PTR(ctx);
+	if (ctx == NULL)
+		return -ENOMEM;
+
+	ctx->cec_sender_ep = NULL;
+	fop = &ctx->cec_fop;
+
+	rc = c2_fop_init(fop, &c2_rpc_fop_conn_establish_fopt, NULL);
+	if (rc != 0)
+		goto out;
+
+	//c2_rpc_item_init(&fop->f_item);
+	//fop->f_item.ri_type = fop->f_type->ft_ri_type;
+
+	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
+	if (rc != 0)
+		goto out;
+
+	*item = &fop->f_item;
+	return 0;
+out:
+	c2_free(ctx);
+	return rc;
+}
+
 static struct c2_rpc_item_type_ops default_item_type_ops = {
 	.rito_encode = c2_rpc_fop_default_encode,
 	.rito_decode = c2_rpc_fop_default_decode,
         .rito_item_size = c2_rpc_item_default_size,
 };
 
+static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
+	.rito_encode = c2_rpc_fop_default_encode,
+	.rito_decode = conn_establish_item_decode,
+        .rito_item_size = c2_rpc_item_default_size,
+};
+
 C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_establish,
 		     C2_RPC_FOP_CONN_ESTABLISH_OPCODE,
 		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-		     &default_item_type_ops);
+		     &conn_establish_item_type_ops);
 
 C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_terminate,
 		     C2_RPC_FOP_CONN_TERMINATE_OPCODE,

@@ -493,8 +493,17 @@ enum c2_rpc_conn_flags {
   all the state transitions of conn internally.
  */
 struct c2_rpc_conn {
+	/** Sender ID unique on receiver */
+	uint64_t                  c_sender_id;
+
 	/** Globally unique ID of rpc connection */
 	struct c2_rpc_sender_uuid c_uuid;
+
+	/** Current state of rpc connection */
+	enum c2_rpc_conn_state    c_state;
+
+	/** @see c2_rpc_conn_flags for list of flags */
+	uint64_t                  c_flags;
 
 	/** rpcmachine with which this conn is associated */
 	struct c2_rpcmachine     *c_rpcmachine;
@@ -505,11 +514,17 @@ struct c2_rpc_conn {
 	 */
 	struct c2_list_link       c_link;
 
-	/** Current state of rpc connection */
-	enum c2_rpc_conn_state    c_state;
+	/** Counts number of sessions (excluding session 0) */
+	uint64_t                  c_nr_sessions;
 
-	/** @see c2_rpc_conn_flags for list of flags */
-	uint64_t                  c_flags;
+	/** List of all the sessions created under this rpc connection.
+	    c2_rpc_session objects are placed in this list using
+	    c2_rpc_session::s_link
+	 */
+	struct c2_list            c_sessions;
+
+	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
+	int32_t                   c_rc;
 
 	/** A c2_rpc_chan structure that will point to the transfer
 	    machine used by this c2_rpc_conn.
@@ -522,27 +537,12 @@ struct c2_rpc_conn {
 	/** cob representing the connection */
 	struct c2_cob            *c_cob;
 
-	/** Sender ID unique on receiver */
-	uint64_t                  c_sender_id;
-
-	/** List of all the sessions created under this rpc connection.
-	    c2_rpc_session objects are placed in this list using
-	    c2_rpc_session::s_link
-	 */
-	struct c2_list            c_sessions;
-
-	/** Counts number of sessions (excluding session 0) */
-	uint64_t                  c_nr_sessions;
-
 	/** Conditional variable on which "connection state changed" signal
 	    is broadcast
 	 */
 	struct c2_cond            c_state_changed;
 
 	struct c2_mutex           c_mutex;
-
-	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
-	int32_t                   c_rc;
 };
 
 /**
@@ -582,6 +582,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
    @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
 		conn->c_state == C2_RPC_CONN_TERMINATING
+   @post ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -726,9 +727,9 @@ enum c2_rpc_session_state {
 	  |           |               |                 | +-----+
 	  |           |failed         |                 | |     | item add/n++
 	  |           |               V  item add/n++   | V     | reply rcvd/n--
-	  |           |             IDLE--------------->BUSY----+
+	  |           +-------------IDLE--------------->BUSY----+
 	  |           |               |
-	  | fini()    |               | session_terminate
+	  | fini()    |               | c2_rpc_session_terminate()
 	  |           |               V
 	  |           +----------TERMINATING
 	  |                           |
@@ -824,30 +825,22 @@ enum c2_rpc_session_state {
    send replies.
  */
 struct c2_rpc_session {
-	/** linkage into list of all sessions within a c2_rpc_conn */
-	struct c2_list_link       s_link;
-
-	/** Current state of session */
-	enum c2_rpc_session_state s_state;
-
 	/** identifies a particular session. Unique in all sessions belonging
 	    to same c2_rpc_conn
 	 */
 	uint64_t                  s_session_id;
 
-	/** Cob representing this session in persistent state */
-	struct c2_cob            *s_cob;
+	/** Current state of session */
+	enum c2_rpc_session_state s_state;
 
 	/** rpc connection on which this session is created */
 	struct c2_rpc_conn       *s_conn;
 
-	/** A condition variable on which broadcast is sent whenever state of
-	    session is changed. Associated with s_mutex
-	 */
-	struct c2_cond            s_state_changed;
+	/** linkage into list of all sessions within a c2_rpc_conn */
+	struct c2_list_link       s_link;
 
-	/** lock protecting this session and slot table */
-	struct c2_mutex           s_mutex;
+	/** Cob representing this session in persistent state */
+	struct c2_cob            *s_cob;
 
 	/** Number of items that needs to be sent or their reply is
 	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
@@ -875,6 +868,14 @@ struct c2_rpc_session {
 		denoting cause of failure
 	 */
 	int32_t                   s_rc;
+
+	/** lock protecting this session and slot table */
+	struct c2_mutex           s_mutex;
+
+	/** A condition variable on which broadcast is sent whenever state of
+	    session is changed. Associated with s_mutex
+	 */
+	struct c2_cond            s_state_changed;
 };
 
 /**
@@ -914,6 +915,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_TERMINATING
+   @post ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 
@@ -1093,9 +1095,9 @@ struct c2_rpc_slot {
 	 */
 	struct c2_list                sl_ready_list;
 
-	struct c2_mutex               sl_mutex;
-
 	const struct c2_rpc_slot_ops *sl_ops;
+
+	struct c2_mutex               sl_mutex;
 };
 
 /** @} end of session group */
