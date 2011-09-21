@@ -124,6 +124,15 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	struct c2_rpc_item     *dummy_item;
 	struct c2_rpc_slot_ref *sref;
 
+	/*
+	 * Allocate dummy item.
+	 * The dummy item is used to avoid special cases
+	 * i.e. last_sent == NULL, last_persistent == NULL
+	 */
+	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
+	if (fop == NULL)
+		return -ENOMEM;
+
 	c2_list_link_init(&slot->sl_link);
 	/*
 	 * XXX temporary value for lsn. This will be set to some proper value
@@ -143,14 +152,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 
 	/*
 	 * Add a dummy item with very low verno in item_list
-	 * The dummy item is used to avoid special cases
-	 * i.e. last_sent == NULL, last_persistent == NULL
 	 */
-	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
-	if (fop == NULL)
-		return -ENOMEM;
-
-	C2_ASSERT(fop->f_item.ri_type != NULL);
 
 	//c2_rpc_item_init(&fop->f_item);
 	//fop->f_item.ri_type = fop->f_type->ft_ri_type;
@@ -170,7 +172,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 * XXX lsn will be assigned to some proper value once sessions code
 	 * will be integrated with FOL
 	 */
-	sref->sr_verno.vn_lsn = C2_LSN_RESERVED_NR + 2;
+	sref->sr_verno.vn_lsn = C2_LSN_DUMMY_ITEM;
 	sref->sr_verno.vn_vc = 0;
 	sref->sr_slot_gen = slot->sl_slot_gen;
 	c2_list_link_init(&sref->sr_link);
