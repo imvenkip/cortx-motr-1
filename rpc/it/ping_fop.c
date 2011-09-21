@@ -71,7 +71,6 @@ uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
 /* Init for ping reply fom */
 int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
-/*
 void c2_ping_fop_replied(struct c2_rpc_item *item, int rc)
 {
 	C2_PRE(item != NULL);
@@ -79,13 +78,12 @@ void c2_ping_fop_replied(struct c2_rpc_item *item, int rc)
 
 	c2_chan_signal(&item->ri_chan);
 }
-*/
 
 struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
-        //.rito_replied = c2_ping_fop_replied,
-        .rito_replied = NULL,
+        .rito_replied = c2_ping_fop_replied,
+        //.rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL, 
         .rito_get_io_fragment_count = NULL,
