@@ -81,14 +81,6 @@ struct c2_fop;
    - UPDATING (updates the formation state machine)
    - FORMING (core of formation algorithm)
 
-   Along with these external events, there are some implicit internal
-   events which are used to transit the state machine from one state
-   to the next state on the back of same thread.
-
-   These internal events are
-   - state succeeded.
-   - state failed.
-
    The formation component maintains its current state in a state variable
    which is protected by a lock. At any time, the state machine can only be
    in one state.
@@ -104,10 +96,10 @@ struct c2_fop;
                  a,b,c	           V         d,e
            +------------------- WAITING -----------------+
            |                    ^    ^                   |
-           |          g	        |    |       f,g         |
+           |          	        |    |                   |
            |      +-------------+    +-------------+     |
            |      |                                |     |
-           V      |              d,e,f             |     v
+           V      |              d,e               |     v
            UPDATING -----------------------------> FORMING
            | ^  ^                                  |   | ^
            | |  |                a,b,c             |   | |
@@ -122,10 +114,6 @@ struct c2_fop;
 	- c. Unsolicited item added
 	- d. Item reply received
 	- e. Item deadline expired
-
-	Internal Events :
-	- f. State succeeded
-	- g. State failed
 
    The lifecycle of any thread executing the formation state machine is
    something like this
@@ -143,42 +131,7 @@ struct c2_fop;
 
    There are no retries in the state machine. Any failure event will
    take the executing thread out of this state machine.
-
-   Hierarchy of data structures in formation component.
-   @verbatim
-   c2_rpc_formation
-
-     +--> c2_list <c2_rpc_frm_sm>
-
-	    +--> c2_list <c2_rpc_frm_group>
-
-   @endverbatim
-
-   Locking order =>
-   This order will ensure there are no deadlocks due to locking
-   order reversal.
-   - Always take the rf_sm_list_lock rwlock from struct c2_rpc_formation
-      first and release when not needed any more.
-   - Always take the fs_lock mutex from struct c2_rpc_frm_sm next
-      and release when not needed any more.
  */
-
-/**
-   This structure builds up the summary form of data for all formation
-   state machines. It contains a list of sub structures, one for each endpoint.
-   This structure is embedded as inline object in c2_rpcmachine.
- */
-struct c2_rpc_formation {
-	/** List of formation state machine linked through
-	    c2_rpc_frm_sm::fs_linkage. */
-	struct c2_list			rf_frm_sm_list;
-	/** Read/Write lock protecting the list from concurrent access. */
-	struct c2_rwlock		rf_sm_list_lock;
-	/** Flag denoting if current side is sender or receiver. */
-	bool				rf_sender_side;
-	/** ADDB context for all formation state machines. */
-	struct c2_addb_ctx		rf_rpc_form_addb;
-};
 
 /**
    Enumeration of all possible states.
@@ -223,13 +176,12 @@ struct c2_rpc_frm_prio_list {
    same state machine.
  */
 struct c2_rpc_frm_sm {
-	/** Back link to struct c2_rpc_formation. */
-	struct c2_rpc_formation		*fs_formation;
+	/** Flag denoting if current side is sender or receiver. */
+	bool				 fs_sender_side;
+	/** ADDB context for all formation state machines. */
+	struct c2_addb_ctx		 fs_rpc_form_addb;
 	/** Mutex protecting the state machine from concurrent access. */
 	struct c2_mutex			 fs_lock;
-	/** Linkage into the list of formation state machines anchored
-	    at c2_rpc_formation::rf_frm_sm_list. */
-	struct c2_list_link		 fs_linkage;
 	enum c2_rpc_frm_state		 fs_state;
 	/** List of structures containing data for each group linked
 	    through c2_rpc_frm_group::frg_linkage. */
