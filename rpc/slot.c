@@ -156,6 +156,9 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 */
 
 	dummy_item = &fop->f_item;
+	c2_rpc_item_init(dummy_item);
+	dummy_item->ri_type = fop->f_type->ft_ri_type;
+
 	dummy_item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
 	/* set ri_reply to some value. Doesn't matter what */
 	dummy_item->ri_reply = dummy_item;

@@ -452,9 +452,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
-
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -656,8 +653,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		C2_ASSERT(c2_rpc_conn_invariant(conn));
 		goto out_unlock;
 	}
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = fop->f_type->ft_ri_type;

@@ -359,8 +359,8 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	if (rc != 0)
 		goto out;
 
-	//c2_rpc_item_init(&fop->f_item);
-	//fop->f_item.ri_type = fop->f_type->ft_ri_type;
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
 	if (rc != 0)

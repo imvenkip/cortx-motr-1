@@ -405,6 +405,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 			         &c2_rpc_fop_session_establish_fopt, NULL);
 		if (rc != 0)
 			c2_free(ctx);
+
 	}
 	if (rc != 0) {
 		/*
@@ -416,8 +417,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 		C2_ASSERT(c2_rpc_session_invariant(session));
 		goto out;
 	}
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	fop = &ctx->sec_fop;
 

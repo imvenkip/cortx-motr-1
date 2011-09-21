@@ -1387,8 +1387,6 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		/** @todo Allocate bulk i/o buffers before encoding. */
 		/** @todo rpc_encode will encode the bulk i/o
 		   buffer descriptors. */
-		 printf("Formation: Sent onwire %lu\n",
-					c2_list_length(&rpc_obj->r_items));
 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
 		if (rc < 0) {
 			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,

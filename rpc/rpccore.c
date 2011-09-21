@@ -529,6 +529,7 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 
 	return rc ? 0 : -ETIMEDOUT;
 }
+C2_EXPORTED(c2_rpc_reply_timedwait);
 
 int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
 {
