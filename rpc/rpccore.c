@@ -1151,6 +1151,7 @@ void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
 /**
   Set the stats for outgoing rpc object
   @param rpcobj - incoming or outgoing rpc object
+  @param mach - rpcmachine for which the rpc object belongs to
   @param path - enum distinguishing whether the item is incoming or outgoing
  */
 void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
