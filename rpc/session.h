@@ -251,6 +251,7 @@ back to sender.
 struct c2_rpc_item;
 struct c2_rpcmachine;
 struct c2_rpc_chan;
+struct c2_net_end_point;
 
 /* Exports */
 struct c2_rpc_session;
@@ -531,9 +532,6 @@ struct c2_rpc_conn {
 	 */
 	struct c2_rpc_chan       *c_rpcchan;
 
-	/** Destination end point */
-	struct c2_net_end_point  *c_end_point;
-
 	/** cob representing the connection */
 	struct c2_cob            *c_cob;
 
@@ -555,13 +553,13 @@ struct c2_rpc_conn {
    @pre conn != NULL && ep != NULL && machine != NULL
    @post ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 			conn->c_machine == machine &&
-			conn->c_end_point == ep &&
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
 int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 		     struct c2_net_end_point *ep,
-		     struct c2_rpcmachine    *machine);
+		     struct c2_rpcmachine    *machine,
+		     uint64_t max_rpcs_in_flight);
 
 /**
     Sends handshake CONN_ESTABLISH fop to the remote end.

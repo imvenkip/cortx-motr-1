@@ -53,7 +53,9 @@
 
 static const char conn_cob_name_fmt[] = "SENDER_%lu";
 
-extern struct c2_rpc_chan *rpc_chan_get(struct c2_rpcmachine *machine);
+extern struct c2_rpc_chan *rpc_chan_get(struct c2_rpcmachine *machine,
+					struct c2_net_end_point *dest_ep,
+					uint64_t max_rpcs_in_flight);
 extern void rpc_chan_put(struct c2_rpc_chan *chan);
 
 /**
@@ -111,7 +113,6 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	 */
 	ret = sender_end != recv_end && c2_list_invariant(&conn->c_sessions) &&
 		conn->c_rpcmachine != NULL &&
-		conn->c_end_point != NULL &&
 		c2_list_length(&conn->c_sessions) == conn->c_nr_sessions + 1;
 
 	if (!ret)
@@ -206,7 +207,6 @@ static void __conn_fini(struct c2_rpc_conn *conn)
 {
 	C2_ASSERT(conn != NULL);
 
-	c2_net_end_point_put(conn->c_end_point);
 	c2_list_fini(&conn->c_sessions);
 	c2_cond_fini(&conn->c_state_changed);
 	c2_list_link_fini(&conn->c_link);
@@ -215,15 +215,19 @@ static void __conn_fini(struct c2_rpc_conn *conn)
 
 static int __conn_init(struct c2_rpc_conn      *conn,
 		       struct c2_net_end_point *ep,
-		       struct c2_rpcmachine    *machine)
+		       struct c2_rpcmachine    *machine,
+		       uint64_t			max_rpcs_in_flight)
 {
 	int rc;
 
 	C2_PRE(conn != NULL && ep != NULL && machine != NULL &&
 		c2_rpc_conn_is_snd(conn) != c2_rpc_conn_is_rcv(conn));
 
-	c2_net_end_point_get(ep);
-	conn->c_end_point = ep;
+	conn->c_rpcchan = rpc_chan_get(machine, ep, max_rpcs_in_flight);
+	if (conn->c_rpcchan == NULL) {
+		C2_SET0(conn);
+		return -ENOMEM;
+	}
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_cob = NULL;
 	c2_list_init(&conn->c_sessions);
@@ -247,7 +251,8 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 
 int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 		     struct c2_net_end_point *ep,
-		     struct c2_rpcmachine    *machine)
+		     struct c2_rpcmachine    *machine,
+		     uint64_t		      max_rpcs_in_flight)
 {
 	int rc;
 
@@ -256,7 +261,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 	C2_SET0(conn);
 	conn->c_flags = RCF_SENDER_END;
 	c2_rpc_sender_uuid_generate(&conn->c_uuid);
-	rc = __conn_init(conn, ep, machine);
+	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 
 	C2_POST(ergo(rc == 0, c2_rpc_conn_invariant(conn) &&
 				conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -278,7 +283,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	C2_SET0(conn);
 	conn->c_flags = RCF_RECV_END;
 	conn->c_uuid = *uuid;
-	rc = __conn_init(conn, ep, machine);
+	rc = __conn_init(conn, ep, machine, 0);
 	C2_POST(ergo(rc == 0, c2_rpc_conn_invariant(conn) &&
 				conn->c_state == C2_RPC_CONN_INITIALISED &&
 				c2_rpc_conn_is_rcv(conn)));
@@ -470,8 +475,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	c2_mutex_unlock(&machine->cr_session_mutex);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-
-	conn->c_rpcchan = rpc_chan_get(machine);
 
 	/*
 	 * c2_rpc_fop_conn_establish FOP doesn't contain any data.
@@ -953,7 +956,6 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 		goto out;
 
 	conn->c_sender_id = sender_id;
-	conn->c_rpcchan = rpc_chan_get(conn->c_rpcmachine);
 	conn->c_state = C2_RPC_CONN_ACTIVE;
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
