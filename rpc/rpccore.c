@@ -134,19 +134,12 @@ void c2_rpcobj_fini(struct c2_rpc *rpc)
 	c2_list_link_fini(&rpc->r_linkage);
 }
 
-void c2_rpc_item_fini(struct c2_rpc_item *item)
-{
-	item->ri_state = RPC_ITEM_FINALIZED;
-	c2_chan_fini(&item->ri_chan);
-}
-
 void c2_rpc_item_init(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
 
 	C2_SET0(item);
 	c2_chan_init(&item->ri_chan);
-	item->ri_state = RPC_ITEM_UNINITIALIZED;
 
 	sref = &item->ri_slot_refs[0];
 	sref->sr_slot_id = SLOT_ID_INVALID;
@@ -160,19 +153,45 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
         c2_list_link_init(&item->ri_rpcobject_linkage);
 	c2_list_link_init(&item->ri_unformed_linkage);
         c2_list_link_init(&item->ri_group_linkage);
+	item->ri_state = RPC_ITEM_UNINITIALIZED;
+}
+
+void c2_rpc_item_fini(struct c2_rpc_item *item)
+{
+	struct c2_rpc_slot_ref	*sref;
+
+	c2_chan_fini(&item->ri_chan);
+
+	sref = &item->ri_slot_refs[0];
+	sref->sr_slot_id = SLOT_ID_INVALID;
+	c2_list_link_fini(&sref->sr_link);
+	c2_list_link_fini(&sref->sr_ready_link);
+
+	sref->sr_sender_id = SENDER_ID_INVALID;
+	sref->sr_session_id = SESSION_ID_INVALID;
+
+        c2_list_link_fini(&item->ri_unbound_link);
+
+        c2_list_link_fini(&item->ri_rpcobject_linkage);
+	c2_list_link_fini(&item->ri_unformed_linkage);
+        c2_list_link_fini(&item->ri_group_linkage);
+	item->ri_state = RPC_ITEM_FINALIZED;
 }
 
 int c2_rpc_post(struct c2_rpc_item *item)
 {
-	C2_ASSERT(item != NULL && item->ri_session != NULL);
+	struct c2_rpc_session *session;
 
-	C2_ASSERT(item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
-		   item->ri_session->s_state == C2_RPC_SESSION_BUSY);
+	C2_ASSERT(item != NULL && item->ri_type != NULL);
+
+	session = item->ri_session;
+	C2_ASSERT(session != NULL);
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
+		  session->s_state == C2_RPC_SESSION_BUSY);
 
 	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
 	return frm_ubitem_added(item);
 }
 
@@ -184,56 +203,45 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	struct c2_rpc_slot	*slot;
 
 	C2_PRE(request != NULL && reply != NULL);
-	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
+	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 
 	reply->ri_rpc_time = c2_time_now();
 
 	reply->ri_session = request->ri_session;
-	reply->ri_slot_refs[0].sr_sender_id =
-		request->ri_slot_refs[0].sr_sender_id;
-	reply->ri_slot_refs[0].sr_session_id =
-		request->ri_slot_refs[0].sr_session_id;
-	reply->ri_slot_refs[0].sr_uuid = request->ri_slot_refs[0].sr_uuid;
+
+	sref = &reply->ri_slot_refs[0];
+	*sref = request->ri_slot_refs[0];
+	sref->sr_item = reply;
+	/* don't need values of sr_link and sr_ready_link of request item */
+	c2_list_link_init(&sref->sr_link);
+	c2_list_link_init(&sref->sr_ready_link);
+
 	reply->ri_prio = request->ri_prio;
 	reply->ri_deadline = request->ri_deadline;
 	reply->ri_error = 0;
 	reply->ri_state = RPC_ITEM_SUBMITTED;
 
-	sref = &reply->ri_slot_refs[0];
-
-	slot = sref->sr_slot = request->ri_slot_refs[0].sr_slot;
-	sref->sr_item = reply;
-
-	sref->sr_slot_id = request->ri_slot_refs[0].sr_slot_id;
-	sref->sr_verno = request->ri_slot_refs[0].sr_verno;
-	sref->sr_xid = request->ri_slot_refs[0].sr_xid;
-	sref->sr_slot_gen = request->ri_slot_refs[0].sr_slot_gen;
-
-	reply->ri_mach = reply->ri_session->s_conn->c_rpcmachine;
-	request->ri_mach = request->ri_session->s_conn->c_rpcmachine;
-
-	//reply->ri_type->rit_flags = C2_RPC_ITEM_BOUND;
-
+	slot = sref->sr_slot;
 	c2_mutex_lock(&slot->sl_mutex);
-	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
-				   reply, &tmp);
+	c2_rpc_slot_reply_received(slot, reply, &tmp);
+	C2_ASSERT(tmp == request);
 	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
 
-bool c2_rpc_item_is_update(struct c2_rpc_item *item)
+bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
 {
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_MUTABO) != 0;
 }
 
-bool c2_rpc_item_is_request(struct c2_rpc_item *item)
+bool c2_rpc_item_is_request(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL && item->ri_type != NULL);
 
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REQUEST) != 0;
 }
 
-bool c2_rpc_item_is_reply(struct c2_rpc_item *item)
+bool c2_rpc_item_is_reply(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL && item->ri_type != NULL);
 
@@ -272,7 +280,6 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 
 	item->ri_session = session_zero;
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
 
 	item->ri_rpc_time = c2_time_now();
 	return frm_ubitem_added(item);
@@ -567,6 +574,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	c2_time_t		 now;
 	struct c2_rpc		 rpc;
 	struct c2_rpc_item	*item;
+	struct c2_rpc_item	*next_item;
 	struct c2_net_buffer	*nb;
 	struct c2_rpc_chan	*chan;
 
@@ -577,32 +585,39 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	   for each rpc item. */
 	nb = ev->nbe_buffer;
 
-	if (ev->nbe_status == 0) {
-		nb->nb_length = ev->nbe_length;
-		nb->nb_ep = ev->nbe_ep;
-		chan = container_of(nb->nb_tm, struct c2_rpc_chan, rc_tm);
-		frm_rpcs_inflight_dec(&chan->rc_frmsm);
-		c2_rpcobj_init(&rpc);
-		rc = c2_rpc_decode(&rpc, nb);
-		if (rc < 0)
-			goto last;
-#ifndef __KERNEL__
-		printf("%lu items received.\n", c2_list_length(&rpc.r_items));
-#endif
-		rpcobj_exit_stats_set(&rpc, chan->rc_rpcmachine,
-				C2_RPC_PATH_INCOMING);
-		now = c2_time_now();
-		c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
-				ri_rpcobject_linkage) {
-			/* If this is a reply type rpc item, call a
-			   sessions/slots method on it which will find
-			   out its corresponding request item and call
-			   its completion callback.*/
-			item->ri_mach = chan->rc_rpcmachine;
-			item->ri_src_ep = nb->nb_ep;
-			item->ri_rpc_time = now;
-			rc = c2_rpc_item_received(item);
-		}
+	if (ev->nbe_status != 0)
+		goto last;
+
+	nb->nb_length = ev->nbe_length;
+	nb->nb_ep = ev->nbe_ep;
+
+	chan = container_of(nb->nb_tm, struct c2_rpc_chan, rc_tm);
+	frm_rpcs_inflight_dec(&chan->rc_frmsm);
+
+	c2_rpcobj_init(&rpc);
+	rc = c2_rpc_decode(&rpc, nb);
+	if (rc < 0)
+		goto last;
+
+	rpcobj_exit_stats_set(&rpc, chan->rc_rpcmachine,
+			C2_RPC_PATH_INCOMING);
+	now = c2_time_now();
+	c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
+				    struct c2_rpc_item, ri_rpcobject_linkage) {
+
+		c2_list_del(&item->ri_rpcobject_linkage);
+
+		if (c2_rpc_item_is_conn_establish(item))
+			c2_rpc_fop_conn_establish_ctx_init(item, nb->nb_ep,
+							   chan->rc_rpcmachine);
+
+		item->ri_rpc_time = now;
+		rc = c2_rpc_item_received(item, chan->rc_rpcmachine);
+		/*
+		 * If 'item' is conn terminate reply then, do not
+		 * access item, after this point. In which case the
+		 * item might have already been freed.
+		 */
 	}
 
 	/* Add the c2_net_buffer back to the queue of
@@ -870,7 +885,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	C2_PRE(machine != NULL);
 
 	conn_list_fini(&machine->cr_incoming_conns);
-	conn_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 
@@ -1173,25 +1187,30 @@ void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 void item_exit_stats_set(struct c2_rpc_item *item,
 			 enum c2_rpc_item_path path)
 {
-	struct c2_rpc_stats *st;
+	struct c2_rpcmachine *machine;
+	struct c2_rpc_stats  *st;
 
-	C2_PRE(item != NULL);
-	C2_PRE(IS_IN_ARRAY(path, item->ri_mach->cr_rpc_stats));
+	C2_PRE(item != NULL && item->ri_session != NULL);
+
+	machine = item->ri_session->s_conn->c_rpcmachine;
+	C2_ASSERT(machine != NULL);
+
+	C2_PRE(IS_IN_ARRAY(path, machine->cr_rpc_stats));
 
 	item->ri_rpc_time = c2_time_sub(c2_time_now(), item->ri_rpc_time);
 
-	st = &item->ri_mach->cr_rpc_stats[path];
-	c2_mutex_lock(&item->ri_mach->cr_stats_mutex);
+	st = &machine->cr_rpc_stats[path];
+	c2_mutex_lock(&machine->cr_stats_mutex);
         st->rs_cumu_lat += item->ri_rpc_time;
 	st->rs_min_lat = st->rs_min_lat ? : item->ri_rpc_time;
 	st->rs_min_lat = min64u(st->rs_min_lat, item->ri_rpc_time);
-	st->rs_max_lat = st->rs_max_lat ? : item->ri_rpc_time; 
+	st->rs_max_lat = st->rs_max_lat ? : item->ri_rpc_time;
 	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
 
         st->rs_items_nr++;
         st->rs_bytes_nr += c2_rpc_item_default_size(item);
 
-	c2_mutex_unlock(&item->ri_mach->cr_stats_mutex);
+	c2_mutex_unlock(&machine->cr_stats_mutex);
 }
 
 size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,

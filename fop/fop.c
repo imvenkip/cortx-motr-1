@@ -25,6 +25,7 @@
 #include "lib/vec.h"
 #include "fop/fop.h"
 #include "fop/fop_iterator.h"
+#include "lib/errno.h"
 
 /**
    @addtogroup fop
@@ -33,29 +34,43 @@
 
 extern struct c2_addb_ctx_type c2_fop_addb_ctx;
 
+int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
+{
+	c2_bcount_t nob;
+
+	C2_PRE(fop != NULL && fopt != NULL);
+
+	fop->f_type = fopt;
+	fop->f_private = NULL;
+
+	nob = fopt->ft_top->fft_layout->fm_sizeof;
+
+	if (data == NULL) {
+		data = c2_alloc(nob);
+		if (data == NULL)
+			return -ENOMEM;
+	}
+	fop->f_data.fd_data = data;
+	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
+			 &fopt->ft_addb);
+	c2_list_link_init(&fop->f_link);
+
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = fopt->ft_ri_type;
+
+	return 0;
+}
+C2_EXPORTED(c2_fop_init);
+
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
 	struct c2_fop *fop;
+	int            err;
 
 	C2_ALLOC_PTR(fop);
 	if (fop != NULL) {
-		c2_bcount_t nob;
-
-		fop->f_type = fopt;
-		fop->f_private = NULL;
-		c2_rpc_item_init(&fop->f_item);
-		/* Associate rpc_item_type with the rpc item. */
-		//fop->f_item.ri_type = &fopt->ft_ri_type->fri_i_type;
-		fop->f_item.ri_type = fopt->ft_ri_type;
-		nob = fopt->ft_top->fft_layout->fm_sizeof;
-		if (data == NULL)
-			data = c2_alloc(nob);
-		if (data != NULL) {
-			fop->f_data.fd_data = data;
-			c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
-					 &fopt->ft_addb);
-			c2_list_link_init(&fop->f_link);
-		} else {
+		err = c2_fop_init(fop, fopt, data);
+		if (err != 0) {
 			c2_free(fop);
 			fop = NULL;
 		}
@@ -64,12 +79,20 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
+void c2_fop_fini(struct c2_fop *fop)
+{
+	C2_ASSERT(fop != NULL);
+
+	c2_addb_ctx_fini(&fop->f_addb);
+	c2_free(fop->f_data.fd_data);
+	c2_list_link_fini(&fop->f_link);
+}
+C2_EXPORTED(c2_fop_fini);
+
 void c2_fop_free(struct c2_fop *fop)
 {
 	if (fop != NULL) {
-		c2_addb_ctx_fini(&fop->f_addb);
-		c2_free(fop->f_data.fd_data);
-		c2_list_link_fini(&fop->f_link);
+		c2_fop_fini(fop);
 		c2_free(fop);
 	}
 }

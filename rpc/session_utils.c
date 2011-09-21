@@ -231,7 +231,7 @@ int c2_exec_queue_print(void)
 {
 	struct c2_queue_link *ql;
 	struct c2_rpc_item   *item;
-	char                  str_states[][20] = {
+	char                  str_stages[][20] = {
 					"INVALID",
 					"PAST_COMMITTED",
 					"PAST_VOLATILE",
@@ -248,7 +248,7 @@ int c2_exec_queue_print(void)
 	for (ql = c2_exec_queue.q_head; ql != EOQ; ql = ql->ql_next) {
 		item = container_of(ql, struct c2_rpc_item, ri_dummy_qlinkage);
 		printf("Q item %p state %s\n", item,
-			str_states[item->ri_tstate]);
+			str_stages[item->ri_stage]);
 	}
 	return 0;
 }

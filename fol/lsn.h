@@ -55,8 +55,11 @@ enum {
 	/** Non-existent lsn. This is used, for example, as a prevlsn, when
 	    there is no previous operation on the object. */
 	C2_LSN_NONE,
+	/** LSN of a special dummy item always present in
+	    c2_rpc_slot::sl_item_list. */
+	C2_LSN_DUMMY_ITEM,
 	C2_LSN_RESERVED_NR,
-	/** 
+	/**
 	    LSN of a special "anchor" record always present in the fol.
 	 */
 	C2_LSN_ANCHOR = C2_LSN_RESERVED_NR + 1

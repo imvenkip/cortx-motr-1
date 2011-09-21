@@ -735,15 +735,18 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 		/* Add the item to list of unbound items in its session. */
 		session = item->ri_session;
 		C2_ASSERT(session != NULL);
+
 		c2_mutex_lock(&session->s_mutex);
-		if (session->s_state != C2_RPC_SESSION_IDLE &&
-				session->s_state != C2_RPC_SESSION_BUSY) {
-			c2_mutex_unlock(&session->s_mutex);
-			return -EINVAL;
-		}
+
+		C2_ASSERT(c2_rpc_session_invariant(session));
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
+			  session->s_state == C2_RPC_SESSION_BUSY);
+
 		c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
 		session->s_state = C2_RPC_SESSION_BUSY;
+
 		C2_ASSERT(c2_rpc_session_invariant(session));
+
 		c2_mutex_unlock(&session->s_mutex);
 		return 0;
 	}
@@ -1099,7 +1102,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size, rpc_item->ri_type->rit_ops->
 					rito_item_size(rpc_item));
-			rpcmachine = rpc_item->ri_mach;
+			rpcmachine = rpc_item->ri_session->s_conn->c_rpcmachine;
 
 			/* If size threshold is not reached or other formation
 			   policies are met, add item to rpc object. */
