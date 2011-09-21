@@ -497,6 +497,8 @@ struct c2_rpc_stats {
 	c2_time_t	rs_min_lat;
 	/** Max Latency */
 	c2_time_t	rs_max_lat;
+	/** Number of rpc objects (used to calculate packing density) */
+	uint64_t	rs_rpcs_nr;
 };
 
 /** Returns an rpc item type associated with a unique rpc

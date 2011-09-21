@@ -57,6 +57,8 @@ extern void frm_init(struct c2_rpc_formation *frm);
 extern void frm_fini(struct c2_rpc_formation *formation);
 extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
+extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
+		struct c2_rpcmachine *mach, enum c2_rpc_item_path path);
 
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
@@ -596,6 +598,8 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 #ifndef __KERNEL__
 		printf("%lu items received.\n", c2_list_length(&rpc.r_items));
 #endif
+		rpcobj_exit_stats_set(&rpc, chan->rc_rpcmachine,
+				C2_RPC_PATH_INCOMING);
 		now = c2_time_now();
 		c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
 				ri_rpcobject_linkage) {
@@ -1155,6 +1159,26 @@ void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
 	if(fopt->ft_ri_type != NULL)
 		fopt->ft_ri_type->rit_opcode = opcode;
 }*/
+
+/**
+  Set the stats for outgoing rpc object
+  @param rpcobj - incoming or outgoing rpc object
+  @param path - enum distinguishing whether the item is incoming or outgoing
+ */
+void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
+		struct c2_rpcmachine *mach, const enum c2_rpc_item_path path)
+{
+	struct c2_rpc_stats	*st;
+
+	C2_PRE(rpcobj != NULL);
+	C2_PRE(mach != NULL);
+
+	st = &mach->cr_rpc_stats[path];
+	c2_mutex_lock(&mach->cr_stats_mutex);
+	st->rs_rpcs_nr++;
+	c2_mutex_unlock(&mach->cr_stats_mutex);
+}
+
 /**
   Set the stats for outgoing rpc item
   @param item - incoming or outgoing rpc item

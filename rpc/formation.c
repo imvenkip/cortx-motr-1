@@ -47,6 +47,10 @@ C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
 extern void item_exit_stats_set(struct c2_rpc_item *item,
 				enum c2_rpc_item_path path);
 
+extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
+				struct c2_rpcmachine *mach,
+		                const enum c2_rpc_item_path path);
+
 extern void send_buffer_deallocate(struct c2_net_buffer *nb,
 				   struct c2_net_domain *net_dom);
 
@@ -75,11 +79,21 @@ static int sm_updating_state(struct c2_rpc_frm_sm *frm_sm,
 static int sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 			    struct c2_rpc_item *item);
 
-static void frm_item_rpc_stats_set(const struct c2_rpc *rpc)
+static void frm_item_rpc_stats_set(struct c2_rpc *rpc)
 {
 	struct c2_rpc_item *item;
+	struct c2_rpc_item *first_item;
 
 	C2_PRE(rpc != NULL);
+
+	if (c2_list_is_empty(&rpc->r_items))
+		return;
+	first_item = c2_list_entry((c2_list_first(&rpc->r_items)),
+				struct c2_rpc_item, ri_rpcobject_linkage);
+	rpc->r_session = first_item->ri_session;
+	rpcobj_exit_stats_set(rpc,
+			first_item->ri_session->s_conn->c_rpcmachine,
+			C2_RPC_PATH_OUTGOING);
 
 	c2_list_for_each_entry(&rpc->r_items, item,
 			struct c2_rpc_item, ri_rpcobject_linkage)

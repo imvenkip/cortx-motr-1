@@ -448,7 +448,7 @@ void send_ping_fop(int nr)
 	}
 	item = &fop->f_item;
 	c2_rpc_item_init(item);
-	item->ri_deadline = 0;
+	item->ri_deadline = 0; 
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
 	item->ri_mach = &cctx.pc_rpc_mach;
@@ -472,6 +472,7 @@ void print_stats(bool client, bool server)
 	double			 sec = 0;
 	double			 msec = 0;
 	double			 thruput;
+	double			 packing_density;
 
 	if (client)
 		rpc_mach = &cctx.pc_rpc_mach;
@@ -485,6 +486,11 @@ void print_stats(bool client, bool server)
 			stats->rs_items_nr);
 	printf("Number of outgoing bytes = %lu\n",
 			stats->rs_bytes_nr);
+	printf("Number of outgoing rpc's = %lu\n",
+			stats->rs_rpcs_nr);
+	packing_density = (double) stats->rs_items_nr /
+		(double)stats->rs_rpcs_nr;
+	printf("RPC packing density = %lf\n", packing_density);
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
@@ -517,6 +523,11 @@ void print_stats(bool client, bool server)
 			stats->rs_items_nr);
 	printf("Number of incoming bytes = %lu\n",
 			stats->rs_bytes_nr);
+	printf("Number of incoming rpc's = %lu\n",
+			stats->rs_rpcs_nr);
+	packing_density = (double) stats->rs_items_nr /
+		(double) stats->rs_rpcs_nr;
+	printf("RPC packing density = %lf\n", packing_density);
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
