@@ -31,6 +31,10 @@
 
 #include "cob/cob.h"
 
+#ifdef __KERNEL__
+#define printf printk
+#endif
+
 /**
    @addtogroup cob
    @{

@@ -31,7 +31,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
-#include "lib/time.h"
 #include "net/net.h"
 #include "net/net_internal.h"
 #include "net/bulk_sunrpc.h"
@@ -498,9 +497,11 @@ void send_ping_fop(int nr)
 	struct c2_fop                   *fop = NULL;
 	struct c2_fop_ping		*ping_fop = NULL;
 	struct c2_rpc_item		*item = NULL;
+	struct c2_clink                  clink;
 	uint32_t			 nr_mod;
 	uint32_t			 nr_arr_member;
 	int				 i;
+	c2_time_t                        timeout;
 	struct c2_fop_type		*ftype;
 
 	nr_mod = cctx.pc_nr_ping_bytes % 8;
@@ -523,13 +524,20 @@ void send_ping_fop(int nr)
 	item->ri_deadline = 0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
-	item->ri_mach = &cctx.pc_rpc_mach;
 	item->ri_type = &c2_rpc_item_type_ping;
 	ftype = fop->f_type;
 	/** Associate ping fop type with its item type */
 	ftype->ft_ri_type = &c2_rpc_item_type_ping;
 	item->ri_session = &cctx.pc_rpc_session;
-	c2_rpc_post(item);
+	c2_time_set(&timeout, 60, 0);
+        c2_clink_init(&clink, NULL);
+        c2_clink_add(&item->ri_chan, &clink);
+        timeout = c2_time_add(c2_time_now(), timeout);
+        c2_rpc_post(item);
+        c2_rpc_reply_timedwait(&clink, timeout);
+        c2_clink_del(&clink);
+        c2_clink_fini(&clink);
+
 }
 
 /* Get stats from rpcmachine and print them */
