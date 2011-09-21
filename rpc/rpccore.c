@@ -50,11 +50,8 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
 extern void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm);
 extern void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_chan *chan,
-			struct c2_rpc_formation *formation,
 			uint64_t max_rpcs_in_flight);
 extern void frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
-extern void frm_init(struct c2_rpc_formation *frm);
-extern void frm_fini(struct c2_rpc_formation *formation);
 extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
@@ -419,8 +416,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	/* Initialize the formation state machine attached with given
 	   c2_rpc_chan structure. This state machine is finalized when
 	   corresponding c2_rpc_chan is destroyed. */
-	frm_sm_init(&ch->rc_frmsm, ch, &machine->cr_formation,
-			max_rpcs_in_flight);
+	frm_sm_init(&ch->rc_frmsm, ch, max_rpcs_in_flight);
 	return rc;
 cleanup:
 	c2_free(ch->rc_rcv_buffers);
@@ -518,19 +514,14 @@ static void rpc_chan_destroy(struct c2_rpcmachine *machine,
 	c2_free(chan);
 }
 
-int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t timeout)
+int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 {
 	bool	rc;
-	struct	c2_clink clink;
 
-	C2_PRE(item != NULL);
-	C2_PRE(item->ri_state >= RPC_ITEM_SUBMITTED);
+	C2_PRE(clink != NULL);
+	C2_PRE(c2_clink_is_armed(clink));
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&item->ri_chan, &clink);
-	rc = c2_chan_timedwait(&clink, timeout);
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	rc = c2_chan_timedwait(clink, timeout);
 
 	return rc ? 0 : -ETIMEDOUT;
 }
@@ -834,7 +825,6 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	/* Create new c2_rpc_chan structure, init the transfer machine
 	   passing the source endpoint. */
 	ep_aggr_init(&machine->cr_ep_aggr);
-	frm_init(&machine->cr_formation);
 
 	rc = rpc_chan_create(&chan, machine, net_dom, ep_addr,
 			     max_rpcs_in_flight);
@@ -857,7 +847,6 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 cleanup:
 	c2_db_tx_abort(&tx);
 	ep_aggr_fini(&machine->cr_ep_aggr);
-	frm_fini(&machine->cr_formation);
 	return rc;
 }
 
@@ -899,7 +888,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 			struct c2_rpc_chan, rc_linkage);
 	rpc_chan_put(chan);
 	ep_aggr_fini(&machine->cr_ep_aggr);
-	frm_fini(&machine->cr_formation);
 	c2_mutex_fini(&machine->cr_stats_mutex);
 	c2_addb_ctx_fini(&machine->cr_rpc_machine_addb);
 }

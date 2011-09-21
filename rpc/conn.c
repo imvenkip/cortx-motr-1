@@ -479,11 +479,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 
 	session_0 = c2_rpc_conn_session0(conn);
 
-	/* Formation client side keeps track of current rpcs in flight,
-	   while server side of formation does not. So we need to differentiate
-	   between client and server sides for formation. */
-	machine->cr_formation.rf_sender_side = true;
-
 	rc = c2_rpc__fop_post(fop, session_0, &c2_rpc_item_conn_establish_ops);
 	if (rc != 0) {
 		conn_failed(conn, rc);

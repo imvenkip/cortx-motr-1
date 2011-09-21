@@ -69,7 +69,7 @@
    ret = c2_rpc_submit(&srvid, &update_stream, &item,
 	C2_RPC_ITEM_PRIO_MIN, C2_RPC_CACHING_TYPE);
    // waiting for reply:
-   ret = c2_rpc_reply_timedwait(&item, &timeout);
+   ret = c2_rpc_reply_timedwait(&clink, &timeout);
 
    // USAGE (b):
    // open and generate new group, used in formation.
@@ -585,8 +585,6 @@ struct c2_rpc_chan {
 struct c2_rpcmachine {
 	/* List of transfer machine used by conns from this rpcmachine. */
 	struct c2_rpc_ep_aggr		 cr_ep_aggr;
-	/* Formation module associated with this rpcmachine. */
-	struct c2_rpc_formation		 cr_formation;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		*cr_dom;
 	/** List of rpc connections
@@ -732,14 +730,14 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
 /**
    Wait for the reply on item being sent.
 
-   @param item rpc item being sent
+   @param The clink on which caller is waiting for item reply.
    @param timeout time to wait for item being sent
    @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    invoking this function
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
  */
-int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t timeout);
+int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout);
 
 /**
    Wait for the reply on group of items being sent.
