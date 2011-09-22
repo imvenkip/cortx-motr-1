@@ -142,11 +142,11 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		int                 i;
 
 		for (i = 0 ; i < session->s_nr_slots; i++) {
+
 			slot = session->s_slot_table[i];
-			if (c2_list_link_is_in(&slot->sl_link)) {
-				printf("slot in ready slots list %p\n", slot);
+			if (c2_list_link_is_in(&slot->sl_link))
 				return false;
-			}
+
 		}
 		return true;
 	}
@@ -394,8 +394,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	C2_PRE(session != NULL &&
 		session->s_state == C2_RPC_SESSION_INITIALISED);
 
-	printf("SESSION_ESTABLISH: session %p\n", session);
-
 	C2_ALLOC_PTR(ctx);
 	if (ctx == NULL) {
 		rc = -ENOMEM;
@@ -543,11 +541,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 	sender_id = fop_ser->rser_sender_id;
 	session_id = fop_ser->rser_session_id;
 
-	printf("scrr: sender_id %lu session_id %lu\n",
-		(unsigned long)sender_id, (unsigned long)session_id);
-
 	if (fop_ser->rser_rc != 0) {
-		printf("scrr: Session create failed\n");
 		session_failed(session, fop_ser->rser_rc);
 	} else {
 		if (session_id < SESSION_ID_MIN ||
@@ -572,8 +566,6 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 			C2_ASSERT(slot != NULL && c2_rpc_slot_invariant(slot));
 			slot->sl_ops->so_slot_idle(slot);
 		}
-		printf("scrr: session created %lu\n",
-			(unsigned long)session_id);
 	}
 
 out:
@@ -767,7 +759,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 		 * Move session to FAILED state. XXX And generate ADDB record.
 		 * No asserts on data received from network/disk.
 		 */
-		printf("strr: inconsistent reply\n");
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = -EPROTO;
 		goto out;
@@ -775,13 +766,9 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 
 	if (fop_str->rstr_rc == 0) {
 		session->s_state = C2_RPC_SESSION_TERMINATED;
-		printf("strr: session terminated %lu\n",
-			(unsigned long)session_id);
 	} else {
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = fop_str->rstr_rc;
-		printf("strr: session terminate failed %lu\n",
-			(unsigned long)session_id);
 	}
 
 out:
@@ -859,21 +846,18 @@ uint64_t session_id_allocate(void)
 
 static void snd_slot_idle(struct c2_rpc_slot *slot)
 {
-	printf("sender_slot_idle called %p\n", slot);
 	C2_ASSERT(slot->sl_in_flight == 0);
 	frm_slot_idle(slot);
 }
 
 static void snd_item_consume(struct c2_rpc_item *item)
 {
-	printf("sender_consume_item called %p\n", item);
 	frm_item_ready(item);
 }
 
 static void snd_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	printf("snd_reply_consume called %p %p\n", req, reply);
 	/* Don't do anything on sender to consume reply */
 }
 
@@ -889,14 +873,12 @@ static void rcv_slot_idle(struct c2_rpc_slot *slot)
 
 static void rcv_item_consume(struct c2_rpc_item *item)
 {
-	printf("rcv_item_consume called %p\n", item);
 	c2_rpc_item_dispatch(item);
 }
 
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	printf("rcv_consume_reply called %p %p\n", req, reply);
 	frm_item_ready(reply);
 }
 

@@ -206,9 +206,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	 * XXX See comments above function prototype
 	 */
 	C2_ASSERT(slot != NULL);
-	printf("item_list_prune: slot %p [%lu:%u]\n", slot,
-			(unsigned long)slot->sl_session->s_session_id,
-			slot->sl_slot_id);
 
 	c2_list_for_each_entry_safe(&slot->sl_item_list, item, next,
 			struct c2_rpc_item, ri_slot_refs[0].sr_link) {
@@ -245,7 +242,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 
 	slot->sl_last_sent = dummy_item;
 	slot->sl_last_persistent = dummy_item;
-	printf("item_list_prune: pruned %d entries\n", count);
 }
 
 void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
@@ -254,7 +250,6 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	struct c2_fop       *fop;
 	struct c2_list_link *link;
 
-	printf("slot_fini: %p\n", slot);
 	slot_item_list_prune(slot);
 	c2_list_link_fini(&slot->sl_link);
 	c2_list_fini(&slot->sl_ready_list);
@@ -344,10 +339,10 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 		/* Take slot->last_sent->next item for sending */
 		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
 				     ri_slot_refs[0].sr_link);
-		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE) {
+
+		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE)
 			item->ri_stage = RPC_ITEM_STAGE_IN_PROGRESS;
-			printf("Item %p IN_PROGRESS\n", item);
-		}
+
 		if (item->ri_reply != NULL && !c2_rpc_item_is_update(item)) {
 			/*
 			 * Don't send read only queries for which answer is
@@ -393,15 +388,11 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 
 	session = slot->sl_session;
 
-	printf("slot_item_add: session %p(%lu)\n", session,
-				(unsigned long)session->s_session_id);
-
 	sref = &item->ri_slot_refs[0];
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	sref->sr_session_id = session->s_session_id;
 	sref->sr_sender_id = session->s_conn->c_sender_id;
 	sref->sr_uuid = session->s_conn->c_uuid;
-	printf("Itemp %p FUTURE\n", item);
 
 	/*
 	 * c2_rpc_slot_item_apply() will provide an item
@@ -436,7 +427,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 		 */
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
-			printf("session %p marked BUSY\n", session);
 			/*
 			 * XXX When formation adds an item to
 			 * c2_rpc_session::s_unbound_items it should
@@ -448,12 +438,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 		}
 	}
 
-	printf("item %p<%s> added [%lu:%lu] slot [%lu:%lu]\n", item,
-			c2_rpc_item_is_update(item) ? "UPDATE" : "READ_ONLY",
-			(unsigned long)sref->sr_verno.vn_vc,
-			(unsigned long)sref->sr_xid,
-			(unsigned long)slot->sl_verno.vn_vc,
-			(unsigned long)slot->sl_xid);
 	__slot_balance(slot, allow_events);
 }
 
@@ -492,7 +476,6 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	c2_list_link_init(&reply->ri_slot_refs[0].sr_link);
 	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
 
-	printf("Misordered item: %p, sending reply: %p\n", item, reply);
 	slot->sl_ops->so_reply_consume(item, reply);
 	return 0;
 }
@@ -509,18 +492,11 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 	C2_ASSERT(c2_mutex_is_locked(&slot->sl_session->s_mutex));
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 
-	printf("Applying item [%lu:%lu] on slot [%lu:%lu]\n",
-			(unsigned long)item->ri_slot_refs[0].sr_verno.vn_vc,
-			(unsigned long)item->ri_slot_refs[0].sr_xid,
-			(unsigned long)slot->sl_verno.vn_vc,
-			(unsigned long)slot->sl_xid);
 	redoable = c2_verno_is_redoable(&slot->sl_verno,
 					&item->ri_slot_refs[0].sr_verno,
 					false);
-	printf("redoable: %d\n", redoable);
 	switch (redoable) {
 	case 0:
-		printf("Applying item %p\n", item);
 		__slot_item_add(slot, item, true);
 		break;
 	case -EALREADY:
@@ -549,8 +525,6 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 			 * resend cached reply)
 			 */
 			C2_ASSERT(req->ri_reply != NULL);
-			printf("resending reply: req %p reply %p\n",
-					req, req->ri_reply);
 			slot->sl_ops->so_reply_consume(req,
 						req->ri_reply);
 			break;
@@ -559,7 +533,6 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 			/* item is already present but is not
 			   processed yet. Ignore it*/
 			/* do nothing */;
-			printf("ignoring item: %p\n", item);
 		}
 		break;
 	case -EAGAIN:
@@ -623,7 +596,6 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * received in the past. Compare with the original reply.
 		 * XXX find out how to compare two rpc items to be same
 		 */
-		printf("got duplicate reply for %p\n", req);
 	} else {
 		/*
 		 * This is valid reply case.
@@ -640,7 +612,6 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(session->s_nr_active_items > 0);
 
 		req->ri_stage = RPC_ITEM_STAGE_PAST_VOLATILE;
-		printf("Item %p PAST_VOLATILE\n", req);
 		req->ri_reply = reply;
 		*req_out = req;
 		slot->sl_in_flight--;
@@ -653,7 +624,6 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		if (session->s_nr_active_items == 0 &&
 			c2_list_is_empty(&session->s_unbound_items)) {
-			printf("session %p marked IDLE\n", session);
 			session->s_state = C2_RPC_SESSION_IDLE;
 			/*
 			 * ->s_state_change is broadcast after slot_balance()
@@ -782,16 +752,11 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 	if (sref->sr_session_id > SESSION_ID_MAX)
 		return -EINVAL;
 
-	printf("associate_session: [%lu:%lu:%u]\n",
-			(unsigned long)sref->sr_sender_id,
-			(unsigned long)sref->sr_session_id,
-			sref->sr_slot_id);
 	conn_list = c2_rpc_item_is_request(item) ?
 			&machine->cr_incoming_conns :
 			&machine->cr_outgoing_conns;
 
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
-	printf("associate_session: uuid %s\n", use_uuid ? "true" : "false");
 
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
@@ -805,22 +770,18 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 
 	}
 	c2_mutex_unlock(&machine->cr_session_mutex);
-	if (!found) {
-		printf("associate_session: cannot find conn\n");
+	if (!found)
 		return -ENOENT;
-	}
+
 	c2_mutex_lock(&conn->c_mutex);
 	session = c2_rpc_session_search(conn, sref->sr_session_id);
 	c2_mutex_unlock(&conn->c_mutex);
-	if (session == NULL) {
-		printf("associate_session: cannot find session\n");
+	if (session == NULL)
 		return -ENOENT;
-	}
+
 	c2_mutex_lock(&session->s_mutex);
 	if (sref->sr_slot_id >= session->s_nr_slots) {
 		c2_mutex_unlock(&session->s_mutex);
-		printf("associate_session: failed item slot id %u nr slot %u\n",
-				sref->sr_slot_id, session->s_nr_slots);
 		return -ENOENT;
 	}
 	slot = session->s_slot_table[sref->sr_slot_id];
@@ -832,7 +793,6 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 		item->ri_slot_refs[0].sr_slot != NULL);
 	c2_mutex_unlock(&session->s_mutex);
 
-	printf("associate_session: successful\n");
 	return 0;
 }
 
@@ -844,7 +804,6 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 	int                 rc;
 
 	C2_ASSERT(item != NULL && machine != NULL);
-	printf("item_received: %p\n", item);
 
 	rc = associate_session_and_slot(item, machine);
 	if (rc != 0) {
@@ -862,7 +821,6 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 		 * item except to discard it.
 		 * XXX generate ADDB record
 		 */
-		printf("item_received: rc != 0\n");
 		return rc;
 	}
 	C2_ASSERT(item->ri_session != NULL &&
@@ -872,7 +830,6 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 
 	slot = item->ri_slot_refs[0].sr_slot;
 	if (c2_rpc_item_is_request(item)) {
-		printf("IR: item %p is REQUEST\n", item);
 		c2_mutex_lock(&slot->sl_mutex);
 		c2_mutex_lock(&slot->sl_session->s_mutex);
 
@@ -881,7 +838,6 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 		c2_mutex_unlock(&slot->sl_session->s_mutex);
 		c2_mutex_unlock(&slot->sl_mutex);
 	} else {
-		printf("IR: item %p is REPLY\n", item);
 		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_reply_received(slot, item, &req);
 		c2_mutex_unlock(&slot->sl_mutex);
@@ -900,7 +856,6 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 			req->ri_ops->rio_replied(req, item, 0);
 		}
 	}
-	printf("item_received: %p finished\n", item);
 	return 0;
 }
 

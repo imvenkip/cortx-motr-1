@@ -165,9 +165,6 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	reply->rcer_rc = 0;      /* successful */
 	fom->fo_phase = FOPH_SUCCESS;
 
-	printf("ce_state: conn establish successful %lu\n",
-			(unsigned long)conn->c_sender_id);
-
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 
@@ -279,7 +276,6 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply->rser_session_id = session->s_session_id;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_SUCCESS;
-	printf("session_establish_state:success %lu\n", session->s_session_id);
 	return FSO_AGAIN;
 
 out_fini:
@@ -296,7 +292,6 @@ out_free:
 errout:
 	C2_ASSERT(rc != 0);
 
-	printf("session_establish: failed %d\n", rc);
 	reply->rser_rc = rc;
 	reply->rser_session_id = SESSION_ID_INVALID;
 	fom->fo_phase = FOPH_FAILURE;
@@ -338,8 +333,6 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 	C2_PRE(fom->fo_phase == FOPH_SESSION_TERMINATING);
-
-	printf("session_terminate_state: called\n");
 
 	request = c2_fop_data(fom->fo_fop);
 	C2_ASSERT(request != NULL);
@@ -446,8 +439,9 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
-	printf("Received conn terminate req for %lu\n", request->ct_sender_id);
+
 	rc = c2_rpc_rcv_conn_terminate(conn);
+
 	if (conn->c_state != C2_RPC_CONN_FAILED) {
 		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
 			  conn->c_state == C2_RPC_CONN_TERMINATING);

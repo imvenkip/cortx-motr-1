@@ -141,9 +141,6 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	nsrec.cnr_stobid.si_bits = stob_id_alloc();
 	nsrec.cnr_nlink = 1;
 
-	printf("cob_create_helper: hi:lo %lu:%lu\n",
-		(unsigned long)nsrec.cnr_stobid.si_bits.u_hi,
-		(unsigned long)nsrec.cnr_stobid.si_bits.u_lo);
 	/*
 	 * Temporary assignment for lsn
 	 */
@@ -215,7 +212,6 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
  */
 void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 {
-	printf("Executing %p\n", item);
 	c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);
 	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);
@@ -242,9 +238,6 @@ int c2_exec_queue_print(void)
 
 	C2_ASSERT(c2_queue_invariant(&c2_exec_queue));
 
-	printf("q.head: %p q.tail %p\n", c2_exec_queue.q_head,
-			c2_exec_queue.q_tail);
-	printf("Q length: %u\n", (unsigned)c2_queue_length(&c2_exec_queue));
 	for (ql = c2_exec_queue.q_head; ql != EOQ; ql = ql->ql_next) {
 		item = container_of(ql, struct c2_rpc_item, ri_dummy_qlinkage);
 		printf("Q item %p state %s\n", item,
