@@ -268,6 +268,7 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_rpc_item **item,
 			      struct c2_bufvec_cursor *cur)
 {
+	int			 rc;
 	struct c2_fop		*fop;
 	struct c2_fop_type	*ftype;
 
@@ -285,7 +286,11 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 
 	*item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(*item != NULL);
-	return item_encdec(cur, *item, C2_BUFVEC_DECODE);
+	rc = item_encdec(cur, *item, C2_BUFVEC_DECODE);
+	if (rc != 0)
+		c2_fop_free(fop);
+
+	return rc;
 }
 C2_EXPORTED(c2_rpc_fop_default_decode);
 

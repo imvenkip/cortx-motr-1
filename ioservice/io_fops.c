@@ -172,31 +172,6 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 #endif
 
 /**
-   Returns the size of a fop of type c2_fop_cob_writev.
-   @todo This is a placeholder API. It will be eventually replaced by
-   wire formats _getsize API.
-
-static uint64_t io_fop_rwv_getsize(struct c2_fop *fop)
-{
-	C2_PRE(fop != NULL);
-
-<<<<<<< HEAD
-	iovec = iovec_get(fop);
-	Size of fop layout
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-
-	Size of holding structure.
-	segs_nr = ioseg_nr_get(iovec);
-	size += segs_nr * sizeof(struct c2_fop_io_seg);
-
-	return size;
-=======
-	return fop->f_type->ft_fmt->ftf_layout->fm_sizeof +
-	       iovec_get(fop)->iv_count * sizeof(struct c2_fop_io_seg);
->>>>>>> b28e8700ef9470e3bc4809a3d3cd024420d97d91
-}
-*/
-/**
    Returns if given 2 fops belong to same type.
  */
 static bool io_fop_type_equal(const struct c2_fop *fop1,
