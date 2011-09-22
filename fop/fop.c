@@ -54,7 +54,7 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
 			 &fopt->ft_addb);
 	c2_list_link_init(&fop->f_link);
-	
+
 	#ifndef __KERNEL__
 	//c2_rpc_item_init(&fop->f_item);
 	//fop->f_item.ri_type = fopt->ft_ri_type;

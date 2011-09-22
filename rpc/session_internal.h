@@ -265,7 +265,6 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
    Initalises receiver end of conn object.
 
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
-			   conn->c_end_point == ep &&
 			   conn->c_rpcmachine == machine &&
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
