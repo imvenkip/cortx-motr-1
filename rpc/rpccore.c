@@ -593,8 +593,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	if (rc < 0)
 		goto last;
 
-	rpcobj_exit_stats_set(&rpc, chan->rc_rpcmachine,
-			C2_RPC_PATH_INCOMING);
+	rpcobj_exit_stats_set(&rpc, machine, C2_RPC_PATH_INCOMING);
 	now = c2_time_now();
 	c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
 				    struct c2_rpc_item, ri_rpcobject_linkage) {
