@@ -456,9 +456,9 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 	struct c2_fom_hthread  *locthr;
 
 	C2_PRE(loc != NULL);
-
+	#ifndef __KERNEL__
 	C2_ALLOC_PTR_ADDB(locthr, &c2_reqh_addb_ctx, &c2_fom_addb_loc);
-
+	#endif
 	if (locthr == NULL)
 		return -ENOMEM;
 
@@ -641,8 +641,10 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	}
 
 	c2_processors_online(&onln_cpu_map);
+	#ifndef __KERNEL__
 	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &c2_reqh_addb_ctx,
 							&c2_fom_addb_loc);
+	#endif
 	if (dom->fd_localities == NULL) {
 		c2_bitmap_fini(&onln_cpu_map);
 		c2_bitmap_fini(&loc_cpu_map);
