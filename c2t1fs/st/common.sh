@@ -9,6 +9,7 @@ MODLIST="lib/linux_kernel/klibc2.ko \
          sns/linux_kernel/ksns.ko \
 	 sm/linux_kernel/ksm.ko \
          stob/linux_kernel/kstob.ko \
+	 xcode/linux_kernel/kxcode.ko \
 	 ioservice/linux_kernel/kioservice.ko \
          pool/linux_kernel/kpool.ko \
          layout/linux_kernel/klayout.ko \
