@@ -49,6 +49,8 @@
    @addtogroup rpc_session
 
    @{
+
+   This file implements functions related to c2_rpc_conn.
  */
 
 static const char conn_cob_name_fmt[] = "SENDER_%lu";
@@ -537,8 +539,6 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 		 * its internal structures (session0, slots etc.).
 		 * Then the end-user can free the object.
 		 */
-		printf("ccrr: conn create failed %d\n",
-			fop_cer->rcer_rc);
 	} else {
 		if (fop_cer->rcer_sender_id == SENDER_ID_INVALID) {
 			/*
@@ -555,8 +555,6 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 		}
 		conn->c_sender_id = fop_cer->rcer_sender_id;
 		conn->c_state = C2_RPC_CONN_ACTIVE;
-		printf("ccrr: conn created %lu\n",
-			(unsigned long)fop_cer->rcer_sender_id);
 	}
 
 out:
@@ -678,8 +676,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	conn->c_state = C2_RPC_CONN_TERMINATING;
 
-	printf("sender_conn_terminate: %p(%lu)\n", conn,
-			(unsigned long)conn->c_sender_id);
 	fop_ct = c2_fop_data(fop);
 	C2_ASSERT(fop_ct != NULL);
 
@@ -746,7 +742,6 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 	 */
 	sender_id = fop_ctr->ctr_sender_id;
 	if (conn->c_sender_id != sender_id) {
-		printf("ctrr: conn->c_sender_id != sender_id\n");
 		conn->c_state = C2_RPC_CONN_FAILED;
 		conn->c_rc = -EPROTO;
 		goto out;
@@ -757,16 +752,12 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 	 * session 0 will be cleaned up in c2_rpc_conn_fini().
 	 */
 	if (fop_ctr->ctr_rc == 0) {
-		printf("ctrr: connection terminated %lu\n",
-			(unsigned long)conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_TERMINATED;
 		conn->c_sender_id = SENDER_ID_INVALID;
 	} else {
 		/*
 		 * Connection termination failed
 		 */
-		printf("ctrr: conn termination failed %lu\n",
-			(unsigned long)conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_FAILED;
 		conn->c_rc = fop_ctr->ctr_rc;
 	}
