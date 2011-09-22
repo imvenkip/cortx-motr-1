@@ -22,7 +22,6 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#include "rpcping_kernel.h"
 
 #include "colibri/init.h"
 #include "lib/assert.h"
@@ -37,24 +36,21 @@
 #include "rpc/session.h"
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
-#include "ioservice/io_fops.h"
 #include "ping_fop.h"
 #include "ping_fom.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
-#include "ioservice/linux_kernel/io_fops_k.h"
+#include <linux/module.h>
 #include "ping_fop_k.h"
+#include "rpcping_kernel.h"
 #define printf printk
 #else
-#include "ioservice/io_fops_u.h"
 #include "ping_fop_u.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #endif
-
-#include "stob/ut/io_fop.h"
 
 #ifndef __KERNEL__
 #ifdef HAVE_NETINET_IN_H
@@ -107,56 +103,6 @@ struct ping_ctx {
 	/* number of client threads */
 	int					 pc_nr_client_threads;
 };
-
-#ifdef __KERNEL__
-/* Module parameters */
-
-bool verbose = false;
-module_param(verbose, bool, S_IRUGO);
-MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
-
-/* server mode not supported
-bool server_mode = false;
-module_param(server_mode, bool, S_IRUGO);
-MODULE_PARM_DESC(server_mode, "enable server mode");
-*/
-
-bool client_mode = false;
-module_param(client_mode, bool, S_IRUGO);
-MODULE_PARM_DESC(client_mode, "enable client mode");
-
-char *local_hostaddr = "127.0.0.1";
-module_param(local_hostaddr, charp, S_IRUGO);
-MODULE_PARM_DESC(local_hostaddr, "client address");
-
-char *remote_hostaddr = "127.0.0.1";
-module_param(remote_hostaddr, charp, S_IRUGO);
-MODULE_PARM_DESC(remote_hostaddr, "server address");
-
-int server_port = 0;
-module_param(server_port, int, S_IRUGO);
-MODULE_PARM_DESC(server_port, "remote port number");
-
-int client_port = 0;
-module_param(client_port, int, S_IRUGO);
-MODULE_PARM_DESC(client_port, "local port number");
-
-int nr_client_threads = 0;
-module_param(nr_client_threads, int, S_IRUGO);
-MODULE_PARM_DESC(nr_client_threads, "number of client threads");
-
-int nr_slots = 0;
-module_param(nr_slots, int, S_IRUGO);
-MODULE_PARM_DESC(nr_slots, "number of slots");
-
-int nr_ping_bytes = 0;
-module_param(nr_ping_bytes, int, S_IRUGO);
-MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
-
-int nr_ping_item = 0;
-module_param(nr_ping_item, int, S_IRUGO);
-MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
-#endif
 
 /* Default port values */
 enum {
@@ -564,7 +510,7 @@ void print_stats(bool client, bool server)
 			stats->rs_items_nr);
 	printf("Number of outgoing bytes = %llu\n",
 			stats->rs_bytes_nr);
-	printf("Number of outgoing rpc's = %lu\n",
+	printf("Number of outgoing rpc's = %llu\n",
 			stats->rs_rpcs_nr);
 	#ifdef __KERNEL__
         packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
@@ -625,7 +571,7 @@ void print_stats(bool client, bool server)
 			stats->rs_items_nr);
 	printf("Number of incoming bytes = %llu\n",
 			stats->rs_bytes_nr);
-	printf("Number of incoming rpc's = %lu\n",
+	printf("Number of incoming rpc's = %llu\n",
 			stats->rs_rpcs_nr);
 	#ifdef __KERNEL__
         packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
@@ -634,6 +580,7 @@ void print_stats(bool client, bool server)
         packing_density = (double) stats->rs_items_nr /
                 (double)stats->rs_rpcs_nr;
         printf("RPC packing density      = %lf\n", packing_density);
+	#endif
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
@@ -923,6 +870,48 @@ cleanup:
 
 #ifdef __KERNEL__
 int c2_rpc_ping_init()
+
+/* Module parameters */
+bool verbose = false;
+module_param(verbose, bool, S_IRUGO);
+MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
+
+bool client_mode = false;
+module_param(client_mode, bool, S_IRUGO);
+MODULE_PARM_DESC(client_mode, "enable client mode");
+
+char *local_hostaddr = "127.0.0.1";
+module_param(local_hostaddr, charp, S_IRUGO);
+MODULE_PARM_DESC(local_hostaddr, "client address");
+
+char *remote_hostaddr = "127.0.0.1";
+module_param(remote_hostaddr, charp, S_IRUGO);
+MODULE_PARM_DESC(remote_hostaddr, "server address");
+
+int server_port = 0;
+module_param(server_port, int, S_IRUGO);
+MODULE_PARM_DESC(server_port, "remote port number");
+
+int client_port = 0;
+module_param(client_port, int, S_IRUGO);
+MODULE_PARM_DESC(client_port, "local port number");
+
+int nr_client_threads = 0;
+module_param(nr_client_threads, int, S_IRUGO);
+MODULE_PARM_DESC(nr_client_threads, "number of client threads");
+
+int nr_slots = 0;
+module_param(nr_slots, int, S_IRUGO);
+MODULE_PARM_DESC(nr_slots, "number of slots");
+
+int nr_ping_bytes = 0;
+module_param(nr_ping_bytes, int, S_IRUGO);
+MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
+
+int nr_ping_item = 0;
+module_param(nr_ping_item, int, S_IRUGO);
+MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
+
 #else
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
@@ -943,9 +932,7 @@ int main(int argc, char *argv[])
 	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
-	#endif
 
-	#ifndef __KERNEL__
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
@@ -968,13 +955,15 @@ int main(int argc, char *argv[])
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('P', "server port", "%i", &server_port),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
-		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
+		C2_FORMATARG('t', "number of client threads", "%i",
+						&nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
 	#endif
+
 	/* Set defaults */
 	sctx.pc_lhostname = cctx.pc_lhostname = "localhost";
 	sctx.pc_rhostname = cctx.pc_rhostname = "localhost";
@@ -995,17 +984,12 @@ int main(int argc, char *argv[])
 		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
-	/**
-	   if (server_mode)
-		server = true;
-	 */
 	if (client_mode)
 		client = true;
 	if (nr_ping_item != 0)
                 cctx.pc_nr_ping_items = nr_ping_item;
         if (nr_ping_bytes != 0)
                 cctx.pc_nr_ping_bytes = nr_ping_bytes;
-
 	#else
 	if (client_name)
 		sctx.pc_rhostname = cctx.pc_lhostname = client_name;
@@ -1023,8 +1007,8 @@ int main(int argc, char *argv[])
 		cctx.pc_nr_ping_bytes = nr_ping_bytes;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
-
 	#endif
+
 	/* Client part */
 	if(client) {
 		client_init();
@@ -1054,21 +1038,14 @@ int main(int argc, char *argv[])
 	}
 
 	c2_ping_fop_fini();
-	c2_ioservice_fop_fini();
-
 	c2_fini();
 	#endif
 
 	return 0;
 }
-C2_EXPORTED(c2_rpc_ping_init);
 
-#ifdef __KERNEL__
 void c2_rpc_ping_fini(void)
 {
-
-	c2_ping_fop_fini();
 	client_fini();
+	c2_ping_fop_fini();
 }
-C2_EXPORTED(c2_rpc_ping_fini);
-#endif
