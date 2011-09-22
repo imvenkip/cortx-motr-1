@@ -49,6 +49,9 @@
    @addtogroup rpc_session
 
    @{
+
+   This file contains implementation of rpc slots.
+
  */
 
 extern void item_exit_stats_set(struct c2_rpc_item *item,

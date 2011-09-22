@@ -49,6 +49,8 @@
    @addtogroup rpc_session
 
    @{
+
+   This file defines functions related to c2_rpc_session.
  */
 
 static void snd_slot_idle(struct c2_rpc_slot *slot);

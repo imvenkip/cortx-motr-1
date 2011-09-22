@@ -49,6 +49,8 @@
    @addtogroup rpc_session
 
    @{
+
+   This file implements functions related to c2_rpc_conn.
  */
 
 static const char conn_cob_name_fmt[] = "SENDER_%lu";

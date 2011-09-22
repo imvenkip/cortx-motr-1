@@ -45,6 +45,9 @@
    @addtogroup rpc_session
 
    @{
+
+   Definitions of foms that execute conn establish, conn terminate, session
+   establish and session terminate fops.
  */
 
 extern void item_exit_stats_set(struct c2_rpc_item   *item,
@@ -68,7 +71,6 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	struct c2_rpc_fop_conn_establish_rep *reply;
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpc_fop_conn_establish     *request;
-	struct c2_rpc_fom_conn_establish     *fom_ce;
 	struct c2_fop                        *fop;
 	struct c2_fop                        *fop_rep;
 	struct c2_rpc_item                   *item;
@@ -78,21 +80,19 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	int                                   rc;
 
 	C2_PRE(fom != NULL);
-
-	fom_ce = container_of(fom, struct c2_rpc_fom_conn_establish, fce_gen);
-	C2_ASSERT(fom_ce->fce_fop != NULL && fom_ce->fce_fop_rep != NULL);
+	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+	C2_PRE(fom->fo_phase == FOPH_CONN_ESTABLISHING);
 
 	/* Request fop */
-	fop = fom_ce->fce_fop;
+	fop = fom->fo_fop;
 	request = c2_fop_data(fop);
 	C2_ASSERT(request != NULL);
 
 	/* reply fop */
-	fop_rep = fom_ce->fce_fop_rep;
+	fop_rep = fom->fo_rep_fop;
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
-	/* request item */
 	item = &fop->f_item;
 
 	/*
@@ -225,7 +225,6 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_establish_rep *reply;
 	struct c2_rpc_fop_session_establish     *request;
-	struct c2_rpc_fom_session_establish     *fom_se;
 	struct c2_rpc_item                      *item;
 	struct c2_fop                           *fop;
 	struct c2_fop                           *fop_rep;
@@ -234,17 +233,15 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	uint32_t                                 slot_cnt;
 	int                                      rc;
 
-	fom_se = container_of(fom, struct c2_rpc_fom_session_establish,
-				fse_gen);
+	C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+	C2_PRE(fom->fo_phase == FOPH_SESSION_ESTABLISHING);
 
-	C2_PRE(fom != NULL && fom_se != NULL && fom_se->fse_fop != NULL &&
-			fom_se->fse_fop_rep != NULL);
-
-	fop = fom_se->fse_fop;
+	fop = fom->fo_fop;
 	request = c2_fop_data(fop);
 	C2_ASSERT(request != NULL);
 
-	fop_rep = fom_se->fse_fop_rep;
+	fop_rep = fom->fo_rep_fop;
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
@@ -332,24 +329,22 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_terminate_rep *reply;
 	struct c2_rpc_fop_session_terminate     *request;
-	struct c2_rpc_fom_session_terminate     *fom_st;
 	struct c2_rpc_item                      *item;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_conn                      *conn;
 	uint64_t                                 session_id;
 	int                                      rc;
 
+	C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+	C2_PRE(fom->fo_phase == FOPH_SESSION_TERMINATING);
+
 	printf("session_terminate_state: called\n");
-	fom_st = container_of(fom, struct c2_rpc_fom_session_terminate,
-				fst_gen);
 
-	C2_ASSERT(fom != NULL && fom_st != NULL && fom_st->fst_fop != NULL &&
-			fom_st->fst_fop_rep != NULL);
-
-	request = c2_fop_data(fom_st->fst_fop);
+	request = c2_fop_data(fom->fo_fop);
 	C2_ASSERT(request != NULL);
 
-	reply = c2_fop_data(fom_st->fst_fop_rep);
+	reply = c2_fop_data(fom->fo_rep_fop);
 	C2_ASSERT(reply != NULL);
 
 	/*
@@ -358,7 +353,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	reply->rstr_sender_id = request->rst_sender_id;
 	reply->rstr_session_id = session_id = request->rst_session_id;
 
-	item = &fom_st->fst_fop->f_item;
+	item = &fom->fo_fop->f_item;
 	C2_ASSERT(item->ri_session != NULL);
 
 	conn = item->ri_session->s_conn;
@@ -397,8 +392,8 @@ errout:
 	 * Note: request is received on SESSION_0, which is different from
 	 * current session being terminated. Reply will also go on SESSION_0.
 	 */
-	c2_rpc_reply_post(&fom_st->fst_fop->f_item,
-			  &fom_st->fst_fop_rep->f_item);
+	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
+
 	return FSO_AGAIN;
 }
 
@@ -426,24 +421,21 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_terminate_rep *reply;
 	struct c2_rpc_fop_conn_terminate     *request;
-	struct c2_rpc_fom_conn_terminate     *fom_ct;
 	struct c2_rpc_item                   *item;
 	struct c2_fop                        *fop;
 	struct c2_fop                        *fop_rep;
 	struct c2_rpc_conn                   *conn;
 	int                                   rc;
 
-	C2_ASSERT(fom != NULL);
-	fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate, fct_gen);
+	C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+	C2_PRE(fom->fo_phase == FOPH_CONN_TERMINATING);
 
-	C2_ASSERT(fom_ct != NULL && fom_ct->fct_fop != NULL &&
-			fom_ct->fct_fop_rep != NULL);
-
-	fop = fom_ct->fct_fop;
+	fop = fom->fo_fop;
 	request = c2_fop_data(fop);
 	C2_ASSERT(request != NULL);
 
-	fop_rep = fom_ct->fct_fop_rep;
+	fop_rep = fom->fo_rep_fop;
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 

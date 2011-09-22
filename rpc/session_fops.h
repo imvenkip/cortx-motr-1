@@ -29,6 +29,9 @@
    @addtogroup rpc_session
 
    @{
+
+   Declarations of all the fops belonging to rpc-session module along with
+   associated item types.
  */
 
 enum c2_rpc_session_opcodes {
@@ -68,18 +71,6 @@ extern struct c2_fop_type c2_rpc_fop_session_establish_rep_fopt;
 extern struct c2_fop_type c2_rpc_fop_session_terminate_fopt;
 extern struct c2_fop_type c2_rpc_fop_session_terminate_rep_fopt;
 extern struct c2_fop_type c2_rpc_fop_noop_fopt;
-
-int c2_rpc_fop_conn_establish_fom_init(struct c2_fop  *fop,
-				       struct c2_fom **m);
-
-int c2_rpc_fop_session_establish_fom_init(struct c2_fop  *fop,
-					  struct c2_fom **m);
-
-int c2_rpc_fop_session_terminate_fom_init(struct c2_fop  *fop,
-					  struct c2_fom **m);
-
-int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop  *fop,
-				       struct c2_fom **m);
 
 int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
 			    struct c2_fop_ctx *ctx);
