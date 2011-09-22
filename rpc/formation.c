@@ -197,7 +197,7 @@ static bool frm_sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 
 	/* The transfer machine associated with this formation state machine
 	   should have been started already. */
-	if (chan->rc_tm.ntm_state != C2_NET_TM_STARTED)
+	if (chan->rc_rpcmachine->cr_tm.ntm_state != C2_NET_TM_STARTED)
 		return false;
 
 	/* Number of rpcs in flight should always be less than max limit. */
@@ -249,19 +249,16 @@ static struct c2_rpc_frm_sm *item_to_frm_sm(const struct c2_rpc_item *item)
 	return frm_sm;
 }
 
-void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_chan *chan,
-		 uint64_t max_rpcs_in_flight)
+void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight)
 {
-	uint64_t cnt;
+	uint64_t		 cnt;
+	struct c2_rpc_chan	*chan;
+	struct c2_net_domain	*netdom;
 
-	C2_PRE(chan != NULL);
-	C2_PRE(frm_sm != NULL);
-	C2_PRE(max_rpcs_in_flight != 0);
-
-
-	C2_PRE(chan != NULL);
 	C2_PRE(frm_sm != NULL);
 
+	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
+	netdom = chan->rc_rpcmachine->cr_tm.ntm_dom;
         c2_addb_ctx_init(&frm_sm->fs_rpc_form_addb,
 			&frm_addb_ctx_type, &c2_addb_global_ctx);
 	frm_sm->fs_sender_side = false;
@@ -282,10 +279,8 @@ void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_chan *chan,
 	frm_sm->fs_timedout_items_nr = 0;
 	frm_sm->fs_items_left = 0;
 
-	frm_sm->fs_max_msg_size = c2_net_domain_get_max_buffer_size(
-				  chan->rc_tm.ntm_dom);
-	frm_sm->fs_max_frags = c2_net_domain_get_max_buffer_segments(
-				  chan->rc_tm.ntm_dom);
+	frm_sm->fs_max_msg_size = c2_net_domain_get_max_buffer_size(netdom);
+	frm_sm->fs_max_frags = c2_net_domain_get_max_buffer_segments(netdom);
 	frm_sm->fs_max_rpcs_in_flight = max_rpcs_in_flight;
 }
 
@@ -1343,18 +1338,6 @@ uint64_t rpc_size_get(const struct c2_rpc *rpc)
 	return rpc_size;
 }
 
-static struct c2_net_transfer_mc *frm_get_tm(const struct c2_rpc_item *item)
-{
-	struct c2_net_transfer_mc *tm;
-
-	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
-			(item->ri_session->s_conn != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan != NULL));
-
-	tm = &item->ri_session->s_conn->c_rpcchan->rc_tm;
-	return tm;
-}
-
 static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 {
 	int				 rc;
@@ -1365,10 +1348,12 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 	struct c2_net_domain		*dom;
 	struct c2_rpc_frm_buffer	*fb;
 	struct c2_net_transfer_mc	*tm;
+	struct c2_rpc_chan		*chan;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 
+	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
 	/* Iterate over the rpc object list and send all rpc objects on wire. */
 	c2_list_for_each_entry_safe(&frm_sm->fs_rpcs, rpc_obj,
 			rpc_obj_next, struct c2_rpc, r_linkage) {
@@ -1383,7 +1368,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 					"max in flight reached", rc);
 			break;
 		}
-		tm = frm_get_tm(item);
+		tm = &chan->rc_rpcmachine->cr_tm;
 		dom = tm->ntm_dom;
 		rpc_size = rpc_size_get(rpc_obj);
 		fb = &rpc_obj->r_fbuf;
@@ -1392,7 +1377,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		if (rc < 0)
 			continue;
 
-		fb->fb_buffer.nb_ep = item->ri_session->s_conn->c_end_point;
+		fb->fb_buffer.nb_ep = chan->rc_destep;
 		fb->fb_buffer.nb_length = rpc_size;
 
 		/** @todo Allocate bulk i/o buffers before encoding. */
