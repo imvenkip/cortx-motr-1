@@ -255,11 +255,11 @@ static void test_fop_encdec(void)
 }
 
 const struct c2_test_suite xcode_bufvec_fop_ut = {
-	.ts_name = "bufvec_xcode_fop-ut",
+	.ts_name = "xcode_bufvec_fop-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "fop_bufvec_xcode", test_fop_encdec },
+		{ "xcode_bufvec_fop", test_fop_encdec },
 		{ NULL, NULL }
 	}
 };
