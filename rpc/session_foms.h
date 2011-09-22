@@ -37,6 +37,9 @@
    @addtogroup rpc_session
 
    @{
+
+   This file contains, fom declarations for
+   [conn|session]_[establish|terminate].
  */
 
 /*
@@ -44,13 +47,7 @@
  */
 
 enum c2_rpc_fom_conn_establish_phase {
-	FOPH_CONN_ESTABLISH = FOPH_NR + 1
-};
-
-struct c2_rpc_fom_conn_establish {
-	struct c2_fom  fce_gen;
-	struct c2_fop *fce_fop;
-	struct c2_fop *fce_fop_rep;
+	FOPH_CONN_ESTABLISHING = FOPH_NR + 1
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
@@ -64,13 +61,7 @@ void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
  */
 
 enum c2_rpc_fom_session_establish_phase {
-	FOPH_SESSION_ESTABLISH = FOPH_NR + 1
-};
-
-struct c2_rpc_fom_session_establish {
-	struct c2_fom  fse_gen;
-	struct c2_fop *fse_fop;
-	struct c2_fop *fse_fop_rep;
+	FOPH_SESSION_ESTABLISHING = FOPH_NR + 1
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_establish_type;
@@ -84,13 +75,7 @@ void c2_rpc_fom_session_establish_fini(struct c2_fom *fom);
  */
 
 enum c2_rpc_fom_session_terminate_phase {
-	FOPH_SESSION_DESTROYING = FOPH_NR + 1
-};
-
-struct c2_rpc_fom_session_terminate {
-	struct c2_fom  fst_gen;
-	struct c2_fop *fst_fop;
-	struct c2_fop *fst_fop_rep;
+	FOPH_SESSION_TERMINATING = FOPH_NR + 1
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
@@ -105,12 +90,6 @@ void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom);
 
 enum c2_rpc_fom_conn_terminate_phase {
 	FOPH_CONN_TERMINATING = FOPH_NR + 1
-};
-
-struct c2_rpc_fom_conn_terminate {
-	struct c2_fom  fct_gen;
-	struct c2_fop *fct_fop;
-	struct c2_fop *fct_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;

@@ -713,8 +713,10 @@ void c2_fom_init(struct c2_fom *fom)
 	fom->fo_phase = FOPH_INIT;
 	fom->fo_rep_fop = NULL;
 
-	c2_addb_ctx_init(&fom->fo_fop->f_addb, &c2_fom_addb_ctx_type,
-				&c2_addb_global_ctx);
+	/* Move initialisation of ->f_addb to fom specific init routine */
+
+	//c2_addb_ctx_init(&fom->fo_fop->f_addb, &c2_fom_addb_ctx_type,
+	//			&c2_addb_global_ctx);
 
 	c2_clink_init(&fom->fo_clink, &fom_cb);
 	c2_list_link_init(&fom->fo_linkage);
