@@ -47,6 +47,9 @@
    @{
  */
 
+extern void item_exit_stats_set(struct c2_rpc_item   *item,
+				enum c2_rpc_item_path path);
+
 const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
 	.fo_fini = c2_rpc_fom_conn_establish_fini,
 	.fo_state = c2_rpc_fom_conn_establish_state
@@ -150,6 +153,12 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	 * to SENDER_ID_INVALID
 	 */
 	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+
+	/*
+	 * CONN_ESTABLISH item is directly submitted for execution. Update
+	 * rpc-layer stats on INCOMING path here.
+	 */
+	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	reply->rcer_sender_id = conn->c_sender_id;

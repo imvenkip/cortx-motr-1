@@ -845,6 +845,10 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 
 	rc = associate_session_and_slot(item, machine);
 	if (rc != 0) {
+		/*
+		 * stats for conn establish item are updated in its
+		 * fom's state() method.
+		 */
 		if (c2_rpc_item_is_conn_establish(item)) {
 			c2_rpc_item_dispatch(item);
 			return 0;
