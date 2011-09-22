@@ -40,9 +40,7 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 	C2_ASSERT(fop->f_type->ft_ops != NULL);
 	C2_ASSERT(fop->f_type->ft_ops->fto_size_get != NULL);
 	len = fop->f_type->ft_ops->fto_size_get(fop);
-	printf("\nFOP SIZE = %ld\n", len);
 	len += ITEM_ONWIRE_HEADER_SIZE;
-	printf("ITEM_SIZE :  %ld\n", len);
 	return len;
 }
 
@@ -112,14 +110,7 @@ static int sender_uuid_encdec(struct c2_bufvec_cursor *cur,
 			      struct c2_rpc_sender_uuid *uuid,
 			      enum c2_bufvec_what what)
 {
-	int	rc;
-
-	rc = c2_bufvec_uint64(cur, &uuid->su_uuid, what);
-	if (what == C2_BUFVEC_ENCODE)
-		printf("\nSender uuid (encode): %lu", uuid->su_uuid);
-	else
-		printf("\nSender uuid (decode): %lu", uuid->su_uuid);
-	return rc;
+	return c2_bufvec_uint64(cur, &uuid->su_uuid, what);
 }
 
 static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
@@ -128,7 +119,6 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 {
 	struct c2_rpc_slot_ref    *sref;
 	int			   rc;
-	char			  *todo;
 	int			   slot_ref_cnt;
 	int			   i;
 
@@ -156,24 +146,6 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 		if (rc != 0)
 			return -EFAULT;
 	}
-	if(what == C2_BUFVEC_ENCODE)
-		todo = "encode";
-	else
-		todo = "decode";
-
-	printf("\nVer No lsn (%s): %lu",todo, sref->sr_verno.vn_lsn);
-	printf("\nVer No vc (%s): %lu", todo, sref->sr_verno.vn_vc);
-	printf("\nLast persistent ver no lsn (%s): %lu", todo,
-		sref->sr_last_persistent_verno.vn_lsn);
-	printf("\nLast persistent ver no vc (%s): %lu", todo,
-		sref->sr_last_persistent_verno.vn_vc);
-	printf("\nLast seen ver no lsn (%s): %lu", todo,
-		sref->sr_last_seen_verno.vn_lsn);
-	printf("\nLast seen ver no vc (%s) : %lu", todo,
-		sref->sr_last_seen_verno.vn_vc);
-	printf("\nSlot Id (%s): %u", todo, sref->sr_slot_id);
-	printf("\nXid (%s): %lu", todo, sref->sr_xid);
-	printf("\nSlot gen (%s): %lu",todo, sref->sr_slot_gen);
 	return rc;
 }
 
@@ -190,7 +162,6 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
 			     enum c2_bufvec_what what)
 {
 	uint64_t		 len;
-	char			*todo;
 	int			 rc;
 	struct c2_rpc_item_type *item_type;
 
@@ -201,19 +172,8 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
 	C2_ASSERT(item_type->rit_ops != NULL);
 	C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
 	len = item_type->rit_ops->rito_item_size(item);
-	printf("\nIn header enc, len = %ld", len);
-
 	rc = c2_bufvec_uint64(cur, &len, what) ?:
 	slot_ref_encdec(cur, item->ri_slot_refs, what);
-
-	if (what == C2_BUFVEC_ENCODE)
-		todo = "encode";
-	else
-		todo = "decode";
-/*	printf("\nSender id (%s) :  %ld", todo, item->ri_sender_id);
-	printf("\nSession id (%s) :  %ld", todo, item->ri_session_id);
-*/	if (rc != 0)
-		return -EFAULT;
 	return rc;
 }
 
@@ -255,7 +215,6 @@ int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
 	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE);
 	if(rc != 0)
 		return -EFAULT;
-	printf("\nOpcode (encode): %d", opcode);
 	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
 	return rc;
 }
@@ -286,30 +245,6 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 	return rc;
 }
 
-/* XXX : Temporary function to aid debugging and tracing.  Added here for UT and
-testing.*/
-static void item_verify(struct c2_rpc_item *item)
-{
-	struct c2_fop		*fop;
-	struct c2_fop_type	*fopt;
-	struct c2_fop_data	*fdata;
-	int			 i;
-	size_t			 len;
-	unsigned char		*buf;
-
-	fop = c2_rpc_item_to_fop(item);
-	fopt = fop->f_type;
-	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-	fdata = c2_fop_data(fop);
-	buf = (unsigned char *)fdata;
-	printf("\nDecoded FOP Data :\n");
-	for (i = 0; i < len; ++i) {
-		printf(" %x ", *buf);
-		buf++;
-	}
-	printf("\n");
-}
-
 /**
   Checks if the supplied bufvec has buffers with sizes multiple of 8 bytes.
   @param buf bufvec for which we want to check the size alignment.
@@ -337,7 +272,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	size_t				 offset = 0;
 	c2_bcount_t			 bufvec_size;
 	int				 rc;
-	int				 count = 0;
 	struct c2_rpc_item_type		*item_type;
 	void				*cur_addr;
 
@@ -345,7 +279,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	C2_PRE(nb != NULL);
 
 	bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
-	printf("\nNetwork buf size : %lu", bufvec_size);
 	/*
 	  XXX : Alignment Checks
 	  Check if bufvecs are 8-byte aligned buffers with sizes multiple of
@@ -357,7 +290,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
-	printf("\n**********ENCODING STARTS************");
 	/* Serialize RPC object header into the buffer */
 	rc = rpc_header_encode(&cur, rpc_obj);
 	if (rc != 0)
@@ -373,11 +305,8 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
 		offset = len + item_type->rit_ops->rito_item_size(item);
-		printf("\nOffset = %ld\n", offset);
 		C2_ASSERT(offset < bufvec_size);
 		len = offset;
-		++count;
-		printf("\n\n----ENCODING ITEM NO:%d\n", count);
 		/* Call the associated encode function for the that item type */
 		rc = item_type->rit_ops->rito_encode(item_type, item, &cur);
 		if (rc != 0)
@@ -385,8 +314,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	}
 	C2_ASSERT(bufvec_size >= len);
 	nb->nb_length = len;
-	printf("\nEncoded data length : %lu", len);
-	printf("\n===========ENCODING ENDS===========\n");
 end:
 	return rc;
 }
@@ -409,16 +336,13 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	C2_PRE(nb != NULL);
 	C2_PRE(rpc_obj != NULL);
 
-	printf("\n**********DECODING STARTS************");
 	len = nb->nb_length;
-	printf("\nLength of decode buffer = %d", (int)len);
 	C2_ASSERT(len != 0);
 	bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
-	printf("\nNetwork buf size(decode) : %lu", bufvec_size);
 	C2_ASSERT(len <= bufvec_size);
 	/*
-	  XXX : Check if bufvecs are 8-byte aligned buffers with sizes multiple of
-	  8 bytes.
+	  Check if bufvecs are 8-byte aligned buffers with sizes multiple
+	  of 8 bytes.
 	*/
 	C2_ASSERT(C2_IS_8ALIGNED(bufvec_size));
 	C2_ASSERT(each_bufsize_is_8aligned(&nb->nb_buffer));
@@ -426,7 +350,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
         cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
-	/* Decode the rpc object header and get the count of items and rpc ver */
+	/* Decode the rpc object header and get the count of items & rpc ver */
 	rc = rpc_header_decode(&cur, &item_count, &ver);
 	if (rc != 0)
 		return -EFAULT;
@@ -442,7 +366,6 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 		rc = c2_bufvec_uint32(&cur, &opcode, C2_BUFVEC_DECODE);
 		if (rc != 0)
 			return -EFAULT;
-		printf("Finding item type for opcode %u", opcode);
 		item_type = c2_rpc_item_type_lookup(opcode);
 		C2_ASSERT(item_type != NULL);
 		C2_ASSERT(item_type->rit_ops != NULL);
@@ -451,13 +374,11 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 		rc = item_type->rit_ops->rito_decode(item_type, &item, &cur);
 		if (rc != 0)
 			return rc;
-		item_verify(item);
 		offset += item_type->rit_ops->rito_item_size(item);
 		if (offset > len)
 			return -EMSGSIZE;
 		c2_list_add(&rpc_obj->r_items, &item->ri_rpcobject_linkage);
 	}
-	printf("\n===========DECODING ENDS===========\n");
 	return rc;
 }
 

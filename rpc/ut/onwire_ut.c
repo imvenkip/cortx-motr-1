@@ -83,22 +83,11 @@ int test_bufvec_dec(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
 		return -EFAULT;
 
         rc = c2_bufvec_array(cur, &f_arr->t_data, f_arr->t_count, ~0,
-			    sizeof(uint32_t), (c2_bufvec_xcode_t)c2_bufvec_uint32,
-			    C2_BUFVEC_DECODE);
+	     sizeof(uint32_t), (c2_bufvec_xcode_t)c2_bufvec_uint32,
+	     C2_BUFVEC_DECODE);
 	return rc;
 }
 
-uint64_t test_fop_size_get(struct c2_fop *fop)
-{
-	uint64_t		  size;
-	struct c2_fop_test	  *f;
-
-	C2_PRE(fop != NULL);
-	f = c2_fop_data(fop);
-	size = BYTES_PER_XCODE_UNIT * (f->t_arr.t_count + 1);
-	printf("\n FOP SIZE GET returns %ld\n", size);
-	return size;
-}
 struct c2_fop_type_ops test_ops = {
 	.fto_execute = test_handler,
 	.fto_size_get = c2_xcode_fop_size_get,
@@ -118,7 +107,6 @@ size_t test_item_size_get(const struct c2_rpc_item *item)
 		len = fop->f_type->ft_ops->fto_size_get(fop);
 		len += ITEM_ONWIRE_HEADER_SIZE;
 	}
-		printf("\nITEM SIZE GET returns : %ld", len);
 		return (size_t)len;
 }
 
@@ -128,10 +116,6 @@ const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
 	.rito_item_size = c2_rpc_item_default_size
 };
 
-/*static struct c2_rpc_item_type c2_rpc_item_type_test = {
-	.rit_ops = &c2_rpc_item_test_ops,
-	};
-*/
 struct c2_rpc_item_type c2_rpc_item_type_test = {
         .rit_ops = &c2_rpc_item_test_ops,
 };
@@ -217,9 +201,6 @@ int main()
 	ccf1->t_arr.t_data[2] = 0xc;
 	ccf1->t_arr.t_data[3] = 0xd;
 
-	//ccf1->t_time = 0x123456;
-	//ccf1->t_timeout = 0xABCDEF;
-
 	ccf2 = c2_fop_data(f2);
 	C2_ASSERT(ccf2 != NULL);
 	ccf2->t_arr.t_count = 4;
@@ -228,8 +209,6 @@ int main()
 	ccf2->t_arr.t_data[1] = 0xb;
 	ccf2->t_arr.t_data[2] = 0xc;
 	ccf2->t_arr.t_data[3] = 0xd;
-	//ccf2->t_time = 0xdefabc;
-	//ccf2->t_timeout = 0xdef123;
 
 	ccf3 = c2_fop_data(f3);
 	C2_ASSERT(ccf3 != NULL);
@@ -239,8 +218,6 @@ int main()
 	ccf3->t_arr.t_data[1] = 0xb;
 	ccf3->t_arr.t_data[2] = 0xc;
 	ccf3->t_arr.t_data[3] = 0xd;
-	//ccf3->t_time = 0xdef456;
-	//ccf3->t_timeout = 0xdef789;
 
 	item1 = &f1->f_item;
 	item1->ri_type = &c2_rpc_item_type_test;
@@ -253,7 +230,6 @@ int main()
 	populate_item(item3);
 
 	size = c2_xcode_fop_size_get(f1);
-	printf("SIZE OF FOP : %ld\n", size);
 	obj = &rpc_obj;
 	c2_list_init(&obj->r_items);
 

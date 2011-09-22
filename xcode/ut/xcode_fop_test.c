@@ -55,7 +55,6 @@ extern struct c2_fop_type_format c2_fop_test_tfmt;
 
 int test_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	printf("Called test_handler\n");
 	return 0;
 }
 
