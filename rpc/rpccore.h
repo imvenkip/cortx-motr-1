@@ -491,6 +491,8 @@ struct c2_rpc_stats {
 	c2_time_t	rs_min_lat;
 	/** Max Latency */
 	c2_time_t	rs_max_lat;
+	/** Number of rpc objects (used to calculate packing density) */
+	uint64_t	rs_rpcs_nr;
 };
 
 /** Returns an rpc item type associated with a unique rpc
@@ -536,21 +538,6 @@ struct c2_rpc_group {
 };
 
 /**
-   This structure contains list of {endpoint, transfer_mc} tuples
-   used by rpc layer. c2_rpcmachine refers to this structure.
-   This structure is created keeping in mind that there could be
-   multiple c2_rpcmachine structures co-existing within a colibri
-   address space. And multiple c2_rpc_conns within the rpcmachine
-   might use same endpoint to communicate.
- */
-struct c2_rpc_ep_aggr {
-	/** Mutex to protect the list.*/
-	struct c2_mutex		ea_mutex;
-	/** List of c2_rpc_chan structures. */
-	struct c2_list		ea_chan_list;
-};
-
-/**
    Struct c2_rpc_chan provides information about a target network endpoint.
    An rpc machine (struct c2_rpcmachine) contains list of c2_rpc_chan structures
    targeting different net endpoints.
@@ -566,14 +553,12 @@ struct c2_rpc_ep_aggr {
 struct c2_rpc_chan {
 	/** Linkage to the list maintained by c2_rpcmachine.*/
 	struct c2_list_link		  rc_linkage;
-	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	  rc_tm;
-	/** Pool of receive buffers associated with this transfer machine. */
-	struct c2_net_buffer		**rc_rcv_buffers;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
 	/** Formation state machine associated with chan. */
 	struct c2_rpc_frm_sm		  rc_frmsm;
+	/** Destination end point to which rpcs will be sent. */
+	struct c2_net_end_point		 *rc_destep;
 	/** The rpcmachine, this chan structure is associated with.*/
 	struct c2_rpcmachine		 *rc_rpcmachine;
 };
@@ -583,27 +568,33 @@ struct c2_rpc_chan {
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpcmachine {
-	/* List of transfer machine used by conns from this rpcmachine. */
-	struct c2_rpc_ep_aggr		 cr_ep_aggr;
+	/** Mutex protecting list of c2_rpc_chan structures. */
+	struct c2_mutex			  cr_chan_mutex;
+	/** List of c2_rpc_chan structures. */
+	struct c2_list			  cr_chans;
+	/** Transfer machine associated with this endpoint.*/
+	struct c2_net_transfer_mc	  cr_tm;
+	/** Pool of receive buffers associated with this transfer machine. */
+	struct c2_net_buffer		**cr_rcv_buffers;
 	/** Cob domain in which cobs related to session will be stored */
-	struct c2_cob_domain		*cr_dom;
+	struct c2_cob_domain		 *cr_dom;
 	/** List of rpc connections
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list			 cr_incoming_conns;
-	struct c2_list			 cr_outgoing_conns;
+	struct c2_list			  cr_incoming_conns;
+	struct c2_list			  cr_outgoing_conns;
 	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
-	struct c2_mutex			 cr_session_mutex;
+	struct c2_mutex			  cr_session_mutex;
 	/** Mutex to protect list of ready slots. */
-	struct c2_mutex			 cr_ready_slots_mutex;
+	struct c2_mutex			  cr_ready_slots_mutex;
 	/** list of ready slots. */
-	struct c2_list			 cr_ready_slots;
+	struct c2_list			  cr_ready_slots;
 	/** ADDB context for this rpcmachine */
-	struct c2_addb_ctx		 cr_rpc_machine_addb;
+	struct c2_addb_ctx		  cr_rpc_machine_addb;
 	/** Statistics for both incoming and outgoing paths */
-	struct c2_rpc_stats		 cr_rpc_stats[C2_RPC_PATH_NR];
+	struct c2_rpc_stats		  cr_rpc_stats[C2_RPC_PATH_NR];
 	/** Mutex to protect stats */
-	struct c2_mutex			 cr_stats_mutex;
+	struct c2_mutex			  cr_stats_mutex;
 };
 
 /**
@@ -630,8 +621,7 @@ void c2_rpc_core_fini(void);
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
 			struct c2_net_domain	*net_dom,
-			const char		*ep_addr,
-			uint64_t max_rpcs_in_flight);
+			const char		*ep_addr);
 
 /**
    Destruct rpcmachine

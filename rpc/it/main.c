@@ -319,7 +319,6 @@ void server_init(int dummy)
 	char			 addr_local[ADDR_LEN];
 	char			 addr_remote[ADDR_LEN];
 	char			 hostbuf[ADDR_LEN];
-	struct c2_rpc_chan	*chan;
 
 	/* Init Bulk sunrpc transport */
 	sctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
@@ -380,7 +379,7 @@ void server_init(int dummy)
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			&sctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
+			&sctx.pc_dom, addr_local);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -401,10 +400,7 @@ void server_init(int dummy)
 
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
-        chan = c2_list_entry(c2_list_first(&sctx.pc_rpc_mach.cr_ep_aggr.
-				ea_chan_list),
-                        struct c2_rpc_chan, rc_linkage);
-        sctx.pc_tm = &chan->rc_tm;
+        sctx.pc_tm = &sctx.pc_rpc_mach.cr_tm;
 
 	/* Create destination endpoint for server i.e client endpoint */
 	rc = c2_net_end_point_create(&sctx.pc_rep, sctx.pc_tm, addr_remote);
@@ -449,7 +445,7 @@ void send_ping_fop(int nr)
 	}
 	item = &fop->f_item;
 	c2_rpc_item_init(item);
-	item->ri_deadline = 0;
+	item->ri_deadline = 0; 
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
 	item->ri_type = &c2_rpc_item_type_ping;
@@ -476,6 +472,7 @@ void print_stats(bool client, bool server)
 	double			 sec = 0;
 	double			 msec = 0;
 	double			 thruput;
+	double			 packing_density;
 
 	if (client)
 		rpc_mach = &cctx.pc_rpc_mach;
@@ -489,6 +486,11 @@ void print_stats(bool client, bool server)
 			stats->rs_items_nr);
 	printf("Number of outgoing bytes = %lu\n",
 			stats->rs_bytes_nr);
+	printf("Number of outgoing rpc's = %lu\n",
+			stats->rs_rpcs_nr);
+	packing_density = (double) stats->rs_items_nr /
+		(double)stats->rs_rpcs_nr;
+	printf("RPC packing density      = %lf\n", packing_density);
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
@@ -521,6 +523,11 @@ void print_stats(bool client, bool server)
 			stats->rs_items_nr);
 	printf("Number of incoming bytes = %lu\n",
 			stats->rs_bytes_nr);
+	printf("Number of incoming rpc's = %lu\n",
+			stats->rs_rpcs_nr);
+	packing_density = (double) stats->rs_items_nr /
+		(double) stats->rs_rpcs_nr;
+	printf("RPC packing density      = %lf\n", packing_density);
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
@@ -556,7 +563,6 @@ void client_init()
 	char			 hostbuf[ADDR_LEN];
         c2_time_t		 timeout;
 	struct c2_thread	*client_thread;
-	struct c2_rpc_chan	*chan;
 
 	/* Init Bulk sunrpc transport */
 	cctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
@@ -617,7 +623,7 @@ void client_init()
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			&cctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
+			&cctx.pc_dom, addr_local);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -636,12 +642,7 @@ void client_init()
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, cctx.pc_rport, RID);
 	printf("Server Addr = %s\n",addr_remote);
 
-	/* Find first c2_rpc_chan from the chan's list
-	   and use its corresponding tm to create target end_point */
-	chan = c2_list_entry(c2_list_first(&cctx.pc_rpc_mach.cr_ep_aggr.
-				ea_chan_list),
-			struct c2_rpc_chan, rc_linkage);
-	cctx.pc_tm = &chan->rc_tm;
+	cctx.pc_tm = &cctx.pc_rpc_mach.cr_tm;
 
 	/* Create destination endpoint for client i.e server endpoint */
 	rc = c2_net_end_point_create(&cctx.pc_rep, cctx.pc_tm, addr_remote);
@@ -653,7 +654,8 @@ void client_init()
 	}
 
 	/* Init the connection structure */
-	rc = c2_rpc_conn_init(&cctx.pc_conn, cctx.pc_rep, &cctx.pc_rpc_mach);
+	rc = c2_rpc_conn_init(&cctx.pc_conn, cctx.pc_rep, &cctx.pc_rpc_mach,
+			MAX_RPCS_IN_FLIGHT);
 	if(rc != 0){
 		printf("Failed to init rpc connection\n");
 		goto cleanup;
