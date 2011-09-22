@@ -41,9 +41,8 @@
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
-#include <linux/module.h>
 #include "ping_fop_k.h"
-#include "rpcping_kernel.h"
+#include "rpc_ping.h"
 #define printf printk
 #else
 #include "ping_fop_u.h"
@@ -103,6 +102,49 @@ struct ping_ctx {
 	/* number of client threads */
 	int					 pc_nr_client_threads;
 };
+
+#ifdef __KERNEL__
+/* Module parameters */
+bool verbose = false;
+module_param(verbose, bool, S_IRUGO);
+MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
+
+bool client_mode = false;
+module_param(client_mode, bool, S_IRUGO);
+MODULE_PARM_DESC(client_mode, "enable client mode");
+
+char *local_hostaddr = "127.0.0.1";
+module_param(local_hostaddr, charp, S_IRUGO);
+MODULE_PARM_DESC(local_hostaddr, "client address");
+
+char *remote_hostaddr = "127.0.0.1";
+module_param(remote_hostaddr, charp, S_IRUGO);
+MODULE_PARM_DESC(remote_hostaddr, "server address");
+
+int server_port = 0;
+module_param(server_port, int, S_IRUGO);
+MODULE_PARM_DESC(server_port, "remote port number");
+
+int client_port = 0;
+module_param(client_port, int, S_IRUGO);
+MODULE_PARM_DESC(client_port, "local port number");
+
+int nr_client_threads = 0;
+module_param(nr_client_threads, int, S_IRUGO);
+MODULE_PARM_DESC(nr_client_threads, "number of client threads");
+
+int nr_slots = 0;
+module_param(nr_slots, int, S_IRUGO);
+MODULE_PARM_DESC(nr_slots, "number of slots");
+
+int nr_ping_bytes = 0;
+module_param(nr_ping_bytes, int, S_IRUGO);
+MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
+
+int nr_ping_item = 0;
+module_param(nr_ping_item, int, S_IRUGO);
+MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
+#endif
 
 /* Default port values */
 enum {
@@ -870,48 +912,6 @@ cleanup:
 
 #ifdef __KERNEL__
 int c2_rpc_ping_init()
-
-/* Module parameters */
-bool verbose = false;
-module_param(verbose, bool, S_IRUGO);
-MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
-
-bool client_mode = false;
-module_param(client_mode, bool, S_IRUGO);
-MODULE_PARM_DESC(client_mode, "enable client mode");
-
-char *local_hostaddr = "127.0.0.1";
-module_param(local_hostaddr, charp, S_IRUGO);
-MODULE_PARM_DESC(local_hostaddr, "client address");
-
-char *remote_hostaddr = "127.0.0.1";
-module_param(remote_hostaddr, charp, S_IRUGO);
-MODULE_PARM_DESC(remote_hostaddr, "server address");
-
-int server_port = 0;
-module_param(server_port, int, S_IRUGO);
-MODULE_PARM_DESC(server_port, "remote port number");
-
-int client_port = 0;
-module_param(client_port, int, S_IRUGO);
-MODULE_PARM_DESC(client_port, "local port number");
-
-int nr_client_threads = 0;
-module_param(nr_client_threads, int, S_IRUGO);
-MODULE_PARM_DESC(nr_client_threads, "number of client threads");
-
-int nr_slots = 0;
-module_param(nr_slots, int, S_IRUGO);
-MODULE_PARM_DESC(nr_slots, "number of slots");
-
-int nr_ping_bytes = 0;
-module_param(nr_ping_bytes, int, S_IRUGO);
-MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
-
-int nr_ping_item = 0;
-module_param(nr_ping_item, int, S_IRUGO);
-MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
-
 #else
 /* Main function for rpc ping */
 int main(int argc, char *argv[])

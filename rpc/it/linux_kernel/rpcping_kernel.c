@@ -19,7 +19,7 @@
 
 #include <linux/module.h>
 
-#include "rpcping_kernel.h"
+#include "rpc_ping.h"
 
 int init_module(void)
 {
