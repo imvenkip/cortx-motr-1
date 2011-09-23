@@ -120,6 +120,7 @@ static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	   of request handler. */
 	fom->fo_phase = phase;
 	*m = fom;
+	rc = 0;
 
 out:
 	if (rc != 0) {
