@@ -91,7 +91,7 @@
    functional specification of the component interfaces.
 
    <b>Formatting language</b><br>
-   Doxygen is the formatting tool of choice.  The Doxgyen @@page
+   Doxygen is the formatting tool of choice.  The Doxygen @@page
    format is used to define a separate top-level browsable element
    that contains the body of the DLD. The @@section and @@subsection
    formatting commands are used to provide internal structure.
