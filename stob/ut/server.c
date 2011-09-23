@@ -43,6 +43,7 @@
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "colibri/init.h"
+#include "rpc/rpccore.h"
 
 #include "io_fop.h"
 #include "io_u.h"
@@ -326,7 +327,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	 */
 	if ((fop->f_type->ft_code >= C2_IOSERVICE_READV_OPCODE &&
 	     fop->f_type->ft_code <= C2_IOSERVICE_WRITEV_REP_OPCODE)) {
-		c2_reqh_fop_handle(&reqh, fop, cookie);
+		c2_reqh_fop_handle(&reqh, fop);
 		return rc;
 	}
 	else
@@ -618,7 +619,7 @@ int main(int argc, char **argv)
 	result = c2_service_start(&service, &sid);
 	C2_ASSERT(result >= 0);
 
-	result = c2_reqh_init(&reqh, NULL, NULL, dom, &fol, &service);
+	result = c2_reqh_init(&reqh, NULL, NULL, dom, &fol);
 	C2_ASSERT(result == 0);
 
 	while (!stop) {

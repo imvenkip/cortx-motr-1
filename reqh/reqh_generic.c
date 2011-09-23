@@ -239,7 +239,7 @@ static int fom_failure(struct c2_fom *fom)
 	struct c2_fop			*rfop;
 	struct c2_reqh_error_rep	*out_fop;
 
-	if (fom->fo_rep_fop == NULL) {
+	if (fom->fo_fail_phase < FOPH_NR) {
 		rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
 		if (rfop == NULL)
 			return -ENOMEM;
@@ -337,12 +337,13 @@ static int fom_txn_abort_wait(struct c2_fom *fom)
  */
 static int fom_queue_reply(struct c2_fom *fom)
 {
-	struct c2_service *service;
+	struct c2_rpc_item *item;
 
 	C2_PRE(fom->fo_rep_fop != NULL);
 
-	service = fom->fo_loc->fl_dom->fd_reqh->rh_serv;
-	c2_net_reply_post(service, fom->fo_rep_fop, fom->fo_cookie);
+        item = c2_fop_to_rpc_item(fom->fo_rep_fop);
+        c2_rpc_reply_post(&fom->fo_fop->f_item, item);
+
 	return FSO_AGAIN;
 }
 
@@ -475,6 +476,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	if (rc == FSO_AGAIN) {
 		if (fom->fo_rc != 0 && fom->fo_phase < FOPH_FAILURE) {
+			fom->fo_fail_phase = fom->fo_phase;
 			fom->fo_phase = FOPH_FAILURE;
 			REQH_GEN_ADDB_ADD(c2_reqh_addb_ctx,
 					fpo_phase->fpo_name, fom->fo_rc);

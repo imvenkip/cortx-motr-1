@@ -33,6 +33,7 @@
 #include "fop/fop.h"
 #include "rpc/formation.h"
 #include "fid/fid.h"
+#include "reqh/reqh.h"
 #ifdef __KERNEL__
 #define printf printk
 #endif
@@ -206,6 +207,8 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
+	C2_PRE(request->ri_session != NULL);
+	C2_PRE(reply->ri_type != NULL);
 
 	reply->ri_rpc_time = c2_time_now();
 
@@ -1233,10 +1236,12 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
 }
 
 /* Dummy reqh queue of items */
-
-struct c2_queue	c2_exec_queue;
+#ifndef __kernel__
+struct c2_reqh c2_rh;
+#endif
+/*struct c2_queue	c2_exec_queue;
 struct c2_mutex c2_exec_queue_mutex;
-struct c2_chan  c2_exec_chan;
+struct c2_chan  c2_exec_chan;*/
 
 /*
  *  Local variables:

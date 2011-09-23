@@ -467,7 +467,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
 	if (fop == NULL)
 		return -ENOMEM;
-	
+
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 

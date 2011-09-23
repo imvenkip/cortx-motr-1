@@ -52,6 +52,10 @@
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
+#include "net/bulk_sunrpc.h"
+#include "rpc/rpccore.h"
+#include "rpc/rpc_onwire.h"
+#include "xcode/bufvec_xcode.h"
 
 #include "fop/fop_format_def.h"
 
@@ -80,6 +84,10 @@ enum {
 	PORT = 10001
 };
 
+enum {
+        MAX_RPCS_IN_FLIGHT = 32,
+};
+
 /**
  * Write fop specific fom execution phases
  */
@@ -96,67 +104,251 @@ enum reqh_ut_read_fom_phase {
 	FOPH_READ_STOB_IO_WAIT
 };
 
-typedef unsigned long long U64;
-static struct c2_stob_domain *sdom;
-struct c2_net_domain	ndom;
-static struct c2_fol	fol;
+static struct c2_stob_domain        *sdom;
+static struct c2_net_domain          cl_ndom;
+static struct c2_net_domain          srv_ndom;
+static struct c2_cob_domain          cl_cob_domain;
+static struct c2_cob_domain_id       cl_cob_dom_id;
+static struct c2_cob_domain          srv_cob_domain;
+static struct c2_cob_domain_id       srv_cob_dom_id;
+static struct c2_rpcmachine          srv_rpc_mach;
+static struct c2_rpcmachine          cl_rpc_mach;
+static struct c2_net_end_point      *cl_rep;
+static struct c2_net_end_point      *srv_rep;
+static struct c2_rpc_conn            cl_conn;
+static struct c2_dbenv               cl_db;
+static struct c2_dbenv               srv_db;
+static struct c2_rpc_session         cl_rpc_session;
+static struct c2_fol                 srv_fol;
 
 /**
  * Global reqh object
  */
 struct c2_reqh		reqh;
 
-/**
- * Structure to hold c2_net_call and c2_clink, for network communication
- */
-struct reqh_ut_net_call {
-	struct c2_net_call	ncall;
-	struct c2_clink		rclink;
-};
-
 int reply;
 int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
+
+static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
+{
+	C2_PRE(item != NULL);
+        C2_PRE(c2_chan_has_waiters(&item->ri_chan));
+
+        c2_chan_signal(&item->ri_chan);
+}
+
+/**
+   RPC item operations structures
+ */
+struct c2_rpc_item_type_ops reqh_ut_create_rpc_item_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = rpc_item_reply_cb,
+        //.rito_replied = NULL,
+        .rito_item_size = c2_rpc_item_default_size,
+        .rito_items_equal = NULL,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+struct c2_rpc_item_type_ops reqh_ut_write_rpc_item_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = rpc_item_reply_cb,
+        //.rito_replied = NULL,
+        .rito_item_size = c2_rpc_item_default_size,
+        .rito_items_equal = NULL,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+struct c2_rpc_item_type_ops reqh_ut_read_rpc_item_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = rpc_item_reply_cb,
+        //.rito_replied = NULL,
+        .rito_item_size = c2_rpc_item_default_size,
+        .rito_items_equal = NULL,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+/**
+   Reply rpc item type operations
+ */
+struct c2_rpc_item_type_ops reqh_ut_create_rep_rpc_item_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = NULL,
+        .rito_item_size = c2_rpc_item_default_size,
+        .rito_items_equal = NULL,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+struct c2_rpc_item_type_ops reqh_ut_write_rep_rpc_item_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = NULL,
+        .rito_item_size = c2_rpc_item_default_size, 
+        .rito_items_equal = NULL,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+struct c2_rpc_item_type_ops reqh_ut_read_rep_rpc_item_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = NULL,
+        .rito_item_size = c2_rpc_item_default_size, 
+        .rito_items_equal = NULL,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
 
 /**
  * Fop operation structures for corresponding fops.
  */
 static struct c2_fop_type_ops reqh_ut_write_fop_ops = {
 	.fto_fom_init = reqh_ut_io_fom_init,
-	.fto_execute = NULL,
+        .fto_fop_replied = NULL,
+        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_op_equal = NULL,
+        .fto_get_nfragments = NULL,
+        .fto_io_coalesce = NULL,
 };
 
 static struct c2_fop_type_ops reqh_ut_read_fop_ops = {
 	.fto_fom_init = reqh_ut_io_fom_init,
-	.fto_execute = NULL,
+        .fto_fop_replied = NULL,
+        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_op_equal = NULL,
+        .fto_get_nfragments = NULL,
+        .fto_io_coalesce = NULL,
 };
 
 static struct c2_fop_type_ops reqh_ut_create_fop_ops = {
 	.fto_fom_init = reqh_ut_io_fom_init,
-	.fto_execute = NULL,
+        .fto_fop_replied = NULL,
+        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_op_equal = NULL,
+        .fto_get_nfragments = NULL,
+        .fto_io_coalesce = NULL,
+};
+
+struct c2_fop_type_ops reqh_ut_create_rep_fop_ops = {
+        .fto_fom_init = NULL,
+        .fto_fop_replied = NULL,
+        .fto_size_get = c2_xcode_fop_size_get,
+        //.fto_getsize = c2_fop_ping_getsize,
+        .fto_op_equal = NULL,
+        .fto_get_nfragments = NULL,
+        .fto_io_coalesce = NULL,
+};
+
+struct c2_fop_type_ops reqh_ut_write_rep_fop_ops = {
+        .fto_fom_init = NULL,
+        .fto_fop_replied = NULL,
+        .fto_size_get = c2_xcode_fop_size_get,
+        //.fto_getsize = c2_fop_ping_getsize,
+        .fto_op_equal = NULL,
+        .fto_get_nfragments = NULL,
+        .fto_io_coalesce = NULL,
+};
+
+struct c2_fop_type_ops reqh_ut_read_rep_fop_ops = {
+        .fto_fom_init = NULL,
+        .fto_fop_replied = NULL,
+        .fto_size_get = c2_xcode_fop_size_get,
+        //.fto_getsize = c2_fop_ping_getsize,
+        .fto_op_equal = NULL,
+        .fto_get_nfragments = NULL,
+        .fto_io_coalesce = NULL,
 };
 
 /**
- * Reply fop fid enumerations
+ * Fop opcodes
  */
 enum reply_fop {
-	CREATE_REQ = 40,
+	CREATE_REQ = 100,
 	WRITE_REQ,
 	READ_REQ,
-	CREATE_REP = 43,
+	CREATE_REP = 103,
 	WRITE_REP,
 	READ_REP
+};
+/**
+   Item type declartaions
+ */
+
+struct c2_rpc_item_type reqh_ut_create_rpc_item_type = {
+        .rit_opcode = CREATE_REQ,
+        .rit_ops = &reqh_ut_create_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
+};
+
+struct c2_rpc_item_type reqh_ut_write_rpc_item_type = {
+        .rit_opcode = WRITE_REQ,
+        .rit_ops = &reqh_ut_write_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
+};
+
+struct c2_rpc_item_type reqh_ut_read_rpc_item_type = {
+        .rit_opcode = READ_REQ,
+        .rit_ops = &reqh_ut_read_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
+};
+
+/**
+   Reply rpc item type
+ */
+struct c2_rpc_item_type reqh_ut_create_rep_rpc_item_type = {
+        .rit_opcode = CREATE_REP,
+        .rit_ops = &reqh_ut_create_rep_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
+};
+
+struct c2_rpc_item_type reqh_ut_write_rep_rpc_item_type = {
+        .rit_opcode = WRITE_REP,
+        .rit_ops = &reqh_ut_write_rep_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
+};
+
+struct c2_rpc_item_type reqh_ut_read_rep_rpc_item_type = {
+        .rit_opcode = READ_REP,
+        .rit_ops = &reqh_ut_read_rep_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
 };
 
 /**
  * Fop type declarations for corresponding fops
  */
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create, "reqh_ut_create", CREATE_REQ, &reqh_ut_create_fop_ops);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write, "reqh_ut_write", WRITE_REQ, &reqh_ut_write_fop_ops);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read, "reqh_ut_read", READ_REQ, &reqh_ut_read_fop_ops);
 
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create_rep, "reqh_ut_create reply", CREATE_REP, NULL);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write_rep, "reqh_ut_write reply", WRITE_REP, NULL);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read_rep, "reqh_ut_read reply",  READ_REP, NULL);
+C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_create, "reqh_ut_create", CREATE_REQ,
+			&reqh_ut_create_fop_ops, &reqh_ut_create_rpc_item_type);
+C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_write, "reqh_ut_write", WRITE_REQ,
+			&reqh_ut_write_fop_ops, &reqh_ut_write_rpc_item_type);
+C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_read, "reqh_ut_read", READ_REQ,
+			&reqh_ut_read_fop_ops, &reqh_ut_read_rpc_item_type);
+
+C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_create_rep, "reqh_ut_create reply", CREATE_REP,
+			&reqh_ut_create_rep_fop_ops, &reqh_ut_create_rep_rpc_item_type);
+C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_write_rep, "reqh_ut_write reply", WRITE_REP,
+			&reqh_ut_write_rep_fop_ops, &reqh_ut_write_rep_rpc_item_type);
+C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_read_rep, "reqh_ut_read reply",  READ_REP,
+			&reqh_ut_read_rep_fop_ops, &reqh_ut_read_rep_rpc_item_type);
 
 /**
  * Fop type structures required for initialising corresponding fops.
@@ -169,12 +361,6 @@ static struct c2_fop_type *reqh_ut_fops[] = {
 	&reqh_ut_fom_io_create_rep_fopt,
 	&reqh_ut_fom_io_write_rep_fopt,
 	&reqh_ut_fom_io_read_rep_fopt,
-};
-
-static struct c2_fop_type *reqh_ut_fopt[] = {
-	&reqh_ut_fom_io_create_fopt,
-	&reqh_ut_fom_io_write_fopt,
-	&reqh_ut_fom_io_read_fopt,
 };
 
 static struct c2_fop_type_format *reqh_ut_fmts[] = {
@@ -270,208 +456,126 @@ struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 }
 
 /**
- * Dispatches the request fop.
- */
-static int reqh_ut_netcall(struct c2_net_conn *conn, struct reqh_ut_net_call *call)
-{
-	C2_UT_ASSERT(conn != NULL);
-	C2_UT_ASSERT(call != NULL);
-
-	return c2_net_cli_send(conn, &call->ncall);
-}
-
-/**
- * Call back function to simulate async reply recieved
- * at client side.
- */
-static void fom_rep_cb(struct c2_clink *clink)
-{
-	C2_UT_ASSERT(clink != NULL);
-	if (clink != NULL) {
-		struct reqh_ut_net_call *rcall = container_of(clink,
-						struct reqh_ut_net_call, rclink);
-		if (rcall != NULL) {
-			struct c2_fop *rfop = rcall->ncall.ac_ret;
-			C2_UT_ASSERT(rfop != NULL);
-			switch(rfop->f_type->ft_code) {
-			case CREATE_REP:
-			{
-				struct reqh_ut_fom_io_create_rep *rep;
-				rep = c2_fop_data(rfop);
-				if(rep != NULL) {
-					printf("Create reply: %i\n",rep->ficr_rc);
-					++reply;
-				}
-				c2_fop_free(rfop);
-				break;
-			}
-			case WRITE_REP:
-			{
-				struct reqh_ut_fom_io_write_rep *rep;
-				rep = c2_fop_data(rfop);
-				if(rep != NULL) {
-					printf("Write reply: %i %u\n", rep->fiwr_rc,
-							rep->fiwr_count);
-					++reply;
-				}
-				c2_fop_free(rfop);
-				break;
-			}
-			case READ_REP:
-			{
-				struct reqh_ut_fom_io_read_rep *rep;
-				rep = c2_fop_data(rfop);
-				if(rep != NULL) {
-					if (rep->firr_rc == 0)
-						printf("Read reply: %i %u %c\n", rep->firr_rc,
-							rep->firr_count, rep->firr_value);
-					else
-						printf("Read reply: %i\n", rep->firr_rc);
-
-					++reply;
-				}
-				c2_fop_free(rfop);
-				break;
-			}
-			default:
-			{
-				struct c2_reqh_error_rep *rep;
-				rep = c2_fop_data(rfop);
-				if (rep != NULL) {
-					printf("Got reply: %i\n", rep->rerr_rc);
-					++reply;
-				}
-				c2_fop_free(rfop);
-				break;
-			}
-			}
-				c2_free(rcall);
-		}
-	}
-}
-
-/**
  * Sends create fop request.
  */
-static void create_send(struct c2_net_conn *conn, const struct reqh_ut_fom_fop_fid *fid)
+static void create_send()
 {
-	struct c2_fop			*f;
-	struct c2_fop			*r;
-	struct reqh_ut_fom_io_create		*fop;
-	struct reqh_ut_fom_io_create_rep	*rep;
-	struct reqh_ut_net_call		*rcall;
+	struct c2_clink                  clink;
+	struct c2_rpc_item              *item;
+	struct c2_fop                   *fop;
+	struct reqh_ut_fom_io_create    *rh_io_fop;
+	struct c2_fop_type              *ftype;
+	c2_time_t                        timeout;
+	uint32_t                         i;
 
-	f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);
-	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&reqh_ut_fom_io_create_rep_fopt, NULL);
-	rep = c2_fop_data(r);
-	fop->fic_object = *fid;
+	/*f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);*/
+	for (i = 0; i < 10; ++i) {
+		fop = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);
+		rh_io_fop = c2_fop_data(fop);
+		rh_io_fop->fic_object.f_seq = i;
+		rh_io_fop->fic_object.f_oid = i;
 
-	rcall = c2_alloc(sizeof *rcall);
-	C2_UT_ASSERT(rcall != NULL);
-	rcall->ncall.ac_arg = f;
-	rcall->ncall.ac_ret = r;
-	c2_chan_init(&rcall->ncall.ac_chan);
-	c2_clink_init(&rcall->rclink, &fom_rep_cb);
-	c2_clink_add(&rcall->ncall.ac_chan, &rcall->rclink);
-	reqh_ut_netcall(conn, rcall);
+		item = &fop->f_item;
+		c2_rpc_item_init(item);
+		item->ri_deadline = 0;
+		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+		item->ri_group = NULL;
+		item->ri_type = &reqh_ut_create_rpc_item_type;
+		ftype = fop->f_type;
+		/** Associate ping fop type with its item type */
+		ftype->ft_ri_type = &reqh_ut_create_rpc_item_type;
+		item->ri_session = &cl_rpc_session;
+		c2_time_set(&timeout, 60, 0);
+		c2_clink_init(&clink, NULL);
+		c2_clink_add(&item->ri_chan, &clink);
+		timeout = c2_time_add(c2_time_now(), timeout);
+		c2_rpc_post(item);
+		c2_rpc_reply_timedwait(&clink, timeout);
+		c2_clink_del(&clink);
+		c2_clink_fini(&clink);
+	}
 }
 
 /**
  * Sends read fop request.
  */
-static void read_send(struct c2_net_conn *conn, const struct reqh_ut_fom_fop_fid *fid)
+static void read_send()
 {
-	struct c2_fop			*f;
-	struct c2_fop			*r;
-	struct reqh_ut_fom_io_read		*fop;
-	struct reqh_ut_fom_io_read_rep	*rep;
-	struct reqh_ut_net_call		*rcall;
+	struct c2_clink                  clink;
+	struct c2_rpc_item              *item;
+	c2_time_t                        timeout;
+	struct c2_fop                   *fop;
+	struct reqh_ut_fom_io_read      *rh_io_fop;
+	struct c2_fop_type              *ftype;
+	uint32_t                         i;
 
-	f = c2_fop_alloc(&reqh_ut_fom_io_read_fopt, NULL);
-	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&reqh_ut_fom_io_read_rep_fopt, NULL);
-	rep = c2_fop_data(r);
+	/*f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);*/
+	for (i = 0; i < 10; ++i) {
+		fop = c2_fop_alloc(&reqh_ut_fom_io_read_fopt, NULL);
+		rh_io_fop = c2_fop_data(fop);
+		rh_io_fop->fir_object.f_seq = i;
+		rh_io_fop->fir_object.f_oid = i;
 
-	fop->fir_object = *fid;
-
-	rcall = c2_alloc(sizeof *rcall);
-	C2_UT_ASSERT(rcall != NULL);
-	rcall->ncall.ac_arg = f;
-	rcall->ncall.ac_ret = r;
-	c2_chan_init(&rcall->ncall.ac_chan);
-	c2_clink_init(&rcall->rclink, &fom_rep_cb);
-	c2_clink_add(&rcall->ncall.ac_chan, &rcall->rclink);
-	reqh_ut_netcall(conn, rcall);
+		item = &fop->f_item;
+		c2_rpc_item_init(item);
+		item->ri_deadline = 0;
+		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+		item->ri_group = NULL;
+		item->ri_type = &reqh_ut_read_rpc_item_type;
+		ftype = fop->f_type;
+		/** Associate ping fop type with its item type */
+		ftype->ft_ri_type = &reqh_ut_read_rpc_item_type;
+		item->ri_session = &cl_rpc_session;
+		c2_time_set(&timeout, 60, 0);
+		c2_clink_init(&clink, NULL);
+		c2_clink_add(&item->ri_chan, &clink);
+		timeout = c2_time_add(c2_time_now(), timeout);
+		c2_rpc_post(item);
+		c2_rpc_reply_timedwait(&clink, timeout);
+		c2_clink_del(&clink);
+		c2_clink_fini(&clink);
+	}
 }
 
 /**
  * Sends write fop request.
  */
-static void write_send(struct c2_net_conn *conn, const struct reqh_ut_fom_fop_fid *fid)
+static void write_send()
 {
-	struct c2_fop			*f;
-	struct c2_fop			*r;
-	struct reqh_ut_fom_io_write		*fop;
-	struct reqh_ut_fom_io_write_rep	*rep;
-	struct reqh_ut_net_call		*rcall;
+	struct c2_clink                  clink;
+	struct c2_rpc_item              *item;
+	struct c2_fop                   *fop;
+	struct reqh_ut_fom_io_write     *rh_io_fop;
+	struct c2_fop_type              *ftype;
+	c2_time_t                        timeout;
+	uint32_t                         i;
 
-	f = c2_fop_alloc(&reqh_ut_fom_io_write_fopt, NULL);
-	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&reqh_ut_fom_io_write_rep_fopt, NULL);
-	rep = c2_fop_data(r);
+	/*f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);*/
+	for (i = 0; i < 10; ++i) {
+		fop = c2_fop_alloc(&reqh_ut_fom_io_write_fopt, NULL);
+		rh_io_fop = c2_fop_data(fop);
+		rh_io_fop->fiw_object.f_seq = i;
+		rh_io_fop->fiw_object.f_oid = i;
 
-	fop->fiw_object = *fid;
-	fop->fiw_value = 'a';
-
-	rcall = c2_alloc(sizeof *rcall);
-	C2_UT_ASSERT(rcall != NULL);
-	rcall->ncall.ac_arg = f;
-	rcall->ncall.ac_ret = r;
-	c2_chan_init(&rcall->ncall.ac_chan);
-	c2_clink_init(&rcall->rclink, &fom_rep_cb);
-	c2_clink_add(&rcall->ncall.ac_chan, &rcall->rclink);
-	reqh_ut_netcall(conn, rcall);
-}
-
-
-static void reqh_ut_create_send(struct c2_net_conn *conn, unsigned long seq,
-							unsigned long oid)
-{
-	struct reqh_ut_fom_fop_fid *fid;
-
-	C2_PRE(conn != NULL);
-
-	fid = c2_alloc(sizeof *fid);
-	fid->f_seq = seq;
-	fid->f_oid = oid;
-	create_send(conn, fid);
-}
-
-static void reqh_ut_write_send(struct c2_net_conn *conn, unsigned long seq,
-							unsigned long oid)
-{
-	struct reqh_ut_fom_fop_fid *fid;
-
-	C2_PRE(conn != NULL);
-
-	fid = c2_alloc(sizeof *fid);
-	fid->f_seq = seq;
-	fid->f_oid = oid;
-	write_send(conn, fid);
-}
-
-static void reqh_ut_read_send(struct c2_net_conn *conn, unsigned long seq,
-							unsigned long oid)
-{
-	struct reqh_ut_fom_fop_fid *fid;
-
-	C2_PRE(conn != NULL);
-
-	fid = c2_alloc(sizeof *fid);
-	fid->f_seq = seq;
-	fid->f_oid = oid;
-	read_send(conn, fid);
+		item = &fop->f_item;
+		c2_rpc_item_init(item);
+		item->ri_deadline = 0;
+		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+		item->ri_group = NULL;
+		item->ri_type = &reqh_ut_write_rpc_item_type;
+		ftype = fop->f_type;
+		/** Associate ping fop type with its item type */
+		ftype->ft_ri_type = &reqh_ut_write_rpc_item_type;
+		item->ri_session = &cl_rpc_session;
+		c2_time_set(&timeout, 60, 0);
+		c2_clink_init(&clink, NULL);
+		c2_clink_add(&item->ri_chan, &clink);
+		timeout = c2_time_add(c2_time_now(), timeout);
+		c2_rpc_post(item);
+		c2_rpc_reply_timedwait(&clink, timeout);
+		c2_clink_del(&clink);
+		c2_clink_fini(&clink);
+	}
 }
 
 /**
@@ -599,25 +703,25 @@ size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		return -EINVAL;
 
 	switch (fom->fo_fop->f_type->ft_code) {
-	case 10: {
+	case CREATE_REQ: {
 		struct reqh_ut_fom_io_create *fop;
-		U64 oid;
+		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fic_object.f_oid;
 		iloc = oid;
 		break;
 	}
-	case 11: {
+	case WRITE_REQ: {
 		struct reqh_ut_fom_io_read *fop;
-		U64 oid;
+		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fir_object.f_oid;
 		iloc = oid;
 		break;
 	}
-	case 12: {
+	case READ_REQ: {
 		struct reqh_ut_fom_io_write *fop;
-		U64 oid;
+		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fiw_object.f_oid;
 		iloc = oid;
@@ -989,53 +1093,336 @@ static struct reqh_ut_balloc rb = {
 	}
 };
 
-/**
- * Service handler, for incoming fops.
- * This function submits fop for processing to reqh.
- */
-static int reqh_ut_service_handler(struct c2_service *service,
-                                   struct c2_fop *fop,
-                                   void *cookie)
+static int client_init(char *dbname)
 {
-	C2_UT_ASSERT(service != NULL);
-	C2_UT_ASSERT(fop != NULL);
+        int                                rc = 0;
+        bool                               rcb;
+        c2_time_t                          timeout;
+	struct c2_net_transfer_mc         *cl_tm;
 
-	c2_reqh_fop_handle(&reqh, fop, cookie);
-	return 0;
+        /* Init client side network domain */
+        rc = c2_net_domain_init(&cl_ndom, &c2_net_bulk_sunrpc_xprt);
+        if(rc != 0) {
+                printf("Failed to init domain\n");
+                goto out;
+	}
+
+        cl_cob_dom_id.id =  101 ;
+
+        /* Init the db */
+        rc = c2_dbenv_init(&cl_db, dbname, 0);
+        if(rc != 0){
+                printf("Failed to init dbenv\n");
+                goto out;
+        }
+
+        /* Init the cob domain */
+        rc = c2_cob_domain_init(&cl_cob_domain, &cl_db,
+                        &cl_cob_dom_id);
+        if(rc != 0){
+                printf("Failed to init cob domain\n");
+                goto out;
+        }
+
+        /* Init the rpcmachine */
+        rc = c2_rpcmachine_init(&cl_rpc_mach, &cl_cob_domain,
+                        &cl_ndom, "127.0.0.1:1024:1");
+        if(rc != 0){
+                printf("Failed to init rpcmachine\n");
+                goto out;
+        }
+
+        cl_tm = &cl_rpc_mach.cr_tm;
+
+        /* Create destination endpoint for client i.e server endpoint */
+        rc = c2_net_end_point_create(&cl_rep, cl_tm, "127.0.0.1:1024:2");
+        if(rc != 0){
+                printf("Failed to create endpoint\n");
+                goto out;
+        }
+        /* Init the connection structure */
+        rc = c2_rpc_conn_init(&cl_conn, cl_rep, &cl_rpc_mach,
+                        MAX_RPCS_IN_FLIGHT);
+        if(rc != 0){
+                printf("Failed to init rpc connection\n");
+                goto out;
+        }
+
+        /* Create RPC connection */
+        rc = c2_rpc_conn_establish(&cl_conn);
+        if(rc != 0){
+                printf("Failed to create rpc connection\n");
+                goto out;
+        }
+
+
+        timeout = c2_time_now();
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
+                                c2_time_nanoseconds(timeout));
+
+        rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_ACTIVE |
+                                   C2_RPC_CONN_FAILED, timeout);
+        if (rcb) {
+                if (cl_conn.c_state == C2_RPC_CONN_ACTIVE)
+                        printf("pingcli: Connection established\n");
+                else if (cl_conn.c_state == C2_RPC_CONN_FAILED)
+                        printf("pingcli: conn create failed\n");
+        } else
+                printf("Timeout for conn create \n");
+        /* Init session */
+        rc = c2_rpc_session_init(&cl_rpc_session, &cl_conn,
+                        5);
+        printf("NR_SLOTS in session = %u\n",cl_rpc_session.s_nr_slots);
+        if(rc != 0){
+                printf("Failed to init rpc session\n");
+                goto out;
+        }
+
+        /* Create RPC session */
+        rc = c2_rpc_session_establish(&cl_rpc_session);
+        if(rc != 0){
+                printf("Failed to create session\n");
+                goto conn_term;
+        }
+
+        timeout = c2_time_now();
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
+                                c2_time_nanoseconds(timeout));
+        /* Wait for session to become active */
+        rcb = c2_rpc_session_timedwait(&cl_rpc_session,
+                        C2_RPC_SESSION_IDLE, timeout);
+        if (rcb) {
+                if (cl_rpc_session.s_state == C2_RPC_SESSION_IDLE)
+                        printf("pingcli: Session established\n");
+                if (cl_rpc_session.s_state == C2_RPC_SESSION_FAILED)
+                        printf("pingcli: session create failed\n");
+        } else
+                printf("Timeout for session create \n");
+
+	/* send fops */
+
+	create_send();
+
+	printf("\n Create done \n");
+
+	write_send();
+
+	printf("\n Write done \n");
+
+	read_send();
+
+	printf("\n Read done  \n");
+
+        rc = c2_rpc_session_terminate(&cl_rpc_session);
+        if(rc != 0){
+                printf("Failed to terminate session\n");
+                goto out;
+        }
+
+        timeout = c2_time_now();
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
+                                c2_time_nanoseconds(timeout));
+        /* Wait for session to terminate */
+        rcb = c2_rpc_session_timedwait(&cl_rpc_session,
+                        C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
+                        timeout);
+        if (rcb) {
+                if (cl_rpc_session.s_state == C2_RPC_SESSION_TERMINATED)
+                        printf("pingcli: Session terminated\n");
+                if (cl_rpc_session.s_state == C2_RPC_SESSION_FAILED)
+                        printf("pingcli: session terminate failed\n");
+        } else
+                printf("Timeout for session terminate \n");
+
+conn_term:
+        /* Terminate RPC connection */
+        rc = c2_rpc_conn_terminate(&cl_conn);
+        if(rc != 0){
+                printf("Failed to terminate rpc connection\n");
+                goto out;
+        }
+
+
+        timeout = c2_time_now();
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
+                                c2_time_nanoseconds(timeout));
+
+        rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_TERMINATED |
+                                   C2_RPC_CONN_FAILED, timeout);
+        if (rcb) {
+                if (cl_conn.c_state == C2_RPC_CONN_TERMINATED)
+                        printf("pingcli: Connection terminated\n");
+                else if (cl_conn.c_state == C2_RPC_CONN_FAILED)
+                        printf("pingcli: conn create failed\n");
+                else
+                        printf("pingcli: conn INVALID!!!|n");
+        } else
+                printf("Timeout for conn terminate\n");
+        c2_rpc_session_fini(&cl_rpc_session);
+        c2_rpc_conn_fini(&cl_conn);
+out:
+	return rc;
 }
 
-/**
- * Creates and initialises network resources.
- */
-int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **conn,
-							struct c2_service *rserv)
+static void client_fini()
 {
-	int rc;
+	/* Fini the remote net endpoint. */
+        c2_net_end_point_put(cl_rep);
 
-	C2_SET0(rserv);
-	rserv->s_table.not_start = reqh_ut_fopt[0]->ft_code;
-	rserv->s_table.not_nr    = ARRAY_SIZE(reqh_ut_fopt);
-	rserv->s_table.not_fopt  = reqh_ut_fopt;
-	rserv->s_handler         = &reqh_ut_service_handler;
+        /* Fini the rpcmachine */
+        c2_rpcmachine_fini(&cl_rpc_mach);
 
-	rc = c2_net_xprt_init(&c2_net_usunrpc_xprt);
+        /* Fini the net domain */
+        c2_net_domain_fini(&cl_ndom);
+
+        /* Fini the cob domain */
+        c2_cob_domain_fini(&cl_cob_domain);
+
+        /* Fini the db */
+        c2_dbenv_fini(&cl_db);
+}
+
+static int server_init(const char *stob_path, const char *srv_db_name,
+			struct c2_stob_id *backid, struct c2_stob_domain **bdom,
+			struct c2_stob **bstore, struct c2_stob **reqh_addb_stob,
+			struct c2_stob_id *rh_addb_stob_id)
+{
+        int                        rc = 0;
+	struct c2_net_transfer_mc *srv_tm;
+
+        /* Init Bulk sunrpc transport */
+        c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
+        if(rc != 0) {
+                printf("Failed to init transport\n");
+                goto out;
+        } else {
+                printf("Bulk sunrpc transport init completed \n");
+        }
+
+
+        /* Init server side network domain */
+        rc = c2_net_domain_init(&srv_ndom, &c2_net_bulk_sunrpc_xprt);
+        if(rc != 0) {
+                printf("Failed to init domain\n");
+                goto out;
+        }
+
+        srv_cob_dom_id.id = 102;
+
+        /* Init the db */
+        rc = c2_dbenv_init(&srv_db, srv_db_name, 0);
+        if(rc != 0){
+                printf("Failed to init dbenv\n");
+                goto out;
+        }
+	rc = c2_fol_init(&srv_fol, &srv_db);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_net_domain_init(&ndom, &c2_net_usunrpc_xprt);
+	/*
+	 * Locate and create (if necessary) the backing store object.
+	 */
+
+	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
+							  stob_path, bdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_service_id_init(rsid, &ndom, "127.0.0.1", PORT);
+	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, backid, bstore);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT((*bstore)->so_state == CSS_UNKNOWN);
+
+	rc = c2_stob_create(*bstore, NULL);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT((*bstore)->so_state == CSS_EXISTS);
+
+	/*
+	 * Create AD domain over backing store object.
+	 */
+	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_service_start(rserv, rsid);
-	C2_UT_ASSERT(rc >= 0);
-	rc = c2_net_conn_create(rsid);
+	rc = ad_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom);
 	C2_UT_ASSERT(rc == 0);
 
-	*conn = c2_net_conn_find(rsid);
-	C2_UT_ASSERT(*conn != NULL);
+	c2_stob_put(*bstore);
 
+	/* Create or open a stob into which to store the record. */
+	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_UNKNOWN);
+
+	rc = c2_stob_create(*reqh_addb_stob, NULL);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_EXISTS);
+
+	/* Write addb record into stob */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
+					  *reqh_addb_stob, NULL);
+
+        /* Init the cob domain */
+        rc = c2_cob_domain_init(&srv_cob_domain, &srv_db,
+                        &srv_cob_dom_id);
+        if(rc != 0){
+                printf("Failed to init cob domain\n");
+                goto out;
+        }
+
+        /* Init the rpcmachine */
+        rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain,
+                        &srv_ndom, "127.0.0.1:1024:2");
+        if(rc != 0){
+                printf("Failed to init rpcmachine\n");
+                goto out;
+        }
+
+        /* Find first c2_rpc_chan from the chan's list
+           and use its corresponding tm to create target end_point */
+        srv_tm = &srv_rpc_mach.cr_tm;
+
+        /* Create destination endpoint for server i.e client endpoint */
+        rc = c2_net_end_point_create(&srv_rep, srv_tm, "127.0.0.1:1024:1");
+        if(rc != 0){
+                printf("Failed to create endpoint\n");
+                goto out;
+        } else {
+                printf("Client Endpoint created \n");
+        }
+
+	/* Initialising request handler */
+	rc =  c2_reqh_init(&reqh, NULL, NULL, sdom, &srv_fol);
+	C2_UT_ASSERT(rc == 0);
+out:
 	return rc;
+}
+
+/* Fini the server */
+void server_fini(struct c2_stob_domain *bdom,
+		struct c2_stob *reqh_addb_stob)
+{
+        /* Fini the net endpoint. */
+        c2_net_end_point_put(srv_rep);
+
+        /* Fini the rpcmachine */
+        c2_rpcmachine_fini(&srv_rpc_mach);
+
+        /* Fini the net domain */
+        c2_net_domain_fini(&srv_ndom);
+
+        /* Fini the transport */
+        c2_net_xprt_fini(&c2_net_bulk_sunrpc_xprt);
+
+        /* Fini the cob domain */
+        c2_cob_domain_fini(&srv_cob_domain);
+
+        /* Fini the db */
+	c2_dbenv_fini(&srv_db);
+
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+	c2_stob_put(reqh_addb_stob);
+
+	c2_reqh_fini(&reqh);
+	sdom->sd_ops->sdo_fini(sdom);
+	bdom->sd_ops->sdo_fini(bdom);
+	c2_fol_fini(&srv_fol);
 }
 
 /**
@@ -1044,37 +1431,29 @@ int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **con
 void test_reqh(void)
 {
 	int                      result;
-	unsigned long	         i;
 	char                     opath[64];
-	char                     dpath[64];
-	const char              *path;
-	c2_time_t                rdelay;
-	c2_time_t                cdelay;
-	c2_time_t                wdelay;
-	c2_time_t                wait_for_rep;
-
-	struct c2_service_id	 rsid = { .si_uuid = "reqh_ut_node" };
-	struct c2_net_conn	*conn;
-	struct c2_service	 rservice;
-
-	struct c2_stob_domain	*bdom;
-	struct c2_stob_id	 backid;
-	struct c2_stob		*bstore;
-	struct c2_stob		*reqh_addb_stob;
-	struct c2_stob_id        reqh_addb_stob_id = {
+	char                     cl_dpath[64];
+	char                     srv_dpath[64];
+	const char                *path;
+	struct c2_stob_domain	  *bdom;
+	struct c2_stob_id	   backid;
+	struct c2_stob		  *bstore;
+	struct c2_stob		  *reqh_addb_stob;
+	struct c2_stob_id          reqh_addb_stob_id = {
 					.si_bits = {
 						.u_hi = 1,
 						.u_lo = 2
 					}
 				};
-	struct c2_dbenv         db;
+
+	backid.si_bits.u_hi = 0x0;
+	backid.si_bits.u_lo = 0xdf11e;
+
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	backid.si_bits.u_hi = 0x0;
-	backid.si_bits.u_lo = 0xdf11e;
-	path = "../__reqh_ut_stob";
+	path = "reqh_ut_stob";
 
 	/* Initialize processors */
 	if (!c2_processor_is_initialized()) {
@@ -1093,105 +1472,18 @@ void test_reqh(void)
 	result = mkdir(opath, 0700);
 	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	sprintf(dpath, "%s/d", path);
-
-	/*
-	 * Initialize the data-base and fol.
-	 */
-	result = c2_dbenv_init(&db, dpath, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_fol_init(&fol, &db);
-	C2_UT_ASSERT(result == 0);
-
-	/*
-	 * Locate and create (if necessary) the backing store object.
-	 */
-
-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
-							  path, &bdom);
-	C2_UT_ASSERT(result == 0);
-
-	result = bdom->sd_ops->sdo_stob_find(bdom, &backid, &bstore);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(bstore->so_state == CSS_UNKNOWN);
-
-	result = c2_stob_create(bstore, NULL);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(bstore->so_state == CSS_EXISTS);
-
-	/*
-	 * Create AD domain over backing store object.
-	 */
-	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
-	C2_UT_ASSERT(result == 0);
-
-	result = ad_setup(sdom, &db, bstore, &rb.rb_ballroom);
-	C2_UT_ASSERT(result == 0);
-
-	c2_stob_put(bstore);
-
-	/* Create or open a stob into which to store the record. */
-	result = bdom->sd_ops->sdo_stob_find(bdom, &reqh_addb_stob_id, &reqh_addb_stob);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(reqh_addb_stob->so_state == CSS_UNKNOWN);
-
-	result = c2_stob_create(reqh_addb_stob, NULL);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(reqh_addb_stob->so_state == CSS_EXISTS);
-
-	/* Write addb record into stob */
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
-					  reqh_addb_stob, NULL);
-
-	reqh_ut_create_net_conn(&rsid, &conn, &rservice);
-
-	/* Initialising request handler */
-	result =  c2_reqh_init(&reqh, NULL, NULL, sdom, &fol, &rservice);
-	C2_UT_ASSERT(result == 0);
-
+	sprintf(srv_dpath, "%s/sd", path);
+	sprintf(cl_dpath, "%s/cd", path);
 	/* Create listening thread to accept async reply's */
 
-	for (i = 0; i < 10; ++i)
-		reqh_ut_create_send(conn, i, i);
+	server_init(path, srv_dpath, &backid, &bdom, &bstore, &reqh_addb_stob,
+			&reqh_addb_stob_id);
 
-	while (reply < 10)
-		c2_nanosleep(c2_time_set(&cdelay, 1, 0), NULL);
-
-	for (i = 0; i < 10; ++i) {
-		/* work around fix to make ut compatible on VM */
-		c2_nanosleep(c2_time_set(&wdelay, 1, 0), NULL);
-		reqh_ut_write_send(conn, i, i);
-	}
-
-	/*while(reply < 20)
-		c2_nanosleep(c2_time_set(&rdelay, 1, 0), NULL);*/
-
-	for (i = 0; i < 10; ++i) {
-		/* work around fix to make ut compatible on VM */
-		c2_nanosleep(c2_time_set(&rdelay, 1, 0), NULL);
-		reqh_ut_read_send(conn, i, i);
-	}
-
-	while (reply < 30)
-		c2_nanosleep(c2_time_set(&wait_for_rep, 1, 0), NULL);
-
+	client_init(cl_dpath);
 	/* Clean up network connections */
-	c2_net_conn_unlink(conn);
-	c2_net_conn_release(conn);
-	c2_service_stop(&rservice);
-	c2_service_id_fini(&rsid);
-	c2_net_domain_fini(&ndom);
-	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
-	c2_stob_put(reqh_addb_stob);
-
-	c2_reqh_fini(&reqh);
-	sdom->sd_ops->sdo_fini(sdom);
-	bdom->sd_ops->sdo_fini(bdom);
-	c2_fol_fini(&fol);
-	c2_dbenv_fini(&db);
+	client_fini();
+	server_fini(bdom, reqh_addb_stob);
 	reqh_ut_fom_io_fop_fini();
 	if (c2_processor_is_initialized())
 		c2_processors_fini();

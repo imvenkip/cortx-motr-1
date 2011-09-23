@@ -69,12 +69,11 @@ extern void c2_reqh_fop_fini(void);
 
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *stdom, struct c2_fol *fol,
-		struct c2_service *serv)
+		struct c2_stob_domain *stdom, struct c2_fol *fol)
 {
 	int result;
 
-	C2_PRE(reqh != NULL && stdom != NULL && fol != NULL && serv != NULL);
+	C2_PRE(reqh != NULL);
 
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
 	if (result == 0) {
@@ -83,7 +82,6 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 		reqh->rh_dtm = dtm;
 		reqh->rh_stdom = stdom;
 		reqh->rh_fol = fol;
-		reqh->rh_serv = serv;
 		reqh->rh_fom_dom.fd_reqh = reqh;
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_init", result);
@@ -114,7 +112,7 @@ int c2_reqhs_init(void)
 }
 C2_EXPORTED(c2_reqhs_init);
 
-void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
+void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 {
 	struct c2_fom	       *fom;
 	struct c2_fom_domain   *dom;
@@ -126,7 +124,6 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	if (result != -ENOMEM) {
-		fom->fo_cookie = cookie;
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
 

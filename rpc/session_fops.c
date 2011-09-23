@@ -62,7 +62,6 @@ static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fom           *fom;
 	struct c2_fop_type      *reply_fopt;
 	struct c2_fop           *reply_fop;
-	int                      phase;
 	int                      rc;
 
 	C2_ALLOC_PTR(fom);
@@ -75,25 +74,21 @@ static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 		reply_fopt = &c2_rpc_fop_conn_establish_rep_fopt;
 		fom_ops = &c2_rpc_fom_conn_establish_ops;
-		phase = FOPH_CONN_ESTABLISHING;
 
 	} else if (fop->f_type == &c2_rpc_fop_conn_terminate_fopt) {
 
 		reply_fopt = &c2_rpc_fop_conn_terminate_rep_fopt;
 		fom_ops = &c2_rpc_fom_conn_terminate_ops;
-		phase = FOPH_CONN_TERMINATING;
 
 	} else if (fop->f_type == &c2_rpc_fop_session_establish_fopt) {
 
 		reply_fopt = &c2_rpc_fop_session_establish_rep_fopt;
 		fom_ops = &c2_rpc_fom_session_establish_ops;
-		phase = FOPH_SESSION_ESTABLISHING;
 
 	} else if (fop->f_type == &c2_rpc_fop_session_terminate_fopt) {
 
 		reply_fopt = &c2_rpc_fop_session_terminate_rep_fopt;
 		fom_ops = &c2_rpc_fom_session_terminate_ops;
-		phase = FOPH_SESSION_TERMINATING;
 
 	} else {
 		reply_fopt = NULL;
@@ -118,9 +113,6 @@ static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 	fom->fo_rep_fop = reply_fop;
 	fom->fo_fop = fop;
-	/* At this point, session related foms do not use any generic phases
-	   of request handler. */
-	fom->fo_phase = phase;
 	*m = fom;
 	rc = 0;
 

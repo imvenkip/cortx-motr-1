@@ -30,12 +30,15 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
+#include "lib/processor.h"
 #include "net/net.h"
 #include "net/net_internal.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/session.h"
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
+#include "fol/fol.h"
+#include "reqh/reqh.h"
 #include "ping_fop.h"
 #include "ping_fom.h"
 
@@ -272,7 +275,7 @@ void server_poll()
 }
 
 /* Create dummy request handler */
-void server_rqh_init(int dummy)
+/*void server_rqh_init(int dummy)
 {
 	struct c2_queue_link	*q1;
 	struct c2_rpc_item	*item;
@@ -312,8 +315,8 @@ void server_rqh_init(int dummy)
 		fom->fo_ops->fo_state(fom);
 	}
 }
+*/
 #endif
-
 /* Fini the client*/
 void client_fini(void)
 {
@@ -357,6 +360,8 @@ void server_fini(void)
 
         /* Fini the db */
         c2_dbenv_fini(&sctx.pc_db);
+
+	c2_reqh_fini(&c2_rh);
 }
 
 /* Create the server*/
@@ -931,11 +936,14 @@ int main(int argc, char *argv[])
 	int			 nr_client_threads = 0;
 	int			 rc;
 	struct c2_thread	 server_thread;
-	struct c2_thread	 server_rqh_thread;
+	/*struct c2_thread	 server_rqh_thread;*/
 
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
+
+	rc = c2_processors_init();
+
 	#endif
 
 	c2_addb_choose_default_level(AEL_WARN);
@@ -1023,9 +1031,10 @@ int main(int argc, char *argv[])
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, int, NULL, &server_init,
 				0, "ping_server");
-		C2_SET0(&server_rqh_thread);
+		/*C2_SET0(&server_rqh_thread);
 		rc = C2_THREAD_INIT(&server_rqh_thread, int, NULL,
-				&server_rqh_init, 0, "ping_server_rqh");
+				&server_rqh_init, 0, "ping_server_rqh");*/
+		c2_reqh_init(&c2_rh, NULL, NULL, NULL, NULL);
 		server_poll();
 		if (verbose)
 			print_stats(client, server);

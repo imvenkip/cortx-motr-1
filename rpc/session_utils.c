@@ -31,6 +31,7 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+#include "reqh/reqh.h"
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
@@ -214,16 +215,24 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
  */
 void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 {
-	c2_mutex_lock(&c2_exec_queue_mutex);
+	struct c2_fop *fop;
+
+	printf("Executing %p\n", item);
+
+	fop = c2_rpc_item_to_fop(item);	
+        c2_reqh_fop_handle(&c2_rh, fop); 
+
+	/*c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);
 	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);
 	c2_chan_broadcast(&c2_exec_chan);
-	c2_mutex_unlock(&c2_exec_queue_mutex);
+	c2_mutex_unlock(&c2_exec_queue_mutex);*/
 }
 
 /**
    for dubugging purpose.
  */
+/*
 #ifndef __KERNEL__
 int c2_exec_queue_print(void)
 {
@@ -248,3 +257,4 @@ int c2_exec_queue_print(void)
 	return 0;
 }
 #endif
+*/

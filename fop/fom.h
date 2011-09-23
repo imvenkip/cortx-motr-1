@@ -308,14 +308,24 @@ struct c2_fom {
 	    protected by the c2_fom_locality::fl_lock mutex.
 	 */
 	struct c2_list_link	 fo_linkage;
+
+        /**
+           FOM phase in which fom execution failed. This is needed
+           to check inorder to decide if a reqh generic reply
+           or fop specific reply is to be sent back.
+           On successful fom->state() method execution the
+           corresponding fop specific reply is set in the fom
+           context, then the local transactional context is
+           commited first and then the reply is sent back. In
+           case if transaction commit operation fails there is no
+           point in sending a fop specific success reply, so
+           using this fo_fail_phase we can send out reqh generic
+           error reply.
+         */
+        int                      fo_fail_phase;
+
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
-	/**
-	    Temporary reference to reply fop as required by sunrpc.
-	    This would be removed after integrating reqh with the new
-	    RPC layer.
-	 */
-	void			*fo_cookie;
 };
 
 /**

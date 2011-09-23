@@ -53,9 +53,9 @@ enum c2_rpc_fom_conn_establish_phase {
 extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
 
+size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom);
 int c2_rpc_fom_conn_establish_state(struct c2_fom *fom);
 void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
-
 /*
  * FOM to execute "Session Create" request
  */
