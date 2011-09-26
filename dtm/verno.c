@@ -75,8 +75,7 @@ int c2_verno_is_undoable(const struct c2_verno *unit,
 		result = before_update->vn_vc + 1 == unit->vn_vc ? 0 : -EAGAIN;
 	return result;
 }
-#ifndef __KERNEL__
-int c2_verno_cmp_invariant(const struct c2_verno *vn0, 
+int c2_verno_cmp_invariant(const struct c2_verno *vn0,
 			   const struct c2_verno *vn1)
 {
 	return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn) ==
@@ -96,7 +95,6 @@ void c2_verno_inc(struct c2_verno *unit, struct c2_fol_rec *rec, uint32_t index)
 	C2_POST(c2_verno_cmp(&rec->fr_desc.rd_ref[index].or_before_ver,
 			     unit) == -1);
 }
-#endif
 
 /** @} end of dtm group */
 

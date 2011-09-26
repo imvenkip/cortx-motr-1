@@ -53,7 +53,6 @@
 
   @{
  */
-
 bool c2_lsn_is_valid(c2_lsn_t lsn)
 {
 	return lsn > C2_LSN_RESERVED_NR;

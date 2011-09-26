@@ -506,6 +506,7 @@ AC_CONFIG_FILES([
                  fid/Makefile
                  fid/linux_kernel/Makefile
                  fol/Makefile
+                 fol/linux_kernel/Makefile
                  fol/ut/Makefile
                  fop/Makefile
                  fop/fop2c

@@ -5,13 +5,14 @@ STOBDIR = @SRCDIR@/stob/ut
 
 subdirs := ../rpc/linux_kernel/ ../c2t1fs/ \
 	   ../net/bulk_emulation/st/linux_kernel/ \
-           ../net/linux_kernel/ ../lib/linux_kernel/ ../fid/linux_kernel \
+           ../net/linux_kernel/ ../lib/linux_kernel/ ../fid/linux_kernel/ \
 	   ../fop/linux_kernel/ \ ../addb/linux_kernel/ \
 	   ../db/linux_kernel/ \ ../sns/linux_kernel/ ../galois/linux_kernel/ \
 	   ../pool/linux_kernel/ \ ../layout/linux_kernel/ \
 	   ../sm/linux_kernel/ ../stob/linux_kernel/ ../utils/linux_kernel/ \
 	   ../ioservice/linux_kernel/ ../xcode/linux_kernel/ \
-	   ../dtm/linux_kernel/ ../cob/linux_kernel/ ../rpc/it/linux_kernel/
+	   ../fol/linux_kernel/ ../dtm/linux_kernel/ ../cob/linux_kernel/ \
+	   ../rpc/it/linux_kernel/
 
 obj-y += $(subdirs)
 
