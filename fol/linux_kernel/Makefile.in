@@ -2,7 +2,7 @@ SM_SRCDIR = @SRCDIR@/fol/linux_kernel
 
 obj-m		:= kfol.o
 shared_src	:= fol.c
-kernel_src	:= fol_kernel.c fid.c
+kernel_src	:= fol_kernel.c
 kfol-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 
@@ -10,7 +10,6 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
 	ln -fs $(orig) .
-	ln -fs ../../fid/fid.c .
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/fol -C @LINUX_OBJ@ M=`pwd` modules_install
