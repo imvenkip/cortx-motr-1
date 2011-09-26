@@ -1142,58 +1142,44 @@ static int client_init(char *dbname)
 
         /* Init client side network domain */
         rc = c2_net_domain_init(&cl_ndom, &c2_net_bulk_sunrpc_xprt);
-        if(rc != 0) {
-                printf("Failed to init domain\n");
+        if(rc != 0)
                 goto out;
-	}
 
         cl_cob_dom_id.id =  101 ;
 
         /* Init the db */
         rc = c2_dbenv_init(&cl_db, dbname, 0);
-        if(rc != 0){
-                printf("Failed to init dbenv\n");
+        if(rc != 0)
                 goto out;
-        }
 
         /* Init the cob domain */
         rc = c2_cob_domain_init(&cl_cob_domain, &cl_db,
                         &cl_cob_dom_id);
-        if(rc != 0){
-                printf("Failed to init cob domain\n");
+        if(rc != 0)
                 goto out;
-        }
 
         /* Init the rpcmachine */
         rc = c2_rpcmachine_init(&cl_rpc_mach, &cl_cob_domain,
                         &cl_ndom, "127.0.0.1:1024:1", NULL);
-        if(rc != 0){
-                printf("Failed to init rpcmachine\n");
+        if(rc != 0)
                 goto out;
-        }
 
         cl_tm = &cl_rpc_mach.cr_tm;
 
         /* Create destination endpoint for client i.e server endpoint */
         rc = c2_net_end_point_create(&cl_rep, cl_tm, "127.0.0.1:1024:2");
-        if(rc != 0){
-                printf("Failed to create endpoint\n");
+        if(rc != 0)
                 goto out;
-        }
         /* Init the connection structure */
         rc = c2_rpc_conn_init(&cl_conn, cl_rep, &cl_rpc_mach,
                         MAX_RPCS_IN_FLIGHT);
-        if(rc != 0){
-                printf("Failed to init rpc connection\n");
+        if(rc != 0)
                 goto out;
-        }
 
         /* Create RPC connection */
         rc = c2_rpc_conn_establish(&cl_conn);
-        if(rc != 0){
-                printf("Failed to create rpc connection\n");
+        if(rc != 0)
                 goto out;
-        }
 
 
         timeout = c2_time_now();
@@ -1202,28 +1188,16 @@ static int client_init(char *dbname)
 
         rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_ACTIVE |
                                    C2_RPC_CONN_FAILED, timeout);
-        if (rcb) {
-                if (cl_conn.c_state == C2_RPC_CONN_ACTIVE)
-                        printf("pingcli: Connection established\n");
-                else if (cl_conn.c_state == C2_RPC_CONN_FAILED)
-                        printf("pingcli: conn create failed\n");
-        } else
-                printf("Timeout for conn create \n");
         /* Init session */
         rc = c2_rpc_session_init(&cl_rpc_session, &cl_conn,
                         5);
-        printf("NR_SLOTS in session = %u\n",cl_rpc_session.s_nr_slots);
-        if(rc != 0){
-                printf("Failed to init rpc session\n");
+        if(rc != 0)
                 goto out;
-        }
 
         /* Create RPC session */
         rc = c2_rpc_session_establish(&cl_rpc_session);
-        if(rc != 0){
-                printf("Failed to create session\n");
+        if(rc != 0)
                 goto conn_term;
-        }
 
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
@@ -1231,13 +1205,6 @@ static int client_init(char *dbname)
         /* Wait for session to become active */
         rcb = c2_rpc_session_timedwait(&cl_rpc_session,
                         C2_RPC_SESSION_IDLE, timeout);
-        if (rcb) {
-                if (cl_rpc_session.s_state == C2_RPC_SESSION_IDLE)
-                        printf("pingcli: Session established\n");
-                if (cl_rpc_session.s_state == C2_RPC_SESSION_FAILED)
-                        printf("pingcli: session create failed\n");
-        } else
-                printf("Timeout for session create \n");
 
 	/* send fops */
 	create_send();
@@ -1245,10 +1212,8 @@ static int client_init(char *dbname)
 	read_send();
 
         rc = c2_rpc_session_terminate(&cl_rpc_session);
-        if(rc != 0){
-                printf("Failed to terminate session\n");
+        if(rc != 0)
                 goto out;
-        }
 
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
@@ -1257,21 +1222,12 @@ static int client_init(char *dbname)
         rcb = c2_rpc_session_timedwait(&cl_rpc_session,
                         C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
                         timeout);
-        if (rcb) {
-                if (cl_rpc_session.s_state == C2_RPC_SESSION_TERMINATED)
-                        printf("pingcli: Session terminated\n");
-                if (cl_rpc_session.s_state == C2_RPC_SESSION_FAILED)
-                        printf("pingcli: session terminate failed\n");
-        } else
-                printf("Timeout for session terminate \n");
 
 conn_term:
         /* Terminate RPC connection */
         rc = c2_rpc_conn_terminate(&cl_conn);
-        if(rc != 0){
-                printf("Failed to terminate rpc connection\n");
+        if(rc != 0)
                 goto out;
-        }
 
 
         timeout = c2_time_now();
@@ -1280,13 +1236,6 @@ conn_term:
 
         rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_TERMINATED |
                                    C2_RPC_CONN_FAILED, timeout);
-        if (rcb) {
-                if (cl_conn.c_state == C2_RPC_CONN_FAILED)
-                        printf("pingcli: conn create failed\n");
-                else
-                        printf("pingcli: conn INVALID!!!|n");
-        } else
-                printf("Timeout for conn terminate\n");
         c2_rpc_session_fini(&cl_rpc_session);
         c2_rpc_conn_fini(&cl_conn);
 out:
@@ -1321,29 +1270,21 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
         /* Init Bulk sunrpc transport */
         c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
-        if(rc != 0) {
-                printf("Failed to init transport\n");
+        if(rc != 0)
                 goto out;
-        } else {
-                printf("Bulk sunrpc transport init completed \n");
-        }
-
 
         /* Init server side network domain */
         rc = c2_net_domain_init(&srv_ndom, &c2_net_bulk_sunrpc_xprt);
-        if(rc != 0) {
-                printf("Failed to init domain\n");
+        if(rc != 0)
                 goto out;
-        }
 
         srv_cob_dom_id.id = 102;
 
         /* Init the db */
         rc = c2_dbenv_init(&srv_db, srv_db_name, 0);
-        if(rc != 0){
-                printf("Failed to init dbenv\n");
+        if(rc != 0)
                 goto out;
-        }
+
 	rc = c2_fol_init(&srv_fol, &srv_db);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1390,10 +1331,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         /* Init the cob domain */
         rc = c2_cob_domain_init(&srv_cob_domain, &srv_db,
                         &srv_cob_dom_id);
-        if(rc != 0){
-                printf("Failed to init cob domain\n");
+        if(rc != 0)
                 goto out;
-        }
 
 	/* Initialising request handler */
 	rc =  c2_reqh_init(&reqh, NULL, NULL, sdom, &srv_fol);
@@ -1402,10 +1341,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         /* Init the rpcmachine */
         rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain,
                         &srv_ndom, "127.0.0.1:1024:2", &reqh);
-        if(rc != 0){
-                printf("Failed to init rpcmachine\n");
+        if(rc != 0)
                 goto out;
-        }
 
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
@@ -1413,12 +1350,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
         /* Create destination endpoint for server i.e client endpoint */
         rc = c2_net_end_point_create(&srv_rep, srv_tm, "127.0.0.1:1024:1");
-        if(rc != 0){
-                printf("Failed to create endpoint\n");
+        if(rc != 0)
                 goto out;
-        } else {
-                printf("Client Endpoint created \n");
-        }
 
 out:
 	return rc;
