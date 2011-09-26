@@ -142,7 +142,6 @@ struct c2_rpc_item_type_ops reqh_ut_create_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        //.rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -155,7 +154,6 @@ struct c2_rpc_item_type_ops reqh_ut_write_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        //.rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -168,7 +166,6 @@ struct c2_rpc_item_type_ops reqh_ut_read_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        //.rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -250,7 +247,6 @@ struct c2_fop_type_ops reqh_ut_create_rep_fop_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
@@ -260,7 +256,6 @@ struct c2_fop_type_ops reqh_ut_write_rep_fop_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
@@ -270,7 +265,6 @@ struct c2_fop_type_ops reqh_ut_read_rep_fop_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
@@ -466,7 +460,6 @@ static void create_send()
 	c2_time_t                        timeout;
 	uint32_t                         i;
 
-	/*f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);*/
 	for (i = 0; i < 10; ++i) {
 		fop = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);
 		rh_io_fop = c2_fop_data(fop);
@@ -480,7 +473,6 @@ static void create_send()
 		item->ri_group = NULL;
 		item->ri_type = &reqh_ut_create_rpc_item_type;
 		ftype = fop->f_type;
-		/** Associate ping fop type with its item type */
 		ftype->ft_ri_type = &reqh_ut_create_rpc_item_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
@@ -507,7 +499,6 @@ static void read_send()
 	struct c2_fop_type              *ftype;
 	uint32_t                         i;
 
-	/*f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);*/
 	for (i = 0; i < 10; ++i) {
 		fop = c2_fop_alloc(&reqh_ut_fom_io_read_fopt, NULL);
 		rh_io_fop = c2_fop_data(fop);
@@ -521,7 +512,6 @@ static void read_send()
 		item->ri_group = NULL;
 		item->ri_type = &reqh_ut_read_rpc_item_type;
 		ftype = fop->f_type;
-		/** Associate ping fop type with its item type */
 		ftype->ft_ri_type = &reqh_ut_read_rpc_item_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
@@ -548,7 +538,6 @@ static void write_send()
 	c2_time_t                        timeout;
 	uint32_t                         i;
 
-	/*f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);*/
 	for (i = 0; i < 10; ++i) {
 		fop = c2_fop_alloc(&reqh_ut_fom_io_write_fopt, NULL);
 		rh_io_fop = c2_fop_data(fop);
@@ -562,7 +551,6 @@ static void write_send()
 		item->ri_group = NULL;
 		item->ri_type = &reqh_ut_write_rpc_item_type;
 		ftype = fop->f_type;
-		/** Associate ping fop type with its item type */
 		ftype->ft_ri_type = &reqh_ut_write_rpc_item_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
@@ -1434,8 +1422,8 @@ void test_reqh(void)
 	result = mkdir(opath, 0700);
 	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	sprintf(srv_dpath, "%s/sd", path);
-	sprintf(cl_dpath, "%s/cd", path);
+	sprintf(srv_dpath, "%s/sdb", path);
+	sprintf(cl_dpath, "%s/cdb", path);
 	/* Create listening thread to accept async reply's */
 
 	server_init(path, srv_dpath, &backid, &bdom, &bstore, &reqh_addb_stob,
