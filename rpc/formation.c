@@ -30,10 +30,6 @@
 
 #include "rpc/rpc_onwire.h"
 
-#ifdef __KERNEL__
-#define printf printk
-#endif
-
 /* ADDB Instrumentation for rpc formation. */
 static const struct c2_addb_ctx_type frm_addb_ctx_type = {
         .act_name = "rpc-formation"
@@ -1406,16 +1402,8 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
 			    &frm_addb_loc, formation_func_fail,
 			    "Rpc sent on wire.", 0);
-#ifndef __KERNEL__
-		printf("Number of items bundled in rpc = %lu\n",
-			c2_list_length(&rpc_obj->r_items));
-#endif
 		if (frm_sm->fs_sender_side) {
 			frm_sm->fs_curr_rpcs_in_flight++;
-#ifndef __KERNEL__
-			printf("Current rpcs in flight incremented to = %lu\n", frm_sm->fs_curr_rpcs_in_flight);
-			printf("Number of rpc items in rpc = %lu\n", c2_list_length(&rpc_obj->r_items));
-#endif
 		}
 		c2_list_del(&rpc_obj->r_linkage);
 	}
@@ -1432,10 +1420,6 @@ void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm)
 	if (frm_sm->fs_sender_side) {
 		if (frm_sm->fs_curr_rpcs_in_flight > 0) {
 			frm_sm->fs_curr_rpcs_in_flight--;
-#ifndef __KERNEL__
-			printf("Current rpcs in flight decremented to %lu\n",
-				frm_sm->fs_curr_rpcs_in_flight);
-#endif
 		}
 	}
 

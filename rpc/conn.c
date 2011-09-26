@@ -35,7 +35,6 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
-#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -1061,6 +1060,7 @@ bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 	return item->ri_type == &c2_rpc_item_conn_establish;
 }
 
+#ifndef __KERNEL__
 /**
    Just for debugging purpose. Useful in gdb.
 
@@ -1094,3 +1094,4 @@ int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
 	}
 	return 0;
 }
+#endif

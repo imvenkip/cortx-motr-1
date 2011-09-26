@@ -343,7 +343,7 @@ void server_init(int dummy)
 		printf("Bulk sunrpc transport init completed \n");
 	}
 
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	/* Resolve client hostname */
 	rc = canon_host(sctx.pc_lhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
@@ -352,10 +352,10 @@ void server_init(int dummy)
 	} else {
 		printf("Server Hostname Resolved \n");
 	}
-	#else
+#else
 	sctx.pc_lhostname = "localhost";
 	strcpy(hostbuf, remote_hostaddr);
-	#endif
+#endif
 
 	/* Init server side network domain */
 	rc = c2_net_domain_init(&sctx.pc_dom, sctx.pc_xprt);
@@ -402,7 +402,7 @@ void server_init(int dummy)
 		printf("RPC machine init completed \n");
 	}
 
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	/* Resolve Client hostname */
 	rc = canon_host(sctx.pc_rhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
@@ -411,10 +411,10 @@ void server_init(int dummy)
 	} else {
 		printf("Client Hostname Resolved \n");
 	}
-	#else
+#else
 	sctx.pc_rhostname = "localhost";
 	strcpy(hostbuf, local_hostaddr);
-	#endif
+#endif
 
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
 	printf("Client Addr = %s\n",addr_remote);
@@ -492,17 +492,17 @@ void print_stats(bool client, bool server)
 	struct c2_rpcmachine	*rpc_mach;
 	struct c2_rpc_stats	*stats;
 	uint64_t		 nsec;
-	#ifdef __KERNEL__
+#ifdef __KERNEL__
 	uint64_t		 sec = 0;
 	uint64_t		 usec = 0;
 	uint64_t		 thruput;
 	uint64_t		 packing_density;
-	#else
+#else
 	double			 sec = 0;
 	double			 msec = 0;
 	double			 thruput;
 	double			 packing_density;
-	#endif
+#endif
 
 	if (client)
 		rpc_mach = &cctx.pc_rpc_mach;
@@ -518,18 +518,18 @@ void print_stats(bool client, bool server)
 			(unsigned long long) stats->rs_bytes_nr);
 	printf("Number of outgoing rpc's = %llu\n",
 			(unsigned long long) stats->rs_rpcs_nr);
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
         packing_density = (double) stats->rs_items_nr /
 			  (double) stats->rs_rpcs_nr;
         printf("RPC packing density      = %lf\n", packing_density);
-	#else
+#else
         packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
         printf("RPC packing density      = %llu\n", packing_density);
-	#endif
+#endif
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
 	nsec = c2_time_nanoseconds(stats->rs_min_lat);
-	#ifdef __KERNEL__
+#ifdef __KERNEL__
 	usec = (uint64_t) nsec / 1000;
         usec += (uint64_t) (sec * 1000000);
         printf("\nMin latency    (usecs)   = %llu\n", usec);
@@ -537,19 +537,19 @@ void print_stats(bool client, bool server)
        		thruput = (uint64_t)stats->rs_bytes_nr/usec;
        		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
 	}
-	#else
+#else
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
-	#endif
+#endif
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_max_lat);
 	nsec = c2_time_nanoseconds(stats->rs_max_lat);
-	#ifdef __KERNEL__
+#ifdef __KERNEL__
 	usec = (uint64_t) nsec / 1000;
         usec += (uint64_t) (sec * 1000000);
         printf("\nMax latency    (usecs)   = %llu\n", usec);
@@ -557,14 +557,14 @@ void print_stats(bool client, bool server)
         	thruput = (uint64_t)stats->rs_bytes_nr/usec;
         	printf("Min Throughput (MB/sec)  = %llu\n", thruput);
 	}
-	#else
+#else
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
-	#endif
+#endif
 
 	printf("*********************************************\n");
 
@@ -579,19 +579,19 @@ void print_stats(bool client, bool server)
 			(unsigned long long) stats->rs_bytes_nr);
 	printf("Number of incoming rpc's = %llu\n",
 			(unsigned long long) stats->rs_rpcs_nr);
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
         packing_density = (double) stats->rs_items_nr /
 			  (double)stats->rs_rpcs_nr;
 	printf("RPC packing density      = %lf\n", packing_density);
-	#else	
-        packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
+#else
+	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
         printf("RPC packing density      = %llu\n", packing_density);
-	#endif
+#endif
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
 	nsec = c2_time_nanoseconds(stats->rs_min_lat);
-	#ifdef __KERNEL__
+#ifdef __KERNEL__
 	usec = (uint64_t) nsec / 1000;
         usec += (uint64_t) (sec * 1000000);
 	printf("\nMin latency    (usecs)   = %llu\n", usec);
@@ -599,19 +599,19 @@ void print_stats(bool client, bool server)
 		thruput = (uint64_t)stats->rs_bytes_nr/usec;
 		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
 	}
-	#else
+#else
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
-	#endif
+#endif
 
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_max_lat);
 	nsec = c2_time_nanoseconds(stats->rs_max_lat);
-	#ifdef __KERNEL__
+#ifdef __KERNEL__
 	usec = (uint64_t) nsec / 1000;
         usec += (uint64_t) (sec * 1000000);
 	printf("\nMax latency    (usecs)   = %llu\n", usec);
@@ -619,14 +619,14 @@ void print_stats(bool client, bool server)
 		thruput = (uint64_t)stats->rs_bytes_nr/usec;
 		printf("Min Throughput (MB/sec)  = %llu\n", thruput);
 	}
-	#else
+#else
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
-	#endif
+#endif
 
 	printf("*********************************************\n");
 }
@@ -653,7 +653,7 @@ void client_init(void)
 		printf("Bulk sunrpc transport init completed \n");
 	}
 
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	/* Resolve client hostname */
 	rc = canon_host(cctx.pc_lhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
@@ -662,10 +662,10 @@ void client_init(void)
 	} else {
 		printf("Client Hostname Resolved \n");
 	}
-	#else
+#else
 	cctx.pc_lhostname = "localhost";
 	strcpy(hostbuf, local_hostaddr);
-	#endif
+#endif
 
 	/* Init client side network domain */
 	rc = c2_net_domain_init(&cctx.pc_dom, cctx.pc_xprt);
@@ -709,7 +709,7 @@ void client_init(void)
 		printf("RPC machine init completed \n");
 	}
 
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	/* Resolve server hostname */
 	rc = canon_host(cctx.pc_rhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
@@ -718,10 +718,10 @@ void client_init(void)
 	} else {
 		printf("Server Hostname Resolved \n");
 	}
-	#else
+#else
 	cctx.pc_rhostname = "localhost";
 	strcpy(hostbuf, remote_hostaddr);
-	#endif
+#endif
 
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, cctx.pc_rport, RID);
 	printf("Server Addr = %s\n",addr_remote);
@@ -879,7 +879,7 @@ int main(int argc, char *argv[])
 {
 	bool			 server = false;
 	bool			 client = false;
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	bool			 verbose = false;
 	const char		*server_name = NULL;
 	const char		*client_name = NULL;
@@ -898,12 +898,12 @@ int main(int argc, char *argv[])
 
 	rc = c2_processors_init();
 
-	#endif
+#endif
 
 	c2_addb_choose_default_level(AEL_WARN);
 	c2_ping_fop_init();
 
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
 		C2_FLAGARG('s', "run server", &server),
@@ -921,7 +921,7 @@ int main(int argc, char *argv[])
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
-	#endif
+#endif
 
 	/* Set defaults */
 	sctx.pc_lhostname = cctx.pc_lhostname = "localhost";
@@ -934,7 +934,7 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
 
 	/* Set if passed through command line interface */
-	#ifdef __KERNEL__
+
 	if (client_port != 0)
 		sctx.pc_rport = cctx.pc_lport = client_port;
 	if (server_port != 0)
@@ -943,42 +943,31 @@ int main(int argc, char *argv[])
 		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
-	if (client_mode)
-		client = true;
 	if (nr_ping_item != 0)
                 cctx.pc_nr_ping_items = nr_ping_item;
         if (nr_ping_bytes != 0)
                 cctx.pc_nr_ping_bytes = nr_ping_bytes;
-	#else
+#ifdef __KERNEL__
+	if (client_mode)
+		client = true;
+#else
 	if (client_name)
 		sctx.pc_rhostname = cctx.pc_lhostname = client_name;
-	if (client_port != 0)
-		sctx.pc_rport = cctx.pc_lport = client_port;
 	if (server_name)
 		sctx.pc_lhostname = cctx.pc_rhostname = server_name;
-	if (server_port != 0)
-		sctx.pc_lport = cctx.pc_rport = server_port;
-	if (nr_slots != 0)
-		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
-	if (nr_ping_item != 0)
-		cctx.pc_nr_ping_items = nr_ping_item;
-	if (nr_ping_bytes != 0)
-		cctx.pc_nr_ping_bytes = nr_ping_bytes;
-	if (nr_client_threads != 0)
-		cctx.pc_nr_client_threads = nr_client_threads;
-	#endif
+#endif
 
 	/* Client part */
 	if(client) {
 		client_init();
 		if (verbose)
 			print_stats(client, server);
-		#ifndef __KERNEL__
+#ifndef __KERNEL__
 		client_fini();
-		#endif
+#endif
 	}
 
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	/* Server part */
 	if(server) {
 		/* server thread */
@@ -995,7 +984,7 @@ int main(int argc, char *argv[])
 
 	c2_ping_fop_fini();
 	c2_fini();
-	#endif
+#endif
 
 	return 0;
 }

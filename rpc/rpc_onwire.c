@@ -26,9 +26,7 @@
 #include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
-#ifdef __KERNEL__
-#define printf printk
-#endif
+
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
 	size_t		 len;

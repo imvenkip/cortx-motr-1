@@ -35,7 +35,6 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
-#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -219,8 +218,6 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 	struct c2_reqh                       *reqh;
         struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpcmachine                 *rpcmach;
-
-	printf("Executing %p\n", item);
 
 	 if (c2_rpc_item_is_conn_establish(item)) {
 

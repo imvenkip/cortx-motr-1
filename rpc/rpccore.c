@@ -34,9 +34,6 @@
 #include "rpc/formation.h"
 #include "fid/fid.h"
 #include "reqh/reqh.h"
-#ifdef __KERNEL__
-#define printf printk
-#endif
 #include "rpc/rpc_onwire.h"
 #include "lib/arith.h"
 
