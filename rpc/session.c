@@ -35,6 +35,7 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
+#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -404,6 +405,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 			         &c2_rpc_fop_session_establish_fopt, NULL);
 		if (rc != 0)
 			c2_free(ctx);
+
 	}
 	if (rc != 0) {
 		/*
@@ -633,7 +635,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		session_failed(session, rc);
 		goto out;
 	}
-
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 

@@ -1,7 +1,7 @@
 FOP_SRCDIR = @SRCDIR@/fop/linux_kernel
 
 obj-m       := kfop.o
-shared_src  := fop.c fop_format.c fop_iterator.c fop_base.c 
+shared_src  := fop.c fom.c fop_format.c fop_iterator.c fop_base.c 
 kernel_src  := fop_kernel.c
 kfop-y      := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)

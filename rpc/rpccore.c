@@ -33,7 +33,9 @@
 #include "fop/fop.h"
 #include "rpc/formation.h"
 #include "fid/fid.h"
-#ifndef __KERNEL__
+#include "reqh/reqh.h"
+#ifdef __KERNEL__
+#define printf printk
 #endif
 #include "rpc/rpc_onwire.h"
 #include "lib/arith.h"
@@ -176,6 +178,7 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
         c2_list_link_fini(&item->ri_group_linkage);
 	item->ri_state = RPC_ITEM_FINALIZED;
 }
+C2_EXPORTED(c2_rpc_item_init);
 
 int c2_rpc_post(struct c2_rpc_item *item)
 {
@@ -193,6 +196,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	return frm_ubitem_added(item);
 }
+C2_EXPORTED(c2_rpc_post);
 
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
 		      struct c2_rpc_item	*reply)
@@ -203,6 +207,8 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
+	C2_PRE(request->ri_session != NULL);
+	C2_PRE(reply->ri_type != NULL);
 
 	reply->ri_rpc_time = c2_time_now();
 
@@ -227,6 +233,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
+C2_EXPORTED(c2_rpc_reply_post);
 
 bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
 {
@@ -516,6 +523,7 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 
 	return rc ? 0 : -ETIMEDOUT;
 }
+C2_EXPORTED(c2_rpc_reply_timedwait);
 
 int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
 {
@@ -795,11 +803,14 @@ static void recv_buffer_deallocate_nr(struct c2_rpcmachine *machine,
 }
 
 int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
-		       struct c2_net_domain *net_dom, const char *ep_addr)
+		       struct c2_net_domain *net_dom, const char *ep_addr,
+			struct c2_reqh *reqh)
 {
-	int			 rc;
-	struct c2_cob		*root_session_cob;
-	struct c2_db_tx		 tx;
+	int				 rc;
+	#ifndef __KERNEL__
+	struct c2_cob			*root_session_cob;
+	#endif
+	struct c2_db_tx			 tx;
 
 	C2_PRE(dom != NULL);
 	C2_PRE(machine != NULL);
@@ -807,11 +818,13 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	C2_PRE(net_dom != NULL);
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	#ifndef __KERNEL__
 	rc = c2_rpc_root_session_cob_create(dom, &root_session_cob, &tx);
 	if (rc != 0) {
 		c2_db_tx_abort(&tx);
 		return rc;
 	}
+	#endif
 
 	c2_mutex_init(&machine->cr_chan_mutex);
 	c2_list_init(&machine->cr_chans);
@@ -830,6 +843,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	C2_SET_ARR0(machine->cr_rpc_stats);
 	machine->cr_dom = dom;
 	c2_db_tx_commit(&tx);
+	machine->cr_reqh = reqh;
 	return rc;
 
 cleanup:
@@ -838,6 +852,7 @@ cleanup:
 	c2_list_fini(&machine->cr_chans);
 	return rc;
 }
+C2_EXPORTED(c2_rpcmachine_init);
 
 /**
    XXX Temporary. This routine will be discarded, once rpc-core starts
@@ -877,6 +892,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_mutex_fini(&machine->cr_stats_mutex);
 	c2_addb_ctx_fini(&machine->cr_rpc_machine_addb);
 }
+C2_EXPORTED(c2_rpcmachine_fini);
 
 /** simple vector of RPC-item operations */
 static void rpc_item_op_sent(struct c2_rpc_item *item)
@@ -1132,6 +1148,8 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	if(fopt->ft_ri_type != NULL)
 		fopt->ft_ri_type->rit_opcode = opcode;
 }
+C2_EXPORTED(c2_rpc_item_type_attach);
+
 /*
 void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
 {
@@ -1220,10 +1238,12 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
 }
 
 /* Dummy reqh queue of items */
-
-struct c2_queue	c2_exec_queue;
+#ifndef __kernel__
+struct c2_reqh c2_rh;
+#endif
+/*struct c2_queue	c2_exec_queue;
 struct c2_mutex c2_exec_queue_mutex;
-struct c2_chan  c2_exec_chan;
+struct c2_chan  c2_exec_chan;*/
 
 /*
  *  Local variables:

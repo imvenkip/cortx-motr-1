@@ -34,6 +34,7 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
+#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -157,10 +158,10 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 * Add a dummy item with very low verno in item_list
 	 */
 
-	//c2_rpc_item_init(&fop->f_item);
-	//fop->f_item.ri_type = fop->f_type->ft_ri_type;
-
 	dummy_item = &fop->f_item;
+	c2_rpc_item_init(dummy_item);
+	dummy_item->ri_type = fop->f_type->ft_ri_type;
+
 	dummy_item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
 	/* set ri_reply to some value. Doesn't matter what */
 	dummy_item->ri_reply = dummy_item;
@@ -467,6 +468,9 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	if (fop == NULL)
 		return -ENOMEM;
 
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = fop->f_type->ft_ri_type;
+
 	reply = &fop->f_item;
 
 	reply->ri_session = item->ri_session;
@@ -663,12 +667,9 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(c2_rpc_session_invariant(session));
 
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
-
 			c2_cond_broadcast(&session->s_state_changed,
 					&session->s_mutex);
-
 		}
-
 		c2_mutex_unlock(&session->s_mutex);
 	}
 }

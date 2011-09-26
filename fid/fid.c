@@ -18,8 +18,13 @@
  * Original creation date: 09/09/2010
  */
 
-#include <string.h>      /* memcmp */
+#ifdef __KERNEL__
+#include <linux/string.h>  /* memcmp */
+#else
+#include <string.h>
+#endif
 
+#include "lib/cdefs.h"         /* C2_EXPORTED */
 #include "fid/fid.h"
 
 /**
@@ -32,15 +37,18 @@ bool c2_fid_is_valid(const struct c2_fid *fid)
 {
 	return true;
 }
+C2_EXPORTED(c2_fid_is_valid);
+
 
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
 {
 	return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
+C2_EXPORTED(c2_fid_eq);
 
 /** @} end of fid group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

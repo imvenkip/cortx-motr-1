@@ -227,6 +227,27 @@ static int create_loc_ctx_wait(struct c2_fom *fom)
 }
 
 /**
+ * Allocates generic reqh error reply fop and sets the same
+ * into fom->fo_rep_fop.
+ */
+static int set_gen_err_reply(struct c2_fom *fom)
+{
+	struct c2_fop			*rfop;
+	struct c2_reqh_error_rep	*out_fop;
+
+	C2_PRE(fom != NULL);
+
+	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
+	if (rfop == NULL)
+		return -ENOMEM;
+	out_fop = c2_fop_data(rfop);
+	out_fop->rerr_rc = fom->fo_rc;
+	fom->fo_rep_fop = rfop;
+
+	return 0;
+}
+
+/**
  * Handles fom execution failure, if fom fails in one of
  * the standard phases, then we contruct a generic error
  * reply fop and assign it to c2_fom::fo_rep_fop, else if
@@ -236,17 +257,9 @@ static int create_loc_ctx_wait(struct c2_fom *fom)
  */
 static int fom_failure(struct c2_fom *fom)
 {
-	struct c2_fop			*rfop;
-	struct c2_reqh_error_rep	*out_fop;
 
-	if (fom->fo_rep_fop == NULL) {
-		rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
-		if (rfop == NULL)
-			return -ENOMEM;
-		out_fop = c2_fop_data(rfop);
-		out_fop->rerr_rc = fom->fo_rc;
-		fom->fo_rep_fop = rfop;
-	}
+	if (fom->fo_rc != 0 && fom->fo_rep_fop == NULL)
+		set_gen_err_reply(fom);
 
 	return FSO_AGAIN;
 }
@@ -269,8 +282,10 @@ static int fom_txn_commit(struct c2_fom *fom)
 
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
-	if (rc != 0)
+	if (rc != 0) {
 		fom->fo_rc = rc;
+		set_gen_err_reply(fom);
+	}
 
 	return FSO_AGAIN;
 }
@@ -337,12 +352,13 @@ static int fom_txn_abort_wait(struct c2_fom *fom)
  */
 static int fom_queue_reply(struct c2_fom *fom)
 {
-	struct c2_service *service;
+	struct c2_rpc_item *item;
 
 	C2_PRE(fom->fo_rep_fop != NULL);
 
-	service = fom->fo_loc->fl_dom->fd_reqh->rh_serv;
-	c2_net_reply_post(service, fom->fo_rep_fop, fom->fo_cookie);
+        item = c2_fop_to_rpc_item(fom->fo_rep_fop);
+        c2_rpc_reply_post(&fom->fo_fop->f_item, item);
+
 	return FSO_AGAIN;
 }
 

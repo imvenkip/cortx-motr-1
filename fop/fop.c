@@ -55,9 +55,6 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 			 &fopt->ft_addb);
 	c2_list_link_init(&fop->f_link);
 
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fopt->ft_ri_type;
-
 	return 0;
 }
 C2_EXPORTED(c2_fop_init);
@@ -194,15 +191,19 @@ static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops = {
 	.rto_pack       = fol_pack
 };
 
+#endif /* __KERNEL__ */
+
 struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
 {
 	return &fop->f_item;
 }
+C2_EXPORTED(c2_fop_to_rpc_item);
 
 struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
 {
 	return container_of(item, struct c2_fop, f_item);
 }
+C2_EXPORTED(c2_rpc_item_to_fop);
 
 struct c2_fop_type *c2_item_type_to_fop_type
 		    (const struct c2_rpc_item_type *item_type)
@@ -217,10 +218,6 @@ struct c2_fop_type *c2_item_type_to_fop_type
 	return ftype;
 }
 C2_EXPORTED(c2_item_type_to_fop_type);
-
-
-
-#endif /* __KERNEL__ */
 
 /** @} end of fop group */
 

@@ -308,14 +308,9 @@ struct c2_fom {
 	    protected by the c2_fom_locality::fl_lock mutex.
 	 */
 	struct c2_list_link	 fo_linkage;
+
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
-	/**
-	    Temporary reference to reply fop as required by sunrpc.
-	    This would be removed after integrating reqh with the new
-	    RPC layer.
-	 */
-	void			*fo_cookie;
 };
 
 /**

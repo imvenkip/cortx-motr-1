@@ -26,7 +26,12 @@
 #include "fop/fop_format.h"
 #include "ping_fom.h"
 #include "ping_fop.h"
+#ifdef __KERNEL__
+#include "ping_fop_k.h"
+#else
 #include "ping_fop_u.h"
+#endif
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpccore.h"
@@ -34,8 +39,9 @@
 
 /** Generic ops object for ping */
 struct c2_fom_ops c2_fom_ping_ops = {
-	.fo_fini = NULL,
+	.fo_fini = c2_fop_ping_fom_fini,
 	.fo_state = c2_fom_ping_state,
+	.fo_home_locality = c2_fom_ping_home_locality
 };
 
 /** FOM type specific functions for ping FOP. */
@@ -47,6 +53,13 @@ static const struct c2_fom_type_ops c2_fom_ping_type_ops = {
 static struct c2_fom_type c2_fom_ping_mopt = {
         .ft_ops = &c2_fom_ping_type_ops,
 };
+
+size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
+{
+	C2_PRE(fom != NULL);
+
+	return fom->fo_fop->f_type->ft_code;
+}
 
 /**
  * State function for ping request
@@ -71,6 +84,8 @@ int c2_fom_ping_state(struct c2_fom *fom)
 	item->ri_group = NULL;
 	fop->f_type->ft_ri_type = &c2_rpc_item_type_ping_rep;
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
+	fom->fo_phase = FOPH_FINISH;
+
 	return 0;
 }
 
@@ -94,9 +109,15 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom = &fom_obj->fp_gen;
 	fom->fo_type = fom_type;
 	fom->fo_ops = &c2_fom_ping_ops;
+	fom->fo_fop = fop;
 	fom_obj->fp_fop = fop;
         *m = &fom_obj->fp_gen;
 	return 0;
+}
+
+void c2_fop_ping_fom_fini(struct c2_fom *fom)
+{
+	return;
 }
 
 /** @} end of io_foms */

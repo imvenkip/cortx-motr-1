@@ -29,7 +29,11 @@
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 
-#include "cob.h"
+#include "cob/cob.h"
+
+#ifdef __KERNEL__
+#define printf printk
+#endif
 
 /**
    @addtogroup cob
@@ -179,6 +183,7 @@ int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
 
         return 0;
 }
+C2_EXPORTED(c2_cob_domain_init);
 
 void c2_cob_domain_fini(struct c2_cob_domain *dom)
 {
@@ -188,6 +193,7 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 	c2_rwlock_fini(&dom->cd_guard);
 	c2_addb_ctx_fini(&dom->cd_addb);
 }
+C2_EXPORTED(c2_cob_domain_fini);
 
 static void cob_free_cb(struct c2_ref *ref);
 
@@ -233,6 +239,7 @@ void c2_cob_put(struct c2_cob *cob)
 {
         c2_ref_put(&cob->co_ref);
 }
+C2_EXPORTED(c2_cob_put);
 
 /**
    Allocate a new cob
@@ -420,6 +427,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
         *out = cob;
 	return rc;
 }
+C2_EXPORTED(c2_cob_lookup);
 
 /**
    Check if a cob with this fid is in the cache
@@ -571,6 +579,7 @@ out_free:
         C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
         return rc;
 }
+C2_EXPORTED(c2_cob_create);
 
 /** For assertions only */
 static bool c2_cob_is_valid(struct c2_cob *cob)
@@ -639,6 +648,7 @@ out:
         c2_cob_put(cob);
         return rc;
 }
+C2_EXPORTED(c2_cob_delete);
 
 int c2_cob_update(struct c2_cob		*cob,
 		  struct c2_cob_nsrec	*nsrec,
@@ -703,6 +713,7 @@ void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
         c2_bitstring_len_set(&key->cnk_name, strlen(name));
         *keyh = key;
 }
+C2_EXPORTED(c2_cob_nskey_make);
 
 void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 {
@@ -726,11 +737,13 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_setup(&pair, &dom->cd_namespace, nskey, sizeof (*nskey) + 20,
 				&nsrec, sizeof nsrec);
 	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
+		#ifndef __KERNEL__
 		printf("[%lx:%lx:%s] -> [%lx:%lx]\n", nskey->cnk_pfid.si_bits.u_hi,
 				nskey->cnk_pfid.si_bits.u_lo,
 				nskey->cnk_name.b_data,
 				nsrec.cnr_stobid.si_bits.u_hi,
 				nsrec.cnr_stobid.si_bits.u_lo);
+		#endif
 	}
 
 	printf("=================================================\n");
@@ -738,8 +751,8 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_tx_commit(&tx);
-	
-}	
+
+}
 
 void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 {
@@ -761,10 +774,12 @@ void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_setup(&pair, &dom->cd_fileattr_basic, &key, sizeof key,
 				&rec, sizeof rec);
 	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
+		#ifndef __KERNEL__
 		printf("[%lx:%lx] -> [%lu:%lu]\n", key.si_bits.u_hi,
 				key.si_bits.u_lo,
 				rec.cfb_version.vn_lsn,
 				rec.cfb_version.vn_vc);
+		#endif
 	}
 
 	printf("=================================================\n");
@@ -772,8 +787,8 @@ void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_tx_commit(&tx);
-	
-}	
+
+}
 /** @} end group cob */
 
 /*

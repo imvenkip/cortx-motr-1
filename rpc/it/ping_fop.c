@@ -26,7 +26,11 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+#ifdef __KERNEL__
+#include "ping_fop_k.h"
+#else
 #include "ping_fop_u.h"
+#endif
 #include "fop/fop_iterator.h"
 #include "ping_fop.h"
 #include "ping_fom.h"
@@ -50,7 +54,11 @@ uint64_t c2_fop_ping_getsize(struct c2_fop *ping_fop)
 	fp = c2_fop_data(ping_fop);
 	count = fp->fp_arr.f_count;
 	size = sizeof(count) + sizeof(fp->fp_arr.f_data) * count;
+	#ifdef __KERNEL__
+	printk("\nIn Ping get size : %llu\n", size);
+	#else
 	printf("\nIn Ping get size : %ld\n", size);
+	#endif
 	/** Size of fop layout
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	size += sizeof(struct c2_fop_type);
@@ -64,7 +72,11 @@ uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	#ifdef __KERNEL__
+	printk("\nIn Ping reply get size : %llu\n", size);
+	#else
 	printf("\nIn Ping reply get size : %ld\n", size);
+	#endif
 	return size;
 }
 
@@ -85,7 +97,7 @@ struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_replied = c2_ping_fop_replied,
         //.rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = NULL, 
+        .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
@@ -97,7 +109,7 @@ struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
         .rito_added = NULL,
         .rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = NULL, 
+        .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
@@ -177,7 +189,6 @@ int c2_ping_fop_init(void)
         result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
         return result;
 }
-
 
 /*
  *  Local variables:

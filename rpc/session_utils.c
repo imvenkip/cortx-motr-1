@@ -31,9 +31,11 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+#include "reqh/reqh.h"
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
+#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -109,6 +111,7 @@ static struct c2_uint128 stob_id_alloc(void)
 	id.u_lo = (millisec << 20) | (c2_atomic64_get(&cnt) & 0xFFFFF);
         return id;
 }
+
 int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 			     struct c2_cob        *pcob,
 			     const char           *name,
@@ -212,16 +215,42 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
  */
 void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 {
-	c2_mutex_lock(&c2_exec_queue_mutex);
+	struct c2_fop                        *fop;
+	struct c2_reqh                       *reqh;
+        struct c2_rpc_fop_conn_establish_ctx *ctx;
+	struct c2_rpcmachine                 *rpcmach;
+
+	printf("Executing %p\n", item);
+
+	 if (c2_rpc_item_is_conn_establish(item)) {
+
+		ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
+					cec_fop.f_item);
+		C2_ASSERT(ctx != NULL);
+		rpcmach = ctx->cec_rpcmachine;
+	} else
+		rpcmach = item->ri_session->s_conn->c_rpcmachine;
+
+	C2_ASSERT(rpcmach != NULL);
+
+	reqh = rpcmach->cr_reqh;
+	C2_ASSERT(reqh != NULL);
+
+	fop = c2_rpc_item_to_fop(item);	
+        #ifndef __KERNEL__
+	c2_reqh_fop_handle(reqh, fop); 
+	#endif
+	/*c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);
 	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);
 	c2_chan_broadcast(&c2_exec_chan);
-	c2_mutex_unlock(&c2_exec_queue_mutex);
+	c2_mutex_unlock(&c2_exec_queue_mutex);*/
 }
 
 /**
    for dubugging purpose.
  */
+/*
 #ifndef __KERNEL__
 int c2_exec_queue_print(void)
 {
@@ -246,3 +275,4 @@ int c2_exec_queue_print(void)
 	return 0;
 }
 #endif
+*/

@@ -1,0 +1,26 @@
+SM_SRCDIR = @SRCDIR@/fol/linux_kernel
+
+obj-m		:= kfol.o
+shared_src	:= fol.c
+kernel_src	:= fol_kernel.c
+kfol-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig		:= $(shared_src:%=../%)
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	ln -fs $(orig) .
+
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/fol -C @LINUX_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	rm -rf @LINUX_MOD@/kernel/fs/fol
+
+clean distclean:
+	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+distdir:
+	cp $(FID_SRCDIR)/Makefile.in $(FID_SRCDIR)/fol.h \
+	    @top_builddir@/@PACKAGE@-@VERSION@/fol/linux_kernel

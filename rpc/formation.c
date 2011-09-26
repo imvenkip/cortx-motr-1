@@ -28,8 +28,10 @@
 #include "lib/memory.h"
 #include "lib/cdefs.h"
 
-#ifndef __KERNEL__
 #include "rpc/rpc_onwire.h"
+
+#ifdef __KERNEL__
+#define printf printk
 #endif
 
 /* ADDB Instrumentation for rpc formation. */
@@ -1383,9 +1385,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		/** @todo Allocate bulk i/o buffers before encoding. */
 		/** @todo rpc_encode will encode the bulk i/o
 		   buffer descriptors. */
-#ifndef __KERNEL__
 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
-#endif
 		if (rc < 0) {
 			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,

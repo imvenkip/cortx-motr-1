@@ -45,6 +45,10 @@ enum locality_ht_wait {
 	LOC_HT_WAIT = 1
 };
 
+enum {
+        MIN_CPU_NR = 1
+};
+
 /**
  * Fom addb event location object
  */
@@ -99,7 +103,7 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 
 	if ( fom == NULL || fom->fo_loc == NULL || fom->fo_type == NULL ||
 		fom->fo_ops == NULL || fom->fo_fop == NULL ||
-		fom->fo_fol == NULL || !c2_list_link_invariant(&fom->fo_linkage))
+		!c2_list_link_invariant(&fom->fo_linkage))
 		return false;
 
 	loc = fom->fo_loc;
@@ -456,9 +460,9 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 	struct c2_fom_hthread  *locthr;
 
 	C2_PRE(loc != NULL);
-
+	#ifndef __KERNEL__
 	C2_ALLOC_PTR_ADDB(locthr, &c2_reqh_addb_ctx, &c2_fom_addb_loc);
-
+	#endif
 	if (locthr == NULL)
 		return -ENOMEM;
 
@@ -576,11 +580,12 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 			}
 		}
 
-		if (ncpus > 1)
-			loc->fl_lo_idle_threads_nr = ncpus/2;
-		else
-			loc->fl_lo_idle_threads_nr = ncpus;
-		loc->fl_hi_idle_threads_nr = ncpus;
+                if (ncpus > MIN_CPU_NR)
+                        loc->fl_lo_idle_threads_nr = ncpus/2;
+                else
+                        loc->fl_lo_idle_threads_nr = ncpus;
+
+                loc->fl_hi_idle_threads_nr = ncpus;
 
 		for (i = 0; i < ncpus; ++i) {
 			result = loc_thr_create(loc);
@@ -641,8 +646,10 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	}
 
 	c2_processors_online(&onln_cpu_map);
+	#ifndef __KERNEL__
 	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &c2_reqh_addb_ctx,
 							&c2_fom_addb_loc);
+	#endif
 	if (dom->fd_localities == NULL) {
 		c2_bitmap_fini(&onln_cpu_map);
 		c2_bitmap_fini(&loc_cpu_map);
@@ -713,11 +720,6 @@ void c2_fom_init(struct c2_fom *fom)
 	fom->fo_phase = FOPH_INIT;
 	fom->fo_rep_fop = NULL;
 
-	/* Move initialisation of ->f_addb to fom specific init routine */
-
-	//c2_addb_ctx_init(&fom->fo_fop->f_addb, &c2_fom_addb_ctx_type,
-	//			&c2_addb_global_ctx);
-
 	c2_clink_init(&fom->fo_clink, &fom_cb);
 	c2_list_link_init(&fom->fo_linkage);
 }
@@ -728,7 +730,6 @@ void c2_fom_fini(struct c2_fom *fom)
 	C2_PRE(fom->fo_phase == FOPH_FINISH);
 
 	c2_clink_fini(&fom->fo_clink);
-	c2_addb_ctx_fini(&fom->fo_fop->f_addb);
 	c2_list_link_fini(&fom->fo_linkage);
 }
 C2_EXPORTED(c2_fom_fini);

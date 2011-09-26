@@ -35,6 +35,7 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
+#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -455,7 +456,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 		C2_ASSERT(c2_rpc_conn_invariant(conn));
 		goto out;
 	}
-
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 

@@ -26,7 +26,9 @@
 #include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
-
+#ifdef __KERNEL__
+#define printf printk
+#endif
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
 	size_t		 len;
@@ -43,6 +45,7 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 	len += ITEM_ONWIRE_HEADER_SIZE;
 	return len;
 }
+C2_EXPORTED(c2_rpc_item_default_size);
 
 /* XXX : Return correct RPC version. */
 static uint32_t rpc_ver_get(void)
@@ -218,6 +221,7 @@ int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
 	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
 	return rc;
 }
+C2_EXPORTED(c2_rpc_fop_default_encode);
 
 int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_rpc_item **item,
@@ -236,6 +240,9 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 	fop = c2_fop_alloc(ftype, NULL);
 	if (fop == NULL)
 		return -ENOMEM;
+	c2_rpc_item_init(&fop->f_item);
+        fop->f_item.ri_type = fop->f_type->ft_ri_type;
+
 	*item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(*item != NULL);
 	rc = item_encdec(cur, *item, C2_BUFVEC_DECODE);
@@ -244,6 +251,7 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 
 	return rc;
 }
+C2_EXPORTED(c2_rpc_fop_default_decode);
 
 /**
   Checks if the supplied bufvec has buffers with sizes multiple of 8 bytes.
@@ -317,6 +325,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 end:
 	return rc;
 }
+C2_EXPORTED(c2_rpc_encode);
 
 int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 {
@@ -381,6 +390,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	}
 	return rc;
 }
+C2_EXPORTED(c2_rpc_decode);
 
 /*
  *  Local variables:

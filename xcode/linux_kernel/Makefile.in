@@ -1,0 +1,26 @@
+SM_SRCDIR = @SRCDIR@/xcode/linux_kernel
+
+obj-m		:= kxcode.o
+shared_src	:= bufvec_xcode.c bufvec_xcode_fop.c bufvec_xcode_size.c
+kernel_src	:= xcode_kernel.c
+kxcode-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig		:= $(shared_src:%=../%)
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	ln -fs $(orig) .
+
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/xcode -C @LINUX_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	rm -rf @LINUX_MOD@/kernel/fs/xcode
+
+clean distclean:
+	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+distdir:
+	cp $(FID_SRCDIR)/Makefile.in $(FID_SRCDIR)/bufvec_xcode.h \
+	    @top_builddir@/@PACKAGE@-@VERSION@/xcode/linux_kernel
