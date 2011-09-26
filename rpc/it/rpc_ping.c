@@ -112,10 +112,6 @@ bool verbose = false;
 module_param(verbose, bool, S_IRUGO);
 MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
 
-bool client_mode = false;
-module_param(client_mode, bool, S_IRUGO);
-MODULE_PARM_DESC(client_mode, "enable client mode");
-
 char *local_hostaddr = "127.0.0.1";
 module_param(local_hostaddr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_hostaddr, "client address");
@@ -250,14 +246,7 @@ static int canon_host(const char *hostname, char *buf, size_t bufsiz)
 	}
 	return rc;
 }
-#endif
 
-/* Do cleanup */
-void do_cleanup(void)
-{
-}
-
-#ifndef __KERNEL__
 /* Poll the server */
 void server_poll()
 {
@@ -324,6 +313,12 @@ void server_fini(void)
 
 	c2_reqh_fini(&reqh_ping);
 }
+/* Do cleanup */
+void do_cleanup(void)
+{
+}
+
+#ifndef __KERNEL__
 
 /* Create the server*/
 void server_init(int dummy)
@@ -872,14 +867,15 @@ cleanup:
 
 #ifdef __KERNEL__
 int c2_rpc_ping_init()
+bool client = true; 
 #else
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
 #endif
 {
+#ifndef __KERNEL__
 	bool			 server = false;
 	bool			 client = false;
-#ifndef __KERNEL__
 	bool			 verbose = false;
 	const char		*server_name = NULL;
 	const char		*client_name = NULL;
@@ -898,12 +894,6 @@ int main(int argc, char *argv[])
 
 	rc = c2_processors_init();
 
-#endif
-
-	c2_addb_choose_default_level(AEL_WARN);
-	c2_ping_fop_init();
-
-#ifndef __KERNEL__
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
 		C2_FLAGARG('s', "run server", &server),
@@ -923,6 +913,8 @@ int main(int argc, char *argv[])
 		return rc;
 #endif
 
+	c2_addb_choose_default_level(AEL_WARN);
+	c2_ping_fop_init();
 	/* Set defaults */
 	sctx.pc_lhostname = cctx.pc_lhostname = "localhost";
 	sctx.pc_rhostname = cctx.pc_rhostname = "localhost";
@@ -947,10 +939,7 @@ int main(int argc, char *argv[])
                 cctx.pc_nr_ping_items = nr_ping_item;
         if (nr_ping_bytes != 0)
                 cctx.pc_nr_ping_bytes = nr_ping_bytes;
-#ifdef __KERNEL__
-	if (client_mode)
-		client = true;
-#else
+#ifndef __KERNEL__
 	if (client_name)
 		sctx.pc_rhostname = cctx.pc_lhostname = client_name;
 	if (server_name)
@@ -962,9 +951,7 @@ int main(int argc, char *argv[])
 		client_init();
 		if (verbose)
 			print_stats(client, server);
-#ifndef __KERNEL__
 		client_fini();
-#endif
 	}
 
 #ifndef __KERNEL__
@@ -991,6 +978,5 @@ int main(int argc, char *argv[])
 
 void c2_rpc_ping_fini(void)
 {
-	client_fini();
 	c2_ping_fop_fini();
 }
