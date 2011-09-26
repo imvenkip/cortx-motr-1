@@ -35,7 +35,6 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
-#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif

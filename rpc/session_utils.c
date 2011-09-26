@@ -35,7 +35,6 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
-#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -220,8 +219,6 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
         struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpcmachine                 *rpcmach;
 
-	printf("Executing %p\n", item);
-
 	 if (c2_rpc_item_is_conn_establish(item)) {
 
 		ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
@@ -236,10 +233,10 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 	reqh = rpcmach->cr_reqh;
 	C2_ASSERT(reqh != NULL);
 
-	fop = c2_rpc_item_to_fop(item);	
-        #ifndef __KERNEL__
-	c2_reqh_fop_handle(reqh, fop); 
-	#endif
+	fop = c2_rpc_item_to_fop(item);
+#ifndef __KERNEL__
+	c2_reqh_fop_handle(reqh, fop);
+#endif
 	/*c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);
 	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);
