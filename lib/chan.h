@@ -22,7 +22,7 @@
 #define __COLIBRI_LIB_CHAN_H__
 
 #include "lib/cdefs.h"
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/time.h"
 #include "lib/semaphore.h"
@@ -112,7 +112,7 @@ struct c2_chan {
 	/** Lock protecting other fields. */
 	struct c2_mutex ch_guard;
 	/** List of registered clinks. */
-	struct c2_list  ch_links;
+	struct c2_tl    ch_links;
 	/** Number of clinks in c2_chan::ch_links. This is used to speed up
 	    c2_chan_broadcast(). */
 	uint32_t        ch_waiters;
@@ -155,8 +155,9 @@ struct c2_clink {
 	/** Call-back to be called when event is declared. */
 	c2_chan_cb_t        cl_cb;
 	/** Linkage into c2_chan::ch_links */
-	struct c2_list_link cl_linkage;
+	struct c2_tlink     cl_linkage;
 	struct c2_semaphore cl_wait;
+	uint64_t            cl_magic;
 };
 
 void c2_chan_init(struct c2_chan *chan);

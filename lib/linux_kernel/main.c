@@ -40,6 +40,7 @@ void cleanup_module(void)
 extern void test_bitmap(void);
 extern void test_chan(void);
 extern void test_list(void);
+extern void test_tlist(void);
 extern void test_mutex(void);
 extern void test_queue(void);
 extern void test_refs(void);
@@ -56,6 +57,7 @@ const struct c2_test_suite c2_klibc2_ut = {
 		{ "bitmap",    test_bitmap    },
 		{ "chan",      test_chan      },
 		{ "list",      test_list      },
+		{ "tlist",     test_tlist     },
 		{ "mutex",     test_mutex     },
 		{ "queue",     test_queue     },
 		{ "refs",      test_refs      },

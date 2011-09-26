@@ -23,22 +23,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include <sys/stat.h>	/* mkdir */
+#include <sys/types.h>	/* mkdir */
 #include <err.h>
 
-#include "lib/cdefs.h"
 #include "lib/ut.h"
 #include "lib/misc.h"
-#include "lib/getopts.h"
-#include "lib/arith.h"
-#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/thread.h"
-#include "lib/queue.h"
 #include "lib/chan.h"
 #include "lib/processor.h"
 #include "lib/list.h"
@@ -440,7 +433,7 @@ static struct c2_fom_type *reqh_ut_fom_types[] = {
 /**
  * Function to map a fop to its corresponding fom
  */
-struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
+static struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 {
 	C2_UT_ASSERT(IS_IN_ARRAY((code - CREATE_REQ), reqh_ut_fom_types));
 
@@ -888,7 +881,6 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
  */
 static int reqh_ut_write_fom_state(struct c2_fom *fom)
 {
-
         struct reqh_ut_fom_io_write     *in_fop;
         struct reqh_ut_fom_io_write_rep *out_fop;
         struct reqh_ut_io_fom           *fom_obj;
@@ -1298,7 +1290,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = ad_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom);
+	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_stob_put(*bstore);
@@ -1437,11 +1429,10 @@ void test_reqh(void)
 	reqh_ut_fom_io_fop_fini();
 	if (c2_processor_is_initialized())
 		c2_processors_fini();
-
 }
 
 const struct c2_test_suite reqh_ut = {
-	.ts_name = "reqh-ut",
+	.ts_name = "reqh-ut... this takes about 30 seconds",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {

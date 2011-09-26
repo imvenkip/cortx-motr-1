@@ -7,6 +7,7 @@ MODLIST="lib/linux_kernel/klibc2.ko \
          fol/linux_kernel/kfol.ko \
          fop/linux_kernel/kfop.ko \
          net/linux_kernel/knetc2.ko \
+	 sm/linux_kernel/ksm.ko \
          stob/linux_kernel/kstob.ko \
 	 cob/linux_kernel/kcob.ko \
 	 dtm/linux_kernel/kdtm.ko \

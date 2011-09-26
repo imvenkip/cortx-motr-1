@@ -558,7 +558,7 @@ int main(int argc, char **argv)
 	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &dom);
 	C2_ASSERT(result == 0);
 
-	result = ad_setup(dom, &db, bstore, &mb.mb_ballroom);
+	result = c2_ad_stob_setup(dom, &db, bstore, &mb.mb_ballroom);
 	C2_ASSERT(result == 0);
 
 	c2_stob_put(bstore);
