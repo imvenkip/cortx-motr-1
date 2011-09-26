@@ -191,6 +191,11 @@ struct ping_ctx		cctx;
 /* Global server ping context */
 struct ping_ctx		sctx;
 
+/* Do cleanup */
+void do_cleanup(void)
+{
+}
+
 #ifndef __KERNEL__
 /* Request handler for rpc ping */
 static struct c2_reqh   reqh_ping;
@@ -265,31 +270,7 @@ void server_poll()
 		}
 	}
 }
-#endif
 
-/* Fini the client*/
-void client_fini(void)
-{
-	/* Fini the remote net endpoint. */
-	c2_net_end_point_put(cctx.pc_rep);
-
-	/* Fini the rpcmachine */
-	c2_rpcmachine_fini(&cctx.pc_rpc_mach);
-
-	/* Fini the net domain */
-	c2_net_domain_fini(&cctx.pc_dom);
-
-	/* Fini the transport */
-	c2_net_xprt_fini(cctx.pc_xprt);
-
-        /* Fini the cob domain */
-        c2_cob_domain_fini(&cctx.pc_cob_domain);
-
-        /* Fini the db */
-        c2_dbenv_fini(&cctx.pc_db);
-}
-
-#ifndef __KERNEL__
 /* Fini the server */
 void server_fini(void)
 {
@@ -313,12 +294,6 @@ void server_fini(void)
 
 	c2_reqh_fini(&reqh_ping);
 }
-/* Do cleanup */
-void do_cleanup(void)
-{
-}
-
-#ifndef __KERNEL__
 
 /* Create the server*/
 void server_init(int dummy)
@@ -338,7 +313,6 @@ void server_init(int dummy)
 		printf("Bulk sunrpc transport init completed \n");
 	}
 
-#ifndef __KERNEL__
 	/* Resolve client hostname */
 	rc = canon_host(sctx.pc_lhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
@@ -347,10 +321,6 @@ void server_init(int dummy)
 	} else {
 		printf("Server Hostname Resolved \n");
 	}
-#else
-	sctx.pc_lhostname = "localhost";
-	strcpy(hostbuf, remote_hostaddr);
-#endif
 
 	/* Init server side network domain */
 	rc = c2_net_domain_init(&sctx.pc_dom, sctx.pc_xprt);
@@ -397,7 +367,6 @@ void server_init(int dummy)
 		printf("RPC machine init completed \n");
 	}
 
-#ifndef __KERNEL__
 	/* Resolve Client hostname */
 	rc = canon_host(sctx.pc_rhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
@@ -406,10 +375,6 @@ void server_init(int dummy)
 	} else {
 		printf("Client Hostname Resolved \n");
 	}
-#else
-	sctx.pc_rhostname = "localhost";
-	strcpy(hostbuf, local_hostaddr);
-#endif
 
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
 	printf("Client Addr = %s\n",addr_remote);
@@ -624,6 +589,28 @@ void print_stats(bool client, bool server)
 #endif
 
 	printf("*********************************************\n");
+}
+
+/* Fini the client*/
+void client_fini(void)
+{
+	/* Fini the remote net endpoint. */
+	c2_net_end_point_put(cctx.pc_rep);
+
+	/* Fini the rpcmachine */
+	c2_rpcmachine_fini(&cctx.pc_rpc_mach);
+
+	/* Fini the net domain */
+	c2_net_domain_fini(&cctx.pc_dom);
+
+	/* Fini the transport */
+	c2_net_xprt_fini(cctx.pc_xprt);
+
+        /* Fini the cob domain */
+        c2_cob_domain_fini(&cctx.pc_cob_domain);
+
+        /* Fini the db */
+        c2_dbenv_fini(&cctx.pc_db);
 }
 
 /* Create the client */
@@ -866,8 +853,8 @@ cleanup:
 
 
 #ifdef __KERNEL__
-int c2_rpc_ping_init()
 bool client = true; 
+int c2_rpc_ping_init()
 #else
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
@@ -950,7 +937,7 @@ int main(int argc, char *argv[])
 	if(client) {
 		client_init();
 		if (verbose)
-			print_stats(client, server);
+			print_stats(client, false);
 		client_fini();
 	}
 
