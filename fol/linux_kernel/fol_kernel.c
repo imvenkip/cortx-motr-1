@@ -14,41 +14,24 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 09/09/2010
+ * Original author: Madhavrao Vemuri <madhav_vemuri@xyratex.com>
+ * Original creation date: 22/09/2011
  */
 
-#ifdef __KERNEL__
-#include <linux/string.h>  /* memcmp */
-#else
-#include <string.h>
-#endif
+#include <linux/module.h>
 
-#include "lib/cdefs.h"         /* C2_EXPORTED */
-#include "fid/fid.h"
+#include "fol/fol.h"
 
-/**
-   @addtogroup fid
-
-   @{
- */
-
-bool c2_fid_is_valid(const struct c2_fid *fid)
+int init_module(void)
 {
-	return true;
+        return 0;
 }
-C2_EXPORTED(c2_fid_is_valid);
 
-
-bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
+void cleanup_module(void)
 {
-	return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
-C2_EXPORTED(c2_fid_eq);
 
-/** @} end of fid group */
-
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
