@@ -238,7 +238,7 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);	
         #ifndef __KERNEL__
-	c2_reqh_fop_handle(&c2_rh, fop); 
+	c2_reqh_fop_handle(reqh, fop); 
 	#endif
 	/*c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);
