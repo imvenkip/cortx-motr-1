@@ -803,7 +803,8 @@ static void recv_buffer_deallocate_nr(struct c2_rpcmachine *machine,
 }
 
 int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
-		       struct c2_net_domain *net_dom, const char *ep_addr)
+		       struct c2_net_domain *net_dom, const char *ep_addr,
+			struct c2_reqh *reqh)
 {
 	int				 rc;
 	#ifndef __KERNEL__
@@ -842,6 +843,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	C2_SET_ARR0(machine->cr_rpc_stats);
 	machine->cr_dom = dom;
 	c2_db_tx_commit(&tx);
+	machine->cr_reqh = reqh;
 	return rc;
 
 cleanup:

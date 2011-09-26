@@ -215,12 +215,29 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
  */
 void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 {
-	struct c2_fop *fop;
+	struct c2_fop                        *fop;
+	struct c2_reqh                       *reqh;
+        struct c2_rpc_fop_conn_establish_ctx *ctx;
+	struct c2_rpcmachine                 *rpcmach;
 
 	printf("Executing %p\n", item);
 
+	 if (c2_rpc_item_is_conn_establish(item)) {
+
+		ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
+					cec_fop.f_item);
+		C2_ASSERT(ctx != NULL);
+		rpcmach = ctx->cec_rpcmachine;
+	} else
+		rpcmach = item->ri_session->s_conn->c_rpcmachine;
+
+	C2_ASSERT(rpcmach != NULL);
+
+	reqh = rpcmach->cr_reqh;
+	C2_ASSERT(reqh != NULL);
+
 	fop = c2_rpc_item_to_fop(item);	
-        c2_reqh_fop_handle(&c2_rh, fop); 
+        c2_reqh_fop_handle(reqh, fop); 
 
 	/*c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);

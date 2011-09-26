@@ -595,6 +595,15 @@ struct c2_rpcmachine {
 	struct c2_rpc_stats		  cr_rpc_stats[C2_RPC_PATH_NR];
 	/** Mutex to protect stats */
 	struct c2_mutex			  cr_stats_mutex;
+	/**
+	    Request handler this rpcmachine belongs to.
+	    @todo There needs to be  generic mechanism to register a
+		request handler (or any other handler for future use)
+		with the rpc machine and a ops vector specifying a
+		method to be invoked for futher processing,
+		e.g. c2_reqh_fop_handle(), in case of reqh.
+	*/
+	struct c2_reqh                         *cr_reqh;
 };
 
 /**
@@ -621,7 +630,8 @@ void c2_rpc_core_fini(void);
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
 			struct c2_net_domain	*net_dom,
-			const char		*ep_addr);
+			const char		*ep_addr,
+			struct c2_reqh          *reqh);
 
 /**
    Destruct rpcmachine

@@ -125,9 +125,7 @@ static struct c2_fol                 srv_fol;
  * Global reqh object
  */
 struct c2_reqh		reqh;
-
-int reply;
-int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
 {
@@ -198,7 +196,7 @@ struct c2_rpc_item_type_ops reqh_ut_write_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_default_size, 
+        .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
@@ -210,7 +208,7 @@ struct c2_rpc_item_type_ops reqh_ut_read_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_default_size, 
+        .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
@@ -282,10 +280,10 @@ struct c2_fop_type_ops reqh_ut_read_rep_fop_ops = {
  * Fop opcodes
  */
 enum reply_fop {
-	CREATE_REQ = 100,
+	CREATE_REQ = 40,
 	WRITE_REQ,
 	READ_REQ,
-	CREATE_REP = 103,
+	CREATE_REP = 43,
 	WRITE_REP,
 	READ_REP
 };
@@ -382,14 +380,14 @@ struct reqh_ut_io_fom {
 	struct c2_stob_io		 rh_ut_stio;
 };
 
-int reqh_ut_create_fom_state(struct c2_fom *fom);
-int reqh_ut_write_fom_state(struct c2_fom *fom);
-int reqh_ut_read_fom_state(struct c2_fom *fom);
-void reqh_ut_io_fom_fini(struct c2_fom *fom);
-int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom);
+static int reqh_ut_create_fom_state(struct c2_fom *fom);
+static int reqh_ut_write_fom_state(struct c2_fom *fom);
+static int reqh_ut_read_fom_state(struct c2_fom *fom);
+static void reqh_ut_io_fom_fini(struct c2_fom *fom);
+static int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+static int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+static int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom);
 
 /**
  * Operation structures for respective foms
@@ -601,7 +599,7 @@ static struct c2_stob *object_find(const struct reqh_ut_fom_fop_fid *fid,
 /**
  * Creates a fom for create fop.
  */
-int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
 	struct reqh_ut_io_fom	*fom_obj;
@@ -633,7 +631,7 @@ int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 /**
  * Creates a fom for write fop.
  */
-int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
 	struct reqh_ut_io_fom	*fom_obj;
@@ -662,7 +660,7 @@ int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 /**
  * Creates a fom for read fop.
  */
-int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
 	struct reqh_ut_io_fom	*fom_obj;
@@ -695,7 +693,7 @@ int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
  * of fome, inorder to have same locality of
  * execution for a certain type of fom.
  */
-size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
+static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 {
 	size_t iloc;
 
@@ -737,11 +735,13 @@ size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
  * A simple non blocking create fop specific fom
  * state method implemention.
  */
-int reqh_ut_create_fom_state(struct c2_fom *fom)
+static int reqh_ut_create_fom_state(struct c2_fom *fom)
 {
 	struct reqh_ut_fom_io_create		*in_fop;
 	struct reqh_ut_fom_io_create_rep	*out_fop;
 	struct reqh_ut_io_fom			*fom_obj;
+	struct c2_rpc_item                      *item;
+	struct c2_fop                           *fop;
 	int                                      result;
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
@@ -757,6 +757,12 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
 
 		result = c2_stob_create(fom_obj->rh_ut_stobj, &fom->fo_tx);
 		out_fop->ficr_rc = result;
+		fop = fom_obj->rep_fop;
+		item = c2_fop_to_rpc_item(fop);
+		c2_rpc_item_init(item);
+		item->ri_type = &reqh_ut_create_rep_rpc_item_type;
+		item->ri_group = NULL;
+		fop->f_type->ft_ri_type = &reqh_ut_create_rep_rpc_item_type;
 		fom->fo_rep_fop = fom_obj->rep_fop;
 		fom->fo_rc = result;
 		if (result != 0)
@@ -779,195 +785,229 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
  * A simple non blocking read fop specific fom
  * state method implemention.
  */
-int reqh_ut_read_fom_state(struct c2_fom *fom)
+static int reqh_ut_read_fom_state(struct c2_fom *fom)
 {
-	struct reqh_ut_fom_io_read	*in_fop;
-	struct reqh_ut_fom_io_read_rep	*out_fop;
-	struct reqh_ut_io_fom		*fom_obj;
-	void				*addr;
-	c2_bcount_t			 count;
-	c2_bcount_t			 offset;
-	uint32_t			 bshift;
-	uint64_t			 bmask;
-	int				 result;
+        struct reqh_ut_fom_io_read      *in_fop;
+        struct reqh_ut_fom_io_read_rep  *out_fop;
+        struct reqh_ut_io_fom           *fom_obj;
+        struct c2_stob_io               *stio;
+        struct c2_stob                  *stobj;
+	struct c2_rpc_item              *item;
+	struct c2_fop                   *fop;
+        void                            *addr;
+        c2_bcount_t                      count;
+        c2_bcount_t                      offset;
+        uint32_t                         bshift;
+        uint64_t                         bmask;
+        int                              result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_code == READ_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_code == READ_REQ);
 
-	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
-	if (fom->fo_phase < FOPH_NR) {
-		result = c2_fom_state_generic(fom);
-	} else {
-		out_fop = c2_fop_data(fom_obj->rep_fop);
-		C2_UT_ASSERT(out_fop != NULL);
+        fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
+        stio = &fom_obj->rh_ut_stio;
+        if (fom->fo_phase < FOPH_NR) {
+                result = c2_fom_state_generic(fom);
+        } else {
+                out_fop = c2_fop_data(fom_obj->rep_fop);
+                C2_UT_ASSERT(out_fop != NULL);
 
-		if (fom->fo_phase == FOPH_READ_STOB_IO) {
+                if (fom->fo_phase == FOPH_READ_STOB_IO) {
 
-			in_fop = c2_fop_data(fom->fo_fop);
-			C2_UT_ASSERT(in_fop != NULL);
-			fom_obj->rh_ut_stobj = object_find(&in_fop->fir_object, &fom->fo_tx, fom);
+                        in_fop = c2_fop_data(fom->fo_fop);
+                        C2_UT_ASSERT(in_fop != NULL);
+                        fom_obj->rh_ut_stobj = object_find(&in_fop->fir_object,
+                                                                &fom->fo_tx, fom);
 
-			bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
-			bmask  = (1 << bshift) - 1;
+                        stobj =  fom_obj->rh_ut_stobj;
+                        bshift = stobj->so_op->sop_block_shift(stobj);
+                        bmask  = (1 << bshift) - 1;
 
-			addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
+                        addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
+                        count = 1 >> bshift;
+                        offset = 0;
 
-			c2_stob_io_init(&fom_obj->rh_ut_stio);
+                        c2_stob_io_init(stio);
 
-			count = 1 >> bshift;
-			offset = 0;
-			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_nr    = 1;
-			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_count = &count;
-			fom_obj->rh_ut_stio.si_user.div_vec.ov_buf = &addr;
+                        stio->si_user.div_vec = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr,
+                                                                                &count);
 
-			fom_obj->rh_ut_stio.si_stob.iv_vec.v_nr    = 1;
-			fom_obj->rh_ut_stio.si_stob.iv_vec.v_count = &count;
-			fom_obj->rh_ut_stio.si_stob.iv_index       = &offset;
+                        stio->si_stob.iv_vec.v_nr    = 1;
+                        stio->si_stob.iv_vec.v_count = &count;
+                        stio->si_stob.iv_index       = &offset;
 
-			fom_obj->rh_ut_stio.si_opcode = SIO_READ;
-			fom_obj->rh_ut_stio.si_flags  = 0;
+                        stio->si_opcode = SIO_READ;
+                        stio->si_flags  = 0;
 
-			c2_fom_block_enter(fom);
-			c2_fom_block_at(fom, &fom_obj->rh_ut_stio.si_wait);
-			result = c2_stob_io_launch(&fom_obj->rh_ut_stio, fom_obj->rh_ut_stobj,
-								&fom->fo_tx, NULL);
+                        c2_fom_block_enter(fom);
+                        c2_fom_block_at(fom, &stio->si_wait);
+                        result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
-			if (result != 0) {
-				fom->fo_rc = result;
-				fom->fo_phase = FOPH_FAILURE;
-			} else {
-				fom->fo_phase = FOPH_READ_STOB_IO_WAIT;
-				result = FSO_WAIT;
-			}
-		} else if (fom->fo_phase == FOPH_READ_STOB_IO_WAIT) {
-			fom->fo_rc = fom_obj->rh_ut_stio.si_rc;
-			if (fom->fo_rc != 0)
-				fom->fo_phase = FOPH_FAILURE;
-			else {
-				bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
-				out_fop->firr_count = fom_obj->rh_ut_stio.si_count << bshift;
-				fom->fo_phase = FOPH_SUCCESS;
-			}
+                        if (result != 0) {
+                                fom->fo_rc = result;
+                                fom->fo_phase = FOPH_FAILURE;
+                        } else {
+                                fom->fo_phase = FOPH_READ_STOB_IO_WAIT;
+                                result = FSO_WAIT;
+                        }
+                } else if (fom->fo_phase == FOPH_READ_STOB_IO_WAIT) {
+                        fom->fo_rc = stio->si_rc;
+                        stobj = fom_obj->rh_ut_stobj;
+                        if (fom->fo_rc != 0)
+                                fom->fo_phase = FOPH_FAILURE;
+                        else {
+                                bshift = stobj->so_op->sop_block_shift(stobj);
+                                out_fop->firr_count = stio->si_count << bshift;
+                                fom->fo_phase = FOPH_SUCCESS;
+                        }
 
-		}
+                }
 
-		if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == FOPH_SUCCESS) {
-			c2_fom_block_leave(fom);
-			out_fop->firr_rc = fom->fo_rc;
-			fom->fo_rep_fop = fom_obj->rep_fop;
-			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-							&fom->fo_tx.tx_dbtx);
-			C2_UT_ASSERT(result == 0);
-			result = FSO_AGAIN;
-		}
+                if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == FOPH_SUCCESS) {
+                        c2_fom_block_leave(fom);
+                        out_fop->firr_rc = fom->fo_rc;
+			fop = fom_obj->rep_fop;
+			item = c2_fop_to_rpc_item(fop);
+                        c2_rpc_item_init(item);
+                        item->ri_type = &reqh_ut_read_rep_rpc_item_type;
+                        item->ri_group = NULL;
+                        fop->f_type->ft_ri_type = &reqh_ut_read_rep_rpc_item_type;
+                        fom->fo_rep_fop = fom_obj->rep_fop;
+                        result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+                                                        &fom->fo_tx.tx_dbtx);
+                        C2_UT_ASSERT(result == 0);
+                        result = FSO_AGAIN;
+                }
 
-	}
+        }
 
-	if (fom->fo_phase == FOPH_FINISH) {
-		c2_stob_io_fini(&fom_obj->rh_ut_stio);
-		c2_stob_put(fom_obj->rh_ut_stobj);
-	}
+        if (fom->fo_phase == FOPH_FINISH) {
+                /*
+                   If we fail in any of the generic phase, stob io
+                   is uninitialised, so no need to fini.
+                 */
+                if (stio->si_state != SIS_ZERO) {
+                        c2_stob_io_fini(stio);
+                        c2_stob_put(fom_obj->rh_ut_stobj);
+                }
+        }
 
-	return result;
+        return result;
 }
 
 /**
  * A simple non blocking write fop specific fom
  * state method implemention.
  */
-int reqh_ut_write_fom_state(struct c2_fom *fom)
+static int reqh_ut_write_fom_state(struct c2_fom *fom)
 {
 
-	struct reqh_ut_fom_io_write	*in_fop;
-	struct reqh_ut_fom_io_write_rep	*out_fop;
-	struct reqh_ut_io_fom		*fom_obj;
-	void				*addr;
-	c2_bcount_t			 count;
-	c2_bindex_t			 offset;
-	uint32_t			 bshift;
-	uint64_t			 bmask;
-	int				 result;
+        struct reqh_ut_fom_io_write     *in_fop;
+        struct reqh_ut_fom_io_write_rep *out_fop;
+        struct reqh_ut_io_fom           *fom_obj;
+        struct c2_stob_io               *stio;
+        struct c2_stob                  *stobj;
+	struct c2_rpc_item              *item;
+	struct c2_fop                   *fop;
+        void                            *addr;
+        c2_bcount_t                      count;
+        c2_bindex_t                      offset;
+        uint32_t                         bshift;
+        uint64_t                         bmask;
+        int                              result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_code == WRITE_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_code == WRITE_REQ);
 
-	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
-	if (fom->fo_phase < FOPH_NR) {
-		result = c2_fom_state_generic(fom);
-	} else {
-		out_fop = c2_fop_data(fom_obj->rep_fop);
-		C2_UT_ASSERT(out_fop != NULL);
+        fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
+        stio = &fom_obj->rh_ut_stio;
 
-		if (fom->fo_phase == FOPH_WRITE_STOB_IO) {
-			in_fop = c2_fop_data(fom->fo_fop);
-			C2_UT_ASSERT(in_fop != NULL);
+        if (fom->fo_phase < FOPH_NR) {
+                result = c2_fom_state_generic(fom);
+        } else {
+                out_fop = c2_fop_data(fom_obj->rep_fop);
+                C2_UT_ASSERT(out_fop != NULL);
 
-			fom_obj->rh_ut_stobj = object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
+                if (fom->fo_phase == FOPH_WRITE_STOB_IO) {
+                        in_fop = c2_fop_data(fom->fo_fop);
+                        C2_UT_ASSERT(in_fop != NULL);
 
-			bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
-			bmask  = (1 << bshift) - 1;
+                        fom_obj->rh_ut_stobj = object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
 
-			addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
-			count = 1 >> bshift;
-			offset = 0;
+                        stobj = fom_obj->rh_ut_stobj;
+                        bshift = stobj->so_op->sop_block_shift(stobj);
+                        bmask  = (1 << bshift) - 1;
 
-			c2_stob_io_init(&fom_obj->rh_ut_stio);
+                        addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
+                        count = 1 >> bshift;
+                        offset = 0;
 
-			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_nr    = 1;
-			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_count = &count;
-			fom_obj->rh_ut_stio.si_user.div_vec.ov_buf = &addr;
+                        c2_stob_io_init(stio);
 
-			fom_obj->rh_ut_stio.si_stob.iv_vec.v_nr    = 1;
-			fom_obj->rh_ut_stio.si_stob.iv_vec.v_count = &count;
-			fom_obj->rh_ut_stio.si_stob.iv_index       = &offset;
+                        stio->si_user.div_vec = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr, &count);
 
-			fom_obj->rh_ut_stio.si_opcode = SIO_WRITE;
-			fom_obj->rh_ut_stio.si_flags  = 0;
+                        stio->si_stob.iv_vec.v_nr    = 1;
+                        stio->si_stob.iv_vec.v_count = &count;
+                        stio->si_stob.iv_index       = &offset;
+                        stio->si_opcode = SIO_WRITE;
+                        stio->si_flags  = 0;
 
-			c2_fom_block_enter(fom);
-			c2_fom_block_at(fom, &fom_obj->rh_ut_stio.si_wait);
-			result = c2_stob_io_launch(&fom_obj->rh_ut_stio, fom_obj->rh_ut_stobj,
-							&fom->fo_tx, NULL);
+                        c2_fom_block_enter(fom);
+                        c2_fom_block_at(fom, &stio->si_wait);
+                        result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
-			if (result != 0) {
-				fom->fo_rc = result;
-				fom->fo_phase = FOPH_FAILURE;
-			} else {
-				fom->fo_phase = FOPH_WRITE_STOB_IO_WAIT;
-				result = FSO_WAIT;
-			}
-		} else if (fom->fo_phase == FOPH_WRITE_STOB_IO_WAIT) {
-			c2_fom_block_leave(fom);
-			fom->fo_rc = fom_obj->rh_ut_stio.si_rc;
-			if (fom->fo_rc != 0)
-				fom->fo_phase = FOPH_FAILURE;
-			else {
-				bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
-				out_fop->fiwr_count = fom_obj->rh_ut_stio.si_count << bshift;
-				fom->fo_phase = FOPH_SUCCESS;
-			}
+                        if (result != 0) {
+                                fom->fo_rc = result;
+                                fom->fo_phase = FOPH_FAILURE;
+                        } else {
+                                fom->fo_phase = FOPH_WRITE_STOB_IO_WAIT;
+                                result = FSO_WAIT;
+                        }
+                } else if (fom->fo_phase == FOPH_WRITE_STOB_IO_WAIT) {
+                        c2_fom_block_leave(fom);
+                        fom->fo_rc = stio->si_rc;
+                        stobj = fom_obj->rh_ut_stobj;
+                        if (fom->fo_rc != 0)
+                                fom->fo_phase = FOPH_FAILURE;
+                        else {
+                                bshift = stobj->so_op->sop_block_shift(stobj);
+                                out_fop->fiwr_count = stio->si_count << bshift;
+                                fom->fo_phase = FOPH_SUCCESS;
+                        }
 
-		}
+                }
 
-		if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == FOPH_SUCCESS) {
-			out_fop->fiwr_rc = fom->fo_rc;
-			fom->fo_rep_fop = fom_obj->rep_fop;
-			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-							&fom->fo_tx.tx_dbtx);
-			C2_UT_ASSERT(result == 0);
-			result = FSO_AGAIN;
-		}
-	}
+                if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == FOPH_SUCCESS) {
+                        out_fop->fiwr_rc = fom->fo_rc;
+			fop = fom_obj->rep_fop;
+			item = c2_fop_to_rpc_item(fop);
+			c2_rpc_item_init(item);
+			item->ri_type = &reqh_ut_write_rep_rpc_item_type;
+			item->ri_group = NULL;
+			fop->f_type->ft_ri_type = &reqh_ut_write_rep_rpc_item_type;
+                        fom->fo_rep_fop = fom_obj->rep_fop;
+                        result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+                                                        &fom->fo_tx.tx_dbtx);
+                        C2_UT_ASSERT(result == 0);
+                        result = FSO_AGAIN;
+                }
+        }
 
-	if (fom->fo_phase == FOPH_FINISH) {
-		c2_stob_io_fini(&fom_obj->rh_ut_stio);
-		c2_stob_put(fom_obj->rh_ut_stobj);
-	}
-	return result;
+        if (fom->fo_phase == FOPH_FINISH) {
+                /*
+                   If we fail in any of the generic phase, stob io
+                   is uninitialised, so no need to fini.
+                 */
+                if (stio->si_state != SIS_ZERO) {
+                        c2_stob_io_fini(stio);
+                        c2_stob_put(fom_obj->rh_ut_stobj);
+                }
+        }
+        return result;
 }
 
 /**
  * Fom specific clean up function, invokes c2_fom_fini()
  */
-void reqh_ut_io_fom_fini(struct c2_fom *fom)
+static void reqh_ut_io_fom_fini(struct c2_fom *fom)
 {
 	struct reqh_ut_io_fom *fom_obj;
 
@@ -980,7 +1020,7 @@ void reqh_ut_io_fom_fini(struct c2_fom *fom)
  * Fom initialization function, invoked from reqh_fop_handle.
  * Invokes c2_fom_init()
  */
-int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 
 	struct c2_fom_type	*fom_type;
@@ -1005,7 +1045,7 @@ int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 /**
  * Function to clean reqh ut io fops
  */
-void reqh_ut_fom_io_fop_fini(void)
+static void reqh_ut_fom_io_fop_fini(void)
 {
 	c2_fop_object_fini();
 	c2_fop_type_fini_nr(reqh_ut_fops, ARRAY_SIZE(reqh_ut_fops));
@@ -1014,7 +1054,7 @@ void reqh_ut_fom_io_fop_fini(void)
 /**
  * Function to intialise reqh ut io fops.
  */
-int reqh_ut_fom_io_fop_init(void)
+static int reqh_ut_fom_io_fop_init(void)
 {
 	int result;
 
@@ -1126,7 +1166,7 @@ static int client_init(char *dbname)
 
         /* Init the rpcmachine */
         rc = c2_rpcmachine_init(&cl_rpc_mach, &cl_cob_domain,
-                        &cl_ndom, "127.0.0.1:1024:1");
+                        &cl_ndom, "127.0.0.1:1024:1", NULL);
         if(rc != 0){
                 printf("Failed to init rpcmachine\n");
                 goto out;
@@ -1200,18 +1240,9 @@ static int client_init(char *dbname)
                 printf("Timeout for session create \n");
 
 	/* send fops */
-
 	create_send();
-
-	printf("\n Create done \n");
-
 	write_send();
-
-	printf("\n Write done \n");
-
 	read_send();
-
-	printf("\n Read done  \n");
 
         rc = c2_rpc_session_terminate(&cl_rpc_session);
         if(rc != 0){
@@ -1250,9 +1281,7 @@ conn_term:
         rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_TERMINATED |
                                    C2_RPC_CONN_FAILED, timeout);
         if (rcb) {
-                if (cl_conn.c_state == C2_RPC_CONN_TERMINATED)
-                        printf("pingcli: Connection terminated\n");
-                else if (cl_conn.c_state == C2_RPC_CONN_FAILED)
+                if (cl_conn.c_state == C2_RPC_CONN_FAILED)
                         printf("pingcli: conn create failed\n");
                 else
                         printf("pingcli: conn INVALID!!!|n");
@@ -1366,9 +1395,13 @@ static int server_init(const char *stob_path, const char *srv_db_name,
                 goto out;
         }
 
+	/* Initialising request handler */
+	rc =  c2_reqh_init(&reqh, NULL, NULL, sdom, &srv_fol);
+	C2_UT_ASSERT(rc == 0);
+
         /* Init the rpcmachine */
         rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain,
-                        &srv_ndom, "127.0.0.1:1024:2");
+                        &srv_ndom, "127.0.0.1:1024:2", &reqh);
         if(rc != 0){
                 printf("Failed to init rpcmachine\n");
                 goto out;
@@ -1387,15 +1420,12 @@ static int server_init(const char *stob_path, const char *srv_db_name,
                 printf("Client Endpoint created \n");
         }
 
-	/* Initialising request handler */
-	rc =  c2_reqh_init(&reqh, NULL, NULL, sdom, &srv_fol);
-	C2_UT_ASSERT(rc == 0);
 out:
 	return rc;
 }
 
 /* Fini the server */
-void server_fini(struct c2_stob_domain *bdom,
+static void server_fini(struct c2_stob_domain *bdom,
 		struct c2_stob *reqh_addb_stob)
 {
         /* Fini the net endpoint. */
@@ -1413,16 +1443,15 @@ void server_fini(struct c2_stob_domain *bdom,
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);
 
-        /* Fini the db */
-	c2_dbenv_fini(&srv_db);
-
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_stob_put(reqh_addb_stob);
 
 	c2_reqh_fini(&reqh);
+	C2_ASSERT(sdom != NULL);
 	sdom->sd_ops->sdo_fini(sdom);
 	bdom->sd_ops->sdo_fini(bdom);
 	c2_fol_fini(&srv_fol);
+	c2_dbenv_fini(&srv_db);
 }
 
 /**

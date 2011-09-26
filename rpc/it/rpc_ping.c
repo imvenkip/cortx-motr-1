@@ -433,9 +433,11 @@ void server_init(int dummy)
 		printf("Cob Domain Init completed \n");
 	}
 
+	/* Init request handler */
+	c2_reqh_init(&c2_rh, NULL, NULL, NULL, NULL);
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			&sctx.pc_dom, addr_local);
+			&sctx.pc_dom, addr_local, &c2_rh);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -746,7 +748,7 @@ void client_init(void)
 	}
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			&cctx.pc_dom, addr_local);
+			&cctx.pc_dom, addr_local, NULL);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -1034,7 +1036,6 @@ int main(int argc, char *argv[])
 		/*C2_SET0(&server_rqh_thread);
 		rc = C2_THREAD_INIT(&server_rqh_thread, int, NULL,
 				&server_rqh_init, 0, "ping_server_rqh");*/
-		c2_reqh_init(&c2_rh, NULL, NULL, NULL, NULL);
 		server_poll();
 		if (verbose)
 			print_stats(client, server);
