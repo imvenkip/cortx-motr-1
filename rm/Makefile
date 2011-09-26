@@ -47,7 +47,7 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libcolibri_rm_la_LIBADD =
-am_libcolibri_rm_la_OBJECTS = rm_u.lo rm_fops.lo rm.lo rm_foms.lo
+am_libcolibri_rm_la_OBJECTS = rm.lo
 libcolibri_rm_la_OBJECTS = $(am_libcolibri_rm_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -65,29 +65,29 @@ DIST_SOURCES = $(libcolibri_rm_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-ACLOCAL = ${SHELL} /root/devel/colibri/core/missing --run aclocal-1.9
+ACLOCAL = ${SHELL} /mnt/Project/colibri/core/missing --run aclocal-1.9
 AIO_LIBS = -laio 
 AMDEP_FALSE = #
 AMDEP_TRUE = 
-AMTAR = ${SHELL} /root/devel/colibri/core/missing --run tar
+AMTAR = ${SHELL} /mnt/Project/colibri/core/missing --run tar
 AR = ar
-AUTOCONF = ${SHELL} /root/devel/colibri/core/missing --run autoconf
-AUTOHEADER = ${SHELL} /root/devel/colibri/core/missing --run autoheader
-AUTOMAKE = ${SHELL} /root/devel/colibri/core/missing --run automake-1.9
+AUTOCONF = ${SHELL} /mnt/Project/colibri/core/missing --run autoconf
+AUTOHEADER = ${SHELL} /mnt/Project/colibri/core/missing --run autoheader
+AUTOMAKE = ${SHELL} /mnt/Project/colibri/core/missing --run automake-1.9
 AWK = gawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I/root/devel/colibri/core/../db4/build_unix -I/root/devel/colibri/core/../galois -I. -I/root/devel/colibri/core -g -O0
+CFLAGS = -Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I/mnt/Project/colibri/core/../db4/build_unix -I/mnt/Project/colibri/core/../galois -I. -I/mnt/Project/colibri/core -g -O0
 CPP = gcc -E
 CPPFLAGS = 
 CUNIT_LIBS = -lcunit  -L/usr/local/lib -L/opt/local/lib
 CXX = g++
-CXXCPP = 
-CXXDEPMODE = depmode=none
-CXXFLAGS = 
+CXXCPP = g++ -E
+CXXDEPMODE = depmode=gcc3
+CXXFLAGS = -g -O2
 CYGPATH_W = echo
-DB_LIBS = /root/devel/colibri/core/../db4/build_unix/libdb.a
-DB_SRC = /root/devel/colibri/core/../db4
+DB_LIBS = /mnt/Project/colibri/core/../db4/build_unix/libdb.a
+DB_SRC = /mnt/Project/colibri/core/../db4
 DEFS = -DHAVE_CONFIG_H
 DEPDIR = .deps
 ECHO = echo
@@ -96,9 +96,9 @@ ECHO_N = -n
 ECHO_T = 
 EGREP = grep -E
 EXEEXT = 
-F77 = 
-FFLAGS = 
-GALOIS_LIBS = /root/devel/colibri/core/../galois/libgalois.la
+F77 = g77
+FFLAGS = -g -O2
+GALOIS_LIBS = /mnt/Project/colibri/core/../galois/libgalois.la
 INSTALL_DATA = ${INSTALL} -m 644
 INSTALL_PROGRAM = ${INSTALL}
 INSTALL_SCRIPT = ${INSTALL}
@@ -108,13 +108,13 @@ LDFLAGS = -rdynamic
 LIBOBJS = 
 LIBS = 
 LIBTOOL = $(SHELL) $(top_builddir)/libtool
-LINUX = /lib/modules/2.6.34.7/build
-LINUX_MOD = /lib/modules/2.6.34.7
-LINUX_OBJ = /lib/modules/2.6.34.7/build
+LINUX = /usr/src/kernels/linux-2.6.34.7
+LINUX_MOD = /lib/modules/2.6.34.7-ext
+LINUX_OBJ = /usr/src/kernels/linux-2.6.34.7
 LN_S = ln -s
 LTLIBOBJS = 
 LT_RELEASE = 0.1
-MAKEINFO = ${SHELL} /root/devel/colibri/core/missing --run makeinfo
+MAKEINFO = ${SHELL} /mnt/Project/colibri/core/missing --run makeinfo
 NM_B = /usr/bin/nm
 NSL_LIBS = -lnsl 
 OBJEXT = o
@@ -130,19 +130,19 @@ RANLIB = ranlib
 SED = /bin/sed
 SET_MAKE = 
 SHELL = /bin/sh
-SRCDIR = /root/devel/colibri/core
+SRCDIR = /mnt/Project/colibri/core
 STRIP = strip
 VERSION = 0.1
 ac_ct_AR = ar
 ac_ct_CC = gcc
 ac_ct_CXX = g++
-ac_ct_F77 = 
+ac_ct_F77 = g77
 ac_ct_RANLIB = ranlib
 ac_ct_STRIP = strip
 am__fastdepCC_FALSE = #
 am__fastdepCC_TRUE = 
-am__fastdepCXX_FALSE = 
-am__fastdepCXX_TRUE = #
+am__fastdepCXX_FALSE = #
+am__fastdepCXX_TRUE = 
 am__include = include
 am__leading_dot = .
 am__quote = 
@@ -163,7 +163,7 @@ host_os = linux-gnu
 host_vendor = unknown
 includedir = ${prefix}/include
 infodir = ${prefix}/info
-install_sh = /root/devel/colibri/core/install-sh
+install_sh = /mnt/Project/colibri/core/install-sh
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 localstatedir = ${prefix}/var
@@ -177,9 +177,9 @@ sharedstatedir = ${prefix}/com
 sysconfdir = ${prefix}/etc
 target_alias = 
 noinst_LTLIBRARIES = libcolibri-rm.la
-libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fops.c rm_fops.h \
-			   rm.h rm.c rm_foms.c rm_foms.h
-
+libcolibri_rm_la_SOURCES = rm.h rm.c
+#libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fops.c rm_fops.h \
+#			   rm.h rm.c rm_foms.c rm_foms.h
 INCLUDES = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 EXTRA_DIST = rm.ff
 all: all-am
@@ -234,9 +234,6 @@ distclean-compile:
 	-rm -f *.tab.c
 
 include ./$(DEPDIR)/rm.Plo
-include ./$(DEPDIR)/rm_foms.Plo
-include ./$(DEPDIR)/rm_fops.Plo
-include ./$(DEPDIR)/rm_u.Plo
 
 .c.o:
 	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \

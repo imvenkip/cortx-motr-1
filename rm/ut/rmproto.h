@@ -23,6 +23,7 @@
 #include "lib/list.h"
 #include "lib/memory.h"
 #include "rm/rm.h"
+#include "rm/rm_internal.h"
 #include "lib/thread.h"
 #include "lib/ut.h"
 #include "lib/queue.h"

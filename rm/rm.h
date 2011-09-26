@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -21,12 +22,6 @@
 #define __COLIBRI_RM_RM_H__
 
 #include "net/net.h"         /* c2_service_id */
-#include "lib/time.h"
-#include "lib/list.h"
-#include "lib/mutex.h"
-#include "lib/chan.h"
-#include "lib/time.h"
-#include "lib/thread.h"
 
 /**
    @defgroup rm Resource management
@@ -1345,7 +1340,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in);
    @pre c2_list_is_empty(&in->rin_want.ri_linkage)
 
  */
-int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
+void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
 
 /**
    Waits until @in enters RI_SUCCESS or RI_FAILURE state or deadline expires.
@@ -1371,21 +1366,11 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in);
 void c2_rm_right_put(struct c2_rm_incoming *in);
 
 /**
-   Sticks a tracking pin on @right. When @right is released, the all incoming
-      requests that stuck pins into it are notified.
-*/
-int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
-
-/**
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
 */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc);
 
-/**
-   Just make another copy of right struct.
-*/
-void right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 /**
    @name Resource type interface
  */

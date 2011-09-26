@@ -47,7 +47,7 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libcolibri_rm_la_LIBADD =
-am_libcolibri_rm_la_OBJECTS = rm_u.lo rm_fops.lo rm.lo rm_foms.lo
+am_libcolibri_rm_la_OBJECTS = rm.lo
 libcolibri_rm_la_OBJECTS = $(am_libcolibri_rm_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -177,9 +177,9 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 noinst_LTLIBRARIES = libcolibri-rm.la
-libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fops.c rm_fops.h \
-			   rm.h rm.c rm_foms.c rm_foms.h
-
+libcolibri_rm_la_SOURCES = rm.h rm.c
+#libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fops.c rm_fops.h \
+#			   rm.h rm.c rm_foms.c rm_foms.h
 INCLUDES = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 EXTRA_DIST = rm.ff
 all: all-am
@@ -234,9 +234,6 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rm.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rm_foms.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rm_fops.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rm_u.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
