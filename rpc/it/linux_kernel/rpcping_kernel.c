@@ -31,6 +31,10 @@ void cleanup_module(void)
 	c2_rpc_ping_fini();
 }
 
+MODULE_AUTHOR("Xyratex");
+MODULE_DESCRIPTION("Colibri Kernel rpc ping Module");
+MODULE_LICENSE("proprietary");
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
