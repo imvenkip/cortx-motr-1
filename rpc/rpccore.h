@@ -1074,12 +1074,6 @@ int c2_rpc_zero_copy_init(struct c2_net_buffer **active_buffers,
 
 /** @} endgroup of rpc_bulk */
 
-extern struct c2_reqh  c2_rh;
-/** DUMMY REQH for RPC IT. Queue of RPC items */
-/*extern struct c2_queue	c2_exec_queue;
-extern struct c2_mutex  c2_exec_queue_mutex;
-extern struct c2_chan   c2_exec_chan;*/
-
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */
 #endif

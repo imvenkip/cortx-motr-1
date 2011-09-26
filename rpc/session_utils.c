@@ -240,39 +240,4 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
         #ifndef __KERNEL__
 	c2_reqh_fop_handle(reqh, fop); 
 	#endif
-	/*c2_mutex_lock(&c2_exec_queue_mutex);
-	c2_queue_link_init(&item->ri_dummy_qlinkage);
-	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);
-	c2_chan_broadcast(&c2_exec_chan);
-	c2_mutex_unlock(&c2_exec_queue_mutex);*/
 }
-
-/**
-   for dubugging purpose.
- */
-/*
-#ifndef __KERNEL__
-int c2_exec_queue_print(void)
-{
-	struct c2_queue_link *ql;
-	struct c2_rpc_item   *item;
-	char                  str_stages[][20] = {
-					"INVALID",
-					"PAST_COMMITTED",
-					"PAST_VOLATILE",
-					"IN_PROGRESS",
-					"FUTURE"
-				};
-#define EOQ ((struct c2_queue_link *)8)
-
-	C2_ASSERT(c2_queue_invariant(&c2_exec_queue));
-
-	for (ql = c2_exec_queue.q_head; ql != EOQ; ql = ql->ql_next) {
-		item = container_of(ql, struct c2_rpc_item, ri_dummy_qlinkage);
-		printf("Q item %p state %s\n", item,
-			str_stages[item->ri_stage]);
-	}
-	return 0;
-}
-#endif
-*/

@@ -1237,14 +1237,6 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
 	return stats->rs_cumu_lat / stats->rs_items_nr;
 }
 
-/* Dummy reqh queue of items */
-#ifndef __kernel__
-struct c2_reqh c2_rh;
-#endif
-/*struct c2_queue	c2_exec_queue;
-struct c2_mutex c2_exec_queue_mutex;
-struct c2_chan  c2_exec_chan;*/
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

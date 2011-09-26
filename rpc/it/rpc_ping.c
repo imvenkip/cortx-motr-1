@@ -196,6 +196,9 @@ struct ping_ctx		cctx;
 struct ping_ctx		sctx;
 
 #ifndef __KERNEL__
+/* Request handler for rpc ping */
+static struct c2_reqh   reqh_ping;
+
 /**
    Resolve hostname into a dotted quad.  The result is stored in buf.
    @retval 0 success
@@ -273,50 +276,8 @@ void server_poll()
 		}
 	}
 }
-
-/* Create dummy request handler */
-/*void server_rqh_init(int dummy)
-{
-	struct c2_queue_link	*q1;
-	struct c2_rpc_item	*item;
-	struct c2_fop		*fop;
-	struct c2_fom		*fom = NULL;
-	struct c2_clink		 clink;
-	int			 count = 0;
-
-	c2_queue_init(&c2_exec_queue);
-	c2_mutex_init(&c2_exec_queue_mutex);
-	c2_chan_init(&c2_exec_chan);
-
-	c2_clink_init(&clink, NULL);
-	C2_ASSERT(c2_queue_is_empty(&c2_exec_queue));
-        C2_ASSERT(c2_queue_length(&c2_exec_queue) == 0);
-
-	c2_clink_add(&c2_exec_chan, &clink);
-
-	while (1) {
-		c2_mutex_lock(&c2_exec_queue_mutex);
-		C2_ASSERT(c2_queue_invariant(&c2_exec_queue));
-		while (c2_queue_is_empty(&c2_exec_queue)) {
-			c2_mutex_unlock(&c2_exec_queue_mutex);
-			c2_chan_wait(&clink);
-			c2_mutex_lock(&c2_exec_queue_mutex);
-		}
-		q1 = c2_queue_get(&c2_exec_queue);
-		C2_ASSERT(q1 != NULL);
-		count++;
-		c2_mutex_unlock(&c2_exec_queue_mutex);
-		item = container_of(q1, struct c2_rpc_item,
-				ri_dummy_qlinkage);
-		printf("REQH: got item [%d] %p\n", count, item);
-		fop = c2_rpc_item_to_fop(item);
-		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-		C2_ASSERT(fom != NULL);
-		fom->fo_ops->fo_state(fom);
-	}
-}
-*/
 #endif
+
 /* Fini the client*/
 void client_fini(void)
 {
@@ -361,7 +322,7 @@ void server_fini(void)
         /* Fini the db */
         c2_dbenv_fini(&sctx.pc_db);
 
-	c2_reqh_fini(&c2_rh);
+	c2_reqh_fini(&reqh_ping);
 }
 
 /* Create the server*/
@@ -407,10 +368,6 @@ void server_init(int dummy)
 	sprintf(addr_local, "%s:%u:%d", hostbuf, sctx.pc_lport, RID);
 	printf("Server Addr = %s\n",addr_local);
 
-	/* Create RPC connection using new API
-	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */
-
 	sctx.pc_db_name = "rpcping_db_server";
 	sctx.pc_cob_dom_id.id =  13 ;
 
@@ -434,10 +391,10 @@ void server_init(int dummy)
 	}
 
 	/* Init request handler */
-	c2_reqh_init(&c2_rh, NULL, NULL, NULL, NULL);
+	c2_reqh_init(&reqh_ping, NULL, NULL, NULL, NULL);
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			&sctx.pc_dom, addr_local, &c2_rh);
+			&sctx.pc_dom, addr_local, &reqh_ping);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -721,10 +678,6 @@ void client_init(void)
 	sprintf(addr_local, "%s:%u:%d", hostbuf, cctx.pc_lport, RID);
 	printf("Client Addr = %s\n",addr_local);
 
-	/* Create RPC connection using new API
-	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */
-
 	cctx.pc_db_name = "rpcping_db_client";
 	cctx.pc_cob_dom_id.id =  12 ;
 
@@ -938,7 +891,6 @@ int main(int argc, char *argv[])
 	int			 nr_client_threads = 0;
 	int			 rc;
 	struct c2_thread	 server_thread;
-	/*struct c2_thread	 server_rqh_thread;*/
 
 	rc = c2_init();
 	if (rc != 0)
@@ -1033,9 +985,6 @@ int main(int argc, char *argv[])
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, int, NULL, &server_init,
 				0, "ping_server");
-		/*C2_SET0(&server_rqh_thread);
-		rc = C2_THREAD_INIT(&server_rqh_thread, int, NULL,
-				&server_rqh_init, 0, "ping_server_rqh");*/
 		server_poll();
 		if (verbose)
 			print_stats(client, server);
