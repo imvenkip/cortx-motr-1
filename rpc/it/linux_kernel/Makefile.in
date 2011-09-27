@@ -23,7 +23,7 @@ uninstall:
 	rm -fr @LINUX_MOD@/kernel/fs/rpcit
 
 clean distclean:
-	$(RM) ping_fop_k.[ch]
+	$(RM) ping_fop_[ku].[ch]
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
