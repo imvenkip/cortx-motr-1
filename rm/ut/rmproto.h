@@ -28,7 +28,9 @@
 #include "lib/ut.h"
 #include "lib/queue.h"
 
-#define NO_OF_OWNERS	5
+enum {
+	NO_OF_OWNERS = 5
+};
 
 /**
  * Type of request sent on rpc queue.
@@ -41,7 +43,7 @@ enum c2_rm_request_type {
 };
 
 /**
- * This struct is send on rpc queue 
+ * This struct is send on rpc queue
  */
 struct c2_rm_req_reply {
 	enum c2_rm_request_type type;
@@ -51,7 +53,7 @@ struct c2_rm_req_reply {
         struct c2_queue_link rq_link;
 };
 
-/** 
+/**
  * Things required for simulation of rpc layer(RM only)
  */
 struct c2_queue rpc_queue;
@@ -59,9 +61,9 @@ struct c2_mutex rpc_lock;
 struct c2_thread rpc_handle;
 int rpc_signal;
 
-/** 
+/**
  * Information of owners. Data maintained to locate owners
- * to send IN irequest or loan/revoke reply.
+ * to send IN request or loan/revoke reply.
  */
 struct c2_rm_proto_info {
         uint64_t owner_id;

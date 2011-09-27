@@ -33,7 +33,7 @@ static void rings_policy(struct c2_rm_resource *resource,
 
 const struct c2_rm_resource_ops rings_ops = {
 	.rop_right_decode = NULL,
-	.rop_policy 	  = rings_policy
+	.rop_policy	  = rings_policy
 };
 
 static bool resources_are_equal(const struct c2_rm_resource *r0,

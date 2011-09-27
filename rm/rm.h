@@ -1340,7 +1340,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in);
    @pre c2_list_is_empty(&in->rin_want.ri_linkage)
 
  */
-void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
+void c2_rm_right_get(struct c2_rm_incoming *in);
 
 /**
    Waits until @in enters RI_SUCCESS or RI_FAILURE state or deadline expires.

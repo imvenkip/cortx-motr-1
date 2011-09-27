@@ -157,8 +157,8 @@ static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner,
 			 * loan id matches then this out request is for this
 			 * right request */
 			if (loan->rl_id == loan_id) {
-                        	out = container_of(loan,
-                                           struct c2_rm_outgoing, rog_want);
+				out = container_of(loan, struct c2_rm_outgoing,
+						   rog_want);
 				return out;
 			}
 		}
@@ -194,15 +194,15 @@ static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
 }
 
 /**
- * This acts as pesudo rpc layer. This will be run by thread.
+ * This acts as pseudo rpc layer. This will be run by thread.
  */
 void rpc_process(int id)
 {
-	struct c2_rm_req_reply 	*req;
-	struct c2_queue_link 	*link;
+	struct c2_rm_req_reply	*req;
+	struct c2_queue_link	*link;
 	struct c2_rm_proto_info *info;
-	struct c2_rm_incoming 	*in;
-	struct c2_rm_outgoing 	*out;
+	struct c2_rm_incoming	*in;
+	struct c2_rm_outgoing	*out;
 	struct c2_rm_loan	*ch_loan;
 	struct c2_rm_loan	*br_loan;
 
@@ -225,10 +225,10 @@ void rpc_process(int id)
 			if (in == NULL) {
 				pin_add(&req->in, &req->in.rin_want);
 				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
-				    	    &req->in.rin_want.ri_linkage);
+					    &req->in.rin_want.ri_linkage);
 				c2_queue_put(&info->owner_queue, &req->rq_link);
 			} else {
-				/* Add right to the respective woners list
+				/* Add right to the respective owners list
 				 * and wake up waiting thread for this right.
 				 */
 				C2_ALLOC_PTR(ch_loan);
@@ -250,9 +250,9 @@ void rpc_process(int id)
 				br_loan->rl_other.rem_id = req->reply_id;
 
 				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
-				    	    &ch_loan->rl_right.ri_linkage);
+					    &ch_loan->rl_right.ri_linkage);
 				c2_list_add(&info->owner->ro_borrowed,
-				    	    &br_loan->rl_right.ri_linkage);
+					    &br_loan->rl_right.ri_linkage);
 
 				pin_add(in, &ch_loan->rl_right);
 				in->rin_state = RI_SUCCESS;
