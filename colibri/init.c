@@ -39,6 +39,7 @@
 #include "fol/fol.h"
 #include "desim/sim.h"
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 
 #include "colibri/init.h"
 #include "rpc/session_internal.h"
@@ -73,7 +74,8 @@ struct init_fini_call subsystem[] = {
 	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
-	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }
+	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
+	{ &c2_reqh_service_types_init, &c2_reqh_service_types_fini, "service"}
 };
 
 static void fini_nr(int i)

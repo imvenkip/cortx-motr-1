@@ -414,6 +414,10 @@ struct c2_net_domain {
 	   ADDB context for events related to this domain
 	 */
 	struct c2_addb_ctx  nd_addb;
+
+        /** Colibri setup linkage */
+        struct c2_list_link  nd_col_linkage;
+
 };
 
 /**

@@ -67,9 +67,9 @@ C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 extern int c2_reqh_fop_init(void);
 extern void c2_reqh_fop_fini(void);
 
-int  c2_reqh_init(struct c2_reqh *reqh,
-		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *stdom, struct c2_fol *fol)
+int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
+                struct c2_stob_domain *stdom, struct c2_dbenv *db,
+                struct c2_cob_domain *cdom, struct c2_fol *fol)
 {
 	int result;
 
@@ -78,11 +78,16 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
 	if (result == 0) {
 		C2_ASSERT(c2_fom_domain_invariant(&reqh->rh_fom_dom));
-		reqh->rh_rpc = rpc;
-		reqh->rh_dtm = dtm;
-		reqh->rh_stdom = stdom;
-		reqh->rh_fol = fol;
-		reqh->rh_fom_dom.fd_reqh = reqh;
+                C2_ASSERT(c2_fom_domain_invariant(&reqh->rh_fom_dom));
+                reqh->rh_dtm = dtm;
+                reqh->rh_stdom = stdom;
+                reqh->rh_dbenv = db;
+                reqh->rh_cob_domain = cdom;
+                reqh->rh_fol = fol;
+                reqh->rh_fom_dom.fd_reqh = reqh;
+                c2_list_init(&reqh->rh_services);
+                c2_list_init(&reqh->rh_rpcmachines);
+
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_init", result);
 
@@ -92,8 +97,10 @@ C2_EXPORTED(c2_reqh_init);
 
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
-	C2_PRE(reqh != NULL);
-	c2_fom_domain_fini(&reqh->rh_fom_dom);
+        C2_PRE(reqh != NULL);
+        c2_fom_domain_fini(&reqh->rh_fom_dom);
+        c2_list_fini(&reqh->rh_services);
+        c2_list_fini(&reqh->rh_rpcmachines);
 }
 C2_EXPORTED(c2_reqh_fini);
 

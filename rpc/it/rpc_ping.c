@@ -356,7 +356,8 @@ void server_init(int dummy)
 	}
 
 	/* Init request handler */
-	c2_reqh_init(&reqh_ping, NULL, NULL, NULL, NULL);
+	c2_reqh_init(&reqh_ping, NULL, NULL, NULL, &sctx.pc_cob_domain,
+								NULL);
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
 			&sctx.pc_dom, addr_local, &reqh_ping);

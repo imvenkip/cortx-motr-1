@@ -24,6 +24,8 @@
 
 #include <sm/sm.h>
 #include "fol/fol.h"
+#include "fop/fop.h"
+#include "fop/fom.h"
 
 /**
    @defgroup reqh Request handler
@@ -49,40 +51,51 @@
    Request handler instance.
  */
 struct c2_reqh {
-	struct c2_rpcmachine	*rh_rpc;
 	struct c2_dtm		*rh_dtm;
 	/**
 	   @todo for now simply use storage object domain. In the future, this
 	   will be replaced with "stores"
 	 */
 	struct c2_stob_domain	*rh_stdom;
+	/** Database environment for this request handler */
+	struct c2_dbenv         *rh_dbenv;
+	/** Cob domain for this request handler */
+	struct c2_cob_domain    *rh_cob_domain;
 	/** Fol pointer for this request handler */
 	struct c2_fol		*rh_fol;
 	/** Fom domain for this request handler */
 	struct c2_fom_domain	 rh_fom_dom;
+        /** Services registered with this request handler */
+        struct c2_list           rh_services;
+        /** RPC machines running in this request handler */
+        struct c2_list           rh_rpcmachines;
+        /** Linkage into global list of request handlers */
+        struct c2_list_link      rh_colibri_linkage;
 };
 
 /**
    Initialises request handler instance provided by the caller.
 
-   @param reqh, request handler instance to be initialised,
-   @param stdom, storage object domain used for file io
-   @param fol, file operation log to record fop execution
-   @param serv, service using this request handler
+   @param reqh Request handler instance to be initialised
+   @param stdom Storage object domain used for file io
+   @param db Database environment for this request handler
+   @param cdom Cob domain for this request handler
+   @param fol File operation log to record fop execution
 
    @todo use iostores instead of c2_stob_domain and endpoints
 	or c2_rpc_machine instead of c2_service
 
    @see c2_reqh
 
-   @pre reqh != NULL && stdom != NULL && fol != NULL && serv != NULL
+   @pre reqh != NULL && stdom != NULL && db != NULL &&
+	cdom != NULL && fol != NULL
 
    @retval 0, if request handler is succesfully initilaised,
 		-errno, in case of failure
  */
-int  c2_reqh_init(struct c2_reqh *reqh,
-		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *stdom, struct c2_fol *fol);
+int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
+                struct c2_stob_domain *stdom, struct c2_dbenv *db,
+                struct c2_cob_domain *cdom, struct c2_fol *fol);
 
 /**
    Destructor for request handler, no fop will be further executed

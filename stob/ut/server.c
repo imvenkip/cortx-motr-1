@@ -619,7 +619,7 @@ int main(int argc, char **argv)
 	result = c2_service_start(&service, &sid);
 	C2_ASSERT(result >= 0);
 
-	result = c2_reqh_init(&reqh, NULL, NULL, dom, &fol);
+	result = c2_reqh_init(&reqh, NULL, dom, &db, NULL, &fol);
 	C2_ASSERT(result == 0);
 
 	while (!stop) {

@@ -1,5 +1,9 @@
 SUBDIRS                   = .
 
+bin_PROGRAMS              = colibri_setup
+colibri_setup_SOURCES     = colibri_setup.c
+colibri_setup_LDADD       = $(top_builddir)/colibri/libcolibri.la
+
 lib_LTLIBRARIES           = libcolibri.la
 libcolibri_la_SOURCES     = init.h init.c
 libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread

@@ -604,6 +604,9 @@ struct c2_rpcmachine {
 		e.g. c2_reqh_fop_handle(), in case of reqh.
 	*/
 	struct c2_reqh                         *cr_reqh;
+
+        /** Linkage into request handler's list of rpc machines */
+        struct c2_list_link               cr_rh_linkage;
 };
 
 /**

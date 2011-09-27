@@ -1315,7 +1315,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
                 goto out;
 
 	/* Initialising request handler */
-	rc =  c2_reqh_init(&reqh, NULL, NULL, sdom, &srv_fol);
+	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, NULL, &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
         /* Init the rpcmachine */
