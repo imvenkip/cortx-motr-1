@@ -24,8 +24,8 @@
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "fop/fop_format.h"
-#include "ping_fom.h"
-#include "ping_fop.h"
+#include "rpc/it/ping_fom.h"
+#include "rpc/it/ping_fop.h"
 #ifdef __KERNEL__
 #include "ping_fop_k.h"
 #else
