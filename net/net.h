@@ -415,8 +415,8 @@ struct c2_net_domain {
 	 */
 	struct c2_addb_ctx  nd_addb;
 
-        /** Colibri setup linkage */
-        struct c2_list_link  nd_col_linkage;
+        /** Linkage for invoking application */
+        struct c2_list_link  nd_app_linkage;
 
 };
 

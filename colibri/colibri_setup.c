@@ -278,7 +278,7 @@ static struct c2_net_domain *cs_net_domain_locate(char *xprt_name)
 	C2_PRE(xprt_name != NULL);
 
 	c2_list_for_each_entry_safe(&cs_colibri.c_ndoms, ndom, ndom_next,
-			struct c2_net_domain, nd_col_linkage) {
+			struct c2_net_domain, nd_app_linkage) {
 
 			if (strcmp(ndom->nd_xprt->nx_name, xprt_name) == 0)
 				break;
@@ -735,8 +735,8 @@ static int cs_net_domains_init()
 		else
 			break;
 
-		c2_list_link_init(&ndom->nd_col_linkage);
-		c2_list_add_tail(&cs_colibri.c_ndoms, &ndom->nd_col_linkage);
+		c2_list_link_init(&ndom->nd_app_linkage);
+		c2_list_add_tail(&cs_colibri.c_ndoms, &ndom->nd_app_linkage);
 	}
 
 	return rc;
@@ -755,11 +755,11 @@ static void cs_net_domains_fini()
 	int                   idx;
 
 	c2_list_for_each_entry_safe(&cs_colibri.c_ndoms, ndom, ndom_next,
-			struct c2_net_domain, nd_col_linkage) {
+			struct c2_net_domain, nd_app_linkage) {
 
 		c2_net_domain_fini(ndom);
-		c2_list_del(&ndom->nd_col_linkage);
-		c2_list_link_fini(&ndom->nd_col_linkage);
+		c2_list_del(&ndom->nd_app_linkage);
+		c2_list_link_fini(&ndom->nd_app_linkage);
 		c2_free(ndom);
 	}
 
@@ -976,11 +976,29 @@ static bool validate_stype(const char *stype)
 }
 
 /**
+   Lists supported services.
+ */
+void list_services(FILE *f)
+{
+	struct c2_list *services;
+	struct c2_reqh_service_type *stype;
+	struct c2_reqh_service_type *stype_next;
+
+	services = c2_reqh_service_list_get();
+
+	fprintf(f, "\n Supported services:\n");
+	c2_list_for_each_entry_safe(services, stype, stype_next,
+		struct c2_reqh_service_type, rst_linkage) {
+		fprintf(f, " %s\n", stype->rst_name);
+	}
+}
+
+/**
    Looks up if given xprt is supported
 
    @param xprt_name Network transport name for lookup
 
-   @retval 0 If transport found 
+   @retval 0 If transport found
 	-ENOENT If transport not found
  */
 static int lookup_xprt(const char *xprt_name)
@@ -995,15 +1013,15 @@ static int lookup_xprt(const char *xprt_name)
         return -ENOENT;
 }
 
-static void list_xprts(FILE *s)
+static void list_xprts(FILE *f)
 {
         int i;
 
-	C2_PRE(s != NULL);
+	C2_PRE(f != NULL);
 
-        fprintf(s, "\nSupported transports:\n");
+        fprintf(f, "\nSupported transports:\n");
         for (i = 0; i < ARRAY_SIZE(cs_xprts); ++i)
-                fprintf(s, "    %s\n", cs_xprts[i]->nx_name);
+                fprintf(f, "    %s\n", cs_xprts[i]->nx_name);
 }
 
 /**
@@ -1027,7 +1045,7 @@ static int is_endpoint_inuse(char *xprt, char *nep)
 	C2_PRE(xprt != NULL && nep != NULL);
 
 	c2_list_for_each_entry_safe(&cs_colibri.c_ndoms, ndom, ndom_next,
-			struct c2_net_domain, nd_col_linkage) {
+			struct c2_net_domain, nd_app_linkage) {
 		if (strcmp(xprt, ndom->nd_xprt->nx_name) == 0)
 			break;
 	}
@@ -1085,7 +1103,7 @@ static int validate_ep(char *ep)
 		rc = -EADDRNOTAVAIL;
 		goto out;
 	}
-	
+
 	rc = is_endpoint_inuse(xprt, nep);
 	c2_free(epaddr);
 out:
@@ -1190,15 +1208,15 @@ int main(int argc, char **argv)
 
 	rh_index = 0;
         rc = C2_GETOPTS("colibri_setup", argc, argv,
-		C2_VOIDARG('i', "Start request handler",
-			LAMBDA(void, (void) 
+		C2_VOIDARG('i', "Colibri setup usage info",
+			LAMBDA(void, (void)
 			{
 				cs_info();
 				do_cleanup();
 				exit(0);
 			})),
 		C2_VOIDARG('h', "Start request handler",
-			LAMBDA(void, (void) 
+			LAMBDA(void, (void)
 			{
 				cs_usage();
 				do_cleanup();
@@ -1237,7 +1255,6 @@ int main(int argc, char **argv)
 					fputs("COLIBRI: Missing arguments",
 								stderr);
 					do_cleanup();
-					do_cleanup();
 					exit(0);
 				}
 				stob_path = str;
@@ -1274,7 +1291,6 @@ int main(int argc, char **argv)
 					do_cleanup();
 					errno = rc < 0 ? -rc:rc;
 					exit(0);
-					
 				} else if (rc != 0) {
 					fputs("COLIBRI: Invalid end point",
 								stderr);
@@ -1307,6 +1323,7 @@ int main(int argc, char **argv)
 				if (rc != 0) {
 					fputs("COLIBRI: Invalid service",
 								stderr);
+					list_services(stdout);
 					do_cleanup();
 					errno = rc < 0 ? -rc:rc;
 					exit(0);

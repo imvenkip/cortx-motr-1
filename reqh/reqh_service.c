@@ -63,15 +63,25 @@ bool c2_reqh_service_invariant(struct c2_reqh_service *service)
 		service->rs_reqh != NULL && service->rs_magic == RST_MAGIC;
 }
 
+struct c2_list *c2_reqh_service_list_get(void)
+{
+	struct c2_list *stypes;
+
+	stypes = &rstypes;
+
+	return stypes;
+}
+
 struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
 {
 	struct c2_reqh_service_type *stype;
+	struct c2_reqh_service_type *stype_next;
         bool                         found = false;
 
 	C2_PRE(sname != NULL);
 
-        c2_list_for_each_entry(&rstypes, stype,
-                        struct c2_reqh_service_type, rst_linkage) {
+        c2_list_for_each_entry_safe(&rstypes, stype, stype_next,
+			struct c2_reqh_service_type, rst_linkage) {
                 if (strcmp(stype->rst_name, sname) == 0) {
                         found = true;
                         break;

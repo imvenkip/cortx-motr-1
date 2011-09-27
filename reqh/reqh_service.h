@@ -168,7 +168,7 @@ struct c2_reqh_service_type_ops {
 	   @param stype Type of service to be initialised
 
 	   @retval 0 On success
-	   	-errno On failure
+		-errno On failure
 	 */
 	int (*rsto_service_init)(struct c2_reqh_service **service,
 					struct c2_reqh_service_type *stype);
@@ -188,6 +188,11 @@ struct c2_reqh_service_type {
 	struct c2_list_link              rst_linkage;
 	uint64_t                         rst_magic;
 };
+
+/**
+   Returns list of supported services.
+ */
+struct c2_list *c2_reqh_service_list_get(void);
 
 /**
    Locates a particular type of service.
