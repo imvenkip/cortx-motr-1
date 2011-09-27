@@ -1,4 +1,6 @@
 PING_SRCDIR = @SRCDIR@/rpc/it/linux_kernel
+PINGDIR = @SRCDIR@/rpc/it
+FOPDIR = @SRCDIR@/fop
 
 obj-m       := krpcping.o
 shared_src  := rpc_ping.c ping_fop.c ping_fop_k.c ping_fom.c
@@ -10,10 +12,9 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
 	ln -fs $(orig) .
-	ln -fs ../ping_fom.h .
-	ln -fs ../ping_fop.h .
-	ln -fs ../ping_fop_k.h .
-	ln -fs ../ping_fop.ff .
+
+ping_fop_k.h ping_fop_k.c: $(PINGDIR)/ping_fop.ff
+	$(FOPDIR)/fop2c -k $(PINGDIR)/ping_fop.ff
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/rpcit -C @LINUX_OBJ@ M=`pwd` modules_install
@@ -23,9 +24,10 @@ uninstall:
 
 
 clean distclean:
+	$(RM) ping_fop_k.[ch]
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(PING_SRCDIR)/Makefile.in \
+	cp $(PING_SRCDIR)/Makefile.in  $(PING_SRCDIR)/rpcping_kernel.c $(PING_SRCDIR)/rpc_ping.h\
            @top_builddir@/@PACKAGE@-@VERSION@/rpc/it/linux_kernel

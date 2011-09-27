@@ -1,4 +1,4 @@
-SM_SRCDIR = @SRCDIR@/xcode/linux_kernel
+XCODE_SRCDIR = @SRCDIR@/xcode/linux_kernel
 
 obj-m		:= kxcode.o
 shared_src	:= bufvec_xcode.c bufvec_xcode_fop.c bufvec_xcode_size.c
@@ -22,5 +22,5 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(FID_SRCDIR)/Makefile.in $(FID_SRCDIR)/bufvec_xcode.h \
+	cp $(XCODE_SRCDIR)/Makefile.in $(XCODE_SRCDIR)/xcode_kernel.c \
 	    @top_builddir@/@PACKAGE@-@VERSION@/xcode/linux_kernel

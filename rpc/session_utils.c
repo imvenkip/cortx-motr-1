@@ -233,8 +233,8 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 	reqh = rpcmach->cr_reqh;
 	C2_ASSERT(reqh != NULL);
 
-	fop = c2_rpc_item_to_fop(item);	
-        #ifndef __KERNEL__
+	fop = c2_rpc_item_to_fop(item);
+#ifndef __KERNEL__
 	c2_reqh_fop_handle(reqh, fop); 
-	#endif
+#endif
 }

@@ -59,11 +59,9 @@ const struct c2_addb_loc c2_fom_addb_loc = {
 /**
  * Fom addb context state.
  */
-const struct c2_addb_ctx_type c2_fom_addb_ctx_type = {
-	.act_name = "fom"
+const struct c2_addb_ctx_type c2_fom_dom_addb_ctx_type = {
+	.act_name = "fom domain"
 };
-
-extern struct c2_addb_ctx c2_reqh_addb_ctx;
 
 bool fom_wait_time_is_out(const struct c2_fom_domain *dom, const struct c2_fom *fom);
 
@@ -458,11 +456,12 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 {
 	int			result;
 	struct c2_fom_hthread  *locthr;
+	struct c2_addb_ctx     *addb_ctx;
 
 	C2_PRE(loc != NULL);
-	#ifndef __KERNEL__
-	C2_ALLOC_PTR_ADDB(locthr, &c2_reqh_addb_ctx, &c2_fom_addb_loc);
-	#endif
+
+	addb_ctx = &loc->fl_dom->fd_addb_ctx;
+	C2_ALLOC_PTR_ADDB(locthr, addb_ctx, &c2_fom_addb_loc);
 	if (locthr == NULL)
 		return -ENOMEM;
 
@@ -646,10 +645,11 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	}
 
 	c2_processors_online(&onln_cpu_map);
-	#ifndef __KERNEL__
-	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &c2_reqh_addb_ctx,
+        c2_addb_ctx_init(&dom->fd_addb_ctx, &c2_fom_dom_addb_ctx_type,
+                                                &c2_addb_global_ctx);
+
+	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &dom->fd_addb_ctx,
 							&c2_fom_addb_loc);
-	#endif
 	if (dom->fd_localities == NULL) {
 		c2_bitmap_fini(&onln_cpu_map);
 		c2_bitmap_fini(&loc_cpu_map);
@@ -709,6 +709,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 		--fd_loc_nr;
 	}
 
+	c2_addb_ctx_fini(&dom->fd_addb_ctx);
 	c2_free(dom->fd_localities);
 }
 C2_EXPORTED(c2_fom_domain_fini);

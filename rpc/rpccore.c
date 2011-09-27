@@ -804,9 +804,9 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 			struct c2_reqh *reqh)
 {
 	int				 rc;
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	struct c2_cob			*root_session_cob;
-	#endif
+#endif
 	struct c2_db_tx			 tx;
 
 	C2_PRE(dom != NULL);
@@ -815,13 +815,13 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	C2_PRE(net_dom != NULL);
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	#ifndef __KERNEL__
+#ifndef __KERNEL__
 	rc = c2_rpc_root_session_cob_create(dom, &root_session_cob, &tx);
 	if (rc != 0) {
 		c2_db_tx_abort(&tx);
 		return rc;
 	}
-	#endif
+#endif
 
 	c2_mutex_init(&machine->cr_chan_mutex);
 	c2_list_init(&machine->cr_chans);
