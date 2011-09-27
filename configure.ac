@@ -572,6 +572,7 @@ AC_CONFIG_FILES([
 		 xdr/Makefile
 		 xdr/ut/Makefile
 		 yaml2db/Makefile
+		 yaml2db/ut/Makefile
 		 yaml2db/st/Makefile
                 ])
                 #rpc/Makefile
