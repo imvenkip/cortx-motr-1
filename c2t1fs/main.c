@@ -40,13 +40,13 @@
 #include "c2t1fs.h"
 #include "io_k.h"
 #include "io_fops_k.h"
+#include "ioservice/io_fops.h"
 
 #include "stob/ut/io_fop.h"
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
 #include "pool/pool.h"
 #include "lib/buf.h"
-#include "io_fops.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -158,134 +158,92 @@ MODULE_LICENSE("GPL");
  */
 #define c2_global_container_id	10
 
-extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
-extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
-
-/**
- * Some user/group identification functions to fill up
- * the uid/gid fields from various FOPs.
- * These are hard coded for now. They will be replaced
- * with proper user authorization routines in future.
- */
-static uint64_t c2_get_uid(void)
-{
-	return (uint64_t)1234;
-}
-
-static uint64_t c2_get_gid(void)
-{
-	return (uint64_t)4321;
-}
-
-static uint64_t c2_get_nid(void)
-{
-	return (uint64_t)5678;
-}
-
-
 static int ksunrpc_read_write(struct c2_net_conn *conn,
 			      uint64_t objid, struct page **pages, int off,
 			      size_t len, loff_t pos, int rw)
 {
         int rc;
-	struct c2_fop       *f;
-	struct c2_fop       *r;
-	struct c2_net_call  kcall;
+	struct c2_fop			*f;
+	struct c2_fop			*r;
+	struct c2_net_call		 kcall;
+	struct c2_fop_io_seg		 ioseg;
+	struct c2_fop_cob_writev	*warg;
+	struct c2_fop_cob_writev_rep	*wret;
+	struct c2_fop_cob_readv		*rarg;
+	struct c2_fop_cob_readv_rep	*rret;
+	struct c2_fop_cob_rw		*iofop;
 
         if (rw == WRITE) {
-		struct c2_fop_cob_writev 	*arg;
-                struct c2_fop_cob_writev_rep	*ret;
-
 		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
 		r = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
+	} else {
+		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
+		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
+	}
 
-		BUG_ON(f == NULL || r == NULL);
+	DBG("%s data %s server(%llu/%d/%ld/%lld)\n",
+	    rw == WRITE? "writing":"reading", rw == WRITE? "to":"from",
+			objid, off, len, pos);
+	if (f == NULL) {
+		DBG("Memory allocation failed for %s request fop.\n",
+			rw == WRITE? "write":"read");
+		return -ENOMEM;
+	}
+	if (r == NULL) {
+		DBG("Memory allocation failed for %s reply fop.\n",
+			rw == WRITE? "write":"read");
+		return -ENOMEM;
+	}
 
-		kcall.ac_arg = f;
-		kcall.ac_ret = r;
+	kcall.ac_arg = f;
+	kcall.ac_ret = r;
 
-		arg = c2_fop_data(f);
-		ret = c2_fop_data(r);
+	if (rw == WRITE) {
+		warg = c2_fop_data(f);
+		wret = c2_fop_data(r);
+		iofop = &warg->c_rwv;
+	} else {
+		rarg = c2_fop_data(f);
+		rret = c2_fop_data(r);
+		iofop = &rarg->c_rwv;
+	}
 
- 		/* With introduction of FOMs, a reply FOP will be allocated
- 		 * by the request FOP and a pointer to it will be
- 		 * sent across.
- 		 * XXX The reply FOP pointer is not used as of now.
- 		 */
- 		arg->fwr_foprep 		= (uint64_t)ret;
- 		arg->fwr_fid.f_seq		= c2_global_container_id;
- 		arg->fwr_fid.f_oid		= objid;
- 		arg->fwr_iovec.iov_count 	= 1;
+	/* With introduction of FOMs, a reply FOP will be allocated
+	 * by the request FOP and a pointer to it will be
+	 * sent across. */
+	iofop->crw_fid.f_seq		= c2_global_container_id;
+	iofop->crw_fid.f_oid		= objid;
+	iofop->crw_iovec.iv_count	= 1;
 
- 		/* Populate the vector of write FOP */
-		arg->fwr_iovec.iov_seg.f_offset = pos;
-		arg->fwr_iovec.iov_seg.f_buf.cfib_pgoff = off;
-		arg->fwr_iovec.iov_seg.f_buf.f_buf = pages;
-		arg->fwr_iovec.iov_seg.f_buf.f_count = len;
+	/* Populate the vector of write FOP */
+	iofop->crw_iovec.iv_segs = &ioseg;
+	ioseg.is_offset = pos;
+	ioseg.is_buf.cfib_pgoff = off;
+	ioseg.is_buf.ib_buf = pages;
+	ioseg.is_buf.ib_count = len;
+	iofop->crw_flags = 0;
 
- 		arg->fwr_uid = c2_get_uid();
- 		arg->fwr_gid = c2_get_gid();
- 		arg->fwr_nid = c2_get_nid();
- 		arg->fwr_flags = 0;
+	/* kxdr expects a SEQUENCE of bytes in reply fop. */
+	if (rw == READ) {
+		rret->c_iobuf.ib_buf = pages;
+		rret->c_iobuf.ib_count = len;
+		rret->c_iobuf.cfib_pgoff = off;
+	}
 
-                DBG("writing data to server(%llu/%d/%ld/%lld)\n",
-                    objid, off, len, pos);
-		rc = c2_net_cli_call(conn, &kcall);
+	rc = c2_net_cli_call(conn, &kcall);
 
-                DBG("write to server returns %d\n", rc);
+	DBG("%s server returns %d\n", rw == WRITE? "write to":"read from", rc);
 
-                if (rc)
-                        return rc;
-                rc = ret->fwrr_rc ? : ret->fwrr_count;
-        } else {
+	if (rc != 0)
+		return rc;
 
- 		struct c2_fop_cob_readv		*arg;
-                struct c2_fop_cob_readv_rep	*ret;
+	/* Since read and write replies are not same at the moment, this
+	   condition has to be put. */
+	if (rw == WRITE)
+		rc = wret->c_rep.rwr_rc ? : wret->c_rep.rwr_count;
+	else
+		rc = rret->c_rep.rwr_rc ? : rret->c_iobuf.ib_count;
 
- 		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
- 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
-
-		BUG_ON(f == NULL || r == NULL);
-
-		kcall.ac_arg = f;
-		kcall.ac_ret = r;
-
-		arg = c2_fop_data(f);
-		ret = c2_fop_data(r);
-
- 		/* With introduction of FOMs, a reply FOP will be allocated
- 		 * by the request FOP and a pointer to it will be
- 		 * sent across.
- 		 * XXX The reply FOP pointer is not used as of now.
- 		 */
- 		arg->frd_foprep 		= (uint64_t)ret;
- 		arg->frd_fid.f_seq		= c2_global_container_id;
- 		arg->frd_fid.f_oid		= objid;
- 		arg->frd_ioseg.f_count 	= 1;
-
- 		/* Populate the vector of read FOP */
-		arg->frd_ioseg.f_offset = pos;
-		arg->frd_ioseg.f_count = len;
-
- 		arg->frd_uid = c2_get_uid();
- 		arg->frd_gid = c2_get_gid();
- 		arg->frd_nid = c2_get_nid();
- 		arg->frd_flags = 0;
-
-		ret->frdr_buf.f_buf = pages;
-		ret->frdr_buf.f_count = len;
-		ret->frdr_buf.cfib_pgoff = off;
-
-                DBG("reading data from server(%llu/%d/%ld/%lld)\n",
-                    objid, off, len, pos);
-		rc = c2_net_cli_call(conn, &kcall);
-
-                DBG("read from server returns %d\n", rc);
-
-                if (rc)
-                        return rc;
-                rc = ret->frdr_rc ? : ret->frdr_buf.f_count;
-        }
 	c2_fop_free(r);
 	c2_fop_free(f);
 	return rc;

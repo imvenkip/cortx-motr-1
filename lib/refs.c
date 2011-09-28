@@ -40,3 +40,4 @@ void c2_ref_put(struct c2_ref *ref)
 	}
 }
 C2_EXPORTED(c2_ref_put);
+

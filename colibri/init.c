@@ -26,7 +26,7 @@
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/usunrpc/usunrpc.h"
-/* #include "rpc/rpclib.h" */
+#include "rpc/rpccore.h"
 #include "fop/fop.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
@@ -41,6 +41,7 @@
 #include "reqh/reqh.h"
 
 #include "colibri/init.h"
+#include "rpc/session_internal.h"
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
@@ -60,7 +61,6 @@ struct init_fini_call subsystem[] = {
 	{ &c2_threads_init,  &c2_threads_fini, "thread" },
 	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
 	{ &c2_db_init,       &c2_db_fini,      "db" },
-/*	{ &c2_rpclib_init,   &c2_rpclib_fini,  "rpc" }, */
 	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
@@ -70,6 +70,7 @@ struct init_fini_call subsystem[] = {
 	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
+	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }

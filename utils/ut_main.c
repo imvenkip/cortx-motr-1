@@ -46,6 +46,7 @@ extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xdr_ut;
+extern const struct c2_test_suite xcode_bufvec_fop_ut;
 extern const struct c2_test_suite reqh_ut;
 extern const struct c2_test_suite yaml2db_ut;
 
@@ -70,8 +71,8 @@ int main(int argc, char *argv[])
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
 		c2_ut_add(&libc2_ut);
-		c2_ut_add(&adieu_ut);
 		c2_ut_add(&ad_ut);
+		c2_ut_add(&adieu_ut);
 		c2_ut_add(&capa_ut);
 		c2_ut_add(&cob_ut);
 		c2_ut_add(&db_ut);
@@ -87,6 +88,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&reqh_ut);
 		c2_ut_add(&stobio_ut);
 		c2_ut_add(&udb_ut);
+		c2_ut_add(&xcode_bufvec_fop_ut);
 		c2_ut_add(&xdr_ut);
 		c2_ut_add(&yaml2db_ut);
 		c2_ut_run("c2ut.log");

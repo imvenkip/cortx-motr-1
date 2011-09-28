@@ -502,7 +502,7 @@ AC_SUBST([KCFLAGS])
 # Please keep this list sorted (always appending new items at the end
 # results in needless merge conflicts)
 AC_CONFIG_FILES([
-		 Makefile
+                 Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
                  addb/linux_kernel/Makefile
@@ -511,25 +511,34 @@ AC_CONFIG_FILES([
                  build_kernel_modules/Makefile
                  c2t1fs/Makefile
                  capa/Makefile
-		 capa/ut/Makefile
+                 capa/ut/Makefile
                  cob/Makefile
+                 cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
                  db/Makefile
                  db/linux_kernel/Makefile
                  db/ut/Makefile
+                 dtm/linux_kernel/Makefile
                  desim/Makefile
                  desim/ut/Makefile
                  doc/Makefile
                  dtm/Makefile
                  fid/Makefile
+                 fid/linux_kernel/Makefile
                  fol/Makefile
+                 fol/linux_kernel/Makefile
                  fol/ut/Makefile
                  fop/Makefile
                  fop/fop2c
                  fop/linux_kernel/Makefile
+                 fop/rt/Makefile
                  fop/ut/Makefile
+                 galois/linux_kernel/Makefile
+                 ioservice/Makefile
+                 ioservice/linux_kernel/Makefile
                  layout/Makefile
+                 layout/linux_kernel/Makefile
                  layout/ut/Makefile
                  lib/Makefile
                  lib/linux_kernel/Makefile
@@ -551,33 +560,36 @@ AC_CONFIG_FILES([
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
+                 pool/linux_kernel/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
+                 rpc/Makefile
+                 rpc/ut/Makefile
+                 rpc/it/Makefile
+		 rpc/linux_kernel/Makefile
+		 rpc/it/linux_kernel/Makefile
                  sm/Makefile
+                 sm/linux_kernel/Makefile
                  sns/Makefile
+                 sns/linux_kernel/Makefile
                  sns/ut/Makefile
                  stob/Makefile
+                 stob/linux_kernel/Makefile
                  stob/ut/Makefile
                  udb/Makefile
                  udb/ut/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
-		 utils/ploss/Makefile
-		 ioservice/Makefile
-		 sns/linux_kernel/Makefile
-		 galois/linux_kernel/Makefile
-		 layout/linux_kernel/Makefile
-		 pool/linux_kernel/Makefile
-		 stob/linux_kernel/Makefile
+                 utils/ploss/Makefile
+                 xcode/Makefile
+                 xcode/linux_kernel/Makefile
+                 xcode/ut/Makefile
 		 xdr/Makefile
 		 xdr/ut/Makefile
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
 		 yaml2db/st/Makefile
                 ])
-                #rpc/Makefile
-                #rpc/ut/Makefile
-                #net/ut/Makefile
 AC_OUTPUT
 
 #

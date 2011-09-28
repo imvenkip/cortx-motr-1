@@ -4,7 +4,7 @@ reqh_HEADERS                = reqh.h
 noinst_LTLIBRARIES          = libcolibri-reqh.la
 
 reqh_fops_u.h reqh_fops_u.c : reqh_fops.ff \
-                        $(top_builddir)/fop/libc2rt.la \
+                        $(top_builddir)/fop/rt/libc2rt.la \
                         $(top_builddir)/fop/fop2c
 		$(top_builddir)/fop/fop2c -u $<
 

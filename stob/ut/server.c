@@ -43,11 +43,15 @@
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "colibri/init.h"
+#include "rpc/rpccore.h"
 
 #include "io_fop.h"
 #include "io_u.h"
-#include "ioservice/io_foms.h"
 #include "ioservice/io_fops.h"
+#include "ioservice/io_foms.h"
+
+#include "lib/processor.h"
+#include "reqh/reqh.h"
 
 /**
    @addtogroup stob
@@ -69,6 +73,7 @@ C2_ADDB_ADD(&server_addb_ctx, &server_addb_loc, c2_addb_func_fail, (name), (rc))
 
 static struct c2_stob_domain *dom;
 static struct c2_fol          fol;
+static struct c2_reqh	      reqh;
 
 static struct c2_stob *object_find(const struct c2_fop_fid *fid,
 				   struct c2_dtx *tx)
@@ -317,20 +322,17 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
 
-	/* 
-	 * FOMs are implemented only for read and write operations 
+	/*
+	 * FOMs are implemented only for read and write operations
 	 */
-	if ((fop->f_type->ft_code >= c2_io_service_readv_opcode)) {
-		/*
-		 * A dummy request handler API to handle incoming FOPs.
-		 * Actual reqh will be used in future.
-		 */
-		rc = c2_io_dummy_req_handler(service, fop, cookie, &fol, dom);
-		return rc;
+	if ((fop->f_type->ft_code >= C2_IOSERVICE_READV_OPCODE &&
+	     fop->f_type->ft_code <= C2_IOSERVICE_WRITEV_REP_OPCODE)) {
+		c2_reqh_fop_handle(&reqh, fop);
 	}
 	else
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
+	
 	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
 	SERVER_ADDB_ADD("io_handler", rc);
 	return rc;
@@ -348,8 +350,8 @@ static struct c2_fop_type *fopt[] = {
 
 	&c2_fop_cob_readv_fopt,
 	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_writev_rep_fopt,
 	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_cob_writev_rep_fopt,
 };
 
 struct mock_balloc {
@@ -509,6 +511,12 @@ int main(int argc, char **argv)
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
 
+	result = c2_ioservice_fop_init();
+	C2_ASSERT(result == 0);
+
+	result = c2_processors_init();
+	C2_ASSERT(result == 0);
+
 	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
 	result = mkdir(path, 0700);
@@ -611,6 +619,9 @@ int main(int argc, char **argv)
 	result = c2_service_start(&service, &sid);
 	C2_ASSERT(result >= 0);
 
+	result = c2_reqh_init(&reqh, NULL, NULL, dom, &fol);
+	C2_ASSERT(result == 0);
+
 	while (!stop) {
 		sleep(1);
                 //printf("allocated: %li\n", c2_allocated());
@@ -639,6 +650,9 @@ int main(int argc, char **argv)
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
 	io_fop_fini();
+	c2_ioservice_fop_fini();
+	c2_reqh_fini(&reqh);
+	c2_processors_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
 	c2_addb_ctx_fini(&server_addb_ctx);

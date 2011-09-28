@@ -21,8 +21,6 @@
 #ifndef __COLIBRI_FOL_FOL_H__
 #define __COLIBRI_FOL_FOL_H__
 
-#ifndef __KERNEL__
-
 /**
    @defgroup fol File operations log
 
@@ -436,16 +434,6 @@ int  c2_fols_init(void);
 void c2_fols_fini(void);
 
 /** @} end of fol group */
-
-#else  /* !__KERNEL__ */
-
-struct c2_fol_rec_type {
-};
-
-struct c2_fol_rec_type_ops {
-};
-
-#endif /* !__KERNEL__ */
 
 /* __COLIBRI_FOL_FOL_H__ */
 #endif
