@@ -42,9 +42,19 @@ static bool resources_are_equal(const struct c2_rm_resource *r0,
 	return false;
 }
 
+static bool resources_is_valid(uint64_t res_id,
+			       const struct c2_rm_resource *res)
+{
+	struct c2_rings *ring;
+
+	ring = container_of(ring, struct c2_rings, rs_resource);
+	C2_ASSERT(ring != NULL);
+	return res_id == ring->rs_id;
+}
+
 const struct c2_rm_resource_type_ops rings_rtype_ops = {
-	.rto_eq     = resources_are_equal,
-	.rto_decode = NULL
+	.rto_eq		  = resources_are_equal,
+	.rto_res_is_valid = resource_is_valid
 };
 
 static void right_meet(struct c2_rm_right *r0, const struct c2_rm_right *r1)

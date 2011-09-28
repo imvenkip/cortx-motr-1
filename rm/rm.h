@@ -331,6 +331,8 @@ struct c2_rm_resource_type_ops {
                            struct c2_rm_resource **resource);
         int  (*rto_encode)(struct c2_vec_cursor *bufvec,
                            struct c2_rm_resource **resource);
+	bool (*rto_res_is_valid)(uint64_t res_id,
+				 const struct c2_rm_resource *resource);
 };
 
 /**

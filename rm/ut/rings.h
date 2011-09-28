@@ -22,6 +22,11 @@
 
 #include "rm/rm.h"
 
+struct rings {
+        struct c2_rm_resource rs_resource;
+	uint64_t              rs_id;
+};
+
 extern const struct c2_rm_resource_ops rings_ops;
 
 extern const struct c2_rm_resource_type_ops rings_rtype_ops;

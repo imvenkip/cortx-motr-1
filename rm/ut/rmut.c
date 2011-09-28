@@ -47,11 +47,7 @@ static struct c2_rm_domain dom;
 /*
  * A simple resource type for testing.
  */
-
-static struct rings {
-	struct c2_rm_resource rs_resource;
-	uint64_t              rs_id;
-} R;
+static struct rings R;
 
 /* from http://en.wikipedia.org/wiki/Rings_of_Power */
 enum {

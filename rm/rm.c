@@ -401,6 +401,8 @@ static void apply_policy(struct c2_rm_incoming *in)
 			c2_free(loan);
 		}
 		c2_list_move(&owner->ro_owned[OWOS_CACHED], &right->ri_linkage);
+		c2_list_move(&owner->ro_incoming[in->rin_priority][OQS_GROUND],
+			     &in->rin_want.ri_linkage);
 		break;
 	case RIP_MAX:
 		/*
@@ -425,28 +427,95 @@ static void apply_policy(struct c2_rm_incoming *in)
 }
 
 /**
- * @brief Finds the owner related to right/loan
- *
- * @return 0 success, -errno failure. 
+   A distributed resource location data-base is consulted to locate the service.
  */
+static int service_locate(struct c2_rm_resource_type *rtype,
+			  struct c2_rm_remote *rem, c2_time_t deadline)
+{
+	struct c2_clink clink;
+
+	C2_PRE(c2_mutex_is_locked(&rtype->rt_lock));
+	C2_PRE(rem->rem_state == REM_SERVICE_LOCATING);
+
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&rem->rem_signal, &clink);
+	/* 
+	 * DB callback should assign value to rem_service and
+	 * rem_state should be changed to REM_SERVICE_LOCATED.
+	 */
+	c2_rm_db_service_query(rtype->rt_name, rem);
+	if (other->rem_state != REM_SERVICE_LOCATED)
+		c2_chan_timedwait(&clink, deadline);
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
+
+	if (other->rem_state != REM_SERVICE_LOCATED)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
+/**
+   Sends a resource management fop to the service. The service responds
+   with the remote owner identifier (c2_rm_remote::rem_id) used for
+   further communications.
+ */
+static void resource_locate(struct c2_rm_resource_type *rtype,
+			    struct c2_rm_remote *rem, c2_time_t deadline)
+{
+	struct c2_clink clink;
+
+	C2_PRE(c2_mutex_is_locked(&rtype->rt_lock));
+	C2_PRE(rem->rem_state == REM_RESOURCE_LOCATING);
+
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&rem->rem_signal, &clink);
+	/*
+	 * RPC callback should assign value to rem_id and
+	 * rem_state should be set to REM_RESOURCE_LOCATED.
+	 */
+	c2_rm_remote_resource_find(rem);
+	if (other->rem_state != REM_RESOURCE_LOCATED)
+		c2_chan_timedwait(&clink, deadline);
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
+
+	if (other->rem_state != REM_RESOURCE_LOCATED)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
 int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other)
 {
-	struct c2_rm_loan *loan;
-	int		   i;
+	struct c2_rm_resource_type *rtyep = right->ri_resource->r_type;
 
-	/* This will get changed with Database lookup */
-	for (i = 0; i < ARRAY_SIZE(rm_info); ++i) {
-		if (rm_info[i].rm_handle.t_h.h_id == pthread_self()) {
-			other->rem_id = rm_info[i].req_owner_id;
-			other->rem_resource = rm_info[other->rem_id].res;
-			loan = container_of(other, struct c2_rm_loan, rl_other);
-			loan->rl_id = rm_info[i].owner_id;
-			return 0;
+	C2_PRE(other->rem_state == REM_INITIALIZED);
+
+	c2_mutex_lock(&rtype->rt_lock);
+	other->rem_state = REM_SERVICE_LOCATING;
+	result = service_locate(rtype, other);
+	if (result != 0)
+		goto error;
+
+	other->rem_state = REM_RESOURCE_LOCATING;
+	result = resource_locate(rtype, other);
+	if (result != 0)
+		goto error;
+
+	c2_list_for_each_entry(&rtype->rt_resources, res,
+			       struct c2_rm_resource, r_linkage) {
+		if (res->r_ops->rto_res_is_valid(other->rem_id, res)) {
+			other->rem_resource = res;
+			break;
 		}
 	}
 
-	//ergo(result == 0, other->rem_resource == right->ri_resource);
-	return -EINVAL;
+error:
+	c2_mutex_unlock(&rtyep->rt_lock);
+	ergo(result = 0, other->rem_resource == right->ri_resource);
+
+	return result;
 }
 
 /**
