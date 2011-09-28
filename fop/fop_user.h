@@ -26,7 +26,7 @@
 /* __COLIBRI_FOP_FOP_USER_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

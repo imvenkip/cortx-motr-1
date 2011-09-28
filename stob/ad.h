@@ -29,9 +29,9 @@
 
    AD storage object type (ad_stob_type) manages collections of storage objects
    with in an underlying storage object. The underlying storage object is
-   specified per-domain by a call to ad_setup() function.
+   specified per-domain by a call to c2_ad_stob_setup() function.
 
-   ad_stob_type uses data-base (also specified as a parameter to ad_setup()) to
+   ad_stob_type uses data-base (also specified as a parameter to c2_ad_stob_setup()) to
    store extent map (c2_emap) which keeps track of mapping between logical
    offsets in AD stobs and physical offsets within underlying stob.
 
@@ -89,11 +89,11 @@ struct ad_balloc_ops {
 
    @param ballroom - a byte allocator.
  */
-int  ad_setup(struct c2_stob_domain *adom, struct c2_dbenv *dbenv,
+int  c2_ad_stob_setup(struct c2_stob_domain *adom, struct c2_dbenv *dbenv,
 	      struct c2_stob *bstore, struct ad_balloc *ballroom);
 
-int  ad_stobs_init(void);
-void ad_stobs_fini(void);
+int  c2_ad_stobs_init(void);
+void c2_ad_stobs_fini(void);
 
 /** @} end group stobad */
 

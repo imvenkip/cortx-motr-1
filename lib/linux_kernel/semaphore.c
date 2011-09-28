@@ -77,7 +77,7 @@ bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
 	unsigned long reljiffies;
 	struct timespec ts;
 
-	c2_time_now(&nowtime);
+	nowtime = c2_time_now();
 	/* same semantics as user_space semaphore: allow abs_time < now */
 	if (c2_time_after(abs_timeout, nowtime))
 		reltime = c2_time_sub(abs_timeout, nowtime);

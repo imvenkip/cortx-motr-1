@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 06/21/2011
  */
 
@@ -46,7 +46,7 @@ static struct c2_fop_type_ops reqh_err_fop_ops = {
 };
 
 
-C2_FOP_TYPE_DECLARE(c2_reqh_error_rep, "error reply", 24, &reqh_err_fop_ops);
+C2_FOP_TYPE_DECLARE(c2_reqh_error_rep, "reqh error reply", 25, &reqh_err_fop_ops);
 
 static struct c2_fop_type *reqh_fops[] = {
 	&c2_reqh_error_rep_fopt,

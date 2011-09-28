@@ -35,14 +35,15 @@
    @{
 */
 
-c2_time_t c2_time_now(c2_time_t *time)
+c2_time_t c2_time_now(void)
 {
 	struct timespec ts;
+	c2_time_t	t;
 
-	C2_PRE(time != NULL);
 	ts = current_kernel_time();
-	c2_time_set(time, ts.tv_sec,  ts.tv_nsec);
-	return *time;
+	c2_time_set(&t, ts.tv_sec,  ts.tv_nsec);
+
+	return t;
 }
 C2_EXPORTED(c2_time_now);
 

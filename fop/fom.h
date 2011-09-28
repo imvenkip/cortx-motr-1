@@ -162,6 +162,8 @@ struct c2_fom_domain {
 	const struct c2_fom_domain_ops	*fd_ops;
 	/** Request handler this domain belongs to */
 	struct c2_reqh			*fd_reqh;
+	/** Addb context for fom */
+	struct c2_addb_ctx               fd_addb_ctx;
 };
 
 /** Operations vector attached to a domain. */
@@ -308,14 +310,9 @@ struct c2_fom {
 	    protected by the c2_fom_locality::fl_lock mutex.
 	 */
 	struct c2_list_link	 fo_linkage;
+
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
-	/**
-	    Temporary reference to reply fop as required by sunrpc.
-	    This would be removed after integrating reqh with the new
-	    RPC layer.
-	 */
-	void			*fo_cookie;
 };
 
 /**

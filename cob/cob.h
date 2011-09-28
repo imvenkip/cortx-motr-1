@@ -27,6 +27,7 @@
 #include "lib/rwlock.h"
 #include "lib/refs.h"
 #include "lib/adt.h"
+#include "lib/bitstring.h"
 #include "addb/addb.h"
 #include "db/db.h"
 #include "stob/stob.h"
@@ -262,6 +263,14 @@ int c2_cob_create(struct c2_cob_domain *dom,
 int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx);
 
 /**
+   Update file attributes of passed cob with @nsrec, @fabrec 
+   and @omgrec fields.
+*/
+int c2_cob_update(struct c2_cob *cob, 
+                  struct c2_cob_nsrec  *nsrec,
+                  struct c2_cob_fabrec *fabrec,
+                  struct c2_db_tx      *tx);
+/**
    Acquires an additional reference on the object.
 
    @see c2_cob_put()
@@ -279,6 +288,16 @@ void c2_cob_get(struct c2_cob *obj);
 void c2_cob_put(struct c2_cob *obj);
 
 
+/**
+   Helper routine to allocate and initialize c2_cob_nskey
+
+   If memory allocation fails then *keyh is set to NULL
+ */
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
+                        const char *name);
+
+void c2_cob_namespace_traverse(struct c2_cob_domain *dom);
+void c2_cob_fb_traverse(struct c2_cob_domain *dom);
 /** @} end group cob */
 
 /* __COLIBRI_COB_COB_H__ */

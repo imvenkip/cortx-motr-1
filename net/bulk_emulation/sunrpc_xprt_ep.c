@@ -381,7 +381,7 @@ static void sunrpc_ep_put_conn(struct c2_net_bulk_sunrpc_conn *sc,
 
 	c2_net_conn_release(conn);
 	if (rc == 0)
-		c2_time_now(&t);
+		t = c2_time_now();
 	else
 		t = 0;
 	C2_CASSERT(sizeof t == sizeof sc->xc_last_use);
