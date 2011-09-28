@@ -733,7 +733,8 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 
 		C2_ASSERT(c2_rpc_session_invariant(session));
 		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-			  session->s_state == C2_RPC_SESSION_BUSY);
+			  session->s_state == C2_RPC_SESSION_BUSY ||
+			  session->s_state == C2_RPC_SESSION_TERMINATING);
 
 		c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
 		session->s_state = C2_RPC_SESSION_BUSY;
