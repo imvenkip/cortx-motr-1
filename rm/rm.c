@@ -370,9 +370,9 @@ static void apply_policy(struct c2_rm_incoming *in)
 		right_copy(&loan->rl_right, &in->rin_want);
 		pin_add(in, &loan->rl_right);
 		c2_list_add(&owner->ro_owned[OWOS_CACHED],
+			    &loan->rl_right.ri_linkage);
 		c2_list_move(&owner->ro_incoming[in->rin_priority][OQS_GROUND],
 			     &in->rin_want.ri_linkage);
-			    &loan->rl_right.ri_linkage);
 
 		break;
 	case RIP_JOIN:
@@ -472,10 +472,10 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 				    struct c2_rm_pin, rp_incoming_linkage) {
 		right = pin->rp_right;
 		loan->rl_right.ri_ops = right->ri_ops;
-		right->rro_join(&loan->rl_right, right);
+		right->ri_ops->rro_join(&loan->rl_right, right);
 		pin_remove(pin);
 		/* Loaned right should not be on cached list */
-		c2_list_del(right->ri_linkage);
+		c2_list_del(&right->ri_linkage);
 		c2_free(right);
 	}
 	c2_list_add(&owner->ro_sublet, &loan->rl_right.ri_linkage);
@@ -526,7 +526,7 @@ static int revoke_request_reply(struct c2_rm_incoming *in)
 			C2_ALLOC_PTR(request);
 			if (request == NULL)
 				return -ENOMEM;
-			c2_rm_build_request(request, loan, PRO_LOAN_REPLY);
+			request_build(request, loan, PRO_LOAN_REPLY);
 			right_copy(&request->in.rin_want, &loan->rl_right);
 			/*@todo will be replaced by rpc call and fop will be using
 			 * rpc layer API's */
@@ -606,7 +606,7 @@ static int loan_request_reply(struct c2_rm_incoming *in)
 			C2_ALLOC_PTR(request);
 			if (request == NULL)
 				return -ENOMEM;
-			c2_rm_build_request(request, loan, PRO_LOAN_REPLY);
+			request_build(request, loan, PRO_LOAN_REPLY);
 			right_copy(&request->in.rin_want, &loan->rl_right);
 			c2_mutex_lock(&rpc_lock);
 			c2_queue_put(&rpc_queue, &request->rq_link);
@@ -651,7 +651,7 @@ static int out_request_send(struct c2_rm_outgoing *out)
 	C2_ALLOC_PTR(request);
 	if (request == NULL)
 		return -ENOMEM;
-	c2_rm_build_request(request, &out->rog_want, PRO_OUT_REQUEST);
+	request_build(request, &out->rog_want, PRO_OUT_REQUEST);
 	right_copy(&request->in.rin_want, &out->rog_want.rl_right);
 	/*@todo following code will be replaced by rpc call */
 	c2_mutex_lock(&rpc_lock);
@@ -768,7 +768,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
  */
-void static outgoing_complete(struct c2_rm_outgoing *og, int rc)
+void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc)
 {
 	struct c2_rm_owner *owner;
 
@@ -1173,7 +1173,7 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		right->ri_ops->rro_diff(right, &out->rog_want.rl_right);
 	}
 
-	result = send_out_request(out);
+	result = out_request_send(out);
 
 	return result;
 }
