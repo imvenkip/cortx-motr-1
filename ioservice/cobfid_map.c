@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 08/23/2011
  */
 
@@ -22,6 +23,8 @@
 #include <config.h>
 #endif
 
+#include <sys/stat.h>
+#include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"  /* SET0 */
 #include "ioservice/cobfid_map.h"
@@ -46,6 +49,18 @@ struct cobfid_map_record {
 	struct c2_uint128 cfr_cob; /**< cob id */
 };
 
+/* ADDB Instrumentation for cobfidmap */
+static const struct c2_addb_ctx_type cfm_ctx_type = {
+	        .act_name = "cfm"
+};
+
+static const struct c2_addb_loc cfm_addb_loc = {
+	        .al_name = "cfm"
+};
+
+C2_ADDB_EV_DEFINE(cfm_func_fail, "cfm_func_fail",
+		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+
 
 /*
  *****************************************************************************
@@ -63,9 +78,94 @@ static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 	return true;
 }
 
+int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
+		       struct c2_dbenv *db_env,
+		       struct c2_addb_ctx *addb_ctx,
+		       const char *map_path,
+		       const char *map_name)
+{
+	int      rc;
+	char    *opath = NULL;
+	char    *dpath = NULL;
+
+	C2_PRE(cfm != NULL);
+	C2_PRE(db_env != NULL);
+	C2_PRE(addb_ctx != NULL);
+	C2_PRE(map_path != NULL);
+	C2_PRE(map_name != NULL);
+
+	cfm->cfm_magic = CFM_MAP_MAGIC;
+	cfm->cfm_addb = addb_ctx;
+	cfm->cfm_map_path = map_path;
+	cfm->cfm_map_name = map_name;
+	cfm->cfm_dbenv = db_env;
+
+        c2_addb_ctx_init(cfm->cfm_addb, &cfm_ctx_type, &c2_addb_global_ctx);
+
+	C2_ALLOC_ARR(opath, strlen(map_path) + 2);
+        if (opath == NULL) {
+                C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, c2_addb_oom);
+                rc = -ENOMEM;
+                goto cleanup;
+        }
+
+        C2_ALLOC_ARR(dpath, strlen(map_path) + 2);
+        if (dpath == NULL) {
+                C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, c2_addb_oom);
+                rc = -ENOMEM;
+                goto cleanup;
+        }
+
+	rc = mkdir(map_path, 0700);
+	if (rc != 0 && errno != EEXIST) {
+		rc = -errno;
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "mkdir", rc);
+		goto cleanup;
+	}
+
+        sprintf(opath, "%s/o", map_path);
+
+	rc = mkdir(opath, 0700);
+	if (rc != 0 && errno != EEXIST) {
+		rc = -errno;
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "mkdir", rc);
+		goto cleanup;
+	}
+
+        sprintf(dpath, "%s/d", map_path);
+
+        rc = c2_dbenv_init(cfm->cfm_dbenv, map_path, 0);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_dbenv_init", rc);
+		goto cleanup;
+	}
+
+	c2_free(opath);
+	c2_free(dpath);
+
+	c2_time_set(&cfm->cfm_last_mod, 0, 0);
+	c2_time_add(c2_time_now(), cfm->cfm_last_mod);
+
+	return 0;
+
+cleanup:
+	c2_free(opath);
+        c2_free(dpath);
+        c2_addb_ctx_fini(cfm->cfm_addb);
+	return rc;
+}
+C2_EXPORTED(c2_cobfid_map_init);
+
 void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 {
 	C2_PRE(cobfid_map_invariant(cfm));
+
+	c2_dbenv_fini(cfm->cfm_dbenv);
+	c2_addb_ctx_fini(cfm->cfm_addb);
+
 }
 C2_EXPORTED(c2_cobfid_map_fini);
 

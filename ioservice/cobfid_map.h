@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 08/23/2011
  */
 
@@ -90,8 +91,8 @@ struct c2_cobfid_map {
 	uint64_t            cfm_magic;
         struct c2_dbenv    *cfm_dbenv;    /**< Database environment pointer */
         struct c2_addb_ctx *cfm_addb;     /**< ADDB context */
-	char               *cfm_map_name; /**< Name of the map */
-	char               *cfm_map_path; /**< Pathname of the map file */
+	const char         *cfm_map_name; /**< Name of the map */
+	const char         *cfm_map_path; /**< Pathname of the map file */
 	c2_time_t           cfm_last_mod; /**< Time last modified */
 };
 
@@ -138,7 +139,7 @@ struct c2_cobfid_map_iter_ops {
 	int (*cfmio_fetch)(struct c2_cobfid_map_iter *);
 	/**
 	   Determines if the record in the specified position will
-	   exhaus the iterator.
+	   exhaust the iterator.
 	   @param idx Index of a buffered record in the iterator.
 	*/
 	bool (*cfmio_at_end)(struct c2_cobfid_map_iter *, unsigned int idx);
@@ -160,6 +161,8 @@ struct c2_cobfid_map_iter_ops {
    valid until the map is finalized.
    @param addb_ctx Pointer to the ADDB context to use. The context must not
    be finalized until after the map is finalized.
+   @param map_path Path of the map database. The string is not referenced
+   after this subroutine returns.
    @param map_name Name of the map. The string is not referenced after this
    subroutine returns.
    @retval 0 on success
@@ -170,6 +173,7 @@ struct c2_cobfid_map_iter_ops {
 int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
 		       struct c2_dbenv *db_env,
 		       struct c2_addb_ctx *addb_ctx,
+		       const char *map_path,
 		       const char *map_name);
 
 /**
