@@ -1253,7 +1253,7 @@ out:
    Every allocated request handler context is added to the list
    of the same in given c2_colibri intance.
 
-   @param cs_colibri Colibri instance to which the request handler
+   @param cs_colibri Colibri address space to which the request handler
 		contexts belong
 
    @retval 0 On success
