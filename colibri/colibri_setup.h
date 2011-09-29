@@ -48,7 +48,7 @@
  */
 
 /**
-   Defines a colibri environment containing a set of network transports,
+   Defines a colibri address space containing a set of network transports,
    network domains and request handler contexts.
 
    Every request handler context is a set of parsed values of setup arguments
@@ -58,18 +58,17 @@
 struct c2_colibri {
 	/**
 	   Array of netwrk transports supported in a colibri
-	   environment.
+	   address space.
 	 */
 	struct c2_net_xprt       **cc_xprts;
         /**
-           List of network domain per colibri environment
-           address space.
+           List of network domain per colibri address space.
          */
         struct c2_list            cc_ndoms;
 
         /**
            List of request handler contexts running under
-           one colibri environment address space on a node.
+           one colibri address space on a node.
          */
 	struct c2_list            cc_reqh_ctxs;
 	/**
@@ -85,13 +84,13 @@ struct c2_colibri {
 };
 
 /**
-   Initialises an instance of colibri environment.
+   Initialises colibri address space.
    This includes initialising network resources like transports,
    and network domains.
 
-   @param cs_colibri In memory representation of a colibri environment
-   @param xprts Array or network transports supported by given
-	colibri environment
+   @param cs_colibri Represents a colibri address space
+   @param xprts Array or network transports supported in a colibri
+		address space
    @param out File descriptor to which output is written
 
    @retval 0 On success
@@ -100,17 +99,15 @@ struct c2_colibri {
 int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
 								FILE *out);
 /**
-   Finalises an instance of colibri environment.
-
-   @param cs_colibri Instance of colibri environment to be finalised
+   Finalises colibri address space.
  */
 void c2_cs_fini(struct c2_colibri *cs_colibri);
 
 /**
-   Initialises the environment and starts the colibri environment with
-   the specified arguments.
+   Initialises a colibri address space using the specified input
+   arguments.
 
-   @param cs_colibri Instance of colibri environment to be initialised
+   @param cs_colibri Colibri address space
 
    @retval 0 On success
 	-errno On failure
