@@ -77,6 +77,10 @@ enum {
 	REQH_CONTEXT_MAGIC = 0x72657168637478
 };
 
+enum {
+	CS_MAX_BLOCK_CNT = 500000
+};
+
 /**
    Represents various network transports supported
    by a particular node in a cluster.
@@ -398,23 +402,23 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
 	elegant way to do so.
  */
 
-struct mock_balloc {
-        c2_bindex_t      mb_next;
-        struct ad_balloc mb_ballroom;
+struct cs_balloc {
+        c2_bindex_t      csb_next;
+        struct ad_balloc csb_ballroom;
 };
 
-static struct mock_balloc *b2mock(struct ad_balloc *ballroom)
+static struct cs_balloc *b2mock(struct ad_balloc *ballroom)
 {
-        return container_of(ballroom, struct mock_balloc, mb_ballroom);
+        return container_of(ballroom, struct cs_balloc, csb_ballroom);
 }
 
-static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+static int cs_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
                             uint32_t bshift)
 {
         return 0;
 }
 
-static void mock_balloc_fini(struct ad_balloc *ballroom)
+static void cs_balloc_fini(struct ad_balloc *ballroom)
 {
 }
 
@@ -422,20 +426,20 @@ static void mock_balloc_fini(struct ad_balloc *ballroom)
    Allocates given number of blocks in an extent.
    This is invoked during io operations on ad stob.
  */
-static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *dtx,
+static int cs_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *dtx,
                              c2_bcount_t count, struct c2_ext *out)
 {
-        struct mock_balloc *mb = b2mock(ballroom);
+        struct cs_balloc *csb = b2mock(ballroom);
         c2_bcount_t giveout;
 
-        giveout = min64u(count, 500000);
-        out->e_start = mb->mb_next;
-        out->e_end   = mb->mb_next + giveout;
-        mb->mb_next += giveout + 1;
+        giveout = min64u(count, CS_MAX_BLOCK_CNT);
+        out->e_start = csb->csb_next;
+        out->e_end   = csb->csb_next + giveout;
+        csb->csb_next += giveout + 1;
         return 0;
 }
 
-static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *dtx,
+static int cs_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *dtx,
                             struct c2_ext *ext)
 {
         return 0;
@@ -444,17 +448,17 @@ static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 /*
   Operations vector for ad_balloc
 */
-static const struct ad_balloc_ops mock_balloc_ops = {
-        .bo_init  = mock_balloc_init,
-        .bo_fini  = mock_balloc_fini,
-        .bo_alloc = mock_balloc_alloc,
-        .bo_free  = mock_balloc_free,
+static const struct ad_balloc_ops cs_balloc_ops = {
+        .bo_init  = cs_balloc_init,
+        .bo_fini  = cs_balloc_fini,
+        .bo_alloc = cs_balloc_alloc,
+        .bo_free  = cs_balloc_free,
 };
 
-struct mock_balloc mb = {
-        .mb_next = 0,
-        .mb_ballroom = {
-                .ab_ops = &mock_balloc_ops
+struct cs_balloc csb = {
+        .csb_next = 0,
+        .csb_ballroom = {
+                .ab_ops = &cs_balloc_ops
         }
 };
 
@@ -543,7 +547,7 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 			goto out;
 
 		rc = c2_ad_stob_setup(stob->adstob, db, bstore,
-						&mb.mb_ballroom);
+						&csb.csb_ballroom);
 		if (rc != 0)
 			goto out;
 	}
