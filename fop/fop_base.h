@@ -10,6 +10,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "lib/vec.h"
+#include "rpc/rpc_base.h"
 
 /**
    @addtogroup fop
@@ -31,7 +32,6 @@
 /* import */
 struct c2_fol;
 struct c2_fop;
-struct c2_rpc_item_type;
 struct c2_fop_io_vec;
 
 /* export */
@@ -68,6 +68,7 @@ struct c2_fop_type {
 	/** The rpc_item_type associated with rpc_item
 	    embedded with this fop. */
 	struct c2_rpc_item_type		 *ft_ri_type;
+	struct c2_rpc_item_type		 ft_rpc_item_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */

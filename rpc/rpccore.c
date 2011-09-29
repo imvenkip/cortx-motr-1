@@ -290,13 +290,21 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 
 int c2_rpc_core_init(void)
 {
-	return c2_rpc_session_module_init();
+	int 	rc;
+
+	rc = c2_rpc_session_module_init();
+	if (rc != 0)
+		return rc;
+
+	return c2_rpc_base_init();
 }
 C2_EXPORTED(c2_rpc_core_init);
 
 void c2_rpc_core_fini(void)
 {
+
 	c2_rpc_session_module_fini();
+	c2_rpc_base_fini();
 }
 C2_EXPORTED(c2_rpc_core_fini);
 
@@ -936,26 +944,6 @@ static void item_replied(struct c2_rpc_item *item, int rc)
 }
 
 /**
-   RPC item ops function
-   Function to return size of fop
- */
-static size_t item_size_get(const struct c2_rpc_item *item)
-{
-	uint64_t	 size;
-	struct c2_fop	*fop;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	if (fop->f_type->ft_ops->fto_size_get != NULL)
-		size = fop->f_type->ft_ops->fto_size_get(fop);
-	else
-		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-
-	return size;
-}
-
-/**
    Find if given 2 rpc items belong to same type or not.
  */
 static bool item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
@@ -984,18 +972,6 @@ static bool item_fid_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 	fop2 = c2_rpc_item_to_fop(item2);
 
 	return fop1->f_type->ft_ops->fto_fid_equal(fop1, fop2);
-}
-
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
-{
-	struct c2_fop_type	*ftype;
-	struct c2_rpc_item_type *item_type;
-
-	ftype = c2_fop_type_search(opcode);
-	C2_ASSERT(ftype != NULL);
-	C2_ASSERT(ftype->ft_ri_type != NULL);
-	item_type = ftype->ft_ri_type;
-	return item_type;
 }
 
 /**
@@ -1074,7 +1050,7 @@ static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = item_size_get,
+	.rito_item_size = c2_rpc_item_default_size,
 	.rito_items_equal = item_equal,
 	.rito_fid_equal = item_fid_equal,
 	.rito_get_io_fragment_count = item_fragment_count_get,
@@ -1088,7 +1064,7 @@ static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = item_size_get,
+	.rito_item_size = c2_rpc_item_default_size,
 	.rito_items_equal = item_equal,
 	.rito_fid_equal = item_fid_equal,
 	.rito_get_io_fragment_count = item_fragment_count_get,
