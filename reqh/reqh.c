@@ -67,6 +67,13 @@ C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 extern int c2_reqh_fop_init(void);
 extern void c2_reqh_fop_fini(void);
 
+bool c2_reqh_invariant(const struct c2_reqh *reqh)
+{
+	return reqh != NULL && reqh->rh_stdom != NULL &&
+		reqh->rh_dbenv != NULL && reqh->rh_cob_domain != NULL &&
+		reqh->rh_fol != NULL;
+}
+
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 struct c2_stob_domain *stdom, struct c2_dbenv *db,
                 struct c2_cob_domain *cdom, struct c2_fol *fol)

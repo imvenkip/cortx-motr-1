@@ -1,7 +1,7 @@
 SUBDIRS                   = .
 
 bin_PROGRAMS              = colibri_setup
-colibri_setup_SOURCES     = colibri_setup.c
+colibri_setup_SOURCES     = colibri_setup.c colibri_setup.h
 colibri_setup_LDADD       = $(top_builddir)/colibri/libcolibri.la
 
 lib_LTLIBRARIES           = libcolibri.la

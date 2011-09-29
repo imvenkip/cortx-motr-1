@@ -72,7 +72,7 @@ enum c2_reqh_service_state {
  */
 struct c2_reqh_service {
 	/**
-	   Service id that shold be unique throughout
+	   Service id that should be unique throughout
 	   the cluster.
 	   Currently using a simple integer value.
 	   @todo To have a generic uuid generation
@@ -119,7 +119,7 @@ struct c2_reqh_service {
  */
 struct c2_reqh_service_ops {
 	/**
-	   Performs startup operations related to service
+	   Performs startup operations related to service.
 	   Once started, incoming requests related
 	   to this service are ready to be processed by a
 	   node.

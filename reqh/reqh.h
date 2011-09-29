@@ -69,8 +69,6 @@ struct c2_reqh {
         struct c2_list           rh_services;
         /** RPC machines running in this request handler */
         struct c2_list           rh_rpcmachines;
-        /** Linkage into global list of request handlers */
-        struct c2_list_link      rh_colibri_linkage;
 };
 
 /**
@@ -96,6 +94,8 @@ struct c2_reqh {
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 struct c2_stob_domain *stdom, struct c2_dbenv *db,
                 struct c2_cob_domain *cdom, struct c2_fol *fol);
+
+bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
 /**
    Destructor for request handler, no fop will be further executed
