@@ -57,99 +57,8 @@
 
 /**
    @addtogroup colibri_setup
-
    @{
  */
-
-/*
-   Basic test code representing configuration of a service
- */
-void mds_start(struct c2_reqh_service *service,
-			struct c2_reqh *reqh);
-void mds_stop(struct c2_reqh_service *service);
-int mds_init(struct c2_reqh_service **service,
-		struct c2_reqh_service_type *stype);
-void mds_fini(struct c2_reqh_service *service);
-
-struct c2_reqh_service_type mds_type;
-
-struct c2_reqh_service_type_ops mds_type_ops = {
-        .rsto_service_init = mds_init
-};
-
-struct c2_reqh_service_ops mds_ops = {
-	.rso_start = mds_start,
-	.rso_stop = mds_stop,
-        .rso_fini = mds_fini
-};
-
-int mds_init(struct c2_reqh_service **service,
-			struct c2_reqh_service_type *stype)
-{
-	struct c2_reqh_service      *serv;
-        int                          rc;
-
-        C2_PRE(service != NULL && stype != NULL);
-
-        printf("\n Initialising mds service \n");
-        C2_ALLOC_PTR(serv);
-        if (serv == NULL)
-                return -ENOMEM;
-
-	serv->rs_type = stype;
-        serv->rs_ops = &mds_ops;
-
-	rc = c2_reqh_service_init(serv, stype->rst_name);
-
-	if (rc != 0) {
-		*service = NULL;
-		c2_free(serv);
-	} else
-		*service = serv;
-
-        return rc;
-}
-
-void mds_start(struct c2_reqh_service *service, struct c2_reqh *reqh)
-{
-	C2_PRE(service != NULL);
-
-	printf("\n Starting mds.. \n");
-	/*
-	   Can perform service specific initialisation of
-	   objects like fops.
-	 */
-	c2_reqh_service_start(service, reqh);
-}
-
-void mds_stop(struct c2_reqh_service *service)
-{
-	C2_PRE(service != NULL);
-
-	printf("\n Stopping mds.. \n");
-	/*
-	   Can finalise service specific objects like
-	   fops.
-	 */
-	c2_reqh_service_stop(service);
-}
-
-void mds_fini(struct c2_reqh_service *service)
-{
-        printf("\n finalizing service \n");
-	c2_reqh_service_fini(service);
-	c2_free(service);
-}
-/* Test code ends */
-
-/**
-   File to which the out will be directed.
-   This is set to stdout by default if no output file
-   is specified.
-
-   @see c2_cs_init()
- */
-FILE *outfile;
 
 /**
    Represents cob domain id, it is incremented
@@ -202,19 +111,19 @@ struct reqh_stobs {
 
 /**
    Represents state of a request handler context.
- */  
+ */
 enum {
         /**
 	   A request handler context is in RC_UNINTIALISED state
 	   when it is allocated and added to the list of the same
-	   in c2_cs_colibri.
+	   in c2_colibri.
 	 */
 	RC_UNINITIALISED,
 	/**
 	   A request handler context is in Initialised state
 	   once the request handler (embedded inside the context) is
 	   successfully initialised.
-	 */ 
+	 */
 	RC_INITIALISED
 };
 
@@ -273,7 +182,7 @@ struct reqh_context {
 	struct c2_list_link       rc_linkage;
 };
 
-static struct c2_cs_colibri cs_colibri;
+static struct c2_colibri colibri_ctx;
 
 /**
    Checks consistency of request handler contex
@@ -297,6 +206,8 @@ bool cs_reqh_ctx_invariant(const struct reqh_context *rctx)
 
 static void cs_reqh_ctx_free(struct reqh_context *rctx)
 {
+	C2_PRE(rctx != NULL);
+
 	c2_free(rctx->rc_endpoints);
 	c2_free(rctx->rc_services);
 	c2_list_del(&rctx->rc_linkage);
@@ -305,13 +216,13 @@ static void cs_reqh_ctx_free(struct reqh_context *rctx)
 
 /**
    Allocates a reqh_context instance and adds it to the list of
-   request handler contexts present in c2_cs_colibri.
+   request handler contexts present in c2_colibri.
 
    @param cs_colibri Colibri process context
 
-   @see c2_cs_colibri
+   @see c2_colibri
  */
-static struct reqh_context *cs_reqh_ctx_alloc(struct c2_cs_colibri *cs_colibri)
+static struct reqh_context *cs_reqh_ctx_alloc(struct c2_colibri *cs_colibri)
 {
 	struct reqh_context *rctx = NULL;
 	int                  rc;
@@ -324,7 +235,7 @@ static struct reqh_context *cs_reqh_ctx_alloc(struct c2_cs_colibri *cs_colibri)
 		goto out;
 	}
 
-	rctx->rc_max_endpoints = ARRAY_SIZE(cs_colibri->cs_xprts);
+	rctx->rc_max_endpoints = ARRAY_SIZE(cs_colibri->cc_xprts);
 	C2_ALLOC_ARR(rctx->rc_endpoints,
 			rctx->rc_max_endpoints);
 	if (rctx->rc_endpoints == NULL) {
@@ -344,7 +255,7 @@ static struct reqh_context *cs_reqh_ctx_alloc(struct c2_cs_colibri *cs_colibri)
 	}
 
 	rctx->rc_magic = REQH_CONTEXT_MAGIC;
-	c2_list_add(&cs_colibri->cs_reqh_ctxs, &rctx->rc_linkage);
+	c2_list_add(&cs_colibri->cc_reqh_ctxs, &rctx->rc_linkage);
 out:
 	return rctx;
 }
@@ -356,22 +267,24 @@ out:
    call to c2_cs_init().
 
    @param xprt_name Type of network transport to be initialised
+   @param cs_colibri Colibri process context
 
-   @pre xprt_name != NULL
+   @pre cs_colibri != NULL && xprt_name != NULL
 
    @post strcmp(ndom->nd_xprt->nx_name, xprt_name) == 0
 
    @see c2_cs_init()
  */
-static struct c2_net_domain *cs_net_domain_locate(char *xprt_name)
+static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cs_colibri,
+								char *xprt_name)
 {
 	struct c2_net_domain *ndom = NULL ;
 	struct c2_net_domain *ndom_next = NULL;
 	bool                  found = false;
 
-	C2_PRE(xprt_name != NULL);
+	C2_PRE(cs_colibri != NULL && xprt_name != NULL);
 
-	c2_list_for_each_entry_safe(&cs_colibri.cs_ndoms, ndom, ndom_next,
+	c2_list_for_each_entry_safe(&cs_colibri->cc_ndoms, ndom, ndom_next,
 			struct c2_net_domain, nd_app_linkage) {
 
 			if (strcmp(ndom->nd_xprt->nx_name, xprt_name) == 0) {
@@ -395,19 +308,21 @@ static struct c2_net_domain *cs_net_domain_locate(char *xprt_name)
    Given request handler should already be initialised
    before this function is invoked.
 
+   @param cs_colibri Colibri process context
    @param ep 2 part end point address comprising
-	of network transport:3-tuple network layer
-	endpoint address
+	of network transport:network layer endpoint
+	address
 
    @param reqh Request handler to which the newly created
    		rpcmachine belongs.
 
-   @pre ep != NULL && reqh != NULL
+   @pre cs_colibri != NULL && ep != NULL && reqh != NULL
 
    @retval 0 On success
 	-errno On failure
  */
-static int cs_rpcmachine_init(char *ep, struct c2_reqh *reqh)
+static int cs_rpcmachine_init(struct c2_colibri *cs_colibri, char *ep,
+						struct c2_reqh *reqh)
 {
 	struct c2_rpcmachine         *rpcmach;
 	char                         *xprt_name;
@@ -415,16 +330,15 @@ static int cs_rpcmachine_init(char *ep, struct c2_reqh *reqh)
 	char                         *epaddr;
 	int                           rc;
 
-	C2_PRE(ep != NULL && reqh != NULL);
+	C2_PRE(cs_colibri != NULL && ep != NULL && reqh != NULL);
 
-	printf("\n %s \n", ep);
 	xprt_name = strtok(ep, ":");
 	epaddr = strtok(NULL, " ");
 
 	C2_ASSERT(xprt_name != NULL);
 	C2_ASSERT(epaddr != NULL);
 
-	ndom = cs_net_domain_locate(xprt_name);
+	ndom = cs_net_domain_locate(cs_colibri, xprt_name);
 	if (ndom == NULL)
 		return -EINVAL;
 
@@ -568,17 +482,15 @@ struct mock_balloc mb = {
    @todo Use generic mechanism to generate stob ids
  */
 static int cs_storage_init(const char *stob_type, const char *stob_path,
-		const char *dbpath, struct reqh_stobs *stob,
-		struct c2_dbenv *db)
+		struct reqh_stobs *stob, struct c2_dbenv *db)
 {
 	int                      rc;
 	int                      slen;
 	char                    *objpath;
         struct c2_stob          *bstore;
-	bool                     cleanup_db = false;
 
 	C2_PRE(stob_type != NULL && stob_path != NULL &&
-		dbpath != NULL && stob != NULL && db != NULL);
+				stob != NULL && db != NULL);
 
 	stob->stype = stob_type;
 
@@ -599,20 +511,10 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
         if (rc != 0 && (rc != -1 && errno != EEXIST))
 		goto out;
 
-        rc = mkdir(dbpath, 0700);
-        if (rc != 0 && (rc != -1 && errno != EEXIST))
-		goto out;
-
         rc = mkdir(objpath, 0700);
         if (rc != 0 && (rc != -1 && errno != EEXIST))
 		goto out;
 
-	rc = c2_dbenv_init(db, dbpath, 0);
-
-	if  (rc != 0)
-		goto out;
-
-	cleanup_db = true;
 	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 					stob_path, &stob->linuxstob);
 
@@ -647,10 +549,9 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 			goto out;
 	}
 
-	c2_stob_put(bstore);
 out:
-	if (rc != 0 && cleanup_db)
-		c2_dbenv_fini(db);
+	if (bstore != NULL)
+		c2_stob_put(bstore);
 	c2_free(objpath);
 
 	return rc;
@@ -668,17 +569,15 @@ out:
 
    @pre stob != NULL && db != NULL
  */
-static void cs_storage_fini(struct reqh_stobs *stob,
-				struct c2_dbenv *db)
+static void cs_storage_fini(struct reqh_stobs *stob)
 {
-	C2_PRE(stob != NULL && db != NULL);
+	C2_PRE(stob != NULL);
 
 	if (stob->linuxstob != NULL || stob->adstob != NULL) {
 		if (strcmp(stob->stype, "AD") == 0 ||
 			strcmp(stob->stype, "ad") == 0)
 			stob->adstob->sd_ops->sdo_fini(stob->adstob);
 		stob->linuxstob->sd_ops->sdo_fini(stob->linuxstob);
-		c2_dbenv_fini(db);
 	}
 }
 
@@ -775,7 +674,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
    corresponding c2_net_domain for that c2_net_xprt is
    allocated and initialised.
    Once the network domain is initialised it is added to the
-   domain list in c2_cs_colibri instance provided by the application
+   domain list in c2_colibri instance provided by the application
    during c2_cs_init().
 
    @param xprts Array of preregistered c2_net_xprt instances
@@ -783,13 +682,15 @@ static void cs_services_fini(struct c2_reqh *reqh)
    @retval 0 On success
 	-errno On failure
  */
-static int cs_net_domains_init(struct c2_net_xprt **xprts)
+static int cs_net_domains_init(struct c2_colibri *cs_colibri)
 {
-	int xprt_idx;
-	int rc;
+	int                  xprt_idx;
+	int                  rc;
+	struct c2_net_xprt **xprts;
 
-	C2_PRE(xprts != NULL);
+	C2_PRE(cs_colibri != NULL);
 
+	xprts = cs_colibri->cc_xprts;
 	for (xprt_idx = 0; xprt_idx < ARRAY_SIZE(xprts); ++xprt_idx) {
 		struct c2_net_domain *ndom;
 
@@ -804,7 +705,7 @@ static int cs_net_domains_init(struct c2_net_xprt **xprts)
 			break;
 
 		/*c2_list_link_init(&ndom->nd_app_linkage);*/
-		c2_list_add_tail(&cs_colibri.cs_ndoms, &ndom->nd_app_linkage);
+		c2_list_add_tail(&cs_colibri->cc_ndoms, &ndom->nd_app_linkage);
 	}
 
 	return rc;
@@ -816,15 +717,17 @@ static int cs_net_domains_init(struct c2_net_xprt **xprts)
    Once the c2_net_domain is finalised it frees the
    same.
  */
-static void cs_net_domains_fini(struct c2_net_xprt **xprts)
+static void cs_net_domains_fini(struct c2_colibri *cs_colibri)
 {
-	struct c2_net_domain *ndom;
-	struct c2_net_domain *ndom_next;
-	int                   idx;
+	struct c2_net_domain  *ndom;
+	struct c2_net_domain  *ndom_next;
+	struct c2_net_xprt   **xprts;
+	int                    idx;
 
-	C2_PRE(xprts != NULL);
+	C2_PRE(cs_colibri != NULL);
 
-	c2_list_for_each_entry_safe(&cs_colibri.cs_ndoms, ndom, ndom_next,
+	xprts = cs_colibri->cc_xprts;
+	c2_list_for_each_entry_safe(&cs_colibri->cc_ndoms, ndom, ndom_next,
 			struct c2_net_domain, nd_app_linkage) {
 
 		c2_net_domain_fini(ndom);
@@ -855,25 +758,35 @@ static void cs_net_domains_fini(struct c2_net_xprt **xprts)
 
    @see struct reqh_context
 
+   @pre cs_colibri != NULL
    @pre cs_reqh_ctx_invariant()
 
    @retval 0 On success
 	-errno On failure
  */
-static int cs_reqh_ctx_init(struct c2_cs_colibri *cs_colibri, 
+static int cs_reqh_ctx_init(struct c2_colibri *cs_colibri,
 				struct reqh_context *rctx)
 {
 	int                      rc;
 	struct reqh_stobs       *rstob;
 	struct c2_stob_domain   *sdom;
 
+	C2_PRE(cs_colibri != NULL);
 	C2_PRE(cs_reqh_ctx_invariant(rctx));
 
+	if (rctx->rc_dbpath != NULL)
+		rc = c2_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
+
+	if (rc != 0) {
+		fputs("Database initialisation failed", stderr);
+		goto out;
+	}
+
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
-			rctx->rc_dbpath, &rctx->rc_stob, &rctx->rc_db);
+				&rctx->rc_stob, &rctx->rc_db);
 	if (rc != 0) {
 		fputs("Storage initialisation failed", stderr);
-		goto out;
+		goto cleanup_db;
 	}
 
 	rctx->rc_cdom_id.id = ++cdom_id;
@@ -911,7 +824,9 @@ cleanup_fol:
 cleanup_cob:
 	c2_cob_domain_fini(&rctx->rc_cdom);
 cleanup_stob:
-	cs_storage_fini(&rctx->rc_stob, &rctx->rc_db);
+	cs_storage_fini(&rctx->rc_stob);
+cleanup_db:
+	c2_dbenv_fini(&rctx->rc_db);
 out:
 	return rc;
 }
@@ -937,7 +852,8 @@ static void cs_reqh_ctx_fini(struct reqh_context *rctx)
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
 	c2_cob_domain_fini(&rctx->rc_cdom);
-	cs_storage_fini(&rctx->rc_stob, &rctx->rc_db);
+	cs_storage_fini(&rctx->rc_stob);
+	c2_dbenv_fini(&rctx->rc_db);
 }
 
 /**
@@ -947,12 +863,12 @@ static void cs_reqh_ctx_fini(struct reqh_context *rctx)
    @param cs_colibri Colibri process to which the reqeust handler
    	contexts belong
  */
-static void cs_reqh_ctxs_fini(struct c2_cs_colibri *cs_colibri)
+static void cs_reqh_ctxs_fini(struct c2_colibri *cs_colibri)
 {
 	struct reqh_context *rctx;
 	struct reqh_context *rctx_next;
 
-	c2_list_for_each_entry_safe(&cs_colibri->cs_reqh_ctxs, rctx,
+	c2_list_for_each_entry_safe(&cs_colibri->cc_reqh_ctxs, rctx,
 			rctx_next, struct reqh_context, rc_linkage) {
 		if (rctx->rc_state == RC_INITIALISED)
 			cs_reqh_ctx_fini(rctx);
@@ -966,34 +882,28 @@ static void cs_reqh_ctxs_fini(struct c2_cs_colibri *cs_colibri)
 
    @param cs_colibri Colibri process context to be initialised
 
+   @pre cs_colibri != NULL
+
    @retval 0 On success
    	-errno On failure
  */
-static int cs_colibri_init(struct c2_cs_colibri *cs_colibri)
+static int cs_colibri_init(struct c2_colibri *cs_colibri)
 {
 	int rc;
-	struct c2_net_xprt **xprts;
 
-	C2_PRE(cs_colibri->cs_xprts != NULL);
+	C2_PRE(cs_colibri!= NULL);
 
-	xprts = cs_colibri->cs_xprts;
+	c2_list_init(&cs_colibri->cc_ndoms);
+	c2_list_init(&cs_colibri->cc_reqh_ctxs);
 
-	c2_list_init(&cs_colibri->cs_ndoms);
-	c2_list_init(&cs_colibri->cs_reqh_ctxs);
-
-	rc = cs_net_domains_init(xprts);
+	rc = cs_net_domains_init(cs_colibri);
 
 	if (rc == 0) {
 		rc = c2_processors_init();
 		if (rc != 0) {
-			cs_net_domains_fini(xprts);
+			cs_net_domains_fini(cs_colibri);
 			goto out;
 		}
-		/*
-		   This is for test purpose, should be invoked from
-		   corresponding module.
-		 */
-		c2_reqh_service_type_init(&mds_type, &mds_type_ops, "mds");
 	}
 
 out:
@@ -1003,18 +913,17 @@ out:
 /**
    Finalises given colibri context.
 
+   @pre cs_colibri != NULL
+
    @param cs_colibri Colibri process context to be finalised
  */
-static void cs_colibri_fini(struct c2_cs_colibri *cs_colibri)
+static void cs_colibri_fini(struct c2_colibri *cs_colibri)
 {
 	C2_PRE(cs_colibri != NULL);
 
-	/* For test purpose */
-	c2_reqh_service_type_fini(&mds_type);
-
-	cs_net_domains_fini(cs_colibri->cs_xprts);
-	c2_list_fini(&cs_colibri->cs_ndoms);
-	c2_list_fini(&cs_colibri->cs_reqh_ctxs);
+	cs_net_domains_fini(cs_colibri);
+	c2_list_fini(&cs_colibri->cc_ndoms);
+	c2_list_fini(&cs_colibri->cc_reqh_ctxs);
 	c2_processors_fini();
 }
 
@@ -1022,6 +931,8 @@ static void cs_colibri_fini(struct c2_cs_colibri *cs_colibri)
    Validates storage type
 
    @param stype Storage type
+
+   @pre stype != NULL
 
    @retval true If storage type exist
 	false If storage type does not exist
@@ -1038,12 +949,16 @@ static bool stype_is_valid(const char *stype)
 
 /**
    Lists supported services.
+
+   @pre f != NULL
  */
 void list_services(FILE *f)
 {
 	struct c2_list *services;
 	struct c2_reqh_service_type *stype;
 	struct c2_reqh_service_type *stype_next;
+
+	C2_PRE(f != NULL);
 
 	services = c2_reqh_service_list_get();
 
@@ -1061,6 +976,8 @@ void list_services(FILE *f)
    @param xprts Array of network transports supported in colibri
    		process
 
+   @pre xprt_name != NULL && xprts != NULL
+
    @retval 0 If transport found
 	-ENOENT If transport not found
  */
@@ -1068,7 +985,7 @@ static int lookup_xprt(const char *xprt_name, struct c2_net_xprt **xprts)
 {
         int i;
 
-	C2_PRE(xprt_name != NULL);
+	C2_PRE(xprt_name != NULL && xprts != NULL);
 
         for (i = 0; i < ARRAY_SIZE(xprts); ++i)
                 if (strcmp(xprt_name, xprts[i]->nx_name) == 0)
@@ -1080,7 +997,7 @@ static void list_xprts(FILE *f, struct c2_net_xprt **xprts)
 {
         int i;
 
-	C2_PRE(f != NULL);
+	C2_PRE(f != NULL && xprts != NULL);
 
         fprintf(f, "\nSupported transports:\n");
         for (i = 0; i < ARRAY_SIZE(xprts); ++i)
@@ -1091,22 +1008,26 @@ static void list_xprts(FILE *f, struct c2_net_xprt **xprts)
    Checks if given network layer end point address
    is already in use.
 
+   @param cs_colibri Colibri process context
    @param xprt Network transport
    @param nep  Network layer end point
+
+   @pre cs_colibri != NULL && xprt != NULL && nep != NULL
 
    @retval 0 If endpoint is not in use
 	-EADDRINUSE If endpoint is in use
  */
-static int endpoint_is_inuse(char *xprt, char *nep)
+static int endpoint_is_inuse(struct c2_colibri *cs_colibri, char *xprt,
+								char *nep)
 {
 	int                        rc;
 	struct c2_net_domain      *ndom;
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_transfer_mc *tm_next;
 
-	C2_PRE(xprt != NULL && nep != NULL);
+	C2_PRE(cs_colibri != NULL && xprt != NULL && nep != NULL);
 
-	ndom = cs_net_domain_locate(xprt);
+	ndom = cs_net_domain_locate(cs_colibri, xprt);
 	C2_ASSERT(ndom != NULL);
 
 	rc = 0;
@@ -1131,10 +1052,12 @@ static int endpoint_is_inuse(char *xprt, char *nep)
    		colibri process
    @param ep Endpoint address to be validated
 
+   @pre xprts != NULL && ep != NULL
+
    @retval 0 On success
 	-errno On failure
 */
-static int ep_is_valid(struct c2_net_xprt **xprts, char *ep)
+static int ep_is_valid(struct c2_colibri *cs_colibri, char *ep)
 {
 	int    rc;
 	char  *epaddr;
@@ -1142,7 +1065,7 @@ static int ep_is_valid(struct c2_net_xprt **xprts, char *ep)
 	char  *xprt;
 	char  *sptr;
 
-	C2_PRE(ep != NULL);
+	C2_PRE(cs_colibri != NULL && ep != NULL);
 
 	/*
 	  strtok() modifies the actual string so making a temporary
@@ -1153,19 +1076,18 @@ static int ep_is_valid(struct c2_net_xprt **xprts, char *ep)
 		return -ENOMEM;
 	strcpy(epaddr, ep);
 	xprt = strtok_r(epaddr, ":", &sptr);
-	rc = lookup_xprt(xprt, xprts);
+	rc = lookup_xprt(xprt, cs_colibri->cc_xprts);
 	if (rc != 0)
 		goto out;
 
 	/* Network layer end point */
 	nep = strtok_r(NULL, " ", &sptr);
-	printf("\n %s \n", nep);
 	if (nep == NULL) {
 		rc = -EADDRNOTAVAIL;
 		goto out;
 	}
 
-	rc = endpoint_is_inuse(xprt, nep);
+	rc = endpoint_is_inuse(cs_colibri, xprt, nep);
 out:
 	c2_free(epaddr);
 	return rc;
@@ -1178,13 +1100,19 @@ out:
  */
 static void cs_usage(FILE *f)
 {
+	C2_PRE(f != NULL);
+
 	fprintf(f, "\n usage: colibri_setup\
 				\n[-i] [-h]\
 	                	\n-r -T storage type\
-				\n-t\
+				\n-x\
 		                \n-D Database -S storage name\
 		                \n-e xport:endpoint\
 		                \n-s [--list] service\
+				\n   e.g. {-r -T [linux | ad]\
+				\n         -D dbname -S stobname\
+				\n         -e xport:127.0.0.1:1024:1\
+				\n         -s service name}\
 				\n");
 }
 
@@ -1195,26 +1123,40 @@ static void cs_usage(FILE *f)
  */
 static void cs_info(FILE *f)
 {
-	fprintf(f, " Colibri setup info\
-		\n-i Colibri setup info\
+	C2_PRE(f != NULL);
+
+	cs_usage(f);
+	fprintf(f, "\n Colibri setup info\n\
+		\n-i Detailed colibri setup info\
+		\n   e.g. colibri_setup -i\
 		\n-h Colibri setup usage help\
+		\n   e.g. colibri_setup -h\
 		\n-r Creates request handler context\
+		\n   There can be multiple request handlers\
+		\n   per colibri process, although every request\
+		\n   handler context comprises of storage type,\
+		\n   database, storage, endpoints and services,\
+		\n   Thus every -r option should succeed other\
+		\n   respective options, which can be out of order.\
 		\n-T Type of storage to be used by\
                 \n   the request handler in current context,\
 		\n   e.g. linux, ad\
-		\n-t Lists supported network transports\
+		\n-x Lists supported network transports\
+		\n   e.g. colibri_setup -x\
 		\n-D Database environment to be used by\
 		\n   by the request handler in current context\
+		\n-S Storage for request handler context\
 		\n-e Network layer endpoint to which clients\
 		\n   are connected.\
 		\n   Network layer endpoint consists of 2 parts\
-		\n   network transport:3-tuple endpoint address\
-		\n   e.g. bulk-sunrpc:127.0.0.1:1024:[1]\
-		\n   This can be specified multiple times, thus there\
+		\n   network transport:endpoint address\
+		\n   Currently supported transport is bulk-sunrpc\
+		\n   which takes 3-tuple endpoint address\
+		\n   e.g. bulk-sunrpc:127.0.0.1:1024:1\
+		\n   This can be specified multiple times, Thus there\
 		\n   can exist multiple endpoints per network transport\
 		\n   with different ids, i.e. 3rd component of 3-tuple\
-		\n   endpoint address.\
-		\n   There exist a network domain per endpoint specifed.\
+		\n   endpoint address in this case.\
 		\n-s Services to be started in given request handler context\
 		\n   -s --list to list supported services on this node\n");
 }
@@ -1222,7 +1164,7 @@ static void cs_info(FILE *f)
 /**
    Initialises colibri context.
    Initialises all the request handler contexts present in the list
-   of the same in c2_cs_colibri
+   of the same in c2_colibri
    Creates and initialises rpcmachines for corresponding endpoints
    per request handler context.
    Initialises and starts services given per reqeust handler context.
@@ -1231,15 +1173,19 @@ static void cs_info(FILE *f)
 
    @retval 0 On success
    	-errno On failure
- */	
-static int cs_setup_env(struct c2_cs_colibri *cs_colibri)
+ */
+static int cs_setup_env(struct c2_colibri *cs_colibri)
 {
 	int                     rc;
 	int                     idx;
 	struct reqh_context    *rctx;
 	struct reqh_context    *rctx_next;
+	FILE                   *ofile;
 
-        c2_list_for_each_entry_safe(&cs_colibri->cs_reqh_ctxs, rctx,
+	C2_PRE(cs_colibri != NULL);
+
+	ofile = cs_colibri->cc_outfile;
+        c2_list_for_each_entry_safe(&cs_colibri->cc_reqh_ctxs, rctx,
 			rctx_next, struct reqh_context, rc_linkage) {
 
 		if (!cs_reqh_ctx_invariant(rctx)) {
@@ -1261,7 +1207,7 @@ static int cs_setup_env(struct c2_cs_colibri *cs_colibri)
 		}
 
 		for (idx = 0; idx < rctx->rc_enr; ++idx) {
-			rc = ep_is_valid(cs_colibri->cs_xprts,
+			rc = ep_is_valid(cs_colibri,
 					rctx->rc_endpoints[idx]);
 			if (rc != 0) {
 				if (rc == -EADDRINUSE)
@@ -1272,13 +1218,14 @@ static int cs_setup_env(struct c2_cs_colibri *cs_colibri)
 					fprintf(stderr,
 						"COLIBRI: Invalid endpoint: %s",
 							rctx->rc_endpoints[idx]);
-					list_xprts(outfile, cs_colibri->cs_xprts);
+					list_xprts(ofile, cs_colibri->cc_xprts);
 				}
 
 				goto out;
 			}
-			rc = cs_rpcmachine_init(rctx->rc_endpoints[idx],
-							&rctx->rc_reqh);
+			rc = cs_rpcmachine_init(cs_colibri,
+						rctx->rc_endpoints[idx],
+						&rctx->rc_reqh);
 			if (rc != 0) {
 				fprintf(stderr, "COLIBRI: Invalid endpoint: %s",
 							rctx->rc_endpoints[idx]);
@@ -1291,7 +1238,7 @@ static int cs_setup_env(struct c2_cs_colibri *cs_colibri)
 			if (rc != 0) {
 				fprintf(stderr, "COLIBRI: Invalid service: %s",
 							rctx->rc_services[idx]);
-				list_services(outfile);
+				list_services(ofile);
 				goto out;
 			}
 
@@ -1305,7 +1252,7 @@ out:
    Parses given arguments and allocates request handler context
    if all the required arguments are provided and valid.
    Every allocated request handler context is added to the list
-   of the same in given c2_cs_colibri intance.
+   of the same in given c2_colibri intance.
 
    @param cs_colibri Colibri instance to which the request handler
    		contexts belong
@@ -1313,31 +1260,37 @@ out:
    @retval 0 On success
    	-errno On failure
  */
-static int cs_parse_args(struct c2_cs_colibri *cs_colibri, int argc,
+static int cs_parse_args(struct c2_colibri *cs_colibri, int argc,
 						char **argv)
 {
 	int                     rc = 0;
 	struct reqh_context    *vrctx;
+	FILE                   *outfile;
 
+	C2_PRE(cs_colibri != NULL);
+
+	outfile = cs_colibri->cc_outfile;
         C2_GETOPTS("colibri_setup", argc, argv,
                 C2_VOIDARG('i', "Start request handler",
                         LAMBDA(void, (void)
                         {
                                 cs_info(outfile);
-				rc = 0;
+				rc = 1;
 				return;
                         })),
                 C2_VOIDARG('h', "Start request handler",
                         LAMBDA(void, (void)
                         {
 				cs_usage(outfile);
-				rc = 0;
+				rc = 1;
                                 return;
                         })),
-		C2_VOIDARG('t', "List Supported transports",
-			LAMBDA(void, (void) 
+		C2_VOIDARG('x', "List Supported transports",
+			LAMBDA(void, (void)
 			{
-				list_xprts(outfile, cs_colibri->cs_xprts);
+				list_xprts(outfile, cs_colibri->cc_xprts);
+				rc = 1;
+				return;
 			})),
                 C2_VOIDARG('r', "Start request handler",
                         LAMBDA(void, (void)
@@ -1375,8 +1328,9 @@ static int cs_parse_args(struct c2_cs_colibri *cs_colibri, int argc,
                         LAMBDA(void, (const char *str)
 			{
 				if (strcmp("--list", str) == 0){
+					rc = 1;
 					list_services(outfile);
-					return;	
+					return;
 				}
 				if (vrctx->rc_snr == vrctx->rc_max_services) {
 					fprintf(stderr, "Too many services");
@@ -1391,7 +1345,7 @@ static int cs_parse_args(struct c2_cs_colibri *cs_colibri, int argc,
 
 /**
    Signal handler registered so that pause()
-   returns inorder to trigger proper cleanup.
+   returns in order to trigger proper cleanup.
  */
 static void cs_term_sig_handler(int signum)
 {
@@ -1404,7 +1358,7 @@ static void cs_wait_for_termination()
 
 	/*
 	   Register a signal handler to capture SIGTERM, SIGINT
-	   and SIGQUIT signals inorder to perform smooth cleanup.
+	   and SIGQUIT signals in order to perform smooth cleanup.
 	 */
 	term_act.sa_handler = cs_term_sig_handler;
 	sigemptyset(&term_act.sa_mask);
@@ -1416,9 +1370,16 @@ static void cs_wait_for_termination()
 	pause();
 }
 
-int c2_cs_start(struct c2_cs_colibri *cs_colibri, int argc, char **argv)
+int c2_cs_start(struct c2_colibri *cs_colibri, int argc, char **argv)
 {
 	int rc;
+
+	C2_PRE(cs_colibri != NULL);
+
+	if (argc <= 1) {
+		rc = -EINVAL;
+		goto out;
+	}
 
 	rc = cs_parse_args(cs_colibri, argc, argv);
 	if (rc != 0)
@@ -1427,26 +1388,23 @@ int c2_cs_start(struct c2_cs_colibri *cs_colibri, int argc, char **argv)
 	rc = cs_setup_env(cs_colibri);
 	if (rc != 0)
 		goto out;
-
-	cs_wait_for_termination();
-
 out:
 	return rc;
 }
 
-int c2_cs_init(struct c2_cs_colibri *cs_colibri,
+int c2_cs_init(struct c2_colibri *cs_colibri,
 		struct c2_net_xprt **xprts, FILE *out)
 {
         int rc;
 
         C2_PRE(cs_colibri != NULL && xprts != NULL);
 
-        cs_colibri->cs_xprts = xprts;
+        cs_colibri->cc_xprts = xprts;
 
 	if (out == NULL)
-		outfile = stdout;
+		cs_colibri->cc_outfile = stdout;
 	else
-		outfile = out;
+		cs_colibri->cc_outfile = out;
 
         rc = c2_init();
 
@@ -1459,8 +1417,10 @@ int c2_cs_init(struct c2_cs_colibri *cs_colibri,
         return rc;
 }
 
-void c2_cs_fini(struct c2_cs_colibri *cs_colibri)
+void c2_cs_fini(struct c2_colibri *cs_colibri)
 {
+	C2_PRE(cs_colibri != NULL);
+
         cs_reqh_ctxs_fini(cs_colibri);
         cs_colibri_fini(cs_colibri);
         c2_fini();
@@ -1471,16 +1431,19 @@ int main(int argc, char **argv)
 	int     rc;
 
 	errno = 0;
-	rc = c2_cs_init(&cs_colibri, cs_xprts, stdout);
+	rc = c2_cs_init(&colibri_ctx, cs_xprts, stdout);
 
 	if (rc != 0) {
 		fputs("\n Failed to initialise Colibri \n", stderr);
 		goto out;
 	}
 
-	rc = c2_cs_start(&cs_colibri, argc, argv);
+	rc = c2_cs_start(&colibri_ctx, argc, argv);
 
-	c2_cs_fini(&cs_colibri);
+	if (rc == 0)
+		cs_wait_for_termination();
+
+	c2_cs_fini(&colibri_ctx);
 out:
 	errno = rc < 0 ? -rc : rc;
 	return errno;

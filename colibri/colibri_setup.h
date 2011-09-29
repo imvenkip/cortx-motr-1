@@ -1,4 +1,3 @@
-
 /* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
@@ -56,23 +55,33 @@
    and corresponding in memory represetations of storage, database environment,
    cob domain, fol, network domains, services and request handler.
  */
-struct c2_cs_colibri {
+struct c2_colibri {
 	/**
 	   Array of netwrk transports supported in a colibri
 	   process.
 	 */
-	struct c2_net_xprt       **cs_xprts;
+	struct c2_net_xprt       **cc_xprts;
         /**
            List of network domain per colibri process
            address space.
          */
-        struct c2_list            cs_ndoms;
+        struct c2_list            cc_ndoms;
 
         /**
            List of request handler contexts running under
            one colibri process address space on a node.
          */
-	struct c2_list            cs_reqh_ctxs;
+	struct c2_list            cc_reqh_ctxs;
+	/**
+	   File to which the output is written.
+	   This is set to stdout by default if no output file
+	   is specified.
+	   Default is set to stdout.
+
+	   @see c2_cs_init()
+	 */
+	FILE                     *cc_outfile;
+
 };
 
 /**
@@ -88,14 +97,14 @@ struct c2_cs_colibri {
    @retval 0 On success
    	-errno On failure
  */
-int c2_cs_init(struct c2_cs_colibri *cs_colibri, struct c2_net_xprt **xprts,
+int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
 								FILE *out);
 /**
    Finalises an instance of colibri process.
 
    @param cs_colibri Instance of colibri process to be finalised
  */
-void c2_cs_fini(struct c2_cs_colibri *cs_colibri);
+void c2_cs_fini(struct c2_colibri *cs_colibri);
 
 /**
    Initialises the environment and starts the colibri process with
@@ -104,9 +113,9 @@ void c2_cs_fini(struct c2_cs_colibri *cs_colibri);
    @param cs_colibri Instance of colibri process to be initialised
 
    @retval 0 On success
-	-errno On failure   
- */  
-int c2_cs_start(struct c2_cs_colibri *cs_colibri, int argc, char **argv);
+	-errno On failure
+ */
+int c2_cs_start(struct c2_colibri *cs_colibri, int argc, char **argv);
 
 /** @} endgroup colibri_setup */
 

@@ -67,7 +67,11 @@ struct c2_reqh {
 	struct c2_fom_domain	 rh_fom_dom;
         /** Services registered with this request handler */
         struct c2_list           rh_services;
-        /** RPC machines running in this request handler */
+        /**
+	    RPC machines running in this request handler
+	    There is one rpc machine per request handler
+	    end point.
+	 */
         struct c2_list           rh_rpcmachines;
 };
 
