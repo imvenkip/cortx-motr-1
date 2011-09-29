@@ -22,22 +22,22 @@
 #define __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 
 /**
-   @defgroup colibri_setup Configures user space colibri process
+   @defgroup colibri_setup Configures user space colibri environment
 
    Colibri setup program configures and starts a user space colibri
-   process on a node in a cluster.
+   environment on a node in a cluster.
    There exist a list of network transports supported by a node,
    which is used to initialise corresponding network domains per colibri
-   process, so there exist a network domain per network transport.
-   There can exist multiple request handlers per colibri process.
-   Every colibri process configures one or more request handler
+   environment, so there exist a network domain per network transport.
+   There can exist multiple request handlers per colibri environment.
+   Every colibri environment configures one or more request handler
    contexts, one per request handler, each containing a storage domain,
    data base, cob domain, fol and request handler to be initialised.
    Every request handler contains a list of rpc machines, each configured
    per given endpoint per network domain.
    Network domains are shared between multiple request handlers in a
-   colibri process.
-   There exist multiple services within a colibri process.
+   colibri environment.
+   There exist multiple services within a colibri environment.
    Each service identifies a particular set of operations that can be
    executed on a particular node.
    Services are registered with the request handler which performs the
@@ -48,7 +48,7 @@
  */
 
 /**
-   Defines a colibri process containing a set of network transports,
+   Defines a colibri environment containing a set of network transports,
    network domains and request handler contexts.
 
    Every request handler context is a set of parsed values of setup arguments
@@ -58,18 +58,18 @@
 struct c2_colibri {
 	/**
 	   Array of netwrk transports supported in a colibri
-	   process.
+	   environment.
 	 */
 	struct c2_net_xprt       **cc_xprts;
         /**
-           List of network domain per colibri process
+           List of network domain per colibri environment
            address space.
          */
         struct c2_list            cc_ndoms;
 
         /**
            List of request handler contexts running under
-           one colibri process address space on a node.
+           one colibri environment address space on a node.
          */
 	struct c2_list            cc_reqh_ctxs;
 	/**
@@ -85,32 +85,32 @@ struct c2_colibri {
 };
 
 /**
-   Initialises an instance of colibri process.
+   Initialises an instance of colibri environment.
    This includes initialising network resources like transports,
    and network domains.
 
-   @param cs_colibri In memory representation of a colibri process
+   @param cs_colibri In memory representation of a colibri environment
    @param xprts Array or network transports supported by given
-   	colibri process
+	colibri environment
    @param out File descriptor to which output is written
 
    @retval 0 On success
-   	-errno On failure
+	-errno On failure
  */
 int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
 								FILE *out);
 /**
-   Finalises an instance of colibri process.
+   Finalises an instance of colibri environment.
 
-   @param cs_colibri Instance of colibri process to be finalised
+   @param cs_colibri Instance of colibri environment to be finalised
  */
 void c2_cs_fini(struct c2_colibri *cs_colibri);
 
 /**
-   Initialises the environment and starts the colibri process with
+   Initialises the environment and starts the colibri environment with
    the specified arguments.
 
-   @param cs_colibri Instance of colibri process to be initialised
+   @param cs_colibri Instance of colibri environment to be initialised
 
    @retval 0 On success
 	-errno On failure

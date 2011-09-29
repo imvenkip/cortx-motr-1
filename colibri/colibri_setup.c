@@ -218,7 +218,7 @@ static void cs_reqh_ctx_free(struct reqh_context *rctx)
    Allocates a reqh_context instance and adds it to the list of
    request handler contexts present in c2_colibri.
 
-   @param cs_colibri Colibri process context
+   @param cs_colibri Colibri environment
 
    @see c2_colibri
  */
@@ -267,7 +267,7 @@ out:
    call to c2_cs_init().
 
    @param xprt_name Type of network transport to be initialised
-   @param cs_colibri Colibri process context
+   @param cs_colibri Colibri environment
 
    @pre cs_colibri != NULL && xprt_name != NULL
 
@@ -308,13 +308,13 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cs_colibri,
    Given request handler should already be initialised
    before this function is invoked.
 
-   @param cs_colibri Colibri process context
+   @param cs_colibri Colibri environment
    @param ep 2 part end point address comprising
 	of network transport:network layer endpoint
 	address
 
    @param reqh Request handler to which the newly created
-   		rpcmachine belongs.
+		rpcmachine belongs.
 
    @pre cs_colibri != NULL && ep != NULL && reqh != NULL
 
@@ -466,7 +466,6 @@ struct mock_balloc mb = {
 
    @param stob_type Type of stob to be initialised (e.g. linux or ad)
    @param stob_path Path at which storage object should be created
-   @param dbpath Path at which database environment should be created
    @param stob Pre allocated struct reqh_stob_domain wrapper object
 	containing c2_stob_domain references for linux and ad stob types
    @param db Pre allocated struct c2_dbenv instance to be initialised
@@ -474,7 +473,7 @@ struct mock_balloc mb = {
    @see struct reqh_stob_domain
 
    @pre stob_type != NULL && stob_path != NULL &&
-	dbpath != NULL && stob != NULL && db != NULL
+	stob != NULL && db != NULL
 
    @retval 0 On success
 	-errno On failure
@@ -559,10 +558,10 @@ out:
 
 /**
    Finalises storage for a request handler in colibri
-   process context.
+   environment.
 
-   @param stob Generic stob containing actual c2_stob_domain
-	references to be finalised
+   @param stob Wrapper stob containing c2_stob_domain
+		references for linux and ad to be finalised
    @param db Database to be finalised
 
    @see struct reqh_stob_domain
@@ -583,7 +582,7 @@ static void cs_storage_fini(struct reqh_stobs *stob)
 
 /**
    Initialises and registers a particular type of service with
-   the given request handler in colibri process context.
+   the given request handler in colibri environment.
    Once the service is initialised it is started, and registered
    with the appropriate request handler.
 
@@ -621,7 +620,7 @@ out:
 
 /**
    Finalises a particular service registered with a request
-   handler in colibri process context.
+   handler in colibri environment.
    Stops the service, and unregisters it from its request
    handler.
 
@@ -753,7 +752,7 @@ static void cs_net_domains_fini(struct c2_colibri *cs_colibri)
    per node.
 
    @param cs_colibri Colibri process to which given request handler
-   	context belongs
+		context belongs
    @param rctx Request handler context to be initialised
 
    @see struct reqh_context
@@ -861,7 +860,7 @@ static void cs_reqh_ctx_fini(struct reqh_context *rctx)
    given colibri process on a node.
 
    @param cs_colibri Colibri process to which the reqeust handler
-   	contexts belong
+		contexts belong
  */
 static void cs_reqh_ctxs_fini(struct c2_colibri *cs_colibri)
 {
@@ -877,15 +876,15 @@ static void cs_reqh_ctxs_fini(struct c2_colibri *cs_colibri)
 }
 
 /**
-   Initialises given colibri process context, containing
+   Initialises given colibri environment, containing
    network domains for given network transports and processors.
 
-   @param cs_colibri Colibri process context to be initialised
+   @param cs_colibri Colibri environment to be initialised
 
    @pre cs_colibri != NULL
 
    @retval 0 On success
-   	-errno On failure
+	-errno On failure
  */
 static int cs_colibri_init(struct c2_colibri *cs_colibri)
 {
@@ -915,7 +914,7 @@ out:
 
    @pre cs_colibri != NULL
 
-   @param cs_colibri Colibri process context to be finalised
+   @param cs_colibri Colibri environment to be finalised
  */
 static void cs_colibri_fini(struct c2_colibri *cs_colibri)
 {
@@ -973,8 +972,8 @@ void list_services(FILE *f)
    Looks up if given xprt is supported
 
    @param xprt_name Network transport name for lookup
-   @param xprts Array of network transports supported in colibri
-   		process
+   @param xprts Array of network transports supported in a
+		colibri environment
 
    @pre xprt_name != NULL && xprts != NULL
 
@@ -1008,7 +1007,7 @@ static void list_xprts(FILE *f, struct c2_net_xprt **xprts)
    Checks if given network layer end point address
    is already in use.
 
-   @param cs_colibri Colibri process context
+   @param cs_colibri Colibri environment
    @param xprt Network transport
    @param nep  Network layer end point
 
@@ -1049,7 +1048,7 @@ static int endpoint_is_inuse(struct c2_colibri *cs_colibri, char *xprt,
    end point.
 
    @param xprts Array of network transports supported in a
-   		colibri process
+		colibri environment
    @param ep Endpoint address to be validated
 
    @pre xprts != NULL && ep != NULL
@@ -1104,7 +1103,7 @@ static void cs_usage(FILE *f)
 
 	fprintf(f, "\n usage: colibri_setup\
 				\n[-i] [-h]\
-	                	\n-r -T storage type\
+				\n-r -T storage type\
 				\n-x\
 		                \n-D Database -S storage name\
 		                \n-e xport:endpoint\
@@ -1169,10 +1168,10 @@ static void cs_info(FILE *f)
    per request handler context.
    Initialises and starts services given per reqeust handler context.
 
-   @param cs_colibri Colibri process context to be initialised
+   @param cs_colibri Colibri environment to be initialised
 
    @retval 0 On success
-   	-errno On failure
+	-errno On failure
  */
 static int cs_setup_env(struct c2_colibri *cs_colibri)
 {
@@ -1255,10 +1254,10 @@ out:
    of the same in given c2_colibri intance.
 
    @param cs_colibri Colibri instance to which the request handler
-   		contexts belong
+		contexts belong
 
    @retval 0 On success
-   	-errno On failure
+	-errno On failure
  */
 static int cs_parse_args(struct c2_colibri *cs_colibri, int argc,
 						char **argv)
