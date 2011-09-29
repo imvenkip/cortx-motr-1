@@ -29,6 +29,7 @@ all:
 	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
 	for s in $(testdirs) ;do $(MAKE) -C $$s prepare ;done
 	ln -sf $(CORE_SRCDIR)/colibri/init.c .
+	# DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd`
 
 clean distclean:

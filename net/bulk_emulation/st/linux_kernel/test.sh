@@ -14,10 +14,7 @@ fi
 
 . c2t1fs/st/common.sh
 
-MODLIST="lib/linux_kernel/klibc2.ko \
-         addb/linux_kernel/kaddb.ko \
-         fop/linux_kernel/kfop.ko \
-         net/linux_kernel/knetc2.ko"
+MODLIST="build_kernel_modules/kcolibri.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
@@ -25,7 +22,7 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-#modload
+modload
 # insert ST module separately to pass parameters
 insmod net/bulk_emulation/st/linux_kernel/knetst.ko verbose passive_size=56000
 
@@ -33,7 +30,7 @@ insmod net/bulk_emulation/st/linux_kernel/knetst.ko verbose passive_size=56000
 net/bulk_emulation/st/bulkping -c -t bulk-sunrpc -v
 net/bulk_emulation/st/bulkping -c -t bulk-sunrpc -v -n 8 -d 56000
 
-#rmmod knetst
+rmmod knetst
 modunload
 
 sleep 1
