@@ -1,8 +1,8 @@
 POOL_SRCDIR = @SRCDIR@/pool/linux_kernel
 
-obj-m       := kpool.o
+obj-y       := kpool.o
 shared_src  := pool.c
-kernel_src  := kpool.c
+kernel_src  :=
 kpool-y     := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 

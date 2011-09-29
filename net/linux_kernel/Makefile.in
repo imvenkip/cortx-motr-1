@@ -37,7 +37,7 @@ all_src       := $(kernel_src) $(net_src) $(bulk_src) $(depr_src) $(depr_ksrc)\
                  $(deprbulk_src)
 all_obj       := $(all_src:.c=.o)
 
-obj-m         := $(NET_MOD).o
+obj-y         := $(NET_MOD).o
 $(NET_MOD)-y  := $(all_obj)
 
 dist_src      := Makefile.in $(local_src)

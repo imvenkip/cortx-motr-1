@@ -79,7 +79,6 @@ int c2_fom_ping_state(struct c2_fom *fom)
         ping_fop_rep = c2_fop_data(fop);
         ping_fop_rep->fpr_rc = true;
 	item = c2_fop_to_rpc_item(fop);
-	c2_rpc_item_init(item);
 	item->ri_type = &c2_rpc_item_type_ping_rep;
 	item->ri_group = NULL;
 	fop->f_type->ft_ri_type = &c2_rpc_item_type_ping_rep;

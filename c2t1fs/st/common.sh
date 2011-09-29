@@ -1,6 +1,6 @@
 #! /bin/sh
 
-MODLIST="lib/linux_kernel/klibc2.ko \
+#MODLIST="lib/linux_kernel/klibc2.ko \
          addb/linux_kernel/kaddb.ko \
          db/linux_kernel/kdb.ko \
          fop/linux_kernel/kfop.ko \
@@ -15,6 +15,8 @@ MODLIST="lib/linux_kernel/klibc2.ko \
          layout/linux_kernel/klayout.ko \
          c2t1fs/c2t1fs.ko"
 #         c2t1fs/c2t1fs_loop.ko"
+
+MODLIST="build_kernel_modules/kcolibri.ko"
 
 abort()
 {

@@ -17,7 +17,7 @@
   @{
  */
 
-static int __init c2_net_init_k(void)
+int __init c2_net_init_k(void)
 {
 	int rc;
 	rc = c2_net_init();
@@ -36,7 +36,7 @@ static int __init c2_net_init_k(void)
 	return 0;
 }
 
-static void __exit c2_net_fini_k(void)
+void __exit c2_net_fini_k(void)
 {
 	printk(KERN_INFO "Colibri Kernel Messaging removed\n");
 	c2_sunrpc_fop_fini();

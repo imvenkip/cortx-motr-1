@@ -1442,7 +1442,7 @@ static void c2t1fs_destroy_inodecache(void)
 	c2t1fs_inode_cachep = NULL;
 }
 
-int init_module(void)
+int c2t1fs_init_module(void)
 {
 	struct c2_net_domain *dom = &c2t1fs_domain;
         int rc;
@@ -1477,7 +1477,7 @@ int init_module(void)
         return rc;
 }
 
-void cleanup_module(void)
+void c2t1fs_cleanup_module(void)
 {
         int rc;
 

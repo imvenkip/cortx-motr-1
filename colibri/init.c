@@ -19,15 +19,19 @@
  */
 
 #include "lib/cdefs.h"
+#include "fop/fop.h"
 
+#ifndef __KERNEL__
 #include "lib/user_space/thread.h"
+#include "net/usunrpc/usunrpc.h"
+#include "desim/sim.h"
+#endif
+
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/bulk_emulation/mem_xprt.h"
-#include "net/usunrpc/usunrpc.h"
 #include "rpc/rpccore.h"
-#include "fop/fop.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
 #include "layout/layout.h"
@@ -37,7 +41,6 @@
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "fol/fol.h"
-#include "desim/sim.h"
 #include "reqh/reqh.h"
 
 #include "colibri/init.h"
@@ -53,7 +56,7 @@ struct init_fini_call {
 	void (*ifc_fini)(void);
 	const char *ifc_name;
 };
-
+#ifndef __KERNEL__
 struct init_fini_call subsystem[] = {
 	{ &c2_trace_init,    &c2_trace_fini,   "trace" },
 	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
@@ -75,6 +78,31 @@ struct init_fini_call subsystem[] = {
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }
 };
+#else
+
+#define fprintf(x, ...)
+
+int c2t1fs_init_module(void);
+void c2t1fs_cleanup_module(void);
+
+int c2_ioservice_fop_init(void);
+void c2_ioservice_fop_fini(void);
+
+int c2_net_init_k(void);
+void c2_net_fini_k(void);
+
+struct init_fini_call subsystem[] = {
+	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
+	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
+	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
+	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
+	{ &c2_net_init_k,    &c2_net_fini_k,     "net" },
+	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
+	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
+	{ &c2_ioservice_fop_init, &c2_ioservice_fop_fini, "ioservice" },
+	{ &c2t1fs_init_module, &c2t1fs_cleanup_module,  "c2t1fs" },
+};
+#endif /* __KERNEL__ */
 
 static void fini_nr(int i)
 {

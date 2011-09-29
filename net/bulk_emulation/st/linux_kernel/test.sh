@@ -25,7 +25,7 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-modload
+#modload
 # insert ST module separately to pass parameters
 insmod net/bulk_emulation/st/linux_kernel/knetst.ko verbose passive_size=56000
 
@@ -33,7 +33,7 @@ insmod net/bulk_emulation/st/linux_kernel/knetst.ko verbose passive_size=56000
 net/bulk_emulation/st/bulkping -c -t bulk-sunrpc -v
 net/bulk_emulation/st/bulkping -c -t bulk-sunrpc -v -n 8 -d 56000
 
-rmmod knetst
+#rmmod knetst
 modunload
 
 sleep 1

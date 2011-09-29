@@ -49,7 +49,7 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #endif
 
 #include "stob/ut/io.ff"
-#include "addb/addb.ff"
+//#include "addb/addb.ff"
 
 /**
    @addtogroup stob
@@ -81,6 +81,7 @@ C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  21, NULL);
 C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply",   22, NULL);
 C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 23, NULL);
 
+/*
 struct c2_fop_type c2_addb_record_fopt = {
 	.ft_code = (14),
 	.ft_name = "addb",
@@ -94,19 +95,19 @@ struct c2_fop_type c2_addb_reply_fopt = {
 	.ft_fmt  = &c2_addb_reply_tfmt,
 	.ft_ops  = NULL
 };
-
+*/
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
 	&c2_io_quit_fopt,
-	&c2_addb_record_fopt,
+//	&c2_addb_record_fopt,
 
 	&c2_io_write_rep_fopt,
 	&c2_io_read_rep_fopt,
 	&c2_io_create_rep_fopt,
 
-	&c2_addb_reply_fopt,
+//	&c2_addb_reply_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
