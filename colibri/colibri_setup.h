@@ -48,27 +48,32 @@
  */
 
 /**
-   Defines a colibri address space containing a set of network transports,
+   Defines a colibri context containing a set of network transports,
    network domains and request handler contexts.
 
    Every request handler context is a set of parsed values of setup arguments
-   and corresponding in memory represetations of storage, database environment,
+   and corresponding in memory representations of storage, database environment,
    cob domain, fol, network domains, services and request handler.
  */
 struct c2_colibri {
 	/**
-	   Array of netwrk transports supported in a colibri
-	   address space.
+	   Array of network transports supported in a colibri
+	   context.
 	 */
 	struct c2_net_xprt       **cc_xprts;
+
+	/**
+	   Size of cc_xprts array.
+	 */
+	int                       cc_xprts_nr;
         /**
-           List of network domain per colibri address space.
+           List of network domain per colibri context.
          */
         struct c2_list            cc_ndoms;
 
         /**
            List of request handler contexts running under
-           one colibri address space on a node.
+           one colibri context on a node.
          */
 	struct c2_list            cc_reqh_ctxs;
 	/**
@@ -84,35 +89,51 @@ struct c2_colibri {
 };
 
 /**
-   Initialises colibri address space.
+   Initialises colibri context.
    This includes initialising network resources like transports,
    and network domains.
 
-   @param cs_colibri Represents a colibri address space
+   @param cs_colibri Represents a colibri context
    @param xprts Array or network transports supported in a colibri
-		address space
+		context
+   @param xprts_nr Size of xprts array
    @param out File descriptor to which output is written
 
    @retval 0 On success
 	-errno On failure
  */
 int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
-								FILE *out);
+						int xprts_nr, FILE *out);
 /**
-   Finalises colibri address space.
+   Finalises colibri context.
  */
 void c2_cs_fini(struct c2_colibri *cs_colibri);
 
 /**
-   Initialises a colibri address space using the specified input
-   arguments.
+   Configures colibri context before starting the services.
+   Parses the given arguments.
+   Initialises network domains.
+   Creates and initialises request handler contexts.
+   Configures rpc machines each per request handler end point.
 
-   @param cs_colibri Colibri address space
+   @param cs_colibri Colibri context to be initialised
 
    @retval 0 On success
-	-errno On failure
+	-errno on failure
  */
-int c2_cs_start(struct c2_colibri *cs_colibri, int argc, char **argv);
+int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv);
+
+/**
+   Starts all the specified services in the colibri context.
+   Only once the colibri environment is configured with network domains,
+   request handlers and rpc machines, specified services are started.
+
+   @param cs_colibri Colibri context in which services are started
+
+   @retval 0 If all the services are started successfuly
+	-errno If services fail to startup
+ */
+int c2_cs_start(struct c2_colibri *cs_colibri);
 
 /** @} endgroup colibri_setup */
 
