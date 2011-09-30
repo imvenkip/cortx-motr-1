@@ -250,8 +250,10 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
 	c2_db_pair_fini(&db_pair);
 	if (table_update_failed)
 		c2_db_tx_abort(&tx);
-	else
+	else {
+		c2_time_add(c2_time_now(), cfm->cfm_last_mod);
 		c2_db_tx_commit(&tx);
+	}
 	c2_table_fini(&table);
 
 	return rc;
@@ -318,8 +320,10 @@ cleanup:
 	c2_db_pair_fini(&db_pair);
 	if (table_op_failed)
 		c2_db_tx_abort(&tx);
-	else
+	else {
 		c2_db_tx_commit(&tx);
+		c2_time_add(c2_time_now(), cfm->cfm_last_mod);
+	}
 	c2_table_fini(&table);
 	return rc;
 }
