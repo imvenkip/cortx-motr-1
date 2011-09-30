@@ -528,16 +528,23 @@ struct c2_cfg_env cfg_env;
 
 int  c2_cfg_env_init(struct c2_cfg_env *env)
 {
-
+	/*
+	   Init the database environment, tables, transaction.
+           Init the mutex lock and others.
+	*/
 	return 0;
 }
 
-void c2_cfg_env_fini(struct c2_cfg_env *env)
+void c2_cfg_env_fini(struct c2_cfg_env *env, bool commit)
 {
-
+	/*
+	  Commit or abort the database transaction. Close the database tables
+	  and the environment.
+	  Fini the mutex lock and others.
+	*/
 }
 
-int c2_cfg_device_create(struct c2_cfg_env *env, struct c2_cfg_device *device)
+int c2_cfg_device_insert(struct c2_cfg_env *env, struct c2_cfg_device *device)
 {
 
 	return 0;
@@ -550,6 +557,150 @@ int c2_cfg_device_update(struct c2_cfg_env *env, struct c2_cfg_device *device)
 }
 
 int c2_cfg_device_delete(struct c2_cfg_env *env, struct c2_cfg_device *device)
+{
+
+	return 0;
+}
+
+int c2_cfg_fs_insert(struct c2_cfg_env *env, struct c2_cfg_filesystem *fs)
+{
+
+	return 0;
+}
+
+int c2_cfg_fs_update(struct c2_cfg_env *env, struct c2_cfg_filesystem *fs)
+{
+
+	return 0;
+}
+
+int c2_cfg_fs_delete(struct c2_cfg_env *env, struct c2_cfg_filesystem *fs)
+{
+
+	return 0;
+}
+
+int c2_cfg_nic_insert(struct c2_cfg_env *env, struct c2_cfg_nic *nic)
+{
+
+	return 0;
+}
+
+int c2_cfg_nic_update(struct c2_cfg_env *env, struct c2_cfg_nic *nic)
+{
+
+	return 0;
+}
+
+int c2_cfg_nic_delete(struct c2_cfg_env *env, struct c2_cfg_nic *nic)
+{
+
+	return 0;
+}
+
+int c2_cfg_node_insert(struct c2_cfg_env *env, struct c2_cfg_node *node)
+{
+
+	return 0;
+}
+
+int c2_cfg_node_update(struct c2_cfg_env *env, struct c2_cfg_node *node)
+{
+
+	return 0;
+}
+
+int c2_cfg_node_delete(struct c2_cfg_env *env, struct c2_cfg_node *node)
+{
+
+	return 0;
+}
+
+int c2_cfg_partition_insert(struct c2_cfg_env *env, struct c2_cfg_partition *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_partition_update(struct c2_cfg_env *env, struct c2_cfg_partition *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_partition_delete(struct c2_cfg_env *env, struct c2_cfg_partition *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_param_insert(struct c2_cfg_env *env, struct c2_cfg_param *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_param_update(struct c2_cfg_env *env, struct c2_cfg_param *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_param_delete(struct c2_cfg_env *env, struct c2_cfg_param *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_pool_insert(struct c2_cfg_env *env, struct c2_cfg_pool *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_pool_update(struct c2_cfg_env *env, struct c2_cfg_pool *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_pool_delete(struct c2_cfg_env *env, struct c2_cfg_pool *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_profile_insert(struct c2_cfg_env *env, struct c2_cfg_profile *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_profile_update(struct c2_cfg_env *env, struct c2_cfg_profile *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_profile_delete(struct c2_cfg_env *env, struct c2_cfg_profile *p)
+{
+
+	return 0;
+}
+
+int c2_cfg_service_insert(struct c2_cfg_env *env, struct c2_cfg_service *s)
+{
+
+	return 0;
+}
+
+int c2_cfg_service_update(struct c2_cfg_env *env, struct c2_cfg_service *s)
+{
+
+	return 0;
+}
+
+int c2_cfg_service_delete(struct c2_cfg_env *env, struct c2_cfg_service *s)
 {
 
 	return 0;
