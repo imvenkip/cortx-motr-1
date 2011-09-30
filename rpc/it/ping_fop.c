@@ -32,9 +32,9 @@
 #include "ping_fop_u.h"
 #endif
 #include "fop/fop_iterator.h"
-#include "ping_fop.h"
-#include "ping_fom.h"
-#include "ping_fop.ff"
+#include "rpc/it/ping_fop.h"
+#include "rpc/it/ping_fom.h"
+#include "rpc/it/ping_fop.ff"
 #include "lib/errno.h"
 #include "rpc/rpccore.h"
 #include "rpc/rpc_onwire.h"

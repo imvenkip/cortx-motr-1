@@ -1,4 +1,4 @@
-SM_SRCDIR = @SRCDIR@/cob/linux_kernel
+COB_SRCDIR = @SRCDIR@/cob/linux_kernel
 
 obj-m		:= kcob.o
 shared_src	:= cob.c
@@ -22,5 +22,5 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(FID_SRCDIR)/Makefile.in $(FID_SRCDIR)/cob.h \
+	cp $(COB_SRCDIR)/Makefile.in $(COB_SRCDIR)/cob_kernel.c \
 	    @top_builddir@/@PACKAGE@-@VERSION@/cob/linux_kernel

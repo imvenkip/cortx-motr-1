@@ -737,13 +737,13 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_setup(&pair, &dom->cd_namespace, nskey, sizeof (*nskey) + 20,
 				&nsrec, sizeof nsrec);
 	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
-		#ifndef __KERNEL__
+#ifndef __KERNEL__
 		printf("[%lx:%lx:%s] -> [%lx:%lx]\n", nskey->cnk_pfid.si_bits.u_hi,
 				nskey->cnk_pfid.si_bits.u_lo,
 				nskey->cnk_name.b_data,
 				nsrec.cnr_stobid.si_bits.u_hi,
 				nsrec.cnr_stobid.si_bits.u_lo);
-		#endif
+#endif
 	}
 
 	printf("=================================================\n");
@@ -774,12 +774,12 @@ void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 	c2_db_pair_setup(&pair, &dom->cd_fileattr_basic, &key, sizeof key,
 				&rec, sizeof rec);
 	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
-		#ifndef __KERNEL__
+#ifndef __KERNEL__
 		printf("[%lx:%lx] -> [%lu:%lu]\n", key.si_bits.u_hi,
 				key.si_bits.u_lo,
 				rec.cfb_version.vn_lsn,
 				rec.cfb_version.vn_vc);
-		#endif
+#endif
 	}
 
 	printf("=================================================\n");

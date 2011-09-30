@@ -1,4 +1,4 @@
-SM_SRCDIR = @SRCDIR@/fol/linux_kernel
+FOL_SRCDIR = @SRCDIR@/fol/linux_kernel
 
 obj-m		:= kfol.o
 shared_src	:= fol.c
@@ -22,5 +22,5 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(FID_SRCDIR)/Makefile.in $(FID_SRCDIR)/fol.h \
+	cp $(FOL_SRCDIR)/Makefile.in $(FOL_SRCDIR)/fol_kernel.c \
 	    @top_builddir@/@PACKAGE@-@VERSION@/fol/linux_kernel

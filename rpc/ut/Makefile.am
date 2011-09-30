@@ -20,3 +20,6 @@ test_u.h test_u.c : test.ff \
 onwire_ut_SOURCES     = test_u.h test_u.c onwire_ut.c
 onwire_ut_LDADD       = $(top_builddir)/colibri/libcolibri.la
 
+clean-local:
+	cd $(UT_SRCDIR) ; \
+	rm -fr test_[uk].[ch]

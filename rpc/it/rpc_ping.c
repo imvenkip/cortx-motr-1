@@ -39,8 +39,8 @@
 #include "rpc/formation.h"
 #include "fol/fol.h"
 #include "reqh/reqh.h"
-#include "ping_fop.h"
-#include "ping_fom.h"
+#include "rpc/it/ping_fop.h"
+#include "rpc/it/ping_fom.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>

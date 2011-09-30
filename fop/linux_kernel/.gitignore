@@ -1,3 +1,5 @@
 fop.c
+fop_base.c
+fom.c
 fop_format.c
 fop_iterator.c
