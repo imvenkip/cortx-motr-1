@@ -42,7 +42,7 @@ enum {
 };
 
 /**
-  Internal data structure used as a key to the record
+  Internal data structure used as a key for the record in cobfid_map table
  */
 struct cobfid_map_key {
 	uint64_t	cfk_ci;  /**< container id */
@@ -50,7 +50,7 @@ struct cobfid_map_key {
 };
 
 /**
-   Internal data structure used to store a record in the iterator buffer.
+  Internal data structure used to store a record in the iterator buffer.
  */
 struct cobfid_map_record {
 	/**< key combining container id and global file id */
@@ -60,7 +60,7 @@ struct cobfid_map_record {
 };
 
 /**
-  Table definition for cobfid_map
+  Compare the cobfid_map table keys
  */
 static int cfm_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
@@ -68,8 +68,9 @@ static int cfm_cmp(struct c2_table *table, const void *key0, const void *key1)
 	const struct cobfid_map_key *map_key0 = key0;
 	const struct cobfid_map_key *map_key1 = key1;
 
-	C2_PRE(c2_fid_is_valid(&map_key0->cfk_fid));
-	C2_PRE(c2_fid_is_valid(&map_key1->cfk_fid));
+	C2_PRE(table != NULL);
+	C2_PRE(key0 != NULL);
+	C2_PRE(key1 != NULL);
 
 	rc = c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid);
 	return rc ?: C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci);
@@ -206,6 +207,66 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 }
 C2_EXPORTED(c2_cobfid_map_fini);
 
+int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
+		      struct c2_fid file_fid, struct c2_uint128 cob_fid)
+{
+	int			 rc;
+	struct c2_table		 table;
+	struct c2_db_tx		 tx;
+	struct c2_db_pair	 db_pair;		
+	struct cobfid_map_key	*key;
+
+	C2_PRE(cobfid_map_invariant(cfm));
+
+	key->cfk_ci = container_id;
+	key->cfk_fid = file_fid;
+
+	rc = c2_table_init(&table, cfm->cfm_dbenv, cfm->cfm_map_name,
+			   0, &cfm_table_ops);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_init", rc);
+		return rc;
+	}
+
+	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_tx_init", rc);
+		c2_table_fini(&table);
+		return rc;
+	}
+
+	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
+	rc = c2_table_update(&tx, &db_pair);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_update", rc);
+		c2_db_pair_release(&db_pair);
+		c2_db_pair_fini(&db_pair);
+		c2_db_tx_abort(&tx);
+		c2_table_fini(&table);
+		return rc;
+	}
+
+	c2_db_pair_release(&db_pair); 
+	c2_db_pair_fini(&db_pair);
+	c2_db_tx_commit(&tx);
+	c2_table_fini(&table);
+
+	return rc;
+}
+C2_EXPORTED(c2_cobfid_map_add);
+
+int c2_cobfid_map_del(struct c2_cobfid_map *cfm, uint64_t container_id,
+		      struct c2_fid file_fid)
+{
+	int rc;
+
+	return rc;
+}
+C2_EXPORTED(c2_cobfid_map_del);
 
 /*
  *****************************************************************************
