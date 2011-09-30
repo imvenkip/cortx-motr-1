@@ -6,7 +6,12 @@
  */
 
 struct c2_fop_type;
+struct c2_rpc_item_type *item_type;
 
+int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
+{
+	return 0;
+}
 void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 {
 }

@@ -101,6 +101,7 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 		if (result != 0)
 			c2_fop_type_fini(fopt);
 	}
+	//c2_rpc_item_type_register(&fopt->ft_rpc_item_type);
 	fop_types_built = true;
 	return result;
 }

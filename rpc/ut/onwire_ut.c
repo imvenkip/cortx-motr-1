@@ -34,6 +34,19 @@
 #include "xcode/bufvec_xcode.h"
 #include "lib/vec.h"
 #include "rpc/session_internal.h"
+#include "rpc/rpc_base.h"
+
+#define C2_ONWIRE_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags, itops) \
+struct c2_fop_type fopt ## _fopt = {		\
+	.ft_name = name,			\
+	.ft_fmt  = &__paste(fopt),		\
+	.ft_ops  = (ops),			\
+	.ft_rpc_item_type = {			\
+		.rit_opcode = (opcode),		\
+		.rit_flags  = (itflags),	\
+		.rit_ops    = (itops),		\
+	}					\
+}						\
 
 extern struct c2_fop_type_format c2_fop_test_tfmt;
 extern struct c2_fop_type_format c2_fop_test_arr_tfmt;
@@ -93,7 +106,7 @@ struct c2_fop_type_ops test_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_test, "test", 60, &test_ops);
+//C2_FOP_TYPE_DECLARE(c2_fop_test, "test", 60, &test_ops);
 
 size_t test_item_size_get(const struct c2_rpc_item *item)
 {
@@ -117,8 +130,12 @@ const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
 };
 
 struct c2_rpc_item_type c2_rpc_item_type_test = {
-        .rit_ops = &c2_rpc_item_test_ops,
+        .rit_opcode = 60, 
+	.rit_ops = &c2_rpc_item_test_ops,
 };
+
+C2_ONWIRE_FOP_TYPE_DECLARE(c2_fop_test, "test",  &test_ops,
+                           60, C2_RPC_ITEM_TYPE_REQUEST, &c2_rpc_item_test_ops);
 
 static struct c2_verno verno = {
 	.vn_lsn = 1111,
@@ -184,7 +201,7 @@ int main()
 	   Associate an fop type with its item type. This should ideally be
 	   done in a seperate function, but currently there's no such interface
 	*/
-
+	rc = c2_rpc_item_type_register(&c2_fop_test_fopt.ft_rpc_item_type);
 	f1 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
 	C2_ASSERT(f1 != NULL);
 	f2 = c2_fop_alloc(&c2_fop_test_fopt, NULL);

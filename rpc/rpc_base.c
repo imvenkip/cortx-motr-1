@@ -58,8 +58,17 @@ int c2_rpc_base_init(void)
 
 void c2_rpc_base_fini(void)
 {
-	c2_rwlock_fini(&rpc_item_types_lock);
+	struct c2_rpc_item_type 	*item_type;
+
+	c2_rwlock_write_lock(&rpc_item_types_lock);
+	c2_tlist_for(&rpc_item_type_descr, &rpc_item_types_list, item_type) {
+		c2_tlist_del(&rpc_item_type_descr, item_type);
+		c2_tlink_fini(&rpc_item_type_descr, item_type);
+	}
+	c2_tlist_endfor;
 	c2_tlist_fini(&rpc_item_type_descr, &rpc_item_types_list);
+	c2_rwlock_write_unlock(&rpc_item_types_lock);
+	c2_rwlock_fini(&rpc_item_types_lock);
 }
 
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
@@ -68,6 +77,7 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	C2_PRE(item_type != NULL);
 	C2_PRE(!opcode_is_dup(item_type->rit_opcode));
 
+	c2_tlink_init(&rpc_item_type_descr, item_type);
 	c2_rwlock_write_lock(&rpc_item_types_lock);
 	c2_tlist_add(&rpc_item_type_descr, &rpc_item_types_list, item_type);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);

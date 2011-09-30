@@ -208,14 +208,9 @@ C2_EXPORTED(c2_rpc_item_to_fop);
 struct c2_fop_type *c2_item_type_to_fop_type
 		    (const struct c2_rpc_item_type *item_type)
 {
-	struct c2_fop_type		*ftype;
-	int				 opcode;
 	C2_PRE(item_type != NULL);
 
-	opcode = item_type->rit_opcode;
-	ftype = c2_fop_type_search(opcode);
-	C2_ASSERT(ftype != NULL);
-	return ftype;
+	return container_of(item_type, struct c2_fop_type, ft_rpc_item_type);
 }
 C2_EXPORTED(c2_item_type_to_fop_type);
 
