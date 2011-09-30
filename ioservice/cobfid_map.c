@@ -214,7 +214,7 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
 	bool			 table_update_failed = false;
 	struct c2_table		 table;
 	struct c2_db_tx		 tx;
-	struct c2_db_pair	 db_pair;		
+	struct c2_db_pair	 db_pair;
 	struct cobfid_map_key	*key;
 
 	C2_PRE(cobfid_map_invariant(cfm));
@@ -246,7 +246,7 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_table_update", rc);
 
-	c2_db_pair_release(&db_pair); 
+	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 	if (table_update_failed)
 		c2_db_tx_abort(&tx);
@@ -264,7 +264,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, uint64_t container_id,
 	int			 rc;
 	struct c2_table		 table;
 	struct c2_db_tx		 tx;
-	struct c2_db_pair	 db_pair;		
+	struct c2_db_pair	 db_pair;
 	struct cobfid_map_key	*key;
 	struct c2_uint128	 cob_fid;
 	bool			 table_op_failed = false;
@@ -301,7 +301,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, uint64_t container_id,
 		goto cleanup;
 	}
 
-	c2_db_pair_release(&db_pair); 
+	c2_db_pair_release(&db_pair);
 
 	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
 			 &cob_fid, sizeof(struct c2_uint128));
@@ -314,7 +314,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, uint64_t container_id,
 	}
 
 cleanup:
-	c2_db_pair_release(&db_pair); 
+	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 	if (table_op_failed)
 		c2_db_tx_abort(&tx);
