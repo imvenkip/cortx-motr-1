@@ -261,8 +261,66 @@ C2_EXPORTED(c2_cobfid_map_add);
 int c2_cobfid_map_del(struct c2_cobfid_map *cfm, uint64_t container_id,
 		      struct c2_fid file_fid)
 {
-	int rc;
+	int			 rc;
+	struct c2_table		 table;
+	struct c2_db_tx		 tx;
+	struct c2_db_pair	 db_pair;		
+	struct cobfid_map_key	*key;
+	struct c2_uint128	 cob_fid;
+	bool			 table_op_failed = false;
 
+	C2_PRE(cobfid_map_invariant(cfm));
+
+	key->cfk_ci = container_id;
+	key->cfk_fid = file_fid;
+
+	rc = c2_table_init(&table, cfm->cfm_dbenv, cfm->cfm_map_name,
+			   0, &cfm_table_ops);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_init", rc);
+		return rc;
+	}
+
+	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_tx_init", rc);
+		c2_table_fini(&table);
+		return rc;
+	}
+
+	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
+
+	rc = c2_table_lookup(&tx, &db_pair);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_lookup", rc);
+		table_op_failed = true;
+		goto cleanup;
+	}
+
+	c2_db_pair_release(&db_pair); 
+
+	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
+
+	rc = c2_table_delete(&tx, &db_pair);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_delete", rc);
+		table_op_failed = true;
+	}
+
+cleanup:
+	c2_db_pair_release(&db_pair); 
+	c2_db_pair_fini(&db_pair);
+	if (table_op_failed)
+		c2_db_tx_abort(&tx);
+	else
+		c2_db_tx_commit(&tx);
+	c2_table_fini(&table);
 	return rc;
 }
 C2_EXPORTED(c2_cobfid_map_del);
