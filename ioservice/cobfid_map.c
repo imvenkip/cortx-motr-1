@@ -27,6 +27,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"  /* SET0 */
+#include "lib/arith.h" /* C2_3WAY */
 #include "ioservice/cobfid_map.h"
 
 /**
@@ -41,15 +42,52 @@ enum {
 };
 
 /**
+  Internal data structure used as a key to the record
+ */
+struct cobfid_map_key {
+	uint64_t	cfk_ci;  /**< container id */
+	struct c2_fid	cfk_fid; /**< global file id */
+};
+
+/**
    Internal data structure used to store a record in the iterator buffer.
  */
 struct cobfid_map_record {
-	uint64_t          cfr_ci;  /**< container id */
-	struct c2_fid     cfr_fid; /**< global file id */
-	struct c2_uint128 cfr_cob; /**< cob id */
+	/**< key combining container id and global file id */
+	struct cobfid_map_key	cfr_key;
+	/** < cob id */
+	struct c2_uint128	cfr_cob;
 };
 
-/* ADDB Instrumentation for cobfidmap */
+/**
+  Table definition for cobfid_map
+ */
+static int cfm_cmp(struct c2_table *table, const void *key0, const void *key1)
+{
+	int rc;
+	const struct cobfid_map_key *map_key0 = key0;
+	const struct cobfid_map_key *map_key1 = key1;
+
+	C2_PRE(c2_fid_is_valid(&map_key0->cfk_fid));
+	C2_PRE(c2_fid_is_valid(&map_key1->cfk_fid));
+
+	rc = c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid);
+	return rc ?: C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci);
+}
+
+static const struct c2_table_ops cfm_table_ops = {
+	.to = {
+		[TO_KEY] = {
+			.max_size = sizeof(struct cobfid_map_key)
+		},
+		[TO_REC] = {
+			.max_size = sizeof(struct c2_uint128)
+		}
+	},
+	.key_cmp = cfm_cmp
+};
+
+/** ADDB Instrumentation for cobfidmap */
 static const struct c2_addb_ctx_type cfm_ctx_type = {
 	        .act_name = "cfm"
 };
@@ -78,10 +116,8 @@ static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 	return true;
 }
 
-int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
-		       struct c2_dbenv *db_env,
-		       struct c2_addb_ctx *addb_ctx,
-		       const char *map_path,
+int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
+		       struct c2_addb_ctx *addb_ctx, const char *map_path,
 		       const char *map_name)
 {
 	int      rc;
@@ -94,6 +130,7 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
 	C2_PRE(map_path != NULL);
 	C2_PRE(map_name != NULL);
 
+	C2_SET0(cfm);
 	cfm->cfm_magic = CFM_MAP_MAGIC;
 	cfm->cfm_addb = addb_ctx;
 	cfm->cfm_map_path = map_path;
@@ -206,16 +243,16 @@ C2_EXPORTED(c2_cobfid_map_iter_fini);
 /**
    Internal sub to initialize an iterator.
  */
-static int
-cobfid_map_iter_init(struct c2_cobfid_map *cfm,
-		     struct c2_cobfid_map_iter *iter,
-		     const struct c2_cobfid_map_iter_ops *ops)
+static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
+				struct c2_cobfid_map_iter *iter,
+				const struct c2_cobfid_map_iter_ops *ops)
 {
 	C2_PRE(cfm != NULL);
 	C2_PRE(iter != NULL);
 	C2_PRE(ops != NULL);
 
 	C2_SET0(iter);
+	iter->cfmi_magic = CFM_ITER_MAGIC;
 	iter->cfmi_cfm = cfm;
 	iter->cfmi_ops = ops;
 
@@ -224,7 +261,6 @@ cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	/* force a query by positioning at the end */
 	iter->cfmi_rec_idx = iter->cfmi_num_recs;
 
-	iter->cfmi_magic = CFM_ITER_MAGIC;
 	C2_POST(cobfid_map_iter_invariant(iter));
 	return 0;
 }
@@ -285,7 +321,7 @@ static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
 				  unsigned int idx)
 {
 	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
-	if (recs[idx].cfr_ci != iter->cfmi_next_ci)
+	if (recs[idx].cfr_key.cfk_ci != iter->cfmi_next_ci)
 		return false;
 	return true;
 }
