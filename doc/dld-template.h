@@ -144,7 +144,7 @@ struct dld_sample_ds1 {
    and the modules cross-reference each other, as shown below.
 
    @see The @ref DLD "Colibri Sample DLD" its
-   @ref DLD-fspec "Detailed Functional Specification"
+   @ref DLD-fspec "Functional Specification"
    and its @ref DLD-lspec-thread
 
    @{
