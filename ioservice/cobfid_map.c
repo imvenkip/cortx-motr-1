@@ -187,6 +187,8 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 	c2_time_set(&cfm->cfm_last_mod, 0, 0);
 	c2_time_add(c2_time_now(), cfm->cfm_last_mod);
 
+	C2_POST(cobfid_map_invariant(cfm));
+
 	return 0;
 
 cleanup:
@@ -251,10 +253,14 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
 	if (table_update_failed)
 		c2_db_tx_abort(&tx);
 	else {
+		c2_time_set(&cfm->cfm_last_mod, 0, 0);
 		c2_time_add(c2_time_now(), cfm->cfm_last_mod);
 		c2_db_tx_commit(&tx);
 	}
+
 	c2_table_fini(&table);
+
+	C2_POST(cobfid_map_invariant(cfm));
 
 	return rc;
 }
@@ -322,9 +328,13 @@ cleanup:
 		c2_db_tx_abort(&tx);
 	else {
 		c2_db_tx_commit(&tx);
+		c2_time_set(&cfm->cfm_last_mod, 0, 0);
 		c2_time_add(c2_time_now(), cfm->cfm_last_mod);
 	}
 	c2_table_fini(&table);
+
+	C2_POST(cobfid_map_invariant(cfm));
+
 	return rc;
 }
 C2_EXPORTED(c2_cobfid_map_del);
@@ -367,18 +377,22 @@ C2_EXPORTED(c2_cobfid_map_iter_fini);
  */
 static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 				struct c2_cobfid_map_iter *iter,
-				const struct c2_cobfid_map_iter_ops *ops)
+				const struct c2_cobfid_map_iter_ops *ops,
+				const enum c2_cobfid_map_query_type qt)
 {
-	C2_PRE(cfm != NULL);
 	C2_PRE(iter != NULL);
 	C2_PRE(ops != NULL);
+	C2_PRE(cobfid_map_invariant(cfm));
 
 	C2_SET0(iter);
 	iter->cfmi_magic = CFM_ITER_MAGIC;
 	iter->cfmi_cfm = cfm;
 	iter->cfmi_ops = ops;
+	iter->cfmi_qt = qt;
 
 	/* allocate buffer */
+	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
+	C2_ALLOC_ARR(recs, CFM_ITER_THUNK);
 
 	/* force a query by positioning at the end */
 	iter->cfmi_rec_idx = iter->cfmi_num_recs;
@@ -393,17 +407,26 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 			    struct c2_uint128 *cob_fid_p)
 {
 	C2_PRE(cobfid_map_iter_invariant(iter));
+	C2_PRE(container_id_p != NULL);
+	C2_PRE(file_fid_p != NULL);
+	C2_PRE(cob_fid_p != NULL);
 
+	/* already in error */
 	if (iter->cfmi_error != 0)
-		return iter->cfmi_error; /* already in error */
+		return iter->cfmi_error;
 
 	if (iter->cfmi_last_load > iter->cfmi_cfm->cfm_last_mod) {
-		/* iterator stale: use ce_reload and reset buffer index */
+		/* iterator stale: reload the buffer and reset buffer index */
+		iter->cfmi_ops->cfmio_reload(iter);
 	} else if (iter->cfmi_rec_idx == iter->cfmi_num_recs) {
-		/* buffer empty: use ce_fetch and then set cfmi_rec_idx to 0 */
+		/* buffer empty: fetch records into the buffer
+		   and then set cfmi_rec_idx to 0 */
+		iter->cfmi_ops->cfmio_fetch(iter);
 	}
 
-	/* Use ce_at_end to check if current record exhausts the iterator */
+	/* Check if current record exhausts the iterator */
+	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx))
+		return -EEXIST;
 
 	/* save value of cfmi_last_ci and cfmi_last_fid before returning */
 	return 0;
@@ -469,7 +492,8 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 {
 	int rc;
 
-	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops);
+	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
+				  C2_COBFID_MAP_QT_ENUM_CONTAINER);
 	iter->cfmi_next_ci = container_id;
 	return rc;
 }
@@ -511,7 +535,8 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 {
 	int rc;
 
-	rc = cobfid_map_iter_init(cfm, iter, &enum_ops);
+	rc = cobfid_map_iter_init(cfm, iter, &enum_ops,
+				  C2_COBFID_MAP_QT_ENUM_MAP);
 	return rc;
 
 }

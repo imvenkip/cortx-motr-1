@@ -117,7 +117,6 @@ enum c2_cobfid_map_query_type {
 struct c2_cobfid_map_iter {
 	uint64_t              cfmi_magic;
 	struct c2_cobfid_map *cfmi_cfm;      /**< The map */
-	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	int                   cfmi_error;    /**< End or error indicator */
 	c2_time_t             cfmi_last_load;/**< Time last loaded */
 	uint64_t              cfmi_next_ci;  /**< Next container id */
@@ -127,6 +126,7 @@ struct c2_cobfid_map_iter {
 	void                 *cfmi_buffer;   /**< Private read-ahead buffer */
 	unsigned int          cfmi_num_recs; /**< # recs in the buffer */
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
+	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
 };
 
