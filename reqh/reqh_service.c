@@ -101,6 +101,7 @@ void c2_reqh_service_start(struct c2_reqh_service *service, struct c2_reqh *reqh
 {
 	C2_PRE(service != NULL && reqh != NULL);
 
+	service->rs_ops->rso_start(service);
 	/* Adds service to reqh's service list */
         c2_list_add_tail(&reqh->rh_services, &service->rs_linkage);
 	service->rs_reqh = reqh;
@@ -114,34 +115,58 @@ void c2_reqh_service_stop(struct c2_reqh_service *service)
 
 	C2_ASSERT(c2_reqh_service_invariant(service));
 
+	service->rs_ops->rso_stop(service);
 	service->rs_state = RH_SERVICE_STOPPED;
 	c2_list_del(&service->rs_linkage);
 }
 
-int c2_reqh_service_init(struct c2_reqh_service *service,
+int c2_reqh_service_init(struct c2_reqh_service **service,
 			const char *service_name)
 {
+	struct c2_reqh_service      *serv;
+	struct c2_reqh_service_type *stype;
+	int                          rc;
+
 	C2_PRE(service != NULL && service_name != NULL);
+
+        stype = c2_reqh_service_type_find(service_name);
+        if (stype == NULL) {
+                rc = -EINVAL;
+                goto out;
+        }
+
+	C2_ASSERT(strcmp(stype->rst_name, service_name) == 0);
+	C2_ASSERT(reqh_service_type_invariant(stype));
+	C2_ALLOC_PTR(serv);
+	if (serv == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
 
 	/**
 	   Generating service uuid with service name and
 	   timestamp.
 	 */
-	C2_SET_ARR0(service->rs_uuid);
-	sprintf(service->rs_uuid, "%s%lu", service_name,
-					c2_time_now());
+	C2_SET_ARR0(serv->rs_uuid);
+	snprintf(serv->rs_uuid, C2_REQH_SERVICE_UUID,
+				 "%s:%lu", service_name, c2_time_now());
 
-	service->rs_magic = RST_MAGIC;
-	c2_list_link_init(&service->rs_linkage);
+	rc = stype->rst_ops->rsto_service_init(serv, stype);
+	serv->rs_magic = RST_MAGIC;
+	c2_list_link_init(&serv->rs_linkage);
+	*service = serv;
 
-	return 0;
+out:
+	return rc;
 }
 
 void c2_reqh_service_fini(struct c2_reqh_service *service)
 {
 	C2_PRE(service != NULL);
 
+	service->rs_ops->rso_fini(service);
 	c2_list_link_fini(&service->rs_linkage);
+	c2_free(service);
 }
 
 int c2_reqh_service_type_init(struct c2_reqh_service_type *rstype,

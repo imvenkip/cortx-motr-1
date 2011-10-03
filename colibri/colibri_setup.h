@@ -90,8 +90,6 @@ struct c2_colibri {
 
 /**
    Initialises colibri context.
-   This includes initialising network resources like transports,
-   and network domains.
 
    @param cs_colibri Represents a colibri context
    @param xprts Array or network transports supported in a colibri

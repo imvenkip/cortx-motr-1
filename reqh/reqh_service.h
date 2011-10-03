@@ -124,25 +124,21 @@ struct c2_reqh_service_ops {
 	   to this service are ready to be processed by a
 	   node.
 	   Service startup can involve operations like
-	   initialising service specific fops and also registers
-	   the service with given request handler.
-	   Sets the service state as started.
+	   initialising service specific fops. This
+	   function is invoked from a generic service startup
 
 	   @param service Service to be started
-	   @param reqh Request handler this service belongs to
 
 	   @see c2_reqh_service_start()
 	 */
-	void (*rso_start)(struct c2_reqh_service *service,
-				struct c2_reqh *reqh);
+	void (*rso_start)(struct c2_reqh_service *service);
 	/**
 	   Stops a service and no incoming request related
 	   to this service on a node should be processed
 	   further.
-	   Service stop can involve operations like finalising
-	   service specific fops, also unregisters service from
-	   the request handler.
-	   This also sets service->rs_state to RH_SERVICE_STOPPED
+	   Stopping a service can involve operations like finalising
+	   service specific fops. This is invoked from a generic
+	   service stop function.
 
 	   @param service Service to be started
 
@@ -150,9 +146,13 @@ struct c2_reqh_service_ops {
 	 */
 	void (*rso_stop)(struct c2_reqh_service *service);
 	/**
-	   Finalises a particular service.
+	   Finalises a particular service. This can perform
+	   any service specific finalisation is any. It is
+	   invoked from a generic service finalisation routine.
 
 	   @param service Service to be finalised
+
+	   @see c2_reqh_service_fini()
 	 */
 	void (*rso_fini)(struct c2_reqh_service *service);
 };
@@ -163,14 +163,19 @@ struct c2_reqh_service_ops {
 struct c2_reqh_service_type_ops {
 	/**
 	   Initialises a particular service.
+	   This function accepts pre-allocated c2_reqh_service
+	   instance and initialises it with the given service type
+	   and corresponding service operations vector.
 
 	   @param service Service to be initialised
 	   @param stype Type of service to be initialised
 
+	   @see c2_reqh_service_init()
+
 	   @retval 0 On success
 		-errno On failure
 	 */
-	int (*rsto_service_init)(struct c2_reqh_service **service,
+	int (*rsto_service_init)(struct c2_reqh_service *service,
 					struct c2_reqh_service_type *stype);
 };
 
@@ -211,20 +216,22 @@ struct c2_list *c2_reqh_service_list_get(void);
 struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
 
 /**
-   Registers the service with the given request handler
+   Invokes service specific start routine and registers
+   the service with the given request handler
    and sets its state to RH_SERVICE_STARTED, thus
    signifying that the service is now ready to process
    incoming requests related to it.
 
    @param service Service to be started
+   @param reqh Request handler to which the service
 
    @pre service != NULL && reqh != NULL
  */
 void c2_reqh_service_start(struct c2_reqh_service *service, struct c2_reqh *reqh);
 
 /**
-   Stops a particular service.
-   Unregisters the service from the request handler.
+   Stops a particular service. Invokes service specific
+   stop routine and unregisters it from the request handler.
 
    @param service Service to be stopped
 
@@ -233,23 +240,23 @@ void c2_reqh_service_start(struct c2_reqh_service *service, struct c2_reqh *reqh
 void c2_reqh_service_stop(struct c2_reqh_service *service);
 /**
    Initialises a particular service on a node.
-   This is invoked during c2_setup.
    Allocates a service object. locates corresponding
    service type object using the service_name, and
-   invokes init function for that service type and also
-   starts a service.
+   invokes init function for that service type.
 
-   @param service, service to be allocated and initialised
-   @param service_name, name of service to be initialised
+   @param service service to be allocated and initialised
+   @param service_name name of service to be initialised
 
    @retval 0 On success
 	-errno On failure
  */
-int c2_reqh_service_init(struct c2_reqh_service *service,
+int c2_reqh_service_init(struct c2_reqh_service **service,
 			const char *service_name);
 
 /**
-   Finalses and stops a particular service on a node.
+   Finalses a given service on a particular node.
+   This invokes service specific fini routine and unregisters
+   a given service from the request handler and frees the samw.
 
    @param service Service to be finalised
  */
@@ -267,7 +274,8 @@ void c2_reqh_service_fini(struct c2_reqh_service *service);
 	-errno On failure
  */
 int c2_reqh_service_type_init(struct c2_reqh_service_type *rstype,
-		struct c2_reqh_service_type_ops *rst_ops, const char *service_name);
+			struct c2_reqh_service_type_ops *rst_ops,
+			const char *service_name);
 
 /**
    Finalises a particular type of service on a node.

@@ -29,12 +29,9 @@
 #include <signal.h>
 
 #include "lib/errno.h"
-#include "lib/memory.h"
 
-#include "net/net.h"
 #include "net/bulk_sunrpc.h"
 #include "reqh/reqh_service.h"
-#include "reqh/reqh.h"
 #include "colibri/colibri_setup.h"
 
 /**
@@ -42,96 +39,17 @@
    @{
  */
 
-/*
-   Basic test code representing configuration of a service
- */
-void mds_start(struct c2_reqh_service *service,
-                        struct c2_reqh *reqh);
-void mds_stop(struct c2_reqh_service *service);
-int mds_init(struct c2_reqh_service **service,
-                struct c2_reqh_service_type *stype);
-void mds_fini(struct c2_reqh_service *service);
-
-struct c2_reqh_service_type mds_type;
-
-struct c2_reqh_service_type_ops mds_type_ops = {
-        .rsto_service_init = mds_init
-};
-
-struct c2_reqh_service_ops mds_ops = {
-        .rso_start = mds_start,
-        .rso_stop = mds_stop,
-        .rso_fini = mds_fini
-};
-
-int mds_init(struct c2_reqh_service **service,
-                        struct c2_reqh_service_type *stype)
-{
-        struct c2_reqh_service      *serv;
-        int                          rc;
-
-        C2_PRE(service != NULL && stype != NULL);
-
-        printf("\n Initialising mds service \n");
-        C2_ALLOC_PTR(serv);
-        if (serv == NULL)
-                return -ENOMEM;
-
-        serv->rs_type = stype;
-        serv->rs_ops = &mds_ops;
-
-        rc = c2_reqh_service_init(serv, stype->rst_name);
-
-        if (rc != 0) {
-                *service = NULL;
-                c2_free(serv);
-        } else
-                *service = serv;
-
-        return rc;
-}
-
-void mds_start(struct c2_reqh_service *service, struct c2_reqh *reqh)
-{
-        C2_PRE(service != NULL);
-
-        printf("\n Starting mds.. \n");
-        /*
-           Can perform service specific initialisation of
-           objects like fops.
-         */
-        c2_reqh_service_start(service, reqh);
-}
-
-void mds_stop(struct c2_reqh_service *service)
-{
-        C2_PRE(service != NULL);
-
-        printf("\n Stopping mds.. \n");
-        /*
-           Can finalise service specific objects like
-           fops.
-         */
-        c2_reqh_service_stop(service);
-}
-
-void mds_fini(struct c2_reqh_service *service)
-{
-        printf("\n finalizing service \n");
-        c2_reqh_service_fini(service);
-        c2_free(service);
-}
-/* Test code ends */
-
-
 /**
    Represents various network transports supported
    by a particular node in a cluster.
  */
-static struct c2_net_xprt *cs_xprts [] = {
+static struct c2_net_xprt *cs_xprts[] = {
 	&c2_net_bulk_sunrpc_xprt
 };
 
+/**
+   Global colibri context
+ */
 static struct c2_colibri colibri_ctx;
 
 /**
@@ -166,17 +84,11 @@ int main(int argc, char **argv)
 	int     rc;
 
 	errno = 0;
-	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts),stdout);
+	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
 	if (rc != 0) {
 		fputs("\n Failed to initialise Colibri \n", stderr);
 		goto out;
 	}
-
-	/*
-	   This is for test purpose, should be invoked from
-	   corresponding module.
-	 */
-	c2_reqh_service_type_init(&mds_type, &mds_type_ops, "mds");
 
         rc = c2_cs_setup_env(&colibri_ctx, argc, argv);
         if (rc != 0)
@@ -186,9 +98,6 @@ int main(int argc, char **argv)
 
 	if (rc == 0)
 		cs_wait_for_termination();
-
-        /* For test purpose */
-        c2_reqh_service_type_fini(&mds_type);
 
 	c2_cs_fini(&colibri_ctx);
 
