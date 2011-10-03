@@ -32,7 +32,7 @@
 #include "rpc/rpc_helper.h"
 
 
-#define DEBUG	1
+#define DEBUG	0
 
 #if DEBUG
 #include <stdio.h>
@@ -65,7 +65,7 @@ int c2_rpc_helper_init_machine(struct c2_net_xprt *xprt, const char *addr_local,
 	rc = c2_net_xprt_init(xprt);
 	if(rc) {
 		DBG("failed to init transport\n");
-		goto cleanup;
+		goto out;
 	} else {
 		DBG("bulk sunrpc transport init completed \n");
 	}
@@ -74,13 +74,13 @@ int c2_rpc_helper_init_machine(struct c2_net_xprt *xprt, const char *addr_local,
 	C2_ALLOC_PTR(net_domain);
 	if (!net_domain) {
 		rc = -ENOMEM;
-		goto out;
+		goto xprt_fini;
 	}
 
 	rc = c2_net_domain_init(net_domain, xprt);
 	if(rc) {
 		DBG("failed to init domain\n");
-		goto cleanup;
+		goto net_dom_free;
 	} else {
 		DBG("domain init completed\n");
 	}
@@ -89,13 +89,13 @@ int c2_rpc_helper_init_machine(struct c2_net_xprt *xprt, const char *addr_local,
 	C2_ALLOC_PTR(dbenv);
 	if (!dbenv) {
 		rc = -ENOMEM;
-		goto out;
+		goto net_dom_fini;
 	}
 
 	rc = c2_dbenv_init(dbenv, db_name, 0);
 	if(rc != 0){
 		DBG("failed to init dbenv\n");
-		goto cleanup;
+		goto dbenv_free;
 	} else {
 		DBG("dbenv init completed \n");
 	}
@@ -104,13 +104,13 @@ int c2_rpc_helper_init_machine(struct c2_net_xprt *xprt, const char *addr_local,
 	C2_ALLOC_PTR(cob_domain);
 	if (!cob_domain) {
 		rc = -ENOMEM;
-		goto out;
+		goto dbenv_fini;
 	}
 
 	rc = c2_cob_domain_init(cob_domain, dbenv, &cob_domain_id_struct);
 	if (rc) {
 		DBG("failed to init cob domain\n");
-		goto cleanup;
+		goto cob_dom_free;
 	} else {
 		DBG("cob domain init completed\n");
 	}
@@ -120,15 +120,29 @@ int c2_rpc_helper_init_machine(struct c2_net_xprt *xprt, const char *addr_local,
 				request_handler);
 	if(rc != 0){
 		DBG("failed to init rpcmachine\n");
-		goto cleanup;
+		goto cob_dom_fini;
 	} else {
 		DBG("rpc machine init completed \n");
 	}
 
-cleanup:
-	/* TODO */
 out:
 	return rc;
+
+cob_dom_fini:
+        c2_cob_domain_fini(cob_domain);
+cob_dom_free:
+	c2_free(cob_domain);
+dbenv_fini:
+        c2_dbenv_fini(dbenv);
+dbenv_free:
+	c2_free(dbenv);
+net_dom_fini:
+	c2_net_domain_fini(net_domain);
+net_dom_free:
+	c2_free(net_domain);
+xprt_fini:
+	c2_net_xprt_fini(xprt);
+	goto out;
 }
 C2_EXPORTED(c2_rpc_helper_init_machine);
 
@@ -138,6 +152,7 @@ int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
 				 struct c2_rpc_session **rpc_session)
 {
 	int rc;
+	int cleanup_rc;
         c2_time_t timeout;
 	static struct c2_net_end_point *server_endpoint;
 	static struct c2_net_transfer_mc *transfer_machine;
@@ -151,21 +166,21 @@ int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
 					addr_remote);
 	if (rc) {
 		DBG("failed to create server endpoint\n");
-		goto cleanup;
+		goto out;
 	}
 
 	/* Init connection structure */
 	C2_ALLOC_PTR(connection);
 	if (!connection) {
 		rc = -ENOMEM;
-		goto out;
+		goto ep_clean;
 	}
 
 	rc = c2_rpc_conn_init(connection, server_endpoint, rpc_machine,
 			MAX_RPCS_IN_FLIGHT);
 	if (rc) {
 		DBG("failed to init rpc connection\n");
-		goto cleanup;
+		goto conn_free;
 	} else {
 		DBG("rpc connection init completed\n");
 	}
@@ -174,7 +189,7 @@ int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
 	rc = c2_rpc_conn_establish(connection);
 	if (rc) {
 		DBG("failed to create rpc connection\n");
-		goto cleanup;
+		goto conn_fini;
 	} else {
 		DBG("rpc connection created\n");
 	}
@@ -194,27 +209,27 @@ int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
 		case C2_RPC_CONN_FAILED:
 			DBG("connection create failed\n");
 			rc = -1;
-			goto cleanup;
+			goto conn_fini;
 		default:
 			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
 		}
 	} else {
 		DBG("timeout for conn create\n");
 		rc = -ETIMEDOUT;
-		goto cleanup;
+		goto conn_fini;
 	}
 
 	/* Init RPC session */
 	C2_ALLOC_PTR(session);
 	if (!session) {
 		rc = -ENOMEM;
-		goto out;
+		goto conn_terminate;
 	}
 
 	rc = c2_rpc_session_init(session, connection, nr_slots);
 	if (rc) {
 		DBG("failed to init rpc session\n");
-		goto cleanup;
+		goto session_free;
 	} else {
 		DBG("rpc session init completed\n");
 	}
@@ -223,7 +238,7 @@ int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
 	rc = c2_rpc_session_establish(session);
 	if (rc) {
 		DBG("failed to create session\n");
-		goto cleanup;
+		goto session_fini;
 	} else {
 		DBG("rpc session created\n");
 	}
@@ -242,7 +257,7 @@ int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
 		case C2_RPC_SESSION_FAILED:
 			DBG("session create failed\n");
 			rc = -1;
-			goto cleanup;
+			goto session_fini;
 		default:
 			C2_ASSERT("internal logic error in c2_rpc_session_timedwait()" == 0);
 		}
@@ -252,10 +267,52 @@ int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
 
 	*rpc_session = session;
 
-cleanup:
-	/* TODO */
 out:
 	return rc;
+
+session_fini:
+	c2_rpc_session_fini(session);
+session_free:
+	c2_free(session);
+conn_terminate:
+	/* Terminate RPC connection */
+	cleanup_rc = c2_rpc_conn_terminate(connection);
+	if (cleanup_rc) {
+		DBG("failed to terminate rpc connection\n");
+		goto out;
+	} else {
+		DBG("rpc connection terminate call successful\n");
+	}
+
+        timeout = c2_time_now();
+        c2_time_set(&timeout, c2_time_seconds(timeout) + SESSION_CLEANUP_TIMEOUT,
+                                c2_time_nanoseconds(timeout));
+
+	cleanup_rc = c2_rpc_conn_timedwait(connection, C2_RPC_CONN_TERMINATED |
+				   C2_RPC_CONN_FAILED, timeout);
+	if (cleanup_rc) {
+		switch (connection->c_state) {
+		case C2_RPC_CONN_TERMINATED:
+			DBG("connection terminated\n");
+			cleanup_rc = 0;
+			break;
+		case C2_RPC_CONN_FAILED:
+			DBG("failed to terminate connection\n");
+			cleanup_rc = -1;
+			goto out;
+		default:
+			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
+		}
+	} else {
+		DBG("timeout for conn terminate\n");
+	}
+conn_fini:
+	c2_rpc_conn_fini(connection);
+conn_free:
+	c2_free(connection);
+ep_clean:
+	c2_net_end_point_put(server_endpoint);
+	goto out;
 }
 C2_EXPORTED(c2_rpc_helper_client_connect);
 
@@ -331,11 +388,13 @@ static int rpc_connection_clean(struct c2_rpc_conn *connection)
 	int rc;
         c2_time_t timeout;
         struct c2_rpc_session *session;
+	struct c2_rpc_session *session_next;
 
-	DBG("session list size %zu\n", c2_list_length(&connection->c_sessions));
-
-	/* Terminate all registered sessions */
-	c2_rpc_for_each_session(connection, session)
+	/* Terminate all registered sessions.
+	 * Don't use c2_rpc_for_each_session() here because it doesn't support
+	 * safe session delition from connection's c_sessions list */
+	c2_list_for_each_entry_safe(&connection->c_sessions, session,
+				    session_next, struct c2_rpc_session, s_link)
 	{
 		/* skip session_0 */
 		if (session->s_session_id == SESSION_ID_0)
@@ -344,10 +403,6 @@ static int rpc_connection_clean(struct c2_rpc_conn *connection)
 		rc = rpc_session_clean(session);
 		if (rc)
 			goto out;
-
-		/* FIXME: it will fail on 2nd session for some reason,
-		 *        so we just stop after 1st session cleaning */
-		break;
 	}
 
 	/* Terminate RPC connection */
@@ -409,14 +464,6 @@ int c2_rpc_helper_cleanup(struct c2_rpcmachine *rpc_machine)
 	transfer_machine = &rpc_machine->cr_tm;
 
 	/* Terminate all registered connections with all sessions */
-        c2_list_for_each_entry_safe(&rpc_machine->cr_incoming_conns, connection,
-				    connection_next, struct c2_rpc_conn, c_link)
-	{
-		rc = rpc_connection_clean(connection);
-		if (rc)
-			goto out;
-        }
-
         c2_list_for_each_entry_safe(&rpc_machine->cr_outgoing_conns, connection,
 				    connection_next, struct c2_rpc_conn, c_link)
 	{
@@ -426,8 +473,6 @@ int c2_rpc_helper_cleanup(struct c2_rpcmachine *rpc_machine)
         }
 
 	/* Fini remote net endpoint. */
-	DBG("tm ep list size %zu\n", c2_list_length(&transfer_machine->ntm_end_points));
-
 	endpoint_first = c2_list_entry(transfer_machine->ntm_end_points.l_head,
 				       struct c2_net_end_point, nep_tm_linkage);
 
