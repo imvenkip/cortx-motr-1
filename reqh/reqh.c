@@ -85,7 +85,6 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
 	if (result == 0) {
 		C2_ASSERT(c2_fom_domain_invariant(&reqh->rh_fom_dom));
-                C2_ASSERT(c2_fom_domain_invariant(&reqh->rh_fom_dom));
                 reqh->rh_dtm = dtm;
                 reqh->rh_stdom = stdom;
                 reqh->rh_dbenv = db;

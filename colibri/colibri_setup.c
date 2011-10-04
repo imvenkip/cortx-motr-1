@@ -220,14 +220,14 @@ static struct c2_net_xprt *lookup_xprt(const char *ep, struct c2_net_xprt **xprt
         return NULL;
 }
 
-static void list_xprts(FILE *f, struct c2_net_xprt **xprts)
+static void list_xprts(FILE *f, struct c2_net_xprt **xprts, int xprts_nr)
 {
         int i;
 
 	C2_PRE(f != NULL && xprts != NULL);
 
         fprintf(f, "\nSupported transports:\n");
-        for (i = 0; i < ARRAY_SIZE(xprts); ++i)
+        for (i = 0; i < xprts_nr; ++i)
                 fprintf(f, "    %s\n", xprts[i]->nx_name);
 }
 
@@ -459,12 +459,11 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cs_colibri,
 	C2_PRE(cs_colibri != NULL && xprt_name != NULL);
 
 	c2_list_for_each_entry_safe(&cs_colibri->cc_ndoms, ndom, ndom_next,
-			struct c2_net_domain, nd_app_linkage) {
-
-			if (strcmp(ndom->nd_xprt->nx_name, xprt_name) == 0) {
-				found = true;
-				break;
-			}
+				struct c2_net_domain, nd_app_linkage) {
+		if (strcmp(ndom->nd_xprt->nx_name, xprt_name) == 0) {
+			found = true;
+			break;
+		}
 	}
 
 	if (found)
@@ -1015,7 +1014,7 @@ static void cs_net_domains_fini(struct c2_colibri *cs_colibri)
 		c2_free(ndom);
 	}
 
-	for (idx = 0; idx < ARRAY_SIZE(xprts); ++idx)
+	for (idx = 0; idx < cs_colibri->cc_xprts_nr; ++idx)
 		c2_net_xprt_fini(xprts[idx]);
 }
 
@@ -1308,7 +1307,8 @@ static int cs_parse_args(struct c2_colibri *cs_colibri, int argc,
 		C2_VOIDARG('x', "List Supported transports",
 			LAMBDA(void, (void)
 			{
-				list_xprts(outfile, cs_colibri->cc_xprts);
+				list_xprts(outfile, cs_colibri->cc_xprts,
+						cs_colibri->cc_xprts_nr);
 				rc = 1;
 				return;
 			})),
