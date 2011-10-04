@@ -461,6 +461,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	iter->cfmi_last_ci = *container_id_p;
 	iter->cfmi_last_fid = *file_fid_p;
 
+	/* Increment the next record to return */
 	iter->cfmi_rec_idx++;
 
 	return 0;
@@ -483,11 +484,88 @@ C2_EXPORTED(c2_cobfid_map_iter_next);
  */
 static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
 {
+	int                      rc;
+	int                      i;
+	struct c2_table          table;
+	struct c2_db_tx          tx;
+	struct c2_db_pair        db_pair;
+	struct c2_db_cursor      db_cursor;
+	struct c2_cobfid_map	*cfm;
+	struct cobfid_map_key	*key;
+	struct c2_uint128	 cob_fid;
+
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
-	/* use c2_db_cursor_get() to read from (cfmi_next_ci, cfmi_next_fid) */
+	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
 
-	return 0;
+	cfm = iter->cfmi_cfm;
+
+	rc = c2_table_init(&table, cfm->cfm_dbenv, cfm->cfm_map_name,
+			   0, &cfm_table_ops);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_init", rc);
+		return rc;
+	}
+
+	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_tx_init", rc);
+		c2_table_fini(&table);
+		return rc;
+	}
+
+	rc = c2_db_cursor_init(&db_cursor, &table, &tx);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_cursor_init", rc);
+		c2_table_fini(&table);
+		c2_db_tx_abort(&tx);
+		return rc;
+	}
+
+	key->cfk_ci = iter->cfmi_next_ci;
+	key->cfk_fid = iter->cfmi_next_fid;
+
+	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
+
+	/* use c2_db_cursor_get() to read from (cfmi_next_ci, cfmi_next_fid) */
+	rc = c2_db_cursor_get(&db_cursor, &db_pair);
+
+	for (i = 0; i < CFM_ITER_THUNK; ++i) {
+		rc = c2_table_lookup(&tx, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+				    "c2_table_lookup", rc);
+			goto cleanup;
+		}
+		recs[i].cfr_key.cfk_ci = key->cfk_ci;
+		recs[i].cfr_key.cfk_fid = key->cfk_fid;
+		recs[i].cfr_cob = cob_fid;
+
+		c2_db_pair_setup(&db_pair, &table, &key,
+				 sizeof(struct cobfid_map_key),
+				 &cob_fid, sizeof(struct c2_uint128));
+		rc = c2_db_cursor_next(&db_cursor, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+				    "c2_db_cursor_next", rc);
+			goto cleanup;
+		}
+	}
+
+cleanup:
+	c2_db_pair_release(&db_pair);
+	c2_db_pair_fini(&db_pair);
+	c2_db_cursor_fini(&db_cursor);
+	if (rc == 0)
+		c2_db_tx_commit(&tx);
+	else
+		c2_db_tx_abort(&tx);
+	c2_table_fini(&table);
+	return rc;
 }
 
 /**
@@ -499,6 +577,9 @@ static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
 				  unsigned int idx)
 {
 	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
+
+	C2_PRE(cobfid_map_iter_invariant(iter));
+
 	if (recs[idx].cfr_key.cfk_ci != iter->cfmi_next_ci)
 		return false;
 	return true;
@@ -527,6 +608,11 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 
 	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
 				  C2_COBFID_MAP_QT_ENUM_CONTAINER);
+	if (rc != 0) {
+		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
+			    cfm_func_fail, "cobfid_map_iter_init", rc);
+		return rc;
+	}
 	iter->cfmi_next_ci = container_id;
 	return rc;
 }
@@ -575,7 +661,6 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 	rc = cobfid_map_iter_init(cfm, iter, &enum_ops,
 				  C2_COBFID_MAP_QT_ENUM_MAP);
 	return rc;
-
 }
 C2_EXPORTED(c2_cobfid_map_enum);
 
