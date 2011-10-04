@@ -25,6 +25,7 @@
 #include "lib/chan.h"
 
 #include "rm/rm.h"
+#include "rm/ut/rings.h"
 
 static void rings_policy(struct c2_rm_resource *resource,
 			 struct c2_rm_incoming *in)
@@ -42,12 +43,12 @@ static bool resources_are_equal(const struct c2_rm_resource *r0,
 	return false;
 }
 
-static bool resources_is_valid(uint64_t res_id,
+static bool resource_is_valid(uint64_t res_id,
 			       const struct c2_rm_resource *res)
 {
 	struct c2_rings *ring;
 
-	ring = container_of(ring, struct c2_rings, rs_resource);
+	ring = container_of(res, struct c2_rings, rs_resource);
 	C2_ASSERT(ring != NULL);
 	return res_id == ring->rs_id;
 }

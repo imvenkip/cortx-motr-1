@@ -15,27 +15,22 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
- * Original creation date: 05/12/2011
+ * Original creation date: 09/15/2011
  */
-#ifndef __COLIBRI_RM_RINGS_H__
-#define __COLIBRI_RM_RINGS_H__
+#ifndef __COLIBRI_RM_INTERNAL_H__
+#define __COLIBRI_RM_INTERNAL_H__
+/**
+   Sticks a tracking pin on @right. When @right is released, the all incoming
+   requests that stuck pins into it are notified.
+*/
+int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 
-#include "rm/rm.h"
+/**
+   Makes another copy of right struct.
+*/
+void right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 
-struct c2_rings {
-        struct c2_rm_resource rs_resource;
-	uint64_t              rs_id;
-};
-
-extern const struct c2_rm_resource_ops rings_ops;
-
-extern const struct c2_rm_resource_type_ops rings_rtype_ops;
-
-extern const struct c2_rm_right_ops rings_right_ops;
-
-extern const struct c2_rm_incoming_ops rings_incoming_ops;
-
-/* __COLIBRI_RM_RINGS_H__ */
+/* __COLIBRI_RM_INTERNAL_H__ */
 #endif
 
 /*
@@ -47,3 +42,4 @@ extern const struct c2_rm_incoming_ops rings_incoming_ops;
  *  scroll-step: 1
  *  End:
  */
+

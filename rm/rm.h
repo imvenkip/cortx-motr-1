@@ -1393,7 +1393,8 @@ void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc);
 
    @post ergo(result == 0, other->rem_resource == right->ri_resource)
  */
-int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other);
+int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other,
+		     c2_time_t deadline);
 
 /** @} end of Resource manager networking */
 

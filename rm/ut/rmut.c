@@ -47,7 +47,7 @@ static struct c2_rm_domain dom;
 /*
  * A simple resource type for testing.
  */
-static struct rings R;
+static struct c2_rings R;
 
 /* from http://en.wikipedia.org/wiki/Rings_of_Power */
 enum {
@@ -112,8 +112,8 @@ static struct c2_rm_incoming inconflict;
 static struct c2_rm_domain server;
 static struct c2_rm_domain client;
 static struct c2_rm_domain client1;
-static struct rings RC0;
-static struct rings RC1;
+static struct c2_rings RC0;
+static struct c2_rings RC1;
 
 static struct c2_rm_resource_type rt = {
 	.rt_ops  = &rings_rtype_ops,
@@ -146,7 +146,6 @@ enum {
 	UT_CLIENT1,
 	UT_CLIENT2,
 };
-
 
 static void rm_init(void)
 {

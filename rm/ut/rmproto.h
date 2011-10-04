@@ -78,6 +78,9 @@ void c2_rm_rpc_init(void);
 void c2_rm_rpc_fini(void);
 void rpc_process(int id);
 
+int c2_rm_db_service_query(const char *name, struct c2_rm_remote *rem);
+int c2_rm_remote_resource_locate(struct c2_rm_remote *rem);
+
 /* __COLIBRI_RM_RMPROTO_H__ */
 #endif
 
