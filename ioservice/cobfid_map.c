@@ -469,6 +469,7 @@ C2_EXPORTED(c2_cobfid_map_iter_next);
 /*
  *****************************************************************************
  Enumerate container
+ XXX This section is to be implemented after container definition is in place
  *****************************************************************************
  */
 
@@ -659,7 +660,7 @@ cleanup:
 		c2_db_tx_abort(&tx);
 	c2_table_fini(&table);
 
-	return 0;
+	return rc;
 }
 
 static bool enum_at_end(struct c2_cobfid_map_iter *iter,
@@ -697,11 +698,9 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 
 	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
 				  C2_COBFID_MAP_QT_ENUM_MAP);
-	if (rc != 0) {
+	if (rc != 0)
 		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
 			    cfm_func_fail, "cobfid_map_iter_init", rc);
-		return rc;
-	}
 	return rc;
 }
 C2_EXPORTED(c2_cobfid_map_enum);
