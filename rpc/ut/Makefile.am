@@ -16,7 +16,7 @@ noinst_LTLIBRARIES = librpc-helper-ut.la
 #rserver_LDFLAGS   = -pthread
 #rserver_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
-librpc_helper_ut_la_SOURCES = rpc_helper_ut.c
+librpc_helper_ut_la_SOURCES = rpc_helper_ut.c ../it/ping_fop.c ../it/ping_fop_u.c ../it/ping_fom.c
 
 test_u.h test_u.c : test.ff \
 	$(top_builddir)/fop/rt/libc2rt.la \

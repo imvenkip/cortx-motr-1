@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -30,49 +31,88 @@ struct c2_rpc_session;
 struct c2_rpc_item;
 
 /**
-  Initialize an RPC machine with a fake request handler that will invoke a set
+  A context structure, which contains enough information to initialize
+  an RPC machine.
+
+  It's used as an input parameter for c2_rpc_helper_init_machine()
+*/
+struct c2_rpc_helper_rpcmachine_ctx {
+	/** Specify transport address */
+	struct c2_net_xprt  *xprt;
+	/** Transport specific local address */
+	const char          *local_addr;
+	/** Name of database used by the RPC machine */
+	const char          *db_name;
+	/** Identity of cob used by the RPC machine */
+	uint32_t            cob_domain_id;
+	/** Pass in an rpc machine to be initialized */
+	struct c2_reqh      *request_handler;
+};
+
+/**
+  A context structure, which contains enough information to initialize
+  an RPC session.
+
+  It's used as an input parameter for c2_rpc_helper_client_connect()
+*/
+struct c2_rpc_helper_client_ctx {
+	/** Initialized RPC machine */
+	struct c2_rpcmachine  *rpc_machine;
+	/** Remote server address */
+	const char            *remote_addr;
+	/** Number of session slots */
+	uint32_t              nr_slots;
+	/** Time in seconds after which session establishment is aborted */
+	uint32_t              timeout_s;
+};
+
+/**
+  Initialize an RPC machine with a request handler that will invoke a set
   of user supplied FOMs.
 
-  @param xprt Specify transport address
-  @param addr_local  Transport specific local address
-  @param db_name  Name of database used by the RPC machine
-  @param cob_domain_id  Identity of cob used by the RPC machine
-  [@param fake request handler arguments]
+  @param rctx  Initialized rpc_machine context structure.
   @param rpc_machine Pass in an rpc machine to be initialized.
+
+  @retval 0 on success
+  @retval -errno on failure
 */
-int c2_rpc_helper_init_machine(struct c2_net_xprt *xprt, const char *addr_local,
-			       const char *db_name, uint32_t cob_domain_id,
-			       struct c2_reqh *request_handler,
+int c2_rpc_helper_init_machine(struct c2_rpc_helper_rpcmachine_ctx *rctx,
 			       struct c2_rpcmachine *rpc_machine);
 
 /**
-  Creates a session to a server which can be set in an rpc item and used in
-  c2_rpc_post().
+  Creates a connection to a server and establishes an rpc session on top of it.
+  Created session object can be set in an rpc item and used in c2_rpc_post().
 
-  @param rpc_machine Initialized RPC machine
-  @param addr_remote Remote server address
-  @param nr_slots Number of session slots
-  @param timeout_s  Time in seconds after which session establishment is aborted.
+  @param cctx  Initialized client context structure.
   @param rpc_session  Returns the rpc session object.
+
+  @retval 0 on success
+  @retval -errno on failure
 */
-int c2_rpc_helper_client_connect(struct c2_rpcmachine *rpc_machine,
-				 const char *addr_remote, uint32_t nr_slots,
-				 uint32_t timeout_s,
+int c2_rpc_helper_client_connect(struct c2_rpc_helper_client_ctx *cctx,
 				 struct c2_rpc_session **rpc_session);
 
 /**
- Make an RPC call to a server, blocking for a reply if desired.
+  Make an RPC call to a server, blocking for a reply if desired.
 
- @param item The rpc item to send.  Presumably ri_reply will hold the reply upon
-             successful return.
- @param rpc_session The session to be used for the client call.
- @param timeout_s Timeout in seconds.  0 implies don't wait for a reply.
+  @param item The rpc item to send.  Presumably ri_reply will hold the reply upon
+              successful return.
+  @param rpc_session The session to be used for the client call.
+  @param timeout_s Timeout in seconds.  0 implies don't wait for a reply.
+
+  @retval 0 on success
+  @retval -errno on failure
 */
-int c2_rpc_helper_client_call(struct c2_rpc_item *item,
-			      struct c2_rpc_session *rpc_session,
+int c2_rpc_helper_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 			      uint32_t timeout_s);
 
-/** Clean up all allocated data structures, associated with rpc_machine */
+/** Clean up all allocated data structures, associated with rpc_machine
+
+  @param rpc_machine The rpc machine object for which cleanup is performed.
+
+  @retval 0 on success
+  @retval -errno on failure
+*/
 int c2_rpc_helper_cleanup(struct c2_rpcmachine *rpc_machine);
 
 #endif /* __COLIBRI_RPC_HELPER_H__ */

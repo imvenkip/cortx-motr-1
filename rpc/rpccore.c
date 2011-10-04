@@ -186,8 +186,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	session = item->ri_session;
 	C2_ASSERT(session != NULL);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-		  session->s_state == C2_RPC_SESSION_BUSY ||
-		  session->s_state == C2_RPC_SESSION_TERMINATING);
+		  session->s_state == C2_RPC_SESSION_BUSY);
 
 	item->ri_rpc_time = c2_time_now();
 

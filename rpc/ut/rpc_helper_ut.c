@@ -18,204 +18,152 @@
  * Original creation date: 09/28/2011
  */
 
-#include <unistd.h> /* fork(2) */
-
 #include "lib/ut.h"
 #include "lib/memory.h"
-#include "lib/processor.h"
-#include "rpc/rpccore.h"
-#include "reqh/reqh.h"
+#include "addb/addb.h"
+#include "rpc/session.h"
+#include "rpc/it/ping_fop.h"
+#include "fop/fop.h"
+
+#ifdef __KERNEL__
+#include "rpc/it/ping_fop_k.h"
+#else
+#include "rpc/it/ping_fop_u.h"
+#endif
 
 #include "rpc/rpc_helper.h"
-
-
-#define DEBUG	0
-
-#if DEBUG
-#include <stdio.h>
-#include <stdlib.h>
-#define DBG(fmt, args...) printf("%s:%d " fmt, __func__, __LINE__, ##args)
-#define DBG_PERROR(msg)   perror(msg)
-#else
-#define DBG(fmt, args...) ({ })
-#define DBG_PERROR(msg)   ({ })
-#endif /* DEBUG */
+#include "utils/rpc.h"
 
 
 #define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12345:1"
 #define SERVER_ENDPOINT_ADDR	"127.0.0.1:54321:1"
 #define CLIENT_DB_NAME		"rpc_helper_ut_db_client"
 #define SERVER_DB_NAME		"rpc_helper_ut_db_server"
-#define CLIENT_COB_DOM_ID	12
-#define SERVER_COB_DOM_ID	13
-#define CLIENT_SESSION_SLOTS	1
-#define CLIENT_CONNECT_TIMEOUT	30
 
+enum {
+	CLIENT_COB_DOM_ID	= 12,
+	SERVER_COB_DOM_ID	= 13,
+	CLIENT_SESSION_SLOTS	= 1,
+	CLIENT_CONNECT_TIMEOUT	= 5,
+	NR_PING_BYTES		= 8,
+};
 
 extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
-static struct c2_net_xprt *transport = &c2_net_bulk_sunrpc_xprt;
 
-
-static pid_t start_server(void)
+static int send_fop(struct c2_rpc_session *session)
 {
-	int rc;
-	int cleanup_rc;
-	pid_t server_pid;
-	struct c2_reqh *request_handler;
-	struct c2_rpcmachine *rpc_machine;
-	static struct c2_net_end_point *client_endpoint;
-	static struct c2_net_transfer_mc *transfer_machine;
+	int                rc;
+	int                i;
+	struct c2_fop      *fop;
+	struct c2_fop_ping *ping_fop;
 
-	server_pid = fork();
-	if (server_pid) {
-		DBG("server pid %d\n", server_pid);
-		if (server_pid < 0)
-			DBG_PERROR("failed to start server");
-		return server_pid;
-	}
-
-
-	rc = c2_processors_init();
-	if (rc)
-		goto out;
-
-	/* Init request handler */
-	C2_ALLOC_PTR(request_handler);
-	if (!request_handler) {
-		rc = -ENOMEM;
-		goto proc_fini;
-	}
-
-	c2_reqh_init(request_handler, NULL, NULL, NULL, NULL);
-
-	C2_ALLOC_PTR(rpc_machine);
-	C2_UT_ASSERT(rpc_machine != NULL);
-	if (!rpc_machine) {
-		rc = -ENOMEM;
-		goto free_reqh;
-	}
-
-	rc = c2_rpc_helper_init_machine(transport, SERVER_ENDPOINT_ADDR,
-					SERVER_DB_NAME, SERVER_COB_DOM_ID,
-					request_handler, rpc_machine);
-	C2_UT_ASSERT(rc == 0);
-	if (rc)
-		goto free_rpc_mach;
-
-        transfer_machine = &rpc_machine->cr_tm;
-
-	/* Create destination endpoint for server (client endpoint) */
-	rc = c2_net_end_point_create(&client_endpoint, transfer_machine,
-					CLIENT_ENDPOINT_ADDR);
-	C2_UT_ASSERT(rc == 0);
-	if (rc) {
-		DBG("failed to create client endpoint\n");
-		goto cleanup;
-	}
-
-	/* wait for signal from parent to terminate */
-	DBG("wait for signal to termiate\n");
-	pause();
-	DBG("server terminated\n");
-
-cleanup:
-	cleanup_rc = c2_rpc_helper_cleanup(rpc_machine);
-	C2_UT_ASSERT(cleanup_rc == 0);
-free_rpc_mach:
-	c2_free(rpc_machine);
-free_reqh:
-	c2_free(request_handler);
-proc_fini:
-	c2_processors_fini();
-out:
-	/* if rc contains error code - return it,
-	 * otherwise return cleanup_rc error code, if any */
-	return rc ? rc : cleanup_rc;
-}
-
-static int stop_server(pid_t server_pid)
-{
-	int rc;
-
-	DBG("kill server process, pid %d\n", server_pid);
-	rc = kill(server_pid, SIGTERM);
-	if (rc)
-		DBG_PERROR("failed to kill server");
-	C2_UT_ASSERT(rc == 0);
-
-	return rc;
-}
-
-static int connect_to_server(struct c2_rpc_session **rpc_session)
-{
-	int rc;
-	int cleanup_rc;
-	struct c2_rpcmachine *rpc_machine;
-
-	C2_ALLOC_PTR(rpc_machine);
-	C2_UT_ASSERT(rpc_machine != NULL);
-	if (!rpc_machine) {
+	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
+	C2_UT_ASSERT(fop != NULL);
+	if (fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
-	rc = c2_rpc_helper_init_machine(transport, CLIENT_ENDPOINT_ADDR,
-					CLIENT_DB_NAME, CLIENT_COB_DOM_ID,
-					NULL, rpc_machine);
-	C2_UT_ASSERT(rc == 0);
-	if (rc)
-		goto free;
+	ping_fop = c2_fop_data(fop);
+	ping_fop->fp_arr.f_count = NR_PING_BYTES / sizeof(ping_fop->fp_arr.f_data);
 
-	rc = c2_rpc_helper_client_connect(rpc_machine, SERVER_ENDPOINT_ADDR,
-					  CLIENT_SESSION_SLOTS,
-					  CLIENT_CONNECT_TIMEOUT,
-					  rpc_session);
-	C2_UT_ASSERT(rc == 0);
-	if (rc)
-		goto cleanup;
-	C2_UT_ASSERT(*rpc_session != NULL);
+	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, ping_fop->fp_arr.f_count);
+	C2_UT_ASSERT(ping_fop->fp_arr.f_data != NULL);
+	if (ping_fop->fp_arr.f_data == NULL) {
+		rc = -ENOMEM;
+		goto free_fop;
+	}
 
+	for (i = 0; i < ping_fop->fp_arr.f_count; i++) {
+		ping_fop->fp_arr.f_data[i] = i+100;
+	}
+
+	rc = c2_rpc_helper_client_call(fop, session, CLIENT_CONNECT_TIMEOUT);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fop->f_item.ri_error == 0);
+	C2_UT_ASSERT(fop->f_item.ri_reply != 0);
+
+	c2_free(ping_fop->fp_arr.f_data);
+free_fop:
+	/* FIXME: freeing fop here will lead to endless loop in
+	 * nr_active_items_count(), which is called from
+	 * c2_rpc_session_terminate() */
+	/*c2_free(fop);*/
 out:
 	return rc;
-cleanup:
-	cleanup_rc = c2_rpc_helper_cleanup(rpc_machine);
-	C2_UT_ASSERT(cleanup_rc == 0);
-free:
-	c2_free(rpc_machine);
-	goto out;
 }
 
 static void test_rpc_helper(void)
 {
-	int rc;
-	pid_t server_pid;
-	struct c2_rpc_session *rpc_session;
+	int                    rc;
+	pid_t                  server_pid;
+	struct c2_rpc_session  *session;
 
-	server_pid = start_server();
+	struct c2_rpc_helper_rpcmachine_ctx rctx_server = {
+		.xprt            = &c2_net_bulk_sunrpc_xprt,
+		.local_addr      = SERVER_ENDPOINT_ADDR,
+		.db_name         = SERVER_DB_NAME,
+		.cob_domain_id   = SERVER_COB_DOM_ID,
+		.request_handler = NULL,
+	};
+
+	struct c2_rpc_helper_rpcmachine_ctx rctx_client = {
+		.xprt            = &c2_net_bulk_sunrpc_xprt,
+		.local_addr      = CLIENT_ENDPOINT_ADDR,
+		.db_name         = CLIENT_DB_NAME,
+		.cob_domain_id   = CLIENT_COB_DOM_ID,
+		.request_handler = NULL,
+	};
+
+	struct c2_rpc_helper_client_ctx cctx = {
+		.rpc_machine = NULL,
+		.remote_addr = SERVER_ENDPOINT_ADDR,
+		.nr_slots    = CLIENT_SESSION_SLOTS,
+		.timeout_s   = CLIENT_CONNECT_TIMEOUT,
+	};
+
+	server_pid = ut_rpc_server_start(&rctx_server, CLIENT_ENDPOINT_ADDR);
 	if (server_pid < 0)
 		goto out;
 
-	sleep(1);
+	rc = ut_rpc_connect_to_server(&rctx_client, &cctx, &session);
+	if (rc != 0)
+		goto stop_server;
 
-	rc = connect_to_server(&rpc_session);
-	if (rc)
-		goto out;
+	rc = send_fop(session);
 
-	rc = c2_rpc_helper_cleanup(rpc_session->s_conn->c_rpcmachine);
+	rc = c2_rpc_helper_cleanup(session->s_conn->c_rpcmachine);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = stop_server(server_pid);
-	if (rc)
-		goto out;
+stop_server:
+	rc = ut_rpc_server_stop(server_pid);
 out:
 	return;
 }
 
+static int test_rpc_helper_init(void)
+{
+	int rc;
+
+	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
+	/*c2_addb_choose_default_level(AEL_WARN);*/
+
+	rc = c2_ping_fop_init();
+
+	return rc;
+}
+
+static int test_rpc_helper_fini(void)
+{
+	c2_ping_fop_fini();
+	return 0;
+}
+
 const struct c2_test_suite rpc_helper_ut = {
 	.ts_name = "rpc-helper-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
+	.ts_init = test_rpc_helper_init,
+	.ts_fini = test_rpc_helper_fini,
 	.ts_tests = {
 		{ "rpc-helper", test_rpc_helper },
 		{ NULL, NULL }
