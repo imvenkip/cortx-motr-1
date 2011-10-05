@@ -463,7 +463,7 @@ error:
    further communications.
  */
 static int resource_locate(struct c2_rm_resource_type *rtype,
-			    struct c2_rm_remote *rem, c2_time_t deadline)
+			   struct c2_rm_remote *rem, c2_time_t deadline)
 {
 	struct c2_clink clink;
 	int		rc;
