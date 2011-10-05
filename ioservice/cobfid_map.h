@@ -109,7 +109,7 @@ enum c2_cobfid_map_query_type {
 
 /**
    This data structure keeps state during enumeration of the associations
-   within the map.  The same data structure is used to return the results
+   within the map. The same data structure is used to return the results
    of different types of enumerations.
 
    The data structure should be treated as opaque by the invoking application.
@@ -130,7 +130,7 @@ struct c2_cobfid_map_iter {
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
 };
 
-/** Internal iterator operations */
+/** Iterator operations */
 struct c2_cobfid_map_iter_ops {
 	/**
 	   Loads the next batch of records into the iterator and updates the
@@ -154,7 +154,7 @@ struct c2_cobfid_map_iter_ops {
 
 
 /**
-   Prepare to use a cobfid map, creating it if necessary.  The database file
+   Prepare to use a cobfid map, creating it if necessary. The database file
    will be created in the standard location used for Colibri databases.
    @param cfm      Pointer to the struct c2_cobfid_map to initialize.
    @param db_env   C2 database environment pointer. The pointer must remain
@@ -196,13 +196,12 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm);
    @see c2_cobfid_map_container_enum()
  */
 int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
-		      uint64_t container_id,
-		      struct c2_fid file_fid,
+		      const uint64_t container_id,
+		      const struct c2_fid file_fid,
 		      struct c2_uint128 cob_fid);
 
 /**
-   Delete the association of the tuple (container_id, file_fid) with
-   a cob_fid.
+   Delete the association of the tuple (container_id, file_fid) with a cob_fid.
    @param cfm          Pointer to the struct c2_cobfid_map.
    @param container_id Identifier of the container or device.
    @param file_fid     Global file identifier.
@@ -210,12 +209,12 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
    @retval -errno on failure
  */
 int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
-		      uint64_t container_id,
-		      struct c2_fid file_fid);
+		      const uint64_t container_id,
+		      const struct c2_fid file_fid);
 
 /**
    Initializes an iterator to enumerate the associations within a container
-   in the cobfid map.  The associations are traversed in global file fid
+   in the cobfid map. The associations are traversed in global file fid
    order.
    @param cfm          Pointer to the struct c2_cobfid_map.
    @param container_id Identifier of the container or device.
@@ -232,10 +231,10 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 
 /**
    Initializes an iterator to enumerate all of the associations
-   in the cobfid map.  The associations are traversed by container id
+   in the cobfid map. The associations are traversed by container id
    and global file fid order.
-   @param cfm          Pointer to the struct c2_cobfid_map.
-   @param iter         Pointer to iterator data structure to be initialized.
+   @param cfm  Pointer to the struct c2_cobfid_map.
+   @param iter Pointer to iterator data structure to be initialized.
    The iterator is used to retrieve the results.
    @see c2_cobfid_map_iter_next()
    @see c2_cobfid_map_iter_fini()
@@ -247,10 +246,10 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 
 /**
    Returns the next association in traversal order, pointed to by the
-   iterator.  The iterator gets advanced.
+   iterator. The iterator gets advanced.
 
    Internally, the iterator will open a database transaction to read records
-   from the file.  The iterator may optimize by reading multiple records in
+   from the file. The iterator may optimize by reading multiple records in
    a batch.
 
    @note Insertions and deletions prior to the iterator position may not
@@ -273,7 +272,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 
 /**
    Finalizes the iterator, releasing any associated memory.
-   @param iter           Iterator tracking the position in the enumeration.
+   @param iter Iterator tracking the position in the enumeration.
  */
 void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
 

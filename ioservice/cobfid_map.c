@@ -62,7 +62,7 @@ struct cobfid_map_record {
 /**
   Compare the cobfid_map table keys
  */
-static int cfm_cmp(struct c2_table *table, const void *key0, const void *key1)
+static int cfm_key_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
 	int rc;
 	const struct cobfid_map_key *map_key0 = key0;
@@ -85,19 +85,19 @@ static const struct c2_table_ops cfm_table_ops = {
 			.max_size = sizeof(struct c2_uint128)
 		}
 	},
-	.key_cmp = cfm_cmp
+	.key_cmp = cfm_key_cmp
 };
 
 /** ADDB Instrumentation for cobfidmap */
 static const struct c2_addb_ctx_type cfm_ctx_type = {
-	        .act_name = "cfm"
+	        .act_name = "cobfid_map"
 };
 
 static const struct c2_addb_loc cfm_addb_loc = {
-	        .al_name = "cfm"
+	        .al_name = "cobfid_map"
 };
 
-C2_ADDB_EV_DEFINE(cfm_func_fail, "cfm_func_fail",
+C2_ADDB_EV_DEFINE(cfm_func_fail, "cobfid_map_func_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
 /*
@@ -208,20 +208,21 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 }
 C2_EXPORTED(c2_cobfid_map_fini);
 
-int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
-		      struct c2_fid file_fid, struct c2_uint128 cob_fid)
+int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
+		      const struct c2_fid file_fid,
+		      struct c2_uint128 cob_fid)
 {
 	int			 rc;
 	bool			 table_update_failed = false;
 	struct c2_table		 table;
 	struct c2_db_tx		 tx;
 	struct c2_db_pair	 db_pair;
-	struct cobfid_map_key	*key;
+	struct cobfid_map_key	 key;
 
 	C2_PRE(cobfid_map_invariant(cfm));
 
-	key->cfk_ci = container_id;
-	key->cfk_fid = file_fid;
+	key.cfk_ci = container_id;
+	key.cfk_fid = file_fid;
 
 	rc = c2_table_init(&table, cfm->cfm_dbenv, cfm->cfm_map_name,
 			   0, &cfm_table_ops);
@@ -243,9 +244,11 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
 			 &cob_fid, sizeof(struct c2_uint128));
 
 	rc = c2_table_update(&tx, &db_pair);
-	if (rc != 0)
+	if (rc != 0) {
+		table_update_failed = true;
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_table_update", rc);
+	}
 
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
@@ -265,8 +268,8 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, uint64_t container_id,
 }
 C2_EXPORTED(c2_cobfid_map_add);
 
-int c2_cobfid_map_del(struct c2_cobfid_map *cfm, uint64_t container_id,
-		      struct c2_fid file_fid)
+int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
+		      const struct c2_fid file_fid)
 {
 	int			 rc;
 	struct c2_table		 table;
@@ -625,7 +628,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		/* Transaction should be committed even if records get exhausted
 		   from the table and not all CFM_ITER_THUNK entries are
 		   fetched. Iterator will be loaded with remaining records */
-		if (cfm_cmp(&table, last_key, key) == 0)
+		if (cfm_key_cmp(&table, last_key, key) == 0)
 			goto cleanup;
 
 		rc = c2_table_lookup(&tx, &db_pair);
