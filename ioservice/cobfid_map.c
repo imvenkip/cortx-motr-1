@@ -470,80 +470,6 @@ C2_EXPORTED(c2_cobfid_map_iter_next);
 
 /*
  *****************************************************************************
- Enumerate container
- XXX This section is to be implemented after container definition is in place
- *****************************************************************************
- */
-
-/**
-   This subroutine fills the record buffer in the iterator.  It uses a
-   database cursor to continue enumeration of the map table with starting
-   key values based upon the cfmi_next_ci and cfmi_next_fid values.
-   After loading the records, it sets cfmi_next_fid to the value of the
-   fid in the last record read, so that the next fetch will continue
-   beyond the current batch.  The value of cfmi_next_ci is not modified.
- */
-static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
-{
-	int rc;
-
-	C2_PRE(cobfid_map_iter_invariant(iter));
-
-	return rc;
-}
-
-/**
-   This subroutine returns true if the container_id of the current record
-   is different from the value of cfmi_next_ci (which remains invariant
-   for this query).
- */
-static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
-				  unsigned int idx)
-{
-	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
-
-	C2_PRE(cobfid_map_iter_invariant(iter));
-
-	if (recs[idx].cfr_key.cfk_ci != iter->cfmi_next_ci)
-		return false;
-	return true;
-}
-
-/**
-   Reload from the position prior to the last record read.
- */
-static int enum_container_reload(struct c2_cobfid_map_iter *iter)
-{
-	iter->cfmi_next_fid = iter->cfmi_last_fid;
-	return iter->cfmi_ops->cfmio_fetch(iter);
-}
-
-static const struct c2_cobfid_map_iter_ops enum_container_ops = {
-	.cfmio_fetch  = enum_container_fetch,
-	.cfmio_at_end = enum_container_at_end,
-	.cfmio_reload = enum_container_reload
-};
-
-int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
-				 uint64_t container_id,
-				 struct c2_cobfid_map_iter *iter)
-{
-	int rc;
-
-	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
-				  C2_COBFID_MAP_QT_ENUM_CONTAINER);
-	if (rc != 0) {
-		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
-			    cfm_func_fail, "cobfid_map_iter_init", rc);
-		return rc;
-	}
-	iter->cfmi_next_ci = container_id;
-	return rc;
-}
-C2_EXPORTED(c2_cobfid_map_container_enum);
-
-/*
- *****************************************************************************
  Enumerate map
  *****************************************************************************
  */
@@ -697,7 +623,7 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 {
 	int rc;
 
-	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
+	rc = cobfid_map_iter_init(cfm, iter, &enum_ops,
 				  C2_COBFID_MAP_QT_ENUM_MAP);
 	if (rc != 0)
 		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
@@ -705,6 +631,80 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 	return rc;
 }
 C2_EXPORTED(c2_cobfid_map_enum);
+
+/*
+ *****************************************************************************
+ Enumerate container
+ XXX This section is to be implemented after container definition is in place
+ *****************************************************************************
+ */
+
+/**
+   This subroutine fills the record buffer in the iterator.  It uses a
+   database cursor to continue enumeration of the map table with starting
+   key values based upon the cfmi_next_ci and cfmi_next_fid values.
+   After loading the records, it sets cfmi_next_fid to the value of the
+   fid in the last record read, so that the next fetch will continue
+   beyond the current batch.  The value of cfmi_next_ci is not modified.
+ */
+static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
+{
+	int rc;
+
+	C2_PRE(cobfid_map_iter_invariant(iter));
+
+	return rc;
+}
+
+/**
+   This subroutine returns true if the container_id of the current record
+   is different from the value of cfmi_next_ci (which remains invariant
+   for this query).
+ */
+static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
+				  unsigned int idx)
+{
+	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
+
+	C2_PRE(cobfid_map_iter_invariant(iter));
+
+	if (recs[idx].cfr_key.cfk_ci != iter->cfmi_next_ci)
+		return false;
+	return true;
+}
+
+/**
+   Reload from the position prior to the last record read.
+ */
+static int enum_container_reload(struct c2_cobfid_map_iter *iter)
+{
+	iter->cfmi_next_fid = iter->cfmi_last_fid;
+	return iter->cfmi_ops->cfmio_fetch(iter);
+}
+
+static const struct c2_cobfid_map_iter_ops enum_container_ops = {
+	.cfmio_fetch  = enum_container_fetch,
+	.cfmio_at_end = enum_container_at_end,
+	.cfmio_reload = enum_container_reload
+};
+
+int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
+				 uint64_t container_id,
+				 struct c2_cobfid_map_iter *iter)
+{
+	int rc;
+
+	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
+				  C2_COBFID_MAP_QT_ENUM_CONTAINER);
+	if (rc != 0) {
+		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
+			    cfm_func_fail, "cobfid_map_iter_init", rc);
+		return rc;
+	}
+	iter->cfmi_next_ci = container_id;
+	return rc;
+}
+C2_EXPORTED(c2_cobfid_map_container_enum);
 
 /** @} cobfidmap */
 

@@ -69,7 +69,6 @@ while ((rc = c2_cobfid_map_iter_next(&myiter,&container_id,&file_fid,&cob_fid))
 	// process record
 }
 // cleanup
-c2_cobfid_map_iter_fini(&myiter);
 c2_cobfid_map_fini(&mymap);
 @endcode
 
@@ -221,7 +220,6 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
    @param iter         Pointer to iterator data structure to be initialized.
    The iterator is used to retrieve the results.
    @see c2_cobfid_map_iter_next()
-   @see c2_cobfid_map_iter_fini()
    @retval 0  on success.
    @retval -errno on error.
  */
@@ -237,7 +235,6 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
    @param iter Pointer to iterator data structure to be initialized.
    The iterator is used to retrieve the results.
    @see c2_cobfid_map_iter_next()
-   @see c2_cobfid_map_iter_fini()
    @retval 0  on success.
    @retval -errno on error.
  */
@@ -263,18 +260,11 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
    @retval 0       on success
    @retval -EEXIST when the iterator is exhausted
    @retval -errno  on other errors
-   @see c2_cobfid_map_iter_fini()
  */
 int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 			    uint64_t *container_id_p,
 			    struct c2_fid *file_fid_p,
 			    struct c2_uint128 *cob_fid_p);
-
-/**
-   Finalizes the iterator, releasing any associated memory.
-   @param iter Iterator tracking the position in the enumeration.
- */
-void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
 
 /** @} */
 
