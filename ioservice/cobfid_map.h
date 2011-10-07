@@ -151,7 +151,6 @@ struct c2_cobfid_map_iter_ops {
 	int (*cfmio_reload)(struct c2_cobfid_map_iter *);
 };
 
-
 /**
    Prepare to use a cobfid map, creating it if necessary. The database file
    will be created in the standard location used for Colibri databases.

@@ -88,7 +88,7 @@ static const struct c2_table_ops cfm_table_ops = {
 	.key_cmp = cfm_key_cmp
 };
 
-/** ADDB Instrumentation for cobfidmap */
+/** ADDB instrumentation for cobfidmap */
 static const struct c2_addb_ctx_type cfm_ctx_type = {
 	        .act_name = "cobfid_map"
 };
@@ -584,8 +584,11 @@ cleanup:
 	c2_db_cursor_fini(&db_cursor);
 	if (rc == 0)
 		c2_db_tx_commit(&tx);
-	else
+	else {
 		c2_db_tx_abort(&tx);
+		c2_time_set(&iter->cfmi_last_load, 0, 0);
+		c2_time_add(c2_time_now(), iter->cfmi_last_load);
+	}
 	c2_table_fini(&table);
 
 	return rc;
