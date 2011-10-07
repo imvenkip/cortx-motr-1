@@ -36,6 +36,9 @@
 
 /**
    @addtogroup colibri_setup
+
+   Starts a user space colibri process on a node, registers signal
+   handler and waits for termination signal.
    @{
  */
 

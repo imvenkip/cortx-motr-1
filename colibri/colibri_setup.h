@@ -24,20 +24,20 @@
 /**
    @defgroup colibri_setup Configures user space colibri environment
 
-   Colibri setup program configures and starts a user space colibri
-   environment on a node in a cluster.
+   Colibri setup program configures a user space colibri context
+   on a node in a cluster.
    There exist a list of network transports supported by a node,
    which is used to initialise corresponding network domains per colibri
-   environment, so there exist a network domain per network transport.
-   There can exist multiple request handlers per colibri environment.
-   Every colibri environment configures one or more request handler
+   context, so there exist a network domain per network transport.
+   There can exist multiple request handlers per colibri context.
+   Every colibri context configures one or more request handler
    contexts, one per request handler, each containing a storage domain,
    data base, cob domain, fol and request handler to be initialised.
    Every request handler contains a list of rpc machines, each configured
    per given endpoint per network domain.
    Network domains are shared between multiple request handlers in a
-   colibri environment.
-   There exist multiple services within a colibri environment.
+   colibri context.
+   There exist multiple services within a colibri context.
    Each service identifies a particular set of operations that can be
    executed on a particular node.
    Services are registered with the request handler which performs the
