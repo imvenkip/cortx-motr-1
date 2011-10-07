@@ -33,7 +33,7 @@ unsigned long tick(unsigned long data)
 {
 	c2_time_t now;
 
-	c2_time_now(&now);
+	now = c2_time_now();
 	count ++;
 	if (verbose)
 		printf("%lu.%lu: timer1 tick = %d\n",
@@ -47,7 +47,7 @@ unsigned long tack(unsigned long data)
 	static int tack;
 	c2_time_t  now;
 
-	c2_time_now(&now);
+	now = c2_time_now();
 	tack += data;
 	if (verbose)
 		printf("%lu.%lu:    timer2 tack = %d\n",

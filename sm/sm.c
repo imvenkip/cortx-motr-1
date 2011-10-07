@@ -24,7 +24,7 @@
 #include "lib/mutex.h"
 #include "lib/arith.h"              /* c2_is_po2 */
 #include "addb/addb.h"
-#include "sm.h"
+#include "sm/sm.h"
 
 /**
    @addtogroup sm

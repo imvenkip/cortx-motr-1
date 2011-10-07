@@ -31,8 +31,12 @@
 
 extern struct c2_stob_type linux_stob_type;
 
-int  linux_stobs_init(void);
-void linux_stobs_fini(void);
+int  c2_linux_stobs_init(void);
+void c2_linux_stobs_fini(void);
+
+struct c2_stob_domain;
+
+int c2_linux_stob_setup(struct c2_stob_domain *dom, bool use_directio);
 
 /** @} end group stoblinux */
 

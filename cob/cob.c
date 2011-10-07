@@ -29,7 +29,11 @@
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 
-#include "cob.h"
+#include "cob/cob.h"
+
+#ifdef __KERNEL__
+#define printf printk
+#endif
 
 /**
    @addtogroup cob
@@ -106,6 +110,16 @@ static const struct c2_table_ops cob_oi_ops = {
 	.key_cmp = oi_cmp
 };
 
+static int fb_cmp(struct c2_table *table, const void *key0, const void *key1)
+{
+	const struct c2_stob_id	*id0 = key0;
+	const struct c2_stob_id *id1 = key1;
+
+	C2_PRE(c2_stob_id_is_set(id0));
+	C2_PRE(c2_stob_id_is_set(id1));
+
+	return c2_stob_id_cmp(id0, id1);
+}
 static const struct c2_table_ops cob_fab_ops = {
 	.to = {
 		[TO_KEY] = {
@@ -115,7 +129,7 @@ static const struct c2_table_ops cob_fab_ops = {
                         .max_size = sizeof(struct c2_cob_fabrec)
 		}
 	},
-	.key_cmp = oi_cmp
+	.key_cmp = fb_cmp
 };
 
 static char *cob_dom_id_make(char *buf, const struct c2_cob_domain_id *id,
@@ -169,6 +183,7 @@ int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
 
         return 0;
 }
+C2_EXPORTED(c2_cob_domain_init);
 
 void c2_cob_domain_fini(struct c2_cob_domain *dom)
 {
@@ -178,6 +193,7 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 	c2_rwlock_fini(&dom->cd_guard);
 	c2_addb_ctx_fini(&dom->cd_addb);
 }
+C2_EXPORTED(c2_cob_domain_fini);
 
 static void cob_free_cb(struct c2_ref *ref);
 
@@ -223,6 +239,7 @@ void c2_cob_put(struct c2_cob *cob)
 {
         c2_ref_put(&cob->co_ref);
 }
+C2_EXPORTED(c2_cob_put);
 
 /**
    Allocate a new cob
@@ -410,6 +427,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
         *out = cob;
 	return rc;
 }
+C2_EXPORTED(c2_cob_lookup);
 
 /**
    Check if a cob with this fid is in the cache
@@ -484,7 +502,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
                   struct c2_cob       **out,
                   struct c2_db_tx      *tx)
 {
-        struct c2_cob      *cob;
+        struct c2_cob      *cob = NULL;
         struct c2_cob_oikey oikey;
         struct c2_db_pair   pair;
 	int rc;
@@ -557,10 +575,11 @@ int c2_cob_create(struct c2_cob_domain *dom,
 	return 0;
 
 out_free:
-        c2_cob_put(*out);
+        c2_cob_put(cob);
         C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
         return rc;
 }
+C2_EXPORTED(c2_cob_create);
 
 /** For assertions only */
 static bool c2_cob_is_valid(struct c2_cob *cob)
@@ -612,7 +631,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
         rc = c2_table_delete(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-#if 0
+
         /* Remove from the fileattr_basic table */
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
 			 &cob->co_stobid, sizeof cob->co_stobid,
@@ -621,7 +640,6 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
         c2_table_delete(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-#endif
 
 out:
         /* If the op failed, assume we're not going to do anything else about
@@ -630,8 +648,147 @@ out:
         c2_cob_put(cob);
         return rc;
 }
+C2_EXPORTED(c2_cob_delete);
 
+int c2_cob_update(struct c2_cob		*cob,
+		  struct c2_cob_nsrec	*nsrec,
+		  struct c2_cob_fabrec	*fabrec,
+		  struct c2_db_tx	*tx)
+{
+	struct c2_db_pair	pair;
+	int			rc;
 
+	C2_PRE(c2_cob_is_valid(cob));
+	C2_PRE(cob->co_valid & CA_NSKEY);
+
+	if (nsrec != NULL) {
+		cob->co_nsrec = *nsrec;
+		cob->co_valid |= CA_NSREC;
+
+		c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+				cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
+				&cob->co_nsrec, sizeof cob->co_nsrec);
+
+		rc = c2_table_update(tx, &pair);
+
+		c2_db_pair_release(&pair);
+		c2_db_pair_fini(&pair);
+
+		if (rc)
+			goto out;
+	}
+
+	if (fabrec != NULL) {
+		cob->co_fabrec = *fabrec;
+		cob->co_valid |= CA_FABREC;
+
+		c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
+			&cob->co_nsrec.cnr_stobid, sizeof cob->co_nsrec.cnr_stobid,
+			&cob->co_fabrec, sizeof cob->co_fabrec);
+
+		rc = c2_table_update(tx, &pair);
+
+		c2_db_pair_release(&pair);
+		c2_db_pair_fini(&pair);
+	}
+
+out:
+	C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
+			c2_addb_func_fail, "cob_update", rc);
+	return rc;
+}
+
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
+			const char *name)
+{
+        struct c2_cob_nskey *key;
+
+        key = c2_alloc(sizeof(*key) + strlen(name));
+	if (key == NULL)
+		return;
+
+        key->cnk_pfid.si_bits.u_hi = hi;
+        key->cnk_pfid.si_bits.u_lo = lo;
+        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, strlen(name));
+        c2_bitstring_len_set(&key->cnk_name, strlen(name));
+        *keyh = key;
+}
+C2_EXPORTED(c2_cob_nskey_make);
+
+void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
+{
+	struct c2_db_cursor	cursor;
+	struct c2_db_pair	pair;
+	struct c2_cob_nskey	*nskey;
+	struct c2_cob_nsrec	nsrec;
+	struct c2_db_tx		tx;
+	int			rc;
+
+	nskey = c2_alloc(sizeof (*nskey) + 20);
+
+	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	rc = c2_db_cursor_init(&cursor, &dom->cd_namespace, &tx);
+	if (rc != 0) {
+		printf("ns_traverse: error during cursor init %d\n", rc);
+		return;
+	}
+
+	printf("=============== Namespace Table ================\n");
+	c2_db_pair_setup(&pair, &dom->cd_namespace, nskey, sizeof (*nskey) + 20,
+				&nsrec, sizeof nsrec);
+	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
+#ifndef __KERNEL__
+		printf("[%lx:%lx:%s] -> [%lx:%lx]\n", nskey->cnk_pfid.si_bits.u_hi,
+				nskey->cnk_pfid.si_bits.u_lo,
+				nskey->cnk_name.b_data,
+				nsrec.cnr_stobid.si_bits.u_hi,
+				nsrec.cnr_stobid.si_bits.u_lo);
+#endif
+	}
+
+	printf("=================================================\n");
+	c2_db_cursor_fini(&cursor);
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_tx_commit(&tx);
+
+}
+
+void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
+{
+	struct c2_db_cursor	cursor;
+	struct c2_db_pair	pair;
+	struct c2_stob_id	key;
+	struct c2_cob_fabrec	rec;
+	struct c2_db_tx		tx;
+	int			rc;
+
+	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	rc = c2_db_cursor_init(&cursor, &dom->cd_fileattr_basic, &tx);
+	if (rc != 0) {
+		printf("fb_traverse: error during cursor init %d\n", rc);
+		return;
+	}
+
+	printf("=============== FB Table ================\n");
+	c2_db_pair_setup(&pair, &dom->cd_fileattr_basic, &key, sizeof key,
+				&rec, sizeof rec);
+	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
+#ifndef __KERNEL__
+		printf("[%lx:%lx] -> [%lu:%lu]\n", key.si_bits.u_hi,
+				key.si_bits.u_lo,
+				rec.cfb_version.vn_lsn,
+				rec.cfb_version.vn_vc);
+#endif
+	}
+
+	printf("=================================================\n");
+	c2_db_cursor_fini(&cursor);
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_tx_commit(&tx);
+
+}
 /** @} end group cob */
 
 /*

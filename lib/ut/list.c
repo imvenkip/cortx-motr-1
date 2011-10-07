@@ -21,8 +21,6 @@
 
 #include "lib/ub.h"
 #include "lib/ut.h"
-#include "lib/cdefs.h"
-#include "lib/memory.h"
 #include "lib/list.h"
 
 struct test1 {

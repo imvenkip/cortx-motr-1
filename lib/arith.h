@@ -181,6 +181,20 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	(v1) = (__tmp);					\
 })
 
+/** Decrements a counter checking for underflow. */
+#define C2_CNT_DEC(cnt)					\
+({							\
+        C2_ASSERT((cnt) > 0);				\
+        --cnt;						\
+})
+
+/** Increments a counter checking for overflow. */
+#define C2_CNT_INC(cnt)					\
+({							\
+        ++cnt;						\
+        C2_ASSERT((cnt) > 0);				\
+})
+
 /** @} end of arith group */
 
 /* __COLIBRI_LIB_ARITH_H__ */

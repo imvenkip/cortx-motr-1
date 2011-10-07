@@ -28,7 +28,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 
-#include "stob.h"
+#include "stob/stob.h"
 
 /**
    @addtogroup stob
@@ -81,6 +81,7 @@ int c2_stob_find(struct c2_stob_domain *dom, const struct c2_stob_id *id,
 {
 	return dom->sd_ops->sdo_stob_find(dom, id, out);
 }
+C2_EXPORTED(c2_stob_find);
 
 void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id,
 		  struct c2_stob_domain *dom)
@@ -103,11 +104,13 @@ bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 {
 	return c2_uint128_eq(&id0->si_bits, &id1->si_bits);
 }
+C2_EXPORTED(c2_stob_id_eq);
 
 int c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 {
 	return c2_uint128_cmp(&id0->si_bits, &id1->si_bits);
 }
+C2_EXPORTED(c2_stob_id_cmp);
 
 bool c2_stob_id_is_set(const struct c2_stob_id *id)
 {
@@ -119,6 +122,7 @@ bool c2_stob_id_is_set(const struct c2_stob_id *id)
 	};
 	return !c2_stob_id_eq(id, &zero);
 }
+C2_EXPORTED(c2_stob_id_is_set);
 
 int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
@@ -149,6 +153,7 @@ int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 	C2_POST(ergo(result == -ENOENT, obj->so_state == CSS_NOENT));
 	return result;
 }
+C2_EXPORTED(c2_stob_locate);
 
 int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
@@ -186,6 +191,7 @@ void c2_stob_put(struct c2_stob *obj)
 		obj->so_op->sop_fini(obj);
 	c2_rwlock_write_unlock(&dom->sd_guard);
 }
+C2_EXPORTED(c2_stob_put);
 
 static void c2_stob_io_private_fini(struct c2_stob_io *io)
 {
@@ -215,6 +221,7 @@ void c2_stob_io_init(struct c2_stob_io *io)
 
 	C2_POST(io->si_state == SIS_IDLE);
 }
+C2_EXPORTED(c2_stob_io_init);
 
 void c2_stob_io_fini(struct c2_stob_io *io)
 {
@@ -223,6 +230,7 @@ void c2_stob_io_fini(struct c2_stob_io *io)
 	c2_chan_fini(&io->si_wait);
 	c2_stob_io_private_fini(io);
 }
+C2_EXPORTED(c2_stob_io_fini);
 
 int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		      struct c2_dtx *tx, struct c2_io_scope *scope)
@@ -262,6 +270,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
 }
+C2_EXPORTED(c2_stob_io_launch);
 
 bool c2_stob_io_user_is_valid(const struct c2_diovec *user)
 {
@@ -288,6 +297,7 @@ void *c2_stob_addr_pack(const void *buf, uint32_t shift)
 	C2_PRE(((addr >> shift) << shift) == addr);
 	return (void *)(addr >> shift);
 }
+C2_EXPORTED(c2_stob_addr_pack);
 
 void *c2_stob_addr_open(const void *buf, uint32_t shift)
 {

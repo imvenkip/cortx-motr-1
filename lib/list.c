@@ -176,6 +176,13 @@ bool c2_list_link_is_in(const struct c2_list_link *link)
 }
 C2_EXPORTED(c2_list_link_is_in);
 
+bool c2_list_link_is_last(const struct c2_list_link	*link,
+			  const struct c2_list		*head)
+{
+	return link->ll_next == (void *)head;
+}
+C2_EXPORTED(c2_list_link_is_last);
+
 /** @} end of list group */
 
 /*

@@ -27,6 +27,7 @@
 #include "lib/rwlock.h"
 #include "net/bulk_emulation/sunrpc_xprt_pvt.h"
 #include "net/net_internal.h"
+#include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #ifdef __KERNEL__
 #include <linux/highmem.h> /* kmap_atomic, kunmap_atomic */
@@ -249,7 +250,7 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 	c2_time_t next_buf = 0;
 
 	c2_mutex_lock(&dom->nd_mutex);
-	c2_time_now(&now);
+	now = c2_time_now();
 	while (dp->xd_skulker_run) {
 		dp->xd_skulker_hb++;
 
@@ -266,7 +267,7 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 		c2_cond_timedwait(&dp->xd_skulker_cv, &dom->nd_mutex, wakeup);
 		if (!dp->xd_skulker_run)
 			break;
-		c2_time_now(&now);
+		now = c2_time_now();
 		if (dp->xd_skulker_force) {
 			/* force invocation of handlers */
 			next_conn = now;

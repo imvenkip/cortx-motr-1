@@ -23,9 +23,11 @@
 #endif
 
 #include "addb/addb.h"
-#include "reqh/reqh.h"
 #include "fop/fop.h"
+#include "fop/fom.h"
+#include "reqh/reqh.h"
 #include "nrs/nrs.h"
+#include "rpc/rpccore.h"
 
 /**
    @addtogroup nrs
@@ -40,7 +42,7 @@ static const struct c2_addb_loc nrs_addb = {
 	.al_name = "nrs"
 };
 
-C2_ADDB_EV_DEFINE(sns_addb_enqueue, "enqueue", 0x10, C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(nrs_addb_enqueue, "enqueue", 0x10, C2_ADDB_STAMP);
 
 int c2_nrs_init(struct c2_nrs *nrs, struct c2_reqh *reqh)
 {
@@ -54,13 +56,13 @@ void c2_nrs_fini(struct c2_nrs *nrs)
 
 void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop)
 {
-	C2_ADDB_ADD(&fop->f_addb, &nrs_addb, sns_addb_enqueue);
+	C2_ADDB_ADD(&fop->f_addb, &nrs_addb, nrs_addb_enqueue);
 	c2_reqh_fop_handle(nrs->n_reqh, fop);
 }
 
 /** @} end of nrs group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

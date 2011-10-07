@@ -178,7 +178,7 @@ c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur)
 }
 C2_EXPORTED(c2_bufvec_cursor_step);
 
-static void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
+void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 {
 	struct c2_vec_cursor *vc = &cur->bc_vc;
 	struct c2_bufvec *bv = container_of(vc->vc_vec,struct c2_bufvec,ov_vec);

@@ -100,7 +100,7 @@ struct ad_domain {
 	struct c2_emap             ad_adata;
 
 	/**
-	   Set to true in ad_setup(). Used in pre-conditions to guarantee that
+	   Set to true in c2_ad_stob_setup(). Used in pre-conditions to guarantee that
 	   the domain is fully initialized.
 	 */
 	bool                       ad_setup;
@@ -198,7 +198,7 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 /**
    Implementation of c2_stob_type_op::sto_domain_locate().
 
-   @note the domain returned is not immediately ready for use. ad_setup() has to
+   @note the domain returned is not immediately ready for use. c2_ad_stob_setup() has to
    be called against it first.
  */
 static int ad_stob_type_domain_locate(struct c2_stob_type *type,
@@ -225,7 +225,7 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	return result;
 }
 
-int ad_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
+int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	     struct c2_stob *bstore, struct ad_balloc *ballroom)
 {
 	int result;
@@ -249,6 +249,7 @@ int ad_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	}
 	return result;
 }
+C2_EXPORTED(c2_ad_stob_setup);
 
 /**
    Searches for the object with a given identifier in the domain object list.
@@ -1323,18 +1324,20 @@ const struct c2_addb_ctx_type ad_stob_ctx_type = {
 	.act_name = "adstob"
 };
 
-int ad_stobs_init(void)
+int c2_ad_stobs_init(void)
 {
 	c2_addb_ctx_init(&ad_stob_ctx, &ad_stob_ctx_type,
 			 &c2_addb_global_ctx);
 	return ad_stob_type.st_op->sto_init(&ad_stob_type);
 }
+C2_EXPORTED(c2_ad_stobs_init);
 
-void ad_stobs_fini(void)
+void c2_ad_stobs_fini(void)
 {
 	ad_stob_type.st_op->sto_fini(&ad_stob_type);
 	c2_addb_ctx_fini(&ad_stob_ctx);
 }
+C2_EXPORTED(c2_ad_stobs_fini);
 
 /** @} end group stobad */
 

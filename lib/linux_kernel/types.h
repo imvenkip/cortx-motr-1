@@ -25,6 +25,7 @@
 
 #define UINT32_MAX ((uint32_t)(~((uint32_t) 0)))  /* 0xFFFFFFFF */
 #define UINT64_MAX ((uint64_t)(~((uint64_t) 0)))  /* 0xFFFFFFFFFFFFFFFF */
+#define INT64_MAX ((int64_t)((~(uint64_t)0) >> 1))  /* 0x3FFFFFFFFFFFFFFF */
 
 /* __COLIBRI_LIB_LINUX_KERNEL_TYPES_H_ */
 #endif

@@ -31,7 +31,6 @@
 #include "sm/sm.h"
 
 /* import */
-struct c2_sm;
 struct c2_dtx;
 struct c2_chan;
 struct c2_diovec;

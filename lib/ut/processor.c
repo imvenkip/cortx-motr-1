@@ -450,7 +450,6 @@ static void verify_a_processor(c2_processor_nr_t id,
 	sprintf(filename, "%s/"NUMA_FILE1, processor_info_dirp,
 					   id, pd->pd_numa_node);
 	rc1 = stat(filename, &statbuf);
-	C2_UT_ASSERT(rc1 == 0);
 	if (rc1 != 0) {
 		sprintf(filename, "%s/"NUMA_FILE2, processor_info_dirp,
 						   pd->pd_numa_node, id);
@@ -469,7 +468,6 @@ static void verify_a_processor(c2_processor_nr_t id,
 	C2_UT_ASSERT(pd->pd_l1 == id || pd->pd_l1 == mixedid);
 	C2_UT_ASSERT(pd->pd_l2 == id || pd->pd_l2 == mixedid ||
 		     pd->pd_l2 == physid);
-	
 
 	sprintf(filename, "%s/"L1SZ_FILE, processor_info_dirp, id);
 	l1_sz = get_num_from_file(filename);
@@ -800,6 +798,7 @@ void test_processor(void)
 	verify_all_params();
 	clean_test_dataset();
 
+	unsetenv("C2_PROCESSORS_INFO_DIR");
 }
 
 struct c2_ub_set c2_processor_ub = {
