@@ -109,10 +109,12 @@ void c2_cs_fini(struct c2_colibri *cs_colibri);
 
 /**
    Configures colibri context before starting the services.
-   Parses the given arguments.
-   Initialises network domains.
-   Creates and initialises request handler contexts.
-   Configures rpc machines each per request handler end point.
+   Parses the given arguments and allocates request handler contexts.
+   Validates allocated request handler contexts which includes
+   validation of given arguments and their values.
+   Once all the arguments are validated, initialises network domains,
+   creates and initialises request handler contexts, configures rpc
+   machines each per request handler end point.
 
    @param cs_colibri Colibri context to be initialised
 

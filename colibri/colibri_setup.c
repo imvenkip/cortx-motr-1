@@ -268,14 +268,9 @@ static bool stype_is_valid(const char *stype)
 		strcasecmp(stype, cs_stobs[LINUX_STOB]) == 0));
 }
 
-/**
-   Lists supported services.
-
-   @pre f != NULL
- */
 static void list_services(FILE *f)
 {
-	struct c2_list *services;
+	struct c2_list              *services;
 	struct c2_reqh_service_type *stype;
 	struct c2_reqh_service_type *stype_next;
 
@@ -283,7 +278,12 @@ static void list_services(FILE *f)
 
 	services = c2_reqh_service_list_get();
 
-	fprintf(f, "\n Supported services:\n");
+	if (c2_list_is_empty(services)) {
+		fprintf(f, "No registered services\n");
+		return;
+	}
+
+	fprintf(f, "Supported services:\n");
 	c2_list_for_each_entry_safe(services, stype, stype_next,
 		struct c2_reqh_service_type, rst_linkage) {
 		fprintf(f, " %s\n", stype->rst_name);
@@ -307,10 +307,10 @@ static void list_services(FILE *f)
 static int endpoint_is_inuse(struct c2_colibri *cs_colibri,
 				struct c2_net_xprt *xprt, char *ep)
 {
-	int                        cnt;
-	int                        idx;
-	struct reqh_context       *rctx;
-	struct reqh_context       *rctx_next;
+	int                   cnt;
+	int                   idx;
+	struct reqh_context  *rctx;
+	struct reqh_context  *rctx_next;
 
 	C2_PRE(cs_colibri != NULL && xprt != NULL && ep != NULL);
 
@@ -326,6 +326,7 @@ static int endpoint_is_inuse(struct c2_colibri *cs_colibri,
 				return -EADDRINUSE;
 		}
 	}
+
 	return 0;
 }
 
@@ -338,7 +339,7 @@ static int endpoint_is_inuse(struct c2_colibri *cs_colibri,
    @param cs_colibri Colibri context
    @param ep Endpoint address to be validated
 
-   @pre xprts != NULL && ep != NULL
+   @pre cs_colibri != NULL && ep != NULL
 
    @retval 0 On success
 	-EINVAL On failure
@@ -362,7 +363,46 @@ out:
 }
 
 /**
-   Checks consistency of request handler contex
+   Checks if specified service has already a duplicate entry
+   in given request handler context.
+ */
+static bool is_service_duplicate(const char *service_name, struct reqh_context *rctx)
+{
+	int idx;
+	int cnt;
+
+	for (idx = 0, cnt = 0; idx < rctx->rc_snr; ++idx) {
+		if (strcasecmp(rctx->rc_services[idx], service_name) == 0)
+			++cnt;
+		if (cnt > 1)
+			return true;
+	}
+
+	return false;
+}
+
+/**
+   Checks if given service is registered.
+ */
+static bool is_service_registered(const char *service_name)
+{
+	struct c2_list              *services;
+	struct c2_reqh_service_type *stype;
+	struct c2_reqh_service_type *stype_next;
+
+	services = c2_reqh_service_list_get();
+
+	c2_list_for_each_entry_safe(services, stype, stype_next,
+		struct c2_reqh_service_type, rst_linkage) {
+		if (strcasecmp(stype->rst_name, service_name) == 0)
+			return true;
+	}
+
+	return false;
+}
+
+/**
+   Checks consistency of request handler context.
  */
 static bool cs_reqh_context_invariant(const struct reqh_context *rctx)
 {
@@ -405,8 +445,10 @@ static struct reqh_context *cs_reqh_ctx_alloc(struct c2_colibri *cs_colibri)
 		goto cleanup_rctx;
 
 	rctx->rc_max_services = c2_list_length(c2_reqh_service_list_get());
-	if (rctx->rc_max_services == 0)
+	if (rctx->rc_max_services == 0) {
+		fprintf(cs_colibri->cc_outfile, "No Registered services\n");
 		goto cleanup_endpoints;
+	}
 
 	C2_ALLOC_ARR(rctx->rc_services, rctx->rc_max_services);
 	if (rctx->rc_services == NULL)
@@ -791,38 +833,6 @@ static void cs_storage_fini(struct reqh_stobs *stob)
 	}
 }
 
-static bool is_service_duplicate(const char *service_name, struct reqh_context *rctx)
-{
-	int idx;
-	int cnt;
-
-	for (idx = 0, cnt = 0; idx < rctx->rc_snr; ++idx) {
-		if (strcasecmp(rctx->rc_services[idx], service_name) == 0)
-			++cnt;
-		if (cnt > 1)
-			return true;
-	}
-
-	return false;
-}
-
-static bool is_service_registered(const char *service_name)
-{
-	struct c2_list *services;
-	struct c2_reqh_service_type *stype;
-	struct c2_reqh_service_type *stype_next;
-
-	services = c2_reqh_service_list_get();
-
-	c2_list_for_each_entry_safe(services, stype, stype_next,
-		struct c2_reqh_service_type, rst_linkage) {
-		if (strcasecmp(stype->rst_name, service_name) == 0)
-			return true;
-	}
-
-	return false;
-}
-
 /**
    Initialises and registers a particular type of service with
    the given request handler in colibri context.
@@ -1097,6 +1107,10 @@ out:
 	return rc;
 }
 
+/**
+   Configures one or more request handler contexts and starts
+   corresponding request handlers in each context.
+ */
 static int cs_start_request_handlers(struct c2_colibri *cs_colibri)
 {
 	int                     rc;
@@ -1132,7 +1146,7 @@ out:
 
    @pre cs_reqh_context_invariant()
  */
-static void cs_reqh_ctx_fini(struct reqh_context *rctx)
+static void cs_stop_request_handler(struct reqh_context *rctx)
 {
 	struct c2_reqh *reqh;
 
@@ -1155,7 +1169,7 @@ static void cs_reqh_ctx_fini(struct reqh_context *rctx)
    @param cs_colibri Colibri context to which the reqeust
 		handler contexts belong
  */
-static void cs_reqh_ctxs_fini(struct c2_colibri *cs_colibri)
+static void cs_stop_request_handlers(struct c2_colibri *cs_colibri)
 {
 	struct reqh_context *rctx;
 	struct reqh_context *rctx_next;
@@ -1163,7 +1177,7 @@ static void cs_reqh_ctxs_fini(struct c2_colibri *cs_colibri)
 	c2_list_for_each_entry_safe(&cs_colibri->cc_reqh_ctxs, rctx,
 			rctx_next, struct reqh_context, rc_linkage) {
 		if (rctx->rc_state == RC_INITIALISED)
-			cs_reqh_ctx_fini(rctx);
+			cs_stop_request_handler(rctx);
 		cs_reqh_ctx_free(rctx);
 	}
 }
@@ -1304,7 +1318,10 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cs_colibri)
                         rc = -EINVAL;
 			goto out;
                 }
-		/* Check if all the given end points in a reqh context are valid */
+		/*
+		   Check if all the given end points in a reqh
+		   context are valid.
+		 */
 		for (idx = 0; idx < rctx->rc_enr; ++idx) {
 			rc = ep_is_valid(cs_colibri, rctx->rc_endpoints[idx]);
 			if (rc != 0) {
@@ -1320,7 +1337,17 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cs_colibri)
 			}
 		}
 
-		/* Check if all the given services in a reqh context are valid */
+		/*
+		   Check if the services are registered and are valid in a
+		   reqh context are valid.
+		 */
+		if (rctx->rc_snr == 0) {
+			fprintf(outfile,
+				"COLIBRI: No registered services\n");
+			rc = -EINVAL;
+			goto out;
+		}
+
 		for (idx = 0; idx < rctx->rc_snr; ++idx) {
 			if (!is_service_registered(rctx->rc_services[idx])) {
 				fprintf(outfile,
@@ -1365,7 +1392,7 @@ static int cs_parse_args(struct c2_colibri *cs_colibri, int argc,
 	C2_PRE(cs_colibri != NULL);
 
 	if (argc <= 1) {
-		cs_usage(cs_colibri->cc_outfile);
+		rc = -EINVAL;
 		goto out;
 	}
 
@@ -1408,29 +1435,37 @@ static int cs_parse_args(struct c2_colibri *cs_colibri, int argc,
                 C2_STRINGARG('T', "Storage domain type",
                         LAMBDA(void, (const char *str)
 			{
-				if (vrctx == NULL)
+				if (vrctx == NULL) {
+					rc = -EINVAL;
 					return;
+				}
                                 vrctx->rc_stype = str;
 			})),
                 C2_STRINGARG('D', "Database environment path",
                         LAMBDA(void, (const char *str)
 			{
-				if (vrctx == NULL)
+				if (vrctx == NULL) {
+					rc = -EINVAL;
 					return;
+				}
                                 vrctx->rc_dbpath = str;
 			})),
                 C2_STRINGARG('S', "Storage name",
                         LAMBDA(void, (const char *str)
 			{
-				if (vrctx == NULL)
+				if (vrctx == NULL) {
+					rc = -EINVAL;
 					return;
+				}
                                 vrctx->rc_stpath = str;
 			})),
                 C2_STRINGARG('e', "Network endpoint, eg:- transport:address",
                         LAMBDA(void, (const char *str)
                         {
-				if (vrctx == NULL)
+				if (vrctx == NULL) {
+					rc = -EINVAL;
 					return;
+				}
 				if (vrctx->rc_enr == vrctx->rc_max_endpoints) {
 					fprintf(outfile, "Too many endpoints\n");
 					rc = -E2BIG;
@@ -1442,8 +1477,10 @@ static int cs_parse_args(struct c2_colibri *cs_colibri, int argc,
                 C2_STRINGARG('s', "Services to be configured",
                         LAMBDA(void, (const char *str)
 			{
-				if (vrctx == NULL)
+				if (vrctx == NULL) {
+					rc = -EINVAL;
 					return;
+				}
 				if (vrctx->rc_snr == vrctx->rc_max_services) {
 					fprintf(outfile, "Too many services\n");
 					rc = -E2BIG;
@@ -1453,9 +1490,6 @@ static int cs_parse_args(struct c2_colibri *cs_colibri, int argc,
 				C2_CNT_INC(vrctx->rc_snr);
                         })));
 out:
-	if (vrctx == NULL)
-		rc = -EINVAL;
-
 	return rc;
 }
 
@@ -1469,8 +1503,10 @@ int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv)
 	outfile = cs_colibri->cc_outfile;
 
 	rc = cs_parse_args(cs_colibri, argc, argv);
-	if (rc != 0)
+	if (rc < 0) {
+		cs_usage(cs_colibri->cc_outfile);
 		goto out;
+	}
 
 	rc = reqh_ctxs_are_valid(cs_colibri);
 	if (rc != 0)
@@ -1530,7 +1566,7 @@ void c2_cs_fini(struct c2_colibri *cs_colibri)
 {
 	C2_PRE(cs_colibri != NULL);
 
-        cs_reqh_ctxs_fini(cs_colibri);
+        cs_stop_request_handlers(cs_colibri);
         cs_colibri_fini(cs_colibri);
         c2_fini();
 }
