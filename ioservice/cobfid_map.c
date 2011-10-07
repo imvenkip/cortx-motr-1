@@ -652,7 +652,7 @@ C2_EXPORTED(c2_cobfid_map_enum);
  */
 static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
 {
-	int rc;
+	int rc = 0;
 
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
