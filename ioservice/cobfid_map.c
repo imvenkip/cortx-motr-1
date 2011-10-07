@@ -275,14 +275,14 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	struct c2_table		 table;
 	struct c2_db_tx		 tx;
 	struct c2_db_pair	 db_pair;
-	struct cobfid_map_key	*key;
+	struct cobfid_map_key	 key;
 	struct c2_uint128	 cob_fid;
 	bool			 table_op_failed = false;
 
 	C2_PRE(cobfid_map_invariant(cfm));
 
-	key->cfk_ci = container_id;
-	key->cfk_fid = file_fid;
+	key.cfk_ci = container_id;
+	key.cfk_fid = file_fid;
 
 	rc = c2_table_init(&table, cfm->cfm_dbenv, cfm->cfm_map_name,
 			   0, &cfm_table_ops);
@@ -389,11 +389,6 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	C2_PRE(cobfid_map_invariant(cfm));
 
 	C2_SET0(iter);
-	iter->cfmi_magic = CFM_ITER_MAGIC;
-	iter->cfmi_cfm = cfm;
-	iter->cfmi_ops = ops;
-	iter->cfmi_qt = qt;
-
 	/* allocate buffer */
 	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
 	C2_ALLOC_ARR(recs, CFM_ITER_THUNK);
@@ -402,6 +397,10 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 		return -ENOMEM;
 	}
 
+	iter->cfmi_magic = CFM_ITER_MAGIC;
+	iter->cfmi_cfm = cfm;
+	iter->cfmi_ops = ops;
+	iter->cfmi_qt = qt;
 	/* force a query by positioning at the end */
 	iter->cfmi_rec_idx = iter->cfmi_num_recs;
 
@@ -558,8 +557,8 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	struct c2_db_pair        db_pair;
 	struct c2_db_cursor      db_cursor;
 	struct c2_cobfid_map	*cfm;
-	struct cobfid_map_key	*key;
-	struct cobfid_map_key	*last_key;
+	struct cobfid_map_key	 key;
+	struct cobfid_map_key	 last_key;
 	struct c2_uint128	 cob_fid;
 
 	C2_PRE(cobfid_map_iter_invariant(iter));
@@ -608,8 +607,8 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 
 	c2_db_pair_release(&db_pair);
 
-	key->cfk_ci = iter->cfmi_next_ci;
-	key->cfk_fid = iter->cfmi_next_fid;
+	key.cfk_ci = iter->cfmi_next_ci;
+	key.cfk_fid = iter->cfmi_next_fid;
 
 	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
 			 &cob_fid, sizeof(struct c2_uint128));
@@ -628,7 +627,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		/* Transaction should be committed even if records get exhausted
 		   from the table and not all CFM_ITER_THUNK entries are
 		   fetched. Iterator will be loaded with remaining records */
-		if (cfm_key_cmp(&table, last_key, key) == 0)
+		if (cfm_key_cmp(&table, &last_key, &key) == 0)
 			goto cleanup;
 
 		rc = c2_table_lookup(&tx, &db_pair);
@@ -637,8 +636,8 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 				    "c2_table_lookup", rc);
 			goto cleanup;
 		}
-		recs[i].cfr_key.cfk_ci = key->cfk_ci;
-		recs[i].cfr_key.cfk_fid = key->cfk_fid;
+		recs[i].cfr_key.cfk_ci = key.cfk_ci;
+		recs[i].cfr_key.cfk_fid = key.cfk_fid;
 		recs[i].cfr_cob = cob_fid;
 		iter->cfmi_num_recs++;
 
@@ -683,9 +682,8 @@ static int enum_reload(struct c2_cobfid_map_iter *iter)
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
 	iter->cfmi_next_fid = iter->cfmi_last_fid;
+	iter->cfmi_next_ci = iter->cfmi_last_ci;
 	return iter->cfmi_ops->cfmio_fetch(iter);
-
-	return 0;
 }
 
 static const struct c2_cobfid_map_iter_ops enum_ops = {
