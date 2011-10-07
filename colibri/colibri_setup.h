@@ -52,7 +52,7 @@
    network domains and request handler contexts.
 
    Every request handler context is a set of parsed values of setup arguments
-   and corresponding in memory representations of storage, database environment,
+   and corresponding in-memory representations of storage, database environment,
    cob domain, fol, network domains, services and request handler.
  */
 struct c2_colibri {

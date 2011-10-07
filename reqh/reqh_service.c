@@ -91,7 +91,7 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
         if (!found)
                 stype = NULL;
 
-	C2_POST(ergo(found == true, strcmp(stype->rst_name, sname) == 0 &&
+	C2_POST(ergo(found, strcmp(stype->rst_name, sname) == 0 &&
 		reqh_service_type_invariant(stype)));
 
         return stype;
@@ -135,8 +135,6 @@ int c2_reqh_service_init(struct c2_reqh_service **service,
                 goto out;
         }
 
-	C2_ASSERT(strcmp(stype->rst_name, service_name) == 0);
-	C2_ASSERT(reqh_service_type_invariant(stype));
 	C2_ALLOC_PTR(serv);
 	if (serv == NULL) {
 		rc = -ENOMEM;
