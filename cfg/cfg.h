@@ -29,38 +29,6 @@
 /**
    @page DLD-conf.schema DLD for configuration schema
 
-   - @ref DLD-fspec-ds
-   - @ref DLD-fspec-sub
-   - @ref DLD-fspec-cli
-   - @ref DLD-fspec-usecases
-   - @ref DLDDFS "Detailed Functional Specification" <!-- Note link -->
-
-   @section DLD-fspec-ds Data Structures
-
-   Simple lists can also suffice:
-   - dld_sample_ds1
-   - dld_bad_example
-
-   The section could also describe what use it makes of data structures
-   described elsewhere.
-
-   Note that data structures are defined in the @ref DLDDFS "Detailed
-   Functional Specification" so <b>do not duplicate the definitions</b>!  Do
-   not describe internal data structures here either - they can be described in
-   the @ref DLD-lspec "Logical Specification" if necessary.
-
-   @section DLD-fspec-sub Subroutines
-
-   @subsection DLD-fspec-sub-cons Constructors and Destructors
-
-   @subsection DLD-fspec-sub-acc Accessors and Invariants
-
-   @subsection DLD-fspec-sub-opi Operational Interfaces
-   - dld_sample_sub1()
-
-   @section DLD-fspec-cli Command Usage
-
-   @section DLD-fspec-usecases Recipes
  */
 
 /**
@@ -114,7 +82,7 @@ struct c2_cfg_node {
 	uint32_t	   cn_memory_size;           /*< memory size in MB */
 	uint32_t	   cn_nr_processors;         /*< # of processors   */
 	uint64_t           cn_last_state;            /*< last known state  */
-	uint64_t	   cn_pool_id;               /*< pool id           */
+	uint64_t	   cn_pool_id;               /*< pool id, f-key    */
 };
 
 /**
@@ -122,11 +90,11 @@ struct c2_cfg_node {
    keyed by nic name.
 */
 struct c2_cfg_nic {
-	char     cn_name[C2_CFG_NAME_LEN];      /*< HW address: MAC or others */
+	char     cn_name[C2_CFG_NAME_LEN]; /*< HW address: MAC or others. key */
 	uint32_t cn_type;                       /*< network interface type    */
 	uint32_t cn_mtu;                        /*< MTU                       */
 	uint64_t cn_speed;                      /*< bandwidth in bytes        */
-	char     cn_node_name[C2_CFG_NAME_LEN]; /*< host node name            */
+	char     cn_node_name[C2_CFG_NAME_LEN]; /*< host node name, f-key     */
 	uint64_t cn_last_state;                 /*< state                     */
 };
 
@@ -166,6 +134,8 @@ struct c2_cfg_device {
 	enum c2_cfg_device_media_type     cd_media;      /*< media type:      */
 	uint64_t                          cd_size;       /*< size in bytes    */
 	uint64_t                          cd_last_state; /*< last known state */
+	char       cd_filename[C2_CFG_NAME_LEN];      /*< filename in host OS */
+	char       cd_nodename[C2_CFG_NAME_LEN];  /*< the hosting node, f-key */
 };
 
 /**
@@ -189,7 +159,7 @@ struct c2_cfg_partition {
 	struct c2_cfg_uuid cp_uuid;            /*< partition uuid, key   */
 	uint64_t           cp_start;           /*< start offset in bytes */
 	uint64_t           cp_size;            /*< size in bytes         */
-	struct c2_cfg_uuid cp_devide_uuid;     /*< host device uuid      */
+	struct c2_cfg_uuid cp_devide_uuid;     /*< host device uuid,f-key*/
 	uint32_t           cp_index;           /*< partition index       */
 	uint32_t           cp_type;            /*< partition type        */
 	char               cp_filename[C2_CFG_NAME_LEN]; /*< filename in OS  */
@@ -207,7 +177,7 @@ struct c2_cfg_pool {
 	uint64_t cp_id;                           /*< pool id,   key        */
 	char     cp_name[C2_CFG_NAME_LEN];        /*< pool name             */
 	uint64_t cp_last_state;                   /*< pool state bits       */
-	uint64_t cp_param_list[C2_CFG_PARAM_LEN]; /*< params, with id       */
+	uint64_t cp_param_list[C2_CFG_PARAM_LEN]; /*< param ids, f-keys     */
 };
 
 /**
@@ -234,11 +204,11 @@ enum c2_cfg_service_type {
    Keyed by service uuid.
 */
 struct c2_cfg_service {
-	struct c2_cfg_uuid       cs_uuid;        /*< service uuid, key     */
-	enum c2_cfg_service_type cs_type;        /*< service type          */
-	char      cs_node_name[C2_CFG_NAME_LEN]; /*< host node name        */
-	char      cs_fs_name[C2_CFG_NAME_LEN];   /*< file system name      */
-/*      end_points[]; */                         /*< end points            */
+	struct c2_cfg_uuid       cs_uuid;        /*< service uuid, key        */
+	enum c2_cfg_service_type cs_type;        /*< service type             */
+	char      cs_node_name[C2_CFG_NAME_LEN]; /*< host node name,   f-key  */
+	char      cs_fs_name  [C2_CFG_NAME_LEN]; /*< file system name, f-key  */
+/*      end_points[]; */                         /*< end points               */
 };
 
 
@@ -361,6 +331,20 @@ int c2_cfg_device_update(struct c2_cfg_env *env, struct c2_cfg_device *device);
 */
 int c2_cfg_device_delete(struct c2_cfg_env *env, struct c2_cfg_device *device);
 
+/**
+   list all device cfg. This is similar to directory listing by readdir().
+
+   Upper layer calls this function to get all devices information.
+
+   @param last the last device in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of devices to store the results.
+   @param len the length of the above array.
+   @retval number of devices in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_device_list(struct c2_cfg_env *env, const struct c2_cfg_device *last,
+		       struct c2_cfg_device *results, const int len);
 
 
 /**
@@ -391,6 +375,22 @@ int c2_cfg_fs_update(struct c2_cfg_env *env, struct c2_cfg_filesystem *fs);
 int c2_cfg_fs_delete(struct c2_cfg_env *env, struct c2_cfg_filesystem *fs);
 
 /**
+   list all file systems.
+
+   Upper layer calls this function to get all file system information.
+
+   @param last the last fs in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of file systems to store the results.
+   @param len the length of the above array.
+   @retval number of fs in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_fs_list(struct c2_cfg_env *env, const struct c2_cfg_filesystem *last,
+		   struct c2_cfg_filesystem *results, const int len);
+
+
+/**
    Insert a nic cfg.
 
    @param nic the nic info to insert
@@ -416,6 +416,21 @@ int c2_cfg_nic_update(struct c2_cfg_env *env, struct c2_cfg_nic *nic);
    @pre the nic exists in db
 */
 int c2_cfg_nic_delete(struct c2_cfg_env *env, struct c2_cfg_nic *nic);
+
+/**
+   list all nics.
+
+   Upper layer calls this function to get all nic information.
+
+   @param last the last nic in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of nics to store the results.
+   @param len the length of the above array.
+   @retval number of nics in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_nic_list(struct c2_cfg_env *env, const struct c2_cfg_nic *last,
+		    struct c2_cfg_nic *results, const int len);
 
 /**
    Insert a node cfg.
@@ -444,6 +459,20 @@ int c2_cfg_node_update(struct c2_cfg_env *env, struct c2_cfg_node *node);
 */
 int c2_cfg_node_delete(struct c2_cfg_env *env, struct c2_cfg_node *node);
 
+/**
+   list all nodes.
+
+   Upper layer calls this function to get all node information.
+
+   @param last the last node in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of nodes to store the results.
+   @param len the length of the above array.
+   @retval number of nics in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_node_list(struct c2_cfg_env *env, const struct c2_cfg_node *last,
+		     struct c2_cfg_node *results, const int len);
 
 /**
    Insert a partition cfg.
@@ -473,6 +502,23 @@ int c2_cfg_partition_update(struct c2_cfg_env *env, struct c2_cfg_partition *p);
 int c2_cfg_partition_delete(struct c2_cfg_env *env, struct c2_cfg_partition *p);
 
 /**
+   list all partitions.
+
+   Upper layer calls this function to get all partition information.
+
+   @param last the last partition in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of partitions to store the results.
+   @param len the length of the above array.
+   @retval number of nics in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_partition_list(struct c2_cfg_env *env,
+			  const struct c2_cfg_partition *last,
+		          struct c2_cfg_partition *results, const int len);
+
+
+/**
    Insert a parameter cfg.
 
    @param p the param info to insert
@@ -500,6 +546,22 @@ int c2_cfg_param_update(struct c2_cfg_env *env, struct c2_cfg_param *p);
 int c2_cfg_param_delete(struct c2_cfg_env *env, struct c2_cfg_param *p);
 
 /**
+   list all params.
+
+   Upper layer calls this function to get all params information.
+
+   @param last the last param in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of params to store the results.
+   @param len the length of the above array.
+   @retval number of nics in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_param_list(struct c2_cfg_env *env, const struct c2_cfg_param *last,
+		      struct c2_cfg_param *results, const int len);
+
+
+/**
    Insert a pool cfg.
 
    @param p the pool info to insert
@@ -525,6 +587,22 @@ int c2_cfg_pool_update(struct c2_cfg_env *env, struct c2_cfg_pool *p);
    @pre the pool exists in db
 */
 int c2_cfg_pool_delete(struct c2_cfg_env *env, struct c2_cfg_pool *p);
+
+/**
+   list all pools.
+
+   Upper layer calls this function to get all pool information.
+
+   @param last the last pool in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of pools to store the results.
+   @param len the length of the above array.
+   @retval number of nics in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_pool_list(struct c2_cfg_env *env, const struct c2_cfg_pool *last,
+		     struct c2_cfg_pool *results, const int len);
+
 
 
 /**
@@ -555,6 +633,23 @@ int c2_cfg_profile_update(struct c2_cfg_env *env, struct c2_cfg_profile *p);
 int c2_cfg_profile_delete(struct c2_cfg_env *env, struct c2_cfg_profile *p);
 
 /**
+   list all profiles.
+
+   Upper layer calls this function to get all profile information.
+
+   @param last the last profile in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of profiles to store the results.
+   @param len the length of the above array.
+   @retval number of nics in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_profile_list(struct c2_cfg_env *env,
+			const struct c2_cfg_profile *last,
+			struct c2_cfg_profile *results, const int len);
+
+
+/**
    Insert a service cfg.
 
    @param s the service info to insert
@@ -581,7 +676,21 @@ int c2_cfg_service_update(struct c2_cfg_env *env, struct c2_cfg_service *s);
 */
 int c2_cfg_service_delete(struct c2_cfg_env *env, struct c2_cfg_service *s);
 
+/**
+   list all services.
 
+   Upper layer calls this function to get all service information.
+
+   @param last the last service in previous call. If this is the first call,
+          pass NULL to this.
+   @param results an array of services to store the results.
+   @param len the length of the above array.
+   @retval number of nics in the results; -ve means failure. If the return
+           is zero, end is reached and no more call is needed.
+*/
+int c2_cfg_service_list(struct c2_cfg_env *env,
+			const struct c2_cfg_service *last,
+			struct c2_cfg_service *results, const int len);
 
 /**
    @} conf.schema end group
