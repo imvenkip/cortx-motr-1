@@ -143,8 +143,9 @@ struct dld_sample_ds1 {
    external documentation in this header file.  Please make sure that the DLD
    and the modules cross-reference each other, as shown below.
 
-   @see The @ref DLD "Colibri Sample DLD" its @ref DLD-fspec and its @ref
-   DLD-lspec-thread
+   @see The @ref DLD "Colibri Sample DLD" its
+   @ref DLD-fspec "Functional Specification"
+   and its @ref DLD-lspec-thread
 
    @{
 */
