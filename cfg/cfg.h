@@ -334,7 +334,8 @@ int c2_cfg_device_delete(struct c2_cfg_env *env, struct c2_cfg_device *device);
 /**
    list all device cfg. This is similar to directory listing by readdir().
 
-   Upper layer calls this function to get all devices information.
+   Upper layer calls this function to get all devices information. The caller
+   is reponsible to filter out the devices he cares about.
 
    @param last the last device in previous call. If this is the first call,
           pass NULL to this.
