@@ -537,6 +537,7 @@ AC_CONFIG_FILES([
                  galois/linux_kernel/Makefile
                  ioservice/Makefile
                  ioservice/linux_kernel/Makefile
+                 ioservice/ut/Makefile
                  layout/Makefile
                  layout/linux_kernel/Makefile
                  layout/ut/Makefile

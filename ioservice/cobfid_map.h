@@ -56,7 +56,8 @@ struct c2_fid file_fid;
 struct c2_uint128 cob_fid;
 
 // create or open the map
-rc = c2_cobfid_map_init(&mymap, &mydbenv, &myaddb_ctx, "mycobfidmap");
+rc = c2_cobfid_map_init(&mymap, &mydbenv, &myaddb_ctx, "mycobfidmap",
+			"mycobfidmapname");
 
 // insert records
 rc = c2_cobfid_map_add(&mymap, container_id, file_fid, cob_fid);

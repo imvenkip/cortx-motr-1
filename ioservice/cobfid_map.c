@@ -172,6 +172,14 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 
         sprintf(dpath, "%s/d", map_path);
 
+	rc = mkdir(dpath, 0700);
+	if (rc != 0 && errno != EEXIST) {
+		rc = -errno;
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "mkdir", rc);
+		goto cleanup;
+	}
+
         rc = c2_dbenv_init(cfm->cfm_dbenv, map_path, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
@@ -187,7 +195,7 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 
 	C2_POST(cobfid_map_invariant(cfm));
 
-	return 0;
+	return rc;
 
 cleanup:
 	c2_free(opath);
@@ -311,7 +319,6 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	}
 
 	c2_db_pair_release(&db_pair);
-
 	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
 			 &cob_fid, sizeof(struct c2_uint128));
 
