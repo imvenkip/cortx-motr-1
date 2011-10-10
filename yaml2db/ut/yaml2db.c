@@ -22,9 +22,6 @@
 #  include <config.h>
 #endif
 
-#include "colibri/init.h"
-#include "lib/errno.h"
-#include "lib/getopts.h"
 #include "lib/misc.h"
 #include "yaml2db/disk_conf_db.h"
 #include "yaml2db/yaml2db.h"
