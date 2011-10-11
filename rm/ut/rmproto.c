@@ -134,21 +134,6 @@ void c2_rm_rpc_fini(void)
 	c2_mutex_fini(&rpc_lock);
 }
 
-int c2_rm_db_service_query(const char *name, struct c2_rm_remote *rem)
-{
-	/* Create search query for DB using name as key and
-	 * find record  and assign service ID */
-	rem->rem_state = REM_SERVICE_LOCATED;
-	return 0;
-}
-
-int c2_rm_remote_resource_locate(struct c2_rm_remote *rem)
-{
-	/* Send resource management fop to locate resource */
-	rem->rem_state = REM_RESOURCE_LOCATED;
-	return 0;
-}
-
 /**
  * Search for the OUT request related to IN request(revoke,loan) and returns.
  */

@@ -422,6 +422,21 @@ static void apply_policy(struct c2_rm_incoming *in)
 	}
 }
 
+int c2_rm_db_service_query(const char *name, struct c2_rm_remote *rem)
+{
+        /* Create search query for DB using name as key and
+         * find record  and assign service ID */
+        rem->rem_state = REM_SERVICE_LOCATED;
+        return 0;
+}
+
+int c2_rm_remote_resource_locate(struct c2_rm_remote *rem)
+{
+         /* Send resource management fop to locate resource */
+         rem->rem_state = REM_RESOURCE_LOCATED;
+         return 0;
+}
+
 /**
    A distributed resource location data-base is consulted to locate the service.
  */
