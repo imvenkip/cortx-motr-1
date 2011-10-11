@@ -127,11 +127,12 @@ int fop_fol_type_init(struct c2_fop_type *fopt)
 {
 	struct c2_fol_rec_type *rtype;
 
-	C2_CASSERT(sizeof rtype->rt_opcode == sizeof fopt->ft_code);
+	C2_CASSERT(sizeof rtype->rt_opcode == sizeof
+		   fopt->ft_rpc_item_type.rit_opcode);
 
 	rtype = &fopt->ft_rec_type;
 	rtype->rt_name   = fopt->ft_name;
-	rtype->rt_opcode = fopt->ft_code;
+	rtype->rt_opcode = fopt->ft_rpc_item_type.rit_opcode;
 	if (fopt->ft_ops != NULL && fopt->ft_ops->fto_rec_ops != NULL)
 		rtype->rt_ops = fopt->ft_ops->fto_rec_ops;
 	else
@@ -151,7 +152,8 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 	struct c2_fol_rec_desc desc;
 
 	fopt = fop->f_type;
-	C2_CASSERT(sizeof desc.rd_header.rh_opcode == sizeof fopt->ft_code);
+	C2_CASSERT(sizeof desc.rd_header.rh_opcode ==
+		   sizeof fopt->ft_rpc_item_type.rit_opcode);
 
 	C2_SET0(&desc);
 	desc.rd_type               = &fop->f_type->ft_rec_type;

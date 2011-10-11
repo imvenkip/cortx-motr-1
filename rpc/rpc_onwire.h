@@ -162,12 +162,12 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_bufvec_cursor *cur);
 
 /**
-   Return the onwire size of the item in bytes.
+   Return the onwire size of the item type which is a fop in bytes.
    The onwire size of an item equals = size of (header + payload).
    @param item The rpc item for which the on wire size is to be calculated
    @retval Size of the item in bytes.
 */
-size_t c2_rpc_item_default_size(const struct c2_rpc_item *item);
+size_t c2_rpc_item_fop_default_size(const struct c2_rpc_item *item);
 
 int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 			enum c2_bufvec_what what);

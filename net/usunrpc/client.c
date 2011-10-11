@@ -267,7 +267,8 @@ static int usunrpc_call(struct usunrpc_xprt *xprt, struct c2_net_call *call)
 		 */
 		return -ECONNABORTED;
 	}
-	rc = -clnt_call(xprt->nsx_client, arg->f_type->ft_code,
+	rc = -clnt_call(xprt->nsx_client,
+			arg->f_type->ft_rpc_item_type.rit_opcode,
 			(xdrproc_t)&c2_fop_uxdrproc, (caddr_t)arg,
 			(xdrproc_t)&c2_fop_uxdrproc, (caddr_t)ret, TIMEOUT);
 	if (rc != 0) {

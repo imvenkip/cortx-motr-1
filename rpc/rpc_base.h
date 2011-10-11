@@ -137,11 +137,8 @@ enum c2_rpc_item_type_flags {
 };
 
 /**
-   Definition is taken partly from 'DLD RPC FOP:core wire formats'
-   (not submitted yet).
    Type of an RPC item.
-   There is an instance of c2_rpc_item_type for each value of
-   c2_rpc_opcode_t.
+   There is an instance of c2_rpc_item_type for each value of rit_opcode.
  */
 struct c2_rpc_item_type {
 	/** Unique operation code. */
@@ -155,16 +152,18 @@ struct c2_rpc_item_type {
 	/** Magic no for the item type struct */
 	uint64_t			   rit_magic;
 };
-
-/** Initialize the rpc item types list */
+/** Initialises the rpc item types list and lock */
 int c2_rpc_base_init(void);
 
-/** Destruct the rpc item types list */
+/**
+  Finalizes and destroys the rpc item type list by traversing the list and
+  deleting and finalizing each element.
+*/
 void c2_rpc_base_fini(void);
 
 /**
   Registers a new rpc item type by adding an entry to the rpc item types list.
-  Returns error when an entry for that opcode already exists in the item types
+  Asserts when an entry for that opcode already exists in the item types
   list.
 
   @param item_type The rpc item type to be registered.

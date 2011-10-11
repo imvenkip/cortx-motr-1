@@ -29,16 +29,21 @@ enum {
 	RPC_ITEM_TYPE_HEAD_MAGIC = 0x7269745f68656164,
 };
 
-
 static const struct c2_tl_descr rpc_item_type_descr =
 		    C2_TL_DESCR("item_type_tlist_descr",
 		    struct c2_rpc_item_type, rit_linkage, rit_magic,
 		    RPC_ITEM_TYPE_LINK_MAGIC, RPC_ITEM_TYPE_HEAD_MAGIC);
 
+/** Global rpc item types list. */
 static struct c2_tl        rpc_item_types_list;
 static struct c2_rwlock    rpc_item_types_lock;
 
-
+/**
+  Checks if the supplied opcode has already been registered.
+  @param opcode RPC item type opcode.
+  @retval true if opcode is a duplicate(already registered)
+  @retval false if opcode has not been registered yet.
+*/
 bool opcode_is_dup(uint32_t opcode)
 {
 	struct c2_rpc_item_type        *item_type;
@@ -58,7 +63,7 @@ int c2_rpc_base_init(void)
 
 void c2_rpc_base_fini(void)
 {
-	struct c2_rpc_item_type 	*item_type;
+	struct c2_rpc_item_type		*item_type;
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
 	c2_tlist_for(&rpc_item_type_descr, &rpc_item_types_list, item_type) {
@@ -86,8 +91,8 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
-	struct c2_rpc_item_type  	*item_type = NULL;
-	bool 				 found = false;
+	struct c2_rpc_item_type         *item_type = NULL;
+	bool                             found = false;
 
 	c2_rwlock_read_lock(&rpc_item_types_lock);
 	c2_tlist_for(&rpc_item_type_descr, &rpc_item_types_list, item_type) {
@@ -103,4 +108,13 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 
 	return NULL;
 }
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
 

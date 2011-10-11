@@ -191,7 +191,7 @@ static int ksunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 
 
 	struct rpc_procinfo proc = {
-		.p_proc   = arg_fopt->ft_code,
+		.p_proc   = arg_fopt->ft_rpc_item_type.rit_opcode,
 		.p_encode = (kxdrproc_t) c2_kcall_enc,
 		.p_decode = (kxdrproc_t) c2_kcall_dec,
 		.p_arglen = arg_fopt->ft_top->fft_layout->fm_sizeof,

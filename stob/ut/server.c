@@ -325,14 +325,17 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	/*
 	 * FOMs are implemented only for read and write operations
 	 */
-	if ((fop->f_type->ft_code >= C2_IOSERVICE_READV_OPCODE &&
-	     fop->f_type->ft_code <= C2_IOSERVICE_WRITEV_REP_OPCODE)) {
+	if ((fop->f_type->ft_rpc_item_type.rit_opcode
+	     >= C2_IOSERVICE_READV_OPCODE &&
+	     fop->f_type->ft_rpc_item_type.rit_opcode <=
+	     C2_IOSERVICE_WRITEV_REP_OPCODE)) {
 		c2_reqh_fop_handle(&reqh, fop);
 	}
 	else
 	printf("Got fop: code = %d, name = %s\n",
-			 fop->f_type->ft_code, fop->f_type->ft_name);
-	
+	       fop->f_type->ft_rpc_item_type.rit_opcode,
+	       fop->f_type->ft_name);
+
 	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
 	SERVER_ADDB_ADD("io_handler", rc);
 	return rc;
@@ -602,7 +605,7 @@ int main(int argc, char **argv)
 	 */
 	C2_SET0(&service);
 
-	service.s_table.not_start = fopt[0]->ft_code;
+	service.s_table.not_start = fopt[0]->ft_rpc_item_type.rit_opcode;
 	service.s_table.not_nr    = ARRAY_SIZE(fopt);
 	service.s_table.not_fopt  = fopt;
 	service.s_handler         = &io_handler;

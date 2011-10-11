@@ -82,6 +82,13 @@ const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	}
 };
 
+/** Default rpc item type ops for fop item types */
+const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {
+	.rito_encode = c2_rpc_fop_default_encode,
+	.rito_decode = c2_rpc_fop_default_decode,
+        .rito_item_size = c2_rpc_item_fop_default_size,
+};
+
 /**
    Callback for net buffer used in posting
  */
@@ -290,19 +297,18 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 
 int c2_rpc_core_init(void)
 {
-	int 	rc;
+	int	rc;
 
-	rc = c2_rpc_session_module_init();
+	rc = c2_rpc_base_init();
 	if (rc != 0)
 		return rc;
 
-	return c2_rpc_base_init();
+	return c2_rpc_session_module_init();
 }
 C2_EXPORTED(c2_rpc_core_init);
 
 void c2_rpc_core_fini(void)
 {
-
 	c2_rpc_session_module_fini();
 	c2_rpc_base_fini();
 }
@@ -1045,12 +1051,12 @@ int item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	return rc;
 }
 
-static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
+const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_sent = NULL,
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = c2_rpc_item_default_size,
+	.rito_item_size = c2_rpc_item_fop_default_size,
 	.rito_items_equal = item_equal,
 	.rito_fid_equal = item_fid_equal,
 	.rito_get_io_fragment_count = item_fragment_count_get,
@@ -1059,12 +1065,12 @@ static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
+const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
 	.rito_sent = NULL,
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = c2_rpc_item_default_size,
+	.rito_item_size = c2_rpc_item_fop_default_size,
 	.rito_items_equal = item_equal,
 	.rito_fid_equal = item_fid_equal,
 	.rito_get_io_fragment_count = item_fragment_count_get,
@@ -1080,60 +1086,6 @@ struct c2_rpc_item_type rpc_item_type_readv = {
 struct c2_rpc_item_type rpc_item_type_writev = {
 	.rit_ops = &rpc_item_writev_type_ops,
 };
-
-/**
-   Associate an rpc with its corresponding rpc_item_type.
-   Since rpc_item_type by itself can not be uniquely identified,
-   rather it is tightly bound to its fop_type, the fop_type_code
-   is passed, based on which the rpc_item is associated with its
-   rpc_item_type.
-   @todo Deprecated API. Need to be removed. Should not use this API anywhere.
- */
-void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
-{
-	uint32_t opcode;
-
-	C2_PRE(fopt != NULL);
-
-	/* XXX Needs to be implemented in a clean way. */
-	/* This is a temporary approach to associate an rpc_item
-	   with its rpc_item_type. It will be discarded once we
-	   have a better mapping function for associating
-	   rpc_item_type with an rpc_item. */
-	opcode = fopt->ft_code;
-	switch (opcode) {
-	case C2_IOSERVICE_READV_OPCODE:
-		fopt->ft_ri_type = &rpc_item_type_readv;
-		break;
-	case C2_IOSERVICE_WRITEV_OPCODE:
-		fopt->ft_ri_type = &rpc_item_type_writev;
-		break;
-	default:
-		/* FOP operations which need to set opcode should either
-		   attach on their own, or use this subroutine. Hence default
-		   is kept blank */
-		break;
-	};
-	/* XXX : Assign unique opcode to associated rpc item type.
-	 *       Will be removed once proper mapping and association between
-	 *	 rpc item and fop is established
-	 */
-	if(fopt->ft_ri_type != NULL)
-		fopt->ft_ri_type->rit_opcode = opcode;
-}
-C2_EXPORTED(c2_rpc_item_type_attach);
-
-/*
-void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
-{
-	uint32_t		opcode;
-
-	C2_PRE(fopt != NULL);
-
-	opcode = fopt->ft_code;
-	if(fopt->ft_ri_type != NULL)
-		fopt->ft_ri_type->rit_opcode = opcode;
-}*/
 
 /**
   Set the stats for outgoing rpc object
@@ -1181,7 +1133,7 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
 
         st->rs_items_nr++;
-        st->rs_bytes_nr += c2_rpc_item_default_size(item);
+        st->rs_bytes_nr += c2_rpc_item_fop_default_size(item);
 
 	c2_mutex_unlock(&machine->cr_stats_mutex);
 }

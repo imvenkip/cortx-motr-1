@@ -329,7 +329,7 @@ void test_ksunrpc_server(void)
 	sunrpc_put_fopt.ft_ops = &sunrpc_put_ops;
 
 	C2_SET0(&s1);
-	s1.s_table.not_start = s_fops[0]->ft_code;
+	s1.s_table.not_start = s_fops[0]->ft_rpc_item_type.rit_opcode;
 	s1.s_table.not_nr    = ARRAY_SIZE(s_fops);
 	s1.s_table.not_fopt  = s_fops;
 	s1.s_handler         = &ksunrpc_service_handler;

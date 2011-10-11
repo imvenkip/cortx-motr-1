@@ -56,6 +56,8 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
    @{
  */
 
+extern struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
+
 static struct c2_fop_type_ops write_ops = {
 	.fto_execute = write_handler,
 };
@@ -72,27 +74,49 @@ static struct c2_fop_type_ops quit_ops = {
 	.fto_execute = quit_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_io_write,      "write",  10, &write_ops);
-C2_FOP_TYPE_DECLARE(c2_io_read,       "read",   11, &read_ops);
-C2_FOP_TYPE_DECLARE(c2_io_create,     "create", 12, &create_ops);
-C2_FOP_TYPE_DECLARE(c2_io_quit,       "quit",   13, &quit_ops);
+C2_FOP_TYPE_DECLARE(c2_io_write, "write",  &write_ops, 10,
+		      C2_RPC_ITEM_TYPE_REQUEST,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_io_read, "read", &read_ops, 11,
+		      C2_RPC_ITEM_TYPE_REQUEST,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_io_create, "create", &create_ops, 12,
+		      C2_RPC_ITEM_TYPE_REQUEST,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_io_quit, "quit", &quit_ops, 13,
+		      C2_RPC_ITEM_TYPE_REQUEST,
+		      &c2_rpc_fop_default_item_type_ops);
 
-C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  21, NULL);
-C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply",   22, NULL);
-C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 23, NULL);
+C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  NULL, 21,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply", NULL, 22,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", NULL, 23,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &c2_rpc_fop_default_item_type_ops);
 
 struct c2_fop_type c2_addb_record_fopt = {
-	.ft_code = (14),
 	.ft_name = "addb",
 	.ft_fmt  = &c2_addb_record_header_tfmt,
-	.ft_ops  = NULL
+	.ft_ops  = NULL,
+	.ft_rpc_item_type = {
+		.rit_opcode = 14,
+		.rit_flags = C2_RPC_ITEM_TYPE_REQUEST,
+		.rit_ops   = &c2_rpc_fop_default_item_type_ops,
+	}
 };
 
 struct c2_fop_type c2_addb_reply_fopt = {
-	.ft_code = (24),
 	.ft_name = "addb reply",
 	.ft_fmt  = &c2_addb_reply_tfmt,
-	.ft_ops  = NULL
+	.ft_ops  = NULL,
+	.ft_rpc_item_type = {
+		.rit_opcode = 24,
+		.rit_flags = C2_RPC_ITEM_TYPE_REPLY,
+		.rit_ops = &c2_rpc_fop_default_item_type_ops,
+	}
 };
 
 static struct c2_fop_type *fops[] = {

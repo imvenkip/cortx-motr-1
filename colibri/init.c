@@ -65,12 +65,12 @@ struct init_fini_call subsystem[] = {
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },
+	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
 	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
 	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
 	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
-	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }

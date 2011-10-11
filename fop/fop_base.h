@@ -51,8 +51,6 @@ typedef uint32_t c2_fop_type_code_t;
    for "write", "truncate", etc.
  */
 struct c2_fop_type {
-	/** Unique operation code. */
-	c2_fop_type_code_t                ft_code;
 	/** Operation name. */
 	const char                       *ft_name;
 	/** Linkage into a list of all known operations. */
@@ -67,8 +65,7 @@ struct c2_fop_type {
 	struct c2_fom_type                ft_fom_type;
 	/** The rpc_item_type associated with rpc_item
 	    embedded with this fop. */
-	struct c2_rpc_item_type		 *ft_ri_type;
-	struct c2_rpc_item_type		 ft_rpc_item_type;
+	struct c2_rpc_item_type		  ft_rpc_item_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */
@@ -77,14 +74,6 @@ struct c2_fop_type {
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
-
-/**
-  Given an opcode, return the corrosponding fop type
-  @param opcode Unique fop operation code
-  @retval pointer to the c2_fop_type for the opcode.
-  @retval NULL if the fop type for that opcode doesnt exist
-*/
-struct c2_fop_type *c2_fop_type_search(c2_fop_type_code_t opcode);
 
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);

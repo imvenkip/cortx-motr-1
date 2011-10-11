@@ -37,8 +37,6 @@ static const struct c2_addb_loc c2_fop_addb_loc = {
 	.al_name = "fop"
 };
 
-static struct c2_mutex fop_types_lock;
-static struct c2_list  fop_types_list;
 /**
    Used to check that no new fop iterator types are registered once a fop type
    has been built.
@@ -64,11 +62,6 @@ C2_EXPORTED(c2_fop_field_type_fini);
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
 	fop_fol_type_fini(fopt);
-	if (fopt->ft_top != NULL) {
-		c2_mutex_lock(&fop_types_lock);
-		c2_list_del(&fopt->ft_linkage);
-		c2_mutex_unlock(&fop_types_lock);
-	}
 	if (fopt->ft_fmt != NULL) {
 		c2_fop_type_format_fini(fopt->ft_fmt);
 		fopt->ft_fmt = NULL;
@@ -91,17 +84,15 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 		result = fop_fol_type_init(fopt);
 		if (result == 0) {
 			fopt->ft_top = fmt->ftf_out;
+			result =
+			c2_rpc_item_type_register(&fopt->ft_rpc_item_type);
 			c2_addb_ctx_init(&fopt->ft_addb,
 					 &c2_fop_type_addb_ctx,
 					 &c2_addb_global_ctx);
-			c2_mutex_lock(&fop_types_lock);
-			c2_list_add(&fop_types_list, &fopt->ft_linkage);
-			c2_mutex_unlock(&fop_types_lock);
 		}
 		if (result != 0)
 			c2_fop_type_fini(fopt);
 	}
-	//c2_rpc_item_type_register(&fopt->ft_rpc_item_type);
 	fop_types_built = true;
 	return result;
 }
@@ -122,27 +113,6 @@ int c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 	return result;
 }
 C2_EXPORTED(c2_fop_type_build_nr);
-
-struct c2_fop_type *c2_fop_type_search(uint32_t opcode)
-{
-	struct c2_fop_type      *fop_type;
-	bool			 found = false;
-
-	c2_mutex_lock(&fop_types_lock);
-	c2_list_for_each_entry(&fop_types_list, fop_type, struct c2_fop_type,
-			       ft_linkage) {
-		if (fop_type->ft_code == opcode) {
-			found = true;
-			break;
-		}
-	}
-	c2_mutex_unlock(&fop_types_lock);
-	if (found)
-		return fop_type;
-
-	return NULL;
-}
-C2_EXPORTED(c2_fop_type_search);
 
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 {
@@ -223,8 +193,6 @@ C2_EXPORTED(C2_FOP_TYPE_U64);
 
 int c2_fops_init(void)
 {
-	c2_list_init(&fop_types_list);
-	c2_mutex_init(&fop_types_lock);
 	c2_fits_init();
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
@@ -240,8 +208,6 @@ void c2_fops_fini(void)
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
 	c2_fits_fini();
-	c2_mutex_fini(&fop_types_lock);
-	c2_list_fini(&fop_types_list);
 }
 C2_EXPORTED(c2_fops_fini);
 
