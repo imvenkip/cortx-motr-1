@@ -525,15 +525,12 @@ cleanup:
 static bool enum_at_end(struct c2_cobfid_map_iter *iter,
 				  unsigned int idx)
 {
-	struct cobfid_map_record *recs;
-
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
-	recs = iter->cfmi_buffer;
-
-	if (recs[idx].cfr_key.cfk_ci != iter->cfmi_next_ci)
-		return false;
-	return true;
+	/* Should always return false in generic map enumeration case
+	   since there is no specific condition (similar to container
+	   enumeration) which indicates the end of the map */
+	return false;
 }
 
 static int enum_reload(struct c2_cobfid_map_iter *iter)
