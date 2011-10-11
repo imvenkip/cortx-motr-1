@@ -55,9 +55,10 @@ uint64_t container_id;
 struct c2_fid file_fid;
 struct c2_uint128 cob_fid;
 
+// initialize mydbenv
+
 // create or open the map
-rc = c2_cobfid_map_init(&mymap, &mydbenv, &myaddb_ctx, "mycobfidmap",
-			"mycobfidmapname");
+rc = c2_cobfid_map_init(&mymap, &mydbenv, &myaddb_ctx, "mycobfidmapname");
 
 // insert records
 rc = c2_cobfid_map_add(&mymap, container_id, file_fid, cob_fid);
@@ -92,7 +93,6 @@ struct c2_cobfid_map {
         struct c2_dbenv    *cfm_dbenv;    /**< Database environment pointer */
         struct c2_addb_ctx *cfm_addb;     /**< ADDB context */
 	const char         *cfm_map_name; /**< Name of the map */
-	const char         *cfm_map_path; /**< Pathname of the map file */
 	c2_time_t           cfm_last_mod; /**< Time last modified */
 };
 
@@ -160,19 +160,14 @@ struct c2_cobfid_map_iter_ops {
    valid until the map is finalized.
    @param addb_ctx Pointer to the ADDB context to use. The context must not
    be finalized until after the map is finalized.
-   @param map_path Path of the map database. The string is not referenced
-   after this subroutine returns.
    @param map_name Name of the map. The string is not referenced after this
    subroutine returns.
-   @retval 0 on success
-   @retval -errno on failure.
    @see c2_cobfid_map_add()
    @see c2_cobfid_map_fini()
  */
-int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
+void c2_cobfid_map_init(struct c2_cobfid_map *cfm,
 		       struct c2_dbenv *db_env,
 		       struct c2_addb_ctx *addb_ctx,
-		       const char *map_path,
 		       const char *map_name);
 
 /**
