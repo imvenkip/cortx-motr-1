@@ -32,71 +32,170 @@
    node in cluster.
    Every module should register its corresponding c2_reqh_service_type
    instance containing service specific initialisation method, service
-   name and magic to check consistency.
-   As part of service type registration, the service type instance is
-   added to global list of the same.
-   During colibri startup a particular service type is searched in the
-   global list of service types based on its service name. Once located
-   a c2_reqh_service object is allocated and service type specific
-   initialisation method is invoked, this initialises specific type of
-   service related objects (e.g. fops). This initialisation method also
-   registers service specific operations vector containing its
-   implementations for start, stop and fini.
-   After initialsing the service it is added to the list of services in
-   the given request handler.
+   name. A c2_reqh_service_type instance cna be declared using
+   C2_REQH_SERVICE_TYPE_DECLARE macro. Once the service type is declared
+   it should be registered using c2_reqh_service_type_register() and
+   unregister using c2_reqh_service_type_unregister().
+   As part of service type registration , the service type is added global
+   list of the same.
+   During initialisation of a service, a service type is located using the
+   service name from the global list of service types. Once located, service
+   specific init routine is invoked, which initialises the same. Once the
+   service is successfuly initialised, its pre registered start routine is
+   invoked which initialises service related objects (e.g. fops).
+   As part of service start up the, service is registered with the request
+   handler.
    There is a rpcmachine created per end point per network domain, thus
-   multiple rpc machines can be running within a request handler,
-   thus all the services registered with that request handler are reachable
-   through the registered end points.
+   multiple rpc machines can be running within a request handler, thus all
+   the services registered with that request handler are reachable through
+   the registered end points.
 
    @{
  */
 
 enum {
-	C2_REQH_SERVICE_UUID = 64,
-	C2_REQH_SERVICE_END_POINT = 128
+	C2_REQH_SERVICE_UUID_SIZE = 64,
 };
 
-enum c2_reqh_service_state {
+/**
+   Magic for reqh service
+ */
+enum {
+	/* Hex conversion of "reqhsvc" */
+	C2_RST_MAGIC = 0x72657168737663
+};
+
+/**
+   Phases through which a service typically passes.
+ */
+enum c2_reqh_service_phase {
+	/**
+	   A service is in RH_SERVICE_INITIALISING state when it is allocated
+	   in service specific start routine, once the service specific
+	   initialisation is complete, generic c2_reqh_service_init() is invoked.
+	 */
+	RH_SERVICE_INITIALISING,
+	/**
+	   A service transitions to RH_SERVICE_INITIALISED state, once it is
+	   successfuly initialised by the generic service c2_reqh_service_init()
+	   routine.
+
+	   @see c2_reqh_service_type_ops
+	 */ 
+	RH_SERVICE_INITIALISED,
+	/**
+	   A service transitions to RH_SERVICE_STARTING phase before service
+	   specific start routine is invoked from cs_service_init() while
+	   configuring a service during colibri setup.
+
+	   @see struct c2_reqh_service_ops
+	 */
+	RH_SERVICE_STARTING,
+	/**
+	   A service transitions to RH_SERVICE_STARTED phase after completing
+	   generic part of service start up operations by c2_reqh_service_start().
+	   once service specific start up operations are completed, generic
+	   service start routine c2_reqh_service_start() is invoked.
+
+	   @see c2_reqh_service_start()
+	 */ 
 	RH_SERVICE_STARTED,
-	RH_SERVICE_STOPPED
+	/**
+	   A service transitions to RH_SERVICE_STOPPING phase before service
+	   specific stop routine is invoked from cs_service_fini().
+	   A service should be in RH_SERVICE_RUNNING state to proceed for
+	   finalisation.
+
+	   @see c2_reqh_service_state
+	   @see c2_reqh_service_stop()
+	 */
+	RH_SERVICE_STOPPING,
+	/**
+	   A service is transitions to RH_SERVICE_STOPPED phase once the
+	   generic service c2_reqh_service_stop() routine completes successfuly.
+	 */
+	RH_SERVICE_STOPPED,
+	/**
+	   A service transitions to RH_SERVICE_FAILED phase if the service
+	   start up fails.
+	 */
+	RH_SERVICE_FAILED
+};
+
+/**
+   States a service can be throughout its lifecycle.
+ */
+enum c2_reqh_service_state {
+	/**
+	   A service is in RH_SERVICE_UNDEFINED state after its allocation
+	   and before it is initialised.
+	 */
+	RH_SERVICE_UNDEFINED,
+	/**
+	   A service is in RH_SERVICE_READY state once it is successfuly
+	   initialised.
+	 */
+	RH_SERVICE_READY,
+
+	/**
+	   A service is in RH_SERVICE_RUNNING state once it is successfuly
+	   started.
+	 */
+	RH_SERVICE_RUNNING
 };
 
 /**
    Represents a service on node.
-   This is built during c2_setup, as part of starting
-   a particular service.
-   Multiple services in an address space share the same
-   request handler instance on a node. There exists a list
-   of services in c2_reqh, sharing the same request handler.
+   Multiple services in a colibri address space share the same
+   request handler. There exist a list of services in struct c2_reqh,
+   c2_reqh::rh_services, sharing the same request handler.
+
  */
 struct c2_reqh_service {
 	/**
-	   Service id that should be unique throughout
-	   the cluster.
-	   Currently using a simple integer value.
-	   @todo To have a generic uuid generation
-		mechanism
+	   Service id that should be unique throughout the cluster.
+	   Currently generating service uuid using the service name
+	   and local time stamp.
 	 */
-	char                              rs_uuid[C2_REQH_SERVICE_UUID];
+	char                              rs_uuid[C2_REQH_SERVICE_UUID_SIZE];
+
 	/**
 	   Service type specific structure to hold service
 	   specific implementations of its operations.
 	   This can be used to initialise service specific
-	   objects such as fops, &tc.
+	   objects such as fops.
 	 */
 	struct c2_reqh_service_type      *rs_type;
 
 	/**
-	   State of service (i.e. started or stopped)
-	   This can be used to identify if further incoming
-	   request related to this service should be processed
-	   or not.
-	   @see c2_reqh_service_state
+	   Represents present phase of a service.
+
+	   @see c2_reqh_service_phase
 	 */
-	int                               rs_state;
+	enum c2_reqh_service_phase        rs_phase;
+
 	/**
-	   Service specific operations vector
+	   Represents present state of a service.
+	 */
+	enum c2_reqh_service_state        rs_state;
+
+	/**
+	   Represents number of fops of a service in
+	   execution. This should be 0 when for a
+	   service to proceed for finalisation after
+	   receiving the stop signal.
+	   Service objects should not be finalised until
+	   this count is 0 for normal termination.
+	 */
+	uint64_t                          rs_busy_ref_cnt;
+
+	/**
+	   Protects state service state transitions.
+	 */
+	struct c2_mutex                   rs_mutex;
+
+	/**
+	   Service specific operations vector.
 	 */
 	const struct c2_reqh_service_ops *rs_ops;
 
@@ -104,12 +203,16 @@ struct c2_reqh_service {
 	   Request handler this service belongs to.
 	 */
 	struct c2_reqh                   *rs_reqh;
+
 	/**
-	   Linkage into list of services in request handler
+	   Linkage into list of services in request handler.
+
+	   @see c2_reqh::rh_services
 	 */
 	struct c2_list_link               rs_linkage;
+
 	/**
-	   Service magic to check consistency
+	   Service magic to check consistency of service instance.
 	 */
 	uint64_t                          rs_magic;
 };
@@ -119,37 +222,42 @@ struct c2_reqh_service {
  */
 struct c2_reqh_service_ops {
 	/**
-	   Performs startup operations related to service.
-	   Once started, incoming requests related
-	   to this service are ready to be processed by a
-	   node.
-	   Service startup can involve operations like
-	   initialising service specific fops. This
-	   function is invoked from a generic service startup
+	   Performs service specific startup operations and invokes 
+	   generic c2_reqh_service_start(), which registers the service
+	   with the given request handler.
+	   Once started, incoming requests related to this service are
+	   ready to be processed by the corresponding request handler.
+	   Service startup can involve operations like initialising service
+	   specific fops, which may fail due to whichever reason, in that
+	   case the service is finalised and appropriate error is returned.
 
 	   @param service Service to be started
 
 	   @see c2_reqh_service_start()
 	 */
-	void (*rso_start)(struct c2_reqh_service *service);
+	int (*rso_start)(struct c2_reqh_service *service);
+
 	/**
-	   Stops a service and no incoming request related
-	   to this service on a node should be processed
-	   further.
+	   Performs services specific finalisation of objects and invokes
+	   generic c2_reqh_service_stop(), no incoming request related
+	   to this service on a node should be processed further.
 	   Stopping a service can involve operations like finalising
-	   service specific fops. This is invoked from a generic
-	   service stop function.
+	   service specific fops.
+	   A service should not proceed for finalisation until its
+	   c2_reqh_service::rs_busy_ref_cnt is 0.
 
 	   @param service Service to be started
 
 	   @see c2_reqh_service_stop()
 	 */
-	void (*rso_stop)(struct c2_reqh_service *service);
-	/**
-	   Finalises a particular service. This can perform
-	   any service specific finalisation is any. It is
-	   invoked from a generic service finalisation routine.
+	int (*rso_stop)(struct c2_reqh_service *service);
 
+	/**
+	   Destroys a particular service.
+	   Firstly a generic c2_reqh_service_fini() is invoked,
+	   which performs generic part of service finalisation
+	   and then follows the service specific finalisation.
+	   
 	   @param service Service to be finalised
 
 	   @see c2_reqh_service_fini()
@@ -162,21 +270,22 @@ struct c2_reqh_service_ops {
  */
 struct c2_reqh_service_type_ops {
 	/**
-	   Initialises a particular service.
-	   This function accepts pre-allocated c2_reqh_service
-	   instance and initialises it with the given service type
-	   and corresponding service operations vector.
+	   Contructs a particular service.
+	   Allocates and initialises a service with the
+	   given service type and corresponding service
+	   operations vector. This is invoked during
+	   colibri startup to configure a particular service,
+	   once the allocation and service specific initialisation
+	   is done, this invokes a generic c2_reqh_service_init()
+	   routine to initialise generic part of a service.
 
-	   @param service Service to be initialised
+	   @param service Service to be allocated and initialised
 	   @param stype Type of service to be initialised
 
 	   @see c2_reqh_service_init()
-
-	   @retval 0 On success
-		-errno On failure
 	 */
-	int (*rsto_service_init)(struct c2_reqh_service *service,
-					struct c2_reqh_service_type *stype);
+	int (*rsto_service_alloc_and_init)(struct c2_reqh_service_type *stype,
+			struct c2_reqh *reqh, struct c2_reqh_service **service);
 };
 
 /**
@@ -188,16 +297,11 @@ struct c2_reqh_service_type_ops {
    @see c2_reqh_service_type_init()
  */
 struct c2_reqh_service_type {
-	const char		        *rst_name;
-	struct c2_reqh_service_type_ops *rst_ops;
-	struct c2_list_link              rst_linkage;
-	uint64_t                         rst_magic;
+	const char		              *rst_name;
+	const struct c2_reqh_service_type_ops *rst_ops;
+	struct c2_list_link                    rst_linkage;
+	uint64_t                               rst_magic;
 };
-
-/**
-   Returns list of supported services.
- */
-struct c2_list *c2_reqh_service_list_get(void);
 
 /**
    Locates a particular type of service.
@@ -207,97 +311,98 @@ struct c2_list *c2_reqh_service_list_get(void);
 
    @pre sname != NULL
 
-   @post ergo(found == true, strcmp(stype->rst_name, sname) == 0 &&
-                reqh_service_type_invariant(stype))
-
    @see c2_reqh_service_init()
 
  */
 struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
 
 /**
-   Invokes service specific start routine and registers
-   the service with the given request handler
-   and sets its state to RH_SERVICE_STARTED, thus
-   signifying that the service is now ready to process
-   incoming requests related to it.
+   Starts a particular service.
+   Registers a service with the request handler and transitions
+   the service into RH_SERVICE_STARTED phase and changes service
+   state to RH_SERVICE_RUNNING. This is invoked from service
+   specific start routine.
 
    @param service Service to be started
-   @param reqh Request handler to which the service
 
-   @pre service != NULL && reqh != NULL
+   @pre service != NULL
+
+   @post c2_reqh_service_invariant(service)
  */
-void c2_reqh_service_start(struct c2_reqh_service *service, struct c2_reqh *reqh);
+int c2_reqh_service_start(struct c2_reqh_service *service);
 
 /**
-   Stops a particular service. Invokes service specific
-   stop routine and unregisters it from the request handler.
+   Stops a particular service.
+   Unregisters a service from the request handler and
+   transitions service to RH_SERVICE_STOPPED phase.
+   This is invoked from service specific stop routine.
 
    @param service Service to be stopped
 
    @pre service != NULL
  */
 void c2_reqh_service_stop(struct c2_reqh_service *service);
+
 /**
-   Initialises a particular service on a node.
-   Allocates a service object. locates corresponding
-   service type object using the service_name, and
-   invokes init function for that service type.
+   Performs generic part of service initialisation.
+   Transitions service into RH_SERVICE_INITIALISED phase
+   and changes service state to RH_SERVICE_READY.
+   This is invoked from the service specific init routine.
 
-   @param service service to be allocated and initialised
-   @param service_name name of service to be initialised
+   @param service service to be initialised
 
-   @retval 0 On success
-	-errno On failure
+   @pre service != NULL && reqh != NULL &&
+        service->rs_state == RH_SERVICE_UNDEFINED &&
+	service->rs_phase == RH_SERVICE_INITIALISING
+
+   @see struct c2_reqh_service_type_ops
  */
-int c2_reqh_service_init(struct c2_reqh_service **service,
-			const char *service_name);
+int c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh);
 
 /**
-   Finalses a given service on a particular node.
-   This invokes service specific fini routine and unregisters
-   a given service from the request handler and frees the samw.
+   Performs generic part of service finalisation.
+   This is invoked from service specific fini routine.
 
    @param service Service to be finalised
+
+   @pre service != NULL && service->rs_phase == RH_SERVICE_STOPPED
+
+   @see struct c2_reqh_service_ops
  */
 void c2_reqh_service_fini(struct c2_reqh_service *service);
 
+#define C2_REQH_SERVICE_TYPE_DECLARE(stype, ops, name) \
+struct c2_reqh_service_type stype = {                  \
+        .rst_name  = (name),	                       \
+	.rst_ops   = (ops),                            \
+	.rst_magic = (C2_RST_MAGIC)                    \
+}                                                     \
+
 /**
-   Initialises and registers a particular type of service.
-   This is invoked while initialising a particular module.
+   Registers a service type in a global service types list,
+   i.e. rstypes.
 
-   @param rstype, c2_reqh_service_type instance to be initialsed
-   @param rst_ops, service type specific operations vector
-   @param service_name, name of the service to be initialised
-
-   @retval 0 On success
-	-errno On failure
+   @pre rstype != NULL && rstype->rst_magic == C2_RST_MAGIC
  */
-int c2_reqh_service_type_init(struct c2_reqh_service_type *rstype,
-			struct c2_reqh_service_type_ops *rst_ops,
-			const char *service_name);
+int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype);
 
 /**
-   Finalises a particular type of service on a node.
-   This is invoked while finalising a module.
+   Unregisters a service type from a global service types list,
+   i.e. rstypes.
 
-   @param rstype Type of service to be finalised
+   @pre rstype != NULL
  */
-void c2_reqh_service_type_fini(struct c2_reqh_service_type *rstype);
+void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype);
 
 /**
-   Initialises global list of service types and
-   its corresponding mutex.
-   This is invoked from c2_init().
-
-   @retval 0 On success
-	-errno On failure
+   Initialises global list of service types.
+   This is invoked from c2_reqhs_init().
  */
 int c2_reqh_service_types_init();
 
 /**
-   Finalises global list of service types and its
-   corresponding mutex.
+   Finalises global list of service types.
+   This is invoked from c2_reqhs_fini();
  */
 void c2_reqh_service_types_fini();
 

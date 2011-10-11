@@ -74,12 +74,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
-	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
-	/*
-	   Initlisation routines that register service types
-	   must follow c2_reqh_types_init.
-	 */
-	{ &c2_reqh_service_types_init, &c2_reqh_service_types_fini, "service"}
+	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }
 };
 
 static void fini_nr(int i)

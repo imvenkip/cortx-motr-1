@@ -34,6 +34,7 @@
 #include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
+#include "reqh/reqh_service.h"
 
 #include "reqh.h"
 
@@ -113,6 +114,7 @@ C2_EXPORTED(c2_reqh_fini);
 void c2_reqhs_fini(void)
 {
 	c2_addb_ctx_fini(&c2_reqh_addb_ctx);
+	c2_reqh_service_types_fini();
 	c2_reqh_fop_fini();
 }
 C2_EXPORTED(c2_reqhs_fini);
@@ -121,6 +123,7 @@ int c2_reqhs_init(void)
 {
 	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
 					&c2_addb_global_ctx);
+	c2_reqh_service_types_init();
 	return c2_reqh_fop_init();
 }
 C2_EXPORTED(c2_reqhs_init);
