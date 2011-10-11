@@ -26,12 +26,16 @@
 #include "fid/fid.h" /** import c2_fid */
 
 /**
-   @page DLD-conf.schema DLD for configuration schema
+   @page DLD_conf_schema DLD for configuration schema
 
+   This page contains the internal on-disk data structures for Colibri
+   configuration information.
+
+   - @ref conf_schema "DLD for Configuration Schema"
  */
 
 /**
-   @defgroup conf.schema Configuration Schema
+   @defgroup conf_schema Configuration Schema
    @brief DLD of configuration schema
 
    This file defines the interfaces and data structures to store and
@@ -39,13 +43,30 @@
    configuration information is used to describe how a Colibri file system
    is organized by storage, nodes, devices, containers, services, etc.
 
-   These data structures are used for on-disk and in-memory purpose.
+   These data structures are used for on-disk purpose.
+
+   <hr>
+   @section DLD-ovw Overview
+
+   This DLD contains the data structures and routines to organize the
+   configuration information of Colibri, to access these information.
+   These configuration information is stored in database, and is populated
+   to clients and servers who are using these information to take the whole
+   Colibri system up. These information is cached on clients and servers.
+   These information is treated as resources, which are protected by locks.
+   So configuration may be invalidated and re-acquired (that is update)
+   by users when resources are revoked.
+
+   The configuration schema is to provide a way to store, load, and update
+   these informations. How to maintain the relations in-between these data
+   strucctures is done by its upper layer.
 
    @see HLD of configuration schema <a>https://docs.google.com/a/xyratex.com/document/d/1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/edit?hl=en_US</a>
    @{
 */
 
 enum {
+	/** uuid string size */
 	C2_CFG_UUID_SIZE = 40
 };
 
@@ -53,6 +74,7 @@ enum {
    config uuid
  */
 struct c2_cfg_uuid {
+	/** uuid */
 	char cu_uuid[C2_CFG_UUID_SIZE];
 };
 
@@ -63,8 +85,8 @@ enum c2_cfg_state_bit {
 	/** set if Online, and clear if Offline */
 	C2_CFG_STATE_ONLINE  = 1 << 0,
 
-	/*< set if Good, and clear if Failed    */
-	C2_CFG_STATE_GOOD    = 1 << 1,
+	/** set if Good, and clear if Failed    */
+	C2_CFG_STATE_GOOD    = 1 << 1
 };
 
 /**
@@ -83,7 +105,10 @@ enum c2_cfg_property_bit {
 
 
 enum {
+	/** maximum name length */
 	C2_CFG_NAME_LEN  = 128,
+
+	/** double of the maximum name length */
 	C2_CFG_NAME_LEN2 = C2_CFG_NAME_LEN * 2
 };
 
@@ -117,7 +142,7 @@ struct c2_cfg_node__val {
 	/** node property. @see c2_cfg_property_bit  */
 	uint64_t           cn_property;
 
-	/** pool id, f-key. @see c2_cfg_pool    */
+	/** pool id, f-key. @see c2_cfg_pool__key    */
 	uint64_t	   cn_pool_id;
 };
 
@@ -138,8 +163,8 @@ enum c2_cfg_network_interface_type {
 	/** Ethernet, 10gb */
 	C2_CFG_NIC_INTERFACE_ETHER10GB,
 
-	/** Infini/Band, */
-	C2_CFG_NIC_INTERFACE_INFINIBAND,
+	/** Infini/Band */
+	C2_CFG_NIC_INTERFACE_INFINIBAND
 };
 
 /**
@@ -176,13 +201,13 @@ struct c2_cfg_nic__val {
    Colibri device interface types.
 */
 enum c2_cfg_storage_device_interface_type {
-	C2_CFG_DEVICE_INTERFACE_ATA = 1,
-	C2_CFG_DEVICE_INTERFACE_SATA,
-	C2_CFG_DEVICE_INTERFACE_SCSI,
-	C2_CFG_DEVICE_INTERFACE_SATA2,
-	C2_CFG_DEVICE_INTERFACE_SCSI2,
-	C2_CFG_DEVICE_INTERFACE_SAS,
-	C2_CFG_DEVICE_INTERFACE_SAS2
+	C2_CFG_DEVICE_INTERFACE_ATA = 1,  /**< ATA     */
+	C2_CFG_DEVICE_INTERFACE_SATA,     /**< SATA    */
+	C2_CFG_DEVICE_INTERFACE_SCSI,     /**< SCSI    */
+	C2_CFG_DEVICE_INTERFACE_SATA2,    /**< SATA II */
+	C2_CFG_DEVICE_INTERFACE_SCSI2,    /**< SCSI II */
+	C2_CFG_DEVICE_INTERFACE_SAS,      /**< SAS     */
+	C2_CFG_DEVICE_INTERFACE_SAS2      /**< SAS II  */
 };
 
 
@@ -199,7 +224,7 @@ enum c2_cfg_storage_device_media_type {
 	/** tape            */
 	C2_CFG_DEVICE_MEDIA_TAPE,
 
-	/*< read-only memory, like CD */
+	/** read-only memory, like CD */
 	C2_CFG_DEVICE_MEDIA_ROM
 };
 
@@ -303,6 +328,7 @@ struct c2_cfg_storage_device_partition__val {
 };
 
 enum {
+	/** maximum number of params */
 	C2_CFG_PARAM_LEN = 128
 };
 
@@ -360,7 +386,7 @@ enum c2_cfg_service_type {
 	/** management service     */
 	C2_CFG_SERVICE_MGMT,
 
-	/*< DLM service            */
+	/** DLM service            */
 	C2_CFG_SERVICE_DLM,
 };
 
@@ -406,7 +432,7 @@ struct c2_cfg_profile__key {
 /**
    Colibri profile configuration value.
 */
-struct c2_cfg_profile__value {
+struct c2_cfg_profile__val {
 	/** its file system name  */
 	char cp_fs_name[C2_CFG_NAME_LEN];
 };
@@ -440,7 +466,7 @@ struct c2_cfg_param__val {
 #define C2_CFG_SERVICE_DB_TABLE    "services"
 
 /**
-   @} conf.schema end group
+   @} conf_schema end group
 */
 
 #endif /*  __COLIBRI_CFG_CFG_H__ */
