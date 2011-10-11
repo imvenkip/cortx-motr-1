@@ -512,6 +512,8 @@ cleanup:
 	else {
 		c2_db_tx_abort(&tx);
 		iter->cfmi_last_load = c2_time_now();
+		iter->cfmi_next_ci = key.cfk_ci;
+		iter->cfmi_next_fid = key.cfk_fid;
 	}
 	c2_table_fini(&table);
 
@@ -564,7 +566,6 @@ C2_EXPORTED(c2_cobfid_map_enum);
 /*
  *****************************************************************************
  Enumerate container
- XXX This section is to be implemented after container definition is in place
  *****************************************************************************
  */
 
@@ -578,10 +579,115 @@ C2_EXPORTED(c2_cobfid_map_enum);
  */
 static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
 {
-	int rc = 0;
+	int				 rc;
+	int				 i;
+	struct c2_table			 table;
+	struct c2_db_tx			 tx;
+	struct c2_db_pair		 db_pair;
+	struct c2_db_cursor		 db_cursor;
+	struct c2_cobfid_map		*cfm;
+	struct cobfid_map_key		 key;
+	struct cobfid_map_key		 last_key;
+	struct c2_uint128		 cob_fid;
+	struct cobfid_map_record	*recs;
 
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
+	recs = iter->cfmi_buffer;
+
+	cfm = iter->cfmi_cfm;
+
+	rc = c2_table_init(&table, cfm->cfm_dbenv, cfm->cfm_map_name,
+			   0, &cfm_table_ops);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_init", rc);
+		return rc;
+	}
+
+	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_tx_init", rc);
+		c2_table_fini(&table);
+		return rc;
+	}
+
+	rc = c2_db_cursor_init(&db_cursor, &table, &tx);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_cursor_init", rc);
+		c2_table_fini(&table);
+		c2_db_tx_abort(&tx);
+		return rc;
+	}
+
+	/* Store the last key, to check if there is overrun during iterating
+	   the table */
+	c2_db_pair_setup(&db_pair, &table, &last_key,
+			 sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
+
+	rc = c2_db_cursor_last(&db_cursor, &db_pair);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_cursor_last", rc);
+		goto cleanup;
+	}
+
+	c2_db_pair_release(&db_pair);
+
+	key.cfk_ci = iter->cfmi_next_ci;
+	key.cfk_fid = iter->cfmi_next_fid;
+
+	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
+
+	/* use c2_db_cursor_get() to read from (cfmi_next_ci, cfmi_next_fid) */
+	rc = c2_db_cursor_get(&db_cursor, &db_pair);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_cursor_get", rc);
+		goto cleanup;
+	}
+
+	iter->cfmi_num_recs = 0;
+
+	for (i = 0; i < CFM_ITER_THUNK; ++i) {
+		/* Transaction should be committed even if records get exhausted
+		   from the table and not all CFM_ITER_THUNK entries are
+		   fetched. Iterator will be loaded with remaining records */
+		if (cfm_key_cmp(&table, &last_key, &key) == 0)
+			goto cleanup;
+
+		recs[i].cfr_key.cfk_ci = key.cfk_ci;
+		recs[i].cfr_key.cfk_fid = key.cfk_fid;
+		recs[i].cfr_cob = cob_fid;
+		iter->cfmi_num_recs++;
+
+		c2_db_pair_setup(&db_pair, &table, &key,
+				 sizeof(struct cobfid_map_key),
+				 &cob_fid, sizeof(struct c2_uint128));
+		rc = c2_db_cursor_next(&db_cursor, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+				    "c2_db_cursor_next", rc);
+			goto cleanup;
+		}
+	}
+
+cleanup:
+	c2_db_pair_release(&db_pair);
+	c2_db_pair_fini(&db_pair);
+	c2_db_cursor_fini(&db_cursor);
+	if (rc == 0)
+		c2_db_tx_commit(&tx);
+	else {
+		c2_db_tx_abort(&tx);
+		iter->cfmi_last_load = c2_time_now();
+		iter->cfmi_next_fid = key.cfk_fid;
+	}
+	c2_table_fini(&table);
 	return rc;
 }
 
@@ -633,6 +739,10 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 		return rc;
 	}
 	iter->cfmi_next_ci = container_id;
+	/* Initialize the fid to 0, to start from first fid for a given
+	   container */
+	iter->cfmi_next_fid.f_container = 0;
+	iter->cfmi_next_fid.f_key = 0;
 	return rc;
 }
 C2_EXPORTED(c2_cobfid_map_container_enum);
