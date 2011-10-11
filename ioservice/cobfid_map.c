@@ -340,14 +340,15 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 			    uint64_t *container_id_p, struct c2_fid *file_fid_p,
 			    struct c2_uint128 *cob_fid_p)
 {
-	int rc;
+	int				 rc;
+	struct cobfid_map_record	*recs;
 
 	C2_PRE(cobfid_map_iter_invariant(iter));
-	struct cobfid_map_record *recs = iter->cfmi_buffer;
-
 	C2_PRE(container_id_p != NULL);
 	C2_PRE(file_fid_p != NULL);
 	C2_PRE(cob_fid_p != NULL);
+
+	recs = iter->cfmi_buffer;
 
 	/* already in error */
 	if (iter->cfmi_error != 0)
@@ -507,13 +508,14 @@ cleanup:
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 	c2_db_cursor_fini(&db_cursor);
-	if (rc == 0)
+	if (rc == 0) {
 		c2_db_tx_commit(&tx);
-	else {
-		c2_db_tx_abort(&tx);
 		iter->cfmi_last_load = c2_time_now();
 		iter->cfmi_next_ci = key.cfk_ci;
 		iter->cfmi_next_fid = key.cfk_fid;
+	} else {
+		iter->cfmi_error = rc;
+		c2_db_tx_abort(&tx);
 	}
 	c2_table_fini(&table);
 
@@ -680,12 +682,14 @@ cleanup:
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 	c2_db_cursor_fini(&db_cursor);
-	if (rc == 0)
+	if (rc == 0) {
 		c2_db_tx_commit(&tx);
-	else {
-		c2_db_tx_abort(&tx);
 		iter->cfmi_last_load = c2_time_now();
 		iter->cfmi_next_fid = key.cfk_fid;
+	}
+	else {
+		iter->cfmi_error = rc;
+		c2_db_tx_abort(&tx);
 	}
 	c2_table_fini(&table);
 	return rc;
