@@ -71,7 +71,7 @@ static int cfm_key_cmp(struct c2_table *table, const void *key0, const void *key
 	C2_PRE(key0 != NULL);
 	C2_PRE(key1 != NULL);
 
-	return c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid) ?:
+	return !c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid) ?:
 	       C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci);
 }
 
@@ -115,7 +115,7 @@ static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 	return true;
 }
 
-void c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
+int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 		       struct c2_addb_ctx *addb_ctx, const char *map_name)
 {
 	C2_PRE(cfm != NULL);
@@ -126,14 +126,21 @@ void c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 	C2_SET0(cfm);
 	cfm->cfm_addb = addb_ctx;
 	cfm->cfm_dbenv = db_env;
-	strcpy((char *)cfm->cfm_map_name, map_name);
 
         c2_addb_ctx_init(cfm->cfm_addb, &cfm_ctx_type, &c2_addb_global_ctx);
 
 	cfm->cfm_last_mod = c2_time_now();
 
+	C2_ALLOC_PTR(cfm->cfm_map_name);
+	if (cfm->cfm_map_name == NULL) {
+                C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, c2_addb_oom);
+		return -ENOMEM;
+	}
+
+	strcpy((char *)cfm->cfm_map_name, map_name);
 	cfm->cfm_magic = CFM_MAP_MAGIC;
 	C2_POST(cobfid_map_invariant(cfm));
+	return 0;
 }
 C2_EXPORTED(c2_cobfid_map_init);
 
@@ -143,6 +150,7 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 
 	c2_dbenv_fini(cfm->cfm_dbenv);
 	c2_addb_ctx_fini(cfm->cfm_addb);
+	c2_free(&cfm->cfm_map_name);
 
 }
 C2_EXPORTED(c2_cobfid_map_fini);

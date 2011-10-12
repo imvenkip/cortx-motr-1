@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anup Barve <Anup_Barve@xyratex.com>
- * Original creation date: 08/13/2011
+ * Original creation date: 10/11/2011
  */
 
 #ifdef HAVE_CONFIG_H
@@ -29,20 +29,33 @@ struct c2_dbenv cfm_dbenv;
 struct c2_addb_ctx cfm_addb_ctx;
 struct c2_cobfid_map cfm_map;
 struct c2_cobfid_map_iter cfm_iter;
+struct c2_dbenv cfm_dbenv;
 
 uint64_t container_id;
 struct c2_fid file_fid;
 struct c2_uint128 cob_fid;
 
+static const char cfm_map_path[] = "cfm_map";
+static int rc;
+
+/* C2_UT_ASSERT not usable during ts_init */
 static int cfm_ut_init(void)
 {
-	C2_UT_ASSERT(c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
-			"cfm_map", "cfm_map_name") == 0);
-	return 0;
+	rc = c2_ut_db_reset(cfm_map_path);
+	C2_ASSERT(rc == 0);
+
+        rc = c2_dbenv_init(&cfm_dbenv, cfm_map_path, 0);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx, "cfm_map");
+	C2_ASSERT(rc == 0);
+
+	return rc;
 }
 
 static int cfm_ut_fini(void)
 {
+	c2_dbenv_fini(&cfm_dbenv);
 	return 0;
 }
 
@@ -53,8 +66,8 @@ static void cfm_ut_insert(void)
 	file_fid.f_key = 0;
 	cob_fid.u_hi = 111;
 	cob_fid.u_lo = 0;
-	C2_UT_ASSERT(c2_cobfid_map_add(&cfm_map, container_id, file_fid,
-				       cob_fid) == 0);
+	rc = c2_cobfid_map_add(&cfm_map, container_id, file_fid, cob_fid);
+	C2_UT_ASSERT(rc == 0);
 }
 
 static void cfm_ut_delete(void)
@@ -62,7 +75,8 @@ static void cfm_ut_delete(void)
 	container_id = 100;
 	file_fid.f_container = 0;
 	file_fid.f_key = 0;
-	C2_UT_ASSERT(c2_cobfid_map_del(&cfm_map, container_id, file_fid) == 0);
+	rc = c2_cobfid_map_del(&cfm_map, container_id, file_fid);
+	C2_UT_ASSERT(rc == 0);
 }
 
 static void cfm_ut_enumerate(void)

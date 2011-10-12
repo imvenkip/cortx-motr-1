@@ -162,10 +162,12 @@ struct c2_cobfid_map_iter_ops {
    be finalized until after the map is finalized.
    @param map_name Name of the map. The string is not referenced after this
    subroutine returns.
+   @retval 0 on success
+   @retval -errno on failure
    @see c2_cobfid_map_add()
    @see c2_cobfid_map_fini()
  */
-void c2_cobfid_map_init(struct c2_cobfid_map *cfm,
+int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
 		       struct c2_dbenv *db_env,
 		       struct c2_addb_ctx *addb_ctx,
 		       const char *map_name);
