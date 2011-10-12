@@ -62,10 +62,10 @@ static int cfm_ut_fini(void)
 static void cfm_ut_insert(void)
 {
 	container_id = 100;
-	file_fid.f_container = 0;
-	file_fid.f_key = 0;
+	file_fid.f_container = 83;
+	file_fid.f_key = 38;
 	cob_fid.u_hi = 111;
-	cob_fid.u_lo = 0;
+	cob_fid.u_lo = 222;
 	rc = c2_cobfid_map_add(&cfm_map, container_id, file_fid, cob_fid);
 	C2_UT_ASSERT(rc == 0);
 }
@@ -73,8 +73,8 @@ static void cfm_ut_insert(void)
 static void cfm_ut_delete(void)
 {
 	container_id = 100;
-	file_fid.f_container = 0;
-	file_fid.f_key = 0;
+	file_fid.f_container = 83;
+	file_fid.f_key = 38;
 	rc = c2_cobfid_map_del(&cfm_map, container_id, file_fid);
 	C2_UT_ASSERT(rc == 0);
 }
@@ -84,13 +84,13 @@ static void cfm_ut_enumerate(void)
 }
 
 const struct c2_test_suite cfm_ut = {
-	.ts_name = "libcfm-ut",
+	.ts_name = "cfm-ut",
 	.ts_init = cfm_ut_init,
 	.ts_fini = cfm_ut_fini,
 	.ts_tests = {
-		{ "insert to cobfid_map", cfm_ut_insert },
-		{ "delete from cobfid_map", cfm_ut_delete },
-		{ "enumerate cobfid_map", cfm_ut_enumerate },
+		{ "cfm-insert", cfm_ut_insert },
+		{ "cfm-delete", cfm_ut_delete },
+		{ "cfm-enumerate", cfm_ut_enumerate },
 		{ NULL, NULL }
 	}
 };
