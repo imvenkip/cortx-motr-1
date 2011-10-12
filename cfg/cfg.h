@@ -90,17 +90,17 @@ enum c2_cfg_state_bit {
 };
 
 /**
-   property bits for node, device, nic, etc. These bits can be OR'd and tested.
+   Property flag bits for node, device, nic, etc. These bits can be OR'd and tested.
 */
-enum c2_cfg_property_bit {
+enum c2_cfg_flag_bit {
 	/** set if real machine, and clear if virtual machine */
-	C2_CFG_PROPERTY_REAL   = 1 << 0,
+	C2_CFG_FLAG_REAL          = 1 << 0,
 
 	/** set if Little-endian CPU, and clear if Big-endian CPU */
-	C2_CFG_PROPERTY_ENDIAN = 1 << 1,
+	C2_CFG_FLAG_LITTLE_ENDIAN = 1 << 1,
 
 	/** set if a disk/device is removable */
-	C2_CFG_PROPERTY_REMOVABLE = 1 << 2,
+	C2_CFG_FLAG_REMOVABLE     = 1 << 2,
 };
 
 
@@ -139,8 +139,8 @@ struct c2_cfg_node__val {
 	/** last known state. @see c2_cfg_state_bit  */
 	uint64_t           cn_last_state;
 
-	/** node property. @see c2_cfg_property_bit  */
-	uint64_t           cn_property;
+	/** node property flag. @see c2_cfg_flag_bit  */
+	uint64_t           cn_flags;
 
 	/** pool id, f-key. @see c2_cfg_pool__key    */
 	uint64_t	   cn_pool_id;
@@ -256,8 +256,8 @@ struct c2_cfg_storage_device__val {
 	/** last known state. @see c2_cfg_state_bit */
 	uint64_t csd_last_state;
 
-	/** property. @see c2_cfg_property_bit */
-	uint64_t csd_property;
+	/** property flags. @see c2_cfg_flag_bit */
+	uint64_t csd_flags;
 
 	/** filename in host OS */
 	char     csd_filename[C2_CFG_NAME_LEN];
@@ -413,9 +413,9 @@ struct c2_cfg_service__val {
 	char     cs_host_node_name[C2_CFG_NAME_LEN];
 
 	/** file system name, f-key  */
-	char     cs_fs_name  [C2_CFG_NAME_LEN];
+	char     cs_fs_name[C2_CFG_NAME_LEN];
 
-	/*< TODO: end points is not clear from HLD */
+	/** TODO: end points is not clear from HLD */
 	/* end_points[]; */
 };
 
@@ -461,8 +461,8 @@ struct c2_cfg_param__val {
 #define C2_CFG_NODE_DB_TABLE       "nodes"
 #define C2_CFG_PARTITION_DB_TABLE  "partitions"
 #define C2_CFG_PARAM_DB_TABLE      "params"
-#define C2_CFG_POOL_DB_TABLE       "pool"
-#define C2_CFG_PROFILE_DB_TABLE    "profile"
+#define C2_CFG_POOL_DB_TABLE       "pools"
+#define C2_CFG_PROFILE_DB_TABLE    "profiles"
 #define C2_CFG_SERVICE_DB_TABLE    "services"
 
 /**
