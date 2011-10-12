@@ -633,7 +633,7 @@ static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
 	   the table */
 	c2_db_pair_setup(&db_pair, &table, &last_key,
 			 sizeof(struct cobfid_map_key),
-			 &cob_fid, sizeof(struct c2_uint128));
+			 NULL, 0);
 
 	rc = c2_db_cursor_last(&db_cursor, &db_pair);
 	if (rc != 0) {
@@ -643,12 +643,13 @@ static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
 	}
 
 	c2_db_pair_release(&db_pair);
+	c2_db_pair_fini(&db_pair);
 
 	key.cfk_ci = iter->cfmi_next_ci;
 	key.cfk_fid = iter->cfmi_next_fid;
 
 	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
-			 &cob_fid, sizeof(struct c2_uint128));
+			 NULL, 0);
 
 	/* use c2_db_cursor_get() to read from (cfmi_next_ci, cfmi_next_fid) */
 	rc = c2_db_cursor_get(&db_cursor, &db_pair);

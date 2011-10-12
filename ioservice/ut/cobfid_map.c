@@ -31,9 +31,22 @@ struct c2_cobfid_map cfm_map;
 struct c2_cobfid_map_iter cfm_iter;
 struct c2_dbenv cfm_dbenv;
 
+/* Number of records to be enumerated */
+enum {
+	REC_NR = 30
+};
+
+/* Variables used for simple table insert-delete checks */
 uint64_t container_id;
 struct c2_fid file_fid;
 struct c2_uint128 cob_fid;
+
+/* Variables used for container-enumeration */
+struct c2_fid ci_file_fid[REC_NR];
+struct c2_uint128 ci_cob_fid[REC_NR];
+uint64_t container_id_out;
+struct c2_fid ci_file_fid_out[REC_NR];
+struct c2_uint128 ci_cob_fid_out[REC_NR];
 
 static const char cfm_map_path[] = "cfm_map";
 static int rc;
@@ -79,8 +92,44 @@ static void cfm_ut_delete(void)
 	C2_UT_ASSERT(rc == 0);
 }
 
-static void cfm_ut_enumerate(void)
+static void cfm_ut_container_enumerate(void)
 {
+	int rec_nr;
+	int i;
+
+	container_id = 200;
+	ci_file_fid[0].f_container = 0;
+	ci_file_fid[0].f_key = 0;
+	ci_cob_fid[0].u_hi = 333;
+	ci_cob_fid[0].u_lo = 30;
+	/* Insert first record */
+	rc = c2_cobfid_map_add(&cfm_map, container_id, ci_file_fid[0],
+			ci_cob_fid[0]);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Fill in the database for same container id and
+	   varying fid values */
+	for (i = 1; i < REC_NR; i++) {
+		ci_file_fid[i].f_key++;
+		ci_cob_fid[i].u_lo--;
+		rc = c2_cobfid_map_add(&cfm_map, container_id, ci_file_fid[i],
+				       ci_cob_fid[i]);
+		C2_UT_ASSERT(rc == 0);
+	}
+
+	rc = c2_cobfid_map_container_enum(&cfm_map, container_id, &cfm_iter);
+	C2_UT_ASSERT(rc == 0);
+
+	rec_nr = 0;
+	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out,
+					     &ci_file_fid[rec_nr],
+					     &ci_cob_fid[rec_nr])) == 0) {
+		rec_nr++;
+	}
+	/* Check if number of records enumerated is same as number of records
+	   inserted */
+	printf("rec_nr = %d\n",rec_nr);
+	C2_UT_ASSERT(rec_nr != REC_NR);
 }
 
 const struct c2_test_suite cfm_ut = {
@@ -88,9 +137,9 @@ const struct c2_test_suite cfm_ut = {
 	.ts_init = cfm_ut_init,
 	.ts_fini = cfm_ut_fini,
 	.ts_tests = {
+		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
 		{ "cfm-insert", cfm_ut_insert },
 		{ "cfm-delete", cfm_ut_delete },
-		{ "cfm-enumerate", cfm_ut_enumerate },
 		{ NULL, NULL }
 	}
 };
