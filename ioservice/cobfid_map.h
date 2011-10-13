@@ -92,7 +92,7 @@ struct c2_cobfid_map {
 	uint64_t            cfm_magic;
         struct c2_dbenv    *cfm_dbenv;    /**< Database environment pointer */
         struct c2_addb_ctx *cfm_addb;     /**< ADDB context */
-	const char         *cfm_map_name; /**< Name of the map */
+	char		   *cfm_map_name; /**< Name of the map */
 	c2_time_t           cfm_last_mod; /**< Time last modified */
 };
 
@@ -125,6 +125,7 @@ struct c2_cobfid_map_iter {
 	struct c2_fid         cfmi_last_fid; /**< Last fid value returned */
 	void                 *cfmi_buffer;   /**< Private read-ahead buffer */
 	unsigned int          cfmi_num_recs; /**< # recs in the buffer */
+	unsigned int	      cfmi_last_rec; /**< index of last valid record */
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
 	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
