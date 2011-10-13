@@ -18,31 +18,26 @@
  * Original creation date: 10/13/2011
  */
 
-#ifndef __C2_DUMMY_INIT_FINI_H
-#define __C2_DUMMY_INIT_FINI_H
+#include <linux/module.h>
+#include <linux/init.h>
+#include "lib/list.h"
+#include "colibri/init.h"
 
-int c2_trace_init(void);
-void c2_trace_fini(void);
+MODULE_AUTHOR("Xyratex International");
+MODULE_DESCRIPTION("Colibri Library");
+MODULE_LICENSE("GPL");
 
-int c2_memory_init(void);
-void c2_memory_fini(void);
 
-int c2_threads_init(void);
-void c2_threads_fini(void);
+int init_module(void)
+{
+        printk("Colibri init\n");
+	c2_init();
+        return 0;
+}
 
-int c2_db_init(void);
-void c2_db_fini(void);
+void cleanup_module(void)
+{
+        printk("Colibri cleanup\n");
+	c2_fini();
+}
 
-int c2_linux_stobs_init(void);
-void c2_linux_stobs_fini(void);
-
-int c2_ad_stobs_init(void);
-void c2_ad_stobs_fini(void);
-
-int sim_global_init(void);
-void sim_global_fini(void);
-
-int c2_reqhs_init(void);
-void c2_reqhs_fini(void);
-
-#endif /* __C2_DUMMY_INIT_FINI_H */
