@@ -131,13 +131,15 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 
 	cfm->cfm_last_mod = c2_time_now();
 
-	C2_ALLOC_PTR(cfm->cfm_map_name);
+	//cfm->cfm_map_name = strdup(map_name);
+	C2_ALLOC_ARR(cfm->cfm_map_name, strlen(map_name));
 	if (cfm->cfm_map_name == NULL) {
                 C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, c2_addb_oom);
 		return -ENOMEM;
 	}
 
-	cfm->cfm_map_name = strdup(map_name);
+	strcpy(cfm->cfm_map_name, map_name);
+
 	cfm->cfm_magic = CFM_MAP_MAGIC;
 	C2_POST(cobfid_map_invariant(cfm));
 	return 0;
