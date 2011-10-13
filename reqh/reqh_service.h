@@ -61,8 +61,8 @@ enum {
    Magic for reqh service
  */
 enum {
-	/* Hex conversion of "reqhsvc" */
-	C2_RST_MAGIC = 0x72657168737663
+	/* Hex value for "reqhsvcs" */
+	C2_RHS_MAGIC = 0x7265716873766373
 };
 
 /**
@@ -81,7 +81,7 @@ enum c2_reqh_service_phase {
 	   routine.
 
 	   @see c2_reqh_service_type_ops
-	 */ 
+	 */
 	RH_SERVICE_INITIALISED,
 	/**
 	   A service transitions to RH_SERVICE_STARTING phase before service
@@ -98,7 +98,7 @@ enum c2_reqh_service_phase {
 	   service start routine c2_reqh_service_start() is invoked.
 
 	   @see c2_reqh_service_start()
-	 */ 
+	 */
 	RH_SERVICE_STARTED,
 	/**
 	   A service transitions to RH_SERVICE_STOPPING phase before service
@@ -209,7 +209,7 @@ struct c2_reqh_service {
 
 	   @see c2_reqh::rh_services
 	 */
-	struct c2_list_link               rs_linkage;
+	struct c2_tlink                   rs_linkage;
 
 	/**
 	   Service magic to check consistency of service instance.
@@ -222,7 +222,7 @@ struct c2_reqh_service {
  */
 struct c2_reqh_service_ops {
 	/**
-	   Performs service specific startup operations and invokes 
+	   Performs service specific startup operations and invokes
 	   generic c2_reqh_service_start(), which registers the service
 	   with the given request handler.
 	   Once started, incoming requests related to this service are
@@ -257,7 +257,7 @@ struct c2_reqh_service_ops {
 	   Firstly a generic c2_reqh_service_fini() is invoked,
 	   which performs generic part of service finalisation
 	   and then follows the service specific finalisation.
-	   
+
 	   @param service Service to be finalised
 
 	   @see c2_reqh_service_fini()
@@ -299,7 +299,7 @@ struct c2_reqh_service_type_ops {
 struct c2_reqh_service_type {
 	const char		              *rst_name;
 	const struct c2_reqh_service_type_ops *rst_ops;
-	struct c2_list_link                    rst_linkage;
+	struct c2_tlink                        rst_linkage;
 	uint64_t                               rst_magic;
 };
 
@@ -375,14 +375,14 @@ void c2_reqh_service_fini(struct c2_reqh_service *service);
 struct c2_reqh_service_type stype = {                  \
         .rst_name  = (name),	                       \
 	.rst_ops   = (ops),                            \
-	.rst_magic = (C2_RST_MAGIC)                    \
+	.rst_magic = (C2_RHS_MAGIC)                    \
 }                                                     \
 
 /**
    Registers a service type in a global service types list,
    i.e. rstypes.
 
-   @pre rstype != NULL && rstype->rst_magic == C2_RST_MAGIC
+   @pre rstype != NULL && rstype->rst_magic == C2_RHS_MAGIC
  */
 int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype);
 

@@ -27,6 +27,9 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/tlist.h"
+#include "lib/atomic.h"
+
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -56,6 +59,26 @@ const struct c2_addb_loc c2_reqh_addb_loc = {
 const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
 	.act_name = "reqh"
 };
+
+/**
+   Tlist descriptor for reqh services.
+ */
+const struct c2_tl_descr c2_rh_sl_descr = C2_TL_DESCR("reqh service",
+                                                 struct c2_reqh_service,
+                                                 rs_linkage,
+                                                 rs_magic,
+                                                 C2_REQH_MAGIC,
+                                                 C2_RHS_MAGIC);
+
+/**
+   Tlist descriptor for rpc machines.
+ */
+const struct c2_tl_descr c2_rh_rpml_descr = C2_TL_DESCR("rpc machines",
+                                                      struct c2_rpcmachine,
+                                                      cr_rh_linkage,
+                                                      cr_magic,
+                                                      C2_REQH_MAGIC,
+                                                      C2_RPC_MAGIC);
 
 /**
  * Reqh addb context.
@@ -92,8 +115,9 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 reqh->rh_cob_domain = cdom;
                 reqh->rh_fol = fol;
                 reqh->rh_fom_dom.fd_reqh = reqh;
-                c2_list_init(&reqh->rh_services);
-                c2_list_init(&reqh->rh_rpcmachines);
+                c2_tlist_init(&c2_rh_sl_descr, &reqh->rh_services);
+                c2_tlist_init(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
+		c2_mutex_init(&reqh->rh_lock);
 
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_init", result);
@@ -106,8 +130,9 @@ void c2_reqh_fini(struct c2_reqh *reqh)
 {
         C2_PRE(reqh != NULL);
         c2_fom_domain_fini(&reqh->rh_fom_dom);
-        c2_list_fini(&reqh->rh_services);
-        c2_list_fini(&reqh->rh_rpcmachines);
+        c2_tlist_fini(&c2_rh_sl_descr, &reqh->rh_services);
+        c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
+	c2_mutex_fini(&reqh->rh_lock);
 }
 C2_EXPORTED(c2_reqh_fini);
 
@@ -138,6 +163,15 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
 
+	c2_mutex_lock(&reqh->rh_lock);
+	if (reqh->rh_shutdown) {
+		c2_mutex_unlock(&reqh->rh_lock);
+		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle",
+								ESHUTDOWN);
+		return;
+	}
+	c2_mutex_unlock(&reqh->rh_lock);
+
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	if (result != -ENOMEM) {
 		fom->fo_fol = reqh->rh_fol;
@@ -155,6 +189,13 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
 }
 C2_EXPORTED(c2_reqh_fop_handle);
+
+bool c2_reqh_can_shutdown(struct c2_reqh *reqh)
+{
+	C2_PRE(reqh != NULL);
+
+	return c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) == 0;
+}
 
 /** @} endgroup reqh */
 

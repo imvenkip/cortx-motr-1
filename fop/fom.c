@@ -30,6 +30,7 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
+#include "lib/atomic.h"
 
 #include "addb/addb.h"
 #include "fop/fom.h"
@@ -228,6 +229,7 @@ void c2_fom_queue(struct c2_fom *fom)
 		fom->fo_phase == FOPH_FAILURE);
 
 	loc = fom->fo_loc;
+	c2_atomic64_inc(&loc->fl_dom->fd_foms_nr);
 	c2_mutex_lock(&loc->fl_lock);
 	fom->fo_state = FOS_READY;
 	fom_ready(fom);
@@ -731,6 +733,7 @@ void c2_fom_fini(struct c2_fom *fom)
 {
 	C2_PRE(fom->fo_phase == FOPH_FINISH);
 
+	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
 	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 }

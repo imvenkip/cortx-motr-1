@@ -21,6 +21,8 @@
 #ifndef __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 #define __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 
+#include "lib/tlist.h"
+
 /**
    @defgroup colibri_setup Configures user space colibri environment
 
@@ -65,17 +67,17 @@ struct c2_colibri {
 	/**
 	   Size of cc_xprts array.
 	 */
-	int                       cc_xprts_nr;
+	int                        cc_xprts_nr;
         /**
            List of network domain per colibri context.
          */
-        struct c2_list            cc_ndoms;
+        struct c2_tl               cc_ndoms;
 
         /**
            List of request handler contexts running under
            one colibri context on a node.
          */
-	struct c2_list            cc_reqh_ctxs;
+	struct c2_tl               cc_reqh_ctxs;
 	/**
 	   File to which the output is written.
 	   This is set to stdout by default if no output file
@@ -84,7 +86,7 @@ struct c2_colibri {
 
 	   @see c2_cs_init()
 	 */
-	FILE               *cc_outfile;
+	FILE                      *cc_outfile;
 
 };
 
@@ -96,9 +98,6 @@ struct c2_colibri {
 		context
    @param xprts_nr Size of xprts array
    @param out File descriptor to which output is written
-
-   @retval 0 On success
-	-errno On failure
  */
 int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
 						int xprts_nr, FILE *out);

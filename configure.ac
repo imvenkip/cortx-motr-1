@@ -516,6 +516,7 @@ AC_CONFIG_FILES([
                  cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
+                 colibri/ut/Makefile
                  db/Makefile
                  db/linux_kernel/Makefile
                  db/ut/Makefile

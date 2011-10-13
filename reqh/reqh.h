@@ -26,6 +26,7 @@
 #include "fol/fol.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
+#include "lib/tlist.h"
 
 /**
    @defgroup reqh Request handler
@@ -48,6 +49,14 @@
  */
 
 /**
+   Magic for reqh.
+ */
+enum {
+        /* Hex value for "reqhsvc" */
+        C2_REQH_MAGIC = 0x7265716873766373
+};
+
+/**
    Request handler instance.
  */
 struct c2_reqh {
@@ -57,22 +66,41 @@ struct c2_reqh {
 	   will be replaced with "stores"
 	 */
 	struct c2_stob_domain	*rh_stdom;
+
 	/** Database environment for this request handler */
 	struct c2_dbenv         *rh_dbenv;
+
 	/** Cob domain for this request handler */
 	struct c2_cob_domain    *rh_cob_domain;
+
 	/** Fol pointer for this request handler */
 	struct c2_fol		*rh_fol;
+
 	/** Fom domain for this request handler */
 	struct c2_fom_domain	 rh_fom_dom;
+
         /** Services registered with this request handler */
-        struct c2_list           rh_services;
+        struct c2_tl             rh_services;
+
         /**
 	    RPC machines running in this request handler
 	    There is one rpc machine per request handler
 	    end point.
 	 */
-        struct c2_list           rh_rpcmachines;
+        struct c2_tl             rh_rpcmachines;
+
+	/**
+	    True if request handler received a shutdown signal.
+	    Request handler should not process any further requests
+	    if this flag is set.
+	 */
+	bool                     rh_shutdown;
+
+	/** Provides protected access to c2_reqh members. */
+	struct c2_mutex          rh_lock;
+
+	/** Request handler magic. */
+	uint64_t                 rh_magic;
 };
 
 /**
@@ -238,8 +266,16 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
    @todo standard fom phases implementation, depends on the support routines for
 	handling various standard operations on fop as mentioned above
  */
-
 int c2_fom_state_generic(struct c2_fom *fom);
+
+/**
+   Waits for execution of all foms in the request handler's
+   fom domain to complete, i.e. until c2_fom_domain::fd_foms_nr
+   reaches 0 count.
+
+   @param reqh Request handler to be shutdown
+ */
+bool c2_reqh_can_shutdown(struct c2_reqh *reqh);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,
