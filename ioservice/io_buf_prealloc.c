@@ -17,14 +17,14 @@ struct c2_io_buf {
 	void	       *ib_addr;
 };
 struct io_buf_vec {
-	int count ;
+	int    count ;
 	void **addr;
 };
 
 enum {
-	/* Hex ASCII value of "ib_link" */
+	/* Hex ASCII value of "iob_link" */
 	IO_BUF_LINK_MAGIC = 0x696f625f6c696e6b,
-	/* Hex ASCII value of "ib_head" */
+	/* Hex ASCII value of "iob_head" */
 	IO_BUF_HEAD_MAGIC = 0x696f625f68656164,
 };
 
@@ -55,28 +55,31 @@ int c2_buf_prealloc(int nr_buf,int block_size) {
 }
 
 int c2_buf_get(int nr_buf,struct io_buf_vec * io_buf_vec){
-	int i;
+	int i,len;
 	struct c2_io_buf *io_buf = NULL;
 	struct c2_clink buf_link;
 	c2_clink_init(&buf_link, NULL);
 	c2_clink_add(&buf_chan, &buf_link);
 	c2_mutex_lock(&list_lock);
-	list_size = list_size - nr_buf;	
+	len = list_size;	
 	c2_mutex_unlock(&list_lock);
-	printf("list_size %d nr_buf %d\n",list_size,nr_buf);
-	if(nr_buf > list_size) { 
+	if(nr_buf >= len){ 
+	printf("WAIT :list_size %d nr_buf %d\n",list_size,nr_buf);
 		c2_chan_wait(&buf_link);
 	}
+	c2_mutex_lock(&list_lock);
+	list_size = list_size - nr_buf;	
+	c2_mutex_unlock(&list_lock);
+	printf("GET :list_size %d nr_buf %d\n",list_size,nr_buf);
 	io_buf_vec->count = nr_buf;
 	C2_ALLOC_ARR(io_buf_vec->addr, nr_buf);
 	for(i = 0; i < nr_buf; i++) {
-		io_buf = c2_tlist_head(&io_buf_descr, &buf_head);
-		io_buf_vec->addr[i] = io_buf->ib_addr;
-		printf("get [%d]: %lu \n",i,(unsigned long)io_buf);
 		c2_mutex_lock(&list_lock);
+		io_buf = c2_tlist_head(&io_buf_descr, &buf_head);
 		c2_tlist_del(&io_buf_descr, io_buf);
-		c2_tlink_fini(&io_buf_descr, io_buf);
 		c2_mutex_unlock(&list_lock);
+		c2_tlink_fini(&io_buf_descr, io_buf);
+		io_buf_vec->addr[i] = io_buf->ib_addr;
 		c2_free(io_buf);
 	}
 	c2_clink_del(&buf_link);
@@ -89,19 +92,20 @@ int c2_buf_put(struct io_buf_vec *io_buf_vec) {
 	struct c2_io_buf *io_buf = NULL;
 	for (i = 0; i < io_buf_vec->count; i++){
 		C2_ALLOC_PTR(io_buf);
+		io_buf->ib_addr = io_buf_vec->addr[i];
 		c2_tlink_init(&io_buf_descr, io_buf);
 		C2_ASSERT(!c2_tlink_is_in(&io_buf_descr, io_buf));
-		io_buf->ib_addr = io_buf_vec->addr[i];
-		printf("put [%d]: %lu \n",i,(unsigned long)io_buf);
 		c2_mutex_lock(&list_lock);
 		c2_tlist_add_tail(&io_buf_descr, &buf_head, io_buf);
 		c2_mutex_unlock(&list_lock);
 	}
-	c2_chan_signal(&buf_chan);
+	if (list_size > 0)
+		c2_chan_signal(&buf_chan);
 	c2_free(io_buf_vec->addr);
 	c2_mutex_lock(&list_lock);
 	list_size = list_size + io_buf_vec->count;	
 	c2_mutex_unlock(&list_lock);
+	printf("PUT :list_size %d nr_buf %d\n",list_size,io_buf_vec->count);
 	return 0;
 }
 
@@ -125,11 +129,10 @@ int main()
 {
 
 	int rc;
-	//struct io_buf_vec io_buf,io_buf2;
 	struct c2_thread        *client_thread;
-	int			 nr_client_threads = 1;
+	int			 nr_client_threads = 20;
 	int i;
-	rc = c2_buf_prealloc(100,128);
+	rc = c2_buf_prealloc(1000,128);
 	C2_ASSERT(rc == 0);
 	
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
@@ -143,7 +146,7 @@ int main()
 	for (i = 0; i < nr_client_threads; i++) {
 		c2_thread_join(&client_thread[i]);
 	}
-	rc = c2_buf_finalize(100);
+	rc = c2_buf_finalize(1000);
 	C2_ASSERT(rc == 0);
 	return rc;
 
@@ -151,20 +154,9 @@ int main()
 	
 void buffers_get_put(int rc) {
 	struct io_buf_vec io_buf;
-	rc = c2_buf_get(10,&io_buf);
+	rc = c2_buf_get(100,&io_buf);
 	sleep(1);
 	C2_ASSERT(rc == 0);
 	rc = c2_buf_put(&io_buf);
 	C2_ASSERT(rc == 0);
 }
-/*	rc = c2_buf_get(400,&io_buf2);
-	C2_ASSERT(rc == 0);
-	rc = c2_buf_put(&io_buf);
-	C2_ASSERT(rc == 0);
-	rc = c2_buf_put(&io_buf2);
-	C2_ASSERT(rc == 0);
-	rc = c2_buf_finalize(1000);
-	C2_ASSERT(rc == 0);
-	return rc;
-}
-*/
