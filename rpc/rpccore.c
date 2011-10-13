@@ -36,6 +36,7 @@
 #include "reqh/reqh.h"
 #include "rpc/rpc_onwire.h"
 #include "lib/arith.h"
+#include "lib/vec.h"
 
 /* Forward declarations. */
 static int recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
@@ -1232,6 +1233,73 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
 
 	stats = &machine->cr_rpc_stats[path];
 	return stats->rs_cumu_lat / stats->rs_items_nr;
+}
+
+int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
+		     const uint32_t segs_nr,
+		     const c2_bcount_t seg_size,
+		     struct c2_net_domain *netdom)
+{
+	C2_PRE(rbulk != NULL);
+	C2_PRE(segs_nr != 0);
+	C2_PRE(seg_size != 0);
+	C2_PRE(netdom != NULL);
+
+	if (seg_size > c2_net_domain_get_max_buffer_segment_size(netdom) ||
+	    segs_nr > c2_net_domain_get_max_buffer_segments(netdom) ||
+	    segs_nr * seg_size > c2_net_domain_get_max_buffer_size(netdom))
+		return -EMSGSIZE;
+
+	c2_chan_init(&rbulk->rb_chan);
+	return c2_0vec_init(&rbulk->rb_zerovec, segs_nr, seg_size);
+}
+
+void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
+{
+	C2_PRE(rbulk != NULL);
+
+	c2_chan_fini(&rbulk->rb_chan);
+	c2_0vec_free(&rbulk->rb_zerovec);
+}
+
+#ifdef __KERNEL__
+int c2_rpc_bulk_page_add(struct c2_rpc_bulk *rbulk,
+			 struct page *pg,
+			 const c2_bindex_t index)
+{
+	int rc;
+
+	C2_PRE(rbulk != NULL);
+	C2_PRE(pg != NULL);
+
+	rc = c2_0vec_page_add(&rbulk->rb_zerovec, pg, index);
+
+	if (rc == 0)
+		rbulk->rb_nbuf.nb_buffer = rbulk->rb_zerovec.z_bvec;
+
+	return rc;
+}
+#endif
+
+int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
+			void *buf,
+			const c2_bcount_t count,
+			const c2_bindex_t index)
+{
+	int		rc;
+	struct c2_buf	cbuf;
+
+	C2_PRE(rbulk != NULL);
+	C2_PRE(buf != NULL);
+	C2_PRE(count != 0);
+
+	cbuf.b_addr = buf;
+	cbuf.b_nob = count;
+	rc = c2_0vec_cbuf_add(&rbulk->rb_zerovec, &cbuf, &index);
+	if (rc == 0)
+		rbulk->rb_nbuf.nb_buffer = rbulk->rb_zerovec.z_bvec;
+
+	return rc;
 }
 
 /*

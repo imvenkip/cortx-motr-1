@@ -164,6 +164,7 @@ enum c2_rpc_item_priority {
 
 #include "rpc/formation.h"
 
+struct page;
 struct c2_rpc;
 struct c2_rpc_item;
 struct c2_addb_rec;
@@ -983,94 +984,86 @@ c2_rpc_bulkio_desc_send   |	     |		|
  */
 
 /**
-   The rpc item is submitted to rpc layer by end-user.
-   Remove the data buffers from write IO fop and associate corresponding
-   buffer descriptors for each data buffer. The buffer descriptors are
-   encoded along with rest of the rpc items and packed into the rpc.
-   This method acts on "write request" and "read reply" fops since these
-   fops actually contains data buffers.
-   This subroutine is typically invoked from the side which has the
-   data buffers and used by rpc formation component.
-   This API does not block.
-   And hence, this method is typically invoked by the Passive side.
-   @param item - Input rpc item which belongs to a "write request" or
-		 "read reply" fop type.
-   @pre item->ri_state == RPC_ITEM_ADDED.
-   @retval 0 if succeeded, negative error code otherwise.
-   @note RPC layer will free the c2_net_buf_desc afterwards.
+   An abstract data structure that avails bulk transport for io operations.
+   End users will register the io vectors using this structure and bulk
+   transfer apis will take care of doing the data transfer in zero-copy
+   fashion.
+   @todo Not complete yet.
  */
-int c2_rpc_bulkio_desc_send(struct c2_rpc_item *item);
+struct c2_rpc_bulk {
+	/** Net buffer that will contain the io data. */
+	struct c2_net_buffer	rb_nbuf;
+	/** Zero vector representing io data. */
+	struct c2_0vec		rb_zerovec;
+	/** Channel to wait on rpc bulk to complete the io. */
+	struct c2_chan		rb_chan;
+};
 
 /**
-   An rpc item has been received from network layer and the item belongs to
-   an IO request and has net buffer descriptors attached with it,
-   This API is invoked by end user. This API allocates c2_net_buffer
-   structures and sets the IO vectors according to c2_net_buf_desc
-   embedded in the rpc item passed.
-   Net buffers are registered with net domain for receiving data.
-   And hence, this method is typically invoked by the Active side.
-   This API does not block.
-   @param net_bufs - Array of net buffers to be allocated.
-   @param item - Input rpc item which contains net buf descriptors.
-   @param bufs_nr - Number of net buffers to be allocated.
-   @retval 0 if succeeded, negative error code otherwise.
+   Initialize a rpc bulk structure.
+   @param rbulk rpc bulk structure to be initialized.
+   @param segs_nr Number of segments to be contained by zero vector.
+   @param seg_size Size of each segment contained by zero vector.
+   @param netdom Net domain to which the zero vector belongs.
+   @pre rbulk != NULL
+   @todo Not complete yet.
  */
-int c2_rpc_bulkio_desc_received(struct c2_net_buffer **net_bufs,
-				struct c2_rpc_item *item,
-				uint64_t bufs_nr);
+int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
+		     const uint32_t segs_nr,
+		     const c2_bcount_t seg_size,
+		     struct c2_net_domain *netdom);
 
 /**
-   Initiate transport level zero-copy of data buffers from source node
-   to destintion node. This API is invoked by end user and conducted by
-   network and transport layers of both client and server.
-   This API does not block.
-   This API is typically called by the user level FOM (Fop State Machine)
-   and FOM is totally non-blocking. The FOM invokes zero_copy_init()
-   and is switched out of execution queue and is put on wait queue of
-   the request handler.
-   For read IO, the server side adds the network buffers identified by
-   active_buffers to C2_NET_QT_ACTIVE_BULK_SEND queue of transfer machine.
-   The client side has added the net buffers represented by passive_desc
-   buf descriptors into C2_NET_QT_PASSIVE_BULK_RECV queue of transfer machine.
-   For write IO, the server side adds the network buffers identified by
-   active_buffers to C2_NET_QT_ACTIVE_BULK_RECV queue of transfer machine.
-   The client side has added the net buffers represented by passive_desc
-   buf descriptors into C2_NET_QT_PASSIVE_BULK_SEND queue of transfer machine.
-   The transfer machine is located and managed by rpc layer internally.
-   Once the buffers are added to respective transfer machines, bulk layer
-   and transport layer co-operate together to complete zero-copy.
-   For this to happen, transport layer should be capable of doing zero-copy.
-   For instance, protocols like RDMA use calls like
-    - rdma_get(src_nodeid, dest_nodeid, src_buffer, dest_buffer, count)
-    Zero Copy data of count bytes from dest_buffer in dest_node to src_buffer
-    on src_node.
-    - rdma_put(src_nodeid, dest_nodeid, src_buffer, dest_buffer, count)
-    Zero copy data of count bytes from src_buffer on src_node to dest_buffer
-    on dest_node.
-   to perform zero_copy.
-   Hence, server side can use API like rdma_put() to zero-copy data to client
-   in case of read IO.
-   And for write IO, server side can use API Like rdma_get() to zero_copy
-   the data to server.
-   @param active_buffers - Array of c2_net_buffer structures which are on
-			   the active side of bulk copy.
-   @param passive_descs - Array of c2_net_buf_descs which are on the
-			   passive side of bulk copy.
-   @param bufs_nr - Number of net buffers. Same for source and destination.
-   @param chan - Channel to signal, once the zero-copy is finished.
-   @retval 0 if succeeded, negative error code otherwise.
-   @note Looking at the bulk code, it seems like there is a mechanism
-           to identify c2_net_buffer given its descriptor. There is a
-	   buffer id in transport level buffer descriptors.
-	   The assumption here is that Passive side will be able to
-	   identify the c2_net_buffers given the buffer descriptors.
-   @todo Should the number of destionation buffer descriptors be same
-         as number of source buffer descriptors? If they are equal, the
-	 size of segment has to be also equal.
+   Finalize the rpc bulk structure.
+   @pre rbulk != NULL
+   @todo Not complete yet.
  */
-int c2_rpc_zero_copy_init(struct c2_net_buffer **active_buffers,
-			  struct c2_net_buf_desc **passive_descs,
-			  uint64_t bufs_nr, struct c2_chan *chan);
+void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk);
+
+/**
+   Add a buffer/page to the zero vector referred by rpc bulk structure.
+   @param rbulk rpc bulk structure to which a page/buffer will be added.
+   @param pg Buffer referring to user data.
+   @param index Index of target object to which io is targeted.
+   @pre rbulk != NULL
+   @pre pg != NULL
+   @post zerovec_invariant(rbulk->rb_zerovec)
+ */
+int c2_rpc_bulk_page_add(struct c2_rpc_bulk *rbulk, struct page *pg,
+			 const c2_bindex_t index);
+
+/**
+   Add a user space buffer to zero vector referred to by rpc bulk structure.
+   @param rbulk rpc bulk structure to which user space buffer will be added.
+   @param buf User space buffer starting address.
+   @param count Number of bytes in user space buffer.
+   @param index Index of target object to which io is targeted.
+ */
+int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
+			void *buf,
+			const c2_bcount_t count,
+			const c2_bindex_t index);
+
+/**
+   Stores the c2_net_buf_desc for the net buffer pointed to by c2_rpc_bulk
+   structure in the provided buffer descriptor. This API is typically invoked
+   from the sender side.
+   @param rbulk Rpc bulk structure whose net buf descriptor is to be stored.
+   @param desc Out parameter for net buf descriptor to be stored into.
+   @todo Not complete yet.
+ */
+int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc);
+
+/**
+   Loads the c2_net_buf_desc pointing to the net buffer contained by
+   c2_rpc_bulk structure and starts RDMA transfer of buffers.
+   This API is typically used by receiver side.
+   @param rbulk Rpc bulk structure whose net buffer is to be transferred.
+   @param desc Net buf descriptor representing the net buffer on sender
+   side which has to be transferred during RDMA transfer.
+   @todo Not complete yet.
+ */
+int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc);
 
 /** @} endgroup of rpc_bulk */
 

@@ -17,7 +17,7 @@ fi
 MODLIST="lib/linux_kernel/klibc2.ko \
          addb/linux_kernel/kaddb.ko \
          fop/linux_kernel/kfop.ko \
-         net/linux_kernel/knetc2.ko \
+	 net/linux_kernel/knetc2.ko \
          utils/linux_kernel/kutc2.ko"
 
 log='/var/log/kern'

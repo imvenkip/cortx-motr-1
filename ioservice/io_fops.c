@@ -24,17 +24,21 @@
 #endif
 
 #include "ioservice/io_fops.h"
+
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif
+
+#include "fop/fop.h"
+#include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "fop/fop.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "ioservice/io_fops.ff"
+#include "lib/vec.h"
 
 /**
    The IO fops code has been generalized to suit both read and write fops
@@ -577,6 +581,57 @@ int c2_ioservice_fop_init(void)
 	return rc;
 }
 C2_EXPORTED(c2_ioservice_fop_init);
+
+struct io_zeroseg *io_zeroseg_alloc(void)
+{
+	struct io_zeroseg *zseg;
+
+	C2_ALLOC_PTR(zseg);
+	if (zseg == NULL)
+		return NULL;
+
+	c2_list_link_init(&zseg->is_linkage);
+	return zseg;
+}
+
+void io_zeroseg_free(struct io_zeroseg *zseg)
+{
+	C2_PRE(zseg != NULL);
+
+	c2_list_link_fini(&zseg->is_linkage);
+	c2_free(zseg);
+}
+
+void io_zerovec_seg_get(const struct c2_0vec *zvec, const uint32_t seg_index,
+			struct io_zeroseg *seg)
+{
+	C2_PRE(seg != NULL);
+	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
+
+	seg->is_off = zvec->z_indices[seg_index];
+	seg->is_count = zvec->z_bvec.ov_vec.v_count[seg_index];
+	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
+}
+
+void io_zerovec_seg_set(struct c2_0vec *zvec, const uint32_t seg_index,
+			const struct io_zeroseg *seg)
+{
+	C2_PRE(seg != NULL);
+	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
+
+	zvec->z_bvec.ov_buf[seg_index] = seg->is_buf;
+	zvec->z_indices[seg_index] = seg->is_off;
+	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
+}
+
+int io_zerovec_segs_alloc(struct c2_0vec *zvec, const uint32_t segs_nr)
+{
+	C2_PRE(zvec != NULL);
+	C2_PRE(segs_nr != 0);
+
+	C2_ALLOC_ARR(zvec->z_bvec.ov_buf, segs_nr);
+	return zvec->z_bvec.ov_buf == NULL ? -ENOMEM : 0;
+}
 
 /*
  *  Local variables:

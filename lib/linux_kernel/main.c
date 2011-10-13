@@ -48,6 +48,7 @@ extern void test_rw(void);
 extern void test_thread(void);
 extern void test_time(void);
 extern void test_vec(void);
+extern void test_zerovec(void);
 
 const struct c2_test_suite c2_klibc2_ut = {
 	.ts_name = "klibc2-ut",
@@ -65,6 +66,7 @@ const struct c2_test_suite c2_klibc2_ut = {
 		{ "thread",    test_thread    },
 		{ "time",      test_time      },
 		{ "vec",       test_vec       },
+		{ "zerovec",   test_zerovec   },
 		{ NULL,        NULL           }
 	}
 };

@@ -22,6 +22,11 @@
 #define __COLIBRI_LIB_VEC_H__
 
 #include "lib/types.h"
+#include "lib/buf.h"
+
+#ifdef __KERNEL__
+#include "lib/linux_kernel/vec.h"
+#endif
 
 /**
    @defgroup vec Vectors
@@ -256,6 +261,95 @@ int         c2_diovec_alloc   (struct c2_diovec *vec,
 void        c2_diovec_free    (struct c2_diovec *vec);
 int         c2_diovec_register(struct c2_diovec *vec,
 			       struct c2_dio_engine *eng);
+
+/**
+   Zero vector is a full fledged io vector containing io extents
+   as well as the io buffers. Io fop henceforth will contain
+   only c2_net_buf_desc object. Hence, wherever an io fop needs to be
+   processed, its zero vector needs to be populated in-memory and all
+   processing happens using the zero vector.
+   An invariant (zerovec_invariant) is maintained for c2_0vec. It
+   always checks sanity of zero vector and keeps a bound check on
+   array of io buffers using bufvec cursor.
+
+   Zero vector is typically allocated by upper layer by following
+   the bounds of network layer (max buffer size, max segments,
+   max seg size) and adds buffers/pages later as and when needed.
+ */
+struct c2_0vec {
+	/** Bufvec representing extent of io vector and array of buffers. */
+	struct c2_bufvec	 z_bvec;
+	/** Array of indices of target object to start IO from. */
+	c2_bindex_t		*z_indices;
+	/** Cursor to traverse through the zero vector. */
+	struct c2_bufvec_cursor	 z_cursor;
+};
+
+/**
+   Initialize a pre-allocated c2_0vec structure.
+   @pre zvec != NULL.
+   @param zvec The c2_0vec structure to be initialized.
+   @param segs_nr Number of segments in zero vector.
+   @param seg_size Size of each segment.
+   @post zvec->z_bvec.ov_buf != NULL &&
+   zvec->z_bvec.ov_vec.v_nr != 0 &&
+   zvec->z_bvec.ov_vec.v_count != NULL &&
+   zvec->z_indices != NULL
+ */
+int c2_0vec_init(struct c2_0vec *zvec, const uint32_t segs_nr,
+		 const c2_bcount_t seg_size);
+
+/**
+   Free a c2_0vec structure.
+   @param The c2_0vec structure to be deallocated.
+   @see c2_0vec_init.
+ */
+void c2_0vec_free(struct c2_0vec *zvec);
+
+/**
+   Init the c2_0vec structure from given c2_bufvec structure and
+   array of indices.
+   @pre zvec != NULL && bufvec != NULL && indices != NULL.
+   @param zvec The c2_0vec structure to be initialized.
+   @param bufvec The c2_bufvec containing buffer starting addresses and
+   with number of buffers and their byte counts.
+   @param indices Target object indices to start the io from.
+   @post zvec->z_cursor.bc_vc.vc_seg != 0 &&
+   zvec->z_cursor.bc_vc.vc_seg < zvec->z_bvec.ov_vec.v_nr
+ */
+int c2_0vec_bvec_add(struct c2_0vec *zvec,
+		     const struct c2_bufvec *bufvec,
+		     const c2_bindex_t *indices);
+
+/**
+   Init the c2_0vec structure from array of buffers with indices and counts.
+   @note The c2_0vec struct should be allocated by user.
+
+   @param zvec The c2_0vec structure to be initialized.
+   @param bufs Array of io buffers.
+   @param indices Array of target object indices.
+   @param counts Array of buffer counts.
+   @param segs_nr Number of segments contained in the buf array.
+   @post zvec->z_cursor.bc_vc.vc_seg != 0 &&
+   zvec->z_cursor.bc_vc.vc_seg < zvec->z_bvec.ov_vec.v_nr
+ */
+int c2_0vec_bufs_add(struct c2_0vec *zvec, void **bufs,
+		     const c2_bindex_t *indices, const c2_bcount_t *counts,
+		     const uint32_t segs_nr);
+
+/**
+   Init the c2_0vec structure from a c2_buf structure and index.
+   @note The c2_0vec struct should be allocated by user.
+
+   @param zvec The c2_0vec structure to be initialized.
+   @param buf The c2_buf structure containing starting address of buffer
+   and number of bytes in buffer.
+   @param index Index of target object to start io from.
+   @post ++zvec->z_cursor.bc_vc.vc_seg;
+ */
+int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
+		     const c2_bindex_t *index);
+
 /** @} end of vec group */
 
 /* __COLIBRI_LIB_VEC_H__ */
