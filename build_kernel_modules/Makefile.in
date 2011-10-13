@@ -21,7 +21,7 @@ EXTRA_CFLAGS = -I$(CORE_SRCDIR)
 obj-y += $(subdirs)
 
 obj-m += kcolibri.o
-kcolibri-y += main.o init.o $(addsuffix built-in.o, $(subdirs))
+kcolibri-y += main.o init.o dummy_init_fini.o built-in.o
 
 obj-y += $(testdirs)
 

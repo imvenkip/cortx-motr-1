@@ -6,7 +6,7 @@ otw_k_h       := $(otw_ff:.ff=_k.h)
 otw_k_c       := $(otw_ff:.ff=_k.c)
 otw_k_o       := $(otw_k_c:.c=.o)
 
-local_src     := main.c
+local_src     :=
 ut_src        := bulk_if.c
 link_ut       := $(ut_src:%=../ut/%)
 kernel_src    := $(local_src) $(otw_k_c) $(ut_src)

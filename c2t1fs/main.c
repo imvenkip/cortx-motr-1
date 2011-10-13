@@ -146,10 +146,10 @@
 static struct kmem_cache     *c2t1fs_inode_cachep = NULL;
 static struct c2_net_domain  c2t1fs_domain;
 
-MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jinshan Xiong");
-MODULE_DESCRIPTION("Colibri C2T1 File System");
-MODULE_LICENSE("GPL");
-
+static inline struct c2t1fs_inode_info *i2cii(struct inode *inode)
+{
+	return container_of(inode, struct c2t1fs_inode_info, cii_vfs_inode);
+}
 
 /**
  * Global container id used to identify the corresponding
