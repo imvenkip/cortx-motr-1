@@ -621,7 +621,7 @@ static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
  */
 static int enum_container_reload(struct c2_cobfid_map_iter *iter)
 {
-	return enum_reload(iter); 
+	return enum_reload(iter);
 }
 
 static const struct c2_cobfid_map_iter_ops enum_container_ops = {
