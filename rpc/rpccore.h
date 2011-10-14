@@ -1000,7 +1000,6 @@ enum {
    End users will register the io vectors using this structure and bulk
    transfer apis will take care of doing the data transfer in zero-copy
    fashion.
-   @todo Not complete yet.
  */
 struct c2_rpc_bulk {
 	/** Magic to verify sanity of struct c2_rpc_bulk. */
@@ -1024,7 +1023,6 @@ struct c2_rpc_bulk {
    @param seg_size Size of each segment contained by zero vector.
    @param netdom Net domain to which the zero vector belongs.
    @pre rbulk != NULL
-   @todo Not complete yet.
  */
 int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
 		     const uint32_t segs_nr,
@@ -1034,7 +1032,6 @@ int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
 /**
    Finalize the rpc bulk structure.
    @pre rbulk != NULL
-   @todo Not complete yet.
  */
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk);
 
@@ -1068,7 +1065,6 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
    from the sender side.
    @param rbulk Rpc bulk structure whose net buf descriptor is to be stored.
    @param desc Out parameter for net buf descriptor to be stored into.
-   @todo Not complete yet.
  */
 int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc);
 
@@ -1079,7 +1075,6 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc);
    @param rbulk Rpc bulk structure whose net buffer is to be transferred.
    @param desc Net buf descriptor representing the net buffer on sender
    side which has to be transferred during RDMA transfer.
-   @todo Not complete yet.
  */
 int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc);
 
