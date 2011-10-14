@@ -1,8 +1,8 @@
 COB_SRCDIR = @SRCDIR@/cob/linux_kernel
 
-obj-m		:= kcob.o
+obj-y		:= kcob.o
 shared_src	:= cob.c
-kernel_src	:= cob_kernel.c
+kernel_src	:=
 kcob-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 

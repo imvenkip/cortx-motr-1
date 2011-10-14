@@ -1,8 +1,8 @@
 FOL_SRCDIR = @SRCDIR@/fol/linux_kernel
 
-obj-m		:= kfol.o
+obj-y		:= kfol.o
 shared_src	:= fol.c
-kernel_src	:= fol_kernel.c
+kernel_src	:=
 kfol-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 

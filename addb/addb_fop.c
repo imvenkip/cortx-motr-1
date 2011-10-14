@@ -285,9 +285,9 @@ int c2_addb_empty_pack(struct c2_addb_dp *dp,
 	return c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
 }
 
-const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;
-const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
-const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
