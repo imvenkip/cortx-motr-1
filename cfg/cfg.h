@@ -124,7 +124,6 @@ struct c2_cfg_node__key {
 
 /**
    Colibri node configuration value.
-   f-key stands for foreign key.
 */
 struct c2_cfg_node__val {
 	/** node uuid         */
@@ -142,7 +141,7 @@ struct c2_cfg_node__val {
 	/** node property flag. @see c2_cfg_flag_bit  */
 	uint64_t           cn_flags;
 
-	/** pool id, f-key. @see c2_cfg_pool__key    */
+	/** pool id, foreign-key. @see c2_cfg_pool__key    */
 	uint64_t	   cn_pool_id;
 };
 
@@ -150,21 +149,21 @@ struct c2_cfg_node__val {
 /**
    Network interface types.
 */
-enum c2_cfg_network_interface_type {
+enum c2_cfg_nic_type {
 	/** Ethernet, 10Mb */
-	C2_CFG_NIC_INTERFACE_ETHER10 = 1,
+	C2_CFG_NIC_ETHER10 = 1,
 
 	/** Ethernet, 100Mb */
-	C2_CFG_NIC_INTERFACE_ETHER100,
+	C2_CFG_NIC_ETHER100,
 
 	/** Ethernet, 1000Mb */
-	C2_CFG_NIC_INTERFACE_ETHER1000,
+	C2_CFG_NIC_ETHER1000,
 
 	/** Ethernet, 10gb */
-	C2_CFG_NIC_INTERFACE_ETHER10GB,
+	C2_CFG_NIC_ETHER10GB,
 
 	/** Infini/Band */
-	C2_CFG_NIC_INTERFACE_INFINIBAND
+	C2_CFG_NIC_INFINIBAND
 };
 
 /**
@@ -180,17 +179,20 @@ struct c2_cfg_nic__key {
    Colibri network intercase card value.
 */
 struct c2_cfg_nic__val {
-	/** network interface type. @see c2_cfg_network_interface_type */
+	/** network interface type. @see c2_cfg_nic_type */
 	uint32_t cn_interface_type;
 
 	/** MTU  */
 	uint32_t cn_mtu;
 
-	/** bandwidth in bytes */
+	/** speed, Mbits/second */
 	uint64_t cn_speed;
 
-	/** host node name, f-key     */
+	/** host node name, foreign-key     */
 	char     cn_node_name[C2_CFG_NAME_LEN];
+
+	/** nic's file name in host OS  */
+	char     cn_file_name[C2_CFG_NAME_LEN];
 
 	/** state. @see c2_cfg_state_bit  */
 	uint64_t cn_last_state;
@@ -262,7 +264,7 @@ struct c2_cfg_storage_device__val {
 	/** filename in host OS */
 	char     csd_filename[C2_CFG_NAME_LEN];
 
-	/** the hosting node, f-key */
+	/** the hosting node, foreign-key */
 	char     csd_nodename[C2_CFG_NAME_LEN];
 };
 
@@ -270,8 +272,11 @@ struct c2_cfg_storage_device__val {
    Colibri partition types.
 */
 enum c2_cfg_storage_device_partition_type {
+	/** RAW partition. Used as raw device.  */
+	C2_CFG_PARTITION_TYPE_RAW = 0,
+
 	/** ext2 fs partition   */
-	C2_CFG_PARTITION_TYPE_EXT2 = 1,
+	C2_CFG_PARTITION_TYPE_EXT2,
 
 	/** ext3 fs partition   */
 	C2_CFG_PARTITION_TYPE_EXT3,
@@ -290,9 +295,6 @@ enum c2_cfg_storage_device_partition_type {
 
 	/** btrfs fs partition  */
 	C2_CFG_PARTITION_TYPE_BTRFS,
-
-	/** RAW partition  */
-	C2_CFG_PARTITION_TYPE_RAW
 };
 
 /**
@@ -314,7 +316,7 @@ struct c2_cfg_storage_device_partition__val {
 	/** size in bytes         */
 	uint64_t           csdp_size;
 
-	/** host device uuid,f-key*/
+	/** host device uuid,foreign-key*/
 	struct c2_cfg_uuid csdp_devide_uuid;
 
 	/** partition index       */
@@ -351,7 +353,9 @@ struct c2_cfg_pool__val {
 	/** pool state bits. @see c2_cfg_state_bit */
 	uint64_t cp_last_state;
 
-	/** list of param ids, f-keys */
+	/** list of parameters for this pool, identified by pool id.
+            Poold id is foreign-key to parameter.
+	 */
 	uint64_t cp_param_list[C2_CFG_PARAM_LEN];
 };
 
@@ -371,6 +375,11 @@ struct c2_cfg_filesystem__key {
 struct c2_cfg_filesystem__val {
 	/** file system root fid    */
 	struct c2_fid cf_rootfid;
+
+	/** list of parameters for this file system, identified by pool id.
+            Poold id is foreign-key to parameter.
+	 */
+	uint64_t cp_param_list[C2_CFG_PARAM_LEN];
 };
 
 /**
@@ -399,6 +408,10 @@ struct c2_cfg_service__key {
 	struct c2_cfg_uuid       cs_uuid;
 };
 
+enum {
+	C2_CFG_SERVICE_MAX_END_POINTS = 16;
+};
+
 /**
    Colibri service configuration val.
 */
@@ -409,14 +422,23 @@ struct c2_cfg_service__val {
 	/** unused. 64-bit alligned. */
 	uint32_t cs_unsed;
 
-	/** host node name,   f-key  */
+	/** host node name,   foreign-key  */
 	char     cs_host_node_name[C2_CFG_NAME_LEN];
 
-	/** file system name, f-key  */
+	/** file system name, foreign-key  */
 	char     cs_fs_name[C2_CFG_NAME_LEN];
 
-	/** TODO: end points is not clear from HLD */
-	/* end_points[]; */
+	/**
+	   The array end_points[] gives a list of end-points from which
+	   the service is reachable.
+
+	   end_points[] is an array of character strings. Each element is a
+	   string that can be passed to c2_net_end_point_create() as 'addr'
+	   argument, to create a c2_net_end_point object.
+	   See doxygen header of c2_net_end_point_create(), to know more
+	   about addr argument.
+	 */
+	char     cs_end_points[C2_CFG_SERVICE_MAX_END_POINTS][C2_CFG_NAME_LEN];
 };
 
 
