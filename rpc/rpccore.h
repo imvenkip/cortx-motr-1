@@ -257,6 +257,11 @@ struct c2_rpc_item_type_ops {
 	int (*rito_decode)(struct c2_rpc_item_type *item_type,
 			   struct c2_rpc_item **item,
 			   struct c2_bufvec_cursor *cur);
+	/**
+	   Return the c2_net_buf_desc from io fop. 
+	 */
+	void (*rito_io_desc_get)(struct c2_rpc_item *item,
+				 struct c2_net_buf_desc *desc);
 };
 
 struct c2_rpc_item_ops {
@@ -984,6 +989,13 @@ c2_rpc_bulkio_desc_send   |	     |		|
  */
 
 /**
+   A magic constant for sanity of struct c2_rpc_bulk.
+ */
+enum {
+	C2_RPC_BULK_MAGIC = 0xfedcba0123456789ULL,
+};
+
+/**
    An abstract data structure that avails bulk transport for io operations.
    End users will register the io vectors using this structure and bulk
    transfer apis will take care of doing the data transfer in zero-copy
@@ -991,12 +1003,18 @@ c2_rpc_bulkio_desc_send   |	     |		|
    @todo Not complete yet.
  */
 struct c2_rpc_bulk {
+	/** Magic to verify sanity of struct c2_rpc_bulk. */
+	uint64_t		 rb_magic;
 	/** Net buffer that will contain the io data. */
-	struct c2_net_buffer	rb_nbuf;
+	struct c2_net_buffer	 rb_nbuf;
 	/** Zero vector representing io data. */
-	struct c2_0vec		rb_zerovec;
+	struct c2_0vec		 rb_zerovec;
 	/** Channel to wait on rpc bulk to complete the io. */
-	struct c2_chan		rb_chan;
+	struct c2_chan		 rb_chan;
+	/** Return value of results like addition of buffers to transfer
+	    machine and zero-copy operation. This field is updated by
+	    net buffer send/receive callbacks. */
+	int32_t			 rb_rc;
 };
 
 /**
