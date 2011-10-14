@@ -32,10 +32,16 @@ enum {
 	C2T1FS_SUPER_MAGIC = 0x43325431
 };
 
+struct c2t1fs_mnt_opts
+{
+	char *mo_options;
+};
+
 struct c2t1fs_sb_info
 {
-	struct c2_mutex csi_mutex;
-	uint64_t        csi_flags;
+	struct c2_mutex        csi_mutex;
+	struct c2t1fs_mnt_opts csi_mnt_opts;
+	uint64_t               csi_flags;
 };
 
 struct c2t1fs_inode_info
@@ -55,5 +61,8 @@ static inline struct c2t1fs_inode_info *C2T1FS_I(struct inode *inode)
 }
 
 extern struct kmem_cache *c2t1fs_inode_cachep;
+
+int c2t1fs_sb_info_init(struct c2t1fs_sb_info *sbi);
+void c2t1fs_sb_info_fini(struct c2t1fs_sb_info *sbi);
 
 #endif /* __COLIBRI_C2T1FS_H */
