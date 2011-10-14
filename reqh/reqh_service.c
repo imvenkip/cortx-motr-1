@@ -27,7 +27,6 @@
 #include "lib/memory.h"
 #include "lib/time.h"
 #include "lib/misc.h" /* C2_SET_ARR0 */
-#include "lib/tlist.h"
 
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"

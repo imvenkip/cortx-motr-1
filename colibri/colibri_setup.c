@@ -26,8 +26,6 @@
 #include <stdlib.h>
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
-#include <err.h>
-#include <errno.h>     /* errno */
 #include <string.h>
 #include <signal.h>
 
@@ -37,7 +35,6 @@
 #include "lib/memory.h"
 #include "lib/getopts.h"
 #include "lib/processor.h"
-#include "lib/tlist.h"
 #include "lib/time.h"
 
 #include "stob/stob.h"
@@ -600,7 +597,7 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cs_colibri,
 		rpcmachine belongs
 
    @pre cs_colibri != NULL && xprt_name != NULL &&
-   	ep != NULL && reqh != NULL
+	ep != NULL && reqh != NULL
  */
 static int cs_rpcmachine_init(struct c2_colibri *cs_colibri,
 				const char *xprt_name, const char *ep,
@@ -1029,7 +1026,7 @@ out:
    context.
 
    @param cs_colibri Colibri context to which the network
-		domains belong
+			domains belong
  */
 static void cs_net_domains_fini(struct c2_colibri *cs_colibri)
 {

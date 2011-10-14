@@ -27,7 +27,6 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/tlist.h"
 #include "lib/atomic.h"
 
 #include "stob/stob.h"

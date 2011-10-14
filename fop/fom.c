@@ -30,7 +30,6 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
-#include "lib/atomic.h"
 
 #include "addb/addb.h"
 #include "fop/fom.h"

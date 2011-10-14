@@ -37,8 +37,6 @@
    @{
 */
 
-/*#define MAXPATHLEN 1024*/
-
 /**
    On-disk data structure for group, stored in db.
 

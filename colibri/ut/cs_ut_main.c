@@ -26,7 +26,6 @@
 #include <stdlib.h>
 #include <unistd.h>    /* pause */
 #include <errno.h>     /* errno */
-#include <signal.h>
 
 #include "lib/ut.h"
 #include "lib/errno.h"
