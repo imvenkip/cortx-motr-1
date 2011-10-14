@@ -28,7 +28,6 @@ int c2_0vec_page_add(struct c2_0vec *zvec,
 		     struct page *pg,
 		     const c2_bindex_t index)
 {
-	bool		  move;
 	uint32_t	  curr_seg;
 	c2_bcount_t	  step;
 	struct c2_bufvec *bvec;
@@ -47,7 +46,7 @@ int c2_0vec_page_add(struct c2_0vec *zvec,
 	zvec->z_indices[curr_seg] = index;
 	bvec->ov_vec.v_count[curr_seg] = PAGE_SIZE;
 	step = c2_bufvec_cursor_step(&zvec->z_cursor);
-	move = c2_bufvec_cursor_move(&zvec->z_cursor, step);
+	c2_bufvec_cursor_move(&zvec->z_cursor, step);
 
 	C2_POST(curr_seg < bvec->ov_vec.v_nr);
 	return 0;

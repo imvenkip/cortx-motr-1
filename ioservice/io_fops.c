@@ -31,14 +31,12 @@
 #include "ioservice/io_fops_u.h"
 #endif
 
-#include "fop/fop.h"
-#include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "ioservice/io_fops.ff"
-#include "lib/vec.h"
+#include "lib/vec.h"	/* c2_0vec */
 
 /**
    The IO fops code has been generalized to suit both read and write fops

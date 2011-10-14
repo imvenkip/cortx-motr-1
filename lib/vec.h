@@ -297,7 +297,7 @@ struct c2_0vec {
    zvec->z_indices != NULL
  */
 int c2_0vec_init(struct c2_0vec *zvec, const uint32_t segs_nr,
-		 const c2_bcount_t seg_size);
+		 c2_bcount_t seg_size);
 
 /**
    Free a c2_0vec structure.
@@ -335,7 +335,7 @@ int c2_0vec_bvec_add(struct c2_0vec *zvec,
  */
 int c2_0vec_bufs_add(struct c2_0vec *zvec, void **bufs,
 		     const c2_bindex_t *indices, const c2_bcount_t *counts,
-		     const uint32_t segs_nr);
+		     uint32_t segs_nr);
 
 /**
    Init the c2_0vec structure from a c2_buf structure and index.

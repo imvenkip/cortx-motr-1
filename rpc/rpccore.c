@@ -1354,7 +1354,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	return rc;
 }
 
-int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc)
+int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk)
 {
 	int				 rc;
 	struct c2_io_fop		*iofop;
@@ -1362,7 +1362,6 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc)
 	struct c2_net_transfer_mc	*tm;
 
 	C2_PRE(rbulk != NULL);
-	C2_PRE(desc != NULL);
 	C2_PRE(rbulk->rb_nbuf.nb_flags & C2_NET_BUF_REGISTERED);
 	C2_PRE(rbulk->rb_nbuf.nb_length == c2_vec_count(
 	       &rbulk->rb_zerovec.z_bvec.ov_vec));
@@ -1390,7 +1389,7 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc)
 	return rc;
 }
 
-int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc)
+int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk)
 {
 	int				 rc;
 	struct c2_io_fop		*iofop;
@@ -1398,7 +1397,6 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_net_buf_desc *desc)
 	struct c2_net_transfer_mc	*tm;
 
 	C2_PRE(rbulk != NULL);
-	C2_PRE(desc != NULL);
 	C2_PRE(rbulk->rb_nbuf.nb_flags & C2_NET_BUF_REGISTERED);
 	C2_PRE(rbulk->rb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
 	       rbulk->rb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
