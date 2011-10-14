@@ -529,7 +529,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 				 &cob_fid, sizeof(struct c2_uint128));
 		/* The call c2_db_cursor_next() breaks if one tries to go
 		   beyond the last record, hence last_key_reached check
-		   is needed */ 
+		   is needed */
 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
