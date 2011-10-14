@@ -151,6 +151,14 @@ struct c2_cobfid_map_iter_ops {
 	   cfmi_last_load.
 	*/
 	int (*cfmio_reload)(struct c2_cobfid_map_iter *);
+	/**
+	   Advance the iterator's cfmi_next_ci and cfmi_next_fid to their
+	   next respective values.
+	   @param container_id Previous container_id to be used as a baseline
+	   @param fid Previous fid value to be used as a baseline
+	 */
+	void (*cfmio_advance)(struct c2_cobfid_map_iter *,
+			      uint64_t container_id, struct c2_fid fid);
 };
 
 /**
@@ -256,7 +264,7 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
    @param file_fid_p     Returns the global file identifier.
    @param cob_fid_p      Returns the COB identifier.
    @retval 0       on success
-   @retval -EEXIST when the iterator is exhausted
+   @retval -ENOENT when the iterator is exhausted
    @retval -errno  on other errors
  */
 int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
