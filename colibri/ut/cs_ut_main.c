@@ -31,6 +31,7 @@
 #include "lib/ut.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/tlist.h"
 
 #include "net/bulk_sunrpc.h"
 #include "net/bulk_mem.h"
@@ -42,8 +43,11 @@
    @{
  */
 
-/* Client side structures */
+extern void send_fops(struct c2_rpc_session *cl_rpc_session);
+extern struct c2_reqh_service_type dummy_service_type;
+extern const struct c2_tl_descr ndoms_descr;
 
+/* Client side structures */
 static struct c2_net_domain          cl_ndom;
 static struct c2_cob_domain          cl_cob_domain;
 static struct c2_cob_domain_id       cl_cob_dom_id;
@@ -52,212 +56,18 @@ static struct c2_net_end_point      *cl_rep;
 static struct c2_rpc_conn            cl_conn;
 static struct c2_dbenv               cl_db;
 static struct c2_rpc_session         cl_rpc_session;
-
-static char *cs_cmd[] = { "colibri_setup", "-r", "-T", "AD",
-			 "-D", "cs_db", "-S", "cs_stob",
-			 "-e", "bulk-sunrpc:127.0.0.1:1024:1",
-			 "-s", "dummy"};
-
-
-static int dummy_service_start(struct c2_reqh_service *service);
-static int dummy_service_stop(struct c2_reqh_service *service);
-static int dummy_service_alloc_init(struct c2_reqh_service_type *stype,
-		struct c2_reqh *reqh, struct c2_reqh_service **service);
-static void dummy_service_fini(struct c2_reqh_service *service);
-
-static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
-        .rsto_service_alloc_and_init = dummy_service_alloc_init
-};
-
-const struct c2_reqh_service_ops dummy_service_ops = {
-        .rso_start = dummy_service_start,
-        .rso_stop = dummy_service_stop,
-        .rso_fini = dummy_service_fini
-};
-
-C2_REQH_SERVICE_TYPE_DECLARE(dummy_service_type, &dummy_service_type_ops, "dummy");
-
-static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
-{
-        C2_PRE(item != NULL);
-        C2_PRE(c2_chan_has_waiters(&item->ri_chan));
-
-        c2_chan_signal(&item->ri_chan);
-}
-
-/**
-   RPC item operations structures.
- */
-static const struct c2_rpc_item_type_ops cs_req_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-};
-
-/**
-   Reply rpc item type operations.
- */
-static const struct c2_rpc_item_type_ops cs_rep_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-};
-
-/**
-   Fop type operations.
- */
-static const struct c2_fop_type_ops cs_req_fop_ops = {
-        .fto_fom_init = cs_req_fop_fom_init,
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
-        .fto_get_nfragments = NULL,
-        .fto_io_coalesce = NULL,
-};
-
-static const struct c2_fop_type_ops cs_rep_fop_ops = {
-        .fto_fom_init = NULL,
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
-        .fto_get_nfragments = NULL,
-        .fto_io_coalesce = NULL,
-};
+static struct c2_net_transfer_mc    *srv_tm;
+static struct c2_net_end_point      *srv_nep;
 
 enum {
-	CS_REQ = 91,
-	CS_REP,
+	MAX_RPCS_IN_FLIGHT = 32,
 };
 
-/**
-   Item type declartaions
- */
-
-static const struct c2_rpc_item_type cs_req_fop_rpc_item_type = {
-        .rit_opcode = CS_REQ,
-        .rit_ops = &cs_req_fop_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-/**
-   Reply rpc item type
- */
-static const struct c2_rpc_item_type cs_rep_fop_rpc_item_type = {
-        .rit_opcode = CS_REP,
-        .rit_ops = &cs_rep_fop_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-
-C2_FOP_TYPE_DECLARE_NEW(cs_req_fop, "cs request", CS_REQ,
-                        &cs_req_fop_ops, &cs_req_fop_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(cs_rep_fop, "cs reply", CS_REP,
-                        &cs_rep_fop_ops, &cs_rep_fop_rpc_item_type);
-
-/**
- * Fop type structures required for initialising corresponding fops.
- */
-static struct c2_fop_type *cs_fops[] = {
-        &cs_req_fopt,
-	&cs_rep_fopt
-};
-
-static void cs_fop_fini(void)
-{
-        c2_fop_type_fini_nr(cs_fops, ARRAY_SIZE(cs_fops));
-}
-
-static int cs_fop_init(void)
-{
-        int result;
-        result = c2_fop_type_build_nr(cs_fops, ARRAY_SIZE(cs_fops));
-        if (result != 0)
-                c2_reqh_fop_fini();
-        return result;
-}
-
-static int cs_req_fop_fom_state(struct c2_fom *fom);
-static int cs_rep_fop_fom_state(struct c2_fom *fom);
-static void cs_ut_fom_fini(struct c2_fom *fom);
-static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom);
-
-/**
- * Operation structures for respective foms
- */
-static struct c2_fom_ops reqh_ut_create_fom_ops = {
-        .fo_fini = reqh_ut_io_fom_fini,
-        .fo_state = reqh_ut_create_fom_state,
-        .fo_home_locality = reqh_ut_find_fom_home_locality,
-};
-
-static int dummy_service_alloc_init(struct c2_reqh_service_type *stype,
-		struct c2_reqh *reqh, struct c2_reqh_service **service)
-{
-	struct c2_reqh_service      *serv;
-
-        C2_PRE(service != NULL && stype != NULL);
-
-        printf("\n Initialising mds service \n");
-
-        C2_ALLOC_PTR(serv);
-        if (serv == NULL)
-                return -ENOMEM;
-
-        serv->rs_type = stype;
-        serv->rs_ops = &dummy_service_ops;
-
-	c2_reqh_service_init(serv, reqh);
-	*service = serv;
-
-        return 0;
-}
-
-static int dummy_service_start(struct c2_reqh_service *service)
-{
-        C2_PRE(service != NULL);
-
-	printf("service started\n");
-        /*
-           Can perform service specific initialisation of
-           objects like fops and invoke a generic service start
-	   functions.
-         */
-	c2_reqh_service_start(service);
-
-	return 0;
-}
-
-static int dummy_service_stop(struct c2_reqh_service *service)
-{
-
-        C2_PRE(service != NULL);
-
-	printf("service stopped\n");
-        /*
-           Can finalise service specific objects like
-           fops.
-         */
-	c2_reqh_service_stop(service);
-
-	return 0;
-}
-
-static void dummy_service_fini(struct c2_reqh_service *service)
-{
-	c2_reqh_service_fini(service);
-	c2_free(service);
-}
+/* colibri setup command to configure environment. */
+static char *cs_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+		   "-D", "cs_sdb", "-S", "cs_stob",
+		   "-e", "bulk-sunrpc:127.0.0.1:1024:2",
+		   "-s", "dummy"};
 
 /**
    Represents various network transports supported
@@ -273,13 +83,7 @@ static struct c2_net_xprt *cs_xprts[] = {
  */
 static struct c2_colibri srv_colibri_ctx;
 
-
-static void send_fops(void)
-{
-	
-}
-
-static int client_init(char *dbname)
+static int client_init(void)
 {
         int                                rc = 0;
         bool                               rcb;
@@ -294,7 +98,7 @@ static int client_init(char *dbname)
         cl_cob_dom_id.id =  101 ;
 
         /* Init the db */
-        rc = c2_dbenv_init(&cl_db, dbname, 0);
+        rc = c2_dbenv_init(&cl_db, "cs_cdb", 0);
         if(rc != 0)
                 goto out;
 
@@ -351,8 +155,7 @@ static int client_init(char *dbname)
                         C2_RPC_SESSION_IDLE, timeout);
 
         /* send dummy fops */
-
-	send_fops();
+	send_fops(&cl_rpc_session);
 
         rc = c2_rpc_session_terminate(&cl_rpc_session);
         if(rc != 0)
@@ -385,7 +188,7 @@ out:
         return rc;
 }
 
-static void client_fini()
+static void client_fini(void)
 {
         /* Fini the remote net endpoint. */
         c2_net_end_point_put(cl_rep);
@@ -403,10 +206,10 @@ static void client_fini()
         c2_dbenv_fini(&cl_db);
 }
 
-int server_init()
+int server_init(void)
 {
-        int     rc;
-        FILE   *outfile;
+        int    rc;
+        FILE  *outfile;
 
         outfile = fopen("cs.errlog", "w+");
         if (outfile == NULL) {
@@ -415,7 +218,7 @@ int server_init()
         }
 
         errno = 0;
-        rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), outfile);
+        rc = c2_cs_init(&srv_colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), outfile);
         if (rc != 0) {
                 fprintf(outfile, "\n Failed to initialise Colibri \n");
                 goto out;
@@ -424,11 +227,17 @@ int server_init()
         /* Register the service type. */
         c2_reqh_service_type_register(&dummy_service_type);
 
-        rc = c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(cs_cmd), cs_cmd);
+        rc = c2_cs_setup_env(&srv_colibri_ctx, ARRAY_SIZE(cs_cmd), cs_cmd);
         if (rc != 0)
                 goto out;
 
-        rc = c2_cs_start(&colibri_ctx);
+        rc = c2_cs_start(&srv_colibri_ctx);
+
+	srv_tm = c2_cs_tm_get(&srv_colibri_ctx, "dummy");
+	C2_UT_ASSERT(srv_tm != NULL);
+
+	/* Create destination endpoint for server i.e client endpoint */
+        rc = c2_net_end_point_create(&srv_nep, srv_tm, "127.0.0.1:1024:1");
 
 out:
 	return rc;
@@ -436,10 +245,13 @@ out:
 
 void server_fini(void)
 {
+	/* Fini the net endpoint. */
+	c2_net_end_point_put(srv_nep);
+
         /* Unregister service type */
         c2_reqh_service_type_unregister(&dummy_service_type);
 
-        c2_cs_fini(&colibri_ctx);
+        c2_cs_fini(&srv_colibri_ctx);
 }
 
 void test_colibri_setup(void)
@@ -447,12 +259,17 @@ void test_colibri_setup(void)
 	int     rc;
 
 	rc = server_init();
+	C2_UT_ASSERT(rc == 0);
 
 	rc = client_init();
+	C2_UT_ASSERT(rc == 0);
+
+	client_fini();
+	server_fini();
 }
 
 const struct c2_test_suite colibri_setup_ut = {
-        .ts_name = "colbri_setup_ut",
+        .ts_name = "colbri_setup_ut... this takes some time",
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {

@@ -31,9 +31,10 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 
+#include "colibri/colibri_setup.h"
+#include "colibri/init.h"
 #include "net/bulk_sunrpc.h"
 #include "reqh/reqh_service.h"
-#include "colibri/colibri_setup.h"
 
 /**
    @addtogroup colibri_setup
@@ -85,23 +86,31 @@ int main(int argc, char **argv)
 	int     rc;
 
 	errno = 0;
-	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
+	rc = c2_init();
 	if (rc != 0) {
 		fputs("\n Failed to initialise Colibri \n", stderr);
 		goto out;
 	}
 
+	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
+	if (rc != 0) {
+		fputs("\n Failed to initialise Colibri \n", stderr);
+		goto cleanup;
+	}
+
         rc = c2_cs_setup_env(&colibri_ctx, argc, argv);
         if (rc != 0)
-                goto out;
+                goto cleanup1;
 
 	rc = c2_cs_start(&colibri_ctx);
 
 	if (rc == 0)
 		cs_wait_for_termination();
-	
-	c2_cs_fini(&colibri_ctx);
 
+cleanup1:
+	c2_cs_fini(&colibri_ctx);
+cleanup:
+	c2_fini();
 out:
 	errno = rc < 0 ? -rc : rc;
 	return errno;

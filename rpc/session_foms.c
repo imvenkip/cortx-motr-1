@@ -206,6 +206,7 @@ out:
 
 void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom)
 {
+	c2_fom_fini(fom);
 }
 
 /*
@@ -308,6 +309,7 @@ errout:
 
 void c2_rpc_fom_session_establish_fini(struct c2_fom *fom)
 {
+	c2_fom_fini(fom);
 }
 
 /*
@@ -400,6 +402,7 @@ errout:
 
 void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom)
 {
+	c2_fom_fini(fom);
 }
 
 /*
@@ -477,6 +480,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom)
 {
+	c2_fom_fini(fom);
 }
 
 /** @} End of rpc_session group */

@@ -40,7 +40,6 @@
 #include "lib/tlist.h"
 #include "lib/time.h"
 
-#include "colibri/init.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "fop/fop.h"
@@ -78,7 +77,7 @@ enum {
 };
 
 enum {
-	WAIT_FOR_REQH_SHUTDOWN = 1000000
+	WAIT_FOR_REQH_SHUTDOWN = 1000000,
 };
 
 extern const struct c2_tl_descr c2_rstypes_descr;
@@ -130,9 +129,15 @@ enum {
 	RC_INITIALISED
 };
 
+/*
+   Contains extracted network endpoint and transport from
+   colibri endpoint.
+ */
 struct cs_endpoint_and_xprt {
 	const char *endpoint;
 	const char *xprt;
+	/*Scratch buffer for endpoint and transport extraction*/
+	char *scrbuf;
 };
 
 /**
@@ -145,66 +150,66 @@ struct cs_endpoint_and_xprt {
  */
 struct cs_reqh_context {
 	/** Storage path for request handler context. */
-	const char               *rc_stpath;
+	const char                  *rc_stpath;
 
 	/** Type of storage to be initialised. */
-	const char               *rc_stype;
+	const char                  *rc_stype;
 
 	/** Database environment path for request handler context. */
-	const char               *rc_dbpath;
+	const char                  *rc_dbpath;
 
 	/** Services running in request handler context. */
-	const char              **rc_services;
+	const char                 **rc_services;
 
 	/** Number services in request handler context. */
-	int                       rc_snr;
+	int                          rc_snr;
 
 	/**
 	    Maximum number of services allowed per request handler
 	    context.
 	 */
-	int                       rc_max_services;
+	int                          rc_max_services;
 
 	/** Endpoints and xprts per request handler context. */
-	struct endpoint_and_xprt *rc_eps;
+	struct cs_endpoint_and_xprt *rc_eps;
 
 	/** Number of endpoints configured per request handler context. */
-	int                       rc_enr;
+	int                          rc_enr;
 
 	/**
 	    Maximum number of endpoints allowed per request handler
 	    context.
 	 */
-	int                       rc_max_eps;
+	int                          rc_max_eps;
 
 	/**
 	    State of a request handler context.
 	    i.e. RC_INITIALISED or RC_UNINTIALISED.
 	 */
-	int                       rc_state;
+	int                          rc_state;
 
 	/** Storage domain for a request handler */
-	struct cs_reqh_stobs      rc_stob;
+	struct cs_reqh_stobs         rc_stob;
 
 	/** Database used by the request handler */
-	struct c2_dbenv           rc_db;
+	struct c2_dbenv              rc_db;
 
 	/** Cob domain to be used by the request handler */
-	struct c2_cob_domain      rc_cdom;
+	struct c2_cob_domain         rc_cdom;
 
-	struct c2_cob_domain_id   rc_cdom_id;
+	struct c2_cob_domain_id      rc_cdom_id;
 
 	/** File operation log for a request handler */
-	struct c2_fol             rc_fol;
+	struct c2_fol                rc_fol;
 
 	/** Request handler instance to be initialised */
-	struct c2_reqh            rc_reqh;
+	struct c2_reqh               rc_reqh;
 
 	/** Reqh context magic */
-	uint64_t                  rc_magic;
+	uint64_t                     rc_magic;
 
 	/** Linkage into reqh context list */
-	struct c2_tlink           rc_linkage;
+	struct c2_tlink              rc_linkage;
 };
 
 enum {
@@ -224,18 +229,18 @@ static const char *cs_stobs[] = {
 extern struct c2_balloc colibri_balloc;
 
 static const struct c2_tl_descr rctx_descr = C2_TL_DESCR("reqh contexts",
-                                                          struct cs_reqh_context,
-                                                          rc_linkage,
-                                                          rc_magic,
-                                                          CS_REQH_CTX_MAGIC,
-                                                          CS_REQH_CTX_MAGIC);
+                                                         struct cs_reqh_context,
+                                                         rc_linkage,
+                                                         rc_magic,
+                                                         CS_REQH_CTX_MAGIC,
+                                                         CS_REQH_CTX_MAGIC);
 
 static const struct c2_tl_descr ndoms_descr = C2_TL_DESCR("network domains",
-                                                          struct c2_net_domain,
-                                                          nd_app_linkage,
-                                                          nd_magic,
-                                                          C2_NET_MAGIC,
-                                                          CS_NET_DOMS_MAGIC);
+                                                   struct c2_net_domain,
+                                                   nd_app_linkage,
+                                                   nd_magic,
+                                                   C2_NET_MAGIC,
+                                                   CS_NET_DOMS_MAGIC);
 
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cs_colibri,
 							const char *xprt);
@@ -332,8 +337,8 @@ static void cs_services_list(FILE *out)
 static bool cs_endpoint_is_duplicate(struct c2_colibri *cs_colibri,
 				struct c2_net_xprt *xprt, const char *ep)
 {
-	int                   cnt;
-	int                   idx;
+	int                      cnt;
+	int                      idx;
 	struct cs_reqh_context  *rctx;
 
 	C2_PRE(cs_colibri != NULL && xprt != NULL && ep != NULL);
@@ -394,17 +399,19 @@ out:
    given colibri endpoint.
    Colibri endpoint is of 2 parts network xprt:network endpoint.
  */
-static int ep_and_xprt_get(struct endpoint_and_xprt *ep_xprt, char *ep)
+static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, char *ep)
 {
-	char *saveptr;
+	char *sptr;
 
-	C2_PRE(ep_xprt != NULL);
+	C2_PRE(ep_xprt != NULL && ep != NULL);
 
-	ep_xprt->xprt = strtok_r(ep, ":", &saveptr);
+	C2_ALLOC_ARR(ep_xprt->scrbuf, strlen(ep) + 1);
+	strcpy(ep_xprt->scrbuf, ep);
+	ep_xprt->xprt = strtok_r(ep_xprt->scrbuf, ":", &sptr);
 	if (ep_xprt->xprt == NULL)
 		return -EINVAL;
 
-	ep_xprt->endpoint = strtok_r(NULL, " ", &saveptr);
+	ep_xprt->endpoint = strtok_r(NULL , "\0", &sptr);
 	if (ep_xprt->endpoint == NULL)
 		return -EINVAL;
 
@@ -430,9 +437,6 @@ static bool service_is_duplicate(const char *service_name, struct cs_reqh_contex
 	return false;
 }
 
-/**
-   Checks if given service is registered.
- */
 static bool service_is_registered(const char *service_name)
 {
 	struct c2_reqh_service_type *stype;
@@ -443,6 +447,32 @@ static bool service_is_registered(const char *service_name)
 	} c2_tlist_endfor;
 
 	return false;
+}
+
+struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
+							char *sname)
+{
+	struct c2_reqh            *reqh;
+	struct cs_reqh_context    *rctx;
+	struct c2_reqh_service    *service;
+	struct c2_rpcmachine      *rpcmach;
+
+        C2_PRE(cctx != NULL);
+
+        c2_tlist_for(&rctx_descr, &cctx->cc_reqh_ctxs, rctx) {
+		reqh = &rctx->rc_reqh;
+                c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
+			if (strcmp(service->rs_type->rst_name,
+							sname) == 0) {
+				rpcmach = c2_tlist_tail(&c2_rh_rpml_descr,
+							&reqh->rh_rpcmachines);
+				return &rpcmach->cr_tm;
+			}
+                } c2_tlist_endfor;
+        } c2_tlist_endfor;
+
+        return NULL;
+
 }
 
 /**
@@ -516,8 +546,14 @@ out:
 
 static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
 {
+	int i;
+
 	C2_PRE(rctx != NULL);
 
+	for (i = 0; i < rctx->rc_max_eps; ++i) {
+		if (rctx->rc_eps[i].scrbuf != NULL)
+			c2_free(rctx->rc_eps[i].scrbuf);
+	}
 	c2_free(rctx->rc_eps);
 	c2_free(rctx->rc_services);
 	c2_tlist_del(&rctx_descr, rctx);
@@ -1535,19 +1571,11 @@ int c2_cs_init(struct c2_colibri *cs_colibri,
         C2_PRE(cs_colibri != NULL && xprts != NULL && xprts_nr > 0
 						&& out != NULL);
 
-	rc = 0;
         cs_colibri->cc_xprts = xprts;
 	cs_colibri->cc_xprts_nr = xprts_nr;
-
 	cs_colibri->cc_outfile = out;
 
-        rc = c2_init();
-
-        if (rc == 0) {
-                rc = cs_colibri_init(cs_colibri);
-                if (rc != 0)
-                        c2_fini();
-        }
+	rc = cs_colibri_init(cs_colibri);
 
         return rc;
 }
@@ -1558,7 +1586,6 @@ void c2_cs_fini(struct c2_colibri *cs_colibri)
 
         cs_stop_request_handlers(cs_colibri);
         cs_colibri_fini(cs_colibri);
-        c2_fini();
 }
 
 /** @} endgroup colibri_setup */
