@@ -437,6 +437,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 {
 	int				 rc;
 	int				 i;
+	bool				 last_key_reached = false;
 	struct c2_table			 table;
 	struct c2_db_tx			 tx;
 	struct c2_db_pair		 db_pair;
@@ -482,7 +483,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	   the table */
 	c2_db_pair_setup(&db_pair, &table, &last_key,
 			 sizeof(struct cobfid_map_key),
-			 &cob_fid, sizeof(struct c2_uint128));
+			 NULL, 0); 
 
 	rc = c2_db_cursor_last(&db_cursor, &db_pair);
 	if (rc != 0) {
@@ -514,16 +515,21 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		   from the table and not all CFM_ITER_THUNK entries are
 		   fetched. Iterator will be loaded with remaining records */
 		if (cfm_key_cmp(&table, &last_key, &key) == 0)
-			goto cleanup;
+			last_key_reached = true;
 
 		recs[i].cfr_key.cfk_ci = key.cfk_ci;
 		recs[i].cfr_key.cfk_fid = key.cfk_fid;
 		recs[i].cfr_cob = cob_fid;
 		iter->cfmi_last_rec++;
 
+		if (last_key_reached)
+			break;
 		c2_db_pair_setup(&db_pair, &table, &key,
 				 sizeof(struct cobfid_map_key),
 				 &cob_fid, sizeof(struct c2_uint128));
+		/* The call c2_db_cursor_next() breaks if one tries to go
+		   beyond the last record, hence last_key_reached check
+		   is needed */ 
 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,

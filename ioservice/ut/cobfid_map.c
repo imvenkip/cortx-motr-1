@@ -109,9 +109,9 @@ static void cfm_ut_container_enumerate(void)
 
 	/* Fill in the database for same container id and
 	   varying fid values */
-	for (i = 1; i < REC_NR; i++) {
-		ci_file_fid[i].f_key++;
-		ci_cob_fid[i].u_lo--;
+	for (i = 1; i < REC_NR; ++i) {
+		ci_file_fid[i].f_key = i;
+		ci_cob_fid[i].u_lo = i;
 		rc = c2_cobfid_map_add(&cfm_map, container_id, ci_file_fid[i],
 				       ci_cob_fid[i]);
 		C2_UT_ASSERT(rc == 0);
