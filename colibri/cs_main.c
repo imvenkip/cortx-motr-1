@@ -67,7 +67,7 @@ static void cs_term_sig_handler(int signum)
    Registers signal handler to catch SIGTERM, SIGINT and
    SIGQUIT signals and pause the colibri process.
  */
-static void cs_wait_for_termination()
+static void cs_wait_for_termination(void)
 {
 	struct sigaction        term_act;
 

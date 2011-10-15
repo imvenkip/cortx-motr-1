@@ -49,7 +49,7 @@ const struct c2_tl_descr c2_rstypes_descr = C2_TL_DESCR("reqh service types",
 extern const struct c2_tl_descr c2_rh_sl_descr;
 extern const struct c2_tl_descr c2_rh_rpml_descr;
 
-bool c2_reqh_service_invariant(struct c2_reqh_service *service)
+bool c2_reqh_service_invariant(const struct c2_reqh_service *service)
 {
 	if (service == NULL)
 		return false;
@@ -175,7 +175,7 @@ void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype)
 	c2_tlink_fini(&c2_rstypes_descr, rstype);
 }
 
-int c2_reqh_service_types_init()
+int c2_reqh_service_types_init(void)
 {
 	c2_tlist_init(&c2_rstypes_descr, &c2_rstypes);
 	c2_mutex_init(&c2_rstypes_mutex);
@@ -183,7 +183,7 @@ int c2_reqh_service_types_init()
 	return 0;
 }
 
-void c2_reqh_service_types_fini()
+void c2_reqh_service_types_fini(void)
 {
 	c2_tlist_fini(&c2_rstypes_descr, &c2_rstypes);
 	c2_mutex_fini(&c2_rstypes_mutex);

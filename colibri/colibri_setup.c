@@ -242,7 +242,7 @@ static const struct c2_tl_descr ndoms_descr = C2_TL_DESCR("network domains",
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cs_colibri,
 							const char *xprt);
 /**
-   Looks an xprt by the name.
+   Looks up an xprt by the name.
 
    @param xprt_name Network transport name
    @param xprts Array of network transports supported in a
@@ -332,7 +332,7 @@ static void cs_services_list(FILE *out)
    @pre cs_colibri != NULL && xprt != NULL && ep != NULL
  */
 static bool cs_endpoint_is_duplicate(struct c2_colibri *cs_colibri,
-				struct c2_net_xprt *xprt, const char *ep)
+				const struct c2_net_xprt *xprt, const char *ep)
 {
 	int                      cnt;
 	int                      idx;
@@ -396,7 +396,7 @@ out:
    given colibri endpoint.
    Colibri endpoint is of 2 parts network xprt:network endpoint.
  */
-static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, char *ep)
+static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, const char *ep)
 {
 	char *sptr;
 
@@ -419,7 +419,7 @@ static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, char *ep)
    Checks if specified service has already a duplicate entry
    in given request handler context.
  */
-static bool service_is_duplicate(const char *service_name, struct cs_reqh_context *rctx)
+static bool service_is_duplicate(const char *service_name, const struct cs_reqh_context *rctx)
 {
 	int idx;
 	int cnt;
@@ -447,7 +447,7 @@ static bool service_is_registered(const char *service_name)
 }
 
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
-							char *sname)
+						const char *sname)
 {
 	struct c2_reqh            *reqh;
 	struct cs_reqh_context    *rctx;

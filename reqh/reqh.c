@@ -189,7 +189,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 }
 C2_EXPORTED(c2_reqh_fop_handle);
 
-bool c2_reqh_can_shutdown(struct c2_reqh *reqh)
+bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 {
 	C2_PRE(reqh != NULL);
 

@@ -275,7 +275,7 @@ int c2_fom_state_generic(struct c2_fom *fom);
 
    @param reqh Request handler to be shutdown
  */
-bool c2_reqh_can_shutdown(struct c2_reqh *reqh);
+bool c2_reqh_can_shutdown(const struct c2_reqh *reqh);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,

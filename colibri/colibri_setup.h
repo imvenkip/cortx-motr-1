@@ -139,7 +139,7 @@ int c2_cs_start(struct c2_colibri *cs_colibri);
    for given service if found else returns NULL.
  */
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
-						char *service);
+						const char *service);
 /** @} endgroup colibri_setup */
 
 /* __COLIBRI_COLIBRI_COLIBRI_SETUP_H__ */

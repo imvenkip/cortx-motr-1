@@ -409,7 +409,7 @@ void c2_reqh_service_types_fini();
 /**
    Checks consistency of a particular service.
  */
-bool c2_reqh_service_invariant(struct c2_reqh_service *service);
+bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
 
 /** @} endgroup reqh */
 
