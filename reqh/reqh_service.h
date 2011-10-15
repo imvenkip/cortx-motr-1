@@ -50,6 +50,36 @@
    the services registered with that request handler are reachable through
    the registered end points.
 
+   Services need to be registered before they can be started. Service
+   registration can be done as follows:
+
+   First, we have to define service type operations,
+   @code
+   static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
+        .rsto_service_alloc_and_init = dummy_service_alloc_init
+   };
+   @endcode
+
+   - then define service operations,
+   @code
+   const struct c2_reqh_service_ops dummy_service_ops = {
+        .rso_start = dummy_service_start,
+        .rso_stop = dummy_service_stop,
+        .rso_fini = dummy_service_fini
+   };
+   @endcode
+
+   - declare service type using C2_REQH_SERVICE_TYPE_DECLARE macro,
+   @code
+   C2_REQH_SERVICE_TYPE_DECLARE(dummy_service_type, &dummy_service_type_ops, "dummy");
+   @endcode
+
+   - now, the above service type can be registered as follows:
+   @code
+   c2_reqh_service_type_register(&dummy_service_type);
+   @endcode
+
+   and unregister service using c2_reqh_service_type_unregister().
    @{
  */
 

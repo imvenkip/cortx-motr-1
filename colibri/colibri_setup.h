@@ -46,6 +46,82 @@
    execution of requests directed to a particular service. Thus the
    services run under request handler context.
 
+   Colibri setup can be done internally through colibri code or externally
+   through cli using colibri_setup program. As colibri setup configures
+   the server it should be used in server side initialisation, if done
+   through code.
+   Following has to be done to configure a colibri context:
+
+   - Initialise colibri context:
+     For this you have to first define an array of network transports
+     to be used in the colibri context and pass it along with the array
+     size to the initialisation routine.
+
+   @note Also user should pass a output file descriptor to which the error
+         messages will be directed.
+   @code
+   struct c2_colibri colibri_ctx;
+   static struct c2_net_xprt *xprts[] = {
+        &c2_net_bulk_sunrpc_xprt,
+	...
+    };
+
+   c2_cs_init(&colibri_ctx, xprts, ARRAY_SIZE(xprts), outfile);
+   @endcode
+
+   Define parameters for colibri setup and setup environment as
+   follows:
+
+   @code
+   static char *cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                   "-D", "cs_db", "-S", "cs_stob",
+                   "-e", "bulk-sunrpc:127.0.0.1:1024:2",
+                   "-s", "dummy"};
+
+    c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(cs_cmd), cs_cmd);
+    @endcode
+
+    Once the environment is setup successfuly, the services can be started
+    as follows:
+    @code
+    c2_cs_start(&srv_colibri_ctx);
+    @endcode
+
+    @note The specified services to be started should be registered before
+          they can be started.
+
+    Similarly, to setup colibri externally, using colibri_setup program along
+    with parameters specified as above.
+    e.g. ./colibri -r -T linux -D dbpath -S stobfile -e xport:127.0.0.1:1024:1
+          -s service
+
+    A typical colibri context can be pictured as follows:
+
+    @verbatim
+		+---------+
+                |         | Netowrk transports
+                | colibri |+---->xprt1+--->xprt2+--->xprtn
+                | context |
+                |         | Network domains
+                |         |+---->ndom1+--->ndom2+--->ndomn
+                |         |
+                |         | Request handler contexts
+                |         |+---->rctx1+--->rctx2+--->rctxn
+                +---------+   +---------+
+                              | stob    |
+                              +---------+
+                              | dbenv   |
+                              +---------+
+                              | cob dom |
+                              +---------+
+                              |  fol    |
+                              +---------+ services
+                              |  reqh   |+--->S1+--->S2+--->Sn
+                              |         | rpc machines
+                              |         |+--->r1+--->r2+--->rn
+                              +---------+
+   @endverbatim
+
    @{
  */
 
