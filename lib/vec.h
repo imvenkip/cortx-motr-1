@@ -296,7 +296,7 @@ struct c2_0vec {
    zvec->z_bvec.ov_vec.v_count != NULL &&
    zvec->z_indices != NULL
  */
-int c2_0vec_init(struct c2_0vec *zvec, const uint32_t segs_nr,
+int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr,
 		 c2_bcount_t seg_size);
 
 /**
@@ -317,9 +317,9 @@ void c2_0vec_free(struct c2_0vec *zvec);
    @post zvec->z_cursor.bc_vc.vc_seg != 0 &&
    zvec->z_cursor.bc_vc.vc_seg < zvec->z_bvec.ov_vec.v_nr
  */
-int c2_0vec_bvec_add(struct c2_0vec *zvec,
-		     const struct c2_bufvec *bufvec,
-		     const c2_bindex_t *indices);
+int c2_0vec_bvec_init(struct c2_0vec *zvec,
+		      const struct c2_bufvec *bufvec,
+		      const c2_bindex_t *indices);
 
 /**
    Init the c2_0vec structure from array of buffers with indices and counts.
@@ -333,12 +333,12 @@ int c2_0vec_bvec_add(struct c2_0vec *zvec,
    @post zvec->z_cursor.bc_vc.vc_seg != 0 &&
    zvec->z_cursor.bc_vc.vc_seg < zvec->z_bvec.ov_vec.v_nr
  */
-int c2_0vec_bufs_add(struct c2_0vec *zvec, void **bufs,
-		     const c2_bindex_t *indices, const c2_bcount_t *counts,
-		     uint32_t segs_nr);
+int c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
+		      const c2_bindex_t *indices, const c2_bcount_t *counts,
+		      uint32_t segs_nr);
 
 /**
-   Init the c2_0vec structure from a c2_buf structure and index.
+   Add a c2_buf structure at given target index to c2_0vec structure.
    @note The c2_0vec struct should be allocated by user.
 
    @param zvec The c2_0vec structure to be initialized.

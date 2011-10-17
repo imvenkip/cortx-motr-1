@@ -600,7 +600,7 @@ void io_zeroseg_free(struct io_zeroseg *zseg)
 	c2_free(zseg);
 }
 
-void io_zerovec_seg_get(const struct c2_0vec *zvec, const uint32_t seg_index,
+void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 			struct io_zeroseg *seg)
 {
 	C2_PRE(seg != NULL);
@@ -611,7 +611,7 @@ void io_zerovec_seg_get(const struct c2_0vec *zvec, const uint32_t seg_index,
 	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
 }
 
-void io_zerovec_seg_set(struct c2_0vec *zvec, const uint32_t seg_index,
+void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
 			const struct io_zeroseg *seg)
 {
 	C2_PRE(seg != NULL);
@@ -622,7 +622,7 @@ void io_zerovec_seg_set(struct c2_0vec *zvec, const uint32_t seg_index,
 	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
 }
 
-int io_zerovec_segs_alloc(struct c2_0vec *zvec, const uint32_t segs_nr)
+int io_zerovec_segs_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
 {
 	C2_PRE(zvec != NULL);
 	C2_PRE(segs_nr != 0);

@@ -26,7 +26,7 @@
 
 int c2_0vec_page_add(struct c2_0vec *zvec,
 		     struct page *pg,
-		     const c2_bindex_t index)
+		     c2_bindex_t index)
 {
 	uint32_t	  curr_seg;
 	c2_bcount_t	  step;

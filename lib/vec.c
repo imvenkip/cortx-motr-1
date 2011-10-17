@@ -291,13 +291,12 @@ failure:
 }
 C2_EXPORTED(c2_0vec_init);
 
-int c2_0vec_bvec_add(struct c2_0vec *zvec,
-		     const struct c2_bufvec *bufvec,
-		     const c2_bindex_t *indices)
+int c2_0vec_bvec_init(struct c2_0vec *zvec,
+		      const struct c2_bufvec *bufvec,
+		      const c2_bindex_t *indices)
 {
 	bool		  move = false;
 	uint32_t	  i;
-	uint32_t	  min;
 	c2_bcount_t	  step;
 	struct c2_bufvec *bvec;
 
@@ -311,12 +310,11 @@ int c2_0vec_bvec_add(struct c2_0vec *zvec,
 	    c2_vec_count(&bufvec->ov_vec) > c2_vec_count(&bvec->ov_vec))
 		return -EMSGSIZE;
 
-	min = min32u(bvec->ov_vec.v_nr, bufvec->ov_vec.v_nr);
-	for (i = 0; i < min; ++i)
+	for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
 		if (bufvec->ov_vec.v_count[i] > bvec->ov_vec.v_count[i])
 			return -EMSGSIZE;
 
-	for (i = 0; i < min && !move; ++i) {
+	for (i = 0; i < bufvec->ov_vec.v_nr && !move; ++i) {
 		zvec->z_indices[i] = indices[i];
 		bvec->ov_vec.v_count[i] = bufvec->ov_vec.v_count[i];
 		bvec->ov_buf[i] = bufvec->ov_buf[i];
@@ -325,19 +323,18 @@ int c2_0vec_bvec_add(struct c2_0vec *zvec,
 	}
 
 	C2_POST(zerovec_invariant(zvec));
-	return (i == min) && move ? 0 : -EMSGSIZE;
+	return i == bufvec->ov_vec.v_nr ? 0 : -EMSGSIZE;
 }
-C2_EXPORTED(c2_0vec_bvec_add);
+C2_EXPORTED(c2_0vec_bvec_init);
 
-int c2_0vec_bufs_add(struct c2_0vec *zvec,
-		     void **bufs,
-		     const c2_bindex_t *indices,
-		     const c2_bcount_t *counts,
-		     const uint32_t segs_nr)
+int c2_0vec_bufs_init(struct c2_0vec *zvec,
+		      void **bufs,
+		      const c2_bindex_t *indices,
+		      const c2_bcount_t *counts,
+		      const uint32_t segs_nr)
 {
 	int		  i;
 	bool		  move = false;
-	uint32_t	  min;
 	c2_bcount_t	  step;
 	c2_bcount_t	  total_bufsize;
 	struct c2_bufvec *bvec;
@@ -353,8 +350,7 @@ int c2_0vec_bufs_add(struct c2_0vec *zvec,
 	    segs_nr > bvec->ov_vec.v_nr)
 		return -EMSGSIZE;
 
-	min = min32u(bvec->ov_vec.v_nr, segs_nr);
-	for (total_bufsize = 0, i = 0; i < min; ++i) {
+	for (total_bufsize = 0, i = 0; i < segs_nr; ++i) {
 		if (counts[i] > bvec->ov_vec.v_count[i])
 			return -EMSGSIZE;
 		total_bufsize += counts[i];
@@ -363,7 +359,7 @@ int c2_0vec_bufs_add(struct c2_0vec *zvec,
 	if (total_bufsize > c2_vec_count(&bvec->ov_vec))
 		return -EMSGSIZE;
 
-	for (i = 0; i < min && !move; ++i) {
+	for (i = 0; i < segs_nr && !move; ++i) {
 		zvec->z_indices[i] = indices[i];
 		bvec->ov_vec.v_count[i] = counts[i];
 		bvec->ov_buf[i] = bufs[i];
@@ -372,15 +368,14 @@ int c2_0vec_bufs_add(struct c2_0vec *zvec,
 	}
 
 	C2_POST(zerovec_invariant(zvec));
-	return (i == min) && move ? 0 : -EMSGSIZE;
+	return i == segs_nr ? 0 : -EMSGSIZE;
 }
-C2_EXPORTED(c2_0vec_bufs_add);
+C2_EXPORTED(c2_0vec_bufs_init);
 
 int c2_0vec_cbuf_add(struct c2_0vec *zvec,
 		     const struct c2_buf *buf,
 		     const c2_bindex_t *index)
 {
-	bool		  move;
 	uint32_t	  curr_seg;
 	c2_bcount_t	  step;
 	struct c2_bufvec *bvec;
@@ -400,7 +395,7 @@ int c2_0vec_cbuf_add(struct c2_0vec *zvec,
 	bvec->ov_vec.v_count[curr_seg] = buf->b_nob;
 	zvec->z_indices[curr_seg] = *index;
 	step = c2_bufvec_cursor_step(&zvec->z_cursor);
-	move = c2_bufvec_cursor_move(&zvec->z_cursor, step);
+	c2_bufvec_cursor_move(&zvec->z_cursor, step);
 
 	C2_POST(zerovec_invariant(zvec));
 	return 0;

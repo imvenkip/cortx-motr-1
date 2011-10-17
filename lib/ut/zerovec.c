@@ -60,20 +60,21 @@ static void zerovec_init_bvec(void)
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i)
 		indices[i] = i;
 
+	rc = c2_0vec_bvec_init(&zvec, &bufvec, indices);
+	C2_UT_ASSERT(rc == 0);
+
 	/* Checks if buffer array, index array and segment count array
 	   are populated correctly. */
-	rc = c2_0vec_bvec_add(&zvec, &bufvec, indices);
-	C2_UT_ASSERT(rc == 0);
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i) {
 		C2_UT_ASSERT(zvec.z_bvec.ov_buf[i] ==
 			     bufvec.ov_buf[i]);
 		C2_UT_ASSERT(zvec.z_bvec.ov_vec.v_count[i] ==
-			     ZEROVEC_UT_SEG_SIZE);
+				ZEROVEC_UT_SEG_SIZE);
 		C2_UT_ASSERT(zvec.z_indices[i] == indices[i]);
 	}
 
 	/* Tries to add bufvec beyond zerovec's limit. Should fail. */
-	rc = c2_0vec_bvec_add(&zvec, &bufvec, indices);
+	rc = c2_0vec_bvec_init(&zvec, &bufvec, indices);
 	C2_UT_ASSERT(rc == -EMSGSIZE);
 
 	c2_bufvec_free(&bufvec);
@@ -100,10 +101,12 @@ static void zerovec_init_bufs(void)
 		indices[i] = c2_rnd(ZEROVEC_UT_SEGS_NR, &seed);
 	}
 
-	rc = c2_0vec_bufs_add(&zvec, (void**)bufs, indices, counts,
-			 ZEROVEC_UT_SEGS_NR);
+	rc = c2_0vec_bufs_init(&zvec, (void**)bufs, indices, counts,
+			      ZEROVEC_UT_SEGS_NR);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Checks if buffer array, index array and segment count array
+	   are populated correctly. */
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i) {
 		C2_UT_ASSERT(zvec.z_indices[i] == indices[i]);
 		C2_UT_ASSERT(zvec.z_bvec.ov_vec.v_count[i] ==
@@ -113,7 +116,7 @@ static void zerovec_init_bufs(void)
 	C2_UT_ASSERT(zvec.z_bvec.ov_vec.v_nr == ZEROVEC_UT_SEGS_NR);
 
 	/* Tries to add buffers beyond zerovec's limit. Should fail. */
-	rc = c2_0vec_bufs_add(&zvec, (void**)bufs, indices, counts,
+	rc = c2_0vec_bufs_init(&zvec, (void**)bufs, indices, counts,
 			      ZEROVEC_UT_SEGS_NR);
 	C2_UT_ASSERT(rc == -EMSGSIZE);
 

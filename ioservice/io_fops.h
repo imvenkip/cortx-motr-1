@@ -105,7 +105,7 @@ void io_zeroseg_free(struct io_zeroseg *zseg);
    @param index Index of io segments in array of io segments from zerovec.
    @param seg Out parameter to return io segment.
  */
-void io_zerovec_seg_get(const struct c2_0vec *zvec, const uint32_t index,
+void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t index,
 			struct io_zeroseg *seg);
 
 /**
@@ -118,7 +118,7 @@ void io_zerovec_seg_get(const struct c2_0vec *zvec, const uint32_t index,
    @param zvec The c2_0vec io vector whose io segment will be changed.
    @param seg Target segment for set.
  */
-void io_zerovec_seg_set(struct c2_0vec *zvec, const uint32_t index,
+void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t index,
 			const struct io_zeroseg *seg);
 
 /**
@@ -127,7 +127,7 @@ void io_zerovec_seg_set(struct c2_0vec *zvec, const uint32_t index,
    @param zvec The c2_0vec structure.
    @param segs_nr Number of io segments to be allocated.
  */
-int io_zerovec_segs_alloc(struct c2_0vec *zvec, const uint32_t segs_nr);
+int io_zerovec_segs_alloc(struct c2_0vec *zvec, uint32_t segs_nr);
 
 /**
  * FOP definitions and corresponding fop type formats

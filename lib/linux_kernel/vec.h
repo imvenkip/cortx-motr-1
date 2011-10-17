@@ -32,8 +32,8 @@ struct page;
 struct c2_0vec;
 
 /**
-   Init the c2_0vec structure from a struct page** array. Struct page
-   is kernel representation of a buffer.
+   Add a struct page to contents of c2_0vec structure.
+   Struct page is kernel representation of a buffer.
    @note The c2_0vec struct should be allocated by user.
 
    @param zvec The c2_0vec struct to be initialized.
@@ -42,7 +42,7 @@ struct c2_0vec;
    @post ++zvec->z_cursor.bc_vc.vc_seg
  */
 int c2_0vec_page_add(struct c2_0vec *zvec, struct page *pg,
-		     const c2_bindex_t index);
+		     c2_bindex_t index);
 
 /** @} end of vec group */
 
