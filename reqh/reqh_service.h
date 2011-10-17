@@ -51,7 +51,7 @@
    the registered end points.
 
    Services need to be registered before they can be started. Service
-   registration can be done as follows:
+   registration can be done as below,
 
    First, we have to define service type operations,
    @code
@@ -69,17 +69,37 @@
    };
    @endcode
 
+   Typical service specific start and stop operations may look like below,
+   @code
+   static int dummy_service_start(struct c2_reqh_service *service)
+   {
+        ...
+        rc = cs_fop_init();
+        if (rc != 0)
+		c2_reqh_service_start(service);
+	...
+   }
+
+   static int dummy_service_stop(struct c2_reqh_service *service)
+   {
+	...
+        cs_fop_fini();
+        c2_reqh_service_stop(service);
+	...
+   }
+   @endcode
+
    - declare service type using C2_REQH_SERVICE_TYPE_DECLARE macro,
    @code
    C2_REQH_SERVICE_TYPE_DECLARE(dummy_service_type, &dummy_service_type_ops, "dummy");
    @endcode
 
-   - now, the above service type can be registered as follows:
+   - now, the above service type can be registered as below,
    @code
    c2_reqh_service_type_register(&dummy_service_type);
    @endcode
 
-   and unregister service using c2_reqh_service_type_unregister().
+   - and unregister service using c2_reqh_service_type_unregister().
    @{
  */
 
@@ -91,7 +111,7 @@ enum {
    Magic for reqh service
  */
 enum {
-	/* Hex value for "reqhsvcs" */
+	/** Hex value for "reqhsvcs" */
 	C2_RHS_MAGIC = 0x7265716873766373
 };
 
@@ -198,29 +218,21 @@ struct c2_reqh_service {
 	struct c2_reqh_service_type      *rs_type;
 
 	/**
-	   Represents present phase of a service.
+	   Current phase of a service.
 
 	   @see c2_reqh_service_phase
 	 */
 	enum c2_reqh_service_phase        rs_phase;
 
 	/**
-	   Represents present state of a service.
+	   Current state of a service.
+
+	   @see c2_reqh_service_state
 	 */
 	enum c2_reqh_service_state        rs_state;
 
 	/**
-	   Represents number of fops of a service in
-	   execution. This should be 0 when for a
-	   service to proceed for finalisation after
-	   receiving the stop signal.
-	   Service objects should not be finalised until
-	   this count is 0 for normal termination.
-	 */
-	uint64_t                          rs_busy_ref_cnt;
-
-	/**
-	   Protects state service state transitions.
+	   Protects service state transitions.
 	 */
 	struct c2_mutex                   rs_mutex;
 
