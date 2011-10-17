@@ -22,8 +22,7 @@
 #include <config.h>
 #endif
 
-#include "lib/ut.h"
-#include "lib/misc.h"
+#include "lib/ut.h"    /* C2_UT_ASSERT */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -142,6 +141,7 @@ static struct c2_fop_type *cs_fopts[] = {
 
 /**
    Finalises fop types.
+   Invoked from service specific startup function.
  */
 void cs_fop_fini(void)
 {
@@ -150,6 +150,7 @@ void cs_fop_fini(void)
 
 /**
    Builds fop types.
+   Invoked from service specific stop function.
  */
 int cs_fop_init(void)
 {
@@ -199,6 +200,9 @@ static struct c2_fom_type *cs_ut_fom_type_map(c2_fop_type_code_t code)
         return cs_ut_fom_types[code - CS_REQ];
 }
 
+/**
+   Allocates and initialises a fom.
+ */
 static int cs_req_fop_fom_create(struct c2_fom_type *ft, struct c2_fom **out)
 {
         struct c2_fom *fom;
@@ -217,6 +221,9 @@ static int cs_req_fop_fom_create(struct c2_fom_type *ft, struct c2_fom **out)
         return 0;
 }
 
+/**
+   Initialises a fom.
+ */
 static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_fom_type      *fom_type;
@@ -239,6 +246,9 @@ static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 }
 
+/**
+   Finalises a fom.
+ */
 static void cs_ut_fom_fini(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
@@ -247,11 +257,19 @@ static void cs_ut_fom_fini(struct c2_fom *fom)
         c2_free(fom);
 }
 
+/**
+   Returns an index value base on fom parameters to locate fom's
+   home locality to execute a fom.
+ */
 static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom)
 {
 	return fom->fo_fop->f_type->ft_code;
 }
 
+/**
+   Transitions fom through its generic phases and also
+   performs corresponding fop specific execution.
+ */
 static int cs_req_fop_fom_state(struct c2_fom *fom)
 {
 	int                  rc;
@@ -288,40 +306,47 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 	return rc;
 }
 
+/**
+   Sends fops to server.
+ */
 void send_fops(struct c2_rpc_session *cl_rpc_session)
 {
-        struct c2_clink          clink;
+        struct c2_clink          clink[10];
         struct c2_rpc_item      *item;
-        struct c2_fop           *fop;
+        struct c2_fop           *fop[10];
         struct cs_req_fop       *cs_fop;
         struct c2_fop_type      *ftype;
         c2_time_t                timeout;
         uint32_t                 i;
 
+	/* Send fops */
         for (i = 0; i < 10; ++i) {
-                fop = c2_fop_alloc(&cs_req_fop_fopt, NULL);
-                cs_fop = c2_fop_data(fop);
+                fop[i] = c2_fop_alloc(&cs_req_fop_fopt, NULL);
+                cs_fop = c2_fop_data(fop[i]);
                 cs_fop->csr_value = i;
 
-                item = &fop->f_item;
+                item = &fop[i]->f_item;
                 c2_rpc_item_init(item);
                 item->ri_deadline = 0;
                 item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
                 item->ri_group = NULL;
                 item->ri_type = &cs_req_fop_rpc_item_type;
-                ftype = fop->f_type;
+                ftype = fop[i]->f_type;
                 ftype->ft_ri_type = &cs_req_fop_rpc_item_type;
                 item->ri_session = cl_rpc_session;
                 c2_time_set(&timeout, 60, 0);
-                c2_clink_init(&clink, NULL);
-                c2_clink_add(&item->ri_chan, &clink);
+                c2_clink_init(&clink[i], NULL);
+                c2_clink_add(&item->ri_chan, &clink[i]);
                 timeout = c2_time_add(c2_time_now(), timeout);
                 c2_rpc_post(item);
-                c2_rpc_reply_timedwait(&clink, timeout);
-                c2_clink_del(&clink);
-                c2_clink_fini(&clink);
-        }
+	}
 
+	/* Wait for replys */
+        for (i = 0; i < 10; ++i) {
+                c2_rpc_reply_timedwait(&clink[i], timeout);
+                c2_clink_del(&clink[i]);
+                c2_clink_fini(&clink[i]);
+        }
 }
 
 /** @} endgroup colibri_setup */

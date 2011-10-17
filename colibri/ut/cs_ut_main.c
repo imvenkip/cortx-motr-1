@@ -33,7 +33,6 @@
 #include "lib/tlist.h"
 
 #include "net/bulk_sunrpc.h"
-#include "net/bulk_mem.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
@@ -59,29 +58,27 @@ static struct c2_net_transfer_mc    *srv_tm;
 static struct c2_net_end_point      *srv_nep;
 
 enum {
-	MAX_RPCS_IN_FLIGHT = 32,
+	MAX_RPCS_IN_FLIGHT = 10,
 };
 
-/* colibri setup command to configure environment. */
+/* Configures colibri environment with given parameters. */
 static char *cs_cmd[] = { "colibri_setup", "-r", "-T", "AD",
 		   "-D", "cs_sdb", "-S", "cs_stob",
 		   "-e", "bulk-sunrpc:127.0.0.1:1024:2",
 		   "-s", "dummy"};
 
 /**
-   Represents various network transports supported
-   by a particular node in a cluster.
+   Transports used in colibri a context.
  */
 static struct c2_net_xprt *cs_xprts[] = {
 	&c2_net_bulk_sunrpc_xprt,
-	&c2_net_bulk_mem_xprt
 };
 
-/**
-   Global colibri context
- */
 static struct c2_colibri srv_colibri_ctx;
 
+/**
+   Initialises client.
+ */
 static int client_init(void)
 {
         int                                rc = 0;
@@ -137,8 +134,7 @@ static int client_init(void)
         rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_ACTIVE |
                                    C2_RPC_CONN_FAILED, timeout);
         /* Init session */
-        rc = c2_rpc_session_init(&cl_rpc_session, &cl_conn,
-                        5);
+        rc = c2_rpc_session_init(&cl_rpc_session, &cl_conn, 2);
         if(rc != 0)
                 goto out;
 
@@ -187,6 +183,9 @@ out:
         return rc;
 }
 
+/**
+   Finalises client.
+ */
 static void client_fini(void)
 {
         /* Fini the remote net endpoint. */
@@ -205,6 +204,9 @@ static void client_fini(void)
         c2_dbenv_fini(&cl_db);
 }
 
+/**
+   Initialises server side colibri environment using colibri_setup.
+ */
 int server_init(void)
 {
         int    rc;
@@ -242,6 +244,9 @@ out:
 	return rc;
 }
 
+/**
+   Finalises server side colibri environent.
+ */   
 void server_fini(void)
 {
 	/* Fini the net endpoint. */

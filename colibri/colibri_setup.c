@@ -27,7 +27,6 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 #include <string.h>
-#include <signal.h>
 
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -38,10 +37,8 @@
 
 #include "stob/stob.h"
 #include "stob/ad.h"
-#include "fop/fop.h"
 #include "stob/linux.h"
 #include "net/net.h"
-#include "net/bulk_sunrpc.h"
 #include "rpc/rpccore.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -271,6 +268,9 @@ static struct c2_net_xprt *cs_xprt_lookup(const char *xprt_name,
         return NULL;
 }
 
+/**
+   Lists supported network transports.
+ */
 static void cs_xprts_list(FILE *out, struct c2_net_xprt **xprts,
 							int xprts_nr)
 {
@@ -283,6 +283,9 @@ static void cs_xprts_list(FILE *out, struct c2_net_xprt **xprts,
                 fprintf(out, " %s\n", xprts[i]->nx_name);
 }
 
+/**
+   Lists supported stob types.
+ */
 static void cs_stob_types_list(FILE *out)
 {
 	int i;
@@ -310,6 +313,9 @@ static bool stype_is_valid(const char *stype)
 		strcasecmp(stype, cs_stobs[LINUX_STOB]) == 0);
 }
 
+/**
+   Lists supported services.
+ */
 static void cs_services_list(FILE *out)
 {
 	struct c2_reqh_service_type *stype;
@@ -585,7 +591,7 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 	C2_PRE(cctx != NULL && xprt_name != NULL);
 
         C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
-	
+
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
 		if (strcmp(ndom->nd_xprt->nx_name, xprt_name) == 0)
 			return ndom;
@@ -736,7 +742,7 @@ out:
 }
 
 /**
-   Initialises linux stype stob.
+   Initialises linux type stob.
  */
 static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 							struct c2_stob **bstob)
@@ -767,8 +773,8 @@ out:
 
    @param stob_type Type of stob to be initialised (e.g. linux or ad)
    @param stob_path Path at which storage object should be created
-   @param stob Pre allocated struct reqh_stob_domain wrapper object
-	containing c2_stob_domain references for linux and ad stob types
+   @param stob Pre allocated struct reqh_stob_domain object encapsulates
+               c2_stob_domain references for linux and ad stob types
    @param db Pre allocated struct c2_dbenv instance to be initialised
 
    @see struct reqh_stob_domain
@@ -840,9 +846,9 @@ out:
    Finalises storage for a request handler in a colibri
    context.
 
-   @param stob Wrapper stob containing c2_stob_domain
-		references for linux and ad stobs to be
-		finalised
+   @param stob Generic stob encapsulating c2_stob_domain
+               references for linux and ad stobs to be
+               finalised
 
    @see struct reqh_stob_domain
 

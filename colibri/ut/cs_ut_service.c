@@ -46,7 +46,7 @@ static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
         .rsto_service_alloc_and_init = dummy_service_alloc_init
 };
 
-const struct c2_reqh_service_ops dummy_service_ops = {
+static const struct c2_reqh_service_ops dummy_service_ops = {
         .rso_start = dummy_service_start,
         .rso_stop = dummy_service_stop,
         .rso_fini = dummy_service_fini

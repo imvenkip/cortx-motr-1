@@ -95,7 +95,7 @@
     e.g. ./colibri -r -T linux -D dbpath -S stobfile -e xport:127.0.0.1:1024:1
           -s service
 
-    Below image displays the overview of entire colibri context.
+    Below image gives an overview of entire colibri context.
     @note This image is borrowed from the "New developer guide for colibri" document
           in section "Starting Colibri services".
 
@@ -162,6 +162,7 @@ struct c2_colibri {
  */
 int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
 						int xprts_nr, FILE *out);
+
 /**
    Finalises colibri context.
  */

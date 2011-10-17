@@ -74,7 +74,7 @@
    static int dummy_service_start(struct c2_reqh_service *service)
    {
         ...
-        rc = cs_fop_init();
+        rc = dummy_fops_init();
         if (rc != 0)
 		c2_reqh_service_start(service);
 	...
@@ -83,7 +83,7 @@
    static int dummy_service_stop(struct c2_reqh_service *service)
    {
 	...
-        cs_fop_fini();
+        dummy_fops_fini();
         c2_reqh_service_stop(service);
 	...
    }
@@ -99,8 +99,36 @@
    c2_reqh_service_type_register(&dummy_service_type);
    @endcode
 
-   - and unregister service using c2_reqh_service_type_unregister().
-   @{
+   - unregister service using c2_reqh_service_type_unregister().
+
+   A typical service transitions through its phases as below,
+   @verbatim
+                                                    allocated                                         
+   cs_service_init()---->rsto_service_alloc_and_init()+---->RH_SERVICE_INITIALISING
+                                                                      | rs_state = RH_SERVICE_UNDEFINED
+            							      | c2_reqh_service_init()
+            					                      v  
+                                                            RH_SERVICE_INITIALISED
+      							              | rs_state = RH_SERVICE_READY
+                                                                      | rso_start()
+                    start up failed                                   v
+      	+-------------------------------------------------+ RH_SERVICE_STARTING
+      	|                       rc != 0                               |
+	|                                                             | c2_reqh_servie_start()
+        v                                                             v
+   RH_SERVICE_FAILED                                          RH_SERVICE_STARTED
+        |                                                             | rs_state = RH_SERVICE_RUNNING
+        v                                                             | rso_stop()
+    rso_fini()                                                        v
+        ^                                                    RH_SERVICE_STOPPING
+        |                                                             |
+        |                                                             | c2_reqh_service_stop()
+        |                                                             v
+	+--------------------------------------------------+ RH_SERVICE_STOPPED
+
+   @endverbatim
+
+   @{ 
  */
 
 enum {
