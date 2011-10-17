@@ -103,17 +103,17 @@
 
    A typical service transitions through its phases as below,
    @verbatim
-                                                    allocated                                         
+                                                    allocated
    cs_service_init()---->rsto_service_alloc_and_init()+---->RH_SERVICE_INITIALISING
                                                                       | rs_state = RH_SERVICE_UNDEFINED
-            							      | c2_reqh_service_init()
-            					                      v  
+                                                                      | c2_reqh_service_init()
+                                                                      v
                                                             RH_SERVICE_INITIALISED
-      							              | rs_state = RH_SERVICE_READY
+                                                                      | rs_state = RH_SERVICE_READY
                                                                       | rso_start()
                     start up failed                                   v
-      	+-------------------------------------------------+ RH_SERVICE_STARTING
-      	|                       rc != 0                               |
+        +-------------------------------------------------+ RH_SERVICE_STARTING
+        |                       rc != 0                               |
 	|                                                             | c2_reqh_servie_start()
         v                                                             v
    RH_SERVICE_FAILED                                          RH_SERVICE_STARTED
@@ -128,7 +128,7 @@
 
    @endverbatim
 
-   @{ 
+   @{
  */
 
 enum {

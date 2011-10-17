@@ -246,7 +246,7 @@ out:
 
 /**
    Finalises server side colibri environent.
- */   
+ */
 void server_fini(void)
 {
 	/* Fini the net endpoint. */
