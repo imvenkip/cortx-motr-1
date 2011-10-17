@@ -39,7 +39,6 @@
 #include "fol/fol.h"
 #include "desim/sim.h"
 #include "reqh/reqh.h"
-#include "reqh/reqh_service.h"
 
 #include "colibri/init.h"
 #include "rpc/session_internal.h"

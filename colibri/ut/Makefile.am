@@ -17,5 +17,4 @@ libcs_ut_la_LIBADD = $(top_builddir)/colibri/libcolibri.la
 EXTRA_DIST = cs_test_fops.ff
 
 clean-local:
-	cd $(UT_SRCDIR) ; \
-	rm -fr cs_test_fops_u.[ch]
+	rm -f cs_test_fops_u.[ch]

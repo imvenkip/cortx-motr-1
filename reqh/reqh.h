@@ -63,29 +63,35 @@ struct c2_reqh {
 	struct c2_dtm		*rh_dtm;
 	/**
 	   @todo for now simply use storage object domain. In the future, this
-	   will be replaced with "stores"
+	   will be replaced with "stores".
 	 */
 	struct c2_stob_domain	*rh_stdom;
 
-	/** Database environment for this request handler */
+	/** Database environment for this request handler. */
 	struct c2_dbenv         *rh_dbenv;
 
-	/** Cob domain for this request handler */
+	/** Cob domain for this request handler. */
 	struct c2_cob_domain    *rh_cob_domain;
 
-	/** Fol pointer for this request handler */
+	/** Fol pointer for this request handler. */
 	struct c2_fol		*rh_fol;
 
-	/** Fom domain for this request handler */
+	/** Fom domain for this request handler. */
 	struct c2_fom_domain	 rh_fom_dom;
 
-        /** Services registered with this request handler */
+        /**
+	    Services registered with this request handler.
+
+	    @see c2_reqh_service::rs_linkage
+	 */
         struct c2_tl             rh_services;
 
         /**
 	    RPC machines running in this request handler
 	    There is one rpc machine per request handler
 	    end point.
+
+	    @see c2_rpcmachine::cr_rh_linkage
 	 */
         struct c2_tl             rh_rpcmachines;
 

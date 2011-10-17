@@ -65,3 +65,5 @@ ut-sandbox
 ub-sandbox
 gmon.out
 doxygen_*tmp
+# Ignore automatically generated files in colibri ut#
+cs_test_fops_u.[ch]

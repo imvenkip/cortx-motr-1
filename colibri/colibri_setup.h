@@ -70,7 +70,7 @@
    @endcode
 
    Define parameters for colibri setup and setup environment as
-   follows:
+   below,
 
    @code
    static char *cmd[] = { "colibri_setup", "-r", "-T", "AD",
@@ -82,45 +82,24 @@
     @endcode
 
     Once the environment is setup successfuly, the services can be started
-    as follows:
+    as below,
     @code
     c2_cs_start(&srv_colibri_ctx);
     @endcode
 
     @note The specified services to be started should be registered before
-          they can be started.
+          startup.
 
     Similarly, to setup colibri externally, using colibri_setup program along
     with parameters specified as above.
     e.g. ./colibri -r -T linux -D dbpath -S stobfile -e xport:127.0.0.1:1024:1
           -s service
 
-    A typical colibri context can be pictured as follows:
+    Below image displays the overview of entire colibri context.
+    @note This image is borrowed from the "New developer guide for colibri" document
+          in section "Starting Colibri services".
 
-    @verbatim
-		+---------+
-                |         | Netowrk transports
-                | colibri |+---->xprt1+--->xprt2+--->xprtn
-                | context |
-                |         | Network domains
-                |         |+---->ndom1+--->ndom2+--->ndomn
-                |         |
-                |         | Request handler contexts
-                |         |+---->rctx1+--->rctx2+--->rctxn
-                +---------+   +---------+
-                              | stob    |
-                              +---------+
-                              | dbenv   |
-                              +---------+
-                              | cob dom |
-                              +---------+
-                              |  fol    |
-                              +---------+ services
-                              |  reqh   |+--->S1+--->S2+--->Sn
-                              |         | rpc machines
-                              |         |+--->r1+--->r2+--->rn
-                              +---------+
-   @endverbatim
+    \image html DS-reqh.gif
 
    @{
  */
@@ -144,16 +123,22 @@ struct c2_colibri {
 	   Size of cc_xprts array.
 	 */
 	int                        cc_xprts_nr;
+
         /**
            List of network domain per colibri context.
+
+	   @see c2_net_domain::nd_app_linkage
          */
         struct c2_tl               cc_ndoms;
 
         /**
            List of request handler contexts running under
            one colibri context on a node.
+
+	   @see cs_reqh_context::rc_linkage
          */
 	struct c2_tl               cc_reqh_ctxs;
+
 	/**
 	   File to which the output is written.
 	   This is set to stdout by default if no output file
@@ -192,9 +177,6 @@ void c2_cs_fini(struct c2_colibri *cs_colibri);
    machines each per request handler end point.
 
    @param cs_colibri Colibri context to be initialised
-
-   @retval 0 On success
-	-errno on failure
  */
 int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv);
 
@@ -212,7 +194,7 @@ int c2_cs_start(struct c2_colibri *cs_colibri);
 
 /**
    Returns server side transfer machine in given colibri context
-   for given service if found else returns NULL.
+   for given service if found, else returns NULL.
  */
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 						const char *service);

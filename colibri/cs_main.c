@@ -22,10 +22,9 @@
 #include <config.h>
 #endif
 
-#include <stdio.h>
+#include <stdio.h>     /* fprintf */
 #include <stdlib.h>
 #include <unistd.h>    /* pause */
-#include <errno.h>     /* errno */
 #include <signal.h>
 
 #include "lib/errno.h"
@@ -88,13 +87,13 @@ int main(int argc, char **argv)
 	errno = 0;
 	rc = c2_init();
 	if (rc != 0) {
-		fputs("\n Failed to initialise Colibri \n", stderr);
+		fprintf(stderr, "\n Failed to initialise Colibri \n");
 		goto out;
 	}
 
 	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
 	if (rc != 0) {
-		fputs("\n Failed to initialise Colibri \n", stderr);
+		fprintf(stderr, "\n Failed to initialise Colibri \n");
 		goto cleanup;
 	}
 
