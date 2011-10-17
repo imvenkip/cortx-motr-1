@@ -353,9 +353,7 @@ struct c2_cfg_pool__val {
 	/** pool state bits. @see c2_cfg_state_bit */
 	uint64_t cp_last_state;
 
-	/** list of parameters for this pool, identified by pool id.
-            Poold id is foreign-key to parameter.
-	 */
+	/** list of parameters for this pool, identified by param id. */
 	uint64_t cp_param_list[C2_CFG_PARAM_LEN];
 };
 
@@ -376,9 +374,7 @@ struct c2_cfg_filesystem__val {
 	/** file system root fid    */
 	struct c2_fid cf_rootfid;
 
-	/** list of parameters for this file system, identified by pool id.
-            Poold id is foreign-key to parameter.
-	 */
+	/** list of parameters for this file system, identified by param id.*/
 	uint64_t cp_param_list[C2_CFG_PARAM_LEN];
 };
 
