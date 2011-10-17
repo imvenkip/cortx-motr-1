@@ -1,7 +1,7 @@
 GALOIS_KERNEL_SRCDIR = @SRCDIR@/galois/linux_kernel
 GALOIS_SRCDIR = @SRCDIR@/../galois
 
-obj-m       := kgalois.o
+obj-y       := kgalois.o
 shared_src  := galois.c
 kernel_src  := kgalois.c
 kgalois-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)

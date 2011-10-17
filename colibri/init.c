@@ -19,15 +19,19 @@
  */
 
 #include "lib/cdefs.h"
+#include "fop/fop.h"
 
-#include "lib/user_space/thread.h"
+#ifndef __KERNEL__
+#   include "lib/user_space/thread.h"
+#   include "net/usunrpc/usunrpc.h"
+#   include "desim/sim.h"
+#endif
+
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/bulk_emulation/mem_xprt.h"
-#include "net/usunrpc/usunrpc.h"
 #include "rpc/rpccore.h"
-#include "fop/fop.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
 #include "layout/layout.h"
@@ -37,11 +41,17 @@
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "fol/fol.h"
-#include "desim/sim.h"
 #include "reqh/reqh.h"
 
 #include "colibri/init.h"
-#include "rpc/session_internal.h"
+
+#ifdef __KERNEL__
+#   include "c2t1fs/c2t1fs.h"
+#   include "net/ksunrpc/ksunrpc.h"
+#   include "build_kernel_modules/dummy_init_fini.h"
+#endif
+
+#include "ioservice/io_fops.h"
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
@@ -54,6 +64,10 @@ struct init_fini_call {
 	const char *ifc_name;
 };
 
+/*
+  XXX dummy_init_fini.c defines dummy init() and fini() routines for
+  subsystems, that are not yet ported to kernel mode.
+ */
 struct init_fini_call subsystem[] = {
 	{ &c2_trace_init,    &c2_trace_fini,   "trace" },
 	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
@@ -67,12 +81,18 @@ struct init_fini_call subsystem[] = {
 	{ &c2_net_init,      &c2_net_fini,     "net" },
 	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
 	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
+#ifndef __KERNEL__
 	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
+#else
+	{ &c2_ksunrpc_init,  &c2_ksunrpc_fini,     "ksunrpc"},
+	{ &c2t1fs_init_module, &c2t1fs_cleanup_module, "c2t1fs" },
+#endif
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
+	{ &c2_ioservice_fop_init, &c2_ioservice_fop_fini, "ioservice" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }
 };
 
@@ -92,9 +112,6 @@ int c2_init(void)
 	for (result = i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		result = subsystem[i].ifc_init();
 		if (result != 0) {
-			fprintf(stderr,
-				"Subsystem \"%s\" failed to initialize: %i.\n",
-				subsystem[i].ifc_name, result);
 			fini_nr(i);
 			break;
 		}

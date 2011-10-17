@@ -238,7 +238,6 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 	fop = c2_fop_alloc(ftype, NULL);
 	if (fop == NULL)
 		return -ENOMEM;
-	c2_rpc_item_init(&fop->f_item);
         fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	*item = c2_fop_to_rpc_item(fop);

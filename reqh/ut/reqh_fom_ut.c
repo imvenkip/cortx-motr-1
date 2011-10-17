@@ -460,7 +460,6 @@ static void create_send()
 		rh_io_fop->fic_object.f_oid = i;
 
 		item = &fop->f_item;
-		c2_rpc_item_init(item);
 		item->ri_deadline = 0;
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
@@ -499,7 +498,6 @@ static void read_send()
 		rh_io_fop->fir_object.f_oid = i;
 
 		item = &fop->f_item;
-		c2_rpc_item_init(item);
 		item->ri_deadline = 0;
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
@@ -538,7 +536,6 @@ static void write_send()
 		rh_io_fop->fiw_object.f_oid = i;
 
 		item = &fop->f_item;
-		c2_rpc_item_init(item);
 		item->ri_deadline = 0;
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
@@ -740,7 +737,6 @@ static int reqh_ut_create_fom_state(struct c2_fom *fom)
 		out_fop->ficr_rc = result;
 		fop = fom_obj->rep_fop;
 		item = c2_fop_to_rpc_item(fop);
-		c2_rpc_item_init(item);
 		item->ri_type = &reqh_ut_create_rep_rpc_item_type;
 		item->ri_group = NULL;
 		fop->f_type->ft_ri_type = &reqh_ut_create_rep_rpc_item_type;
@@ -848,7 +844,6 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
                         out_fop->firr_rc = fom->fo_rc;
 			fop = fom_obj->rep_fop;
 			item = c2_fop_to_rpc_item(fop);
-                        c2_rpc_item_init(item);
                         item->ri_type = &reqh_ut_read_rep_rpc_item_type;
                         item->ri_group = NULL;
                         fop->f_type->ft_ri_type = &reqh_ut_read_rep_rpc_item_type;
@@ -959,7 +954,6 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
                         out_fop->fiwr_rc = fom->fo_rc;
 			fop = fom_obj->rep_fop;
 			item = c2_fop_to_rpc_item(fop);
-			c2_rpc_item_init(item);
 			item->ri_type = &reqh_ut_write_rep_rpc_item_type;
 			item->ri_group = NULL;
 			fop->f_type->ft_ri_type = &reqh_ut_write_rep_rpc_item_type;

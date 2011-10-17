@@ -1,6 +1,6 @@
 LAYOUT_SRCDIR = @SRCDIR@/layout/linux_kernel
 
-obj-m       := klayout.o
+obj-y       := klayout.o
 shared_src  := layout.c pdclust.c
 kernel_src  := klayout.c
 klayout-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)

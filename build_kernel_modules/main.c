@@ -14,29 +14,30 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Madhavrao Vemuri <madhav_vemuri@xyratex.com>
- * Original creation date: 22/09/2011
+ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 10/13/2011
  */
 
 #include <linux/module.h>
+#include <linux/init.h>
+#include "lib/list.h"
+#include "colibri/init.h"
 
-#include "fol/fol.h"
+MODULE_AUTHOR("Xyratex International");
+MODULE_DESCRIPTION("Colibri Library");
+MODULE_LICENSE("GPL");
+
 
 int init_module(void)
 {
+        printk("Colibri init\n");
+	c2_init();
         return 0;
 }
 
 void cleanup_module(void)
 {
+        printk("Colibri cleanup\n");
+	c2_fini();
 }
 
-/* 
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */
