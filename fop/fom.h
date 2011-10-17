@@ -162,7 +162,7 @@ struct c2_fom_domain {
 	const struct c2_fom_domain_ops	*fd_ops;
 	/** Request handler this domain belongs to */
 	struct c2_reqh			*fd_reqh;
-	/** Addb context for fom domain */
+	/** Addb context for fom */
 	struct c2_addb_ctx               fd_addb_ctx;
 };
 

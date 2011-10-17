@@ -49,7 +49,6 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #endif
 
 #include "stob/ut/io.ff"
-#include "addb/addb.ff"
 
 /**
    @addtogroup stob
@@ -97,40 +96,15 @@ C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", NULL, 23,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &c2_rpc_fop_default_item_type_ops);
 
-struct c2_fop_type c2_addb_record_fopt = {
-	.ft_name = "addb",
-	.ft_fmt  = &c2_addb_record_header_tfmt,
-	.ft_ops  = NULL,
-	.ft_rpc_item_type = {
-		.rit_opcode = 14,
-		.rit_flags = C2_RPC_ITEM_TYPE_REQUEST,
-		.rit_ops   = &c2_rpc_fop_default_item_type_ops,
-	}
-};
-
-struct c2_fop_type c2_addb_reply_fopt = {
-	.ft_name = "addb reply",
-	.ft_fmt  = &c2_addb_reply_tfmt,
-	.ft_ops  = NULL,
-	.ft_rpc_item_type = {
-		.rit_opcode = 24,
-		.rit_flags = C2_RPC_ITEM_TYPE_REPLY,
-		.rit_ops = &c2_rpc_fop_default_item_type_ops,
-	}
-};
-
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
 	&c2_io_quit_fopt,
-	&c2_addb_record_fopt,
 
 	&c2_io_write_rep_fopt,
 	&c2_io_read_rep_fopt,
 	&c2_io_create_rep_fopt,
-
-	&c2_addb_reply_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {

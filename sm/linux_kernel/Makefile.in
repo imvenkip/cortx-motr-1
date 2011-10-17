@@ -1,8 +1,8 @@
 SM_SRCDIR = @SRCDIR@/sm/linux_kernel
 
-obj-m		:= ksm.o
+obj-y		:= ksm.o
 shared_src	:= sm.c
-kernel_src	:= sm_kernel.c
+kernel_src	:=
 ksm-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 
@@ -22,5 +22,5 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(SM_SRCDIR)/Makefile.in $(SM_SRCDIR)/sm.h \
+	cp $(SM_SRCDIR)/Makefile.in $(SM_SRCDIR)/sm_kernel.c \
 	    @top_builddir@/@PACKAGE@-@VERSION@/sm/linux_kernel

@@ -1,3 +1,4 @@
+xcodeutdir        = $(includedir)/xcode/ut
 noinst_PROGRAMS = xcode_test
 noinst_LTLIBRARIES   = libxcode-ut.la
 
@@ -10,4 +11,6 @@ test_u.h test_u.c : test.ff \
 	$(top_builddir)/fop/rt/libc2rt.la
 	$(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -u $<
-
+clean-local:
+	cd $(xcodeutdir) ; \
+	rm -fr test_[uk].[ch]

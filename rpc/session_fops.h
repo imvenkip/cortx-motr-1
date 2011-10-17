@@ -79,15 +79,6 @@ int c2_rpc_session_fop_init(void);
 
 void c2_rpc_session_fop_fini(void);
 
-extern struct c2_rpc_item_type c2_rpc_item_conn_establish;
-extern struct c2_rpc_item_type c2_rpc_item_conn_establish_rep;
-extern struct c2_rpc_item_type c2_rpc_item_session_establish;
-extern struct c2_rpc_item_type c2_rpc_item_session_establish_rep;
-extern struct c2_rpc_item_type c2_rpc_item_session_terminate;
-extern struct c2_rpc_item_type c2_rpc_item_session_terminate_rep;
-extern struct c2_rpc_item_type c2_rpc_item_conn_terminate;
-extern struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep;
-extern struct c2_rpc_item_type c2_rpc_item_noop;
 
 extern const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops;
 extern const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;

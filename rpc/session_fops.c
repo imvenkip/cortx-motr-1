@@ -109,8 +109,6 @@ static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
 		rc = -ENOMEM;
 		goto out;
 	}
-	c2_rpc_item_init(&reply_fop->f_item);
-        reply_fop->f_item.ri_type = &reply_fop->f_type->ft_rpc_item_type;
 
 	fom->fo_rep_fop = reply_fop;
 	fom->fo_fop = fop;
@@ -141,6 +139,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	int                                   rc;
 
 	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
+	C2_PRE(item_type->rit_opcode == C2_RPC_FOP_CONN_ESTABLISH_OPCODE);
 
 	*item = NULL;
 
@@ -154,9 +153,6 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	rc = c2_fop_init(fop, &c2_rpc_fop_conn_establish_fopt, NULL);
 	if (rc != 0)
 		goto out;
-
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
 
 	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
 	if (rc != 0)
@@ -309,6 +305,7 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	ctx->cec_sender_ep = ep;
 	ctx->cec_rpcmachine = machine;
 }
+
 
 const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops = {
 	.rio_replied = c2_rpc_conn_establish_reply_received

@@ -1,6 +1,6 @@
 DB_SRCDIR = @SRCDIR@/db/linux_kernel
 
-obj-m       := kdb.o
+obj-y       := kdb.o
 shared_src  := db_common.c
 kernel_src  := db.c
 kdb-y       := $(shared_src:.c=.o) $(kernel_src:.c=.o)

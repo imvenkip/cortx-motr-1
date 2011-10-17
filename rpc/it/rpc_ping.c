@@ -416,8 +416,6 @@ void send_ping_fop(int nr)
 		nr_arr_member = (cctx.pc_nr_ping_bytes / 8) + 1;
 	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_ASSERT(fop != NULL);
-        c2_rpc_item_init(&fop->f_item);
-        fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
 	ping_fop = c2_fop_data(fop);
 	ping_fop->fp_arr.f_count = nr_arr_member;
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
@@ -425,7 +423,6 @@ void send_ping_fop(int nr)
 		ping_fop->fp_arr.f_data[i] = i+100;
 	}
 	item = &fop->f_item;
-	c2_rpc_item_init(item);
 	item->ri_deadline = 0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
