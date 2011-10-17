@@ -291,8 +291,7 @@ static bool cobfid_map_iter_invariant(const struct c2_cobfid_map_iter *iter)
 	if (iter->cfmi_ops == NULL ||
 	    iter->cfmi_ops->cfmio_fetch == NULL ||
 	    iter->cfmi_ops->cfmio_at_end == NULL ||
-	    iter->cfmi_ops->cfmio_reload == NULL ||
-	    iter->cfmi_ops->cfmio_advance == NULL)
+	    iter->cfmi_ops->cfmio_reload == NULL)
 		return false;
 	 /* Number of records (cfmi_num_recs is set to the buffer size and
 	    will be held constant for the life of the iterator */
@@ -382,6 +381,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 		/* iterator stale: reload the buffer and reset buffer index */
 		rc = iter->cfmi_ops->cfmio_reload(iter);
 		if (rc != 0){
+			C2_ASSERT(iter->cfmi_error != 0);
 			C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
 				    cfm_func_fail, "cfmio_reload", rc);
 			return rc;
@@ -393,6 +393,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 		   and then set cfmi_rec_idx to 0 */
 		rc = iter->cfmi_ops->cfmio_fetch(iter);
 		if (rc != 0){
+			C2_ASSERT(iter->cfmi_error != 0);
 			C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
 				    cfm_func_fail, "cfmio_fetch", rc);
 			return rc;
@@ -432,6 +433,22 @@ C2_EXPORTED(c2_cobfid_map_iter_next);
  Enumerate map
  *****************************************************************************
  */
+
+static void iter_advance(struct c2_cobfid_map_iter *iter,
+			 const uint64_t container_id,
+			 const struct c2_fid fid)
+{
+	C2_PRE(cobfid_map_iter_invariant(iter));
+
+	iter->cfmi_next_fid.f_key = fid.f_key + 1;
+	if (iter->cfmi_qt == C2_COBFID_MAP_QT_ENUM_MAP) {
+		iter->cfmi_next_ci = container_id;
+		/* overflow */
+		if (iter->cfmi_next_fid.f_key == 0)
+			/* advance to next container */
+			iter->cfmi_next_ci += 1;
+	}
+}
 
 static int enum_fetch(struct c2_cobfid_map_iter *iter)
 {
@@ -544,7 +561,7 @@ cleanup:
 	c2_db_cursor_fini(&db_cursor);
 	if (rc == 0) {
 		c2_db_tx_commit(&tx);
-		iter->cfmi_ops->cfmio_advance(iter, key.cfk_ci, key.cfk_fid);
+		iter_advance(iter, key.cfk_ci, key.cfk_fid);
 	} else {
 		iter->cfmi_error = rc;
 		c2_db_tx_abort(&tx);
@@ -570,32 +587,15 @@ static int enum_reload(struct c2_cobfid_map_iter *iter)
 {
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
-	iter->cfmi_ops->cfmio_advance(iter, iter->cfmi_last_ci,
+	iter_advance(iter, iter->cfmi_last_ci,
 				      iter->cfmi_last_fid);
 	return iter->cfmi_ops->cfmio_fetch(iter);
-}
-
-static void enum_advance(struct c2_cobfid_map_iter *iter,
-			 uint64_t container_id,
-			 struct c2_fid fid)
-{
-	C2_PRE(cobfid_map_iter_invariant(iter));
-
-	iter->cfmi_next_fid.f_key = fid.f_key + 1;
-	if (iter->cfmi_qt == C2_COBFID_MAP_QT_ENUM_MAP) {
-		iter->cfmi_next_ci = container_id;
-		/* overflow */
-		if (iter->cfmi_next_fid.f_key == 0)
-			/* advance to next container */
-			iter->cfmi_next_ci += 1;
-	}
 }
 
 static const struct c2_cobfid_map_iter_ops enum_ops = {
 	.cfmio_fetch  = enum_fetch,
 	.cfmio_at_end = enum_at_end,
 	.cfmio_reload = enum_reload,
-	.cfmio_advance = enum_advance
 };
 
 int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
@@ -661,17 +661,10 @@ static int enum_container_reload(struct c2_cobfid_map_iter *iter)
 	return enum_reload(iter);
 }
 
-static void enum_container_advance(struct c2_cobfid_map_iter *iter,
-				   uint64_t container_id, struct c2_fid fid)
-{
-	enum_advance(iter, container_id, fid);
-}
-
 static const struct c2_cobfid_map_iter_ops enum_container_ops = {
 	.cfmio_fetch  = enum_container_fetch,
 	.cfmio_at_end = enum_container_at_end,
 	.cfmio_reload = enum_container_reload,
-	.cfmio_advance = enum_container_advance
 };
 
 int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
