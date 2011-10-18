@@ -23,6 +23,7 @@
 #endif
 
 #include <sys/stat.h>
+#include <stdlib.h>
 #include "ioservice/cobfid_map.h"
 #include "lib/ut.h"
 #include "lib/memory.h"
@@ -35,7 +36,7 @@ struct c2_dbenv cfm_dbenv;
 
 /* Number of records to be enumerated */
 enum {
-	REC_NR = 10
+	REC_NR = 16
 };
 
 /* Variables used for simple table insert-delete checks */
@@ -71,7 +72,9 @@ static int cfm_ut_init(void)
 
 static int cfm_ut_fini(void)
 {
-	c2_dbenv_fini(&cfm_dbenv);
+
+	c2_cobfid_map_fini(&cfm_map);
+
 	return 0;
 }
 
@@ -97,14 +100,13 @@ static void cfm_ut_delete(void)
 
 static void cfm_ut_container_enumerate(void)
 {
+	int	 rec_nr;
+	int	 i;
+	int	 j;
 	uint64_t ci;
-	uint64_t ci_out;
-
-	int rec_nr;
-	int i;
-	int j = REC_NR-1;
 
 	ci = 200;
+	j = REC_NR - 1;
 
 	/* Fill in the database for same container id and
 	   varying fid values */
@@ -122,21 +124,7 @@ static void cfm_ut_container_enumerate(void)
 	}
 	rc = c2_dbenv_sync(&cfm_dbenv);
 	C2_UT_ASSERT(rc == 0);
-	rec_nr = 0;
-	j = 0;
-	ci_out = 200;
-#if 0
-	for (i = 0; i < REC_NR; i++) {
-		fid_out[i].f_container = j;
-		fid_out[i].f_key = j;
-		rc = c2_cobfid_map_del(&cfm_map, ci_out, fid_out[i]);
-		C2_UT_ASSERT(rc == 0);
-		printf("DEL: rc = %d, f_key = %lu \n", rc, fid_out[i].f_key);
-		j++;
-		rec_nr++;
-	}
 
-#endif
 	rc = c2_cobfid_map_container_enum(&cfm_map, container_id, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 

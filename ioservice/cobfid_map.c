@@ -373,8 +373,9 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 			    uint64_t *container_id_p, struct c2_fid *file_fid_p,
 			    struct c2_uint128 *cob_fid_p)
 {
-	int				 rc;
-	struct cobfid_map_record	*recs;
+	int			  rc;
+	struct cobfid_map_record *recs;
+	struct cobfid_map_record *record;
 
 	C2_PRE(cobfid_map_iter_invariant(iter));
 	C2_PRE(container_id_p != NULL);
@@ -420,10 +421,13 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 		return rc;
 	}
 
+	record = &recs[iter->cfmi_rec_idx];
 	/* Set output pointer values */
-	container_id_p = &recs[iter->cfmi_rec_idx].cfr_key.cfk_ci;
-	file_fid_p = &recs[iter->cfmi_rec_idx].cfr_key.cfk_fid;
-	cob_fid_p = &recs[iter->cfmi_rec_idx].cfr_cob;
+	*container_id_p = record->cfr_key.cfk_ci;
+	file_fid_p->f_container = record->cfr_key.cfk_fid.f_container;
+	file_fid_p->f_key = record->cfr_key.cfk_fid.f_key;
+	cob_fid_p->u_hi = record->cfr_cob.u_hi;
+	cob_fid_p->u_lo = record->cfr_cob.u_lo;
 
 	/* Save value of cfmi_last_ci and cfmi_last_fid before returning */
 	iter->cfmi_last_ci = *container_id_p;
