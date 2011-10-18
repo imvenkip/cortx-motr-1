@@ -7,13 +7,14 @@ io_fops_u.h io_fops_u.c: io_fops.ff \
 	$(top_builddir)/fop/fop2c -u $<
 
 
-noinst_PROGRAMS   = io_buf 
+noinst_PROGRAMS   = io_buf_pool
 noinst_LTLIBRARIES		= libcolibri-ioservice.la
 libcolibri_ioservice_la_SOURCES	= io_fops_u.h io_fops_u.c \
 				  io_foms.c io_foms.h io_fops.c io_fops.h
 
-io_buf_SOURCES= io_buf_prealloc.c
-io_buf_LDADD       = $(top_builddir)/colibri/libcolibri.la
+#io_buf_SOURCES= io_buf_prealloc.c
+io_buf_pool_SOURCES= io_buf_pool.c io_buf_pool.h
+io_buf_pool_LDADD       = $(top_builddir)/colibri/libcolibri.la
 INCLUDES			= -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 EXTRA_DIST			= io_fops.ff

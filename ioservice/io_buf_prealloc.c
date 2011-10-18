@@ -10,7 +10,7 @@ enum {
 };
 struct c2_chan buf_chan;
 struct c2_mutex list_lock;
-static int list_size;	
+static int list_size;
 struct c2_io_buf {
 	struct c2_tlink ib_link;
 	uint64_t        ib_magic;
@@ -35,12 +35,13 @@ static const struct c2_tl_descr io_buf_descr =
 
 static struct c2_tl buf_head;
 
-int c2_buf_prealloc(int nr_buf,int block_size) {
+int c2_buf_prealloc(int nr_buf,int block_size)
+{
 	struct c2_io_buf *io_buf = NULL;
 	int i;
 	int buf_size;
 	buf_size = (block_size < BUF_SIZE) ? BUF_SIZE : block_size;
-	list_size = nr_buf;	
+	list_size = nr_buf;
 	c2_tlist_init(&io_buf_descr, &buf_head);
 	c2_chan_init(&buf_chan);
 	c2_mutex_init(&list_lock);
@@ -61,14 +62,14 @@ int c2_buf_get(int nr_buf,struct io_buf_vec * io_buf_vec){
 	c2_clink_init(&buf_link, NULL);
 	c2_clink_add(&buf_chan, &buf_link);
 	c2_mutex_lock(&list_lock);
-	len = list_size;	
+	len = list_size;
 	c2_mutex_unlock(&list_lock);
-	if(nr_buf >= len){ 
+	if(nr_buf >= len) {
 	printf("WAIT :list_size %d nr_buf %d\n",list_size,nr_buf);
 		c2_chan_wait(&buf_link);
 	}
 	c2_mutex_lock(&list_lock);
-	list_size = list_size - nr_buf;	
+	list_size = list_size - nr_buf;
 	c2_mutex_unlock(&list_lock);
 	printf("GET :list_size %d nr_buf %d\n",list_size,nr_buf);
 	io_buf_vec->count = nr_buf;
@@ -87,7 +88,8 @@ int c2_buf_get(int nr_buf,struct io_buf_vec * io_buf_vec){
 	return 0;
 }
 
-int c2_buf_put(struct io_buf_vec *io_buf_vec) {
+int c2_buf_put(struct io_buf_vec *io_buf_vec)
+{
 	int i;
 	struct c2_io_buf *io_buf = NULL;
 	for (i = 0; i < io_buf_vec->count; i++){
@@ -103,14 +105,15 @@ int c2_buf_put(struct io_buf_vec *io_buf_vec) {
 		c2_chan_signal(&buf_chan);
 	c2_free(io_buf_vec->addr);
 	c2_mutex_lock(&list_lock);
-	list_size = list_size + io_buf_vec->count;	
+	list_size = list_size + io_buf_vec->count;
 	c2_mutex_unlock(&list_lock);
 	printf("PUT :list_size %d nr_buf %d\n",list_size,io_buf_vec->count);
 	return 0;
 }
 
 
-int c2_buf_finalize(int nr_buf) {
+int c2_buf_finalize(int nr_buf)
+{
 	struct c2_io_buf *io_buf = NULL;
 	c2_chan_fini(&buf_chan);
 	c2_tlist_for(&io_buf_descr, &buf_head, io_buf) {
@@ -134,7 +137,6 @@ int main()
 	int i;
 	rc = c2_buf_prealloc(1000,128);
 	C2_ASSERT(rc == 0);
-	
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 	for (i = 0; i < nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
@@ -151,8 +153,9 @@ int main()
 	return rc;
 
 };
-	
-void buffers_get_put(int rc) {
+
+void buffers_get_put(int rc)
+{
 	struct io_buf_vec io_buf;
 	rc = c2_buf_get(100,&io_buf);
 	sleep(1);
