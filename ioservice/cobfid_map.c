@@ -64,9 +64,6 @@ struct cobfid_map_record {
  */
 static int cfm_key_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
-	bool fid_eq;
-	int ci_eq;
-
 	const struct cobfid_map_key *map_key0 = key0;
 	const struct cobfid_map_key *map_key1 = key1;
 
@@ -74,10 +71,8 @@ static int cfm_key_cmp(struct c2_table *table, const void *key0, const void *key
 	C2_PRE(key0 != NULL);
 	C2_PRE(key1 != NULL);
 
-	fid_eq = c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid);
-	ci_eq = C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci);
-
-	if (fid_eq && ci_eq == 0)
+	if (c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid) &&
+			C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
 		return 0;
 	else
 		return -EINVAL;
