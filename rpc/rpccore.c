@@ -1354,11 +1354,10 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	return rc;
 }
 
-int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk)
+int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item,
+		      struct c2_net_buf_desc *to_desc)
 {
 	int				 rc;
-	struct c2_io_fop		*iofop;
-	struct c2_net_buf_desc		 to_desc;
 	struct c2_net_transfer_mc	*tm;
 
 	C2_PRE(rbulk != NULL);
@@ -1369,19 +1368,17 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk)
 	C2_PRE(rbulk->rb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
 	       rbulk->rb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
 	C2_PRE(rpc_bulk_invariant(rbulk));
+	C2_PRE(item != NULL);
+	C2_PRE(to_desc != NULL);
 
-	iofop = container_of(rbulk, struct c2_io_fop, if_bulk);
-	tm = &iofop->if_fop.f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+	tm = &item->ri_session->s_conn->c_rpcmachine->cr_tm;
 	C2_ASSERT(rbulk->rb_nbuf.nb_dom == tm->ntm_dom);
 
 	rc = c2_net_buffer_add(&rbulk->rb_nbuf, tm);
 	if (rc != 0)
 		return rc;
 
-	/* Get the net buf descriptor from io fop. */
-	iofop->if_fop.f_item.ri_type->rit_ops->rito_io_desc_get(
-			&iofop->if_fop.f_item, &to_desc);
-	rc = c2_net_desc_copy(&rbulk->rb_nbuf.nb_desc, &to_desc);
+	rc = c2_net_desc_copy(&rbulk->rb_nbuf.nb_desc, to_desc);
 	if (rc != 0)
 		c2_net_buffer_del(&rbulk->rb_nbuf, tm);
 
@@ -1389,10 +1386,9 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk)
 	return rc;
 }
 
-int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk)
+int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item)
 {
 	int				 rc;
-	struct c2_io_fop		*iofop;
 	struct c2_net_buf_desc		 from_desc;
 	struct c2_net_transfer_mc	*tm;
 
@@ -1402,13 +1398,11 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk)
 	       rbulk->rb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_PRE(rpc_bulk_invariant(rbulk));
 
-	iofop = container_of(rbulk, struct c2_io_fop, if_bulk);
-	tm = &iofop->if_fop.f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+	tm = &item->ri_session->s_conn->c_rpcmachine->cr_tm;
 	C2_ASSERT(rbulk->rb_nbuf.nb_dom == tm->ntm_dom);
 
 	/* Get the net buf descriptor from io fop. */
-	iofop->if_fop.f_item.ri_type->rit_ops->rito_io_desc_get(
-			&iofop->if_fop.f_item, &from_desc);
+	item->ri_type->rit_ops->rito_io_desc_get(item, &from_desc);
 	rc = c2_net_desc_copy(&from_desc, &rbulk->rb_nbuf.nb_desc);
 	if (rc != 0)
 		return rc;

@@ -262,6 +262,11 @@ struct c2_rpc_item_type_ops {
 	 */
 	void (*rito_io_desc_get)(struct c2_rpc_item *item,
 				 struct c2_net_buf_desc *desc);
+	/**
+	   Store the c2_net_buf_desc into io fop from its net buffer.
+	 */
+	int (*rito_io_desc_store)(struct c2_rpc_item *item,
+				  struct c2_net_buf_desc *desc);
 };
 
 struct c2_rpc_item_ops {
@@ -1066,18 +1071,24 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
    structure in the provided buffer descriptor. This API is typically invoked
    from the sender side.
    @param rbulk Rpc bulk structure whose net buf descriptor is to be stored.
+   @param item Rpc item belonging to fop whose net buf descriptor will
+   be populated.
+   @param to_desc Net buf descriptor from fop which will be populated.
    @post rpc_bulk_invariant(rbulk) = true.
  */
-int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk);
+int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item,
+		      struct c2_net_buf_desc *to_desc);
 
 /**
    Loads the c2_net_buf_desc pointing to the net buffer contained by
    c2_rpc_bulk structure and starts RDMA transfer of buffers.
    This API is typically used by receiver side.
    @param rbulk Rpc bulk structure whose net buffer is to be transferred.
+   @param item Rpc item which contains the c2_net_buf_desc which is the
+   key for zero copy of buffers.
    @post rpc_bulk_invariant(rbulk) = true.
  */
-int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk);
+int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item);
 
 /** @} endgroup of rpc_bulk */
 
