@@ -1229,6 +1229,11 @@ struct c2_rm_pin {
 struct c2_rm_lease {
 };
 
+struct c2_rm_cookie {
+	uint64_t rc_address;
+	uint64_t rc_counter;
+};
+
 void c2_rm_domain_init(struct c2_rm_domain *dom);
 void c2_rm_domain_fini(struct c2_rm_domain *dom);
 

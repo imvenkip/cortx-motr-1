@@ -1275,6 +1275,41 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in)
 	}
 }
 
+struct c2_rm_cookie *c2_rm_gen_rem_id(uint64_t addr)
+{
+	struct c2_rm_cookie *cookie;
+	static uint64_t	     rem_id = 0;
+
+	C2_ALLOC_PTR(cookie);
+	if (cookie == NULL)
+		return NULL;
+
+	cookie->rc_counter = ++rem_id;
+	cookie->rc_address = addr;
+
+	return cookie;
+}
+
+uint64_t c2_rm_gen_loan_id(void)
+{
+	static uint64_t loan_id = 0;
+	return ++loan_id;
+}
+
+struct c2_rm_owner *c2_rm_search_owner(struct c2_rm_resource *res)
+{
+	struct c2_rm_owner *owner;
+
+	owner = container_of(res, struct c2_rm_owner, ro_resource);
+	return owner;
+}
+
+void c2_rm_cookie_free(struct c2_rm_cookie *cookie)
+{
+	C2_PRE(cookie != NULL);
+	c2_free(cookie);
+}
+
 /** @} end of Owner state machine group */
 
 /** @} end of rm group */
