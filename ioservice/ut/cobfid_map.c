@@ -22,8 +22,10 @@
 #  include <config.h>
 #endif
 
+#include <sys/stat.h>
 #include "ioservice/cobfid_map.h"
 #include "lib/ut.h"
+#include "lib/memory.h"
 
 struct c2_dbenv cfm_dbenv;
 struct c2_addb_ctx cfm_addb_ctx;
@@ -33,7 +35,7 @@ struct c2_dbenv cfm_dbenv;
 
 /* Number of records to be enumerated */
 enum {
-	REC_NR = 30
+	REC_NR = 10
 };
 
 /* Variables used for simple table insert-delete checks */
@@ -42,11 +44,11 @@ struct c2_fid file_fid;
 struct c2_uint128 cob_fid;
 
 /* Variables used for container-enumeration */
-struct c2_fid ci_file_fid[REC_NR];
-struct c2_uint128 ci_cob_fid[REC_NR];
-uint64_t container_id_out;
-struct c2_fid ci_file_fid_out[REC_NR];
-struct c2_uint128 ci_cob_fid_out[REC_NR];
+struct c2_fid fid[REC_NR];
+struct c2_uint128 cfid[REC_NR];
+uint64_t ci_out;
+struct c2_fid fid_out[REC_NR];
+struct c2_uint128 cfid_out[REC_NR];
 
 static const char cfm_map_path[] = "cfm_map";
 static int rc;
@@ -60,7 +62,8 @@ static int cfm_ut_init(void)
         rc = c2_dbenv_init(&cfm_dbenv, cfm_map_path, 0);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx, "cfm_map");
+	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
+				"cfm_map_table");
 	C2_ASSERT(rc == 0);
 
 	return rc;
@@ -94,42 +97,62 @@ static void cfm_ut_delete(void)
 
 static void cfm_ut_container_enumerate(void)
 {
+	uint64_t ci;
+	uint64_t ci_out;
+
 	int rec_nr;
 	int i;
+	int j = REC_NR-1;
 
-	container_id = 200;
-	ci_file_fid[0].f_container = 0;
-	ci_file_fid[0].f_key = 0;
-	ci_cob_fid[0].u_hi = 333;
-	ci_cob_fid[0].u_lo = 30;
-	/* Insert first record */
-	rc = c2_cobfid_map_add(&cfm_map, container_id, ci_file_fid[0],
-			ci_cob_fid[0]);
-	C2_UT_ASSERT(rc == 0);
+	ci = 200;
 
 	/* Fill in the database for same container id and
 	   varying fid values */
-	for (i = 1; i < REC_NR; ++i) {
-		ci_file_fid[i].f_key = i;
-		ci_cob_fid[i].u_lo = i;
-		rc = c2_cobfid_map_add(&cfm_map, container_id, ci_file_fid[i],
-				       ci_cob_fid[i]);
+	for (i = 0; i < REC_NR; i++) {
+		fid[i].f_container = 0;
+		fid[i].f_key = j;
+		cfid[i].u_hi = 333;
+		cfid[i].u_lo = j;
+		j--;
+		rc = c2_cobfid_map_add(&cfm_map, ci, fid[i], cfid[i]);
+		printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
+				rc, ci, fid[i].f_key,
+				cfid[i].u_lo);
 		C2_UT_ASSERT(rc == 0);
 	}
+	rc = c2_dbenv_sync(&cfm_dbenv);
+	C2_UT_ASSERT(rc == 0);
+	rec_nr = 0;
+	j = 0;
+	ci_out = 200;
+#if 0
+	for (i = 0; i < REC_NR; i++) {
+		fid_out[i].f_container = j;
+		fid_out[i].f_key = j;
+		rc = c2_cobfid_map_del(&cfm_map, ci_out, fid_out[i]);
+		C2_UT_ASSERT(rc == 0);
+		printf("DEL: rc = %d, f_key = %lu \n", rc, fid_out[i].f_key);
+		j++;
+		rec_nr++;
+	}
 
+#endif
 	rc = c2_cobfid_map_container_enum(&cfm_map, container_id, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	rec_nr = 0;
-	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out,
-					     &ci_file_fid[rec_nr],
-					     &ci_cob_fid[rec_nr])) == 0) {
+	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &ci_out,
+					&fid_out[rec_nr],
+					&cfid_out[rec_nr])) == 0) {
+		printf("\nENUM: rc = %d, ci = %lu fid = %lu cfid_out = %lu\n",
+				rc, ci_out, fid_out[rec_nr].f_key,
+				cfid_out[rec_nr].u_lo);
 		rec_nr++;
 	}
 	/* Check if number of records enumerated is same as number of records
 	   inserted */
 	printf("rec_nr = %d\n",rec_nr);
-	C2_UT_ASSERT(rec_nr != REC_NR);
+	C2_UT_ASSERT(rec_nr == REC_NR);
 }
 
 const struct c2_test_suite cfm_ut = {
@@ -137,9 +160,9 @@ const struct c2_test_suite cfm_ut = {
 	.ts_init = cfm_ut_init,
 	.ts_fini = cfm_ut_fini,
 	.ts_tests = {
-		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
 		{ "cfm-insert", cfm_ut_insert },
 		{ "cfm-delete", cfm_ut_delete },
+		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
 		{ NULL, NULL }
 	}
 };

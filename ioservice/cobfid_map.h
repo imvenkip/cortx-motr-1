@@ -127,6 +127,7 @@ struct c2_cobfid_map_iter {
 	unsigned int          cfmi_num_recs; /**< # recs in the buffer */
 	unsigned int	      cfmi_last_rec; /**< index of last valid record */
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
+	bool		      cfmi_end_of_table; /**< Indicates end of table */
 	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
 };
