@@ -23,7 +23,6 @@
 #endif
 
 #include <sys/stat.h>
-#include <stdlib.h>
 #include "ioservice/cobfid_map.h"
 #include "lib/ut.h"
 #include "lib/memory.h"
