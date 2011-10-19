@@ -128,6 +128,10 @@ struct c2_cobfid_map_iter {
 	unsigned int	      cfmi_last_rec; /**< index of last valid record */
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
 	bool		      cfmi_end_of_table; /**< Indicates end of table */
+	bool		      cfmi_first_fetch; /**< True if iter first fetch */
+	struct c2_db_cursor   cfmi_db_cursor; /**< DB cursor used by iterator */
+	struct c2_table	      cfmi_table;    /**< Table to iterate on */
+	struct c2_db_tx	      cfmi_tx;     /**< DB transaction used by iter */ 	
 	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
 };

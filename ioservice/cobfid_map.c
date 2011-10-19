@@ -38,7 +38,7 @@
 enum {
 	CFM_MAP_MAGIC  = 0x6d4d4643000a7061,
 	CFM_ITER_MAGIC = 0x694d46430a726574,
-	CFM_ITER_THUNK = 16 /* #records in an iter buffer */
+	CFM_ITER_THUNK = 8 /* #records in an iter buffer */
 };
 
 /**
@@ -74,8 +74,12 @@ static int cfm_key_cmp(struct c2_table *table, const void *key0, const void *key
 	if (c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid) &&
 			C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
 		return 0;
+	//else if (&map_key0->cfk_fid.f_key > &map_key1->cfk_fid.f_key)
+	//	return &map_key0->cfk_fid.f_key - &map_key1->cfk_fid.f_key;
+	//	return -1;
 	else
-		return -EINVAL;
+		return (&map_key1->cfk_fid.f_key - &map_key0->cfk_fid.f_key);
+	//	return 1;
 }
 
 static const struct c2_table_ops cfm_table_ops = {
@@ -323,6 +327,8 @@ void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter)
 
 	c2_free(iter->cfmi_buffer);
 	iter->cfmi_magic = 0;
+	c2_db_cursor_fini(&iter->cfmi_db_cursor);
+	c2_table_fini(&iter->cfmi_table);
 
 	C2_POST(!cobfid_map_iter_invariant(iter));
 }
@@ -336,16 +342,48 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 				const struct c2_cobfid_map_iter_ops *ops,
 				const enum c2_cobfid_map_query_type qt)
 {
+	int rc;
+
 	C2_PRE(iter != NULL);
 	C2_PRE(ops != NULL);
 	C2_PRE(cobfid_map_invariant(cfm));
 
 	C2_SET0(iter);
+
+	rc = c2_table_init(&iter->cfmi_table, cfm->cfm_dbenv, cfm->cfm_map_name,
+			   0, &cfm_table_ops);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_init", rc);
+		return rc;
+	}
+
+	rc = c2_db_tx_init(&iter->cfmi_tx, cfm->cfm_dbenv, 0);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_tx_init", rc);
+		c2_table_fini(&iter->cfmi_table);
+		return rc;
+	}
+
+	rc = c2_db_cursor_init(&iter->cfmi_db_cursor, &iter->cfmi_table,
+			       &iter->cfmi_tx);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_db_cursor_init", rc);
+		c2_table_fini(&iter->cfmi_table);
+		c2_db_tx_abort(&iter->cfmi_tx);
+		return rc;
+	}
+
 	/* allocate buffer */
 	C2_ALLOC_ARR(iter->cfmi_buffer, CFM_ITER_THUNK *
 		     sizeof(struct cobfid_map_record));
 	if (iter->cfmi_buffer == NULL) {
                 C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, c2_addb_oom);
+		c2_db_cursor_fini(&iter->cfmi_db_cursor);
+		c2_table_fini(&iter->cfmi_table);
+		c2_db_tx_abort(&iter->cfmi_tx);
 		return -ENOMEM;
 	}
 
@@ -354,6 +392,7 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	iter->cfmi_qt = qt;
 	iter->cfmi_num_recs = CFM_ITER_THUNK;
 	iter->cfmi_end_of_table = false;
+	iter->cfmi_first_fetch = true;
 
 	/* force a query by positioning at the end */
 	iter->cfmi_rec_idx = iter->cfmi_last_rec + 1;
@@ -383,18 +422,8 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	if (iter->cfmi_error != 0)
 		return iter->cfmi_error;
 
-	if (iter->cfmi_last_load < iter->cfmi_cfm->cfm_last_mod) {
-		/* iterator stale: reload the buffer and reset buffer index */
-		rc = iter->cfmi_ops->cfmio_reload(iter);
-		if (rc != 0){
-			C2_ASSERT(iter->cfmi_error != 0);
-			C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
-				    cfm_func_fail, "cfmio_reload", rc);
-			return rc;
-		}
+	if (iter->cfmi_rec_idx >= iter->cfmi_last_rec) {
 		iter->cfmi_rec_idx = 0;
-		iter->cfmi_last_load = c2_time_now();
-	} else if (iter->cfmi_rec_idx > iter->cfmi_last_rec) {
 		/* buffer empty: fetch records into the buffer
 		   and then set cfmi_rec_idx to 0 */
 		rc = iter->cfmi_ops->cfmio_fetch(iter);
@@ -404,16 +433,18 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 				    cfm_func_fail, "cfmio_fetch", rc);
 			return rc;
 		}
-		iter->cfmi_rec_idx = 0;
 		iter->cfmi_last_load = c2_time_now();
-	}
-	/* Check if current record exhausts the iterator.
-	   There is an implicit assumption here that the operations fail
-	   and set cfmi_error when there are no more records left in the
-	   database */
-	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx)) {
-		rc = iter->cfmi_error = -ENOENT;
-		return rc;
+	} else if (iter->cfmi_last_load < iter->cfmi_cfm->cfm_last_mod) {
+		/* iterator stale: reload the buffer and reset buffer index */
+		iter->cfmi_rec_idx = 0;
+		rc = iter->cfmi_ops->cfmio_reload(iter);
+		if (rc != 0){
+			C2_ASSERT(iter->cfmi_error != 0);
+			C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
+				    cfm_func_fail, "cfmio_reload", rc);
+			return rc;
+		}
+		iter->cfmi_last_load = c2_time_now();
 	}
 
 	record = &recs[iter->cfmi_rec_idx];
@@ -425,11 +456,18 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	cob_fid_p->u_lo = record->cfr_cob.u_lo;
 
 	/* Save value of cfmi_last_ci and cfmi_last_fid before returning */
-	iter->cfmi_last_ci = *container_id_p;
-	iter->cfmi_last_fid = *file_fid_p;
+	//iter->cfmi_last_ci = *container_id_p;
+	//iter->cfmi_last_fid = *file_fid_p;
 
 	/* Increment the next record to return */
 	iter->cfmi_rec_idx++;
+
+	/* Check if current record exhausts the iterator.
+	   There is an implicit assumption here that the operations fail
+	   and set cfmi_error when there are no more records left in the
+	   database */
+	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx -1 ))
+		iter->cfmi_error = -ENOENT;
 
 	C2_POST(cobfid_map_iter_invariant(iter));
 
@@ -464,10 +502,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	int				 rc;
 	int				 i;
 	bool				 last_key_reached = false;
-	struct c2_table			 table;
-	struct c2_db_tx			 tx;
 	struct c2_db_pair		 db_pair;
-	struct c2_db_cursor		 db_cursor;
 	struct c2_cobfid_map		*cfm;
 	struct cobfid_map_key		 key;
 	struct cobfid_map_key		 last_key;
@@ -480,38 +515,12 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 
 	cfm = iter->cfmi_cfm;
 
-	rc = c2_table_init(&table, cfm->cfm_dbenv, cfm->cfm_map_name,
-			   0, &cfm_table_ops);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_table_init", rc);
-		return rc;
-	}
-
-	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_db_tx_init", rc);
-		c2_table_fini(&table);
-		return rc;
-	}
-
-	rc = c2_db_cursor_init(&db_cursor, &table, &tx);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_db_cursor_init", rc);
-		c2_table_fini(&table);
-		c2_db_tx_abort(&tx);
-		return rc;
-	}
-
 	/* Store the last key, to check if there is overrun during iterating
 	   the table */
-	c2_db_pair_setup(&db_pair, &table, &last_key,
-			 sizeof(struct cobfid_map_key),
-			 NULL, 0);
+	c2_db_pair_setup(&db_pair, &iter->cfmi_table, &last_key,
+			 sizeof(struct cobfid_map_key), NULL, 0);
 
-	rc = c2_db_cursor_last(&db_cursor, &db_pair);
+	rc = c2_db_cursor_last(&iter->cfmi_db_cursor, &db_pair);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_db_cursor_last", rc);
@@ -520,27 +529,49 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 
 	c2_db_pair_release(&db_pair);
 
-	key.cfk_ci = iter->cfmi_next_ci;
-	key.cfk_fid = iter->cfmi_next_fid;
+	/* c2_db_cursor_get always returns the first key, hence do this only
+	   for first fetch */
+	if (iter->cfmi_first_fetch) {
+		key.cfk_ci = iter->cfmi_next_ci;
+		key.cfk_fid = iter->cfmi_next_fid;
 
-	c2_db_pair_setup(&db_pair, &table, &key, sizeof(struct cobfid_map_key),
-			 &cob_fid, sizeof(struct c2_uint128));
+		c2_db_pair_setup(&db_pair, &iter->cfmi_table, &key,
+				sizeof(struct cobfid_map_key),
+				&cob_fid, sizeof(struct c2_uint128));
 
-	/* use c2_db_cursor_get() to read from (cfmi_next_ci, cfmi_next_fid) */
-	rc = c2_db_cursor_get(&db_cursor, &db_pair);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_db_cursor_get", rc);
-		goto cleanup;
+		rc = c2_db_cursor_get(&iter->cfmi_db_cursor, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+					"c2_db_cursor_get", rc);
+			goto cleanup;
+		}
+		iter->cfmi_first_fetch = false;
+	} else {
+		//key.cfk_ci = iter->cfmi_next_ci;
+		//key.cfk_fid = iter->cfmi_next_fid;
+		key.cfk_ci = iter->cfmi_last_ci;
+		key.cfk_fid = iter->cfmi_last_fid;
+		c2_db_pair_setup(&db_pair, &iter->cfmi_table, &key,
+				sizeof(struct cobfid_map_key),
+				//NULL, 0);
+				&cob_fid, sizeof(struct c2_uint128));
+
+		rc = c2_db_cursor_get(&iter->cfmi_db_cursor, &db_pair);
+		rc = c2_db_cursor_next(&iter->cfmi_db_cursor, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+				    "c2_db_cursor_next", rc);
+			goto cleanup;
+		}
 	}
-
+		
 	iter->cfmi_last_rec = 0;
 
 	for (i = 0; i < iter->cfmi_num_recs; ++i) {
 		/* Transaction should be committed even if records get exhausted
 		   from the table and not all CFM_ITER_THUNK entries are
 		   fetched. Iterator will be loaded with remaining records */
-		if (cfm_key_cmp(&table, &last_key, &key) == 0)
+		if (cfm_key_cmp(&iter->cfmi_table, &last_key, &key) == 0)
 			last_key_reached = true;
 
 		recs[i].cfr_key.cfk_ci = key.cfk_ci;
@@ -552,13 +583,15 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 			iter->cfmi_end_of_table = true;
 			break;
 		}
-		c2_db_pair_setup(&db_pair, &table, &key,
+		if (i == iter->cfmi_num_recs - 1)
+			break;
+		c2_db_pair_setup(&db_pair, &iter->cfmi_table, &key,
 				 sizeof(struct cobfid_map_key),
 				 &cob_fid, sizeof(struct c2_uint128));
 		/* The call c2_db_cursor_next() breaks if one tries to go
 		   beyond the last record, hence last_key_reached check
 		   is needed */
-		rc = c2_db_cursor_next(&db_cursor, &db_pair);
+		rc = c2_db_cursor_next(&iter->cfmi_db_cursor, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 				    "c2_db_cursor_next", rc);
@@ -567,17 +600,17 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	}
 
 cleanup:
-	c2_db_pair_release(&db_pair);
-	c2_db_pair_fini(&db_pair);
-	c2_db_cursor_fini(&db_cursor);
+//	c2_db_pair_release(&db_pair);
+//	c2_db_pair_fini(&db_pair);
 	if (rc == 0) {
-		c2_db_tx_commit(&tx);
+	//	c2_db_tx_commit(&iter->cfmi_tx);
 		iter_advance(iter, key.cfk_ci, key.cfk_fid);
+		iter->cfmi_last_ci = key.cfk_ci;
+		iter->cfmi_last_fid = key.cfk_fid;
 	} else {
 		iter->cfmi_error = rc;
-		c2_db_tx_abort(&tx);
+		c2_db_tx_abort(&iter->cfmi_tx);
 	}
-	c2_table_fini(&table);
 
 	return rc;
 }
@@ -659,7 +692,7 @@ static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
 	if (iter->cfmi_end_of_table &&
 			iter->cfmi_last_rec == iter->cfmi_rec_idx)
 		return true;
-	if (recs[idx].cfr_key.cfk_ci != iter->cfmi_next_ci)
+	if (recs[idx].cfr_key.cfk_ci == iter->cfmi_next_ci)
 		return false;
 
 	return true;

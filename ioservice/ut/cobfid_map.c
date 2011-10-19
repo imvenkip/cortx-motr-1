@@ -23,6 +23,7 @@
 #endif
 
 #include <sys/stat.h>
+#include <stdlib.h>
 #include "ioservice/cobfid_map.h"
 #include "lib/ut.h"
 #include "lib/memory.h"
@@ -35,7 +36,7 @@ struct c2_dbenv cfm_dbenv;
 
 /* Number of records to be enumerated */
 enum {
-	REC_NR = 16
+	REC_NR = 12
 };
 
 /* Variables used for simple table insert-delete checks */
@@ -76,7 +77,7 @@ static int cfm_ut_fini(void)
 
 	return 0;
 }
-
+#if 0
 static void cfm_ut_insert(void)
 {
 	container_id = 100;
@@ -96,7 +97,7 @@ static void cfm_ut_delete(void)
 	rc = c2_cobfid_map_del(&cfm_map, container_id, file_fid);
 	C2_UT_ASSERT(rc == 0);
 }
-
+#endif
 static void cfm_ut_container_enumerate(void)
 {
 	int	 rec_nr;
@@ -105,8 +106,8 @@ static void cfm_ut_container_enumerate(void)
 	uint64_t ci;
 
 	ci = 200;
-	j = REC_NR - 1;
-
+	//j = REC_NR - 1;
+	j = 0;
 	/* Fill in the database for same container id and
 	   varying fid values */
 	for (i = 0; i < REC_NR; i++) {
@@ -114,7 +115,7 @@ static void cfm_ut_container_enumerate(void)
 		fid[i].f_key = j;
 		cfid[i].u_hi = 333;
 		cfid[i].u_lo = j;
-		j--;
+		j++;
 		rc = c2_cobfid_map_add(&cfm_map, ci, fid[i], cfid[i]);
 		printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
 				rc, ci, fid[i].f_key,
@@ -124,7 +125,7 @@ static void cfm_ut_container_enumerate(void)
 	rc = c2_dbenv_sync(&cfm_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_cobfid_map_container_enum(&cfm_map, container_id, &cfm_iter);
+	rc = c2_cobfid_map_container_enum(&cfm_map, ci, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	rec_nr = 0;
@@ -147,8 +148,8 @@ const struct c2_test_suite cfm_ut = {
 	.ts_init = cfm_ut_init,
 	.ts_fini = cfm_ut_fini,
 	.ts_tests = {
-		{ "cfm-insert", cfm_ut_insert },
-		{ "cfm-delete", cfm_ut_delete },
+//		{ "cfm-insert", cfm_ut_insert },
+//		{ "cfm-delete", cfm_ut_delete },
 		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
 		{ NULL, NULL }
 	}
