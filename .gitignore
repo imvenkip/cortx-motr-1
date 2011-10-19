@@ -68,3 +68,5 @@ ut-sandbox
 ub-sandbox
 gmon.out
 doxygen_*tmp
+cscope.out
+tags
