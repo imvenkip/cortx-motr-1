@@ -18,6 +18,7 @@ SUBDIRS_LIBS = \
                addb \
                balloc \
                capa \
+               cfg \
                cob \
                desim \
                dtm \
