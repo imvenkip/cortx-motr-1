@@ -43,6 +43,9 @@ missing
 *.ko.unsigned.cmd
 *.mod.c
 *.mod.o
+*.gcda
+*.gcno
+*.gcov
 *~
 doc/html/
 .#*
