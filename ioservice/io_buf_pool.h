@@ -45,6 +45,8 @@ struct c2_buf_pool_list;
 /**
    Initializes a buffer pool.
    @pre buf_size > 0 && seg_size > 0
+   @pre buf_size and seg_size should be less than or equalto max_buf_size
+	and max_seg_size supported by transport.
 
    @param cap       Capacity of the pool.
    @param buf_size  Size of each buffer.

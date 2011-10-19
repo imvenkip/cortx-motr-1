@@ -35,8 +35,8 @@
 int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 		     int seg_size, int threshold)
 {
-	int nr = 0; /* Number of segments in each buffer. */
-	int rc = 0;
+	int nr; /* Number of segments in each buffer. */
+	int rc;
 
 	struct c2_net_buffer *nb = NULL;
 
@@ -75,6 +75,7 @@ clean :
 	c2_buf_pool_fini(pool);
 	return rc;
 }
+C2_EXPORTED(c2_buf_pool_init);
 
 void c2_buf_pool_fini(struct c2_buf_pool *pool)
 {
@@ -93,23 +94,26 @@ void c2_buf_pool_fini(struct c2_buf_pool *pool)
 	c2_tlist_endfor;
 	c2_tlist_fini(&buf_pool_descr, &pool->bp_head);
 }
+C2_EXPORTED(c2_buf_pool_fini);
 
 void c2_buf_pool_lock(struct c2_buf_pool *pool)
 {
 	c2_mutex_lock(&pool->bp_lock);
 }
+C2_EXPORTED(c2_buf_pool_lock);
 
 void c2_buf_pool_unlock(struct c2_buf_pool *pool)
 {
 	c2_mutex_unlock(&pool->bp_lock);
 }
+C2_EXPORTED(c2_buf_pool_unlock);
 
 struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool)
 {
 	struct c2_net_buffer *nb = NULL;
 
 	C2_PRE(pool != NULL);
-	if(!pool->bp_free)
+	if(pool->bp_free == 0)
 		return NULL;
 
 	pool->bp_list = c2_tlist_head(&buf_pool_descr, &pool->bp_head);
@@ -123,6 +127,7 @@ struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool)
 	}
 	return nb;
 }
+C2_EXPORTED(c2_buf_pool_get);
 
 void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 {
@@ -138,15 +143,17 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 	if(pool->bp_free > 0)
 		pool->bp_ops->bpo_not_empty(pool);
 }
+C2_EXPORTED(c2_buf_pool_put);
 
 void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf)
 {
-	int rc = 0;
+	int rc;
 	C2_PRE(buf != NULL);
 	rc = c2_net_buffer_register(buf, &pool->ndom);
 	C2_ASSERT(rc == 0);
 	c2_buf_pool_put(pool, buf);
 }
+C2_EXPORTED(c2_buf_pool_add);
 
 /** @} end of io_buf_prealloc */
 
