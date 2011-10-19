@@ -25,9 +25,6 @@
 #include "lib/memory.h"/* C2_ALLOC_PTR */
 #include "lib/errno.h" /* ENOMEM */
 #include "net/net.h"   /* C2_NET_BUFFER*/
-#include "net/bulk_sunrpc.h"
-#include <unistd.h>
-#include <stdio.h>
 #include "io_buf_pool.h"
 
 /**
@@ -66,15 +63,9 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, seg_size);
 		if (rc != 0)
 			goto clean;
-		printf("%lu %lu \n",(unsigned long)nb,
-				    (unsigned long)&nb->nb_buffer);
-
 		rc = c2_net_buffer_register(nb, &pool->ndom);
 		if (rc != 0)
 			goto clean;
-
-		printf("nr %d cap %d \n",nr,cap);
-
 		c2_tlink_init(&buf_pool_descr, pool->bp_list);
 		C2_ASSERT(!c2_tlink_is_in(&buf_pool_descr, pool->bp_list));
 		c2_tlist_add_tail(&buf_pool_descr, &pool->bp_head,
@@ -94,7 +85,6 @@ clean :
 void c2_buf_pool_fini(struct c2_buf_pool *pool)
 {
 	struct c2_net_buffer *nb = NULL;
-	int i = 0;
 	C2_PRE(pool != NULL);
 	c2_tlist_for(&buf_pool_descr, &pool->bp_head, pool->bp_list) {
 		nb = pool->bp_list->bl_nb;
@@ -104,7 +94,6 @@ void c2_buf_pool_fini(struct c2_buf_pool *pool)
 		c2_tlink_fini(&buf_pool_descr, pool->bp_list);
 		c2_free(nb);
 		c2_free(pool->bp_list);
-		printf("%d %lu \n",++i,(unsigned long)nb);
 		pool->bp_free--;
 	}
 	c2_tlist_endfor;
@@ -137,15 +126,12 @@ struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool)
 		pool->bp_ops->low(pool);
 		return NULL;
 	}
-
 	pool->bp_list = c2_tlist_head(&buf_pool_descr, &pool->bp_head);
 	c2_tlist_del(&buf_pool_descr, pool->bp_list);
 	c2_tlink_fini(&buf_pool_descr, pool->bp_list);
 	nb = pool->bp_list->bl_nb;
 	c2_free(pool->bp_list);
-	printf("GET %lu \n",(unsigned long)nb);
 	pool->bp_free--;
-
 	return nb;
 }
 
@@ -158,14 +144,10 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 	C2_PRE(buf != NULL);
 	C2_ALLOC_PTR(pool->bp_list);
 	C2_ASSERT(pool->bp_list != NULL);
-
 	pool->bp_list->bl_nb = buf;
-	printf("PUT %lu \n",(unsigned long)buf);
-
 	c2_tlink_init(&buf_pool_descr, pool->bp_list);
 	C2_ASSERT(!c2_tlink_is_in(&buf_pool_descr, pool->bp_list));
 	c2_tlist_add_tail(&buf_pool_descr, &pool->bp_head, pool->bp_list);
-
 	pool->bp_free++;
 	if(pool->bp_free > pool->bp_threshold)
 		pool->bp_ops->notEmpty(pool);
@@ -178,11 +160,9 @@ void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf)
 {
 	int rc = 0;
 	C2_PRE(buf != NULL);
-	printf("ADD %lu \n",(unsigned long)buf);
 	rc = c2_net_buffer_register(buf, &pool->ndom);
 	C2_ASSERT(rc == 0);
 	c2_buf_pool_put(pool, buf);
-
 }
 
 /** @} end of io_buf_prealloc */
