@@ -22,9 +22,10 @@
 
 /**
    @defgroup io_buf_prealloc Buffer pool
-   
+
    @brief Buffer pool allocates and manages a pool of buffers.
-	  Users request a buffer from the pool and after its usage is over gives back to the pool.
+	  Users request a buffer from the pool and after its usage is over
+	  gives back to the pool.
    @{
   */
 
@@ -37,16 +38,52 @@ enum {
 
 /* A pool of buffers and its context.*/
 struct c2_buf_pool;
+
 /* A list of buffers. */
 struct c2_buf_pool_list;
 
+/**
+   Initializes a buffer pool.
+   @pre buf_size > 0 && seg_size > 0
+
+   @param cap      Capacity of the pool.
+   @param buf_size Size of each buffer.
+   @param seg_size Size of each segment in a buffer.
+
+   @retval 0      On success.
+   @retval -errno On failure.
+ */
 int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 		     int seg_size);
+
+/**
+   Finalizes a buffer pool.
+ */
 void c2_buf_pool_fini(struct c2_buf_pool *pool);
+
+/* Acquires the lock on buffer pool. */
 void c2_buf_pool_lock(struct c2_buf_pool *pool);
+
+/* Releases the lock on buffer pool. */
 void c2_buf_pool_unlock(struct c2_buf_pool *pool);
+
+/**
+   Returns a buffer from the pool.
+   Returns NULL when the pool is empty.
+   @pre pool is locked.
+ */
 struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool);
+
+/**
+   Returns the buffer back to the pool.
+   @pre pool is locked.
+ */
 void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf);
+
+/**
+   Adds a new buffer to the pool to increase the capacity.
+   @pre pool is locked.
+ */
 void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf);
 
 /* Call backs that buffer pool can trigger on different memory conditions.*/

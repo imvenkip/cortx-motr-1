@@ -32,12 +32,6 @@
    @{
  */
 
-/**
-   Initializes a buffer pool.
-   Parameters are cap:capacity of the pool
-		  buf_size:size of each buffer
-		  seg_size:size of each segment in a buffer
- */
 int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 		     int seg_size)
 {
@@ -81,9 +75,6 @@ clean :
 	return rc;
 }
 
-/**
-   Finalizes a buffer pool.
- */
 void c2_buf_pool_fini(struct c2_buf_pool *pool)
 {
 	struct c2_net_buffer *nb = NULL;
@@ -102,23 +93,16 @@ void c2_buf_pool_fini(struct c2_buf_pool *pool)
 	c2_tlist_fini(&buf_pool_descr, &pool->bp_head);
 }
 
-/* Acquires the lock on buffer pool. */
 void c2_buf_pool_lock(struct c2_buf_pool *pool)
 {
 	c2_mutex_lock(&pool->bp_lock);
 }
 
-/* Releases the lock on buffer pool. */
 void c2_buf_pool_unlock(struct c2_buf_pool *pool)
 {
 	c2_mutex_unlock(&pool->bp_lock);
 }
 
-/**
-   Returns a buffer from the pool.
-   Returns NULL when the pool is empty.
-   @pre pool is locked.
- */
 struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool)
 {
 	struct c2_net_buffer *nb = NULL;
@@ -137,9 +121,6 @@ struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool)
 	return nb;
 }
 
-/**
-   Returns the buffer back to the pool.
- */
 void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 {
 	C2_PRE(pool != NULL);
@@ -155,9 +136,6 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 		pool->bp_ops->notEmpty(pool);
 }
 
-/**
-   Adds a new buffer to the pool to increase the capacity.
- */
 void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf)
 {
 	int rc = 0;
