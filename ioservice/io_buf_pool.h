@@ -46,15 +46,16 @@ struct c2_buf_pool_list;
    Initializes a buffer pool.
    @pre buf_size > 0 && seg_size > 0
 
-   @param cap      Capacity of the pool.
-   @param buf_size Size of each buffer.
-   @param seg_size Size of each segment in a buffer.
+   @param cap       Capacity of the pool.
+   @param buf_size  Size of each buffer.
+   @param seg_size  Size of each segment in a buffer.
+   @param threshold Number of buffer below which to notify the user.
 
    @retval 0      On success.
    @retval -errno On failure.
  */
 int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
-		     int seg_size);
+		     int seg_size, int threshold);
 
 /**
    Finalizes a buffer pool.
@@ -89,9 +90,9 @@ void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf);
 /* Call backs that buffer pool can trigger on different memory conditions.*/
 struct c2_buf_pool_ops {
 	/* Buffer pool is not empty. */
-	void (*notEmpty)(struct c2_buf_pool *);
+	void (*bpo_not_empty)(struct c2_buf_pool *);
 	/* Buffers in memory are lower than threshold. */
-	void (*low)(struct c2_buf_pool *);
+	void (*bpo_below_threshold)(struct c2_buf_pool *);
 };
 
 /* Buffer list contains list of buffers. */

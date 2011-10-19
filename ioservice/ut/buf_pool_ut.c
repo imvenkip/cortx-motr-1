@@ -36,8 +36,8 @@ void buffers_get_put(int rc);
 struct c2_buf_pool bp;
 struct c2_chan buf_chan;
 struct c2_buf_pool_ops b_ops = {
-	.notEmpty = NotEmpty,
-	.low	  = Low,
+	.bpo_not_empty	     = NotEmpty,
+	.bpo_below_threshold = Low,
 };
 
 /**
@@ -57,7 +57,7 @@ void test_buf_pool()
 	c2_net_xprt_init(xprt);
 	rc = c2_net_domain_init(&bp.ndom, xprt);
 	C2_ASSERT(rc == 0);
-	rc = c2_buf_pool_init(&bp, 16384, 512, 256);
+	rc = c2_buf_pool_init(&bp, 16384, 512, 256, 2);
 	C2_ASSERT(rc == 0);
 	bp.bp_ops = &b_ops;
 	nb = c2_buf_pool_get(&bp);

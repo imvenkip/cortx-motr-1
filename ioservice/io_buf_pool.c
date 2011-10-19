@@ -33,7 +33,7 @@
  */
 
 int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
-		     int seg_size)
+		     int seg_size, int threshold)
 {
 	int nr = 0; /* Number of segments in each buffer. */
 	int rc = 0;
@@ -44,7 +44,8 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 	C2_ASSERT(buf_size <= c2_net_domain_get_max_buffer_size(&pool->ndom));
 	C2_ASSERT(seg_size <=
 		  c2_net_domain_get_max_buffer_segment_size(&pool->ndom));
-	pool->bp_threshold = BUF_POOL_THRESHOLD;
+	pool->bp_threshold = (threshold == 0) ? BUF_POOL_THRESHOLD : threshold;
+
 	c2_tlist_init(&buf_pool_descr, &pool->bp_head);
 	do {
 		nr = buf_size / seg_size;
@@ -108,16 +109,18 @@ struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool)
 	struct c2_net_buffer *nb = NULL;
 
 	C2_PRE(pool != NULL);
-	if(pool->bp_free < pool->bp_threshold) {
-		pool->bp_ops->low(pool);
+	if(!pool->bp_free)
 		return NULL;
-	}
+
 	pool->bp_list = c2_tlist_head(&buf_pool_descr, &pool->bp_head);
 	c2_tlist_del(&buf_pool_descr, pool->bp_list);
 	c2_tlink_fini(&buf_pool_descr, pool->bp_list);
 	nb = pool->bp_list->bl_nb;
 	c2_free(pool->bp_list);
 	pool->bp_free--;
+	if(pool->bp_free < pool->bp_threshold) {
+		pool->bp_ops->bpo_below_threshold(pool);
+	}
 	return nb;
 }
 
@@ -133,7 +136,7 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 	c2_tlist_add_tail(&buf_pool_descr, &pool->bp_head, pool->bp_list);
 	pool->bp_free++;
 	if(pool->bp_free > 0)
-		pool->bp_ops->notEmpty(pool);
+		pool->bp_ops->bpo_not_empty(pool);
 }
 
 void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf)
