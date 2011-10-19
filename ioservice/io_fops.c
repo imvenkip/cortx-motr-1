@@ -56,7 +56,7 @@
  */
 
 /**
-   @page fop_io_bulk_client DLD for client side of io bulk transfer.
+   @page io_bulk_client Client side io bulk transfer Detailed Level Design.
 
    - @ref DLD-ovw
    - @ref DLD-def
@@ -141,37 +141,33 @@
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   c2t1fs Colibri client program. Works as a kernel module.
-   bulk transport Event based, asynchronous message passing functionality
+   - c2t1fs Colibri client program. Works as a kernel module.
+   - Bulk transport Event based, asynchronous message passing functionality
    of Colibri network layer.
-   io fop A generic io fop that is used for read and write.
-   rpc bulk An interface to abstract usage of network buffers by client
-   and server.
+   - io fop A generic io fop that is used for read and write.
+   - rpc bulk An interface to abstract the usage of network buffers by
+   client and server.
+   - ioservice A service providing io routines in Colibri. 
 
    <hr>
    @section DLD-req Requirements
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   They should be expressed in a list, thusly:
-   - <b>R.DLD.Structured</b> The DLD shall be decomposed into a standard
-   set of section.  Sub-sections may be used to further decompose the
-   material of a section into logically disjoint units.
-   - <b>R.DLD.What</b> The DLD shall describe the externally visible
-   data structures and interfaces of the component through a
-   functional specification section.
-   - <b>R.DLD.How</b> The DLD shall explain its inner algorithms through
-   a logical specification section.
-   - <b>R.DLD.Maintainable</b> The DLD shall be easily maintainable during
-   the lifetime of the code.
+   - R.bulkclient.rpcbulk The Colibri client should use rpc bulk abstraction
+   while enqueueing buffers for bulk transfer.
+   - R.bulkclient.fopcreation Colibri client should create io fops as needed
+   if pages overrun the existing rpc bulk structure.
+   - R.bulkclient.netbufdesc The generic io fop should contain a network
+   buffer descriptor which points to an in-memory network buffer.
 
    <hr>
    @section DLD-depends Dependencies
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   The DLD specification style guide depends on the HLD and AR
-   specifications as they identify requirements, use cases, <i>\&c.</i>.
+   - r.misc.net_rpc_convert Bulk Client needs Colibri client to be using
+   new network layer apis which include c2_net_domain and c2_net_buffer.
 
    <hr>
    @section DLD-highlights Design Highlights
@@ -180,11 +176,18 @@
    logical specifications, and enumerates topics that need special
    attention.</i>
 
-   - The DLD specification requires formal sectioning to address specific
-   aspects of the design.
-   - The DLD is with the code, and the specification is designed to be
-   viewed either as text or through Doxygen.
-   - This document can be used as a template.
+   Colibri client uses a generic in-memory structure representing an io fop
+   and its associated network buffer.
+   This in-memory io fop contains another abstract structure to represent
+   the network buffer associated with the fop.
+   Colibri client creates c2_io_fop structures as necessary and attaches
+   kernel pages to associated c2_rpc_bulk structure and submits the fop
+   to rpc layer.
+   Rpc layer populates the network buffer descriptor embedded in the io fop
+   and sends the fop over wire. The associated network buffer is added to
+   appropriate buffer queue of transfer machine owned by rpc layer.
+   Once, the receiver side receives the io fop, it acquires a local network
+   buffer and calls a c2_rpc_bulk apis to start the zero-copy.
 
    <hr>
    @section DLD-lspec Logical Specification
