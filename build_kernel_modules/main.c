@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -13,30 +14,30 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original Author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original creation date: 08/14/2011
+ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 10/13/2011
  */
 
 #include <linux/module.h>
+#include <linux/init.h>
+#include "lib/list.h"
+#include "colibri/init.h"
 
-#include <rpc/rpccore.h>
+MODULE_AUTHOR("Xyratex International");
+MODULE_DESCRIPTION("Colibri Library");
+MODULE_LICENSE("GPL");
+
 
 int init_module(void)
 {
-	return c2_rpc_core_init();
+        printk("Colibri init\n");
+	c2_init();
+        return 0;
 }
 
 void cleanup_module(void)
 {
-	c2_rpc_core_fini();
+        printk("Colibri cleanup\n");
+	c2_fini();
 }
 
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */

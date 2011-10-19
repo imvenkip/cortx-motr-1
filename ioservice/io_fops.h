@@ -56,7 +56,7 @@ void c2_ioservice_fop_fini(void);
 
 /**
    This data structure is used to associate an io fop with its
-   rpc bulk data. It abstracts the c2_net_buffer and net layer apis.
+   rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
    Client side implementations use this structure to represent
    io fops and the associated rpc bulk structures.
 

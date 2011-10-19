@@ -79,10 +79,11 @@ struct dld_sample_ds1 {
    The section could also describe what use it makes of data structures
    described elsewhere.
 
-   Note that data structures are defined in the @ref DLDDFS "Detailed
-   Functional Specification" so <b>do not duplicate the definitions</b>!  Do
-   not describe internal data structures here either - they can be described in
-   the @ref DLD-lspec "Logical Specification" if necessary.
+   Note that data structures are defined in the
+   @ref DLDDFS "Detailed Functional Specification"
+   so <b>do not duplicate the definitions</b>!
+   Do not describe internal data structures here either - they can be described
+   in the @ref DLD-lspec "Logical Specification" if necessary.
 
    @section DLD-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -91,9 +92,9 @@ struct dld_sample_ds1 {
 
    Externally visible interfaces should be enumerated and categorized by
    function.  <b>Do not provide details.</b> They will be fully documented in
-   the @ref DLDDFS "Detailed Functional Specification".  Do not describe
-   internal interfaces - they can be described in the @ref DLD-lspec "Logical
-   Specification" if necessary.
+   the @ref DLDDFS "Detailed Functional Specification".
+   Do not describe internal interfaces - they can be described in the
+   @ref DLD-lspec "Logical Specification" if necessary.
 
    @subsection DLD-fspec-sub-cons Constructors and Destructors
 
@@ -142,8 +143,9 @@ struct dld_sample_ds1 {
    external documentation in this header file.  Please make sure that the DLD
    and the modules cross-reference each other, as shown below.
 
-   @see The @ref DLD "Colibri Sample DLD" its @ref DLD-fspec and its @ref
-   DLD-lspec-thread
+   @see The @ref DLD "Colibri Sample DLD" its
+   @ref DLD-fspec "Functional Specification"
+   and its @ref DLD-lspec-thread
 
    @{
 */

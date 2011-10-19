@@ -1,6 +1,6 @@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
-obj-m       := klibc2.o
+obj-y       := klibc2.o
 shared_src  := bitstring.c vec.c list.c queue.c refs.c time.c bitmap.c chan.c misc.c buf.c\
                cond.c thread.c tlist.c
 kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c kthread.c \

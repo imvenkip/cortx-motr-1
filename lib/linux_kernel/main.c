@@ -23,19 +23,6 @@
 #include "lib/ut.h"
 #include "lib/cdefs.h" /* for C2_EXPORTED */
 
-MODULE_AUTHOR("Xyratex International");
-MODULE_DESCRIPTION("Colibri Library");
-MODULE_LICENSE("proprietary");
-
-int init_module(void)
-{
-	return 0;
-}
-
-void cleanup_module(void)
-{
-}
-
 /* These unit tests are done in the kernel */
 extern void test_bitmap(void);
 extern void test_chan(void);

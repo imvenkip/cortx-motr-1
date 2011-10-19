@@ -1,35 +1,53 @@
+CORE_SRCDIR = @SRCDIR@
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
 
-subdirs := ../rpc/linux_kernel/ ../c2t1fs/ \
-	   ../net/bulk_emulation/st/linux_kernel/ \
-           ../net/linux_kernel/ ../lib/linux_kernel/ ../fid/linux_kernel/ \
-	   ../fop/linux_kernel/ \ ../addb/linux_kernel/ \
-	   ../db/linux_kernel/ \ ../sns/linux_kernel/ ../galois/linux_kernel/ \
-	   ../pool/linux_kernel/ \ ../layout/linux_kernel/ \
-	   ../sm/linux_kernel/ ../stob/linux_kernel/ ../utils/linux_kernel/ \
-	   ../ioservice/linux_kernel/ ../xcode/linux_kernel/ \
-	   ../fol/linux_kernel/ ../dtm/linux_kernel/ ../cob/linux_kernel/ \
-	   ../rpc/it/linux_kernel/
+testdirs := ../net/bulk_emulation/st/linux_kernel/ \
+            ../rpc/it/linux_kernel/ \
+	    ../utils/linux_kernel/
 
+subdirs := ../rpc/linux_kernel/ ../c2t1fs/ \
+           ../net/linux_kernel/ ../lib/linux_kernel/ ../fid/linux_kernel/ \
+           ../fop/linux_kernel/ ../addb/linux_kernel/ \
+           ../db/linux_kernel/ ../sns/linux_kernel/ ../galois/linux_kernel/ \
+           ../pool/linux_kernel/ ../layout/linux_kernel/ \
+           ../sm/linux_kernel/ ../stob/linux_kernel/ \
+           ../ioservice/linux_kernel/ ../xcode/linux_kernel/ \
+           ../fol/linux_kernel/ ../dtm/linux_kernel/ ../cob/linux_kernel/
+
+EXTRA_CFLAGS = -I$(CORE_SRCDIR)
 obj-y += $(subdirs)
+
+obj-m += kcolibri.o
+kcolibri-y += main.o init.o dummy_init_fini.o built-in.o
+
+obj-y += $(testdirs)
 
 all:
 	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
+	for s in $(testdirs) ;do $(MAKE) -C $$s prepare ;done
+	ln -sf $(CORE_SRCDIR)/colibri/init.c .
+	# DO NOT append 'modules' target to the following $(MAKE)
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd`
 
 clean distclean:
 	for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
+	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 	$(RM) Module.markers modules.order
+	$(RM) init.c
 
 install modules_install:
 	for s in $(subdirs) ;do $(MAKE) -C $$s install ;done
+	for s in $(testdirs) ;do $(MAKE) -C $$s install ;done
 
 uninstall:
 	for s in $(subdirs) ;do $(MAKE) -C $$s uninstall ;done
+	for s in $(testdirs) ;do $(MAKE) -C $$s uninstall ;done
 
 dist distdir:
 	for s in $(subdirs) ;do $(MAKE) -C $$s distdir ;done
+	for s in $(testdirs) ;do $(MAKE) -C $$s distdir ;done
 

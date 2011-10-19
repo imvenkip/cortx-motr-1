@@ -263,21 +263,21 @@ int         c2_diovec_register(struct c2_diovec *vec,
 			       struct c2_dio_engine *eng);
 
 /**
-   Zero vector is a full fledged io vector containing io extents
-   as well as the io buffers. Io fop henceforth will contain
-   only c2_net_buf_desc object. Hence, wherever an io fop needs to be
+   Zero vector is a full fledged IO vector containing IO extents
+   as well as the IO buffers. IO fop henceforth will contain
+   only c2_net_buf_desc object. Hence, wherever an IO fop needs to be
    processed, its zero vector needs to be populated in-memory and all
    processing happens using the zero vector.
    An invariant (zerovec_invariant) is maintained for c2_0vec. It
    always checks sanity of zero vector and keeps a bound check on
-   array of io buffers using bufvec cursor.
+   array of IO buffers using bufvec cursor.
 
    Zero vector is typically allocated by upper layer by following
    the bounds of network layer (max buffer size, max segments,
    max seg size) and adds buffers/pages later as and when needed.
  */
 struct c2_0vec {
-	/** Bufvec representing extent of io vector and array of buffers. */
+	/** Bufvec representing extent of IO vector and array of buffers. */
 	struct c2_bufvec	 z_bvec;
 	/** Array of indices of target object to start IO from. */
 	c2_bindex_t		*z_indices;
@@ -313,7 +313,7 @@ void c2_0vec_free(struct c2_0vec *zvec);
    @param zvec The c2_0vec structure to be initialized.
    @param bufvec The c2_bufvec containing buffer starting addresses and
    with number of buffers and their byte counts.
-   @param indices Target object indices to start the io from.
+   @param indices Target object indices to start the IO from.
    @post zvec->z_cursor.bc_vc.vc_seg != 0 &&
    zvec->z_cursor.bc_vc.vc_seg < zvec->z_bvec.ov_vec.v_nr
  */
@@ -326,7 +326,7 @@ int c2_0vec_bvec_init(struct c2_0vec *zvec,
    @note The c2_0vec struct should be allocated by user.
 
    @param zvec The c2_0vec structure to be initialized.
-   @param bufs Array of io buffers.
+   @param bufs Array of IO buffers.
    @param indices Array of target object indices.
    @param counts Array of buffer counts.
    @param segs_nr Number of segments contained in the buf array.
@@ -344,7 +344,7 @@ int c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
    @param zvec The c2_0vec structure to be initialized.
    @param buf The c2_buf structure containing starting address of buffer
    and number of bytes in buffer.
-   @param index Index of target object to start io from.
+   @param index Index of target object to start IO from.
    @post ++zvec->z_cursor.bc_vc.vc_seg;
  */
 int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
