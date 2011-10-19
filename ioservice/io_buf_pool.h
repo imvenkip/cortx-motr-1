@@ -120,9 +120,9 @@ struct c2_buf_pool {
 	/* Call back opeartions can be triggered buffer pool. */
 	struct c2_buf_pool_ops *bp_ops;
 	/* Head of list of buffers in the pool. */
-	struct c2_tl 		bp_head;
+	struct c2_tl		bp_head;
 	/* Network domain to register the buffers. */
-	struct c2_net_domain	ndom;
+	struct c2_net_domain	bp_ndom;
 };
 
 enum {

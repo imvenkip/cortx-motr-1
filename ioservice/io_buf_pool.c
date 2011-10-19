@@ -41,9 +41,9 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 	struct c2_net_buffer *nb = NULL;
 
 	C2_PRE(pool != NULL);
-	C2_ASSERT(buf_size <= c2_net_domain_get_max_buffer_size(&pool->ndom));
+	C2_ASSERT(buf_size <= c2_net_domain_get_max_buffer_size(&pool->bp_ndom));
 	C2_ASSERT(seg_size <=
-		  c2_net_domain_get_max_buffer_segment_size(&pool->ndom));
+		  c2_net_domain_get_max_buffer_segment_size(&pool->bp_ndom));
 	pool->bp_threshold = (threshold == 0) ? BUF_POOL_THRESHOLD : threshold;
 
 	c2_tlist_init(&buf_pool_descr, &pool->bp_head);
@@ -60,7 +60,7 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, seg_size);
 		if (rc != 0)
 			goto clean;
-		rc = c2_net_buffer_register(nb, &pool->ndom);
+		rc = c2_net_buffer_register(nb, &pool->bp_ndom);
 		if (rc != 0)
 			goto clean;
 		c2_tlink_init(&buf_pool_descr, pool->bp_list);
@@ -83,7 +83,7 @@ void c2_buf_pool_fini(struct c2_buf_pool *pool)
 	C2_PRE(pool != NULL);
 	c2_tlist_for(&buf_pool_descr, &pool->bp_head, pool->bp_list) {
 		nb = pool->bp_list->bl_nb;
-		c2_net_buffer_deregister(nb, &pool->ndom);
+		c2_net_buffer_deregister(nb, &pool->bp_ndom);
 		c2_bufvec_free(&nb->nb_buffer);
 		c2_tlist_del(&buf_pool_descr, pool->bp_list);
 		c2_tlink_fini(&buf_pool_descr, pool->bp_list);
@@ -149,7 +149,7 @@ void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf)
 {
 	int rc;
 	C2_PRE(buf != NULL);
-	rc = c2_net_buffer_register(buf, &pool->ndom);
+	rc = c2_net_buffer_register(buf, &pool->bp_ndom);
 	C2_ASSERT(rc == 0);
 	c2_buf_pool_put(pool, buf);
 }
