@@ -23,10 +23,7 @@
 enum {
 	/* Size of each segment in a network buffer. */
 	SEG_SIZE           = 64,
-	/* 
-	  Minimum number of buffers below which low memory condition 
-	  occurs.
-	 */
+	/* Minimum number of buffers below which low memory condition occurs. */
 	BUF_POOL_THRESHOLD = 1
 };
 
@@ -35,7 +32,8 @@ struct c2_buf_pool;
 /* A list of buffers. */
 struct c2_buf_pool_list;
 
-int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size, int seg_size);
+int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
+		     int seg_size);
 void c2_buf_pool_fini(struct c2_buf_pool *pool);
 void c2_buf_pool_lock(struct c2_buf_pool *pool);
 void c2_buf_pool_unlock(struct c2_buf_pool *pool);
@@ -64,21 +62,21 @@ struct c2_buf_list {
 /* Buffer pool context. */
 struct c2_buf_pool {
 	/* Number of free buffers in the pool. */
-	uint32_t bp_free;
+	uint32_t		bp_free;
 	/* Number of buffer below which low memory condtion occurs. */
-	uint32_t bp_threshold;
+	uint32_t		bp_threshold;
 	/* Addb context for buffer pool. */
-	struct c2_addb_ctx bp_addb;
+	struct c2_addb_ctx	bp_addb;
 	/* Buffer pool lock. */
-	struct c2_mutex bp_lock;
+	struct c2_mutex		bp_lock;
 	/* The list of buffers */
-	struct c2_buf_list *bp_list;
+	struct c2_buf_list     *bp_list;
 	/* Call back opeartions can be triggered buffer pool. */
 	struct c2_buf_pool_ops *bp_ops;
 	/* Head of list of buffers in the pool. */
-	struct c2_tl bp_head;
+	struct c2_tl 		bp_head;
 	/* Network domain to register the buffers. */
-	struct c2_net_domain ndom;
+	struct c2_net_domain	ndom;
 };
 
 enum {

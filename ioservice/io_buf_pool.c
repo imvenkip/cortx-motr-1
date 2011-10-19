@@ -48,7 +48,6 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 
 	C2_PRE(pool != NULL);
 	pool->bp_threshold = BUF_POOL_THRESHOLD;
-
 	c2_tlist_init(&buf_pool_descr, &pool->bp_head);
 	do {
 		nr = buf_size / seg_size;
@@ -149,7 +148,7 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 	C2_ASSERT(!c2_tlink_is_in(&buf_pool_descr, pool->bp_list));
 	c2_tlist_add_tail(&buf_pool_descr, &pool->bp_head, pool->bp_list);
 	pool->bp_free++;
-	if(pool->bp_free > pool->bp_threshold)
+	if(pool->bp_free > 0)
 		pool->bp_ops->notEmpty(pool);
 }
 
