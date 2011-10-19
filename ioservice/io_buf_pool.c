@@ -47,6 +47,9 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
 	struct c2_net_buffer *nb = NULL;
 
 	C2_PRE(pool != NULL);
+	C2_ASSERT(buf_size <= c2_net_domain_get_max_buffer_size(&pool->ndom));
+	C2_ASSERT(seg_size <=
+		  c2_net_domain_get_max_buffer_segment_size(&pool->ndom));
 	pool->bp_threshold = BUF_POOL_THRESHOLD;
 	c2_tlist_init(&buf_pool_descr, &pool->bp_head);
 	do {

@@ -20,6 +20,14 @@
 #ifndef __COLIBRI_IO_BUF_POOL_H__
 #define __COLIBRI_IO_BUF_POOL_H__
 
+/**
+   @defgroup io_buf_prealloc Buffer pool
+   
+   @brief Buffer pool allocates and manages a pool of buffers.
+	  Users request a buffer from the pool and after its usage is over gives back to the pool.
+   @{
+  */
+
 enum {
 	/* Size of each segment in a network buffer. */
 	SEG_SIZE           = 64,
@@ -65,8 +73,6 @@ struct c2_buf_pool {
 	uint32_t		bp_free;
 	/* Number of buffer below which low memory condtion occurs. */
 	uint32_t		bp_threshold;
-	/* Addb context for buffer pool. */
-	struct c2_addb_ctx	bp_addb;
 	/* Buffer pool lock. */
 	struct c2_mutex		bp_lock;
 	/* The list of buffers */
@@ -91,4 +97,6 @@ static const struct c2_tl_descr buf_pool_descr =
 		    C2_TL_DESCR("buf_pool_descr",
 		    struct c2_buf_list, bl_link, bl_magic,
 		    BUF_POOL_LINK_MAGIC, BUF_POOL_HEAD_MAGIC);
+
+/** @} end of io_buf_prealloc */
 #endif
