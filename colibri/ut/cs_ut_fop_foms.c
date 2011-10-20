@@ -248,7 +248,7 @@ int cs_ds1_fop_init(void)
          */
 	cs_ds1_fopts[0]->ft_fmt = &cs_ds1_req_fop_tfmt;
 	cs_ds1_fopts[1]->ft_fmt = &cs_ds1_rep_fop_tfmt;
-	
+
         result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
         if (result != 0)
                 cs_ds1_fop_fini();

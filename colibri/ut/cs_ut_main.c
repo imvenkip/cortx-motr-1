@@ -74,57 +74,57 @@ enum {
 
 /* Configures colibri environment with given parameters. */
 static char *cs_ut_service_one_cmd[] = { "colibri_setup", "-r", "-T", "AD",
-		   		"-D", "cs_sdb", "-S", "cs_stob",
-		   		"-e", "bulk-sunrpc:127.0.0.1:34567:2",
-		   		"-s", "ds1"};
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-s", "ds1"};
 
 static char *cs_ut_services_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
-		   		"-D", "cs_sdb", "-S", "cs_stob",
-		   		"-e", "bulk-sunrpc:127.0.0.1:34567:2",
-		   		"-e", "bulk-mem:127.0.0.1:35678",
-		   		"-s", "ds1", "-s" "ds2"};
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "bulk-mem:127.0.0.1:35678",
+                                "-s", "ds1", "-s" "ds2"};
 
 static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
-		   		"-D", "cs_r1sdb", "-S", "cs_r1stob",
-		   		"-e", "bulk-sunrpc:127.0.0.1:34567:2",
-		   		"-s", "ds1", "-r", "-T", "AD",
-		   		"-D", "cs_r2sdb", "-S", "cs_r2stob",
-		   		"-e", "bulk-mem:127.0.0.1:35678",
-		   		"-s" "ds2"};
+                                "-D", "cs_r1sdb", "-S", "cs_r1stob",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-s", "ds1", "-r", "-T", "AD",
+                                "-D", "cs_r2sdb", "-S", "cs_r2stob",
+                                "-e", "bulk-mem:127.0.0.1:35678",
+                                "-s" "ds2"};
 
 static char *cs_ut_opts_jumbled_cmd[] = { "colibri_setup", "-r", "-D",
-				"cs_sdb", "-T", "AD", "-s", "ds1",
-		   		"-e", "bulk-sunrpc:127.0.0.1:34567:2",
-		   		"-S", "cs_stob"};
+                                "cs_sdb", "-T", "AD", "-s", "ds1",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-S", "cs_stob"};
 
 static char *cs_ut_reqh_none_cmd[] = { "colibri_setup", "-T", "AD",
-		   		"-D", "cs_sdb", "-S", "cs_stob",
-		   		"-e", "bulk-sunrpc:127.0.0.1:34567:2",
-		   		"-s", "ds1"};
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-s", "ds1"};
 
 static char *cs_ut_stype_bad_cmd[] = { "colibri_setup", "-r", "-T", "asdadd",
-		   		"-D", "cs_sdb", "-S", "cs_stob",
-		   		"-e", "bulk-sunrpc:127.0.0.1:34567:2",
-		   		"-s", "ds1"};
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-s", "ds1"};
 
 static char *cs_ut_xprt_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
-		   		"-D", "cs_sdb", "-S", "cs_stob",
-		   		"-e", "asdasdada:127.0.0.1:34567:2",
-		   		"-s", "ds1"};
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "asdasdada:127.0.0.1:34567:2",
+                                "-s", "ds1"};
 
 static char *cs_ut_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
-		   		"-D", "cs_sdb", "-S", "cs_stob",
-		   		"-e", "bulk-sunrpc:asdad:asdsd:sadasd",
-		   		"-s", "ds1"};
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "bulk-sunrpc:asdad:asdsd:sadasd",
+                                "-s", "ds1"};
 
 static char *cs_ut_service_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
-		   		"-D", "cs_sdb", "-S", "cs_stob",
-		   		"-e", "bulk-sunrpc:127.0.0.1:34567:2",
-		   		"-s", "dasdadasd"};
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-s", "dasdadasd"};
 
 static char *cs_ut_args_bad_cmd[] = { "colibri_setup", "-r", "-D", "cs_sdb",
-				"-S", "cs_stob", "-e",
-				"bulk-sunrpc:127.0.0.1:34567:2"};
+                                "-S", "cs_stob", "-e",
+                                "bulk-sunrpc:127.0.0.1:34567:2"};
 
 static int cl_cdom_id = 10001;
 
@@ -170,7 +170,7 @@ static int client_init(struct client_ctx *cl_ctx)
 
         /* Init the cob domain */
         rc = c2_cob_domain_init(&cl_ctx->cl_cob_domain, &cl_ctx->cl_db,
-                        		&cl_ctx->cl_cob_dom_id);
+						&cl_ctx->cl_cob_dom_id);
         C2_UT_ASSERT(rc == 0);
 
         /* Init the rpcmachine */
@@ -234,8 +234,8 @@ static void client_fini(struct client_ctx *cl_ctx)
                                 c2_time_nanoseconds(timeout));
         /* Wait for session to terminate */
         C2_UT_ASSERT(c2_rpc_session_timedwait(&cl_ctx->cl_rpc_session,
-                        	C2_RPC_SESSION_TERMINATED,
-                        	timeout));
+				C2_RPC_SESSION_TERMINATED,
+				timeout));
 
         /* Terminate RPC connection */
         rc = c2_rpc_conn_terminate(&cl_ctx->cl_conn);
@@ -246,7 +246,7 @@ static void client_fini(struct client_ctx *cl_ctx)
                                 c2_time_nanoseconds(timeout));
 
         C2_UT_ASSERT(c2_rpc_conn_timedwait(&cl_ctx->cl_conn, C2_RPC_CONN_TERMINATED,
-                                   					timeout));
+									timeout));
         c2_rpc_session_fini(&cl_ctx->cl_rpc_session);
         c2_rpc_conn_fini(&cl_ctx->cl_conn);
         /* Fini the remote net endpoint. */
@@ -345,7 +345,6 @@ static void cs_ut_service_one(void)
 				{.sc_cl_epaddr = "127.0.0.1:34567:1",
 				.sc_xprt = cs_xprts[BULK_SUNRPC_XPRT] }
 	};
-				
 	struct client_ctx            cl_ctx = {
 				.cl_dbname = "test1cdb",
 				.cl_epaddr = "127.0.0.1:34567:1",
@@ -372,7 +371,7 @@ static void cs_ut_services_many(void)
         int                          rc;
 	int                          i;
         struct c2_reqh_service_type *stypes[] = {
-                        	&ds1_service_type,
+				&ds1_service_type,
 				&ds2_service_type
         };
         struct srv_ctx               sc_ctx[2] = {
