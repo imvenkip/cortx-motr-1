@@ -326,7 +326,7 @@ void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter)
 
 	c2_free(iter->cfmi_buffer);
 	iter->cfmi_magic = 0;
-	
+
 	if (iter->cfmi_error == 0)
 		c2_db_tx_commit(&iter->cfmi_tx);
 	else
@@ -481,22 +481,6 @@ C2_EXPORTED(c2_cobfid_map_iter_next);
  *****************************************************************************
  */
 
-static void iter_advance(struct c2_cobfid_map_iter *iter,
-			 const uint64_t container_id,
-			 const struct c2_fid fid)
-{
-	C2_PRE(cobfid_map_iter_invariant(iter));
-
-	iter->cfmi_next_fid.f_key = fid.f_key + 1;
-	if (iter->cfmi_qt == C2_COBFID_MAP_QT_ENUM_MAP) {
-		iter->cfmi_next_ci = container_id;
-		/* overflow */
-		if (iter->cfmi_next_fid.f_key == 0)
-			/* advance to next container */
-			iter->cfmi_next_ci += 1;
-	}
-}
-
 static int enum_fetch(struct c2_cobfid_map_iter *iter)
 {
 	int				 rc;
@@ -608,8 +592,6 @@ static int enum_reload(struct c2_cobfid_map_iter *iter)
 {
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
-	iter_advance(iter, iter->cfmi_last_ci,
-				      iter->cfmi_last_fid);
 	return iter->cfmi_ops->cfmio_fetch(iter);
 }
 
