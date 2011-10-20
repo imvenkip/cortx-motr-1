@@ -459,15 +459,15 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	cob_fid_p->u_hi = record->cfr_cob.u_hi;
 	cob_fid_p->u_lo = record->cfr_cob.u_lo;
 
+	/* Increment the next record to return */
+	iter->cfmi_rec_idx++;
+
 	/* Check if current record exhausts the iterator.
 	   There is an implicit assumption here that the operations fail
 	   and set cfmi_error when there are no more records left in the
 	   database */
-	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx ))
+	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx - 1 ))
 		iter->cfmi_error = -ENOENT;
-
-	/* Increment the next record to return */
-	iter->cfmi_rec_idx++;
 
 	C2_POST(cobfid_map_iter_invariant(iter));
 

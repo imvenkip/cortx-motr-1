@@ -36,7 +36,7 @@ struct c2_dbenv cfm_dbenv;
 
 /* Number of records to be enumerated */
 enum {
-	REC_NR = 34
+	REC_NR = 35
 };
 
 /* Variables used for simple table insert-delete checks */
@@ -45,11 +45,11 @@ struct c2_fid file_fid;
 struct c2_uint128 cob_fid;
 
 /* Variables used for container-enumeration */
-struct c2_fid fid[REC_NR];
-struct c2_uint128 cfid[REC_NR];
-uint64_t ci_out;
+uint64_t container_id_out;
+struct c2_fid fid_in[REC_NR];
+struct c2_uint128 cob_fid_in[REC_NR];
 struct c2_fid fid_out[REC_NR];
-struct c2_uint128 cfid_out[REC_NR];
+struct c2_uint128 cob_fid_out[REC_NR];
 
 static const char cfm_map_path[] = "cfm_map";
 static int rc;
@@ -103,60 +103,55 @@ static void cfm_ut_container_enumerate(void)
 	int	 rec_nr;
 	int	 i;
 	int	 j;
-	uint64_t ci;
 
-	ci = 200;
+	container_id = 200;
 	j = REC_NR - 1;
-	/* Fill in the database for same container id and
-	   varying fid values */
+
+	/* Fill in the database for same container id and varying fid values in
+	   decreasing order of fid key. This is done on purpose to test the
+	   ordering property where enumeration should be done in increasing
+	   order of the fid key.*/
 	for (i = 0; i < REC_NR; i++) {
-		fid[i].f_container = 0;
-		fid[i].f_key = j;
-		cfid[i].u_hi = 333;
-		cfid[i].u_lo = j;
+		/* Populate some random data */
+		fid_in[i].f_container = 0;
+		fid_in[i].f_key = j;
+		cob_fid_in[i].u_hi = 333;
+		cob_fid_in[i].u_lo = j;
+
 		j--;
-		rc = c2_cobfid_map_add(&cfm_map, ci, fid[i], cfid[i]);
-		printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
-				rc, ci, fid[i].f_key,
-				cfid[i].u_lo);
+
+		rc = c2_cobfid_map_add(&cfm_map, container_id, fid_in[i],
+				       cob_fid_in[i]);
 		C2_UT_ASSERT(rc == 0);
+		printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
+				rc, container_id, fid_in[i].f_key,
+				cob_fid_in[i].u_lo);
 	}
 
-	container_id = 201;
-	file_fid.f_container = 0;
-	file_fid.f_key = 0;
-	cob_fid.u_hi = 331;
-	cob_fid.u_lo = 11;
-
-	rc = c2_cobfid_map_add(&cfm_map, container_id, file_fid, cob_fid);
-	C2_UT_ASSERT(rc == 0);
-
-	container_id = 201;
-	file_fid.f_container = 0;
-	file_fid.f_key = 2;
-	cob_fid.u_hi = 331;
-	cob_fid.u_lo = 12;
-
-	rc = c2_cobfid_map_add(&cfm_map, container_id, file_fid, cob_fid);
-	C2_UT_ASSERT(rc == 0);
-
 	rc = c2_cobfid_map_container_enum(&cfm_map, container_id, &cfm_iter);
-	//rc = c2_cobfid_map_container_enum(&cfm_map, ci, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	rec_nr = 0;
-	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &ci_out,
+	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out,
 					&fid_out[rec_nr],
-					&cfid_out[rec_nr])) == 0) {
+					&cob_fid_out[rec_nr])) == 0) {
 		printf("\nENUM: rc = %d, ci = %lu fid = %lu cfid_out = %lu",
-				rc, ci_out, fid_out[rec_nr].f_key,
-				cfid_out[rec_nr].u_lo);
+				rc, container_id_out, fid_out[rec_nr].f_key,
+				cob_fid_out[rec_nr].u_lo);
 		rec_nr++;
 	}
 	/* Check if number of records enumerated is same as number of records
 	   inserted */
 	printf("\nrec_nr = %d\n",rec_nr);
 	C2_UT_ASSERT(rec_nr == REC_NR);
+
+	/* Check if the fid and cob input arrays are exact reverse of their
+	   corresponding out counterparts */
+	for (i = 0; i < REC_NR; i++) {
+		C2_UT_ASSERT(c2_fid_eq(&fid_in[i], &fid_out[REC_NR - 1 - i]));
+		C2_UT_ASSERT(c2_uint128_eq(&cob_fid_in[i],
+					   &cob_fid_out[REC_NR - 1 - i]));
+	}
 }
 
 const struct c2_test_suite cfm_ut = {
