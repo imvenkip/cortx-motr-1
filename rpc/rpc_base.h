@@ -123,16 +123,21 @@ struct c2_rpc_item_type_ops {
    C2_RPC_ITEM_TYPE_UNSOLICITED are mutually exclusive.
  */
 enum c2_rpc_item_type_flags {
-	/** Receiver of item is expected to send reply to item of this
-	    type */
+	/** Receiver of item is expected to send reply to item of this type */
 	C2_RPC_ITEM_TYPE_REQUEST = 1,
-	/** Item of this type is reply to some item of C2_RPC_ITEM_TYPE_REQUEST
-	    type. */
+	/**
+	  Item of this type is reply to some item of C2_RPC_ITEM_TYPE_REQUEST
+	  type.
+	*/
 	C2_RPC_ITEM_TYPE_REPLY = (1 << 1),
-	/** This is a one-way item. There is no reply for this type of
-	    item */
+	/**
+	  This is a one-way item. There is no reply for this type of
+	  item
+	*/
 	C2_RPC_ITEM_TYPE_UNSOLICITED = (1 << 2),
-	/** Item of this type can modify file-system state on receiver. */
+	/**
+	  Item of this type can modify file-system state on receiver.
+	*/
 	C2_RPC_ITEM_TYPE_MUTABO = (1 << 3)
 };
 

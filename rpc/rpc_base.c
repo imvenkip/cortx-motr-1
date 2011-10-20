@@ -86,6 +86,7 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	c2_rwlock_write_lock(&rpc_item_types_lock);
 	c2_tlist_add(&rpc_item_type_descr, &rpc_item_types_list, item_type);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
+
 	return 0;
 }
 

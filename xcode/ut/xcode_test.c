@@ -17,14 +17,12 @@
  * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 08/5/2011
  */
-#include <stdio.h>
 #include <limits.h>
 #include "lib/vec.h"
 #include "lib/arith.h"
 #include "lib/memory.h"
-#include "fop/fop.h"
 #include "xcode/bufvec_xcode.h"
-#include <string.h>
+#include "lib/ut.h"
 
 enum {
 	NO_OF_ELEMENTS = 50,
@@ -47,9 +45,9 @@ static void test_arr_encode()
 	el_size = sizeof test_arr[0];
 	rc = c2_bufvec_array(&cur, test_arr, NO_OF_ELEMENTS, ~0, el_size,
 			    (c2_bufvec_xcode_t)c2_bufvec_uint32, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_arr_decode()
@@ -58,22 +56,17 @@ static void test_arr_decode()
 	size_t		el_size;
 	uint32_t	dec_arr[NO_OF_ELEMENTS];
 	void		*cur_addr;
-	int		i;
 
 	el_size = sizeof dec_arr[0];
 	rc = c2_bufvec_array(&cur, dec_arr, NO_OF_ELEMENTS, ~0, el_size,
 			    (c2_bufvec_xcode_t)c2_bufvec_uint32,
 			    C2_BUFVEC_DECODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
 	rc = memcmp(test_arr, dec_arr, sizeof test_arr);
-	C2_ASSERT(rc == 0);
-
-	for(i = 0; i < NO_OF_ELEMENTS; ++i)
-		printf(" %u ", dec_arr[i]);
-	printf("\n");
+	C2_UT_ASSERT(rc == 0);
 }
 
 static void test_byte_arr_encode()
@@ -81,12 +74,11 @@ static void test_byte_arr_encode()
 	int	rc;
 	void    *cur_addr;
 
-	printf("sizeof byte arr = %ld\n", strlen(byte_arr));
 	rc = c2_bufvec_bytes(&cur, &byte_arr, strlen(byte_arr), ~0,
 			     C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_byte_arr_decode()
@@ -100,10 +92,9 @@ static void test_byte_arr_decode()
 	C2_ALLOC_ARR(byte_arr_decode, arr_size);
 	rc = c2_bufvec_bytes(&cur, &byte_arr_decode, arr_size, ~0,
 			     C2_BUFVEC_DECODE);
-	C2_ASSERT(rc == 0);
-	printf(" %s \n", byte_arr_decode);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
 }
 static void test_uint32_encode()
@@ -114,15 +105,13 @@ static void test_uint32_encode()
 
 	enc_val = UINT_MAX;
 	rc = c2_bufvec_uint32(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	printf("cur addr = %lu %p\n", (uint64_t)cur_addr, cur_addr);
 	enc_val = INT_MIN;
 	rc = c2_bufvec_uint32(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	printf("cur addr = %lu %p\n", (uint64_t)cur_addr, cur_addr);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_uint32_decode()
@@ -132,14 +121,12 @@ static void test_uint32_decode()
 	void		*cur_addr;
 
 	rc = c2_bufvec_uint32(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("uint32_t decode = %u\n",dec_val);
-	C2_ASSERT(rc == 0 && dec_val == UINT_MAX);
+	C2_UT_ASSERT(rc == 0 && dec_val == UINT_MAX);
 
 	rc = c2_bufvec_uint32(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("int32_t decode = %d\n", (int)dec_val);
-	C2_ASSERT(rc == 0 && (int)dec_val == INT_MIN);
+	C2_UT_ASSERT(rc == 0 && (int)dec_val == INT_MIN);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_uint64_encode()
@@ -150,17 +137,14 @@ static void test_uint64_encode()
 
 	enc_val = ULLONG_MAX ;
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	printf("cur addr bef enc = %lu %p\n", (uint64_t)cur_addr, cur_addr);
 	rc = c2_bufvec_uint64(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	enc_val = LLONG_MIN;
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	printf("cur addr = %lu %p\n", (uint64_t)cur_addr, cur_addr);
 	rc = c2_bufvec_uint64(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	printf("cur addr = %lu %p\n", (uint64_t)cur_addr, cur_addr);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_uint16_encode()
@@ -171,12 +155,12 @@ static void test_uint16_encode()
 
 	enc_val = USHRT_MAX;
 	rc = c2_bufvec_uint16(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	enc_val = SHRT_MIN;
 	rc = c2_bufvec_uint16(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_byte_encode()
@@ -187,12 +171,12 @@ static void test_byte_encode()
 
 	enc_val = UCHAR_MAX;
 	rc = c2_bufvec_byte(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	enc_val = SCHAR_MIN;;
 	rc = c2_bufvec_byte(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_uint64_decode()
@@ -202,14 +186,12 @@ static void test_uint64_decode()
 	void	       *cur_addr;
 
 	rc = c2_bufvec_uint64(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("uint64_t decode = %lu\n",dec_val);
-	C2_ASSERT(rc == 0 && dec_val == ULLONG_MAX);
+	C2_UT_ASSERT(rc == 0 && dec_val == ULLONG_MAX);
 
 	rc = c2_bufvec_uint64(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("int64_t decode = %li\n", (long)dec_val);
-	C2_ASSERT(rc == 0 && (long)dec_val == LLONG_MIN);
+	C2_UT_ASSERT(rc == 0 && (long)dec_val == LLONG_MIN);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_uint16_decode()
@@ -219,14 +201,12 @@ static void test_uint16_decode()
 	void		*cur_addr;
 
 	rc = c2_bufvec_uint16(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("uint16_t decode = %u\n",dec_val);
-	C2_ASSERT(rc == 0 && dec_val == USHRT_MAX);
+	C2_UT_ASSERT(rc == 0 && dec_val == USHRT_MAX);
 
 	rc = c2_bufvec_uint16(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("int16_t decode = %d\n", (short)dec_val);
-	C2_ASSERT(rc == 0 && (short)dec_val == SHRT_MIN);
+	C2_UT_ASSERT(rc == 0 && (short)dec_val == SHRT_MIN);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
 static void test_byte_decode()
@@ -236,23 +216,21 @@ static void test_byte_decode()
 	void		*cur_addr;
 
 	rc = c2_bufvec_byte(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("uint8_t decode = %u\n", dec_val);
-	C2_ASSERT(rc == 0 && dec_val == UCHAR_MAX);
+	C2_UT_ASSERT(rc == 0 && dec_val == UCHAR_MAX);
 
 	rc = c2_bufvec_byte(&cur, &dec_val, C2_BUFVEC_DECODE);
-	printf("uint8_t decode = %d\n", (char)dec_val);
-	C2_ASSERT(rc == 0 && (char)dec_val == SCHAR_MIN);
+	C2_UT_ASSERT(rc == 0 && (char)dec_val == SCHAR_MIN);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
-int main()
+static void xcode_bufvec_test(void)
 {
 	void	*cur_addr;
 
 	c2_bufvec_alloc(&vec, 40, 40);
 	c2_bufvec_cursor_init(&cur, &vec);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 	/* Encode tests */
 	test_uint32_encode();
 	test_uint64_encode();
@@ -268,8 +246,19 @@ int main()
 	test_byte_decode();
 	test_arr_decode();
 	test_byte_arr_decode();
-	return 0;
 }
+
+const struct c2_test_suite xcode_bufvec_ut = {
+        .ts_name = "xcode_bufvec-ut",
+        .ts_init = NULL,
+        .ts_fini = NULL,
+        .ts_tests = {
+                { "xcode-bufvec", xcode_bufvec_test },
+                { NULL, NULL }
+        }
+};
+
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

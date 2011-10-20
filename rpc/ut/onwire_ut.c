@@ -35,62 +35,14 @@
 #include "lib/vec.h"
 #include "rpc/session_internal.h"
 #include "rpc/rpc_base.h"
+#include "lib/ut.h"
 
-extern struct c2_fop_type_format c2_fop_test_tfmt;
-extern struct c2_fop_type_format c2_fop_test_arr_tfmt;
+extern struct c2_fop_type_format c2_fop_onwire_test_tfmt;
+extern struct c2_fop_type_format c2_fop_onwire_test_arr_tfmt;
 
 static struct c2_rpc rpc_obj;
 
-int test_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	printf("Called test_handler\n");
-	return 0;
-}
-
-int test_bufvec_enc(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
-{
-	struct c2_fop_test   	 *f;
-	int		     	  rc;
-	struct c2_fop_test_arr 	  f_arr;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(cur != NULL);
-
-	f = c2_fop_data(fop);
-	f_arr = f->t_arr;
-	rc = c2_bufvec_uint64(cur, &f_arr.t_count, C2_BUFVEC_ENCODE);
-	if (rc != 0)
-		return -EFAULT;
-        rc = c2_bufvec_array(cur, f_arr.t_data, f_arr.t_count, ~0,
-			     sizeof(uint32_t),
-                            (c2_bufvec_xcode_t)c2_bufvec_uint32,
-			    C2_BUFVEC_ENCODE);
-	return rc;
-}
-
-int test_bufvec_dec(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
-{
-	struct c2_fop_test   	*f;
-	int		     	 rc;
-	struct c2_fop_test_arr	*f_arr;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(cur != NULL);
-
-	f = c2_fop_data(fop);
-	f_arr = &f->t_arr;
-	rc = c2_bufvec_uint64(cur, &f_arr->t_count, C2_BUFVEC_DECODE);
-	if (rc != 0)
-		return -EFAULT;
-
-        rc = c2_bufvec_array(cur, &f_arr->t_data, f_arr->t_count, ~0,
-	     sizeof(uint32_t), (c2_bufvec_xcode_t)c2_bufvec_uint32,
-	     C2_BUFVEC_DECODE);
-	return rc;
-}
-
-struct c2_fop_type_ops test_ops = {
-	.fto_execute = test_handler,
+struct c2_fop_type_ops onwire_test_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 };
 
@@ -121,7 +73,7 @@ struct c2_rpc_item_type c2_rpc_item_type_test = {
 	.rit_ops = &c2_rpc_item_test_ops,
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_test, "test",  &test_ops, 60,
+C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test",  &onwire_test_ops, 60,
 		    C2_RPC_ITEM_TYPE_REQUEST, &c2_rpc_item_test_ops);
 
 static struct c2_verno verno = {
@@ -150,9 +102,11 @@ void populate_item(struct c2_rpc_item *item)
 	slot_ref.sr_slot_gen = 0x22222222;
 	slot_ref.sr_slot_id = 0x666;
 	memcpy(&slot_ref.sr_verno, &verno, sizeof(struct c2_verno));
-	memcpy(&slot_ref.sr_last_persistent_verno, &p_no, sizeof(struct c2_verno));
+	memcpy(&slot_ref.sr_last_persistent_verno, &p_no,
+	       sizeof(struct c2_verno));
 	memcpy(&slot_ref.sr_last_seen_verno, &ls_no, sizeof(struct c2_verno));
-	memcpy(&item->ri_slot_refs[0], &slot_ref, sizeof(struct c2_rpc_slot_ref));
+	memcpy(&item->ri_slot_refs[0], &slot_ref,
+	       sizeof(struct c2_rpc_slot_ref));
 }
 
 void populate_rpc_obj(struct c2_rpc *rpc, struct c2_rpc_item *item)
@@ -162,10 +116,10 @@ void populate_rpc_obj(struct c2_rpc *rpc, struct c2_rpc_item *item)
 
 }
 
-int main()
+static void rpc_encdec_test(void)
 {
 	struct c2_fop			*f1, *f2, *f3;
-	struct c2_fop_test		*ccf1, *ccf2, *ccf3;
+	struct c2_fop_onwire_test		*ccf1, *ccf2, *ccf3;
 	int				rc;
 	struct c2_rpc_item		*item1, *item2, *item3;
 	struct c2_rpc			*obj, obj2;
@@ -179,19 +133,18 @@ int main()
 	C2_ALLOC_PTR(item2);
 	C2_ALLOC_PTR(item3);
 
-	c2_init();
-	rc = c2_fop_type_format_parse(&c2_fop_test_arr_tfmt);;
-	rc = c2_fop_type_build(&c2_fop_test_fopt);
-	C2_ASSERT(rc == 0);
-	f1 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
-	C2_ASSERT(f1 != NULL);
-	f2 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
-	C2_ASSERT(f2 != NULL);
-	f3 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
-	C2_ASSERT(f3 != NULL);
+	rc = c2_fop_type_format_parse(&c2_fop_onwire_test_arr_tfmt);;
+	rc = c2_fop_type_build(&c2_fop_onwire_test_fopt);
+	C2_UT_ASSERT(rc == 0);
+	f1 = c2_fop_alloc(&c2_fop_onwire_test_fopt, NULL);
+	C2_UT_ASSERT(f1 != NULL);
+	f2 = c2_fop_alloc(&c2_fop_onwire_test_fopt, NULL);
+	C2_UT_ASSERT(f2 != NULL);
+	f3 = c2_fop_alloc(&c2_fop_onwire_test_fopt, NULL);
+	C2_UT_ASSERT(f3 != NULL);
 
 	ccf1 = c2_fop_data(f1);
-	C2_ASSERT(ccf1 != NULL);
+	C2_UT_ASSERT(ccf1 != NULL);
 	ccf1->t_arr.t_count = 4;
 	C2_ALLOC_ARR(ccf1->t_arr.t_data, 4);
 	ccf1->t_arr.t_data[0] = 0xa;
@@ -200,7 +153,7 @@ int main()
 	ccf1->t_arr.t_data[3] = 0xd;
 
 	ccf2 = c2_fop_data(f2);
-	C2_ASSERT(ccf2 != NULL);
+	C2_UT_ASSERT(ccf2 != NULL);
 	ccf2->t_arr.t_count = 4;
 	C2_ALLOC_ARR(ccf2->t_arr.t_data, 4);
 	ccf2->t_arr.t_data[0] = 0xa;
@@ -209,7 +162,7 @@ int main()
 	ccf2->t_arr.t_data[3] = 0xd;
 
 	ccf3 = c2_fop_data(f3);
-	C2_ASSERT(ccf3 != NULL);
+	C2_UT_ASSERT(ccf3 != NULL);
 	ccf3->t_arr.t_count = 4;
 	C2_ALLOC_ARR(ccf3->t_arr.t_data, 4);
 	ccf3->t_arr.t_data[0] = 0xa;
@@ -239,14 +192,22 @@ int main()
 	c2_bufvec_alloc(&nb->nb_buffer, 13, 72);
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
+	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 	rc =  c2_rpc_encode(obj, nb);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 	c2_list_init(&obj2.r_items);
 	rc = c2_rpc_decode(&obj2, nb);
-	C2_ASSERT(rc == 0);
-	c2_fop_type_fini(&c2_fop_test_fopt);
-	c2_fini();
-	return 0;
+	C2_UT_ASSERT(rc == 0);
+	c2_fop_type_fini(&c2_fop_onwire_test_fopt);
 }
+
+const struct c2_test_suite rpc_onwire_ut = {
+        .ts_name = "onwire-ut",
+        .ts_init = NULL,
+        .ts_fini = NULL,
+        .ts_tests = {
+                { "onwire enc/decode", rpc_encdec_test },
+                { NULL, NULL }
+        }
+};
 
