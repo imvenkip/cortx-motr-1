@@ -48,27 +48,28 @@ void test_buf_pool()
 
 	int rc;
 	struct c2_thread        *client_thread;
-	int			 nr_client_threads = 25;
+	int			 nr_client_threads = 5;
 	int i;
 	struct c2_net_buffer *nb = NULL;
 	struct c2_net_xprt *xprt;
+	
 	c2_chan_init(&buf_chan);
 	xprt = &c2_net_bulk_sunrpc_xprt;
 	c2_net_xprt_init(xprt);
-	rc = c2_net_domain_init(&bp.ndom, xprt);
+	C2_ALLOC_PTR(bp.bp_ndom);
+	C2_UT_ASSERT(bp.bp_ndom != NULL);
+	rc = c2_net_domain_init(bp.bp_ndom, xprt);
 	C2_ASSERT(rc == 0);
-	rc = c2_buf_pool_init(&bp, 16384, 512, 256, 2);
+	rc = c2_buf_pool_init(&bp, 10, 64, 4096, 2);
 	C2_ASSERT(rc == 0);
 	bp.bp_ops = &b_ops;
 	nb = c2_buf_pool_get(&bp);
-	sleep(1);
 	c2_buf_pool_put(&bp, nb);
 	C2_ALLOC_PTR(nb);
 	C2_UT_ASSERT(nb != NULL);
-	rc = c2_bufvec_alloc(&nb->nb_buffer, 10, 1024);
+	rc = c2_bufvec_alloc(&nb->nb_buffer, 64, 4096);
 	C2_ASSERT(rc == 0);
 	c2_buf_pool_add(&bp, nb);
-
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 	C2_UT_ASSERT(client_thread != NULL);
 	for (i = 0; i < nr_client_threads; i++) {
@@ -82,7 +83,8 @@ void test_buf_pool()
 		c2_thread_join(&client_thread[i]);
 	}
 	c2_buf_pool_fini(&bp);
-	c2_net_domain_fini(&bp.ndom);
+	c2_net_domain_fini(bp.bp_ndom);
+	c2_free(bp.bp_ndom);
 	c2_net_xprt_fini(xprt);
 	c2_chan_fini(&buf_chan);
 

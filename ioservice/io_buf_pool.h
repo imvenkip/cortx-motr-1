@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -17,8 +18,13 @@
  * Original creation date: 12/10/2011
  */
 
-#ifndef __COLIBRI_IO_BUF_POOL_H__
-#define __COLIBRI_IO_BUF_POOL_H__
+#ifndef __COLIBRI_IOSERVICE_IO_BUF_POOL_H__
+#define __COLIBRI_IOSERVICE_IO_BUF_POOL_H__
+
+#include "lib/types.h" /* uint64_t */
+#include "lib/mutex.h" /* c2_mutex */
+#include "net/net.h"   /* C2_NET_BUFFER*/
+#include "lib/tlist.h"
 
 /**
    @defgroup io_buf_prealloc Buffer pool
@@ -29,114 +35,102 @@
    @{
   */
 
-enum {
-	/* Size of each segment in a network buffer. */
-	SEG_SIZE           = 64,
-	/* Minimum number of buffers below which low memory condition occurs. */
-	BUF_POOL_THRESHOLD = 1
-};
-
-/* A pool of buffers and its context.*/
 struct c2_buf_pool;
-
-/* A list of buffers. */
-struct c2_buf_pool_list;
+struct c2_buf_pool_item;
 
 /**
    Initializes a buffer pool.
    @pre buf_size > 0 && seg_size > 0
-   @pre buf_size and seg_size should be less than or equalto max_buf_size
-	and max_seg_size supported by transport.
+   @pre buf_size <= c2_net_domain_get_max_buffer_size(pool->bp_ndom)
+   @pre seg_size <= c2_net_domain_get_max_buffer_segment_size(pool->bp_ndom)
 
-   @param cap       Capacity of the pool.
-   @param buf_size  Size of each buffer.
+   @param buf_nr    Number of buffers in the pool.
+   @param seg_nr    Number of segments in each buffer.
    @param seg_size  Size of each segment in a buffer.
    @param threshold Number of buffer below which to notify the user.
-
-   @retval 0      On success.
-   @retval -errno On failure.
  */
-int c2_buf_pool_init(struct c2_buf_pool *pool, int cap, int buf_size,
-		     int seg_size, int threshold);
+int c2_buf_pool_init(struct c2_buf_pool *pool, uint32_t buf_nr, uint32_t seg_nr,
+		     c2_bcount_t seg_size, uint32_t threshold);
 
 /**
    Finalizes a buffer pool.
  */
 void c2_buf_pool_fini(struct c2_buf_pool *pool);
 
-/* Acquires the lock on buffer pool. */
+/** Acquires the lock on buffer pool. */
 void c2_buf_pool_lock(struct c2_buf_pool *pool);
 
-/* Releases the lock on buffer pool. */
+/** Check whether buffer pool is locked or not.*/
+bool c2_buf_pool_is_locked(const struct c2_buf_pool *pool);
+
+/** Releases the lock on buffer pool. */
 void c2_buf_pool_unlock(struct c2_buf_pool *pool);
 
 /**
    Returns a buffer from the pool.
    Returns NULL when the pool is empty.
-   @pre pool is locked.
+
+   @pre c2_buf_pool_is_locked(pool)
  */
-struct c2_net_buffer * c2_buf_pool_get(struct c2_buf_pool *pool);
+struct c2_net_buffer *c2_buf_pool_get(struct c2_buf_pool *pool);
 
 /**
    Returns the buffer back to the pool.
-   @pre pool is locked.
+   @pre c2_buf_pool_is_locked(pool)
  */
 void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf);
 
 /**
    Adds a new buffer to the pool to increase the capacity.
-   @pre pool is locked.
+   @pre c2_buf_pool_is_locked(pool)
  */
-void c2_buf_pool_add(struct c2_buf_pool *pool,struct c2_net_buffer *buf);
+void c2_buf_pool_add(struct c2_buf_pool *pool, struct c2_net_buffer *buf);
 
-/* Call backs that buffer pool can trigger on different memory conditions.*/
+/** Call backs that buffer pool can trigger on different memory conditions. */
 struct c2_buf_pool_ops {
-	/* Buffer pool is not empty. */
+	/** Buffer pool is not empty. */
 	void (*bpo_not_empty)(struct c2_buf_pool *);
-	/* Buffers in memory are lower than threshold. */
+	/** Buffers in memory are lower than threshold. */
 	void (*bpo_below_threshold)(struct c2_buf_pool *);
 };
 
-/* Buffer list contains list of buffers. */
-struct c2_buf_list {
-	/* Link for tlist. */
-	struct c2_tlink	      bl_link;
-	/* Magic for tlist. */
-	uint64_t	      bl_magic;
-	/* List of buffers to be stored in tlist. */
-	struct c2_net_buffer *bl_nb;
+/** It encompasses into the buffer list. */
+struct c2_buf_pool_item {
+	/** Link for tlist. */
+	struct c2_tlink	      bpi_link;
+	/** Magic for tlist. */
+	uint64_t	      bpi_magic;
+	/** List of buffers to be stored in tlist. */
+	struct c2_net_buffer *bpi_nb;
 };
 
 /* Buffer pool context. */
 struct c2_buf_pool {
-	/* Number of free buffers in the pool. */
+	/** Number of free buffers in the pool. */
 	uint32_t		bp_free;
-	/* Number of buffer below which low memory condtion occurs. */
+	/** Number of buffer below which low memory condtion occurs. */
 	uint32_t		bp_threshold;
-	/* Buffer pool lock. */
+	/** Buffer pool lock. */
 	struct c2_mutex		bp_lock;
-	/* The list of buffers */
-	struct c2_buf_list     *bp_list;
-	/* Call back opeartions can be triggered buffer pool. */
-	struct c2_buf_pool_ops *bp_ops;
-	/* Head of list of buffers in the pool. */
+	/** Call back operations can be triggered buffer pool. */
+	const struct c2_buf_pool_ops *bp_ops;
+	/** Head of list of buffers in the pool. */
 	struct c2_tl		bp_head;
-	/* Network domain to register the buffers. */
-	struct c2_net_domain	bp_ndom;
+	/** Network domain to register the buffers. */
+	struct c2_net_domain   *bp_ndom;
 };
 
 enum {
-	/* Hex ASCII value of "bl_link" */
+	/* Hex ASCII value of "bpi_link" */
 	BUF_POOL_LINK_MAGIC = 0x626c5f6c696e6b,
-	/* Hex ASCII value of "bl_head" */
+	/* Hex ASCII value of "bpi_head" */
 	BUF_POOL_HEAD_MAGIC = 0x626c5f68656164,
 };
 
 /* Descriptor for the tlist of buffers. */
-static const struct c2_tl_descr buf_pool_descr =
+const struct c2_tl_descr buf_pool_descr =
 		    C2_TL_DESCR("buf_pool_descr",
-		    struct c2_buf_list, bl_link, bl_magic,
+		    struct c2_buf_pool_item, bpi_link, bpi_magic,
 		    BUF_POOL_LINK_MAGIC, BUF_POOL_HEAD_MAGIC);
-
 /** @} end of io_buf_prealloc */
 #endif
