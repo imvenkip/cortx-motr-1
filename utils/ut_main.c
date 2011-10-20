@@ -74,8 +74,8 @@ int main(int argc, char *argv[])
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&capa_ut);
-		c2_ut_add(&colibri_setup_ut);
 		c2_ut_add(&cob_ut);
+		c2_ut_add(&colibri_setup_ut);
 		c2_ut_add(&db_ut);
 		c2_ut_add(&emap_ut);
 		c2_ut_add(&fit_ut);

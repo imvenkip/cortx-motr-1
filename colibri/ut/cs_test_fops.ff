@@ -18,22 +18,21 @@
  * Original creation date: 13/10/2011
  */
 
-/**
-   @addtogroup colibri_setup
-   @{
- */
-
-/**
+/*
   Dummy fops to test colibri setup
  */
 
-DEF(cs_req_fop, RECORD,
+DEF(cs_ds1_req_fop, RECORD,
         _(csr_value, U32));
 
-DEF(cs_rep_fop, RECORD,
+DEF(cs_ds1_rep_fop, RECORD,
         _(csr_rc, U32));
 
-/** @} end of colibri_setup group */
+DEF(cs_ds2_req_fop, RECORD,
+        _(csr_value, U32));
+
+DEF(cs_ds2_rep_fop, RECORD,
+        _(csr_rc, U32));
 
 /*
  *  Local variables:

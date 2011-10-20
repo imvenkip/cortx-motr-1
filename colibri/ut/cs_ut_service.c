@@ -22,94 +22,158 @@
 #include <config.h>
 #endif
 
+#include "lib/ut.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
-/**
-   @addtogroup colibri_setup
-   @{
- */
+extern int cs_ds1_fop_init(void);
+extern void cs_ds1_fop_fini(void);
+extern int cs_ds2_fop_init(void);
+extern void cs_ds2_fop_fini(void);
 
-extern int cs_fop_init(void);
-extern void cs_fop_fini(void);
-
-static int dummy_service_start(struct c2_reqh_service *service);
-static int dummy_service_stop(struct c2_reqh_service *service);
-static int dummy_service_alloc_init(struct c2_reqh_service_type *stype,
+static int ds1_service_start(struct c2_reqh_service *service);
+static int ds2_service_start(struct c2_reqh_service *service);
+static int ds1_service_stop(struct c2_reqh_service *service);
+static int ds2_service_stop(struct c2_reqh_service *service);
+static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
                 struct c2_reqh *reqh, struct c2_reqh_service **service);
-static void dummy_service_fini(struct c2_reqh_service *service);
+static int ds2_service_alloc_init(struct c2_reqh_service_type *stype,
+                struct c2_reqh *reqh, struct c2_reqh_service **service);
+static void ds_service_fini(struct c2_reqh_service *service);
 
-static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
-        .rsto_service_alloc_and_init = dummy_service_alloc_init
+static const struct c2_reqh_service_type_ops ds1_service_type_ops = {
+        .rsto_service_alloc_and_init = ds1_service_alloc_init
 };
 
-static const struct c2_reqh_service_ops dummy_service_ops = {
-        .rso_start = dummy_service_start,
-        .rso_stop = dummy_service_stop,
-        .rso_fini = dummy_service_fini
+static const struct c2_reqh_service_type_ops ds2_service_type_ops = {
+        .rsto_service_alloc_and_init = ds2_service_alloc_init
 };
 
-C2_REQH_SERVICE_TYPE_DECLARE(dummy_service_type, &dummy_service_type_ops, "dummy");
+static const struct c2_reqh_service_ops ds1_service_ops = {
+        .rso_start = ds1_service_start,
+        .rso_stop = ds1_service_stop,
+        .rso_fini = ds_service_fini
+};
 
-static int dummy_service_alloc_init(struct c2_reqh_service_type *stype,
+static const struct c2_reqh_service_ops ds2_service_ops = {
+        .rso_start = ds2_service_start,
+        .rso_stop = ds2_service_stop,
+        .rso_fini = ds_service_fini
+};
+
+C2_REQH_SERVICE_TYPE_DECLARE(ds1_service_type, &ds1_service_type_ops, "ds1");
+C2_REQH_SERVICE_TYPE_DECLARE(ds2_service_type, &ds2_service_type_ops, "ds2");
+
+static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
                 struct c2_reqh *reqh, struct c2_reqh_service **service)
 {
         struct c2_reqh_service      *serv;
+	int                          rc;
 
-        C2_PRE(service != NULL && stype != NULL);
+        C2_PRE(stype != NULL && reqh != NULL && service != NULL);
 
         C2_ALLOC_PTR(serv);
         if (serv == NULL)
                 return -ENOMEM;
 
         serv->rs_type = stype;
-        serv->rs_ops = &dummy_service_ops;
+        serv->rs_ops = &ds1_service_ops;
 
-        c2_reqh_service_init(serv, reqh);
+        rc = c2_reqh_service_init(serv, reqh);
+	C2_UT_ASSERT(rc == 0);
+
         *service = serv;
 
         return 0;
 }
 
-static int dummy_service_start(struct c2_reqh_service *service)
+static int ds2_service_alloc_init(struct c2_reqh_service_type *stype,
+                struct c2_reqh *reqh, struct c2_reqh_service **service)
+{
+        struct c2_reqh_service      *serv;
+	int                          rc;
+
+        C2_PRE(stype != NULL && reqh != NULL && service != NULL);
+
+        C2_ALLOC_PTR(serv);
+        if (serv == NULL)
+                return -ENOMEM;
+
+        serv->rs_type = stype;
+        serv->rs_ops = &ds2_service_ops;
+
+        rc = c2_reqh_service_init(serv, reqh);
+	C2_UT_ASSERT(rc == 0);
+
+        *service = serv;
+
+        return 0;
+}
+
+static int ds1_service_start(struct c2_reqh_service *service)
 {
 	int rc;
 
         C2_PRE(service != NULL);
 
         /*Initialise service fops.*/
-	rc = cs_fop_init();
-	if (rc != 0)
-		goto out;
+	rc = cs_ds1_fop_init();
+	C2_UT_ASSERT(rc == 0);
 
-        c2_reqh_service_start(service);
+        rc = c2_reqh_service_start(service);
+	C2_UT_ASSERT(rc == 0);
 
-out:
         return rc;
 }
 
-static int dummy_service_stop(struct c2_reqh_service *service)
+static int ds2_service_start(struct c2_reqh_service *service)
+{
+        int rc;
+
+        C2_PRE(service != NULL);
+
+        /*Initialise service fops.*/
+        rc = cs_ds2_fop_init();
+	C2_UT_ASSERT(rc == 0);
+
+        rc = c2_reqh_service_start(service);
+	C2_UT_ASSERT(rc == 0);
+
+        return rc;
+}
+
+static int ds1_service_stop(struct c2_reqh_service *service)
 {
 
         C2_PRE(service != NULL);
 
 	/* Finalise service fops */
-	cs_fop_fini();
+	cs_ds1_fop_fini();
         c2_reqh_service_stop(service);
 
         return 0;
 }
 
-static void dummy_service_fini(struct c2_reqh_service *service)
+static int ds2_service_stop(struct c2_reqh_service *service)
+{
+
+        C2_PRE(service != NULL);
+
+        /* Finalise service fops */
+        cs_ds2_fop_fini();
+        c2_reqh_service_stop(service);
+
+        return 0;
+}
+
+static void ds_service_fini(struct c2_reqh_service *service)
 {
         c2_reqh_service_fini(service);
         c2_free(service);
 }
-
-/** @} endgroup colibri_setup */
 
 /*
  *  Local variables:

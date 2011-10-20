@@ -460,12 +460,13 @@ static bool service_is_registered(const char *service_name)
 }
 
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
-						const char *sname)
+			const struct c2_net_xprt *xprt, const char *sname)
 {
 	struct c2_reqh            *reqh;
 	struct cs_reqh_context    *rctx;
 	struct c2_reqh_service    *service;
 	struct c2_rpcmachine      *rpcmach;
+	struct c2_net_xprt        *nxprt;
 
         C2_PRE(cctx != NULL);
 
@@ -474,12 +475,15 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
         c2_tlist_for(&rctx_descr, &cctx->cc_reqh_ctxs, rctx) {
 		reqh = &rctx->rc_reqh;
                 c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
-			if (strcmp(service->rs_type->rst_name,
-							sname) == 0) {
-				rpcmach = c2_tlist_tail(&c2_rh_rpml_descr,
-							&reqh->rh_rpcmachines);
-				return &rpcmach->cr_tm;
-			}
+			if (strcmp(service->rs_type->rst_name, sname) != 0)
+				continue;
+			c2_tlist_for(&c2_rh_rpml_descr, &reqh->rh_rpcmachines,
+								rpcmach) {
+				nxprt = rpcmach->cr_tm.ntm_dom->nd_xprt;
+				C2_ASSERT(nxprt != NULL);
+				if (strcmp(nxprt->nx_name, xprt->nx_name) == 0)
+					return &rpcmach->cr_tm;
+			} c2_tlist_endfor;
                 } c2_tlist_endfor;
         } c2_tlist_endfor;
 
@@ -709,9 +713,6 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
 
 	C2_PRE(reqh != NULL);
 
-        C2_ASSERT(!c2_tlist_is_empty(&c2_rh_rpml_descr,
-				&reqh->rh_rpcmachines));
-
 	c2_tlist_for(&c2_rh_rpml_descr, &reqh->rh_rpcmachines, rpcmach) {
 		C2_ASSERT(rpcmach != NULL);
 		c2_rpcmachine_fini(rpcmach);
@@ -858,8 +859,8 @@ static void cs_storage_fini(struct cs_reqh_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
-	if (stob->linuxstob != NULL || stob->adstob != NULL) {
-		if (strcasecmp(stob->stype, cs_stobs[AD_STOB]) == 0)
+	if (stob->linuxstob != NULL) {
+		if (stob->adstob != NULL)
 			stob->adstob->sd_ops->sdo_fini(stob->adstob);
 		stob->linuxstob->sd_ops->sdo_fini(stob->linuxstob);
 	}
@@ -867,8 +868,8 @@ static void cs_storage_fini(struct cs_reqh_stobs *stob)
 
 /**
    Initialises and registers a particular type of service with
-   the a request handler in colibri context.
-   Once the service is initialised it is started, and registered
+   a request handler in colibri context.
+   Once the service is initialised it is started and registered
    with the appropriate request handler.
 
    @param service_name Name of service to be initialised

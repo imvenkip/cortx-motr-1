@@ -471,8 +471,10 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 			loc_thr_init, &loc_handler_thread, locthr,
 			"locality_thread");
 
-	if (result != 0)
+	if (result != 0) {
+		c2_list_del(&locthr->fht_linkage);
 		c2_free(locthr);
+	}
 
 	return result;
 }
