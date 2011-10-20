@@ -512,6 +512,7 @@ AC_CONFIG_FILES([
                  c2t1fs/Makefile
                  capa/Makefile
                  capa/ut/Makefile
+                 cfg/Makefile
                  cob/Makefile
                  cob/linux_kernel/Makefile
                  cob/ut/Makefile
