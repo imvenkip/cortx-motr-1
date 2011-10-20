@@ -8,7 +8,7 @@ then
 	exit 1
 fi
 
-printf "Module line_cov%% lines_hit lines_total function_cov%% functions_hit " 
+printf "Module line_cov%% lines_hit lines_total function_cov%% functions_hit "
 printf "functions_total branch_cov%% branches_hit branches_total\n"
 
 # read file | find interesting lines | remove all HTML tags | \
