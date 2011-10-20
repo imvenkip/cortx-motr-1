@@ -75,8 +75,10 @@ static int cfm_key_cmp(struct c2_table *table, const void *key0,
 	if (c2_fid_eq(&map_key0->cfk_fid, &map_key1->cfk_fid) &&
 			C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
 		return 0;
-	else
+	else if (C2_3WAY(map_key0->cfk_ci, map_key1->cfk_ci) == 0)
 		return map_key0->cfk_fid.f_key - map_key1->cfk_fid.f_key;
+	else
+		return map_key0->cfk_ci - map_key1->cfk_ci;
 }
 
 static const struct c2_table_ops cfm_table_ops = {
@@ -457,15 +459,15 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	cob_fid_p->u_hi = record->cfr_cob.u_hi;
 	cob_fid_p->u_lo = record->cfr_cob.u_lo;
 
-	/* Increment the next record to return */
-	iter->cfmi_rec_idx++;
-
 	/* Check if current record exhausts the iterator.
 	   There is an implicit assumption here that the operations fail
 	   and set cfmi_error when there are no more records left in the
 	   database */
-	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx -1 ))
+	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx ))
 		iter->cfmi_error = -ENOENT;
+
+	/* Increment the next record to return */
+	iter->cfmi_rec_idx++;
 
 	C2_POST(cobfid_map_iter_invariant(iter));
 
@@ -559,11 +561,14 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 			iter->cfmi_end_of_table = true;
 			break;
 		}
-		if (i == iter->cfmi_num_recs - 1)
-			break;
+		if (i == iter->cfmi_num_recs - 1) {
+			iter->cfmi_last_ci = key.cfk_ci;
+			iter->cfmi_last_fid = key.cfk_fid;
+		}
 		c2_db_pair_setup(&db_pair, &iter->cfmi_table, &key,
 				 sizeof(struct cobfid_map_key),
 				 &cob_fid, sizeof(struct c2_uint128));
+
 		/* The call c2_db_cursor_next() breaks if one tries to go
 		   beyond the last record, hence last_key_reached check
 		   is needed */
@@ -579,9 +584,8 @@ cleanup:
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 	if (rc == 0) {
-		iter_advance(iter, key.cfk_ci, key.cfk_fid);
-		iter->cfmi_last_ci = key.cfk_ci;
-		iter->cfmi_last_fid = key.cfk_fid;
+		iter->cfmi_next_ci = key.cfk_ci;
+		iter->cfmi_next_fid = key.cfk_fid;
 	} else
 		iter->cfmi_error = rc;
 
@@ -665,7 +669,13 @@ static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
 	if (iter->cfmi_end_of_table &&
 			iter->cfmi_last_rec == iter->cfmi_rec_idx)
 		return true;
-	if (recs[idx].cfr_key.cfk_ci == iter->cfmi_next_ci)
+
+	if (idx == CFM_ITER_THUNK - 1 &&
+	    recs[idx].cfr_key.cfk_ci == iter->cfmi_next_ci)
+		return false;
+
+	if (idx < CFM_ITER_THUNK - 1 &&
+	    recs[idx].cfr_key.cfk_ci == recs[idx + 1].cfr_key.cfk_ci)
 		return false;
 
 	return true;

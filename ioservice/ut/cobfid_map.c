@@ -36,7 +36,7 @@ struct c2_dbenv cfm_dbenv;
 
 /* Number of records to be enumerated */
 enum {
-	REC_NR = 21
+	REC_NR = 34
 };
 
 /* Variables used for simple table insert-delete checks */
@@ -121,10 +121,27 @@ static void cfm_ut_container_enumerate(void)
 				cfid[i].u_lo);
 		C2_UT_ASSERT(rc == 0);
 	}
-	rc = c2_dbenv_sync(&cfm_dbenv);
+
+	container_id = 201;
+	file_fid.f_container = 0;
+	file_fid.f_key = 0;
+	cob_fid.u_hi = 331;
+	cob_fid.u_lo = 11;
+
+	rc = c2_cobfid_map_add(&cfm_map, container_id, file_fid, cob_fid);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_cobfid_map_container_enum(&cfm_map, ci, &cfm_iter);
+	container_id = 201;
+	file_fid.f_container = 0;
+	file_fid.f_key = 2;
+	cob_fid.u_hi = 331;
+	cob_fid.u_lo = 12;
+
+	rc = c2_cobfid_map_add(&cfm_map, container_id, file_fid, cob_fid);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_cobfid_map_container_enum(&cfm_map, container_id, &cfm_iter);
+	//rc = c2_cobfid_map_container_enum(&cfm_map, ci, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	rec_nr = 0;
