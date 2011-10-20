@@ -310,11 +310,11 @@ AC_MSG_RESULT([$LINUX])
 AC_SUBST([LINUX])
 
 AC_ARG_ENABLE(coverage,
-	[  --enable-coverage  turn on -fprofile-arcs -ftest-coverage ],
+	[  --enable-coverage  Build for test coverage analysis],
 	[case "${enableval}" in
 		yes) ENABLE_COVERAGE=1 ;;
 		no) ENABLE_COVERAGE=0 ;;
-		*) AC_MSG_ERROR([bad value ${enableval} for --enable-coverage]) ;;
+		*) AC_MSG_ERROR([Invalid value ${enableval} for --enable-coverage]) ;;
 	esac],
 	[ENABLE_COVERAGE=0])
 
@@ -323,8 +323,8 @@ AC_SUBST([ENABLE_COVERAGE])
 if test "x[$]ENABLE_COVERAGE" = "x1"
 then
 	# Remove -O<digit> flag from $CFLAGS
-	CFLAGS="`echo \"[$]CFLAGS\" | perl -pe 's/-O\d+//g;'` -fprofile-arcs -ftest-coverage"
-	LDFLAGS="-fprofile-arcs -lgcov"
+	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
+	LDFLAGS="-lgcov"
 fi
 
 AC_MSG_CHECKING([for linux objects dir])
