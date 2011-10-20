@@ -1,4 +1,4 @@
-/* -*- C -*- */
+
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -390,7 +390,6 @@ void c2_db_cursor_fini(struct c2_db_cursor *cursor);
    the key of a given pair.
  */
 int c2_db_cursor_get (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
-int c2_db_cursor_get_curr (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Move cursor to the next key */
 int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Move cursor to the previous key */

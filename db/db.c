@@ -698,11 +698,6 @@ int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	return cursor_get(cursor, pair, DB_SET_RANGE);
 }
 
-int c2_db_cursor_get_curr(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
-{
-	return cursor_get(cursor, pair, DB_SET);
-}
-
 int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	return cursor_get(cursor, pair, DB_NEXT);

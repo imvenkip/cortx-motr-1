@@ -36,7 +36,7 @@ struct c2_dbenv cfm_dbenv;
 
 /* Number of records to be enumerated */
 enum {
-	REC_NR = 12
+	REC_NR = 21
 };
 
 /* Variables used for simple table insert-delete checks */
@@ -77,7 +77,7 @@ static int cfm_ut_fini(void)
 
 	return 0;
 }
-#if 0
+
 static void cfm_ut_insert(void)
 {
 	container_id = 100;
@@ -97,7 +97,7 @@ static void cfm_ut_delete(void)
 	rc = c2_cobfid_map_del(&cfm_map, container_id, file_fid);
 	C2_UT_ASSERT(rc == 0);
 }
-#endif
+
 static void cfm_ut_container_enumerate(void)
 {
 	int	 rec_nr;
@@ -106,8 +106,7 @@ static void cfm_ut_container_enumerate(void)
 	uint64_t ci;
 
 	ci = 200;
-	//j = REC_NR - 1;
-	j = 0;
+	j = REC_NR - 1;
 	/* Fill in the database for same container id and
 	   varying fid values */
 	for (i = 0; i < REC_NR; i++) {
@@ -115,7 +114,7 @@ static void cfm_ut_container_enumerate(void)
 		fid[i].f_key = j;
 		cfid[i].u_hi = 333;
 		cfid[i].u_lo = j;
-		j++;
+		j--;
 		rc = c2_cobfid_map_add(&cfm_map, ci, fid[i], cfid[i]);
 		printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
 				rc, ci, fid[i].f_key,
@@ -132,14 +131,14 @@ static void cfm_ut_container_enumerate(void)
 	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &ci_out,
 					&fid_out[rec_nr],
 					&cfid_out[rec_nr])) == 0) {
-		printf("\nENUM: rc = %d, ci = %lu fid = %lu cfid_out = %lu\n",
+		printf("\nENUM: rc = %d, ci = %lu fid = %lu cfid_out = %lu",
 				rc, ci_out, fid_out[rec_nr].f_key,
 				cfid_out[rec_nr].u_lo);
 		rec_nr++;
 	}
 	/* Check if number of records enumerated is same as number of records
 	   inserted */
-	printf("rec_nr = %d\n",rec_nr);
+	printf("\nrec_nr = %d\n",rec_nr);
 	C2_UT_ASSERT(rec_nr == REC_NR);
 }
 
@@ -148,8 +147,8 @@ const struct c2_test_suite cfm_ut = {
 	.ts_init = cfm_ut_init,
 	.ts_fini = cfm_ut_fini,
 	.ts_tests = {
-//		{ "cfm-insert", cfm_ut_insert },
-//		{ "cfm-delete", cfm_ut_delete },
+		{ "cfm-insert", cfm_ut_insert },
+		{ "cfm-delete", cfm_ut_delete },
 		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
 		{ NULL, NULL }
 	}
