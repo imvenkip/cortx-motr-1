@@ -23,10 +23,10 @@
 #endif
 
 #include <sys/stat.h>
-#include <stdlib.h>
 #include "ioservice/cobfid_map.h"
 #include "lib/ut.h"
 #include "lib/memory.h"
+#include "lib/arith.h"
 
 
 /* Number of records to be enumerated */
@@ -58,6 +58,8 @@ static void container_enumerate(int rec_total, const char *map_path,
 	int			 i;
 	int			 j;
 	uint64_t		 container_id_out;
+	uint64_t		*cid_in;
+	uint64_t		*cid_out;
 	struct c2_fid		*fid_in;
 	struct c2_uint128	*cob_fid_in;
 	struct c2_fid		*fid_out;
@@ -89,6 +91,14 @@ static void container_enumerate(int rec_total, const char *map_path,
 	C2_ALLOC_ARR(cob_fid_out, rec_total);
 	C2_UT_ASSERT(cob_fid_out != NULL);
 
+	if (enum_type == ENUM_MAP) {
+		C2_ALLOC_ARR(cid_in, rec_total);
+		C2_UT_ASSERT(cid_in != NULL);
+
+		C2_ALLOC_ARR(cid_out, rec_total);
+		C2_UT_ASSERT(cid_out != NULL);
+	}
+
 	container_id = 200;
 	j = rec_total - 1;
 
@@ -103,33 +113,55 @@ static void container_enumerate(int rec_total, const char *map_path,
 		cob_fid_in[i].u_hi = 333;
 		cob_fid_in[i].u_lo = j;
 
-		j--;
 
-		rc = c2_cobfid_map_add(&cfm_map, container_id, fid_in[i],
-				       cob_fid_in[i]);
+		if (enum_type == ENUM_MAP) {
+			cid_in[i] = j;
+			rc = c2_cobfid_map_add(&cfm_map, cid_in[i],
+					       fid_in[i], cob_fid_in[i]);
+			printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
+					rc, cid_in[i], fid_in[i].f_key,
+					cob_fid_in[i].u_lo);
+		} else {
+			rc = c2_cobfid_map_add(&cfm_map, container_id,
+					       fid_in[i], cob_fid_in[i]);
+			printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
+					rc, container_id, fid_in[i].f_key,
+					cob_fid_in[i].u_lo);
+		}
 		C2_UT_ASSERT(rc == 0);
-		printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
-				rc, container_id, fid_in[i].f_key,
-				cob_fid_in[i].u_lo);
+		j--;
 	}
-
-	if (enum_type == ENUM_CONTAINER)
-		rc = c2_cobfid_map_container_enum(&cfm_map, container_id,
-						  &cfm_iter);
-	else if (enum_type == ENUM_MAP)
-		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
-
-	C2_UT_ASSERT(rc == 0);
 
 	rec_nr = 0;
-	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out,
-					&fid_out[rec_nr],
-					&cob_fid_out[rec_nr])) == 0) {
-		printf("\nENUM: rc = %d, ci = %lu fid = %lu cfid_out = %lu",
-				rc, container_id_out, fid_out[rec_nr].f_key,
-				cob_fid_out[rec_nr].u_lo);
-		rec_nr++;
+	if (enum_type == ENUM_CONTAINER) {
+		rc = c2_cobfid_map_container_enum(&cfm_map, container_id,
+						  &cfm_iter);
+		C2_UT_ASSERT(rc == 0);
+		while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
+						&container_id_out,
+						&fid_out[rec_nr],
+						&cob_fid_out[rec_nr])) == 0) {
+			printf("\nENUM:rc = %d, ci = %lu, fid = %lu,cfid = %lu",
+					rc, container_id_out,
+					fid_out[rec_nr].f_key,
+					cob_fid_out[rec_nr].u_lo);
+			rec_nr++;
+		}
+	} else if (enum_type == ENUM_MAP) {
+		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
+		C2_UT_ASSERT(rc == 0);
+		while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
+						&cid_out[rec_nr],
+						&fid_out[rec_nr],
+						&cob_fid_out[rec_nr])) == 0) {
+			printf("\nENUM:rc = %d, ci = %lu, fid = %lu,cfid = %lu",
+					rc, cid_out[rec_nr],
+					fid_out[rec_nr].f_key,
+					cob_fid_out[rec_nr].u_lo);
+			rec_nr++;
+		}
 	}
+
 	/* Check if number of records enumerated is same as number of records
 	   inserted */
 	printf("\nrec_nr = %d\n",rec_nr);
@@ -142,6 +174,9 @@ static void container_enumerate(int rec_total, const char *map_path,
 				       &fid_out[rec_total - 1 - i]));
 		C2_UT_ASSERT(c2_uint128_eq(&cob_fid_in[i],
 					   &cob_fid_out[rec_total - 1 - i]));
+		if (enum_type == ENUM_MAP)
+			C2_UT_ASSERT(C2_3WAY(cid_in[i],
+					     cid_out[rec_total - 1 - i] == 0));
 	}
 
 	c2_free(fid_in);
@@ -149,8 +184,16 @@ static void container_enumerate(int rec_total, const char *map_path,
 	c2_free(fid_out);
 	c2_free(cob_fid_out);
 
+	if (enum_type == ENUM_MAP) {
+		c2_free(cid_in);
+		c2_free(cid_out);
+	}
+
 	c2_cobfid_map_iter_fini(&cfm_iter);
 	c2_cobfid_map_fini(&cfm_map);
+
+	rc = c2_ut_db_reset(map_path);
+	C2_UT_ASSERT(rc == 0);
 }
 
 void cfm_ut_container_enumerate(void)
