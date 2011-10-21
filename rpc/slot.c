@@ -56,8 +56,8 @@
 
 extern void item_exit_stats_set(struct c2_rpc_item *item,
 				enum c2_rpc_item_path path);
-extern int frm_item_reply_received(struct c2_rpc_item *reply_item,
-		struct c2_rpc_item *req_item);
+extern void frm_item_reply_received(struct c2_rpc_item *reply_item,
+				    struct c2_rpc_item *req_item);
 
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
@@ -843,7 +843,7 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 		 */
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
-			rc = frm_item_reply_received(item, req);
+			frm_item_reply_received(item, req);
 		}
 
 		if (req != NULL && req->ri_ops != NULL &&

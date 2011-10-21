@@ -192,7 +192,8 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	return frm_ubitem_added(item);
+	frm_ubitem_added(item);
+	return 0;
 }
 C2_EXPORTED(c2_rpc_post);
 
@@ -286,7 +287,8 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 	item->ri_state = RPC_ITEM_SUBMITTED;
 
 	item->ri_rpc_time = c2_time_now();
-	return frm_ubitem_added(item);
+	frm_ubitem_added(item);
+	return 0;
 }
 
 int c2_rpc_core_init(void)

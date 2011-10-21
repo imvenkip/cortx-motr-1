@@ -110,7 +110,7 @@ struct fop_session_establish_ctx
 	struct c2_rpc_session *sec_session;
 };
 
-extern int frm_item_ready(struct c2_rpc_item *item);
+extern void frm_item_ready(struct c2_rpc_item *item);
 extern void frm_slot_idle(struct c2_rpc_slot *slot);
 
 /**
