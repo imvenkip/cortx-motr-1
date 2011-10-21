@@ -124,7 +124,7 @@ C2_EXPORTED(c2_buf_pool_unlock);
 
 struct c2_net_buffer *c2_buf_pool_get(struct c2_buf_pool *pool)
 {
-	struct c2_net_buffer *nb = NULL;
+	struct c2_net_buffer *nb;
 	struct c2_buf_pool_item *bpi_item;
 
 	C2_PRE(pool != NULL);
@@ -168,7 +168,7 @@ C2_EXPORTED(c2_buf_pool_put);
 
 int c2_buf_pool_add(struct c2_buf_pool *pool)
 {
-	struct c2_net_buffer *nb = NULL;
+	struct c2_net_buffer *nb;
 	struct c2_buf_pool_item *bpi_item;
 	int rc;
 	C2_ALLOC_PTR(bpi_item);
