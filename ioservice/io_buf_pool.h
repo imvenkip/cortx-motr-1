@@ -119,19 +119,17 @@ struct c2_buf_pool {
 	c2_bcount_t		seg_size;
 	/** Buffer pool lock. */
 	struct c2_mutex		bp_lock;
-	/** Call back operations can be triggered buffer pool. */
-	const struct c2_buf_pool_ops *bp_ops;
-	/** Head of list of buffers in the pool. */
-	struct c2_tl		bp_head;
 	/** Network domain to register the buffers. */
 	struct c2_net_domain   *bp_ndom;
+	/** Call back operations can be triggered buffer pool. */
+	const struct c2_buf_pool_ops *bp_ops;
 };
 
 enum {
 	/* Hex ASCII value of "bpi_link" */
-	BUF_POOL_LINK_MAGIC = 0x626c5f6c696e6b,
+	BUF_POOL_LINK_MAGIC = 0x6270695f6c696e6b,
 	/* Hex ASCII value of "bpi_head" */
-	BUF_POOL_HEAD_MAGIC = 0x626c5f68656164,
+	BUF_POOL_HEAD_MAGIC = 0x6270695f68656164,
 };
 
 /** @} end of io_buf_prealloc */

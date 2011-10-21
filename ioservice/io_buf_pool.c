@@ -31,10 +31,13 @@
  */
 
 /** Descriptor for the tlist of buffers. */
-static const struct c2_tl_descr buf_pool_descr =
-		    C2_TL_DESCR("buf_pool_descr",
-		    struct c2_buf_pool_item, bpi_link, bpi_magic,
-		    BUF_POOL_LINK_MAGIC, BUF_POOL_HEAD_MAGIC);
+C2_TL_DESCR_DEFINE(buf_pool, "buf_pool", static, struct c2_buf_pool_item,
+		   bpi_link, bpi_magic, BUF_POOL_LINK_MAGIC,
+		   BUF_POOL_HEAD_MAGIC);
+C2_TL_DEFINE(buf_pool, static, struct c2_buf_pool_item);
+
+/** Head of list of buffers in the pool. */
+static struct c2_tl bp_head;
 
 int c2_buf_pool_init(struct c2_buf_pool *pool, uint32_t buf_nr, uint32_t seg_nr,
 		     c2_bcount_t seg_size, uint32_t threshold)
@@ -56,7 +59,7 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, uint32_t buf_nr, uint32_t seg_nr,
 	pool->seg_nr	   = seg_nr;
 	pool->seg_size	   = seg_size;
 
-	c2_tlist_init(&buf_pool_descr, &pool->bp_head);
+	buf_pool_tlist_init(&bp_head);
 	while (++pool->bp_free <= buf_nr){
 		C2_ALLOC_PTR(bpi_item);
 		if (bpi_item == NULL)
@@ -69,10 +72,9 @@ int c2_buf_pool_init(struct c2_buf_pool *pool, uint32_t buf_nr, uint32_t seg_nr,
 		rc = c2_net_buffer_register(nb, pool->bp_ndom);
 		if (rc != 0)
 			break;
-		c2_tlink_init(&buf_pool_descr, bpi_item);
-		C2_ASSERT(!c2_tlink_is_in(&buf_pool_descr, bpi_item));
-		c2_tlist_add_tail(&buf_pool_descr, &pool->bp_head,
-				   bpi_item);
+		buf_pool_tlink_init(bpi_item);
+		C2_ASSERT(!buf_pool_tlink_is_in(bpi_item));
+		buf_pool_tlist_add_tail(&bp_head, bpi_item);
 	}
 	if(rc != 0)
 		c2_buf_pool_fini(pool);
@@ -82,20 +84,20 @@ C2_EXPORTED(c2_buf_pool_init);
 
 void c2_buf_pool_fini(struct c2_buf_pool *pool)
 {
-	struct c2_net_buffer *nb = NULL;
+	struct c2_net_buffer *nb;
 	struct c2_buf_pool_item *bpi_item;
 	C2_PRE(pool != NULL);
-	c2_tlist_for(&buf_pool_descr, &pool->bp_head, bpi_item) {
+	c2_tlist_for(&buf_pool_tl, &bp_head, bpi_item) {
 		nb = &bpi_item->bpi_nb;
 		c2_net_buffer_deregister(nb, pool->bp_ndom);
 		c2_bufvec_free(&nb->nb_buffer);
-		c2_tlist_del(&buf_pool_descr, bpi_item);
-		c2_tlink_fini(&buf_pool_descr, bpi_item);
+		buf_pool_tlist_del(bpi_item);
+		buf_pool_tlink_fini(bpi_item);
 		bpi_item->bpi_magic = 0;
 		c2_free(bpi_item);
 		pool->bp_free--;
 	}c2_tlist_endfor;
-	c2_tlist_fini(&buf_pool_descr, &pool->bp_head);
+	buf_pool_tlist_fini(&bp_head);
 }
 C2_EXPORTED(c2_buf_pool_fini);
 
@@ -127,10 +129,10 @@ struct c2_net_buffer *c2_buf_pool_get(struct c2_buf_pool *pool)
 		return NULL;
 
 	C2_ASSERT(c2_buf_pool_is_locked(pool) == true);
-	bpi_item = c2_tlist_head(&buf_pool_descr, &pool->bp_head);
+	bpi_item = buf_pool_tlist_head(&bp_head);
 	C2_ASSERT(bpi_item != NULL);
-	c2_tlist_del(&buf_pool_descr, bpi_item);
-	c2_tlink_fini(&buf_pool_descr, bpi_item);
+	buf_pool_tlist_del(bpi_item);
+	buf_pool_tlink_fini(bpi_item);
 	nb = &bpi_item->bpi_nb;
 	pool->bp_free--;
 	if(pool->bp_free < pool->bp_threshold) {
@@ -151,14 +153,12 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf)
 
 	bpi_item = container_of(buf, struct c2_buf_pool_item, bpi_nb);
 	C2_ASSERT(bpi_item->bpi_magic == BUF_POOL_LINK_MAGIC);
-	c2_tlink_init(&buf_pool_descr, bpi_item);
-	C2_ASSERT(!c2_tlink_is_in(&buf_pool_descr, bpi_item));
-	c2_tlist_add_tail(&buf_pool_descr, &pool->bp_head, bpi_item);
+	buf_pool_tlink_init(bpi_item);
+	C2_ASSERT(!buf_pool_tlink_is_in(bpi_item));
+	buf_pool_tlist_add_tail(&bp_head, bpi_item);
 	pool->bp_free++;
 	if(pool->bp_free > 0)
 		pool->bp_ops->bpo_not_empty(pool);
-	c2_tlist_for(&buf_pool_descr, &pool->bp_head, bpi_item) {
-	}c2_tlist_endfor;
 }
 C2_EXPORTED(c2_buf_pool_put);
 
