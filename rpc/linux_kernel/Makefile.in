@@ -2,6 +2,8 @@ RPC_SRCDIR = @SRCDIR@/rpc/linux_kernel
 RPCDIR = @SRCDIR@/rpc
 FOPDIR = @SRCDIR@/fop
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y		:= krpc.o
 shared_src	:= formation.c rpccore.c session.c session_foms.c \
 			conn.c slot.c session_utils.c session_fops.c \
