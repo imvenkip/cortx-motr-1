@@ -1,5 +1,18 @@
 #!/bin/bash
 
+#
+# When colibri is configured with --enable-coverage option, it
+# builds colibri (both user and kernel space) with gcov profiling
+# options enabled.
+#
+# When such binaries are executed or kernel modules are exercised,
+# trace data is recorded in .gcda files.
+#
+# This script, collects gcda files from location dependent on user or
+# kernel mode, and runs lcov on it. As output, lcov will create
+# HTML file hierarchy in <output_dir>
+#
+
 if [ $# -ne 3 ]
 then
 	echo "Usage: gcov_stats_genhtml.sh [user|kernel] <src_dir> <output_dir>"
