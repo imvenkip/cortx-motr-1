@@ -18,79 +18,92 @@
  * Original creation date: 09/28/2011
  */
 
-#ifndef __COLIBRI_RPC_HELPER_H__
-#define __COLIBRI_RPC_HELPER_H__
+#ifndef __COLIBRI_RPC_RPC_HELPER_H__
+#define __COLIBRI_RPC_RPC_HELPER_H__
 
 #include "lib/types.h"
+#include "rpc/rpccore.h" /* struct c2_rpcmachine, c2_rpc_item */
+#include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
+#include "db/db.h"       /* struct c2_dbenv */
+#include "cob/cob.h"     /* struct c2_cob_domain */
+#include "net/net.h"     /* struct c2_net_end_point */
 
 
 struct c2_net_xprt;
-struct c2_rpcmachine;
+struct c2_net_domain;
 struct c2_reqh;
-struct c2_rpc_session;
-struct c2_rpc_item;
 
 /**
-  A context structure, which contains enough information to initialize
-  an RPC machine.
+ * RPC context structure.
+ * Contains all required data to initialize RPC client and server.
+ */
+struct c2_rpc_ctx {
 
-  It's used as an input parameter for c2_rpc_helper_init_machine()
-*/
-struct c2_rpc_helper_rpcmachine_ctx {
-	/** Specify transport address */
-	struct c2_net_xprt  *xprt;
+	/**
+	 * Input parameters.
+	 *
+	 * They are initialized and filled in by a caller of
+	 * c2_rpc_server_init() and c2_rpc_client_init().
+	 */
+
+	struct c2_net_xprt      *rx_xprt;
+        struct c2_net_domain    *rx_net_dom;
+
+	/** Can be NULL. In this case a default reqh will be allocated and
+	 * initialized by c2_rpc_(server|client)_init() */
+	struct c2_reqh          *rx_reqh;
+
 	/** Transport specific local address */
-	const char          *local_addr;
+	const char              *rx_local_addr;
+
+	/** Transport specific remote address */
+	const char              *rx_remote_addr;
+
 	/** Name of database used by the RPC machine */
-	const char          *db_name;
+	const char              *rx_db_name;
+
 	/** Identity of cob used by the RPC machine */
-	uint32_t            cob_domain_id;
-	/** Pass in an rpc machine to be initialized */
-	struct c2_reqh      *request_handler;
-};
+	uint32_t                rx_cob_dom_id;
 
-/**
-  A context structure, which contains enough information to initialize
-  an RPC session.
-
-  It's used as an input parameter for c2_rpc_helper_client_connect()
-*/
-struct c2_rpc_helper_client_ctx {
-	/** Initialized RPC machine */
-	struct c2_rpcmachine  *rpc_machine;
-	/** Remote server address */
-	const char            *remote_addr;
 	/** Number of session slots */
-	uint32_t              nr_slots;
-	/** Time in seconds after which session establishment is aborted */
-	uint32_t              timeout_s;
+	uint32_t                rx_nr_slots;
+
+	uint64_t                rx_max_rpcs_in_flight;
+
+	/** Time in seconds after which connection/session
+	 *  establishment is aborted */
+	uint32_t                rx_timeout_s;
+
+	/**
+	 * Output parameters.
+	 *
+	 * They are initialized and filled in by c2_rpc_server_init() and
+	 * c2_rpc_client_init().
+	 */
+
+        struct c2_dbenv         rx_dbenv;
+        struct c2_cob_domain    rx_cob_dom;
+	struct c2_rpcmachine    rx_rpc_machine;
+        struct c2_net_end_point	*rx_remote_ep;
+        struct c2_rpc_conn      rx_connection;
+        struct c2_rpc_session   rx_session;
 };
 
 /**
-  Initialize an RPC machine with a request handler that will invoke a set
-  of user supplied FOMs.
+  Starts RPC server.
 
-  @param rctx  Initialized rpc_machine context structure.
-  @param rpc_machine Pass in an rpc machine to be initialized.
-
-  @retval 0 on success
-  @retval -errno on failure
+  @param rctx  Initialized rpc context structure.
 */
-int c2_rpc_helper_init_machine(struct c2_rpc_helper_rpcmachine_ctx *rctx,
-			       struct c2_rpcmachine *rpc_machine);
+int c2_rpc_server_init(struct c2_rpc_ctx *rctx);
 
 /**
-  Creates a connection to a server and establishes an rpc session on top of it.
-  Created session object can be set in an rpc item and used in c2_rpc_post().
+  Starts client's rpc machine. Creates a connection to a server and establishes
+  an rpc session on top of it.  Created session object can be set in an rpc item
+  and used in c2_rpc_post().
 
-  @param cctx  Initialized client context structure.
-  @param rpc_session  Returns the rpc session object.
-
-  @retval 0 on success
-  @retval -errno on failure
+  @param cctx  Initialized rpc context structure.
 */
-int c2_rpc_helper_client_connect(struct c2_rpc_helper_client_ctx *cctx,
-				 struct c2_rpc_session **rpc_session);
+int c2_rpc_client_init(struct c2_rpc_ctx *rctx);
 
 /**
   Make an RPC call to a server, blocking for a reply if desired.
@@ -99,21 +112,24 @@ int c2_rpc_helper_client_connect(struct c2_rpc_helper_client_ctx *cctx,
               successful return.
   @param rpc_session The session to be used for the client call.
   @param timeout_s Timeout in seconds.  0 implies don't wait for a reply.
-
-  @retval 0 on success
-  @retval -errno on failure
 */
-int c2_rpc_helper_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
-			      uint32_t timeout_s);
+int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
+		       uint32_t timeout_s);
 
-/** Clean up all allocated data structures, associated with rpc_machine
+/**
+  Stops RPC server.
 
-  @param rpc_machine The rpc machine object for which cleanup is performed.
-
-  @retval 0 on success
-  @retval -errno on failure
+  @param rctx  Initialized rpc context structure.
 */
-int c2_rpc_helper_cleanup(struct c2_rpcmachine *rpc_machine);
+void c2_rpc_server_fini(struct c2_rpc_ctx *rctx);
 
-#endif /* __COLIBRI_RPC_HELPER_H__ */
+/**
+  Terminates RPC session and connection with server and finalize client's RPC
+  machine.
+
+  @param rctx  Initialized rpc context structure.
+*/
+int c2_rpc_client_fini(struct c2_rpc_ctx *rctx);
+
+#endif /* __COLIBRI_RPC_RPC_HELPER_H__ */
 

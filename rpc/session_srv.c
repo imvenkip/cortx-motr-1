@@ -17,8 +17,8 @@
  * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
  * Original creation date: 04/22/2010
  */
-#include "rpc/rpclib.h"
 #if 0
+#include "rpc/rpclib.h"
 
 #include "lib/errno.h"
 #include "lib/atomic.h"

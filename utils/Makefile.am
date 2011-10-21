@@ -4,7 +4,7 @@ noinst_PROGRAMS = ut ub
 
 libstob_ut   = $(top_builddir)/stob/ut/libstob-ut.la
 
-ut_SOURCES   = ut_main.c common.c common.h rpc.c rpc.h
+ut_SOURCES   = ut_main.c common.c common.h
 ut_LDFLAGS   = -pthread
 ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/lib/ut/libc2-ut.la $(libstob_ut) \
@@ -23,7 +23,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
 	       $(top_builddir)/rpc/ut/librpc-helper-ut.la
 
 
-ub_SOURCES   = ub_main.c common.c common.h rpc.c rpc.h
+ub_SOURCES   = ub_main.c common.c common.h
 ub_LDFLAGS   = -pthread
 ub_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/lib/ut/libc2-ut.la $(libstob_ut) \
