@@ -41,6 +41,7 @@ struct c2_buf_pool_item;
 /**
    Initializes a buffer pool.
    @pre buf_size > 0 && seg_size > 0
+   @pre pool->bp_ndom != NULL
    @pre buf_size <= c2_net_domain_get_max_buffer_size(pool->bp_ndom)
    @pre seg_size <= c2_net_domain_get_max_buffer_segment_size(pool->bp_ndom)
 
@@ -77,14 +78,16 @@ struct c2_net_buffer *c2_buf_pool_get(struct c2_buf_pool *pool);
 /**
    Returns the buffer back to the pool.
    @pre c2_buf_pool_is_locked(pool)
+   @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
+        !(buf->nb_flags & C2_NET_BUF_IN_USE)
  */
 void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf);
 
 /**
-   Adds a new buffer to the pool to increase the capacity.
+   Adds a buffer to the pool to increase the capacity.
    @pre c2_buf_pool_is_locked(pool)
  */
-void c2_buf_pool_add(struct c2_buf_pool *pool, struct c2_net_buffer *buf);
+void c2_buf_pool_add(struct c2_buf_pool *pool);
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
 struct c2_buf_pool_ops {
@@ -101,7 +104,7 @@ struct c2_buf_pool_item {
 	/** Magic for tlist. */
 	uint64_t	      bpi_magic;
 	/** List of buffers to be stored in tlist. */
-	struct c2_net_buffer *bpi_nb;
+	struct c2_net_buffer  bpi_nb;
 };
 
 /* Buffer pool context. */
@@ -110,6 +113,10 @@ struct c2_buf_pool {
 	uint32_t		bp_free;
 	/** Number of buffer below which low memory condtion occurs. */
 	uint32_t		bp_threshold;
+	/** Number of segemnts in each buffer of the pool. */
+	uint32_t		seg_nr;
+	/** Size of buffer segemnt of the pool. */
+	c2_bcount_t		seg_size;
 	/** Buffer pool lock. */
 	struct c2_mutex		bp_lock;
 	/** Call back operations can be triggered buffer pool. */
@@ -127,10 +134,5 @@ enum {
 	BUF_POOL_HEAD_MAGIC = 0x626c5f68656164,
 };
 
-/* Descriptor for the tlist of buffers. */
-const struct c2_tl_descr buf_pool_descr =
-		    C2_TL_DESCR("buf_pool_descr",
-		    struct c2_buf_pool_item, bpi_link, bpi_magic,
-		    BUF_POOL_LINK_MAGIC, BUF_POOL_HEAD_MAGIC);
 /** @} end of io_buf_prealloc */
 #endif

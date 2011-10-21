@@ -63,13 +63,11 @@ void test_buf_pool()
 	rc = c2_buf_pool_init(&bp, 10, 64, 4096, 2);
 	C2_ASSERT(rc == 0);
 	bp.bp_ops = &b_ops;
+	c2_buf_pool_lock(&bp);
 	nb = c2_buf_pool_get(&bp);
 	c2_buf_pool_put(&bp, nb);
-	C2_ALLOC_PTR(nb);
-	C2_UT_ASSERT(nb != NULL);
-	rc = c2_bufvec_alloc(&nb->nb_buffer, 64, 4096);
-	C2_ASSERT(rc == 0);
-	c2_buf_pool_add(&bp, nb);
+	c2_buf_pool_add(&bp);
+	c2_buf_pool_unlock(&bp);
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 	C2_UT_ASSERT(client_thread != NULL);
 	for (i = 0; i < nr_client_threads; i++) {
