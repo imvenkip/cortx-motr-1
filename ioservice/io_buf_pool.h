@@ -53,15 +53,13 @@ struct c2_buf_pool_item;
 int c2_buf_pool_init(struct c2_buf_pool *pool, uint32_t buf_nr, uint32_t seg_nr,
 		     c2_bcount_t seg_size, uint32_t threshold);
 
-/**
-   Finalizes a buffer pool.
- */
+/** Finalizes a buffer pool. */
 void c2_buf_pool_fini(struct c2_buf_pool *pool);
 
 /** Acquires the lock on buffer pool. */
 void c2_buf_pool_lock(struct c2_buf_pool *pool);
 
-/** Check whether buffer pool is locked or not.*/
+/** Check whether buffer pool is locked or not. */
 bool c2_buf_pool_is_locked(const struct c2_buf_pool *pool);
 
 /** Releases the lock on buffer pool. */
@@ -70,8 +68,8 @@ void c2_buf_pool_unlock(struct c2_buf_pool *pool);
 /**
    Returns a buffer from the pool.
    Returns NULL when the pool is empty.
-
    @pre c2_buf_pool_is_locked(pool)
+   @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
  */
 struct c2_net_buffer *c2_buf_pool_get(struct c2_buf_pool *pool);
 
@@ -87,7 +85,7 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf);
    Adds a buffer to the pool to increase the capacity.
    @pre c2_buf_pool_is_locked(pool)
  */
-void c2_buf_pool_add(struct c2_buf_pool *pool);
+int c2_buf_pool_add(struct c2_buf_pool *pool);
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
 struct c2_buf_pool_ops {

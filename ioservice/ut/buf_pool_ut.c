@@ -66,7 +66,8 @@ void test_buf_pool()
 	c2_buf_pool_lock(&bp);
 	nb = c2_buf_pool_get(&bp);
 	c2_buf_pool_put(&bp, nb);
-	c2_buf_pool_add(&bp);
+	rc = c2_buf_pool_add(&bp);
+	C2_UT_ASSERT(rc == 0);
 	c2_buf_pool_unlock(&bp);
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 	C2_UT_ASSERT(client_thread != NULL);
@@ -98,12 +99,12 @@ void buffers_get_put(int rc)
 		c2_buf_pool_lock(&bp);
 		nb = c2_buf_pool_get(&bp);
 		c2_buf_pool_unlock(&bp);
-		if(nb == NULL)
+		if (nb == NULL)
 			c2_chan_wait(&buf_link);
 	} while(nb == NULL);
 	sleep(1);
 	c2_buf_pool_lock(&bp);
-	if(nb != NULL)
+	if (nb != NULL)
 		c2_buf_pool_put(&bp, nb);
 	c2_buf_pool_unlock(&bp);
 	c2_clink_del(&buf_link);
