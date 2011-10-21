@@ -545,10 +545,10 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 			iter->cfmi_end_of_table = true;
 			break;
 		}
-		if (i == iter->cfmi_num_recs - 1) {
-			iter->cfmi_last_ci = key.cfk_ci;
-			iter->cfmi_last_fid = key.cfk_fid;
-		}
+
+		iter->cfmi_last_ci = key.cfk_ci;
+		iter->cfmi_last_fid = key.cfk_fid;
+
 		c2_db_pair_setup(&db_pair, &iter->cfmi_table, &key,
 				 sizeof(struct cobfid_map_key),
 				 &cob_fid, sizeof(struct c2_uint128));
