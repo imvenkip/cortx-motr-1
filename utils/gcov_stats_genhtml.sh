@@ -16,6 +16,8 @@
 if [ $# -ne 3 ]
 then
 	echo "Usage: gcov_stats_genhtml.sh [user|kernel] <src_dir> <output_dir>"
+	echo "       <src_dir>:    path of colibri/core directory"
+	echo "       <output_dir>: path where output of lcov will be stored"
 	exit 1
 fi
 
@@ -78,7 +80,7 @@ then
 	gcda_cnt=`find $src -name "*.gcda" | wc -l`
 	if [ $gcda_cnt -eq 0 ]
 	then
-		echo "No \*.gcda file is present in $src and its subdirectoris"
+		echo "No *.gcda file is present in $src and its subdirectoris"
 		exit 1
 	fi
 	echo "Collecting user mode stats"
@@ -92,6 +94,7 @@ else
 	if [ $? -ne 0 ]
 	then
 		echo "Error: debugfs is not mounted on /sys/kernel/debug"
+		echo "       Use 'mount -t debugfs none /sys/kernel/debug' to mount debugfs"
 		exit 1
 	fi
 
@@ -102,8 +105,6 @@ else
 		exit 1
 	fi
 
-	echo "Collecting kernel mode stats"
-
 	TEMPDIR=$(mktemp -d)
 	find $GCDA -type d -exec mkdir -p $TEMPDIR/\{\} \;
 	find $GCDA -name '*.gcda' -exec sh -c 'cat < $0 > '$TEMPDIR'/$0' {} \;
@@ -112,10 +113,12 @@ else
 	gcda_cnt=`find $TEMPDIR -name "*.gcda" | wc -l`
 	if [ $gcda_cnt -eq 0 ]
 	then
-		echo "No \*.gcda file is present in /sys/kernel/debug/gcov and its subdirectoris"
+		echo "No *.gcda file is present in /sys/kernel/debug/gcov and its subdirectoris"
+		rm -rf $TEMPDIR
 		exit 1
 	fi
 
+	echo "Collecting kernel mode stats"
 	lcov --directory $TEMPDIR --capture --output-file app.info
 	lcov --remove app.info "*.h" -o app1.info
 	genhtml app1.info
