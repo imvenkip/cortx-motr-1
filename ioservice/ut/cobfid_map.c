@@ -35,50 +35,63 @@ enum {
 	MULTIPLE_BUF_REC_NR = 351
 };
 
-/* Variables used for simple table insert-delete checks */
-uint64_t container_id;
-struct c2_fid file_fid;
-struct c2_uint128 cob_fid;
-
-static const char single_buf_cont_enum_path[] = "cfm_map_single_buf_ce";
-static const char multiple_buf_cont_enum_path[] = "cfm_map_multiple_buf_ce";
-static const char single_buf_map_enum_path[] = "cfm_map_single_buf_me";
-static const char multiple_buf_map_enum_path[] = "cfm_map_multiple_buf_me";
-static int rc;
-
+/* Type of enumeration */
 enum {
 	ENUM_CONTAINER,
 	ENUM_MAP
 };
 
-static void container_enumerate(int rec_total, const char *map_path,
-				int enum_type )
+/* DB paths for various databases */
+static const char single_buf_cont_enum_path[] = "cfm_map_single_buf_ce";
+static const char multiple_buf_cont_enum_path[] = "cfm_map_multiple_buf_ce";
+static const char single_buf_map_enum_path[] = "cfm_map_single_buf_me";
+static const char multiple_buf_map_enum_path[] = "cfm_map_multiple_buf_me";
+
+/*
+   Generic enumeration routine, used by all the tests.
+   The parameters are :
+   rec_total: Total number of records to be inserted and enumerated
+   map_path : Database path used for the addition and enumeration
+   etype    : Enumeration type (either map or container)
+ */
+static void enumerate_generic(int rec_total, const char *map_path, int etype )
 {
-	int			 rec_nr;
 	int			 i;
 	int			 j;
+	int			 rc;
+	int			 rec_nr;
+	uint64_t		 container_id_in;
 	uint64_t		 container_id_out;
 	uint64_t		*cid_in;
 	uint64_t		*cid_out;
 	struct c2_fid		*fid_in;
-	struct c2_uint128	*cob_fid_in;
 	struct c2_fid		*fid_out;
+	struct c2_uint128	*cob_fid_in;
 	struct c2_uint128	*cob_fid_out;
 	struct c2_dbenv		 cfm_dbenv;
 	struct c2_addb_ctx	 cfm_addb_ctx;
 	struct c2_cobfid_map	 cfm_map;
 	struct c2_cobfid_map_iter cfm_iter;
 
+	/* Reset any existing database */
 	rc = c2_ut_db_reset(map_path);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Initialise the database with given path */
         rc = c2_dbenv_init(&cfm_dbenv, map_path, 0);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Initialize the map */
 	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
 				"cfm_map_table");
 	C2_UT_ASSERT(rc == 0);
 
+	/* Allocate the input and output key-value arrays with total number
+	   of records.
+	   - Input arrays are populated during insertion operation.
+	   - Corresponding output key-value arrays which are populated
+	     during enumeration operation.
+	   - Input and Output arrays are compared at the end for equality */
 	C2_ALLOC_ARR(fid_in, rec_total);
 	C2_UT_ASSERT(fid_in != NULL);
 
@@ -91,18 +104,19 @@ static void container_enumerate(int rec_total, const char *map_path,
 	C2_ALLOC_ARR(cob_fid_out, rec_total);
 	C2_UT_ASSERT(cob_fid_out != NULL);
 
-	if (enum_type == ENUM_MAP) {
+	/* Allocate the container arrays only for map enumeration. Use constant
+	   container id for container enumeration*/
+	if (etype == ENUM_MAP) {
 		C2_ALLOC_ARR(cid_in, rec_total);
 		C2_UT_ASSERT(cid_in != NULL);
 
 		C2_ALLOC_ARR(cid_out, rec_total);
 		C2_UT_ASSERT(cid_out != NULL);
-	}
-
-	container_id = 200;
+	} else
+		container_id_in = 200;
 	j = rec_total - 1;
 
-	/* Fill in the database for same container id and varying fid values in
+	/* Fill in the database with varying fid values in
 	   decreasing order of fid key. This is done on purpose to test the
 	   ordering property where enumeration should be done in increasing
 	   order of the fid key.*/
@@ -114,69 +128,59 @@ static void container_enumerate(int rec_total, const char *map_path,
 		cob_fid_in[i].u_lo = j;
 
 
-		if (enum_type == ENUM_MAP) {
+		if (etype == ENUM_MAP) {
 			cid_in[i] = j;
 			rc = c2_cobfid_map_add(&cfm_map, cid_in[i],
 					       fid_in[i], cob_fid_in[i]);
-			printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
-					rc, cid_in[i], fid_in[i].f_key,
-					cob_fid_in[i].u_lo);
 		} else {
-			rc = c2_cobfid_map_add(&cfm_map, container_id,
+			rc = c2_cobfid_map_add(&cfm_map, container_id_in,
 					       fid_in[i], cob_fid_in[i]);
-			printf("\nADD: rc = %d, ci = %lu fid = %lu cfid = %lu",
-					rc, container_id, fid_in[i].f_key,
-					cob_fid_in[i].u_lo);
 		}
 		C2_UT_ASSERT(rc == 0);
 		j--;
 	}
 
 	rec_nr = 0;
-	if (enum_type == ENUM_CONTAINER) {
-		rc = c2_cobfid_map_container_enum(&cfm_map, container_id,
+	/* Container enumeration */
+	if (etype == ENUM_CONTAINER) {
+		rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in,
 						  &cfm_iter);
 		C2_UT_ASSERT(rc == 0);
 		while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
 						&container_id_out,
 						&fid_out[rec_nr],
 						&cob_fid_out[rec_nr])) == 0) {
-			printf("\nENUM:rc = %d, ci = %lu, fid = %lu,cfid = %lu",
-					rc, container_id_out,
-					fid_out[rec_nr].f_key,
-					cob_fid_out[rec_nr].u_lo);
 			rec_nr++;
 		}
-	} else if (enum_type == ENUM_MAP) {
+	} else if (etype == ENUM_MAP) { /* Device enumeration */
 		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
 		C2_UT_ASSERT(rc == 0);
 		while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
 						&cid_out[rec_nr],
 						&fid_out[rec_nr],
 						&cob_fid_out[rec_nr])) == 0) {
-			printf("\nENUM:rc = %d, ci = %lu, fid = %lu,cfid = %lu",
-					rc, cid_out[rec_nr],
-					fid_out[rec_nr].f_key,
-					cob_fid_out[rec_nr].u_lo);
 			rec_nr++;
 		}
 	}
 
+	c2_cobfid_map_iter_fini(&cfm_iter);
+
 	/* Check if number of records enumerated is same as number of records
 	   inserted */
-	printf("\nrec_nr = %d\n",rec_nr);
 	C2_UT_ASSERT(rec_nr == rec_total);
 
 	/* Check if the fid and cob input arrays are exact reverse of their
-	   corresponding out counterparts */
+	   corresponding out counterparts. Also check the cid array in case
+	   of map enumeration*/
 	for (i = 0; i < rec_total; i++) {
 		C2_UT_ASSERT(c2_fid_eq(&fid_in[i],
 				       &fid_out[rec_total - 1 - i]));
 		C2_UT_ASSERT(c2_uint128_eq(&cob_fid_in[i],
 					   &cob_fid_out[rec_total - 1 - i]));
-		if (enum_type == ENUM_MAP)
+		if (etype == ENUM_MAP) {
 			C2_UT_ASSERT(C2_3WAY(cid_in[i],
 					     cid_out[rec_total - 1 - i] == 0));
+		}
 	}
 
 	c2_free(fid_in);
@@ -184,41 +188,54 @@ static void container_enumerate(int rec_total, const char *map_path,
 	c2_free(fid_out);
 	c2_free(cob_fid_out);
 
-	if (enum_type == ENUM_MAP) {
+	if (etype == ENUM_MAP) {
 		c2_free(cid_in);
 		c2_free(cid_out);
 	}
 
-	c2_cobfid_map_iter_fini(&cfm_iter);
 	c2_cobfid_map_fini(&cfm_map);
 
 	rc = c2_ut_db_reset(map_path);
 	C2_UT_ASSERT(rc == 0);
 }
 
-void cfm_ut_container_enumerate(void)
+/* Container enumeration - single buffer fetch by iterator */
+void ce_single_buf(void)
 {
-	container_enumerate(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
-			    ENUM_CONTAINER);
-	container_enumerate(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
-			    ENUM_CONTAINER);
+	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
+			  ENUM_CONTAINER);
 }
 
-void cfm_ut_map_enumerate(void)
+/* Container enumeration - multiple buffer fetches by iterator */
+void ce_multiple_buf(void)
 {
-	container_enumerate(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
-			    ENUM_MAP);
-	container_enumerate(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
-			    ENUM_MAP);
+	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
+			  ENUM_CONTAINER);
+}
+
+/* Map enumeration - single buffer fetch by iterator */
+void me_single_buf(void)
+{
+	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
+			  ENUM_MAP);
+}
+
+/* Map enumeration - multiple buffer fetches by iterator */
+void me_multiple_buf(void)
+{
+	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
+			  ENUM_MAP);
 }
 
 const struct c2_test_suite cfm_ut = {
 	.ts_name = "cfm-ut",
-	.ts_init = NULL, 
+	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
-		{ "cfm-map-enumerate", cfm_ut_map_enumerate },
+		{ "cfm-container-enumerate-single-buffer", ce_single_buf },
+		{ "cfm-container-enumerate-multiple-buffers", ce_multiple_buf },
+		{ "cfm-map-enumerate-single-buffer", me_single_buf },
+		{ "cfm-map-enumerate-multiple-buffers", me_multiple_buf },
 		{ NULL, NULL }
 	}
 };
