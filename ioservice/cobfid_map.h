@@ -184,6 +184,12 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm,
 void c2_cobfid_map_fini(struct c2_cobfid_map *cfm);
 
 /**
+   Finalize use of a cobfid map iterator.
+   @param iter Pointer to the struct c2_cobfid_map_iter to finalize
+ */
+void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
+
+/**
    Creates an association between the tuple of (container_id, file_fid)
    and a cob_fid. Any previous cob_fid association is replaced.
    @param cfm          Pointer to the struct c2_cobfid_map.

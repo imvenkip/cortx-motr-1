@@ -28,15 +28,11 @@
 #include "lib/ut.h"
 #include "lib/memory.h"
 
-struct c2_dbenv cfm_dbenv;
-struct c2_addb_ctx cfm_addb_ctx;
-struct c2_cobfid_map cfm_map;
-struct c2_cobfid_map_iter cfm_iter;
-struct c2_dbenv cfm_dbenv;
 
 /* Number of records to be enumerated */
 enum {
-	REC_NR = 35
+	SINGLE_BUF_REC_NR = 16,
+	MULTIPLE_BUF_REC_NR = 351
 };
 
 /* Variables used for simple table insert-delete checks */
@@ -44,40 +40,13 @@ uint64_t container_id;
 struct c2_fid file_fid;
 struct c2_uint128 cob_fid;
 
-/* Variables used for container-enumeration */
-uint64_t container_id_out;
-struct c2_fid fid_in[REC_NR];
-struct c2_uint128 cob_fid_in[REC_NR];
-struct c2_fid fid_out[REC_NR];
-struct c2_uint128 cob_fid_out[REC_NR];
-
-static const char cfm_map_path[] = "cfm_map";
+static const char single_buf_cont_enum_path[] = "cfm_map_single_buf_ce";
+static const char multiple_buf_cont_enum_path[] = "cfm_map_multiple_buf_ce";
+static const char single_buf_map_enum_path[] = "cfm_map_single_buf_me";
+static const char multiple_buf_map_enum_path[] = "cfm_map_multiple_buf_me";
 static int rc;
 
-/* C2_UT_ASSERT not usable during ts_init */
-static int cfm_ut_init(void)
-{
-	rc = c2_ut_db_reset(cfm_map_path);
-	C2_ASSERT(rc == 0);
-
-        rc = c2_dbenv_init(&cfm_dbenv, cfm_map_path, 0);
-	C2_ASSERT(rc == 0);
-
-	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
-				"cfm_map_table");
-	C2_ASSERT(rc == 0);
-
-	return rc;
-}
-
-static int cfm_ut_fini(void)
-{
-
-	c2_cobfid_map_fini(&cfm_map);
-
-	return 0;
-}
-
+#if 0
 static void cfm_ut_insert(void)
 {
 	container_id = 100;
@@ -97,21 +66,53 @@ static void cfm_ut_delete(void)
 	rc = c2_cobfid_map_del(&cfm_map, container_id, file_fid);
 	C2_UT_ASSERT(rc == 0);
 }
+#endif
 
-static void cfm_ut_container_enumerate(void)
+static void container_enumerate(int rec_total, const char *map_path)
 {
-	int	 rec_nr;
-	int	 i;
-	int	 j;
+	int			 rec_nr;
+	int			 i;
+	int			 j;
+	uint64_t		 container_id_out;
+	struct c2_fid		*fid_in;
+	struct c2_uint128	*cob_fid_in;
+	struct c2_fid		*fid_out;
+	struct c2_uint128	*cob_fid_out;
+	struct c2_dbenv		 cfm_dbenv;
+	struct c2_addb_ctx	 cfm_addb_ctx;
+	struct c2_cobfid_map	 cfm_map;
+	struct c2_cobfid_map_iter cfm_iter;
+
+	rc = c2_ut_db_reset(map_path);
+	C2_UT_ASSERT(rc == 0);
+
+        rc = c2_dbenv_init(&cfm_dbenv, map_path, 0);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
+				"cfm_map_table");
+	C2_UT_ASSERT(rc == 0);
+
+	C2_ALLOC_ARR(fid_in, rec_total);
+	C2_UT_ASSERT(fid_in != NULL);
+
+	C2_ALLOC_ARR(cob_fid_in, rec_total);
+	C2_UT_ASSERT(cob_fid_in != NULL);
+
+	C2_ALLOC_ARR(fid_out, rec_total);
+	C2_UT_ASSERT(fid_out != NULL);
+
+	C2_ALLOC_ARR(cob_fid_out, rec_total);
+	C2_UT_ASSERT(cob_fid_out != NULL);
 
 	container_id = 200;
-	j = REC_NR - 1;
+	j = rec_total - 1;
 
 	/* Fill in the database for same container id and varying fid values in
 	   decreasing order of fid key. This is done on purpose to test the
 	   ordering property where enumeration should be done in increasing
 	   order of the fid key.*/
-	for (i = 0; i < REC_NR; i++) {
+	for (i = 0; i < rec_total; i++) {
 		/* Populate some random data */
 		fid_in[i].f_container = 0;
 		fid_in[i].f_key = j;
@@ -143,24 +144,37 @@ static void cfm_ut_container_enumerate(void)
 	/* Check if number of records enumerated is same as number of records
 	   inserted */
 	printf("\nrec_nr = %d\n",rec_nr);
-	C2_UT_ASSERT(rec_nr == REC_NR);
+	C2_UT_ASSERT(rec_nr == rec_total);
 
 	/* Check if the fid and cob input arrays are exact reverse of their
 	   corresponding out counterparts */
-	for (i = 0; i < REC_NR; i++) {
-		C2_UT_ASSERT(c2_fid_eq(&fid_in[i], &fid_out[REC_NR - 1 - i]));
+	for (i = 0; i < rec_total; i++) {
+		C2_UT_ASSERT(c2_fid_eq(&fid_in[i],
+				       &fid_out[rec_total - 1 - i]));
 		C2_UT_ASSERT(c2_uint128_eq(&cob_fid_in[i],
-					   &cob_fid_out[REC_NR - 1 - i]));
+					   &cob_fid_out[rec_total - 1 - i]));
 	}
+
+	c2_free(fid_in);
+	c2_free(cob_fid_in);
+	c2_free(fid_out);
+	c2_free(cob_fid_out);
+
+	c2_cobfid_map_iter_fini(&cfm_iter);
+	c2_cobfid_map_fini(&cfm_map);
+}
+
+void cfm_ut_container_enumerate(void)
+{
+	container_enumerate(SINGLE_BUF_REC_NR, single_buf_cont_enum_path);
+	container_enumerate(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path);
 }
 
 const struct c2_test_suite cfm_ut = {
 	.ts_name = "cfm-ut",
-	.ts_init = cfm_ut_init,
-	.ts_fini = cfm_ut_fini,
+	.ts_init = NULL, 
+	.ts_fini = NULL,
 	.ts_tests = {
-		{ "cfm-insert", cfm_ut_insert },
-		{ "cfm-delete", cfm_ut_delete },
 		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
 		{ NULL, NULL }
 	}
