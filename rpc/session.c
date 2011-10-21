@@ -110,7 +110,7 @@ struct fop_session_establish_ctx
 	struct c2_rpc_session *sec_session;
 };
 
-extern int frm_item_ready(struct c2_rpc_item *item);
+extern void frm_item_ready(struct c2_rpc_item *item);
 extern void frm_slot_idle(struct c2_rpc_slot *slot);
 
 /**
@@ -419,9 +419,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 
 	fop = &ctx->sec_fop;
 
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
-
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
@@ -634,8 +631,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		session_failed(session, rc);
 		goto out;
 	}
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	conn = session->s_conn;
 

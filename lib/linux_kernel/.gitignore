@@ -22,3 +22,4 @@ ut_time.c
 ut_vec.c
 tlist.c
 ut_tlist.c
+ut_zerovec.c

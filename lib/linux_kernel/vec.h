@@ -14,33 +14,42 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Anand Vidwansa <anand_vidwansa@xyratex.com>
+ * Original creation date: 10/11/2011
  */
 
-#include <linux/module.h>
+#ifndef __COLIBRI_LIB_LINUX_KERNEL_VEC_H__
+#define __COLIBRI_LIB_LINUX_KERNEL_VEC_H__
 
-#include "fop/fop.h"
+#include "lib/types.h"
 
 /**
-   @addtogroup fop
+   @addtogroup vec
    @{
+*/
+
+struct page;
+struct c2_0vec;
+
+/**
+   Add a struct page to contents of c2_0vec structure.
+   Struct page is kernel representation of a buffer.
+   @note The c2_0vec struct should be allocated by user.
+
+   @param zvec The c2_0vec struct to be initialized.
+   @param pages Array of kernel pages.
+   @param index The target object offset for page.
+   @post ++zvec->z_cursor.bc_vc.vc_seg
  */
+int c2_0vec_page_add(struct c2_0vec *zvec, struct page *pg,
+		     c2_bindex_t index);
 
-int init_module(void)
-{
-        return c2_fops_init();
-}
+/** @} end of vec group */
 
-void cleanup_module(void)
-{
-        c2_fops_fini();
-}
+/* __COLIBRI_LIB_LINUX_KERNEL_VEC_H__ */
+#endif
 
-
-/** @} end of fop group */
-
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
