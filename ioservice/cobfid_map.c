@@ -579,12 +579,20 @@ cleanup:
 static bool enum_at_end(struct c2_cobfid_map_iter *iter,
 				  unsigned int idx)
 {
+	struct cobfid_map_record *recs;
+
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
-	/* Should always return false in generic map enumeration case
-	   since there is no specific condition (similar to container
-	   enumeration) which indicates the end of the map. DB I/O error
-	   will exhaust the iterator */
+	recs = iter->cfmi_buffer;
+
+	if (iter->cfmi_end_of_table &&
+			iter->cfmi_last_rec == iter->cfmi_rec_idx)
+		return true;
+
+	if (idx < CFM_ITER_THUNK - 1 &&
+	    recs[idx].cfr_key.cfk_ci == recs[idx + 1].cfr_key.cfk_ci)
+		return false;
+
 	return false;
 }
 

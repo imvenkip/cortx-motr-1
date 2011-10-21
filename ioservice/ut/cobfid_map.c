@@ -46,29 +46,13 @@ static const char single_buf_map_enum_path[] = "cfm_map_single_buf_me";
 static const char multiple_buf_map_enum_path[] = "cfm_map_multiple_buf_me";
 static int rc;
 
-#if 0
-static void cfm_ut_insert(void)
-{
-	container_id = 100;
-	file_fid.f_container = 83;
-	file_fid.f_key = 38;
-	cob_fid.u_hi = 111;
-	cob_fid.u_lo = 222;
-	rc = c2_cobfid_map_add(&cfm_map, container_id, file_fid, cob_fid);
-	C2_UT_ASSERT(rc == 0);
-}
+enum {
+	ENUM_CONTAINER,
+	ENUM_MAP
+};
 
-static void cfm_ut_delete(void)
-{
-	container_id = 100;
-	file_fid.f_container = 83;
-	file_fid.f_key = 38;
-	rc = c2_cobfid_map_del(&cfm_map, container_id, file_fid);
-	C2_UT_ASSERT(rc == 0);
-}
-#endif
-
-static void container_enumerate(int rec_total, const char *map_path)
+static void container_enumerate(int rec_total, const char *map_path,
+				int enum_type )
 {
 	int			 rec_nr;
 	int			 i;
@@ -129,7 +113,12 @@ static void container_enumerate(int rec_total, const char *map_path)
 				cob_fid_in[i].u_lo);
 	}
 
-	rc = c2_cobfid_map_container_enum(&cfm_map, container_id, &cfm_iter);
+	if (enum_type == ENUM_CONTAINER)
+		rc = c2_cobfid_map_container_enum(&cfm_map, container_id,
+						  &cfm_iter);
+	else if (enum_type == ENUM_MAP)
+		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
+
 	C2_UT_ASSERT(rc == 0);
 
 	rec_nr = 0;
@@ -166,8 +155,18 @@ static void container_enumerate(int rec_total, const char *map_path)
 
 void cfm_ut_container_enumerate(void)
 {
-	container_enumerate(SINGLE_BUF_REC_NR, single_buf_cont_enum_path);
-	container_enumerate(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path);
+	container_enumerate(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
+			    ENUM_CONTAINER);
+	container_enumerate(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
+			    ENUM_CONTAINER);
+}
+
+void cfm_ut_map_enumerate(void)
+{
+	container_enumerate(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
+			    ENUM_MAP);
+	container_enumerate(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
+			    ENUM_MAP);
 }
 
 const struct c2_test_suite cfm_ut = {
@@ -176,6 +175,7 @@ const struct c2_test_suite cfm_ut = {
 	.ts_fini = NULL,
 	.ts_tests = {
 		{ "cfm-container-enumerate", cfm_ut_container_enumerate },
+		{ "cfm-map-enumerate", cfm_ut_map_enumerate },
 		{ NULL, NULL }
 	}
 };
