@@ -219,6 +219,189 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 }
 C2_EXPORTED(c2_bufvec_cursor_copy);
 
+void c2_0vec_free(struct c2_0vec *zvec)
+{
+	if (zvec != NULL) {
+		c2_free(zvec->z_bvec.ov_vec.v_count);
+		c2_free(zvec->z_bvec.ov_buf);
+		c2_free(zvec->z_indices);
+	}
+}
+C2_EXPORTED(c2_0vec_free);
+
+static bool zerovec_invariant(struct c2_0vec *zvec)
+{
+	int		  i;
+	struct c2_bufvec *bvec;
+
+	if (zvec == NULL || zvec->z_indices == NULL)
+		return false;
+
+	bvec = &zvec->z_bvec;
+	if (bvec->ov_buf == NULL ||
+	    bvec->ov_vec.v_count == NULL ||
+	    bvec->ov_vec.v_nr == 0)
+		return false;
+
+	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
+		if (bvec->ov_vec.v_count[i] == 0)
+			return false;
+
+	if (zvec->z_cursor.bc_vc.vc_seg > bvec->ov_vec.v_nr)
+		return false;
+
+	return true;
+}
+
+int c2_0vec_init(struct c2_0vec *zvec,
+		 const uint32_t segs_nr,
+		 const c2_bcount_t seg_size)
+{
+	int i;
+
+	C2_PRE(zvec != NULL);
+	C2_PRE(segs_nr != 0);
+	C2_PRE(seg_size != 0);
+
+	C2_SET0(zvec);
+	C2_ALLOC_ARR(zvec->z_indices, segs_nr);
+	if (zvec->z_indices == NULL)
+		return -ENOMEM;
+
+	C2_ALLOC_ARR(zvec->z_bvec.ov_vec.v_count, segs_nr);
+	if (zvec->z_bvec.ov_vec.v_count == NULL)
+		goto failure;
+
+	for (i = 0; i < segs_nr; ++i)
+		zvec->z_bvec.ov_vec.v_count[i] = seg_size;
+
+	zvec->z_bvec.ov_vec.v_nr = segs_nr;
+
+	C2_ALLOC_ARR(zvec->z_bvec.ov_buf, segs_nr);
+	if (zvec->z_bvec.ov_buf == NULL)
+		goto failure;
+
+	c2_bufvec_cursor_init(&zvec->z_cursor, &zvec->z_bvec);
+
+	C2_POST(zerovec_invariant(zvec));
+	return 0;
+failure:
+	c2_0vec_free(zvec);
+	return -ENOMEM;
+}
+C2_EXPORTED(c2_0vec_init);
+
+int c2_0vec_bvec_init(struct c2_0vec *zvec,
+		      const struct c2_bufvec *bufvec,
+		      const c2_bindex_t *indices)
+{
+	bool		  move = false;
+	uint32_t	  i;
+	c2_bcount_t	  step;
+	struct c2_bufvec *bvec;
+
+	C2_PRE(zvec != NULL);
+	C2_PRE(bufvec != NULL);
+	C2_PRE(indices != NULL);
+
+	bvec = &zvec->z_bvec;
+	if (c2_bufvec_cursor_move(&zvec->z_cursor, 0) ||
+	    bufvec->ov_vec.v_nr > bvec->ov_vec.v_nr ||
+	    c2_vec_count(&bufvec->ov_vec) > c2_vec_count(&bvec->ov_vec))
+		return -EMSGSIZE;
+
+	for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
+		if (bufvec->ov_vec.v_count[i] > bvec->ov_vec.v_count[i])
+			return -EMSGSIZE;
+
+	for (i = 0; i < bufvec->ov_vec.v_nr && !move; ++i) {
+		zvec->z_indices[i] = indices[i];
+		bvec->ov_vec.v_count[i] = bufvec->ov_vec.v_count[i];
+		bvec->ov_buf[i] = bufvec->ov_buf[i];
+		step = c2_bufvec_cursor_step(&zvec->z_cursor);
+		move = c2_bufvec_cursor_move(&zvec->z_cursor, step);
+	}
+
+	C2_POST(zerovec_invariant(zvec));
+	return i == bufvec->ov_vec.v_nr ? 0 : -EMSGSIZE;
+}
+C2_EXPORTED(c2_0vec_bvec_init);
+
+int c2_0vec_bufs_init(struct c2_0vec *zvec,
+		      void **bufs,
+		      const c2_bindex_t *indices,
+		      const c2_bcount_t *counts,
+		      const uint32_t segs_nr)
+{
+	int		  i;
+	bool		  move = false;
+	c2_bcount_t	  step;
+	c2_bcount_t	  total_bufsize;
+	struct c2_bufvec *bvec;
+
+	C2_PRE(zvec != NULL);
+	C2_PRE(bufs != NULL);
+	C2_PRE(indices != NULL);
+	C2_PRE(counts != NULL);
+	C2_PRE(segs_nr != 0);
+
+	bvec = &zvec->z_bvec;
+	if (c2_bufvec_cursor_move(&zvec->z_cursor, 0) ||
+	    segs_nr > bvec->ov_vec.v_nr)
+		return -EMSGSIZE;
+
+	for (total_bufsize = 0, i = 0; i < segs_nr; ++i) {
+		if (counts[i] > bvec->ov_vec.v_count[i])
+			return -EMSGSIZE;
+		total_bufsize += counts[i];
+	}
+
+	if (total_bufsize > c2_vec_count(&bvec->ov_vec))
+		return -EMSGSIZE;
+
+	for (i = 0; i < segs_nr && !move; ++i) {
+		zvec->z_indices[i] = indices[i];
+		bvec->ov_vec.v_count[i] = counts[i];
+		bvec->ov_buf[i] = bufs[i];
+		step = c2_bufvec_cursor_step(&zvec->z_cursor);
+		move = c2_bufvec_cursor_move(&zvec->z_cursor, step);
+	}
+
+	C2_POST(zerovec_invariant(zvec));
+	return i == segs_nr ? 0 : -EMSGSIZE;
+}
+C2_EXPORTED(c2_0vec_bufs_init);
+
+int c2_0vec_cbuf_add(struct c2_0vec *zvec,
+		     const struct c2_buf *buf,
+		     const c2_bindex_t *index)
+{
+	uint32_t	  curr_seg;
+	c2_bcount_t	  step;
+	struct c2_bufvec *bvec;
+
+	C2_PRE(zvec != NULL);
+	C2_PRE(buf != NULL);
+	C2_PRE(index != NULL);
+
+	bvec = &zvec->z_bvec;
+	curr_seg = zvec->z_cursor.bc_vc.vc_seg;
+
+	if (c2_bufvec_cursor_move(&zvec->z_cursor, 0) ||
+	    buf->b_nob > bvec->ov_vec.v_count[curr_seg])
+		return -EMSGSIZE;
+
+	bvec->ov_buf[curr_seg] = buf->b_addr;
+	bvec->ov_vec.v_count[curr_seg] = buf->b_nob;
+	zvec->z_indices[curr_seg] = *index;
+	step = c2_bufvec_cursor_step(&zvec->z_cursor);
+	c2_bufvec_cursor_move(&zvec->z_cursor, step);
+
+	C2_POST(zerovec_invariant(zvec));
+	return 0;
+}
+C2_EXPORTED(c2_0vec_cbuf_add);
+
 /** @} end of vec group */
 
 /*

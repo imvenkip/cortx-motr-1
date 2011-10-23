@@ -1,13 +1,13 @@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
-obj-m       := klibc2.o
+obj-y       := klibc2.o
 shared_src  := bitstring.c vec.c list.c queue.c refs.c time.c bitmap.c chan.c misc.c buf.c\
                cond.c thread.c tlist.c
 kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c kthread.c \
-               semaphore.c main.c processor.c ut.c
+               semaphore.c main.c processor.c ut.c kvec.c
 # rename ut files while linking to avoid name clashes
 ut_orig     := bitmap.c chan.c list.c mutex.c queue.c refs.c rwlock.c \
-               thread.c time.c vec.c tlist.c
+               thread.c time.c vec.c tlist.c zerovec.c
 ut_src      := $(ut_orig:%=ut_%)
 klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o) $(ut_src:.c=.o)
 orig_src    := $(shared_src:%=../%)
