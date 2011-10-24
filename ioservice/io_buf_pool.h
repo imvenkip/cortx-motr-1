@@ -40,7 +40,7 @@ struct c2_buf_pool_item;
 
 /**
    Initializes a buffer pool.
-   @pre buf_size > 0 && seg_size > 0
+   @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
    @pre pool->bp_ndom != NULL
    @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(pool->bp_ndom)
    @pre seg_size <= c2_net_domain_get_max_buffer_segment_size(pool->bp_ndom)
