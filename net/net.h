@@ -1125,6 +1125,10 @@ enum c2_net_buf_flags {
    and deregister them before shutting down.
  */
 struct c2_net_buffer {
+	/** Link for tlist. */
+	struct c2_tlink	      bpi_link;
+	/** Magic for tlist. */
+	uint64_t	      bpi_magic;
 	/**
 	   Vector pointing to memory associated with this data structure.
 	   Initialized by the application prior to registration.

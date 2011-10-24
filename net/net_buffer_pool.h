@@ -36,7 +36,7 @@
   */
 
 struct c2_buf_pool;
-struct c2_buf_pool_item;
+//struct c2_buf_pool_item;
 
 /**
    Initializes a buffer pool.
@@ -103,17 +103,17 @@ struct c2_buf_pool_ops {
 };
 
 /** It encompasses into the buffer list. */
-struct c2_buf_pool_item {
+//struct c2_buf_pool_item {
 	/** Link for tlist. */
-	struct c2_tlink	      bpi_link;
+//	struct c2_tlink	      bpi_link;
 	/** Magic for tlist. */
-	uint64_t	      bpi_magic;
+//	uint64_t	      bpi_magic;
 	/**
 	    The Associated buffer linked into the global buffer List via
 	    bpi_link.
 	 */
-	struct c2_net_buffer  bpi_nb;
-};
+//	struct c2_net_buffer  bpi_nb;
+//};
 
 /* Buffer pool context. */
 struct c2_buf_pool {

@@ -28,7 +28,7 @@
 #include "net/bulk_sunrpc.h"
 #include <unistd.h>
 #include <stdio.h>
-#include "ioservice/io_buf_pool.h"
+#include "net/net_buffer_pool.h"
 
 void NotEmpty(struct c2_buf_pool *bp);
 void Low(struct c2_buf_pool *bp);
@@ -119,7 +119,7 @@ void Low(struct c2_buf_pool *bp)
 	printf("Buffer pool is LOW \n");
 }
 
-const struct c2_test_suite buf_pool_ut = {
+const struct c2_test_suite buffer_pool_ut = {
 	.ts_name = "buf_pool_ut... this takes about 30 seconds",
 	.ts_init = NULL,
 	.ts_fini = NULL,
