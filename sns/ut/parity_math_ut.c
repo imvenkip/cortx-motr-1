@@ -76,7 +76,7 @@ extern bool expected_cmp(uint32_t data_count, uint32_t buff_size)
 				/* printf("expected_cmp data[%d][%d]\n", i, j); */
 				return false;
 			}
-	
+
 	return true;
 }
 
@@ -107,7 +107,7 @@ static bool config_generate(uint32_t *data_count,
 			expected[i][j] = data[i][j];
 		}
 	}
-	
+
 	/* printf("f: "); */
 	j = 0;
 	for (i = 0; i < fuc; ++i)
@@ -120,7 +120,7 @@ static bool config_generate(uint32_t *data_count,
 		if (fail[i])
 			++j;
 	}
-	
+
 	if (!j) { /* at least one fail */
 		fail[fuc/2] = 1;
 	}
@@ -134,7 +134,7 @@ static bool config_generate(uint32_t *data_count,
 	*data_count = duc;
 	*parity_count = puc;
 	*buff_size = UNIT_BUFF_SIZE;
-	
+
 	fuc-=3;
 	return true;
 }
@@ -175,11 +175,11 @@ void test_parity_math(void)
 		c2_buf_init(&fail_buf, fail, buff_size);
 
 		c2_parity_math_calculate(&math, data_buf, parity_buf);
-	
+
 		unit_spoil(buff_size, fail_count, data_count);
 
 		c2_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
-	
+
 		c2_parity_math_fini(&math);
 
 		if (!expected_cmp(data_count, buff_size)) {
@@ -207,6 +207,7 @@ void parity_math_tb(void)
 
 		/* printf("0) d:%d, p:%d, b: %d\n", data_count, parity_count, buff_size); */
 		ret = c2_parity_math_init(&math, data_count, parity_count);
+		C2_ASSERT(ret == 0);
 		/* printf("1) %d\n", ret); */
 
 		for (i = 0; i < data_count; ++i) {
@@ -217,7 +218,7 @@ void parity_math_tb(void)
 		c2_buf_init(&fail_buf, fail, buff_size);
 
 		c2_parity_math_calculate(&math, data_buf, parity_buf);
-	
+
 		unit_spoil(buff_size, fail_count, data_count);
 
 		c2_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);

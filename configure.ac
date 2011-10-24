@@ -309,6 +309,24 @@ AC_ARG_WITH([linux],
 AC_MSG_RESULT([$LINUX])
 AC_SUBST([LINUX])
 
+AC_ARG_ENABLE(coverage,
+	[  --enable-coverage  Build for test coverage analysis],
+	[case "${enableval}" in
+		yes) ENABLE_COVERAGE=1 ;;
+		no) ENABLE_COVERAGE=0 ;;
+		*) AC_MSG_ERROR([Invalid value ${enableval} for --enable-coverage]) ;;
+	esac],
+	[ENABLE_COVERAGE=0])
+
+AC_SUBST([ENABLE_COVERAGE])
+
+if test "x[$]ENABLE_COVERAGE" = "x1"
+then
+	# Remove -O<digit> flag from $CFLAGS
+	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
+	LDFLAGS="-lgcov"
+fi
+
 AC_MSG_CHECKING([for linux objects dir])
 AC_ARG_WITH([linux-obj],
         [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])],
@@ -512,6 +530,7 @@ AC_CONFIG_FILES([
                  c2t1fs/Makefile
                  capa/Makefile
                  capa/ut/Makefile
+                 cfg/Makefile
                  cob/Makefile
                  cob/linux_kernel/Makefile
                  cob/ut/Makefile

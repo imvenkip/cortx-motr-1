@@ -13,8 +13,8 @@ verbose=0
 topdir=$(dirname $0)/..
 
 CC=${CC:-"cc"}
-CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
-LDFLAGS=${LDFLAGS:-"-rdynamic -pthread"}
+CFLAGS="@CFLAGS@"
+LDFLAGS="@LDFLAGS@ -rdynamic -pthread"
 DEFINES="-DHAVE_CONFIG"
 INC="-I$topdir -I@DB_SRC@ -I@DB_SRC@/build_unix"
 
@@ -219,5 +219,6 @@ done
 
 if [ $verbose -eq 0 ] ;then
     rm -fr $fbase*
+    rm -fr fop2c-$tid*
 fi
 

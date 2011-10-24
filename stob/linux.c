@@ -320,11 +320,8 @@ static void linux_stob_fini(struct c2_stob *stob)
  */
 static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
-	struct linux_domain *ldom;
 	char                 pathname[64];
 	int                  result;
-
-	ldom  = domain2linux(lstob->sl_stob.so_domain);
 
 	C2_ASSERT(linux_stob_invariant(lstob));
 	C2_ASSERT(lstob->sl_fd == -1);
