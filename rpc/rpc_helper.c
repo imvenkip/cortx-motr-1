@@ -131,7 +131,8 @@ int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
 		goto out;
 
 	rc = c2_rpc_conn_create(&rctx->rx_connection, rctx->rx_remote_ep,
-				&rctx->rx_rpc_machine, rctx->rx_max_rpcs_in_flight,
+				&rctx->rx_rpc_machine,
+				rctx->rx_max_rpcs_in_flight,
 				rctx->rx_timeout_s);
 	if (rc != 0)
 		goto fini_common;

@@ -487,7 +487,8 @@ int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
 			rc = -ECONNREFUSED;
 			goto out;
 		default:
-			C2_ASSERT("internal logic error in c2_rpc_session_timedwait()" == 0);
+			C2_ASSERT("internal logic error in "
+				  "c2_rpc_session_timedwait()" == 0);
 		}
 	} else {
 		rc = -ETIMEDOUT;
@@ -742,7 +743,8 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 			rc = -ECONNREFUSED;
 			goto out;
 		default:
-			C2_ASSERT("internal logic error in c2_rpc_session_timedwait()" == 0);
+			C2_ASSERT("internal logic error in "
+				  "c2_rpc_session_timedwait()" == 0);
 		}
 	} else {
 		rc = -ETIMEDOUT;

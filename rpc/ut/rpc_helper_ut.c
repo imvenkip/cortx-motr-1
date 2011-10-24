@@ -102,7 +102,6 @@ static void test_rpc_helper(void)
 	struct c2_net_domain  net_dom = { };
 
 	struct c2_rpc_ctx server_rctx = {
-		.rx_xprt               = xprt,
 		.rx_net_dom            = &net_dom,
 		.rx_reqh               = NULL,
 		.rx_local_addr         = SERVER_ENDPOINT_ADDR,
@@ -115,7 +114,6 @@ static void test_rpc_helper(void)
 	};
 
 	struct c2_rpc_ctx client_rctx = {
-		.rx_xprt               = xprt,
 		.rx_net_dom            = &net_dom,
 		.rx_reqh               = NULL,
 		.rx_local_addr         = CLIENT_ENDPOINT_ADDR,

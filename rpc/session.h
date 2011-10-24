@@ -578,7 +578,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
  *
  * @param conn        A connection object to operate on.
  * @param timeout_sec How much time in seconds to wait for connection
- * 		      to become active.
+ *                    to become active.
  *
  * @pre  conn->c_state == C2_RPC_CONN_INITIALISED
  * @post conn->c_state == C2_RPC_CONN_ACTIVE
@@ -616,10 +616,10 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
  *
  * @param conn        A connection object to operate on.
  * @param timeout_sec How much time in seconds to wait for connection
- * 		      to become terminated.
+ *                    to become terminated.
  *
  * @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
- *      	conn->c_state == C2_RPC_CONN_TERMINATING
+ *       conn->c_state == C2_RPC_CONN_TERMINATING
  * @post conn->c_state == C2_RPC_CONN_TERMINATED
  */
 int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
@@ -996,11 +996,11 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session);
  *
  * @param session     A session object to operate on.
  * @param timeout_sec How much time in seconds to wait for session to become
- * 		      terminated.
+ *                    terminated.
  *
-   @pre (session->s_state == C2_RPC_SESSION_IDLE ||
-	 session->s_state == C2_RPC_SESSION_TERMINATING)
-   @post session->s_state == C2_RPC_SESSION_TERMINATED
+ * @pre (session->s_state == C2_RPC_SESSION_IDLE ||
+ *       session->s_state == C2_RPC_SESSION_TERMINATING)
+ * @post session->s_state == C2_RPC_SESSION_TERMINATED
  */
 int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 				  uint32_t timeout_sec);

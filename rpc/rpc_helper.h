@@ -46,7 +46,6 @@ struct c2_rpc_ctx {
 	 * c2_rpc_server_init() and c2_rpc_client_init().
 	 */
 
-	struct c2_net_xprt      *rx_xprt;
         struct c2_net_domain    *rx_net_dom;
 
 	/** Can be NULL. In this case a default reqh will be allocated and
