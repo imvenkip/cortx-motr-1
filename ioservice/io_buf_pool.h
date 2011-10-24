@@ -42,7 +42,7 @@ struct c2_buf_pool_item;
    Initializes a buffer pool.
    @pre buf_size > 0 && seg_size > 0
    @pre pool->bp_ndom != NULL
-   @pre buf_size <= c2_net_domain_get_max_buffer_size(pool->bp_ndom)
+   @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(pool->bp_ndom)
    @pre seg_size <= c2_net_domain_get_max_buffer_segment_size(pool->bp_ndom)
 
    @param buf_nr    Number of buffers in the pool.
@@ -66,7 +66,7 @@ bool c2_buf_pool_is_locked(const struct c2_buf_pool *pool);
 void c2_buf_pool_unlock(struct c2_buf_pool *pool);
 
 /**
-   Returns a buffer from the pool.
+   Gets a buffer from the pool.
    Returns NULL when the pool is empty.
    @pre c2_buf_pool_is_locked(pool)
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
@@ -74,8 +74,9 @@ void c2_buf_pool_unlock(struct c2_buf_pool *pool);
 struct c2_net_buffer *c2_buf_pool_get(struct c2_buf_pool *pool);
 
 /**
-   Returns the buffer back to the pool.
+   Puts the buffer back to the pool.
    @pre c2_buf_pool_is_locked(pool)
+   @pre pool->bp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
         !(buf->nb_flags & C2_NET_BUF_IN_USE)
  */
@@ -85,7 +86,13 @@ void c2_buf_pool_put(struct c2_buf_pool *pool, struct c2_net_buffer *buf);
    Adds a buffer to the pool to increase the capacity.
    @pre c2_buf_pool_is_locked(pool)
  */
-int c2_buf_pool_add(struct c2_buf_pool *pool);
+bool c2_buf_pool_grow(struct c2_buf_pool *pool);
+
+/**
+   Removes a buffer from the pool to prune it.
+   @pre c2_buf_pool_is_locked(pool)
+ */
+bool c2_buf_pool_prune(struct c2_buf_pool *pool);
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
 struct c2_buf_pool_ops {
@@ -101,7 +108,10 @@ struct c2_buf_pool_item {
 	struct c2_tlink	      bpi_link;
 	/** Magic for tlist. */
 	uint64_t	      bpi_magic;
-	/** List of buffers to be stored in tlist. */
+	/**
+	    The Associated buffer linked into the global buffer List via
+	    bpi_link.
+	 */
 	struct c2_net_buffer  bpi_nb;
 };
 

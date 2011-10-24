@@ -52,7 +52,7 @@ void test_buf_pool()
 	int i;
 	struct c2_net_buffer *nb = NULL;
 	struct c2_net_xprt *xprt;
-	
+
 	c2_chan_init(&buf_chan);
 	xprt = &c2_net_bulk_sunrpc_xprt;
 	c2_net_xprt_init(xprt);
@@ -66,8 +66,8 @@ void test_buf_pool()
 	c2_buf_pool_lock(&bp);
 	nb = c2_buf_pool_get(&bp);
 	c2_buf_pool_put(&bp, nb);
-	rc = c2_buf_pool_add(&bp);
-	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(c2_buf_pool_grow(&bp));
+	C2_UT_ASSERT(c2_buf_pool_prune(&bp));
 	c2_buf_pool_unlock(&bp);
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 	C2_UT_ASSERT(client_thread != NULL);
