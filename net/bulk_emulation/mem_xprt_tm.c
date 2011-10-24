@@ -58,6 +58,11 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 				tp->xtm_state = C2_NET_XTM_FAILED;
 				ev.nte_next_state = C2_NET_TM_FAILED;
 				ev.nte_status = wi->xwi_status;
+				if (wi->xwi_nbe_ep != NULL) {
+					/* must free ep before posting event */
+					c2_ref_put(&wi->xwi_nbe_ep->nep_ref);
+					wi->xwi_nbe_ep = NULL;
+				}
 			} else {
 				tp->xtm_state = next_state;
 				ev.nte_next_state = C2_NET_TM_STARTED;
