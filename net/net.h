@@ -374,6 +374,16 @@ struct c2_net_stats {
  @{
  */
 
+struct c2_net_buffer_pool;
+
+/** Call backs that buffer pool can trigger on different memory conditions. */
+struct c2_net_buffer_pool_ops {
+	/** Buffer pool is not empty. */
+	void (*nbpo_not_empty)(struct c2_net_buffer_pool *);
+	/** Buffers in memory are lower than threshold. */
+	void (*nbpo_below_threshold)(struct c2_net_buffer_pool *);
+};
+
 /**
    A collection of network resources.
  */
@@ -410,6 +420,10 @@ struct c2_net_domain {
 
         /** <b>Deprecated.</b> Domain network stats */
         struct c2_net_stats nd_stats[NS_STATS_NR];
+
+	/** Call back operations can be triggered by buffer pool. */
+	const struct c2_net_buffer_pool_ops *nd_ops;
+
 	/**
 	   ADDB context for events related to this domain
 	 */
@@ -1125,10 +1139,10 @@ enum c2_net_buf_flags {
    and deregister them before shutting down.
  */
 struct c2_net_buffer {
-	/** Link for tlist. */
-	struct c2_tlink	      bpi_link;
-	/** Magic for tlist. */
-	uint64_t	      bpi_magic;
+	/** Linkage into net buffer list. */
+	struct c2_tlink	      	   nb_linkage;
+	/** Magic for net buffer tlist. */
+	uint64_t	      	   nb_magic;
 	/**
 	   Vector pointing to memory associated with this data structure.
 	   Initialized by the application prior to registration.
