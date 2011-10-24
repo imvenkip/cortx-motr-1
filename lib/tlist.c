@@ -230,7 +230,7 @@ C2_EXPORTED(c2_tlist_invariant);
 
 bool c2_tlink_invariant(const struct c2_tl_descr *d, const void *obj)
 {
-	return d->td_link_magic == 0 ?: magic(d, obj) == d->td_link_magic;
+	return d->td_link_magic == 0 || magic(d, obj) == d->td_link_magic;
 }
 C2_EXPORTED(c2_tlink_invariant);
 

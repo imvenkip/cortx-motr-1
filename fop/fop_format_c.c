@@ -215,10 +215,8 @@ static void memlayout(struct c2_fop_field_type *ftype, const char *where)
 	printf("\t.fm_child = {\n");
 	for (i = 0; i < ftype->fft_nr; ++i) {
 		struct c2_fop_field *f;
-		struct c_fop_field_decor *fd;
 
 		f  = ftype->fft_child[i];
-		fd = FD(f);
 		printf("\t\t{ ");
 		if (f->ff_name[0] != 0)
 			printf("offsetof(%s, %s%s)", TD(ftype)->d_type,

@@ -485,7 +485,6 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 			     struct c2_rpc_item *req_item)
 {
 	struct c2_rpc_frm_sm		*frm_sm;
-	enum c2_rpc_frm_state		 sm_state;
 
 	C2_PRE(req_item != NULL);
 
@@ -493,7 +492,6 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 
 	c2_mutex_lock(&frm_sm->fs_lock);
 	frm_reply_received(frm_sm, req_item);
-	sm_state = frm_sm->fs_state;
 	c2_mutex_unlock(&frm_sm->fs_lock);
 	sm_forming_state(frm_sm, req_item);
 }
@@ -529,14 +527,12 @@ static void item_deadline_handle(struct c2_rpc_frm_sm *frm_sm,
 void frm_item_deadline(struct c2_rpc_item *item)
 {
 	struct c2_rpc_frm_sm	*frm_sm;
-	enum c2_rpc_frm_state	 sm_state;
 
 	C2_PRE(item != NULL);
 
 	frm_sm = item_to_frm_sm(item);
 	c2_mutex_lock(&frm_sm->fs_lock);
 	item_deadline_handle(frm_sm, item);
-	sm_state = frm_sm->fs_state;
 	c2_mutex_unlock(&frm_sm->fs_lock);
 	sm_forming_state(frm_sm, item);
 }
@@ -1102,6 +1098,9 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 					rc = coalesce_try(frm_sm, rpc_item,
 							rpcobj_size);
 					c2_mutex_unlock(&session->s_mutex);
+					if (rc != 0) {
+						/* Handle error... */
+					}
 				}
 			} else
 				break;
@@ -1193,6 +1192,9 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 					c2_list_del(&item->ri_unbound_link);
 					rc = coalesce_try(frm_sm, item,
 							  rpcobj_size);
+					if (rc != 0) {
+						/* Handle error... */
+					}
 				}
 			} else
 				break;
@@ -1319,7 +1321,6 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 	uint64_t			 rpc_size;
 	struct c2_rpc			*rpc_obj;
 	struct c2_rpc			*rpc_obj_next;
-	struct c2_rpc_item		*item;
 	struct c2_net_domain		*dom;
 	struct c2_rpc_frm_buffer	*fb;
 	struct c2_net_transfer_mc	*tm;
@@ -1332,8 +1333,6 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 	/* Iterate over the rpc object list and send all rpc objects on wire. */
 	c2_list_for_each_entry_safe(&frm_sm->fs_rpcs, rpc_obj,
 			rpc_obj_next, struct c2_rpc, r_linkage) {
-		item = c2_list_entry((c2_list_first(&rpc_obj->r_items)),
-				struct c2_rpc_item, ri_rpcobject_linkage);
 		if (frm_sm->fs_sender_side &&
 				frm_sm->fs_curr_rpcs_in_flight >=
 				frm_sm->fs_max_rpcs_in_flight) {
