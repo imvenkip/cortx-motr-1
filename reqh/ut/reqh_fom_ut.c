@@ -775,7 +775,6 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
         c2_bcount_t                      count;
         c2_bcount_t                      offset;
         uint32_t                         bshift;
-        uint64_t                         bmask;
         int                              result;
 
         C2_PRE(fom->fo_fop->f_type->ft_code == READ_REQ);
@@ -797,7 +796,6 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
 
                         stobj =  fom_obj->rh_ut_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
-                        bmask  = (1 << bshift) - 1;
 
                         addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
                         count = 1 >> bshift;
@@ -887,7 +885,6 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
         c2_bcount_t                      count;
         c2_bindex_t                      offset;
         uint32_t                         bshift;
-        uint64_t                         bmask;
         int                              result;
 
         C2_PRE(fom->fo_fop->f_type->ft_code == WRITE_REQ);
@@ -909,7 +906,6 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
 
                         stobj = fom_obj->rh_ut_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
-                        bmask  = (1 << bshift) - 1;
 
                         addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
                         count = 1 >> bshift;
@@ -1406,7 +1402,7 @@ void test_reqh(void)
 }
 
 const struct c2_test_suite reqh_ut = {
-	.ts_name = "reqh-ut... this takes about 30 seconds",
+	.ts_name = "reqh-ut...",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
