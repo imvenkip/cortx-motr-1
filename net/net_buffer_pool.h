@@ -53,6 +53,7 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
    Populates the buffer pool.
    @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
    @pre pool->nbp_ndom != NULL
+   @pre c2_net_buffer_pool_is_locked(pool)
    @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(pool->nbp_ndom)
    @pre seg_size <= c2_net_domain_get_max_buffer_segment_size(pool->nbp_ndom)
 

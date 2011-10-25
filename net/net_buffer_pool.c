@@ -91,6 +91,7 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	buf_size = seg_nr * seg_size;
 	C2_PRE(pool != NULL);
 	C2_PRE(pool->nbp_ndom != NULL);
+   	C2_PRE(c2_net_buffer_pool_is_locked(pool));
 	C2_PRE(buf_size <=
 		c2_net_domain_get_max_buffer_size(pool->nbp_ndom));
 	C2_PRE(seg_size <=
