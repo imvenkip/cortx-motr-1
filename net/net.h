@@ -1139,10 +1139,10 @@ enum c2_net_buf_flags {
    and deregister them before shutting down.
  */
 struct c2_net_buffer {
-	/** Linkage into net buffer list. */
-	struct c2_tlink	      	   nb_linkage;
-	/** Magic for net buffer tlist. */
-	uint64_t	      	   nb_magic;
+	/** Linkage into a network buffer pool. */
+	struct c2_tlink	      	   nb_pool_linkage;
+	/** Magic for network buffer list. */
+	uint64_t	      	   nb_pool_magic;
 	/**
 	   Vector pointing to memory associated with this data structure.
 	   Initialized by the application prior to registration.

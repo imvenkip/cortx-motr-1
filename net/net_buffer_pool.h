@@ -41,6 +41,15 @@ struct c2_net_buffer_pool;
    Initializes a buffer pool.
    @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
    @pre pool->nbp_ndom != NULL
+   @param threshold Number of buffer below which to notify the user.
+ */
+int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
+			    struct c2_net_domain *ndom, uint32_t threshold);
+
+/**
+   Populates the buffer pool.
+   @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
+   @pre pool->nbp_ndom != NULL
    @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(pool->nbp_ndom)
    @pre seg_size <= c2_net_domain_get_max_buffer_segment_size(pool->nbp_ndom)
 
@@ -49,10 +58,9 @@ struct c2_net_buffer_pool;
    @param seg_size  Size of each segment in a buffer.
    @param threshold Number of buffer below which to notify the user.
  */
-int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool, uint32_t buf_nr,
-			    uint32_t seg_nr, c2_bcount_t seg_size,
-			    uint32_t threshold);
-
+int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
+				 uint32_t buf_nr, uint32_t seg_nr,
+				 c2_bcount_t seg_size);
 /** Finalizes a buffer pool. */
 void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool);
 
@@ -103,13 +111,29 @@ struct c2_net_buffer_pool {
 	uint32_t		nbp_threshold;
 	/** Number of segemnts in each buffer of the pool. */
 	uint32_t		nbp_seg_nr;
+	/** Number of buffers in the pool. */
+	uint32_t		nbp_buf_nr;
 	/** Size of buffer segemnt of the pool. */
 	c2_bcount_t		nbp_seg_size;
 	/** Buffer pool lock. */
-	struct c2_mutex		nbp_lock;
+	struct c2_mutex		nbp_mutex;
 	/** Network domain to register the buffers. */
 	struct c2_net_domain   *nbp_ndom;
+	/** Head of list of buffers in the pool. */
+	struct c2_tl		nbp_head;
+
 };
+
+struct c2_net_buffer_pool_policy {
+	c2_bcount_t	nbpp_buf_max_size;
+	c2_bcount_t	nbpp_seg_max_size;
+	uint32_t	nbpp_threshold;
+};
+
+void c2_net_buffer_pool_set_policy(struct c2_net_buffer_pool *pool,
+				   struct c2_net_buffer_pool_policy *policy);
+void c2_net_buffer_pool_get_policy(struct c2_net_buffer_pool *pool,
+				   struct c2_net_buffer_pool_policy *policy);
 
 /** @} end of net_buffer_pool */
 #endif
