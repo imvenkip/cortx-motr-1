@@ -65,7 +65,7 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 {
 	C2_PRE(pool != NULL);
 	C2_PRE(ndom != NULL);
-	
+
 	pool->nbp_threshold = threshold;
 	pool->nbp_ndom	    = ndom;
 	pool->nbp_free	    = 0;
@@ -75,10 +75,10 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 
 	c2_mutex_init(&pool->nbp_mutex);
 	net_buffer_pool_tlist_init(&pool->nbp_head);
-	
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return 0;
 }
+C2_EXPORTED(c2_net_buffer_pool_init);
 
 int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 				 uint32_t buf_nr, uint32_t seg_nr,
@@ -87,7 +87,7 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	struct c2_net_buffer *nb;
 	c2_bcount_t	      buf_size;;
 	int		      rc;
-	
+
 	buf_size = seg_nr * seg_size;
 	C2_PRE(pool != NULL);
 	C2_PRE(pool->nbp_ndom != NULL);
@@ -122,7 +122,7 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	}
 	return rc;
 }
-C2_EXPORTED(c2_net_buffer_pool_init);
+C2_EXPORTED(c2_net_buffer_pool_provision);
 
 void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 {

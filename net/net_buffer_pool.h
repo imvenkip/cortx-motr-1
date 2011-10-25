@@ -37,10 +37,9 @@
 
 struct c2_net_buffer_pool;
 
-/**
-   Initializes a buffer pool.
- */
+/** Checks the buffer pool. */
 bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
+
 /**
    Initializes a buffer pool.
    @pre pool->nbp_ndom != NULL
