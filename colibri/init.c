@@ -86,6 +86,7 @@ struct init_fini_call subsystem[] = {
 	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
 #else
 	{ &c2_ksunrpc_init,  &c2_ksunrpc_fini,     "ksunrpc"},
+	{ &c2t1fs_init_module, &c2t1fs_cleanup_module, "c2t1fs" },
 #endif
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
