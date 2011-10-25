@@ -31,6 +31,8 @@
    @{
 */
 
+struct c2_timer_info;
+
 struct c2_timer {
 	/**
 	   Timer type: C2_TIMER_SOFT or C2_TIMER_HARD
@@ -75,12 +77,18 @@ struct c2_timer {
 	c2_time_t t_expire;
 
 	/**
-	   working thread
+	   working thread for soft timer
 	 */
 	struct c2_thread t_thread;
+
+	/**
+	   timer_info struct for hard timer
+	 */
+	struct c2_timer_info *t_info;
 };
 
-
+int c2_timers_init();
+void c2_timers_fini();
 
 /** @} end of timer group */
 

@@ -139,11 +139,13 @@ void timer2_thread(int unused)
 		printf("timer2 thread exit\n");
 }
 
-void test_timer(void)
+void test_timer_soft(void)
 {
 	struct c2_thread t1 = { 0 };
 	struct c2_thread t2 = { 0 };
 	int rc;
+
+	verbose = 1;
 
 	printf("start timer testing... this takes about 20 seconds\n");
 	test_2_timers();
@@ -165,9 +167,55 @@ void test_timer(void)
 
 	if (verbose)
 		printf("end timer testing...\n");
+
+	verbose = 0;
 	return;
 }
 
+unsigned long hard_tick(unsigned long data)
+{
+	c2_time_t now;
+
+	printf("hard tick %lu, thread %ld, ", data, pthread_self());
+	now = c2_time_now();
+	printf("time %lu.%lu\n",
+		c2_time_seconds(now), c2_time_nanoseconds(now));
+	return 0;
+}
+
+void test_hard_1()
+{
+	struct c2_timer timer1;
+	c2_time_t       i1;
+	c2_time_t       wait;
+	int i;
+
+	c2_time_set(&i1, 1, 0);
+	C2_UT_ASSERT(!c2_timer_init(&timer1, C2_TIMER_HARD, i1, 20, hard_tick, 0));
+	c2_timer_start(&timer1);
+
+	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
+	for (i = 0; i < 9; ++i)
+		c2_nanosleep(wait, NULL);
+
+	c2_timer_stop(&timer1);
+	c2_timer_fini(&timer1);
+}
+
+void test_timer_hard(void)
+{
+	// struct c2_thread t1 = { 0 };
+	// int rc;
+
+	printf("start hard timer testing....\n");
+	test_hard_1();
+}
+
+void test_timer(void)
+{
+	// test_timer_soft();
+	test_timer_hard();
+}
 
 /*
  *  Local variables:

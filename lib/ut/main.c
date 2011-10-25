@@ -30,6 +30,7 @@ extern void test_memory(void);
 extern void test_mutex(void);
 extern void test_processor(void);
 extern void test_queue(void);
+extern void test_rbtree(void);
 extern void test_refs(void);
 extern void test_rw(void);
 extern void test_thread(void);
@@ -44,23 +45,24 @@ const struct c2_test_suite libc2_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "atomic",    test_atomic    },
-		{ "bitmap",    test_bitmap    },
-		{ "chan",      test_chan      },
-		{ "getopts",   test_getopts   },
-		{ "list",      test_list      },
-		{ "memory",    test_memory    },
-		{ "mutex",     test_mutex     },
-		{ "rwlock",    test_rw        },
-		{ "processor", test_processor },
-		{ "queue",     test_queue     },
-		{ "refs",      test_refs      },
-		{ "thread",    test_thread    },
-		{ "time",      test_time      },
+// 		{ "atomic",    test_atomic    },
+// 		{ "bitmap",    test_bitmap    },
+// 		{ "chan",      test_chan      },
+// 		{ "getopts",   test_getopts   },
+// 		{ "list",      test_list      },
+// 		{ "memory",    test_memory    },
+// 		{ "mutex",     test_mutex     },
+// 		{ "rwlock",    test_rw        },
+// 		{ "processor", test_processor },
+// 		{ "queue",     test_queue     },
+// 		{ "rbtree",    test_rbtree    },
+// 		{ "refs",      test_refs      },
+// 		{ "thread",    test_thread    },
+// 		{ "time",      test_time      },
 		{ "timer",     test_timer     },
-		{ "tlist",     test_tlist     },
-		{ "trace",     test_trace     },
-		{ "vec",       test_vec       },
+// 		{ "tlist",     test_tlist     },
+// 		{ "trace",     test_trace     },
+// 		{ "vec",       test_vec       },
 		{ NULL,        NULL           }
 	}
 };
