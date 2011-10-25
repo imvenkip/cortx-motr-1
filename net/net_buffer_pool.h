@@ -39,9 +39,13 @@ struct c2_net_buffer_pool;
 
 /**
    Initializes a buffer pool.
-   @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
+ */
+bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
+/**
+   Initializes a buffer pool.
    @pre pool->nbp_ndom != NULL
    @param threshold Number of buffer below which to notify the user.
+   @post c2_net_buffer_pool_invariant(pool)
  */
 int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold);
@@ -56,7 +60,6 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
    @param buf_nr    Number of buffers in the pool.
    @param seg_nr    Number of segments in each buffer.
    @param seg_size  Size of each segment in a buffer.
-   @param threshold Number of buffer below which to notify the user.
  */
 int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 				 uint32_t buf_nr, uint32_t seg_nr,
@@ -123,17 +126,6 @@ struct c2_net_buffer_pool {
 	struct c2_tl		nbp_head;
 
 };
-
-struct c2_net_buffer_pool_policy {
-	c2_bcount_t	nbpp_buf_max_size;
-	c2_bcount_t	nbpp_seg_max_size;
-	uint32_t	nbpp_threshold;
-};
-
-void c2_net_buffer_pool_set_policy(struct c2_net_buffer_pool *pool,
-				   struct c2_net_buffer_pool_policy *policy);
-void c2_net_buffer_pool_get_policy(struct c2_net_buffer_pool *pool,
-				   struct c2_net_buffer_pool_policy *policy);
 
 /** @} end of net_buffer_pool */
 #endif

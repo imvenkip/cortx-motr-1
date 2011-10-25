@@ -60,25 +60,6 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 	return true;
 }
 
-void c2_net_buffer_pool_set_policy(struct c2_net_buffer_pool *pool,
-				   struct c2_net_buffer_pool_policy *policy)
-{
-	if (policy->nbpp_seg_max_size != 0)
-		pool->nbp_seg_size = policy->nbpp_seg_max_size;
-	if (policy->nbpp_buf_max_size != 0)
-		pool->nbp_seg_nr = (policy->nbpp_seg_max_size /
-				    pool->nbp_seg_size);
-	if (policy->nbpp_threshold != 0)
-		pool->nbp_threshold = policy->nbpp_threshold;
-}
-void c2_net_buffer_pool_get_policy(struct c2_net_buffer_pool *pool,
-				   struct c2_net_buffer_pool_policy *policy)
-{
-	policy->nbpp_buf_max_size = (pool->nbp_seg_size * pool->nbp_seg_nr); 
-	policy->nbpp_seg_max_size = pool->nbp_seg_size; 
-	policy->nbpp_threshold    = pool->nbp_threshold;
-}
-
 int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold)
 {
@@ -95,7 +76,8 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	c2_mutex_init(&pool->nbp_mutex);
 	net_buffer_pool_tlist_init(&pool->nbp_head);
 	
-	return c2_net_buffer_pool_invariant(pool);
+	C2_POST(c2_net_buffer_pool_invariant(pool));
+	return 0;
 }
 
 int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
@@ -106,7 +88,7 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	c2_bcount_t	      buf_size;;
 	int		      rc;
 	
-	buf_size= seg_nr * seg_size;
+	buf_size = seg_nr * seg_size;
 	C2_PRE(pool != NULL);
 	C2_PRE(pool->nbp_ndom != NULL);
 	C2_PRE(buf_size <=
