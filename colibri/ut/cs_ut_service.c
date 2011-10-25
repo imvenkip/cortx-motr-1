@@ -65,7 +65,7 @@ C2_REQH_SERVICE_TYPE_DECLARE(ds1_service_type, &ds1_service_type_ops, "ds1");
 C2_REQH_SERVICE_TYPE_DECLARE(ds2_service_type, &ds2_service_type_ops, "ds2");
 
 static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
-                			struct c2_reqh_service **service)
+                                     struct c2_reqh_service **service)
 {
         struct c2_reqh_service      *serv;
 
@@ -77,7 +77,7 @@ static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
 
         serv->rs_type = stype;
         serv->rs_ops = &ds1_service_ops;
-       	*service = serv;
+	*service = serv;
 
         return 0;
 }

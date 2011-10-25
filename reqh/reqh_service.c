@@ -57,7 +57,7 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *service)
 	switch (service->rs_phase) {
 	case RSPH_INITIALISING:
 		return service->rs_type != NULL && service->rs_ops != NULL &&
-			service->rs_state == RSS_UNDEFINED;	
+			service->rs_state == RSS_UNDEFINED;
 	case RSPH_INITIALISED:
 		return service->rs_type != NULL && service->rs_ops != NULL &&
 			service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&

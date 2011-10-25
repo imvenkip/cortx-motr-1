@@ -283,8 +283,8 @@ static void client_fini(struct client_ctx *cl_ctx)
   param stypes Types of services supported in a colibri context
   param stypes_nr Number of supported service types
   param sc_ctx Server side context, containing destination end point
-  		for server i.e. client end point, reference to server
-		side c2_net_transfer_mc and c2_net_xprt
+               for server i.e. client end point, reference to server
+               side c2_net_transfer_mc and c2_net_xprt
  */
 static int server_init(char **cs_cmdv, int cs_cmdc,
 		struct c2_reqh_service_type **stypes, int stypes_nr,
