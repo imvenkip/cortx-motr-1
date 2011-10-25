@@ -90,7 +90,6 @@ free_fop:
 	/* FIXME: freeing fop here will lead to endless loop in
 	 * nr_active_items_count(), which is called from
 	 * c2_rpc_session_terminate() */
-	/*c2_free(fop);*/
 out:
 	return rc;
 }
@@ -146,6 +145,7 @@ static void test_rpc_helper(void)
 		goto server_fini;
 
 	rc = send_fop(&client_rctx.rx_session);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_client_fini(&client_rctx);
 	C2_UT_ASSERT(rc == 0);

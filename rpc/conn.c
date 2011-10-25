@@ -568,7 +568,7 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 
 	rc = c2_rpc_conn_establish(conn);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
 				   c2_time_from_now(timeout_sec, 0));
@@ -579,14 +579,14 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 			break;
 		case C2_RPC_CONN_FAILED:
 			rc = -ECONNREFUSED;
-			goto out;
+			break;
 		default:
 			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
 		}
 	} else {
 		rc = -ETIMEDOUT;
 	}
-out:
+
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_establish_sync);
@@ -601,12 +601,12 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 
 	rc = c2_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = c2_rpc_conn_establish_sync(conn, timeout_sec);
 	if (rc != 0)
 		c2_rpc_conn_fini(conn);
-out:
+
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_create);
@@ -850,10 +850,10 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 
 	rc = c2_rpc_conn_terminate_sync(conn, timeout_sec);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	c2_rpc_conn_fini(conn);
-out:
+
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_destroy);

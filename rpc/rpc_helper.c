@@ -46,7 +46,7 @@ static int rpc_init_common(struct c2_rpc_ctx *rctx)
 
 	rc = c2_dbenv_init(&rctx->rx_dbenv, rctx->rx_db_name, 0);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = c2_cob_domain_init(&rctx->rx_cob_dom, &rctx->rx_dbenv, &cob_dom_id);
 	if (rc != 0)
@@ -79,7 +79,7 @@ static int rpc_init_common(struct c2_rpc_ctx *rctx)
 	rc = c2_net_end_point_create(&rctx->rx_remote_ep, tm, rctx->rx_remote_addr);
 	if (rc != 0)
 		goto rpc_mach_fini;
-out:
+
 	return rc;
 
 rpc_mach_fini:
@@ -128,7 +128,7 @@ int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
 
 	rc = rpc_init_common(rctx);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = c2_rpc_conn_create(&rctx->rx_connection, rctx->rx_remote_ep,
 				&rctx->rx_rpc_machine,
@@ -141,7 +141,7 @@ int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
 				   rctx->rx_nr_slots, rctx->rx_timeout_s);
 	if (rc != 0)
 		goto conn_destroy;
-out:
+
 	return rc;
 
 conn_destroy:
@@ -200,14 +200,14 @@ int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
 
 	rc = c2_rpc_session_destroy(&rctx->rx_session, rctx->rx_timeout_s);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = c2_rpc_conn_destroy(&rctx->rx_connection, rctx->rx_timeout_s);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rpc_fini_common(rctx);
-out:
+
 	return rc;
 }
 C2_EXPORTED(c2_rpc_client_fini);
