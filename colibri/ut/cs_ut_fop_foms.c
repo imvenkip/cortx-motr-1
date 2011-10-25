@@ -23,6 +23,7 @@
 #endif
 
 #include "lib/ut.h"    /* C2_UT_ASSERT */
+#include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -39,18 +40,12 @@
 
 #include "fop/fop_format_def.h"
 
+#include "cs_ut_fop_foms.h"
 #include "cs_test_fops_u.h"
 #include "cs_test_fops.ff"
 
 static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m);
-
-static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
-{
-        C2_PRE(item != NULL);
-        C2_PRE(c2_chan_has_waiters(&item->ri_chan));
-
-        c2_chan_signal(&item->ri_chan);
-}
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc);
 
 /*
   RPC item operations structures.
@@ -58,7 +53,7 @@ static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
 static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
-        .rito_replied = rpc_item_reply_cb,
+        .rito_replied = cs_ut_rpc_item_reply_cb,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -70,7 +65,7 @@ static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
 static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
-        .rito_replied = rpc_item_reply_cb,
+        .rito_replied = cs_ut_rpc_item_reply_cb,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -152,11 +147,6 @@ enum {
         CS_DS2_REP,
 };
 
-enum {
-	SERVICE_ONE = 1,
-	SERVICE_TWO,
-};
-
 /*
   DS1 service Item type declartaions
  */
@@ -219,11 +209,21 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
         &cs_ds2_rep_fop_fopt
 };
 
-/*
-  Finalises ds1 service fop types.
-  Invoked from service specific startup function.
- */
-void cs_ds1_fop_fini(void)
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
+{
+	struct c2_fop *fop;
+
+        C2_PRE(item != NULL);
+        C2_PRE(c2_chan_has_waiters(&item->ri_chan));
+
+	fop = c2_rpc_item_to_fop(item);
+	C2_UT_ASSERT(fop->f_type->ft_code == CS_DS1_REQ ||
+			fop->f_type->ft_code == CS_DS2_REQ);
+
+        c2_chan_signal(&item->ri_chan);
+}
+
+void c2_cs_ut_ds1_fop_fini(void)
 {
 	int i;
 
@@ -233,11 +233,7 @@ void cs_ds1_fop_fini(void)
 		cs_ds1_fopts[i]->ft_top = NULL;
 }
 
-/*
-  Builds ds1 service fop types.
-  Invoked from service specific stop function.
- */
-int cs_ds1_fop_init(void)
+int c2_cs_ut_ds1_fop_init(void)
 {
         int result;
 
@@ -251,15 +247,11 @@ int cs_ds1_fop_init(void)
 
         result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
         if (result != 0)
-                cs_ds1_fop_fini();
+                c2_cs_ut_ds1_fop_fini();
         return result;
 }
 
-/*
-  Finalises ds1 service fop types.
-  Invoked from service specific startup function.
- */
-void cs_ds2_fop_fini(void)
+void c2_cs_ut_ds2_fop_fini(void)
 {
 	int i;
 
@@ -268,11 +260,7 @@ void cs_ds2_fop_fini(void)
 		cs_ds2_fopts[i]->ft_top = NULL;
 }
 
-/*
-  Builds ds1 service fop types.
-  Invoked from service specific stop function.
- */
-int cs_ds2_fop_init(void)
+int c2_cs_ut_ds2_fop_init(void)
 {
         int result;
 
@@ -286,7 +274,7 @@ int cs_ds2_fop_init(void)
 
         result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
         if (result != 0)
-                cs_ds2_fop_fini();
+                c2_cs_ut_ds2_fop_fini();
         return result;
 }
 
@@ -302,7 +290,7 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom);
 /*
   Operation structures for ds1 service foms.
  */
-static struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
+static const struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
         .fo_state = cs_req_fop_fom_state,
         .fo_home_locality = cs_ut_find_fom_home_locality,
@@ -311,7 +299,7 @@ static struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
 /*
   Operation structures for ds2 service foms.
  */
-static struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
+static const struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
         .fo_state = cs_req_fop_fom_state,
         .fo_home_locality = cs_ut_find_fom_home_locality,
@@ -509,7 +497,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 /*
   Sends fops to server.
  */
-void send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
+void c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 {
         struct c2_clink          clink[10];
         struct c2_rpc_item      *item;
@@ -519,11 +507,14 @@ void send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 	struct cs_ds2_req_fop   *cs_ds2_fop;
         c2_time_t                timeout;
         uint32_t                 i;
+	int                      rc;
+
+	C2_SET_ARR0(clink);
+	C2_SET_ARR0(fop);
 
 	/* Send fops */
 	switch (dstype) {
-	case SERVICE_ONE:
-	{
+	case DS_ONE:
 		for (i = 0; i < 10; ++i) {
 			fop[i] = c2_fop_alloc(&cs_ds1_req_fop_fopt, NULL);
 			cs_ds1_fop = c2_fop_data(fop[i]);
@@ -545,9 +536,7 @@ void send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 			c2_rpc_post(item);
 		}
 		break;
-	}
-	case SERVICE_TWO:
-	{
+	case DS_TWO:
 		for (i = 0; i < 10; ++i) {
 			fop[i] = c2_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
 			cs_ds2_fop = c2_fop_data(fop[i]);
@@ -570,11 +559,11 @@ void send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 		}
 		break;
 	}
-	}
 
 	/* Wait for replys */
         for (i = 0; i < 10; ++i) {
-                c2_rpc_reply_timedwait(&clink[i], timeout);
+                rc = c2_rpc_reply_timedwait(&clink[i], timeout);
+		C2_UT_ASSERT(rc == 0);
                 c2_clink_del(&clink[i]);
                 c2_clink_fini(&clink[i]);
         }

@@ -69,8 +69,7 @@
    c2_cs_init(&colibri_ctx, xprts, ARRAY_SIZE(xprts), outfile);
    @endcode
 
-   Define parameters for colibri setup and setup environment as
-   below,
+   Define parameters for colibri setup and setup environment as below,
 
    @code
    static char *cmd[] = { "colibri_setup", "-r", "-T", "AD",
@@ -81,7 +80,7 @@
     c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(cs_cmd), cs_cmd);
     @endcode
 
-    Once the environment is setup successfuly, the services can be started
+    Once the environment is setup successfully, the services can be started
     as below,
     @code
     c2_cs_start(&srv_colibri_ctx);
@@ -96,10 +95,10 @@
           -s service
 
     Below image gives an overview of entire colibri context.
-    @note This image is borrowed from the "New developer guide for colibri" document
-          in section "Starting Colibri services".
+    @note This image is borrowed from the "New developer guide for colibri"
+          document in section "Starting Colibri services".
 
-    \image html DS-reqh.gif
+    @image html ../DS-reqh.gif
 
    @{
  */
@@ -114,8 +113,7 @@
  */
 struct c2_colibri {
 	/**
-	   Array of network transports supported in a colibri
-	   context.
+	   Array of network transports supported in a colibri context.
 	 */
 	struct c2_net_xprt       **cc_xprts;
 
@@ -132,8 +130,8 @@ struct c2_colibri {
         struct c2_tl               cc_ndoms;
 
         /**
-           List of request handler contexts running under
-           one colibri context on a node.
+           List of request handler contexts running under one colibri context
+	   on a node.
 
 	   @see cs_reqh_context::rc_linkage
          */
@@ -155,8 +153,7 @@ struct c2_colibri {
    Initialises colibri context.
 
    @param cs_colibri Represents a colibri context
-   @param xprts Array or network transports supported in a colibri
-		context
+   @param xprts Array or network transports supported in a colibri context
    @param xprts_nr Size of xprts array
    @param out File descriptor to which output is written
  */
@@ -171,11 +168,11 @@ void c2_cs_fini(struct c2_colibri *cs_colibri);
 /**
    Configures colibri context before starting the services.
    Parses the given arguments and allocates request handler contexts.
-   Validates allocated request handler contexts which includes
-   validation of given arguments and their values.
-   Once all the arguments are validated, initialises network domains,
-   creates and initialises request handler contexts, configures rpc
-   machines each per request handler end point.
+   Validates allocated request handler contexts which includes validation
+   of given arguments and their values.
+   Once all the arguments are validated, initialises network domains, creates
+   and initialises request handler contexts, configures rpc machines each per
+   request handler end point.
 
    @param cs_colibri Colibri context to be initialised
  */
@@ -187,21 +184,19 @@ int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv);
    request handlers and rpc machines, specified services are started.
 
    @param cs_colibri Colibri context in which services are started
-
-   @retval 0 If all the services are started successfuly
-	-errno If services fail to startup
  */
 int c2_cs_start(struct c2_colibri *cs_colibri);
 
 /**
-   Returns server side transfer machine in a colibri context
-   for given service and network transport.
+   Returns server side transfer machine in a colibri context for given service
+   and network transport.
 
    @retval Returns c2_net_transfer_mc if found,
 	else returns NULL
  */
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 		const struct c2_net_xprt *xprt, const char *service);
+
 /** @} endgroup colibri_setup */
 
 /* __COLIBRI_COLIBRI_COLIBRI_SETUP_H__ */

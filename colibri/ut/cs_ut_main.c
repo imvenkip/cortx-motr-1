@@ -37,34 +37,50 @@
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
-extern void send_fops(struct c2_rpc_session *cl_rpc_session, int dstype);
-extern struct c2_reqh_service_type ds1_service_type;
-extern struct c2_reqh_service_type ds2_service_type;
+#include "colibri/ut/cs_ut_service.c"
+
 extern const struct c2_tl_descr ndoms_descr;
 
 /* Client context */
 struct client_ctx {
+	/* Client side database name */
 	const char                   *cl_dbname;
+	/* Source end point address for client. */
 	const char                   *cl_epaddr;
+	/* Destination end point address for client, i.e. server end point. */
 	const char                   *cl_srv_epaddr;
+	/* Network transport used by the client. */
 	int                           cl_xprt_type;
+	/* Cob domain id for client. */
         int                           cl_cdom_id;
+	/* Type of service to be used by the client. */
 	int                           cl_svc_type;
+	/* Client network domain. */
 	struct c2_net_domain          cl_ndom;
+	/* Client cob domain. */
 	struct c2_cob_domain          cl_cob_domain;
 	struct c2_cob_domain_id       cl_cob_dom_id;
+	/* Client side rpc machine. */
 	struct c2_rpcmachine          cl_rpc_mach;
+	/* Destination end point for client, i.e. server end point. */
 	struct c2_net_end_point      *cl_nep;
+	/* Client side rpc connection. */
 	struct c2_rpc_conn            cl_conn;
+	/* Client side database environment. */
 	struct c2_dbenv               cl_db;
+	/* Client side rpc session. */
 	struct c2_rpc_session         cl_rpc_session;
 };
 
 /* Server context */
 struct srv_ctx {
+	/* Destination end point for server i.e. client end point.*/
 	struct c2_net_end_point      *sc_nep;
+	/* Server side transfer machine to create destination end point.*/
 	struct c2_net_transfer_mc    *sc_tm;
+	/* Destination end point address for server i.e. client end point.*/
 	const char                   *sc_cl_epaddr;
+	/* Network transport used by the server. */
 	const struct c2_net_xprt     *sc_xprt;
 };
 
@@ -87,7 +103,8 @@ static char *cs_ut_services_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
 static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
                                 "-e", "bulk-sunrpc:127.0.0.1:34567:2",
-                                "-s", "ds1", "-r", "-T", "AD",
+                                "-s", "ds1",
+				"-r", "-T", "AD",
                                 "-D", "cs_r2sdb", "-S", "cs_r2stob",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s" "ds2"};
@@ -131,11 +148,6 @@ static int cl_cdom_id = 10001;
 enum {
 	BULK_SUNRPC_XPRT,
 	BULK_MEM_XPRT
-};
-
-enum {
-        DS_ONE = 1,
-        DS_TWO,
 };
 
 /*
@@ -267,6 +279,12 @@ static void client_fini(struct client_ctx *cl_ctx)
 
 /*
   Initialises server side colibri environment using colibri_setup.
+
+  param stypes Types of services supported in a colibri context
+  param stypes_nr Number of supported service types
+  param sc_ctx Server side context, containing destination end point
+  		for server i.e. client end point, reference to server
+		side c2_net_transfer_mc and c2_net_xprt
  */
 static int server_init(char **cs_cmdv, int cs_cmdc,
 		struct c2_reqh_service_type **stypes, int stypes_nr,
@@ -335,7 +353,7 @@ void server_fini(struct srv_ctx *sc_ctx, int sc_ctx_nr,
 		c2_reqh_service_type_unregister(stypes[i]);
 }
 
-static void cs_ut_service_one(void)
+static void test_cs_ut_service_one(void)
 {
 	int                          rc;
 	struct c2_reqh_service_type *stypes[] = {
@@ -360,13 +378,13 @@ static void cs_ut_service_one(void)
 	rc = client_init(&cl_ctx);
 	C2_UT_ASSERT(rc == 0);
 
-	send_fops(&cl_ctx.cl_rpc_session, cl_ctx.cl_svc_type);
+	c2_cs_ut_send_fops(&cl_ctx.cl_rpc_session, cl_ctx.cl_svc_type);
 
 	client_fini(&cl_ctx);
 	server_fini(sc_ctx, ARRAY_SIZE(sc_ctx), stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_services_many(void)
+static void test_cs_ut_services_many(void)
 {
         int                          rc;
 	int                          i;
@@ -405,13 +423,13 @@ static void cs_ut_services_many(void)
 	for (i = 0; i < ARRAY_SIZE(cl_ctx); ++i) {
 		rc = client_init(&cl_ctx[i]);
 		C2_UT_ASSERT(rc == 0);
-		send_fops(&cl_ctx[i].cl_rpc_session, cl_ctx[i].cl_svc_type);
+		c2_cs_ut_send_fops(&cl_ctx[i].cl_rpc_session, cl_ctx[i].cl_svc_type);
 		client_fini(&cl_ctx[i]);
 	}
         server_fini(sc_ctx, ARRAY_SIZE(sc_ctx), stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_reqhs_many(void)
+static void test_cs_ut_reqhs_many(void)
 {
         int                          rc;
         int                          i;
@@ -450,13 +468,13 @@ static void cs_ut_reqhs_many(void)
         for (i = 0; i < ARRAY_SIZE(cl_ctx); ++i) {
                 rc = client_init(&cl_ctx[i]);
                 C2_UT_ASSERT(rc == 0);
-                send_fops(&cl_ctx[i].cl_rpc_session, cl_ctx[i].cl_svc_type);
+                c2_cs_ut_send_fops(&cl_ctx[i].cl_rpc_session, cl_ctx[i].cl_svc_type);
                 client_fini(&cl_ctx[i]);
         }
         server_fini(sc_ctx, ARRAY_SIZE(sc_ctx), stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_opts_jumbled(void)
+static void test_cs_ut_opts_jumbled(void)
 {
         int                          rc;
         struct c2_reqh_service_type *stypes[] = {
@@ -483,27 +501,16 @@ static void cs_ut_opts_jumbled(void)
         rc = client_init(&cl_ctx);
         C2_UT_ASSERT(rc == 0);
 
-        send_fops(&cl_ctx.cl_rpc_session, cl_ctx.cl_svc_type);
+        c2_cs_ut_send_fops(&cl_ctx.cl_rpc_session, cl_ctx.cl_svc_type);
 
         client_fini(&cl_ctx);
         server_fini(sc_ctx, ARRAY_SIZE(sc_ctx), stypes, ARRAY_SIZE(stypes));
 }
 
 /*
-  Tests success scenarios.
- */
-void test_success(void)
-{
-	cs_ut_service_one();
-	cs_ut_services_many();
-	cs_ut_reqhs_many();
-	cs_ut_opts_jumbled();
-}
-
-/*
   Tests server side bad colibri setup commands.
  */
-static void cs_ut_reqh_none(void)
+static void test_cs_ut_reqh_none(void)
 {
         int                          rc;
         struct c2_reqh_service_type *stypes[] = {
@@ -516,7 +523,7 @@ static void cs_ut_reqh_none(void)
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_stype_bad(void)
+static void test_cs_ut_stype_bad(void)
 {
 	int                          rc;
         struct c2_reqh_service_type *stypes[] = {
@@ -529,7 +536,7 @@ static void cs_ut_stype_bad(void)
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_xprt_bad(void)
+static void test_cs_ut_xprt_bad(void)
 {
         int                          rc;
         struct c2_reqh_service_type *stypes[] = {
@@ -542,7 +549,7 @@ static void cs_ut_xprt_bad(void)
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_ep_bad(void)
+static void test_cs_ut_ep_bad(void)
 {
         int                          rc;
         struct c2_reqh_service_type *stypes[] = {
@@ -555,7 +562,7 @@ static void cs_ut_ep_bad(void)
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_service_bad(void)
+static void test_cs_ut_service_bad(void)
 {
         int                          rc;
         struct c2_reqh_service_type *stypes[] = {
@@ -569,7 +576,7 @@ static void cs_ut_service_bad(void)
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
 
-static void cs_ut_args_bad(void)
+static void test_cs_ut_args_bad(void)
 {
         int                          rc;
         struct c2_reqh_service_type *stypes[] = {
@@ -582,23 +589,21 @@ static void cs_ut_args_bad(void)
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
 
-void test_failures(void)
-{
-	cs_ut_reqh_none();
-	cs_ut_stype_bad();
-	cs_ut_xprt_bad();
-	cs_ut_ep_bad();
-	cs_ut_service_bad();
-	cs_ut_args_bad();
-}
-
 const struct c2_test_suite colibri_setup_ut = {
         .ts_name = "colbri_setup_ut... this takes some time",
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-                { "colibri_setup_success_tests", test_success },
-                { "colibri_setup_failure_tests", test_failures },
+                { "Success: Single service", test_cs_ut_service_one},
+		{ "Success: Multiple services", test_cs_ut_services_many},
+		{ "Success: Multiple Request handlers", test_cs_ut_reqhs_many},
+		{ "Success: Command options jumbled", test_cs_ut_opts_jumbled},
+                { "Failure: Missing reqh option", test_cs_ut_reqh_none},
+		{ "Failure: Bad storage type", test_cs_ut_stype_bad},
+		{ "Failure: Bad network xprt", test_cs_ut_xprt_bad},
+		{ "Failure: Bad network ep", test_cs_ut_ep_bad},
+		{ "Failure: Bad service", test_cs_ut_service_bad},
+		{ "Failure: Missing options", test_cs_ut_args_bad},
                 { NULL, NULL }
         }
 };

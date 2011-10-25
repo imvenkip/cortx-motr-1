@@ -29,19 +29,16 @@
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
-extern int cs_ds1_fop_init(void);
-extern void cs_ds1_fop_fini(void);
-extern int cs_ds2_fop_init(void);
-extern void cs_ds2_fop_fini(void);
+#include "colibri/ut/cs_ut_fop_foms.h"
 
 static int ds1_service_start(struct c2_reqh_service *service);
 static int ds2_service_start(struct c2_reqh_service *service);
-static int ds1_service_stop(struct c2_reqh_service *service);
-static int ds2_service_stop(struct c2_reqh_service *service);
+static void ds1_service_stop(struct c2_reqh_service *service);
+static void ds2_service_stop(struct c2_reqh_service *service);
 static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
-                struct c2_reqh *reqh, struct c2_reqh_service **service);
+                                     struct c2_reqh_service **service);
 static int ds2_service_alloc_init(struct c2_reqh_service_type *stype,
-                struct c2_reqh *reqh, struct c2_reqh_service **service);
+                                     struct c2_reqh_service **service);
 static void ds_service_fini(struct c2_reqh_service *service);
 
 static const struct c2_reqh_service_type_ops ds1_service_type_ops = {
@@ -68,12 +65,11 @@ C2_REQH_SERVICE_TYPE_DECLARE(ds1_service_type, &ds1_service_type_ops, "ds1");
 C2_REQH_SERVICE_TYPE_DECLARE(ds2_service_type, &ds2_service_type_ops, "ds2");
 
 static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
-                struct c2_reqh *reqh, struct c2_reqh_service **service)
+                			struct c2_reqh_service **service)
 {
         struct c2_reqh_service      *serv;
-	int                          rc;
 
-        C2_PRE(stype != NULL && reqh != NULL && service != NULL);
+        C2_PRE(stype != NULL && service != NULL);
 
         C2_ALLOC_PTR(serv);
         if (serv == NULL)
@@ -81,22 +77,17 @@ static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
 
         serv->rs_type = stype;
         serv->rs_ops = &ds1_service_ops;
-
-        rc = c2_reqh_service_init(serv, reqh);
-	C2_UT_ASSERT(rc == 0);
-
-        *service = serv;
+       	*service = serv;
 
         return 0;
 }
 
 static int ds2_service_alloc_init(struct c2_reqh_service_type *stype,
-                struct c2_reqh *reqh, struct c2_reqh_service **service)
+                                     struct c2_reqh_service **service)
 {
         struct c2_reqh_service      *serv;
-	int                          rc;
 
-        C2_PRE(stype != NULL && reqh != NULL && service != NULL);
+        C2_PRE(stype != NULL && service != NULL);
 
         C2_ALLOC_PTR(serv);
         if (serv == NULL)
@@ -104,10 +95,6 @@ static int ds2_service_alloc_init(struct c2_reqh_service_type *stype,
 
         serv->rs_type = stype;
         serv->rs_ops = &ds2_service_ops;
-
-        rc = c2_reqh_service_init(serv, reqh);
-	C2_UT_ASSERT(rc == 0);
-
         *service = serv;
 
         return 0;
@@ -120,10 +107,7 @@ static int ds1_service_start(struct c2_reqh_service *service)
         C2_PRE(service != NULL);
 
         /*Initialise service fops.*/
-	rc = cs_ds1_fop_init();
-	C2_UT_ASSERT(rc == 0);
-
-        rc = c2_reqh_service_start(service);
+	rc = c2_cs_ut_ds1_fop_init();
 	C2_UT_ASSERT(rc == 0);
 
         return rc;
@@ -136,42 +120,34 @@ static int ds2_service_start(struct c2_reqh_service *service)
         C2_PRE(service != NULL);
 
         /*Initialise service fops.*/
-        rc = cs_ds2_fop_init();
-	C2_UT_ASSERT(rc == 0);
-
-        rc = c2_reqh_service_start(service);
+        rc = c2_cs_ut_ds2_fop_init();
 	C2_UT_ASSERT(rc == 0);
 
         return rc;
 }
 
-static int ds1_service_stop(struct c2_reqh_service *service)
+static void ds1_service_stop(struct c2_reqh_service *service)
 {
 
         C2_PRE(service != NULL);
 
 	/* Finalise service fops */
-	cs_ds1_fop_fini();
-        c2_reqh_service_stop(service);
-
-        return 0;
+	c2_cs_ut_ds1_fop_fini();
 }
 
-static int ds2_service_stop(struct c2_reqh_service *service)
+static void ds2_service_stop(struct c2_reqh_service *service)
 {
 
         C2_PRE(service != NULL);
 
         /* Finalise service fops */
-        cs_ds2_fop_fini();
-        c2_reqh_service_stop(service);
-
-        return 0;
+        c2_cs_ut_ds2_fop_fini();
 }
 
 static void ds_service_fini(struct c2_reqh_service *service)
 {
-        c2_reqh_service_fini(service);
+	C2_PRE(service != NULL);
+
         c2_free(service);
 }
 
