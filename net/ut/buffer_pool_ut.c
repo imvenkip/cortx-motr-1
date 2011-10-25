@@ -60,11 +60,12 @@ void test_buf_pool()
 	C2_UT_ASSERT(bp.nbp_ndom != NULL);
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
-	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2);
-	rc = c2_net_buffer_pool_provision(&bp, 10, 64, 4096);
-	C2_ASSERT(rc == 0);
 	bp.nbp_ndom->nd_ops = &b_ops;
+	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2);
+	C2_UT_ASSERT(rc == 0);
 	c2_net_buffer_pool_lock(&bp);
+	rc = c2_net_buffer_pool_provision(&bp, 10, 64, 4096);
+	C2_UT_ASSERT(rc == 0);
 	nb = c2_net_buffer_pool_get(&bp);
 	c2_net_buffer_pool_put(&bp, nb);
 	C2_UT_ASSERT(c2_net_buffer_pool_grow(&bp));

@@ -106,7 +106,7 @@ bool c2_net_buffer_pool_grow(struct c2_net_buffer_pool *pool);
  */
 bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool);
 
-/* Buffer pool context. */
+/** Buffer pool context. */
 struct c2_net_buffer_pool {
 	/** Number of free buffers in the pool. */
 	uint32_t		nbp_free;

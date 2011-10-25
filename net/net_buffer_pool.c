@@ -91,7 +91,7 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	buf_size = seg_nr * seg_size;
 	C2_PRE(pool != NULL);
 	C2_PRE(pool->nbp_ndom != NULL);
-   	C2_PRE(c2_net_buffer_pool_is_locked(pool));
+	C2_PRE(c2_net_buffer_pool_is_locked(pool));
 	C2_PRE(buf_size <=
 		c2_net_domain_get_max_buffer_size(pool->nbp_ndom));
 	C2_PRE(seg_size <=
@@ -213,7 +213,7 @@ bool c2_net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 		return -ENOMEM;
 	nb->nb_pool_magic = NET_BUFFER_POOL_LINK_MAGIC;
 	rc = c2_bufvec_alloc(&nb->nb_buffer, pool->nbp_seg_nr,
-			   		     pool->nbp_seg_size);
+			      pool->nbp_seg_size);
 	if (rc != 0)
 		goto clean;
 	rc = c2_net_buffer_register(nb, pool->nbp_ndom);
