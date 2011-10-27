@@ -23,8 +23,13 @@
 #include "lib/timer.h"
 #include "lib/assert.h"
 #include "lib/thread.h"
+#include "lib/mutex.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/syscall.h>
 
 static int count = 0;
 static int verbose = 0;
@@ -211,10 +216,98 @@ void test_timer_hard(void)
 	test_hard_1();
 }
 
+
+pid_t gettid()
+{
+	return syscall(SYS_gettid);
+}
+
+struct c2_mutex tswitch;
+c2_time_t one_sec;
+c2_time_t infinity_time;
+static int tcount = 0;	// XXX not thread-safe
+pid_t tid[0x10];
+timer_t timer_id;
+int signal_tid;
+
+#define PRINT_THREAD(...) printf("TID = %d, ", gettid());	printf(__VA_ARGS__);
+
+void tc_sighandler(int param)
+{
+	PRINT_THREAD("sighandler called.\n");
+	C2_ASSERT(gettid() == signal_tid);
+}
+
+void tc_thread(int param)
+{
+	struct sigaction sa;
+	int index = tcount++;
+	struct sigevent se;
+	struct itimerspec it;
+
+	tid[index] = gettid();
+	PRINT_THREAD("started.\n");
+
+	if (index == 0) {
+		PRINT_THREAD("installing SIGRTMIN handler...\n");
+		sa.sa_handler = tc_sighandler;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = SA_NODEFER;
+		sigaction(SIGRTMIN, &sa, NULL);
+	}
+
+	c2_nanosleep(one_sec, NULL);
+	if (index == 0) {
+		signal_tid = tid[rand() % 3];
+
+		PRINT_THREAD("installing timer +.5 sec\n");
+		se.sigev_notify = SIGEV_THREAD_ID;
+		se.sigev_signo = SIGRTMIN;
+		se._sigev_un._tid = signal_tid;
+		PRINT_THREAD("installing target thread as %d\n", signal_tid);
+		C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &timer_id) == 0);
+		it.it_value.tv_sec = 0;
+		it.it_value.tv_nsec = 500000000;
+		it.it_interval.tv_sec = 100;
+		it.it_interval.tv_nsec = 0;
+		C2_ASSERT(timer_settime(timer_id, 0, &it, NULL) == 0);
+	}
+
+	PRINT_THREAD("start sleeping...\n");
+	c2_nanosleep(one_sec, NULL);
+	PRINT_THREAD("end sleeping.\n");
+}
+
+void test_timer_create()
+{
+	struct c2_thread t1 = { 0 };
+	struct c2_thread t2 = { 0 };
+	int rc;
+
+	tcount = 0;
+	tid[2] = gettid();
+	c2_time_set(&infinity_time, 10000, 0);
+	c2_time_set(&one_sec, 1, 0);
+	rc = C2_THREAD_INIT(&t1, int, NULL, &tc_thread, 0, "tc_thread1");
+	C2_ASSERT(rc == 0);
+	rc = C2_THREAD_INIT(&t2, int, NULL, &tc_thread, 0, "tc_thread2");
+	C2_ASSERT(rc == 0);
+
+
+	c2_thread_join(&t1);
+	c2_thread_fini(&t1);
+	c2_thread_join(&t2);
+	c2_thread_fini(&t2);
+	C2_ASSERT(timer_delete(timer_id) == 0);
+}
+
 void test_timer(void)
 {
+	int i;
 	// test_timer_soft();
-	test_timer_hard();
+	// test_timer_hard();
+	for (i = 0; i < 0x100; ++i)
+		test_timer_create();
 }
 
 /*

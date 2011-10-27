@@ -44,7 +44,14 @@
    There is one timer thread for each timer.
 
    hard timer
-   (partially outdated)
+	pthread_key_t locality_key
+
+   c2_timer_locality_init(struct c2_timer_locality *locality)
+   c2_timer_locality_fini(struct c2_timer_locality *locality)
+   c2_timer_thread_attach(struct c2_timer_locality *locality)
+   c2_timer_thread_detach(struct c2_timer_locality *locality)
+
+   ------------------------- outdated below --------------------
    There is a problem with signal handler - it is the same across whole process.
 
    threads_map_mutex
@@ -422,6 +429,7 @@ static struct timer_thread_info *thread_info_init(pthread_t id)
 	sa.sa_handler = timer_destination_sighandler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_NODEFER;
+	printf("installing signal handler from TID = %lu\n", pthread_self());
 	sigaction(SIGUSR1, &sa, &thread_info->tti_sigaction);
 
 	return thread_info;
@@ -681,6 +689,7 @@ static void timer_scheduling_thread(void *unused)
 	sa.sa_handler = timer_scheduler_sighandler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_NODEFER;
+	printf("installing signal handler from TID = %lu\n", pthread_self());
 	sigaction(SIGUSR1, &sa, NULL);
 
 	while (c2_atomic64_get(&timer_hard_count) != 0) {
