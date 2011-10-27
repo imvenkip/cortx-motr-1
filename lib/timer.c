@@ -44,12 +44,21 @@
    There is one timer thread for each timer.
 
    hard timer
-	pthread_key_t locality_key
+	rbtree timer_queue (key: expiration time)
+	queue state_queue (init: empty)
+	semaphore for state queue - items count in queue (init: 0)
+	atomic sigcount (init 0)
 
-   c2_timer_locality_init(struct c2_timer_locality *locality)
-   c2_timer_locality_fini(struct c2_timer_locality *locality)
-   c2_timer_thread_attach(struct c2_timer_locality *locality)
-   c2_timer_thread_detach(struct c2_timer_locality *locality)
+   sighandler
+	if inc(sigcount) != 1
+		read next from state_queue
+			start: add timer to timer_queue
+			stop: remove timer from timer_queue
+		for every expired timer
+			if timer must run from current thread - execute callback
+			else switch to destination thread and exit from sighandler
+
+
 
    ------------------------- outdated below --------------------
    There is a problem with signal handler - it is the same across whole process.

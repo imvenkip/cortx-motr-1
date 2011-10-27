@@ -232,10 +232,39 @@ int signal_tid;
 
 #define PRINT_THREAD(...) printf("TID = %d, ", gettid());	printf(__VA_ARGS__);
 
-void tc_sighandler(int param)
+void tc_sighandler(int signo)
 {
-	PRINT_THREAD("sighandler called.\n");
+	struct sigevent se;
+	struct itimerspec it;
+	struct sigaction sa;
+	timer_t local_timer;
+
+	PRINT_THREAD("sighandler called, signal is %d.\n", signo);
 	C2_ASSERT(gettid() == signal_tid);
+	if (signo != SIGRTMIN)
+		return;
+
+	signal_tid = signal_tid == tid[0] ? tid[1] : tid[0];
+
+		PRINT_THREAD("installing SIGRTMIN+1 handler...\n");
+		sa.sa_handler = tc_sighandler;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = SA_NODEFER;
+		sigaction(SIGRTMIN + 1, &sa, NULL);
+
+	PRINT_THREAD("trying to switch thread to TID = %d\n", signal_tid);
+
+		PRINT_THREAD("installing timer +.0 sec\n");
+		se.sigev_notify = SIGEV_THREAD_ID;
+		se.sigev_signo = SIGRTMIN + 1;
+		se._sigev_un._tid = signal_tid;
+		PRINT_THREAD("installing target thread as %d\n", signal_tid);
+		C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &local_timer) == 0);
+		it.it_value.tv_sec = 0;
+		it.it_value.tv_nsec = 0;
+		it.it_interval.tv_sec = 100;
+		it.it_interval.tv_nsec = 0;
+		C2_ASSERT(timer_settime(local_timer, 0, &it, NULL) == 0);
 }
 
 void tc_thread(int param)
@@ -244,9 +273,16 @@ void tc_thread(int param)
 	int index = tcount++;
 	struct sigevent se;
 	struct itimerspec it;
+	sigset_t ss;
 
 	tid[index] = gettid();
 	PRINT_THREAD("started.\n");
+
+	PRINT_THREAD("unblocking SIGRTMIN and SIGRTMIN+1 signals\n");
+	sigemptyset(&ss);
+	sigaddset(&ss, SIGRTMIN);
+	sigaddset(&ss, SIGRTMIN+1);
+	pthread_sigmask(SIG_UNBLOCK, &ss, NULL);
 
 	if (index == 0) {
 		PRINT_THREAD("installing SIGRTMIN handler...\n");
@@ -276,6 +312,8 @@ void tc_thread(int param)
 	PRINT_THREAD("start sleeping...\n");
 	c2_nanosleep(one_sec, NULL);
 	PRINT_THREAD("end sleeping.\n");
+	c2_nanosleep(one_sec, NULL);
+	PRINT_THREAD("end sleeping #2.\n");
 }
 
 void test_timer_create()
@@ -301,11 +339,82 @@ void test_timer_create()
 	C2_ASSERT(timer_delete(timer_id) == 0);
 }
 
+int empty_handler_enters = 0;
+pid_t empty_tid = 0;
+bool finish_thread = false;
+
+void tc_empty_handler(int signo)
+{
+	C2_ASSERT(timer_delete(timer_id) == 0);
+	empty_handler_enters++;
+}
+
+void tc_empty_thread(int param)
+{
+	empty_tid = gettid();
+	while (!finish_thread)
+		;
+}
+
+// one iteration of thread switch with 1ns timer
+void tc_benchmark()
+{
+	struct sigaction sa;
+	struct sigevent se;
+	struct itimerspec it;
+	// int signal_tid = gettid();
+
+	sa.sa_handler = tc_empty_handler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_NODEFER;
+	C2_ASSERT(sigaction(SIGRTMIN, &sa, NULL) == 0);
+
+	se.sigev_notify = SIGEV_THREAD_ID;
+	se.sigev_signo = SIGRTMIN;
+	se._sigev_un._tid = empty_tid;
+	C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &timer_id) == 0);
+
+	it.it_value.tv_sec = 0;
+	it.it_value.tv_nsec = 1;
+	it.it_interval.tv_sec = 100;
+	it.it_interval.tv_nsec = 0;
+	C2_ASSERT(timer_settime(timer_id, 0, &it, NULL) == 0);
+}
+
 void test_timer(void)
 {
 	int i;
+	int rc;
+	struct c2_thread t1 = { 0 };
+	c2_time_t now;
 	// test_timer_soft();
 	// test_timer_hard();
+	printf("\n");
+
+	rc = C2_THREAD_INIT(&t1, int, NULL, &tc_empty_thread, 0, "tc_thread1");
+	C2_ASSERT(rc == 0);
+	while (empty_tid == 0)
+		;
+
+	now = c2_time_now();
+	printf("benchmark start at %lu.%lu\n", c2_time_seconds(now), c2_time_nanoseconds(now));
+	for (i = 0; i < 100000; ++i) {
+		int enters = empty_handler_enters;
+		tc_benchmark();
+
+		// non-atomic spinlock
+		enters++;
+		while (enters != empty_handler_enters)
+			;
+	}
+	now = c2_time_now();
+	printf("benchmark end at   %lu.%lu\n", c2_time_seconds(now), c2_time_nanoseconds(now));
+	printf("empty handler enters %d\n", empty_handler_enters);
+
+	finish_thread = true;
+	c2_thread_join(&t1);
+	c2_thread_fini(&t1);
+
 	for (i = 0; i < 0x100; ++i)
 		test_timer_create();
 }
