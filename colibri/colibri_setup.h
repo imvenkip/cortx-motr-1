@@ -195,7 +195,8 @@ int c2_cs_start(struct c2_colibri *cs_colibri);
 	else returns NULL
  */
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
-		const struct c2_net_xprt *xprt, const char *service);
+					const struct c2_net_xprt *xprt,
+					const char *service);
 
 /** @} endgroup colibri_setup */
 
