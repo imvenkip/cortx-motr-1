@@ -95,9 +95,9 @@ PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
 	return atomic64_dec_and_test(&a->a_value);
 }
 
-PREFIX bool c2_atomic64_cas(void *loc, int64_t old, int64_t new)
+PREFIX bool c2_atomic64_cas(int64_t *loc, int64_t old, int64_t new)
 {
-	cmpxchg64(loc, old, new) == old;
+	return cmpxchg64(loc, old, new) == old;
 }
 
 /** @} end of atomic group */

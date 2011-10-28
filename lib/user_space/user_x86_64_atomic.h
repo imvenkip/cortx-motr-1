@@ -157,7 +157,7 @@ PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
 	return result != 0;
 }
 
-PREFIX bool c2_atomic64_cas(void *loc, int64_t old, int64_t new)
+PREFIX bool c2_atomic64_cas(int64_t *loc, int64_t old, int64_t new)
 {
 	int64_t val;
 
