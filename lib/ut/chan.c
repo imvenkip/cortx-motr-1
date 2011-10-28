@@ -86,6 +86,7 @@ void test_chan(void)
 	c2_time_t       expire;
 	struct c2_timer timer;
 	int i;
+	int j;
 	bool got;
 
 	c2_chan_init(&chan);
@@ -178,12 +179,12 @@ void test_chan(void)
 	flag = 1;
 	c2_chan_signal(&chan);
 	got = c2_chan_trywait(&clink3);
-	C2_UT_ASSERT(got);
+	C2_UT_ASSERT(!got);
 
 	flag = 0;
 	c2_chan_signal(&chan);
 	got = c2_chan_trywait(&clink3);
-	C2_UT_ASSERT(!got);
+	C2_UT_ASSERT(got);
 
 	c2_clink_del(&clink3);
 	c2_clink_fini(&clink3);
@@ -213,6 +214,39 @@ void test_chan(void)
 		c2_clink_fini(&l[i]);
 		c2_chan_fini(&c[i]);
 	}
+
+	/* multi-channel test */
+
+	for (j = 0; j < ARRAY_SIZE(c); ++j) {
+		for (i = 0; i < ARRAY_SIZE(c); ++i)
+			c2_chan_init(&c[i]);
+
+		c2_clink_init(&l[0], NULL);
+		for (i = 1; i < ARRAY_SIZE(c); ++i)
+			c2_clink_attach(&l[i], &l[0], NULL);
+
+		for (i = 0; i < ARRAY_SIZE(c); ++i)
+			c2_clink_add(&c[i], &l[i]);
+
+		c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
+
+		c2_timer_init(&timer, C2_TIMER_SOFT, delta, 1,
+			      &signal_the_chan_in_timer, (unsigned long)&c[j]);
+
+		c2_timer_start(&timer);
+
+		c2_chan_wait(&l[(j + 1) % ARRAY_SIZE(c)]);
+
+		c2_timer_stop(&timer);
+		c2_timer_fini(&timer);
+
+		for (i = ARRAY_SIZE(c) - 1; i >= 0; --i) {
+			c2_clink_del(&l[i]);
+			c2_clink_fini(&l[i]);
+			c2_chan_fini(&c[i]);
+		}
+	}
+
 }
 C2_EXPORTED(test_chan);
 

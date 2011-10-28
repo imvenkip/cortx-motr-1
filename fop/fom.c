@@ -161,7 +161,7 @@ static void fom_ready(struct c2_fom *fom)
 		during a blocking operation
  * @pre clink != NULL
  */
-static void fom_cb(struct c2_clink *clink)
+static bool fom_cb(struct c2_clink *clink)
 {
 	struct c2_fom_locality	*loc;
 	struct c2_fom		*fom;
@@ -179,6 +179,7 @@ static void fom_cb(struct c2_clink *clink)
 	fom->fo_state = FOS_READY;
 	fom_ready(fom);
 	c2_mutex_unlock(&loc->fl_lock);
+	return false;
 }
 
 void c2_fom_block_enter(struct c2_fom *fom)

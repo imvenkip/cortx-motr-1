@@ -95,6 +95,49 @@
    condition is right than to wake up a waiting thread that would check this
    and go back to sleep if it is not.
 
+   <b>Multiple channels.</b>
+
+   It is possible to wait for an event to be announced on a channel from a
+   set. To this end, first a clink is created as usual. Then, additional
+   (unintialised) clinks are attached to the first by a call to
+   c2_clink_attach(), forming a "clink group" consisting of the original clink
+   and all clinks attached. Clinks from the group can be registered with
+   multiple (or the same) channels. Events announced on any channel is delivered
+   to all clinks.
+
+   Groups are used as following:
+
+       - initialise a "group head" clink;
+
+       - attach other clinks to the group;
+
+       - register the group clinks with their channels, starting with the head;
+
+       - to wait for an event on any channel, wait on the group head.
+
+       - call-backs can be used for event filtering on any channel as usual;
+
+       - if N clinks from the group are registered with the same channel, an
+         event in this channel will be delivered N times.
+
+       - de-register the clinks, head last.
+
+   @note At most one clink in a group (the original one) can have a call-back.
+
+   @code
+   struct c2_clink cl0;
+   struct c2_clink cl1;
+
+   c2_clink_init(&cl0, call_back0);
+   c2_clink_attach(&cl1, &cl0, call_back1);
+
+   c2_clink_add(chan0, &cl0);
+   c2_clink_add(chan1, &cl1);
+
+   // wait for an event on chan0 or chan1
+   c2_chan_wait(&cl0);
+   @endcode
+
    @note An interface similar to c2_chan was a part of historical UNIX kernel
    implementations. It is where "CHAN" field in ps(1) output comes from.
 
@@ -201,6 +244,8 @@ struct c2_clink {
 	struct c2_chan     *cl_chan;
 	/** Call-back to be called when event is declared. */
 	c2_chan_cb_t        cl_cb;
+	/** The head of the clink group. */
+	struct c2_clink    *cl_group;
 	/** Linkage into c2_chan::ch_links */
 	struct c2_tlink     cl_linkage;
 	struct c2_semaphore cl_wait;
@@ -211,7 +256,7 @@ void c2_chan_init(struct c2_chan *chan);
 void c2_chan_fini(struct c2_chan *chan);
 
 /**
-   Notify a clink currently registered with the channel that a new event
+   Notifies a clink currently registered with the channel that a new event
    happened.
 
    @see c2_chan_broadcast()
@@ -219,7 +264,7 @@ void c2_chan_fini(struct c2_chan *chan);
 void c2_chan_signal(struct c2_chan *chan);
 
 /**
-   Notify all clinks currently registered with the channel that a new event
+   Notifies all clinks currently registered with the channel that a new event
    happened.
 
    No guarantees about behaviour in the case when clinks are added or removed
@@ -246,7 +291,13 @@ void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb);
 void c2_clink_fini(struct c2_clink *link);
 
 /**
-   Register the clink with the channel.
+   Attaches @link to a clink group. @group is the original clink in the group.
+ */
+void c2_clink_attach(struct c2_clink *link,
+		     struct c2_clink *group, c2_chan_cb_t cb);
+
+/**
+   Registers the clink with the channel.
 
    @pre !c2_clink_is_armed(link)
    @post c2_clink_is_armed(link)
@@ -254,7 +305,7 @@ void c2_clink_fini(struct c2_clink *link);
 void c2_clink_add     (struct c2_chan *chan, struct c2_clink *link);
 
 /**
-   Un-register the clink from the channel.
+   Un-registers the clink from the channel.
 
    @pre   c2_clink_is_armed(link)
    @post !c2_clink_is_armed(link)
