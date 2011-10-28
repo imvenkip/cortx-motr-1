@@ -422,7 +422,7 @@ static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, const char *ep)
    handler context.
  */
 static bool service_is_duplicate(const char *service_name,
-				const struct cs_reqh_context *rctx)
+					const struct cs_reqh_context *rctx)
 {
 	int idx;
 	int cnt;
@@ -450,7 +450,8 @@ static bool service_is_registered(const char *service_name)
 }
 
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
-			const struct c2_net_xprt *xprt, const char *sname)
+					const struct c2_net_xprt *xprt,
+					const char *sname)
 {
 	struct c2_reqh            *reqh;
 	struct cs_reqh_context    *rctx;
@@ -763,7 +764,7 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
    @todo Use generic mechanism to generate stob ids
  */
 static int cs_storage_init(const char *stob_type, const char *stob_path,
-		struct cs_reqh_stobs *stob, struct c2_dbenv *db)
+                           struct cs_reqh_stobs *stob, struct c2_dbenv *db)
 {
 	int                      rc;
 	int                      slen;
