@@ -18,11 +18,15 @@
  * Original creation date: 03/04/2011
  */
 
+// FIXME hack, but without it timer_create(2) isn't declarated.
+// in Makefile should be -iquote instead of -I
+#include </usr/include/time.h>	  /* timer_create */
+
 #include "lib/misc.h"   /* C2_SET0 */
-#include "lib/mutex.h"
+#include "lib/mutex.h"  /* c2_mutex */
 #include "lib/cond.h"
-#include "lib/thread.h"
-#include "lib/assert.h"
+#include "lib/thread.h" /* c2_thread */
+#include "lib/assert.h" /* C2_ASSERT */
 #include "lib/atomic.h" /* c2_atomic64 */
 #include "lib/memory.h" /* c2_alloc */
 #include "lib/queue.h"  /* c2_queue */
@@ -30,233 +34,280 @@
 #include "lib/rbtree.h" /* c2_rbtree */
 #include "lib/cdefs.h"  /* container_of */
 #include "lib/rwlock.h" /* c2_rwlock */
+#include "lib/arith.h"	/* min_check */
+#include "lib/atomic_queue.h" /* c2_atomic_queue */
+#include "lib/time.h"	/* c2_time_t */
 
 #include "lib/timer.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>	  /* syscall */
+#include <signal.h>	  /* timer_create */
+#include <sys/syscall.h>  /* syscall */
+#include <limits.h>	  /* INT_MAX */
+#include <linux/limits.h> /* RTSIG_MAX */
+
 /**
    @addtogroup timer
 
    Implementation of c2_timer.
 
-   In userspace timer implementation, there is a timer thread running,
+   In userspace soft timer implementation, there is a timer thread running,
    which checks the expire time and trigger timer callback if needed.
    There is one timer thread for each timer.
 
+   TODO what kind of error should return when out of memory ?
+   TODO check includes
+   TODO rename atomic_queue -> aqueue
+   TODO 80 char per line
+   TODO rename c2_timer_sighandler
    hard timer
-	rbtree timer_queue (key: expiration time)
-	queue state_queue (init: empty)
-	semaphore for state queue - items count in queue (init: 0)
-	atomic sigcount (init 0)
+	c2_timer
+		c2_timer_info *t_info
+	c2_timer_info
+		c2_rbtree_link ti_linkage
+		c2_atomic_queue_link ti_aqlink
+		c2_time_t ti_expire
+		c2_time_t ti_interval
+		int ti_left
+		c2_timer_callback_t ti_callback
+		unsigned long ti_data
+		c2_timer_locality *ti_loc
+		pid_t ti_tid
+		c2_timer_sighandler *ti_sighandler
+	c2_timer_locality
+		int tlo_signo
+		c2_timer_sighandler *tlo_sighandler
+		c2_mutex tlo_lock	// mutex for tlo_tids
+		rbtree tlo_tids
+	c2_timer_sighandler
+		int tsh_signo
+		rbtree tsh_pqueue	// timers priority queue
+		atomic64 tsh_callback_pending
+		atomic64 tsh_callback_executing
+		atomic64 tsh_processing
+		pid_t tsh_callback_tid
+		c2_timer_callback_t tsh_callback
+		unsigned long tsh_data
+		atomic_queue tsh_state_queue
+		atomic_queue tsh_tinfo_dealloc_queue
+		atomic_queue tsh_tstate_dealloc_queue
+		c2_atomic64 tsh_timers_count
+		c2_time_t tsh_expire	// abs time
+		c2_time_t tsh_expire_tid
+		timer_t tsh_ptimer
+		pid_t tsh_ptimer_thread
+		c2_time_t tsh_ptimer_expire	// abs time
+		atomic64 tsh_ptimer_processing
+	c2_timer_state
+		c2_atomic_queue_link ts_linkage
+		c2_timer_info *ts_tinfo
+		TIMER_STATE ts_state
+	c2_timer_tid
+		c2_rbtree_link tt_linkage
+		pid_t tt_pid
+
+	с2_timer_locality_init()
+		find signo with minimal timers count
+		assign this signo to locality
+		set up link to sighandler
+	c2_timer_locality_fini()
+	c2_timer_locality_max()
+	c2_timer_locality_count()
+
+	c2_timer_thread_attach()
+		blocking
+		add tid to locality
+
+	c2_timer_init/fini/start/stop() in the start
+		deallocate all from deallocation queue
+	c2_timer_fini/start/stop() in the end
+		execute sighandler
+
+	c2_timer_init()
+		alloc c2_timer_info
+	c2_timer_fini()
+		queue state FINI
+	c2_timer_attach()
+		if current tid is in locality
+			set ti_tid = gettid()
+		else
+			add to first thread in locality
+	c2_timer_start()
+		set interval, left, expiration of c2_timer_info from c2_timer
+		queue state START
+	c2_timer_stop()
+		queue state STOP
 
    sighandler
-	if inc(sigcount) != 1
-		read next from state_queue
-			start: add timer to timer_queue
-			stop: remove timer from timer_queue
+	if atomic jump_pending == 1
+		if tid == jump_target_tid
+			atomic set jump_pending 0
+	if atomic callback_pending == 1
+		if tid == tsh_callback_tid
+			if atomic_inc callback_executing == 1
+				execute callback
+				set callback tid = 0
+				atomic set callback_pending 0
+				atomic set callback_executing 0
+	if atomic_inc tsh_processsing != 1
+		return;
+	do
+		for every new state from queue
+		FINI	add timer_info to deallocation queue
+		START	add timer_info to timers priority queue for current location
+		STOP	remove timer_info from timers priority queue
 		for every expired timer
-			if timer must run from current thread - execute callback
-			else switch to destination thread and exit from sighandler
-
-
-
-   ------------------------- outdated below --------------------
-   There is a problem with signal handler - it is the same across whole process.
-
-   threads_map_mutex
-   threads map
-	thread_info
-		id
-		thread_info_mutex
-		callback queue mutex
-		callback queue
-		timer_hard_count
-   timers priority queue
-	c2_timer_info
-		*c2_timer
-		*timer_thread_info
-		started
-		atomic ref_count
-	c2_timer
-		*c2_timer_info
-   timers_state_queue
-	timer_state
-		link (for c2_queue)
-		*timer
-		state
-   callbacks queue for every thread
-	timer_callback_info
-		callback
-		data
-
-   init			(timer_hard_init)
-	increment total_timer_hard_count
-	lock thread_map_mutex
-	get thread_info for calling thread
-	if not exists
-		add thread_info entry
-		install thread handler for SIGUSR1
-	increment thread_info.timer_hard_count
-	unlock thread_map_mutex
-	alloc timer_info
-	set timer_info.started to false
-	start hard time scheduler if it is first timer
-
-   fini			(timer_hard_fini)
-	queue state TIMER_STATE_FINI
-
-   start		(timer_hard_start)
-	queue state TIMER_STATE_START
-   stop			(timer_hard_stop)
-	queue state TIMER_STATE_STOP
-   enqueue state	(timer_state_enqueue)
-	atomically add timer_state to timers_status_queue
-	wake up timer scheduling thread
+			if target_tid == current_tid
+				just execute callback
+			else
+				if atomic_get callback_pending == 0 && atomic_get callback_executing == 0
+					set tsh_callback_tid = timer_tid
+					set tsh_callback_time c2_time_now()
+					atomic_set callback_pending 1
+		tinfo = min in pqueue
+		if tinfo isn't NULL
+			set expire time and tid from tinfo
+		else
+			set expire time to infinity and tid to current tid
+		atomic set tsh_expire_set 1
+	while atomic_dec tsh_processing != 0
+	if atomic_add tsh_ptimer_processing != 1
+		return
+	if atomic callback_pending == 1
+		ptimer_reset tsh_callback_tid time_now
+	else if atomic tsh_expire_set == 1
+		ptimer_reset tsh_ptimer_tid tsh_ptimer_expire
+		atomic set tsh_expire set = 0
+	else
+		ptimer_reset(time_infinity, gettid())
 	
-
-   scheduler		(timer_scheduling_thread)
-	set SIGUSR1 handler to scheduler signal handler
-	while exists some hard timers
-		enqueue state TIMER_STATE_EXPIRED
-		get nearest expiration time
-		nanosleep this time
-
-   scheduler signal handler	(timer_scheduler_sighandler)
-	while timers_status_queue not empty - process next entry
-		switch new_status
-			start: add to priority queue, set timer_info.started to true
-			stop: set timer_info.started to false, remove from priority queue
-			fini: dealloc timer_info
-			      send SIGUSR1 to timer thread otherwise
-			expired: for every expired timer:
-				remove from priority queue, add to thread timer queue,
-				send SIGUSR1 to destination timer, recalc next expiration
-				time, add to priority queue
-	
-   user thread signal handler	(timer_destination_sighandler) 
-	atomically get thread_info for calling thread
-	while thread_timers_queue not empty
-		dequeue callback_info
-		call callback
-   @{
 */
 
-// TODO cache timer_next_expiration after enqueue
-
-enum TIMER_STATE {
-	TIMER_STATE_START,
-	TIMER_STATE_STOP,
-	TIMER_STATE_FINI,
-	TIMER_STATE_EXPIRED
+struct c2_timer_sighandler {
+	int tsh_signo;
+	struct c2_rbtree tsh_pqueue;
+	struct c2_atomic64 tsh_callback_pending;
+	struct c2_atomic64 tsh_callback_executing;
+	struct c2_atomic64 tsh_processing;
+	pid_t tsh_callback_tid;
+	c2_timer_callback_t tsh_callback;
+	unsigned long tsh_data;
+	struct c2_atomic_queue tsh_state_queue;
+	struct c2_atomic_queue tsh_tinfo_dealloc_queue;
+	struct c2_atomic_queue tsh_tstate_dealloc_queue;
+	struct c2_atomic64 tsh_timers_count;
+	c2_time_t tsh_expire;
+	pid_t tsh_expire_tid;
+	struct c2_atomic64 tsh_expire_set;
+	timer_t tsh_ptimer;
+	pid_t tsh_ptimer_thread;
+	c2_time_t tsh_ptimer_expire;
+	struct c2_atomic64 tsh_ptimer_processing;
 };
 
-struct timer_callback_info {
-	struct c2_queue_link tci_linkage;
-	c2_timer_callback_t tci_callback;
-	unsigned long tci_data;
-};
-
-struct timer_state {
-	struct c2_queue_link ts_linkage;
-	enum TIMER_STATE ts_state;
-	struct c2_timer_info *ts_timer;	
-};
-
-// FIXME rename
-struct timer_thread_info {
-	struct c2_rbtree_link tti_linkage;
-	pthread_t tti_id;
-	struct c2_mutex tti_queue_lock;
-	// SPSC queue
-	// producer - hard timer scheduling thread (timer_scheduling_thread)
-	// consumer - SUGUSR1 handler in destination thread
-	// thread safety using tti_queue_lock mutex
-	struct c2_queue tti_queue;
-	struct c2_atomic64 tti_timer_count;
-	// for SIGUSR1 default signal handler
-	struct sigaction tti_sigaction;
+struct c2_timer_locality {
+	int tlo_signo;
+	struct c2_mutex tlo_lock;
+	struct c2_rbtree tlo_tids;
+	struct c2_timer_sighandler *tlo_sighandler;
 };
 
 struct c2_timer_info {
 	struct c2_rbtree_link ti_linkage;
+	struct c2_atomic_queue_link ti_aqlink;
 	c2_time_t ti_expire;
 	c2_time_t ti_interval;
-	uint64_t ti_left;
-	struct c2_timer *ti_timer;
-	struct timer_thread_info *ti_thread;
-	bool ti_started;
+	int ti_left;
+	c2_timer_callback_t ti_callback;
+	unsigned long ti_data;
+	struct c2_timer_locality *ti_loc;
+	pid_t ti_tid;	// destination thread ID
+	struct c2_timer_sighandler *ti_sighandler;
 };
 
-// TODO rename
-static struct c2_thread timer_scheduler;
-static struct c2_mutex timer_scheduler_lock;
-static struct c2_atomic64 timer_hard_count;
-// FIXME rename
-static struct c2_atomic64 timer_scheduler_sighandler_unprocessed;
-static struct c2_atomic64 timer_destination_sighandler_unprocessed;
+enum TIMER_STATE {
+	TIMER_STATE_START = 1,
+	TIMER_STATE_STOP,
+	TIMER_STATE_FINI
+};
 
-// MPSC queue
-// Produsers - all threads, that called timer_start(), timer_stop()
-//	or timer_fini() + hard timer scheduling thread
-// Consumer - timer_scheduler_sighandler()
-// Thread safety using mutex
-static struct c2_queue timer_states;
-static struct c2_mutex timer_states_lock;
+struct c2_timer_state {
+	struct c2_atomic_queue_link ts_linkage;
+	struct c2_timer_info *ts_tinfo;
+	enum TIMER_STATE ts_state;
+};
 
-// Map of timer_thread_info
-// Implemented as red-black tree
-// Thread safety using rwlock
-static struct c2_rbtree timer_threads;
-static struct c2_rwlock timer_threads_lock;
+struct c2_timer_tid {
+	struct c2_rbtree_link tt_linkage;
+	pid_t tt_pid;
+};
 
-// Priority queue with all running timers, sorted by expiration time
-// Implemented as red-black tree
-// Thread safety using only one thread for read/modify
-static struct c2_rbtree timer_timers;
-
-static c2_time_t timer_next_expiration;
-static c2_time_t timer_time_one_ns;
-static c2_time_t timer_time_infinity;
+static struct c2_timer_sighandler timer_sighandlers[RTSIG_MAX];
+static struct c2_atomic64 timer_locality_count;
+static c2_time_t timer_1ns;
+static c2_time_t timer_infinity;
 
 /**
-   Empty function for SIGUSR1 sighandler for soft timer scheduling thread.
-   Using for wake up thread.
- */
+	Empty function for SIGUSR1 sighandler for soft timer scheduling thread.
+	Using for wake up thread.
+*/
 void nothing(int unused)
 {
 }
 
-void print_time(c2_time_t t)
-{
-	printf("%lu.%lu",
-		c2_time_seconds(t), c2_time_nanoseconds(t));
-}
-
 /**
-   Add timer to priority queue, sorted by expiration time
+   gettid(2) implementation.
+   Thread-safe, async-sighal-safe.
  */
-static void timer_queue_insert(struct c2_timer_info *tinfo)
-{
-	while (!c2_rbtree_insert(&timer_timers, &tinfo->ti_linkage))
-		tinfo->ti_expire = c2_time_add(tinfo->ti_expire, timer_time_one_ns);
+pid_t gettid() {
+
+	return syscall(SYS_gettid);
 }
 
 /**
-   Remove timer from priority queue
+   Thread-safe, not async-signal-safe.
  */
-static void timer_queue_delete(struct c2_timer_info *timer)
+void timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE state)
 {
-	C2_ASSERT(c2_rbtree_remove(&timer_timers, &timer->ti_linkage));
+	struct c2_timer_state *tstate = c2_alloc(sizeof *tstate);
+
+	C2_ASSERT(tstate != NULL);
+	c2_atomic_queue_link_init(&tstate->ts_linkage);
+	tstate->ts_tinfo = tinfo;
+	tstate->ts_state = state;
+	c2_atomic_queue_put(&tinfo->ti_sighandler->tsh_state_queue, &tstate->ts_linkage);
 }
 
 /**
-   Comparator for red-black tree for timers_queue
+   Thread-safe, async-signal-safe.
+ */
+struct c2_timer_info* timer_state_dequeue(struct c2_timer_sighandler *sighandler,
+		enum TIMER_STATE *state)
+{
+	struct c2_atomic_queue_link *link;
+	struct c2_timer_state *tstate;
+
+	link = c2_atomic_queue_get(&sighandler->tsh_state_queue);
+	if (link == NULL)
+		return NULL;
+
+	c2_atomic_queue_put(&sighandler->tsh_tstate_dealloc_queue, link);
+	tstate = container_of(link, struct c2_timer_state, ts_linkage);
+	*state = tstate->ts_state;
+	return tstate->ts_tinfo;
+
+}
+
+/**
+   Comparator for red-black tree for timers priority queue
    Return
 	-1 if a < b
 	0  if a == b
 	1  if a > b
- */
-static int timer_queue_cmp(void *_a, void *_b)
+*/
+static int timer_expire_cmp(void *_a, void *_b)
 {
 	c2_time_t a = *(c2_time_t *) _a;
 	c2_time_t b = *(c2_time_t *) _b;
@@ -267,498 +318,396 @@ static int timer_queue_cmp(void *_a, void *_b)
 		return c2_time_after(a, b) ? 1 : -1;
 }
 
-/**
-   Get timer with nearest expiration time.
-   If some timers already expired, returns timer with minimal expiration time.
-   If no timers in queue, return NULL
- */
-static struct c2_timer_info* timer_queue_peek()
+void timer_posix_init(struct c2_timer_sighandler *sighandler, pid_t tid)
 {
-	struct c2_rbtree_link *link = c2_rbtree_min(&timer_timers);
+	struct sigevent se;
+
+	se.sigev_notify = SIGEV_THREAD_ID;
+	se.sigev_signo = sighandler->tsh_signo;
+	se._sigev_un._tid = tid;
+	C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &sighandler->tsh_ptimer) == 0);
+	sighandler->tsh_ptimer_thread = tid;
+}
+
+void timer_posix_fini(struct c2_timer_sighandler *sighandler)
+{
+	C2_ASSERT(timer_delete(sighandler->tsh_ptimer) == 0);
+}
+
+void timer_hard_sighandler(int signo);
+
+void timer_sighandler_init(struct c2_timer_sighandler *sighandler, int signo)
+{
+	struct sigaction sa;
+	C2_PRE(sighandler != NULL);
+
+	sighandler->tsh_signo = signo;
+	c2_rbtree_init(&sighandler->tsh_pqueue, timer_expire_cmp,
+			offsetof(struct c2_timer_info, ti_expire) -
+			offsetof(struct c2_timer_info, ti_linkage));
+	c2_atomic64_set(&sighandler->tsh_callback_pending, 0);
+	c2_atomic64_set(&sighandler->tsh_callback_executing, 0);
+	c2_atomic64_set(&sighandler->tsh_processing, 0);
+	sighandler->tsh_callback = NULL;
+	sighandler->tsh_data = 0;
+	c2_atomic_queue_init(&sighandler->tsh_state_queue);
+	c2_atomic_queue_init(&sighandler->tsh_tinfo_dealloc_queue);
+	c2_atomic_queue_init(&sighandler->tsh_tstate_dealloc_queue);
+	c2_atomic64_set(&sighandler->tsh_timers_count, 0);
+	c2_time_set(&sighandler->tsh_expire, 0, 0);
+	sighandler->tsh_expire_tid = 0;
+	c2_atomic64_set(&sighandler->tsh_expire_set, 0);
+	sighandler->tsh_ptimer = 0;
+	sighandler->tsh_ptimer_thread = 0;
+	c2_time_set(&sighandler->tsh_ptimer_expire, 0, 0);
+	c2_atomic64_set(&sighandler->tsh_ptimer_processing, 0);
+
+	sa.sa_handler = timer_hard_sighandler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_NODEFER;
+	C2_ASSERT(sigaction(signo, &sa, NULL) == 0);
+	timer_posix_init(sighandler, gettid());
+}
+
+void timer_sighandler_fini(struct c2_timer_sighandler *sighandler)
+{
+	C2_PRE(sighandler != NULL);
+
+	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_ptimer_processing) == 0);
+	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_timers_count) == 0);
+	c2_atomic_queue_fini(&sighandler->tsh_tstate_dealloc_queue);
+	c2_atomic_queue_fini(&sighandler->tsh_tinfo_dealloc_queue);
+	c2_atomic_queue_fini(&sighandler->tsh_state_queue);
+	C2_ASSERT(sighandler->tsh_callback == NULL);
+	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_processing) == 0);
+	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_callback_executing) == 0);
+	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_callback_pending) == 0);
+	c2_rbtree_fini(&sighandler->tsh_pqueue);
+	timer_posix_fini(sighandler);
+}
+
+size_t timer_sighandler_max()
+{
+	return min_check(_POSIX_TIMER_MAX,
+			min_check(SIGRTMAX - SIGRTMIN + 1, RTSIG_MAX));
+}
+
+struct c2_timer_sighandler *timer_sighandler(int signo)
+{
+	C2_ASSERT(signo >= SIGRTMIN && signo < timer_sighandler_max() + SIGRTMIN);
+	return &timer_sighandlers[signo - SIGRTMIN];
+}
+
+struct c2_timer_info *timer_info_init(struct c2_timer *timer)
+{
+	struct c2_timer_info *tinfo = c2_alloc(sizeof *tinfo);
+
+	c2_rbtree_link_init(&tinfo->ti_linkage);
+	c2_atomic_queue_link_init(&tinfo->ti_aqlink);
+	c2_time_set(&tinfo->ti_expire, 0, 0);
+	tinfo->ti_interval = timer->t_interval;
+	tinfo->ti_left = timer->t_left;
+	tinfo->ti_callback = timer->t_callback;
+	tinfo->ti_data = timer->t_data;
+	tinfo->ti_loc = NULL;
+	tinfo->ti_tid = 0;
+	tinfo->ti_sighandler = NULL;
+	return tinfo;
+}
+
+void timer_info_fini(struct c2_timer_info *tinfo)
+{
+	if (tinfo->ti_sighandler != NULL)
+		c2_atomic64_dec(&tinfo->ti_sighandler->tsh_timers_count);
+	C2_ASSERT(tinfo->ti_left == 0);
+	c2_atomic_queue_link_fini(&tinfo->ti_aqlink);
+	c2_rbtree_link_fini(&tinfo->ti_linkage);
+	c2_free(tinfo);
+}
+
+/**
+   Comparator for red-black tree for tlo_tids
+*/
+static int tids_cmp(void *_a, void *_b)
+{
+	pid_t a = *(pid_t *) _a;
+	pid_t b = *(pid_t *) _b;
+
+	return a == b ? 0 : a < b ? -1 : 1;
+}
+
+int c2_timer_locality_init(struct c2_timer_locality *loc)
+{
+	int i;
+	int signo;
+	int min_timers = INT_MAX;
+	int timers;
+
+	C2_PRE(loc != NULL);
+	for (i = SIGRTMIN; i < SIGRTMIN + timer_sighandler_max(); ++i) {
+		timers = c2_atomic64_get(&timer_sighandler(i)->tsh_timers_count);
+		if (timers < min_timers) {
+			signo = i;
+			min_timers = timers;
+		}
+	}
+	loc->tlo_signo = signo;
+	loc->tlo_sighandler = timer_sighandler(signo);
+	c2_mutex_init(&loc->tlo_lock);
+	c2_rbtree_init(&loc->tlo_tids, tids_cmp,
+			offsetof(struct c2_timer_tid, tt_pid) -
+			offsetof(struct c2_timer_tid, tt_linkage));
+	return 0;
+}
+
+void c2_timer_locality_fini(struct c2_timer_locality *loc)
+{
+	struct c2_rbtree_link *link;
+
+	C2_PRE(loc != NULL);
+
+	while ((link = c2_rbtree_min(&loc->tlo_tids)) != NULL)
+		c2_rbtree_remove(&loc->tlo_tids, link);
+	c2_rbtree_fini(&loc->tlo_tids);
+	c2_mutex_fini(&loc->tlo_lock);
+}
+
+void c2_timer_thread_attach(struct c2_timer_locality *loc)
+{
+	struct c2_timer_tid *ttid;
+
+	C2_PRE(loc != NULL);
+	ttid = c2_alloc(sizeof *ttid);
+	C2_ASSERT(ttid != NULL);
+
+	c2_mutex_lock(&loc->tlo_lock);
+	C2_ASSERT(c2_rbtree_insert(&loc->tlo_tids, &ttid->tt_linkage));
+	c2_mutex_unlock(&loc->tlo_lock);
+}
+
+void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
+{
+	C2_PRE(timer != NULL);
+	C2_PRE(timer->t_info != NULL);
+	C2_PRE(loc != NULL);
+	C2_PRE(timer->t_info->ti_sighandler == NULL);
+
+	timer->t_info->ti_sighandler = loc->tlo_sighandler;
+	c2_atomic64_inc(&loc->tlo_sighandler->tsh_timers_count);
+}
+
+uint32_t c2_timer_locality_max()
+{
+	return ~0;
+}
+
+uint32_t c2_timer_locality_count()
+{
+	return c2_atomic64_get(&timer_locality_count);
+}
+
+struct c2_timer_info *timer_info(struct c2_rbtree_link *link)
+{
+	if (link == NULL)
+		return NULL;
+	return container_of(link, struct c2_timer_info, ti_linkage);
+}
+
+struct c2_timer_info *timer_expired_info(struct c2_rbtree_link *link)
+{
 	struct c2_timer_info *tinfo;
 
 	if (link == NULL)
 		return NULL;
-
-	tinfo = container_of(link, struct c2_timer_info, ti_linkage);
-	return tinfo;
+	tinfo =	container_of(link, struct c2_timer_info, ti_linkage);
+	return c2_time_after_eq(tinfo->ti_expire, c2_time_now()) ? tinfo : NULL;
 }
 
-/**
-   Get first expired hard timer from the timer queue
-   Return NULL if no expired timers or no timers in queue
- */
-static struct c2_timer_info* timer_expired_peek()
+void timer_pqueue_insert(struct c2_timer_sighandler *sighandler, struct c2_timer_info *tinfo)
 {
-	struct c2_timer_info *tinfo = timer_queue_peek();
-	c2_time_t now = c2_time_now();
-
-	if (tinfo == NULL)
-		return NULL;
-	return c2_time_after(now, tinfo->ti_expire) ? tinfo : NULL;
+	while (!c2_rbtree_insert(&sighandler->tsh_pqueue, &tinfo->ti_linkage))
+		tinfo->ti_expire = c2_time_add(tinfo->ti_expire, timer_1ns);
 }
 
-/**
-   Get nearest hard timer expiration time
-   If expired timer already exists, return zero time
-   If no timers in queue, return timer_time_infinity
- */
-static c2_time_t timer_next_expiration_get()
+bool timer_pqueue_remove(struct c2_timer_sighandler *sighandler, struct c2_timer_info *tinfo)
 {
-	struct c2_timer_info *tinfo = timer_queue_peek();
-	c2_time_t now = c2_time_now();
-	c2_time_t rem;
-
-	if (tinfo == NULL)
-		return timer_time_infinity;
-
-	if (c2_time_after(now, tinfo->ti_expire))
-		c2_time_set(&rem, 0, 0);
-	else
-		rem = c2_time_sub(tinfo->ti_expire, now);
-
-	return rem;
+	return c2_rbtree_remove(&sighandler->tsh_pqueue, &tinfo->ti_linkage);
 }
 
-/**
-   Add timer to priority queue, sorted by expiration time.
-   Implementation based on red-black tree.
- */
-static void timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE state)
+void timer_reschedule(struct c2_timer_sighandler *sighandler, struct c2_timer_info *tinfo)
 {
-	struct timer_state *tstate = c2_alloc(sizeof *tstate);
-	C2_ASSERT(tstate != NULL);
-
-	tstate->ts_timer = tinfo;
-	tstate->ts_state = state;
-	c2_queue_link_init(&tstate->ts_linkage);
-
-	c2_mutex_lock(&timer_states_lock);
-	c2_queue_put(&timer_states, &tstate->ts_linkage);
-	c2_mutex_unlock(&timer_states_lock);
-}
-
-/**
-   Remove timer from priority queue, sorted by expiration time.
- */
-static bool timer_state_dequeue(struct c2_timer_info **tinfo, enum TIMER_STATE *state)
-{
-	struct timer_state *tstate;
-	struct c2_queue_link *link;
-
-	c2_mutex_lock(&timer_states_lock);
-	link = c2_queue_get(&timer_states);
-	c2_mutex_unlock(&timer_states_lock);
-
-	if (link == NULL)
-		return false;
-
-	tstate = container_of(link, struct timer_state, ts_linkage);
-	c2_queue_link_fini(&tstate->ts_linkage);
-	*state = tstate->ts_state;
-	*tinfo = tstate->ts_timer;
-	c2_free(tstate);
-	c2_thread_signal(&timer_scheduler, SIGUSR1);
-	return true;
-}
-
-/*
-   Add callback to callback queue (one queue for every user thread)
- */
-static void timer_callback_enqueue(struct c2_timer_info *tinfo)
-{
-	struct timer_thread_info *thread_info;
-	struct c2_timer *timer;
-	struct timer_callback_info *callback;
-
-	C2_PRE(tinfo != NULL);
-	thread_info = tinfo->ti_thread;
-	C2_ASSERT(thread_info != NULL);
-	timer = tinfo->ti_timer;
-	C2_ASSERT(timer != NULL);
-
-	callback = c2_alloc(sizeof *callback);
-	C2_ASSERT(callback != NULL);
-
-	callback->tci_callback = timer->t_callback;
-	callback->tci_data = timer->t_data;
-	c2_queue_link_init(&callback->tci_linkage);
-
-	c2_mutex_lock(&thread_info->tti_queue_lock);
-	c2_queue_put(&thread_info->tti_queue, &callback->tci_linkage);
-	c2_mutex_unlock(&thread_info->tti_queue_lock);
-}
-
-/*
-   Remove callback from callback queue
- */
-static bool timer_callback_dequeue(struct timer_thread_info *thread_info, struct timer_callback_info *info)
-{
-	printf("timer_callback_dequeue\n");
-	struct timer_callback_info *callback;
-	struct c2_queue_link *link;
-
-	C2_PRE(thread_info != NULL);
-	C2_PRE(info != NULL);
-
-	c2_mutex_lock(&thread_info->tti_queue_lock);
-	link = c2_queue_get(&thread_info->tti_queue);
-	c2_mutex_unlock(&thread_info->tti_queue_lock);
-
-	if (link == NULL)
-		return false;
-
-	printf("exists item for dequeue\n");
-	callback = container_of(link, struct timer_callback_info, tci_linkage);
-	c2_queue_link_fini(&callback->tci_linkage);
-	info->tci_callback = callback->tci_callback;
-	info->tci_data = callback->tci_data;
-	c2_free(callback);
-	return true;
-}
-
-static void timer_destination_sighandler(int signum);
-
-/**
-   init() for timer_thread_info structure.
-   timer_thread_info allocated when adding first hard timer in thread
-   and deallocated when removing last
- */
-static struct timer_thread_info *thread_info_init(pthread_t id)
-{
-	struct timer_thread_info *thread_info = c2_alloc(sizeof *thread_info);
-	struct sigaction sa;
-	C2_ASSERT(thread_info != NULL);
-
-	c2_rbtree_link_init(&thread_info->tti_linkage);
-	thread_info->tti_id = id;
-	c2_mutex_init(&thread_info->tti_queue_lock);
-	c2_queue_init(&thread_info->tti_queue);
-	c2_atomic64_set(&thread_info->tti_timer_count, 0);
-	sa.sa_handler = timer_destination_sighandler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_NODEFER;
-	printf("installing signal handler from TID = %lu\n", pthread_self());
-	sigaction(SIGUSR1, &sa, &thread_info->tti_sigaction);
-
-	return thread_info;
-}
-
-/**
-   fini() for timer_thread_info structure.
- */
-static void thread_info_fini(struct timer_thread_info *thread_info)
-{
-	C2_ASSERT(thread_info != NULL);
-	C2_ASSERT(c2_atomic64_get(&thread_info->tti_timer_count) == 0);
-
-	sigaction(SIGUSR1, &thread_info->tti_sigaction, NULL);
-	c2_queue_fini(&thread_info->tti_queue);
-	c2_mutex_fini(&thread_info->tti_queue_lock);
-	c2_rbtree_link_fini(&thread_info->tti_linkage);
-}
-
-/**
-   Get timer_thread_info for calling process.
-   Allocate and add it to struct timer_threads if timer_thread_info not
-   exists for current thread.
- */
-static struct timer_thread_info *thread_info_self()
-{
-	struct timer_thread_info *info;
-	pthread_t id = pthread_self();
-	struct c2_rbtree_link *link;
-
-	c2_rwlock_read_lock(&timer_threads_lock);
-	link = c2_rbtree_find(&timer_threads, (void *) &id);
-	c2_rwlock_read_unlock(&timer_threads_lock);
-
-	if (link != NULL)
-		return container_of(link, struct timer_thread_info, tti_linkage);
-
-	c2_rwlock_write_lock(&timer_threads_lock);
-	link = c2_rbtree_find(&timer_threads, (void *) &id);
-	if (link == NULL) {
-		info = thread_info_init(pthread_self());
-		C2_ASSERT(info != NULL);
-
-		link = &info->tti_linkage;
-		C2_ASSERT(c2_rbtree_insert(&timer_threads, link));
-	}
-	c2_rwlock_write_unlock(&timer_threads_lock);
-
-	return container_of(link, struct timer_thread_info, tti_linkage);
-}
-
-/**
-   Free timer_thread_info structure if no hard timers left for thread
-   Do noting otherwise
- */
-static void thread_info_tryfree(struct timer_thread_info *info)
-{
-	C2_ASSERT(info != NULL);
-
-	if (c2_atomic64_get(&info->tti_timer_count) != 0)
+	C2_ASSERT(timer_pqueue_remove(sighandler, tinfo));
+	if (--tinfo->ti_left == 0)
 		return;
+	tinfo->ti_expire = c2_time_add(c2_time_now(), tinfo->ti_interval);
+	timer_pqueue_insert(sighandler, tinfo);
+}
 
-	c2_rwlock_write_lock(&timer_threads_lock);
-	if (c2_atomic64_get(&info->tti_timer_count) == 0) {
-		C2_ASSERT(c2_rbtree_remove(&timer_threads, &info->tti_linkage));
-		thread_info_fini(info);
+void timer_posix_reset(struct c2_timer_sighandler *sighandler, c2_time_t expire, pid_t tid)
+{
+	struct itimerspec ts;
+
+	if (tid != sighandler->tsh_ptimer_thread) {
+		timer_posix_fini(sighandler);
+		timer_posix_init(sighandler, tid);
 	}
-	c2_rwlock_write_unlock(&timer_threads_lock);
+	ts.it_interval.tv_sec = 0;
+	ts.it_interval.tv_nsec = 0;
+	ts.it_value.tv_sec = c2_time_seconds(expire);
+	ts.it_value.tv_nsec = c2_time_nanoseconds(expire);
+	C2_ASSERT(timer_settime(sighandler->tsh_ptimer,
+				TIMER_ABSTIME,
+				&ts,
+				NULL) == 0);
 }
 
-static void timer_scheduling_thread(void *unused);
-
-/**
-   init() for c2_timer_info structure
- */
-static struct c2_timer_info *timer_info_init(struct c2_timer *timer)
+void timer_cleanup()
 {
-	struct c2_timer_info *tinfo = c2_alloc(sizeof *tinfo);
-	struct timer_thread_info *thread_info;
-	int rc;
+	int i;
+	struct c2_timer_sighandler *sighandler;
+	struct c2_atomic_queue_link *link;
+	struct c2_timer_state *tstate;
+	struct c2_timer_info *tinfo;
 
-	C2_ASSERT(timer != NULL);
-	C2_ASSERT(tinfo != NULL);
+	for (i = SIGRTMIN; i < SIGRTMIN + timer_sighandler_max(); ++i) {
+		sighandler = timer_sighandler(i);
 
-	thread_info = thread_info_self();
-	C2_ASSERT(thread_info != NULL);
-
-	c2_rbtree_link_init(&tinfo->ti_linkage);
-	tinfo->ti_interval = timer->t_interval;
-	tinfo->ti_timer = timer;
-	timer->t_info = tinfo;
-	tinfo->ti_thread = thread_info;
-	c2_atomic64_inc(&thread_info->tti_timer_count);
-	tinfo->ti_started = false;
-
-	c2_mutex_lock(&timer_scheduler_lock);
-	// start hard timer scheduling thread if necessary
-	if (c2_atomic64_add_return(&timer_hard_count, 1) == 1) {
-		rc = C2_THREAD_INIT(&timer_scheduler, void*, NULL,
-				    &timer_scheduling_thread,
-				    NULL, "c2_timer_scheduler");
-	} else {
-		rc = timer_scheduler.t_state == TS_PARKED;
-	}
-	c2_mutex_unlock(&timer_scheduler_lock);
-
-	C2_ASSERT(rc == 0);
-	
-	return tinfo;
-
-}
-
-/**
-   fini() for c2_timer_info structure
- */
-static void timer_info_fini(struct c2_timer_info *tinfo)
-{
-	C2_ASSERT(tinfo != NULL);
-
-	c2_atomic64_dec(&tinfo->ti_thread->tti_timer_count);
-	thread_info_tryfree(tinfo->ti_thread);
-	c2_rbtree_link_fini(&tinfo->ti_linkage);
-	c2_free(tinfo);
-
-	// stop scheduler thread if no hard timers left
-	c2_mutex_lock(&timer_scheduler_lock);
-	if (c2_atomic64_sub_return(&timer_hard_count, 1) == 0) {
-		c2_thread_signal(&timer_scheduler, SIGUSR1);
-		c2_thread_join(&timer_scheduler);
-		c2_thread_fini(&timer_scheduler);
-	}
-	c2_mutex_unlock(&timer_scheduler_lock);
-}
-
-/**
-   Comparator for timer_threads map
- */
-static int timer_tid_cmp(void *_a, void *_b)
-{
-	pthread_t a = *(pthread_t *) _a;
-	pthread_t b = *(pthread_t *) _b;
-
-	if (a == b)
-		return 0;
-	else
-		return a > b ? 1 : -1;
-}
-
-/**
-   SIGUSR1 signal handler in destination thread.
-   It reads all callback from callbacks queue and executes them
- */
-static void timer_destination_sighandler(int signum)
-{
-	printf("------------------ destination SIGUSR1 catched, ");
-	printf("TID = %lu\n", pthread_self());
-	struct timer_thread_info *info;
-	struct timer_callback_info cinfo;
-
-	if (c2_atomic64_add_return(&timer_destination_sighandler_unprocessed, 1) != 1)
-		return;
-
-	info = thread_info_self();
-	C2_ASSERT(info != NULL);
-
-	do {
-		while (timer_callback_dequeue(info, &cinfo))
-			cinfo.tci_callback(cinfo.tci_data);
-	} while (c2_atomic64_sub_return(&timer_destination_sighandler_unprocessed, 1) != 0);
-}
-
-/**
-   Process timer state.
-   This function called only from SIGUSR1 handler in hard timers scheduling thread
-   insert/delete from timers priority queue are only there, so there is no need for
-   any type of synchronization.
- */
-static void timer_state_process(struct c2_timer_info *tinfo, enum TIMER_STATE state)
-{
-	printf("timer_state_process(), state = %d\n", (int) state);
-	switch (state) {
-	case TIMER_STATE_START:
-		printf("TIMER_STATE_START\n");
-		printf("%lu\n", tinfo->ti_left);
-		if (tinfo->ti_left == 0)
-			break;
-		tinfo->ti_started = true;
-		printf("timer_queue_insert: expiration on "); 
-		print_time(tinfo->ti_expire);
-		printf(", current time ");
-		print_time(c2_time_now());
-		printf("\n");
-		timer_queue_insert(tinfo);
-		break;
-	case TIMER_STATE_STOP:
-		printf("TIMER_STATE_STOP\n");
-		timer_queue_delete(tinfo);
-		tinfo->ti_left = 0;
-		tinfo->ti_started = false;
-		break;
-	case TIMER_STATE_FINI:
-		printf("TIMER_STATE_FINI\n");
-		timer_info_fini(tinfo);
-		break;
-	case TIMER_STATE_EXPIRED:
-		printf("TIMER_STATE_EXPIRED\n");
-		while ((tinfo = timer_expired_peek()) != NULL) {
-			timer_queue_delete(tinfo);
-			tinfo->ti_expire = c2_time_add(tinfo->ti_expire, tinfo->ti_interval);
-			print_time(tinfo->ti_expire);
-			printf(" ");
-			print_time(c2_time_now());
-			printf(" ");
-			printf("%lu\n", tinfo->ti_left);
-			if (--tinfo->ti_left == 0)
-				continue;
-			// add callback to destination thread callback queue
-			timer_callback_enqueue(tinfo);
-			// call SIGUSR1 handler in destinatiin thread, which
-			// will dequeue and execute callback
-			C2_ASSERT(pthread_kill(tinfo->ti_thread->tti_id, SIGUSR1) == 0);
-			timer_queue_insert(tinfo);
+		while ((link = c2_atomic_queue_get(&sighandler->tsh_tstate_dealloc_queue)) != NULL) {
+			tstate = container_of(link, struct c2_timer_state, ts_linkage);
+			c2_free(tstate);
 		}
-		break;
+		while ((link = c2_atomic_queue_get(&sighandler->tsh_tinfo_dealloc_queue)) != NULL) {
+			tinfo = container_of(link, struct c2_timer_info, ti_linkage);
+			timer_info_fini(tinfo);
+		}
 	}
-	timer_next_expiration = timer_next_expiration_get();
-	printf("next expiration in %lu.%lu\n",
-		c2_time_seconds(timer_next_expiration), c2_time_nanoseconds(timer_next_expiration));
 }
 
 /**
-   SIGUSR1 handler for hard timers scheduling thread.
+   Thread-safe, async-signal-safe, lock-free.
  */
-static void timer_scheduler_sighandler(int signum)
+void timer_hard_sighandler(int signo)
 {
-	static struct c2_timer_info *timer;
-	static enum TIMER_STATE state;
+	struct c2_timer_sighandler *sighandler = timer_sighandler(signo);
+	struct c2_timer_info *tinfo;
+	struct c2_timer_info *tinfo_next;
+	enum TIMER_STATE state;
+	pid_t current_tid;
 
-	printf("SIGUSR1 catched, ");
-	printf("TID = %lu\n", pthread_self());
-	if (c2_atomic64_add_return(&timer_scheduler_sighandler_unprocessed, 1) != 1)
+	C2_ASSERT(sighandler != NULL);
+	if (c2_atomic64_get(&sighandler->tsh_callback_pending) == 1) {
+		if (gettid() == sighandler->tsh_callback_tid) {
+			if (c2_atomic64_add_return(&sighandler->tsh_callback_executing, 1) == 1) {
+				// execute callback
+				sighandler->tsh_callback(sighandler->tsh_data);
+				sighandler->tsh_callback_tid = 0;
+				c2_atomic64_set(&sighandler->tsh_callback_pending, 0);
+				c2_atomic64_set(&sighandler->tsh_callback_executing, 0);
+			}
+		}
+	}
+	if (c2_atomic64_add_return(&sighandler->tsh_processing, 1) != 1)
 		return;
 	do {
-		while (timer_state_dequeue(&timer, &state))
-			timer_state_process(timer, state);
-	} while (c2_atomic64_sub_return(&timer_scheduler_sighandler_unprocessed, 1) != 0);
+		while ((tinfo = timer_state_dequeue(sighandler, &state)) != NULL) {
+			switch (state) {
+			case TIMER_STATE_FINI:
+				c2_atomic_queue_put(&sighandler->tsh_tinfo_dealloc_queue, &tinfo->ti_aqlink);
+				break;
+			case TIMER_STATE_START:
+				timer_pqueue_insert(sighandler, tinfo);
+				break;
+			case TIMER_STATE_STOP:
+				timer_pqueue_remove(sighandler, tinfo);
+				break;
+			default:
+				C2_IMPOSSIBLE("invalid state");
+			}
+		}
+		current_tid = gettid();	// cache current tid
+		tinfo = timer_expired_info(c2_rbtree_min(&sighandler->tsh_pqueue));
+		while (tinfo != NULL) {
+			tinfo_next = timer_expired_info(c2_rbtree_next(&tinfo->ti_linkage));
+			if (current_tid == tinfo->ti_tid) {
+				tinfo->ti_callback(tinfo->ti_data);
+				timer_reschedule(sighandler, tinfo);
+			} else if (c2_atomic64_get(&sighandler->tsh_callback_pending) == 0 && c2_atomic64_get(&sighandler->tsh_callback_executing) == 0) {
+				sighandler->tsh_callback_tid = tinfo->ti_tid;
+				c2_atomic64_set(&sighandler->tsh_callback_pending, 1);
+				timer_reschedule(sighandler, tinfo);
+			}
+			tinfo = tinfo_next;
+		}
+		tinfo = timer_info(c2_rbtree_min(&sighandler->tsh_pqueue));
+		if (tinfo != NULL) {
+			sighandler->tsh_expire = tinfo->ti_expire;
+			sighandler->tsh_expire_tid = tinfo->ti_tid;
+		} else {
+			sighandler->tsh_expire = c2_time_add(c2_time_now(), timer_infinity);
+			sighandler->tsh_expire_tid = gettid();
+		}
+		c2_atomic64_set(&sighandler->tsh_expire_set, 1);
+	} while (c2_atomic64_sub_return(&sighandler->tsh_processing, 1) != 0);
+	if (c2_atomic64_add_return(&sighandler->tsh_ptimer_processing, 1) != 1)
+		return;
+	if (c2_atomic64_get(&sighandler->tsh_callback_pending) == 1)
+		timer_posix_reset(sighandler, c2_time_now(), sighandler->tsh_callback_tid);
+	else if (c2_atomic64_get(&sighandler->tsh_expire_set) == 1) {
+		timer_posix_reset(sighandler, sighandler->tsh_expire, sighandler->tsh_expire_tid);
+		c2_atomic64_set(&sighandler->tsh_expire_set, 0);
+	} else
+		timer_posix_reset(sighandler, c2_time_add(c2_time_now(), timer_infinity), gettid());
+	c2_atomic64_set(&sighandler->tsh_ptimer_processing, 0);
 }
 
-/**
-   Hard timers sheduling thread.
- */
-static void timer_scheduling_thread(void *unused)
+int timer_hard_init(struct c2_timer *timer)
 {
-	printf("start of timer scheduling thread, TID = %lu\n", pthread_self());
-	struct sigaction sa;
-	// signal(SIGUSR1, timer_scheduler_sighandler);
-	sa.sa_handler = timer_scheduler_sighandler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_NODEFER;
-	printf("installing signal handler from TID = %lu\n", pthread_self());
-	sigaction(SIGUSR1, &sa, NULL);
+	C2_PRE(timer != NULL);
 
-	while (c2_atomic64_get(&timer_hard_count) != 0) {
-		timer_state_enqueue(NULL, TIMER_STATE_EXPIRED);
-		// c2_thread_signal(&timer_scheduler, SIGUSR1);
-		timer_scheduler_sighandler(SIGUSR1);
+	timer_cleanup();
+	timer->t_info = timer_info_init(timer);
 
-		// wait for next timer expiration
-		// FIXME no wait if no timers left
-		printf("nanosleep begin\n");
-		c2_nanosleep(timer_next_expiration, NULL);
-		printf("nanosleep end\n");
-	}
-	timer_scheduler_sighandler(SIGUSR1);
-	printf("finish of timer scheduling thread\n");
-}
-
-/**
-   init() function for hard timer
-   Start hard timer scheduling thread if it is first timer
- */
-static int timer_hard_init(struct c2_timer *timer)
-{
-	printf("timer_hard_init(), timer = %p\n", timer);
-	return !timer_info_init(timer);
-}
-
-/**
-   fini() function for hard timer
-   Stop hard timer scheduling thread if it is last timer
- */
-static void timer_hard_fini(struct c2_timer *timer)
-{
-	printf("timer_hard_fini(), timer = %p\n", timer);
-	timer_state_enqueue(timer->t_info, TIMER_STATE_FINI);
-}
-
-/**
-   Start a hard timer
-   t_expiration and t_left already set in timer_start()
- */
-static int timer_hard_start(struct c2_timer *timer)
-{
-	printf("timer_hard_start(), timer = %p\n", timer);
-	// t_expire and t_left already set in timer_start()
-	printf("%lu\n", timer->t_left);
-	timer->t_info->ti_left = timer->t_left;
-	timer->t_info->ti_expire = timer->t_expire;
-
-	timer_state_enqueue(timer->t_info, TIMER_STATE_START);
+	C2_POST(timer->t_info != NULL);
 	return 0;
 }
 
-/**
-   Stop a hard timer
- */
-static int timer_hard_stop(struct c2_timer *timer)
+void timer_hard_state_enqueue(struct c2_timer *timer, enum TIMER_STATE state)
 {
-	printf("timer_hard_stop(), timer = %p\n", timer);
-	timer_state_enqueue(timer->t_info, TIMER_STATE_STOP);
+	C2_PRE(timer != NULL);
+	C2_PRE(timer->t_info != NULL);
+	C2_PRE(timer->t_info->ti_sighandler != NULL);
+
+	timer_cleanup();
+	timer_state_enqueue(timer->t_info, TIMER_STATE_FINI);
+	timer_sighandler(timer->t_info->ti_sighandler->tsh_signo);
+}
+
+int timer_hard_fini(struct c2_timer *timer)
+{
+	C2_PRE(timer != NULL);
+	C2_PRE(timer->t_info != NULL);
+
+	if (timer->t_info->ti_sighandler != NULL) {
+		timer_hard_state_enqueue(timer, TIMER_STATE_FINI);
+	} else {
+		timer_info_fini(timer->t_info);
+	}
+	return 0;
+}
+
+int timer_hard_start(struct c2_timer *timer)
+{
+	C2_PRE(timer != NULL);
+	C2_PRE(timer->t_info != NULL);
+
+	timer->t_info->ti_expire =  timer->t_expire;
+	timer_hard_state_enqueue(timer, TIMER_STATE_START);
+	return 0;
+}
+
+int timer_hard_stop(struct c2_timer *timer)
+{
+	timer_hard_state_enqueue(timer, TIMER_STATE_STOP);
 	return 0;
 }
 
@@ -889,22 +838,13 @@ C2_EXPORTED(c2_timer_fini);
  */
 int c2_timers_init()
 {
-	c2_mutex_init(&timer_scheduler_lock);
-	c2_atomic64_set(&timer_hard_count, 0);
-	c2_atomic64_set(&timer_scheduler_sighandler_unprocessed, 0);
-	c2_atomic64_set(&timer_destination_sighandler_unprocessed, 0);
-	c2_queue_init(&timer_states);
-	c2_mutex_init(&timer_states_lock);
-	c2_rbtree_init(&timer_threads, timer_tid_cmp,
-			offsetof(struct timer_thread_info, tti_id) -
-			offsetof(struct timer_thread_info, tti_linkage));
-	c2_rwlock_init(&timer_threads_lock);
-	c2_rbtree_init(&timer_timers, timer_queue_cmp,
-			offsetof(struct c2_timer_info, ti_expire) -
-			offsetof(struct c2_timer_info, ti_linkage));
-	c2_time_set(&timer_time_one_ns, 0, 1);
-	c2_time_set(&timer_time_infinity, 1000000000000ULL, 0);
+	int i;
 
+	c2_atomic64_set(&timer_locality_count, 0);
+	for (i = SIGRTMIN; i <= SIGRTMAX; ++i)
+		timer_sighandler_init(timer_sighandler(i), i);
+	c2_time_set(&timer_1ns, 0, 1);
+	c2_time_set(&timer_infinity, 86400, 0);
 	return 0;
 }
 C2_EXPORTED(c2_timers_init);
@@ -914,12 +854,12 @@ C2_EXPORTED(c2_timers_init);
  */
 void c2_timers_fini()
 {
-	c2_rbtree_fini(&timer_timers);
-	c2_rwlock_fini(&timer_threads_lock);
-	c2_rbtree_fini(&timer_threads);
-	c2_mutex_fini(&timer_states_lock);
-	c2_queue_fini(&timer_states);
-	c2_mutex_fini(&timer_scheduler_lock);
+	int i;
+
+	timer_cleanup();
+	for (i = SIGRTMIN; i <= SIGRTMAX; ++i)
+		timer_sighandler_fini(timer_sighandler(i));
+	C2_ASSERT(c2_atomic64_get(&timer_locality_count) == 0);
 }
 C2_EXPORTED(c2_timers_fini);
 

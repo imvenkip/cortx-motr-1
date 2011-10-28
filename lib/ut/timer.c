@@ -357,7 +357,7 @@ void tc_empty_thread(int param)
 }
 
 // one iteration of thread switch with 1ns timer
-void tc_benchmark()
+void tc_benchmark(int signo)
 {
 	struct sigaction sa;
 	struct sigevent se;
@@ -370,7 +370,7 @@ void tc_benchmark()
 	C2_ASSERT(sigaction(SIGRTMIN, &sa, NULL) == 0);
 
 	se.sigev_notify = SIGEV_THREAD_ID;
-	se.sigev_signo = SIGRTMIN;
+	se.sigev_signo = signo;
 	se._sigev_un._tid = empty_tid;
 	C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &timer_id) == 0);
 
@@ -400,7 +400,7 @@ void test_timer(void)
 	printf("benchmark start at %lu.%lu\n", c2_time_seconds(now), c2_time_nanoseconds(now));
 	for (i = 0; i < 100000; ++i) {
 		int enters = empty_handler_enters;
-		tc_benchmark();
+		tc_benchmark(-1);
 
 		// non-atomic spinlock
 		enters++;

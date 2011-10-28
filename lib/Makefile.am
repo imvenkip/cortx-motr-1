@@ -5,7 +5,7 @@ libc2_HEADERS        = adt.h atomic.h cond.h getopts.h misc.h refs.h trace.h \
                        ut.h arith.h cdefs.h errno.h list.h mutex.h rwlock.h \
                        types.h vec.h assert.h chan.h ext.h memory.h queue.h \
                        thread.h time.h ub.h bitmap.h processor.h timer.h \
-                       semaphore.h tlist.h rbtree.h
+                       semaphore.h tlist.h rbtree.h atomic_queue.h
 
 noinst_LTLIBRARIES   = libc2.la
 libc2_la_SOURCES     = libc2.c memory.c list.c refs.c \
@@ -16,7 +16,7 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c \
                        vec.h chan.h mutex.h cond.h types.h errno.h \
                        user_space/user_x86_64_atomic.h assert.h cdefs.h \
                        misc.c misc.h ext.c ext.h bitstring.h bitstring.c \
-                       tlist.c tlist.h rbtree.c \
+                       tlist.c tlist.h rbtree.c atomic_queue.c \
                        ut.c ut.h ub.c ub.h trace.h user_space/trace.c \
                        getopts.c getopts.h user_space/assert.h \
                        user_space/mutex.h user_space/cdefs.h \
