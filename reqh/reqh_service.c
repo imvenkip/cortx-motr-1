@@ -55,35 +55,35 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *service)
 		return false;
 
 	switch (service->rs_phase) {
-	case RSPH_INITIALISING:
+	case C2_RSPH_INITIALISING:
 		return service->rs_type != NULL && service->rs_ops != NULL &&
-			service->rs_state == RSS_UNDEFINED;
-	case RSPH_INITIALISED:
+                       service->rs_state == C2_RSS_UNDEFINED;
+	case C2_RSPH_INITIALISED:
 		return service->rs_type != NULL && service->rs_ops != NULL &&
-			service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
-			service->rs_magic == C2_RHS_MAGIC &&
-			service->rs_state == RSS_READY;
-	case RSPH_STARTING:
+                       service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
+                       service->rs_magic == C2_RHS_MAGIC &&
+                       service->rs_state == C2_RSS_READY;
+	case C2_RSPH_STARTING:
 		return service->rs_type != NULL && service->rs_ops != NULL &&
-			service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
-			service->rs_state == RSS_READY &&
-			service->rs_magic == C2_RHS_MAGIC;
-	case RSPH_STARTED:
+                       service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
+                       service->rs_state == C2_RSS_READY &&
+                       service->rs_magic == C2_RHS_MAGIC;
+	case C2_RSPH_STARTED:
 		return service->rs_ops != NULL && service->rs_type != NULL &&
-			service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
-			service->rs_state == RSS_RUNNING &&
-			service->rs_magic == C2_RHS_MAGIC &&
-			c2_tlist_contains(&c2_rh_sl_descr,
-					&service->rs_reqh->rh_services,
-								service);
-	case RSPH_STOPPING:
+                       service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
+                       service->rs_state == C2_RSS_RUNNING &&
+                       service->rs_magic == C2_RHS_MAGIC &&
+                       c2_tlist_contains(&c2_rh_sl_descr,
+                                         &service->rs_reqh->rh_services,
+                                                                service);
+	case C2_RSPH_STOPPING:
 		return service->rs_ops != NULL && service->rs_type != NULL &&
-			service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
-			service->rs_state == RSS_RUNNING &&
-			service->rs_magic == C2_RHS_MAGIC &&
-			c2_tlist_contains(&c2_rh_sl_descr,
-					&service->rs_reqh->rh_services,
-								service);
+                       service->rs_uuid[0] != 0 && service->rs_reqh != NULL &&
+                       service->rs_state == C2_RSS_RUNNING &&
+                       service->rs_magic == C2_RHS_MAGIC &&
+                       c2_tlist_contains(&c2_rh_sl_descr,
+                                         &service->rs_reqh->rh_services,
+                                                                service);
 	default:
 		return false;
 	}
@@ -113,8 +113,8 @@ int c2_reqh_service_start(struct c2_reqh_service *service)
 	/* Adds service to reqh's service list */
         c2_tlist_add_tail(&c2_rh_sl_descr, &service->rs_reqh->rh_services,
 								service);
-	service->rs_phase = RSPH_STARTED;
-	service->rs_state = RSS_RUNNING;
+	service->rs_phase = C2_RSPH_STARTED;
+	service->rs_state = C2_RSS_RUNNING;
 	C2_POST(c2_reqh_service_invariant(service));
 
 	return 0;
@@ -125,8 +125,8 @@ void c2_reqh_service_stop(struct c2_reqh_service *service)
 	C2_ASSERT(c2_reqh_service_invariant(service));
 
 	c2_tlist_del(&c2_rh_sl_descr, service);
-	service->rs_phase = RSPH_STOPPED;
-	service->rs_state = RSS_STOPPED;
+	service->rs_phase = C2_RSPH_STOPPED;
+	service->rs_state = C2_RSS_STOPPED;
 }
 
 int c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
@@ -134,8 +134,8 @@ int c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 	const char *sname;
 
 	C2_PRE(service != NULL && reqh != NULL &&
-		service->rs_state == RSS_UNDEFINED &&
-		service->rs_phase == RSPH_INITIALISING);
+		service->rs_state == C2_RSS_UNDEFINED &&
+		service->rs_phase == C2_RSPH_INITIALISING);
 
 	/*
 	   Generating service uuid with service name and timestamp.
@@ -146,8 +146,8 @@ int c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 								c2_time_now());
 
 	service->rs_magic = C2_RHS_MAGIC;
-	service->rs_phase = RSPH_INITIALISED;
-	service->rs_state = RSS_READY;
+	service->rs_phase = C2_RSPH_INITIALISED;
+	service->rs_state = C2_RSS_READY;
 	service->rs_reqh  = reqh;
 	c2_tlink_init(&c2_rh_sl_descr, service);
 	c2_mutex_init(&service->rs_mutex);
@@ -158,8 +158,8 @@ int c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 
 void c2_reqh_service_fini(struct c2_reqh_service *service)
 {
-	C2_PRE(service != NULL && (service->rs_phase == RSPH_STOPPED ||
-				service->rs_phase == RSPH_FAILED));
+	C2_PRE(service != NULL && (service->rs_phase == C2_RSPH_STOPPED ||
+				service->rs_phase == C2_RSPH_FAILED));
 
 	c2_tlink_fini(&c2_rh_sl_descr, service);
 }

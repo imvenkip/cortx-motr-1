@@ -311,11 +311,11 @@ static int server_init(char **cs_cmdv, int cs_cmdc,
 
         rc = c2_cs_setup_env(&srv_colibri_ctx, cs_cmdc, cs_cmdv);
         if (rc != 0)
-		goto out;
+		return rc;
 
         rc = c2_cs_start(&srv_colibri_ctx);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	for (i = 0; i < stypes_nr; ++i) {
 		sc_ctx[i].sc_tm = c2_cs_tm_get(&srv_colibri_ctx,
@@ -330,7 +330,6 @@ static int server_init(char **cs_cmdv, int cs_cmdc,
 		C2_UT_ASSERT(rc == 0);
 	}
 
-out:
 	return rc;
 }
 

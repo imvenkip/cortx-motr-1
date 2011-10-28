@@ -98,7 +98,7 @@
     @note This image is borrowed from the "New developer guide for colibri"
           document in section "Starting Colibri services".
 
-    @image html ../DS-reqh.gif
+    @image html "../../colibri/DS-Reqh.gif"
 
    @{
  */

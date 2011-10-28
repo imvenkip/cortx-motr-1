@@ -302,8 +302,8 @@ static bool stype_is_valid(const char *stype)
 {
 	C2_PRE(stype != NULL);
 
-	return  (strcasecmp(stype, cs_stobs[AD_STOB]) == 0 ||
-		strcasecmp(stype, cs_stobs[LINUX_STOB]) == 0);
+	return  strcasecmp(stype, cs_stobs[AD_STOB]) == 0 ||
+		strcasecmp(stype, cs_stobs[LINUX_STOB]) == 0;
 }
 
 /**
@@ -348,7 +348,6 @@ static bool cs_endpoint_is_duplicate(struct c2_colibri *cctx,
         C2_ASSERT(!c2_tlist_is_empty(&rctx_descr, &cctx->cc_reqh_ctxs));
 
 	c2_tlist_for(&rctx_descr, &cctx->cc_reqh_ctxs, rctx) {
-
 		for (idx = 0, cnt = 0; idx < rctx->rc_enr; ++idx) {
 			if (strcmp(rctx->rc_eps[idx].endpoint, ep) == 0 ||
                             strcmp(rctx->rc_eps[idx].xprt, xprt->nx_name) == 0)
@@ -385,14 +384,12 @@ static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
 
 	rc = 0;
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
-	if (xprt == NULL) {
+	if (xprt == NULL)
 		rc = -EINVAL;
-		goto out;
-	}
 
-	if (cs_endpoint_is_duplicate(cctx, xprt, ep))
+	if (rc == 0 && cs_endpoint_is_duplicate(cctx, xprt, ep))
 		rc = -EADDRINUSE;
-out:
+
 	return rc;
 }
 
@@ -425,7 +422,7 @@ static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, const char *ep)
    handler context.
  */
 static bool service_is_duplicate(const char *service_name,
-			const struct cs_reqh_context *rctx)
+				const struct cs_reqh_context *rctx)
 {
 	int idx;
 	int cnt;
@@ -624,7 +621,7 @@ static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
 
 	if (xprt == NULL)
-		return - EINVAL;
+		return -EINVAL;
 
 	ndom = cs_net_domain_locate(cctx, xprt->nx_name);
 	if (ndom == NULL)
@@ -637,13 +634,12 @@ static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
 	rc = c2_rpcmachine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh);
 	if (rc != 0) {
 		c2_free(rpcmach);
-		goto rpm_fail;
+		return rc;
 	}
 
 	c2_tlink_init(&c2_rh_rpml_descr, rpcmach);
 	c2_tlist_add_tail(&c2_rh_rpml_descr, &reqh->rh_rpcmachines, rpcmach);
 
-rpm_fail:
 	return rc;
 }
 
@@ -678,11 +674,11 @@ static int cs_rpcmachines_init(struct c2_colibri *cctx)
 				"COLIBRI: Invalid endpoint: %s:%s\n",
 					rctx->rc_eps[idx].xprt,
 					rctx->rc_eps[idx].endpoint);
-				goto out;
+				return rc;
 			}
 		}
 	} c2_tlist_endfor;
-out:
+
 	return rc;
 }
 
@@ -719,14 +715,12 @@ static int cs_ad_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 
 	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type,
 				stob_path, &stob->adstob);
-	if (rc != 0)
-		goto out;
 
-	rc = c2_ad_stob_setup(stob->adstob, db, *bstob,
-			&colibri_balloc.cb_ballroom);
-out:
+	if (rc == 0)
+		rc = c2_ad_stob_setup(stob->adstob, db, *bstob,
+				&colibri_balloc.cb_ballroom);
+
 	return rc;
-
 }
 
 /**
@@ -735,22 +729,20 @@ out:
 static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 							struct c2_stob **bstob)
 {
-	int rc;
+	int                    rc;
+	struct c2_stob_domain *sdom;
 
 	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 					stob_path, &stob->linuxstob);
-	if  (rc != 0)
-		goto out;
-
-	rc = c2_linux_stob_setup(stob->linuxstob, true);
-	if  (rc != 0)
-		goto out;
-
-	rc = stob->linuxstob->sd_ops->sdo_stob_find(stob->linuxstob,
+	if  (rc == 0) {
+		sdom = stob->linuxstob;
+		rc = c2_linux_stob_setup(sdom, true);
+		if  (rc == 0)
+			rc = sdom->sd_ops->sdo_stob_find(stob->linuxstob,
 						&stob->stob_id, bstob);
-out:
-	return rc;
+	}
 
+	return rc;
 }
 
 /**
@@ -798,29 +790,29 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 
 	rc = mkdir(stob_path, 0700);
         if (rc != 0 && errno != EEXIST)
-		goto out;
+		goto cleanup;
 
         rc = mkdir(objpath, 0700);
         if (rc != 0 && errno != EEXIST)
-		goto out;
+		goto cleanup;
 
 	rc = cs_linux_stob_init(stob_path, stob, &bstore);
 	if (rc != 0)
-		goto out;
+		goto cleanup;
 
 	rc = c2_stob_create(bstore, NULL);
 	if (rc != 0)
-		goto out;
+		goto cleanup;
 
 	if (strcasecmp(stob_type, cs_stobs[AD_STOB]) == 0)
 		rc = cs_ad_stob_init(stob_path, stob, db, &bstore);
 
 	if (rc != 0)
-		goto out;
+		goto cleanup;
 
 	C2_ASSERT(bstore->so_state == CSS_EXISTS);
 
-out:
+cleanup:
 	if (bstore != NULL)
 		c2_stob_put(bstore);
 	c2_free(objpath);
@@ -883,22 +875,22 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
 
 	rc = c2_reqh_service_init(service, reqh);
 	if (rc != 0) {
-		service->rs_phase = RSPH_FAILED;
+		service->rs_phase = C2_RSPH_FAILED;
 		goto cleanup3;
 	}
 
 	C2_ASSERT(c2_reqh_service_invariant(service));
 
-	service->rs_phase = RSPH_STARTING;
+	service->rs_phase = C2_RSPH_STARTING;
 	rc = service->rs_ops->rso_start(service);
 	if (rc != 0) {
-		service->rs_phase = RSPH_FAILED;
+		service->rs_phase = C2_RSPH_FAILED;
 		goto cleanup2;
 	}
 
 	rc = c2_reqh_service_start(service);
 	if (rc != 0) {
-		service->rs_phase = RSPH_FAILED;
+		service->rs_phase = C2_RSPH_FAILED;
 		goto cleanup1;
 	}
 
@@ -927,11 +919,9 @@ static int cs_services_init(struct c2_colibri *cctx)
 	int                      idx;
 	int                      rc;
 	struct cs_reqh_context  *rctx;
-	FILE                    *ofd;
 
 	C2_PRE(cctx != NULL);
 
-	ofd = cctx->cc_outfile;
         c2_tlist_for(&rctx_descr, &cctx->cc_reqh_ctxs, rctx) {
 		C2_ASSERT(cs_reqh_context_invariant(rctx));
 
@@ -939,16 +929,16 @@ static int cs_services_init(struct c2_colibri *cctx)
 			rc = cs_service_init(rctx->rc_services[idx],
 							&rctx->rc_reqh);
 			if (rc != 0)
-				goto out;
+				return rc;
 		}
 	} c2_tlist_endfor;
-out:
+
 	return rc;
 }
 
 /**
    Finalises a service.
-   Transitions service to RSPH_STOPPING phase, stops a service and then
+   Transitions service to C2_RSPH_STOPPING phase, stops a service and then
    finalises the same.
 
    @param service Service to be finalised
@@ -962,18 +952,18 @@ static void cs_service_fini(struct c2_reqh_service *service)
 {
 	C2_PRE(service != NULL);
 
-	service->rs_phase = RSPH_STOPPING;
+	service->rs_phase = C2_RSPH_STOPPING;
 	service->rs_ops->rso_stop(service);
 	c2_reqh_service_stop(service);
-	C2_ASSERT(service->rs_phase == RSPH_STOPPED &&
-			service->rs_state == RSS_STOPPED);
+	C2_ASSERT(service->rs_phase == C2_RSPH_STOPPED &&
+			service->rs_state == C2_RSS_STOPPED);
 	c2_reqh_service_fini(service);
 	service->rs_ops->rso_fini(service);
 }
 
 /**
    Finalises all the services registered with a request handler.
-   Also Traverses through the services list and invokes cs_service_fini() on
+   Also traverses through the services list and invokes cs_service_fini() on
    each individual service.
 
    @param reqh Request handler of which the services are to be finalised
@@ -1007,12 +997,10 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 	int                     xprts_nr;
 	struct c2_net_xprt    **xprts;
 	struct c2_net_xprt     *xprt;
-	FILE                   *ofd;
 	struct cs_reqh_context *rctx;
 
 	C2_PRE(cctx != NULL);
 
-	ofd = cctx->cc_outfile;
 	xprts = cctx->cc_xprts;
 	xprts_nr = cctx->cc_xprts_nr;
 
@@ -1029,23 +1017,22 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 
 			rc = c2_net_xprt_init(xprt);
 			if (rc != 0)
-				goto out;
+				return rc;
 
 			C2_ALLOC_PTR(ndom);
-			if (ndom == NULL) {
-				rc = -ENOMEM;
-				goto out;
-			}
+			if (ndom == NULL)
+				return -ENOMEM;
+
 			rc = c2_net_domain_init(ndom, xprt);
 			if (rc != 0) {
 				c2_free(ndom);
-				goto out;
+				return rc;
 			}
 			c2_tlink_init(&ndoms_descr, ndom);
 			c2_tlist_add_tail(&ndoms_descr, &cctx->cc_ndoms, ndom);
 		}
 	} c2_tlist_endfor;
-out:
+
 	return rc;
 }
 
@@ -1064,7 +1051,6 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 
 	xprts = cctx->cc_xprts;
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
-
 		c2_net_domain_fini(ndom);
 		c2_tlist_del(&ndoms_descr, ndom);
 		c2_tlink_fini(&ndoms_descr, ndom);
@@ -1161,10 +1147,10 @@ static int cs_start_request_handlers(struct c2_colibri *cctx)
 		if (rc != 0) {
 			fprintf(ofd,
 				"COLIBRI: Failed to start request handler\n");
-			goto out;
+			return rc;
 		}
 	} c2_tlist_endfor;
-out:
+
 	return rc;
 }
 
@@ -1341,15 +1327,13 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
                         fprintf(ofd,
 				"COLIBRI: Missing or invalid parameters\n");
 			cs_usage(ofd);
-                        rc = -EINVAL;
-			goto out;
+                        return -EINVAL;
                 }
 
 		if (!stype_is_valid(rctx->rc_stype)) {
                         fprintf(ofd, "COLIBRI: Invalid storage type\n");
 			cs_stob_types_list(ofd);
-                        rc = -EINVAL;
-			goto out;
+                        return -EINVAL;
                 }
 		/*
 		   Check if all the given end points in a reqh context are
@@ -1370,7 +1354,7 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 					rctx->rc_eps[idx].xprt,
 					rctx->rc_eps[idx].endpoint);
 			if (rc != 0)
-				goto out;
+				return rc;
 		}
 
 		/*
@@ -1379,28 +1363,24 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 		 */
 		if (rctx->rc_snr == 0) {
 			fprintf(ofd, "COLIBRI: Services unavailable\n");
-			rc = -EINVAL;
-			goto out;
+			return -EINVAL;
 		}
 
 		for (idx = 0; idx < rctx->rc_snr; ++idx) {
 			if (!service_is_registered(rctx->rc_services[idx])) {
 				fprintf(ofd, "COLIBRI: Unknown service: %s\n",
-					rctx->rc_services[idx]);
+                                                       rctx->rc_services[idx]);
 				cs_services_list(ofd);
-				rc = -ENOENT;
-				goto out;
+				return -ENOENT;
 			}
 			if (service_is_duplicate(rctx->rc_services[idx], rctx)) {
 				fprintf(ofd, "COLIBRI: Duplicate service: %s\n",
-					rctx->rc_services[idx]);
-				rc = -EADDRINUSE;
-				goto out;
+                                                       rctx->rc_services[idx]);
+				return -EADDRINUSE;
 			}
 		}
 	} c2_tlist_endfor;
 
-out:
 	return rc;
 }
 
@@ -1420,10 +1400,8 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 
 	C2_PRE(cctx != NULL);
 
-	if (argc <= 1) {
-		rc = -EINVAL;
-		goto out;
-	}
+	if (argc <= 1)
+		return -EINVAL;;
 
 	ofd = cctx->cc_outfile;
         C2_GETOPTS("colibri_setup", argc, argv,
@@ -1523,50 +1501,45 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
                                 vrctx->rc_services[vrctx->rc_snr] = str;
 				C2_CNT_INC(vrctx->rc_snr);
                         })));
-out:
+
 	return rc;
 }
 
 int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 {
 	int   rc;
-	FILE *ofd;
 
 	C2_PRE(cctx != NULL);
-
-	ofd = cctx->cc_outfile;
 
 	rc = cs_parse_args(cctx, argc, argv);
 	if (rc < 0) {
 		cs_usage(cctx->cc_outfile);
-		goto out;
+		return rc;
 	}
 
 	rc = reqh_ctxs_are_valid(cctx);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = cs_net_domains_init(cctx);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = cs_start_request_handlers(cctx);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	rc = cs_rpcmachines_init(cctx);
-out:
+
 	return rc;
 }
 
 int c2_cs_start(struct c2_colibri *cctx)
 {
 	int   rc;
-	FILE *ofd;
 
 	C2_PRE(cctx != NULL);
 
-	ofd = cctx->cc_outfile;
 	rc = cs_services_init(cctx);
 	if (rc != 0)
 		fprintf(cctx->cc_outfile,

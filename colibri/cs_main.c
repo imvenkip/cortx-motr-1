@@ -49,7 +49,7 @@ static struct c2_net_xprt *cs_xprts[] = {
 };
 
 /**
-   Global colibri context
+   Global colibri context.
  */
 static struct c2_colibri colibri_ctx;
 
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Colibri \n");
-		goto cleanup;
+		goto cleanup2;
 	}
 
         rc = c2_cs_setup_env(&colibri_ctx, argc, argv);
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 
 cleanup1:
 	c2_cs_fini(&colibri_ctx);
-cleanup:
+cleanup2:
 	c2_fini();
 out:
 	errno = rc < 0 ? -rc : rc;
