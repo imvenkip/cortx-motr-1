@@ -24,10 +24,11 @@
 #include "lib/types.h"               /* int32_t, uint64_t */
 #include "lib/atomic.h"
 #include "lib/time.h"                /* c2_time_t */
+#include "lib/timer.h"
 #include "lib/semaphore.h"
 #include "lib/chan.h"
 #include "lib/mutex.h"
-#include "lib/list.h"
+#include "lib/tlist.h"
 
 /**
    @defgroup sm State machine
@@ -38,10 +39,11 @@
    The main difference between "state machine" (non-blocking) code and
    "threaded" (blocking) code is that the latter blocks waiting for some events
    while having some computational state stored in the "native" C language stack
-   (in the form of automatic variables). Because of this the thread must remain
-   dedicated to the same threaded activity not only during actual "computation",
-   when processor is actively used, but also for the duration of wait. In many
-   circumstances this is too expensive, because threads are heavy objects.
+   (in the form of automatic variables allocated across the call-chain). Because
+   of this the thread must remain dedicated to the same threaded activity not
+   only during actual "computation", when processor is actively used, but also
+   for the duration of wait. In many circumstances this is too expensive,
+   because threads are heavy objects.
 
    Non-blocking code, on the other hand, packs all its state into a special
    data-structures before some potential blocking points and unpacks it after
@@ -207,7 +209,7 @@ struct c2_mutex;
    that maximal state (as a number) should not be too large, because all states
    are enumerated in a c2_sm::sm_conf::scf_state[] array.
 
-   @invariant c2_sm_invariant() (under mach->sm_lock).
+   @invariant c2_sm_invariant() (under mach->sm_grp->s_lock).
  */
 struct c2_sm {
 	/**
@@ -250,11 +252,11 @@ struct c2_sm {
    @invariant c2_sm_desc_invariant()
  */
 struct c2_sm_conf {
-	const char               *scf_name;
+	const char                     *scf_name;
 	/** Number of states in this state machine. */
-	uint32_t                  scf_nr_states;
+	uint32_t                        scf_nr_states;
 	/** Array of state descriptions. */
-	struct c2_sm_state_descr *scf_state;
+	const struct c2_sm_state_descr *scf_state;
 };
 
 /**
@@ -344,27 +346,32 @@ struct c2_sm_ast {
 	void               *sa_datum;
 	struct c2_sm_ast   *sa_next;
 	struct c2_sm       *sa_mach;
-	struct c2_list_link sa_freelist;
+	struct c2_tlink     sa_freelist;
+	uint64_t            sa_magic;
 };
 
 enum {
-	C2_SM_GROUP_AST_MAX = 256;
+	C2_SM_GROUP_AST_MAX = 256
 };
 
 struct c2_sm_group {
-	struct c2_mutex      s_lock;
-	struct c2_semaphore  s_sem;
-	struct c2_sm_ast    *s_forkq;
-	struct c2_list       s_ast_free;
-	struct c2_sm_ast     s_ast[C2_SM_GROUP_AST_MAX];
+	struct c2_mutex   s_lock;
+	struct c2_chan    s_signal;
+	struct c2_sm_ast *s_forkq;
+	struct c2_tl      s_ast_free;
+	struct c2_sm_ast  s_ast[C2_SM_GROUP_AST_MAX];
 };
 
 void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
-		uint32_t state, struct c2_sm_grp *grp, struct c2_addb_ctx *ctx);
+		uint32_t state, struct c2_sm_group *grp,
+		struct c2_addb_ctx *ctx);
 void c2_sm_fini(struct c2_sm *mach);
 
 void c2_sm_group_init(struct c2_sm_group *grp);
 void c2_sm_group_fini(struct c2_sm_group *grp);
+
+void c2_sm_group_lock(struct c2_sm_group *grp);
+void c2_sm_group_unlock(struct c2_sm_group *grp);
 
 /**
    Waits until a given state machine enters any of states enumerated by a given
@@ -389,12 +396,12 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline);
    Moves a state machine into fail_state state atomically with setting rc code.
 
    @pre rc != 0
-   @pre c2_mutex_is_locked(mach->sm_lock)
+   @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
    @pre mach->sm_rc == 0
    @pre mach->sm_conf->scf_state[fail_state].sd_flags & SDF_FAILURE
    @post mach->sm_rc == rc
    @post mach->sm_state == fail_state
-   @post c2_mutex_is_locked(mach->sm_lock)
+   @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
 
@@ -404,33 +411,76 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
    Calls ex- and in- methods of the corresponding states (even if the state
    doesn't change after all).
 
-   @pre c2_mutex_is_locked(mach->sm_lock)
+   @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
    @post mach->sm_state == state
-   @post c2_mutex_is_locked(mach->sm_lock)
+   @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 void c2_sm_state_set(struct c2_sm *mach, int state);
 
+/**
+   Structure used by c2_sm_timeout() to record timeout state.
+
+   This structure is owned by the sm code, user should not access it. The user
+   provides uninitialised instance c2_sm_timeout to c2_sm_timeout(). The
+   instance can be freed after the next state transition for the state machine
+   completes, see c2_sm_timeout() for details.
+ */
 struct c2_sm_timeout {
+	/** Timer used to implement delayed state transition. */
 	struct c2_timer  st_timer;
+	/** Clink to watch for state transitions that might cancel the
+	    timeout. */
 	struct c2_clink  st_clink;
+	/** AST invoked when timer fires off. */
 	struct c2_sm_ast st_ast;
+	/** Target state. */
 	int              st_state;
+	/** True if this timeout neither expired nor cancelled. */
 	bool             st_active;
 };
 
 /**
    Arms a timer to move a machine into a given state after a given timeout.
 
-   @pre c2_mutex_is_locked(mach->sm_lock)
-   @post c2_mutex_is_locked(mach->sm_lock)
+   If a state transition happens before the timeout expires, the timeout is
+   cancelled.
+
+   It is possible to arms multiple timeouts against the same state machine. The
+   first one to expire will cancel the rest.
+
+   The c2_sm_timeout instance, supplied to this call can be freed after timeout
+   expires or is cancelled.
+
+   @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
+   @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
 		  c2_time_t timeout, int state);
+/**
+   Finaliser that must be called before @to can be freed.
+ */
 void c2_sm_timeout_fini(struct c2_sm_timeout *to);
 
+/**
+   Posts an AST to a group.
+ */
 void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
+
+/**
+   Runs posted, but not yet executed ASTs.
+
+   @pre c2_mutex_is_locked(&grp->s_lock)
+   @post c2_mutex_is_locked(&grp->s_lock)
+ */
 void c2_sm_asts_run(struct c2_sm_group *grp);
 
+/**
+   Allocates an AST from the group's pool (c2_sm_group::s_ast[]).
+
+   @pre c2_mutex_is_locked(&grp->s_lock)
+   @pre !c2_list_is_empty(&grp->s_ast_free)
+   @post c2_mutex_is_locked(&grp->s_lock)
+ */
 struct c2_sm_ast *c2_sm_ast_get(struct c2_sm_group *grp);
 
 /** @} end of sm group */
