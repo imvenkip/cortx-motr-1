@@ -215,7 +215,6 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
 	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
 				      &sconn2->xc_dp_linkage));
-	C2_UT_ASSERT(c2_atomic64_get(&ep4->nep_ref.ref_cnt) == 0);
 
 	/* TEST: caching only works if the last use is non zero */
 	addr = "127.0.0.1:31111:1234";
@@ -828,6 +827,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
@@ -841,6 +841,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 1);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* TEST
 	   Set up a passive receive buffer in one dom, and
@@ -878,6 +879,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
@@ -891,6 +893,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 1);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* TEST
 	   Set up a passive receive buffer in one dom, and
@@ -928,6 +931,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
@@ -940,6 +944,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d2nb2.nb_desc);
 
 	/* TEST
 	   Setup a passive send buffer and add it. Save the descriptor in the
@@ -971,6 +976,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(cb_status2 == -ECANCELED);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* resubmit */
 	sunrpc_cbreset2();
@@ -1007,6 +1013,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
@@ -1020,6 +1027,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 2);
 	C2_UT_ASSERT(qs.nqs_num_dels == 2);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* Set up a message recv with a timeout, and set the skulker period
 	   to reasonably small value so that it times out fast. Check the
