@@ -39,10 +39,14 @@
 
 #else
 
-int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
+# define write_handler NULL
+# define read_handler NULL
+# define create_handler NULL
+# define quit_handler NULL
+/*int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
+int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);*/
 
 #include "io_u.h"
 # include "addb/addb_u.h"

@@ -421,12 +421,12 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
  */
 static int stob_create_fom_state(struct c2_fom *fom)
 {
-	struct c2_stob_io_create		*in_fop;
+	struct c2_stob_io_create	*in_fop;
 	struct c2_stob_io_create_rep	*out_fop;
-	struct c2_stob_io_fom			*fom_obj;
-	struct c2_rpc_item                      *item;
-	struct c2_fop                           *fop;
-	int                                      result;
+	struct c2_stob_io_fom		*fom_obj;
+	struct c2_rpc_item              *item;
+	struct c2_fop                   *fop;
+	int                             result;
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
 

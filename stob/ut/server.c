@@ -44,11 +44,12 @@
 #include "stob/ad.h"
 #include "colibri/init.h"
 #include "rpc/rpccore.h"
+#include "rpc/rpc_helper.h"
+#include "dtm/dtm.h"
 
-#include "io_fop.h"
-#include "io_u.h"
+#include "stob/io_fop.h"
+#include "stob/io_fop_u.h"
 #include "ioservice/io_fops.h"
-#include "ioservice/io_foms.h"
 
 #include "lib/processor.h"
 #include "reqh/reqh.h"
@@ -57,6 +58,19 @@
    @addtogroup stob
    @{
  */
+
+#define SERVER_ENDPOINT_ADDR	"127.0.0.1:12346:1"
+#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12347:1"
+#define SERVER_DB_NAME		"stob_ut_server"
+
+enum {
+	SERVER_COB_DOM_ID	= 19,
+	SESSION_SLOTS		= 1,
+	MAX_RPCS_IN_FLIGHT	= 1,
+	CONNECT_TIMEOUT		= 5,
+};
+
+extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 static struct c2_addb_ctx server_addb_ctx;
 
@@ -71,288 +85,12 @@ const struct c2_addb_ctx_type server_addb_ctx_type = {
 #define SERVER_ADDB_ADD(name, rc)                                       \
 C2_ADDB_ADD(&server_addb_ctx, &server_addb_loc, c2_addb_func_fail, (name), (rc))
 
+static bool                   stop = false;
 static struct c2_stob_domain *dom;
 static struct c2_fol          fol;
 static struct c2_reqh	      reqh;
 
-static struct c2_stob *object_find(const struct c2_fop_fid *fid,
-				   struct c2_dtx *tx)
-{
-	struct c2_stob_id  id;
-	struct c2_stob    *obj;
-	int result;
-
-	id.si_bits.u_hi = fid->f_seq;
-	id.si_bits.u_lo = fid->f_oid;
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	result = c2_stob_locate(obj, tx);
-	return obj;
-}
-
-int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	struct c2_io_create     *in = c2_fop_data(fop);
-	struct c2_io_create_rep *ex;
-	struct c2_fop           *reply;
-	struct c2_stob          *obj;
-	struct c2_dtx            tx;
-	int                      result;
-
-	reply = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
-	C2_ASSERT(reply != NULL);
-	ex = c2_fop_data(reply);
-
-	result = dom->sd_ops->sdo_tx_make(dom, &tx);
-	C2_ASSERT(result == 0);
-
-	obj = object_find(&in->sic_object, &tx);
-
-	result = c2_stob_create(obj, &tx);
-	C2_ASSERT(result == 0);
-	ex->sicr_rc = 0;
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
-
-	c2_stob_put(obj);
-
-	result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx);
-	C2_ASSERT(result == 0);
-
-	result = c2_db_tx_commit(&tx.tx_dbtx);
-	C2_ASSERT(result == 0);
-
-	return 1;
-}
-
-int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	struct c2_io_read     *in = c2_fop_data(fop);
-	struct c2_io_read_rep *ex;
-	struct c2_fop         *reply;
-	struct c2_stob        *obj;
-	struct c2_stob_io      io;
-	struct c2_clink        clink;
-	struct c2_dtx          tx;
-	void                  *addr;
-	uint32_t               bshift;
-	uint64_t               bmask;
-	int                    result;
-	int                    rc;
-
-	reply = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
-	C2_ASSERT(reply != NULL);
-	ex = c2_fop_data(reply);
-
-	while (1) {
-		result = dom->sd_ops->sdo_tx_make(dom, &tx);
-		C2_ASSERT(result == 0);
-
-		obj = object_find(&in->sir_object, &tx);
-
-		bshift = obj->so_op->sop_block_shift(obj);
-		bmask  = (1 << bshift) - 1;
-
-		C2_ASSERT((in->sir_seg.f_count & bmask) == 0);
-		C2_ASSERT((in->sir_seg.f_offset & bmask) == 0);
-
-		C2_ALLOC_ARR(ex->sirr_buf.cib_value, in->sir_seg.f_count);
-		C2_ASSERT(ex->sirr_buf.cib_value != NULL);
-
-		in->sir_seg.f_count >>= bshift;
-		in->sir_seg.f_offset >>= bshift;
-
-		addr = c2_stob_addr_pack(ex->sirr_buf.cib_value, bshift);
-
-		c2_stob_io_init(&io);
-
-		io.si_user.div_vec.ov_vec.v_nr    = 1;
-		io.si_user.div_vec.ov_vec.v_count = &in->sir_seg.f_count;
-		io.si_user.div_vec.ov_buf = &addr;
-
-		io.si_stob.iv_vec.v_nr    = 1;
-		io.si_stob.iv_vec.v_count = &in->sir_seg.f_count;
-		io.si_stob.iv_index       = &in->sir_seg.f_offset;
-
-		io.si_opcode = SIO_READ;
-		io.si_flags  = 0;
-
-		c2_clink_init(&clink, NULL);
-		c2_clink_add(&io.si_wait, &clink);
-
-		result = c2_stob_io_launch(&io, obj, &tx, NULL);
-		C2_ASSERT(result == 0);
-
-		c2_chan_wait(&clink);
-
-		ex->sirr_rc            = io.si_rc;
-		ex->sirr_buf.cib_count = io.si_count << bshift;
-
-		c2_clink_del(&clink);
-		c2_clink_fini(&clink);
-
-		c2_stob_io_fini(&io);
-
-		c2_stob_put(obj);
-
-		if (result != -EDEADLK) {
-			rc = c2_db_tx_commit(&tx.tx_dbtx);
-			C2_ASSERT(rc == 0);
-			break;
-		} else {
-			fprintf(stderr, "Deadlock, aborting read.\n");
-			rc = c2_db_tx_abort(&tx.tx_dbtx);
-			C2_ASSERT(rc == 0);
-		}
-	}
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
-
-	return 1;
-}
-
-int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	struct c2_io_write     *in = c2_fop_data(fop);
-	struct c2_io_write_rep *ex;
-	struct c2_fop          *reply;
-	struct c2_stob         *obj;
-	struct c2_stob_io       io;
-	struct c2_dtx           tx;
-	void                   *addr;
-	c2_bcount_t             count;
-	c2_bindex_t             offset;
-	struct c2_clink         clink;
-	uint32_t                bshift;
-	uint64_t                bmask;
-	int                     result;
-	int                     rc;
-
-	reply = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
-	C2_ASSERT(reply != NULL);
-	ex = c2_fop_data(reply);
-
-	while (1) {
-		result = dom->sd_ops->sdo_tx_make(dom, &tx);
-		C2_ASSERT(result == 0);
-
-		obj = object_find(&in->siw_object, &tx);
-
-		bshift = obj->so_op->sop_block_shift(obj);
-		bmask  = (1 << bshift) - 1;
-
-		C2_ASSERT((in->siw_buf.cib_count & bmask) == 0);
-		C2_ASSERT((in->siw_offset & bmask) == 0);
-
-		addr = c2_stob_addr_pack(in->siw_buf.cib_value, bshift);
-		count = in->siw_buf.cib_count >> bshift;
-		offset = in->siw_offset >> bshift;
-
-		c2_stob_io_init(&io);
-
-		io.si_user.div_vec.ov_vec.v_nr    = 1;
-		io.si_user.div_vec.ov_vec.v_count = &count;
-		io.si_user.div_vec.ov_buf = &addr;
-
-		io.si_stob.iv_vec.v_nr    = 1;
-		io.si_stob.iv_vec.v_count = &count;
-		io.si_stob.iv_index       = &offset;
-
-		io.si_opcode = SIO_WRITE;
-		io.si_flags  = 0;
-
-		c2_clink_init(&clink, NULL);
-		c2_clink_add(&io.si_wait, &clink);
-
-		result = c2_stob_io_launch(&io, obj, &tx, NULL);
-
-		if (result == 0)
-			c2_chan_wait(&clink);
-
-		ex->siwr_rc    = io.si_rc;
-		ex->siwr_count = io.si_count << bshift;
-
-		c2_clink_del(&clink);
-		c2_clink_fini(&clink);
-
-		c2_stob_io_fini(&io);
-
-		c2_stob_put(obj);
-
-		if (result != -EDEADLK) {
-			result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx);
-			C2_ASSERT(result == 0);
-
-			rc = c2_db_tx_commit(&tx.tx_dbtx);
-			C2_ASSERT(rc == 0);
-			break;
-		} else {
-			fprintf(stderr, "Deadlock, aborting write.\n");
-			rc = c2_db_tx_abort(&tx.tx_dbtx);
-			C2_ASSERT(rc == 0);
-		}
-	}
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
-
-	return 1;
-}
-
-static bool stop = false;
-
-int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	struct c2_fop     *reply;
-        struct c2_io_quit *ex;
-
-	reply = c2_fop_alloc(&c2_io_quit_fopt, NULL);
-	C2_ASSERT(reply != NULL);
-	ex = c2_fop_data(reply);
-
-	ex->siq_rc = 42;
-	stop = true;
-
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
-	return 1;
-}
-
-static int io_handler(struct c2_service *service, struct c2_fop *fop,
-		      void *cookie)
-{
-	struct c2_fop_ctx ctx;
-	int rc;
-
-	ctx.ft_service = service;
-	ctx.fc_cookie  = cookie;
-
-	/*
-	 * FOMs are implemented only for read and write operations
-	 */
-	if ((fop->f_type->ft_code >= C2_IOSERVICE_READV_OPCODE &&
-	     fop->f_type->ft_code <= C2_IOSERVICE_WRITEV_REP_OPCODE)) {
-		c2_reqh_fop_handle(&reqh, fop);
-	}
-	else
-	printf("Got fop: code = %d, name = %s\n",
-			 fop->f_type->ft_code, fop->f_type->ft_name);
-	
-	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
-	SERVER_ADDB_ADD("io_handler", rc);
-	return rc;
-}
-
 extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
-
-static struct c2_fop_type *fopt[] = {
-	&c2_io_write_fopt,
-	&c2_io_read_fopt,
-	&c2_io_create_fopt,
-	&c2_io_quit_fopt,
-
-	&c2_addb_record_fopt,
-
-	&c2_fop_cob_readv_fopt,
-	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_readv_rep_fopt,
-	&c2_fop_cob_writev_rep_fopt,
-};
 
 struct mock_balloc {
 	struct c2_mutex  mb_lock;
@@ -429,61 +167,69 @@ static const struct c2_table_ops c2_addb_record_ops = {
 	.key_cmp = NULL
 };
 
+extern c2_bindex_t addb_stob_offset;
+extern uint64_t c2_addb_db_seq;
+
 /**
    Simple server for unit-test purposes.
 
    Synopsis:
 
-       server path port
+       server [options]
 
    "path" is a path to a directory that the server will create if necessary that
    would contain objects (a path to a storage object domain, c2_stob_domain,
    technically).
 
-   "port" is a port the server listens to.
+   "ip_addr:port:id" is an address of the RPC service created by this server.
 
    Server supports create, read and write commands.
  */
-extern c2_bindex_t addb_stob_offset;
-extern uint64_t c2_addb_db_seq;
 int main(int argc, char **argv)
 {
-	int         result;
-	const char *path;
+	int         rc;
+	const char  *path;
+	const char  *addr = NULL;
 	char        opath[64];
 	char        dpath[64];
-	int         port;
 	int         i = 0;
 
-	struct c2_stob_domain  *bdom;
+	struct c2_stob_domain   *bdom;
 	struct c2_stob_id       backid;
-	struct c2_stob         *bstore;
-	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
-	struct c2_service       service;
-	struct c2_net_domain    ndom = {
-		.nd_xprt = NULL
-	};
+	struct c2_stob          *bstore;
+	struct c2_net_domain    net_dom = { };
 	struct c2_dbenv         db;
-	struct c2_stob_id       addb_stob_id = {
-					.si_bits = {
-						.u_hi = 0xADDBADDBADDBADDB,
-						.u_lo = 0x210B210B210B210B
-					}
-				};
-	struct c2_stob	       *addb_stob;
-
+	struct c2_stob	        *addb_stob;
 	struct c2_table	        addb_table;
+	struct c2_net_xprt      *xprt = &c2_net_bulk_sunrpc_xprt;
+
+	struct c2_stob_id       addb_stob_id = {
+		.si_bits = {
+			.u_hi = 0xADDBADDBADDBADDB,
+			.u_lo = 0x210B210B210B210B
+		}
+	};
+
+	struct c2_rpc_ctx       server_rctx = {
+		.rx_net_dom            = &net_dom,
+		.rx_reqh               = &reqh,
+		.rx_local_addr         = SERVER_ENDPOINT_ADDR,
+		.rx_remote_addr        = CLIENT_ENDPOINT_ADDR,
+		.rx_db_name            = SERVER_DB_NAME,
+		.rx_cob_dom_id         = SERVER_COB_DOM_ID,
+		.rx_nr_slots           = SESSION_SLOTS,
+		.rx_timeout_s          = CONNECT_TIMEOUT,
+		.rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	};
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
 	backid.si_bits.u_hi = 0x8;
 	backid.si_bits.u_lo = 0xf00baf11e;
-	/* port above 1024 is for normal use access permission */
-	port = 1201;
 	path = "__s";
 
-	result = C2_GETOPTS("server", argc, argv,
+	rc = C2_GETOPTS("server", argc, argv,
 			    C2_VOIDARG('T', "parse trace log produced earlier",
 				       LAMBDA(void, (void) {
 					       c2_trace_parse();
@@ -494,82 +240,88 @@ int main(int argc, char **argv)
 					       path = string; })),
 			    C2_FORMATARG('o', "back store object id", "%lu",
 					 &backid.si_bits.u_lo),
-			    C2_FORMATARG('p', "port to listen at", "%i", &port));
-	if (result != 0)
-		return result;
+			    C2_STRINGARG('a', "rpc service addr",
+				       LAMBDA(void, (const char *string) {
+					       addr = string; })),
+			    );
+	if (rc != 0)
+		return rc;
 
-	printf("path=%s, back store object=%llx.%llx, tcp port=%d\n",
+	printf("path=%s, back store object=%llx.%llx, service=%s\n",
 		path, (unsigned long long)backid.si_bits.u_hi,
-		(unsigned long long)backid.si_bits.u_lo, port);
+		(unsigned long long)backid.si_bits.u_lo, addr);
 
-	result = c2_init();
-	C2_ASSERT(result == 0);
+	if (addr != NULL)
+		server_rctx.rx_local_addr = addr;
 
 	c2_addb_ctx_init(&server_addb_ctx, &server_addb_ctx_type,
 			 &c2_addb_global_ctx);
 
-	result = io_fop_init();
-	C2_ASSERT(result == 0);
+	rc = c2_init();
+	C2_ASSERT(rc == 0);
 
-	result = c2_ioservice_fop_init();
-	C2_ASSERT(result == 0);
+	rc = c2_processors_init();
+	C2_ASSERT(rc == 0);
 
-	result = c2_processors_init();
-	C2_ASSERT(result == 0);
+	rc = c2_stob_io_fop_init();
+	C2_ASSERT(rc == 0);
+
+	/*rc = c2_ioservice_fop_init();
+	C2_ASSERT(rc == 0);*/
 
 	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
-	result = mkdir(path, 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	rc = mkdir(path, 0700);
+	C2_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
 	sprintf(opath, "%s/o", path);
-	result = mkdir(opath, 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	rc = mkdir(opath, 0700);
+	C2_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
 
 	sprintf(dpath, "%s/d", path);
 
 	/*
 	 * Initialize the data-base and fol.
 	 */
-	result = c2_dbenv_init(&db, dpath, 0);
-	C2_ASSERT(result == 0);
+	rc = c2_dbenv_init(&db, dpath, 0);
+	C2_ASSERT(rc == 0);
 
-	result = c2_fol_init(&fol, &db);
-	C2_ASSERT(result == 0);
+	rc = c2_fol_init(&fol, &db);
+	C2_ASSERT(rc == 0);
 
 	/*
 	 * Locate and create (if necessary) the backing store object.
 	 */
 
-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
+	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  path, &bdom);
-	C2_ASSERT(result == 0);
+	C2_ASSERT(rc == 0);
 
-	result = bdom->sd_ops->sdo_stob_find(bdom, &backid, &bstore);
-	C2_ASSERT(result == 0);
+	rc = bdom->sd_ops->sdo_stob_find(bdom, &backid, &bstore);
+	C2_ASSERT(rc == 0);
 	C2_ASSERT(bstore->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(bstore, NULL);
-	C2_ASSERT(result == 0);
+	rc = c2_stob_create(bstore, NULL);
+	C2_ASSERT(rc == 0);
 	C2_ASSERT(bstore->so_state == CSS_EXISTS);
 
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &dom);
-	C2_ASSERT(result == 0);
+	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &dom);
+	C2_ASSERT(rc == 0);
 
-	result = c2_ad_stob_setup(dom, &db, bstore, &mb.mb_ballroom);
-	C2_ASSERT(result == 0);
+	rc = c2_ad_stob_setup(dom, &db, bstore, &mb.mb_ballroom);
+	C2_ASSERT(rc == 0);
 
 	c2_stob_put(bstore);
 
 	/* create or open a stob into which to store the record. */
-	result = bdom->sd_ops->sdo_stob_find(bdom, &addb_stob_id, &addb_stob);
-	C2_ASSERT(result == 0);
+	rc = bdom->sd_ops->sdo_stob_find(bdom, &addb_stob_id, &addb_stob);
+	C2_ASSERT(rc == 0);
 	C2_ASSERT(addb_stob->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(addb_stob, NULL);
-	C2_ASSERT(result == 0);
+	rc = c2_stob_create(addb_stob, NULL);
+	C2_ASSERT(rc == 0);
 	C2_ASSERT(addb_stob->so_state == CSS_EXISTS);
 	/* XXX The stob tail postion should be maintained & initialized */
 
@@ -585,10 +337,10 @@ int main(int argc, char **argv)
 				   addb_stob, NULL);
 	*/
 
-	result = c2_table_init(&addb_table, &db,
+	rc = c2_table_init(&addb_table, &db,
 			       "addb_record", 0,
 			       &c2_addb_record_ops);
-	C2_ASSERT(result == 0);
+	C2_ASSERT(rc == 0);
 	/*
 	 * TODO
 	 * The db addb seqno should be loaded and initialized.
@@ -600,41 +352,32 @@ int main(int argc, char **argv)
 	/*
 	 * Set up the service.
 	 */
-	C2_SET0(&service);
+	rc = c2_net_xprt_init(xprt);
+	C2_ASSERT(rc == 0);
 
-	service.s_table.not_start = fopt[0]->ft_code;
-	service.s_table.not_nr    = ARRAY_SIZE(fopt);
-	service.s_table.not_fopt  = fopt;
-	service.s_handler         = &io_handler;
+	rc = c2_net_domain_init(&net_dom, xprt);
+	C2_ASSERT(rc == 0);
 
-	result = c2_net_xprt_init(&c2_net_usunrpc_xprt);
-	C2_ASSERT(result == 0);
+	rc = c2_reqh_init(&reqh, NULL, NULL, dom, &fol);
+	C2_ASSERT(rc == 0);
 
-	result = c2_net_domain_init(&ndom, &c2_net_usunrpc_xprt);
-	C2_ASSERT(result == 0);
-
-	result = c2_service_id_init(&sid, &ndom, "127.0.0.1", port);
-	C2_ASSERT(result == 0);
-
-	result = c2_service_start(&service, &sid);
-	C2_ASSERT(result >= 0);
-
-	result = c2_reqh_init(&reqh, NULL, NULL, dom, &fol);
-	C2_ASSERT(result == 0);
+	rc = c2_rpc_server_init(&server_rctx);
+	C2_ASSERT(rc == 0);
 
 	while (!stop) {
 		sleep(1);
                 //printf("allocated: %li\n", c2_allocated());
                 if (i++ % 5 == 0)
                         printf("busy: in=%5.2f out=%5.2f\n",
-                               (float)c2_net_domain_stats_get(&ndom, NS_STATS_IN) / 100,
-                               (float)c2_net_domain_stats_get(&ndom, NS_STATS_OUT) / 100);
+                               (float)c2_net_domain_stats_get(&net_dom, NS_STATS_IN) / 100,
+                               (float)c2_net_domain_stats_get(&net_dom, NS_STATS_OUT) / 100);
         }
 
-	c2_service_stop(&service);
-	c2_service_id_fini(&sid);
-	c2_net_domain_fini(&ndom);
-	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
+	c2_rpc_server_fini(&server_rctx);
+
+	c2_reqh_fini(&reqh);
+	c2_net_domain_fini(&net_dom);
+	c2_net_xprt_fini(xprt);
 
 	/*
 	 * TODO
@@ -649,15 +392,14 @@ int main(int argc, char **argv)
 
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
-	io_fop_fini();
-	c2_ioservice_fop_fini();
-	c2_reqh_fini(&reqh);
-	c2_processors_fini();
+	/*c2_ioservice_fop_fini();*/
+	c2_stob_io_fop_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
+	c2_processors_fini();
+	c2_fini();
 	c2_addb_ctx_fini(&server_addb_ctx);
 
-	c2_fini();
 	return 0;
 }
 
