@@ -94,6 +94,7 @@ cob_dom_fini:
 	c2_cob_domain_fini(&rctx->rx_cob_dom);
 dbenv_fini:
 	c2_dbenv_fini(&rctx->rx_dbenv);
+	C2_ASSERT(rc != 0);
 	return rc;
 }
 
@@ -148,6 +149,7 @@ conn_destroy:
 	c2_rpc_conn_destroy(&rctx->rx_connection, rctx->rx_timeout_s);
 fini_common:
 	rpc_fini_common(rctx);
+	C2_ASSERT(rc != 0);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_client_init);
