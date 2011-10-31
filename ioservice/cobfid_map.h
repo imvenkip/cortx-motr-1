@@ -94,6 +94,7 @@ struct c2_cobfid_map {
         struct c2_addb_ctx *cfm_addb;     /**< ADDB context */
 	char		   *cfm_map_name; /**< Name of the map */
 	c2_time_t           cfm_last_mod; /**< Time last modified */
+	struct c2_table     cfm_table;    /**< Table corresponding to cfm */
 };
 
 /** enum indicating the query type */
@@ -129,7 +130,6 @@ struct c2_cobfid_map_iter {
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
 	bool		      cfmi_end_of_table; /**< Indicates end of table */
 	struct c2_db_cursor   cfmi_db_cursor; /**< DB cursor used by iterator */
-	struct c2_table	      cfmi_table;    /**< Table to iterate on */
 	struct c2_db_tx	      cfmi_tx;     /**< DB transaction used by iter */
 	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */

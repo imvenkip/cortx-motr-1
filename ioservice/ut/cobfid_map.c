@@ -151,6 +151,8 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 						&cob_fid_out[rec_nr])) == 0) {
 			rec_nr++;
 		}
+		C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
+		C2_UT_ASSERT(rc == -ENOENT);
 	} else if (etype == ENUM_MAP) { /* Device enumeration */
 		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
 		C2_UT_ASSERT(rc == 0);
@@ -160,6 +162,8 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 						&cob_fid_out[rec_nr])) == 0) {
 			rec_nr++;
 		}
+		C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
+		C2_UT_ASSERT(rc == -ENOENT);
 	}
 
 	c2_cobfid_map_iter_fini(&cfm_iter);
@@ -192,8 +196,8 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 		c2_free(cid_out);
 	}
 
-	c2_dbenv_fini(&cfm_dbenv);
 	c2_cobfid_map_fini(&cfm_map);
+	c2_dbenv_fini(&cfm_dbenv);
 
 	rc = c2_ut_db_reset(map_path);
 	C2_UT_ASSERT(rc == 0);
