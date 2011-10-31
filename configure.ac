@@ -17,7 +17,6 @@ AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
-AH_TEMPLATE([HAVE_CUNIT], [Have cunit library])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -201,7 +200,7 @@ _ACEOF
 ])
 
 # Checks for programs.
-AC_PROG_CC
+AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_LN_S
@@ -239,28 +238,7 @@ AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
 
-# Checking for CUnit
-OLD_CFLAGS=$CFLAGS
-
-# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
-CFLAGS="-I/usr/local/include -I/opt/local/include"
-AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h],
-[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])],
-[
-#ifdef CUNIT_CUNIT_H
-#include <CUnit/CUnit.h>
-#endif
-])
-
-OLD_LIBS=$LIBS
-
-# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
-LIBS="$LIBS -L/usr/local/lib -L/opt/local/lib"
-AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])])
-CUNIT_LIBS=$LIBS
-AC_SUBST([CUNIT_LIBS])
-LIBS=$OLD_LIBS
-CFLAGS=$OLD_CFLAGS
+XY_CHECK_CUNIT
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
