@@ -322,6 +322,9 @@ static uint32_t c2_processor_read_number_from_file(const char *filename)
 		val = C2_PROCESSORS_INVALID_ID;
 	}
 
+	if (fp != NULL)
+		fclose(fp);
+
 	return val;
 }
 

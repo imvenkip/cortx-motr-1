@@ -1225,7 +1225,7 @@ static int cs_colibri_init(struct c2_colibri *cctx)
 	c2_tlist_init(&ndoms_descr, &cctx->cc_ndoms);
 	c2_tlist_init(&rctx_descr, &cctx->cc_reqh_ctxs);
 
-	return c2_processors_init();
+	return 0;
 }
 
 /**
@@ -1242,7 +1242,6 @@ static void cs_colibri_fini(struct c2_colibri *cctx)
 	cs_net_domains_fini(cctx);
 	c2_tlist_fini(&ndoms_descr, &cctx->cc_ndoms);
 	c2_tlist_fini(&rctx_descr, &cctx->cc_reqh_ctxs);
-	c2_processors_fini();
 }
 
 /**
@@ -1561,8 +1560,9 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	cctx->cc_outfile = out;
 
 	rc = cs_colibri_init(cctx);
+	C2_ASSERT(rc == 0);
 
-        return rc;
+        return c2_processors_init();
 }
 
 void c2_cs_fini(struct c2_colibri *cctx)
@@ -1571,6 +1571,7 @@ void c2_cs_fini(struct c2_colibri *cctx)
 
         cs_request_handlers_stop(cctx);
         cs_colibri_fini(cctx);
+	c2_processors_fini();
 }
 
 /** @} endgroup colibri_setup */

@@ -211,15 +211,21 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
 {
-	struct c2_fop *fop;
+	struct c2_fop *req_fop;
+	struct c2_fop *rep_fop;
 
         C2_PRE(item != NULL);
         C2_PRE(c2_chan_has_waiters(&item->ri_chan));
 
-	fop = c2_rpc_item_to_fop(item);
-	C2_UT_ASSERT(fop->f_type->ft_code == CS_DS1_REQ ||
-			fop->f_type->ft_code == CS_DS2_REQ);
+	req_fop = c2_rpc_item_to_fop(item);
+	rep_fop = c2_rpc_item_to_fop(item->ri_reply);
 
+	C2_UT_ASSERT(req_fop->f_type->ft_code == CS_DS1_REQ ||
+			req_fop->f_type->ft_code == CS_DS2_REQ);
+
+	C2_UT_ASSERT(rep_fop->f_type->ft_code == CS_DS1_REP ||
+			rep_fop->f_type->ft_code == CS_DS2_REP);
+	
         c2_chan_signal(&item->ri_chan);
 }
 

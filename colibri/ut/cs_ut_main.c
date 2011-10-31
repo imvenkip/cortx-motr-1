@@ -40,6 +40,7 @@
 #include "colibri/ut/cs_ut_service.c"
 
 extern const struct c2_tl_descr ndoms_descr;
+static FILE  *cs_ut_outfile;
 
 /* Client context */
 struct client_ctx {
@@ -292,12 +293,12 @@ static int server_init(char **cs_cmdv, int cs_cmdc,
 {
         int    rc;
 	int    i;
-        FILE  *outfile;
 
 	C2_PRE(cs_cmdv != NULL && cs_cmdc > 0 && stypes != NULL &&
 						stypes_nr > 0);
-        outfile = fopen("cs.errlog", "w+");
-	C2_UT_ASSERT(outfile != NULL);
+
+	cs_ut_outfile = fopen("cs_ut.errlog", "w+");
+	C2_UT_ASSERT(cs_ut_outfile != NULL);
 
         errno = 0;
         /* Register the service type. */
@@ -306,7 +307,7 @@ static int server_init(char **cs_cmdv, int cs_cmdc,
 		C2_UT_ASSERT(rc == 0);
 	}
 
-        rc = c2_cs_init(&srv_colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), outfile);
+        rc = c2_cs_init(&srv_colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), cs_ut_outfile);
 	C2_UT_ASSERT(rc == 0);
 
         rc = c2_cs_setup_env(&srv_colibri_ctx, cs_cmdc, cs_cmdv);
@@ -350,6 +351,9 @@ void server_fini(struct srv_ctx *sc_ctx, int sc_ctx_nr,
         /* Unregister service type */
 	for (i = 0; i < stypes_nr; ++i)
 		c2_reqh_service_type_unregister(stypes[i]);
+
+	C2_UT_ASSERT(cs_ut_outfile != NULL);
+	fclose(cs_ut_outfile);
 }
 
 static void test_cs_ut_service_one(void)
@@ -370,8 +374,9 @@ static void test_cs_ut_service_one(void)
 				.cl_cdom_id = cl_cdom_id,
 				.cl_svc_type = DS_ONE };
 
-	rc = server_init(cs_ut_service_one_cmd, ARRAY_SIZE(cs_ut_service_one_cmd),
-			stypes, ARRAY_SIZE(stypes), sc_ctx);
+	rc = server_init(cs_ut_service_one_cmd,
+			ARRAY_SIZE(cs_ut_service_one_cmd), stypes,
+			ARRAY_SIZE(stypes), sc_ctx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = client_init(&cl_ctx);
@@ -517,7 +522,7 @@ static void test_cs_ut_reqh_none(void)
         };
 
         rc = server_init(cs_ut_reqh_none_cmd, ARRAY_SIZE(cs_ut_reqh_none_cmd),
-			stypes, ARRAY_SIZE(stypes), NULL);
+					stypes, ARRAY_SIZE(stypes), NULL);
         C2_UT_ASSERT(rc != 0);
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
@@ -530,7 +535,7 @@ static void test_cs_ut_stype_bad(void)
         };
 
         rc = server_init(cs_ut_stype_bad_cmd, ARRAY_SIZE(cs_ut_stype_bad_cmd),
-			stypes, ARRAY_SIZE(stypes), NULL);
+					stypes, ARRAY_SIZE(stypes), NULL);
         C2_UT_ASSERT(rc != 0);
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
@@ -543,7 +548,7 @@ static void test_cs_ut_xprt_bad(void)
         };
 
         rc = server_init(cs_ut_xprt_bad_cmd, ARRAY_SIZE(cs_ut_xprt_bad_cmd),
-			stypes, ARRAY_SIZE(stypes), NULL);
+					stypes, ARRAY_SIZE(stypes), NULL);
         C2_UT_ASSERT(rc != 0);
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
@@ -556,7 +561,7 @@ static void test_cs_ut_ep_bad(void)
         };
 
         rc = server_init(cs_ut_ep_bad_cmd, ARRAY_SIZE(cs_ut_ep_bad_cmd),
-                        stypes, ARRAY_SIZE(stypes), NULL);
+                        		stypes, ARRAY_SIZE(stypes), NULL);
         C2_UT_ASSERT(rc != 0);
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
@@ -569,8 +574,9 @@ static void test_cs_ut_service_bad(void)
 			&ds2_service_type
         };
 
-        rc = server_init(cs_ut_service_bad_cmd, ARRAY_SIZE(cs_ut_service_bad_cmd),
-                        stypes, ARRAY_SIZE(stypes), NULL);
+        rc = server_init(cs_ut_service_bad_cmd,
+			ARRAY_SIZE(cs_ut_service_bad_cmd), stypes,
+			ARRAY_SIZE(stypes), NULL);
         C2_UT_ASSERT(rc != 0);
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
@@ -583,7 +589,7 @@ static void test_cs_ut_args_bad(void)
         };
 
         rc = server_init(cs_ut_args_bad_cmd, ARRAY_SIZE(cs_ut_args_bad_cmd),
-                        stypes, ARRAY_SIZE(stypes), NULL);
+					stypes, ARRAY_SIZE(stypes), NULL);
         C2_UT_ASSERT(rc != 0);
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }
