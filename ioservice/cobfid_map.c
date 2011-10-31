@@ -53,9 +53,9 @@ struct cobfid_map_key {
   Internal data structure used to store a record in the iterator buffer.
  */
 struct cobfid_map_record {
-	/**< key combining container id and global file id */
+	/** key combining container id and global file id */
 	struct cobfid_map_key	cfr_key;
-	/** < cob id */
+	/**  cob id */
 	struct c2_uint128	cfr_cob;
 };
 
@@ -155,7 +155,6 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 {
 	C2_PRE(cobfid_map_invariant(cfm));
 
-	c2_dbenv_fini(cfm->cfm_dbenv);
 	c2_addb_ctx_fini(cfm->cfm_addb);
 	c2_free(cfm->cfm_map_name);
 
@@ -296,7 +295,7 @@ static bool cobfid_map_iter_invariant(const struct c2_cobfid_map_iter *iter)
 		return false;
 	if (iter->cfmi_ops == NULL ||
 	    iter->cfmi_ops->cfmio_fetch == NULL ||
-	    iter->cfmi_ops->cfmio_at_end == NULL ||
+	    iter->cfmi_ops->cfmio_is_at_end == NULL ||
 	    iter->cfmi_ops->cfmio_reload == NULL)
 		return false;
 	 /* Number of records (cfmi_num_recs is set to the buffer size and
@@ -466,7 +465,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	   There is an implicit assumption here that the operations fail
 	   and set cfmi_error when there are no more records left in the
 	   database */
-	if (iter->cfmi_ops->cfmio_at_end(iter, iter->cfmi_rec_idx - 1 ))
+	if (iter->cfmi_ops->cfmio_is_at_end(iter, iter->cfmi_rec_idx - 1 ))
 		iter->cfmi_error = -ENOENT;
 
 	C2_POST(cobfid_map_iter_invariant(iter));
@@ -576,7 +575,7 @@ cleanup:
 	return rc;
 }
 
-static bool enum_at_end(struct c2_cobfid_map_iter *iter,
+static bool enum_is_at_end(struct c2_cobfid_map_iter *iter,
 				  unsigned int idx)
 {
 	struct cobfid_map_record *recs;
@@ -605,7 +604,7 @@ static int enum_reload(struct c2_cobfid_map_iter *iter)
 
 static const struct c2_cobfid_map_iter_ops enum_ops = {
 	.cfmio_fetch  = enum_fetch,
-	.cfmio_at_end = enum_at_end,
+	.cfmio_is_at_end = enum_is_at_end,
 	.cfmio_reload = enum_reload,
 };
 
@@ -647,7 +646,7 @@ static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
    is different from the value of cfmi_next_ci (which remains invariant
    for this query).
  */
-static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
+static bool enum_container_is_at_end(struct c2_cobfid_map_iter *iter,
 				  unsigned int idx)
 {
 	struct cobfid_map_record *recs;
@@ -681,7 +680,7 @@ static int enum_container_reload(struct c2_cobfid_map_iter *iter)
 
 static const struct c2_cobfid_map_iter_ops enum_container_ops = {
 	.cfmio_fetch  = enum_container_fetch,
-	.cfmio_at_end = enum_container_at_end,
+	.cfmio_is_at_end = enum_container_is_at_end,
 	.cfmio_reload = enum_container_reload,
 };
 

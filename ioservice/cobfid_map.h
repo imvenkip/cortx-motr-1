@@ -147,7 +147,7 @@ struct c2_cobfid_map_iter_ops {
 	   exhaust the iterator.
 	   @param idx Index of a buffered record in the iterator.
 	*/
-	bool (*cfmio_at_end)(struct c2_cobfid_map_iter *, unsigned int idx);
+	bool (*cfmio_is_at_end)(struct c2_cobfid_map_iter *, unsigned int idx);
 	/**
 	   Reload the records from the current position, because the map
 	   may have been altered by an interveaning call to add or

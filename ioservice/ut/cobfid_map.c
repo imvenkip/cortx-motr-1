@@ -192,6 +192,7 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 		c2_free(cid_out);
 	}
 
+	c2_dbenv_fini(&cfm_dbenv);
 	c2_cobfid_map_fini(&cfm_map);
 
 	rc = c2_ut_db_reset(map_path);
