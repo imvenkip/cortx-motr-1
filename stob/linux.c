@@ -62,7 +62,7 @@
    Storage objects are kept on a list linux_domain::sdl_object list that is
    consulted by linux_domain_lookup().
 
-   @todo object caching 
+   @todo object caching
 
    @todo a per-domain limit on number of open file descriptors with LRU based
    cleanup.
@@ -134,7 +134,7 @@ static void linux_domain_fini(struct c2_stob_domain *self)
    against it in order to customize some configuration options (currently there
    is only one such option: "use_directio" flag).
  */
-static int linux_stob_type_domain_locate(struct c2_stob_type *type, 
+static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 					 const char *domain_name,
 					 struct c2_stob_domain **out)
 {
@@ -158,7 +158,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 			linux_domain_fini(dom);
 		ldom->use_directio = false;
 	} else {
-		C2_ADDB_ADD(&type->st_addb, 
+		C2_ADDB_ADD(&type->st_addb,
 			    &c2_linux_stob_addb_loc, c2_addb_oom);
 		result = -ENOMEM;
 	}
@@ -201,7 +201,7 @@ static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 	bool               found;
 
 	found = false;
-	c2_list_for_each_entry(&ldom->sdl_object, obj, 
+	c2_list_for_each_entry(&ldom->sdl_object, obj,
 			       struct linux_stob, sl_linkage) {
 		C2_ASSERT(linux_stob_invariant(obj));
 		if (c2_stob_id_eq(id, &obj->sl_stob.so_id)) {
@@ -218,8 +218,8 @@ static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 
    Returns an in-memory representation of the object with a given identifier.
  */
-static int linux_domain_stob_find(struct c2_stob_domain *dom, 
-				  const struct c2_stob_id *id, 
+static int linux_domain_stob_find(struct c2_stob_domain *dom,
+				  const struct c2_stob_id *id,
 				  struct c2_stob **out)
 {
 	struct linux_domain *ldom;
@@ -245,7 +245,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 				stob->so_op = &linux_stob_op;
 				lstob->sl_fd = -1;
 				c2_stob_init(stob, id, dom);
-				c2_list_add(&ldom->sdl_object, 
+				c2_list_add(&ldom->sdl_object,
 					    &lstob->sl_linkage);
 			} else {
 				c2_free(lstob);
@@ -285,8 +285,8 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 	C2_ASSERT(linux_stob_invariant(lstob));
 
 	ldom  = domain2linux(lstob->sl_stob.so_domain);
-	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path, 
-		       lstob->sl_stob.so_id.si_bits.u_hi, 
+	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path,
+		       lstob->sl_stob.so_id.si_bits.u_hi,
 		       lstob->sl_stob.so_id.si_bits.u_lo);
 	return nob < nr ? 0 : -EOVERFLOW;
 }
@@ -319,11 +319,8 @@ static void linux_stob_fini(struct c2_stob *stob)
  */
 static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
-	struct linux_domain *ldom;
 	char                 pathname[64];
 	int                  result;
-
-	ldom  = domain2linux(lstob->sl_stob.so_domain);
 
 	C2_ASSERT(linux_stob_invariant(lstob));
 	C2_ASSERT(lstob->sl_fd == -1);
@@ -404,7 +401,7 @@ struct c2_addb_ctx adieu_addb_ctx;
 
 int c2_linux_stobs_init(void)
 {
-	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type, 
+	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type,
 			 &c2_addb_global_ctx);
 	return linux_stob_type.st_op->sto_init(&linux_stob_type);
 }
@@ -419,7 +416,7 @@ C2_EXPORTED(c2_linux_stobs_fini);
 
 /** @} end group stoblinux */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

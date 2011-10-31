@@ -86,12 +86,8 @@ static void usunrpc_dom_fini(struct c2_net_domain *dom)
 		c2_cond_broadcast(&xdom->sd_gotwork, &xdom->sd_guard);
 		c2_mutex_unlock(&xdom->sd_guard);
 		for (i = 0; i < xdom->sd_nr_workers; ++i) {
-			if (xdom->sd_workers[i].t_func != NULL) {
-				int rc;
-
-				rc = c2_thread_join(&xdom->sd_workers[i]);
-				/* XXX handle error... */
-			}
+			if (xdom->sd_workers[i].t_func != NULL)
+				c2_thread_join(&xdom->sd_workers[i]);
 		}
 		c2_mutex_fini(&xdom->sd_guard);
 		c2_queue_fini(&xdom->sd_queue);

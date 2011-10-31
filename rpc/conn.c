@@ -1097,12 +1097,10 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 		c2_db_tx_abort(&tx);
 out:
 	if (rc != 0) {
-		struct c2_rpc_session *session0;
-
 		/*
 		 * Take out slot0 of session0 out of ready slots list.
 		 */
-		session0 = c2_rpc_conn_session0(conn);
+		(void)c2_rpc_conn_session0(conn);
 		conn_failed(conn, rc);
 	}
 	/*

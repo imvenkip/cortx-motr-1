@@ -130,7 +130,6 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_net_buffer      *nb = NULL;
 	struct c2_net_buffer      *inb;
 	struct c2_bufvec_cursor    cur;
-	c2_bcount_t                len;
 	int                        rc = 0;
 
 	reply = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
@@ -165,7 +164,6 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	   are performed sequentially, so the passive callback can be
 	   made as soon as the final put operation is performed.
 	 */
-	len = in->sp_buf.sb_len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	c2_bufvec_cursor_move(&cur, in->sp_offset);
 	rc = sunrpc_buffer_copy_out(&cur, &in->sp_buf);
