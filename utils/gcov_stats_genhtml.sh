@@ -25,7 +25,7 @@ mode=$1
 src=$2
 outdir=$3
 
-if [ $mode != "user" -a $mode != "kernel" ]
+if [ x$mode != xuser -a x$mode != xkernel ]
 then
 	echo "Error: First arg must be either \"user\" or \"kernel\""
 	exit 1

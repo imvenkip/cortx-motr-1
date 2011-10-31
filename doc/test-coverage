@@ -11,7 +11,7 @@
   Commenting the line prevents lcov from passing "-a" option to gcov.
   Due to some bug in gcc, gcov with -a option hangs for some .gcda files.
 
-* Collecting test coverage data of user-sapce colibri:
+* Collecting test coverage data of user-space colibri:
 ======================================================
 
 [root@xyralab_02 core]# pwd
