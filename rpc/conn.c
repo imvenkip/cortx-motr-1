@@ -562,6 +562,55 @@ out:
 	c2_mutex_unlock(&conn->c_mutex);
 }
 
+int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_conn_establish(conn);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
+				   c2_time_from_now(timeout_sec, 0));
+	if (rc != 0) {
+		switch (conn->c_state) {
+		case C2_RPC_CONN_ACTIVE:
+			rc = 0;
+			break;
+		case C2_RPC_CONN_FAILED:
+			rc = -ECONNREFUSED;
+			break;
+		default:
+			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
+		}
+	} else {
+		rc = -ETIMEDOUT;
+	}
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_establish_sync);
+
+int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
+		       struct c2_net_end_point *ep,
+		       struct c2_rpcmachine    *rpc_machine,
+		       uint64_t			max_rpcs_in_flight,
+		       uint32_t			timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_rpc_conn_establish_sync(conn, timeout_sec);
+	if (rc != 0)
+		c2_rpc_conn_fini(conn);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_create);
+
 static int session_zero_attach(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_slot    *slot;
@@ -765,6 +814,49 @@ out:
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 }
+
+int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_conn_terminate(conn);
+	if (rc)
+		goto out;
+
+	rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED | C2_RPC_CONN_FAILED,
+				   c2_time_from_now(timeout_sec, 0));
+	if (rc) {
+		switch (conn->c_state) {
+		case C2_RPC_CONN_TERMINATED:
+			rc = 0;
+			break;
+		case C2_RPC_CONN_FAILED:
+			rc = -ECONNREFUSED;
+			goto out;
+		default:
+			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
+		}
+	} else {
+		rc = -ETIMEDOUT;
+	}
+out:
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_terminate_sync);
+
+int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_conn_terminate_sync(conn, timeout_sec);
+	if (rc != 0)
+		return rc;
+
+	c2_rpc_conn_fini(conn);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_destroy);
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
 			   uint64_t              sender_id,
