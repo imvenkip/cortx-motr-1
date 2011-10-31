@@ -303,7 +303,12 @@ then
 	# Remove -O<digit> flag from $CFLAGS
 	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
 	LDFLAGS="-lgcov"
+	K_ENABLE_COVERAGE=y
+else
+	K_ENABLE_COVERAGE=n
 fi
+
+AC_SUBST([K_ENABLE_COVERAGE])
 
 AC_MSG_CHECKING([for linux objects dir])
 AC_ARG_WITH([linux-obj],

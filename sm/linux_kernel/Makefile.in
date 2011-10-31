@@ -1,5 +1,7 @@
 SM_SRCDIR = @SRCDIR@/sm/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y		:= ksm.o
 shared_src	:= sm.c
 kernel_src	:=
