@@ -23,6 +23,7 @@
 #define __COLIBRI_C2T1FS_H
 
 #include <linux/in.h> /* for sockaddr_in */
+#include <linux/fs.h> /* inode */
 
 #include "lib/list.h"
 #include "net/net.h"
@@ -119,10 +120,8 @@ struct c2t1fs_inode_info {
         struct inode    cii_vfs_inode;
 };
 
-static inline struct c2t1fs_inode_info *i2cii(struct inode *inode)
-{
-        return container_of(inode, struct c2t1fs_inode_info, cii_vfs_inode);
-}
+int c2t1fs_init_module(void);
+void c2t1fs_cleanup_module(void);
 
 #endif
 /*

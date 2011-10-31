@@ -18,6 +18,7 @@ SUBDIRS_LIBS = \
                addb \
                balloc \
                capa \
+               cfg \
                cob \
                desim \
                dtm \
@@ -55,3 +56,9 @@ etags:
 EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog
 ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 ACLOCAL_AMFLAGS = -I m4
+
+clean-local:
+	if test "x@ENABLE_COVERAGE@" = "x1"; \
+	then \
+		find . -name "*.gcno" | xargs rm -f; \
+	fi

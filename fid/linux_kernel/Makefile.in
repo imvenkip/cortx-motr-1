@@ -1,8 +1,8 @@
 FID_SRCDIR = @SRCDIR@/fid/linux_kernel
 
-obj-m		:= kfid.o
+obj-y		:= kfid.o
 shared_src	:= fid.c
-kernel_src	:= fid_kernel.c
+kernel_src	:=
 kfid-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 

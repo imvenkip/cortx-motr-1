@@ -55,6 +55,9 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 			 &fopt->ft_addb);
 	c2_list_link_init(&fop->f_link);
 
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = fop->f_type->ft_ri_type;
+
 	return 0;
 }
 C2_EXPORTED(c2_fop_init);
