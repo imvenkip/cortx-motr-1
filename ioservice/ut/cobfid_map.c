@@ -27,7 +27,6 @@
 #include "lib/memory.h"
 #include "lib/arith.h"
 
-
 /* Number of records to be enumerated */
 enum {
 	SINGLE_BUF_REC_NR = 16,
@@ -45,6 +44,7 @@ static const char single_buf_cont_enum_path[] = "cfm_map_single_buf_ce";
 static const char multiple_buf_cont_enum_path[] = "cfm_map_multiple_buf_ce";
 static const char single_buf_map_enum_path[] = "cfm_map_single_buf_me";
 static const char multiple_buf_map_enum_path[] = "cfm_map_multiple_buf_me";
+static const char iter_test_map[] = "cfm_map_iter_test";
 
 /*
    Generic enumeration routine, used by all the tests.
@@ -88,7 +88,7 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 	/* Allocate the input and output key-value arrays with total number
 	   of records.
 	   - Input arrays are populated during insertion operation.
-	   - Corresponding output key-value arrays which are populated
+	   - Corresponding output key-value arrays are populated
 	     during enumeration operation.
 	   - Input and Output arrays are compared at the end for equality */
 	C2_ALLOC_ARR(fid_in, rec_total);
@@ -153,7 +153,7 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 		}
 		C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
 		C2_UT_ASSERT(rc == -ENOENT);
-	} else if (etype == ENUM_MAP) { /* Device enumeration */
+	} else if (etype == ENUM_MAP) { /* Map enumeration */
 		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
 		C2_UT_ASSERT(rc == 0);
 		while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
@@ -231,6 +231,106 @@ void me_multiple_buf(void)
 			  ENUM_MAP);
 }
 
+void test_iter_sensitivity(void)
+{
+	int			 rc;
+	uint64_t		 container_id_in;
+	uint64_t		 container_id_out;
+	struct c2_fid		 fid_in;
+	struct c2_fid		 fid_out;
+	struct c2_uint128	 cob_fid_in;
+	struct c2_uint128	 cob_fid_out;
+	struct c2_dbenv		 cfm_dbenv;
+	struct c2_addb_ctx	 cfm_addb_ctx;
+	struct c2_cobfid_map	 cfm_map;
+	struct c2_cobfid_map_iter cfm_iter;
+
+	/* Reset any existing database */
+	rc = c2_ut_db_reset(iter_test_map);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Initialise the database with given path */
+        rc = c2_dbenv_init(&cfm_dbenv, iter_test_map, 0);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Initialize the map */
+	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
+				"cfm_map_table");
+	C2_UT_ASSERT(rc == 0);
+
+	container_id_in = 300;
+	fid_in.f_container = 0;
+	fid_in.f_key = 31;
+	cob_fid_in.u_hi = 0;
+	cob_fid_in.u_lo = 31;
+
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
+	C2_UT_ASSERT(rc == 0);
+
+	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
+		fid_in.f_key, cob_fid_in.u_lo); 
+
+	fid_in.f_key = 52;
+	cob_fid_in.u_lo = 52;
+
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
+	C2_UT_ASSERT(rc == 0);
+
+	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
+		fid_in.f_key, cob_fid_in.u_lo); 
+
+	fid_in.f_key = 73;
+	cob_fid_in.u_lo = 73;
+
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
+	C2_UT_ASSERT(rc == 0);
+
+	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
+		fid_in.f_key, cob_fid_in.u_lo); 
+
+	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	printf("\nENUM: cid = %lu, fid = %lu, cobfid = %lu", container_id_out,
+		fid_out.f_key, cob_fid_out.u_lo); 
+
+	c2_cobfid_map_iter_fini(&cfm_iter);
+
+	fid_in.f_key = 94;
+	cob_fid_in.u_lo = 94;
+
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
+	C2_UT_ASSERT(rc == 0);
+
+	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
+		fid_in.f_key, cob_fid_in.u_lo); 
+
+	rc = c2_dbenv_sync(&cfm_dbenv);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	printf("\nENUM: cid = %lu, fid = %lu, cobfid = %lu", container_id_out,
+		fid_out.f_key, cob_fid_out.u_lo); 
+
+	c2_cobfid_map_iter_fini(&cfm_iter);
+
+	printf("\n");
+	c2_cobfid_map_fini(&cfm_map);
+	c2_dbenv_fini(&cfm_dbenv);
+
+	rc = c2_ut_db_reset(iter_test_map);
+	C2_UT_ASSERT(rc == 0);
+
+}
+
 const struct c2_test_suite cfm_ut = {
 	.ts_name = "cfm-ut",
 	.ts_init = NULL,
@@ -240,6 +340,7 @@ const struct c2_test_suite cfm_ut = {
 		{ "cfm-container-enumerate-multiple-buffers", ce_multiple_buf },
 		{ "cfm-map-enumerate-single-buffer", me_single_buf },
 		{ "cfm-map-enumerate-multiple-buffers", me_multiple_buf },
+		{ "cfm_iter_sensitivity", test_iter_sensitivity },
 		{ NULL, NULL }
 	}
 };
