@@ -389,13 +389,11 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 static int usunrpc_scheduler_init(struct c2_service *service)
 {
 	struct usunrpc_service    *xservice;
-	struct usunrpc_service_id *xid;
 	SVCXPRT                   *transp;
 	int                        result;
 
 	usunrpc_service_set(service);
 	xservice = service->s_xport_private;
-	xid = service->s_id->si_xport_private;
 
 	C2_ASSERT(xservice->s_socket >= 0);
 
@@ -564,7 +562,8 @@ static int usunrpc_service_start(struct c2_service *service,
 	}
 
         C2_SET0(&addr);
-        addr.sin_port = htons(xid->ssi_port);
+	addr.sin_family = AF_INET;
+        addr.sin_port   = htons(xid->ssi_port);
         if (bind(xservice->s_socket,
 		 (struct sockaddr *)&addr, sizeof addr) == -1) {
 		ADDB_CALL(service, "bind", errno);

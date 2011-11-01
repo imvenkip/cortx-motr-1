@@ -1,7 +1,7 @@
 xcodeutdir        = $(includedir)/xcode/ut
 noinst_LTLIBRARIES   = libxcode-ut.la
 
-xcode_test_LDADD = $(top_builddir)/colibri/libcolibri.la
+#xcode_ut_LDADD = $(top_builddir)/colibri/libcolibri.la
 
 libxcode_ut_la_SOURCES  = test_u.h test_u.c xcode_fop_test.c xcode_test.c
 

@@ -151,6 +151,14 @@ static void test_sunrpc_ep(void)
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(d1tm1.ntm_ep != NULL);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+	if (d1tm1.ntm_state == C2_NET_TM_FAILED) {
+		/* skip rest of this test, else C2_ASSERT will occur */
+		c2_net_tm_fini(&d1tm1);
+		c2_net_domain_fini(&dom1);
+		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		return;
+	}
 
 	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
 		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
@@ -364,6 +372,13 @@ static void test_sunrpc_desc(void)
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+	if (d1tm1.ntm_state == C2_NET_TM_FAILED) {
+		/* skip rest of this test, else C2_ASSERT will occur */
+		c2_net_tm_fini(&d1tm1);
+		c2_net_domain_fini(&dom1);
+		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		return;
+	}
 
 	C2_SET0(&desc1);
 	C2_SET0(&sd);

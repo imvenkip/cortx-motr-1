@@ -37,6 +37,7 @@ struct c2_rpc;
 struct c2_fop;
 struct c2_bufvec_cursor;
 struct c2_rpc_frm_item_coalesced;
+struct c2_net_buf_desc;
 
 /* Export */
 struct c2_rpc_item_type_ops;
@@ -92,7 +93,6 @@ struct c2_rpc_item_type_ops {
 	 */
 	bool (*rito_eq)(const struct c2_rpc_item *i1,
 			const struct c2_rpc_item *i2);
-
 	/**
 	   Find out the count of fragmented buffers.
 	 */
@@ -101,8 +101,8 @@ struct c2_rpc_item_type_ops {
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
 	int (*rito_io_coalesce)
-	    (struct c2_rpc_frm_item_coalesced *coalesced_item,
-	     struct c2_rpc_item *item);
+	(struct c2_rpc_frm_item_coalesced *coalesced_item,
+	struct c2_rpc_item *item);
 	/**
 	   Serialise @item on provided xdr stream @xdrs
 	 */
@@ -115,6 +115,16 @@ struct c2_rpc_item_type_ops {
 	int (*rito_decode)(struct c2_rpc_item_type *item_type,
 			   struct c2_rpc_item **item,
 			   struct c2_bufvec_cursor *cur);
+	/**
+	   Return the c2_net_buf_desc from io fop.
+	 */
+	void (*rito_io_desc_get)(struct c2_rpc_item *item,
+				 struct c2_net_buf_desc *desc);
+	/**
+	   Store the c2_net_buf_desc into io fop from its net buffer.
+	 */
+	int (*rito_io_desc_store)(struct c2_rpc_item *item,
+				  struct c2_net_buf_desc *desc);
 };
 
 /**

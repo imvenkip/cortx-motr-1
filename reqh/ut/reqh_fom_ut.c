@@ -132,7 +132,7 @@ static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
 /**
    RPC item operations structures
  */
-struct c2_rpc_item_type_ops reqh_ut_create_rpc_item_type_ops = {
+static const struct c2_rpc_item_type_ops reqh_ut_create_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
@@ -144,7 +144,7 @@ struct c2_rpc_item_type_ops reqh_ut_create_rpc_item_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-struct c2_rpc_item_type_ops reqh_ut_write_rpc_item_type_ops = {
+static const struct c2_rpc_item_type_ops reqh_ut_write_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
@@ -156,7 +156,7 @@ struct c2_rpc_item_type_ops reqh_ut_write_rpc_item_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-struct c2_rpc_item_type_ops reqh_ut_read_rpc_item_type_ops = {
+static const struct c2_rpc_item_type_ops reqh_ut_read_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
@@ -171,7 +171,7 @@ struct c2_rpc_item_type_ops reqh_ut_read_rpc_item_type_ops = {
 /**
    Reply rpc item type operations
  */
-struct c2_rpc_item_type_ops reqh_ut_create_rep_rpc_item_type_ops = {
+static const struct c2_rpc_item_type_ops reqh_ut_create_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
@@ -183,7 +183,7 @@ struct c2_rpc_item_type_ops reqh_ut_create_rep_rpc_item_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-struct c2_rpc_item_type_ops reqh_ut_write_rep_rpc_item_type_ops = {
+static const struct c2_rpc_item_type_ops reqh_ut_write_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
@@ -195,7 +195,7 @@ struct c2_rpc_item_type_ops reqh_ut_write_rep_rpc_item_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-struct c2_rpc_item_type_ops reqh_ut_read_rep_rpc_item_type_ops = {
+static const struct c2_rpc_item_type_ops reqh_ut_read_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
@@ -210,7 +210,7 @@ struct c2_rpc_item_type_ops reqh_ut_read_rep_rpc_item_type_ops = {
 /**
  * Fop operation structures for corresponding fops.
  */
-static struct c2_fop_type_ops reqh_ut_write_fop_ops = {
+static const struct c2_fop_type_ops reqh_ut_write_fop_ops = {
 	.fto_fom_init = reqh_ut_io_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
@@ -219,7 +219,7 @@ static struct c2_fop_type_ops reqh_ut_write_fop_ops = {
         .fto_io_coalesce = NULL,
 };
 
-static struct c2_fop_type_ops reqh_ut_read_fop_ops = {
+static const struct c2_fop_type_ops reqh_ut_read_fop_ops = {
 	.fto_fom_init = reqh_ut_io_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
@@ -228,7 +228,7 @@ static struct c2_fop_type_ops reqh_ut_read_fop_ops = {
         .fto_io_coalesce = NULL,
 };
 
-static struct c2_fop_type_ops reqh_ut_create_fop_ops = {
+static const struct c2_fop_type_ops reqh_ut_create_fop_ops = {
 	.fto_fom_init = reqh_ut_io_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
@@ -237,7 +237,7 @@ static struct c2_fop_type_ops reqh_ut_create_fop_ops = {
         .fto_io_coalesce = NULL,
 };
 
-struct c2_fop_type_ops reqh_ut_create_rep_fop_ops = {
+static const struct c2_fop_type_ops reqh_ut_create_rep_fop_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
@@ -246,7 +246,7 @@ struct c2_fop_type_ops reqh_ut_create_rep_fop_ops = {
         .fto_io_coalesce = NULL,
 };
 
-struct c2_fop_type_ops reqh_ut_write_rep_fop_ops = {
+static const struct c2_fop_type_ops reqh_ut_write_rep_fop_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
@@ -255,7 +255,7 @@ struct c2_fop_type_ops reqh_ut_write_rep_fop_ops = {
         .fto_io_coalesce = NULL,
 };
 
-struct c2_fop_type_ops reqh_ut_read_rep_fop_ops = {
+static const struct c2_fop_type_ops reqh_ut_read_rep_fop_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
@@ -275,7 +275,50 @@ enum reply_fop {
 	WRITE_REP,
 	READ_REP
 };
+#if 0
+/**
+   Item type declartaions
+ */
 
+static struct c2_rpc_item_type reqh_ut_create_rpc_item_type = {
+        .rit_opcode = CREATE_REQ,
+        .rit_ops = &reqh_ut_create_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
+};
+
+static struct c2_rpc_item_type reqh_ut_write_rpc_item_type = {
+        .rit_opcode = WRITE_REQ,
+        .rit_ops = &reqh_ut_write_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
+};
+
+static struct c2_rpc_item_type reqh_ut_read_rpc_item_type = {
+        .rit_opcode = READ_REQ,
+        .rit_ops = &reqh_ut_read_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
+};
+
+/**
+   Reply rpc item type
+ */
+static struct c2_rpc_item_type reqh_ut_create_rep_rpc_item_type = {
+        .rit_opcode = CREATE_REP,
+        .rit_ops = &reqh_ut_create_rep_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
+};
+
+static struct c2_rpc_item_type reqh_ut_write_rep_rpc_item_type = {
+        .rit_opcode = WRITE_REP,
+        .rit_ops = &reqh_ut_write_rep_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
+};
+
+static struct c2_rpc_item_type reqh_ut_read_rep_rpc_item_type = {
+        .rit_opcode = READ_REP,
+        .rit_ops = &reqh_ut_read_rep_rpc_item_type_ops,
+        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
+};
+#endif
 /**
  * Fop type declarations for corresponding fops
  */
@@ -350,19 +393,19 @@ static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom);
 /**
  * Operation structures for respective foms
  */
-static struct c2_fom_ops reqh_ut_create_fom_ops = {
+static const struct c2_fom_ops reqh_ut_create_fom_ops = {
 	.fo_fini = reqh_ut_io_fom_fini,
 	.fo_state = reqh_ut_create_fom_state,
 	.fo_home_locality = reqh_ut_find_fom_home_locality,
 };
 
-static struct c2_fom_ops reqh_ut_write_fom_ops = {
+static const struct c2_fom_ops reqh_ut_write_fom_ops = {
 	.fo_fini = reqh_ut_io_fom_fini,
 	.fo_state = reqh_ut_write_fom_state,
 	.fo_home_locality = reqh_ut_find_fom_home_locality,
 };
 
-static struct c2_fom_ops reqh_ut_read_fom_ops = {
+static const struct c2_fom_ops reqh_ut_read_fom_ops = {
 	.fo_fini = reqh_ut_io_fom_fini,
 	.fo_state = reqh_ut_read_fom_state,
 	.fo_home_locality = reqh_ut_find_fom_home_locality,
@@ -414,7 +457,7 @@ static struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 /**
  * Sends create fop request.
  */
-static void create_send()
+static void create_send(void)
 {
 	struct c2_clink                  clink;
 	struct c2_rpc_item              *item;
@@ -450,7 +493,7 @@ static void create_send()
 /**
  * Sends read fop request.
  */
-static void read_send()
+static void read_send(void)
 {
 	struct c2_clink                  clink;
 	struct c2_rpc_item              *item;
@@ -487,7 +530,7 @@ static void read_send()
 /**
  * Sends write fop request.
  */
-static void write_send()
+static void write_send(void)
 {
 	struct c2_clink                  clink;
 	struct c2_rpc_item              *item;
@@ -741,7 +784,6 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
         c2_bcount_t                      count;
         c2_bcount_t                      offset;
         uint32_t                         bshift;
-        uint64_t                         bmask;
         int                              result;
 
         C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode == READ_REQ);
@@ -763,7 +805,6 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
 
                         stobj =  fom_obj->rh_ut_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
-                        bmask  = (1 << bshift) - 1;
 
                         addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
                         count = 1 >> bshift;
@@ -852,7 +893,6 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
         c2_bcount_t                      count;
         c2_bindex_t                      offset;
         uint32_t                         bshift;
-        uint64_t                         bmask;
         int                              result;
 
         C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode == WRITE_REQ);
@@ -874,7 +914,6 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
 
                         stobj = fom_obj->rh_ut_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
-                        bmask  = (1 << bshift) - 1;
 
                         addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
                         count = 1 >> bshift;
@@ -1073,76 +1112,66 @@ static struct reqh_ut_balloc rb = {
 
 static int client_init(char *dbname)
 {
-        int                                rc = 0;
-        bool                               rcb;
+        int                                rc;
         c2_time_t                          timeout;
 	struct c2_net_transfer_mc         *cl_tm;
 
         /* Init client side network domain */
         rc = c2_net_domain_init(&cl_ndom, &c2_net_bulk_sunrpc_xprt);
-        if(rc != 0)
-                goto out;
+	C2_UT_ASSERT(rc == 0);
 
         cl_cob_dom_id.id =  101 ;
 
         /* Init the db */
         rc = c2_dbenv_init(&cl_db, dbname, 0);
-        if(rc != 0)
-                goto out;
+	C2_UT_ASSERT(rc == 0);
 
         /* Init the cob domain */
         rc = c2_cob_domain_init(&cl_cob_domain, &cl_db,
-                        &cl_cob_dom_id);
-        if(rc != 0)
-                goto out;
+			&cl_cob_dom_id);
+	C2_UT_ASSERT(rc == 0);
 
         /* Init the rpcmachine */
         rc = c2_rpcmachine_init(&cl_rpc_mach, &cl_cob_domain,
-                        &cl_ndom, "127.0.0.1:1024:1", NULL);
-        if(rc != 0)
-                goto out;
+                        &cl_ndom, "127.0.0.1:21435:1", NULL);
+	C2_UT_ASSERT(rc == 0);
 
         cl_tm = &cl_rpc_mach.cr_tm;
+	C2_UT_ASSERT(cl_tm != NULL);
 
         /* Create destination endpoint for client i.e server endpoint */
-        rc = c2_net_end_point_create(&cl_rep, cl_tm, "127.0.0.1:1024:2");
-        if(rc != 0)
-                goto out;
+        rc = c2_net_end_point_create(&cl_rep, cl_tm, "127.0.0.1:21435:2");
+	C2_UT_ASSERT(rc == 0);
+
         /* Init the connection structure */
         rc = c2_rpc_conn_init(&cl_conn, cl_rep, &cl_rpc_mach,
-                        MAX_RPCS_IN_FLIGHT);
-        if(rc != 0)
-                goto out;
+			MAX_RPCS_IN_FLIGHT);
+	C2_UT_ASSERT(rc == 0);
 
         /* Create RPC connection */
         rc = c2_rpc_conn_establish(&cl_conn);
-        if(rc != 0)
-                goto out;
-
+	C2_UT_ASSERT(rc == 0);
 
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
-        rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_ACTIVE |
-                                   C2_RPC_CONN_FAILED, timeout);
+        C2_UT_ASSERT(c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_ACTIVE |
+                                   C2_RPC_CONN_FAILED, timeout));
         /* Init session */
-        rc = c2_rpc_session_init(&cl_rpc_session, &cl_conn,
-                        5);
-        if(rc != 0)
-                goto out;
+        rc = c2_rpc_session_init(&cl_rpc_session, &cl_conn, 5);
+	C2_UT_ASSERT(rc == 0);
 
         /* Create RPC session */
         rc = c2_rpc_session_establish(&cl_rpc_session);
-        if(rc != 0)
-                goto conn_term;
+	C2_UT_ASSERT(rc == 0);
 
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
         /* Wait for session to become active */
-        rcb = c2_rpc_session_timedwait(&cl_rpc_session,
-                        C2_RPC_SESSION_IDLE, timeout);
+        C2_UT_ASSERT(c2_rpc_session_timedwait(&cl_rpc_session,
+                        C2_RPC_SESSION_IDLE, timeout));
 
 	/* send fops */
 	create_send();
@@ -1150,33 +1179,29 @@ static int client_init(char *dbname)
 	read_send();
 
         rc = c2_rpc_session_terminate(&cl_rpc_session);
-        if(rc != 0)
-                goto out;
+	C2_UT_ASSERT(rc == 0);
 
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
         /* Wait for session to terminate */
-        rcb = c2_rpc_session_timedwait(&cl_rpc_session,
+        C2_UT_ASSERT(c2_rpc_session_timedwait(&cl_rpc_session,
                         C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
-                        timeout);
+                        timeout));
 
-conn_term:
         /* Terminate RPC connection */
         rc = c2_rpc_conn_terminate(&cl_conn);
-        if(rc != 0)
-                goto out;
-
+	C2_UT_ASSERT(rc == 0);
 
         timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
-        rcb = c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_TERMINATED |
-                                   C2_RPC_CONN_FAILED, timeout);
+        C2_UT_ASSERT(c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_TERMINATED |
+                                   C2_RPC_CONN_FAILED, timeout));
         c2_rpc_session_fini(&cl_rpc_session);
         c2_rpc_conn_fini(&cl_conn);
-out:
+
 	return rc;
 }
 
@@ -1203,25 +1228,22 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			struct c2_stob **bstore, struct c2_stob **reqh_addb_stob,
 			struct c2_stob_id *rh_addb_stob_id)
 {
-        int                        rc = 0;
+        int                        rc;
 	struct c2_net_transfer_mc *srv_tm;
 
         /* Init Bulk sunrpc transport */
-        c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
-        if(rc != 0)
-                goto out;
+        rc = c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
+        C2_UT_ASSERT(rc == 0);
 
         /* Init server side network domain */
-        rc = c2_net_domain_init(&srv_ndom, &c2_net_bulk_sunrpc_xprt);
-        if(rc != 0)
-                goto out;
+	rc = c2_net_domain_init(&srv_ndom, &c2_net_bulk_sunrpc_xprt);
+	C2_UT_ASSERT(rc == 0);
 
         srv_cob_dom_id.id = 102;
 
         /* Init the db */
         rc = c2_dbenv_init(&srv_db, srv_db_name, 0);
-        if(rc != 0)
-                goto out;
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_fol_init(&srv_fol, &srv_db);
 	C2_UT_ASSERT(rc == 0);
@@ -1269,8 +1291,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         /* Init the cob domain */
         rc = c2_cob_domain_init(&srv_cob_domain, &srv_db,
                         &srv_cob_dom_id);
-        if(rc != 0)
-                goto out;
+        C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
 	rc =  c2_reqh_init(&reqh, NULL, NULL, sdom, &srv_fol);
@@ -1278,20 +1299,18 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
         /* Init the rpcmachine */
         rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain,
-                        &srv_ndom, "127.0.0.1:1024:2", &reqh);
-        if(rc != 0)
-                goto out;
+                        &srv_ndom, "127.0.0.1:21435:2", &reqh);
+        C2_UT_ASSERT(rc == 0);
 
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
         srv_tm = &srv_rpc_mach.cr_tm;
+	C2_UT_ASSERT(srv_tm != NULL);
 
         /* Create destination endpoint for server i.e client endpoint */
-        rc = c2_net_end_point_create(&srv_rep, srv_tm, "127.0.0.1:1024:1");
-        if(rc != 0)
-                goto out;
+        rc = c2_net_end_point_create(&srv_rep, srv_tm, "127.0.0.1:21435:1");
+	C2_UT_ASSERT(rc == 0);
 
-out:
 	return rc;
 }
 
@@ -1318,7 +1337,7 @@ static void server_fini(struct c2_stob_domain *bdom,
 	c2_stob_put(reqh_addb_stob);
 
 	c2_reqh_fini(&reqh);
-	C2_ASSERT(sdom != NULL);
+	C2_UT_ASSERT(sdom != NULL);
 	sdom->sd_ops->sdo_fini(sdom);
 	bdom->sd_ops->sdo_fini(bdom);
 	c2_fol_fini(&srv_fol);
@@ -1390,7 +1409,7 @@ void test_reqh(void)
 }
 
 const struct c2_test_suite reqh_ut = {
-	.ts_name = "reqh-ut... this takes about 30 seconds",
+	.ts_name = "reqh-ut...",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
