@@ -1,7 +1,8 @@
 UT_SRCDIR=@SRCDIR@/rpc/ut
-INCLUDES                 = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
-#noinst_PROGRAMS   = rclient rserver
-#noinst_LTLIBRARIES       = librpccore-ut.la
+
+INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
+
+noinst_LTLIBRARIES = librpc-helper-ut.la libonwire-ut.la
 
 #rclient_SOURCES   = rpc-client.c
 #rclient_LDFLAGS   = -pthread
@@ -11,7 +12,9 @@ INCLUDES                 = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
 #rserver_LDFLAGS   = -pthread
 #rserver_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
-noinst_LTLIBRARIES = libonwire-ut.la
+librpc_helper_ut_la_SOURCES = rpc_helper_ut.c ../it/ping_fop.c ../it/ping_fop_u.c ../it/ping_fom.c
+
+#noinst_LTLIBRARIES = libonwire-ut.la
 test_u.h test_u.c : test.ff \
 	$(top_builddir)/fop/rt/libc2rt.la \
 	$(top_builddir)/fop/fop2c

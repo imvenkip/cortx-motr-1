@@ -68,12 +68,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
 	.rito_item_size = c2_rpc_item_fop_default_size
 };
 
-struct c2_rpc_item_type c2_rpc_item_type_test = {
-	.rit_opcode = 60,
-	.rit_ops = &c2_rpc_item_test_ops,
-};
-
-C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test",  &onwire_test_ops, 60,
+C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops, 20,
 		    C2_RPC_ITEM_TYPE_REQUEST, &c2_rpc_item_test_ops);
 
 static struct c2_verno verno = {
@@ -170,11 +165,8 @@ static void rpc_encdec_test(void)
 	ccf3->t_arr.t_data[3] = 0xd;
 
 	item1 = &f1->f_item;
-	item1->ri_type = &c2_rpc_item_type_test;
 	item2 = &f2->f_item;
-	item2->ri_type = &c2_rpc_item_type_test;
 	item3 = &f3->f_item;
-	item3->ri_type = &c2_rpc_item_type_test;
 	populate_item(item1);
 	populate_item(item2);
 	populate_item(item3);

@@ -29,7 +29,7 @@ void c2_ping_fop_fini(void);
  * The opcode from which IO service FOPS start.
  */
 enum c2_fop_ping_opcodes {
-	c2_fop_ping_opcode = 45,
+	c2_fop_ping_opcode = 59,
 	c2_fop_ping_rep_opcode,
 };
 

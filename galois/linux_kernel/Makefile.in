@@ -1,6 +1,8 @@
 GALOIS_KERNEL_SRCDIR = @SRCDIR@/galois/linux_kernel
 GALOIS_SRCDIR = @SRCDIR@/../galois
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y       := kgalois.o
 shared_src  := galois.c
 kernel_src  := kgalois.c

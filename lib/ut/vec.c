@@ -207,6 +207,7 @@ static void test_bufvec_cursor(void)
 			}
 		}
 		C2_UT_ASSERT(len == buflen);
+		c2_bufvec_free(&buf);
 	}
 
 	/* bounded copy - source buffer smaller */
@@ -246,7 +247,12 @@ static void test_bufvec_cursor(void)
 				len++;
 			}
 		}
+		c2_bufvec_free(&buf);
 	}
+
+	/* free buffer pool */
+	for (i = 0; i < ARRAY_SIZE(bufs); ++i)
+		c2_bufvec_free(&bufs[i]);
 }
 
 /*
