@@ -173,12 +173,11 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 C2_EXPORTED(c2_cobfid_map_fini);
 
 int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
-		const struct c2_fid file_fid,
-		struct c2_uint128 cob_fid)
+		      const struct c2_fid file_fid, struct c2_uint128 cob_fid,
+		      struct c2_db_tx *tx)
 {
 	int			 rc;
 	bool			 table_update_failed = false;
-	struct c2_db_tx		 tx;
 	struct c2_db_pair	 db_pair;
 	struct cobfid_map_key	 key;
 
@@ -187,18 +186,11 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	key.cfk_ci = container_id;
 	key.cfk_fid = file_fid;
 
-	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-				"c2_db_tx_init", rc);
-		return rc;
-	}
-
 	c2_db_pair_setup(&db_pair, &cfm->cfm_table, &key,
 			sizeof(struct cobfid_map_key),
 			&cob_fid, sizeof(struct c2_uint128));
 
-	rc = c2_table_update(&tx, &db_pair);
+	rc = c2_table_update(tx, &db_pair);
 	if (rc != 0) {
 		table_update_failed = true;
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
@@ -207,12 +199,8 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
-	if (!table_update_failed) {
+	if (!table_update_failed)
 		cfm->cfm_last_mod = c2_time_now();
-		c2_db_tx_commit(&tx);
-	} else
-		c2_db_tx_abort(&tx);
-
 
 	C2_POST(cobfid_map_invariant(cfm));
 
@@ -221,10 +209,9 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 C2_EXPORTED(c2_cobfid_map_add);
 
 int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
-		      const struct c2_fid file_fid)
+		      const struct c2_fid file_fid, struct c2_db_tx *tx)
 {
 	int			 rc;
-	struct c2_db_tx		 tx;
 	struct c2_db_pair	 db_pair;
 	struct cobfid_map_key	 key;
 	bool			 table_op_failed = false;
@@ -234,17 +221,10 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	key.cfk_ci = container_id;
 	key.cfk_fid = file_fid;
 
-	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_db_tx_init", rc);
-		return rc;
-	}
-
 	c2_db_pair_setup(&db_pair, &cfm->cfm_table, &key,
 			 sizeof(struct cobfid_map_key), NULL, 0);
 
-	rc = c2_table_delete(&tx, &db_pair);
+	rc = c2_table_delete(tx, &db_pair);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_table_delete", rc);
@@ -254,11 +234,8 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 
-	if (!table_op_failed) {
-		c2_db_tx_commit(&tx);
+	if (!table_op_failed)
 		cfm->cfm_last_mod = c2_time_now();
-	} else
-		c2_db_tx_abort(&tx);
 
 	C2_POST(cobfid_map_invariant(cfm));
 
@@ -316,11 +293,6 @@ void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter)
 	c2_free(iter->cfmi_buffer);
 	iter->cfmi_magic = 0;
 
-	if (iter->cfmi_error == 0)
-		c2_db_tx_commit(&iter->cfmi_tx);
-	else
-		c2_db_tx_abort(&iter->cfmi_tx);
-
 	c2_db_cursor_fini(&iter->cfmi_db_cursor);
 
 	C2_POST(!cobfid_map_iter_invariant(iter));
@@ -333,7 +305,8 @@ C2_EXPORTED(c2_cobfid_map_iter_fini);
 static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 				struct c2_cobfid_map_iter *iter,
 				const struct c2_cobfid_map_iter_ops *ops,
-				const enum c2_cobfid_map_query_type qt)
+				const enum c2_cobfid_map_query_type qt,
+				struct c2_db_tx *tx)
 {
 	int rc;
 
@@ -343,19 +316,11 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 
 	C2_SET0(iter);
 
-	rc = c2_db_tx_init(&iter->cfmi_tx, cfm->cfm_dbenv, 0);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_db_tx_init", rc);
-		return rc;
-	}
-
-	rc = c2_db_cursor_init(&iter->cfmi_db_cursor, &cfm->cfm_table,
-			       &iter->cfmi_tx);
+	iter->cfmi_tx = tx;
+	rc = c2_db_cursor_init(&iter->cfmi_db_cursor, &cfm->cfm_table, tx);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_db_cursor_init", rc);
-		c2_db_tx_abort(&iter->cfmi_tx);
 		return rc;
 	}
 
@@ -365,7 +330,6 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	if (iter->cfmi_buffer == NULL) {
                 C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, c2_addb_oom);
 		c2_db_cursor_fini(&iter->cfmi_db_cursor);
-		c2_db_tx_abort(&iter->cfmi_tx);
 		return -ENOMEM;
 	}
 
@@ -587,12 +551,13 @@ static const struct c2_cobfid_map_iter_ops enum_ops = {
 };
 
 int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
-		       struct c2_cobfid_map_iter *iter)
+		       struct c2_cobfid_map_iter *iter,
+		       struct c2_db_tx *tx)
 {
 	int rc;
 
 	rc = cobfid_map_iter_init(cfm, iter, &enum_ops,
-				  C2_COBFID_MAP_QT_ENUM_MAP);
+				  C2_COBFID_MAP_QT_ENUM_MAP, tx);
 	if (rc != 0)
 		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
 			    cfm_func_fail, "cobfid_map_iter_init", rc);
@@ -664,12 +629,13 @@ static const struct c2_cobfid_map_iter_ops enum_container_ops = {
 
 int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 				 uint64_t container_id,
-				 struct c2_cobfid_map_iter *iter)
+				 struct c2_cobfid_map_iter *iter,
+				 struct c2_db_tx *tx)
 {
 	int rc;
 
 	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
-				  C2_COBFID_MAP_QT_ENUM_CONTAINER);
+				  C2_COBFID_MAP_QT_ENUM_CONTAINER, tx);
 	if (rc != 0) {
 		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
 			    cfm_func_fail, "cobfid_map_iter_init", rc);

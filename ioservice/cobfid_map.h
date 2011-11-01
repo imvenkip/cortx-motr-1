@@ -130,7 +130,7 @@ struct c2_cobfid_map_iter {
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
 	bool		      cfmi_end_of_table; /**< Indicates end of table */
 	struct c2_db_cursor   cfmi_db_cursor; /**< DB cursor used by iterator */
-	struct c2_db_tx	      cfmi_tx;     /**< DB transaction used by iter */
+	struct c2_db_tx      *cfmi_tx;     /**< DB transaction used by iter */
 	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
 };
@@ -196,6 +196,7 @@ void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
    @param container_id Identifier of the container or device.
    @param file_fid     Global file identifier.
    @param cob_fid      COB identifier.
+   @param tx           Pointer to the database transaction for this operation
    @retval 0 on success
    @retval -errno on failure
    @see c2_cobfid_map_del()
@@ -205,19 +206,22 @@ void c2_cobfid_map_iter_fini(struct  c2_cobfid_map_iter *iter);
 int c2_cobfid_map_add(struct c2_cobfid_map *cfm,
 		      const uint64_t container_id,
 		      const struct c2_fid file_fid,
-		      struct c2_uint128 cob_fid);
+		      struct c2_uint128 cob_fid,
+		      struct c2_db_tx *tx);
 
 /**
    Delete the association of the tuple (container_id, file_fid) with a cob_fid.
    @param cfm          Pointer to the struct c2_cobfid_map.
    @param container_id Identifier of the container or device.
    @param file_fid     Global file identifier.
+   @param tx           Pointer to the database transaction for this operation
    @retval 0 on success
    @retval -errno on failure
  */
 int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
 		      const uint64_t container_id,
-		      const struct c2_fid file_fid);
+		      const struct c2_fid file_fid,
+		      struct c2_db_tx *tx);
 
 /**
    Initializes an iterator to enumerate the associations within a container
@@ -226,6 +230,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
    @param cfm          Pointer to the struct c2_cobfid_map.
    @param container_id Identifier of the container or device.
    @param iter         Pointer to iterator data structure to be initialized.
+   @param tx           Pointer to the database transaction for this operation
    The iterator is used to retrieve the results.
    @see c2_cobfid_map_iter_next()
    @retval 0  on success.
@@ -233,7 +238,8 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm,
  */
 int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 				 uint64_t container_id,
-				 struct c2_cobfid_map_iter *iter);
+				 struct c2_cobfid_map_iter *iter,
+				 struct c2_db_tx *tx);
 
 /**
    Initializes an iterator to enumerate all of the associations
@@ -241,13 +247,15 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
    and global file fid order.
    @param cfm  Pointer to the struct c2_cobfid_map.
    @param iter Pointer to iterator data structure to be initialized.
+   @param tx           Pointer to the database transaction for this operation
    The iterator is used to retrieve the results.
    @see c2_cobfid_map_iter_next()
    @retval 0  on success.
    @retval -errno on error.
  */
 int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
-		       struct c2_cobfid_map_iter *iter);
+		       struct c2_cobfid_map_iter *iter,
+		       struct c2_db_tx *tx);
 
 /**
    Returns the next association in traversal order, pointed to by the
