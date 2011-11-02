@@ -175,9 +175,9 @@
    called during long state transitions (typically within loops).
 
    If an ast is posted and group mutex is not held (i.e., the group is "idle") a
-   c2_sm_group::s_sem semaphore is signalled. It is expected that some threads,
-   assigned to handling state transitions of machines from the group, are
-   waiting on this semaphore.
+   c2_sm_group::s_signal semaphore is signalled. It is expected that some
+   threads, assigned to handling state transitions of machines from the group,
+   are waiting on this semaphore.
 
    @{
 */
