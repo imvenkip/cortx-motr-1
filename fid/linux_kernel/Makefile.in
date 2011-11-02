@@ -1,5 +1,7 @@
 FID_SRCDIR = @SRCDIR@/fid/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y		:= kfid.o
 shared_src	:= fid.c
 kernel_src	:=

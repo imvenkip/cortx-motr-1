@@ -20,6 +20,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/xcode/ut/libxcode-ut.la \
 	       $(top_builddir)/xdr/ut/libxdr-ut.la  \
 	       $(top_builddir)/reqh/ut/libreqh-ut.la \
+	       $(top_builddir)/rpc/ut/librpc-helper-ut.la \
 	       $(top_builddir)/ioservice/ut/libcfm-ut.la
 
 
