@@ -45,6 +45,7 @@ static const char multiple_buf_cont_enum_path[] = "./cfm_map_multiple_buf_ce";
 static const char single_buf_map_enum_path[] = "./cfm_map_single_buf_me";
 static const char multiple_buf_map_enum_path[] = "./cfm_map_multiple_buf_me";
 static const char iter_test_map[] = "./cfm_map_iter_test";
+static const char concurrency_test_map[] = "./cfm_map_concurrency_test";
 
 /*
    Generic enumeration routine, used by all the tests.
@@ -235,8 +236,10 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 /* Container enumeration - single buffer fetch by iterator */
 void ce_single_buf(void)
 {
+	/* Do not check database persistence */
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
 			  ENUM_CONTAINER, false);
+	/* Check database persistence */
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
 			  ENUM_CONTAINER, true);
 }
@@ -244,8 +247,10 @@ void ce_single_buf(void)
 /* Container enumeration - multiple buffer fetches by iterator */
 void ce_multiple_buf(void)
 {
+	/* Do not check database persistence */
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
 			  ENUM_CONTAINER, false);
+	/* Check database persistence */
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
 			  ENUM_CONTAINER, true);
 }
@@ -253,8 +258,10 @@ void ce_multiple_buf(void)
 /* Map enumeration - single buffer fetch by iterator */
 void me_single_buf(void)
 {
+	/* Do not check database persistence */
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
 			  ENUM_MAP, false);
+	/* Check database persistence */
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
 			  ENUM_MAP, true);
 }
@@ -262,12 +269,16 @@ void me_single_buf(void)
 /* Map enumeration - multiple buffer fetches by iterator */
 void me_multiple_buf(void)
 {
+	/* Do not check database persistence */
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
 			  ENUM_MAP, false);
+	/* Check database persistence */
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
 			  ENUM_MAP, true);
 }
 
+/* Iterator sensitivity - test to ensure that an iterator behaves correctly
+   when records are inserted during its use. */
 void test_iter_sensitivity(void)
 {
 	int			 rc;
@@ -296,6 +307,7 @@ void test_iter_sensitivity(void)
 				"cfm_map_table");
 	C2_UT_ASSERT(rc == 0);
 
+	/* Initialize the transaction */
 	rc = c2_db_tx_init(&cfm_dbtx, &cfm_dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
