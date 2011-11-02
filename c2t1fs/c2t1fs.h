@@ -60,9 +60,14 @@ static inline struct c2t1fs_inode_info *C2T1FS_I(struct inode *inode)
 	return container_of(inode, struct c2t1fs_inode_info, cii_inode);
 }
 
-extern struct kmem_cache *c2t1fs_inode_cachep;
-
 int c2t1fs_sb_info_init(struct c2t1fs_sb_info *sbi);
 void c2t1fs_sb_info_fini(struct c2t1fs_sb_info *sbi);
 
+int c2t1fs_inode_cache_init(void);
+void c2t1fs_inode_cache_fini(void);
+
+struct inode *c2t1fs_root_iget(struct super_block *sb);
+
+extern struct file_operations c2t1fs_dir_operations;
+extern struct address_space_operations c2t1fs_dir_aops;
 #endif /* __COLIBRI_C2T1FS_H */

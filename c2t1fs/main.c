@@ -18,11 +18,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int c2t1fs_mnt_opts_parse(char                   *options,
 				 struct c2t1fs_mnt_opts *mnt_opts);
 
-static int c2t1fs_inode_cache_init(void);
-static void c2t1fs_inode_cache_fini(void);
-
-struct kmem_cache *c2t1fs_inode_cachep = NULL;
-
 static struct file_system_type c2t1fs_fs_type = {
 	.owner        = THIS_MODULE,
 	.name         = "c2t1fs",
@@ -56,37 +51,6 @@ int c2t1fs_init(void)
 
 	END(rc);
 	return rc;
-}
-
-static int c2t1fs_inode_cache_init(void)
-{
-	int rc = 0;
-
-	START();
-
-	c2t1fs_inode_cachep = kmem_cache_create("c2t1fs_inode_cache",
-						sizeof(struct c2t1fs_inode_info),
-						0, SLAB_HWCACHE_ALIGN, NULL);
-	if (c2t1fs_inode_cachep == NULL)
-		rc = -ENOMEM;
-
-	END(rc);
-	return rc;
-}
-
-static void c2t1fs_inode_cache_fini(void)
-{
-	START();
-
-	if (c2t1fs_inode_cachep == NULL) {
-		END(0);
-		return;
-	}
-
-	kmem_cache_destroy(c2t1fs_inode_cachep);
-	c2t1fs_inode_cachep = NULL;
-
-	END(0);
 }
 
 void c2t1fs_fini(void)
@@ -127,7 +91,9 @@ static int c2t1fs_get_sb(struct file_system_type *fstype,
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct c2t1fs_sb_info *csi;
+	struct inode          *root_inode;
 	int                    rc;
+
 	START();
 
 	csi = kmalloc(sizeof (*csi), GFP_KERNEL);
@@ -137,8 +103,11 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	rc = c2t1fs_sb_info_init(csi);
-	if (rc != 0)
+	if (rc != 0) {
+		kfree(csi);
+		csi = NULL;
 		goto out;
+	}
 
 	rc = c2t1fs_mnt_opts_parse(data, &csi->csi_mnt_opts);
 	if (rc != 0)
@@ -152,16 +121,43 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
 
+	/* XXX Talk to confd and fetch configuration */
+	/* XXX construct root inode */
+	root_inode = c2t1fs_root_iget(sb);
+	if (root_inode == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	sb->s_root = d_alloc_root(root_inode);
+	if (sb->s_root == NULL) {
+		iput(root_inode);
+		rc = -ENOMEM;
+		goto out;
+	}
+	return 0;
+
 out:
-	if (csi != NULL)
+	if (csi != NULL) {
+		c2t1fs_sb_info_fini(csi);
 		kfree(csi);
+	}
 	sb->s_fs_info = NULL;
 	END(rc);
 	return rc;
 }
 static void c2t1fs_kill_sb(struct super_block *sb)
 {
+	struct c2t1fs_sb_info *sbi;
 
+	START();
+
+	sbi = C2T1FS_SB(sb);
+	c2t1fs_sb_info_fini(sbi);
+	kfree(sbi);
+	kill_anon_super(sb);
+
+	END(0);
 }
 
 int c2t1fs_sb_info_init(struct c2t1fs_sb_info *csi)
@@ -195,7 +191,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 	if (mnt_opts->mo_options == NULL)
 		rc = -ENOMEM;
 
-	/* Parse mount options */
+	/* XXX Parse mount options */
 
 	END(rc);
 	return rc;
