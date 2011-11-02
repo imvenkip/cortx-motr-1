@@ -754,12 +754,12 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
 
 	c2_mutex_lock(&machine->cr_session_mutex);
+	found = false;
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
 
 		found = use_uuid ?
-			c2_rpc_sender_uuid_cmp(&conn->c_uuid,
-					       &sref->sr_uuid) == 0 :
-			conn->c_sender_id == sref->sr_sender_id;
+		   c2_rpc_sender_uuid_cmp(&conn->c_uuid, &sref->sr_uuid) == 0 :
+		   conn->c_sender_id == sref->sr_sender_id;
 		if (found)
 			break;
 
