@@ -8,6 +8,19 @@
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 static struct inode_operations c2t1fs_dir_inode_operations = { NULL };
 
+static void init_once(void *foo)
+{
+	struct c2t1fs_inode_info *cii = foo;
+
+	START();
+
+	cii->cii_fid.f_container = 0;
+	cii->cii_fid.f_key = 0;
+
+	inode_init_once(&cii->cii_inode);
+
+	END(0);
+}
 int c2t1fs_inode_cache_init(void)
 {
 	int rc = 0;
@@ -16,7 +29,7 @@ int c2t1fs_inode_cache_init(void)
 
 	c2t1fs_inode_cachep = kmem_cache_create("c2t1fs_inode_cache",
 					sizeof(struct c2t1fs_inode_info),
-					0, SLAB_HWCACHE_ALIGN, NULL);
+					0, SLAB_HWCACHE_ALIGN, init_once);
 	if (c2t1fs_inode_cachep == NULL)
 		rc = -ENOMEM;
 
@@ -36,6 +49,29 @@ void c2t1fs_inode_cache_fini(void)
 	kmem_cache_destroy(c2t1fs_inode_cachep);
 	c2t1fs_inode_cachep = NULL;
 
+	END(0);
+}
+
+struct inode *c2t1fs_alloc_inode(struct super_block *sb)
+{
+	struct c2t1fs_inode_info *cii;
+
+	START();
+
+	cii = kmem_cache_alloc(c2t1fs_inode_cachep, GFP_KERNEL);
+	if (cii == NULL) {
+		END(NULL);
+		return NULL;
+	}
+
+	END(&cii->cii_inode);
+	return &cii->cii_inode;
+}
+
+void c2t1fs_destroy_inode(struct inode *inode)
+{
+	START();
+	kmem_cache_free(c2t1fs_inode_cachep, C2T1FS_I(inode));
 	END(0);
 }
 

@@ -47,7 +47,7 @@ struct c2t1fs_sb_info
 struct c2t1fs_inode_info
 {
 	struct inode  cii_inode;
-	struct c2_fid *cii_fid;
+	struct c2_fid cii_fid;
 };
 
 static inline struct c2t1fs_sb_info *C2T1FS_SB(struct super_block *sb)
@@ -70,4 +70,7 @@ struct inode *c2t1fs_root_iget(struct super_block *sb);
 
 extern struct file_operations c2t1fs_dir_operations;
 extern struct address_space_operations c2t1fs_dir_aops;
+
+struct inode *c2t1fs_alloc_inode(struct super_block *sb);
+void c2t1fs_destroy_inode(struct inode *inode);
 #endif /* __COLIBRI_C2T1FS_H */
