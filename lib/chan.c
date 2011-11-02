@@ -80,7 +80,7 @@ static bool c2_chan_invariant_locked(struct c2_chan *chan)
 			return false;
 		if (group == NULL)
 			return false;
-		if (clink_is_head(group))
+		if (!clink_is_head(group))
 			return false;
 	} c2_tlist_endfor;
 	return true;
