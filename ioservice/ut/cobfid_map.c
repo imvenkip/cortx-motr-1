@@ -147,6 +147,8 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 		j--;
 	}
 
+	/* Finalise the DB environment, transaction and cobfid_map,
+	   and reinitialize to check database persistence */
 	if (check_persistence) {
 		c2_cobfid_map_fini(&cfm_map);
 		c2_db_tx_commit(&cfm_dbtx);
@@ -297,77 +299,154 @@ void test_iter_sensitivity(void)
 	rc = c2_db_tx_init(&cfm_dbtx, &cfm_dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Populate initial key-values */
 	container_id_in = 300;
 	fid_in.f_container = 0;
 	fid_in.f_key = 31;
 	cob_fid_in.u_hi = 0;
 	cob_fid_in.u_lo = 31;
 
+	/* Add31 - add key with fid.f_key = 31 */
 	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
 			       &cfm_dbtx);
 	C2_UT_ASSERT(rc == 0);
-
-	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
-		fid_in.f_key, cob_fid_in.u_lo); 
 
 	fid_in.f_key = 52;
 	cob_fid_in.u_lo = 52;
 
+	/* Add52 - add key with fid.f_key = 52 */
 	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
 			       &cfm_dbtx);
 	C2_UT_ASSERT(rc == 0);
-
-	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
-		fid_in.f_key, cob_fid_in.u_lo); 
 
 	fid_in.f_key = 73;
 	cob_fid_in.u_lo = 73;
 
+	/* Add73 - add key with fid.f_key = 73 */
 	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
 			       &cfm_dbtx);
 	C2_UT_ASSERT(rc == 0);
 
-	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
-		fid_in.f_key, cob_fid_in.u_lo); 
-
+	/* Open the iterator */
 	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter,
 					  &cfm_dbtx);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Get31 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
 				     &cob_fid_out); 
 	C2_UT_ASSERT(rc == 0);
-	printf("\nENUM: cid = %lu, fid = %lu, cobfid = %lu", container_id_out,
-		fid_out.f_key, cob_fid_out.u_lo); 
-
-	//c2_cobfid_map_iter_fini(&cfm_iter);
+	C2_UT_ASSERT(fid_out.f_key == 31);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 31);
 
 	fid_in.f_key = 94;
 	cob_fid_in.u_lo = 94;
 
+	/* Add94 - add key with fid.f_key = 94 */
 	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
 			       &cfm_dbtx);
 	C2_UT_ASSERT(rc == 0);
 
-	printf("\nADD : cid = %lu, fid = %lu, cobfid = %lu", container_id_in,
-		fid_in.f_key, cob_fid_in.u_lo); 
-
-	rc = c2_dbenv_sync(&cfm_dbenv);
-	C2_UT_ASSERT(rc == 0);
-
-	//rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter,
-	//				  &cfm_dbtx);
-	//C2_UT_ASSERT(rc == 0);
-
+	/* Get52 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
 				     &cob_fid_out); 
 	C2_UT_ASSERT(rc == 0);
-	printf("\nENUM: cid = %lu, fid = %lu, cobfid = %lu", container_id_out,
-		fid_out.f_key, cob_fid_out.u_lo); 
+	C2_UT_ASSERT(fid_out.f_key == 52);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 52);
 
+	fid_in.f_key = 20;
+	cob_fid_in.u_lo = 20;
+
+	/* Add20 - add key with fid.f_key = 20 */
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
+			       &cfm_dbtx);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Get73 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 73);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 73);
+
+	fid_in.f_key = 87;
+	cob_fid_in.u_lo = 87;
+
+	/* Add87 - add key with fid.f_key = 87 */
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
+			       &cfm_dbtx);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Get87 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 87);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 87);
+
+	/* Get94 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 94);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 94);
+
+	/* Close iterator */
 	c2_cobfid_map_iter_fini(&cfm_iter);
 
-	printf("\n");
+	/* Open iterator */
+	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter,
+					  &cfm_dbtx);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Get20 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 20);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 20);
+
+	/* Get31 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 31);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 31);
+
+	/* Get52 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 52);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 52);
+
+	/* Get73 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 73);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 73);
+
+	/* Get87 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 87);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 87);
+
+	/* Get94 */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(fid_out.f_key == 94);
+	C2_UT_ASSERT(cob_fid_out.u_lo == 94);
+
+	/* Iterator Empty */
+	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
+				     &cob_fid_out); 
+	C2_UT_ASSERT(rc == -ENOENT);
+	C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
+
 	c2_cobfid_map_fini(&cfm_map);
 	c2_dbenv_fini(&cfm_dbenv);
 
@@ -385,9 +464,7 @@ const struct c2_test_suite cfm_ut = {
 		{ "cfm-container-enumerate-multiple-buffers", ce_multiple_buf },
 		{ "cfm-map-enumerate-single-buffer", me_single_buf },
 		{ "cfm-map-enumerate-multiple-buffers", me_multiple_buf },
-#if 0
 		{ "cfm_iter_sensitivity", test_iter_sensitivity },
-#endif
 		{ NULL, NULL }
 	}
 };

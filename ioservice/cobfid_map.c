@@ -319,7 +319,6 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 
 	C2_SET0(iter);
 
-	iter->cfmi_tx = tx;
 	rc = c2_db_cursor_init(&iter->cfmi_db_cursor, &cfm->cfm_table, tx);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
@@ -341,6 +340,7 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	iter->cfmi_qt = qt;
 	iter->cfmi_num_recs = CFM_ITER_THUNK;
 	iter->cfmi_end_of_table = false;
+	iter->cfmi_reload = false;
 
 	/* force a query by positioning at the end */
 	iter->cfmi_rec_idx = iter->cfmi_last_rec + 1;
@@ -385,6 +385,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	} else if (iter->cfmi_last_load < iter->cfmi_cfm->cfm_last_mod) {
 		/* iterator stale: reload the buffer and reset buffer index */
 		iter->cfmi_rec_idx = 0;
+		iter->cfmi_reload = true;
 		rc = iter->cfmi_ops->cfmio_reload(iter);
 		if (rc != 0){
 			C2_ASSERT(iter->cfmi_error != 0);
@@ -402,6 +403,9 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 	file_fid_p->f_key = record->cfr_key.cfk_fid.f_key;
 	cob_fid_p->u_hi = record->cfr_cob.u_hi;
 	cob_fid_p->u_lo = record->cfr_cob.u_lo;
+
+	iter->cfmi_last_ci = record->cfr_key.cfk_ci;
+	iter->cfmi_last_fid = record->cfr_key.cfk_fid;
 
 	/* Increment the next record to return */
 	iter->cfmi_rec_idx++;
@@ -471,6 +475,19 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		goto cleanup;
 	}
 
+	/* Fetch next entry while reloading the iterator. This is needed as
+	   last entries in the iterator are equated to next entries */
+	if (iter->cfmi_reload) {
+		rc = c2_db_cursor_next(&iter->cfmi_db_cursor, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+				    "c2_db_cursor_next", rc);
+			goto cleanup;
+		}
+		iter->cfmi_reload = false;
+	}
+
+
 	iter->cfmi_last_rec = 0;
 
 	for (i = 0; i < iter->cfmi_num_recs; ++i) {
@@ -489,9 +506,6 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 			iter->cfmi_end_of_table = true;
 			break;
 		}
-
-		iter->cfmi_last_ci = key.cfk_ci;
-		iter->cfmi_last_fid = key.cfk_fid;
 
 		c2_db_pair_setup(&db_pair, &cfm->cfm_table, &key,
 				 sizeof(struct cobfid_map_key),
@@ -543,6 +557,9 @@ static bool enum_is_at_end(struct c2_cobfid_map_iter *iter,
 static int enum_reload(struct c2_cobfid_map_iter *iter)
 {
 	C2_PRE(cobfid_map_iter_invariant(iter));
+
+	iter->cfmi_next_ci = iter->cfmi_last_ci; 
+	iter->cfmi_next_fid = iter->cfmi_last_fid; 
 
 	return iter->cfmi_ops->cfmio_fetch(iter);
 }
