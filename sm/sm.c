@@ -88,18 +88,11 @@ static bool grp_is_locked(const struct c2_sm_group *grp)
 	return c2_mutex_is_locked(&grp->s_lock);
 }
 
-static bool ast_cas(struct c2_sm_group *grp,
-		    struct c2_sm_ast *old, struct c2_sm_ast *new)
-{
-	return c2_atomic64_cas((void *)&grp->s_forkq,
-			       (int64_t)old, (int64_t)new);
-}
-
 void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	do
 		ast->sa_next = grp->s_forkq;
-	while (!ast_cas(grp, ast->sa_next, ast));
+	while (!C2_ATOMIC64_CAS(&grp->s_forkq, ast->sa_next, ast));
 	c2_chan_signal(&grp->s_signal);
 }
 C2_EXPORTED(c2_sm_ast_post);
@@ -113,7 +106,8 @@ void c2_sm_asts_run(struct c2_sm_group *grp)
 	while (1) {
 		do
 			ast = grp->s_forkq;
-		while (ast != NULL && !ast_cas(grp, ast, ast->sa_next));
+		while (ast != NULL &&
+		       !C2_ATOMIC64_CAS(&grp->s_forkq, ast, ast->sa_next));
 
 		if (ast == NULL)
 			break;
