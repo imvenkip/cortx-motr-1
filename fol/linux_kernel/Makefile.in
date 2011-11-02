@@ -1,5 +1,7 @@
 FOL_SRCDIR = @SRCDIR@/fol/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y		:= kfol.o
 shared_src	:= fol.c
 kernel_src	:=
