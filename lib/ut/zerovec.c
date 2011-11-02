@@ -23,7 +23,6 @@
 #include "lib/memory.h"
 #include "lib/arith.h"
 #include "lib/cdefs.h"
-#include "lib/misc.h" /* C2_SET0 */
 
 #ifdef __KERNEL__
 #include <linux/mm.h>
@@ -32,7 +31,6 @@
 enum ZEROVEC_UT_VALUES {
 	ZEROVEC_UT_SEG_SIZE = 1024,
 	ZEROVEC_UT_SEGS_NR = 10,
-	ZEROVEC_UT_SINGLE_SEG = 1,
 };
 
 static c2_bindex_t indices[ZEROVEC_UT_SEGS_NR];
@@ -90,18 +88,15 @@ static void zerovec_init_bufs(void)
 	uint64_t	  seed;
 	struct c2_0vec	  zvec;
 
-	C2_SET0(&zvec);
-	C2_SET0(&seed);
+	seed = 0;
 	zerovec_init(&zvec, ZEROVEC_UT_SEG_SIZE);
 
 	C2_ALLOC_ARR(bufs, ZEROVEC_UT_SEGS_NR);
 	C2_UT_ASSERT(bufs != NULL);
-	C2_SET0(bufs);
 
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i) {
 		C2_ALLOC_ARR(bufs[i], ZEROVEC_UT_SEG_SIZE);
 		C2_UT_ASSERT(bufs[i] != NULL);
-		C2_SET0(bufs[i]);
 		counts[i] = ZEROVEC_UT_SEG_SIZE;
 		indices[i] = c2_rnd(ZEROVEC_UT_SEGS_NR, &seed);
 	}
@@ -139,13 +134,12 @@ static void zerovec_init_cbuf(void)
 	struct c2_buf	bufs[ZEROVEC_UT_SEGS_NR];
 	struct c2_0vec	zvec;
 
-	C2_SET0(&seed);
+	seed = 0;
 	zerovec_init(&zvec, ZEROVEC_UT_SEG_SIZE);
 
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i) {
 		C2_ALLOC_ARR(bufs[i].b_addr, ZEROVEC_UT_SEG_SIZE);
 		C2_UT_ASSERT(bufs[i].b_addr != NULL);
-		C2_SET0(bufs[i].b_addr);
 		bufs[i].b_nob = ZEROVEC_UT_SEG_SIZE;
 		indices[i] = c2_rnd(ZEROVEC_UT_SEGS_NR, &seed);
 
@@ -180,7 +174,7 @@ static void zerovec_init_pages(void)
 	struct page	pages[ZEROVEC_UT_SEGS_NR];
 	struct c2_0vec	zvec;
 
-	C2_SET0(&seed);
+	seed = 0;
 	zerovec_init(&zvec, PAGE_SIZE);
 
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i) {
