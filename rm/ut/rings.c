@@ -43,8 +43,7 @@ static bool resources_are_equal(const struct c2_rm_resource *r0,
 	return false;
 }
 
-static bool resource_is_valid(uint64_t res_id,
-			       const struct c2_rm_resource *res)
+static bool resource_is(const struct c2_rm_resource *res, uint64_t res_id)
 {
 	struct c2_rings *ring;
 
@@ -54,29 +53,29 @@ static bool resource_is_valid(uint64_t res_id,
 }
 
 const struct c2_rm_resource_type_ops rings_rtype_ops = {
-	.rto_eq		  = resources_are_equal,
-	.rto_res_is_valid = resource_is_valid
+	.rto_eq		 = resources_are_equal,
+	.rto_resource_is = resource_is
 };
 
 static void right_meet(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	r0->ri_datum = r0->ri_datum & r1->ri_datum ;
+	r0->ri_datum |= r0->ri_datum & r1->ri_datum ;
 }
 
 static bool right_intersects(const struct c2_rm_right *r0,
-                      const struct c2_rm_right *r1)
+			     const struct c2_rm_right *r1)
 {
-	return (r0->ri_datum & r1->ri_datum) != 0;
+      return (r0->ri_datum & r1->ri_datum) != 0;
 }
 
 static void right_join(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	r0->ri_datum = r0->ri_datum | r1->ri_datum ;
+	r0->ri_datum |= r0->ri_datum | r1->ri_datum ;
 }
 
 static void right_diff(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	r0->ri_datum = r0->ri_datum & ~r1->ri_datum ;
+	r0->ri_datum |= r0->ri_datum & ~r1->ri_datum ;
 }
 
 static bool right_implies(const struct c2_rm_right *r0,
@@ -85,15 +84,14 @@ static bool right_implies(const struct c2_rm_right *r0,
 	return (r0->ri_datum & r1->ri_datum) == r1->ri_datum;
 }
 
-static void rings_right_copy(struct c2_rm_right *dest,
-                       const struct c2_rm_right *src)
+static int rings_right_copy(struct c2_rm_right *dest,
+			    const struct c2_rm_right *src)
 {
 	dest->ri_datum = src->ri_datum;
+	return 0;
 }
 
 const struct c2_rm_right_ops rings_right_ops = {
-	.rro_free	= NULL,
-	.rro_encode	= NULL,
 	.rro_meet	= right_meet,
 	.rro_intersects = right_intersects,
 	.rro_join	= right_join,

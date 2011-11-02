@@ -137,14 +137,13 @@ void c2_rm_rpc_fini(void)
 /**
  * Search for the OUT request related to IN request(revoke,loan) and returns.
  */
-static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner,
+static struct c2_rm_outgoing *out_request_find(struct c2_rm_owner *owner,
 					       uint64_t loan_id)
 {
-	struct c2_rm_outgoing *out;
 	struct c2_rm_right    *right;
 	struct c2_rm_right    *ri_tmp;
 	struct c2_rm_loan     *loan;
-	int		       i = 0;
+	int		       i;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
@@ -157,9 +156,8 @@ static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner,
 			 * loan id matches then this out request is for this
 			 * right request */
 			if (loan->rl_id == loan_id) {
-				out = container_of(loan, struct c2_rm_outgoing,
-						   rog_want);
-				return out;
+				return container_of(loan, struct c2_rm_outgoing,
+						    rog_want);
 			}
 		}
 	}
@@ -170,12 +168,11 @@ static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner,
 /**
  * Search for the IN requested related to wanted rights request and returns.
  */
-static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
+static struct c2_rm_incoming *in_request_find(struct c2_rm_owner *owner,
 					      struct c2_rm_right *want)
 {
-	struct c2_rm_incoming *in;
 	struct c2_rm_right    *right;
-	int		       prio = 0;
+	int		       prio;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
@@ -184,9 +181,8 @@ static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
 				       right, struct c2_rm_right, ri_linkage) {
 			if (right->ri_ops->rro_implies(right, want) &&
 			    right->ri_ops->rro_implies(want, right)) {
-				in = container_of(right, struct c2_rm_incoming,
-						  rin_want);
-				return in;
+				return container_of(right, struct c2_rm_incoming,
+						    rin_want);
 			}
 		}
 	}
@@ -205,6 +201,7 @@ void rpc_process(int id)
 	struct c2_rm_outgoing	*out;
 	struct c2_rm_loan	*ch_loan;
 	struct c2_rm_loan	*br_loan;
+	int			 result;
 
 	while (!rpc_signal) {
 		c2_mutex_lock(&rpc_lock);
@@ -221,9 +218,11 @@ void rpc_process(int id)
 		case PRO_LOAN_REPLY:
 			/* Gets right reply for loan/borrow requests */
 			c2_mutex_lock(&info->owner->ro_lock);
-			in = find_in_request(info->owner, &req->in.rin_want);
+			in = in_request_find(info->owner, &req->in.rin_want);
 			if (in == NULL) {
-				pin_add(&req->in, &req->in.rin_want);
+				result = pin_add(&req->in, &req->in.rin_want);
+				if (result != 0)
+					continue;
 				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
 					    &req->in.rin_want.ri_linkage);
 				c2_queue_put(&info->owner_queue, &req->rq_link);
@@ -239,10 +238,12 @@ void rpc_process(int id)
 				c2_list_init(&ch_loan->rl_right.ri_pins);
 				c2_list_init(&br_loan->rl_right.ri_pins);
 				c2_list_init(&in->rin_pins);
-				right_copy(&ch_loan->rl_right,
-					   &req->in.rin_want);
-				right_copy(&br_loan->rl_right,
-					   &req->in.rin_want);
+				result = right_copy(&ch_loan->rl_right,
+						    &req->in.rin_want);
+				C2_ASSERT(result == 0);
+				result = right_copy(&br_loan->rl_right,
+						    &req->in.rin_want);
+				C2_ASSERT(result == 0);
 
 				ch_loan->rl_id = req->sig_id;
 				br_loan->rl_id = req->sig_id;
@@ -254,10 +255,12 @@ void rpc_process(int id)
 				c2_list_add(&info->owner->ro_borrowed,
 					    &br_loan->rl_right.ri_linkage);
 
-				pin_add(in, &ch_loan->rl_right);
+				result = pin_add(in, &ch_loan->rl_right);
+				if (result != 0)
+					continue;
 				in->rin_state = RI_SUCCESS;
 				in->rin_ops->rio_complete(in, in->rin_state);
-				out = find_out_request(info->owner,
+				out = out_request_find(info->owner,
 						       req->reply_id);
 				if (out != NULL)
 					c2_rm_outgoing_complete(out,

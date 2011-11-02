@@ -17,8 +17,9 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 09/15/2011
  */
-#ifndef __COLIBRI_RM_INTERNAL_H__
-#define __COLIBRI_RM_INTERNAL_H__
+#ifndef __COLIBRI_RM_RM_INTERNAL_H__
+#define __COLIBRI_RM_RM_INTERNAL_H__
+
 /**
    Sticks a tracking pin on @right. When @right is released, the all incoming
    requests that stuck pins into it are notified.
@@ -28,9 +29,15 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 /**
    Makes another copy of right struct.
 */
-void right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
+int right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 
-/* __COLIBRI_RM_INTERNAL_H__ */
+/**
+   Called when an outgoing request completes (possibly with an error, like a
+   timeout).
+*/
+void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int32_t rc);
+
+/* __COLIBRI_RM_RM_INTERNAL_H__ */
 #endif
 
 /*

@@ -327,12 +327,13 @@ struct c2_rm_resource_type {
 struct c2_rm_resource_type_ops {
         bool (*rto_eq)(const struct c2_rm_resource *resource0,
                        const struct c2_rm_resource *resource1);
-        int  (*rto_decode)(struct c2_vec_cursor *bufvec,
+        int  (*rto_decode)(const struct c2_vec_cursor *bufvec,
                            struct c2_rm_resource **resource);
         int  (*rto_encode)(struct c2_vec_cursor *bufvec,
-                           struct c2_rm_resource **resource);
-	bool (*rto_res_is_valid)(uint64_t res_id,
-				 const struct c2_rm_resource *resource);
+                           const struct c2_rm_resource *resource);
+	/** True, when remote id equals resource id */
+	bool (*rto_resource_is)(const struct c2_rm_resource *resource,
+				uint64_t rem_id);
 };
 
 /**
@@ -426,7 +427,7 @@ struct c2_rm_right_ops {
         bool (*rro_implies)(const struct c2_rm_right *r0,
                             const struct c2_rm_right *r1);
 	/** Copy the resource type specific part. */
-	void (*rro_copy)   (struct c2_rm_right *r0,
+	int  (*rro_copy)   (struct c2_rm_right *r0,
 			    const struct c2_rm_right *r1);
         /** @} end of Rights ordering */
 };
@@ -1332,10 +1333,21 @@ void c2_rm_right_fini(struct c2_rm_right *right);
    Initialises the fields of @in.
  */
 void c2_rm_incoming_init(struct c2_rm_incoming *in);
+
 /**
    Finalises the fields of @in. Dual to c2_rm_incoming_init().
  */
 void c2_rm_incoming_fini(struct c2_rm_incoming *in);
+
+/**
+   Initialises the fields of @rem.
+ */
+void c2_rm_remote_init(struct c2_rm_remote *rem);
+
+/**
+   Finalises the fields of @rem. Dual to c2_rm_remote_init().
+ */
+void c2_rm_remote_fini(struct c2_rm_remote *rem);
 
 /**
    Starts a state machine for a resource usage right request. Will add pins for
@@ -1373,12 +1385,6 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in);
 void c2_rm_right_put(struct c2_rm_incoming *in);
 
 /**
-   Called when an outgoing request completes (possibly with an error, like a
-   timeout).
-*/
-void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc);
-
-/**
    @name Resource type interface
  */
 /** @{ */
@@ -1398,8 +1404,7 @@ void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc);
 
    @post ergo(result == 0, other->rem_resource == right->ri_resource)
  */
-int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other,
-		     c2_time_t deadline);
+int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other);
 
 /** @} end of Resource manager networking */
 
