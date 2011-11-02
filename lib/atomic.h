@@ -102,6 +102,26 @@ PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a);
  */
 PREFIX bool c2_atomic64_cas(int64_t *loc, int64_t old, int64_t new);
 
+/**
+   Atomic compare-and-swap for pointers.
+
+   @see c2_atomic64_cas().
+ */
+static inline bool c2_atomic64_cas_ptr(void **loc, void *old, void *new)
+{
+	C2_CASSERT(sizeof loc == sizeof(int64_t *));
+	C2_CASSERT(sizeof old == sizeof(int64_t));
+
+	return c2_atomic64_cas((int64_t *)loc, (int64_t)old, (int64_t)new);
+}
+
+#define C2_ATOMIC64_CAS(loc, old, new)					\
+({									\
+	C2_CASSERT(__builtin_types_compatible_p(typeof(*(loc)), typeof(old))); \
+	C2_CASSERT(__builtin_types_compatible_p(typeof(old), typeof(new))); \
+	c2_atomic64_cas_ptr((void **)(loc), old, new);			\
+})
+
 /** @} end of atomic group */
 
 /* __COLIBRI_LIB_ATOMIC_H__ */
