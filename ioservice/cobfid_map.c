@@ -137,14 +137,6 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 
 	c2_addb_ctx_init(cfm->cfm_addb, &cfm_ctx_type, &c2_addb_global_ctx);
 
-	rc = c2_table_init(&cfm->cfm_table, cfm->cfm_dbenv, cfm->cfm_map_name,
-			   0, &cfm_table_ops);
-	if (rc != 0) {
-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
-			    "c2_table_init", rc);
-		return rc;
-	}
-
 	C2_ALLOC_ARR(cfm->cfm_map_name, strlen(map_name) + 1);
 	if (cfm->cfm_map_name == NULL) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, c2_addb_oom);
@@ -153,6 +145,15 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 	}
 
 	strcpy(cfm->cfm_map_name, map_name);
+
+	rc = c2_table_init(&cfm->cfm_table, cfm->cfm_dbenv, cfm->cfm_map_name,
+			   0, &cfm_table_ops);
+	if (rc != 0) {
+		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+			    "c2_table_init", rc);
+		c2_free(cfm->cfm_map_name);
+		return rc;
+	}
 
 	cfm->cfm_last_mod = c2_time_now();
 	cfm->cfm_magic = CFM_MAP_MAGIC;
@@ -168,7 +169,6 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 	c2_addb_ctx_fini(cfm->cfm_addb);
 	c2_table_fini(&cfm->cfm_table);
 	c2_free(cfm->cfm_map_name);
-
 }
 C2_EXPORTED(c2_cobfid_map_fini);
 
@@ -182,6 +182,7 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	struct cobfid_map_key	 key;
 
 	C2_PRE(cobfid_map_invariant(cfm));
+	C2_PRE(tx != NULL);
 
 	key.cfk_ci = container_id;
 	key.cfk_fid = file_fid;
@@ -217,6 +218,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
 	bool			 table_op_failed = false;
 
 	C2_PRE(cobfid_map_invariant(cfm));
+	C2_PRE(tx != NULL);
 
 	key.cfk_ci = container_id;
 	key.cfk_fid = file_fid;
@@ -313,6 +315,7 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	C2_PRE(iter != NULL);
 	C2_PRE(ops != NULL);
 	C2_PRE(cobfid_map_invariant(cfm));
+	C2_PRE(tx != NULL);
 
 	C2_SET0(iter);
 
@@ -556,6 +559,9 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 {
 	int rc;
 
+	C2_PRE(cobfid_map_invariant(cfm));
+	C2_PRE(tx != NULL);
+
 	rc = cobfid_map_iter_init(cfm, iter, &enum_ops,
 				  C2_COBFID_MAP_QT_ENUM_MAP, tx);
 	if (rc != 0)
@@ -633,6 +639,9 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 				 struct c2_db_tx *tx)
 {
 	int rc;
+
+	C2_PRE(tx != NULL);
+	C2_PRE(cobfid_map_invariant(cfm));
 
 	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
 				  C2_COBFID_MAP_QT_ENUM_CONTAINER, tx);

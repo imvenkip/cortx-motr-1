@@ -40,11 +40,11 @@ enum {
 };
 
 /* DB paths for various databases */
-static const char single_buf_cont_enum_path[] = "cfm_map_single_buf_ce";
-static const char multiple_buf_cont_enum_path[] = "cfm_map_multiple_buf_ce";
-static const char single_buf_map_enum_path[] = "cfm_map_single_buf_me";
-static const char multiple_buf_map_enum_path[] = "cfm_map_multiple_buf_me";
-static const char iter_test_map[] = "cfm_map_iter_test";
+static const char single_buf_cont_enum_path[] = "./cfm_map_single_buf_ce";
+static const char multiple_buf_cont_enum_path[] = "./cfm_map_multiple_buf_ce";
+static const char single_buf_map_enum_path[] = "./cfm_map_single_buf_me";
+static const char multiple_buf_map_enum_path[] = "./cfm_map_multiple_buf_me";
+static const char iter_test_map[] = "./cfm_map_iter_test";
 
 /*
    Generic enumeration routine, used by all the tests.
@@ -52,8 +52,10 @@ static const char iter_test_map[] = "cfm_map_iter_test";
    rec_total: Total number of records to be inserted and enumerated
    map_path : Database path used for the addition and enumeration
    etype    : Enumeration type (either map or container)
+   check_persistence : Flag to check the database persistence
  */
-static void enumerate_generic(int rec_total, const char *map_path, int etype )
+static void enumerate_generic(int rec_total, const char *map_path, int etype,
+			      bool check_persistence)
 {
 	int			 i;
 	int			 j;
@@ -145,6 +147,24 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 		j--;
 	}
 
+	if (check_persistence) {
+		c2_cobfid_map_fini(&cfm_map);
+		c2_db_tx_commit(&cfm_dbtx);
+		c2_dbenv_fini(&cfm_dbenv);
+
+		/* Initialise the database with given path */
+		rc = c2_dbenv_init(&cfm_dbenv, map_path, 0);
+		C2_UT_ASSERT(rc == 0);
+
+		/* Initialize the map */
+		rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
+				"cfm_map_table");
+		C2_UT_ASSERT(rc == 0);
+
+		rc = c2_db_tx_init(&cfm_dbtx, &cfm_dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
+	}
+
 	rec_nr = 0;
 	/* Container enumeration */
 	if (etype == ENUM_CONTAINER) {
@@ -214,28 +234,36 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype )
 void ce_single_buf(void)
 {
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
-			  ENUM_CONTAINER);
+			  ENUM_CONTAINER, false);
+	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
+			  ENUM_CONTAINER, true);
 }
 
 /* Container enumeration - multiple buffer fetches by iterator */
 void ce_multiple_buf(void)
 {
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
-			  ENUM_CONTAINER);
+			  ENUM_CONTAINER, false);
+	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
+			  ENUM_CONTAINER, true);
 }
 
 /* Map enumeration - single buffer fetch by iterator */
 void me_single_buf(void)
 {
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
-			  ENUM_MAP);
+			  ENUM_MAP, false);
+	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
+			  ENUM_MAP, true);
 }
 
 /* Map enumeration - multiple buffer fetches by iterator */
 void me_multiple_buf(void)
 {
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
-			  ENUM_MAP);
+			  ENUM_MAP, false);
+	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
+			  ENUM_MAP, true);
 }
 
 void test_iter_sensitivity(void)
@@ -357,7 +385,9 @@ const struct c2_test_suite cfm_ut = {
 		{ "cfm-container-enumerate-multiple-buffers", ce_multiple_buf },
 		{ "cfm-map-enumerate-single-buffer", me_single_buf },
 		{ "cfm-map-enumerate-multiple-buffers", me_multiple_buf },
+#if 0
 		{ "cfm_iter_sensitivity", test_iter_sensitivity },
+#endif
 		{ NULL, NULL }
 	}
 };
