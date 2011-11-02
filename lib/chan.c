@@ -56,6 +56,11 @@ C2_TL_DESCR_DEFINE(clink,
 
 C2_TL_DEFINE(clink, static, struct c2_clink);
 
+static bool clink_is_head(const struct c2_clink *clink)
+{
+	return clink->cl_group == clink;
+}
+
 /**
    Channel invariant: all clinks on the list are clinks for this channel and
    number of waiters matches list length.
@@ -63,14 +68,19 @@ C2_TL_DEFINE(clink, static, struct c2_clink);
 static bool c2_chan_invariant_locked(struct c2_chan *chan)
 {
 	struct c2_clink *scan;
+	struct c2_clink *group;
 
 	if (chan->ch_waiters != clink_tlist_length(&chan->ch_links))
 		return false;
 
 	c2_tlist_for(&clink_tl, &chan->ch_links, scan) {
+		group = scan->cl_group;
+
 		if (scan->cl_chan != chan)
 			return false;
-		if (scan->cl_group == NULL)
+		if (group == NULL)
+			return false;
+		if (clink_is_head(group))
 			return false;
 	} c2_tlist_endfor;
 	return true;
@@ -121,11 +131,6 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 		clink_tlist_move_tail(&chan->ch_links, clink);
 	C2_ASSERT((chan->ch_waiters > 0) == (clink != NULL));
 	return clink;
-}
-
-static bool clink_is_head(const struct c2_clink *clink)
-{
-	return clink->cl_group == clink;
 }
 
 static void clink_signal(struct c2_clink *clink)
