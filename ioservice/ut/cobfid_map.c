@@ -346,7 +346,7 @@ void test_iter_sensitivity(void)
 
 	/* Get31 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 31);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 31);
@@ -361,7 +361,7 @@ void test_iter_sensitivity(void)
 
 	/* Get52 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 52);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 52);
@@ -376,7 +376,7 @@ void test_iter_sensitivity(void)
 
 	/* Get73 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 73);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 73);
@@ -391,14 +391,14 @@ void test_iter_sensitivity(void)
 
 	/* Get87 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 87);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 87);
 
 	/* Get94 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 94);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 94);
@@ -413,49 +413,49 @@ void test_iter_sensitivity(void)
 
 	/* Get20 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 20);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 20);
 
 	/* Get31 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 31);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 31);
 
 	/* Get52 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 52);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 52);
 
 	/* Get73 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 73);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 73);
 
 	/* Get87 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 87);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 87);
 
 	/* Get94 */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fid_out.f_key == 94);
 	C2_UT_ASSERT(cob_fid_out.u_lo == 94);
 
 	/* Iterator Empty */
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out, &fid_out,
-				     &cob_fid_out); 
+				     &cob_fid_out);
 	C2_UT_ASSERT(rc == -ENOENT);
 	C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
 
@@ -498,13 +498,13 @@ void cfm_op(int nr)
 
 	C2_ALLOC_ARR(fid_in, rec_total);
         C2_UT_ASSERT(fid_in != NULL);
-        
+
         C2_ALLOC_ARR(cob_fid_in, rec_total);
         C2_UT_ASSERT(cob_fid_in != NULL);
-        
+
         C2_ALLOC_ARR(fid_out, rec_total);
         C2_UT_ASSERT(fid_out != NULL);
-        
+
         C2_ALLOC_ARR(cob_fid_out, rec_total);
         C2_UT_ASSERT(cob_fid_out != NULL);
 
@@ -531,7 +531,7 @@ void cfm_op(int nr)
 				       fid_in[i], cob_fid_in[i], &cfm_dbtx);
 		printf("\nADD : TID : %d cid : %lu fid : %lu cob_fid : %lu",
 			nr, container_id_in, fid_in[i].f_key,
-			cob_fid_in[i].u_lo); 
+			cob_fid_in[i].u_lo);
 		c2_db_tx_commit(&cfm_dbtx);
 		c2_mutex_unlock(&cfm_global_mutex);
                 C2_UT_ASSERT(rc == 0);
@@ -595,7 +595,7 @@ void test_cfm_concurrency(void)
 
         /* Initialise the database with given path */
         rc = c2_dbenv_init(&cfm_global_dbenv, concurrency_test_map, 0);
-        C2_UT_ASSERT(rc == 0);	
+        C2_UT_ASSERT(rc == 0);
 
 	/* Initialize the map */
 	rc = c2_cobfid_map_init(&cfm_global_map, &cfm_global_dbenv,
@@ -606,7 +606,7 @@ void test_cfm_concurrency(void)
 
 	C2_ALLOC_ARR(cfm_thread, CFM_THREAD_NR);
 	C2_UT_ASSERT(cfm_thread != NULL);
-	
+
 	/* Spawn threads which will independently add and enumerate */
 	for (i = 0; i < CFM_THREAD_NR; ++i) {
 	       rc = C2_THREAD_INIT(&cfm_thread[i], int, NULL, &cfm_op, i,
@@ -616,7 +616,7 @@ void test_cfm_concurrency(void)
 
 	for (i = 0; i < CFM_THREAD_NR; ++i) {
 		c2_thread_join(&cfm_thread[i]);
-	}	
+	}
 
 	c2_free(cfm_thread);
 	c2_mutex_fini(&cfm_global_mutex);
@@ -634,7 +634,7 @@ void test_cfm_concurrency(void)
 					&cob_fid_out)) == 0) {
 		printf("\nENUM : cid : %lu fid : %lu cob_fid : %lu",
 			cid_out, fid_out.f_key,
-			cob_fid_out.u_lo); 
+			cob_fid_out.u_lo);
 		rec_nr++;
 	}
 	C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);

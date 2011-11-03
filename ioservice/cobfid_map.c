@@ -558,8 +558,8 @@ static int enum_reload(struct c2_cobfid_map_iter *iter)
 {
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
-	iter->cfmi_next_ci = iter->cfmi_last_ci; 
-	iter->cfmi_next_fid = iter->cfmi_last_fid; 
+	iter->cfmi_next_ci = iter->cfmi_last_ci;
+	iter->cfmi_next_fid = iter->cfmi_last_fid;
 
 	return iter->cfmi_ops->cfmio_fetch(iter);
 }
