@@ -28,15 +28,17 @@ extern void test_getopts(void);
 extern void test_list(void);
 extern void test_memory(void);
 extern void test_mutex(void);
+extern void test_processor(void);
 extern void test_queue(void);
 extern void test_refs(void);
-extern void test_processor(void);
+extern void test_rw(void);
 extern void test_thread(void);
 extern void test_time(void);
 extern void test_timer(void);
+extern void test_tlist(void);
 extern void test_trace(void);
 extern void test_vec(void);
-extern void test_rw(void);
+extern void test_zerovec(void);
 
 const struct c2_test_suite libc2_ut = {
 	.ts_name = "libc2-ut",
@@ -51,14 +53,16 @@ const struct c2_test_suite libc2_ut = {
 		{ "memory",    test_memory    },
 		{ "mutex",     test_mutex     },
 		{ "rwlock",    test_rw        },
+		{ "processor", test_processor },
 		{ "queue",     test_queue     },
 		{ "refs",      test_refs      },
-		{ "processor", test_processor },
 		{ "thread",    test_thread    },
 		{ "time",      test_time      },
 		{ "timer",     test_timer     },
+		{ "tlist",     test_tlist     },
 		{ "trace",     test_trace     },
 		{ "vec",       test_vec       },
+		{ "zerovec",   test_zerovec   },
 		{ NULL,        NULL           }
 	}
 };

@@ -1,8 +1,8 @@
-SUBDIRS                   = . 
+SUBDIRS                   = .
 
 lib_LTLIBRARIES           = libcolibri.la
 libcolibri_la_SOURCES     = init.h init.c
-libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread 
+libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread
 libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @CUNIT_LIBS@ \
                             -lm -lncurses \
                             $(top_builddir)/addb/libcolibri-addb.la \
@@ -30,7 +30,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/udb/libcolibri-udb.la \
                             $(top_builddir)/rm/libcolibri-rm.la \
                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
-			    $(top_builddir)/xdr/libcolibri-xdr.la
-#                            $(top_builddir)/rpc/libcolibri-rpc.la
-
+                            $(top_builddir)/rpc/libcolibri-rpc.la \
+                            $(top_builddir)/xcode/libcolibri-xcode.la \
+                            $(top_builddir)/xdr/libcolibri-xdr.la
 

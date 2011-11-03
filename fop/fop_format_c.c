@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h> /* free(3) */
 
-#include "fop/fop.h"
+#include "fop/fop_base.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
 
@@ -172,7 +172,7 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 		fdec = TD(f->ff_type);
 
 		ASPRINTF(&fd->fd_fmt, "%-20s %s", fdec->d_type, f->ff_name);
-		ASPRINTF(&fd->fd_fmt_ptr, "%-19s *%s", 
+		ASPRINTF(&fd->fd_fmt_ptr, "%-19s *%s",
 			 fdec->d_type, f->ff_name);
 		dec->d_varsize |= fdec->d_varsize;
 
@@ -215,10 +215,8 @@ static void memlayout(struct c2_fop_field_type *ftype, const char *where)
 	printf("\t.fm_child = {\n");
 	for (i = 0; i < ftype->fft_nr; ++i) {
 		struct c2_fop_field *f;
-		struct c_fop_field_decor *fd;
 
 		f  = ftype->fft_child[i];
-		fd = FD(f);
 		printf("\t\t{ ");
 		if (f->ff_name[0] != 0)
 			printf("offsetof(%s, %s%s)", TD(ftype)->d_type,
@@ -230,7 +228,7 @@ static void memlayout(struct c2_fop_field_type *ftype, const char *where)
 	printf("\t}\n};\n\n");
 }
 
-static void body_cdef(struct c2_fop_field_type *ftype, 
+static void body_cdef(struct c2_fop_field_type *ftype,
 		      int start, int indent, bool tags, int ptr)
 {
 	static const char         ruler[] = "\t\t\t\t\t\t\t\t\t\t\t\t\t";
@@ -239,7 +237,7 @@ static void body_cdef(struct c2_fop_field_type *ftype,
 
 	for (i = start; i < ftype->fft_nr; ++i) {
 		fd = FD(ftype->fft_child[i]);
-		printf("%*.*s%s;", indent, indent, ruler, 
+		printf("%*.*s%s;", indent, indent, ruler,
 		       i == ptr ? fd->fd_fmt_ptr : fd->fd_fmt);
 		if (tags)
 			printf("\t/* case %i */", ftype->fft_child[i]->ff_tag);
@@ -249,7 +247,7 @@ static void body_cdef(struct c2_fop_field_type *ftype,
 
 static void union_cdef(struct c2_fop_field_type *ftype)
 {
-	printf("%s {\n\t%s;\n\tunion {\n", TD(ftype)->d_type, 
+	printf("%s {\n\t%s;\n\tunion {\n", TD(ftype)->d_type,
 	       FD(ftype->fft_child[0])->fd_fmt);
 	body_cdef(ftype, 1, 2, true, -1);
 	printf("\t} u;\n};\n\n");
@@ -293,7 +291,7 @@ static void sequence_kdef(struct c2_fop_field_type *ftype)
 	printf("%s {\n\tuint32_t %s;\n",
 	       td->d_type, ftype->fft_child[0]->ff_name);
 	if (td->d_kanbelast) {
-		printf("\tuint32_t %s;\n\tstruct page **%s;", 
+		printf("\tuint32_t %s;\n\tstruct page **%s;",
 		       td->u.d_sequence.d_pgoff, ftype->fft_child[1]->ff_name);
 	} else
 		printf("\t%s;", fd->fd_fmt_ptr);
@@ -331,7 +329,7 @@ int c2_fop_comp_kdef(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
 	kdef_ops[ftype->fft_aggr].op(ftype);
-	printf("extern struct c2_fop_memlayout %s_memlayout;\n\n", 
+	printf("extern struct c2_fop_memlayout %s_memlayout;\n\n",
 	       ftype->fft_name);
 	return 0;
 }
@@ -368,7 +366,7 @@ void c2_fop_comp_fini(void)
 
 /** @} end of fop group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

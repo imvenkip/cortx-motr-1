@@ -1,7 +1,26 @@
-noinst_LTLIBRARIES         = libcolibri-rpc.la
-libcolibri_rpc_la_SOURCES  = pcache.c pcache.h rpclib.c rpclib.h session_svc.c session_svc.h \
-                             xdr/common.c xdr/common.h xdr/session.c xdr/session.h
+rpcdir			= @SRCDIR@/rpc
+rpc_HEADERS		= session.h session_fops.h session_foms.h session_internal.h
 
-EXTRA_DIST                 = compound.c compound_cli.h compound_srv.h compound_types.h rpc_ops.h \
-                             rpc_types.h session.h session_cli.c session_cli.h session_srv.c \
-                             session_srv.h session_svc.c session_svc.h session_types.h slot.h
+session_u.h session_u.c session_k.h session_k.c: session.ff \
+				$(top_builddir)/fop/rt/libc2rt.la \
+				$(top_builddir)/fop/fop2c
+				$(top_builddir)/fop/fop2c -ku $<
+
+noinst_LTLIBRARIES	= libcolibri-rpc.la
+libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
+				session_internal.h slot.c conn.c \
+				session_utils.c \
+				session_fops.c session_fops.h \
+				session_foms.c session_foms.h \
+				rpccore.c rpccore.h \
+				formation.h formation.c \
+				rpc_onwire.c rpc_onwire.h \
+				rpc_helper.c rpc_helper.h
+
+
+INCLUDES		= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include
+EXTRA_DIST     = session.ff
+
+clean-local:
+	cd $(rpcdir) ; \
+	rm -fr session_[uk].[ch]

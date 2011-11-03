@@ -1,3 +1,4 @@
+bitstring.c
 list.c
 queue.c
 vec.c
@@ -19,3 +20,6 @@ ut_rwlock.c
 ut_thread.c
 ut_time.c
 ut_vec.c
+tlist.c
+ut_tlist.c
+ut_zerovec.c

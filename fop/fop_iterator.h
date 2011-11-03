@@ -23,7 +23,7 @@
 
 #include "lib/types.h"                  /* uint64_t, size_t */
 #include "lib/list.h"
-#include "fop/fop.h"                    /* c2_fop_field_instance */
+#include "fop/fop_base.h"               /* c2_fop_field_instance */
 
 /**
    @addtogroup fop

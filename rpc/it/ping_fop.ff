@@ -1,3 +1,5 @@
+/* -*- C -*- */
+
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -13,11 +15,26 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
- * Original creation date: 11/03/2010
+ * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 07/07/2011
  */
 
-void __sns_dummy_foo(void)
-{
+DEF(c2_fop_ping_arr, SEQUENCE,
+	_(f_count, U32),
+	_(f_data, U64));
 
-}
+DEF(c2_fop_ping, RECORD,
+	_(fp_arr, c2_fop_ping_arr));
+
+DEF(c2_fop_ping_rep, RECORD,
+	_(fpr_rc, U32));
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

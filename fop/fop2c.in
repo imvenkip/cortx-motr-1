@@ -13,8 +13,8 @@ verbose=0
 topdir=$(dirname $0)/..
 
 CC=${CC:-"cc"}
-CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
-LDFLAGS=${LDFLAGS:-"-rdynamic -pthread"}
+CFLAGS="@CFLAGS@"
+LDFLAGS="@LDFLAGS@ -rdynamic -pthread"
 DEFINES="-DHAVE_CONFIG"
 INC="-I$topdir -I@DB_SRC@ -I@DB_SRC@/build_unix"
 
@@ -22,7 +22,7 @@ INC="-I$topdir -I@DB_SRC@ -I@DB_SRC@/build_unix"
 # Enumerate all object files and libraries necessary for the binary linked
 # below.
 #
-OBJS="$topdir/fop/.libs/libc2rt.a @DB_SRC@/build_unix/libdb.a"
+OBJS="$topdir/fop/rt/.libs/libc2rt.a @DB_SRC@/build_unix/libdb.a"
 
 generate_u=0
 generate_k=0
@@ -90,7 +90,7 @@ gen_c()
 #include <assert.h>
 
 #define __layout(x) NULL
-#include "fop/fop.h"
+#include "fop/fop_base.h"
 #include "fop/fop_format_def.h"
 
 enum todo {
@@ -142,7 +142,7 @@ void prefix(void)
 	printf(" */\n");
 	printf("\n");
 	printf("#include \"lib/cdefs.h\"\n");
-	printf("#include \"fop/fop.h\"\n");
+	printf("#include \"fop/fop_base.h\"\n");
 	if (todo == UDEF) 
 		printf("#include <rpc/rpc.h>\n");
 	if (todo == ULAY || todo == KLAY) 
@@ -219,5 +219,6 @@ done
 
 if [ $verbose -eq 0 ] ;then
     rm -fr $fbase*
+    rm -fr fop2c-$tid*
 fi
 

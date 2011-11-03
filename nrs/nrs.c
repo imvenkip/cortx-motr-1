@@ -27,6 +27,7 @@
 #include "fop/fom.h"
 #include "reqh/reqh.h"
 #include "nrs/nrs.h"
+#include "rpc/rpccore.h"
 
 /**
    @addtogroup nrs
@@ -56,7 +57,7 @@ void c2_nrs_fini(struct c2_nrs *nrs)
 void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop)
 {
 	C2_ADDB_ADD(&fop->f_addb, &nrs_addb, nrs_addb_enqueue);
-	c2_reqh_fop_handle(nrs->n_reqh, fop, NULL);
+	c2_reqh_fop_handle(nrs->n_reqh, fop);
 }
 
 /** @} end of nrs group */

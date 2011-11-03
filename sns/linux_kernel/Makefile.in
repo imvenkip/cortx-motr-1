@@ -1,9 +1,11 @@
 SNS_SRCDIR = @SRCDIR@/sns/linux_kernel
 GALOIS_SRCDIR = @SRCDIR@/../galois
 
-obj-m       := ksns.o
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
+obj-y       := ksns.o
 shared_src  := ls_solve.c matvec.c parity_math.c parity_ops.c
-kernel_src  := ksns.c
+kernel_src  :=
 ksns-y      := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 

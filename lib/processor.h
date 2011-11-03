@@ -26,7 +26,7 @@
 #include "lib/types.h"
 
 /**
-   @defgroup processor Processor
+   @defgroup Processor
 
    Interfaces to learn the number and characteristics of "processors"
    for a given system/node.

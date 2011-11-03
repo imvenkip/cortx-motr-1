@@ -14,33 +14,39 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 07/07/2011
  */
 
-#include <linux/module.h>
+#ifndef __COLIBRI_PING_FOM_H__
+#define __COLIBRI_PING_FOM_H__
 
-#include "fop/fop.h"
+#include "ping_fop.h"
 
 /**
-   @addtogroup fop
-   @{
+ * Object encompassing FOM for ping
+ * operation and necessary context data
  */
+struct c2_fom_ping {
+	/** Generic c2_fom object. */
+        struct c2_fom                    fp_gen;
+	/** FOP associated with this FOM. */
+        struct c2_fop			*fp_fop;
+};
 
-int init_module(void)
-{
-        return c2_fops_init();
-}
+/**
+ * <b> State Transition function for "ping" operation
+ *     that executes on data server. </b>
+ *  - Send reply FOP to client.
+ */
+int c2_fom_ping_state(struct c2_fom *fom);
+size_t c2_fom_ping_home_locality(const struct c2_fom *fom);
+void c2_fop_ping_fom_fini(struct c2_fom *fom);
 
-void cleanup_module(void)
-{
-        c2_fops_fini();
-}
+/* __COLIBRI_PING_FOM_H__ */
+#endif
 
-
-/** @} end of fop group */
-
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
@@ -49,3 +55,4 @@ void cleanup_module(void)
  *  scroll-step: 1
  *  End:
  */
+

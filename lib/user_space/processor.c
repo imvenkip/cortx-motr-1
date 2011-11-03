@@ -211,7 +211,7 @@ static int c2_processor_set_map(struct c2_bitmap *map, const char *mapstr)
 		rangeset = strtok(NULL, C2_PROCESSORS_RANGE_SET_SEPARATOR);
 
 	}/* while - string is parsed */
-	
+
 	/*
 	 * Free memory allocated by strdup()
 	 */
@@ -322,6 +322,7 @@ static uint32_t c2_processor_read_number_from_file(const char *filename)
 		val = C2_PROCESSORS_INVALID_ID;
 	}
 
+	fclose(fp);
 	return val;
 }
 
@@ -601,7 +602,6 @@ static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
 {
 	uint32_t level;
 	uint32_t sz;
-	uint32_t l3_cache_present;
 	int	rc;
 	size_t	size = (size_t)C2_PROCESSORS_INVALID_ID;
 	char	filename[PATH_MAX];
@@ -623,7 +623,6 @@ static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
 		}
 
 		C2_ASSERT(level == C2_PROCESSORS_L2);
-		l3_cache_present = 1;
 		/*
 		 * Set path to appropriate cache size file
 		 */
@@ -715,7 +714,7 @@ static uint32_t c2_processor_get_l1_cacheid(c2_processor_nr_t id)
 	is_shared = c2_processor_is_cache_shared(buf);
 	if (is_shared > 0) { /* L1 cache is shared */
 		physid = c2_processor_get_physid(id);
-		coreid = c2_processor_get_coreid(id);	
+		coreid = c2_processor_get_coreid(id);
 		l1_id = physid << 16 | coreid;
 	}
 
@@ -801,7 +800,7 @@ static uint32_t c2_processor_get_l2_cacheid(c2_processor_nr_t id)
 		physid = c2_processor_get_physid(id);
 
 		if (l3_cache_present == true) { /* L3 cache is present */
-			coreid = c2_processor_get_coreid(id);	
+			coreid = c2_processor_get_coreid(id);
 			l2_id = physid << 16 | coreid;
 		} else {
 			l2_id = physid;
@@ -883,7 +882,7 @@ static int c2_processor_getinfo(c2_processor_nr_t id,
 }
 
 /**
-   Parse "sysfs" (/sys/devices/system) directory to fetch the summary of 
+   Parse "sysfs" (/sys/devices/system) directory to fetch the summary of
    processors on this system.
 
    To facilitate testing, this function will fetch the directory string from
@@ -896,7 +895,7 @@ static int c2_processor_getinfo(c2_processor_nr_t id,
 
    @retval -> 0, if successful
               -1, upon failure.
-   @see lib/processor.h 
+   @see lib/processor.h
    @see void c2_processors_init()
 
  */
@@ -1078,7 +1077,7 @@ int c2_processors_init()
 void c2_processors_fini()
 {
 	struct c2_list_link *node;
-	struct c2_processor_node *pinfo;	
+	struct c2_processor_node *pinfo;
 
 	c2_bitmap_fini(&sys_cpus.pss_poss_map);
 	c2_bitmap_fini(&sys_cpus.pss_avail_map);

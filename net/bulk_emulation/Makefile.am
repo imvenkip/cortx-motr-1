@@ -26,5 +26,5 @@ MOSTLYCLEANFILES           = $(bulksunrpc_U_SOURCES)
 
 sunrpc_xprt_pvt.h: $(bulksunrpc_U_SOURCES)
 $(bulksunrpc_U_SOURCES): sunrpc_io.ff \
-    $(top_builddir)/fop/libc2rt.la $(top_builddir)/fop/fop2c
+    $(top_builddir)/fop/rt/libc2rt.la $(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -u $<

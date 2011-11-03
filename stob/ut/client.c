@@ -48,7 +48,7 @@
 
 int got_quit = 0;
 
-static int netcall(struct c2_net_conn *conn, struct c2_fop *arg, 
+static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
 		   struct c2_fop *ret)
 {
 	struct c2_net_call call = {
@@ -94,8 +94,8 @@ static void read_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
 	if (scanf("%i", &i) != 1)
 		err(1, "wrong count conversion");
 	C2_ASSERT(i == 1);
-	if (scanf("%llu %llu", 
-		  (unsigned long long *)&fop->sir_seg.f_offset, 
+	if (scanf("%llu %llu",
+		  (unsigned long long *)&fop->sir_seg.f_offset,
 		  (unsigned long long *)&fop->sir_seg.f_count) != 2) {
 		err(1, "wrong offset conversion");
 	}
@@ -127,8 +127,8 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
 	if (scanf("%i", &result) != 1)
 		err(1, "wrong count conversion");
 	C2_ASSERT(result == 1);
-	if (scanf("%llu %u %c", 
-		  (unsigned long long *)&fop->siw_offset, 
+	if (scanf("%llu %u %c",
+		  (unsigned long long *)&fop->siw_offset,
 		  &fop->siw_buf.cib_count, &filler) != 3)
 		err(1, "wrong offset conversion");
 	fop->siw_buf.cib_value = c2_alloc(fop->siw_buf.cib_count);
@@ -146,12 +146,10 @@ static void quit_send(struct c2_net_conn *conn)
 {
 	struct c2_fop              *f;
 	struct c2_fop              *r;
-	struct c2_io_quit *fop;
 	struct c2_io_quit *rep;
 	int result;
 
 	f = c2_fop_alloc(&c2_io_quit_fopt, NULL);
-	fop = c2_fop_data(f);
 	r = c2_fop_alloc(&c2_io_quit_fopt, NULL);
 	rep = c2_fop_data(r);
 
@@ -239,7 +237,7 @@ int main(int argc, char **argv)
 		char cmd;
 		int n;
 
-		n = scanf("%c %lu %lu", &cmd, (unsigned long *)&fid.f_seq, 
+		n = scanf("%c %lu %lu", &cmd, (unsigned long *)&fid.f_seq,
 			  (unsigned long *)&fid.f_oid);
 		if (n != 3)
 			err(1, "wrong conversion: %i", n);
@@ -300,7 +298,7 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 /** @} end group stob */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

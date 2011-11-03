@@ -56,8 +56,6 @@ struct c2_reqh {
 	   will be replaced with "stores"
 	 */
 	struct c2_stob_domain	*rh_stdom;
-	/** Service this request hander belongs to */
-	struct c2_service	*rh_serv;
 	/** Fol pointer for this request handler */
 	struct c2_fol		*rh_fol;
 	/** Fom domain for this request handler */
@@ -84,8 +82,7 @@ struct c2_reqh {
  */
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *stdom,
-		struct c2_fol *fol, struct c2_service *serv);
+		struct c2_stob_domain *stdom, struct c2_fol *fol);
 
 /**
    Destructor for request handler, no fop will be further executed
@@ -108,9 +105,9 @@ void c2_reqh_fini(struct c2_reqh *reqh);
    @param fop, fop to be executed
 
    @pre reqh != null
-   @pre fom != null
+   @pre fop != null
  */
-void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
+void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
 /**
    Standard fom state transition function.

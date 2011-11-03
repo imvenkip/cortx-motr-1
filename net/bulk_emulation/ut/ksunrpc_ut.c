@@ -23,6 +23,7 @@
 #include "lib/ut.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/ksunrpc/ksunrpc.h"
+#include "fop/fop.h"
 
 #include <linux/highmem.h> /* kmap, kunmap */
 #include <linux/pagemap.h> /* PAGE_CACHE_SIZE */

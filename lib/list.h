@@ -199,6 +199,9 @@ static inline struct c2_list_link *c2_list_first(const struct c2_list *head)
 */
 bool c2_list_link_is_in(const struct c2_list_link *link);
 
+bool c2_list_link_is_last(const struct c2_list_link *link,
+			  const struct c2_list      *head);
+
 size_t c2_list_length(const struct c2_list *list);
 
 /**

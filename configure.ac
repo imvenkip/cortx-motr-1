@@ -17,7 +17,6 @@ AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
-AH_TEMPLATE([HAVE_CUNIT], [Have cunit library])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -201,7 +200,7 @@ _ACEOF
 ])
 
 # Checks for programs.
-AC_PROG_CC
+AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_LN_S
@@ -239,28 +238,7 @@ AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
 
-# Checking for CUnit
-OLD_CFLAGS=$CFLAGS
-
-# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
-CFLAGS="-I/usr/local/include -I/opt/local/include"
-AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h], 
-[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])], 
-[
-#ifdef CUNIT_CUNIT_H
-#include <CUnit/CUnit.h>
-#endif
-])
-
-OLD_LIBS=$LIBS
-
-# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
-LIBS="$LIBS -L/usr/local/lib -L/opt/local/lib"
-AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])])
-CUNIT_LIBS=$LIBS
-AC_SUBST([CUNIT_LIBS])
-LIBS=$OLD_LIBS
-CFLAGS=$OLD_CFLAGS
+XY_CHECK_CUNIT
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -292,7 +270,7 @@ AC_ARG_ENABLE([db-o_direct],
 AC_MSG_CHECKING([for operating system])
 AC_MSG_RESULT([$host_os])
 case $host_os in
-        linux*) 
+        linux*)
                 ;;
         *)
                 AC_MSG_ERROR([Unsupported platform detected!])
@@ -308,6 +286,29 @@ AC_ARG_WITH([linux],
 
 AC_MSG_RESULT([$LINUX])
 AC_SUBST([LINUX])
+
+AC_ARG_ENABLE(coverage,
+	[  --enable-coverage  Build for test coverage analysis],
+	[case "${enableval}" in
+		yes) ENABLE_COVERAGE=1 ;;
+		no) ENABLE_COVERAGE=0 ;;
+		*) AC_MSG_ERROR([Invalid value ${enableval} for --enable-coverage]) ;;
+	esac],
+	[ENABLE_COVERAGE=0])
+
+AC_SUBST([ENABLE_COVERAGE])
+
+if test "x[$]ENABLE_COVERAGE" = "x1"
+then
+	# Remove -O<digit> flag from $CFLAGS
+	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
+	LDFLAGS="-lgcov"
+	K_ENABLE_COVERAGE=y
+else
+	K_ENABLE_COVERAGE=n
+fi
+
+AC_SUBST([K_ENABLE_COVERAGE])
 
 AC_MSG_CHECKING([for linux objects dir])
 AC_ARG_WITH([linux-obj],
@@ -402,6 +403,26 @@ else
 	AC_MSG_RESULT([$GALOIS_LIBS])
 fi
 
+# Check for yaml
+YAML_SRC=$SRCDIR/../yaml
+YAML_LIBS="$YAML_SRC/src/libyaml.la"
+AC_MSG_CHECKING([for yaml libs])
+if ! test -e $YAML_LIBS; then
+        AC_MSG_RESULT([building $YAML_SRC])
+        oldcwd=$(pwd)
+        cd $YAML_SRC && ./configure && make
+        res=$?
+        cd $oldcwd
+        if ! test $res -eq 0 ; then
+                AC_MSG_ERROR([An error occured while building libyaml!])
+        fi
+        if ! test -e $YAML_LIBS; then
+                AC_MSG_ERROR([$YAML_LIBS not found! Build failed?])
+        fi
+else
+        AC_MSG_RESULT([$YAML_LIBS])
+fi
+
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
@@ -421,6 +442,7 @@ fi
 AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
 AC_SUBST([GALOIS_LIBS])
+AC_SUBST([YAML_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
@@ -461,14 +483,14 @@ if test x$enable_debug = xyes; then
         AC_DEFINE([ENABLE_DEBUG])
 else
         # Remove debug flags but keep default or user optimizations
-        # passed via construction like ./configure CFLAGS=-O3 
+        # passed via construction like ./configure CFLAGS=-O3
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS"
 LDFLAGS="-rdynamic $LDFLAGS"
 
@@ -481,7 +503,7 @@ AC_SUBST([KCFLAGS])
 # Please keep this list sorted (always appending new items at the end
 # results in needless merge conflicts)
 AC_CONFIG_FILES([
-		 Makefile
+                 Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
                  addb/linux_kernel/Makefile
@@ -490,25 +512,35 @@ AC_CONFIG_FILES([
                  build_kernel_modules/Makefile
                  c2t1fs/Makefile
                  capa/Makefile
-		 capa/ut/Makefile
+                 capa/ut/Makefile
+                 cfg/Makefile
                  cob/Makefile
+                 cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
                  db/Makefile
                  db/linux_kernel/Makefile
                  db/ut/Makefile
+                 dtm/linux_kernel/Makefile
                  desim/Makefile
                  desim/ut/Makefile
                  doc/Makefile
                  dtm/Makefile
                  fid/Makefile
+                 fid/linux_kernel/Makefile
                  fol/Makefile
+                 fol/linux_kernel/Makefile
                  fol/ut/Makefile
                  fop/Makefile
                  fop/fop2c
                  fop/linux_kernel/Makefile
+                 fop/rt/Makefile
                  fop/ut/Makefile
+                 galois/linux_kernel/Makefile
+                 ioservice/Makefile
+                 ioservice/linux_kernel/Makefile
                  layout/Makefile
+                 layout/linux_kernel/Makefile
                  layout/ut/Makefile
                  lib/Makefile
                  lib/linux_kernel/Makefile
@@ -530,33 +562,35 @@ AC_CONFIG_FILES([
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
+                 pool/linux_kernel/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
 		 rm/Makefile
 		 rm/ut/Makefile
+                 rpc/Makefile
+                 rpc/ut/Makefile
+                 rpc/it/Makefile
+		 rpc/linux_kernel/Makefile
+		 rpc/it/linux_kernel/Makefile
                  sm/Makefile
+                 sm/linux_kernel/Makefile
                  sns/Makefile
+                 sns/linux_kernel/Makefile
                  sns/ut/Makefile
                  stob/Makefile
+                 stob/linux_kernel/Makefile
                  stob/ut/Makefile
                  udb/Makefile
                  udb/ut/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
-		 utils/ploss/Makefile
-		 ioservice/Makefile
-		 sns/linux_kernel/Makefile
-		 galois/linux_kernel/Makefile
-		 layout/linux_kernel/Makefile
-		 pool/linux_kernel/Makefile
-		 stob/linux_kernel/Makefile
+                 utils/ploss/Makefile
+                 xcode/Makefile
+                 xcode/linux_kernel/Makefile
+                 xcode/ut/Makefile
 		 xdr/Makefile
-		 xdr/ut/Makefile
+                 xdr/ut/Makefile
                 ])
-                
-                #rpc/Makefile
-                #rpc/ut/Makefile
-                #net/ut/Makefile
 AC_OUTPUT
 
 #
@@ -572,6 +606,7 @@ echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
 echo "Galois :  \"$GALOIS_SRC\""
+echo "YAML :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
 echo "Linux  :  \"$LINUX\""
 echo ""

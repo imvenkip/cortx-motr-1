@@ -30,10 +30,12 @@
 
 int c2_verno_cmp(const struct c2_verno *vn0, const struct c2_verno *vn1)
 {
-	C2_ASSERT(c2_verno_cmp_invariant(vn0, vn1));
+	//C2_ASSERT(c2_verno_cmp_invariant(vn0, vn1));
 
-	return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn);
+	//return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn);
+	return C2_3WAY(vn0->vn_vc, vn1->vn_vc);
 }
+C2_EXPORTED(c2_verno_cmp);
 
 int c2_verno_is_redoable(const struct c2_verno *unit, 
 			 const struct c2_verno *before_update, bool total)
@@ -41,7 +43,8 @@ int c2_verno_is_redoable(const struct c2_verno *unit,
 	int result;
 	int cmp;
 
-	C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
+	// XXX don't need lsn for now
+	//C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
 
 	cmp = c2_verno_cmp(unit, before_update);
 	if (cmp < 0)
@@ -52,6 +55,7 @@ int c2_verno_is_redoable(const struct c2_verno *unit,
 		result = 0;
 	return result;
 }
+C2_EXPORTED(c2_verno_is_redoable);
 
 int c2_verno_is_undoable(const struct c2_verno *unit, 
 			 const struct c2_verno *before_update, bool total)
@@ -59,7 +63,8 @@ int c2_verno_is_undoable(const struct c2_verno *unit,
 	int result;
 	int cmp;
 
-	C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
+	// XXX don't require lsn for now
+	//C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
 
 	cmp = c2_verno_cmp(unit, before_update);
 	if (cmp <= 0)
@@ -70,8 +75,7 @@ int c2_verno_is_undoable(const struct c2_verno *unit,
 		result = before_update->vn_vc + 1 == unit->vn_vc ? 0 : -EAGAIN;
 	return result;
 }
-
-int c2_verno_cmp_invariant(const struct c2_verno *vn0, 
+int c2_verno_cmp_invariant(const struct c2_verno *vn0,
 			   const struct c2_verno *vn1)
 {
 	return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn) ==

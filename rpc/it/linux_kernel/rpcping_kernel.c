@@ -13,10 +13,34 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 07/15/2010
+ * Original Author: Madhavrao Vemuri <Madhav_Vemuri@xyratex.com>
+ * Original creation date: 07/09/2011
  */
 
-void __pool_dummy_foo(void)
+#include <linux/module.h>
+
+#include "rpc_ping.h"
+
+int init_module(void)
 {
+	return c2_rpc_ping_init();
 }
+
+void cleanup_module(void)
+{
+	c2_rpc_ping_fini();
+}
+
+MODULE_AUTHOR("Xyratex");
+MODULE_DESCRIPTION("Colibri Kernel rpc ping Module");
+MODULE_LICENSE("proprietary");
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

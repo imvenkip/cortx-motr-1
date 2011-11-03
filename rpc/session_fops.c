@@ -1,0 +1,377 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rohan Puri <Rohan_Puri@xyratex.com>,
+ *                  Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 04/15/2011
+ */
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "fop/fom.h"
+#include "fop/fop.h"
+#include "fop/fop_format_def.h"
+
+#ifdef __KERNEL__
+#include "rpc/session_k.h"
+#else
+#include "rpc/session_u.h"
+#endif
+#include "rpc/rpc_onwire.h"
+
+#include "fop/fop_iterator.h"
+#include "rpc/session_fops.h"
+#include "rpc/session_foms.h"
+#include "rpc/session.ff"
+#include "rpc/session_internal.h"
+#include "rpc/rpc_onwire.h" /* item_encdec() */
+
+/**
+   @addtogroup rpc_session
+
+   @{
+
+   This file contains definitions of fop types and rpc item types, of fops
+   belonging to rpc-session module
+ */
+
+/**
+   implementation of fop->f_type->ft_ops->fto_fom_init() for conn establish,
+   conn terminate, session establish, session terminate fop types.
+ */
+static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	const struct c2_fom_ops *fom_ops;
+	struct c2_fom           *fom;
+	struct c2_fop_type      *reply_fopt;
+	struct c2_fop           *reply_fop;
+	int                      rc;
+
+	C2_ALLOC_PTR(fom);
+	if (fom == NULL)
+		return -ENOMEM;
+
+	c2_fom_init(fom);
+
+	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
+
+		reply_fopt = &c2_rpc_fop_conn_establish_rep_fopt;
+		fom_ops = &c2_rpc_fom_conn_establish_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_conn_terminate_fopt) {
+
+		reply_fopt = &c2_rpc_fop_conn_terminate_rep_fopt;
+		fom_ops = &c2_rpc_fom_conn_terminate_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_session_establish_fopt) {
+
+		reply_fopt = &c2_rpc_fop_session_establish_rep_fopt;
+		fom_ops = &c2_rpc_fom_session_establish_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_session_terminate_fopt) {
+
+		reply_fopt = &c2_rpc_fop_session_terminate_rep_fopt;
+		fom_ops = &c2_rpc_fom_session_terminate_ops;
+
+	} else {
+		reply_fopt = NULL;
+		fom_ops = NULL;
+	}
+
+	if (reply_fopt == NULL || fom_ops == NULL) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	fom->fo_ops = fom_ops;
+	fom->fo_type = &fop->f_type->ft_fom_type;
+
+	reply_fop = c2_fop_alloc(reply_fopt, NULL);
+	if (reply_fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	fom->fo_rep_fop = reply_fop;
+	fom->fo_fop = fop;
+	*m = fom;
+	rc = 0;
+
+out:
+	if (rc != 0) {
+		c2_free(fom);
+		*m = NULL;
+	}
+	return rc;
+}
+
+int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
+			    struct c2_fop_ctx *ctx)
+{
+	/* Do nothing */
+	return 0;
+}
+
+static const struct c2_fop_type_ops default_fop_type_ops = {
+	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_fom_init = &session_gen_fom_init,
+};
+
+static const struct c2_fop_type_ops default_reply_fop_type_ops = {
+	.fto_size_get = c2_xcode_fop_size_get,
+};
+
+const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
+	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_execute = c2_rpc_fop_noop_execute
+};
+
+/*
+ *  REQUEST fops
+ *  XXX C2_FOP_TYPE_DECLARE_NEW() is a temporary macro that enhances
+ *  existing C2_FOP_TYPE_DECLARE() to assign item_type to the fop_type.
+ */
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish, "rpc_conn_establish",
+			C2_RPC_FOP_CONN_ESTABLISH_OPCODE,
+			&default_fop_type_ops,
+			&c2_rpc_item_conn_establish);
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate, "rpc_conn_terminate",
+			C2_RPC_FOP_CONN_TERMINATE_OPCODE,
+			&default_fop_type_ops,
+			&c2_rpc_item_conn_terminate);
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_establish, "rpc_session_establish",
+			C2_RPC_FOP_SESSION_ESTABLISH_OPCODE,
+			&default_fop_type_ops,
+			&c2_rpc_item_session_establish);
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate, "rpc_session_terminate",
+			C2_RPC_FOP_SESSION_TERMINATE_OPCODE,
+			&default_fop_type_ops,
+			&c2_rpc_item_session_terminate);
+
+/*
+ *  REPLY fops
+ */
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish_rep,
+			"rpc_conn_establish_reply",
+			C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
+			&default_reply_fop_type_ops,
+			&c2_rpc_item_conn_establish_rep);
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate_rep,
+			"rpc_conn_terminate_reply",
+			C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
+			&default_reply_fop_type_ops,
+			&c2_rpc_item_conn_terminate_rep);
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_establish_rep,
+			"rpc_session_establish_reply",
+			C2_RPC_FOP_SESSION_ESTABLISH_REP_OPCODE,
+			&default_reply_fop_type_ops,
+			&c2_rpc_item_session_establish_rep);
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate_rep,
+			"rpc_session_terminate_reply",
+			C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
+			&default_reply_fop_type_ops,
+			&c2_rpc_item_session_terminate_rep);
+
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_noop, "NOOP",
+			C2_RPC_FOP_NOOP, &c2_rpc_fop_noop_ops,
+			&c2_rpc_item_noop);
+
+static struct c2_fop_type *fop_types[] = {
+	&c2_rpc_fop_conn_establish_fopt,
+	&c2_rpc_fop_conn_terminate_fopt,
+	&c2_rpc_fop_session_establish_fopt,
+	&c2_rpc_fop_session_terminate_fopt,
+	&c2_rpc_fop_conn_establish_rep_fopt,
+	&c2_rpc_fop_conn_terminate_rep_fopt,
+	&c2_rpc_fop_session_establish_rep_fopt,
+	&c2_rpc_fop_session_terminate_rep_fopt,
+	&c2_rpc_fop_noop_fopt,
+};
+
+void c2_rpc_session_fop_fini(void)
+{
+	c2_fop_type_fini_nr(fop_types, ARRAY_SIZE(fop_types));
+}
+
+int c2_rpc_session_fop_init(void)
+{
+	int result;
+
+	result = c2_fop_type_build_nr(fop_types, ARRAY_SIZE(fop_types));
+	if (result != 0)
+		c2_rpc_session_fop_fini();
+
+	c2_rpc_fop_conn_establish_fopt.ft_fom_type =
+		c2_rpc_fom_conn_establish_type;
+
+	c2_rpc_fop_conn_terminate_fopt.ft_fom_type =
+		c2_rpc_fom_conn_terminate_type;
+
+	c2_rpc_fop_session_establish_fopt.ft_fom_type =
+		c2_rpc_fom_session_establish_type;
+
+	c2_rpc_fop_session_terminate_fopt.ft_fom_type =
+		c2_rpc_fom_session_terminate_type;
+
+	return result;
+}
+
+void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
+					struct c2_net_end_point *ep,
+					struct c2_rpcmachine    *machine)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+
+	C2_PRE(item != NULL && ep != NULL && machine != NULL);
+
+	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
+				cec_fop.f_item);
+	C2_ASSERT(ctx != NULL);
+
+	ctx->cec_sender_ep = ep;
+	ctx->cec_rpcmachine = machine;
+}
+static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
+				      struct c2_rpc_item     **item,
+				      struct c2_bufvec_cursor *cur)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+	struct c2_fop                        *fop;
+	int                                   rc;
+
+	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
+	C2_PRE(item_type == &c2_rpc_item_conn_establish);
+
+	*item = NULL;
+
+	C2_ALLOC_PTR(ctx);
+	if (ctx == NULL)
+		return -ENOMEM;
+
+	ctx->cec_sender_ep = NULL;
+	fop = &ctx->cec_fop;
+
+	rc = c2_fop_init(fop, &c2_rpc_fop_conn_establish_fopt, NULL);
+	if (rc != 0)
+		goto out;
+
+	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
+	if (rc != 0)
+		goto out;
+
+	*item = &fop->f_item;
+	return 0;
+out:
+	c2_free(ctx);
+	return rc;
+}
+
+static struct c2_rpc_item_type_ops default_item_type_ops = {
+	.rito_encode = c2_rpc_fop_default_encode,
+	.rito_decode = c2_rpc_fop_default_decode,
+        .rito_item_size = c2_rpc_item_default_size,
+};
+
+static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
+	.rito_encode = c2_rpc_fop_default_encode,
+	.rito_decode = conn_establish_item_decode,
+        .rito_item_size = c2_rpc_item_default_size,
+};
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_establish,
+		     C2_RPC_FOP_CONN_ESTABLISH_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &conn_establish_item_type_ops);
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_terminate,
+		     C2_RPC_FOP_CONN_TERMINATE_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &default_item_type_ops);
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_establish,
+		     C2_RPC_FOP_SESSION_ESTABLISH_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &default_item_type_ops);
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_terminate,
+		     C2_RPC_FOP_SESSION_TERMINATE_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &default_item_type_ops);
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_establish_rep,
+		     C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_terminate_rep,
+		     C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_establish_rep,
+		     C2_RPC_FOP_SESSION_ESTABLISH_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
+
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_terminate_rep,
+		     C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
+
+struct c2_rpc_item_type c2_rpc_item_noop = {
+	.rit_ops = &default_item_type_ops,
+	.rit_flags = C2_RPC_ITEM_TYPE_REQUEST
+};
+
+const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops = {
+	.rio_replied = c2_rpc_conn_establish_reply_received
+};
+
+const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops = {
+	.rio_replied = c2_rpc_conn_terminate_reply_received
+};
+
+const struct c2_rpc_item_ops c2_rpc_item_session_establish_ops = {
+	.rio_replied = c2_rpc_session_establish_reply_received
+};
+
+const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops = {
+	.rio_replied = c2_rpc_session_terminate_reply_received
+};
+
+/** @} End of rpc_session group */
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+
