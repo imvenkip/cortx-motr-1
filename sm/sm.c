@@ -31,41 +31,18 @@
    @{
 */
 
-C2_TL_DESCR_DEFINE(ast, "ast", static, struct c2_sm_ast, sa_freelist, sa_magic,
-		   0x6153747354725543, /* aStsTrUC */
-		   0x4173546845614452  /* AsThEaDR */);
-
-C2_TL_DEFINE(ast, static, struct c2_sm_ast);
-
 void c2_sm_group_init(struct c2_sm_group *grp)
 {
-	int               i;
-	struct c2_sm_ast *ast;
-
 	C2_SET0(grp);
 	c2_mutex_init(&grp->s_lock);
 	c2_chan_init(&grp->s_signal);
-	ast_tlist_init(&grp->s_ast_free);
-	for (ast = grp->s_ast, i = 0; i < ARRAY_SIZE(grp->s_ast); ++i, ++ast) {
-		ast_tlink_init(ast);
-		ast_tlist_add_tail(&grp->s_ast_free, ast);
-	}
 }
 C2_EXPORTED(c2_sm_group_init);
 
 void c2_sm_group_fini(struct c2_sm_group *grp)
 {
-	int               i;
-	struct c2_sm_ast *ast;
-
 	c2_chan_fini(&grp->s_signal);
 	c2_mutex_fini(&grp->s_lock);
-	for (ast = grp->s_ast, i = 0; i < ARRAY_SIZE(grp->s_ast); ++i, ++ast) {
-		ast_tlist_del(ast);
-		ast_tlink_fini(ast);
-		ast->sa_magic = 0;
-	}
-	ast_tlist_fini(&grp->s_ast_free);
 }
 C2_EXPORTED(c2_sm_group_fini);
 
@@ -90,6 +67,8 @@ static bool grp_is_locked(const struct c2_sm_group *grp)
 
 void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
+	C2_PRE(ast->sa_cb != NULL);
+
 	do
 		ast->sa_next = grp->s_forkq;
 	while (!C2_ATOMIC64_CAS(&grp->s_forkq, ast->sa_next, ast));
@@ -113,8 +92,6 @@ void c2_sm_asts_run(struct c2_sm_group *grp)
 			break;
 
 		ast->sa_cb(grp, ast);
-		if (IS_IN_ARRAY(ast - &grp->s_ast[0], grp->s_ast))
-			ast_tlist_add_tail(&grp->s_ast_free, ast);
 	}
 }
 C2_EXPORTED(c2_sm_asts_run);
@@ -176,13 +153,14 @@ static bool conf_invariant(const struct c2_sm_conf *conf)
 	}
 
 	for (i = 0; i < conf->scf_nr_states; ++i) {
-		if (state_is_valid(conf, i)) {
+		if (mask & (1 << i)) {
 			const struct c2_sm_state_descr *sd;
 
 			sd = &conf->scf_state[i];
-			if (sd->sd_flags & ~(SDF_FAILURE|SDF_TERMINAL))
+			if (sd->sd_flags & ~(C2_SDF_INITIAL|
+					     C2_SDF_FAILURE|C2_SDF_TERMINAL))
 				return false;
-			if ((sd->sd_flags & SDF_TERMINAL) &&
+			if ((sd->sd_flags & C2_SDF_TERMINAL) &&
 			    sd->sd_allowed != 0)
 				return false;
 			if (sd->sd_allowed & ~mask)
@@ -197,6 +175,7 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 		struct c2_addb_ctx *ctx)
 {
 	C2_PRE(conf_invariant(conf));
+	C2_PRE(conf->scf_state[state].sd_flags & C2_SDF_INITIAL);
 
 	mach->sm_state = state;
 	mach->sm_conf  = conf;
@@ -211,16 +190,10 @@ C2_EXPORTED(c2_sm_init);
 void c2_sm_fini(struct c2_sm *mach)
 {
 	C2_ASSERT(c2_sm_invariant(mach));
-	C2_PRE(sm_state(mach)->sd_flags & SDF_TERMINAL);
+	C2_PRE(sm_state(mach)->sd_flags & C2_SDF_TERMINAL);
 	c2_chan_fini(&mach->sm_chan);
 }
 C2_EXPORTED(c2_sm_fini);
-
-struct wait_state {
-	struct c2_clink  ws_waiter;
-	struct c2_sm    *ws_mach;
-	uint64_t         ws_wake;
-};
 
 int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 {
@@ -238,7 +211,7 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 	c2_clink_add(&mach->sm_grp->s_signal, &group_waiter);
 	while (result == 0 && ((1 << mach->sm_state) & states) == 0) {
 		C2_ASSERT(c2_sm_invariant(mach));
-		if (sm_state(mach)->sd_flags & SDF_TERMINAL)
+		if (sm_state(mach)->sd_flags & C2_SDF_TERMINAL)
 			result = -ESRCH;
 		else {
 			sm_unlock(mach);
@@ -261,7 +234,7 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	C2_PRE(rc != 0);
 	C2_PRE(c2_sm_invariant(mach));
 	C2_PRE(mach->sm_rc == 0);
-	C2_PRE(state_get(mach, fail_state)->sd_flags & SDF_FAILURE);
+	C2_PRE(state_get(mach, fail_state)->sd_flags & C2_SDF_FAILURE);
 
 	c2_sm_state_set(mach, fail_state);
 	mach->sm_rc = rc;
@@ -279,7 +252,6 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 
 	if (sd->sd_ex != NULL)
 		sd->sd_ex(mach);
-	c2_sm_asts_run(mach->sm_grp);
 	mach->sm_state = state;
 	sd = sm_state(mach);
 	if (sd->sd_in != NULL)
@@ -347,8 +319,9 @@ int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
 	struct c2_timer *tm = &to->st_timer;
 
 	C2_PRE(c2_sm_invariant(mach));
-	C2_PRE(!(sm_state(mach)->sd_flags & SDF_TERMINAL));
-	C2_PRE(!(state_get(mach, state)->sd_flags & SDF_TERMINAL));
+	C2_PRE(!(sm_state(mach)->sd_flags & C2_SDF_TERMINAL));
+	C2_PRE(sm_state(mach)->sd_allowed & (1 << state));
+	C2_PRE(!(state_get(mach, state)->sd_flags & C2_SDF_TERMINAL));
 
 	/*
 	  This is how timeout is implemented:
@@ -393,19 +366,6 @@ void c2_sm_timeout_fini(struct c2_sm_timeout *to)
 	c2_clink_fini(&to->st_clink);
 }
 C2_EXPORTED(c2_sm_timeout_fini);
-
-struct c2_sm_ast *c2_sm_ast_get(struct c2_sm_group *grp)
-{
-	struct c2_sm_ast *ast;
-
-	C2_PRE(grp_is_locked(grp));
-	C2_PRE(!ast_tlist_is_empty(&grp->s_ast_free));
-
-	ast = ast_tlist_head(&grp->s_ast_free);
-	ast_tlist_del(ast);
-	return ast;
-}
-C2_EXPORTED(c2_sm_ast_get);
 
 /** @} end of sm group */
 

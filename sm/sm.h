@@ -122,7 +122,7 @@
    The solution to these problems comes from operating system kernels design,
    see the AST section below.
 
-   <b>Accounting and statistics.<b>
+   <b>Accounting and statistics.</b>
 
    This module accumulates statistics about state transitions and time spent in
    particular states. For additional flexibility these data are reported through
@@ -153,8 +153,6 @@
 
        - just before group mutex is released;
 
-       - whenever a state machine in the group performs a state transition;
-
        - whenever c2_sm_asts_run() is called.
 
    Ast mechanism solves the problems with input events mentioned above at the
@@ -166,18 +164,44 @@
          user to free ast structure when it is safe to do so (i.e., after the
          ast completed execution).
 
-   To deal with the second problem, each group comes with a pool of
-   pre-allocated asts (c2_sm_group::s_ast[]) from where asts can be allocated by
-   a call to c2_sm_ast_get(). Asts from the pool are returned back to the pool
-   automatically once they complete their execution.
-
    To deal with the latency problem, a user must arrange c2_sm_asts_run() to be
    called during long state transitions (typically within loops).
 
-   If an ast is posted and group mutex is not held (i.e., the group is "idle") a
-   c2_sm_group::s_signal semaphore is signalled. It is expected that some
-   threads, assigned to handling state transitions of machines from the group,
-   are waiting on this semaphore.
+   There are a few ways to deal with the ast book-keeping problem:
+
+       - majority of asts will be embedded in some longer living data-structures
+         like foms and won't need a separate allocation of freeing;
+
+       - some ast users might allocate asts dynamically;
+
+       - the users which have neither a long-living data-structure to embed ast
+         in nor can call dynamic allocator, have to pre-allocate a pool of asts
+         and to guarantee somehow that it is never exhausted.
+
+   If an ast is posted a c2_sm_group::s_signal channel is signalled. A user
+   managing a state machine group might arrange a special "ast" thread (or a
+   group of threads) to wait on this channel and to call c2_sm_asts_run() when
+   the channel is signalled:
+
+   @code
+   struct c2_clink waiter;
+
+   c2_clink_init(&waiter, NULL);
+
+   c2_sm_group_lock(G);
+   c2_chan_add(&G->s_signal, &waiter);
+   while (1) {
+           c2_sm_group_unlock(G);
+           c2_chan_wait(&waiter);
+           c2_sm_group_lock(G);
+	   c2_sm_asts_run(G);
+   }
+   @endcode
+
+   A special "ast" thread is not needed if there is an always running "worker"
+   thread or pool of threads associated with the state machine group. In the
+   latter case, the worker thread can wait on c2_sm_group::s_signal in addition
+   to other channels it waits on (see c2_clink_attach()).
 
    @{
 */
@@ -239,7 +263,7 @@ struct c2_sm {
 	struct c2_chan           sm_chan;
 	/**
 	   State machine "return code". This is set to a non-zero value when
-	   state machine transitions to an SDF_FAILURE state.
+	   state machine transitions to an C2_SDF_FAILURE state.
 	 */
 	int32_t                  sm_rc;
 };
@@ -310,12 +334,28 @@ struct c2_sm_state_descr {
  */
 enum c2_sm_state_descr_flags {
 	/**
+	    An initial state.
+
+	    State machine, must starts execution in a state marked with this
+	    flag. Multiple states can be marked with this flag, for example, to
+	    share a code between similar state machines, that only differ in
+	    initial conditions.
+
+	    @see c2_sm_init()
+	 */
+	C2_SDF_INITIAL  = 1 << 0,
+	/**
 	   A state marked with this flag is a failure state. c2_sm::sm_rc is set
 	   to a non-zero value on entering this state.
 
+	   In a such state, state machine is supposed to handle or report the
+	   error indicated by c2_sm::sm_rc. Typically (but not necessary), the
+	   state machine will transit into am C2_SDF_TERMINAL state immediately
+	   after a failure state.
+
 	   @see c2_sm_fail()
 	 */
-	SDF_FAILURE  = 1 << 0,
+	C2_SDF_FAILURE  = 1 << 1,
 	/**
 	   A state marked with this flag is a terminal state. No transitions out
 	   of this state are allowed (checked by c2_sm_conf_invariant()) and an
@@ -324,7 +364,7 @@ enum c2_sm_state_descr_flags {
 
 	   @see c2_sm_timedwait()
 	 */
-	SDF_TERMINAL = 1 << 1
+	C2_SDF_TERMINAL = 1 << 2
 };
 
 /**
@@ -333,7 +373,7 @@ enum c2_sm_state_descr_flags {
    A request to execute a call-back under group mutex. An ast can be posted by a
    call to c2_sm_ast_post() in any context.
 
-   It will be executed later, see AST section is the comment at the top of this
+   It will be executed later, see AST section of the comment at the top of this
    file.
 
    Only c2_sm_ast::sa_cb and c2_sm_ast::sa_datum fields are public. The rest of
@@ -346,12 +386,6 @@ struct c2_sm_ast {
 	void               *sa_datum;
 	struct c2_sm_ast   *sa_next;
 	struct c2_sm       *sa_mach;
-	struct c2_tlink     sa_freelist;
-	uint64_t            sa_magic;
-};
-
-enum {
-	C2_SM_GROUP_AST_MAX = 256
 };
 
 struct c2_sm_group {
@@ -359,12 +393,21 @@ struct c2_sm_group {
 	struct c2_chan    s_signal;
 	struct c2_sm_ast *s_forkq;
 	struct c2_tl      s_ast_free;
-	struct c2_sm_ast  s_ast[C2_SM_GROUP_AST_MAX];
 };
 
+/**
+   Initialises a state machine.
+
+   @pre conf->scf_state[state].sd_flags & C2_SDF_INITIAL
+ */
 void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 		uint32_t state, struct c2_sm_group *grp,
 		struct c2_addb_ctx *ctx);
+/**
+   Finalises a state machine.
+
+   @pre conf->scf_state[state].sd_flags & C2_SDF_TERMINAL
+ */
 void c2_sm_fini(struct c2_sm *mach);
 
 void c2_sm_group_init(struct c2_sm_group *grp);
@@ -380,7 +423,7 @@ void c2_sm_group_unlock(struct c2_sm_group *grp);
    @retval 0          - one of the states reached
 
    @retval -ESRCH     - terminal state reached,
-                        see c2_sm_state_descr_flags::SDF_TERMINAL
+                        see c2_sm_state_descr_flags::C2_SDF_TERMINAL
 
    @retval -ETIMEDOUT - deadline passed
 
@@ -398,7 +441,7 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline);
    @pre rc != 0
    @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
    @pre mach->sm_rc == 0
-   @pre mach->sm_conf->scf_state[fail_state].sd_flags & SDF_FAILURE
+   @pre mach->sm_conf->scf_state[fail_state].sd_flags & C2_SDF_FAILURE
    @post mach->sm_rc == rc
    @post mach->sm_state == fail_state
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
@@ -451,7 +494,12 @@ struct c2_sm_timeout {
    The c2_sm_timeout instance, supplied to this call can be freed after timeout
    expires or is cancelled.
 
+   @param timeout absolute time at which the state transition will take place
+   @param state the state to which the state machine will transition after the
+   timeout.
+
    @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
+   @pre state transition from current state to the @state is allowed.
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
@@ -473,15 +521,6 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
    @post c2_mutex_is_locked(&grp->s_lock)
  */
 void c2_sm_asts_run(struct c2_sm_group *grp);
-
-/**
-   Allocates an AST from the group's pool (c2_sm_group::s_ast[]).
-
-   @pre c2_mutex_is_locked(&grp->s_lock)
-   @pre !c2_list_is_empty(&grp->s_ast_free)
-   @post c2_mutex_is_locked(&grp->s_lock)
- */
-struct c2_sm_ast *c2_sm_ast_get(struct c2_sm_group *grp);
 
 /** @} end of sm group */
 
