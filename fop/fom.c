@@ -157,8 +157,12 @@ static void fom_ready(struct c2_fom *fom)
  * list and to put it back on the locality runq list for further
  * execution.
  *
+ * This function returns true, meaning that the event is "consumed", because
+ * nobody is supposed to be waiting on fom->fo_clink.
+ *
  * @param clink Fom linkage into waiting channel registered
-		during a blocking operation
+ *		during a blocking operation
+ *
  * @pre clink != NULL
  */
 static bool fom_cb(struct c2_clink *clink)
@@ -179,7 +183,7 @@ static bool fom_cb(struct c2_clink *clink)
 	fom->fo_state = FOS_READY;
 	fom_ready(fom);
 	c2_mutex_unlock(&loc->fl_lock);
-	return false;
+	return true;
 }
 
 void c2_fom_block_enter(struct c2_fom *fom)
