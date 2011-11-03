@@ -109,7 +109,7 @@
 
        - initialise a "group head" clink;
 
-       - attach other clinks to the group;
+       - attach other clinks to the group, without initialising them;
 
        - register the group clinks with their channels, starting with the head;
 
@@ -136,6 +136,14 @@
 
    // wait for an event on chan0 or chan1
    c2_chan_wait(&cl0);
+
+   // de-register clinks, head last
+   c2_clink_del(chan1, &cl1);
+   c2_clink_del(chan0, &cl0);
+
+   // finalise in any order
+   c2_clink_fini(chan0, &cl0);
+   c2_clink_fini(chan1, &cl1);
    @endcode
 
    @note An interface similar to c2_chan was a part of historical UNIX kernel

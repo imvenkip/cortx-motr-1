@@ -18,7 +18,6 @@
  * Original creation date: 05/13/2010
  */
 
-#include "lib/misc.h"                        /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/chan.h"
 #include "lib/assert.h"
@@ -186,6 +185,7 @@ static void clink_init(struct c2_clink *link,
 	link->cl_chan  = NULL;
 	link->cl_cb    = cb;
 	clink_tlink_init(link);
+	C2_POST(clink_is_head(group));
 }
 
 void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb)
