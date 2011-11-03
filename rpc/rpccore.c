@@ -822,6 +822,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 		c2_db_tx_abort(&tx);
 		return rc;
 	}
+	c2_cob_put(root_session_cob);
 #endif
 
 	c2_mutex_init(&machine->cr_chan_mutex);
