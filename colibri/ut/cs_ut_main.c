@@ -595,7 +595,7 @@ static void test_cs_ut_args_bad(void)
 }
 
 const struct c2_test_suite colibri_setup_ut = {
-        .ts_name = "colbri_setup_ut... this takes some time",
+        .ts_name = "colibri_setup_ut... this takes some time",
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
