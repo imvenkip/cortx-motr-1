@@ -250,7 +250,7 @@ static void genesis_4_8(struct c2_sm *mach)
    digraph M {
            S_INITIAL -> S_ITERATE
            S_ITERATE -> S_ITERATE
-           S_INITIAL -> S_FRATRICIDE [label="timeout t1"]
+           S_INITIAL -> S_FRATRICIDE [label="timeout"]
            S_ITERATE -> S_TERMINAL
            S_FRATRICIDE -> S_TERMINAL
    }
@@ -276,7 +276,7 @@ static void group(void)
 			.sd_allowed   = (1 << S_ITERATE)|(1 << S_TERMINAL)
 		},
 		[S_FRATRICIDE] = {
-			.sd_flags     = C2_SDF_INITIAL,
+			.sd_flags     = 0,
 			.sd_name      = "Let's go out to the field",
 			.sd_in        = &genesis_4_8,
 			.sd_ex        = NULL,
