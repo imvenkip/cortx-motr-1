@@ -458,6 +458,37 @@ c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
 int32_t c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom);
 
 /**
+   @todo New interface - requires new xo
+
+   Sets the maximum number of messages that may be received in a single
+   buffer.
+   The value has no effect on buffers already queued for message reception.
+   The default value may be recovered with the
+   c2_net_buffer_set_max_receive_messages() subroutine.
+   @param max_recv_msgs  Specify a new maximum. A value of 0 restores the
+   default value.
+
+   @note Support for this feature is transport specific but no error indication
+   is returned if invoked on a domain associated with a transport that does not
+   support the feature.
+
+   @see c2_net_domain_get_max_buffer_receive_messages
+ */
+extern void c2_net_domain_set_max_buffer_receive_messages(
+                             struct c2_net_domain *dom, uint32_t max_recv_msgs);
+
+/**
+   @todo New interface - requires new xo
+
+   Returns the configured maximum number of messages that can be received in a
+   single buffer.
+
+   @see c2_net_domain_set_max_buffer_receive_messages
+ */
+extern uint32_t c2_net_domain_get_max_buffer_receive_messages(struct c2_net_domain
+							      *dom);
+
+/**
    This represents an addressable network end point. Memory for this data
    structure is managed by the network transport component and is associated
    with the transfer machine that created the structure.
