@@ -27,6 +27,8 @@
    @{
  */
 
+#include "lib/tlist.h"
+
 struct net_conf;
 struct net_srv;
 
@@ -42,7 +44,7 @@ struct client {
 	struct sim_chan     cl_cache_free;
 	struct sim_chan     cl_cache_busy;
 	struct client_conf *cl_conf;
-	struct c2_list      cl_write_ext;
+	struct c2_tl        cl_write_ext;
 };
 
 struct client_conf {
@@ -71,7 +73,7 @@ void client_fini(struct client_conf *conf);
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
