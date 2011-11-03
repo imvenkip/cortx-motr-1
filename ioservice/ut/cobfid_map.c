@@ -530,9 +530,6 @@ void cfm_op(int tid)
 		rc = c2_cobfid_map_add(&cfm_global_map, container_id_in,
 				       fid_in[tid][i], cob_fid_in[tid][i],
 				       &cfm_dbtx);
-		printf("\nADD : TID : %d cid : %lu fid : %lu cob_fid : %lu",
-			tid, container_id_in, fid_in[tid][i].f_key,
-			cob_fid_in[tid][i].u_lo);
 		c2_db_tx_commit(&cfm_dbtx);
 		c2_mutex_unlock(&cfm_global_mutex);
                 C2_UT_ASSERT(rc == 0);
@@ -631,9 +628,6 @@ void test_cfm_concurrency(void)
 	tid_rec_nr = 0;
 	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &cid, &fid,
 					     &cob_fid)) == 0) {
-		printf("\nENUM : TID : %d cid : %lu fid : %lu cob_fid : %lu",
-			tid, cid, fid.f_key, cob_fid.u_lo);
-
                 C2_UT_ASSERT(c2_fid_eq(&fid_out[tid][tid_rec_nr], &fid));
                 C2_UT_ASSERT(c2_uint128_eq(&cob_fid_out[tid][tid_rec_nr],
                              &cob_fid));
