@@ -469,16 +469,20 @@ void test_iter_sensitivity(void)
 
 /* Number of threads that will concurrently access a cobfid_map */
 enum {
-	CFM_THREAD_NR = 4,
+	CFM_THREAD_NR = 41,
 };
 
-struct c2_mutex		cfm_global_mutex;
-struct c2_dbenv		cfm_global_dbenv;
-struct c2_cobfid_map	cfm_global_map;
-struct c2_addb_ctx	cfm_global_addb_ctx;
+struct c2_mutex		 cfm_global_mutex;
+struct c2_dbenv		 cfm_global_dbenv;
+struct c2_cobfid_map	 cfm_global_map;
+struct c2_addb_ctx	 cfm_global_addb_ctx;
+struct c2_fid           *fid_in[CFM_THREAD_NR];
+struct c2_fid           *fid_out[CFM_THREAD_NR];
+struct c2_uint128       *cob_fid_in[CFM_THREAD_NR];
+struct c2_uint128       *cob_fid_out[CFM_THREAD_NR];
 
 /* Function to add and enumerate a container */
-void cfm_op(int nr)
+void cfm_op(int tid)
 {
 	int			 i;
 	int			 j;
@@ -487,29 +491,25 @@ void cfm_op(int nr)
 	int			 rec_total;
         uint64_t                 container_id_in;
         uint64_t                 container_id_out;
-        struct c2_fid           *fid_in;
-        struct c2_fid           *fid_out;
-        struct c2_uint128       *cob_fid_in;
-        struct c2_uint128       *cob_fid_out;
         struct c2_db_tx          cfm_dbtx;
         struct c2_cobfid_map_iter cfm_iter;
 
 	rec_total = MULTIPLE_BUF_REC_NR;
 
-	C2_ALLOC_ARR(fid_in, rec_total);
-        C2_UT_ASSERT(fid_in != NULL);
+	C2_ALLOC_ARR(fid_in[tid], rec_total);
+        C2_UT_ASSERT(fid_in[tid] != NULL);
 
-        C2_ALLOC_ARR(cob_fid_in, rec_total);
-        C2_UT_ASSERT(cob_fid_in != NULL);
+        C2_ALLOC_ARR(cob_fid_in[tid], rec_total);
+        C2_UT_ASSERT(cob_fid_in[tid] != NULL);
 
-        C2_ALLOC_ARR(fid_out, rec_total);
-        C2_UT_ASSERT(fid_out != NULL);
+        C2_ALLOC_ARR(fid_out[tid], rec_total);
+        C2_UT_ASSERT(fid_out[tid] != NULL);
 
-        C2_ALLOC_ARR(cob_fid_out, rec_total);
-        C2_UT_ASSERT(cob_fid_out != NULL);
+        C2_ALLOC_ARR(cob_fid_out[tid], rec_total);
+        C2_UT_ASSERT(cob_fid_out[tid] != NULL);
 
-	/* Container id is based on the thread id (value of nr) */
-	container_id_in = 200 + nr;
+	/* Container id is function of thread id */
+	container_id_in = 400 + tid;
 	j = rec_total - 1;
 
         /* Fill in the database with varying fid values in
@@ -518,20 +518,21 @@ void cfm_op(int nr)
            order of the fid key.*/
         for (i = 0; i < rec_total; i++) {
                 /* Populate some random data */
-                fid_in[i].f_container = 0;
-                fid_in[i].f_key = j;
-                cob_fid_in[i].u_hi = 333;
-                cob_fid_in[i].u_lo = j;
+                fid_in[tid][i].f_container = 0;
+                fid_in[tid][i].f_key = j;
+                cob_fid_in[tid][i].u_hi = 333;
+                cob_fid_in[tid][i].u_lo = j;
 
 		c2_mutex_lock(&cfm_global_mutex);
 		rc = c2_db_tx_init(&cfm_dbtx, &cfm_global_dbenv, 0);
 		C2_UT_ASSERT(rc == 0);
 
 		rc = c2_cobfid_map_add(&cfm_global_map, container_id_in,
-				       fid_in[i], cob_fid_in[i], &cfm_dbtx);
+				       fid_in[tid][i], cob_fid_in[tid][i],
+				       &cfm_dbtx);
 		printf("\nADD : TID : %d cid : %lu fid : %lu cob_fid : %lu",
-			nr, container_id_in, fid_in[i].f_key,
-			cob_fid_in[i].u_lo);
+			tid, container_id_in, fid_in[tid][i].f_key,
+			cob_fid_in[tid][i].u_lo);
 		c2_db_tx_commit(&cfm_dbtx);
 		c2_mutex_unlock(&cfm_global_mutex);
                 C2_UT_ASSERT(rc == 0);
@@ -545,11 +546,10 @@ void cfm_op(int nr)
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_cobfid_map_container_enum(&cfm_global_map, container_id_in,
 					  &cfm_iter, &cfm_dbtx);
-	printf("\nENI : TID : %d ",nr);
 	C2_UT_ASSERT(rc == 0);
 	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out,
-					     &fid_out[rec_nr],
-					     &cob_fid_out[rec_nr])) == 0) {
+					     &fid_out[tid][rec_nr],
+					     &cob_fid_out[tid][rec_nr])) == 0) {
 		rec_nr++;
 	}
 	c2_cobfid_map_iter_fini(&cfm_iter);
@@ -562,18 +562,14 @@ void cfm_op(int nr)
            corresponding out counterparts. Also check the cid array in case
            of map enumeration*/
         for (i = 0; i < rec_total; i++) {
-                C2_UT_ASSERT(c2_fid_eq(&fid_in[i],
-                                       &fid_out[rec_total - 1 - i]));
-                C2_UT_ASSERT(c2_uint128_eq(&cob_fid_in[i],
-                                           &cob_fid_out[rec_total - 1 - i]));
+                C2_UT_ASSERT(c2_fid_eq(&fid_in[tid][i],
+                                       &fid_out[tid][rec_total - 1 - i]));
+                C2_UT_ASSERT(c2_uint128_eq(&cob_fid_in[tid][i],
+                             &cob_fid_out[tid][rec_total - 1 - i]));
         }
 
-        c2_free(fid_in);
-        c2_free(cob_fid_in);
-        c2_free(fid_out);
-        c2_free(cob_fid_out);
-
-	printf("\nnr = %d\n", nr);
+        c2_free(fid_in[tid]);
+        c2_free(cob_fid_in[tid]);
 }
 
 /* Test concurrent operation across multiple threads for a cobfid_map */
@@ -582,12 +578,14 @@ void test_cfm_concurrency(void)
 	int			  i;
 	int			  rc;
 	int			  rec_nr;
+	int			  tid;
+	int			  tid_rec_nr;
 	struct c2_thread	 *cfm_thread;
 	struct c2_cobfid_map_iter cfm_iter;
 	struct c2_db_tx		  cfm_dbtx;
-	uint64_t		  cid_out;
-	struct c2_uint128         cob_fid_out;
-	struct c2_fid             fid_out;
+	uint64_t		  cid;
+	struct c2_uint128         cob_fid;
+	struct c2_fid             fid;
 
 	/* Reset any existing database */
 	rc = c2_ut_db_reset(concurrency_test_map);
@@ -621,21 +619,33 @@ void test_cfm_concurrency(void)
 	c2_free(cfm_thread);
 	c2_mutex_fini(&cfm_global_mutex);
 
-
 	/* Map enumeration for records inserted by above threads */
         rc = c2_db_tx_init(&cfm_dbtx, &cfm_global_dbenv, 0);
         C2_UT_ASSERT(rc == 0);
 
 	rc = c2_cobfid_map_enum(&cfm_global_map, &cfm_iter, &cfm_dbtx);
 	C2_UT_ASSERT(rc == 0);
-	while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
-					&cid_out,
-					&fid_out,
-					&cob_fid_out)) == 0) {
-		printf("\nENUM : cid : %lu fid : %lu cob_fid : %lu",
-			cid_out, fid_out.f_key,
-			cob_fid_out.u_lo);
+
+	rec_nr = 0;
+	tid = 0;
+	tid_rec_nr = 0;
+	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &cid, &fid,
+					     &cob_fid)) == 0) {
+		printf("\nENUM : TID : %d cid : %lu fid : %lu cob_fid : %lu",
+			tid, cid, fid.f_key, cob_fid.u_lo);
+
+                C2_UT_ASSERT(c2_fid_eq(&fid_out[tid][tid_rec_nr], &fid));
+                C2_UT_ASSERT(c2_uint128_eq(&cob_fid_out[tid][tid_rec_nr],
+                             &cob_fid));
+		C2_UT_ASSERT(C2_3WAY(cid, 400 + tid == 0));
 		rec_nr++;
+		tid_rec_nr++;
+		if (tid_rec_nr == MULTIPLE_BUF_REC_NR) {
+		       c2_free(fid_out[tid]);
+		       c2_free(cob_fid_out[tid]);
+		       tid++;	
+		       tid_rec_nr = 0;
+		}
 	}
 	C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
 	C2_UT_ASSERT(rc == -ENOENT);
