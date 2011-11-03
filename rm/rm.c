@@ -350,7 +350,7 @@ int right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src)
    Check for existing pins for same right and then add pin to
    incoming request for corresponding right.
  */
-static void pin_check_and_add(struct c2_rm_incoming *in,
+static int pin_check_and_add(struct c2_rm_incoming *in,
 			      struct c2_rm_right *right)
 {
 	struct c2_rm_pin *pin;
@@ -361,15 +361,17 @@ static void pin_check_and_add(struct c2_rm_incoming *in,
 		if (!c2_list_contains(&right->ri_pins,
 				      &pin->rp_right_linkage)) {
 			result = pin_add(in, right);
-			C2_ASSERT(result == 0);
+			if (result != 0)
+				return result;
 		}
 	}
+	return 0;
 }
 
 /**
    Applies universal policies
  */
-static void apply_policy(struct c2_rm_incoming *in)
+static int apply_policy(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_rm_right *right;
@@ -407,13 +409,20 @@ static void apply_policy(struct c2_rm_incoming *in)
 		 * to requested right.
 		 */
 		C2_ALLOC_PTR(loan);
-		C2_ASSERT(loan != NULL);
+		if (loan == NULL)
+			return -ENOMEM;
 		incoming_release(in);
 		c2_rm_right_init(&loan->rl_right);
 		result = right_copy(&loan->rl_right, &in->rin_want);
-		C2_ASSERT(result == 0);
+		if (result != 0) {
+			c2_free(loan);
+			return result;
+		}
 		result = pin_add(in, &loan->rl_right);
-		C2_ASSERT(result == 0);
+		if (result != 0) {
+			c2_free(loan);
+			return result;
+		}
 		c2_list_add(&owner->ro_owned[OWOS_CACHED],
 			    &loan->rl_right.ri_linkage);
 		break;
@@ -451,10 +460,16 @@ static void apply_policy(struct c2_rm_incoming *in)
 		 */
 		c2_list_for_each_entry(&owner->ro_owned[OWOS_CACHED], right,
 				       struct c2_rm_right, ri_linkage) {
-			if (right->ri_ops->rro_intersects(right, &in->rin_want))
-				pin_check_and_add(in, right);
+			if (right->ri_ops->rro_intersects(right,
+							  &in->rin_want)) {
+				result = pin_check_and_add(in, right);
+				if (result != 0)
+					return result;
+			}
 		}
 	}
+
+	return 0;
 }
 
 int c2_rm_db_service_query(const char *name, struct c2_rm_remote *rem)
@@ -1066,7 +1081,9 @@ static void incoming_check(struct c2_rm_incoming *in)
 			 * held).
 			 * Apply the policy.
 			 */
-			apply_policy(in);
+			result = apply_policy(in);
+			if (result != 0)
+				goto error;
 			switch (in->rin_type) {
 			case RIT_LOAN:
 				move_to_sublet(in);
@@ -1126,8 +1143,7 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 {
 	struct c2_rm_right *right;
 	struct c2_rm_owner *o = in->rin_owner;
-	bool		    track_local = false;
-	bool		    coverage = false;
+	bool		    coverage;
 	int		    i;
 	int		    result;
 
@@ -1135,18 +1151,18 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	C2_PRE(in->rin_state == RI_CHECK);
 
 	/*
-	 * If track_local is true, a check must be made for locally possessed
-	 * rights conflicting with the wanted right.
+	 * Only continue this function, when a check must be made for locally
+	 * possessed rights conflicting with the wanted right.
 	 *
-	 * Typically, track_local is true for a remote request (loan or
+	 * Typically, this check is needed for a remote request (loan or
 	 * revoke), because the local rights have to be released before the
-	 * request can be fulfilled. For a local request track_local can also
+	 * request can be fulfilled. For a local request, this check can also
 	 * be true, depending on the policy.
 	 */
-	if (in->rin_type != RIT_LOCAL ||
-	    in->rin_policy == RIP_INPLACE ||
-	    in->rin_flags & RIF_LOCAL_WAIT)
-		track_local = true;
+	if (in->rin_type == RIT_LOCAL ||
+	    in->rin_policy != RIP_INPLACE ||
+	    !(in->rin_flags & RIF_LOCAL_WAIT))
+	    	return;
 	/*
 	 * If coverage is true, the loop below pins some collection of locally
 	 * possessed rights which together imply (i.e., cover) the wanted
@@ -1156,18 +1172,15 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	 * Typically, revoke and loan requests have coverage set to true, and
 	 * local requests have coverage set to false.
 	 */
-	if (in->rin_type != RIT_LOCAL)
-		coverage = true;
-
-	if (!track_local)
-		return;
+	coverage = in->rin_type != RIT_LOCAL;
 
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
 		c2_list_for_each_entry(&o->ro_owned[i], right,
 				       struct c2_rm_right, ri_linkage) {
 			if (rest->ri_ops->rro_intersects(right, rest)) {
 				result = pin_add(in, right);
-				C2_ASSERT(result == 0);
+				if (result != 0)
+					return;
 				if (coverage) {
 					rest->ri_ops->rro_diff(rest, right);
 					if (right_is_empty(rest))
