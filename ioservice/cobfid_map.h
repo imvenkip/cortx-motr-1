@@ -47,6 +47,7 @@
    valid in Colibri:
 @code
 struct c2_dbenv mydbenv;
+struct c2_db_tx mydbtx;
 struct c2_addb_ctx myaddb_ctx;
 struct c2_cobfid_map mymap;
 struct c2_cobfid_map_iter myiter;
@@ -60,14 +61,16 @@ struct c2_uint128 cob_fid;
 // create or open the map
 rc = c2_cobfid_map_init(&mymap, &mydbenv, &myaddb_ctx, "mycobfidmapname");
 
+// initialize mydbtx
+
 // insert records
-rc = c2_cobfid_map_add(&mymap, container_id, file_fid, cob_fid);
+rc = c2_cobfid_map_add(&mymap, container_id, file_fid, cob_fid, &mydbtx);
 ...
 
 // enumerate
-rc = c2_cobfid_map_container_enum(&mymap, container_id, &myiter);
-while ((rc = c2_cobfid_map_iter_next(&myiter,&container_id,&file_fid,&cob_fid))
-       == 0) {
+rc = c2_cobfid_map_container_enum(&mymap, container_id, &myiter, &mydbtx);
+while ((rc = c2_cobfid_map_iter_next(&myiter,&container_id,&file_fid,&cob_fid,
+		&mydbtx)) == 0) {
 	// process record
 }
 // cleanup
