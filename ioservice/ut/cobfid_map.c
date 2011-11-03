@@ -644,9 +644,10 @@ void test_cfm_concurrency(void)
 
         /* Check if number of records enumerated is same as number of records
            inserted */
-        //C2_UT_ASSERT(rec_nr == rec_total);
+        C2_UT_ASSERT(rec_nr == CFM_THREAD_NR * MULTIPLE_BUF_REC_NR);
 
 	c2_cobfid_map_fini(&cfm_global_map);
+	c2_db_tx_commit(&cfm_dbtx);
 	c2_dbenv_fini(&cfm_global_dbenv);
 
 	rc = c2_ut_db_reset(concurrency_test_map);
