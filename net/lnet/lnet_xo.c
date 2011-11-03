@@ -20,36 +20,35 @@
  */
 
 /**
-   @page KLNet LNet Kernel Transport Detailed Level Design
+   @page LNetDLD LNet Transport DLD
 
-   - @ref KLNet-ovw
-   - @ref KLNet-def
-   - @ref KLNet-req
-   - @ref KLNet-depends
-   - @ref KLNet-highlights
-   - @subpage KLNet-fspec "Functional Specification" <!-- ext link -->
-      - @ref LNetDFS "Consumer Interfaces"           <!-- ext link -->
-      - @ref KLNetCore "Core Interfaces"             <!-- ext link -->
-      - @ref KLNetIDFS "Internal Interfaces"         <!-- int link -->
-   - @ref KLNet-lspec
-      - @ref KLNet-lspec-comps
-      - @ref KLNet-lspec-state
-      - @ref KLNet-lspec-thread
-      - @ref KLNet-lspec-numa
-   - @ref KLNet-conformance
-   - @ref KLNet-ut
-   - @ref KLNet-st
-   - @ref KLNet-O
-   - @ref KLNet-ref
+   - @ref LNetDLD-ovw
+   - @ref LNetDLD-def
+   - @ref LNetDLD-req
+   - @ref LNetDLD-depends
+   - @ref LNetDLD-highlights
+   - @subpage LNetDLD-fspec "Functional Specification" <!-- ext link -->
+      - @ref LNetDFS "External Interfaces"           <!-- ext link -->
+      - @ref LNetIDFS "Internal Interfaces"         <!-- int link -->
+   - @ref LNetDLD-lspec
+      - @ref LNetDLD-lspec-comps
+      - @ref LNetDLD-lspec-state
+      - @ref LNetDLD-lspec-thread
+      - @ref LNetDLD-lspec-numa
+   - @ref LNetDLD-conformance
+   - @ref LNetDLD-ut
+   - @ref LNetDLD-st
+   - @ref LNetDLD-O
+   - @ref LNetDLD-ref
 
    <hr>
-   @section KLNet-ovw Overview
+   @section LNetDLD-ovw Overview
    <i>All specifications must start with an Overview section that
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
 
    <hr>
-   @section KLNet-def Definitions
+   @section LNetDLD-def Definitions
    <i>Mandatory.
    The DLD shall provide definitions of the terms and concepts
    introduced by the design, as well as the relevant terms used by the
@@ -62,72 +61,56 @@
    New terms:
 
    <hr>
-   @section KLNet-req Requirements
+   @section LNetDLD-req Requirements
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
    - <b>r.c2.net.xprt.lnet.transport-variable</b> The implementation
-     shall name the transport variable as specified in this document.
+     shall name the transport variable as specified in the HLD.
+
+   - <b>r.c2.net.lnet.buffer-registration</b> Provide support for
+     hardware optimization through buffer pre-registration.
 
    - <b>r.c2.net.xprt.lnet.end-point-address</b> The implementation
      should support the mapping of end point address to LNet address
-     as described in Mapping of Endpoint Address to LNet Address,
-     including the reservation of a portion of the match bit space in
-     which to encode the transfer machine identifier.
+     as described in the Refinement section of the HLD.
 
-   - <b>r.c2.net.xprt.support-for-auto-provisioned-receive-queue</b>
-     The implementation should follow the strategy outlined in Automatic
-     provisioning of receive buffers. It should also follow the
-     serialization model outlined in Concurrency control.
+   - <b>r.c2.net.xprt.lnet.multiple-messages-in-buffer</b> Provide
+     support for this feature as described in the HLD.
 
-   - <b>r.c2.net.xprt.lnet.multiple-messages-in-buffer</b>
-      - Add a nb_min_receive_size field to struct c2_net_buffer.
-      - Document the behavioral change of the receive message callback.
-      - Provide a mechanism for the transport to indicate that the
-        C2_NET_BUF_QUEUED flag should not be cleared by the
-        c2_net_buffer_event_post subroutine.
-      - Modify all existing usage to set the nb_min_receive_size field
-        to the buffer length.
-
-   - <b>r.c2.net.xprt.lnet.efficient-user-to-kernel-comm</b> The
-     implementation should follow the strategies recommended in
-     Efficient communication between user and kernel spaces, including
-     the creation of a private device driver to facilitate such
-     communication.
-
-   - <b>r.c2.net.xprt.lnet.cleanup-on-process-termination</b> The
-     implementation should release all kernel resources held by a
-     process using the LNet transport when that process terminates.
-
-   - <b>r.c2.net.xprt.lnet.dynamic-address-assignment</b> The
-     implementation may support dynamic assignment of transfer machine
-     identifier using the strategy outlined in Mapping of Endpoint
-     Address to LNet Address. We recommend that the implementation
-     dynamically assign transfer machine identifiers from higher
-     numbers downward to reduce the chance of conflicting with
-     well-known transfer machine identifiers.
+   - <b>r.c2.net.xprt.lnet.dynamic-address-assignment</b> Provide
+     support for dynamic address assignment as described in the HLD.
 
    - <b>r.c2.net.xprt.lnet.processor-affinity</b> The implementation
-     must provide support for this feature, as outlined in Processor
-     affinity for transfer machines.  The implementation will need to
-     define an additional transport operation to convey this request
-     to the transport. Availability may vary by kernel or user space.
+     must support processor affinity as described in the HLD.
+
+   - <b>r.c2.net.xprt.lnet.user-space</b> The implementation must
+   accommodate the needs of the user space LNet transport.
 
    <hr>
-   @section KLNet-depends Dependencies
+   @section LNetDLD-depends Dependencies
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
+   - @ref LNetCore "LNet Transport Core Interfaces"
+   - The processor API and control over thread affinity to processor.
+   - The circular buffer API.
+
    <hr>
-   @section KLNet-highlights Design Highlights
+   @section LNetDLD-highlights Design Highlights
    <i>Mandatory. This section briefly summarizes the key design
    decisions that are important for understanding the functional and
    logical specifications, and enumerates topics that need special
    attention.</i>
 
+   - Common user and kernel space implementation over an underlying "Core" I/O
+     layer.
+   - Handles I/O flow control
+   - Provides processor affinity
+
 
    <hr>
-   @section KLNet-lspec Logical Specification
+   @section LNetDLD-lspec Logical Specification
    <i>Mandatory.  This section describes the internal design of the component,
    explaining how the functional specification is met.  Sub-components and
    diagrams of their interaction should go into this section.  The section has
@@ -136,66 +119,76 @@
    if there is significant additional sub-sectioning, provide a table of
    contents here.</i>
 
-   - @ref KLNet-lspec-comps
-   - @ref KLNet-lspec-state
-   - @ref KLNet-lspec-thread
-   - @ref KLNet-lspec-numa
+   - @ref LNetDLD-lspec-comps
+   - @ref LNetDLD-lspec-state
+   - @ref LNetDLD-lspec-thread
+   - @ref LNetDLD-lspec-numa
 
-   @subsection KLNet-lspec-comps Component Overview
+   @subsection LNetDLD-lspec-comps Component Overview
    <i>Mandatory.
    This section describes the internal logical decomposition.
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
+   The focus of the LNet transport is the implementation of the asynchronous
+   semantics required by the Colibri Networking layer.  I/O is performed by an
+   underlying "core" layer, which does the actual interaction with the Lustre
+   LNet kernel module.  The core layer permits the LNet transport code to be
+   written in an address space agnostic fashion, as it offers the same
+   interface in both user and kernel space.
 
-   @subsection KLNet-lspec-state State Specification
+
+   @subsection LNetDLD-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
 
-   @subsection KLNet-lspec-thread Threading and Concurrency Model
+   @subsection LNetDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
    This section describes the threading and concurrency model.
    It describes the various asynchronous threads of operation, identifies
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   @subsection KLNet-lspec-numa NUMA optimizations
+   @subsection LNetDLD-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
    This section describes if optimal behavior can be supported by
    associating the utilizing thread to a single processor.</i>
 
    <hr>
-   @section KLNet-conformance Conformance
+   @section LNetDLD-conformance Conformance
    <i>Mandatory.
-   This section cites each requirement in the @ref KLNet-req section,
-   and explains briefly how the KLNet meets the requirement.</i>
+   This section cites each requirement in the @ref LNetDLD-req section,
+   and explains briefly how the LNet meets the requirement.</i>
 
    <hr>
-   @section KLNet-ut Unit Tests
+   @section LNetDLD-ut Unit Tests
    <i>Mandatory. This section describes the unit tests that will be designed.
    </i>
 
 
    <hr>
-   @section KLNet-st System Tests
+   @section LNetDLD-st System Tests
    <i>Mandatory.
    This section describes the system testing done, if applicable.</i>
 
    <hr>
-   @section KLNet-O Analysis
+   @section LNetDLD-O Analysis
    <i>This section estimates the performance of the component, in terms of
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
    <hr>
-   @section KLNet-ref References
+   @section LNetDLD-ref References
    <i>Mandatory. Provide references to other documents and components that
    are cited or used in the design.
    In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - @subpage KLNetCoreDLD "LNet Transport Core Kernel DLD"
+   - @subpage ULNetCoreDLD "LNet Transport Core Userspace DLD"
+
 
  */
 
@@ -205,10 +198,10 @@
  ******************************************************************************
  */
 
-#include "net/lnet/linux_kernel/klnet_core.h"
+#include "net/lnet/lnet_core.h"
 
 /**
-   @defgroup KLNetIDFS LNet Kernel Transport Internal Interfaces
+   @defgroup LNetIDFS LNet Transport Internal Interfaces
    @ingroup LNetDFS
    @{
 */
@@ -272,7 +265,7 @@ static int lnet_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
 }
 
-static const struct c2_net_xprt_ops klnet_xo_xprt_ops = {
+static const struct c2_net_xprt_ops lnet_xo_xprt_ops = {
 	.xo_dom_init                    = lnet_xo_dom_init,
 	.xo_dom_fini                    = lnet_xo_dom_fini,
 	.xo_get_max_buffer_size         = lnet_xo_get_max_buffer_size,
@@ -290,12 +283,12 @@ static const struct c2_net_xprt_ops klnet_xo_xprt_ops = {
 };
 
 /**
-   @} KLNetIDFS
+   @} LNetIDFS
 */
 
 struct c2_net_xprt c2_net_lnet_xprt = {
 	.nx_name = "lnet",
-	.nx_ops  = &klnet_xo_xprt_ops
+	.nx_ops  = &lnet_xo_xprt_ops
 };
 C2_EXPORTED(c2_net_lnet_xprt);
 
