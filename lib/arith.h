@@ -204,7 +204,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 /* __COLIBRI_LIB_ARITH_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
