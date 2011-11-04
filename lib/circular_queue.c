@@ -131,7 +131,7 @@
        node [shape=plaintext];
        "application array";
        node [shape=record];
-       array1 [label="<f0> |<f1> x|<f2> x|<f3> x|<f4> x|<f5> |<f6> | "];
+       array1 [label="<f0> y|<f1> x|<f2> x|<f3> x|<f4> x|<f5> |<f6> | "];
        "application array" -> array1 [style=invis];
    }
    struct1:f0 -> array1:f1;
@@ -139,17 +139,19 @@
    }
    @enddot
 
-   The slots starting from @c cq_divider up to but not including
-   @c cq_last contain data to be consumed (those slots marked with "x" in the
+   The slots starting from @c cq_divider up to but not including @c cq_last
+   contain data to be consumed (those slots marked with "x" in the
    diagram).  So, @c cq_divider follows @c cq_last around the circular
    queue.  When @c cq_divider is the same as @c cq_last, the queue is
    empty.  Because the queue is circular, the index value of @c cq_last can
    be less than the value of @c cq_divider (i.e. the index values wrap
-   around).  Note that there must always be one unused slot in the
-   queue. The producer cannot use the final slot between @c cq_last
-   (wrapped around) and @c cq_divider, because if it did, producing that
-   slot would result in incrementing @c cq_last so that it would be equal
-   to @c cq_divider, which denotes an empty, not a full, queue.
+   around).  Note that there must always be one slot before cq_divider and
+   after cq_last in the queue. The producer cannot use the final slot
+   between @c cq_last (wrapped around) and @c cq_divider, because if it
+   did, producing that slot would result in incrementing @c cq_last so that
+   it would be equal to @c cq_divider, which denotes an empty, not a full,
+   queue.  Also, this slot, slot "y" in the diagram, is the index of the slot
+   most recently consumed by the consumer, as discussed further below.
 
    The slot index denoted by @c cq_last is returned by
    @c c2_circular_queue_next as long as the queue is not full.  This allows
@@ -160,8 +162,11 @@
    This call also increments @c cq_last.
 
    The consumer uses @c c2_circular_queue_consume to get the next available
-   slot containing data in FIFO order.  Consuming a slot increments
-   @c cq_divider.
+   slot containing data in FIFO order.  Consuming a slot increments @c
+   cq_divider.  After incrementing, the consumer "owns" the slot returned,
+   slot "y" in the diagram.  The consumer owns this slot until it calls
+   @c c2_circular_queue_consume again, at which time ownership reverts to the
+   queue and can be reused by the producer.
 
    @subsection circular_queueDLD-lspec-state State Specification
    <i>Mandatory.

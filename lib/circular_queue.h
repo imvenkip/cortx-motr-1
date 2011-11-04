@@ -77,6 +77,57 @@
    };
    @endcode
 
+   In addition, semaphores or other synchronization mechanisms can be used to
+   notify the producer or consumer when the queue changes, eg. when it becomes
+   not empty or not full.
+
+   @subsection cq-init Initialisation
+
+   The circular queue is initialised as follows:
+
+   @code
+   struct event_queue myqueue;
+
+   c2_circular_queue_init(&myqueue, EVENT_QUEUE_NR);
+   @endcode
+
+   @subsection cq-producer Producer
+
+   A producer works in a loop, adding data to the queue:
+
+   @code
+   bool done;
+   ssize_t i;
+   while (!done) {
+       i = c2_circular_queue_next(&myqueue);
+       if (i == -ENOENT) {
+           // block until space is available
+       } else {
+           eq_event[i] = ...;
+	   c2_circular_queue_produce(&myqueue);
+	   // notify blocked consumer that data is available
+       }
+   }
+   @endcode
+
+   @subsection cq-consumer Consumer
+
+   A consumer works in a loop, consuming data from the queue:
+
+   @code
+   bool done;
+   ssize_t i;
+   while (!done) {
+       i = c2_circular_queue_consume(&myqueue);
+       if (i == -ENOENT) {
+           // block until data is available
+       } else {
+           ... = eq_event[i];
+	   // notify blocked producer that space is available
+       }
+   }
+   @endcode
+
    @see @ref circular_queue "Detailed Functional Specification"
  */
 
