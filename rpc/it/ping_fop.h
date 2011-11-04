@@ -21,17 +21,10 @@
 #define __COLIBRI_PING_FOP_H__
 
 #include "fop/fop.h"
+#include "rpc/rpc_opcodes.h"
 
 int c2_ping_fop_init(void);
 void c2_ping_fop_fini(void);
-
-/**
- * The opcode from which IO service FOPS start.
- */
-enum c2_fop_ping_opcodes {
-	c2_fop_ping_opcode = 59,
-	c2_fop_ping_rep_opcode,
-};
 
 /**
  * FOP definitions and corresponding fop type formats

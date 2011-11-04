@@ -24,6 +24,7 @@
 
 #include "fop/fop.h"
 #include "fop/fom.h"
+#include "rpc/rpc_opcodes.h"
 
 /**
    @addtogroup rpc_session
@@ -33,18 +34,6 @@
    Declarations of all the fops belonging to rpc-session module along with
    associated item types.
  */
-
-enum c2_rpc_session_opcodes {
-	C2_RPC_FOP_CONN_ESTABLISH_OPCODE = 50,
-	C2_RPC_FOP_CONN_TERMINATE_OPCODE,
-	C2_RPC_FOP_SESSION_ESTABLISH_OPCODE,
-	C2_RPC_FOP_SESSION_TERMINATE_OPCODE,
-	C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
-	C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
-	C2_RPC_FOP_SESSION_ESTABLISH_REP_OPCODE,
-	C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
-	C2_RPC_FOP_NOOP
-};
 
 extern const struct c2_fop_type_ops c2_rpc_fop_conn_establish_ops;
 extern const struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops;

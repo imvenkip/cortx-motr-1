@@ -44,6 +44,7 @@
 #include "stob/ad.h"
 #include "colibri/init.h"
 #include "rpc/rpccore.h"
+#include "rpc/rpc_opcodes.h"
 
 #include "io_fop.h"
 #include "io_u.h"

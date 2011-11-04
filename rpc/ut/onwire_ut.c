@@ -36,6 +36,7 @@
 #include "rpc/session_internal.h"
 #include "rpc/rpc_base.h"
 #include "lib/ut.h"
+#include "rpc/rpc_opcodes.h"
 
 extern struct c2_fop_type_format c2_fop_onwire_test_tfmt;
 extern struct c2_fop_type_format c2_fop_onwire_test_arr_tfmt;
@@ -68,8 +69,9 @@ const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
 	.rito_item_size = c2_rpc_item_fop_default_size
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops, 20,
-		    C2_RPC_ITEM_TYPE_REQUEST, &c2_rpc_item_test_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
+		    C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
+		    &c2_rpc_item_test_ops);
 
 static struct c2_verno verno = {
 	.vn_lsn = 1111,

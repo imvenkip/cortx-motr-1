@@ -64,6 +64,7 @@
 
 #include "reqh/ut/fom_io.ff"
 #include "reqh/reqh_fops.ff"
+#include "rpc/rpc_opcodes.h"
 
 /**
    @addtogroup reqh
@@ -265,87 +266,35 @@ static const struct c2_fop_type_ops reqh_ut_read_rep_fop_ops = {
 };
 
 /**
- * Fop opcodes
- */
-enum reply_fop {
-	CREATE_REQ = 40,
-	WRITE_REQ,
-	READ_REQ,
-	CREATE_REP = 43,
-	WRITE_REP,
-	READ_REP
-};
-#if 0
-/**
-   Item type declartaions
- */
-
-static struct c2_rpc_item_type reqh_ut_create_rpc_item_type = {
-        .rit_opcode = CREATE_REQ,
-        .rit_ops = &reqh_ut_create_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-static struct c2_rpc_item_type reqh_ut_write_rpc_item_type = {
-        .rit_opcode = WRITE_REQ,
-        .rit_ops = &reqh_ut_write_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-static struct c2_rpc_item_type reqh_ut_read_rpc_item_type = {
-        .rit_opcode = READ_REQ,
-        .rit_ops = &reqh_ut_read_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-/**
-   Reply rpc item type
- */
-static struct c2_rpc_item_type reqh_ut_create_rep_rpc_item_type = {
-        .rit_opcode = CREATE_REP,
-        .rit_ops = &reqh_ut_create_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-
-static struct c2_rpc_item_type reqh_ut_write_rep_rpc_item_type = {
-        .rit_opcode = WRITE_REP,
-        .rit_ops = &reqh_ut_write_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-
-static struct c2_rpc_item_type reqh_ut_read_rep_rpc_item_type = {
-        .rit_opcode = READ_REP,
-        .rit_ops = &reqh_ut_read_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-#endif
-/**
  * Fop type declarations for corresponding fops
  */
 
 C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create, "reqh_ut_create",
-		      &reqh_ut_create_fop_ops, CREATE_REQ,
+		      &reqh_ut_create_fop_ops, C2_REQH_UT_CREATE_REQ_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		      &reqh_ut_create_rpc_item_type_ops);
 C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write, "reqh_ut_write",
-		      &reqh_ut_write_fop_ops, WRITE_REQ,
+		      &reqh_ut_write_fop_ops, C2_REQH_UT_WRITE_REQ_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		      &reqh_ut_write_rpc_item_type_ops);
 C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read, "reqh_ut_read",
-		      &reqh_ut_read_fop_ops, READ_REQ,
+		      &reqh_ut_read_fop_ops, C2_REQH_UT_READ_REQ_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		      &reqh_ut_read_rpc_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create_rep, "reqh_ut_create reply",
-		      &reqh_ut_create_rep_fop_ops, CREATE_REP,
+		      &reqh_ut_create_rep_fop_ops,
+		      C2_REQH_UT_CREATE_REPLY_OPCODE,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &reqh_ut_create_rep_rpc_item_type_ops);
 C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write_rep, "reqh_ut_write reply",
-		      &reqh_ut_write_rep_fop_ops, WRITE_REP,
+		      &reqh_ut_write_rep_fop_ops,
+		      C2_REQH_UT_WRITE_REPLY_OPCODE,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &reqh_ut_write_rep_rpc_item_type_ops);
 C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read_rep, "reqh_ut_read reply",
-		      &reqh_ut_read_rep_fop_ops, READ_REP,
+		      &reqh_ut_read_rep_fop_ops,
+		      C2_REQH_UT_READ_REPLY_OPCODE,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &reqh_ut_read_rep_rpc_item_type_ops);
 
@@ -449,9 +398,9 @@ static struct c2_fom_type *reqh_ut_fom_types[] = {
  */
 static struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_UT_ASSERT(IS_IN_ARRAY((code - CREATE_REQ), reqh_ut_fom_types));
+	C2_UT_ASSERT(IS_IN_ARRAY((code - C2_REQH_UT_CREATE_REQ_OPCODE), reqh_ut_fom_types));
 
-	return reqh_ut_fom_types[code - CREATE_REQ];
+	return reqh_ut_fom_types[code - C2_REQH_UT_CREATE_REQ_OPCODE];
 }
 
 /**
@@ -689,7 +638,7 @@ static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		return -EINVAL;
 
 	switch (fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode) {
-	case CREATE_REQ: {
+	case C2_REQH_UT_CREATE_REQ_OPCODE: {
 		struct reqh_ut_fom_io_create *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -697,7 +646,7 @@ static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		iloc = oid;
 		break;
 	}
-	case WRITE_REQ: {
+	case C2_REQH_UT_WRITE_REQ_OPCODE: {
 		struct reqh_ut_fom_io_read *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -705,7 +654,7 @@ static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		iloc = oid;
 		break;
 	}
-	case READ_REQ: {
+	case C2_REQH_UT_READ_REQ_OPCODE: {
 		struct reqh_ut_fom_io_write *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -732,7 +681,7 @@ static int reqh_ut_create_fom_state(struct c2_fom *fom)
 	struct c2_fop                           *fop;
 	int                                      result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode == CREATE_REQ);
+	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode == C2_REQH_UT_CREATE_REQ_OPCODE);
 
 	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (fom->fo_phase < FOPH_NR) {
@@ -786,7 +735,8 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result;
 
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode == READ_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	       C2_REQH_UT_READ_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
         stio = &fom_obj->rh_ut_stio;
@@ -895,7 +845,8 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result;
 
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode == WRITE_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	       C2_REQH_UT_WRITE_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
         stio = &fom_obj->rh_ut_stio;

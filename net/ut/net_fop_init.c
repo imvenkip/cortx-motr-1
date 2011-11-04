@@ -24,6 +24,7 @@
 #include "lib/cdefs.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+#include "rpc/rpc_opcodes.h"
 
 #include "net_u.h"
 #include "net_fop.h"
@@ -35,7 +36,8 @@ static struct c2_fop_type_ops nettest_ops = {
 	.fto_execute = nettest_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_nettest, "nettest", &nettest_ops, 13, 0, NULL);
+C2_FOP_TYPE_DECLARE(c2_nettest, "nettest", &nettest_ops, C2_NET_TEST_OPCODE,
+		   0, NULL);
 
 
 static struct c2_fop_type *net_ut_fops[] = {

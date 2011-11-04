@@ -139,7 +139,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	int                                   rc;
 
 	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
-	C2_PRE(item_type->rit_opcode == C2_RPC_FOP_CONN_ESTABLISH_OPCODE);
+	C2_PRE(item_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE);
 
 	*item = NULL;
 
@@ -192,25 +192,25 @@ static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_establish, "rpc_conn_establish",
 		      &default_fop_type_ops,
-		      C2_RPC_FOP_CONN_ESTABLISH_OPCODE,
+		      C2_RPC_CONN_ESTABLISH_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		      &conn_establish_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_terminate, "rpc_conn_terminate",
 		      &default_fop_type_ops,
-		      C2_RPC_FOP_CONN_TERMINATE_OPCODE,
+		      C2_RPC_CONN_TERMINATE_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		      &c2_rpc_fop_default_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_establish, "rpc_session_establish",
 		      &default_fop_type_ops,
-		      C2_RPC_FOP_SESSION_ESTABLISH_OPCODE,
+		      C2_RPC_SESSION_ESTABLISH_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		      &c2_rpc_fop_default_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_terminate, "rpc_session_terminate",
 		      &default_fop_type_ops,
-		      C2_RPC_FOP_SESSION_TERMINATE_OPCODE,
+		      C2_RPC_SESSION_TERMINATE_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		      &c2_rpc_fop_default_item_type_ops);
 
@@ -220,33 +220,33 @@ C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_terminate, "rpc_session_terminate",
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_establish_rep, "rpc_conn_establish_reply",
 		      &default_reply_fop_type_ops,
-		      C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
+		      C2_RPC_CONN_ESTABLISH_REP_OPCODE,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &c2_rpc_fop_default_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_terminate_rep, "rpc_conn_terminate_reply",
 	              &default_reply_fop_type_ops,
-		      C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
+		      C2_RPC_CONN_TERMINATE_REP_OPCODE,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &c2_rpc_fop_default_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_establish_rep,
 		      "rpc_session_establish_reply",
 		      &default_reply_fop_type_ops,
-		      C2_RPC_FOP_SESSION_ESTABLISH_REP_OPCODE,
+		      C2_RPC_SESSION_ESTABLISH_REP_OPCODE,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &c2_rpc_fop_default_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_terminate_rep,
 		     "rpc_session_terminate_reply",
 		     &default_reply_fop_type_ops,
-		     C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
+		     C2_RPC_SESSION_TERMINATE_REP_OPCODE,
 		     C2_RPC_ITEM_TYPE_REPLY,
 		     &c2_rpc_fop_default_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_noop, "NOOP",
 		      &c2_rpc_fop_noop_ops,
-		      C2_RPC_FOP_NOOP,
+		      C2_RPC_NOOP_OPCODE,
 		      C2_RPC_ITEM_TYPE_REQUEST,
 		      &c2_rpc_fop_default_item_type_ops);
 

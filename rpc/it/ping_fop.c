@@ -97,12 +97,12 @@ struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
 
+#if 0
 struct c2_rpc_item_type c2_rpc_item_type_ping = {
 	.rit_opcode = c2_fop_ping_opcode,
         .rit_ops = &rpc_item_ping_type_ops,
@@ -114,15 +114,15 @@ struct c2_rpc_item_type c2_rpc_item_type_ping_rep = {
         .rit_ops = &rpc_item_ping_rep_type_ops,
 	.rit_flags = C2_RPC_ITEM_TYPE_REPLY
 };
-
+#endif
 /* Ping fop assignment */
 C2_FOP_TYPE_DECLARE(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
-		    c2_fop_ping_opcode,
+		    C2_RPC_PING_OPCODE,
 		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
 		    &rpc_item_ping_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
-                    c2_fop_ping_rep_opcode, C2_RPC_ITEM_TYPE_REPLY,
+                    C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
 		    &rpc_item_ping_rep_type_ops);
 
 static struct c2_fop_type_format *fmts[] = {
