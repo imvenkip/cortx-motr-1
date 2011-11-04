@@ -32,7 +32,6 @@
 #include "sm/sm.h"
 
 /* import */
-struct c2_sm;
 struct c2_dtx;
 struct c2_chan;
 struct c2_diovec;
@@ -683,10 +682,6 @@ struct c2_stob_io {
 	   of time.
 	 */
 	uint32_t                    si_stob_magic;
-	/**
-	   IO operation is a state machine, see State diagram for adieu.
-	 */
-	struct c2_sm                si_mach;
 };
 
 struct c2_stob_io_op {

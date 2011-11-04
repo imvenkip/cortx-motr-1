@@ -55,7 +55,7 @@
 
    @todo Have a generic mechanism to generate unique cob domain id.
  */
-static int cdom_id;
+static int cdom_id = 1001;
 
 /**
    Magic used to check consistency of cs_reqh_context.

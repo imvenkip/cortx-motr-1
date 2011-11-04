@@ -572,6 +572,7 @@ AC_CONFIG_FILES([
 		 rpc/linux_kernel/Makefile
 		 rpc/it/linux_kernel/Makefile
                  sm/Makefile
+                 sm/ut/Makefile
                  sm/linux_kernel/Makefile
                  sns/Makefile
                  sns/linux_kernel/Makefile

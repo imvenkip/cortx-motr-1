@@ -24,7 +24,8 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "dtm/dtm.h"      /* c2_dtx */
+#include "lib/misc.h"     /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/types.h"
 #include "lib/arith.h"    /* min_check, c2_is_po2 */

@@ -39,7 +39,7 @@ SUBDIR_IT = rpc/it
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
             fol/ut sns/ut desim/ut cob/ut net/ut net/bulk_emulation/ut \
-            udb/ut capa/ut reqh/ut rpc/ut xcode/ut xdr/ut colibri/ut
+            udb/ut capa/ut reqh/ut rpc/ut sm/ut xcode/ut xdr/ut colibri/ut
 SUBDIR_ST = net/st net/bulk_emulation/st
 
 SUBDIR_UB =
