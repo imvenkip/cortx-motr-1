@@ -66,7 +66,9 @@
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   They should be expressed in a list, thusly:
+   - <b>r.c2.lib.atomic.interoperable-kernel-user-support</b> The
+   implementation shall provide a queue that supports atomic,
+   interoperable kernel to user-space sharing.
 
    <hr>
    @section circular_queueDLD-depends Dependencies
@@ -102,7 +104,6 @@
    - @ref circular_queueDLD-lspec-thread
    - @ref circular_queueDLD-lspec-numa
 
-
    @subsection circular_queueDLD-lspec-comps Component Overview
    <i>Mandatory.
    This section describes the internal logical decomposition.
@@ -111,8 +112,9 @@
 
    The circular queue is a FIFO queue of a fixed size.  The implementation
    maintains slot indexes for the consumer and producer, and operations for
-   incrementing these indexes.  The application manages the memory containing
-   the queue itself (an array, given that the queue is slot index based).
+   accessing and incrementing these indexes.  The application manages the
+   memory containing the queue itself (an array, given that the queue is
+   slot index based).
 
    @dot
    digraph {
@@ -137,7 +139,7 @@
    }
    @enddot
 
-   The slots starting from @c cq_divider up to, but not including
+   The slots starting from @c cq_divider up to but not including
    @c cq_last contain data to be consumed (those slots marked with "x" in the
    diagram).  So, @c cq_divider follows @c cq_last around the circular
    queue.  When @c cq_divider is the same as @c cq_last, the queue is
@@ -150,12 +152,12 @@
    to @c cq_divider, which denotes an empty, not a full, queue.
 
    The slot index denoted by @c cq_last is returned by
-   @c c2_circular_queue_next as along as the queue is not full.  This allows
+   @c c2_circular_queue_next as long as the queue is not full.  This allows
    the producer to determine the next available slot index and populate the
    application array slot itself with the data to be produced.  Once the
    array slot contains the data, the producer then calls
-   @c c2_circular_queue_produce to make that slot available to the consumer
-   and incrementing @c cq_last.
+   @c c2_circular_queue_produce to make that slot available to the consumer.
+   This call also increments @c cq_last.
 
    The consumer uses @c c2_circular_queue_consume to get the next available
    slot containing data in FIFO order.  Consuming a slot increments
@@ -165,6 +167,8 @@
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
+
+   None.
 
    @subsection circular_queueDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
@@ -184,11 +188,20 @@
    This section describes if optimal behavior can be supported by
    associating the utilizing thread to a single processor.</i>
 
+   None.
+
    <hr>
    @section circular_queueDLD-conformance Conformance
    <i>Mandatory.
    This section cites each requirement in the @ref circular_queueDLD-req
    section, and explains briefly how the DLD meets the requirement.</i>
+
+   - <b>r.c2.lib.atomic.interoperable-kernel-user-support</b> The use of
+   indexes instead of pointers allows a queue and its associated memory
+   slots to be placed in shared memory, accessible to both a user-space
+   process and the kernel.  The atomic operations allow the FIFO to be
+   produced and consumed simultaneously in both spaces without
+   synchronization or context switches.
 
    <hr>
    @section circular_queueDLD-ut Unit Tests
@@ -215,6 +228,10 @@
    <i>This section estimates the performance of the component, in terms of
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
+
+   The circular queue (the struct c2_circular_queue) consumes fixed size
+   memory, independent of the size of the array representing the queue's data.
+   Operations on the queue are O(1) complexity.
 
    <hr>
    @section circular_queueDLD-ref References
