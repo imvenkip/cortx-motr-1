@@ -55,8 +55,8 @@ static const char concurrency_test_map[] = "./cfm_map_concurrency_test";
    etype    : Enumeration type (either map or container)
    check_persistence : Flag to check the database persistence
  */
-static void enumerate_generic(int rec_total, const char *map_path, int etype,
-			      bool check_persistence)
+static void enumerate_generic(const int rec_total, const char *map_path,
+			      const int etype, const bool check_persistence)
 {
 	int			 i;
 	int			 j;
@@ -224,7 +224,7 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 }
 
 /* Container enumeration - single buffer fetch by iterator */
-void ce_single_buf(void)
+static void ce_single_buf(void)
 {
 	/* Do not check database persistence */
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_cont_enum_path,
@@ -235,7 +235,7 @@ void ce_single_buf(void)
 }
 
 /* Container enumeration - multiple buffer fetches by iterator */
-void ce_multiple_buf(void)
+static void ce_multiple_buf(void)
 {
 	/* Do not check database persistence */
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_cont_enum_path,
@@ -246,7 +246,7 @@ void ce_multiple_buf(void)
 }
 
 /* Map enumeration - single buffer fetch by iterator */
-void me_single_buf(void)
+static void me_single_buf(void)
 {
 	/* Do not check database persistence */
 	enumerate_generic(SINGLE_BUF_REC_NR, single_buf_map_enum_path,
@@ -257,7 +257,7 @@ void me_single_buf(void)
 }
 
 /* Map enumeration - multiple buffer fetches by iterator */
-void me_multiple_buf(void)
+static void me_multiple_buf(void)
 {
 	/* Do not check database persistence */
 	enumerate_generic(MULTIPLE_BUF_REC_NR, multiple_buf_map_enum_path,
@@ -269,7 +269,7 @@ void me_multiple_buf(void)
 
 /* Iterator sensitivity - test to ensure that an iterator behaves correctly
    when records are inserted during its use. */
-void test_iter_sensitivity(void)
+static void test_iter_sensitivity(void)
 {
 	int			 rc;
 	uint64_t		 container_id_in;
@@ -449,23 +449,23 @@ enum {
 	CFM_THREAD_NR = 41,
 };
 
-struct c2_mutex		 cfm_global_mutex;
-struct c2_dbenv		 cfm_global_dbenv;
-struct c2_cobfid_map	 cfm_global_map;
-struct c2_addb_ctx	 cfm_global_addb_ctx;
-struct c2_fid           *fid_in[CFM_THREAD_NR];
-struct c2_fid           *fid_out[CFM_THREAD_NR];
-struct c2_uint128       *cob_fid_in[CFM_THREAD_NR];
-struct c2_uint128       *cob_fid_out[CFM_THREAD_NR];
+static struct c2_mutex		 cfm_global_mutex;
+static struct c2_dbenv		 cfm_global_dbenv;
+static struct c2_cobfid_map	 cfm_global_map;
+static struct c2_addb_ctx	 cfm_global_addb_ctx;
+static struct c2_fid		*fid_in[CFM_THREAD_NR];
+static struct c2_fid		*fid_out[CFM_THREAD_NR];
+static struct c2_uint128	*cob_fid_in[CFM_THREAD_NR];
+static struct c2_uint128	*cob_fid_out[CFM_THREAD_NR];
 
 /* Container id is function of thread id, implemented for uniqueness */
-static uint64_t get_cid(int tid)
+static uint64_t get_cid(const int tid)
 {
 	return 954 + tid;
 }
 
 /* Function to add and enumerate a container */
-void cfm_op(int tid)
+static void cfm_op(const int tid)
 {
 	int			 i;
 	int			 j;
@@ -557,7 +557,7 @@ void cfm_op(int tid)
 }
 
 /* Test concurrent operation across multiple threads for a cobfid_map */
-void test_cfm_concurrency(void)
+static void test_cfm_concurrency(void)
 {
 	int			  i;
 	int			  rc;
