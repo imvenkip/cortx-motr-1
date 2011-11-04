@@ -70,8 +70,7 @@ void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 {
 	c2_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
-	dom_tlink_init(dom);
-	dom_tlist_add_tail(&t->st_domains, dom);
+	dom_tlink_init_at_tail(dom, &t->st_domains);
 	c2_addb_ctx_init(&dom->sd_addb, &c2_stob_domain_addb, &t->st_addb);
 }
 
@@ -79,7 +78,7 @@ void c2_stob_domain_fini(struct c2_stob_domain *dom)
 {
 	c2_addb_ctx_fini(&dom->sd_addb);
 	c2_rwlock_fini(&dom->sd_guard);
-	dom_tlist_del(dom);
+	dom_tlink_del_fini(dom);
 	dom->sd_magic = 0;
 }
 

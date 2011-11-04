@@ -245,8 +245,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 				stob->so_op = &linux_stob_op;
 				lstob->sl_fd = -1;
 				c2_stob_init(stob, id, dom);
-				ls_tlink_init(lstob);
-				ls_tlist_add(&ldom->sdl_object, lstob);
+				ls_tlink_init_at(lstob, &ldom->sdl_object);
 			} else {
 				c2_free(lstob);
 				lstob = ghost;
@@ -309,8 +308,7 @@ static void linux_stob_fini(struct c2_stob *stob)
 		close(lstob->sl_fd);
 		lstob->sl_fd = -1;
 	}
-	ls_tlist_del(lstob);
-	ls_tlink_fini(lstob);
+	ls_tlink_del_fini(lstob);
 	c2_stob_fini(&lstob->sl_stob);
 	c2_free(lstob);
 }

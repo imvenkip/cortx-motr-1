@@ -82,7 +82,7 @@ static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 		ext = cl_tlist_head(&c->cl_write_ext);
 		/* no real cache management for now */
 		C2_ASSERT(ext->cwe_count == size);
-		cl_tlist_del(ext);
+		cl_tlink_del_fini(ext);
 		sim_log(s, SLL_TRACE, "P%2i/%2i: %6lu %10llu %8u\n", c->cl_id,
 			c->cl_inflight, c->cl_fid, ext->cwe_offset, size);
 		c->cl_io += size;
@@ -121,8 +121,7 @@ static void client_write_loop(struct sim *s, struct sim_thread *t, void *arg)
 		ext = sim_alloc(sizeof *ext);
 		ext->cwe_offset = off;
 		ext->cwe_count  = count;
-		cl_tlink_init(ext);
-		cl_tlist_add_tail(&cl->cl_write_ext, ext);
+		cl_tlink_init_at_tail(ext, &cl->cl_write_ext);
 		cl->cl_cached += count;
 		cl->cl_dirty  += count;
 		sim_chan_broadcast(&cl->cl_cache_busy);

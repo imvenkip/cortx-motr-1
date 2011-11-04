@@ -318,8 +318,7 @@ static int ad_domain_stob_find(struct c2_stob_domain *dom,
 				stob = &astob->as_stob;
 				stob->so_op = &ad_stob_op;
 				c2_stob_init(stob, id, dom);
-				ad_tlink_init(astob);
-				ad_tlist_add(&adom->ad_object, astob);
+				ad_tlink_init_at(astob, &adom->ad_object);
 			} else {
 				c2_free(astob);
 				astob = ghost;
@@ -359,8 +358,7 @@ static void ad_stob_fini(struct c2_stob *stob)
 	struct ad_stob *astob;
 
 	astob = stob2ad(stob);
-	ad_tlist_del(astob);
-	ad_tlink_fini(astob);
+	ad_tlink_del_fini(astob);
 	c2_stob_fini(&astob->as_stob);
 	c2_free(astob);
 }
