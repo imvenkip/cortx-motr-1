@@ -157,12 +157,25 @@ PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
 	return result != 0;
 }
 
+PREFIX bool c2_atomic64_cas(int64_t *loc, int64_t old, int64_t new)
+{
+	int64_t val;
+
+	C2_CASSERT(8 == sizeof old);
+
+	asm volatile("lock cmpxchgq %2,%1"
+		     : "=a" (val), "+m" (*(volatile long *)(loc))
+		     : "r" (new), "0" (old)
+		     : "memory");
+	return val == old;
+}
+
 /** @} end of atomic group */
 
 /* __COLIBRI_LIB_USER_X86_64_ATOMIC_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

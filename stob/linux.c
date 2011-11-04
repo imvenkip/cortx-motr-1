@@ -22,6 +22,7 @@
 #endif
 
 #include <stdio.h>
+#include <unistd.h>                    /* close */
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
