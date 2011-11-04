@@ -37,7 +37,16 @@
    @{
  */
 
-static bool ktable_invariant_locked(struct c2_table *t, 
+C2_TL_DESCR_DECLARE(txw, );
+C2_TL_DECLARE(txw, , struct c2_db_tx_waiter);
+
+C2_TL_DESCR_DEFINE(pair, "(key, rec) pairs",
+		   static, struct c2_db_kpair, dk_linkage, dk_magix,
+		   0x50c1a112ede1ffe1 /* socialized eiffel */,
+		   0x0551f1edca5cade5 /* ossified cascades */);
+C2_TL_DEFINE(pair, static, struct c2_db_kpair);
+
+static bool ktable_invariant_locked(struct c2_table *t,
 				    struct c2_table_impl *ti);
 static bool ktable_invariant(struct c2_table *t);
 
@@ -60,21 +69,16 @@ int c2_dbenv_sync(struct c2_dbenv *env)
 }
 C2_EXPORTED(c2_dbenv_sync);
 
-int c2_table_init(struct c2_table *table, struct c2_dbenv *env, 
-		  const char *name, uint64_t flags, 
+int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
+		  const char *name, uint64_t flags,
 		  const struct c2_table_ops *ops)
 {
 	c2_table_common_init(table, env, ops);
-	c2_list_init(&table->t_i.tk_pair);
+	pair_tlist_init(&table->t_i.tk_pair);
 	c2_mutex_init(&table->t_i.tk_lock);
 	return 0;
 }
 C2_EXPORTED(c2_table_init);
-
-static struct c2_db_kpair *kpair_extract(void *link)
-{
-	return container_of(link, struct c2_db_kpair, dk_linkage);
-}
 
 void c2_table_fini(struct c2_table *table)
 {
@@ -82,12 +86,11 @@ void c2_table_fini(struct c2_table *table)
 
 	C2_ASSERT(ktable_invariant(table));
 
-	while (!c2_list_is_empty(&table->t_i.tk_pair)) {
-		kpair = kpair_extract(&table->t_i.tk_pair.l_head);
-		c2_list_del(&kpair->dk_linkage);
+	c2_tlist_for(&pair_tl, &table->t_i.tk_pair, kpair) {
+		pair_tlink_del_fini(kpair);
 		c2_free(kpair);
-	}
-	c2_list_fini(&table->t_i.tk_pair);
+	} c2_tlist_endfor;
+	pair_tlist_fini(&table->t_i.tk_pair);
 	c2_mutex_fini(&table->t_i.tk_lock);
 	c2_table_common_fini(table);
 }
@@ -96,7 +99,7 @@ C2_EXPORTED(c2_table_fini);
 int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 {
 	c2_db_common_tx_init(tx, env);
-	c2_list_init(&tx->dt_waiters);
+	txw_tlist_init(&tx->dt_waiters);
 	return 0;
 }
 C2_EXPORTED(c2_db_tx_init);
@@ -107,13 +110,11 @@ int c2_db_tx_commit(struct c2_db_tx *tx)
 	struct c2_dbenv        *env;
 
 	env = tx->dt_env;
-	while (!c2_list_is_empty(&tx->dt_waiters)) {
-		w = container_of(tx->dt_waiters.l_head, struct c2_db_tx_waiter,
-				 tw_tx);
-		c2_list_del(&w->tw_tx);
+	c2_tlist_for(&txw_tl, &tx->dt_waiters, w) {
+		txw_tlist_del(w);
 		w->tw_commit(w);
 		w->tw_done(w);
-	}
+	} c2_tlist_endfor;
 	c2_db_common_tx_fini(tx);
 	return 0;
 }
@@ -127,7 +128,7 @@ C2_EXPORTED(c2_db_tx_abort);
 
 void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
 {
-	c2_list_add(&tx->dt_waiters, &w->tw_tx);
+	txw_tlist_add(&tx->dt_waiters, w);
 }
 C2_EXPORTED(c2_db_tx_waiter_add);
 
@@ -156,8 +157,7 @@ static struct c2_db_kpair *ktable_lookup(struct c2_db_pair *pair, int *out)
 	C2_PRE(c2_mutex_is_locked(&ti->tk_lock));
 
 	*out = -ENOENT;
-	c2_list_for_each_entry(&ti->tk_pair, scan, struct c2_db_kpair,
-			       dk_linkage) {
+	c2_tlist_for(&pair_tl, &ti->tk_pair, scan) {
 		switch (key_cmp(t, &scan->dk_key, &pair->dp_key.db_buf)) {
 		case -1:
 			continue;
@@ -167,7 +167,7 @@ static struct c2_db_kpair *ktable_lookup(struct c2_db_pair *pair, int *out)
 		default:
 			break;
 		}
-	}
+	} c2_tlist_endfor;
 	return scan;
 }
 
@@ -239,7 +239,7 @@ static void pair_unlock(struct c2_db_pair *pair)
 	c2_mutex_unlock(&pair->dp_table->t_i.tk_lock);
 }
 
-static struct c2_list *pair_list(struct c2_db_pair *pair)
+static struct c2_tl *pair_list(struct c2_db_pair *pair)
 {
 	return &pair->dp_table->t_i.tk_pair;
 }
@@ -257,9 +257,8 @@ int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
 		pair_lock(pair);
 		kpair = ktable_lookup(pair, &result);
 		if (result == 0) {
-			c2_list_add_after(&kpair->dk_linkage, 
-					  &replacement->dk_linkage);
-			c2_list_del(&kpair->dk_linkage);
+			pair_tlist_add_after(kpair, replacement);
+			pair_tlink_del_fini(kpair);
 			c2_free(kpair);
 		} else
 			c2_free(replacement);
@@ -287,8 +286,7 @@ int table_insert(struct c2_db_pair *pair, struct c2_db_kpair **kpair_out)
 		pair_lock(pair);
 		kpair = ktable_lookup(pair, &out);
 		if (out == -ENOENT) {
-			c2_list_add_before(&kpair->dk_linkage, 
-					   &newkp->dk_linkage);
+			pair_tlist_add_before(kpair, newkp);
 			*kpair_out = newkp;
 			result = 0;
 		} else {
@@ -336,7 +334,7 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	pair_lock(pair);
 	kpair = ktable_lookup(pair, &result);
 	if (result == 0) {
-		c2_list_del(&kpair->dk_linkage);
+		pair_tlink_del_fini(kpair);
 		c2_free(kpair);
 	}
 	pair_unlock(pair);
@@ -380,6 +378,7 @@ int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	struct c2_db_cursor_impl *ci;
 	int                       result;
+	struct c2_db_kpair       *next;
 
 	C2_PRE(cursor->c_table == pair->dp_table);
 	C2_ASSERT(ktable_invariant(pair->dp_table));
@@ -390,11 +389,11 @@ int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 		result = -EINVAL;
 	else {
 		pair_lock(pair);
-		if (&ci->ck_current->dk_linkage == pair_list(pair)->l_tail)
+		next = pair_tlist_next(pair_list(pair), ci->ck_current);
+		if (next == NULL)
 			result = -ENOENT;
 		else {
-			ci->ck_current = kpair_extract
-				(ci->ck_current->dk_linkage.ll_next);
+			ci->ck_current = next;
 			result = kpair_copyout(ci->ck_current, pair);
 		}
 		pair_unlock(pair);
@@ -407,6 +406,7 @@ int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	struct c2_db_cursor_impl *ci;
 	int                       result;
+	struct c2_db_kpair       *prev;
 
 	C2_PRE(cursor->c_table == pair->dp_table);
 	C2_ASSERT(ktable_invariant(pair->dp_table));
@@ -417,11 +417,11 @@ int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 		result = -EINVAL;
 	else {
 		pair_lock(pair);
-		if (&ci->ck_current->dk_linkage == pair_list(pair)->l_head)
+		prev = pair_tlist_prev(pair_list(pair), ci->ck_current);
+		if (prev == NULL)
 			result = -ENOENT;
 		else {
-			ci->ck_current = kpair_extract
-				(ci->ck_current->dk_linkage.ll_prev);
+			ci->ck_current = prev;
 			result = kpair_copyout(ci->ck_current, pair);
 		}
 		pair_unlock(pair);
@@ -433,8 +433,9 @@ C2_EXPORTED(c2_db_cursor_prev);
 int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	struct c2_db_cursor_impl *ci;
-	struct c2_list           *pl;
+	struct c2_tl             *pl;
 	int                       result;
+	struct c2_db_kpair       *first;
 
 	C2_PRE(cursor->c_table == pair->dp_table);
 	C2_ASSERT(ktable_invariant(pair->dp_table));
@@ -443,10 +444,11 @@ int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	pl = pair_list(pair);
 
 	pair_lock(pair);
-	if (c2_list_is_empty(pl))
+	first = pair_tlist_head(pl);
+	if (first == NULL)
 		result = -ENOENT;
 	else {
-		ci->ck_current = kpair_extract(pl->l_head);
+		ci->ck_current = first;
 		kpair_copyout(ci->ck_current, pair);
 		result = 0;
 	}
@@ -458,8 +460,9 @@ C2_EXPORTED(c2_db_cursor_first);
 int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	struct c2_db_cursor_impl *ci;
-	struct c2_list           *pl;
+	struct c2_tl             *pl;
 	int                       result;
+	struct c2_db_kpair       *last;
 
 	C2_PRE(cursor->c_table == pair->dp_table);
 	C2_ASSERT(ktable_invariant(pair->dp_table));
@@ -468,10 +471,11 @@ int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	pl = pair_list(pair);
 
 	pair_lock(pair);
-	if (c2_list_is_empty(pl))
+	last = pair_tlist_tail(pl);
+	if (last == NULL)
 		result = -ENOENT;
 	else {
-		ci->ck_current = kpair_extract(pl->l_tail);
+		ci->ck_current = last;
 		kpair_copyout(ci->ck_current, pair);
 		result = 0;
 	}
@@ -505,8 +509,8 @@ int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	newkp = kpair_alloc(&replacement);
 	if (newkp != NULL) {
 		pair_lock(pair);
-		c2_list_add_after(&cur->dk_linkage, &newkp->dk_linkage);
-		c2_list_del(&cur->dk_linkage);
+		pair_tlist_add_after(cur, newkp);
+		pair_tlink_del_fini(cur);
 		c2_free(cur);
 		ci->ck_current = newkp;
 		pair_unlock(pair);
@@ -541,7 +545,7 @@ int c2_db_cursor_del(struct c2_db_cursor *cursor)
 
 	if (ci->ck_current != NULL) {
 		c2_mutex_lock(&ti->tk_lock);
-		c2_list_del(&ci->ck_current->dk_linkage);
+		pair_tlink_del_fini(ci->ck_current);
 		c2_free(ci->ck_current);
 		ci->ck_current = NULL;
 		c2_mutex_unlock(&ti->tk_lock);
@@ -566,31 +570,30 @@ bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
 	return true;
 }
 
-static bool ktable_invariant_locked(struct c2_table *t, 
+static bool ktable_invariant_locked(struct c2_table *t,
 				    struct c2_table_impl *ti)
 {
-	struct c2_db_kpair   *scan;
-	struct c2_db_kpair   *prev;
+	struct c2_db_kpair *scan;
+	struct c2_db_kpair *prev;
 
 	ti = &t->t_i;
 
-	if (!c2_list_invariant(&ti->tk_pair))
+	if (!c2_tlist_invariant(&pair_tl, &ti->tk_pair))
 		return false;
 
 	prev = NULL;
-	c2_list_for_each_entry(&ti->tk_pair, scan, struct c2_db_kpair,
-			       dk_linkage) {
+	c2_tlist_for(&pair_tl, &ti->tk_pair, scan) {
 		if (scan->dk_key.b_addr != scan + 1)
 			return false;
-		if (scan->dk_rec.b_addr != 
+		if (scan->dk_rec.b_addr !=
 		    scan->dk_key.b_addr + scan->dk_key.b_nob)
 			return false;
 
-		if (prev != NULL && 
+		if (prev != NULL &&
 		    key_cmp(t, &prev->dk_key, &scan->dk_key) != -1)
 			return false;
 		prev = scan;
-	}
+	} c2_tlist_endfor;
 	return true;
 }
 
@@ -598,7 +601,7 @@ static bool ktable_invariant(struct c2_table *t)
 {
 	bool                  result;
 	struct c2_table_impl *ti;
-	
+
 	ti = &t->t_i;
 
 	c2_mutex_lock(&ti->tk_lock);
@@ -609,7 +612,7 @@ static bool ktable_invariant(struct c2_table *t)
 
 /** @} end of db group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
