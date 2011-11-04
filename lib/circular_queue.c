@@ -114,6 +114,53 @@
    incrementing these indexes.  The application manages the memory containing
    the queue itself (an array, given that the queue is slot index based).
 
+   @dot
+   digraph {
+   {
+       rank=same;
+       node [shape=plaintext];
+       c2_circular_queue;
+       node [shape=record];
+       struct1 [label="<f0> cq_divider|<f1> cq_last"];
+   }
+   {
+       rank=same;
+       ordering=out;
+       node [shape=plaintext];
+       "application array";
+       node [shape=record];
+       array1 [label="<f0> |<f1> x|<f2> x|<f3> x|<f4> x|<f5> |<f6> | "];
+       "application array" -> array1 [style=invis];
+   }
+   struct1:f0 -> array1:f1;
+   struct1:f1 -> array1:f5;
+   }
+   @enddot
+
+   The slots starting from @c cq_divider up to, but not including
+   @c cq_last contain data to be consumed (those slots marked with "x" in the
+   diagram).  So, @c cq_divider follows @c cq_last around the circular
+   queue.  When @c cq_divider is the same as @c cq_last, the queue is
+   empty.  Because the queue is circular, the index value of @c cq_last can
+   be less than the value of @c cq_divider (i.e. the index values wrap
+   around).  Note that there must always be one unused slot in the
+   queue. The producer cannot use the final slot between @c cq_last
+   (wrapped around) and @c cq_divider, because if it did, producing that
+   slot would result in incrementing @c cq_last so that it would be equal
+   to @c cq_divider, which denotes an empty, not a full, queue.
+
+   The slot index denoted by @c cq_last is returned by
+   @c c2_circular_queue_next as along as the queue is not full.  This allows
+   the producer to determine the next available slot index and populate the
+   application array slot itself with the data to be produced.  Once the
+   array slot contains the data, the producer then calls
+   @c c2_circular_queue_produce to make that slot available to the consumer
+   and incrementing @c cq_last.
+
+   The consumer uses @c c2_circular_queue_consume to get the next available
+   slot containing data in FIFO order.  Consuming a slot increments
+   @c cq_divider.
+
    @subsection circular_queueDLD-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
@@ -127,7 +174,7 @@
    (such as semaphores, locks, mutexes and condition variables).</i>
 
    A single producer and consumer are supported.  Atomic variables,
-   cq_divider and cq_last, represent the range of slots in the queue
+   @c cq_divider and @c cq_last, represent the range of slots in the queue
    containing data.  Because these indexes are atomic, no locking is needed
    to access them by a single producer and consumer.  Multiple producers
    and/or consumers must synchronize externally.
@@ -140,8 +187,8 @@
    <hr>
    @section circular_queueDLD-conformance Conformance
    <i>Mandatory.
-   This section cites each requirement in the @ref circular_queueDLD-req section,
-   and explains briefly how the DLD meets the requirement.</i>
+   This section cites each requirement in the @ref circular_queueDLD-req
+   section, and explains briefly how the DLD meets the requirement.</i>
 
    <hr>
    @section circular_queueDLD-ut Unit Tests
