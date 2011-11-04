@@ -878,12 +878,12 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
    client=>crpc [ label = "Adds pages to rpc bulk" ];
    crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
    crpc=>crpc [ label = "net buffer enqueued to
-   		C2_NET_QT_PASSIVE_BULK_SEND queue" ];
+		C2_NET_QT_PASSIVE_BULK_SEND queue" ];
    crpc=>srpc [ label = "Sends fop over wire" ];
    srpc=>server [ label = "IO fop submitted to ioservice" ];
    server=>srpc [ label = "Adds pages to rpc bulk" ];
    server=>srpc [ label = "Net buffer enqueued to C2_NET_QT_ACTIVE_BULK_RECV
-   		  queue" ];
+		  queue" ];
    server=>srpc [ label = "Start zero copy" ];
    srpc=>crpc [ label = "Start zero copy" ];
    crpc=>srpc [ label = "Zero copy complete" ];
@@ -911,12 +911,12 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
    client=>crpc [ label = "Adds pages to rpc bulk" ];
    crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
    crpc=>crpc [ label = "net buffer enqueued to
-   		C2_NET_QT_PASSIVE_BULK_RECV queue" ];
+		C2_NET_QT_PASSIVE_BULK_RECV queue" ];
    crpc=>srpc [ label = "Sends fop over wire" ];
    srpc=>server [ label = "IO fop submitted to ioservice" ];
    server=>srpc [ label = "Adds pages to rpc bulk" ];
    server=>srpc [ label = "Net buffer enqueued to C2_NET_QT_ACTIVE_BULK_SEND
-   		  queue" ];
+		  queue" ];
    server=>server [ label = "Dispatch IO request" ];
    server=>server [ label = "IO request complete" ];
    server=>srpc [ label = "Start zero copy" ];
