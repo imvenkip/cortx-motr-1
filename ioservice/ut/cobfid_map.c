@@ -154,7 +154,7 @@ static void enumerate_generic(const int rec_total, const char *map_path,
 
 		/* Initialize the map */
 		rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
-				"cfm_map_table");
+					"cfm_map_table");
 		C2_UT_ASSERT(rc == 0);
 
 	}
@@ -449,14 +449,14 @@ enum {
 	CFM_THREAD_NR = 41,
 };
 
-static struct c2_mutex		 cfm_global_mutex;
-static struct c2_dbenv		 cfm_global_dbenv;
-static struct c2_cobfid_map	 cfm_global_map;
-static struct c2_addb_ctx	 cfm_global_addb_ctx;
-static struct c2_fid		*fid_in[CFM_THREAD_NR];
-static struct c2_fid		*fid_out[CFM_THREAD_NR];
-static struct c2_uint128	*cob_fid_in[CFM_THREAD_NR];
-static struct c2_uint128	*cob_fid_out[CFM_THREAD_NR];
+static struct c2_mutex	    cfm_global_mutex;
+static struct c2_dbenv	    cfm_global_dbenv;
+static struct c2_cobfid_map cfm_global_map;
+static struct c2_addb_ctx   cfm_global_addb_ctx;
+static struct c2_fid	   *fid_in[CFM_THREAD_NR];
+static struct c2_fid	   *fid_out[CFM_THREAD_NR];
+static struct c2_uint128   *cob_fid_in[CFM_THREAD_NR];
+static struct c2_uint128   *cob_fid_out[CFM_THREAD_NR];
 
 /* Container id is function of thread id, implemented for uniqueness */
 static uint64_t get_cid(const int tid)
@@ -625,7 +625,7 @@ static void test_cfm_concurrency(void)
 		   threads has to be in correct order. */
                 C2_UT_ASSERT(c2_fid_eq(&fid_out[tid][tid_rec_nr], &fid));
                 C2_UT_ASSERT(c2_uint128_eq(&cob_fid_out[tid][tid_rec_nr],
-                             &cob_fid));
+					   &cob_fid));
 		C2_UT_ASSERT(C2_3WAY(cid, get_cid(tid) == 0));
 
 		rec_nr++;
