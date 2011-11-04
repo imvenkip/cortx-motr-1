@@ -14,7 +14,8 @@ libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
 				session_foms.c session_foms.h \
 				rpccore.c rpccore.h \
 				formation.h formation.c \
-				rpc_onwire.c rpc_onwire.h
+				rpc_onwire.c rpc_onwire.h \
+				rpc_helper.c rpc_helper.h
 
 
 INCLUDES		= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include

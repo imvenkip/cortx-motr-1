@@ -27,10 +27,10 @@
    @{
  */
 
-#include "lib/list.h"
+#include "lib/tlist.h"
 
 typedef unsigned long long cnt_t;
- 
+
 struct cnt {
 	cnt_t               c_sum;
 	cnt_t               c_min;
@@ -38,11 +38,12 @@ struct cnt {
 	cnt_t               c_nr;
 	double              c_sq;
 	char               *c_name;
-	struct c2_list_link c_linkage;
+	struct c2_tlink     c_linkage;
 	struct cnt         *c_parent;
+	uint64_t            c_magic;
 };
 
-void cnt_init(struct cnt *cnt, struct cnt *parent, const char *name, ...) 
+void cnt_init(struct cnt *cnt, struct cnt *parent, const char *name, ...)
               __attribute__((format(printf, 3, 4)));
 void cnt_fini(struct cnt *cnt);
 void cnt_dump(struct cnt *cnt);
@@ -57,7 +58,7 @@ void cnt_global_fini(void);
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

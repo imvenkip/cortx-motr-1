@@ -48,9 +48,10 @@ void test_trace(void)
 			int j;
 
 			for (j = 0; j < NR_INNER; ++j)
-				C2_TRACE_POINT({ uint32_t c; uint64_t d; }, 
-					       d, d * j); 
+				C2_TRACE_POINT({ uint32_t c; uint64_t d; },
+					       d, d * j);
 						}), i, "test_trace_%i", i);
+		C2_ASSERT(result == 0);
 	}
 	for (i = 0; i < NR; ++i) {
 		c2_thread_join(&t[i]);
@@ -81,30 +82,30 @@ static void ub_64(int i)
 			uint64_t x4;
 			uint64_t x5;
 			uint64_t x6;
-			uint64_t x7; }, i, i + 1, i + 2, i + 3, i + 4, i + 5, 
+			uint64_t x7; }, i, i + 1, i + 2, i + 3, i + 4, i + 5,
 		i + 6, i + 7);
 }
 
 struct c2_ub_set c2_trace_ub = {
 	.us_name = "trace-ub",
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name = "empty",
-		  .ut_iter = UB_ITER, 
+		  .ut_iter = UB_ITER,
 		  .ut_round = ub_empty },
 
 		{ .ut_name = "8",
-		  .ut_iter = UB_ITER, 
+		  .ut_iter = UB_ITER,
 		  .ut_round = ub_8 },
 
 		{ .ut_name = "64",
-		  .ut_iter = UB_ITER, 
+		  .ut_iter = UB_ITER,
 		  .ut_round = ub_64 },
 
 		{ .ut_name = NULL }
 	}
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

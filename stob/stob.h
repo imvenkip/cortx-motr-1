@@ -27,6 +27,7 @@
 #include "lib/vec.h"
 #include "lib/chan.h"
 #include "lib/rwlock.h"
+#include "lib/tlist.h"
 #include "addb/addb.h"
 #include "sm/sm.h"
 
@@ -37,9 +38,6 @@ struct c2_chan;
 struct c2_diovec;
 struct c2_indexvec;
 struct c2_io_scope;
-
-struct c2_list;
-struct c2_list_link;
 
 struct c2_db_tx;
 
@@ -72,7 +70,7 @@ struct c2_stob_type {
 	const struct c2_stob_type_op *st_op;
 	const char                   *st_name;
 	const uint32_t                st_magic;
-	struct c2_list		      st_domains; /**< list of domains */
+	struct c2_tl		      st_domains; /**< list of domains */
 	struct c2_addb_ctx            st_addb;
 };
 
@@ -85,7 +83,7 @@ struct c2_stob_type_op {
 
 	   @return 0 success, any other value means error.
 	*/
-	int (*sto_domain_locate)(struct c2_stob_type *type, 
+	int (*sto_domain_locate)(struct c2_stob_type *type,
 				 const char *domain_name,
 				 struct c2_stob_domain **dom);
 };
@@ -108,10 +106,11 @@ void c2_stob_type_fini(struct c2_stob_type *kind);
 struct c2_stob_domain {
 	const char 		       *sd_name;
 	const struct c2_stob_domain_op *sd_ops;
-	struct c2_stob_type 	       *sd_type;
-	struct c2_list_link	        sd_domain_linkage;
+	struct c2_stob_type            *sd_type;
+	struct c2_tlink                 sd_domain_linkage;
 	struct c2_rwlock                sd_guard;
 	struct c2_addb_ctx              sd_addb;
+	uint64_t                        sd_magic;
 };
 
 /**
@@ -354,7 +353,7 @@ int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
 void c2_stob_get(struct c2_stob *obj);
 
 /**
-   Releases a reference on the object. 
+   Releases a reference on the object.
 
    When the last reference is released, the object can either return to the
    cache or can be immediately destroyed at the storage object type
@@ -503,7 +502,7 @@ void c2_stob_put(struct c2_stob *obj);
                        |  |
      c2_stob_io_init() |  | c2_stob_io_fini()
                        |  |
-                       V  |    
+                       V  |
                      SIS_IDLE
                        |  ^
                        |  |
@@ -549,7 +548,7 @@ enum c2_stob_io_opcode {
 enum c2_stob_io_state {
 	/** State used to detect un-initialised c2_stob_io. */
 	SIS_ZERO = 0,
-	/** 
+	/**
 	    User owns c2_stob_io and data pages. No IO is ongoing.
 	 */
 	SIS_IDLE,
@@ -655,7 +654,7 @@ struct c2_stob_io {
 	struct c2_io_scope         *si_scope;
 	/**
 	   Pointer to implementation private data associated with the IO
-	   operation. 
+	   operation.
 
 	   This pointer is initialized when c2_stob_io is queued for the first
 	   time. When IO completes, the memory allocated by implementation is
@@ -738,7 +737,7 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
    finishes. Because of this no post-conditions for io->si_state are imposed in
    the successful return case.
  */
-int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
+int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
 			struct c2_dtx *tx, struct c2_io_scope *scope);
 
 /**
