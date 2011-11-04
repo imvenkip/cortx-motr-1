@@ -88,7 +88,7 @@
    @code
    struct event_queue myqueue;
 
-   c2_circular_queue_init(&myqueue, EVENT_QUEUE_NR);
+   c2_circular_queue_init(&myqueue.eq_header, EVENT_QUEUE_NR);
    @endcode
 
    @subsection cq-producer Producer
@@ -99,12 +99,12 @@
    bool done;
    ssize_t i;
    while (!done) {
-       i = c2_circular_queue_next(&myqueue);
+       i = c2_circular_queue_next(&myqueue.eq_header);
        if (i == -ENOENT) {
            // block until space is available
        } else {
-           eq_event[i] = ...;
-	   c2_circular_queue_produce(&myqueue);
+           myqueue.eq_event[i] = ...;
+	   c2_circular_queue_produce(&myqueue.eq_header);
 	   // notify blocked consumer that data is available
        }
    }
@@ -118,11 +118,11 @@
    bool done;
    ssize_t i;
    while (!done) {
-       i = c2_circular_queue_consume(&myqueue);
+       i = c2_circular_queue_consume(&myqueue.eq_header);
        if (i == -ENOENT) {
            // block until data is available
        } else {
-           ... = eq_event[i];
+           ... = myqueue.eq_event[i];
 	   // notify blocked producer that space is available
        }
    }

@@ -100,6 +100,7 @@
    contents here.</i>
 
    - @ref circular_queueDLD-lspec-comps
+   - @ref circular_queueDLD-lspec-q
    - @ref circular_queueDLD-lspec-state
    - @ref circular_queueDLD-lspec-thread
    - @ref circular_queueDLD-lspec-numa
@@ -109,6 +110,10 @@
    This section describes the internal logical decomposition.
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
+
+   The circular queue is a single component.
+
+   @subsection circular_queueDLD-lspec-q Logic of the Circular Queue
 
    The circular queue is a FIFO queue of a fixed size.  The implementation
    maintains slot indexes for the consumer and producer, and operations for
@@ -201,7 +206,7 @@
    This section cites each requirement in the @ref circular_queueDLD-req
    section, and explains briefly how the DLD meets the requirement.</i>
 
-   - <b>r.c2.lib.atomic.interoperable-kernel-user-support</b> The use of
+   - <b>i.c2.lib.atomic.interoperable-kernel-user-support</b> The use of
    indexes instead of pointers allows a queue and its associated memory
    slots to be placed in shared memory, accessible to both a user-space
    process and the kernel.  The atomic operations allow the FIFO to be
