@@ -71,7 +71,6 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 	struct c2_uint128	*cob_fid_in;
 	struct c2_uint128	*cob_fid_out;
 	struct c2_dbenv		 cfm_dbenv;
-	struct c2_db_tx		 cfm_dbtx;
 	struct c2_addb_ctx	 cfm_addb_ctx;
 	struct c2_cobfid_map	 cfm_map;
 	struct c2_cobfid_map_iter cfm_iter;
@@ -82,9 +81,6 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 
 	/* Initialise the database with given path */
         rc = c2_dbenv_init(&cfm_dbenv, map_path, 0);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = c2_db_tx_init(&cfm_dbtx, &cfm_dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Initialize the map */
@@ -137,13 +133,11 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 		if (etype == ENUM_MAP) {
 			cid_in[i] = j;
 			rc = c2_cobfid_map_add(&cfm_map, cid_in[i],
-					       fid_in[i], cob_fid_in[i],
-					       &cfm_dbtx);
-		} else {
+					       fid_in[i], cob_fid_in[i]);
+		} else
 			rc = c2_cobfid_map_add(&cfm_map, container_id_in,
-					       fid_in[i], cob_fid_in[i],
-					       &cfm_dbtx);
-		}
+					       fid_in[i], cob_fid_in[i]);
+
 		C2_UT_ASSERT(rc == 0);
 		j--;
 	}
@@ -152,7 +146,6 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 	   and reinitialize to check database persistence */
 	if (check_persistence) {
 		c2_cobfid_map_fini(&cfm_map);
-		c2_db_tx_commit(&cfm_dbtx);
 		c2_dbenv_fini(&cfm_dbenv);
 
 		/* Initialise the database with given path */
@@ -164,15 +157,13 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 				"cfm_map_table");
 		C2_UT_ASSERT(rc == 0);
 
-		rc = c2_db_tx_init(&cfm_dbtx, &cfm_dbenv, 0);
-		C2_UT_ASSERT(rc == 0);
 	}
 
 	rec_nr = 0;
 	/* Container enumeration */
 	if (etype == ENUM_CONTAINER) {
 		rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in,
-						  &cfm_iter, &cfm_dbtx);
+						  &cfm_iter);
 		C2_UT_ASSERT(rc == 0);
 		while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
 						&container_id_out,
@@ -183,7 +174,7 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 		C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
 		C2_UT_ASSERT(rc == -ENOENT);
 	} else if (etype == ENUM_MAP) { /* Map enumeration */
-		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter, &cfm_dbtx);
+		rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
 		C2_UT_ASSERT(rc == 0);
 		while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
 						&cid_out[rec_nr],
@@ -226,7 +217,6 @@ static void enumerate_generic(int rec_total, const char *map_path, int etype,
 	}
 
 	c2_cobfid_map_fini(&cfm_map);
-	c2_db_tx_commit(&cfm_dbtx);
 	c2_dbenv_fini(&cfm_dbenv);
 
 	rc = c2_ut_db_reset(map_path);
@@ -289,7 +279,6 @@ void test_iter_sensitivity(void)
 	struct c2_uint128	 cob_fid_in;
 	struct c2_uint128	 cob_fid_out;
 	struct c2_dbenv		 cfm_dbenv;
-	struct c2_db_tx		 cfm_dbtx;
 	struct c2_addb_ctx	 cfm_addb_ctx;
 	struct c2_cobfid_map	 cfm_map;
 	struct c2_cobfid_map_iter cfm_iter;
@@ -307,10 +296,6 @@ void test_iter_sensitivity(void)
 				"cfm_map_table");
 	C2_UT_ASSERT(rc == 0);
 
-	/* Initialize the transaction */
-	rc = c2_db_tx_init(&cfm_dbtx, &cfm_dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-
 	/* Populate initial key-values */
 	container_id_in = 300;
 	fid_in.f_container = 0;
@@ -319,29 +304,25 @@ void test_iter_sensitivity(void)
 	cob_fid_in.u_lo = 31;
 
 	/* Add31 - add key with fid.f_key = 31 */
-	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
-			       &cfm_dbtx);
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
 	C2_UT_ASSERT(rc == 0);
 
 	fid_in.f_key = 52;
 	cob_fid_in.u_lo = 52;
 
 	/* Add52 - add key with fid.f_key = 52 */
-	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
-			       &cfm_dbtx);
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
 	C2_UT_ASSERT(rc == 0);
 
 	fid_in.f_key = 73;
 	cob_fid_in.u_lo = 73;
 
 	/* Add73 - add key with fid.f_key = 73 */
-	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
-			       &cfm_dbtx);
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Open the iterator */
-	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter,
-					  &cfm_dbtx);
+	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Get31 */
@@ -355,8 +336,7 @@ void test_iter_sensitivity(void)
 	cob_fid_in.u_lo = 94;
 
 	/* Add94 - add key with fid.f_key = 94 */
-	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
-			       &cfm_dbtx);
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Get52 */
@@ -370,8 +350,7 @@ void test_iter_sensitivity(void)
 	cob_fid_in.u_lo = 20;
 
 	/* Add20 - add key with fid.f_key = 20 */
-	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
-			       &cfm_dbtx);
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Get73 */
@@ -385,8 +364,7 @@ void test_iter_sensitivity(void)
 	cob_fid_in.u_lo = 87;
 
 	/* Add87 - add key with fid.f_key = 87 */
-	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in,
-			       &cfm_dbtx);
+	rc = c2_cobfid_map_add(&cfm_map, container_id_in, fid_in, cob_fid_in);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Get87 */
@@ -407,8 +385,7 @@ void test_iter_sensitivity(void)
 	c2_cobfid_map_iter_fini(&cfm_iter);
 
 	/* Open iterator */
-	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter,
-					  &cfm_dbtx);
+	rc = c2_cobfid_map_container_enum(&cfm_map, container_id_in, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Get20 */
@@ -497,7 +474,6 @@ void cfm_op(int tid)
 	int			 rec_total;
         uint64_t                 container_id_in;
         uint64_t                 container_id_out;
-        struct c2_db_tx          cfm_dbtx;
         struct c2_cobfid_map_iter cfm_iter;
 
 	/* Use multiple fetches for iterator */
@@ -534,15 +510,10 @@ void cfm_op(int tid)
 		/* Add to map using serialization */
 		c2_mutex_lock(&cfm_global_mutex);
 
-		rc = c2_db_tx_init(&cfm_dbtx, &cfm_global_dbenv, 0);
-		C2_UT_ASSERT(rc == 0);
-
 		rc = c2_cobfid_map_add(&cfm_global_map, container_id_in,
-				       fid_in[tid][i], cob_fid_in[tid][i],
-				       &cfm_dbtx);
+				       fid_in[tid][i], cob_fid_in[tid][i]);
                 C2_UT_ASSERT(rc == 0);
 
-		c2_db_tx_commit(&cfm_dbtx);
 		c2_mutex_unlock(&cfm_global_mutex);
 
                 j--;
@@ -553,11 +524,8 @@ void cfm_op(int tid)
 	/* Container enumeration for this thread */
 	c2_mutex_lock(&cfm_global_mutex);
 
-	rc = c2_db_tx_init(&cfm_dbtx, &cfm_global_dbenv, 0);
-	C2_UT_ASSERT(rc == 0);
-
 	rc = c2_cobfid_map_container_enum(&cfm_global_map, container_id_in,
-					  &cfm_iter, &cfm_dbtx);
+					  &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	while ((rc = c2_cobfid_map_iter_next(&cfm_iter, &container_id_out,
@@ -567,7 +535,6 @@ void cfm_op(int tid)
 	}
 
 	c2_cobfid_map_iter_fini(&cfm_iter);
-	c2_db_tx_commit(&cfm_dbtx);
 	c2_mutex_unlock(&cfm_global_mutex);
 
 	/* Check if number of records enumerated is same as number of records
@@ -599,7 +566,6 @@ void test_cfm_concurrency(void)
 	int			  tid_rec_nr;
 	struct c2_thread	 *cfm_thread;
 	struct c2_cobfid_map_iter cfm_iter;
-	struct c2_db_tx		  cfm_dbtx;
 	uint64_t		  cid;
 	struct c2_uint128         cob_fid;
 	struct c2_fid             fid;
@@ -637,10 +603,7 @@ void test_cfm_concurrency(void)
 	c2_mutex_fini(&cfm_global_mutex);
 
 	/* Map enumeration for records inserted by above threads */
-        rc = c2_db_tx_init(&cfm_dbtx, &cfm_global_dbenv, 0);
-        C2_UT_ASSERT(rc == 0);
-
-	rc = c2_cobfid_map_enum(&cfm_global_map, &cfm_iter, &cfm_dbtx);
+	rc = c2_cobfid_map_enum(&cfm_global_map, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	rec_nr = 0;
@@ -682,7 +645,6 @@ void test_cfm_concurrency(void)
 
 	/* Cleanup */
 	c2_cobfid_map_fini(&cfm_global_map);
-	c2_db_tx_commit(&cfm_dbtx);
 	c2_dbenv_fini(&cfm_global_dbenv);
 
 	rc = c2_ut_db_reset(concurrency_test_map);
