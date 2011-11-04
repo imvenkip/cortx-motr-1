@@ -130,8 +130,6 @@ struct c2_cobfid_map_iter {
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
 	bool		      cfmi_end_of_table; /**< Indicates end of table */
 	bool		      cfmi_reload; /**< Indicates iterator reload */
-	struct c2_db_cursor   cfmi_db_cursor; /**< DB cursor used by iterator */
-	struct c2_db_tx	      cfmi_db_tx;    /**< DB tx used by iterator  */
 	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
 };

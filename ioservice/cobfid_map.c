@@ -446,6 +446,8 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	struct cobfid_map_key		 last_key;
 	struct c2_uint128		 cob_fid;
 	struct cobfid_map_record	*recs;
+	struct c2_db_cursor		 db_cursor;
+	struct c2_db_tx			 tx;
 
 	C2_PRE(cobfid_map_iter_invariant(iter));
 
@@ -453,19 +455,18 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 
 	cfm = iter->cfmi_cfm;
 
-	rc = c2_db_tx_init(&iter->cfmi_db_tx, cfm->cfm_dbenv, 0);
+	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 				"c2_db_tx_init", rc);
 		return rc;
 	}
 
-	rc = c2_db_cursor_init(&iter->cfmi_db_cursor, &cfm->cfm_table,
-			       &iter->cfmi_db_tx);
+	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_db_cursor_init", rc);
-		c2_db_tx_abort(&iter->cfmi_db_tx);
+		c2_db_tx_abort(&tx);
 		return rc;
 	}
 
@@ -474,7 +475,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	c2_db_pair_setup(&db_pair, &cfm->cfm_table, &last_key,
 			 sizeof(struct cobfid_map_key), NULL, 0);
 
-	rc = c2_db_cursor_last(&iter->cfmi_db_cursor, &db_pair);
+	rc = c2_db_cursor_last(&db_cursor, &db_pair);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_db_cursor_last", rc);
@@ -490,7 +491,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 			sizeof(struct cobfid_map_key),
 			&cob_fid, sizeof(struct c2_uint128));
 
-	rc = c2_db_cursor_get(&iter->cfmi_db_cursor, &db_pair);
+	rc = c2_db_cursor_get(&db_cursor, &db_pair);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 				"c2_db_cursor_get", rc);
@@ -500,7 +501,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	/* Fetch next entry while reloading the iterator. This is needed as
 	   last entries in the iterator are equated to next entries */
 	if (iter->cfmi_reload) {
-		rc = c2_db_cursor_next(&iter->cfmi_db_cursor, &db_pair);
+		rc = c2_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 				    "c2_db_cursor_next", rc);
@@ -535,7 +536,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		/* The call c2_db_cursor_next() breaks if one tries to go
 		   beyond the last record, hence last_key_reached check
 		   is needed */
-		rc = c2_db_cursor_next(&iter->cfmi_db_cursor, &db_pair);
+		rc = c2_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 				    "c2_db_cursor_next", rc);
@@ -546,15 +547,15 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 cleanup:
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
-	c2_db_cursor_fini(&iter->cfmi_db_cursor);
+	c2_db_cursor_fini(&db_cursor);
 
 	if (rc == 0) {
 		iter->cfmi_next_ci = key.cfk_ci;
 		iter->cfmi_next_fid = key.cfk_fid;
-		c2_db_tx_commit(&iter->cfmi_db_tx);
+		c2_db_tx_commit(&tx);
 	} else {
 		iter->cfmi_error = rc;
-		c2_db_tx_abort(&iter->cfmi_db_tx);
+		c2_db_tx_abort(&tx);
 	}
 
 	return rc;
