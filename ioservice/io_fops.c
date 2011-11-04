@@ -237,7 +237,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    of the Functional Specification.</i>
 
    The IO coalescing subsystem from ioservice primarily works on IO segments.
-   IO segments are contiguous chunks of IO data along with extent information. 
+   IO segments are contiguous chunks of IO data along with extent information.
    An internal data structure io_zeroseg represents the IO segment.
    - io_zeroseg An in-memory structure used to represent a segment of IO data.
 
@@ -340,7 +340,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    Boundary condition testing is also included.
    - The c2_io_fop* and c2_rpc_bulk* interfaces will be unit tested
    first in the order
-   	- c2_io_fop_init Check if the inline c2_fop and c2_rpc_bulk are
+	- c2_io_fop_init Check if the inline c2_fop and c2_rpc_bulk are
 	initialized properly.
 	- c2_rpc_bulk_page_add/c2_rpc_bulk_buffer_add to add pages/buffers
 	to the rpc_bulk structure and cross check if they are actually added
@@ -349,7 +349,7 @@ static struct c2_fop_type *ioservice_fops[] = {
 	return proper error code.
 	- Try c2_io_fop_fini to check if an initialized c2_io_fop and
 	the inline c2_rpc_bulk get properly finalized.
-	- Initialize and start a network transport and a transfer machine. 
+	- Initialize and start a network transport and a transfer machine.
 	Invoke c2_rpc_bulk_store on rpc_bulk structure and cross check if
 	the net buffer descriptor is properly populated in the io fop.
 	- Tweak the parameters of transfer machine so that it goes into

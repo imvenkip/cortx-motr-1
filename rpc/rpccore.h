@@ -878,7 +878,7 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
    client=>crpc [ label = "Adds pages to rpc bulk" ];
    crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
    crpc=>crpc [ label = "net buffer enqueued to
-   		    C2_NET_QT_PASSIVE_BULK_SEND queue" ];
+   		C2_NET_QT_PASSIVE_BULK_SEND queue" ];
    crpc=>srpc [ label = "Sends fop over wire" ];
    srpc=>server [ label = "IO fop submitted to ioservice" ];
    server=>srpc [ label = "Adds pages to rpc bulk" ];
@@ -911,7 +911,7 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
    client=>crpc [ label = "Adds pages to rpc bulk" ];
    crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
    crpc=>crpc [ label = "net buffer enqueued to
-   		    C2_NET_QT_PASSIVE_BULK_RECV queue" ];
+   		C2_NET_QT_PASSIVE_BULK_RECV queue" ];
    crpc=>srpc [ label = "Sends fop over wire" ];
    srpc=>server [ label = "IO fop submitted to ioservice" ];
    server=>srpc [ label = "Adds pages to rpc bulk" ];
