@@ -909,6 +909,7 @@ void ping_fini(struct ping_ctx *ctx)
 			c2_bufvec_free(&nb->nb_buffer);
 		}
 		c2_free(ctx->pc_nbs);
+		c2_bitmap_fini(&ctx->pc_nbbm);
 	}
 	if (ctx->pc_dom.nd_xprt != NULL)
 		c2_net_domain_fini(&ctx->pc_dom);

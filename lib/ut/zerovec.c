@@ -31,7 +31,6 @@
 enum ZEROVEC_UT_VALUES {
 	ZEROVEC_UT_SEG_SIZE = 1024,
 	ZEROVEC_UT_SEGS_NR = 10,
-	ZEROVEC_UT_SINGLE_SEG = 1,
 };
 
 static c2_bindex_t indices[ZEROVEC_UT_SEGS_NR];
@@ -89,6 +88,7 @@ static void zerovec_init_bufs(void)
 	uint64_t	  seed;
 	struct c2_0vec	  zvec;
 
+	seed = 0;
 	zerovec_init(&zvec, ZEROVEC_UT_SEG_SIZE);
 
 	C2_ALLOC_ARR(bufs, ZEROVEC_UT_SEGS_NR);
@@ -134,6 +134,7 @@ static void zerovec_init_cbuf(void)
 	struct c2_buf	bufs[ZEROVEC_UT_SEGS_NR];
 	struct c2_0vec	zvec;
 
+	seed = 0;
 	zerovec_init(&zvec, ZEROVEC_UT_SEG_SIZE);
 
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i) {
@@ -158,6 +159,9 @@ static void zerovec_init_cbuf(void)
 	C2_UT_ASSERT(rc == -EMSGSIZE);
 
 	C2_UT_ASSERT(zvec.z_bvec.ov_vec.v_nr == ZEROVEC_UT_SEGS_NR);
+
+	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i)
+		c2_free(bufs[i].b_addr);
 	c2_0vec_free(&zvec);
 }
 
@@ -170,6 +174,7 @@ static void zerovec_init_pages(void)
 	struct page	pages[ZEROVEC_UT_SEGS_NR];
 	struct c2_0vec	zvec;
 
+	seed = 0;
 	zerovec_init(&zvec, PAGE_SIZE);
 
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i) {

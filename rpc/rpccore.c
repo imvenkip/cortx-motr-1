@@ -192,7 +192,8 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	return frm_ubitem_added(item);
+	frm_ubitem_added(item);
+	return 0;
 }
 C2_EXPORTED(c2_rpc_post);
 
@@ -286,7 +287,8 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 	item->ri_state = RPC_ITEM_SUBMITTED;
 
 	item->ri_rpc_time = c2_time_now();
-	return frm_ubitem_added(item);
+	frm_ubitem_added(item);
+	return 0;
 }
 
 int c2_rpc_core_init(void)
@@ -443,7 +445,6 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpcmachine *machine,
 				 struct c2_net_end_point *dest_ep,
 				 uint64_t max_rpcs_in_flight)
 {
-	int			 rc;
 	struct c2_rpc_chan	*chan;
 
 	C2_PRE(machine != NULL);
@@ -452,8 +453,7 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpcmachine *machine,
 
 	chan = rpc_chan_locate(machine, dest_ep);
 	if (chan == NULL)
-		rc = rpc_chan_create(&chan, machine, dest_ep,
-				     max_rpcs_in_flight);
+		rpc_chan_create(&chan, machine, dest_ep, max_rpcs_in_flight);
 	return chan;
 }
 
@@ -822,6 +822,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 		c2_db_tx_abort(&tx);
 		return rc;
 	}
+	c2_cob_put(root_session_cob);
 #endif
 
 	c2_mutex_init(&machine->cr_chan_mutex);

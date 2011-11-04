@@ -1,5 +1,7 @@
 STOB_SRCDIR = @SRCDIR@/stob/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y       := kstob.o
 shared_src  := stob.c
 kernel_src  := kstob.c

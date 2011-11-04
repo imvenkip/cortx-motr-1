@@ -61,6 +61,17 @@ extern void __dummy_function(void);
 	((unsigned long)(idx)) < ARRAY_SIZE(array);	\
 })
 
+/**
+   Produces an expression having the same type as a given field in a given
+   struct or union. Suitable to be used as an argument to sizeof() or typeof().
+ */
+#define C2_FIELD_VALUE(type, field) (((type *)0)->field)
+
+/**
+   True if an expression has a given type.
+ */
+#define C2_HAS_TYPE(expr, type) __builtin_types_compatible_p(typeof(expr), type)
+
 /* __COLIBRI_LIB_CDEFS_H__ */
 #endif
 

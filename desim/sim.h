@@ -57,9 +57,9 @@
 
    struct sim_callout represents a parametrized event scheduled for some future
    time ("callout" is a traditional UNIX name for this).
-   
+
    Sequential threads are simulated with two more data types:
-   
+
    struct sim_thread represents a simulated thread. struct sim_chan represents a
    channel (in UNIX kernel sense) that threads can synchronize on. sim_thread is
    relatively lightweight. Current implementation is based on ucontext_t calls
@@ -94,7 +94,7 @@
 #include <stdarg.h>
 
 #if defined(__APPLE__)
-/* for ucontext: 
+/* for ucontext:
    http://lists.apple.com/archives/darwin-dev/2008/Jan/msg00229.html */
 #define _XOPEN_SOURCE
 #endif
@@ -102,7 +102,7 @@
 #include <stdlib.h>
 #include <ucontext.h>
 
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "desim/cnt.h"
 
 struct sim;
@@ -125,20 +125,21 @@ typedef void sim_func_t(struct sim *, struct sim_thread *, void *);
 struct sim_callout {
 	/** logical time for which the call-out is scheduled */
 	sim_time_t         sc_time;
-	/** 
+	/**
 	 * call-back function to be invoked when the logical time is ripe. If
 	 * call-back function returns true (non-0), main simulation loop frees
 	 * the call-out structure (this is suitable for one-shot call-outs),
 	 * otherwise it is up to the call-out creator to clean up. */
 	sim_call_t         *sc_call;
-	/** 
+	/**
 	 * a datum, opaque for generic simulation code, attached to the
 	 * call-out. This field is for private use by call-back function */
 	void               *sc_datum;
 	/** linkage into a logical time list sim::ss_future */
-	struct c2_list_link sc_linkage;
+	struct c2_tlink     sc_linkage;
 	/** simulation run this call-out is an event in */
 	struct sim         *sc_sim;
+	uint64_t            sc_magic;
 };
 
 /**
@@ -160,11 +161,11 @@ struct sim {
 	 * sim_callout::sc_time field. This list represents of future events,
 	 * still to be executed by the simulation loop.
 	 */
-	struct c2_list      ss_future;
+	struct c2_tl       ss_future;
 };
 
 /**
- * A thread in a simulated world. 
+ * A thread in a simulated world.
  *
  * Conceptually, a thread can always be replaced by a collection of call-outs. A
  * thread is advantageous and natural to use when there is a lot of state to be
@@ -204,21 +205,22 @@ struct sim_thread {
 	void               *st_stack;
 	/** size of allocated stack */
 	unsigned            st_size;
-	/** 
+	/**
 	 * platform-independent structure holding thread machine state
 	 * (registers and signals mask usually) */
 	ucontext_t          st_ctx;
 	/* channel waiting */
 	/** linkage into a sim_chan::ch_threads list */
-	struct c2_list_link st_block;
+	struct c2_tlink     st_block;
 	/**
 	   time when a thread was parked onto a channel. See sim_chan_wait()
 	   comments. */
 	sim_time_t          st_blocked;
-	/** 
+	/**
 	    pre-allocated callout to wake the thread. Used by sim_sleep() and
 	    sim_chan_{signal,broadcast}(). */
 	struct sim_callout  st_wake;
+	uint64_t            st_magic;
 };
 
 /**
@@ -233,8 +235,8 @@ struct sim_thread {
  */
 struct sim_chan {
 	/** list of threads waiting on a channel */
-	struct c2_list      ch_threads;
-	/** 
+	struct c2_tl        ch_threads;
+	/**
 	    statistical counter measuring for how long threads are sleeping on
 	    this channel */
 	struct cnt          ch_cnt_sleep;
@@ -293,7 +295,7 @@ void sim_global_fini(void);
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -84,6 +84,8 @@ static void test_buf_copy(void)
 		}
 
 	}
+	for (i = 0; i < NR_BUFS; ++i)
+		c2_bufvec_free(&bufs[i].nb_buffer);
 }
 
 void tf_tm_cb1(const struct c2_net_tm_event *ev);
@@ -478,6 +480,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
@@ -491,6 +494,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 1);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* TEST
 	   Set up a passive receive buffer in one dom, and
@@ -528,6 +532,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
@@ -541,6 +546,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 1);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* TEST
 	   Set up a passive receive buffer in one dom, and
@@ -578,6 +584,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
@@ -590,6 +597,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d2nb2.nb_desc);
 
 	/* TEST
 	   Setup a passive send buffer and add it. Save the descriptor in the
@@ -621,6 +629,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(cb_status2 == -ECANCELED);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* resubmit */
 	tf_cbreset2();
@@ -657,6 +666,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	c2_net_desc_free(&d1nb1.nb_desc);
 
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
@@ -670,6 +680,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 2);
 	C2_UT_ASSERT(qs.nqs_num_dels == 2);
+	c2_net_desc_free(&d2nb1.nb_desc);
 
 	/* fini */
 	c2_net_buffer_deregister(&d1nb1, &dom1);
@@ -797,6 +808,7 @@ static void test_ping(void)
 	c2_cond_fini(&sctx.pc_cond);
 	c2_mutex_fini(&sctx.pc_mutex);
 	c2_net_xprt_fini(&c2_net_bulk_mem_xprt);
+	c2_free(data);
 }
 
 static void test_tm(void)

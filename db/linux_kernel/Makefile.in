@@ -1,5 +1,7 @@
 DB_SRCDIR = @SRCDIR@/db/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y       := kdb.o
 shared_src  := db_common.c
 kernel_src  := db.c

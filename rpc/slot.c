@@ -56,8 +56,8 @@
 
 extern void item_exit_stats_set(struct c2_rpc_item *item,
 				enum c2_rpc_item_path path);
-extern int frm_item_reply_received(struct c2_rpc_item *reply_item,
-		struct c2_rpc_item *req_item);
+extern void frm_item_reply_received(struct c2_rpc_item *reply_item,
+				    struct c2_rpc_item *req_item);
 
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
@@ -754,12 +754,12 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
 
 	c2_mutex_lock(&machine->cr_session_mutex);
+	found = false;
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
 
 		found = use_uuid ?
-			c2_rpc_sender_uuid_cmp(&conn->c_uuid,
-					       &sref->sr_uuid) == 0 :
-			conn->c_sender_id == sref->sr_sender_id;
+		   c2_rpc_sender_uuid_cmp(&conn->c_uuid, &sref->sr_uuid) == 0 :
+		   conn->c_sender_id == sref->sr_sender_id;
 		if (found)
 			break;
 
@@ -843,7 +843,7 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 		 */
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
-			rc = frm_item_reply_received(item, req);
+			frm_item_reply_received(item, req);
 		}
 
 		if (req != NULL && req->ri_ops != NULL &&

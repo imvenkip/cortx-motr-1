@@ -31,6 +31,7 @@
 
 #include <libaio.h>
 
+#include "lib/tlist.h"
 #include "lib/thread.h"
 #include "stob/stob.h"
 
@@ -75,16 +76,16 @@ struct linux_domain {
 	char             sdl_path[MAXPATHLEN];
 
 	/** List of all existing c2_stob's. */
-	struct c2_list   sdl_object;
+	struct c2_tl     sdl_object;
 
 	/** @name ioq Linux adieu fields. @{ */
 
 	/** Set up when domain is being shut down. adieu worker threads
 	    (ioq_thread()) check this field on each iteration. */
 	bool             ioq_shutdown;
-	/** 
+	/**
 	    Ring buffer shared between adieu and the kernel.
-	    
+
 	    It contains adieu request fragments currently being executed by the
 	    kernel. The kernel delivers AIO completion events through this
 	    buffer. */
@@ -114,7 +115,8 @@ struct linux_stob {
 
 	/** fd from returned open(2) */
 	int                 sl_fd;
-	struct c2_list_link sl_linkage;
+	struct c2_tlink     sl_linkage;
+	uint64_t            sl_magix;
 };
 
 static inline struct linux_stob *stob2linux(struct c2_stob *stob)
@@ -142,7 +144,7 @@ extern struct c2_addb_ctx adieu_addb_ctx;
 /* __COLIBRI_STOB_LINUX_INTERNAL_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

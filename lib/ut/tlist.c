@@ -53,7 +53,7 @@ static const struct c2_tl_descr fl1 = C2_TL_DESCR("other foo-s of bar",
 static const struct c2_tl_descr fl2 = C2_TL_DESCR("unchecked foo-s of bar",
 						  struct foo,
 						  f_linkage2,
-						  f_linkage1, /* sic */
+						  f_magic,
 						  0,
 						  0x0123456789abcdef);
 

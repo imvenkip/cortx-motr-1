@@ -1,5 +1,7 @@
 XCODE_SRCDIR = @SRCDIR@/xcode/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y		:= kxcode.o
 shared_src	:= bufvec_xcode.c bufvec_xcode_fop.c bufvec_xcode_size.c
 kernel_src	:=

@@ -572,6 +572,31 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
 /**
+ * Same as c2_rpc_conn_establish(), but in addition uses c2_rpc_conn_timedwait()
+ * to ensure that connection is in active state after c2_rpc_conn_establish()
+ * call.
+ *
+ * @param conn        A connection object to operate on.
+ * @param timeout_sec How much time in seconds to wait for connection
+ *                    to become active.
+ *
+ * @pre  conn->c_state == C2_RPC_CONN_INITIALISED
+ * @post conn->c_state == C2_RPC_CONN_ACTIVE
+ */
+int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
+
+/**
+ * A combination of c2_rpc_conn_init() and c2_rpc_conn_establish_sync() in a
+ * single routine - initialize connection object, establish a connection and
+ * wait until it become active.
+ */
+int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
+		       struct c2_net_end_point *ep,
+		       struct c2_rpcmachine    *rpc_machine,
+		       uint64_t			max_rpcs_in_flight,
+		       uint32_t			timeout_sec);
+
+/**
    Sends "conn_terminate" FOP to receiver.
    c2_rpc_conn_terminate() is a no-op if @conn is already in TERMINATING
    state.
@@ -585,6 +610,21 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
 /**
+ * Same as c2_rpc_conn_terminate(), but in addition uses c2_rpc_conn_timedwait()
+ * to ensure that connection is in terminated state after c2_rpc_conn_terminate()
+ * call.
+ *
+ * @param conn        A connection object to operate on.
+ * @param timeout_sec How much time in seconds to wait for connection
+ *                    to become terminated.
+ *
+ * @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
+ *       conn->c_state == C2_RPC_CONN_TERMINATING
+ * @post conn->c_state == C2_RPC_CONN_TERMINATED
+ */
+int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
+
+/**
    Finalises c2_rpc_conn.
    No network communication involved.
    @pre conn->c_state == C2_RPC_CONN_FAILED ||
@@ -592,6 +632,13 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 	conn->c_state == C2_RPC_CONN_TERMINATED
  */
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
+
+/**
+ * A combination of c2_rpc_conn_terminate_sync() and c2_rpc_conn_fini() in a
+ * single routine - terminate the connection, wait until it switched to
+ * terminated state and finalize connection object.
+ */
+int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
 
 /**
     Waits until @conn reaches in any one of states specified by @state_flags.
@@ -906,6 +953,31 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
 /**
+ * Same as c2_rpc_session_establish(), but in addition uses
+ * c2_rpc_session_timedwait() to ensure that session is in idle state after
+ * c2_rpc_session_establish() call.
+ *
+ * @param session     A session object to operate on.
+ * @param timeout_sec How much time in seconds to wait for session to become idle.
+ *
+ * @pre  session->s_state == C2_RPC_SESSION_INITIALISED
+ * @pre  session->s_conn->c_state == C2_RPC_CONN_ACTIVE
+ * @post session->s_state == C2_RPC_SESSION_IDLE
+ */
+int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
+				  uint32_t timeout_sec);
+
+/**
+ * A combination of c2_rpc_session_init() and c2_rpc_session_establish_sync() in
+ * a single routine - initialize session object, establish a session and wait
+ * until it become idle.
+ */
+int c2_rpc_session_create(struct c2_rpc_session *session,
+			  struct c2_rpc_conn    *conn,
+			  uint32_t               nr_slots,
+			  uint32_t               timeout_sec);
+
+/**
    Sends terminate session fop to receiver.
    Acts as no-op if session is already in TERMINATING state.
    c2_rpc_session_terminate_reply_received() is called when reply to
@@ -916,6 +988,22 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
    @post ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
+
+/**
+ * Same as c2_rpc_session_terminate(), but in addition uses
+ * c2_rpc_session_timedwait() to ensure that session is in terminated state
+ * after c2_rpc_session_terminate() call.
+ *
+ * @param session     A session object to operate on.
+ * @param timeout_sec How much time in seconds to wait for session to become
+ *                    terminated.
+ *
+ * @pre (session->s_state == C2_RPC_SESSION_IDLE ||
+ *       session->s_state == C2_RPC_SESSION_TERMINATING)
+ * @post session->s_state == C2_RPC_SESSION_TERMINATED
+ */
+int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
+				  uint32_t timeout_sec);
 
 /**
     Waits until @session object reaches in one of states given by @state_flags.
@@ -940,6 +1028,13 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 	session->s_state == C2_RPC_SESSION_INITIALISED
  */
 void c2_rpc_session_fini(struct c2_rpc_session *session);
+
+/**
+ * A combination of c2_rpc_session_terminate_sync() and c2_rpc_session_fini() in
+ * a single routine - terminate the session, wait until it switched to
+ * terminated state and finalize session object.
+ */
+int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec);
 
 /**
    Returns the number of rpc items that can be bound to this slot

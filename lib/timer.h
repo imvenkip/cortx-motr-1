@@ -77,12 +77,10 @@ enum c2_timer_type {
    @param repeat repeat count for this timer.
    @param callback this callback will be triggered whem timer alarms.
    @param data data for the callback.
-
-   @return 0 means success, other values mean error.
  */
-int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t interval, uint64_t repeat,
-		  c2_timer_callback_t callback, unsigned long data);
+void c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
+		   c2_time_t interval, uint64_t repeat,
+		   c2_timer_callback_t callback, unsigned long data);
 
 /**
    Start a timer.
@@ -98,7 +96,12 @@ int c2_timer_start(struct c2_timer *timer);
    @pre c2_timer_init() successfully called.
    @return 0 means success, other values mean error.
  */
-int c2_timer_stop(struct c2_timer *timer);
+void c2_timer_stop(struct c2_timer *timer);
+
+/**
+   Returns true iff the timer is running.
+ */
+bool c2_timer_is_started(const struct c2_timer *timer);
 
 /**
    Destroy the timer.

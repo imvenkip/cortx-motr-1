@@ -39,7 +39,7 @@ SUBDIR_IT = rpc/it
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
             fol/ut sns/ut desim/ut cob/ut net/ut net/bulk_emulation/ut \
-            udb/ut capa/ut reqh/ut rpc/ut xcode/ut xdr/ut
+            udb/ut capa/ut reqh/ut rpc/ut sm/ut xcode/ut xdr/ut
 SUBDIR_ST = net/st net/bulk_emulation/st
 
 SUBDIR_UB =
@@ -56,3 +56,9 @@ etags:
 EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog
 ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 ACLOCAL_AMFLAGS = -I m4
+
+clean-local:
+	if test "x@ENABLE_COVERAGE@" = "x1"; \
+	then \
+		find . -name "*.gcno" | xargs rm -f; \
+	fi
