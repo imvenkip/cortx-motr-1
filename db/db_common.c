@@ -51,10 +51,9 @@ const struct c2_addb_ctx_type db_tx_ctx_type = {
 };
 
 C2_TL_DESCR_DEFINE(txw,
-		   "tx waiters", static, struct c2_db_tx_waiter, tw_tx, tw_magix,
+		   "tx waiters", , struct c2_db_tx_waiter, tw_tx, tw_magix,
 		   C2_DB_TX_WAITER_MAGIX,
 		   0xd1550c1ab1ea11ce /* dissociable alice  */);
-C2_TL_DEFINE(txw, , struct c2_db_tx_waiter);
 
 
 extern void c2_db_buf_impl_init(struct c2_db_buf *buf);

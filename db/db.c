@@ -66,9 +66,6 @@ static int key_compare(DB *db, const DBT *dbt1, const DBT *dbt2);
 static int get_lsn(struct c2_dbenv *env, DB_LSN *lsn);
 static void dbenv_thread(struct c2_dbenv *env);
 
-C2_TL_DESCR_DECLARE(txw, );
-C2_TL_DECLARE(txw, , struct c2_db_tx_waiter);
-
 C2_TL_DESCR_DEFINE(enw, "env waiters", static, struct c2_db_tx_waiter,
 		   tw_env, tw_magix,
 		   C2_DB_TX_WAITER_MAGIX,
@@ -572,10 +569,10 @@ void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
 	env = tx->dt_env;
 
 	c2_mutex_lock(&env->d_i.d_lock);
-	enw_tlist_add(&env->d_i.d_waiters, w);
+	enw_tlink_init_at(w, &env->d_i.d_waiters);
 	c2_mutex_unlock(&env->d_i.d_lock);
 
-	txw_tlist_add(&tx->dt_waiters, w);
+	txw_tlink_init_at(w, &tx->dt_waiters);
 }
 
 static DBT *pair_key(struct c2_db_pair *pair)

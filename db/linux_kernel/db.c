@@ -37,9 +37,6 @@
    @{
  */
 
-C2_TL_DESCR_DECLARE(txw, );
-C2_TL_DECLARE(txw, , struct c2_db_tx_waiter);
-
 C2_TL_DESCR_DEFINE(pair, "(key, rec) pairs",
 		   static, struct c2_db_kpair, dk_linkage, dk_magix,
 		   0x50c1a112ede1ffe1 /* socialized eiffel */,
