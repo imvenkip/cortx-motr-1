@@ -29,6 +29,7 @@ static struct file_system_type c2t1fs_fs_type = {
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
 	.destroy_inode = c2t1fs_destroy_inode,
+	.drop_inode    = generic_delete_inode
 };
 
 int c2t1fs_init(void)

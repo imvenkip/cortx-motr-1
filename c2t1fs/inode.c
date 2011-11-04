@@ -5,8 +5,22 @@
 
 #include "c2t1fs/c2t1fs.h"
 
+static int c2t1fs_create(struct inode     *dir,
+			 struct dentry    *dentry,
+			 int               mode,
+			 struct nameidata *nd);
+
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
-static struct inode_operations c2t1fs_dir_inode_operations = { NULL };
+
+static struct inode_operations c2t1fs_dir_inode_operations = {
+	.create = c2t1fs_create,
+	.lookup = simple_lookup,
+	.unlink = simple_unlink
+};
+
+static struct inode_operations c2t1fs_inode_operations = {
+	NULL
+};
 
 static void init_once(void *foo)
 {
@@ -78,25 +92,49 @@ void c2t1fs_destroy_inode(struct inode *inode)
 struct inode *c2t1fs_root_iget(struct super_block *sb)
 {
 	struct inode *inode;
-	__u32         mode;
 
 	START();
 
 	inode = new_inode(sb);
 	if (inode != NULL) {
-		inode->i_rdev = 0;
-		mode = S_IRWXUGO | S_ISVTX | S_IFDIR;
-		inode->i_mode = mode;
+		inode->i_mode = S_IFDIR | 0755;
+		inode->i_atime = inode->i_mtime = CURRENT_TIME;
+		inode->i_ctime = CURRENT_TIME;
 		inode->i_uid = 0;
 		inode->i_gid = 0;
-		inode->i_blkbits = inode->i_sb->s_blocksize_bits;
 		inode->i_nlink = 2;
-		inode->i_size = PAGE_SIZE;
-		inode->i_blocks = 1;
 		inode->i_op = &c2t1fs_dir_inode_operations;
-		inode->i_fop = &c2t1fs_dir_operations;
-		inode->i_mapping->a_ops = &c2t1fs_dir_aops;
+		inode->i_fop = &simple_dir_operations;
 	}
 	END(inode);
 	return inode;
+}
+
+static int c2t1fs_create(struct inode     *dir,
+			 struct dentry    *dentry,
+			 int               mode,
+			 struct nameidata *nd)
+{
+	struct inode *inode;
+	int           error = -ENOSPC;
+
+	START();
+
+	inode = new_inode(dir->i_sb);
+	if (inode != NULL) {
+		inode->i_mode = S_IFREG | 0755;
+		inode->i_atime = inode->i_mtime = CURRENT_TIME;
+		inode->i_ctime = CURRENT_TIME;
+		inode->i_uid = 0;
+		inode->i_gid = 0;
+		inode->i_nlink = 1;
+		inode->i_op = &c2t1fs_inode_operations;
+		inode->i_fop = &c2t1fs_file_operations;
+
+		d_instantiate(dentry, inode);
+		dget(dentry);
+		error = 0;
+	}
+	END(error);
+	return error;
 }

@@ -71,6 +71,8 @@ struct inode *c2t1fs_root_iget(struct super_block *sb);
 extern struct file_operations c2t1fs_dir_operations;
 extern struct address_space_operations c2t1fs_dir_aops;
 
+extern struct file_operations c2t1fs_file_operations;
+
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void c2t1fs_destroy_inode(struct inode *inode);
 #endif /* __COLIBRI_C2T1FS_H */
