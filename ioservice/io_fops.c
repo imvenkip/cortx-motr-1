@@ -57,30 +57,45 @@
    This is where the generic io segment is used.
  */
 
+static struct c2_fop_type_format *ioservice_fmts[] = {
+	&c2_fop_file_fid_tfmt,
+	&c2_fop_io_buf_tfmt,
+	&c2_fop_io_seg_tfmt,
+	&c2_fop_io_vec_tfmt,
+	&c2_fop_cob_rw_tfmt,
+	&c2_fop_cob_rw_reply_tfmt,
+};
+
+static struct c2_fop_type *ioservice_fops[] = {
+	&c2_fop_cob_readv_fopt,
+	&c2_fop_cob_writev_fopt,
+	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_cob_writev_rep_fopt,
+};
+
 /**
-   @page io_bulk_client Client side io bulk transfer Detailed Level Design.
+   @page io_bulk_client IO bulk transfer Detailed Level Design.
 
-   - @ref DLD-ovw
-   - @ref DLD-def
-   - @ref DLD-req
-   - @ref DLD-depends
-   - @ref DLD-highlights
-   - @subpage DLD-fspec "Functional Specification" <!-- Note @subpage -->
-   - @ref DLD-lspec
-      - @ref DLD-lspec-comps
-      - @ref DLD-lspec-sc1
-      - @ref DLD-lspec-state
-      - @ref DLD-lspec-thread
-      - @ref DLD-lspec-numa
-   - @ref DLD-conformance
-   - @ref DLD-ut
-   - @ref DLD-st
-   - @ref DLD-O
-   - @ref DLD-ref
-
+   - @ref bulkclient-ovw
+   - @ref bulkclient-def
+   - @ref bulkclient-req
+   - @ref bulkclient-depends
+   - @ref bulkclient-highlights
+   - @subpage bulkclient-fspec "IO bulk client Func Spec"
+   - @ref bulkclient-lspec
+      - @ref bulkclient-lspec-comps
+      - @ref bulkclient-lspec-sc1
+      - @ref bulkclient-lspec-state
+      - @ref bulkclient-lspec-thread
+      - @ref bulkclient-lspec-numa
+   - @ref bulkclient-conformance
+   - @ref bulkclient-ut
+   - @ref bulkclient-st
+   - @ref bulkclient-O
+   - @ref bulkclient-ref
 
    <hr>
-   @section DLD-ovw Overview
+   @section bulkclient-ovw Overview
    <i>All specifications must start with an Overview section that
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
@@ -97,45 +112,8 @@
    The receiver starts the zero-copy of buffers using the net buffer
    descriptor from io fop.
 
-   It is <i>required</i> that the <b>Functional Specification</b> and
-   the <b>Detailed Functional Specification</b> be located in the
-   primary header file - this is the header file with the declaration
-   of the external interfaces that consumers of the component's API
-   would include.  In case of stand alone components, an appropriate
-   alternative header file should be chosen.
-
-   <b>Structure of the DLD</b><br>
-   The DLD specification is <b>required</b> to be sectioned in the
-   specific manner illustrated by the <tt>dld-sample.c</tt> and
-   <tt>dld-sample.h</tt> files.  This is similar in structure and
-   purpose to the sectioning found in a High Level Design.
-
-   It is probably desirable to split the Detailed Functional
-   Specifications into separate header files for each sub-module of
-   the component.  This example illustrates a component with a single
-   module.
-
-   <b>Formatting language</b><br>
-   Doxygen is the formatting tool of choice.  The Doxygen @@page
-   format is used to define a separate top-level browsable element
-   that contains the body of the DLD. The @@section, @@subsection and
-   @@subsubsection formatting commands are used to provide internal
-   structure.  The page title will be visible in the <b>Related
-   Pages</b> tab in the main browser window, as well as displayed as a
-   top-level element in the explorer side-bar.
-
-   The Functional Specification is to be located in the primary header
-   file of the component in a Doxygen @@page that is referenced as a
-   @@subpage from the table of contents of the main DLD specification.
-   This sub-page shows up as leaf element of the DLD in the explorer
-   side-bar.
-
-   Detailed functional specifications follow the Functional
-   Specification, using Doxygen @@defgroup commands for each component
-   module.
-
    <hr>
-   @section DLD-def Definitions
+   @section bulkclient-def Definitions
    <i>Mandatory.
    The DLD shall provide definitions of the terms and concepts
    introduced by the design, as well as the relevant terms used by the
@@ -143,16 +121,16 @@
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   - c2t1fs Colibri client program. Works as a kernel module.
+   - c2t1fs Colibri client program. It works as a kernel module.
    - Bulk transport Event based, asynchronous message passing functionality
    of Colibri network layer.
    - io fop A generic io fop that is used for read and write.
    - rpc bulk An interface to abstract the usage of network buffers by
-   client and server.
-   - ioservice A service providing io routines in Colibri. 
+   client and server programs.
+   - ioservice A service providing io routines in Colibri.
 
    <hr>
-   @section DLD-req Requirements
+   @section bulkclient-req Requirements
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
@@ -162,17 +140,23 @@
    if pages overrun the existing rpc bulk structure.
    - R.bulkclient.netbufdesc The generic io fop should contain a network
    buffer descriptor which points to an in-memory network buffer.
+   - R.bulkclient.iocoalescing The IO coalescing code should conform to
+   new format of io fop.
 
    <hr>
-   @section DLD-depends Dependencies
+   @section bulkclient-depends Dependencies
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
    - r.misc.net_rpc_convert Bulk Client needs Colibri client to be using
    new network layer apis which include c2_net_domain and c2_net_buffer.
+   - r.fop.referring_another_fop With introduction of a net buffer
+   descriptor in io fop, a mechanism needs to be introduced so that fop
+   definitions from one component can refer to definitions from another
+   component.
 
    <hr>
-   @section DLD-highlights Design Highlights
+   @section bulkclient-highlights Design Highlights
    <i>Mandatory. This section briefly summarizes the key design
    decisions that are important for understanding the functional and
    logical specifications, and enumerates topics that need special
@@ -192,7 +176,7 @@
    buffer and calls a c2_rpc_bulk apis to start the zero-copy.
 
    <hr>
-   @section DLD-lspec Logical Specification
+   @section bulkclient-lspec Logical Specification
    <i>Mandatory.  This section describes the internal design of the component,
    explaining how the functional specification is met.  Sub-components and
    diagrams of their interaction should go into this section.  The section has
@@ -201,335 +185,386 @@
    if there is significant additional sub-sectioning, provide a table of
    contents here.</i>
 
-   - @ref DLD-lspec-comps
-   - @ref DLD-lspec-sc1
-      - @ref DLD-lspec-ds1
-      - @ref DLD-lspec-sub1
-      - @ref DLDDFSInternal  <!-- Note link -->
-   - @ref DLD-lspec-state
-   - @ref DLD-lspec-thread
-   - @ref DLD-lspec-numa
+   - @ref bulkclient-lspec-comps
+   - @ref bulkclient-lspec-sc1
+      - @ref bulkclient-lspec-ds1
+      - @ref bulkclient-lspec-sub1
+      - @ref bulkclientDFSInternal
+   - @ref bulkclient-lspec-state
+   - @ref bulkclient-lspec-thread
+   - @ref bulkclient-lspec-numa
 
 
-   @subsection DLD-lspec-comps Component Overview
+   @subsection bulkclient-lspec-comps Component Overview
    <i>Mandatory.
    This section describes the internal logical decomposition.
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
-   Doxygen is limited in its internal support for diagrams. It has built in
-   support for @c dot and @c mscgen, and examples of both are provided in this
-   template.  Please remember that every diagram <i>must</i> be accompanied by
-   an explanation.
-
-   The following @@dot diagram shows the internal components of the Network
-   layer, and also illustrates its primary consumer, the RPC layer.
+   The following @@dot diagram shows the interaction of Colibri client
+   program (c2t1fs) with rpc layer and net layer.
    @dot
    digraph {
      node [style=box];
-     label = "Network Layer Components and Interactions";
-     subgraph cluster_rpc {
-         label = "RPC Layer";
-         rpcC [label="Connectivity"];
-	 rpcO [label="Output"];
-     }
-     subgraph cluster_net {
-         label = "Network Layer";
-	 netM [label="Messaging"];
-	 netT [label="Transport"];
-	 netL [label="Legacy RPC emulation", style="filled"];
-	 netM -> netT;
-	 netL -> netM;
-     }
-     rpcC -> netM;
-     rpcO -> netM;
+     label = "IO bulk client interaction with rpc and net layer";
+     Colibri_client [label = "Colibri client"];
+     Rpc_bulk [label = "RPC bulk abstraction"];
+     IO_fop [label = "IO fop"];
+     nwlayer [label = "Network layer"];
+     zerovec [label = "Zero vector"];
+     Colibri_client -> IO_fop;
+     IO_fop -> Rpc_bulk;
+     IO_fop -> zerovec;
+     Rpc_bulk -> nwlayer;
    }
    @enddot
 
-   The @@msc command is used to invoke @c mscgen, which creates sequence
-   diagrams. For example:
-   @msc
-   a,b,c;
-
-   a->b [ label = "ab()" ] ;
-   b->c [ label = "bc(TRUE)"];
-   c=>c [ label = "process(1)" ];
-   c=>c [ label = "process(2)" ];
-   ...;
-   c=>c [ label = "process(n)" ];
-   c=>c [ label = "process(END)" ];
-   a<<=c [ label = "callback()"];
-   ---  [ label = "If more to run", ID="*" ];
-   a->a [ label = "next()"];
-   a->c [ label = "ac1()\nac2()"];
-   b<-c [ label = "cb(TRUE)"];
-   b->b [ label = "stalled(...)"];
-   a<-b [ label = "ab() = FALSE"];
-   @endmsc
-   Note that when entering commands for @c mscgen, do not include the
-   <tt>msc { ... }</tt> block delimiters.
-   You need the @c mscgen program installed on your system - it is part
-   of the Scientific Linux based DevVM.
-
-   UML and sequence diagrams often illustrate points better than any written
-   explanation.  However, you have to resort to an external tool to generate
-   the diagram, save the image in a file, and load it into your DLD.
-
-   An image is relatively easy to load provided you remember that the
-   Doxygen output is viewed from the @c doc/html directory, so all paths
-   should be relative to that frame of reference.  For example:
-   <img src="../../doc/dld-sample-uml.png">
-   I found that a PNG format image from Visio shows up with the correct
-   image size while a GIF image was wrongly sized.  Your experience may
-   be different, so please ensure that you validate the Doxygen output
-   for correct image rendering.
-
-   If an external tool, such as Visio or @c dia, is used to create an
-   image, the source of that image (e.g. the Visio <tt>.vsd</tt> or
-   the <tt>.dia</tt> file) should be checked into the source tree so
-   that future maintainers can modify the figure.  This applies to all
-   non-embedded image source files, not just Visio or @c dia.
-
-   @subsection DLD-lspec-sc1 Subcomponent design
+   @subsection bulkclient-lspec-sc1 Subcomponent design
    <i>Such sections briefly describes the purpose and design of each
    sub-component. Feel free to add multiple such sections, and any additional
    sub-sectioning within.</i>
 
-   Sample non-standard sub-section to illustrate that it is possible to
-   document the design of a sub-component.  This contrived example demonstrates
-   @@subsubsections for the sub-component's data structures and subroutines.
+   Ioservice subsystem comprises of IO coalescing under which IO requests
+   belonging to same fid and intent (read/write) are clubbed together in
+   one fop and this resultant fop is sent instead of member io fops.
+   This subsystem is also responsible for populating the net buffer
+   descriptor in io fops and enqueuing the associated network buffer to
+   the appropriate queue in transfer machine.
 
-   @subsubsection DLD-lspec-ds1 Subcomponent Data Structures
+   @subsubsection bulkclient-lspec-ds1 Subcomponent Data Structures
    <i>This section briefly describes the internal data structures that are
    significant to the design of the sub-component. These should not be a part
    of the Functional Specification.</i>
 
-   Describe <i>briefly</i> the internal data structures that are significant to
-   the design.  These should not be described in the Functional Specification
-   as they are not part of the external interface.  It is <b>not necessary</b>
-   to describe all the internal data structures here.  They should, however, be
-   documented in Detailed Functional Specifications, though separate from the
-   external interfaces.  See @ref DLDDFSInternal for example.
+   The IO coalescing subsystem from ioservice primarily works on IO segments.
+   IO segments are contiguous chunks of IO data along with extent information. 
+   An internal data structure io_zeroseg represents the IO segment.
+   - io_zeroseg An in-memory structure used to represent a segment of IO data.
 
-   - dld_sample_internal
-
-   @subsubsection DLD-lspec-sub1 Subcomponent Subroutines
+   @subsubsection bulkclient-lspec-sub1 Subcomponent Subroutines
    <i>This section briefly describes the interfaces of the sub-component that
    are of significance to the design.</i>
 
-   Describe <i>briefly</i> the internal subroutines that are significant to the
-   design.  These should not be described in the Functional Specification as
-   they are not part of the external interface.  It is <b>not necessary</b> to
-   describe all the internal subroutines here.  They should, however, be
-   documented in Detailed Functional Specifications, though separate from the
-   external interfaces.  See @ref DLDDFSInternal for example.
+   - io_zeroseg_alloc Allocates an io_zeroseg structure.
+   - io_zeroseg_free Deallocates an io_zeroseg structure.
+   - io_zerovec_seg_get Retrieves an io_zeroseg given its index in zero
+   vector.
+   - io_zerovec_seg_set Set the contents of zero segment referred by given
+   index in zero vector to the contents of input zero segment.
+   - io_zerovec_segs_alloc Allocate given number of segments for a new
+   zero vector.
 
-   - dld_sample_internal_invariant()
-
-   @subsection DLD-lspec-state State Specification
+   @subsection bulkclient-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
-   Diagrams are almost essential here. The @@dot tool is the easiest way to
-   create state diagrams, and is very readable in text form too.  Here, for
-   example, is a @@dot version of a figure from the "rpc/session.h" file:
    @dot
-   digraph example {
-       size = "5,6"
-       label = "RPC Session States"
-       node [shape=record, fontname=Helvetica, fontsize=10]
-       S0 [label="", shape="plaintext", layer=""]
-       S1 [label="Uninitialized"]
-       S2 [label="Initialized"]
-       S3 [label="Connecting"]
-       S4 [label="Active"]
-       S5 [label="Terminating"]
-       S6 [label="Terminated"]
-       S7 [label="Uninitialized"]
-       S8 [label="Failed"]
-       S0 -> S1 [label="allocate"]
-       S1 -> S2 [label="c2_rpc_conn_init()"]
-       S2 -> S3 [label="c2_rpc_conn_established()"]
-       S3 -> S4 [label="c2_rpc_conn_establish_reply_received()"]
-       S4 -> S5 [label="c2_rpc_conn_terminate()"]
-       S5 -> S6 [label="c2_rpc_conn_terminate_reply_received()"]
-       S6 -> S7 [label="c2_rpc_conn_fini()"]
-       S2 -> S8 [label="failed"]
-       S3 -> S8 [label="timeout or failed"]
-       S5 -> S8 [label="timeout or failed"]
-       S8 -> S7 [label="c2_rpc_conn_fini()"]
+   digraph bulk_io_client_states {
+	size = "5,6"
+	label = "States encountered during io from bulk client"
+	node [shape = record, fontname=Helvetica, fontsize=12]
+	S0 [label = "", shape="plaintext", layer=""]
+	S1 [label = "IO fop initialized"]
+	S2 [label = "Rpc bulk structure initialized"]
+	S3 [label = "Pages added to rpc bulk structure"]
+	S4 [label = "Rpc item posted to rpc layer"]
+	S5 [label = "Client waiting for reply"]
+	S6 [label = "Net buf desc populated in IO fop & net buffer enqueued"
+	"transfer machine."]
+	S7 [label = "Reply received"]
+	S8 [label = "Terminate"]
+	S0 -> S1 [label = "Allocate"]
+	S1 -> S2 [label = "c2_rpc_bulk_init()"]
+	S1 -> S8 [label = "Failed"]
+	S2 -> S8 [label = "Failed"]
+	S2 -> S3 [label = "c2_rpc_bulk_page_add()"]
+	S3 -> S8 [label = "Failed"]
+	S3 -> S4 [label = "c2_rpc_item_post()"]
+	S4 -> S5 [label = "c2_chan_wait(rpc_bulk->rb_chan)"]
+	S5 -> S6 [label = "rpc_item->rit_ops->rito_io_desc_store(item)"]
+	S6 -> S7 [label = "c2_chan_signal(&rpc_bulk->rb_chan)"]
+	S7 -> S8 [label = "c2_rpc_bulk_fini(rpc_bulk)"]
    }
    @enddot
-   The @c dot program is part of the Scientific Linux DevVM.
 
-   @subsection DLD-lspec-thread Threading and Concurrency Model
+   @subsection bulkclient-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
    This section describes the threading and concurrency model.
    It describes the various asynchronous threads of operation, identifies
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   This section must explain all aspects of synchronization, including locking
-   order protocols, existential protection of objects by their state, etc.
-   A diagram illustrating lock scope would be very useful here.
-   For example, here is a @@dot illustration of the scope and locking order
-   of the mutexes in the Networking Layer:
-   @dot
-   digraph {
-      node [shape=plaintext];
-      subgraph cluster_m1 { // represents mutex scope
-         // sorted R-L so put mutex name last to align on the left
-         rank = same;
-	 n1_2 [label="dom_fini()"];  // procedure using mutex
-	 n1_1 [label="dom_init()"];
-         n1_0 [label="c2_net_mutex"];// mutex name
-      }
-      subgraph cluster_m2 {
-         rank = same;
-	 n2_2 [label="tm_fini()"];
-         n2_1 [label="tm_init()"];
-         n2_4 [label="buf_deregister()"];
-	 n2_3 [label="buf_register()"];
-         n2_0 [label="nd_mutex"];
-      }
-      subgraph cluster_m3 {
-         rank = same;
-	 n3_2 [label="tm_stop()"];
-         n3_1 [label="tm_start()"];
-	 n3_6 [label="ep_put()"];
-	 n3_5 [label="ep_create()"];
-	 n3_4 [label="buf_del()"];
-	 n3_3 [label="buf_add()"];
-         n3_0 [label="ntm_mutex"];
-      }
-      label="Mutex usage and locking order in the Network Layer";
-      n1_0 -> n2_0;  // locking order
-      n2_0 -> n3_0;
-   }
-   @enddot
+   No need of explicit locking for structures like c2_io_fop and io_zeroseg
+   since they are taken care by locking at upper layers like locking at
+   the c2t1fs part for dispatching IO requests.
 
-   @subsection DLD-lspec-numa NUMA optimizations
+   @subsection bulkclient-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
    This section describes if optimal behavior can be supported by
    associating the utilizing thread to a single processor.</i>
 
-   Conversely, it can describe if sub-optimal behavior arises due
-   to contention for shared component resources by multiple processors.
-
-   The section is marked mandatory because it forces the designer to
-   consider these aspects of concurrency.
+   The performance need not be optimized by associating the incoming thread
+   to a particular processor. However, keeping in sync with the design of
+   request handler which tries to protect the locality of threads executing
+   in a particular context by establishing affinity to some designated
+   processor, this can be achieved. But this is still at a level higher than
+   the io fop processing.
 
    <hr>
-   @section DLD-conformance Conformance
+   @section bulkclient-conformance Conformance
    <i>Mandatory.
-   This section cites each requirement in the @ref DLD-req section,
+   This section cites each requirement in the @ref bulkclient-req section,
    and explains briefly how the DLD meets the requirement.</i>
 
    Note the subtle difference in that <b>I</b> tags are used instead of
    the <b>R</b> tags of the requirements section.  The @b I of course,
    stands for "implements":
 
-   - <b>I.DLD.Structured</b> The DLD specification provides a structural
-   breakdown along the lines of the HLD specification.  This makes it
-   easy to understand and analyze the various facets of the design.
-   - <b>I.DLD.What</b> The DLD style guide requires that a
-   DLD contain a Functional Specification section.
-   - <b>I.DLD.How</b> The DLD style guide requires that a
-   DLD contain a Logical Specification section.
-   - <b>I.DLD.Maintainable</b> The DLD style guide requires that the
-   DLD be written in the main header file of the component.
-   It can be maintained along with the code, without
-   requiring one to resort to other documents and tools.  The only
-   exception to this would be for images referenced by the DLD specification,
-   as Doxygen does not provide sufficient support for this purpose.
-
-   This section is meant as a cross check for the DLD writer to ensure
-   that all requirements have been addressed.  It is recommended that you
-   fill it in as part of the DLD review.
+   - I.bulkclient.rpcbulk The Colibri client uses rpc bulk APIs to enqueue
+   kernel pages to the network buffer.
+   - I.bulkclient.fopcreation Colibri client creates new io fops until all
+   kernel pages are enqueued.
+   - I.bulkclient.netbufdesc The on-wire definition of io_fop contains a
+   net buffer descriptor. @see c2_net_buf_desc
+   - I.bulkclient.iocoalescing Since all IO coalescing code is built around
+   the definition of IO fop, it will conform to new format of io fop.
 
    <hr>
-   @section DLD-ut Unit Tests
+   @section bulkclient-ut Unit Tests
    <i>Mandatory. This section describes the unit tests that will be designed.
    </i>
 
-   Unit tests should be planned for all interfaces exposed by the
-   component.  Testing should not just include correctness tests, but
-   should also test failure situations.  This includes testing of
-   <i>expected</i> return error codes when presented with invalid
-   input or when encountering unexpected data or state.  Note that
-   assertions are not testable - the unit test program terminates!
-
-   Another area of focus is boundary value tests, where variable
-   values are equal to but do not exceed their maximum or minimum
-   possible values.
-
-   As a further refinement and a plug for Test Driven Development, it
-   would be nice if the designer can plan the order of development of
-   the interfaces and their corresponding unit tests.  Code inspection
-   could overlap development in such a model.
-
-   Testing should relate to specific use cases described in the HLD if
-   possible.
-
-   It is acceptable that this section be located in a separate @@subpage like
-   along the lines of the Functional Specification.  This can be deferred
-   to the UT phase where additional details on the unit tests are available.
+   All external interfaces based on c2_io_fop and c2_rpc_bulk will be
+   unit tested. All unit tests will stress success and failure conditions.
+   Boundary condition testing is also included.
+   - The c2_io_fop* and c2_rpc_bulk* interfaces will be unit tested
+   first in the order
+   	- c2_io_fop_init Check if the inline c2_fop and c2_rpc_bulk are
+	initialized properly.
+	- c2_rpc_bulk_page_add/c2_rpc_bulk_buffer_add to add pages/buffers
+	to the rpc_bulk structure and cross check if they are actually added
+	or not.
+	- Add more pages/buffers to rpc_bulk structure to check if they
+	return proper error code.
+	- Try c2_io_fop_fini to check if an initialized c2_io_fop and
+	the inline c2_rpc_bulk get properly finalized.
+	- Initialize and start a network transport and a transfer machine. 
+	Invoke c2_rpc_bulk_store on rpc_bulk structure and cross check if
+	the net buffer descriptor is properly populated in the io fop.
+	- Tweak the parameters of transfer machine so that it goes into
+	degraded/failed state and invoke c2_rpc_bulk_store and check if
+	c2_rpc_bulk_store returns proper error code.
+	- Start another transfer machine and invoke c2_rpc_bulk_load to
+	check if it recognizes the net buf descriptor and starts buffer
+	transfer properly.
+	- Tweak the parameters of second transfer machine so that it goes
+	into degraded/failed state and invoke c2_rpc_bulk_load and check if
+	it returns proper error code.
 
    <hr>
-   @section DLD-st System Tests
+   @section bulkclient-st System Tests
    <i>Mandatory.
    This section describes the system testing done, if applicable.</i>
 
-   Testing should relate to specific use cases described in the HLD if
-   possible.
-
-   It is acceptable that this section be located in a separate @@subpage like
-   along the lines of the Functional Specification.  This can be deferred
-   to the ST phase where additional details on the system tests are available.
-
+   Not applicable.
 
    <hr>
-   @section DLD-O Analysis
+   @section bulkclient-O Analysis
    <i>This section estimates the performance of the component, in terms of
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
+   - m denotes the number of IO fops with same fid and intent (read/write).
+   - n denotes the total number of zero segments in m IO fops.
+   - Memory consumption O(n) During IO coalescing, n number of zero segments
+   are allocated and subsequently deallocated, once the resulting IO fop
+   is created.
+   - Processor cycles O(n) During IO coalescing, all n segments are traversed
+   and resultant IO fop is created.
+   - Locks Minimal locks since locking is mostly taken care by upper layers.
+   - Messages Not applicable.
+
    <hr>
-   @section DLD-ref References
+   @section bulkclient-ref References
    <i>Mandatory. Provide references to other documents and components that
    are cited or used in the design.
    In particular a link to the HLD for the DLD should be provided.</i>
 
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en_US">RPC Bulk Transfer Task Plan</a>
    - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>,
    an older document on which this style guide is partially based.
-   - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Doxygen
-   Manual</a>
-   - <a href="http://www.graphviz.org">Graphviz - Graph Visualization
-   Software</a> for documentation on the @c dot command.
-   - <a href="http://www.mcternan.me.uk/mscgen">Mscgen home page</a>
 
  */
 
-#include "doc/dld_template.h"
-
 /**
-   @defgroup DLDDFSInternal Colibri Sample Module Internals
-   @brief Detailed functional specification of the internals of the
-   sample module.
-
-   This example is part of the DLD Template and Style Guide. It illustrates
-   how to keep internal documentation separate from external documentation
-   by using multiple @@defgroup commands in different files.
-
-   Please make sure that the module cross-reference the DLD, as shown below.
-
-   @see @ref DLD and @ref DLD-lspec
+   @defgroup bulkclientDFSInternal IO bulk client Detailed Function Spec
+   @brief Detailed Function Specification for IO bulk client.
 
    @{
  */
 
-/** @} end-of-DLDFS */
+/**
+   Generic io segment that represents a contiguous stream of bytes
+   along with io extent. This structure is typically used by io coalescing
+   code from ioservice.
+ */
+struct io_zeroseg {
+	/* Offset of target object to start io from. */
+	c2_bindex_t		 is_off;
+	/* Number of bytes in io segment. */
+	c2_bcount_t		 is_count;
+	/* Starting address of buffer. */
+	void			*is_buf;
+	/* Linkage to have such zero segments in a list. */
+	struct c2_list_link	 is_linkage;
+};
+
+/**
+   Allocate a zero segment.
+   @retval Valid io_zeroseg object if success, NULL otherwise.
+ */
+struct io_zeroseg *io_zeroseg_alloc(void)
+{
+	struct io_zeroseg *zseg;
+
+	C2_ALLOC_PTR(zseg);
+	if (zseg == NULL)
+		return NULL;
+
+	c2_list_link_init(&zseg->is_linkage);
+	return zseg;
+}
+
+/**
+   Deallocate a zero segment.
+   @param zseg - Zero segment to be deallocated.
+ */
+void io_zeroseg_free(struct io_zeroseg *zseg)
+{
+	C2_PRE(zseg != NULL);
+
+	c2_list_link_fini(&zseg->is_linkage);
+	c2_free(zseg);
+}
+
+/**
+   Get the io segment indexed by index in array of io segments in zerovec.
+   @note The incoming c2_0vec should be allocated and initialized.
+
+   @param zvec The c2_0vec io vector from which io segment will be retrieved.
+   @param index Index of io segments in array of io segments from zerovec.
+   @param seg Out parameter to return io segment.
+ */
+void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
+			struct io_zeroseg *seg)
+{
+	C2_PRE(seg != NULL);
+	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
+
+	seg->is_off = zvec->z_indices[seg_index];
+	seg->is_count = zvec->z_bvec.ov_vec.v_count[seg_index];
+	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
+}
+
+/**
+   Set the io segment referred by index into array of io segments from
+   the zero vector.
+   @note There is no data copy here. Just buffer pointers are copied since
+   this API is supposed to be used in same address space.
+
+   @note The incoming c2_0vec should be allocated and initialized.
+   @param zvec The c2_0vec io vector whose io segment will be changed.
+   @param seg Target segment for set.
+ */
+void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
+			const struct io_zeroseg *seg)
+{
+	C2_PRE(seg != NULL);
+	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
+
+	zvec->z_bvec.ov_buf[seg_index] = seg->is_buf;
+	zvec->z_indices[seg_index] = seg->is_off;
+	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
+}
+
+/**
+   Allocate the io segments for the given c2_0vec structure.
+   @note The incoming c2_0vec should be allocated and initialized.
+   @param zvec The c2_0vec structure to which allocated segments
+   are attached.
+   @param segs_nr Number of io segments to be allocated.
+ */
+int io_zerovec_segs_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
+{
+	C2_PRE(zvec != NULL);
+	C2_PRE(segs_nr != 0);
+
+	C2_ALLOC_ARR(zvec->z_bvec.ov_buf, segs_nr);
+	return zvec->z_bvec.ov_buf == NULL ? -ENOMEM : 0;
+}
+
+bool io_fop_invariant(struct c2_io_fop *iofop)
+{
+	int i;
+
+	if (iofop == NULL || iofop->if_magic != C2_IO_FOP_MAGIC)
+		return false;
+
+	for (i = 0; i < ARRAY_SIZE(ioservice_fops); ++i)
+		if (iofop->if_fop.f_type == ioservice_fops[i])
+			break;
+
+	return i != ARRAY_SIZE(ioservice_fops);
+}
+
+int c2_io_fop_init(struct c2_io_fop *iofop,
+		   struct c2_fop_type *ftype,
+		   uint32_t segs_nr,
+		   c2_bcount_t seg_size,
+		   struct c2_net_domain *netdom)
+{
+	int rc;
+
+	C2_PRE(iofop != NULL);
+	C2_PRE(ftype != NULL);
+	C2_PRE(netdom != NULL);
+
+	iofop->if_magic = C2_IO_FOP_MAGIC;
+	rc = c2_fop_init(&iofop->if_fop, ftype, NULL);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_rpc_bulk_init(&iofop->if_rbulk, segs_nr, seg_size, netdom);
+	if (rc != 0) {
+		c2_fop_fini(&iofop->if_fop);
+		return rc;
+	}
+
+	C2_POST(io_fop_invariant(iofop));
+	return rc;
+}
+
+void c2_io_fop_fini(struct c2_io_fop *iofop)
+{
+	C2_PRE(io_fop_invariant(iofop));
+
+	c2_fop_fini(&iofop->if_fop);
+	c2_rpc_bulk_fini(&iofop->if_rbulk);
+}
+
+struct c2_rpc_bulk *c2_fop_to_rpcbulk(struct c2_fop *fop)
+{
+	struct c2_io_fop *iofop;
+
+	C2_PRE(fop != NULL);
+
+	iofop = container_of(fop, struct c2_io_fop, if_fop);
+	return &iofop->if_rbulk;
+}
+
+/** @} end of bulkclientDFSInternal */
+
 struct c2_io_ioseg {
 	/** IO segment for read or write request fop. */
 	struct c2_fop_io_seg	*rw_seg;
@@ -1010,22 +1045,6 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 		    C2_IOSERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
 
-static struct c2_fop_type_format *ioservice_fmts[] = {
-	&c2_fop_file_fid_tfmt,
-	&c2_fop_io_buf_tfmt,
-	&c2_fop_io_seg_tfmt,
-	&c2_fop_io_vec_tfmt,
-	&c2_fop_cob_rw_tfmt,
-	&c2_fop_cob_rw_reply_tfmt,
-};
-
-static struct c2_fop_type *ioservice_fops[] = {
-	&c2_fop_cob_readv_fopt,
-	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_readv_rep_fopt,
-	&c2_fop_cob_writev_rep_fopt,
-};
-
 int c2_ioservice_fops_nr(void)
 {
 	return ARRAY_SIZE(ioservice_fops);
@@ -1053,57 +1072,6 @@ int c2_ioservice_fop_init(void)
 	return rc;
 }
 C2_EXPORTED(c2_ioservice_fop_init);
-
-struct io_zeroseg *io_zeroseg_alloc(void)
-{
-	struct io_zeroseg *zseg;
-
-	C2_ALLOC_PTR(zseg);
-	if (zseg == NULL)
-		return NULL;
-
-	c2_list_link_init(&zseg->is_linkage);
-	return zseg;
-}
-
-void io_zeroseg_free(struct io_zeroseg *zseg)
-{
-	C2_PRE(zseg != NULL);
-
-	c2_list_link_fini(&zseg->is_linkage);
-	c2_free(zseg);
-}
-
-void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
-			struct io_zeroseg *seg)
-{
-	C2_PRE(seg != NULL);
-	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
-
-	seg->is_off = zvec->z_indices[seg_index];
-	seg->is_count = zvec->z_bvec.ov_vec.v_count[seg_index];
-	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
-}
-
-void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
-			const struct io_zeroseg *seg)
-{
-	C2_PRE(seg != NULL);
-	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
-
-	zvec->z_bvec.ov_buf[seg_index] = seg->is_buf;
-	zvec->z_indices[seg_index] = seg->is_off;
-	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
-}
-
-int io_zerovec_segs_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
-{
-	C2_PRE(zvec != NULL);
-	C2_PRE(segs_nr != 0);
-
-	C2_ALLOC_ARR(zvec->z_bvec.ov_buf, segs_nr);
-	return zvec->z_bvec.ov_buf == NULL ? -ENOMEM : 0;
-}
 
 /*
  *  Local variables:
