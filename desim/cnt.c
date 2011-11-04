@@ -55,8 +55,7 @@ void cnt_init(struct cnt *cnt, struct cnt *parent, const char *format, ...)
 	sim_name_vaset(&cnt->c_name, format, valist);
 	va_end(valist);
 	cnt->c_parent = parent;
-	cnts_tlink_init(cnt);
-	cnts_tlist_add_tail(&cnts, cnt);
+	cnts_tlink_init_at_tail(cnt, &cnts);
 }
 
 void cnt_dump(struct cnt *cnt)
@@ -87,8 +86,7 @@ void cnt_fini(struct cnt *cnt)
 {
 	if (cnt->c_name != NULL)
 		free(cnt->c_name);
-	cnts_tlist_del(cnt);
-	cnts_tlink_fini(cnt);
+	cnts_tlink_del_fini(cnt);
 	cnt->c_magic = 0;
 }
 
