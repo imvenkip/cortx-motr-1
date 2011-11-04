@@ -99,7 +99,7 @@
    bool done;
    ssize_t i;
    while (!done) {
-       i = c2_circular_queue_next(&myqueue.eq_header);
+       i = c2_circular_queue_pnext(&myqueue.eq_header);
        if (i == -ENOENT) {
            // block until space is available
        } else {
@@ -172,7 +172,7 @@ void c2_circular_queue_fini(struct c2_circular_queue *q);
 /**
    Consume the next available slot in the queue.
 
-   @return the slot number (in the range 0 - cq_size) if there is a slot to
+   @return The slot number (in the range 0..cq_size-1) if there is a slot to
    consume. Otherwise, -ENOENT if there are none currently available to consume.
  */
 ssize_t c2_circular_queue_consume(struct c2_circular_queue *q);
@@ -180,7 +180,7 @@ ssize_t c2_circular_queue_consume(struct c2_circular_queue *q);
 /**
    Get the slot index of the next slot which can be used by the producer.
 
-   @return the slot number (in the range 0 - cq_size) if there is a producer
+   @return The slot number (in the range 0..cq_size-1) if there is a producer
    slot available.  Otherwise, -ENOENT if none currently available.
  */
 ssize_t c2_circular_queue_pnext(struct c2_circular_queue *q);
@@ -188,8 +188,8 @@ ssize_t c2_circular_queue_pnext(struct c2_circular_queue *q);
 /**
    Produce a slot in the queue.
 
-   @pre (q->cq_last < q->cq_divider) ?
-   (q->cq_last + 1 < q->cq_divider) : (q->cq_last + 1 < q->cq_size)
+   @pre (q->cq_last < q->cq_divider) ? (q->cq_last + 1 < q->cq_divider) :
+   (q->cq_last + 1 < q->cq_divider + q->cq_size)
  */
 void c2_circular_queue_produce(struct c2_circular_queue *q);
 

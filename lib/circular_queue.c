@@ -68,7 +68,7 @@
 
    - <b>r.c2.lib.atomic.interoperable-kernel-user-support</b> The
    implementation shall provide a queue that supports atomic,
-   interoperable kernel to user-space sharing.
+   interoperable sharing between kernel to user-space.
 
    <hr>
    @section circular_queueDLD-depends Dependencies
@@ -150,8 +150,8 @@
    queue.  When @c cq_divider is the same as @c cq_last, the queue is
    empty.  Because the queue is circular, the index value of @c cq_last can
    be less than the value of @c cq_divider (i.e. the index values wrap
-   around).  Note that there must always be one slot before cq_divider and
-   after cq_last in the queue. The producer cannot use the final slot
+   around).  Note that there must always be one slot before @c cq_divider and
+   after @c cq_last in the queue. The producer cannot use the final slot
    between @c cq_last (wrapped around) and @c cq_divider, because if it
    did, producing that slot would result in incrementing @c cq_last so that
    it would be equal to @c cq_divider, which denotes an empty, not a full,
@@ -159,7 +159,7 @@
    most recently consumed by the consumer, as discussed further below.
 
    The slot index denoted by @c cq_last is returned by
-   @c c2_circular_queue_next as long as the queue is not full.  This allows
+   @c c2_circular_queue_pnext as long as the queue is not full.  This allows
    the producer to determine the next available slot index and populate the
    application array slot itself with the data to be produced.  Once the
    array slot contains the data, the producer then calls
@@ -167,8 +167,8 @@
    This call also increments @c cq_last.
 
    The consumer uses @c c2_circular_queue_consume to get the next available
-   slot containing data in FIFO order.  Consuming a slot increments @c
-   cq_divider.  After incrementing, the consumer "owns" the slot returned,
+   slot containing data in FIFO order.  Consuming a slot increments
+   @c cq_divider.  After incrementing, the consumer "owns" the slot returned,
    slot "y" in the diagram.  The consumer owns this slot until it calls
    @c c2_circular_queue_consume again, at which time ownership reverts to the
    queue and can be reused by the producer.
