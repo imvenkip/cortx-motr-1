@@ -32,6 +32,11 @@ static struct super_operations c2t1fs_super_operations = {
 	.drop_inode    = generic_delete_inode
 };
 
+const struct c2_fid c2t1fs_root_fid = {
+	.f_container = 0,
+	.f_key = 2
+};
+
 int c2t1fs_init(void)
 {
 	int rc;
@@ -89,30 +94,30 @@ static int c2t1fs_get_sb(struct file_system_type *fstype,
 
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
-	struct c2t1fs_sb_info *csi;
-	struct inode          *root_inode;
-	int                    rc;
+	struct c2t1fs_sb *csb;
+	struct inode     *root_inode;
+	int               rc;
 
 	START();
 
-	csi = kmalloc(sizeof (*csi), GFP_KERNEL);
-	if (csi == NULL) {
+	csb = kmalloc(sizeof (*csb), GFP_KERNEL);
+	if (csb == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
-	rc = c2t1fs_sb_info_init(csi);
+	rc = c2t1fs_sb_init(csb);
 	if (rc != 0) {
-		kfree(csi);
-		csi = NULL;
+		kfree(csb);
+		csb = NULL;
 		goto out;
 	}
 
-	rc = c2t1fs_mnt_opts_parse(data, &csi->csi_mnt_opts);
+	rc = c2t1fs_mnt_opts_parse(data, &csb->csb_mnt_opts);
 	if (rc != 0)
 		goto out;
 
-	sb->s_fs_info = csi;
+	sb->s_fs_info = csb;
 
 	sb->s_blocksize      = PAGE_SIZE;
 	sb->s_blocksize_bits = PAGE_SHIFT;
@@ -137,9 +142,9 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	return 0;
 
 out:
-	if (csi != NULL) {
-		c2t1fs_sb_info_fini(csi);
-		kfree(csi);
+	if (csb != NULL) {
+		c2t1fs_sb_fini(csb);
+		kfree(csb);
 	}
 	sb->s_fs_info = NULL;
 	END(rc);
@@ -147,34 +152,34 @@ out:
 }
 static void c2t1fs_kill_sb(struct super_block *sb)
 {
-	struct c2t1fs_sb_info *sbi;
+	struct c2t1fs_sb *sbi;
 
 	START();
 
 	sbi = C2T1FS_SB(sb);
-	c2t1fs_sb_info_fini(sbi);
+	c2t1fs_sb_fini(sbi);
 	kfree(sbi);
 	kill_anon_super(sb);
 
 	END(0);
 }
 
-int c2t1fs_sb_info_init(struct c2t1fs_sb_info *csi)
+int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 {
 	START();
 
-	c2_mutex_init(&csi->csi_mutex);
-	csi->csi_flags = 0;
-	csi->csi_mnt_opts.mo_options = NULL;
+	c2_mutex_init(&csb->csb_mutex);
+	csb->csb_flags = 0;
+	csb->csb_mnt_opts.mo_options = NULL;
 
 	END(0);
 	return 0;
 }
-void c2t1fs_sb_info_fini(struct c2t1fs_sb_info *csi)
+void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 {
 	START();
 
-	c2_mutex_fini(&csi->csi_mutex);
+	c2_mutex_fini(&csb->csb_mutex);
 
 	END(0);
 }

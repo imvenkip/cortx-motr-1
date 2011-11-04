@@ -5,7 +5,7 @@
 
 #include "c2t1fs/c2t1fs.h"
 
-struct file_operations c2t1fs_file_operations = {
+struct file_operations c2t1fs_reg_file_operations = {
 	NULL
 };
 

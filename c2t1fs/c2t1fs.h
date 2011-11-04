@@ -37,31 +37,33 @@ struct c2t1fs_mnt_opts
 	char *mo_options;
 };
 
-struct c2t1fs_sb_info
+struct c2t1fs_sb
 {
-	struct c2_mutex        csi_mutex;
-	struct c2t1fs_mnt_opts csi_mnt_opts;
-	uint64_t               csi_flags;
+	struct c2_mutex        csb_mutex;
+	struct c2t1fs_mnt_opts csb_mnt_opts;
+	uint64_t               csb_flags;
 };
 
-struct c2t1fs_inode_info
+struct c2t1fs_inode
 {
-	struct inode  cii_inode;
-	struct c2_fid cii_fid;
+	struct inode  ci_inode;
+	struct c2_fid ci_fid;
 };
 
-static inline struct c2t1fs_sb_info *C2T1FS_SB(struct super_block *sb)
+static inline struct c2t1fs_sb *C2T1FS_SB(struct super_block *sb)
 {
 	return sb->s_fs_info;
 }
 
-static inline struct c2t1fs_inode_info *C2T1FS_I(struct inode *inode)
+static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
 {
-	return container_of(inode, struct c2t1fs_inode_info, cii_inode);
+	return container_of(inode, struct c2t1fs_inode, ci_inode);
 }
 
-int c2t1fs_sb_info_init(struct c2t1fs_sb_info *sbi);
-void c2t1fs_sb_info_fini(struct c2t1fs_sb_info *sbi);
+extern const struct c2_fid c2t1fs_root_fid;
+
+int c2t1fs_sb_init(struct c2t1fs_sb *sbi);
+void c2t1fs_sb_fini(struct c2t1fs_sb *sbi);
 
 int c2t1fs_inode_cache_init(void);
 void c2t1fs_inode_cache_fini(void);
@@ -71,7 +73,7 @@ struct inode *c2t1fs_root_iget(struct super_block *sb);
 extern struct file_operations c2t1fs_dir_operations;
 extern struct address_space_operations c2t1fs_dir_aops;
 
-extern struct file_operations c2t1fs_file_operations;
+extern struct file_operations c2t1fs_reg_file_operations;
 
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void c2t1fs_destroy_inode(struct inode *inode);
