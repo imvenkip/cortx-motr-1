@@ -225,7 +225,12 @@ struct c2_tl_descr {
 	.td_link_magic_offset = offsetof(ambient_type, link_magic_field), \
 	.td_link_magic        = link_magic,				\
 	.td_head_magic        = head_magic				\
-}
+};									\
+									\
+C2_BASSERT(C2_HAS_TYPE(C2_FIELD_VALUE(ambient_type, link_field),	\
+		       struct c2_tlink));				\
+C2_BASSERT(C2_HAS_TYPE(C2_FIELD_VALUE(ambient_type, link_magic_field),	\
+		       uint64_t))
 
 
 /**
