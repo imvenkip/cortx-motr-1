@@ -23,7 +23,7 @@
 #endif
 
 #include "lib/ut.h"    /* C2_UT_ASSERT */
-#include "lib/misc.h"
+#include "lib/misc.h"  /* C2_SET_ARR0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"

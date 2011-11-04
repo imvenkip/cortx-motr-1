@@ -22,11 +22,6 @@
 #include <config.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>    /* pause */
-#include <errno.h>     /* errno */
-
 #include "lib/ut.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -599,16 +594,16 @@ const struct c2_test_suite colibri_setup_ut = {
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-                { "Success: Single service", test_cs_ut_service_one},
-		{ "Success: Multiple services", test_cs_ut_services_many},
-		{ "Success: Multiple Request handlers", test_cs_ut_reqhs_many},
-		{ "Success: Command options jumbled", test_cs_ut_opts_jumbled},
-                { "Failure: Missing reqh option", test_cs_ut_reqh_none},
-		{ "Failure: Bad storage type", test_cs_ut_stype_bad},
-		{ "Failure: Bad network xprt", test_cs_ut_xprt_bad},
-		{ "Failure: Bad network ep", test_cs_ut_ep_bad},
-		{ "Failure: Bad service", test_cs_ut_service_bad},
-		{ "Failure: Missing options", test_cs_ut_args_bad},
+                { "Single service", test_cs_ut_service_one},
+		{ "Multiple services", test_cs_ut_services_many},
+		{ "Multiple Request handlers", test_cs_ut_reqhs_many},
+		{ "Command options jumbled", test_cs_ut_opts_jumbled},
+                { "Missing reqh option", test_cs_ut_reqh_none},
+		{ "Bad storage type", test_cs_ut_stype_bad},
+		{ "Bad network xprt", test_cs_ut_xprt_bad},
+		{ "Bad network ep", test_cs_ut_ep_bad},
+		{ "Bad service", test_cs_ut_service_bad},
+		{ "Missing options", test_cs_ut_args_bad},
                 { NULL, NULL }
         }
 };

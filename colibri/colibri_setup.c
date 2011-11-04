@@ -23,10 +23,9 @@
 #endif
 
 #include <stdio.h>     /* fprintf */
-#include <stdlib.h>
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
-#include <string.h>
+#include <string.h>    /* strtok_r, strcmp */
 
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -55,7 +54,7 @@
 
    @todo Have a generic mechanism to generate unique cob domain id.
  */
-static int cdom_id = 1001;
+static int cdom_id;
 
 /**
    Magic used to check consistency of cs_reqh_context.
@@ -1107,7 +1106,6 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
 					&rctx->rc_cdom, &rctx->rc_fol);
-
 	if (rc != 0)
 		goto cleanup_fol;
 

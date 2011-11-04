@@ -113,6 +113,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 reqh->rh_dbenv = db;
                 reqh->rh_cob_domain = cdom;
                 reqh->rh_fol = fol;
+		reqh->rh_shutdown = false;
                 reqh->rh_fom_dom.fd_reqh = reqh;
                 c2_tlist_init(&c2_rh_sl_descr, &reqh->rh_services);
                 c2_tlist_init(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
@@ -158,18 +159,19 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	struct c2_fom_domain   *dom;
 	int			result;
 	size_t			loc_idx;
+	bool                    rsd;
 
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
 
 	c2_mutex_lock(&reqh->rh_lock);
-	if (reqh->rh_shutdown) {
-		c2_mutex_unlock(&reqh->rh_lock);
+	rsd = reqh->rh_shutdown;
+	c2_mutex_unlock(&reqh->rh_lock);
+	if (rsd) {
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle",
 								ESHUTDOWN);
 		return;
 	}
-	c2_mutex_unlock(&reqh->rh_lock);
 
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	if (result != -ENOMEM) {

@@ -23,9 +23,8 @@
 #endif
 
 #include <stdio.h>     /* fprintf */
-#include <stdlib.h>
 #include <unistd.h>    /* pause */
-#include <signal.h>
+#include <signal.h>    /* sigaction */
 
 #include "lib/errno.h"
 #include "lib/memory.h"
