@@ -1050,6 +1050,8 @@ struct c2_rm_incoming {
            Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
          */
         int                              rin_priority;
+	/** Request processing error. Used to propagate it to proper caller */
+	int32_t				 rin_rc;
         const struct c2_rm_incoming_ops *rin_ops;
         struct c2_chan                   rin_signal;
 };

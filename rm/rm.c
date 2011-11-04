@@ -262,6 +262,7 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in)
 {
 	C2_PRE(in != NULL);
 
+	in->rin_rc = 0;
 	in->rin_state = RI_INITIALISED;
 	c2_list_init(&in->rin_pins);
 	c2_chan_init(&in->rin_signal);
@@ -275,6 +276,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 	C2_PRE(in->rin_state != RI_CHECK);
 	C2_PRE(c2_list_is_empty(&in->rin_pins));
 
+	in->rin_rc = 0;
 	in->rin_state = 0;
 	c2_list_fini(&in->rin_pins);
 	c2_chan_fini(&in->rin_signal);
@@ -598,7 +600,7 @@ C2_EXPORTED(c2_rm_net_locate);
    Locate c2_rm_remote for every right in the incoming request (for loan)
    and move them to sublet list of owner.
  */
-static void move_to_sublet(struct c2_rm_incoming *in)
+static int move_to_sublet(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_rm_pin   *pin;
@@ -609,7 +611,8 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
 	C2_ALLOC_PTR(loan);
-	C2_ASSERT(loan != NULL);
+	if (loan == NULL)
+		return -ENOMEM;
 	c2_rm_right_init(&loan->rl_right);
 
 	/* Constructs a single cumulative right */
@@ -996,7 +999,6 @@ static void owner_balance(struct c2_rm_owner *o)
 				C2_ASSERT(in != NULL);
 				C2_ASSERT(in->rin_state == RI_WAIT ||
 					  in->rin_state == RI_INITIALISED);
-				//C2_ASSERT(c2_list_is_empty(&in->rin_pins));
 				/*
 				 * All waits completed, go to CHECK
 				 * state.
@@ -1008,7 +1010,7 @@ static void owner_balance(struct c2_rm_owner *o)
 				if (in->rin_state == RI_SUCCESS ||
 				    in->rin_state == RI_FAILURE) {
 				    in->rin_ops->rio_complete(in,
-							      in->rin_state);
+							      in->rin_rc);
 				}
 			}
 		}
@@ -1034,7 +1036,6 @@ static void incoming_check(struct c2_rm_incoming *in)
 	C2_PRE(c2_list_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
 				&in->rin_want.ri_linkage));
 	C2_PRE(in->rin_state == RI_CHECK);
-	//C2_PRE(c2_list_is_empty(&in->rin_pins));
 
 	/*
 	 * This function goes through owner rights lists checking for "wait"
@@ -1044,21 +1045,22 @@ static void incoming_check(struct c2_rm_incoming *in)
 	 * If there is nothing to wait for, the request is either fulfilled
 	 * immediately or fails.
 	 */
-
 	c2_rm_right_init(&rest);
 	result = right_copy(&rest, &in->rin_want);
-	if (result != 0)
+	if (result != 0) {
+		in->rin_rc = result;
 		goto error;
+	}
 
 	/*
 	 * Check for "local" wait conditions.
 	 */
 	incoming_check_local(in, &rest);
-
 	held = conflicts_exist(in);
 	/* Try Lock */
 	if (held && (in->rin_flags & RIF_LOCAL_TRY)) {
 		incoming_release(in);
+		in->rin_rc = -EWOULDBLOCK;
 		goto error;
 	}
 
@@ -1082,16 +1084,30 @@ static void incoming_check(struct c2_rm_incoming *in)
 			 * Apply the policy.
 			 */
 			result = apply_policy(in);
-			if (result != 0)
+			if (result != 0) {
+				in->rin_rc = result;
 				goto error;
+			}
 			switch (in->rin_type) {
 			case RIT_LOAN:
-				move_to_sublet(in);
-				loan_request_reply(in);
+				result = move_to_sublet(in);
+				if (result != 0) {
+					in->rin_rc = result;
+					goto error;
+				}
+				result = loan_request_reply(in);
+				if (result != 0) {
+					in->rin_rc = result;
+					goto error;
+				}
 			case RIT_LOCAL:
 				break;
 			case RIT_REVOKE:
-				revoke_request_reply(in);
+				result = revoke_request_reply(in);
+				if (result != 0) {
+					in->rin_rc = result;
+					goto error;
+				}
 			}
 			in->rin_state = RI_SUCCESS;
 		}
@@ -1109,20 +1125,28 @@ static void incoming_check(struct c2_rm_incoming *in)
 		 * RIF_MAY_REVOKE is cleared, the request should fail instead of
 		 * borrowing more rights.
 		 */
-		if (in->rin_flags & RIF_MAY_REVOKE)
+		if (in->rin_flags & RIF_MAY_REVOKE) {
 			result = sublet_revoke(in, &rest);
+			if (result != 0) {
+				in->rin_rc = result;
+				goto error;
+			}
+		}
 		if (in->rin_flags & RIF_MAY_BORROW) {
 			/* borrow more */
 			while (!right_is_empty(&rest)) {
 				result = right_borrow(in, &rest);
-				if (result != 0)
+				if (result != 0) {
+					in->rin_rc = result;
 					goto error;
+				}
 			}
 		}
 		if (right_is_empty(&rest)) {
 			in->rin_state = RI_WAIT;
 		} else {
 			/* cannot fulfill the request. */
+			in->rin_rc = -EBUSY;
 			in->rin_state = RI_FAILURE;
 		}
 	}
@@ -1162,7 +1186,7 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	if (in->rin_type == RIT_LOCAL ||
 	    in->rin_policy != RIP_INPLACE ||
 	    !(in->rin_flags & RIF_LOCAL_WAIT))
-	    	return;
+		return;
 	/*
 	 * If coverage is true, the loop below pins some collection of locally
 	 * possessed rights which together imply (i.e., cover) the wanted
@@ -1179,8 +1203,10 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 				       struct c2_rm_right, ri_linkage) {
 			if (rest->ri_ops->rro_intersects(right, rest)) {
 				result = pin_add(in, right);
-				if (result != 0)
+				if (result != 0) {
+					in->rin_rc = result;
 					return;
+				}
 				if (coverage) {
 					rest->ri_ops->rro_diff(rest, right);
 					if (right_is_empty(rest))
@@ -1200,7 +1226,7 @@ static int sublet_revoke(struct c2_rm_incoming *in,
 	struct c2_rm_owner *o = in->rin_owner;
 	struct c2_rm_right *right;
 	struct c2_rm_loan  *loan;
-	int		    result = 1;
+	int		    result;
 
 	c2_list_for_each_entry(&o->ro_sublet, right,
 			       struct c2_rm_right, ri_linkage) {
@@ -1215,11 +1241,11 @@ static int sublet_revoke(struct c2_rm_incoming *in,
 			 */
 			result = go_out(in, ROT_REVOKE, loan, right);
 			if (result != 0)
-				break;
+				return result;
 		}
 	}
 
-	return result;
+	return 0;
 }
 
 /**
@@ -1326,10 +1352,10 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 	case RI_WAIT:
 		return -ETIMEDOUT;
 	case RI_SUCCESS:
-		return SUCCESS;
+		return 0;
 	case RI_FAILURE:
 	default:
-		return -EWOULDBLOCK;
+		return in->rin_rc;
 	}
 }
 
@@ -1350,11 +1376,11 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in)
 
 	switch (in->rin_state) {
 	case RI_SUCCESS:
-		return SUCCESS;
+		return 0;
 	case RI_WAIT:
 	case RI_FAILURE:
 	default:
-		return -EWOULDBLOCK;
+		return in->rin_rc;
 	}
 }
 
