@@ -225,7 +225,12 @@ struct c2_tl_descr {
 	.td_link_magic_offset = offsetof(ambient_type, link_magic_field), \
 	.td_link_magic        = link_magic,				\
 	.td_head_magic        = head_magic				\
-}
+};									\
+									\
+C2_BASSERT(C2_HAS_TYPE(C2_FIELD_VALUE(ambient_type, link_field),	\
+		       struct c2_tlink));				\
+C2_BASSERT(C2_HAS_TYPE(C2_FIELD_VALUE(ambient_type, link_magic_field),	\
+		       uint64_t))
 
 
 /**
@@ -254,6 +259,11 @@ void c2_tlist_fini(const struct c2_tl_descr *d, struct c2_tl *list);
 
 void c2_tlink_init(const struct c2_tl_descr *d, void *obj);
 void c2_tlink_fini(const struct c2_tl_descr *d, void *obj);
+void c2_tlink_init_at(const struct c2_tl_descr *d,
+		      void *obj, struct c2_tl *list);
+void c2_tlink_init_at_tail(const struct c2_tl_descr *d,
+			   void *obj, struct c2_tl *list);
+void c2_tlink_del_fini(const struct c2_tl_descr *d, void *obj);
 
 bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list);
 bool c2_tlink_invariant(const struct c2_tl_descr *d, const void *obj);
@@ -427,7 +437,10 @@ scope const struct c2_tl_descr name ## _tl
 scope void name ## _tlist_init(struct c2_tl *head);			\
 scope void name ## _tlist_fini(struct c2_tl *head);			\
 scope void name ## _tlink_init(amb_type *amb);				\
+ scope void name ## _tlink_init_at(amb_type *amb, struct c2_tl *head);	\
+ scope void name ## _tlink_init_at_tail(amb_type *amb, struct c2_tl *head);\
 scope void name ## _tlink_fini(amb_type *amb);				\
+scope void name ## _tlink_del_fini(amb_type *amb);			\
 scope bool   name ## _tlist_is_empty(const struct c2_tl *list);		\
 scope bool   name ## _tlink_is_in   (const amb_type *amb);		\
 scope bool   name ## _tlist_contains(const struct c2_tl *list,		\
@@ -484,10 +497,26 @@ scope __AUN void name ## _tlink_init(amb_type *amb)			\
 	c2_tlink_init(&name ## _tl, amb);				\
 }									\
 									\
+scope __AUN void name ## _tlink_init_at(amb_type *amb, struct c2_tl *head) \
+{									\
+	c2_tlink_init_at(&name ## _tl, amb, head);			\
+}									\
+									\
+scope __AUN void name ## _tlink_init_at_tail(amb_type *amb, struct c2_tl *head) \
+{									\
+	c2_tlink_init_at_tail(&name ## _tl, amb, head);			\
+}									\
+									\
 scope __AUN void name ## _tlink_fini(amb_type *amb)			\
 {									\
 	c2_tlink_fini(&name ## _tl, amb);				\
 }									\
+									\
+scope __AUN void name ## _tlink_del_fini(amb_type *amb)			\
+{									\
+	c2_tlink_del_fini(&name ## _tl, amb);				\
+}									\
+									\
 scope __AUN bool   name ## _tlist_is_empty(const struct c2_tl *list)	\
 {									\
 	return c2_tlist_is_empty(&name ## _tl, list);			\
