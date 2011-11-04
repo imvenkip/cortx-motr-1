@@ -669,8 +669,8 @@ const struct c2_test_suite cfm_ut = {
 		{ "cfm-container-enumerate-multiple-buffers", ce_multiple_buf },
 		{ "cfm-map-enumerate-single-buffer", me_single_buf },
 		{ "cfm-map-enumerate-multiple-buffers", me_multiple_buf },
-		{ "cfm_iter_sensitivity", test_iter_sensitivity },
-		{ "cfm_concurrency", test_cfm_concurrency },
+		{ "cfm-iter-sensitivity", test_iter_sensitivity },
+		{ "cfm-concurrency", test_cfm_concurrency },
 		{ NULL, NULL }
 	}
 };
