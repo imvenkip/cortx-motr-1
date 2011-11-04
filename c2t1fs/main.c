@@ -2,8 +2,10 @@
 #include <linux/init.h>
 #include <linux/fs.h>
 #include <linux/mount.h>
+#include <linux/parser.h>
 
 #include "c2t1fs/c2t1fs.h"
+#include "lib/misc.h"
 
 static int c2t1fs_get_sb(struct file_system_type *fstype,
 			 int                      flags,
@@ -15,8 +17,11 @@ static void c2t1fs_kill_sb(struct super_block *sb);
 
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 
-static int c2t1fs_mnt_opts_parse(char                   *options,
-				 struct c2t1fs_mnt_opts *mnt_opts);
+static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts);
+static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
+static int  c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts);
+static int  c2t1fs_mnt_opts_parse(char                   *options,
+				  struct c2t1fs_mnt_opts *mnt_opts);
 
 static struct file_system_type c2t1fs_fs_type = {
 	.owner        = THIS_MODULE,
@@ -170,7 +175,7 @@ int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 
 	c2_mutex_init(&csb->csb_mutex);
 	csb->csb_flags = 0;
-	csb->csb_mnt_opts.mo_options = NULL;
+	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
 
 	END(0);
 	return 0;
@@ -180,22 +185,120 @@ void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 	START();
 
 	c2_mutex_fini(&csb->csb_mutex);
+	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 
 	END(0);
+}
+
+enum {
+	C2T1FS_MNTOPT_MDS = 1,
+	C2T1FS_MNTOPT_IOS,
+	C2T1FS_MNTOPT_ERR,
+};
+
+static const match_table_t c2t1fs_mntopt_tokens = {
+	{ C2T1FS_MNTOPT_MDS, "mds=%s" },
+	{ C2T1FS_MNTOPT_IOS, "ios=%s" },
+	{ C2T1FS_MNTOPT_ERR, NULL },
+};
+
+static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts)
+{
+	START();
+
+	C2_SET0(mntopts);
+
+	END(0);
+}
+
+static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
+{
+	int i;
+
+	START();
+
+	for (i = 0; i < mntopts->mo_nr_ios_ep; i++) {
+		C2_ASSERT(mntopts->mo_ios_ep[i] != NULL);
+		kfree(mntopts->mo_ios_ep[i]);
+	}
+	for (i = 0; i < mntopts->mo_nr_mds_ep; i++) {
+		C2_ASSERT(mntopts->mo_mds_ep[i] != NULL);
+		kfree(mntopts->mo_mds_ep[i]);
+	}
+	if (mntopts->mo_options != NULL)
+		kfree(mntopts->mo_options);
+
+	END(0);
+}
+
+static int c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts)
+{
+	START();
+	END(0);
+	return 0;
 }
 
 static int c2t1fs_mnt_opts_parse(char                   *options,
 				 struct c2t1fs_mnt_opts *mnt_opts)
 {
-	int rc = 0;
+	substring_t  args[MAX_OPT_ARGS];
+	char        *value;
+	char        *op;
+	int          token;
+	int          rc = 0;
 
 	START();
+
+	TRACE("options: %p\n", options);
+
+	if (options == NULL) {
+		rc = -EINVAL;
+		goto out;
+	}
 
 	mnt_opts->mo_options = kstrdup(options, GFP_KERNEL);
 	if (mnt_opts->mo_options == NULL)
 		rc = -ENOMEM;
 
-	/* XXX Parse mount options */
+	while ((op = strsep(&options, ",")) != NULL) {
+		TRACE("Processing \"%s\"\n", op);
+		if (*op == '\0')
+			continue;
+
+		token = match_token(op, c2t1fs_mntopt_tokens, args);
+		switch (token) {
+
+		case C2T1FS_MNTOPT_IOS:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			TRACE("ioservice: %s\n", value);
+			mnt_opts->mo_ios_ep[mnt_opts->mo_nr_ios_ep++] = value;
+			break;
+
+		case C2T1FS_MNTOPT_MDS:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			TRACE("mdservice: %s\n", value);
+			mnt_opts->mo_mds_ep[mnt_opts->mo_nr_mds_ep++] = value;
+			break;
+
+		default:
+			TRACE("Unrecognized options: %s\n", op);
+			rc = -EINVAL;
+			goto out;
+		}
+	}
+	rc = c2t1fs_mnt_opts_validate(mnt_opts);
+
+out:
+	if (rc != 0)
+		c2t1fs_mnt_opts_fini(mnt_opts);
 
 	END(rc);
 	return rc;

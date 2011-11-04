@@ -32,9 +32,17 @@ enum {
 	C2T1FS_SUPER_MAGIC = 0x43325431
 };
 
+enum {
+	MAX_NR_EP_PER_SERVICE_TYPE = 10,
+};
+
 struct c2t1fs_mnt_opts
 {
 	char *mo_options;
+	int   mo_nr_mds_ep;
+	char *mo_mds_ep[MAX_NR_EP_PER_SERVICE_TYPE];
+	int   mo_nr_ios_ep;
+	char *mo_ios_ep[MAX_NR_EP_PER_SERVICE_TYPE];
 };
 
 struct c2t1fs_sb

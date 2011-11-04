@@ -12,8 +12,7 @@ static int c2t1fs_create(struct inode     *dir,
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
-static struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid)
-		__attribute__((unused));
+static struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid);
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
