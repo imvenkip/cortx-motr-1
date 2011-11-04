@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <err.h>
 
+#include "dtm/dtm.h"      /* c2_dtx */
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/misc.h"     /* C2_SET0 */
 #include "lib/assert.h"

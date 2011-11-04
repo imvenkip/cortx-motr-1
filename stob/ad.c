@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <string.h>                 /* memset */
 
+#include "dtm/dtm.h"                /* c2_dtx */
 #include "lib/thread.h"             /* LAMBDA */
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
@@ -502,7 +503,7 @@ struct ad_stob_io {
 	struct c2_clink    ai_clink;
 };
 
-static void ad_endio(struct c2_clink *link);
+static bool ad_endio(struct c2_clink *link);
 
 /**
    Helper function to allocate a given number of blocks in the underlying
@@ -1274,7 +1275,7 @@ static uint32_t ad_stob_block_shift(const struct c2_stob *stob)
 	return ad_bshift(domain2ad(stob->so_domain));
 }
 
-static void ad_endio(struct c2_clink *link)
+static bool ad_endio(struct c2_clink *link)
 {
 	struct ad_stob_io *aio;
 	struct c2_stob_io *io;
@@ -1290,6 +1291,7 @@ static void ad_endio(struct c2_clink *link)
 	io->si_state  = SIS_IDLE;
 	ad_stob_io_release(aio);
 	c2_chan_broadcast(&io->si_wait);
+	return true;
 }
 
 static const struct c2_stob_io_op ad_stob_io_op = {

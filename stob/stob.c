@@ -224,7 +224,6 @@ void c2_stob_io_init(struct c2_stob_io *io)
 	io->si_opcode = SIO_INVALID;
 	io->si_state  = SIS_IDLE;
 	c2_chan_init(&io->si_wait);
-	c2_sm_init(&io->si_mach);
 
 	C2_POST(io->si_state == SIS_IDLE);
 }
@@ -234,7 +233,6 @@ void c2_stob_io_fini(struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
 
-	c2_sm_fini(&io->si_mach);
 	c2_chan_fini(&io->si_wait);
 	c2_stob_io_private_fini(io);
 }
