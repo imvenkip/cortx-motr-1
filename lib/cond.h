@@ -48,7 +48,7 @@ struct c2_mutex;
            // buffer is being returned to the pool...
            c2_mutex_lock(&buffer_pool_lock);
            // add the buffer to the free list
-           c2_list_add(&buffer_pool_free, &buf->b_linkage);
+           buf_tlist_add(&buffer_pool_free, buf);
            // and signal the condition variable
            c2_cond_signal(&buffer_pool_hasfree, &buffer_pool_lock);
            c2_mutex_unlock(&buffer_pool_lock);
@@ -63,10 +63,10 @@ struct c2_mutex;
            struct c2_buffer *buf;
 
            c2_mutex_lock(&buffer_pool_lock);
-           while (c2_list_is_empty(&buffer_pool_free))
+           while (buf_tlist_is_empty(&buffer_pool_free))
                    c2_cond_wait(&buffer_pool_hasfree, &buffer_pool_lock);
-           buf = c2_list_first(&buffer_pool_free);
-           c2_list_del(&buf->b_linkage);
+           buf = buf_tlist_head(&buffer_pool_free);
+           buf_tlist_del(buf);
            c2_mutex_unlock(&buffer_pool_lock);
            return buf;
    }
@@ -144,7 +144,7 @@ void c2_cond_broadcast(struct c2_cond *cond, struct c2_mutex *mutex);
 /* __COLIBRI_LIB_COND_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

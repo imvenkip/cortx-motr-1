@@ -39,6 +39,16 @@
  * Simple FIFO elevator.
  */
 
+struct io_req {
+	struct c2_tlink ir_linkage;
+	uint64_t        ir_magic;
+};
+
+C2_TL_DESCR_DEFINE(req, "io requests", static, struct io_req,
+		   ir_linkage, ir_magic, 0xBE111C05E0DDBA11,
+		   0xFA110FFB100D1EAF);
+C2_TL_DEFINE(req, static, struct io_req);
+
 static void elevator_submit(struct elevator *el,
 			    enum storage_req_type type,
 			    sector_t sector, unsigned long count)
@@ -62,7 +72,7 @@ void el_end_io(struct storage_dev *dev)
 
 	el = dev->sd_el;
 	el->e_idle = 1;
-	if (!c2_list_is_empty(&el->e_queue))
+	if (!req_tlist_is_empty(&el->e_queue))
 		elevator_go(el);
 	sim_chan_broadcast(&el->e_wait);
 }
@@ -73,13 +83,13 @@ void elevator_init(struct elevator *el, struct storage_dev *dev)
 	el->e_idle = 1;
 	dev->sd_end_io = el_end_io;
 	dev->sd_el     = el;
-	c2_list_init(&el->e_queue);
+	req_tlist_init(&el->e_queue);
 	sim_chan_init(&el->e_wait, "xfer-queue@%p", dev);
 }
 
 void elevator_fini(struct elevator *el)
 {
-	c2_list_fini(&el->e_queue);
+	req_tlist_fini(&el->e_queue);
 	sim_chan_fini(&el->e_wait);
 }
 
@@ -93,7 +103,7 @@ void elevator_io(struct elevator *el, enum storage_req_type type,
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -24,7 +24,7 @@
 
 #include "desim/sim.h"
 #include "desim/storage.h"
-#include "lib/list.h"
+#include "lib/tlist.h"
 
 /**
    @addtogroup desim desim
@@ -34,7 +34,7 @@
 struct elevator {
 	struct storage_dev *e_dev;
 	int                 e_idle;
-	struct c2_list      e_queue;
+	struct c2_tl        e_queue;
 	struct sim_chan     e_wait;
 };
 
@@ -48,7 +48,7 @@ void elevator_io(struct elevator *el, enum storage_req_type type,
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
