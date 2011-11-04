@@ -588,11 +588,20 @@ void test_cfm_concurrency(void)
 	C2_ALLOC_ARR(cfm_thread, CFM_THREAD_NR);
 	C2_UT_ASSERT(cfm_thread != NULL);
 
-	/* Spawn threads which will independently add and enumerate */
-	for (i = 0; i < CFM_THREAD_NR; ++i) {
-	       rc = C2_THREAD_INIT(&cfm_thread[i], int, NULL, &cfm_op, i,
-			           "cfm_thread_%d", i);
-	       C2_UT_ASSERT(rc == 0);
+	/* Spawn threads with even thread id,
+	   which will independently add and enumerate */
+	for (i = 0; i < CFM_THREAD_NR; i = i + 2) {
+		rc = C2_THREAD_INIT(&cfm_thread[i], int, NULL, &cfm_op, i,
+				    "cfm_thread_%d", i);
+		C2_UT_ASSERT(rc == 0);
+	}
+
+	/* Spawn threads with odd thread id,
+	   which will independently add and enumerate */
+	for (i = 1; i < CFM_THREAD_NR; i = i + 2) {
+		rc = C2_THREAD_INIT(&cfm_thread[i], int, NULL, &cfm_op, i,
+				    "cfm_thread_%d", i);
+		C2_UT_ASSERT(rc == 0);
 	}
 
 	for (i = 0; i < CFM_THREAD_NR; ++i) {
