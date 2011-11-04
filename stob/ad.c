@@ -27,6 +27,8 @@
 #include "lib/thread.h"             /* LAMBDA */
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
+#include "lib/tlist.h"
+
 #include "stob/ad.h"
 
 /**
@@ -99,8 +101,8 @@ struct ad_domain {
 	struct c2_emap             ad_adata;
 
 	/**
-	   Set to true in c2_ad_stob_setup(). Used in pre-conditions to guarantee that
-	   the domain is fully initialized.
+	   Set to true in c2_ad_stob_setup(). Used in pre-conditions to
+	   guarantee that the domain is fully initialized.
 	 */
 	bool                       ad_setup;
 	/**
@@ -109,7 +111,7 @@ struct ad_domain {
 	 */
 	struct c2_stob            *ad_bstore;
 	/** List of all existing c2_stob's. */
-	struct c2_list             ad_object;
+	struct c2_tl               ad_object;
 	struct ad_balloc          *ad_ballroom;
 
 };
@@ -121,8 +123,15 @@ struct ad_domain {
  */
 struct ad_stob {
 	struct c2_stob      as_stob;
-	struct c2_list_link as_linkage;
+	struct c2_tlink     as_linkage;
+	uint64_t            as_magix;
 };
+
+C2_TL_DESCR_DEFINE(ad, "ad stobs", static, struct ad_stob, as_linkage, as_magix,
+		   0xc01101da1fe11c1a /* colloidal felicia */,
+		   0x1dea112ed5ea51de /* idealized seaside */);
+
+C2_TL_DEFINE(ad, static, struct ad_stob);
 
 static inline struct ad_stob *stob2ad(struct c2_stob *stob)
 {
@@ -190,6 +199,7 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 		c2_emap_fini(&adom->ad_adata);
 		c2_stob_put(adom->ad_bstore);
 	}
+	ad_tlist_fini(&adom->ad_object);
 	c2_stob_domain_fini(self);
 	c2_free(adom);
 }
@@ -197,8 +207,8 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 /**
    Implementation of c2_stob_type_op::sto_domain_locate().
 
-   @note the domain returned is not immediately ready for use. c2_ad_stob_setup() has to
-   be called against it first.
+   @note the domain returned is not immediately ready for
+   use. c2_ad_stob_setup() has to be called against it first.
  */
 static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 				      const char *domain_name,
@@ -211,7 +221,7 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	C2_ALLOC_PTR(adom);
 	if (adom != NULL) {
 		adom->ad_setup = false;
-		c2_list_init(&adom->ad_object);
+		ad_tlist_init(&adom->ad_object);
 		dom = &adom->ad_base;
 		dom->sd_ops = &ad_stob_domain_op;
 		c2_stob_domain_init(dom, type);
@@ -265,14 +275,13 @@ static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
 	C2_PRE(adom->ad_setup);
 
 	found = false;
-	c2_list_for_each_entry(&adom->ad_object, obj,
-			       struct ad_stob, as_linkage) {
+	c2_tlist_for(&ad_tl, &adom->ad_object, obj) {
 		if (c2_stob_id_eq(id, &obj->as_stob.so_id)) {
 			c2_stob_get(&obj->as_stob);
 			found = true;
 			break;
 		}
-	}
+	} c2_tlist_endfor;
 	return found ? obj : NULL;
 }
 
@@ -309,8 +318,8 @@ static int ad_domain_stob_find(struct c2_stob_domain *dom,
 				stob = &astob->as_stob;
 				stob->so_op = &ad_stob_op;
 				c2_stob_init(stob, id, dom);
-				c2_list_add(&adom->ad_object,
-					    &astob->as_linkage);
+				ad_tlink_init(astob);
+				ad_tlist_add(&adom->ad_object, astob);
 			} else {
 				c2_free(astob);
 				astob = ghost;
@@ -350,7 +359,8 @@ static void ad_stob_fini(struct c2_stob *stob)
 	struct ad_stob *astob;
 
 	astob = stob2ad(stob);
-	c2_list_del(&astob->as_linkage);
+	ad_tlist_del(astob);
+	ad_tlink_fini(astob);
 	c2_stob_fini(&astob->as_stob);
 	c2_free(astob);
 }
@@ -1062,9 +1072,9 @@ static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
 
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
-		
+
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
-		
+
 		if (result != 0)
 			break;
 
