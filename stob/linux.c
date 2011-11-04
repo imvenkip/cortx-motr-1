@@ -83,6 +83,13 @@ static const struct c2_addb_loc c2_linux_stob_addb_loc = {
 	.al_name = "linux-stob"
 };
 
+C2_TL_DESCR_DEFINE(ls, "linux stobs", static, struct linux_stob,
+		   sl_linkage, sl_magix,
+		   0xb1b11ca15cab105a /* biblical scabiosa */,
+		   0x11fe1e55cab00d1e /* lifeless caboodle */);
+
+C2_TL_DEFINE(ls, static, struct linux_stob);
+
 /**
    Implementation of c2_stob_type_op::sto_init().
  */
@@ -108,19 +115,16 @@ static void linux_stob_type_fini(struct c2_stob_type *stype)
 static void linux_domain_fini(struct c2_stob_domain *self)
 {
 	struct linux_domain *ldom;
+	struct linux_stob   *lstob;
 
 	ldom = domain2linux(self);
 	linux_domain_io_fini(self);
 	c2_rwlock_write_lock(&self->sd_guard);
-	while (!c2_list_is_empty(&ldom->sdl_object)) {
-		struct linux_stob *lstob;
-
-		lstob = container_of(ldom->sdl_object.l_head,
-				     struct linux_stob, sl_linkage);
+	c2_tlist_for(&ls_tl, &ldom->sdl_object, lstob) {
 		linux_stob_fini(&lstob->sl_stob);
-	}
+	} c2_tlist_endfor;
 	c2_rwlock_write_unlock(&self->sd_guard);
-	c2_list_fini(&ldom->sdl_object);
+	ls_tlist_fini(&ldom->sdl_object);
 	c2_stob_domain_fini(self);
 	c2_free(ldom);
 }
@@ -130,9 +134,9 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 
    Initialises adieu sub-system for the domain.
 
-   @note the domain returned is ready for use, but c2_linux_stob_setup() can be called
-   against it in order to customize some configuration options (currently there
-   is only one such option: "use_directio" flag).
+   @note the domain returned is ready for use, but c2_linux_stob_setup() can be
+   called against it in order to customize some configuration options (currently
+   there is only one such option: "use_directio" flag).
  */
 static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 					 const char *domain_name,
@@ -146,7 +150,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 
 	C2_ALLOC_PTR(ldom);
 	if (ldom != NULL) {
-		c2_list_init(&ldom->sdl_object);
+		ls_tlist_init(&ldom->sdl_object);
 		strcpy(ldom->sdl_path, domain_name);
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
@@ -198,19 +202,15 @@ static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 					      const struct c2_stob_id *id)
 {
 	struct linux_stob *obj;
-	bool               found;
 
-	found = false;
-	c2_list_for_each_entry(&ldom->sdl_object, obj,
-			       struct linux_stob, sl_linkage) {
+	c2_tlist_for(&ls_tl, &ldom->sdl_object, obj) {
 		C2_ASSERT(linux_stob_invariant(obj));
 		if (c2_stob_id_eq(id, &obj->sl_stob.so_id)) {
 			c2_stob_get(&obj->sl_stob);
-			found = true;
 			break;
 		}
-	}
-	return found ? obj : NULL;
+	} c2_tlist_endfor;
+	return obj;
 }
 
 /**
@@ -245,8 +245,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 				stob->so_op = &linux_stob_op;
 				lstob->sl_fd = -1;
 				c2_stob_init(stob, id, dom);
-				c2_list_add(&ldom->sdl_object,
-					    &lstob->sl_linkage);
+				ls_tlink_init_at(lstob, &ldom->sdl_object);
 			} else {
 				c2_free(lstob);
 				lstob = ghost;
@@ -309,7 +308,7 @@ static void linux_stob_fini(struct c2_stob *stob)
 		close(lstob->sl_fd);
 		lstob->sl_fd = -1;
 	}
-	c2_list_del(&lstob->sl_linkage);
+	ls_tlink_del_fini(lstob);
 	c2_stob_fini(&lstob->sl_stob);
 	c2_free(lstob);
 }
