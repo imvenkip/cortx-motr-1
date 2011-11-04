@@ -445,7 +445,6 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpcmachine *machine,
 				 struct c2_net_end_point *dest_ep,
 				 uint64_t max_rpcs_in_flight)
 {
-	int			 rc;
 	struct c2_rpc_chan	*chan;
 
 	C2_PRE(machine != NULL);
@@ -454,8 +453,7 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpcmachine *machine,
 
 	chan = rpc_chan_locate(machine, dest_ep);
 	if (chan == NULL)
-		rc = rpc_chan_create(&chan, machine, dest_ep,
-				     max_rpcs_in_flight);
+		rpc_chan_create(&chan, machine, dest_ep, max_rpcs_in_flight);
 	return chan;
 }
 
@@ -824,6 +822,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 		c2_db_tx_abort(&tx);
 		return rc;
 	}
+	c2_cob_put(root_session_cob);
 #endif
 
 	c2_mutex_init(&machine->cr_chan_mutex);

@@ -1,6 +1,8 @@
 KNETC2_SRCDIR = @SRCDIR@/net/linux_kernel
 NET_MOD       := knetc2
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 otw_ff        := net_otw_types.ff
 otw_k_h       := $(otw_ff:.ff=_k.h)
 otw_k_c       := $(otw_ff:.ff=_k.c)

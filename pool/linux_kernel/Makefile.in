@@ -1,5 +1,7 @@
 POOL_SRCDIR = @SRCDIR@/pool/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y       := kpool.o
 shared_src  := pool.c
 kernel_src  :=
