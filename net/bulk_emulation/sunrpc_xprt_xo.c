@@ -81,7 +81,7 @@ C2_FOP_TYPE_DECLARE(sunrpc_get_resp, "sunrpc_get_reply", NULL,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &c2_rpc_fop_default_item_type_ops);
 C2_FOP_TYPE_DECLARE(sunrpc_put_resp, "sunrpc_put_reply", NULL,
-		      C2_BULK_SUNRP_PUT_REPLY_OPCODE,
+		      C2_BULK_SUNRPC_PUT_REPLY_OPCODE,
 		      C2_RPC_ITEM_TYPE_REPLY,
 		      &c2_rpc_fop_default_item_type_ops);
 

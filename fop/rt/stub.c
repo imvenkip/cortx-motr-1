@@ -12,6 +12,7 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 {
 	return 0;
 }
+
 int fop_fol_type_init(struct c2_fop_type *fopt)
 {
 	return 0;

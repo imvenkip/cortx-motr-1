@@ -43,7 +43,7 @@
  */
 
 C2_FOP_TYPE_DECLARE(c2_fop_iterator_test, "FOP iterator test", NULL,
-		    C2_FOP_ITERATOR_TEST, 0, NULL);
+		    C2_FOP_ITERATOR_TEST_OPCODE, 0, NULL);
 
 static struct c2_fop_type *fops[] = {
 	&c2_fop_iterator_test_fopt,

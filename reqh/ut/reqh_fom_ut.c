@@ -398,7 +398,8 @@ static struct c2_fom_type *reqh_ut_fom_types[] = {
  */
 static struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_UT_ASSERT(IS_IN_ARRAY((code - C2_REQH_UT_CREATE_REQ_OPCODE), reqh_ut_fom_types));
+	C2_UT_ASSERT(IS_IN_ARRAY((code - C2_REQH_UT_CREATE_REQ_OPCODE),
+		     reqh_ut_fom_types));
 
 	return reqh_ut_fom_types[code - C2_REQH_UT_CREATE_REQ_OPCODE];
 }
@@ -681,7 +682,8 @@ static int reqh_ut_create_fom_state(struct c2_fom *fom)
 	struct c2_fop                           *fop;
 	int                                      result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode == C2_REQH_UT_CREATE_REQ_OPCODE);
+	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	       C2_REQH_UT_CREATE_REQ_OPCODE);
 
 	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (fom->fo_phase < FOPH_NR) {

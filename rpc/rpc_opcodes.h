@@ -39,7 +39,7 @@ enum {
 	C2_FOL_UT_OPCODE,
 
 	/** Fop iterator rpc opcodes */
-	C2_FOP_ITERATOR_TEST,
+	C2_FOP_ITERATOR_TEST_OPCODE,
 
 	/** I/O service rpc opcodes */
 	C2_IOSERVICE_READV_OPCODE,

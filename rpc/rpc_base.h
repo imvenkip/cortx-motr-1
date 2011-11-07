@@ -22,7 +22,7 @@
 #define __COLIBRI_RPC_RPCBASE_H__
 
 /**
-   @addtogroup rpc
+   @addtogroup rpc_layer_core
 
    This file contains rpc item type definitions. These were orginally part of
    rpccore.h. The reason for this split is to break circular dependencies
@@ -167,6 +167,7 @@ struct c2_rpc_item_type {
 	/** Magic no for the item type struct */
 	uint64_t			   rit_magic;
 };
+
 /** Initialises the rpc item types list and lock */
 int c2_rpc_base_init(void);
 
@@ -195,9 +196,9 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
 */
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
-
 /** @} end of rpc group */
 #endif
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
