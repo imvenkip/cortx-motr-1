@@ -25,8 +25,9 @@
 
 /**
    @defgroup bulkmem In-Memory Messaging and Bulk Transfer Emulation Transport
+   @ingroup net
 
-   @brief This module provides a network transport with messaging and bulk
+   This module provides a network transport with messaging and bulk
    data transfer across domains within a single process.
 
    An end point address is a string with two tuples separated by a colon (:).

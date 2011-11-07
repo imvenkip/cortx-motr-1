@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <err.h>
 
+#include "dtm/dtm.h"      /* c2_dtx */
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/misc.h"     /* C2_SET0 */
 #include "lib/assert.h"
@@ -59,7 +60,7 @@ int main(int argc, char **argv)
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
 		(&colibri_balloc.cb_ballroom, &db, 12);
-	
+
 	for (i = 0; i < MAX && result == 0; i++ ) {
 		do  {
 			count = rand() % 1500;

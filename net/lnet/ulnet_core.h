@@ -19,49 +19,53 @@
  * Original creation date: 11/01/2011
  *
  */
-#ifndef __COLIBRI_KLNET_CORE_H__
-#define __COLIBRI_KLNET_CORE_H__
+#ifndef __COLIBRI_ULNET_CORE_H__
+#define __COLIBRI_ULNET_CORE_H__
 
 /**
-   @defgroup KLNetCore LNet Transport Core Kernel Private Interfaces
+   @defgroup ULNetCore LNet Transport Core Userspace Private Interfaces
    @ingroup LNetCore
 
    @{
 */
 
-#include "lnet/include/lnet/types.h"
+#include "lib/circular_queue.h"
 
 /**
-   Kernel domain private data.
-*/
-struct c2_klnet_core_domain {
-	/** Boolean indicating if the application is running in user space. */
-	bool  klcd_user_space_app;
+   Userspace domain private data.
+ */
+struct c2_ulnet_core_domain {
+	/** Size of the buffer private data */
+	size_t                ulcd_buf_pvt_size;
+
+	/** Size of the transfer machine private data */
+	size_t                ulcd_tm_pvt_size;
+
+	/** Maximum messages in a single receive buffer */
+	uint32_t              ulcd_max_recv_msgs;
+
+	/** File descriptor to the kernel device */
+	int                   ulcd_fd;
 };
 
 /**
-   Kernel transfer machine private data.
+   Userspace transfer machine private data.
 */
-struct c2_klnet_core_transfer_mc {
-	struct c2_lnet_core_domain *klctm_dom;
+struct c2_ulnet_core_transfer_mc {
+	struct c2_lnet_core_domain *ulctm_dom;
 
 	/**
 	   The circular buffer event queue. Each entry contains the
 	   lcb_buffer_id of the buffer concerned.
-	   The buffer may be maintained in user space.
 	 */
-	struct c2_circular_queue   *klctm_cq;
-
-	/** Handle of the LNet EQ associated with this transfer machine */
-	lnet_handle_eq_t            lctm_eqh;
+	struct c2_circular_queue  *ulctm_cq;
 };
 
-
 /**
-   Kernel buffer private data.
+   Userspace buffer private data.
 */
-struct c2_klnet_core_buffer {
-	struct c2_lnet_core_transfer_mc *klcb_tm;
+struct c2_ulnet_core_buffer {
+	struct c2_lnet_core_transfer_mc *ulcb_tm;
 
 	/**
 	   The event array (receive buffers only) implemented using
@@ -70,22 +74,16 @@ struct c2_klnet_core_buffer {
 	   Each entry contains a struct c2_lnet_core_buffer_event data
 	   structure.
 	   The number of entries in the array are lcb_max_recv_msgs.
-	   The buffer may be in user space.
 	*/
-	struct c2_circular_queue        *klcb_events;
+	struct c2_circular_queue *ulcb_events;
 
-
-	/** The I/O vector. */
-	struct lnet_kiov_t               klcb_kiov;
-
-	/* other LNet handles as needed */
 };
 
 /**
    @}
 */
 
-#endif /* __COLIBRI_KLNET_CORE_H__ */
+#endif /* __COLIBRI_ULNET_CORE_H__ */
 
 /*
  *  Local variables:
