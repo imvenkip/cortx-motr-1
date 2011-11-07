@@ -196,7 +196,7 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
 */
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
-/** @} end of rpc group */
+/** @} endgroup rpc_layer_core */
 #endif
 
 /*

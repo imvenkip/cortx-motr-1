@@ -17,6 +17,17 @@
  * Original author: Subhash Arya <subhash_arya@xyratex.com>,
  * Original creation date: 11/4/2011
  */
+/**
+   @addtogroup rpc_layer_core
+
+   This file is a centralized (temporary) location for opcodes.
+   An opcode is an rpc item type attribute which uniquely identifies an rpc
+   item type.
+   @see rpc/rpccore.h
+   @see rpc/rpc_base.h
+
+   @{
+ */
 
 enum {
 	/** Network rpc opcodes */
@@ -82,4 +93,15 @@ enum {
 	/** Xcode rpc opcodes */
 	C2_XCODE_UT_OPCODE,
 };
+/** @} endgroup rpc_layer_core */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
 
