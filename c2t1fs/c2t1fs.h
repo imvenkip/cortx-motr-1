@@ -29,11 +29,9 @@ void c2t1fs_fini(void);
 
 enum {
 	/* 0x\C\2\T\1 */
-	C2T1FS_SUPER_MAGIC = 0x43325431
-};
-
-enum {
+	C2T1FS_SUPER_MAGIC = 0x43325431,
 	MAX_NR_EP_PER_SERVICE_TYPE = 10,
+	C2T1FS_MAX_NAME_LEN = 8,
 };
 
 struct c2t1fs_mnt_opts
@@ -52,10 +50,21 @@ struct c2t1fs_sb
 	uint64_t               csb_flags;
 };
 
+
+struct c2t1fs_dir_ent
+{
+	char          de_name[C2T1FS_MAX_NAME_LEN];
+	struct c2_fid de_fid;
+};
 struct c2t1fs_inode
 {
 	struct inode  ci_inode;
 	struct c2_fid ci_fid;
+	int           ci_nr_dir_ents;
+	union {
+		char ci_data[10 * sizeof (struct c2t1fs_dir_ent)];
+		struct c2t1fs_dir_ent ci_dir_ents[10];
+	};
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(struct super_block *sb)
@@ -86,11 +95,13 @@ int c2t1fs_inode_cache_init(void);
 void c2t1fs_inode_cache_fini(void);
 
 struct inode *c2t1fs_root_iget(struct super_block *sb);
+struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid);
 
-extern struct file_operations c2t1fs_dir_operations;
-extern struct address_space_operations c2t1fs_dir_aops;
-
+extern struct file_operations c2t1fs_dir_file_operations;
 extern struct file_operations c2t1fs_reg_file_operations;
+
+extern struct inode_operations c2t1fs_dir_inode_operations;
+extern struct inode_operations c2t1fs_reg_inode_operations;
 
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void c2t1fs_destroy_inode(struct inode *inode);

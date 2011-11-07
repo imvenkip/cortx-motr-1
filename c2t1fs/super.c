@@ -83,7 +83,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_op             = &c2t1fs_super_operations;
 
 	/* XXX Talk to confd and fetch configuration */
-	/* XXX construct root inode */
 	root_inode = c2t1fs_root_iget(sb);
 	if (root_inode == NULL) {
 		rc = -ENOMEM;
@@ -117,7 +116,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	sbi = C2T1FS_SB(sb);
 	c2t1fs_sb_fini(sbi);
 	kfree(sbi);
-	kill_anon_super(sb);
+	kill_litter_super(sb);
 
 	END(0);
 }

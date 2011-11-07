@@ -5,26 +5,18 @@
 
 #include "c2t1fs/c2t1fs.h"
 
-static int c2t1fs_create(struct inode     *dir,
-			 struct dentry    *dentry,
-			 int               mode,
-			 struct nameidata *nd);
-
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
-static struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid);
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
-static struct inode_operations c2t1fs_dir_inode_operations = {
-	.create = c2t1fs_create,
-	.lookup = simple_lookup,
-	.unlink = simple_unlink
-};
+static bool c2t1fs_inode_is_root(struct inode *inode)
+{
+	struct c2t1fs_inode *ci;
 
-static struct inode_operations c2t1fs_reg_inode_operations = {
-	NULL
-};
+	ci = C2T1FS_I(inode);
+	return c2_fid_eq(&ci->ci_fid, &c2t1fs_root_fid);
+}
 
 static void init_once(void *foo)
 {
@@ -111,31 +103,6 @@ struct inode *c2t1fs_root_iget(struct super_block *sb)
 	return inode;
 }
 
-static int c2t1fs_create(struct inode     *dir,
-			 struct dentry    *dentry,
-			 int               mode,
-			 struct nameidata *nd)
-{
-	struct inode *inode;
-	int           error = -ENOSPC;
-	static int    key = 3;
-	struct c2_fid fid;
-
-	START();
-
-	fid.f_container = 0;
-	fid.f_key = key++;
-
-	inode = c2t1fs_iget(dir->i_sb, &fid);
-	if (inode != NULL) {
-		d_instantiate(dentry, inode);
-		dget(dentry);
-		error = 0;
-	}
-	END(error);
-	return error;
-}
-
 static int c2t1fs_inode_test(struct inode *inode, void *opaque)
 {
 	struct c2t1fs_inode *ci;
@@ -177,30 +144,23 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 
 static int c2t1fs_inode_refresh(struct inode *inode)
 {
-	struct c2t1fs_inode *ci;
-	struct c2_fid       *fid;
-
 	START();
 
-	ci = C2T1FS_I(inode);
-	fid = &ci->ci_fid;
-
 	/* XXX Make rpc call to fetch attributes of cob having fid == @fid */
-	if (c2_fid_eq(fid, &c2t1fs_root_fid)) {
+	if (c2t1fs_inode_is_root(inode)) {
 		inode->i_mode = S_IFDIR | 0755;
-		inode->i_nlink = 2;
 	} else {
 		/*
 		 * Flat file structure. root is the only directory. Rest are
 		 * regular files
 		 */
 		inode->i_mode = S_IFREG | 0755;
-		inode->i_nlink = 1;
 	}
 
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-	inode->i_uid = 0;
-	inode->i_gid = 0;
+	inode->i_uid   = 0;
+	inode->i_gid   = 0;
+	inode->i_nlink = 1;
 
 	END(0);
 	return 0;
@@ -221,6 +181,7 @@ static int c2t1fs_inode_read(struct inode *inode)
 	} else if (S_ISDIR(inode->i_mode)) {
 		inode->i_op   = &c2t1fs_dir_inode_operations;
 		inode->i_fop  = &simple_dir_operations;
+		inc_nlink(inode);
 	} else {
 		rc = -ENOSYS;
 	}
@@ -240,7 +201,7 @@ static unsigned long fid_hash(struct c2_fid *fid)
 	return fid->f_key;
 }
 
-static struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid)
+struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid)
 {
 	struct inode *inode;
 	unsigned long hash;
