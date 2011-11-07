@@ -60,7 +60,7 @@ static int cdom_id;
    Magic used to check consistency of cs_reqh_context.
  */
 enum {
-	/** Hex value "csrhctxs" */
+	/** Hex value for "csrhctxs" */
 	CS_REQH_CTX_MAGIC = 0x6373726863747873,
 	/** Hex value for "csnetdom" */
 	CS_NET_DOMS_MAGIC = 0x63736e6574646f6d
@@ -671,7 +671,7 @@ static int cs_rpcmachines_init(struct c2_colibri *cctx)
 						&rctx->rc_reqh);
 			if (rc != 0) {
 				fprintf(ofd,
-				"COLIBRI: Invalid endpoint: %s:%s\n",
+					"COLIBRI: Invalid endpoint: %s:%s\n",
 					rctx->rc_eps[idx].xprt,
 					rctx->rc_eps[idx].endpoint);
 				return rc;

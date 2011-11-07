@@ -556,7 +556,7 @@ static void test_cs_ut_ep_bad(void)
         };
 
         rc = server_init(cs_ut_ep_bad_cmd, ARRAY_SIZE(cs_ut_ep_bad_cmd),
-                        		stypes, ARRAY_SIZE(stypes), NULL);
+					stypes, ARRAY_SIZE(stypes), NULL);
         C2_UT_ASSERT(rc != 0);
 	server_fini(NULL, 0, stypes, ARRAY_SIZE(stypes));
 }

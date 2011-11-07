@@ -225,7 +225,7 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
 
 	C2_UT_ASSERT(rep_fop->f_type->ft_code == CS_DS1_REP ||
 			rep_fop->f_type->ft_code == CS_DS2_REP);
-	
+
         c2_chan_signal(&item->ri_chan);
 }
 
