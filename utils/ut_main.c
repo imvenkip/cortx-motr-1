@@ -51,6 +51,7 @@ extern const struct c2_test_suite xcode_bufvec_fop_ut;
 extern const struct c2_test_suite reqh_ut;
 extern const struct c2_test_suite colibri_setup_ut;
 extern const struct c2_test_suite rpc_helper_ut;
+extern const struct c2_test_suite cfm_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -77,6 +78,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&capa_ut);
+		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);
 		c2_ut_add(&colibri_setup_ut);
 		c2_ut_add(&db_ut);
