@@ -22,7 +22,7 @@
 #define __COLIBRI_FOP_FOP_ITERATOR_H__
 
 #include "lib/types.h"                  /* uint64_t, size_t */
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "fop/fop_base.h"               /* c2_fop_field_instance */
 
 /**
@@ -95,7 +95,7 @@ struct c2_fit_type {
 
 	    @see c2_fit_watch::fif_linkage
 	*/
-	struct c2_list fit_watch;
+	struct c2_tl   fit_watch;
 	/**
 	   An index assigned to this fop iterator type within a global array of
 	   fop iterator types.
@@ -126,13 +126,14 @@ struct c2_fit_watch {
 
 	   @see c2_fit_type::fit_watch
 	 */
-	struct c2_list_link             fif_linkage;
+	struct c2_tlink                 fif_linkage;
 	/**
 	   A list of per-field modifiers.
 
 	   @see c2_fit_mod::fm_linkage
 	 */
-	struct c2_list                  fif_mod;
+	struct c2_tl                    fif_mod;
+	uint64_t                        fif_magix;
 };
 
 /**
@@ -167,7 +168,8 @@ struct c2_fit_mod {
 	 *
 	 * @see c2_fit_watch::fif_mod.
 	 */
-	struct c2_list_link        fm_linkage;
+	struct c2_tlink            fm_linkage;
+	uint64_t                   fm_magix;
 };
 
 void c2_fop_itype_init(struct c2_fit_type *itype);

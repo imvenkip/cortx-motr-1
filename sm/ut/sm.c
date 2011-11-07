@@ -95,7 +95,7 @@ static void transition(void)
 
 static bool x;
 
-void ast_cb(struct c2_sm_group *g, struct c2_sm_ast *a)
+static void ast_cb(struct c2_sm_group *g, struct c2_sm_ast *a)
 {
 	C2_UT_ASSERT(g == &G);
 	C2_UT_ASSERT(a == &ast);

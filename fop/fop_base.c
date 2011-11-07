@@ -3,7 +3,6 @@
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/memory.h"
 #include "lib/misc.h"   /* C2_SET0 */
-#include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/vec.h"
 #include "fop/fop_base.h"
@@ -38,7 +37,15 @@ static const struct c2_addb_loc c2_fop_addb_loc = {
 };
 
 static struct c2_mutex fop_types_lock;
-static struct c2_list  fop_types_list;
+static struct c2_tl    fop_types_list;
+
+C2_TL_DESCR_DEFINE(ft, "fop types", static, struct c2_fop_type,
+		   ft_linkage,	ft_magix,
+		   0xba11ab1ea5111dae /* bailable asilidae */,
+		   0xd15ea5e0fed1f1ce /* disease of edifice */);
+
+C2_TL_DEFINE(ft, static, struct c2_fop_type);
+
 /**
    Used to check that no new fop iterator types are registered once a fop type
    has been built.
@@ -66,7 +73,8 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 	fop_fol_type_fini(fopt);
 	if (fopt->ft_top != NULL) {
 		c2_mutex_lock(&fop_types_lock);
-		c2_list_del(&fopt->ft_linkage);
+		ft_tlink_del_fini(fopt);
+		fopt->ft_magix = 0;
 		c2_mutex_unlock(&fop_types_lock);
 	}
 	if (fopt->ft_fmt != NULL) {
@@ -95,7 +103,7 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 					 &c2_fop_type_addb_ctx,
 					 &c2_addb_global_ctx);
 			c2_mutex_lock(&fop_types_lock);
-			c2_list_add(&fop_types_list, &fopt->ft_linkage);
+			ft_tlink_init_at(fopt, &fop_types_list);
 			c2_mutex_unlock(&fop_types_lock);
 		}
 		if (result != 0)
@@ -124,22 +132,15 @@ C2_EXPORTED(c2_fop_type_build_nr);
 
 struct c2_fop_type *c2_fop_type_search(uint32_t opcode)
 {
-	struct c2_fop_type      *fop_type;
-	bool			 found = false;
+	struct c2_fop_type *fop_type;
 
 	c2_mutex_lock(&fop_types_lock);
-	c2_list_for_each_entry(&fop_types_list, fop_type, struct c2_fop_type,
-			       ft_linkage) {
-		if (fop_type->ft_code == opcode) {
-			found = true;
+	c2_tlist_for(&ft_tl, &fop_types_list, fop_type) {
+		if (fop_type->ft_code == opcode)
 			break;
-		}
-	}
+	} c2_tlist_endfor;
 	c2_mutex_unlock(&fop_types_lock);
-	if (found)
-		return fop_type;
-
-	return NULL;
+	return fop_type;
 }
 C2_EXPORTED(c2_fop_type_search);
 
@@ -222,7 +223,7 @@ C2_EXPORTED(C2_FOP_TYPE_U64);
 
 int c2_fops_init(void)
 {
-	c2_list_init(&fop_types_list);
+	ft_tlist_init(&fop_types_list);
 	c2_mutex_init(&fop_types_lock);
 	c2_fits_init();
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
@@ -240,7 +241,7 @@ void c2_fops_fini(void)
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
 	c2_fits_fini();
 	c2_mutex_fini(&fop_types_lock);
-	c2_list_fini(&fop_types_list);
+	ft_tlist_fini(&fop_types_list);
 }
 C2_EXPORTED(c2_fops_fini);
 
