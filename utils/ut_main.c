@@ -45,7 +45,6 @@ extern const struct c2_test_suite c2_net_bulk_sunrpc_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
-extern const struct c2_test_suite xdr_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
 extern const struct c2_test_suite reqh_ut;
 extern const struct c2_test_suite rpc_onwire_ut;
@@ -72,7 +71,6 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-		//c2_ut_add(&net_client_ut);
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
@@ -95,7 +93,6 @@ int main(int argc, char *argv[])
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xcode_bufvec_fop_ut);
 		c2_ut_add(&xcode_bufvec_ut);
-		c2_ut_add(&xdr_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
 			unit_end(UT_SANDBOX);

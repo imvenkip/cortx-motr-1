@@ -29,7 +29,7 @@
    @{
  */
 
-enum {
+enum C2_RPC_OPCODES {
 	/** Network rpc opcodes */
 	C2_NET_TEST_OPCODE = 1,
 

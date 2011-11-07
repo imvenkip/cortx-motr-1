@@ -586,8 +586,6 @@ AC_CONFIG_FILES([
                  xcode/Makefile
                  xcode/linux_kernel/Makefile
                  xcode/ut/Makefile
-		 xdr/Makefile
-                 xdr/ut/Makefile
                 ])
 AC_OUTPUT
 
