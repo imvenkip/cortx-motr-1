@@ -22,7 +22,6 @@
 #endif
 
 #include <net/net.h>
-#include <rpc/rpclib.h>
 
 #include <stdlib.h>
 #include <stdio.h>     /* feof, fscanf, ... */

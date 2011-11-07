@@ -39,6 +39,16 @@
    @{
  */
 
+C2_TL_DESCR_DEFINE(ca, "call-outs", static, struct sim_callout,
+		   sc_linkage, sc_magic, 0xADDED0FF1C1A1E5E,
+		   0xEFFACEAB1E1ADD1E);
+C2_TL_DEFINE(ca, static, struct sim_callout);
+
+C2_TL_DESCR_DEFINE(thr, "threads", static, struct sim_thread,
+		   st_block, st_magic, 0x10ADEDC0110CA11A,
+		   0xCEA5E1E551CEFA11);
+C2_TL_DEFINE(thr, static, struct sim_thread);
+
 extern int vasprintf(char **strp, const char *fmt, va_list ap);
 
 #if 0
@@ -98,7 +108,7 @@ void sim_free(void *ptr)
 void sim_init(struct sim *state)
 {
 	state->ss_bolt = 0;
-	c2_list_init(&state->ss_future);
+	ca_tlist_init(&state->ss_future);
 	getcontext(&sim_idle_ctx);
 }
 
@@ -107,7 +117,7 @@ void sim_init(struct sim *state)
  */
 void sim_fini(struct sim *state)
 {
-	c2_list_fini(&state->ss_future);
+	ca_tlist_fini(&state->ss_future);
 }
 
 /**
@@ -124,14 +134,13 @@ void sim_run(struct sim *state)
 	unsigned long i;
 
 	i = 0;
-	while (!c2_list_is_empty(&state->ss_future)) {
+	while (!ca_tlist_is_empty(&state->ss_future)) {
 		C2_ASSERT(sim_current == NULL);
-		call = container_of(state->ss_future.l_head, struct sim_callout,
-				    sc_linkage);
+		call = ca_tlist_head(&state->ss_future);
 		C2_ASSERT(call->sc_time >= state->ss_bolt);
 		/* jump to the future */
 		state->ss_bolt = call->sc_time;
-		c2_list_del(&call->sc_linkage);
+		ca_tlist_del(call);
 		if (call->sc_call(call))
 			/*
 			 * timer wasn't rearmed.
@@ -154,12 +163,13 @@ static void sim_call_place(struct sim *sim, struct sim_callout *call)
 	 * data structure, like a tree or a skip-list of some sort.
 	 */
 
-	c2_list_for_each_entry(&sim->ss_future, scan,
-			       struct sim_callout, sc_linkage) {
-		if (scan->sc_time > call->sc_time)
-			break;
-	}
-	c2_list_add_before(&scan->sc_linkage, &call->sc_linkage);
+	c2_tlist_for(&ca_tl, &sim->ss_future, scan) {
+		if (scan->sc_time > call->sc_time) {
+			ca_tlist_add_before(scan, call);
+			return;
+		}
+	} c2_tlist_endfor;
+	ca_tlist_add_tail(&sim->ss_future, call);
 }
 
 /**
@@ -173,6 +183,7 @@ static void sim_timer_init(struct sim *state, struct sim_callout *call,
 	call->sc_call  = cfunc;
 	call->sc_datum = datum;
 	call->sc_sim   = state;
+	ca_tlink_init(call);
 	sim_call_place(state, call);
 }
 
@@ -310,6 +321,7 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
 	thread->st_ctx.uc_stack.ss_sp    = thread->st_stack = valloc(stacksize);
 	thread->st_ctx.uc_stack.ss_size  = thread->st_size = stacksize;
 	thread->st_ctx.uc_stack.ss_flags = 0;
+	thr_tlink_init(thread);
 	if (thread->st_stack == NULL)
 		err(1, "malloc(%d) of a stack", stacksize);
 	makecontext(&thread->st_ctx, (void (*)())sim_trampoline,
@@ -326,6 +338,7 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
  */
 void sim_thread_fini(struct sim_thread *thread)
 {
+	thr_tlink_fini(thread);
 	if (thread->st_stack != NULL)
 		sim_free(thread->st_stack);
 }
@@ -375,7 +388,7 @@ void sim_sleep(struct sim_thread *thread, sim_time_t nap)
  */
 void sim_chan_init(struct sim_chan *chan, char *format, ...)
 {
-	c2_list_init(&chan->ch_threads);
+	thr_tlist_init(&chan->ch_threads);
 	cnt_init(&chan->ch_cnt_sleep, NULL, "chan#%p", chan);
 	if (format != NULL) {
 		va_list varg;
@@ -390,7 +403,7 @@ void sim_chan_init(struct sim_chan *chan, char *format, ...)
  */
 void sim_chan_fini(struct sim_chan *chan)
 {
-	c2_list_init(&chan->ch_threads);
+	thr_tlist_fini(&chan->ch_threads);
 	cnt_fini(&chan->ch_cnt_sleep);
 }
 
@@ -402,7 +415,7 @@ void sim_chan_fini(struct sim_chan *chan)
 void sim_chan_wait(struct sim_chan *chan, struct sim_thread *thread)
 {
 	C2_ASSERT(sim_current == thread);
-	c2_list_add_tail(&chan->ch_threads, &thread->st_block);
+	thr_tlist_add_tail(&chan->ch_threads, thread);
 	/*
 	 * The simplest way to measure the time threads are blocked on a channel
 	 * is to modify sim_chan::ch_cmt_sleep in this function, right after
@@ -427,8 +440,8 @@ static void sim_chan_wake_head(struct sim_chan *chan)
 {
 	struct sim_thread *t;
 
-	t = container_of(chan->ch_threads.l_head, struct sim_thread, st_block);
-	c2_list_del(&t->st_block);
+	t = thr_tlist_head(&chan->ch_threads);
+	thr_tlist_del(t);
 	cnt_mod(&chan->ch_cnt_sleep, t->st_sim->ss_bolt - t->st_blocked);
 	sim_wakeup_post(t->st_sim, t, 0);
 }
@@ -438,7 +451,7 @@ static void sim_chan_wake_head(struct sim_chan *chan)
  */
 void sim_chan_signal(struct sim_chan *chan)
 {
-	if (!c2_list_is_empty(&chan->ch_threads))
+	if (!thr_tlist_is_empty(&chan->ch_threads))
 		sim_chan_wake_head(chan);
 }
 
@@ -447,7 +460,7 @@ void sim_chan_signal(struct sim_chan *chan)
  */
 void sim_chan_broadcast(struct sim_chan *chan)
 {
-	while (!c2_list_is_empty(&chan->ch_threads))
+	if (!thr_tlist_is_empty(&chan->ch_threads))
 		sim_chan_wake_head(chan);
 }
 

@@ -1,5 +1,7 @@
 COB_SRCDIR = @SRCDIR@/cob/linux_kernel
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 obj-y		:= kcob.o
 shared_src	:= cob.c
 kernel_src	:=

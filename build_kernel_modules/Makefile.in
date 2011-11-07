@@ -3,6 +3,8 @@ KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 testdirs := ../net/bulk_emulation/st/linux_kernel/ \
             ../rpc/it/linux_kernel/ \
 	    ../utils/linux_kernel/

@@ -5,7 +5,9 @@ STOBDIR = @SRCDIR@/stob/ut
 GALOISDIR = @SRCDIR@/../galois
 IOSERVICEDIR = @SRCDIR@/ioservice
 
-obj-y := c2t1fs_obj.o
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
+obj-y := c2t1fs_obj.o #c2t1fs_loop.o colibri loop is disabled.
 c2t1fs_obj-y := inode.o file.o dir.o c2t1fs.o super.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@

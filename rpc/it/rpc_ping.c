@@ -437,11 +437,10 @@ void send_ping_fop(int nr)
         c2_clink_init(&clink, NULL);
         c2_clink_add(&item->ri_chan, &clink);
         timeout = c2_time_add(c2_time_now(), timeout);
-        c2_rpc_post(item);
+        C2_ASSERT(c2_rpc_post(item) == 0);
         c2_rpc_reply_timedwait(&clink, timeout);
         c2_clink_del(&clink);
         c2_clink_fini(&clink);
-
 }
 
 /* Get stats from rpcmachine and print them */

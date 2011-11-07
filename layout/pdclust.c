@@ -171,7 +171,6 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 {
 	uint32_t i;
 	uint32_t P;
-	uint32_t sum;
 
 	const struct tile_cache *tc;
 
@@ -182,7 +181,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 	 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse bijections
 	 * of {0, ..., P - 1}.
 	 */
-	for (sum = 0, i = 0; i < P; ++i) {
+	for (i = 0; i < P; ++i) {
 		if (tc->tc_lcode[i] + i >= P)
 			return false;
 		if (tc->tc_permute[i] >= P || tc->tc_inverse[i] >= P)
@@ -194,7 +193,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 		/* existence of inverse guarantees that tc->tc_permute[] is a
 		   bijection. */
 	}
-	return 
+	return
 		play->pl_C * (play->pl_N + 2*play->pl_K) == play->pl_L * P;
 }
 
@@ -225,7 +224,7 @@ static uint64_t hash(uint64_t x)
    Returns column number that a column t has after a permutation for tile omega
    is applied.
  */
-static uint64_t permute_column(struct c2_pdclust_layout *play, 
+static uint64_t permute_column(struct c2_pdclust_layout *play,
 			       uint64_t omega, uint64_t t)
 {
 	struct tile_cache *tc;
@@ -244,7 +243,7 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 			tc->tc_permute[i] = i;
 
 		/* initialize PRNG */
-		rstate  = 
+		rstate  =
 			hash(play->pl_seed.u_hi) ^
 			hash(play->pl_seed.u_lo + omega);
 
@@ -263,8 +262,8 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 	return tc->tc_permute[t];
 }
 
-void c2_pdclust_layout_map(struct c2_pdclust_layout *play, 
-			   const struct c2_pdclust_src_addr *src, 
+void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
+			   const struct c2_pdclust_src_addr *src,
 			   struct c2_pdclust_tgt_addr *tgt)
 {
 	uint32_t N;
@@ -350,14 +349,14 @@ static bool pdclust_equal(const struct c2_layout *l0,
 	p0 = container_of(l0, struct c2_pdclust_layout, pl_layout);
 	p1 = container_of(l1, struct c2_pdclust_layout, pl_layout);
 
-	return 
+	return
 		c2_uint128_eq(&p0->pl_seed, &p1->pl_seed) &&
-		p0->pl_N == p1->pl_N && 
+		p0->pl_N == p1->pl_N &&
 		p0->pl_K == p1->pl_K &&
-		p0->pl_P == p1->pl_P && 
+		p0->pl_P == p1->pl_P &&
 		p0->pl_C == p1->pl_C &&
-		p0->pl_L == p1->pl_L && 
-		p0->pl_pool == p1->pl_pool; 
+		p0->pl_L == p1->pl_L &&
+		p0->pl_pool == p1->pl_pool;
 	/* XXX and check that target objects are the same */
 }
 
@@ -376,7 +375,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 		if (pdl->pl_tgt != NULL) {
 			for (i = 0; i < pdl->pl_P; ++i) {
 				if (c2_stob_id_is_set(&pdl->pl_tgt[i]))
-					c2_pool_put(pdl->pl_pool, 
+					c2_pool_put(pdl->pl_pool,
 						    &pdl->pl_tgt[i]);
 			}
 			c2_free(pdl->pl_tgt);
@@ -449,7 +448,7 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 C2_EXPORTED(c2_pdclust_build);
 
 enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit)
 {
 	if (unit < play->pl_N)
@@ -480,7 +479,7 @@ const struct c2_layout_formula c2_pdclust_NKP_formula = {
 
 /** @} end of group pdclust */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
