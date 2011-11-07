@@ -94,7 +94,8 @@ bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
 	return reqh != NULL && reqh->rh_stdom != NULL &&
 		reqh->rh_dbenv != NULL && reqh->rh_cob_domain != NULL &&
-		reqh->rh_fol != NULL;
+		reqh->rh_fol != NULL &&
+		c2_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
