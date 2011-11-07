@@ -170,7 +170,7 @@
    There are a few ways to deal with the ast book-keeping problem:
 
        - majority of asts will be embedded in some longer living data-structures
-         like foms and won't need a separate allocation of freeing;
+         like foms and won't need separate allocation of freeing;
 
        - some ast users might allocate asts dynamically;
 
@@ -499,7 +499,7 @@ struct c2_sm_timeout {
    timeout.
 
    @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
-   @pre state transition from current state to the @state is allowed.
+   @pre state transition from current state to the target state is allowed.
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,

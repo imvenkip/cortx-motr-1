@@ -41,7 +41,7 @@ void c2_db_buf_fini      (struct c2_db_buf *buf);
 void c2_db_buf_steal     (struct c2_db_buf *buf);
 bool c2_db_pair_invariant(const struct c2_db_pair *p);
 void c2_db_pair_setup    (struct c2_db_pair *pair, struct c2_table *table,
-			  void *keybuf, uint32_t keysize, 
+			  void *keybuf, uint32_t keysize,
 			  void *recbuf, uint32_t recsize);
 void c2_db_pair_fini     (struct c2_db_pair *pair);
 void c2_db_pair_release  (struct c2_db_pair *pair);
@@ -58,7 +58,7 @@ extern const struct c2_addb_ctx_type db_tx_ctx_type;
 /* __COLIBRI_DB_REC_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
