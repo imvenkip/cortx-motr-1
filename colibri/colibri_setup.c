@@ -1527,8 +1527,6 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 		return rc;
 
 	rc = cs_rpcmachines_init(cctx);
-	if (rc != 0)
-
 
 	return rc;
 }
