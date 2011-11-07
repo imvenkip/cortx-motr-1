@@ -33,7 +33,7 @@
 #include "addb/addb.h"
 #include "net/net.h"
 #include "net/usunrpc/usunrpc.h"
-#include "rpc/rpc_helper.h"
+#include "rpc/rpclib.h"
 #include "lib/processor.h"
 
 #include "stob/stob.h"

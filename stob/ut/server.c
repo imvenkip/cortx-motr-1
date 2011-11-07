@@ -44,7 +44,7 @@
 #include "stob/ad.h"
 #include "colibri/init.h"
 #include "rpc/rpccore.h"
-#include "rpc/rpc_helper.h"
+#include "rpc/rpclib.h"
 #include "dtm/dtm.h"
 
 #include "stob/io_fop.h"

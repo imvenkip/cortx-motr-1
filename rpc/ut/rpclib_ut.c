@@ -32,13 +32,13 @@
 #include "rpc/it/ping_fop_u.h"
 #endif
 
-#include "rpc/rpc_helper.h"
+#include "rpc/rpclib.h"
 
 
 #define SERVER_ENDPOINT_ADDR	"127.0.0.1:12345:1"
 #define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12345:2"
-#define SERVER_DB_NAME		"rpc_helper_ut_db_server"
-#define CLIENT_DB_NAME		"rpc_helper_ut_db_client"
+#define SERVER_DB_NAME		"rpclib_ut_db_server"
+#define CLIENT_DB_NAME		"rpclib_ut_db_client"
 
 enum {
 	CLIENT_COB_DOM_ID	= 16,
@@ -94,7 +94,7 @@ out:
 	return rc;
 }
 
-static void test_rpc_helper(void)
+static void test_rpclib(void)
 {
 	int rc;
 	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
@@ -160,7 +160,7 @@ out:
 	return;
 }
 
-static int test_rpc_helper_init(void)
+static int test_rpclib_init(void)
 {
 	int rc;
 
@@ -176,7 +176,7 @@ static int test_rpc_helper_init(void)
 	return rc;
 }
 
-static int test_rpc_helper_fini(void)
+static int test_rpclib_fini(void)
 {
 	c2_ping_fop_fini();
 	c2_processors_fini();
@@ -184,12 +184,12 @@ static int test_rpc_helper_fini(void)
 	return 0;
 }
 
-const struct c2_test_suite rpc_helper_ut = {
+const struct c2_test_suite rpclib_ut = {
 	.ts_name = "rpc-helper-ut",
-	.ts_init = test_rpc_helper_init,
-	.ts_fini = test_rpc_helper_fini,
+	.ts_init = test_rpclib_init,
+	.ts_fini = test_rpclib_fini,
 	.ts_tests = {
-		{ "rpc-helper", test_rpc_helper },
+		{ "rpclib", test_rpclib },
 		{ NULL, NULL }
 	}
 };

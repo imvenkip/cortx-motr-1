@@ -18,8 +18,8 @@
  * Original creation date: 09/28/2011
  */
 
-#ifndef __COLIBRI_RPC_RPC_HELPER_H__
-#define __COLIBRI_RPC_RPC_HELPER_H__
+#ifndef __COLIBRI_RPC_RPC_LIB_H__
+#define __COLIBRI_RPC_RPC_LIB_H__
 
 #include "lib/types.h"
 #include "rpc/rpccore.h" /* struct c2_rpcmachine, c2_rpc_item */
@@ -130,5 +130,5 @@ void c2_rpc_server_fini(struct c2_rpc_ctx *rctx);
 */
 int c2_rpc_client_fini(struct c2_rpc_ctx *rctx);
 
-#endif /* __COLIBRI_RPC_RPC_HELPER_H__ */
+#endif /* __COLIBRI_RPC_RPC_LIB_H__ */
 

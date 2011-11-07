@@ -6,7 +6,7 @@ INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
 noinst_PROGRAMS   = onwire_ut
 
 #noinst_LTLIBRARIES = librpccore-ut.la
-noinst_LTLIBRARIES = librpc-helper-ut.la
+noinst_LTLIBRARIES = librpclib-ut.la
 
 #rclient_SOURCES   = rpc-client.c
 #rclient_LDFLAGS   = -pthread
@@ -16,7 +16,7 @@ noinst_LTLIBRARIES = librpc-helper-ut.la
 #rserver_LDFLAGS   = -pthread
 #rserver_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
-librpc_helper_ut_la_SOURCES = rpc_helper_ut.c ../it/ping_fop.c ../it/ping_fop_u.c ../it/ping_fom.c
+librpclib_ut_la_SOURCES = rpclib_ut.c ../it/ping_fop.c ../it/ping_fop_u.c ../it/ping_fom.c
 
 test_u.h test_u.c : test.ff \
 	$(top_builddir)/fop/rt/libc2rt.la \

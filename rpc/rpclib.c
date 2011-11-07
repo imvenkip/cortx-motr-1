@@ -34,7 +34,7 @@
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 
-#include "rpc/rpc_helper.h"
+#include "rpc/rpclib.h"
 
 
 static int rpc_init_common(struct c2_rpc_ctx *rctx)
@@ -194,7 +194,7 @@ void c2_rpc_server_fini(struct c2_rpc_ctx *rctx)
 {
 	rpc_fini_common(rctx);
 }
-C2_EXPORTED(c2_rpc_helper_cleanup);
+C2_EXPORTED(c2_rpc_server_fini);
 
 int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
 {
