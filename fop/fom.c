@@ -157,11 +157,15 @@ static void fom_ready(struct c2_fom *fom)
  * list and to put it back on the locality runq list for further
  * execution.
  *
+ * This function returns true, meaning that the event is "consumed", because
+ * nobody is supposed to be waiting on fom->fo_clink.
+ *
  * @param clink Fom linkage into waiting channel registered
-		during a blocking operation
+ *		during a blocking operation
+ *
  * @pre clink != NULL
  */
-static void fom_cb(struct c2_clink *clink)
+static bool fom_cb(struct c2_clink *clink)
 {
 	struct c2_fom_locality	*loc;
 	struct c2_fom		*fom;
@@ -179,6 +183,7 @@ static void fom_cb(struct c2_clink *clink)
 	fom->fo_state = FOS_READY;
 	fom_ready(fom);
 	c2_mutex_unlock(&loc->fl_lock);
+	return true;
 }
 
 void c2_fom_block_enter(struct c2_fom *fom)
@@ -228,6 +233,7 @@ void c2_fom_queue(struct c2_fom *fom)
 		fom->fo_phase == FOPH_FAILURE);
 
 	loc = fom->fo_loc;
+	c2_atomic64_inc(&loc->fl_dom->fd_foms_nr);
 	c2_mutex_lock(&loc->fl_lock);
 	fom->fo_state = FOS_READY;
 	fom_ready(fom);
@@ -476,8 +482,10 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 			loc_thr_init, &loc_handler_thread, locthr,
 			"locality_thread");
 
-	if (result != 0)
+	if (result != 0) {
+		c2_list_del(&locthr->fht_linkage);
 		c2_free(locthr);
+	}
 
 	return result;
 }
@@ -737,6 +745,7 @@ void c2_fom_fini(struct c2_fom *fom)
 {
 	C2_PRE(fom->fo_phase == FOPH_FINISH);
 
+	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
 	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 }

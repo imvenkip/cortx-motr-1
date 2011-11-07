@@ -266,9 +266,6 @@ int main(int argc, char **argv)
 	rc = c2_stob_io_fop_init();
 	C2_ASSERT(rc == 0);
 
-	/*rc = c2_ioservice_fop_init();
-	C2_ASSERT(rc == 0);*/
-
 	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
 	rc = mkdir(path, 0700);
@@ -358,7 +355,7 @@ int main(int argc, char **argv)
 	rc = c2_net_domain_init(&net_dom, xprt);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_reqh_init(&reqh, NULL, NULL, dom, &fol);
+	rc = c2_reqh_init(&reqh, NULL, dom, &db, NULL, &fol);
 	C2_ASSERT(rc == 0);
 
 	rc = c2_rpc_server_init(&server_rctx);
@@ -392,7 +389,6 @@ int main(int argc, char **argv)
 
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
-	/*c2_ioservice_fop_fini();*/
 	c2_stob_io_fop_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);

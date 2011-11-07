@@ -22,6 +22,7 @@
 #ifndef NET_H
 #define NET_H
 
+#include "lib/tlist.h"
 #include "desim/sim.h"
 
 /**
@@ -54,7 +55,7 @@ struct net_srv {
 	sim_time_t          ns_pre_bulk_min;
 	sim_time_t          ns_pre_bulk_max;
 	struct sim_chan     ns_incoming;
-	struct c2_list      ns_queue;
+	struct c2_tl        ns_queue;
 	struct sim_thread  *ns_thread;
 	struct elevator    *ns_el;
 	unsigned long long  ns_file_size;
@@ -66,12 +67,13 @@ struct net_rpc {
 	struct net_srv     *nr_srv;
 	struct net_conf    *nr_conf;
 	unsigned long       nr_fid;
-	unsigned long long  nr_offset;    
+	unsigned long long  nr_offset;
 	unsigned long       nr_todo;
-	struct c2_list_link nr_inqueue;
+	struct c2_tlink     nr_inqueue;
 	struct sim_chan     nr_wait;
 	struct sim_chan     nr_bulk_wait;
 	struct sim_thread  *nr_srv_thread;
+	uint64_t            nr_magic;
 };
 
 void net_srv_init(struct sim *s, struct net_srv *srv);
@@ -91,7 +93,7 @@ void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

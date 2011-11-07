@@ -406,7 +406,7 @@ cleanup:
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 	c2_free(machine->cr_rcv_buffers);
-	if (machine->cr_tm.ntm_state <= C2_NET_TM_STARTING)
+	if (machine->cr_tm.ntm_state <= C2_NET_TM_FAILED)
 		c2_net_tm_fini(&machine->cr_tm);
 	return rc;
 }
@@ -804,11 +804,8 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 		       struct c2_net_domain *net_dom, const char *ep_addr,
 			struct c2_reqh *reqh)
 {
-	int				 rc;
-#ifndef __KERNEL__
-	struct c2_cob			*root_session_cob;
-#endif
-	struct c2_db_tx			 tx;
+	int		rc;
+	struct c2_db_tx tx;
 
 	C2_PRE(dom != NULL);
 	C2_PRE(machine != NULL);
@@ -817,7 +814,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 #ifndef __KERNEL__
-	rc = c2_rpc_root_session_cob_create(dom, &root_session_cob, &tx);
+	rc = c2_rpc_root_session_cob_create(dom, &tx);
 	if (rc != 0) {
 		c2_db_tx_abort(&tx);
 		return rc;

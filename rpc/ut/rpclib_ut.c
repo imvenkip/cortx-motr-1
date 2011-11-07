@@ -185,7 +185,7 @@ static int test_rpclib_fini(void)
 }
 
 const struct c2_test_suite rpclib_ut = {
-	.ts_name = "rpc-helper-ut",
+	.ts_name = "rpclib-ut",
 	.ts_init = test_rpclib_init,
 	.ts_fini = test_rpclib_fini,
 	.ts_tests = {

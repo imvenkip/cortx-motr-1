@@ -62,7 +62,7 @@ static int rpc_init_common(struct c2_rpc_ctx *rctx)
 			rc = -ENOMEM;
 			goto cob_dom_fini;
 		}
-		rc = c2_reqh_init(reqh, NULL, NULL, NULL, NULL);
+		rc = c2_reqh_init(reqh, NULL, NULL, NULL, NULL, NULL);
 		if (rc != 0)
 			goto reqh_free;
 	}

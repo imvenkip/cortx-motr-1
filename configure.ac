@@ -303,7 +303,12 @@ then
 	# Remove -O<digit> flag from $CFLAGS
 	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
 	LDFLAGS="-lgcov"
+	K_ENABLE_COVERAGE=y
+else
+	K_ENABLE_COVERAGE=n
 fi
+
+AC_SUBST([K_ENABLE_COVERAGE])
 
 AC_MSG_CHECKING([for linux objects dir])
 AC_ARG_WITH([linux-obj],
@@ -513,6 +518,7 @@ AC_CONFIG_FILES([
                  cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
+                 colibri/ut/Makefile
                  db/Makefile
                  db/linux_kernel/Makefile
                  db/ut/Makefile
@@ -534,6 +540,7 @@ AC_CONFIG_FILES([
                  galois/linux_kernel/Makefile
                  ioservice/Makefile
                  ioservice/linux_kernel/Makefile
+                 ioservice/ut/Makefile
                  layout/Makefile
                  layout/linux_kernel/Makefile
                  layout/ut/Makefile
@@ -566,6 +573,7 @@ AC_CONFIG_FILES([
 		 rpc/linux_kernel/Makefile
 		 rpc/it/linux_kernel/Makefile
                  sm/Makefile
+                 sm/ut/Makefile
                  sm/linux_kernel/Makefile
                  sns/Makefile
                  sns/linux_kernel/Makefile
