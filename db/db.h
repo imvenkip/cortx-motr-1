@@ -22,6 +22,7 @@
 #define __COLIBRI_DB_DB_H__
 
 #include "addb/addb.h"
+#include "lib/tlist.h"
 #include "lib/adt.h"           /* c2_buf */
 
 /**
@@ -265,7 +266,7 @@ struct c2_db_tx {
 	/** An environment this transaction operates in. */
 	struct c2_dbenv     *dt_env;
 	/** A list of waiters (c2_db_tx_waiter). */
-	struct c2_list       dt_waiters;
+	struct c2_tl         dt_waiters;
 	struct c2_db_tx_impl dt_i;
 	/** An ADDB context for events related to this transaction. */
 	struct c2_addb_ctx   dt_addb;
@@ -317,11 +318,19 @@ struct c2_db_tx_waiter {
 	/** Called when no further call-backs will be coming. */
 	void                      (*tw_done)(struct c2_db_tx_waiter *w);
 	/** Linkage into a list of all waiters for data-base environment. */
-	struct c2_list_link         tw_env;
+	struct c2_tlink             tw_env;
 	/** Linkage into a list of all waiters for a given transaction. */
-	struct c2_list_link         tw_tx;
+	struct c2_tlink             tw_tx;
 	struct c2_db_tx_waiter_impl tw_i;
+	uint64_t                    tw_magix;
 };
+
+enum {
+	C2_DB_TX_WAITER_MAGIX = 0xab5c155a0fa1bed0 /* abscissa of albedo */
+};
+
+C2_TL_DESCR_DECLARE(txw, extern);
+C2_TL_DEFINE(txw, static inline, struct c2_db_tx_waiter);
 
 /**
    Adds a waiter for a transaction.

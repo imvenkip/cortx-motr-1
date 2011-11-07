@@ -70,6 +70,18 @@ enum {
 	FIT_TYPE_MAX = 16
 };
 
+C2_TL_DESCR_DEFINE(wat, "fop iterator watches", static, struct c2_fit_watch,
+		   fif_linkage,	fif_magix,
+		   0x10d15edc0a1f1e1d /* iodised coalfield */,
+		   0xcea5e1e55debac1e /* ceaseless debacle */);
+C2_TL_DEFINE(wat, static, struct c2_fit_watch);
+
+C2_TL_DESCR_DEFINE(mod, "fop iterator modifiers", static, struct c2_fit_mod,
+		   fm_linkage,	fm_magix,
+		   0xbe111c05ec0d1c11 /* bellicose codicil */,
+		   0x5ca1ab1e5caff01d /* scalable scaffold */);
+C2_TL_DEFINE(mod, static, struct c2_fit_mod);
+
 /**
    Per-field data kept for each fop iterator type.
 
@@ -197,7 +209,7 @@ void c2_fop_itype_init(struct c2_fit_type *itype)
 	C2_PRE(itype->fit_index == -1);
 	C2_PRE(!fop_types_built);
 
-	c2_list_init(&itype->fit_watch);
+	wat_tlist_init(&itype->fit_watch);
 
 	/*
 	 * Search for a free slot in fits[] array and install itype there.
@@ -220,7 +232,7 @@ void c2_fop_itype_fini(struct c2_fit_type *itype)
 
 	fits[itype->fit_index] = NULL;
 	itype->fit_index = -1;
-	c2_list_fini(&itype->fit_watch);
+	wat_tlist_fini(&itype->fit_watch);
 }
 C2_EXPORTED(c2_fop_itype_fini);
 
@@ -229,18 +241,18 @@ void c2_fop_itype_watch_add(struct c2_fit_type *itype,
 {
 	struct c2_fit_watch *scan;
 
-	c2_list_for_each_entry(&itype->fit_watch, scan, struct c2_fit_watch,
-			       fif_linkage)
+	c2_tlist_for(&wat_tl, &itype->fit_watch, scan) {
 		C2_PRE(scan->fif_field != watch->fif_field);
+	} c2_tlist_endfor;
 
-	c2_list_add(&itype->fit_watch, &watch->fif_linkage);
-	c2_list_init(&watch->fif_mod);
+	wat_tlink_init_at(watch, &itype->fit_watch);
+	mod_tlist_init(&watch->fif_mod);
 }
 C2_EXPORTED(c2_fop_itype_watch_add);
 
 void c2_fop_itype_mod_add(struct c2_fit_watch *watch, struct c2_fit_mod *mod)
 {
-	c2_list_add(&watch->fif_mod, &mod->fm_linkage);
+	mod_tlink_init_at(mod, &watch->fif_mod);
 }
 C2_EXPORTED(c2_fop_itype_mod_add);
 
@@ -488,27 +500,25 @@ static struct c2_fop_decorator fit_dec = {
    Additionally, if the field is watched, populate "bits" with the corresponding
    cumulative watch-bits.
  */
-static bool has_watches(const struct c2_fit_type *itype,
+static bool has_watches(struct c2_fit_type *itype,
 			const struct c2_fop_field *child, uint64_t *bits)
 {
 	struct c2_fit_watch *watch;
 	struct c2_fit_mod   *mod;
 
 	*bits = 0;
-	c2_list_for_each_entry(&itype->fit_watch, watch,
-			       struct c2_fit_watch, fif_linkage) {
+	c2_tlist_for(&wat_tl, &itype->fit_watch, watch) {
 		if (watch->fif_field == child->ff_type) {
 			*bits = watch->fif_bits;
-			c2_list_for_each_entry(&watch->fif_mod, mod,
-					       struct c2_fit_mod, fm_linkage) {
+			c2_tlist_for(&mod_tl, &watch->fif_mod, mod) {
 				if (mod->fm_field == child) {
 					*bits |= mod->fm_bits_add;
 					*bits &= ~mod->fm_bits_sub;
 				}
-			}
+			} c2_tlist_endfor;
 			return true;
 		}
-	}
+	} c2_tlist_endfor;
 	return false;
 }
 
@@ -711,7 +721,7 @@ C2_EXPORTED(c2_fop_object_init);
 
 void c2_fop_object_fini(void)
 {
-	c2_list_del(&fop_object_watch.fif_linkage);
+	wat_tlist_del(&fop_object_watch);
 }
 C2_EXPORTED(c2_fop_object_fini);
 

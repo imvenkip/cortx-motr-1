@@ -406,7 +406,7 @@ cleanup:
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 	c2_free(machine->cr_rcv_buffers);
-	if (machine->cr_tm.ntm_state <= C2_NET_TM_STARTING)
+	if (machine->cr_tm.ntm_state <= C2_NET_TM_FAILED)
 		c2_net_tm_fini(&machine->cr_tm);
 	return rc;
 }
