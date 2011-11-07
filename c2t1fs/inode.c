@@ -4,13 +4,14 @@
 #include <linux/mount.h>
 
 #include "c2t1fs/c2t1fs.h"
+#include "lib/misc.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
-static bool c2t1fs_inode_is_root(struct inode *inode)
+bool c2t1fs_inode_is_root(struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
 
@@ -62,6 +63,16 @@ void c2t1fs_inode_cache_fini(void)
 	END(0);
 }
 
+void c2t1fs_inode_init(struct c2t1fs_inode *ci)
+{
+	START();
+
+	C2_SET0(&ci->ci_fid);
+	ci->ci_nr_dir_ents = 0;
+	C2_SET0(&ci->ci_data);
+
+	END(0);
+}
 struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode *ci;
@@ -73,6 +84,8 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 		END(NULL);
 		return NULL;
 	}
+
+	c2t1fs_inode_init(ci);
 
 	END(&ci->ci_inode);
 	return &ci->ci_inode;

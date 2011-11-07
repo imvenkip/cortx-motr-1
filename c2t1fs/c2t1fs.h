@@ -6,6 +6,7 @@
 
 #include "fid/fid.h"
 #include "lib/mutex.h"
+#include "lib/assert.h"
 
 #define C2T1FS_DEBUG 1
 
@@ -23,6 +24,8 @@
 #   define END(rc)
 
 #endif /* C2T1FS_DEBUG */
+
+struct c2t1fs_dir_ent;
 
 int c2t1fs_init(void);
 void c2t1fs_fini(void);
@@ -53,17 +56,24 @@ struct c2t1fs_sb
 
 struct c2t1fs_dir_ent
 {
-	char          de_name[C2T1FS_MAX_NAME_LEN];
+	char          de_name[C2T1FS_MAX_NAME_LEN + 1];
 	struct c2_fid de_fid;
 };
+
+enum {
+	C2T1FS_MAX_NR_DIR_ENTS = 10,
+	C2T1FS_MAX_FILE_SIZE = C2T1FS_MAX_NR_DIR_ENTS *
+					sizeof (struct c2t1fs_dir_ent),
+};
+
 struct c2t1fs_inode
 {
 	struct inode  ci_inode;
 	struct c2_fid ci_fid;
 	int           ci_nr_dir_ents;
 	union {
-		char ci_data[10 * sizeof (struct c2t1fs_dir_ent)];
-		struct c2t1fs_dir_ent ci_dir_ents[10];
+		struct c2t1fs_dir_ent ci_dir_ents[C2T1FS_MAX_NR_DIR_ENTS];
+		char                  ci_data[C2T1FS_MAX_FILE_SIZE];
 	};
 };
 
@@ -78,6 +88,7 @@ static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
 }
 
 extern const struct c2_fid c2t1fs_root_fid;
+bool c2t1fs_inode_is_root(struct inode *inode);
 
 int c2t1fs_get_sb(struct file_system_type *fstype,
 		  int                      flags,
