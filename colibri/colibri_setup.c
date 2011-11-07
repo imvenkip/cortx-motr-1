@@ -1322,8 +1322,7 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
         c2_tlist_for(&rctx_descr, &cctx->cc_reqh_ctxs, rctx) {
 
                 if (!cs_reqh_context_invariant(rctx)) {
-                        fprintf(ofd,
-				"COLIBRI: Missing or invalid parameters\n");
+                        fprintf(ofd, "COLIBRI: Missing or invalid parameters\n");
 			cs_usage(ofd);
                         return -EINVAL;
                 }
@@ -1528,6 +1527,8 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 		return rc;
 
 	rc = cs_rpcmachines_init(cctx);
+	if (rc != 0)
+
 
 	return rc;
 }

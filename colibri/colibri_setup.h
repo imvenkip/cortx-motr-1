@@ -146,7 +146,6 @@ struct c2_colibri {
 	   @see c2_cs_init()
 	 */
 	FILE                      *cc_outfile;
-
 };
 
 /**
