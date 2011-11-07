@@ -35,7 +35,7 @@
 #include "lib/cdefs.h"  /* container_of */
 #include "lib/rwlock.h" /* c2_rwlock */
 #include "lib/arith.h"	/* min_check */
-#include "lib/atomic_queue.h" /* c2_atomic_queue */
+#include "lib/aqueue.h" /* c2_aqueue */
 #include "lib/time.h"	/* c2_time_t */
 
 #include "lib/timer.h"
@@ -59,15 +59,16 @@
 
    TODO what kind of error should return when out of memory ?
    TODO check includes
-   TODO rename atomic_queue -> aqueue
    TODO 80 char per line
    TODO rename c2_timer_sighandler
+   TODO static functions if needed
+   TODO remove unused fields
    hard timer
 	c2_timer
 		c2_timer_info *t_info
 	c2_timer_info
 		c2_rbtree_link ti_linkage
-		c2_atomic_queue_link ti_aqlink
+		c2_aqueue_link ti_aqlink
 		c2_time_t ti_expire
 		c2_time_t ti_interval
 		int ti_left
@@ -91,8 +92,8 @@
 		c2_timer_callback_t tsh_callback
 		unsigned long tsh_data
 		atomic_queue tsh_state_queue
-		atomic_queue tsh_tinfo_dealloc_queue
-		atomic_queue tsh_tstate_dealloc_queue
+		atomic_queue tsh_tinfo_dealloc
+		atomic_queue tsh_tstate_dealloc
 		c2_atomic64 tsh_timers_count
 		c2_time_t tsh_expire	// abs time
 		c2_time_t tsh_expire_tid
@@ -101,7 +102,7 @@
 		c2_time_t tsh_ptimer_expire	// abs time
 		atomic64 tsh_ptimer_processing
 	c2_timer_state
-		c2_atomic_queue_link ts_linkage
+		c2_aqueue_link ts_linkage
 		c2_timer_info *ts_tinfo
 		TIMER_STATE ts_state
 	c2_timer_tid
@@ -141,47 +142,21 @@
 		queue state STOP
 
    sighandler
-	if atomic jump_pending == 1
-		if tid == jump_target_tid
-			atomic set jump_pending 0
-	if atomic callback_pending == 1
-		if tid == tsh_callback_tid
-			if atomic_inc callback_executing == 1
-				execute callback
-				set callback tid = 0
-				atomic set callback_pending 0
-				atomic set callback_executing 0
 	if atomic_inc tsh_processsing != 1
 		return;
 	do
+		clear min_aqueue
 		for every new state from queue
 		FINI	add timer_info to deallocation queue
 		START	add timer_info to timers priority queue for current location
 		STOP	remove timer_info from timers priority queue
-		for every expired timer
-			if target_tid == current_tid
-				just execute callback
-			else
-				if atomic_get callback_pending == 0 && atomic_get callback_executing == 0
-					set tsh_callback_tid = timer_tid
-					set tsh_callback_time c2_time_now()
-					atomic_set callback_pending 1
+		for every expired timer where tid matches gettid()
+			execute it
+			reschedule it
 		tinfo = min in pqueue
-		if tinfo isn't NULL
-			set expire time and tid from tinfo
-		else
-			set expire time to infinity and tid to current tid
-		atomic set tsh_expire_set 1
+		add tinfo to min_aqueue
 	while atomic_dec tsh_processing != 0
-	if atomic_add tsh_ptimer_processing != 1
-		return
-	if atomic callback_pending == 1
-		ptimer_reset tsh_callback_tid time_now
-	else if atomic tsh_expire_set == 1
-		ptimer_reset tsh_ptimer_tid tsh_ptimer_expire
-		atomic set tsh_expire set = 0
-	else
-		ptimer_reset(time_infinity, gettid())
+	jump to last in min_aqueue
 	
 */
 
@@ -194,9 +169,9 @@ struct c2_timer_sighandler {
 	pid_t tsh_callback_tid;
 	c2_timer_callback_t tsh_callback;
 	unsigned long tsh_data;
-	struct c2_atomic_queue tsh_state_queue;
-	struct c2_atomic_queue tsh_tinfo_dealloc_queue;
-	struct c2_atomic_queue tsh_tstate_dealloc_queue;
+	struct c2_aqueue tsh_state_queue;
+	struct c2_aqueue ths_tinfo_dealloc;
+	struct c2_aqueue tsh_tstate_dealloc;
 	struct c2_atomic64 tsh_timers_count;
 	c2_time_t tsh_expire;
 	pid_t tsh_expire_tid;
@@ -205,18 +180,13 @@ struct c2_timer_sighandler {
 	pid_t tsh_ptimer_thread;
 	c2_time_t tsh_ptimer_expire;
 	struct c2_atomic64 tsh_ptimer_processing;
-};
-
-struct c2_timer_locality {
-	int tlo_signo;
-	struct c2_mutex tlo_lock;
-	struct c2_rbtree tlo_tids;
-	struct c2_timer_sighandler *tlo_sighandler;
+	struct c2_aqueue tsh_aqueue_min;
 };
 
 struct c2_timer_info {
 	struct c2_rbtree_link ti_linkage;
-	struct c2_atomic_queue_link ti_aqlink;
+	struct c2_aqueue_link ti_aqlink;
+	struct c2_aqueue_link ti_aqlink_min;
 	c2_time_t ti_expire;
 	c2_time_t ti_interval;
 	int ti_left;
@@ -234,7 +204,7 @@ enum TIMER_STATE {
 };
 
 struct c2_timer_state {
-	struct c2_atomic_queue_link ts_linkage;
+	struct c2_aqueue_link ts_linkage;
 	struct c2_timer_info *ts_tinfo;
 	enum TIMER_STATE ts_state;
 };
@@ -248,6 +218,7 @@ static struct c2_timer_sighandler timer_sighandlers[RTSIG_MAX];
 static struct c2_atomic64 timer_locality_count;
 static c2_time_t timer_1ns;
 static c2_time_t timer_infinity;
+static struct c2_atomic64 timer_deallocating;
 
 /**
 	Empty function for SIGUSR1 sighandler for soft timer scheduling thread.
@@ -274,10 +245,10 @@ void timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE state)
 	struct c2_timer_state *tstate = c2_alloc(sizeof *tstate);
 
 	C2_ASSERT(tstate != NULL);
-	c2_atomic_queue_link_init(&tstate->ts_linkage);
+	c2_aqueue_link_init(&tstate->ts_linkage);
 	tstate->ts_tinfo = tinfo;
 	tstate->ts_state = state;
-	c2_atomic_queue_put(&tinfo->ti_sighandler->tsh_state_queue, &tstate->ts_linkage);
+	c2_aqueue_put(&tinfo->ti_sighandler->tsh_state_queue, &tstate->ts_linkage);
 }
 
 /**
@@ -286,14 +257,14 @@ void timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE state)
 struct c2_timer_info* timer_state_dequeue(struct c2_timer_sighandler *sighandler,
 		enum TIMER_STATE *state)
 {
-	struct c2_atomic_queue_link *link;
+	struct c2_aqueue_link *link;
 	struct c2_timer_state *tstate;
 
-	link = c2_atomic_queue_get(&sighandler->tsh_state_queue);
+	link = c2_aqueue_get(&sighandler->tsh_state_queue);
 	if (link == NULL)
 		return NULL;
 
-	c2_atomic_queue_put(&sighandler->tsh_tstate_dealloc_queue, link);
+	c2_aqueue_put(&sighandler->tsh_tstate_dealloc, link);
 	tstate = container_of(link, struct c2_timer_state, ts_linkage);
 	*state = tstate->ts_state;
 	return tstate->ts_tinfo;
@@ -332,9 +303,10 @@ void timer_posix_init(struct c2_timer_sighandler *sighandler, pid_t tid)
 void timer_posix_fini(struct c2_timer_sighandler *sighandler)
 {
 	C2_ASSERT(timer_delete(sighandler->tsh_ptimer) == 0);
+	sighandler->tsh_ptimer_thread = 0;
 }
 
-void timer_hard_sighandler(int signo);
+static void timer_hard_sighandler(int signo);
 
 void timer_sighandler_init(struct c2_timer_sighandler *sighandler, int signo)
 {
@@ -350,9 +322,9 @@ void timer_sighandler_init(struct c2_timer_sighandler *sighandler, int signo)
 	c2_atomic64_set(&sighandler->tsh_processing, 0);
 	sighandler->tsh_callback = NULL;
 	sighandler->tsh_data = 0;
-	c2_atomic_queue_init(&sighandler->tsh_state_queue);
-	c2_atomic_queue_init(&sighandler->tsh_tinfo_dealloc_queue);
-	c2_atomic_queue_init(&sighandler->tsh_tstate_dealloc_queue);
+	c2_aqueue_init(&sighandler->tsh_state_queue);
+	c2_aqueue_init(&sighandler->ths_tinfo_dealloc);
+	c2_aqueue_init(&sighandler->tsh_tstate_dealloc);
 	c2_atomic64_set(&sighandler->tsh_timers_count, 0);
 	c2_time_set(&sighandler->tsh_expire, 0, 0);
 	sighandler->tsh_expire_tid = 0;
@@ -361,6 +333,7 @@ void timer_sighandler_init(struct c2_timer_sighandler *sighandler, int signo)
 	sighandler->tsh_ptimer_thread = 0;
 	c2_time_set(&sighandler->tsh_ptimer_expire, 0, 0);
 	c2_atomic64_set(&sighandler->tsh_ptimer_processing, 0);
+	c2_aqueue_init(&sighandler->tsh_aqueue_min);
 
 	sa.sa_handler = timer_hard_sighandler;
 	sigemptyset(&sa.sa_mask);
@@ -373,11 +346,12 @@ void timer_sighandler_fini(struct c2_timer_sighandler *sighandler)
 {
 	C2_PRE(sighandler != NULL);
 
+	c2_aqueue_fini(&sighandler->tsh_aqueue_min);
 	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_ptimer_processing) == 0);
 	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_timers_count) == 0);
-	c2_atomic_queue_fini(&sighandler->tsh_tstate_dealloc_queue);
-	c2_atomic_queue_fini(&sighandler->tsh_tinfo_dealloc_queue);
-	c2_atomic_queue_fini(&sighandler->tsh_state_queue);
+	c2_aqueue_fini(&sighandler->tsh_tstate_dealloc);
+	c2_aqueue_fini(&sighandler->ths_tinfo_dealloc);
+	c2_aqueue_fini(&sighandler->tsh_state_queue);
 	C2_ASSERT(sighandler->tsh_callback == NULL);
 	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_processing) == 0);
 	C2_ASSERT(c2_atomic64_get(&sighandler->tsh_callback_executing) == 0);
@@ -403,7 +377,8 @@ struct c2_timer_info *timer_info_init(struct c2_timer *timer)
 	struct c2_timer_info *tinfo = c2_alloc(sizeof *tinfo);
 
 	c2_rbtree_link_init(&tinfo->ti_linkage);
-	c2_atomic_queue_link_init(&tinfo->ti_aqlink);
+	c2_aqueue_link_init(&tinfo->ti_aqlink);
+	c2_aqueue_link_init(&tinfo->ti_aqlink_min);
 	c2_time_set(&tinfo->ti_expire, 0, 0);
 	tinfo->ti_interval = timer->t_interval;
 	tinfo->ti_left = timer->t_left;
@@ -420,7 +395,8 @@ void timer_info_fini(struct c2_timer_info *tinfo)
 	if (tinfo->ti_sighandler != NULL)
 		c2_atomic64_dec(&tinfo->ti_sighandler->tsh_timers_count);
 	C2_ASSERT(tinfo->ti_left == 0);
-	c2_atomic_queue_link_fini(&tinfo->ti_aqlink);
+	c2_aqueue_link_fini(&tinfo->ti_aqlink_min);
+	c2_aqueue_link_fini(&tinfo->ti_aqlink);
 	c2_rbtree_link_fini(&tinfo->ti_linkage);
 	c2_free(tinfo);
 }
@@ -457,6 +433,7 @@ int c2_timer_locality_init(struct c2_timer_locality *loc)
 	c2_rbtree_init(&loc->tlo_tids, tids_cmp,
 			offsetof(struct c2_timer_tid, tt_pid) -
 			offsetof(struct c2_timer_tid, tt_linkage));
+	c2_atomic64_inc(&timer_locality_count);
 	return 0;
 }
 
@@ -470,6 +447,7 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc)
 		c2_rbtree_remove(&loc->tlo_tids, link);
 	c2_rbtree_fini(&loc->tlo_tids);
 	c2_mutex_fini(&loc->tlo_lock);
+	c2_atomic64_dec(&timer_locality_count);
 }
 
 void c2_timer_thread_attach(struct c2_timer_locality *loc)
@@ -513,28 +491,21 @@ struct c2_timer_info *timer_info(struct c2_rbtree_link *link)
 	return container_of(link, struct c2_timer_info, ti_linkage);
 }
 
-struct c2_timer_info *timer_expired_info(struct c2_rbtree_link *link)
-{
-	struct c2_timer_info *tinfo;
-
-	if (link == NULL)
-		return NULL;
-	tinfo =	container_of(link, struct c2_timer_info, ti_linkage);
-	return c2_time_after_eq(tinfo->ti_expire, c2_time_now()) ? tinfo : NULL;
-}
-
-void timer_pqueue_insert(struct c2_timer_sighandler *sighandler, struct c2_timer_info *tinfo)
+void timer_pqueue_insert(struct c2_timer_sighandler *sighandler,
+		struct c2_timer_info *tinfo)
 {
 	while (!c2_rbtree_insert(&sighandler->tsh_pqueue, &tinfo->ti_linkage))
 		tinfo->ti_expire = c2_time_add(tinfo->ti_expire, timer_1ns);
 }
 
-bool timer_pqueue_remove(struct c2_timer_sighandler *sighandler, struct c2_timer_info *tinfo)
+bool timer_pqueue_remove(struct c2_timer_sighandler *sighandler,
+		struct c2_timer_info *tinfo)
 {
 	return c2_rbtree_remove(&sighandler->tsh_pqueue, &tinfo->ti_linkage);
 }
 
-void timer_reschedule(struct c2_timer_sighandler *sighandler, struct c2_timer_info *tinfo)
+void timer_reschedule(struct c2_timer_sighandler *sighandler,
+		struct c2_timer_info *tinfo)
 {
 	C2_ASSERT(timer_pqueue_remove(sighandler, tinfo));
 	if (--tinfo->ti_left == 0)
@@ -543,7 +514,8 @@ void timer_reschedule(struct c2_timer_sighandler *sighandler, struct c2_timer_in
 	timer_pqueue_insert(sighandler, tinfo);
 }
 
-void timer_posix_reset(struct c2_timer_sighandler *sighandler, c2_time_t expire, pid_t tid)
+void timer_posix_reset(struct c2_timer_sighandler *sighandler,
+		c2_time_t expire, pid_t tid)
 {
 	struct itimerspec ts;
 
@@ -561,103 +533,140 @@ void timer_posix_reset(struct c2_timer_sighandler *sighandler, c2_time_t expire,
 				NULL) == 0);
 }
 
-void timer_cleanup()
+void timer_sighandler_cleanup(struct c2_timer_sighandler *sighandler)
 {
-	int i;
-	struct c2_timer_sighandler *sighandler;
-	struct c2_atomic_queue_link *link;
+	struct c2_aqueue_link *link;
 	struct c2_timer_state *tstate;
 	struct c2_timer_info *tinfo;
 
-	for (i = SIGRTMIN; i < SIGRTMIN + timer_sighandler_max(); ++i) {
-		sighandler = timer_sighandler(i);
+	while ((link = c2_aqueue_get(&sighandler->tsh_tstate_dealloc)) != NULL) {
+		tstate = container_of(link, struct c2_timer_state, ts_linkage);
+		c2_free(tstate);
+	}
+	while ((link = c2_aqueue_get(&sighandler->ths_tinfo_dealloc)) != NULL) {
+		tinfo = container_of(link, struct c2_timer_info, ti_linkage);
+		timer_info_fini(tinfo);
+	}
+}
 
-		while ((link = c2_atomic_queue_get(&sighandler->tsh_tstate_dealloc_queue)) != NULL) {
-			tstate = container_of(link, struct c2_timer_state, ts_linkage);
-			c2_free(tstate);
-		}
-		while ((link = c2_atomic_queue_get(&sighandler->tsh_tinfo_dealloc_queue)) != NULL) {
-			tinfo = container_of(link, struct c2_timer_info, ti_linkage);
-			timer_info_fini(tinfo);
+void timer_cleanup()
+{
+	int i;
+
+	if (c2_atomic64_add_return(&timer_deallocating, 1) != 1)
+		return;
+	do {
+		for (i = SIGRTMIN; i < SIGRTMIN + timer_sighandler_max(); ++i)
+			timer_sighandler_cleanup(timer_sighandler(i));
+	} while (c2_atomic64_sub_return(&timer_deallocating, 1) != 0);
+}
+
+static void timer_state_process(struct c2_timer_sighandler *sighandler)
+{
+	struct c2_timer_info *tinfo;
+	enum TIMER_STATE state;
+
+	while ((tinfo = timer_state_dequeue(sighandler, &state)) != NULL) {
+		switch (state) {
+		case TIMER_STATE_FINI:
+			c2_aqueue_put(&sighandler->ths_tinfo_dealloc,
+					&tinfo->ti_aqlink);
+			break;
+		case TIMER_STATE_START:
+			timer_pqueue_insert(sighandler, tinfo);
+			break;
+		case TIMER_STATE_STOP:
+			timer_pqueue_remove(sighandler, tinfo);
+			break;
+		default:
+			C2_IMPOSSIBLE("invalid state");
 		}
 	}
+}
+
+static void timer_expired_execute(struct c2_timer_sighandler *sighandler)
+{
+	pid_t current_tid;
+	struct c2_rbtree_link *tlink;
+	struct c2_rbtree_link *next;
+	struct c2_timer_info *tinfo;
+
+	tlink = c2_rbtree_min(&sighandler->tsh_pqueue);
+	if (tlink == NULL)
+		return;
+	// cache current tid
+	current_tid = gettid();
+	do {
+		tinfo = timer_info(tlink);
+		next = c2_rbtree_next(tlink);
+
+		if (c2_time_after(c2_time_now(), tinfo->ti_expire))
+			break;
+		if (tinfo->ti_tid != current_tid)
+			continue;
+
+		c2_rbtree_remove(&sighandler->tsh_pqueue, tlink);
+		while (c2_time_after_eq(c2_time_now(), tinfo->ti_expire)) {
+			tinfo->ti_callback(tinfo->ti_data);
+			tinfo->ti_expire = c2_time_add(tinfo->ti_expire,
+					tinfo->ti_interval);
+			if (--tinfo->ti_left == 0)
+				break;
+		}
+		if (tinfo->ti_left == 0)
+			continue;
+		c2_rbtree_insert(&sighandler->tsh_pqueue, tlink);
+	} while ((tlink = next) != NULL);
+}
+
+static void timer_min_jump(struct c2_timer_sighandler *sighandler)
+{
+	struct c2_aqueue_link *ql;
+	struct c2_timer_info *tinfo;
+	c2_time_t zero_time;
+
+	ql = c2_aqueue_get(&sighandler->tsh_aqueue_min);
+	if (ql == NULL) {
+		// no jump targets, just disable timer
+		if (sighandler->tsh_ptimer_thread != 0) {
+			c2_time_set(&zero_time, 0, 0);
+			timer_posix_reset(sighandler,
+				zero_time,
+				sighandler->tsh_ptimer_thread);
+
+		}
+		return;
+	}
+	tinfo = container_of(ql, struct c2_timer_info, ti_aqlink_min);
+	timer_posix_reset(sighandler, tinfo->ti_expire, tinfo->ti_tid);
 }
 
 /**
    Thread-safe, async-signal-safe, lock-free.
  */
-void timer_hard_sighandler(int signo)
+static void timer_hard_sighandler(int signo)
 {
 	struct c2_timer_sighandler *sighandler = timer_sighandler(signo);
 	struct c2_timer_info *tinfo;
-	struct c2_timer_info *tinfo_next;
-	enum TIMER_STATE state;
-	pid_t current_tid;
 
 	C2_ASSERT(sighandler != NULL);
-	if (c2_atomic64_get(&sighandler->tsh_callback_pending) == 1) {
-		if (gettid() == sighandler->tsh_callback_tid) {
-			if (c2_atomic64_add_return(&sighandler->tsh_callback_executing, 1) == 1) {
-				// execute callback
-				sighandler->tsh_callback(sighandler->tsh_data);
-				sighandler->tsh_callback_tid = 0;
-				c2_atomic64_set(&sighandler->tsh_callback_pending, 0);
-				c2_atomic64_set(&sighandler->tsh_callback_executing, 0);
-			}
-		}
-	}
 	if (c2_atomic64_add_return(&sighandler->tsh_processing, 1) != 1)
 		return;
 	do {
-		while ((tinfo = timer_state_dequeue(sighandler, &state)) != NULL) {
-			switch (state) {
-			case TIMER_STATE_FINI:
-				c2_atomic_queue_put(&sighandler->tsh_tinfo_dealloc_queue, &tinfo->ti_aqlink);
-				break;
-			case TIMER_STATE_START:
-				timer_pqueue_insert(sighandler, tinfo);
-				break;
-			case TIMER_STATE_STOP:
-				timer_pqueue_remove(sighandler, tinfo);
-				break;
-			default:
-				C2_IMPOSSIBLE("invalid state");
-			}
-		}
-		current_tid = gettid();	// cache current tid
-		tinfo = timer_expired_info(c2_rbtree_min(&sighandler->tsh_pqueue));
-		while (tinfo != NULL) {
-			tinfo_next = timer_expired_info(c2_rbtree_next(&tinfo->ti_linkage));
-			if (current_tid == tinfo->ti_tid) {
-				tinfo->ti_callback(tinfo->ti_data);
-				timer_reschedule(sighandler, tinfo);
-			} else if (c2_atomic64_get(&sighandler->tsh_callback_pending) == 0 && c2_atomic64_get(&sighandler->tsh_callback_executing) == 0) {
-				sighandler->tsh_callback_tid = tinfo->ti_tid;
-				c2_atomic64_set(&sighandler->tsh_callback_pending, 1);
-				timer_reschedule(sighandler, tinfo);
-			}
-			tinfo = tinfo_next;
-		}
+		// clear min_queue
+		while (c2_aqueue_get(&sighandler->tsh_aqueue_min) != NULL)
+			;
+		// process states
+		timer_state_process(sighandler);
+		// execute all expired timer callbacks (with tid == current_tid)
+		timer_expired_execute(sighandler);
+		// add min to min_queue
 		tinfo = timer_info(c2_rbtree_min(&sighandler->tsh_pqueue));
-		if (tinfo != NULL) {
-			sighandler->tsh_expire = tinfo->ti_expire;
-			sighandler->tsh_expire_tid = tinfo->ti_tid;
-		} else {
-			sighandler->tsh_expire = c2_time_add(c2_time_now(), timer_infinity);
-			sighandler->tsh_expire_tid = gettid();
-		}
-		c2_atomic64_set(&sighandler->tsh_expire_set, 1);
+		if (tinfo != NULL)
+			c2_aqueue_put(&sighandler->tsh_aqueue_min,
+					&tinfo->ti_aqlink_min);
 	} while (c2_atomic64_sub_return(&sighandler->tsh_processing, 1) != 0);
-	if (c2_atomic64_add_return(&sighandler->tsh_ptimer_processing, 1) != 1)
-		return;
-	if (c2_atomic64_get(&sighandler->tsh_callback_pending) == 1)
-		timer_posix_reset(sighandler, c2_time_now(), sighandler->tsh_callback_tid);
-	else if (c2_atomic64_get(&sighandler->tsh_expire_set) == 1) {
-		timer_posix_reset(sighandler, sighandler->tsh_expire, sighandler->tsh_expire_tid);
-		c2_atomic64_set(&sighandler->tsh_expire_set, 0);
-	} else
-		timer_posix_reset(sighandler, c2_time_add(c2_time_now(), timer_infinity), gettid());
-	c2_atomic64_set(&sighandler->tsh_ptimer_processing, 0);
+	timer_min_jump(sighandler);
 }
 
 int timer_hard_init(struct c2_timer *timer)
@@ -845,6 +854,7 @@ int c2_timers_init()
 		timer_sighandler_init(timer_sighandler(i), i);
 	c2_time_set(&timer_1ns, 0, 1);
 	c2_time_set(&timer_infinity, 86400, 0);
+	c2_atomic64_set(&timer_deallocating, 0);
 	return 0;
 }
 C2_EXPORTED(c2_timers_init);
@@ -860,6 +870,7 @@ void c2_timers_fini()
 	for (i = SIGRTMIN; i <= SIGRTMAX; ++i)
 		timer_sighandler_fini(timer_sighandler(i));
 	C2_ASSERT(c2_atomic64_get(&timer_locality_count) == 0);
+	C2_ASSERT(c2_atomic64_get(&timer_deallocating) == 0);
 }
 C2_EXPORTED(c2_timers_fini);
 

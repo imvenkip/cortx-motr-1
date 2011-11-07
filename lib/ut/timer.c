@@ -34,6 +34,11 @@
 static int count = 0;
 static int verbose = 0;
 
+static volatile bool oneshot_finished;
+static volatile unsigned long oneshot_data;
+static volatile int oneshot_iterations;
+static volatile pid_t oneshot_tid;
+
 unsigned long tick(unsigned long data)
 {
 	c2_time_t now;
@@ -177,246 +182,75 @@ void test_timer_soft(void)
 	return;
 }
 
-unsigned long hard_tick(unsigned long data)
-{
-	c2_time_t now;
-
-	printf("hard tick %lu, thread %ld, ", data, pthread_self());
-	now = c2_time_now();
-	printf("time %lu.%lu\n",
-		c2_time_seconds(now), c2_time_nanoseconds(now));
-	return 0;
-}
-
-void test_hard_1()
-{
-	struct c2_timer timer1;
-	c2_time_t       i1;
-	c2_time_t       wait;
-	int i;
-
-	c2_time_set(&i1, 1, 0);
-	C2_UT_ASSERT(!c2_timer_init(&timer1, C2_TIMER_HARD, i1, 20, hard_tick, 0));
-	c2_timer_start(&timer1);
-
-	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
-	for (i = 0; i < 9; ++i)
-		c2_nanosleep(wait, NULL);
-
-	c2_timer_stop(&timer1);
-	c2_timer_fini(&timer1);
-}
-
-void test_timer_hard(void)
-{
-	// struct c2_thread t1 = { 0 };
-	// int rc;
-
-	printf("start hard timer testing....\n");
-	test_hard_1();
-}
-
-
 pid_t gettid()
 {
 	return syscall(SYS_gettid);
 }
 
-struct c2_mutex tswitch;
-c2_time_t one_sec;
-c2_time_t infinity_time;
-static int tcount = 0;	// XXX not thread-safe
-pid_t tid[0x10];
-timer_t timer_id;
-int signal_tid;
-
-#define PRINT_THREAD(...) printf("TID = %d, ", gettid());	printf(__VA_ARGS__);
-
-void tc_sighandler(int signo)
+static void test_timer_locality()
 {
-	struct sigevent se;
-	struct itimerspec it;
-	struct sigaction sa;
-	timer_t local_timer;
-
-	PRINT_THREAD("sighandler called, signal is %d.\n", signo);
-	C2_ASSERT(gettid() == signal_tid);
-	if (signo != SIGRTMIN)
-		return;
-
-	signal_tid = signal_tid == tid[0] ? tid[1] : tid[0];
-
-		PRINT_THREAD("installing SIGRTMIN+1 handler...\n");
-		sa.sa_handler = tc_sighandler;
-		sigemptyset(&sa.sa_mask);
-		sa.sa_flags = SA_NODEFER;
-		sigaction(SIGRTMIN + 1, &sa, NULL);
-
-	PRINT_THREAD("trying to switch thread to TID = %d\n", signal_tid);
-
-		PRINT_THREAD("installing timer +.0 sec\n");
-		se.sigev_notify = SIGEV_THREAD_ID;
-		se.sigev_signo = SIGRTMIN + 1;
-		se._sigev_un._tid = signal_tid;
-		PRINT_THREAD("installing target thread as %d\n", signal_tid);
-		C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &local_timer) == 0);
-		it.it_value.tv_sec = 0;
-		it.it_value.tv_nsec = 0;
-		it.it_interval.tv_sec = 100;
-		it.it_interval.tv_nsec = 0;
-		C2_ASSERT(timer_settime(local_timer, 0, &it, NULL) == 0);
+	struct c2_timer_locality loc;
+	int loc_count;
+	
+	C2_UT_ASSERT(c2_timer_locality_max() > 0);
+	loc_count = c2_timer_locality_count();
+	C2_UT_ASSERT(loc_count < c2_timer_locality_max());
+	C2_UT_ASSERT(c2_timer_locality_init(&loc) == 0);
+	C2_UT_ASSERT(c2_timer_locality_count() == loc_count + 1);
+	c2_timer_locality_fini(&loc);
+	C2_UT_ASSERT(c2_timer_locality_count() == loc_count);
 }
 
-void tc_thread(int param)
+static unsigned long oneshot_callback(unsigned long data)
 {
-	struct sigaction sa;
-	int index = tcount++;
-	struct sigevent se;
-	struct itimerspec it;
-	sigset_t ss;
-
-	tid[index] = gettid();
-	PRINT_THREAD("started.\n");
-
-	PRINT_THREAD("unblocking SIGRTMIN and SIGRTMIN+1 signals\n");
-	sigemptyset(&ss);
-	sigaddset(&ss, SIGRTMIN);
-	sigaddset(&ss, SIGRTMIN+1);
-	pthread_sigmask(SIG_UNBLOCK, &ss, NULL);
-
-	if (index == 0) {
-		PRINT_THREAD("installing SIGRTMIN handler...\n");
-		sa.sa_handler = tc_sighandler;
-		sigemptyset(&sa.sa_mask);
-		sa.sa_flags = SA_NODEFER;
-		sigaction(SIGRTMIN, &sa, NULL);
-	}
-
-	c2_nanosleep(one_sec, NULL);
-	if (index == 0) {
-		signal_tid = tid[rand() % 3];
-
-		PRINT_THREAD("installing timer +.5 sec\n");
-		se.sigev_notify = SIGEV_THREAD_ID;
-		se.sigev_signo = SIGRTMIN;
-		se._sigev_un._tid = signal_tid;
-		PRINT_THREAD("installing target thread as %d\n", signal_tid);
-		C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &timer_id) == 0);
-		it.it_value.tv_sec = 0;
-		it.it_value.tv_nsec = 500000000;
-		it.it_interval.tv_sec = 100;
-		it.it_interval.tv_nsec = 0;
-		C2_ASSERT(timer_settime(timer_id, 0, &it, NULL) == 0);
-	}
-
-	PRINT_THREAD("start sleeping...\n");
-	c2_nanosleep(one_sec, NULL);
-	PRINT_THREAD("end sleeping.\n");
-	c2_nanosleep(one_sec, NULL);
-	PRINT_THREAD("end sleeping #2.\n");
+	oneshot_data = data;
+	oneshot_tid = gettid();
+	oneshot_iterations++;
+	oneshot_finished = true;
+	return 0;
 }
 
-void test_timer_create()
+static void test_timer_oneshot()
 {
-	struct c2_thread t1 = { 0 };
-	struct c2_thread t2 = { 0 };
+	struct c2_timer timer;
+	struct c2_timer_locality loc;
 	int rc;
+	c2_time_t one_ms;
+	const int data = 42;
 
-	tcount = 0;
-	tid[2] = gettid();
-	c2_time_set(&infinity_time, 10000, 0);
-	c2_time_set(&one_sec, 1, 0);
-	rc = C2_THREAD_INIT(&t1, int, NULL, &tc_thread, 0, "tc_thread1");
+	C2_UT_ASSERT(c2_timer_locality_init(&loc) == 0);
+	c2_time_set(&one_ms, 0, 1000000);
+	rc = c2_timer_init(&timer, C2_TIMER_HARD, one_ms,
+			1, &oneshot_callback, 42);
 	C2_ASSERT(rc == 0);
-	rc = C2_THREAD_INIT(&t2, int, NULL, &tc_thread, 0, "tc_thread2");
-	C2_ASSERT(rc == 0);
+	c2_timer_attach(&timer, &loc);
 
-
-	c2_thread_join(&t1);
-	c2_thread_fini(&t1);
-	c2_thread_join(&t2);
-	c2_thread_fini(&t2);
-	C2_ASSERT(timer_delete(timer_id) == 0);
-}
-
-int empty_handler_enters = 0;
-pid_t empty_tid = 0;
-bool finish_thread = false;
-
-void tc_empty_handler(int signo)
-{
-	C2_ASSERT(timer_delete(timer_id) == 0);
-	empty_handler_enters++;
-}
-
-void tc_empty_thread(int param)
-{
-	empty_tid = gettid();
-	while (!finish_thread)
+	oneshot_finished = false;
+	oneshot_data = ~data;
+	oneshot_tid = 0;
+	oneshot_iterations = 0;
+	c2_timer_start(&timer);
+	while (!oneshot_finished)
 		;
+	c2_timer_stop(&timer);
+	C2_UT_ASSERT(oneshot_data == 42);
+	C2_UT_ASSERT(oneshot_tid == gettid());
+	C2_UT_ASSERT(oneshot_iterations == 1);
+	
+	c2_timer_fini(&timer);
+	c2_timer_locality_fini(&loc);
 }
 
-// one iteration of thread switch with 1ns timer
-void tc_benchmark(int signo)
+void test_timer_hard(void)
 {
-	struct sigaction sa;
-	struct sigevent se;
-	struct itimerspec it;
-	// int signal_tid = gettid();
-
-	sa.sa_handler = tc_empty_handler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_NODEFER;
-	C2_ASSERT(sigaction(SIGRTMIN, &sa, NULL) == 0);
-
-	se.sigev_notify = SIGEV_THREAD_ID;
-	se.sigev_signo = signo;
-	se._sigev_un._tid = empty_tid;
-	C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &timer_id) == 0);
-
-	it.it_value.tv_sec = 0;
-	it.it_value.tv_nsec = 1;
-	it.it_interval.tv_sec = 100;
-	it.it_interval.tv_nsec = 0;
-	C2_ASSERT(timer_settime(timer_id, 0, &it, NULL) == 0);
+	test_timer_locality();
+	test_timer_oneshot();
 }
 
 void test_timer(void)
 {
-	int i;
-	int rc;
-	struct c2_thread t1 = { 0 };
-	c2_time_t now;
 	// test_timer_soft();
-	// test_timer_hard();
-	printf("\n");
-
-	rc = C2_THREAD_INIT(&t1, int, NULL, &tc_empty_thread, 0, "tc_thread1");
-	C2_ASSERT(rc == 0);
-	while (empty_tid == 0)
-		;
-
-	now = c2_time_now();
-	printf("benchmark start at %lu.%lu\n", c2_time_seconds(now), c2_time_nanoseconds(now));
-	for (i = 0; i < 100000; ++i) {
-		int enters = empty_handler_enters;
-		tc_benchmark(-1);
-
-		// non-atomic spinlock
-		enters++;
-		while (enters != empty_handler_enters)
-			;
-	}
-	now = c2_time_now();
-	printf("benchmark end at   %lu.%lu\n", c2_time_seconds(now), c2_time_nanoseconds(now));
-	printf("empty handler enters %d\n", empty_handler_enters);
-
-	finish_thread = true;
-	c2_thread_join(&t1);
-	c2_thread_fini(&t1);
-
-	for (i = 0; i < 0x100; ++i)
-		test_timer_create();
+	test_timer_hard();
 }
 
 /*

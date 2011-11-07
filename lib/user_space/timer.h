@@ -23,6 +23,8 @@
 
 #include "lib/time.h"
 #include "lib/thread.h"
+#include "lib/rbtree.h"
+#include "lib/mutex.h"
 
 /**
    @addtogroup timer
@@ -32,7 +34,14 @@
 */
 
 struct c2_timer_info;
-struct c2_timer_locality;
+struct c2_timer_sighandler;
+
+struct c2_timer_locality {
+	int tlo_signo;
+	struct c2_mutex tlo_lock;
+	struct c2_rbtree tlo_tids;
+	struct c2_timer_sighandler *tlo_sighandler;
+};
 
 struct c2_timer {
 	/**
