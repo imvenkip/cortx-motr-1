@@ -7,14 +7,6 @@
 #include "c2t1fs/c2t1fs.h"
 #include "lib/misc.h"
 
-static int c2t1fs_get_sb(struct file_system_type *fstype,
-			 int                      flags,
-			 const char              *devname,
-			 void                    *data,
-			 struct vfsmount         *mnt);
-
-static void c2t1fs_kill_sb(struct super_block *sb);
-
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts);
@@ -22,14 +14,6 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
 static int  c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts);
 static int  c2t1fs_mnt_opts_parse(char                   *options,
 				  struct c2t1fs_mnt_opts *mnt_opts);
-
-static struct file_system_type c2t1fs_fs_type = {
-	.owner        = THIS_MODULE,
-	.name         = "c2t1fs",
-	.get_sb       = c2t1fs_get_sb,
-	.kill_sb      = c2t1fs_kill_sb,
-	.fs_flags     = FS_BINARY_MOUNTDATA | FS_REQUIRES_DEV
-};
 
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
@@ -42,39 +26,7 @@ const struct c2_fid c2t1fs_root_fid = {
 	.f_key = 2
 };
 
-int c2t1fs_init(void)
-{
-	int rc;
-
-	START();
-
-	rc = c2t1fs_inode_cache_init();
-	if (rc != 0) {
-		END(rc);
-		return rc;
-	}
-
-	rc = register_filesystem(&c2t1fs_fs_type);
-	if (rc != 0)
-		c2t1fs_inode_cache_fini();
-
-	END(rc);
-	return rc;
-}
-
-void c2t1fs_fini(void)
-{
-	int rc;
-
-	START();
-
-	rc = unregister_filesystem(&c2t1fs_fs_type);
-	c2t1fs_inode_cache_fini();
-
-	END(rc);
-}
-
-static int c2t1fs_get_sb(struct file_system_type *fstype,
+int c2t1fs_get_sb(struct file_system_type *fstype,
 			 int                      flags,
 			 const char              *devname,
 			 void                    *data,
@@ -155,7 +107,8 @@ out:
 	END(rc);
 	return rc;
 }
-static void c2t1fs_kill_sb(struct super_block *sb)
+
+void c2t1fs_kill_sb(struct super_block *sb)
 {
 	struct c2t1fs_sb *sbi;
 

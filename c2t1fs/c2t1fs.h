@@ -70,6 +70,15 @@ static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
 
 extern const struct c2_fid c2t1fs_root_fid;
 
+int c2t1fs_get_sb(struct file_system_type *fstype,
+		  int                      flags,
+		  const char              *devname,
+		  void                    *data,
+		  struct vfsmount         *mnt);
+
+void c2t1fs_kill_sb(struct super_block *sb);
+
+
 int c2t1fs_sb_init(struct c2t1fs_sb *sbi);
 void c2t1fs_sb_fini(struct c2t1fs_sb *sbi);
 

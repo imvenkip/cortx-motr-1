@@ -5,8 +5,8 @@ STOBDIR = @SRCDIR@/stob/ut
 GALOISDIR = @SRCDIR@/../galois
 IOSERVICEDIR = @SRCDIR@/ioservice
 
-obj-y := c2t1fs.o
-c2t1fs-y := inode.o file.o dir.o main.o
+obj-y := c2t1fs_obj.o
+c2t1fs_obj-y := inode.o file.o dir.o c2t1fs.o super.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
