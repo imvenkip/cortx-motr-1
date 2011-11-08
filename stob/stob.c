@@ -70,8 +70,7 @@ void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 {
 	c2_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
-	dom_tlink_init(dom);
-	dom_tlist_add_tail(&t->st_domains, dom);
+	dom_tlink_init_at_tail(dom, &t->st_domains);
 	c2_addb_ctx_init(&dom->sd_addb, &c2_stob_domain_addb, &t->st_addb);
 }
 
@@ -79,7 +78,7 @@ void c2_stob_domain_fini(struct c2_stob_domain *dom)
 {
 	c2_addb_ctx_fini(&dom->sd_addb);
 	c2_rwlock_fini(&dom->sd_guard);
-	dom_tlist_del(dom);
+	dom_tlink_del_fini(dom);
 	dom->sd_magic = 0;
 }
 
@@ -225,7 +224,6 @@ void c2_stob_io_init(struct c2_stob_io *io)
 	io->si_opcode = SIO_INVALID;
 	io->si_state  = SIS_IDLE;
 	c2_chan_init(&io->si_wait);
-	c2_sm_init(&io->si_mach);
 
 	C2_POST(io->si_state == SIS_IDLE);
 }
@@ -235,7 +233,6 @@ void c2_stob_io_fini(struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
 
-	c2_sm_fini(&io->si_mach);
 	c2_chan_fini(&io->si_wait);
 	c2_stob_io_private_fini(io);
 }

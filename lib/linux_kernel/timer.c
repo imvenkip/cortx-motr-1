@@ -59,9 +59,9 @@ void c2_timer_trampoline_callback(unsigned long data)
 /**
    Init the timer data structure.
  */
-int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t interval, uint64_t repeat,
-		  c2_timer_callback_t callback, unsigned long data)
+void c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
+		   c2_time_t interval, uint64_t repeat,
+		   c2_timer_callback_t callback, unsigned long data)
 {
 	struct timer_list *tl;
 
@@ -79,7 +79,6 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	init_timer(tl);
 	tl->data = (unsigned long)timer;
 	tl->function = c2_timer_trampoline_callback;
-	return 0;
 }
 
 C2_EXPORTED(c2_timer_init);
@@ -113,12 +112,18 @@ C2_EXPORTED(c2_timer_start);
 /**
    Stop a timer.
  */
-int c2_timer_stop(struct c2_timer *timer)
+void c2_timer_stop(struct c2_timer *timer)
 {
 	timer->t_left = 0;
-	return del_timer_sync(&timer->t_timer);
+	(void)del_timer_sync(&timer->t_timer);
 }
 C2_EXPORTED(c2_timer_stop);
+
+bool c2_timer_is_started(const struct c2_timer *timer)
+{
+	return timer->t_left > 0;
+}
+C2_EXPORTED(c2_timer_is_started);
 
 /**
    Destroy the timer.
@@ -133,7 +138,7 @@ void c2_timer_fini(struct c2_timer *timer)
 }
 C2_EXPORTED(c2_timer_fini);
 
-/** @} end of mutex group */
+/** @} end of timer group */
 
 /*
  *  Local variables:

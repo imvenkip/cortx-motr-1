@@ -37,6 +37,25 @@ int right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int32_t rc);
 
+/**
+   @name RM lists.
+ */
+/** @{ */
+
+C2_TL_DESCR_DECLARE(res, extern);
+C2_TL_DECLARE(res, , struct c2_rm_resource);
+
+C2_TL_DESCR_DECLARE(ur, extern);
+C2_TL_DECLARE(ur, , struct c2_rm_right);
+
+C2_TL_DESCR_DECLARE(pr, extern);
+C2_TL_DECLARE(pr, , struct c2_rm_pin);
+
+C2_TL_DESCR_DECLARE(pi, extern);
+C2_TL_DECLARE(pi, , struct c2_rm_pin);
+
+/** @} end of RM lists. */
+
 /* __COLIBRI_RM_RM_INTERNAL_H__ */
 #endif
 

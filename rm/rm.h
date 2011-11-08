@@ -22,6 +22,7 @@
 #define __COLIBRI_RM_RM_H__
 
 #include "net/net.h"         /* c2_service_id */
+#include "lib/tlist.h"
 
 /**
    @defgroup rm Resource management
@@ -250,13 +251,14 @@ struct c2_rm_resource {
            Linkage to a list of all resources of this type, hanging off
            c2_rm_resource_type::rt_resources.
          */
-        struct c2_list_link              r_linkage;
+        struct c2_tlink                  r_linkage;
         /**
            Active references to this resource from resource owners
            (c2_rm_resource::r_type). Protected by
            c2_rm_resource_type::rt_lock.
          */
         uint32_t                         r_ref;
+	uint64_t                         r_magix;
 };
 
 struct c2_rm_resource_ops {
@@ -311,7 +313,7 @@ struct c2_rm_resource_type {
            List of all resources of this type. Protected by
            c2_rm_resource_type::rt_lock.
          */
-        struct c2_list                        rt_resources;
+        struct c2_tl                          rt_resources;
         /**
            Active references to this resource type from resource instances
            (c2_rm_owner::ro_resource). Protected by
@@ -369,12 +371,13 @@ struct c2_rm_right {
            Linkage of a right (and the corresponding loan, if applicable) to a
            list hanging off c2_rm_owner.
          */
-        struct c2_list_link           ri_linkage;
+        struct c2_tlink               ri_linkage;
         /**
            A list of pins, linked through c2_rm_pins::rp_right, stuck into this
            right.
          */
-        struct c2_list                ri_pins;
+        struct c2_tl                  ri_pins;
+	uint64_t                      ri_magix;
 };
 
 struct c2_rm_right_ops {
@@ -727,29 +730,29 @@ struct c2_rm_owner {
            A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
            this owner borrowed from other owners.
          */
-        struct c2_list         ro_borrowed;
+        struct c2_tl           ro_borrowed;
         /**
            A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
            this owner extended to other owners. Rights on this list are not
            longer possessed by this owner: they are counted in
            c2_rm_owner::ro_borrowed, but not in c2_rm_owner::ro_owned.
          */
-        struct c2_list         ro_sublet;
+        struct c2_tl           ro_sublet;
         /**
            A list of rights, linked through c2_rm_right::ri_linkage possessed
            by the owner.
          */
-        struct c2_list         ro_owned[OWOS_NR];
+        struct c2_tl           ro_owned[OWOS_NR];
         /**
            An array of lists, sorted by priority, of incoming requests, not yet
            satisfied. Requests are linked through
            c2_rm_incoming::rin_want::ri_linkage.
          */
-        struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
+        struct c2_tl           ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
         /**
            An array of lists, of outgoing, not yet completed, requests.
          */
-        struct c2_list         ro_outgoing[OQS_NR];
+        struct c2_tl           ro_outgoing[OQS_NR];
         struct c2_mutex        ro_lock;
 };
 
@@ -1045,7 +1048,7 @@ struct c2_rm_incoming {
 
                - other states: empty.
          */
-        struct c2_list                   rin_pins;
+        struct c2_tl                     rin_pins;
         /**
            Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
          */
@@ -1223,10 +1226,11 @@ struct c2_rm_pin {
         struct c2_rm_incoming *rp_incoming;
         /** Linkage into a list of all pins for a right, hanging off
             c2_rm_right::ri_pins. */
-        struct c2_list_link    rp_right_linkage;
+        struct c2_tlink        rp_right_linkage;
         /** Linkage into a list of all pins, held to satisfy an incoming
             request. This list hangs off c2_rm_incoming::rin_pins. */
-        struct c2_list_link    rp_incoming_linkage;
+        struct c2_tlink        rp_incoming_linkage;
+	uint64_t               rp_magix;
 };
 
 struct c2_rm_lease {
@@ -1304,8 +1308,8 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
    @post owner->ro_state == ROS_INITIALISING ||
          owner->ro_state == ROS_ACTIVE) &&
          owner->ro_resource == res)
-   @post c2_list_contains(&owner->ro_owned[OWOS_CACHED],
-                          &r->ri_linkage))
+   @post c2_tlist_contains(&owner->ro_owned[OWOS_CACHED],
+                           &r->ri_linkage))
  */
 void c2_rm_owner_init_with(struct c2_rm_owner *owner,
                           struct c2_rm_resource *res, struct c2_rm_right *r);
@@ -1313,11 +1317,11 @@ void c2_rm_owner_init_with(struct c2_rm_owner *owner,
    Finalises the owner. Dual to c2_rm_owner_init().
 
    @pre owner->ro_state == ROS_FINAL
-   @pre c2_list_is_empty(owner->ro_borrowed) &&
-   c2_list_is_empty(owner->ro_sublet) &&
-                           c2_list_is_empty(owner->ro_owned[*]) &&
-                           c2_list_is_empty(owner->ro_incoming[*][*]) &&
-                           c2_list_is_empty(owner->ro_outgoing[*]) &&
+   @pre c2_tlist_is_empty(owner->ro_borrowed) &&
+   c2_tlist_is_empty(owner->ro_sublet) &&
+                           c2_tlist_is_empty(owner->ro_owned[*]) &&
+                           c2_tlist_is_empty(owner->ro_incoming[*][*]) &&
+                           c2_tlist_is_empty(owner->ro_outgoing[*]) &&
 
  */
 void c2_rm_owner_fini(struct c2_rm_owner *owner);
@@ -1358,7 +1362,7 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem);
 
    @pre IS_IN_ARRAY(in->rin_priority, owner->ro_incoming)
    @pre in->rin_state == RI_INITIALISED
-   @pre c2_list_is_empty(&in->rin_want.ri_linkage)
+   @pre c2_tlist_is_empty(&in->rin_want.ri_linkage)
 
  */
 void c2_rm_right_get(struct c2_rm_incoming *in);
@@ -1382,7 +1386,7 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in);
    Releases the right pinned by @in.
 
    @pre in->rin_state == RI_SUCCESS
-   @post c2_list_empty(&in->rin_pins)
+   @post c2_tlist_empty(&in->rin_pins)
  */
 void c2_rm_right_put(struct c2_rm_incoming *in);
 

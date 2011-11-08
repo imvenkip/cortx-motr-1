@@ -24,7 +24,9 @@
 #include "lib/ub.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
+
 #include "rm/rm.h"
+#include "rm/rm_internal.h"
 #include "rmproto.h"
 #include "rings.h"
 
@@ -171,12 +173,30 @@ static void rm_init(void)
 	c2_rm_incoming_init(&inconflict);
 }
 
-static void rm_fini(void)
+static void rights_prune(struct c2_tl *rights_list)
 {
 	struct c2_rm_right *right;
-	struct c2_rm_right *tmp_right;
-	int		    i;
 
+	c2_tlist_for(&ur_tl, rights_list, right) {
+		ur_tlist_del(right);
+	} c2_tlist_endfor;
+}
+
+static void owner_prune(struct c2_rm_owner *owner)
+{
+	int i;
+
+	rights_prune(&owner->ro_borrowed);
+	rights_prune(&owner->ro_sublet);
+
+        for (i = 0; i < ARRAY_SIZE(owner->ro_owned); i++)
+		rights_prune(&owner->ro_owned[i]);
+        for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++)
+		rights_prune(&owner->ro_outgoing[i]);
+}
+
+static void rm_fini(void)
+{
 	c2_rm_incoming_fini(&inother);
 	c2_rm_incoming_fini(&in);
 	c2_rm_incoming_fini(&inreq);
@@ -189,18 +209,8 @@ static void rm_fini(void)
 	elves.ro_state = ROS_FINAL;
 	c2_rm_owner_fini(&elves);
 	Sauron.ro_state = ROS_FINAL;
-	c2_list_del(&everything.ri_linkage);
-	c2_list_for_each_entry_safe(&Sauron.ro_sublet, right, tmp_right,
-				    struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-	for (i = 0; i < ARRAY_SIZE(Sauron.ro_owned); i++) {
-		c2_list_for_each_entry_safe(&Sauron.ro_owned[i], right,
-					    tmp_right, struct c2_rm_right,
-					    ri_linkage) {
-			c2_list_del(&right->ri_linkage);
-		}
-	}
+	ur_tlist_del(&everything);
+	owner_prune(&Sauron);
 	c2_rm_owner_fini(&Sauron);
 	c2_rm_right_fini(&everything);
 	c2_rm_resource_del(&R.rs_resource);
@@ -249,7 +259,7 @@ static void right_get_test0(void)
 	C2_ASSERT(in.rin_state == RI_SUCCESS);
 
 	c2_rm_right_put(&in);
-	c2_list_del(&in.rin_want.ri_linkage);
+	ur_tlist_del(&in.rin_want);
 	c2_rm_right_fini(&in.rin_want);
 	c2_chan_fini(&in.rin_signal);
 
@@ -296,12 +306,12 @@ static void right_get_test1(void)
 	C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&in);
-	c2_list_del(&in.rin_want.ri_linkage);
+	ur_tlist_del(&in.rin_want);
 	c2_rm_right_fini(&in.rin_want);
 	c2_chan_fini(&in.rin_signal);
 
 	c2_rm_right_put(&inother);
-	c2_list_del(&inother.rin_want.ri_linkage);
+	ur_tlist_del(&inother.rin_want);
 	c2_rm_right_fini(&inother.rin_want);
 	c2_chan_fini(&inother.rin_signal);
 
@@ -352,12 +362,12 @@ static void right_get_test2(void)
 	C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&in);
-	c2_list_del(&in.rin_want.ri_linkage);
+	ur_tlist_del(&in.rin_want);
 	c2_rm_right_fini(&in.rin_want);
 	c2_chan_fini(&in.rin_signal);
 
 	c2_rm_right_put(&inother);
-	c2_list_del(&inother.rin_want.ri_linkage);
+	ur_tlist_del(&inother.rin_want);
 	c2_rm_right_fini(&inother.rin_want);
 	c2_chan_fini(&inother.rin_signal);
 
@@ -375,7 +385,6 @@ static void right_get_test2(void)
 static void right_get_test3(void)
 {
 	struct c2_rm_pin *pin;
-	struct c2_rm_pin *tmp_pin;
 
 	rt.rt_id = 1;
 	rm_init();
@@ -395,11 +404,9 @@ static void right_get_test3(void)
 	result = c2_rm_right_get_wait(&in);
 	C2_ASSERT(result == 0);
 
-	c2_list_for_each_entry_safe(&in.rin_pins, pin, tmp_pin,
-				    struct c2_rm_pin, rp_incoming_linkage) {
-		c2_list_move(&Sauron.ro_owned[OWOS_HELD],
-			     &pin->rp_right->ri_linkage);
-	}
+	c2_tlist_for(&pi_tl, &in.rin_pins, pin) {
+		ur_tlist_move(&Sauron.ro_owned[OWOS_HELD], pin->rp_right);
+	} c2_tlist_endfor;
 
 	c2_chan_init(&inother.rin_signal);
 	c2_rm_right_init(&inother.rin_want);
@@ -416,12 +423,12 @@ static void right_get_test3(void)
 	result = c2_rm_right_get_wait(&inother);
 	C2_ASSERT(result == -EWOULDBLOCK);
 
-	c2_list_del(&inother.rin_want.ri_linkage);
+	ur_tlist_del(&inother.rin_want);
 	c2_rm_right_fini(&inother.rin_want);
 	c2_chan_fini(&inother.rin_signal);
 
 	c2_rm_right_put(&in);
-	c2_list_del(&in.rin_want.ri_linkage);
+	ur_tlist_del(&in.rin_want);
 	c2_rm_right_fini(&in.rin_want);
 	c2_chan_fini(&in.rin_signal);
 
@@ -450,33 +457,10 @@ static void rm_server_init(void)
 
 static void rm_server_fini(void)
 {
-	struct c2_rm_right *right;
-	struct c2_rm_right *tmp_right;
-	int i;
-
         Sauron.ro_state = ROS_FINAL;
-        c2_list_del(&everything.ri_linkage);
+        ur_tlist_del(&everything);
 
-	c2_list_for_each_entry_safe(&Sauron.ro_borrowed, right, tmp_right,
-				    struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-	c2_list_for_each_entry_safe(&Sauron.ro_sublet, right, tmp_right,
-				    struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-
-	c2_list_for_each_entry_safe(&Sauron.ro_owned[OWOS_CACHED], right,
-				    tmp_right, struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-
-        for (i = 0; i < ARRAY_SIZE(Sauron.ro_outgoing); i++) {
-		c2_list_for_each_entry_safe(&Sauron.ro_outgoing[i],
-			right, tmp_right, struct c2_rm_right, ri_linkage) {
-			c2_list_del(&right->ri_linkage);
-		}
-        }
+	owner_prune(&Sauron);
         c2_rm_owner_fini(&Sauron);
         c2_rm_right_fini(&everything);
         c2_rm_resource_del(&R.rs_resource);
@@ -506,30 +490,7 @@ static void rm_client_init(void)
 
 static void rm_client_fini(void)
 {
-	struct c2_rm_right *right;
-	struct c2_rm_right *tmp_right;
-	int i;
-
-	c2_list_for_each_entry_safe(&elves.ro_sublet, right, tmp_right,
-				    struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-
-	c2_list_for_each_entry_safe(&elves.ro_owned[OWOS_CACHED], right,
-				    tmp_right, struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-
-	c2_list_for_each_entry_safe(&elves.ro_borrowed, right,
-				    tmp_right, struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-        for (i = 0; i < ARRAY_SIZE(elves.ro_outgoing); i++) {
-		c2_list_for_each_entry_safe(&elves.ro_outgoing[i],
-			right, tmp_right, struct c2_rm_right, ri_linkage) {
-			c2_list_del(&right->ri_linkage);
-		}
-        }
+	owner_prune(&elves);
         elves.ro_state = ROS_FINAL;
         c2_rm_owner_fini(&elves);
         c2_rm_resource_del(&RC0.rs_resource);
@@ -558,32 +519,7 @@ static void rm_client1_init(void)
 
 static void rm_client1_fini(void)
 {
-	struct c2_rm_right *right;
-	struct c2_rm_right *tmp_right;
-	int i;
-
-	c2_list_for_each_entry_safe(&dwarves.ro_sublet, right, tmp_right,
-				    struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-
-	c2_list_for_each_entry_safe(&dwarves.ro_owned[OWOS_CACHED], right,
-				    tmp_right, struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-
-	c2_list_for_each_entry_safe(&dwarves.ro_borrowed, right,
-				    tmp_right, struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
-
-        for (i = 0; i < ARRAY_SIZE(dwarves.ro_outgoing); i++) {
-		c2_list_for_each_entry_safe(&dwarves.ro_outgoing[i],
-			right, tmp_right, struct c2_rm_right, ri_linkage) {
-			c2_list_del(&right->ri_linkage);
-		}
-        }
-
+	owner_prune(&dwarves);
         dwarves.ro_state = ROS_FINAL;
         c2_rm_owner_fini(&dwarves);
         c2_rm_resource_del(&RC1.rs_resource);
@@ -611,7 +547,7 @@ static void intent_server(int id)
         C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&in);
-        c2_list_del(&in.rin_want.ri_linkage);
+        ur_tlist_del(&in.rin_want);
         c2_rm_right_fini(&in.rin_want);
         c2_chan_fini(&in.rin_signal);
 
@@ -644,7 +580,7 @@ static void intent_client(int id)
 
 	/* Just put the right which is got from server */
 	c2_rm_right_put(&req->in);
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 
@@ -740,7 +676,7 @@ static void wbc_server(int id)
         result = c2_rm_right_get_wait(&req->in);
         C2_ASSERT(result == 0);
 
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -767,7 +703,7 @@ static void wbc_client(int id)
 
 	/* Release the borrowed right */
 	c2_rm_right_put(&inother);
-        c2_list_del(&inother.rin_want.ri_linkage);
+        ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 }
@@ -916,18 +852,18 @@ static void cancel_server(int id)
         C2_ASSERT(result == 0);
 
 	/* cleanup code */
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
 
 	c2_rm_right_put(&inreq);
-        c2_list_del(&inreq.rin_want.ri_linkage);
+        ur_tlist_del(&inreq.rin_want);
         c2_rm_right_fini(&inreq.rin_want);
         c2_chan_fini(&inreq.rin_signal);
 
 	c2_rm_right_put(&in);
-        c2_list_del(&in.rin_want.ri_linkage);
+        ur_tlist_del(&in.rin_want);
         c2_rm_right_fini(&in.rin_want);
         c2_chan_fini(&in.rin_signal);
 }
@@ -980,13 +916,13 @@ static void cancel_client(int id)
 
 	/* cleanup code */
 	c2_rm_right_put(&req->in);
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
 
 	c2_rm_right_put(&inother);
-        c2_list_del(&inother.rin_want.ri_linkage);
+        ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 }
@@ -1070,7 +1006,7 @@ static void caching_server(int id)
 
 	/* Cleanup code */
 	c2_rm_right_put(&req->in);
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -1096,7 +1032,7 @@ static void caching_client(int id)
 
 	/* Release right */
 	c2_rm_right_put(&inother);
-        c2_list_del(&inother.rin_want.ri_linkage);
+        ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 
@@ -1117,7 +1053,7 @@ static void caching_client(int id)
         C2_ASSERT(result == 0);
 
         c2_rm_right_put(&inrep);
-        c2_list_del(&inrep.rin_want.ri_linkage);
+        ur_tlist_del(&inrep.rin_want);
         c2_rm_right_fini(&inrep.rin_want);
         c2_chan_fini(&inrep.rin_signal);
 }
@@ -1199,7 +1135,7 @@ static void callback_server(int id)
         result = c2_rm_right_get_wait(&req->in);
         C2_ASSERT(result == 0);
 
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -1231,7 +1167,7 @@ static void callback_server(int id)
         C2_ASSERT(result == 0);
 
         c2_rm_right_put(&req->in);
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -1242,7 +1178,7 @@ static void callback_server(int id)
 	req->sig_id = UT_SERVER;
 	req->reply_id = UT_CLIENT1;
 	req->type = PRO_LOAN_REPLY;
-	c2_list_init(&req->in.rin_want.ri_pins);
+	pr_tlist_init(&req->in.rin_want.ri_pins);
 	req->in.rin_want.ri_datum = ANGMAR;
 	req->in.rin_want.ri_ops = &rings_right_ops;
 	c2_mutex_lock(&rpc_lock);
@@ -1301,13 +1237,13 @@ static void callback_client(int id)
 
 	/* cleanup code */
 	c2_rm_right_put(&req->in);
-        c2_list_del(&req->in.rin_want.ri_linkage);
+        ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
 
 	c2_rm_right_put(&inother);
-        c2_list_del(&inother.rin_want.ri_linkage);
+        ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 }
@@ -1333,7 +1269,7 @@ static void callback_client1(int id)
         C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&inconflict);
-        c2_list_del(&inconflict.rin_want.ri_linkage);
+        ur_tlist_del(&inconflict.rin_want);
         c2_rm_right_fini(&inconflict.rin_want);
         c2_chan_fini(&inconflict.rin_signal);
 }

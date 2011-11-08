@@ -242,7 +242,7 @@ How to add a new unit benchmark?
 Unit benchmarks for a component is a collection of micro-benchmarks
 measuring performance of common code-paths at the function level.
 
-It is cleat that unit benchmarks are somewhat similar to unit
+It is clear that unit benchmarks are somewhat similar to unit
 tests. Indeed, they usually happen to share a lot of code. As a
 result, unit benchmark code is typically kept in the same
 core/foo/ut/foo.c code as unit tests for the same component. See

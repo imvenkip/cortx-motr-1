@@ -19,12 +19,13 @@
  * Original creation date: 06/08/2011
  */
 #include "lib/chan.h"
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/memory.h"
-#include "rm/rm.h"
 #include "lib/thread.h"
 #include "lib/ut.h"
 #include "lib/queue.h"
+
+#include "rm/rm.h"
 #include "rm/ut/rings.h"
 #include "rm/ut/rmproto.h"
 
@@ -141,16 +142,13 @@ static struct c2_rm_outgoing *out_request_find(struct c2_rm_owner *owner,
 					       uint64_t loan_id)
 {
 	struct c2_rm_right    *right;
-	struct c2_rm_right    *ri_tmp;
 	struct c2_rm_loan     *loan;
 	int		       i;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++) {
-		c2_list_for_each_entry_safe(&owner->ro_outgoing[i], right,
-					    ri_tmp, struct c2_rm_right,
-					    ri_linkage) {
+		c2_tlist_for(&ur_tl, &owner->ro_outgoing[i], right) {
 			loan = container_of(right, struct c2_rm_loan, rl_right);
 			/* if loan ID's of right got in rpc layer and out
 			 * loan id matches then this out request is for this
@@ -159,7 +157,7 @@ static struct c2_rm_outgoing *out_request_find(struct c2_rm_owner *owner,
 				return container_of(loan, struct c2_rm_outgoing,
 						    rog_want);
 			}
-		}
+		} c2_tlist_endfor;
 	}
 
 	return NULL;
@@ -177,14 +175,14 @@ static struct c2_rm_incoming *in_request_find(struct c2_rm_owner *owner,
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
 	for (prio = ARRAY_SIZE(owner->ro_incoming) - 1; prio >= 0; prio--) {
-		c2_list_for_each_entry(&owner->ro_incoming[prio][OQS_GROUND],
-				       right, struct c2_rm_right, ri_linkage) {
+		c2_tlist_for(&ur_tl,
+			     &owner->ro_incoming[prio][OQS_GROUND], right) {
 			if (right->ri_ops->rro_implies(right, want) &&
 			    right->ri_ops->rro_implies(want, right)) {
 				return container_of(right, struct c2_rm_incoming,
 						    rin_want);
 			}
-		}
+		} c2_tlist_endfor;
 	}
 	return NULL;
 }
@@ -223,8 +221,8 @@ void rpc_process(int id)
 				result = pin_add(&req->in, &req->in.rin_want);
 				if (result != 0)
 					continue;
-				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
-					    &req->in.rin_want.ri_linkage);
+				ur_tlist_add(&info->owner->ro_owned[OWOS_CACHED],
+					     &req->in.rin_want);
 				c2_queue_put(&info->owner_queue, &req->rq_link);
 			} else {
 				/* Add right to the respective owners list
@@ -235,9 +233,9 @@ void rpc_process(int id)
 				C2_ALLOC_PTR(br_loan);
 				C2_ASSERT(br_loan != NULL);
 
-				c2_list_init(&ch_loan->rl_right.ri_pins);
-				c2_list_init(&br_loan->rl_right.ri_pins);
-				c2_list_init(&in->rin_pins);
+				pr_tlist_init(&ch_loan->rl_right.ri_pins);
+				pr_tlist_init(&br_loan->rl_right.ri_pins);
+				pi_tlist_init(&in->rin_pins);
 				result = right_copy(&ch_loan->rl_right,
 						    &req->in.rin_want);
 				C2_ASSERT(result == 0);
@@ -250,10 +248,10 @@ void rpc_process(int id)
 				ch_loan->rl_other.rem_id = req->reply_id;
 				br_loan->rl_other.rem_id = req->reply_id;
 
-				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
-					    &ch_loan->rl_right.ri_linkage);
-				c2_list_add(&info->owner->ro_borrowed,
-					    &br_loan->rl_right.ri_linkage);
+				ur_tlist_add(&info->owner->ro_owned[OWOS_CACHED],
+					     &ch_loan->rl_right);
+				ur_tlist_add(&info->owner->ro_borrowed,
+					     &br_loan->rl_right);
 
 				result = pin_add(in, &ch_loan->rl_right);
 				if (result != 0)

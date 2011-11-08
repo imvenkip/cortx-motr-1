@@ -74,6 +74,9 @@ struct init_fini_call subsystem[] = {
 	{ &c2_threads_init,  &c2_threads_fini, "thread" },
 	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
 	{ &c2_db_init,       &c2_db_fini,      "db" },
+	/* fol must be initialised before fops, because fop type registration
+	   registers a fol record type. */
+	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
@@ -89,7 +92,6 @@ struct init_fini_call subsystem[] = {
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
-	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_ioservice_fop_init, &c2_ioservice_fop_fini, "ioservice" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }

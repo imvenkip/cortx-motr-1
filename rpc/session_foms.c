@@ -61,6 +61,7 @@ extern void item_exit_stats_set(struct c2_rpc_item   *item,
  */
 static void session_gen_fom_fini(struct c2_fom *fom)
 {
+	c2_fom_fini(fom);
 	c2_free(fom);
 }
 
