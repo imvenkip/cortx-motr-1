@@ -50,7 +50,7 @@ struct c2_klnet_core_transfer_mc {
 	   lcb_buffer_id of the buffer concerned.
 	   The buffer may be maintained in user space.
 	 */
-	struct c2_circular_queue   *klctm_cq;
+	struct c2_cqueue           *klctm_cq;
 
 	/** Handle of the LNet EQ associated with this transfer machine */
 	lnet_handle_eq_t            lctm_eqh;
@@ -72,7 +72,7 @@ struct c2_klnet_core_buffer {
 	   The number of entries in the array are lcb_max_recv_msgs.
 	   The buffer may be in user space.
 	*/
-	struct c2_circular_queue        *klcb_events;
+	struct c2_cqueue                *klcb_events;
 
 
 	/** The I/O vector. */
