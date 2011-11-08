@@ -25,7 +25,7 @@ print_branch_skew()
 	#
 	# Check last merge date to/from master
 	#
-	last_merge=`git log -1 --merges --pretty=short --format="%H %ai" origin/master..${1} |  awk '{print $2}'`
+	last_merge=`git log -1 --merges --grep='Merge.*master' --pretty=short --format="%H %ai" origin/master..${1} |  awk '{print $2}'`
 
 	comment=''
 
