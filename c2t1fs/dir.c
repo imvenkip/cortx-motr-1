@@ -4,6 +4,7 @@
 #include <linux/mount.h>
 
 #include "c2t1fs/c2t1fs.h"
+#include "lib/misc.h"
 
 static int c2t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -23,6 +24,8 @@ static int c2t1fs_readdir(struct file *f,
 			  void        *dirent,
 			  filldir_t    filldir);
 
+static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
+
 struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,
 	.readdir = c2t1fs_readdir,
@@ -33,7 +36,7 @@ struct file_operations c2t1fs_dir_file_operations = {
 struct inode_operations c2t1fs_dir_inode_operations = {
 	.create = c2t1fs_create,
 	.lookup = c2t1fs_lookup,
-	.unlink = simple_unlink
+	.unlink = c2t1fs_unlink 
 };
 
 static struct c2_fid c2t1fs_fid_alloc(void)
@@ -270,4 +273,67 @@ static int c2t1fs_readdir(struct file *f,
 out:
 	END(0);
 	return 0;
+}
+
+static int c2t1fs_dir_ent_remove(struct inode *dir, struct c2t1fs_dir_ent *de)
+{
+	struct c2t1fs_inode   *ci;
+	int                    rc;
+	int                    i;
+	int                    nr_de;
+
+	START();
+
+	ci = C2T1FS_I(dir);
+	nr_de = ci->ci_nr_dir_ents;
+
+	i = de - &ci->ci_dir_ents[0];
+
+	TRACE("nr_de %d del entry at %d\n", nr_de, i);
+
+	if (nr_de == 0 || i < 0 || i >= nr_de) {
+		rc = -ENOENT;
+		goto out;
+	}
+
+	if (nr_de > 1)
+		ci->ci_dir_ents[i] = ci->ci_dir_ents[nr_de - 1];
+
+	C2_SET0(&ci->ci_dir_ents[nr_de - 1]);
+	ci->ci_nr_dir_ents--;
+	rc = 0;
+out:
+	END(rc);
+	return rc;
+}
+static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
+{
+	struct c2t1fs_dir_ent *de;
+	struct inode          *inode;
+	int                    rc;
+
+	START();
+
+	TRACE("Name: \"%s\"\n", dentry->d_name.name);
+
+	inode = dentry->d_inode;
+
+	de = c2t1fs_dir_ent_find(dir, dentry->d_name.name, dentry->d_name.len);
+	if (de == NULL) {
+		rc = -ENOENT;
+		goto out;
+	}
+
+	rc = c2t1fs_dir_ent_remove(dir, de);
+	if (rc != 0)
+		goto out;
+
+	dir->i_ctime = dir->i_mtime = CURRENT_TIME_SEC;
+	mark_inode_dirty(dir);
+	inode->i_ctime = dir->i_ctime;
+	inode_dec_link_count(inode);
+
+out:
+	END(rc);
+	return rc;
 }
