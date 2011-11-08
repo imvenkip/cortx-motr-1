@@ -30,6 +30,7 @@
 */
 
 #include "lnet/include/lnet/types.h"
+#include "lib/semaphore.h"
 
 /**
    Kernel domain private data.
@@ -46,9 +47,16 @@ struct c2_klnet_core_transfer_mc {
 	struct c2_lnet_core_domain *klctm_dom;
 
 	/**
+	   Semaphore to count the number of events in the queue.
+	*/
+	struct c2_semaphore    klctm_sem;
+
+	/**
 	   The circular buffer event queue. Each entry contains the
 	   lcb_buffer_id of the buffer concerned.
 	   The buffer may be maintained in user space.
+
+	   CHANGE
 	 */
 	struct c2_circular_queue   *klctm_cq;
 

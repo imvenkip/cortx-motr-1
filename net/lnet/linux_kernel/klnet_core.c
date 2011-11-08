@@ -202,12 +202,16 @@
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
-   The kernel Core layer relies on the upper transport layer to maintain its
-   internal state. It maintains no lists of data structures or ongoing
-   operations. The transport is also responsible for operational flow control.
+   The kernel Core layer, for the most part, relies on the upper transport
+   layer to maintain the linkage between the data structures used by the core
+   layer. The only exception is the link to the ??? transfer machine from the
+   buffer private data ???.  It maintains no lists of data structures or
+   ongoing operations. The transport is also responsible for operational flow
+   control.
 
-   The kernel Core layer module depends on the LNet module in the kernel. This
-   dependency is captured by the modprobe layer. <b>????</b>
+   The kernel Core layer module depends on the LNet module in the kernel at
+   runtime. This dependency is captured by the kernel's module support that
+   reference counts the usage of dependent modules.
 
    @subsection KLNetCoreDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
@@ -217,10 +221,10 @@
    (such as semaphores, locks, mutexes and condition variables).</i>
 
    Only one instance of the API can be opened per network domain.  All the API
-   calls are synchronous, except for the buffer operation calls which only
-   initiate activity.
+   calls are synchronous, except for the buffer operation calls which initiate
+   asynchronous activity.
 
-   There are no callbacks to indicate completion of the asynchronous buffer
+   There are no callbacks to indicate completion of an asynchronous buffer
    operation.  Instead, the transport application must invoke the
    c2_lnet_core_buf_event_wait() subroutine to block waiting for buffer
    events.
@@ -235,9 +239,9 @@
    event payload slots available to deliver the operation result. i.e. the
    transport is responsible for flow control.
 
-   The API assumes that only a single thread will handle event processing; if
-   this is not the case then the transport should serialize its use of these
-   two subroutines.
+   The API assumes that only a single transport thread will handle event
+   processing; if this is not the case then the transport should serialize its
+   use of these two subroutines.
 
 
    @subsection KLNetCoreDLD-lspec-numa NUMA optimizations
