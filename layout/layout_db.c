@@ -363,8 +363,6 @@ static bool layout_db_rec_invariant(const struct c2_layout_rec *l)
    @} end LayoutDBDFSInternal
 */
 
-/** @} end-of-Layout-DB-FS */
-
 
 /**
 	Initializes new layout schema - initializes DB environment, creates the 
@@ -375,41 +373,19 @@ int c2_layout_schema_init(struct c2_layout_schema *l_schema)
 	/* Uses the DB interface c2_dbenv_init() and c2_table_init() to 
 	intialize the DB env and the tables respectively. */
 
-	int result;
-
-	C2_PRE(id != NULL);
-
-	result = c2_dbenv_init(&l_schema->cl_dbenv, "layout_schema", 0);
-	C2_ASSERT(result == 0);
-	if (result != 0) {
-		return result;
-	}
-
-	result = c2_table_init(&l_schema->cl_db_layout_entries, l_schema->cl_dbenv, 
-						"l_entries");
-	if (result != 0) {
-		c2_table_fini(&l_schema->cl_dbenv);
-		return result;	
-	}
-
-	result = c2_table_init(&l_schema->cl_pdclust_list_layout_cob_lists,
-						l_schema->cl_dbenv, "l_cob_lists"); 
-
-	result = c2_emap_init(&l_schema->cl_composite_layout_ext_map, l_schema->cl_dbenv,
-						"l_composite_map");
-	
-	return result;
+	return 0;
 }
 
 /**
+	De-initializes the layout schema - de-initializes the DB tables and the 
+	DB environment.
 */
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 {
-	c2_table_fini(&l_schema->cl_db_layout_entries);
-	c2_table_fini(&l_schema->cl_pdclust_list_layout_cob_lists);
-	c2_emap_fini(&l_schema->cl_composite_layout_ext_map);	
+	/* Uses the DB interface c2_table_fini() and c2_dbenv_fini() to 
+	de-intialize the DB tables and tables respectively. */
 	
-	c2_dbenv_fini(&l_schema->cl_dbenv);
+	return;	
 }
 
 /**
@@ -420,24 +396,15 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 	- If it is a PDCLUST-LIST type of layout entry, then it adds list of cob
 	ids to the table cl_pdclust_list_layout_cob_lists.
 	- If it is a COMPOSITE type of layout entry, then it adds the relevant
-	extent map into the composite_layout_extent_map table.
-
-	This function uses the function pointers 
-	c2_layout:c2_layout_ops:l_rec_encode and
-	c2_layout:c2_layout_ops:l_rec_add .
+	extent map into the table composite_layout_extent_map.
 */
 int c2_layout_entry_add(const struct c2_layout layout, 
 						const struct c2_layout_schema *l_schema, 
 						const struct c2_db_tx *tx)
 {
-	struct c2_layout_id l_id;
-	struct c2_layout_rec *l_rec;
-	struct c2_db_pair pair;
-	int result;
-	
-	result = layout.l_ops->l_rec_encode(layout, l_rec); 	
-
-	result = layout.l_ops->l_rec_add(l_rec);
+	/* Encodes the layout DB record using the funtion pointer 
+	   layout.l_ops->l_rec_encode and adds record to the DB using the 
+	   function pointer layout.l_ops->l_rec_add. */
 
 	return 0;
 }
@@ -465,7 +432,7 @@ int c2_layout_entry_update(const struct c2_layout layout,
 }
  
 /**
-	Obtain a layout entry with the specified layout_id, and its relevant 
+	Obtains a layout entry with the specified layout_id, and its relevant 
 	information from the relevant tables.
 */
 int c2_layout_entry_lookup(const struct c2_layout_id l_id,
