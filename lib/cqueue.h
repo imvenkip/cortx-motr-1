@@ -19,52 +19,52 @@
  * Original creation date: 11/03/2011
  */
 
-#ifndef __COLIBRI_LIB_CIRCULAR_QUEUE_H__
-#define __COLIBRI_LIB_CIRCULAR_QUEUE_H__
+#ifndef __COLIBRI_LIB_CQUEUE_H__
+#define __COLIBRI_LIB_CQUEUE_H__
 
 #include "atomic.h"
 
 /**
-   @page circular_queueDLD-fspec Circular Queue Functional Specification
+   @page cqueueDLD-fspec Circular Queue Functional Specification
    <i>Mandatory. This page describes the external interfaces of the
    component. The section has mandatory sub-divisions created using the Doxygen
    @@section command.  It is required that there be Table of Contents at the
    top of the page that illustrates the sectioning of the page.</i>
 
-   - @ref circular_queueDLD-fspec-ds
-   - @ref circular_queueDLD-fspec-sub
-   - @ref circular_queueDLD-fspec-usecases
-   - @ref circular_queue "Detailed Functional Specification" <!-- Note link -->
+   - @ref cqueueDLD-fspec-ds
+   - @ref cqueueDLD-fspec-sub
+   - @ref cqueueDLD-fspec-usecases
+   - @ref cqueue "Detailed Functional Specification" <!-- Note link -->
 
-   @section circular_queueDLD-fspec-ds Data Structures
+   @section cqueueDLD-fspec-ds Data Structures
    <i>Mandatory for programmatic interfaces.  Components with programming
    interfaces should provide an enumeration and <i>brief</i> description of the
    major externally visible data structures defined by this component.  No
    details of the data structure are required here, just the salient
    points.</i>
 
-   The circular queue is defined by the @a c2_circular_queue data structure.
+   The circular queue is defined by the @a c2_cqueue data structure.
 
-   @section circular_queueDLD-fspec-sub Subroutines
+   @section cqueueDLD-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
    interfaces should provide an enumeration and brief description of the
    externally visible programming interfaces.</i>
 
    Subroutines are provided to:
-   - initialise and finalise the c2_circular_queue
+   - initialise and finalise the c2_cqueue
    - produce and consume slots in the queue
 
-   @see @ref circular_queue "Detailed Functional Specification"
+   @see @ref cqueue "Detailed Functional Specification"
 
-   @section circular_queueDLD-fspec-usecases Recipes
+   @section cqueueDLD-fspec-usecases Recipes
    <i>This section could briefly explain what sequence of interface calls or
    what program invocation flags are required to solve specific usage
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
-   The c2_circular_queue provides atomic access to the producer and consumer
+   The c2_cqueue provides atomic access to the producer and consumer
    slots in the circular queue.  It does not include the array of queue elements
-   itself.  The intended use is to embed the c2_circular_queue within another
+   itself.  The intended use is to embed the c2_cqueue within another
    data structure that contains the array of slots, for example:
 
    @code
@@ -72,7 +72,7 @@
            ...
    };
    struct event_queue {
-           struct c2_circular_queue eq_header;
+           struct c2_cqueue eq_header;
 	   struct event eq_event[EVENT_QUEUE_NR];
    };
    @endcode
@@ -88,7 +88,7 @@
    @code
    struct event_queue myqueue;
 
-   c2_circular_queue_init(&myqueue.eq_header, EVENT_QUEUE_NR);
+   c2_cqueue_init(&myqueue.eq_header, EVENT_QUEUE_NR);
    @endcode
 
    @subsection cq-producer Producer
@@ -99,12 +99,12 @@
    bool done;
    ssize_t i;
    while (!done) {
-       i = c2_circular_queue_pnext(&myqueue.eq_header);
+       i = c2_cqueue_pnext(&myqueue.eq_header);
        if (i == -ENOENT) {
            // block until space is available
        } else {
            myqueue.eq_event[i] = ...;
-	   c2_circular_queue_produce(&myqueue.eq_header);
+	   c2_cqueue_produce(&myqueue.eq_header);
 	   // notify blocked consumer that data is available
        }
    }
@@ -118,7 +118,7 @@
    bool done;
    ssize_t i;
    while (!done) {
-       i = c2_circular_queue_consume(&myqueue.eq_header);
+       i = c2_cqueue_consume(&myqueue.eq_header);
        if (i == -ENOENT) {
            // block until data is available
        } else {
@@ -128,25 +128,30 @@
    }
    @endcode
 
-   @see @ref circular_queue "Detailed Functional Specification"
+   @see @ref cqueue "Detailed Functional Specification"
  */
 
 /**
-   @defgroup circular_queue Circular Queue
+   @defgroup cqueue Circular Queue
    @brief Detailed functional specification for a circular queue.
 
-   @see @ref circular_queueDLD Circular Queue DLD
+   @see @ref cqueueDLD Circular Queue DLD
 
    @{
 */
 
+enum {
+	C2_CQUEUE_MAGIC    = 0x2d85d3689fb204b3ULL,
+};
 /**
    The circular queue.  Only the size of the queue and the producer and consumer
    slots are tracked here.  The queue itself is maintained by the application in
    an associated array.
-   @see @ref circular_queueDLD-fspec-usecases Recipes
+   @see @ref cqueueDLD-fspec-usecases Recipes
  */
-struct c2_circular_queue {
+struct c2_cqueue {
+	/** Magic constant to validate object */
+	uint64_t cq_magic;
 	/** The number of slots in the queue */
 	size_t cq_size;
 	/** Current consumer slot */
@@ -162,12 +167,22 @@ struct c2_circular_queue {
    @param nr_slots number of slots in the queue
    @pre nr_slots >= 2
  */
-void c2_circular_queue_init(struct c2_circular_queue *q, size_t nr_slots);
+void c2_cqueue_init(struct c2_cqueue *q, size_t nr_slots);
 
 /**
    Finalise the circular queue.
  */
-void c2_circular_queue_fini(struct c2_circular_queue *q);
+void c2_cqueue_fini(struct c2_cqueue *q);
+
+/**
+   Test if the circular queue is empty.
+ */
+bool c2_cqueue_is_empty(struct c2_cqueue *q);
+
+/**
+   Test if the circular queue is full.
+ */
+bool c2_cqueue_is_full(struct c2_cqueue *q);
 
 /**
    Consume the next available slot in the queue.
@@ -175,7 +190,7 @@ void c2_circular_queue_fini(struct c2_circular_queue *q);
    @return The slot number (in the range 0..cq_size-1) if there is a slot to
    consume. Otherwise, -ENOENT if there are none currently available to consume.
  */
-ssize_t c2_circular_queue_consume(struct c2_circular_queue *q);
+ssize_t c2_cqueue_consume(struct c2_cqueue *q);
 
 /**
    Get the slot index of the next slot which can be used by the producer.
@@ -183,7 +198,7 @@ ssize_t c2_circular_queue_consume(struct c2_circular_queue *q);
    @return The slot number (in the range 0..cq_size-1) if there is a producer
    slot available.  Otherwise, -ENOENT if none currently available.
  */
-ssize_t c2_circular_queue_pnext(struct c2_circular_queue *q);
+ssize_t c2_cqueue_pnext(struct c2_cqueue *q);
 
 /**
    Produce a slot in the queue.
@@ -191,11 +206,11 @@ ssize_t c2_circular_queue_pnext(struct c2_circular_queue *q);
    @pre (q->cq_last < q->cq_divider) ? (q->cq_last + 1 < q->cq_divider) :
    (q->cq_last + 1 < q->cq_divider + q->cq_size)
  */
-void c2_circular_queue_produce(struct c2_circular_queue *q);
+void c2_cqueue_produce(struct c2_cqueue *q);
 
-/** @} end of circular_queue group */
+/** @} end of cqueue group */
 
-/* __COLIBRI_LIB_CIRCULAR_QUEUE_H__ */
+/* __COLIBRI_LIB_CQUEUE_H__ */
 #endif
 
 /*

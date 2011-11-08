@@ -15,32 +15,36 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- * Original creation date: 09/26/2011
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 11/03/2011
  */
 
 /**
-   @page circular_queueDLD Circular Queue DLD
+   @page cqueueDLD Circular Queue for Single Producer and Consumer DLD
 
-   - @ref circular_queueDLD-ovw
-   - @ref circular_queueDLD-def
-   - @ref circular_queueDLD-req
-   - @ref circular_queueDLD-depends
-   - @ref circular_queueDLD-highlights
-   - @subpage circular_queueDLD-fspec "Functional Specification"
-   - @ref circular_queueDLD-lspec
-      - @ref circular_queueDLD-lspec-comps
-      - @ref circular_queueDLD-lspec-state
-      - @ref circular_queueDLD-lspec-thread
-      - @ref circular_queueDLD-lspec-numa
-   - @ref circular_queueDLD-conformance
-   - @ref circular_queueDLD-ut
-   - @ref circular_queueDLD-st
-   - @ref circular_queueDLD-O
-   - @ref circular_queueDLD-ref
+   - @ref cqueueDLD-ovw
+   - @ref cqueueDLD-def
+   - @ref cqueueDLD-req
+   - @ref cqueueDLD-depends
+   - @ref cqueueDLD-highlights
+   - @subpage cqueueDLD-fspec "Functional Specification"
+      - @ref cqueue "External Interfaces"           <!-- ext link -->
+      - @ref cqueueIFS "Internal Interfaces"        <!-- int link -->
+   - @ref cqueueDLD-lspec
+      - @ref cqueueDLD-lspec-comps
+      - @ref cqueueDLD-lspec-q
+      - @ref cqueueDLD-lspec-state
+      - @ref cqueueDLD-lspec-thread
+      - @ref cqueueDLD-lspec-numa
+   - @ref cqueueDLD-conformance
+   - @ref cqueueDLD-ut
+   - @ref cqueueDLD-st
+   - @ref cqueueDLD-O
+   - @ref cqueueDLD-ref
 
 
    <hr>
-   @section circular_queueDLD-ovw Overview
+   @section cqueueDLD-ovw Overview
    <i>All specifications must start with an Overview section that
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
@@ -49,7 +53,7 @@
    fixed sized, lock-free queue for a single producer and consumer.
 
    <hr>
-   @section circular_queueDLD-def Definitions
+   @section cqueueDLD-def Definitions
    <i>Mandatory.
    The DLD shall provide definitions of the terms and concepts
    introduced by the design, as well as the relevant terms used by the
@@ -62,7 +66,7 @@
    New terms:
 
    <hr>
-   @section circular_queueDLD-req Requirements
+   @section cqueueDLD-req Requirements
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
@@ -71,14 +75,14 @@
    interoperable sharing between kernel to user-space.
 
    <hr>
-   @section circular_queueDLD-depends Dependencies
+   @section cqueueDLD-depends Dependencies
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   - The atomic API.
+   - The @ref  "atomic API".
 
    <hr>
-   @section circular_queueDLD-highlights Design Highlights
+   @section cqueueDLD-highlights Design Highlights
    <i>Mandatory. This section briefly summarizes the key design
    decisions that are important for understanding the functional and
    logical specifications, and enumerates topics that need special
@@ -90,7 +94,7 @@
    consumer.
 
    <hr>
-   @section circular_queueDLD-lspec Logical Specification
+   @section cqueueDLD-lspec Logical Specification
    <i>Mandatory.  This section describes the internal design of the component,
    explaining how the functional specification is met.  Sub-components and
    diagrams of their interaction should go into this section.  The section has
@@ -99,13 +103,13 @@
    if there is significant additional sub-sectioning, provide a table of
    contents here.</i>
 
-   - @ref circular_queueDLD-lspec-comps
-   - @ref circular_queueDLD-lspec-q
-   - @ref circular_queueDLD-lspec-state
-   - @ref circular_queueDLD-lspec-thread
-   - @ref circular_queueDLD-lspec-numa
+   - @ref cqueueDLD-lspec-comps
+   - @ref cqueueDLD-lspec-q
+   - @ref cqueueDLD-lspec-state
+   - @ref cqueueDLD-lspec-thread
+   - @ref cqueueDLD-lspec-numa
 
-   @subsection circular_queueDLD-lspec-comps Component Overview
+   @subsection cqueueDLD-lspec-comps Component Overview
    <i>Mandatory.
    This section describes the internal logical decomposition.
    A diagram of the interaction between internal components and
@@ -113,7 +117,7 @@
 
    The circular queue is a single component.
 
-   @subsection circular_queueDLD-lspec-q Logic of the Circular Queue
+   @subsection cqueueDLD-lspec-q Logic of the Circular Queue
 
    The circular queue is a FIFO queue of a fixed size.  The implementation
    maintains slot indexes for the consumer and producer, and operations for
@@ -126,7 +130,7 @@
    {
        rank=same;
        node [shape=plaintext];
-       c2_circular_queue;
+       c2_cqueue;
        node [shape=record];
        struct1 [label="<f0> cq_divider|<f1> cq_last"];
    }
@@ -136,11 +140,12 @@
        node [shape=plaintext];
        "application array";
        node [shape=record];
-       array1 [label="<f0> y|<f1> x|<f2> x|<f3> x|<f4> x|<f5> |<f6> | "];
+       array1 [label="<f0> |<f1> y|<f2> x|<f3> x|<f4> x|<f5> x|<f6> |<f7> "];
        "application array" -> array1 [style=invis];
    }
-   struct1:f0 -> array1:f1;
-   struct1:f1 -> array1:f5;
+   c2_cqueue -> "application array" [style=invis];
+   struct1:f0 -> array1:f2;
+   struct1:f1 -> array1:f6;
    }
    @enddot
 
@@ -159,28 +164,28 @@
    most recently consumed by the consumer, as discussed further below.
 
    The slot index denoted by @c cq_last is returned by
-   @c c2_circular_queue_pnext as long as the queue is not full.  This allows
+   @c c2_cqueue_pnext as long as the queue is not full.  This allows
    the producer to determine the next available slot index and populate the
    application array slot itself with the data to be produced.  Once the
    array slot contains the data, the producer then calls
-   @c c2_circular_queue_produce to make that slot available to the consumer.
+   @c c2_cqueue_produce to make that slot available to the consumer.
    This call also increments @c cq_last.
 
-   The consumer uses @c c2_circular_queue_consume to get the next available
+   The consumer uses @c c2_cqueue_consume to get the next available
    slot containing data in FIFO order.  Consuming a slot increments
    @c cq_divider.  After incrementing, the consumer "owns" the slot returned,
    slot "y" in the diagram.  The consumer owns this slot until it calls
-   @c c2_circular_queue_consume again, at which time ownership reverts to the
+   @c c2_cqueue_consume again, at which time ownership reverts to the
    queue and can be reused by the producer.
 
-   @subsection circular_queueDLD-lspec-state State Specification
+   @subsection cqueueDLD-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
    None.
 
-   @subsection circular_queueDLD-lspec-thread Threading and Concurrency Model
+   @subsection cqueueDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
    This section describes the threading and concurrency model.
    It describes the various asynchronous threads of operation, identifies
@@ -193,7 +198,7 @@
    to access them by a single producer and consumer.  Multiple producers
    and/or consumers must synchronize externally.
 
-   @subsection circular_queueDLD-lspec-numa NUMA optimizations
+   @subsection cqueueDLD-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
    This section describes if optimal behavior can be supported by
    associating the utilizing thread to a single processor.</i>
@@ -201,9 +206,9 @@
    None.
 
    <hr>
-   @section circular_queueDLD-conformance Conformance
+   @section cqueueDLD-conformance Conformance
    <i>Mandatory.
-   This section cites each requirement in the @ref circular_queueDLD-req
+   This section cites each requirement in the @ref cqueueDLD-req
    section, and explains briefly how the DLD meets the requirement.</i>
 
    - <b>i.c2.lib.atomic.interoperable-kernel-user-support</b> The use of
@@ -214,7 +219,7 @@
    synchronization or context switches.
 
    <hr>
-   @section circular_queueDLD-ut Unit Tests
+   @section cqueueDLD-ut Unit Tests
    <i>Mandatory. This section describes the unit tests that will be designed.
    </i>
 
@@ -229,29 +234,45 @@
    - concurrently producing and consuming elements
 
    <hr>
-   @section circular_queueDLD-st System Tests
+   @section cqueueDLD-st System Tests
    <i>Mandatory.
    This section describes the system testing done, if applicable.</i>
 
    <hr>
-   @section circular_queueDLD-O Analysis
+   @section cqueueDLD-O Analysis
    <i>This section estimates the performance of the component, in terms of
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
-   The circular queue (the struct c2_circular_queue) consumes fixed size
+   The circular queue (the struct c2_cqueue) consumes fixed size
    memory, independent of the size of the array representing the queue's data.
    Operations on the queue are O(1) complexity.
 
    <hr>
-   @section circular_queueDLD-ref References
+   @section cqueueDLD-ref References
    <i>Mandatory. Provide references to other documents and components that
    are cited or used in the design.
    In particular a link to the HLD for the DLD should be provided.</i>
 
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
  */
 
-#include "circular_queue.h"
+#include "cqueue.h"
+
+/**
+   @defgroup cqueueIFS Circular Queue Internal Interfaces
+   @ingroup cqueue
+   @{
+*/
+
+/**
+   Invariant for circular queue.
+ */
+static bool cqueue_invariant(struct c2_cqueue *q);
+
+/**
+   @} cqueueIFS
+*/
 
 /*
  *  Local variables:

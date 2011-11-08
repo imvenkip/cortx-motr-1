@@ -29,7 +29,7 @@
    @{
 */
 
-#include "lib/circular_queue.h"
+#include "lib/cqueue.h"
 
 /**
    Userspace domain private data.
@@ -58,7 +58,7 @@ struct c2_ulnet_core_transfer_mc {
 	   The circular buffer event queue. Each entry contains the
 	   lcb_buffer_id of the buffer concerned.
 	 */
-	struct c2_circular_queue  *ulctm_cq;
+	struct c2_cqueue  *ulctm_cq;
 };
 
 /**
@@ -75,7 +75,7 @@ struct c2_ulnet_core_buffer {
 	   structure.
 	   The number of entries in the array are lcb_max_recv_msgs.
 	*/
-	struct c2_circular_queue *ulcb_events;
+	struct c2_cqueue *ulcb_events;
 
 };
 
