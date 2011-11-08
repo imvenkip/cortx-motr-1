@@ -12,7 +12,7 @@ print_branch_skew()
 	#
 	# Determine how ahead is master
 	#
-	commit_lag=`git log --pretty=short --format="%H" $(git merge-base ${1} origin/master)..${1} | wc -l`
+	commit_lag=`git rev-list ${1} origin/master ^${1} | wc -l`
 
 	#
 	# Check last merge date to/from master
