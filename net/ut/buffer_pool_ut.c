@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Madhavrao Vemuri <madhav_vemuri@xyratex.com>
- * Original creation date: 12/10/2011
+ * Original creation date: 10/12/2011
  */
 
 #ifdef HAVE_CONFIG_H
@@ -28,7 +28,7 @@
 #include "net/bulk_sunrpc.h"
 #include <unistd.h>
 #include <stdio.h>
-#include "net/net_buffer_pool.h"
+#include "net/buffer_pool.h"
 
 void NotEmpty(struct c2_net_buffer_pool *bp);
 void Low(struct c2_net_buffer_pool *bp);
@@ -47,8 +47,8 @@ void test_buf_pool()
 {
 
 	int rc;
-	struct c2_thread        *client_thread;
-	int			 nr_client_threads = 5;
+	struct c2_thread *client_thread;
+	int	          nr_client_threads = 5;
 	int i;
 	struct c2_net_buffer *nb = NULL;
 	struct c2_net_xprt *xprt;
@@ -60,15 +60,15 @@ void test_buf_pool()
 	C2_UT_ASSERT(bp.nbp_ndom != NULL);
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
-	bp.nbp_ndom->nd_ops = &b_ops;
-	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2);
-	C2_UT_ASSERT(rc == 0);
+	bp.nbp_ops = &b_ops;
+	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096);
 	c2_net_buffer_pool_lock(&bp);
-	rc = c2_net_buffer_pool_provision(&bp, 10, 64, 4096);
-	C2_UT_ASSERT(rc == 0);
+	rc = c2_net_buffer_pool_provision(&bp, 10);
+	C2_UT_ASSERT(rc == 10);
 	nb = c2_net_buffer_pool_get(&bp);
 	c2_net_buffer_pool_put(&bp, nb);
-	C2_UT_ASSERT(c2_net_buffer_pool_grow(&bp));
+	/* Buffer pool grow by one */
+	C2_UT_ASSERT(c2_net_buffer_pool_provision(&bp, 1) == 1);
 	C2_UT_ASSERT(c2_net_buffer_pool_prune(&bp));
 	c2_net_buffer_pool_unlock(&bp);
 	C2_ALLOC_ARR(client_thread, nr_client_threads);

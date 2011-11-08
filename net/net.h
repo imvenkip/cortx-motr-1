@@ -374,16 +374,6 @@ struct c2_net_stats {
  @{
  */
 
-struct c2_net_buffer_pool;
-
-/** Call backs that buffer pool can trigger on different memory conditions. */
-struct c2_net_buffer_pool_ops {
-	/** Buffer pool is not empty. */
-	void (*nbpo_not_empty)(struct c2_net_buffer_pool *);
-	/** Buffers in memory are lower than threshold. */
-	void (*nbpo_below_threshold)(struct c2_net_buffer_pool *);
-};
-
 /**
    A collection of network resources.
  */
@@ -420,9 +410,6 @@ struct c2_net_domain {
 
         /** <b>Deprecated.</b> Domain network stats */
         struct c2_net_stats nd_stats[NS_STATS_NR];
-
-	/** Call back operations can be triggered by buffer pool. */
-	const struct c2_net_buffer_pool_ops *nd_ops;
 
 	/**
 	   ADDB context for events related to this domain
@@ -1139,10 +1126,6 @@ enum c2_net_buf_flags {
    and deregister them before shutting down.
  */
 struct c2_net_buffer {
-	/** Linkage into a network buffer pool. */
-	struct c2_tlink		   nb_pool_linkage;
-	/** Magic for network buffer list. */
-	uint64_t		   nb_pool_magic;
 	/**
 	   Vector pointing to memory associated with this data structure.
 	   Initialized by the application prior to registration.
@@ -1268,6 +1251,9 @@ struct c2_net_buffer {
 	 */
 	struct c2_list_link        nb_tm_linkage;
 
+	/** Magic for network buffer list. */
+	uint64_t		   nb_magic;
+
 	/**
 	   Linkage into one of the domain list that tracks registered buffers.
 
@@ -1294,6 +1280,7 @@ struct c2_net_buffer {
 	   after de-registration.
 	 */
 	uint64_t                   nb_flags;
+
 };
 
 /**
@@ -1726,6 +1713,14 @@ void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
 
 extern struct c2_net_xprt c2_net_usunrpc_xprt;
 extern struct c2_net_xprt c2_net_ksunrpc_xprt;
+
+enum {
+	/* Hex ASCII value of "nb_link" */
+	NET_BUFFER_LINK_MAGIC = 0x6e625f6c696e6b,
+	/* Hex ASCII value of "nb_head" */
+	NET_BUFFER_HEAD_MAGIC = 0x6e625f68656164,
+};
+
 
 /** @} end of deprecated net group */
 
