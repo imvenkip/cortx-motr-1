@@ -142,6 +142,7 @@
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/time.h"
 #include "lib/refs.h"
 #include "lib/chan.h"
@@ -184,6 +185,11 @@ enum c2_update_stream_flags {
 	C2_UPDATE_STREAM_DEDICATED_SLOT = 0,
 	/* several update streams share the same slot */
 	C2_UPDATE_STREAM_SHARED_SLOT    = (1 << 0)
+};
+
+enum {
+	/* Hex value for "rpcmagic" */
+	C2_RPC_MAGIC = 0x7270636d61676963
 };
 
 /* TBD: different callbacks called on events occured while processing
@@ -614,7 +620,15 @@ struct c2_rpcmachine {
 		method to be invoked for futher processing,
 		e.g. c2_reqh_fop_handle(), in case of reqh.
 	*/
-	struct c2_reqh                         *cr_reqh;
+	struct c2_reqh                   *cr_reqh;
+
+        /**
+	    Linkage into request handler's list of rpc machines.
+	    c2_reqh::rh_rpcmachines
+	 */
+        struct c2_tlink                   cr_rh_linkage;
+
+	uint64_t                          cr_magic;
 };
 
 /**
