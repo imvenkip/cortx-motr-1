@@ -41,7 +41,7 @@
    The module implements a network transport protocol using the data structures
    defined by @ref net/net.h.
 
-   The LNet transport is defined by the @a c2_net_lnet_xprt data structure.
+   The LNet transport is defined by the @c c2_net_lnet_xprt data structure.
 
    @section LNetDLD-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -57,7 +57,7 @@
  */
 
 /**
-   @defgroup LNetDFS LNet Transport Interfaces
+   @defgroup LNetDFS LNet Transport Interface
    @ingroup net
 
    The external interfaces of the LNet transport are obtained by

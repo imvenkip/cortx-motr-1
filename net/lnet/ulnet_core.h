@@ -23,7 +23,7 @@
 #define __COLIBRI_ULNET_CORE_H__
 
 /**
-   @defgroup ULNetCore LNet Transport Core Userspace Private Interfaces
+   @defgroup ULNetCore LNet Transport Core Userspace Private Interface
    @ingroup LNetCore
 
    @{
@@ -33,49 +33,26 @@
 
 /**
    Userspace domain private data.
+   This structure is pointed to by c2_lnet_core_domain::lcd_upvt.
  */
 struct c2_ulnet_core_domain {
-	/** Size of the buffer private data */
-	size_t                ulcd_buf_pvt_size;
-
-	/** Size of the transfer machine private data */
-	size_t                ulcd_tm_pvt_size;
-
-	/** Maximum messages in a single receive buffer */
-	uint32_t              ulcd_max_recv_msgs;
-
 	/** File descriptor to the kernel device */
 	int                   ulcd_fd;
 };
 
 /**
    Userspace transfer machine private data.
+   This structure is pointed to by c2_lnet_core_transfer_mc::lctm_upvt.
 */
 struct c2_ulnet_core_transfer_mc {
-	struct c2_lnet_core_domain *ulctm_dom;
 
-	/**
-	   The circular buffer event queue. Each entry contains the
-	   lcb_buffer_id of the buffer concerned.
-	 */
-	struct c2_cqueue  *ulctm_cq;
 };
 
 /**
    Userspace buffer private data.
+   This structure is pointed to by c2_lnet_core_buffer::lcb_upvt.
 */
 struct c2_ulnet_core_buffer {
-	struct c2_lnet_core_transfer_mc *ulcb_tm;
-
-	/**
-	   The event array (receive buffers only) implemented using
-	   a circular buffer as it can then be easily shared between the
-	   single kernel producer and single user/kernel space consumer.
-	   Each entry contains a struct c2_lnet_core_buffer_event data
-	   structure.
-	   The number of entries in the array are lcb_max_recv_msgs.
-	*/
-	struct c2_cqueue *ulcb_events;
 
 };
 

@@ -28,8 +28,8 @@
    - @ref LNetDLD-depends
    - @ref LNetDLD-highlights
    - @subpage LNetDLD-fspec "Functional Specification" <!-- ext link -->
-      - @ref LNetDFS "External Interfaces"           <!-- ext link -->
-      - @ref LNetIDFS "Internal Interfaces"         <!-- int link -->
+      - @ref LNetDFS "LNet Transport Interface"       <!-- ext link -->
+      - @ref LNetIDFS "Internal Interface"            <!-- int link -->
    - @ref LNetDLD-lspec
       - @ref LNetDLD-lspec-comps
       - @ref LNetDLD-lspec-state
@@ -46,6 +46,8 @@
    <i>All specifications must start with an Overview section that
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
+
+   This document describes the Colibri Network transport for LNet.
 
    <hr>
    @section LNetDLD-def Definitions
@@ -85,16 +87,16 @@
      must support processor affinity as described in the HLD.
 
    - <b>r.c2.net.xprt.lnet.user-space</b> The implementation must
-   accommodate the needs of the user space LNet transport.
+     accommodate the needs of the user space LNet transport.
 
    <hr>
    @section LNetDLD-depends Dependencies
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   - @ref LNetCore "LNet Transport Core Interfaces"
+   - @ref LNetCore "LNet Transport Core Interface"
+   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
    - The processor API and control over thread affinity to processor.
-   - The circular buffer API.
 
    <hr>
    @section LNetDLD-highlights Design Highlights
@@ -186,9 +188,9 @@
    In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
-   - @subpage KLNetCoreDLD "LNet Transport Core Kernel DLD"
-   - @subpage ULNetCoreDLD "LNet Transport Core Userspace DLD"
-
+   - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD"
+   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
+   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
 
  */
 
@@ -201,7 +203,7 @@
 #include "net/lnet/lnet_core.h"
 
 /**
-   @defgroup LNetIDFS LNet Transport Internal Interfaces
+   @defgroup LNetIDFS LNet Transport Internal Interface
    @ingroup LNetDFS
    @{
 */

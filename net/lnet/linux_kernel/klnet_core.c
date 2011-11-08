@@ -20,7 +20,7 @@
  */
 
 /**
-   @page KLNetCoreDLD LNet Transport Core Kernel DLD
+   @page KLNetCoreDLD LNet Transport Kernel Core DLD
 
    - @ref KLNetCoreDLD-ovw
    - @ref KLNetCoreDLD-def
@@ -28,8 +28,8 @@
    - @ref KLNetCoreDLD-depends
    - @ref KLNetCoreDLD-highlights
    - @subpage LNetCoreDLD-fspec "Functional Specification" <!-- ext link -->
-        - @ref KLNetCore "Core Kernel Interfaces"      <!-- ext link -->
-        - @ref ULNetCore "Core User space Interfaces"  <!-- ext link -->
+        - @ref KLNetCore "Core Kernel Interface"      <!-- ext link -->
+        - @ref ULNetCore "Core User Space Interface"  <!-- ext link -->
    - @ref KLNetCoreDLD-lspec
       - @ref KLNetCoreDLD-lspec-comps
       - @ref KLNetCoreDLD-lspec-userspace
@@ -49,6 +49,10 @@
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
 
+   The LNet Transport is built over an address space agnostic "core" I/O
+   interface.  This document describes the kernel implementation of this
+   interface, which directly interacts with the LNet kernel module.
+
    <hr>
    @section KLNetCoreDLD-def Definitions
    <i>Mandatory.
@@ -67,9 +71,6 @@
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   - <b>r.c2.net.xprt.lnet.transport-variable</b> The implementation
-     shall name the transport variable as specified in the HLD.
-
    - <b>r.c2.net.lnet.buffer-registration</b> Provide support for
      hardware optimization through buffer pre-registration.
 
@@ -83,11 +84,12 @@
    - <b>r.c2.net.xprt.lnet.dynamic-address-assignment</b> Provide
      support for dynamic address assignment as described in the HLD.
 
-   - <b>r.c2.net.xprt.lnet.processor-affinity</b> The implementation
-     must support processor affinity as described in the HLD.
-
    - <b>r.c2.net.xprt.lnet.user-space</b> The implementation must
-   accommodate the needs of the user space LNet transport.
+     accommodate the needs of the user space LNet transport.
+
+   - <b>r.c2.net.xprt.lnet.user.no-gpl</b> The implementation must not expose
+     the user space transport to GPL interfaces.
+
 
    <hr>
    @section KLNetCoreDLD-depends Dependencies
@@ -98,7 +100,7 @@
    The Xyratex Lustre source package must be installed on the build
    machine (RPM @c lustre-source version 2.0 or greater).
    - <b>Xyratex Lustre runtime</b>
-   - The circular buffer API.
+   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
 
    <hr>
    @section KLNetCoreDLD-highlights Design Highlights
@@ -109,8 +111,8 @@
 
    - Each transfer machine uses one LNet event queue for all LNet operations.
 
-   - The number of messages that can be delivered into a single receive buffer is
-   bounded to support pre-allocation of memory to hold the event payload to
+   - The number of messages that can be delivered into a single receive buffer
+   is bounded to support pre-allocation of memory to hold the event payload to
    support asynchronous delivery and consumption.
 
    - Event delivery is decoupled from the LNet callback.
@@ -129,7 +131,13 @@
 
    - @ref KLNetCoreDLD-lspec-comps
    - @ref KLNetCoreDLD-lspec-userspace
+   - @ref KLNetCoreDLD-lspec-lnet-init
    - @ref KLNetCoreDLD-lspec-ev
+   - @ref KLNetCoreDLD-lspec-recv
+   - @ref KLNetCoreDLD-lspec-send
+   - @ref KLNetCoreDLD-lspec-stage
+   - @ref KLNetCoreDLD-lspec-arecv
+   - @ref KLNetCoreDLD-lspec-asend
    - @ref KLNetCoreDLD-lspec-state
    - @ref KLNetCoreDLD-lspec-thread
    - @ref KLNetCoreDLD-lspec-numa
@@ -150,6 +158,13 @@
    organized with a distinction between the common directly shareable portions,
    and private areas for kernel and user space data.
 
+   @subsection KLNetCoreDLD-lspec-lnet-init Initialization and Finalization
+   No initialization and finalization logic is required for LNet in the kernel for the following reasons:
+   - Use of the LNet kernel module is reference counted by the kernel.
+   - The LNetInit() subroutine is automatically called by the LNet kernel module, and cannot be called multiple times.
+
+   @todo Check if this is always done or only done if Lustre is used.
+
    @subsection KLNetCoreDLD-lspec-ev Event Processing
 
    LNet event queues are used with an event callback subroutine to avoid event
@@ -157,24 +172,22 @@
    out the event payload and arranges for subsequent asynchronous delivery.
    This, coupled with the fact that the circular buffer used works optimally
    with a single producer and single consumer resulted in the decision to use
-   just one LNet EQ per transfer machine.
+   just one LNet EQ per transfer machine (c2_klnet_core_transfer_mc::klctm_eqh).
 
    The event callback requires that the MD @c user_ptr field be set up to point
    to the c2_lnet_core_buffer data structure.  The callback executes the
    following algorithm:
 
-   -# Recover the c2_lnet_core_buffer pointer and through it, the
-      c2_lnet_core_transfer_mc pointer and hence the pointer to the circular
-      event queue.
-   -# If the buffer is a receive message buffer, then determine the next
-      available event payload structure from the event payload circular buffer
-      associated with the receive buffer, c2_klnet_core_buffer::klcb_events.
+   -# If the buffer is a receive message buffer, and multiple messages are
+      permitted in a single buffer, then determine the next available event
+      payload structure for the receive buffer from the
+      c2_lnet_core_buffer::lcb_ev_cq circular queue.
       (Note: the circular buffer data structure is used here because of its
       implicit serialization for a single consumer and producer, but the
       circularity is otherwise not important).
-   -# If the buffer is not a receive message buffer, then the event payload
-      structure used is the default associated with the buffer,
-      c2_lnet_core_buffer::lcb_ev.
+      The queue indicies de-reference the c2_lnet_core_buffer::lcb_ev array.
+   -# Otherwise, then the event payload structure used is
+      c2_lnet_core_buffer::lcb_ev[0].
    -# Copy the event payload from the LNet event to the event payload structure
       in the buffer.
    -# Put the buffer identifier, c2_lnet_core_buffer::lcb_buffer_id, into the
@@ -184,17 +197,66 @@
       (Note that as there is only one LNet EQ used per transfer machine, no
       serialization is required to do this operation.  If multiple EQs are ever
       used, then this step needs to be serialized.)
-   -# Increment the core transfer machine event semaphore count with an up()
-      call.
+   -# Increment the c2_klnet_core_transfer_mc::klctm_sem count with the
+      c2_semaphore_up() subroutine.
 
    The transport layer event handler thread blocks on the core transfer machine
    event semaphore through the c2_lnet_core_buf_event_wait() subroutine.  This
    call is aware of the position of the last event consumed in the transfer
-   machine circular buffer; it loops on a core transfer machine event semaphore
-   down() call as long as the event queue is empty.  When the subroutine
-   returns with an indication of the presence of events, the thread consumes
-   all the pending events with multiple calls to the
+   machine circular buffer; it loops on a c2_semaphore_down() call on the
+   c2_klnet_core_transfer_mc::klctm_sem as long as the event queue is empty.
+   When the subroutine returns with an indication of the presence of events,
+   the thread consumes all the pending events with multiple calls to the
    c2_lnet_core_buf_event_get() subroutine, until it drains the event queue.
+
+   @subsection KLNetCoreDLD-lspec-recv Receiving Unsolicited Messages
+
+   -# An EQ is created for each transfer machine by the c2_lnet_core_tm_start()
+   subroutine, and the common callback handler registered.
+   -# For each receive buffer, create an ME with @c LNetMEAlloc() and specify
+      the portal, match and ignore bits. All receive buffers for a given TM will
+      use a match bit value equal to the TM identifier in the higher order
+      bits and zeros for the other bits.  No ignore bits are set.
+      Save the ME handle in the c2_klnet_core_buffer::klcb_meh field.
+   -# Create and attach an MD to the ME using @c LNetMDAttach().
+      Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
+      Set up the fields of the @c lnet_md_t argument as follows:
+      - Set the @c eq_handle to identify the EQ associated with the transfer
+        machine (c2_klnet_core_transfer_mc::klctm_eqh).
+      - Set the kernel logical address of the c2_klnet_core_buffer in the
+        @c user_ptr field.
+      - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
+      - Set the @c threshold value to the maximum number of messages that
+        are to be received in the buffer.
+      - Set the @c LNET_MD_OP_PUT and @c LNET_MD_KIOV flags in the
+        @c options field.
+        @todo What about @c LNET_MD_MAX_SIZE?
+   -# When a message arrives, an @c LNET_EVENT_PUT event will be delivered to
+      the event queue, and will be processed as described in
+      @ref KLNetCoreDLD-lspec-ev.
+
+   @subsection KLNetCoreDLD-lspec-send Sending Messages
+
+   -# Create an MD using @c LNetMDBind().
+      Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
+      Set up the fields of the @c lnet_md_t argument as follows:
+      - Set the @c eq_handle to identify the EQ associated with the transfer
+        machine (c2_klnet_core_transfer_mc::klctm_eqh).
+      - Set the kernel logical address of the c2_klnet_core_buffer in the
+        @c user_ptr field.
+      - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
+   -# Use the @c LNetPut() subroutine to send the MD to the destination.
+      The match bits must set to the destination TM identifier in the higher
+      order bits and zeros for the other bits.
+   -# When the message is sent, an @c LNET_EVENT_SEND event will be delivered
+      to the event queue, and processed as described in
+      @ref KLNetCoreDLD-lspec-ev.
+
+   @subsection KLNetCoreDLD-lspec-stage Staging Passive Bulk Buffers
+
+   @subsection KLNetCoreDLD-lspec-arecv Active Bulk Read
+
+   @subsection KLNetCoreDLD-lspec-asend Active Bulk Write
 
 
    @subsection KLNetCoreDLD-lspec-state State Specification
@@ -204,10 +266,10 @@
 
    The kernel Core layer, for the most part, relies on the upper transport
    layer to maintain the linkage between the data structures used by the core
-   layer. The only exception is the link to the ??? transfer machine from the
-   buffer private data ???.  It maintains no lists of data structures or
-   ongoing operations. The transport is also responsible for operational flow
-   control.
+   layer. The only exception is the link, c2_klnet_core_buffer::klcb_tm, from
+   the kernel private buffer data to the transfer machine shared data, which is
+   maintained for efficiency during event processing.  The kernel Core layer
+   maintains no lists of data structures or ongoing operations.
 
    The kernel Core layer module depends on the LNet module in the kernel at
    runtime. This dependency is captured by the kernel's module support that
@@ -236,8 +298,10 @@
 
    The number of event payload structures is finite. The core API requires that
    the transport application not issue more operation requests than there are
-   event payload slots available to deliver the operation result. i.e. the
-   transport is responsible for flow control.
+   free c2_lnet_core_buffer_event structures in the transfer machine buffer
+   event circular queue to return the operation result.  i.e. the transport is
+   responsible for flow control.
+
 
    The API assumes that only a single transport thread will handle event
    processing; if this is not the case then the transport should serialize its
@@ -257,7 +321,7 @@
    compensates for this lack of support by providing a level of indirection in
    event delivery: its callback handler simply copies the LNet event payload to
    an event delivery queue and notifies a transport event processing thread of
-   the presence of the event. (See @ref KLNetCoreDLD-lspec-core-cb above). The
+   the presence of the event. (See @ref KLNetCoreDLD-lspec-ev above). The
    transport event processing thread can be constrained to have any desired
    processor affinity.
 
@@ -291,6 +355,7 @@
    In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
 
  */
 

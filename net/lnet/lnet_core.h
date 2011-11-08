@@ -32,10 +32,7 @@
    - @ref LNetCoreDLD-fspec-ovw
    - @ref LNetCoreDLD-fspec-ds
    - @ref LNetCoreDLD-fspec-usage
-
-   @see @ref LNetCore "LNet Transport Core Interfaces"
-   @see @ref KLNetCoreDLD "LNet Transport Core Kernel DLD"
-   @see @ref ULNetCoreDLD "LNet Transport Core Userspace DLD"
+   - @ref LNetCore "LNet Transport Core Interface"
 
    @section LNetCoreDLD-fspec-ovw API Overview
    The LNet Transport Core presents an address space agnostic API to the LNet
@@ -47,6 +44,9 @@
    uses a device driver to communicate with its kernel counterpart and
    uses shared memory to avoid event data copy.
 
+   @see @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
+   @see @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
+
    @section LNetCoreDLD-fspec-ds API Data Structures
    The API requires that the transport application maintain API defined data
    for domain, transfer machine and buffer objects:
@@ -54,11 +54,15 @@
    - c2_lnet_core_domain
    - c2_lnet_core_transfer_mc
 
-   These data structures are best embedded in the transport application's own
+   These data structures should be embedded in the transport application's own
    private data.  This requirement results in initialization calls that require
    a pointer to the standard network layer data structure concerned and a
-   pointer to the API's data structure.  Subsequent calls to the API only pass
-   the API data structure pointer.  The API data must be eventually finalized.
+   pointer to the API's data structure.  Note that the c2_lnet_core_buffer
+   structure is a variable length structure, and should be embedded at the end
+   of the transport's private structure.
+
+   Subsequent calls to the API only pass the API data structure pointer.  The
+   API data must be eventually finalized.
 
    @section LNetCoreDLD-fspec-usage API Usage
    The API is intended to be used in the following contexts:
@@ -82,10 +86,10 @@
 */
 
 /**
-   @defgroup LNetCore LNet Transport Core Interfaces
+   @defgroup LNetCore LNet Transport Core Interface
    @ingroup LNetDFS
 
-   The internal I/O API used by the LNet transport.
+   The internal, address space agnostic I/O API used by the LNet transport.
 
    @see @ref LNetCoreDLD-fspec "LNet Transport Core Functional Specification"
 
@@ -145,25 +149,29 @@ struct c2_lnet_core_buffer_event {
 
 /**
    Core domain data.
+   The transport layer should embed this anywhere in its private data.
  */
 struct c2_lnet_core_domain {
-	void *lcd_a_pvt; /**< Application space private pointer */
-	void *lcd_k_pvt; /**< Kernel space private pointer */
+	void *lcd_upvt; /**< Core user space private */
+	void *lcd_kpvt; /**< Core kernel space private */
 };
 
 /**
    Core transfer machine data.
+   The transport layer should embed this anywhere in its private data.
 */
 struct c2_lnet_core_transfer_mc {
 	/** The transfer machine address */
-	struct c2_lnet_ep_addr     lctm_addr;
+	struct c2_lnet_ep_addr  lctm_addr;
 
-	void *lctm_a_pvt; /**< Application space private pointer */
-	void *lctm_k_pvt; /**< Kernel space private pointer */
+	void                   *lctm_upvt; /**< Core user space private */
+	void                   *lctm_kpvt; /**< Core kernel space private */
 };
 
 /**
-   Core buffer data.
+   Core buffer data.  The transport layer should embed this at the <b>very
+   end</b> of its private data.  The size varies if the buffer is used for
+   receiving messages.
 */
 struct c2_lnet_core_buffer {
 	/**
@@ -178,19 +186,46 @@ struct c2_lnet_core_buffer {
 	 */
 	uint64_t              lcb_match_bits;
 
+	void                 *lcb_upvt; /**< Core user space private */
+	void                 *lcb_kpvt; /**< Core kernel space private */
+
 	/**
-	   Buffer event data (not for receive buffers)
+	   This data structure is used in receive buffers that accept more than
+	   one message in the buffer, to maintain a FIFO queue in the @c lcb_ev
+	   array.
+
+	   The c2_cqueue data structure is used for its single-producer,
+	   single-consumer, cross-address space capabilities only; the circular
+	   functionality is not utilized.  As such, it is sufficient to
+	   allocate, in the @c lcb_ev array, exactly as many buffer event
+	   elements as are needed, though the @c cq_size value set in the
+	   circular queue must be set to 1 more than this value.
+
+	   The field is not to be initialized for non-receive buffers, because
+	   a circular queue has a minimum size of 2 elements.  Instead, the @c
+	   cq_size field of the structure should be explicitly set to 1.  This
+	   should also be done for the special case where only one message is
+	   to be received in a receive buffer.
 	 */
-	struct c2_lnet_core_buffer_event lcb_ev;
+	struct c2_cqueue      lcb_ev_cq;
 
 	/**
-	   The maximum number of receive messages for this buffer (receive
-	   buffers only).
-	*/
-	uint32_t              lcb_max_recv_msgs;
+	   Space for buffer events to convey buffer operation completion data.
 
-	void *lcb_a_pvt; /**< Application space private pointer */
-	void *lcb_k_pvt; /**< Kernel space private pointer */
+	   Receive buffers usually need an array of buffer events, because
+	   multiple messages can be delivered into a single buffer and event
+	   delivery can overlap with message reception.  Other buffers need
+	   only a single buffer event.
+
+	   The data structure defines space for 1 buffer event using an array
+	   with one element. Space for additonal buffer events in the array
+	   should be allocated for receive buffers using additional contiguous
+	   memory.
+
+	   @note The valgrind utility may complain about dereferencing beyond
+	   the array size.
+	*/
+	struct c2_lnet_core_buffer_event  lcb_ev[1]; /* last field in struct */
 };
 
 

@@ -23,7 +23,7 @@
 #define __COLIBRI_KLNET_CORE_H__
 
 /**
-   @defgroup KLNetCore LNet Transport Core Kernel Private Interfaces
+   @defgroup KLNetCore LNet Transport Core Kernel Private Interface
    @ingroup LNetCore
 
    @{
@@ -34,6 +34,7 @@
 
 /**
    Kernel domain private data.
+   This structure is pointed to by c2_lnet_core_domain::lcd_kpvt.
 */
 struct c2_klnet_core_domain {
 	/** Boolean indicating if the application is running in user space. */
@@ -42,33 +43,31 @@ struct c2_klnet_core_domain {
 
 /**
    Kernel transfer machine private data.
+   This structure is pointed to by c2_lnet_core_transfer_mc::lctm_kpvt.
 */
 struct c2_klnet_core_transfer_mc {
+	/** Kernel pointer to the shared memory DOM structure */
 	struct c2_lnet_core_domain *klctm_dom;
 
 	/**
 	   Semaphore to count the number of events in the queue.
 	*/
-	struct c2_semaphore    klctm_sem;
-
-	/**
-	   The circular buffer event queue. Each entry contains the
-	   lcb_buffer_id of the buffer concerned.
-	   The buffer may be maintained in user space.
-
-	   CHANGE
-	 */
-	struct c2_cqueue           *klctm_cq;
+	struct c2_semaphore         klctm_sem;
 
 	/** Handle of the LNet EQ associated with this transfer machine */
-	lnet_handle_eq_t            lctm_eqh;
+	lnet_handle_eq_t            klctm_eqh;
 };
 
 
 /**
    Kernel buffer private data.
+   This structure is pointed to by c2_lnet_core_buffer::lcb_kpvt.
 */
 struct c2_klnet_core_buffer {
+	/**
+	   Kernel pointer to the shared memory TM structure with the TM buffer
+	   event queue.
+	 */
 	struct c2_lnet_core_transfer_mc *klcb_tm;
 
 	/**
@@ -82,11 +81,14 @@ struct c2_klnet_core_buffer {
 	*/
 	struct c2_cqueue                *klcb_events;
 
-
 	/** The I/O vector. */
 	struct lnet_kiov_t               klcb_kiov;
 
-	/* other LNet handles as needed */
+	/** ME handle */
+	lnet_handle_me_t                 klcb_meh;
+
+	/** MD handle */
+	lnet_handle_md_t                 klcb_mdh;
 };
 
 /**
