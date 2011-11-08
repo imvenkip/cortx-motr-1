@@ -8,6 +8,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/addb/libcolibri-addb.la \
                             $(top_builddir)/balloc/libcolibri-balloc.la \
                             $(top_builddir)/capa/libcolibri-capa.la \
+			    $(top_builddir)/cfg/libcolibri-cfg.la \
                             $(top_builddir)/cob/libcolibri-cob.la \
                             $(top_builddir)/db/libcolibri-db.la \
                             $(top_builddir)/desim/libcolibri-desim.la \

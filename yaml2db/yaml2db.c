@@ -27,7 +27,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "yaml2db/yaml2db.h"
-#include "yaml2db/disk_conf_db.h"
+#include "cfg/cfg.h"
 
 /**
   @addtogroup yaml2db
@@ -44,31 +44,28 @@ static const struct c2_addb_loc yaml2db_addb_loc = {
 };
 
 C2_ADDB_EV_DEFINE(yaml2db_func_fail, "yaml2db_func_fail",
-                C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-enum {
-	MAX_BUF_SIZE = C2_CONF_MAX_PARAMETER_VALUE_LEN
-};
+/* Forward declaration */
+static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx);
 
 /**
   Init function, which initializes the parser and sets input file
   @param yctx - yaml2db context
   @retval 0 if success, -errno otherwise
  */
-int yaml2db_init(struct c2_yaml2db_ctx *yctx)
+int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx)
 {
-	int	 rc = 0;
-	char	*opath = NULL;
-	char	*dpath = NULL;
+	int rc;
 
 	C2_PRE(yctx != NULL);
 
 	/* Initialize the ADDB context */
         c2_addb_ctx_init(&yctx->yc_addb, &yaml2db_ctx_type,
-				&c2_addb_global_ctx);
-	c2_addb_choose_default_level(AEL_WARN);
+			 &c2_addb_global_ctx);
 
 	yctx->yc_db_init = false;
+
 	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
 
 		/* Initialize the parser. According to yaml documentation,
@@ -98,51 +95,15 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 	} else
 		yctx->yc_fp = NULL;
 
-	C2_ALLOC_ARR(opath, strlen(yctx->yc_dpath) + 2);
-	if (opath == NULL) {
-		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, c2_addb_oom);
-		rc = -ENOMEM;
-		goto cleanup;
-	}
 
-	C2_ALLOC_ARR(dpath, strlen(yctx->yc_dpath) + 2);
-	if (dpath == NULL) {
-		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, c2_addb_oom);
-		rc = -ENOMEM;
-		goto cleanup;
-	}
-
-	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
-		rc = mkdir(yctx->yc_dpath, 0700);
-		if (rc != 0) {
-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail, "mkdir", 0);
-			rc = -errno;
-			goto cleanup;
-		}
-	}
-
-	sprintf(opath, "%s/o", yctx->yc_dpath);
-
-	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
-		rc = mkdir(opath, 0700);
-		if (rc != 0) {
-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail, "mkdir", 0);
-			rc = -errno;
-			goto cleanup;
-		}
-	}
-
-	sprintf(dpath, "%s/d", yctx->yc_dpath);
-
-	rc = c2_dbenv_init(&yctx->yc_db, dpath, 0);
+	rc = c2_dbenv_init(&yctx->yc_db, yctx->yc_dpath, 0);
 
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "c2_dbenv_init", 0);
+			    yaml2db_func_fail, "c2_dbenv_init", 0);
 		goto cleanup;
 	}
+
 	yctx->yc_db_init = true;
 
 	if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL) {
@@ -153,13 +114,9 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 		}
 	}
 
-	c2_free(opath);
-	c2_free(dpath);
 	return 0;
 
 cleanup:
-	c2_free(opath);
-	c2_free(dpath);
         c2_addb_ctx_fini(&yctx->yc_addb);
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
@@ -172,7 +129,7 @@ cleanup:
   Fini function, which finalizes the parser and finies the db
   @param yctx - yaml2db context
  */
-void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
+void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 {
 	C2_PRE(yctx != NULL);
 
@@ -246,7 +203,7 @@ static void yaml_parser_error_detect(const yaml_parser_t *parser)
   @param yctx - yaml2db context
   @retval 0 if successful, -errno otherwise
  */
-int yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
+int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
 {
 	int		 rc;
 	yaml_node_t	*root_node;
@@ -256,15 +213,15 @@ int yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
 	rc = yaml_parser_load(&yctx->yc_parser, &yctx->yc_document);
 	if (rc != 1) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "yaml_parser_load", 0);
+			    yaml2db_func_fail, "yaml_parser_load", 0);
 		goto parser_error;
 	}
 
 	root_node = yaml_document_get_root_node(&yctx->yc_document);
 	if (root_node == NULL) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail,
-                                "yaml2db_document_get_root_node", 0);
+			    yaml2db_func_fail,
+			    "yaml2db_document_get_root_node", 0);
                 yaml_document_delete(&yctx->yc_document);
 		return -EINVAL;
 	}
@@ -283,18 +240,19 @@ parser_error:
   @retval yaml_node_t pointer if successful, NULL otherwise
  */
 static yaml_node_t *yaml2db_scalar_locate(struct c2_yaml2db_ctx *yctx,
-		const char *value)
+					  const char *value)
 {
-	yaml_node_t	*node;
-	bool		 scalar_found = false;
+	yaml_node_t *node;
+	bool	     scalar_found = false;
 
-	C2_PRE(yctx != NULL);
+	C2_PRE(yaml2db_context_invariant(yctx));
+	C2_PRE(value != NULL);
 
 	for (node = yctx->yc_document.nodes.start;
-			node < yctx->yc_document.nodes.top; node++) {
+	     node < yctx->yc_document.nodes.top; node++) {
 		if(node->type == YAML_SCALAR_NODE) {
 			if (strcmp((char *)node->data.scalar.value,
-					(char *) value) == 0){
+				   (char *) value) == 0){
 				scalar_found = true;
 				break;
 			}
@@ -320,13 +278,13 @@ static bool yaml2db_section_invariant(const struct c2_yaml2db_section *ysec)
 	if (ysec->ys_table_name == NULL)
 		return false;
 
+	if (ysec->ys_table_ops == NULL)
+		return false;
+
 	if (ysec->ys_section_type >= C2_YAML_TYPE_NR)
 		return false;
 
 	if (ysec->ys_num_keys <= 0)
-		return false;
-
-	if (ysec->ys_start_key < 0)
 		return false;
 
 	return true;
@@ -376,7 +334,7 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
   @retval index of key in section table for valid key, -EINVAL otherwise
  */
 static int validate_key_from_section(const yaml_char_t *key,
-		const struct c2_yaml2db_section *ysec)
+				     const struct c2_yaml2db_section *ysec)
 {
 	int cnt = 0;
 
@@ -398,7 +356,7 @@ static int validate_key_from_section(const yaml_char_t *key,
   @retval true if all mandatory keys are supplied, false otherwise
  */
 static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
-		const bool *valid_key_status)
+				    const bool *valid_key_status)
 {
 	int  cnt = 0;
 	bool rc = true;
@@ -418,6 +376,7 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
 	return rc;
 }
 
+#if 0
 /**
   Dumps the key and value in the file
   @param yctx - yaml2db context
@@ -426,12 +385,47 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
   @param value - value
  */
 static void dump_key_value (struct c2_yaml2db_ctx *yctx, const char *fname,
-		const int key, const yaml_char_t *value)
+			    const int key, const yaml_char_t *value)
 {
 	C2_PRE(fname != NULL);
 	C2_PRE(value != NULL);
 
 	fprintf(yctx->yc_dp, "Key = %d \t Value = %s\n", key, value);
+}
+#endif
+
+/**
+  Function to the locate the key for a given yaml sequence
+  @param yctx - yaml2db context
+  @param node - yaml node pointer from which the sequence starts
+  @param yaml_str - yaml string that corresponds to the db record key
+  @retval yaml_node_t pointer if successful, NULL otherwise
+ */
+static char *yaml2db_key_locate(struct c2_yaml2db_ctx *yctx,
+				      const yaml_node_t *node,
+				      const char *yaml_str)
+{
+	yaml_node_t		*k_node;
+	yaml_node_t		*v_node;
+	yaml_node_pair_t	*pair;
+	bool			 key_found = false;
+
+	C2_PRE(yaml2db_context_invariant(yctx));
+	C2_PRE(node != NULL);
+	C2_PRE(yaml_str != NULL);
+
+	c2_yaml2db_mapping_for_each (yctx, node, pair, k_node, v_node) {
+		if (strcmp((char *)k_node->data.scalar.value,
+					(char *) yaml_str) == 0){
+			key_found = true;
+			break;
+		}
+	}
+
+	if (key_found)
+		return (char *)k_node->data.scalar.value;
+	else
+		return NULL;
 }
 
 /**
@@ -441,12 +435,11 @@ static void dump_key_value (struct c2_yaml2db_ctx *yctx, const char *fname,
   @param conf_param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
-int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
-		      const struct c2_yaml2db_section *ysec,
-		      const char *conf_param)
+int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+			 struct c2_yaml2db_section *ysec,
+			 const char *conf_param)
 {
         int                      rc;
-	uint64_t		 key;
 	/* gcc extension */
 	bool			 valid_key_status[ysec->ys_num_keys];
 	bool			 mandatory_keys_present;
@@ -460,16 +453,19 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 	yaml_node_t		*v_node;
 	yaml_node_item_t	*item;
 	yaml_node_pair_t	*pair;
+	struct c2_cfg_storage_device__key  key;
+	struct c2_cfg_storage_device__val  val;
+	char			*str;
 
         C2_PRE(yaml2db_context_invariant(yctx));
         C2_PRE(yaml2db_section_invariant(ysec));
 
         /* Initialize the table */
         rc = c2_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
-                        0, ysec->ys_table_ops);
+			   0, ysec->ys_table_ops);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "c2_table_init", 0);
+			    yaml2db_func_fail, "c2_table_init", 0);
                 return rc;
 	}
 
@@ -477,7 +473,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
         rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "c2_db_tx_init", 0);
+			    yaml2db_func_fail, "c2_db_tx_init", 0);
                 c2_table_fini(&table);
                 return rc;
         }
@@ -485,54 +481,65 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 	node = yaml2db_scalar_locate(yctx, conf_param);
 	if (node == NULL) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "yaml2db_scalar_locate", 0);
+			    yaml2db_func_fail, "yaml2db_scalar_locate", 0);
                 c2_table_fini(&table);
 		c2_db_tx_abort(&tx);
 		return -EINVAL;
 	}
 
 	node++;
-	key = ysec->ys_start_key;
+
 	c2_yaml2db_sequence_for_each(yctx, node, item, s_node) {
+		str = yaml2db_key_locate(yctx, s_node, ysec->ys_key_str);
+		if (str == NULL) {
+			fprintf(stderr, "Error: key for record not found\n");
+			continue;
+		}
+
+		//strcpy (key.csd_uuid.cu_uuid, str);
+		ysec->ys_ops->so_key_populate(ysec, (void *) &key, str);
 		C2_SET_ARR0(valid_key_status);
 		mandatory_keys_present = false;
 		c2_yaml2db_mapping_for_each (yctx, s_node, pair,
-				k_node, v_node) {
+					     k_node, v_node) {
 			section_index = validate_key_from_section(k_node->data.
 						scalar.value, ysec);
 			if (section_index == -EINVAL) {
 				fprintf(stderr, "Error: invalid key: %s\n",
-						k_node->data.scalar.value);
+					k_node->data.scalar.value);
 				continue;
 			}
 			valid_key_status[section_index] = true;
-			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
-					v_node->data.scalar.value,
-					sizeof(v_node->data.scalar.value) * 8);
+			ysec->ys_ops->so_val_populate(ysec, (void *) &val,
+					(char *)k_node->data.scalar.value,
+					(char *)v_node->data.scalar.value);
+		}
+		c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
+				&val, sizeof val);
 
-			rc = c2_table_insert(&tx, &db_pair);
-			if (rc != 0) {
-				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-						yaml2db_func_fail,
-						"c2_table_insert", 0);
-				c2_db_pair_release(&db_pair);
-				c2_db_pair_fini(&db_pair);
-				c2_table_fini(&table);
-				c2_db_tx_abort(&tx);
-				return rc;
-			}
-			if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
-				/* Ignore the return value as it does not
-				   matter if dump is done or not */
-				dump_key_value(yctx, yctx->yc_dump_fname,
-						(int) key,
-						v_node->data.scalar.value);
+		rc = c2_table_update(&tx, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+					yaml2db_func_fail,
+					"c2_table_insert", 0);
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
-			key++;
+			c2_table_fini(&table);
+			c2_db_tx_abort(&tx);
+			return rc;
 		}
+#if 0
+		if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
+			/* Ignore the return value as it does not
+			   matter if dump is done or not */
+			dump_key_value(yctx, yctx->yc_dump_fname,
+					(int) key,
+					v_node->data.scalar.value);
+#endif
+		c2_db_pair_release(&db_pair);
+		c2_db_pair_fini(&db_pair);
 		mandatory_keys_present = validate_mandatory_keys(ysec,
-				valid_key_status);
+							valid_key_status);
 		if (!mandatory_keys_present) {
 			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 					yaml2db_func_fail,
@@ -547,6 +554,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 	return rc;
 }
 
+#if 0
 /**
   Function to emit the yaml document
   @param yctx - yaml2db context
@@ -554,7 +562,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
   @param conf_param - parameter for which configuration has to be emitted
   @retval 0 if successful, -errno otherwise
  */
-int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
                       const struct c2_yaml2db_section *ysec,
 		      const char *conf_param)
 {
@@ -565,17 +573,16 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
         struct c2_db_cursor      db_cursor;
 	uint64_t		 key;
 	uint64_t		 last_key;
-	yaml_char_t		 buf[MAX_BUF_SIZE];
 
         C2_PRE(yaml2db_context_invariant(yctx));
         C2_PRE(yaml2db_section_invariant(ysec));
 
         /* Initialize the table */
         rc = c2_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
-                        0, ysec->ys_table_ops);
+			   0, ysec->ys_table_ops);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-                                yaml2db_func_fail, "c2_table_init", rc);
+			    yaml2db_func_fail, "c2_table_init", rc);
                 return rc;
         }
 
@@ -671,6 +678,7 @@ cleanup:
         c2_table_fini(&table);
         return rc;
 }
+#endif
 
 /** @} end of yaml2db group */
 

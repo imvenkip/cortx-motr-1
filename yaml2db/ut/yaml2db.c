@@ -23,9 +23,9 @@
 #endif
 
 #include "lib/misc.h"
-#include "yaml2db/disk_conf_db.h"
 #include "yaml2db/yaml2db.h"
 #include "lib/ut.h"
+#include "cfg/cfg.h"
 
 /* Constant names and paths */
 static const char *C_PATH = "./__conf_db";
@@ -51,7 +51,7 @@ static struct c2_yaml2db_section_key disk_section_keys[] = {
 /* Static declaration of disk section table */
 static struct c2_yaml2db_section disk_section = {
 	.ys_table_name = "disk_table",
-	.ys_table_ops = &c2_conf_disk_table_ops,
+	.ys_table_ops = &c2_cfg_device_table_ops,
 	.ys_start_key = DISK_MAPPING_START_KEY,
 	.ys_section_type = C2_YAML_TYPE_MAPPING,
 	.ys_num_keys = ARRAY_SIZE(disk_section_keys),

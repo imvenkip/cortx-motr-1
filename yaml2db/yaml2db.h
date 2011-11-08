@@ -36,17 +36,67 @@
    for details on the design.
 
    A typical yaml conf file will look like the following.
+   (The combinations of entries are only for illustration, covering all
+    possible values. They may or may not be valid in reality.
+    @see c2_cfg_storage_device__val)
    @verbatim
     disks:
-      - label   : LABEL1
-        status  : ok
-        setting : use
-      - label   : LABEL2
-        status  : degraded
-        setting : ignore
-      - label   : LABEL3
-        status  : unresponsive
-        setting : decommission
+      - label     : LABEL1
+        interface : C2_CFG_DEVICE_INTERFACE_ATA
+	media     : C2_CFG_DEVICE_MEDIA_DISK
+	size      : 77631820
+	state     : 1
+	flags     : 0
+	filename  : /dev/sda
+	nodename  : n0
+      - label     : LABEL2
+        interface : C2_CFG_DEVICE_INTERFACE_SATA
+	media     : C2_CFG_DEVICE_MEDIA_SSD
+	size      : 281910680
+	state     : 0
+	flags     : 1
+	filename  : /dev/sda1
+	nodename  : n10
+      - label     : LABEL3
+        interface : C2_CFG_DEVICE_INTERFACE_SCSI
+	media     : C2_CFG_DEVICE_MEDIA_TAPE
+	size      : 124321
+	state     : 0
+	flags     : 2
+	filename  : /dev/pt0
+	nodename  : n100
+      - label     : LABEL4
+        interface : C2_CFG_DEVICE_INTERFACE_SATA2
+	media     : C2_CFG_DEVICE_MEDIA_ROM
+	size      : 98124321
+	state     : 0
+	flags     : 2
+	filename  : /dev/pcd0
+	nodename  : n200
+      - label     : LABEL5
+        interface : C2_CFG_DEVICE_INTERFACE_SCSI2
+	media     : C2_CFG_DEVICE_MEDIA_DISK
+	size      : 9860772073
+	state     : 1
+	flags     : 1
+	filename  : /dev/sda2
+	nodename  : n200
+      - label     : LABEL6
+        interface : C2_CFG_DEVICE_INTERFACE_SAS
+	media     : C2_CFG_DEVICE_MEDIA_DISK
+	size      : 68926892
+	state     : 0
+	flags     : 1
+	filename  : /dev/sda3
+	nodename  : n200
+      - label     : LABEL7
+        interface : C2_CFG_DEVICE_INTERFACE_SAS2
+	media     : C2_CFG_DEVICE_MEDIA_DISK
+	size      : 27232723
+	state     : 1
+	flags     : 0
+	filename  : /dev/sdb
+	nodename  : n100
    @endverbatim
 
    @{
@@ -67,7 +117,7 @@ enum c2_yaml2db_ctx_type {
 
 /**
   yaml2db structure
-*/
+ */
 struct c2_yaml2db_ctx {
 	/** YAML parser struct */
 	yaml_parser_t			 yc_parser;
@@ -122,7 +172,7 @@ struct c2_yaml2db_section_key {
 
 /**
   yaml2db section
-*/
+ */
 struct c2_yaml2db_section {
 	/** Name of the table in which this section is supposed to be stored */
 	const char			 *ys_table_name;
@@ -134,9 +184,36 @@ struct c2_yaml2db_section {
 	struct c2_yaml2db_section_key	 *ys_valid_keys;
 	/** Number of keys in the array */
 	size_t				  ys_num_keys;
-	/** Starting numeric value to be treated as database key for this
-	   section in the table */
-	int64_t				  ys_start_key;
+	/** String representing the key for the record in yaml file */
+	const char			 *ys_key_str;
+	/** section ops */
+	const struct c2_yaml2db_section_ops    *ys_ops;
+};
+
+/**
+  Section ops
+ */
+struct c2_yaml2db_section_ops {
+	/**
+	  Populate the key for the section.
+	  @param ysec - pointer to yaml2db section
+	  @param key - pointer to the in memory record key
+	  @param val_str - value string that has been parsed from the yaml file,
+	  to be used to populate the key structure entry
+	 */
+	int (*so_key_populate) (struct c2_yaml2db_section *ysec, void *key,
+			const char *val_str);
+	/**
+	  Populate the value for the section.
+	  @param ysec - pointer to yaml2db section
+	  @param key - pointer to the in memory record value
+	  @param key_str - key string that has been parsed from the yaml file,
+	  to be mapped against corresponding entry in the value structure. 
+	  @param val_str - value string that has been parsed from the yaml file,
+	  to be used to populate the value structure entry
+	 */
+	int (*so_val_populate) (struct c2_yaml2db_section *ysec, void *val,
+			const char *key_str, const char *val_str);
 };
 
 /**
@@ -145,7 +222,7 @@ struct c2_yaml2db_section {
   @param node - starting node of the sequence
   @param item - yaml_node_item_t pointer
   @param s_node - sequence node at index pointed by item
-*/
+ */
 #define c2_yaml2db_sequence_for_each(ctx, node, item, s_node) \
 	for (item = (node)->data.sequence.items.start; \
 	     item < (node)->data.sequence.items.top && \
@@ -174,31 +251,32 @@ struct c2_yaml2db_section {
   @param yctx - yaml2db context
   @retval 0 if success, -errno otherwise
  */
-int yaml2db_init(struct c2_yaml2db_ctx *yctx);
+int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx);
 
 /**
   Fini function, which finalizes the parser and finies the db
   @param yctx - yaml2db context
  */
-void yaml2db_fini(struct c2_yaml2db_ctx *yctx);
+void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx);
 
 /**
   Function to load the yaml document
   @param yctx - yaml2db context
   @retval 0 if successful, -errno otherwise
  */
-int yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
+int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
 
 /**
-  Function to parse the yaml document
+  Function to parse the yaml document and load its corresponding entries
+  into the database. Any existing entries are replaced.
   @param yctx - yaml2db context
   @param ysec - section context corrsponding to the given parameter
   @param conf_param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
-int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
-                      const struct c2_yaml2db_section *ysec,
-		      const char *conf_param);
+int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+			 struct c2_yaml2db_section *ysec,
+			 const char *conf_param);
 
 /**
   Function to emit the yaml document
@@ -207,9 +285,9 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
   @param conf_param - parameter for which configuration has to be emitted
   @retval 0 if successful, -errno otherwise
  */
-int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
-                      const struct c2_yaml2db_section *ysec,
-		      const char *conf_param);
+int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+			 const struct c2_yaml2db_section *ysec,
+			 const char *conf_param);
 
 /** @} end of yaml2db group */
 

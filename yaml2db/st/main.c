@@ -26,28 +26,33 @@
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/misc.h"
-#include "yaml2db/disk_conf_db.h"
 #include "yaml2db/yaml2db.h"
+#include "cfg/cfg.h"
 
 /* Constant names and paths */
 static const char *D_PATH = "./__config_db";
-static const char *disk_str = "disks";
+static const char *dev_str = "devices";
 
 enum {
 	DISK_MAPPING_START_KEY = 100,
 };
 
 /* Static declaration of disk section keys array */
-static struct c2_yaml2db_section_key disk_section_keys[] = {
-	[0] = {"label", true},
-	[1] = {"status", true},
-	[2] = {"setting", true},
+static struct c2_yaml2db_section_key dev_section_keys[] = {
+	[0] = {"label", true, 0},
+	[1] = {"interface", true, 1},
+	[2] = {"media", true, 2},
+	[3] = {"size", true, 3},
+	[4] = {"state", true, 4},
+	[5] = {"flags", true, 5},
+	[6] = {"filename", true, 6},
+	[7] = {"nodename", true, 7},
 };
 
 /* Static declaration of disk section table */
 static struct c2_yaml2db_section disk_section = {
 	.ys_table_name = "disk_table",
-	.ys_table_ops = &c2_conf_disk_table_ops,
+	.ys_table_ops = &c2_cfg_device_table_ops,
 	.ys_start_key = DISK_MAPPING_START_KEY,
 	.ys_section_type = C2_YAML_TYPE_MAPPING,
 	.ys_num_keys = ARRAY_SIZE(disk_section_keys),
