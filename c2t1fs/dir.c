@@ -164,7 +164,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	START();
 
-	TRACE("Name: \"%s\"", name);
+	TRACE("Name: \"%s\"\n", name);
 
 	ci = C2T1FS_I(dir);
 	for (i = 0; i < ci->ci_nr_dir_ents; i++) {
