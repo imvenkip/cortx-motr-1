@@ -2,6 +2,14 @@
 #
 # Print information about the branch
 #
+usage()
+{
+	echo "Usage: $(basename $0) [options]"
+	echo "Options:"
+	echo "    -h|--help       -- print this help message"
+	echo "    -c|--current    -- show information for current branch only"
+}
+
 print_branch_skew()
 {
 	#
@@ -12,31 +20,34 @@ print_branch_skew()
 	#
 	# Determine how ahead is master
 	#
-	commit_lag=`git rev-list ${1} origin/master ^${1} | wc -l`
+	commit_lag=`git rev-list ${1}..origin/master | wc -l`
 
 	#
 	# Check last merge date to/from master
 	#
-	last_merge=`git log --merges --pretty=short --format="%H %ai" $(git merge-base ${1} origin/master)..${1}| head -1 |  awk '{print $2}'`
+	last_merge=`git log -1 --merges --pretty=short --format="%H %ai" origin/master..${1} |  awk '{print $2}'`
+
+	comment=''
 
 	if [ "$last_merge" == "" ]; then
 		#
-		# If there are no merges, check the branch creation date
+		# If there are no merges, check the date of the first commit in branch which is not included in master
 		#
-		last_merge=`git log --pretty=short --format="%H %ai" $(git merge-base ${1} origin/master)..${1} | tail -1 | awk '{ print $2}'`
-	fi
+		last_merge=`git log --pretty=short --format="%H %ai" origin/master..${1} | tail -1 | awk '{ print $2}'`
 
-	if [ "$last_merge" == "" ]; then
-		#
-		# If no date info is available, this branch is not off of master
-		#
-		last_merge="Not-a-branch-of-master?"
+		if [ "$last_merge" == "" ]; then
+			#
+			# It means that branch doesn't have any specific commits and fully merged into master
+			#
+			last_merge=`git log -1 --pretty=short --format="%H %ai" ${1} | awk '{ print $2}'`
+			comment="(in master)"
+		fi
 	fi
 
 	#
 	# Print branch information.
 	#
-	printf "%-30s\t%6d\t\t%s\n" $name $commit_lag $last_merge
+	printf "%-30s\t%6d\t\t%s %s\n" $name $commit_lag $last_merge "$comment"
 }
 
 
@@ -44,18 +55,29 @@ print_branch_skew()
 # Main
 ###########
 
+current_branch_only=false
+
+case $1 in
+	-h|--help) usage; exit 1 ;;
+	-c|--current) current_branch_only=true ;;
+esac
+
 #
 # Check if the CWD is a work dir for a git repository.
 #
-if [ ! -d .git ]; then
+if ! git rev-parse --git-dir &> /dev/null ; then
 	echo "This is not a working dir for git repository"
 	exit 1
 fi
 
 #
-# Get list of all branches
+# Get list of branches
 #
-branch_list=`git branch -a | grep remotes | grep -v master`
+if $current_branch_only; then
+	branch_list=`git name-rev --name-only HEAD`
+else
+	branch_list=`git branch -r | grep -v master`
+fi
 printf "Branch Name \t Commits behind master \t    Last merge (or branch) date\n"
 
 #
