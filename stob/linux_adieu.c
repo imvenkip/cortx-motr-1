@@ -119,7 +119,7 @@ struct linux_stob_io {
 };
 
 static struct ioq_qev *ioq_queue_get   (struct linux_domain *ldom);
-static void            ioq_queue_put   (struct linux_domain *ldom, 
+static void            ioq_queue_put   (struct linux_domain *ldom,
 					struct ioq_qev *qev);
 static void            ioq_queue_submit(struct linux_domain *ldom);
 static void            ioq_queue_lock  (struct linux_domain *ldom);
@@ -142,7 +142,7 @@ enum {
 	 * instead (see below), because they take into account
 	 * linux_domain.use_directio flag which is set in runtime.
 	 */
-	LINUX_BSHIFT = 9, /* pow(2, 9) == 512 */
+	LINUX_BSHIFT = 12, /* pow(2, 12) == 4096 */
 	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
 	LINUX_BMASK  = LINUX_BSIZE - 1
 };
@@ -265,13 +265,13 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			frag_size = min_check(c2_vec_cursor_step(&src),
 					      c2_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
-				ADDB_CALL(io->si_obj, "frag_overflow", 
+				ADDB_CALL(io->si_obj, "frag_overflow",
 					  frag_size);
 				result = -EOVERFLOW;
 				break;
 			}
 
-			buf = io->si_user.div_vec.ov_buf[src.vc_seg] + 
+			buf = io->si_user.div_vec.ov_buf[src.vc_seg] +
 				src.vc_offset;
 			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
 
@@ -372,9 +372,9 @@ static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)
 }
 
 /**
-   Adds an element to the admission queue. 
+   Adds an element to the admission queue.
  */
-static void ioq_queue_put(struct linux_domain *ldom, 
+static void ioq_queue_put(struct linux_domain *ldom,
 			  struct ioq_qev *qev)
 {
 	C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
@@ -411,7 +411,7 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 
 	do {
 		ioq_queue_lock(ldom);
-		got = min32(ldom->ioq_queued, 
+		got = min32(ldom->ioq_queued,
 			    min32(ldom->ioq_avail, ARRAY_SIZE(evin)));
 		for (i = 0; i < got; ++i) {
 			qev[i] = ioq_queue_get(ldom);
@@ -448,16 +448,14 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 {
 	struct c2_stob_io    *io;
 	struct linux_stob_io *lio;
-	struct linux_stob    *lstob;
 	bool done;
 	int  i;
 
 	C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
 	C2_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
 
-	io    = qev->iq_io;
-	lio   = io->si_stob_private;
-	lstob = stob2linux(io->si_obj);
+	io  = qev->iq_io;
+	lio = io->si_stob_private;
 
 	C2_ASSERT(io->si_state == SIS_BUSY);
 
@@ -469,7 +467,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 			res = -EIO;
 		} else
 			qev->iq_io->si_count += res >> LINUX_DOM_BSHIFT(ldom);
-	} 
+	}
 
 	if (res < 0 && qev->iq_io->si_rc == 0)
 		qev->iq_io->si_rc = res;

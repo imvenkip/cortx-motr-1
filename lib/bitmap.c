@@ -20,7 +20,6 @@
 
 #include "lib/bitmap.h"
 #include "lib/misc.h"   /* C2_SET0 */
-#include "lib/arith.h"  /* C2_IS_PO2 */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"

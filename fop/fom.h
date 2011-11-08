@@ -51,6 +51,8 @@
 #include "lib/bitmap.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"
+#include "lib/atomic.h"
+
 #include "fol/fol.h"
 #include "stob/stob.h"
 
@@ -158,6 +160,8 @@ struct c2_fom_domain {
 	struct c2_fom_locality		*fd_localities;
 	/** Number of localities in the domain. */
 	size_t				 fd_localities_nr;
+	/** Number of foms under execution in this fom domain. */
+	struct c2_atomic64               fd_foms_nr;
 	/** Domain operations. */
 	const struct c2_fom_domain_ops	*fd_ops;
 	/** Request handler this domain belongs to */
@@ -317,6 +321,8 @@ struct c2_fom {
 
 /**
    Queues a fom for the execution in a locality runq.
+   Increments the number of foms in execution (c2_fom_domain::fd_foms_nr)
+   in fom domain atomically.
    The fom is placed in the locality run-queue and scheduled for the execution.
    Possible errors are reported through fom state and phase, hence the return
    type is void.
@@ -341,6 +347,8 @@ void c2_fom_init(struct c2_fom *fom);
 /**
    Finalises a fom after it completes its execution,
    i.e success or failure.
+   Also decrements the number of foms under execution in fom domain
+   atomically.
 
    @param fom, A fom to be finalised
    @pre fom->fo_phase == FOPH_FINISH

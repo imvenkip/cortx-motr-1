@@ -110,7 +110,7 @@ struct fop_session_establish_ctx
 	struct c2_rpc_session *sec_session;
 };
 
-extern int frm_item_ready(struct c2_rpc_item *item);
+extern void frm_item_ready(struct c2_rpc_item *item);
 extern void frm_slot_idle(struct c2_rpc_slot *slot);
 
 /**
@@ -419,9 +419,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 
 	fop = &ctx->sec_fop;
 
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
-
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
@@ -468,6 +465,57 @@ out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_establish);
+
+int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
+				  uint32_t timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_session_establish(session);
+	if (rc != 0)
+		return rc;
+
+	/* Wait for session to become idle */
+	rc = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE | C2_RPC_SESSION_FAILED,
+				      c2_time_from_now(timeout_sec, 0));
+	if (rc != 0) {
+		switch (session->s_state) {
+		case C2_RPC_SESSION_IDLE:
+			rc = 0;
+			break;
+		case C2_RPC_SESSION_FAILED:
+			rc = -ECONNREFUSED;
+			break;
+		default:
+			C2_ASSERT("internal logic error in "
+				  "c2_rpc_session_timedwait()" == 0);
+		}
+	} else {
+		rc = -ETIMEDOUT;
+	}
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_session_establish_sync);
+
+int c2_rpc_session_create(struct c2_rpc_session *session,
+			  struct c2_rpc_conn    *conn,
+			  uint32_t               nr_slots,
+			  uint32_t               timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_session_init(session, conn, nr_slots);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_rpc_session_establish_sync(session, timeout_sec);
+	if (rc != 0)
+		c2_rpc_session_fini(session);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_session_create);
 
 /**
    Moves session to FAILED state and take it out of conn->c_sessions list.
@@ -634,8 +682,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		session_failed(session, rc);
 		goto out;
 	}
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	conn = session->s_conn;
 
@@ -669,6 +715,58 @@ out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate);
+
+int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
+				  uint32_t timeout_sec)
+{
+	int rc;
+
+	/* Wait for session to become IDLE */
+	c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE,
+				 c2_time_from_now(timeout_sec, 0));
+
+	/* Terminate session */
+	rc = c2_rpc_session_terminate(session);
+	if (rc != 0)
+		return rc;
+
+	/* Wait for session to become TERMINATED */
+	rc = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
+				      C2_RPC_SESSION_FAILED,
+				      c2_time_from_now(timeout_sec, 0));
+	if (rc != 0) {
+		switch (session->s_state) {
+		case C2_RPC_SESSION_TERMINATED:
+			rc = 0;
+			break;
+		case C2_RPC_SESSION_FAILED:
+			rc = -ECONNREFUSED;
+			break;
+		default:
+			C2_ASSERT("internal logic error in "
+				  "c2_rpc_session_timedwait()" == 0);
+		}
+	} else {
+		rc = -ETIMEDOUT;
+	}
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_session_terminate_sync);
+
+int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_session_terminate_sync(session, timeout_sec);
+	if (rc != 0)
+		return rc;
+
+	c2_rpc_session_fini(session);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_session_destroy);
 
 void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 					     struct c2_rpc_item *reply,

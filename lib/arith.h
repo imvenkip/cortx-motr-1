@@ -96,8 +96,12 @@ static inline uint64_t max64u(uint64_t a, uint64_t b)
 	__a > __b ? __a : __b;			\
 })
 
+#ifndef min3
 #define min3(a, b, c) (min_check((a), min_check((b), (c))))
+#endif
+#ifndef max3
 #define max3(a, b, c) (max_check((a), max_check((b), (c))))
+#endif
 
 /**
    Compares two 64bit numbers "modulo overflow".
@@ -200,7 +204,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 /* __COLIBRI_LIB_ARITH_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

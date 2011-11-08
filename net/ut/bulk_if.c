@@ -521,6 +521,7 @@ static void test_net_bulk_if(void)
 	c2_net_desc_free(&d2);
 	C2_UT_ASSERT(d2.nbd_data == NULL);
 	C2_UT_ASSERT(d2.nbd_len == 0);
+	c2_net_desc_free(&d1);
 
 	/* initialize the domain */
 	C2_UT_ASSERT(ut_dom_init_called == false);
@@ -777,6 +778,7 @@ static void test_net_bulk_if(void)
 	nb = &nbs[C2_NET_QT_PASSIVE_BULK_SEND];
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
+	c2_net_desc_free(&nb->nb_desc);
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == 0);
 	num_adds[nb->nb_qtype]++;
@@ -877,14 +879,17 @@ static void test_net_bulk_if(void)
 	/* TM fini releases final end point */
 	C2_UT_ASSERT(ut_last_ep_released == ep2);
 
-	/* de-register buffers */
+	/* de-register and free buffers */
 	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		ut_buf_deregister_called = false;
+		c2_net_desc_free(&nb->nb_desc);
 		c2_net_buffer_deregister(nb, dom);
 		C2_UT_ASSERT(ut_buf_deregister_called);
 		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_REGISTERED));
+		c2_bufvec_free(&nb->nb_buffer);
 	}
+	c2_free(nbs);
 
 	/* fini the domain */
 	C2_UT_ASSERT(ut_dom_fini_called == false);

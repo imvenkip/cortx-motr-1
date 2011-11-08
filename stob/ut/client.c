@@ -146,12 +146,10 @@ static void quit_send(struct c2_net_conn *conn)
 {
 	struct c2_fop              *f;
 	struct c2_fop              *r;
-	struct c2_io_quit *fop;
 	struct c2_io_quit *rep;
 	int result;
 
 	f = c2_fop_alloc(&c2_io_quit_fopt, NULL);
-	fop = c2_fop_data(f);
 	r = c2_fop_alloc(&c2_io_quit_fopt, NULL);
 	rep = c2_fop_data(r);
 
