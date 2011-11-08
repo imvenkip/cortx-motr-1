@@ -193,7 +193,7 @@ static int c2t1fs_inode_read(struct inode *inode)
 		inode->i_fop  = &c2t1fs_reg_file_operations;
 	} else if (S_ISDIR(inode->i_mode)) {
 		inode->i_op   = &c2t1fs_dir_inode_operations;
-		inode->i_fop  = &simple_dir_operations;
+		inode->i_fop  = &c2t1fs_dir_file_operations;
 		inc_nlink(inode);
 	} else {
 		rc = -ENOSYS;

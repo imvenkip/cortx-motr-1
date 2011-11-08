@@ -126,7 +126,9 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	de->de_name[namelen] = '\0';
 	de->de_fid = fid;
 
-	TRACE("de_name: %s\n", de->de_name);
+	TRACE("Added name: %s[%lu:%lu]\n", de->de_name,
+					   (unsigned long)fid.f_container,
+					   (unsigned long)fid.f_key);
 
 	mark_inode_dirty(dir);
 	rc = 0;
@@ -160,6 +162,10 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 	struct c2t1fs_dir_ent *de = NULL;
 	int                    i;
 
+	START();
+
+	TRACE("Name: \"%s\"", name);
+
 	ci = C2T1FS_I(dir);
 	for (i = 0; i < ci->ci_nr_dir_ents; i++) {
 		de = &ci->ci_dir_ents[i];
@@ -187,6 +193,9 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
+	/* XXX This is unsafe. d_name.name is not a '\0' terminated string */
+	TRACE("Name: \"%s\"\n", dentry->d_name.name);
+
 	de = c2t1fs_dir_ent_find(dir, dentry->d_name.name, dentry->d_name.len);
 	if (de != NULL) {
 		inode = c2t1fs_iget(dir->i_sb, &de->de_fid);
@@ -199,4 +208,66 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 	d_add(dentry, inode);
 	END(NULL);
 	return NULL;
+}
+
+static int c2t1fs_readdir(struct file *f,
+			  void        *dirent,
+			  filldir_t    filldir)
+{
+	struct dentry       *dentry;
+	struct inode        *dir;
+	struct c2t1fs_inode *ci;
+	ino_t                ino;
+	int                  i;
+	int                  j;
+	int                  rc;
+
+	START();
+
+	dentry = f->f_path.dentry;
+	dir    = dentry->d_inode;
+	ci     = C2T1FS_I(dir);
+	i      = f->f_pos;
+
+	switch (i) {
+	case 0:
+		ino = dir->i_ino;
+		if (filldir(dirent, ".", 1, i, ino, DT_DIR) < 0)
+			break;
+		TRACE("filled: \".\"\n");
+		f->f_pos++;
+		i++;
+		/* Fallthrough */
+	case 1:
+		ino = parent_ino(dentry);
+		if (filldir(dirent, "..", 2, i, ino, DT_DIR) < 0)
+			break;
+		TRACE("filled: \"..\"\n");
+		f->f_pos++;
+		i++;
+		/* Fallthrough */
+	default:
+		j = i - 2;
+		while (j < ci->ci_nr_dir_ents) {
+			struct c2t1fs_dir_ent *de;
+			char                  *name;
+			int                    namelen;
+
+			de      = &ci->ci_dir_ents[j];
+			name    = de->de_name;
+			namelen = strlen(name);
+
+			rc = filldir(dirent, name, namelen, f->f_pos,
+					i, DT_REG);
+			if (rc < 0)
+				goto out;
+			TRACE("filled: \"%s\"\n", name);
+
+			j++;
+			f->f_pos++;
+		}
+	}
+out:
+	END(0);
+	return 0;
 }
