@@ -33,22 +33,10 @@
 #include "lib/semaphore.h"
 
 /**
-   Kernel domain private data.
-   This structure is pointed to by c2_lnet_core_domain::lcd_kpvt.
-*/
-struct c2_klnet_core_domain {
-	/** Boolean indicating if the application is running in user space. */
-	bool  klcd_user_space_app;
-};
-
-/**
    Kernel transfer machine private data.
    This structure is pointed to by c2_lnet_core_transfer_mc::lctm_kpvt.
 */
 struct c2_klnet_core_transfer_mc {
-	/** Kernel pointer to the shared memory DOM structure */
-	struct c2_lnet_core_domain *klctm_dom;
-
 	/**
 	   Semaphore to count the number of events in the queue.
 	*/
@@ -68,27 +56,16 @@ struct c2_klnet_core_buffer {
 	   Kernel pointer to the shared memory TM structure with the TM buffer
 	   event queue.
 	 */
-	struct c2_lnet_core_transfer_mc *klcb_tm;
-
-	/**
-	   The event array (receive buffers only) implemented using
-	   a circular buffer as it can then be easily shared between the
-	   single kernel producer and single user/kernel space consumer.
-	   Each entry contains a struct c2_lnet_core_buffer_event data
-	   structure.
-	   The number of entries in the array are lcb_max_recv_msgs.
-	   The buffer may be in user space.
-	*/
-	struct c2_cqueue                *klcb_events;
+	struct c2_lnet_core_transfer_mc  *klcb_tm;
 
 	/** The I/O vector. */
-	struct lnet_kiov_t               klcb_kiov;
+	struct lnet_kiov_t                klcb_kiov;
 
 	/** ME handle */
-	lnet_handle_me_t                 klcb_meh;
+	lnet_handle_me_t                  klcb_meh;
 
 	/** MD handle */
-	lnet_handle_md_t                 klcb_mdh;
+	lnet_handle_md_t                  klcb_mdh;
 };
 
 /**

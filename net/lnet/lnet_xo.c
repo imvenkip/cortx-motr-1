@@ -139,6 +139,9 @@
    written in an address space agnostic fashion, as it offers the same
    interface in both user and kernel space.
 
+   The relationship between the various components of the LNet transport and
+   the networking layer is illustrated in the following UML diagram.
+   @image html "../../net/lnet/lnet_xo.png" "LNet Transport Component Relationships"
 
    @subsection LNetDLD-lspec-state State Specification
    <i>Mandatory.

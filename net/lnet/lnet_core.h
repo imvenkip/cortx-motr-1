@@ -48,18 +48,23 @@
    @see @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
 
    @section LNetCoreDLD-fspec-ds API Data Structures
-   The API requires that the transport application maintain API defined data
-   for domain, transfer machine and buffer objects:
-   - c2_lnet_core_buffer
+   The API requires that the transport application maintain API defined shared
+   data for various network related objects:
    - c2_lnet_core_domain
    - c2_lnet_core_transfer_mc
+   - c2_lnet_core_buffer
+
+   The sharing is defined as taking place between the transport layer and the
+   core layer.  This will span the kernel and user address space boundary when
+   using the user space transport.
 
    These data structures should be embedded in the transport application's own
    private data.  This requirement results in initialization calls that require
    a pointer to the standard network layer data structure concerned and a
-   pointer to the API's data structure.  Note that the c2_lnet_core_buffer
-   structure is a variable length structure, and should be embedded at the end
-   of the transport's private structure.
+   pointer to the API's data structure.  Note that these data structures are of
+   variable length, and should be embedded at the end of the transport's
+   private structure.  By implication, their presence makes the associated
+   transport private data structures variable length.
 
    Subsequent calls to the API only pass the API data structure pointer.  The
    API data must be eventually finalized.
@@ -97,6 +102,7 @@
  */
 
 #include "net/lnet.h"
+#include "lib/cqueue.h"
 
 /* forward references */
 struct c2_lnet_core_buffer;
@@ -148,24 +154,67 @@ struct c2_lnet_core_buffer_event {
 };
 
 /**
-   Core domain data.
-   The transport layer should embed this anywhere in its private data.
+   Core domain data.  The transport layer should embed this at the
+   <b>very end</b> of its private data.
  */
 struct c2_lnet_core_domain {
-	void *lcd_upvt; /**< Core user space private */
-	void *lcd_kpvt; /**< Core kernel space private */
+	/* place holder */
 };
 
 /**
-   Core transfer machine data.
-   The transport layer should embed this anywhere in its private data.
-*/
+   Opaque type wide enough to represent a buffer address in the transport
+   address space.  It is not subject to interpretation in any other
+   address space.
+ */
+typedef uint64_t c2_lnet_core_net_buffer_id_t;
+C2_BASSERT(sizeof(c2_lnet_core_net_buffer_id) == sizeof(struct c2_net_buffer *));
+
+static inline c2_lnet_core_net_buffer_id_t
+c2_lnet_core_net_buffer_ptr_to_id(struct c2_net_buffer *nb) {
+	return (c2_lnet_core_net_buffer_id_t) nb;
+}
+
+static inline struct c2_net_buffer *
+c2_lnet_core_net_buffer_id_to_ptr(c2_lnet_core_net_buffer_id_t nbid) {
+	return (struct c2_net_buffer *) nbid;
+}
+
+/**
+   Core transfer machine data.  The transport layer should embed this at the
+   <b>very end</b> of its private data.  The size is determined at run time.
+  */
 struct c2_lnet_core_transfer_mc {
 	/** The transfer machine address */
 	struct c2_lnet_ep_addr  lctm_addr;
 
+	/** Boolean indicating if the transport is running in user space. */
+	bool                    lctm_user_space_xo;
+
 	void                   *lctm_upvt; /**< Core user space private */
 	void                   *lctm_kpvt; /**< Core kernel space private */
+
+	/**
+	   Every transfer machine has a circular queue indicating which buffers
+	   have pending events.  The queue is maintained in memory shared
+	   between the transport and the core layers.
+	 */
+	struct c2_cqueue        lctm_cq;
+
+	/**
+	   The indicies of the lctm_cq circular queue dereference this array.
+	   The buffers with pending events are identified by their address
+	   space agnostic buffer identifier copied from the
+	   c2_lnet_core_buffer::lcb_nbid field.
+
+	   The data structure defines space for 1 buffer identifier using an
+	   array with one element. Space for additonal buffer identifiers in
+	   the array should be allocated at run time using additional
+	   contiguous memory.
+
+	   @note The valgrind utility may complain about dereferencing beyond
+	   the array size.
+	 */
+	c2_lnet_core_net_buffer_id_t lctm_nbids[1];
 };
 
 /**
@@ -177,12 +226,14 @@ struct c2_lnet_core_buffer {
 	/**
 	   Identifier to use for the buffer in the circular buffer event queue.
 	   It should be set to the address of the c2_lnet_core_buffer in the
-	   application address space.
+	   transport address space.
 	*/
-	uint64_t              lcb_buffer_id;
+	c2_lnet_core_net_buffer_id_t lcb_nbid;
 
 	/**
 	   The match bits for the buffer, including the TMID field.
+	   This may be modified every time an operation is performed on
+	   a buffer.
 	 */
 	uint64_t              lcb_match_bits;
 

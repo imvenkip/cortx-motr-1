@@ -28,6 +28,7 @@
    - @ref KLNetCoreDLD-depends
    - @ref KLNetCoreDLD-highlights
    - @subpage LNetCoreDLD-fspec "Functional Specification" <!-- ext link -->
+        - @ref LNetCore "LNet Transport Core Interface"
         - @ref KLNetCore "Core Kernel Interface"      <!-- ext link -->
         - @ref ULNetCore "Core User Space Interface"  <!-- ext link -->
    - @ref KLNetCoreDLD-lspec
@@ -148,6 +149,10 @@
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
+   The relationship between the various components of the LNet transport and
+   the networking layer is illustrated in the following UML diagram.
+   @image html "../../net/lnet/lnet_xo.png" "LNet Transport Component Relationships"
+
    The Core layer in the kernel has no sub-components.
 
    @subsection KLNetCoreDLD-lspec-userspace Support for User Space Transports
@@ -190,7 +195,7 @@
       c2_lnet_core_buffer::lcb_ev[0].
    -# Copy the event payload from the LNet event to the event payload structure
       in the buffer.
-   -# Put the buffer identifier, c2_lnet_core_buffer::lcb_buffer_id, into the
+   -# Put the buffer identifier, c2_lnet_core_buffer::lcb_nbid, into the
       next event slot of the circular event queue anchored in the core transfer
       machine structure.  This buffer identifier is the address of the buffer
       in the address space of the transport (it could be a user space address).
