@@ -436,6 +436,9 @@ static void test_iter_sensitivity(void)
 	C2_UT_ASSERT(rc == -ENOENT);
 	C2_UT_ASSERT(cfm_iter.cfmi_error == -ENOENT);
 
+	/* Close iterator */
+	c2_cobfid_map_iter_fini(&cfm_iter);
+
 	c2_cobfid_map_fini(&cfm_map);
 	c2_dbenv_fini(&cfm_dbenv);
 
