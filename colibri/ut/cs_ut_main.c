@@ -594,16 +594,16 @@ const struct c2_test_suite colibri_setup_ut = {
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-                { "Single service", test_cs_ut_service_one},
-		{ "Multiple services", test_cs_ut_services_many},
-		{ "Multiple Request handlers", test_cs_ut_reqhs_many},
-		{ "Command options jumbled", test_cs_ut_opts_jumbled},
-                { "Missing reqh option", test_cs_ut_reqh_none},
-		{ "Bad storage type", test_cs_ut_stype_bad},
-		{ "Bad network xprt", test_cs_ut_xprt_bad},
-		{ "Bad network ep", test_cs_ut_ep_bad},
-		{ "Bad service", test_cs_ut_service_bad},
-		{ "Missing options", test_cs_ut_args_bad},
+                { "single service", test_cs_ut_service_one},
+		{ "multiple services", test_cs_ut_services_many},
+		{ "multiple Request handlers", test_cs_ut_reqhs_many},
+		{ "command options jumbled", test_cs_ut_opts_jumbled},
+                { "missing reqh option", test_cs_ut_reqh_none},
+		{ "bad storage type", test_cs_ut_stype_bad},
+		{ "bad network xprt", test_cs_ut_xprt_bad},
+		{ "bad network ep", test_cs_ut_ep_bad},
+		{ "bad service", test_cs_ut_service_bad},
+		{ "missing options", test_cs_ut_args_bad},
                 { NULL, NULL }
         }
 };
