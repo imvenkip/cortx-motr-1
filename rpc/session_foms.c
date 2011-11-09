@@ -132,6 +132,8 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep,
 				  ctx->cec_rpcmachine,
 				  &item->ri_slot_refs[0].sr_uuid);
+	/* we won't need ctx->cec_sender_ep after this point */
+	c2_net_end_point_put(ctx->cec_sender_ep);
 	if (rc != 0)
 		goto out_free;
 
