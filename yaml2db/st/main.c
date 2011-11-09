@@ -45,6 +45,7 @@ static struct c2_yaml2db_section_key dev_section_keys[] = {
 	[7] = {"nodename", true},
 };
 
+/* Section op to populate the device key */
 void device_key_populate(void *key, const char *val_str)
 {
 	struct c2_cfg_storage_device__key *dev_key = key;
@@ -52,6 +53,7 @@ void device_key_populate(void *key, const char *val_str)
 	strcpy (dev_key->csd_uuid.cu_uuid, val_str);
 }
 
+/* Section op to populate the device value*/
 void device_val_populate (struct c2_yaml2db_section *ysec, void *val,
 			 const char *key_str, const char *val_str)
 {
@@ -107,6 +109,7 @@ void device_val_populate (struct c2_yaml2db_section *ysec, void *val,
 	}
 }
 
+/* yaml2db section op to dump the key-value data to a file */
 void device_key_val_dump(FILE *fp, void *key, void *val)
 {
 	struct c2_cfg_storage_device__key *dev_key = key;
@@ -116,7 +119,7 @@ void device_key_val_dump(FILE *fp, void *key, void *val)
 	C2_PRE(key != NULL);
 	C2_PRE(val != NULL);
 
-	fprintf(fp, "Key = %s \t Value = %u:%u:%lu:%lu:%lu:%s:%s\n",
+	fprintf(fp, "%s \t %u:%u:%lu:%lu:%lu:%s:%s\n",
 		dev_key->csd_uuid.cu_uuid,
 		dev_val->csd_type, dev_val->csd_media, dev_val->csd_size,
 		dev_val->csd_last_state, dev_val->csd_flags,
@@ -141,24 +144,40 @@ static struct c2_yaml2db_section dev_section = {
 	.ys_ops = &dev_section_ops,
 };
 
-static char *label_fields[]= { "LABEL1","LABEL2","LABEL3"};
+static char *interface_fields[] = {
+	"C2_CFG_DEVICE_INTERFACE_ATA",
+	"C2_CFG_DEVICE_INTERFACE_SATA",
+	"C2_CFG_DEVICE_INTERFACE_SCSI",
+	"C2_CFG_DEVICE_INTERFACE_SATA2",
+	"C2_CFG_DEVICE_INTERFACE_SCSI2",
+	"C2_CFG_DEVICE_INTERFACE_SAS",
+	"C2_CFG_DEVICE_INTERFACE_SAS2"
+};
 
-static char *status_fields[] = {"ok","degraded","unresponsive"};
-
-static char *setting_fields[] = {"use","ignore","decommission"};
+static char *media_fields[] = {
+	"C2_CFG_DEVICE_MEDIA_DISK",
+	"C2_CFG_DEVICE_MEDIA_SSD",
+	"C2_CFG_DEVICE_MEDIA_TAPE",
+	"C2_CFG_DEVICE_MEDIA_ROM",
+};
 
 /* Default number of records to be generated */
 enum {
 	REC_NR = 1,
 };
 
+/* Max string size */
+enum {
+	STR_SIZE_NR = 40,
+};
+
 /* Generate a configuration file */
 int generate_conf_file(const char *c_name, int rec_nr)
 {
-	FILE *fp;
-	int   cnt;
-	int   index;
-	char *str;
+	FILE	*fp;
+	int	 cnt;
+	int	 index;
+	char	 str[STR_SIZE_NR];
 
 	C2_PRE(c_name != NULL);
 
@@ -175,17 +194,26 @@ int generate_conf_file(const char *c_name, int rec_nr)
 	for (cnt = 0; cnt < rec_nr; ++cnt) {
 		fprintf(fp,"  -");
 
-		index = rand() % ARRAY_SIZE(label_fields);
-		str = label_fields[index];
+		sprintf(str, "LABEL%05d", cnt);
 		fprintf(fp," %s : %s\n", dev_section_keys[0].ysk_key,str);
 
-		index = rand() % ARRAY_SIZE(status_fields);
-		str = status_fields[index];
+		index = rand() % ARRAY_SIZE(interface_fields);
+		strcpy(str, interface_fields[index]);
 		fprintf(fp,"    %s : %s\n", dev_section_keys[1].ysk_key,str);
 
-		index = rand() % ARRAY_SIZE(setting_fields);
-		str = setting_fields[index];
+		index = rand() % ARRAY_SIZE(media_fields);
+		strcpy(str, media_fields[index]);
 		fprintf(fp,"    %s : %s\n", dev_section_keys[2].ysk_key,str);
+
+		fprintf(fp,"    %s : %d\n", dev_section_keys[3].ysk_key,rand());
+		fprintf(fp,"    %s : %d\n", dev_section_keys[4].ysk_key,
+			rand() % 2);
+		fprintf(fp,"    %s : %d\n", dev_section_keys[5].ysk_key,
+			rand() % 3);
+		sprintf(str, "/dev/sda%d", cnt);
+		fprintf(fp,"    %s : %s\n", dev_section_keys[6].ysk_key,str);
+		sprintf(str, "n%d", cnt);
+		fprintf(fp,"    %s : %s\n", dev_section_keys[7].ysk_key,str);
 	}
 	fclose(fp);
 

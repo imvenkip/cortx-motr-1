@@ -47,4 +47,4 @@ rm -rf $PARSE_FILE $EMIT_FILE $INPUT_FILE
 
 sleep 30
 
-rm -rf $DB_PATH
+rm -rf $DB_PATH*
