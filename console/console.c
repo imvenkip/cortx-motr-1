@@ -128,7 +128,6 @@ static int c2_cons_rpc_init_common(struct c2_console *cons)
 
         snprintf(cons->cons_laddr, ADDR_LEN, "%s:%u:%d", hostbuf,
 		 cons->cons_lport, cons->cons_rid);
-        printf("Console Address = %s\n",cons->cons_laddr);
 
         /* Resolve server host name */
         rc = canon_host(cons->cons_rhost, hostbuf, sizeof(hostbuf));
@@ -139,7 +138,6 @@ static int c2_cons_rpc_init_common(struct c2_console *cons)
 
         snprintf(cons->cons_raddr, ADDR_LEN, "%s:%u:%d", hostbuf,
 		 cons->cons_rport, cons->cons_rid);
-        printf("Server Address = %s\n",cons->cons_raddr);
 
         /* Init Bulk sunrpc transport */
         rc = c2_net_xprt_init(cons->cons_xprt);
