@@ -36,7 +36,16 @@
    @{
  */
 
+/**
+   Global list of service types.
+   Holds struct c2_reqh_service_type instances linked via
+   c2_reqh_service_type::rst_linkage.
+
+   @see struct c2_reqh_service_type
+ */
 struct c2_tl c2_rstypes;
+
+/** Protects access to list c2_rstypes. */
 struct c2_mutex c2_rstypes_mutex;
 
 const struct c2_tl_descr c2_rstypes_descr = C2_TL_DESCR("reqh service types",
