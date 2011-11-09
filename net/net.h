@@ -28,6 +28,7 @@
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/queue.h"
 #include "lib/refs.h"
 #include "lib/chan.h"
@@ -107,6 +108,11 @@ int c2_net_init(void);
  release all allocated resources
  */
 void c2_net_fini(void);
+
+enum {
+	/* Hex value for "netmagic" */
+	C2_NET_MAGIC = 0x6E65746D61676963
+};
 
 /** Network transport (e.g., lnet or sunrpc) */
 struct c2_net_xprt {
@@ -414,6 +420,12 @@ struct c2_net_domain {
 	   ADDB context for events related to this domain
 	 */
 	struct c2_addb_ctx  nd_addb;
+
+        /** Linkage for invoking application */
+        struct c2_tlink     nd_app_linkage;
+
+	/** Network magic */
+	uint64_t            nd_magic;
 };
 
 /**

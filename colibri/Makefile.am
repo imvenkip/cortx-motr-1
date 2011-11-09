@@ -1,7 +1,12 @@
 SUBDIRS                   = .
 
+bin_PROGRAMS              = colibri_setup
+colibri_setup_SOURCES     = cs_main.c colibri_setup.c colibri_setup.h
+colibri_setup_LDADD       = $(top_builddir)/colibri/libcolibri.la
+colibri_setup_CFLAGS      = $(AM_CFLAGS)
+
 lib_LTLIBRARIES           = libcolibri.la
-libcolibri_la_SOURCES     = init.h init.c
+libcolibri_la_SOURCES     = init.h init.c colibri_setup.c colibri_setup.h
 libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread
 libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @CUNIT_LIBS@ \
                             -lm -lncurses \
@@ -9,6 +14,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/balloc/libcolibri-balloc.la \
                             $(top_builddir)/capa/libcolibri-capa.la \
                             $(top_builddir)/cob/libcolibri-cob.la \
+                            $(top_builddir)/console/libcolibri-console.la \
                             $(top_builddir)/db/libcolibri-db.la \
                             $(top_builddir)/desim/libcolibri-desim.la \
                             $(top_builddir)/dtm/libcolibri-dtm.la \
@@ -31,5 +37,5 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
                             $(top_builddir)/rpc/libcolibri-rpc.la \
                             $(top_builddir)/xcode/libcolibri-xcode.la \
-                            $(top_builddir)/xdr/libcolibri-xdr.la
-
+                            $(top_builddir)/xdr/libcolibri-xdr.la \
+			    $(top_builddir)/../yaml/src/libyaml.la

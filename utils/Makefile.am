@@ -10,6 +10,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/lib/ut/libc2-ut.la $(libstob_ut) \
                $(top_builddir)/cob/ut/libcob-ut.la     \
                $(top_builddir)/db/ut/libdb-ut.la     \
+               $(top_builddir)/console/ut/libconsole-ut.la     \
                $(top_builddir)/fol/ut/libfol-ut.la   \
                $(top_builddir)/fop/ut/libfop-ut.la   \
                $(top_builddir)/sns/ut/libparity-ut.la \
@@ -21,7 +22,9 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/xcode/ut/libxcode-ut.la \
 	       $(top_builddir)/xdr/ut/libxdr-ut.la  \
 	       $(top_builddir)/reqh/ut/libreqh-ut.la \
-	       $(top_builddir)/rpc/ut/librpc-helper-ut.la
+	       $(top_builddir)/colibri/ut/libcs-ut.la \
+	       $(top_builddir)/rpc/ut/librpc-helper-ut.la \
+	       $(top_builddir)/ioservice/ut/libcfm-ut.la
 
 
 ub_SOURCES   = ub_main.c common.c common.h

@@ -102,8 +102,8 @@
    (unintialised) clinks are attached to the first by a call to
    c2_clink_attach(), forming a "clink group" consisting of the original clink
    and all clinks attached. Clinks from the group can be registered with
-   multiple (or the same) channels. Events announced on any channel is delivered
-   to all clinks.
+   multiple (or the same) channels. Events announced on any channel are
+   delivered to all clinks in the group.
 
    Groups are used as following:
 
@@ -121,8 +121,6 @@
          event in this channel will be delivered N times.
 
        - de-register the clinks, head last.
-
-   @note At most one clink in a group (the original one) can have a call-back.
 
    @code
    struct c2_clink cl0;
@@ -221,7 +219,7 @@ struct c2_chan {
 
    A clink records the appearance of events in the stream.
 
-   There are two mutually exclusive ways to use a clink:
+   There are two ways to use a clink:
 
    @li an asynchronous call-back can be specified as an argument to clink
    constructor c2_clink_init(). This call-back is called when an event happens
@@ -232,6 +230,9 @@ struct c2_chan {
 
    @li once a clink is registered with a channel, it is possible to wait until
    an event happens by calling c2_clink_wait().
+
+   See the "Filtered wake-ups" section in the top-level comment on how to
+   combine call-backs with waiting.
 
    <b>Concurrency control</b>
 
