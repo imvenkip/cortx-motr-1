@@ -46,18 +46,18 @@
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
 
+   <b>Note:</b> The instructions in italics from the DLD template are ratained 
+   currently for reference and will be removed after the first round of the DLD
+   inspection.
+
    This document contains the detail level design for the Layout Schema Module.
 
-   <b>Purpose of a Layout-DB DLD</b><br>
+   <b>Purpose of the Layout-DB DLD</b><br>
    The purpose of the Layout-DB Detailed Level Design (DLD) specification
    is to:
    - Refine the higher level design
    - To be verified by inspectors and architects
    - To guide the coding phase
-
-   <b>Note:</b> The instructions in italics from the DLD template are ratained 
-   currently for reference and will be removed after the first round of the DLD
-   inspection.
 
    <hr>
    @section Layout-DB-def Definitions
@@ -94,10 +94,11 @@
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   Layout is a managed resource. The Layout Schema module depends on the
-   Layout module since it creates the layouts and uses/manages them. It also
-   depends on DB5 interfaces exposed by Colibri since the layouts are stored
-   by the Layout Schema using DB5 data-base.
+   - Layout is a managed resource and depends upon Resource Manager. 
+   - Layout Schema module depends upon the Layout module since it
+   creates the layouts and uses/manages them. 
+   - Layout Schema module depends upon the DB5 interfaces exposed by 
+   Colibri since the layouts are stored using the DB5 data-base.
 
    <hr>
    @section Layout-DB-highlights Design Highlights
@@ -184,31 +185,40 @@
    sub-sectioning within.</i>
 
    The layout schema consists of the following three tables:
+   - Table layouts
+   - Table pdclust_layouts_cob_lists 
+   - Table composite_layout_extent_map
    
+   Currently supported layout types are:
+   - PDCLUST-LINEAR: This requires to store some attributes which are stored
+   in the layout entry itself.
+   - PDCLUST-LIST: This requires to store list of cob identifiers which are
+   stored in a separate table viz pdclust_layouts_cob_lists. 
+   - COMPOSITE: This requires to store extent maps so as to provide 
+   segment-cob identifier mappings for all the segments belonging to each
+   composite map. These extent maps are stored in a separate table viz.
+   composite_layout_extent_map.
+
+   Key-Record structure for the tables:
+
    - Table layouts 
    @verbatim
    Table Name: layouts
    Key: layout_id
    Record:
-      - layout_type (pdclust | composite)
+      - layout_type (PDCLUST-LINEAR | PDCLUST-LIST | COMPOSITE)
       - reference_count
-      - byte_array 
+      - pdclust_linear_formula_attrs 
 
    @endverbatim
    
-   byte_array is parsed and composed by the layout_type specific decoding and
-   encoding methods. 
+   For PDCLUST-LINEAR layout type, the pdclust_linear_formula_attrs
+   contains N (number of data units in parity group) and K (number of parity
+   units in parity groups).
 
-   For parity-declustered layout type with formula-type as LINEAR, the 
-   byte_array contains a record with the string PDCLUST-LINEAR, N (number of
-   data units in parity group), K (number of parity units in parity groups).
-
-   For parity-declustered layout type with formula-type as LIST, the 
-   byte_array contains the string PDCLUST-LIST. The list of cob ids is 
-   stored into the table pdclust_layouts_cob_lists.
-
-   <b>TODO:</b> Check if the byte_array should contain string or enum values ??
-
+   For PDCLUST-LIST and COMPOSITE layout types, the 
+   pdclust_linear_formula_attrs is not used.
+   
    - Table pdclust_layouts_cob_lists 
    @verbatim
    Table Name: pdclust_layouts_cob_lists
@@ -220,7 +230,7 @@
 
    @endverbatim
    
-   This table contains multiple cob entries for every PDCLUST LIST type of 
+   This table contains multiple cob entries for every PDCLUST-LIST type of 
    layout.
 
    layout_id is a foreign key referring record, in the layouts table.
@@ -240,8 +250,9 @@
    
    layout_id is a foreign key referring record, in the layouts table.
 
-   Conceptually, composite_layout_extent_map stores "extent-layout, id" pairs 
-   for all the files using composite layouts.
+   Conceptually, for every COMPOSITE layout, composite_layout_extent_map 
+   stores extent map of segments along with layout id being used by each 
+   segment.
 
    This table is implemented using single instance of the c2_emap table. 
    c2_emap table is a framework to store a collection of related extent maps.
@@ -360,11 +371,6 @@ static bool layout_db_rec_invariant(const struct c2_layout_rec *l)
 
 
 /**
-   @} end LayoutDBDFSInternal
-*/
-
-
-/**
 	Initializes new layout schema - initializes DB environment, creates the 
 	DB tables.
 */
@@ -417,6 +423,7 @@ int c2_layout_entry_delete(const struct c2_layout layout,
 						const struct c2_layout_schema *l_schema, 
 						const struct c2_db_tx *tx)
 {
+	/* Uses the function pointer layout.l_ops->l_rec_delete. */
 	return 0;
 }
 
@@ -428,6 +435,7 @@ int c2_layout_entry_update(const struct c2_layout layout,
 						const struct c2_layout_schema *l_schema,
 						const struct c2_db_tx *tx)
 {
+	/* Uses the function pointer layout.l_ops->l_rec_update. */
 	return 0;
 }
  
@@ -440,11 +448,12 @@ int c2_layout_entry_lookup(const struct c2_layout_id l_id,
                         const struct c2_db_tx *tx,
 						struct c2_layout *l_out)
 {
+	/* Uses the function pointer layout.l_ops->l_rec_lookup. */
 	return 0;
 }
 
 /**
-	Adds a reference on a specific layout from the cl_db_layout_entries table
+	Adds a reference on a specific layout from the cl_db_layout_entries table.
 */
 int c2_layout_entry_get(const struct c2_layout_id l_id,
                         const struct c2_layout_schema *l_schema,
@@ -467,7 +476,9 @@ int c2_layout_entry_put(const struct c2_layout layout,
 	return 0;
 }
 
-
+/**
+   @} end LayoutDBDFSInternal
+*/
 
 /*
  *  Local variables:

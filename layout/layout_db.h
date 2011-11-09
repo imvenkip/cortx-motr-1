@@ -31,8 +31,12 @@
    @@section command.  It is required that there be Table of Contents at the
    top of the page that illustrates the sectioning of the page.</i>
 
+   <b>Note:</b> The instructions in italics from the DLD template are ratained
+   currently for reference and will be removed after the first round of the DLD
+   inspection.
+
    Layout DB is used by the Layout module to make persistent records for the 
-   layout entries created. 
+   layout entries created and used. 
 
    This section describes the data structures exposed and the external
    interfaces of the Layout DB module and it briefly identifies the users of
@@ -43,7 +47,6 @@
    - @ref Layout-DB-fspec-usecases
    - @ref LayoutDBDFS "Detailed Functional Specification"
 
-
    @section Layout-DB-fspec-ds Data Structures
    <i>Mandatory for programmatic interfaces.  Components with programming
    interfaces should provide an enumeration and <i>brief</i> description of the
@@ -51,7 +54,6 @@
    details of the data structure are required here, just the salient
    points.</i>
 
-  Simple lists can also suffice:
    - struct c2_layout_schema
    - struct c2_layout_rec
 
@@ -81,14 +83,6 @@
    - int c2_layout_entry_put(const struct c2_layout layout,
                         const struct c2_layout_schema *l_schema,
                         const struct c2_db_tx *tx)
-   - int c2_composite_layout_ext_map_update(
-						const struct c2_composite_layout layout,
-                        const struct c2_layout_schema *l_schema,
-                        const struct c2_db_tx *tx)
-   - int c2_composite_layout_ext_map_lookup(struct c2_layout_id l_id,
-                        const struct c2_layout_schema *l_schema,
-                        const struct c2_db_tx *tx,
-						struct c2_layout *l_out)
 
    @subsection Layout-DB-fspec-sub-cons Constructors and Destructors
 
@@ -100,7 +94,25 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
-   <b>TODO:</b> Add use case here.
+   Example use case of reading a file:
+   - Reading a file involves reading basic file attributes from the basic file
+   attributes table FAB.
+   - The layout id is obtained from the basic file attributes.
+   - A query is sent to the Layout module to obtain layout for this layout id.
+   - Layout module check if the layout is cached or else it reads the layout 
+   from the layout DB.
+   -- If the layout is of the type PDCLUST-LIST which means it stores the list
+   of cob identifiers in itself, then that list is obtained simply by obtaining
+   the layout from the layout DB.  
+   -- If the layout is of the type PDCLUST-LINEAR which means it is a formula,
+   then the required parameters are substituted into the formula and thus list
+   of cob identifiers is obtained to operate upon. 
+   - If the layout is of the type COMPOSITE, it means it constitutes of 
+   multiple sub-layouts. In this case, the sub-layouts are read from the layout
+   DB and those sub layouts in turn could be of the type PDCLUST-LIST or
+   PDCLUST-LINEAR or COMPOSITE. The sub-layouts are read accordingly until the
+   time the final list of all the cob identifiers is obtained. 
+
 
    @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
  */
@@ -139,15 +151,11 @@ struct c2_layout_schema {
 
 /** Classification of layout types */
 enum layout_type_code {
-	PDCLUST,
+	PDCLUST-LINEAR,
+	PDCLUST-LIST,
 	COMPOSITE
 };
 
-/** Classification of layout formula types */
-enum layout_formula_type_code {
-	LINEAR,
-	LIST
-};
 
 /**
 	layout_entries table
@@ -159,27 +167,16 @@ struct c2_layout_rec {
 	/** Layout reference count indicating number of files using this layout.
 	struct c2_ref le_ref_count;
 	
-	/** Byte array to store layout type and formula type specific data */
-	union le_byte_array {
-		struct linear_formula_attrs;
-		struct list_formula_attrs;
-	};	
+	/** Struct to store PDCLUST-LINEAR type specific data */
+	struct pdclust_linear_formula_attrs le_linear_attrs;
 };
 
 /**
 	Attributes for linear type of formula layout.
 */	
-struct linear_formula_attrs {
-	enum layout_formula_type_code linear_attrs_ftype;
+struct pdclust_linear_formula_attrs {
 	unint32_t N;
 	unint32_t K;	
-};
-
-/**
-	Attributes for the LIST type of formula layout.
-*/	
-struct list_formula_attrs {
-	enum layout_formula_type_code list_attrs_ftype;
 };
 
 static const struct c2_table_ops layout_entries_table_ops = {
