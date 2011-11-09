@@ -215,9 +215,8 @@
    for the following reasons:
 
    - Use of the LNet kernel module is reference counted by the kernel.
-   - The LNetInit() subroutine is automatically called by the LNet kernel module,    and cannot be called multiple times.
-
-   @todo Check if this is always done or only done if Lustre is used.
+   - The LNetInit() subroutine is automatically called when then LNet kernel
+     module is loaded, and cannot be called multiple times.
 
    @subsection KLNetCoreDLD-lspec-reg LNet Buffer Registration
 
