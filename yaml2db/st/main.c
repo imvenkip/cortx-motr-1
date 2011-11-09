@@ -45,6 +45,91 @@ static struct c2_yaml2db_section_key dev_section_keys[] = {
 	[7] = {"nodename", true},
 };
 
+void device_key_populate(void *key, const char *val_str)
+{
+	struct c2_cfg_storage_device__key *dev_key = key;
+
+	strcpy (dev_key->csd_uuid.cu_uuid, val_str);
+}
+
+void device_val_populate (struct c2_yaml2db_section *ysec, void *val,
+			 const char *key_str, const char *val_str)
+{
+	struct c2_cfg_storage_device__val *dev_val = val;
+
+	if (strcmp(key_str,"interface") == 0){
+		if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_ATA") == 0)
+			dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_ATA;
+		if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SATA") == 0)
+			dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SATA;
+		if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SCSI") == 0)
+			dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SCSI;
+		if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SATA2") == 0)
+			dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SATA2;
+		if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SCSI2") == 0)
+			dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SCSI2;
+		if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SAS") == 0)
+			dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SAS;
+		if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SAS2") == 0)
+			dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SAS2;
+		return;
+	}
+	if (strcmp(key_str,"media") == 0){
+		if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_DISK") == 0)
+			dev_val->csd_media = C2_CFG_DEVICE_MEDIA_DISK;
+		if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_SSD") == 0)
+			dev_val->csd_media = C2_CFG_DEVICE_MEDIA_SSD;
+		if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_TAPE") == 0)
+			dev_val->csd_media = C2_CFG_DEVICE_MEDIA_TAPE;
+		if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_ROM") == 0)
+			dev_val->csd_media = C2_CFG_DEVICE_MEDIA_ROM;
+		return;
+	}
+	if (strcmp(key_str,"size") == 0){
+		sscanf(val_str, "%lu", &dev_val->csd_size);
+		return;
+	}
+	if (strcmp(key_str,"state") == 0){
+		sscanf(val_str, "%lu", &dev_val->csd_last_state);
+		return;
+	}
+	if (strcmp(key_str,"flags") == 0){
+		sscanf(val_str, "%lu", &dev_val->csd_flags);
+		return;
+	}
+	if (strcmp(key_str,"filename") == 0){
+		sscanf(val_str, "%s", dev_val->csd_filename);
+		return;
+	}
+	if (strcmp(key_str,"nodename") == 0){
+		sscanf(val_str, "%s", dev_val->csd_nodename);
+		return;
+	}
+}
+
+void device_key_val_dump(FILE *fp, void *key, void *val)
+{
+	struct c2_cfg_storage_device__key *dev_key = key;
+	struct c2_cfg_storage_device__val *dev_val = val;
+
+	C2_PRE(fp != NULL);
+	C2_PRE(key != NULL);
+	C2_PRE(val != NULL);
+
+	fprintf(fp, "Key = %s \t Value = %u:%u:%lu:%lu:%lu:%s:%s\n",
+		dev_key->csd_uuid.cu_uuid,
+		dev_val->csd_type, dev_val->csd_media, dev_val->csd_size,
+		dev_val->csd_last_state, dev_val->csd_flags,
+		dev_val->csd_filename, dev_val->csd_nodename);
+}
+
+/* Section ops */
+static struct c2_yaml2db_section_ops dev_section_ops = {
+	.so_key_populate = device_key_populate,
+	.so_val_populate = device_val_populate,
+	.so_key_val_dump = device_key_val_dump,
+};
+
 /* Static declaration of device section table */
 static struct c2_yaml2db_section dev_section = {
 	.ys_table_name = "dev_table",
@@ -52,6 +137,8 @@ static struct c2_yaml2db_section dev_section = {
 	.ys_section_type = C2_YAML_TYPE_MAPPING,
 	.ys_num_keys = ARRAY_SIZE(dev_section_keys),
 	.ys_valid_keys = dev_section_keys,
+	.ys_key_str = "label",
+	.ys_ops = &dev_section_ops,
 };
 
 static char *label_fields[]= { "LABEL1","LABEL2","LABEL3"};
@@ -198,11 +285,9 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Error: config loading failed \n");
 
 	} else {
-#if 0
 		rc = c2_yaml2db_conf_emit(&yctx, &dev_section, dev_str);
 		if (rc != 0)
 			fprintf(stderr, "Error: config emitting failed \n");
-#endif
 	}
 
 cleanup_parser_db:

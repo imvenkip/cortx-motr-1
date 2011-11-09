@@ -40,7 +40,7 @@
     possible values. They may or may not be valid in reality.
     @see c2_cfg_storage_device__val)
    @verbatim
-    disks:
+    devices:
       - label     : LABEL1
         interface : C2_CFG_DEVICE_INTERFACE_ATA
 	media     : C2_CFG_DEVICE_MEDIA_DISK
@@ -196,13 +196,12 @@ struct c2_yaml2db_section {
 struct c2_yaml2db_section_ops {
 	/**
 	  Populate the key for the section.
-	  @param ysec - pointer to yaml2db section
-	  @param key - pointer to the in memory record key
+	  @param key - pointer to the in memory record key. Section specific
+	  routine should appropriately cast the key and set it.
 	  @param val_str - value string that has been parsed from the yaml file,
 	  to be used to populate the key structure entry
 	 */
-	int (*so_key_populate) (struct c2_yaml2db_section *ysec, void *key,
-			const char *val_str);
+	void (*so_key_populate) (void *key, const char *val_str);
 	/**
 	  Populate the value for the section.
 	  @param ysec - pointer to yaml2db section
@@ -212,8 +211,18 @@ struct c2_yaml2db_section_ops {
 	  @param val_str - value string that has been parsed from the yaml file,
 	  to be used to populate the value structure entry
 	 */
-	int (*so_val_populate) (struct c2_yaml2db_section *ysec, void *val,
-			const char *key_str, const char *val_str);
+	void (*so_val_populate) (struct c2_yaml2db_section *ysec, void *val,
+				const char *key_str, const char *val_str);
+	/**
+	  Dump the key and value for a record to the file having file
+	  descriptor yctx->yc_dp.
+	  @param fp - FILE pointer to file in which data has to be dumped
+	  @param key - pointer to the key structure. Section specific dump
+	  routine should appropriately cast the key and then use it.
+	  @param val- pointer to the value structure. Section specific dump
+	  routine should appropriately cast the value and then use it.
+	 */
+	void (*so_key_val_dump) (FILE *fp, void *key, void *val);
 };
 
 /**
