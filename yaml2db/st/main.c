@@ -40,7 +40,7 @@ static struct c2_yaml2db_section_key dev_section_keys[] = {
 	[2] = {"media", true},
 	[3] = {"size", true},
 	[4] = {"state", true},
-	[5] = {"flags", true},
+	[5] = {"flags", false},
 	[6] = {"filename", true},
 	[7] = {"nodename", true},
 };
@@ -205,7 +205,8 @@ int generate_conf_file(const char *c_name, int rec_nr)
 		strcpy(str, media_fields[index]);
 		fprintf(fp,"    %s : %s\n", dev_section_keys[2].ysk_key,str);
 
-		fprintf(fp,"    %s : %d\n", dev_section_keys[3].ysk_key,rand());
+		fprintf(fp,"    %s : %d\n", dev_section_keys[3].ysk_key,
+				rand() % 10000);
 		fprintf(fp,"    %s : %d\n", dev_section_keys[4].ysk_key,
 			rand() % 2);
 		fprintf(fp,"    %s : %d\n", dev_section_keys[5].ysk_key,

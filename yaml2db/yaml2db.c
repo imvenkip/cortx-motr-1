@@ -481,9 +481,10 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 			continue;
 		}
 
-		ysec->ys_ops->so_key_populate((void *) &key, str);
 		C2_SET_ARR0(valid_key_status);
 		mandatory_keys_present = false;
+
+		ysec->ys_ops->so_key_populate((void *) &key, str);
 		c2_yaml2db_mapping_for_each (yctx, s_node, pair,
 					     k_node, v_node) {
 			section_index = validate_key_from_section(k_node->data.

@@ -18,7 +18,7 @@ PARSE_FILE="parse.txt"
 EMIT_FILE="emit.txt"
 
 # Number of records to be generated in the configuration file
-REC_NR=10
+REC_NR=1000
 
 # Display options of the executable
 $EXEC -h
@@ -43,7 +43,7 @@ else
 	echo "test failed."
 fi
 
-rm -rf $PARSE_FILE $EMIT_FILE $INPUT_FILE
+#rm -rf $PARSE_FILE $EMIT_FILE $INPUT_FILE
 
 sleep 30
 
