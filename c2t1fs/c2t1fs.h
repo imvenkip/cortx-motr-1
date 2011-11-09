@@ -7,6 +7,8 @@
 #include "fid/fid.h"
 #include "lib/mutex.h"
 #include "lib/assert.h"
+#include "net/net.h"
+#include "rpc/rpccore.h"
 
 #define C2T1FS_DEBUG 1
 
@@ -36,6 +38,22 @@ enum {
 	MAX_NR_EP_PER_SERVICE_TYPE = 10,
 	C2T1FS_MAX_NAME_LEN = 8,
 };
+
+/** Anything that is global to c2t1fs module should go in this structure */
+struct c2t1fs_globals
+{
+	struct c2_net_xprt      *g_xprt;
+	char                    *g_laddr;
+	char                    *g_db_name;
+	struct c2_cob_domain_id  g_cob_dom_id;
+
+	struct c2_net_domain     g_ndom;
+	struct c2_rpcmachine     g_rpcmachine;
+	struct c2_cob_domain     g_cob_dom;
+	struct c2_dbenv          g_dbenv;
+};
+
+extern struct c2t1fs_globals c2t1fs_globals;
 
 struct c2t1fs_mnt_opts
 {
