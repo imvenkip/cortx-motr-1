@@ -405,9 +405,9 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 
 	This includes the following:
 	- If it is a PDCLUST-LIST type of layout entry, then it adds list of cob
-	ids to the table cls_pdclust_list_cob_lists.
+	ids to the table pdclust_list_cob_lists.
 	- If it is a COMPOSITE type of layout entry, then it adds the relevant
-	extent map into the table cls_composite_ext_map.
+	extent map into the table composite_ext_map.
 */
 int c2_layout_entry_add(const struct c2_layout layout, 
 						const struct c2_layout_schema *l_schema, 
@@ -458,7 +458,7 @@ int c2_layout_entry_lookup(const struct c2_layout_id l_id,
 }
 
 /**
-	Adds a reference on a specific layout from the cls_layout_entries table.
+	Adds a reference on a specific layout from the layout_entries table.
 */
 int c2_layout_entry_get(const struct c2_layout_id l_id,
                         const struct c2_layout_schema *l_schema,
@@ -468,7 +468,7 @@ int c2_layout_entry_get(const struct c2_layout_id l_id,
 }
 
 /**
-	Releases a reference on a specific layout from the cls_layout_entries 
+	Releases a reference on a specific layout from the layout_entries 
 	table.
 	
 	Destroys a COMPOSITE type of layout when its last reference is released.
