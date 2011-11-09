@@ -176,7 +176,7 @@
    organized with a distinction between the common directly shareable portions,
    and private areas for kernel and user space data.
 
-   @subsection KLNETCoreDLD-lspec-match-bits Match Bits for Buffer Identification
+   @subsection KLNetCoreDLD-lspec-match-bits Match Bits for Buffer Identification
 
    The kernel Core module will maintain a unsigned integer counter per transfer
    machine, to generate unique match bits for passive bulk buffers associated
