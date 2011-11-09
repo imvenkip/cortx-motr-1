@@ -183,7 +183,14 @@
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
-   None.
+   The circular queue can be in one of 3 states:
+   - empty: This is the initial state and the queue returns to this state
+   whenever @code cq_divider == cq_last @endcode
+   - partial: In this state, the queue contains elements to be consumed and
+   still has room for additional elements to be added. This can be expressed as
+   @code cq_divider != cq_last && (cq_last + 1) % cq_size != cq_divider @endcode
+   - full: The queue contains elements and has no room for more. This can be
+   expressed as @code (cq_last + 1) % cq_size == cq_divider @endcode
 
    @subsection cqueueDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
