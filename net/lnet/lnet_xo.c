@@ -141,7 +141,8 @@
 
    The relationship between the various components of the LNet transport and
    the networking layer is illustrated in the following UML diagram.
-   @image html "../../net/lnet/lnet_xo.png" "LNet Transport Component Relationships"
+   @image html "../../net/lnet/lnet_xo.png" "LNet Transport Objects"
+   <!-- PNG image width is 800 -->
 
    @subsection LNetDLD-lspec-state State Specification
    <i>Mandatory.

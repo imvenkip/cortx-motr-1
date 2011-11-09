@@ -124,6 +124,10 @@ struct c2_lnet_core_ep_addr {
 enum {
 	C2_NET_LNET_TMID_NUM_BITS = 12, /**< Number of bits used for TM id */
 	C2_NET_LNET_TMID_INVALID = 4097, /**< Invalid value used for dynamic */
+	/** Minium match bit value */
+	C2_NET_LNET_MATCH_BIT_MIN = 1,
+	/** Maximum match bit value: 2^^52; */
+	C2_NET_LNET_MATCH_BIT_MAX = 0xffffffffffffULL,
 };
 
 /**
@@ -231,11 +235,20 @@ struct c2_lnet_core_buffer {
 	c2_lnet_core_net_buffer_id_t lcb_nbid;
 
 	/**
-	   The match bits for the buffer, including the TMID field.
-	   This may be modified every time an operation is performed on
-	   a buffer.
+	   The match bits for a passive bulk buffer, including the TMID field.
+	   They should be set using the c2_lnet_core_tm_match_bits_set()
+	   subroutine.
+
+	   The file is also used in an active buffer to describe the match
+	   bits of the remote passive buffer.
 	 */
 	uint64_t              lcb_match_bits;
+
+	/**
+	   Active bulk buffers set the address of the remote passive transfer
+	   machine in this field.
+	 */
+	struct c2_lnet_core_ep_addr lcb_passive_addr;
 
 	void                 *lcb_upvt; /**< Core user space private */
 	void                 *lcb_kpvt; /**< Core kernel space private */
@@ -487,6 +500,24 @@ extern int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
  */
 extern int c2_lnet_core_tm_stop(struct c2_lnet_core_transfer_mc *lctm);
 
+/**
+   Assign match bits for a buffer in the
+   c2_lnet_core_buffer::lcb_match_bits field.  This is required to generate the
+   network buffer descriptor for passive bulk data buffers when returning from
+   the c2_net_buf_add() subroutine.  Each passive operation should use a new
+   set of match bits.
+
+   It is up to the transport to ensure that this is called only for passive
+   bulk buffers. The match bits will repeat after a very long period of
+   time; the transport is responsible for determining that they are unique over
+   all pending passive buffer operations, and can repeat this call multiple
+   times if so desired.
+
+   @param lctm The transfer machine private data.
+   @param lcb The buffer private data.
+ */
+extern int c2_lnet_core_tm_match_bits_set(struct c2_lnet_core_transfer_mc *lctm,
+					  struct c2_lnet_core_buffer *lcb);
 
 /**
    @}

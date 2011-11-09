@@ -34,7 +34,16 @@
    - @ref KLNetCoreDLD-lspec
       - @ref KLNetCoreDLD-lspec-comps
       - @ref KLNetCoreDLD-lspec-userspace
+      - @ref KLNetCoreDLD-lspec-match-bits
+      - @ref KLNetCoreDLD-lspec-tm-list
+      - @ref KLNetCoreDLD-lspec-lnet-init
+      - @ref KLNetCoreDLD-lspec-reg
       - @ref KLNetCoreDLD-lspec-ev
+      - @ref KLNetCoreDLD-lspec-recv
+      - @ref KLNetCoreDLD-lspec-send
+      - @ref KLNetCoreDLD-lspec-passive
+      - @ref KLNetCoreDLD-lspec-active
+      - @ref KLNetCoreDLD-lspec-lnet-cancel
       - @ref KLNetCoreDLD-lspec-state
       - @ref KLNetCoreDLD-lspec-thread
       - @ref KLNetCoreDLD-lspec-numa
@@ -132,13 +141,16 @@
 
    - @ref KLNetCoreDLD-lspec-comps
    - @ref KLNetCoreDLD-lspec-userspace
+   - @ref KLNetCoreDLD-lspec-match-bits
+   - @ref KLNetCoreDLD-lspec-tm-list
    - @ref KLNetCoreDLD-lspec-lnet-init
+   - @ref KLNetCoreDLD-lspec-reg
    - @ref KLNetCoreDLD-lspec-ev
    - @ref KLNetCoreDLD-lspec-recv
    - @ref KLNetCoreDLD-lspec-send
-   - @ref KLNetCoreDLD-lspec-stage
-   - @ref KLNetCoreDLD-lspec-arecv
-   - @ref KLNetCoreDLD-lspec-asend
+   - @ref KLNetCoreDLD-lspec-passive
+   - @ref KLNetCoreDLD-lspec-active
+   - @ref KLNetCoreDLD-lspec-lnet-cancel
    - @ref KLNetCoreDLD-lspec-state
    - @ref KLNetCoreDLD-lspec-thread
    - @ref KLNetCoreDLD-lspec-numa
@@ -151,9 +163,10 @@
 
    The relationship between the various components of the LNet transport and
    the networking layer is illustrated in the following UML diagram.
-   @image html "../../net/lnet/lnet_xo.png" "LNet Transport Component Relationships"
+   @image html "../../net/lnet/lnet_xo.png" "LNet Transport Objects"
 
-   The Core layer in the kernel has no sub-components.
+   The Core layer in the kernel has no sub-components but interfaces directly
+   with the Lustre LNet module in the kernel.
 
    @subsection KLNetCoreDLD-lspec-userspace Support for User Space Transports
 
@@ -163,14 +176,54 @@
    organized with a distinction between the common directly shareable portions,
    and private areas for kernel and user space data.
 
-   @subsection KLNetCoreDLD-lspec-lnet-init Initialization and Finalization
-   No initialization and finalization logic is required for LNet in the kernel for the following reasons:
+   @subsection KLNETCoreDLD-lspec-match-bits Match Bits for Buffer Identification
+
+   The kernel Core module will maintain a unsigned integer counter per transfer
+   machine, to generate unique match bits for passive bulk buffers associated
+   with that transfer machine.  The upper 12 match bits are reserved by the HLD
+   to represent the transfer machine identifier. Therefore the counter is
+   (64-12)=52 bits wide. The value of 0 is reserved for unsolicited
+   receive messages, so the counter range is [1,0xffffffffffff]. It is
+   initialized to 1 and will wrap back to 1 when it reaches its upper bound.
+
+   The transport should use the c2_lnet_core_tm_match_bits_set() subroutine to
+   obtain new match bits for passive buffers in the context of the
+   c2_net_buffer_add() subroutine itself.  The match bits should be encoded
+   into the network buffer descriptor associated with the passive buffer.  It
+   is the transport's responsibility to ensure that all of the passive buffers
+   associated with a given transfer machine have unique match bits. The match
+   bit counter will repeat over time, though after a very long while.
+
+   @subsection KLNetCoreDLD-lspec-tm-list Transfer Machine Uniqueness
+
+   The kernel Core module must ensure that all transfer machines have unique
+   addresses, regardless of the transport instance or network domain in which
+   they originate.  To support this, the ::klnc_tms list threads through all the
+   kernel Core's per-TM private data structures. This list is private to the
+   kernel Core, and is protected by the ::klnc_mutex.
+
+   The same list helps in assigning dynamic transfer machine identifiers.  The
+   highest available value at the upper bound of the transfer machine
+   identifier space is assigned dynamically.  The logic takes into account the
+   NID, PID and portal number of the new transfer machine when looking for an
+   available transfer machine identifier.  A single pass over the list is
+   required to search for an available transfer machine identifier.
+
+   @subsection KLNetCoreDLD-lspec-lnet-init LNet Initialization and Finalization
+
+   No initialization and finalization logic is required for LNet in the kernel
+   for the following reasons:
+
    - Use of the LNet kernel module is reference counted by the kernel.
-   - The LNetInit() subroutine is automatically called by the LNet kernel module, and cannot be called multiple times.
+   - The LNetInit() subroutine is automatically called by the LNet kernel module,    and cannot be called multiple times.
 
    @todo Check if this is always done or only done if Lustre is used.
 
-   @subsection KLNetCoreDLD-lspec-ev Event Processing
+   @subsection KLNetCoreDLD-lspec-reg LNet Buffer Registration
+
+   No hardware optimization support is defined in the LNet API at this time.
+
+   @subsection KLNetCoreDLD-lspec-ev LNet Event Processing
 
    LNet event queues are used with an event callback subroutine to avoid event
    loss.  The callback subroutine overhead is fairly minimal, as it only copies
@@ -180,41 +233,51 @@
    just one LNet EQ per transfer machine (c2_klnet_core_transfer_mc::klctm_eqh).
 
    The event callback requires that the MD @c user_ptr field be set up to point
-   to the c2_lnet_core_buffer data structure.  The callback executes the
-   following algorithm:
+   to the c2_lnet_core_buffer data structure.  The callback does the following:
 
-   -# If the buffer is a receive message buffer, and multiple messages are
-      permitted in a single buffer, then determine the next available event
-      payload structure for the receive buffer from the
-      c2_lnet_core_buffer::lcb_ev_cq circular queue.
-      (Note: the circular buffer data structure is used here because of its
-      implicit serialization for a single consumer and producer, but the
-      circularity is otherwise not important).
-      The queue indicies de-reference the c2_lnet_core_buffer::lcb_ev array.
-   -# Otherwise, then the event payload structure used is
-      c2_lnet_core_buffer::lcb_ev[0].
+   -# @c LNET_EVENT_SEND and @c LNET_EVENT_ACK events are ignored.
+   -# If the event is @c LNET_EVENT_PUT and the buffer is a receive message
+      buffer, and multiple messages are permitted in a single buffer, then
+      determine the next available event payload structure for the receive
+      buffer from the c2_lnet_core_buffer::lcb_ev_cq circular queue.  (Note:
+      the circular buffer data structure is used here because of its implicit
+      serialization for a single consumer and producer, but the circularity is
+      otherwise not important).  The queue indicies de-reference the
+      c2_lnet_core_buffer::lcb_ev array.
+   -# Otherwise, for all other cases and event types, the event payload
+      structure used is c2_lnet_core_buffer::lcb_ev[0].
    -# Copy the event payload from the LNet event to the event payload structure
-      in the buffer.
-   -# Put the buffer identifier, c2_lnet_core_buffer::lcb_nbid, into the
+      in the buffer.  This includes the value of the @c unlinked field of the
+      event, which must be copied to the c2_lnet_core_buffer_event::lcbe_unlinked
+      field.
+      For @c LNET_EVENT_UNLINK events, a @c -ECANCELLED value is written to the
+      c2_lnet_core_buffer_event::lcbe_status field and
+      the c2_lnet_core_buffer_event::lcbe_unlinked field set to true.
+   -# The buffer identifier, c2_lnet_core_buffer::lcb_nbid, is put into the
       next event slot of the circular event queue anchored in the core transfer
-      machine structure.  This buffer identifier is the address of the buffer
-      in the address space of the transport (it could be a user space address).
-      (Note that as there is only one LNet EQ used per transfer machine, no
-      serialization is required to do this operation.  If multiple EQs are ever
-      used, then this step needs to be serialized.)
-   -# Increment the c2_klnet_core_transfer_mc::klctm_sem count with the
-      c2_semaphore_up() subroutine.
+      machine structure, returned by the c2_cqueue_pnext() subroutine.  This
+      buffer identifier is the address of the buffer in the address space of
+      the transport (it could be a user space address).  (Note that as there is
+      only one LNet EQ used per transfer machine, no serialization is required
+      to do this operation.  If multiple EQs are ever used, then this step
+      needs to be serialized.)
+   -# The circular queue c2_cqueue_produce() subroutine is invoked.
+   -# The c2_klnet_core_transfer_mc::klctm_sem count is incremented with the
+      c2_semaphore_up() subroutine to notify any waiters.
 
    The transport layer event handler thread blocks on the core transfer machine
    event semaphore through the c2_lnet_core_buf_event_wait() subroutine.  This
    call is aware of the position of the last event consumed in the transfer
    machine circular buffer; it loops on a c2_semaphore_down() call on the
    c2_klnet_core_transfer_mc::klctm_sem as long as the event queue is empty.
+
    When the subroutine returns with an indication of the presence of events,
    the thread consumes all the pending events with multiple calls to the
-   c2_lnet_core_buf_event_get() subroutine, until it drains the event queue.
+   c2_lnet_core_buf_event_get() subroutine, which invokes the
+   c2_cqueue_consume() subroutine to get the index of the next queue slot to
+   read.  This must be repeated until the event queue is drained.
 
-   @subsection KLNetCoreDLD-lspec-recv Receiving Unsolicited Messages
+   @subsection KLNetCoreDLD-lspec-recv LNet Receiving Unsolicited Messages
 
    -# An EQ is created for each transfer machine by the c2_lnet_core_tm_start()
    subroutine, and the common callback handler registered.
@@ -240,7 +303,7 @@
       the event queue, and will be processed as described in
       @ref KLNetCoreDLD-lspec-ev.
 
-   @subsection KLNetCoreDLD-lspec-send Sending Messages
+   @subsection KLNetCoreDLD-lspec-send LNet Sending Messages
 
    -# Create an MD using @c LNetMDBind().
       Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
@@ -257,12 +320,72 @@
       to the event queue, and processed as described in
       @ref KLNetCoreDLD-lspec-ev.
 
-   @subsection KLNetCoreDLD-lspec-stage Staging Passive Bulk Buffers
+   @subsection KLNetCoreDLD-lspec-passive LNet Staging Passive Bulk Buffers
 
-   @subsection KLNetCoreDLD-lspec-arecv Active Bulk Read
+   -# Prior to invoking the c2_lnet_core_buf_passive_recv() or the
+      c2_lnet_core_buf_passive_send() subroutines, the transport should use the
+      c2_lnet_core_tm_match_bit_set() subroutine to assign unique match bits to
+      the passive buffer. See @ref KLNETCoreDLD-lspec-match-bits for details.
+      The match bits should be encoded into the network buffer descriptor and
+      independently conveyed to the remote active transport.
+   -# Create an ME using @c LNetMEAlloc(). Specify the portal and match_id fields
+      as appropriate for the transfer machine.  The buffer's match bits are
+      obtained from the c2_lnet_core_buffer::lcb_match_bits field.  No ignore
+      bits are set. The ME should be set up to unlink automatically.
+   -# Create and attach an MD to the ME using @c LNetMDAttach().
+      Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
+      Set up the fields of the @c lnet_md_t argument as follows:
+      - Set the @c eq_handle to identify the EQ associated with the transfer
+        machine (c2_klnet_core_transfer_mc::klctm_eqh).
+      - Set the kernel logical address of the c2_klnet_core_buffer in the
+        @c user_ptr field.
+      - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
+      - Set the @c LNET_MD_OP_PUT or the @c LNET_MD_OP_GET flag in the
+        @c options field according to the direction of data transfer.
+   -# When the bulk data transfer completes, either an @c LNET_EVENT_PUT or an
+      @c LNET_EVENT_GET event will be delivered to the event queue, and will be
+      processed as described in @ref KLNetCoreDLD-lspec-ev.
 
-   @subsection KLNetCoreDLD-lspec-asend Active Bulk Write
+   @subsection KLNetCoreDLD-lspec-active LNet Active Bulk Read or Write
 
+   -# Prior to invoking the c2_lnet_core_buf_active_recv() or
+   c2_lnet_core_buf_active_send() subroutines, the
+   transport should put the match bits of the remote passive buffer into the
+   c2_lnet_core_buffer::lcb_match_bits field. The destination address of the
+   remote transfer machine with the passive buffer should be set in the
+   c2_lnet_core_buffer::lcb_passive_addr field.
+   -# Create an MD using @c LNetMDBind().
+      Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
+      Set up the fields of the @c lnet_md_t argument as follows:
+      - Set the @c eq_handle to identify the EQ associated with the transfer
+        machine (c2_klnet_core_transfer_mc::klctm_eqh).
+      - Set the kernel logical address of the c2_klnet_core_buffer in the
+        @c user_ptr field.
+      - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
+   -# Use the @c LNetGet() subroutine to initate the active read or the
+      @c LNetPut() subroutine to initiate the active write.
+   -# When a response to the @c LNetGet() or @c LNetPut() call completes, an @c
+      LNET_EVENT_SEND event will be delivered to the event queue and should be
+      ignored.  See @ref KLNetCoreDLD-lspec-ev for details.
+   -# When the bulk data transfer completes, an @c LNET_EVENT_REPLY event will
+      be delivered to the event queue, and will be processed as described in
+      @ref KLNetCoreDLD-lspec-ev.
+
+   @subsection KLNetCoreDLD-lspec-lnet-cancel LNet Cancelling Operations
+
+   The kernel Core module provides no timeout capability.  The transport may
+   initiate a cancel operation using the c2_lnet_core_buf_del() subroutine.
+
+   This will result in an @c LNetMDUnlink() subroutine call being issued for
+   the buffer MD saved in the c2_klnet_core_buffer::klcb_mdh field.
+   Cancellation may or may not take place - it depends upon whether the
+   operation has started, and there is a race condition in making this call and
+   concurrent delivery of an event associated with the MD.
+
+   Assuming success, the next event delivered for the buffer concerned will
+   either be a @c LNET_EVENT_UNLINK event or the @c unlinked field will be set
+   in the next completion event for the buffer.  The events will be processed
+   as described in @ref KLNetCoreDLD-lspec-ev.
 
    @subsection KLNetCoreDLD-lspec-state State Specification
    <i>Mandatory.
@@ -289,12 +412,28 @@
 
    Only one instance of the API can be opened per network domain.  All the API
    calls are synchronous, except for the buffer operation calls which initiate
-   asynchronous activity.
+   asynchronous activity.  Generally speaking, API calls within the transport
+   address space itself, are protected by the serialization of the Colibri
+   Networking layer.  The c2_lnet_core_tm_match_bits_set() subroutine, for
+   example, is fully protected by the transfer machine mutex held across the
+   c2_net_buffer_add() subroutine call, so implicitly protects the match bit
+   counter in the kernel Core's per TM private data.
 
-   There are no callbacks to indicate completion of an asynchronous buffer
-   operation.  Instead, the transport application must invoke the
-   c2_lnet_core_buf_event_wait() subroutine to block waiting for buffer
-   events.
+   However, this serialization does not always suffice, as the kernel Core
+   module has to support concurrent multiple transport instances in kernel and
+   user space.  Fortunately, the LNet API intrinsically provides considerable
+   serialization support to the Core, as each transfer machine is set up by the
+   HLD to be a disjoint LNet consumer.  The boundary condition of enforcing
+   this "disjointedness" of transfer machines is protected by the Core's static
+   global ::klnc_mutex.  The c2_lnet_core_tm_start() and c2_lnet_core_tm_stop()
+   subroutines use this mutex internally for serialization and operation on the
+   ::klnc_tms list threaded through the kernel Core's per-TM private data.
+
+   The API does not define any callback to indicate completion of an
+   asynchronous buffer operation.  Instead, the transport application must
+   invoke the c2_lnet_core_buf_event_wait() subroutine to block waiting for
+   buffer events.  Internally this call waits on the
+   c2_klnet_core_transfer_mc::klctm_sem semaphore.
 
    The event payload is actually delivered via a per transfer machine
    circular buffer event queue, and multiple events may be delivered between
@@ -306,7 +445,6 @@
    free c2_lnet_core_buffer_event structures in the transfer machine buffer
    event circular queue to return the operation result.  i.e. the transport is
    responsible for flow control.
-
 
    The API assumes that only a single transport thread will handle event
    processing; if this is not the case then the transport should serialize its
@@ -353,6 +491,18 @@
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
+   - Dynamic transfer machine identifier assignment is proportional to the number
+   of transfer machines defined on the server, including kernel and all process
+   space LNet transport instances.
+   - The time taken to process an LNet event callback is in constant time.
+   - The time taken for the transport to dequeue a pending buffer event
+     depends upon the operating system scheduler.  The algorithmic
+     processing involved is in constant time.
+   - The time taken to register a buffer is in constant time.
+   - The time taken to process outbound buffer operations is unpredictable,
+   and depends, at the minimum, on current system load, other LNet users,
+   and on the network load.
+
    <hr>
    @section KLNetCoreDLD-ref References
    <i>Mandatory. Provide references to other documents and components that
@@ -369,6 +519,25 @@
  End of DLD
  ******************************************************************************
  */
+
+#include "lib/mutex.h"
+#include "net/lnet/linux_kernel/klnet_core.h"
+
+/**
+   @addtogroup KLNetCore
+   @{
+*/
+
+/** Kernel core lock */
+static c2_mutex klnc_mutex;
+
+/** List of all transfer machines. Protected by klnc_mutex. */
+static struct c2_tl klnc_tms;
+
+
+/**
+   @}
+*/
 
 /*
  *  Local variables:
