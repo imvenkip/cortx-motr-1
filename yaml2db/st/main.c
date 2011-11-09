@@ -33,30 +33,25 @@
 static const char *D_PATH = "./__config_db";
 static const char *dev_str = "devices";
 
-enum {
-	DISK_MAPPING_START_KEY = 100,
-};
-
-/* Static declaration of disk section keys array */
+/* Static declaration of device section keys array */
 static struct c2_yaml2db_section_key dev_section_keys[] = {
-	[0] = {"label", true, 0},
-	[1] = {"interface", true, 1},
-	[2] = {"media", true, 2},
-	[3] = {"size", true, 3},
-	[4] = {"state", true, 4},
-	[5] = {"flags", true, 5},
-	[6] = {"filename", true, 6},
-	[7] = {"nodename", true, 7},
+	[0] = {"label", true},
+	[1] = {"interface", true},
+	[2] = {"media", true},
+	[3] = {"size", true},
+	[4] = {"state", true},
+	[5] = {"flags", true},
+	[6] = {"filename", true},
+	[7] = {"nodename", true},
 };
 
-/* Static declaration of disk section table */
-static struct c2_yaml2db_section disk_section = {
-	.ys_table_name = "disk_table",
-	.ys_table_ops = &c2_cfg_device_table_ops,
-	.ys_start_key = DISK_MAPPING_START_KEY,
+/* Static declaration of device section table */
+static struct c2_yaml2db_section dev_section = {
+	.ys_table_name = "dev_table",
+	.ys_table_ops = &c2_cfg_storage_device_table_ops,
 	.ys_section_type = C2_YAML_TYPE_MAPPING,
-	.ys_num_keys = ARRAY_SIZE(disk_section_keys),
-	.ys_valid_keys = disk_section_keys,
+	.ys_num_keys = ARRAY_SIZE(dev_section_keys),
+	.ys_valid_keys = dev_section_keys,
 };
 
 static char *label_fields[]= { "LABEL1","LABEL2","LABEL3"};
@@ -86,7 +81,7 @@ int generate_conf_file(const char *c_name, int rec_nr)
 		return -errno;
 	}
 
-	fprintf(fp,"%s:\n",disk_str);
+	fprintf(fp,"%s:\n",dev_str);
 	if (rec_nr == 0)
 		rec_nr = REC_NR;
 
@@ -95,15 +90,15 @@ int generate_conf_file(const char *c_name, int rec_nr)
 
 		index = rand() % ARRAY_SIZE(label_fields);
 		str = label_fields[index];
-		fprintf(fp," %s : %s\n", disk_section_keys[0].ysk_key,str);
+		fprintf(fp," %s : %s\n", dev_section_keys[0].ysk_key,str);
 
 		index = rand() % ARRAY_SIZE(status_fields);
 		str = status_fields[index];
-		fprintf(fp,"    %s : %s\n", disk_section_keys[1].ysk_key,str);
+		fprintf(fp,"    %s : %s\n", dev_section_keys[1].ysk_key,str);
 
 		index = rand() % ARRAY_SIZE(setting_fields);
 		str = setting_fields[index];
-		fprintf(fp,"    %s : %s\n", disk_section_keys[2].ysk_key,str);
+		fprintf(fp,"    %s : %s\n", dev_section_keys[2].ysk_key,str);
 	}
 	fclose(fp);
 
@@ -182,7 +177,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Initialize the parser and database environment */
-	rc = yaml2db_init(&yctx);
+	rc = c2_yaml2db_init(&yctx);
 	if (rc != 0) {
 		fprintf(stderr, "Error: yaml2db initialization failed \n");
 		goto cleanup;
@@ -191,25 +186,27 @@ int main(int argc, char *argv[])
 	if (!emitter) {
 		/* Load the information from yaml file to yaml_document,
 		   and check for parsing errors internally */
-		rc = yaml2db_doc_load(&yctx);
+		rc = c2_yaml2db_doc_load(&yctx);
 		if (rc != 0) {
 			fprintf(stderr, "Error: document loading failed \n");
 			goto cleanup_parser_db;
 		}
 
-		/* Parse the disk configuration that is loaded in the context */
-		rc = yaml2db_conf_load(&yctx, &disk_section, disk_str);
+		/* Parse the dev configuration that is loaded in the context */
+		rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
 		if (rc != 0)
 			fprintf(stderr, "Error: config loading failed \n");
 
 	} else {
-		rc = yaml2db_conf_emit(&yctx, &disk_section, disk_str);
+#if 0
+		rc = c2_yaml2db_conf_emit(&yctx, &dev_section, dev_str);
 		if (rc != 0)
 			fprintf(stderr, "Error: config emitting failed \n");
+#endif
 	}
 
 cleanup_parser_db:
-	yaml2db_fini(&yctx);
+	c2_yaml2db_fini(&yctx);
 
 cleanup:
 	c2_fini();

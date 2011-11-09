@@ -447,14 +447,12 @@ scope bool   name ## _tlist_contains(const struct c2_tl *list,		\
 				     const amb_type *amb);		\
 scope size_t name ## _tlist_length(const struct c2_tl *list);		\
 scope void   name ## _tlist_add(struct c2_tl *list, amb_type *amb);	\
-scope void   name ## _tlist_add_tail(const struct c2_tl_descr *d,	\
-				     struct c2_tl *list, amb_type *amb); \
-scope void   name ## _tlist_add_after(amb_type *amb, void *new);	\
-scope void   name ## _tlist_add_before(amb_type *amb, void *new);	\
+scope void   name ## _tlist_add_tail(struct c2_tl *list, amb_type *amb); \
+scope void   name ## _tlist_add_after(amb_type *amb, amb_type *new);	\
+scope void   name ## _tlist_add_before(amb_type *amb, amb_type *new);	\
 scope void   name ## _tlist_del(amb_type *amb);				\
 scope void   name ## _tlist_move(struct c2_tl *list, amb_type *amb);	\
-scope void   name ## _tlist_move_tail(const struct c2_tl_descr *d,	\
-				      struct c2_tl *list, amb_type *amb); \
+scope void   name ## _tlist_move_tail(struct c2_tl *list, amb_type *amb); \
 scope amb_type *name ## _tlist_head(struct c2_tl *list);		\
 scope amb_type *name ## _tlist_tail(struct c2_tl *list);		\
 scope amb_type *name ## _tlist_next(struct c2_tl *list, amb_type *amb);	\

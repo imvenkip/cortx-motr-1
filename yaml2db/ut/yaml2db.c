@@ -37,10 +37,6 @@ static const char *p_name = "conf_dirty_parser_error.yaml";
 static const char *disk_str = "disks";
 struct c2_yaml2db_ctx	 yctx;
 
-enum {
-	DISK_MAPPING_START_KEY = 100,
-};
-
 /* Static declaration of disk section keys array */
 static struct c2_yaml2db_section_key disk_section_keys[] = {
 	[0] = {"label", true},
@@ -51,8 +47,7 @@ static struct c2_yaml2db_section_key disk_section_keys[] = {
 /* Static declaration of disk section table */
 static struct c2_yaml2db_section disk_section = {
 	.ys_table_name = "disk_table",
-	.ys_table_ops = &c2_cfg_device_table_ops,
-	.ys_start_key = DISK_MAPPING_START_KEY,
+	.ys_table_ops = &c2_cfg_storage_device_table_ops,
 	.ys_section_type = C2_YAML_TYPE_MAPPING,
 	.ys_num_keys = ARRAY_SIZE(disk_section_keys),
 	.ys_valid_keys = disk_section_keys,
@@ -126,16 +121,16 @@ void test_parse_and_load_success(void)
 	yctx.yc_cname = c_name;
 	yctx.yc_dpath = C_PATH;
 
-	rc = yaml2db_init(&yctx);
+	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = yaml2db_doc_load(&yctx);
+	rc = c2_yaml2db_doc_load(&yctx);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = yaml2db_conf_load(&yctx, &disk_section, disk_str);
+	rc = c2_yaml2db_conf_load(&yctx, &disk_section, disk_str);
 	C2_UT_ASSERT(rc == 0);
 
-	yaml2db_fini(&yctx);
+	c2_yaml2db_fini(&yctx);
 }
 
 enum error_type {
@@ -183,16 +178,16 @@ void test_parse_fail_scanner_error(void)
 	yctx.yc_cname = s_name;
 	yctx.yc_dpath = S_PATH;
 
-	rc = yaml2db_init(&yctx);
+	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
 
 	printf("Testing failure path, expecting error message\n\n");
-	rc = yaml2db_doc_load(&yctx);
+	rc = c2_yaml2db_doc_load(&yctx);
 
 	/* Used for pretty printing of CUnit output */
 	printf("\n");
 
-	yaml2db_fini(&yctx);
+	c2_yaml2db_fini(&yctx);
 }
 
 void test_parse_fail_parser_error(void)
@@ -205,15 +200,15 @@ void test_parse_fail_parser_error(void)
 	yctx.yc_cname = p_name;
 	yctx.yc_dpath = P_PATH;
 
-	rc = yaml2db_init(&yctx);
+	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
 
 	printf("Testing failure path, expecting error message\n\n");
-	rc = yaml2db_doc_load(&yctx);
+	rc = c2_yaml2db_doc_load(&yctx);
 
 	printf("\n");
 
-	yaml2db_fini(&yctx);
+	c2_yaml2db_fini(&yctx);
 }
 
 const struct c2_test_suite yaml2db_ut = {
