@@ -126,14 +126,14 @@ int main(int argc, char **argv)
 		goto end2;
 	}
 
-        printf("Server Address = %s\n", cons_server.cons_laddr);
-        printf("Console Address = %s\n", cons_server.cons_raddr);
-
 	result = c2_cons_rpc_server_init(&cons_server);
 	if (result != 0) {
 		printf("c2_console_init failed\n");
 		goto fini;
 	}
+
+        printf("Server Address = %s\n", cons_server.cons_laddr);
+        printf("Console Address = %s\n", cons_server.cons_raddr);
 
 	printf("Press CTRL+C to quit.\n");
 	signal(SIGINT, sig_handler);
