@@ -77,9 +77,9 @@ struct c2_layout {
 };
 
 struct pdclust_linear_attrs {
-	/** number of data units in parity group */
+	/** Number of data units in the parity group */
 	uint32_t N; 
-	/** number of parity units in parity group */
+	/** Number of parity units in the parity group */
 	uint32_t K;
 };
 
@@ -214,6 +214,8 @@ int composite_add(const struct c2_layout *l,
 /**
 	Implementation of l_rec_delete for PDCLUST-LINEAR type. 
 	Deletes the layout entry from the table cl_db_layout_entries.
+    This function may remain un-used since PDCLUST-LINEAR type of layout is 
+    not deleted anytime. 
 */
 int pdclust_linear_delete(const struct c2_layout *l, 
 					struct c2_layout_rec l_rec);
@@ -294,11 +296,19 @@ int composite_locate(const struct c2_layout_id l_id,
 					struct c2_layout l_rec_out);
 
 /**
-	Implementation of l_rec_put for PDCLUST-LINEAR and PDCLUST-LIST type.
+	Implementation of l_rec_put for PDCLUST-LINEAR type.
 	Releases reference on the layout from the table cl_db_layout_entries.
 */
-int pdclust_linear_and_list_put(const struct c2_layout_id l_id,
+int pdclust_linear_put(const struct c2_layout_id l_id,
 					const struct c2_layout_schema *l_schema);
+
+/**
+	Implementation of l_rec_put for PDCLUST-LIST type.
+	Releases reference on the layout from the table cl_db_layout_entries.
+*/
+int pdclust_list_put(const struct c2_layout_id l_id,
+					const struct c2_layout_schema *l_schema);
+
 /**
 	Implementation of l_rec_put for COMPOSITE type.
 	Releases reference on the layout from the table cl_db_layout_entries.
