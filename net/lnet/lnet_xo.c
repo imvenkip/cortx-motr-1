@@ -59,6 +59,7 @@
    should be incorporated in the glossary.</i>
 
    Previously defined terms:
+   - Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
    New terms:
 
@@ -96,7 +97,7 @@
 
    - @ref LNetCore "LNet Transport Core Interface"
    - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
-   - The processor API and control over thread affinity to processor.
+   - The @ref Processor API and control over thread affinity to processor.
 
    <hr>
    @section LNetDLD-highlights Design Highlights
@@ -168,6 +169,21 @@
    This section cites each requirement in the @ref LNetDLD-req section,
    and explains briefly how the LNet meets the requirement.</i>
 
+   - <b>i.c2.net.xprt.lnet.transport-variable</b> The transport variable
+   @c c2_net_lnet_xprt is provided.
+
+   - <b>i.c2.net.lnet.buffer-registration</b> <b>????</b> .
+
+   - <b>i.c2.net.xprt.lnet.end-point-address</b> <b>????</b> .
+
+   - <b>i.c2.net.xprt.lnet.multiple-messages-in-buffer</b> <b>????</b> .
+
+   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> <b>????</b> .
+
+   - <b>i.c2.net.xprt.lnet.processor-affinity</b> <b>????</b> .
+
+   - <b>i.c2.net.xprt.lnet.user-space</b> <b>????</b> .
+
    <hr>
    @section LNetDLD-ut Unit Tests
    <i>Mandatory. This section describes the unit tests that will be designed.
@@ -178,6 +194,10 @@
    @section LNetDLD-st System Tests
    <i>Mandatory.
    This section describes the system testing done, if applicable.</i>
+
+   The @c bulkping system test program will be updated to include support for
+   the LNet transport.  This program will be used to test communication between
+   end points on the same system and between remote systems.
 
    <hr>
    @section LNetDLD-O Analysis

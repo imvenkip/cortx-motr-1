@@ -43,6 +43,8 @@
 
    The LNet transport is defined by the @c c2_net_lnet_xprt data structure.
 
+   @see @ref LNetDFS "LNet Transport Interface"
+
    @section LNetDLD-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
    interfaces should provide an enumeration and brief description of the
@@ -53,6 +55,7 @@
    - Set domain specific run time parameters.
 
    @see @ref LNetDLD "LNet Transport DLD"
+   @see @ref LNetDFS "LNet Transport Interface"
 
  */
 
