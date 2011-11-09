@@ -22,7 +22,7 @@
 #define __COLIBRI_LAYOUT_DB_H__
 
 /* import */
-#include "db/db.h"		/** c2_table */
+#include "db/db.h"	/** c2_table */
 
 /**
    @page Layout-DB-fspec Layout DB Functional Specification 
@@ -135,7 +135,6 @@
    @{
 */
 
-
 /**
 	In-memory data structure for the layout schema.
 	It includes pointers to all the DB tables and various related 
@@ -202,21 +201,21 @@ static const struct c2_table_ops layout_entries_table_ops = {
 int c2_layout_schema_init(struct c2_layout_schema *l_schema);
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema);
 int c2_layout_entry_add(const struct c2_layout layout, 
-					const struct c2_layout_schema *l_schema, 
-					const struct c2_db_tx *tx);
+		const struct c2_layout_schema *l_schema, 
+		const struct c2_db_tx *tx);
 int c2_layout_entry_delete(const struct c2_layout layout, 
-					const struct c2_layout_schema *l_schema, 
-					const struct c2_db_tx *tx);
+		const struct c2_layout_schema *l_schema, 
+		const struct c2_db_tx *tx);
 int c2_layout_entry_update(const struct c2_layout layout,
-					const struct c2_layout_schema *l_schema,
-					const struct c2_db_tx *tx);
+		const struct c2_layout_schema *l_schema,
+		const struct c2_db_tx *tx);
 int c2_layout_entry_lookup(const struct c2_layout_id l_id,
-					const struct c2_layout_schema *l_schema,
-					const struct c2_db_tx *tx,
-					struct c2_layout *l_out);
+		const struct c2_layout_schema *l_schema,
+		const struct c2_db_tx *tx,
+		struct c2_layout *l_out);
 int c2_layout_entry_get(const struct c2_layout_id l_id,
-					const struct c2_layout_schema *l_schema,
-					const struct c2_db_tx *tx);
+		const struct c2_layout_schema *l_schema,
+		const struct c2_db_tx *tx);
 
 /**
    @} LayoutDBDFS end group

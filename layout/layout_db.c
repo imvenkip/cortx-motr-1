@@ -157,20 +157,20 @@
      subgraph colibri_layout {
          label = "Layout";
 
-	     cLDB [label="Layout DB", style="filled"];
-	     cFormula [label="Layout Formula", style="filled"];
-	     cLayout [label="Layout (Managed Resource)", style="filled"];
+	 cLDB [label="Layout DB", style="filled"];
+	 cFormula [label="Layout Formula", style="filled"];
+	 cLayout [label="Layout (Managed Resource)", style="filled"];
 
          cLDB -> cFormula [label="build formula"];
          cFormula -> cLayout [label="build layout"];
-    }
+     }
 	 
      subgraph colibri_server {
          label = "Server";
          cServer [label="Server"];
      }
    
-	 cClient -> cFormula [label="substitute"];
+     cClient -> cFormula [label="substitute"];
      cServer -> cFormula [label="substitute"];
 
      { rank=same; cClient cFormula cServer } 
@@ -410,8 +410,8 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 	extent map into the table composite_ext_map.
 */
 int c2_layout_entry_add(const struct c2_layout layout, 
-						const struct c2_layout_schema *l_schema, 
-						const struct c2_db_tx *tx)
+		const struct c2_layout_schema *l_schema, 
+		const struct c2_db_tx *tx)
 {
 	/* Encodes the layout DB record using the funtion pointer 
 	   layout.l_ops->l_rec_encode and adds record to the DB using the 
@@ -425,8 +425,8 @@ int c2_layout_entry_add(const struct c2_layout layout,
 	relevant tables.
 */
 int c2_layout_entry_delete(const struct c2_layout layout, 
-						const struct c2_layout_schema *l_schema, 
-						const struct c2_db_tx *tx)
+		const struct c2_layout_schema *l_schema, 
+		const struct c2_db_tx *tx)
 {
 	/* Uses the function pointer layout.l_ops->l_rec_delete. */
 	return 0;
@@ -437,8 +437,8 @@ int c2_layout_entry_delete(const struct c2_layout layout,
 	relevant tables.
 */
 int c2_layout_entry_update(const struct c2_layout layout,
-						const struct c2_layout_schema *l_schema,
-						const struct c2_db_tx *tx)
+		const struct c2_layout_schema *l_schema,
+		const struct c2_db_tx *tx)
 {
 	/* Uses the function pointer layout.l_ops->l_rec_update. */
 	return 0;
@@ -451,7 +451,7 @@ int c2_layout_entry_update(const struct c2_layout layout,
 int c2_layout_entry_lookup(const struct c2_layout_id l_id,
                         const struct c2_layout_schema *l_schema,
                         const struct c2_db_tx *tx,
-						struct c2_layout *l_out)
+			struct c2_layout *l_out)
 {
 	/* Uses the function pointer layout.l_ops->l_rec_lookup. */
 	return 0;
@@ -479,7 +479,7 @@ int c2_layout_entry_put(const struct c2_layout layout,
                         const struct c2_db_tx *tx)
 {
 	/* Uses the function pointers layout.l_ops->l_rec_put and 
-    layout.l_ops->l_rec_delete. */
+	layout.l_ops->l_rec_delete. */
 	return 0;
 }
 
