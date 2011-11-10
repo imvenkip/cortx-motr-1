@@ -309,6 +309,9 @@ int main(int argc, char **argv)
 		goto end2;
 	}
 
+	printf("Console Address = %s\n", cons_client.cons_laddr);
+	printf("Server Address = %s\n", cons_client.cons_raddr);
+
 	/* Connect to the specified server */
 	result = c2_cons_rpc_client_connect(&cons_client);
 	if (result != 0) {

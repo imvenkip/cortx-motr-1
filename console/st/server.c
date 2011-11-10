@@ -132,6 +132,9 @@ int main(int argc, char **argv)
 		goto fini;
 	}
 
+        printf("Server Address = %s\n", cons_server.cons_laddr);
+        printf("Console Address = %s\n", cons_server.cons_raddr);
+
 	printf("Press CTRL+C to quit.\n");
 	signal(SIGINT, sig_handler);
 	while (!signaled);

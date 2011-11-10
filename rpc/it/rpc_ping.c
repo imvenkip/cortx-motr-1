@@ -274,9 +274,6 @@ void server_poll()
 /* Fini the server */
 void server_fini(void)
 {
-	/* Fini the net endpoint. */
-	c2_net_end_point_put(sctx.pc_rep);
-
 	/* Fini the rpcmachine */
 	c2_rpcmachine_fini(&sctx.pc_rpc_mach);
 
@@ -300,7 +297,6 @@ void server_init(int dummy)
 {
 	int			 rc = 0;
 	char			 addr_local[ADDR_LEN];
-	char			 addr_remote[ADDR_LEN];
 	char			 hostbuf[ADDR_LEN];
 
 	/* Init Bulk sunrpc transport */
@@ -371,29 +367,6 @@ void server_init(int dummy)
 		goto cleanup;
 	} else {
 		printf("RPC machine init completed \n");
-	}
-
-	/* Resolve Client hostname */
-	rc = canon_host(sctx.pc_rhostname, hostbuf, sizeof(hostbuf));
-	if(rc != 0) {
-		printf("Failed to canon host\n");
-		goto cleanup;
-	} else {
-		printf("Client Hostname Resolved \n");
-	}
-
-	sprintf(addr_remote, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
-	printf("Client Addr = %s\n",addr_remote);
-
-        sctx.pc_tm = &sctx.pc_rpc_mach.cr_tm;
-
-	/* Create destination endpoint for server i.e client endpoint */
-	rc = c2_net_end_point_create(&sctx.pc_rep, sctx.pc_tm, addr_remote);
-	if(rc != 0){
-		printf("Failed to create endpoint\n");
-		goto cleanup;
-	} else {
-		printf("Client Endpoint created \n");
 	}
 
 cleanup:
