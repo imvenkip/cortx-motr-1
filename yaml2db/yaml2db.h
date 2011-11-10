@@ -207,7 +207,7 @@ struct c2_yaml2db_section_ops {
 	  @param ysec - pointer to yaml2db section
 	  @param key - pointer to the in memory record value
 	  @param key_str - key string that has been parsed from the yaml file,
-	  to be mapped against corresponding entry in the value structure. 
+	  to be mapped against corresponding entry in the value structure.
 	  @param val_str - value string that has been parsed from the yaml file,
 	  to be used to populate the value structure entry
 	 */

@@ -84,7 +84,7 @@ enum {
 };
 
 /* Generate a configuration file */
-int generate_conf_file(const char *c_name, int rec_nr)
+static int generate_conf_file(const char *c_name, int rec_nr)
 {
 	FILE	*fp;
 	int	 cnt;

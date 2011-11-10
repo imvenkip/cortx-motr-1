@@ -28,26 +28,32 @@
 #include "cfg/cfg.h"
 
 /* Constant names and paths */
-static const char *FAILURE_PATH = "./__conf_db_failure";
-static const char *failure_name = "conf_failure.yaml";
-static const char *success_path_mandatory_present = "./__conf_db_success_mp";
-static const char *success_name_mandatory_present = "conf_success_mp.yaml";
-static const char *success_path_mandatory_absent = "./__conf_db_success_ma";
-static const char *success_name_mandatory_absent = "conf_success_ma.yaml";
-static const char *S_PATH = "./__conf_db_dirty_scanner_error";
-static const char *s_name = "conf_dirty_scanner_error.yaml";
-static const char *P_PATH = "./__conf_db_dirty_parser_error";
-static const char *p_name = "conf_dirty_parser_error.yaml";
-static const char *dev_str = "devices";
+static const char f_path[] = "./__conf_db_failure";
+static const char f_name[] = "conf_failure.yaml";
+static const char mp_path[] = "./__conf_db_success_mp";
+static const char mp_name[] = "conf_success_mp.yaml";
+static const char ma_path[] = "./__conf_db_success_ma";
+static const char ma_name[] = "conf_success_ma.yaml";
+static const char s_path[] = "./__conf_db_dirty_scanner_error";
+static const char s_name[] = "conf_dirty_scanner_error.yaml";
+static const char p_path[] = "./__conf_db_dirty_parser_error";
+static const char p_name[] = "conf_dirty_parser_error.yaml";
+static const char dev_str[] = "devices";
+static const char parse_dump_fname[] = "parse.txt";
+static const char emit_dump_fname[] = "emit.txt";
+
+/* Global yaml2db context */
 struct c2_yaml2db_ctx	 yctx;
 
 /* Static declaration of device section keys array */
 static struct c2_yaml2db_section_key dev_section_keys[] = {
+	/* Mandatory keys */
         [0] = {"label", true},
         [1] = {"interface", true},
         [2] = {"media", true},
         [3] = {"size", true},
         [4] = {"state", true},
+	/* Non-mandatory keys */
         [5] = {"flags", false},
         [6] = {"filename", false},
         [7] = {"nodename", false},
@@ -81,19 +87,27 @@ static char *media_fields[] = {
         "C2_CFG_DEVICE_MEDIA_ROM",
 };
 
-
 /* Default number of records to be generated */
 enum {
-	REC_NR = 10,
+	REC_NR = 63,
 };
 
+/* Max string size */
 enum {
         STR_SIZE_NR = 40,
 };
 
-/* Generate a configuration file */
-int generate_conf_file(const char *c_name, int rec_nr, bool skip_mandatory,
-		       bool skip_non_mandatory)
+/*
+   Generate a configuration file
+   Parameters:
+   c_name - name of the file in which data has to be written
+   rec_nr - number of device records to be generated
+   skip_mandatory - true if mandatory fields should not be generated
+   skip_optional - true if optional fields should not to generated
+ */
+static int generate_conf_file(const char *c_name, int rec_nr,
+			      const bool skip_mandatory,
+			      const bool skip_optional)
 {
         FILE    *fp;
         int      cnt;
@@ -140,17 +154,17 @@ int generate_conf_file(const char *c_name, int rec_nr, bool skip_mandatory,
 				rand() % 2);
 		}
 
-		if (!skip_non_mandatory) {
-			/* set flags (non-mandatory) */
+		if (!skip_optional) {
+			/* set flags (optional) */
 			fprintf(fp,"    %s : %d\n", dev_section_keys[5].ysk_key,
 				rand() % 3);
 
-			/* set filename (non-mandatory) */
+			/* set filename (optional) */
 			sprintf(str, "/dev/sda%d", cnt);
 			fprintf(fp,"    %s : %s\n", dev_section_keys[6].ysk_key,
 				str);
 
-			/* set nodename (non-mandatory) */
+			/* set nodename (optional) */
 			sprintf(str, "n%d", cnt);
 			fprintf(fp,"    %s : %s\n", dev_section_keys[7].ysk_key,
 				str);
@@ -161,27 +175,27 @@ int generate_conf_file(const char *c_name, int rec_nr, bool skip_mandatory,
         return 0;
 }
 
-static int yaml2db_ut_init() 
-{
-	C2_SET0(&yctx);
-
-	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
-	c2_addb_choose_default_level(AEL_NONE);
-
-	return 0;
-}
-
-void test_parse_and_load_failure(void)
+/*
+   Do not generate mandatory fields in the yaml file and try to load that file.
+   This should fail giving error message and each error message should also
+   state which of the mandatory fields are missing
+ */
+static void mandatory_fields_absent(void)
 {
 	int	rc;
 
-	/* Do not skip non-mandatory fields.
+	/* Do not skip optional fields.
 	   Skip mandatory fields and expect error */
-	rc = generate_conf_file(failure_name, REC_NR, true, false);
+	rc = generate_conf_file(f_name, REC_NR, true, false);
 	C2_UT_ASSERT(rc == 0);
 
-	yctx.yc_cname = failure_name;
-	yctx.yc_dpath = FAILURE_PATH;
+	yctx.yc_cname = f_name;
+	yctx.yc_dpath = f_path;
+	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+
+	/* Reset any existing database */
+	rc = c2_ut_db_reset(f_path);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
@@ -196,17 +210,24 @@ void test_parse_and_load_failure(void)
 	c2_yaml2db_fini(&yctx);
 }
 
-void test_parse_and_load_success_non_mandatory_absent(void)
+/*
+   Do not generate optional fields. Parsing and loading should succeed.
+ */
+static void optional_fields_absent(void)
 {
         int     rc;
 
-	/* Do not skip mandatory fields. Skip non-mandatory fields */
-        rc = generate_conf_file(success_name_mandatory_absent, REC_NR,
-				false, true);
+	/* Do not skip mandatory fields. Skip optional fields */
+        rc = generate_conf_file(ma_name, REC_NR, false, true);
         C2_UT_ASSERT(rc == 0);
 
-        yctx.yc_cname = success_name_mandatory_absent;
-        yctx.yc_dpath = success_path_mandatory_absent;
+        yctx.yc_cname = ma_name;
+        yctx.yc_dpath = ma_path;
+	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+
+	/* Reset any existing database */
+	rc = c2_ut_db_reset(ma_path);
+	C2_UT_ASSERT(rc == 0);
 
         rc = c2_yaml2db_init(&yctx);
         C2_UT_ASSERT(rc == 0);
@@ -220,18 +241,28 @@ void test_parse_and_load_success_non_mandatory_absent(void)
         c2_yaml2db_fini(&yctx);
 }
 
-void test_parse_and_load_success_non_mandatory_present(void)
-{                       
-        int     rc;     
-        
-	/* Do not skip mandatory as well as non-mandatory fields */
-	rc = generate_conf_file(success_name_mandatory_present, REC_NR,
-				false, false);
+/*
+   Generate all mandatory as well as optional fields. Parsing and loading
+   should succeed.
+ */
+static void optional_fields_present(void)
+{
+        int     rc;
+
+	/* Do not skip mandatory as well as optional fields */
+	rc = generate_conf_file(mp_name, REC_NR, false, false);
         C2_UT_ASSERT(rc == 0);
-        
-        yctx.yc_cname = success_name_mandatory_present;
-        yctx.yc_dpath = success_path_mandatory_present;
-        
+
+        yctx.yc_cname = mp_name;
+        yctx.yc_dpath = mp_path;
+	yctx.yc_dump_kv = true;
+	yctx.yc_dump_fname = parse_dump_fname;
+	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+
+	/* Reset any existing database */
+	rc = c2_ut_db_reset(mp_path);
+	C2_UT_ASSERT(rc == 0);
+
         rc = c2_yaml2db_init(&yctx);
         C2_UT_ASSERT(rc == 0);
 
@@ -244,6 +275,37 @@ void test_parse_and_load_success_non_mandatory_present(void)
         c2_yaml2db_fini(&yctx);
 }
 
+/*
+   Emit the already existing database entries created in
+   optional_fields_present(). Check it against the
+   parsed version. Both of them should match.
+ */
+static void emit_verify(void)
+{
+	int  rc;
+        char str[STR_SIZE_NR];
+
+	yctx.yc_cname = mp_name;
+	yctx.yc_dpath = mp_path;
+	yctx.yc_dump_kv = true;
+	yctx.yc_dump_fname = emit_dump_fname;
+	yctx.yc_type = C2_YAML2DB_CTX_EMITTER;
+
+	rc = c2_yaml2db_init(&yctx);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_yaml2db_conf_emit(&yctx, &dev_section, dev_str);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_yaml2db_fini(&yctx);
+
+	/* Take diff of the dumps generated from parsing and emitting ops */
+	sprintf(str, "diff %s %s", parse_dump_fname, emit_dump_fname);
+	rc = system (str);
+	C2_UT_ASSERT(rc == 0);
+}
+
+/* Parser error types */
 enum error_type {
 	SCANNER_ERROR = 0,
 	PARSER_ERROR,
@@ -261,13 +323,14 @@ static int generate_dirty_conf_file(const char *c_name, enum error_type etype)
 	C2_UT_ASSERT(fp != NULL);
 
 	switch(etype) {
-	case(SCANNER_ERROR):	
+	case(SCANNER_ERROR):
 		fprintf(fp,"&&&  ----");
 		break;
 	case(PARSER_ERROR):
 		fprintf(fp,"%cYAML 1.2\n",p);
 		fprintf(fp,"%cYAML 1.2\n",p);
 		break;
+	/* It is difficult to reproduce reader error, hence not used */
 	case(READER_ERROR):
 		break;
 	default:
@@ -279,7 +342,7 @@ static int generate_dirty_conf_file(const char *c_name, enum error_type etype)
 	return 0;
 }
 
-void test_parse_fail_scanner_error(void)
+static void scanner_error_detect(void)
 {
 	int	rc;
 
@@ -287,7 +350,11 @@ void test_parse_fail_scanner_error(void)
 	C2_UT_ASSERT(rc == 0);
 
 	yctx.yc_cname = s_name;
-	yctx.yc_dpath = S_PATH;
+	yctx.yc_dpath = s_path;
+
+	/* Reset any existing database */
+	rc = c2_ut_db_reset(s_path);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
@@ -301,7 +368,7 @@ void test_parse_fail_scanner_error(void)
 	c2_yaml2db_fini(&yctx);
 }
 
-void test_parse_fail_parser_error(void)
+static void parser_error_detect(void)
 {
 	int	rc;
 
@@ -309,7 +376,11 @@ void test_parse_fail_parser_error(void)
 	C2_UT_ASSERT(rc == 0);
 
 	yctx.yc_cname = p_name;
-	yctx.yc_dpath = P_PATH;
+	yctx.yc_dpath = p_path;
+
+	/* Reset any existing database */
+	rc = c2_ut_db_reset(p_path);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
@@ -324,16 +395,15 @@ void test_parse_fail_parser_error(void)
 
 const struct c2_test_suite yaml2db_ut = {
 	.ts_name = "libyaml2db-ut",
-	.ts_init = yaml2db_ut_init,
-	.ts_fini = NULL, 
+	.ts_init = NULL,
+	.ts_fini = NULL,
 	.ts_tests = {
-		{ "mandatory-key-absence", test_parse_and_load_failure },
-		{ "parse-scanner-error", test_parse_fail_scanner_error },
-		{ "parse-parser-error", test_parse_fail_parser_error },
-		{ "parse-load-success-non-mandatory-absent",
-			test_parse_and_load_success_non_mandatory_absent },
-		{ "parse-load-success-non-mandatory-present",
-			test_parse_and_load_success_non_mandatory_present },
+		{ "detect-scanner-error", scanner_error_detect },
+		{ "detect-parser-error", parser_error_detect },
+		{ "mandatory-fields-absent", mandatory_fields_absent },
+		{ "optional-fields-absent", optional_fields_absent },
+		{ "optional-fields-present", optional_fields_present },
+		{ "emit-and-verify", emit_verify },
 		{ NULL, NULL }
 	}
 };
