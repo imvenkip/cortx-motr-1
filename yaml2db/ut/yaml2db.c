@@ -189,6 +189,8 @@ static void mandatory_fields_absent(void)
 	rc = generate_conf_file(f_name, REC_NR, true, false);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_SET0(&yctx);
+
 	yctx.yc_cname = f_name;
 	yctx.yc_dpath = f_path;
 	yctx.yc_type = C2_YAML2DB_CTX_PARSER;
@@ -220,6 +222,8 @@ static void optional_fields_absent(void)
 	/* Do not skip mandatory fields. Skip optional fields */
         rc = generate_conf_file(ma_name, REC_NR, false, true);
         C2_UT_ASSERT(rc == 0);
+
+	C2_SET0(&yctx);
 
         yctx.yc_cname = ma_name;
         yctx.yc_dpath = ma_path;
@@ -253,6 +257,8 @@ static void optional_fields_present(void)
 	rc = generate_conf_file(mp_name, REC_NR, false, false);
         C2_UT_ASSERT(rc == 0);
 
+	C2_SET0(&yctx);
+
         yctx.yc_cname = mp_name;
         yctx.yc_dpath = mp_path;
 	yctx.yc_dump_kv = true;
@@ -285,7 +291,8 @@ static void emit_verify(void)
 	int  rc;
         char str[STR_SIZE_NR];
 
-	yctx.yc_cname = mp_name;
+	C2_SET0(&yctx);
+
 	yctx.yc_dpath = mp_path;
 	yctx.yc_dump_kv = true;
 	yctx.yc_dump_fname = emit_dump_fname;
