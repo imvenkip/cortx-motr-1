@@ -429,6 +429,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 	bool			 valid_key_status[ysec->ys_num_keys];
 	bool			 mandatory_keys_present;
 	size_t			 section_index;
+	char			*str;
         struct c2_table		 table;
         struct c2_db_tx		 tx;
         struct c2_db_pair	 db_pair;
@@ -440,7 +441,6 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 	yaml_node_pair_t	*pair;
 	struct c2_cfg_storage_device__key  key;
 	struct c2_cfg_storage_device__val  val;
-	char			*str;
 
         C2_PRE(yaml2db_context_invariant(yctx));
         C2_PRE(yaml2db_section_invariant(ysec));
@@ -636,6 +636,96 @@ cleanup:
         c2_table_fini(&table);
         return rc;
 }
+
+/* Section op to populate the device key */
+static void device_key_populate(void *key, const char *val_str)
+{
+        struct c2_cfg_storage_device__key *dev_key = key;
+
+        strcpy (dev_key->csd_uuid.cu_uuid, val_str);
+}
+
+/* Section op to populate the device value*/
+static void device_val_populate (struct c2_yaml2db_section *ysec, void *val,
+				 const char *key_str, const char *val_str)
+{
+        struct c2_cfg_storage_device__val *dev_val = val;
+
+        if (strcmp(key_str,"interface") == 0){
+                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_ATA") == 0)
+                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_ATA;
+                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SATA") == 0)
+                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SATA;
+                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SCSI") == 0)
+                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SCSI;
+                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SATA2") == 0)
+                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SATA2;
+                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SCSI2") == 0)
+                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SCSI2;
+                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SAS") == 0)
+                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SAS;
+                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SAS2") == 0)
+                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SAS2;
+                return;
+        }
+        if (strcmp(key_str,"media") == 0){
+                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_DISK") == 0)
+                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_DISK;
+                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_SSD") == 0)
+                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_SSD;
+                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_TAPE") == 0)
+                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_TAPE;
+                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_ROM") == 0)
+                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_ROM;
+                return;
+        }
+        if (strcmp(key_str,"size") == 0){
+                sscanf(val_str, "%lu", &dev_val->csd_size);
+                return;
+        }
+        if (strcmp(key_str,"state") == 0){
+                sscanf(val_str, "%lu", &dev_val->csd_last_state);
+                return;
+        }
+        if (strcmp(key_str,"flags") == 0){
+                sscanf(val_str, "%lu", &dev_val->csd_flags);
+                return;
+        }
+        if (strcmp(key_str,"filename") == 0){
+                sscanf(val_str, "%s", dev_val->csd_filename);
+                return;
+        }
+        if (strcmp(key_str,"nodename") == 0){
+                sscanf(val_str, "%s", dev_val->csd_nodename);
+                return;
+        }
+}
+
+/* yaml2db section op to dump the key-value data to a file */
+static void device_key_val_dump(FILE *fp, void *key, void *val)
+{
+        struct c2_cfg_storage_device__key *dev_key = key;
+        struct c2_cfg_storage_device__val *dev_val = val;
+
+        C2_PRE(fp != NULL);
+        C2_PRE(key != NULL);
+        C2_PRE(val != NULL);
+
+        fprintf(fp, "%s \t %u:%u:%lu:%lu:%lu:%s:%s\n",
+                dev_key->csd_uuid.cu_uuid,
+                dev_val->csd_type, dev_val->csd_media, dev_val->csd_size,
+                dev_val->csd_last_state, dev_val->csd_flags,
+                dev_val->csd_filename, dev_val->csd_nodename);
+}
+
+/* Section ops */
+struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops = {
+        .so_key_populate = device_key_populate,
+        .so_val_populate = device_val_populate,
+        .so_key_val_dump = device_key_val_dump,
+};
+
+
 
 /** @} end of yaml2db group */
 
