@@ -104,11 +104,19 @@
 #include "net/lnet.h"
 
 /* forward references */
+struct c2_lnet_core_bev_link;
+struct c2_lnet_core_bev_queue;
 struct c2_lnet_core_buffer;
 struct c2_lnet_core_buffer_event;
 struct c2_lnet_core_domain;
 struct c2_lnet_core_ep_addr;
 struct c2_lnet_core_transfer_mc;
+
+/**
+   Opaque type wide enough to represent an address in any address space.
+ */
+typedef uint64_t c2_lnet_core_opaque_ptr_t;
+C2_BASSERT(sizeof(c2_lnet_core_opaque_ptr_t) == sizeof(void *));
 
 /**
    This structure defines the fields in an LNet transport end point address.
@@ -136,12 +144,6 @@ enum {
 struct c2_lnet_core_domain {
 	/* place holder */
 };
-
-/**
-   Opaque type wide enough to represent an address in any address space.
- */
-typedef uint64_t c2_lnet_core_opaque_ptr_t;
-C2_BASSERT(sizeof(c2_lnet_core_opaque_ptr_t) == sizeof(void *));
 
 /**
    Buffer events are linked in the buffer queue using this structure. It is
@@ -190,11 +192,18 @@ struct c2_lnet_core_bev_queue {
    struct c2_net_buffer_event.
  */
 struct c2_lnet_core_buffer_event {
-	/** Linkage in the TM buffer event queue */
-	struct c2_lnet_core_bev_link  lcbe_tm_link;
+	/** Linkage in one of the TM buffer event queues */
+	struct c2_lnet_core_bev_link lcbe_tm_link;
 
-	/** Pointer to the transport private data (transport address space) */
-	struct c2_lnet_core_buffer  *lcbe_core_pvt;
+	/**
+	    This value is set by the kernel Core module's LNet event handler,
+	    and is copied from the c2_lnet_core_buffer::lcb_buffer_id
+	    field. The value is a pointer to the core buffer data in the
+	    transport address space, and is provided to enable the transport
+	    to navigate back to its outer buffer private data and from there
+	    back to the c2_net_buffer.
+	 */
+	c2_lnet_core_opaque_ptr_t    lcbe_core_buf;
 
 	/** Event timestamp */
 	c2_time_t                    lcbe_time;
@@ -242,7 +251,7 @@ struct c2_lnet_core_transfer_mc {
 	   Buffer completion event queue.  The queue is shared between the
 	   transport address space and the kernel.
 	 */
-	struct c2_lnet_core_bev_queue lctm_completed_bevq;
+	struct c2_lnet_core_bev_queue lctm_bevq;
 };
 
 /**

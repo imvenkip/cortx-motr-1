@@ -225,8 +225,7 @@
 #include "net/lnet/lnet_core.h"
 
 /**
-   @defgroup LNetIDFS LNet Transport Internal Interface
-   @ingroup LNetDFS
+   @addtogroup LNetIDFS
    @{
 */
 

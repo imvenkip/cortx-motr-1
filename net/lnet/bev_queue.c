@@ -27,6 +27,8 @@
 
    Unlike the standard c2_queue, this queue supports a producer and consumer
    in different address spaces sharing the queue via shared memory.
+
+   @{
  */
 
 /**
