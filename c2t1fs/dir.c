@@ -36,7 +36,7 @@ struct file_operations c2t1fs_dir_file_operations = {
 struct inode_operations c2t1fs_dir_inode_operations = {
 	.create = c2t1fs_create,
 	.lookup = c2t1fs_lookup,
-	.unlink = c2t1fs_unlink 
+	.unlink = c2t1fs_unlink
 };
 
 static struct c2_fid c2t1fs_fid_alloc(void)

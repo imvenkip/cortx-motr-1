@@ -38,6 +38,8 @@ enum {
 	C2T1FS_SUPER_MAGIC = 0x43325431,
 	MAX_NR_EP_PER_SERVICE_TYPE = 10,
 	C2T1FS_MAX_NAME_LEN = 8,
+	C2T1FS_NR_SLOTS_PER_SESSION = 10,
+	C2T1FS_MAX_NR_RPC_IN_FLIGHT = 100,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure */
@@ -67,13 +69,31 @@ struct c2t1fs_mnt_opts
 	char *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
 };
 
+enum c2t1fs_service_type {
+	C2T1FS_ST_MGS = 1,
+	C2T1FS_ST_MDS,
+	C2T1FS_ST_IOS
+};
+
+struct c2t1fs_service_context
+{
+	enum c2t1fs_service_type  sc_type;
+	char                     *sc_addr;
+	struct c2_rpc_conn        sc_conn;
+	struct c2_rpc_session     sc_session;
+	int                       sc_nr_containers;
+	uint64_t                 *sc_container_ids;
+	struct c2_list_link       sc_link;
+};
+
 struct c2t1fs_sb
 {
 	struct c2_mutex        csb_mutex;
 	struct c2t1fs_mnt_opts csb_mnt_opts;
 	uint64_t               csb_flags;
-	struct c2_list         csb_rpc_conns;
-	struct c2_list         csb_rpc_sessions;
+	struct c2_rpc_conn     csb_mgs_conn;
+	struct c2_rpc_session  csb_mgs_session;
+	struct c2_list         csb_service_contexts;
 };
 
 
@@ -110,18 +130,6 @@ static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
 	return container_of(inode, struct c2t1fs_inode, ci_inode);
 }
 
-struct c2t1fs_rpc_conn
-{
-	struct c2_list_link rc_link;
-	struct c2_rpc_conn  rc_conn;
-};
-
-struct c2t1fs_rpc_session
-{
-	struct c2_list_link   rs_link;
-	struct c2_rpc_session rs_session;
-};
-
 extern const struct c2_fid c2t1fs_root_fid;
 bool c2t1fs_inode_is_root(struct inode *inode);
 
@@ -151,4 +159,11 @@ extern struct inode_operations c2t1fs_reg_inode_operations;
 
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void c2t1fs_destroy_inode(struct inode *inode);
+
+void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
+				 enum c2t1fs_service_type       type,
+				 char                          *ep_addr);
+
+void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx);
+
 #endif /* __COLIBRI_C2T1FS_H */

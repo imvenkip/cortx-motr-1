@@ -6,6 +6,7 @@
 
 #include "c2t1fs/c2t1fs.h"
 #include "lib/misc.h"
+#include "lib/memory.h"
 
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 
@@ -14,6 +15,11 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
 static int  c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts);
 static int  c2t1fs_mnt_opts_parse(char                   *options,
 				  struct c2t1fs_mnt_opts *mnt_opts);
+
+static int c2t1fs_config_fetch(struct c2t1fs_sb *csb);
+static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb);
+static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb);
+static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb);
 
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
@@ -74,6 +80,14 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out;
 
+	rc = c2t1fs_config_fetch(csb);
+	if (rc != 0)
+		goto out;
+
+	rc = c2t1fs_connect_to_all_services(csb);
+	if (rc != 0)
+		goto out;
+
 	sb->s_fs_info = csb;
 
 	sb->s_blocksize      = PAGE_SIZE;
@@ -109,13 +123,14 @@ out:
 
 void c2t1fs_kill_sb(struct super_block *sb)
 {
-	struct c2t1fs_sb *sbi;
+	struct c2t1fs_sb *csb;
 
 	START();
 
-	sbi = C2T1FS_SB(sb);
-	c2t1fs_sb_fini(sbi);
-	kfree(sbi);
+	csb = C2T1FS_SB(sb);
+	c2t1fs_discard_service_contexts(csb);
+	c2t1fs_sb_fini(csb);
+	kfree(csb);
 	kill_anon_super(sb);
 
 	END(0);
@@ -128,8 +143,7 @@ int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2_mutex_init(&csb->csb_mutex);
 	csb->csb_flags = 0;
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
-	c2_list_init(&csb->csb_rpc_conns);
-	c2_list_init(&csb->csb_rpc_sessions);
+	c2_list_init(&csb->csb_service_contexts);
 
 	END(0);
 	return 0;
@@ -138,8 +152,7 @@ void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 {
 	START();
 
-	c2_list_fini(&csb->csb_rpc_conns);
-	c2_list_fini(&csb->csb_rpc_sessions);
+	c2_list_fini(&csb->csb_service_contexts);
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 
@@ -282,4 +295,120 @@ out:
 
 	END(rc);
 	return rc;
+}
+void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
+				 enum c2t1fs_service_type       type,
+				 char                          *ep_addr)
+{
+	START();
+
+	C2_SET0(ctx);
+	ctx->sc_type = type;
+	ctx->sc_addr = ep_addr;
+	c2_list_link_init(&ctx->sc_link);
+
+	END(0);
+}
+
+void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
+{
+	START();
+
+	c2_list_link_fini(&ctx->sc_link);
+
+	END(0);
+}
+
+static int c2t1fs_config_fetch(struct c2t1fs_sb *csb)
+{
+	START();
+
+	/* XXX fetch configuration here */
+
+	END(0);
+	return 0;
+}
+static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
+{
+	int rc;
+
+	START();
+
+	rc = c2t1fs_populate_service_contexts(csb);
+
+	END(rc);
+	return rc;
+}
+static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
+{
+	struct c2t1fs_mnt_opts        *mntopts;
+	int                            rc = 0;
+
+	int populate(char *ep_arr[], int n, enum c2t1fs_service_type type)
+	{
+		struct c2t1fs_service_context *ctx;
+		char                          *ep_addr;
+		int                            i;
+
+		TRACE("n = %d type = %d\n", n, type);
+
+		for (i = 0; i < n; i++) {
+			ep_addr = ep_arr[i];
+			TRACE("i = %d ep_addr = %s\n", i, ep_addr);
+
+			C2_ALLOC_PTR(ctx);
+			if (ctx == NULL)
+				return -ENOMEM;
+
+			c2t1fs_service_context_init(ctx, type, ep_addr);
+			c2_list_add(&csb->csb_service_contexts, &ctx->sc_link);
+		}
+		return 0;
+	}
+	START();
+
+	mntopts = &csb->csb_mnt_opts;
+
+	rc = populate(mntopts->mo_mds_ep_addr, mntopts->mo_nr_mds_ep,
+				C2T1FS_ST_MDS);
+	if (rc != 0)
+		goto discard_all;
+
+	rc = populate(mntopts->mo_ios_ep_addr, mntopts->mo_nr_ios_ep,
+				C2T1FS_ST_IOS);
+	if (rc != 0)
+		goto discard_all;
+
+	END(0);
+	return 0;
+
+discard_all:
+	c2t1fs_discard_service_contexts(csb);
+	END(rc);
+	return rc;
+}
+
+static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb)
+{
+	struct c2t1fs_service_context *ctx;
+	struct c2_list                *list;
+	struct c2_list_link           *link;
+
+	START();
+
+	list = &csb->csb_service_contexts;
+
+	while (!c2_list_is_empty(list)) {
+		link = c2_list_first(list);
+		C2_ASSERT(link != NULL);
+
+		c2_list_del(link);
+
+		ctx = container_of(link, struct c2t1fs_service_context,
+						sc_link);
+		TRACE("discard: %s\n", ctx->sc_addr);
+		c2t1fs_service_context_fini(ctx);
+		c2_free(ctx);
+	}
+	END(0);
 }
