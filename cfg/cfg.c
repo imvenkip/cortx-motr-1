@@ -28,7 +28,7 @@
 #include <string.h>
 
 /**
- * @addtogroup conf_schema 
+ * @addtogroup conf_schema
  * @{
  */
 
@@ -38,7 +38,7 @@ static int dev_key_cmp(struct c2_table *table, const void *key0,
 {
 	const struct c2_cfg_storage_device__key *dev_key0 = key0;
 	const struct c2_cfg_storage_device__key *dev_key1 = key1;
-	
+
 	return memcmp(dev_key0, dev_key1, sizeof *dev_key0);
 }
 
@@ -49,7 +49,7 @@ const struct c2_table_ops c2_cfg_storage_device_table_ops = {
 			.max_size = sizeof(struct c2_cfg_storage_device__key)
 		},
                 [TO_REC] = {
-			.max_size = sizeof(struct c2_cfg_storage_device__val) 
+			.max_size = sizeof(struct c2_cfg_storage_device__val)
 		}
         },
         .key_cmp = dev_key_cmp
