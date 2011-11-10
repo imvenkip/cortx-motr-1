@@ -22,7 +22,11 @@
 #define __COLIBRI_LAYOUT_DB_H__
 
 /* import */
-#include "db/db.h"	/** c2_table */
+#include "layout/layout.h"
+#include "db/db.h"	/* struct c2_table */
+#include "db/extmap.h"	/* struct c2_emap */
+#include "lib/refs.h"	/* struct c2_ref */
+#include "lib/types.h"	/* struct c2_uint128 */
 
 /**
    @page Layout-DB-fspec Layout DB Functional Specification 
@@ -64,23 +68,23 @@
 
    - int c2_layout_schema_init(struct c2_layout_schema *l_schema)
    - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
-   - int c2_layout_entry_add(const struct c2_layout layout, 
-		const struct c2_layout_schema *l_schema, 
-		const struct c2_db_tx *tx)
-   - int c2_layout_entry_delete(const struct c2_layout layout, 
+   - int c2_layout_rec_add(const struct c2_layout layout,
+                const struct c2_layout_schema *l_schema,
+                const struct c2_db_tx *tx)
+   - int c2_layout_rec_delete(const struct c2_layout layout, 
   		const struct c2_layout_schema *l_schema, 
 		const struct c2_db_tx *tx)
-   - int c2_layout_entry_update(const struct c2_layout layout,
+   - int c2_layout_rec_update(const struct c2_layout layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
-   - int c2_layout_entry_lookup(const struct c2_layout_id l_id,
+   - int c2_layout_rec_lookup(const struct c2_layout_id l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
-		struct c2_layout *l_out)
-   - int c2_layout_entry_get(const struct c2_layout_id l_id,
+		struct c2_layout *l_out);
+   - int c2_layout_rec_get(const struct c2_layout l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
-   - int c2_layout_entry_put(const struct c2_layout layout,
+   - int c2_layout_rec_put(const struct c2_layout l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 
@@ -94,30 +98,30 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
-   A file layout is used by the client to perform IO against that file. Layout 
+   A file layout is used by the client to perform IO against the file. Layout
    for a file contains COB identifiers for all the COBs associated with that
-   file. These COB identifiers are stored either in the form of a list 
-   (COMPOSITE layout type) or as a formula (PDCLUST-LIST and PDCLUST-LINEAR 
-   layout types). 
+   file. These COB identifiers are stored either in the form of a list
+   (PDCLUST_LIST layout type) or as a formula (PDCLUST_LINEAR layout type). 
  
    Example use case of reading a file:
    - Reading a file involves reading basic file attributes from the basic file
-   attributes table (FAB).
+     attributes table (FAB).
    - The layout id is obtained from the basic file attributes.
    - A query is sent to the Layout module to obtain layout for this layout id.
    - Layout module checks if the layout is cached and if not, it reads the 
-   layout from the layout DB.
-      - If the layout is of the type PDCLUST-LIST which means it stores the 
-      list of cob identifiers in itself, then that list is obtained simply by
-      obtaining the layout from the layout DB.  
-      - If the layout is of the type PDCLUST-LINEAR which means it is a 
-      formula, then the required parameters are substituted into the formula 
-      and thus list of cob identifiers is obtained to operate upon. 
-      - If the layout is of the type COMPOSITE, it means it constitutes of 
-      multiple sub-layouts. In this case, the sub-layouts are read from the
-      layout DB and those sub layouts in turn could be of the type PDCLUST-LIST
-      or PDCLUST-LINEAR or COMPOSITE. The sub-layouts are read accordingly 
-      until the time the final list of all the cob identifiers is obtained. 
+     layout from the layout DB.
+      - If the layout is of the type PDCLUST_LINEAR which means it is a 
+        formula, then the required parameters are substituted into the formula
+        and thus list of cob identifiers is obtained to operate upon.
+      - If the layout is of the type PDCLUST_LIST which means it stores the
+        list of cob identifiers in itself, then that list is obtained simply by
+        obtaining the layout from the layout DB.
+      - If the layout is of the type COMPOSITE, it means it constitutes of
+        multiple sub-layouts. In this case, the sub-layouts are read from the
+        layout DB and those sub layouts in turn could be of the type
+        PDCLUST_LIST or PDCLUST_LINEAR or COMPOSITE. The sub-layouts are read
+        accordingly until the time the final list of all the cob identifiers is
+        obtained.
 
    @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
  */
@@ -127,7 +131,7 @@
    @brief Detailed functional specification for Layout DB.
 
    Detailed functional specification provides documentation of all the data
-   structures and interfaces (internal and external). 
+   structures and interfaces (internal and external).
   
    @see @ref Layout-DB "Layout DB DLD" and its @ref Layout-DB-fspec 
    "Layout DB Functional Specification".
@@ -147,73 +151,75 @@ struct c2_layout_schema {
 	/** Table for layout entries */
 	struct c2_table cls_layout_entries;
 
-	/** Table for cob lists for all PDCLUST-LIST type of layout entries */
+	/** Table for cob lists for all PDCLUST_LIST type of layout entries */
 	struct c2_table cls_pdclust_list_cob_lists;
 
 	/* Table for extent maps for all the COMPOSITE type of layout entries */
 	struct c2_emap cls_composite_ext_map;
 };
 
-/** Classification of layout types */
-enum layout_type_code {
-	PDCLUST-LINEAR,
-	PDCLUST-LIST,
+/** Classification of layout record types */
+enum layout_rec_type_code {
+	PDCLUST_LINEAR,
+	PDCLUST_LIST,
 	COMPOSITE
-};
-
-/**
-	layout_entries table
-	Key is c2_uint128 OR c2_layout_id. 
-*/
-struct c2_layout_rec {
-	/** Type of layout */ 
-	enum layout_type_code le_type_code;
-	/** Layout reference count indicating number of files using this layout.
-	struct c2_ref le_ref_count;
-	
-	/** Struct to store PDCLUST-LINEAR type specific data */
-	struct pdclust_linear_formula_attrs le_linear_attrs;
 };
 
 /**
 	Attributes for linear type of formula layout.
 */	
-struct pdclust_linear_formula_attrs {
+struct pdclust_linear_rec_attrs {
 	/** Number of data units in parity group */
-	unint32_t N;
+	uint32_t N;
 	/** Number of parity units in parity group */
-	unint32_t K;	
+	uint32_t K;	
+};
+
+/**
+	layout_entries table
+	Key is c2_uint128 OR c2_layout_id.
+*/
+struct c2_layout_rec {
+	/** Type of layout */ 
+	enum layout_rec_type_code lr_type_code;
+	/** Layout reference count indicating number of files using this
+	layout. */
+	struct c2_ref lr_ref_count;
+	
+	/** Struct to store PDCLUST_LINEAR type specific data */
+	struct pdclust_linear_rec_attrs lr_linear_attrs;
 };
 
 static const struct c2_table_ops layout_entries_table_ops = {
 	.to = {
 		[TO_KEY] = { 
-			.max_size = sizeof(c2_uint128)
+			.max_size = sizeof(struct c2_uint128)
 		},
 		[TO_REC] = {
 			.max_size = sizeof(struct c2_layout_rec)
 		}
 	},
-	.key_comp = c2_uint12t_cmp
+	// TODO .key_cmp = c2_uint128_cmp
+	.key_cmp = NULL
 };
 
 
 int c2_layout_schema_init(struct c2_layout_schema *l_schema);
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema);
-int c2_layout_entry_add(const struct c2_layout layout, 
-		const struct c2_layout_schema *l_schema, 
-		const struct c2_db_tx *tx);
-int c2_layout_entry_delete(const struct c2_layout layout, 
-		const struct c2_layout_schema *l_schema, 
-		const struct c2_db_tx *tx);
-int c2_layout_entry_update(const struct c2_layout layout,
+int c2_layout_rec_add(const struct c2_layout layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
-int c2_layout_entry_lookup(const struct c2_layout_id l_id,
+int c2_layout_rec_delete(const struct c2_layout layout,
+		const struct c2_layout_schema *l_schema,
+		const struct c2_db_tx *tx);
+int c2_layout_rec_update(const struct c2_layout layout,
+		const struct c2_layout_schema *l_schema,
+		const struct c2_db_tx *tx);
+int c2_layout_rec_lookup(const struct c2_layout_id l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
 		struct c2_layout *l_out);
-int c2_layout_entry_get(const struct c2_layout_id l_id,
+int c2_layout_rec_get(const struct c2_layout_rec l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
