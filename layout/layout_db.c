@@ -442,52 +442,52 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 }
 
 /**
-   Adds a new layout entry and its relevant information into the relevant
-   tables from the layout schema.
+   Adds a new layout record and its relevant information into the relevant
+   tables.
 
    This includes the following:
-   - If it is a PDCLUST_LIST type of layout entry, then it adds list of cob
+   - If it is PDCLUST_LIST type of a layout record, then it adds list of cob
    ids to the table pdclust_list_cob_lists.
-   - If it is a COMPOSITE type of layout entry, then it adds the relevant
-   extent map into the table composite_ext_map.
+   - If it is COMPOSITE type of a layout record, then it adds the relevant
+   extent map into the composite_ext_map table.
 */
 int c2_layout_rec_add(const struct c2_layout *layout, 
 		const struct c2_layout_schema *l_schema, 
 		const struct c2_db_tx *tx)
 {
 	/* Encodes the layout DB record using the funtion pointer 
-	   layout.l_ops->l_rec_encode and adds record to the DB using the 
-	   function pointer layout.l_ops->l_rec_add. */
+	   layout->l_ops->l_rec_encode and adds record to the DB using the 
+	   function pointer layout->l_ops->l_rec_add. */
 
 	return 0;
 }
 
 /**
-   Deletes a layout entry and its relevant information from the
+   Deletes a layout record and its relevant information from the
    relevant tables.
 */
 int c2_layout_rec_delete(const struct c2_layout *layout, 
 		const struct c2_layout_schema *l_schema, 
 		const struct c2_db_tx *tx)
 {
-	/* Uses the function pointer layout.l_ops->l_rec_delete. */
+	/* Uses the function pointer layout->l_ops->l_rec_delete. */
 	return 0;
 }
 
 /** 
-   Updates a layout entry and its relevant information from the
+   Updates a layout record and its relevant information from the
    relevant tables.
 */
 int c2_layout_rec_update(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
-	/* Uses the function pointer layout.l_ops->l_rec_update. */
+	/* Uses the function pointer layout->l_ops->l_rec_update. */
 	return 0;
 }
  
 /**
-   Obtains a layout entry with the specified layout_id, and its relevant
+   Obtains a layout record with the specified layout_id, and its relevant
    information from the relevant tables.
 */
 int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
@@ -495,7 +495,7 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 		const struct c2_db_tx *tx,
 		struct c2_layout_rec *l_rec_out)
 {
-	/* Uses the function pointer layout.l_ops->l_rec_lookup. */
+	/* Uses the function pointer layout->l_ops->l_rec_lookup. */
 	return 0;
 }
 
@@ -524,7 +524,7 @@ int c2_layout_rec_put(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
-	/* Uses the function pointers layout.l_ops->l_rec_put and 
+	/* Uses the function pointers layout->l_ops->l_rec_put and 
 	layout->l_ops->l_rec_delete. */
 	return 0;
 }

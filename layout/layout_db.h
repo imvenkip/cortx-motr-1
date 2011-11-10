@@ -68,23 +68,23 @@
 
    - int c2_layout_schema_init(struct c2_layout_schema *l_schema)
    - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
-   - int c2_layout_rec_add(const struct c2_layout layout,
+   - int c2_layout_rec_add(const struct c2_layout *layout,
                 const struct c2_layout_schema *l_schema,
                 const struct c2_db_tx *tx)
-   - int c2_layout_rec_delete(const struct c2_layout layout, 
+   - int c2_layout_rec_delete(const struct c2_layout *layout, 
   		const struct c2_layout_schema *l_schema, 
 		const struct c2_db_tx *tx)
-   - int c2_layout_rec_update(const struct c2_layout layout,
+   - int c2_layout_rec_update(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
-   - int c2_layout_rec_lookup(const struct c2_layout_id l_id,
+   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
 		struct c2_layout_rec *l_rec_out);
-   - int c2_layout_rec_get(const struct c2_layout l,
+   - int c2_layout_rec_get(const struct c2_layout *l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
-   - int c2_layout_rec_put(const struct c2_layout l,
+   - int c2_layout_rec_put(const struct *c2_layout l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 
@@ -140,9 +140,9 @@
 */
 
 /**
-	In-memory data structure for the layout schema.
-	It includes pointers to all the DB tables and various related 
-	parameters.
+   In-memory data structure for the layout schema.
+   It includes pointers to all the DB tables and various related 
+   parameters.
 */
 struct c2_layout_schema {
 	/** Layout DB environment */
@@ -166,7 +166,7 @@ enum layout_rec_type_code {
 };
 
 /**
-	Attributes for linear type of formula layout.
+   Attributes for linear type of formula layout.
 */	
 struct pdclust_linear_rec_attrs {
 	/** Number of data units in parity group */
@@ -176,8 +176,8 @@ struct pdclust_linear_rec_attrs {
 };
 
 /**
-	layout_entries table
-	Key is c2_uint128 OR c2_layout_id.
+   layout_entries table
+   Key is c2_uint128 OR c2_layout_id.
 */
 struct c2_layout_rec {
 	/** Type of layout */ 
