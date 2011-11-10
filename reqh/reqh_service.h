@@ -371,7 +371,15 @@ struct c2_reqh_service_type_ops {
  */
 struct c2_reqh_service_type {
 	const char		              *rst_name;
+
+	/** Service type operations.*/
 	const struct c2_reqh_service_type_ops *rst_ops;
+
+	/**
+	    Linkage into global service types list.
+
+	    @see c2_rstypes
+	 */
 	struct c2_tlink                        rst_linkage;
 	uint64_t                               rst_magic;
 };

@@ -1,0 +1,334 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original creation date: 09/09/2011
+ */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#include "lib/errno.h" /* ENOTSUP */
+
+#include "console/console_fop.h"
+#include "console/console_it.h"
+#include "console/console_mesg.h"
+
+/**
+ * @brief Signals the waiting process/thread for item reply.
+ */
+static void rpc_reply_recvd(struct c2_rpc_item *req,
+                            struct c2_rpc_item *reply,
+                            int rc)
+{
+        req->ri_error = rc;
+	req->ri_reply = reply;
+        c2_chan_signal(&req->ri_chan);
+}
+
+/**
+ * @brief Prints name and type of console message.
+ *
+ * @param mesg console message
+ */
+static void mesg_name_print(const struct c2_cons_mesg *mesg)
+{
+	printf("%.2d %s", mesg->cm_type, mesg->cm_name);
+}
+
+/**
+ * @brief Prints names of FOP memebers.
+ */
+static void mesg_show(struct c2_fop *fop)
+{
+	struct c2_fit it;
+
+	c2_fop_all_object_it_init(&it, fop);
+        c2_cons_fop_fields_show(&it);
+        c2_fop_all_object_it_fini(&it);
+        c2_fop_free(fop);
+}
+
+/**
+ * @brief Assignes values to FOP members using FOP iterator.
+ */
+static void mesg_input(struct c2_fop *fop)
+{
+	struct c2_fit it;
+
+        /* FOP iterator will prompt for each field in fop. */
+        c2_fop_all_object_it_init(&it, fop);
+        c2_cons_fop_obj_input(&it);
+        c2_fop_all_object_it_fini(&it);
+}
+
+/**
+ * @brief Internal function to send rpc item. It is blocking
+ *	  call which waits for reply.
+ *
+ * @param mesg console message
+ *
+ * @return 0 success, !0 failure.
+ */
+static int mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
+{
+	struct c2_fop	   *fop = mesg->cm_fop;
+	struct c2_rpc_item *item;
+	struct c2_clink	    clink;
+	int		    rc = 0;
+	bool		    wait;
+
+	/* Init rpc item and assign priority, session, etc */
+	item = &fop->f_item;
+	c2_rpc_item_init(item);
+	/* Add link to wait for item reply */
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&item->ri_chan, &clink);
+	item->ri_deadline = 0;
+	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group = NULL;
+	item->ri_type = mesg->cm_item_type;
+	item->ri_ops = mesg->cm_item_ops;
+	item->ri_session = mesg->cm_rpc_session;
+	item->ri_error = 0;
+        rc = c2_rpc_post(item);
+	if (rc != 0) {
+		fprintf(stderr, "c2_rpc_post failed!\n");
+		goto error;
+	}
+
+	/* Wait for reply */
+	wait = c2_chan_timedwait(&clink, deadline);
+	if (!wait) {
+		fprintf(stderr, "Timed out for reply.\n");
+		rc = -ETIMEDOUT;
+	}
+error:
+	/* Fini clink */
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
+
+	return rc;
+}
+
+/* Disk FOP message */
+/**
+ * @brief RPC item operation for disk failure notification.
+ */
+static struct c2_rpc_item_ops c2_rpc_item_cons_disk_ops = {
+        .rio_replied = rpc_reply_recvd
+};
+
+static void disk_mesg_show(void)
+{
+	struct c2_fop             *fop;
+        struct c2_cons_fop_disk   *disk_fop;
+
+        fop = c2_fop_alloc(&c2_cons_fop_disk_fopt, NULL);
+        disk_fop = c2_fop_data(fop);
+        if (fop == NULL)
+                return;
+
+	mesg_show(fop);
+}
+
+static int disk_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
+{
+	struct c2_fop             *fop;
+        struct c2_cons_fop_disk   *disk_fop;
+	int			   rc;
+
+	fop = c2_fop_alloc(&c2_cons_fop_disk_fopt, NULL);
+	disk_fop = c2_fop_data(fop);
+	if (fop == NULL)
+                return -1;
+
+	mesg->cm_fop = fop;
+	mesg->cm_item_type = &c2_rpc_item_cons_disk;
+	mesg_input(fop);
+
+	rc = mesg_send(mesg, deadline);
+        if (rc != 0) {
+                c2_fop_free(fop);
+		fprintf(stderr, "mesg_send failed!\n");
+	}
+
+	return rc;
+}
+
+static struct c2_cons_mesg_ops c2_cons_mesg_disk_ops = {
+	.cmo_mesg_show  = disk_mesg_show,
+	.cmo_name_print = mesg_name_print,
+	.cmo_mesg_send  = disk_mesg_send
+};
+
+static struct c2_cons_mesg c2_cons_disk_mesg = {
+	.cm_name     = "Disk FOP Message",
+	.cm_type     = CMT_DISK_FAILURE,
+	.cm_item_ops = &c2_rpc_item_cons_disk_ops,
+	.cm_ops	     = &c2_cons_mesg_disk_ops
+};
+
+/* Device FOP message */
+/**
+ * @brief RPC item operation for device failure notification.
+ */
+static struct c2_rpc_item_ops c2_rpc_item_cons_device_ops = {
+        .rio_replied = rpc_reply_recvd
+};
+
+static void device_mesg_show(void)
+{
+        struct c2_fop             *fop;
+        struct c2_cons_fop_device *dev_fop;
+
+        fop = c2_fop_alloc(&c2_cons_fop_device_fopt, NULL);
+        dev_fop = c2_fop_data(fop);
+        if (fop == NULL)
+                return;
+
+	mesg_show(fop);
+}
+
+static int device_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
+{
+        struct c2_fop             *fop;
+        struct c2_cons_fop_device *dev_fop;
+	int			   rc;
+
+        fop = c2_fop_alloc(&c2_cons_fop_device_fopt, NULL);
+        dev_fop = c2_fop_data(fop);
+        if (fop == NULL)
+                return -1;
+
+        mesg->cm_fop = fop;
+	mesg->cm_item_type = &c2_rpc_item_cons_device;
+	mesg_input(fop);
+
+	rc = mesg_send(mesg, deadline);
+        if (rc != 0)
+                c2_fop_free(fop);
+
+	return rc;
+}
+
+static struct c2_cons_mesg_ops c2_cons_mesg_device_ops = {
+	.cmo_mesg_show  = device_mesg_show,
+	.cmo_name_print = mesg_name_print,
+	.cmo_mesg_send  = device_mesg_send
+};
+
+static struct c2_cons_mesg c2_cons_device_mesg = {
+	.cm_name     = "Device FOP Message",
+	.cm_type     = CMT_DEVICE_FAILURE,
+	.cm_item_ops = &c2_rpc_item_cons_device_ops,
+	.cm_ops	     = &c2_cons_mesg_device_ops
+};
+
+
+/* Reply FOP message */
+/**
+ * @brief RPC item operation for device failure notification.
+ */
+static struct c2_rpc_item_ops c2_rpc_item_cons_reply_ops = {
+        .rio_replied = NULL,
+};
+
+static void reply_mesg_show(void)
+{
+        struct c2_fop            *fop;
+        struct c2_cons_fop_reply *reply_fop;
+
+        fop = c2_fop_alloc(&c2_cons_fop_reply_fopt, NULL);
+        reply_fop = c2_fop_data(fop);
+        if (fop == NULL)
+                return;
+
+	mesg_show(fop);
+}
+
+static int reply_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
+{
+	return -ENOTSUP;
+}
+
+static struct c2_cons_mesg_ops c2_cons_mesg_reply_ops = {
+	.cmo_mesg_show  = reply_mesg_show,
+	.cmo_name_print = mesg_name_print,
+	.cmo_mesg_send  = reply_mesg_send
+};
+
+static struct c2_cons_mesg c2_cons_reply_mesg = {
+	.cm_name     = "Reply FOP Message",
+	.cm_type     = CMT_REPLY_FAILURE,
+	.cm_item_ops = &c2_rpc_item_cons_reply_ops,
+	.cm_ops	     = &c2_cons_mesg_reply_ops
+};
+
+/**
+ * @brief Array holds refrences to console message types.
+ */
+static struct c2_cons_mesg *cons_mesg[] = {
+	&c2_cons_disk_mesg,
+	&c2_cons_device_mesg,
+	&c2_cons_reply_mesg
+};
+
+void c2_cons_mesg_list_show(void)
+{
+	struct c2_cons_mesg *mesg;
+	int		     i;
+
+	printf("List of FOP's: \n");
+	for (i = 0; i < ARRAY_SIZE(cons_mesg); i++) {
+		mesg = cons_mesg[i];
+		C2_ASSERT(mesg->cm_type == i);
+		mesg->cm_ops->cmo_name_print(mesg);
+		printf("\n");
+	}
+}
+
+struct c2_cons_mesg *c2_cons_mesg_get(enum c2_cons_mesg_type type)
+{
+	struct c2_cons_mesg *mesg;
+
+	C2_PRE(type < ARRAY_SIZE(cons_mesg));
+	mesg = cons_mesg[type];
+	C2_POST(mesg->cm_type == type);
+
+	return mesg;
+}
+
+int c2_cons_mesg_init(void)
+{
+	C2_ASSERT(ARRAY_SIZE(cons_mesg) == CMT_MESG_NR);
+	return 0;
+}
+
+void c2_cons_mesg_fini(void)
+{
+}
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+

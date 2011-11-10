@@ -590,20 +590,20 @@ static void test_cs_ut_args_bad(void)
 }
 
 const struct c2_test_suite colibri_setup_ut = {
-        .ts_name = "colibri_setup_ut... this takes some time",
+        .ts_name = "colibri_setup-ut... this takes some time",
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-                { "Single service", test_cs_ut_service_one},
-		{ "Multiple services", test_cs_ut_services_many},
-		{ "Multiple Request handlers", test_cs_ut_reqhs_many},
-		{ "Command options jumbled", test_cs_ut_opts_jumbled},
-                { "Missing reqh option", test_cs_ut_reqh_none},
-		{ "Bad storage type", test_cs_ut_stype_bad},
-		{ "Bad network xprt", test_cs_ut_xprt_bad},
-		{ "Bad network ep", test_cs_ut_ep_bad},
-		{ "Bad service", test_cs_ut_service_bad},
-		{ "Missing options", test_cs_ut_args_bad},
+                { "cs-single-service", test_cs_ut_service_one},
+		{ "cs-multiple-services", test_cs_ut_services_many},
+		{ "cs-multiple-request-handlers", test_cs_ut_reqhs_many},
+		{ "cs-command-options-jumbled", test_cs_ut_opts_jumbled},
+                { "cs-missing-reqh-option", test_cs_ut_reqh_none},
+		{ "cs-bad-storage-type", test_cs_ut_stype_bad},
+		{ "cs-bad-network-xprt", test_cs_ut_xprt_bad},
+		{ "cs-bad-network-ep", test_cs_ut_ep_bad},
+		{ "cs-bad-service", test_cs_ut_service_bad},
+		{ "cs-missing-options", test_cs_ut_args_bad},
                 { NULL, NULL }
         }
 };
