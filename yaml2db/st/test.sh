@@ -18,7 +18,7 @@ PARSE_FILE="parse.txt"
 EMIT_FILE="emit.txt"
 
 # Number of records to be generated in the configuration file
-REC_NR=10
+REC_NR=141
 
 # Display options of the executable
 $EXEC -h

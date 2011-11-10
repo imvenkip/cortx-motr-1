@@ -106,26 +106,37 @@ static int generate_conf_file(const char *c_name, int rec_nr)
 	for (cnt = 0; cnt < rec_nr; ++cnt) {
 		fprintf(fp,"  -");
 
+		/* Set label */
 		sprintf(str, "LABEL%05d", cnt);
 		fprintf(fp," %s : %s\n", dev_section_keys[0].ysk_key,str);
 
+		/* Set interface */
 		index = rand() % ARRAY_SIZE(interface_fields);
 		strcpy(str, interface_fields[index]);
 		fprintf(fp,"    %s : %s\n", dev_section_keys[1].ysk_key,str);
 
+		/* Set media */
 		index = rand() % ARRAY_SIZE(media_fields);
 		strcpy(str, media_fields[index]);
 		fprintf(fp,"    %s : %s\n", dev_section_keys[2].ysk_key,str);
 
+		/* Set random size */
 		fprintf(fp,"    %s : %d\n", dev_section_keys[3].ysk_key,
-				rand() % 10000);
+			rand() % 10000);
+
+		/* Set random state */
 		fprintf(fp,"    %s : %d\n", dev_section_keys[4].ysk_key,
 			rand() % 2);
-		if (rand() % 2)
-			fprintf(fp,"    %s : %d\n", dev_section_keys[5].ysk_key,
-					rand() % 3);
+
+		/* Set random flags */
+		fprintf(fp,"    %s : %d\n", dev_section_keys[5].ysk_key,
+			rand() % 3);
+
+		/* Set filename */
 		sprintf(str, "/dev/sda%d", cnt);
 		fprintf(fp,"    %s : %s\n", dev_section_keys[6].ysk_key,str);
+
+		/* Set nodename */
 		sprintf(str, "n%d", cnt);
 		fprintf(fp,"    %s : %s\n", dev_section_keys[7].ysk_key,str);
 	}
