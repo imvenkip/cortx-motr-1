@@ -28,6 +28,7 @@
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/queue.h"
 #include "lib/refs.h"
 #include "lib/chan.h"
@@ -107,6 +108,11 @@ int c2_net_init(void);
  release all allocated resources
  */
 void c2_net_fini(void);
+
+enum {
+	/* Hex value for "netmagic" */
+	C2_NET_MAGIC = 0x6E65746D61676963
+};
 
 /** Network transport (e.g., lnet or sunrpc) */
 struct c2_net_xprt {
@@ -415,6 +421,12 @@ struct c2_net_domain {
 	   ADDB context for events related to this domain
 	 */
 	struct c2_addb_ctx  nd_addb;
+
+        /** Linkage for invoking application */
+        struct c2_tlink     nd_app_linkage;
+
+	/** Network magic */
+	uint64_t            nd_magic;
 };
 
 /**
@@ -1251,6 +1263,9 @@ struct c2_net_buffer {
 	 */
 	struct c2_list_link        nb_tm_linkage;
 
+	/** Linkage into a network buffer pool. */
+	struct c2_tlink		   nb_linkage;
+
 	/** Magic for network buffer list. */
 	uint64_t		   nb_magic;
 
@@ -1721,6 +1736,9 @@ enum {
 	NET_BUFFER_HEAD_MAGIC = 0x6e625f68656164,
 };
 
+/** Descriptor for the tlist of buffers. */
+C2_TL_DESCR_DECLARE(pool, extern);
+C2_TL_DECLARE(pool, extern, struct c2_net_buffer);
 
 /** @} end of deprecated net group */
 

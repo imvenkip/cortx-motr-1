@@ -70,7 +70,7 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name),
 
 /**
  * Fom domain operations.
- * @todo -> support fom timeout functionality.
+ * @todo Support fom timeout functionality.
  */
 static struct c2_fom_domain_ops c2_fom_dom_ops = {
 	.fdo_time_is_out = fom_wait_time_is_out
@@ -137,7 +137,7 @@ bool fom_wait_time_is_out(const struct c2_fom_domain *dom, const struct c2_fom *
  * execution or a waiting fom is re scheduled for processing.
  *
  * @pre fom->fo_state == FOS_READY
- * @param fom, ready to be executed fom, is put on locality runq
+ * @param fom Ready to be executed fom, is put on locality runq
  */
 static void fom_ready(struct c2_fom *fom)
 {
@@ -157,11 +157,15 @@ static void fom_ready(struct c2_fom *fom)
  * list and to put it back on the locality runq list for further
  * execution.
  *
- * @param clink, fom linkage into waiting channel registered
-		during a blocking operation
+ * This function returns true, meaning that the event is "consumed", because
+ * nobody is supposed to be waiting on fom->fo_clink.
+ *
+ * @param clink Fom linkage into waiting channel registered
+ *		during a blocking operation
+ *
  * @pre clink != NULL
  */
-static void fom_cb(struct c2_clink *clink)
+static bool fom_cb(struct c2_clink *clink)
 {
 	struct c2_fom_locality	*loc;
 	struct c2_fom		*fom;
@@ -179,6 +183,7 @@ static void fom_cb(struct c2_clink *clink)
 	fom->fo_state = FOS_READY;
 	fom_ready(fom);
 	c2_mutex_unlock(&loc->fl_lock);
+	return true;
 }
 
 void c2_fom_block_enter(struct c2_fom *fom)
@@ -228,6 +233,7 @@ void c2_fom_queue(struct c2_fom *fom)
 		fom->fo_phase == FOPH_FAILURE);
 
 	loc = fom->fo_loc;
+	c2_atomic64_inc(&loc->fl_dom->fd_foms_nr);
 	c2_mutex_lock(&loc->fl_lock);
 	fom->fo_state = FOS_READY;
 	fom_ready(fom);
@@ -248,7 +254,7 @@ C2_EXPORTED(c2_fom_queue);
  * returns FSO_WAIT.
  *
  * @pre fom->fo_state == FOS_RUNNING
- * @param fom, A fom blocking on an operation that is to be
+ * @param fom A fom blocking on an operation that is to be
  *		put on the locality wait list
  */
 static void fom_wait(struct c2_fom *fom)
@@ -291,7 +297,7 @@ C2_EXPORTED(c2_fom_block_at);
  * @see c2_fom_state_outcome
  * @see c2_fom_block_at()
  *
- * @param fom, fom under execution
+ * @param fom A fom under execution
  * @pre fom->fo_state == FOS_RUNNING
  */
 static void fom_exec(struct c2_fom *fom)
@@ -330,14 +336,14 @@ static void fom_exec(struct c2_fom *fom)
 }
 
 /**
- * Dequeue's a fom from runq list of the locality.
+ * Dequeues a fom from runq list of the locality.
  *
- * @param loc, locality assigned for fom execution
+ * @param loc Locality assigned for fom execution
  *
  * @pre c2_mutex_is_locked(&loc->fl_lock)
  *
- * @retval -> returns c2_fom object if succeeds,
- *		else returns NULL
+ * @retval c2_fom if succeeds
+ *	else returns NULL
  */
 static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 {
@@ -368,7 +374,7 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
  * @see c2_fom_locality::fl_runrun
  * @see c2_fom_locality::fl_lo_idle_threads_nr
  *
- * @param th -> c2_fom_hthread, contains thread reference, locality reference
+ * @param th c2_fom_hthread, contains thread reference, locality reference
  *		and thread linkage in locality
  *
  * @pre th != NULL
@@ -422,20 +428,26 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
  * Adds thread to the locality thread list and
  * increments thread count in locality atomically.
  *
- * @param th -> c2_fom_hthread, contains thread reference, locality reference
+ * @param th c2_fom_hthread, contains thread reference, locality reference
  *		and thread linkage in locality
  */
-static void loc_thr_init(struct c2_fom_hthread *th)
+static int loc_thr_init(struct c2_fom_hthread *th)
 {
 	struct c2_fom_locality *loc;
+	int                     rc;
+
 	loc = th->fht_locality;
 	C2_ASSERT(loc != NULL);
 
 	c2_mutex_lock(&loc->fl_lock);
-	c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
-	C2_CNT_INC(loc->fl_threads_nr);
-	c2_thread_confine(&th->fht_thread, &loc->fl_processors);
+	rc = c2_thread_confine(&th->fht_thread, &loc->fl_processors);
+	if (rc == 0) {
+		c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
+		C2_CNT_INC(loc->fl_threads_nr);
+	}
 	c2_mutex_unlock(&loc->fl_lock);
+
+	return rc;
 }
 
 /**
@@ -444,11 +456,11 @@ static void loc_thr_init(struct c2_fom_hthread *th)
  *
  * @see loc_thr_init()
  *
- * @param loc, locality in which the threads are added
+ * @param loc Locality in which the threads are added
  *
- * @retval 0, if a thread is successfully created and
+ * @retval 0 If a thread is successfully created and
  *		added to the given locality
- *	-errno, on failure
+ *	-errno on failure
  *
  * @pre loc != NULL
  */
@@ -470,8 +482,10 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 			loc_thr_init, &loc_handler_thread, locthr,
 			"locality_thread");
 
-	if (result != 0)
+	if (result != 0) {
+		c2_list_del(&locthr->fht_linkage);
 		c2_free(locthr);
+	}
 
 	return result;
 }
@@ -484,7 +498,7 @@ static int loc_thr_create(struct c2_fom_locality *loc)
  * finalises each thread. After removing all the threads
  * from the locality, other locality members are finalised.
  *
- * @param loc, locality to be finalised
+ * @param loc Locality to be finalised
  *
  * @pre loc != NULL
  */
@@ -539,12 +553,12 @@ static void locality_fini(struct c2_fom_locality *loc)
  *
  * @see loc_thr_init()
  *
- * @param loc -> c2_fom_locality to be initialised
- * @param pmap -> c2_bitmap, bitmap representing number of cpus
- *				present in the locality
+ * @param loc  c2_fom_locality to be initialised
+ * @param pmap Bitmap representing number of cpus
+ *		present in the locality
  *
- * @retval int -> 0, if locality is initialised,
- *		-errno, on failure
+ * @retval 0 If locality is initialised
+ *	-errno on failure
  *
  * @pre loc != NULL
  */
@@ -602,8 +616,8 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 /**
  * Checks if cpu resource is shared.
  *
- * @retval bool -> returns true, if cpu resource is shared
- *		returns false, if no cpu resource is shared
+ * @retval bool true if cpu resource is shared
+ *		false if no cpu resource is shared
  */
 static bool resource_is_shared(const struct c2_processor_descr *cpu1,
 			const struct c2_processor_descr *cpu2)
@@ -731,6 +745,7 @@ void c2_fom_fini(struct c2_fom *fom)
 {
 	C2_PRE(fom->fo_phase == FOPH_FINISH);
 
+	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
 	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 }

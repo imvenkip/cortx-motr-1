@@ -14,20 +14,20 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original Author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original creation date: 08/14/2011
+ * Original author: Yuriy Umanets <Yuriy_Umanets@xyratex.com>
+ * Original creation date: 01/23/2010
  */
 
-#include <linux/module.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
-#include <sm/sm.h>
-
-int init_module(void)
+int libc2_init()
 {
 	return 0;
 }
 
-void cleanup_module(void)
+void libc2_fini()
 {
 }
 

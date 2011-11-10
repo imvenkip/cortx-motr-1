@@ -66,6 +66,13 @@ static int key_compare(DB *db, const DBT *dbt1, const DBT *dbt2);
 static int get_lsn(struct c2_dbenv *env, DB_LSN *lsn);
 static void dbenv_thread(struct c2_dbenv *env);
 
+C2_TL_DESCR_DEFINE(enw, "env waiters", static, struct c2_db_tx_waiter,
+		   tw_env, tw_magix,
+		   C2_DB_TX_WAITER_MAGIX,
+		   0xda2edc0cc1d10515 /* dazed coccidiosis */);
+C2_TL_DEFINE(enw, static, struct c2_db_tx_waiter);
+
+
 /**
    Convert db5 specific error code into generic errno.
 
@@ -240,7 +247,7 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 
 	c2_dbenv_common_init(env);
 	c2_mutex_init(&di->d_lock);
-	c2_list_init(&di->d_waiters);
+	enw_tlist_init(&di->d_waiters);
 	c2_cond_init(&di->d_shutdown_cond);
 	/*
 	 * XXX translate flags from c2 to db5.
@@ -367,7 +374,7 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 		di->d_errlog = NULL;
 	}
 	c2_cond_fini(&di->d_shutdown_cond);
-	c2_list_fini(&di->d_waiters);
+	enw_tlist_fini(&di->d_waiters);
 	c2_mutex_fini(&di->d_lock);
 	c2_dbenv_common_fini(env);
 }
@@ -494,7 +501,7 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 
 static void waiter_fini(struct c2_db_tx_waiter *w)
 {
-	c2_list_del(&w->tw_env);
+	enw_tlink_del_fini(w);
 	w->tw_done(w);
 }
 
@@ -506,16 +513,13 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 	DB_LSN                  lsn;
 
 	env = tx->dt_env;
-	if (commit && !c2_list_is_empty(&tx->dt_waiters)) {
+	if (commit && !txw_tlist_is_empty(&tx->dt_waiters)) {
 		result = get_lsn(env, &lsn);
 		if (result != 0)
 			return result;
 	}
-	while (!c2_list_is_empty(&tx->dt_waiters)) {
-		w = container_of(tx->dt_waiters.l_head, struct c2_db_tx_waiter,
-				 tw_tx);
-		C2_ASSERT(c2_list_link_is_in(&w->tw_env));
-		c2_list_del(&w->tw_tx);
+	c2_tlist_for(&txw_tl, &tx->dt_waiters, w) {
+		txw_tlist_del(w);
 		if (!commit) {
 			w->tw_abort(w);
 			c2_mutex_lock(&env->d_i.d_lock);
@@ -525,7 +529,7 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 			w->tw_commit(w);
 			w->tw_i.tw_lsn = lsn;
 		}
-	}
+	} c2_tlist_endfor;
 	return 0;
 }
 
@@ -565,10 +569,10 @@ void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
 	env = tx->dt_env;
 
 	c2_mutex_lock(&env->d_i.d_lock);
-	c2_list_add(&env->d_i.d_waiters, &w->tw_env);
+	enw_tlink_init_at(w, &env->d_i.d_waiters);
 	c2_mutex_unlock(&env->d_i.d_lock);
 
-	c2_list_add(&tx->dt_waiters, &w->tw_tx);
+	txw_tlink_init_at(w, &tx->dt_waiters);
 }
 
 static DBT *pair_key(struct c2_db_pair *pair)
@@ -800,7 +804,6 @@ static void dbenv_thread(struct c2_dbenv *env)
 		int                     rc;
 		int                     nr_pages;
 		struct c2_db_tx_waiter *w;
-		struct c2_db_tx_waiter *tmp;
 		c2_time_t               deadline;
 		c2_time_t               delay;
 
@@ -816,14 +819,12 @@ static void dbenv_thread(struct c2_dbenv *env)
 			next.file   = st->st_disk_file;
 			next.offset = st->st_disk_offset;
 			c2_free(st);
-			c2_list_for_each_entry_safe(&di->d_waiters, w, tmp,
-						    struct c2_db_tx_waiter,
-						    tw_env) {
+			c2_tlist_for(&enw_tl, &di->d_waiters, w) {
 				if (log_compare(&w->tw_i.tw_lsn, &next) <= 0) {
 					w->tw_persistent(w);
 					waiter_fini(w);
 				}
-			}
+			} c2_tlist_endfor;
 		}
 		deadline = c2_time_now();
 		c2_time_set(&delay, 1, 0);
@@ -831,7 +832,7 @@ static void dbenv_thread(struct c2_dbenv *env)
 		c2_cond_timedwait(&di->d_shutdown_cond, &di->d_lock, deadline);
 		c2_mutex_unlock(&di->d_lock);
 	} while (!last);
-	C2_ASSERT(c2_list_is_empty(&env->d_i.d_waiters));
+	C2_ASSERT(enw_tlist_is_empty(&env->d_i.d_waiters));
 }
 
 /** @} end of db group */

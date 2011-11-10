@@ -168,7 +168,6 @@ int main()
 	struct c2_net_buffer		*nb;
 	struct c2_bufvec_cursor		cur;
 	void				*cur_addr;
-	size_t				size;
 
 	/* Onwire tests */
 	C2_ALLOC_PTR(item1);
@@ -229,7 +228,6 @@ int main()
 	populate_item(item2);
 	populate_item(item3);
 
-	size = c2_xcode_fop_size_get(f1);
 	obj = &rpc_obj;
 	c2_list_init(&obj->r_items);
 

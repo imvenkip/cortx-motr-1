@@ -1,12 +1,14 @@
 KNETC2_SRCDIR = @SRCDIR@/net/linux_kernel
 NET_MOD       := knetc2
 
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
 otw_ff        := net_otw_types.ff
 otw_k_h       := $(otw_ff:.ff=_k.h)
 otw_k_c       := $(otw_ff:.ff=_k.c)
 otw_k_o       := $(otw_k_c:.c=.o)
 
-local_src     := main.c
+local_src     :=
 ut_src        := bulk_if.c
 link_ut       := $(ut_src:%=../ut/%)
 kernel_src    := $(local_src) $(otw_k_c) $(ut_src)
@@ -37,7 +39,7 @@ all_src       := $(kernel_src) $(net_src) $(bulk_src) $(depr_src) $(depr_ksrc)\
                  $(deprbulk_src)
 all_obj       := $(all_src:.c=.o)
 
-obj-m         := $(NET_MOD).o
+obj-y         := $(NET_MOD).o
 $(NET_MOD)-y  := $(all_obj)
 
 dist_src      := Makefile.in $(local_src)

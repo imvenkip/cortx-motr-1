@@ -83,7 +83,9 @@ void test_buf_pool()
 	for (i = 0; i < nr_client_threads; i++) {
 		c2_thread_join(&client_thread[i]);
 	}
+	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_fini(&bp);
+	c2_net_buffer_pool_unlock(&bp);
 	c2_net_domain_fini(bp.nbp_ndom);
 	c2_free(bp.nbp_ndom);
 	c2_net_xprt_fini(xprt);

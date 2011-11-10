@@ -332,7 +332,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	else
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
-	
+
 	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
 	SERVER_ADDB_ADD("io_handler", rc);
 	return rc;
@@ -511,9 +511,6 @@ int main(int argc, char **argv)
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
 
-	result = c2_ioservice_fop_init();
-	C2_ASSERT(result == 0);
-
 	result = c2_processors_init();
 	C2_ASSERT(result == 0);
 
@@ -619,7 +616,7 @@ int main(int argc, char **argv)
 	result = c2_service_start(&service, &sid);
 	C2_ASSERT(result >= 0);
 
-	result = c2_reqh_init(&reqh, NULL, NULL, dom, &fol);
+	result = c2_reqh_init(&reqh, NULL, dom, &db, NULL, &fol);
 	C2_ASSERT(result == 0);
 
 	while (!stop) {

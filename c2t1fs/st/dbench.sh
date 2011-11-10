@@ -22,11 +22,8 @@ echo "server address is $IPAddr:$Port"
 rmmod loop
 
 ulimit -c unlimited
-insmod lib/linux_kernel/klibc2.ko
-insmod addb/linux_kernel/kaddb.ko
-insmod fop/linux_kernel/kfop.ko
-insmod net/linux_kernel/knetc2.ko
-insmod c2t1fs/c2t1fs.ko
+insmod build_kernel_modules/kcolibri.ko
+
 lsmod | grep -c "c2t1fs" || exit
 
 rm -rf /tmp/test/
@@ -47,8 +44,6 @@ umount /mnt/c2t1fs
 # 1024 * 1024 * 256 = 268435456
 mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 
-#attach loop device over c2t1fs file
-insmod c2t1fs/c2t1fs_loop.ko
 sleep 1
 losetup /dev/loop0 /mnt/c2t1fs/12345
 
@@ -63,12 +58,7 @@ umount /mnt/loop
 losetup -d /dev/loop0
 umount /mnt/c2t1fs
 
-rmmod c2t1fs_loop
-rmmod c2t1fs
-rmmod knetc2
-rmmod kfop
-rmmod kaddb
-rmmod klibc2
+rmmod kcolibri
 
 killall lt-server
 echo ======================done=====================

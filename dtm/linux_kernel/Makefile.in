@@ -1,8 +1,10 @@
 DTM_SRCDIR = @SRCDIR@/dtm/linux_kernel
 
-obj-m		:= kdtm.o
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
+obj-y		:= kdtm.o
 shared_src	:= verno.c 
-kernel_src	:= dtm_kernel.c
+kernel_src	:=
 kdtm-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 

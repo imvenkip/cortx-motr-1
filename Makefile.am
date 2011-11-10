@@ -18,7 +18,9 @@ SUBDIRS_LIBS = \
                addb \
                balloc \
                capa \
+               cfg \
                cob \
+	       console \
                desim \
                dtm \
                ioservice \
@@ -36,14 +38,15 @@ SUBDIRS_LIBS = \
                xdr
 SUBDIR_IT = rpc/it
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
-            fol/ut sns/ut desim/ut cob/ut net/ut net/bulk_emulation/ut \
-            udb/ut capa/ut reqh/ut rpc/ut xcode/ut xdr/ut
-SUBDIR_ST = net/st net/bulk_emulation/st
+SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \
+	    sns/ut desim/ut cob/ut console/ut colibri/ut net/ut \
+	    net/bulk_emulation/ut udb/ut capa/ut ioservice/ut reqh/ut rpc/ut \
+	    sm/ut xcode/ut xdr/ut
+SUBDIR_ST = console/st net/st net/bulk_emulation/st
 
 SUBDIR_UB =
 
-SUBDIR_BIN = mds utils
+SUBDIR_BIN = console/bin mds utils
 
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT) \
 	     $(SUBDIR_KERNEL) $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_UB) \
@@ -55,3 +58,9 @@ etags:
 EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog
 ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 ACLOCAL_AMFLAGS = -I m4
+
+clean-local:
+	if test "x@ENABLE_COVERAGE@" = "x1"; \
+	then \
+		find . -name "*.gcno" | xargs rm -f; \
+	fi

@@ -14,22 +14,25 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Madhavrao Vemuri <madhav_vemuri@xyratex.com>
- * Original creation date: 06/09/2011
+ * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original creation date: 13/10/2011
  */
 
-#include <linux/module.h>
+/*
+  Dummy fops to test colibri setup
+ */
 
-#include "cob/cob.h"
+DEF(cs_ds1_req_fop, RECORD,
+        _(csr_value, U32));
 
-int init_module(void)
-{
-        return 0;
-}
+DEF(cs_ds1_rep_fop, RECORD,
+        _(csr_rc, U32));
 
-void cleanup_module(void)
-{
-}
+DEF(cs_ds2_req_fop, RECORD,
+        _(csr_value, U32));
+
+DEF(cs_ds2_rep_fop, RECORD,
+        _(csr_rc, U32));
 
 /*
  *  Local variables:

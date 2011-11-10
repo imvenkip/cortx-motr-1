@@ -14,29 +14,16 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Madhavrao Vemuri <madhav_vemuri@xyratex.com>
- * Original creation date: 22/09/2011
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 09/27/2011
  */
 
-#include <linux/module.h>
-
-#include "fol/fol.h"
-
-int init_module(void)
-{
-        return 0;
-}
-
-void cleanup_module(void)
-{
-}
-
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 80
+ *  fill-column: 79
  *  scroll-step: 1
  *  End:
  */

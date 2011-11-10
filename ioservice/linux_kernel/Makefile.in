@@ -2,9 +2,11 @@ IOSERVICE_SRCDIR = @SRCDIR@/ioservice/linux_kernel
 IOSERVICEDIR = @SRCDIR@/ioservice
 FOPDIR = @SRCDIR@/fop
 
-obj-m		:= kioservice.o
+GCOV_PROFILE := @K_ENABLE_COVERAGE@
+
+obj-y		:= kioservice.o
 shared_src	:= io_fops.c
-kernel_src	:= ioservice_kernel.c io_fops_k.c
+kernel_src	:= io_fops_k.c
 kioservice-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 
