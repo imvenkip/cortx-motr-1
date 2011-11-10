@@ -470,37 +470,6 @@ c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
 int32_t c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom);
 
 /**
-   @todo New interface - requires new xo
-
-   Sets the maximum number of messages that may be received in a single
-   buffer.
-   The value has no effect on buffers already queued for message reception.
-   The default value may be recovered with the
-   c2_net_buffer_set_max_receive_messages() subroutine.
-   @param max_recv_msgs  Specify a new maximum. A value of 0 restores the
-   default value.
-
-   @note Support for this feature is transport specific but no error indication
-   is returned if invoked on a domain associated with a transport that does not
-   support the feature.
-
-   @see c2_net_domain_get_max_buffer_receive_messages
- */
-extern void c2_net_domain_set_max_buffer_receive_messages(
-                             struct c2_net_domain *dom, uint32_t max_recv_msgs);
-
-/**
-   @todo New interface - requires new xo
-
-   Returns the configured maximum number of messages that can be received in a
-   single buffer.
-
-   @see c2_net_domain_set_max_buffer_receive_messages
- */
-extern uint32_t c2_net_domain_get_max_buffer_receive_messages(struct c2_net_domain
-							      *dom);
-
-/**
    This represents an addressable network end point. Memory for this data
    structure is managed by the network transport component and is associated
    with the transfer machine that created the structure.
@@ -1319,6 +1288,19 @@ struct c2_net_buffer {
 	   after de-registration.
 	 */
 	uint64_t                   nb_flags;
+
+	/**
+	   Minimum remaining size in a receive buffer to allow reuse
+	   for multiple messages.
+	   The value may not be 0 for buffers in the C2_NET_QT_MSG_RECV queue.
+	 */
+	c2_bcount_t                nb_min_receive_size;
+
+	/**
+	   Maximum number of messages that may be received in the buffer.
+	   The value may not be 0 for buffers in the C2_NET_QT_MSG_RECV queue.
+	 */
+	uint32_t                   nb_max_receive_msgs;
 };
 
 /**
@@ -1394,7 +1376,9 @@ c2_net__qtype_is_valid(buf->nb_qtype) &&
 !(buf->nb_flags &
   (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)) &&
 buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL &&
-(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL)
+(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL) &&
+(buf->nb_qtype == C2_NET_QT_MSG_RECV && buf->nb_min_receive_size != 0
+ && buf->nb_max_receive_msgs != 0)
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)

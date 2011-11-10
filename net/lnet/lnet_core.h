@@ -102,7 +102,6 @@
  */
 
 #include "net/lnet.h"
-#include "lib/cqueue.h"
 
 /* forward references */
 struct c2_lnet_core_buffer;
@@ -131,12 +130,71 @@ enum {
 };
 
 /**
+   Core domain data.  The transport layer should embed this at the
+   <b>very end</b> of its private data.
+ */
+struct c2_lnet_core_domain {
+	/* place holder */
+};
+
+/**
+   Opaque type wide enough to represent an address in any address space.
+ */
+typedef uint64_t c2_lnet_core_opaque_ptr_t;
+C2_BASSERT(sizeof(c2_lnet_core_opaque_ptr_t) == sizeof(void *));
+
+/**
+   Buffer events are linked in the buffer queue using this structure. It is
+   designed to be operated upon from either kernel or user space with a single
+   producer and single consumer.
+ */
+struct c2_lnet_core_bev_link {
+	/**
+	   Self pointer in the transport address space.
+	 */
+	c2_lnet_core_opaque_ptr_t lcbevl_t_self;
+
+	/**
+	   Self pointer in the kernel address space.
+	 */
+	c2_lnet_core_opaque_ptr_t lcbevl_k_self;
+
+	/**
+	   Pointer to the next element in the consumer address space.
+	 */
+	c2_lnet_core_opaque_ptr_t lcbevl_c_next;
+};
+
+/**
+   Buffer event queue, operable from either from either kernel and user space
+   with a single producer and single consumer.
+ */
+struct c2_lnet_core_bev_queue {
+	/**
+	   The producer adds links to this anchor.
+	   The producer pointer value is in the address space of the
+	   producer.
+	 */
+	c2_lnet_core_opaque_ptr_t lcbevq_producer;
+
+	/**
+	   The consumer removes elements from this anchor.
+	   The producer pointer value is in the address space of the
+	   producer.
+	 */
+	c2_lnet_core_opaque_ptr_t lcbevq_consumer;
+};
+
+/**
    This structure describes a buffer event. It is very similar to
    struct c2_net_buffer_event.
  */
 struct c2_lnet_core_buffer_event {
-	/** Pointer to the network buffer */
-	struct c2_net_buffer        *lcbe_nb;
+	/** Linkage in the TM buffer event queue */
+	struct c2_lnet_core_bev_link  lcbe_tm_link;
+
+	/** Pointer to the transport private data (transport address space) */
+	struct c2_lnet_core_buffer  *lcbe_core_pvt;
 
 	/** Event timestamp */
 	c2_time_t                    lcbe_time;
@@ -158,32 +216,6 @@ struct c2_lnet_core_buffer_event {
 };
 
 /**
-   Core domain data.  The transport layer should embed this at the
-   <b>very end</b> of its private data.
- */
-struct c2_lnet_core_domain {
-	/* place holder */
-};
-
-/**
-   Opaque type wide enough to represent a buffer address in the transport
-   address space.  It is not subject to interpretation in any other
-   address space.
- */
-typedef uint64_t c2_lnet_core_net_buffer_id_t;
-C2_BASSERT(sizeof(c2_lnet_core_net_buffer_id) == sizeof(struct c2_net_buffer *));
-
-static inline c2_lnet_core_net_buffer_id_t
-c2_lnet_core_net_buffer_ptr_to_id(struct c2_net_buffer *nb) {
-	return (c2_lnet_core_net_buffer_id_t) nb;
-}
-
-static inline struct c2_net_buffer *
-c2_lnet_core_net_buffer_id_to_ptr(c2_lnet_core_net_buffer_id_t nbid) {
-	return (struct c2_net_buffer *) nbid;
-}
-
-/**
    Core transfer machine data.  The transport layer should embed this at the
    <b>very end</b> of its private data.  The size is determined at run time.
   */
@@ -198,27 +230,19 @@ struct c2_lnet_core_transfer_mc {
 	void                   *lctm_kpvt; /**< Core kernel space private */
 
 	/**
-	   Every transfer machine has a circular queue indicating which buffers
-	   have pending events.  The queue is maintained in memory shared
-	   between the transport and the core layers.
+	   List of available buffer event structures.  The queue is shared
+	   between the transport address space and the kernel.
+
+	   The transport is responsible for ensuring that there are sufficient
+	   free entries to return the results of all pending operations.
 	 */
-	struct c2_cqueue        lctm_cq;
+	struct c2_lnet_core_bev_queue lctm_free_bevq;
 
 	/**
-	   The indicies of the lctm_cq circular queue dereference this array.
-	   The buffers with pending events are identified by their address
-	   space agnostic buffer identifier copied from the
-	   c2_lnet_core_buffer::lcb_nbid field.
-
-	   The data structure defines space for 1 buffer identifier using an
-	   array with one element. Space for additonal buffer identifiers in
-	   the array should be allocated at run time using additional
-	   contiguous memory.
-
-	   @note The valgrind utility may complain about dereferencing beyond
-	   the array size.
+	   Buffer completion event queue.  The queue is shared between the
+	   transport address space and the kernel.
 	 */
-	c2_lnet_core_net_buffer_id_t lctm_nbids[1];
+	struct c2_lnet_core_bev_queue lctm_completed_bevq;
 };
 
 /**
@@ -228,11 +252,17 @@ struct c2_lnet_core_transfer_mc {
 */
 struct c2_lnet_core_buffer {
 	/**
-	   Identifier to use for the buffer in the circular buffer event queue.
-	   It should be set to the address of the c2_lnet_core_buffer in the
-	   transport address space.
-	*/
-	c2_lnet_core_net_buffer_id_t lcb_nbid;
+	   The value of the c2_net_buffer address in the transport address
+	   space. The value is set by the c2_lnet_core_buffer_register()
+	   subroutine.
+	 */
+	c2_lnet_core_opaque_ptr_t lcb_buffer_id;
+
+	/**
+	   The buffer queue type - copied from c2_net_buffer::nb_qtype
+	   when the buffer operation is initiated.
+	 */
+        enum c2_net_queue_type    lcb_qtype;
 
 	/**
 	   The match bits for a passive bulk buffer, including the TMID field.
@@ -252,44 +282,6 @@ struct c2_lnet_core_buffer {
 
 	void                 *lcb_upvt; /**< Core user space private */
 	void                 *lcb_kpvt; /**< Core kernel space private */
-
-	/**
-	   This data structure is used in receive buffers that accept more than
-	   one message in the buffer, to maintain a FIFO queue in the @c lcb_ev
-	   array.
-
-	   The c2_cqueue data structure is used for its single-producer,
-	   single-consumer, cross-address space capabilities only; the circular
-	   functionality is not utilized.  As such, it is sufficient to
-	   allocate, in the @c lcb_ev array, exactly as many buffer event
-	   elements as are needed, though the @c cq_size value set in the
-	   circular queue must be set to 1 more than this value.
-
-	   The field is not to be initialized for non-receive buffers, because
-	   a circular queue has a minimum size of 2 elements.  Instead, the @c
-	   cq_size field of the structure should be explicitly set to 1.  This
-	   should also be done for the special case where only one message is
-	   to be received in a receive buffer.
-	 */
-	struct c2_cqueue      lcb_ev_cq;
-
-	/**
-	   Space for buffer events to convey buffer operation completion data.
-
-	   Receive buffers usually need an array of buffer events, because
-	   multiple messages can be delivered into a single buffer and event
-	   delivery can overlap with message reception.  Other buffers need
-	   only a single buffer event.
-
-	   The data structure defines space for 1 buffer event using an array
-	   with one element. Space for additonal buffer events in the array
-	   should be allocated for receive buffers using additional contiguous
-	   memory.
-
-	   @note The valgrind utility may complain about dereferencing beyond
-	   the array size.
-	*/
-	struct c2_lnet_core_buffer_event  lcb_ev[1]; /* last field in struct */
 };
 
 
@@ -322,23 +314,6 @@ extern c2_bcount_t c2_lnet_core_get_max_buffer_segment_size(
    Get the maximum number of buffer segments.
  */
 extern int32_t c2_lnet_core_get_max_buffer_segments(
-                                             struct c2_lnet_core_domain *lcdom);
-
-/**
-   Set the maximum number of messages that can be received in a single
-   buffer.
-   @param lcdom Domain priate data.
-   @param max_recv_msgs Specify a new maximum, or 0 to restore the default.
- */
-extern void c2_lnet_core_set_max_buffer_receive_messages(
-					      struct c2_lnet_core_domain *lcdom,
-					      uint32_t max_recv_msgs);
-
-/**
-   Get the configured maximum number of messages that can be received in a
-   single buffer.
- */
-extern uint32_t c2_lnet_core_get_max_buffer_receive_messages(
                                              struct c2_lnet_core_domain *lcdom);
 
 /**
@@ -410,6 +385,7 @@ extern int c2_lnet_core_buf_active_send(struct c2_lnet_core_transfer_mc *lctm,
 
 /**
    Enqueue a buffer for passive bulk receive.
+   This is a synchronous operation.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @param match_bits Returns the match bits identifying the passive buffer.
@@ -420,7 +396,8 @@ extern int c2_lnet_core_buf_passive_recv(struct c2_lnet_core_transfer_mc *lctm,
 					 uint64_t *match_bits);
 
 /**
-   Enqueue a buffer for passive bulk send.
+   Enqueue buffer for passive bulk send.
+   This is a synchronous operation.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @param match_bits Returns the match bits identifying the passive buffer.
@@ -501,23 +478,15 @@ extern int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
 extern int c2_lnet_core_tm_stop(struct c2_lnet_core_transfer_mc *lctm);
 
 /**
-   Assign match bits for a buffer in the
-   c2_lnet_core_buffer::lcb_match_bits field.  This is required to generate the
-   network buffer descriptor for passive bulk data buffers when returning from
-   the c2_net_buf_add() subroutine.  Each passive operation should use a new
-   set of match bits.
+   The transport should invoke this subroutine before initiating any buffer
+   operation, to state how many buffer event structures are required to complete
+   all current and to-be-scheduled buffer operations.
 
-   It is up to the transport to ensure that this is called only for passive
-   bulk buffers. The match bits will repeat after a very long period of
-   time; the transport is responsible for determining that they are unique over
-   all pending passive buffer operations, and can repeat this call multiple
-   times if so desired.
-
-   @param lctm The transfer machine private data.
-   @param lcb The buffer private data.
+   The core may have to allocate additional buffer event structures on the
+   c2_lnet_core_transfer_mc::lctm_free_bevq.
  */
-extern int c2_lnet_core_tm_match_bits_set(struct c2_lnet_core_transfer_mc *lctm,
-					  struct c2_lnet_core_buffer *lcb);
+extern int c2_lnet_core_tm_bev_needed(struct c2_lnet_core_transfer_mc *lctm,
+				      uint32_t needed);
 
 /**
    @}
