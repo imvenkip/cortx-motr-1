@@ -27,10 +27,10 @@ const struct c2_fid c2t1fs_root_fid = {
 };
 
 int c2t1fs_get_sb(struct file_system_type *fstype,
-			 int                      flags,
-			 const char              *devname,
-			 void                    *data,
-			 struct vfsmount         *mnt)
+		  int                      flags,
+		  const char              *devname,
+		  void                    *data,
+		  struct vfsmount         *mnt)
 {
 	int rc;
 
@@ -128,6 +128,8 @@ int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2_mutex_init(&csb->csb_mutex);
 	csb->csb_flags = 0;
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
+	c2_list_init(&csb->csb_rpc_conns);
+	c2_list_init(&csb->csb_rpc_sessions);
 
 	END(0);
 	return 0;
@@ -136,6 +138,8 @@ void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 {
 	START();
 
+	c2_list_fini(&csb->csb_rpc_conns);
+	c2_list_fini(&csb->csb_rpc_sessions);
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 
@@ -143,15 +147,19 @@ void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 }
 
 enum {
-	C2T1FS_MNTOPT_MDS = 1,
+	C2T1FS_MNTOPT_MGS = 1,
+	C2T1FS_MNTOPT_PROFILE,
+	C2T1FS_MNTOPT_MDS,
 	C2T1FS_MNTOPT_IOS,
 	C2T1FS_MNTOPT_ERR,
 };
 
 static const match_table_t c2t1fs_mntopt_tokens = {
-	{ C2T1FS_MNTOPT_MDS, "mds=%s" },
-	{ C2T1FS_MNTOPT_IOS, "ios=%s" },
-	{ C2T1FS_MNTOPT_ERR, NULL },
+	{ C2T1FS_MNTOPT_MGS,     "mgs=%s" },
+	{ C2T1FS_MNTOPT_PROFILE, "profile=%s" },
+	{ C2T1FS_MNTOPT_MDS,     "mds=%s" },
+	{ C2T1FS_MNTOPT_IOS,     "ios=%s" },
+	{ C2T1FS_MNTOPT_ERR,     NULL },
 };
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts)
@@ -170,12 +178,12 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 	START();
 
 	for (i = 0; i < mntopts->mo_nr_ios_ep; i++) {
-		C2_ASSERT(mntopts->mo_ios_ep[i] != NULL);
-		kfree(mntopts->mo_ios_ep[i]);
+		C2_ASSERT(mntopts->mo_ios_ep_addr[i] != NULL);
+		kfree(mntopts->mo_ios_ep_addr[i]);
 	}
 	for (i = 0; i < mntopts->mo_nr_mds_ep; i++) {
-		C2_ASSERT(mntopts->mo_mds_ep[i] != NULL);
-		kfree(mntopts->mo_mds_ep[i]);
+		C2_ASSERT(mntopts->mo_mds_ep_addr[i] != NULL);
+		kfree(mntopts->mo_mds_ep_addr[i]);
 	}
 	if (mntopts->mo_options != NULL)
 		kfree(mntopts->mo_options);
@@ -227,7 +235,8 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				goto out;
 			}
 			TRACE("ioservice: %s\n", value);
-			mnt_opts->mo_ios_ep[mnt_opts->mo_nr_ios_ep++] = value;
+			mnt_opts->mo_ios_ep_addr[mnt_opts->mo_nr_ios_ep++] =
+						value;
 			break;
 
 		case C2T1FS_MNTOPT_MDS:
@@ -237,9 +246,28 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				goto out;
 			}
 			TRACE("mdservice: %s\n", value);
-			mnt_opts->mo_mds_ep[mnt_opts->mo_nr_mds_ep++] = value;
+			mnt_opts->mo_mds_ep_addr[mnt_opts->mo_nr_mds_ep++] =
+						value;
 			break;
 
+		case C2T1FS_MNTOPT_MGS:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			TRACE("mgservice: %s\n", value);
+			mnt_opts->mo_mgs_ep_addr = value;
+			break;
+		case C2T1FS_MNTOPT_PROFILE:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			TRACE("profile: %s\n", value);
+			mnt_opts->mo_profile = value;
+			break;
 		default:
 			TRACE("Unrecognized options: %s\n", op);
 			rc = -EINVAL;

@@ -9,6 +9,7 @@
 #include "lib/assert.h"
 #include "net/net.h"
 #include "rpc/rpccore.h"
+#include "lib/list.h"
 
 #define C2T1FS_DEBUG 1
 
@@ -39,7 +40,7 @@ enum {
 	C2T1FS_MAX_NAME_LEN = 8,
 };
 
-/** Anything that is global to c2t1fs module should go in this structure */
+/** Anything that is global to c2t1fs module goes in this singleton structure */
 struct c2t1fs_globals
 {
 	struct c2_net_xprt      *g_xprt;
@@ -58,10 +59,12 @@ extern struct c2t1fs_globals c2t1fs_globals;
 struct c2t1fs_mnt_opts
 {
 	char *mo_options;
+	char *mo_profile;
+	char *mo_mgs_ep_addr;
 	int   mo_nr_mds_ep;
-	char *mo_mds_ep[MAX_NR_EP_PER_SERVICE_TYPE];
+	char *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
 	int   mo_nr_ios_ep;
-	char *mo_ios_ep[MAX_NR_EP_PER_SERVICE_TYPE];
+	char *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
 };
 
 struct c2t1fs_sb
@@ -69,6 +72,8 @@ struct c2t1fs_sb
 	struct c2_mutex        csb_mutex;
 	struct c2t1fs_mnt_opts csb_mnt_opts;
 	uint64_t               csb_flags;
+	struct c2_list         csb_rpc_conns;
+	struct c2_list         csb_rpc_sessions;
 };
 
 
@@ -104,6 +109,18 @@ static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
 {
 	return container_of(inode, struct c2t1fs_inode, ci_inode);
 }
+
+struct c2t1fs_rpc_conn
+{
+	struct c2_list_link rc_link;
+	struct c2_rpc_conn  rc_conn;
+};
+
+struct c2t1fs_rpc_session
+{
+	struct c2_list_link   rs_link;
+	struct c2_rpc_session rs_session;
+};
 
 extern const struct c2_fid c2t1fs_root_fid;
 bool c2t1fs_inode_is_root(struct inode *inode);
