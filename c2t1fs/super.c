@@ -20,6 +20,8 @@ static int c2t1fs_config_fetch(struct c2t1fs_sb *csb);
 static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb);
 static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb);
 static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb);
+static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx);
+static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx);
 
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
@@ -328,14 +330,28 @@ static int c2t1fs_config_fetch(struct c2t1fs_sb *csb)
 	END(0);
 	return 0;
 }
+
 static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 {
-	int rc;
+	struct c2t1fs_service_context *ctx;
+	int                            rc;
 
 	START();
 
 	rc = c2t1fs_populate_service_contexts(csb);
+	if (rc != 0)
+		goto out;
 
+	c2_list_for_each_entry(&csb->csb_service_contexts, ctx,
+				struct c2t1fs_service_context, sc_link) {
+		rc = c2t1fs_connect_to_service(ctx);
+		if (rc != 0)
+			/* XXX disconnect from previously connected services */
+			goto out;
+		/* XXX remove this */
+		c2t1fs_disconnect_from_service(ctx);
+	}
+out:
 	END(rc);
 	return rc;
 }
@@ -410,5 +426,65 @@ static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb)
 		c2t1fs_service_context_fini(ctx);
 		c2_free(ctx);
 	}
+	END(0);
+}
+
+static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
+{
+	struct c2_rpcmachine      *rpc_mach;
+	struct c2_net_transfer_mc *tm;
+	struct c2_net_end_point   *ep;
+	struct c2_rpc_conn        *conn;
+	struct c2_rpc_session     *session;
+	int                        rc;
+
+	START();
+
+	rpc_mach = &c2t1fs_globals.g_rpcmachine;
+	tm       = &rpc_mach->cr_tm;
+
+	rc = c2_net_end_point_create(&ep, tm, ctx->sc_addr);
+	if (rc != 0)
+		goto out;
+
+	conn = &ctx->sc_conn;
+	rc = c2_rpc_conn_create(conn, ep, rpc_mach,
+				C2T1FS_MAX_NR_RPC_IN_FLIGHT, 10);
+	c2_net_end_point_put(ep);
+	if (rc != 0)
+		goto out;
+
+	session = &ctx->sc_session;
+	rc = c2_rpc_session_create(session, conn, C2T1FS_NR_SLOTS_PER_SESSION,
+					10);
+	if (rc != 0)
+		goto conn_term;
+
+	END(rc);
+	return rc;
+
+conn_term:
+	(void)c2_rpc_conn_terminate_sync(conn, 10);
+out:
+	END(rc);
+	return rc;
+}
+
+static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
+{
+	struct c2_rpc_conn    *conn;
+	struct c2_rpc_session *session;
+
+	START();
+
+	conn    = &ctx->sc_conn;
+	session = &ctx->sc_session;
+
+	(void)c2_rpc_session_terminate_sync(session, 10);
+	(void)c2_rpc_conn_terminate_sync(conn, 10);
+
+	c2_rpc_session_fini(session);
+	c2_rpc_conn_fini(conn);
+
 	END(0);
 }
