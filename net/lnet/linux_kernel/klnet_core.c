@@ -110,7 +110,6 @@
    The Xyratex Lustre source package must be installed on the build
    machine (RPM @c lustre-source version 2.0 or greater).
    - <b>Xyratex Lustre runtime</b>
-   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
 
    <hr>
    @section KLNetCoreDLD-highlights Design Highlights
@@ -509,7 +508,6 @@
    In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
-   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
 
  */
 

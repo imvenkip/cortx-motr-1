@@ -29,8 +29,6 @@
    @{
 */
 
-#include "lib/cqueue.h"
-
 /**
    Userspace domain private data.
    This structure is pointed to by c2_lnet_core_domain::lcd_upvt.

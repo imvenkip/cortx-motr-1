@@ -96,7 +96,6 @@
    depends.</i>
 
    - @ref LNetCore "LNet Transport Core Interface"
-   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
    - The @ref Processor API and control over thread affinity to processor.
 
    <hr>
@@ -214,7 +213,6 @@
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD"
    - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
-   - @ref cqueueDLD "Circular Queue for Single Producer and Consumer DLD"
 
  */
 
