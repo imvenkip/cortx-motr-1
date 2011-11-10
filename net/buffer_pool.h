@@ -32,19 +32,19 @@
    @brief Network buffer pool allocates and manages a pool of network buffers.
 	  Users request a buffer from the pool and after its usage is over
 	  gives back to the pool.
-	  
+
 	  It provides suppport for a pool of network buffers involving no higher 	  level interfaces than the network module itself.
 	  It is associated with a single network domain.
 	  Non-blocking interfaces are available to get and put network buffers  	  and callbacks to signal the availability of buffers and low
 	  threshold is reached are provided.
-	  
-	  Upon receiving the not_empty call back user can put back buffers which 	  are not in use into the pool. 
-	  
+
+	  Upon receiving the not_empty call back user can put back buffers which 	  are not in use into the pool.
+
 	  Pool is protected by a lock, to get or put a buffer into the pool user	  must acquire the lock and release the lock once its usage is over.
-		
+
 	  To finalize the pool all the buffers must be returned back to the pool	  (i.e number of free buffers must be equal to the total number of of
 	  buffers).
-   	 
+
  To describe a typical buffer pool usage pattern, suppose that one wants 	 a buffer pool of 10, size of each segment is 1024, number of segments is 	 64 and threshold is 10.
 
     First, user needs to provide c2_net_buffer_pool_ops:
@@ -54,7 +54,7 @@
 		.nbpo_below_threshold = Low,
 	};
     @endcode
-   
+
    - Then, buffer pool needs to be assigned to a network domain and initialized 	with above values:
     @code
 	struct c2_net_buffer_pool bp;
@@ -69,12 +69,12 @@
     @endcode
 
    - Now, to add buffers into the pool need to acquire the lock and then specify 	the number of buffers to be added:
-    @code 
+    @code
 	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_provision(&bp, 10);
 	c2_net_buffer_pool_unlock(&bp);
     @endcode
-      
+
     - To add a buffer in the pool:
     @code
 	c2_net_buffer_pool_lock(&bp);
@@ -83,12 +83,12 @@
     @endcode
 
     - To get a buffer from the pool:
-    @code 
+    @code
 	c2_net_buffer_pool_lock(&bp);
 	nb = c2_net_buffer_pool_get(&bp);
 	c2_net_buffer_pool_unlock(&bp);
     @endcode
-  
+
    - To put back the buffer in the pool:
     @code
 	c2_net_buffer_pool_lock(&bp);
@@ -122,12 +122,12 @@ struct c2_net_buffer_pool_ops {
 	void (*nbpo_below_threshold)(struct c2_net_buffer_pool *);
 };
 
-
 /** Checks the buffer pool. */
 bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
 
 /**
-   Initializes a buffer pool.
+   Initializes fields of a buffer pool and tlist, which are used to populate
+   the pool using c2_net_buffer_pool_provision().
    @pre ndom != NULL
    @param threshold Number of buffer below which to notify the user.
    @param seg_nr    Number of segments in each buffer.
