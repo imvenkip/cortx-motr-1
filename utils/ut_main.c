@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);
 		c2_ut_add(&colibri_setup_ut);
-		c2_ut_add(&console_ut);
+		//c2_ut_add(&console_ut);
 		c2_ut_add(&db_ut);
 		c2_ut_add(&emap_ut);
 		c2_ut_add(&fit_ut);
