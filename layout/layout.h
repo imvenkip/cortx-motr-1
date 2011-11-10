@@ -85,7 +85,7 @@ struct c2_layout {
 	const struct c2_layout_type      *l_type;
 	const struct c2_layout_formula   *l_form;
 	const struct c2_layout_parameter *l_actuals;
-	enum layout_enumeration_type_code l_enumeration_type;
+	//enum layout_enumeration_type_code l_enumeration_type;
 	struct c2_uint128                 l_id;
 	const struct c2_layout_ops       *l_ops;
 
@@ -139,31 +139,31 @@ struct c2_layout_parameter_type {
 
 struct c2_layout_ops {
 	/** Converts a layout (in-memory) to layout record (DB format) */	
-	int (*l_rec_encode)(const struct c2_layout l,
-		struct c2_layout_rec l_rec_out);			
+	int (*l_rec_encode)(const struct c2_layout *l,
+		struct c2_layout_rec *l_rec_out);			
 	/** Adds a new layout record and its related information into the 
 	relevant tables. */
-	int (*l_rec_add)(const struct c2_layout_rec l_rec,
+	int (*l_rec_add)(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);			
 	/** Deletes a layout record and its related information from the
 	relevant tables. */
-	int (*l_rec_delete)(const struct c2_layout_rec l_rec,
+	int (*l_rec_delete)(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 	/** Updates a layout entry and its relevant information in the
 	relevant tables from the layout schema. */
-	int (*l_rec_update)(const struct c2_layout_rec l_rec,
+	int (*l_rec_update)(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 	/** Locates a layout entry and its relevant information from the
 	relevant tables from the layout schema. */
-	int (*l_rec_lookup)(const struct c2_layout_id l_id,
+	int (*l_rec_lookup)(const struct c2_layout_id *l_id,
 		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx
-		struct c2_layout_rec l_rec_out);
+		const struct c2_db_tx *tx,
+		struct c2_layout_rec *l_rec_out);
 	/** Releases reference on a layout. */
-	int (*l_rec_put)(struct c2_layout_rec l_rec,
+	int (*l_rec_put)(struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 };
@@ -270,7 +270,7 @@ int composite_update(const struct c2_layout_rec *l_rec,
 int pdclust_lookup(const struct c2_layout_id l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
-		struct c2_layout l_rec_out);
+		struct c2_layout_rec *l_rec_out);
 
 /**
 	Implementation of l_rec_lookup for COMPOSITE layout type.
@@ -280,30 +280,30 @@ int pdclust_lookup(const struct c2_layout_id l_id,
 int composite_lookup(const struct c2_layout_id l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
-		struct c2_layout l_rec_out);
+		struct c2_layout_rec *l_rec_out);
 
 /**
 	Implementation of l_rec_put for PDCLUST layout type.
 	Releases reference on the layout record from the layout_entries table.
 */
-int pdclust_put(const struct c2_layout_rec l_rec,
+int pdclust_put(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx)
+		const struct c2_db_tx *tx);
 
 /**
 	Implementation of l_rec_put for COMPOSITE layout type.
 	Releases reference on the layout from the layout_entries table.
 */
-int composite_put(const struct c2_layout_rec l_rec,
+int composite_put(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx)
+		const struct c2_db_tx *tx);
 
 /**
    Implementation of l_decode_rec for PDCLUST layout type.
    Converts a layout record (DB format) to layout (in-memory format).
 */
-int pdclust_decode(const struct c2_layout_rec l_rec,
-		struct c2_layout l_out);			
+int pdclust_decode(const struct c2_layout_rec *l_rec,
+		struct c2_layout *l_out);			
 
 /**
    Implementation of l_decode_rec for COMPOSITE layout type.

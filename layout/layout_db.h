@@ -80,7 +80,7 @@
    - int c2_layout_rec_lookup(const struct c2_layout_id l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
-		struct c2_layout *l_out);
+		struct c2_layout_rec *l_rec_out);
    - int c2_layout_rec_get(const struct c2_layout l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
@@ -206,20 +206,20 @@ static const struct c2_table_ops layout_entries_table_ops = {
 
 int c2_layout_schema_init(struct c2_layout_schema *l_schema);
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema);
-int c2_layout_rec_add(const struct c2_layout layout,
+int c2_layout_rec_add(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
-int c2_layout_rec_delete(const struct c2_layout layout,
+int c2_layout_rec_delete(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
-int c2_layout_rec_update(const struct c2_layout layout,
+int c2_layout_rec_update(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
-int c2_layout_rec_lookup(const struct c2_layout_id l_id,
+int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
-		struct c2_layout *l_out);
-int c2_layout_rec_get(const struct c2_layout_rec l_rec,
+		struct c2_layout_rec *l_recrec_out);
+int c2_layout_rec_get(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 

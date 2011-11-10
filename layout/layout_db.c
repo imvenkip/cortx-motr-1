@@ -451,7 +451,7 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
    - If it is a COMPOSITE type of layout entry, then it adds the relevant
    extent map into the table composite_ext_map.
 */
-int c2_layout_rec_add(const struct c2_layout layout, 
+int c2_layout_rec_add(const struct c2_layout *layout, 
 		const struct c2_layout_schema *l_schema, 
 		const struct c2_db_tx *tx)
 {
@@ -466,7 +466,7 @@ int c2_layout_rec_add(const struct c2_layout layout,
    Deletes a layout entry and its relevant information from the
    relevant tables.
 */
-int c2_layout_rec_delete(const struct c2_layout layout, 
+int c2_layout_rec_delete(const struct c2_layout *layout, 
 		const struct c2_layout_schema *l_schema, 
 		const struct c2_db_tx *tx)
 {
@@ -478,7 +478,7 @@ int c2_layout_rec_delete(const struct c2_layout layout,
    Updates a layout entry and its relevant information from the
    relevant tables.
 */
-int c2_layout_rec_update(const struct c2_layout layout,
+int c2_layout_rec_update(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
@@ -490,10 +490,10 @@ int c2_layout_rec_update(const struct c2_layout layout,
    Obtains a layout entry with the specified layout_id, and its relevant
    information from the relevant tables.
 */
-int c2_layout_rec_lookup(const struct c2_layout_id l_id,
+int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
-		struct c2_layout *l_out)
+		struct c2_layout_rec *l_rec_out)
 {
 	/* Uses the function pointer layout.l_ops->l_rec_lookup. */
 	return 0;
@@ -503,7 +503,7 @@ int c2_layout_rec_lookup(const struct c2_layout_id l_id,
    Adds a reference on a specific layout from the layout_entries table.
    Implementation is common to all the layout record types.
 */
-int c2_layout_rec_get(const struct c2_layout_id l_id,
+int c2_layout_rec_get(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
@@ -520,12 +520,12 @@ int c2_layout_rec_get(const struct c2_layout_id l_id,
    <BR>
    A PDCLUST_LINEAR type of layout record is never destroyed.
 */
-int c2_layout_rec_put(const struct c2_layout layout,
+int c2_layout_rec_put(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
 	/* Uses the function pointers layout.l_ops->l_rec_put and 
-	layout.l_ops->l_rec_delete. */
+	layout->l_ops->l_rec_delete. */
 	return 0;
 }
 
