@@ -85,7 +85,7 @@ struct c2_layout {
 	const struct c2_layout_type      *l_type;
 	const struct c2_layout_formula   *l_form;
 	const struct c2_layout_parameter *l_actuals;
-	//enum layout_enumeration_type_code l_enumeration_type;
+	enum layout_enumeration_type_code l_enumeration_type;
 	struct c2_uint128                 l_id;
 	const struct c2_layout_ops       *l_ops;
 
