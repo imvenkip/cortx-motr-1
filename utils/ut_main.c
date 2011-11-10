@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-#if 0
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
@@ -101,7 +100,6 @@ int main(int argc, char *argv[])
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xcode_bufvec_fop_ut);
 		c2_ut_add(&xdr_ut);
-#endif
 		c2_ut_add(&yaml2db_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
