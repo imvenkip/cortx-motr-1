@@ -33,19 +33,27 @@
 	  Users request a buffer from the pool and after its usage is over
 	  gives back to the pool.
 
-	  It provides suppport for a pool of network buffers involving no higher 	  level interfaces than the network module itself.
+	  It provides suppport for a pool of network buffers involving no higher	  level interfaces than the network module itself.
 	  It is associated with a single network domain.
-	  Non-blocking interfaces are available to get and put network buffers  	  and callbacks to signal the availability of buffers and low
+	  Non-blocking interfaces are available to get and put network buffers
+	  and callbacks to signal the availability of buffers and low
 	  threshold is reached are provided.
 
-	  Upon receiving the not_empty call back user can put back buffers which 	  are not in use into the pool.
+	  Upon receiving the not_empty call back user can put back buffers which	  are not in use into the pool.
+
+	  The “coloured” variant of the get operation is done here by returning 	  the most recently used buffer last associated with a specific transfer
+	  machine, or if none such are found, a buffer which has no previous
+	  transfer machine association, or if none such are found, the least
+	  recently used buffer from the pool, if any.
 
 	  Pool is protected by a lock, to get or put a buffer into the pool user	  must acquire the lock and release the lock once its usage is over.
 
 	  To finalize the pool all the buffers must be returned back to the pool	  (i.e number of free buffers must be equal to the total number of of
 	  buffers).
 
- To describe a typical buffer pool usage pattern, suppose that one wants 	 a buffer pool of 10, size of each segment is 1024, number of segments is 	 64 and threshold is 10.
+ To describe a typical buffer pool usage pattern, suppose that one wants
+ a buffer pool of 10, size of each segment is 1024, number of segments is
+ 64 and threshold is 10.
 
     First, user needs to provide c2_net_buffer_pool_ops:
     @code
@@ -55,7 +63,8 @@
 	};
     @endcode
 
-   - Then, buffer pool needs to be assigned to a network domain and initialized 	with above values:
+   - Then, buffer pool needs to be assigned to a network domain and initialized
+	with above values:
     @code
 	struct c2_net_buffer_pool bp;
 	struct c2_net_xprt *xprt;
@@ -68,7 +77,8 @@
 	...
     @endcode
 
-   - Now, to add buffers into the pool need to acquire the lock and then specify 	the number of buffers to be added:
+   - Now, to add buffers into the pool need to acquire the lock and then specify
+	the number of buffers to be added:
     @code
 	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_provision(&bp, 10);
@@ -133,7 +143,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
    @param seg_nr    Number of segments in each buffer.
    @param seg_size  Size of each segment in a buffer.
    @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom) &&
-   	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
+	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
    @post c2_net_buffer_pool_invariant(pool)
  */
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
@@ -168,14 +178,22 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
 
 /**
    Gets a buffer from the pool.
+   If transfer machine is not null then a linear search from the head of the
+   list will break off when a buffer of the correct affinity is found, or a
+   buffer with no affinity is found, or else the buffer at the tail of the list    is selected.
+   If transfer machine is not specified buffer will be taken from the tail of
+   the list.
    Returns NULL when the pool is empty.
    @pre c2_net_buffer_pool_is_locked(pool)
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
  */
-struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool);
+struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
+					     struct c2_net_transfer_mc *tm);
 
 /**
    Puts the buffer back to the pool.
+   Buffers which are associated with a transfer machine are put at the head of
+   the list and buffers with no association are put at the tail of the list.
    @pre c2_net_buffer_pool_is_locked(pool)
    @pre pool->nbp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&

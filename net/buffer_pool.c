@@ -142,7 +142,8 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool)
 }
 C2_EXPORTED(c2_net_buffer_pool_unlock);
 
-struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool)
+struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
+					     struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_buffer *nb;
 
@@ -151,7 +152,15 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool)
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 	if (pool->nbp_free <= 0)
 		return NULL;
-	nb = pool_tlist_head(&pool->nbp_head);
+	if (tm != NULL) {
+		c2_tlist_for(&pool_tl, &pool->nbp_head, nb) {
+			C2_ASSERT(nb != NULL);
+			if (tm == nb->nb_tm || nb->nb_tm == NULL ||
+			    nb == pool_tlist_tail(&pool->nbp_head))
+				break;
+		} c2_tlist_endfor;
+	} else
+		nb = pool_tlist_head(&pool->nbp_head);
 	C2_ASSERT(nb != NULL);
 	pool_tlist_del(nb);
 	C2_CNT_DEC(pool->nbp_free);
@@ -176,7 +185,10 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 
 	C2_ASSERT(buf->nb_magic == NET_BUFFER_LINK_MAGIC);
 	C2_ASSERT(!pool_tlink_is_in(buf));
-	pool_tlist_add_tail(&pool->nbp_head, buf);
+	if(buf->nb_tm != NULL)
+		pool_tlist_add(&pool->nbp_head, buf);
+	else
+		pool_tlist_add_tail(&pool->nbp_head, buf);
 	C2_CNT_INC(pool->nbp_free);
 	if (pool->nbp_free == 1)
 		pool->nbp_ops->nbpo_not_empty(pool);
