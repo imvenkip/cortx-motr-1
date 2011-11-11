@@ -270,7 +270,9 @@ static void output_test(void)
 	/* file cleanup */
 	fclose(fp);
 	/* restore stdout */
-	stdout = fdopen(fd, "w");
+	fd = dup2(fd, 1);
+	C2_UT_ASSERT(fd != -1);
+	stdout = fdopen(fd, "a+");
 	C2_UT_ASSERT(stdout != NULL);
 
 	file_compare(in_file, out_file);
@@ -785,9 +787,13 @@ static void console_input_test(void)
 	C2_UT_ASSERT(result == 0);
 
 	/* restore stderr and stdout */
-	stderr = fdopen(err_fd, "w");
+	err_fd = dup2(err_fd, 2);
+	C2_UT_ASSERT(err_fd != -1);
+	stderr = fdopen(err_fd, "a+");
 	C2_UT_ASSERT(stderr != NULL);
-	stdout = fdopen(out_fd, "w");
+	out_fd = dup2(out_fd, 1);
+	C2_UT_ASSERT(out_fd != -1);
+	stdout = fdopen(out_fd, "a+");
 	C2_UT_ASSERT(stdout != NULL);
 }
 
