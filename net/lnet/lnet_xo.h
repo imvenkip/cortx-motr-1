@@ -52,6 +52,9 @@ struct lnet_xo_transfer_mc {
 	/** Pointer back to the network tm */
 	struct c2_net_transfer_mc       *lxtm_tm;
 
+	/** Transfer machine thread processor affinity */
+	struct c2_bitmap                 lxtm_processors;
+
 	/** LNet Core transfer machine data (shared memory) */
 	struct c2_lnet_core_transfer_mc  lxtm_core;
 };

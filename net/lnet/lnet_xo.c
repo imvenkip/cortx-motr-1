@@ -224,6 +224,20 @@
 
 #include "net/lnet/lnet_core.h"
 
+/* To reduce global symbols, yet make the code readable, we
+   include other .c files with static symbols into this file.
+   Dependency information must be captured in Makefile.am.
+
+   Static functions should be declared in the private header file
+   so that the order of their definition does not matter.
+*/
+#ifdef __KERNEL__
+#include "net/lnet/linux_kernel/klnet_core.c"
+#else
+#include "net/lnet/ulnet_core.c"
+#endif
+#include "net/lnet/bev_cqueue.c"
+
 /**
    @addtogroup LNetIDFS
    @{
@@ -314,6 +328,19 @@ struct c2_net_xprt c2_net_lnet_xprt = {
 	.nx_ops  = &lnet_xo_xprt_ops
 };
 C2_EXPORTED(c2_net_lnet_xprt);
+
+bool c2_net_lnet_ep_addr_net_compare(const char *addr1, const char *addr2)
+{
+	return false;
+}
+C2_EXPORTED(c2_net_lnet_ep_addr_net_compare);
+
+int c2_net_lnet_tm_set_num_threads(struct c2_net_transfer_mc *tm,
+				   uint32_t num_threads)
+{
+	return 0;
+}
+C2_EXPORTED(c2_net_lnet_tm_set_num_threads);
 
 /*
  *  Local variables:

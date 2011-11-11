@@ -87,7 +87,6 @@
    - Event processing calls: These are invoked on threads maintained by the
      transport.  Such threads usually have some processor affiliation required
      by the higher software layers.
-
 */
 
 /**
@@ -129,20 +128,16 @@ struct c2_lnet_core_ep_addr {
 };
 
 enum {
-	C2_NET_LNET_TMID_NUM_BITS = 12, /**< Number of bits used for TM id */
-	C2_NET_LNET_TMID_INVALID = 4097, /**< Invalid value used for dynamic */
-	/** Minium match bit value */
+	/** Number of bits used for TM identifier */
+	C2_NET_LNET_TMID_NUM_BITS = 12,
+	/** Max TM identifier is 2^^12-1 */
+	C2_NET_LNET_TMID_MAX      = 4095,
+	/** Invalid value used for dynamic addressing */
+	C2_NET_LNET_TMID_INVALID  = C2_NET_LNET_TMID_MAX+1,
+	/** Minimum buffer match bit counter value */
 	C2_NET_LNET_MATCH_BIT_MIN = 1,
-	/** Maximum match bit value: 2^^52; */
-	C2_NET_LNET_MATCH_BIT_MAX = 0xffffffffffffULL,
-};
-
-/**
-   Core domain data.  The transport layer should embed this at the
-   <b>very end</b> of its private data.
- */
-struct c2_lnet_core_domain {
-	/* place holder */
+	/** Maximum buffer match bit counter value: 2^^52-1; */
+	C2_NET_LNET_MATCH_BIT_MAX = 0x3ffffffffffffULL,
 };
 
 /**
@@ -225,9 +220,17 @@ struct c2_lnet_core_buffer_event {
 };
 
 /**
-   Core transfer machine data.  The transport layer should embed this at the
-   <b>very end</b> of its private data.  The size is determined at run time.
-  */
+   Core domain data.  The transport layer should embed this in its private data.
+*/
+struct c2_lnet_core_domain {
+	/* place holder */
+};
+
+
+/**
+   Core transfer machine data.  The transport layer should embed this in its
+   private data.
+*/
 struct c2_lnet_core_transfer_mc {
 	/** The transfer machine address */
 	struct c2_lnet_ep_addr  lctm_addr;
@@ -255,9 +258,7 @@ struct c2_lnet_core_transfer_mc {
 };
 
 /**
-   Core buffer data.  The transport layer should embed this at the <b>very
-   end</b> of its private data.  The size varies if the buffer is used for
-   receiving messages.
+   Core buffer data.  The transport layer should embed this in its private data.
 */
 struct c2_lnet_core_buffer {
 	/**
@@ -299,30 +300,30 @@ struct c2_lnet_core_buffer {
    @param dom The network domain pointer.
    @param lcom The private data pointer for the domain to be initialized.
  */
-extern int c2_lnet_core_dom_init(struct c2_net_domain *dom,
+static int c2_lnet_core_dom_init(struct c2_net_domain *dom,
 				 struct c2_lnet_core_domain *lcdom);
 
 /**
    Release LNet transport resources related to the domain.
  */
-extern int c2_lnet_core_dom_fini(struct c2_lnet_core_domain *lcdom);
+static int c2_lnet_core_dom_fini(struct c2_lnet_core_domain *lcdom);
 
 /**
    Get the maximum buffer size (counting all segments).
  */
-extern c2_bcount_t c2_lnet_core_get_max_buffer_size(
-                                             struct c2_lnet_core_domain *lcdom);
+static c2_bcount_t c2_lnet_core_get_max_buffer_size(struct c2_lnet_core_domain
+						    *lcdom);
 
 /**
    Get the maximum size of a buffer segment.
  */
-extern c2_bcount_t c2_lnet_core_get_max_buffer_segment_size(
+static c2_bcount_t c2_lnet_core_get_max_buffer_segment_size(
                                              struct c2_lnet_core_domain *lcdom);
 
 /**
    Get the maximum number of buffer segments.
  */
-extern int32_t c2_lnet_core_get_max_buffer_segments(
+static int32_t c2_lnet_core_get_max_buffer_segments(
                                              struct c2_lnet_core_domain *lcdom);
 
 /**
@@ -334,7 +335,7 @@ extern int32_t c2_lnet_core_get_max_buffer_segments(
    @param lcbuf The core private data pointer for the buffer.
    @pre buf->nb_dom != NULL
  */
-extern int c2_lnet_core_buf_register(struct c2_lnet_core_domain *lcdom,
+static int c2_lnet_core_buf_register(struct c2_lnet_core_domain *lcdom,
 				     struct c2_net_buffer *buf,
 				     struct c2_lnet_core_buffer *lcbuf);
 
@@ -342,7 +343,7 @@ extern int c2_lnet_core_buf_register(struct c2_lnet_core_domain *lcdom,
    Deregister the buffer.
    @param The buffer private data.
  */
-extern int c2_lnet_core_buf_deregister(struct c2_lnet_core_buffer *lcbuf);
+static int c2_lnet_core_buf_deregister(struct c2_lnet_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for message reception. Multiple messages may be received
@@ -352,7 +353,7 @@ extern int c2_lnet_core_buf_deregister(struct c2_lnet_core_buffer *lcbuf);
    @param lcaddr LNet end point address of the recepient.
    @pre The buffer is queued on the specified transfer machine.
  */
-extern int c2_lnet_core_buf_msg_recv(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_msg_recv(struct c2_lnet_core_transfer_mc *lctm,
 				     struct c2_lnet_core_buffer *lcbuf);
 
 /**
@@ -362,7 +363,7 @@ extern int c2_lnet_core_buf_msg_recv(struct c2_lnet_core_transfer_mc *lctm,
    @param lcaddr LNet end point address of the recepient.
    @pre The buffer is queued on the specified transfer machine.
  */
-extern int c2_lnet_core_buf_msg_send(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_msg_send(struct c2_lnet_core_transfer_mc *lctm,
 				     struct c2_lnet_core_buffer *lcbuf,
 				     struct c2_lnet_core_ep_addr *lcaddr);
 
@@ -374,7 +375,7 @@ extern int c2_lnet_core_buf_msg_send(struct c2_lnet_core_transfer_mc *lctm,
    @param match_bits The match bits of the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
  */
-extern int c2_lnet_core_buf_active_recv(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_active_recv(struct c2_lnet_core_transfer_mc *lctm,
 					struct c2_lnet_core_buffer *lcbuf,
 					struct c2_lnet_core_ep_addr *lcaddr,
 					uint64_t match_bits);
@@ -387,7 +388,7 @@ extern int c2_lnet_core_buf_active_recv(struct c2_lnet_core_transfer_mc *lctm,
    @param match_bits The match bits of the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
  */
-extern int c2_lnet_core_buf_active_send(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_active_send(struct c2_lnet_core_transfer_mc *lctm,
 					struct c2_lnet_core_buffer *lcbuf,
 					struct c2_lnet_core_ep_addr *lcaddr,
 					uint64_t match_bits);
@@ -400,7 +401,7 @@ extern int c2_lnet_core_buf_active_send(struct c2_lnet_core_transfer_mc *lctm,
    @param match_bits Returns the match bits identifying the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
  */
-extern int c2_lnet_core_buf_passive_recv(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_passive_recv(struct c2_lnet_core_transfer_mc *lctm,
 					 struct c2_lnet_core_buffer *lcbuf,
 					 uint64_t *match_bits);
 
@@ -412,7 +413,7 @@ extern int c2_lnet_core_buf_passive_recv(struct c2_lnet_core_transfer_mc *lctm,
    @param match_bits Returns the match bits identifying the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
  */
-extern int c2_lnet_core_buf_passive_send(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_passive_send(struct c2_lnet_core_transfer_mc *lctm,
 					 struct c2_lnet_core_buffer *lcbuf,
 					 uint64_t *match_bits);
 
@@ -422,7 +423,7 @@ extern int c2_lnet_core_buf_passive_send(struct c2_lnet_core_transfer_mc *lctm,
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
  */
-extern int c2_lnet_core_buf_del(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_del(struct c2_lnet_core_transfer_mc *lctm,
 				struct c2_lnet_core_buffer *lcbuf);
 
 /**
@@ -432,7 +433,7 @@ extern int c2_lnet_core_buf_del(struct c2_lnet_core_transfer_mc *lctm,
    @retval 0 Events present.
    @retval -ETIMEDOUT Timed out.
  */
-extern int c2_lnet_core_buf_event_wait(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_buf_event_wait(struct c2_lnet_core_transfer_mc *lctm,
 				       c2_time_t timeout);
 
 /**
@@ -442,7 +443,7 @@ extern int c2_lnet_core_buf_event_wait(struct c2_lnet_core_transfer_mc *lctm,
    @retval true Event returned.
    @retval false No events on the queue.
  */
-extern bool c2_lnet_core_buf_event_get(struct c2_lnet_core_transfer_mc *lctm,
+static bool c2_lnet_core_buf_event_get(struct c2_lnet_core_transfer_mc *lctm,
 				       struct c2_lnet_buffer_event *lcbe);
 
 /**
@@ -450,7 +451,7 @@ extern bool c2_lnet_core_buf_event_get(struct c2_lnet_core_transfer_mc *lctm,
    A "*" value for the transfer machine identifier results in a value of
    C2_NET_LNET_TMID_INVALID being set.
  */
-extern int c2_lnet_core_ep_addr_decode(struct c2_lnet_core_domain *lcdom,
+static int c2_lnet_core_ep_addr_decode(struct c2_lnet_core_domain *lcdom,
 				       const char *ep_addr,
 				       struct c2_lnet_core_ep_addr *lcepa);
 
@@ -459,7 +460,7 @@ extern int c2_lnet_core_ep_addr_decode(struct c2_lnet_core_domain *lcdom,
    A value of C2_NET_LNET_TMID_INVALID for the lcepa_tmid field results in
    a "*" being set for that field.
  */
-extern void c2_lnet_core_ep_addr_encode(struct c2_lnet_core_domain *lcdom,
+static void c2_lnet_core_ep_addr_encode(struct c2_lnet_core_domain *lcdom,
 					struct c2_lnet_core_ep_addr *lcepa,
 					char buf[C2_NET_LNET_XEP_ADDR_LEN]);
 
@@ -474,7 +475,7 @@ extern void c2_lnet_core_ep_addr_encode(struct c2_lnet_core_domain *lcdom,
    in this structure itself.
    @note There is no equivalent of the xo_tm_init() subroutine.
  */
-extern int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
+static int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
 				 struct c2_lnet_core_transfer_mc *lctm,
 				 struct c2_lnet_core_ep_addr *lcepa);
 
@@ -484,7 +485,7 @@ extern int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
    @param lctm The transfer machine private data.
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
-extern int c2_lnet_core_tm_stop(struct c2_lnet_core_transfer_mc *lctm);
+static int c2_lnet_core_tm_stop(struct c2_lnet_core_transfer_mc *lctm);
 
 /**
    The transport should invoke this subroutine before initiating any buffer
@@ -494,7 +495,7 @@ extern int c2_lnet_core_tm_stop(struct c2_lnet_core_transfer_mc *lctm);
    The core may have to allocate additional buffer event structures on the
    c2_lnet_core_transfer_mc::lctm_free_bevq.
  */
-extern int c2_lnet_core_tm_bev_needed(struct c2_lnet_core_transfer_mc *lctm,
+static int c2_lnet_core_tm_bev_needed(struct c2_lnet_core_transfer_mc *lctm,
 				      uint32_t needed);
 
 /**

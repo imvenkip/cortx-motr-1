@@ -118,15 +118,36 @@
    logical specifications, and enumerates topics that need special
    attention.</i>
 
-   - Each transfer machine uses one LNet event queue for all LNet operations.
+   - The core API is an address space agnostic I/O interface intended for use
+     by the Colibri Networking LNet transport operation layer in either user
+     space or kernel space.
+
+   - Efficient support for the user space transports is provided by use of
+     cross-address space tolerant data structures in shared memory.
+
+   - The core API does not expose any LNet symbols.
+
+   - Each transfer machine is internally assigned one LNet event queue for all
+     its LNet buffer operations.
+
+   - Flow control is the responsibility of the transport layer, which must
+     ensure that there always is adequate buffer event space pre-allocated to
+     return the result of all outstanding operations.
+
+   - The notification of the completion of a buffer operation to the transport
+     layer is decoupled from the LNet callback that provided this notification
+     to the core module.
 
    - The number of messages that can be delivered into a single receive buffer
-   is bounded to support pre-allocation of memory to hold the event payload to
-   support asynchronous delivery and consumption.
+     is bounded to support pre-allocation of memory to hold the buffer event
+     payload.
 
-   - Event delivery is decoupled from the LNet callback.
+   - Buffer completion event notification is provided via a channel, to allow
+     for multiple waiters.  This will permit multiple transfer machine threads
+     to wait for events.  The default configuration is to use a single thread,
+     which is most suitable for Colibri servers.  File system consumers of the
+     transport may benefit from the use of multiple threads.
 
-   - Support for user space transports.
 
    <hr>
    @section KLNetCoreDLD-lspec Logical Specification
@@ -142,6 +163,7 @@
    - @ref KLNetCoreDLD-lspec-userspace
    - @ref KLNetCoreDLD-lspec-match-bits
    - @ref KLNetCoreDLD-lspec-tm-list
+   - @ref KLNetCoreDLD-lspec-bevq
    - @ref KLNetCoreDLD-lspec-lnet-init
    - @ref KLNetCoreDLD-lspec-reg
    - @ref KLNetCoreDLD-lspec-ev
@@ -160,20 +182,39 @@
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
-   The relationship between the various components of the LNet transport and
-   the networking layer is illustrated in the following UML diagram.
-   @image html "../../net/lnet/lnet_xo.png" "LNet Transport Objects"
+   The relationship between the various objects in the components of the LNet
+   transport and the networking layer is illustrated in the following UML
+   diagram.  @image html "../../net/lnet/lnet_xo.png" "LNet Transport Objects"
 
    The Core layer in the kernel has no sub-components but interfaces directly
    with the Lustre LNet module in the kernel.
 
    @subsection KLNetCoreDLD-lspec-userspace Support for User Space Transports
 
-   The kernel Core layer is designed to support user space transports with the
+   The kernel Core module is designed to support user space transports with the
    use of shared memory.  It does not directly provide a mechanism to
-   communicate with the user space transport, but the Core data structures are
-   organized with a distinction between the common directly shareable portions,
-   and private areas for kernel and user space data.
+   communicate with the user space transport, but expects that the user space
+   Core module will provide a device driver to communicate between user and
+   kernel space, manage the sharing of core data structures, and interface
+   between the kernel and user space implementations of the Core API.
+
+   The common Core data structures are designed to support such communication
+   efficiently:
+
+   - The core data structures are organized with a distinction between the
+     common directly shareable portions, and private areas for kernel and user
+     space data.  This allows each address space to place pointer values of its
+     address space in private regions associated with the shared data
+     structures.
+
+   - An address space opaque pointer type is provided to safely save pointer
+     values in shared memory locations where necessary.
+
+   - The single producer, single consumer circular buffer event queue shared
+     between the transport and the core layer in the kernel is designed to work
+     with the producer and consumer potentially in different address spaces.
+     This is described in further detail in @ref KLNetCoreDLD-lspec-bevq.
+
 
    @subsection KLNetCoreDLD-lspec-match-bits Match Bits for Buffer Identification
 
@@ -182,7 +223,7 @@
    with that transfer machine.  The upper 12 match bits are reserved by the HLD
    to represent the transfer machine identifier. Therefore the counter is
    (64-12)=52 bits wide. The value of 0 is reserved for unsolicited
-   receive messages, so the counter range is [1,0xffffffffffff]. It is
+   receive messages, so the counter range is [1,0x3ffffffffffff]. It is
    initialized to 1 and will wrap back to 1 when it reaches its upper bound.
 
    The transport should use the c2_lnet_core_tm_match_bits_set() subroutine to
@@ -208,6 +249,9 @@
    available transfer machine identifier.  A single pass over the list is
    required to search for an available transfer machine identifier.
 
+   @subsection KLNetCoreDLD-lspec-bevq Circular Buffer Event Queue
+
+
    @subsection KLNetCoreDLD-lspec-lnet-init LNet Initialization and Finalization
 
    No initialization and finalization logic is required for LNet in the kernel
@@ -220,6 +264,7 @@
    @subsection KLNetCoreDLD-lspec-reg LNet Buffer Registration
 
    No hardware optimization support is defined in the LNet API at this time.
+
 
    @subsection KLNetCoreDLD-lspec-ev LNet Event Processing
 
@@ -509,7 +554,7 @@
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
- */
+*/
 
 /*
  ******************************************************************************

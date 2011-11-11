@@ -25,6 +25,7 @@
 
 #include <stdarg.h>
 
+#include "lib/bitmap.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/list.h"
@@ -150,6 +151,19 @@ struct c2_net_xprt_ops {
 	   @see c2_net_tm_init()
 	 */
 	int (*xo_tm_init)(struct c2_net_transfer_mc *tm);
+
+	/**
+	   Optional method to set the processor affinity for the threads of
+	   a transfer machine.
+	   The transfer machine must be initialized but not yet started.
+	   @param tm Transfer machine pointer.
+	   @param processors Processor bitmap.
+	   @retval 0 (success)
+	   @retval -ENOSYS  No affinity support available. Implied by a
+	   missing method.
+	 */
+	int (*xo_tm_confine)(struct c2_net_transfer_mc *tm,
+			     const struct c2_bitmap *processors);
 
 	/**
 	   Initiate the startup of the (initialized) transfer machine.
@@ -908,6 +922,22 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
    @param tm Transfer machine pointer.
  */
 void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
+
+/**
+   Set the processor affinity of the threads of a transfer machine.
+   The transfer machine must be initialized but not yet started.
+
+   Support for this operation is transport specific.
+   @pre tm->ntm_state == C2_NET_TM_INITIALIZED
+   @param tm Transfer machine pointer.
+   @param processors Processor bitmap.  The bit map is not referenced
+   internally after the subroutine returns.
+   @retval -ENOSYS  No affinity support available in the transport.
+   @see @ref Processor "Processor API"
+   @see @ref bitmap "Bitmap API"
+ */
+int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
+		      const struct c2_bitmap *processors);
 
 /**
    Start a transfer machine.

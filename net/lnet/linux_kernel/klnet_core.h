@@ -29,7 +29,7 @@
    @{
 */
 
-#include "lib/semaphore.h"
+#include "lib/chan.h"
 #include "lib/tlist.h"
 #include "lnet/include/lnet/types.h"
 #include "net/lnet_core.h"
@@ -44,29 +44,30 @@ enum {
    This structure is pointed to by c2_lnet_core_transfer_mc::lctm_kpvt.
 */
 struct c2_klnet_core_transfer_mc {
-	uint64_t                    klcm_magic;
+	uint64_t                         klcm_magic;
 
 	/**
 	   Kernel pointer to the shared memory TM structure.
 	 */
-	struct c2_lnet_core_transfer_mc  *klctm_tm;
+	struct c2_lnet_core_transfer_mc *klctm_tm;
 
 	/** Transfer machine linkage */
-	struct c2_tlink             klctm_tm_linkage;
+	struct c2_tlink                  klctm_tm_linkage;
 
 	/**
 	   Match bit counter. Range [1,C2_NET_LNET_MATCH_BIT_MAX].
 	 */
-	uint64_t                    klctm_mb_counter;
+	uint64_t                         klctm_mb_counter;
 
 	/**
-	   Semaphore on which to block waiting for LNet events.
+	   Channel on which to block waiting for LNet events.
 	   The semaphore increments with each LNet event added.
+
 	*/
-	struct c2_semaphore         klctm_sem;
+	struct c2_chan                   klctm_chan;
 
 	/** Handle of the LNet EQ associated with this transfer machine */
-	lnet_handle_eq_t            klctm_eqh;
+	lnet_handle_eq_t                 klctm_eqh;
 };
 
 
@@ -77,11 +78,8 @@ struct c2_klnet_core_transfer_mc {
 struct c2_klnet_core_buffer {
 	uint64_t                          klcb_magic;
 
-	/**
-	   Kernel pointer to the shared memory TM structure with the TM buffer
-	   event queue.
-	 */
-	struct c2_lnet_core_transfer_mc  *klcb_tm;
+	/** Pointer to kernel core TM data. */
+	struct c2_klnet_core_transfer_mc *klcb_ktm;
 
 	/** The I/O vector. */
 	struct lnet_kiov_t                klcb_kiov;

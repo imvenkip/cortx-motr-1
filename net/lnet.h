@@ -42,18 +42,50 @@
    defined by @ref net/net.h.
 
    The LNet transport is defined by the @c c2_net_lnet_xprt data structure.
+   The address of this variable should be provided to the c2_net_domain_init()
+   subroutine.
 
-   @see @ref LNetDFS "LNet Transport Interface"
+   The module adds two additional fields to the c2_net_buffer structure:
+   @code
+   struct c2_net_buffer {
+        ...
+	c2_bcount_t   nb_min_receive_size;
+	uint32_t      nb_max_receive_msgs;
+   };
+   @endcode
+   These fields are required to be set to non-zero values in receive buffers,
+   and control the reception of multiple messages into a single receive buffer.
+
+   The module adds additional operations to the @c c2_net_xo_ops structure:
+   @code
+   struct c2_net_xo_ops {
+        ...
+        int  (*xo_tm_confine)(struct c2_net_transfer_mc *tm,
+	                      const struct c2_bitmap *processors);
+   };
+   @endcode
+   This is not directly visible to the consumer of the @ref net/net.h API, but
+   it enables the use of the new c2_net_tm_confine() subroutine with the LNet
+   transport.
 
    @section LNetDLD-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
    interfaces should provide an enumeration and brief description of the
    externally visible programming interfaces.</i>
 
-   Routines are provided for the following:
-   - Compare the network portion of two end point addresses.
-   - Set domain specific run time parameters.
+   New subroutines provided:
+   - c2_net_tm_confine() Set processor affinity for transfer machine threads
+   - c2_net_lnet_ep_addr_net_compare()
+     Compare the network portion of two LNet transport end point addresses.
+   - c2_net_lnet_tm_set_num_threads()
+     Sets the number of threads to use in a transfer machine.
 
+   The use of these subroutines is not mandatory.
+
+   @todo LNet xo set domain specific parameters
+
+
+   @see @ref net "Networking"
    @see @ref LNetDLD "LNet Transport DLD"
    @see @ref LNetDFS "LNet Transport Interface"
 
@@ -79,7 +111,10 @@
 extern struct c2_net_xprt c2_net_lnet_xprt;
 
 enum {
-	C2_NET_LNET_XEP_ADDR_LEN = 80, /**< @todo Max addr length?, 4-tuple */
+	/** Default number of threads in a transfer machine */
+	C2_NET_LNET_TM_DEF_NUM_THREADS = 1,
+	/** @todo Max LNet ep addr length?, 4-tuple */
+	C2_NET_LNET_XEP_ADDR_LEN = 80,
 };
 
 /**
@@ -91,7 +126,12 @@ enum {
 extern bool c2_net_lnet_ep_addr_net_compare(const char *addr1,
 					    const char *addr2);
 
-
+/**
+   Sets the number of threads to use in an LNet transfer machine.
+   The default is ::C2_NET_LNET_TM_DEF_NUM_THREADS.
+ */
+extern int c2_net_lnet_tm_set_num_threads(struct c2_net_transfer_mc *tm,
+					  uint32_t num_threads);
 
 /**
    @} LNetDFS end group
