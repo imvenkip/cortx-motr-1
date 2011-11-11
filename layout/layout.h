@@ -217,7 +217,7 @@ int pdclust_add(const struct c2_layout_rec *l_rec,
 /**
    Implementation of l_rec_add for COMPOSITE layout type. 
    Adds the layout entry into the layout_entries table .
-   Adds the relevant extent map into the composite_ext_map table.
+   Adds the relevant extent map into the comp_layout_ext_map table.
 */
 
 int composite_add(const struct c2_layout_rec *l_rec, 
@@ -240,7 +240,7 @@ int pdclust_delete(const struct c2_layout_rec *l_rec,
    Implementation of l_rec_delete for COMPOSITE layout type.
    Deletes the layout entry from the table layout_entries.
    Deletes the relevant extent map from the 
-   composite_ext_map table.
+   comp_layout_ext_map table.
 */
 int composite_delete(const struct c2_layout_rec *l_rec, 
 		const struct c2_layout_schema *l_schema,
@@ -259,7 +259,7 @@ int pdclust_update(const struct c2_layout_rec *l_rec,
 /**
    Implementation of l_rec_update for COMPOSITE layout type.
    Updates the layout entry in the layout_entries table.
-   Updates the relevant extent map in the composite_ext_map table.
+   Updates the relevant extent map in the comp_layout_ext_map table.
 */
 int composite_update(const struct c2_layout_rec *l_rec, 
 		const struct c2_layout_schema *l_schema, 
@@ -280,7 +280,7 @@ int pdclust_lookup(const struct c2_layout_id l_id,
 /**
    Implementation of l_rec_lookup for COMPOSITE layout type.
    Obtains the layout entry from the layout_entries table.
-   Obtains the relevant extent map from the composite_ext_map table.
+   Obtains the relevant extent map from the comp_layout_ext_map table.
 */
 int composite_lookup(const struct c2_layout_id l_id,
 		const struct c2_layout_schema *l_schema,

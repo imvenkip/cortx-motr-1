@@ -187,18 +187,18 @@
    sub-sectioning within.</i>
 
    The layout schema for the Layout DB module consists of the following three
-   tables:
-   - Table layout_entries
-   - Table pdclust_list_cob_lists 
-   - Table composite_ext_map
+   tables
+   - @ref Layout-DB-lspec-schema-layout-entries
+   - @ref Layout-DB-lspec-schema-pdclust_list_cob_lists 
+   - @ref Layout-DB-lspec-schema-comp_layout_ext_map 
 
-   Layout types supported currently by the Layout module are:
+   <b>Layout types</b> supported currently by the Layout module are:
    - PDCLUST <BR>
-     This is a layout type that applies parity declustering feature to the
-     striping process. Parity declustering is a feature to keep rebuild 
-     overhead low by striping a file over more servers or drives than there
-     are units in the parity group. The PDCLUST type of layout either uses a
-     formula or a list to enumerate the COB identifiers.
+     This layout type applies parity declustering feature to the striping
+     process. Parity declustering is to keep rebuild overhead low by 
+     striping a file over more servers or drives than there are units in
+     the parity group. The PDCLUST type of layout either uses a formula
+     or a list to enumerate the COB identifiers.
      The enumeration method types supported for PDCLUST type of layout are:
       - LINEAR <BR>
         PDCLUST layout type with LINEAR enumeration type uses a formula to 
@@ -207,10 +207,10 @@
         PDCLUST layout type with LIST enumeration type uses a list to 
         enumerate the COB identifiers.
    - COMPOSITE <BR>
-     This is a layout type that partitions a file or a part of the file into 
-     various segments while each of those segment uses different layout.
+     This layout type partitions a file or a part of the file into 
+     various segments while each of those segment uses a different layout.
 
-   Layout record types supported currently by the Layout DB module are:
+   <b>Layout record types</b> supported currently by the Layout DB module are:
    - PDCLUST_LINEAR
       - This is a layout record type with layout type as PDCLUST and its 
         enumeration type as LINEAR.
@@ -231,11 +231,11 @@
       - The extent map is used to provide the file segment to sub layout 
         mappings for all the segments belonging to this layout.
       - The layout record entry is made into the layout_entries table while
-        the extent maps are stored in a separate table viz. composite_ext_map.
+        the extent maps are stored in a separate table viz. comp_layout_ext_map.
 
    Key-Record structure for the tables:
 
-   - Table layout_entries
+   @subsection Layout-DB-lspec-schema-layout-entries Table layout_entries
    @verbatim
    Table Name: layout_entries
    Key: layout_id
@@ -253,7 +253,7 @@
    For PDCLUST_LIST and COMPOSITE layout types, the
    pdclust_linear_rec_attrs field is not used.
    
-   - Table pdclust_list_cob_lists
+   @subsection Layout-DB-lspec-schema-pdclust_list_cob_lists Table pdclust_list_cob_lists
    @verbatim
    Table Name: pdclust_list_cob_lists
    Key:
@@ -264,15 +264,15 @@
 
    @endverbatim
 
-   This table contains multiple cob entries for every PDCLUST_LIST type of
+   This table contains multiple cob identifier entries for every PDCLUST_LIST type of
    layout.
 
    layout_id is a foreign key referring record, in the layout_entries table.
 
-   - Table composite_ext_map
+   @subsection Layout-DB-lspec-schema-comp_layout_ext_map Table comp_layout_ext_map
 
    @verbatim
-   Table Name: composite_ext_map
+   Table Name: comp_layout_ext_map
    Key
       - composite_layout_id
       - last_offset_of_segment
@@ -284,18 +284,31 @@
 
    layout_id is a foreign key referring record, in the layout_entries table.
 
-   Conceptually, for every COMPOSITE layout, composite_ext_map
-   stores extent map of segments along with layout id used by each segment.
+   Layout DB uses a single c2_emap instance to implement the composite layout
+   extent map viz. comp_layout_ext_map. This table stores the "layout segment
+   to sub-layout id mappings" for each compsite layout. 
 
-   This table is implemented using single instance of the c2_emap table.
    c2_emap table is a framework to store a collection of related extent maps.
-   Individual maps within a collection are identified by an element of the key 
-   called as prefix (128 bit). In case of composite_ext_map, prefix
-   incorporates layout_id for the composite layout.
+   Individual extent maps within a collection are identified by an element 
+   of the key called as prefix (128 bit).
+   
+   For each composite layout, its layout id (c2_layout_id) is used as a 
+   prefix to identify an extent map belonging to one composite layout.
 
-   TODO: Add explaination for segments, prefix used to define those etc.
+   An example:
 
-
+   Suppose a layout L1 is of the type composite and constitues of 3 
+   sub-layouts say S1, S2, S3. These sub-layouts S1, S2 and S3 use 
+   the layouts with layout id L11, L12 and L13 respectively.
+  
+   In this example, for the composite layout L1, the comp_layout_ext_map
+   table stores 3 layout segments viz. S1, S2 and S3. All these 3 segments 
+   are stored in the form of ([A, B), V) where:
+   - A is the start offset from the layout L1
+   - B is the end offset from the layout L1
+   - V is the layout id for the layout used by the respective segment and
+     is either of L11, L12 or L13 as applicable.
+          
    @subsubsection Layout-DB-lspec-ds1 Subcomponent Data Structures
    <i>This section briefly describes the internal data structures that are
    significant to the design of the sub-component. These should not be a part
@@ -454,7 +467,7 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
    - In case of PDCLUST_LIST type of a layout record, it adds list of cob
      ids to the pdclust_list_cob_lists table.
    - If case of COMPOSITE type of a layout record, it adds the an
-     extent map into the composite_ext_map table.
+     extent map into the comp_layout_ext_map table.
 */
 int c2_layout_rec_add(const struct c2_layout *layout, 
 		const struct c2_layout_schema *l_schema, 

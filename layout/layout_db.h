@@ -182,7 +182,7 @@ struct c2_layout_schema {
 	struct c2_table ls_pdclust_list_cob_lists;
 
 	/* Table for extent maps for all the COMPOSITE type of layout records */
-	struct c2_emap ls_composite_ext_map;
+	struct c2_emap ls_comp_layout_ext_map;
 };
 
 /**
