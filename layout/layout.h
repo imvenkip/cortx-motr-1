@@ -21,12 +21,12 @@
 #ifndef __COLIBRI_LAYOUT_LAYOUT_H__
 #define __COLIBRI_LAYOUT_LAYOUT_H__
 
+/* import */
 #include "lib/cdefs.h"
 #include "lib/vec.h"
 #include "cob/cob.h"	/* struct c2_cob_id */
 #include "lib/ext.h"	/* struct c2_ext */
 
-/* import */
 struct c2_layout_rec;
 struct c2_layout_schema;
 
