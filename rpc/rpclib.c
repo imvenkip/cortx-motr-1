@@ -42,7 +42,6 @@ static int rpc_init_common(struct c2_rpc_ctx *rctx)
 	int rc;
 	struct c2_cob_domain_id   cob_dom_id = { .id = rctx->rx_cob_dom_id };
 	struct c2_reqh            *reqh;
-	struct c2_net_transfer_mc *tm;
 
 	rc = c2_dbenv_init(&rctx->rx_dbenv, rctx->rx_db_name, 0);
 	if (rc != 0)
@@ -73,17 +72,8 @@ static int rpc_init_common(struct c2_rpc_ctx *rctx)
 	if (rc != 0)
 		goto reqh_fini;
 
-	tm = &rctx->rx_rpc_machine.cr_tm;
-
-	/* Init destination endpoint */
-	rc = c2_net_end_point_create(&rctx->rx_remote_ep, tm, rctx->rx_remote_addr);
-	if (rc != 0)
-		goto rpc_mach_fini;
-
 	return rc;
 
-rpc_mach_fini:
-	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
 reqh_fini:
 	if (rctx->rx_reqh == NULL)
 		c2_reqh_fini(reqh);
@@ -100,7 +90,6 @@ dbenv_fini:
 
 static void rpc_fini_common(struct c2_rpc_ctx *rctx)
 {
-	c2_net_end_point_put(rctx->rx_remote_ep);
 	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
 
 	/* If rctx->rx_reqh is NULL it means that a default reqh was allocated,
@@ -126,17 +115,25 @@ C2_EXPORTED(c2_rpc_server_init);
 int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
 {
 	int rc;
+	struct c2_net_transfer_mc *tm;
 
 	rc = rpc_init_common(rctx);
 	if (rc != 0)
 		return rc;
+
+	tm = &rctx->rx_rpc_machine.cr_tm;
+
+	/* Init destination endpoint */
+	rc = c2_net_end_point_create(&rctx->rx_remote_ep, tm, rctx->rx_remote_addr);
+	if (rc != 0)
+		goto fini_common;
 
 	rc = c2_rpc_conn_create(&rctx->rx_connection, rctx->rx_remote_ep,
 				&rctx->rx_rpc_machine,
 				rctx->rx_max_rpcs_in_flight,
 				rctx->rx_timeout_s);
 	if (rc != 0)
-		goto fini_common;
+		goto ep_put;
 
 	rc = c2_rpc_session_create(&rctx->rx_session, &rctx->rx_connection,
 				   rctx->rx_nr_slots, rctx->rx_timeout_s);
@@ -147,6 +144,8 @@ int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
 
 conn_destroy:
 	c2_rpc_conn_destroy(&rctx->rx_connection, rctx->rx_timeout_s);
+ep_put:
+	c2_net_end_point_put(rctx->rx_remote_ep);
 fini_common:
 	rpc_fini_common(rctx);
 	C2_ASSERT(rc != 0);
@@ -208,6 +207,7 @@ int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
 	if (rc != 0)
 		return rc;
 
+	c2_net_end_point_put(rctx->rx_remote_ep);
 	rpc_fini_common(rctx);
 
 	return rc;
