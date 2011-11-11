@@ -77,6 +77,7 @@ enum c2t1fs_service_type {
 
 struct c2t1fs_service_context
 {
+	struct c2t1fs_sb         *sc_csb;
 	enum c2t1fs_service_type  sc_type;
 	char                     *sc_addr;
 	struct c2_rpc_conn        sc_conn;
@@ -93,6 +94,7 @@ struct c2t1fs_sb
 	uint64_t               csb_flags;
 	struct c2_rpc_conn     csb_mgs_conn;
 	struct c2_rpc_session  csb_mgs_session;
+	int                    csb_nr_active_contexts;
 	struct c2_list         csb_service_contexts;
 };
 
@@ -161,6 +163,7 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void c2t1fs_destroy_inode(struct inode *inode);
 
 void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
+				 struct c2t1fs_sb              *csb,
 				 enum c2t1fs_service_type       type,
 				 char                          *ep_addr);
 

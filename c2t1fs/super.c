@@ -22,6 +22,7 @@ static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb);
 static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb);
 static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx);
 static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx);
+static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb);
 
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
@@ -50,8 +51,6 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 		END(rc);
 		return rc;
 	}
-
-	/* Establish connections and sessions with all the services */
 
 	END(rc);
 	return rc;
@@ -98,7 +97,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
 
-	/* XXX Talk to confd and fetch configuration */
 	root_inode = c2t1fs_root_iget(sb);
 	if (root_inode == NULL) {
 		rc = -ENOMEM;
@@ -130,6 +128,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	START();
 
 	csb = C2T1FS_SB(sb);
+	c2t1fs_disconnect_from_all_services(csb);
 	c2t1fs_discard_service_contexts(csb);
 	c2t1fs_sb_fini(csb);
 	kfree(csb);
@@ -145,6 +144,8 @@ int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2_mutex_init(&csb->csb_mutex);
 	csb->csb_flags = 0;
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
+
+	csb->csb_nr_active_contexts = 0;
 	c2_list_init(&csb->csb_service_contexts);
 
 	END(0);
@@ -299,12 +300,14 @@ out:
 	return rc;
 }
 void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
+				 struct c2t1fs_sb              *csb,
 				 enum c2t1fs_service_type       type,
 				 char                          *ep_addr)
 {
 	START();
 
 	C2_SET0(ctx);
+	ctx->sc_csb = csb;
 	ctx->sc_type = type;
 	ctx->sc_addr = ep_addr;
 	c2_list_link_init(&ctx->sc_link);
@@ -344,12 +347,12 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 
 	c2_list_for_each_entry(&csb->csb_service_contexts, ctx,
 				struct c2t1fs_service_context, sc_link) {
+
 		rc = c2t1fs_connect_to_service(ctx);
-		if (rc != 0)
-			/* XXX disconnect from previously connected services */
+		if (rc != 0) {
+			c2t1fs_disconnect_from_all_services(csb);
 			goto out;
-		/* XXX remove this */
-		c2t1fs_disconnect_from_service(ctx);
+		}
 	}
 out:
 	END(rc);
@@ -376,7 +379,7 @@ static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
 			if (ctx == NULL)
 				return -ENOMEM;
 
-			c2t1fs_service_context_init(ctx, type, ep_addr);
+			c2t1fs_service_context_init(ctx, csb, type, ep_addr);
 			c2_list_add(&csb->csb_service_contexts, &ctx->sc_link);
 		}
 		return 0;
@@ -460,11 +463,15 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	if (rc != 0)
 		goto conn_term;
 
+	ctx->sc_csb->csb_nr_active_contexts++;
+	TRACE("Connected to [%s] active_ctx %d\n", ctx->sc_addr,
+				ctx->sc_csb->csb_nr_active_contexts);
 	END(rc);
 	return rc;
 
 conn_term:
 	(void)c2_rpc_conn_terminate_sync(conn, 10);
+	c2_rpc_conn_fini(conn);
 out:
 	END(rc);
 	return rc;
@@ -480,11 +487,36 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 	conn    = &ctx->sc_conn;
 	session = &ctx->sc_session;
 
-	(void)c2_rpc_session_terminate_sync(session, 10);
-	(void)c2_rpc_conn_terminate_sync(conn, 10);
+	if (session->s_state == C2_RPC_SESSION_IDLE ||
+	    session->s_state == C2_RPC_SESSION_BUSY)
+		(void)c2_rpc_session_terminate_sync(session, 10);
+
+	if (conn->c_state == C2_RPC_CONN_ACTIVE)
+		(void)c2_rpc_conn_terminate_sync(conn, 10);
 
 	c2_rpc_session_fini(session);
 	c2_rpc_conn_fini(conn);
+
+	ctx->sc_csb->csb_nr_active_contexts--;
+	TRACE("Disconnected from [%s] active_ctx %d\n", ctx->sc_addr,
+				ctx->sc_csb->csb_nr_active_contexts);
+	END(0);
+}
+
+static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
+{
+	struct c2t1fs_service_context *ctx;
+
+	START();
+
+	c2_list_for_each_entry(&csb->csb_service_contexts, ctx,
+				struct c2t1fs_service_context, sc_link) {
+
+		c2t1fs_disconnect_from_service(ctx);
+
+		if (csb->csb_nr_active_contexts == 0)
+			break;
+	}
 
 	END(0);
 }
