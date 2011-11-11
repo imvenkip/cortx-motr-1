@@ -112,7 +112,7 @@ struct c2_layout {
 */
 struct layout_cob_id_entry {
 	struct c2_cob_id lci_cob_id;
-	/** COB index from global file so as to identify sequence of COBs */
+	/** COB index so as to identify sequence of COBs in the layout */
 	struct c2_uint128 lci_cob_index;
 	struct layout_cob_id_entry *lci_cob_id_next;
 };
@@ -174,7 +174,7 @@ struct c2_layout_ops {
 };
 
 /**
-   Structure specific to per type of a layout
+   Structure specific to per layout type.
    There is an instance of c2_layout_type for each one of PDCLUST
    and COMPOSITE layout types.
 */

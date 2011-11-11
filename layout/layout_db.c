@@ -384,7 +384,7 @@
    @section Layout-DB-st System Tests
    <i>Mandatory.</i>
    
-   TODO: Deferred until first round of inspection.
+   TODO: Add test cases.
 
    <hr>
    @section Layout-DB-O Analysis
@@ -417,8 +417,6 @@
 
    @{
 */
-
-/** Structure used internally */
 
 /** Invariant for c2_layout_rec */
 /*
