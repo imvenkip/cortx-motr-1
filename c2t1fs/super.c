@@ -363,6 +363,8 @@ static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
 	struct c2t1fs_mnt_opts        *mntopts;
 	int                            rc = 0;
 
+	/* XXX For now, service contexts are populated using mount options.
+	   When configuration will be available it should be used. */
 	int populate(char *ep_arr[], int n, enum c2t1fs_service_type type)
 	{
 		struct c2t1fs_service_context *ctx;
@@ -452,14 +454,14 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 
 	conn = &ctx->sc_conn;
 	rc = c2_rpc_conn_create(conn, ep, rpc_mach,
-				C2T1FS_MAX_NR_RPC_IN_FLIGHT, 10);
+			C2T1FS_MAX_NR_RPC_IN_FLIGHT, C2T1FS_RPC_TIMEOUT);
 	c2_net_end_point_put(ep);
 	if (rc != 0)
 		goto out;
 
 	session = &ctx->sc_session;
 	rc = c2_rpc_session_create(session, conn, C2T1FS_NR_SLOTS_PER_SESSION,
-					10);
+					C2T1FS_RPC_TIMEOUT);
 	if (rc != 0)
 		goto conn_term;
 
@@ -470,7 +472,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	return rc;
 
 conn_term:
-	(void)c2_rpc_conn_terminate_sync(conn, 10);
+	(void)c2_rpc_conn_terminate_sync(conn, C2T1FS_RPC_TIMEOUT);
 	c2_rpc_conn_fini(conn);
 out:
 	END(rc);
@@ -489,10 +491,11 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 
 	if (session->s_state == C2_RPC_SESSION_IDLE ||
 	    session->s_state == C2_RPC_SESSION_BUSY)
-		(void)c2_rpc_session_terminate_sync(session, 10);
+		(void)c2_rpc_session_terminate_sync(session,
+						    C2T1FS_RPC_TIMEOUT);
 
 	if (conn->c_state == C2_RPC_CONN_ACTIVE)
-		(void)c2_rpc_conn_terminate_sync(conn, 10);
+		(void)c2_rpc_conn_terminate_sync(conn, C2T1FS_RPC_TIMEOUT);
 
 	c2_rpc_session_fini(session);
 	c2_rpc_conn_fini(conn);
