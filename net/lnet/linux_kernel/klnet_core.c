@@ -223,7 +223,7 @@
    with that transfer machine.  The upper 12 match bits are reserved by the HLD
    to represent the transfer machine identifier. Therefore the counter is
    (64-12)=52 bits wide. The value of 0 is reserved for unsolicited
-   receive messages, so the counter range is [1,0x3ffffffffffff]. It is
+   receive messages, so the counter range is [1,0xfffffffffffff]. It is
    initialized to 1 and will wrap back to 1 when it reaches its upper bound.
 
    The transport uses the c2_lnet_core_buf_passive_recv() or the

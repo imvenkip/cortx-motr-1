@@ -84,6 +84,10 @@
      indirectly invoked.  Note that there are no equivalents for the @c
      xo_tm_init(), @c xo_tm_fini() and @c xo_tm_confine() calls.
 
+   - End point address parsing subroutines:
+     - c2_lnet_core_ep_addr_decode()
+     - c2_lnet_core_ep_addr_encode()
+
    - Buffer operation related subroutines:
      - c2_lnet_core_buf_active_recv()
      - c2_lnet_core_buf_active_send()
@@ -158,7 +162,7 @@ enum {
 	/** Minimum buffer match bit counter value */
 	C2_NET_LNET_MATCH_BIT_MIN = 1,
 	/** Maximum buffer match bit counter value: 2^^52-1; */
-	C2_NET_LNET_MATCH_BIT_MAX = 0x3ffffffffffffULL,
+	C2_NET_LNET_MATCH_BIT_MAX = 0xfffffffffffffULL,
 };
 
 /**
@@ -288,7 +292,7 @@ struct c2_lnet_core_transfer_mc {
 */
 struct c2_lnet_core_buffer {
 	/**
-	   The value of the c2_net_buffer address in the transport address
+	   The address of the c2_net_buffer structure in the transport address
 	   space. The value is set by the c2_lnet_core_buffer_register()
 	   subroutine.
 	 */
