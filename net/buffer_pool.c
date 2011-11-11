@@ -49,6 +49,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 }
 
 static c2_time_t c2_time_in_pool;
+static c2_time_t c2_time_after_sweep;
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
 			    uint32_t seg_nr, c2_bcount_t seg_size)
@@ -68,6 +69,7 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_head);
 	c2_time_set(&c2_time_in_pool, 120, 0); /* 2 min */
+	c2_time_after_sweep = c2_time_now();
 }
 C2_EXPORTED(c2_net_buffer_pool_init);
 
@@ -148,6 +150,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 					     struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_buffer *nb;
+	c2_time_t c2_time_sweep;
 
 	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
@@ -155,16 +158,19 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	if (pool->nbp_free <= 0)
 		return NULL;
 	if (tm != NULL) {
+		c2_time_sweep = c2_time_add(c2_time_now(), c2_time_in_pool);
 		c2_tlist_for(&pool_tl, &pool->nbp_head, nb) {
 			C2_ASSERT(nb != NULL);
 			if (tm == nb->nb_tm || nb->nb_tm == NULL ||
 			    nb == pool_tlist_tail(&pool->nbp_head))
 				break;
-			if(c2_time_after(c2_time_in_pool, nb->nb_add_time)) {
+			if(c2_time_after(c2_time_sweep, c2_time_after_sweep) &&
+			   c2_time_after(c2_time_sweep, nb->nb_add_time)) {
 				pool_tlist_del(nb);
 				C2_CNT_DEC(pool->nbp_free);
 				nb->nb_tm = NULL;
 				c2_net_buffer_pool_put(pool, nb);
+				c2_time_after_sweep = c2_time_now();
 			}
 		} c2_tlist_endfor;
 	} else
