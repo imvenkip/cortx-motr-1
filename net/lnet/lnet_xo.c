@@ -29,7 +29,7 @@
    - @ref LNetDLD-highlights
    - @subpage LNetDLD-fspec "Functional Specification" <!-- ext link -->
       - @ref LNetDFS "LNet Transport Interface"       <!-- ext link -->
-      - @ref LNetIDFS "Internal Interface"            <!-- int link -->
+      - @ref LNetXODFS "XO Interface"            <!-- int link -->
    - @ref LNetDLD-lspec
       - @ref LNetDLD-lspec-comps
       - @ref LNetDLD-lspec-state
@@ -239,7 +239,7 @@
 #include "net/lnet/bev_cqueue.c"
 
 /**
-   @addtogroup LNetIDFS
+   @addtogroup LNetXODFS
    @{
 */
 
@@ -320,7 +320,7 @@ static const struct c2_net_xprt_ops lnet_xo_xprt_ops = {
 };
 
 /**
-   @} LNetIDFS
+   @} LNetXODFS
 */
 
 struct c2_net_xprt c2_net_lnet_xprt = {

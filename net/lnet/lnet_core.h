@@ -31,7 +31,7 @@
 
    - @ref LNetCoreDLD-fspec-ovw
    - @ref LNetCoreDLD-fspec-ds
-   - @ref LNetCoreDLD-fspec-usage
+   - @ref LNetCoreDLD-fspec-subs
    - @ref LNetCore "LNet Transport Core Interface"
 
    @section LNetCoreDLD-fspec-ovw API Overview
@@ -54,40 +54,61 @@
    - c2_lnet_core_transfer_mc
    - c2_lnet_core_buffer
 
-   The sharing is defined as taking place between the transport layer and the
-   core layer.  This will span the kernel and user address space boundary when
-   using the user space transport.
+   The sharing takes place between the transport layer and the core layer.
+   This will span the kernel and user address space boundary when using the
+   user space transport.
 
-   These data structures should be embedded in the transport application's own
-   private data.  This requirement results in initialization calls that require
-   a pointer to the standard network layer data structure concerned and a
-   pointer to the API's data structure.  Note that these data structures are of
-   variable length, and should be embedded at the end of the transport's
-   private structure.  By implication, their presence makes the associated
-   transport private data structures variable length.
+   These shared data structures should be embedded in the transport
+   application's own private data.  This requirement results in an
+   initialization call pattern that takes a pointer to the standard network
+   layer data structure concerned and a pointer to the API's data structure.
 
    Subsequent calls to the API only pass the API data structure pointer.  The
-   API data must be eventually finalized.
+   API data structure must be eventually finalized.
 
-   @section LNetCoreDLD-fspec-usage API Usage
-   The API is intended to be used in the following contexts:
+   @section LNetCoreDLD-fspec-subs Subroutines
+   The API subroutines are categorized as follows:
 
-   - Initialization, finalization and query calls: These are invoked from the
-     methods of the c2_net_xprt_ops structure.  Most of the interfaces have
-     names roughly similar to the associated c2_net_xprt_ops method from which
-     they are intended to be directly or indirectly invoked.  One notable
-     exception is that there are no equivalents for the @c xo_tm_init and @c
-     xo_tm_fini calls.
+   - Initialization, finalization, cancellation and query subroutines:
+     - c2_lnet_core_buf_deregister()
+     - c2_lnet_core_buf_register()
+     - c2_lnet_core_dom_fini()
+     - c2_lnet_core_dom_init()
+     - c2_lnet_core_get_max_buffer_segment_size()
+     - c2_lnet_core_get_max_buffer_size()
+     - c2_lnet_core_tm_start()
+     - c2_lnet_core_tm_stop()
+     .
+     These interfaces have names roughly similar to the associated
+     c2_net_xprt_ops method from which they are intended to be directly or
+     indirectly invoked.  Note that there are no equivalents for the @c
+     xo_tm_init(), @c xo_tm_fini() and @c xo_tm_confine() calls.
 
-   - Buffer operation initiation calls: Operations should be initiated by the
-     transport only when there is sufficient buffer event queue space in which
-     to return the result. Typically this would be done off a transport work
-     queue.  See @ref KLNetCoreDLD-lspec-thread for further details.
+   - Buffer operation related subroutines:
+     - c2_lnet_core_buf_active_recv()
+     - c2_lnet_core_buf_active_send()
+     - c2_lnet_core_buf_del()
+     - c2_lnet_core_buf_msg_recv()
+     - c2_lnet_core_buf_msg_send()
+     - c2_lnet_core_buf_passive_recv()
+     - c2_lnet_core_buf_passive_send()
+     - c2_lnet_core_buf_set_match_bits()
+     .
+     The buffer operation initiation calls are all invoked in the context of
+     the c2_net_buffer_add() subroutine.  All operations are immediately
+     initiated in the Lustre LNet kernel module, though results will be
+     returned asynchronously through buffer events.
 
-   - Event processing calls: These are invoked on threads maintained by the
-     transport.  Such threads usually have some processor affiliation required
-     by the higher software layers.
-*/
+   - Event processing calls:
+     - c2_lnet_core_buf_event_wait()
+     - c2_lnet_core_buf_event_get()
+     .
+     The Core API offers no callback mechanism.  Instead, the transport must
+     poll for events.  Typically this is done on one or more dedicated threads,
+     which exhibit the desired processor affiliation required by the higher
+     software layers.
+
+ */
 
 /**
    @defgroup LNetCore LNet Transport Core Interface
@@ -285,10 +306,14 @@ struct c2_lnet_core_buffer {
 	uint64_t              lcb_match_bits;
 
 	/**
-	   Active bulk buffers set the address of the remote passive transfer
-	   machine in this field.
+	   The address of the destination transfer machine is set in this field
+	   for buffers on the C2_NET_QT_MSG_SEND queue.
+
+	   The address of the remote passive transfer machine is set in this
+	   field for buffers on the C2_NET_QT_ACTIVE_BULK_SEND or
+	   C2_NET_QT_ACTIVE_BULK_RECV queues.
 	 */
-	struct c2_lnet_core_ep_addr lcb_passive_addr;
+	struct c2_lnet_core_ep_addr lcb_addr;
 
 	void                 *lcb_upvt; /**< Core user space private */
 	void                 *lcb_kpvt; /**< Core kernel space private */
@@ -341,17 +366,17 @@ static int c2_lnet_core_buf_register(struct c2_lnet_core_domain *lcdom,
 
 /**
    Deregister the buffer.
+   @param lcdom The domain private data to be initialized.
    @param The buffer private data.
  */
-static int c2_lnet_core_buf_deregister(struct c2_lnet_core_buffer *lcbuf);
+static int c2_lnet_core_buf_deregister(struct c2_lnet_core_domain *lcdom,
+				       struct c2_lnet_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for message reception. Multiple messages may be received
    into the buffer, space permitting, up to the configured maximum.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
-   @param lcaddr LNet end point address of the recepient.
-   @pre The buffer is queued on the specified transfer machine.
  */
 static int c2_lnet_core_buf_msg_recv(struct c2_lnet_core_transfer_mc *lctm,
 				     struct c2_lnet_core_buffer *lcbuf);
@@ -360,62 +385,86 @@ static int c2_lnet_core_buf_msg_recv(struct c2_lnet_core_transfer_mc *lctm,
    Enqueue a buffer for message transmission.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
-   @param lcaddr LNet end point address of the recepient.
-   @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->lcb_addr is valid
  */
 static int c2_lnet_core_buf_msg_send(struct c2_lnet_core_transfer_mc *lctm,
-				     struct c2_lnet_core_buffer *lcbuf,
-				     struct c2_lnet_core_ep_addr *lcaddr);
+				     struct c2_lnet_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for active bulk receive.
+   The lcb_match_bits field should be set to the value of the match bits of the
+   remote passive buffer.
+   The lcb_addr field should be set with the end point address of the
+   transfer machine with the passive buffer.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
-   @param lcaddr LNet end point address of the TM with the passive buffer.
-   @param match_bits The match bits of the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->lcb_match_bits != 0
+   @pre lcbuf->lcb_addr is valid
  */
 static int c2_lnet_core_buf_active_recv(struct c2_lnet_core_transfer_mc *lctm,
-					struct c2_lnet_core_buffer *lcbuf,
-					struct c2_lnet_core_ep_addr *lcaddr,
-					uint64_t match_bits);
+					struct c2_lnet_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for active bulk send.
+   The lcb_match_bits field should be set to the value of the match bits of the
+   remote passive buffer.
+   The lcb_addr field should be set with the end point address of the
+   transfer machine with the passive buffer.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
-   @param lcaddr LNet end point address of the TM with the passive buffer.
-   @param match_bits The match bits of the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->lcb_match_bits != 0
+   @pre lcbuf->lcb_addr is valid
  */
 static int c2_lnet_core_buf_active_send(struct c2_lnet_core_transfer_mc *lctm,
-					struct c2_lnet_core_buffer *lcbuf,
-					struct c2_lnet_core_ep_addr *lcaddr,
-					uint64_t match_bits);
+					struct c2_lnet_core_buffer *lcbuf);
+
+/**
+   This subroutine generates new match bits for the given buffer's
+   lcb_match_bits field.
+
+   It is intended to be used by the transport prior to invoking passive buffer
+   operations.  The reason it is not combined with the passive operation
+   subroutines is that the core API does not guarantee unique match bits.  The
+   match bit counter will wrap over time, though, being a very large counter,
+   it would take considerable time before it does wrap.
+
+   @param lctm  Transfer machine private data.
+   @param lcbuf The buffer private data.
+   @pre The buffer is queued on the specified transfer machine.
+ */
+static void c2_lnet_core_buf_set_match_bits(struct c2_lnet_core_transfer_mc
+					    *lctm,
+					    struct c2_lnet_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for passive bulk receive.
-   This is a synchronous operation.
+   The match bits for the passive buffer should be set in the buffer with the
+   c2_lnet_core_buf_set_match_bits() subroutine before this call.
+   It is guaranteed that the buffer can be remotely accessed when the
+   subroutine returns.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
-   @param match_bits Returns the match bits identifying the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->lcb_match_bits != 0
  */
 static int c2_lnet_core_buf_passive_recv(struct c2_lnet_core_transfer_mc *lctm,
-					 struct c2_lnet_core_buffer *lcbuf,
-					 uint64_t *match_bits);
+					 struct c2_lnet_core_buffer *lcbuf);
 
 /**
    Enqueue buffer for passive bulk send.
-   This is a synchronous operation.
+   The match bits for the passive buffer should be set in the buffer with the
+   c2_lnet_core_buf_set_match_bits() subroutine before this call.
+   It is guaranteed that the buffer can be remotely accessed when the
+   subroutine returns.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
-   @param match_bits Returns the match bits identifying the passive buffer.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->lcb_match_bits != 0
  */
 static int c2_lnet_core_buf_passive_send(struct c2_lnet_core_transfer_mc *lctm,
-					 struct c2_lnet_core_buffer *lcbuf,
-					 uint64_t *match_bits);
+					 struct c2_lnet_core_buffer *lcbuf);
 
 /**
    Cancel a buffer operation if possible.
@@ -437,7 +486,9 @@ static int c2_lnet_core_buf_event_wait(struct c2_lnet_core_transfer_mc *lctm,
 				       c2_time_t timeout);
 
 /**
-   Fetch the next event from the circular buffer event queue.
+   Fetch the next event from the circular buffer event queue.  This subroutine
+   does not support concurrent invocation; the transport should serialize
+   access if more than one thread is used to process events.
    @param lctm Transfer machine private data.
    @param lcbe Returns the next buffer event.
    @retval true Event returned.
@@ -486,17 +537,6 @@ static int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
 static int c2_lnet_core_tm_stop(struct c2_lnet_core_transfer_mc *lctm);
-
-/**
-   The transport should invoke this subroutine before initiating any buffer
-   operation, to state how many buffer event structures are required to complete
-   all current and to-be-scheduled buffer operations.
-
-   The core may have to allocate additional buffer event structures on the
-   c2_lnet_core_transfer_mc::lctm_free_bevq.
- */
-static int c2_lnet_core_tm_bev_needed(struct c2_lnet_core_transfer_mc *lctm,
-				      uint32_t needed);
 
 /**
    @}

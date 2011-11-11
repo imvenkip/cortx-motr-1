@@ -25,7 +25,7 @@
 #include "net/lnet/lnet_core.h"
 
 /**
-   @defgroup LNetIDFS LNet Transport Internal Interface
+   @defgroup LNetXODFS LNet Transport XO Interface
    @ingroup LNetDFS
    @{
 */
@@ -72,7 +72,7 @@ struct lnet_xo_buffer {
 
 
 /**
-   @} LNetIDFS
+   @} LNetXODFS
 */
 
 #endif /* __COLIBRI_LNET_XO_H__ */

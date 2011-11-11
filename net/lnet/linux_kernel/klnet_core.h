@@ -34,6 +34,8 @@
 #include "lnet/include/lnet/types.h"
 #include "net/lnet_core.h"
 
+#include <linux/spinlock.h>
+
 enum {
 	C2_NET_LNET_KCORE_TM_MAGIC  = 0x4b436f7265544dULL,   /* KCoreTM */
 	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
@@ -58,6 +60,12 @@ struct c2_klnet_core_transfer_mc {
 	   Match bit counter. Range [1,C2_NET_LNET_MATCH_BIT_MAX].
 	 */
 	uint64_t                         klctm_mb_counter;
+
+	/**
+	   Spin lock to serialize access to the buffer event queue
+	   from the LNet callback subroutine.
+	 */
+	spinlock_t                       klctm_bevq_lock;
 
 	/**
 	   Channel on which to block waiting for LNet events.
