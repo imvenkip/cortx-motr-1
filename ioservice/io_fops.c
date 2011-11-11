@@ -31,6 +31,9 @@
 #include "ioservice/io_fops_u.h"
 #endif
 
+extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
+extern struct c2_fop_type_format c2_addb_record_tfmt;
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
