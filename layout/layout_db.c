@@ -26,7 +26,7 @@
    - @ref Layout-DB-req
    - @ref Layout-DB-depends
    - @ref Layout-DB-highlights
-   - @subpage Layout-DB-fspec "Functional Specification" 
+   - @subpage Layout-DB-fspec "Functional Specification"
    - @ref Layout-DB-lspec
       - @ref Layout-DB-lspec-comps
       - @ref Layout-DB-lspec-schema
@@ -46,8 +46,8 @@
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
 
-   Note: The instructions in italics from the DLD template are ratained 
-   currently for reference and will be removed after the first round of the 
+   Note: The instructions in italics from the DLD template are ratained
+   currently for reference and will be removed after the first round of the
    DLD inspection.
 
    This document contains the detail level design for the Layout DB Module.
@@ -68,7 +68,7 @@
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   - <b>COB</b> COB is component object and is defined at  
+   - <b>COB</b> COB is component object and is defined at
      <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">C2 Glossary</a>
 
    <hr>
@@ -76,11 +76,11 @@
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   The specified requirements are as follows: 
+   The specified requirements are as follows:
    - <b>R.LAYOUT.SCHEMA.Layid</b> Layout identifiers are unique globally in
      the system, and persistent in the life cycle.
-   - <b>R.LAYOUT.SCHEMA.Types</b> There are multiple layout types for 
-     different purposes: SNS, block map, local raid, de-dup, encryption, 
+   - <b>R.LAYOUT.SCHEMA.Types</b> There are multiple layout types for
+     different purposes: SNS, block map, local raid, de-dup, encryption,
      compression, etc.
    - <b>R.LAYOUT.SCHEMA.Formulae</b>
       - <b>Parameters</b> Layout may contain sub-map information. Layout may
@@ -88,7 +88,7 @@
         should be calculated from the formula and its parameters.
       - <b>Garbage Collection</b> If some objects are deleted from the system,
         their associated layout may still be left in the system, with zero
-        reference count. This layout can be re-used, or be garbage 
+        reference count. This layout can be re-used, or be garbage
         collected in some time.
    - <b>R.LAYOUT.SCHEMA.Sub-Layouts</b> Sub-layouts.
 
@@ -177,7 +177,7 @@
      cClient -> cFormula [label="substitute"];
      cServer -> cFormula [label="substitute"];
 
-     { rank=same; cClient cFormula cServer } 
+     { rank=same; cClient cFormula cServer }
    }
    @enddot
 
@@ -189,30 +189,30 @@
    The layout schema for the Layout DB module consists of the following three
    tables
    - @ref Layout-DB-lspec-schema-layout-entries
-   - @ref Layout-DB-lspec-schema-pdclust_list_cob_lists 
-   - @ref Layout-DB-lspec-schema-comp_layout_ext_map 
+   - @ref Layout-DB-lspec-schema-pdclust_list_cob_lists
+   - @ref Layout-DB-lspec-schema-comp_layout_ext_map
 
    <b>Layout types</b> supported currently by the Layout module are:
    - PDCLUST <BR>
      This layout type applies parity declustering feature to the striping
-     process. Parity declustering is to keep rebuild overhead low by 
+     process. Parity declustering is to keep rebuild overhead low by
      striping a file over more servers or drives than there are units in
      the parity group. The PDCLUST type of layout either uses a formula
      or a list to enumerate the COB identifiers.
      The enumeration method types supported for PDCLUST type of layout are:
       - LINEAR <BR>
-        PDCLUST layout type with LINEAR enumeration type uses a formula to 
+        PDCLUST layout type with LINEAR enumeration type uses a formula to
         enumerate the COB identifiers.
       - LIST <BR>
-        PDCLUST layout type with LIST enumeration type uses a list to 
+        PDCLUST layout type with LIST enumeration type uses a list to
         enumerate the COB identifiers.
    - COMPOSITE <BR>
-     This layout type partitions a file or a part of the file into 
+     This layout type partitions a file or a part of the file into
      various segments while each of those segment uses a different layout.
 
    <b>Layout record types</b> supported currently by the Layout DB module are:
    - PDCLUST_LINEAR
-      - This is a layout record type with layout type as PDCLUST and its 
+      - This is a layout record type with layout type as PDCLUST and its
         enumeration type as LINEAR.
       - This requires storing some attributes like N, K.
       - The layout record entry is made into the layout_entries table while
@@ -223,12 +223,12 @@
       - This requires storing list of cob identifiers belonging to this layout
         along with index in this layout.
       - The layout record entry is made into the layout_entries table while
-        the cob identifiers along with cob index are stored in a separate 
+        the cob identifiers along with cob index are stored in a separate
         table viz. pdclust_list_cob_lists.
    - COMPOSITE
       - This is a layout record type with layout type as COMPOSITE.
       - It requires storing extent map for each layout record of this type.
-      - The extent map is used to provide the file segment to sub layout 
+      - The extent map is used to provide the file segment to sub layout
         mappings for all the segments belonging to this layout.
       - The layout record entry is made into the layout_entries table while
         the extent maps are stored in a separate table viz. comp_layout_ext_map.
@@ -242,17 +242,17 @@
    Record:
       - layout_type (PDCLUST_LINEAR | PDCLUST_LIST | COMPOSITE)
       - reference_count
-      - pdclust_linear_rec_attrs 
+      - pdclust_linear_rec_attrs
 
    @endverbatim
-   
+
    For PDCLUST_LINEAR layout type, the pdclust_linear_rec_attrs
    contains N (number of data units in the parity group) and K (number of
    parity units in the parity groups).
 
    For PDCLUST_LIST and COMPOSITE layout types, the
    pdclust_linear_rec_attrs field is not used.
-   
+
    @subsection Layout-DB-lspec-schema-pdclust_list_cob_lists Table pdclust_list_cob_lists
    @verbatim
    Table Name: pdclust_list_cob_lists
@@ -286,29 +286,29 @@
 
    Layout DB uses a single c2_emap instance to implement the composite layout
    extent map viz. comp_layout_ext_map. This table stores the "layout segment
-   to sub-layout id mappings" for each compsite layout. 
+   to sub-layout id mappings" for each compsite layout.
 
    c2_emap table is a framework to store a collection of related extent maps.
-   Individual extent maps within a collection are identified by an element 
+   Individual extent maps within a collection are identified by an element
    of the key called as prefix (128 bit).
    
-   For each composite layout, its layout id (c2_layout_id) is used as a 
+   For each composite layout, its layout id (c2_layout_id) is used as a
    prefix to identify an extent map belonging to one composite layout.
 
    An example:
 
-   Suppose a layout L1 is of the type composite and constitues of 3 
-   sub-layouts say S1, S2, S3. These sub-layouts S1, S2 and S3 use 
+   Suppose a layout L1 is of the type composite and constitues of 3
+   sub-layouts say S1, S2, S3. These sub-layouts S1, S2 and S3 use
    the layouts with layout id L11, L12 and L13 respectively.
-  
+
    In this example, for the composite layout L1, the comp_layout_ext_map
-   table stores 3 layout segments viz. S1, S2 and S3. All these 3 segments 
+   table stores 3 layout segments viz. S1, S2 and S3. All these 3 segments
    are stored in the form of ([A, B), V) where:
    - A is the start offset from the layout L1
    - B is the end offset from the layout L1
    - V is the layout id for the layout used by the respective segment and
      is either of L11, L12 or L13 as applicable.
-          
+
    @subsubsection Layout-DB-lspec-ds1 Subcomponent Data Structures
    <i>This section briefly describes the internal data structures that are
    significant to the design of the sub-component. These should not be a part
@@ -346,11 +346,11 @@
    and explains briefly how the DLD meets the requirement.</i>
 
    - <b>I.LAYOUT.SCHEMA.Layid</b> Layout identifiers are unique globally in
-     the system, and persistent in the life cycle. It is assumed that the 
+     the system, and persistent in the life cycle. It is assumed that the
      layout identifiers are assigned by the Layout module and Layout DB module
      helps to store those persistently.
    - <b>I.LAYOUT.SCHEMA.Types</b> There are multiple layout types for different
-     purposes: SNS, block map, local raid, de-dup, encryption, compression, 
+     purposes: SNS, block map, local raid, de-dup, encryption, compression,
      etc.
      <BR>
      Layout record types currently supported by the Layout DB module are:
@@ -358,12 +358,12 @@
           PDCLUST layout type used for SNS.
         - COMPOSITE layout record type to represent Composite layout type.
      The framework supports to add other layout record types, as required in
-     the future, though doing so will require some source changes to the 
+     the future, though doing so will require some source changes to the
      Layout DB module.
    - <b>I.LAYOUT.SCHEMA.Formulae</b>
       - <b>Parameters</b>
          - In case of PDCLUST_LINEAR layout record type, substituting parameters
-           in the stored formula derives the real mapping information that is 
+           in the stored formula derives the real mapping information that is
            the list of COB identifiers.
       - <b>Garbage Collection</b>
          - PDCLUST_LIST and COMPOSITE type of layout records are deleted when
@@ -383,7 +383,7 @@
    <hr>
    @section Layout-DB-st System Tests
    <i>Mandatory.</i>
-   
+
    TODO: Add test cases.
 
    <hr>
@@ -454,7 +454,7 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 	/* Uses the DB interface c2_table_fini() and c2_dbenv_fini() to
 	de-intialize the DB tables and tables respectively. */
 
-	return;	
+	return;
 }
 
 /**
@@ -467,12 +467,12 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
    - If case of COMPOSITE type of a layout record, it adds the an
      extent map into the comp_layout_ext_map table.
 */
-int c2_layout_rec_add(const struct c2_layout *layout, 
-		const struct c2_layout_schema *l_schema, 
+int c2_layout_rec_add(const struct c2_layout *layout,
+		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
-	/* Encodes the layout DB record using the function pointer 
-	   layout->l_ops->l_rec_encode and adds the record to the DB using 
+	/* Encodes the layout DB record using the function pointer
+	   layout->l_ops->l_rec_encode and adds the record to the DB using
 	   the function pointer layout->l_ops->l_rec_add. */
 
 	return 0;
@@ -482,15 +482,15 @@ int c2_layout_rec_add(const struct c2_layout *layout,
    Deletes a layout record and its related information from the
    relevant tables.
 */
-int c2_layout_rec_delete(const struct c2_layout *layout, 
-		const struct c2_layout_schema *l_schema, 
+int c2_layout_rec_delete(const struct c2_layout *layout,
+		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
 	/* Uses the function pointer layout->l_ops->l_rec_delete. */
 	return 0;
 }
 
-/** 
+/**
    Updates a layout record and its related information from the
    relevant tables.
 */
@@ -501,7 +501,7 @@ int c2_layout_rec_update(const struct c2_layout *layout,
 	/* Uses the function pointer layout->l_ops->l_rec_update. */
 	return 0;
 }
- 
+
 /**
    Obtains a layout record with the specified layout_id, and its related
    information from the relevant tables.
@@ -520,7 +520,7 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
    table.
    Implementation is common to all the types of layout records.
 */
-int c2_layout_rec_ref_get(const struct c2_layout_rec *l_rec,
+int c2_layout_rec_ref_get(const struct c2_layout *l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
@@ -528,7 +528,7 @@ int c2_layout_rec_ref_get(const struct c2_layout_rec *l_rec,
 }
 
 /**
-   Releases a reference on the specified layout record from the 
+   Releases a reference on the specified layout record from the
    layout_entries table.
 
    Destroys layout record with either of the following record types when
@@ -538,11 +538,11 @@ int c2_layout_rec_ref_get(const struct c2_layout_rec *l_rec,
    <BR>
    A PDCLUST_LINEAR type of layout record is never destroyed.
 */
-int c2_layout_rec_ref_put(const struct c2_layout *layout,
+int c2_layout_rec_ref_put(const struct c2_layout *l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
-	/* Uses the function pointers layout->l_ops->l_rec_ref_put and 
+	/* Uses the function pointers layout->l_ops->l_rec_ref_put and
 	layout->l_ops->l_rec_delete. */
 	return 0;
 }

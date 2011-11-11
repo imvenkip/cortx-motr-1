@@ -69,22 +69,22 @@ struct c2_layout_formula {
 
 struct c2_layout_formula_ops {
 	int (*lfo_subst)(const struct c2_layout_formula *form, uint16_t nr,
-			 const struct c2_layout_parameter *actuals, 
+			 const struct c2_layout_parameter *actuals,
 			 struct c2_layout **out);
 };
 
 struct pdclust_linear_attrs {
 	/** Number of data units in the parity group (N) */
-	uint32_t pla_num_of_data_units; 
+	uint32_t pla_num_of_data_units;
 	/** Number of parity units in the parity group (K) */
 	uint32_t pla_num_of_parity_units;
 };
 
 /**
-   TODO: Changing type of l_id to c2_layout_id requires changing the 
+   TODO: Changing type of l_id to c2_layout_id requires changing the
    prototype of c2_pdclust_build to accept "c2_layout_id *id" instead of
    "c2_uint128 *id". Hence, will change it once defining c2_layout_id
-   is approved upon. 
+   is approved upon.
 */
 struct c2_layout {
 	const struct c2_layout_type      *l_type;
@@ -95,13 +95,13 @@ struct c2_layout {
 	const struct c2_layout_ops       *l_ops;
 
 	union {
-		/** Attributes specific to the layout type PDCLUST with enumeration 
+		/** Attributes specific to the layout type PDCLUST with enumeration
 		type as LINEAR */
 		struct pdclust_linear_attrs l_pdclust_linear_attrs;
-		/** Pointer to the list of cob identifiers, specific to the layout 
+		/** Pointer to the list of cob identifiers, specific to the layout
 		type PDCLUST with enumeration type as LIST */
 		struct layout_cob_id_entry *l_pdclust_list_cob_list_head;
-		/** Pointer to the list of extents, specific to the layout type 
+		/** Pointer to the list of extents, specific to the layout type
 		COMPOSITE */
 		struct layout_composite_ext *l_comp_ext_list_head;
 	} l_type_specific_attrs;
@@ -143,14 +143,14 @@ struct c2_layout_parameter_type {
 };
 
 struct c2_layout_ops {
-	/** Converts a layout (in-memory) to layout record (DB format) */	
+	/** Converts a layout (in-memory) to layout record (DB format) */
 	int (*l_rec_encode)(const struct c2_layout *l,
 		struct c2_layout_rec *l_rec_out);			
-	/** Adds a new layout record and its related information into the 
+	/** Adds a new layout record and its related information into the
 	relevant tables. */
 	int (*l_rec_add)(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx);			
+		const struct c2_db_tx *tx);
 	/** Deletes a layout record and its related information from the
 	relevant tables. */
 	int (*l_rec_delete)(const struct c2_layout_rec *l_rec,
@@ -180,11 +180,11 @@ struct c2_layout_ops {
 */
 struct c2_layout_type {
 	const char  *lt_name;
-	bool       (*lt_equal)(const struct c2_layout *l0, 
+	bool       (*lt_equal)(const struct c2_layout *l0,
 			       const struct c2_layout *l1);
 	/** Converts a layout record (DB format) to layout (in-memory format) */
 	int        (*lt_rec_decode)(const struct c2_layout_rec l_rec,
-				struct c2_layout l_out);			
+				struct c2_layout l_out);
 };
 
 int  c2_layouts_init(void);
@@ -194,55 +194,55 @@ void c2_layouts_fini(void);
    Implementation of l_rec_encode for PDCLUST layout type.
    Converts a layout (in-memory fomrat) to layout record (DB format).
 */
-int pdclust_encode(const struct c2_layout *l, 
+int pdclust_encode(const struct c2_layout *l,
 		struct c2_layout_rec l_rec_out);
 
 /**
-   Implementation of l_rec_encode for COMPOSITE layout type. 
+   Implementation of l_rec_encode for COMPOSITE layout type.
    Converts a layout (in-memory format) to layout record (DB format).
 */
-int composite_encode(const struct c2_layout *l, 
+int composite_encode(const struct c2_layout *l,
 		struct c2_layout_rec l_rec_out);
 
 /**
-   Implementation of l_rec_add for PDCLUST layout type. 
+   Implementation of l_rec_add for PDCLUST layout type.
    Adds a layout entry into the layout_entries table.
-   For LIST enumeration type, adds list of cob ids to the 
+   For LIST enumeration type, adds list of cob ids to the
    pdclust_list_cob_lists table.
 */
 int pdclust_add(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx); 
+		const struct c2_db_tx *tx);
 
 /**
-   Implementation of l_rec_add for COMPOSITE layout type. 
-   Adds the layout entry into the layout_entries table .
+   Implementation of l_rec_add for COMPOSITE layout type.
+   Adds the layout entry into the layout_entries table.
    Adds the relevant extent map into the comp_layout_ext_map table.
 */
 
-int composite_add(const struct c2_layout_rec *l_rec, 
+int composite_add(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
 /**
    Implementation of l_rec_delete for PDCLUST layout type.
-   For LINEAR enumeration type, this function is un-used currently since 
+   For LINEAR enumeration type, this function is un-used currently since
    it never gets deleted.
    For LIST enumeration type, deletes the layout entry from the
    layout_entries table and deletes the relevant list of cob ids from
    the pdclust_list_cob_lists table.
 */
-int pdclust_delete(const struct c2_layout_rec *l_rec, 
+int pdclust_delete(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
 /**
    Implementation of l_rec_delete for COMPOSITE layout type.
    Deletes the layout entry from the table layout_entries.
-   Deletes the relevant extent map from the 
+   Deletes the relevant extent map from the
    comp_layout_ext_map table.
 */
-int composite_delete(const struct c2_layout_rec *l_rec, 
+int composite_delete(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
@@ -252,8 +252,8 @@ int composite_delete(const struct c2_layout_rec *l_rec,
    For LIST enumeration type, updates the relevant list of cob ids in
    the pdclust_list_cob_lists table.
 */
-int pdclust_update(const struct c2_layout_rec *l_rec, 
-		const struct c2_layout_schema *l_schema, 
+int pdclust_update(const struct c2_layout_rec *l_rec,
+		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
 /**
@@ -261,8 +261,8 @@ int pdclust_update(const struct c2_layout_rec *l_rec,
    Updates the layout entry in the layout_entries table.
    Updates the relevant extent map in the comp_layout_ext_map table.
 */
-int composite_update(const struct c2_layout_rec *l_rec, 
-		const struct c2_layout_schema *l_schema, 
+int composite_update(const struct c2_layout_rec *l_rec,
+		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
 /**
@@ -308,14 +308,14 @@ int composite_rec_put(const struct c2_layout_rec *l_rec,
    Converts a layout record (DB format) to layout (in-memory format).
 */
 int pdclust_decode(const struct c2_layout_rec *l_rec,
-		struct c2_layout *l_out);			
+		struct c2_layout *l_out);
 
 /**
    Implementation of lt_rec_decode for COMPOSITE layout type.
    Converts a layout record (DB format) to layout (in-memory format).
 */
 int composite_decode(const struct c2_layout_rec l_rec,
-		struct c2_layout l_out);			
+		struct c2_layout l_out);
 
 
 /** @} end group layout */
