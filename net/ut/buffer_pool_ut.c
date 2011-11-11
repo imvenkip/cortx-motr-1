@@ -65,7 +65,6 @@ void test_buf_pool()
 	struct c2_net_buffer *nb = NULL;
 	struct c2_net_xprt *xprt;
 	struct c2_net_transfer_mc *tm = &ut_tm;
-	c2_time_t c2tt_to_period;
 
 	c2_chan_init(&buf_chan);
 	xprt = &c2_net_bulk_sunrpc_xprt;
@@ -81,7 +80,6 @@ void test_buf_pool()
 	C2_UT_ASSERT(rc == 10);
 	nb = c2_net_buffer_pool_get(&bp, NULL);
 	c2_net_buffer_pool_put(&bp, nb);
-	c2_time_set(&c2tt_to_period, 120, 0); /* 2 min */
 	/* TM init */
 	rc = c2_net_tm_init(tm, bp.nbp_ndom);
 	C2_UT_ASSERT(rc == 0);

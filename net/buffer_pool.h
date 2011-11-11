@@ -41,10 +41,14 @@
 
 	  Upon receiving the not_empty call back user can put back buffers which	  are not in use into the pool.
 
-	  The “coloured” variant of the get operation is done here by returning 	  the most recently used buffer last associated with a specific transfer
+	  The “colored” variant of the get operation is done by returning the
+	  most recently used buffer that is associated with a specific transfer
 	  machine, or if none such are found, a buffer which has no previous
 	  transfer machine association, or if none such are found, the least
 	  recently used buffer from the pool, if any.
+
+	  Sweeping of the list is done to clear the buffer affiliation after
+	  some minimum time spend by the buffer in th pool (as affinity reduces 	  with time spent in the pool).
 
 	  Pool is protected by a lock, to get or put a buffer into the pool user	  must acquire the lock and release the lock once its usage is over.
 
@@ -178,9 +182,11 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
 
 /**
    Gets a buffer from the pool.
-   If transfer machine is not null then a linear search from the head of the
-   list will break off when a buffer of the correct affinity is found, or a
-   buffer with no affinity is found, or else the buffer at the tail of the list    is selected.
+   If transfer machine is associated with the buffer then a linear search from
+   the head of the list will break off when a buffer of the correct affinity is    found, or a buffer with no affinity is found, or else the buffer at the tail    of the list is selected.
+   The buffers which are associated with the transfer machine and lived more
+   than some minimum time in the pool are disassocated and put back at tail end
+   of the list until the buffer gets selected.
    If transfer machine is not specified buffer will be taken from the tail of
    the list.
    Returns NULL when the pool is empty.
