@@ -211,6 +211,7 @@
    In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD"
    - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
 
