@@ -104,13 +104,15 @@ static struct c2_fop_type *ioservice_fops[] = {
    instructions or hints on how to best read the specification.</i>
 
    This document describes the working of client side of io bulk transfer.
-   This functionality is used only for io path. Colibri network layer
-   incorporates a bulk transport mechanism to transfer user buffers
-   in zero-copy fashion.
+   This functionality is used only for io path.
+   IO bulk client constitues the client side of bulk IO carried out between
+   Colibri client and data server. Colibri network layer incorporates a
+   bulk transport mechanism to transfer user buffers in zero-copy fashion.
    The generic io fop contains a network buffer descriptor which refers to a
-   network buffer. The Colibri client attaches the kernel pages to the net
+   network buffer.
+   The Colibri client creates IO fops and attaches the kernel pages to net
    buffer associated with io fop and submits it to rpc layer.
-   Rpc layer populates the net buffer descriptor from io fop and sends
+   The rpc layer populates the net buffer descriptor from io fop and sends
    the fop over wire.
    The receiver starts the zero-copy of buffers using the net buffer
    descriptor from io fop.
@@ -130,7 +132,8 @@ static struct c2_fop_type *ioservice_fops[] = {
    - io fop A generic io fop that is used for read and write.
    - rpc bulk An interface to abstract the usage of network buffers by
    client and server programs.
-   - ioservice A service providing io routines in Colibri.
+   - ioservice A service providing io routines in Colibri. It runs only
+   on server side.
 
    <hr>
    @section bulkclient-req Requirements
@@ -156,7 +159,8 @@ static struct c2_fop_type *ioservice_fops[] = {
    - r.fop.referring_another_fop With introduction of a net buffer
    descriptor in io fop, a mechanism needs to be introduced so that fop
    definitions from one component can refer to definitions from another
-   component.
+   component. c2_net_buf_desc is a fop used to represent on-wire
+   representation of a c2_net_buffer. @see c2_net_buf_desc.
 
    <hr>
    @section bulkclient-highlights Design Highlights
@@ -176,7 +180,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    and sends the fop over wire. The associated network buffer is added to
    appropriate buffer queue of transfer machine owned by rpc layer.
    Once, the receiver side receives the io fop, it acquires a local network
-   buffer and calls a c2_rpc_bulk apis to start the zero-copy.
+   buffer and calls a c2_rpc_bulk apis to start the zero-copy. @see
 
    <hr>
    @section bulkclient-lspec Logical Specification
@@ -210,14 +214,15 @@ static struct c2_fop_type *ioservice_fops[] = {
    digraph {
      node [style=box];
      label = "IO bulk client interaction with rpc and net layer";
-     Colibri_client [label = "Colibri client"];
+     io_bulk_client [label = "IO bulk client"];
      Rpc_bulk [label = "RPC bulk abstraction"];
      IO_fop [label = "IO fop"];
      nwlayer [label = "Network layer"];
      zerovec [label = "Zero vector"];
-     Colibri_client -> IO_fop;
+     io_bulk_client -> IO_fop;
      IO_fop -> Rpc_bulk;
      IO_fop -> zerovec;
+     Rpc_bulk -> zerovec;
      Rpc_bulk -> nwlayer;
    }
    @enddot
@@ -227,12 +232,12 @@ static struct c2_fop_type *ioservice_fops[] = {
    sub-component. Feel free to add multiple such sections, and any additional
    sub-sectioning within.</i>
 
-   Ioservice subsystem comprises of IO coalescing under which IO requests
-   belonging to same fid and intent (read/write) are clubbed together in
-   one fop and this resultant fop is sent instead of member io fops.
-   This subsystem is also responsible for populating the net buffer
-   descriptor in io fops and enqueuing the associated network buffer to
-   the appropriate queue in transfer machine.
+   Ioservice subsystem primarily comprises of 2 sub-components
+   - IO client (comprises of IO coalescing code)
+   - Io server (server part of io routines)
+   The IO client subsystem under which IO requests belonging to same fid
+   and intent (read/write) are clubbed together in one fop and this resultant
+   fop is sent instead of member io fops.
 
    @subsubsection bulkclient-lspec-ds1 Subcomponent Data Structures
    <i>This section briefly describes the internal data structures that are
@@ -240,7 +245,8 @@ static struct c2_fop_type *ioservice_fops[] = {
    of the Functional Specification.</i>
 
    The IO coalescing subsystem from ioservice primarily works on IO segments.
-   IO segments are contiguous chunks of IO data along with extent information.
+   IO segments are in-memory structures that represent contiguous chunks of
+   IO data along with extent information.
    An internal data structure io_zeroseg represents the IO segment.
    - io_zeroseg An in-memory structure used to represent a segment of IO data.
 
