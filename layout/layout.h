@@ -145,7 +145,7 @@ struct c2_layout_parameter_type {
 struct c2_layout_ops {
 	/** Converts a layout (in-memory) to layout record (DB format) */
 	int (*l_rec_encode)(const struct c2_layout *l,
-		struct c2_layout_rec *l_rec_out);			
+		struct c2_layout_rec *l_rec_out);
 	/** Adds a new layout record and its related information into the
 	relevant tables. */
 	int (*l_rec_add)(const struct c2_layout_rec *l_rec,

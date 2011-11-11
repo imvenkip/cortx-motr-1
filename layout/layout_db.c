@@ -291,7 +291,7 @@
    c2_emap table is a framework to store a collection of related extent maps.
    Individual extent maps within a collection are identified by an element
    of the key called as prefix (128 bit).
-   
+
    For each composite layout, its layout id (c2_layout_id) is used as a
    prefix to identify an extent map belonging to one composite layout.
 
