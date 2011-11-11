@@ -33,6 +33,7 @@ extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite ad_ut;
 extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cob_ut;
+extern const struct c2_test_suite console_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite emap_ut;
 extern const struct c2_test_suite fit_ut;
@@ -73,7 +74,6 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);
 		c2_ut_add(&colibri_setup_ut);
+		c2_ut_add(&console_ut);
 		c2_ut_add(&db_ut);
 		c2_ut_add(&emap_ut);
 		c2_ut_add(&fit_ut);

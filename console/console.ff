@@ -1,0 +1,82 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original creation date: 08/03/2011
+ */
+
+/*
+ * Failure fops should be defined by not yet existing "failure" module. For the
+ * time being, it makes sense to put them in cm/ or console/. ioservice is not
+ * directly responsible for handling failures, it is intersected by copy-machine
+ * (cm).
+ */
+
+DEF(c2_fop_fid, RECORD,
+    _(ff_seq, U64),
+    _(ff_oid, U64));
+
+DEF(c2_fop_seg, RECORD,
+    _(fs_offset, U64),
+    _(fs_count, U64));
+
+DEF(c2_fop_vec, SEQUENCE,
+    _(fv_count, U32),
+    _(fv_seg, BYTE));
+
+DEF(c2_fop_optfid, UNION,
+    _(fo_present, U32),
+    _case(1, fo_fid, c2_fop_fid),
+    _case(0, fo_none, VOID));
+
+DEF(c2_fop_fid_typedef, TYPEDEF,
+    _(, c2_fop_optfid));
+
+DEF(c2_cons_fop_test, RECORD,
+    _(cons_id, c2_fop_fid),
+    _(cons_test_type, BYTE),
+    _(cons_test_id, U64));
+
+/* Disk failure notification fop */
+DEF(c2_cons_fop_disk, RECORD,
+    _(cons_id, c2_fop_fid),
+    _(cons_notify_type, U32),
+    _(cons_disk_id, U64));
+
+/* Device failure notification fop */
+DEF(c2_cons_fop_device, RECORD,
+    _(cons_id, c2_fop_fid),
+    _(cons_notify_type, U32),
+    _(cons_dev_id, U64),
+    _(cons_dev_name, c2_fop_vec));
+
+/* Reply fop to the notification fop */
+DEF(c2_cons_fop_reply, RECORD,
+    _(cons_notify_type, U32),
+    _(cons_return, U32));
+
+/** @} end of console group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+

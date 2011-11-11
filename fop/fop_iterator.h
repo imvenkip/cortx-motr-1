@@ -329,6 +329,18 @@ void c2_fop_object_it_fini (struct c2_fit *it);
 int  c2_fop_object_it_yield(struct c2_fit *it,
 			    struct c2_fid *fid, uint64_t *bits);
 
+/*
+ * Special FOP iterator interfaces
+ */
+
+void c2_fits_all_init(void);
+void c2_fits_all_fini(void);
+
+void c2_fop_it_reset(struct c2_fit *it);
+void c2_fop_all_object_it_init(struct c2_fit *it, struct c2_fop *fop);
+void c2_fop_all_object_it_fini(struct c2_fit *it);
+int c2_fop_all_object_it_yield(struct c2_fit *it,
+                               struct c2_fid *fid, uint64_t *bits);
 /** @} end of fop group */
 
 /* __COLIBRI_FOP_FOP_ITERATOR_H__ */
