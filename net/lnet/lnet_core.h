@@ -104,7 +104,7 @@
 
 /* forward references */
 struct c2_lnet_core_bev_link;
-struct c2_lnet_core_bev_queue;
+struct c2_lnet_core_bev_cqueue;
 struct c2_lnet_core_buffer;
 struct c2_lnet_core_buffer_event;
 struct c2_lnet_core_domain;
@@ -166,7 +166,12 @@ struct c2_lnet_core_bev_link {
    Buffer event queue, operable from either from either kernel and user space
    with a single producer and single consumer.
  */
-struct c2_lnet_core_bev_queue {
+struct c2_lnet_core_bev_cqueue {
+	/**
+	   Number of elements currently in the queue.
+	 */
+	size_t                   lcbevq_nr;
+
 	/**
 	   The producer adds links to this anchor.
 	   The producer pointer value is in the address space of the
@@ -248,13 +253,13 @@ struct c2_lnet_core_transfer_mc {
 	   The transport is responsible for ensuring that there are sufficient
 	   free entries to return the results of all pending operations.
 	 */
-	struct c2_lnet_core_bev_queue lctm_free_bevq;
+	struct c2_lnet_core_bev_cqueue lctm_free_bevq;
 
 	/**
 	   Buffer completion event queue.  The queue is shared between the
 	   transport address space and the kernel.
 	 */
-	struct c2_lnet_core_bev_queue lctm_bevq;
+	struct c2_lnet_core_bev_cqueue lctm_bevq;
 };
 
 /**
