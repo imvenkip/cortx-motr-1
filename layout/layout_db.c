@@ -26,7 +26,7 @@
    - @ref Layout-DB-req
    - @ref Layout-DB-depends
    - @ref Layout-DB-highlights
-   - @subpage Layout-DB-fspec "Functional Specification" <!-- Note @subpage -->
+   - @subpage Layout-DB-fspec "Functional Specification" 
    - @ref Layout-DB-lspec
       - @ref Layout-DB-lspec-comps
       - @ref Layout-DB-lspec-schema
@@ -68,8 +68,8 @@
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   - <b>COB</b> COB is component object and is defined in the C2 Glossary at 
-     https://docs.google.com/a/xyratex.com/spreadsheet/ccc?key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0
+   - <b>COB</b> COB is component object and is defined at  
+     <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">C2 Glossary</a>
 
    <hr>
    @section Layout-DB-req Requirements
