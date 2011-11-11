@@ -270,7 +270,7 @@ static void output_test(void)
 	/* file cleanup */
 	fclose(fp);
 	/* restore stdout */
-	fd = dup2(fd, 2);
+	fd = dup2(fd, 1);
 	C2_UT_ASSERT(fd != -1);
 	stdout = fdopen(fd, "a+");
 	C2_UT_ASSERT(stdout != NULL);
