@@ -293,7 +293,7 @@
    called as prefix (128 bit). In case of composite_ext_map, prefix
    incorporates layout_id for the composite layout.
 
-   <b>TODO:</b> Add explaination for segments, prefix used to define those etc.
+   TODO: Add explaination for segments, prefix used to define those etc.
 
 
    @subsubsection Layout-DB-lspec-ds1 Subcomponent Data Structures
@@ -332,8 +332,6 @@
    This section cites each requirement in the @ref Layout-DB-req section,
    and explains briefly how the DLD meets the requirement.</i>
 
-   <b>TODO:</b> During DLD review, revise the contents as per the DLD.
-
    - <b>I.LAYOUT.SCHEMA.Layid</b> Layout identifiers are unique globally in
      the system, and persistent in the life cycle. It is assumed that the 
      layout identifiers are assigned by the Layout module and Layout DB module
@@ -347,7 +345,7 @@
           PDCLUST layout type used for SNS.
         - COMPOSITE layout record type to represent Composite layout type.
      The framework supports to add other layout record types, as required in
-     the future though doing so will require some source change in the 
+     the future, though doing so will require some source changes to the 
      Layout DB module.
    - <b>I.LAYOUT.SCHEMA.Formulae</b>
       - <b>Parameters</b>
@@ -417,6 +415,13 @@ static bool layout_db_rec_invariant(const struct c2_layout_rec *l)
 }
 */
 
+/** @} end LayoutDBDFSInternal */
+
+/**
+ * @addtogroup LayoutDBDFS
+ * @{
+ */
+
 /**
    Initializes new layout schema - initializes DB environment, creates the
    DB tables.
@@ -442,28 +447,28 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 }
 
 /**
-   Adds a new layout record and its relevant information into the relevant
+   Adds a new layout record and its related information into the relevant
    tables.
 
    This includes the following:
-   - If it is PDCLUST_LIST type of a layout record, then it adds list of cob
-   ids to the table pdclust_list_cob_lists.
-   - If it is COMPOSITE type of a layout record, then it adds the relevant
-   extent map into the composite_ext_map table.
+   - In case of PDCLUST_LIST type of a layout record, it adds list of cob
+     ids to the pdclust_list_cob_lists table.
+   - If case of COMPOSITE type of a layout record, it adds the an
+     extent map into the composite_ext_map table.
 */
 int c2_layout_rec_add(const struct c2_layout *layout, 
 		const struct c2_layout_schema *l_schema, 
 		const struct c2_db_tx *tx)
 {
-	/* Encodes the layout DB record using the funtion pointer 
-	   layout->l_ops->l_rec_encode and adds record to the DB using the 
-	   function pointer layout->l_ops->l_rec_add. */
+	/* Encodes the layout DB record using the function pointer 
+	   layout->l_ops->l_rec_encode and adds the record to the DB using 
+	   the function pointer layout->l_ops->l_rec_add. */
 
 	return 0;
 }
 
 /**
-   Deletes a layout record and its relevant information from the
+   Deletes a layout record and its related information from the
    relevant tables.
 */
 int c2_layout_rec_delete(const struct c2_layout *layout, 
@@ -475,7 +480,7 @@ int c2_layout_rec_delete(const struct c2_layout *layout,
 }
 
 /** 
-   Updates a layout record and its relevant information from the
+   Updates a layout record and its related information from the
    relevant tables.
 */
 int c2_layout_rec_update(const struct c2_layout *layout,
@@ -487,7 +492,7 @@ int c2_layout_rec_update(const struct c2_layout *layout,
 }
  
 /**
-   Obtains a layout record with the specified layout_id, and its relevant
+   Obtains a layout record with the specified layout_id, and its related
    information from the relevant tables.
 */
 int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
@@ -500,10 +505,11 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 }
 
 /**
-   Adds a reference on a specific layout from the layout_entries table.
-   Implementation is common to all the layout record types.
+   Adds a reference on the specified layout record from the layout_entries
+   table.
+   Implementation is common to all the types of layout records.
 */
-int c2_layout_rec_get(const struct c2_layout_rec *l_rec,
+int c2_layout_rec_ref_get(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
@@ -511,25 +517,26 @@ int c2_layout_rec_get(const struct c2_layout_rec *l_rec,
 }
 
 /**
-   Releases a reference on a specific layout from the layout_entries table.
+   Releases a reference on the specified layout record from the 
+   layout_entries table.
 
-   Destroys layout records with the following record types when their last
-   reference is released:
+   Destroys layout record with either of the following record types when
+   its last reference is released:
    - PDCLUST_LIST
    - COMPOSITE
    <BR>
    A PDCLUST_LINEAR type of layout record is never destroyed.
 */
-int c2_layout_rec_put(const struct c2_layout *layout,
+int c2_layout_rec_ref_put(const struct c2_layout *layout,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 {
-	/* Uses the function pointers layout->l_ops->l_rec_put and 
+	/* Uses the function pointers layout->l_ops->l_rec_ref_put and 
 	layout->l_ops->l_rec_delete. */
 	return 0;
 }
 
-/** @} end LayoutDBDFSInternal */
+/** @} end of LayoutDBDFS */
 
 /*
  *  Local variables:

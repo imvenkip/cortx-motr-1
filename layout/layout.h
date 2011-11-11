@@ -21,11 +21,14 @@
 #ifndef __COLIBRI_LAYOUT_LAYOUT_H__
 #define __COLIBRI_LAYOUT_LAYOUT_H__
 
-/* import */
 #include "lib/cdefs.h"
 #include "lib/vec.h"
 #include "cob/cob.h"	/* struct c2_cob_id */
 #include "lib/ext.h"	/* struct c2_ext */
+
+/* import */
+struct c2_layout_rec;
+struct c2_layout_schema;
 
 /**
    @defgroup layout Layouts.
@@ -33,6 +36,7 @@
    @{
  */
 
+/* export */
 struct c2_layout_id;
 struct c2_layout_formula;
 struct c2_layout_parameter;
@@ -44,8 +48,6 @@ struct c2_layout_type;
 struct c2_layout_ops;
 struct c2_layout_formula_ops;
 
-struct c2_layout_rec;
-struct c2_layout_schema;
 
 /** Unique layout id */
 struct c2_layout_id {
@@ -166,7 +168,7 @@ struct c2_layout_ops {
 		const struct c2_db_tx *tx,
 		struct c2_layout_rec *l_rec_out);
 	/** Releases reference on a layout. */
-	int (*l_rec_put)(struct c2_layout_rec *l_rec,
+	int (*l_rec_ref_put)(struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 };
@@ -181,7 +183,7 @@ struct c2_layout_type {
 	bool       (*lt_equal)(const struct c2_layout *l0, 
 			       const struct c2_layout *l1);
 	/** Converts a layout record (DB format) to layout (in-memory format) */
-	int        (*l_decode_rec)(const struct c2_layout_rec l_rec,
+	int        (*lt_rec_decode)(const struct c2_layout_rec l_rec,
 				struct c2_layout l_out);			
 };
 
@@ -286,30 +288,30 @@ int composite_lookup(const struct c2_layout_id l_id,
 		struct c2_layout_rec *l_rec_out);
 
 /**
-   Implementation of l_rec_put for PDCLUST layout type.
+   Implementation of l_rec_ref_put for PDCLUST layout type.
    Releases reference on the layout record from the layout_entries table.
 */
-int pdclust_put(const struct c2_layout_rec *l_rec,
+int pdclust_rec_put(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
 /**
-   Implementation of l_rec_put for COMPOSITE layout type.
+   Implementation of l_rec_ref_put for COMPOSITE layout type.
    Releases reference on the layout from the layout_entries table.
 */
-int composite_put(const struct c2_layout_rec *l_rec,
+int composite_rec_put(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
 /**
-   Implementation of l_decode_rec for PDCLUST layout type.
+   Implementation of lt_rec_decode for PDCLUST layout type.
    Converts a layout record (DB format) to layout (in-memory format).
 */
 int pdclust_decode(const struct c2_layout_rec *l_rec,
 		struct c2_layout *l_out);			
 
 /**
-   Implementation of l_decode_rec for COMPOSITE layout type.
+   Implementation of lt_rec_decode for COMPOSITE layout type.
    Converts a layout record (DB format) to layout (in-memory format).
 */
 int composite_decode(const struct c2_layout_rec l_rec,

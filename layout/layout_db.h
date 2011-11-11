@@ -28,6 +28,12 @@
 #include "lib/refs.h"	/* struct c2_ref */
 #include "lib/types.h"	/* struct c2_uint128 */
 
+/* export */
+struct c2_layout_schema;
+struct c2_layout_rec;
+enum c2_layout_rec_type_code;
+struct c2_pdclust_linear_rec_attrs;
+
 /**
    @page Layout-DB-fspec Layout DB Functional Specification 
    <i>Mandatory. This page describes the external interfaces of the
@@ -35,7 +41,7 @@
    @@section command.  It is required that there be Table of Contents at the
    top of the page that illustrates the sectioning of the page.</i>
 
-   Note: The instructions in italics from the DLD template are ratained
+   Note: The instructions in italics from the DLD template are retained
    currently for reference and will be removed after the first round of the DLD
    inspection.
 
@@ -60,6 +66,8 @@
 
    - struct c2_layout_schema
    - struct c2_layout_rec
+   - enum c2_layout_rec_type_code
+   - struct c2_pdclust_linear_rec_attrs
 
    @section Layout-DB-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -81,10 +89,10 @@
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
 		struct c2_layout_rec *l_rec_out);
-   - int c2_layout_rec_get(const struct c2_layout *l,
+   - int c2_layout_rec_ref_get(const struct c2_layout *l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
-   - int c2_layout_rec_put(const struct *c2_layout l,
+   - int c2_layout_rec_ref_put(const struct *c2_layout l,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx)
 
@@ -100,28 +108,29 @@
 
    A file layout is used by the client to perform IO against the file. Layout
    for a file contains COB identifiers for all the COBs associated with that
-   file. These COB identifiers are stored either in the form of a list
-   (PDCLUST_LIST layout type) or as a formula (PDCLUST_LINEAR layout type). 
+   file. These COB identifiers are stored by the layout either in the form of
+   a list (PDCLUST_LIST layout type) or as a formula (PDCLUST_LINEAR layout 
+   type). 
  
    Example use case of reading a file:
    - Reading a file involves reading basic file attributes from the basic file
-     attributes table (FAB).
+     attributes table).
    - The layout id is obtained from the basic file attributes.
    - A query is sent to the Layout module to obtain layout for this layout id.
-   - Layout module checks if the layout is cached and if not, it reads the 
-     layout from the layout DB.
-      - If the layout is of the type PDCLUST_LINEAR which means it is a 
+   - Layout module checks if the layout record is cached and if not, it reads
+     the layout record from the layout DB. 
+      - If the layout record is of the type PDCLUST_LINEAR which means it is a 
         formula, then the required parameters are substituted into the formula
-        and thus list of cob identifiers is obtained to operate upon.
-      - If the layout is of the type PDCLUST_LIST which means it stores the
-        list of cob identifiers in itself, then that list is obtained simply by
-        obtaining the layout from the layout DB.
-      - If the layout is of the type COMPOSITE, it means it constitutes of
-        multiple sub-layouts. In this case, the sub-layouts are read from the
-        layout DB and those sub layouts in turn could be of the type
-        PDCLUST_LIST or PDCLUST_LINEAR or COMPOSITE. The sub-layouts are read
-        accordingly until the time the final list of all the cob identifiers is
-        obtained.
+        and thus the list of cob identifiers is obtained to operate upon.
+      - If the layout record is of the type PDCLUST_LIST which means it stores
+        the list of cob identifiers in itself, then that list is obtained 
+        from the layout DB itself.
+      - If the layout record is of the type COMPOSITE, it means it constitutes
+        of multiple sub-layouts. In this case, the sub-layouts are read from 
+        the layout DB. Those sub-layouts records in turn could be of the type
+        PDCLUST_LIST or PDCLUST_LINEAR or COMPOSITE. The sub-layout records
+        are then read accordingly until the time the final list of all the cob
+        identifiers is obtained.
 
    @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
  */
@@ -139,6 +148,24 @@
    @{
 */
 
+/** Classification of layout record types */
+enum c2_layout_rec_type_code {
+	PDCLUST_LINEAR,
+	PDCLUST_LIST,
+	COMPOSITE
+};
+
+/**
+   Attributes for PDCLUST_LINEAR type of layout record.
+*/	
+struct c2_pdclust_linear_rec_attrs {
+	/** Number of data units in the parity group (N) */
+	uint32_t plra_num_of_data_units;
+	/** Number of parity units in the parity group (K) */
+	uint32_t plra_num_of_parity_units;	
+};
+
+
 /**
    In-memory data structure for the layout schema.
    It includes pointers to all the DB tables and various related 
@@ -146,33 +173,16 @@
 */
 struct c2_layout_schema {
 	/** Layout DB environment */
-	struct c2_dbenv *cl_dbenv;
+	struct c2_dbenv *ls_dbenv;
 	
-	/** Table for layout entries */
-	struct c2_table cls_layout_entries;
+	/** Table for layout record entries */
+	struct c2_table ls_layout_entries;
 
-	/** Table for cob lists for all PDCLUST_LIST type of layout entries */
-	struct c2_table cls_pdclust_list_cob_lists;
+	/** Table for cob lists for all PDCLUST_LIST type of layout records */
+	struct c2_table ls_pdclust_list_cob_lists;
 
-	/* Table for extent maps for all the COMPOSITE type of layout entries */
-	struct c2_emap cls_composite_ext_map;
-};
-
-/** Classification of layout record types */
-enum layout_rec_type_code {
-	PDCLUST_LINEAR,
-	PDCLUST_LIST,
-	COMPOSITE
-};
-
-/**
-   Attributes for linear type of formula layout.
-*/	
-struct pdclust_linear_rec_attrs {
-	/** Number of data units in parity group */
-	uint32_t N;
-	/** Number of parity units in parity group */
-	uint32_t K;	
+	/* Table for extent maps for all the COMPOSITE type of layout records */
+	struct c2_emap ls_composite_ext_map;
 };
 
 /**
@@ -180,27 +190,13 @@ struct pdclust_linear_rec_attrs {
    Key is c2_uint128 OR c2_layout_id.
 */
 struct c2_layout_rec {
-	/** Type of layout */ 
-	enum layout_rec_type_code lr_type_code;
-	/** Layout reference count indicating number of files using this
-	layout. */
+	/** Type of layout record */ 
+	enum c2_layout_rec_type_code lr_type_code;
+	/** Layout record reference count indicating number of files using
+	this layout */
 	struct c2_ref lr_ref_count;
-	
-	/** Struct to store PDCLUST_LINEAR type specific data */
-	struct pdclust_linear_rec_attrs lr_linear_attrs;
-};
-
-static const struct c2_table_ops layout_entries_table_ops = {
-	.to = {
-		[TO_KEY] = { 
-			.max_size = sizeof(struct c2_uint128)
-		},
-		[TO_REC] = {
-			.max_size = sizeof(struct c2_layout_rec)
-		}
-	},
-	// TODO .key_cmp = c2_uint128_cmp
-	.key_cmp = NULL
+	/** Struct to store PDCLUST_LINEAR record type specific data */
+	struct c2_pdclust_linear_rec_attrs lr_linear_attrs;
 };
 
 
@@ -219,7 +215,7 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx,
 		struct c2_layout_rec *l_recrec_out);
-int c2_layout_rec_get(const struct c2_layout_rec *l_rec,
+int c2_layout_rec_ref_get(const struct c2_layout_rec *l_rec,
 		const struct c2_layout_schema *l_schema,
 		const struct c2_db_tx *tx);
 
@@ -227,6 +223,74 @@ int c2_layout_rec_get(const struct c2_layout_rec *l_rec,
    @} LayoutDBDFS end group
 */
 
+/**
+ * @addtogroup LayoutDBDFSInternal
+ * @{
+ */
+
+/**
+   Compare layout_entries table keys
+*/ 
+static int le_key_cmp(struct c2_table *table,
+		const void *key0,
+		const void *key1)
+{
+	return 0;	
+}
+
+/**
+   table_ops for layout_entries table
+*/
+static const struct c2_table_ops layout_entries_table_ops = {
+	.to = {
+		[TO_KEY] = { 
+			.max_size = sizeof(struct c2_uint128)
+		},
+		[TO_REC] = {
+			.max_size = sizeof(struct c2_layout_rec)
+		}
+	},
+	.key_cmp = le_key_cmp
+};
+
+/**
+   pdclust_list_cob_lists table 
+*/
+struct layout_cob_lists_key {
+	struct c2_layout_id lclk_l_id;
+	uint32_t lclk_cob_index;
+};
+
+struct layout_cob_lists_rec {
+	struct c2_cob_id lclr_cob_id;
+};
+
+/**
+   Compare pdclust_list_cob_lists table keys
+*/
+static int lcl_key_cmp(struct c2_table *table,
+		const void *key0,
+		const void *key1)
+{
+	return 0;	
+}
+
+/**
+   table_ops for pdclust_list_cob_lists table
+*/
+static const struct c2_table_ops pdclust_list_cob_lists_table_ops = {
+	.to = {
+		[TO_KEY] = { 
+			.max_size = sizeof(struct layout_cob_lists_key)
+		},
+		[TO_REC] = {
+			.max_size = sizeof(struct layout_cob_lists_rec)
+		}
+	},
+	.key_cmp = lcl_key_cmp
+};
+
+/** @} end of LayoutDBDFSInternal */
 
 #endif /*  __COLIBRI_LAYOUT_DB_H__ */
 
