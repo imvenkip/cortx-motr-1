@@ -41,6 +41,9 @@ enum {
 	C2T1FS_RPC_TIMEOUT = 10, /* seconds */
 	C2T1FS_NR_SLOTS_PER_SESSION = 10,
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT = 100,
+	C2T1FS_DEFAULT_NR_DATA_UNITS = 1,
+	C2T1FS_DEFAULT_NR_PARITY_UNITS = 0,
+	C2T1FS_DEFAULT_NR_CONTAINERS = 1,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure */
@@ -68,6 +71,9 @@ struct c2t1fs_mnt_opts
 	char *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
 	int   mo_nr_ios_ep;
 	char *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+	int   mo_nr_containers; /* P */
+	int   mo_nr_data_units; /* N */
+	int   mo_nr_parity_units; /* K */
 };
 
 enum c2t1fs_service_type {
@@ -97,6 +103,10 @@ struct c2t1fs_sb
 	struct c2_rpc_session  csb_mgs_session;
 	int                    csb_nr_active_contexts;
 	struct c2_list         csb_service_contexts;
+
+	int                    csb_nr_containers;
+	int                    csb_nr_data_units;
+	int                    csb_nr_parity_units;
 };
 
 

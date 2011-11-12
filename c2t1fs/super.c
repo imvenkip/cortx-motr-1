@@ -58,9 +58,10 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
-	struct c2t1fs_sb *csb;
-	struct inode     *root_inode;
-	int               rc;
+	struct c2t1fs_mnt_opts *mntopts;
+	struct c2t1fs_sb       *csb;
+	struct inode           *root_inode;
+	int                     rc;
 
 	START();
 
@@ -77,7 +78,8 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		goto out;
 	}
 
-	rc = c2t1fs_mnt_opts_parse(data, &csb->csb_mnt_opts);
+	mntopts = &csb->csb_mnt_opts;
+	rc = c2t1fs_mnt_opts_parse(data, mntopts);
 	if (rc != 0)
 		goto out;
 
@@ -88,6 +90,13 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	rc = c2t1fs_connect_to_all_services(csb);
 	if (rc != 0)
 		goto out;
+
+	csb->csb_nr_containers = mntopts->mo_nr_containers ?:
+					C2T1FS_DEFAULT_NR_CONTAINERS;
+	csb->csb_nr_data_units = mntopts->mo_nr_data_units ?:
+					C2T1FS_DEFAULT_NR_DATA_UNITS;
+	csb->csb_nr_parity_units = mntopts->mo_nr_parity_units ?:
+					C2T1FS_DEFAULT_NR_PARITY_UNITS;
 
 	sb->s_fs_info = csb;
 
@@ -167,15 +176,21 @@ enum {
 	C2T1FS_MNTOPT_PROFILE,
 	C2T1FS_MNTOPT_MDS,
 	C2T1FS_MNTOPT_IOS,
+	C2T1FS_MNTOPT_NR_CONTAINERS,
+	C2T1FS_MNTOPT_NR_DATA_UNITS,
+	C2T1FS_MNTOPT_NR_PARITY_UNITS,
 	C2T1FS_MNTOPT_ERR,
 };
 
 static const match_table_t c2t1fs_mntopt_tokens = {
-	{ C2T1FS_MNTOPT_MGS,     "mgs=%s" },
-	{ C2T1FS_MNTOPT_PROFILE, "profile=%s" },
-	{ C2T1FS_MNTOPT_MDS,     "mds=%s" },
-	{ C2T1FS_MNTOPT_IOS,     "ios=%s" },
-	{ C2T1FS_MNTOPT_ERR,     NULL },
+	{ C2T1FS_MNTOPT_MGS,             "mgs=%s" },
+	{ C2T1FS_MNTOPT_PROFILE,         "profile=%s" },
+	{ C2T1FS_MNTOPT_MDS,             "mds=%s" },
+	{ C2T1FS_MNTOPT_IOS,             "ios=%s" },
+	{ C2T1FS_MNTOPT_NR_CONTAINERS,   "nr_containers=%s" },
+	{ C2T1FS_MNTOPT_NR_DATA_UNITS,   "nr_data_units=%s" },
+	{ C2T1FS_MNTOPT_NR_PARITY_UNITS, "nr_parity_units=%s" },
+	{ C2T1FS_MNTOPT_ERR,              NULL },
 };
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts)
@@ -217,11 +232,12 @@ static int c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts)
 static int c2t1fs_mnt_opts_parse(char                   *options,
 				 struct c2t1fs_mnt_opts *mnt_opts)
 {
-	substring_t  args[MAX_OPT_ARGS];
-	char        *value;
-	char        *op;
-	int          token;
-	int          rc = 0;
+	unsigned long nr;
+	substring_t   args[MAX_OPT_ARGS];
+	char         *value;
+	char         *op;
+	int           token;
+	int           rc = 0;
 
 	START();
 
@@ -275,6 +291,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			TRACE("mgservice: %s\n", value);
 			mnt_opts->mo_mgs_ep_addr = value;
 			break;
+
 		case C2T1FS_MNTOPT_PROFILE:
 			value = match_strdup(args);
 			if (value == NULL) {
@@ -284,6 +301,49 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			TRACE("profile: %s\n", value);
 			mnt_opts->mo_profile = value;
 			break;
+
+		case C2T1FS_MNTOPT_NR_CONTAINERS:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			rc = strict_strtoul(value, 10, &nr);
+			kfree(value);
+			if (rc != 0)
+				goto out;
+			TRACE("nr_containers = %lu\n", nr);
+			mnt_opts->mo_nr_containers = nr;
+			break;
+
+		case C2T1FS_MNTOPT_NR_DATA_UNITS:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			rc = strict_strtoul(value, 10, &nr);
+			kfree(value);
+			if (rc != 0)
+				goto out;
+			TRACE("nr_data_units = %lu\n", nr);
+			mnt_opts->mo_nr_data_units = nr;
+			break;
+
+		case C2T1FS_MNTOPT_NR_PARITY_UNITS:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			rc = strict_strtoul(value, 10, &nr);
+			kfree(value);
+			if (rc != 0)
+				goto out;
+			TRACE("nr_parity_units = %lu\n", nr);
+			mnt_opts->mo_nr_parity_units = nr;
+			break;
+
 		default:
 			TRACE("Unrecognized options: %s\n", op);
 			rc = -EINVAL;
