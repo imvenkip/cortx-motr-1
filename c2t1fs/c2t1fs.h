@@ -94,6 +94,12 @@ struct c2t1fs_service_context
 	struct c2_list_link       sc_link;
 };
 
+struct c2t1fs_container_location_map
+{
+	/** Array of csb_nr_container elements */
+	struct c2t1fs_service_context **clm_map;
+};
+
 struct c2t1fs_sb
 {
 	struct c2_mutex        csb_mutex;
@@ -107,6 +113,8 @@ struct c2t1fs_sb
 	int                    csb_nr_containers;
 	int                    csb_nr_data_units;
 	int                    csb_nr_parity_units;
+
+	struct c2t1fs_container_location_map csb_cl_map;
 };
 
 
@@ -179,5 +187,14 @@ void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 				 char                          *ep_addr);
 
 void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx);
+
+int
+c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
+				   int nr_containers);
+
+void
+c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
+
+struct c2_rpc_session *c2t1fs_container_id_to_session(int container_id);
 
 #endif /* __COLIBRI_C2T1FS_H */

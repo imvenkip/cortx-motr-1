@@ -98,13 +98,18 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		goto out;
 	}
 
-	rc = c2t1fs_config_fetch(csb);
+	rc = c2t1fs_container_location_map_init(&csb->csb_cl_map,
+						csb->csb_nr_containers);
 	if (rc != 0)
 		goto out;
 
+	rc = c2t1fs_config_fetch(csb);
+	if (rc != 0)
+		goto out_map_fini;
+
 	rc = c2t1fs_connect_to_all_services(csb);
 	if (rc != 0)
-		goto out;
+		goto out_map_fini;
 
 	sb->s_fs_info = csb;
 
@@ -130,6 +135,8 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 
 disconnect_all:
 	c2t1fs_disconnect_from_all_services(csb);
+out_map_fini:
+	c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 out:
 	if (csb != NULL) {
 		c2t1fs_sb_fini(csb);
@@ -149,6 +156,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	csb = C2T1FS_SB(sb);
 	TRACE("csb = %p\n", csb);
 	if (csb != NULL) {
+		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_discard_service_contexts(csb);
 		c2t1fs_sb_fini(csb);
@@ -163,11 +171,10 @@ int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 {
 	START();
 
-	c2_mutex_init(&csb->csb_mutex);
-	csb->csb_flags = 0;
-	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
+	C2_SET0(csb);
 
-	csb->csb_nr_active_contexts = 0;
+	c2_mutex_init(&csb->csb_mutex);
+	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
 	c2_list_init(&csb->csb_service_contexts);
 
 	END(0);
@@ -593,6 +600,31 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 		if (csb->csb_nr_active_contexts == 0)
 			break;
 	}
+
+	END(0);
+}
+int
+c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
+				   int nr_containers)
+{
+	int rc = 0;
+
+	START();
+
+	C2_ALLOC_ARR(map->clm_map, nr_containers);
+	if (map->clm_map == NULL)
+		rc = -ENOMEM;
+
+	END(rc);
+	return rc;
+}
+void
+c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map)
+{
+	START();
+
+	c2_free(map->clm_map);
+	map->clm_map = NULL;
 
 	END(0);
 }
