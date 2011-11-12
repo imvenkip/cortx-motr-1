@@ -47,10 +47,6 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 							(char *)data);
 
 	rc = get_sb_nodev(fstype, flags, data, c2t1fs_fill_super, mnt);
-	if (rc != 0) {
-		END(rc);
-		return rc;
-	}
 
 	END(rc);
 	return rc;
@@ -83,6 +79,25 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out;
 
+	csb->csb_nr_containers = mntopts->mo_nr_containers ?:
+					C2T1FS_DEFAULT_NR_CONTAINERS;
+	csb->csb_nr_data_units = mntopts->mo_nr_data_units ?:
+					C2T1FS_DEFAULT_NR_DATA_UNITS;
+	csb->csb_nr_parity_units = mntopts->mo_nr_parity_units ?:
+					C2T1FS_DEFAULT_NR_PARITY_UNITS;
+
+	TRACE("P = %d, N = %d, K = %d\n", csb->csb_nr_containers,
+			csb->csb_nr_data_units, csb->csb_nr_parity_units);
+
+	/* P >= N + 2 * K */
+	if (csb->csb_nr_containers < csb->csb_nr_data_units +
+				2 * csb->csb_nr_parity_units) {
+
+		TRACE("Failed: P >= N + 2 * K\n");
+		rc = -EINVAL;
+		goto out;
+	}
+
 	rc = c2t1fs_config_fetch(csb);
 	if (rc != 0)
 		goto out;
@@ -90,13 +105,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	rc = c2t1fs_connect_to_all_services(csb);
 	if (rc != 0)
 		goto out;
-
-	csb->csb_nr_containers = mntopts->mo_nr_containers ?:
-					C2T1FS_DEFAULT_NR_CONTAINERS;
-	csb->csb_nr_data_units = mntopts->mo_nr_data_units ?:
-					C2T1FS_DEFAULT_NR_DATA_UNITS;
-	csb->csb_nr_parity_units = mntopts->mo_nr_parity_units ?:
-					C2T1FS_DEFAULT_NR_PARITY_UNITS;
 
 	sb->s_fs_info = csb;
 
@@ -109,17 +117,19 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	root_inode = c2t1fs_root_iget(sb);
 	if (root_inode == NULL) {
 		rc = -ENOMEM;
-		goto out;
+		goto disconnect_all;
 	}
 
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
 		rc = -ENOMEM;
-		goto out;
+		goto disconnect_all;
 	}
 	return 0;
 
+disconnect_all:
+	c2t1fs_disconnect_from_all_services(csb);
 out:
 	if (csb != NULL) {
 		c2t1fs_sb_fini(csb);
@@ -137,10 +147,13 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	START();
 
 	csb = C2T1FS_SB(sb);
-	c2t1fs_disconnect_from_all_services(csb);
-	c2t1fs_discard_service_contexts(csb);
-	c2t1fs_sb_fini(csb);
-	kfree(csb);
+	TRACE("csb = %p\n", csb);
+	if (csb != NULL) {
+		c2t1fs_disconnect_from_all_services(csb);
+		c2t1fs_discard_service_contexts(csb);
+		c2t1fs_sb_fini(csb);
+		kfree(csb);
+	}
 	kill_anon_super(sb);
 
 	END(0);
