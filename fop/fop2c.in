@@ -9,7 +9,7 @@ OPTVAL=`getopt -o ukd:v -n 'fop2c' -- "$@"`
 # Note the quotes around `$OPTVAL': they are essential!
 eval set -- "$OPTVAL"
 
-verbose=0
+verbose=4
 topdir=$(dirname $0)/..
 
 CC=${CC:-"cc"}
@@ -98,17 +98,11 @@ EOF
     depfiles=`grep "^FOPDEP" $sfile | awk -F '"' '{print $2}'`
 
     if [ -n "$depfiles" ] ;then
-	# Number of files on which current .ff file depends.
-	df_nr=`echo $depfiles | wc -w`
-	# Array used to keep track of dependency .ff files.
-	declare -a dfiles
-	i=0
 	for ff in $depfiles; do
 	    #Include the ff file containing dependency fops.
 	    echo "#include \"$ff\"" >> $tfile
-	    dfiles[i]=$(echo $ff | sed -e 's/.ff//g')
-	    let i=i+1
 	done
+	depfiles=`echo $depfiles | sed -e 's/.ff//g'`
     fi
 
     cat >> $tfile << EOF
@@ -138,8 +132,8 @@ EOF
     echo "static const char incl[] = \""$incl"\";" >> $tfile
     if [ -n "$depfiles" ]; then
 	i=0
-	while [ $i -lt $df_nr ]; do
-	    hdr=${dfiles[i]}_$(echo $where | tr [A-Z] [a-z])
+	for hdr in $depfiles; do
+	    hdr=${hdr}_$(echo $where | tr [A-Z] [a-z])
 
 	    #Change the path to appropriate dir for kernel definitions.
 	    if [ $where == K ] ;then
@@ -170,12 +164,12 @@ EOF
 static struct c2_fop_type_format *fmt_deps[] = {
 EOF
 	i=0
-	while [ $i -lt $df_nr ]; do
-	ffpath=$topdir/${dfiles[i]}
-	ffpath=`echo $ffpath | sed -e 's/$/.ff/g'`
-	grep '^DEF' $ffpath | \
-	    sed -e 's/^DEF(\([^,]*\),.*$/        \&\1_tfmt,/g' >> $tfile
-	let i=i+1
+	for ff in $depfiles; do
+	    ff=$topdir/$ff
+	    ff=`echo $ff | sed -e 's/$/.ff/g'`
+	    grep '^DEF' $ff | \
+		sed -e 's/^DEF(\([^,]*\),.*$/        \&\1_tfmt,/g' >> $tfile
+	    let i=i+1
 	done
 	cat >> $tfile <<EOF
 	NULL
@@ -206,12 +200,12 @@ EOF
 	# Include necessary header files for dependency .ff files.
 	if [ -n "$depfiles" ] ;then
 	    i=0
-	    while [ $i -lt $df_nr ]; do
+	    for ff in $depfiles; do
 		cat >> $tfile << EOF
 		if (todo == UDEF || todo == KDEF)
 			printf("#include \"%s\"\n", dfiles$i);
 EOF
-	    let i=i+1
+		let i=i+1
 	    done
 	fi
 
