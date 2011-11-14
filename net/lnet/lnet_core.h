@@ -337,7 +337,7 @@ struct c2_lnet_core_buffer {
 /**
    Allocate and initialize the network domain's private field for use by LNet.
    @param dom The network domain pointer.
-   @param lcom The private data pointer for the domain to be initialized.
+   @param lcdom The private data pointer for the domain to be initialized.
  */
 static int c2_lnet_core_dom_init(struct c2_net_domain *dom,
 				 struct c2_lnet_core_domain *lcdom);
@@ -381,7 +381,7 @@ static int c2_lnet_core_buf_register(struct c2_lnet_core_domain *lcdom,
 /**
    Deregister the buffer.
    @param lcdom The domain private data to be initialized.
-   @param The buffer private data.
+   @param lcbuf The buffer private data.
  */
 static int c2_lnet_core_buf_deregister(struct c2_lnet_core_domain *lcdom,
 				       struct c2_lnet_core_buffer *lcbuf);

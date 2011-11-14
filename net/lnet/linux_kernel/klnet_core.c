@@ -295,8 +295,8 @@
    The pool and queue potentially span the kernel and user address spaces.
    There are two cases around the use of these data structures:
 
-   - Normal queue operation involves a single @i producer, in the kernel Core
-     callback subroutine, and a single @i consumer, in the Core API
+   - Normal queue operation involves a single @a producer, in the kernel Core
+     callback subroutine, and a single @a consumer, in the Core API
      c2_lnet_core_buf_event_get() subroutine, which may be invoked either in
      the kernel or in user space.
 
@@ -418,7 +418,7 @@
    -# Prior to invoking the c2_lnet_core_buf_passive_recv() or the
       c2_lnet_core_buf_passive_send() subroutines, the transport should use the
       c2_lnet_core_tm_match_bit_set() subroutine to assign unique match bits to
-      the passive buffer. See @ref KLNETCoreDLD-lspec-match-bits for details.
+      the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
    -# Create an ME using @c LNetMEAlloc(). Specify the portal and match_id fields

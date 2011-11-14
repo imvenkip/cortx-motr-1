@@ -455,7 +455,7 @@
    - initialise and finalise the c2_lnet_core_bev_cqueue
    - produce and consume slots in the queue
 
-   @see @ref cqueue "Detailed Functional Specification"
+   @see @ref bevcqueue "Detailed Functional Specification"
 
    @section cqueueDLD-fspec-usecases Recipes
    <i>This section could briefly explain what sequence of interface calls or
