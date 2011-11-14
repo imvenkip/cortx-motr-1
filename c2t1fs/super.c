@@ -111,6 +111,10 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_map_fini;
 
+	rc = c2t1fs_container_location_map_build(csb);
+	if (rc != 0)
+		goto disconnect_all;
+
 	sb->s_fs_info = csb;
 
 	sb->s_blocksize      = PAGE_SIZE;
@@ -607,24 +611,79 @@ int
 c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
 				   int nr_containers)
 {
-	int rc = 0;
-
 	START();
 
-	C2_ALLOC_ARR(map->clm_map, nr_containers);
-	if (map->clm_map == NULL)
-		rc = -ENOMEM;
+	C2_SET0(map);
 
-	END(rc);
-	return rc;
+	END(0);
+	return 0;
 }
 void
 c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map)
 {
 	START();
-
-	c2_free(map->clm_map);
-	map->clm_map = NULL;
-
 	END(0);
+}
+
+int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
+{
+	struct c2t1fs_service_context        *ctx;
+	struct c2t1fs_container_location_map *map;
+	int                                   nr_cont_per_svc;
+	int                                   nr_containers;
+	int                                   nr_ios;
+	int                                   rc = 0;
+	int                                   i;
+	int                                   cur;
+
+	START();
+
+	nr_ios = csb->csb_mnt_opts.mo_nr_ios_ep;
+	if (nr_ios == 0) {
+		/*
+		 * XXX We should return failure at this point. Because there
+		 * is no active session with any ioservice.
+		 * But for now, for testing purpose it's okay.
+		 */
+		TRACE("No io-service\n");
+		rc = 0;
+		goto out;
+	}
+
+	nr_containers = csb->csb_nr_containers;
+	nr_cont_per_svc = nr_containers / nr_ios;
+	if (nr_containers % nr_ios != 0)
+		nr_cont_per_svc++;
+
+	TRACE("nr_cont_per_svc = %d\n", nr_cont_per_svc);
+
+	map = &csb->csb_cl_map;
+	cur = 1;
+	c2_list_for_each_entry(&csb->csb_service_contexts, ctx,
+				struct c2t1fs_service_context, sc_link) {
+
+		switch (ctx->sc_type) {
+
+		case C2T1FS_ST_MDS:
+			map->clm_map[0] = ctx;
+			TRACE("container_id [0] at %s\n", ctx->sc_addr);
+			continue;
+
+		case C2T1FS_ST_IOS:
+			for (i = 0; i < nr_cont_per_svc &&
+				    cur <= nr_containers; i++, cur++) {
+				map->clm_map[cur] = ctx;
+				TRACE("container_id [%d] at %s\n", cur,
+						ctx->sc_addr);
+			}
+			break;
+		case C2T1FS_ST_MGS:
+			break;
+		default:
+			C2_ASSERT(0);
+		}
+	}
+out:
+	END(rc);
+	return rc;
 }

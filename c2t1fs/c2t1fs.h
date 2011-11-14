@@ -44,6 +44,7 @@ enum {
 	C2T1FS_DEFAULT_NR_DATA_UNITS = 1,
 	C2T1FS_DEFAULT_NR_PARITY_UNITS = 0,
 	C2T1FS_DEFAULT_NR_CONTAINERS = 1,
+	C2T1FS_MAX_NR_CONTAINERS = 1024,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure */
@@ -97,7 +98,7 @@ struct c2t1fs_service_context
 struct c2t1fs_container_location_map
 {
 	/** Array of csb_nr_container elements */
-	struct c2t1fs_service_context **clm_map;
+	struct c2t1fs_service_context *clm_map[C2T1FS_MAX_NR_CONTAINERS];
 };
 
 struct c2t1fs_sb
@@ -194,6 +195,8 @@ c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
 
 void
 c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
+
+int c2t1fs_container_location_map_build(struct c2t1fs_sb *sb);
 
 struct c2_rpc_session *c2t1fs_container_id_to_session(int container_id);
 
