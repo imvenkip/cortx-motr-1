@@ -43,6 +43,9 @@
  *
  */
 
+FOPDEP("net/net_otw_types.ff");
+FOPDEP("addb/addb.ff");
+
 /**
  * @section IO FOP Definitions
  */
@@ -146,6 +149,17 @@ DEF(c2_fop_cob_writev_rep, RECORD,
 DEF(c2_fop_cob_writev, RECORD,
 	/** Common definition of read/write fops. */
 	_(c_rwv, c2_fop_cob_rw));
+
+/**
+ * Fops referring other remote fops (not present in same file).
+ */
+DEF(c2_test_ios_fop, RECORD,
+	_(if_st, U64),
+	_(if_nbd, c2_net_buf_desc));
+
+DEF(c2_test_io_addb, RECORD,
+	_(if_st, U64),
+	_(if_addb, c2_addb_record));
 
 /** @} end of FOP_data_ops */
 

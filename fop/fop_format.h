@@ -143,6 +143,8 @@ extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
 #define __layout(x) &(x ## _memlayout)
 #endif
 
+#define FOPDEP(x)
+
 #define C2_FOP_FIELD_TAG(_tag, _name, _type)	\
 {						\
 	.c_name = #_name,			\
