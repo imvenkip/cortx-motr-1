@@ -177,8 +177,7 @@ static struct c2_rm_incoming *in_request_find(struct c2_rm_owner *owner,
 	for (prio = ARRAY_SIZE(owner->ro_incoming) - 1; prio >= 0; prio--) {
 		c2_tlist_for(&ur_tl,
 			     &owner->ro_incoming[prio][OQS_GROUND], right) {
-			if (right->ri_ops->rro_implies(right, want) &&
-			    right->ri_ops->rro_implies(want, right)) {
+			if (right_eq(right, want)) {
 				return container_of(right, struct c2_rm_incoming,
 						    rin_want);
 			}

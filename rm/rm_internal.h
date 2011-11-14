@@ -37,9 +37,13 @@ int right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int32_t rc);
 
+/** Returns true iff rights are equal. */
+bool right_eq(const struct c2_rm_right *r0, const struct c2_rm_right *r1);
+
 /**
    @name RM lists.
  */
+
 /** @{ */
 
 C2_TL_DESCR_DECLARE(res, extern);
@@ -53,6 +57,30 @@ C2_TL_DECLARE(pr, , struct c2_rm_pin);
 
 C2_TL_DESCR_DECLARE(pi, extern);
 C2_TL_DECLARE(pi, , struct c2_rm_pin);
+
+/**
+   Execute "expr" against all rights lists in a given owner.
+ */
+#define RM_OWNER_LISTS_FOR(owner, expr)					\
+({									\
+	struct c2_rm_owner *__o = (owner);				\
+	int                 __i;					\
+	int                 __j;					\
+									\
+	(expr)(&__o->ro_borrowed);					\
+	(expr)(&__o->ro_sublet);					\
+									\
+	for (__i = 0; __i < ARRAY_SIZE(__o->ro_owned); __i++)		\
+		(expr)(&__o->ro_owned[__i]);				\
+									\
+	for (__i = 0; __i < ARRAY_SIZE(__o->ro_incoming); __i++) {	\
+		for (__j = 0; __j < ARRAY_SIZE(__o->ro_incoming[__i]); __j++) \
+			(expr)(&__o->ro_incoming[__i][__j]);		\
+	}								\
+									\
+	for (__i = 0; __i < ARRAY_SIZE(__o->ro_outgoing); __i++)	\
+		(expr)(&__o->ro_outgoing[__i]);				\
+})
 
 /** @} end of RM lists. */
 
