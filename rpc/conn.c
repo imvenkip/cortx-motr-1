@@ -209,6 +209,9 @@ static void __conn_fini(struct c2_rpc_conn *conn)
 {
 	C2_ASSERT(conn != NULL);
 
+	/* Release the reference on c2_rpc_chan structure being used. */
+	rpc_chan_put(conn->c_rpcchan);
+
 	c2_list_fini(&conn->c_sessions);
 	c2_cond_fini(&conn->c_state_changed);
 	c2_list_link_fini(&conn->c_link);
@@ -809,8 +812,6 @@ out:
 	C2_POST(c2_rpc_conn_invariant(conn));
 	C2_POST(conn->c_state == C2_RPC_CONN_TERMINATED ||
 		conn->c_state == C2_RPC_CONN_FAILED);
-	/* Release the reference on c2_rpc_chan structure being used. */
-	rpc_chan_put(conn->c_rpcchan);
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 }
@@ -1128,8 +1129,6 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_rc = 0;
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	rpc_chan_put(conn->c_rpcchan);
-
 	c2_mutex_unlock(&conn->c_mutex);
 
 	c2_rpc_conn_fini(conn);
