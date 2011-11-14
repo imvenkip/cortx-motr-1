@@ -96,7 +96,7 @@
      - nlx_core_buf_msg_send()
      - nlx_core_buf_passive_recv()
      - nlx_core_buf_passive_send()
-     - nlx_core_buf_set_match_bits()
+     - nlx_core_buf_match_bits_set()
      .
      The buffer operation initiation calls are all invoked in the context of
      the c2_net_buffer_add() subroutine.  All operations are immediately
@@ -312,7 +312,7 @@ struct nlx_core_buffer {
 
 	/**
 	   The match bits for a passive bulk buffer, including the TMID field.
-	   They should be set using the nlx_core_tm_match_bits_set()
+	   They should be set using the nlx_core_buf_match_bits_set()
 	   subroutine.
 
 	   The file is also used in an active buffer to describe the match
@@ -447,13 +447,13 @@ static int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
    @param lcbuf The buffer private data.
    @pre The buffer is queued on the specified transfer machine.
  */
-static void nlx_core_buf_set_match_bits(struct nlx_core_transfer_mc *lctm,
+static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
 					struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for passive bulk receive.
    The match bits for the passive buffer should be set in the buffer with the
-   nlx_core_buf_set_match_bits() subroutine before this call.
+   nlx_core_buf_match_bits_set() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
    @param lctm  Transfer machine private data.
@@ -467,7 +467,7 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 /**
    Enqueue buffer for passive bulk send.
    The match bits for the passive buffer should be set in the buffer with the
-   nlx_core_buf_set_match_bits() subroutine before this call.
+   nlx_core_buf_match_bits_set() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
    @param lctm  Transfer machine private data.

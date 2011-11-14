@@ -229,7 +229,7 @@
    The transport uses the nlx_core_buf_passive_recv() or the
    nlx_core_buf_passive_send() subroutines to stage passive buffers.  Prior
    to initiating these operations, the transport should use the
-   nlx_core_buf_set_match_bits() subroutine to generate new match bits for
+   nlx_core_buf_match_bits_set() subroutine to generate new match bits for
    the passive buffer.  The match bit counter will repeat over time, though
    after a very long while.  It is the transport's responsibility to ensure
    that all of the passive buffers associated with a given transfer machine
@@ -271,7 +271,7 @@
    keeps this queue in memory shared between the transport and the Core,
    eliminating the need for a user space transport to make an @c ioctl call to
    fetch the buffer event payload.  The only @c ioctl call needed for a user
-   space transport, is to block waiting for buffer events to appear in the
+   space transport is to block waiting for buffer events to appear in the
    shared memory queue.
 
    It is critical for proper operation, that there be an available buffer event
@@ -308,8 +308,8 @@
 
    The kernel Core module combines both the free "pool" and the result queue
    into a single data structure: a circular, single producer, single consumer
-   buffer event queue.
-   @todo DAVE TO DESCRIBE THIS
+   buffer event queue.  Details on this event queue are covered in the
+   @ref LNetcqueueDLD "LNet Buffer Event Circular Queue DLD."
 
 
    @subsection KLNetCoreDLD-lspec-lnet-init LNet Initialization and Finalization
@@ -389,9 +389,10 @@
       - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
       - Set the @c threshold value to the maximum number of messages that
         are to be received in the buffer.
-      - Set the @c LNET_MD_OP_PUT and @c LNET_MD_KIOV flags in the
-        @c options field.
-        @todo What about @c LNET_MD_MAX_SIZE?
+      - Set the @c max_size value to the
+        c2_klnet_core_buffer::klcb_min_receive_size value.
+      - Set the @c LNET_MD_OP_PUT, @c LNET_MD_MAX_SIZE and @c LNET_MD_KIOV
+        flags in the @c options field.
    -# When a message arrives, an @c LNET_EVENT_PUT event will be delivered to
       the event queue, and will be processed as described in
       @ref KLNetCoreDLD-lspec-ev.
@@ -406,6 +407,7 @@
       - Set the kernel logical address of the c2_klnet_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
+      - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetPut() subroutine to send the MD to the destination.
       The match bits must set to the destination TM identifier in the higher
       order bits and zeros for the other bits.
@@ -417,13 +419,13 @@
 
    -# Prior to invoking the nlx_core_buf_passive_recv() or the
       nlx_core_buf_passive_send() subroutines, the transport should use the
-      nlx_core_tm_match_bit_set() subroutine to assign unique match bits to
+      nlx_core_buf_match_bits_set() subroutine to assign unique match bits to
       the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
-   -# Create an ME using @c LNetMEAlloc(). Specify the portal and match_id fields
-      as appropriate for the transfer machine.  The buffer's match bits are
-      obtained from the nlx_core_buffer::lcb_match_bits field.  No ignore
+   -# Create an ME using @c LNetMEAlloc(). Specify the portal and match_id
+      fields as appropriate for the transfer machine.  The buffer's match bits
+      are obtained from the nlx_core_buffer::lcb_match_bits field.  No ignore
       bits are set. The ME should be set up to unlink automatically.
    -# Create and attach an MD to the ME using @c LNetMDAttach().
       Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
@@ -433,8 +435,9 @@
       - Set the kernel logical address of the c2_klnet_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
-      - Set the @c LNET_MD_OP_PUT or the @c LNET_MD_OP_GET flag in the
-        @c options field according to the direction of data transfer.
+      - Set the @c LNET_MD_KIOV flag in the @c options field, along with either
+        the @c LNET_MD_OP_PUT or the @c LNET_MD_OP_GET flag according to the
+	direction of data transfer.
    -# When the bulk data transfer completes, either an @c LNET_EVENT_PUT or an
       @c LNET_EVENT_GET event will be delivered to the event queue, and will be
       processed as described in @ref KLNetCoreDLD-lspec-ev.
@@ -455,6 +458,7 @@
       - Set the kernel logical address of the c2_klnet_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the c2_klnet_core_buffer::klcb_kiov.
+      - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetGet() subroutine to initate the active read or the
       @c LNetPut() subroutine to initiate the active write.
    -# When a response to the @c LNetGet() or @c LNetPut() call completes, an @c
@@ -508,10 +512,9 @@
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   Only one instance of the API can be opened per network domain.
    Generally speaking, API calls within the transport
-   address space itself, are protected by the serialization of the Colibri
-   Networking layer.  The nlx_core_buf_set_match_bits() subroutine, for
+   address space itself are protected by the serialization of the Colibri
+   Networking layer.  The nlx_core_buf_match_bits_set() subroutine, for
    example, is fully protected by the transfer machine mutex held across the
    c2_net_buffer_add() subroutine call, so implicitly protects the match bit
    counter in the kernel Core's per TM private data.

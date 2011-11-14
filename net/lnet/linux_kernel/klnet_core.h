@@ -86,6 +86,9 @@ struct c2_klnet_core_transfer_mc {
 struct c2_klnet_core_buffer {
 	uint64_t                          klcb_magic;
 
+	/** Mimumum space remaining for re-use of receive buffers. */
+	c2_bcount_t                       klcb_min_receive_size;
+
 	/** Pointer to kernel core TM data. */
 	struct c2_klnet_core_transfer_mc *klcb_ktm;
 
