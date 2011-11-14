@@ -244,21 +244,20 @@ static struct c2_fop_type *ioservice_fops[] = {
    The IO coalescing subsystem from ioservice primarily works on IO segments.
    IO segments are in-memory structures that represent contiguous chunks of
    IO data along with extent information.
-   An internal data structure io_zeroseg represents the IO segment.
-   - io_zeroseg An in-memory structure used to represent a segment of IO data.
+   An internal data structure ioseg represents the IO segment.
+   - ioseg An in-memory structure used to represent a segment of IO data.
 
    @subsubsection bulkclient-lspec-sub1 Subcomponent Subroutines
    <i>This section briefly describes the interfaces of the sub-component that
    are of significance to the design.</i>
 
-   - io_zeroseg_alloc Allocates an io_zeroseg structure.
-   - io_zeroseg_free Deallocates an io_zeroseg structure.
-   - io_zerovec_seg_get Retrieves an io_zeroseg given its index in zero
+   - ioseg_alloc Allocates an ioseg structure.
+   - ioseg_free Deallocates an ioseg structure.
+   - ioseg_get Retrieves an ioseg given its index in zero
    vector.
-   - io_zerovec_seg_set Set the contents of zero segment referred by given
+   - ioseg_set Set the contents of zero segment referred by given
    index in zero vector to the contents of input zero segment.
-   - io_zerovec_segs_alloc Allocate given number of segments for a new
-   zero vector.
+   - ioseg_alloc_nr Allocate given number of segments for a new zero vector.
 
    @subsection bulkclient-lspec-state State Specification
    <i>Mandatory.
@@ -301,7 +300,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   No need of explicit locking for structures like c2_io_fop and io_zeroseg
+   No need of explicit locking for structures like c2_io_fop and ioseg
    since they are taken care by locking at upper layers like locking at
    the c2t1fs part for dispatching IO requests.
 
@@ -415,7 +414,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    along with io extent. This structure is typically used by io coalescing
    code from ioservice.
  */
-struct io_zeroseg {
+struct ioseg {
 	/* Offset of target object to start io from. */
 	c2_bindex_t		 is_off;
 	/* Number of bytes in io segment. */
@@ -428,30 +427,30 @@ struct io_zeroseg {
 
 /**
    Allocate a zero segment.
-   @retval Valid io_zeroseg object if success, NULL otherwise.
+   @retval Valid ioseg object if success, NULL otherwise.
  */
-struct io_zeroseg *io_zeroseg_alloc(void)
+struct ioseg *ioseg_alloc(void)
 {
-	struct io_zeroseg *zseg;
+	struct ioseg *seg;
 
-	C2_ALLOC_PTR(zseg);
-	if (zseg == NULL)
+	C2_ALLOC_PTR(seg);
+	if (seg == NULL)
 		return NULL;
 
-	c2_list_link_init(&zseg->is_linkage);
-	return zseg;
+	c2_list_link_init(&seg->is_linkage);
+	return seg;
 }
 
 /**
    Deallocate a zero segment.
    @param zseg - Zero segment to be deallocated.
  */
-void io_zeroseg_free(struct io_zeroseg *zseg)
+void ioseg_free(struct ioseg *seg)
 {
-	C2_PRE(zseg != NULL);
+	C2_PRE(seg != NULL);
 
-	c2_list_link_fini(&zseg->is_linkage);
-	c2_free(zseg);
+	c2_list_link_fini(&seg->is_linkage);
+	c2_free(seg);
 }
 
 /**
@@ -462,8 +461,8 @@ void io_zeroseg_free(struct io_zeroseg *zseg)
    @param index Index of io segments in array of io segments from zerovec.
    @param seg Out parameter to return io segment.
  */
-void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
-			struct io_zeroseg *seg)
+void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
+	       struct ioseg *seg)
 {
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
@@ -483,8 +482,8 @@ void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
    @param zvec The c2_0vec io vector whose io segment will be changed.
    @param seg Target segment for set.
  */
-void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
-			const struct io_zeroseg *seg)
+void ioseg_set(struct c2_0vec *zvec, uint32_t seg_index,
+	       const struct ioseg *seg)
 {
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
@@ -501,7 +500,7 @@ void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
    are attached.
    @param segs_nr Number of io segments to be allocated.
  */
-int io_zerovec_segs_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
+int ioseg_alloc_nr(struct c2_0vec *zvec, uint32_t segs_nr)
 {
 	C2_PRE(zvec != NULL);
 	C2_PRE(segs_nr != 0);
