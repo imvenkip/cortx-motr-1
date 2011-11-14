@@ -172,19 +172,24 @@ enum {
  */
 struct c2_lnet_core_bev_link {
 	/**
-	   Self pointer in the transport address space.
+	   Self pointer in the consumer (transport) address space.
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevl_t_self;
+	c2_lnet_core_opaque_ptr_t lcbevl_c_self;
 
 	/**
-	   Self pointer in the kernel address space.
+	   Self pointer in the producer (kernel) address space.
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevl_k_self;
+	c2_lnet_core_opaque_ptr_t lcbevl_p_self;
 
 	/**
 	   Pointer to the next element in the consumer address space.
 	 */
 	c2_lnet_core_opaque_ptr_t lcbevl_c_next;
+
+	/**
+	   Pointer to the next element in the producer address space.
+	 */
+	c2_lnet_core_opaque_ptr_t lcbevl_p_next;
 };
 
 /**
@@ -200,14 +205,14 @@ struct c2_lnet_core_bev_cqueue {
 	/**
 	   The producer adds links to this anchor.
 	   The producer pointer value is in the address space of the
-	   producer.
+	   producer (kernel).
 	 */
 	c2_lnet_core_opaque_ptr_t lcbevq_producer;
 
 	/**
 	   The consumer removes elements from this anchor.
-	   The producer pointer value is in the address space of the
-	   producer.
+	   The consumer pointer value is in the address space of the
+	   consumer (transport).
 	 */
 	c2_lnet_core_opaque_ptr_t lcbevq_consumer;
 };

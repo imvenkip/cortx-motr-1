@@ -80,7 +80,7 @@
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   - The @ref "atomic API".
+   - The @ref atomic API.
 
    <hr>
    @section cqueueDLD-highlights Design Highlights
@@ -125,8 +125,8 @@
    and for moving them around the circular queue elements.  The application
    manages the memory containing the queue itself, and adds new elements to the
    queue when the size of the queue needs to grow.  In this discussion of the
-   logic, the pointers are named @c cq_divider and @c cq_last for brevity.  The
-   implementation uses @c lcbevq_consumer and @c lcbevq_producer respectively.
+   logic, the pointers are named @c consumer, @c producer and @c next for
+   brevity.
 
    @dot
    digraph {
@@ -135,7 +135,7 @@
        node [shape=plaintext];
        c2_lnet_core_bev_cqueue;
        node [shape=record];
-       struct1 [label="<f0> cq_divider|<f1> cq_last"];
+       struct1 [label="<f0> consumer|<f1> producer"];
    }
    {
        rank=same;
@@ -152,15 +152,15 @@
    }
    @enddot
 
-   The elements starting after @c cq_divider up to but not including @c cq_last
+   The elements starting after @c consumer up to but not including @c producer
    contain data to be consumed (those elements marked with "x" in the diagram).
-   So, @c cq_divider follows @c cq_last around the circular queue.  When
-   @c cq_divider->next is the same as @c cq_last, the queue is empty
+   So, @c consumer follows @c producer around the circular queue.  When
+   @c consumer->next is the same as @c producer, the queue is empty
    (requiring that the queue be initialised with at least 2 elements).  The
-   element pointed to by @c cq_divider (element "y" in the diagram) is the
+   element pointed to by @c consumer (element "y" in the diagram) is the
    element most recently consumed by the consumer.  The producer cannot use this
    element, because if it did, producing that element would result in moving
-   @c cq_last so that it would pass @c cq_divider.
+   @c producer so that it would pass @c consumer.
 
    In the context of the LNet Buffer Event Queue, the transport should add
    enough elements to the queue strictly before it enqueues buffer operations
@@ -171,19 +171,150 @@
    transport can use to determine the current number of elements in the queue
    and to add new elements.
 
-   The element denoted by @c cq_last is returned by @c bev_cqueue_pnext as long
+   The element denoted by @c producer is returned by @c bev_cqueue_pnext as long
    as the queue is not full.  This allows the producer to determine the next
    available element and populate it with the data to be produced.  Once the
    element contains the data, the producer then calls @c bev_cqueue_put to
-   make that element available to the consumer.  This call also increments @c
-   cq_last.
+   make that element available to the consumer.  This call also moves the
+   @c producer pointer to the next element.
 
    The consumer uses @c bev_cqueue_get to get the next available element
-   containing data in FIFO order.  Consuming an element causes @c cq_divider to
+   containing data in FIFO order.  Consuming an element causes @c consumer to
    be pointed at the next element in the queue.  After this call returns, the
    consumer "owns" the element returned, element "y" in the diagram.  The
    consumer owns this element until it calls @c bev_cqueue_get again, at which
    time ownership reverts to the queue and can be reused by the producer.
+
+   The pointers themselves are more complex than the brief description above.
+   The @c consumer pointer refers to the element just consumed in the consumer's
+   (the transport) address space.  The @c producer pointer refers to the element
+   in the producer's (the core) address space.  The @c next link is actually
+   represented by a data structure, c2_lnet_core_bev_link.
+   @code
+   struct c2_lnet_core_bev_link {
+            c2_lnet_core_opaque_ptr_t lcbevl_c_self;
+                   // Self pointer in the transport address space.
+            c2_lnet_core_opaque_ptr_t lcbevl_p_self;
+                   // Self pointer in the kernel address space.
+            c2_lnet_core_opaque_ptr_t lcbevl_c_next;
+                   // Pointer to the next element in the consumer address space.
+            c2_lnet_core_opaque_ptr_t lcbevl_p_next;
+                   // Pointer to the next element in the producer address space.
+   };
+   @endcode
+
+   When the producer performs a @c bev_cqueue_put call, it uses
+   @c producer->lcbevl_p_next to refer to the next element.  Similarly, when
+   the consumer performs a @c bev_cqueue_get call, it uses
+   @c consumer->lcbevl_c_next.
+
+   @subsection cqueueDLD-lspec-qalloc Circular Queue Allocation
+
+   The circular queue must contain at least 2 elements, as discussed above.
+   Additional elements can be added to maintain the invariant that the number of
+   elements in the queue equals or exceeds the number of pending buffer
+   operations, plus one element for the most recently completed operation.
+
+   The initial condition is shown below.  In this diagram, the queue is empty
+   (see the state discussion, below).  There is room in the queue for one buffer
+   event and one completed event.
+   @dot
+   digraph {
+   {
+       rank=same;
+       node [shape=plaintext];
+       c2_lnet_core_bev_cqueue;
+       node [shape=record];
+       struct1 [label="<f0> consumer|<f1> producer"];
+   }
+   {
+       rank=same;
+       ordering=out;
+       node [shape=plaintext];
+       "element list";
+       node1 [shape=box];
+       node2 [shape=box];
+       "element list" -> node1 [style=invis];
+       node1 -> node2 [label=next];
+       node2 -> node1 [label=next];
+   }
+   c2_lnet_core_bev_cqueue -> "element list" [style=invis];
+   struct1:f0 -> node1;
+   struct1:f1 -> node2;
+   }
+   @enddot
+
+   Before adding additional elements, the following are true:
+   - The number of elements in the queue, N, equals the number of pending
+   operations plus one for the most recently completed operation.
+   - The producer produces one event per pending operation.
+   - The producer will never catch up with the consumer.  Given the required
+   number of elements, the producer will run out of work to do when it has
+   generated one event for each buffer operation, resulting in a state where
+   producer == consumer.
+
+   This means the queue can be expanded at the location of the consumer without
+   affecting the producer.  Elements are added as follows:
+
+   -# allocate and initialise a new queue element (referred to as newnode)
+   -# Set newnode->next = consumer->next
+   -# Set consumer->next = newnode
+   -# set consumer = newnode
+
+   Steps 2-4 are performed in bev_cqueue_add.  Because several pointers need to
+   be updated, simple atomic operations are insufficent.  Thus, the transport
+   layer must synchronise calls to bev_cqueue_add and bev_cqueue_get, because
+   both calls affect the consumer.  Given that bev_cqueue_add completes its
+   three operations before returning, and bev_cqueue_add is called before the
+   new buffer is added to the queue, there is no way the producer will try to
+   generate an event and move its pointer forward until bev_cqueue_add
+   completes.  This allows the transport layer and core layer to continue
+   interact only using atomic operations.
+
+   A dragramatic view of these steps is shown below.  The dotted arrows signify
+   the pointers before the new node is added.  The Step numbers correspond to
+   steps 2-4 above.
+   @dot
+   digraph {
+   {
+       rank=same;
+       node [shape=plaintext];
+       c2_lnet_core_bev_cqueue;
+       node [shape=record];
+       struct1 [label="<f0> consumer|<f1> producer"];
+   }
+   newnode [shape=box];
+   struct1:f0 -> newnode [label="(4)"];
+   node1 -> newnode [label="next (3)"]
+   newnode -> node2 [label="next (2)"]
+   {
+       rank=same;
+       ordering=out;
+       "element list" [shape=plaintext];
+       node1 [shape=box];
+       node2 [shape=box];
+       node1 -> node2 [style=dotted];
+       node2 -> node1 [label=next];
+   }
+   c2_lnet_core_bev_cqueue -> "element list" [style=invis];
+   struct1:f0 -> node1 [style=dotted];
+   struct1:f1 -> node2;
+   }
+   @enddot
+
+   Once again, updating the @c next pointer is less straight forward than the
+   diagram suggests.  In step 1, the node is allocated by the transport layer.
+   Once allocated, initialisation includes the transport layer setting the
+   @c lcbevl_c_self pointer to point at the node and having the core layer
+   "bless" the node by setting the @c lcbevl_p_self link.  After the self
+   pointers are set, the next pointers can be set by using these self pointers.
+   Since allocation occurs in the transport address space, the allocation logic
+   uses the @c lcbevl_c_next pointers of the existing nodes for navigation, and
+   sets both the @c lcbevl_c_next and @c lcbevl_p_next pointers.  The
+   @c lcbevl_p_next pointer is set by using the @c lcbevl_c_next->lcbevl_p_self
+   value, which is treated opaquely by the transport layer.  So, steps 2 and 3
+   update both pairs of pointers.  Allocation has no affect on the @c producer
+   pointer itself, only the @c consumer pointer.
 
    @subsection cqueueDLD-lspec-state State Specification
    <i>Mandatory.
@@ -192,13 +323,13 @@
 
    The circular queue can be in one of 3 states:
    - empty: This is the initial state and the queue returns to this state
-   whenever @code cq_divider->next == cq_last @endcode
+   whenever @code consumer->next == producer @endcode
    - full: The queue contains elements and has no room for more. In this state,
    the producer should not attempt to put any more elements into the queue.
-   This state can be expressed as @code cq_last == cq_divider @endcode
+   This state can be expressed as @code producer == consumer @endcode
    - partial: In this state, the queue contains elements to be consumed and
    still has room for additional element production. This can be expressed as
-   @code cq_divider->next != cq_last && cq_divider != cq_last @endcode
+   @code consumer->next != producer && consumer != producer @endcode
 
    @subsection cqueueDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
@@ -208,10 +339,15 @@
    (such as semaphores, locks, mutexes and condition variables).</i>
 
    A single producer and consumer are supported.  Atomic variables,
-   @c cq_divider and @c cq_last, represent the range of elements in the queue
+   @c consumer and @c producer, represent the range of elements in the queue
    containing data.  Because these pointers are atomic, no locking is needed
    to access them by a single producer and consumer.  Multiple producers
    and/or consumers must synchronize externally.
+
+   The transport layer acts both as the consumer and the allocator, and both
+   operations use and modify the @c consumer variable and related pointers.  As
+   such, calls to bev_cqueue_add and bev_cqueue_get must be synchronised.  A
+   mutex is used for the synchronisation.
 
    @subsection cqueueDLD-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
@@ -290,7 +426,7 @@
    - @ref cqueueDLD-fspec-ds
    - @ref cqueueDLD-fspec-sub
    - @ref cqueueDLD-fspec-usecases
-   - @ref cqueue "Detailed Functional Specification" <!-- Note link -->
+   - @ref bevcqueue "Detailed Functional Specification" <!-- Note link -->
 
    @section cqueueDLD-fspec-ds Data Structures
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -389,7 +525,7 @@
        ql = bev_cqueue_get(&myqueue);
        if (ql == NULL) {
            ... ; // block until data is available
-	   continue;
+           continue;
        }
 
        el = container_of(ql, struct c2_lnet_core_buffer_event, lcbe_tm_link);
@@ -446,8 +582,8 @@ static void bev_cqueue_fini(struct c2_lnet_core_bev_cqueue *q);
 
 /**
    Test if the buffer event queue is empty.
-   @note this operation is to be used by the consumer.  The data structures do
-   not provide a pointer to the consumer element from the producer's
+   @note this operation is to be used only by the consumer.  The data structures
+   do not provide a pointer to the consumer element from the producer's
    perspective.
  */
 static bool bev_cqueue_is_empty(const struct c2_lnet_core_bev_cqueue *q);
