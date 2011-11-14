@@ -146,9 +146,17 @@
        list1 [label="<f0> |<f1> y|<f2> x|<f3> x|<f4> x|<f5> x|<f6> |<f7> "];
        "element list" -> list1 [style=invis];
    }
+   {
+       rank=same;
+       x1 [shape=point width=0 height=0];
+       x2 [shape=point width=0 height=0];
+       x1 -> x2 [dir=none];
+   }
    nlx_core_bev_cqueue -> "element list" [style=invis];
    struct1:f0 -> list1:f1;
    struct1:f1 -> list1:f6;
+   list1:f7 -> x2 [dir=none];
+   list1:f0 -> x1 [dir=back];
    }
    @enddot
 
@@ -185,10 +193,10 @@
    consumer owns this element until it calls bev_cqueue_get() again, at which
    time ownership reverts to the queue and can be reused by the producer.
 
-   The pointers themselves are more complex than the brief description above.
+   The pointers themselves are more complex than the description above suggests.
    The @c consumer pointer refers to the element just consumed in the consumer's
    (the transport) address space.  The @c producer pointer refers to the element
-   in the producer's (the core) address space.  The @c next link is actually
+   in the producer's (the kernel) address space.  The @c next link is actually
    represented by a data structure, nlx_core_bev_link.
    @code
    struct nlx_core_bev_link {
@@ -205,7 +213,7 @@
 
    When the producer performs a bev_cqueue_put() call, internally, this call
    uses nlx_core_bev_link::lcbevl_p_next to refer to the next element.
-   Similarly, when the consumer performs a bev_cqueue_get() call, internall,
+   Similarly, when the consumer performs a bev_cqueue_get() call, internally,
    this call uses nlx_core_bev_link::lcbevl_c_next.  Note that only
    allocation, discussed below, modifies any of these pointers.  Steady-state
    operations on the queue only modify the @c consumer and @c producer pointers.
@@ -310,7 +318,7 @@
    diagram suggests.  In step 1, the node is allocated by the transport layer.
    Once allocated, initialisation includes the transport layer setting the
    nlx_core_bev_link::lcbevl_c_self pointer to point at the node and having
-   the core layer "bless" the node by setting the
+   the kernel core layer "bless" the node by setting the
    nlx_core_bev_link::lcbevl_p_self link.  After the self pointers are set,
    the next pointers can be set by using these self pointers.  Since allocation
    occurs in the transport address space, the allocation logic uses the
@@ -548,8 +556,8 @@
    @defgroup bevcqueue LNet Buffer Event Queue Interface
    @ingroup LNetDFS
 
-   The buffer event FIFO circular queue, used between the LNet Core and LNet
-   transport.
+   The buffer event FIFO circular queue, used between the LNet Kernel Core
+   and LNet transport.
 
    Unlike the standard c2_queue, this queue supports a producer and consumer in
    different address spaces sharing the queue via shared memory.  No locking is
