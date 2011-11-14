@@ -68,6 +68,8 @@ static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_io_vec_tfmt,
 	&c2_fop_cob_rw_tfmt,
 	&c2_fop_cob_rw_reply_tfmt,
+	&c2_ioseg_tfmt,
+	&c2_io_indexvec_tfmt,
 };
 
 static struct c2_fop_type *ioservice_fops[] = {
@@ -616,10 +618,6 @@ bool is_io_rep(const struct c2_fop *fop)
 	return is_read_rep(fop) || is_write_rep(fop);
 }
 
-/**
-   Allocates the array of IO segments from IO vector.
-   @retval - 0 if succeeded, negative error code otherwise.
- */
 static int iosegs_alloc(struct c2_fop_io_vec *iovec, const uint32_t count)
 {
 	C2_PRE(iovec != NULL);

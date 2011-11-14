@@ -104,13 +104,32 @@ DEF(c2_fop_cob_readv_rep, RECORD,
 	_(c_iobuf, c2_fop_io_buf));
 
 /**
+ * Represents the extent information for an io segment.
+ */
+DEF(c2_ioseg, RECORD,
+	_(ci_offset, U64),
+	_(ci_count, U64));
+
+/**
+ * Represents the index vector along with extent information for given IO
+ * request.
+ */
+DEF(c2_io_indexvec, SEQUENCE,
+	_(ci_nr, U32),
+	_(ci_iosegs, c2_ioseg));
+
+/**
  * Common structure for read and write request fops.
  */
 DEF(c2_fop_cob_rw, RECORD,
 	/** File identifier of read/write request. */
 	_(crw_fid, c2_fop_file_fid),
-	/** IO vector containing read/write data. */
-	_(crw_iovec, c2_fop_io_vec),
+	/** Net buf desc representing the c2_net_buffer which contains
+	    the IO buffers. */
+	_(crw_desc, c2_net_buf_desc),
+	/** Index vector representing the extent information for the
+	    IO request. */
+	_(crw_ivec, c2_io_indexvec),
 	/** Miscellaneous flags. */
 	_(crw_flags, U64));
 
