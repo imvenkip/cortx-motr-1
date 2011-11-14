@@ -171,18 +171,18 @@
    transport can use to determine the current number of elements in the queue
    and to add new elements.
 
-   The element denoted by @c producer is returned by @c bev_cqueue_pnext as long
-   as the queue is not full.  This allows the producer to determine the next
-   available element and populate it with the data to be produced.  Once the
-   element contains the data, the producer then calls @c bev_cqueue_put to
-   make that element available to the consumer.  This call also moves the
+   The element denoted by @c producer is returned by bev_cqueue_pnext() as
+   long as the queue is not full.  This allows the producer to determine the
+   next available element and populate it with the data to be produced.  Once
+   the element contains the data, the producer then calls bev_cqueue_put()
+   to make that element available to the consumer.  This call also moves the
    @c producer pointer to the next element.
 
-   The consumer uses @c bev_cqueue_get to get the next available element
+   The consumer uses bev_cqueue_get() to get the next available element
    containing data in FIFO order.  Consuming an element causes @c consumer to
    be pointed at the next element in the queue.  After this call returns, the
    consumer "owns" the element returned, element "y" in the diagram.  The
-   consumer owns this element until it calls @c bev_cqueue_get again, at which
+   consumer owns this element until it calls bev_cqueue_get() again, at which
    time ownership reverts to the queue and can be reused by the producer.
 
    The pointers themselves are more complex than the brief description above.
@@ -203,21 +203,24 @@
    };
    @endcode
 
-   When the producer performs a @c bev_cqueue_put call, it uses
-   @c producer->lcbevl_p_next to refer to the next element.  Similarly, when
-   the consumer performs a @c bev_cqueue_get call, it uses
-   @c consumer->lcbevl_c_next.
+   When the producer performs a bev_cqueue_put() call, internally, this call
+   uses c2_lnet_core_bev_link::lcbevl_p_next to refer to the next element.
+   Similarly, when the consumer performs a bev_cqueue_get() call, internall,
+   this call uses c2_lnet_core_bev_link::lcbevl_c_next.  Note that only
+   allocation, discussed below, modifies any of these pointers.  Steady-state
+   operations on the queue only modify the @c consumer and @c producer pointers.
 
    @subsection cqueueDLD-lspec-qalloc Circular Queue Allocation
 
    The circular queue must contain at least 2 elements, as discussed above.
-   Additional elements can be added to maintain the invariant that the number of
-   elements in the queue equals or exceeds the number of pending buffer
-   operations, plus one element for the most recently completed operation.
+   Additional elements can be added to maintain the requirement that the number
+   of elements in the queue equals or exceeds the number of pending buffer
+   operations, plus one element for the most recently consumed operation.
 
    The initial condition is shown below.  In this diagram, the queue is empty
-   (see the state discussion, below).  There is room in the queue for one buffer
-   event and one completed event.
+   (see the state discussion, below).  There is room in the queue for one
+   pending buffer event and one completed/consumed event.
+
    @dot
    digraph {
    {
@@ -246,7 +249,8 @@
 
    Before adding additional elements, the following are true:
    - The number of elements in the queue, N, equals the number of pending
-   operations plus one for the most recently completed operation.
+   operations plus one for the most recently consumed operation completion
+   event.
    - The producer produces one event per pending operation.
    - The producer will never catch up with the consumer.  Given the required
    number of elements, the producer will run out of work to do when it has
@@ -261,15 +265,15 @@
    -# Set consumer->next = newnode
    -# set consumer = newnode
 
-   Steps 2-4 are performed in bev_cqueue_add.  Because several pointers need to
-   be updated, simple atomic operations are insufficent.  Thus, the transport
-   layer must synchronise calls to bev_cqueue_add and bev_cqueue_get, because
-   both calls affect the consumer.  Given that bev_cqueue_add completes its
-   three operations before returning, and bev_cqueue_add is called before the
-   new buffer is added to the queue, there is no way the producer will try to
-   generate an event and move its pointer forward until bev_cqueue_add
-   completes.  This allows the transport layer and core layer to continue
-   interact only using atomic operations.
+   Steps 2-4 are performed in bev_cqueue_add().  Because several pointers need
+   to be updated, simple atomic operations are insufficent.  Thus, the transport
+   layer must synchronise calls to bev_cqueue_add() and bev_cqueue_get(),
+   because both calls affect the consumer.  Given that bev_cqueue_add()
+   completes its three operations before returning, and bev_cqueue_add() is
+   called before the new buffer is added to the queue, there is no way the
+   producer will try to generate an event and move its pointer forward until
+   bev_cqueue_add() completes.  This allows the transport layer and core layer
+   to continue interact only using atomic operations.
 
    A dragramatic view of these steps is shown below.  The dotted arrows signify
    the pointers before the new node is added.  The Step numbers correspond to
@@ -305,16 +309,18 @@
    Once again, updating the @c next pointer is less straight forward than the
    diagram suggests.  In step 1, the node is allocated by the transport layer.
    Once allocated, initialisation includes the transport layer setting the
-   @c lcbevl_c_self pointer to point at the node and having the core layer
-   "bless" the node by setting the @c lcbevl_p_self link.  After the self
-   pointers are set, the next pointers can be set by using these self pointers.
-   Since allocation occurs in the transport address space, the allocation logic
-   uses the @c lcbevl_c_next pointers of the existing nodes for navigation, and
-   sets both the @c lcbevl_c_next and @c lcbevl_p_next pointers.  The
-   @c lcbevl_p_next pointer is set by using the @c lcbevl_c_next->lcbevl_p_self
-   value, which is treated opaquely by the transport layer.  So, steps 2 and 3
-   update both pairs of pointers.  Allocation has no affect on the @c producer
-   pointer itself, only the @c consumer pointer.
+   c2_lnet_core_bev_link::lcbevl_c_self pointer to point at the node and having
+   the core layer "bless" the node by setting the
+   c2_lnet_core_bev_link::lcbevl_p_self link.  After the self pointers are set,
+   the next pointers can be set by using these self pointers.  Since allocation
+   occurs in the transport address space, the allocation logic uses the
+   c2_lnet_core_bev_link::lcbevl_c_next pointers of the existing nodes for
+   navigation, and sets both the @c lcbevl_c_next and
+   c2_lnet_core_bev_link::lcbevl_p_next pointers.  The @c lcbevl_p_next pointer
+   is set by using the @c lcbevl_c_next->lcbevl_p_self value, which is treated
+   opaquely by the transport layer.  So, steps 2 and 3 update both pairs of
+   pointers.  Allocation has no affect on the @c producer pointer itself, only
+   the @c consumer pointer.
 
    @subsection cqueueDLD-lspec-state State Specification
    <i>Mandatory.
@@ -346,8 +352,10 @@
 
    The transport layer acts both as the consumer and the allocator, and both
    operations use and modify the @c consumer variable and related pointers.  As
-   such, calls to bev_cqueue_add and bev_cqueue_get must be synchronised.  A
-   mutex is used for the synchronisation.
+   such, calls to bev_cqueue_add() and bev_cqueue_get() must be synchronised.
+   The transport layer holds the transfer machine c2_net_transfer_mc::ntm_mutex
+   when it calls bev_cqueue_add().  The transport layer will also hold this
+   mutex when it calls bev_cqueue_get().
 
    @subsection cqueueDLD-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
@@ -606,7 +614,7 @@ static struct c2_lnet_core_bev_link *bev_cqueue_get(
    Determine the next element in the queue that can be used by the producer.
    @param q the queue
    @returns a pointer to the next available element in the producer context
-   @pre q->lcbevq_producer->lcbevl_t_self != q->lcbevq_consumer
+   @pre q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
  */
 static struct c2_lnet_core_bev_link* bev_cqueue_pnext(
 				      const struct c2_lnet_core_bev_cqueue *q);
@@ -615,7 +623,7 @@ static struct c2_lnet_core_bev_link* bev_cqueue_pnext(
    Put (produce) an element so it can be consumed.  The caller must first
    call bev_cqueue_pnext() to ensure such an element exists.
    @param q the queue
-   @pre q->lcbevq_producer->lcbevl_t_self != q->lcbevq_consumer
+   @pre q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
  */
 static void bev_cqueue_put(struct c2_lnet_core_bev_cqueue *q);
 
