@@ -382,14 +382,14 @@
        "element list";
        node1 [shape=box];
        node2 [shape=box];
-       node3 [shape=box];
+       newnode [shape=box];
        "element list" -> node1 [style=invis];
-       node1 -> node3 [label=next];
-       node3 -> node2 [label=next];
+       node1 -> newnode [label=next];
+       newnode -> node2 [label=next];
        node2 -> node1 [label=next];
    }
    nlx_core_bev_cqueue -> "element list" [style=invis];
-   struct1:f0 -> node3;
+   struct1:f0 -> newnode;
    struct1:f1 -> node2;
    }
    @enddot

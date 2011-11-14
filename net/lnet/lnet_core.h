@@ -44,8 +44,44 @@
    uses a device driver to communicate with its kernel counterpart and
    uses shared memory to avoid event data copy.
 
-   @see @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
-   @see @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
+   The Core API offers no callback mechanism.  Instead, the transport must
+   poll for events.  Typically this is done on one or more dedicated threads,
+   which exhibit the desired processor affiliation required by the higher
+   software layers.
+
+   The following sequence diagram illustrates the typical operational flow:
+   @msc
+   A [label="Application"],
+   N [label="Network"],
+   x [label="XO Method"],
+   t [label="XO Event\nThread"],
+   o [label="Core\nOps"],
+   e [label="Core\nEvent Queue"],
+   L [label="LNet\nOps"],
+   l [label="LNet\nCallback"];
+
+   t=>e  [label="Wait"];
+   ...;
+   A=>N  [label="c2_net_buffer_add()"];
+   N=>x  [label="xo_buf_add()"];
+   x=>o  [label="nlx_core_buf_op()"];
+   o=>L  [label="MD Operation"];
+   L>>o;
+   o>>x;
+   x>>N;
+   N>>A;
+   ...;
+   l=>>e [label="EQ callback"];
+   e>>t  [label="Events present"];
+   t=>e  [label="Get Event"];
+   e>>t  [label="event"];
+   N<<=t [label="c2_net_buffer_event_post()"];
+   N=>>A [label="callback"];
+   t=>e  [label="Get Event"];
+   e>>t  [label="empty"];
+   t=>e  [label="Wait"];
+   ...;
+   @endmsc
 
    @section LNetCoreDLD-fspec-ds API Data Structures
    The API requires that the transport application maintain API defined shared
@@ -107,10 +143,9 @@
      - nlx_core_buf_event_wait()
      - nlx_core_buf_event_get()
      .
-     The Core API offers no callback mechanism.  Instead, the transport must
-     poll for events.  Typically this is done on one or more dedicated threads,
-     which exhibit the desired processor affiliation required by the higher
-     software layers.
+
+   @see @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
+   @see @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
 
  */
 
