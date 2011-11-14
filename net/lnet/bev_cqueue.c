@@ -106,6 +106,8 @@
 
    - @ref cqueueDLD-lspec-comps
    - @ref cqueueDLD-lspec-q
+   - @ref cqueueDLD-lspec-xlink
+   - @ref cqueueDLD-lspec-qalloc
    - @ref cqueueDLD-lspec-state
    - @ref cqueueDLD-lspec-thread
    - @ref cqueueDLD-lspec-numa
@@ -193,11 +195,14 @@
    consumer owns this element until it calls bev_cqueue_get() again, at which
    time ownership reverts to the queue and can be reused by the producer.
 
+   @subsection cqueueDLD-lspec-xlink Cross Address Space Linkage Support
+
    The pointers themselves are more complex than the description above suggests.
    The @c consumer pointer refers to the element just consumed in the consumer's
    (the transport) address space.  The @c producer pointer refers to the element
-   in the producer's (the kernel) address space.  The @c next link is actually
-   represented by a data structure, nlx_core_bev_link.
+   in the producer's (the kernel) address space.
+
+   A queue link element is represented by the nlx_core_bev_link data structure:
    @code
    struct nlx_core_bev_link {
             nlx_core_opaque_ptr_t lcbevl_c_self;
@@ -210,6 +215,11 @@
                    // Pointer to the next element in the producer address space.
    };
    @endcode
+   The data structure maintains separate "opaque" pointer fields for the
+   producer and consumer address spaces.  Elements in the queue are linked
+   through both flavors of their @c next field.  The initialization of this data
+   structure will be described in @ref cqueueDLD-lspec-qalloc.  The opaque
+   pointer type is derived from ::c2_atomic64.
 
    When the producer performs a bev_cqueue_put() call, internally, this call
    uses nlx_core_bev_link::lcbevl_p_next to refer to the next element.
@@ -217,6 +227,29 @@
    this call uses nlx_core_bev_link::lcbevl_c_next.  Note that only
    allocation, discussed below, modifies any of these pointers.  Steady-state
    operations on the queue only modify the @c consumer and @c producer pointers.
+
+   The data structure also contains "self" pointers for each address
+   space. These pointers pointers permit comparison against the queue head's @c
+   consumer and @c producer pointer values from the producer and consumer
+   address spaces respectively. For example, the abstract check
+
+   @code
+   	q->producer != q->consumer
+   @endcode
+
+   performed in producer space is actually implemented as
+
+   @code
+   	q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
+   @endcode
+
+   Note that this check is safe in producer space because only the producer
+   changes the value of the @c producer pointer.  The equivalent safe call in
+   consumer space would be:
+
+   @code
+   	q->consumer->lcbevl_p_self != q->lcbevq_producer
+   @endcode
 
    @subsection cqueueDLD-lspec-qalloc Circular Queue Allocation
 
@@ -263,15 +296,17 @@
    - The producer will never catch up with the consumer.  Given the required
    number of elements, the producer will run out of work to do when it has
    generated one event for each buffer operation, resulting in a state where
-   producer == consumer.
+   <tt> producer == consumer </tt>.
 
-   This means the queue can be expanded at the location of the consumer without
+   This means the queue can @b safely be expanded at the location of the @c
+   consumer pointer (i.e. <em>in the consumer address space,</em>), without
    affecting the producer.  Elements are added as follows:
 
-   -# allocate and initialise a new queue element (referred to as newnode)
-   -# Set newnode->next = consumer->next
-   -# Set consumer->next = newnode
-   -# set consumer = newnode
+   -# Allocate and initialise a new queue element (referred to as newnode)
+      which sets @c newnode->c_self and @c newnode->p_self.
+   -# Set <tt>  newnode->next = consumer->next </tt>
+   -# Set <tt> consumer->next = newnode        </tt>
+   -# set <tt>       consumer = newnode        </tt>
 
    Steps 2-4 are performed in bev_cqueue_add().  Because several pointers need
    to be updated, simple atomic operations are insufficent.  Thus, the transport
@@ -329,6 +364,36 @@
    opaquely by the transport layer.  So, steps 2 and 3 update both pairs of
    pointers.  Allocation has no affect on the @c producer pointer itself, only
    the @c consumer pointer.
+
+   The resultant 3 element queue looks like this:
+   @dot
+   digraph {
+   {
+       rank=same;
+       node [shape=plaintext];
+       nlx_core_bev_cqueue;
+       node [shape=record];
+       struct1 [label="<f0> consumer|<f1> producer"];
+   }
+   {
+       rank=same;
+       ordering=out;
+       node [shape=plaintext];
+       "element list";
+       node1 [shape=box];
+       node2 [shape=box];
+       node3 [shape=box];
+       "element list" -> node1 [style=invis];
+       node1 -> node3 [label=next];
+       node3 -> node2 [label=next];
+       node2 -> node1 [label=next];
+   }
+   nlx_core_bev_cqueue -> "element list" [style=invis];
+   struct1:f0 -> node3;
+   struct1:f1 -> node2;
+   }
+   @enddot
+
 
    @subsection cqueueDLD-lspec-state State Specification
    <i>Mandatory.

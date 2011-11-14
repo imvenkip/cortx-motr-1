@@ -259,6 +259,7 @@ struct nlx_core_buffer_event {
 */
 struct nlx_core_domain {
 	/* place holder */
+	int dummy;
 };
 
 
