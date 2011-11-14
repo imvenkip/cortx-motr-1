@@ -665,6 +665,8 @@ int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 		switch (ctx->sc_type) {
 
 		case C2T1FS_ST_MDS:
+			/* Currently assuming only one MGS, which will serve
+			   container 0 */
 			map->clm_map[0] = ctx;
 			TRACE("container_id [0] at %s\n", ctx->sc_addr);
 			continue;
@@ -686,4 +688,23 @@ int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 out:
 	END(rc);
 	return rc;
+}
+
+struct c2_rpc_session *
+c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
+			       uint64_t          container_id)
+{
+	struct c2t1fs_container_location_map *map;
+	struct c2t1fs_service_context        *ctx;
+
+	START();
+
+	C2_ASSERT(container_id <= csb->csb_nr_containers);
+
+	map = &csb->csb_cl_map;
+	ctx = map->clm_map[container_id];
+	C2_ASSERT(ctx != NULL);
+
+	END(ctx->sc_session.s_session_id);
+	return &ctx->sc_session;
 }

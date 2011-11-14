@@ -198,6 +198,8 @@ c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
 
 int c2t1fs_container_location_map_build(struct c2t1fs_sb *sb);
 
-struct c2_rpc_session *c2t1fs_container_id_to_session(int container_id);
+struct c2_rpc_session * c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
+						       uint64_t container_id);
+
 
 #endif /* __COLIBRI_C2T1FS_H */
