@@ -107,7 +107,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    bulk transport mechanism to transfer user buffers in zero-copy fashion.
    The generic io fop contains a network buffer descriptor which refers to a
    network buffer.
-   The Colibri client creates IO fops and attaches the kernel pages to net
+   The bulk client creates IO fops and attaches the kernel pages to net
    buffer associated with io fop and submits it to rpc layer.
    The rpc layer populates the net buffer descriptor from io fop and sends
    the fop over wire.
@@ -137,14 +137,16 @@ static struct c2_fop_type *ioservice_fops[] = {
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   - R.bulkclient.rpcbulk The Colibri client should use rpc bulk abstraction
+   - R.bulkclient.rpcbulk The bulk client should use rpc bulk abstraction
    while enqueueing buffers for bulk transfer.
-   - R.bulkclient.fopcreation Colibri client should create io fops as needed
+   - R.bulkclient.fopcreation The bulk client should create io fops as needed
    if pages overrun the existing rpc bulk structure.
    - R.bulkclient.netbufdesc The generic io fop should contain a network
    buffer descriptor which points to an in-memory network buffer.
    - R.bulkclient.iocoalescing The IO coalescing code should conform to
-   new format of io fop.
+   new format of io fop. This is actually a side-effect and not a core
+   part of functionality. Since the format of IO fop changes, the IO
+   coalescing code which depends on it, needs to be restructured.
 
    <hr>
    @section bulkclient-depends Dependencies
@@ -166,11 +168,11 @@ static struct c2_fop_type *ioservice_fops[] = {
    logical specifications, and enumerates topics that need special
    attention.</i>
 
-   Colibri client uses a generic in-memory structure representing an io fop
+   IO bulk client uses a generic in-memory structure representing an io fop
    and its associated network buffer.
    This in-memory io fop contains another abstract structure to represent
    the network buffer associated with the fop.
-   Colibri client creates c2_io_fop structures as necessary and attaches
+   The bulk client creates c2_io_fop structures as necessary and attaches
    kernel pages to associated c2_rpc_bulk structure and submits the fop
    to rpc layer.
    Rpc layer populates the network buffer descriptor embedded in the io fop
@@ -205,8 +207,8 @@ static struct c2_fop_type *ioservice_fops[] = {
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
-   The following @@dot diagram shows the interaction of Colibri client
-   program (c2t1fs) with rpc layer and net layer.
+   The following @@dot diagram shows the interaction of bulk client
+   program with rpc layer and net layer.
    @dot
    digraph {
      node [style=box];
@@ -242,7 +244,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    of the Functional Specification.</i>
 
    The IO coalescing subsystem from ioservice primarily works on IO segments.
-   IO segments are in-memory structures that represent contiguous chunks of
+   IO segment is in-memory structure that represents a contiguous chunk of
    IO data along with extent information.
    An internal data structure ioseg represents the IO segment.
    - ioseg An in-memory structure used to represent a segment of IO data.
@@ -326,9 +328,9 @@ static struct c2_fop_type *ioservice_fops[] = {
    the <b>R</b> tags of the requirements section.  The @b I of course,
    stands for "implements":
 
-   - I.bulkclient.rpcbulk The Colibri client uses rpc bulk APIs to enqueue
+   - I.bulkclient.rpcbulk The bulk client uses rpc bulk APIs to enqueue
    kernel pages to the network buffer.
-   - I.bulkclient.fopcreation Colibri client creates new io fops until all
+   - I.bulkclient.fopcreation bulk client creates new io fops until all
    kernel pages are enqueued.
    - I.bulkclient.netbufdesc The on-wire definition of io_fop contains a
    net buffer descriptor. @see c2_net_buf_desc
