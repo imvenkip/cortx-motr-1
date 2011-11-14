@@ -25,7 +25,7 @@
 
 #include "lib/types.h"
 #include "lib/thread.h"
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/cond.h"
 
@@ -55,7 +55,7 @@ struct c2_dbenv_impl {
 	struct c2_mutex    d_lock;
 	/** A list of waiters (c2_db_tx_waiter). Protected by
 	    c2_dbenv_impl::d_lock.  */
-	struct c2_list     d_waiters;
+	struct c2_tl       d_waiters;
 	/** Thread for asynchronous environment related work. */
 	struct c2_thread   d_thread;
 	/** True iff the environment is being shut down. Protected by

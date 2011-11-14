@@ -1096,13 +1096,9 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	else
 		c2_db_tx_abort(&tx);
 out:
-	if (rc != 0) {
-		/*
-		 * Take out slot0 of session0 out of ready slots list.
-		 */
-		(void)c2_rpc_conn_session0(conn);
+	if (rc != 0)
 		conn_failed(conn, rc);
-	}
+
 	/*
 	 * Note: conn is not moved to TERMINATED state even if operation is
 	 * successful. This is required to be able to send successful conn

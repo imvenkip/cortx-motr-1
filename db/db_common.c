@@ -50,6 +50,12 @@ const struct c2_addb_ctx_type db_tx_ctx_type = {
 	.act_name = "db-tx"
 };
 
+C2_TL_DESCR_DEFINE(txw,
+		   "tx waiters", , struct c2_db_tx_waiter, tw_tx, tw_magix,
+		   C2_DB_TX_WAITER_MAGIX,
+		   0xd1550c1ab1ea11ce /* dissociable alice  */);
+
+
 extern void c2_db_buf_impl_init(struct c2_db_buf *buf);
 extern void c2_db_buf_impl_fini(struct c2_db_buf *buf);
 extern bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf);
@@ -65,7 +71,7 @@ void c2_dbenv_common_fini(struct c2_dbenv *env)
 	c2_addb_ctx_fini(&env->d_addb);
 }
 
-void c2_table_common_init(struct c2_table *table, struct c2_dbenv *env, 
+void c2_table_common_init(struct c2_table *table, struct c2_dbenv *env,
 			  const struct c2_table_ops *ops)
 {
 	table->t_env = env;
@@ -80,7 +86,7 @@ void c2_table_common_fini(struct c2_table *table)
 
 bool c2_db_buf_invariant(const struct c2_db_buf *buf)
 {
-	return 
+	return
 		DBT_ZERO < buf->db_type && buf->db_type < DBT_NR &&
 		/* in-place buffers are not yet supported */
 		buf->db_type != DBT_INPLACE &&
@@ -120,12 +126,12 @@ bool c2_db_pair_invariant(const struct c2_db_pair *p)
 {
 	return
 		p->dp_table != NULL &&
-		c2_db_buf_invariant(&p->dp_key) && 
+		c2_db_buf_invariant(&p->dp_key) &&
 		c2_db_buf_invariant(&p->dp_rec);
 }
 
 void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
-		      void *keybuf, uint32_t keysize, 
+		      void *keybuf, uint32_t keysize,
 		      void *recbuf, uint32_t recsize)
 {
 	C2_PRE((keybuf != NULL) == (keysize > 0));
@@ -166,19 +172,19 @@ C2_EXPORTED(c2_db_pair_release);
 void c2_db_common_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env)
 {
 	tx->dt_env = env;
-	c2_list_init(&tx->dt_waiters);
+	txw_tlist_init(&tx->dt_waiters);
 	c2_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
 }
 
 void c2_db_common_tx_fini(struct c2_db_tx *tx)
 {
 	c2_addb_ctx_fini(&tx->dt_addb);
-	c2_list_fini(&tx->dt_waiters);
+	txw_tlist_fini(&tx->dt_waiters);
 }
 
 /** @} end of db group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

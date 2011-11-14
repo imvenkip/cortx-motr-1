@@ -112,6 +112,11 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 void c2_fop_ping_fom_fini(struct c2_fom *fom)
 {
+	struct c2_fom_ping *fom_obj;
+
+	fom_obj = container_of(fom, struct c2_fom_ping, fp_gen);
+	c2_free(fom_obj);
+
 	return;
 }
 

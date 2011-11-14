@@ -302,6 +302,7 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 				cec_fop.f_item);
 	C2_ASSERT(ctx != NULL);
 
+	c2_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
 	ctx->cec_rpcmachine = machine;
 }

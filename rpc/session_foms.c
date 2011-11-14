@@ -53,8 +53,20 @@
 extern void item_exit_stats_set(struct c2_rpc_item   *item,
 				enum c2_rpc_item_path path);
 
+/**
+   Common implementation of c2_fom::fo_ops::fo_fini() for conn establish,
+   conn terminate, session establish and session terminate foms
+
+   @see session_gen_fom_init
+ */
+static void session_gen_fom_fini(struct c2_fom *fom)
+{
+	c2_fom_fini(fom);
+	c2_free(fom);
+}
+
 const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
-	.fo_fini = c2_rpc_fom_conn_establish_fini,
+	.fo_fini = session_gen_fom_fini,
 	.fo_state = c2_rpc_fom_conn_establish_state,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
@@ -120,6 +132,8 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep,
 				  ctx->cec_rpcmachine,
 				  &item->ri_slot_refs[0].sr_uuid);
+	/* we won't need ctx->cec_sender_ep after this point */
+	c2_net_end_point_put(ctx->cec_sender_ep);
 	if (rc != 0)
 		goto out_free;
 
@@ -204,16 +218,12 @@ out:
 	return FSO_WAIT;
 }
 
-void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom)
-{
-}
-
 /*
  * FOM session create
  */
 
 const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
-	.fo_fini = c2_rpc_fom_session_establish_fini,
+	.fo_fini = session_gen_fom_fini,
 	.fo_state = c2_rpc_fom_session_establish_state,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
@@ -306,16 +316,12 @@ errout:
 	return FSO_WAIT;
 }
 
-void c2_rpc_fom_session_establish_fini(struct c2_fom *fom)
-{
-}
-
 /*
  * FOM session terminate
  */
 
 const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
-	.fo_fini = c2_rpc_fom_session_terminate_fini,
+	.fo_fini = session_gen_fom_fini,
 	.fo_state = c2_rpc_fom_session_terminate_state,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
@@ -398,15 +404,11 @@ errout:
 	return FSO_WAIT;
 }
 
-void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom)
-{
-}
-
 /*
  * FOM RPC connection terminate
  */
 const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
-	.fo_fini = c2_rpc_fom_conn_terminate_fini,
+	.fo_fini = session_gen_fom_fini,
 	.fo_state = c2_rpc_fom_conn_terminate_state,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
@@ -473,10 +475,6 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		fom->fo_phase = FOPH_FINISH;
 		return FSO_WAIT;
 	}
-}
-
-void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom)
-{
 }
 
 /** @} End of rpc_session group */

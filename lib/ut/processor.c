@@ -257,7 +257,7 @@ static void ub_fini(void)
 
 static void ub_init1(int i)
 {
-	C2_UT_ASSERT(c2_processor_is_initialized() == false);
+	C2_UT_ASSERT(!c2_processor_is_initialized());
 }
 
 static void ub_init2(int i)
@@ -266,7 +266,7 @@ static void ub_init2(int i)
 
 	rc = c2_processors_init();
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(c2_processor_is_initialized() == true);
+	C2_UT_ASSERT(c2_processor_is_initialized());
 	c2_processors_fini();
 }
 
@@ -277,7 +277,7 @@ static void ub_init3(int i)
 	rc = c2_processors_init();
 	C2_UT_ASSERT(rc == 0);
 	c2_processors_fini();
-	C2_UT_ASSERT(c2_processor_is_initialized() == false);
+	C2_UT_ASSERT(!c2_processor_is_initialized());
 }
 
 static uint32_t get_num_from_file(const char *file)
@@ -332,7 +332,6 @@ static void verify_getcpu()
 {
 	int	id;
 	int	rc;
-	bool	val;
 
 	struct c2_bitmap	map;
 	c2_processor_nr_t	num;
@@ -349,9 +348,10 @@ static void verify_getcpu()
 
 	id = c2_processor_getcpu();
 	if (id != -1) {
-		val = c2_bitmap_get(&map, id);
-		C2_UT_ASSERT(val == true);
+		C2_UT_ASSERT(c2_bitmap_get(&map, id));
 	}
+
+	c2_bitmap_fini(&map);
 	c2_processors_fini();
 }
 
@@ -402,8 +402,9 @@ static void verify_map(int mapid)
 	fclose(fp);
 
 	rc = strncmp(result, expect, strlen(expect));
-	C2_UT_ASSERT( rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
+	c2_bitmap_fini(&map);
 	c2_processors_fini();
 }
 
@@ -517,6 +518,8 @@ static void verify_processors()
 			}
 		}
 	}
+
+	c2_bitmap_fini(&onln_map);
 	c2_processors_fini();
 }
 
@@ -733,7 +736,7 @@ static void verify_init(void)
 
 	rc = c2_processors_init();
 	C2_UT_ASSERT(rc != 0);
-	C2_UT_ASSERT(c2_processor_is_initialized() == false);
+	C2_UT_ASSERT(!c2_processor_is_initialized());
 }
 
 static void verify_all_params()

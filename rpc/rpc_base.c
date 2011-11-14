@@ -90,6 +90,14 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	return 0;
 }
 
+void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
+{
+	C2_PRE(item_type != NULL);
+	c2_rwlock_write_lock(&rpc_item_types_lock);
+	c2_tlist_del(&rpc_item_type_descr, item_type);
+	c2_rwlock_write_unlock(&rpc_item_types_lock);
+}
+
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
 	struct c2_rpc_item_type         *item_type = NULL;

@@ -5,7 +5,8 @@
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
-#include "lib/list.h"
+#include "lib/tlist.h"
+#include "lib/vec.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
@@ -54,7 +55,7 @@ struct c2_fop_type {
 	/** Operation name. */
 	const char                       *ft_name;
 	/** Linkage into a list of all known operations. */
-	struct c2_list_link               ft_linkage;
+	struct c2_tlink                   ft_linkage;
 	/** Type of a top level field in fops of this type. */
 	struct c2_fop_field_type         *ft_top;
 	const struct c2_fop_type_ops     *ft_ops;
@@ -70,6 +71,7 @@ struct c2_fop_type {
 	   ADDB context for events related to this fop type.
 	 */
 	struct c2_addb_ctx                ft_addb;
+	uint64_t                          ft_magix;
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);
@@ -77,6 +79,8 @@ void c2_fop_type_fini(struct c2_fop_type *fopt);
 
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
+
+struct c2_list;
 
 /** fop type operations. */
 struct c2_fop_type_ops {

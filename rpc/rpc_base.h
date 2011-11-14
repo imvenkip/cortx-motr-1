@@ -100,6 +100,89 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
+	int (*rito_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
+			struct c2_rpc_item *item);
+	/**
+	   Serialise @item on provided xdr stream @xdrs
+	 */
+	int (*rito_encode)(struct c2_rpc_item_type *item_type,
+		           struct c2_rpc_item *item,
+	                   struct c2_bufvec_cursor *cur);
+	/**
+	   Create in memory item from serialised representation of item
+	 */
+	int (*rito_decode)(struct c2_rpc_item_type *item_type,
+			   struct c2_rpc_item **item,
+			   struct c2_bufvec_cursor *cur);
+	/**
+	   Return the c2_net_buf_desc from io fop.
+	 */
+	void (*rito_io_desc_get)(struct c2_rpc_item *item,
+				 struct c2_net_buf_desc *desc);
+	/**
+	   Store the c2_net_buf_desc into io fop from its net buffer.
+	 */
+	int (*rito_io_desc_store)(struct c2_rpc_item *item,
+				  struct c2_net_buf_desc *desc);
+};
+#if 0
+/* TBD: different callbacks called on events occured while processing
+   in update stream */
+struct c2_rpc_item_type_ops {
+	/**
+	   Called when given item's sent.
+	   @param item reference to an RPC-item sent
+	   @note ri_added() has been called before invoking this function.
+	 */
+	void (*rito_sent)(struct c2_rpc_item *item);
+	/**
+	   Called when item's added to an RPC
+	   @param rpc reference to an RPC where item's added
+	   @param item reference to an item added to rpc
+	 */
+	void (*rito_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
+
+	/**
+	   Called when given item's replied.
+	   @param item reference to an RPC-item on which reply FOP was received.
+	   @param rc error code <0 if failure
+	   @note ri_added() and ri_sent() have been called before invoking
+	   this function.
+	 */
+	void (*rito_replied)(struct c2_rpc_item *item, int rc);
+
+	/**
+	   Restore original IO vector of rpc item.
+	 */
+	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
+			struct c2_fop *bkpfop);
+	/**
+	   Find out the size of rpc item.
+	 */
+	size_t (*rito_item_size)(const struct c2_rpc_item *item);
+
+	/**
+	   Find out if given rpc items belong to same type or not.
+	 */
+	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
+			c2_rpc_item *item2);
+	/**
+	   Find out if given rpc items refer to same c2_fid struct or not.
+	 */
+	bool (*rito_fid_equal)(struct c2_rpc_item *item1,
+			       struct c2_rpc_item *item2);
+	/**
+	  Return true iff item1 and item2 are equal.
+	 */
+	bool (*rito_eq)(const struct c2_rpc_item *i1,
+			const struct c2_rpc_item *i2);
+	/**
+	   Find out the count of fragmented buffers.
+	 */
+	uint64_t (*rito_get_io_fragment_count)(struct c2_rpc_item *item);
+	/**
+	   Coalesce rpc items that share same fid and intent(read/write).
+	 */
 	int (*rito_io_coalesce)
 	(struct c2_rpc_frm_item_coalesced *coalesced_item,
 	struct c2_rpc_item *item);
@@ -126,6 +209,7 @@ struct c2_rpc_item_type_ops {
 	int (*rito_io_desc_store)(struct c2_rpc_item *item,
 				  struct c2_net_buf_desc *desc);
 };
+#endif
 
 /**
    Possible values for c2_rpc_item_type::rit_flags.
@@ -187,6 +271,13 @@ void c2_rpc_base_fini(void);
   @retval -errno on failure.
 */
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
+
+/** De-registers an rpc item type by deleting the corresponding entry in the
+    rpc item types list.
+
+    @param item_type The rpc item type to be deregistered.
+*/
+void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
 
 /** Returns a pointer to rpc item type registered for an opcode
 

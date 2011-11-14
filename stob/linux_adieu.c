@@ -142,7 +142,7 @@ enum {
 	 * instead (see below), because they take into account
 	 * linux_domain.use_directio flag which is set in runtime.
 	 */
-	LINUX_BSHIFT = 9, /* pow(2, 9) == 512 */
+	LINUX_BSHIFT = 12, /* pow(2, 12) == 4096 */
 	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
 	LINUX_BMASK  = LINUX_BSIZE - 1
 };
