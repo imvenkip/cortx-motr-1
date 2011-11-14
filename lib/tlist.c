@@ -251,6 +251,21 @@ bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list)
 }
 C2_EXPORTED(c2_tlist_invariant);
 
+bool c2_tlist_invariant_ext(const struct c2_tl_descr *d,
+			    const struct c2_tl *list,
+			    bool (*check)(const void *), void *datum)
+{
+	if (c2_tlist_invariant(d, list)) {
+		void *obj;
+
+		c2_tlist_for(d, list, obj) {
+			if (!check(obj, datum))
+				return false;
+		} c2_tlist_endfor;
+	}
+	return true;
+}
+
 bool c2_tlink_invariant(const struct c2_tl_descr *d, const void *obj)
 {
 	return d->td_link_magic == 0 || magic(d, obj) == d->td_link_magic;

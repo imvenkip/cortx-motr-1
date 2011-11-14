@@ -267,6 +267,9 @@ void c2_tlink_del_fini(const struct c2_tl_descr *d, void *obj);
 
 bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list);
 bool c2_tlink_invariant(const struct c2_tl_descr *d, const void *obj);
+bool c2_tlist_invariant_ext(const struct c2_tl_descr *d,
+			    const struct c2_tl *list,
+			    bool (*check)(const void *, void *), void *datum);
 
 bool   c2_tlist_is_empty(const struct c2_tl_descr *d, const struct c2_tl *list);
 bool   c2_tlink_is_in   (const struct c2_tl_descr *d, const void *obj);
@@ -437,10 +440,14 @@ scope const struct c2_tl_descr name ## _tl
 scope void name ## _tlist_init(struct c2_tl *head);			\
 scope void name ## _tlist_fini(struct c2_tl *head);			\
 scope void name ## _tlink_init(amb_type *amb);				\
- scope void name ## _tlink_init_at(amb_type *amb, struct c2_tl *head);	\
- scope void name ## _tlink_init_at_tail(amb_type *amb, struct c2_tl *head);\
+scope void name ## _tlink_init_at(amb_type *amb, struct c2_tl *head);	\
+scope void name ## _tlink_init_at_tail(amb_type *amb, struct c2_tl *head);\
 scope void name ## _tlink_fini(amb_type *amb);				\
 scope void name ## _tlink_del_fini(amb_type *amb);			\
+scope void name ## _tlist_invariant(const struct c2_tl *head);		\
+scope void name ## _tlist_invariant_ext(const struct c2_tl *head,       \
+                                        bool (*check)(const amb_type *, \
+                                        void *), void *);		\
 scope bool   name ## _tlist_is_empty(const struct c2_tl *list);		\
 scope bool   name ## _tlink_is_in   (const amb_type *amb);		\
 scope bool   name ## _tlist_contains(const struct c2_tl *list,		\
@@ -513,6 +520,19 @@ scope __AUN void name ## _tlink_fini(amb_type *amb)			\
 scope __AUN void name ## _tlink_del_fini(amb_type *amb)			\
 {									\
 	c2_tlink_del_fini(&name ## _tl, amb);				\
+}									\
+									\
+scope __AUN void name ## _tlist_invariant(const struct c2_tl *list)	\
+{									\
+	c2_tlist_invariant(&name ## _tl, list);				\
+}									\
+									\
+scope __AUN void name ## _tlist_invariant_ext(const struct c2_tl *list, \
+					      bool (*check)(const amb_type *,\
+					      void *), void *datum)		\
+{									\
+	c2_tlist_invariant_ext(&name ## _tl, list,                      \
+	(bool (*)(void *))check, datum);				\
 }									\
 									\
 scope __AUN bool   name ## _tlist_is_empty(const struct c2_tl *list)	\
