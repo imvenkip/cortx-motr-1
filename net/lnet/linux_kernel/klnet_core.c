@@ -226,10 +226,10 @@
    receive messages, so the counter range is [1,0xfffffffffffff]. It is
    initialized to 1 and will wrap back to 1 when it reaches its upper bound.
 
-   The transport uses the c2_lnet_core_buf_passive_recv() or the
-   c2_lnet_core_buf_passive_send() subroutines to stage passive buffers.  Prior
+   The transport uses the nlx_core_buf_passive_recv() or the
+   nlx_core_buf_passive_send() subroutines to stage passive buffers.  Prior
    to initiating these operations, the transport should use the
-   c2_lnet_core_buf_set_match_bits() subroutine to generate new match bits for
+   nlx_core_buf_set_match_bits() subroutine to generate new match bits for
    the passive buffer.  The match bit counter will repeat over time, though
    after a very long while.  It is the transport's responsibility to ensure
    that all of the passive buffers associated with a given transfer machine
@@ -240,9 +240,9 @@
 
    The kernel Core module must ensure that all transfer machines have unique
    addresses, regardless of the transport instance or network domain in which
-   they originate.  To support this, the ::klnc_tms list threads through all the
-   kernel Core's per-TM private data structures. This list is private to the
-   kernel Core, and is protected by the ::klnc_mutex.
+   they originate.  To support this, the ::nlx_kcore_tms list threads through
+   all the kernel Core's per-TM private data structures. This list is private
+   to the kernel Core, and is protected by the ::nlx_kcore_mutex.
 
    The same list helps in assigning dynamic transfer machine identifiers.  The
    highest available value at the upper bound of the transfer machine
@@ -262,8 +262,8 @@
    Instead, the kernel Core module de-couples the delivery of buffer operation
    completion to the transport from the LNet callback context by copying the
    result to an intermediate buffer event queue.  The Core API provides the
-   c2_lnet_core_buf_event_wait() subroutine that the transport can use to poll
-   for the presence of buffer events, and the c2_lnet_core_buf_event_get() to
+   nlx_core_buf_event_wait() subroutine that the transport can use to poll
+   for the presence of buffer events, and the nlx_core_buf_event_get() to
    recover the payload of the next available buffer event.
 
    There is another advantage to this indirect delivery: to address the
@@ -297,7 +297,7 @@
 
    - Normal queue operation involves a single @a producer, in the kernel Core
      callback subroutine, and a single @a consumer, in the Core API
-     c2_lnet_core_buf_event_get() subroutine, which may be invoked either in
+     nlx_core_buf_event_get() subroutine, which may be invoked either in
      the kernel or in user space.
 
    - The allocation of new buffer event structures to the "pool" is always done
@@ -340,7 +340,7 @@
    single consumer, a spin lock is used to serialize access to the queue.
 
    The event callback requires that the MD @c user_ptr field be set up to point
-   to the c2_lnet_core_buffer data structure.  The callback does the following:
+   to the nlx_core_buffer data structure.  The callback does the following:
 
    -# @c LNET_EVENT_SEND and @c LNET_EVENT_ACK events are ignored.
    -# Obtain the c2_klnet_core_transfer_mc::klctm_bevq_lock spinlock.
@@ -349,30 +349,30 @@
       the result.
    -# Copy the event payload from the LNet event to the buffer event structure.
       This includes the value of the @c unlinked field of the event, which must
-      be copied to the c2_lnet_core_buffer_event::lcbe_unlinked field.  For @c
+      be copied to the nlx_core_buffer_event::lcbe_unlinked field.  For @c
       LNET_EVENT_UNLINK events, a @c -ECANCELLED value is written to the
-      c2_lnet_core_buffer_event::lcbe_status field and the
-      c2_lnet_core_buffer_event::lcbe_unlinked field set to true.
+      nlx_core_buffer_event::lcbe_status field and the
+      nlx_core_buffer_event::lcbe_unlinked field set to true.
    -# The bev_cqueue_put() subroutine is invoked.
    -# Release the c2_klnet_core_transfer_mc::klctm_bevq_lock spinlock.
    -# The c2_klnet_core_transfer_mc::klctm_chan is signalled with the
       c2_chan_signal() subroutine.
 
    The transport layer event handler threads (usually only one) block on the
-   Core transfer machine channel in the c2_lnet_core_buf_event_wait()
+   Core transfer machine channel in the nlx_core_buf_event_wait()
    subroutine using the c2_chan_wait() or c2_chan_timedwait() subroutines.  In
    the case of the user space transport, this is done indirectly by the device
    driver in the kernel.
 
    When the subroutine returns with an indication of the presence of events,
    the thread consumes all the pending events with multiple calls to the
-   c2_lnet_core_buf_event_get() subroutine, which invokes the
+   nlx_core_buf_event_get() subroutine, which invokes the
    c2_cqueue_consume() subroutine to get the index of the next queue slot to
    read.  This must be repeated until the event queue is drained.
 
    @subsection KLNetCoreDLD-lspec-recv LNet Receiving Unsolicited Messages
 
-   -# An EQ is created for each transfer machine by the c2_lnet_core_tm_start()
+   -# An EQ is created for each transfer machine by the nlx_core_tm_start()
    subroutine, and the common callback handler registered.
    -# For each receive buffer, create an ME with @c LNetMEAlloc() and specify
       the portal, match and ignore bits. All receive buffers for a given TM will
@@ -415,15 +415,15 @@
 
    @subsection KLNetCoreDLD-lspec-passive LNet Staging Passive Bulk Buffers
 
-   -# Prior to invoking the c2_lnet_core_buf_passive_recv() or the
-      c2_lnet_core_buf_passive_send() subroutines, the transport should use the
-      c2_lnet_core_tm_match_bit_set() subroutine to assign unique match bits to
+   -# Prior to invoking the nlx_core_buf_passive_recv() or the
+      nlx_core_buf_passive_send() subroutines, the transport should use the
+      nlx_core_tm_match_bit_set() subroutine to assign unique match bits to
       the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
    -# Create an ME using @c LNetMEAlloc(). Specify the portal and match_id fields
       as appropriate for the transfer machine.  The buffer's match bits are
-      obtained from the c2_lnet_core_buffer::lcb_match_bits field.  No ignore
+      obtained from the nlx_core_buffer::lcb_match_bits field.  No ignore
       bits are set. The ME should be set up to unlink automatically.
    -# Create and attach an MD to the ME using @c LNetMDAttach().
       Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
@@ -441,12 +441,12 @@
 
    @subsection KLNetCoreDLD-lspec-active LNet Active Bulk Read or Write
 
-   -# Prior to invoking the c2_lnet_core_buf_active_recv() or
-   c2_lnet_core_buf_active_send() subroutines, the
+   -# Prior to invoking the nlx_core_buf_active_recv() or
+   nlx_core_buf_active_send() subroutines, the
    transport should put the match bits of the remote passive buffer into the
-   c2_lnet_core_buffer::lcb_match_bits field. The destination address of the
+   nlx_core_buffer::lcb_match_bits field. The destination address of the
    remote transfer machine with the passive buffer should be set in the
-   c2_lnet_core_buffer::lcb_passive_addr field.
+   nlx_core_buffer::lcb_passive_addr field.
    -# Create an MD using @c LNetMDBind().
       Save the MD handle in the c2_klnet_core_buffer::klcb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
@@ -467,7 +467,7 @@
    @subsection KLNetCoreDLD-lspec-lnet-cancel LNet Cancelling Operations
 
    The kernel Core module provides no timeout capability.  The transport may
-   initiate a cancel operation using the c2_lnet_core_buf_del() subroutine.
+   initiate a cancel operation using the nlx_core_buf_del() subroutine.
 
    This will result in an @c LNetMDUnlink() subroutine call being issued for
    the buffer MD saved in the c2_klnet_core_buffer::klcb_mdh field.
@@ -495,7 +495,7 @@
    The kernel Core API maintains a count of the total number of buffer event
    structures needed.  This should be tested by the Core API's transfer machine
    invariant subroutine before returning from any buffer operation initiation
-   call, and before returning from the c2_lnet_core_buf_event_get() subroutine.
+   call, and before returning from the nlx_core_buf_event_get() subroutine.
 
    The kernel Core layer module depends on the LNet module in the kernel at
    runtime. This dependency is captured by the Linux kernel module support that
@@ -511,7 +511,7 @@
    Only one instance of the API can be opened per network domain.
    Generally speaking, API calls within the transport
    address space itself, are protected by the serialization of the Colibri
-   Networking layer.  The c2_lnet_core_buf_set_match_bits() subroutine, for
+   Networking layer.  The nlx_core_buf_set_match_bits() subroutine, for
    example, is fully protected by the transfer machine mutex held across the
    c2_net_buffer_add() subroutine call, so implicitly protects the match bit
    counter in the kernel Core's per TM private data.
@@ -521,9 +521,9 @@
    user space.  Fortunately, the LNet API intrinsically provides considerable
    serialization support to the Core, as each transfer machine is defined by
    the HLD to have disjoint addresses.  The boundary condition of enforcing the
-   address semantics is protected by the kernel Core's ::klnc_mutex lock.
-   The c2_lnet_core_tm_start() and c2_lnet_core_tm_stop() subroutines use this
-   mutex internally for serialization and operation on the ::klnc_tms list
+   address semantics is protected by the kernel Core's ::nlx_kcore_mutex lock.
+   The nlx_core_tm_start() and nlx_core_tm_stop() subroutines use this
+   mutex internally for serialization and operation on the ::nlx_kcore_tms list
    threaded through the kernel Core's per-TM private data.
 
    The kernel Core module registers a single callback subroutine with the LNet
@@ -535,7 +535,7 @@
 
    The Core API does not define any callback to indicate completion of an
    asynchronous buffer operation.  Instead, the transport application must
-   invoke the c2_lnet_core_buf_event_wait() subroutine to block waiting for
+   invoke the nlx_core_buf_event_wait() subroutine to block waiting for
    buffer events.  Internally this call waits on the
    c2_klnet_core_transfer_mc::klctm_chan wait channel.  The channel is
    signalled each time an event is added to the buffer event queue; this leaves
@@ -544,13 +544,13 @@
 
    The event payload is actually delivered via a per transfer machine circular
    buffer event queue, and multiple events may be delivered between each call
-   to the c2_lnet_core_buf_event_wait() subroutine.  Each such event is fetched
-   by a call to the c2_lnet_core_buf_event_get() subroutine, until the queue is
+   to the nlx_core_buf_event_wait() subroutine.  Each such event is fetched
+   by a call to the nlx_core_buf_event_get() subroutine, until the queue is
    exhausted.
 
    The API assumes that only a single transport thread will handle event
    processing; if this is not the case then the transport should serialize its
-   use of the c2_lnet_core_buf_event_get() subroutine.
+   use of the nlx_core_buf_event_get() subroutine.
 
 
    @subsection KLNetCoreDLD-lspec-numa NUMA optimizations
@@ -629,11 +629,14 @@
    @{
 */
 
-/** Kernel core lock */
-static c2_mutex klnc_mutex;
+/**
+   Kernel core lock.
+   Provides serialization across the nlx_kcore_tms list.
+ */
+static c2_mutex nlx_kcore_mutex;
 
-/** List of all transfer machines. Protected by klnc_mutex. */
-static struct c2_tl klnc_tms;
+/** List of all transfer machines. Protected by nlx_kcore_mutex. */
+static struct c2_tl nlx_kcore_tms;
 
 
 /**

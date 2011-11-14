@@ -133,7 +133,7 @@
    {
        rank=same;
        node [shape=plaintext];
-       c2_lnet_core_bev_cqueue;
+       nlx_core_bev_cqueue;
        node [shape=record];
        struct1 [label="<f0> consumer|<f1> producer"];
    }
@@ -146,7 +146,7 @@
        list1 [label="<f0> |<f1> y|<f2> x|<f3> x|<f4> x|<f5> x|<f6> |<f7> "];
        "element list" -> list1 [style=invis];
    }
-   c2_lnet_core_bev_cqueue -> "element list" [style=invis];
+   nlx_core_bev_cqueue -> "element list" [style=invis];
    struct1:f0 -> list1:f1;
    struct1:f1 -> list1:f6;
    }
@@ -189,24 +189,24 @@
    The @c consumer pointer refers to the element just consumed in the consumer's
    (the transport) address space.  The @c producer pointer refers to the element
    in the producer's (the core) address space.  The @c next link is actually
-   represented by a data structure, c2_lnet_core_bev_link.
+   represented by a data structure, nlx_core_bev_link.
    @code
-   struct c2_lnet_core_bev_link {
-            c2_lnet_core_opaque_ptr_t lcbevl_c_self;
+   struct nlx_core_bev_link {
+            nlx_core_opaque_ptr_t lcbevl_c_self;
                    // Self pointer in the transport address space.
-            c2_lnet_core_opaque_ptr_t lcbevl_p_self;
+            nlx_core_opaque_ptr_t lcbevl_p_self;
                    // Self pointer in the kernel address space.
-            c2_lnet_core_opaque_ptr_t lcbevl_c_next;
+            nlx_core_opaque_ptr_t lcbevl_c_next;
                    // Pointer to the next element in the consumer address space.
-            c2_lnet_core_opaque_ptr_t lcbevl_p_next;
+            nlx_core_opaque_ptr_t lcbevl_p_next;
                    // Pointer to the next element in the producer address space.
    };
    @endcode
 
    When the producer performs a bev_cqueue_put() call, internally, this call
-   uses c2_lnet_core_bev_link::lcbevl_p_next to refer to the next element.
+   uses nlx_core_bev_link::lcbevl_p_next to refer to the next element.
    Similarly, when the consumer performs a bev_cqueue_get() call, internall,
-   this call uses c2_lnet_core_bev_link::lcbevl_c_next.  Note that only
+   this call uses nlx_core_bev_link::lcbevl_c_next.  Note that only
    allocation, discussed below, modifies any of these pointers.  Steady-state
    operations on the queue only modify the @c consumer and @c producer pointers.
 
@@ -226,7 +226,7 @@
    {
        rank=same;
        node [shape=plaintext];
-       c2_lnet_core_bev_cqueue;
+       nlx_core_bev_cqueue;
        node [shape=record];
        struct1 [label="<f0> consumer|<f1> producer"];
    }
@@ -241,7 +241,7 @@
        node1 -> node2 [label=next];
        node2 -> node1 [label=next];
    }
-   c2_lnet_core_bev_cqueue -> "element list" [style=invis];
+   nlx_core_bev_cqueue -> "element list" [style=invis];
    struct1:f0 -> node1;
    struct1:f1 -> node2;
    }
@@ -283,7 +283,7 @@
    {
        rank=same;
        node [shape=plaintext];
-       c2_lnet_core_bev_cqueue;
+       nlx_core_bev_cqueue;
        node [shape=record];
        struct1 [label="<f0> consumer|<f1> producer"];
    }
@@ -300,7 +300,7 @@
        node1 -> node2 [style=dotted];
        node2 -> node1 [label=next];
    }
-   c2_lnet_core_bev_cqueue -> "element list" [style=invis];
+   nlx_core_bev_cqueue -> "element list" [style=invis];
    struct1:f0 -> node1 [style=dotted];
    struct1:f1 -> node2;
    }
@@ -309,14 +309,14 @@
    Once again, updating the @c next pointer is less straight forward than the
    diagram suggests.  In step 1, the node is allocated by the transport layer.
    Once allocated, initialisation includes the transport layer setting the
-   c2_lnet_core_bev_link::lcbevl_c_self pointer to point at the node and having
+   nlx_core_bev_link::lcbevl_c_self pointer to point at the node and having
    the core layer "bless" the node by setting the
-   c2_lnet_core_bev_link::lcbevl_p_self link.  After the self pointers are set,
+   nlx_core_bev_link::lcbevl_p_self link.  After the self pointers are set,
    the next pointers can be set by using these self pointers.  Since allocation
    occurs in the transport address space, the allocation logic uses the
-   c2_lnet_core_bev_link::lcbevl_c_next pointers of the existing nodes for
+   nlx_core_bev_link::lcbevl_c_next pointers of the existing nodes for
    navigation, and sets both the @c lcbevl_c_next and
-   c2_lnet_core_bev_link::lcbevl_p_next pointers.  The @c lcbevl_p_next pointer
+   nlx_core_bev_link::lcbevl_p_next pointers.  The @c lcbevl_p_next pointer
    is set by using the @c lcbevl_c_next->lcbevl_p_self value, which is treated
    opaquely by the transport layer.  So, steps 2 and 3 update both pairs of
    pointers.  Allocation has no affect on the @c producer pointer itself, only
@@ -371,7 +371,7 @@
    section, and explains briefly how the DLD meets the requirement.</i>
 
    - <b>i.c2.lib.atomic.interoperable-kernel-user-support</b> The
-   c2_lnet_core_bev_link data structure allows for tracking the pointers to the
+   nlx_core_bev_link data structure allows for tracking the pointers to the
    link in both address spaces.  The atomic operations allow the FIFO to be
    produced and consumed simultaneously in both spaces without synchronization
    or context switches.
@@ -407,7 +407,7 @@
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
-   The circular queue (the struct c2_lnet_core_bev_cqueue) consumes fixed size
+   The circular queue (the struct nlx_core_bev_cqueue) consumes fixed size
    memory, independent of the size of the elements contains the queue's data.
    The number of elements can grow over time, where the number of elements is
    proportional to the number of current and outstanding buffer operations.
@@ -443,7 +443,7 @@
    details of the data structure are required here, just the salient
    points.</i>
 
-   The circular queue is defined by the @a c2_lnet_core_bev_cqueue data
+   The circular queue is defined by the @a nlx_core_bev_cqueue data
    structure.
 
    @section cqueueDLD-fspec-sub Subroutines
@@ -452,7 +452,7 @@
    externally visible programming interfaces.</i>
 
    Subroutines are provided to:
-   - initialise and finalise the c2_lnet_core_bev_cqueue
+   - initialise and finalise the nlx_core_bev_cqueue
    - produce and consume slots in the queue
 
    @see @ref bevcqueue "Detailed Functional Specification"
@@ -463,7 +463,7 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
-   The c2_lnet_core_bev_cqueue provides atomic access to the producer and
+   The nlx_core_bev_cqueue provides atomic access to the producer and
    consumer elements in the circular queue.
 
    In addition, semaphores or other synchronization mechanisms can be used to
@@ -475,9 +475,9 @@
    The circular queue is initialised as follows:
 
    @code
-   struct c2_lnet_core_buffer_event *e1;
-   struct c2_lnet_core_buffer_event *e2;
-   struct c2_lnet_core_bev_cqueue myqueue;
+   struct nlx_core_buffer_event *e1;
+   struct nlx_core_buffer_event *e2;
+   struct nlx_core_bev_cqueue myqueue;
 
    C2_ALLOC_PTR(e1);
    C2_ALLOC_PTR(e2);
@@ -493,7 +493,7 @@
 
    @code
    size_t needed;
-   struct c2_lnet_core_buffer_event *el;
+   struct nlx_core_buffer_event *el;
 
    while (needed > bev_cqueue_size(&myqueue)) {
        C2_ALLOC_PTR(el);
@@ -508,12 +508,12 @@
 
    @code
    bool done;
-   struct c2_lnet_core_bev_link *ql;
-   struct c2_lnet_core_buffer_event *el;
+   struct nlx_core_bev_link *ql;
+   struct nlx_core_buffer_event *el;
 
    while (!done) {
        ql = bev_cqueue_pnext(&myqueue);
-       el = container_of(ql, struct c2_lnet_core_buffer_event, lcbe_tm_link);
+       el = container_of(ql, struct nlx_core_buffer_event, lcbe_tm_link);
        ... ; // initialize the element
        bev_cqueue_put(&myqueue);
        ... ; // notify blocked consumer that data is available
@@ -526,8 +526,8 @@
 
    @code
    bool done;
-   struct c2_lnet_core_bev_link *ql;
-   struct c2_lnet_core_buffer_event *el;
+   struct nlx_core_bev_link *ql;
+   struct nlx_core_buffer_event *el;
 
    while (!done) {
        ql = bev_cqueue_get(&myqueue);
@@ -536,7 +536,7 @@
            continue;
        }
 
-       el = container_of(ql, struct c2_lnet_core_buffer_event, lcbe_tm_link);
+       el = container_of(ql, struct nlx_core_buffer_event, lcbe_tm_link);
        ... ; // operate on the current element
    }
    @endcode
@@ -561,7 +561,7 @@
 /**
    Buffer event queue invariant.
  */
-static bool bev_cqueue_invariant(const struct c2_lnet_core_bev_cqueue *q);
+static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q);
 
 /**
    Initialise the buffer event queue.
@@ -571,9 +571,9 @@ static bool bev_cqueue_invariant(const struct c2_lnet_core_bev_cqueue *q);
    @pre q != NULL && ql1 != NULL && ql2 != NULL
    @post bev_cqueue_invariant(q)
 */
-static void bev_cqueue_init(struct c2_lnet_core_bev_cqueue *q,
-			    struct c2_lnet_core_bev_link *ql1,
-			    struct c2_lnet_core_bev_link *ql2);
+static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
+			    struct nlx_core_bev_link *ql1,
+			    struct nlx_core_bev_link *ql2);
 
 
 /**
@@ -581,12 +581,12 @@ static void bev_cqueue_init(struct c2_lnet_core_bev_cqueue *q,
    @param q the queue
    @param ql the element to add
  */
-static void bev_cqueue_add(struct c2_lnet_core_bev_cqueue *q,
-			   struct c2_lnet_core_bev_link *ql);
+static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
+			   struct nlx_core_bev_link *ql);
 /**
    Finalise the buffer event queue.
  */
-static void bev_cqueue_fini(struct c2_lnet_core_bev_cqueue *q);
+static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q);
 
 /**
    Test if the buffer event queue is empty.
@@ -594,12 +594,12 @@ static void bev_cqueue_fini(struct c2_lnet_core_bev_cqueue *q);
    do not provide a pointer to the consumer element from the producer's
    perspective.
  */
-static bool bev_cqueue_is_empty(const struct c2_lnet_core_bev_cqueue *q);
+static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q);
 
 /**
    Return total size of the event queue, including in-use and free elements.
  */
-static size_t bev_cqueue_size(const struct c2_lnet_core_bev_cqueue *q);
+static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q);
 
 /**
    Get the oldest element in the FIFO circular queue, advancing the divider.
@@ -607,8 +607,8 @@ static size_t bev_cqueue_size(const struct c2_lnet_core_bev_cqueue *q);
    @returns the link to the element in the consumer context,
    NULL when the queue is empty
  */
-static struct c2_lnet_core_bev_link *bev_cqueue_get(
-					    struct c2_lnet_core_bev_cqueue *q);
+static struct nlx_core_bev_link *bev_cqueue_get(
+					    struct nlx_core_bev_cqueue *q);
 
 /**
    Determine the next element in the queue that can be used by the producer.
@@ -616,8 +616,8 @@ static struct c2_lnet_core_bev_link *bev_cqueue_get(
    @returns a pointer to the next available element in the producer context
    @pre q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
  */
-static struct c2_lnet_core_bev_link* bev_cqueue_pnext(
-				      const struct c2_lnet_core_bev_cqueue *q);
+static struct nlx_core_bev_link* bev_cqueue_pnext(
+				      const struct nlx_core_bev_cqueue *q);
 
 /**
    Put (produce) an element so it can be consumed.  The caller must first
@@ -625,7 +625,7 @@ static struct c2_lnet_core_bev_link* bev_cqueue_pnext(
    @param q the queue
    @pre q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
  */
-static void bev_cqueue_put(struct c2_lnet_core_bev_cqueue *q);
+static void bev_cqueue_put(struct nlx_core_bev_cqueue *q);
 
 /**
    @}

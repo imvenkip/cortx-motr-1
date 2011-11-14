@@ -31,7 +31,7 @@
 
 /**
    Userspace domain private data.
-   This structure is pointed to by c2_lnet_core_domain::lcd_upvt.
+   This structure is pointed to by nlx_core_domain::lcd_upvt.
  */
 struct c2_ulnet_core_domain {
 	/** File descriptor to the kernel device */
@@ -40,7 +40,7 @@ struct c2_ulnet_core_domain {
 
 /**
    Userspace transfer machine private data.
-   This structure is pointed to by c2_lnet_core_transfer_mc::lctm_upvt.
+   This structure is pointed to by nlx_core_transfer_mc::lctm_upvt.
 */
 struct c2_ulnet_core_transfer_mc {
 
@@ -48,7 +48,7 @@ struct c2_ulnet_core_transfer_mc {
 
 /**
    Userspace buffer private data.
-   This structure is pointed to by c2_lnet_core_buffer::lcb_upvt.
+   This structure is pointed to by nlx_core_buffer::lcb_upvt.
 */
 struct c2_ulnet_core_buffer {
 

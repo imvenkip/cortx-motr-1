@@ -30,14 +30,14 @@
    @{
 */
 
-struct lnet_xo_domain;
-struct lnet_xo_transfer_mc;
-struct lnet_xo_buffer;
+struct nlx_xo_domain;
+struct nlx_xo_transfer_mc;
+struct nlx_xo_buffer;
 
 /**
    Private data pointed to by c2_net_domain::nd_xprt_private.
  */
-struct lnet_xo_domain {
+struct nlx_xo_domain {
 	/** Pointer back to the network dom */
 	struct c2_net_domain       *lxd_dom;
 
@@ -48,7 +48,7 @@ struct lnet_xo_domain {
 /**
    Private data pointed to by c2_net_transfer_mc::ntm_xprt_private.
  */
-struct lnet_xo_transfer_mc {
+struct nlx_xo_transfer_mc {
 	/** Pointer back to the network tm */
 	struct c2_net_transfer_mc       *lxtm_tm;
 
@@ -62,7 +62,7 @@ struct lnet_xo_transfer_mc {
 /**
    Private data pointed to by c2_net_buffer::nb_xprt_private.
  */
-struct lnet_xo_buffer {
+struct nlx_xo_buffer {
 	/** Pointer back to the network buffer */
 	struct c2_net_buffer       *lxb_nb;
 

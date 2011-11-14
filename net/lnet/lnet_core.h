@@ -50,9 +50,9 @@
    @section LNetCoreDLD-fspec-ds API Data Structures
    The API requires that the transport application maintain API defined shared
    data for various network related objects:
-   - c2_lnet_core_domain
-   - c2_lnet_core_transfer_mc
-   - c2_lnet_core_buffer
+   - nlx_core_domain
+   - nlx_core_transfer_mc
+   - nlx_core_buffer
 
    The sharing takes place between the transport layer and the core layer.
    This will span the kernel and user address space boundary when using the
@@ -70,14 +70,14 @@
    The API subroutines are categorized as follows:
 
    - Initialization, finalization, cancellation and query subroutines:
-     - c2_lnet_core_buf_deregister()
-     - c2_lnet_core_buf_register()
-     - c2_lnet_core_dom_fini()
-     - c2_lnet_core_dom_init()
-     - c2_lnet_core_get_max_buffer_segment_size()
-     - c2_lnet_core_get_max_buffer_size()
-     - c2_lnet_core_tm_start()
-     - c2_lnet_core_tm_stop()
+     - nlx_core_buf_deregister()
+     - nlx_core_buf_register()
+     - nlx_core_dom_fini()
+     - nlx_core_dom_init()
+     - nlx_core_get_max_buffer_segment_size()
+     - nlx_core_get_max_buffer_size()
+     - nlx_core_tm_start()
+     - nlx_core_tm_stop()
      .
      These interfaces have names roughly similar to the associated
      c2_net_xprt_ops method from which they are intended to be directly or
@@ -85,18 +85,18 @@
      xo_tm_init(), @c xo_tm_fini() and @c xo_tm_confine() calls.
 
    - End point address parsing subroutines:
-     - c2_lnet_core_ep_addr_decode()
-     - c2_lnet_core_ep_addr_encode()
+     - nlx_core_ep_addr_decode()
+     - nlx_core_ep_addr_encode()
 
    - Buffer operation related subroutines:
-     - c2_lnet_core_buf_active_recv()
-     - c2_lnet_core_buf_active_send()
-     - c2_lnet_core_buf_del()
-     - c2_lnet_core_buf_msg_recv()
-     - c2_lnet_core_buf_msg_send()
-     - c2_lnet_core_buf_passive_recv()
-     - c2_lnet_core_buf_passive_send()
-     - c2_lnet_core_buf_set_match_bits()
+     - nlx_core_buf_active_recv()
+     - nlx_core_buf_active_send()
+     - nlx_core_buf_del()
+     - nlx_core_buf_msg_recv()
+     - nlx_core_buf_msg_send()
+     - nlx_core_buf_passive_recv()
+     - nlx_core_buf_passive_send()
+     - nlx_core_buf_set_match_bits()
      .
      The buffer operation initiation calls are all invoked in the context of
      the c2_net_buffer_add() subroutine.  All operations are immediately
@@ -104,8 +104,8 @@
      returned asynchronously through buffer events.
 
    - Event processing calls:
-     - c2_lnet_core_buf_event_wait()
-     - c2_lnet_core_buf_event_get()
+     - nlx_core_buf_event_wait()
+     - nlx_core_buf_event_get()
      .
      The Core API offers no callback mechanism.  Instead, the transport must
      poll for events.  Typically this is done on one or more dedicated threads,
@@ -128,24 +128,24 @@
 #include "net/lnet.h"
 
 /* forward references */
-struct c2_lnet_core_bev_link;
-struct c2_lnet_core_bev_cqueue;
-struct c2_lnet_core_buffer;
-struct c2_lnet_core_buffer_event;
-struct c2_lnet_core_domain;
-struct c2_lnet_core_ep_addr;
-struct c2_lnet_core_transfer_mc;
+struct nlx_core_bev_link;
+struct nlx_core_bev_cqueue;
+struct nlx_core_buffer;
+struct nlx_core_buffer_event;
+struct nlx_core_domain;
+struct nlx_core_ep_addr;
+struct nlx_core_transfer_mc;
 
 /**
    Opaque type wide enough to represent an address in any address space.
  */
-typedef uint64_t c2_lnet_core_opaque_ptr_t;
-C2_BASSERT(sizeof(c2_lnet_core_opaque_ptr_t) == sizeof(void *));
+typedef uint64_t nlx_core_opaque_ptr_t;
+C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) == sizeof(void *));
 
 /**
    This structure defines the fields in an LNet transport end point address.
  */
-struct c2_lnet_core_ep_addr {
+struct nlx_core_ep_addr {
 	uint64_t lcepa_nid;   /**< The LNet Network Identifier */
 	uint32_t lcepa_pid;   /**< The LNet Process Identifier */
 	uint32_t lcepa_portal;/**< The LNet Portal Number */
@@ -170,70 +170,70 @@ enum {
    designed to be operated upon from either kernel or user space with a single
    producer and single consumer.
  */
-struct c2_lnet_core_bev_link {
+struct nlx_core_bev_link {
 	/**
 	   Self pointer in the consumer (transport) address space.
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevl_c_self;
+	nlx_core_opaque_ptr_t lcbevl_c_self;
 
 	/**
 	   Self pointer in the producer (kernel) address space.
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevl_p_self;
+	nlx_core_opaque_ptr_t lcbevl_p_self;
 
 	/**
 	   Pointer to the next element in the consumer address space.
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevl_c_next;
+	nlx_core_opaque_ptr_t lcbevl_c_next;
 
 	/**
 	   Pointer to the next element in the producer address space.
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevl_p_next;
+	nlx_core_opaque_ptr_t lcbevl_p_next;
 };
 
 /**
    Buffer event queue, operable from either from either kernel and user space
    with a single producer and single consumer.
  */
-struct c2_lnet_core_bev_cqueue {
+struct nlx_core_bev_cqueue {
 	/**
 	   Number of elements currently in the queue.
 	 */
-	size_t                   lcbevq_nr;
+	size_t                 lcbevq_nr;
 
 	/**
 	   The producer adds links to this anchor.
 	   The producer pointer value is in the address space of the
 	   producer (kernel).
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevq_producer;
+	nlx_core_opaque_ptr_t lcbevq_producer;
 
 	/**
 	   The consumer removes elements from this anchor.
 	   The consumer pointer value is in the address space of the
 	   consumer (transport).
 	 */
-	c2_lnet_core_opaque_ptr_t lcbevq_consumer;
+	nlx_core_opaque_ptr_t lcbevq_consumer;
 };
 
 /**
    This structure describes a buffer event. It is very similar to
    struct c2_net_buffer_event.
  */
-struct c2_lnet_core_buffer_event {
+struct nlx_core_buffer_event {
 	/** Linkage in one of the TM buffer event queues */
-	struct c2_lnet_core_bev_link lcbe_tm_link;
+	struct nlx_core_bev_link lcbe_tm_link;
 
 	/**
 	    This value is set by the kernel Core module's LNet event handler,
-	    and is copied from the c2_lnet_core_buffer::lcb_buffer_id
+	    and is copied from the nlx_core_buffer::lcb_buffer_id
 	    field. The value is a pointer to the core buffer data in the
 	    transport address space, and is provided to enable the transport
 	    to navigate back to its outer buffer private data and from there
 	    back to the c2_net_buffer.
 	 */
-	c2_lnet_core_opaque_ptr_t    lcbe_core_buf;
+	nlx_core_opaque_ptr_t    lcbe_core_buf;
 
 	/** Event timestamp */
 	c2_time_t                    lcbe_time;
@@ -248,7 +248,7 @@ struct c2_lnet_core_buffer_event {
 	c2_bcount_t                  lcbe_offset;
 
 	/** Address of the other end point */
-	struct c2_lnet_core_ep_addr  lcbe_sender;
+	struct nlx_core_ep_addr  lcbe_sender;
 
 	/** True if the buffer is no longer in use */
         bool                         lcbe_unlinked;
@@ -257,7 +257,7 @@ struct c2_lnet_core_buffer_event {
 /**
    Core domain data.  The transport layer should embed this in its private data.
 */
-struct c2_lnet_core_domain {
+struct nlx_core_domain {
 	/* place holder */
 };
 
@@ -266,7 +266,7 @@ struct c2_lnet_core_domain {
    Core transfer machine data.  The transport layer should embed this in its
    private data.
 */
-struct c2_lnet_core_transfer_mc {
+struct nlx_core_transfer_mc {
 	/** The transfer machine address */
 	struct c2_lnet_ep_addr  lctm_addr;
 
@@ -283,25 +283,25 @@ struct c2_lnet_core_transfer_mc {
 	   The transport is responsible for ensuring that there are sufficient
 	   free entries to return the results of all pending operations.
 	 */
-	struct c2_lnet_core_bev_cqueue lctm_free_bevq;
+	struct nlx_core_bev_cqueue lctm_free_bevq;
 
 	/**
 	   Buffer completion event queue.  The queue is shared between the
 	   transport address space and the kernel.
 	 */
-	struct c2_lnet_core_bev_cqueue lctm_bevq;
+	struct nlx_core_bev_cqueue lctm_bevq;
 };
 
 /**
    Core buffer data.  The transport layer should embed this in its private data.
 */
-struct c2_lnet_core_buffer {
+struct nlx_core_buffer {
 	/**
 	   The address of the c2_net_buffer structure in the transport address
-	   space. The value is set by the c2_lnet_core_buffer_register()
+	   space. The value is set by the nlx_core_buffer_register()
 	   subroutine.
 	 */
-	c2_lnet_core_opaque_ptr_t lcb_buffer_id;
+	nlx_core_opaque_ptr_t lcb_buffer_id;
 
 	/**
 	   The buffer queue type - copied from c2_net_buffer::nb_qtype
@@ -311,7 +311,7 @@ struct c2_lnet_core_buffer {
 
 	/**
 	   The match bits for a passive bulk buffer, including the TMID field.
-	   They should be set using the c2_lnet_core_tm_match_bits_set()
+	   They should be set using the nlx_core_tm_match_bits_set()
 	   subroutine.
 
 	   The file is also used in an active buffer to describe the match
@@ -327,7 +327,7 @@ struct c2_lnet_core_buffer {
 	   field for buffers on the C2_NET_QT_ACTIVE_BULK_SEND or
 	   C2_NET_QT_ACTIVE_BULK_RECV queues.
 	 */
-	struct c2_lnet_core_ep_addr lcb_addr;
+	struct nlx_core_ep_addr lcb_addr;
 
 	void                 *lcb_upvt; /**< Core user space private */
 	void                 *lcb_kpvt; /**< Core kernel space private */
@@ -339,31 +339,29 @@ struct c2_lnet_core_buffer {
    @param dom The network domain pointer.
    @param lcdom The private data pointer for the domain to be initialized.
  */
-static int c2_lnet_core_dom_init(struct c2_net_domain *dom,
-				 struct c2_lnet_core_domain *lcdom);
+static int nlx_core_dom_init(struct c2_net_domain *dom,
+			     struct nlx_core_domain *lcdom);
 
 /**
    Release LNet transport resources related to the domain.
  */
-static int c2_lnet_core_dom_fini(struct c2_lnet_core_domain *lcdom);
+static int nlx_core_dom_fini(struct nlx_core_domain *lcdom);
 
 /**
    Get the maximum buffer size (counting all segments).
  */
-static c2_bcount_t c2_lnet_core_get_max_buffer_size(struct c2_lnet_core_domain
-						    *lcdom);
+static c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom);
 
 /**
    Get the maximum size of a buffer segment.
  */
-static c2_bcount_t c2_lnet_core_get_max_buffer_segment_size(
-                                             struct c2_lnet_core_domain *lcdom);
+static c2_bcount_t nlx_core_get_max_buffer_segment_size(struct
+							nlx_core_domain *lcdom);
 
 /**
    Get the maximum number of buffer segments.
  */
-static int32_t c2_lnet_core_get_max_buffer_segments(
-                                             struct c2_lnet_core_domain *lcdom);
+static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
 
 /**
    Register a network buffer.  In user space this results in the buffer memory
@@ -374,17 +372,17 @@ static int32_t c2_lnet_core_get_max_buffer_segments(
    @param lcbuf The core private data pointer for the buffer.
    @pre buf->nb_dom != NULL
  */
-static int c2_lnet_core_buf_register(struct c2_lnet_core_domain *lcdom,
-				     struct c2_net_buffer *buf,
-				     struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
+				 struct c2_net_buffer *buf,
+				 struct nlx_core_buffer *lcbuf);
 
 /**
    Deregister the buffer.
    @param lcdom The domain private data to be initialized.
    @param lcbuf The buffer private data.
  */
-static int c2_lnet_core_buf_deregister(struct c2_lnet_core_domain *lcdom,
-				       struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
+				   struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for message reception. Multiple messages may be received
@@ -392,8 +390,8 @@ static int c2_lnet_core_buf_deregister(struct c2_lnet_core_domain *lcdom,
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
  */
-static int c2_lnet_core_buf_msg_recv(struct c2_lnet_core_transfer_mc *lctm,
-				     struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
+				 struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for message transmission.
@@ -401,8 +399,8 @@ static int c2_lnet_core_buf_msg_recv(struct c2_lnet_core_transfer_mc *lctm,
    @param lcbuf Buffer private data.
    @pre lcbuf->lcb_addr is valid
  */
-static int c2_lnet_core_buf_msg_send(struct c2_lnet_core_transfer_mc *lctm,
-				     struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
+				 struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for active bulk receive.
@@ -416,8 +414,8 @@ static int c2_lnet_core_buf_msg_send(struct c2_lnet_core_transfer_mc *lctm,
    @pre lcbuf->lcb_match_bits != 0
    @pre lcbuf->lcb_addr is valid
  */
-static int c2_lnet_core_buf_active_recv(struct c2_lnet_core_transfer_mc *lctm,
-					struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
+				    struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for active bulk send.
@@ -431,8 +429,8 @@ static int c2_lnet_core_buf_active_recv(struct c2_lnet_core_transfer_mc *lctm,
    @pre lcbuf->lcb_match_bits != 0
    @pre lcbuf->lcb_addr is valid
  */
-static int c2_lnet_core_buf_active_send(struct c2_lnet_core_transfer_mc *lctm,
-					struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
+				    struct nlx_core_buffer *lcbuf);
 
 /**
    This subroutine generates new match bits for the given buffer's
@@ -448,14 +446,13 @@ static int c2_lnet_core_buf_active_send(struct c2_lnet_core_transfer_mc *lctm,
    @param lcbuf The buffer private data.
    @pre The buffer is queued on the specified transfer machine.
  */
-static void c2_lnet_core_buf_set_match_bits(struct c2_lnet_core_transfer_mc
-					    *lctm,
-					    struct c2_lnet_core_buffer *lcbuf);
+static void nlx_core_buf_set_match_bits(struct nlx_core_transfer_mc *lctm,
+					struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for passive bulk receive.
    The match bits for the passive buffer should be set in the buffer with the
-   c2_lnet_core_buf_set_match_bits() subroutine before this call.
+   nlx_core_buf_set_match_bits() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
    @param lctm  Transfer machine private data.
@@ -463,13 +460,13 @@ static void c2_lnet_core_buf_set_match_bits(struct c2_lnet_core_transfer_mc
    @pre The buffer is queued on the specified transfer machine.
    @pre lcbuf->lcb_match_bits != 0
  */
-static int c2_lnet_core_buf_passive_recv(struct c2_lnet_core_transfer_mc *lctm,
-					 struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
+				     struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue buffer for passive bulk send.
    The match bits for the passive buffer should be set in the buffer with the
-   c2_lnet_core_buf_set_match_bits() subroutine before this call.
+   nlx_core_buf_set_match_bits() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
    @param lctm  Transfer machine private data.
@@ -477,8 +474,8 @@ static int c2_lnet_core_buf_passive_recv(struct c2_lnet_core_transfer_mc *lctm,
    @pre The buffer is queued on the specified transfer machine.
    @pre lcbuf->lcb_match_bits != 0
  */
-static int c2_lnet_core_buf_passive_send(struct c2_lnet_core_transfer_mc *lctm,
-					 struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
+				     struct nlx_core_buffer *lcbuf);
 
 /**
    Cancel a buffer operation if possible.
@@ -486,8 +483,8 @@ static int c2_lnet_core_buf_passive_send(struct c2_lnet_core_transfer_mc *lctm,
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
  */
-static int c2_lnet_core_buf_del(struct c2_lnet_core_transfer_mc *lctm,
-				struct c2_lnet_core_buffer *lcbuf);
+static int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
+			    struct nlx_core_buffer *lcbuf);
 
 /**
    Subroutine to wait for buffer events, or the timeout.
@@ -496,8 +493,8 @@ static int c2_lnet_core_buf_del(struct c2_lnet_core_transfer_mc *lctm,
    @retval 0 Events present.
    @retval -ETIMEDOUT Timed out.
  */
-static int c2_lnet_core_buf_event_wait(struct c2_lnet_core_transfer_mc *lctm,
-				       c2_time_t timeout);
+static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
+				   c2_time_t timeout);
 
 /**
    Fetch the next event from the circular buffer event queue.  This subroutine
@@ -508,26 +505,26 @@ static int c2_lnet_core_buf_event_wait(struct c2_lnet_core_transfer_mc *lctm,
    @retval true Event returned.
    @retval false No events on the queue.
  */
-static bool c2_lnet_core_buf_event_get(struct c2_lnet_core_transfer_mc *lctm,
-				       struct c2_lnet_buffer_event *lcbe);
+static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
+				   struct c2_lnet_buffer_event *lcbe);
 
 /**
    Subroutine to parse an end point address string and convert to internal form.
    A "*" value for the transfer machine identifier results in a value of
    C2_NET_LNET_TMID_INVALID being set.
  */
-static int c2_lnet_core_ep_addr_decode(struct c2_lnet_core_domain *lcdom,
-				       const char *ep_addr,
-				       struct c2_lnet_core_ep_addr *lcepa);
+static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
+				   const char *ep_addr,
+				   struct nlx_core_ep_addr *lcepa);
 
 /**
    Subroutine to construct the external address string from its internal form.
    A value of C2_NET_LNET_TMID_INVALID for the lcepa_tmid field results in
    a "*" being set for that field.
  */
-static void c2_lnet_core_ep_addr_encode(struct c2_lnet_core_domain *lcdom,
-					struct c2_lnet_core_ep_addr *lcepa,
-					char buf[C2_NET_LNET_XEP_ADDR_LEN]);
+static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
+				    struct nlx_core_ep_addr *lcepa,
+				    char buf[C2_NET_LNET_XEP_ADDR_LEN]);
 
 /**
    Subroutine to start a transfer machine. Internally this results in
@@ -540,9 +537,9 @@ static void c2_lnet_core_ep_addr_encode(struct c2_lnet_core_domain *lcdom,
    in this structure itself.
    @note There is no equivalent of the xo_tm_init() subroutine.
  */
-static int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
-				 struct c2_lnet_core_transfer_mc *lctm,
-				 struct c2_lnet_core_ep_addr *lcepa);
+static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
+			     struct nlx_core_transfer_mc *lctm,
+			     struct nlx_core_ep_addr *lcepa);
 
 /**
    Stop the transfer machine and release associated resources.  All operations
@@ -550,7 +547,7 @@ static int c2_lnet_core_tm_start(struct c2_net_transfer_mc *tm,
    @param lctm The transfer machine private data.
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
-static int c2_lnet_core_tm_stop(struct c2_lnet_core_transfer_mc *lctm);
+static int nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm);
 
 /**
    @}
