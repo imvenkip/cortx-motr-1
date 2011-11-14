@@ -103,8 +103,9 @@ static struct c2_fop_type *ioservice_fops[] = {
    This document describes the working of client side of io bulk transfer.
    This functionality is used only for io path.
    IO bulk client constitues the client side of bulk IO carried out between
-   Colibri client and data server. Colibri network layer incorporates a
-   bulk transport mechanism to transfer user buffers in zero-copy fashion.
+   Colibri client file system and data server. Colibri network layer
+   incorporates a bulk transport mechanism to transfer user buffers in
+   zero-copy fashion.
    The generic io fop contains a network buffer descriptor which refers to a
    network buffer.
    The bulk client creates IO fops and attaches the kernel pages to net
@@ -123,7 +124,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   - c2t1fs Colibri client program. It works as a kernel module.
+   - c2t1fs Colibri client file system. It works as a kernel module.
    - Bulk transport Event based, asynchronous message passing functionality
    of Colibri network layer.
    - io fop A generic io fop that is used for read and write.
@@ -153,8 +154,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   - r.misc.net_rpc_convert Bulk Client needs Colibri client to be using
-   new network layer apis which include c2_net_domain and c2_net_buffer.
+   - r.misc.net_rpc_convert Bulk Client needs Colibri client file system to be    using new network layer apis which include c2_net_domain and c2_net_buffer.
    - r.fop.referring_another_fop With introduction of a net buffer
    descriptor in io fop, a mechanism needs to be introduced so that fop
    definitions from one component can refer to definitions from another
