@@ -186,10 +186,10 @@ C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) == sizeof(void *));
    This structure defines the fields in an LNet transport end point address.
  */
 struct nlx_core_ep_addr {
-	uint64_t lcepa_nid;   /**< The LNet Network Identifier */
-	uint32_t lcepa_pid;   /**< The LNet Process Identifier */
-	uint32_t lcepa_portal;/**< The LNet Portal Number */
-	uint32_t lcepa_tmid;  /**< The Transfer Machine Identifier */
+	uint64_t cepa_nid;   /**< The LNet Network Identifier */
+	uint32_t cepa_pid;   /**< The LNet Process Identifier */
+	uint32_t cepa_portal;/**< The LNet Portal Number */
+	uint32_t cepa_tmid;  /**< The Transfer Machine Identifier */
 };
 
 enum {
@@ -214,22 +214,22 @@ struct nlx_core_bev_link {
 	/**
 	   Self pointer in the consumer (transport) address space.
 	 */
-	nlx_core_opaque_ptr_t lcbevl_c_self;
+	nlx_core_opaque_ptr_t cbl_c_self;
 
 	/**
 	   Self pointer in the producer (kernel) address space.
 	 */
-	nlx_core_opaque_ptr_t lcbevl_p_self;
+	nlx_core_opaque_ptr_t cbl_p_self;
 
 	/**
 	   Pointer to the next element in the consumer address space.
 	 */
-	nlx_core_opaque_ptr_t lcbevl_c_next;
+	nlx_core_opaque_ptr_t cbl_c_next;
 
 	/**
 	   Pointer to the next element in the producer address space.
 	 */
-	nlx_core_opaque_ptr_t lcbevl_p_next;
+	nlx_core_opaque_ptr_t cbl_p_next;
 };
 
 /**
@@ -240,21 +240,21 @@ struct nlx_core_bev_cqueue {
 	/**
 	   Number of elements currently in the queue.
 	 */
-	size_t                 lcbevq_nr;
+	size_t                 cbcq_nr;
 
 	/**
 	   The producer adds links to this anchor.
 	   The producer pointer value is in the address space of the
 	   producer (kernel).
 	 */
-	nlx_core_opaque_ptr_t lcbevq_producer;
+	nlx_core_opaque_ptr_t cbcq_producer;
 
 	/**
 	   The consumer removes elements from this anchor.
 	   The consumer pointer value is in the address space of the
 	   consumer (transport).
 	 */
-	nlx_core_opaque_ptr_t lcbevq_consumer;
+	nlx_core_opaque_ptr_t cbcq_consumer;
 };
 
 /**
@@ -263,43 +263,45 @@ struct nlx_core_bev_cqueue {
  */
 struct nlx_core_buffer_event {
 	/** Linkage in one of the TM buffer event queues */
-	struct nlx_core_bev_link lcbe_tm_link;
+	struct nlx_core_bev_link     cbe_tm_link;
 
 	/**
 	    This value is set by the kernel Core module's LNet event handler,
-	    and is copied from the nlx_core_buffer::lcb_buffer_id
+	    and is copied from the nlx_core_buffer::cb_buffer_id
 	    field. The value is a pointer to the core buffer data in the
 	    transport address space, and is provided to enable the transport
 	    to navigate back to its outer buffer private data and from there
 	    back to the c2_net_buffer.
 	 */
-	nlx_core_opaque_ptr_t    lcbe_core_buf;
+	nlx_core_opaque_ptr_t        cbe_core_buf;
 
 	/** Event timestamp */
-	c2_time_t                    lcbe_time;
+	c2_time_t                    cbe_time;
 
 	/** Status code (-errno). 0 is success */
-	int32_t                      lcbe_status;
+	int32_t                      cbe_status;
 
 	/** Length of data in the buffer */
-	c2_bcount_t                  lcbe_length;
+	c2_bcount_t                  cbe_length;
 
 	/** Offset of start of the data in the buffer. (Receive only) */
-	c2_bcount_t                  lcbe_offset;
+	c2_bcount_t                  cbe_offset;
 
 	/** Address of the other end point */
-	struct nlx_core_ep_addr  lcbe_sender;
+	struct nlx_core_ep_addr  cbe_sender;
 
 	/** True if the buffer is no longer in use */
-        bool                         lcbe_unlinked;
+        bool                         cbe_unlinked;
 };
 
 /**
    Core domain data.  The transport layer should embed this in its private data.
 */
 struct nlx_core_domain {
-	/* place holder */
-	int dummy;
+
+	void *cd_upvt; /**< Core user space private */
+	void *cd_kpvt; /**< Core kernel space private */
+
 };
 
 
@@ -309,13 +311,10 @@ struct nlx_core_domain {
 */
 struct nlx_core_transfer_mc {
 	/** The transfer machine address */
-	struct c2_lnet_ep_addr  lctm_addr;
+	struct c2_lnet_ep_addr     ctm_addr;
 
 	/** Boolean indicating if the transport is running in user space. */
-	bool                    lctm_user_space_xo;
-
-	void                   *lctm_upvt; /**< Core user space private */
-	void                   *lctm_kpvt; /**< Core kernel space private */
+	bool                       ctm_user_space_xo;
 
 	/**
 	   List of available buffer event structures.  The queue is shared
@@ -324,13 +323,16 @@ struct nlx_core_transfer_mc {
 	   The transport is responsible for ensuring that there are sufficient
 	   free entries to return the results of all pending operations.
 	 */
-	struct nlx_core_bev_cqueue lctm_free_bevq;
+	struct nlx_core_bev_cqueue ctm_free_bevq;
 
 	/**
 	   Buffer completion event queue.  The queue is shared between the
 	   transport address space and the kernel.
 	 */
-	struct nlx_core_bev_cqueue lctm_bevq;
+	struct nlx_core_bev_cqueue ctm_bevq;
+
+	void                      *ctm_upvt; /**< Core user space private */
+	void                      *ctm_kpvt; /**< Core kernel space private */
 };
 
 /**
@@ -342,13 +344,13 @@ struct nlx_core_buffer {
 	   space. The value is set by the nlx_core_buffer_register()
 	   subroutine.
 	 */
-	nlx_core_opaque_ptr_t lcb_buffer_id;
+	nlx_core_opaque_ptr_t   cb_buffer_id;
 
 	/**
 	   The buffer queue type - copied from c2_net_buffer::nb_qtype
 	   when the buffer operation is initiated.
 	 */
-        enum c2_net_queue_type    lcb_qtype;
+        enum c2_net_queue_type  cb_qtype;
 
 	/**
 	   The match bits for a passive bulk buffer, including the TMID field.
@@ -358,7 +360,7 @@ struct nlx_core_buffer {
 	   The file is also used in an active buffer to describe the match
 	   bits of the remote passive buffer.
 	 */
-	uint64_t              lcb_match_bits;
+	uint64_t                cb_match_bits;
 
 	/**
 	   The address of the destination transfer machine is set in this field
@@ -368,10 +370,10 @@ struct nlx_core_buffer {
 	   field for buffers on the C2_NET_QT_ACTIVE_BULK_SEND or
 	   C2_NET_QT_ACTIVE_BULK_RECV queues.
 	 */
-	struct nlx_core_ep_addr lcb_addr;
+	struct nlx_core_ep_addr cb_addr;
 
-	void                 *lcb_upvt; /**< Core user space private */
-	void                 *lcb_kpvt; /**< Core kernel space private */
+	void                   *cb_upvt; /**< Core user space private */
+	void                   *cb_kpvt; /**< Core kernel space private */
 };
 
 
@@ -448,16 +450,16 @@ static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
-   @pre lcbuf->lcb_addr is valid
+   @pre lcbuf->cb_addr is valid
  */
 static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for active bulk receive.
-   The lcb_match_bits field should be set to the value of the match bits of the
+   The cb_match_bits field should be set to the value of the match bits of the
    remote passive buffer.
-   The lcb_addr field should be set with the end point address of the
+   The cb_addr field should be set with the end point address of the
    transfer machine with the passive buffer.
 
    The invoker should ensure that the subroutine is not invoked concurrently
@@ -467,17 +469,17 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
-   @pre lcbuf->lcb_match_bits != 0
-   @pre lcbuf->lcb_addr is valid
+   @pre lcbuf->cb_match_bits != 0
+   @pre lcbuf->cb_addr is valid
  */
 static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueue a buffer for active bulk send.
-   The lcb_match_bits field should be set to the value of the match bits of the
+   The cb_match_bits field should be set to the value of the match bits of the
    remote passive buffer.
-   The lcb_addr field should be set with the end point address of the
+   The cb_addr field should be set with the end point address of the
    transfer machine with the passive buffer.
 
    The invoker should ensure that the subroutine is not invoked concurrently
@@ -487,15 +489,15 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
-   @pre lcbuf->lcb_match_bits != 0
-   @pre lcbuf->lcb_addr is valid
+   @pre lcbuf->cb_match_bits != 0
+   @pre lcbuf->cb_addr is valid
  */
 static int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer *lcbuf);
 
 /**
    This subroutine generates new match bits for the given buffer's
-   lcb_match_bits field.
+   cb_match_bits field.
 
    It is intended to be used by the transport prior to invoking passive buffer
    operations.  The reason it is not combined with the passive operation
@@ -524,7 +526,7 @@ static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
-   @pre lcbuf->lcb_match_bits != 0
+   @pre lcbuf->cb_match_bits != 0
  */
 static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
@@ -543,7 +545,7 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
-   @pre lcbuf->lcb_match_bits != 0
+   @pre lcbuf->cb_match_bits != 0
  */
 static int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
@@ -589,15 +591,15 @@ static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
  */
 static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 				   const char *ep_addr,
-				   struct nlx_core_ep_addr *lcepa);
+				   struct nlx_core_ep_addr *cepa);
 
 /**
    Subroutine to construct the external address string from its internal form.
-   A value of C2_NET_LNET_TMID_INVALID for the lcepa_tmid field results in
+   A value of C2_NET_LNET_TMID_INVALID for the cepa_tmid field results in
    a "*" being set for that field.
  */
 static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
-				    struct nlx_core_ep_addr *lcepa,
+				    struct nlx_core_ep_addr *cepa,
 				    char buf[C2_NET_LNET_XEP_ADDR_LEN]);
 
 /**
@@ -605,7 +607,7 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
    the creation of the LNet EQ associated with the transfer machine.
    @param tm The transfer machine pointer.
    @param lctm The transfer machine private data to be initialized.
-   @param lcepa The end point address of this transfer machine. If the
+   @param cepa The end point address of this transfer machine. If the
    lcpea_tmid field value is C2_NET_LNET_TMID_INVALID then a transfer machine
    identifier is dynamically assigned to the transfer machine and returned
    in this structure itself.
@@ -613,7 +615,7 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
  */
 static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 			     struct nlx_core_transfer_mc *lctm,
-			     struct nlx_core_ep_addr *lcepa);
+			     struct nlx_core_ep_addr *cepa);
 
 /**
    Stop the transfer machine and release associated resources.  All operations

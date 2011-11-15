@@ -23,6 +23,7 @@
 #define __COLIBRI_LNET_XO_H__
 
 #include "net/lnet/lnet_core.h"
+#include "lib/thread.h"
 
 /**
    @defgroup LNetXODFS LNet Transport XO Interface
@@ -39,10 +40,10 @@ struct nlx_xo_buffer;
  */
 struct nlx_xo_domain {
 	/** Pointer back to the network dom */
-	struct c2_net_domain       *lxd_dom;
+	struct c2_net_domain   *xd_dom;
 
 	/** LNet Core transfer domain data (shared memory) */
-	struct c2_lnet_core_domain  lxd_core;
+	struct nlx_core_domain  xd_core;
 };
 
 /**
@@ -50,13 +51,16 @@ struct nlx_xo_domain {
  */
 struct nlx_xo_transfer_mc {
 	/** Pointer back to the network tm */
-	struct c2_net_transfer_mc       *lxtm_tm;
+	struct c2_net_transfer_mc   *xtm_tm;
 
 	/** Transfer machine thread processor affinity */
-	struct c2_bitmap                 lxtm_processors;
+	struct c2_bitmap             xtm_processors;
+
+	/** Event thread */
+	struct c2_thread             xtm_ev_thread;
 
 	/** LNet Core transfer machine data (shared memory) */
-	struct c2_lnet_core_transfer_mc  lxtm_core;
+	struct nlx_core_transfer_mc  xtm_core;
 };
 
 /**
@@ -64,10 +68,10 @@ struct nlx_xo_transfer_mc {
  */
 struct nlx_xo_buffer {
 	/** Pointer back to the network buffer */
-	struct c2_net_buffer       *lxb_nb;
+	struct c2_net_buffer   *xb_nb;
 
 	/** LNet Core buffer data (shared memory) */
-	struct c2_lnet_core_buffer  lxb_core;
+	struct nlx_core_buffer  xb_core;
 };
 
 

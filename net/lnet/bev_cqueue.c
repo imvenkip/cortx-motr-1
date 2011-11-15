@@ -205,13 +205,13 @@
    A queue link element is represented by the nlx_core_bev_link data structure:
    @code
    struct nlx_core_bev_link {
-            nlx_core_opaque_ptr_t lcbevl_c_self;
+            nlx_core_opaque_ptr_t cbl_c_self;
                    // Self pointer in the transport address space.
-            nlx_core_opaque_ptr_t lcbevl_p_self;
+            nlx_core_opaque_ptr_t cbl_p_self;
                    // Self pointer in the kernel address space.
-            nlx_core_opaque_ptr_t lcbevl_c_next;
+            nlx_core_opaque_ptr_t cbl_c_next;
                    // Pointer to the next element in the consumer address space.
-            nlx_core_opaque_ptr_t lcbevl_p_next;
+            nlx_core_opaque_ptr_t cbl_p_next;
                    // Pointer to the next element in the producer address space.
    };
    @endcode
@@ -222,9 +222,9 @@
    pointer type is derived from ::c2_atomic64.
 
    When the producer performs a bev_cqueue_put() call, internally, this call
-   uses nlx_core_bev_link::lcbevl_p_next to refer to the next element.
+   uses nlx_core_bev_link::cbl_p_next to refer to the next element.
    Similarly, when the consumer performs a bev_cqueue_get() call, internally,
-   this call uses nlx_core_bev_link::lcbevl_c_next.  Note that only
+   this call uses nlx_core_bev_link::cbl_c_next.  Note that only
    allocation, discussed below, modifies any of these pointers.  Steady-state
    operations on the queue only modify the @c consumer and @c producer pointers.
 
@@ -240,7 +240,7 @@
    performed in producer space is actually implemented as
 
    @code
-   	q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
+   	q->cbcq_producer->cbl_c_self != q->cbcq_consumer
    @endcode
 
    Note that this check is safe in producer space because only the producer
@@ -248,7 +248,7 @@
    consumer space would be:
 
    @code
-   	q->consumer->lcbevl_p_self != q->lcbevq_producer
+   	q->consumer->cbl_p_self != q->cbcq_producer
    @endcode
 
    @subsection cqueueDLD-lspec-qalloc Circular Queue Allocation
@@ -352,15 +352,15 @@
    Once again, updating the @c next pointer is less straight forward than the
    diagram suggests.  In step 1, the node is allocated by the transport layer.
    Once allocated, initialisation includes the transport layer setting the
-   nlx_core_bev_link::lcbevl_c_self pointer to point at the node and having
+   nlx_core_bev_link::cbl_c_self pointer to point at the node and having
    the kernel core layer "bless" the node by setting the
-   nlx_core_bev_link::lcbevl_p_self link.  After the self pointers are set,
+   nlx_core_bev_link::cbl_p_self link.  After the self pointers are set,
    the next pointers can be set by using these self pointers.  Since allocation
    occurs in the transport address space, the allocation logic uses the
-   nlx_core_bev_link::lcbevl_c_next pointers of the existing nodes for
-   navigation, and sets both the @c lcbevl_c_next and
-   nlx_core_bev_link::lcbevl_p_next pointers.  The @c lcbevl_p_next pointer
-   is set by using the @c lcbevl_c_next->lcbevl_p_self value, which is treated
+   nlx_core_bev_link::cbl_c_next pointers of the existing nodes for
+   navigation, and sets both the @c cbl_c_next and
+   nlx_core_bev_link::cbl_p_next pointers.  The @c cbl_p_next pointer
+   is set by using the @c cbl_c_next->cbl_p_self value, which is treated
    opaquely by the transport layer.  So, steps 2 and 3 update both pairs of
    pointers.  Allocation has no affect on the @c producer pointer itself, only
    the @c consumer pointer.
@@ -554,7 +554,7 @@
 
    C2_ALLOC_PTR(e1);
    C2_ALLOC_PTR(e2);
-   bev_cqueue_init(&myqueue, &e1->lcbe_tm_link, &e2->lcbe_tm_link);
+   bev_cqueue_init(&myqueue, &e1->cbe_tm_link, &e2->cbe_tm_link);
    @endcode
 
    @subsection cq-allocator Allocator
@@ -586,7 +586,7 @@
 
    while (!done) {
        ql = bev_cqueue_pnext(&myqueue);
-       el = container_of(ql, struct nlx_core_buffer_event, lcbe_tm_link);
+       el = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
        ... ; // initialize the element
        bev_cqueue_put(&myqueue);
        ... ; // notify blocked consumer that data is available
@@ -609,7 +609,7 @@
            continue;
        }
 
-       el = container_of(ql, struct nlx_core_buffer_event, lcbe_tm_link);
+       el = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
        ... ; // operate on the current element
    }
    @endcode
@@ -687,7 +687,7 @@ static struct nlx_core_bev_link *bev_cqueue_get(
    Determine the next element in the queue that can be used by the producer.
    @param q the queue
    @returns a pointer to the next available element in the producer context
-   @pre q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
+   @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
  */
 static struct nlx_core_bev_link* bev_cqueue_pnext(
 				      const struct nlx_core_bev_cqueue *q);
@@ -696,7 +696,7 @@ static struct nlx_core_bev_link* bev_cqueue_pnext(
    Put (produce) an element so it can be consumed.  The caller must first
    call bev_cqueue_pnext() to ensure such an element exists.
    @param q the queue
-   @pre q->lcbevq_producer->lcbevl_c_self != q->lcbevq_consumer
+   @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
  */
 static void bev_cqueue_put(struct nlx_core_bev_cqueue *q);
 

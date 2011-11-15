@@ -273,17 +273,17 @@
    The following internal format is used:
    @code
    struct nlx_xo_buf_desc {
-        uint64_t                 nlxbd_match_bits;
-        struct nlx_core_ep_addr  nlxbd_active_ep;
-        struct nlx_core_ep_addr  nlxbd_passive_ep;
-        enum c2_net_queue_type   nlxbd_qtype;
-        c2_bcount_t              nlxbd_total;
+        uint64_t                 xbd_match_bits;
+        struct nlx_core_ep_addr  xbd_active_ep;
+        struct nlx_core_ep_addr  xbd_passive_ep;
+        enum c2_net_queue_type   xbd_qtype;
+        c2_bcount_t              xbd_total;
    };
    @endcode
 
    All the fields are integer fields and the structure is of fixed length.
    It is encoded into its opaque over-the-wire format with dedicated encoding
-   routines that do not use the XDR support library. @todo Use XDR in Lnet NBD?
+   routines built over the Colibri XDR support library.
 
 
    @subsection LNetDLD-lspec-buf-op Buffer operations

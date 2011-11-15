@@ -26,6 +26,8 @@
    @defgroup ULNetCore LNet Transport Core Userspace Private Interface
    @ingroup LNetCore
 
+   @todo This section will be filled in by the (net, lnet-user, DLD) task.
+
    @{
 */
 
@@ -33,25 +35,25 @@
    Userspace domain private data.
    This structure is pointed to by nlx_core_domain::lcd_upvt.
  */
-struct c2_ulnet_core_domain {
+struct nlx_ucore_domain {
 	/** File descriptor to the kernel device */
-	int                   ulcd_fd;
+	int      ucd_fd;
 };
 
 /**
    Userspace transfer machine private data.
    This structure is pointed to by nlx_core_transfer_mc::lctm_upvt.
 */
-struct c2_ulnet_core_transfer_mc {
-
+struct nlx_ucore_transfer_mc {
+	int   utm_dummy; /* placeholder */
 };
 
 /**
    Userspace buffer private data.
    This structure is pointed to by nlx_core_buffer::lcb_upvt.
 */
-struct c2_ulnet_core_buffer {
-
+struct nlx_ucore_buffer {
+	int   ub_dummy; /* placeholder */
 };
 
 /**

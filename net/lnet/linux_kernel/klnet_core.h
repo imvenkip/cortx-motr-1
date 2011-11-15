@@ -45,36 +45,36 @@ enum {
    Kernel transfer machine private data.
    This structure is pointed to by c2_lnet_core_transfer_mc::lctm_kpvt.
 */
-struct c2_klnet_core_transfer_mc {
-	uint64_t                         klcm_magic;
+struct nlx_kcore_transfer_mc {
+	uint64_t                         ktm_magic;
 
 	/**
 	   Kernel pointer to the shared memory TM structure.
 	 */
-	struct c2_lnet_core_transfer_mc *klctm_tm;
+	struct c2_lnet_core_transfer_mc *ktm_tm;
 
 	/** Transfer machine linkage */
-	struct c2_tlink                  klctm_tm_linkage;
+	struct c2_tlink                  ktm_tm_linkage;
 
 	/**
 	   Match bit counter. Range [1,C2_NET_LNET_MATCH_BIT_MAX].
 	 */
-	uint64_t                         klctm_mb_counter;
+	uint64_t                         ktm_mb_counter;
 
 	/**
 	   Spin lock to serialize access to the buffer event queue
 	   from the LNet callback subroutine.
 	 */
-	spinlock_t                       klctm_bevq_lock;
+	spinlock_t                       ktm_bevq_lock;
 
 	/**
 	   This semaphore increments with each LNet event added.
 
 	*/
-	struct c2_semaphore              klctm_sem;
+	struct c2_semaphore              ktm_sem;
 
 	/** Handle of the LNet EQ associated with this transfer machine */
-	lnet_handle_eq_t                 klctm_eqh;
+	lnet_handle_eq_t                 ktm_eqh;
 };
 
 
@@ -82,23 +82,30 @@ struct c2_klnet_core_transfer_mc {
    Kernel buffer private data.
    This structure is pointed to by c2_lnet_core_buffer::lcb_kpvt.
 */
-struct c2_klnet_core_buffer {
-	uint64_t                          klcb_magic;
+struct nlx_kcore_buffer {
+	uint64_t                      kcb_magic;
 
-	/** Mimumum space remaining for re-use of receive buffers. */
-	c2_bcount_t                       klcb_min_receive_size;
+	/** Mimumum space remaining for re-use of the receive buffer.
+	    The value is set from c2_net_buffer::nb_min_receive_size.
+	 */
+	c2_bcount_t                   kcb_min_recv_size;
+
+	/** Maximum number of messages that may be received in the buffer.
+	    The value is set from c2_net_buffer::nb_max_receive_msgs.
+	 */
+	uint32_t                      kcb_max_recv_msgs;
 
 	/** Pointer to kernel core TM data. */
-	struct c2_klnet_core_transfer_mc *klcb_ktm;
+	struct nlx_kcore_transfer_mc *kcb_ktm;
 
 	/** The I/O vector. */
-	struct lnet_kiov_t                klcb_kiov;
+	struct lnet_kiov_t            kcb_kiov;
 
 	/** ME handle */
-	lnet_handle_me_t                  klcb_meh;
+	lnet_handle_me_t              kcb_meh;
 
 	/** MD handle */
-	lnet_handle_md_t                  klcb_mdh;
+	lnet_handle_md_t              kcb_mdh;
 };
 
 /**
