@@ -186,26 +186,26 @@
    When terminating a transfer machine the application has a choice of draining
    current operations or aborting such activity.  If the latter choice is made,
    then the transport must first cancel all operations.  In either case, the
-   transfer machine's event handler thread must deliver the termination or
+   transfer machine's event handler thread must deliver the completion or
    cancellation events of such operations before stopping, so the
-   c2_net_tm_stop() subroutine call that invokes the transport's @c
-   xo_tm_stop() method is inherently an asynchronous operation.
+   c2_net_tm_stop() subroutine call that invokes the transport's
+   c2_net_xprt_ops::xo_tm_stop() method is an inherently asynchronous operation.
 
    @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Handler Thread
 
-   Each transfer machine must processes buffer events from the core API's event
+   Each transfer machine processes buffer events from the core API's event
    queue.  The core API guarantees that LNet operation completion events will
    result in buffer events being enqueued in the order it receives them, and,
-   in particular, the multiple buffer events for any given receive buffer will
+   in particular, that multiple buffer events for any given receive buffer will
    be ordered.  This is very important for the transport, because it has to
    ensure that a receive buffer operation is not prematurely flagged as
-   terminated.
+   dequeued.
 
    The transport uses exactly one event handler thread to process buffer events
    from the core API.  This has the following advantages:
    - The implementation is simple.
    - It implicitly race-free with respect to receive buffer events.
-   .
+
    Applications are not expected to spend much time in the event callback, so
    this simple approach is acceptable.
 
@@ -226,11 +226,12 @@
 	     struct c2_net_buffer_event nbev;
              c2_mutex_lock(&tm->ntm_mutex);
              rc = nlx_core_buf_event_get(&lctm, &lcbe);
-	     c2_mutex_unlock(&tm->ntm_mutex);
 	     if (rc == 0) {
 	        nbe = ... // convert the event
+	        c2_mutex_unlock(&tm->ntm_mutex);
 	        c2_net_buffer_event_post(&nbev);
-             }
+             } else
+	        c2_mutex_unlock(&tm->ntm_mutex);
           } while (rc == 0);
       }
       // do buffer operation timeout processing
@@ -256,7 +257,10 @@
      events to serialize with the "other" consumer of the buffer event queue,
      the @c xo_buf_add() subroutine that invokes the core API buffer operation
      initiation subroutines.  This is because these subroutines may allocate
-     additional buffer event structures to the queue.
+     additional buffer event structures to the queue.  The mutex must be held
+     until the event has been converted, because allocation adds new structures
+     after the current event in the queue, making the current event structure
+     available for reuse.
    - The thread attempts to process as many events as it can each time around
      the loop.  The call to the nlx_core_buf_event_wait() subroutine in the
      user space transport is expensive as it makes a device driver @c ioctl
@@ -288,9 +292,9 @@
 
    @subsection LNetDLD-lspec-buf-op Buffer operations
 
-   Buffer operations are initiated through the @c xo_buf_add() subroutine. The
-   transport must invoke one of the relevant core API buffer initiation
-   operations.
+   Buffer operations are initiated through the c2_net_xprt_ops::xo_buf_add()
+   subroutine. The transport must invoke one of the relevant core API buffer
+   initiation operations.
 
    In passive buffer operations, the transport must first obtain suitable match
    bits for the buffer using the nlx_core_buf_match_bits_set() subroutine.  The

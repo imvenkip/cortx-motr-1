@@ -305,7 +305,7 @@
 
    - The allocation of new buffer event structures to the "pool" is always done
      by the Core API buffer operation initiation subroutines invoked by the
-     transport.  The user space implmenentation of the Core API would have to
+     transport.  The user space implementation of the Core API would have to
      arrange for these new structures to get mapped into the kernel at this
      time.
 
@@ -336,7 +336,7 @@
    No hardware optimization support is defined in the LNet API at this time.
 
    During buffer registration, the core API will translate the c2_net_bufvec
-   into the c2_klnet_core_buffer::lnet_kiov_t field of the buffer private data.
+   into the c2_klnet_core_buffer::klcb_kiov field of the buffer private data.
 
 
    @subsection KLNetCoreDLD-lspec-ev LNet Event Callback Processing
