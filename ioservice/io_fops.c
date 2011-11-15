@@ -121,11 +121,12 @@ static struct c2_fop_type *ioservice_fops[] = {
    This document describes the working of client side of io bulk transfer.
    This functionality is used only for io path.
    IO bulk client constitues the client side of bulk IO carried out between
-   Colibri client and data server. Colibri network layer incorporates a
-   bulk transport mechanism to transfer user buffers in zero-copy fashion.
+   Colibri client file system and data server. Colibri network layer
+   incorporates a bulk transport mechanism to transfer user buffers in
+   zero-copy fashion.
    The generic io fop contains a network buffer descriptor which refers to a
    network buffer.
-   The Colibri client creates IO fops and attaches the kernel pages to net
+   The bulk client creates IO fops and attaches the kernel pages to net
    buffer associated with io fop and submits it to rpc layer.
    The rpc layer populates the net buffer descriptor from io fop and sends
    the fop over wire.
@@ -141,7 +142,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   - c2t1fs Colibri client program. It works as a kernel module.
+   - c2t1fs Colibri client file system. It works as a kernel module.
    - Bulk transport Event based, asynchronous message passing functionality
    of Colibri network layer.
    - io fop A generic io fop that is used for read and write.
@@ -155,22 +156,23 @@ static struct c2_fop_type *ioservice_fops[] = {
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   - R.bulkclient.rpcbulk The Colibri client should use rpc bulk abstraction
+   - R.bulkclient.rpcbulk The bulk client should use rpc bulk abstraction
    while enqueueing buffers for bulk transfer.
-   - R.bulkclient.fopcreation Colibri client should create io fops as needed
+   - R.bulkclient.fopcreation The bulk client should create io fops as needed
    if pages overrun the existing rpc bulk structure.
    - R.bulkclient.netbufdesc The generic io fop should contain a network
    buffer descriptor which points to an in-memory network buffer.
    - R.bulkclient.iocoalescing The IO coalescing code should conform to
-   new format of io fop.
+   new format of io fop. This is actually a side-effect and not a core
+   part of functionality. Since the format of IO fop changes, the IO
+   coalescing code which depends on it, needs to be restructured.
 
    <hr>
    @section bulkclient-depends Dependencies
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   - r.misc.net_rpc_convert Bulk Client needs Colibri client to be using
-   new network layer apis which include c2_net_domain and c2_net_buffer.
+   - r.misc.net_rpc_convert Bulk Client needs Colibri client file system to be    using new network layer apis which include c2_net_domain and c2_net_buffer.
    - r.fop.referring_another_fop With introduction of a net buffer
    descriptor in io fop, a mechanism needs to be introduced so that fop
    definitions from one component can refer to definitions from another
@@ -184,11 +186,11 @@ static struct c2_fop_type *ioservice_fops[] = {
    logical specifications, and enumerates topics that need special
    attention.</i>
 
-   Colibri client uses a generic in-memory structure representing an io fop
+   IO bulk client uses a generic in-memory structure representing an io fop
    and its associated network buffer.
    This in-memory io fop contains another abstract structure to represent
    the network buffer associated with the fop.
-   Colibri client creates c2_io_fop structures as necessary and attaches
+   The bulk client creates c2_io_fop structures as necessary and attaches
    kernel pages to associated c2_rpc_bulk structure and submits the fop
    to rpc layer.
    Rpc layer populates the network buffer descriptor embedded in the io fop
@@ -223,8 +225,8 @@ static struct c2_fop_type *ioservice_fops[] = {
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
-   The following @@dot diagram shows the interaction of Colibri client
-   program (c2t1fs) with rpc layer and net layer.
+   The following @@dot diagram shows the interaction of bulk client
+   program with rpc layer and net layer.
    @dot
    digraph {
      node [style=box];
@@ -260,23 +262,22 @@ static struct c2_fop_type *ioservice_fops[] = {
    of the Functional Specification.</i>
 
    The IO coalescing subsystem from ioservice primarily works on IO segments.
-   IO segments are in-memory structures that represent contiguous chunks of
+   IO segment is in-memory structure that represents a contiguous chunk of
    IO data along with extent information.
-   An internal data structure io_zeroseg represents the IO segment.
-   - io_zeroseg An in-memory structure used to represent a segment of IO data.
+   An internal data structure ioseg represents the IO segment.
+   - ioseg An in-memory structure used to represent a segment of IO data.
 
    @subsubsection bulkclient-lspec-sub1 Subcomponent Subroutines
    <i>This section briefly describes the interfaces of the sub-component that
    are of significance to the design.</i>
 
-   - io_zeroseg_alloc Allocates an io_zeroseg structure.
-   - io_zeroseg_free Deallocates an io_zeroseg structure.
-   - io_zerovec_seg_get Retrieves an io_zeroseg given its index in zero
+   - ioseg_alloc Allocates an ioseg structure.
+   - ioseg_free Deallocates an ioseg structure.
+   - ioseg_get Retrieves an ioseg given its index in zero
    vector.
-   - io_zerovec_seg_set Set the contents of zero segment referred by given
+   - ioseg_set Set the contents of zero segment referred by given
    index in zero vector to the contents of input zero segment.
-   - io_zerovec_segs_alloc Allocate given number of segments for a new
-   zero vector.
+   - ioseg_alloc_nr Allocate given number of segments for a new zero vector.
 
    @subsection bulkclient-lspec-state State Specification
    <i>Mandatory.
@@ -319,7 +320,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   No need of explicit locking for structures like c2_io_fop and io_zeroseg
+   No need of explicit locking for structures like c2_io_fop and ioseg
    since they are taken care by locking at upper layers like locking at
    the c2t1fs part for dispatching IO requests.
 
@@ -345,9 +346,9 @@ static struct c2_fop_type *ioservice_fops[] = {
    the <b>R</b> tags of the requirements section.  The @b I of course,
    stands for "implements":
 
-   - I.bulkclient.rpcbulk The Colibri client uses rpc bulk APIs to enqueue
+   - I.bulkclient.rpcbulk The bulk client uses rpc bulk APIs to enqueue
    kernel pages to the network buffer.
-   - I.bulkclient.fopcreation Colibri client creates new io fops until all
+   - I.bulkclient.fopcreation bulk client creates new io fops until all
    kernel pages are enqueued.
    - I.bulkclient.netbufdesc The on-wire definition of io_fop contains a
    net buffer descriptor. @see c2_net_buf_desc
@@ -433,7 +434,7 @@ static struct c2_fop_type *ioservice_fops[] = {
    along with io extent. This structure is typically used by io coalescing
    code from ioservice.
  */
-struct io_zeroseg {
+struct ioseg {
 	/* Offset of target object to start io from. */
 	c2_bindex_t		 is_off;
 	/* Number of bytes in io segment. */
@@ -446,30 +447,30 @@ struct io_zeroseg {
 
 /**
    Allocate a zero segment.
-   @retval Valid io_zeroseg object if success, NULL otherwise.
+   @retval Valid ioseg object if success, NULL otherwise.
  */
-struct io_zeroseg *io_zeroseg_alloc(void)
+struct ioseg *ioseg_alloc(void)
 {
-	struct io_zeroseg *zseg;
+	struct ioseg *seg;
 
-	C2_ALLOC_PTR(zseg);
-	if (zseg == NULL)
+	C2_ALLOC_PTR(seg);
+	if (seg == NULL)
 		return NULL;
 
-	c2_list_link_init(&zseg->is_linkage);
-	return zseg;
+	c2_list_link_init(&seg->is_linkage);
+	return seg;
 }
 
 /**
    Deallocate a zero segment.
    @param zseg - Zero segment to be deallocated.
  */
-void io_zeroseg_free(struct io_zeroseg *zseg)
+void ioseg_free(struct ioseg *seg)
 {
-	C2_PRE(zseg != NULL);
+	C2_PRE(seg != NULL);
 
-	c2_list_link_fini(&zseg->is_linkage);
-	c2_free(zseg);
+	c2_list_link_fini(&seg->is_linkage);
+	c2_free(seg);
 }
 
 /**
@@ -480,8 +481,8 @@ void io_zeroseg_free(struct io_zeroseg *zseg)
    @param index Index of io segments in array of io segments from zerovec.
    @param seg Out parameter to return io segment.
  */
-void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
-			struct io_zeroseg *seg)
+void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
+	       struct ioseg *seg)
 {
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
@@ -501,8 +502,8 @@ void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
    @param zvec The c2_0vec io vector whose io segment will be changed.
    @param seg Target segment for set.
  */
-void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
-			const struct io_zeroseg *seg)
+void ioseg_set(struct c2_0vec *zvec, uint32_t seg_index,
+	       const struct ioseg *seg)
 {
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
@@ -519,7 +520,7 @@ void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
    are attached.
    @param segs_nr Number of io segments to be allocated.
  */
-int io_zerovec_segs_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
+int ioseg_alloc_nr(struct c2_0vec *zvec, uint32_t segs_nr)
 {
 	C2_PRE(zvec != NULL);
 	C2_PRE(segs_nr != 0);
