@@ -29,7 +29,7 @@
    @{
 */
 
-#include "lib/chan.h"
+#include "lib/semaphore.h"
 #include "lib/tlist.h"
 #include "lnet/include/lnet/types.h"
 #include "net/lnet_core.h"
@@ -68,11 +68,10 @@ struct c2_klnet_core_transfer_mc {
 	spinlock_t                       klctm_bevq_lock;
 
 	/**
-	   Channel on which to block waiting for LNet events.
-	   The semaphore increments with each LNet event added.
+	   This semaphore increments with each LNet event added.
 
 	*/
-	struct c2_chan                   klctm_chan;
+	struct c2_semaphore              klctm_sem;
 
 	/** Handle of the LNet EQ associated with this transfer machine */
 	lnet_handle_eq_t                 klctm_eqh;

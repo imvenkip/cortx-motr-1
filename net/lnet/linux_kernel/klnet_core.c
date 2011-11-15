@@ -142,12 +142,10 @@
      is bounded to support pre-allocation of memory to hold the buffer event
      payload.
 
-   - Buffer completion event notification is provided via a channel, to allow
-     for multiple waiters.  This will permit multiple transfer machine threads
-     to wait for events.  The default configuration is to use a single thread,
-     which is most suitable for Colibri servers.  File system consumers of the
-     transport may benefit from the use of multiple threads.
-
+   - Buffer completion event notification is provided via a semaphore.  The
+     design guarantees delivery of events in the order received from LNet.  In
+     particular, the multiple possible events delivered for a single receive
+     buffer will be ordered.
 
    <hr>
    @section KLNetCoreDLD-lspec Logical Specification
@@ -176,6 +174,7 @@
    - @ref KLNetCoreDLD-lspec-thread
    - @ref KLNetCoreDLD-lspec-numa
 
+
    @subsection KLNetCoreDLD-lspec-comps Component Overview
    <i>Mandatory.
    This section describes the internal logical decomposition.
@@ -188,6 +187,7 @@
 
    The Core layer in the kernel has no sub-components but interfaces directly
    with the Lustre LNet module in the kernel.
+
 
    @subsection KLNetCoreDLD-lspec-userspace Support for User Space Transports
 
@@ -236,6 +236,7 @@
    have unique match bits.  The match bits should be encoded into the network
    buffer descriptor associated with the passive buffer.
 
+
    @subsection KLNetCoreDLD-lspec-tm-list Transfer Machine Uniqueness
 
    The kernel Core module must ensure that all transfer machines have unique
@@ -251,6 +252,7 @@
    available transfer machine identifier.  A single pass over the list is
    required to search for an available transfer machine identifier.
 
+
    @subsection KLNetCoreDLD-lspec-bevq The Buffer Event Queue
 
    The kernel Core receives notification of the completion of a buffer
@@ -262,9 +264,10 @@
    Instead, the kernel Core module de-couples the delivery of buffer operation
    completion to the transport from the LNet callback context by copying the
    result to an intermediate buffer event queue.  The Core API provides the
-   nlx_core_buf_event_wait() subroutine that the transport can use to poll
-   for the presence of buffer events, and the nlx_core_buf_event_get() to
-   recover the payload of the next available buffer event.
+   nlx_core_buf_event_wait() subroutine that the transport can use to poll for
+   the presence of buffer events, and the nlx_core_buf_event_get() to recover
+   the payload of the next available buffer event. See @ref
+   KLNetCoreDLD-lspec-ev for further details on these subroutines.
 
    There is another advantage to this indirect delivery: to address the
    requirement to efficiently support a user space transport, the Core module
@@ -311,6 +314,12 @@
    buffer event queue.  Details on this event queue are covered in the
    @ref LNetcqueueDLD "LNet Buffer Event Circular Queue DLD."
 
+   The design makes a critical simplifying assumption, in that the transport
+   will use exactly one thread to process events.  This assumption implicitly
+   serializes the delivery of the events associated with any given receive
+   buffer, thus the last event which unlinks the buffer is guaranteed to be
+   delivered after other events associated with that same buffer operation.
+
 
    @subsection KLNetCoreDLD-lspec-lnet-init LNet Initialization and Finalization
 
@@ -321,9 +330,13 @@
    - The LNetInit() subroutine is automatically called when then LNet kernel
      module is loaded, and cannot be called multiple times.
 
+
    @subsection KLNetCoreDLD-lspec-reg LNet Buffer Registration
 
    No hardware optimization support is defined in the LNet API at this time.
+
+   During buffer registration, the core API will translate the c2_net_bufvec
+   into the c2_klnet_core_buffer::lnet_kiov_t field of the buffer private data.
 
 
    @subsection KLNetCoreDLD-lspec-ev LNet Event Callback Processing
@@ -355,25 +368,46 @@
       nlx_core_buffer_event::lcbe_unlinked field set to true.
    -# The bev_cqueue_put() subroutine is invoked.
    -# Release the c2_klnet_core_transfer_mc::klctm_bevq_lock spinlock.
-   -# The c2_klnet_core_transfer_mc::klctm_chan is signalled with the
-      c2_chan_signal() subroutine.
+   -# The c2_klnet_core_transfer_mc::klctm_sem is signalled with the
+      c2_semaphore_up() subroutine.
 
-   The transport layer event handler threads (usually only one) block on the
-   Core transfer machine channel in the nlx_core_buf_event_wait()
-   subroutine using the c2_chan_wait() or c2_chan_timedwait() subroutines.  In
-   the case of the user space transport, this is done indirectly by the device
-   driver in the kernel.
+   The (single) transport layer event handler thread blocks on the Core
+   transfer machine semaphore in the nlx_core_buf_event_wait() subroutine using
+   the c2_semaphore_timeddown() subroutine.  When the subroutine returns with
+   an indication of the presence of events, the event handler thread consumes
+   all the pending events with multiple calls to the nlx_core_buf_event_get()
+   subroutine, which invokes the bev_cqueue_get() subroutine to get the next
+   buffer event.  Then the event handler thread repeats the call to the
+   nlx_core_buf_event_wait() subroutine to once again block for additional
+   events.
 
-   When the subroutine returns with an indication of the presence of events,
-   the thread consumes all the pending events with multiple calls to the
-   nlx_core_buf_event_get() subroutine, which invokes the
-   c2_cqueue_consume() subroutine to get the index of the next queue slot to
-   read.  This must be repeated until the event queue is drained.
+   In the case of the user space transport, the blocking on the semaphore is
+   done indirectly by the device driver in the kernel.  It is required by the
+   HLD that as many events as possible be consumed before the context switch to
+   the kernel is made.  To support this, the nlx_core_buf_event_wait()
+   subroutine takes a few additional steps to minimize the chance of returning
+   when the queue is empty.  After it obtains the semaphore with the
+   c2_semaphore_timeddown() subroutine (i.e. the @em P operation succeeds), it
+   attempts to clear the semaphore count by repeatedly calling the
+   c2_semaphore_trydown() subroutine until it fails.  It then checks the
+   circular queue, and only if not empty will it return.  This is illustrated
+   with the following pseudo-code:
+   @code
+       do {
+          rc = c2_net_semaphore_timed_down(&sem, &timeout);
+ 	  if (rc < 0)
+ 	      break; // timed out
+          while (c2_semaphore_trydown(&sem))
+              ; // exhaust the semaphore
+          if (!bev_cqueue_is_empty(&q))
+              break; // loop if empty
+       } while (1);
+   @endcode
+   (The C++ style comments are used because of doxygen only - they are not
+   permitted by the Colibri style guide.)
 
    @subsection KLNetCoreDLD-lspec-recv LNet Receiving Unsolicited Messages
 
-   -# An EQ is created for each transfer machine by the nlx_core_tm_start()
-   subroutine, and the common callback handler registered.
    -# For each receive buffer, create an ME with @c LNetMEAlloc() and specify
       the portal, match and ignore bits. All receive buffers for a given TM will
       use a match bit value equal to the TM identifier in the higher order
@@ -397,6 +431,7 @@
       the event queue, and will be processed as described in
       @ref KLNetCoreDLD-lspec-ev.
 
+
    @subsection KLNetCoreDLD-lspec-send LNet Sending Messages
 
    -# Create an MD using @c LNetMDBind().
@@ -414,6 +449,7 @@
    -# When the message is sent, an @c LNET_EVENT_SEND event will be delivered
       to the event queue, and processed as described in
       @ref KLNetCoreDLD-lspec-ev.
+
 
    @subsection KLNetCoreDLD-lspec-passive LNet Staging Passive Bulk Buffers
 
@@ -442,6 +478,7 @@
       @c LNET_EVENT_GET event will be delivered to the event queue, and will be
       processed as described in @ref KLNetCoreDLD-lspec-ev.
 
+
    @subsection KLNetCoreDLD-lspec-active LNet Active Bulk Read or Write
 
    -# Prior to invoking the nlx_core_buf_active_recv() or
@@ -468,6 +505,7 @@
       be delivered to the event queue, and will be processed as described in
       @ref KLNetCoreDLD-lspec-ev.
 
+
    @subsection KLNetCoreDLD-lspec-lnet-cancel LNet Cancelling Operations
 
    The kernel Core module provides no timeout capability.  The transport may
@@ -484,26 +522,28 @@
    in the next completion event for the buffer.  The events will be processed
    as described in @ref KLNetCoreDLD-lspec-ev.
 
+
    @subsection KLNetCoreDLD-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
-   The kernel Core module relies on the networking data structures to maintain
+   - The kernel Core module relies on the networking data structures to maintain
    the linkage between the data structures used by the Core module. It
    maintains no lists through data structures itself.  As such, these lists can
    only be navigated by the Core API subroutines invoked by the transport (the
    "upper" layer) and not by the Core module's LNet callback subroutine (the
    "lower" layer).
 
-   The kernel Core API maintains a count of the total number of buffer event
+   - The kernel Core API maintains a count of the total number of buffer event
    structures needed.  This should be tested by the Core API's transfer machine
    invariant subroutine before returning from any buffer operation initiation
    call, and before returning from the nlx_core_buf_event_get() subroutine.
 
-   The kernel Core layer module depends on the LNet module in the kernel at
+   - The kernel Core layer module depends on the LNet module in the kernel at
    runtime. This dependency is captured by the Linux kernel module support that
    reference counts the usage of dependent modules.
+
 
    @subsection KLNetCoreDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
@@ -512,48 +552,61 @@
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   Generally speaking, API calls within the transport
-   address space itself are protected by the serialization of the Colibri
-   Networking layer.  The nlx_core_buf_match_bits_set() subroutine, for
-   example, is fully protected by the transfer machine mutex held across the
-   c2_net_buffer_add() subroutine call, so implicitly protects the match bit
-   counter in the kernel Core's per TM private data.
+   <ol>
 
-   However, this serialization does not always suffice, as the kernel Core
-   module has to support concurrent multiple transport instances in kernel and
-   user space.  Fortunately, the LNet API intrinsically provides considerable
-   serialization support to the Core, as each transfer machine is defined by
-   the HLD to have disjoint addresses.  The boundary condition of enforcing the
-   address semantics is protected by the kernel Core's ::nlx_kcore_mutex lock.
-   The nlx_core_tm_start() and nlx_core_tm_stop() subroutines use this
-   mutex internally for serialization and operation on the ::nlx_kcore_tms list
-   threaded through the kernel Core's per-TM private data.
+   <li>Generally speaking, API calls within the transport address space
+   are protected by the serialization of the Colibri Networking layer,
+   typically the transfer machine mutex or the domain mutex.
+   The nlx_core_buf_match_bits_set() subroutine, for example, is fully
+   protected by the transfer machine mutex held across the c2_net_buffer_add()
+   subroutine call, so implicitly protects the match bit counter in the kernel
+   Core's per TM private data.</li>
 
-   The kernel Core module registers a single callback subroutine with the LNet
-   EQ defined per transfer machine. LNet requires that this subroutine be
+   <li>The Colibri Networking layer serialization does not always suffice, as
+   the kernel Core module has to support concurrent multiple transport
+   instances in kernel and user space.  Fortunately, the LNet API intrinsically
+   provides considerable serialization support to the Core, as transfer
+   machines are defined by the HLD to have disjoint addresses.</li>
+
+   <li>Enforcement of the disjoint address semantics are protected by the
+   kernel Core's ::nlx_kcore_mutex lock.  The nlx_core_tm_start() and
+   nlx_core_tm_stop() subroutines use this mutex internally for serialization
+   and operation on the ::nlx_kcore_tms list threaded through the kernel Core's
+   per-TM private data.</li>
+
+   <li> The kernel Core module registers a single callback subroutine with the
+   LNet EQ defined per transfer machine. LNet requires that this subroutine be
    reentrant and non-blocking.  The circular buffer event queue accessed from
    the callback requires a single producer, so the
    c2_klnet_core_transfer_mc::klctm_bevq_lock spinlock is used to serialize its
-   use across concurrent invocations.  The time spent in the lock is minimal.
+   use across possible concurrent invocations.  The time spent in the lock is
+   minimal.</li>
 
-   The Core API does not define any callback to indicate completion of an
+   <li>The Core API does not support callbacks to indicate completion of an
    asynchronous buffer operation.  Instead, the transport application must
-   invoke the nlx_core_buf_event_wait() subroutine to block waiting for
-   buffer events.  Internally this call waits on the
-   c2_klnet_core_transfer_mc::klctm_chan wait channel.  The channel is
-   signalled each time an event is added to the buffer event queue; this leaves
-   the transport the option of using as many threads as desired, to poll the
-   queue.
+   invoke the nlx_core_buf_event_wait() subroutine to block waiting for buffer
+   events.  Internally this call waits on the
+   c2_klnet_core_transfer_mc::klctm_sem semaphore.  The semaphore is
+   incremented each time an event is added to the buffer event queue.</li>
 
-   The event payload is actually delivered via a per transfer machine circular
-   buffer event queue, and multiple events may be delivered between each call
-   to the nlx_core_buf_event_wait() subroutine.  Each such event is fetched
-   by a call to the nlx_core_buf_event_get() subroutine, until the queue is
-   exhausted.
+   <li>The event payload is actually delivered via a per transfer machine
+   single producer, single consumer, lock-free circular buffer event queue.
+   The only requirement for failure free operation is to ensure that there are
+   sufficient event structures pre-allocated to the queue, plus one more to
+   support the circular semantics.  Multiple events may be dequeued between
+   each call to the nlx_core_buf_event_wait() subroutine.  Each such event is
+   fetched by a call to the nlx_core_buf_event_get() subroutine, until the
+   queue is exhausted.  Note that the queue exists in memory shared between the
+   transport and the kernel Core; the transport could be in the kernel or in
+   user space.</li>
 
-   The API assumes that only a single transport thread will handle event
-   processing; if this is not the case then the transport should serialize its
-   use of the nlx_core_buf_event_get() subroutine.
+   <li>The API assumes that only a single transport thread will handle event
+   processing.  This is a critical assumption in the support for multiple
+   messages in a single receive buffer, as it implicitly serializes the
+   delivery of the events associated with any given receive buffer, thus the
+   last event which unlinks the buffer is guaranteed to be delivered last.</li>
+
+   </ol>
 
 
    @subsection KLNetCoreDLD-lspec-numa NUMA optimizations

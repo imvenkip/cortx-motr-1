@@ -143,6 +143,11 @@
      - nlx_core_buf_event_wait()
      - nlx_core_buf_event_get()
      .
+     The API assumes that only a single transport thread will be used to
+     process events.
+
+   Invocation of the buffer operation initiation subroutines and the
+   nlx_core_buf_event_get() subroutine should be serialized.
 
    @see @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
    @see @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
@@ -423,6 +428,11 @@ static int nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 /**
    Enqueue a buffer for message reception. Multiple messages may be received
    into the buffer, space permitting, up to the configured maximum.
+
+   The invoker should ensure that the subroutine is not invoked concurrently
+   with any of the other buffer operation initiation subroutines or the
+   nlx_core_buf_event_get() subroutine.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
  */
@@ -431,6 +441,11 @@ static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 
 /**
    Enqueue a buffer for message transmission.
+
+   The invoker should ensure that the subroutine is not invoked concurrently
+   with any of the other buffer operation initiation subroutines or the
+   nlx_core_buf_event_get() subroutine.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre lcbuf->lcb_addr is valid
@@ -444,6 +459,11 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
    remote passive buffer.
    The lcb_addr field should be set with the end point address of the
    transfer machine with the passive buffer.
+
+   The invoker should ensure that the subroutine is not invoked concurrently
+   with any of the other buffer operation initiation subroutines or the
+   nlx_core_buf_event_get() subroutine.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -459,6 +479,11 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
    remote passive buffer.
    The lcb_addr field should be set with the end point address of the
    transfer machine with the passive buffer.
+
+   The invoker should ensure that the subroutine is not invoked concurrently
+   with any of the other buffer operation initiation subroutines or the
+   nlx_core_buf_event_get() subroutine.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -491,6 +516,11 @@ static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
    nlx_core_buf_match_bits_set() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
+
+   The invoker should ensure that the subroutine is not invoked concurrently
+   with any of the other buffer operation initiation subroutines or the
+   nlx_core_buf_event_get() subroutine.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -505,6 +535,11 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
    nlx_core_buf_match_bits_set() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
+
+   The invoker should ensure that the subroutine is not invoked concurrently
+   with any of the other buffer operation initiation subroutines or the
+   nlx_core_buf_event_get() subroutine.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -533,16 +568,19 @@ static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 				   c2_time_t timeout);
 
 /**
-   Fetch the next event from the circular buffer event queue.  This subroutine
-   does not support concurrent invocation; the transport should serialize
-   access if more than one thread is used to process events.
+   Fetch the next event from the circular buffer event queue.
+
+   The invoker should ensure that the subroutine is not invoked concurrently
+   with any of the buffer operation initiation subroutines, or another
+   invocation of itself.
+
    @param lctm Transfer machine private data.
    @param lcbe Returns the next buffer event.
    @retval true Event returned.
    @retval false No events on the queue.
  */
 static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
-				   struct c2_lnet_buffer_event *lcbe);
+				   struct nlx_core_buffer_event *lcbe);
 
 /**
    Subroutine to parse an end point address string and convert to internal form.
@@ -583,7 +621,7 @@ static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
    @param lctm The transfer machine private data.
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
-static int nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm);
+static void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm);
 
 /**
    @}

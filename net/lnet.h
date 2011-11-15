@@ -77,8 +77,6 @@
    - c2_net_tm_confine() Set processor affinity for transfer machine threads
    - c2_net_lnet_ep_addr_net_compare()
      Compare the network portion of two LNet transport end point addresses.
-   - c2_net_lnet_tm_set_num_threads()
-     Sets the number of threads to use in a transfer machine.
 
    The use of these subroutines is not mandatory.
 
@@ -125,13 +123,6 @@ enum {
  */
 extern bool c2_net_lnet_ep_addr_net_compare(const char *addr1,
 					    const char *addr2);
-
-/**
-   Sets the number of threads to use in an LNet transfer machine.
-   The default is ::C2_NET_LNET_TM_DEF_NUM_THREADS.
- */
-extern int c2_net_lnet_tm_set_num_threads(struct c2_net_transfer_mc *tm,
-					  uint32_t num_threads);
 
 /**
    @} LNetDFS end group

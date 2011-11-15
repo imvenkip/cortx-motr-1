@@ -32,6 +32,11 @@
       - @ref LNetXODFS "XO Interface"            <!-- int link -->
    - @ref LNetDLD-lspec
       - @ref LNetDLD-lspec-comps
+      - @ref LNetDLD-lspec-ep
+      - @ref LNetDLD-lspec-tm-stop
+      - @ref LNetDLD-lspec-tm-thread
+      - @ref LNetDLD-lspec-buf-nbd
+      - @ref LNetDLD-lspec-buf-op
       - @ref LNetDLD-lspec-state
       - @ref LNetDLD-lspec-thread
       - @ref LNetDLD-lspec-numa
@@ -122,6 +127,12 @@
    contents here.</i>
 
    - @ref LNetDLD-lspec-comps
+   - @ref LNetDLD-lspec-ep
+   - @ref LNetDLD-lspec-tm-start
+   - @ref LNetDLD-lspec-tm-stop
+   - @ref LNetDLD-lspec-tm-thread
+   - @ref LNetDLD-lspec-buf-nbd
+   - @ref LNetDLD-lspec-buf-op
    - @ref LNetDLD-lspec-state
    - @ref LNetDLD-lspec-thread
    - @ref LNetDLD-lspec-numa
@@ -144,10 +155,183 @@
    @image html "../../net/lnet/lnet_xo.png" "LNet Transport Objects"
    <!-- PNG image width is 800 -->
 
+   @subsection LNetDLD-lspec-ep End Point Address Structure
+
+   The transport defines the following structure to encode an end point address:
+   @code
+   struct nlx_xo_ep {
+       struct c2_net_end_point nxe_ep;
+       nlx_core_ep_addr        nxe_core;
+       char                    nxe_addr[1];
+   };
+   @endcode
+   The length of the structure depends on the length of the string
+   representation of the address, which must be saved in the @c nxe_addr array.
+
+
+   @subsection LNetDLD-lspec-tm-start Transfer Machine Startup
+
+   When starting a transfer machine, the transport must call the
+   nlx_core_tm_start() subroutine to create the internal LNet EQ associated
+   with the transfer machine.  This call also validates the transfer machine's
+   address, and assigns a dynamic transfer machine identifier if needed.
+
+   Note that while the transport supports the dynamic allocation of a transfer
+   machine identifier, it still requires the rest of the fields of the end point
+   address.
+
+
+   @subsection LNetDLD-lspec-tm-stop Transfer Machine Termination
+
+   When terminating a transfer machine the application has a choice of draining
+   current operations or aborting such activity.  If the latter choice is made,
+   then the transport must first cancel all operations.  In either case, the
+   transfer machine's event handler thread must deliver the termination or
+   cancellation events of such operations before stopping, so the
+   c2_net_tm_stop() subroutine call that invokes the transport's @c
+   xo_tm_stop() method is inherently an asynchronous operation.
+
+   @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Handler Thread
+
+   Each transfer machine must processes buffer events from the core API's event
+   queue.  The core API guarantees that LNet operation completion events will
+   result in buffer events being enqueued in the order it receives them, and,
+   in particular, the multiple buffer events for any given receive buffer will
+   be ordered.  This is very important for the transport, because it has to
+   ensure that a receive buffer operation is not prematurely flagged as
+   terminated.
+
+   The transport uses exactly one event handler thread to process buffer events
+   from the core API.  This has the following advantages:
+   - The implementation is simple.
+   - It implicitly race-free with respect to receive buffer events.
+   .
+   Applications are not expected to spend much time in the event callback, so
+   this simple approach is acceptable.
+
+   In addition to event processing, the event handler thread has the following
+   functions:
+   - Buffer operation timeout processing
+   - Transfer machine termination
+
+   The event handler thread body is illustrated by the following pseudo-code:
+   @code
+   while (1) {
+      timeout = ...; // compute next timeout
+      rc = nlx_core_buf_event_wait(&lctm, &timeout);
+      // event processing
+      if (rc == 0) {
+          do {
+             struct nlx_core_buffer_event lcbe;
+	     struct c2_net_buffer_event nbev;
+             c2_mutex_lock(&tm->ntm_mutex);
+             rc = nlx_core_buf_event_get(&lctm, &lcbe);
+	     c2_mutex_unlock(&tm->ntm_mutex);
+	     if (rc == 0) {
+	        nbe = ... // convert the event
+	        c2_net_buffer_event_post(&nbev);
+             }
+          } while (rc == 0);
+      }
+      // do buffer operation timeout processing
+      ...
+      // termination processing
+      if (tm->ntm_state == C2_NET_TM_STOPPING) {
+            c2_mutex_lock(&tm->ntm_mutex);
+            if (all_tm_queues_are_empty(tm)) {
+	       nlx_core_tm_stop(&lctm);
+               tm->ntm_state = C2_NET_TM_STOPPED;
+            }
+            c2_mutex_unlock(&tm->ntm_mutex);
+            if (tm->ntm_state == C2_NET_TM_STOPPED) {
+	       struct c2_net_tm_event tmev;
+	       c2_net_tm_event_post(&tmev);
+               break;
+            }
+      }
+   }
+   @endcode
+   A few points to note on the above pseudo-code:
+   - The transfer machine mutex is obtained across the call to dequeue buffer
+     events to serialize with the "other" consumer of the buffer event queue,
+     the @c xo_buf_add() subroutine that invokes the core API buffer operation
+     initiation subroutines.  This is because these subroutines may allocate
+     additional buffer event structures to the queue.
+   - The thread attempts to process as many events as it can each time around
+     the loop.  The call to the nlx_core_buf_event_wait() subroutine in the
+     user space transport is expensive as it makes a device driver @c ioctl
+     call internally.
+   - The thread is responsible for terminating the transfer machine and
+     delivering its termination event.
+
+   @subsection LNetDLD-lspec-buf-nbd Network Buffer Descriptor
+
+   The transport has to define the format of the opaque network buffer
+   descriptor returned to the application, to encode the identity of the
+   passive buffers.
+
+   The following internal format is used:
+   @code
+   struct nlx_xo_buf_desc {
+        uint64_t                 nlxbd_match_bits;
+        struct nlx_core_ep_addr  nlxbd_active_ep;
+        struct nlx_core_ep_addr  nlxbd_passive_ep;
+        enum c2_net_queue_type   nlxbd_qtype;
+        c2_bcount_t              nlxbd_total;
+   };
+   @endcode
+
+   All the fields are integer fields and the structure is of fixed length.
+   It is encoded into its opaque over-the-wire format with dedicated encoding
+   routines that do not use the XDR support library. @todo Use XDR in Lnet NBD?
+
+
+   @subsection LNetDLD-lspec-buf-op Buffer operations
+
+   Buffer operations are initiated through the @c xo_buf_add() subroutine. The
+   transport must invoke one of the relevant core API buffer initiation
+   operations.
+
+   In passive buffer operations, the transport must first obtain suitable match
+   bits for the buffer using the nlx_core_buf_match_bits_set() subroutine.  The
+   transport is responsible for ensuring that the assigned match bits are not
+   in use currently; however this step can be ignored with relative safety as
+   the match bit space is very large and the match bit counter will only wrap
+   around after a very long while.  These match bits should also be encoded in
+   the network buffer descriptor that the transport must return.
+
+   In active buffer operations, the size of the active buffer should be
+   validated against the size of the passive buffer as given in its network
+   buffer descriptor.
+
+
    @subsection LNetDLD-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
+
+   The transport does not introduce its own state models but operates within
+   framework defined by the Colibri Networking Module.  The state of the
+   following objects are particularly called out:
+
+   - c2_net_buffer
+   - c2_net_transfer_mc
+   - c2_net_domain
+
+   Enqueued network buffers represent operations in progress.  Until they get
+   dequeued, the buffers are associated with underlying LNet kernel module
+   resources.
+
+   The transfer machine is associated with an LNet event queue (EQ).  The EQ
+   must be created when the transfer machine is started, and destroyed when the
+   transfer machine stops.
+
+   Buffers registered with a domain object are potentially associated with LNet
+   kernel module resources and, if the transport is in user space, kernel
+   memory resources as they get pinned in memory. De-registration of the
+   buffers releases this memory.  The domain object of a user space transport
+   is also associated with an open file descriptor to the device driver used to
+   communicate with the kernel Core API.
 
 
    @subsection LNetDLD-lspec-thread Threading and Concurrency Model
@@ -232,12 +416,12 @@
    Static functions should be declared in the private header file
    so that the order of their definition does not matter.
 */
+#include "net/lnet/bev_cqueue.c"
 #ifdef __KERNEL__
 #include "net/lnet/linux_kernel/klnet_core.c"
 #else
 #include "net/lnet/ulnet_core.c"
 #endif
-#include "net/lnet/bev_cqueue.c"
 
 /**
    @addtogroup LNetXODFS
@@ -335,13 +519,6 @@ bool c2_net_lnet_ep_addr_net_compare(const char *addr1, const char *addr2)
 	return false;
 }
 C2_EXPORTED(c2_net_lnet_ep_addr_net_compare);
-
-int c2_net_lnet_tm_set_num_threads(struct c2_net_transfer_mc *tm,
-				   uint32_t num_threads)
-{
-	return 0;
-}
-C2_EXPORTED(c2_net_lnet_tm_set_num_threads);
 
 /*
  *  Local variables:
