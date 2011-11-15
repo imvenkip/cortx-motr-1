@@ -3,8 +3,11 @@
 #include <linux/fs.h>
 #include <linux/mount.h>
 
+#include "layout/pdclust.h"
 #include "c2t1fs/c2t1fs.h"
+#include "pool/pool.h"
 #include "lib/misc.h"
+#include "lib/memory.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
@@ -68,9 +71,25 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	START();
 
 	C2_SET0(&ci->ci_fid);
-	ci->ci_nr_dir_ents = 0;
-	C2_SET0(&ci->ci_data);
+	ci->ci_pd_layout = NULL;
 
+	ci->ci_nr_dir_ents = 0;
+	C2_SET0(&ci->ci_dir_ents);
+
+	END(0);
+}
+void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
+{
+	struct c2_pdclust_layout *pd_layout;
+
+	START();
+
+	pd_layout = ci->ci_pd_layout;
+	if (pd_layout != NULL) {
+		c2_pool_fini(pd_layout->pl_pool);
+		c2_free(pd_layout->pl_pool);
+		c2_pdclust_fini(pd_layout);
+	}
 	END(0);
 }
 struct inode *c2t1fs_alloc_inode(struct super_block *sb)
@@ -243,3 +262,48 @@ out_err:
 	iget_failed(inode);
 	return ERR_PTR(-EIO);
 }
+
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P)
+{
+	struct c2_uint128  layout_id;
+	struct c2_uint128  seed;
+	struct c2_pool    *pool;
+	int                rc;
+
+	START();
+
+	TRACE("fid[%lu:%lu]: N: %d K: %d P: %d\n",
+			(unsigned long)ci->ci_fid.f_container,
+			(unsigned long)ci->ci_fid.f_key,
+			N, K, P);
+
+	C2_ALLOC_PTR(pool);
+	if (pool == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	c2_uint128_init(&layout_id, "jinniesisjillous");
+	c2_uint128_init(&seed,      "upjumpandpumpim,");
+
+	rc = c2_pool_init(pool, P);
+	if (rc != 0)
+		goto out_free;
+
+	rc = c2_pdclust_build(pool, &layout_id, N, K, &seed,
+							&ci->ci_pd_layout);
+	if (rc != 0)
+		goto out_fini;
+
+	END(0);
+	return 0;
+
+out_fini:
+	c2_pool_fini(pool);
+out_free:
+	c2_free(pool);
+out:
+	END(rc);
+	return rc;
+}
+

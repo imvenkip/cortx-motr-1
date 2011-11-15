@@ -28,6 +28,7 @@
 
 #endif /* C2T1FS_DEBUG */
 
+struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 
 int c2t1fs_init(void);
@@ -133,13 +134,13 @@ enum {
 
 struct c2t1fs_inode
 {
-	struct inode  ci_inode;
-	struct c2_fid ci_fid;
-	int           ci_nr_dir_ents;
-	union {
-		struct c2t1fs_dir_ent ci_dir_ents[C2T1FS_MAX_NR_DIR_ENTS];
-		char                  ci_data[C2T1FS_MAX_FILE_SIZE];
-	};
+	struct inode              ci_inode;
+	struct c2_fid             ci_fid;
+
+	struct c2_pdclust_layout *ci_pd_layout;
+
+	int                       ci_nr_dir_ents;
+	struct c2t1fs_dir_ent     ci_dir_ents[C2T1FS_MAX_NR_DIR_ENTS];
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(struct super_block *sb)
@@ -181,6 +182,7 @@ extern struct inode_operations c2t1fs_reg_inode_operations;
 
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void c2t1fs_destroy_inode(struct inode *inode);
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P);
 
 void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 				 struct c2t1fs_sb              *csb,

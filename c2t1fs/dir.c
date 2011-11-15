@@ -28,6 +28,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
 static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci);
 int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid);
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P);
 
 struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,
@@ -52,12 +53,14 @@ static struct c2_fid c2t1fs_fid_alloc(void)
 
 	return fid;
 }
+
 static int c2t1fs_create(struct inode     *dir,
                          struct dentry    *dentry,
                          int               mode,
                          struct nameidata *nd)
 {
 	struct super_block  *sb = dir->i_sb;
+	struct c2t1fs_sb    *csb = C2T1FS_SB(sb);
 	struct c2t1fs_inode *ci;
 	struct inode        *inode;
 	int                  rc;
@@ -84,6 +87,12 @@ static int c2t1fs_create(struct inode     *dir,
 	ci->ci_fid = c2t1fs_fid_alloc();
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
+
+	rc = c2t1fs_inode_layout_init(ci, csb->csb_nr_data_units,
+					  csb->csb_nr_parity_units,
+					  csb->csb_nr_containers);
+	if (rc != 0)
+		goto out;
 
 	rc = c2t1fs_create_target_objects(ci);
 	if (rc != 0)
@@ -381,6 +390,11 @@ static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci)
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 	nr_containers = csb->csb_nr_containers;
 	C2_ASSERT(nr_containers >= 1);
+
+	/* XXX temporary check just to allow testing without connecting to
+		any service */
+	if (csb->csb_mnt_opts.mo_nr_ios_ep == 0)
+		return 0;
 
 	for (i = 1; i <= nr_containers; i++) {
 		cob_fid = c2t1fs_target_fid(gob_fid, i);
