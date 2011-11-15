@@ -119,6 +119,7 @@ void c2t1fs_destroy_inode(struct inode *inode)
 	TRACE("fid [%lu:%lu]\n", (unsigned long)ci->ci_fid.f_container,
 				 (unsigned long)ci->ci_fid.f_key);
 
+	c2t1fs_inode_fini(ci);
 	kmem_cache_free(c2t1fs_inode_cachep, ci);
 	END(0);
 }
@@ -294,6 +295,8 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P)
 							&ci->ci_pd_layout);
 	if (rc != 0)
 		goto out_fini;
+
+	ci->ci_unit_size = C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
 
 	END(0);
 	return 0;

@@ -45,6 +45,7 @@ enum {
 	C2T1FS_DEFAULT_NR_DATA_UNITS = 1,
 	C2T1FS_DEFAULT_NR_PARITY_UNITS = 0,
 	C2T1FS_DEFAULT_NR_CONTAINERS = 1,
+	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS = 1024,
 };
 
@@ -138,6 +139,7 @@ struct c2t1fs_inode
 	struct c2_fid             ci_fid;
 
 	struct c2_pdclust_layout *ci_pd_layout;
+	uint64_t                  ci_unit_size;
 
 	int                       ci_nr_dir_ents;
 	struct c2t1fs_dir_ent     ci_dir_ents[C2T1FS_MAX_NR_DIR_ENTS];
