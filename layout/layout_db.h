@@ -22,11 +22,12 @@
 #define __COLIBRI_LAYOUT_DB_H__
 
 /* import */
-#include "layout/layout.h"
-#include "db/db.h"	/* struct c2_table */
-#include "db/extmap.h"	/* struct c2_emap */
 #include "lib/refs.h"	/* struct c2_ref */
 #include "lib/types.h"	/* struct c2_uint128 */
+#include "db/db.h"	/* struct c2_table */
+#include "db/extmap.h"	/* struct c2_emap */
+
+#include "layout/layout.h"
 
 /* export */
 struct c2_layout_schema;
@@ -36,15 +37,6 @@ enum c2_layout_rec_type_code;
 
 /**
    @page Layout-DB-fspec Layout DB Functional Specification
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
-
-   Note: The instructions in italics from the DLD template are retained
-   currently for reference and will be removed after the first round of the DLD
-   inspection.
-
    Layout DB Module is used by the Layout module to make persistent records for
    the layout entries created and used.
 
@@ -58,12 +50,6 @@ enum c2_layout_rec_type_code;
    - @ref LayoutDBDFS "Detailed Functional Specification"
 
    @section Layout-DB-fspec-ds Data Structures
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and <i>brief</i> description of the
-   major externally visible data structures defined by this component.  No
-   details of the data structure are required here, just the salient
-   points.</i>
-
    - struct c2_layout_schema
    - struct c2_layout_rec
    - struct c2_pdclust_linear_rec_attrs
@@ -73,10 +59,6 @@ enum c2_layout_rec_type_code;
    Need to figure out.]
 
    @section Layout-DB-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
-
    - int c2_layout_schema_init(struct c2_layout_schema *l_schema)
    - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
    - int c2_layout_rec_add(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
@@ -91,11 +73,6 @@ enum c2_layout_rec_type_code;
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 
    @section Layout-DB-fspec-usecases Recipes
-   <i>This section could briefly explain what sequence of interface calls or
-   what program invocation flags are required to solve specific usage
-   scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.</i>
-
    A file layout is used by the client to perform IO against the file. Layout
    for a file contains COB identifiers for all the COBs associated with that
    file. These COB identifiers are stored by the layout either in the form of

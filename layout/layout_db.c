@@ -42,17 +42,9 @@
 
    <hr>
    @section Layout-DB-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
-
-   Note: The instructions in italics from the DLD template are ratained
-   currently for reference and will be removed after the first round of the
-   DLD inspection.
-
    This document contains the detail level design for the Layout DB Module.
 
-   <b>Purpose of the Layout-DB DLD</b><br>
+   <b>Purpose of the Layout-DB DLD</b><BR>
    The purpose of the Layout-DB Detailed Level Design (DLD) specification
    is to:
    - Refine the higher level design
@@ -61,21 +53,11 @@
 
    <hr>
    @section Layout-DB-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
-
-   - <b>COB</b> COB is component object and is defined at
+     - <b>COB</b> COB is component object and is defined at
      <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">C2 Glossary</a>
 
    <hr>
    @section Layout-DB-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
-
    The specified requirements are as follows:
    - <b>R.LAYOUT.SCHEMA.Layid</b> Layout identifiers are unique globally in
      the system, and persistent in the life cycle.
@@ -94,9 +76,6 @@
 
    <hr>
    @section Layout-DB-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
-
    - Layout is a managed resource and depends upon Resource Manager.
    - Layout DB module depends upon the Layout module since the Layout module
      creates the layouts and uses/manages them.
@@ -105,11 +84,6 @@
 
    <hr>
    @section Layout-DB-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
-
    - Layout in itself is a managed resource.
    - The Layout DB module provides support for storing layouts with multiple
      layout types.
@@ -117,14 +91,6 @@
 
    <hr>
    @section Layout-DB-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
-
    Layout DB makes use of the DB5 data-base to persistently store the layout
    entries. This section describes how the Layout DB module works.
 
@@ -139,11 +105,6 @@
 
 
    @subsection Layout-DB-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
-
    The following diagram shows the internal components of the Layout module.
    (TODO: Would like to reverse the positions of the "Layout DB" and the
    "Layout" components but not able to achieve it at least as of now!)
@@ -182,10 +143,6 @@
    @enddot
 
    @subsection Layout-DB-lspec-schema Layout Schema Design
-   <i>Such sections briefly describes the purpose and design of each
-   sub-component. Feel free to add multiple such sections, and any additional
-   sub-sectioning within.</i>
-
    The layout schema for the Layout DB module consists of the following three
    tables
    - @ref Layout-DB-lspec-schema-layout-entries
@@ -264,8 +221,8 @@
 
    @endverbatim
 
-   This table contains multiple cob identifier entries for every PDCLUST_LIST type of
-   layout.
+   This table contains multiple cob identifier entries for every PDCLUST_LIST
+   type of layout.
 
    layout_id is a foreign key referring record, in the layout_entries table.
 
@@ -310,41 +267,19 @@
      is either of L11, L12 or L13 as applicable.
 
    @subsubsection Layout-DB-lspec-ds1 Subcomponent Data Structures
-   <i>This section briefly describes the internal data structures that are
-   significant to the design of the sub-component. These should not be a part
-   of the Functional Specification.</i>
-
    See @ref LayoutDBDFSInternal for internal data structures.
 
    @subsubsection Layout-DB-lspec-sub1 Subcomponent Subroutines
-   <i>This section briefly describes the interfaces of the sub-component that
-   are of significance to the design.</i>
-
    See @ref LayoutDBDFSInternal for internal subroutines.
 
    @subsection Layout-DB-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
 
    @subsection Layout-DB-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
 
    @subsection Layout-DB-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
 
    <hr>
    @section Layout-DB-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref Layout-DB-req section,
-   and explains briefly how the DLD meets the requirement.</i>
-
    - <b>I.LAYOUT.SCHEMA.Layid</b> Layout identifiers are unique globally in
      the system, and persistent in the life cycle. It is assumed that the
      layout identifiers are assigned by the Layout module and Layout DB module
@@ -362,9 +297,9 @@
      Layout DB module.
    - <b>I.LAYOUT.SCHEMA.Formulae</b>
       - <b>Parameters</b>
-         - In case of PDCLUST_LINEAR layout record type, substituting parameters
-           in the stored formula derives the real mapping information that is
-           the list of COB identifiers.
+         - In case of PDCLUST_LINEAR layout record type, substituting
+           parameters in the stored formula derives the real mapping
+           information that is the list of COB identifiers.
       - <b>Garbage Collection</b>
          - PDCLUST_LIST and COMPOSITE type of layout records are deleted when
            their last reference is released.
@@ -375,29 +310,19 @@
 
    <hr>
    @section Layout-DB-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
 
    TODO: Add test cases.
 
    <hr>
    @section Layout-DB-st System Tests
-   <i>Mandatory.</i>
 
    TODO: Add test cases.
 
    <hr>
    @section Layout-DB-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
 
    <hr>
    @section Layout-DB-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
-
    - <a href="https://docs.google.com/a/xyratex.com/document/d/15-G-tUZfSuK6lpOuQ_Hpbw1jJ55MypVhzGN2r1yAZ4Y/edit?hl=en_US
 ">HLD of Layout Schema</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/12olF9CWN35HCkz-ZcEH_c0qoS8fzTxuoTqCCDN9EQR0/edit?hl=en_US#heading=h.gz7460ketfn1">Understanding LayoutSchema</a>
