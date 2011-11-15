@@ -575,7 +575,7 @@ static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
    invocation of itself.
 
    @param lctm Transfer machine private data.
-   @param lcbe Returns the next buffer event.
+   @param lcbe The next buffer event is returned here.
    @retval true Event returned.
    @retval false No events on the queue.
  */

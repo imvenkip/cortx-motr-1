@@ -226,12 +226,11 @@
 	     struct c2_net_buffer_event nbev;
              c2_mutex_lock(&tm->ntm_mutex);
              rc = nlx_core_buf_event_get(&lctm, &lcbe);
+	     c2_mutex_unlock(&tm->ntm_mutex);
 	     if (rc == 0) {
 	        nbe = ... // convert the event
-	        c2_mutex_unlock(&tm->ntm_mutex);
 	        c2_net_buffer_event_post(&nbev);
-             } else
-	        c2_mutex_unlock(&tm->ntm_mutex);
+             }
           } while (rc == 0);
       }
       // do buffer operation timeout processing
@@ -257,10 +256,7 @@
      events to serialize with the "other" consumer of the buffer event queue,
      the @c xo_buf_add() subroutine that invokes the core API buffer operation
      initiation subroutines.  This is because these subroutines may allocate
-     additional buffer event structures to the queue.  The mutex must be held
-     until the event has been converted, because allocation adds new structures
-     after the current event in the queue, making the current event structure
-     available for reuse.
+     additional buffer event structures to the queue.
    - The thread attempts to process as many events as it can each time around
      the loop.  The call to the nlx_core_buf_event_wait() subroutine in the
      user space transport is expensive as it makes a device driver @c ioctl
