@@ -581,9 +581,9 @@ static void mesg_send_client(int dummy)
 	mesg = c2_cons_mesg_get(CMT_DISK_FAILURE);
 	mesg->cm_rpc_mach = &client.cons_rpc_mach;
 	mesg->cm_rpc_session = &client.cons_rpc_session;
-	mesg->cm_ops->cmo_name_print(mesg);
+	c2_cons_mesg_name_print(mesg);
 	printf("\n");
-	result = mesg->cm_ops->cmo_mesg_send(mesg, deadline);
+	result = c2_cons_mesg_send(mesg, deadline);
 	C2_UT_ASSERT(result == 0);
 
 	result = c2_cons_rpc_client_disconnect(&client);
