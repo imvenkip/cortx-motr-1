@@ -297,7 +297,7 @@
 
    An example:
 
-   Suppose a layout L1 is of the type composite and constitues of 3
+   Suppose a layout L1 is of the type composite and constitutes of 3
    sub-layouts say S1, S2, S3. These sub-layouts S1, S2 and S3 use
    the layouts with layout id L11, L12 and L13 respectively.
 
