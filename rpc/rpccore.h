@@ -210,27 +210,10 @@ struct c2_rpc_item_type_ops {
 	   this function.
 	 */
 	void (*rito_replied)(struct c2_rpc_item *item, int rc);
-
-	/**
-	   Restore original IO vector of rpc item.
-	 */
-	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
-			struct c2_fop *bkpfop);
 	/**
 	   Find out the size of rpc item.
 	 */
 	size_t (*rito_item_size)(const struct c2_rpc_item *item);
-
-	/**
-	   Find out if given rpc items belong to same type or not.
-	 */
-	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
-			c2_rpc_item *item2);
-	/**
-	   Find out if given rpc items refer to same c2_fid struct or not.
-	 */
-	bool (*rito_fid_equal)(struct c2_rpc_item *item1,
-			       struct c2_rpc_item *item2);
 	/**
 	  Return true iff item1 and item2 are equal.
 	 */
@@ -239,12 +222,11 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Find out the count of fragmented buffers.
 	 */
-	uint64_t (*rito_get_io_fragment_count)(struct c2_rpc_item *item);
+	uint64_t (*rito_io_frags_nr_get)(struct c2_rpc_item *item);
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	int (*rito_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
-			struct c2_rpc_item *item);
+	int (*rito_io_coalesce)(struct c2_rpc_item *head, struct c2_list *list);
 	/**
 	   Serialise @item on provided xdr stream @xdrs
 	 */
@@ -465,9 +447,6 @@ struct c2_rpc_item {
 	struct c2_list_link		 ri_unformed_linkage;
 	/** Linkage to the group c2_rpc_group, needed for grouping */
 	struct c2_list_link		 ri_group_linkage;
-	/** Linkage to list of items which are coalesced, anchored
-	    at c2_rpc_frm_item_coalesced::ic_member_list. */
-	struct c2_list_link		 ri_coalesced_linkage;
 	/** Timer associated with this rpc item.*/
 	struct c2_timer			 ri_timer;
 	/** reply item */
@@ -478,6 +457,11 @@ struct c2_rpc_item {
 	struct c2_queue_link		 ri_dummy_qlinkage;
 	/** Time spent in rpc layer. */
 	c2_time_t			 ri_rpc_time;
+	/** List of compound items. */
+	struct c2_list			 ri_compound_items;
+	/** Link through which items are anchored on list of
+	    c2_rpc_item:ri_compound_items. */
+	struct c2_list_link		 ri_field;
 };
 
 /** Enum to distinguish if the path is incoming or outgoing */

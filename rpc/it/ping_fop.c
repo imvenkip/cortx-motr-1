@@ -85,10 +85,8 @@ struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = c2_ping_fop_replied,
-        //.rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
+        .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
         .rito_decode = c2_rpc_fop_default_decode,
@@ -99,20 +97,17 @@ struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
         .rito_added = NULL,
         .rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
+        .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
         .rito_decode = c2_rpc_fop_default_decode,
 };
-
 
 /* Ops vector for ping request. */
 struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fom_init = c2_fop_ping_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_op_equal = NULL,
 	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
 };
@@ -128,8 +123,6 @@ struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        //.fto_getsize = c2_fop_ping_getsize,
-        .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
@@ -179,6 +172,7 @@ int c2_ping_fop_init(void)
         result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
         return result;
 }
+
 
 /*
  *  Local variables:

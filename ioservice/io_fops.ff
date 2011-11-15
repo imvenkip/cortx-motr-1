@@ -107,7 +107,7 @@ DEF(c2_fop_cob_readv_rep, RECORD,
  * Represents the extent information for an io segment.
  */
 DEF(c2_ioseg, RECORD,
-	_(ci_offset, U64),
+	_(ci_index, U64),
 	_(ci_count, U64));
 
 /**
@@ -130,6 +130,7 @@ DEF(c2_fop_cob_rw, RECORD,
 	/** Index vector representing the extent information for the
 	    IO request. */
 	_(crw_ivec, c2_io_indexvec),
+	_(crw_iovec, c2_fop_io_vec),
 	/** Miscellaneous flags. */
 	_(crw_flags, U64));
 

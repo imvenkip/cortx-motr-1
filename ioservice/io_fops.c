@@ -36,11 +36,23 @@
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "lib/vec.h"	/* c2_0vec */
+#include "rpc/rpccore.h"
 
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
 
 #include "ioservice/io_fops.ff"
+
+/* Forward declarations. */
+int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
+			      struct c2_rpc_item *item,
+			      struct c2_bufvec_cursor *cur);
+
+int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
+			      struct c2_rpc_item **item,
+			      struct c2_bufvec_cursor *cur);
+
+static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 
 /**
    The IO fops code has been generalized to suit both read and write fops
@@ -624,7 +636,7 @@ static int iosegs_alloc(struct c2_fop_io_vec *iovec, const uint32_t count)
 	C2_PRE(count != 0);
 
 	C2_ALLOC_ARR(iovec->iv_segs, count);
-	return iovec->iv_segs == NULL ? 0 : -ENOMEM;
+	return iovec->iv_segs == NULL ? -ENOMEM : 0;
 }
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
@@ -741,6 +753,7 @@ static int io_fop_seg_init(struct c2_io_ioseg **ns, struct c2_io_ioseg *cseg)
 		c2_free(new_seg);
 		return -ENOMEM;
 	}
+	c2_list_link_init(&new_seg->io_linkage);
 	*ns = new_seg;
 	*new_seg = *cseg;
 	return 0;
@@ -853,7 +866,7 @@ static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
    read fops or write fops. Both fop types can not be present simultaneously.
 
    @param fop_list - list of fops. These structures contain either read or
-   write fops. Both fop types can not be present in the fop_list simultaneously.
+   write fops. Both fop types can not be present in fop_list simultaneously.
    @param res_fop - resultant fop with which the resulting IO vector is
    associated.
    @param bkpfop - A fop used to store the original IO vector of res_fop
@@ -861,14 +874,16 @@ static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
    from resultant fop and it is restored on receving the reply of this
    coalesced IO request. @see io_fop_iovec_restore.
  */
-static int io_fop_coalesce(const struct c2_list *fop_list,
-		struct c2_fop *res_fop, struct c2_fop *bkp_fop)
+static int io_fop_coalesce(struct c2_fop *res_fop)
 {
 	int			 res;
 	int			 i = 0;
 	uint64_t		 curr_segs;
 	struct c2_fop		*fop;
+	struct c2_fop		*bkp_fop;
 	struct c2_list		 aggr_list;
+	struct c2_list		*items_list;
+	struct c2_rpc_item	*item;
 	struct c2_io_ioseg	*ioseg;
 	struct c2_io_ioseg	*ioseg_next;
 	struct c2_io_ioseg	 res_ioseg;
@@ -877,8 +892,9 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	struct c2_fop_io_vec	*bkp_vec;
 	struct c2_fop_io_vec	*res_iovec;
 
-	C2_PRE(fop_list != NULL);
 	C2_PRE(res_fop != NULL);
+	items_list = &res_fop->f_item.ri_compound_items;
+	C2_PRE(!c2_list_is_empty(items_list));
 
 	fopt = res_fop->f_type;
 	C2_PRE(is_io(res_fop));
@@ -889,13 +905,16 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	bkp_fop = c2_fop_alloc(fopt, NULL);
 	if (bkp_fop == NULL)
 		return -ENOMEM;
+	c2_rpc_item_init(&bkp_fop->f_item);
+	io_rw_get(bkp_fop)->crw_fid = *io_fop_fid_get(res_fop);
 
 	c2_list_init(&aggr_list);
 
 	/* Traverse the fop_list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
 	   in another list. */
-	c2_list_for_each_entry(fop_list, fop, struct c2_fop, f_link) {
+	c2_list_for_each_entry(items_list, item, struct c2_rpc_item, ri_field) {
+		fop = c2_rpc_item_to_fop(item);
 		iovec = iovec_get(fop);
 		res = io_fop_segments_coalesce(iovec, &aggr_list);
 	}
@@ -928,6 +947,9 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	bkp_vec = iovec_get(bkp_fop);
 	*bkp_vec = *iovec;
 	*iovec = *res_iovec;
+
+	c2_list_add(&res_fop->f_item.ri_compound_items,
+		    &bkp_fop->f_item.ri_field);
 	return res;
 cleanup:
 	C2_ASSERT(res != 0);
@@ -938,27 +960,6 @@ cleanup:
 		ioseg_unlink_free(ioseg);
 	c2_list_fini(&aggr_list);
 	return res;
-}
-
-/**
-   Restores the original IO vector of parameter fop from the appropriate
-   IO vector from parameter bkpfop.
-   @param fop - Incoming fop. This fop is same as res_fop parameter from
-   the subroutine io_fop_coalesce. @see io_fop_coalesce.
-   @param bkpfop - Backup fop with which the original IO vector of
-   coalesced fop was stored.
- */
-static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop *bkpfop)
-{
-	struct c2_fop_io_vec *vec;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(bkpfop != NULL);
-
-	vec = iovec_get(fop);
-	c2_free(vec->iv_segs);
-	*vec = *(iovec_get(bkpfop));
-	c2_fop_free(bkpfop);
 }
 
 /**
@@ -990,18 +991,38 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 	return (ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid);
 }
 
+void io_fop_replied(struct c2_fop *fop)
+{
+	struct c2_fop		*bkpfop;
+	struct c2_rpc_item	*bkpitem;
+	struct c2_fop_io_vec	*vec;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(is_io(fop));
+
+	if (!c2_list_is_empty(&fop->f_item.ri_compound_items)) {
+		bkpitem = c2_list_entry(c2_list_first(
+				      &fop->f_item.ri_compound_items),
+				      struct c2_rpc_item, ri_field);
+		bkpfop = c2_rpc_item_to_fop(bkpitem);
+		vec = iovec_get(fop);
+		c2_free(vec->iv_segs);
+		*vec = *(iovec_get(bkpfop));
+		c2_list_del(&bkpfop->f_item.ri_field);
+		c2_free(bkpfop);
+	} else 
+		c2_list_del(&fop->f_item.ri_field);
+}
+
 /**
  * readv FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
-	.fto_fop_replied = NULL,
+	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_op_equal = io_fop_type_equal,
-	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
-	.fto_iovec_restore = io_fop_iovec_restore,
 };
 
 /**
@@ -1009,13 +1030,10 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
  */
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
-	.fto_fop_replied = NULL,
+	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_op_equal = io_fop_type_equal,
-	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
-	.fto_iovec_restore = io_fop_iovec_restore,
 };
 
 /**
@@ -1037,17 +1055,130 @@ const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
-/**
- * FOP definitions for readv and writev operations.
- */
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
-		C2_IOSERVICE_READV_OPCODE, &c2_io_cob_readv_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
-		C2_IOSERVICE_WRITEV_OPCODE, &c2_io_cob_writev_ops);
+/* Rpc item type ops for IO operations. */
+static void io_item_replied(struct c2_rpc_item *item, int rc)
+{
+	struct c2_fop *fop;
 
-/**
- * FOP definitions of readv and writev reply FOPs.
- */
+	C2_PRE(item != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	if (fop->f_type->ft_ops->fto_fop_replied != NULL)
+		fop->f_type->ft_ops->fto_fop_replied(fop);
+}
+
+static size_t io_item_size_get(const struct c2_rpc_item *item)
+{
+        size_t		 size;
+        struct c2_fop   *fop;
+
+        C2_PRE(item != NULL);
+
+        fop = c2_rpc_item_to_fop(item);
+        if (fop->f_type->ft_ops->fto_size_get != NULL)
+                size = fop->f_type->ft_ops->fto_size_get(fop);
+
+        return size;
+}
+
+static uint64_t io_frags_nr_get(struct c2_rpc_item *item)
+{
+	struct c2_fop *fop;
+
+	C2_PRE(item != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	return fop->f_type->ft_ops->fto_get_nfragments(fop);
+}
+
+int item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
+{
+	int			 rc;
+	struct c2_fop		*bfop;
+	struct c2_fop		*ufop;
+	struct c2_rpc_item	*item;
+	struct c2_rpc_item	*item_next;
+	struct c2_rpc_session	*session;
+
+	C2_PRE(head != NULL);
+	C2_PRE(list != NULL);
+
+	session = container_of(list, struct c2_rpc_session, s_unbound_items);
+	C2_ASSERT(session != NULL);
+	C2_ASSERT(c2_mutex_is_locked(&session->s_mutex));
+
+	if (c2_list_is_empty(list))
+		return -EINVAL;
+
+	if (!head->ri_type->rit_ops->rito_io_coalesce)
+		return -EINVAL;
+
+	/* Traverse through the list and find out items that match with
+	   head on basis of fid and intent (read/write). Matching items
+	   are removed from session->s_unbound_items list and added to
+	   head->compound_items list. */
+	bfop = c2_rpc_item_to_fop(head);
+	c2_list_for_each_entry_safe(list, item, item_next, struct c2_rpc_item,
+				    ri_unbound_link) {
+		ufop = c2_rpc_item_to_fop(item);
+		if (io_fop_type_equal(bfop, ufop) &&
+		    io_fop_fid_equal(bfop, ufop)) {
+			c2_list_del(&item->ri_unbound_link);
+			c2_list_add(&head->ri_compound_items, &item->ri_field);
+		}
+	}
+
+	if (c2_list_is_empty(&head->ri_compound_items))
+		return -EINVAL;
+
+	/* Add the bound item to list of compound items as this will
+	   include the bound item's io vector in io coalescing. */
+	c2_list_add(&head->ri_compound_items, &head->ri_field);
+
+	//rc = io_fop_coalesce(bfop);
+	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop);
+
+	c2_list_del(&head->ri_field);
+	return rc;
+}
+
+static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = io_item_replied,
+        .rito_item_size = io_item_size_get,
+        .rito_io_frags_nr_get = io_frags_nr_get,
+        .rito_io_coalesce = item_io_coalesce,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = io_item_replied,
+        .rito_item_size = io_item_size_get,
+        .rito_io_frags_nr_get = io_frags_nr_get,
+        .rito_io_coalesce = item_io_coalesce,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+struct c2_rpc_item_type rpc_item_type_readv = {
+        .rit_ops = &rpc_item_readv_type_ops,
+};
+
+struct c2_rpc_item_type rpc_item_type_writev = {
+        .rit_ops = &rpc_item_writev_type_ops,
+};
+
+C2_FOP_TYPE_DECLARE_NEW(c2_fop_cob_readv, "Read request",
+			C2_IOSERVICE_READV_OPCODE, &c2_io_cob_readv_ops,
+			&rpc_item_type_readv);
+C2_FOP_TYPE_DECLARE_NEW(c2_fop_cob_writev, "Write request",
+			C2_IOSERVICE_WRITEV_OPCODE, &c2_io_cob_writev_ops,
+			&rpc_item_type_writev);
+
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    C2_IOSERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
