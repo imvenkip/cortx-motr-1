@@ -72,8 +72,8 @@
    - <b>r.c2.lib.atomic.interoperable-kernel-user-support</b> The
    implementation shall provide a queue that supports atomic,
    interoperable sharing between kernel to user-space.
-   - <b>r.net.xprt.lnet.growable-event-queue</b> The implementation that support
-   an event queue to which new elements can be added over time.
+   - <b>r.net.xprt.lnet.growable-event-queue</b> The implementation shall
+   support an event queue to which new elements can be added over time.
 
    <hr>
    @section cqueueDLD-depends Dependencies
@@ -202,7 +202,8 @@
    (the transport) address space.  The @c producer pointer refers to the element
    in the producer's (the kernel) address space.
 
-   A queue link element is represented by the nlx_core_bev_link data structure:
+   A queue link element (the @c next pointer in the preceeding discussion) is
+   represented by the nlx_core_bev_link data structure:
    @code
    struct nlx_core_bev_link {
             nlx_core_opaque_ptr_t cbl_c_self;
@@ -410,6 +411,14 @@
    still has room for additional element production. This can be expressed as
    @code consumer->next != producer && consumer != producer @endcode
 
+   As discussed @ref cqueueDLD-lspec-xlink "above", implementing these
+   comparisons requires the use of the appropriate opaque pointers in the
+   nlx_core_bev_link data structure.  The implementation of tests for these
+   states varies depending on if the producer or the consumer is making the
+   test.  Note also that there is no direct way for the producer to detect the
+   empty state, because the @c consumer pointer is meaningful only in the
+   consumer (transport) space.
+
    @subsection cqueueDLD-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
    This section describes the threading and concurrency model.
@@ -568,11 +577,13 @@
    size_t needed;
    struct nlx_core_buffer_event *el;
 
+   ... ; // lock a lock shared with the consumer
    while (needed > bev_cqueue_size(&myqueue)) {
        C2_ALLOC_PTR(el);
        ... ; // initialize the new element for both address spaces
        bev_cqueue_add(&myqueue, el);
    }
+   ... ; // unlock the lock shared with the consumer
    @endcode
 
    @subsection cq-producer Producer
@@ -603,14 +614,17 @@
    struct nlx_core_buffer_event *el;
 
    while (!done) {
+       ... ; // lock a lock shared with the allocator
        ql = bev_cqueue_get(&myqueue);
        if (ql == NULL) {
+           ... ; // unlock a lock shared with the allocator
            ... ; // block until data is available
            continue;
        }
 
        el = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
        ... ; // operate on the current element
+       ... ; // unlock a lock shared with the allocator
    }
    @endcode
 

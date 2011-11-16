@@ -165,6 +165,7 @@
    @{
  */
 
+#include "lib/atomic.h"
 #include "net/lnet.h"
 
 /* forward references */
@@ -177,9 +178,10 @@ struct nlx_core_ep_addr;
 struct nlx_core_transfer_mc;
 
 /**
-   Opaque type wide enough to represent an address in any address space.
+   Opaque type wide enough to represent an address in any address space
+   and accessible using atomic operations.
  */
-typedef uint64_t nlx_core_opaque_ptr_t;
+typedef struct c2_atomic64 nlx_core_opaque_ptr_t;
 C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) == sizeof(void *));
 
 /**
