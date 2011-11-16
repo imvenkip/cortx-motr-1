@@ -52,8 +52,8 @@
 	  must acquire the lock and release the lock once its usage is over.
 
 	  To finalize the pool all the buffers must be returned back to the pool
-	  (i.e number of free buffers must be equal to the total number of of
-	  buffers).
+	  (i.e number of free buffers must be equal to the total number of
+	   buffers).
 
  To describe a typical buffer pool usage pattern, suppose that one wants
  a buffer pool of 10, size of each segment is 1024, number of segments is
@@ -226,8 +226,6 @@ struct c2_net_buffer_pool {
 	struct c2_mutex		nbp_mutex;
 	/** Network domain to register the buffers. */
 	struct c2_net_domain   *nbp_ndom;
-	/** Head of list of buffers in the pool. */
-	struct c2_tl		nbp_head;
 	/** Call back operations can be triggered by buffer pool. */
 	const struct c2_net_buffer_pool_ops *nbp_ops;
 	/** Number of colours in the pool. */

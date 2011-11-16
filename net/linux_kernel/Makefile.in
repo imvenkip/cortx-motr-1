@@ -36,7 +36,7 @@ link_deprbulk := $(deprbulk_lsrc:%=../bulk_emulation/%) \
                  $(deprbulk_lut:%=../bulk_emulation/ut/%)
 
 all_src       := $(kernel_src) $(net_src) $(bulk_src) $(depr_src) $(depr_ksrc)\
-                 $(deprbulk_src) 
+                 $(deprbulk_src)
 all_obj       := $(all_src:.c=.o)
 
 obj-y         := $(NET_MOD).o
