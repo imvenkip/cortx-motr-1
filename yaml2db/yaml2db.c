@@ -495,9 +495,17 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 				continue;
 			}
 			valid_key_status[section_index] = true;
-			ysec->ys_ops->so_val_populate(ysec, (void *) &val,
+			rc = ysec->ys_ops->so_val_populate(ysec, (void *) &val,
 					(char *)k_node->data.scalar.value,
 					(char *)v_node->data.scalar.value);
+			if (rc != 0) {
+				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+						yaml2db_func_fail,
+						"section_value_populate", 0);
+				c2_table_fini(&table);
+				c2_db_tx_abort(&tx);
+				return rc;
+			}
 		}
 		c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
 				&val, sizeof val);
@@ -645,60 +653,58 @@ static void device_key_populate(void *key, const char *val_str)
         strcpy (dev_key->csd_uuid.cu_uuid, val_str);
 }
 
+#define DEV_ENUM_CHECK_INTERFACE(interface, val_str, dev_val) \
+	if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_" #interface) == 0)  \
+   dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_ ## interface;
+
+#define DEV_ENUM_CHECK_MEDIA(media, val_str, dev_val) \
+	if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_" #media) == 0)  \
+   dev_val->csd_media = C2_CFG_DEVICE_MEDIA_ ## media;
+
 /* Section op to populate the device value*/
-static void device_val_populate (struct c2_yaml2db_section *ysec, void *val,
+static int device_val_populate (struct c2_yaml2db_section *ysec, void *val,
 				 const char *key_str, const char *val_str)
 {
         struct c2_cfg_storage_device__val *dev_val = val;
 
         if (strcmp(key_str,"interface") == 0){
-                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_ATA") == 0)
-                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_ATA;
-                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SATA") == 0)
-                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SATA;
-                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SCSI") == 0)
-                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SCSI;
-                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SATA2") == 0)
-                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SATA2;
-                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SCSI2") == 0)
-                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SCSI2;
-                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SAS") == 0)
-                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SAS;
-                if (strcmp(val_str, "C2_CFG_DEVICE_INTERFACE_SAS2") == 0)
-                        dev_val->csd_type = C2_CFG_DEVICE_INTERFACE_SAS2;
-                return;
+		DEV_ENUM_CHECK_INTERFACE(ATA, val_str, dev_val);
+		DEV_ENUM_CHECK_INTERFACE(SATA, val_str, dev_val);
+		DEV_ENUM_CHECK_INTERFACE(SCSI, val_str, dev_val);
+		DEV_ENUM_CHECK_INTERFACE(SATA2, val_str, dev_val);
+		DEV_ENUM_CHECK_INTERFACE(SCSI2, val_str, dev_val);
+		DEV_ENUM_CHECK_INTERFACE(SAS, val_str, dev_val);
+		DEV_ENUM_CHECK_INTERFACE(SAS2, val_str, dev_val);
+                return 0;
         }
         if (strcmp(key_str,"media") == 0){
-                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_DISK") == 0)
-                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_DISK;
-                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_SSD") == 0)
-                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_SSD;
-                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_TAPE") == 0)
-                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_TAPE;
-                if (strcmp(val_str, "C2_CFG_DEVICE_MEDIA_ROM") == 0)
-                        dev_val->csd_media = C2_CFG_DEVICE_MEDIA_ROM;
-                return;
+		DEV_ENUM_CHECK_MEDIA(DISK, val_str, dev_val);
+		DEV_ENUM_CHECK_MEDIA(SSD, val_str, dev_val);
+		DEV_ENUM_CHECK_MEDIA(TAPE, val_str, dev_val);
+		DEV_ENUM_CHECK_MEDIA(ROM, val_str, dev_val);
+                return 0;
         }
         if (strcmp(key_str,"size") == 0){
                 sscanf(val_str, "%lu", &dev_val->csd_size);
-                return;
+                return 0;
         }
         if (strcmp(key_str,"state") == 0){
                 sscanf(val_str, "%lu", &dev_val->csd_last_state);
-                return;
+                return 0;
         }
         if (strcmp(key_str,"flags") == 0){
                 sscanf(val_str, "%lu", &dev_val->csd_flags);
-                return;
+                return 0;
         }
         if (strcmp(key_str,"filename") == 0){
                 sscanf(val_str, "%s", dev_val->csd_filename);
-                return;
+                return 0;
         }
         if (strcmp(key_str,"nodename") == 0){
                 sscanf(val_str, "%s", dev_val->csd_nodename);
-                return;
+                return 0;
         }
+	return 0;
 }
 
 /* yaml2db section op to dump the key-value data to a file */

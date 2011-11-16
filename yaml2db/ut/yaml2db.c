@@ -30,14 +30,17 @@
 /* Constant names and paths */
 static const char f_path[] = "./__conf_db_failure";
 static const char f_name[] = "conf_failure.yaml";
+static const char f_err_fname[] = "conf_failure_error";
 static const char mp_path[] = "./__conf_db_success_mp";
 static const char mp_name[] = "conf_success_mp.yaml";
 static const char ma_path[] = "./__conf_db_success_ma";
 static const char ma_name[] = "conf_success_ma.yaml";
 static const char s_path[] = "./__conf_db_dirty_scanner_error";
 static const char s_name[] = "conf_dirty_scanner_error.yaml";
+static const char s_err_fname[] = "conf_dirty_scanner_error";
 static const char p_path[] = "./__conf_db_dirty_parser_error";
 static const char p_name[] = "conf_dirty_parser_error.yaml";
+static const char p_err_fname[] = "conf_dirty_parser_error";
 static const char dev_str[] = "devices";
 static const char parse_dump_fname[] = "parse.txt";
 static const char emit_dump_fname[] = "emit.txt";
@@ -71,20 +74,20 @@ static struct c2_yaml2db_section dev_section = {
 };
 
 static char *interface_fields[] = {
-        "C2_CFG_DEVICE_INTERFACE_ATA",
-        "C2_CFG_DEVICE_INTERFACE_SATA",
-        "C2_CFG_DEVICE_INTERFACE_SCSI",
-        "C2_CFG_DEVICE_INTERFACE_SATA2",
-        "C2_CFG_DEVICE_INTERFACE_SCSI2",
-        "C2_CFG_DEVICE_INTERFACE_SAS",
-        "C2_CFG_DEVICE_INTERFACE_SAS2"
+        "ATA",
+        "SATA",
+        "SCSI",
+        "SATA2",
+        "SCSI2",
+        "SAS",
+        "SAS2"
 };
 
 static char *media_fields[] = {
-        "C2_CFG_DEVICE_MEDIA_DISK",
-        "C2_CFG_DEVICE_MEDIA_SSD",
-        "C2_CFG_DEVICE_MEDIA_TAPE",
-        "C2_CFG_DEVICE_MEDIA_ROM",
+        "DISK",
+        "SSD",
+        "TAPE",
+        "ROM",
 };
 
 /* Default number of records to be generated */
@@ -182,7 +185,16 @@ static int generate_conf_file(const char *c_name, int rec_nr,
  */
 static void mandatory_fields_absent(void)
 {
-	int	rc;
+	int	 rc;
+        FILE    *fp;
+        int      fd;
+        char     str[STR_SIZE_NR];
+
+	fd = dup(fileno(stderr));
+	C2_UT_ASSERT(fd != -1);
+
+	fp = freopen(f_err_fname, "w+", stderr);
+	C2_UT_ASSERT(fp != NULL);
 
 	/* Do not skip optional fields.
 	   Skip mandatory fields and expect error */
@@ -205,9 +217,18 @@ static void mandatory_fields_absent(void)
 	rc = c2_yaml2db_doc_load(&yctx);
 	C2_UT_ASSERT(rc == 0);
 
-	printf("Testing failure path, expecting error message\n\n");
 	rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
 	C2_UT_ASSERT(rc == -EINVAL);
+
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) == NULL);
+	C2_UT_ASSERT(strstr("Error: Mandatory key not present", str) == NULL);
+
+	fclose(fp);
+
+	fd = dup2(fd, 2);
+	C2_UT_ASSERT(fd != -1);
+	stderr = fdopen(fd, "a+");
+	C2_UT_ASSERT(stderr != NULL);
 
 	c2_yaml2db_fini(&yctx);
 }
@@ -351,7 +372,16 @@ static int generate_dirty_conf_file(const char *c_name, enum error_type etype)
 
 static void scanner_error_detect(void)
 {
-	int	rc;
+	int	 rc;
+	FILE	*fp;
+	int	 fd;
+	char	 str[STR_SIZE_NR];
+
+	fd = dup(fileno(stderr));
+	C2_UT_ASSERT(fd != -1);
+
+	fp = freopen(s_err_fname, "w+", stderr);
+	C2_UT_ASSERT(fp != NULL);
 
 	rc = generate_dirty_conf_file(s_name, SCANNER_ERROR);
 	C2_UT_ASSERT(rc == 0);
@@ -366,18 +396,34 @@ static void scanner_error_detect(void)
 	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
 
-	printf("Testing failure path, expecting error message\n\n");
 	rc = c2_yaml2db_doc_load(&yctx);
+	C2_UT_ASSERT(rc != 0);
 
-	/* Used for pretty printing of CUnit output */
-	printf("\n");
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) == NULL);
+	C2_UT_ASSERT(strstr("Scanner error", str) == NULL);
+
+	fclose(fp);
+
+	fd = dup2(fd, 2);
+	C2_UT_ASSERT(fd != -1);
+	stderr = fdopen(fd, "a+");
+	C2_UT_ASSERT(stderr != NULL);
 
 	c2_yaml2db_fini(&yctx);
 }
 
 static void parser_error_detect(void)
 {
-	int	rc;
+	int	 rc;
+	FILE	*fp;
+	int	 fd;
+	char	 str[STR_SIZE_NR];
+
+	fd = dup(fileno(stderr));
+	C2_UT_ASSERT(fd != -1);
+
+	fp = freopen(p_err_fname, "w+", stderr);
+	C2_UT_ASSERT(fp != NULL);
 
 	rc = generate_dirty_conf_file(p_name, PARSER_ERROR);
 	C2_UT_ASSERT(rc == 0);
@@ -392,10 +438,18 @@ static void parser_error_detect(void)
 	rc = c2_yaml2db_init(&yctx);
 	C2_UT_ASSERT(rc == 0);
 
-	printf("Testing failure path, expecting error message\n\n");
 	rc = c2_yaml2db_doc_load(&yctx);
+	C2_UT_ASSERT(rc != 0);
 
-	printf("\n");
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) == NULL);
+	C2_UT_ASSERT(strstr("Parser error", str) == NULL);
+
+	fclose(fp);
+
+	fd = dup2(fd, 2);
+	C2_UT_ASSERT(fd != -1);
+	stderr = fdopen(fd, "a+");
+	C2_UT_ASSERT(stderr != NULL);
 
 	c2_yaml2db_fini(&yctx);
 }

@@ -42,56 +42,56 @@
    @verbatim
     devices:
       - label     : LABEL1
-        interface : C2_CFG_DEVICE_INTERFACE_ATA
-	media     : C2_CFG_DEVICE_MEDIA_DISK
+        interface : ATA
+	media     : DISK
 	size      : 77631820
 	state     : 1
 	flags     : 0
 	filename  : /dev/sda
 	nodename  : n0
       - label     : LABEL2
-        interface : C2_CFG_DEVICE_INTERFACE_SATA
-	media     : C2_CFG_DEVICE_MEDIA_SSD
+        interface : SATA
+	media     : SSD
 	size      : 281910680
 	state     : 0
 	flags     : 1
 	filename  : /dev/sda1
 	nodename  : n10
       - label     : LABEL3
-        interface : C2_CFG_DEVICE_INTERFACE_SCSI
-	media     : C2_CFG_DEVICE_MEDIA_TAPE
+        interface : SCSI
+	media     : TAPE
 	size      : 124321
 	state     : 0
 	flags     : 2
 	filename  : /dev/pt0
 	nodename  : n100
       - label     : LABEL4
-        interface : C2_CFG_DEVICE_INTERFACE_SATA2
-	media     : C2_CFG_DEVICE_MEDIA_ROM
+        interface : SATA2
+	media     : ROM
 	size      : 98124321
 	state     : 0
 	flags     : 2
 	filename  : /dev/pcd0
 	nodename  : n200
       - label     : LABEL5
-        interface : C2_CFG_DEVICE_INTERFACE_SCSI2
-	media     : C2_CFG_DEVICE_MEDIA_DISK
+        interface : SCSI2
+	media     : DISK
 	size      : 9860772073
 	state     : 1
 	flags     : 1
 	filename  : /dev/sda2
 	nodename  : n200
       - label     : LABEL6
-        interface : C2_CFG_DEVICE_INTERFACE_SAS
-	media     : C2_CFG_DEVICE_MEDIA_DISK
+        interface : SAS
+	media     : DISK
 	size      : 68926892
 	state     : 0
 	flags     : 1
 	filename  : /dev/sda3
 	nodename  : n200
       - label     : LABEL7
-        interface : C2_CFG_DEVICE_INTERFACE_SAS2
-	media     : C2_CFG_DEVICE_MEDIA_DISK
+        interface : SAS2
+	media     : DISK
 	size      : 27232723
 	state     : 1
 	flags     : 0
@@ -210,12 +210,13 @@ struct c2_yaml2db_section_ops {
 	  to be mapped against corresponding entry in the value structure.
 	  @param val_str - value string that has been parsed from the yaml file,
 	  to be used to populate the value structure entry
+	  @retval - 0 for success, -errno otherwise
 	 */
-	void (*so_val_populate) (struct c2_yaml2db_section *ysec, void *val,
+	int (*so_val_populate) (struct c2_yaml2db_section *ysec, void *val,
 				const char *key_str, const char *val_str);
 	/**
 	  Dump the key and value for a record to the file having file
-	  descriptor yctx->yc_dp.
+	  descriptor fp.
 	  @param fp - FILE pointer to file in which data has to be dumped
 	  @param key - pointer to the key structure. Section specific dump
 	  routine should appropriately cast the key and then use it.
@@ -225,7 +226,7 @@ struct c2_yaml2db_section_ops {
 	void (*so_key_val_dump) (FILE *fp, void *key, void *val);
 };
 
-struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
+extern struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
 
 /**
   Iterates over a yaml sequence

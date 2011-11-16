@@ -57,20 +57,20 @@ static struct c2_yaml2db_section dev_section = {
 };
 
 static char *interface_fields[] = {
-	"C2_CFG_DEVICE_INTERFACE_ATA",
-	"C2_CFG_DEVICE_INTERFACE_SATA",
-	"C2_CFG_DEVICE_INTERFACE_SCSI",
-	"C2_CFG_DEVICE_INTERFACE_SATA2",
-	"C2_CFG_DEVICE_INTERFACE_SCSI2",
-	"C2_CFG_DEVICE_INTERFACE_SAS",
-	"C2_CFG_DEVICE_INTERFACE_SAS2"
+	"ATA",
+	"SATA",
+	"SCSI",
+	"SATA2",
+	"SCSI2",
+	"SAS",
+	"SAS2"
 };
 
 static char *media_fields[] = {
-	"C2_CFG_DEVICE_MEDIA_DISK",
-	"C2_CFG_DEVICE_MEDIA_SSD",
-	"C2_CFG_DEVICE_MEDIA_TAPE",
-	"C2_CFG_DEVICE_MEDIA_ROM",
+	"DISK",
+	"SSD",
+	"TAPE",
+	"ROM",
 };
 
 /* Default number of records to be generated */
