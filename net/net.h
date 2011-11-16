@@ -1140,6 +1140,10 @@ enum c2_net_buf_flags {
 	C2_NET_BUF_CANCELLED   = 1<<3,
 	/** Indicates that the buffer operation has timed out */
 	C2_NET_BUF_TIMED_OUT   = 1<<4,
+	/** Set by the transport to indicate that a buffer should not be
+	    dequeued in a c2_net_buffer_event_post() call.
+	 */
+	C2_NET_BUF_RETAIN      = 1<<5,
 };
 
 /**
@@ -1456,12 +1460,14 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 
    Multiple concurrent events may be delivered for a given buffer.
 
-   The subroutine will remove the buffer from its queue, and clear its
-   C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
-   prior to invoking the callback.  If the C2_NET_BUF_CANCELLED flag was
-   set, then the status is forced to -ECANCELED.  If the C2_NET_BUF_TIMED_OUT
-   flag was set, then the status is forced to -ETIMEDOUT.  The buffer's
-   nb_timeout field is always reset to C2_TIME_NEVER.
+   The subroutine will remove the buffer from its queue if the
+   C2_NET_BUF_RETAIN flag is @em not set.  It will clear the C2_NET_BUF_QUEUED
+   and C2_NET_BUF_IN_USE flags and set the nb_timeout field to C2_TIME_NEVER if
+   the buffer is dequeued.  It will always clear the C2_NET_BUF_CANCELLED and
+   C2_NET_BUF_TIMED_OUT flags prior to invoking the callback.  If the
+   C2_NET_BUF_CANCELLED flag was set, then the status is forced to -ECANCELED.
+   If the C2_NET_BUF_TIMED_OUT flag was set, then the status is forced to
+   -ETIMEDOUT.
 
    The subroutine will perform a c2_end_point_put() on the nbe_ep field
    in the event structure, if the queue type is C2_NET_QT_MSG_RECV and

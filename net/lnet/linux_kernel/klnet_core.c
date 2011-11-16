@@ -110,7 +110,7 @@
    - <b>LNet API</b> headers are required to build the module.
    The Xyratex Lustre source package must be installed on the build
    machine (RPM @c lustre-source version 2.0 or greater).
-   - <b>Xyratex Lustre runtime</b>
+   - <b>Xyratex Lustre run time</b>
 
    <hr>
    @section KLNetCoreDLD-highlights Design Highlights
@@ -261,7 +261,7 @@
    affinity constraints that are not met by the LNet callback thread; indeed,
    LNet does not even state if this callback is in a schedulable context.
 
-   Instead, the kernel Core module de-couples the delivery of buffer operation
+   Instead, the kernel Core module decouples the delivery of buffer operation
    completion to the transport from the LNet callback context by copying the
    result to an intermediate buffer event queue.  The Core API provides the
    nlx_core_buf_event_wait() subroutine that the transport can use to poll for
@@ -356,7 +356,7 @@
    to the nlx_core_buffer data structure.  The callback does the following:
 
    -# @c LNET_EVENT_SEND and @c LNET_EVENT_ACK events are ignored.
-   -# Obtain the nlx_kcore_transfer_mc::ktm_bevq_lock spinlock.
+   -# Obtain the nlx_kcore_transfer_mc::ktm_bevq_lock spin lock.
    -# The bev_cqueue_pnext() subroutine is used to locate the next buffer event
       structure in the circular buffer event queue which will be used to return
       the result.
@@ -367,8 +367,8 @@
       nlx_core_buffer_event::cbe_status field and the
       nlx_core_buffer_event::cbe_unlinked field set to true.
    -# The bev_cqueue_put() subroutine is invoked.
-   -# Release the nlx_kcore_transfer_mc::ktm_bevq_lock spinlock.
-   -# The nlx_kcore_transfer_mc::ktm_sem is signalled with the
+   -# Release the nlx_kcore_transfer_mc::ktm_bevq_lock spin lock.
+   -# The nlx_kcore_transfer_mc::ktm_sem is signaled with the
       c2_semaphore_up() subroutine.
 
    The (single) transport layer event handler thread blocks on the Core
@@ -421,10 +421,10 @@
       - Set the kernel logical address of the nlx_kcore_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
-      - Set the @c threshold value to the maximum number of messages that
-        are to be received in the buffer.
-      - Set the @c max_size value to the
-        nlx_kcore_buffer::kb_min_receive_size value.
+      - Set the @c threshold value to the nlx_kcore_buffer::kb_max_recv_msgs
+        value.
+      - Set the @c max_size value to the nlx_kcore_buffer::kb_min_recv_size
+        value.
       - Set the @c LNET_MD_OP_PUT, @c LNET_MD_MAX_SIZE and @c LNET_MD_KIOV
         flags in the @c options field.
    -# When a message arrives, an @c LNET_EVENT_PUT event will be delivered to
@@ -496,7 +496,7 @@
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
-   -# Use the @c LNetGet() subroutine to initate the active read or the
+   -# Use the @c LNetGet() subroutine to initiate the active read or the
       @c LNetPut() subroutine to initiate the active write.
    -# When a response to the @c LNetGet() or @c LNetPut() call completes, an @c
       LNET_EVENT_SEND event will be delivered to the event queue and should be
@@ -506,7 +506,7 @@
       @ref KLNetCoreDLD-lspec-ev.
 
 
-   @subsection KLNetCoreDLD-lspec-lnet-cancel LNet Cancelling Operations
+   @subsection KLNetCoreDLD-lspec-lnet-cancel LNet Canceling Operations
 
    The kernel Core module provides no timeout capability.  The transport may
    initiate a cancel operation using the nlx_core_buf_del() subroutine.
@@ -541,7 +541,7 @@
    call, and before returning from the nlx_core_buf_event_get() subroutine.
 
    - The kernel Core layer module depends on the LNet module in the kernel at
-   runtime. This dependency is captured by the Linux kernel module support that
+   run time. This dependency is captured by the Linux kernel module support that
    reference counts the usage of dependent modules.
 
 
@@ -578,7 +578,7 @@
    LNet EQ defined per transfer machine. LNet requires that this subroutine be
    reentrant and non-blocking.  The circular buffer event queue accessed from
    the callback requires a single producer, so the
-   nlx_kcore_transfer_mc::ktm_bevq_lock spinlock is used to serialize its
+   nlx_kcore_transfer_mc::ktm_bevq_lock spin lock is used to serialize its
    use across possible concurrent invocations.  The time spent in the lock is
    minimal.</li>
 
@@ -632,16 +632,55 @@
    This section cites each requirement in the @ref KLNetCoreDLD-req section,
    and explains briefly how the DLD meets the requirement.</i>
 
+   - <b>i.c2.net.lnet.buffer-registration</b> See @ref KLNetCoreDLD-lspec-reg.
+
+   - <b>i.c2.net.xprt.lnet.end-point-address</b> The nlx_core_ep_addr_encode()
+     and nlx_core_ep_addr_decode() provide this functionality.
+
+   - <b>i.c2.net.xprt.lnet.multiple-messages-in-buffer</b> See @ref
+     KLNetCoreDLD-lspec-recv.
+
+   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> See @ref
+     KLNetCoreDLD-lspec-tm-list.
+
+   - <b>i.c2.net.xprt.lnet.user-space</b> See @ref KLNetCoreDLD-lspec-userspace.
+
+   - <b>i.c2.net.xprt.lnet.user.no-gpl</b> See the @ref LNetCoreDLD-fspec
+     "Functional Specification"; no LNet headers are exposed by the Core API.
+
    <hr>
    @section KLNetCoreDLD-ut Unit Tests
    <i>Mandatory. This section describes the unit tests that will be designed.
    </i>
 
+   The testing strategy is 2 pronged:
+   - Tests with a fake LNet API.
+   - Tests with the real LNet API using the TCP loop back address.
+
+   @subsection KLNetCoreDLD-ut-fake Tests with a fake LNet API
+   These tests will intercept the LNet subroutine calls.  The real LNet data
+   structures will be used by the Core API.
+
+   - Test that the correct sequence of LNet operations are issued for each type
+     of buffer operation.
+   - Test that the callback subroutine properly delivers events to the buffer
+     event queue, including single and multiple events for receive buffers.
+
+   @subsection KLNetCoreDLD-ut-real Tests with the real LNet API
+   These tests will use the TCP loop back address.  LNet on the test machine
+   must be configured with the @c "tcp" network.
+
+   - Test the parsing of LNet addresses.
+   - Test each type of buffer operation, including single and multiple events
+     for receive buffers.
 
    <hr>
    @section KLNetCoreDLD-st System Tests
    <i>Mandatory.
    This section describes the system testing done, if applicable.</i>
+
+   System testing will be performed as part of the transport operation system
+   test.
 
    <hr>
    @section KLNetCoreDLD-O Analysis
@@ -668,6 +707,7 @@
    In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - The LNet API.
 
 */
 

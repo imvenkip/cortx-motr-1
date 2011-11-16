@@ -57,9 +57,9 @@
    layering and then focuses mainly on the transport operations layer.
 
    The design of the other layers can be found here:
-   - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"
-   - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD"
-   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
+   - @ref LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"
+   - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
+   - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
 
    <hr>
    @section LNetDLD-def Definitions
@@ -111,9 +111,6 @@
 
    <li>@ref LNetCore "LNet Transport Core Interface" </li>
 
-   <li>The @ref Processor API for the application to determine processor
-   bitmaps with which to specify thread affinity.</li>
-
    <li>The @ref net "Networking Module".  Some modifications are required:
 
      The design adds two additional fields to the c2_net_buffer structure:
@@ -128,7 +125,7 @@
      and control the reception of multiple messages into a single receive buffer.
 
      Additionally, the semantics of the @c nb_ep field is modified to not
-     require the end point of the active transfer machine when enqueing a
+     require the end point of the active transfer machine when enqueuing a
      passive buffer.  This effectively says that there will be no constraint on
      which transfer machine performs the active operation, and the application
      with the passive buffer is not required to know the address of this active
@@ -149,19 +146,25 @@
      };
      @endcode
 
-     This is not directly visible to the consumer of the @ref net/net.h API, but
-     it enables the use of the new c2_net_tm_confine() subroutine with the LNet
-     transport.
-
      The behavior of the c2_net_buffer_event_post() subroutine is modified
      slightly to allow for multiple buffer events to be delivered for a single
      receive buffer, without removing it from a transfer machine queue.
-     @todo Decide how this is done.
+     This is indicated by the C2_NET_BUF_RETAIN flag.
 
    </li> <!-- end net module changes -->
 
-   <li>The @ref bitmap "Bitmap Module".  A new subroutine to copy a bitmap is
-   required.  </li>
+   <li>The @ref bitmap "Bitmap Module".  New subroutines to copy a bitmap and
+   to compare bitmaps are required. The copy subroutine should be refactored
+   out of the processors_copy_c2bitmap() subroutine. </li>
+
+   <li>The @ref Processor API for the application to determine processor
+   bitmaps with which to specify thread affinity.</li>
+
+   <li>The @ref thread "Thread Module".  Modifications are required in
+   c2_thread_init() subroutine or a variant should be provided to support
+   thread creation with processor affinity set.  This is essential for the
+   kernel implementation where processor affinity can only be set during thread
+   creation.</li>
 
    </ul>
 
@@ -243,18 +246,14 @@
    c2_net_end_point_create() subroutine, or as a side effect of receiving a
    message.  Access to this list is protected by the transfer machine mutex.
 
-   @todo Should we address efficiency of end point lookup in the LNet
-   transport? Could probably hash on NID to one of N lists, N prime, and then
-   use linear search.
 
-
-   @subsection LNetDLD-lspec-tm-start Transfer Machine Startup
+   @subsection LNetDLD-lspec-tm-start Transfer Machine Start
 
    The c2_net_tm_start() subroutine is used to start a transfer machine, which
    results in a call to nlx_xo_tm_start().  The subroutine decodes the end
    point address using the nlx_core_ep_addr_decode() subroutine. It then starts
    the background event thread with the desired processor affinity. The thread
-   will complete the transfer machine startup and deliver its state change
+   will complete the transfer machine start up and deliver its state change
    event.
 
    The event processing thread will call the nlx_core_tm_start() subroutine to
@@ -267,7 +266,7 @@
 
    @subsection LNetDLD-lspec-tm-stop Transfer Machine Termination
 
-   Termination of a transfer machine is requrested through the c2_net_tm_stop()
+   Termination of a transfer machine is requested through the c2_net_tm_stop()
    subroutine, which results in a call to nlx_xo_tm_stop().
 
    When terminating a transfer machine the application has a choice of draining
@@ -533,14 +532,15 @@
 
    - <b>i.c2.net.xprt.lnet.end-point-address</b> Mapping of LNet end point
    address is handled in the Core API as described in the @ref
-   LNetCoreDLD-fspec "LNet Transport Core Functional Specfication".
+   LNetCoreDLD-fspec "LNet Transport Core Functional Specification".
 
    - <b>i.c2.net.xprt.lnet.multiple-messages-in-buffer</b> Fields are provided
    in the c2_net_buffer to support multiple message delivery, and the event
    delivery model includes the delivery of buffer events for receive buffers
    that do not always dequeue the buffer.
 
-   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> Dynamic transfer machine identifier assignment is provided by nlx_core_tm_start().
+   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> Dynamic transfer
+     machine identifier assignment is provided by nlx_core_tm_start().
 
    - <b>i.c2.net.xprt.lnet.processor-affinity</b> The c2_net_tm_confine() API
    is provided and the LNet transport provides the corresponding
@@ -568,9 +568,11 @@
    - Multiple domain creation will be tested.
    - Buffer registration and deregistration will be tested.
    - Multiple transfer machine creation will be tested.
+   - Test that the processor affinity bitmask is set in the TM.
    - The transfer machine state change functionality.
    - Initiation of buffer operations will be tested.
-   - Delivery of synthetic buffer events will be tested.
+   - Delivery of synthetic buffer events will be tested, including multiple
+     receive buffer events for a single receive buffer.
    - Management of the reference counted end point objects; the addresses
      themselves don't have to valid for these tests.
    - Encoding and Decoding of the network buffer descriptor will be tested.
@@ -592,7 +594,7 @@
    ideally described in big-O notation.</i>
 
    In general, the transport operational layer simply routes data too and from
-   the Core API; this behavior is analysed in
+   the Core API; this behavior is analyzed in
    @ref KLNetCoreDLD "LNet Transport Kernel Core DLD".
 
    An area of concern specific to the transport operations layer is the
