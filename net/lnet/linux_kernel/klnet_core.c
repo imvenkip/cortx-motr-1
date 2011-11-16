@@ -336,7 +336,7 @@
    No hardware optimization support is defined in the LNet API at this time.
 
    During buffer registration, the core API will translate the c2_net_bufvec
-   into the nlx_kcore_buffer::kcb_kiov field of the buffer private data.
+   into the nlx_kcore_buffer::kb_kiov field of the buffer private data.
 
 
    @subsection KLNetCoreDLD-lspec-ev LNet Event Callback Processing
@@ -412,19 +412,19 @@
       the portal, match and ignore bits. All receive buffers for a given TM will
       use a match bit value equal to the TM identifier in the higher order
       bits and zeros for the other bits.  No ignore bits are set.
-      Save the ME handle in the nlx_kcore_buffer::kcb_meh field.
+      Save the ME handle in the nlx_kcore_buffer::kb_meh field.
    -# Create and attach an MD to the ME using @c LNetMDAttach().
-      Save the MD handle in the nlx_kcore_buffer::kcb_mdh field.
+      Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
       - Set the kernel logical address of the nlx_kcore_buffer in the
         @c user_ptr field.
-      - Pass in the KIOV from the nlx_kcore_buffer::kcb_kiov.
+      - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c threshold value to the maximum number of messages that
         are to be received in the buffer.
       - Set the @c max_size value to the
-        nlx_kcore_buffer::kcb_min_receive_size value.
+        nlx_kcore_buffer::kb_min_receive_size value.
       - Set the @c LNET_MD_OP_PUT, @c LNET_MD_MAX_SIZE and @c LNET_MD_KIOV
         flags in the @c options field.
    -# When a message arrives, an @c LNET_EVENT_PUT event will be delivered to
@@ -435,13 +435,13 @@
    @subsection KLNetCoreDLD-lspec-send LNet Sending Messages
 
    -# Create an MD using @c LNetMDBind().
-      Save the MD handle in the nlx_kcore_buffer::kcb_mdh field.
+      Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
       - Set the kernel logical address of the nlx_kcore_buffer in the
         @c user_ptr field.
-      - Pass in the KIOV from the nlx_kcore_buffer::kcb_kiov.
+      - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetPut() subroutine to send the MD to the destination.
       The match bits must set to the destination TM identifier in the higher
@@ -464,13 +464,13 @@
       are obtained from the nlx_core_buffer::cb_match_bits field.  No ignore
       bits are set. The ME should be set up to unlink automatically.
    -# Create and attach an MD to the ME using @c LNetMDAttach().
-      Save the MD handle in the nlx_kcore_buffer::kcb_mdh field.
+      Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
       - Set the kernel logical address of the nlx_kcore_buffer in the
         @c user_ptr field.
-      - Pass in the KIOV from the nlx_kcore_buffer::kcb_kiov.
+      - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field, along with either
         the @c LNET_MD_OP_PUT or the @c LNET_MD_OP_GET flag according to the
 	direction of data transfer.
@@ -488,13 +488,13 @@
    remote transfer machine with the passive buffer should be set in the
    nlx_core_buffer::cb_passive_addr field.
    -# Create an MD using @c LNetMDBind().
-      Save the MD handle in the nlx_kcore_buffer::kcb_mdh field.
+      Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
       - Set the kernel logical address of the nlx_kcore_buffer in the
         @c user_ptr field.
-      - Pass in the KIOV from the nlx_kcore_buffer::kcb_kiov.
+      - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetGet() subroutine to initate the active read or the
       @c LNetPut() subroutine to initiate the active write.
@@ -512,7 +512,7 @@
    initiate a cancel operation using the nlx_core_buf_del() subroutine.
 
    This will result in an @c LNetMDUnlink() subroutine call being issued for
-   the buffer MD saved in the nlx_kcore_buffer::kcb_mdh field.
+   the buffer MD saved in the nlx_kcore_buffer::kb_mdh field.
    Cancellation may or may not take place - it depends upon whether the
    operation has started, and there is a race condition in making this call and
    concurrent delivery of an event associated with the MD.

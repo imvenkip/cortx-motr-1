@@ -83,29 +83,29 @@ struct nlx_kcore_transfer_mc {
    This structure is pointed to by c2_lnet_core_buffer::lcb_kpvt.
 */
 struct nlx_kcore_buffer {
-	uint64_t                      kcb_magic;
+	uint64_t                      kb_magic;
 
 	/** Mimumum space remaining for re-use of the receive buffer.
 	    The value is set from c2_net_buffer::nb_min_receive_size.
 	 */
-	c2_bcount_t                   kcb_min_recv_size;
+	c2_bcount_t                   kb_min_recv_size;
 
 	/** Maximum number of messages that may be received in the buffer.
 	    The value is set from c2_net_buffer::nb_max_receive_msgs.
 	 */
-	uint32_t                      kcb_max_recv_msgs;
+	uint32_t                      kb_max_recv_msgs;
 
 	/** Pointer to kernel core TM data. */
-	struct nlx_kcore_transfer_mc *kcb_ktm;
+	struct nlx_kcore_transfer_mc *kb_ktm;
 
 	/** The I/O vector. */
-	struct lnet_kiov_t            kcb_kiov;
+	struct lnet_kiov_t            kb_kiov;
 
 	/** ME handle */
-	lnet_handle_me_t              kcb_meh;
+	lnet_handle_me_t              kb_meh;
 
 	/** MD handle */
-	lnet_handle_md_t              kcb_mdh;
+	lnet_handle_md_t              kb_mdh;
 };
 
 /**

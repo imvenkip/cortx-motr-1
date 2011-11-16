@@ -45,28 +45,6 @@
    The address of this variable should be provided to the c2_net_domain_init()
    subroutine.
 
-   The module adds two additional fields to the c2_net_buffer structure:
-   @code
-   struct c2_net_buffer {
-        ...
-	c2_bcount_t   nb_min_receive_size;
-	uint32_t      nb_max_receive_msgs;
-   };
-   @endcode
-   These fields are required to be set to non-zero values in receive buffers,
-   and control the reception of multiple messages into a single receive buffer.
-
-   The module adds additional operations to the @c c2_net_xo_ops structure:
-   @code
-   struct c2_net_xo_ops {
-        ...
-        int  (*xo_tm_confine)(struct c2_net_transfer_mc *tm,
-	                      const struct c2_bitmap *processors);
-   };
-   @endcode
-   This is not directly visible to the consumer of the @ref net/net.h API, but
-   it enables the use of the new c2_net_tm_confine() subroutine with the LNet
-   transport.
 
    @section LNetDLD-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -74,14 +52,10 @@
    externally visible programming interfaces.</i>
 
    New subroutines provided:
-   - c2_net_tm_confine() Set processor affinity for transfer machine threads
    - c2_net_lnet_ep_addr_net_compare()
      Compare the network portion of two LNet transport end point addresses.
 
    The use of these subroutines is not mandatory.
-
-   @todo LNet xo set domain specific parameters
-
 
    @see @ref net "Networking"
    @see @ref LNetDLD "LNet Transport DLD"
