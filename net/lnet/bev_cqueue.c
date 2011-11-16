@@ -166,7 +166,7 @@
    contain data to be consumed (those elements marked with "x" in the diagram).
    So, @c consumer follows @c producer around the circular queue.  When
    @c consumer->next is the same as @c producer, the queue is empty
-   (requiring that the queue be initialised with at least 2 elements).  The
+   (requiring that the queue be initialized with at least 2 elements).  The
    element pointed to by @c consumer (element "y" in the diagram) is the
    element most recently consumed by the consumer.  The producer cannot use this
    element, because if it did, producing that element would result in moving
@@ -302,15 +302,15 @@
    consumer pointer (i.e. <em>in the consumer address space,</em>), without
    affecting the producer.  Elements are added as follows:
 
-   -# Allocate and initialise a new queue element (referred to as newnode)
+   -# Allocate and initialize a new queue element (referred to as @c newnode)
       which sets @c newnode->c_self and @c newnode->p_self.
    -# Set <tt>  newnode->next = consumer->next </tt>
    -# Set <tt> consumer->next = newnode        </tt>
    -# set <tt>       consumer = newnode        </tt>
 
    Steps 2-4 are performed in bev_cqueue_add().  Because several pointers need
-   to be updated, simple atomic operations are insufficent.  Thus, the transport
-   layer must synchronise calls to bev_cqueue_add() and bev_cqueue_get(),
+   to be updated, simple atomic operations are insufficient.  Thus, the transport
+   layer must synchronize calls to bev_cqueue_add() and bev_cqueue_get(),
    because both calls affect the consumer.  Given that bev_cqueue_add()
    completes its three operations before returning, and bev_cqueue_add() is
    called before the new buffer is added to the queue, there is no way the
@@ -318,7 +318,7 @@
    bev_cqueue_add() completes.  This allows the transport layer and core layer
    to continue interact only using atomic operations.
 
-   A dragramatic view of these steps is shown below.  The dotted arrows signify
+   A diagrammatic view of these steps is shown below.  The dotted arrows signify
    the pointers before the new node is added.  The Step numbers correspond to
    steps 2-4 above.
    @dot
@@ -351,7 +351,7 @@
 
    Once again, updating the @c next pointer is less straight forward than the
    diagram suggests.  In step 1, the node is allocated by the transport layer.
-   Once allocated, initialisation includes the transport layer setting the
+   Once allocated, initialization includes the transport layer setting the
    nlx_core_bev_link::cbl_c_self pointer to point at the node and having
    the kernel core layer "bless" the node by setting the
    nlx_core_bev_link::cbl_p_self link.  After the self pointers are set,
@@ -425,7 +425,7 @@
 
    The transport layer acts both as the consumer and the allocator, and both
    operations use and modify the @c consumer variable and related pointers.  As
-   such, calls to bev_cqueue_add() and bev_cqueue_get() must be synchronised.
+   such, calls to bev_cqueue_add() and bev_cqueue_get() must be synchronized.
    The transport layer holds the transfer machine c2_net_transfer_mc::ntm_mutex
    when it calls bev_cqueue_add().  The transport layer will also hold this
    mutex when it calls bev_cqueue_get().
@@ -458,11 +458,11 @@
    </i>
 
    The following cases will be tested by unit tests:
-   - initialising a queue of minimum size 2
+   - initializing a queue of minimum size 2
    - successfully producing an element in a slot
    - successfully consuming an element from a slot
    - failing to consume a slot because the queue is empty
-   - initialising a queue of larger size
+   - initializing a queue of larger size
    - repeating the producing and consuming tests
    - concurrently producing and consuming elements
 
@@ -525,7 +525,7 @@
    externally visible programming interfaces.</i>
 
    Subroutines are provided to:
-   - initialise and finalise the nlx_core_bev_cqueue
+   - initialize and finalize the nlx_core_bev_cqueue
    - produce and consume slots in the queue
 
    @see @ref bevcqueue "Detailed Functional Specification"
@@ -543,9 +543,9 @@
    notify the producer or consumer when the queue changes, eg. when it becomes
    not empty.
 
-   @subsection cq-init Initialisation
+   @subsection cq-init Initialization
 
-   The circular queue is initialised as follows:
+   The circular queue is initialized as follows:
 
    @code
    struct nlx_core_buffer_event *e1;
