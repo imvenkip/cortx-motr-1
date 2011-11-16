@@ -61,8 +61,12 @@ struct c2_rpc_ctx {
 	/** Name of database used by the RPC machine */
 	const char              *rx_db_name;
 
+        struct c2_dbenv         *rx_dbenv;
+
 	/** Identity of cob used by the RPC machine */
 	uint32_t                rx_cob_dom_id;
+
+        struct c2_cob_domain    *rx_cob_dom;
 
 	/** Number of session slots */
 	uint32_t                rx_nr_slots;
@@ -80,8 +84,6 @@ struct c2_rpc_ctx {
 	 * c2_rpc_client_init().
 	 */
 
-        struct c2_dbenv         rx_dbenv;
-        struct c2_cob_domain    rx_cob_dom;
 	struct c2_rpcmachine    rx_rpc_machine;
         struct c2_net_end_point	*rx_remote_ep;
         struct c2_rpc_conn      rx_connection;
@@ -89,20 +91,51 @@ struct c2_rpc_ctx {
 };
 
 /**
-  Starts RPC server.
+  A wrapper around c2_rpc_server_start(). It initializes dbenv and cob_domain
+  withing c2_rpc_ctx structure, and then calls c2_rpc_server_start().
 
   @param rctx  Initialized rpc context structure.
 */
 int c2_rpc_server_init(struct c2_rpc_ctx *rctx);
 
 /**
+  Starts server's rpc machine.
+
+  @param rctx  Initialized rpc context structure.
+*/
+int c2_rpc_server_start(struct c2_rpc_ctx *rctx);
+
+/**
+  Stops RPC server.
+
+  @param rctx  Initialized rpc context structure.
+*/
+void c2_rpc_server_stop(struct c2_rpc_ctx *rctx);
+
+/**
+  A wrapper around c2_rpc_server_stop(). It finalizes dbenv and cob_domain
+  withing c2_rpc_ctx structure, and then calls c2_rpc_server_stop().
+
+  @param rctx  Initialized rpc context structure.
+*/
+void c2_rpc_server_fini(struct c2_rpc_ctx *rctx);
+
+/**
+  A wrapper around c2_rpc_client_start(). It initializes dbenv and cob_domain
+  withing c2_rpc_ctx structure, and then calls c2_rpc_client_start().
+
+  @param rctx  Initialized rpc context structure.
+*/
+int c2_rpc_client_init(struct c2_rpc_ctx *rctx);
+
+/**
   Starts client's rpc machine. Creates a connection to a server and establishes
   an rpc session on top of it.  Created session object can be set in an rpc item
   and used in c2_rpc_post().
 
-  @param cctx  Initialized rpc context structure.
+  @param rctx  Initialized rpc context structure.
 */
-int c2_rpc_client_init(struct c2_rpc_ctx *rctx);
+int c2_rpc_client_start(struct c2_rpc_ctx *rctx);
 
 /**
   Make an RPC call to a server, blocking for a reply if desired.
@@ -116,15 +149,16 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 		       uint32_t timeout_s);
 
 /**
-  Stops RPC server.
+  Terminates RPC session and connection with server and finalize client's RPC
+  machine.
 
   @param rctx  Initialized rpc context structure.
 */
-void c2_rpc_server_fini(struct c2_rpc_ctx *rctx);
+int c2_rpc_client_stop(struct c2_rpc_ctx *rctx);
 
 /**
-  Terminates RPC session and connection with server and finalize client's RPC
-  machine.
+  A wrapper around c2_rpc_client_stop(). It finalizes dbenv and cob_domain
+  withing c2_rpc_ctx structure, and then calls c2_rpc_client_stop().
 
   @param rctx  Initialized rpc context structure.
 */

@@ -37,96 +37,102 @@
 #include "rpc/rpclib.h"
 
 
-static int rpc_init_common(struct c2_rpc_ctx *rctx)
+static int init_cob(struct c2_rpc_ctx *rctx)
 {
 	int rc;
 	struct c2_cob_domain_id   cob_dom_id = { .id = rctx->rx_cob_dom_id };
-	struct c2_reqh            *reqh;
 
-	rc = c2_dbenv_init(&rctx->rx_dbenv, rctx->rx_db_name, 0);
+	rc = c2_dbenv_init(rctx->rx_dbenv, rctx->rx_db_name, 0);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_cob_domain_init(&rctx->rx_cob_dom, &rctx->rx_dbenv, &cob_dom_id);
+	rc = c2_cob_domain_init(rctx->rx_cob_dom, rctx->rx_dbenv, &cob_dom_id);
 	if (rc != 0)
 		goto dbenv_fini;
 
-	/* Assume that rctx->rx_reqh is already initialized if it's not NULL.
-	 * Otherwise allocate and initialize a default reqh */
-	if (rctx->rx_reqh != NULL) {
-		reqh = rctx->rx_reqh;
-	} else {
-		C2_ALLOC_PTR(reqh);
-		if (reqh == NULL) {
-			rc = -ENOMEM;
-			goto cob_dom_fini;
-		}
-		rc = c2_reqh_init(reqh, NULL, NULL, NULL, NULL, NULL);
-		if (rc != 0)
-			goto reqh_free;
-	}
-
-	/* Init the rpcmachine */
-	rc = c2_rpcmachine_init(&rctx->rx_rpc_machine, &rctx->rx_cob_dom,
-				rctx->rx_net_dom, rctx->rx_local_addr, reqh);
-	if (rc != 0)
-		goto reqh_fini;
-
 	return rc;
 
-reqh_fini:
-	if (rctx->rx_reqh == NULL)
-		c2_reqh_fini(reqh);
-reqh_free:
-	if (rctx->rx_reqh == NULL)
-		c2_free(reqh);
-cob_dom_fini:
-	c2_cob_domain_fini(&rctx->rx_cob_dom);
 dbenv_fini:
-	c2_dbenv_fini(&rctx->rx_dbenv);
+	c2_dbenv_fini(rctx->rx_dbenv);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
 
-static void rpc_fini_common(struct c2_rpc_ctx *rctx)
+static void fini_cob(struct c2_rpc_ctx *rctx)
 {
-	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
-
-	/* If rctx->rx_reqh is NULL it means that a default reqh was allocated,
-	 * initialized and stored in rctx->rx_rpc_machine.cr_reqh in
-	 * rpc_init_common(), so it should be finalized and freed here */
-	if (rctx->rx_reqh == NULL) {
-		c2_reqh_fini(rctx->rx_rpc_machine.cr_reqh);
-		c2_free(rctx->rx_rpc_machine.cr_reqh);
-	}
-
-	c2_cob_domain_fini(&rctx->rx_cob_dom);
-	c2_dbenv_fini(&rctx->rx_dbenv);
+	c2_cob_domain_fini(rctx->rx_cob_dom);
+	c2_dbenv_fini(rctx->rx_dbenv);
 
 	return;
 }
 
+static int init_helper(int (*start_func)(struct c2_rpc_ctx *rctx),
+		       struct c2_rpc_ctx *rctx)
+{
+	int rc;
+
+	rc = init_cob(rctx);
+	if (rc != 0)
+		goto fini_cob;
+
+	rc = start_func(rctx);
+
+	return rc;
+
+fini_cob:
+	fini_cob(rctx);
+	C2_ASSERT(rc != 0);
+	return rc;
+}
+
 int c2_rpc_server_init(struct c2_rpc_ctx *rctx)
 {
-	return rpc_init_common(rctx);
+	return init_helper(c2_rpc_server_start, rctx);
 }
 C2_EXPORTED(c2_rpc_server_init);
 
+int c2_rpc_server_start(struct c2_rpc_ctx *rctx)
+{
+	return c2_rpcmachine_init(&rctx->rx_rpc_machine, rctx->rx_cob_dom,
+				  rctx->rx_net_dom, rctx->rx_local_addr,
+				  rctx->rx_reqh);
+}
+C2_EXPORTED(c2_rpc_server_start);
+
+void c2_rpc_server_stop(struct c2_rpc_ctx *rctx)
+{
+	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
+}
+C2_EXPORTED(c2_rpc_server_stop);
+
+void c2_rpc_server_fini(struct c2_rpc_ctx *rctx)
+{
+	c2_rpc_server_stop(rctx);
+	fini_cob(rctx);
+}
+C2_EXPORTED(c2_rpc_server_fini);
+
 int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
+{
+	return init_helper(c2_rpc_client_start, rctx);
+}
+C2_EXPORTED(c2_rpc_client_init);
+
+int c2_rpc_client_start(struct c2_rpc_ctx *rctx)
 {
 	int rc;
 	struct c2_net_transfer_mc *tm;
 
-	rc = rpc_init_common(rctx);
+	rc = c2_rpcmachine_init(&rctx->rx_rpc_machine, rctx->rx_cob_dom,
+				rctx->rx_net_dom, rctx->rx_local_addr, NULL);
 	if (rc != 0)
 		return rc;
 
 	tm = &rctx->rx_rpc_machine.cr_tm;
 
-	/* Init destination endpoint */
 	rc = c2_net_end_point_create(&rctx->rx_remote_ep, tm, rctx->rx_remote_addr);
 	if (rc != 0)
-		goto fini_common;
+		goto rpcmach_fini;
 
 	rc = c2_rpc_conn_create(&rctx->rx_connection, rctx->rx_remote_ep,
 				&rctx->rx_rpc_machine,
@@ -146,12 +152,12 @@ conn_destroy:
 	c2_rpc_conn_destroy(&rctx->rx_connection, rctx->rx_timeout_s);
 ep_put:
 	c2_net_end_point_put(rctx->rx_remote_ep);
-fini_common:
-	rpc_fini_common(rctx);
+rpcmach_fini:
+	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_init);
+C2_EXPORTED(c2_rpc_client_start);
 
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 		       uint32_t timeout_s)
@@ -189,13 +195,7 @@ clean:
 }
 C2_EXPORTED(c2_rpc_client_call);
 
-void c2_rpc_server_fini(struct c2_rpc_ctx *rctx)
-{
-	rpc_fini_common(rctx);
-}
-C2_EXPORTED(c2_rpc_server_fini);
-
-int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
+int c2_rpc_client_stop(struct c2_rpc_ctx *rctx)
 {
 	int rc;
 
@@ -208,7 +208,21 @@ int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
 		return rc;
 
 	c2_net_end_point_put(rctx->rx_remote_ep);
-	rpc_fini_common(rctx);
+	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_client_stop);
+
+int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
+{
+	int rc;
+
+	rc = c2_rpc_client_stop(rctx);
+	if (rc != 0)
+		return rc;
+
+	fini_cob(rctx);
 
 	return rc;
 }

@@ -25,6 +25,7 @@
 #include "rpc/it/ping_fop.h"
 #include "fop/fop.h"
 #include "lib/processor.h"
+#include "reqh/reqh.h"
 
 #ifdef __KERNEL__
 #include "rpc/it/ping_fop_k.h"
@@ -99,14 +100,21 @@ static void test_rpclib(void)
 	int rc;
 	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
 	struct c2_net_domain  net_dom = { };
+	struct c2_dbenv       client_dbenv;
+	struct c2_cob_domain  client_cob_dom;
+	struct c2_dbenv       server_dbenv;
+	struct c2_cob_domain  server_cob_dom;
+	struct c2_reqh        reqh = { };
 
 	struct c2_rpc_ctx server_rctx = {
 		.rx_net_dom            = &net_dom,
-		.rx_reqh               = NULL,
+		.rx_reqh               = &reqh,
 		.rx_local_addr         = SERVER_ENDPOINT_ADDR,
 		.rx_remote_addr        = CLIENT_ENDPOINT_ADDR,
 		.rx_db_name            = SERVER_DB_NAME,
+		.rx_dbenv              = &server_dbenv,
 		.rx_cob_dom_id         = SERVER_COB_DOM_ID,
+		.rx_cob_dom            = &server_cob_dom,
 		.rx_nr_slots           = SESSION_SLOTS,
 		.rx_timeout_s          = CONNECT_TIMEOUT,
 		.rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
@@ -118,7 +126,9 @@ static void test_rpclib(void)
 		.rx_local_addr         = CLIENT_ENDPOINT_ADDR,
 		.rx_remote_addr        = SERVER_ENDPOINT_ADDR,
 		.rx_db_name            = CLIENT_DB_NAME,
+		.rx_dbenv              = &client_dbenv,
 		.rx_cob_dom_id         = CLIENT_COB_DOM_ID,
+		.rx_cob_dom            = &client_cob_dom,
 		.rx_nr_slots           = SESSION_SLOTS,
 		.rx_timeout_s          = CONNECT_TIMEOUT,
 		.rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
@@ -134,10 +144,14 @@ static void test_rpclib(void)
 	if (rc != 0)
 		goto xprt_fini;
 
+	rc = c2_reqh_init(&reqh, NULL, NULL, NULL, NULL, NULL);
+	if (rc != 0)
+		goto net_dom_fini;
+
 	rc = c2_rpc_server_init(&server_rctx);
 	C2_UT_ASSERT(rc == 0);
 	if (rc != 0)
-		goto net_dom_fini;
+		goto reqh_fini;
 
 	rc = c2_rpc_client_init(&client_rctx);
 	C2_UT_ASSERT(rc == 0);
@@ -152,6 +166,8 @@ static void test_rpclib(void)
 
 server_fini:
 	c2_rpc_server_fini(&server_rctx);
+reqh_fini:
+	c2_reqh_fini(&reqh);
 net_dom_fini:
 	c2_net_domain_fini(&net_dom);
 xprt_fini:

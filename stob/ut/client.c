@@ -158,13 +158,17 @@ int main(int argc, char **argv)
 	int rc;
 	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
 	struct c2_net_domain  net_dom = { };
+	struct c2_dbenv       dbenv;
+	struct c2_cob_domain  cob_dom;
 
 	struct c2_rpc_ctx client_rctx = {
 		.rx_net_dom            = &net_dom,
 		.rx_reqh               = NULL,
 		.rx_local_addr         = CLIENT_ENDPOINT_ADDR,
 		.rx_remote_addr        = SERVER_ENDPOINT_ADDR,
+		.rx_dbenv              = &dbenv,
 		.rx_db_name            = CLIENT_DB_NAME,
+		.rx_cob_dom            = &cob_dom,
 		.rx_cob_dom_id         = CLIENT_COB_DOM_ID,
 		.rx_nr_slots           = SESSION_SLOTS,
 		.rx_timeout_s          = CONNECT_TIMEOUT,

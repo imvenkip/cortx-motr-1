@@ -202,6 +202,8 @@ int main(int argc, char **argv)
 	struct c2_stob	        *addb_stob;
 	struct c2_table	        addb_table;
 	struct c2_net_xprt      *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_dbenv         dbenv;
+	struct c2_cob_domain    cob_dom;
 
 	struct c2_stob_id       addb_stob_id = {
 		.si_bits = {
@@ -216,7 +218,9 @@ int main(int argc, char **argv)
 		.rx_local_addr         = SERVER_ENDPOINT_ADDR,
 		.rx_remote_addr        = CLIENT_ENDPOINT_ADDR,
 		.rx_db_name            = SERVER_DB_NAME,
+		.rx_dbenv              = &dbenv,
 		.rx_cob_dom_id         = SERVER_COB_DOM_ID,
+		.rx_cob_dom            = &cob_dom,
 		.rx_nr_slots           = SESSION_SLOTS,
 		.rx_timeout_s          = CONNECT_TIMEOUT,
 		.rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
