@@ -350,22 +350,35 @@
    @section LNetDLD-conformance Conformance
    <i>Mandatory.
    This section cites each requirement in the @ref LNetDLD-req section,
-   and explains briefly how the LNet meets the requirement.</i>
+   and explains briefly how the DLD meets the requirement.</i>
 
    - <b>i.c2.net.xprt.lnet.transport-variable</b> The transport variable
    @c c2_net_lnet_xprt is provided.
 
-   - <b>i.c2.net.lnet.buffer-registration</b> <b>????</b> .
+   - <b>i.c2.net.lnet.buffer-registration</b> Buffer registration is required
+   in the network API and has a corresponding nlx_xo_buf_register() at the LNet
+   transport layer.  This can be extended for hardware optimization once LNet
+   provides such APIs.
 
-   - <b>i.c2.net.xprt.lnet.end-point-address</b> <b>????</b> .
+   - <b>i.c2.net.xprt.lnet.end-point-address</b> Mapping of LNet end point
+   address is handled in the Core API as described in the @ref
+   LNetCoreDLD-fspec "LNet Transport Core Functional Specfication".
 
-   - <b>i.c2.net.xprt.lnet.multiple-messages-in-buffer</b> <b>????</b> .
+   - <b>i.c2.net.xprt.lnet.multiple-messages-in-buffer</b> Fields are provided
+   in the c2_net_buffer to support multiple message delivery, and the event
+   delivery model includes the delivery of buffer events for receive buffers
+   that do not always dequeue the buffer.
 
-   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> <b>????</b> .
+   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> Dynamic address assignment is provided in the nlx_core_tm_start().
 
-   - <b>i.c2.net.xprt.lnet.processor-affinity</b> <b>????</b> .
+   - <b>i.c2.net.xprt.lnet.processor-affinity</b> The c2_net_tm_confine() API
+   is provided and the LNet transport provides the corresponding
+   nlx_xo_tm_confine() function.
 
-   - <b>i.c2.net.xprt.lnet.user-space</b> <b>????</b> .
+   - <b>i.c2.net.xprt.lnet.user-space</b> The API provides "core" functionality
+   for both user and kernel space and reduces context switches required for
+   user-space event processing, especially through the use of a circular queue
+   using atomic operations.
 
    <hr>
    @section LNetDLD-ut Unit Tests
@@ -487,6 +500,11 @@ static int nlx_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
 }
 
+static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
+			     const struct c2_bitmap *processors)
+{
+}
+
 static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_dom_init                    = nlx_xo_dom_init,
 	.xo_dom_fini                    = nlx_xo_dom_fini,
@@ -502,6 +520,7 @@ static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_tm_fini                     = nlx_xo_tm_fini,
 	.xo_tm_start                    = nlx_xo_tm_start,
 	.xo_tm_stop                     = nlx_xo_tm_stop,
+	.xo_tm_confine                  = nlx_xo_tm_confine,
 };
 
 /**

@@ -649,13 +649,13 @@
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
-   - Dynamic transfer machine identifier assignment is proportional to the number
-   of transfer machines defined on the server, including kernel and all process
-   space LNet transport instances.
+   - Dynamic transfer machine identifier assignment is proportional to the
+   number of transfer machines defined on the server, including kernel and all
+   process space LNet transport instances.
    - The time taken to process an LNet event callback is in constant time.
    - The time taken for the transport to dequeue a pending buffer event
-     depends upon the operating system scheduler.  The algorithmic
-     processing involved is in constant time.
+   depends upon the operating system scheduler.  The algorithmic
+   processing involved is in constant time.
    - The time taken to register a buffer is in constant time.
    - The time taken to process outbound buffer operations is unpredictable,
    and depends, at the minimum, on current system load, other LNet users,
