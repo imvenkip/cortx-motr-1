@@ -31,9 +31,46 @@
    @{
 */
 
-struct nlx_xo_domain;
-struct nlx_xo_transfer_mc;
+struct nlx_xo_buf_desc;
 struct nlx_xo_buffer;
+struct nlx_xo_domain;
+struct nlx_xo_ep;
+struct nlx_xo_transfer_mc;
+
+/**
+   LNet transport's internal end point structure.
+ */
+struct nlx_xo_ep {
+	/** embedded network end point structure. */
+	struct c2_net_end_point xe_ep;
+
+	/** LNet transport address */
+	nlx_core_ep_addr        xe_core;
+
+	/** Memory for the string representation of the end point.
+	    Additional contiguous memory is allocated beyond this array.
+	    The nxe_ep::nep_addr field points to @c nxe_addr.
+	*/
+	char                    xe_addr[1];
+};
+
+/**
+   Internal form of the LNet transport's Network Buffer Descriptor.
+   The external form is the opaque c2_net_buf_desc.
+ */
+struct nlx_xo_buf_desc {
+	/** Match bits of the passive buffer */
+        uint64_t                 xbd_match_bits;
+
+	/** Passive TM's end point */
+        struct nlx_core_ep_addr  xbd_passive_ep;
+
+	/** Passive buffer queue type */
+        enum c2_net_queue_type   xbd_qtype;
+
+	/** Passive buffer size */
+        c2_bcount_t              xbd_size;
+};
 
 /**
    Private data pointed to by c2_net_domain::nd_xprt_private.

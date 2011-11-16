@@ -160,9 +160,9 @@
    The transport defines the following structure to encode an end point address:
    @code
    struct nlx_xo_ep {
-       struct c2_net_end_point nxe_ep;
-       nlx_core_ep_addr        nxe_core;
-       char                    nxe_addr[1];
+       struct c2_net_end_point xe_ep;
+       nlx_core_ep_addr        xe_core;
+       char                    xe_addr[1];
    };
    @endcode
    The length of the structure depends on the length of the string
@@ -277,7 +277,7 @@
         struct nlx_core_ep_addr  xbd_active_ep;
         struct nlx_core_ep_addr  xbd_passive_ep;
         enum c2_net_queue_type   xbd_qtype;
-        c2_bcount_t              xbd_total;
+        c2_bcount_t              xbd_size;
    };
    @endcode
 
