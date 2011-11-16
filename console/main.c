@@ -65,9 +65,9 @@ static void fop_info_show(enum c2_cons_mesg_type type)
 
 	printf("\nInfo for \"");
 	mesg = c2_cons_mesg_get(type);
-	mesg->cm_ops->cmo_name_print(mesg);
+	c2_cons_mesg_name_print(mesg);
 	printf("\"\n");
-	mesg->cm_ops->cmo_mesg_show();
+	c2_cons_mesg_fop_show(mesg->cm_fopt);
 }
 
 /**
@@ -95,8 +95,8 @@ static int message_send_and_print(struct c2_console *cons,
 	mesg->cm_rpc_mach = &cons->cons_rpc_mach;
 	mesg->cm_rpc_session = &cons->cons_rpc_session;
 	printf("\nSending message for ");
-	mesg->cm_ops->cmo_name_print(mesg);
-	rc = mesg->cm_ops->cmo_mesg_send(mesg, deadline);
+	c2_cons_mesg_name_print(mesg);
+	rc = c2_cons_mesg_send(mesg, deadline);
 	if (rc != 0) {
 		fprintf(stderr, "Sending message failed!\n");
 		return -EINVAL;
