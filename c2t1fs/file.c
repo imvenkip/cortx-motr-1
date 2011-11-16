@@ -51,37 +51,6 @@ struct inode_operations c2t1fs_reg_inode_operations = {
 	NULL
 };
 
-ssize_t c2t1fs_file_read(struct file *filp,
-			 char __user *buf,
-			 size_t       len,
-			 loff_t      *ppos)
-{
-	char    out_str[20];
-	ssize_t n;
-
-	/* XXX temporary routine */
-
-	START();
-	TRACE("read: %lu bytes\n", (unsigned long)len);
-
-	if (*ppos == 0) {
-		sprintf(out_str, "Hello world\n");
-		n = strlen(out_str);
-		if (copy_to_user(buf, out_str, n)) {
-			TRACE("Seg Fault\n");
-			END(-EFAULT);
-			return -EFAULT;
-		}
-		*ppos = 1;
-	} else {
-		END(0);
-		return 0;
-	}
-
-	END(n);
-	return n;
-}
-
 #define KIOCB_TO_FILE_NAME(iocb) ((iocb)->ki_filp->f_path.dentry->d_name.name)
 
 ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
@@ -96,7 +65,7 @@ ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 
 	START();
 
-	TRACE("Read req: file %s pos %lu nr_segs %lu iov_len %lu\n",
+	TRACE("Read req: file \"%s\" pos %lu nr_segs %lu iov_len %lu\n",
 			KIOCB_TO_FILE_NAME(iocb),
 			(unsigned long)pos,
 			nr_segs,
@@ -340,8 +309,12 @@ ssize_t c2t1fs_read_write(struct file *file,
 		}
 
 		/* check if io spans beyond file size */
-		if (pos + count > inode->i_size)
+		if (pos + count > inode->i_size) {
 			count = inode->i_size - pos;
+			TRACE("i_size %lu io truncated to %lu\n",
+				(unsigned long)inode->i_size,
+				(unsigned long)count);
+		}
 	}
 
 	if (rw == WRITE && (file->f_flags & O_APPEND) != 0)
@@ -445,7 +418,7 @@ struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_list *list,
 	c2_list_init(&rw_desc->rd_buf_list);
 	c2_list_link_init(&rw_desc->rd_link);
 
-	c2_list_add(list, &rw_desc->rd_link);
+	c2_list_add_tail(list, &rw_desc->rd_link);
 out:
 	END(rw_desc);
 	return rw_desc;
