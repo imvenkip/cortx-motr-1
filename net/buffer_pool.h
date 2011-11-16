@@ -33,26 +33,26 @@
 	  Users request a buffer from the pool and after its usage is over
 	  gives back to the pool.
 
-	  It provides suppport for a pool of network buffers involving no higher	  level interfaces than the network module itself.
+	  It provides suppport for a pool of network buffers involving no higher
+	  level interfaces than the network module itself.
 	  It is associated with a single network domain.
-	  Non-blocking interfaces are available to get and put network buffers
-	  and callbacks to signal the availability of buffers and low
-	  threshold is reached are provided.
+	  Non-blocking interfaces are available to get and put network buffers.
+	  Callbacks are provided to signal the availability of buffers and low
+	  threshold is reached.
 
-	  Upon receiving the not_empty call back user can put back buffers which	  are not in use into the pool.
+	  Upon receiving the not_empty call back user can put back buffers which
+	  are not in use into the pool.
 
 	  The “colored” variant of the get operation is done by returning the
-	  most recently used buffer that is associated with a specific transfer
-	  machine, or if none such are found, a buffer which has no previous
-	  transfer machine association, or if none such are found, the least
-	  recently used buffer from the pool, if any.
+	  most recently used buffer that is associated with a specific colour
+	  (transfer machine), or if none such are found, the least recently
+	  used buffer from the pool, if any.
 
-	  Sweeping of the list is done to clear the buffer affiliation after
-	  some minimum time spend by the buffer in th pool (as affinity reduces 	  with time spent in the pool).
+	  Pool is protected by a lock, to get or put a buffer into the pool user
+	  must acquire the lock and release the lock once its usage is over.
 
-	  Pool is protected by a lock, to get or put a buffer into the pool user	  must acquire the lock and release the lock once its usage is over.
-
-	  To finalize the pool all the buffers must be returned back to the pool	  (i.e number of free buffers must be equal to the total number of of
+	  To finalize the pool all the buffers must be returned back to the pool
+	  (i.e number of free buffers must be equal to the total number of of
 	  buffers).
 
  To describe a typical buffer pool usage pattern, suppose that one wants
@@ -62,8 +62,8 @@
     First, user needs to provide c2_net_buffer_pool_ops:
     @code
 	struct c2_net_buffer_pool_ops b_ops = {
-		.nbpo_not_empty	      = NotEmpty,
-		.nbpo_below_threshold = Low,
+		.nbpo_not_empty	      = notempty,
+		.nbpo_below_threshold = low,
 	};
     @endcode
 
@@ -72,10 +72,7 @@
     @code
 	struct c2_net_buffer_pool bp;
 	struct c2_net_xprt *xprt;
-	xprt = &c2_net_bulk_sunrpc_xprt;
-	c2_net_xprt_init(xprt);
-	C2_ALLOC_PTR(bp.nbp_ndom);
-	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
+	...
 	bp.nbp_ops = &b_ops;
 	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096);
 	...
@@ -97,16 +94,18 @@
     @endcode
 
     - To get a buffer from the pool:
+	For a coloured buffer variable colour should be non-zero.
     @code
 	c2_net_buffer_pool_lock(&bp);
-	nb = c2_net_buffer_pool_get(&bp);
+	nb = c2_net_buffer_pool_get(&bp, colour);
 	c2_net_buffer_pool_unlock(&bp);
     @endcode
 
    - To put back the buffer in the pool:
+	For a coloured buffer variable colour should be non-zero.
     @code
 	c2_net_buffer_pool_lock(&bp);
-	c2_net_buffer_pool_put(&bp, nb);
+	c2_net_buffer_pool_put(&bp, nb, colour);
 	c2_net_buffer_pool_unlock(&bp);
     @endcode
 
@@ -145,6 +144,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
    @pre ndom != NULL
    @param threshold Number of buffer below which to notify the user.
    @param seg_nr    Number of segments in each buffer.
+   @param colours   Number of colours in the pool.
    @param seg_size  Size of each segment in a buffer.
    @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom) &&
 	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
@@ -152,7 +152,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
  */
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
-			    uint32_t seg_nr, c2_bcount_t seg_size);
+			    uint32_t seg_nr, c2_bcount_t seg_size, int colours);
 
 /**
    It adds the buf_nr buffers in the buffer pool.
@@ -182,31 +182,25 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
 
 /**
    Gets a buffer from the pool.
-   If transfer machine is associated with the buffer then a linear search from
-   the head of the list will break off when a buffer of the correct affinity is    found, or a buffer with no affinity is found, or else the buffer at the tail    of the list is selected.
-   The buffers which are associated with the transfer machine and lived more
-   than some minimum time in the pool are disassocated and put back at tail end
-   of the list until the buffer gets selected.
-   If transfer machine is not specified buffer will be taken from the tail of
-   the list.
-   Returns NULL when the pool is empty.
+   If the colour is specified (i.e non zero) and the corrsponding coloured
+   list is not empty then the buffer is taken from the head of this list.
+   Otherwise the buffer is taken from the head of the global list.
    @pre c2_net_buffer_pool_is_locked(pool)
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
  */
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
-					     struct c2_net_transfer_mc *tm);
+					     int colour);
 
 /**
    Puts the buffer back to the pool.
-   Buffers which are associated with a transfer machine are put at the head of
-   the list and buffers with no association are put at the tail of the list.
+   If the colour is specfied then the buffer is put at the head of corresponding   coloured list and also put at the tail of the global list.
    @pre c2_net_buffer_pool_is_locked(pool)
    @pre pool->nbp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
         !(buf->nb_flags & C2_NET_BUF_IN_USE)
  */
 void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
-			    struct c2_net_buffer *buf);
+			    struct c2_net_buffer *buf, int colour);
 
 /**
    Removes a buffer from the pool to prune it.
@@ -236,6 +230,27 @@ struct c2_net_buffer_pool {
 	struct c2_tl		nbp_head;
 	/** Call back operations can be triggered by buffer pool. */
 	const struct c2_net_buffer_pool_ops *nbp_ops;
+	/** Number of colours in the pool. */
+	uint32_t nbp_colours_nr;
+	/** An array of nbp_colours_nr lists of buffers.
+	    Each list in the array contains buffers of a particular
+	    colour. Lists are maintained in LIFO order (i.e., they are stacks)
+	    to improve temporal locality of reference.
+
+	    Buffers are linked through c2_net_buffer::nb_tm_linkage to these
+	    lists.
+	*/
+	struct c2_tl *nbp_colour;
+	/**
+	   A list of all buffers in the pool.
+
+	   This list is maintained in LRU order. The head of this list (which is
+	   the buffer used longest time ago) is used when coloured array is
+	   empty.
+
+	   Buffers are linked through c2_net_buffer::nb_lru to this list.
+	 */
+	struct c2_tl  nbp_lru;
 };
 
 /** @} end of net_buffer_pool */

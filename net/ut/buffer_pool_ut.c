@@ -30,28 +30,16 @@
 #include <stdio.h>
 #include "net/buffer_pool.h"
 
-void NotEmpty(struct c2_net_buffer_pool *bp);
-void Low(struct c2_net_buffer_pool *bp);
+void notempty(struct c2_net_buffer_pool *bp);
+void low(struct c2_net_buffer_pool *bp);
 void buffers_get_put(int rc);
 struct c2_net_buffer_pool bp;
 struct c2_chan buf_chan;
 struct c2_net_buffer_pool_ops b_ops = {
-	.nbpo_not_empty	      = NotEmpty,
-	.nbpo_below_threshold = Low,
+	.nbpo_not_empty	      = notempty,
+	.nbpo_below_threshold = low,
 };
 
-void ut_tm_event_cb(const struct c2_net_tm_event *ev)
-{
-}
-
-/* UT transfer machine */
-struct c2_net_tm_callbacks ut_tm_cb = {
-	.ntc_event_cb = ut_tm_event_cb
-};
-static struct c2_net_transfer_mc ut_tm = {
-	.ntm_callbacks = &ut_tm_cb,
-	.ntm_state = C2_NET_TM_UNDEFINED
-};
 /**
    Test function for buf_pool ut
  */
@@ -64,7 +52,6 @@ void test_buf_pool()
 	int i;
 	struct c2_net_buffer *nb = NULL;
 	struct c2_net_xprt *xprt;
-	struct c2_net_transfer_mc *tm = &ut_tm;
 
 	c2_chan_init(&buf_chan);
 	xprt = &c2_net_bulk_sunrpc_xprt;
@@ -74,19 +61,14 @@ void test_buf_pool()
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096);
+	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096, 10);
 	c2_net_buffer_pool_lock(&bp);
 	rc = c2_net_buffer_pool_provision(&bp, 10);
 	C2_UT_ASSERT(rc == 10);
-	nb = c2_net_buffer_pool_get(&bp, NULL);
-	c2_net_buffer_pool_put(&bp, nb);
-	/* TM init */
-	rc = c2_net_tm_init(tm, bp.nbp_ndom);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
-	nb = c2_net_buffer_pool_get(&bp, NULL);
-	nb->nb_tm = tm;
-	c2_net_buffer_pool_put(&bp, nb);
+	nb = c2_net_buffer_pool_get(&bp, 0);
+	c2_net_buffer_pool_put(&bp, nb, 1);
+	nb = c2_net_buffer_pool_get(&bp, 1);
+	c2_net_buffer_pool_put(&bp, nb, 1);
 	/* Buffer pool grow by one */
 	C2_UT_ASSERT(c2_net_buffer_pool_provision(&bp, 1) == 1);
 	C2_UT_ASSERT(c2_net_buffer_pool_prune(&bp));
@@ -106,8 +88,6 @@ void test_buf_pool()
 	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_fini(&bp);
 	c2_net_buffer_pool_unlock(&bp);
-	c2_net_tm_fini(tm);
-	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_UNDEFINED);
 	c2_net_domain_fini(bp.nbp_ndom);
 	c2_free(bp.nbp_ndom);
 	c2_net_xprt_fini(xprt);
@@ -123,7 +103,7 @@ void buffers_get_put(int rc)
 	c2_clink_add(&buf_chan, &buf_link);
 	do {
 		c2_net_buffer_pool_lock(&bp);
-		nb = c2_net_buffer_pool_get(&bp, NULL);
+		nb = c2_net_buffer_pool_get(&bp, 0);
 		c2_net_buffer_pool_unlock(&bp);
 		if (nb == NULL)
 			c2_chan_wait(&buf_link);
@@ -131,16 +111,18 @@ void buffers_get_put(int rc)
 	sleep(1);
 	c2_net_buffer_pool_lock(&bp);
 	if (nb != NULL)
-		c2_net_buffer_pool_put(&bp, nb);
+		c2_net_buffer_pool_put(&bp, nb, 0);
 	c2_net_buffer_pool_unlock(&bp);
 	c2_clink_del(&buf_link);
 	c2_clink_fini(&buf_link);
 }
-void NotEmpty(struct c2_net_buffer_pool *bp)
+
+void notempty(struct c2_net_buffer_pool *bp)
 {
 	c2_chan_signal(&buf_chan);
 }
-void Low(struct c2_net_buffer_pool *bp)
+
+void low(struct c2_net_buffer_pool *bp)
 {
 	printf("Buffer pool is LOW \n");
 }

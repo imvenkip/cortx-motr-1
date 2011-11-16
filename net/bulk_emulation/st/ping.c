@@ -33,6 +33,7 @@
 #define DEF_RESPONSE "active pong"
 #define DEF_SEND "passive ping"
 #define SEND_RESP    " pong"
+/** Descriptor for the tlist of buffers. */
 
 enum {
 	SEND_RETRIES = 3,
@@ -993,7 +994,7 @@ void ping_server(struct ping_ctx *ctx)
 	/* wait for active buffers to flush */
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	for (i = 0; i < C2_NET_QT_NR; ++i)
-		while (!c2_list_is_empty(&ctx->pc_tm.ntm_q[i])) {
+		while (!c2_tlist_is_empty(&tm_tl, &ctx->pc_tm.ntm_q[i])) {
 			ctx->pc_ops->pf("waiting for queue %d to empty\n", i);
 			c2_chan_wait(&tmwait);
 		}

@@ -128,15 +128,16 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		 */
 
 		/* locate the passive buffer */
-		c2_list_for_each_entry(&passive_tm->ntm_q[md->md_qt], inb,
-				       struct c2_net_buffer,
-				       nb_tm_linkage) {
+		//c2_list_for_each_entry(&passive_tm->ntm_q[md->md_qt], inb,
+		//		       struct c2_net_buffer,
+		//		       nb_tm_linkage) {
+		c2_tlist_for(&pool_tl, &passive_tm->ntm_q[md->md_qt], inb) {
 			if(!mem_desc_equal(&inb->nb_desc, &nb->nb_desc))
 				continue;
 			if ((inb->nb_flags & C2_NET_BUF_CANCELLED) == 0)
 				passive_nb = inb;
 			break;
-		}
+		} c2_tlist_endfor;
 		if (passive_nb == NULL) {
 			rc = -ENOENT;
 			break;

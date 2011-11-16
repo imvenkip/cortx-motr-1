@@ -72,7 +72,7 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 	    tm->ntm_state != C2_NET_TM_STOPPING) {
 		int i;
 		for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i)
-			if (!c2_list_is_empty(&tm->ntm_q[i]))
+			if (!tm_tlist_is_empty(&tm->ntm_q[i]))
 				return false;
 	}
 	return true;
@@ -122,7 +122,7 @@ static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 	tm->ntm_dom = NULL;
 	c2_chan_fini(&tm->ntm_chan);
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
-		c2_list_fini(&tm->ntm_q[i]);
+		tm_tlist_fini(&tm->ntm_q[i]);
 	}
 	tm->ntm_xprt_private = NULL;
 	return;
@@ -146,7 +146,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	c2_list_init(&tm->ntm_end_points);
 	c2_chan_init(&tm->ntm_chan);
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
-		c2_list_init(&tm->ntm_q[i]);
+		tm_tlist_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
 	tm->ntm_xprt_private = NULL;
@@ -185,7 +185,7 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	       tm->ntm_state == C2_NET_TM_INITIALIZED);
 
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
-		C2_PRE(c2_list_is_empty(&tm->ntm_q[i]));
+		C2_PRE(tm_tlist_is_empty(&tm->ntm_q[i]));
 	}
 	C2_PRE((c2_list_is_empty(&tm->ntm_end_points) && tm->ntm_ep == NULL) ||
 	       (c2_list_length(&tm->ntm_end_points) == 1 &&

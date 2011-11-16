@@ -33,9 +33,15 @@
 
 /** Descriptor for the tlist of buffers. */
 C2_TL_DESCR_DEFINE(pool, "net_buffer_pool", ,
-		   struct c2_net_buffer, nb_linkage, nb_magic,
+		   struct c2_net_buffer, nb_lru, nb_magic,
+		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
+C2_TL_DESCR_DEFINE(tm, "net_buffer_pool", ,
+		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
 		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(pool, , struct c2_net_buffer);
+C2_EXPORTED(pool_tl);
+C2_TL_DEFINE(tm, , struct c2_net_buffer);
+C2_EXPORTED(tm_tl);
 
 bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 {
@@ -52,8 +58,8 @@ static c2_time_t c2_time_in_pool;
 static c2_time_t c2_time_after_sweep;
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
-			    uint32_t seg_nr, c2_bcount_t seg_size)
-{
+			    uint32_t seg_nr, c2_bcount_t seg_size, int colours)
+{	int i;
 	C2_PRE(pool != NULL);
 	C2_PRE(ndom != NULL);
 	C2_PRE((seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom));
@@ -66,8 +72,13 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_seg_nr    = seg_nr;
 	pool->nbp_seg_size  = seg_size;
 
+	pool->nbp_colours_nr = colours;
+	C2_ALLOC_ARR(pool->nbp_colour, colours);
+
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_head);
+	for (i = 0; i < colours; i++)
+		tm_tlist_init(&pool->nbp_colour[i]);
 	c2_time_set(&c2_time_in_pool, 120, 0); /* 2 min */
 	c2_time_after_sweep = c2_time_now();
 }
@@ -104,6 +115,8 @@ C2_EXPORTED(c2_net_buffer_pool_provision);
 void buffer_remove(struct c2_net_buffer_pool *pool, struct c2_net_buffer *nb)
 {
 	pool_tlink_del_fini(nb);
+	if(tm_tlink_is_in(nb))
+		tm_tlink_del_fini(nb);
 	c2_net_buffer_deregister(nb, pool->nbp_ndom);
 	c2_bufvec_free(&nb->nb_buffer);
 	c2_free(nb);
@@ -114,6 +127,7 @@ void buffer_remove(struct c2_net_buffer_pool *pool, struct c2_net_buffer *nb)
 void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 {
 	struct c2_net_buffer *nb;
+	int i;
 	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
 	C2_PRE(pool->nbp_free == pool->nbp_buf_nr);
@@ -124,6 +138,9 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 		buffer_remove(pool, nb);
 	} c2_tlist_endfor;
 	pool_tlist_fini(&pool->nbp_head);
+	for (i = 0; i < pool->nbp_colours_nr; i++)
+		tm_tlist_fini(&pool->nbp_colour[i]);
+	c2_free(pool->nbp_colour);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 C2_EXPORTED(c2_net_buffer_pool_fini);
@@ -147,32 +164,18 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool)
 C2_EXPORTED(c2_net_buffer_pool_unlock);
 
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
-					     struct c2_net_transfer_mc *tm)
+					     int colour)
 {
 	struct c2_net_buffer *nb;
-	c2_time_t c2_time_sweep;
 
 	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 	if (pool->nbp_free <= 0)
 		return NULL;
-	if (tm != NULL) {
-		c2_time_sweep = c2_time_add(c2_time_now(), c2_time_in_pool);
-		c2_tlist_for(&pool_tl, &pool->nbp_head, nb) {
-			C2_ASSERT(nb != NULL);
-			if (tm == nb->nb_tm || nb->nb_tm == NULL ||
-			    nb == pool_tlist_tail(&pool->nbp_head))
-				break;
-			if(c2_time_after(c2_time_sweep, c2_time_after_sweep) &&
-			   c2_time_after(c2_time_sweep, nb->nb_add_time)) {
-				pool_tlist_del(nb);
-				C2_CNT_DEC(pool->nbp_free);
-				nb->nb_tm = NULL;
-				c2_net_buffer_pool_put(pool, nb);
-				c2_time_after_sweep = c2_time_now();
-			}
-		} c2_tlist_endfor;
+	if (colour != 0 && !tm_tlist_is_empty(&pool->nbp_colour[colour])) {
+		nb = tm_tlist_head(&pool->nbp_colour[colour]);
+		tm_tlist_del(nb);
 	} else
 		nb = pool_tlist_head(&pool->nbp_head);
 	C2_ASSERT(nb != NULL);
@@ -187,7 +190,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 C2_EXPORTED(c2_net_buffer_pool_get);
 
 void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
-			    struct c2_net_buffer *buf)
+			    struct c2_net_buffer *buf, int colour)
 {
 	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
@@ -199,11 +202,11 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 
 	C2_ASSERT(buf->nb_magic == NET_BUFFER_LINK_MAGIC);
 	C2_ASSERT(!pool_tlink_is_in(buf));
-	if(buf->nb_tm != NULL) {
-		pool_tlist_add(&pool->nbp_head, buf);
-		buf->nb_add_time = c2_time_now();
-	} else
-		pool_tlist_add_tail(&pool->nbp_head, buf);
+	if(colour != 0) {
+		C2_ASSERT(!tm_tlink_is_in(buf));
+		tm_tlist_add(&pool->nbp_colour[colour], buf);
+	}
+	pool_tlist_add_tail(&pool->nbp_head, buf);
 	C2_CNT_INC(pool->nbp_free);
 	if (pool->nbp_free == 1)
 		pool->nbp_ops->nbpo_not_empty(pool);
@@ -228,7 +231,8 @@ bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	if (rc != 0)
 		goto clean;
 	pool_tlink_init(nb);
-	c2_net_buffer_pool_put(pool, nb);
+	tm_tlink_init(nb);
+	c2_net_buffer_pool_put(pool, nb, 0);
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return true;
 clean:
