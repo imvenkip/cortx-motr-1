@@ -205,5 +205,5 @@ int c2t1fs_container_location_map_build(struct c2t1fs_sb *sb);
 struct c2_rpc_session * c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
 						       uint64_t container_id);
 
-
+struct c2_fid c2t1fs_target_fid(const struct c2_fid gob_fid, int index);
 #endif /* __COLIBRI_C2T1FS_H */
