@@ -56,7 +56,7 @@ static struct c2_yaml2db_section dev_section = {
 	.ys_ops = &c2_yaml2db_dev_section_ops,
 };
 
-static char *interface_fields[] = {
+static const char *interface_fields[] = {
 	"ATA",
 	"SATA",
 	"SCSI",
@@ -66,7 +66,7 @@ static char *interface_fields[] = {
 	"SAS2"
 };
 
-static char *media_fields[] = {
+static const char *media_fields[] = {
 	"DISK",
 	"SSD",
 	"TAPE",

@@ -226,7 +226,7 @@ struct c2_yaml2db_section_ops {
 	void (*so_key_val_dump) (FILE *fp, void *key, void *val);
 };
 
-extern struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
+extern const struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops;
 
 /**
   Iterates over a yaml sequence

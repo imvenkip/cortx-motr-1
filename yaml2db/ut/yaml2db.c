@@ -23,9 +23,9 @@
 #endif
 
 #include "lib/misc.h"
-#include "yaml2db/yaml2db.h"
 #include "lib/ut.h"
 #include "cfg/cfg.h"
+#include "yaml2db/yaml2db.h"
 
 /* Constant names and paths */
 static const char f_path[] = "./__conf_db_failure";
@@ -46,7 +46,7 @@ static const char parse_dump_fname[] = "parse.txt";
 static const char emit_dump_fname[] = "emit.txt";
 
 /* Global yaml2db context */
-struct c2_yaml2db_ctx	 yctx;
+static struct c2_yaml2db_ctx yctx;
 
 /* Static declaration of device section keys array */
 static struct c2_yaml2db_section_key dev_section_keys[] = {
@@ -73,7 +73,7 @@ static struct c2_yaml2db_section dev_section = {
         .ys_ops = &c2_yaml2db_dev_section_ops,
 };
 
-static char *interface_fields[] = {
+static const char *interface_fields[] = {
         "ATA",
         "SATA",
         "SCSI",
@@ -83,7 +83,7 @@ static char *interface_fields[] = {
         "SAS2"
 };
 
-static char *media_fields[] = {
+static const char *media_fields[] = {
         "DISK",
         "SSD",
         "TAPE",
@@ -340,7 +340,8 @@ enum error_type {
 	READER_ERROR
 };
 
-static int generate_dirty_conf_file(const char *c_name, enum error_type etype)
+static int generate_dirty_conf_file(const char *c_name,
+				    const enum error_type etype)
 {
 	FILE *fp;
 	char  p = '%';

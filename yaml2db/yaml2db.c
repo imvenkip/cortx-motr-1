@@ -26,8 +26,8 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "yaml2db/yaml2db.h"
 #include "cfg/cfg.h"
+#include "yaml2db/yaml2db.h"
 
 /**
   @addtogroup yaml2db
@@ -387,8 +387,8 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
   @retval yaml_node_t pointer if successful, NULL otherwise
  */
 static char *yaml2db_key_locate(struct c2_yaml2db_ctx *yctx,
-				      const yaml_node_t *node,
-				      const char *yaml_str)
+				const yaml_node_t *node,
+				const char *yaml_str)
 {
 	yaml_node_t		*k_node;
 	yaml_node_t		*v_node;
@@ -664,7 +664,7 @@ static void device_key_populate(void *key, const char *val_str)
 
 /* Section op to populate the device value*/
 static int device_val_populate (struct c2_yaml2db_section *ysec, void *val,
-				 const char *key_str, const char *val_str)
+				const char *key_str, const char *val_str)
 {
         struct c2_cfg_storage_device__val *dev_val = val;
 
@@ -741,7 +741,7 @@ static void device_key_val_dump(FILE *fp, void *key, void *val)
 }
 
 /* Section ops */
-struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops = {
+const struct c2_yaml2db_section_ops c2_yaml2db_dev_section_ops = {
         .so_key_populate = device_key_populate,
         .so_val_populate = device_val_populate,
         .so_key_val_dump = device_key_val_dump,
