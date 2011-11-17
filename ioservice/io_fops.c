@@ -36,6 +36,7 @@
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "lib/vec.h"	/* c2_0vec */
+#include "lib/memory.h"
 #include "rpc/rpccore.h"
 
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
@@ -271,8 +272,6 @@ static struct c2_fop_type *ioservice_fops[] = {
    <i>This section briefly describes the interfaces of the sub-component that
    are of significance to the design.</i>
 
-   - ioseg_alloc Allocates an ioseg structure.
-   - ioseg_free Deallocates an ioseg structure.
    - ioseg_get Retrieves an ioseg given its index in zero
    vector.
    - ioseg_set Set the contents of zero segment referred by given
@@ -435,8 +434,8 @@ static struct c2_fop_type *ioservice_fops[] = {
    code from ioservice.
  */
 struct ioseg {
-	/* Offset of target object to start io from. */
-	c2_bindex_t		 is_off;
+	/* Index in target object to start io from. */
+	c2_bindex_t		 is_index;
 	/* Number of bytes in io segment. */
 	c2_bcount_t		 is_count;
 	/* Starting address of buffer. */
@@ -444,34 +443,6 @@ struct ioseg {
 	/* Linkage to have such zero segments in a list. */
 	struct c2_list_link	 is_linkage;
 };
-
-/**
-   Allocate a zero segment.
-   @retval Valid ioseg object if success, NULL otherwise.
- */
-struct ioseg *ioseg_alloc(void)
-{
-	struct ioseg *seg;
-
-	C2_ALLOC_PTR(seg);
-	if (seg == NULL)
-		return NULL;
-
-	c2_list_link_init(&seg->is_linkage);
-	return seg;
-}
-
-/**
-   Deallocate a zero segment.
-   @param zseg - Zero segment to be deallocated.
- */
-void ioseg_free(struct ioseg *seg)
-{
-	C2_PRE(seg != NULL);
-
-	c2_list_link_fini(&seg->is_linkage);
-	c2_free(seg);
-}
 
 /**
    Get the io segment indexed by index in array of io segments in zerovec.
@@ -487,7 +458,7 @@ void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
 
-	seg->is_off = zvec->z_indices[seg_index];
+	seg->is_index = zvec->z_indices[seg_index];
 	seg->is_count = zvec->z_bvec.ov_vec.v_count[seg_index];
 	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
 }
@@ -509,7 +480,7 @@ void ioseg_set(struct c2_0vec *zvec, uint32_t seg_index,
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
 
 	zvec->z_bvec.ov_buf[seg_index] = seg->is_buf;
-	zvec->z_indices[seg_index] = seg->is_off;
+	zvec->z_indices[seg_index] = seg->is_index;
 	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
 }
 
@@ -590,13 +561,6 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(struct c2_fop *fop)
 
 /** @} end of bulkclientDFSInternal */
 
-struct c2_io_ioseg {
-	/** IO segment for read or write request fop. */
-	struct c2_fop_io_seg	*rw_seg;
-        /** Linkage to the list of such structures. */
-        struct c2_list_link	 io_linkage;
-};
-
 bool is_read(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
@@ -629,15 +593,6 @@ bool is_write_rep(const struct c2_fop *fop)
 bool is_io_rep(const struct c2_fop *fop)
 {
 	return is_read_rep(fop) || is_write_rep(fop);
-}
-
-static int iosegs_alloc(struct c2_fop_io_vec *iovec, const uint32_t count)
-{
-	C2_PRE(iovec != NULL);
-	C2_PRE(count != 0);
-
-	C2_ALLOC_ARR(iovec->iv_segs, count);
-	return iovec->iv_segs == NULL ? -ENOMEM : 0;
 }
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
@@ -674,22 +629,21 @@ struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 	}
 }
 
-/**
-   Returns IO vector from given IO fop.
- */
-static struct c2_fop_io_vec *iovec_get(struct c2_fop *fop)
+static struct c2_bufvec *iovec_get(struct c2_fop *fop)
 {
-	return &io_rw_get(fop)->crw_iovec;
+	return &c2_fop_to_rpcbulk(fop)->rb_nbuf.nb_buffer;
 }
 
-/**
-   Deallocates and removes a generic IO segment from aggr_list.
- */
-static void ioseg_unlink_free(struct c2_io_ioseg *ioseg)
+static struct c2_0vec *io_0vec_get(struct c2_fop *fop)
+{
+	return &c2_fop_to_rpcbulk(fop)->rb_zerovec;
+}
+
+static void ioseg_unlink_free(struct ioseg *ioseg)
 {
 	C2_PRE(ioseg != NULL);
 
-	c2_list_del(&ioseg->io_linkage);
+	c2_list_del(&ioseg->is_linkage);
 	c2_free(ioseg);
 }
 
@@ -703,9 +657,6 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 #endif
 
-/**
-   Returns if given 2 fops belong to same type.
- */
 static bool io_fop_type_equal(const struct c2_fop *fop1,
 		const struct c2_fop *fop2)
 {
@@ -715,69 +666,54 @@ static bool io_fop_type_equal(const struct c2_fop *fop1,
 	return fop1->f_type == fop2->f_type;
 }
 
-/**
-   Returns the number of IO fragements (discontiguous buffers)
-   for a fop of type read or write.
- */
 static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 {
 	uint32_t	      i;
 	uint64_t	      frag_nr = 1;
-	struct c2_fop_io_vec *iovec;
+	struct c2_0vec	     *iovec;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(is_io(fop));
 
-	iovec = iovec_get(fop);
-	for (i = 0; i < iovec->iv_count - 1; ++i)
-		if (iovec->iv_segs[i].is_offset +
-		    iovec->iv_segs[i].is_buf.ib_count !=
-		    iovec->iv_segs[i+1].is_offset)
+	iovec = io_0vec_get(fop);
+	for (i = 0; i < iovec->z_bvec.ov_vec.v_nr - 1; ++i)
+		if (iovec->z_indices[i] +
+		    iovec->z_bvec.ov_vec.v_count[i] !=
+		    iovec->z_indices[i+1])
 			frag_nr++;
 	return frag_nr;
 }
 
-/**
-   Allocates a new generic IO segment
- */
-static int io_fop_seg_init(struct c2_io_ioseg **ns, struct c2_io_ioseg *cseg)
+static int io_fop_seg_init(struct ioseg **ns, struct ioseg *cseg)
 {
-	struct c2_io_ioseg *new_seg;
+	struct ioseg *new_seg;
 
 	C2_PRE(ns != NULL);
 
 	C2_ALLOC_PTR(new_seg);
 	if (new_seg == NULL)
 		return -ENOMEM;
-	C2_ALLOC_PTR(new_seg->rw_seg);
-	if (new_seg->rw_seg == NULL) {
-		c2_free(new_seg);
-		return -ENOMEM;
-	}
-	c2_list_link_init(&new_seg->io_linkage);
+
+	c2_list_link_init(&new_seg->is_linkage);
 	*ns = new_seg;
 	*new_seg = *cseg;
 	return 0;
 }
 
-/**
-   Adds a new IO segment to the aggr_list conditionally.
- */
-static int io_fop_seg_add_cond(struct c2_io_ioseg *cseg,
-		struct c2_io_ioseg *nseg)
+static int io_fop_seg_add_cond(struct ioseg *cseg, struct ioseg *nseg)
 {
-	int			 rc;
-	struct c2_io_ioseg	*new_seg;
+	int           rc;
+	struct ioseg *new_seg;
 
 	C2_PRE(cseg != NULL);
 	C2_PRE(nseg != NULL);
 
-	if (nseg->rw_seg->is_offset < cseg->rw_seg->is_offset) {
+	if (nseg->is_index < cseg->is_index) {
 		rc = io_fop_seg_init(&new_seg, nseg);
 		if (rc < 0)
 			return rc;
 
-		c2_list_add_before(&cseg->io_linkage, &new_seg->io_linkage);
+		c2_list_add_before(&cseg->is_linkage, &new_seg->is_linkage);
 	} else
 		rc = -EINVAL;
 
@@ -797,54 +733,39 @@ static int io_fop_seg_add_cond(struct c2_io_ioseg *cseg,
    @param aggr_list - list of write segments which gets built during
     this operation.
  */
-static void io_fop_seg_coalesce(struct c2_io_ioseg *seg,
-		struct c2_list *aggr_list)
+static void io_fop_seg_coalesce(struct ioseg *seg,
+				struct c2_list *aggr_list)
 {
-	int			 rc;
-	bool			 added = false;
-	struct c2_io_ioseg	*new_seg;
-	struct c2_io_ioseg	*ioseg;
-	struct c2_io_ioseg	*ioseg_next;
+	int           rc;
+	struct ioseg *new_seg;
+	struct ioseg *ioseg;
+	struct ioseg *ioseg_next;
 
 	C2_PRE(seg != NULL);
 	C2_PRE(aggr_list != NULL);
 
 	c2_list_for_each_entry_safe(aggr_list, ioseg, ioseg_next,
-			struct c2_io_ioseg, io_linkage) {
+				    struct ioseg, is_linkage) {
 		/* If given segment fits before some other segment
 		   in increasing order of offsets, add it before
 		   current segments from aggr_list. */
 		rc = io_fop_seg_add_cond(ioseg, seg);
-		if (rc == -ENOMEM)
+		if ( rc == 0 || rc == -ENOMEM)
 			return;
-		if (rc == 0) {
-			added = true;
-			break;
-		}
 	}
 
 	/* Add a new IO segment unconditionally in aggr_list. */
-	if (!added) {
-		rc = io_fop_seg_init(&new_seg, seg);
-		if (rc < 0)
-			return;
-		c2_list_add_tail(aggr_list, &new_seg->io_linkage);
-	}
+	rc = io_fop_seg_init(&new_seg, seg);
+	if (rc < 0)
+		return;
+	c2_list_add_tail(aggr_list, &new_seg->is_linkage);
 }
 
-/**
-   Coalesces the IO segments from a number of IO fops to create a list
-   of IO segments containing merged segments.
-   @param aggr_list - list of IO segments which gets populated during
-   this operation.
-*/
-static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
-		struct c2_list *aggr_list)
+static void io_fop_segments_coalesce(struct c2_0vec *iovec,
+				     struct c2_list *aggr_list)
 {
-	uint32_t		i;
-	int			rc = 0;
-	uint32_t		segs_nr;
-	struct c2_io_ioseg	ioseg;
+	uint32_t     i;
+	struct ioseg seg;
 
 	C2_PRE(iovec != NULL);
 	C2_PRE(aggr_list != NULL);
@@ -852,13 +773,10 @@ static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
 	/* For each segment from incoming IO vector, check if it can
 	   be merged with any of the existing segments from aggr_list.
 	   If yes, merge it else, add a new entry in aggr_list. */
-	segs_nr = iovec->iv_count;
-	for (i = 0; i < segs_nr; ++i) {
-		ioseg.rw_seg = &iovec->iv_segs[i];
-		io_fop_seg_coalesce(&ioseg, aggr_list);
+	for (i = 0; i < iovec->z_bvec.ov_vec.v_nr; ++i) {
+		ioseg_get(iovec, i, &seg);
+		io_fop_seg_coalesce(&seg, aggr_list);
 	}
-
-	return rc;
 }
 
 /**
@@ -866,32 +784,27 @@ static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
    of given resultant fop. At a time, all fops in the list are either
    read fops or write fops. Both fop types can not be present simultaneously.
 
-   @param fop_list - list of fops. These structures contain either read or
-   write fops. Both fop types can not be present in fop_list simultaneously.
    @param res_fop - resultant fop with which the resulting IO vector is
    associated.
-   @param bkpfop - A fop used to store the original IO vector of res_fop
-   whose IO vector is replaced by the coalesced IO vector.
-   from resultant fop and it is restored on receving the reply of this
-   coalesced IO request. @see io_fop_iovec_restore.
  */
 static int io_fop_coalesce(struct c2_fop *res_fop)
 {
-	int			 res;
+	int			 rc;
 	int			 i = 0;
 	uint64_t		 curr_segs;
 	struct c2_fop		*fop;
 	struct c2_fop		*bkp_fop;
 	struct c2_list		 aggr_list;
 	struct c2_list		*items_list;
+	struct c2_0vec		*iovec;
 	struct c2_rpc_item	*item;
-	struct c2_io_ioseg	*ioseg;
-	struct c2_io_ioseg	*ioseg_next;
-	struct c2_io_ioseg	 res_ioseg;
+	struct ioseg		*ioseg;
+	struct ioseg		*ioseg_next;
 	struct c2_fop_type	*fopt;
-	struct c2_fop_io_vec	*iovec;
-	struct c2_fop_io_vec	*bkp_vec;
-	struct c2_fop_io_vec	*res_iovec;
+	struct c2_bufvec	*res_bvec;
+	struct c2_io_fop	*cfop;
+	struct c2_net_buffer	*nbuf;
+	struct c2_fop_cob_rw	*rw;
 
 	C2_PRE(res_fop != NULL);
 	items_list = &res_fop->f_item.ri_compound_items;
@@ -900,67 +813,93 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 	fopt = res_fop->f_type;
 	C2_PRE(is_io(res_fop));
 
-        /* Make a copy of original IO vector belonging to res_fop and place
+        /* Makes a copy of original IO vector belonging to res_fop and place
            it in input parameter vec which can be used while restoring the
            IO vector. */
-	bkp_fop = c2_fop_alloc(fopt, NULL);
-	if (bkp_fop == NULL)
+	cfop = c2_alloc(sizeof(struct c2_io_fop));
+	if (cfop == NULL)
 		return -ENOMEM;
+
+	bkp_fop = &cfop->if_fop;
 	c2_rpc_item_init(&bkp_fop->f_item);
 	io_rw_get(bkp_fop)->crw_fid = *io_fop_fid_get(res_fop);
 
 	c2_list_init(&aggr_list);
 
-	/* Traverse the fop_list, get the IO vector from each fop,
+	/* Traverses the fop_list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
 	   in another list. */
-	c2_list_for_each_entry(items_list, item, struct c2_rpc_item, ri_field) {
+	c2_list_for_each_entry(items_list, item, struct c2_rpc_item,
+			       ri_field) {
 		fop = c2_rpc_item_to_fop(item);
-		iovec = iovec_get(fop);
-		res = io_fop_segments_coalesce(iovec, &aggr_list);
-	}
-
-	/* Allocate a new generic IO vector and copy all (merged) IO segments
-	   to the new vector and make changes to res_fop accordingly. */
-	C2_ALLOC_PTR(res_iovec);
-	if (res_iovec == NULL) {
-		res = -ENOMEM;
-		goto cleanup;
+		iovec = io_0vec_get(fop);
+		io_fop_segments_coalesce(iovec, &aggr_list);
 	}
 
 	curr_segs = c2_list_length(&aggr_list);
-	res = iosegs_alloc(res_iovec, curr_segs);
-	if (res != 0)
+	nbuf = &c2_fop_to_rpcbulk(res_fop)->rb_nbuf;
+	iovec = io_0vec_get(res_fop);
+	res_bvec = iovec_get(res_fop);
+
+	rc = c2_io_fop_init(cfop, fopt, iovec->z_bvec.ov_vec.v_nr,
+			    res_bvec->ov_vec.v_count[0], nbuf->nb_dom);
+
+	if (rc != 0)
 		goto cleanup;
-	res_iovec->iv_count = curr_segs;
+
+	*io_0vec_get(bkp_fop) = *iovec;
+
+	iovec->z_bvec.ov_vec.v_count = NULL;
+	iovec->z_bvec.ov_buf = NULL;
+	C2_ALLOC_ARR(iovec->z_bvec.ov_vec.v_count, curr_segs);
+	if (iovec->z_bvec.ov_vec.v_count == NULL)
+		goto cleanup;
+	C2_ALLOC_ARR(iovec->z_bvec.ov_buf, curr_segs);
+	if (iovec->z_bvec.ov_buf == NULL)
+		goto cleanup;
+
+	c2_fop_to_rpcbulk(bkp_fop)->rb_nbuf.nb_length = nbuf->nb_length;
 
 	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
-			struct c2_io_ioseg, io_linkage) {
-		res_ioseg.rw_seg = &res_iovec->iv_segs[i];
-		*res_ioseg.rw_seg = *ioseg->rw_seg;
+				    struct ioseg, is_linkage) {
+		ioseg_set(iovec, i, ioseg);
 		ioseg_unlink_free(ioseg);
 		i++;
 	}
 	c2_list_fini(&aggr_list);
-	res_iovec->iv_count = i;
+	*res_bvec = iovec->z_bvec;
+	res_bvec->ov_vec.v_nr = i;
+	nbuf->nb_length = c2_vec_count(&res_bvec->ov_vec);
 
-	iovec = iovec_get(res_fop);
-	bkp_vec = iovec_get(bkp_fop);
-	*bkp_vec = *iovec;
-	*iovec = *res_iovec;
+	/* Changes the target object index vector according to the
+	   coalesced vector. */
+	rw = io_rw_get(res_fop);
+	io_rw_get(bkp_fop)->crw_ivec = rw->crw_ivec;
+	rw->crw_ivec.ci_nr = curr_segs;
+	C2_ALLOC_ARR(rw->crw_ivec.ci_iosegs, curr_segs);
+	if (rw->crw_ivec.ci_iosegs == NULL)
+		goto cleanup;
+
+	for (i = 0; i < curr_segs; ++i) {
+		rw->crw_ivec.ci_iosegs[i].ci_index = iovec->z_indices[i];
+		rw->crw_ivec.ci_iosegs[i].ci_count =
+			iovec->z_bvec.ov_vec.v_count[i];
+	}
 
 	c2_list_add(&res_fop->f_item.ri_compound_items,
 		    &bkp_fop->f_item.ri_field);
-	return res;
+	return rc;
 cleanup:
-	C2_ASSERT(res != 0);
-	if (res_iovec != NULL)
-		c2_free(res_iovec);
+	C2_ASSERT(rc != 0);
 	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
-				    struct c2_io_ioseg, io_linkage)
+				    struct ioseg, is_linkage)
 		ioseg_unlink_free(ioseg);
 	c2_list_fini(&aggr_list);
-	return res;
+	c2_free(iovec->z_bvec.ov_vec.v_count);
+	c2_free(iovec->z_bvec.ov_buf);
+	c2_io_fop_fini(cfop);
+	c2_free(cfop);
+	return rc;
 }
 
 /**
@@ -996,7 +935,9 @@ void io_fop_replied(struct c2_fop *fop)
 {
 	struct c2_fop		*bkpfop;
 	struct c2_rpc_item	*bkpitem;
-	struct c2_fop_io_vec	*vec;
+	struct c2_0vec		*bkpvec;
+	struct c2_io_fop	*cfop;
+	struct c2_0vec		*iovec;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(is_io(fop));
@@ -1006,11 +947,17 @@ void io_fop_replied(struct c2_fop *fop)
 				      &fop->f_item.ri_compound_items),
 				      struct c2_rpc_item, ri_field);
 		bkpfop = c2_rpc_item_to_fop(bkpitem);
-		vec = iovec_get(fop);
-		c2_free(vec->iv_segs);
-		*vec = *(iovec_get(bkpfop));
+		bkpvec = io_0vec_get(bkpfop);
+		iovec = io_0vec_get(fop);
+		c2_free(iovec->z_bvec.ov_vec.v_count);
+		c2_free(iovec->z_bvec.ov_buf);
+		*iovec = *bkpvec;
+		c2_fop_to_rpcbulk(fop)->rb_nbuf.nb_length =
+			c2_fop_to_rpcbulk(bkpfop)->rb_nbuf.nb_length;
 		c2_list_del(&bkpfop->f_item.ri_field);
-		c2_free(bkpfop);
+		cfop = container_of(bkpfop, struct c2_io_fop, if_fop);
+		c2_io_fop_fini(cfop);
+		c2_free(cfop);
 	} else 
 		c2_list_del(&fop->f_item.ri_field);
 }
@@ -1100,6 +1047,12 @@ int item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
 	struct c2_rpc_item	*item;
 	struct c2_rpc_item	*item_next;
 	struct c2_rpc_session	*session;
+	c2_bcount_t		 max_bufsize;
+	int32_t			 max_segs_nr;
+	c2_bcount_t		 curr_bufsize = 0;
+	c2_bcount_t		 curr_segs_nr = 0;
+	struct c2_bufvec	*bvec;
+	struct c2_net_domain	*netdom;
 
 	C2_PRE(head != NULL);
 	C2_PRE(list != NULL);
@@ -1114,16 +1067,30 @@ int item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
 	if (!head->ri_type->rit_ops->rito_io_coalesce)
 		return -EINVAL;
 
-	/* Traverse through the list and find out items that match with
+	/* Traverses through the list and finds out items that match with
 	   head on basis of fid and intent (read/write). Matching items
 	   are removed from session->s_unbound_items list and added to
 	   head->compound_items list. */
+	netdom = head->ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+	max_bufsize = c2_net_domain_get_max_buffer_size(netdom);
+	max_segs_nr = c2_net_domain_get_max_buffer_segments(netdom);
 	bfop = c2_rpc_item_to_fop(head);
 	c2_list_for_each_entry_safe(list, item, item_next, struct c2_rpc_item,
 				    ri_unbound_link) {
 		ufop = c2_rpc_item_to_fop(item);
 		if (io_fop_type_equal(bfop, ufop) &&
 		    io_fop_fid_equal(bfop, ufop)) {
+			/* Sends only those many fops so as to coalesce 
+			 a new net buffer which can fit into
+			 max_bufsize and max_segs_nr thresholds. */
+			bvec = iovec_get(ufop);
+			curr_bufsize += c2_vec_count(&bvec->ov_vec);
+			curr_segs_nr += bvec->ov_vec.v_nr; 
+
+			if (curr_bufsize > max_bufsize ||
+			    curr_segs_nr > max_segs_nr)
+				break;
+
 			c2_list_del(&item->ri_unbound_link);
 			c2_list_add(&head->ri_compound_items, &item->ri_field);
 		}
@@ -1136,7 +1103,6 @@ int item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
 	   include the bound item's io vector in io coalescing. */
 	c2_list_add(&head->ri_compound_items, &head->ri_field);
 
-	//rc = io_fop_coalesce(bfop);
 	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop);
 
 	c2_list_del(&head->ri_field);
