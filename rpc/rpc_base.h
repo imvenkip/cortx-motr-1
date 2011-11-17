@@ -24,7 +24,7 @@
 /**
    @addtogroup rpc_layer_core
 
-   This file contains rpc item type definitions. These were orginally part of
+   This file contains rpc item type definitions. These were part of
    rpccore.h. The reason for this split is to break circular dependencies
    that otherwise forms due to embedding rpc item type into a fop type.
 

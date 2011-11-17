@@ -47,12 +47,9 @@ static struct c2_rwlock    rpc_item_types_lock;
 */
 bool opcode_is_dup(uint32_t opcode)
 {
-	struct c2_rpc_item_type        *item_type;
-
 	C2_PRE(opcode > 0);
 
-	item_type = c2_rpc_item_type_lookup(opcode);
-	return item_type != NULL;
+	return c2_rpc_item_type_lookup(opcode) != NULL;
 }
 
 int c2_rpc_base_init(void)

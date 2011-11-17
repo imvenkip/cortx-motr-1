@@ -6,7 +6,7 @@
  */
 
 struct c2_fop_type;
-struct c2_rpc_item_type *item_type;
+struct c2_rpc_item_type;
 
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 {

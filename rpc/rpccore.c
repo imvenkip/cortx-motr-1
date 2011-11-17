@@ -87,8 +87,9 @@ const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {
 	.rito_encode = c2_rpc_fop_default_encode,
 	.rito_decode = c2_rpc_fop_default_decode,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+	.rito_item_size = c2_rpc_item_fop_default_size,
 };
+
 
 /**
    Callback for net buffer used in posting
