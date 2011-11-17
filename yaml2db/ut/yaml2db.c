@@ -456,7 +456,7 @@ static void parser_error_detect(void)
 }
 
 const struct c2_test_suite yaml2db_ut = {
-	.ts_name = "libyaml2db-ut",
+	.ts_name = "yaml2db-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
