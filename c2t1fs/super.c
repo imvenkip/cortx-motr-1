@@ -35,6 +35,14 @@ const struct c2_fid c2t1fs_root_fid = {
 	.f_key = 2
 };
 
+static const struct c2_tl_descr svc_ctx_tl_descr =
+			C2_TL_DESCR("service contexts",
+				    struct c2t1fs_service_context,
+				    sc_link,
+				    sc_magic,
+				    MAGIC_SVC_CTX,
+				    MAGIC_SVCCTXHD);
+
 int c2t1fs_get_sb(struct file_system_type *fstype,
 		  int                      flags,
 		  const char              *devname,
@@ -179,7 +187,7 @@ int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 
 	c2_mutex_init(&csb->csb_mutex);
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
-	c2_list_init(&csb->csb_service_contexts);
+	c2_tlist_init(&svc_ctx_tl_descr, &csb->csb_service_contexts);
 
 	END(0);
 	return 0;
@@ -188,7 +196,7 @@ void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 {
 	START();
 
-	c2_list_fini(&csb->csb_service_contexts);
+	c2_tlist_fini(&svc_ctx_tl_descr, &csb->csb_service_contexts);
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 
@@ -394,7 +402,8 @@ void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 	ctx->sc_csb = csb;
 	ctx->sc_type = type;
 	ctx->sc_addr = ep_addr;
-	c2_list_link_init(&ctx->sc_link);
+	ctx->sc_magic = MAGIC_SVC_CTX;
+	c2_tlink_init(&svc_ctx_tl_descr, ctx);
 
 	END(0);
 }
@@ -403,7 +412,8 @@ void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
 {
 	START();
 
-	c2_list_link_fini(&ctx->sc_link);
+	c2_tlink_fini(&svc_ctx_tl_descr, ctx);
+	ctx->sc_magic = 0;
 
 	END(0);
 }
@@ -429,15 +439,14 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 	if (rc != 0)
 		goto out;
 
-	c2_list_for_each_entry(&csb->csb_service_contexts, ctx,
-				struct c2t1fs_service_context, sc_link) {
+	c2_tlist_for(&svc_ctx_tl_descr, &csb->csb_service_contexts, ctx) {
 
 		rc = c2t1fs_connect_to_service(ctx);
 		if (rc != 0) {
 			c2t1fs_disconnect_from_all_services(csb);
 			goto out;
 		}
-	}
+	} c2_tlist_endfor;
 out:
 	END(rc);
 	return rc;
@@ -466,7 +475,8 @@ static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
 				return -ENOMEM;
 
 			c2t1fs_service_context_init(ctx, csb, type, ep_addr);
-			c2_list_add(&csb->csb_service_contexts, &ctx->sc_link);
+			c2_tlist_add_tail(&svc_ctx_tl_descr,
+					&csb->csb_service_contexts, ctx);
 		}
 		return 0;
 	}
@@ -496,25 +506,20 @@ discard_all:
 static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb)
 {
 	struct c2t1fs_service_context *ctx;
-	struct c2_list                *list;
-	struct c2_list_link           *link;
 
 	START();
 
-	list = &csb->csb_service_contexts;
+	c2_tlist_for(&svc_ctx_tl_descr, &csb->csb_service_contexts, ctx) {
 
-	while (!c2_list_is_empty(list)) {
-		link = c2_list_first(list);
-		C2_ASSERT(link != NULL);
+		c2_tlist_del(&svc_ctx_tl_descr, ctx);
 
-		c2_list_del(link);
-
-		ctx = container_of(link, struct c2t1fs_service_context,
-						sc_link);
 		TRACE("discard: %s\n", ctx->sc_addr);
+
 		c2t1fs_service_context_fini(ctx);
 		c2_free(ctx);
-	}
+
+	} c2_tlist_endfor;
+
 	END(0);
 }
 
@@ -596,14 +601,13 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 
 	START();
 
-	c2_list_for_each_entry(&csb->csb_service_contexts, ctx,
-				struct c2t1fs_service_context, sc_link) {
+	c2_tlist_for(&svc_ctx_tl_descr, &csb->csb_service_contexts, ctx) {
 
 		c2t1fs_disconnect_from_service(ctx);
 
 		if (csb->csb_nr_active_contexts == 0)
 			break;
-	}
+	} c2_tlist_endfor;
 
 	END(0);
 }
@@ -659,8 +663,8 @@ int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 
 	map = &csb->csb_cl_map;
 	cur = 1;
-	c2_list_for_each_entry(&csb->csb_service_contexts, ctx,
-				struct c2t1fs_service_context, sc_link) {
+
+	c2_tlist_for(&svc_ctx_tl_descr, &csb->csb_service_contexts, ctx) {
 
 		switch (ctx->sc_type) {
 
@@ -684,7 +688,7 @@ int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 		default:
 			C2_ASSERT(0);
 		}
-	}
+	} c2_tlist_endfor;
 out:
 	END(rc);
 	return rc;

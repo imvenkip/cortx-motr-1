@@ -85,6 +85,11 @@ enum c2t1fs_service_type {
 	C2T1FS_ST_IOS
 };
 
+enum {
+	MAGIC_SVC_CTX  = 0x5356435f435458, /* "SVC_CTX" */
+	MAGIC_SVCCTXHD = 0x5356434354584844, /* "SVCCTXHD" */
+};
+
 struct c2t1fs_service_context
 {
 	struct c2t1fs_sb         *sc_csb;
@@ -94,7 +99,8 @@ struct c2t1fs_service_context
 	struct c2_rpc_session     sc_session;
 	int                       sc_nr_containers;
 	uint64_t                 *sc_container_ids;
-	struct c2_list_link       sc_link;
+	struct c2_tlink           sc_link;
+	uint64_t                  sc_magic;
 };
 
 struct c2t1fs_container_location_map
@@ -111,13 +117,15 @@ struct c2t1fs_sb
 	struct c2_rpc_conn     csb_mgs_conn;
 	struct c2_rpc_session  csb_mgs_session;
 	int                    csb_nr_active_contexts;
-	struct c2_list         csb_service_contexts;
+	struct c2_tl           csb_service_contexts;
 
 	int                    csb_nr_containers;
 	int                    csb_nr_data_units;
 	int                    csb_nr_parity_units;
 
 	struct c2t1fs_container_location_map csb_cl_map;
+
+	uint64_t               csb_magic;
 };
 
 
