@@ -41,7 +41,7 @@
    The module implements a network transport protocol using the data structures
    defined by @ref net/net.h.
 
-   The LNet transport is defined by the @c c2_net_lnet_xprt data structure.
+   The LNet transport is defined by the ::c2_net_lnet_xprt data structure.
    The address of this variable should be provided to the c2_net_domain_init()
    subroutine.
 
@@ -51,11 +51,12 @@
    interfaces should provide an enumeration and brief description of the
    externally visible programming interfaces.</i>
 
-   New subroutines provided:
+   New subroutine provided:
    - c2_net_lnet_ep_addr_net_compare()
      Compare the network portion of two LNet transport end point addresses.
+     It is intended for use by the Request Handler setup logic.
 
-   The use of these subroutines is not mandatory.
+   The use of this subroutine is not mandatory.
 
    @see @ref net "Networking"
    @see @ref LNetDLD "LNet Transport DLD"
