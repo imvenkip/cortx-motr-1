@@ -54,8 +54,6 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 		pool->nbp_free == pool_tlist_length(&pool->nbp_lru);
 }
 
-static c2_time_t c2_time_in_pool;
-static c2_time_t c2_time_after_sweep;
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
 			    uint32_t seg_nr, c2_bcount_t seg_size, int colours)
@@ -79,8 +77,6 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool_tlist_init(&pool->nbp_lru);
 	for (i = 0; i < colours; i++)
 		tm_tlist_init(&pool->nbp_colour[i]);
-	c2_time_set(&c2_time_in_pool, 120, 0); /* 2 min */
-	c2_time_after_sweep = c2_time_now();
 }
 C2_EXPORTED(c2_net_buffer_pool_init);
 
