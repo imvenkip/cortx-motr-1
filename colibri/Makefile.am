@@ -14,6 +14,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/balloc/libcolibri-balloc.la \
                             $(top_builddir)/capa/libcolibri-capa.la \
                             $(top_builddir)/cob/libcolibri-cob.la \
+                            $(top_builddir)/console/libcolibri-console.la \
                             $(top_builddir)/db/libcolibri-db.la \
                             $(top_builddir)/desim/libcolibri-desim.la \
                             $(top_builddir)/dtm/libcolibri-dtm.la \
@@ -37,5 +38,5 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
                             $(top_builddir)/rpc/libcolibri-rpc.la \
                             $(top_builddir)/xcode/libcolibri-xcode.la \
-                            $(top_builddir)/xdr/libcolibri-xdr.la
-
+                            $(top_builddir)/xdr/libcolibri-xdr.la \
+			    $(top_builddir)/../yaml/src/libyaml.la

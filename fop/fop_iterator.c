@@ -506,6 +506,9 @@ static bool has_watches(struct c2_fit_type *itype,
 	struct c2_fit_watch *watch;
 	struct c2_fit_mod   *mod;
 
+	if (strcmp(itype->fit_name, "fop-all-object") == 0)
+                return true;
+
 	*bits = 0;
 	c2_tlist_for(&wat_tl, &itype->fit_watch, watch) {
 		if (watch->fif_field == child->ff_type) {
@@ -540,10 +543,14 @@ int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 	data->ff_nr = fieldt->fft_nr;
 	for (t = 0; t < ARRAY_SIZE(data->ff_present); ++t) {
 		struct c2_fit_type *itype;
+                bool all_watches = false;
 
 		itype = fits[t];
 		if (itype == NULL)
 			continue;
+
+                if (strcmp(itype->fit_name, "fop-all-object") == 0)
+                        all_watches = true;
 
 		C2_ALLOC_ARR(data->ff_present[t], data->ff_nr + 1);
 		if (data->ff_present[t] == NULL)
@@ -575,7 +582,7 @@ int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 			/*
 			 * If any sub-field is watched...
 			 */
-			if (child_data != NULL &&
+			if (!all_watches && child_data != NULL &&
 			    child_data->ff_present[t][0].ffd_valid) {
 				/* ... the field itself isn't. */
 				C2_ASSERT(!el->ffd_valid);
@@ -766,6 +773,50 @@ void c2_fits_fini(void)
 	c2_fop_itype_fini(&fop_object_itype);
 }
 C2_EXPORTED(c2_fits_fini);
+
+/*
+ * Special FOP Iterator
+ */
+static struct c2_fit_type fop_all_object_itype = {
+        .fit_name  = "fop-all-object",
+        .fit_index = -1
+};
+
+void c2_fop_all_object_it_init(struct c2_fit *it, struct c2_fop *fop)
+{
+        c2_fit_init(it, &fop_all_object_itype, fop);
+}
+C2_EXPORTED(c2_fop_all_object_it_init);
+
+void c2_fop_all_object_it_fini(struct c2_fit *it)
+{
+        C2_PRE(it->fi_type == &fop_all_object_itype);
+        c2_fit_fini(it);
+}
+C2_EXPORTED(c2_fop_all_object_it_fini);
+
+void c2_fop_it_reset(struct c2_fit *it)
+{
+        struct c2_fit_frame *top;
+
+        it->fi_depth = 0;
+        top = fit_top(it);
+        top->ff_pos = 0;
+}
+C2_EXPORTED(c2_fop_it_reset);
+
+void c2_fits_all_init(void)
+{
+        c2_fop_decorator_register(&fit_dec);
+        c2_fop_itype_init(&fop_all_object_itype);
+}
+C2_EXPORTED(c2_fits_all_init);
+
+void c2_fits_all_fini(void)
+{
+        c2_fop_itype_fini(&fop_all_object_itype);
+}
+C2_EXPORTED(c2_fits_all_fini);
 
 /** @} end of fop group */
 

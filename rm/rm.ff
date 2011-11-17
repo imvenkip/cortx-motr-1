@@ -25,144 +25,71 @@
 
 /** @file rm.ff
  *
- *  This file defines RM-fops needed for RM-generic layer.
- *  All the layers using RM will have to define their own FOPs to
- *  fetch resource data. RM-generic FOPs provide a facility for
- *  resource rights management and to fetch small resource data.
+ * This file defines RM-fops needed for RM-generic layer. All the layers using
+ * RM will have to define their own FOPs to fetch resource data. RM-generic FOPs
+ * provide a facility for resource rights management and to fetch small resource
+ * data.
  *
  * <b>RM fop formats</b>
- */
-
-/**
- * This represents parameter information for a given right. This information
- * is opaque to RM layer. RM does not interpret this information.
  *
- * This information is constructed and interpreted by resource type specific
- * code.
- */
-DEF(c2_fop_rm_right, SEQUENCE,
-   /** Length of right parameters' record */
-    _(right_params_len, U32),
-   /** RM-opaque, resource type specfic, right parameters field */
-    _(right_params, BYTE));
-
-/**
- * This FOP is needed to Borrow a right, to a given resource, from an owner.
- * This request FOP is sent by a "debtor" to a "creditor".
- * @see rm.h
- */
-DEF(c2_fop_rm_right_borrow, RECORD,
-   /** Id of the remote owner */
-    _(rem_id, U64),
-   /** Resource type identifier */
-    _(res_type, U64),
-   /** Resource identifier */
-    _(res_id, U64),
-   /** Resource group identifier - provided by application */
-    _(res_grp_id, U64),
-   /** Id of the policy for resource right */
-    _(res_policy_id, U64),
-   /** Priority of this request  - 8 byte aligned */
-    _(res_priority, U64),
-   /** RM-opaque, resource type specfic, right parameters field */
-    _(res_right, c2_fop_rm_right));
-
-/**
- * A small amount of resource data can be piggy-backed.
- * This could optionally be part of RIGHT_BORROW_REPLY.
- */
-DEF(c2_fop_rm_res_data, SEQUENCE,
-    /** Length of resource data */
-    _(rd_len, U32),
-    /** Resource data (opaque to RM) */
-    _(res_data, BYTE));
-
-/**
- * This is a reply FOP - sent in response to the request, to borrow a right to a
- * resource. When the request is successful, the owner may choose to
- * piggy-back resource data.
+ * Various RM data-structures have to be located based on information stored in
+ * fops:
  *
- * This may avoid an extra FOP required for fetching the resource data (small).
- * RM-generic needs to pass this data to application using it.
+ *     - resource type: identified by 64-bit identifier
+ *       (c2_rm_resource_type::rt_id),
  *
- * This reply is sent by a "creditor" to a "debtor".
- */
-DEF(c2_fop_rm_right_borrow_reply, RECORD,
-    /** Return code for reply to the RIGHT_BORROW request */
-    _(right_resp, BYTE),
-   /** Id of the remote owner */
-    _(rem_id, U64),
-   /** Resource type identifier */
-    _(res_type, U64),
-   /** Resource identifier */
-    _(res_id, U64),
-    /** Id for the resource loan */
-    _(loan_id, U64),
-    /** Lease time in seconds */
-    _(lease_time, U64),
-    /** RM-opaque, resource type specific, right parameters. */
-    _(res_right, c2_fop_rm_right),
-    /** RM-opaque, resource type specific, small resource data. */
-    _(res_data, c2_fop_rm_res_data));
-
-/**
- * This FOP is initiated from an owner. It requires the lessee to surrender
- * the right for a given resource.
+ *     - resource: resource information is never passed separately, but only to
+ *       identify a resource owner,
  *
- * This request is sent by a "creditor" to a "debtor" to revoke the loan.
- * @see rm.h
+ *     - owner: when a first request to a remote resource owner is made, the
+ *       owner is identified by the resource
+ *       (c2_rm_resource_type_ops::rto_encode()) it is a responsibility of the
+ *       remote RM to locate the owner. In the subsequent fops for the same
+ *       owner, it is identified by a 128-bit cookie (c2_rm_cookie),
+ *
+ *     - right: identified by an opaque byte array
+ *       (c2_rm_resource_ops::rop_right_decode(),
+ *       c2_rm_right_ops::rro_encode()). A 0-sized array in REVOKE and CANCEL
+ *       fops is interpreted to mean "whole right previously granted",
+ *
+ *     - loan: identified by a 128-bit cookie (c2_rm_cookie).
+ *
  */
-DEF(c2_fop_rm_right_revoke, RECORD,
-   /** Id of the remote owner */
-    _(rem_id, U64),
-   /** Resource type identifier */
-    _(res_type, U64),
-   /** Resource identifier */
-    _(res_id, U64),
-    /** Id for the resource loan */
-    _(loan_id, U64),
-   /** Priority of this request  - 8 byte aligned */
-    _(res_priority, U64),
-    /** App-specific resource group id */
-    _(res_grp_id, U64));
 
-/**
- * This is a reply FOP - sent in response to a revoke right request.
- * This FOP is sent by a "debtor" to a "creditor" acknowledging the surrender
- * of the loan.
- * @see rm.h
- */
-DEF(c2_fop_rm_right_revoke_reply, RECORD,
-    /** Return code for reply to the RIGHT_REVOKE request */
-    _(right_resp, BYTE),
-   /** Id of the remote owner */
-    _(rem_id, U64),
-   /** Resource type identifier */
-    _(res_type, U64),
-   /** Resource identifier */
-    _(res_id, U64),
-    /** Id for the resource loan */
-    _(loan_id, U64),
-    /** App-specific resource group id */
-    _(res_grp_id, U64));
+DEF(c2_fop_rm_cookie, RECORD,
+    _(co_hi, U64),
+    _(co_lo, U64));
+DEF(c2_fop_rm_opaque, SEQUENCE,
+    _(op_nr, U32),
+    _(op_bytes, BYTE));
 
-/**
- * This FOP is sent by borrower (debtor) to creditor to volutarily give up
- * right to a given resource.
- */
-DEF(c2_fop_rm_right_cancel, RECORD,
-   /** Id of the remote owner */
-    _(rem_id, U64),
-   /** Resource type identifier */
-    _(res_type, U64),
-   /** Resource identifier */
-    _(res_id, U64),
-    /** Id for the resource loan */
-    _(loan_id, U64),
-   /** Priority of this request  - 8 byte aligned */
-    _(res_priority, U64),
-    /** App-specific resource group id */
-    _(res_grp_id, U64));
+DEF(c2_fop_rm_owner, RECORD,
+    _(ow_cookie, c2_fop_rm_cookie),
+    _(ow_opaque, c2_fop_rm_opaque));
+
+DEF(c2_fop_rm_right, RECORD,
+    _(ri_opaque, c2_fop_rm_opaque));
+
+DEF(c2_fop_rm_borrow, RECORD,
+    _(bo_rtype, U64),
+    _(bo_owner, c2_fop_rm_owner),
+    _(bo_right, c2_fop_rm_right),
+    _(bo_flags, U64));
+
+DEF(c2_fop_rm_borrow_rep, RECORD,
+    _(br_rc, U32),
+    _(bo_owner, c2_fop_rm_owner),
+    _(bo_loan, c2_fop_rm_cookie),
+    _(bo_right, c2_fop_rm_right),
+    _(bo_lvb, c2_fop_rm_opaque));
+
+DEF(c2_fop_rm_canoke, RECORD,
+    _(re_dir, BYTE),
+    _(re_loan, c2_fop_rm_cookie),
+    _(re_right, c2_fop_rm_right));
+
+DEF(c2_fop_rm_canoke_rep, RECORD,
+    _(re_rc, U32));
 
 /** @} end of rm group */
 

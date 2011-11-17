@@ -143,8 +143,6 @@ void prefix(void)
 	printf("\n");
 	printf("#include \"lib/cdefs.h\"\n");
 	printf("#include \"fop/fop_base.h\"\n");
-	if (todo == UDEF) 
-		printf("#include <rpc/rpc.h>\n");
 	if (todo == ULAY || todo == KLAY) 
 		printf("#include \"%s\"\n", incl);
 	if (todo == ULAY) 

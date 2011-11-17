@@ -31,6 +31,7 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right, uint32_t flag)
 */
 int right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 
+
 /**
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
