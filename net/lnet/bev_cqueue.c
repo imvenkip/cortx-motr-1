@@ -51,6 +51,10 @@
    lock-free queue for a single producer and consumer.  The producer and
    consumer can be in different address spaces with the queue in shared memory.
 
+   The queue implementation does not address how the consumer gets notified that
+   queue elements have been produced. That functionality is provided separately
+   by the Core API nlx_core_buf_event_wait() subroutine.
+
    <hr>
    @section cqueueDLD-def Definitions
    <i>Mandatory.
@@ -60,9 +64,7 @@
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   Previously defined terms:
-
-   New terms:
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
    <hr>
    @section cqueueDLD-req Requirements
@@ -525,7 +527,7 @@
    details of the data structure are required here, just the salient
    points.</i>
 
-   The circular queue is defined by the @a nlx_core_bev_cqueue data
+   The circular queue is defined by the nlx_core_bev_cqueue data
    structure.
 
    @section cqueueDLD-fspec-sub Subroutines
@@ -588,7 +590,8 @@
 
    @subsection cq-producer Producer
 
-   A producer works in a loop, putting event notifications in the queue:
+   The (single) producer works in a loop, putting event notifications in the
+   queue:
 
    @code
    bool done;
@@ -606,7 +609,7 @@
 
    @subsection cq-consumer Consumer
 
-   A consumer works in a loop, consuming data from the queue:
+   The (single) consumer works in a loop, consuming data from the queue:
 
    @code
    bool done;
@@ -651,7 +654,7 @@
 static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q);
 
 /**
-   Initialise the buffer event queue.
+   Initialise the buffer event queue. Invoke in the consumer address space only.
    @param q buffer event queue to initialise
    @param ql1 the first element in the new queue
    @param ql2 the second element in the new queue

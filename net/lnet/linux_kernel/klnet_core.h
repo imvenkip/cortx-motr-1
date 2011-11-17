@@ -75,6 +75,10 @@ struct nlx_kcore_transfer_mc {
 
 	/** Handle of the LNet EQ associated with this transfer machine */
 	lnet_handle_eq_t                 ktm_eqh;
+
+	/** ME handle associated with the receive buffer queue */
+	lnet_handle_me_t                 ktm_meh;
+
 };
 
 
@@ -100,9 +104,6 @@ struct nlx_kcore_buffer {
 
 	/** The I/O vector. */
 	struct lnet_kiov_t            kb_kiov;
-
-	/** ME handle */
-	lnet_handle_me_t              kb_meh;
 
 	/** MD handle */
 	lnet_handle_md_t              kb_mdh;

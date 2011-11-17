@@ -70,10 +70,7 @@
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   Previously defined terms:
-   - Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
-
-   New terms:
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
    <hr>
    @section LNetDLD-req Requirements
@@ -136,10 +133,10 @@
 
      The c2_net_tm_confine() subroutine is added to set the processor
      affinity for transfer machine thread if desired.  This results in an
-     additional operation being added to the @c c2_net_xo_ops structure:
+     additional operation being added to the c2_net_xprt_ops structure:
 
      @code
-     struct c2_net_xo_ops {
+     struct c2_net_xprt_ops {
         ...
         int  (*xo_tm_confine)(struct c2_net_transfer_mc *tm,
 	                      const struct c2_bitmap *processors);
@@ -149,7 +146,7 @@
      The behavior of the c2_net_buffer_event_post() subroutine is modified
      slightly to allow for multiple buffer events to be delivered for a single
      receive buffer, without removing it from a transfer machine queue.
-     This is indicated by the C2_NET_BUF_RETAIN flag.
+     This is indicated by the ::C2_NET_BUF_RETAIN flag.
 
    </li> <!-- end net module changes -->
 
@@ -176,9 +173,16 @@
    attention.</i>
 
    - Common user and kernel space implementation over an underlying "Core" I/O
-     layer.
-   - Provides processor affinity
-
+     layer that communicates with the kernel LNet module.
+   - Supports the reception of multiple messages in a single receive buffer.
+   - Provides processor affinity.
+   - Support for hardware optimizations in buffer access.
+   - Support for dynamic transfer machine identifier assignment.
+   - Efficient communication between user and kernel address spaces in the user
+     space transport through the use of shared memory.  This includes the
+     efficient conveyance of buffer operation completion event data through the
+     use of a circular queue in shared memory, and the minimal use of system
+     calls to block for events.
 
    <hr>
    @section LNetDLD-lspec Logical Specification
@@ -234,6 +238,9 @@
    representation of the address, which must be saved in the @c xe_addr array.
    The address of the @c xe_ep field is returned as the external representation.
 
+   The end point data structure is not associated internally with any LNet
+   kernel resources.
+
    The transport does not support dynamic addressing: i.e. the @c addr field
    can never be NULL in the c2_net_end_point_create() subroutine.  However, it
    supports the dynamic assignment of transfer machine identifiers as described
@@ -282,8 +289,8 @@
 
    @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Handler Thread
 
-   Each transfer machine processes buffer events from the core API's event
-   queue.  The core API guarantees that LNet operation completion events will
+   Each transfer machine processes buffer events from the Core API's event
+   queue.  The Core API guarantees that LNet operation completion events will
    result in buffer events being enqueued in the order the API receives them,
    and, in particular, that multiple buffer events for any given receive buffer
    will be ordered.  This is very important for the transport, because it has
@@ -291,7 +298,7 @@
    dequeued.
 
    The transport uses exactly one event handler thread to process buffer events
-   from the core API.  This has the following advantages:
+   from the Core API.  This has the following advantages:
    - The implementation is simple.
    - It implicitly race-free with respect to receive buffer events.
 
@@ -319,6 +326,8 @@
    // the C2_NET_TM_STARTED or C2_NET_TM_FAILED states
    // Set the transfer machine's end point on success
    c2_net_tm_event_post(&tmev);
+   if (rc != 0)
+       return; // failure
    // loop forever
    while (1) {
       timeout = ...; // compute next timeout
@@ -358,6 +367,7 @@
             }
       }
       // Log statistical data periodically using ADDB
+      ...
    }
    @endcode
    (The C++ style comments above are used only because the example is
@@ -367,7 +377,7 @@
    A few points to note on the above pseudo-code:
    - The transfer machine mutex is obtained across the call to dequeue buffer
      events to serialize with the "other" consumer of the buffer event queue,
-     the @c xo_buf_add() subroutine that invokes the core API buffer operation
+     the nlx_xo_buf_add() subroutine that invokes the Core API buffer operation
      initiation subroutines.  This is because these subroutines may allocate
      additional buffer event structures to the queue.
    - The transfer machine mutex may also be needed to create end point objects
@@ -404,8 +414,8 @@
    @subsection LNetDLD-lspec-buf-op Buffer operations
 
    Buffer operations are initiated through the c2_net_xprt_ops::xo_buf_add()
-   subroutine. The transport must invoke one of the relevant core API buffer
-   initiation operations.
+   operation which points to the nlx_xo_buf_add() subroutine. The subroutine
+   will invoke the appropriate Core API buffer initiation operations.
 
    In passive buffer operations, the transport must first obtain suitable match
    bits for the buffer using the nlx_core_buf_match_bits_set() subroutine.  The
@@ -425,33 +435,42 @@
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
-   The transport does not introduce its own state models but operates within
-   the framework defined by the Colibri Networking Module.  The state of the
-   following objects are particularly called out:
+   The transport does not introduce its own state model but operates within the
+   framework defined by the Colibri Networking Module. In general, resources
+   are allocated to objects of this module by the underlying Core API, and they
+   have to be recovered upon object finalization, and in the particular case of
+   the user space transport, upon process termination if the termination was
+   not orderly.
+
+   The resources allocated to the following objects are particularly called
+   out:
 
    - c2_net_buffer
    - c2_net_transfer_mc
    - c2_net_domain
    - c2_net_end_point
 
-   Enqueued network buffers represent operations in progress.  Until they get
-   dequeued, the buffers are associated with underlying LNet kernel module
-   resources.
+   Network buffers enqueued with a transfer machine represent operations in
+   progress.  Until they get dequeued, the buffers are associated internally
+   with LNet kernel module resources (MDs and MEs) allocated on their behalf by
+   the Core API.
 
    The transfer machine is associated with an LNet event queue (EQ).  The EQ
    must be created when the transfer machine is started, and destroyed when the
    transfer machine stops.
 
    Buffers registered with a domain object are potentially associated with LNet
-   kernel module resources and, if the transport is in user space, kernel
-   memory resources as the buffer vector gets pinned in memory. De-registration
-   of the buffers releases these resources.  The domain object of a user space
-   transport is also associated with an open file descriptor to the device
-   driver used to communicate with the kernel Core API.
+   kernel module resources and, if the transport is in user space, additional
+   kernel memory resources as the buffer vector is pinned in
+   memory. De-registration of the buffers releases these resources.  The domain
+   object of a user space transport is also associated with an open file
+   descriptor to the device driver used to communicate with the kernel Core
+   API.
 
    End point structures are exposed externally as struct c2_net_end_point, but
-   are allocated and managed internally by the transport using struct
-   nlx_xo_ep.  They are reference counted, and the application must release all
+   are allocated and managed internally by the transport with struct
+   nlx_xo_ep.  They do not use LNet resources, but just transport address space
+   memory. They are reference counted, and the application must release all
    references before attempting to finalize a transfer machine.
 
 
@@ -526,9 +545,9 @@
    @c c2_net_lnet_xprt is provided.
 
    - <b>i.c2.net.lnet.buffer-registration</b> Buffer registration is required
-   in the network API and has a corresponding nlx_xo_buf_register() at the LNet
-   transport layer.  This can be extended for hardware optimization once LNet
-   provides such APIs.
+   in the network API and results in the corresponding nlx_xo_buf_register()
+   subroutine call at the LNet transport layer.  This is where hardware
+   optimization can be performed, once LNet provides such APIs.
 
    - <b>i.c2.net.xprt.lnet.end-point-address</b> Mapping of LNet end point
    address is handled in the Core API as described in the @ref
@@ -546,10 +565,10 @@
    is provided and the LNet transport provides the corresponding
    nlx_xo_tm_confine() function.
 
-   - <b>i.c2.net.xprt.lnet.user-space</b> The API provides "core" functionality
-   for both user and kernel space and reduces context switches required for
-   user-space event processing, especially through the use of a circular queue
-   using atomic operations.
+   - <b>i.c2.net.xprt.lnet.user-space</b> The user space implementation of the
+   Core API utilizes shared memory and reduces context switches required for
+   user-space event processing through the use of a circular queue maintained
+   in shared memory and operated upon with atomic operations.
 
    <hr>
    @section LNetDLD-ut Unit Tests
@@ -585,7 +604,9 @@
 
    The @c bulkping system test program will be updated to include support for
    the LNet transport.  This program will be used to test communication between
-   end points on the same system and between remote systems.
+   end points on the same system and between remote systems.  The program will
+   offer the ability to dynamically allocate a transfer machine identifier when
+   operating in client mode.
 
    <hr>
    @section LNetDLD-O Analysis
@@ -600,17 +621,22 @@
    An area of concern specific to the transport operations layer is the
    management of end point objects.  In particular, the time taken to search
    the list of end point objects is of O(N) - i.e. a linear search through the
-   list, which is proportional to the number of list items.  This may become
-   expensive if the list grows large - items on the list are reference counted
-   and it is up to the application to release them.
+   list, which is proportional to the number of list items.  This search may
+   become expensive if the list grows large - items on the list are reference
+   counted and it is up to the application to release them, not the transport.
 
    The internal end point address fields are all numeric and easily lend
    themselves to a hash based strategy (the NID value is the best candidate
-   key).  The tricky part of an implementation, were we to address this, would
-   be to determine what hash strategy would result in a reasonably even
-   distribution, but worst case, it degenerates to the linear search we have at
-   present.  The choice of whether to use hashing depends on what the expected
-   behavior of a Colibri server will be like in steady state.
+   key).  The tricky part of any hashing scheme would be to determine what hash
+   function would result in a reasonably even distribution over a set of hash
+   buckets; this is not as bad as it sounds, because even in the worst case, it
+   would degenerate to the linear search we have at present.
+
+   Ultimately, the choice of whether to use hashing or not depends on what the
+   behavior of a Colibri server will be like in steady state: if end points are
+   released fairly rapidly, the linked list implementation will suffice.  Note
+   that since no LNet kernel resources are associated with end point objects,
+   this issue is simply related to search performance.
 
 
    <hr>
