@@ -129,8 +129,6 @@ struct c2t1fs_dir_ent
 
 enum {
 	C2T1FS_MAX_NR_DIR_ENTS = 10,
-	C2T1FS_MAX_FILE_SIZE = C2T1FS_MAX_NR_DIR_ENTS *
-					sizeof (struct c2t1fs_dir_ent),
 };
 
 struct c2t1fs_inode
@@ -169,6 +167,9 @@ void c2t1fs_kill_sb(struct super_block *sb);
 
 int c2t1fs_sb_init(struct c2t1fs_sb *sbi);
 void c2t1fs_sb_fini(struct c2t1fs_sb *sbi);
+
+void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
+void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
 
 int c2t1fs_inode_cache_init(void);
 void c2t1fs_inode_cache_fini(void);

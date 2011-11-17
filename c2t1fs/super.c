@@ -708,3 +708,17 @@ c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
 	END(ctx->sc_session.s_session_id);
 	return &ctx->sc_session;
 }
+void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
+{
+	START();
+	c2_mutex_lock(&csb->csb_mutex);
+	END(0);
+}
+
+void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
+{
+	START();
+	c2_mutex_unlock(&csb->csb_mutex);
+	END(0);
+}
+

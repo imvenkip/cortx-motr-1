@@ -72,9 +72,12 @@ static int c2t1fs_create(struct inode     *dir,
 
 	inode = new_inode(sb);
 	if (inode == NULL) {
-		rc = -ENOSPC;
-		goto out;
+		END(-ENOMEM);
+		return -ENOMEM;
 	}
+
+	c2t1fs_fs_lock(csb);
+
 	inode->i_uid = 0;
 	inode->i_gid = 0;
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME_SEC;
@@ -103,12 +106,16 @@ static int c2t1fs_create(struct inode     *dir,
 	if (rc != 0)
 		goto out;
 
+	c2t1fs_fs_unlock(csb);
+
 	d_instantiate(dentry, inode);
 	END(0);
 	return 0;
 out:
 	inode_dec_link_count(inode);
+	c2t1fs_fs_unlock(csb);
 	iput(inode);
+
 	END(rc);
 	return rc;
 }
@@ -204,6 +211,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 				    struct dentry    *dentry,
 				    struct nameidata *nd)
 {
+	struct c2t1fs_sb      *csb;
 	struct c2t1fs_dir_ent *de;
 	struct inode          *inode = NULL;
 
@@ -214,18 +222,23 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
-	/* XXX This is unsafe. d_name.name is not a '\0' terminated string */
 	TRACE("Name: \"%s\"\n", dentry->d_name.name);
+
+	csb = C2T1FS_SB(dir->i_sb);
+
+	c2t1fs_fs_lock(csb);
 
 	de = c2t1fs_dir_ent_find(dir, dentry->d_name.name, dentry->d_name.len);
 	if (de != NULL) {
 		inode = c2t1fs_iget(dir->i_sb, &de->de_fid);
 		if (IS_ERR(inode)) {
+			c2t1fs_fs_unlock(csb);
 			END(ERR_CAST(inode));
 			return ERR_CAST(inode);
 		}
 	}
 
+	c2t1fs_fs_unlock(csb);
 	d_add(dentry, inode);
 	END(NULL);
 	return NULL;
@@ -235,9 +248,10 @@ static int c2t1fs_readdir(struct file *f,
 			  void        *dirent,
 			  filldir_t    filldir)
 {
+	struct c2t1fs_inode *ci;
+	struct c2t1fs_sb    *csb;
 	struct dentry       *dentry;
 	struct inode        *dir;
-	struct c2t1fs_inode *ci;
 	ino_t                ino;
 	int                  i;
 	int                  j;
@@ -248,7 +262,10 @@ static int c2t1fs_readdir(struct file *f,
 	dentry = f->f_path.dentry;
 	dir    = dentry->d_inode;
 	ci     = C2T1FS_I(dir);
+	csb    = C2T1FS_SB(dir->i_sb);
 	i      = f->f_pos;
+
+	c2t1fs_fs_lock(csb);
 
 	switch (i) {
 	case 0:
@@ -289,6 +306,7 @@ static int c2t1fs_readdir(struct file *f,
 		}
 	}
 out:
+	c2t1fs_fs_unlock(csb);
 	END(0);
 	return 0;
 }
@@ -326,6 +344,7 @@ out:
 }
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 {
+	struct c2t1fs_sb      *csb;
 	struct c2t1fs_dir_ent *de;
 	struct inode          *inode;
 	int                    rc;
@@ -335,6 +354,9 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	TRACE("Name: \"%s\"\n", dentry->d_name.name);
 
 	inode = dentry->d_inode;
+	csb   = C2T1FS_SB(inode->i_sb);
+
+	c2t1fs_fs_lock(csb);
 
 	de = c2t1fs_dir_ent_find(dir, dentry->d_name.name, dentry->d_name.len);
 	if (de == NULL) {
@@ -352,6 +374,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	inode_dec_link_count(inode);
 
 out:
+	c2t1fs_fs_unlock(csb);
 	END(rc);
 	return rc;
 }
