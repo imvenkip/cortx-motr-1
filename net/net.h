@@ -1406,13 +1406,16 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 (buf->nb_dom == tm->ntm_dom) &&
 (tm->ntm_state == C2_NET_TM_STARTED) &&
 c2_net__qtype_is_valid(buf->nb_qtype) &&
-(buf->nb_flags & C2_NET_BUF_REGISTERED) &&
-!(buf->nb_flags &
-  (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)) &&
+buf->nb_flags == C2_NET_BUF_REGISTERED &&
 buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL &&
-(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL) &&
-(buf->nb_qtype == C2_NET_QT_MSG_RECV && buf->nb_min_receive_size != 0
- && buf->nb_max_receive_msgs != 0)
+ergo(buf->nb_qtype == C2_NET_QT_MSG_RECV,
+     buf->nb_min_receive_size != 0 && buf->nb_max_receive_msgs != 0) &&
+ergo(buf->nb_qtype == C2_NET_QT_MSG_SEND, buf->nb_ep != NULL) &&
+ergo(buf->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
+     buf->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND, buf->nb_desc.nbd_len != 0) &&
+ergo(buf->nb_qtype == C2_NET_QT_MSG_SEND ||
+     buf->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
+     buf->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND, buf->nb_length > 0)
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)
