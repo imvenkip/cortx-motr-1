@@ -274,9 +274,9 @@ static struct c2_fop_type *ioservice_fops[] = {
 
    - ioseg_get Retrieves an ioseg given its index in zero
    vector.
-   - ioseg_set Set the contents of zero segment referred by given
-   index in zero vector to the contents of input zero segment.
-   - ioseg_alloc_nr Allocate given number of segments for a new zero vector.
+   - ioseg_set Set the contents of IO segment referred by given
+   index in zero vector to the contents of input IO segment.
+   - ioseg_nr_alloc Allocate given number of segments for a new zero vector.
 
    @subsection bulkclient-lspec-state State Specification
    <i>Mandatory.
@@ -400,8 +400,8 @@ static struct c2_fop_type *ioservice_fops[] = {
    ideally described in big-O notation.</i>
 
    - m denotes the number of IO fops with same fid and intent (read/write).
-   - n denotes the total number of zero segments in m IO fops.
-   - Memory consumption O(n) During IO coalescing, n number of zero segments
+   - n denotes the total number of IO segments in m IO fops.
+   - Memory consumption O(n) During IO coalescing, n number of IO segments
    are allocated and subsequently deallocated, once the resulting IO fop
    is created.
    - Processor cycles O(n) During IO coalescing, all n segments are traversed
@@ -440,13 +440,13 @@ struct ioseg {
 	c2_bcount_t		 is_count;
 	/* Starting address of buffer. */
 	void			*is_buf;
-	/* Linkage to have such zero segments in a list. */
+	/* Linkage to have such IO segments in a list. */
 	struct c2_list_link	 is_linkage;
 };
 
 /**
    Get the io segment indexed by index in array of io segments in zerovec.
-   @note The incoming c2_0vec should be allocated and initialized.
+   @pre zvec != NULL & seg_index < zvec->z_bvec.ov_vec.v_nr.
 
    @param zvec The c2_0vec io vector from which io segment will be retrieved.
    @param index Index of io segments in array of io segments from zerovec.
@@ -491,7 +491,7 @@ void ioseg_set(struct c2_0vec *zvec, uint32_t seg_index,
    are attached.
    @param segs_nr Number of io segments to be allocated.
  */
-int ioseg_alloc_nr(struct c2_0vec *zvec, uint32_t segs_nr)
+int ioseg_nr_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
 {
 	C2_PRE(zvec != NULL);
 	C2_PRE(segs_nr != 0);
@@ -514,6 +514,14 @@ bool io_fop_invariant(struct c2_io_fop *iofop)
 	return i != ARRAY_SIZE(ioservice_fops);
 }
 
+/**
+   Initialize a c2_io_fop structure.
+   @pre iofop != NULL && ftype != NULL && netdom != NULL
+   @param ftype Type of fop to be initialized.
+   @param segs_nr Number of IO segments to be contained in the io fop.
+   @param seg_size Size of each IO segment.
+   @param netdom The network domain under which IO requests are made.
+ */
 int c2_io_fop_init(struct c2_io_fop *iofop,
 		   struct c2_fop_type *ftype,
 		   uint32_t segs_nr,

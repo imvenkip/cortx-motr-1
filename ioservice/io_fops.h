@@ -80,10 +80,10 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
-   - Colibri client allocates memory for a c2_io_fop and invokes
+   - IO bulk client allocates memory for a c2_io_fop and invokes
    c2_io_fop_init() by providing fop type, number of io segments, size
    of each segment and the network domain.
-   - Colibri client invokes c2_rpc_bulk_page_add() till all pages are
+   - IO bulk client client invokes c2_rpc_bulk_page_add() till all pages are
    added to c2_rpc_bulk structure and then invokes c2_rpc_post() to
    submit the fop to rpc layer.
    - Rpc layer invokes io coalescing code which invokes c2_io_fop_to_rpcbulk()
