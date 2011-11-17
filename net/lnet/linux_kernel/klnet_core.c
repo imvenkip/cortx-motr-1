@@ -564,8 +564,8 @@
    in the next completion event for the buffer.  The events will be processed
    as described in @ref KLNetCoreDLD-lspec-ev.
 
-   @todo Need to determine how LNet handles the race condition between
-   automatic unlink of the MD and a call to LNetMDUnlink().
+   LNet properly handles the race condition between the automatic unlink of the
+   MD and a call to LNetMDUnlink().
 
 
    @subsection KLNetCoreDLD-lspec-state State Specification
@@ -651,10 +651,8 @@
    delivery of the events associated with any given receive buffer, thus the
    last event which unlinks the buffer is guaranteed to be delivered last.</li>
 
-   <li>Cancellation of a buffer operation results in a call to
-   @c LNetMDUnlink(). There is a race condition between this call and the
-   automatic unlinking of the MD. We need to determine how this is
-   handled.</li>
+   <li>LNet properly handles the race condition between the automatic unlink
+   of the MD and a call to LNetMDUnlink().</li>
 
    </ol>
 
