@@ -39,7 +39,7 @@ ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				   loff_t               pos,
 				   int                  rw);
 
-int c2t1fs_rpc_rw(struct c2_list *rw_desc_list, int rw);
+int c2t1fs_rpc_rw(struct c2_tl *rw_desc_list, int rw);
 
 struct file_operations c2t1fs_reg_file_operations = {
 	.aio_read  = c2t1fs_file_aio_read,
@@ -353,6 +353,8 @@ out:
 enum {
 	MAGIC_BUFLSTHD = 0x4255464c53544844, /* "BUFLSTHD" */
 	MAGIC_C2T1BUF  = 0x43325431425546,  /* "C2T1BUF" */
+	MAGIC_RW_DESC  = 0x52575f44455343, /* "RW_DESC" */
+	MAGIC_RWDLSTHD = 0x5257444c53544844, /* "RWDLSTHD" */
 };
 
 struct c2t1fs_rw_desc
@@ -362,9 +364,16 @@ struct c2t1fs_rw_desc
 	loff_t                 rd_offset;
 	size_t                 rd_count;
 	struct c2_tl           rd_buf_list;
-	struct c2_list_link    rd_link;
+	struct c2_tlink        rd_link;
+	uint64_t               rd_magic;
 };
 
+static struct c2_tl_descr rwd_tl_descr = C2_TL_DESCR("rw descriptors",
+						     struct c2t1fs_rw_desc,
+						     rd_link,
+						     rd_magic,
+						     MAGIC_RW_DESC,
+						     MAGIC_RWDLSTHD);
 struct c2t1fs_buf
 {
 	struct c2_buf             cb_buf;
@@ -406,8 +415,8 @@ void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 	END(0);
 }
 
-struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_list *list,
-					   struct c2_fid   fid)
+struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_tl  *list,
+					   struct c2_fid  fid)
 {
 	struct c2t1fs_rw_desc *rw_desc;
 
@@ -415,10 +424,12 @@ struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_list *list,
 	TRACE("fid [%lu:%lu]\n", (unsigned long)fid.f_container,
 				 (unsigned long)fid.f_key);
 
-	c2_list_for_each_entry(list, rw_desc, struct c2t1fs_rw_desc, rd_link) {
+	c2_tlist_for(&rwd_tl_descr, list, rw_desc) {
+
 		if (c2_fid_eq(&fid, &rw_desc->rd_fid))
 			goto out;
-	}
+
+	} c2_tlist_endfor;
 
 	C2_ALLOC_PTR(rw_desc);
 	if (rw_desc == NULL)
@@ -430,9 +441,9 @@ struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_list *list,
 	rw_desc->rd_session = NULL;
 
 	c2_tlist_init(&buf_tl_descr, &rw_desc->rd_buf_list);
-	c2_list_link_init(&rw_desc->rd_link);
+	c2_tlink_init(&rwd_tl_descr, rw_desc);
 
-	c2_list_add_tail(list, &rw_desc->rd_link);
+	c2_tlist_add_tail(&rwd_tl_descr, list, rw_desc);
 out:
 	END(rw_desc);
 	return rw_desc;
@@ -454,7 +465,7 @@ void c2t1fs_rw_desc_fini(struct c2t1fs_rw_desc *rw_desc)
 	} c2_tlist_endfor;
 	c2_tlist_fini(&buf_tl_descr, &rw_desc->rd_buf_list);
 
-	c2_list_link_fini(&rw_desc->rd_link);
+	c2_tlink_fini(&rwd_tl_descr, rw_desc);
 
 	END(0);
 }
@@ -492,7 +503,7 @@ ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	struct c2_pdclust_layout  *pd_layout;
 	struct c2t1fs_rw_desc     *rw_desc;
 	struct c2t1fs_sb          *csb;
-	struct c2_list             rw_desc_list;
+	struct c2_tl               rw_desc_list;
 	struct c2_fid              gob_fid;
 	struct c2_fid              tgt_fid;
 	struct c2_buf             *data_bufs;
@@ -529,7 +540,7 @@ ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	C2_ALLOC_ARR(data_bufs, nr_data_units);
 	C2_ALLOC_ARR(parity_bufs, nr_parity_units);
 
-	c2_list_init(&rw_desc_list);
+	c2_tlist_init(&rwd_tl_descr, &rw_desc_list);
 
 	src_addr.sa_group = gob_pos / nr_data_bytes_per_group;
 	offset_in_buf = 0;
@@ -618,23 +629,21 @@ ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	rc = c2t1fs_rpc_rw(&rw_desc_list, rw);
 
 cleanup:
-	while (!c2_list_is_empty(&rw_desc_list)) {
-		struct c2_list_link *link;
+	c2_tlist_for(&rwd_tl_descr, &rw_desc_list, rw_desc) {
 
-		link = c2_list_first(&rw_desc_list);
+		c2_tlist_del(&rwd_tl_descr, rw_desc);
 
-		c2_list_del(link);
-
-		rw_desc = container_of(link, struct c2t1fs_rw_desc, rd_link);
 		c2t1fs_rw_desc_fini(rw_desc);
 		c2_free(rw_desc);
-	}
-	c2_list_fini(&rw_desc_list);
+
+	} c2_tlist_endfor;
+	c2_tlist_fini(&rwd_tl_descr, &rw_desc_list);
+
 	END(rc);
 	return rc;
 }
 
-int c2t1fs_rpc_rw(struct c2_list *rw_desc_list, int rw)
+int c2t1fs_rpc_rw(struct c2_tl *rw_desc_list, int rw)
 {
 	struct c2t1fs_rw_desc *rw_desc;
 	struct c2t1fs_buf     *buf;
@@ -644,11 +653,10 @@ int c2t1fs_rpc_rw(struct c2_list *rw_desc_list, int rw)
 
 	TRACE("Operation: %s\n", rw == READ ? "READ" : "WRITE");
 
-	if (c2_list_is_empty(rw_desc_list))
+	if (c2_tlist_is_empty(&rwd_tl_descr, rw_desc_list))
 		TRACE("rw_desc_list is empty\n");
 
-	c2_list_for_each_entry(rw_desc_list, rw_desc,
-			struct c2t1fs_rw_desc, rd_link) {
+	c2_tlist_for(&rwd_tl_descr, rw_desc_list, rw_desc) {
 		TRACE("fid: [%lu:%lu] offset: %lu count: %lu\n",
 			(unsigned long)rw_desc->rd_fid.f_container,
 			(unsigned long)rw_desc->rd_fid.f_key,
@@ -669,7 +677,7 @@ int c2t1fs_rpc_rw(struct c2_list *rw_desc_list, int rw)
 			if (buf->cb_type == PUT_DATA)
 				count += buf->cb_buf.b_nob;
 		} c2_tlist_endfor;
-	}
+	} c2_tlist_endfor;
 	END(count);
 	return count;
 }
