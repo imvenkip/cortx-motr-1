@@ -8,6 +8,7 @@
 #include <linux/mm.h>
 
 #include "lib/memory.h"
+#include "lib/tlist.h"
 #include "c2t1fs/c2t1fs.h"
 #include "layout/pdclust.h"
 
@@ -349,13 +350,18 @@ out:
 	return rc;
 }
 
+enum {
+	MAGIC_BUFLSTHD = 0x4255464c53544844, /* "BUFLSTHD" */
+	MAGIC_C2T1BUF  = 0x43325431425546,  /* "C2T1BUF" */
+};
+
 struct c2t1fs_rw_desc
 {
 	struct c2_rpc_session *rd_session;
 	struct c2_fid          rd_fid;
 	loff_t                 rd_offset;
 	size_t                 rd_count;
-	struct c2_list         rd_buf_list;
+	struct c2_tl           rd_buf_list;
 	struct c2_list_link    rd_link;
 };
 
@@ -363,8 +369,16 @@ struct c2t1fs_buf
 {
 	struct c2_buf             cb_buf;
 	enum c2_pdclust_unit_type cb_type;
-	struct c2_list_link       cb_link;
+	struct c2_tlink           cb_link;
+	uint64_t                  cb_magic;
 };
+
+static struct c2_tl_descr buf_tl_descr = C2_TL_DESCR("buf list",
+						struct c2t1fs_buf,
+						cb_link,
+						cb_magic,
+						MAGIC_C2T1BUF,
+						MAGIC_BUFLSTHD);
 
 void c2t1fs_buf_init(struct c2t1fs_buf *buf, char *addr, size_t len,
 			enum c2_pdclust_unit_type unit_type)
@@ -374,7 +388,7 @@ void c2t1fs_buf_init(struct c2t1fs_buf *buf, char *addr, size_t len,
 	TRACE("buf %p addr %p len %lu\n", buf, addr, (unsigned long)len);
 
 	c2_buf_init(&buf->cb_buf, addr, len);
-	c2_list_link_init(&buf->cb_link);
+	c2_tlink_init(&buf_tl_descr, buf);
 	buf->cb_type = unit_type;
 
 	END(0);
@@ -387,7 +401,7 @@ void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 	if (buf->cb_type == PUT_PARITY || buf->cb_type == PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
 
-	c2_list_link_fini(&buf->cb_link);
+	c2_tlink_fini(&buf_tl_descr, buf);
 
 	END(0);
 }
@@ -415,7 +429,7 @@ struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_list *list,
 	rw_desc->rd_count   = 0;
 	rw_desc->rd_session = NULL;
 
-	c2_list_init(&rw_desc->rd_buf_list);
+	c2_tlist_init(&buf_tl_descr, &rw_desc->rd_buf_list);
 	c2_list_link_init(&rw_desc->rd_link);
 
 	c2_list_add_tail(list, &rw_desc->rd_link);
@@ -427,22 +441,19 @@ out:
 void c2t1fs_rw_desc_fini(struct c2t1fs_rw_desc *rw_desc)
 {
 	struct c2t1fs_buf   *buf;
-	struct c2_list_link *link;
 
 	START();
 
-	while (!c2_list_is_empty(&rw_desc->rd_buf_list)) {
+	c2_tlist_for(&buf_tl_descr, &rw_desc->rd_buf_list, buf) {
 
-		link = c2_list_first(&rw_desc->rd_buf_list);
-		C2_ASSERT(link != NULL);
+		c2_tlist_del(&buf_tl_descr, buf);
 
-		c2_list_del(link);
-
-		buf = container_of(link, struct c2t1fs_buf, cb_link);
 		c2t1fs_buf_fini(buf);
 		c2_free(buf);
-	}
-	c2_list_fini(&rw_desc->rd_buf_list);
+
+	} c2_tlist_endfor;
+	c2_tlist_fini(&buf_tl_descr, &rw_desc->rd_buf_list);
+
 	c2_list_link_fini(&rw_desc->rd_link);
 
 	END(0);
@@ -464,8 +475,7 @@ int c2t1fs_rw_desc_buf_add(struct c2t1fs_rw_desc *rw_desc,
 	}
 	c2t1fs_buf_init(buf, addr, len, type);
 
-	c2_list_add_tail(&rw_desc->rd_buf_list, &buf->cb_link);
-
+	c2_tlist_add_tail(&buf_tl_descr, &rw_desc->rd_buf_list, buf);
 	END(0);
 	return 0;
 }
@@ -646,8 +656,8 @@ int c2t1fs_rpc_rw(struct c2_list *rw_desc_list, int rw)
 			(unsigned long)rw_desc->rd_count);
 
 		TRACE("Buf list\n");
-		c2_list_for_each_entry(&rw_desc->rd_buf_list, buf,
-					struct c2t1fs_buf, cb_link) {
+		c2_tlist_for(&buf_tl_descr, &rw_desc->rd_buf_list, buf) {
+
 			TRACE("addr %p len %lu type %s\n",
 				buf->cb_buf.b_addr,
 				(unsigned long)buf->cb_buf.b_nob,
@@ -658,7 +668,7 @@ int c2t1fs_rpc_rw(struct c2_list *rw_desc_list, int rw)
 
 			if (buf->cb_type == PUT_DATA)
 				count += buf->cb_buf.b_nob;
-		}
+		} c2_tlist_endfor;
 	}
 	END(count);
 	return count;
