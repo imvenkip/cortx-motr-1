@@ -23,9 +23,9 @@
 #include <config.h>
 #endif
 
-#include "cfg/cfg.h"
 #include "lib/arith.h"
-#include <string.h>
+#include "lib/misc.h" 
+#include "cfg/cfg.h"
 
 /**
  * @addtogroup conf_schema
