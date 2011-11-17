@@ -41,7 +41,6 @@
    @addtogroup reqh
    @{
  */
-extern struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
 
 static struct c2_fop_type_ops reqh_err_fop_ops = {
 	.fto_fom_init = NULL,

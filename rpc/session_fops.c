@@ -51,7 +51,6 @@
    This file contains definitions of fop types and rpc item types, of fops
    belonging to rpc-session module
  */
-extern struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
 
 /**
    implementation of fop->f_type->ft_ops->fto_fom_init() for conn establish,

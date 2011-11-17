@@ -44,8 +44,6 @@
 
 #include "net/bulk_emulation/sunrpc_io.ff"
 
-extern struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
-
 static struct c2_fop_type_ops sunrpc_msg_ops = {
 	.fto_execute = sunrpc_msg_handler,
 };

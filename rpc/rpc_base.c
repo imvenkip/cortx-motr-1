@@ -29,10 +29,11 @@ enum {
 	RPC_ITEM_TYPE_HEAD_MAGIC = 0x7269745f68656164,
 };
 
-static const struct c2_tl_descr rpc_item_type_descr =
-		    C2_TL_DESCR("item_type_tlist_descr",
-		    struct c2_rpc_item_type, rit_linkage, rit_magic,
-		    RPC_ITEM_TYPE_LINK_MAGIC, RPC_ITEM_TYPE_HEAD_MAGIC);
+C2_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct c2_rpc_item_type,
+		   rit_linkage,	rit_magic, RPC_ITEM_TYPE_LINK_MAGIC,
+		   RPC_ITEM_TYPE_HEAD_MAGIC);
+
+C2_TL_DEFINE(rit, static, struct c2_rpc_item_type);
 
 /** Global rpc item types list. */
 static struct c2_tl        rpc_item_types_list;
@@ -57,7 +58,7 @@ bool opcode_is_dup(uint32_t opcode)
 int c2_rpc_base_init(void)
 {
 	c2_rwlock_init(&rpc_item_types_lock);
-	c2_tlist_init(&rpc_item_type_descr, &rpc_item_types_list);
+	rit_tlist_init(&rpc_item_types_list);
 	return 0;
 }
 C2_EXPORTED(c2_rpc_base_init);
@@ -67,12 +68,10 @@ void c2_rpc_base_fini(void)
 	struct c2_rpc_item_type		*item_type;
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
-	c2_tlist_for(&rpc_item_type_descr, &rpc_item_types_list, item_type) {
-		c2_tlist_del(&rpc_item_type_descr, item_type);
-		c2_tlink_fini(&rpc_item_type_descr, item_type);
-	}
-	c2_tlist_endfor;
-	c2_tlist_fini(&rpc_item_type_descr, &rpc_item_types_list);
+	c2_tlist_for(&rit_tl, &rpc_item_types_list, item_type) {
+		rit_tlink_del_fini(item_type);
+	} c2_tlist_endfor;
+	rit_tlist_fini(&rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 	c2_rwlock_fini(&rpc_item_types_lock);
 }
@@ -84,9 +83,8 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	C2_PRE(item_type != NULL);
 	C2_PRE(!opcode_is_dup(item_type->rit_opcode));
 
-	c2_tlink_init(&rpc_item_type_descr, item_type);
 	c2_rwlock_write_lock(&rpc_item_types_lock);
-	c2_tlist_add(&rpc_item_type_descr, &rpc_item_types_list, item_type);
+	rit_tlink_init_at(item_type, &rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 
 	return 0;
@@ -96,8 +94,10 @@ C2_EXPORTED(c2_rpc_item_type_register);
 void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 {
 	C2_PRE(item_type != NULL);
+
 	c2_rwlock_write_lock(&rpc_item_types_lock);
-	c2_tlist_del(&rpc_item_type_descr, item_type);
+	rit_tlink_del_fini(item_type);
+	item_type->rit_magic = 0;
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 }
 C2_EXPORTED(c2_rpc_item_type_deregister);
@@ -108,13 +108,12 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	bool                             found = false;
 
 	c2_rwlock_read_lock(&rpc_item_types_lock);
-	c2_tlist_for(&rpc_item_type_descr, &rpc_item_types_list, item_type) {
+	c2_tlist_for(&rit_tl, &rpc_item_types_list, item_type) {
 		if (item_type->rit_opcode == opcode) {
 			found = true;
 			break;
 		}
-	}
-	c2_tlist_endfor;
+	} c2_tlist_endfor;
 	c2_rwlock_read_unlock(&rpc_item_types_lock);
 	if (found)
 		return item_type;

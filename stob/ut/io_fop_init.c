@@ -56,8 +56,6 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
    @{
  */
 
-extern struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
-
 static struct c2_fop_type_ops write_ops = {
 	.fto_execute = write_handler,
 };

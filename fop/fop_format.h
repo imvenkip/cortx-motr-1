@@ -79,6 +79,10 @@
 # include "linux_kernel/fop_kernel.h"
 #endif
 
+//#include "rpc/rpc_base.h"
+
+extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
+
 struct c2_fop_memlayout;
 
 struct c2_fop_type_format {
@@ -210,7 +214,8 @@ struct c2_fop_type fopt ## _fopt = {		\
 	.ft_rpc_item_type = {			\
 		.rit_opcode = (opcode),		\
 		.rit_flags  = (itflags),	\
-		.rit_ops    = (itops),		\
+		.rit_ops    = (itops != NULL) ? \
+		(itops) : (&c2_rpc_fop_default_item_type_ops) \
 	}					\
 };						\
 C2_EXPORTED(fopt ## _fopt)

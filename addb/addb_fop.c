@@ -50,7 +50,6 @@ C2_EXPORTED(c2_addb_record_header_tfmt);
 C2_EXPORTED(c2_addb_record_tfmt);
 C2_EXPORTED(c2_addb_reply_tfmt);
 */
-extern struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
 
 static struct c2_fop_type_ops addb_ops = {
 	.fto_execute = c2_addb_handler,
