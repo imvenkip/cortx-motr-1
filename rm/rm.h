@@ -278,6 +278,13 @@ struct c2_rm_resource_ops {
                                 struct c2_vec_cursor *bufvec);
         void (*rop_policy)(struct c2_rm_resource *resource,
                            struct c2_rm_incoming *in);
+	/**
+	   Called to initialise a usage right for this resource.
+
+	   Sets up c2_rm_right::ri_ops.
+	 */
+	void (*rop_right_init)(struct c2_rm_resource *resource,
+			       struct c2_rm_right *right);
 };
 
 /**
@@ -368,7 +375,7 @@ struct c2_rm_resource_type_ops {
    out of this list until unpinned.
  */
 struct c2_rm_right {
-        struct c2_rm_resource        *ri_resource;
+        struct c2_rm_owner           *ri_owner;
         const struct c2_rm_right_ops *ri_ops;
         /** resource type private field. By convention, 0 means "empty"
             right. */
@@ -393,49 +400,103 @@ struct c2_rm_right_ops {
          */
         void (*rro_free)(struct c2_rm_right *droit);
         int  (*rro_encode)(struct c2_rm_right *right,
-                           struct c2_vec_cursor *bufvec);
+			   struct c2_vec_cursor *bufvec);
 
-        /** @name Rights ordering
+        /** @name operations.
 
-            Rights on a given resource can be partially ordered by the
-            "implies" relation. For example, a right to read a [0, 1000]
-            extent of some file, implies a right to read a [0, 100] extent
-            of the same file. This partial ordering is assumed to form a
-            lattice (http://en.wikipedia.org/wiki/Lattice_(order)) possibly
-            after a special "empty" right is introduced. Specifically, for
-            any two rights on the same resource
+	    The following operations are implemented by resource type and used
+	    by generic code to analyse rights relationships.
 
-            - their intersection ("meet") is defined as a largest right
-              implied by both original rights and
-
-            - their union ("join") is defined as a smallest right that implies
-              both original rights.
-
-            Rights A and B are equal if each implies the other. If A implies B,
-            then their difference is defined as a largest right implied by A
-            that has empty intersection with B.
+	    "0" means the empty right in the following.
          */
         /** @{ */
-        /** intersection. This method updates r0 in place. */
-        void (*rro_meet)   (struct c2_rm_right *r0,
-                            const struct c2_rm_right *r1);
-        /** True, iff r0 intersects with r1 */
+        /** True, iff r0 intersects with r1.
+
+	    Rights intersect when there is some usage authorised by right r0 and
+	    by right r1.
+
+	    For example, a right to read an extent [0, 100] (denoted R:[0, 100])
+	    intersects with a right to read or write an extent [50, 150],
+	    (denoted RW:[50, 150]) because they can be both used to read bytes
+	    in the extent [50, 100].
+
+	    "Intersects" is assumed to satisfy the following conditions:
+
+	        - intersects(A, B) iff intersects(B, A) (symmetrical),
+
+		- (A != 0) iff intersects(A, A) (almost reflexive),
+
+		- !intersects(A, 0)
+	 */
         bool (*rro_intersects) (const struct c2_rm_right *r0,
                                 const struct c2_rm_right *r1);
-        /** union. This method updates r0 in place. */
-        void (*rro_join)   (struct c2_rm_right *r0,
-                            const struct c2_rm_right *r1);
-        /**
-            difference. This method updates r0 in place.
+	/** True, iff r0 conflicts with r1.
 
-            @pre r0->ri_ops->rro_implies(r0, r1)
+	    Rights conflict iff one of them authorises a usage incompatible with
+	    another.
+
+	    For example, R:[0, 100] conflicts with RW:[50, 150], because the
+	    latter authorises writes to bytes in the [50, 100] extent, which
+	    cannot be done while R:[0, 100] is held by some other owner.
+
+	    "Conflicts" is assumed to satisfy the same conditions as
+	    "intersects" and, in addition,
+
+	        - conflicts(A, B) => intersects(A, B), because if rights share
+                  nothing they cannot conflict. Note that this condition
+                  restricts possible resource semantics. For example, to satisfy
+                  it, a right to write to a variable must always imply a right
+                  to read it.
+	 */
+        bool (*rro_conflicts) (const struct c2_rm_right *r0,
+			       const struct c2_rm_right *r1);
+        /** Difference between rights.
+
+	    The difference is a part of r0 that doesn't intersect with r1.
+
+	    For example, diff(RW:[50, 150], R:[0, 100]) == RW:[101, 150].
+
+	    X <= Y means that diff(X, Y) is 0. X >= Y means Y <= X.
+
+	    Two rights are equal, X == Y, when X <= Y and Y <= X.
+
+	    "Difference" must satisfy the following conditions:
+
+	        - diff(A, A) == 0,
+
+		- diff(A, 0) == A,
+
+		- diff(0, A) == 0,
+
+	        - !intersects(diff(A, B), B),
+
+		- diff(A, diff(A, B)) == diff(B, diff(B, A)).
+
+		  diff(A, diff(A, B)) is called a "meet" of A and B, it's an
+		  intersection of rights A and B. The condition above ensures
+		  that meet(A, B) == meet(B, A),
+
+		- diff(A, B) == diff(A, meet(A, B)),
+
+		- meet(A, meet(B, C)) == meet(meet(A, B), C),
+
+		- meet(A, 0) == 0, meet(A, A) == A, &c.,
+
+		- meet(A, B) <= A,
+
+		- (X <= A and X <= B) iff X <= meet(A, B),
+
+		- intersects(A, B) iff meet(A, B) != 0.
+
+	    This function destructively updates "r0" in place.
          */
-        void (*rro_diff)   (struct c2_rm_right *r0,
-                            const struct c2_rm_right *r1);
-        /** true, iff r1 is "less than or equal to" r0. */
-        bool (*rro_implies)(const struct c2_rm_right *r0,
-                            const struct c2_rm_right *r1);
-        /** @} end of Rights ordering */
+        int  (*rro_diff)(struct c2_rm_right *r0, const struct c2_rm_right *r1);
+	/** Creates a copy of "src" in "dst".
+
+	    @pre dst is empty.
+	 */
+        int  (*rro_copy)(struct c2_rm_right *dst, const struct c2_rm_right *src);
+        /** @} end of Rights operations. */
 };
 
 enum c2_rm_remote_state {
@@ -744,6 +805,8 @@ struct c2_rm_owner {
         /**
            A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
            this owner borrowed from other owners.
+
+	   @see c2_rm_loan
          */
         struct c2_tl           ro_borrowed;
         /**
@@ -751,6 +814,8 @@ struct c2_rm_owner {
            this owner extended to other owners. Rights on this list are not
            longer possessed by this owner: they are counted in
            c2_rm_owner::ro_borrowed, but not in c2_rm_owner::ro_owned.
+
+	   @see c2_rm_loan
          */
         struct c2_tl           ro_sublet;
         /**
@@ -761,6 +826,8 @@ struct c2_rm_owner {
         /**
            An array of lists, sorted by priority, of incoming requests. Requests
            are linked through c2_rm_incoming::rin_want::ri_linkage.
+
+	   @see c2_rm_incoming
          */
         struct c2_tl           ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
         /**
@@ -863,7 +930,7 @@ enum c2_rm_incoming_policy {
            Grant maximal possible right, not conflicting with others.
          */
         RIP_MAX,
-        RIP_RESOURCE_TYPE_BASE
+        RIP_NR
 };
 
 /**
@@ -1042,7 +1109,9 @@ enum c2_rm_incoming_flags {
 
    @note a cedent can grant a usage right larger than requested.
 
-   An incoming request is placed on the owner
+   An incoming request is placed by c2_rm_right_get() on one of owner's
+   c2_rm_owner::ro_incoming[] lists depending on its priority. It remains on
+   this list until request processing failure or c2_rm_right_put() call.
 
    @todo a new type of incoming request RIT_GRANT (RIT_FOIEGRAS?) can be added
    to forcibly grant new rights to the owner, for example, as part of a
@@ -1055,8 +1124,7 @@ struct c2_rm_incoming {
         enum c2_rm_incoming_type         rin_type;
         enum c2_rm_incoming_state        rin_state;
         enum c2_rm_incoming_policy       rin_policy;
-        enum c2_rm_incoming_flags        rin_flags;
-        struct c2_rm_owner              *rin_owner;
+        uint64_t                         rin_flags;
         /** The right requested. */
         struct c2_rm_right               rin_want;
         /**
@@ -1065,12 +1133,12 @@ struct c2_rm_incoming {
 
            @invariant meaning of this list depends on the request state:
 
-               - RI_CHECK, RI_SUCCESS: a list of pins on rights in
-                 ->rin_owner->ro_owned[];
+               - RI_CHECK, RI_SUCCESS: a list of RPF_PROTECT pins on rights in
+               ->rin_want.ri_owner->ro_owned[];
 
-               - RI_ISSUE, RI_WAIT: a list of pins on outgoing requests
-                 (through c2_rm_outgoing::rog_want::rl_right::ri_pins) and held
-                 rights in ->rin_owner->ro_owned[OWOS_HELD];
+               - RI_WAIT: a list of RPF_TRACK pins on outgoing requests (through
+                 c2_rm_outgoing::rog_want::rl_right::ri_pins) and held rights in
+                 ->rin_want.ri_owner->ro_owned[OWOS_HELD];
 
                - other states: empty.
          */
@@ -1328,21 +1396,20 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 		      struct c2_rm_remote *creditor);
 
 /**
-   Initialises owner so that it initially possesses @r.
+   Loans a right to an owner from itself.
 
    This is used to initialise a "top-most" resource owner that has no upward
    creditor.
 
+   This call doesn't copy "r": user supplied right is linked into owner lists.
+
    @see c2_rm_owner_init()
 
-   @post owner->ro_state == ROS_INITIALISING ||
-         owner->ro_state == ROS_ACTIVE) &&
-         owner->ro_resource == res)
-   @post c2_tlist_contains(&owner->ro_owned[OWOS_CACHED],
-                           &r->ri_linkage))
+   @pre  owner->ro_state == ROS_INITIALISING
+   @post owner->ro_state == ROS_INITIALISING
+   @post c2_tlist_contains(&owner->ro_owned[OWOS_CACHED], &r->ri_linkage))
  */
-void c2_rm_owner_init_with(struct c2_rm_owner *owner,
-			   struct c2_rm_resource *res, struct c2_rm_right *r);
+void c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r);
 /**
    Finalises the owner. Dual to c2_rm_owner_init().
 
@@ -1358,8 +1425,14 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner);
 
 /**
    Initialises generic fields in @right.
+
+   This is called by generic RM code to initialise an empty right of any
+   resource type and by resource type specific code to initialise generic fields
+   of a right structure being created.
+
+   This function calls c2_rm_resource_ops::rop_right_init().
  */
-void c2_rm_right_init(struct c2_rm_right *right);
+void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner);
 /**
    Finalised generic fields in @right. Dual to c2_rm_right_init().
  */
@@ -1367,9 +1440,13 @@ void c2_rm_right_fini(struct c2_rm_right *right);
 
 /**
    Initialises the fields of @in.
- */
-void c2_rm_incoming_init(struct c2_rm_incoming *in);
 
+   This creates an incoming request with an empty c2_rm_incoming::rin_want
+   right.
+ */
+void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
+			 enum c2_rm_incoming_type type,
+			 enum c2_rm_incoming_policy policy, uint64_t flags);
 /**
    Finalises the fields of @in. Dual to c2_rm_incoming_init().
  */
@@ -1441,8 +1518,6 @@ void c2_rm_right_put(struct c2_rm_incoming *in);
 
    After this function returns, "other" is in the process of locating the remote
    service and remote owner, as described in the comment on c2_rm_remote.
-
-   @post ergo(result == 0, other->rem_resource == right->ri_resource)
  */
 int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other);
 

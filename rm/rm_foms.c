@@ -197,7 +197,7 @@ int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
 #endif
 
 			rm_in = &rm_fom->frr_in;
-			
+
 			/* Prepare incoming request for RM generic layer */
 			rm_in->rin_type = RIT_LOAN;
 			rm_in->rin_state = RI_CHECK;
@@ -208,7 +208,7 @@ int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
 			rm_in->rin_priority = req_fop->res_priority;
 
 			/* Attempt to borrow the right */
-			rc = c2_rm_right_get(rm_in->rin_owner, rm_in);
+			rc = c2_rm_right_get(rm_in->rin_want.ri_owner, rm_in);
 			if (rc != 0) {
 				if (rc != -EWOULDBLOCK) {
 					mark_borrow_fail(fom, reply_fop, rc);
@@ -291,7 +291,7 @@ int c2_rm_fom_right_revoke_state(struct c2_fom *fom)
 
 		if (fom->fo_phase == FOPH_RM_RIGHT_REVOKE) {
 			rm_in = &rm_fom->frr_in;
-			
+
 			/* Prepare incoming request for RM generic layer */
 			rm_in->rin_type = RIT_REVOKE;
 			/* TODO - Check if this can be RI_CHECK */
@@ -305,13 +305,13 @@ int c2_rm_fom_right_revoke_state(struct c2_fom *fom)
 
 			/* TODO - find/code this function */
 #if 0
-			rm_in->rin_owner
+			rm_in->rin_want.ri_owner
 			= c2_rm_find_owner(req_fop->res_type, req_fop->res_id);
 #endif
 
 
 			/* Attempt to revoke the right */
-			rc = c2_rm_right_get(rm_in->rin_owner, rm_in);
+			rc = c2_rm_right_get(rm_in->rin_want.ri_owner, rm_in);
 			if (rc != 0) {
 				if (rc != -EWOULDBLOCK) {
 					mark_revoke_fail(fom, reply_fop, rc);
@@ -373,7 +373,7 @@ int c2_rm_fom_right_cancel_state(struct c2_fom *fom)
 		C2_ASSERT(fom->fo_phase == FOPH_RM_RIGHT_CANCEL);
 
 		rm_in = &rm_fom->frr_in;
-		
+
 		/* Prepare incoming request for RM generic layer */
 		rm_in->rin_type = RIT_REVOKE;
 		/* TODO - Check if this can be RI_CHECK */
@@ -387,7 +387,7 @@ int c2_rm_fom_right_cancel_state(struct c2_fom *fom)
 
 		/* TODO - find/code this function */
 #if 0
-		rm_in->rin_owner
+		rm_in->rin_want.ri_owner
 		= c2_rm_find_owner(req_fop->res_type, req_fop->res_id);
 #endif
 
@@ -395,7 +395,7 @@ int c2_rm_fom_right_cancel_state(struct c2_fom *fom)
 		 * Cancel the right. Ignore the result.
 		 * Reply is not communicated back.
 		 */
-		(void)c2_rm_right_get(rm_in->rin_owner, rm_in);
+		(void)c2_rm_right_get(rm_in->rin_want.ri_owner, rm_in);
 
 		fom->fo_phase = FOPH_FINISH;
 		rc = FSO_AGAIN;

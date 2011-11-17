@@ -155,11 +155,12 @@ static void rm_init(void)
 	c2_rm_domain_init(&dom);
 	c2_rm_type_register(&dom, &rt);
 	c2_rm_resource_add(&rt, &R.rs_resource);
-	c2_rm_right_init(&everything);
+	c2_rm_owner_init_with(&Sauron, &R.rs_resource);
+	c2_rm_right_init(&everything, &Sauron);
 	everything.ri_ops = &rings_right_ops;
 	everything.ri_datum = ALLRINGS;
 	Sauron.ro_state = ROS_FINAL;
-	c2_rm_owner_init_with(&Sauron, &R.rs_resource, &everything);
+	c2_rm_owner_selfadd(&Sauron, &everything);
 	elves.ro_state = ROS_FINAL;
 	c2_rm_owner_init(&elves, &R.rs_resource);
 	dwarves.ro_state = ROS_FINAL;
@@ -243,9 +244,8 @@ static void right_get_test0(void)
 	rm_init();
 
 	c2_chan_init(&in.rin_signal);
-	c2_rm_right_init(&in.rin_want);
+	c2_rm_right_init(&in.rin_want, &Sauron);
 	in.rin_state = RI_INITIALISED;
-	in.rin_owner = &Sauron;
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
@@ -276,9 +276,8 @@ static void right_get_test1(void)
 	rm_init();
 
 	c2_chan_init(&in.rin_signal);
-	c2_rm_right_init(&in.rin_want);
+	c2_rm_right_init(&in.rin_want, &Sauron);
 	in.rin_state = RI_INITIALISED;
-	in.rin_owner = &Sauron;
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
@@ -291,9 +290,8 @@ static void right_get_test1(void)
 	C2_ASSERT(result == 0);
 
 	c2_chan_init(&inother.rin_signal);
-	c2_rm_right_init(&inother.rin_want);
+	c2_rm_right_init(&inother.rin_want, &Sauron);
 	inother.rin_state = RI_INITIALISED;
-	inother.rin_owner = &Sauron;
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
@@ -332,9 +330,8 @@ static void right_get_test2(void)
 	rm_init();
 
 	c2_chan_init(&in.rin_signal);
-	c2_rm_right_init(&in.rin_want);
+	c2_rm_right_init(&in.rin_want, &Sauron);
 	in.rin_state = RI_INITIALISED;
-	in.rin_owner = &Sauron;
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
@@ -347,9 +344,8 @@ static void right_get_test2(void)
 	C2_ASSERT(result == 0);
 
 	c2_chan_init(&inother.rin_signal);
-	c2_rm_right_init(&inother.rin_want);
+	c2_rm_right_init(&inother.rin_want, &Sauron);
 	inother.rin_state = RI_INITIALISED;
-	inother.rin_owner = &Sauron;
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
@@ -390,9 +386,8 @@ static void right_get_test3(void)
 	rm_init();
 
 	c2_chan_init(&in.rin_signal);
-	c2_rm_right_init(&in.rin_want);
+	c2_rm_right_init(&in.rin_want, &Sauron);
 	in.rin_state = RI_INITIALISED;
-	in.rin_owner = &Sauron;
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
@@ -409,9 +404,8 @@ static void right_get_test3(void)
 	} c2_tlist_endfor;
 
 	c2_chan_init(&inother.rin_signal);
-	c2_rm_right_init(&inother.rin_want);
+	c2_rm_right_init(&inother.rin_want, &Sauron);
 	inother.rin_state = RI_INITIALISED;
-	inother.rin_owner = &Sauron;
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
@@ -447,7 +441,7 @@ static void rm_server_init(void)
         c2_rm_domain_init(&server);
         c2_rm_type_register(&server, &rts);
         c2_rm_resource_add(&rts, &R.rs_resource);
-        c2_rm_right_init(&everything);
+        c2_rm_right_init(&everything, &Sauron);
 	c2_rm_incoming_init(&in);
         everything.ri_ops = &rings_right_ops;
         everything.ri_datum = ALLRINGS;
@@ -532,9 +526,8 @@ static void rm_client1_fini(void)
 static void intent_server(int id)
 {
         c2_chan_init(&in.rin_signal);
-        c2_rm_right_init(&in.rin_want);
+        c2_rm_right_init(&in.rin_want, &Sauron);
         in.rin_state = RI_INITIALISED;
-        in.rin_owner = &Sauron;
         in.rin_priority = 0;
         in.rin_ops = &rings_incoming_ops;
         in.rin_want.ri_ops = &rings_right_ops;
@@ -568,7 +561,6 @@ static void intent_client(int id)
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
 	/* Gets the right from the server */
-        req->in.rin_owner = &elves;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -662,9 +654,8 @@ static void wbc_server(int id)
 
 	/* Gets the loan request from client */
         c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
+        c2_rm_right_init(&req->in.rin_want, &Sauron);
         req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = &Sauron;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -687,10 +678,9 @@ static void wbc_client(int id)
 	/* Prepare incoming request for client which
 	 * will turns into borrow rights from server */
 	c2_chan_init(&inother.rin_signal);
-        c2_rm_right_init(&inother.rin_want);
+        c2_rm_right_init(&inother.rin_want, &Sauron);
 	c2_rm_incoming_init(&inother);
         inother.rin_state = RI_INITIALISED;
-        inother.rin_owner = &elves;
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
@@ -804,9 +794,8 @@ static void cancel_server(int id)
 
 	/* Gets the loan request(borrow call from client)*/
         c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
+        c2_rm_right_init(&req->in.rin_want, &Sauron);
         req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = &Sauron;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -821,9 +810,8 @@ static void cancel_server(int id)
 
 	/* Ask for loaned right which will revoke the loaned rights */
         c2_chan_init(&in.rin_signal);
-        c2_rm_right_init(&in.rin_want);
+        c2_rm_right_init(&in.rin_want, &Sauron);
         in.rin_state = RI_INITIALISED;
-        in.rin_owner = &Sauron;
         in.rin_priority = 0;
         in.rin_ops = &rings_incoming_ops;
         in.rin_want.ri_ops = &rings_right_ops;
@@ -837,9 +825,8 @@ static void cancel_server(int id)
 
 	/* witness SERVER possesses right DURIN. */
         c2_chan_init(&inreq.rin_signal);
-        c2_rm_right_init(&inreq.rin_want);
+        c2_rm_right_init(&inreq.rin_want, &Sauron);
         inreq.rin_state = RI_INITIALISED;
-        inreq.rin_owner = &Sauron;
         inreq.rin_priority = 0;
         inreq.rin_ops = &rings_incoming_ops;
         inreq.rin_want.ri_ops = &rings_right_ops;
@@ -877,9 +864,8 @@ static void cancel_client(int id)
 	/* Prepare incoming request for client which will
 	 * turns into barrow rights request for server */
 	c2_chan_init(&inother.rin_signal);
-        c2_rm_right_init(&inother.rin_want);
+        c2_rm_right_init(&inother.rin_want, &Sauron);
         inother.rin_state = RI_INITIALISED;
-        inother.rin_owner = &elves;
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
@@ -900,9 +886,8 @@ static void cancel_client(int id)
 
 	/* Gets the revoke(cancel) rights from server */
         c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
+        c2_rm_right_init(&req->in.rin_want, &Sauron);
         req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = &elves;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -990,9 +975,8 @@ static void caching_server(int id)
 
 	/* Gets the loan request from client*/
         c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
+        c2_rm_right_init(&req->in.rin_want, &Sauron);
         req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = &Sauron;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -1017,9 +1001,8 @@ static void caching_client(int id)
 	/* Prepare incoming request for client which will send
 	 * barrow rights request to server */
 	c2_chan_init(&inother.rin_signal);
-        c2_rm_right_init(&inother.rin_want);
+        c2_rm_right_init(&inother.rin_want, &Sauron);
         inother.rin_state = RI_INITIALISED;
-        inother.rin_owner = &elves;
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
@@ -1038,9 +1021,8 @@ static void caching_client(int id)
 
 	/* Right is cached, so following call will successed */
 	c2_chan_init(&inrep.rin_signal);
-        c2_rm_right_init(&inrep.rin_want);
+        c2_rm_right_init(&inrep.rin_want, &Sauron);
         inrep.rin_state = RI_INITIALISED;
-        inrep.rin_owner = &elves;
         inrep.rin_priority = 0;
         inrep.rin_ops = &rings_incoming_ops;
         inrep.rin_want.ri_ops = &rings_right_ops;
@@ -1121,9 +1103,8 @@ static void callback_server(int id)
 
 	/* Gets the loan request from client0 */
         c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
+        c2_rm_right_init(&req->in.rin_want, &Sauron);
         req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = &Sauron;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -1152,9 +1133,8 @@ static void callback_server(int id)
 	/* Gets the loan request from client1 which will
 	 * turns into cancel(revoke) request for client0 */
         c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
+        c2_rm_right_init(&req->in.rin_want, &Sauron);
         req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = &Sauron;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -1197,9 +1177,8 @@ static void callback_client(int id)
 	/* Prepare incoming request for client which
 	 * will eventually barrow rights from server */
 	c2_chan_init(&inother.rin_signal);
-        c2_rm_right_init(&inother.rin_want);
+        c2_rm_right_init(&inother.rin_want, &Sauron);
         inother.rin_state = RI_INITIALISED;
-        inother.rin_owner = &elves;
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
@@ -1221,9 +1200,8 @@ static void callback_client(int id)
 
 	/* Gets cancel(revoke) Request from server */
         c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
+        c2_rm_right_init(&req->in.rin_want, &Sauron);
         req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = &elves;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
@@ -1255,9 +1233,8 @@ static void callback_client1(int id)
 	 * cancel the right from client0 and send it to client1*/
 	while (client_signal == 0) { }
 	c2_chan_init(&inconflict.rin_signal);
-        c2_rm_right_init(&inconflict.rin_want);
+        c2_rm_right_init(&inconflict.rin_want, &Sauron);
         inconflict.rin_state = RI_INITIALISED;
-        inconflict.rin_owner = &dwarves;
         inconflict.rin_priority = 0;
         inconflict.rin_ops = &rings_incoming_ops;
         inconflict.rin_want.ri_ops = &rings_right_ops;

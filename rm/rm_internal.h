@@ -24,7 +24,7 @@
    Sticks a tracking pin on @right. When @right is released, the all incoming
    requests that stuck pins into it are notified.
 */
-int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
+int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right, uint32_t flag);
 
 /**
    Makes another copy of right struct.
