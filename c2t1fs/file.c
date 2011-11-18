@@ -42,10 +42,11 @@ ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 int c2t1fs_rpc_rw(struct c2_tl *rw_desc_list, int rw);
 
 struct file_operations c2t1fs_reg_file_operations = {
+	.llseek    = generic_file_llseek,
 	.aio_read  = c2t1fs_file_aio_read,
 	.aio_write = c2t1fs_file_aio_write,
-	.read  = do_sync_read,
-	.write = do_sync_write,
+	.read      = do_sync_read,
+	.write     = do_sync_write,
 };
 
 struct inode_operations c2t1fs_reg_inode_operations = {
@@ -99,10 +100,10 @@ ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 		if (result <= 0)
 			break;
 
+		nr_bytes_read += result;
+
 		if ((size_t)result < vec->iov_len)
 			break;
-
-		nr_bytes_read += result;
 	}
 out:
 	END(nr_bytes_read ?: result);
@@ -116,8 +117,9 @@ ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 {
 	unsigned long i;
 	ssize_t       result = 0;
-	ssize_t       nr_bytes_read = 0;
-	ssize_t       count = 0;
+	ssize_t       nr_bytes_written = 0;
+	size_t        count = 0;
+	size_t        saved_count;
 
 	START();
 
@@ -127,9 +129,6 @@ ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 			nr_segs,
 			iov_length(iov, nr_segs));
 
-	if (nr_segs == 0)
-		goto out;
-
 	result = generic_segment_checks(iov, &nr_segs, &count, VERIFY_READ);
 	if (result != 0) {
 		TRACE("Generic segment checks failed: %lu\n",
@@ -137,8 +136,21 @@ ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 		goto out;
 	}
 
+	saved_count = count;
+	result = generic_write_checks(iocb->ki_filp, &pos, &count, 0);
+	if (result != 0) {
+		TRACE("generic_write_checks() failed %lu\n",
+						(unsigned long)result);
+		goto out;
+	}
+
 	if (count == 0)
 		goto out;
+
+	if (count != saved_count) {
+		nr_segs = iov_shorten((struct iovec *)iov, nr_segs, count);
+		TRACE("write size changed to %lu\n", (unsigned long)count);
+	}
 
 	for (i = 0; i < nr_segs; i++) {
 		const struct iovec *vec = &iov[i];
@@ -154,15 +166,16 @@ ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 		if (result <= 0)
 			break;
 
+		nr_bytes_written += result;
+
 		if ((size_t)result < vec->iov_len)
 			break;
-
-		nr_bytes_read += result;
 	}
 out:
-	END(nr_bytes_read ?: result);
-	return nr_bytes_read ?: result;
+	END(nr_bytes_written ?: result);
+	return nr_bytes_written ?: result;
 }
+
 bool address_is_page_aligned(unsigned long addr)
 {
 	START();
@@ -312,14 +325,11 @@ ssize_t c2t1fs_read_write(struct file *file,
 		/* check if io spans beyond file size */
 		if (pos + count > inode->i_size) {
 			count = inode->i_size - pos;
-			TRACE("i_size %lu io truncated to %lu\n",
+			TRACE("i_size %lu, read truncated to %lu\n",
 				(unsigned long)inode->i_size,
 				(unsigned long)count);
 		}
 	}
-
-	if (rw == WRITE && (file->f_flags & O_APPEND) != 0)
-		pos = inode->i_size;
 
 	TRACE("%s %lu bytes at pos %lu to %p\n", rw == READ ? "Read" : "Write",
 				(unsigned long)count,
