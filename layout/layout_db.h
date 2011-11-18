@@ -18,8 +18,8 @@
  * Original creation date: 10/18/2011
  */
 
-#ifndef __COLIBRI_LAYOUT_DB_H__
-#define __COLIBRI_LAYOUT_DB_H__
+#ifndef __COLIBRI_LAYOUT_LAYOUT_DB_H__
+#define __COLIBRI_LAYOUT_LAYOUT_DB_H__
 
 /* import */
 #include "lib/refs.h"	/* struct c2_ref */
@@ -33,7 +33,6 @@
 struct c2_layout_schema;
 struct c2_layout_rec;
 struct c2_pdclust_linear_rec_attrs;
-enum c2_layout_rec_type_code;
 
 /**
    @page Layout-DB-fspec Layout DB Functional Specification
@@ -53,10 +52,9 @@ enum c2_layout_rec_type_code;
    - struct c2_layout_schema
    - struct c2_layout_rec
    - struct c2_pdclust_linear_rec_attrs
-   - enum c2_layout_rec_type_code
 
-   [TODO: Not sure why this enum does not link back to where it is defined!
-   Need to figure out.]
+   @todo Not sure why this enum does not link back to where it is defined!
+   Need to figure out. Any inputs are welcome.
 
    @section Layout-DB-fspec-sub Subroutines
    - int c2_layout_schema_init(struct c2_layout_schema *l_schema)
@@ -65,10 +63,6 @@ enum c2_layout_rec_type_code;
    - int c2_layout_rec_delete(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
    - int c2_layout_rec_update(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
    - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx, struct c2_layout_rec *l_rec_out);
-   - int c2_layout_rec_ref_get(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
-   - int c2_layout_rec_ref_put(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
-
-   @subsection Layout-DB-fspec-sub-cons Constructors and Destructors
 
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 
@@ -115,13 +109,6 @@ enum c2_layout_rec_type_code;
    @{
 */
 
-/** Classification of layout record types */
-enum c2_layout_rec_type_code {
-	PDCLUST_LINEAR,
-	PDCLUST_LIST,
-	COMPOSITE
-};
-
 /**
    Attributes for PDCLUST_LINEAR type of layout record.
 */
@@ -154,14 +141,19 @@ struct c2_layout_schema {
 
 /**
    layout_entries table
-   Key is c2_uint128 OR c2_layout_id.
+   Key is c2_layout_id.
 */
 struct c2_layout_rec {
-	/** Type of layout record */
-	enum c2_layout_rec_type_code lr_type_code;
+	/** Layout type id */
+	uint32_t lr_lt_id;
+
+	/** Layout enumeration type id */
+	uint32_t lr_let_id;
+
 	/** Layout record reference count indicating number of files using
 	this layout */
-	struct c2_ref lr_ref_count;
+	struct uint32_t lr_ref_count;
+
 	/** Struct to store PDCLUST_LINEAR record type specific data */
 	struct c2_pdclust_linear_rec_attrs lr_linear_attrs;
 };
@@ -170,24 +162,18 @@ struct c2_layout_rec {
 int c2_layout_schema_init(struct c2_layout_schema *l_schema);
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema);
 int c2_layout_rec_add(const struct c2_layout *layout,
-		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx);
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx);
 int c2_layout_rec_delete(const struct c2_layout *layout,
-		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx);
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx);
 int c2_layout_rec_update(const struct c2_layout *layout,
-		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx);
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx);
 int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
-		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx,
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx,
 		struct c2_layout_rec *l_recrec_out);
-int c2_layout_rec_ref_get(const struct c2_layout *l,
-		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx);
-int c2_layout_rec_ref_put(const struct c2_layout *l,
-		const struct c2_layout_schema *l_schema,
-		const struct c2_db_tx *tx);
 /**
    @} LayoutDBDFS end group
 */
@@ -231,7 +217,7 @@ struct layout_cob_lists_key {
 };
 
 struct layout_cob_lists_rec {
-	struct c2_cob_id lclr_cob_id;
+	struct c2_fid lclr_cob_id;
 };
 
 /**
@@ -261,7 +247,7 @@ static const struct c2_table_ops pdclust_list_cob_lists_table_ops = {
 
 /** @} end of LayoutDBDFSInternal */
 
-#endif /*  __COLIBRI_LAYOUT_DB_H__ */
+#endif /*  __COLIBRI_LAYOUT_LAYOUT_DB_H__ */
 
 /*
  *  Local variables:

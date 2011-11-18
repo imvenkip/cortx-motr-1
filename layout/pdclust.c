@@ -460,9 +460,123 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 }
 C2_EXPORTED(c2_pdclust_unit_classify);
 
+/** 
+   Implementation of lto_decode() for pdclust layout type.
+   Continues to decode layout representation stored in the buffer and 
+   to create the layout.
+*/
+static int pdclust_decode(const struct c2_bufvec_cursor *cur,
+		          struct c2_layout **l_out)
+{
+   /**
+   @code
+	Read pdclust layout type specific fields from the buffer.
+	Based on the layout-enumeration type, call respective leto_decode(). 
+   @endcode
+   */
+
+	return 0;
+}
+
+/** 
+   Implementation of lto_encode() for pdclust layout type.
+   Stores layout representation in the buffer.
+*/
+static int pdclust_encode(const struct c2_layout *l,
+		          struct c2_bufvec_cursor *cur_out)
+{
+   /**
+   @code
+	Store pdclust layout type specific fields into the buffer.
+
+	Based on the layout-enumeration type, call respective leto_encode(). 
+   @endcode
+   */
+
+	return 0;
+}
+
+
+/**
+   Implementation of lto_rec_add for PDCLUST layout type.
+*/
+int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx)
+{
+   /**
+	@code
+	Adds a layout entry into the layout_entries table.
+	Invokes enumeration type specific leto_rec_add() so as to:
+	   - In case of LIST enumeration type, it adds list of cob ids
+	     to the pdclust_list_cob_lists table.
+	@endcode
+   */
+}
+
+/**
+   Implementation of lto_rec_delete for PDCLUST layout type.
+*/
+int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx)
+{
+   /**
+	@code
+	Invokes enumeration type specific leto_rec_add() so that:
+	   - In case of LIST enumeration type, if the reference count of the 
+	     layout entry is 0, delete rerevant cob id list from the
+	     pdclust_list_cob_lists table and delete layout entry from
+	     the layout_entries table in case of LIST enumeration type.
+	@endcode
+   */
+}
+
+/**
+   Implementation of lto_rec_update for PDCLUST layout type.
+*/
+int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx)
+{
+   /**
+	@code
+	Updates the layout entry in the layout_entries table.
+	Invokes enumeration type specific leto_rec_update() so as to:
+	   - for LIST enumeration type, updates the relevant list of cob ids
+	     in the pdclust_list_cob_lists table.
+	@endcode
+   */
+}
+
+/**
+   Implementation of lto_rec_lookup for PDCLUST layout type.
+*/
+int pdclust_rec_lookup(const struct c2_layout_id l_id,
+		struct c2_layout_schema *l_schema,
+		struct c2_db_tx *tx,
+		struct c2_bufvec_cursor *cur)
+{
+   /**
+	@code
+   	Obtains the layout record with the specified layout id, from the
+	layout_entries table.
+	Invoke layout enumeration type specific leto_rec_lookup so that:
+	   - For LIST enumeration type, obtains the relevant list of cob
+	     ids from the pdclust_list_cob_lists table.
+	@endcode
+   */
+}
+
+static const struct c2_layout_type_ops pdclust_type_ops = {
+	.lt_equal  = pdclust_equal,
+	.lt_decode = pdclust_decode,
+	.lt_encode = pdclust_encode
+};
+
 const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_name  = "pdclust",
-	.lt_equal = pdclust_equal
+	.lt_ops   = &pdclust_type_ops 
 };
 
 static const struct c2_layout_formula_ops nkp_ops = {
