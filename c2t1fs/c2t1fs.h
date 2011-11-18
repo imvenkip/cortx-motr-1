@@ -267,41 +267,80 @@ struct c2t1fs_container_location_map
 	struct c2t1fs_service_context *clm_map[C2T1FS_MAX_NR_CONTAINERS];
 };
 
+/**
+   In memory c2t1fs super block. One instance per mounted file-system.
+   super_block::s_fs_info points to instance of this type.
+
+   @see C2T1FS_SB()
+ */
 struct c2t1fs_sb
 {
+	/** mutex that serialises all file and directory operations */
 	struct c2_mutex        csb_mutex;
+
+	/** Parsed mount options */
 	struct c2t1fs_mnt_opts csb_mnt_opts;
-	uint64_t               csb_flags;
+
+	/** rpc connection with management service (aka confd) */
 	struct c2_rpc_conn     csb_mgs_conn;
+
+	/** rpc session with management service */
 	struct c2_rpc_session  csb_mgs_session;
+
+	/** number of contexts in csb_service_contexts list, that have
+	    ACTIVE rpc connection and rpc session.
+	    csb_nr_active_contexts <= c2_tlist_length(&csb_service_contexts) */
 	int                    csb_nr_active_contexts;
+
+	/** list of service contexs */
 	struct c2_tl           csb_service_contexts;
 
+	/** Total number of containers. */
 	int                    csb_nr_containers;
+
+	/** Number of data units per parity group. N */
 	int                    csb_nr_data_units;
+
+	/** Number of parity units per group. K */
 	int                    csb_nr_parity_units;
 
 	struct c2t1fs_container_location_map csb_cl_map;
 
+	/** magic = C2T1FS_SUPER_MAGIC */
 	uint64_t               csb_magic;
 };
 
-
+/**
+   Directory entry.
+ */
 struct c2t1fs_dir_ent
 {
 	char          de_name[C2T1FS_MAX_NAME_LEN + 1];
 	struct c2_fid de_fid;
 };
 
+/**
+   Inode representing global file.
+ */
 struct c2t1fs_inode
 {
+	/** vfs inode */
 	struct inode              ci_inode;
+
+	/** fid of gob */
 	struct c2_fid             ci_fid;
 
+	/** layout of file's data */
 	struct c2_pdclust_layout *ci_pd_layout;
+
+	/** stripe unit size */
 	uint64_t                  ci_unit_size;
 
+	/** valid number of entries in ci_dir_ents[] */
 	int                       ci_nr_dir_ents;
+
+	/** list directory entries. Valid for only root inode.
+	    Unused for regular file's inode */
 	struct c2t1fs_dir_ent     ci_dir_ents[C2T1FS_MAX_NR_DIR_ENTS];
 };
 

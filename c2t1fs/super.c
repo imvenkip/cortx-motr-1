@@ -8,7 +8,7 @@
 #include "lib/misc.h"
 #include "lib/memory.h"
 
-static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
+static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts);
 static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
@@ -16,11 +16,11 @@ static int  c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts);
 static int  c2t1fs_mnt_opts_parse(char                   *options,
 				  struct c2t1fs_mnt_opts *mnt_opts);
 
-static int c2t1fs_config_fetch(struct c2t1fs_sb *csb);
-static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb);
+static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
+static int  c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb);
 static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb);
-static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb);
-static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx);
+static int  c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb);
+static int  c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx);
 static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx);
 static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb);
 
@@ -711,7 +711,7 @@ c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
 	ctx = map->clm_map[container_id];
 	C2_ASSERT(ctx != NULL);
 
-	END(ctx->sc_session.s_session_id);
+	END(&ctx->sc_session);
 	return &ctx->sc_session;
 }
 void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
