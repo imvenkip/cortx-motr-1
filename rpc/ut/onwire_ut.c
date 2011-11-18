@@ -99,12 +99,10 @@ void populate_item(struct c2_rpc_item *item)
 	slot_ref.sr_xid  = 0x11111111;
 	slot_ref.sr_slot_gen = 0x22222222;
 	slot_ref.sr_slot_id = 0x666;
-	memcpy(&slot_ref.sr_verno, &verno, sizeof(struct c2_verno));
-	memcpy(&slot_ref.sr_last_persistent_verno, &p_no,
-	       sizeof(struct c2_verno));
-	memcpy(&slot_ref.sr_last_seen_verno, &ls_no, sizeof(struct c2_verno));
-	memcpy(&item->ri_slot_refs[0], &slot_ref,
-	       sizeof(struct c2_rpc_slot_ref));
+	slot_ref.sr_verno = verno;
+	slot_ref.sr_last_persistent_verno = p_no;
+	slot_ref.sr_last_seen_verno = ls_no;
+	item->ri_slot_refs[0] = slot_ref;
 }
 
 void populate_rpc_obj(struct c2_rpc *rpc, struct c2_rpc_item *item)
