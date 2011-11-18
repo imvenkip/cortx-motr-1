@@ -11,6 +11,138 @@
 #include "rpc/rpccore.h"
 #include "lib/list.h"
 
+/**
+  @defgroup c2t1fs c2t1fs
+
+  @section Overview
+
+  c2t1fs is a colibri client file-system for linux. It is implemented as a
+  kernel module.
+
+  @section c2t1fsfuncspec Function Specification
+
+  c2t1fs has flat file-system structure i.e. no directories except root.
+  c2t1fs does not support caching. All read-write requests are directly
+  forwarded to servers.
+
+  c2t1fs can be mounted with mount command:
+
+  mount -t c2t1fs -o <options_list> dontcare <dir_name>
+
+  where <options_list> is a comma separated list of option=value elements.
+  Currently supported list of options is:
+
+  - mgs [value type: end-point address e.g. 127.0.0.1:123321:1 ]
+      end-point address of management service or confd.
+
+  - ios [value type: end-point address]
+      end-point address of io-service. multiple io-services can be specified
+      as ios=<end-point-addr1>,ios=<end-point-addr2>
+
+  - mds [value type: end-point address]
+      end-point address of meta-data service. Currently only one mds is
+      allowed.
+
+  - profile [value type: string]
+      configuration profile. Used while fetching configuration from mgs.
+
+  - nr_data_units [value type: number]
+      Number of data units in one parity group. Optional parameter.
+      Default value is C2T1FS_DEFAULT_NR_DATA_UNITS (=1).
+
+  - nr_parity_units [value type: number]
+      Number of parity units in one parity group. Optional parameter.
+      Default value is C2T1FS_DEFAULT_NR_PARITY_UNITS (=0).
+
+  - nr_containers [value type: number]
+      Number of containers. Optional parameter. Default value
+      is C2T1FS_DEFAULT_NR_CONTAINERS (=1).
+      nr_containers should be <= C2T1FS_MAX_NR_CONTAINERS (=1024).
+      nr_containers >= nr_data_units + 2 * nr_parity_units. (2 to account for
+      nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
+
+   stripe unit size is not taken as mount option. Instead it is always set to
+   C2T1FS_DEFAULT_STRIPE_UNIT_SIZE (=4K).
+
+   'device' argument of mount command is ignored.
+
+   c2t1fs supports following operations:
+   - Creating upto C2T1FS_MAX_NR_DIR_ENTS number of regular files
+   - Remove a regular file
+   - Listing files in root directory
+
+   @section c2t1fslogspec Logical Specification
+
+   <B>mount/unmount:</B>
+
+   c2t1fs currently takes io/metadata service end-point address and striping
+   parameters as mount options. Once mgs/confd is ready, all this information
+   should be fetched from mgs. In which case, mgs address and profile name
+   will be the only required mount options.
+
+   c2t1fs establishes rpc-connections and rpc-sessions with all the services
+   specified in the mount options. If multiple services have same end-point
+   address, separate rpc-connection is established with each service i.e.
+   if N services have same end-point address, there will be N rpc-connections
+   leading to same target end-point.
+
+   The rpc-connections and rpc-sessions will be terminated at unmount time.
+
+   <B> Containers and target objects: </B>
+
+   One service can serve zero or more number of containers. Given an id of a
+   container, "container location map", gives service that is serving
+   the container. Even if containers are not yet implemented, notion of
+   container id is required, to be able to locate the service serving some
+   object identified by fid.
+
+   Number of containers is specified as a mount option. If number of
+   containers is P, then
+
+   - container id 0 will be a meta-data container and its container location
+     map entry will point to md-service. Hence, container field of global
+     object's fid, will have value 0.
+
+   - container id 1,2..,P will be served by io-services. P number of containers
+     will be equally divided among available io-services.
+     For a global file object having fid <0, K>, there will be P number of
+     target objects having fids {<i, K> | i = 1, 2, ..., P}.
+     Data of global file will be striped across these P target objects, using
+     parity declustered layout with N, K parameters coming from mount options
+     nr_data_units and nr_parity units respectively.
+
+   Container location map is populated at mount time.
+
+   <B> Directory Operations: </B>
+
+   To create a regular file, c2t1fs sends cob create requests to mds(for global
+   object aka gob) and io-service (for target objects). Because, mds is not
+   yet implemented, c2t1fs does not send cob create request to any mds.
+   Instead all directory entries are stored in the in-memory root inode itself.
+   In memory c2t1fs inode has statically allocated array of
+   C2T1FS_MAX_NR_DIR_ENT directory entries. "." and ".." are not stored in
+   this directory entry array. c2t1fs generates fid of new file and its target
+   objects. All target objects have same fid.key as that of global file's fid.
+   They differ only in fid.container field. Key of global file is taken from
+   value of a monotonically increasing counter.
+
+   If target object creation fails, c2t1fs does not attempt to cleanup
+   target objects that were successfully created. This should be handled by
+   dtm component, which is not yet implemented.
+
+   <B> Read/Write: </B>
+
+   c2t1fs currently supports only full stripe IO
+   i.e. iosize = nr_data_units * stripe_unit_size (where stripe_unit_size = 4K).
+
+   read-write operations on file are not synchronised.
+
+   c2t1fs does not cache any data.
+
+   For simplicity, c2t1fs does synchronous rpc with io-services, to read/write
+   target objects.
+ */
+
 #define C2T1FS_DEBUG 1
 
 #ifdef C2T1FS_DEBUG
@@ -47,6 +179,7 @@ enum {
 	C2T1FS_DEFAULT_NR_CONTAINERS = 1,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS = 1024,
+	C2T1FS_MAX_NR_DIR_ENTS = 10,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure */
@@ -65,6 +198,7 @@ struct c2t1fs_globals
 
 extern struct c2t1fs_globals c2t1fs_globals;
 
+/** mount options */
 struct c2t1fs_mnt_opts
 {
 	char *mo_options;
@@ -90,22 +224,46 @@ enum {
 	MAGIC_SVCCTXHD = 0x5356434354584844, /* "SVCCTXHD" */
 };
 
+/**
+   For each <mounted_fs, target_service> pair, there is one instance of
+   c2t1fs_service_context.
+
+   Allocated at mount time and freed during unmount.
+
+   XXX Better name???
+ */
 struct c2t1fs_service_context
 {
+	/** Superblock associated with this service context */
 	struct c2t1fs_sb         *sc_csb;
+
+	/** Service type */
 	enum c2t1fs_service_type  sc_type;
+
+	/** end-point address of service */
 	char                     *sc_addr;
+
 	struct c2_rpc_conn        sc_conn;
 	struct c2_rpc_session     sc_session;
-	int                       sc_nr_containers;
-	uint64_t                 *sc_container_ids;
+
+	/** link in c2t1fs_sb::csb_service_contexts list */
 	struct c2_tlink           sc_link;
+
+	/** magic = MAGIC_SVC_CTX */
 	uint64_t                  sc_magic;
 };
 
+/**
+   Given a container id of a container, map give service context of a service
+   that is serving the container.
+ */
 struct c2t1fs_container_location_map
 {
-	/** Array of csb_nr_container elements */
+	/**
+	   Array of c2t1fs_sb::csb_nr_container elements.
+	   clm_map[i] points to c2t1fs_service_context of a service
+	   that is serving container i
+	 */
 	struct c2t1fs_service_context *clm_map[C2T1FS_MAX_NR_CONTAINERS];
 };
 
@@ -133,10 +291,6 @@ struct c2t1fs_dir_ent
 {
 	char          de_name[C2T1FS_MAX_NAME_LEN + 1];
 	struct c2_fid de_fid;
-};
-
-enum {
-	C2T1FS_MAX_NR_DIR_ENTS = 10,
 };
 
 struct c2t1fs_inode

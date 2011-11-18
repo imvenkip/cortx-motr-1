@@ -97,11 +97,11 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	TRACE("P = %d, N = %d, K = %d\n", csb->csb_nr_containers,
 			csb->csb_nr_data_units, csb->csb_nr_parity_units);
 
-	/* P >= N + 2 * K */
+	/* P >= N + 2 * K ??*/
 	if (csb->csb_nr_containers < csb->csb_nr_data_units +
-				2 * csb->csb_nr_parity_units) {
+				2 * csb->csb_nr_parity_units ||
+		csb->csb_nr_containers > C2T1FS_MAX_NR_CONTAINERS) {
 
-		TRACE("Failed: P >= N + 2 * K\n");
 		rc = -EINVAL;
 		goto out;
 	}
@@ -377,7 +377,9 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			break;
 
 		default:
-			TRACE("Unrecognized options: %s\n", op);
+			TRACE("Unrecognized option: %s\n", op);
+			TRACE("Supported options: mgs,mds,ios,profile,"
+			      "nr_containers,nr_data_units,nr_parity_units\n");
 			rc = -EINVAL;
 			goto out;
 		}
