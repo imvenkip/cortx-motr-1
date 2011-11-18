@@ -30,7 +30,7 @@
 
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "lib/errno.h"		/* ENOMEM */
-#include "rpc/rpc_onwire.h"	/* default encode/decode */
+#include "fop/fop_onwire.h"	/* default fop encode/decode */
 #include "fop/fop_format_def.h" /* console.ff */
 
 
@@ -125,9 +125,9 @@ static struct c2_fop_type_ops c2_cons_fop_reply_ops = {
 };
 
 static struct c2_rpc_item_type_ops default_item_type_ops = {
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
 };
 
 /** Fop and RPC Item type definitions for disk and device failures and replies

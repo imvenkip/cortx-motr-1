@@ -34,7 +34,7 @@
 #else
 #include "rpc/session_u.h"
 #endif
-#include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
 
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"
@@ -180,9 +180,9 @@ const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 
 
 static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
-	.rito_encode = c2_rpc_fop_default_encode,
+	.rito_encode = c2_fop_item_type_default_encode,
 	.rito_decode = conn_establish_item_decode,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
 };
 
 /*

@@ -47,7 +47,7 @@
 #include "stob/linux.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpccore.h"
-#include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
 #include "rpc/rpc_base.h"
 #include "xcode/bufvec_xcode.h"
 
@@ -137,36 +137,36 @@ static const struct c2_rpc_item_type_ops reqh_ut_create_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_write_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_read_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 /**
@@ -176,36 +176,36 @@ static const struct c2_rpc_item_type_ops reqh_ut_create_rep_rpc_item_type_ops = 
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_write_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_read_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 /**

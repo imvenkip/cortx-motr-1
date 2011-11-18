@@ -27,23 +27,6 @@
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
-size_t c2_rpc_item_fop_default_size(const struct c2_rpc_item *item)
-{
-	size_t		 len;
-	struct c2_fop	*fop;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-	C2_ASSERT(fop->f_type != NULL);
-	C2_ASSERT(fop->f_type->ft_ops != NULL);
-	C2_ASSERT(fop->f_type->ft_ops->fto_size_get != NULL);
-	len = fop->f_type->ft_ops->fto_size_get(fop);
-	len += ITEM_ONWIRE_HEADER_SIZE;
-	return len;
-}
-C2_EXPORTED(c2_rpc_item_fop_default_size);
 
 /* XXX : Return correct RPC version. */
 static uint32_t rpc_ver_get(void)
@@ -203,51 +186,6 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 	return rc;
 }
 
-int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item *item,
-			      struct c2_bufvec_cursor *cur)
-{
-	int			rc;
-	uint32_t		opcode;
-
-	C2_PRE(item != NULL);
-	C2_PRE(cur != NULL);
-
-	item_type = item->ri_type;
-	opcode = item_type->rit_opcode;
-	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE);
-	if(rc != 0)
-		return -EFAULT;
-	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
-	return rc;
-}
-C2_EXPORTED(c2_rpc_fop_default_encode);
-
-int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item **item,
-			      struct c2_bufvec_cursor *cur)
-{
-	int			 rc;
-	struct c2_fop		*fop;
-	struct c2_fop_type	*ftype;
-
-	C2_PRE(item != NULL);
-	C2_PRE(cur != NULL);
-
-	ftype = c2_item_type_to_fop_type(item_type);
-	C2_ASSERT(ftype != NULL);
-	fop = c2_fop_alloc(ftype, NULL);
-	if (fop == NULL)
-		return -ENOMEM;
-	*item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(*item != NULL);
-	rc = item_encdec(cur, *item, C2_BUFVEC_DECODE);
-	if (rc != 0)
-		c2_fop_free(fop);
-
-	return rc;
-}
-C2_EXPORTED(c2_rpc_fop_default_decode);
 
 /**
   Checks if the supplied bufvec has buffers with sizes multiple of 8 bytes.

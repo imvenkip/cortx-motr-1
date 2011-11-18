@@ -37,7 +37,8 @@
 #include "rpc/it/ping_fop.ff"
 #include "lib/errno.h"
 #include "rpc/rpccore.h"
-#include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
+//#include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
 /* Init for ping reply fom */
@@ -55,24 +56,24 @@ struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = c2_ping_fop_replied,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 

@@ -30,6 +30,7 @@
 #include "rpc/ut/test.ff"
 #include "rpc/rpccore.h"
 #include "fop/fop_base.h"
+#include "fop/fop_onwire.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 #include "lib/vec.h"
@@ -64,9 +65,9 @@ size_t test_item_size_get(const struct c2_rpc_item *item)
 }
 
 const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
-	.rito_encode = c2_rpc_fop_default_encode,
-	.rito_decode = c2_rpc_fop_default_decode,
-	.rito_item_size = c2_rpc_item_fop_default_size
+	.rito_encode = c2_fop_item_type_default_encode,
+	.rito_decode = c2_fop_item_type_default_decode,
+	.rito_item_size = c2_fop_item_type_default_onwire_size
 };
 
 C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,

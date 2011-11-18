@@ -35,6 +35,7 @@
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
 
@@ -85,9 +86,9 @@ const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 
 /** Default rpc item type ops for fop item types */
 const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {
-	.rito_encode = c2_rpc_fop_default_encode,
-	.rito_decode = c2_rpc_fop_default_decode,
-	.rito_item_size = c2_rpc_item_fop_default_size,
+	.rito_encode = c2_fop_item_type_default_encode,
+	.rito_decode = c2_fop_item_type_default_decode,
+	.rito_item_size = c2_fop_item_type_default_onwire_size,
 };
 
 
@@ -1055,13 +1056,13 @@ const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = c2_rpc_item_fop_default_size,
+	.rito_item_size = c2_fop_item_type_default_onwire_size,
 	.rito_items_equal = item_equal,
 	.rito_fid_equal = item_fid_equal,
 	.rito_get_io_fragment_count = item_fragment_count_get,
 	.rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
@@ -1069,13 +1070,13 @@ const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = c2_rpc_item_fop_default_size,
+	.rito_item_size = c2_fop_item_type_default_onwire_size,
 	.rito_items_equal = item_equal,
 	.rito_fid_equal = item_fid_equal,
 	.rito_get_io_fragment_count = item_fragment_count_get,
 	.rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 struct c2_rpc_item_type rpc_item_type_readv = {
@@ -1132,7 +1133,7 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
 
         st->rs_items_nr++;
-        st->rs_bytes_nr += c2_rpc_item_fop_default_size(item);
+        st->rs_bytes_nr += c2_fop_item_type_default_onwire_size(item);
 
 	c2_mutex_unlock(&machine->cr_stats_mutex);
 }

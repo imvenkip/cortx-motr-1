@@ -35,7 +35,7 @@
 #include "fop/fop_iterator.h"
 
 #include "rpc/rpccore.h"
-#include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
 #include "fop/fop_format_def.h"
@@ -55,24 +55,24 @@ static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = cs_ut_rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = cs_ut_rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 
@@ -83,24 +83,24 @@ static const struct c2_rpc_item_type_ops cs_ds1_rep_fop_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops cs_ds2_rep_fop_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_fop_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 /* DS1 service fop type operations.*/
