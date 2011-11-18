@@ -1,4 +1,4 @@
-/* -*- C -*- */
+ C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -470,6 +470,9 @@ static int pdclust_decode(const struct c2_bufvec_cursor *cur,
 {
    /**
    @code
+	Allocate new layout as an instance of c2_pdclust_layout that
+	embeds c2_layout.
+
 	Read pdclust layout type specific fields from the buffer.
 	Based on the layout-enumeration type, call respective leto_decode(). 
    @endcode
@@ -509,7 +512,7 @@ int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
 	Adds a layout entry into the layout_entries table.
 	Invokes enumeration type specific leto_rec_add() so as to:
 	   - In case of LIST enumeration type, it adds list of cob ids
-	     to the pdclust_list_cob_lists table.
+	     to the cob_lists table.
 	@endcode
    */
 }
@@ -526,7 +529,7 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
 	Invokes enumeration type specific leto_rec_add() so that:
 	   - In case of LIST enumeration type, if the reference count of the 
 	     layout entry is 0, delete rerevant cob id list from the
-	     pdclust_list_cob_lists table and delete layout entry from
+	     cob_lists table and delete layout entry from
 	     the layout_entries table in case of LIST enumeration type.
 	@endcode
    */
@@ -544,7 +547,7 @@ int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
 	Updates the layout entry in the layout_entries table.
 	Invokes enumeration type specific leto_rec_update() so as to:
 	   - for LIST enumeration type, updates the relevant list of cob ids
-	     in the pdclust_list_cob_lists table.
+	     in the cob_lists table.
 	@endcode
    */
 }
@@ -563,7 +566,7 @@ int pdclust_rec_lookup(const struct c2_layout_id l_id,
 	layout_entries table.
 	Invoke layout enumeration type specific leto_rec_lookup so that:
 	   - For LIST enumeration type, obtains the relevant list of cob
-	     ids from the pdclust_list_cob_lists table.
+	     ids from the cob_lists table.
 	@endcode
    */
 }

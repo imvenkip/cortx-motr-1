@@ -147,7 +147,7 @@
    The layout schema for the Layout DB module consists of the following three
    tables
    - @ref Layout-DB-lspec-schema-layout_entries
-   - @ref Layout-DB-lspec-schema-pdclust_list_cob_lists
+   - @ref Layout-DB-lspec-schema-cob_lists
    - @ref Layout-DB-lspec-schema-comp_layout_ext_map
 
    @todo Add one table each to store layout type to layout description
@@ -160,7 +160,7 @@
      striping a file over more servers or drives than there are units in
      the parity group. The PDCLUST type of layout either uses a formula
      or a list to enumerate the COB identifiers.
-     The enumeration method types supported for PDCLUST type of layout are:
+     The enumeration types supported for PDCLUST type of layout are:
       - LINEAR <BR>
         PDCLUST layout type with LINEAR enumeration type uses a formula to
         enumerate the COB identifiers.
@@ -171,29 +171,6 @@
      This layout type partitions a file or a part of the file into
      various segments while each of those segment uses a different layout.
 
-   <b>Layout record types</b> supported currently by the Layout DB module are:
-   - PDCLUST_LINEAR
-      - This is a layout record type with layout type as PDCLUST and its
-        enumeration type as LINEAR.
-      - This requires storing some attributes like N, K.
-      - The layout record entry is made into the layout_entries table while
-        the layout attributes are stored in the layout record itself.
-   - PDCLUST_LIST
-      - This is a layout record type with layout type as PDCLUST and its
-        enumeration type as LIST.
-      - This requires storing list of cob identifiers belonging to this layout
-        along with index in this layout.
-      - The layout record entry is made into the layout_entries table while
-        the cob identifiers along with cob index are stored in a separate
-        table viz. pdclust_list_cob_lists.
-   - COMPOSITE
-      - This is a layout record type with layout type as COMPOSITE.
-      - It requires storing extent map for each layout record of this type.
-      - The extent map is used to provide the file segment to sub layout
-        mappings for all the segments belonging to this layout.
-      - The layout record entry is made into the layout_entries table while
-        the extent maps are stored in a separate table viz. comp_layout_ext_map.
-
    Key-Record structure for the tables:
 
    @subsection Layout-DB-lspec-schema-layout_entries Table layout_entries
@@ -201,22 +178,24 @@
    Table Name: layout_entries
    Key: layout_id
    Record:
-      - layout_type (PDCLUST_LINEAR | PDCLUST_LIST | COMPOSITE)
+      - layout_type_id (PDCLUST | COMPOSITE)
+      - layout_enumeration_type_id (LINEAR | LIST)
       - reference_count
-      - pdclust_linear_rec_attrs
+      - layout_rec_attrs (Used only for PDCLUST layout type with
+		   linear enumeration type.)
 
    @endverbatim
 
-   For PDCLUST_LINEAR layout type, the pdclust_linear_rec_attrs
-   contains N (number of data units in the parity group) and K (number of
-   parity units in the parity groups).
+   For PDCLUST layout type with LINEAR enumeration type, the 
+   layout_rec_attrs contains N (number of data units in the parity
+   group) and K (number of parity units in the parity groups).
 
-   For PDCLUST_LIST and COMPOSITE layout types, the
-   pdclust_linear_rec_attrs field is not used.
+   For PDCLUST layout type with LIST enumeration type and for COMPOSITE
+   layout types, the  layout_rec_attrs field is not used.
 
-   @subsection Layout-DB-lspec-schema-pdclust_list_cob_lists Table pdclust_list_cob_lists
+   @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
    @verbatim
-   Table Name: pdclust_list_cob_lists
+   Table Name: cob_lists
    Key:
       - layout_id
       - cob_index
@@ -225,8 +204,8 @@
 
    @endverbatim
 
-   This table contains multiple cob identifier entries for every PDCLUST_LIST
-   type of layout.
+   This table contains multiple cob identifier entries for every PDCLUST type
+   of layout with LIST enumeration type.
 
    layout_id is a foreign key referring record, in the layout_entries table.
 
@@ -243,6 +222,9 @@
 
    @endverbatim
 
+   composite_layout_id is the layout_id for the COMPOSITE type of layout,
+   stored as key in the layout_entries table.
+ 
    layout_id is a foreign key referring record, in the layout_entries table.
 
    Layout DB uses a single c2_emap instance to implement the composite layout
@@ -393,7 +375,7 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 
    This includes the following:
    - In case of PDCLUST_LIST type of a layout record, it adds list of cob
-     ids to the pdclust_list_cob_lists table.
+     ids to the cob_lists table.
    - If case of COMPOSITE type of a layout record, it adds the
      extent map into the comp_layout_ext_map table.
 */
@@ -403,10 +385,8 @@ int c2_layout_rec_add(const struct c2_layout *l,
 {
 	/**
 	@code
-	Store layout representation in a buffer using 
-		layout->l_type->lt_ops->lto_encode()
-	Add record to the DB using
-		layout->l_type->lt_ops->lto_rec_add()
+	Store layout representation in a buffer using c2_layout_encode(). 
+	Add record to the DB using l->l_type->lt_ops->lto_rec_add().
 	@endcode
 	*/
 
@@ -431,7 +411,12 @@ int c2_layout_rec_delete(const struct c2_layout *layout,
 		struct c2_layout_schema *l_schema,
 		struct c2_db_tx *tx)
 {
-	/* Uses the function pointer layout->l_ops->l_rec_delete. */
+	/**
+	@code
+	Store layout representation in a buffer using c2_layout_encode(). 
+	Use the function l->l_type->lt_ops->lto_rec_delete.
+	@endcode
+	*/
 	return 0;
 }
 
@@ -443,7 +428,12 @@ int c2_layout_rec_update(const struct c2_layout *layout,
 		struct c2_layout_schema *l_schema,
 		struct c2_db_tx *tx)
 {
-	/* Uses the function pointer layout->l_ops->l_rec_update. */
+	/**
+	@code
+	Store layout representation in a buffer using c2_layout_encode(). 
+	Use the function l->l_type->lt_ops->lto_rec_update.
+	@endcode
+	*/ 
 	return 0;
 }
 
@@ -456,7 +446,14 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 		struct c2_db_tx *tx,
 		struct c2_layout *l_out)
 {
-	/* Uses the function pointer layout->l_ops->l_rec_lookup. */
+	/**
+	@code
+	Use the function l->l_type->lt_ops->lto_rec_update to obtain
+	the buffer including the record.
+	
+	Convert the buffer into layout using using c2_layout_decode(). 
+	@endcode
+	*/ 
 	return 0;
 }
 

@@ -32,7 +32,7 @@
 /* export */
 struct c2_layout_schema;
 struct c2_layout_rec;
-struct c2_pdclust_linear_rec_attrs;
+struct c2_layout_rec_attrs;
 
 /**
    @page Layout-DB-fspec Layout DB Functional Specification
@@ -51,7 +51,7 @@ struct c2_pdclust_linear_rec_attrs;
    @section Layout-DB-fspec-ds Data Structures
    - struct c2_layout_schema
    - struct c2_layout_rec
-   - struct c2_pdclust_linear_rec_attrs
+   - struct c2_layout_rec_attrs
 
    @todo Not sure why this enum does not link back to where it is defined!
    Need to figure out. Any inputs are welcome.
@@ -112,7 +112,7 @@ struct c2_pdclust_linear_rec_attrs;
 /**
    Attributes for PDCLUST_LINEAR type of layout record.
 */
-struct c2_pdclust_linear_rec_attrs {
+struct c2_layout_rec_attrs {
 	/** Number of data units in the parity group (N) */
 	uint32_t plra_num_of_data_units;
 	/** Number of parity units in the parity group (K) */
@@ -133,7 +133,7 @@ struct c2_layout_schema {
 	struct c2_table ls_layout_entries;
 
 	/** Table for cob lists for all PDCLUST_LIST type of layout records */
-	struct c2_table ls_pdclust_list_cob_lists;
+	struct c2_table ls_cob_lists;
 
 	/* Table for extent maps for all the COMPOSITE type of layout records */
 	struct c2_emap ls_comp_layout_ext_map;
@@ -155,7 +155,7 @@ struct c2_layout_rec {
 	struct uint32_t lr_ref_count;
 
 	/** Struct to store PDCLUST_LINEAR record type specific data */
-	struct c2_pdclust_linear_rec_attrs lr_linear_attrs;
+	struct c2_layout_rec_attrs lr_linear_attrs;
 };
 
 
@@ -209,7 +209,7 @@ static const struct c2_table_ops layout_entries_table_ops = {
 };
 
 /**
-   pdclust_list_cob_lists table
+   cob_lists table
 */
 struct layout_cob_lists_key {
 	struct c2_layout_id lclk_l_id;
@@ -221,7 +221,7 @@ struct layout_cob_lists_rec {
 };
 
 /**
-   Compare pdclust_list_cob_lists table keys
+   Compare cob_lists table keys
 */
 static int lcl_key_cmp(struct c2_table *table,
 		const void *key0,
@@ -231,9 +231,9 @@ static int lcl_key_cmp(struct c2_table *table,
 }
 
 /**
-   table_ops for pdclust_list_cob_lists table
+   table_ops for cob_lists table
 */
-static const struct c2_table_ops pdclust_list_cob_lists_table_ops = {
+static const struct c2_table_ops cob_lists_table_ops = {
 	.to = {
 		[TO_KEY] = {
 			.max_size = sizeof(struct layout_cob_lists_key)

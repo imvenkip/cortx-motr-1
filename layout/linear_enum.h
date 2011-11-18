@@ -119,9 +119,7 @@ int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
    /**
 	@code
 	Adds a layout entry into the layout_entries table.
-	Invokes enumeration type specific leto_rec_add() so as to add
-	enumberation type specific data. e.g for for list enumeration
-	type, it adds list of cob ids to the pdclust_list_cob_lists table.
+	Invokes enumeration type specific leto_rec_add().
 	@endcode
    */
 }
@@ -135,14 +133,15 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Invokes enumeration type specific leto_rec_add() so that:
-	   - In case of LIST enumeration type, if the reference count of the 
-	     layout entry is 0, delete rerevant cob id list from the
-	     pdclust_list_cob_lists table and delete layout entry from
-	     the layout_entries table in case of LIST enumeration type.
-	   - In case of LINEAR enumeration type, not to delete the layout 
-	     record from the layout_entries table, even if the reference count
-	     is 0.
+	If the enumeration type is LIST, delete the layout record
+	from the layout_ntries table if the reference count is 0.
+	And invoke enumeration type specific leto_rec_add().
+
+	If the enumeration type is LINEAR, do not delete the
+	layout record even if the reference count is 0. (PDCLUST 
+	type of layout with LINEAR enumberation type is never
+	deleted.)
+ 
 	@endcode
    */
 }
@@ -157,9 +156,7 @@ int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
    /**
 	@code
 	Updates the layout entry in the layout_entries table.
-	Invokes enumeration type specific leto_rec_update() so as to:
-	   - for LIST enumeration type, updates the relevant list of cob ids
-	     in the pdclust_list_cob_lists table.
+	Invokes enumeration type specific leto_rec_update().
 	@endcode
    */
 }
@@ -176,14 +173,10 @@ int pdclust_rec_lookup(const struct c2_layout_id l_id,
 	@code
    	Obtains the layout record with the specified layout id, from the
 	layout_entries table.
-	Invoke layout enumeration type specific leto_rec_lookup so that:
-	   - For LIST enumeration type, obtains the relevant list of cob
-	     ids from the pdclust_list_cob_lists table.
+	Invoke layout enumeration type specific leto_rec_lookup.
 	@endcode
    */
 }
-
-
 
 
 extern const struct c2_layout_enum_type c2_layout_linear_enum_type;

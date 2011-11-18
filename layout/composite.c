@@ -35,7 +35,10 @@ static int composite_decode(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Read composite layout type specific fields.
+	Allocate new layout as an instance of c2_composite_layout that
+	embeds c2_layout.
+
+	Read composite layout type specific fields from the buffer.
 	Based on the layout-enumeration type, call respective leto_decode(). 
    	@endcode
    */
@@ -109,7 +112,7 @@ int composite_rec_update(const struct c2_bufvec_cursor *l_rec,
 }
 
 /**
-   Implementation of l_rec_lookup for COMPOSITE layout type.
+   Implementation of lto_rec_lookup for COMPOSITE layout type.
 */
 int composite_lookup(const struct c2_layout_id l_id,
 		struct c2_layout_schema *l_schema,

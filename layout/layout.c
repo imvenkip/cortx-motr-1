@@ -60,11 +60,6 @@ int c2_layout_decode(const struct c2_bufvec_cursor *cur,
 	Read generic fields from the buffer like layout id, layout
 	type id, enumeration type id, ref counter, enumeration description.
 
-	Now that the layout type id is known, create an instance of the 
-	layout-type specific data-type that embeds the c2_layout.
- 
-	Set c2_layout::l_ops.
-
 	Now call corresponding lto_decode() so as to continue
 	decoding the layout type specific fields.
 	@endcode

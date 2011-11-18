@@ -57,7 +57,7 @@ int list_rec_add(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Add list of cob ids to the pdclust_list_cob_lists table.
+	Add list of cob ids to the cob_lists table.
 	@endcode
    */
 }
@@ -71,9 +71,8 @@ int list_rec_delete(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	If the reference count of the layout entry is 0, delete rerevant
-	cob id list from the pdclust_list_cob_lists table and delete 
-	layout entry from the layout_entries table.
+	Delete relevant cob id list from the cob_lists
+	table.
 	@endcode
    */
 }
@@ -88,7 +87,7 @@ int list_rec_update(const struct c2_bufvec_cursor *cur,
    /**
    @code
 	Update the relevant list of cob ids in the 
-	pdclust_list_cob_lists table.
+	cob_lists table.
    @endcode
    */
 }
@@ -104,7 +103,7 @@ int list_rec_lookup(const struct c2_layout_id l_id,
    /**
    @code
 	Obtain the relevant list of cob ids from the 
-	pdclust_list_cob_lists table.
+	cob_lists table.
    @endcode
    */
 }
