@@ -61,15 +61,6 @@ struct c2_cob_domain;
 struct c2_cob_domain_id;
 
 /**
-  Unique component object identifier.
-
-  A component object in a cluster is identified by identifier of this type.
-*/
-struct c2_cob_id {
-	struct c2_uint128 ci_bits;
-};
-
-/**
   Unique cob domain identifier.
 
   A cob_domain identifier distinguishes domains within a single
