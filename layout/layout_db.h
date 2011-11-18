@@ -59,10 +59,10 @@ struct c2_layout_rec_attrs;
    @section Layout-DB-fspec-sub Subroutines
    - int c2_layout_schema_init(struct c2_layout_schema *l_schema)
    - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
-   - int c2_layout_rec_add(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
-   - int c2_layout_rec_delete(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
-   - int c2_layout_rec_update(const struct c2_layout *l, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx)
-   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, const struct c2_layout_schema *l_schema, const struct c2_db_tx *tx, struct c2_layout_rec *l_rec_out);
+   - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
+   - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
+   - int c2_layout_rec_update(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
+   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, const struct c2_layout_schema *l_schema, struct c2_db_tx *tx, c2_layout_rec *l_rec_out);
 
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 
@@ -124,6 +124,8 @@ struct c2_layout_rec_attrs {
    In-memory data structure for the layout schema.
    It includes pointers to all the DB tables and various related
    parameters.
+   @todo Add one table each to store layout type to layout description
+   mappings and enumeration type to enumeration description mappings.
 */
 struct c2_layout_schema {
 	/** Layout DB environment */
@@ -162,18 +164,18 @@ struct c2_layout_rec {
 int c2_layout_schema_init(struct c2_layout_schema *l_schema);
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema);
 int c2_layout_rec_add(const struct c2_layout *layout,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx);
+		      struct c2_layout_schema *l_schema,
+		      struct c2_db_tx *tx);
 int c2_layout_rec_delete(const struct c2_layout *layout,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx);
+		      struct c2_layout_schema *l_schema,
+		      struct c2_db_tx *tx);
 int c2_layout_rec_update(const struct c2_layout *layout,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx);
+		      struct c2_layout_schema *l_schema,
+		      struct c2_db_tx *tx);
 int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx,
-		struct c2_layout_rec *l_recrec_out);
+		      struct c2_layout_schema *l_schema,
+		      struct c2_db_tx *tx,
+		      struct c2_layout_rec *l_recrec_out);
 /**
    @} LayoutDBDFS end group
 */

@@ -88,6 +88,8 @@
    - The Layout DB module provides support for storing layouts with multiple
      layout types.
    - It provides support to store composite layout maps.
+   - It is required that for adding a layout type or layout enumeration type,
+     central layout/layout.h should not require modifications.
 
    <hr>
    @section Layout-DB-lspec Logical Specification
@@ -182,7 +184,7 @@
       - layout_enumeration_type_id (LINEAR | LIST)
       - reference_count
       - layout_rec_attrs (Used only for PDCLUST layout type with
-		   linear enumeration type.)
+		   LINEAR enumeration type.)
 
    @endverbatim
 
@@ -350,9 +352,12 @@ static bool layout_db_rec_invariant(const struct c2_layout_rec *l)
 */
 int c2_layout_schema_init(struct c2_layout_schema *l_schema)
 {
-	/* Uses the DB interface c2_dbenv_init() and c2_table_init() to
-	intialize the DB env and the tables respectively. */
-
+   /**
+	@code
+	Use the DB interface c2_dbenv_init() and c2_table_init() to
+	intialize the DB env and the tables respectively.
+	@endcode
+   */
 	return 0;
 }
 
@@ -362,8 +367,12 @@ int c2_layout_schema_init(struct c2_layout_schema *l_schema)
 */
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 {
-	/* Uses the DB interface c2_table_fini() and c2_dbenv_fini() to
-	de-intialize the DB tables and tables respectively. */
+   /*
+	@code
+	Uses the DB interface c2_table_fini() and c2_dbenv_fini() to
+	de-intialize the DB tables and tables respectively.
+	@endcode
+   */
 
 	return;
 }
@@ -372,23 +381,17 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
    Adds a new layout record entry into the layout_entries table.
    If applicable, adds information related to this layout, into the relevant
    tables.
-
-   This includes the following:
-   - In case of PDCLUST_LIST type of a layout record, it adds list of cob
-     ids to the cob_lists table.
-   - If case of COMPOSITE type of a layout record, it adds the
-     extent map into the comp_layout_ext_map table.
 */
 int c2_layout_rec_add(const struct c2_layout *l,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx)
+		      struct c2_layout_schema *l_schema,
+		      struct c2_db_tx *tx)
 {
-	/**
+   /**
 	@code
 	Store layout representation in a buffer using c2_layout_encode(). 
 	Add record to the DB using l->l_type->lt_ops->lto_rec_add().
 	@endcode
-	*/
+   */
 
 	return 0;
 }
@@ -408,15 +411,15 @@ int c2_layout_rec_add(const struct c2_layout *l,
    this API returns failure.
 */
 int c2_layout_rec_delete(const struct c2_layout *layout,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx)
+			 struct c2_layout_schema *l_schema,
+			 struct c2_db_tx *tx)
 {
-	/**
+   /**
 	@code
 	Store layout representation in a buffer using c2_layout_encode(). 
 	Use the function l->l_type->lt_ops->lto_rec_delete.
 	@endcode
-	*/
+   */
 	return 0;
 }
 
@@ -425,15 +428,15 @@ int c2_layout_rec_delete(const struct c2_layout *layout,
    relevant tables.
 */
 int c2_layout_rec_update(const struct c2_layout *layout,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx)
+			 struct c2_layout_schema *l_schema,
+			 struct c2_db_tx *tx)
 {
-	/**
+   /**
 	@code
 	Store layout representation in a buffer using c2_layout_encode(). 
 	Use the function l->l_type->lt_ops->lto_rec_update.
 	@endcode
-	*/ 
+   */ 
 	return 0;
 }
 
@@ -442,18 +445,18 @@ int c2_layout_rec_update(const struct c2_layout *layout,
    information from the relevant tables.
 */
 int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx,
-		struct c2_layout *l_out)
+			 struct c2_layout_schema *l_schema,
+			 struct c2_db_tx *tx,
+			 struct c2_layout *l_out)
 {
-	/**
+   /**
 	@code
 	Use the function l->l_type->lt_ops->lto_rec_update to obtain
 	the buffer including the record.
 	
 	Convert the buffer into layout using using c2_layout_decode(). 
 	@endcode
-	*/ 
+   */ 
 	return 0;
 }
 

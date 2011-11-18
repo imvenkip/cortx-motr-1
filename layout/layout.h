@@ -194,8 +194,8 @@ struct c2_layout_enum_ops {
 	    @pre nr < e->l_enum_ops->leo_ne(e)
 	*/
 	void (*leo_get)(const struct c2_layout_enum *e, 
-		       uint32_t nr,
-		       struct c2_fid *fid_out);
+			uint32_t nr,
+			struct c2_fid *fid_out);
 };
 
 

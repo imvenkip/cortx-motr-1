@@ -31,7 +31,7 @@
    to create the layout.
 */
 static int composite_decode(const struct c2_bufvec_cursor *cur,
-		          struct c2_layout **l_out)
+			    struct c2_layout **l_out)
 {
    /**
 	@code
@@ -50,16 +50,15 @@ static int composite_decode(const struct c2_bufvec_cursor *cur,
    Stores layout representation in the buffer.
 */
 static int composite_encode(const struct c2_layout *l,
-		          struct c2_bufvec_cursor *cur_out)
+			    struct c2_bufvec_cursor *cur_out)
 {
    /**
-   @code
-	Store composite layout type specific fields like N, K into the buffer.
+	@code
+	Store composite layout type specific fields like into the buffer.
 
 	Based on the layout-enumeration type, call respective leto_encode(). 
-   @endcode
+	@endcode
    */
-
 	return 0;
 }
 
@@ -70,8 +69,8 @@ static int composite_encode(const struct c2_layout *l,
    Adds the relevant extent map into the comp_layout_ext_map table.
 */
 int composite_rec_add(const struct c2_bufvec_cursor *cur,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx)
+		      struct c2_layout_schema *l_schema,
+		      struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -79,6 +78,7 @@ int composite_rec_add(const struct c2_bufvec_cursor *cur,
 	Adds the relevant extent map into the comp_layout_ext_map table.
 	@endcode
    */
+	return 0;
 }
 
 /**
@@ -94,6 +94,7 @@ int composite_rec_delete(const struct c2_bufvec_cursor *cur,
 	Deletes the relevant extent map from the comp_layout_ext_map table.
 	@endcode	
    */
+	return 0;
 }
 
 /**
@@ -109,6 +110,7 @@ int composite_rec_update(const struct c2_bufvec_cursor *l_rec,
 	Updates the relevant extent map in the comp_layout_ext_map table.
 	@endcode
    */
+	return 0;
 }
 
 /**
@@ -125,6 +127,7 @@ int composite_lookup(const struct c2_layout_id l_id,
 	Obtains the relevant extent map from the comp_layout_ext_map table.
 	@endcode
    */
+	return 0;
 }
 
 

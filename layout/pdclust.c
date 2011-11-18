@@ -469,13 +469,13 @@ static int pdclust_decode(const struct c2_bufvec_cursor *cur,
 		          struct c2_layout **l_out)
 {
    /**
-   @code
+	@code
 	Allocate new layout as an instance of c2_pdclust_layout that
 	embeds c2_layout.
 
 	Read pdclust layout type specific fields from the buffer.
 	Based on the layout-enumeration type, call respective leto_decode(). 
-   @endcode
+	@endcode
    */
 
 	return 0;
@@ -489,13 +489,12 @@ static int pdclust_encode(const struct c2_layout *l,
 		          struct c2_bufvec_cursor *cur_out)
 {
    /**
-   @code
+	@code
 	Store pdclust layout type specific fields into the buffer.
 
 	Based on the layout-enumeration type, call respective leto_encode(). 
-   @endcode
+	@endcode
    */
-
 	return 0;
 }
 
@@ -504,8 +503,8 @@ static int pdclust_encode(const struct c2_layout *l,
    Implementation of lto_rec_add for PDCLUST layout type.
 */
 int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx)
+		    struct c2_layout_schema *l_schema,
+		    struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -515,14 +514,15 @@ int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
 	     to the cob_lists table.
 	@endcode
    */
+	return 0;
 }
 
 /**
    Implementation of lto_rec_delete for PDCLUST layout type.
 */
 int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx)
+		       struct c2_layout_schema *l_schema,
+		       struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -533,14 +533,15 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
 	     the layout_entries table in case of LIST enumeration type.
 	@endcode
    */
+	return 0;
 }
 
 /**
    Implementation of lto_rec_update for PDCLUST layout type.
 */
 int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx)
+		       struct c2_layout_schema *l_schema,
+		       struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -550,15 +551,16 @@ int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
 	     in the cob_lists table.
 	@endcode
    */
+	return 0;
 }
 
 /**
    Implementation of lto_rec_lookup for PDCLUST layout type.
 */
 int pdclust_rec_lookup(const struct c2_layout_id l_id,
-		struct c2_layout_schema *l_schema,
-		struct c2_db_tx *tx,
-		struct c2_bufvec_cursor *cur)
+		       struct c2_layout_schema *l_schema,
+		       struct c2_db_tx *tx,
+		       struct c2_bufvec_cursor *cur)
 {
    /**
 	@code
@@ -569,6 +571,7 @@ int pdclust_rec_lookup(const struct c2_layout_id l_id,
 	     ids from the cob_lists table.
 	@endcode
    */
+	return 0;
 }
 
 static const struct c2_layout_type_ops pdclust_type_ops = {

@@ -34,10 +34,12 @@
 static int layout_list_enum_encode(const struct c2_layout *l,
                                      c2_bufvec_curser *cur)
 {
-   @code
+   /**
+	@code
         Read list enumeration type specific fields like list of
 	component object identifiers.
-   @endcode
+	@endcode
+   */
 }
 
 /** 

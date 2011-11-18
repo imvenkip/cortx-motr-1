@@ -32,9 +32,11 @@
 static int layout_linear_enum_decode(const struct c2_bufvec_curser *cur,
 				     struct c2_layout **out)
 {
-   @code
+   /**
+	@code
 	Read linear enumeration type specific fields like formula.
-   @endcode
+	@endcode
+   */
 }
 
 /** 
@@ -43,9 +45,11 @@ static int layout_linear_enum_decode(const struct c2_bufvec_curser *cur,
 static int layout_linear_enum_encode(const struct c2_layout *l, 
 				     c2_bufvec_curser *cur)
 {
-   @code
+   /**
+	@code
 	Read linear enumeration type specific fields like formula.
-   @endcode
+	@endcode
+   */
 }
 
 static const struct c2_layout_enum_type_ops lin_ops = {
