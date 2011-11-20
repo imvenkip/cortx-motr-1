@@ -532,7 +532,7 @@ scope __AUN void name ## _tlist_invariant_ext(const struct c2_tl *list, \
 					      void *), void *datum)		\
 {									\
 	c2_tlist_invariant_ext(&name ## _tl, list,                      \
-	(bool (*)(void *))check, datum);				\
+			 (bool (*)(const void *, void *))check, datum);	\
 }									\
 									\
 scope __AUN bool   name ## _tlist_is_empty(const struct c2_tl *list)	\

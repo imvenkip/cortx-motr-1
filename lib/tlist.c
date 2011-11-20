@@ -253,12 +253,12 @@ C2_EXPORTED(c2_tlist_invariant);
 
 bool c2_tlist_invariant_ext(const struct c2_tl_descr *d,
 			    const struct c2_tl *list,
-			    bool (*check)(const void *), void *datum)
+			    bool (*check)(const void *, void *), void *datum)
 {
 	if (c2_tlist_invariant(d, list)) {
 		void *obj;
 
-		c2_tlist_for(d, list, obj) {
+		c2_tlist_for(d, (struct c2_tl *)list, obj) {
 			if (!check(obj, datum))
 				return false;
 		} c2_tlist_endfor;
