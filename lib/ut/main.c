@@ -22,8 +22,6 @@
 
 /* sort test suites in alphabetic order */
 extern void test_atomic(void);
-extern void test_aptr(void);
-extern void test_aqueue(void);
 extern void test_bitmap(void);
 extern void test_chan(void);
 extern void test_getopts(void);
@@ -46,8 +44,6 @@ const struct c2_test_suite libc2_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-//  		{ "aptr",      test_aptr      },
-// 		{ "aqueue",    test_aqueue    },
 // 		{ "atomic",    test_atomic    },
 // 		{ "bitmap",    test_bitmap    },
 // 		{ "chan",      test_chan      },
