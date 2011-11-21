@@ -675,8 +675,6 @@ void c2_timer_fini(struct c2_timer *timer)
 		timer_hard_fini(timer);
 
 	C2_SET0(timer);
-
-	return;
 }
 C2_EXPORTED(c2_timer_fini);
 
