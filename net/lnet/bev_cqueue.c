@@ -47,6 +47,8 @@
    The circular queue provides a data structure and interfaces to manage a
    lock-free queue for a single producer and consumer.  The producer and
    consumer can be in different address spaces with the queue in shared memory.
+   The circular queue is designed to specifically meet the needs of the
+   @ref KLNetCoreDLD "Core API".
 
    The queue implementation does not address how the consumer gets notified that
    queue elements have been produced. That functionality is provided separately
@@ -75,6 +77,8 @@
    @section cqueueDLD-highlights Design Highlights
 
    - A data structure representing a circular queue.
+   - The circular queue efficiently delivers event notifications from the
+   LNet Transport Kernel Core layer to the LNet transport layer.
    - Handles atomic access to elements in the queue for a single producer and
    consumer.
    - Handles dynamically adding new elements to the circular queue.
