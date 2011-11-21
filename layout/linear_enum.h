@@ -72,9 +72,9 @@ struct c2_layout_linear_parameter_type {
 };
 
 
-/** 
+/**
    Implementation of lto_decode() for pdclust layout type.
-   Continues to decode layout representation stored in the buffer and 
+   Continues to decode layout representation stored in the buffer and
    to create the layout.
 */
 static int pdclust_decode(const struct c2_bufvec_cursor *cur,
@@ -83,14 +83,14 @@ static int pdclust_decode(const struct c2_bufvec_cursor *cur,
    /**
    @code
 	Read pdclust layout type specific fields from the buffer.
-	Based on the layout-enumeration type, call respective leto_decode(). 
+	Based on the layout-enumeration type, call respective leto_decode().
    @endcode
    */
 
 	return 0;
 }
 
-/** 
+/**
    Implementation of lto_encode() for pdclust layout type.
    Stores layout representation in the buffer.
 */
@@ -101,7 +101,7 @@ static int pdclust_encode(const struct c2_layout *l,
    @code
 	Store pdclust layout type specific fields like N, K into the buffer.
 
-	Based on the layout-enumeration type, call respective leto_encode(). 
+	Based on the layout-enumeration type, call respective leto_encode().
    @endcode
    */
 
@@ -138,10 +138,10 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
 	And invoke enumeration type specific leto_rec_add().
 
 	If the enumeration type is LINEAR, do not delete the
-	layout record even if the reference count is 0. (PDCLUST 
+	layout record even if the reference count is 0. (PDCLUST
 	type of layout with LINEAR enumberation type is never
 	deleted.)
- 
+
 	@endcode
    */
 }
@@ -171,7 +171,7 @@ int pdclust_rec_lookup(const struct c2_layout_id l_id,
 {
    /**
 	@code
-   	Obtains the layout record with the specified layout id, from the
+	Obtains the layout record with the specified layout id, from the
 	layout_entries table.
 	Invoke layout enumeration type specific leto_rec_lookup.
 	@endcode

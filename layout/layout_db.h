@@ -170,7 +170,7 @@ int c2_layout_rec_add(const struct c2_layout *layout,
 		      struct c2_layout_schema *l_schema,
 		      struct c2_db_tx *tx);
 int c2_layout_rec_delete(const struct c2_layout *layout,
-		 	 struct c2_layout_schema *l_schema,
+			 struct c2_layout_schema *l_schema,
 			 struct c2_db_tx *tx);
 int c2_layout_rec_update(const struct c2_layout *layout,
 			 struct c2_layout_schema *l_schema,
@@ -227,7 +227,7 @@ struct layout_cob_lists_rec {
 };
 
 /**
-   Compare cob_lists table keys. 
+   Compare cob_lists table keys.
    This is a 3WAY comparison.
 */
 static int lcl_key_cmp(struct c2_table *table,

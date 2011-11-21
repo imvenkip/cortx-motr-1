@@ -25,7 +25,7 @@
    @{
 */
 
-/** 
+/**
    Implementation of lto_decode() for composite layout type.
    Continues to decode layout representation stored in the buffer and
    to create the layout.
@@ -40,7 +40,7 @@ static int composite_decode(const struct c2_bufvec_cursor *cur,
 
 	Read composite layout type specific fields from the buffer.
 	Based on the layout-enumeration type, call respective leto_decode().
-   	@endcode
+	@endcode
    */
 	return 0;
 }

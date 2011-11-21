@@ -108,7 +108,7 @@
 
    @subsection Layout-DB-lspec-comps Component Overview
    The following diagram shows the internal components of the Layout module.
-   
+
    @todo Would like to reverse the positions of the "Layout DB" and the
    "Layout" components but not able to achieve it at least as of now! Any
    inputs are welcome.
@@ -162,8 +162,8 @@
      process. Parity declustering is to keep rebuild overhead low by
      striping a file over more servers or drives than there are units in
      the parity group. The PDCLUST type of layout either uses a formula
-     or a list to enumerate the COB identifiers. This forms two types of 
-     enumeration mthods as mentioned below: 
+     or a list to enumerate the COB identifiers. This forms two types of
+     enumeration mthods as mentioned below:
       - LINEAR <BR>
         A layout with LINEAR enumeration type uses a formula to enumerate
         all its COB identifiers.
@@ -459,7 +459,7 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 	@code
 	Use the function l->l_type->lt_ops->lto_rec_update to obtain
 	the buffer including the record.
-	
+
 	Convert the buffer into layout using using c2_layout_decode().
 	@endcode
    */

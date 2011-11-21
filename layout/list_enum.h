@@ -47,7 +47,7 @@ struct c2_layout_list_enum {
 
 	/** tlist of COB identifiers
 	   @todo Add tlist of cob identifiers here
-	*/ 
+	*/
 };
 
 

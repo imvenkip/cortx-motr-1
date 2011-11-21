@@ -65,7 +65,7 @@ struct c2_layout_type {
 	/** Layout type id.
 	    This is stored on the persistent store and is passed across
 	    the network to identify layout types.
- 	*/
+	*/
 	uint32_t                          lt_id;
 
 	const struct c2_layout_type_ops  *lt_ops;
@@ -108,7 +108,7 @@ struct c2_layout_type_ops {
 	int (*lto_rec_update)(const struct c2_bufvec_cursor *cur,
 			      struct c2_layout_schema *l_schema,
 			      struct c2_db_tx *tx);
-	
+
 	/** Locates a layout entry and its related information from the
 	    relevant tables from the layout schema.
 	*/

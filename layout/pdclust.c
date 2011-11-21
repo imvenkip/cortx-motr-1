@@ -460,9 +460,9 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 }
 C2_EXPORTED(c2_pdclust_unit_classify);
 
-/** 
+/**
    Implementation of lto_decode() for pdclust layout type.
-   Continues to decode layout representation stored in the buffer and 
+   Continues to decode layout representation stored in the buffer and
    to create the layout.
 */
 static int pdclust_decode(const struct c2_bufvec_cursor *cur,
@@ -474,14 +474,14 @@ static int pdclust_decode(const struct c2_bufvec_cursor *cur,
 	embeds c2_layout.
 
 	Read pdclust layout type specific fields from the buffer.
-	Based on the layout-enumeration type, call respective leto_decode(). 
+	Based on the layout-enumeration type, call respective leto_decode().
 	@endcode
    */
 
 	return 0;
 }
 
-/** 
+/**
    Implementation of lto_encode() for pdclust layout type.
    Stores layout representation in the buffer.
 */
@@ -492,7 +492,7 @@ static int pdclust_encode(const struct c2_layout *l,
 	@code
 	Store pdclust layout type specific fields into the buffer.
 
-	Based on the layout-enumeration type, call respective leto_encode(). 
+	Based on the layout-enumeration type, call respective leto_encode().
 	@endcode
    */
 	return 0;
@@ -527,7 +527,7 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
    /**
 	@code
 	Invokes enumeration type specific leto_rec_add() so that:
-	   - In case of LIST enumeration type, if the reference count of the 
+	   - In case of LIST enumeration type, if the reference count of the
 	     layout entry is 0, delete rerevant cob id list from the
 	     cob_lists table and delete layout entry from
 	     the layout_entries table in case of LIST enumeration type.
@@ -564,7 +564,7 @@ int pdclust_rec_lookup(const struct c2_layout_id l_id,
 {
    /**
 	@code
-   	Obtains the layout record with the specified layout id, from the
+	Obtains the layout record with the specified layout id, from the
 	layout_entries table.
 	Invoke layout enumeration type specific leto_rec_lookup so that:
 	   - For LIST enumeration type, obtains the relevant list of cob
@@ -582,7 +582,7 @@ static const struct c2_layout_type_ops pdclust_type_ops = {
 
 const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_name  = "pdclust",
-	.lt_ops   = &pdclust_type_ops 
+	.lt_ops   = &pdclust_type_ops
 };
 
 static const struct c2_layout_formula_ops nkp_ops = {

@@ -42,7 +42,7 @@ static int layout_list_enum_encode(const struct c2_layout *l,
    */
 }
 
-/** 
+/**
    Implementation of leto_decode() for list enumeration type.
 */
 static int layout_list_enum_decode(const struct c2_layout *l,
@@ -88,7 +88,7 @@ int list_rec_update(const struct c2_bufvec_cursor *cur,
 {
    /**
    @code
-	Update the relevant list of cob ids in the 
+	Update the relevant list of cob ids in the
 	cob_lists table.
    @endcode
    */
@@ -104,7 +104,7 @@ int list_rec_lookup(const struct c2_layout_id l_id,
 {
    /**
    @code
-	Obtain the relevant list of cob ids from the 
+	Obtain the relevant list of cob ids from the
 	cob_lists table.
    @endcode
    */
@@ -112,7 +112,7 @@ int list_rec_lookup(const struct c2_layout_id l_id,
 
 static const struct c2_layout_enum_type_ops list_ops = {
 	.leto_decode = layout_type_list_decode,
-	.leto_encode = layout_type_list_encode 
+	.leto_encode = layout_type_list_encode
 };
 
 const struct c2_layout_enum_type c2_layout_list_enum_type = {

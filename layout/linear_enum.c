@@ -26,7 +26,7 @@
    @{
 */
 
-/** 
+/**
    Implementation of leto_decode() for linear enumeration type.
 */
 static int layout_linear_enum_decode(const struct c2_bufvec_curser *cur,
@@ -39,10 +39,10 @@ static int layout_linear_enum_decode(const struct c2_bufvec_curser *cur,
    */
 }
 
-/** 
+/**
    Implementation of leto_encode() for linear enumeration type.
 */
-static int layout_linear_enum_encode(const struct c2_layout *l, 
+static int layout_linear_enum_encode(const struct c2_layout *l,
 				     c2_bufvec_curser *cur)
 {
    /**
@@ -54,7 +54,7 @@ static int layout_linear_enum_encode(const struct c2_layout *l,
 
 static const struct c2_layout_enum_type_ops lin_ops = {
 	.leto_decode = layout_linear_enum_decode,
-	.leto_encode = layout_linear_enum__encode 
+	.leto_encode = layout_linear_enum__encode
 };
 
 const struct c2_layout_enum_type c2_layout_linear_enum_type = {
