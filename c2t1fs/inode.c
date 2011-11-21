@@ -1,13 +1,10 @@
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/fs.h>
-#include <linux/mount.h>
+#include <linux/slab.h> /* kmem_cache */
 
-#include "layout/pdclust.h"
+#include "layout/pdclust.h" /* c2_pdclust_build(), c2_pdclust_fini() */
+#include "pool/pool.h" /* c2_pool_init(), c2_pool_fini() */
+#include "lib/misc.h"  /* C2_SET0() */
+#include "lib/memory.h" /* C2_ALLOC_PTR(), c2_free */
 #include "c2t1fs/c2t1fs.h"
-#include "pool/pool.h"
-#include "lib/misc.h"
-#include "lib/memory.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);

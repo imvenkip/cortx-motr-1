@@ -1,6 +1,5 @@
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/fs.h>
 
 #include "c2t1fs/c2t1fs.h"
 

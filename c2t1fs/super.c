@@ -1,12 +1,10 @@
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/fs.h>
 #include <linux/mount.h>
-#include <linux/parser.h>
+#include <linux/parser.h> /* substring_t */
+#include <linux/slab.h> /* kmalloc(), kfree() */
 
+#include "lib/misc.h"  /* C2_SET0() */
+#include "lib/memory.h" /* C2_ALLOC_PTR(), c2_free() */
 #include "c2t1fs/c2t1fs.h"
-#include "lib/misc.h"
-#include "lib/memory.h"
 
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 

@@ -2,14 +2,11 @@
 #define __COLIBRI_C2T1FS_H
 
 #include <linux/fs.h>
-#include <linux/slab.h>
 
-#include "fid/fid.h"
+#include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "lib/assert.h"
-#include "net/net.h"
+#include "net/net.h"    /* c2_net_domain */
 #include "rpc/rpccore.h"
-#include "lib/list.h"
 
 /**
   @defgroup c2t1fs c2t1fs

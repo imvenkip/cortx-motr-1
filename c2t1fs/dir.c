@@ -1,10 +1,5 @@
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/fs.h>
-#include <linux/mount.h>
-
 #include "c2t1fs/c2t1fs.h"
-#include "lib/misc.h"
+#include "lib/misc.h"   /* C2_SET0() */
 
 static int c2t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,

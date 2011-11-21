@@ -1,16 +1,9 @@
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/fs.h>
-#include <linux/mount.h>
-#include <linux/string.h>
-#include <asm/uaccess.h>
-#include <linux/uio.h>
-#include <linux/mm.h>
+#include <asm/uaccess.h> /* VERIFY_READ, VERIFY_WRITE */
+#include <linux/mm.h> /* get_user_pages(), get_page(), put_page() */
 
-#include "lib/memory.h"
-#include "lib/tlist.h"
+#include "lib/memory.h" /* c2_alloc(), c2_free() */
+#include "layout/pdclust.h" /* PUT_* */
 #include "c2t1fs/c2t1fs.h"
-#include "layout/pdclust.h"
 
 ssize_t c2t1fs_file_read(struct file *filp,
 			 char __user *buf,
