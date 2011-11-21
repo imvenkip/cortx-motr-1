@@ -410,7 +410,7 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
 		c2_layout_init(&pdl->pl_layout);
 		pdl->pl_layout.l_type    = &c2_pdclust_layout_type;
-		
+
 		/** @todo Change the following to use fields from c2_layout_list_enum */
 		//pdl->pl_layout.l_form    = NULL;
 		//pdl->pl_layout.l_actuals = NULL;

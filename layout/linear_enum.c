@@ -36,9 +36,9 @@ static int layout_linear_enum_decode(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Read linear enumeration type specific fields like formula 
+	Read linear enumeration type specific fields like formula
 	from the buffer.
-	
+
 	@endcode
    */
 	return 0;
@@ -64,7 +64,7 @@ static int layout_linear_enum_encode(const struct c2_layout *l,
    lto_rec_update and lto_rec_lookup unless we want to store
    attributes (applicable only for PDCLIUST type of layout
    with LINEAR enumeration type) in a table different than
-   layout_entries. 
+   layout_entries.
 */
 
 
@@ -85,12 +85,13 @@ static const struct c2_layout_linear_formula_ops nkp_ops = {
 	.llinfo_subst = NULL
 };
 
-/** @todo
+/**
+   @todo define value for llinf_id
+*/ 
 const struct c2_layout_linear_formula c2_linear_formula = {
-	.llinf_id   = 5678 todo
+	.llinf_id   = 5678,
 	.llinf_ops  = &nkp_ops
 };
-*/
 
 /** @} end of group linear_enum */
 

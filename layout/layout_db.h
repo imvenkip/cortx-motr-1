@@ -158,7 +158,7 @@ struct c2_layout_rec {
 	this layout */
 	uint64_t lr_ref_count;
 
-	/** Struct to store record attributes, currently used for PDCLUST 
+	/** Struct to store record attributes, currently used for PDCLUST
 	    layout type */
 	struct c2_layout_rec_attrs lr_linear_attrs;
 };

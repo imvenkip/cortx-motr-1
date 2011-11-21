@@ -166,7 +166,7 @@ static const struct c2_layout_type_ops composite_type_ops = {
    /** @todo Define value for lt_id */
 const struct c2_layout_type c2_composite_layout_type = {
 	.lt_name  = "composite",
-	.lt_id    = 1234,  
+	.lt_id    = 1234,
 	.lt_ops   = &composite_type_ops
 };
 
