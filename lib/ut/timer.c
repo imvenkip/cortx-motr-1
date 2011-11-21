@@ -31,13 +31,25 @@
 #include <signal.h>
 #include <sys/syscall.h>
 
+enum {
+	MANY_TICKS = 1000,
+	NR_TIMERS = 10,
+	NR_TICKS = 10
+};
+
 static int count = 0;
 static int verbose = 0;
 
 static volatile bool oneshot_finished;
 static volatile unsigned long oneshot_data;
 static volatile int oneshot_iterations;
+static int oneshot_iterations_max;
 static volatile pid_t oneshot_tid;
+
+static volatile bool many_finished[NR_TIMERS];
+static volatile unsigned long many_data[NR_TIMERS];
+static volatile int many_iterations[NR_TIMERS];
+static volatile pid_t many_pids[NR_TIMERS];
 
 unsigned long tick(unsigned long data)
 {
@@ -206,11 +218,12 @@ static unsigned long oneshot_callback(unsigned long data)
 	oneshot_data = data;
 	oneshot_tid = gettid();
 	oneshot_iterations++;
-	oneshot_finished = true;
+	if (oneshot_iterations == oneshot_iterations_max)
+		oneshot_finished = true;
 	return 0;
 }
 
-static void test_timer_oneshot()
+static void test_timer_oneshot(int iter_max)
 {
 	struct c2_timer timer;
 	struct c2_timer_locality loc;
@@ -220,9 +233,11 @@ static void test_timer_oneshot()
 
 	C2_UT_ASSERT(c2_timer_locality_init(&loc) == 0);
 	c2_time_set(&one_ms, 0, 1000000);
+	oneshot_iterations_max = iter_max;
 	rc = c2_timer_init(&timer, C2_TIMER_HARD, one_ms,
-			1, &oneshot_callback, 42);
+			iter_max, &oneshot_callback, 42);
 	C2_ASSERT(rc == 0);
+	c2_timer_thread_attach(&loc);
 	c2_timer_attach(&timer, &loc);
 
 	oneshot_finished = false;
@@ -231,20 +246,75 @@ static void test_timer_oneshot()
 	oneshot_iterations = 0;
 	c2_timer_start(&timer);
 	while (!oneshot_finished)
-		;
+		c2_nanosleep(one_ms, NULL);
 	c2_timer_stop(&timer);
 	C2_UT_ASSERT(oneshot_data == 42);
 	C2_UT_ASSERT(oneshot_tid == gettid());
-	C2_UT_ASSERT(oneshot_iterations == 1);
+	C2_UT_ASSERT(oneshot_iterations == oneshot_iterations_max);
 	
 	c2_timer_fini(&timer);
+	c2_timer_locality_fini(&loc);
+}
+
+static unsigned long many_callback(unsigned long data)
+{
+	// printf("%lu\n", data);
+	C2_ASSERT(data >= 0 && data < NR_TIMERS);
+	C2_ASSERT(many_pids[data] == gettid());
+	if (++many_iterations[data] == NR_TICKS)
+		many_finished[data] = true;
+	return 0;
+}
+
+static void test_timer_many_timers()
+{
+	int i;
+	int rc;
+	static struct c2_timer timer[NR_TIMERS];
+	struct c2_timer_locality loc;
+	c2_time_t interval;
+	c2_time_t one_ms;
+
+	for (i = 0; i < NR_TIMERS; ++i) {
+		many_finished[i] = false;
+		many_iterations[i] = 0;
+		many_pids[i] = gettid();
+	}
+
+	C2_UT_ASSERT(c2_timer_locality_init(&loc) == 0);
+	c2_timer_thread_attach(&loc);
+	c2_time_set(&interval, 0, 10000000);
+	c2_time_set(&one_ms, 0, 1000000);
+
+	for (i = 0; i < NR_TIMERS; ++i) {
+		rc = c2_timer_init(&timer[i], C2_TIMER_HARD, interval,
+				NR_TICKS, &many_callback, i);
+		C2_ASSERT(rc == 0);
+		c2_timer_attach(&timer[i], &loc);
+	}
+
+	for (i = 0; i < NR_TIMERS; ++i)
+		c2_timer_start(&timer[i]);
+
+	for (i = 0; i < NR_TIMERS; ++i) {
+		while (!many_finished[i])
+			c2_nanosleep(one_ms, NULL);
+	}
+
+	for (i = 0; i < NR_TIMERS; ++i)
+		c2_timer_fini(&timer[i]);
+
+	for (i = 0; i < NR_TIMERS; ++i)
+		C2_UT_ASSERT(many_iterations[i] == NR_TICKS);
 	c2_timer_locality_fini(&loc);
 }
 
 void test_timer_hard(void)
 {
 	test_timer_locality();
-	test_timer_oneshot();
+	test_timer_oneshot(1);
+	test_timer_oneshot(MANY_TICKS);
+	test_timer_many_timers();
 }
 
 void test_timer(void)
