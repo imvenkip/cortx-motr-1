@@ -79,8 +79,6 @@
 # include "linux_kernel/fop_kernel.h"
 #endif
 
-//#include "rpc/rpc_base.h"
-
 extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
 
 struct c2_fop_memlayout;

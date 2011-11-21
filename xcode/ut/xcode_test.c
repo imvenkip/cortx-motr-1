@@ -258,7 +258,6 @@ const struct c2_test_suite xcode_bufvec_ut = {
         }
 };
 
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

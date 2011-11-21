@@ -434,10 +434,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 			item = c2_fop_to_rpc_item(rfop);
 			c2_rpc_item_init(item);
 			item->ri_type = &rfop->f_type->ft_rpc_item_type;
-			//item->ri_type = &cs_ds1_rep_fop_rpc_item_type;
 			item->ri_group = NULL;
-			//rfop->f_type->ft_ri_type = &cs_ds1_rep_fop_rpc_item_type;
-
 			repfop->csr_rc = reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;
@@ -458,11 +455,8 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 			repfop = c2_fop_data(rfop);
 			item = c2_fop_to_rpc_item(rfop);
 			c2_rpc_item_init(item);
-			//item->ri_type = &cs_ds2_rep_fop_rpc_item_type;
 			item->ri_type = &rfop->f_type->ft_rpc_item_type;
 			item->ri_group = NULL;
-			//rfop->f_type->ft_ri_type = &cs_ds2_rep_fop_rpc_item_type;
-
 			repfop->csr_rc = reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;

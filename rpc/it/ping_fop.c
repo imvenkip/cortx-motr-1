@@ -38,7 +38,6 @@
 #include "lib/errno.h"
 #include "rpc/rpccore.h"
 #include "fop/fop_onwire.h"
-//#include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
 /* Init for ping reply fom */

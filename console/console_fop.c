@@ -151,25 +151,6 @@ C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
 		     C2_RPC_ITEM_TYPE_REPLY,
 		     &default_item_type_ops);
 
-#if 0
-/**
- * FOP definitions for disk and device failure fop and its reply
- */
-C2_FOP_TYPE_DECLARE_NEW(c2_cons_fop_disk, "Disk Failed",
-			C2_CONS_FOP_DISK_OPCODE,
-                        &c2_cons_fop_disk_ops,
-                        &c2_rpc_item_cons_disk);
-
-C2_FOP_TYPE_DECLARE_NEW(c2_cons_fop_device, "Device Failed",
-			C2_CONS_FOP_DEVICE_OPCODE,
-                        &c2_cons_fop_device_ops,
-                        &c2_rpc_item_cons_device);
-
-C2_FOP_TYPE_DECLARE_NEW(c2_cons_fop_reply, "Console Reply",
-			C2_CONS_FOP_REPLY_OPCODE,
-			&c2_cons_fop_reply_ops,
-                        &c2_rpc_item_cons_reply);
-#endif
 C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test",
 		     NULL,
                      C2_CONS_TEST,

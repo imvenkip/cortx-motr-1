@@ -31,6 +31,7 @@
 #include "fop/fop_format_def.h"
 #include "rpc/rpc_base.h"
 #include "rpc/rpc_opcodes.h"
+
 #ifdef __KERNEL__
 #include <linux/highmem.h> /* kmap_atomic, kunmap_atomic */
 #include "net/ksunrpc/ksunrpc.h"
