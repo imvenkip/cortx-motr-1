@@ -42,9 +42,6 @@
    @li Hard timer has better resolution and is driven by signal. The
     user-defined callback should take short time, should never block
     at any time and should be async-signal-safe (see signal(7)).
-    Any thread that use hard timer should never use timer_create(2)
-    or timer_delete(2) function, because they are used in the signal
-    handler and they are not async-signal-safe.
    @li Soft timer creates separate thread to execute the user-defined
     callback for each timer. So the overhead is bigger than hard timer.
     The user-defined callback execution may take longer time and it will
