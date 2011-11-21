@@ -43,7 +43,7 @@
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "colibri/init.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/rpclib.h"
 #include "dtm/dtm.h"
 

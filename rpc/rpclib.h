@@ -22,7 +22,7 @@
 #define __COLIBRI_RPC_RPC_LIB_H__
 
 #include "lib/types.h"
-#include "rpc/rpccore.h" /* struct c2_rpcmachine, c2_rpc_item */
+#include "rpc/rpc2.h" /* struct c2_rpcmachine, c2_rpc_item */
 #include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */

@@ -28,7 +28,7 @@
 #include "fop/fop_format.h"
 #include "rpc/ut/test_u.h"
 #include "rpc/ut/test.ff"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "fop/fop_base.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"

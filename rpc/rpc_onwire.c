@@ -105,7 +105,7 @@ static int rpc_header_decode(struct c2_bufvec_cursor *cur, uint32_t *item_count,
 }
 
 /** Helper functions to serialize uuid and slot references in rpc item header
-    see rpc/rpccore.h */
+    see rpc/rpc2.h */
 
 static int sender_uuid_encdec(struct c2_bufvec_cursor *cur,
 			      struct c2_rpc_sender_uuid *uuid,

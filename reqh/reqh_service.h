@@ -23,7 +23,7 @@
 
 #include "lib/list.h"
 #include "net/net.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 /**
    @addtogroup reqh

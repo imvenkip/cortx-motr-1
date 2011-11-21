@@ -34,7 +34,7 @@
 #include "fop/fom.h"
 #include "fop/fop_iterator.h"
 
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
