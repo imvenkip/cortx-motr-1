@@ -39,15 +39,10 @@ struct c2_db_tx;
 
 /* export */
 struct c2_layout_id;
-struct c2_layout_formula;
-struct c2_layout_parameter;
-struct c2_layout_parameter_type;
 struct c2_layout;
 struct c2_layout_ops;
 struct c2_layout_type;
 
-struct c2_layout_ops;
-struct c2_layout_formula_ops;
 
 /** Unique layout id */
 struct c2_layout_id {
@@ -66,7 +61,7 @@ struct c2_layout_type {
 	    This is stored on the persistent store and is passed across
 	    the network to identify layout types.
 	*/
-	uint32_t                          lt_id;
+	uint64_t                          lt_id;
 
 	const struct c2_layout_type_ops  *lt_ops;
 };
@@ -142,7 +137,7 @@ struct c2_layout_enum_type {
 	    This is stored on the persistent store and is pased across
 	    the network to identify the layout enumeration type.
 	*/
-	uint32_t			      let_id;
+	uint64_t			      let_id;
 	const struct c2_layout_enum_type_ops *let_ops;
 };
 

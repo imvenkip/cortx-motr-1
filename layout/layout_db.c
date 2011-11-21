@@ -338,7 +338,7 @@
 */
 
 /** Invariant for c2_layout_rec */
-static bool layout_db_rec_invariant(const struct c2_layout_rec *l)
+static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_layout_rec *l)
 {
 	return true;
 }

@@ -46,8 +46,9 @@ struct c2_composite_layout {
 	struct c2_layout             cl_layout;
 
 	/** typed list (tlist) of sub-layouts owned by this composite layout,
-	    along with layout ids for those sub-layouts */
-	@todo Add tlist of sub-layouts here
+	    along with layout ids for those sub-layouts.
+
+	    @todo Add tlist of sub-layouts here
 	*/
 
 };

@@ -38,8 +38,9 @@ static int composite_decode(const struct c2_bufvec_cursor *cur,
 	Allocate new layout as an instance of c2_composite_layout that
 	embeds c2_layout.
 
-	Read composite layout type specific fields from the buffer.
-	Based on the layout-enumeration type, call respective leto_decode().
+	Read composite layout type specific fields from the buffer
+	like information of sub-layouts and store it in the c2_layout
+	structure.
 	@endcode
    */
 	return 0;
@@ -54,16 +55,15 @@ static int composite_encode(const struct c2_layout *l,
 {
    /**
 	@code
-	Store composite layout type specific fields like into the buffer.
-
-	Based on the layout-enumeration type, call respective leto_encode().
+	Store composite layout type specific fields like information
+	about the sub-layouts, into the buffer.
 	@endcode
    */
 	return 0;
 }
 
 
-**
+/**
    Implementation of lto_rec_add for COMPOSITE layout type.
    Adds the layout entry into the layout_entries table.
    Adds the relevant extent map into the comp_layout_ext_map table.
@@ -74,8 +74,13 @@ int composite_rec_add(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Adds a layout entry into the layout_entries table.
-	Adds the relevant extent map into the comp_layout_ext_map table.
+	Form c2_db_pair by using the data from the buffer.
+	Add a layout entry into the layout_entries table.
+	Add the relevant extent map into the comp_layout_ext_map table.
+
+	If any of the segments uses a composite layout again, add the
+        extent map for that composite layout as well.
+	Note: This means calling composite_rec_add() recursively.
 	@endcode
    */
 	return 0;
@@ -90,8 +95,14 @@ int composite_rec_delete(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Deletes the layout entry from the table layout_entries.
-	Deletes the relevant extent map from the comp_layout_ext_map table.
+	Form c2_db_pair by using the data from the buffer.
+	Delete the layout entry from the table layout_entries.
+	Delete the relevant extent map from the comp_layout_ext_map table,
+	if an only if its reference count is 0.
+
+	If any of the segments uses a composite layout again, delete the
+        extent map for that composite layout as well.
+	Note: This means calling composite_rec_delete() recursively.
 	@endcode
    */
 	return 0;
@@ -106,8 +117,13 @@ int composite_rec_update(const struct c2_bufvec_cursor *l_rec,
 {
    /**
 	@code
-	Updates the layout entry in the layout_entries table.
-	Updates the relevant extent map in the comp_layout_ext_map table.
+	Form c2_db_pair by using the data from the buffer.
+	Update the layout entry in the layout_entries table.
+	Update the relevant extent map in the comp_layout_ext_map table.
+
+	If any of the segments uses a composite layout again, update the
+        extent map for that composite layout as well.
+	Note: This means calling composite_rec_update() recursively.
 	@endcode
    */
 	return 0;
@@ -116,15 +132,20 @@ int composite_rec_update(const struct c2_bufvec_cursor *l_rec,
 /**
    Implementation of lto_rec_lookup for COMPOSITE layout type.
 */
-int composite_lookup(const struct c2_layout_id l_id,
+int composite_rec_lookup(const struct c2_layout_id *l_id,
 		struct c2_layout_schema *l_schema,
 		struct c2_db_tx *tx,
 		struct c2_bufvec_cursor *cur)
 {
    /**
 	@code
-	Obtains the layout entry from the layout_entries table.
-	Obtains the relevant extent map from the comp_layout_ext_map table.
+	Form c2_db_pair by using the data from the buffer.
+	Obtain the layout entry from the layout_entries table.
+	Obtain the relevant extent map from the comp_layout_ext_map table.
+
+	If any of the segments uses a composite layout again, obtain the
+        extent map for that composite layout as well.
+	Note: This means calling composite_rec_lookup() recursively.
 	@endcode
    */
 	return 0;
@@ -132,13 +153,20 @@ int composite_lookup(const struct c2_layout_id l_id,
 
 
 static const struct c2_layout_type_ops composite_type_ops = {
-	.lt_equal  = composite_equal,
-	.lt_decode = composite_decode,
-	.lt_encode = composite_encode
+	.lto_equal      = NULL, 
+	.lto_decode     = composite_decode,
+	.lto_encode     = composite_encode,
+	.lto_rec_add    = composite_rec_add,
+	.lto_rec_delete = composite_rec_delete,
+	.lto_rec_update = composite_rec_update,
+	.lto_rec_lookup = composite_rec_lookup,
 };
 
+
+   /** @todo Define value for lt_id */
 const struct c2_layout_type c2_composite_layout_type = {
 	.lt_name  = "composite",
+	.lt_id    = 1234,  
 	.lt_ops   = &composite_type_ops
 };
 

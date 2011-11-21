@@ -110,8 +110,7 @@ struct c2_layout_rec_attrs;
 */
 
 /**
-   Attributes for a layout record. e.g. in case of PDCLUST layout type, these
-   attributes happen to be N and K.
+   Attributes for a layout record. e.g. Required in case of PDCLUST layout type.
 */
 struct c2_layout_rec_attrs {
 	/** Number of data units in the parity group (N) */
@@ -146,20 +145,21 @@ struct c2_layout_schema {
 
 /**
    layout_entries table
-   Key is c2_layout_id.
+   Key is c2_layout_id, same as c2_layout::l_id.
 */
 struct c2_layout_rec {
-	/** Layout type id, same as c2_layout::l_id */
-	uint32_t lr_lt_id;
+	/** Layout type id, same as c2_layout_type::lt_id */
+	uint64_t lr_lt_id;
 
-	/** Layout enumeration type id, same as c2_layout_type::lt_id */
-	uint32_t lr_let_id;
+	/** Layout enumeration type id, same as c2_layout_enum_type::let_id */
+	uint64_t lr_let_id;
 
 	/** Layout record reference count indicating number of files using
 	this layout */
-	uint32_t lr_ref_count;
+	uint64_t lr_ref_count;
 
-	/** Struct to store PDCLUST_LINEAR record type specific data */
+	/** Struct to store record attributes, currently used for PDCLUST 
+	    layout type */
 	struct c2_layout_rec_attrs lr_linear_attrs;
 };
 
@@ -178,7 +178,7 @@ int c2_layout_rec_update(const struct c2_layout *layout,
 int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 			 struct c2_layout_schema *l_schema,
 			 struct c2_db_tx *tx,
-			 struct c2_layout_rec *l_recrec_out);
+			 struct c2_layout *l_recrec_out);
 /**
    @} LayoutDBDFS end group
 */

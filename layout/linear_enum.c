@@ -18,7 +18,7 @@
  * Original creation date: 11/16/2011
  */
 
-#include "layout/linear_enum.h""
+#include "layout/linear_enum.h"
 
 /**
    @addtogroup linear_enum
@@ -28,33 +28,53 @@
 
 /**
    Implementation of leto_decode() for linear enumeration type.
+   Continues to decode layout representation stored in the buffer and
+   to create the layout.
 */
-static int layout_linear_enum_decode(const struct c2_bufvec_curser *cur,
+static int layout_linear_enum_decode(const struct c2_bufvec_cursor *cur,
 				     struct c2_layout **out)
 {
    /**
 	@code
-	Read linear enumeration type specific fields like formula.
+	Read linear enumeration type specific fields like formula 
+	from the buffer.
+	
 	@endcode
    */
+	return 0;
 }
 
 /**
    Implementation of leto_encode() for linear enumeration type.
+   Continues to store layout representation in the buffer.
 */
 static int layout_linear_enum_encode(const struct c2_layout *l,
-				     c2_bufvec_curser *cur)
+				     struct c2_bufvec_cursor *cur)
 {
    /**
 	@code
 	Read linear enumeration type specific fields like formula.
 	@endcode
    */
+	return 0;
 }
 
+/**
+   Do not need functions like linear_rec_add, lto_rec_delete,
+   lto_rec_update and lto_rec_lookup unless we want to store
+   attributes (applicable only for PDCLIUST type of layout
+   with LINEAR enumeration type) in a table different than
+   layout_entries. 
+*/
+
+
 static const struct c2_layout_enum_type_ops lin_ops = {
-	.leto_decode = layout_linear_enum_decode,
-	.leto_encode = layout_linear_enum__encode
+	.leto_decode     = layout_linear_enum_decode,
+	.leto_encode     = layout_linear_enum_encode,
+	.leto_rec_add    = NULL,
+	.leto_rec_delete = NULL,
+	.leto_rec_update = NULL,
+	.leto_rec_lookup = NULL,
 };
 
 const struct c2_layout_enum_type c2_layout_linear_enum_type = {
@@ -62,16 +82,15 @@ const struct c2_layout_enum_type c2_layout_linear_enum_type = {
 };
 
 static const struct c2_layout_linear_formula_ops nkp_ops = {
-	.llinfo_subst = layout_linear_substitute
+	.llinfo_subst = NULL
 };
 
+/** @todo
 const struct c2_layout_linear_formula c2_linear_formula = {
-	.lf_type = &c2_pdclust_layout_type,
-	.lf_id   = { .u_hi = 0x5041524954594445, /* PARITYDE */
-		     .u_lo = 0x434c55535445522e  /* CLUSTER. */
-	},
-	.lf_ops  = &nkp_ops
+	.llinf_id   = 5678 todo
+	.llinf_ops  = &nkp_ops
 };
+*/
 
 /** @} end of group linear_enum */
 
