@@ -94,6 +94,13 @@
    The Xyratex Lustre source package must be installed on the build
    machine (RPM @c lustre-source version 2.0 or greater).
    - <b>Xyratex Lustre run time</b>
+   - @b r.c2.lib.atomic.interoperable-kernel-user-support The @ref LNetcqueueDLD
+   "Buffer Event Circular Queue" provides a shared data structure for
+   efficiently passing event notifications from the Core layer to the LNet
+   transport layer.
+   - @b r.net.xprt.lnet.growable-event-queue The @ref LNetcqueueDLD
+   "Buffer Event Circular Queue" provides a way to expand the event queue as new
+   buffers are queued with a transfer machine, ensuring no events are lost.
 
    <hr>
    @section KLNetCoreDLD-highlights Design Highlights
