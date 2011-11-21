@@ -139,6 +139,10 @@ pid_t gettid() {
 int c2_timer_locality_init(struct c2_timer_locality *loc)
 {
 	C2_ASSERT(loc != NULL);
+
+	if (c2_timer_locality_count() == c2_timer_locality_max())
+		return -1;
+
 	c2_atomic64_inc(&loc_count);
 
 	c2_mutex_init(&loc->tlo_lock);
