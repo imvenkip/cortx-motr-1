@@ -261,7 +261,8 @@ out_err:
 	return ERR_PTR(-EIO);
 }
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P)
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
+				uint64_t unit_size)
 {
 	struct c2_uint128  layout_id;
 	struct c2_uint128  seed;
@@ -293,7 +294,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P)
 	if (rc != 0)
 		goto out_fini;
 
-	ci->ci_unit_size = C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
+	ci->ci_unit_size = unit_size;
 
 	END(0);
 	return 0;

@@ -85,15 +85,18 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out;
 
-	csb->csb_nr_containers = mntopts->mo_nr_containers ?:
+	csb->csb_nr_containers   = mntopts->mo_nr_containers ?:
 					C2T1FS_DEFAULT_NR_CONTAINERS;
-	csb->csb_nr_data_units = mntopts->mo_nr_data_units ?:
+	csb->csb_nr_data_units   = mntopts->mo_nr_data_units ?:
 					C2T1FS_DEFAULT_NR_DATA_UNITS;
 	csb->csb_nr_parity_units = mntopts->mo_nr_parity_units ?:
 					C2T1FS_DEFAULT_NR_PARITY_UNITS;
+	csb->csb_unit_size       = mntopts->mo_unit_size ?:
+					C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
 
-	TRACE("P = %d, N = %d, K = %d\n", csb->csb_nr_containers,
-			csb->csb_nr_data_units, csb->csb_nr_parity_units);
+	TRACE("P = %d, N = %d, K = %d unit_size %d\n", csb->csb_nr_containers,
+			csb->csb_nr_data_units, csb->csb_nr_parity_units,
+			csb->csb_unit_size);
 
 	/* P >= N + 2 * K ??*/
 	if (csb->csb_nr_containers < csb->csb_nr_data_units +
@@ -209,6 +212,7 @@ enum {
 	C2T1FS_MNTOPT_NR_CONTAINERS,
 	C2T1FS_MNTOPT_NR_DATA_UNITS,
 	C2T1FS_MNTOPT_NR_PARITY_UNITS,
+	C2T1FS_MNTOPT_UNIT_SIZE,
 	C2T1FS_MNTOPT_ERR,
 };
 
@@ -220,6 +224,7 @@ static const match_table_t c2t1fs_mntopt_tokens = {
 	{ C2T1FS_MNTOPT_NR_CONTAINERS,   "nr_containers=%s" },
 	{ C2T1FS_MNTOPT_NR_DATA_UNITS,   "nr_data_units=%s" },
 	{ C2T1FS_MNTOPT_NR_PARITY_UNITS, "nr_parity_units=%s" },
+	{ C2T1FS_MNTOPT_UNIT_SIZE,       "unit_size=%s" },
 	{ C2T1FS_MNTOPT_ERR,              NULL },
 };
 
@@ -255,8 +260,23 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 static int c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts)
 {
 	START();
+
+	if (mnt_opts->mo_nr_ios_ep <= 0) {
+		TRACE("ERROR: Must specify at least one io-service endpoint\n");
+		goto invalid;
+	}
+
+	if ((mnt_opts->mo_unit_size & (PAGE_SIZE - 1)) != 0) {
+		TRACE("ERROR: Stripe unit size must be page aligned\n");
+		goto invalid;
+	}
+
 	END(0);
 	return 0;
+
+invalid:
+	END(-EINVAL);
+	return -EINVAL;
 }
 
 static int c2t1fs_mnt_opts_parse(char                   *options,
@@ -374,10 +394,25 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			mnt_opts->mo_nr_parity_units = nr;
 			break;
 
+		case C2T1FS_MNTOPT_UNIT_SIZE:
+			value = match_strdup(args);
+			if (value == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			rc = strict_strtoul(value, 10, &nr);
+			kfree(value);
+			if (rc != 0)
+				goto out;
+			TRACE("unit_size = %lu\n", nr);
+			mnt_opts->mo_unit_size = nr;
+			break;
+
 		default:
 			TRACE("Unrecognized option: %s\n", op);
 			TRACE("Supported options: mgs,mds,ios,profile,"
-			      "nr_containers,nr_data_units,nr_parity_units\n");
+			      "nr_containers,nr_data_units,nr_parity_units,"
+			      "unit_size\n");
 			rc = -EINVAL;
 			goto out;
 		}
@@ -385,9 +420,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 	rc = c2t1fs_mnt_opts_validate(mnt_opts);
 
 out:
-	if (rc != 0)
-		c2t1fs_mnt_opts_fini(mnt_opts);
-
+	/* if rc != 0, mnt_opts will be finalised from c2t1fs_sb_fini() */
 	END(rc);
 	return rc;
 }

@@ -58,13 +58,14 @@
       nr_containers >= nr_data_units + 2 * nr_parity_units. (2 to account for
       nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
 
-   stripe unit size is not taken as mount option. Instead it is always set to
-   C2T1FS_DEFAULT_STRIPE_UNIT_SIZE (=4K).
+  - unit_size [value type: number ]
+      Size of each stripe unit. Optional parameter. Default value is
+      C2T1FS_DEFAULT_STRIPE_UNIT_SIZE (=PAGE_SIZE).
 
    'device' argument of mount command is ignored.
 
    c2t1fs supports following operations:
-   - Creating upto C2T1FS_MAX_NR_DIR_ENTS number of regular files
+   - Creating up to C2T1FS_MAX_NR_DIR_ENTS number of regular files
    - Remove a regular file
    - Listing files in root directory
 
@@ -208,6 +209,7 @@ struct c2t1fs_mnt_opts
 	int   mo_nr_containers; /* P */
 	int   mo_nr_data_units; /* N */
 	int   mo_nr_parity_units; /* K */
+	int   mo_unit_size;
 };
 
 enum c2t1fs_service_type {
@@ -301,6 +303,9 @@ struct c2t1fs_sb
 	/** Number of parity units per group. K */
 	int                    csb_nr_parity_units;
 
+	/** Stripe unit size */
+	int                    csb_unit_size;
+
 	struct c2t1fs_container_location_map csb_cl_map;
 
 	/** magic = C2T1FS_SUPER_MAGIC */
@@ -383,7 +388,8 @@ extern struct inode_operations c2t1fs_reg_inode_operations;
 
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void c2t1fs_destroy_inode(struct inode *inode);
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P);
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
+				uint64_t unit_size);
 
 void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 				 struct c2t1fs_sb              *csb,

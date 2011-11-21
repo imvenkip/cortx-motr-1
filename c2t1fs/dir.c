@@ -23,7 +23,6 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
 static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci);
 int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid);
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P);
 
 struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,
@@ -88,7 +87,8 @@ static int c2t1fs_create(struct inode     *dir,
 
 	rc = c2t1fs_inode_layout_init(ci, csb->csb_nr_data_units,
 					  csb->csb_nr_parity_units,
-					  csb->csb_nr_containers);
+					  csb->csb_nr_containers,
+					  csb->csb_unit_size);
 	if (rc != 0)
 		goto out;
 
