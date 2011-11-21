@@ -19,8 +19,10 @@
  * Original creation date: 03/04/2011
  */
 
-// FIXME hack, but without it timer_create(2) isn't declarated.
-// in Makefile should be -iquote instead of -I
+/**
+   @todo hack, but without it timer_create(2) isn't declarated.
+   in Makefile should be -iquote instead of -I
+ */
 #include </usr/include/time.h>	  /* timer_create */
 
 #include "lib/misc.h"   /* C2_SET0 */
@@ -576,7 +578,7 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 			break;
 		timer->t_expire = c2_time_add(timer->t_expire, timer->t_interval);
 		timer->t_callback(timer->t_data);
-		/* FIXME
+		/** @todo
 		 * race condition problem here
 		 * if between (timer->t_left == 0) and (--timer->t_left == 0)
 		 * executed timer->t_left = 0; from c2_timer_stop()
