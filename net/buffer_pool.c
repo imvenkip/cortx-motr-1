@@ -176,8 +176,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	struct c2_net_buffer *nb;
 
 	C2_PRE(pool != NULL);
-	if (colour != ~0)
-		C2_PRE(colour < pool->nbp_colours_nr);
+	C2_PRE(colour == ~0 || colour < pool->nbp_colours_nr);
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 	if (pool->nbp_free <= 0)
@@ -203,8 +202,7 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 			    struct c2_net_buffer *buf, uint32_t colour)
 {
 	C2_PRE(pool != NULL);
-	if (colour != ~0)
-		C2_PRE(colour < pool->nbp_colours_nr);
+	C2_PRE(colour == ~0 || colour < pool->nbp_colours_nr);
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 	C2_PRE(buf != NULL);

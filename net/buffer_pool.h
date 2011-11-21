@@ -190,7 +190,7 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
    list is not empty then the buffer is taken from the head of this list.
    Otherwise the buffer is taken from the head of the per buffer pool list.
    @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour < pool->nbp_colours_nr
+   @pre colour == ~0 || colour < pool->nbp_colours_nr
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
  */
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
@@ -200,6 +200,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
    Puts the buffer back to the pool.
    If the colour is specfied then the buffer is put at the head of corresponding   coloured list and also put at the tail of the global list.
    @pre c2_net_buffer_pool_is_locked(pool)
+   @pre colour == ~0 || colour < pool->nbp_colours_nr
    @pre pool->nbp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
         !(buf->nb_flags & C2_NET_BUF_IN_USE)

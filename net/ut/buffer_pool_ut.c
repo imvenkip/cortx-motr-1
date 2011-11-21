@@ -26,8 +26,6 @@
 #include "lib/misc.h"  /* C2_SET0 */
 #include "lib/thread.h"/* C2_THREAD_INIT */
 #include "net/bulk_sunrpc.h"
-#include <unistd.h>
-#include <stdio.h>
 #include "net/buffer_pool.h"
 
 void notempty(struct c2_net_buffer_pool *bp);
