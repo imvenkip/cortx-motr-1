@@ -43,9 +43,6 @@
 
    <hr>
    @section cqueueDLD-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
 
    The circular queue provides a data structure and interfaces to manage a
    lock-free queue for a single producer and consumer.  The producer and
@@ -57,39 +54,25 @@
 
    <hr>
    @section cqueueDLD-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
 
    Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
    <hr>
    @section cqueueDLD-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
 
-   - <b>r.c2.lib.atomic.interoperable-kernel-user-support</b> The
+   - @b r.c2.lib.atomic.interoperable-kernel-user-support The
    implementation shall provide a queue that supports atomic,
    interoperable sharing between kernel to user-space.
-   - <b>r.net.xprt.lnet.growable-event-queue</b> The implementation shall
+   - @b r.net.xprt.lnet.growable-event-queue The implementation shall
    support an event queue to which new elements can be added over time.
 
    <hr>
    @section cqueueDLD-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
 
    - The @ref atomic API.
 
    <hr>
    @section cqueueDLD-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
 
    - A data structure representing a circular queue.
    - Handles atomic access to elements in the queue for a single producer and
@@ -98,13 +81,6 @@
 
    <hr>
    @section cqueueDLD-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
 
    - @ref cqueueDLD-lspec-comps
    - @ref cqueueDLD-lspec-q
@@ -115,10 +91,6 @@
    - @ref cqueueDLD-lspec-numa
 
    @subsection cqueueDLD-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
 
    The circular queue is a single component.
 
@@ -208,14 +180,14 @@
    represented by the nlx_core_bev_link data structure:
    @code
    struct nlx_core_bev_link {
+            // Self pointer in the transport address space.
             nlx_core_opaque_ptr_t cbl_c_self;
-                   // Self pointer in the transport address space.
+            // Self pointer in the kernel address space.
             nlx_core_opaque_ptr_t cbl_p_self;
-                   // Self pointer in the kernel address space.
+            // Pointer to the next element in the consumer address space.
             nlx_core_opaque_ptr_t cbl_c_next;
-                   // Pointer to the next element in the consumer address space.
+            // Pointer to the next element in the producer address space.
             nlx_core_opaque_ptr_t cbl_p_next;
-                   // Pointer to the next element in the producer address space.
    };
    @endcode
    The data structure maintains separate "opaque" pointer fields for the
@@ -232,27 +204,36 @@
    operations on the queue only modify the @c consumer and @c producer pointers.
 
    The data structure also contains "self" pointers for each address
-   space. These pointers pointers permit comparison against the queue head's @c
+   space. These pointers permit comparison against the queue head's @c
    consumer and @c producer pointer values from the producer and consumer
    address spaces respectively. For example, the abstract check
 
    @code
-   	q->producer != q->consumer
+       q->producer != q->consumer
    @endcode
 
    performed in producer space is actually implemented as
 
    @code
-   	q->cbcq_producer->cbl_c_self != q->cbcq_consumer
+       pq->cbcq_producer->cbl_c_self != pq->cbcq_consumer
    @endcode
 
-   Note that this check is safe in producer space because only the producer
-   changes the value of the @c producer pointer.  The equivalent safe call in
-   consumer space would be:
+   Here, the @c pq pointer itself is the pointer to the shared
+   nlx_core_bev_cqueue object in the producer address space.  This pointer is
+   made known to the producer when the queue is created (e.g. when the transport
+   allocates the queue, it passes the transport space pointer to the object to
+   the producer which maps that memory into the producer address space).  Note
+   that this check is safe in producer space because only the producer changes
+   the value of the @c producer pointer and the @c pq pointer is never changed
+   after the queue object is allocated.  The equivalent safe call in consumer
+   space would be:
 
    @code
-   	q->consumer->cbl_p_self != q->cbcq_producer
+       cq->cbcq_consumer->cbl_p_self != cq->cbcq_producer
    @endcode
+
+   In this case, the @c cq pointer refers to the same queue object in shared
+   memory, but this pointer is in the consumer's address space.
 
    @subsection cqueueDLD-lspec-qalloc Circular Queue Allocation
 
@@ -302,7 +283,7 @@
    <tt> producer == consumer </tt>.
 
    This means the queue can @b safely be expanded at the location of the @c
-   consumer pointer (i.e. <em>in the consumer address space,</em>), without
+   consumer pointer (i.e. in the consumer address space), without
    affecting the producer.  Elements are added as follows:
 
    -# Allocate and initialize a new queue element (referred to as @c newnode)
@@ -383,13 +364,13 @@
        ordering=out;
        node [shape=plaintext];
        "element list";
-       node1 [shape=box];
        node2 [shape=box];
        newnode [shape=box];
-       "element list" -> node1 [style=invis];
-       node1 -> newnode [label=next];
+       node1 [shape=box];
+       "element list" -> newnode [style=invis];
        newnode -> node2 [label=next];
        node2 -> node1 [label=next];
+       node1 -> newnode [label=next];
    }
    nlx_core_bev_cqueue -> "element list" [style=invis];
    struct1:f0 -> newnode;
@@ -399,9 +380,6 @@
 
 
    @subsection cqueueDLD-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
 
    The circular queue can be in one of 3 states:
    - empty: This is the initial state and the queue returns to this state
@@ -422,11 +400,6 @@
    consumer (transport) space.
 
    @subsection cqueueDLD-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
 
    A single producer and consumer are supported.  Atomic variables,
    @c consumer and @c producer, represent the range of elements in the queue
@@ -442,54 +415,41 @@
    mutex when it calls bev_cqueue_get().
 
    @subsection cqueueDLD-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
 
    None.
 
    <hr>
    @section cqueueDLD-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref cqueueDLD-req
-   section, and explains briefly how the DLD meets the requirement.</i>
 
-   - <b>i.c2.lib.atomic.interoperable-kernel-user-support</b> The
+   - @b i.c2.lib.atomic.interoperable-kernel-user-support The
    nlx_core_bev_link data structure allows for tracking the pointers to the
    link in both address spaces.  The atomic operations allow the FIFO to be
    produced and consumed simultaneously in both spaces without synchronization
    or context switches.
 
-   - <b>i.net.xprt.lnet.growable-event-queue</b> The implementation supports
+   - @b i.net.xprt.lnet.growable-event-queue The implementation supports
    an event queue to which new elements can be added over time.
 
    <hr>
    @section cqueueDLD-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
 
    The following cases will be tested by unit tests:
-   - initializing a queue of minimum size 2
-   - successfully producing an element in a slot
-   - successfully consuming an element from a slot
-   - failing to consume a slot because the queue is empty
-   - initializing a queue of larger size
-   - repeating the producing and consuming tests
-   - concurrently producing and consuming elements
+   @test initializing a queue of minimum size 2
+   @test successfully producing an element in a slot
+   @test successfully consuming an element from a slot
+   @test failing to consume a slot because the queue is empty
+   @test initializing a queue of larger size
+   @test repeating the producing and consuming tests
+   @test concurrently producing and consuming elements
 
    <hr>
    @section cqueueDLD-st System Tests
-   <i>Mandatory.
-   This section describes the system testing done, if applicable.</i>
 
    System testing will include tests where the producer and consumer are
    in separate address spaces.
 
    <hr>
    @section cqueueDLD-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
 
    The circular queue (the struct nlx_core_bev_cqueue) consumes fixed size
    memory, independent of the size of the elements contains the queue's data.
@@ -500,9 +460,6 @@
 
    <hr>
    @section cqueueDLD-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
@@ -510,10 +467,6 @@
 
 /**
    @page cqueueDLD-fspec LNet Buffer Event Queue Functional Specification
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
 
    - @ref cqueueDLD-fspec-ds
    - @ref cqueueDLD-fspec-sub
@@ -521,19 +474,11 @@
    - @ref bevcqueue "Detailed Functional Specification" <!-- Note link -->
 
    @section cqueueDLD-fspec-ds Data Structures
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and <i>brief</i> description of the
-   major externally visible data structures defined by this component.  No
-   details of the data structure are required here, just the salient
-   points.</i>
 
    The circular queue is defined by the nlx_core_bev_cqueue data
    structure.
 
    @section cqueueDLD-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
 
    Subroutines are provided to:
    - initialize and finalize the nlx_core_bev_cqueue
@@ -542,10 +487,6 @@
    @see @ref bevcqueue "Detailed Functional Specification"
 
    @section cqueueDLD-fspec-usecases Recipes
-   <i>This section could briefly explain what sequence of interface calls or
-   what program invocation flags are required to solve specific usage
-   scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.</i>
 
    The nlx_core_bev_cqueue provides atomic access to the producer and
    consumer elements in the circular queue.
@@ -654,7 +595,8 @@
 static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q);
 
 /**
-   Initialise the buffer event queue. Invoke in the consumer address space only.
+   Initialises the buffer event queue. Should be lnvoked in the consumer address
+   space only.
    @param q buffer event queue to initialise
    @param ql1 the first element in the new queue
    @param ql2 the second element in the new queue
@@ -667,7 +609,7 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 
 
 /**
-   Adds a free element to the circular buffer queue.
+   Adds a new element to the circular buffer queue.
    @param q the queue
    @param ql the element to add
  */
@@ -680,7 +622,7 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q);
 
 /**
    Test if the buffer event queue is empty.
-   @note this operation is to be used only by the consumer.  The data structures
+   @note This operation is to be used only by the consumer.  The data structures
    do not provide a pointer to the consumer element from the producer's
    perspective.
  */

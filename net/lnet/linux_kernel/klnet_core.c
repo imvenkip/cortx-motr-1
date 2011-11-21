@@ -430,13 +430,11 @@
    @code
        do {
           rc = c2_net_semaphore_timed_down(&sem, &timeout);
- 	  if (rc < 0)
- 	      break; // timed out
+          if (rc < 0)
+              break; // timed out
           while (c2_semaphore_trydown(&sem))
               ; // exhaust the semaphore
-          if (!bev_cqueue_is_empty(&q))
-              break; // loop if empty
-       } while (1);
+       } while (bev_cqueue_is_empty(&q)); // loop if empty
    @endcode
    (The C++ style comments are used because of doxygen only - they are not
    permitted by the Colibri style guide.)
@@ -597,65 +595,53 @@
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   <ol>
-
-   <li>Generally speaking, API calls within the transport address space
-   are protected by the serialization of the Colibri Networking layer,
-   typically the transfer machine mutex or the domain mutex.
-   The nlx_core_buf_match_bits_set() subroutine, for example, is fully
-   protected by the transfer machine mutex held across the c2_net_buffer_add()
-   subroutine call, so implicitly protects the match bit counter in the kernel
-   Core's per TM private data.</li>
-
-   <li>The Colibri Networking layer serialization does not always suffice, as
-   the kernel Core module has to support concurrent multiple transport
-   instances in kernel and user space.  Fortunately, the LNet API intrinsically
-   provides considerable serialization support to the Core, as transfer
-   machines are defined by the HLD to have disjoint addresses.</li>
-
-   <li>Enforcement of the disjoint address semantics are protected by the
-   kernel Core's ::nlx_kcore_mutex lock.  The nlx_core_tm_start() and
-   nlx_core_tm_stop() subroutines use this mutex internally for serialization
-   and operation on the ::nlx_kcore_tms list threaded through the kernel Core's
-   per-TM private data.</li>
-
-   <li> The kernel Core module registers a single callback subroutine with the
-   LNet EQ defined per transfer machine. LNet requires that this subroutine be
-   reentrant and non-blocking.  The circular buffer event queue accessed from
-   the callback requires a single producer, so the
-   nlx_kcore_transfer_mc::ktm_bevq_lock spin lock is used to serialize its
-   use across possible concurrent invocations.  The time spent in the lock is
-   minimal.</li>
-
-   <li>The Core API does not support callbacks to indicate completion of an
-   asynchronous buffer operation.  Instead, the transport application must
-   invoke the nlx_core_buf_event_wait() subroutine to block waiting for buffer
-   events.  Internally this call waits on the
-   nlx_kcore_transfer_mc::ktm_sem semaphore.  The semaphore is
-   incremented each time an event is added to the buffer event queue.</li>
-
-   <li>The event payload is actually delivered via a per transfer machine
-   single producer, single consumer, lock-free circular buffer event queue.
-   The only requirement for failure free operation is to ensure that there are
-   sufficient event structures pre-allocated to the queue, plus one more to
-   support the circular semantics.  Multiple events may be dequeued between
-   each call to the nlx_core_buf_event_wait() subroutine.  Each such event is
-   fetched by a call to the nlx_core_buf_event_get() subroutine, until the
-   queue is exhausted.  Note that the queue exists in memory shared between the
-   transport and the kernel Core; the transport could be in the kernel or in
-   user space.</li>
-
-   <li>The API assumes that only a single transport thread will handle event
-   processing.  This is a critical assumption in the support for multiple
-   messages in a single receive buffer, as it implicitly serializes the
-   delivery of the events associated with any given receive buffer, thus the
-   last event which unlinks the buffer is guaranteed to be delivered last.</li>
-
-   <li>LNet properly handles the race condition between the automatic unlink
-   of the MD and a call to LNetMDUnlink().</li>
-
-   </ol>
-
+   -# Generally speaking, API calls within the transport address space
+      are protected by the serialization of the Colibri Networking layer,
+      typically the transfer machine mutex or the domain mutex.
+      The nlx_core_buf_match_bits_set() subroutine, for example, is fully
+      protected by the transfer machine mutex held across the
+      c2_net_buffer_add() subroutine call, so implicitly protects the match bit
+      counter in the kernel Core's per TM private data.
+   -# The Colibri Networking layer serialization does not always suffice, as
+      the kernel Core module has to support concurrent multiple transport
+      instances in kernel and user space.  Fortunately, the LNet API
+      intrinsically provides considerable serialization support to the Core, as
+      transfer machines are defined by the HLD to have disjoint addresses.
+   -# Enforcement of the disjoint address semantics are protected by the
+      kernel Core's ::nlx_kcore_mutex lock.  The nlx_core_tm_start() and
+      nlx_core_tm_stop() subroutines use this mutex internally for serialization
+      and operation on the ::nlx_kcore_tms list threaded through the kernel
+      Core's per-TM private data.
+   -# The kernel Core module registers a single callback subroutine with the
+      LNet EQ defined per transfer machine. LNet requires that this subroutine
+      be reentrant and non-blocking.  The circular buffer event queue accessed
+      from the callback requires a single producer, so the
+      nlx_kcore_transfer_mc::ktm_bevq_lock spin lock is used to serialize its
+      use across possible concurrent invocations.  The time spent in the lock
+      is minimal.
+   -# The Core API does not support callbacks to indicate completion of an
+      asynchronous buffer operation.  Instead, the transport application must
+      invoke the nlx_core_buf_event_wait() subroutine to block waiting for
+      buffer events.  Internally this call waits on the
+      nlx_kcore_transfer_mc::ktm_sem semaphore.  The semaphore is
+      incremented each time an event is added to the buffer even437t queue.
+   -# The event payload is actually delivered via a per transfer machine
+      single producer, single consumer, lock-free circular buffer event queue.
+      The only requirement for failure free operation is to ensure that there
+      are sufficient event structures pre-allocated to the queue, plus one more
+      to support the circular semantics.  Multiple events may be dequeued
+      between each call to the nlx_core_buf_event_wait() subroutine.  Each such
+      event is fetched by a call to the nlx_core_buf_event_get() subroutine,
+      until the queue is exhausted.  Note that the queue exists in memory
+      shared between the transport and the kernel Core; the transport could be
+      in the kernel or in user space.
+   -# The API assumes that only a single transport thread will handle event
+      processing.  This is a critical assumption in the support for multiple
+      messages in a single receive buffer, as it implicitly serializes the
+      delivery of the events associated with any given receive buffer, thus the
+      last event which unlinks the buffer is guaranteed to be delivered last.
+   -# LNet properly handles the race condition between the automatic unlink
+      of the MD and a call to LNetMDUnlink().
 
    @subsection KLNetCoreDLD-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
