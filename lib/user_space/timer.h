@@ -36,9 +36,14 @@
 struct c2_timer_info;
 
 struct c2_timer_locality {
+	/**
+	   Lock for tlo_tids
+	 */
 	struct c2_mutex tlo_lock;
-	struct c2_tl tlo_tids;
-	uint64_t tlo_magic;
+	/**
+	   List of thread ID's, associated with this locality
+	 */
+	struct c2_tl	tlo_tids;
 };
 
 struct c2_timer {
