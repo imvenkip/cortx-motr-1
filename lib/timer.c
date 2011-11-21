@@ -68,33 +68,33 @@ enum TIMER_STATE {
 };
 
 struct c2_timer_info {
-	struct c2_tlink ti_linkage;
-	uint64_t ti_magic;
-	c2_time_t ti_expire;
-	c2_time_t ti_interval;
-	int ti_repeat;
-	int ti_left;
-	pid_t ti_tid;
+	struct c2_tlink	    ti_linkage;
+	uint64_t	    ti_magic;
+	c2_time_t	    ti_expire;
+	c2_time_t	    ti_interval;
+	int		    ti_repeat;
+	int		    ti_left;
+	pid_t		    ti_tid;
 	c2_timer_callback_t ti_callback;
-	long ti_data;
+	long		    ti_data;
 };
 
 struct timer_pipe {
-	int tp_pipefd[2];
+	int		   tp_pipefd[2];
 	struct c2_atomic64 tp_size;
 };
 
 struct timer_tid {
-	pid_t tt_tid;
+	pid_t		tt_tid;
 	struct c2_tlink tt_linkage;
-	uint64_t tt_magic;
+	uint64_t	tt_magic;
 };
 
 struct timer_state {
-	struct c2_tlink ts_linkage;
-	uint64_t ts_magic;
+	struct c2_tlink	      ts_linkage;
+	uint64_t	      ts_magic;
 	struct c2_timer_info *ts_tinfo;
-	enum TIMER_STATE ts_state;
+	enum TIMER_STATE      ts_state;
 };
 
 static struct c2_atomic64 loc_count;
