@@ -577,7 +577,8 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 			timer->t_expire = c2_time_add(now, timer->t_interval);
 
 		next = c2_time_sub(timer->t_expire, now);
-		while (timer->t_left > 0 && (rc = c2_nanosleep(next, &rem)) != 0) {
+		while (timer->t_left > 0 &&
+				(rc = c2_nanosleep(next, &rem)) != 0) {
 			next = rem;
 		}
 		if (timer->t_left == 0)
