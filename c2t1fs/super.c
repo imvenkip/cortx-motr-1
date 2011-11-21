@@ -289,16 +289,25 @@ static int c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts)
 {
 	START();
 
-	if (mnt_opts->mo_nr_ios_ep <= 0) {
+	if (mnt_opts->mo_nr_ios_ep == 0) {
 		TRACE("ERROR: Must specify at least one io-service endpoint\n");
 		goto invalid;
 	}
 
+	/*
+	 * Need to test, with unit size that is not multiple of page size.
+	 * Until then don't allow.
+	 */
 	if ((mnt_opts->mo_unit_size & (PAGE_SIZE - 1)) != 0) {
-		TRACE("ERROR: Stripe unit size must be page aligned\n");
+		TRACE("ERROR: Unit size must be multiple of PAGE_SIZE\n");
 		goto invalid;
 	}
 
+	/*
+	 * For simplicity, end point addresses are kept in statically allocated
+	 * array. Hence size of the array is limit on number of end-point
+	 * addresses.
+	 */
 	if (mnt_opts->mo_nr_ios_ep > MAX_NR_EP_PER_SERVICE_TYPE ||
 	    mnt_opts->mo_nr_mds_ep > MAX_NR_EP_PER_SERVICE_TYPE) {
 		TRACE("ERROR: number of endpoints must be less than %d\n",
@@ -323,6 +332,18 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 	char         *op;
 	int           token;
 	int           rc = 0;
+
+	int process_numeric_option(substring_t *substr, unsigned long *nump)
+	{
+		value = match_strdup(substr);
+		if (value == NULL)
+			return -ENOMEM;
+
+		rc = strict_strtoul(value, 10, nump);
+		kfree(value);
+		value = NULL;
+		return rc;
+	}
 
 	START();
 
@@ -388,13 +409,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			break;
 
 		case C2T1FS_MNTOPT_NR_CONTAINERS:
-			value = match_strdup(args);
-			if (value == NULL) {
-				rc = -ENOMEM;
-				goto out;
-			}
-			rc = strict_strtoul(value, 10, &nr);
-			kfree(value);
+			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
 			TRACE("nr_containers = %lu\n", nr);
@@ -402,13 +417,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			break;
 
 		case C2T1FS_MNTOPT_NR_DATA_UNITS:
-			value = match_strdup(args);
-			if (value == NULL) {
-				rc = -ENOMEM;
-				goto out;
-			}
-			rc = strict_strtoul(value, 10, &nr);
-			kfree(value);
+			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
 			TRACE("nr_data_units = %lu\n", nr);
@@ -416,13 +425,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			break;
 
 		case C2T1FS_MNTOPT_NR_PARITY_UNITS:
-			value = match_strdup(args);
-			if (value == NULL) {
-				rc = -ENOMEM;
-				goto out;
-			}
-			rc = strict_strtoul(value, 10, &nr);
-			kfree(value);
+			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
 			TRACE("nr_parity_units = %lu\n", nr);
@@ -430,13 +433,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			break;
 
 		case C2T1FS_MNTOPT_UNIT_SIZE:
-			value = match_strdup(args);
-			if (value == NULL) {
-				rc = -ENOMEM;
-				goto out;
-			}
-			rc = strict_strtoul(value, 10, &nr);
-			kfree(value);
+			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
 			TRACE("unit_size = %lu\n", nr);
