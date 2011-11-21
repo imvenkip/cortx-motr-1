@@ -262,7 +262,8 @@ static void timer_info_fini(struct c2_timer_info *tinfo)
 	}
 }
 
-static bool timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE state)
+static bool timer_state_enqueue(struct c2_timer_info *tinfo,
+		enum TIMER_STATE state)
 {
 	struct timer_state *ts;
 
