@@ -33,7 +33,7 @@
 #include "lib/thread.h" /* c2_thread */
 #include "lib/assert.h" /* C2_ASSERT */
 #include "lib/atomic.h" /* c2_atomic64 */
-#include "lib/memory.h" /* c2_alloc */
+#include "lib/memory.h" /* C2_ALLOC_PTR */
 #include "lib/errno.h"	/* errno */
 #include "lib/time.h"	/* c2_time_t */
 #include "lib/timer.h"
@@ -181,7 +181,7 @@ static bool locality_tid_contains(struct c2_timer_locality *loc, pid_t tid)
 	return found;
 }
 
-void c2_timer_thread_attach(struct c2_timer_locality *loc)
+int c2_timer_thread_attach(struct c2_timer_locality *loc)
 {
 	pid_t tid;
 	struct timer_tid *tt;
@@ -190,15 +190,18 @@ void c2_timer_thread_attach(struct c2_timer_locality *loc)
 
 	tid = gettid();
 	if (locality_tid_contains(loc, tid))
-		return;
+		return 0;
 
-	tt = c2_alloc(sizeof *tt);
-	C2_ASSERT(tt != NULL);
+	C2_ALLOC_PTR(tt);
+	if (tt == NULL)
+		return -1;
+
 	tt->tt_tid = tid;
 	tid_tlink_init(tt);
 	c2_mutex_lock(&loc->tlo_lock);
 	tid_tlist_add(&loc->tlo_tids, tt);
 	c2_mutex_unlock(&loc->tlo_lock);
+	return 0;
 }
 
 void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
@@ -234,9 +237,12 @@ uint32_t c2_timer_locality_count()
 
 static struct c2_timer_info *timer_info_init(struct c2_timer *timer)
 {
-	struct c2_timer_info *tinfo = c2_alloc(sizeof *tinfo);
+	struct c2_timer_info *tinfo;
 
-	C2_ASSERT(tinfo != NULL);
+	C2_ALLOC_PTR(tinfo);
+	if (tinfo == NULL)
+		return NULL;
+
 	ti_tlink_init(tinfo);
 	tinfo->ti_expire = c2_time_now();
 	tinfo->ti_interval = timer->t_interval;
@@ -250,17 +256,20 @@ static struct c2_timer_info *timer_info_init(struct c2_timer *timer)
 
 static void timer_info_fini(struct c2_timer_info *tinfo)
 {
-	if (tinfo == NULL)
-		return;
-	ti_tlink_fini(tinfo);
-	c2_free(tinfo);
+	if (tinfo != NULL) {
+		ti_tlink_fini(tinfo);
+		c2_free(tinfo);
+	}
 }
 
-static void timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE state)
+static bool timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE state)
 {
-	struct timer_state *ts = c2_alloc(sizeof *ts);
+	struct timer_state *ts;
 
-	C2_ASSERT(ts != NULL);
+	C2_ALLOC_PTR(ts);
+	if (ts == NULL)
+		return false;
+
 	ts_tlink_init(ts);
 	ts->ts_tinfo = tinfo;
 	ts->ts_state = state;
@@ -268,6 +277,8 @@ static void timer_state_enqueue(struct c2_timer_info *tinfo, enum TIMER_STATE st
 	c2_mutex_lock(&state_lock);
 	ts_tlist_add_tail(&state_queue, ts);
 	c2_mutex_unlock(&state_lock);
+
+	return true;
 }
 
 static struct c2_timer_info *timer_state_dequeue(enum TIMER_STATE *state)
@@ -519,22 +530,23 @@ static int timer_hard_init(struct c2_timer *timer)
 
 	timer->t_info = timer_info_init(timer);
 
-	C2_POST(timer->t_info != NULL);
-	return 0;
+	return timer->t_info == NULL;
 }
 
-static void timer_state_deliver(struct c2_timer *timer, enum TIMER_STATE state)
+static int timer_state_deliver(struct c2_timer *timer, enum TIMER_STATE state)
 {
 	C2_PRE(timer != NULL);
 	C2_PRE(timer->t_info != NULL);
-	timer_state_enqueue(timer->t_info, state);
+
+	if (!timer_state_enqueue(timer->t_info, state))
+		return -1;
 	pipe_wake(&state_pipe);
+	return 0;
 }
 
 static int timer_hard_fini(struct c2_timer *timer)
 {
-	timer_state_deliver(timer, TS_FINI);
-	return 0;
+	return timer_state_deliver(timer, TS_FINI);
 }
 
 static int timer_hard_start(struct c2_timer *timer)
@@ -543,14 +555,12 @@ static int timer_hard_start(struct c2_timer *timer)
 	C2_PRE(timer->t_info != NULL);
 	C2_PRE(timer->t_info->ti_tid != 0);
 
-	timer_state_deliver(timer, TS_START);
-	return 0;
+	return timer_state_deliver(timer, TS_START);
 }
 
 static int timer_hard_stop(struct c2_timer *timer)
 {
-	timer_state_deliver(timer, TS_STOP);
-	return 0;
+	return timer_state_deliver(timer, TS_STOP);
 }
 
 /**
