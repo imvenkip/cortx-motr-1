@@ -68,23 +68,23 @@
 
    <hr>
    @section KLNetCoreDLD-req Requirements
-   - <b>r.c2.net.lnet.buffer-registration</b> Provide support for
+   - @b r.c2.net.lnet.buffer-registration Provide support for
      hardware optimization through buffer pre-registration.
 
-   - <b>r.c2.net.xprt.lnet.end-point-address</b> The implementation
+   - @b r.c2.net.xprt.lnet.end-point-address The implementation
      should support the mapping of end point address to LNet address
      as described in the Refinement section of the HLD.
 
-   - <b>r.c2.net.xprt.lnet.multiple-messages-in-buffer</b> Provide
+   - @b r.c2.net.xprt.lnet.multiple-messages-in-buffer Provide
      support for this feature as described in the HLD.
 
-   - <b>r.c2.net.xprt.lnet.dynamic-address-assignment</b> Provide
+   - @b r.c2.net.xprt.lnet.dynamic-address-assignment Provide
      support for dynamic address assignment as described in the HLD.
 
-   - <b>r.c2.net.xprt.lnet.user-space</b> The implementation must
+   - @b r.c2.net.xprt.lnet.user-space The implementation must
      accommodate the needs of the user space LNet transport.
 
-   - <b>r.c2.net.xprt.lnet.user.no-gpl</b> The implementation must not expose
+   - @b r.c2.net.xprt.lnet.user.no-gpl The implementation must not expose
      the user space transport to GPL interfaces.
 
 
@@ -613,20 +613,20 @@
 
    <hr>
    @section KLNetCoreDLD-conformance Conformance
-   - <b>i.c2.net.lnet.buffer-registration</b> See @ref KLNetCoreDLD-lspec-reg.
+   - @b i.c2.net.lnet.buffer-registration See @ref KLNetCoreDLD-lspec-reg.
 
-   - <b>i.c2.net.xprt.lnet.end-point-address</b> The nlx_core_ep_addr_encode()
+   - @b i.c2.net.xprt.lnet.end-point-address The nlx_core_ep_addr_encode()
      and nlx_core_ep_addr_decode() provide this functionality.
 
-   - <b>i.c2.net.xprt.lnet.multiple-messages-in-buffer</b> See @ref
+   - @b i.c2.net.xprt.lnet.multiple-messages-in-buffer See @ref
      KLNetCoreDLD-lspec-recv.
 
-   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> See @ref
+   - @b i.c2.net.xprt.lnet.dynamic-address-assignment See @ref
      KLNetCoreDLD-lspec-tm-list.
 
-   - <b>i.c2.net.xprt.lnet.user-space</b> See @ref KLNetCoreDLD-lspec-userspace.
+   - @b i.c2.net.xprt.lnet.user-space See @ref KLNetCoreDLD-lspec-userspace.
 
-   - <b>i.c2.net.xprt.lnet.user.no-gpl</b> See the @ref LNetCoreDLD-fspec
+   - @b i.c2.net.xprt.lnet.user.no-gpl See the @ref LNetCoreDLD-fspec
      "Functional Specification"; no LNet headers are exposed by the Core API.
 
    <hr>

@@ -63,26 +63,26 @@
 
    <hr>
    @section LNetDLD-req Requirements
-   - <b>r.c2.net.xprt.lnet.transport-variable</b> The implementation
+   - @b r.c2.net.xprt.lnet.transport-variable The implementation
      shall name the transport variable as specified in the HLD.
 
-   - <b>r.c2.net.lnet.buffer-registration</b> Provide support for
+   - @b r.c2.net.lnet.buffer-registration Provide support for
      hardware optimization through buffer pre-registration.
 
-   - <b>r.c2.net.xprt.lnet.end-point-address</b> The implementation
+   - @b r.c2.net.xprt.lnet.end-point-address The implementation
      should support the mapping of end point address to LNet address
      as described in the Refinement section of the HLD.
 
-   - <b>r.c2.net.xprt.lnet.multiple-messages-in-buffer</b> Provide
+   - @b r.c2.net.xprt.lnet.multiple-messages-in-buffer Provide
      support for this feature as described in the HLD.
 
-   - <b>r.c2.net.xprt.lnet.dynamic-address-assignment</b> Provide
+   - @b r.c2.net.xprt.lnet.dynamic-address-assignment Provide
      support for dynamic address assignment as described in the HLD.
 
-   - <b>r.c2.net.xprt.lnet.processor-affinity</b> The implementation
+   - @b r.c2.net.xprt.lnet.processor-affinity The implementation
      must support processor affinity as described in the HLD.
 
-   - <b>r.c2.net.xprt.lnet.user-space</b> The implementation must
+   - @b r.c2.net.xprt.lnet.user-space The implementation must
      accommodate the needs of the user space LNet transport.
 
    <hr>
@@ -482,31 +482,31 @@
 
    <hr>
    @section LNetDLD-conformance Conformance
-   - <b>i.c2.net.xprt.lnet.transport-variable</b> The transport variable
+   - @b i.c2.net.xprt.lnet.transport-variable The transport variable
    @c c2_net_lnet_xprt is provided.
 
-   - <b>i.c2.net.lnet.buffer-registration</b> Buffer registration is required
+   - @b i.c2.net.lnet.buffer-registration Buffer registration is required
    in the network API and results in the corresponding nlx_xo_buf_register()
    subroutine call at the LNet transport layer.  This is where hardware
    optimization can be performed, once LNet provides such APIs.
 
-   - <b>i.c2.net.xprt.lnet.end-point-address</b> Mapping of LNet end point
+   - @b i.c2.net.xprt.lnet.end-point-address Mapping of LNet end point
    address is handled in the Core API as described in the @ref
    LNetCoreDLD-fspec "LNet Transport Core Functional Specification".
 
-   - <b>i.c2.net.xprt.lnet.multiple-messages-in-buffer</b> Fields are provided
+   - @b i.c2.net.xprt.lnet.multiple-messages-in-buffer Fields are provided
    in the c2_net_buffer to support multiple message delivery, and the event
    delivery model includes the delivery of buffer events for receive buffers
    that do not always dequeue the buffer.
 
-   - <b>i.c2.net.xprt.lnet.dynamic-address-assignment</b> Dynamic transfer
+   - @b i.c2.net.xprt.lnet.dynamic-address-assignment Dynamic transfer
      machine identifier assignment is provided by nlx_core_tm_start().
 
-   - <b>i.c2.net.xprt.lnet.processor-affinity</b> The c2_net_tm_confine() API
+   - @b i.c2.net.xprt.lnet.processor-affinity The c2_net_tm_confine() API
    is provided and the LNet transport provides the corresponding
    nlx_xo_tm_confine() function.
 
-   - <b>i.c2.net.xprt.lnet.user-space</b> The user space implementation of the
+   - @b i.c2.net.xprt.lnet.user-space The user space implementation of the
    Core API utilizes shared memory and reduces context switches required for
    user-space event processing through the use of a circular queue maintained
    in shared memory and operated upon with atomic operations.
