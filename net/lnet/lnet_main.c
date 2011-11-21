@@ -48,10 +48,6 @@
 
    <hr>
    @section LNetDLD-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
-
    This document describes the Colibri Network transport for LNet. The
    transport is composed of multiple layers.  The document describes the
    layering and then focuses mainly on the transport operations layer.
@@ -63,20 +59,10 @@
 
    <hr>
    @section LNetDLD-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
-
    Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
    <hr>
    @section LNetDLD-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
-
    - <b>r.c2.net.xprt.lnet.transport-variable</b> The implementation
      shall name the transport variable as specified in the HLD.
 
@@ -101,9 +87,6 @@
 
    <hr>
    @section LNetDLD-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
-
    <ul>
 
    <li>@ref LNetCore "LNet Transport Core Interface" </li>
@@ -167,11 +150,6 @@
 
    <hr>
    @section LNetDLD-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
-
    - Common user and kernel space implementation over an underlying "Core" I/O
      layer that communicates with the kernel LNet module.
    - Supports the reception of multiple messages in a single receive buffer.
@@ -186,14 +164,6 @@
 
    <hr>
    @section LNetDLD-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
-
    - @ref LNetDLD-lspec-comps
    - @ref LNetDLD-lspec-ep
    - @ref LNetDLD-lspec-tm-start
@@ -206,11 +176,6 @@
    - @ref LNetDLD-lspec-numa
 
    @subsection LNetDLD-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
-
    The focus of the LNet transport is the implementation of the asynchronous
    semantics required by the Colibri Networking layer.  I/O is performed by an
    underlying "core" layer, which does the actual interaction with the Lustre
@@ -224,7 +189,6 @@
    <!-- PNG image width is 800 -->
 
    @subsection LNetDLD-lspec-ep End Point Support
-
    The transport defines the following structure for the internal
    representation of a struct c2_net_end_point.
    @code
@@ -255,7 +219,6 @@
 
 
    @subsection LNetDLD-lspec-tm-start Transfer Machine Start
-
    The c2_net_tm_start() subroutine is used to start a transfer machine, which
    results in a call to nlx_xo_tm_start().  The subroutine decodes the end
    point address using the nlx_core_ep_addr_decode() subroutine. It then starts
@@ -272,7 +235,6 @@
 
 
    @subsection LNetDLD-lspec-tm-stop Transfer Machine Termination
-
    Termination of a transfer machine is requested through the c2_net_tm_stop()
    subroutine, which results in a call to nlx_xo_tm_stop().
 
@@ -288,7 +250,6 @@
 
 
    @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Handler Thread
-
    Each transfer machine processes buffer events from the Core API's event
    queue.  The Core API guarantees that LNet operation completion events will
    result in buffer events being enqueued in the order the API receives them,
@@ -391,7 +352,6 @@
 
 
    @subsection LNetDLD-lspec-buf-nbd Network Buffer Descriptor
-
    The transport has to define the format of the opaque network buffer
    descriptor returned to the application, to encode the identity of the
    passive buffers.
@@ -412,7 +372,6 @@
 
 
    @subsection LNetDLD-lspec-buf-op Buffer operations
-
    Buffer operations are initiated through the c2_net_xprt_ops::xo_buf_add()
    operation which points to the nlx_xo_buf_add() subroutine. The subroutine
    will invoke the appropriate Core API buffer initiation operations.
@@ -431,10 +390,6 @@
 
 
    @subsection LNetDLD-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
-
    The transport does not introduce its own state model but operates within the
    framework defined by the Colibri Networking Module. In general, resources
    are allocated to objects of this module by the underlying Core API, and they
@@ -475,12 +430,6 @@
 
 
    @subsection LNetDLD-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
-
    The transport inherits the concurrency model of the Colibri Networking
    Module. All transport operations are protected by some lock or object state,
    as described in the <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>.  The Core API is designed to work with this same locking model.
@@ -526,10 +475,6 @@
 
 
    @subsection LNetDLD-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
-
    The application can establish specific processor affiliation for the event
    handler thread with the c2_net_tm_confine() subroutine prior to starting the
    transfer machine.  Buffer completion events and transfer machine state
@@ -537,10 +482,6 @@
 
    <hr>
    @section LNetDLD-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref LNetDLD-req section,
-   and explains briefly how the DLD meets the requirement.</i>
-
    - <b>i.c2.net.xprt.lnet.transport-variable</b> The transport variable
    @c c2_net_lnet_xprt is provided.
 
@@ -572,9 +513,6 @@
 
    <hr>
    @section LNetDLD-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
-
    To control symbol exposure, the transport code is compiled using a single C
    file that includes other C files with static symbols.  Unit testing will
    take advantage of this setup and use conditional renaming of symbols to
@@ -599,9 +537,6 @@
 
    <hr>
    @section LNetDLD-st System Tests
-   <i>Mandatory.
-   This section describes the system testing done, if applicable.</i>
-
    The @c bulkping system test program will be updated to include support for
    the LNet transport.  This program will be used to test communication between
    end points on the same system and between remote systems.  The program will
@@ -610,10 +545,6 @@
 
    <hr>
    @section LNetDLD-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
-
    In general, the transport operational layer simply routes data too and from
    the Core API; this behavior is analyzed in
    @ref KLNetCoreDLD "LNet Transport Kernel Core DLD".
@@ -641,10 +572,6 @@
 
    <hr>
    @section LNetDLD-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
-
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
    - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"

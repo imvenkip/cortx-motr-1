@@ -58,30 +58,16 @@
 
    <hr>
    @section KLNetCoreDLD-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
-
    The LNet Transport is built over an address space agnostic "core" I/O
    interface.  This document describes the kernel implementation of this
    interface, which directly interacts with the Lustre LNet kernel module.
 
    <hr>
    @section KLNetCoreDLD-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
-
    Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
 
    <hr>
    @section KLNetCoreDLD-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
-
    - <b>r.c2.net.lnet.buffer-registration</b> Provide support for
      hardware optimization through buffer pre-registration.
 
@@ -104,9 +90,6 @@
 
    <hr>
    @section KLNetCoreDLD-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
-
    - <b>LNet API</b> headers are required to build the module.
    The Xyratex Lustre source package must be installed on the build
    machine (RPM @c lustre-source version 2.0 or greater).
@@ -114,11 +97,6 @@
 
    <hr>
    @section KLNetCoreDLD-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
-
    - The Core API is an address space agnostic I/O interface intended for use
      by the Colibri Networking LNet transport operation layer in either user
      space or kernel space.
@@ -149,13 +127,6 @@
 
    <hr>
    @section KLNetCoreDLD-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
 
    - @ref KLNetCoreDLD-lspec-comps
    - @ref KLNetCoreDLD-lspec-userspace
@@ -176,13 +147,7 @@
    - @ref KLNetCoreDLD-lspec-thread
    - @ref KLNetCoreDLD-lspec-numa
 
-
    @subsection KLNetCoreDLD-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
-
    The relationship between the various objects in the components of the LNet
    transport and the networking layer is illustrated in the following UML
    diagram.  @image html "../../net/lnet/lnet_xo.png" "LNet Transport Objects"
@@ -567,10 +532,6 @@
 
 
    @subsection KLNetCoreDLD-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
-
    - The kernel Core module relies on the networking data structures to maintain
    the linkage between the data structures used by the Core module. It
    maintains no lists through data structures itself.  As such, these lists can
@@ -589,12 +550,6 @@
 
 
    @subsection KLNetCoreDLD-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
-
    -# Generally speaking, API calls within the transport address space
       are protected by the serialization of the Colibri Networking layer,
       typically the transfer machine mutex or the domain mutex.
@@ -644,10 +599,6 @@
       of the MD and a call to LNetMDUnlink().
 
    @subsection KLNetCoreDLD-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
-
    The LNet transport will initiate calls to the API on threads that may have
    specific process affinity assigned.
 
@@ -662,10 +613,6 @@
 
    <hr>
    @section KLNetCoreDLD-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref KLNetCoreDLD-req section,
-   and explains briefly how the DLD meets the requirement.</i>
-
    - <b>i.c2.net.lnet.buffer-registration</b> See @ref KLNetCoreDLD-lspec-reg.
 
    - <b>i.c2.net.xprt.lnet.end-point-address</b> The nlx_core_ep_addr_encode()
@@ -684,9 +631,6 @@
 
    <hr>
    @section KLNetCoreDLD-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
-
    The testing strategy is 2 pronged:
    - Tests with a fake LNet API.
    - Tests with the real LNet API using the TCP loop back address.
@@ -711,18 +655,11 @@
 
    <hr>
    @section KLNetCoreDLD-st System Tests
-   <i>Mandatory.
-   This section describes the system testing done, if applicable.</i>
-
    System testing will be performed as part of the transport operation system
    test.
 
    <hr>
    @section KLNetCoreDLD-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
-
    - Dynamic transfer machine identifier assignment is proportional to the
    number of transfer machines defined on the server, including kernel and all
    process space LNet transport instances.
@@ -737,10 +674,6 @@
 
    <hr>
    @section KLNetCoreDLD-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
-
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - The LNet API.
 

@@ -24,10 +24,6 @@
 
 /**
    @page LNetCoreDLD-fspec LNet Transport Core Functional Specfication
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
 
    - @ref LNetCoreDLD-fspec-ovw
    - @ref LNetCoreDLD-fspec-ds

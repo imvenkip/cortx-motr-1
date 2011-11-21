@@ -23,21 +23,11 @@
 
 /**
    @page LNetDLD-fspec LNet Transport Functional Specification
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
 
    - @ref LNetDLD-fspec-ds
    - @ref LNetDLD-fspec-sub
 
    @section LNetDLD-fspec-ds Data Structures
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and <i>brief</i> description of the
-   major externally visible data structures defined by this component.  No
-   details of the data structure are required here, just the salient
-   points.</i>
-
    The module implements a network transport protocol using the data structures
    defined by @ref net/net.h.
 
@@ -47,10 +37,6 @@
 
 
    @section LNetDLD-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
-
    New subroutine provided:
    - c2_net_lnet_ep_addr_net_compare()
      Compare the network portion of two LNet transport end point addresses.
