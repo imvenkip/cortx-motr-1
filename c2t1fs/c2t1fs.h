@@ -31,6 +31,7 @@
 
   - mgs [value type: end-point address e.g. 127.0.0.1:123321:1 ]
       end-point address of management service or confd.
+      @note terms 'mgs' and 'confd' are used interchangably in the text.
 
   - ios [value type: end-point address]
       end-point address of io-service. multiple io-services can be specified
@@ -58,7 +59,7 @@
       nr_containers >= nr_data_units + 2 * nr_parity_units. (2 to account for
       nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
 
-  - unit_size [value type: number ]
+  - unit_size [value type: number]
       Size of each stripe unit. Optional parameter. Default value is
       C2T1FS_DEFAULT_STRIPE_UNIT_SIZE (=PAGE_SIZE).
 
@@ -68,6 +69,7 @@
    - Creating up to C2T1FS_MAX_NR_DIR_ENTS number of regular files
    - Remove a regular file
    - Listing files in root directory
+   - file read/write of full-stripe width
 
    @section c2t1fslogspec Logical Specification
 
@@ -91,7 +93,7 @@
    One service can serve zero or more number of containers. Given an id of a
    container, "container location map", gives service that is serving
    the container. Even if containers are not yet implemented, notion of
-   container id is required, to be able to locate the service serving some
+   container id is required, to be able to locate a service serving some
    object identified by fid.
 
    Number of containers is specified as a mount option. If number of
@@ -120,9 +122,9 @@
    In memory c2t1fs inode has statically allocated array of
    C2T1FS_MAX_NR_DIR_ENT directory entries. "." and ".." are not stored in
    this directory entry array. c2t1fs generates fid of new file and its target
-   objects. All target objects have same fid.key as that of global file's fid.
-   They differ only in fid.container field. Key of global file is taken from
-   value of a monotonically increasing counter.
+   objects. All target objects have same fid.key as that of global file's
+   fid.key They differ only in fid.container field. Key of global file is taken
+   from value of a monotonically increasing counter.
 
    If target object creation fails, c2t1fs does not attempt to cleanup
    target objects that were successfully created. This should be handled by
@@ -131,7 +133,7 @@
    <B> Read/Write: </B>
 
    c2t1fs currently supports only full stripe IO
-   i.e. iosize = nr_data_units * stripe_unit_size (where stripe_unit_size = 4K).
+   i.e. iosize = nr_data_units * stripe_unit_size.
 
    read-write operations on file are not synchronised.
 
@@ -165,8 +167,7 @@ int c2t1fs_init(void);
 void c2t1fs_fini(void);
 
 enum {
-	/* 0x\C\2\T\1 */
-	C2T1FS_SUPER_MAGIC = 0x43325431,
+	C2T1FS_SUPER_MAGIC = 0x4332543153555052, /* "C2T1SUPR" */
 	MAX_NR_EP_PER_SERVICE_TYPE = 10,
 	C2T1FS_MAX_NAME_LEN = 8,
 	C2T1FS_RPC_TIMEOUT = 10, /* seconds */
@@ -174,16 +175,19 @@ enum {
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT = 100,
 	C2T1FS_DEFAULT_NR_DATA_UNITS = 1,
 	C2T1FS_DEFAULT_NR_PARITY_UNITS = 0,
-	C2T1FS_DEFAULT_NR_CONTAINERS = 1,
+	C2T1FS_DEFAULT_NR_CONTAINERS = C2T1FS_DEFAULT_NR_DATA_UNITS +
+					2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS = 1024,
 	C2T1FS_MAX_NR_DIR_ENTS = 10,
 };
 
-/** Anything that is global to c2t1fs module goes in this singleton structure */
+/** Anything that is global to c2t1fs module goes in this singleton structure.
+    There is only one, global, instance of this type. */
 struct c2t1fs_globals
 {
 	struct c2_net_xprt      *g_xprt;
+	/** local endpoint address */
 	char                    *g_laddr;
 	char                    *g_db_name;
 	struct c2_cob_domain_id  g_cob_dom_id;
@@ -196,25 +200,36 @@ struct c2t1fs_globals
 
 extern struct c2t1fs_globals c2t1fs_globals;
 
-/** mount options */
+/** Parsed mount options */
 struct c2t1fs_mnt_opts
 {
-	char *mo_options;
-	char *mo_profile;
-	char *mo_mgs_ep_addr;
-	int   mo_nr_mds_ep;
-	char *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
-	int   mo_nr_ios_ep;
-	char *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
-	int   mo_nr_containers; /* P */
-	int   mo_nr_data_units; /* N */
-	int   mo_nr_parity_units; /* K */
-	int   mo_unit_size;
+	/** Input mount options */
+	char    *mo_options;
+
+	char    *mo_profile;
+
+	char    *mo_mgs_ep_addr;
+	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+	char    *mo_ios_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];
+
+	uint32_t mo_nr_mds_ep;
+	uint32_t mo_nr_ios_ep;
+
+	uint32_t mo_nr_containers;   /* P */
+	uint32_t mo_nr_data_units;   /* N */
+	uint32_t mo_nr_parity_units; /* K */
+
+	uint32_t mo_unit_size;
 };
 
 enum c2t1fs_service_type {
+	/** management service */
 	C2T1FS_ST_MGS = 1,
+
+	/** meta-data service */
 	C2T1FS_ST_MDS,
+
+	/** io service */
 	C2T1FS_ST_IOS
 };
 
@@ -226,6 +241,9 @@ enum {
 /**
    For each <mounted_fs, target_service> pair, there is one instance of
    c2t1fs_service_context.
+
+   c2t1fs_service_context is an association class, associating mounted
+   file-system and a service.
 
    Allocated at mount time and freed during unmount.
 
@@ -259,7 +277,7 @@ struct c2t1fs_service_context
 struct c2t1fs_container_location_map
 {
 	/**
-	   Array of c2t1fs_sb::csb_nr_container elements.
+	   Array of c2t1fs_sb::csb_nr_container valid elements.
 	   clm_map[i] points to c2t1fs_service_context of a service
 	   that is serving container i
 	 */
@@ -269,14 +287,9 @@ struct c2t1fs_container_location_map
 /**
    In memory c2t1fs super block. One instance per mounted file-system.
    super_block::s_fs_info points to instance of this type.
-
-   @see C2T1FS_SB()
  */
 struct c2t1fs_sb
 {
-	/** mutex that serialises all file and directory operations */
-	struct c2_mutex        csb_mutex;
-
 	/** Parsed mount options */
 	struct c2t1fs_mnt_opts csb_mnt_opts;
 
@@ -289,24 +302,27 @@ struct c2t1fs_sb
 	/** number of contexts in csb_service_contexts list, that have
 	    ACTIVE rpc connection and rpc session.
 	    csb_nr_active_contexts <= c2_tlist_length(&csb_service_contexts) */
-	int                    csb_nr_active_contexts;
+	uint32_t               csb_nr_active_contexts;
 
 	/** list of service contexs */
 	struct c2_tl           csb_service_contexts;
 
 	/** Total number of containers. */
-	int                    csb_nr_containers;
+	uint32_t               csb_nr_containers;
 
 	/** Number of data units per parity group. N */
-	int                    csb_nr_data_units;
+	uint32_t               csb_nr_data_units;
 
 	/** Number of parity units per group. K */
-	int                    csb_nr_parity_units;
+	uint32_t               csb_nr_parity_units;
 
 	/** Stripe unit size */
-	int                    csb_unit_size;
+	uint32_t               csb_unit_size;
 
 	struct c2t1fs_container_location_map csb_cl_map;
+
+	/** mutex that serialises all file and directory operations */
+	struct c2_mutex        csb_mutex;
 
 	/** magic = C2T1FS_SUPER_MAGIC */
 	uint64_t               csb_magic;
@@ -356,7 +372,11 @@ static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
 	return container_of(inode, struct c2t1fs_inode, ci_inode);
 }
 
+/**
+   For now, fid of root directory is assumed to be a constant.
+ */
 extern const struct c2_fid c2t1fs_root_fid;
+
 bool c2t1fs_inode_is_root(struct inode *inode);
 
 int c2t1fs_get_sb(struct file_system_type *fstype,
@@ -366,10 +386,6 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 		  struct vfsmount         *mnt);
 
 void c2t1fs_kill_sb(struct super_block *sb);
-
-
-int c2t1fs_sb_init(struct c2t1fs_sb *sbi);
-void c2t1fs_sb_fini(struct c2t1fs_sb *sbi);
 
 void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
 void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);

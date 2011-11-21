@@ -73,17 +73,15 @@ out:
 
 void c2t1fs_fini(void)
 {
-	int rc;
-
 	START();
 
-	rc = unregister_filesystem(&c2t1fs_fs_type);
+	(void)unregister_filesystem(&c2t1fs_fs_type);
 
 	c2t1fs_rpc_fini();
 	c2t1fs_net_fini();
 	c2t1fs_inode_cache_fini();
 
-	END(rc);
+	END(0);
 }
 
 static int c2t1fs_net_init(void)

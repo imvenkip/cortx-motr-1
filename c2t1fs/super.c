@@ -7,6 +7,8 @@
 #include "c2t1fs/c2t1fs.h"
 
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
+static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
+static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts);
 static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
@@ -15,12 +17,15 @@ static int  c2t1fs_mnt_opts_parse(char                   *options,
 				  struct c2t1fs_mnt_opts *mnt_opts);
 
 static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
+
 static int  c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb);
 static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb);
+
 static int  c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb);
+static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb);
+
 static int  c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx);
 static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx);
-static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb);
 
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
@@ -33,6 +38,10 @@ const struct c2_fid c2t1fs_root_fid = {
 	.f_key = 2
 };
 
+/**
+   tlist descriptor for list of c2t1fs_service_context objects placed in
+   c2t1fs_sb::csb_service_contexts list using sc_link.
+ */
 static const struct c2_tl_descr svc_ctx_tl_descr =
 			C2_TL_DESCR("service contexts",
 				    struct c2t1fs_service_context,
@@ -67,23 +76,20 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 
 	START();
 
-	csb = kmalloc(sizeof (*csb), GFP_KERNEL);
+	C2_ALLOC_PTR(csb);
 	if (csb == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
 	rc = c2t1fs_sb_init(csb);
-	if (rc != 0) {
-		kfree(csb);
-		csb = NULL;
-		goto out;
-	}
+	if (rc != 0)
+		goto out_free;
 
 	mntopts = &csb->csb_mnt_opts;
 	rc = c2t1fs_mnt_opts_parse(data, mntopts);
 	if (rc != 0)
-		goto out;
+		goto out_fini;
 
 	csb->csb_nr_containers   = mntopts->mo_nr_containers ?:
 					C2T1FS_DEFAULT_NR_CONTAINERS;
@@ -104,25 +110,25 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		csb->csb_nr_containers > C2T1FS_MAX_NR_CONTAINERS) {
 
 		rc = -EINVAL;
-		goto out;
+		goto out_fini;
 	}
+
+	rc = c2t1fs_config_fetch(csb);
+	if (rc != 0)
+		goto out_fini;
+
+	rc = c2t1fs_connect_to_all_services(csb);
+	if (rc != 0)
+		goto out_fini;
 
 	rc = c2t1fs_container_location_map_init(&csb->csb_cl_map,
 						csb->csb_nr_containers);
 	if (rc != 0)
-		goto out;
-
-	rc = c2t1fs_config_fetch(csb);
-	if (rc != 0)
-		goto out_map_fini;
-
-	rc = c2t1fs_connect_to_all_services(csb);
-	if (rc != 0)
-		goto out_map_fini;
+		goto disconnect_all;
 
 	rc = c2t1fs_container_location_map_build(csb);
 	if (rc != 0)
-		goto disconnect_all;
+		goto out_map_fini;
 
 	sb->s_fs_info = csb;
 
@@ -135,27 +141,35 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	root_inode = c2t1fs_root_iget(sb);
 	if (root_inode == NULL) {
 		rc = -ENOMEM;
-		goto disconnect_all;
+		goto out_map_fini;
 	}
 
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
 		rc = -ENOMEM;
-		goto disconnect_all;
+		goto out_map_fini;
 	}
+
+	END(0);
 	return 0;
+
+out_map_fini:
+	c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 
 disconnect_all:
 	c2t1fs_disconnect_from_all_services(csb);
-out_map_fini:
-	c2t1fs_container_location_map_fini(&csb->csb_cl_map);
+
+out_fini:
+	c2t1fs_sb_fini(csb);
+
+out_free:
+	c2_free(csb);
+
 out:
-	if (csb != NULL) {
-		c2t1fs_sb_fini(csb);
-		kfree(csb);
-	}
 	sb->s_fs_info = NULL;
+
+	C2_ASSERT(rc != 0);
 	END(rc);
 	return rc;
 }
@@ -168,21 +182,25 @@ void c2t1fs_kill_sb(struct super_block *sb)
 
 	csb = C2T1FS_SB(sb);
 	TRACE("csb = %p\n", csb);
+	/* If c2t1fs_fill_super() fails then deactivate_locked_super() calls
+	   c2t1fs_fs_type->kill_sb(). In that case, csb == NULL. */
 	if (csb != NULL) {
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_discard_service_contexts(csb);
 		c2t1fs_sb_fini(csb);
-		kfree(csb);
+		c2_free(csb);
 	}
 	kill_anon_super(sb);
 
 	END(0);
 }
 
-int c2t1fs_sb_init(struct c2t1fs_sb *csb)
+static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 {
 	START();
+
+	C2_ASSERT(csb != NULL);
 
 	C2_SET0(csb);
 
@@ -193,9 +211,12 @@ int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	END(0);
 	return 0;
 }
-void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
+
+static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 {
 	START();
+
+	C2_ASSERT(csb != NULL);
 
 	c2_tlist_fini(&svc_ctx_tl_descr, &csb->csb_service_contexts);
 	c2_mutex_fini(&csb->csb_mutex);
@@ -225,12 +246,14 @@ static const match_table_t c2t1fs_mntopt_tokens = {
 	{ C2T1FS_MNTOPT_NR_DATA_UNITS,   "nr_data_units=%s" },
 	{ C2T1FS_MNTOPT_NR_PARITY_UNITS, "nr_parity_units=%s" },
 	{ C2T1FS_MNTOPT_UNIT_SIZE,       "unit_size=%s" },
+	/* match_token() requires last element must have NULL pattern */
 	{ C2T1FS_MNTOPT_ERR,              NULL },
 };
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts)
 {
 	START();
+	C2_ASSERT(mntopts != NULL);
 
 	C2_SET0(mntopts);
 
@@ -242,9 +265,14 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 	int i;
 
 	START();
+	C2_ASSERT(mntopts != NULL);
 
 	for (i = 0; i < mntopts->mo_nr_ios_ep; i++) {
 		C2_ASSERT(mntopts->mo_ios_ep_addr[i] != NULL);
+		/*
+		 * using kfree() instead of c2_free() because the memory
+		 * was allocated using match_strdup().
+		 */
 		kfree(mntopts->mo_ios_ep_addr[i]);
 	}
 	for (i = 0; i < mntopts->mo_nr_mds_ep; i++) {
@@ -268,6 +296,13 @@ static int c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts)
 
 	if ((mnt_opts->mo_unit_size & (PAGE_SIZE - 1)) != 0) {
 		TRACE("ERROR: Stripe unit size must be page aligned\n");
+		goto invalid;
+	}
+
+	if (mnt_opts->mo_nr_ios_ep > MAX_NR_EP_PER_SERVICE_TYPE ||
+	    mnt_opts->mo_nr_mds_ep > MAX_NR_EP_PER_SERVICE_TYPE) {
+		TRACE("ERROR: number of endpoints must be less than %d\n",
+				MAX_NR_EP_PER_SERVICE_TYPE);
 		goto invalid;
 	}
 
