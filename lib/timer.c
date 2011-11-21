@@ -592,8 +592,6 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 		  c2_time_t interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data)
 {
-	int rc;
-
 	C2_PRE(callback != NULL);
 	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
 
@@ -606,10 +604,9 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	timer->t_data     = data;
 	c2_time_set(&timer->t_expire, 0, 0);
 
-	rc = 0;
 	if (type == C2_TIMER_HARD)
-		rc = timer_hard_init(timer);
-	return rc;
+		return timer_hard_init(timer);
+	return 0;
 }
 C2_EXPORTED(c2_timer_init);
 
