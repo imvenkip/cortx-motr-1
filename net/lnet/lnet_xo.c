@@ -116,7 +116,7 @@ struct c2_net_xprt c2_net_lnet_xprt = {
 };
 C2_EXPORTED(c2_net_lnet_xprt);
 
-bool c2_net_lnet_ep_addr_net_compare(const char *addr1, const char *addr2)
+int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 {
 	return false;
 }

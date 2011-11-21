@@ -38,7 +38,7 @@
 
    @section LNetDLD-fspec-sub Subroutines
    New subroutine provided:
-   - c2_net_lnet_ep_addr_net_compare()
+   - c2_net_lnet_ep_addr_net_cmp()
      Compare the network portion of two LNet transport end point addresses.
      It is intended for use by the Request Handler setup logic.
 
@@ -70,8 +70,6 @@
 extern struct c2_net_xprt c2_net_lnet_xprt;
 
 enum {
-	/** Default number of threads in a transfer machine */
-	C2_NET_LNET_TM_DEF_NUM_THREADS = 1,
 	/** @todo Max LNet ep addr length?, 4-tuple */
 	C2_NET_LNET_XEP_ADDR_LEN = 80,
 };
@@ -79,11 +77,9 @@ enum {
 /**
    Subroutine to compare the network portions of two LNet end point address
    strings.
-   @retval true The network components are the same.
-   @retval false The network components are different.
+   @retval int Return value like strcmp().
  */
-extern bool c2_net_lnet_ep_addr_net_compare(const char *addr1,
-					    const char *addr2);
+extern int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
 
 /**
    @} LNetDFS end group
