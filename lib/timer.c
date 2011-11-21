@@ -24,6 +24,9 @@
    in Makefile should be -iquote instead of -I
  */
 #include </usr/include/time.h>	  /* timer_create */
+#include <unistd.h>	  /* syscall */
+#include <signal.h>	  /* timer_create */
+#include <sys/syscall.h>  /* syscall */
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/mutex.h"  /* c2_mutex */
@@ -33,12 +36,7 @@
 #include "lib/memory.h" /* c2_alloc */
 #include "lib/errno.h"	/* errno */
 #include "lib/time.h"	/* c2_time_t */
-
 #include "lib/timer.h"
-
-#include <unistd.h>	  /* syscall */
-#include <signal.h>	  /* timer_create */
-#include <sys/syscall.h>  /* syscall */
 
 /**
    @addtogroup timer
