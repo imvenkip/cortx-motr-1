@@ -398,14 +398,12 @@ static void timer_posix_fini(timer_t timer)
 static void timer_posix_set(timer_t timer, c2_time_t expire)
 {
 	struct itimerspec ts;
-	int rc;
 
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;
 	ts.it_value.tv_sec = c2_time_seconds(expire);
 	ts.it_value.tv_nsec = c2_time_nanoseconds(expire);
-	rc = timer_settime(timer, TIMER_ABSTIME, &ts, NULL);
-	C2_ASSERT(rc == 0);
+	C2_ASSERT(timer_settime(timer, TIMER_ABSTIME, &ts, NULL));
 }
 
 static void callback_sighandler(int unused)
