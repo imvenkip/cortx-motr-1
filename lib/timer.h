@@ -69,6 +69,7 @@ enum c2_timer_type {
 #include "lib/linux_kernel/timer.h"
 #endif
 
+
 /**
    Init the timer data structure.
 

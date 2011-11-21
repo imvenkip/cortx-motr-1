@@ -46,6 +46,7 @@
    which checks the expire time and trigger timer callback if needed.
    There is one timer thread for each timer.
 
+   @{
 */
 
 #ifndef C2_TIMER_DEBUG
