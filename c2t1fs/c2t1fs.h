@@ -407,22 +407,6 @@ void c2t1fs_destroy_inode(struct inode *inode);
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 				uint64_t unit_size);
 
-void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
-				 struct c2t1fs_sb              *csb,
-				 enum c2t1fs_service_type       type,
-				 char                          *ep_addr);
-
-void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx);
-
-int
-c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
-				   int nr_containers);
-
-void
-c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
-
-int c2t1fs_container_location_map_build(struct c2t1fs_sb *sb);
-
 struct c2_rpc_session * c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
 						       uint64_t container_id);
 

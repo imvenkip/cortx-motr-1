@@ -27,6 +27,22 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb);
 static int  c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx);
 static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx);
 
+static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
+					struct c2t1fs_sb              *csb,
+					enum c2t1fs_service_type       type,
+					char                          *ep_addr);
+
+static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx);
+
+static int
+c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
+				   int nr_containers);
+
+static void
+c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
+
+static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
+
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
 	.destroy_inode = c2t1fs_destroy_inode,
@@ -279,8 +295,17 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 		C2_ASSERT(mntopts->mo_mds_ep_addr[i] != NULL);
 		kfree(mntopts->mo_mds_ep_addr[i]);
 	}
+
+	if (mntopts->mo_profile != NULL)
+		kfree(mntopts->mo_profile);
+
+	if (mntopts->mo_mgs_ep_addr != NULL)
+		kfree(mntopts->mo_mgs_ep_addr);
+
 	if (mntopts->mo_options != NULL)
 		kfree(mntopts->mo_options);
+
+	C2_SET0(mntopts);
 
 	END(0);
 }
@@ -456,24 +481,27 @@ out:
 	END(rc);
 	return rc;
 }
-void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
-				 struct c2t1fs_sb              *csb,
-				 enum c2t1fs_service_type       type,
-				 char                          *ep_addr)
+
+static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
+					struct c2t1fs_sb              *csb,
+					enum c2t1fs_service_type       type,
+					char                          *ep_addr)
 {
 	START();
 
 	C2_SET0(ctx);
-	ctx->sc_csb = csb;
-	ctx->sc_type = type;
-	ctx->sc_addr = ep_addr;
+
+	ctx->sc_csb   = csb;
+	ctx->sc_type  = type;
+	ctx->sc_addr  = ep_addr;
 	ctx->sc_magic = MAGIC_SVC_CTX;
+
 	c2_tlink_init(&svc_ctx_tl_descr, ctx);
 
 	END(0);
 }
 
-void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
+static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
 {
 	START();
 
@@ -545,6 +573,7 @@ static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
 		}
 		return 0;
 	}
+
 	START();
 
 	mntopts = &csb->csb_mnt_opts;
@@ -602,6 +631,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	rpc_mach = &c2t1fs_globals.g_rpcmachine;
 	tm       = &rpc_mach->cr_tm;
 
+	/* Create target end-point */
 	rc = c2_net_end_point_create(&ep, tm, ctx->sc_addr);
 	if (rc != 0)
 		goto out;
@@ -629,30 +659,22 @@ conn_term:
 	(void)c2_rpc_conn_terminate_sync(conn, C2T1FS_RPC_TIMEOUT);
 	c2_rpc_conn_fini(conn);
 out:
+	C2_ASSERT(rc != 0);
 	END(rc);
 	return rc;
 }
 
 static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 {
-	struct c2_rpc_conn    *conn;
-	struct c2_rpc_session *session;
-
 	START();
 
-	conn    = &ctx->sc_conn;
-	session = &ctx->sc_session;
+	(void)c2_rpc_session_terminate_sync(&ctx->sc_session,
+						C2T1FS_RPC_TIMEOUT);
 
-	if (session->s_state == C2_RPC_SESSION_IDLE ||
-	    session->s_state == C2_RPC_SESSION_BUSY)
-		(void)c2_rpc_session_terminate_sync(session,
-						    C2T1FS_RPC_TIMEOUT);
+	(void)c2_rpc_conn_terminate_sync(&ctx->sc_conn, C2T1FS_RPC_TIMEOUT);
 
-	if (conn->c_state == C2_RPC_CONN_ACTIVE)
-		(void)c2_rpc_conn_terminate_sync(conn, C2T1FS_RPC_TIMEOUT);
-
-	c2_rpc_session_fini(session);
-	c2_rpc_conn_fini(conn);
+	c2_rpc_session_fini(&ctx->sc_session);
+	c2_rpc_conn_fini(&ctx->sc_conn);
 
 	ctx->sc_csb->csb_nr_active_contexts--;
 	TRACE("Disconnected from [%s] active_ctx %d\n", ctx->sc_addr,
@@ -676,7 +698,8 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 
 	END(0);
 }
-int
+
+static int
 c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
 				   int nr_containers)
 {
@@ -687,14 +710,15 @@ c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
 	END(0);
 	return 0;
 }
-void
+
+static void
 c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map)
 {
 	START();
 	END(0);
 }
 
-int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
+static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 {
 	struct c2t1fs_service_context        *ctx;
 	struct c2t1fs_container_location_map *map;
