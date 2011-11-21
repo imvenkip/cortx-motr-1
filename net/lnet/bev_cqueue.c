@@ -404,8 +404,10 @@
    A single producer and consumer are supported.  Atomic variables,
    @c consumer and @c producer, represent the range of elements in the queue
    containing data.  Because these pointers are atomic, no locking is needed
-   to access them by a single producer and consumer.  Multiple producers
-   and/or consumers must synchronize externally.
+   to access them by a single producer and consumer.  Furthermore, because these
+   pointers are used only for simple set or get operations, not compound
+   operations (e.g. increment or compare and set) a simple scalar data type can
+   be used.  Multiple producers and/or consumers must synchronize externally.
 
    The transport layer acts both as the consumer and the allocator, and both
    operations use and modify the @c consumer variable and related pointers.  As
@@ -469,6 +471,7 @@
    @section cqueueDLD-ref References
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - <a href="http://drdobbs.com/high-performance-computing/210604448">Writing Lock-Free Code: A Corrected Queue, Herb Sutter, in Dr Dobbs Journal, 2008</a>
 
  */
 
