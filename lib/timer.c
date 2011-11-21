@@ -619,7 +619,7 @@ int c2_timer_start(struct c2_timer *timer)
 
 	timer->t_expire = c2_time_add(c2_time_now(), timer->t_interval);
 	timer->t_left = timer->t_repeat;
-	
+
 	if (timer->t_type == C2_TIMER_HARD) {
 		rc = timer_hard_start(timer);
 	} else {

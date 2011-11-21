@@ -203,7 +203,7 @@ static void test_timer_locality()
 {
 	struct c2_timer_locality loc;
 	int loc_count;
-	
+
 	C2_UT_ASSERT(c2_timer_locality_max() > 0);
 	loc_count = c2_timer_locality_count();
 	C2_UT_ASSERT(loc_count < c2_timer_locality_max());
@@ -251,7 +251,7 @@ static void test_timer_oneshot(int iter_max)
 	C2_UT_ASSERT(oneshot_data == 42);
 	C2_UT_ASSERT(oneshot_tid == gettid());
 	C2_UT_ASSERT(oneshot_iterations == oneshot_iterations_max);
-	
+
 	c2_timer_fini(&timer);
 	c2_timer_locality_fini(&loc);
 }
