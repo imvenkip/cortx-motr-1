@@ -44,7 +44,7 @@ static void rpc_reply_recvd(struct c2_rpc_item *req,
  *
  * @param mesg console message
  */
-static void mesg_name_print(const struct c2_cons_mesg *mesg)
+void c2_cons_mesg_name_print(const struct c2_cons_mesg *mesg)
 {
 	printf("%.2d %s", mesg->cm_type, mesg->cm_name);
 }
@@ -75,21 +75,22 @@ static void mesg_input(struct c2_fop *fop)
         c2_fop_all_object_it_fini(&it);
 }
 
-/**
- * @brief Internal function to send rpc item. It is blocking
- *	  call which waits for reply.
- *
- * @param mesg console message
- *
- * @return 0 success, !0 failure.
- */
-static int mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
+int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
 {
-	struct c2_fop	   *fop = mesg->cm_fop;
+	struct c2_fop	   *fop;
 	struct c2_rpc_item *item;
 	struct c2_clink	    clink;
 	int		    rc = 0;
 	bool		    wait;
+
+	/* Allocate fop */
+	fop = c2_fop_alloc(mesg->cm_fopt, NULL);
+	if (fop == NULL)
+                return -EINVAL;
+	mesg->cm_fop = fop;
+	/* Init fop by input from console or yaml file */
+	mesg_input(fop);
+
 
 	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;
@@ -128,114 +129,32 @@ error:
 /**
  * @brief RPC item operation for disk failure notification.
  */
-static struct c2_rpc_item_ops c2_rpc_item_cons_disk_ops = {
+static const struct c2_rpc_item_ops c2_rpc_item_cons_disk_ops = {
         .rio_replied = rpc_reply_recvd
 };
 
-static void disk_mesg_show(void)
-{
-	struct c2_fop             *fop;
-        struct c2_cons_fop_disk   *disk_fop;
-
-        fop = c2_fop_alloc(&c2_cons_fop_disk_fopt, NULL);
-        disk_fop = c2_fop_data(fop);
-        if (fop == NULL)
-                return;
-
-	mesg_show(fop);
-}
-
-static int disk_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
-{
-	struct c2_fop             *fop;
-        struct c2_cons_fop_disk   *disk_fop;
-	int			   rc;
-
-	fop = c2_fop_alloc(&c2_cons_fop_disk_fopt, NULL);
-	disk_fop = c2_fop_data(fop);
-	if (fop == NULL)
-                return -1;
-
-	mesg->cm_fop = fop;
-	mesg->cm_item_type = &c2_rpc_item_cons_disk;
-	mesg_input(fop);
-
-	rc = mesg_send(mesg, deadline);
-        if (rc != 0) {
-                c2_fop_free(fop);
-		fprintf(stderr, "mesg_send failed!\n");
-	}
-
-	return rc;
-}
-
-static struct c2_cons_mesg_ops c2_cons_mesg_disk_ops = {
-	.cmo_mesg_show  = disk_mesg_show,
-	.cmo_name_print = mesg_name_print,
-	.cmo_mesg_send  = disk_mesg_send
-};
-
 static struct c2_cons_mesg c2_cons_disk_mesg = {
-	.cm_name     = "Disk FOP Message",
-	.cm_type     = CMT_DISK_FAILURE,
-	.cm_item_ops = &c2_rpc_item_cons_disk_ops,
-	.cm_ops	     = &c2_cons_mesg_disk_ops
+	.cm_name      = "Disk FOP Message",
+	.cm_type      = CMT_DISK_FAILURE,
+	.cm_fopt      = &c2_cons_fop_disk_fopt,
+	.cm_item_ops  = &c2_rpc_item_cons_disk_ops,
+	.cm_item_type = &c2_rpc_item_cons_disk,
 };
 
 /* Device FOP message */
 /**
  * @brief RPC item operation for device failure notification.
  */
-static struct c2_rpc_item_ops c2_rpc_item_cons_device_ops = {
+static const struct c2_rpc_item_ops c2_rpc_item_cons_device_ops = {
         .rio_replied = rpc_reply_recvd
-};
-
-static void device_mesg_show(void)
-{
-        struct c2_fop             *fop;
-        struct c2_cons_fop_device *dev_fop;
-
-        fop = c2_fop_alloc(&c2_cons_fop_device_fopt, NULL);
-        dev_fop = c2_fop_data(fop);
-        if (fop == NULL)
-                return;
-
-	mesg_show(fop);
-}
-
-static int device_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
-{
-        struct c2_fop             *fop;
-        struct c2_cons_fop_device *dev_fop;
-	int			   rc;
-
-        fop = c2_fop_alloc(&c2_cons_fop_device_fopt, NULL);
-        dev_fop = c2_fop_data(fop);
-        if (fop == NULL)
-                return -1;
-
-        mesg->cm_fop = fop;
-	mesg->cm_item_type = &c2_rpc_item_cons_device;
-	mesg_input(fop);
-
-	rc = mesg_send(mesg, deadline);
-        if (rc != 0)
-                c2_fop_free(fop);
-
-	return rc;
-}
-
-static struct c2_cons_mesg_ops c2_cons_mesg_device_ops = {
-	.cmo_mesg_show  = device_mesg_show,
-	.cmo_name_print = mesg_name_print,
-	.cmo_mesg_send  = device_mesg_send
 };
 
 static struct c2_cons_mesg c2_cons_device_mesg = {
 	.cm_name     = "Device FOP Message",
 	.cm_type     = CMT_DEVICE_FAILURE,
+	.cm_fopt     = &c2_cons_fop_device_fopt,
 	.cm_item_ops = &c2_rpc_item_cons_device_ops,
-	.cm_ops	     = &c2_cons_mesg_device_ops
+	.cm_item_type = &c2_rpc_item_cons_device,
 };
 
 
@@ -243,39 +162,16 @@ static struct c2_cons_mesg c2_cons_device_mesg = {
 /**
  * @brief RPC item operation for device failure notification.
  */
-static struct c2_rpc_item_ops c2_rpc_item_cons_reply_ops = {
+static const struct c2_rpc_item_ops c2_rpc_item_cons_reply_ops = {
         .rio_replied = NULL,
-};
-
-static void reply_mesg_show(void)
-{
-        struct c2_fop            *fop;
-        struct c2_cons_fop_reply *reply_fop;
-
-        fop = c2_fop_alloc(&c2_cons_fop_reply_fopt, NULL);
-        reply_fop = c2_fop_data(fop);
-        if (fop == NULL)
-                return;
-
-	mesg_show(fop);
-}
-
-static int reply_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
-{
-	return -ENOTSUP;
-}
-
-static struct c2_cons_mesg_ops c2_cons_mesg_reply_ops = {
-	.cmo_mesg_show  = reply_mesg_show,
-	.cmo_name_print = mesg_name_print,
-	.cmo_mesg_send  = reply_mesg_send
 };
 
 static struct c2_cons_mesg c2_cons_reply_mesg = {
 	.cm_name     = "Reply FOP Message",
 	.cm_type     = CMT_REPLY_FAILURE,
+	.cm_fopt     = &c2_cons_fop_reply_fopt,
 	.cm_item_ops = &c2_rpc_item_cons_reply_ops,
-	.cm_ops	     = &c2_cons_mesg_reply_ops
+	.cm_item_type = &c2_rpc_item_cons_reply,
 };
 
 /**
@@ -287,6 +183,22 @@ static struct c2_cons_mesg *cons_mesg[] = {
 	&c2_cons_reply_mesg
 };
 
+void c2_cons_mesg_fop_show(struct c2_fop_type *fopt)
+{
+	struct c2_fop *fop;
+	void	      *fdata;
+
+	fop = c2_fop_alloc(fopt, NULL);
+	if (fop != NULL) {
+		fdata = c2_fop_data(fop);
+		if (fdata != NULL)
+			mesg_show(fop);
+		else
+			fprintf(stderr, "FOP data does not exist\n");
+	 } else
+		fprintf(stderr, "FOP allocation failed\n");
+}
+
 void c2_cons_mesg_list_show(void)
 {
 	struct c2_cons_mesg *mesg;
@@ -296,7 +208,7 @@ void c2_cons_mesg_list_show(void)
 	for (i = 0; i < ARRAY_SIZE(cons_mesg); i++) {
 		mesg = cons_mesg[i];
 		C2_ASSERT(mesg->cm_type == i);
-		mesg->cm_ops->cmo_name_print(mesg);
+		c2_cons_mesg_name_print(mesg);
 		printf("\n");
 	}
 }
@@ -314,7 +226,7 @@ struct c2_cons_mesg *c2_cons_mesg_get(enum c2_cons_mesg_type type)
 
 int c2_cons_mesg_init(void)
 {
-	C2_ASSERT(ARRAY_SIZE(cons_mesg) == CMT_MESG_NR);
+	C2_CASSERT(ARRAY_SIZE(cons_mesg) == CMT_MESG_NR);
 	return 0;
 }
 

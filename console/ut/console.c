@@ -146,13 +146,13 @@ static void check_values(struct c2_fit *it)
 
 static void fop_iterator_test(void)
 {
-        struct c2_cons_fop_test *fop;
+	struct c2_cons_fop_test *fop;
         struct c2_fop           *f;
         struct c2_fit            it;
 
         f = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
         C2_UT_ASSERT(f != NULL);
-        fop = c2_fop_data(f);
+	fop = c2_fop_data(f);
 
         c2_fop_all_object_it_init(&it, f);
 	init_test_fop(fop);
@@ -183,7 +183,6 @@ static void yaml_basic_test(void)
 
 static void input_test(void)
 {
-        struct c2_cons_fop_test *fop;
         struct c2_fop           *f;
         struct c2_fit            it;
 	int			 result;
@@ -195,7 +194,6 @@ static void input_test(void)
 
         f = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
         C2_UT_ASSERT(f != NULL);
-        fop = c2_fop_data(f);
 
         c2_fop_all_object_it_init(&it, f);
         c2_cons_fop_obj_input(&it);
@@ -232,7 +230,6 @@ static void file_compare(const char *in, const char *out)
 
 static void output_test(void)
 {
-        struct c2_cons_fop_test *fop;
         struct c2_fop           *f;
         struct c2_fit            it;
 	FILE			*fp;
@@ -247,7 +244,6 @@ static void output_test(void)
 
         f = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
         C2_UT_ASSERT(f != NULL);
-        fop = c2_fop_data(f);
 
 	/* save fd of stdout */
 	fd = dup(fileno(stdout));
@@ -581,9 +577,9 @@ static void mesg_send_client(int dummy)
 	mesg = c2_cons_mesg_get(CMT_DISK_FAILURE);
 	mesg->cm_rpc_mach = &client.cons_rpc_mach;
 	mesg->cm_rpc_session = &client.cons_rpc_session;
-	mesg->cm_ops->cmo_name_print(mesg);
+	c2_cons_mesg_name_print(mesg);
 	printf("\n");
-	result = mesg->cm_ops->cmo_mesg_send(mesg, deadline);
+	result = c2_cons_mesg_send(mesg, deadline);
 	C2_UT_ASSERT(result == 0);
 
 	result = c2_cons_rpc_client_disconnect(&client);
