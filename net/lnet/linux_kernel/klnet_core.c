@@ -632,26 +632,27 @@
    <hr>
    @section KLNetCoreDLD-ut Unit Tests
    The testing strategy is 2 pronged:
-   - Tests with a fake LNet API.
-   - Tests with the real LNet API using the TCP loop back address.
+   - Tests with a fake LNet API.  These tests will intercept the LNet
+     subroutine calls.  The real LNet data structures will be used by the Core
+     API.
+   - Tests with the real LNet API using the TCP loop back address.  These tests
+     will use the TCP loop back address.  LNet on the test machine must be
+     configured with the @c "tcp" network.
 
-   @subsection KLNetCoreDLD-ut-fake Tests with a fake LNet API
-   These tests will intercept the LNet subroutine calls.  The real LNet data
-   structures will be used by the Core API.
+   @test The correct sequence of LNet operations are issued for each type
+         of buffer operation with a fake LNet API.
 
-   - Test that the correct sequence of LNet operations are issued for each type
-     of buffer operation.
-   - Test that the callback subroutine properly delivers events to the buffer
-     event queue, including single and multiple events for receive buffers.
-   - Test the dynamic assignment of transfer machine identifiers.
+   @test The callback subroutine properly delivers events to the buffer
+         event queue, including single and multiple events for receive buffers
+         with a fake LNet API.
 
-   @subsection KLNetCoreDLD-ut-real Tests with the real LNet API
-   These tests will use the TCP loop back address.  LNet on the test machine
-   must be configured with the @c "tcp" network.
+   @test The dynamic assignment of transfer machine identifiers with a fake LNet
+         API.
 
-   - Test the parsing of LNet addresses.
-   - Test each type of buffer operation, including single and multiple events
-     for receive buffers.
+   @test Test the parsing of LNet addresses with the real LNet API.
+
+   @test Test each type of buffer operation, including single and multiple events
+         for receive buffers with the real LNet API.
 
    <hr>
    @section KLNetCoreDLD-st System Tests

@@ -522,26 +522,35 @@
    with a fake Core API.  Tests involving the fake Core API ensure that the
    transport operation layer makes the correct calls to the Core API.
 
-   - Multiple domain creation will be tested.
-   - Buffer registration and deregistration will be tested.
-   - Multiple transfer machine creation will be tested.
-   - Test that the processor affinity bitmask is set in the TM.
-   - The transfer machine state change functionality.
-   - Initiation of buffer operations will be tested.
-   - Delivery of synthetic buffer events will be tested, including multiple
-     receive buffer events for a single receive buffer.
-   - Management of the reference counted end point objects; the addresses
-     themselves don't have to valid for these tests.
-   - Encoding and Decoding of the network buffer descriptor will be tested.
-   - Orderly finalization will be tested.
+   @test Multiple domain creation will be tested.
+
+   @test Buffer registration and deregistration will be tested.
+
+   @test Multiple transfer machine creation will be tested.
+
+   @test Test that the processor affinity bitmask is set in the TM.
+
+   @test The transfer machine state change functionality.
+
+   @test Initiation of buffer operations will be tested.
+
+   @test Delivery of synthetic buffer events will be tested, including multiple
+         receive buffer events for a single receive buffer.
+
+   @test Management of the reference counted end point objects; the addresses
+         themselves don't have to valid for these tests.
+
+   @test Encoding and Decoding of the network buffer descriptor will be tested.
+
+   @test Orderly finalization will be tested.
 
    <hr>
    @section LNetDLD-st System Tests
-   The @c bulkping system test program will be updated to include support for
-   the LNet transport.  This program will be used to test communication between
-   end points on the same system and between remote systems.  The program will
-   offer the ability to dynamically allocate a transfer machine identifier when
-   operating in client mode.
+   @test The @c bulkping system test program will be updated to include support
+   for the LNet transport.  This program will be used to test communication
+   between end points on the same system and between remote systems.  The
+   program will offer the ability to dynamically allocate a transfer machine
+   identifier when operating in client mode.
 
    <hr>
    @section LNetDLD-O Analysis

@@ -434,13 +434,20 @@
    @section cqueueDLD-ut Unit Tests
 
    The following cases will be tested by unit tests:
-   @test initializing a queue of minimum size 2
-   @test successfully producing an element in a slot
-   @test successfully consuming an element from a slot
-   @test failing to consume a slot because the queue is empty
-   @test initializing a queue of larger size
-   @test repeating the producing and consuming tests
-   @test concurrently producing and consuming elements
+
+   @test Initializing a queue of minimum size 2
+
+   @test Successfully producing an element in a slot
+
+   @test Successfully consuming an element from a slot
+
+   @test Failing to consume a slot because the queue is empty
+
+   @test Initializing a queue of larger size
+
+   @test Repeating the producing and consuming tests
+
+   @test Concurrently producing and consuming elements
 
    <hr>
    @section cqueueDLD-st System Tests
