@@ -29,6 +29,13 @@
    @addtogroup net Networking.
    @{
  */
+C2_TL_DESCR_DEFINE(tm, "tm list", ,
+		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
+		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
+C2_TL_DEFINE(tm, , struct c2_net_buffer);
+C2_EXPORTED(tm_tl);
+C2_EXPORTED(tm_tlist_is_empty);
+
 bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
 {
 	return ts >= C2_NET_TM_UNDEFINED && ts <= C2_NET_TM_FAILED;

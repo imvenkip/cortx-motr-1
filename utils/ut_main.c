@@ -75,6 +75,10 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
+		c2_ut_add(&c2_net_bulk_if_ut);
+		c2_ut_add(&c2_net_bulk_mem_ut);
+		c2_ut_add(&c2_net_bulk_sunrpc_ut);
+		c2_ut_add(&net_client_ut);
 		c2_ut_add(&buffer_pool_ut);
 	      /*c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);

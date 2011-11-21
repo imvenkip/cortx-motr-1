@@ -223,7 +223,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	buf->nb_tm = tm;
 	rc = dom->nd_xprt->nx_ops->xo_buf_add(buf);
 	if (rc != 0) {
-		tm_tlist_del(buf);
+		tm_tlink_del_fini(buf);
 		buf->nb_flags &= ~C2_NET_BUF_QUEUED;
 		goto m_err_exit;
 	}

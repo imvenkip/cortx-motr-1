@@ -68,9 +68,9 @@ void test_get_put()
 {
 	struct c2_net_buffer *nb = NULL;
 	c2_net_buffer_pool_lock(&bp);
-	nb = c2_net_buffer_pool_get(&bp, 0);
+	nb = c2_net_buffer_pool_get(&bp, ~0);
 	C2_UT_ASSERT(nb != NULL);
-	c2_net_buffer_pool_put(&bp, nb, 0);
+	c2_net_buffer_pool_put(&bp, nb, ~0);
 	c2_net_buffer_pool_unlock(&bp);
 }
 
@@ -78,9 +78,12 @@ void test_get_put_colour()
 {
 	struct c2_net_buffer *nb = NULL;
 	c2_net_buffer_pool_lock(&bp);
-	nb = c2_net_buffer_pool_get(&bp, 1);
+	nb = c2_net_buffer_pool_get(&bp, ~0);
 	C2_UT_ASSERT(nb != NULL);
 	c2_net_buffer_pool_put(&bp, nb, 1);
+	nb = c2_net_buffer_pool_get(&bp, 1);
+	C2_UT_ASSERT(nb != NULL);
+	c2_net_buffer_pool_put(&bp, nb, ~0);
 	c2_net_buffer_pool_unlock(&bp);
 }
 
@@ -140,7 +143,7 @@ void buffers_get_put(int rc)
 	c2_clink_add(&buf_chan, &buf_link);
 	do {
 		c2_net_buffer_pool_lock(&bp);
-		nb = c2_net_buffer_pool_get(&bp, 0);
+		nb = c2_net_buffer_pool_get(&bp, ~0);
 		c2_net_buffer_pool_unlock(&bp);
 		if (nb == NULL)
 			c2_chan_wait(&buf_link);
@@ -148,7 +151,7 @@ void buffers_get_put(int rc)
 	sleep(1);
 	c2_net_buffer_pool_lock(&bp);
 	if (nb != NULL)
-		c2_net_buffer_pool_put(&bp, nb, 0);
+		c2_net_buffer_pool_put(&bp, nb, ~0);
 	c2_net_buffer_pool_unlock(&bp);
 	c2_clink_del(&buf_link);
 	c2_clink_fini(&buf_link);
