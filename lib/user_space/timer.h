@@ -21,9 +21,10 @@
 #ifndef __COLIBRI_LIB_USER_SPACE_TIMER_H__
 #define __COLIBRI_LIB_USER_SPACE_TIMER_H__
 
-#include "lib/time.h"
-#include "lib/thread.h"
-#include "lib/mutex.h"
+#include "lib/time.h"   /* c2_time_t */
+#include "lib/thread.h" /* c2_thread */
+#include "lib/mutex.h"	/* c2_mutex */
+#include "lib/tlist.h"  /* c2_tl */
 
 /**
    @addtogroup timer
@@ -33,13 +34,11 @@
 */
 
 struct c2_timer_info;
-struct c2_timer_sighandler;
 
 struct c2_timer_locality {
-	int tlo_signo;
 	struct c2_mutex tlo_lock;
-	// struct c2_rbtree tlo_tids;
-	struct c2_timer_sighandler *tlo_sighandler;
+	struct c2_tl tlo_tids;
+	uint64_t tlo_magic;
 };
 
 struct c2_timer {
