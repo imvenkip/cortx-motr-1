@@ -22,7 +22,6 @@
 #define __COLIBRI_LAYOUT_LAYOUT_DB_H__
 
 /* import */
-#include "lib/refs.h"	/* struct c2_ref */
 #include "lib/types.h"	/* struct c2_uint128 */
 #include "db/db.h"	/* struct c2_table */
 #include "db/extmap.h"	/* struct c2_emap */
@@ -53,24 +52,22 @@ struct c2_layout_rec_attrs;
    - struct c2_layout_rec
    - struct c2_layout_rec_attrs
 
-   @todo Not sure why this enum does not link back to where it is defined!
-   Need to figure out. Any inputs are welcome.
-
    @section Layout-DB-fspec-sub Subroutines
    - int c2_layout_schema_init(struct c2_layout_schema *l_schema)
    - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
    - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
    - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
    - int c2_layout_rec_update(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
-   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, const struct c2_layout_schema *l_schema, struct c2_db_tx *tx, c2_layout_rec *l_rec_out);
+   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, struct c2_layout_schema *l_schema, struct c2_db_tx *tx, c2_layout_rec *l_rec_out);
 
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 
    @section Layout-DB-fspec-usecases Recipes
-   A file layout is used by the client to perform IO against the file. Layout
-   for a file contains COB identifiers for all the COBs associated with that
-   file. These COB identifiers are stored by the layout either in the form of
-   a list (PDCLUST_LIST layout type) or as a formula (PDCLUST_LINEAR layout
+   A file layout is used by the client to perform IO against that file. A
+   Layout for a file contains COB identifiers for all the COBs associated with
+   that file. These COB identifiers are stored by the layout either in the
+   form of a list (e.g. in case of PDCLUST layout type with LIST enumeration
+   type) or as a formula (e.g. PDCLUST layout type with LINEAR enumeration
    type).
 
    Example use case of reading a file:
@@ -80,18 +77,21 @@ struct c2_layout_rec_attrs;
    - A query is sent to the Layout module to obtain layout for this layout id.
    - Layout module checks if the layout record is cached and if not, it reads
      the layout record from the layout DB.
-      - If the layout record is of the type PDCLUST_LINEAR which means it is a
-        formula, then the required parameters are substituted into the formula
-        and thus the list of cob identifiers is obtained to operate upon.
-      - If the layout record is of the type PDCLUST_LIST which means it stores
-        the list of cob identifiers in itself, then that list is obtained
-        from the layout DB itself.
-      - If the layout record is of the type COMPOSITE, it means it constitutes
-        of multiple sub-layouts. In this case, the sub-layouts are read from
-        the layout DB. Those sub-layouts records in turn could be of the type
-        PDCLUST_LIST or PDCLUST_LINEAR or COMPOSITE. The sub-layout records
-        are then read accordingly until the time the final list of all the cob
-        identifiers is obtained.
+      - If the layout record is of the PDCLUST layout type, with LINEAR
+        enumeration type, which means it is a formula, then the formula is
+        obtained from the DB, required parameters are substituted into the
+        formula and thus the list of COB identifiers is obtained to operate
+        upon.
+      - If the layout record is of the PDCLUST layout type, with LIST
+        enumeration type, which means it stores the list of cob identifiers in
+        itself, then that list is obtained from the layout DB itself.
+      - If the layout record is of the COMPOSITE layout type, it means it
+        constitutes of multiple sub-layouts. In this case, the sub-layouts are
+        read from the layout DB. Those sub-layout records in turn could be of
+        the PDCLUST layout type with either LINEAR or LITS enumeration type OR
+        of the COMPOSITE layout type. The sub-layout records are then read
+        accordingly until the time the final list of all the cob identifiers
+        is obtained.
 
    @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
  */
@@ -110,7 +110,8 @@ struct c2_layout_rec_attrs;
 */
 
 /**
-   Attributes for PDCLUST_LINEAR type of layout record.
+   Attributes for a layout record. e.g. in case of PDCLUST layout type, these
+   attributes happen to be N and K.
 */
 struct c2_layout_rec_attrs {
 	/** Number of data units in the parity group (N) */
@@ -124,8 +125,8 @@ struct c2_layout_rec_attrs {
    In-memory data structure for the layout schema.
    It includes pointers to all the DB tables and various related
    parameters.
-   @todo Add one table each to store layout type to layout description
-   mappings and enumeration type to enumeration description mappings.
+   @todo Add one table each to store 'layout type to layout description
+   mappings' and 'enumeration type to enumeration description mappings'.
 */
 struct c2_layout_schema {
 	/** Layout DB environment */
@@ -134,10 +135,12 @@ struct c2_layout_schema {
 	/** Table for layout record entries */
 	struct c2_table ls_layout_entries;
 
-	/** Table for cob lists for all PDCLUST_LIST type of layout records */
+	/** Table for cob lists for all the layout types it is applicable for.
+            e.g. Currently, it is applicable for PDCLUST layout type with
+            LIST enumeration type. */
 	struct c2_table ls_cob_lists;
 
-	/* Table for extent maps for all the COMPOSITE type of layout records */
+	/* Table for extent maps for all the COMPOSITE type of layouts */
 	struct c2_emap ls_comp_layout_ext_map;
 };
 
@@ -146,15 +149,15 @@ struct c2_layout_schema {
    Key is c2_layout_id.
 */
 struct c2_layout_rec {
-	/** Layout type id */
+	/** Layout type id, same as c2_layout::l_id */
 	uint32_t lr_lt_id;
 
-	/** Layout enumeration type id */
+	/** Layout enumeration type id, same as c2_layout_type::lt_id */
 	uint32_t lr_let_id;
 
 	/** Layout record reference count indicating number of files using
 	this layout */
-	struct uint32_t lr_ref_count;
+	uint32_t lr_ref_count;
 
 	/** Struct to store PDCLUST_LINEAR record type specific data */
 	struct c2_layout_rec_attrs lr_linear_attrs;
@@ -167,15 +170,15 @@ int c2_layout_rec_add(const struct c2_layout *layout,
 		      struct c2_layout_schema *l_schema,
 		      struct c2_db_tx *tx);
 int c2_layout_rec_delete(const struct c2_layout *layout,
-		      struct c2_layout_schema *l_schema,
-		      struct c2_db_tx *tx);
+		 	 struct c2_layout_schema *l_schema,
+			 struct c2_db_tx *tx);
 int c2_layout_rec_update(const struct c2_layout *layout,
-		      struct c2_layout_schema *l_schema,
-		      struct c2_db_tx *tx);
+			 struct c2_layout_schema *l_schema,
+			 struct c2_db_tx *tx);
 int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
-		      struct c2_layout_schema *l_schema,
-		      struct c2_db_tx *tx,
-		      struct c2_layout_rec *l_recrec_out);
+			 struct c2_layout_schema *l_schema,
+			 struct c2_db_tx *tx,
+			 struct c2_layout_rec *l_recrec_out);
 /**
    @} LayoutDBDFS end group
 */
@@ -186,7 +189,8 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
  */
 
 /**
-   Compare layout_entries table keys
+   Compare layout_entries table keys.
+   This is a 3WAY comparison.
 */
 static int le_key_cmp(struct c2_table *table,
 		const void *key0,
@@ -223,7 +227,8 @@ struct layout_cob_lists_rec {
 };
 
 /**
-   Compare cob_lists table keys
+   Compare cob_lists table keys. 
+   This is a 3WAY comparison.
 */
 static int lcl_key_cmp(struct c2_table *table,
 		const void *key0,

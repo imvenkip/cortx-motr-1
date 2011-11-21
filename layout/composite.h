@@ -26,10 +26,10 @@
 /**
    @defgroup composite Composite Layout Type.
 
-   Composite layout. Composite layout is made up of multiple sub-layouts. Each 
-   sub-layout needs to be read to obtain the overall layout details providing 
+   Composite layout. Composite layout is made up of multiple sub-layouts. Each
+   sub-layout needs to be read to obtain the overall layout details providing
    all the COB identifiers.
-  
+
    @{
  */
 

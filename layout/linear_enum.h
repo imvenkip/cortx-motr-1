@@ -68,7 +68,7 @@ struct c2_layout_linear_parameter {
 struct c2_layout_linear_parameter_type {
 	const char *llinpt_name;
 	int       (*llinpt_convert)(const struct c2_layout_parameter *other,
-			 	    struct c2_layout_parameter *out);
+				    struct c2_layout_parameter *out);
 };
 
 

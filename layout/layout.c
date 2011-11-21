@@ -45,10 +45,10 @@ void c2_layouts_fini(void)
 {
 }
 
-/** 
+/**
    Decode generic fields from a layout type and store them
-   in the layouti.
-   This methos builds an in-memory layout object from its
+   in the layout.
+   This method builds an in-memory layout object from its
    representation stored in the data-base (including configuration
    information) or received over the network.
 */
@@ -71,7 +71,7 @@ int c2_layout_decode(const struct c2_bufvec_cursor *cur,
 
 /**
    Store generic fields from a layout to the buffer.
-*/   
+*/
 int c2_layout_encode(const struct c2_layout *l,
 		     struct c2_bufvec_cursor *cur_out)
 {
@@ -89,7 +89,7 @@ int c2_layout_encode(const struct c2_layout *l,
 
 /** @} end group layout */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

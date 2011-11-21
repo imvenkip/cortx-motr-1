@@ -63,7 +63,7 @@ struct c2_layout_type {
 	const char                       *lt_name;
 
 	/** Layout type id.
- 	    This is stored on the persistent store and is passed across
+	    This is stored on the persistent store and is passed across
 	    the network to identify layout types.
  	*/
 	uint32_t                          lt_id;
@@ -77,40 +77,40 @@ struct c2_layout_type_ops {
 
 	/** Continue to decode layout representation stored in the buffer and
 	    to build the layout.
-	    The newly created layout is allocated as an instance of some 
+	    The newly created layout is allocated as an instance of some
 	    layout-type specific data-type which embeds c2_layout.
 
-	    This method sets c2_layout::l_ops. 
-	*/	    	 
+	    This method sets c2_layout::l_ops.
+	*/
 	int	(*lto_decode)(const struct c2_bufvec_cursor *cur,
 			      struct c2_layout **l_out);
-	
+
 	/** Continue to store layout representation in the buffer */
 	int	(*lto_encode)(const struct c2_layout *l,
 			      struct c2_bufvec_cursor *cur_out);
 
-	/** Adds a new layout record and its related information into the 
+	/** Adds a new layout record and its related information into the
 	    the relevant tables. */
 	int (*lto_rec_add)(const struct c2_bufvec_cursor *cur,
 			   struct c2_layout_schema *l_schema,
 			   struct c2_db_tx *tx);
-	
+
 	/** Deletes a layout record and its related information from the
-	    relevant tables. 
+	    relevant tables.
 	*/
 	int (*lto_rec_delete)(const struct c2_bufvec_cursor *cur,
 			      struct c2_layout_schema *l_schema,
 			      struct c2_db_tx *tx);
-	
+
 	/** Updates a layout entry and its related information in the
-	    relevant tables from the layout schema. 
+	    relevant tables from the layout schema.
 	*/
 	int (*lto_rec_update)(const struct c2_bufvec_cursor *cur,
 			      struct c2_layout_schema *l_schema,
 			      struct c2_db_tx *tx);
 	
 	/** Locates a layout entry and its related information from the
-	    relevant tables from the layout schema. 
+	    relevant tables from the layout schema.
 	*/
 	int (*lto_rec_lookup)(const struct c2_layout_id *l_id,
 			      struct c2_layout_schema *l_schema,
@@ -161,17 +161,17 @@ struct c2_layout_enum_type_ops {
 	int (*leto_rec_add)(const struct c2_bufvec_cursor *cur,
 			    struct c2_layout_schema *l_schema,
 			    struct c2_db_tx *tx);
-	
+
 	/** Continue to delete the layout record */
 	int (*leto_rec_delete)(const struct c2_bufvec_cursor *cur,
 			       struct c2_layout_schema *l_schema,
 			       struct c2_db_tx *tx);
-	
+
 	/** Continue to updates the layout record */
 	int (*leto_rec_update)(const struct c2_bufvec_cursor *cur,
 			       struct c2_layout_schema *l_schema,
 			       struct c2_db_tx *tx);
-	
+
 	/** Continue to locates layout record information */
 	int (*leto_rec_lookup)(const struct c2_layout_id *l_id,
 			       struct c2_layout_schema *l_schema,
@@ -179,7 +179,7 @@ struct c2_layout_enum_type_ops {
 			       struct c2_bufvec_cursor *cur_out);
 };
 
-/** 
+/**
    Layout enumeration.
 */
 struct c2_layout_enum {
@@ -189,11 +189,11 @@ struct c2_layout_enum {
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
 	uint32_t (*leo_nr)(const struct c2_layout_enum *e);
-	
+
 	/** Returns nr-th object in the enumeration.
 	    @pre nr < e->l_enum_ops->leo_ne(e)
 	*/
-	void (*leo_get)(const struct c2_layout_enum *e, 
+	void (*leo_get)(const struct c2_layout_enum *e,
 			uint32_t nr,
 			struct c2_fid *fid_out);
 };

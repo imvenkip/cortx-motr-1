@@ -108,6 +108,7 @@
 
    @subsection Layout-DB-lspec-comps Component Overview
    The following diagram shows the internal components of the Layout module.
+   
    @todo Would like to reverse the positions of the "Layout DB" and the
    "Layout" components but not able to achieve it at least as of now! Any
    inputs are welcome.
@@ -152,8 +153,8 @@
    - @ref Layout-DB-lspec-schema-cob_lists
    - @ref Layout-DB-lspec-schema-comp_layout_ext_map
 
-   @todo Add one table each to store layout type to layout description
-   mappings and enumeration type to enumeration description mappings.
+   @todo Add one table each to store 'layout type to layout description
+   mappings' and 'enumeration type to enumeration description mappings'.
 
    <b>Layout types</b> supported currently by the Layout module are:
    - PDCLUST <BR>
@@ -161,14 +162,14 @@
      process. Parity declustering is to keep rebuild overhead low by
      striping a file over more servers or drives than there are units in
      the parity group. The PDCLUST type of layout either uses a formula
-     or a list to enumerate the COB identifiers.
-     The enumeration types supported for PDCLUST type of layout are:
+     or a list to enumerate the COB identifiers. This forms two types of 
+     enumeration mthods as mentioned below: 
       - LINEAR <BR>
-        PDCLUST layout type with LINEAR enumeration type uses a formula to
-        enumerate the COB identifiers.
+        A layout with LINEAR enumeration type uses a formula to enumerate
+        all its COB identifiers.
       - LIST <BR>
-        PDCLUST layout type with LIST enumeration type uses a list to
-        enumerate the COB identifiers.
+        A layout with LIST enumeration type uses a list to enumerate all its
+        COB identifiers.
    - COMPOSITE <BR>
      This layout type partitions a file or a part of the file into
      various segments while each of those segment uses a different layout.
@@ -180,20 +181,25 @@
    Table Name: layout_entries
    Key: layout_id
    Record:
-      - layout_type_id (PDCLUST | COMPOSITE)
-      - layout_enumeration_type_id (LINEAR | LIST)
+      - layout_type_id
+      - layout_enumeration_type_id
       - reference_count
-      - layout_rec_attrs (Used only for PDCLUST layout type with
-		   LINEAR enumeration type.)
+      - layout_rec_attrs
 
    @endverbatim
 
-   For PDCLUST layout type with LINEAR enumeration type, the 
-   layout_rec_attrs contains N (number of data units in the parity
-   group) and K (number of parity units in the parity groups).
+   e.g. A layout with PDCLUST layout type with LINEAR enumeration type, uses
+   the layout_rec_attrs to store attributes like N and K.
 
-   For PDCLUST layout type with LIST enumeration type and for COMPOSITE
-   layout types, the  layout_rec_attrs field is not used.
+   It is possible that some layout types do not need to store any attributes.
+   e.g. A layout with PDCLUST layout type with LIST enumeration and a layout with
+   with COMPOSITE layout type do not need to store these attributes.
+
+   @todo A decision needs to be made if it is ok to store these attributes in
+   this primary table (cons: wastes this space for the layout entries which do not
+   need these attributes) or they should be stored outside this table that will
+   store data only for the layout entries for which such attributes are
+   applicable.
 
    @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
    @verbatim
@@ -226,7 +232,7 @@
 
    composite_layout_id is the layout_id for the COMPOSITE type of layout,
    stored as key in the layout_entries table.
- 
+
    layout_id is a foreign key referring record, in the layout_entries table.
 
    Layout DB uses a single c2_emap instance to implement the composite layout
@@ -332,12 +338,10 @@
 */
 
 /** Invariant for c2_layout_rec */
-/*
 static bool layout_db_rec_invariant(const struct c2_layout_rec *l)
 {
 	return true;
 }
-*/
 
 /** @} end LayoutDBDFSInternal */
 
@@ -388,7 +392,7 @@ int c2_layout_rec_add(const struct c2_layout *l,
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_layout_encode(). 
+	Store layout representation in a buffer using c2_layout_encode().
 	Add record to the DB using l->l_type->lt_ops->lto_rec_add().
 	@endcode
    */
@@ -399,16 +403,18 @@ int c2_layout_rec_add(const struct c2_layout *l,
 /**
    Deletes a layout record and its related information from the
    relevant tables.
-   
-   Following types of layout records can be destroyed if their respective 
-   reference count is 0:
-   - PDCLUST_LIST
-   - COMPOSITE
+
+   For example, following types of layout records can be destroyed if their
+   respective reference count is 0:
+   - A layout with PDCLUST layout type and with LIST enumeration type.
+   - A layout with COMPOSITE layout type.
    <BR>
-   A PDCLUST_LINEAR type of layout record is never destroyed.
+   A formula layout is never destroyed. e.g. A layout with PDCLUST layout type
+   and with LINEAR enumeration type s never destroyed.
 
    If a layout can not be destroyed due to above conditions not being met,
-   this API returns failure.
+   this API returns failure, though such specialization is taken care of by
+   layout type specific implementation methods.
 */
 int c2_layout_rec_delete(const struct c2_layout *layout,
 			 struct c2_layout_schema *l_schema,
@@ -416,7 +422,7 @@ int c2_layout_rec_delete(const struct c2_layout *layout,
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_layout_encode(). 
+	Store layout representation in a buffer using c2_layout_encode().
 	Use the function l->l_type->lt_ops->lto_rec_delete.
 	@endcode
    */
@@ -433,10 +439,10 @@ int c2_layout_rec_update(const struct c2_layout *layout,
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_layout_encode(). 
+	Store layout representation in a buffer using c2_layout_encode().
 	Use the function l->l_type->lt_ops->lto_rec_update.
 	@endcode
-   */ 
+   */
 	return 0;
 }
 
@@ -454,9 +460,9 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 	Use the function l->l_type->lt_ops->lto_rec_update to obtain
 	the buffer including the record.
 	
-	Convert the buffer into layout using using c2_layout_decode(). 
+	Convert the buffer into layout using using c2_layout_decode().
 	@endcode
-   */ 
+   */
 	return 0;
 }
 

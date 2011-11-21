@@ -27,7 +27,7 @@
 
 /** 
    Implementation of lto_decode() for composite layout type.
-   Continues to decode layout representation stored in the buffer and 
+   Continues to decode layout representation stored in the buffer and
    to create the layout.
 */
 static int composite_decode(const struct c2_bufvec_cursor *cur,
@@ -39,13 +39,13 @@ static int composite_decode(const struct c2_bufvec_cursor *cur,
 	embeds c2_layout.
 
 	Read composite layout type specific fields from the buffer.
-	Based on the layout-enumeration type, call respective leto_decode(). 
+	Based on the layout-enumeration type, call respective leto_decode().
    	@endcode
    */
 	return 0;
 }
 
-/** 
+/**
    Implementation of lto_encode() for composite layout type.
    Stores layout representation in the buffer.
 */
@@ -56,7 +56,7 @@ static int composite_encode(const struct c2_layout *l,
 	@code
 	Store composite layout type specific fields like into the buffer.
 
-	Based on the layout-enumeration type, call respective leto_encode(). 
+	Based on the layout-enumeration type, call respective leto_encode().
 	@endcode
    */
 	return 0;
@@ -92,7 +92,7 @@ int composite_rec_delete(const struct c2_bufvec_cursor *cur,
 	@code
 	Deletes the layout entry from the table layout_entries.
 	Deletes the relevant extent map from the comp_layout_ext_map table.
-	@endcode	
+	@endcode
    */
 	return 0;
 }
@@ -139,7 +139,7 @@ static const struct c2_layout_type_ops composite_type_ops = {
 
 const struct c2_layout_type c2_composite_layout_type = {
 	.lt_name  = "composite",
-	.lt_ops   = &composite_type_ops 
+	.lt_ops   = &composite_type_ops
 };
 
 /** @} end of group composite */
