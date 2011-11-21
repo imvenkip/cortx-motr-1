@@ -106,6 +106,8 @@ static struct timer_pipe state_pipe;
 static struct timer_pipe callback_pipe;
 static bool finish_scheduler;
 static volatile struct c2_timer_info *callback_tinfo;
+static volatile bool sched_inited;
+static volatile bool sched_failed;
 
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 		tt_linkage, tt_magic, 0x100, 0x101);
@@ -403,7 +405,7 @@ static void timer_posix_set(timer_t timer, c2_time_t expire)
 	ts.it_interval.tv_nsec = 0;
 	ts.it_value.tv_sec = c2_time_seconds(expire);
 	ts.it_value.tv_nsec = c2_time_nanoseconds(expire);
-	C2_ASSERT(timer_settime(timer, TIMER_ABSTIME, &ts, NULL));
+	C2_ASSERT(timer_settime(timer, TIMER_ABSTIME, &ts, NULL) == 0);
 }
 
 static void callback_sighandler(int unused)
@@ -456,16 +458,14 @@ static void timer_scheduler_sighandler(int unused)
 	pipe_wake(&state_pipe);
 }
 
-static void timer_sigaction(int signo, void (*handler)(int))
+static bool timer_sigaction(int signo, void (*handler)(int))
 {
 	struct sigaction sa;
-	int rc;
 
 	sa.sa_handler = handler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
-	rc = sigaction(signo, &sa, NULL);
-	C2_ASSERT(rc == 0);
+	return sigaction(signo, &sa, NULL) == 0;
 }
 
 static void timer_state_process()
@@ -498,10 +498,17 @@ static void timer_scheduler(int unused)
 {
 	struct c2_timer_info *min;
 	timer_t ptimer;
+	bool success;
 
-	timer_sigaction(SIGTIMERSCHED, timer_scheduler_sighandler);
-	timer_sigaction(SIGTIMERCALL, callback_sighandler);
+	success = timer_sigaction(SIGTIMERSCHED, timer_scheduler_sighandler);
+	if (success)
+		success = timer_sigaction(SIGTIMERCALL, callback_sighandler);
+	sched_failed = !success;
 	ptimer = timer_posix_init(SIGTIMERSCHED, gettid());
+	sched_inited = true;
+	if (sched_failed)
+		return;
+
 	while (1) {
 		pipe_wait(&state_pipe);
 		timer_state_process();
@@ -684,6 +691,7 @@ C2_EXPORTED(c2_timer_fini);
 int c2_timers_init()
 {
 	int rc;
+	c2_time_t one_ms;
 
 	c2_atomic64_set(&loc_count, 0);
 	ti_tlist_init(&timer_pqueue);
@@ -691,12 +699,20 @@ int c2_timers_init()
 	c2_mutex_init(&state_lock);
 	finish_scheduler = false;
 	callback_tinfo = NULL;
+	sched_inited = false;
+	sched_failed = false;
+	c2_time_set(&one_ms, 0, 1000000);
 
 	rc = pipe_init(&state_pipe);
 	rc = rc != 0 ? rc : pipe_init(&callback_pipe);
 	rc = rc != 0 ? rc : C2_THREAD_INIT(&scheduler, int, NULL,
 					&timer_scheduler, 0,
 					"hard timer scheduler");
+	if (rc == 0) {
+		while (!sched_inited)
+			c2_nanosleep(one_ms, NULL);
+		rc = sched_failed;
+	}
 	return rc;
 }
 C2_EXPORTED(c2_timers_init);
