@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ *                  Maxim Medved <Max_Medved@xyratex.com>
  * Original creation date: 03/04/2011
  */
 
