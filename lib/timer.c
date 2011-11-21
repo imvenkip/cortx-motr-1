@@ -583,7 +583,8 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 		}
 		if (timer->t_left == 0)
 			break;
-		timer->t_expire = c2_time_add(timer->t_expire, timer->t_interval);
+		timer->t_expire = c2_time_add(timer->t_expire,
+				timer->t_interval);
 		timer->t_callback(timer->t_data);
 		/** @todo
 		 * race condition problem here
