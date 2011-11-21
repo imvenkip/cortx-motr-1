@@ -153,7 +153,7 @@ int composite_rec_lookup(const struct c2_layout_id *l_id,
 
 
 static const struct c2_layout_type_ops composite_type_ops = {
-	.lto_equal      = NULL, 
+	.lto_equal      = NULL,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
 	.lto_rec_add    = composite_rec_add,
