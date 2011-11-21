@@ -45,7 +45,7 @@ enum C2_RPC_OPCODES {
 	C2_BULK_SUNRPC_GET_REPLY_OPCODE = 8,
 	C2_BULK_SUNRPC_PUT_REPLY_OPCODE= 9,
 
- 	/** Colibri set up rpc opcodes */
+	/** Colibri set up rpc opcodes */
 	C2_CS_DS1_REQ_OPCODE = 10,
         C2_CS_DS1_REP_OPCODE = 11,
         C2_CS_DS2_REQ_OPCODE = 12,

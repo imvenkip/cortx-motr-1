@@ -3,3 +3,4 @@ fop_base.c
 fom.c
 fop_format.c
 fop_iterator.c
+fop_onwire.c

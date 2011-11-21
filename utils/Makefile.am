@@ -25,7 +25,8 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/rpc/ut/librpc-helper-ut.la \
                $(top_builddir)/colibri/ut/libcs-ut.la \
                $(top_builddir)/rpc/ut/librpc-helper-ut.la \
-               $(top_builddir)/ioservice/ut/libcfm-ut.la
+               $(top_builddir)/ioservice/ut/libcfm-ut.la \
+	       $(top_builddir)/yaml2db/ut/libyaml2db-ut.la
 
 
 ub_SOURCES   = ub_main.c common.c common.h

@@ -141,43 +141,6 @@ static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
         .fto_io_coalesce = NULL,
 };
 
-#if 0/*
-  DS1 service Item type declartaions
- */
-static struct c2_rpc_item_type cs_ds1_req_fop_rpc_item_type = {
-        .rit_opcode = CS_DS1_REQ,
-        .rit_ops = &cs_ds1_req_fop_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-/*
-  DS2 service Item type declartaions
- */
-static struct c2_rpc_item_type cs_ds2_req_fop_rpc_item_type = {
-        .rit_opcode = CS_DS2_REQ,
-        .rit_ops = &cs_ds2_req_fop_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-/*
-  DS1 service reply rpc item type
- */
-static struct c2_rpc_item_type cs_ds1_rep_fop_rpc_item_type = {
-        .rit_opcode = CS_DS1_REP,
-        .rit_ops = &cs_ds1_rep_fop_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-
-/*
-  DS2 service reply rpc item type
- */
-static struct c2_rpc_item_type cs_ds2_rep_fop_rpc_item_type = {
-        .rit_opcode = CS_DS2_REP,
-        .rit_ops = &cs_ds2_rep_fop_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-#endif
-
 C2_FOP_TYPE_DECLARE(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
 		    C2_CS_DS1_REQ_OPCODE,
 		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
@@ -544,10 +507,8 @@ void c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 			item->ri_deadline = 0;
 			item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 			item->ri_group = NULL;
-			//item->ri_type = &cs_ds1_req_fop_rpc_item_type;
 			ftype = fop[i]->f_type;
 			item->ri_type = &ftype->ft_rpc_item_type;
-			//ftype->ft_ri_type = &cs_ds1_req_fop_rpc_item_type;
 			item->ri_session = cl_rpc_session;
 			c2_time_set(&timeout, 60, 0);
 			c2_clink_init(&clink[i], NULL);
@@ -567,10 +528,8 @@ void c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 			item->ri_deadline = 0;
 			item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 			item->ri_group = NULL;
-			//item->ri_type = &cs_ds2_req_fop_rpc_item_type;
 			ftype = fop[i]->f_type;
 			item->ri_type = &ftype->ft_rpc_item_type;
-			//ftype->ft_ri_type = &cs_ds2_req_fop_rpc_item_type;
 			item->ri_session = cl_rpc_session;
 			c2_time_set(&timeout, 60, 0);
 			c2_clink_init(&clink[i], NULL);
