@@ -304,20 +304,17 @@ static struct c2_timer_info *timer_state_dequeue(enum TIMER_STATE *state)
 	return tinfo;
 }
 
-static void pipe_init(struct timer_pipe *tpipe)
+static int pipe_init(struct timer_pipe *tpipe)
 {
-	int rc = pipe(tpipe->tp_pipefd);
-	C2_ASSERT(rc == 0);
 	c2_atomic64_set(&tpipe->tp_size, 0);
+	return pipe(tpipe->tp_pipefd);
 }
 
-static void pipe_fini(struct timer_pipe *tpipe)
+static int pipe_fini(struct timer_pipe *tpipe)
 {
 	int rc = close(tpipe->tp_pipefd[0]);
-
-	C2_ASSERT(rc == 0);
-	rc = close(tpipe->tp_pipefd[1]);
-	C2_ASSERT(rc == 0);
+	rc = rc != 0 ? rc : close(tpipe->tp_pipefd[1]);
+	return rc;
 }
 
 static void pipe_wake(struct timer_pipe *tpipe)
@@ -356,13 +353,13 @@ static void timer_pqueue_insert(struct c2_timer_info *tinfo)
 {
 	if (tinfo->ti_left == 0)
 		return;
-	if (!ti_tlist_contains(&timer_pqueue, tinfo))
+	if (!ti_tlink_is_in(tinfo))
 		ti_tlist_add(&timer_pqueue, tinfo);
 }
 
 static void timer_pqueue_remove(struct c2_timer_info *tinfo)
 {
-	if (ti_tlist_contains(&timer_pqueue, tinfo))
+	if (ti_tlink_is_in(tinfo))
 		ti_tlist_del(tinfo);
 }
 
@@ -384,14 +381,12 @@ static struct c2_timer_info *timer_pqueue_min()
 static timer_t timer_posix_init(int signo, pid_t tid)
 {
 	struct sigevent se;
-	int rc;
 	timer_t timer;
 
 	se.sigev_notify = SIGEV_THREAD_ID;
 	se.sigev_signo = signo;
 	se._sigev_un._tid = tid;
-	rc = timer_create(CLOCK_REALTIME, &se, &timer);
-	C2_ASSERT(rc == 0);
+	C2_ASSERT(timer_create(CLOCK_REALTIME, &se, &timer) == 0);
 	return timer;
 }
 
@@ -696,14 +691,14 @@ int c2_timers_init()
 	ti_tlist_init(&timer_pqueue);
 	ts_tlist_init(&state_queue);
 	c2_mutex_init(&state_lock);
-	pipe_init(&state_pipe);
-	pipe_init(&callback_pipe);
 	finish_scheduler = false;
 	callback_tinfo = NULL;
 
-	rc = C2_THREAD_INIT(&scheduler, int, NULL,
-			    &timer_scheduler, 0,
-			    "hard timer scheduler");
+	rc = pipe_init(&state_pipe);
+	rc = rc != 0 ? rc : pipe_init(&callback_pipe);
+	rc = rc != 0 ? rc : C2_THREAD_INIT(&scheduler, int, NULL,
+					&timer_scheduler, 0,
+					"hard timer scheduler");
 	return rc;
 }
 C2_EXPORTED(c2_timers_init);
@@ -722,8 +717,8 @@ void c2_timers_fini()
 	ti_tlist_fini(&timer_pqueue);
 	ts_tlist_fini(&state_queue);
 	c2_mutex_fini(&state_lock);
-	pipe_fini(&state_pipe);
-	pipe_fini(&callback_pipe);
+	C2_ASSERT(pipe_fini(&state_pipe) == 0);
+	C2_ASSERT(pipe_fini(&callback_pipe) == 0);
 	C2_ASSERT(callback_tinfo == NULL);
 }
 C2_EXPORTED(c2_timers_fini);
