@@ -525,11 +525,11 @@ static void timer_scheduler(int unused)
 		sched_failed =
 			timer_sigaction(SIGTIMERCALL, callback_sighandler) != 0;
 	}
-	ptimer = timer_posix_init(SIGTIMERSCHED, gettid());
 	sched_inited = true;
 	if (sched_failed)
 		return;
 
+	ptimer = timer_posix_init(SIGTIMERSCHED, gettid());
 	while (1) {
 		pipe_wait(&state_pipe);
 		timer_state_process();
