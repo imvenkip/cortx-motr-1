@@ -332,9 +332,9 @@ static int pipe_fini(struct timer_pipe *tpipe)
 
 static void pipe_wake(struct timer_pipe *tpipe)
 {
-	int fd;
+	int	fd;
 	ssize_t bytes;
-	char one_byte = 0;
+	char	one_byte = 0;
 
 	C2_ASSERT(tpipe != NULL);
 
@@ -352,9 +352,9 @@ static void pipe_wake(struct timer_pipe *tpipe)
 
 static void pipe_wait(struct timer_pipe *tpipe)
 {
-	int fd;
+	int	    fd;
 	static char pipe_buf[PIPE_BUF_SIZE];
-	int rc;
+	int	    rc;
 
 	C2_ASSERT(tpipe != NULL);
 
