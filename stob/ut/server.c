@@ -46,6 +46,7 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpclib.h"
 #include "dtm/dtm.h"
+#include "rpc/rpc_opcodes.h"
 
 #include "stob/io_fop.h"
 #include "stob/io_fop_u.h"

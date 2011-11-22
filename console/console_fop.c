@@ -30,7 +30,7 @@
 
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "lib/errno.h"		/* ENOMEM */
-#include "rpc/rpc_onwire.h"	/* default encode/decode */
+#include "fop/fop_onwire.h"	/* default fop encode/decode */
 #include "fop/fop_format_def.h" /* console.ff */
 
 
@@ -125,49 +125,38 @@ static struct c2_fop_type_ops c2_cons_fop_reply_ops = {
 };
 
 static struct c2_rpc_item_type_ops default_item_type_ops = {
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-        .rito_item_size = c2_rpc_item_default_size,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
 };
 
-/* Item type and ops */
-C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_cons_disk,
+/** Fop and RPC Item type definitions for disk and device failures and replies
+    and replies
+*/
+C2_FOP_TYPE_DECLARE(c2_cons_fop_disk, "Disk Failed",
+		     &c2_cons_fop_disk_ops,
 		     C2_CONS_FOP_DISK_OPCODE,
 		     C2_RPC_ITEM_TYPE_REQUEST,
 		     &default_item_type_ops);
 
-C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_cons_device,
+C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
+		     &c2_cons_fop_device_ops,
 		     C2_CONS_FOP_DEVICE_OPCODE,
 		     C2_RPC_ITEM_TYPE_REQUEST,
 		     &default_item_type_ops);
 
-C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_cons_reply,
+C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
+		     &c2_cons_fop_reply_ops,
 		     C2_CONS_FOP_REPLY_OPCODE,
 		     C2_RPC_ITEM_TYPE_REPLY,
 		     &default_item_type_ops);
 
-/**
- * FOP definitions for disk and device failure fop and its reply
- */
-C2_FOP_TYPE_DECLARE_NEW(c2_cons_fop_disk, "Disk Failed",
-			C2_CONS_FOP_DISK_OPCODE,
-                        &c2_cons_fop_disk_ops,
-                        &c2_rpc_item_cons_disk);
+C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test",
+		     NULL,
+                     C2_CONS_TEST,
+                     0,
+		     NULL);
 
-C2_FOP_TYPE_DECLARE_NEW(c2_cons_fop_device, "Device Failed",
-			C2_CONS_FOP_DEVICE_OPCODE,
-                        &c2_cons_fop_device_ops,
-                        &c2_rpc_item_cons_device);
-
-C2_FOP_TYPE_DECLARE_NEW(c2_cons_fop_reply, "Console Reply",
-			C2_CONS_FOP_REPLY_OPCODE,
-			&c2_cons_fop_reply_ops,
-                        &c2_rpc_item_cons_reply);
-
-C2_FOP_TYPE_DECLARE_NEW(c2_cons_fop_test, "Console Test",
-			0,
-                        NULL,
-                        NULL);
 
 static struct c2_fop_type *fops[] = {
         &c2_cons_fop_disk_fopt,
