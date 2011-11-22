@@ -476,14 +476,16 @@ static void timer_scheduler_sighandler(int unused)
 	pipe_wake(&state_pipe);
 }
 
-static bool timer_sigaction(int signo, void (*handler)(int))
+static int timer_sigaction(int signo, void (*handler)(int))
 {
 	struct sigaction sa;
 
 	sa.sa_handler = handler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
-	return sigaction(signo, &sa, NULL) == 0;
+	if (sigaction(signo, &sa, NULL) != 0)
+		return errno;
+	return 0;
 }
 
 static void timer_state_process()
@@ -516,12 +518,13 @@ static void timer_scheduler(int unused)
 {
 	struct c2_timer_info *min;
 	timer_t ptimer;
-	bool success;
 
-	success = timer_sigaction(SIGTIMERSCHED, timer_scheduler_sighandler);
-	if (success)
-		success = timer_sigaction(SIGTIMERCALL, callback_sighandler);
-	sched_failed = !success;
+	if (timer_sigaction(SIGTIMERSCHED, timer_scheduler_sighandler) != 0) {
+		sched_failed = true;
+	} else {
+		sched_failed =
+			timer_sigaction(SIGTIMERCALL, callback_sighandler) != 0;
+	}
 	ptimer = timer_posix_init(SIGTIMERSCHED, gettid());
 	sched_inited = true;
 	if (sched_failed)
