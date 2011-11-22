@@ -332,10 +332,13 @@ static int pipe_fini(struct timer_pipe *tpipe)
 
 static void pipe_wake(struct timer_pipe *tpipe)
 {
-	int fd = tpipe->tp_pipefd[1];
+	int fd;
 	ssize_t bytes;
 	char one_byte = 0;
 
+	C2_ASSERT(tpipe != NULL);
+
+	fd = tpipe->tp_pipefd[1];
 	if (c2_atomic64_get(&tpipe->tp_size) > 0)
 		return;
 	while (1) {
@@ -349,10 +352,13 @@ static void pipe_wake(struct timer_pipe *tpipe)
 
 static void pipe_wait(struct timer_pipe *tpipe)
 {
-	int fd = tpipe->tp_pipefd[0];
+	int fd;
 	static char pipe_buf[PIPE_BUF_SIZE];
 	int rc;
 
+	C2_ASSERT(tpipe != NULL);
+
+	fd = tpipe->tp_pipefd[0];
 	do {
 		rc = read(fd, pipe_buf, PIPE_BUF_SIZE);
 		if (rc > 0)
