@@ -25,6 +25,7 @@
 #include "lib/memory.h"/* C2_ALLOC_PTR */
 #include "lib/misc.h"  /* C2_SET0 */
 #include "lib/thread.h"/* C2_THREAD_INIT */
+#include "lib/time.h"  /* c2_nanosleep */
 #include "net/bulk_sunrpc.h"
 #include "net/buffer_pool.h"
 
@@ -42,7 +43,7 @@ struct c2_net_buffer_pool_ops b_ops = {
 /**
    Test function for buf_pool ut
  */
-void test_init()
+void test_init(void)
 {
 
 	int rc;
@@ -62,7 +63,7 @@ void test_init()
 	C2_UT_ASSERT(rc == 10);
 }
 
-void test_get_put()
+void test_get_put(void)
 {
 	struct c2_net_buffer *nb = NULL;
 	c2_net_buffer_pool_lock(&bp);
@@ -72,7 +73,7 @@ void test_get_put()
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_get_put_colour()
+void test_get_put_colour(void)
 {
 	struct c2_net_buffer *nb = NULL;
 	c2_net_buffer_pool_lock(&bp);
@@ -85,7 +86,7 @@ void test_get_put_colour()
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_grow()
+void test_grow(void)
 {
 	c2_net_buffer_pool_lock(&bp);
 	/* Buffer pool grow by one */
@@ -93,14 +94,14 @@ void test_grow()
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_prune()
+void test_prune(void)
 {
 	c2_net_buffer_pool_lock(&bp);
 	C2_UT_ASSERT(c2_net_buffer_pool_prune(&bp));
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_get_put_multiple()
+void test_get_put_multiple(void)
 {
 	int nr_client_threads = 5;
 	int i;
@@ -121,7 +122,7 @@ void test_get_put_multiple()
 	}
 }
 
-void test_fini()
+void test_fini(void)
 {
 	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_fini(&bp);
@@ -137,6 +138,7 @@ void buffers_get_put(int rc)
 {
 	struct c2_net_buffer *nb = NULL;
 	struct c2_clink buf_link;
+	c2_time_t t;
 	c2_clink_init(&buf_link, NULL);
 	c2_clink_add(&buf_chan, &buf_link);
 	do {
@@ -146,7 +148,7 @@ void buffers_get_put(int rc)
 		if (nb == NULL)
 			c2_chan_wait(&buf_link);
 	} while(nb == NULL);
-	sleep(1);
+	c2_nanosleep(c2_time_set(&t, 1, 0), NULL);
 	c2_net_buffer_pool_lock(&bp);
 	if (nb != NULL)
 		c2_net_buffer_pool_put(&bp, nb, ~0);
@@ -162,7 +164,7 @@ void notempty(struct c2_net_buffer_pool *bp)
 
 void low(struct c2_net_buffer_pool *bp)
 {
-	printf("Buffer pool is LOW \n");
+	/* Buffer pool is LOW */
 }
 
 const struct c2_test_suite buffer_pool_ut = {
@@ -180,7 +182,7 @@ const struct c2_test_suite buffer_pool_ut = {
 		{ NULL, 			   NULL }
 	}
 };
-C2_EXPORTED(bulk_pool_ut);
+C2_EXPORTED(buffer_pool_ut);
 
 /*
  *  Local variables:
