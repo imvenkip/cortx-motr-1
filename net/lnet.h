@@ -44,9 +44,9 @@
 
    The use of this subroutine is not mandatory.
 
-   @see @ref net "Networking"
-   @see @ref LNetDLD "LNet Transport DLD"
-   @see @ref LNetDFS "LNet Transport Interface"
+   @see @ref net "Networking"                     <!-- net/net.h -->
+   @see @ref LNetDLD "LNet Transport DLD"         <!-- net/lnet/lnet_main.c -->
+   @see @ref LNetDFS "LNet Transport Interface"   <!-- below -->
 
  */
 

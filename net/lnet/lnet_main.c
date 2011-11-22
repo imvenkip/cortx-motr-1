@@ -27,9 +27,9 @@
    - @ref LNetDLD-req
    - @ref LNetDLD-depends
    - @ref LNetDLD-highlights
-   - @subpage LNetDLD-fspec "Functional Specification" <!-- ext link -->
-      - @ref LNetDFS "LNet Transport Interface"       <!-- ext link -->
-      - @ref LNetXODFS "XO Interface"            <!-- int link -->
+   - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet_core.h" -->
+      - @ref LNetDFS "LNet Transport Interface"        <!-- net/lnet.h -->
+      - @ref LNetXODFS "XO Interface"                  <!-- ./lnet_xo.h -->
    - @ref LNetDLD-lspec
       - @ref LNetDLD-lspec-comps
       - @ref LNetDLD-lspec-ep
@@ -54,7 +54,9 @@
 
    The design of the other layers can be found here:
    - @ref LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"
+     <!-- ./bev_cqueue.c -->
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
+     <!-- ./linux_kernel/klnet_core.c -->
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
 
    <hr>
@@ -89,9 +91,11 @@
    @section LNetDLD-depends Dependencies
    <ul>
 
-   <li>@ref LNetCore "LNet Transport Core Interface" </li>
+   <li>@ref LNetCore "LNet Transport Core Interface" <!-- ./lnet_core.h -->
+   </li>
 
-   <li>The @ref net "Networking Module".  Some modifications are required:
+   <li>The @ref net "Networking Module". <!-- net/net.h -->
+   Some modifications are required:
 
      The design adds two additional fields to the c2_net_buffer structure:
      @code
@@ -133,18 +137,20 @@
 
    </li> <!-- end net module changes -->
 
-   <li>The @ref bitmap "Bitmap Module".  New subroutines to copy a bitmap and
-   to compare bitmaps are required. The copy subroutine should be refactored
-   out of the processors_copy_c2bitmap() subroutine. </li>
+   <li>The @ref bitmap "Bitmap Module". <!-- lib/bitmap.h -->
+   New subroutines to copy a bitmap and to compare bitmaps are required. The
+   copy subroutine should be refactored out of the processors_copy_c2bitmap()
+   subroutine. </li>
 
-   <li>The @ref Processor API for the application to determine processor
-   bitmaps with which to specify thread affinity.</li>
+   <li>The @ref Processor <!-- lib/processor.h -->
+   API for the application to determine processor bitmaps with which to specify
+   thread affinity.</li>
 
-   <li>The @ref thread "Thread Module".  Modifications are required in
-   c2_thread_init() subroutine or a variant should be provided to support
-   thread creation with processor affinity set.  This is essential for the
-   kernel implementation where processor affinity can only be set during thread
-   creation.</li>
+   <li>The @ref thread "Thread Module". <!-- lib/thread.h -->
+   Modifications are required in c2_thread_init() subroutine or a variant
+   should be provided to support thread creation with processor affinity set.
+   This is essential for the kernel implementation where processor affinity can
+   only be set during thread creation.</li>
 
    </ul>
 
@@ -557,6 +563,7 @@
    In general, the transport operational layer simply routes data too and from
    the Core API; this behavior is analyzed in
    @ref KLNetCoreDLD "LNet Transport Kernel Core DLD".
+   <!-- ./linux_kernel/klnet_core.c -->
 
    An area of concern specific to the transport operations layer is the
    management of end point objects.  In particular, the time taken to search
@@ -583,8 +590,10 @@
    @section LNetDLD-ref References
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
-   - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"
-   - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD"
+   - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD" <!--
+                                                               ./bev_cqueue.c -->
+   - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
+                                                  ./linux_kernel/klnet_core.c -->
    - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
 
  */

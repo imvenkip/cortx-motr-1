@@ -27,10 +27,11 @@
    - @ref KLNetCoreDLD-req
    - @ref KLNetCoreDLD-depends
    - @ref KLNetCoreDLD-highlights
-   - @subpage LNetCoreDLD-fspec "Functional Specification" <!-- ext link -->
-        - @ref LNetCore "LNet Transport Core Interface"
-        - @ref KLNetCore "Core Kernel Interface"      <!-- ext link -->
-        - @ref ULNetCore "Core User Space Interface"  <!-- ext link -->
+   - @subpage LNetCoreDLD-fspec "Functional Specification" <!--
+                                                             ./klnet_core.h -->
+        - @ref LNetCore "LNet Transport Core Interface" <!-- ../lnet_core.h -->
+        - @ref KLNetCore "Core Kernel Interface"        <!-- ./klnet_core.h -->
+        - @ref ULNetCore "Core User Space Interface"   <!-- ../ulnet_core.h -->
    - @ref KLNetCoreDLD-lspec
       - @ref KLNetCoreDLD-lspec-comps
       - @ref KLNetCoreDLD-lspec-userspace
@@ -95,12 +96,13 @@
    machine (RPM @c lustre-source version 2.0 or greater).
    - <b>Xyratex Lustre run time</b>
    - @b r.c2.lib.atomic.interoperable-kernel-user-support The @ref LNetcqueueDLD
-   "Buffer Event Circular Queue" provides a shared data structure for
-   efficiently passing event notifications from the Core layer to the LNet
-   transport layer.
+   "Buffer Event Circular Queue" <!-- ../bev_cqueue.c -->
+   provides a shared data structure for efficiently passing event notifications
+   from the Core layer to the LNet transport layer.
    - @b r.net.xprt.lnet.growable-event-queue The @ref LNetcqueueDLD
-   "Buffer Event Circular Queue" provides a way to expand the event queue as new
-   buffers are queued with a transfer machine, ensuring no events are lost.
+   "Buffer Event Circular Queue" <!-- ../bev_cqueue.c -->
+   provides a way to expand the event queue as new buffers are queued with a
+   transfer machine, ensuring no events are lost.
 
    <hr>
    @section KLNetCoreDLD-highlights Design Highlights

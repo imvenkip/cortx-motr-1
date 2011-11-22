@@ -48,7 +48,9 @@
    lock-free queue for a single producer and consumer.  The producer and
    consumer can be in different address spaces with the queue in shared memory.
    The circular queue is designed to specifically meet the needs of the
-   @ref KLNetCoreDLD "Core API".
+   @ref KLNetCoreDLD "Core API". <!-- ./linux_kernel/klnet_core.c -->
+   In particular see the @ref KLNetCoreDLD-lspec-bevq "The Buffer Event Queue"
+   section.
 
    The queue implementation does not address how the consumer gets notified that
    queue elements have been produced. That functionality is provided separately
@@ -71,7 +73,7 @@
    <hr>
    @section cqueueDLD-depends Dependencies
 
-   - The @ref atomic API.
+   - The @ref atomic <!-- lib/atomic.h --> API.
 
    <hr>
    @section cqueueDLD-highlights Design Highlights
@@ -485,7 +487,7 @@
    - @ref cqueueDLD-fspec-ds
    - @ref cqueueDLD-fspec-sub
    - @ref cqueueDLD-fspec-usecases
-   - @ref bevcqueue "Detailed Functional Specification" <!-- Note link -->
+   - @ref bevcqueue "Detailed Functional Specification" <!-- below -->
 
    @section cqueueDLD-fspec-ds Data Structures
 
@@ -586,7 +588,7 @@
    }
    @endcode
 
-   @see @ref bevcqueue "Detailed Functional Specification"
+   @see @ref bevcqueue "Detailed Functional Specification" <!-- below -->
  */
 
 /**
