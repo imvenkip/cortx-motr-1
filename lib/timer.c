@@ -361,8 +361,7 @@ static void pipe_wait(struct timer_pipe *tpipe)
 	fd = tpipe->tp_pipefd[0];
 	do {
 		rc = read(fd, pipe_buf, PIPE_BUF_SIZE);
-		if (rc > 0)
-			if (c2_atomic64_sub_return(&tpipe->tp_size, rc) == 0)
+		if (rc > 0 && c2_atomic64_sub_return(&tpipe->tp_size, rc) == 0)
 				break;
 	} while (rc == -1 && errno == EINTR);
 	C2_ASSERT(rc != -1);
