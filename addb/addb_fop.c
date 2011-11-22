@@ -43,8 +43,7 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
 #include "fop/fop_format_def.h"
 #include "addb/addb.ff"
-
-
+#include "rpc/rpc_opcodes.h"
 /*
 C2_EXPORTED(c2_mem_buf_tfmt);
 C2_EXPORTED(c2_addb_record_header_tfmt);
@@ -56,9 +55,13 @@ static struct c2_fop_type_ops addb_ops = {
 	.fto_execute = c2_addb_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_addb_record, "addb",       14, &addb_ops);
-C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", 24,  NULL);
+C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
+		     C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
+		     &c2_rpc_fop_default_item_type_ops);
 
+C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &c2_rpc_fop_default_item_type_ops);
 /**
    ADDB record body for function fail event.
 

@@ -131,8 +131,6 @@ static int nettest_service_handler(struct c2_service *service,
 
         ctx.ft_service = service;
         ctx.fc_cookie  = cookie;
-        /* printf("Got fop: code = %d, name = %s\n", */
-	/*        fop->f_type->ft_code, fop->f_type->ft_name); */
         return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }
 
@@ -154,7 +152,7 @@ void test_net_client(void)
         C2_UT_ASSERT(rc == 0);
 
 	C2_SET0(&s1);
-	s1.s_table.not_start = net_ut_fopt[0]->ft_code;
+	s1.s_table.not_start = net_ut_fopt[0]->ft_rpc_item_type.rit_opcode;
 	s1.s_table.not_nr    = ARRAY_SIZE(net_ut_fopt);
 	s1.s_table.not_fopt  = net_ut_fopt;
 	s1.s_handler         = &nettest_service_handler;

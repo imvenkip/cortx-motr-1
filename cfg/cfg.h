@@ -24,6 +24,7 @@
 /* import */
 #include "lib/types.h"
 #include "fid/fid.h" /** import c2_fid */
+#include "db/db.h"
 
 /**
    @page DLD_conf_schema DLD for configuration schema
@@ -242,7 +243,7 @@ struct c2_cfg_storage_device__key {
 /**
    Colibri storage device configuration value.
 
-   @see c2_cfg_storage device_interface_type and,
+   @see c2_cfg_storage_device_interface_type and,
    @see c2_cfg_storage_device_media_type for type and media field.
 */
 struct c2_cfg_storage_device__val {
@@ -267,6 +268,8 @@ struct c2_cfg_storage_device__val {
 	/** the hosting node, foreign-key */
 	char     csd_nodename[C2_CFG_NAME_LEN];
 };
+
+const struct c2_table_ops c2_cfg_storage_device_table_ops;
 
 /**
    Colibri partition types.
@@ -405,7 +408,7 @@ struct c2_cfg_service__key {
 };
 
 enum {
-	C2_CFG_SERVICE_MAX_END_POINTS = 16;
+	C2_CFG_SERVICE_MAX_END_POINTS = 16
 };
 
 /**
