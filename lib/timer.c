@@ -110,15 +110,18 @@ static volatile bool sched_inited;
 static volatile bool sched_failed;
 
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
-		tt_linkage, tt_magic, 0x100, 0x101);
+		tt_linkage, tt_magic,
+		0x48e42721b3738bfd, 0xc2fe5365aafe4064);
 C2_TL_DEFINE(tid, static, struct timer_tid);
 
 C2_TL_DESCR_DEFINE(ti, "c2_timer_info priority queue", static,
-		struct c2_timer_info, ti_linkage, ti_magic, 0x200, 0x201);
+		struct c2_timer_info, ti_linkage, ti_magic,
+		0x8dd02707b3f69ca4, 0xf112a93259bffcb0);
 C2_TL_DEFINE(ti, static, struct c2_timer_info);
 
 C2_TL_DESCR_DEFINE(ts, "timer_state queue", static,
-		struct timer_state, ts_linkage, ts_magic, 0x300, 0x301);
+		struct timer_state, ts_linkage, ts_magic,
+		0xabb9e83856d504bf, 0x75706d63a355633b);
 C2_TL_DEFINE(ts, static, struct timer_state);
 
 /**
