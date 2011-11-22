@@ -311,12 +311,16 @@ static struct c2_timer_info *timer_state_dequeue(enum TIMER_STATE *state)
 
 static int pipe_init(struct timer_pipe *tpipe)
 {
+	C2_ASSERT(tpipe != NULL);
+
 	c2_atomic64_set(&tpipe->tp_size, 0);
 	return pipe(tpipe->tp_pipefd);
 }
 
 static int pipe_fini(struct timer_pipe *tpipe)
 {
+	C2_ASSERT(tpipe != NULL);
+
 	int rc = close(tpipe->tp_pipefd[0]);
 	rc = rc != 0 ? rc : close(tpipe->tp_pipefd[1]);
 	return rc;
