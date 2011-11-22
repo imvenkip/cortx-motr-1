@@ -464,9 +464,7 @@ static void timer_expired_execute()
 
 	while (1) {
 		min = timer_pqueue_min();
-		if (min == NULL)
-			break;
-		if (c2_time_after(min->ti_expire, c2_time_now()))
+		if (min == NULL || c2_time_after(min->ti_expire, c2_time_now()))
 			break;
 		callback_execute(min);
 		timer_reschedule(min);
