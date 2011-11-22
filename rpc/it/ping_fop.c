@@ -37,7 +37,7 @@
 #include "rpc/it/ping_fop.ff"
 #include "lib/errno.h"
 #include "rpc/rpc2.h"
-#include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
 /* Init for ping reply fom */

@@ -3,7 +3,7 @@ UT_SRCDIR=@SRCDIR@/rpc/ut
 INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
 
 #noinst_PROGRAMS   = rclient rserver
-noinst_PROGRAMS   = onwire_ut
+# noinst_PROGRAMS   = onwire_ut
 
 #noinst_LTLIBRARIES = librpccore-ut.la
 noinst_LTLIBRARIES = librpclib-ut.la libonwire-ut.la

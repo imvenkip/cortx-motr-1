@@ -40,6 +40,8 @@
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
+#include "rpc/rpc_opcodes.h"
+#include "fop/fop_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
 #include "fop/fop_format_def.h"
@@ -56,18 +58,6 @@
    @defgroup stobio
    @{
  */
-
-/**
- * Fop opcodes
- */
-enum reply_fop {
-	CREATE_REQ = 40,
-	WRITE_REQ,
-	READ_REQ,
-	CREATE_REP = 43,
-	WRITE_REP,
-	READ_REP
-};
 
 /**
  * Read fop specific fom execution phases
@@ -93,15 +83,15 @@ static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc);
  */
 static const struct c2_rpc_item_type_ops default_rpc_item_type_ops = {
         .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_default_size,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops default_rep_rpc_item_type_ops = {
-        .rito_item_size = c2_rpc_item_default_size,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 /**
@@ -117,66 +107,30 @@ static const struct c2_fop_type_ops default_rep_fop_ops = {
 };
 
 /**
- * Item type declartaions
- */
-struct c2_rpc_item_type c2_stob_create_rpc_item_type = {
-        .rit_opcode = CREATE_REQ,
-        .rit_ops = &default_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-C2_EXPORTED(c2_stob_create_rpc_item_type);
-
-struct c2_rpc_item_type c2_stob_write_rpc_item_type = {
-        .rit_opcode = WRITE_REQ,
-        .rit_ops = &default_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-C2_EXPORTED(c2_stob_write_rpc_item_type);
-
-struct c2_rpc_item_type c2_stob_read_rpc_item_type = {
-        .rit_opcode = READ_REQ,
-        .rit_ops = &default_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-C2_EXPORTED(c2_stob_read_rpc_item_type);
-
-struct c2_rpc_item_type c2_stob_create_rep_rpc_item_type = {
-        .rit_opcode = CREATE_REP,
-        .rit_ops = &default_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-C2_EXPORTED(c2_stob_create_rep_rpc_item_type);
-
-struct c2_rpc_item_type c2_stob_write_rep_rpc_item_type = {
-        .rit_opcode = WRITE_REP,
-        .rit_ops = &default_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-C2_EXPORTED(c2_stob_write_rep_rpc_item_type);
-
-struct c2_rpc_item_type c2_stob_read_rep_rpc_item_type = {
-        .rit_opcode = READ_REP,
-        .rit_ops = &default_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-C2_EXPORTED(c2_stob_read_rep_rpc_item_type);
-
-/**
  * Fop type declarations for corresponding fops
  */
-C2_FOP_TYPE_DECLARE_NEW(c2_stob_io_create, "stob_create", CREATE_REQ,
-			&default_fop_ops, &c2_stob_create_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(c2_stob_io_read, "stob_read", READ_REQ,
-			&default_fop_ops, &c2_stob_read_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(c2_stob_io_write, "stob_write", WRITE_REQ,
-			&default_fop_ops, &c2_stob_write_rpc_item_type);
+C2_FOP_TYPE_DECLARE(c2_stob_io_create, "stob_create", &default_fop_ops,
+		    C2_STOB_IO_CREATE_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		    &default_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_stob_io_read, "stob_read", &default_fop_ops,
+		    C2_STOB_IO_READ_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		    &default_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_stob_io_write, "stob_write", &default_fop_ops,
+		    C2_STOB_IO_WRITE_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		    &default_rpc_item_type_ops);
 
-C2_FOP_TYPE_DECLARE_NEW(c2_stob_io_create_rep, "stob_create reply", CREATE_REP,
-			&default_rep_fop_ops, &c2_stob_create_rep_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(c2_stob_io_read_rep, "stob_read reply",  READ_REP,
-			&default_rep_fop_ops, &c2_stob_read_rep_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(c2_stob_io_write_rep, "stob_write reply", WRITE_REP,
-			&default_rep_fop_ops, &c2_stob_write_rep_rpc_item_type);
+C2_FOP_TYPE_DECLARE(c2_stob_io_create_rep, "stob_create reply", &default_rep_fop_ops,
+		    C2_STOB_IO_CREATE_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY, &default_rep_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_stob_io_read_rep, "stob_read reply",  &default_rep_fop_ops,
+		    C2_STOB_IO_READ_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY, &default_rep_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_stob_io_write_rep, "stob_write reply", &default_rep_fop_ops,
+		    C2_STOB_IO_WRITE_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY, &default_rep_rpc_item_type_ops);
 
 /**
  * Fop type structures required for initialising corresponding fops.
@@ -288,9 +242,9 @@ static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
  */
 static struct c2_fom_type *stob_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_ASSERT(IS_IN_ARRAY((code - CREATE_REQ), stob_fom_types));
+	C2_ASSERT(IS_IN_ARRAY((code - C2_STOB_IO_CREATE_REQ_OPCODE), stob_fom_types));
 
-	return stob_fom_types[code - CREATE_REQ];
+	return stob_fom_types[code - C2_STOB_IO_CREATE_REQ_OPCODE];
 }
 
 /**
@@ -384,8 +338,8 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 	if (fom == NULL)
 		return -EINVAL;
 
-	switch (fom->fo_fop->f_type->ft_code) {
-	case CREATE_REQ: {
+	switch (fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode) {
+	case C2_STOB_IO_CREATE_REQ_OPCODE: {
 		struct c2_stob_io_create *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -393,7 +347,7 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 		iloc = oid;
 		break;
 	}
-	case WRITE_REQ: {
+	case C2_STOB_IO_WRITE_REQ_OPCODE: {
 		struct c2_stob_io_read *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -401,7 +355,7 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 		iloc = oid;
 		break;
 	}
-	case READ_REQ: {
+	case C2_STOB_IO_READ_REQ_OPCODE: {
 		struct c2_stob_io_write *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -428,7 +382,8 @@ static int stob_create_fom_state(struct c2_fom *fom)
 	struct c2_fop                   *fop;
 	int                             result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
+	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+			C2_STOB_IO_CREATE_REQ_OPCODE);
 
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 	if (fom->fo_phase < FOPH_NR) {
@@ -443,9 +398,8 @@ static int stob_create_fom_state(struct c2_fom *fom)
 		out_fop->ficr_rc = result;
 		fop = fom_obj->sif_rep_fop;
 		item = c2_fop_to_rpc_item(fop);
-		item->ri_type = &c2_stob_create_rep_rpc_item_type;
+		item->ri_type = &fop->f_type->ft_rpc_item_type;
 		item->ri_group = NULL;
-		fop->f_type->ft_ri_type = &c2_stob_create_rep_rpc_item_type;
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
 		fom->fo_rc = result;
 		if (result != 0)
@@ -483,7 +437,8 @@ static int stob_read_fom_state(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result;
 
-        C2_PRE(fom->fo_fop->f_type->ft_code == READ_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+			C2_STOB_IO_READ_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
@@ -548,9 +503,8 @@ static int stob_read_fom_state(struct c2_fom *fom)
                         out_fop->firr_rc = fom->fo_rc;
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
-                        item->ri_type = &c2_stob_read_rep_rpc_item_type;
+			item->ri_type = &fop->f_type->ft_rpc_item_type;
                         item->ri_group = NULL;
-                        fop->f_type->ft_ri_type = &c2_stob_read_rep_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -593,7 +547,8 @@ static int stob_write_fom_state(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result;
 
-        C2_PRE(fom->fo_fop->f_type->ft_code == WRITE_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+			C2_STOB_IO_WRITE_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
@@ -656,9 +611,8 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         out_fop->fiwr_rc = fom->fo_rc;
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
-			item->ri_type = &c2_stob_write_rep_rpc_item_type;
+			item->ri_type = &fop->f_type->ft_rpc_item_type;
 			item->ri_group = NULL;
-			fop->f_type->ft_ri_type = &c2_stob_write_rep_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -693,7 +647,7 @@ static int stob_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
 
-	fom_type = stob_fom_type_map(fop->f_type->ft_code);
+	fom_type = stob_fom_type_map(fop->f_type->ft_rpc_item_type.rit_opcode);
 	if (fom_type == NULL)
 		return -EINVAL;
 	fop->f_type->ft_fom_type = *fom_type;
