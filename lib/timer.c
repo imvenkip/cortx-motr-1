@@ -438,6 +438,8 @@ static void callback_execute(struct c2_timer_info *tinfo)
 {
 	timer_t ptimer;
 
+	C2_ASSERT(tinfo != NULL);
+
 	callback_tinfo = tinfo;
 	ptimer = timer_posix_init(SIGTIMERCALL, tinfo->ti_tid);
 	timer_posix_set(ptimer, c2_time_now());
@@ -447,6 +449,8 @@ static void callback_execute(struct c2_timer_info *tinfo)
 
 static void timer_reschedule(struct c2_timer_info *tinfo)
 {
+	C2_ASSERT(tinfo != NULL);
+
 	timer_pqueue_remove(tinfo);
 	if (--tinfo->ti_left == 0)
 		return;
