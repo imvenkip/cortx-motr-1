@@ -1,14 +1,18 @@
 #include <linux/mount.h>
-#include <linux/parser.h> /* substring_t */
-#include <linux/slab.h> /* kmalloc(), kfree() */
+#include <linux/parser.h>     /* substring_t */
+#include <linux/slab.h>       /* kmalloc(), kfree() */
 
-#include "lib/misc.h"  /* C2_SET0() */
-#include "lib/memory.h" /* C2_ALLOC_PTR(), c2_free() */
+#include "lib/misc.h"         /* C2_SET0() */
+#include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free() */
 #include "c2t1fs/c2t1fs.h"
+
+/* Super block */
 
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
+
+/* Mount options */
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts);
 static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
@@ -17,6 +21,15 @@ static int  c2t1fs_mnt_opts_parse(char                   *options,
 				  struct c2t1fs_mnt_opts *mnt_opts);
 
 static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
+
+/* service contexts */
+
+static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
+					struct c2t1fs_sb              *csb,
+					enum c2t1fs_service_type       type,
+					char                          *ep_addr);
+
+static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx);
 
 static int  c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb);
 static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb);
@@ -27,12 +40,7 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb);
 static int  c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx);
 static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx);
 
-static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
-					struct c2t1fs_sb              *csb,
-					enum c2t1fs_service_type       type,
-					char                          *ep_addr);
-
-static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx);
+/* Container location map */
 
 static int
 c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
@@ -42,6 +50,8 @@ static void
 c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
 
 static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
+
+/* global instances */
 
 static struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
@@ -66,6 +76,9 @@ static const struct c2_tl_descr svc_ctx_tl_descr =
 				    MAGIC_SVC_CTX,
 				    MAGIC_SVCCTXHD);
 
+/**
+   Implementation of file_system_type::get_sb() interface.
+ */
 int c2t1fs_get_sb(struct file_system_type *fstype,
 		  int                      flags,
 		  const char              *devname,
@@ -190,6 +203,9 @@ out:
 	return rc;
 }
 
+/**
+   Implementation of file_system_type::kill_sb() interface.
+ */
 void c2t1fs_kill_sb(struct super_block *sb)
 {
 	struct c2t1fs_sb *csb;
@@ -198,8 +214,11 @@ void c2t1fs_kill_sb(struct super_block *sb)
 
 	csb = C2T1FS_SB(sb);
 	TRACE("csb = %p\n", csb);
-	/* If c2t1fs_fill_super() fails then deactivate_locked_super() calls
-	   c2t1fs_fs_type->kill_sb(). In that case, csb == NULL. */
+	/*
+	 * If c2t1fs_fill_super() fails then deactivate_locked_super() calls
+	 * c2t1fs_fs_type->kill_sb(). In that case, csb == NULL.
+	 * But still not sure, such csb != NULL handling is a good idea.
+	 */
 	if (csb != NULL) {
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
@@ -403,6 +422,12 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			break;
 
 		case C2T1FS_MNTOPT_MDS:
+			/*
+			 * following 6 lines are duplicated for each "string"
+			 * mount option. It is possible to bring them at one
+			 * place, but preferred current implementation for
+			 * simplicity.
+			 */
 			value = match_strdup(args);
 			if (value == NULL) {
 				rc = -ENOMEM;
@@ -544,6 +569,7 @@ out:
 	END(rc);
 	return rc;
 }
+
 static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
 {
 	struct c2t1fs_mnt_opts        *mntopts;
@@ -694,6 +720,7 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 
 		if (csb->csb_nr_active_contexts == 0)
 			break;
+
 	} c2_tlist_endfor;
 
 	END(0);
@@ -725,25 +752,17 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 	int                                   nr_cont_per_svc;
 	int                                   nr_containers;
 	int                                   nr_ios;
-	int                                   rc = 0;
 	int                                   i;
 	int                                   cur;
 
 	START();
 
 	nr_ios = csb->csb_mnt_opts.mo_nr_ios_ep;
-	if (nr_ios == 0) {
-		/*
-		 * XXX We should return failure at this point. Because there
-		 * is no active session with any ioservice.
-		 * But for now, for testing purpose it's okay.
-		 */
-		TRACE("No io-service\n");
-		rc = 0;
-		goto out;
-	}
+	C2_ASSERT(nr_ios > 0);
 
 	nr_containers = csb->csb_nr_containers;
+	C2_ASSERT(nr_containers > 0);
+
 	nr_cont_per_svc = nr_containers / nr_ios;
 	if (nr_containers % nr_ios != 0)
 		nr_cont_per_svc++;
@@ -762,7 +781,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 			   container 0 */
 			map->clm_map[0] = ctx;
 			TRACE("container_id [0] at %s\n", ctx->sc_addr);
-			continue;
+			break;
 
 		case C2T1FS_ST_IOS:
 			for (i = 0; i < nr_cont_per_svc &&
@@ -772,35 +791,37 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 						ctx->sc_addr);
 			}
 			break;
+
 		case C2T1FS_ST_MGS:
 			break;
+
 		default:
 			C2_ASSERT(0);
 		}
+
 	} c2_tlist_endfor;
-out:
-	END(rc);
-	return rc;
+
+	END(0);
+	return 0;
 }
 
 struct c2_rpc_session *
 c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
 			       uint64_t          container_id)
 {
-	struct c2t1fs_container_location_map *map;
 	struct c2t1fs_service_context        *ctx;
 
 	START();
 
 	C2_ASSERT(container_id <= csb->csb_nr_containers);
 
-	map = &csb->csb_cl_map;
-	ctx = map->clm_map[container_id];
+	ctx = csb->csb_cl_map.clm_map[container_id];
 	C2_ASSERT(ctx != NULL);
 
 	END(&ctx->sc_session);
 	return &ctx->sc_session;
 }
+
 void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
 {
 	START();

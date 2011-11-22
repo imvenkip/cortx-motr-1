@@ -1,5 +1,5 @@
-#include "c2t1fs/c2t1fs.h"
 #include "lib/misc.h"   /* C2_SET0() */
+#include "c2t1fs/c2t1fs.h"
 
 static int c2t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -22,6 +22,7 @@ static int c2t1fs_readdir(struct file *f,
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
 static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci);
+
 int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid);
 
 struct file_operations c2t1fs_dir_file_operations = {

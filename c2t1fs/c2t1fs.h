@@ -372,6 +372,14 @@ static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
 	return container_of(inode, struct c2t1fs_inode, ci_inode);
 }
 
+extern struct file_operations c2t1fs_dir_file_operations;
+extern struct file_operations c2t1fs_reg_file_operations;
+
+extern struct inode_operations c2t1fs_dir_inode_operations;
+extern struct inode_operations c2t1fs_reg_inode_operations;
+
+/* super.c */
+
 /**
    For now, fid of root directory is assumed to be a constant.
  */
@@ -390,25 +398,22 @@ void c2t1fs_kill_sb(struct super_block *sb);
 void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
 void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
 
-int c2t1fs_inode_cache_init(void);
+struct c2_rpc_session * c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
+						       uint64_t container_id);
+
+/* inode.c */
+
+int  c2t1fs_inode_cache_init(void);
 void c2t1fs_inode_cache_fini(void);
 
 struct inode *c2t1fs_root_iget(struct super_block *sb);
 struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid);
 
-extern struct file_operations c2t1fs_dir_file_operations;
-extern struct file_operations c2t1fs_reg_file_operations;
-
-extern struct inode_operations c2t1fs_dir_inode_operations;
-extern struct inode_operations c2t1fs_reg_inode_operations;
-
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
-void c2t1fs_destroy_inode(struct inode *inode);
+void          c2t1fs_destroy_inode(struct inode *inode);
+
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 				uint64_t unit_size);
-
-struct c2_rpc_session * c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
-						       uint64_t container_id);
 
 struct c2_fid c2t1fs_target_fid(const struct c2_fid gob_fid, int index);
 #endif /* __COLIBRI_C2T1FS_H */

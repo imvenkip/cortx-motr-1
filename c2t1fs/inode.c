@@ -1,9 +1,9 @@
-#include <linux/slab.h> /* kmem_cache */
+#include <linux/slab.h>      /* kmem_cache */
 
-#include "layout/pdclust.h" /* c2_pdclust_build(), c2_pdclust_fini() */
-#include "pool/pool.h" /* c2_pool_init(), c2_pool_fini() */
-#include "lib/misc.h"  /* C2_SET0() */
-#include "lib/memory.h" /* C2_ALLOC_PTR(), c2_free */
+#include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
+#include "pool/pool.h"       /* c2_pool_init(), c2_pool_fini() */
+#include "lib/misc.h"        /* C2_SET0() */
+#include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free() */
 #include "c2t1fs/c2t1fs.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
@@ -32,6 +32,7 @@ static void init_once(void *foo)
 
 	END(0);
 }
+
 int c2t1fs_inode_cache_init(void)
 {
 	int rc = 0;
@@ -75,6 +76,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 
 	END(0);
 }
+
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
 	struct c2_pdclust_layout *pd_layout;
@@ -89,6 +91,10 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	}
 	END(0);
 }
+
+/**
+   Implementation of super_operations::alloc_inode() interface.
+ */
 struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode *ci;
@@ -107,6 +113,9 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 	return &ci->ci_inode;
 }
 
+/**
+   Implementation of super_operations::destroy_inode() interface.
+ */
 void c2t1fs_destroy_inode(struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
@@ -118,6 +127,7 @@ void c2t1fs_destroy_inode(struct inode *inode)
 
 	c2t1fs_inode_fini(ci);
 	kmem_cache_free(c2t1fs_inode_cachep, ci);
+
 	END(0);
 }
 
@@ -127,12 +137,28 @@ struct inode *c2t1fs_root_iget(struct super_block *sb)
 
 	START();
 
+	/*
+	 * Currently it is assumed, that fid of root of file-system is
+	 * well-known. But this can change when configuration modules are
+	 * implemented. And we might need to get fid of root directory from
+	 * configuration module. c2t1fs_root_iget() hides these details from
+	 * mount code path.
+	 */
 	inode = c2t1fs_iget(sb, (struct c2_fid *)&c2t1fs_root_fid);
 
 	END(inode);
 	return inode;
 }
 
+/**
+   In file-systems like c2t1fs or nfs, inode number is not enough to identify
+   a file. For such file-systems structure and semantics of file identifier
+   are file-system specific e.g. fid in case of c2t1fs, file handle for nfs.
+
+   c2t1fs_inode_test() and c2t1fs_inode_set() are the implementation of
+   interfaces that are used by generic vfs code, to compare identities of
+   inodes, in a generic manner.
+ */
 static int c2t1fs_inode_test(struct inode *inode, void *opaque)
 {
 	struct c2t1fs_inode *ci;
@@ -195,9 +221,10 @@ static int c2t1fs_inode_refresh(struct inode *inode)
 	END(0);
 	return 0;
 }
+
 static int c2t1fs_inode_read(struct inode *inode)
 {
-	int                  rc;
+	int rc;
 
 	START();
 
@@ -206,14 +233,20 @@ static int c2t1fs_inode_read(struct inode *inode)
 		goto out;
 
 	if (S_ISREG(inode->i_mode)) {
+
 		inode->i_op   = &c2t1fs_reg_inode_operations;
 		inode->i_fop  = &c2t1fs_reg_file_operations;
+
 	} else if (S_ISDIR(inode->i_mode)) {
+
 		inode->i_op   = &c2t1fs_dir_inode_operations;
 		inode->i_fop  = &c2t1fs_dir_file_operations;
 		inc_nlink(inode);
+
 	} else {
+
 		rc = -ENOSYS;
+
 	}
 
 out:
@@ -241,6 +274,12 @@ struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid)
 
 	hash = fid_hash(fid);
 
+	/*
+	 * Search inode cache for an inode that has matching @fid.
+	 * Use c2t1fs_inode_test() to compare fid_s. If not found, allocate a
+	 * new inode. Set its fid to @fid using c2t1fs_inode_set(). Also
+	 * set I_NEW flag in inode->i_state for newly allocated inode.
+	 */
 	inode = iget5_locked(sb, hash, c2t1fs_inode_test, c2t1fs_inode_set,
 				fid);
 	if (inode != NULL) {
@@ -289,8 +328,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 	if (rc != 0)
 		goto out_free;
 
-	rc = c2_pdclust_build(pool, &layout_id, N, K, &seed,
-							&ci->ci_pd_layout);
+	rc = c2_pdclust_build(pool, &layout_id, N, K, &seed, &ci->ci_pd_layout);
 	if (rc != 0)
 		goto out_fini;
 
@@ -304,6 +342,7 @@ out_fini:
 out_free:
 	c2_free(pool);
 out:
+	C2_ASSERT(rc != 0);
 	END(rc);
 	return rc;
 }
