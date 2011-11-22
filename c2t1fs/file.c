@@ -713,6 +713,10 @@ static ssize_t c2t1fs_rpc_rw(struct c2_tl *rw_desc_list, int rw)
 
 	START();
 
+	/*
+	 * XXX Here, rw_desc should be converted to fop and sent to appropriate
+	 * services.
+	 */
 	TRACE("Operation: %s\n", rw == READ ? "READ" : "WRITE");
 
 	if (c2_tlist_is_empty(&rwd_tl_descr, rw_desc_list))
