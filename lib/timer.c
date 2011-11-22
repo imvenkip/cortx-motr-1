@@ -290,7 +290,7 @@ static int timer_state_enqueue(struct c2_timer_info *tinfo,
 static struct c2_timer_info *timer_state_dequeue(enum TIMER_STATE *state)
 {
 	struct c2_timer_info *tinfo;
-	struct timer_state *ts;
+	struct timer_state   *ts;
 
 	c2_mutex_lock(&state_lock);
 	if (ts_tlist_is_empty(&state_queue)) {
