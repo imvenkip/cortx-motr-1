@@ -272,6 +272,7 @@ static int timer_state_enqueue(struct c2_timer_info *tinfo,
 {
 	struct timer_state *ts;
 
+	C2_ASSERT(tinfo != NULL);
 	C2_ALLOC_PTR(ts);
 	if (ts == NULL)
 		return -ENOMEM;
