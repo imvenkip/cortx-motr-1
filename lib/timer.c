@@ -267,14 +267,14 @@ static void timer_info_fini(struct c2_timer_info *tinfo)
 	}
 }
 
-static bool timer_state_enqueue(struct c2_timer_info *tinfo,
+static int timer_state_enqueue(struct c2_timer_info *tinfo,
 		enum TIMER_STATE state)
 {
 	struct timer_state *ts;
 
 	C2_ALLOC_PTR(ts);
 	if (ts == NULL)
-		return false;
+		return -ENOMEM;
 
 	ts_tlink_init(ts);
 	ts->ts_tinfo = tinfo;
@@ -284,7 +284,7 @@ static bool timer_state_enqueue(struct c2_timer_info *tinfo,
 	ts_tlist_add_tail(&state_queue, ts);
 	c2_mutex_unlock(&state_lock);
 
-	return true;
+	return 0;
 }
 
 static struct c2_timer_info *timer_state_dequeue(enum TIMER_STATE *state)
@@ -539,13 +539,15 @@ static int timer_hard_init(struct c2_timer *timer)
 
 static int timer_state_deliver(struct c2_timer *timer, enum TIMER_STATE state)
 {
+	int rc;
+
 	C2_PRE(timer != NULL);
 	C2_PRE(timer->t_info != NULL);
 
-	if (!timer_state_enqueue(timer->t_info, state))
-		return -1;
-	pipe_wake(&state_pipe);
-	return 0;
+	rc = timer_state_enqueue(timer->t_info, state);
+	if (rc == 0)
+		pipe_wake(&state_pipe);
+	return rc;
 }
 
 static int timer_hard_fini(struct c2_timer *timer)
