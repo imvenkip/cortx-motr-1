@@ -23,7 +23,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
 static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci);
 
-int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid);
+static int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid);
 
 struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,
@@ -38,10 +38,14 @@ struct inode_operations c2t1fs_dir_inode_operations = {
 	.unlink = c2t1fs_unlink
 };
 
+/**
+   Allocate fid of global file.
+   XXX temporary.
+ */
 static struct c2_fid c2t1fs_fid_alloc(void)
 {
 	struct c2_fid fid;
-	static int    key = 3;
+	static int    key = 3; /* fid <0, 2> is of root directory. Hence 3 */
 
 	fid.f_container = 0;
 	fid.f_key = key++;
@@ -123,7 +127,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 {
 	struct c2t1fs_inode   *ci;
 	struct c2t1fs_dir_ent *de;
-	int                    rc;
+	int                    rc = 0;
 
 	TRACE("name=\"%s\" namelen=%d\n", name, namelen);
 
@@ -155,7 +159,6 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 					   (unsigned long)fid.f_key);
 
 	mark_inode_dirty(dir);
-	rc = 0;
 out:
 	END(rc);
 	return rc;
@@ -172,12 +175,13 @@ static bool c2t1fs_name_cmp(int len, const unsigned char *name, char *buf)
 		goto out;
 	}
 	TRACE("buf: \"%s\"\n", buf);
-	rc = memcmp(name, buf, len) == 0;
+	rc = (memcmp(name, buf, len) == 0);
 
 out:
 	END(rc);
 	return rc;
 }
+
 static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 						  const unsigned char *name,
 						  int                  namelen)
@@ -187,6 +191,8 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 	int                    i;
 
 	START();
+
+	C2_ASSERT(name != NULL && dir != NULL);
 
 	TRACE("Name: \"%s\"\n", name);
 
@@ -203,6 +209,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 	END(NULL);
 	return NULL;
 }
+
 static struct dentry *c2t1fs_lookup(struct inode     *dir,
 				    struct dentry    *dentry,
 				    struct nameidata *nd)
@@ -281,6 +288,7 @@ static int c2t1fs_readdir(struct file *f,
 		i++;
 		/* Fallthrough */
 	default:
+		/* Remember, "." and ".." are not kept in ci_dir_ents[] */
 		j = i - 2;
 		while (j < ci->ci_nr_dir_ents) {
 			struct c2t1fs_dir_ent *de;
@@ -309,10 +317,10 @@ out:
 
 static int c2t1fs_dir_ent_remove(struct inode *dir, struct c2t1fs_dir_ent *de)
 {
-	struct c2t1fs_inode   *ci;
-	int                    rc;
-	int                    i;
-	int                    nr_de;
+	struct c2t1fs_inode *ci;
+	int                  rc = 0;
+	int                  i;
+	int                  nr_de;
 
 	START();
 
@@ -328,22 +336,25 @@ static int c2t1fs_dir_ent_remove(struct inode *dir, struct c2t1fs_dir_ent *de)
 		goto out;
 	}
 
+	/* copy the last entry at index i, and clear last entry */
 	if (nr_de > 1)
 		ci->ci_dir_ents[i] = ci->ci_dir_ents[nr_de - 1];
 
 	C2_SET0(&ci->ci_dir_ents[nr_de - 1]);
 	ci->ci_nr_dir_ents--;
-	rc = 0;
 out:
 	END(rc);
 	return rc;
 }
+
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 {
 	struct c2t1fs_sb      *csb;
 	struct c2t1fs_dir_ent *de;
 	struct inode          *inode;
 	int                    rc;
+
+	/* XXX c2t1fs_unlink() should remove target objects of a file */
 
 	START();
 
@@ -389,6 +400,7 @@ struct c2_fid c2t1fs_target_fid(const struct c2_fid gob_fid, int index)
 	END(0);
 	return fid;
 }
+
 static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci)
 {
 	struct c2t1fs_sb *csb;
@@ -410,11 +422,6 @@ static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci)
 	nr_containers = csb->csb_nr_containers;
 	C2_ASSERT(nr_containers >= 1);
 
-	/* XXX temporary check just to allow testing without connecting to
-		any service */
-	if (csb->csb_mnt_opts.mo_nr_ios_ep == 0)
-		return 0;
-
 	for (i = 1; i <= nr_containers; i++) {
 		cob_fid = c2t1fs_target_fid(gob_fid, i);
 		rc = c2t1fs_cob_create(csb, cob_fid);
@@ -430,7 +437,7 @@ out:
 	return rc;
 }
 
-int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid)
+static int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid)
 {
 	struct c2_rpc_session *session;
 

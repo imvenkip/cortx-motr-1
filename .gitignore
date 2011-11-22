@@ -46,6 +46,7 @@ missing
 *.gcda
 *.gcno
 *.gcov
+*.swp
 *~
 doc/html/
 .#*

@@ -1,7 +1,7 @@
-#include <asm/uaccess.h> /* VERIFY_READ, VERIFY_WRITE */
-#include <linux/mm.h> /* get_user_pages(), get_page(), put_page() */
+#include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
+#include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
 
-#include "lib/memory.h" /* c2_alloc(), c2_free() */
+#include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "layout/pdclust.h" /* PUT_* */
 #include "c2t1fs/c2t1fs.h"
 
