@@ -320,11 +320,14 @@ static int pipe_init(struct timer_pipe *tpipe)
 
 static int pipe_fini(struct timer_pipe *tpipe)
 {
+	int i;
+
 	C2_ASSERT(tpipe != NULL);
 
-	int rc = close(tpipe->tp_pipefd[0]);
-	rc = rc != 0 ? rc : close(tpipe->tp_pipefd[1]);
-	return rc;
+	for (i = 0; i < 2; ++i)
+		if (close(tpipe->tp_pipefd[i]) != 0)
+			return errno;
+	return 0;
 }
 
 static void pipe_wake(struct timer_pipe *tpipe)
