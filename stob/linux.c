@@ -295,7 +295,7 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
    Implementation of c2_stob_op::sop_fini().
 
    Closes the object's file descriptor.
- 
+
    @see linux_stob_attr_set()
  */
 static void linux_stob_fini(struct c2_stob *stob)
@@ -360,7 +360,7 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
    Helper function to set the object attributes.
    The memory is allocated to copy the device path-name.
    This memory is released in linux_stob_fini().
- 
+
    @see linux_stob_fini()
  */
 static int linux_stob_attr_set(struct linux_stob *lstob, const void *attr)
@@ -381,7 +381,7 @@ static int linux_stob_attr_set(struct linux_stob *lstob, const void *attr)
 	if (lattr->sa_devpath != NULL) {
 		C2_ASSERT(lstob->sl_attr.sa_dev == LINUX_BACKEND_BLKDEV);
 		C2_ASSERT(lstob->sl_attr.sa_devpath == NULL);
-		
+
 		lstob->sl_attr.sa_devpath
 		= c2_alloc(strlen(lattr->sa_devpath)+1);
 		if (lstob->sl_attr.sa_devpath == NULL)

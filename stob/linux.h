@@ -45,7 +45,7 @@ struct linux_stob_attr {
 	enum linux_backend_dev	 sa_dev;
 
 	/* path-name for block-device */
-	char			*sa_devpath;	
+	char			*sa_devpath;
 };
 
 extern struct c2_stob_type linux_stob_type;

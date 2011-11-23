@@ -89,7 +89,7 @@ static int test_adieu_init(void)
 	attr.sa_dev = LINUX_BACKEND_FILE;
 	attr.sa_devpath = NULL;
 
-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
+	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  "./__s", &dom);
 	C2_ASSERT(result == 0);
 

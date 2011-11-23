@@ -111,14 +111,14 @@ struct linux_domain {
    stob based on Linux file system and block devices
  */
 struct linux_stob {
-	struct c2_stob      	sl_stob;
+	struct c2_stob		sl_stob;
 
-	struct linux_stob_attr  sl_attr;
+	struct linux_stob_attr	sl_attr;
 
 	/** fd from returned open(2) */
-	int                 	sl_fd;
-	struct c2_tlink     	sl_linkage;
-	uint64_t            	sl_magix;
+	int			sl_fd;
+	struct c2_tlink		sl_linkage;
+	uint64_t		sl_magix;
 };
 
 static inline struct linux_stob *stob2linux(struct c2_stob *stob)
