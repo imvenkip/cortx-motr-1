@@ -649,7 +649,6 @@ int main(int argc, char **argv)
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
 	io_fop_fini();
-	c2_ioservice_fop_fini();
 	c2_reqh_fini(&reqh);
 	c2_processors_fini();
 	c2_fol_fini(&fol);
