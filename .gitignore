@@ -68,5 +68,7 @@ ut-sandbox
 ub-sandbox
 gmon.out
 doxygen_*tmp
+colibri/colibri_setup
+colibri/ut/cs_test_fops_u.[ch]
 cscope.out
 tags

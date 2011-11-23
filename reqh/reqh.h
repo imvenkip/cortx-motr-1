@@ -24,6 +24,9 @@
 
 #include <sm/sm.h>
 #include "fol/fol.h"
+#include "fop/fop.h"
+#include "fop/fom.h"
+#include "lib/tlist.h"
 
 /**
    @defgroup reqh Request handler
@@ -46,43 +49,91 @@
  */
 
 /**
+   Magic for reqh.
+ */
+enum {
+        /* Hex value for "reqhsvc" */
+        C2_REQH_MAGIC = 0x7265716873766373
+};
+
+/**
    Request handler instance.
  */
 struct c2_reqh {
-	struct c2_rpcmachine	*rh_rpc;
 	struct c2_dtm		*rh_dtm;
 	/**
 	   @todo for now simply use storage object domain. In the future, this
-	   will be replaced with "stores"
+	   will be replaced with "stores".
 	 */
 	struct c2_stob_domain	*rh_stdom;
-	/** Fol pointer for this request handler */
+
+	/** Database environment for this request handler. */
+	struct c2_dbenv         *rh_dbenv;
+
+	/** Cob domain for this request handler. */
+	struct c2_cob_domain    *rh_cob_domain;
+
+	/** Fol pointer for this request handler. */
 	struct c2_fol		*rh_fol;
-	/** Fom domain for this request handler */
+
+	/** Fom domain for this request handler. */
 	struct c2_fom_domain	 rh_fom_dom;
+
+        /**
+	    Services registered with this request handler.
+
+	    @see c2_reqh_service::rs_linkage
+	 */
+        struct c2_tl             rh_services;
+
+        /**
+	    RPC machines running in this request handler
+	    There is one rpc machine per request handler
+	    end point.
+
+	    @see c2_rpcmachine::cr_rh_linkage
+	 */
+        struct c2_tl             rh_rpcmachines;
+
+	/**
+	    True if request handler received a shutdown signal.
+	    Request handler should not process any further requests
+	    if this flag is set.
+	 */
+	bool                     rh_shutdown;
+
+	/** Provides protected access to c2_reqh members. */
+	struct c2_mutex          rh_lock;
+
+	/** Request handler magic. */
+	uint64_t                 rh_magic;
 };
 
 /**
    Initialises request handler instance provided by the caller.
 
-   @param reqh, request handler instance to be initialised,
-   @param stdom, storage object domain used for file io
-   @param fol, file operation log to record fop execution
-   @param serv, service using this request handler
+   @param reqh Request handler instance to be initialised
+   @param stdom Storage object domain used for file io
+   @param db Database environment for this request handler
+   @param cdom Cob domain for this request handler
+   @param fol File operation log to record fop execution
 
    @todo use iostores instead of c2_stob_domain and endpoints
 	or c2_rpc_machine instead of c2_service
 
    @see c2_reqh
 
-   @pre reqh != NULL && stdom != NULL && fol != NULL && serv != NULL
+   @pre reqh != NULL && stdom != NULL && db != NULL &&
+	cdom != NULL && fol != NULL
 
    @retval 0, if request handler is succesfully initilaised,
 		-errno, in case of failure
  */
-int  c2_reqh_init(struct c2_reqh *reqh,
-		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *stdom, struct c2_fol *fol);
+int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
+                struct c2_stob_domain *stdom, struct c2_dbenv *db,
+                struct c2_cob_domain *cdom, struct c2_fol *fol);
+
+bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
 /**
    Destructor for request handler, no fop will be further executed
@@ -221,8 +272,16 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
    @todo standard fom phases implementation, depends on the support routines for
 	handling various standard operations on fop as mentioned above
  */
-
 int c2_fom_state_generic(struct c2_fom *fom);
+
+/**
+   Waits for execution of all foms in the request handler's
+   fom domain to complete, i.e. until c2_fom_domain::fd_foms_nr
+   reaches 0 count.
+
+   @param reqh Request handler to be shutdown
+ */
+bool c2_reqh_can_shutdown(const struct c2_reqh *reqh);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,

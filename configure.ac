@@ -518,6 +518,11 @@ AC_CONFIG_FILES([
                  cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
+                 colibri/ut/Makefile
+		 console/Makefile
+                 console/bin/Makefile
+                 console/ut/Makefile
+                 console/st/Makefile
                  db/Makefile
                  db/linux_kernel/Makefile
                  db/ut/Makefile
@@ -539,6 +544,7 @@ AC_CONFIG_FILES([
                  galois/linux_kernel/Makefile
                  ioservice/Makefile
                  ioservice/linux_kernel/Makefile
+                 ioservice/ut/Makefile
                  layout/Makefile
                  layout/linux_kernel/Makefile
                  layout/ut/Makefile
@@ -588,7 +594,10 @@ AC_CONFIG_FILES([
                  xcode/linux_kernel/Makefile
                  xcode/ut/Makefile
 		 xdr/Makefile
-                 xdr/ut/Makefile
+		 xdr/ut/Makefile
+		 yaml2db/Makefile
+		 yaml2db/ut/Makefile
+		 yaml2db/st/Makefile
                 ])
 AC_OUTPUT
 
