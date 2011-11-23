@@ -156,25 +156,8 @@
    @todo Add one table each to store 'layout type to layout description
    mappings' and 'enumeration type to enumeration description mappings'.
 
-   <b>Layout types</b> supported currently by the Layout module are:
-   - PDCLUST <BR>
-     This layout type applies parity declustering feature to the striping
-     process. Parity declustering is to keep rebuild overhead low by
-     striping a file over more servers or drives than there are units in
-     the parity group. The PDCLUST type of layout either uses a formula
-     or a list to enumerate the COB identifiers. This forms two types of
-     enumeration mthods as mentioned below:
-      - LINEAR <BR>
-        A layout with LINEAR enumeration type uses a formula to enumerate
-        all its COB identifiers.
-      - LIST <BR>
-        A layout with LIST enumeration type uses a list to enumerate all its
-        COB identifiers.
-   - COMPOSITE <BR>
-     This layout type partitions a file or a part of the file into
-     various segments while each of those segment uses a different layout.
-
-   Key-Record structure for the tables:
+   Key-Record structure for the tables is described in the following
+   subsections.
 
    @subsection Layout-DB-lspec-schema-layout_entries Table layout_entries
    @verbatim
@@ -188,8 +171,8 @@
 
    @endverbatim
 
-   e.g. A layout with PDCLUST layout type with LINEAR enumeration type, uses
-   the layout_rec_attrs to store attributes like N and K.
+   e.g. A layout with PDCLUST layout type and with LINEAR enumeration type,
+   uses the layout_rec_attrs to store attributes like N and K.
 
    It is possible that some layout types do not need to store any attributes.
    e.g. A layout with PDCLUST layout type with LIST enumeration and a layout with
@@ -343,7 +326,7 @@ static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_lay
 	return true;
 }
 
-/** @} end LayoutDBDFSInternal */
+/** @} end group LayoutDBDFSInternal */
 
 /**
  * @addtogroup LayoutDBDFS
@@ -351,15 +334,13 @@ static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_lay
  */
 
 /**
-   Initializes new layout schema - initializes DB environment, creates the
-   DB tables.
+   Initializes new layout schema - creates the DB tables.
 */
-int c2_layout_schema_init(struct c2_layout_schema *l_schema)
+int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db)
 {
    /**
 	@code
-	Use the DB interface c2_dbenv_init() and c2_table_init() to
-	intialize the DB env and the tables respectively.
+	Use the DB interface c2_table_init() to intialize the DB tables.
 	@endcode
    */
 	return 0;
@@ -466,7 +447,7 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 	return 0;
 }
 
-/** @} end of LayoutDBDFS */
+/** @} end group LayoutDBDFS */
 
 /*
  *  Local variables:

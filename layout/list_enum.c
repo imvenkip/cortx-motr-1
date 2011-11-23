@@ -130,7 +130,7 @@ const struct c2_layout_enum_type c2_layout_list_enum_type = {
 };
 
 
-/** @} end of group list_enum */
+/** @} end group list_enum */
 
 /*
  *  Local variables:

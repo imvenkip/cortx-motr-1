@@ -53,7 +53,7 @@ struct c2_layout_rec_attrs;
    - struct c2_layout_rec_attrs
 
    @section Layout-DB-fspec-sub Subroutines
-   - int c2_layout_schema_init(struct c2_layout_schema *l_schema)
+   - int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db)
    - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
    - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
    - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
@@ -94,7 +94,19 @@ struct c2_layout_rec_attrs;
         is obtained.
 
    @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
+*/
+
+/**
+ * @addtogroup LayoutDBDFSInternal
+ * @{
  */
+
+enum {
+	C2_LAYOUT_TYPE_MAX = 32,
+	C2_LAYOUT_ENUM_MAX = 32
+};
+
+/** @} end group LayoutDBDFS */
 
 /**
    @defgroup LayoutDBDFS Layout DB
@@ -119,28 +131,21 @@ struct c2_layout_rec_attrs {
 	uint32_t plra_num_of_parity_units;
 };
 
-
 /**
    In-memory data structure for the layout schema.
-   It includes pointers to all the DB tables and various related
+   It includes pointers to the layout_entries table and various related
    parameters.
-   @todo Add one table each to store 'layout type to layout description
-   mappings' and 'enumeration type to enumeration description mappings'.
+   @todo Add one table to store 'layout type to layout description
+   mappings'.
 */
 struct c2_layout_schema {
-	/** Layout DB environment */
-	struct c2_dbenv *ls_dbenv;
-
 	/** Table for layout record entries */
-	struct c2_table ls_layout_entries;
+	struct c2_table                ls_layout_entries;
 
-	/** Table for cob lists for all the layout types it is applicable for.
-            e.g. Currently, it is applicable for PDCLUST layout type with
-            LIST enumeration type. */
-	struct c2_table ls_cob_lists;
-
-	/* Table for extent maps for all the COMPOSITE type of layouts */
-	struct c2_emap ls_comp_layout_ext_map;
+	struct c2_layout_type         *ls_type[C2_LAYOUT_TYPE_MAX];
+	struct c2_layout_enum_type    *ls_enum[C2_LAYOUT_ENUM_MAX];
+	void                          *ls_type_data[C2_LAYOUT_TYPE_MAX];
+	void                          *ls_enum_data[C2_LAYOUT_ENUM_MAX];
 };
 
 /**
@@ -163,9 +168,24 @@ struct c2_layout_rec {
 	struct c2_layout_rec_attrs lr_linear_attrs;
 };
 
-
-int c2_layout_schema_init(struct c2_layout_schema *l_schema);
+int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db);
 void c2_layout_schema_fini(struct c2_layout_schema *l_schema);
+
+void c2_layout_type_register(struct c2_layout_schema *l_schema,
+			     const struct c2_layout_type *lt);
+void c2_layout_type_unregister(struct c2_layout_schema *l_schema,
+			       const struct c2_layout_type *lt);
+
+void c2_layout_enum_register(struct c2_layout_schema *l_schema,
+			     const struct c2_layout_enum_type *et);
+void c2_layout_enum_unregister(struct c2_layout_schema *l_schema,
+			       const struct c2_layout_enum_type *et);
+
+void **c2_layout_type_data(struct c2_layout_schema *l_schema,
+			   const struct c2_layout_type *lt);
+void **c2_layout_enum_data(struct c2_layout_schema *l_schema,
+			   const struct c2_layout_enum_type *et);
+
 int c2_layout_rec_add(const struct c2_layout *layout,
 		      struct c2_layout_schema *l_schema,
 		      struct c2_db_tx *tx);
@@ -179,14 +199,32 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 			 struct c2_layout_schema *l_schema,
 			 struct c2_db_tx *tx,
 			 struct c2_layout *l_recrec_out);
-/**
-   @} LayoutDBDFS end group
-*/
+
+/** @} end group LayoutDBDFS */
 
 /**
  * @addtogroup LayoutDBDFSInternal
  * @{
  */
+
+/**
+   Internal layout schema.
+   It includes pointers to tables for data specific to layout type and
+   enum type.
+   @todo How to link this to layout_schema?
+
+   @todo Add one table to store 'enumeration type to enumeration description
+   mappings'.
+*/
+struct layout_schema_internal {
+	/** Table for cob lists for all the layout types it is applicable for.
+            e.g. Currently, it is applicable for PDCLUST layout type with
+            LIST enumeration type. */
+	struct c2_table ls_cob_lists;
+
+	/* Table for extent maps for all the COMPOSITE type of layouts */
+	struct c2_emap ls_comp_layout_ext_map;
+};
 
 /**
    Compare layout_entries table keys.
@@ -252,7 +290,7 @@ static const struct c2_table_ops cob_lists_table_ops = {
 	.key_cmp = lcl_key_cmp
 };
 
-/** @} end of LayoutDBDFSInternal */
+/** @} end group LayoutDBDFSInternal */
 
 #endif /*  __COLIBRI_LAYOUT_LAYOUT_DB_H__ */
 

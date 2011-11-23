@@ -85,15 +85,14 @@ static const struct c2_layout_linear_formula_ops nkp_ops = {
 	.llinfo_subst = NULL
 };
 
-/**
-   @todo define value for llinf_id
-*/ 
-const struct c2_layout_linear_formula c2_linear_formula = {
-	.llinf_id   = 5678,
+const struct c2_layout_linear_formula c2_linear_NKP_formula = {
+	.llinf_id   = { .u_hi = 0x5041524954594445, /* PARITYDE */
+			.u_lo = 0x434c55535445522e  /* CLUSTER. */
+	},
 	.llinf_ops  = &nkp_ops
 };
 
-/** @} end of group linear_enum */
+/** @} end group linear_enum */
 
 /*
  *  Local variables:

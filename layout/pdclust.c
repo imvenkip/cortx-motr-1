@@ -577,13 +577,13 @@ int pdclust_rec_lookup(const struct c2_layout_id *l_id,
 }
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
-	.lto_equal      = pdclust_equal,
-	.lto_decode     = pdclust_decode,
-	.lto_encode     = pdclust_encode,
-	.lto_rec_add    = pdclust_rec_add,
-	.lto_rec_delete = pdclust_rec_delete,
-	.lto_rec_update = pdclust_rec_update,
-	.lto_rec_lookup = pdclust_rec_lookup
+	.lto_equal	= pdclust_equal,
+	.lto_decode	= pdclust_decode,
+	.lto_encode	= pdclust_encode,
+	.lto_rec_add	= pdclust_rec_add,
+	.lto_rec_delete	= pdclust_rec_delete,
+	.lto_rec_update	= pdclust_rec_update,
+	.lto_rec_lookup	= pdclust_rec_lookup
 };
 
 const struct c2_layout_type c2_pdclust_layout_type = {
@@ -591,7 +591,7 @@ const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_ops   = &pdclust_type_ops
 };
 
-/** @} end of group pdclust */
+/** @} end group pdclust */
 
 /*
  *  Local variables:

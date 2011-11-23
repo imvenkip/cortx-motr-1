@@ -21,7 +21,6 @@
 #ifndef __COLIBRI_LAYOUT_LIST_ENUM_H__
 #define __COLIBRI_LAYOUT_LIST_ENUM_H__
 
-#include "layout/layout.h"
 
 /**
    @defgroup list_enum List Enumeration Type.
@@ -32,6 +31,10 @@
  */
 
 /* import */
+#include "lib/tlist.h"	/* struct c2_tl */
+#include "lib/mutex.h"	/* struct c2_mutex */
+
+#include "layout/layout.h"
 
 /* export */
 
@@ -40,14 +43,13 @@
  */
 struct c2_layout_list_enum {
 	/** super class */
-	struct c2_layout_enum         llie_enum;
-	/**
-	   List enumeration specific fields
-	*/
+	struct c2_layout_enum	llie_enum;
 
-	/** tlist of COB identifiers
-	   @todo Add tlist of cob identifiers here
-	*/
+	/** List of COB identifiers which are part of this layout */
+	struct c2_tl		llie_list_of_cobs;
+
+	/** Lock to protect the list of COB identifiers */
+	struct c2_mutex		llie_cob_mutex;
 };
 
 

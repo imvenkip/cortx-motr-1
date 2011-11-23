@@ -170,7 +170,7 @@ const struct c2_layout_type c2_composite_layout_type = {
 	.lt_ops   = &composite_type_ops
 };
 
-/** @} end of group composite */
+/** @} end group composite */
 
 /*
  *  Local variables:

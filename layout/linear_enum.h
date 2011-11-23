@@ -48,9 +48,7 @@ struct c2_layout_linear_enum {
 };
 
 struct c2_layout_linear_formula {
-	// TODO: do i need layout type here, probably not.
-	const struct c2_layout_type        *llinf_type;
-	const uint64_t                      llinf_id;
+	const struct c2_uint128                    llinf_id;
 	const struct c2_layout_linear_formula_ops *llinf_ops;
 };
 
@@ -73,6 +71,7 @@ struct c2_layout_linear_parameter_type {
 };
 
 extern const struct c2_layout_enum_type c2_layout_linear_enum_type;
+extern const struct c2_layout_linear_formula c2_linear_NKP_formula;
 
 /** @} end group linear_enum */
 

@@ -23,16 +23,34 @@
 
 /* import */
 #include "lib/cdefs.h"
-#include "lib/vec.h"	/* struct c2_bufvec_cursor */
 #include "lib/types.h"	/* uint64_t */
 #include "fid/fid.h"	/* struct c2_fid */
 
+struct c2_bufvec_cursor;
 struct c2_layout_rec;
 struct c2_layout_schema;
 struct c2_db_tx;
 
 /**
    @defgroup layout Layouts.
+
+   Layout types supported currently are:
+   - PDCLUST <BR>
+     This layout type applies parity declustering feature to the striping
+     process. Parity declustering is to keep rebuild overhead low by
+     striping a file over more servers or drives than there are units in
+     the parity group. The PDCLUST type of layout either uses a formula
+     or a list to enumerate the COB identifiers. This forms two types of
+     enumeration mthods as mentioned below:
+      - LINEAR <BR>
+        A layout with LINEAR enumeration type uses a formula to enumerate
+        all its COB identifiers.
+      - LIST <BR>
+        A layout with LIST enumeration type uses a list to enumerate all its
+        COB identifiers.
+   - COMPOSITE <BR>
+     This layout type partitions a file or a part of the file into
+     various segments while each of those segment uses a different layout.
 
    @{
  */
@@ -118,7 +136,7 @@ struct c2_layout_type_ops {
 struct c2_layout {
 	struct c2_uint128		  l_id;
 	const struct c2_layout_type	 *l_type;
-	const struct c2_layout_enum	 *l_enum;
+	const struct c2_layout_enum      *l_enum;
 	const struct c2_layout_ops       *l_ops;
 };
 

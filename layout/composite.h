@@ -35,6 +35,8 @@
 
 /* import */
 #include "lib/ext.h"	/* struct c2_ext */
+#include "lib/tlist.h"	/* struct c2_tl */
+#include "lib/mutex.h"	/* struct c2_mutex */
 
 /* export */
 
@@ -43,14 +45,13 @@
  */
 struct c2_composite_layout {
 	/** super class */
-	struct c2_layout             cl_layout;
+	struct c2_layout	cl_layout;
 
-	/** typed list (tlist) of sub-layouts owned by this composite layout,
-	    along with layout ids for those sub-layouts.
+	/** List of sub-layouts owned by this composite layout */
+	struct c2_tl		cl_list_of_sub_layouts;
 
-	    @todo Add tlist of sub-layouts here
-	*/
-
+	/** Lock to protect the list of sub-layouts */
+	struct c2_mutex		cl_sub_layouts_mutex;
 };
 
 extern const struct c2_layout_type c2_composite_layout_type;
