@@ -55,10 +55,14 @@ struct c2_layout_rec_attrs;
    @section Layout-DB-fspec-sub Subroutines
    - int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db)
    - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
+   - void c2_layout_type_register(struct c2_layout_schema *l_schema, const struct c2_layout_type *lt)
+   - void c2_layout_type_unregister(struct c2_layout_schema *l_schema, const struct c2_layout_type *lt)
+   - void c2_layout_enum_register(struct c2_layout_schema *l_schema, const struct c2_layout_enum_type *et)
+   - void c2_layout_enum_unregister(struct c2_layout_schema *l_schema, const struct c2_layout_enum_type *et)
    - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
    - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
    - int c2_layout_rec_update(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
-   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, struct c2_layout_schema *l_schema, struct c2_db_tx *tx, c2_layout_rec *l_rec_out);
+   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, struct c2_layout_schema *l_schema, struct c2_db_tx *tx, c2_layout *l_rec_out);
 
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 

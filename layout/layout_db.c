@@ -336,7 +336,8 @@ static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_lay
 /**
    Initializes new layout schema - creates the DB tables.
 */
-int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db)
+int c2_layout_schema_init(struct c2_layout_schema *l_schema,
+			  struct c2_dbenv *db)
 {
    /**
 	@code
@@ -359,6 +360,42 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 	@endcode
    */
 
+	return;
+}
+
+/**
+   @todo
+*/
+void c2_layout_type_register(struct c2_layout_schema *l_schema,
+			     const struct c2_layout_type *lt)
+{
+	return;
+}
+
+/**
+   @todo
+*/
+void c2_layout_type_unregister(struct c2_layout_schema *l_schema,
+			       const struct c2_layout_type *lt)
+{
+	return;
+}
+
+/**
+   @todo
+*/
+void c2_layout_enum_register(struct c2_layout_schema *l_schema,
+			     const struct c2_layout_enum_type *et)
+{
+	return;
+}
+
+/**
+   @todo
+*/
+void c2_layout_enum_unregister(struct c2_layout_schema *l_schema,
+			       const struct c2_layout_enum_type *et)
+{
 	return;
 }
 
