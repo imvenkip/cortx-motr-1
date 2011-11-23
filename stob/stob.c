@@ -130,13 +130,13 @@ bool c2_stob_id_is_set(const struct c2_stob_id *id)
 }
 C2_EXPORTED(c2_stob_id_is_set);
 
-int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
+int c2_stob_locate(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
-		result = obj->so_op->sop_locate(obj, tx);
+		result = obj->so_op->sop_locate(obj, attr, tx);
 		switch (result) {
 		case 0:
 			obj->so_state = CSS_EXISTS;
@@ -161,14 +161,14 @@ int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 }
 C2_EXPORTED(c2_stob_locate);
 
-int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
+int c2_stob_create(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
 	case CSS_NOENT:
-		result = obj->so_op->sop_create(obj, tx);
+		result = obj->so_op->sop_create(obj, attr, tx);
 		if (result == 0)
 			obj->so_state = CSS_EXISTS;
 		break;

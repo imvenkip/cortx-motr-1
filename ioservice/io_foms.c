@@ -31,6 +31,7 @@
 #include "net/net.h"
 #include "fid/fid.h"
 #include "reqh/reqh.h"
+#include "stob/linux.h"
 
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"
@@ -151,6 +152,7 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
 	struct c2_fop_file_fid		*ffid;
 	struct c2_io_fom_cob_rwv	*fom_obj;
 	struct c2_fop_cob_readv_rep	*rrfop;
+	struct linux_stob_attr		attr;
 
 	C2_PRE(fom != NULL);
 
@@ -171,7 +173,9 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
 	if (rc != 0)
 		goto cleanup;
 
-	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
+	attr.sa_dev = LINUX_BACKEND_FILE;
+	attr.sa_devpath = NULL;
+	rc = c2_stob_locate(fom_obj->fcrw_stob, (void *)&attr, &fom->fo_tx);
 	if (rc != 0)
 		goto cleanup_st;
 

@@ -295,6 +295,8 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
    Implementation of c2_stob_op::sop_fini().
 
    Closes the object's file descriptor.
+ 
+   @see linux_stob_attr_set()
  */
 static void linux_stob_fini(struct c2_stob *stob)
 {
@@ -309,6 +311,9 @@ static void linux_stob_fini(struct c2_stob *stob)
 		close(lstob->sl_fd);
 		lstob->sl_fd = -1;
 	}
+	if (lstob->sl_attr.sa_devpath != NULL) {
+		c2_free(lstob->sl_attr.sa_devpath);
+	}
 	ls_tlink_del_fini(lstob);
 	c2_stob_fini(&lstob->sl_stob);
 	c2_free(lstob);
@@ -316,6 +321,7 @@ static void linux_stob_fini(struct c2_stob *stob)
 
 /**
    Helper function opening the object in the file system.
+   For block-device create a sym-link to the device and then open the device.
  */
 static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
@@ -327,41 +333,104 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
 
 	result = linux_stob_path(lstob, ARRAY_SIZE(pathname), pathname);
 	if (result == 0) {
-		lstob->sl_fd = open(pathname, oflag, 0700);
-		if (lstob->sl_fd == -1)
-			result = -errno;
+		switch (lstob->sl_attr.sa_dev) {
+		case LINUX_BACKEND_BLKDEV:
+			result = symlink(lstob->sl_attr.sa_devpath, pathname);
+			result = (result < 0 && result != -EEXIST) ? -errno : 0;
+			break;
+		case LINUX_BACKEND_FILE:
+			oflag |= O_CREAT;
+			break;
+		default:
+			/* Not reached */
+			C2_ASSERT(1);
+			break;
+		}
+
+		if (result == 0) {
+			lstob->sl_fd = open(pathname, oflag, 0700);
+			if (lstob->sl_fd == -1)
+				result = -errno;
+		}
 	}
 	return result;
 }
 
 /**
+   Helper function to set the object attributes.
+   The memory is allocated to copy the device path-name.
+   This memory is released in linux_stob_fini().
+ 
+   @see linux_stob_fini()
+ */
+static int linux_stob_attr_set(struct linux_stob *lstob, const void *attr)
+{
+	int result = 0;
+	struct linux_stob_attr *lattr = (struct linux_stob_attr *) attr;
+
+	C2_PRE(lattr != NULL);
+	C2_PRE(lattr->sa_dev == LINUX_BACKEND_FILE ||
+	       lattr->sa_dev == LINUX_BACKEND_BLKDEV);
+	C2_PRE(ergo(lattr->sa_dev == LINUX_BACKEND_BLKDEV,
+		    lattr->sa_devpath != NULL));
+
+	/* Set stob attributes */
+	lstob->sl_attr.sa_dev = lattr->sa_dev;
+
+	/* If it's blockdevice, copy the device path */
+	if (lattr->sa_devpath != NULL) {
+		C2_ASSERT(lstob->sl_attr.sa_dev == LINUX_BACKEND_BLKDEV);
+		C2_ASSERT(lstob->sl_attr.sa_devpath == NULL);
+		
+		lstob->sl_attr.sa_devpath
+		= c2_alloc(strlen(lattr->sa_devpath)+1);
+		if (lstob->sl_attr.sa_devpath == NULL)
+			result = -ENOMEM;
+		else
+			strcpy(lstob->sl_attr.sa_devpath, lattr->sa_devpath);
+
+	}
+
+	return result;
+}
+/**
    Implementation of c2_stob_op::sop_create().
  */
-static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
+static int linux_stob_create(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
 {
 	int oflags = O_RDWR|O_CREAT;
+	int result;
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(obj->so_domain);
 	if (ldom->use_directio)
 		oflags |= O_DIRECT;
 
-	return linux_stob_open(stob2linux(obj), oflags);
+	result =  linux_stob_attr_set(stob2linux(obj), attr);
+	if (result == 0)
+		result =  linux_stob_open(stob2linux(obj), oflags);
+
+	return result;
 }
 
 /**
    Implementation of c2_stob_op::sop_locate().
  */
-static int linux_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
+static int linux_stob_locate(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
 {
 	int oflags = O_RDWR;
+	int result;
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(obj->so_domain);
 	if (ldom->use_directio)
 		oflags |= O_DIRECT;
 
-	return linux_stob_open(stob2linux(obj), oflags);
+	result =  linux_stob_attr_set(stob2linux(obj), attr);
+	if (result == 0)
+		result =  linux_stob_open(stob2linux(obj), oflags);
+
+	return result;
 }
 
 static const struct c2_stob_type_op linux_stob_type_op = {

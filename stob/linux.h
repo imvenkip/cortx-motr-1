@@ -23,11 +23,30 @@
 
 /**
    @defgroup stoblinux Storage object based on Linux specific file system
-   interfaces.
+   and block device interfaces.
 
    @see stob
    @{
  */
+
+/**
+   Linux stob backing store attributes
+ */
+enum linux_backend_dev {
+	LINUX_BACKEND_FILE = 1,
+	LINUX_BACKEND_BLKDEV = 2
+};
+
+/**
+   Linux stob attributes
+ */
+struct linux_stob_attr {
+	/* Backing store type */
+	enum linux_backend_dev	 sa_dev;
+
+	/* path-name for block-device */
+	char			*sa_devpath;	
+};
 
 extern struct c2_stob_type linux_stob_type;
 

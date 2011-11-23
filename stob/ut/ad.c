@@ -149,6 +149,7 @@ static int test_ad_init(void)
 {
 	int i;
 	int result;
+	struct linux_stob_attr attr;
 
 	result = system("rm -fr ./__s");
 	C2_ASSERT(result == 0);
@@ -162,6 +163,9 @@ static int test_ad_init(void)
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(result == 0);
 
+	attr.sa_dev = LINUX_BACKEND_FILE;
+	attr.sa_devpath = NULL;
+
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  "./__s", &dom_back);
 	C2_ASSERT(result == 0);
@@ -170,7 +174,7 @@ static int test_ad_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj_back->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(obj_back, NULL);
+	result = c2_stob_create(obj_back, (void *)&attr, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj_back->so_state == CSS_EXISTS);
 
@@ -179,7 +183,6 @@ static int test_ad_init(void)
 	C2_ASSERT(result == 0);
 
 	result = c2_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom);
-	//result = c2_ad_stob_setup(dom_fore, &db, obj_back, &colibri_balloc.cb_ballroom);
 	C2_ASSERT(result == 0);
 
 	c2_stob_put(obj_back);
@@ -191,10 +194,10 @@ static int test_ad_init(void)
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	C2_ASSERT(result == 0);
 
-	result = c2_stob_locate(obj_fore, &tx);
+	result = c2_stob_locate(obj_fore, (void *)&attr, &tx);
 	C2_ASSERT(result == 0 || result == -ENOENT);
 	if (result == -ENOENT) {
-		result = c2_stob_create(obj_fore, &tx);
+		result = c2_stob_create(obj_fore, (void *)&attr, &tx);
 		C2_ASSERT(result == 0);
 	}
 	C2_ASSERT(obj_fore->so_state == CSS_EXISTS);

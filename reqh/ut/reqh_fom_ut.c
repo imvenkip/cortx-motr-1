@@ -564,13 +564,17 @@ static struct c2_stob *object_find(const struct reqh_ut_fom_fop_fid *fid,
 	struct c2_stob		*obj;
 	int			 result;
 	struct c2_stob_domain	*fom_stdom;
+	struct linux_stob_attr attr;
 
 	id.si_bits.u_hi = fid->f_seq;
 	id.si_bits.u_lo = fid->f_oid;
 	fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
+	attr.sa_dev = LINUX_BACKEND_FILE;
+	attr.sa_devpath = NULL;
+
 	result = fom_stdom->sd_ops->sdo_stob_find(fom_stdom, &id, &obj);
 	C2_UT_ASSERT(result == 0);
-	result = c2_stob_locate(obj, tx);
+	result = c2_stob_locate(obj, (void *)&attr, tx);
 	return obj;
 }
 
@@ -720,9 +724,13 @@ static int reqh_ut_create_fom_state(struct c2_fom *fom)
 	struct reqh_ut_io_fom			*fom_obj;
 	struct c2_rpc_item                      *item;
 	struct c2_fop                           *fop;
+	struct linux_stob_attr                   attr;
 	int                                      result;
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
+
+	attr.sa_dev = LINUX_BACKEND_FILE;
+	attr.sa_devpath = NULL;
 
 	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (fom->fo_phase < FOPH_NR) {
@@ -733,7 +741,8 @@ static int reqh_ut_create_fom_state(struct c2_fom *fom)
 
 		fom_obj->rh_ut_stobj = object_find(&in_fop->fic_object, &fom->fo_tx, fom);
 
-		result = c2_stob_create(fom_obj->rh_ut_stobj, &fom->fo_tx);
+		result = c2_stob_create(fom_obj->rh_ut_stobj, (void *)&attr,
+					&fom->fo_tx);
 		out_fop->ficr_rc = result;
 		fop = fom_obj->rep_fop;
 		item = c2_fop_to_rpc_item(fop);
@@ -1223,6 +1232,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 {
         int                        rc;
 	struct c2_net_transfer_mc *srv_tm;
+	struct linux_stob_attr attr;
 
         /* Init Bulk sunrpc transport */
         rc = c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
@@ -1253,7 +1263,9 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*bstore)->so_state == CSS_UNKNOWN);
 
-	rc = c2_stob_create(*bstore, NULL);
+	attr.sa_dev = LINUX_BACKEND_FILE;
+	attr.sa_devpath = NULL;
+	rc = c2_stob_create(*bstore, (void *)&attr, NULL);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*bstore)->so_state == CSS_EXISTS);
 
@@ -1273,7 +1285,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_UNKNOWN);
 
-	rc = c2_stob_create(*reqh_addb_stob, NULL);
+	rc = c2_stob_create(*reqh_addb_stob, NULL, NULL);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_EXISTS);
 

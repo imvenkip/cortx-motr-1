@@ -367,7 +367,7 @@ static void ad_stob_fini(struct c2_stob *stob)
 /**
    Implementation of c2_stob_op::sop_create().
  */
-static int ad_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
+static int ad_stob_create(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
 {
 	struct ad_domain *adom;
 
@@ -393,7 +393,7 @@ static int ad_cursor(struct ad_domain *adom, struct c2_stob *obj,
 /**
    Implementation of c2_stob_op::sop_locate().
  */
-static int ad_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
+static int ad_stob_locate(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
 {
 	struct c2_emap_cursor it;
 	int                   result;
