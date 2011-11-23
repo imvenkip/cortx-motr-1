@@ -138,7 +138,7 @@ static struct c2_cons_mesg c2_cons_disk_mesg = {
 	.cm_type      = CMT_DISK_FAILURE,
 	.cm_fopt      = &c2_cons_fop_disk_fopt,
 	.cm_item_ops  = &c2_rpc_item_cons_disk_ops,
-	.cm_item_type = &c2_rpc_item_cons_disk,
+	.cm_item_type = &c2_cons_fop_disk_fopt.ft_rpc_item_type,
 };
 
 /* Device FOP message */
@@ -154,7 +154,7 @@ static struct c2_cons_mesg c2_cons_device_mesg = {
 	.cm_type     = CMT_DEVICE_FAILURE,
 	.cm_fopt     = &c2_cons_fop_device_fopt,
 	.cm_item_ops = &c2_rpc_item_cons_device_ops,
-	.cm_item_type = &c2_rpc_item_cons_device,
+	.cm_item_type = &c2_cons_fop_device_fopt.ft_rpc_item_type,
 };
 
 
@@ -171,7 +171,7 @@ static struct c2_cons_mesg c2_cons_reply_mesg = {
 	.cm_type     = CMT_REPLY_FAILURE,
 	.cm_fopt     = &c2_cons_fop_reply_fopt,
 	.cm_item_ops = &c2_rpc_item_cons_reply_ops,
-	.cm_item_type = &c2_rpc_item_cons_reply,
+	.cm_item_type = &c2_cons_fop_reply_fopt.ft_rpc_item_type,
 };
 
 /**
