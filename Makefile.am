@@ -34,6 +34,7 @@ SUBDIRS_LIBS = \
                sns \
                stob \
                udb \
+               ut \
                xcode \
 	       yaml2db
 SUBDIR_IT = rpc/it

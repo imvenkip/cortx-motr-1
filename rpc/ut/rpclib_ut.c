@@ -34,6 +34,7 @@
 #endif
 
 #include "rpc/rpclib.h"
+#include "ut/rpc.h"
 
 
 #define SERVER_ENDPOINT_ADDR	"127.0.0.1:12345:1"

@@ -91,17 +91,11 @@ struct c2_rpc_ctx {
 };
 
 /**
-  A wrapper around c2_rpc_server_start(). It initializes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_server_start().
-
-  @param rctx  Initialized rpc context structure.
-*/
-int c2_rpc_server_init(struct c2_rpc_ctx *rctx);
-
-/**
   Starts server's rpc machine.
 
   @param rctx  Initialized rpc context structure.
+
+  @pre rctx->rx_dbenv and rctx->rx_cob_dom are initialized
 */
 int c2_rpc_server_start(struct c2_rpc_ctx *rctx);
 
@@ -113,27 +107,13 @@ int c2_rpc_server_start(struct c2_rpc_ctx *rctx);
 void c2_rpc_server_stop(struct c2_rpc_ctx *rctx);
 
 /**
-  A wrapper around c2_rpc_server_stop(). It finalizes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_server_stop().
-
-  @param rctx  Initialized rpc context structure.
-*/
-void c2_rpc_server_fini(struct c2_rpc_ctx *rctx);
-
-/**
-  A wrapper around c2_rpc_client_start(). It initializes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_client_start().
-
-  @param rctx  Initialized rpc context structure.
-*/
-int c2_rpc_client_init(struct c2_rpc_ctx *rctx);
-
-/**
   Starts client's rpc machine. Creates a connection to a server and establishes
   an rpc session on top of it.  Created session object can be set in an rpc item
   and used in c2_rpc_post().
 
   @param rctx  Initialized rpc context structure.
+
+  @pre rctx->rx_dbenv and rctx->rx_cob_dom are initialized
 */
 int c2_rpc_client_start(struct c2_rpc_ctx *rctx);
 
@@ -155,14 +135,6 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
   @param rctx  Initialized rpc context structure.
 */
 int c2_rpc_client_stop(struct c2_rpc_ctx *rctx);
-
-/**
-  A wrapper around c2_rpc_client_stop(). It finalizes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_client_stop().
-
-  @param rctx  Initialized rpc context structure.
-*/
-int c2_rpc_client_fini(struct c2_rpc_ctx *rctx);
 
 #endif /* __COLIBRI_RPC_RPC_LIB_H__ */
 

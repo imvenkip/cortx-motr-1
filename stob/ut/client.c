@@ -40,6 +40,7 @@
 #include "stob/linux.h"
 #include "stob/io_fop.h"
 #include "colibri/init.h"
+#include "ut/rpc.h"
 
 #include "stob/io_fop_u.h"
 

@@ -10,7 +10,7 @@ net_u.h net_u.c: net.ff \
 
 libnet_ut_la_SOURCES	= bulk_if.c \
                           net_u.h net_u.c net_fop_init.c net_fop.h
-libnet_ut_la_LIBADD 	= $(top_builddir)/colibri/libcolibri.la
+libnet_ut_la_LIBADD	= $(top_builddir)/colibri/libcolibri.la
 
 EXTRA_DIST              = net.ff
 

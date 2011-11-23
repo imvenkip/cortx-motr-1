@@ -37,86 +37,17 @@
 #include "rpc/rpclib.h"
 
 
-static int init_cob(struct c2_rpc_ctx *rctx)
-{
-	int rc;
-	struct c2_cob_domain_id   cob_dom_id = { .id = rctx->rx_cob_dom_id };
-
-	rc = c2_dbenv_init(rctx->rx_dbenv, rctx->rx_db_name, 0);
-	if (rc != 0)
-		return rc;
-
-	rc = c2_cob_domain_init(rctx->rx_cob_dom, rctx->rx_dbenv, &cob_dom_id);
-	if (rc != 0)
-		goto dbenv_fini;
-
-	return rc;
-
-dbenv_fini:
-	c2_dbenv_fini(rctx->rx_dbenv);
-	C2_ASSERT(rc != 0);
-	return rc;
-}
-
-static void fini_cob(struct c2_rpc_ctx *rctx)
-{
-	c2_cob_domain_fini(rctx->rx_cob_dom);
-	c2_dbenv_fini(rctx->rx_dbenv);
-
-	return;
-}
-
-static int init_helper(int (*start_func)(struct c2_rpc_ctx *rctx),
-		       struct c2_rpc_ctx *rctx)
-{
-	int rc;
-
-	rc = init_cob(rctx);
-	if (rc != 0)
-		goto fini_cob;
-
-	rc = start_func(rctx);
-
-	return rc;
-
-fini_cob:
-	fini_cob(rctx);
-	C2_ASSERT(rc != 0);
-	return rc;
-}
-
-int c2_rpc_server_init(struct c2_rpc_ctx *rctx)
-{
-	return init_helper(c2_rpc_server_start, rctx);
-}
-C2_EXPORTED(c2_rpc_server_init);
-
 int c2_rpc_server_start(struct c2_rpc_ctx *rctx)
 {
 	return c2_rpcmachine_init(&rctx->rx_rpc_machine, rctx->rx_cob_dom,
 				  rctx->rx_net_dom, rctx->rx_local_addr,
 				  rctx->rx_reqh);
 }
-C2_EXPORTED(c2_rpc_server_start);
 
 void c2_rpc_server_stop(struct c2_rpc_ctx *rctx)
 {
 	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
 }
-C2_EXPORTED(c2_rpc_server_stop);
-
-void c2_rpc_server_fini(struct c2_rpc_ctx *rctx)
-{
-	c2_rpc_server_stop(rctx);
-	fini_cob(rctx);
-}
-C2_EXPORTED(c2_rpc_server_fini);
-
-int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
-{
-	return init_helper(c2_rpc_client_start, rctx);
-}
-C2_EXPORTED(c2_rpc_client_init);
 
 int c2_rpc_client_start(struct c2_rpc_ctx *rctx)
 {
@@ -213,20 +144,6 @@ int c2_rpc_client_stop(struct c2_rpc_ctx *rctx)
 	return rc;
 }
 C2_EXPORTED(c2_rpc_client_stop);
-
-int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
-{
-	int rc;
-
-	rc = c2_rpc_client_stop(rctx);
-	if (rc != 0)
-		return rc;
-
-	fini_cob(rctx);
-
-	return rc;
-}
-C2_EXPORTED(c2_rpc_client_fini);
 
 /*
  *  Local variables:

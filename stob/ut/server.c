@@ -54,6 +54,7 @@
 
 #include "lib/processor.h"
 #include "reqh/reqh.h"
+#include "ut/rpc.h"
 
 /**
    @addtogroup stob
