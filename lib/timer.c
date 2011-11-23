@@ -708,14 +708,8 @@ void c2_timer_fini(struct c2_timer *timer)
 }
 C2_EXPORTED(c2_timer_fini);
 
-/**
-   Init data structures for hard timer
- */
-int c2_timers_init()
+static void timer_data_init()
 {
-	int rc;
-	c2_time_t one_ms;
-
 	c2_atomic64_set(&loc_count, 0);
 	ti_tlist_init(&timer_pqueue);
 	ts_tlist_init(&state_queue);
@@ -724,18 +718,52 @@ int c2_timers_init()
 	callback_tinfo = NULL;
 	sched_inited = false;
 	sched_failed = false;
-	c2_time_set(&one_ms, 0, 1000000);
+}
+
+static void timer_data_fini()
+{
+	C2_ASSERT(c2_atomic64_get(&loc_count) == 0);
+	ti_tlist_fini(&timer_pqueue);
+	ts_tlist_fini(&state_queue);
+	c2_mutex_fini(&state_lock);
+	C2_ASSERT(callback_tinfo == NULL);
+}
+
+/**
+   Init data structures for hard timer
+ */
+int c2_timers_init()
+{
+	int rc;
+	c2_time_t one_ms;
+
+	timer_data_init();
 
 	rc = pipe_init(&state_pipe);
-	rc = rc != 0 ? rc : pipe_init(&callback_pipe);
-	rc = rc != 0 ? rc : C2_THREAD_INIT(&scheduler, int, NULL,
-					&timer_scheduler, 0,
-					"hard timer scheduler");
-	if (rc == 0) {
-		while (!sched_inited)
-			c2_nanosleep(one_ms, NULL);
-		rc = sched_failed;
-	}
+	if (rc != 0)
+		goto cleanup;
+
+	rc = pipe_init(&callback_pipe);
+	if (rc != 0)
+		goto state_pipe_fini;
+
+	rc = C2_THREAD_INIT(&scheduler, int, NULL,
+			&timer_scheduler, 0,
+			"hard timer scheduler");
+	if (rc != 0)
+		goto callback_pipe_fini;
+
+	c2_time_set(&one_ms, 0, 1000000);
+	while (!sched_inited)
+		c2_nanosleep(one_ms, NULL);
+	return sched_failed;
+
+callback_pipe_fini:
+	C2_ASSERT(pipe_fini(&callback_pipe) == 0);
+state_pipe_fini:
+	C2_ASSERT(pipe_fini(&state_pipe) == 0);
+cleanup:
+	timer_data_fini();
 	return rc;
 }
 C2_EXPORTED(c2_timers_init);
@@ -750,13 +778,9 @@ void c2_timers_fini()
 	c2_thread_join(&scheduler);
 	c2_thread_fini(&scheduler);
 
-	C2_ASSERT(c2_atomic64_get(&loc_count) == 0);
-	ti_tlist_fini(&timer_pqueue);
-	ts_tlist_fini(&state_queue);
-	c2_mutex_fini(&state_lock);
 	C2_ASSERT(pipe_fini(&state_pipe) == 0);
 	C2_ASSERT(pipe_fini(&callback_pipe) == 0);
-	C2_ASSERT(callback_tinfo == NULL);
+	timer_data_fini();
 }
 C2_EXPORTED(c2_timers_fini);
 
