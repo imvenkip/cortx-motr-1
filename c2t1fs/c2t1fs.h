@@ -344,9 +344,6 @@ struct c2t1fs_sb
 
 	/** mutex that serialises all file and directory operations */
 	struct c2_mutex        csb_mutex;
-
-	/** magic = C2T1FS_SUPER_MAGIC */
-	uint64_t               csb_magic;
 };
 
 /**
