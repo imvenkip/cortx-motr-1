@@ -764,7 +764,7 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
 
                         c2_stob_io_init(stio);
 
-                        stio->si_user.div_vec = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr,
+                        stio->si_user = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr,
                                                                                 &count);
 
                         stio->si_stob.iv_vec.v_nr    = 1;
@@ -874,7 +874,7 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
 
                         c2_stob_io_init(stio);
 
-                        stio->si_user.div_vec = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr, &count);
+                        stio->si_user = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr, &count);
 
                         stio->si_stob.iv_vec.v_nr    = 1;
                         stio->si_stob.iv_vec.v_count = &count;

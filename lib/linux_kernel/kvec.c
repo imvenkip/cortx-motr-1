@@ -22,34 +22,24 @@
 #include "lib/assert.h"
 #include "lib/vec.h"
 #include "lib/cdefs.h"
-#include <linux/mm.h>
+#include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
 
 int c2_0vec_page_add(struct c2_0vec *zvec,
 		     struct page *pg,
 		     c2_bindex_t index)
 {
+	int		  rc;
 	uint32_t	  curr_seg;
-	c2_bcount_t	  step;
 	struct c2_bufvec *bvec;
+	struct c2_buf	  buf;
 
-	C2_PRE(zvec != NULL);
-	C2_PRE(pg != NULL);
+	buf.b_addr = page_address(pg);
+	buf.b_nob = PAGE_CACHE_SIZE;
 
-	bvec = &zvec->z_bvec;
-	curr_seg = zvec->z_cursor.bc_vc.vc_seg;
-
-	if (c2_bufvec_cursor_move(&zvec->z_cursor, 0) ||
-	    PAGE_SIZE > bvec->ov_vec.v_count[curr_seg])
-		return -EMSGSIZE;
-
-	bvec->ov_buf[curr_seg] = page_address(pg);
-	zvec->z_indices[curr_seg] = index;
-	bvec->ov_vec.v_count[curr_seg] = PAGE_SIZE;
-	step = c2_bufvec_cursor_step(&zvec->z_cursor);
-	c2_bufvec_cursor_move(&zvec->z_cursor, step);
-
-	C2_POST(curr_seg < bvec->ov_vec.v_nr);
-	return 0;
+	rc = c2_0vec_cbuf_add(zvec, &buf, &index);
+	if (rc == 0)
+		C2_POST(curr_seg < bvec->ov_vec.v_nr);
+	return rc;
 }
 C2_EXPORTED(c2_0vec_page_add);
 
