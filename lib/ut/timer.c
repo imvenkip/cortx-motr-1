@@ -40,16 +40,15 @@ enum {
 static int count = 0;
 static int verbose = 0;
 
-static volatile bool oneshot_finished;
-static volatile unsigned long oneshot_data;
-static volatile int oneshot_iterations;
+static bool oneshot_finished;
+static unsigned long oneshot_data;
+static int oneshot_iterations;
 static int oneshot_iterations_max;
-static volatile pid_t oneshot_tid;
+static pid_t oneshot_tid;
 
-static volatile bool many_finished[NR_TIMERS];
-static volatile unsigned long many_data[NR_TIMERS];
-static volatile int many_iterations[NR_TIMERS];
-static volatile pid_t many_pids[NR_TIMERS];
+static bool many_finished[NR_TIMERS];
+static int many_iterations[NR_TIMERS];
+static pid_t many_pids[NR_TIMERS];
 
 unsigned long tick(unsigned long data)
 {
