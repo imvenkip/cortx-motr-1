@@ -191,7 +191,7 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 
 	C2_ALLOC_PTR(tt);
 	if (tt == NULL)
-		return -1;
+		return -ENOMEM;
 
 	tt->tt_tid = tid;
 	tid_tlink_init(tt);
