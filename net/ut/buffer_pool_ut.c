@@ -29,13 +29,13 @@
 #include "net/bulk_sunrpc.h"
 #include "net/buffer_pool.h"
 
-void notempty(struct c2_net_buffer_pool *bp);
-void low(struct c2_net_buffer_pool *bp);
+static void notempty(struct c2_net_buffer_pool *bp);
+static void low(struct c2_net_buffer_pool *bp);
 static void buffers_get_put(int rc);
 
 struct c2_net_buffer_pool bp;
-struct c2_chan		  buf_chan;
-struct c2_net_xprt	  *xprt = &c2_net_bulk_sunrpc_xprt;
+static struct c2_chan      buf_chan;
+static struct c2_net_xprt	  *xprt = &c2_net_bulk_sunrpc_xprt;
 
 const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = notempty,
@@ -203,12 +203,12 @@ static void buffers_get_put(int rc)
 	c2_clink_fini(&buf_link);
 }
 
-void notempty(struct c2_net_buffer_pool *bp)
+static void notempty(struct c2_net_buffer_pool *bp)
 {
 	c2_chan_signal(&buf_chan);
 }
 
-void low(struct c2_net_buffer_pool *bp)
+static void low(struct c2_net_buffer_pool *bp)
 {
 	/* Buffer pool is LOW */
 }
