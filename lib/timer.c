@@ -297,8 +297,7 @@ static void timer_pqueue_insert(struct c2_timer_info *tinfo)
 {
 	if (tinfo->ti_left == 0)
 		return;
-	if (!ti_tlink_is_in(tinfo))
-		ti_tlist_add(&timer_pqueue, tinfo);
+	ti_tlist_add(&timer_pqueue, tinfo);
 }
 
 static void timer_pqueue_remove(struct c2_timer_info *tinfo)
