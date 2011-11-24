@@ -41,7 +41,8 @@
 
    - Hard timer has better resolution and is driven by signal. The
      user-defined callback should take short time, should never block
-     at any time and should be async-signal-safe (see signal(7)).
+     at any time. Also in user space it should be async-signal-safe
+     (see signal(7)), in kernel space it can only take _irq spin-locks.
    - Soft timer creates separate thread to execute the user-defined
      callback for each timer. So the overhead is bigger than hard timer.
      The user-defined callback execution may take longer time and it will
