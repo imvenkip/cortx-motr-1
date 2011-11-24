@@ -109,7 +109,7 @@ struct c2_fop_type_ops {
 	/** Try to coalesce multiple fops into one. */
 	int (*fto_io_coalesce)(struct c2_fop *fop);
 	/** Allocate memory for io descritor list. */
-	int (*fto_descs_alloc)(struct c2_fop *fop, size_t nr);
+	int (*fto_descs_alloc)(struct c2_fop *fop);
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct c2_fop *fop,
 			       struct c2_net_buf_desc **desc, int i);

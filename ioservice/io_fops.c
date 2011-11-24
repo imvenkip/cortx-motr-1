@@ -57,25 +57,6 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 
-/**
-   The IO fops code has been generalized to suit both read and write fops
-   as well as the kernel implementation.
-   The fop for read and write is same.
-   Most of the code deals with IO coalescing and fop type ops.
-   Ioservice also registers IO fops. This initialization should be done
-   explicitly while using code is user mode while kernel module takes care
-   of this initialization by itself.
-   Most of the IO coalescing is done from client side. RPC layer, typically
-   formation module invokes the IO coalescing code.
- */
-
-/**
-   A generic IO segment pointing either to read or write segments. This
-   is needed to have generic IO coalescing code. During coalescing, lot
-   of new io segments are created which need to be tracked using a list.
-   This is where the generic io segment is used.
- */
-
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
 	&c2_fop_io_buf_tfmt,
@@ -446,14 +427,6 @@ struct ioseg {
 	struct c2_list_link	 is_linkage;
 };
 
-/**
-   Get the io segment indexed by index in array of io segments in zerovec.
-   @pre zvec != NULL & seg_index < zvec->z_bvec.ov_vec.v_nr.
-
-   @param zvec The c2_0vec io vector from which io segment will be retrieved.
-   @param index Index of io segments in array of io segments from zerovec.
-   @param seg Out parameter to return io segment.
- */
 void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 	       struct ioseg *seg)
 {
@@ -465,16 +438,6 @@ void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
 }
 
-/**
-   Set the io segment referred by index into array of io segments from
-   the zero vector.
-   @note There is no data copy here. Just buffer pointers are copied since
-   this API is supposed to be used in same address space.
-
-   @note The incoming c2_0vec should be allocated and initialized.
-   @param zvec The c2_0vec io vector whose io segment will be changed.
-   @param seg Target segment for set.
- */
 void ioseg_set(struct c2_0vec *zvec, uint32_t seg_index,
 	       const struct ioseg *seg)
 {
@@ -486,13 +449,6 @@ void ioseg_set(struct c2_0vec *zvec, uint32_t seg_index,
 	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
 }
 
-/**
-   Allocate the io segments for the given c2_0vec structure.
-   @note The incoming c2_0vec should be allocated and initialized.
-   @param zvec The c2_0vec structure to which allocated segments
-   are attached.
-   @param segs_nr Number of io segments to be allocated.
- */
 int ioseg_nr_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
 {
 	C2_PRE(zvec != NULL);
@@ -516,14 +472,6 @@ bool io_fop_invariant(struct c2_io_fop *iofop)
 	return i != ARRAY_SIZE(ioservice_fops);
 }
 
-/**
-   Initialize a c2_io_fop structure.
-   @pre iofop != NULL && ftype != NULL && netdom != NULL
-   @param ftype Type of fop to be initialized.
-   @param segs_nr Number of IO segments to be contained in the io fop.
-   @param seg_size Size of each IO segment.
-   @param netdom The network domain under which IO requests are made.
- */
 int c2_io_fop_init(struct c2_io_fop *iofop,
 		   struct c2_fop_type *ftype,
 		   uint32_t segs_nr,
@@ -743,19 +691,6 @@ static int io_fop_seg_add_cond(struct ioseg *cseg, struct ioseg *nseg)
 	return rc;
 }
 
-/**
-   Checks if input IO segment from IO vector can fit with existing set of
-   segments in aggr_list.
-   If yes, change corresponding segment from aggr_list accordingly.
-   The segment is added in a sorted manner of starting offset in aggr_list.
-   Else, add a new segment to the aggr_list.
-   @note This is a best-case effort or an optimization effort. That is why
-   return value is void. If something fails, everything is undone and function
-   returns.
-
-   @param aggr_list - list of write segments which gets built during
-    this operation.
- */
 static void io_fop_seg_coalesce(struct ioseg *seg,
 				struct c2_list *aggr_list)
 {
@@ -887,7 +822,7 @@ cleanup:
 	return rc;
 }
 
-static int io_indexvec_prepare(struct c2_fop *res_fop)
+static int io_fop_indexvec_prepare(struct c2_fop *res_fop)
 {
 	int			 len;
 	int			 cnt;
@@ -934,14 +869,6 @@ cleanup:
 	return -ENOMEM;
 }
 
-/**
-   Coalesces the IO vectors of a list of read/write fops into IO vector
-   of given resultant fop. At a time, all fops in the list are either
-   read fops or write fops. Both fop types can not be present simultaneously.
-
-   @param res_fop - resultant fop with which the resulting IO vector is
-   associated.
- */
 static int io_fop_coalesce(struct c2_fop *res_fop)
 {
 	int			 rc;
@@ -1005,7 +932,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 
 	/* Populates the index vector from io fop to fill extent information
 	   for all net buffers referred by io fop. */
-	rc = io_indexvec_prepare(res_fop);
+	rc = io_fop_indexvec_prepare(res_fop);
 	if (rc != 0)
 		goto cleanup;
 
@@ -1025,21 +952,11 @@ cleanup:
 	return rc;
 }
 
-/**
-   Returns the fid of given IO fop.
-   @note This method only works for read and write IO fops.
-   @retval On-wire fid of given fop.
- */
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
 {
 	return &(io_rw_get(fop))->crw_fid;
 }
 
-/**
-   Returns if given 2 fops refer to same fid. The fids mentioned here
-   are on-wire fids.
-   @retval true if both fops refer to same fid, false otherwise.
- */
 static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 {
 	struct c2_fop_file_fid *ffid1;
@@ -1071,8 +988,7 @@ void io_fop_replied(struct c2_fop *fop)
 		bkpfop = c2_rpc_item_to_fop(bkpitem);
 		bkpvec = io_0vec_get(bkpfop);
 		iovec = io_0vec_get(fop);
-		c2_free(iovec->z_bvec.ov_vec.v_count);
-		c2_free(iovec->z_bvec.ov_buf);
+		c2_0vec_free(iovec);
 		*iovec = *bkpvec;
 		io_rpcbulk_buf_get(fop)->bb_nbuf.nb_length =
 			io_rpcbulk_buf_get(bkpfop)->bb_nbuf.nb_length;
@@ -1095,9 +1011,6 @@ void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc, int i)
 	*desc = &rw->crw_desc.id_descs[i];
 }
 
-/**
- * readv FOP operation vector.
- */
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = io_fop_replied,
@@ -1105,11 +1018,9 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
+	.fto_descs_alloc = io_fop_indexvec_prepare,
 };
 
-/**
- * writev FOP operation vector.
- */
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = io_fop_replied,
@@ -1117,22 +1028,14 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
+	.fto_descs_alloc = io_fop_indexvec_prepare,
 };
 
-/**
- * Init function to initialize readv and writev reply FOMs.
- * Since there is no client side FOMs as of now, this is empty.
- * @param fop - fop on which this fom_init methods operates.
- * @param m - fom object to be created here.
- */
 static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	return 0;
 }
 
-/**
- * readv and writev reply FOP operation vector.
- */
 const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
@@ -1193,9 +1096,6 @@ void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
 	if (c2_list_is_empty(list))
 		return;
 
-	if (!head->ri_type->rit_ops->rito_io_coalesce)
-		return;
-
 	/* Traverses through the list and finds out items that match with
 	   head on basis of fid and intent (read/write). Matching items
 	   are removed from session->s_unbound_items list and added to
@@ -1232,17 +1132,22 @@ int io_item_desc_store(struct c2_rpc_item *item)
 	struct c2_rpc_bulk	*rbulk;
 	struct c2_rpc_bulk_buf	*buf;
 	struct c2_net_buf_desc	*desc;
+	struct c2_net_domain	*netdom;
 
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
 	rbulk = c2_fop_to_rpcbulk(fop);
-	rc = fop->f_type->ft_ops->fto_descs_alloc(fop,
-			c2_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist));
+	rc = fop->f_type->ft_ops->fto_descs_alloc(fop);
 	if (rc != 0)
 		return rc;
 
+	netdom = item->ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
+		rc = c2_net_buffer_register(&buf->bb_nbuf, netdom);
+		if (rc != 0)
+			break;
+
 		fop->f_type->ft_ops->fto_io_desc_get(fop, &desc, cnt);
 		rc = c2_rpc_bulk_buf_store(buf, item, desc);
 		if (rc != 0)
