@@ -23,6 +23,7 @@
 
 /* import */
 #include "lib/types.h"	/* struct c2_uint128 */
+#include "fid/fid.h"	/* struct c2_fid */
 #include "db/db.h"	/* struct c2_table */
 #include "db/extmap.h"	/* struct c2_emap */
 
@@ -137,14 +138,14 @@ struct c2_layout_rec_attrs {
 
 /**
    In-memory data structure for the layout schema.
-   It includes pointers to the layout_entries table and various related
+   It includes pointers to the layouts table and various related
    parameters.
    @todo Add one table to store 'layout type to layout description
    mappings'.
 */
 struct c2_layout_schema {
 	/** Table for layout record entries */
-	struct c2_table                ls_layout_entries;
+	struct c2_table                ls_layouts;
 
 	struct c2_layout_type         *ls_type[C2_LAYOUT_TYPE_MAX];
 	struct c2_layout_enum_type    *ls_enum[C2_LAYOUT_ENUM_MAX];
@@ -153,7 +154,7 @@ struct c2_layout_schema {
 };
 
 /**
-   layout_entries table
+   layouts table
    Key is c2_layout_id, same as c2_layout::l_id.
 */
 struct c2_layout_rec {
@@ -231,7 +232,7 @@ struct layout_schema_internal {
 };
 
 /**
-   Compare layout_entries table keys.
+   Compare layouts table keys.
    This is a 3WAY comparison.
 */
 static int le_key_cmp(struct c2_table *table,
@@ -242,9 +243,9 @@ static int le_key_cmp(struct c2_table *table,
 }
 
 /**
-   table_ops for layout_entries table
+   table_ops for layouts table
 */
-static const struct c2_table_ops layout_entries_table_ops = {
+static const struct c2_table_ops layouts_table_ops = {
 	.to = {
 		[TO_KEY] = {
 			.max_size = sizeof(struct c2_uint128)

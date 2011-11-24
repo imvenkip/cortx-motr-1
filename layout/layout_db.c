@@ -149,7 +149,7 @@
    @subsection Layout-DB-lspec-schema Layout Schema Design
    The layout schema for the Layout DB module consists of the following three
    tables
-   - @ref Layout-DB-lspec-schema-layout_entries
+   - @ref Layout-DB-lspec-schema-layouts
    - @ref Layout-DB-lspec-schema-cob_lists
    - @ref Layout-DB-lspec-schema-comp_layout_ext_map
 
@@ -159,9 +159,9 @@
    Key-Record structure for the tables is described in the following
    subsections.
 
-   @subsection Layout-DB-lspec-schema-layout_entries Table layout_entries
+   @subsection Layout-DB-lspec-schema-layouts Table layouts
    @verbatim
-   Table Name: layout_entries
+   Table Name: layouts
    Key: layout_id
    Record:
       - layout_type_id
@@ -198,7 +198,7 @@
    This table contains multiple cob identifier entries for every PDCLUST type
    of layout with LIST enumeration type.
 
-   layout_id is a foreign key referring record, in the layout_entries table.
+   layout_id is a foreign key referring record, in the layouts table.
 
    @subsection Layout-DB-lspec-schema-comp_layout_ext_map Table comp_layout_ext_map
 
@@ -214,9 +214,9 @@
    @endverbatim
 
    composite_layout_id is the layout_id for the COMPOSITE type of layout,
-   stored as key in the layout_entries table.
+   stored as key in the layouts table.
 
-   layout_id is a foreign key referring record, in the layout_entries table.
+   layout_id is a foreign key referring record, in the layouts table.
 
    Layout DB uses a single c2_emap instance to implement the composite layout
    extent map viz. comp_layout_ext_map. This table stores the "layout segment
@@ -400,7 +400,7 @@ void c2_layout_enum_unregister(struct c2_layout_schema *l_schema,
 }
 
 /**
-   Adds a new layout record entry into the layout_entries table.
+   Adds a new layout record entry into the layouts table.
    If applicable, adds information related to this layout, into the relevant
    tables.
 */

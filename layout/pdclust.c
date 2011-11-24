@@ -510,7 +510,7 @@ int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Add a layout entry into the layout_entries table.
+	Add a layout entry into the layouts table.
 	Invoke enumeration type specific leto_rec_add() so as to:
 	   - In case of LIST enumeration type, it adds list of cob ids
 	     to the cob_lists table.
@@ -532,7 +532,7 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
 	   - In case of LIST enumeration type, if the reference count of the
 	     layout entry is 0, delete the relevant cob id list from the
 	     cob_lists table and delete layout entry from
-	     the layout_entries table in case of LIST enumeration type.
+	     the layouts table in case of LIST enumeration type.
 	@endcode
    */
 	return 0;
@@ -547,7 +547,7 @@ int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
 {
    /**
 	@code
-	Update the layout entry in the layout_entries table.
+	Update the layout entry in the layouts table.
 	Invoke enumeration type specific leto_rec_update() so as to:
 	   - for LIST enumeration type, update the relevant list of cob ids
 	     in the cob_lists table.
@@ -567,7 +567,7 @@ int pdclust_rec_lookup(const struct c2_layout_id *l_id,
    /**
 	@code
 	Obtain the layout record with the specified layout id, from the
-	layout_entries table.
+	layouts table.
 	Invoke layout enumeration type specific leto_rec_lookup so that:
 	   - For LIST enumeration type, obtain the relevant list of cob
 	     ids from the cob_lists table.

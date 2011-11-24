@@ -73,7 +73,7 @@ int c2_layout_decode(const struct c2_bufvec_cursor *cur,
    Store generic fields from a layout to the buffer.
 */
 int c2_layout_encode(const struct c2_layout *l,
-		     struct c2_bufvec_cursor *cur_out)
+		     struct c2_bufvec_cursor *out)
 {
 	/**
 	@code

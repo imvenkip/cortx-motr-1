@@ -65,7 +65,7 @@ static int composite_encode(const struct c2_layout *l,
 
 /**
    Implementation of lto_rec_add for COMPOSITE layout type.
-   Adds the layout entry into the layout_entries table.
+   Adds the layout entry into the layouts table.
    Adds the relevant extent map into the comp_layout_ext_map table.
 */
 int composite_rec_add(const struct c2_bufvec_cursor *cur,
@@ -75,7 +75,7 @@ int composite_rec_add(const struct c2_bufvec_cursor *cur,
    /**
 	@code
 	Form c2_db_pair by using the data from the buffer.
-	Add a layout entry into the layout_entries table.
+	Add a layout entry into the layouts table.
 	Add the relevant extent map into the comp_layout_ext_map table.
 
 	If any of the segments uses a composite layout again, add the
@@ -96,7 +96,7 @@ int composite_rec_delete(const struct c2_bufvec_cursor *cur,
    /**
 	@code
 	Form c2_db_pair by using the data from the buffer.
-	Delete the layout entry from the table layout_entries.
+	Delete the layout entry from the table layouts.
 	Delete the relevant extent map from the comp_layout_ext_map table,
 	if an only if its reference count is 0.
 
@@ -118,7 +118,7 @@ int composite_rec_update(const struct c2_bufvec_cursor *l_rec,
    /**
 	@code
 	Form c2_db_pair by using the data from the buffer.
-	Update the layout entry in the layout_entries table.
+	Update the layout entry in the layouts table.
 	Update the relevant extent map in the comp_layout_ext_map table.
 
 	If any of the segments uses a composite layout again, update the
@@ -140,7 +140,7 @@ int composite_rec_lookup(const struct c2_layout_id *l_id,
    /**
 	@code
 	Form c2_db_pair by using the data from the buffer.
-	Obtain the layout entry from the layout_entries table.
+	Obtain the layout entry from the layouts table.
 	Obtain the relevant extent map from the comp_layout_ext_map table.
 
 	If any of the segments uses a composite layout again, obtain the

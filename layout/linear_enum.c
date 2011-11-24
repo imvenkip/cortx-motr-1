@@ -64,7 +64,7 @@ static int layout_linear_enum_encode(const struct c2_layout *l,
    lto_rec_update and lto_rec_lookup unless we want to store
    attributes (applicable only for PDCLIUST type of layout
    with LINEAR enumeration type) in a table different than
-   layout_entries.
+   layouts.
 */
 
 
