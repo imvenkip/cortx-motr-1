@@ -61,7 +61,7 @@ enum {
 	PIPE_BUF_SIZE = 4096,
 };
 
-enum TIMER_STATE {
+enum timer_state_new {
 	TS_START,
 	TS_STOP,
 	TS_FINI
@@ -94,7 +94,7 @@ struct timer_state {
 	struct c2_tlink	      ts_linkage;
 	uint64_t	      ts_magic;
 	struct c2_timer_info *ts_tinfo;
-	enum TIMER_STATE      ts_state;
+	enum timer_state_new  ts_state;
 };
 
 static struct c2_thread scheduler;
@@ -250,7 +250,7 @@ static void timer_info_fini(struct c2_timer_info *tinfo)
 }
 
 static int timer_state_enqueue(struct c2_timer_info *tinfo,
-		enum TIMER_STATE state)
+		enum timer_state_new state)
 {
 	struct timer_state *ts;
 
@@ -270,7 +270,7 @@ static int timer_state_enqueue(struct c2_timer_info *tinfo,
 	return 0;
 }
 
-static struct c2_timer_info *timer_state_dequeue(enum TIMER_STATE *state)
+static struct c2_timer_info *timer_state_dequeue(enum timer_state_new *state)
 {
 	struct c2_timer_info *tinfo;
 	struct timer_state   *ts;
@@ -473,7 +473,7 @@ static int timer_sigaction(int signo, void (*handler)(int))
 static void timer_state_process()
 {
 	struct c2_timer_info *tinfo;
-	enum TIMER_STATE state;
+	enum timer_state_new state;
 
 	while ((tinfo = timer_state_dequeue(&state)) != NULL) {
 		switch (state) {
@@ -537,7 +537,8 @@ static int timer_hard_init(struct c2_timer *timer)
 	return timer->t_info == NULL;
 }
 
-static int timer_state_deliver(struct c2_timer *timer, enum TIMER_STATE state)
+static int timer_state_deliver(struct c2_timer *timer,
+		enum timer_state_new state)
 {
 	int rc;
 
