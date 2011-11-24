@@ -60,6 +60,8 @@ struct c2_layout_rec_attrs;
    - void c2_layout_type_unregister(struct c2_layout_schema *l_schema, const struct c2_layout_type *lt)
    - void c2_layout_enum_register(struct c2_layout_schema *l_schema, const struct c2_layout_enum_type *et)
    - void c2_layout_enum_unregister(struct c2_layout_schema *l_schema, const struct c2_layout_enum_type *et)
+   - void **c2_layout_type_data(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
+   - void **c2_layout_enum_data(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
    - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
    - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
    - int c2_layout_rec_update(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
@@ -131,26 +133,34 @@ enum {
 */
 struct c2_layout_rec_attrs {
 	/** Number of data units in the parity group (N) */
-	uint32_t plra_num_of_data_units;
+	uint32_t		plra_num_of_data_units;
 	/** Number of parity units in the parity group (K) */
-	uint32_t plra_num_of_parity_units;
+	uint32_t		plra_num_of_parity_units;
 };
 
 /**
    In-memory data structure for the layout schema.
    It includes pointers to the layouts table and various related
    parameters.
-   @todo Add one table to store 'layout type to layout description
-   mappings'.
 */
 struct c2_layout_schema {
 	/** Table for layout record entries */
-	struct c2_table                ls_layouts;
+	struct c2_table			 ls_layouts;
 
-	struct c2_layout_type         *ls_type[C2_LAYOUT_TYPE_MAX];
-	struct c2_layout_enum_type    *ls_enum[C2_LAYOUT_ENUM_MAX];
-	void                          *ls_type_data[C2_LAYOUT_TYPE_MAX];
-	void                          *ls_enum_data[C2_LAYOUT_ENUM_MAX];
+	/** Layout types array.
+	    Used by the db code to find layout type with given identifier.
+	*/
+	struct c2_layout_type		*ls_type[C2_LAYOUT_TYPE_MAX];
+
+	/** Enumeration types array.
+	    Used by the db code to find enumeration type with given identifier.
+	*/
+	struct c2_layout_enum_type	*ls_enum[C2_LAYOUT_ENUM_MAX];
+
+	void				*ls_type_data[C2_LAYOUT_TYPE_MAX];
+	void				*ls_enum_data[C2_LAYOUT_ENUM_MAX];
+
+	struct layout_schema_internal	*ls_internal;
 };
 
 /**
@@ -158,52 +168,59 @@ struct c2_layout_schema {
    Key is c2_layout_id, same as c2_layout::l_id.
 */
 struct c2_layout_rec {
-	/** Layout type id, same as c2_layout_type::lt_id */
-	uint64_t lr_lt_id;
+	/** Layout type id.
+	    Otained from  c2_layout_type::lt_id.
+	*/
+	uint64_t			lr_lt_id;
 
-	/** Layout enumeration type id, same as c2_layout_enum_type::let_id */
-	uint64_t lr_let_id;
+	/** Layout enumeration type id.
+	    Obtained from c2_layout_enum_type::let_id.
+	*/
+	uint64_t			lr_let_id;
 
-	/** Layout record reference count indicating number of files using
-	this layout */
-	uint64_t lr_ref_count;
+	/** Layout record reference count.
+	    Indicating number of files using this layout.
+	*/
+	uint64_t			lr_ref_count;
 
-	/** Struct to store record attributes, currently used for PDCLUST
-	    layout type */
-	struct c2_layout_rec_attrs lr_formula_attrs;
+	/** Struct to store record attributes.
+	    Currently used only for PDCLUST layout type.
+	*/
+	struct c2_layout_rec_attrs	lr_formula_attrs;
 };
 
-int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db);
-void c2_layout_schema_fini(struct c2_layout_schema *l_schema);
+int c2_layout_schema_init(struct c2_layout_schema *schema,
+			  struct c2_dbenv *db);
+void c2_layout_schema_fini(struct c2_layout_schema *schema);
 
-void c2_layout_type_register(struct c2_layout_schema *l_schema,
+void c2_layout_type_register(struct c2_layout_schema *schema,
 			     const struct c2_layout_type *lt);
-void c2_layout_type_unregister(struct c2_layout_schema *l_schema,
+void c2_layout_type_unregister(struct c2_layout_schema *schema,
 			       const struct c2_layout_type *lt);
 
-void c2_layout_enum_register(struct c2_layout_schema *l_schema,
+void c2_layout_enum_register(struct c2_layout_schema *schema,
 			     const struct c2_layout_enum_type *et);
-void c2_layout_enum_unregister(struct c2_layout_schema *l_schema,
+void c2_layout_enum_unregister(struct c2_layout_schema *schema,
 			       const struct c2_layout_enum_type *et);
 
-void **c2_layout_type_data(struct c2_layout_schema *l_schema,
+void **c2_layout_type_data(struct c2_layout_schema *schema,
 			   const struct c2_layout_type *lt);
-void **c2_layout_enum_data(struct c2_layout_schema *l_schema,
+void **c2_layout_enum_data(struct c2_layout_schema *schema,
 			   const struct c2_layout_enum_type *et);
 
 int c2_layout_rec_add(const struct c2_layout *layout,
-		      struct c2_layout_schema *l_schema,
+		      struct c2_layout_schema *schema,
 		      struct c2_db_tx *tx);
 int c2_layout_rec_delete(const struct c2_layout *layout,
-			 struct c2_layout_schema *l_schema,
+			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx);
 int c2_layout_rec_update(const struct c2_layout *layout,
-			 struct c2_layout_schema *l_schema,
+			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx);
-int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
-			 struct c2_layout_schema *l_schema,
+int c2_layout_rec_lookup(const struct c2_layout_id *id,
+			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx,
-			 struct c2_layout *l_recrec_out);
+			 struct c2_layout *out);
 
 /** @} end group LayoutDBDFS */
 
@@ -214,21 +231,18 @@ int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
 
 /**
    Internal layout schema.
-   It includes pointers to tables for data specific to layout type and
-   enum type.
-   @todo How to link this to layout_schema?
-
-   @todo Add one table to store 'enumeration type to enumeration description
-   mappings'.
+   It includes pointers to tables used internally for storing data specific to
+   various layout types and various enumeration types.
 */
 struct layout_schema_internal {
 	/** Table for cob lists for all the layout types it is applicable for.
             e.g. Currently, it is applicable for PDCLUST layout type with
-            LIST enumeration type. */
-	struct c2_table ls_cob_lists;
+            LIST enumeration type.
+	*/
+	struct c2_table		ls_cob_lists;
 
 	/* Table for extent maps for all the COMPOSITE type of layouts */
-	struct c2_emap ls_comp_layout_ext_map;
+	struct c2_emap		ls_comp_layout_ext_map;
 };
 
 /**
@@ -236,8 +250,8 @@ struct layout_schema_internal {
    This is a 3WAY comparison.
 */
 static int le_key_cmp(struct c2_table *table,
-		const void *key0,
-		const void *key1)
+		      const void *key0,
+		      const void *key1)
 {
 	return 0;
 }
@@ -261,12 +275,12 @@ static const struct c2_table_ops layouts_table_ops = {
    cob_lists table
 */
 struct layout_cob_lists_key {
-	struct c2_layout_id lclk_l_id;
-	uint32_t lclk_cob_index;
+	struct c2_layout_id	lclk_l_id;
+	uint32_t		lclk_cob_index;
 };
 
 struct layout_cob_lists_rec {
-	struct c2_fid lclr_cob_id;
+	struct c2_fid		lclr_cob_id;
 };
 
 /**
@@ -274,8 +288,8 @@ struct layout_cob_lists_rec {
    This is a 3WAY comparison.
 */
 static int lcl_key_cmp(struct c2_table *table,
-		const void *key0,
-		const void *key1)
+		       const void *key0,
+		       const void *key1)
 {
 	return 0;
 }

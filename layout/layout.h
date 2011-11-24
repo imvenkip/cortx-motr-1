@@ -30,8 +30,8 @@
    A layout type specifies how a file is stored in a collection of component
    objects.
 
-   An enumeration method determines how a collection of component object
-   is specified.
+   An enumeration method determines how a collection of component object is
+   specified.
 
    Layout types supported currently are:
    - PDCLUST <BR>
@@ -157,8 +157,8 @@ struct c2_layout {
 };
 
 struct c2_layout_ops {
-   /** @todo: should at least have a method lo_fini() method called when a layout object is about to be destroyed.
-   */
+	void	(*lo_init)(struct c2_layout *lay);
+	void	(*lo_fini)(struct c2_layout *lay);
 };
 
 /**
@@ -220,8 +220,8 @@ struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
 	uint32_t (*leo_nr)(const struct c2_layout_enum *e);
 
-	/** Returns nr-th object in the enumeration.
-	    @pre nr < e->l_enum_ops->leo_nr(e)
+	/** Returns idx-th object in the enumeration.
+	    @pre idx < e->l_enum_ops->leo_nr(e)
 	*/
 	void (*leo_get)(const struct c2_layout_enum *e,
 			uint32_t idx,

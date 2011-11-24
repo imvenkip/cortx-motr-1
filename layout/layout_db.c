@@ -110,8 +110,8 @@
    The following diagram shows the internal components of the Layout module.
 
    @todo Would like to reverse the positions of the "Layout DB" and the
-   "Layout" components but not able to achieve it at least as of now! Any
-   inputs are welcome.
+   "Layout" components though not able to achieve as of now! Any inputs
+   are welcome.
 
    @dot
    digraph {
@@ -147,17 +147,12 @@
    @enddot
 
    @subsection Layout-DB-lspec-schema Layout Schema Design
-   The layout schema for the Layout DB module consists of the following three
-   tables
+   The layout schema for the Layout DB module consists of the following tables.
    - @ref Layout-DB-lspec-schema-layouts
    - @ref Layout-DB-lspec-schema-cob_lists
    - @ref Layout-DB-lspec-schema-comp_layout_ext_map
 
-   @todo Add one table each to store 'layout type to layout description
-   mappings' and 'enumeration type to enumeration description mappings'.
-
-   Key-Record structure for the tables is described in the following
-   subsections.
+   Key-Record structures for these tables are described below.
 
    @subsection Layout-DB-lspec-schema-layouts Table layouts
    @verbatim
@@ -177,12 +172,6 @@
    It is possible that some layout types do not need to store any attributes.
    e.g. A layout with PDCLUST layout type with LIST enumeration and a layout with
    with COMPOSITE layout type do not need to store these attributes.
-
-   @todo A decision needs to be made if it is ok to store these attributes in
-   this primary table (cons: wastes this space for the layout entries which do not
-   need these attributes) or they should be stored outside this table that will
-   store data only for the layout entries for which such attributes are
-   applicable.
 
    @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
    @verbatim
@@ -326,6 +315,15 @@ static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_lay
 	return true;
 }
 
+static int __attribute__ ((unused)) layout_schema_internal_init(struct c2_layout_schema *schema, struct c2_dbenv *db)
+{
+	return 0;
+}
+
+static void __attribute__ ((unused))layout_schema_internal_fini(struct c2_layout_schema *schema)
+{
+}
+
 /** @} end group LayoutDBDFSInternal */
 
 /**
@@ -336,7 +334,7 @@ static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_lay
 /**
    Initializes new layout schema - creates the DB tables.
 */
-int c2_layout_schema_init(struct c2_layout_schema *l_schema,
+int c2_layout_schema_init(struct c2_layout_schema *schema,
 			  struct c2_dbenv *db)
 {
    /**
@@ -351,12 +349,12 @@ int c2_layout_schema_init(struct c2_layout_schema *l_schema,
    De-initializes the layout schema - de-initializes the DB tables and the
    DB environment.
 */
-void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
+void c2_layout_schema_fini(struct c2_layout_schema *schema)
 {
    /*
 	@code
-	Uses the DB interface c2_table_fini() and c2_dbenv_fini() to
-	de-intialize the DB tables and tables respectively.
+	Use the DB interface c2_table_fini() to de-intialize the DB
+	tables.
 	@endcode
    */
 
@@ -364,39 +362,100 @@ void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
 }
 
 /**
-   @todo
+   Registers a new layout type with the layout types maintained by
+   c2_layout_schema::c2_layout_type[].
 */
-void c2_layout_type_register(struct c2_layout_schema *l_schema,
+void c2_layout_type_register(struct c2_layout_schema *schema,
 			     const struct c2_layout_type *lt)
 {
+   /**
+	@code
+	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type));
+	C2_PRE(schema->ls_type[lt->lt_id] == NULL);
+
+	schema->ls_type[lt->lt_id] = lt;
+
+	Allocates type specific state is assigns it to
+	   *c2_layout_type_data().
+	lt->lto_register(lt, schema);
+
+	@endcode
+   */
 	return;
 }
 
 /**
-   @todo
+   Unregisters a layout type from the layout types maintained by
+   c2_layout_schema::c2_layout_type[].
 */
-void c2_layout_type_unregister(struct c2_layout_schema *l_schema,
+void c2_layout_type_unregister(struct c2_layout_schema *schema,
 			       const struct c2_layout_type *lt)
 {
 	return;
 }
 
 /**
-   @todo
+   Registers a new enumeration type with the enumeration types
+   maintained by c2_layout_schema::ls_type[].
 */
-void c2_layout_enum_register(struct c2_layout_schema *l_schema,
+void c2_layout_enum_register(struct c2_layout_schema *schema,
 			     const struct c2_layout_enum_type *et)
+{
+   /**
+	@code
+	C2_PRE(IS_IN_ARRAY(et->let_id, schema->ls_enum));
+	C2_PRE(schema->ls_enum[et->let_id] == NULL);
+
+	schema->ls_enum[et->let_id] = et;
+
+	this allocates type specific state is assigns it to
+	*c2_layout_enum_data().
+	et->leto_register(et, schema);
+
+	@endcode
+   */
+
+	return;
+}
+
+/**
+   Unregisters an enumeration type from the enumeration types
+   maintained by c2_layout_schema::ls_enum[].
+*/
+void c2_layout_enum_unregister(struct c2_layout_schema *schema,
+			       const struct c2_layout_enum_type *et)
 {
 	return;
 }
 
 /**
-   @todo
+   @todo Add description
 */
-void c2_layout_enum_unregister(struct c2_layout_schema *l_schema,
-			       const struct c2_layout_enum_type *et)
+void **c2_layout_type_data(struct c2_layout_schema *schema,
+			   const struct c2_layout_type *lt)
 {
-	return;
+   /**
+	@code
+	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type_data));
+	return &schema->ls_type_data[lt->lt_id];
+	@endcode
+   */
+	return NULL;
+}
+
+/**
+   @todo Add description
+*/
+void **c2_layout_enum_data(struct c2_layout_schema *schema,
+			   const struct c2_layout_enum_type *et)
+{
+   /*
+	@code
+	C2_PRE(IS_IN_ARRAY(et->let_id, schema->ls_enum_data));
+	return &schema->ls_enum_data[et->let_id];
+	@endcode
+   */
+	return NULL;
 }
 
 /**
