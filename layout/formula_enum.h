@@ -21,18 +21,17 @@
 #ifndef __COLIBRI_LAYOUT_FORMULA_ENUM_H__
 #define __COLIBRI_LAYOUT_FORMULA_ENUM_H__
 
-#include "layout/layout.h"
 
 /**
    @defgroup formula_enum Formula Enumeration Type.
 
    A layout with formula enumeration type stores a formula that is
-   used to enumerate all the component object identifiers. Thus, this
-   type of a layout does not store the component object identifiers.
+   used to enumerate all the component object identifiers.
    @{
 */
 
 /* import */
+#include "layout/layout.h"
 
 /* export */
 
@@ -41,37 +40,38 @@
  */
 struct c2_layout_formula_enum {
 	/** super class */
-	struct c2_layout_enum         lline_enum;
+	struct c2_layout_enum			  lfe_enum;
 
-	const struct c2_layout_formula_formula *lline_form;
-	const struct c2_layout_formula_parameter *lline_actuals;
+	const struct c2_layout_formula		 *lfe_form;
+	const struct c2_layout_formula_parameter *lfe_actuals;
 };
 
-struct c2_layout_formula_formula {
-	const struct c2_uint128                    llinf_id;
-	const struct c2_layout_formula_formula_ops *llinf_ops;
+struct c2_layout_formula {
+	const struct c2_uint128			 lf_id;
+	const struct c2_layout_formula_ops	*lf_ops;
 };
 
-struct c2_layout_formula_formula_ops {
-	int (*llinfo_subst)(const struct c2_layout_formula_formula *form,
-			    uint16_t nr,
-			    const struct c2_layout_formula_parameter *actuals,
-			    struct c2_layout **out);
+struct c2_layout_formula_ops {
+	int (*lfo_subst)(const struct c2_layout_formula *form,
+			 uint16_t nr,
+			 const struct c2_layout_formula_parameter *actuals,
+			 struct c2_layout **out);
 };
 
 struct c2_layout_formula_parameter {
-	const struct c2_layout_parameter_type *llinp_type;
-	const void                            *llinp_value;
+	const struct c2_layout_parameter_type *lfp_type;
+	const void                            *lfp_value;
 };
 
 struct c2_layout_formula_parameter_type {
-	const char *llinpt_name;
-	int       (*llinpt_convert)(const struct c2_layout_formula_parameter *other,
-				    struct c2_layout_formula_parameter *out);
+	const char	*lfpt_name;
+
+	int (*lfpt_convert)(const struct c2_layout_formula_parameter *other,
+			    struct c2_layout_formula_parameter *out);
 };
 
 extern const struct c2_layout_enum_type c2_layout_formula_enum_type;
-extern const struct c2_layout_formula_formula c2_formula_NKP_formula;
+extern const struct c2_layout_formula c2_formula_NKP_formula;
 
 /** @} end group formula_enum */
 
