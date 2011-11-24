@@ -245,10 +245,8 @@ static struct c2_timer_info *timer_info_init(struct c2_timer *timer)
 
 static void timer_info_fini(struct c2_timer_info *tinfo)
 {
-	if (tinfo != NULL) {
-		ti_tlink_fini(tinfo);
-		c2_free(tinfo);
-	}
+	ti_tlink_fini(tinfo);
+	c2_free(tinfo);
 }
 
 static int timer_state_enqueue(struct c2_timer_info *tinfo,
