@@ -413,7 +413,6 @@ static void create_send(void)
 	struct c2_rpc_item              *item;
 	struct c2_fop                   *fop;
 	struct reqh_ut_fom_io_create    *rh_io_fop;
-	struct c2_fop_type              *ftype;
 	c2_time_t                        timeout;
 	uint32_t                         i;
 
@@ -427,7 +426,6 @@ static void create_send(void)
 		item->ri_deadline = 0;
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
-		ftype = fop->f_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
@@ -450,7 +448,6 @@ static void read_send(void)
 	c2_time_t                        timeout;
 	struct c2_fop                   *fop;
 	struct reqh_ut_fom_io_read      *rh_io_fop;
-	struct c2_fop_type              *ftype;
 	uint32_t                         i;
 
 	for (i = 0; i < 10; ++i) {
@@ -464,7 +461,6 @@ static void read_send(void)
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
 		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		ftype = fop->f_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
@@ -486,7 +482,6 @@ static void write_send(void)
 	struct c2_rpc_item              *item;
 	struct c2_fop                   *fop;
 	struct reqh_ut_fom_io_write     *rh_io_fop;
-	struct c2_fop_type              *ftype;
 	c2_time_t                        timeout;
 	uint32_t                         i;
 
@@ -501,7 +496,6 @@ static void write_send(void)
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
 		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		ftype = fop->f_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
