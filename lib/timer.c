@@ -36,6 +36,7 @@
 #include "lib/memory.h" /* C2_ALLOC_PTR */
 #include "lib/errno.h"	/* errno */
 #include "lib/time.h"	/* c2_time_t */
+#include "lib/semaphore.h"  /* c2_semaphore */
 #include "lib/timer.h"
 
 /**
@@ -101,12 +102,12 @@ static struct c2_thread scheduler;
 static struct c2_tl timer_pqueue;
 static struct c2_tl state_queue;
 static struct c2_mutex state_lock;
-static struct timer_pipe state_pipe;
-static struct timer_pipe callback_pipe;
-static bool finish_scheduler;
+static struct c2_semaphore state_sem;
+static struct c2_semaphore callback_sem;
 static volatile struct c2_timer_info *callback_tinfo;
-static volatile bool sched_inited;
-static volatile bool sched_failed;
+static struct c2_semaphore sched_init_lock;
+static bool finish_scheduler;
+static int sched_errno;
 
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 		tt_linkage, tt_magic,
@@ -292,63 +293,6 @@ static struct c2_timer_info *timer_state_dequeue(enum timer_state_new *state)
 	return tinfo;
 }
 
-static int pipe_init(struct timer_pipe *tpipe)
-{
-	C2_PRE(tpipe != NULL);
-
-	c2_atomic64_set(&tpipe->tp_size, 0);
-	return pipe(tpipe->tp_pipefd);
-}
-
-static int pipe_fini(struct timer_pipe *tpipe)
-{
-	int i;
-
-	C2_ASSERT(tpipe != NULL);
-
-	for (i = 0; i < 2; ++i)
-		if (close(tpipe->tp_pipefd[i]) != 0)
-			return errno;
-	return 0;
-}
-
-static void pipe_wake(struct timer_pipe *tpipe)
-{
-	int	fd;
-	ssize_t bytes;
-	char	one_byte = 0;
-
-	C2_PRE(tpipe != NULL);
-
-	fd = tpipe->tp_pipefd[1];
-	if (c2_atomic64_get(&tpipe->tp_size) > 0)
-		return;
-	while (1) {
-		bytes = write(fd, &one_byte, 1);
-		if (bytes == 1)
-			break;
-		C2_ASSERT(errno == EINTR);
-	}
-	c2_atomic64_inc(&tpipe->tp_size);
-}
-
-static void pipe_wait(struct timer_pipe *tpipe)
-{
-	int	    fd;
-	static char pipe_buf[PIPE_BUF_SIZE];
-	int	    rc;
-
-	C2_PRE(tpipe != NULL);
-
-	fd = tpipe->tp_pipefd[0];
-	do {
-		rc = read(fd, pipe_buf, PIPE_BUF_SIZE);
-		if (rc > 0 && c2_atomic64_sub_return(&tpipe->tp_size, rc) == 0)
-				break;
-	} while (rc == -1 && errno == EINTR);
-	C2_ASSERT(rc != -1);
-}
-
 static void timer_pqueue_insert(struct c2_timer_info *tinfo)
 {
 	if (tinfo->ti_left == 0)
@@ -413,7 +357,7 @@ static void callback_sighandler(int unused)
 #endif
 	callback_tinfo->ti_callback(callback_tinfo->ti_data);
 	callback_tinfo = NULL;
-	pipe_wake(&callback_pipe);
+	c2_semaphore_up(&callback_sem);
 }
 
 static void callback_execute(struct c2_timer_info *tinfo)
@@ -425,7 +369,7 @@ static void callback_execute(struct c2_timer_info *tinfo)
 	callback_tinfo = tinfo;
 	ptimer = timer_posix_init(SIGTIMERCALL, tinfo->ti_tid);
 	timer_posix_set(ptimer, c2_time_now());
-	pipe_wait(&callback_pipe);
+	c2_semaphore_down(&callback_sem);
 	timer_posix_fini(ptimer);
 }
 
@@ -455,7 +399,7 @@ static void timer_expired_execute()
 
 static void timer_scheduler_sighandler(int unused)
 {
-	pipe_wake(&state_pipe);
+	c2_semaphore_up(&state_sem);
 }
 
 static int timer_sigaction(int signo, void (*handler)(int))
@@ -501,19 +445,19 @@ static void timer_scheduler(int unused)
 	struct c2_timer_info *min;
 	timer_t ptimer;
 
-	if (timer_sigaction(SIGTIMERSCHED, timer_scheduler_sighandler) != 0) {
-		sched_failed = true;
-	} else {
-		sched_failed =
-			timer_sigaction(SIGTIMERCALL, callback_sighandler) != 0;
-	}
-	sched_inited = true;
-	if (sched_failed)
+	sched_errno = timer_sigaction(SIGTIMERSCHED,
+			timer_scheduler_sighandler);
+	if (sched_errno == 0)
+		sched_errno = timer_sigaction(SIGTIMERCALL,
+				callback_sighandler);
+
+	c2_semaphore_up(&sched_init_lock);
+	if (sched_errno != 0)
 		return;
 
 	ptimer = timer_posix_init(SIGTIMERSCHED, gettid());
 	while (1) {
-		pipe_wait(&state_pipe);
+		c2_semaphore_down(&state_sem);
 		timer_state_process();
 		if (finish_scheduler) {
 			timer_state_process();
@@ -547,7 +491,7 @@ static int timer_state_deliver(struct c2_timer *timer,
 
 	rc = timer_state_enqueue(timer->t_info, state);
 	if (rc == 0)
-		pipe_wake(&state_pipe);
+		c2_semaphore_up(&state_sem);
 	return rc;
 }
 
@@ -696,10 +640,10 @@ static void timer_data_init()
 	ti_tlist_init(&timer_pqueue);
 	ts_tlist_init(&state_queue);
 	c2_mutex_init(&state_lock);
+	C2_ASSERT(c2_semaphore_init(&state_sem, 0) == 0);
+	C2_ASSERT(c2_semaphore_init(&callback_sem, 0) == 0);
 	finish_scheduler = false;
 	callback_tinfo = NULL;
-	sched_inited = false;
-	sched_failed = false;
 }
 
 static void timer_data_fini()
@@ -708,6 +652,8 @@ static void timer_data_fini()
 	ts_tlist_fini(&state_queue);
 	c2_mutex_fini(&state_lock);
 	C2_ASSERT(callback_tinfo == NULL);
+	c2_semaphore_fini(&state_sem);
+	c2_semaphore_fini(&callback_sem);
 }
 
 /**
@@ -716,36 +662,23 @@ static void timer_data_fini()
 int c2_timers_init()
 {
 	int rc;
-	c2_time_t one_ms;
 
 	timer_data_init();
-
-	rc = pipe_init(&state_pipe);
-	if (rc != 0)
-		goto cleanup;
-
-	rc = pipe_init(&callback_pipe);
-	if (rc != 0)
-		goto state_pipe_fini;
+	c2_semaphore_init(&sched_init_lock, 0);
 
 	rc = C2_THREAD_INIT(&scheduler, int, NULL,
 			&timer_scheduler, 0,
 			"hard timer scheduler");
-	if (rc != 0)
-		goto callback_pipe_fini;
 
-	c2_time_set(&one_ms, 0, 1000000);
-	while (!sched_inited)
-		c2_nanosleep(one_ms, NULL);
-	return sched_failed;
+	if (rc != 0) {
+		timer_data_fini();
+		return rc;
+	}
 
-callback_pipe_fini:
-	C2_ASSERT(pipe_fini(&callback_pipe) == 0);
-state_pipe_fini:
-	C2_ASSERT(pipe_fini(&state_pipe) == 0);
-cleanup:
-	timer_data_fini();
-	return rc;
+	c2_semaphore_down(&sched_init_lock);
+	c2_semaphore_fini(&sched_init_lock);
+
+	return sched_errno;
 }
 C2_EXPORTED(c2_timers_init);
 
@@ -755,12 +688,10 @@ C2_EXPORTED(c2_timers_init);
 void c2_timers_fini()
 {
 	finish_scheduler = true;
-	pipe_wake(&state_pipe);
+	c2_semaphore_up(&state_sem);
 	c2_thread_join(&scheduler);
 	c2_thread_fini(&scheduler);
 
-	C2_ASSERT(pipe_fini(&state_pipe) == 0);
-	C2_ASSERT(pipe_fini(&callback_pipe) == 0);
 	timer_data_fini();
 }
 C2_EXPORTED(c2_timers_fini);
