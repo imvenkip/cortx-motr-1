@@ -383,7 +383,7 @@ static void timer_reschedule(struct c2_timer_info *tinfo)
 				tinfo->ti_interval);
 }
 
-static void timer_expired_execute()
+static struct c2_timer_info *timer_expired_execute()
 {
 	struct c2_timer_info *min;
 
@@ -394,6 +394,7 @@ static void timer_expired_execute()
 		callback_execute(min);
 		timer_reschedule(min);
 	}
+	return min;
 }
 
 static void timer_scheduler_sighandler(int unused)
@@ -462,8 +463,7 @@ static void timer_scheduler(int unused)
 			timer_state_process();
 			break;
 		}
-		timer_expired_execute();
-		min = timer_pqueue_min();
+		min = timer_expired_execute();
 		if (min == NULL)
 			continue;
 		timer_posix_set(ptimer, min->ti_expire);
