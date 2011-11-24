@@ -146,6 +146,7 @@ void c2_timer_locality_init(struct c2_timer_locality *loc)
 
 	c2_mutex_init(&loc->tlo_lock);
 	tid_tlist_init(&loc->tlo_tids);
+	loc->tlo_rrtid = NULL;
 }
 
 void c2_timer_locality_fini(struct c2_timer_locality *loc)
@@ -197,6 +198,7 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 	tid_tlink_init(tt);
 	c2_mutex_lock(&loc->tlo_lock);
 	tid_tlist_add(&loc->tlo_tids, tt);
+	loc->tlo_rrtid = NULL;
 	c2_mutex_unlock(&loc->tlo_lock);
 	return 0;
 }
@@ -211,13 +213,13 @@ void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	C2_PRE(timer->t_info != NULL);
 
 	tid = gettid();
-	if (locality_tid_contains(loc, tid)) {
-		timer->t_info->ti_tid = tid;
-		return;
-	}
 	c2_mutex_lock(&loc->tlo_lock);
 	C2_ASSERT(!tid_tlist_is_empty(&loc->tlo_tids));
-	tt = tid_tlist_head(&loc->tlo_tids);
+	if (loc->tlo_rrtid == NULL)
+		loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
+	tt = loc->tlo_rrtid;
+	if (loc->tlo_rrtid == tid_tlist_tail(&loc->tlo_tids))
+		loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
 	c2_mutex_unlock(&loc->tlo_lock);
 	timer->t_info->ti_tid = tt->tt_tid;
 }

@@ -34,16 +34,22 @@
 */
 
 struct c2_timer_info;
+struct timer_tid;
 
 struct c2_timer_locality {
 	/**
 	   Lock for tlo_tids
 	 */
-	struct c2_mutex tlo_lock;
+	struct c2_mutex   tlo_lock;
 	/**
 	   List of thread ID's, associated with this locality
 	 */
-	struct c2_tl	tlo_tids;
+	struct c2_tl	  tlo_tids;
+	/**
+	   ThreadID of next thread for round-robin timer thread choosing
+	   in c2_timer_attach().
+	 */
+	struct timer_tid *tlo_rrtid;
 };
 
 struct c2_timer {
