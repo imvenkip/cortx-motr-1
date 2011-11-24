@@ -1079,10 +1079,17 @@ C2_TL_DESCR_DEFINE(rpcbulk, "rpc bulk buffer list", ,
 		   struct c2_rpc_bulk_buf, bb_link, bb_magic,
 		   C2_RPC_BULK_BUF_MAGIC, C2_RPC_BULK_MAGIC);
 
-static bool rpc_bulk_invariant(const struct c2_rpc_bulk *rbulk)
+static bool rpc_bulk_invariant(struct c2_rpc_bulk *rbulk)
 {
+	struct c2_rpc_bulk_buf *buf;
+
 	if (rbulk == NULL || rbulk->rb_magic != C2_RPC_BULK_MAGIC)
 		return false;
+
+	c2_tlist_for (&rpcbulk_tl, &rbulk->rb_buflist, buf) {
+		if (buf->bb_rbulk != rbulk)
+			return false;
+	}; c2_tlist_endfor;
 
 	return true;
 }
@@ -1197,7 +1204,7 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 #ifdef __KERNEL__
 int c2_rpc_bulk_page_add(struct c2_rpc_bulk *rbulk,
 			 struct page *pg,
-			 const c2_bindex_t index)
+			 c2_bindex_t index)
 {
 	int			rc;
 	struct c2_rpc_bulk_buf *buf;
@@ -1220,8 +1227,8 @@ int c2_rpc_bulk_page_add(struct c2_rpc_bulk *rbulk,
 
 int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 			void *buf,
-			const c2_bcount_t count,
-			const c2_bindex_t index)
+			c2_bcount_t count,
+			c2_bindex_t index)
 {
 	int			rc;
 	struct c2_buf		cbuf;
@@ -1262,7 +1269,7 @@ int c2_rpc_bulk_netbuf_add(struct c2_rpc_bulk *rbulk, uint32_t segs_nr)
 }
 
 int c2_rpc_bulk_buf_store(struct c2_rpc_bulk_buf *rbuf,
-			  struct c2_rpc_item *item,
+			  const struct c2_rpc_item *item,
 			  struct c2_net_buf_desc *to_desc)
 {
 	int				 rc;
@@ -1294,8 +1301,9 @@ int c2_rpc_bulk_buf_store(struct c2_rpc_bulk_buf *rbuf,
 	return rc;
 }
 
-int c2_rpc_bulk_buf_load(struct c2_rpc_bulk_buf *rbuf, struct c2_rpc_item *item,
-			 struct c2_net_buf_desc *from_desc)
+int c2_rpc_bulk_buf_load(struct c2_rpc_bulk_buf *rbuf,
+			 const struct c2_rpc_item *item,
+			 const struct c2_net_buf_desc *from_desc)
 {
 	int			   rc;
 	struct c2_net_transfer_mc *tm;

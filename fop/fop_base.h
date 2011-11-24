@@ -105,7 +105,7 @@ struct c2_fop_type_ops {
 	/** Return the size of fop object. */
 	size_t (*fto_size_get)(struct c2_fop *fop);
 	/** Return the number of IO fragements in the IO vector. */
-	uint64_t (*fto_get_nfragments)(struct c2_fop *fop);
+	uint64_t (*fto_get_nfragments)(const struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
 	int (*fto_io_coalesce)(struct c2_fop *fop);
 	/** Allocate memory for io descritor list. */

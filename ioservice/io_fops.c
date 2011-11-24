@@ -41,10 +41,11 @@
 
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
-C2_TL_DESCR_DECLARE(rpcbulk, extern);
-C2_TL_DESCR_DECLARE(rpcitem, extern);
 
 #include "ioservice/io_fops.ff"
+
+C2_TL_DESCR_DECLARE(rpcbulk, extern);
+C2_TL_DESCR_DECLARE(rpcitem, extern);
 
 /* Forward declarations. */
 int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
@@ -56,6 +57,7 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_bufvec_cursor *cur);
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
+int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
@@ -257,9 +259,6 @@ static struct c2_fop_type *ioservice_fops[] = {
 
    - ioseg_get Retrieves an ioseg given its index in zero
    vector.
-   - ioseg_set Set the contents of IO segment referred by given
-   index in zero vector to the contents of input IO segment.
-   - ioseg_nr_alloc Allocate given number of segments for a new zero vector.
 
    @subsection bulkclient-lspec-state State Specification
    <i>Mandatory.
@@ -427,8 +426,8 @@ struct ioseg {
 	struct c2_list_link	 is_linkage;
 };
 
-void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
-	       struct ioseg *seg)
+static void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
+		      struct ioseg *seg)
 {
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
@@ -438,27 +437,7 @@ void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
 }
 
-void ioseg_set(struct c2_0vec *zvec, uint32_t seg_index,
-	       const struct ioseg *seg)
-{
-	C2_PRE(seg != NULL);
-	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
-
-	zvec->z_bvec.ov_buf[seg_index] = seg->is_buf;
-	zvec->z_indices[seg_index] = seg->is_index;
-	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
-}
-
-int ioseg_nr_alloc(struct c2_0vec *zvec, uint32_t segs_nr)
-{
-	C2_PRE(zvec != NULL);
-	C2_PRE(segs_nr != 0);
-
-	C2_ALLOC_ARR(zvec->z_bvec.ov_buf, segs_nr);
-	return zvec->z_bvec.ov_buf == NULL ? -ENOMEM : 0;
-}
-
-bool io_fop_invariant(struct c2_io_fop *iofop)
+static bool io_fop_invariant(struct c2_io_fop *iofop)
 {
 	int i;
 
@@ -507,7 +486,7 @@ void c2_io_fop_fini(struct c2_io_fop *iofop)
 	c2_rpc_bulk_fini(&iofop->if_rbulk);
 }
 
-struct c2_rpc_bulk *c2_fop_to_rpcbulk(struct c2_fop *fop)
+struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
 {
 	struct c2_io_fop *iofop;
 
@@ -587,49 +566,43 @@ struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 	}
 }
 
-static struct c2_rpc_bulk_buf *io_rpcbulk_buf_get(struct c2_fop *fop)
+static struct c2_rpc_bulk_buf *io_rpcbulk_buf_get(const struct c2_fop *fop)
 {
 	struct c2_rpc_bulk *rbulk;
 
 	C2_PRE(fop != NULL);
+
 	rbulk = c2_fop_to_rpcbulk(fop);
 	C2_ASSERT(c2_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist) == 1);
 
 	return c2_tlist_head(&rpcbulk_tl, &rbulk->rb_buflist);
 }
 
-static struct c2_bufvec *iovec_get(struct c2_fop *fop)
+static struct c2_bufvec *iovec_get(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
 	return &io_rpcbulk_buf_get(fop)->bb_nbuf.nb_buffer;
 }
 
-static struct c2_0vec *io_0vec_get(struct c2_fop *fop)
+static struct c2_0vec *io_0vec_get(const struct c2_fop *fop)
 {
+	C2_PRE(fop != NULL);
+
 	return &io_rpcbulk_buf_get(fop)->bb_zerovec;
 }
 
 static void ioseg_unlink_free(struct ioseg *ioseg)
 {
 	C2_PRE(ioseg != NULL);
+	C2_PRE(c2_list_link_is_in(&ioseg->is_linkage));
 
 	c2_list_del(&ioseg->is_linkage);
 	c2_free(ioseg);
 }
 
-/* Dummy definition for kernel mode. */
-#ifdef __KERNEL__
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-#else
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
-#endif
-
 static bool io_fop_type_equal(const struct c2_fop *fop1,
-		const struct c2_fop *fop2)
+			      const struct c2_fop *fop2)
 {
 	C2_PRE(fop1 != NULL);
 	C2_PRE(fop2 != NULL);
@@ -637,11 +610,11 @@ static bool io_fop_type_equal(const struct c2_fop *fop1,
 	return fop1->f_type == fop2->f_type;
 }
 
-static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
+static uint64_t io_fop_fragments_nr_get(const struct c2_fop *fop)
 {
-	uint32_t	      i;
-	uint64_t	      frag_nr = 1;
-	struct c2_0vec	     *iovec;
+	uint32_t	 i;
+	uint64_t	 frag_nr = 1;
+	struct c2_0vec	*iovec;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(is_io(fop));
@@ -655,7 +628,7 @@ static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 	return frag_nr;
 }
 
-static int io_fop_seg_init(struct ioseg **ns, struct ioseg *cseg)
+static int io_fop_seg_init(struct ioseg **ns, const struct ioseg *cseg)
 {
 	struct ioseg *new_seg;
 
@@ -671,7 +644,7 @@ static int io_fop_seg_init(struct ioseg **ns, struct ioseg *cseg)
 	return 0;
 }
 
-static int io_fop_seg_add_cond(struct ioseg *cseg, struct ioseg *nseg)
+static int io_fop_seg_add_cond(struct ioseg *cseg, const struct ioseg *nseg)
 {
 	int           rc;
 	struct ioseg *new_seg;
@@ -691,7 +664,7 @@ static int io_fop_seg_add_cond(struct ioseg *cseg, struct ioseg *nseg)
 	return rc;
 }
 
-static void io_fop_seg_coalesce(struct ioseg *seg,
+static void io_fop_seg_coalesce(const struct ioseg *seg,
 				struct c2_list *aggr_list)
 {
 	int           rc;
@@ -719,7 +692,7 @@ static void io_fop_seg_coalesce(struct ioseg *seg,
 	c2_list_add_tail(aggr_list, &new_seg->is_linkage);
 }
 
-static void io_fop_segments_coalesce(struct c2_0vec *iovec,
+static void io_fop_segments_coalesce(const struct c2_0vec *iovec,
 				     struct c2_list *aggr_list)
 {
 	uint32_t     i;
@@ -737,8 +710,9 @@ static void io_fop_segments_coalesce(struct c2_0vec *iovec,
 	}
 }
 
-static int io_netbufs_prepare(struct c2_fop *res_fop, struct c2_list *list,
-			      struct c2_fop *bkp_fop)
+static int io_netbufs_prepare(struct c2_fop *res_fop,
+			      const struct c2_list *list,
+			      const struct c2_fop *bkp_fop)
 {
 	int			 rc;
 	int32_t			 max_segs_nr;
@@ -996,7 +970,7 @@ void io_fop_replied(struct c2_fop *fop)
 		cfop = container_of(bkpfop, struct c2_io_fop, if_fop);
 		c2_io_fop_fini(cfop);
 		c2_free(cfop);
-	} else 
+	} else
 		c2_tlist_del(&rpcitem_tl, &fop->f_item);
 }
 
@@ -1067,7 +1041,7 @@ static size_t io_item_size_get(const struct c2_rpc_item *item)
         return size;
 }
 
-static uint64_t io_frags_nr_get(struct c2_rpc_item *item)
+static uint64_t io_frags_nr_get(const struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 

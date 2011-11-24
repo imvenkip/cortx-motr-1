@@ -229,7 +229,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Find out the count of fragmented buffers.
 	 */
-	uint64_t (*rito_io_frags_nr_get)(struct c2_rpc_item *item);
+	uint64_t (*rito_io_frags_nr_get)(const struct c2_rpc_item *item);
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
@@ -982,7 +982,7 @@ void c2_rpc_bulk_buf_init(struct c2_rpc_bulk_buf *buf, uint32_t segs_nr,
    @post rpc_bulk_invariant(rbulk).
  */
 int c2_rpc_bulk_buf_store(struct c2_rpc_bulk_buf *rbuf,
-			  struct c2_rpc_item *item,
+			  const struct c2_rpc_item *item,
 			  struct c2_net_buf_desc *to_desc);
 
 /**
@@ -1000,8 +1000,8 @@ int c2_rpc_bulk_buf_store(struct c2_rpc_bulk_buf *rbuf,
    @post rpc_bulk_invariant(rbulk).
  */
 int c2_rpc_bulk_buf_load(struct c2_rpc_bulk_buf *rbuf,
-			 struct c2_rpc_item *item,
-			 struct c2_net_buf_desc *from_desc);
+			 const struct c2_rpc_item *item,
+			 const struct c2_net_buf_desc *from_desc);
 
 /**
    An abstract data structure that avails bulk transport for io operations.

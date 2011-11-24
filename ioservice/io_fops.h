@@ -160,7 +160,7 @@ void c2_io_fop_fini(struct c2_io_fop *iofop);
    Retrieves a c2_rpc_bulk structure from given c2_fop.
    @pre fop != NULL.
  */
-struct c2_rpc_bulk *c2_fop_to_rpcbulk(struct c2_fop *fop);
+struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
 
 /**
    @} bulkclientDFS end group
