@@ -154,6 +154,7 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc)
 
 	C2_PRE(loc != NULL);
 
+	C2_ASSERT(!tid_tlist_is_empty(&loc->tlo_tids));
 	c2_mutex_fini(&loc->tlo_lock);
 	while ((tt = tid_tlist_head(&loc->tlo_tids)) != NULL) {
 		tid_tlist_del(tt);
