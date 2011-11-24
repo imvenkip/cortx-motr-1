@@ -199,20 +199,6 @@ pid_t gettid()
 	return syscall(SYS_gettid);
 }
 
-static void test_timer_locality()
-{
-	struct c2_timer_locality loc;
-	int loc_count;
-
-	C2_UT_ASSERT(c2_timer_locality_max() > 0);
-	loc_count = c2_timer_locality_count();
-	C2_UT_ASSERT(loc_count < c2_timer_locality_max());
-	C2_UT_ASSERT(c2_timer_locality_init(&loc) == 0);
-	C2_UT_ASSERT(c2_timer_locality_count() == loc_count + 1);
-	c2_timer_locality_fini(&loc);
-	C2_UT_ASSERT(c2_timer_locality_count() == loc_count);
-}
-
 static unsigned long oneshot_callback(unsigned long data)
 {
 	oneshot_data = data;
@@ -231,7 +217,7 @@ static void test_timer_oneshot(int iter_max)
 	c2_time_t one_ms;
 	const int data = 42;
 
-	C2_UT_ASSERT(c2_timer_locality_init(&loc) == 0);
+	c2_timer_locality_init(&loc);
 	c2_time_set(&one_ms, 0, 1000000);
 	oneshot_iterations_max = iter_max;
 	rc = c2_timer_init(&timer, C2_TIMER_HARD, one_ms,
@@ -281,7 +267,7 @@ static void test_timer_many_timers()
 		many_pids[i] = gettid();
 	}
 
-	C2_UT_ASSERT(c2_timer_locality_init(&loc) == 0);
+	c2_timer_locality_init(&loc);
 	c2_timer_thread_attach(&loc);
 	c2_time_set(&interval, 0, 10000000);
 	c2_time_set(&one_ms, 0, 1000000);
@@ -311,7 +297,6 @@ static void test_timer_many_timers()
 
 void test_timer_hard(void)
 {
-	test_timer_locality();
 	test_timer_oneshot(1);
 	test_timer_oneshot(MANY_TICKS);
 	test_timer_many_timers();

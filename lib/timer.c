@@ -146,7 +146,6 @@ void c2_timer_locality_init(struct c2_timer_locality *loc)
 
 	c2_mutex_init(&loc->tlo_lock);
 	tid_tlist_init(&loc->tlo_tids);
-	return 0;
 }
 
 void c2_timer_locality_fini(struct c2_timer_locality *loc)
