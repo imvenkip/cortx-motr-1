@@ -31,25 +31,24 @@
 
 void notempty(struct c2_net_buffer_pool *bp);
 void low(struct c2_net_buffer_pool *bp);
-void buffers_get_put(int rc);
+static void buffers_get_put(int rc);
+
 struct c2_net_buffer_pool bp;
-struct c2_chan buf_chan;
-struct c2_net_xprt *xprt;
-struct c2_net_buffer_pool_ops b_ops = {
+struct c2_chan		  buf_chan;
+struct c2_net_xprt	  *xprt = &c2_net_bulk_sunrpc_xprt;
+
+const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = notempty,
 	.nbpo_below_threshold = low,
 };
 
 /**
-   Test function for buf_pool ut
+   Initialization of buffer pool.
  */
 void test_init(void)
 {
-
 	int rc;
-
 	c2_chan_init(&buf_chan);
-	xprt = &c2_net_bulk_sunrpc_xprt;
 	c2_net_xprt_init(xprt);
 	C2_ALLOC_PTR(bp.nbp_ndom);
 	C2_UT_ASSERT(bp.nbp_ndom != NULL);
@@ -65,49 +64,92 @@ void test_init(void)
 
 void test_get_put(void)
 {
-	struct c2_net_buffer *nb = NULL;
+	struct c2_net_buffer *nb;
+	uint32_t	      free = bp.nbp_free;
 	c2_net_buffer_pool_lock(&bp);
 	nb = c2_net_buffer_pool_get(&bp, ~0);
 	C2_UT_ASSERT(nb != NULL);
+	C2_UT_ASSERT(--free == bp.nbp_free);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	c2_net_buffer_pool_put(&bp, nb, ~0);
+	C2_UT_ASSERT(++free == bp.nbp_free);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	c2_net_buffer_pool_unlock(&bp);
 }
 
 void test_get_put_colour(void)
 {
-	struct c2_net_buffer *nb = NULL;
+	struct c2_net_buffer *nb;
+	uint32_t	      free = bp.nbp_free;
 	c2_net_buffer_pool_lock(&bp);
 	nb = c2_net_buffer_pool_get(&bp, ~0);
 	C2_UT_ASSERT(nb != NULL);
+	C2_UT_ASSERT(--free == bp.nbp_free);
 	c2_net_buffer_pool_put(&bp, nb, 1);
+	C2_UT_ASSERT(++free == bp.nbp_free);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	nb = c2_net_buffer_pool_get(&bp, 1);
 	C2_UT_ASSERT(nb != NULL);
+	C2_UT_ASSERT(--free == bp.nbp_free);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	c2_net_buffer_pool_put(&bp, nb, ~0);
+	C2_UT_ASSERT(++free == bp.nbp_free);
 	c2_net_buffer_pool_unlock(&bp);
 }
 
 void test_grow(void)
 {
+	uint32_t buf_nr = bp.nbp_buf_nr;
 	c2_net_buffer_pool_lock(&bp);
 	/* Buffer pool grow by one */
 	C2_UT_ASSERT(c2_net_buffer_pool_provision(&bp, 1) == 1);
+	C2_UT_ASSERT(++buf_nr == bp.nbp_buf_nr);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	c2_net_buffer_pool_unlock(&bp);
 }
 
 void test_prune(void)
 {
+	uint32_t buf_nr = bp.nbp_buf_nr;
 	c2_net_buffer_pool_lock(&bp);
 	C2_UT_ASSERT(c2_net_buffer_pool_prune(&bp));
+	C2_UT_ASSERT(--buf_nr == bp.nbp_buf_nr);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	c2_net_buffer_pool_unlock(&bp);
 }
 
 void test_get_put_multiple(void)
 {
-	int nr_client_threads = 5;
-	int i;
-	int rc;
-
+	int		  i;
+	int		  rc;
+	const int 	  nr_client_threads = 5;
 	struct c2_thread *client_thread;
+
+	C2_ALLOC_ARR(client_thread, nr_client_threads);
+	C2_UT_ASSERT(client_thread != NULL);
+	for (i = 0; i < nr_client_threads; i++) {
+		C2_SET0(&client_thread[i]);
+		rc = C2_THREAD_INIT(&client_thread[i], int,
+				     NULL, &buffers_get_put,
+					~0, "client_%d", i);
+		C2_ASSERT(rc == 0);
+	}
+	for (i = 0; i < nr_client_threads; i++) {
+		c2_thread_join(&client_thread[i]);
+	}
+	c2_free(client_thread);
+	c2_net_buffer_pool_lock(&bp);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
+	c2_net_buffer_pool_unlock(&bp);
+}
+
+void test_get_put_colour_multiple(void)
+{
+	int		  i;
+	int		  rc;
+	const int 	  nr_client_threads = 5;
+	struct c2_thread *client_thread;
+
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 	C2_UT_ASSERT(client_thread != NULL);
 	for (i = 0; i < nr_client_threads; i++) {
@@ -120,13 +162,17 @@ void test_get_put_multiple(void)
 	for (i = 0; i < nr_client_threads; i++) {
 		c2_thread_join(&client_thread[i]);
 	}
+	c2_free(client_thread);
+	c2_net_buffer_pool_lock(&bp);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
+	c2_net_buffer_pool_unlock(&bp);
 }
 
 void test_fini(void)
 {
 	c2_net_buffer_pool_lock(&bp);
+	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	c2_net_buffer_pool_fini(&bp);
-	c2_net_buffer_pool_unlock(&bp);
 	c2_net_domain_fini(bp.nbp_ndom);
 	c2_free(bp.nbp_ndom);
 	c2_net_xprt_fini(xprt);
@@ -134,24 +180,24 @@ void test_fini(void)
 
 }
 
-void buffers_get_put(int rc)
+static void buffers_get_put(int rc)
 {
-	struct c2_net_buffer *nb = NULL;
+	struct c2_net_buffer *nb;
 	struct c2_clink buf_link;
 	c2_time_t t;
 	c2_clink_init(&buf_link, NULL);
 	c2_clink_add(&buf_chan, &buf_link);
 	do {
 		c2_net_buffer_pool_lock(&bp);
-		nb = c2_net_buffer_pool_get(&bp, ~0);
+		nb = c2_net_buffer_pool_get(&bp, rc);
 		c2_net_buffer_pool_unlock(&bp);
 		if (nb == NULL)
 			c2_chan_wait(&buf_link);
-	} while(nb == NULL);
-	c2_nanosleep(c2_time_set(&t, 1, 0), NULL);
+	} while (nb == NULL);
+	c2_nanosleep(c2_time_set(&t, .001, 0), NULL);
 	c2_net_buffer_pool_lock(&bp);
 	if (nb != NULL)
-		c2_net_buffer_pool_put(&bp, nb, ~0);
+		c2_net_buffer_pool_put(&bp, nb, rc);
 	c2_net_buffer_pool_unlock(&bp);
 	c2_clink_del(&buf_link);
 	c2_clink_fini(&buf_link);
@@ -168,18 +214,20 @@ void low(struct c2_net_buffer_pool *bp)
 }
 
 const struct c2_test_suite buffer_pool_ut = {
-	.ts_name = "buf_pool_ut... this takes about 30 seconds",
+	.ts_name = "bufifer_pool_ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "buffer_pool_init		", test_init},
-		{ "buffer_pool_get_put		", test_get_put},
-		{ "buffer_pool_get_put_colour	", test_get_put_colour},
-		{ "buffer_pool_grow		", test_grow},
-		{ "buffer_pool_prune		", test_prune},
-		{ "buffer_pool_get_put_multiple	", test_get_put_multiple},
-		{ "buffer_pool_fini		", test_fini},
-		{ NULL, 			   NULL }
+		{ "buffer_pool_init		      ", test_init},
+		{ "buffer_pool_get_put		      ", test_get_put},
+		{ "buffer_pool_get_put_colour	      ", test_get_put_colour},
+		{ "buffer_pool_grow		      ", test_grow},
+		{ "buffer_pool_prune		      ", test_prune},
+		{ "buffer_pool_get_put_multiple	      ", test_get_put_multiple},
+		{ "buffer_pool_get_put_colour_multiple",
+						  test_get_put_colour_multiple},
+		{ "buffer_pool_fini		      ", test_fini},
+		{ NULL,					 NULL }
 	}
 };
 C2_EXPORTED(buffer_pool_ut);

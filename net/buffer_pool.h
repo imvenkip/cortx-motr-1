@@ -43,7 +43,7 @@
 	  Upon receiving the not_empty call back user can put back buffers which
 	  are not in use into the pool.
 
-	  The “coloured” variant of the get operation is done by returning the
+	  The "coloured" variant of the get operation is done by returning the
 	  most recently used buffer that is associated with a specific colour
 	  (transfer machine), or if none such are found, the least recently
 	  used buffer from the pool, if any.
@@ -156,7 +156,8 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
  */
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
-			    uint32_t seg_nr, c2_bcount_t seg_size, uint32_t colours);
+			    uint32_t seg_nr, c2_bcount_t seg_size,
+			    uint32_t colours);
 
 /**
    It adds the buf_nr buffers in the buffer pool.
@@ -198,7 +199,8 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 
 /**
    Puts the buffer back to the pool.
-   If the colour is specfied then the buffer is put at the head of corresponding   coloured list and also put at the tail of the global list.
+   If the colour is specfied then the buffer is put at the head of corresponding
+   coloured list and also put at the tail of the global list.
    @pre c2_net_buffer_pool_is_locked(pool)
    @pre colour == ~0 || colour < pool->nbp_colours_nr
    @pre pool->nbp_ndom == buf->nb_dom
@@ -217,44 +219,41 @@ bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool);
 /** Buffer pool. */
 struct c2_net_buffer_pool {
 	/** Number of free buffers in the pool. */
-	uint32_t		nbp_free;
+	uint32_t			     nbp_free;
 	/** Number of buffer below which low memory condition occurs. */
-	uint32_t		nbp_threshold;
+	uint32_t			     nbp_threshold;
 	/** Number of segments in each buffer of the pool. */
-	uint32_t		nbp_seg_nr;
+	uint32_t			     nbp_seg_nr;
 	/** Number of buffers in the pool. */
-	uint32_t		nbp_buf_nr;
+	uint32_t			     nbp_buf_nr;
 	/** Size of buffer segment of the pool. */
-	c2_bcount_t		nbp_seg_size;
+	c2_bcount_t			     nbp_seg_size;
 	/** Buffer pool lock to protect and synchronize network buffer list.
 	    It needs to acquired to do any changes to the pool
 	 */
-	struct c2_mutex		nbp_mutex;
+	struct c2_mutex			     nbp_mutex;
 	/** Network domain to register the buffers. */
-	struct c2_net_domain   *nbp_ndom;
+	struct c2_net_domain		    *nbp_ndom;
 	/** Call back operations can be triggered by buffer pool. */
 	const struct c2_net_buffer_pool_ops *nbp_ops;
 	/** Number of colours in the pool. */
-	uint32_t nbp_colours_nr;
+	uint32_t			     nbp_colours_nr;
 	/** An array of nbp_colours_nr lists of buffers.
 	    Each list in the array contains buffers of a particular
 	    colour. Lists are maintained in LIFO order (i.e., they are stacks)
 	    to improve temporal locality of reference.
-
 	    Buffers are linked through c2_net_buffer::nb_tm_linkage to these
 	    lists.
 	*/
-	struct c2_tl *nbp_colour;
+	struct c2_tl			    *nbp_colour;
 	/**
 	   A list of all buffers in the pool.
-
 	   This list is maintained in LRU order. The head of this list (which is
 	   the buffer used longest time ago) is used when coloured array is
 	   empty.
-
 	   Buffers are linked through c2_net_buffer::nb_lru to this list.
 	 */
-	struct c2_tl  nbp_lru;
+	struct c2_tl			     nbp_lru;
 };
 
 /** @} end of net_buffer_pool */
