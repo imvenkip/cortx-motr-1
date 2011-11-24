@@ -376,11 +376,11 @@ static void timer_reschedule(struct c2_timer_info *tinfo)
 {
 	C2_PRE(tinfo != NULL);
 
-	timer_pqueue_remove(tinfo);
 	if (--tinfo->ti_left == 0)
-		return;
-	tinfo->ti_expire = c2_time_add(c2_time_now(), tinfo->ti_interval);
-	timer_pqueue_insert(tinfo);
+		timer_pqueue_remove(tinfo);
+	else
+		tinfo->ti_expire = c2_time_add(c2_time_now(),
+				tinfo->ti_interval);
 }
 
 static void timer_expired_execute()
