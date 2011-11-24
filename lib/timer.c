@@ -97,7 +97,6 @@ struct timer_state {
 	enum TIMER_STATE      ts_state;
 };
 
-static struct c2_atomic64 loc_count;
 static struct c2_thread scheduler;
 static struct c2_tl timer_pqueue;
 static struct c2_tl state_queue;
@@ -141,14 +140,9 @@ pid_t gettid() {
 	return syscall(SYS_gettid);
 }
 
-int c2_timer_locality_init(struct c2_timer_locality *loc)
+void c2_timer_locality_init(struct c2_timer_locality *loc)
 {
 	C2_PRE(loc != NULL);
-
-	if (c2_timer_locality_count() == c2_timer_locality_max())
-		return -1;
-
-	c2_atomic64_inc(&loc_count);
 
 	c2_mutex_init(&loc->tlo_lock);
 	tid_tlist_init(&loc->tlo_tids);
@@ -160,7 +154,6 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc)
 	struct timer_tid *tt;
 
 	C2_PRE(loc != NULL);
-	c2_atomic64_dec(&loc_count);
 
 	c2_mutex_fini(&loc->tlo_lock);
 	while ((tt = tid_tlist_head(&loc->tlo_tids)) != NULL) {
@@ -228,16 +221,6 @@ void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	tt = tid_tlist_head(&loc->tlo_tids);
 	c2_mutex_unlock(&loc->tlo_lock);
 	timer->t_info->ti_tid = tt->tt_tid;
-}
-
-uint32_t c2_timer_locality_max()
-{
-	return ~0;
-}
-
-uint32_t c2_timer_locality_count()
-{
-	return c2_atomic64_get(&loc_count);
 }
 
 static struct c2_timer_info *timer_info_init(struct c2_timer *timer)
@@ -710,7 +693,6 @@ C2_EXPORTED(c2_timer_fini);
 
 static void timer_data_init()
 {
-	c2_atomic64_set(&loc_count, 0);
 	ti_tlist_init(&timer_pqueue);
 	ts_tlist_init(&state_queue);
 	c2_mutex_init(&state_lock);
@@ -722,7 +704,6 @@ static void timer_data_init()
 
 static void timer_data_fini()
 {
-	C2_ASSERT(c2_atomic64_get(&loc_count) == 0);
 	ti_tlist_fini(&timer_pqueue);
 	ts_tlist_fini(&state_queue);
 	c2_mutex_fini(&state_lock);

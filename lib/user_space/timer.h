@@ -103,14 +103,11 @@ struct c2_timer {
 int c2_timers_init();
 void c2_timers_fini();
 
-int c2_timer_locality_init(struct c2_timer_locality *loc);
+void c2_timer_locality_init(struct c2_timer_locality *loc);
 void c2_timer_locality_fini(struct c2_timer_locality *loc);
 int c2_timer_thread_attach(struct c2_timer_locality *loc);
 
 void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
-
-uint32_t c2_timer_locality_max();
-uint32_t c2_timer_locality_count();
 
 /** @} end of timer group */
 
