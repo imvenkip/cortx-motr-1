@@ -143,7 +143,7 @@ pid_t gettid() {
 
 int c2_timer_locality_init(struct c2_timer_locality *loc)
 {
-	C2_ASSERT(loc != NULL);
+	C2_PRE(loc != NULL);
 
 	if (c2_timer_locality_count() == c2_timer_locality_max())
 		return -1;
@@ -159,7 +159,7 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc)
 {
 	struct timer_tid *tt;
 
-	C2_ASSERT(loc != NULL);
+	C2_PRE(loc != NULL);
 	c2_atomic64_dec(&loc_count);
 
 	c2_mutex_fini(&loc->tlo_lock);
@@ -191,7 +191,7 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 	pid_t tid;
 	struct timer_tid *tt;
 
-	C2_ASSERT(loc != NULL);
+	C2_PRE(loc != NULL);
 
 	tid = gettid();
 	if (locality_tid_contains(loc, tid))
@@ -214,9 +214,9 @@ void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	pid_t tid;
 	struct timer_tid *tt;
 
-	C2_ASSERT(loc != NULL);
-	C2_ASSERT(timer != NULL);
-	C2_ASSERT(timer->t_info != NULL);
+	C2_PRE(loc != NULL);
+	C2_PRE(timer != NULL);
+	C2_PRE(timer->t_info != NULL);
 
 	tid = gettid();
 	if (locality_tid_contains(loc, tid)) {
@@ -272,7 +272,7 @@ static int timer_state_enqueue(struct c2_timer_info *tinfo,
 {
 	struct timer_state *ts;
 
-	C2_ASSERT(tinfo != NULL);
+	C2_PRE(tinfo != NULL);
 	C2_ALLOC_PTR(ts);
 	if (ts == NULL)
 		return -ENOMEM;
@@ -312,7 +312,7 @@ static struct c2_timer_info *timer_state_dequeue(enum TIMER_STATE *state)
 
 static int pipe_init(struct timer_pipe *tpipe)
 {
-	C2_ASSERT(tpipe != NULL);
+	C2_PRE(tpipe != NULL);
 
 	c2_atomic64_set(&tpipe->tp_size, 0);
 	return pipe(tpipe->tp_pipefd);
@@ -336,7 +336,7 @@ static void pipe_wake(struct timer_pipe *tpipe)
 	ssize_t bytes;
 	char	one_byte = 0;
 
-	C2_ASSERT(tpipe != NULL);
+	C2_PRE(tpipe != NULL);
 
 	fd = tpipe->tp_pipefd[1];
 	if (c2_atomic64_get(&tpipe->tp_size) > 0)
@@ -356,7 +356,7 @@ static void pipe_wait(struct timer_pipe *tpipe)
 	static char pipe_buf[PIPE_BUF_SIZE];
 	int	    rc;
 
-	C2_ASSERT(tpipe != NULL);
+	C2_PRE(tpipe != NULL);
 
 	fd = tpipe->tp_pipefd[0];
 	do {
@@ -438,7 +438,7 @@ static void callback_execute(struct c2_timer_info *tinfo)
 {
 	timer_t ptimer;
 
-	C2_ASSERT(tinfo != NULL);
+	C2_PRE(tinfo != NULL);
 
 	callback_tinfo = tinfo;
 	ptimer = timer_posix_init(SIGTIMERCALL, tinfo->ti_tid);
@@ -449,7 +449,7 @@ static void callback_execute(struct c2_timer_info *tinfo)
 
 static void timer_reschedule(struct c2_timer_info *tinfo)
 {
-	C2_ASSERT(tinfo != NULL);
+	C2_PRE(tinfo != NULL);
 
 	timer_pqueue_remove(tinfo);
 	if (--tinfo->ti_left == 0)
