@@ -39,16 +39,13 @@
    implementation, all timers are hard timer. For userspace implemenation,
    soft timer and hard timer have different mechanism:
 
-   @li Hard timer has better resolution and is driven by signal. The
-    user-defined callback should take short time, should never block
-    at any time and should be async-signal-safe (see signal(7)).
-   @li Soft timer creates separate thread to execute the user-defined
-    callback for each timer. So the overhead is bigger than hard timer.
-    The user-defined callback execution may take longer time and it will
-    not impact other timers.
-
-   @todo currently, in userspace implementation, hard timer is the same
-    as soft timer. Hard timer will be implemented later.
+   - Hard timer has better resolution and is driven by signal. The
+     user-defined callback should take short time, should never block
+     at any time and should be async-signal-safe (see signal(7)).
+   - Soft timer creates separate thread to execute the user-defined
+     callback for each timer. So the overhead is bigger than hard timer.
+     The user-defined callback execution may take longer time and it will
+     not impact other timers.
    @{
 */
 
