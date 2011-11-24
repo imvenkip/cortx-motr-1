@@ -3,7 +3,7 @@ LAYOUT_SRCDIR = @SRCDIR@/layout/linux_kernel
 GCOV_PROFILE := @K_ENABLE_COVERAGE@
 
 obj-y       := klayout.o
-shared_src  := layout.c pdclust.c composite.c list_enum.c linear_enum.c layout_db.c
+shared_src  := layout.c pdclust.c composite.c list_enum.c formula_enum.c layout_db.c
 kernel_src  := klayout.c
 klayout-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)

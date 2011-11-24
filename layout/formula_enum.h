@@ -18,15 +18,15 @@
  * Original creation date: 11/16/2011
  */
 
-#ifndef __COLIBRI_LAYOUT_LINEAR_ENUM_H__
-#define __COLIBRI_LAYOUT_LINEAR_ENUM_H__
+#ifndef __COLIBRI_LAYOUT_FORMULA_ENUM_H__
+#define __COLIBRI_LAYOUT_FORMULA_ENUM_H__
 
 #include "layout/layout.h"
 
 /**
-   @defgroup linear_enum Linear Enumeration Type.
+   @defgroup formula_enum Formula Enumeration Type.
 
-   A layout with linear enumeration type stores a formula that is
+   A layout with formula enumeration type stores a formula that is
    used to enumerate all the component object identifiers. Thus, this
    type of a layout does not store the component object identifiers.
    @{
@@ -37,45 +37,45 @@
 /* export */
 
 /**
-   Extension of generic c2_layout_enum for a linear enumeration type.
+   Extension of generic c2_layout_enum for a formula enumeration type.
  */
-struct c2_layout_linear_enum {
+struct c2_layout_formula_enum {
 	/** super class */
 	struct c2_layout_enum         lline_enum;
 
-	const struct c2_layout_linear_formula *lline_form;
-	const struct c2_layout_linear_parameter *lline_actuals;
+	const struct c2_layout_formula_formula *lline_form;
+	const struct c2_layout_formula_parameter *lline_actuals;
 };
 
-struct c2_layout_linear_formula {
+struct c2_layout_formula_formula {
 	const struct c2_uint128                    llinf_id;
-	const struct c2_layout_linear_formula_ops *llinf_ops;
+	const struct c2_layout_formula_formula_ops *llinf_ops;
 };
 
-struct c2_layout_linear_formula_ops {
-	int (*llinfo_subst)(const struct c2_layout_linear_formula *form,
+struct c2_layout_formula_formula_ops {
+	int (*llinfo_subst)(const struct c2_layout_formula_formula *form,
 			    uint16_t nr,
-			    const struct c2_layout_linear_parameter *actuals,
+			    const struct c2_layout_formula_parameter *actuals,
 			    struct c2_layout **out);
 };
 
-struct c2_layout_linear_parameter {
+struct c2_layout_formula_parameter {
 	const struct c2_layout_parameter_type *llinp_type;
 	const void                            *llinp_value;
 };
 
-struct c2_layout_linear_parameter_type {
+struct c2_layout_formula_parameter_type {
 	const char *llinpt_name;
-	int       (*llinpt_convert)(const struct c2_layout_linear_parameter *other,
-				    struct c2_layout_linear_parameter *out);
+	int       (*llinpt_convert)(const struct c2_layout_formula_parameter *other,
+				    struct c2_layout_formula_parameter *out);
 };
 
-extern const struct c2_layout_enum_type c2_layout_linear_enum_type;
-extern const struct c2_layout_linear_formula c2_linear_NKP_formula;
+extern const struct c2_layout_enum_type c2_layout_formula_enum_type;
+extern const struct c2_layout_formula_formula c2_formula_NKP_formula;
 
-/** @} end group linear_enum */
+/** @} end group formula_enum */
 
-/* __COLIBRI_LAYOUT_LINEAR_ENUM_H__ */
+/* __COLIBRI_LAYOUT_FORMULA_ENUM_H__ */
 #endif
 
 /*

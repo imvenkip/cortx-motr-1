@@ -171,7 +171,7 @@
 
    @endverbatim
 
-   e.g. A layout with PDCLUST layout type and with LINEAR enumeration type,
+   e.g. A layout with PDCLUST layout type and with FORMULA enumeration type,
    uses the layout_rec_attrs to store attributes like N and K.
 
    It is possible that some layout types do not need to store any attributes.
@@ -265,23 +265,23 @@
      purposes: SNS, block map, local raid, de-dup, encryption, compression,
      etc.
      <BR>
-     Layout record types currently supported by the Layout DB module are:
-        - PDCLUST_LINEAR and PDCLUST_LIST layout record types to represent
-          PDCLUST layout type used for SNS.
-        - COMPOSITE layout record type to represent Composite layout type.
-     The framework supports to add other layout record types, as required in
-     the future, though doing so will require some source changes to the
-     Layout DB module.
+     Layout DB module supports storing all kinds of layout types supported
+     currently by the layout module viz. PDCLUST and COMPOSITE.
+     The framework supports to add other layout types, as required in
+     the future. 
    - <b>I.LAYOUT.SCHEMA.Formulae</b>
       - <b>Parameters</b>
-         - In case of PDCLUST_LINEAR layout record type, substituting
-           parameters in the stored formula derives the real mapping
-           information that is the list of COB identifiers.
+         - In case of PDCLUST layout type using FORMULA enumeration method,
+           formula is stored by the Layout DB and substituting parameters
+           in the stored formula derives the real mapping information that
+           is the list of COB identifiers.
       - <b>Garbage Collection</b>
-         - PDCLUST_LIST and COMPOSITE type of layout records are deleted when
-           their last reference is released.
-         - PDCLUST_LINEAR type of layout is never deleted and thus can be
-           reused.
+         - A layout with PDCLUST layout type and with LIST enumeration method
+           is deleted when its last reference is released. Similarlly, a
+           layout with COMPOSITE layout is deleted when its last reference
+           is released.
+         - A layout with PDCLUST layout type and with FORMULA enumeration
+           method is never deleted and thus can be reused.
    - <b>I.LAYOUT.SCHEMA.Sub-Layouts</b> COMPOSITE type of layout is used to
      store sub-layouts.
 
@@ -428,7 +428,7 @@ int c2_layout_rec_add(const struct c2_layout *l,
    - A layout with COMPOSITE layout type.
    <BR>
    A formula layout is never destroyed. e.g. A layout with PDCLUST layout type
-   and with LINEAR enumeration type s never destroyed.
+   and with FORMULA enumeration type is never destroyed.
 
    If a layout can not be destroyed due to above conditions not being met,
    this API returns failure, though such specialization is taken care of by

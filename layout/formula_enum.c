@@ -18,25 +18,25 @@
  * Original creation date: 11/16/2011
  */
 
-#include "layout/linear_enum.h"
+#include "layout/formula_enum.h"
 
 /**
-   @addtogroup linear_enum
+   @addtogroup formula_enum
 
    @{
 */
 
 /**
-   Implementation of leto_decode() for linear enumeration type.
+   Implementation of leto_decode() for formula enumeration type.
    Continues to decode layout representation stored in the buffer and
    to create the layout.
 */
-static int layout_linear_enum_decode(const struct c2_bufvec_cursor *cur,
+static int layout_formula_enum_decode(const struct c2_bufvec_cursor *cur,
 				     struct c2_layout **out)
 {
    /**
 	@code
-	Read linear enumeration type specific fields like formula
+	Read formula enumeration type specific fields like formula
 	from the buffer.
 
 	@endcode
@@ -45,54 +45,54 @@ static int layout_linear_enum_decode(const struct c2_bufvec_cursor *cur,
 }
 
 /**
-   Implementation of leto_encode() for linear enumeration type.
+   Implementation of leto_encode() for formula enumeration type.
    Continues to store layout representation in the buffer.
 */
-static int layout_linear_enum_encode(const struct c2_layout *l,
+static int layout_formula_enum_encode(const struct c2_layout *l,
 				     struct c2_bufvec_cursor *cur)
 {
    /**
 	@code
-	Read linear enumeration type specific fields like formula.
+	Read formula enumeration type specific fields like formula.
 	@endcode
    */
 	return 0;
 }
 
 /**
-   Do not need functions like linear_rec_add, lto_rec_delete,
+   Do not need functions like formula_rec_add, lto_rec_delete,
    lto_rec_update and lto_rec_lookup unless we want to store
    attributes (applicable only for PDCLIUST type of layout
-   with LINEAR enumeration type) in a table different than
+   with FORMULA enumeration type) in a table different than
    layouts.
 */
 
 
 static const struct c2_layout_enum_type_ops lin_ops = {
-	.leto_decode     = layout_linear_enum_decode,
-	.leto_encode     = layout_linear_enum_encode,
+	.leto_decode     = layout_formula_enum_decode,
+	.leto_encode     = layout_formula_enum_encode,
 	.leto_rec_add    = NULL,
 	.leto_rec_delete = NULL,
 	.leto_rec_update = NULL,
 	.leto_rec_lookup = NULL,
 };
 
-const struct c2_layout_enum_type c2_layout_linear_enum_type = {
+const struct c2_layout_enum_type c2_layout_formula_enum_type = {
 	.let_ops = &lin_ops
 };
 
-static const struct c2_layout_linear_formula_ops nkp_ops = {
+static const struct c2_layout_formula_formula_ops nkp_ops = {
 	.llinfo_subst = NULL
 };
 
-const struct c2_layout_linear_formula c2_linear_NKP_formula = {
+const struct c2_layout_formula_formula c2_formula_NKP_formula = {
 	.llinf_id   = { .u_hi = 0x5041524954594445, /* PARITYDE */
 			.u_lo = 0x434c55535445522e  /* CLUSTER. */
 	},
 	.llinf_ops  = &nkp_ops
 };
 
-/** @} end group linear_enum */
+/** @} end group formula_enum */
 
 /*
  *  Local variables:

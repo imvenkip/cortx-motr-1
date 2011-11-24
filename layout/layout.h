@@ -45,7 +45,7 @@
 
    Enumeration methods supported currently are:
    - FORMULA <BR>
-     A layout with LINEAR enumeration method uses a formula to enumerate all
+     A layout with FORMULA enumeration method uses a formula to enumerate all
      its component object identifiers.
    - LIST <BR>
      A layout with LIST enumeration method uses a list to enumerate all its
@@ -164,7 +164,7 @@ struct c2_layout_ops {
 /**
    Structure specific to per layout enumeration type.
    There is an instance of c2_layout_enum_type for each one of enumeration
-   types. e.g. for LINEAR and LIST enumeration method types.
+   types. e.g. for FORMULA and LIST enumeration method types.
 */
 struct c2_layout_enum_type {
 	/** Layout enumeration type name. */

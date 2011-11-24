@@ -72,8 +72,8 @@ struct c2_layout_rec_attrs;
    Layout for a file contains COB identifiers for all the COBs associated with
    that file. These COB identifiers are stored by the layout either in the
    form of a list (e.g. in case of PDCLUST layout type with LIST enumeration
-   type) or as a formula (e.g. PDCLUST layout type with LINEAR enumeration
-   type).
+   type) or as a formula (e.g. PDCLUST layout type with FORMULA enumeration
+   method).
 
    Example use case of reading a file:
    - Reading a file involves reading basic file attributes from the basic file
@@ -82,7 +82,7 @@ struct c2_layout_rec_attrs;
    - A query is sent to the Layout module to obtain layout for this layout id.
    - Layout module checks if the layout record is cached and if not, it reads
      the layout record from the layout DB.
-      - If the layout record is of the PDCLUST layout type, with LINEAR
+      - If the layout record is of the PDCLUST layout type, with FORMULA
         enumeration type, which means it is a formula, then the formula is
         obtained from the DB, required parameters are substituted into the
         formula and thus the list of COB identifiers is obtained to operate
@@ -93,7 +93,7 @@ struct c2_layout_rec_attrs;
       - If the layout record is of the COMPOSITE layout type, it means it
         constitutes of multiple sub-layouts. In this case, the sub-layouts are
         read from the layout DB. Those sub-layout records in turn could be of
-        the PDCLUST layout type with either LINEAR or LITS enumeration type OR
+        the PDCLUST layout type with either FORMULA or LITS enumeration type OR
         of the COMPOSITE layout type. The sub-layout records are then read
         accordingly until the time the final list of all the cob identifiers
         is obtained.
@@ -170,7 +170,7 @@ struct c2_layout_rec {
 
 	/** Struct to store record attributes, currently used for PDCLUST
 	    layout type */
-	struct c2_layout_rec_attrs lr_linear_attrs;
+	struct c2_layout_rec_attrs lr_formula_attrs;
 };
 
 int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db);
