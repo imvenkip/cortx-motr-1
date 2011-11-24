@@ -268,7 +268,7 @@
      Layout DB module supports storing all kinds of layout types supported
      currently by the layout module viz. PDCLUST and COMPOSITE.
      The framework supports to add other layout types, as required in
-     the future. 
+     the future.
    - <b>I.LAYOUT.SCHEMA.Formulae</b>
       - <b>Parameters</b>
          - In case of PDCLUST layout type using FORMULA enumeration method,

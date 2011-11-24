@@ -26,7 +26,7 @@
 
    A layout is an attribute of a file and it provides information on component
    objects this file maps to.
- 
+
    A layout type specifies how a file is stored in a collection of component
    objects.
 
