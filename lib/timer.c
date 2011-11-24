@@ -187,8 +187,7 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 	C2_PRE(loc != NULL);
 
 	tid = gettid();
-	if (locality_tid_contains(loc, tid))
-		return 0;
+	C2_ASSERT(!locality_tid_contains(loc, tid));
 
 	C2_ALLOC_PTR(tt);
 	if (tt == NULL)
