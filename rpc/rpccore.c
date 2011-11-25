@@ -1217,7 +1217,7 @@ int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
 	c2_chan_init(&rbulk->rb_chan);
 	rbulk->rb_magic = C2_RPC_BULK_MAGIC;
 	rbulk->rb_rc = 0;
-	return c2_0vec_init(&rbulk->rb_zerovec, segs_nr, seg_size);
+	return c2_0vec_init(&rbulk->rb_zerovec, segs_nr);
 }
 
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
@@ -1226,7 +1226,7 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 	C2_PRE(rpc_bulk_invariant(rbulk));
 
 	c2_chan_fini(&rbulk->rb_chan);
-	c2_0vec_free(&rbulk->rb_zerovec);
+	c2_0vec_fini(&rbulk->rb_zerovec);
 }
 
 #ifdef __KERNEL__
