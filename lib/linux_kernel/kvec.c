@@ -28,14 +28,12 @@ int c2_0vec_page_add(struct c2_0vec *zvec,
 		     struct page *pg,
 		     c2_bindex_t index)
 {
-	int		  rc;
 	struct c2_buf	  buf;
 
 	buf.b_addr = page_address(pg);
 	buf.b_nob = PAGE_CACHE_SIZE;
 
-	rc = c2_0vec_cbuf_add(zvec, &buf, &index);
-	return rc;
+	return c2_0vec_cbuf_add(zvec, &buf, &index);
 }
 C2_EXPORTED(c2_0vec_page_add);
 
