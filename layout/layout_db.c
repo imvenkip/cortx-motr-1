@@ -40,41 +40,41 @@
    - @ref Layout-DB-ref
 
 
-   <hr>
+   <HR>
    @section Layout-DB-ovw Overview
    This document contains the detail level design for the Layout DB Module.
 
-   <b>Purpose of the Layout-DB DLD</b><BR>
+   Purpose of the Layout-DB DLD <BR>
    The purpose of the Layout-DB Detailed Level Design (DLD) specification
    is to:
    - Refine the higher level design
    - To be verified by inspectors and architects
    - To guide the coding phase
 
-   <hr>
+   <HR>
    @section Layout-DB-def Definitions
-     - <b>COB</b> COB is component object and is defined at
+     - COB: COB is component object and is defined at
      <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">C2 Glossary</a>
 
-   <hr>
+   <HR>
    @section Layout-DB-req Requirements
    The specified requirements are as follows:
-   - <b>R.LAYOUT.SCHEMA.Layid</b> Layout identifiers are unique globally in
+   - R.LAYOUT.SCHEMA.Layid: Layout identifiers are unique globally in
      the system, and persistent in the life cycle.
-   - <b>R.LAYOUT.SCHEMA.Types</b> There are multiple layout types for
+   - R.LAYOUT.SCHEMA.Types There are multiple layout types for
      different purposes: SNS, block map, local raid, de-dup, encryption,
      compression, etc.
-   - <b>R.LAYOUT.SCHEMA.Formulae</b>
-      - <b>Parameters</b> Layout may contain sub-map information. Layout may
+   - R.LAYOUT.SCHEMA.Formulae
+      - Parameters: Layout may contain sub-map information. Layout may
         contain some formula, and its parameters and real mapping information
         should be calculated from the formula and its parameters.
-      - <b>Garbage Collection</b> If some objects are deleted from the system,
+      - Garbage Collection: If some objects are deleted from the system,
         their associated layout may still be left in the system, with zero
         reference count. This layout can be re-used, or be garbage
         collected in some time.
-   - <b>R.LAYOUT.SCHEMA.Sub-Layouts</b> Sub-layouts.
+   - R.LAYOUT.SCHEMA.Sub-Layouts: Sub-layouts.
 
-   <hr>
+   <HR>
    @section Layout-DB-depends Dependencies
    - Layout is a managed resource and depends upon Resource Manager.
    - Layout DB module depends upon the Layout module since the Layout module
@@ -82,7 +82,7 @@
    - Layout DB module depends upon the DB5 interfaces exposed by
      Colibri since the layouts are stored using the DB5 data-base.
 
-   <hr>
+   <HR>
    @section Layout-DB-highlights Design Highlights
    - Layout in itself is a managed resource.
    - The Layout DB module provides support for storing layouts with multiple
@@ -91,7 +91,7 @@
    - It is required that for adding a layout type or layout enumeration type,
      central layout/layout.h should not require modifications.
 
-   <hr>
+   <HR>
    @section Layout-DB-lspec Logical Specification
    Layout DB makes use of the DB5 data-base to persistently store the layout
    entries. This section describes how the Layout DB module works.
@@ -170,8 +170,9 @@
    uses the layout_rec_attrs to store attributes like N and K.
 
    It is possible that some layout types do not need to store any attributes.
-   e.g. A layout with PDCLUST layout type with LIST enumeration and a layout with
-   with COMPOSITE layout type do not need to store these attributes.
+   e.g. A layout with PDCLUST layout type with LIST enumeration type does
+   not need to store any attributes. Similarlly, a layout with COMPOSITE
+   layout type does not need to store any attributes.
 
    @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
    @verbatim
@@ -184,7 +185,7 @@
 
    @endverbatim
 
-   This table contains multiple cob identifier entries for every PDCLUST type
+   This table contains multiple COB identifier entries for every PDCLUST type
    of layout with LIST enumeration type.
 
    layout_id is a foreign key referring record, in the layouts table.
@@ -244,13 +245,13 @@
 
    @subsection Layout-DB-lspec-numa NUMA optimizations
 
-   <hr>
+   <HR>
    @section Layout-DB-conformance Conformance
-   - <b>I.LAYOUT.SCHEMA.Layid</b> Layout identifiers are unique globally in
+   - I.LAYOUT.SCHEMA.Layid: Layout identifiers are unique globally in
      the system, and persistent in the life cycle. It is assumed that the
      layout identifiers are assigned by the Layout module and Layout DB module
      helps to store those persistently.
-   - <b>I.LAYOUT.SCHEMA.Types</b> There are multiple layout types for different
+   - I.LAYOUT.SCHEMA.Types: There are multiple layout types for different
      purposes: SNS, block map, local raid, de-dup, encryption, compression,
      etc.
      <BR>
@@ -258,36 +259,55 @@
      currently by the layout module viz. PDCLUST and COMPOSITE.
      The framework supports to add other layout types, as required in
      the future.
-   - <b>I.LAYOUT.SCHEMA.Formulae</b>
-      - <b>Parameters</b>
+   - I.LAYOUT.SCHEMA.Formulae:
+      - Parameters:
          - In case of PDCLUST layout type using FORMULA enumeration method,
            formula is stored by the Layout DB and substituting parameters
            in the stored formula derives the real mapping information that
            is the list of COB identifiers.
-      - <b>Garbage Collection</b>
+      - Garbage Collection:
          - A layout with PDCLUST layout type and with LIST enumeration method
            is deleted when its last reference is released. Similarlly, a
            layout with COMPOSITE layout is deleted when its last reference
            is released.
          - A layout with PDCLUST layout type and with FORMULA enumeration
            method is never deleted and thus can be reused.
-   - <b>I.LAYOUT.SCHEMA.Sub-Layouts</b> COMPOSITE type of layout is used to
+   - I.LAYOUT.SCHEMA.Sub-Layouts: COMPOSITE type of layout is used to
      store sub-layouts.
 
-   <hr>
+   <HR>
    @section Layout-DB-ut Unit Tests
 
-   @todo Add test cases.
+   Following cases will be tested by unit tests:
 
-   <hr>
+   @test Registering a layout type.
+
+   @test Unregistering a layout type.
+
+   @test Registering an enum type.
+
+   @test Unregistering an enum type.
+
+   @test Adding a layout.
+
+   @test Deleting a layout.
+
+   @test Updating a layout.
+
+   @test Reading a layout.
+
+   @test Checking DB persistence by comparing a layout with the layout read from the DB.
+
+   <HR>
    @section Layout-DB-st System Tests
 
-   @todo Add test cases.
+   System testing will include tests where multiple processes are writing to and reading
+   from the DB at the same time.
 
-   <hr>
+   <HR>
    @section Layout-DB-O Analysis
 
-   <hr>
+   <HR>
    @section Layout-DB-ref References
    - <a href="https://docs.google.com/a/xyratex.com/document/d/15-G-tUZfSuK6lpOuQ_Hpbw1jJ55MypVhzGN2r1yAZ4Y/edit?hl=en_US
 ">HLD of Layout Schema</a>
@@ -363,7 +383,7 @@ void c2_layout_schema_fini(struct c2_layout_schema *schema)
 
 /**
    Registers a new layout type with the layout types maintained by
-   c2_layout_schema::c2_layout_type[].
+   c2_layout_schema::ls_type[].
 */
 void c2_layout_type_register(struct c2_layout_schema *schema,
 			     const struct c2_layout_type *lt)
@@ -386,7 +406,7 @@ void c2_layout_type_register(struct c2_layout_schema *schema,
 
 /**
    Unregisters a layout type from the layout types maintained by
-   c2_layout_schema::c2_layout_type[].
+   c2_layout_schema::ls_enum[].
 */
 void c2_layout_type_unregister(struct c2_layout_schema *schema,
 			       const struct c2_layout_type *lt)
@@ -464,7 +484,7 @@ void **c2_layout_enum_data(struct c2_layout_schema *schema,
    tables.
 */
 int c2_layout_rec_add(const struct c2_layout *l,
-		      struct c2_layout_schema *l_schema,
+		      struct c2_layout_schema *schema,
 		      struct c2_db_tx *tx)
 {
    /**
@@ -481,20 +501,13 @@ int c2_layout_rec_add(const struct c2_layout *l,
    Deletes a layout record and its related information from the
    relevant tables.
 
-   For example, following types of layout records can be destroyed if their
-   respective reference count is 0:
-   - A layout with PDCLUST layout type and with LIST enumeration type.
-   - A layout with COMPOSITE layout type.
-   <BR>
-   A formula layout is never destroyed. e.g. A layout with PDCLUST layout type
-   and with FORMULA enumeration type is never destroyed.
+   Layouts with enumeration type other than 'formula' are destroyed if and
+   only if their respective referecne count is 0.
 
-   If a layout can not be destroyed due to above conditions not being met,
-   this API returns failure, though such specialization is taken care of by
-   layout type specific implementation methods.
+   A layout with formula enumeration type is never destroyed.
 */
 int c2_layout_rec_delete(const struct c2_layout *layout,
-			 struct c2_layout_schema *l_schema,
+			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx)
 {
    /**
@@ -511,7 +524,7 @@ int c2_layout_rec_delete(const struct c2_layout *layout,
    relevant tables.
 */
 int c2_layout_rec_update(const struct c2_layout *layout,
-			 struct c2_layout_schema *l_schema,
+			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx)
 {
    /**
@@ -527,10 +540,10 @@ int c2_layout_rec_update(const struct c2_layout *layout,
    Obtains a layout record with the specified layout_id, and its related
    information from the relevant tables.
 */
-int c2_layout_rec_lookup(const struct c2_layout_id *l_id,
-			 struct c2_layout_schema *l_schema,
+int c2_layout_rec_lookup(const struct c2_layout_id *id,
+			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx,
-			 struct c2_layout *l_out)
+			 struct c2_layout *out)
 {
    /**
 	@code

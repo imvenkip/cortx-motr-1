@@ -21,8 +21,6 @@
 #ifndef __COLIBRI_LAYOUT_COMPOSITE_H__
 #define __COLIBRI_LAYOUT_COMPOSITE_H__
 
-#include "layout/layout.h"
-
 /**
    @defgroup composite Composite Layout Type.
 
@@ -34,11 +32,13 @@
  */
 
 /* import */
-#include "lib/ext.h"	/* struct c2_ext */
 #include "lib/tlist.h"	/* struct c2_tl */
 #include "lib/mutex.h"	/* struct c2_mutex */
 
+#include "layout/layout.h"
+
 /* export */
+struct c2_composite_layout;
 
 /**
    Extension of generic c2_layout for a composite layout.

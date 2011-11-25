@@ -54,18 +54,18 @@ struct c2_layout_rec_attrs;
    - struct c2_layout_rec_attrs
 
    @section Layout-DB-fspec-sub Subroutines
-   - int c2_layout_schema_init(struct c2_layout_schema *l_schema, struct c2_dbenv *db)
-   - void c2_layout_schema_fini(struct c2_layout_schema *l_schema)
-   - void c2_layout_type_register(struct c2_layout_schema *l_schema, const struct c2_layout_type *lt)
-   - void c2_layout_type_unregister(struct c2_layout_schema *l_schema, const struct c2_layout_type *lt)
-   - void c2_layout_enum_register(struct c2_layout_schema *l_schema, const struct c2_layout_enum_type *et)
-   - void c2_layout_enum_unregister(struct c2_layout_schema *l_schema, const struct c2_layout_enum_type *et)
+   - int c2_layout_schema_init(struct c2_layout_schema *schema, struct c2_dbenv *db)
+   - void c2_layout_schema_fini(struct c2_layout_schema *schema)
+   - void c2_layout_type_register(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
+   - void c2_layout_type_unregister(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
+   - void c2_layout_enum_register(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
+   - void c2_layout_enum_unregister(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
    - void **c2_layout_type_data(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
    - void **c2_layout_enum_data(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
-   - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
-   - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
-   - int c2_layout_rec_update(const struct c2_layout *l, struct c2_layout_schema *l_schema, struct c2_db_tx *tx)
-   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, struct c2_layout_schema *l_schema, struct c2_db_tx *tx, c2_layout *l_rec_out);
+   - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *schema, struct c2_db_tx *tx)
+   - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *schema, struct c2_db_tx *tx)
+   - int c2_layout_rec_update(const struct c2_layout *l, struct c2_layout_schema *schema, struct c2_db_tx *tx)
+   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, struct c2_layout_schema *schema, struct c2_db_tx *tx, c2_layout *out);
 
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 
@@ -73,9 +73,7 @@ struct c2_layout_rec_attrs;
    A file layout is used by the client to perform IO against that file. A
    Layout for a file contains COB identifiers for all the COBs associated with
    that file. These COB identifiers are stored by the layout either in the
-   form of a list (e.g. in case of PDCLUST layout type with LIST enumeration
-   type) or as a formula (e.g. PDCLUST layout type with FORMULA enumeration
-   method).
+   form of a list or as a formula.
 
    Example use case of reading a file:
    - Reading a file involves reading basic file attributes from the basic file
@@ -84,21 +82,18 @@ struct c2_layout_rec_attrs;
    - A query is sent to the Layout module to obtain layout for this layout id.
    - Layout module checks if the layout record is cached and if not, it reads
      the layout record from the layout DB.
-      - If the layout record is of the PDCLUST layout type, with FORMULA
-        enumeration type, which means it is a formula, then the formula is
-        obtained from the DB, required parameters are substituted into the
-        formula and thus the list of COB identifiers is obtained to operate
-        upon.
-      - If the layout record is of the PDCLUST layout type, with LIST
-        enumeration type, which means it stores the list of cob identifiers in
-        itself, then that list is obtained from the layout DB itself.
+      - If the layout record is with the FORMULA enumeration method, then the
+        formula is obtained from the DB, required parameters are substituted
+        into the formula and thus the list of COB identifiers is obtained to
+        operate upon.
+      - If the layout record is with the LIST enumeration method, then the
+        the list of COB identifiers is obtained from the layout DB itself.
       - If the layout record is of the COMPOSITE layout type, it means it
         constitutes of multiple sub-layouts. In this case, the sub-layouts are
         read from the layout DB. Those sub-layout records in turn could be of
-        the PDCLUST layout type with either FORMULA or LITS enumeration type OR
-        of the COMPOSITE layout type. The sub-layout records are then read
-        accordingly until the time the final list of all the cob identifiers
-        is obtained.
+        other layout types and with either FORMULA or LIST enumeration methods.
+        The sub-layout records are then read accordingly until the time the
+        final list of all the COB identifiers is obtained.
 
    @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
 */
@@ -133,9 +128,9 @@ enum {
 */
 struct c2_layout_rec_attrs {
 	/** Number of data units in the parity group (N) */
-	uint32_t		plra_num_of_data_units;
+	uint32_t		lra_num_of_data_units;
 	/** Number of parity units in the parity group (K) */
-	uint32_t		plra_num_of_parity_units;
+	uint32_t		lra_num_of_parity_units;
 };
 
 /**
@@ -165,16 +160,16 @@ struct c2_layout_schema {
 
 /**
    layouts table
-   Key is c2_layout_id, same as c2_layout::l_id.
+   Key is c2_layout_id, value obtained from c2_layout::l_id.
 */
 struct c2_layout_rec {
 	/** Layout type id.
-	    Otained from  c2_layout_type::lt_id.
+	    Value obtained from  c2_layout_type::lt_id.
 	*/
 	uint64_t			lr_lt_id;
 
 	/** Layout enumeration type id.
-	    Obtained from c2_layout_enum_type::let_id.
+	    Value obtained from c2_layout_enum_type::let_id.
 	*/
 	uint64_t			lr_let_id;
 
@@ -235,14 +230,14 @@ int c2_layout_rec_lookup(const struct c2_layout_id *id,
    various layout types and various enumeration types.
 */
 struct layout_schema_internal {
-	/** Table for cob lists for all the layout types it is applicable for.
+	/** Table for COB lists for all the layout types it is applicable for.
             e.g. Currently, it is applicable for PDCLUST layout type with
             LIST enumeration type.
 	*/
-	struct c2_table		ls_cob_lists;
+	struct c2_table		lsi_cob_lists;
 
 	/* Table for extent maps for all the COMPOSITE type of layouts */
-	struct c2_emap		ls_comp_layout_ext_map;
+	struct c2_emap		lsi_comp_layout_ext_map;
 };
 
 /**

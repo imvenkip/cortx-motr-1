@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ *                  Trupti Patil <trupti_patil@xyratex.com>
  * Original creation date: 07/09/2010
  */
 
@@ -24,13 +25,13 @@
 /**
    @defgroup layout Layouts.
 
-   A layout is an attribute of a file and it provides information on component
-   objects this file maps to.
+   A 'layout' is an attribute of a file and it enlists the component objects
+   this file maps to.
 
-   A layout type specifies how a file is stored in a collection of component
+   A 'layout type' specifies how a file is stored in a collection of component
    objects.
 
-   An enumeration method determines how a collection of component object is
+   An 'enumeration method' determines how a collection of component object is
    specified.
 
    Layout types supported currently are:
@@ -43,7 +44,8 @@
      This layout type partitions a file or a part of the file into
      various segments while each of those segment uses a different layout.
 
-   Enumeration methods supported currently are:
+   Enumeration method types (also referred as 'enumeration types') supported
+   currently are:
    - FORMULA <BR>
      A layout with FORMULA enumeration method uses a formula to enumerate all
      its component object identifiers.
@@ -107,40 +109,40 @@ struct c2_layout_type_ops {
 	    Sets c2_layout::l_ops.
 	*/
 	int	(*lto_decode)(const struct c2_bufvec_cursor *cur,
-			      struct c2_layout **l_out);
+			      struct c2_layout **out);
 
 	/** Continue storing layout representation in the buffer */
 	int	(*lto_encode)(const struct c2_layout *l,
-			      struct c2_bufvec_cursor *cur_out);
+			      struct c2_bufvec_cursor *out);
 
 	/** Adds a new layout record and its related information into the
 	    the relevant tables.
 	*/
 	int (*lto_rec_add)(const struct c2_bufvec_cursor *cur,
-			   struct c2_layout_schema *l_schema,
+			   struct c2_layout_schema *schema,
 			   struct c2_db_tx *tx);
 
 	/** Deletes a layout record and its related information from the
 	    relevant tables.
 	*/
 	int	(*lto_rec_delete)(const struct c2_bufvec_cursor *cur,
-				  struct c2_layout_schema *l_schema,
+				  struct c2_layout_schema *schema,
 				  struct c2_db_tx *tx);
 
 	/** Updates a layout record and its related information in the
 	    relevant tables.
 	*/
 	int	(*lto_rec_update)(const struct c2_bufvec_cursor *cur,
-				  struct c2_layout_schema *l_schema,
+				  struct c2_layout_schema *schema,
 				  struct c2_db_tx *tx);
 
 	/** Locates a layout record and its related information from the
 	    relevant tables.
 	*/
 	int	(*lto_rec_lookup)(const struct c2_layout_id *l_id,
-				  struct c2_layout_schema *l_schema,
+				  struct c2_layout_schema *schema,
 				  struct c2_db_tx *tx,
-				  struct c2_bufvec_cursor *cur_out);
+				  struct c2_bufvec_cursor *out);
 };
 
 
@@ -194,7 +196,7 @@ struct c2_layout_enum_type_ops {
 
 	/** Continues deleting the layout record */
 	int	(*leto_rec_delete)(const struct c2_bufvec_cursor *cur,
-				   struct c2_layout_schema *l_schema,
+				   struct c2_layout_schema *schema,
 				   struct c2_db_tx *tx);
 
 	/** Continues updating the layout record */
@@ -213,19 +215,19 @@ struct c2_layout_enum_type_ops {
    Layout enumeration method.
 */
 struct c2_layout_enum {
-	const struct c2_layout_enum_ops *le_ops;
+	const struct	c2_layout_enum_ops *le_ops;
 };
 
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
-	uint32_t (*leo_nr)(const struct c2_layout_enum *e);
+	uint32_t	(*leo_nr)(const struct c2_layout_enum *e);
 
 	/** Returns idx-th object in the enumeration.
 	    @pre idx < e->l_enum_ops->leo_nr(e)
 	*/
-	void (*leo_get)(const struct c2_layout_enum *e,
-			uint32_t idx,
-			struct c2_fid *fid_out);
+	void		(*leo_get)(const struct c2_layout_enum *e,
+				   uint32_t idx,
+				   struct c2_fid *out);
 };
 
 

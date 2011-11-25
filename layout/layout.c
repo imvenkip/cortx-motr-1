@@ -14,6 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ *                  Trupti Patil <trupti_patil@xyratex.com>
  * Original creation date: 07/09/2010
  */
 
@@ -58,7 +59,7 @@ int c2_layout_decode(const struct c2_bufvec_cursor *cur,
 	/**
 	@code
 	Read generic fields from the buffer like layout id, layout
-	type id, enumeration type id, ref counter, enumeration description.
+	type id, enumeration type id, ref counter.
 
 	Now call corresponding lto_decode() so as to continue
 	decoding the layout type specific fields.

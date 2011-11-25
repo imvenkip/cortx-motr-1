@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ *                  Trupti Patil <trupti_patil@xyratex.com>
  * Original creation date: 07/15/2010
  */
 
@@ -468,7 +469,7 @@ C2_EXPORTED(c2_pdclust_unit_classify);
    to create the layout.
 */
 static int pdclust_decode(const struct c2_bufvec_cursor *cur,
-		          struct c2_layout **l_out)
+		          struct c2_layout **out)
 {
    /**
 	@code
@@ -488,7 +489,7 @@ static int pdclust_decode(const struct c2_bufvec_cursor *cur,
    Stores layout representation in the buffer.
 */
 static int pdclust_encode(const struct c2_layout *l,
-		          struct c2_bufvec_cursor *cur_out)
+		          struct c2_bufvec_cursor *out)
 {
    /**
 	@code
@@ -505,7 +506,7 @@ static int pdclust_encode(const struct c2_layout *l,
    Implementation of lto_rec_add for PDCLUST layout type.
 */
 int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
-		    struct c2_layout_schema *l_schema,
+		    struct c2_layout_schema *schema,
 		    struct c2_db_tx *tx)
 {
    /**
@@ -523,7 +524,7 @@ int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_delete for PDCLUST layout type.
 */
 int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
-		       struct c2_layout_schema *l_schema,
+		       struct c2_layout_schema *schema,
 		       struct c2_db_tx *tx)
 {
    /**
@@ -542,7 +543,7 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_update for PDCLUST layout type.
 */
 int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
-		       struct c2_layout_schema *l_schema,
+		       struct c2_layout_schema *schema,
 		       struct c2_db_tx *tx)
 {
    /**
@@ -559,8 +560,8 @@ int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
 /**
    Implementation of lto_rec_lookup for PDCLUST layout type.
 */
-int pdclust_rec_lookup(const struct c2_layout_id *l_id,
-		       struct c2_layout_schema *l_schema,
+int pdclust_rec_lookup(const struct c2_layout_id *id,
+		       struct c2_layout_schema *schema,
 		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *cur)
 {

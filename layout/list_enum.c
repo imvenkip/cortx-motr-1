@@ -32,7 +32,7 @@
    Implementation of leto_decode() for list enumeration type.
 */
 static int layout_list_enum_decode(const struct c2_bufvec_cursor *cur,
-				   struct c2_layout **l_out)
+				   struct c2_layout **out)
 {
 	return 0;
 }
@@ -56,7 +56,7 @@ static int layout_list_enum_encode(const struct c2_layout *l,
    Implementation of leto_rec_add for list enumeration type.
 */
 int list_rec_add(const struct c2_bufvec_cursor *cur,
-		 struct c2_layout_schema *l_schema,
+		 struct c2_layout_schema *schema,
 		 struct c2_db_tx *tx)
 {
    /**
@@ -71,7 +71,7 @@ int list_rec_add(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_delete for list enumeration type.
 */
 int list_rec_delete(const struct c2_bufvec_cursor *cur,
-		    struct c2_layout_schema *l_schema,
+		    struct c2_layout_schema *schema,
 		    struct c2_db_tx *tx)
 {
    /**
@@ -87,14 +87,14 @@ int list_rec_delete(const struct c2_bufvec_cursor *cur,
    Implementation of leto_rec_update for list enumeration type.
 */
 int list_rec_update(const struct c2_bufvec_cursor *cur,
-		    struct c2_layout_schema *l_schema,
+		    struct c2_layout_schema *schema,
 		    struct c2_db_tx *tx)
 {
    /**
-   @code
+	@code
 	Update the relevant list of cob ids in the
 	cob_lists table.
-   @endcode
+	@endcode
    */
 	return 0;
 }
@@ -102,31 +102,31 @@ int list_rec_update(const struct c2_bufvec_cursor *cur,
 /**
    Implementation of leto_rec_lookup for list enumeration type.
 */
-int list_rec_lookup(const struct c2_layout_id *l_id,
-		    struct c2_layout_schema *l_schema,
+int list_rec_lookup(const struct c2_layout_id *id,
+		    struct c2_layout_schema *schema,
 		    struct c2_db_tx *tx,
 		    struct c2_bufvec_cursor *cur)
 {
    /**
-   @code
+	@code
 	Obtain the relevant list of cob ids from the
 	cob_lists table.
-   @endcode
+	@endcode
    */
 	return 0;
 }
 
 static const struct c2_layout_enum_type_ops list_ops = {
-	.leto_decode     = layout_list_enum_decode,
-	.leto_encode     = layout_list_enum_encode,
-	.leto_rec_add    = list_rec_add,
-	.leto_rec_delete = list_rec_delete,
-	.leto_rec_update = list_rec_update,
-	.leto_rec_lookup = list_rec_lookup
+	.leto_decode		= layout_list_enum_decode,
+	.leto_encode		= layout_list_enum_encode,
+	.leto_rec_add		= list_rec_add,
+	.leto_rec_delete	= list_rec_delete,
+	.leto_rec_update	= list_rec_update,
+	.leto_rec_lookup	= list_rec_lookup
 };
 
 const struct c2_layout_enum_type c2_layout_list_enum_type = {
-	.let_ops = &list_ops
+	.let_ops		= &list_ops
 };
 
 

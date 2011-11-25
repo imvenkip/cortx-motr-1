@@ -34,6 +34,7 @@
 #include "layout/layout.h"
 
 /* export */
+struct c2_layout_formula_enum ;
 
 /**
    Extension of generic c2_layout_enum for a formula enumeration type.
@@ -52,10 +53,10 @@ struct c2_layout_formula {
 };
 
 struct c2_layout_formula_ops {
-	int (*lfo_subst)(const struct c2_layout_formula *form,
-			 uint16_t nr,
-			 const struct c2_layout_formula_parameter *actuals,
-			 struct c2_layout **out);
+	int	(*lfo_subst)(const struct c2_layout_formula *form,
+			     uint16_t nr,
+			     const struct c2_layout_formula_parameter *actuals,
+			     struct c2_layout **out);
 };
 
 struct c2_layout_formula_parameter {
@@ -66,8 +67,8 @@ struct c2_layout_formula_parameter {
 struct c2_layout_formula_parameter_type {
 	const char	*lfpt_name;
 
-	int (*lfpt_convert)(const struct c2_layout_formula_parameter *other,
-			    struct c2_layout_formula_parameter *out);
+	int		(*lfpt_convert)(const struct c2_layout_formula_parameter *other,
+					struct c2_layout_formula_parameter *out);
 };
 
 extern const struct c2_layout_enum_type c2_layout_formula_enum_type;

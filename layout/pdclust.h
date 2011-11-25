@@ -15,14 +15,12 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ *                  Trupti Patil <trupti_patil@xyratex.com>
  * Original creation date: 07/15/2010
  */
 
 #ifndef __COLIBRI_LAYOUT_PDCLUST_H__
 #define __COLIBRI_LAYOUT_PDCLUST_H__
-
-#include "layout/layout.h"
-#include "sns/parity_math.h"
 
 /**
    @defgroup pdclust Parity de-clustering.
@@ -65,12 +63,15 @@
  */
 
 /* import */
+#include "layout/layout.h"
+#include "sns/parity_math.h"
 
 struct c2_pool;
 struct c2_stob_id;
 
 /* export */
 struct c2_pdclust_layout;
+enum c2_pdclust_unit_type;
 struct c2_pdclust_src_addr;
 struct c2_pdclust_tgt_addr;
 struct c2_pdclust_ops;

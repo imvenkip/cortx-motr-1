@@ -49,7 +49,7 @@ static int layout_formula_enum_decode(const struct c2_bufvec_cursor *cur,
    Continues to store layout representation in the buffer.
 */
 static int layout_formula_enum_encode(const struct c2_layout *l,
-				      struct c2_bufvec_cursor *cur)
+				      struct c2_bufvec_cursor *out)
 {
    /**
 	@code
@@ -60,7 +60,7 @@ static int layout_formula_enum_encode(const struct c2_layout *l,
 }
 
 /**
-   Do not need functions like formula_rec_add, lto_rec_delete,
+   @todo Do not need functions like formula_rec_add, lto_rec_delete,
    lto_rec_update and lto_rec_lookup unless we want to store
    attributes (applicable only for PDCLIUST type of layout
    with FORMULA enumeration type) in a table different than
@@ -69,22 +69,23 @@ static int layout_formula_enum_encode(const struct c2_layout *l,
 
 
 static const struct c2_layout_enum_type_ops formula_ops = {
-	.leto_decode     = layout_formula_enum_decode,
-	.leto_encode     = layout_formula_enum_encode,
-	.leto_rec_add    = NULL,
-	.leto_rec_delete = NULL,
-	.leto_rec_update = NULL,
-	.leto_rec_lookup = NULL,
+	.leto_decode		= layout_formula_enum_decode,
+	.leto_encode		= layout_formula_enum_encode,
+	.leto_rec_add		= NULL,
+	.leto_rec_delete	= NULL,
+	.leto_rec_update	= NULL,
+	.leto_rec_lookup	= NULL,
 };
 
 const struct c2_layout_enum_type c2_layout_formula_enum_type = {
-	.let_ops = &formula_ops
+	.let_ops	= &formula_ops
 };
 
 static const struct c2_layout_formula_ops nkp_ops = {
-	.lfo_subst = NULL
+	.lfo_subst	= NULL
 };
 
+/** @todo Check dat types for all the ids. */
 const struct c2_layout_formula c2_formula_NKP_formula = {
 	.lf_id   = { .u_hi = 0x5041524954594445, /* PARITYDE */
 		     .u_lo = 0x434c55535445522e  /* CLUSTER. */
