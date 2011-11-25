@@ -26,7 +26,6 @@
 #include "rpc/session.h"
 
 struct c2_cons_mesg;
-struct c2_cons_mesg_ops;
 
 /**
  * @enum c2_cons_mesg_type
@@ -49,11 +48,13 @@ struct c2_cons_mesg {
 	/** Message type i.e disk or device failure */
 	enum c2_cons_mesg_type	 cm_type;
 	/** Console message operations */
-	struct c2_cons_mesg_ops *cm_ops;
+	const struct c2_cons_mesg_ops *cm_ops;
 	/** fop message to be send using console */
 	struct c2_fop		*cm_fop;
+	/** fop type to be send using console */
+	struct c2_fop_type	*cm_fopt;
 	/** rpc item operation */
-	struct c2_rpc_item_ops  *cm_item_ops;
+	const struct c2_rpc_item_ops  *cm_item_ops;
 	/** RPC item type */
 	struct c2_rpc_item_type *cm_item_type;
 	/** RPC machine through which mesg to be send */
@@ -63,22 +64,24 @@ struct c2_cons_mesg {
 };
 
 /**
- * @brief console message opertions.
+ *  Prints name and type of console message.
+ *  It can be used to print more info if required.
  */
-struct c2_cons_mesg_ops {
-	/**
-	 *  It will print names of members of fop. It can be extended
-	 *  to print values of all fop members along with names.
-	 */
-	void (*cmo_mesg_show) (void);
-	/**
-	 *  Prints name and type of console message.
-	 *  It can used to print more info if required.
-	 */
-	void (*cmo_name_print)(const struct c2_cons_mesg *mesg);
-	/** builds and send message using rpc_post */
-	int  (*cmo_mesg_send) (struct c2_cons_mesg *mesg, c2_time_t deadline);
-};
+void c2_cons_mesg_name_print(const struct c2_cons_mesg *mesg);
+
+/**
+ * @brief Builds and send message using rpc_post and waits for reply.
+ *
+ * @param mesg console message
+ *
+ * @return 0 success, !0 failure.
+ */
+int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline);
+
+/**
+ *  @brief Iterate over FOP fields and print names.
+ */
+void c2_cons_mesg_fop_show(struct c2_fop_type *fopt);
 
 /**
  * @brief Helper function to print list of FOPs.

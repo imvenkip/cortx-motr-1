@@ -36,7 +36,12 @@
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "ioservice/io_fops.ff"
+#include "rpc/rpc_base.h"
 #include "lib/vec.h"	/* c2_0vec */
+#include "rpc/rpc_opcodes.h"
+
+extern const struct c2_rpc_item_type_ops rpc_item_readv_type_ops;
+extern const struct c2_rpc_item_type_ops rpc_item_writev_type_ops;
 
 /**
    The IO fops code has been generalized to suit both read and write fops
@@ -523,18 +528,23 @@ const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 /**
  * FOP definitions for readv and writev operations.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
-		C2_IOSERVICE_READV_OPCODE, &c2_io_cob_readv_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
-		C2_IOSERVICE_WRITEV_OPCODE, &c2_io_cob_writev_ops);
+
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request", &c2_io_cob_readv_ops,
+		    C2_IOSERVICE_READV_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
+		    &rpc_item_readv_type_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request", &c2_io_cob_writev_ops,
+		    C2_IOSERVICE_WRITEV_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
+		    &rpc_item_writev_type_ops);
 
 /**
  * FOP definitions of readv and writev reply FOPs.
  */
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
-		    C2_IOSERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY, &rpc_item_readv_type_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
-		    C2_IOSERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY,  &rpc_item_readv_type_ops);
 
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
