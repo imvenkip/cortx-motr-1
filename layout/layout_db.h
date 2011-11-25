@@ -65,7 +65,7 @@ struct c2_layout_rec_attrs;
    - int c2_layout_rec_add(const struct c2_layout *l, struct c2_layout_schema *schema, struct c2_db_tx *tx)
    - int c2_layout_rec_delete(const struct c2_layout *l, struct c2_layout_schema *schema, struct c2_db_tx *tx)
    - int c2_layout_rec_update(const struct c2_layout *l, struct c2_layout_schema *schema, struct c2_db_tx *tx)
-   - int c2_layout_rec_lookup(const struct c2_layout_id *l_id, struct c2_layout_schema *schema, struct c2_db_tx *tx, c2_layout *out);
+   - int c2_layout_rec_lookup(const uint64_t *l_id, struct c2_layout_schema *schema, struct c2_db_tx *tx, c2_layout *out);
 
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 
@@ -212,7 +212,7 @@ int c2_layout_rec_delete(const struct c2_layout *layout,
 int c2_layout_rec_update(const struct c2_layout *layout,
 			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx);
-int c2_layout_rec_lookup(const struct c2_layout_id *id,
+int c2_layout_rec_lookup(const uint64_t *id,
 			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx,
 			 struct c2_layout *out);
@@ -236,7 +236,7 @@ struct layout_schema_internal {
 	*/
 	struct c2_table		lsi_cob_lists;
 
-	/* Table for extent maps for all the COMPOSITE type of layouts */
+	/* Table for extent maps for all the COMPOSITE type of layouts. */
 	struct c2_emap		lsi_comp_layout_ext_map;
 };
 
@@ -252,7 +252,7 @@ static int le_key_cmp(struct c2_table *table,
 }
 
 /**
-   table_ops for layouts table
+   table_ops for layouts table.
 */
 static const struct c2_table_ops layouts_table_ops = {
 	.to = {
@@ -267,14 +267,18 @@ static const struct c2_table_ops layouts_table_ops = {
 };
 
 /**
-   cob_lists table
+   cob_lists table.
 */
 struct layout_cob_lists_key {
-	struct c2_layout_id	lclk_l_id;
+	/** Layout id, value obtained from c2_layout::l_id. */
+	uint64_t		lclk_id;
+
+	/** Index for the COB from the layout it is part of. */
 	uint32_t		lclk_cob_index;
 };
 
 struct layout_cob_lists_rec {
+	/* COB identifier. */
 	struct c2_fid		lclr_cob_id;
 };
 
@@ -290,7 +294,7 @@ static int lcl_key_cmp(struct c2_table *table,
 }
 
 /**
-   table_ops for cob_lists table
+   table_ops for cob_lists table.
 */
 static const struct c2_table_ops cob_lists_table_ops = {
 	.to = {
@@ -303,6 +307,23 @@ static const struct c2_table_ops cob_lists_table_ops = {
 	},
 	.key_cmp = lcl_key_cmp
 };
+
+/**
+   Prefix for comp_layout_ext_map table.
+*/
+struct layout_prefix {
+	/** Layout id for the composite layout.
+	    Value is same as c2_layout::l_id.
+	*/ 
+	uint64_t		lp_l_id;
+
+	/** Filler since prefix is a 128 bit field.
+	    Currently un-used.
+	*/
+	uint64_t		lp_filler;	
+};
+
+
 
 /** @} end group LayoutDBDFSInternal */
 

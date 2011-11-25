@@ -386,7 +386,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 }
 C2_EXPORTED(c2_pdclust_fini);
 
-int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
+int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out)
 {
@@ -560,7 +560,7 @@ int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
 /**
    Implementation of lto_rec_lookup for PDCLUST layout type.
 */
-int pdclust_rec_lookup(const struct c2_layout_id *id,
+int pdclust_rec_lookup(const uint64_t *id,
 		       struct c2_layout_schema *schema,
 		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *cur)

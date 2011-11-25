@@ -102,7 +102,7 @@ int list_rec_update(const struct c2_bufvec_cursor *cur,
 /**
    Implementation of leto_rec_lookup for list enumeration type.
 */
-int list_rec_lookup(const struct c2_layout_id *id,
+int list_rec_lookup(const uint64_t *id,
 		    struct c2_layout_schema *schema,
 		    struct c2_db_tx *tx,
 		    struct c2_bufvec_cursor *cur)

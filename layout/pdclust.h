@@ -243,7 +243,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   struct c2_pdclust_src_addr *src);
 
 void c2_pdclust_fini(struct c2_pdclust_layout *pdl);
-int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
+int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out);
 

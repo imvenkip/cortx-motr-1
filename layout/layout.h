@@ -25,14 +25,18 @@
 /**
    @defgroup layout Layouts.
 
-   A 'layout' is an attribute of a file and it enlists the component objects
-   this file maps to.
+   A 'layout' is an attribute of a file. It maps a file onto a set of network
+   resources viz. component objects. Thus, it enlists identifiers for all the
+   component objects one file maps to.
+
+   A layout is a resource (managed by the Resource Manager). A layout can be
+   assignd to a file both by server and the client.
 
    A 'layout type' specifies how a file is stored in a collection of component
    objects.
 
    An 'enumeration method' determines how a collection of component object is
-   specified.
+   specified, either in the form of a list or as a formula.
 
    Layout types supported currently are:
    - PDCLUST <BR>
@@ -45,7 +49,7 @@
      various segments while each of those segment uses a different layout.
 
    Enumeration method types (also referred as 'enumeration types') supported
-   currently are:
+   are:
    - FORMULA <BR>
      A layout with FORMULA enumeration method uses a formula to enumerate all
      its component object identifiers.
@@ -67,7 +71,6 @@ struct c2_layout_schema;
 struct c2_db_tx;
 
 /* export */
-struct c2_layout_id;
 struct c2_layout_type;
 struct c2_layout_ops;
 struct c2_layout;
@@ -76,11 +79,6 @@ struct c2_layout_enum_type;
 struct c2_layout_enum_ops;
 struct c2_layout_enum;
 struct c2_layout_enum_ops;
-
-/** Unique layout id */
-struct c2_layout_id {
-	uint64_t        l_id;
-};
 
 /**
    Structure specific to per layout type.
@@ -139,23 +137,22 @@ struct c2_layout_type_ops {
 	/** Locates a layout record and its related information from the
 	    relevant tables.
 	*/
-	int	(*lto_rec_lookup)(const struct c2_layout_id *l_id,
+	int	(*lto_rec_lookup)(const uint64_t *l_id,
 				  struct c2_layout_schema *schema,
 				  struct c2_db_tx *tx,
 				  struct c2_bufvec_cursor *out);
 };
 
 
-/** @todo Change type of l_id to uint64_t (not c2_layout_id).
-    Requires changes in pdclust
+/**
     In-memory representation of a layout.
 */
 
 struct c2_layout {
-	struct c2_uint128		  l_id;
-	const struct c2_layout_type	 *l_type;
-	const struct c2_layout_enum      *l_enum;
-	const struct c2_layout_ops       *l_ops;
+	uint64_t			 l_id;
+	const struct c2_layout_type	*l_type;
+	const struct c2_layout_enum	*l_enum;
+	const struct c2_layout_ops	*l_ops;
 };
 
 struct c2_layout_ops {
@@ -205,7 +202,7 @@ struct c2_layout_enum_type_ops {
 				   struct c2_db_tx *tx);
 
 	/** Continue to locates layout record information */
-	int	(*leto_rec_lookup)(const struct c2_layout_id *id,
+	int	(*leto_rec_lookup)(const uint64_t *id,
 				   struct c2_layout_schema *schema,
 				   struct c2_db_tx *tx,
 				   struct c2_bufvec_cursor *out);

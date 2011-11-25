@@ -90,8 +90,8 @@ int composite_rec_add(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_delete for COMPOSITE layout type.
 */
 int composite_rec_delete(const struct c2_bufvec_cursor *cur,
-		struct c2_layout_schema *schema,
-		struct c2_db_tx *tx)
+			 struct c2_layout_schema *schema,
+			 struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -112,8 +112,8 @@ int composite_rec_delete(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_update for COMPOSITE layout type.
 */
 int composite_rec_update(const struct c2_bufvec_cursor *cur,
-		struct c2_layout_schema *schema,
-		struct c2_db_tx *tx)
+			 struct c2_layout_schema *schema,
+			 struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -132,10 +132,10 @@ int composite_rec_update(const struct c2_bufvec_cursor *cur,
 /**
    Implementation of lto_rec_lookup for COMPOSITE layout type.
 */
-int composite_rec_lookup(const struct c2_layout_id *id,
-		struct c2_layout_schema *schema,
-		struct c2_db_tx *tx,
-		struct c2_bufvec_cursor *cur)
+int composite_rec_lookup(const uint64_t *id,
+			 struct c2_layout_schema *schema,
+			 struct c2_db_tx *tx,
+			 struct c2_bufvec_cursor *cur)
 {
    /**
 	@code

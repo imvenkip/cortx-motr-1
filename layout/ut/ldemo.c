@@ -166,7 +166,7 @@ int main(int argc, char **argv)
 	int      result;
 	struct c2_pdclust_layout  *play;
 	struct c2_pool             pool;
-	struct c2_uint128          id;
+	uint64_t                   id;
 	struct c2_uint128          seed;
 
 	if (argc != 6) {
@@ -197,7 +197,7 @@ int main(int argc, char **argv)
 	R = atoi(argv[4]);
 	I = atoi(argv[5]);
 
-	c2_uint128_init(&id,   "jinniesisjillous");
+	id = 0x4A494E4E49455349; /* "jinniesi" */
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
 	result = c2_init();

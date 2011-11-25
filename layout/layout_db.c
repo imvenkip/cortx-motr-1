@@ -214,10 +214,15 @@
 
    c2_emap table is a framework to store a collection of related extent maps.
    Individual extent maps within a collection are identified by an element
-   of the key called as prefix (128 bit).
+   of the key called as prefix (128 bit). A segment ([A, B), V) is stored as
+   a record (A, V) with a key (prefix, B). The high extent end is used as
+   a part of the key.
 
-   For each composite layout, its layout id (c2_layout_id) is used as a
-   prefix to identify an extent map belonging to one composite layout.
+   @todo: Prefix has to be 128 bit.
+   Since prefix is required to be 128 bit in size, layout id (unit64_t) of
+   the composite layout is used as a part of the prefix to identify an extent
+   map belonging to one specific composite layout. The lower 64 bits are
+   currently unused (fillers).
 
    An example:
 
@@ -540,7 +545,7 @@ int c2_layout_rec_update(const struct c2_layout *layout,
    Obtains a layout record with the specified layout_id, and its related
    information from the relevant tables.
 */
-int c2_layout_rec_lookup(const struct c2_layout_id *id,
+int c2_layout_rec_lookup(const uint64_t *id,
 			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx,
 			 struct c2_layout *out)
