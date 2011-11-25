@@ -13,6 +13,7 @@ libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
 				session_fops.c session_fops.h \
 				session_foms.c session_foms.h \
 				rpccore.c rpccore.h \
+				rpc_base.c rpc_base.h \
 				formation.h formation.c \
 				rpc_onwire.c rpc_onwire.h \
 				rpc_helper.c rpc_helper.h

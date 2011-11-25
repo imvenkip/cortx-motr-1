@@ -48,8 +48,9 @@ int c2_service_start(struct c2_service *service, struct c2_service_id *sid)
 	C2_ASSERT(service->s_table.not_nr > 0);
 
 	for (i = 0; i < service->s_table.not_nr; ++i) {
-		C2_ASSERT(service->s_table.not_fopt[i]->ft_code ==
-			  service->s_table.not_start + i);
+		C2_ASSERT(
+		service->s_table.not_fopt[i]->ft_rpc_item_type.rit_opcode ==
+		service->s_table.not_start + i);
 	}
 
 	dom = sid->si_domain;

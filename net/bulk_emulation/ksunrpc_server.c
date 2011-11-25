@@ -39,6 +39,7 @@
 #include "ksunrpc.h"
 #include "sunrpc_io_k.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
+#include "rpc/rpc_opcodes.h"
 
 /**
    @addtogroup ksunrpc Sun RPC
@@ -445,9 +446,9 @@ const struct c2_service_ops ksunrpc_service_ops = {
  */
 static struct svc_procedure ksunrpc_procedures[] = {
 	PROC(0,  null, 1),
-	PROC(30, msg, sizeof(struct sunrpc_msg_resp)),
-	PROC(31, get, 0),
-	PROC(32, put, sizeof(struct sunrpc_put_resp))
+	PROC(C2_BULK_SUNRPC_MSG_OPCODE, msg, sizeof(struct sunrpc_msg_resp)),
+	PROC(C2_BULK_SUNRPC_GET_OPCODE, get, 0),
+	PROC(C2_BULK_SUNRPC_PUT_OPCODE, put, sizeof(struct sunrpc_put_resp))
 };
 
 /**

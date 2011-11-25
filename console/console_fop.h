@@ -28,15 +28,7 @@
 #define __COLIBRI_CONSOLE_FOP_H__
 
 #include "fop/fop.h"
-
-/**
- * The opcode from which IO service FOPS start.
- */
-enum c2_fop_console_opcodes {
-        C2_CONS_FOP_DISK_OPCODE = 60,
-        C2_CONS_FOP_DEVICE_OPCODE,
-        C2_CONS_FOP_REPLY_OPCODE
-};
+#include "rpc/rpc_opcodes.h"
 
 /**
  * Init console FOP
@@ -61,9 +53,6 @@ extern struct c2_fop_type c2_cons_fop_device_fopt;
 extern struct c2_fop_type c2_cons_fop_reply_fopt;
 extern struct c2_fop_type c2_cons_fop_test_fopt;
 
-extern struct c2_rpc_item_type c2_rpc_item_cons_disk;
-extern struct c2_rpc_item_type c2_rpc_item_cons_device;
-extern struct c2_rpc_item_type c2_rpc_item_cons_reply;
 /* __COLIBRI_CONSOLE_FOP_H__ */
 #endif
 
