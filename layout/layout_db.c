@@ -285,29 +285,29 @@
 
    Following cases will be tested by unit tests:
 
-   @test Registering a layout type.
+   @test Registering layout types including PDCLUST amd COMPOSITE types.
 
-   @test Unregistering a layout type.
+   @test Unregistering layout types including PDCLUST amd COMPOSITE types.
 
-   @test Registering an enum type.
+   @test Registering each of LIST and FORMULA enum types.
 
-   @test Unregistering an enum type.
+   @test Unregistering each of LIST and FORMULA enum types.
 
-   @test Adding a layout.
+   @test Adding layouts with all the possible combinations of all the layout types and enumeration types.
 
-   @test Deleting a layout.
+   @test Deleting layouts with all the possible combinations of all the layout types and enumeration types.
 
-   @test Updating a layout.
+   @test Updating layouts with all the possible combinations of all the layout types and enumeration types.
 
-   @test Reading a layout.
+   @test Reading a layout with all the possible combinations of all the layout types and enumeration types.
 
-   @test Checking DB persistence by comparing a layout with the layout read from the DB.
+   @test Checking DB persistence by comparing a layout with the layout read from the DB, for all the possible combinations of all the layout types and enumeration types.
 
    <HR>
    @section Layout-DB-st System Tests
 
-   System testing will include tests where multiple processes are writing to and reading
-   from the DB at the same time.
+   System testing will include tests where multiple processes are writing
+   to and reading from the DB at the same time.
 
    <HR>
    @section Layout-DB-O Analysis

@@ -160,7 +160,7 @@ struct c2_layout_schema {
 
 /**
    layouts table
-   Key is c2_layout_id, value obtained from c2_layout::l_id.
+   Key is uint64_t, value obtained from c2_layout::l_id.
 */
 struct c2_layout_rec {
 	/** Layout type id.

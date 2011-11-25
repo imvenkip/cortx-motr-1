@@ -21,7 +21,6 @@
 #ifndef __COLIBRI_LAYOUT_FORMULA_ENUM_H__
 #define __COLIBRI_LAYOUT_FORMULA_ENUM_H__
 
-
 /**
    @defgroup formula_enum Formula Enumeration Type.
 
