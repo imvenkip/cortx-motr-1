@@ -29,16 +29,12 @@ int c2_0vec_page_add(struct c2_0vec *zvec,
 		     c2_bindex_t index)
 {
 	int		  rc;
-	uint32_t	  curr_seg;
-	struct c2_bufvec *bvec;
 	struct c2_buf	  buf;
 
 	buf.b_addr = page_address(pg);
 	buf.b_nob = PAGE_CACHE_SIZE;
 
 	rc = c2_0vec_cbuf_add(zvec, &buf, &index);
-	if (rc == 0)
-		C2_POST(curr_seg < bvec->ov_vec.v_nr);
 	return rc;
 }
 C2_EXPORTED(c2_0vec_page_add);
