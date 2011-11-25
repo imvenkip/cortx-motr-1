@@ -21,7 +21,7 @@
  */
 
 #include "cob/cob.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "ioservice/io_fops.h"
 #include "rpc/rpcdbg.h"
 #include "lib/memory.h"

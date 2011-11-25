@@ -34,7 +34,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 
 /** Generic ops object for ping */
