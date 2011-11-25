@@ -1137,7 +1137,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 {
-	return item->ri_type == &c2_rpc_item_conn_establish;
+	return item->ri_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE;
 }
 
 #ifndef __KERNEL__

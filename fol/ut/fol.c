@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"              /* C2_SET0 */
 #include "fol/fol.h"
+#include "rpc/rpc_opcodes.h"
 
 static const char db_name[] = "ut-fol";
 
@@ -85,7 +86,7 @@ static const struct c2_fol_rec_type_ops ut_fol_ops = {
 
 static const struct c2_fol_rec_type ut_fol_type = {
 	.rt_name   = "ut-fol-rec",
-	.rt_opcode = 5,
+	.rt_opcode = C2_FOL_UT_OPCODE,
 	.rt_ops    = &ut_fol_ops
 };
 

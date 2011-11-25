@@ -47,7 +47,8 @@
 #include "stob/linux.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpccore.h"
-#include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
+#include "rpc/rpc_base.h"
 #include "xcode/bufvec_xcode.h"
 
 #include "fop/fop_format_def.h"
@@ -63,6 +64,7 @@
 
 #include "reqh/ut/fom_io.ff"
 #include "reqh/reqh_fops.ff"
+#include "rpc/rpc_opcodes.h"
 
 /**
    @addtogroup reqh
@@ -135,33 +137,33 @@ static const struct c2_rpc_item_type_ops reqh_ut_create_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_write_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_read_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_rpc_item_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 /**
@@ -171,33 +173,33 @@ static const struct c2_rpc_item_type_ops reqh_ut_create_rep_rpc_item_type_ops = 
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_write_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops reqh_ut_read_rep_rpc_item_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
-        .rito_item_size = c2_rpc_item_default_size,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_io_frags_nr_get = NULL,
         .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 };
 
 /**
@@ -252,76 +254,37 @@ static const struct c2_fop_type_ops reqh_ut_read_rep_fop_ops = {
 };
 
 /**
- * Fop opcodes
- */
-enum reply_fop {
-	CREATE_REQ = 40,
-	WRITE_REQ,
-	READ_REQ,
-	CREATE_REP = 43,
-	WRITE_REP,
-	READ_REP
-};
-/**
-   Item type declartaions
- */
-
-static struct c2_rpc_item_type reqh_ut_create_rpc_item_type = {
-        .rit_opcode = CREATE_REQ,
-        .rit_ops = &reqh_ut_create_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-static struct c2_rpc_item_type reqh_ut_write_rpc_item_type = {
-        .rit_opcode = WRITE_REQ,
-        .rit_ops = &reqh_ut_write_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-static struct c2_rpc_item_type reqh_ut_read_rpc_item_type = {
-        .rit_opcode = READ_REQ,
-        .rit_ops = &reqh_ut_read_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
-};
-
-/**
-   Reply rpc item type
- */
-static struct c2_rpc_item_type reqh_ut_create_rep_rpc_item_type = {
-        .rit_opcode = CREATE_REP,
-        .rit_ops = &reqh_ut_create_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-
-static struct c2_rpc_item_type reqh_ut_write_rep_rpc_item_type = {
-        .rit_opcode = WRITE_REP,
-        .rit_ops = &reqh_ut_write_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-
-static struct c2_rpc_item_type reqh_ut_read_rep_rpc_item_type = {
-        .rit_opcode = READ_REP,
-        .rit_ops = &reqh_ut_read_rep_rpc_item_type_ops,
-        .rit_flags = C2_RPC_ITEM_TYPE_REPLY
-};
-
-/**
  * Fop type declarations for corresponding fops
  */
 
-C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_create, "reqh_ut_create", CREATE_REQ,
-			&reqh_ut_create_fop_ops, &reqh_ut_create_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_write, "reqh_ut_write", WRITE_REQ,
-			&reqh_ut_write_fop_ops, &reqh_ut_write_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_read, "reqh_ut_read", READ_REQ,
-			&reqh_ut_read_fop_ops, &reqh_ut_read_rpc_item_type);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create, "reqh_ut_create",
+		      &reqh_ut_create_fop_ops, C2_REQH_UT_CREATE_REQ_OPCODE,
+		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		      &reqh_ut_create_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write, "reqh_ut_write",
+		      &reqh_ut_write_fop_ops, C2_REQH_UT_WRITE_REQ_OPCODE,
+		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		      &reqh_ut_write_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read, "reqh_ut_read",
+		      &reqh_ut_read_fop_ops, C2_REQH_UT_READ_REQ_OPCODE,
+		      C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		      &reqh_ut_read_rpc_item_type_ops);
 
-C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_create_rep, "reqh_ut_create reply", CREATE_REP,
-			&reqh_ut_create_rep_fop_ops, &reqh_ut_create_rep_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_write_rep, "reqh_ut_write reply", WRITE_REP,
-			&reqh_ut_write_rep_fop_ops, &reqh_ut_write_rep_rpc_item_type);
-C2_FOP_TYPE_DECLARE_NEW(reqh_ut_fom_io_read_rep, "reqh_ut_read reply",  READ_REP,
-			&reqh_ut_read_rep_fop_ops, &reqh_ut_read_rep_rpc_item_type);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create_rep, "reqh_ut_create reply",
+		      &reqh_ut_create_rep_fop_ops,
+		      C2_REQH_UT_CREATE_REPLY_OPCODE,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &reqh_ut_create_rep_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write_rep, "reqh_ut_write reply",
+		      &reqh_ut_write_rep_fop_ops,
+		      C2_REQH_UT_WRITE_REPLY_OPCODE,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &reqh_ut_write_rep_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read_rep, "reqh_ut_read reply",
+		      &reqh_ut_read_rep_fop_ops,
+		      C2_REQH_UT_READ_REPLY_OPCODE,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &reqh_ut_read_rep_rpc_item_type_ops);
 
 /**
  * Fop type structures required for initialising corresponding fops.
@@ -423,9 +386,10 @@ static struct c2_fom_type *reqh_ut_fom_types[] = {
  */
 static struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_UT_ASSERT(IS_IN_ARRAY((code - CREATE_REQ), reqh_ut_fom_types));
+	C2_UT_ASSERT(IS_IN_ARRAY((code - C2_REQH_UT_CREATE_REQ_OPCODE),
+		     reqh_ut_fom_types));
 
-	return reqh_ut_fom_types[code - CREATE_REQ];
+	return reqh_ut_fom_types[code - C2_REQH_UT_CREATE_REQ_OPCODE];
 }
 
 /**
@@ -437,7 +401,6 @@ static void create_send(void)
 	struct c2_rpc_item              *item;
 	struct c2_fop                   *fop;
 	struct reqh_ut_fom_io_create    *rh_io_fop;
-	struct c2_fop_type              *ftype;
 	c2_time_t                        timeout;
 	uint32_t                         i;
 
@@ -451,9 +414,6 @@ static void create_send(void)
 		item->ri_deadline = 0;
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
-		item->ri_type = &reqh_ut_create_rpc_item_type;
-		ftype = fop->f_type;
-		ftype->ft_ri_type = &reqh_ut_create_rpc_item_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
@@ -476,7 +436,6 @@ static void read_send(void)
 	c2_time_t                        timeout;
 	struct c2_fop                   *fop;
 	struct reqh_ut_fom_io_read      *rh_io_fop;
-	struct c2_fop_type              *ftype;
 	uint32_t                         i;
 
 	for (i = 0; i < 10; ++i) {
@@ -489,9 +448,7 @@ static void read_send(void)
 		item->ri_deadline = 0;
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
-		item->ri_type = &reqh_ut_read_rpc_item_type;
-		ftype = fop->f_type;
-		ftype->ft_ri_type = &reqh_ut_read_rpc_item_type;
+		item->ri_type = &fop->f_type->ft_rpc_item_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
@@ -513,7 +470,6 @@ static void write_send(void)
 	struct c2_rpc_item              *item;
 	struct c2_fop                   *fop;
 	struct reqh_ut_fom_io_write     *rh_io_fop;
-	struct c2_fop_type              *ftype;
 	c2_time_t                        timeout;
 	uint32_t                         i;
 
@@ -527,9 +483,7 @@ static void write_send(void)
 		item->ri_deadline = 0;
 		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 		item->ri_group = NULL;
-		item->ri_type = &reqh_ut_write_rpc_item_type;
-		ftype = fop->f_type;
-		ftype->ft_ri_type = &reqh_ut_write_rpc_item_type;
+		item->ri_type = &fop->f_type->ft_rpc_item_type;
 		item->ri_session = &cl_rpc_session;
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
@@ -666,8 +620,8 @@ static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 	if (fom == NULL)
 		return -EINVAL;
 
-	switch (fom->fo_fop->f_type->ft_code) {
-	case CREATE_REQ: {
+	switch (fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode) {
+	case C2_REQH_UT_CREATE_REQ_OPCODE: {
 		struct reqh_ut_fom_io_create *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -675,7 +629,7 @@ static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		iloc = oid;
 		break;
 	}
-	case WRITE_REQ: {
+	case C2_REQH_UT_WRITE_REQ_OPCODE: {
 		struct reqh_ut_fom_io_read *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -683,7 +637,7 @@ static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		iloc = oid;
 		break;
 	}
-	case READ_REQ: {
+	case C2_REQH_UT_READ_REQ_OPCODE: {
 		struct reqh_ut_fom_io_write *fop;
 		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
@@ -710,7 +664,8 @@ static int reqh_ut_create_fom_state(struct c2_fom *fom)
 	struct c2_fop                           *fop;
 	int                                      result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
+	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	       C2_REQH_UT_CREATE_REQ_OPCODE);
 
 	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (fom->fo_phase < FOPH_NR) {
@@ -725,9 +680,8 @@ static int reqh_ut_create_fom_state(struct c2_fom *fom)
 		out_fop->ficr_rc = result;
 		fop = fom_obj->rep_fop;
 		item = c2_fop_to_rpc_item(fop);
-		item->ri_type = &reqh_ut_create_rep_rpc_item_type;
+		item->ri_type = &fop->f_type->ft_rpc_item_type;
 		item->ri_group = NULL;
-		fop->f_type->ft_ri_type = &reqh_ut_create_rep_rpc_item_type;
 		fom->fo_rep_fop = fom_obj->rep_fop;
 		fom->fo_rc = result;
 		if (result != 0)
@@ -765,7 +719,8 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result;
 
-        C2_PRE(fom->fo_fop->f_type->ft_code == READ_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	       C2_REQH_UT_READ_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
         stio = &fom_obj->rh_ut_stio;
@@ -791,7 +746,7 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
 
                         c2_stob_io_init(stio);
 
-                        stio->si_user.div_vec = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr,
+                        stio->si_user = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr,
                                                                                 &count);
 
                         stio->si_stob.iv_vec.v_nr    = 1;
@@ -830,9 +785,8 @@ static int reqh_ut_read_fom_state(struct c2_fom *fom)
                         out_fop->firr_rc = fom->fo_rc;
 			fop = fom_obj->rep_fop;
 			item = c2_fop_to_rpc_item(fop);
-                        item->ri_type = &reqh_ut_read_rep_rpc_item_type;
+                        item->ri_type = &fop->f_type->ft_rpc_item_type;
                         item->ri_group = NULL;
-                        fop->f_type->ft_ri_type = &reqh_ut_read_rep_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -875,7 +829,8 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result;
 
-        C2_PRE(fom->fo_fop->f_type->ft_code == WRITE_REQ);
+        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	       C2_REQH_UT_WRITE_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
         stio = &fom_obj->rh_ut_stio;
@@ -901,7 +856,7 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
 
                         c2_stob_io_init(stio);
 
-                        stio->si_user.div_vec = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr, &count);
+                        stio->si_user = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr, &count);
 
                         stio->si_stob.iv_vec.v_nr    = 1;
                         stio->si_stob.iv_vec.v_count = &count;
@@ -938,9 +893,7 @@ static int reqh_ut_write_fom_state(struct c2_fom *fom)
                         out_fop->fiwr_rc = fom->fo_rc;
 			fop = fom_obj->rep_fop;
 			item = c2_fop_to_rpc_item(fop);
-			item->ri_type = &reqh_ut_write_rep_rpc_item_type;
 			item->ri_group = NULL;
-			fop->f_type->ft_ri_type = &reqh_ut_write_rep_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -987,7 +940,8 @@ static int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
 
-	fom_type = reqh_ut_fom_type_map(fop->f_type->ft_code);
+	fom_type =
+	reqh_ut_fom_type_map(fop->f_type->ft_rpc_item_type.rit_opcode);
 	if (fom_type == NULL)
 		return -EINVAL;
 	fop->f_type->ft_fom_type = *fom_type;

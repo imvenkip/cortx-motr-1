@@ -248,7 +248,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_PRE(io->si_obj == NULL);
 	C2_PRE(io->si_state == SIS_IDLE);
 	C2_PRE(io->si_opcode != SIO_INVALID);
-	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) ==
+	C2_PRE(c2_vec_count(&io->si_user.ov_vec) == 
 	       c2_vec_count(&io->si_stob.iv_vec));
 	C2_PRE(c2_stob_io_user_is_valid(&io->si_user));
 	C2_PRE(c2_stob_io_stob_is_valid(&io->si_stob));
@@ -278,7 +278,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 }
 C2_EXPORTED(c2_stob_io_launch);
 
-bool c2_stob_io_user_is_valid(const struct c2_diovec *user)
+bool c2_stob_io_user_is_valid(const struct c2_bufvec *user)
 {
 	return true;
 }

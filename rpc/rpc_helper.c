@@ -169,7 +169,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	c2_rpc_item_init(item);
 
 	item->ri_session = session;
-	item->ri_type = fop->f_type->ft_ri_type;
+	item->ri_type = &fop->f_type->ft_rpc_item_type;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 
 	c2_clink_init(&clink, NULL);

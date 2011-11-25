@@ -21,7 +21,7 @@
 
 #include <linux/module.h>
 
-size_t c2_rpc_item_default_size(struct c2_rpc_item *item);
+size_t c2_fop_item_type_default_onwire_size(struct c2_rpc_item *item);
 
 /* __COLIBRI_RPC_RPC_KERNEL_H__ */
 #endif

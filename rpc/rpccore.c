@@ -34,6 +34,7 @@
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
 
@@ -303,6 +304,12 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 
 int c2_rpc_core_init(void)
 {
+	int	rc;
+
+	rc = c2_rpc_base_init();
+	if (rc != 0)
+		return rc;
+
 	return c2_rpc_session_module_init();
 }
 C2_EXPORTED(c2_rpc_core_init);
@@ -310,6 +317,7 @@ C2_EXPORTED(c2_rpc_core_init);
 void c2_rpc_core_fini(void)
 {
 	c2_rpc_session_module_fini();
+	c2_rpc_base_fini();
 }
 C2_EXPORTED(c2_rpc_core_fini);
 
@@ -934,71 +942,10 @@ void us_recovery_complete(struct c2_update_stream *us)
 	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
-{
-	struct c2_fop_type	*ftype;
-	struct c2_rpc_item_type *item_type;
-
-	ftype = c2_fop_type_search(opcode);
-	C2_ASSERT(ftype != NULL);
-	C2_ASSERT(ftype->ft_ri_type != NULL);
-	item_type = ftype->ft_ri_type;
-	return item_type;
-}
-
 static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_timeout           = us_timeout,
 	.uso_recovery_complete = us_recovery_complete
 };
-
-/**
-   Associate an rpc with its corresponding rpc_item_type.
-   Since rpc_item_type by itself can not be uniquely identified,
-   rather it is tightly bound to its fop_type, the fop_type_code
-   is passed, based on which the rpc_item is associated with its
-   rpc_item_type.
-   @todo Deprecated API. Need to be removed. Should not use this API anywhere.
- */
-void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
-{
-	uint32_t opcode;
-
-	C2_PRE(fopt != NULL);
-
-	/* XXX Needs to be implemented in a clean way. */
-	/* This is a temporary approach to associate an rpc_item
-	   with its rpc_item_type. It will be discarded once we
-	   have a better mapping function for associating
-	   rpc_item_type with an rpc_item. */
-	opcode = fopt->ft_code;
-	switch (opcode) {
-		break;
-	default:
-		/* FOP operations which need to set opcode should either
-		   attach on their own, or use this subroutine. Hence default
-		   is kept blank */
-		break;
-	};
-	/* XXX : Assign unique opcode to associated rpc item type.
-	 *       Will be removed once proper mapping and association between
-	 *	 rpc item and fop is established
-	 */
-	if(fopt->ft_ri_type != NULL)
-		fopt->ft_ri_type->rit_opcode = opcode;
-}
-C2_EXPORTED(c2_rpc_item_type_attach);
-
-/*
-void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
-{
-	uint32_t		opcode;
-
-	C2_PRE(fopt != NULL);
-
-	opcode = fopt->ft_code;
-	if(fopt->ft_ri_type != NULL)
-		fopt->ft_ri_type->rit_opcode = opcode;
-}*/
 
 /**
   Set the stats for outgoing rpc object
@@ -1046,7 +993,7 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
 
         st->rs_items_nr++;
-        st->rs_bytes_nr += c2_rpc_item_default_size(item);
+        st->rs_bytes_nr += c2_fop_item_type_default_onwire_size(item);
 
 	c2_mutex_unlock(&machine->cr_stats_mutex);
 }
@@ -1145,7 +1092,7 @@ void c2_rpc_bulk_buf_init(struct c2_rpc_bulk_buf *buf, uint32_t segs_nr,
 	C2_PRE(segs_nr != 0);
 
 	buf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
-	c2_0vec_init(&buf->bb_zerovec, segs_nr, 0);
+	c2_0vec_init(&buf->bb_zerovec, segs_nr);
 	buf->bb_rbulk = rbulk;
 	c2_tlink_init(&rpcbulk_tl, buf);
 }
@@ -1182,7 +1129,7 @@ int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
 	rbulk->rb_magic = C2_RPC_BULK_MAGIC;
 	rbulk->rb_rc = 0;
 
-	return c2_0vec_init(&buf->bb_zerovec, segs_nr, seg_size);
+	return c2_0vec_init(&buf->bb_zerovec, segs_nr);
 }
 
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
@@ -1195,7 +1142,7 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 	c2_chan_fini(&rbulk->rb_chan);
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
 		c2_tlist_del(&rpcbulk_tl, buf);
-		c2_0vec_free(&buf->bb_zerovec);
+		c2_0vec_fini(&buf->bb_zerovec);
 	} c2_tlist_endfor;
 	c2_mutex_fini(&rbulk->rb_mutex);
 	c2_tlist_fini(&rpcbulk_tl, &rbulk->rb_buflist);

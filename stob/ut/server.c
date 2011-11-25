@@ -44,6 +44,7 @@
 #include "stob/ad.h"
 #include "colibri/init.h"
 #include "rpc/rpccore.h"
+#include "rpc/rpc_opcodes.h"
 
 #include "io_fop.h"
 #include "io_u.h"
@@ -165,9 +166,9 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		c2_stob_io_init(&io);
 
-		io.si_user.div_vec.ov_vec.v_nr    = 1;
-		io.si_user.div_vec.ov_vec.v_count = &in->sir_seg.f_count;
-		io.si_user.div_vec.ov_buf = &addr;
+		io.si_user.ov_vec.v_nr    = 1;
+		io.si_user.ov_vec.v_count = &in->sir_seg.f_count;
+		io.si_user.ov_buf = &addr;
 
 		io.si_stob.iv_vec.v_nr    = 1;
 		io.si_stob.iv_vec.v_count = &in->sir_seg.f_count;
@@ -248,9 +249,9 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		c2_stob_io_init(&io);
 
-		io.si_user.div_vec.ov_vec.v_nr    = 1;
-		io.si_user.div_vec.ov_vec.v_count = &count;
-		io.si_user.div_vec.ov_buf = &addr;
+		io.si_user.ov_vec.v_nr    = 1;
+		io.si_user.ov_vec.v_count = &count;
+		io.si_user.ov_buf = &addr;
 
 		io.si_stob.iv_vec.v_nr    = 1;
 		io.si_stob.iv_vec.v_count = &count;
@@ -325,13 +326,16 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	/*
 	 * FOMs are implemented only for read and write operations
 	 */
-	if ((fop->f_type->ft_code >= C2_IOSERVICE_READV_OPCODE &&
-	     fop->f_type->ft_code <= C2_IOSERVICE_WRITEV_REP_OPCODE)) {
+	if ((fop->f_type->ft_rpc_item_type.rit_opcode
+	     >= C2_IOSERVICE_READV_OPCODE &&
+	     fop->f_type->ft_rpc_item_type.rit_opcode <=
+	     C2_IOSERVICE_WRITEV_REP_OPCODE)) {
 		c2_reqh_fop_handle(&reqh, fop);
 	}
 	else
 	printf("Got fop: code = %d, name = %s\n",
-			 fop->f_type->ft_code, fop->f_type->ft_name);
+	       fop->f_type->ft_rpc_item_type.rit_opcode,
+	       fop->f_type->ft_name);
 
 	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
 	SERVER_ADDB_ADD("io_handler", rc);
@@ -341,13 +345,11 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
 
 static struct c2_fop_type *fopt[] = {
+	&c2_addb_record_fopt,
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
 	&c2_io_quit_fopt,
-
-	&c2_addb_record_fopt,
-
 	&c2_fop_cob_readv_fopt,
 	&c2_fop_cob_writev_fopt,
 	&c2_fop_cob_readv_rep_fopt,
@@ -599,7 +601,7 @@ int main(int argc, char **argv)
 	 */
 	C2_SET0(&service);
 
-	service.s_table.not_start = fopt[0]->ft_code;
+	service.s_table.not_start = fopt[0]->ft_rpc_item_type.rit_opcode;
 	service.s_table.not_nr    = ARRAY_SIZE(fopt);
 	service.s_table.not_fopt  = fopt;
 	service.s_handler         = &io_handler;
@@ -647,7 +649,6 @@ int main(int argc, char **argv)
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
 	io_fop_fini();
-	c2_ioservice_fop_fini();
 	c2_reqh_fini(&reqh);
 	c2_processors_fini();
 	c2_fol_fini(&fol);

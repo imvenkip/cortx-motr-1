@@ -29,6 +29,9 @@
 #include "net/net_internal.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+#include "rpc/rpc_base.h"
+#include "rpc/rpc_opcodes.h"
+
 #ifdef __KERNEL__
 #include <linux/highmem.h> /* kmap_atomic, kunmap_atomic */
 #include "net/ksunrpc/ksunrpc.h"
@@ -54,13 +57,32 @@ static struct c2_fop_type_ops sunrpc_put_ops = {
 	.fto_execute = sunrpc_put_handler,
 };
 
-C2_FOP_TYPE_DECLARE(sunrpc_msg,      "sunrpc_msg", 30, &sunrpc_msg_ops);
-C2_FOP_TYPE_DECLARE(sunrpc_get,      "sunrpc_get", 31, &sunrpc_get_ops);
-C2_FOP_TYPE_DECLARE(sunrpc_put,      "sunrpc_put", 32, &sunrpc_put_ops);
+C2_FOP_TYPE_DECLARE(sunrpc_msg, "sunrpc_msg", &sunrpc_msg_ops,
+		      C2_BULK_SUNRPC_MSG_OPCODE,
+		      C2_RPC_ITEM_TYPE_REQUEST,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(sunrpc_get, "sunrpc_get", &sunrpc_get_ops,
+		      C2_BULK_SUNRPC_GET_OPCODE,
+		      C2_RPC_ITEM_TYPE_REQUEST,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(sunrpc_put, "sunrpc_put", &sunrpc_put_ops,
+		      C2_BULK_SUNRPC_PUT_OPCODE,
+		      C2_RPC_ITEM_TYPE_REQUEST,
+		      &c2_rpc_fop_default_item_type_ops);
 
-C2_FOP_TYPE_DECLARE(sunrpc_msg_resp, "sunrpc_msg reply", 35, NULL);
-C2_FOP_TYPE_DECLARE(sunrpc_get_resp, "sunrpc_get reply", 36, NULL);
-C2_FOP_TYPE_DECLARE(sunrpc_put_resp, "sunrpc_put reply", 37, NULL);
+
+C2_FOP_TYPE_DECLARE(sunrpc_msg_resp, "sunrpc_msg_reply", NULL,
+		      C2_BULK_SUNRPC_MSG_REPLY_OPCODE,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(sunrpc_get_resp, "sunrpc_get_reply", NULL,
+		      C2_BULK_SUNRPC_GET_REPLY_OPCODE,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &c2_rpc_fop_default_item_type_ops);
+C2_FOP_TYPE_DECLARE(sunrpc_put_resp, "sunrpc_put_reply", NULL,
+		      C2_BULK_SUNRPC_PUT_REPLY_OPCODE,
+		      C2_RPC_ITEM_TYPE_REPLY,
+		      &c2_rpc_fop_default_item_type_ops);
 
 static struct c2_fop_type *fops[] = {
 	&sunrpc_msg_fopt,

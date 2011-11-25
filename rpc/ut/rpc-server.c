@@ -144,7 +144,7 @@ int main()
          */
 	C2_SET0(&service);
 
-	service.s_table.not_start = fopt[0]->ft_code;
+	service.s_table.not_start = fopt[0]->ft_rpc_item_type.rit_opcode;
 	service.s_table.not_nr    = ARRAY_SIZE(fopt);
 	service.s_table.not_fopt  = fopt;
 	service.s_handler         = &rpc_handler;

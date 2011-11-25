@@ -173,16 +173,6 @@ struct page;
 struct c2_io_ioseg;
 
 /**
- * The opcode from which IO service FOPS start.
- */
-enum c2_io_service_opcodes {
-	C2_IOSERVICE_READV_OPCODE = 15,
-	C2_IOSERVICE_WRITEV_OPCODE = 16,
-	C2_IOSERVICE_READV_REP_OPCODE = 17,
-	C2_IOSERVICE_WRITEV_REP_OPCODE = 18,
-};
-
-/**
    Returns the number of fops registered by ioservice.
  */
 int c2_ioservice_fops_nr(void);

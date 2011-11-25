@@ -42,7 +42,7 @@ static size_t home_locality(const struct c2_fom *fom)
 {
         C2_PRE(fom != NULL);
 
-        return fom->fo_fop->f_type->ft_code;
+        return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
 static void default_fom_fini(struct c2_fom *fom)
@@ -83,7 +83,8 @@ static int fom_disk_state(struct c2_fom *fom)
         reply_item = c2_fop_to_rpc_item(disk_fom->disk_reply_fop);
 	C2_ASSERT(reply_item != NULL);
         c2_rpc_item_init(reply_item);
-        reply_item->ri_type = &c2_rpc_item_cons_reply;
+        reply_item->ri_type =
+	&disk_fom->disk_reply_fop->f_type->ft_rpc_item_type;
         reply_item->ri_group = NULL;
 
         rc = c2_rpc_reply_post(req_item, reply_item);
@@ -140,7 +141,8 @@ static int fom_device_state(struct c2_fom *fom)
         reply_item = c2_fop_to_rpc_item(dev_fom->dev_reply_fop);
         C2_ASSERT(reply_item != NULL);
         c2_rpc_item_init(reply_item);
-        reply_item->ri_type = &c2_rpc_item_cons_reply;
+        reply_item->ri_type =
+	&dev_fom->dev_reply_fop->f_type->ft_rpc_item_type;
         reply_item->ri_group = NULL;
 
         rc = c2_rpc_reply_post(req_item, reply_item);

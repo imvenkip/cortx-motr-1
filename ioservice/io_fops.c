@@ -35,9 +35,12 @@
 #include "lib/memory.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
+#include "rpc/rpc_base.h"
+#include "rpc/rpc_opcodes.h"
 #include "lib/vec.h"	/* c2_0vec */
 #include "lib/memory.h"
 #include "rpc/rpccore.h"
+#include "fop/fop_onwire.h"
 
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
@@ -48,14 +51,6 @@ C2_TL_DESCR_DECLARE(rpcbulk, extern);
 C2_TL_DESCR_DECLARE(rpcitem, extern);
 
 /* Forward declarations. */
-int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item *item,
-			      struct c2_bufvec_cursor *cur);
-
-int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item **item,
-			      struct c2_bufvec_cursor *cur);
-
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
@@ -432,7 +427,7 @@ static void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
 
-	seg->is_index = zvec->z_indices[seg_index];
+	seg->is_index = zvec->z_index[seg_index];
 	seg->is_count = zvec->z_bvec.ov_vec.v_count[seg_index];
 	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
 }
@@ -621,9 +616,9 @@ static uint64_t io_fop_fragments_nr_get(const struct c2_fop *fop)
 
 	iovec = io_0vec_get(fop);
 	for (i = 0; i < iovec->z_bvec.ov_vec.v_nr - 1; ++i)
-		if (iovec->z_indices[i] +
+		if (iovec->z_index[i] +
 		    iovec->z_bvec.ov_vec.v_count[i] !=
-		    iovec->z_indices[i+1])
+		    iovec->z_index[i+1])
 			frag_nr++;
 	return frag_nr;
 }
@@ -784,7 +779,7 @@ cleanup:
 		if (cnt == 0)
 			continue;
 		c2_tlist_del(&rpcbulk_tl, buf);
-		c2_0vec_free(&buf->bb_zerovec);
+		c2_0vec_fini(&buf->bb_zerovec);
 		c2_free(buf);
 
 	} c2_tlist_endfor;
@@ -828,7 +823,7 @@ static int io_fop_indexvec_prepare(struct c2_fop *res_fop)
 		ivec[cnt].ci_nr = min;
 		for (j = 0; j < min; ++j) {
 			ivec[cnt].ci_iosegs[j].ci_index =
-				buf->bb_zerovec.z_indices[j];
+				buf->bb_zerovec.z_index[j];
 			ivec[cnt].ci_iosegs[j].ci_count =
 				buf->bb_zerovec.z_bvec.ov_vec.v_count[j];
 		}
@@ -962,7 +957,7 @@ void io_fop_replied(struct c2_fop *fop)
 		bkpfop = c2_rpc_item_to_fop(bkpitem);
 		bkpvec = io_0vec_get(bkpfop);
 		iovec = io_0vec_get(fop);
-		c2_0vec_free(iovec);
+		c2_0vec_fini(iovec);
 		*iovec = *bkpvec;
 		io_rpcbulk_buf_get(fop)->bb_nbuf.nb_length =
 			io_rpcbulk_buf_get(bkpfop)->bb_nbuf.nb_length;
@@ -1138,8 +1133,8 @@ static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
         .rito_item_size = io_item_size_get,
         .rito_io_frags_nr_get = io_frags_nr_get,
         .rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 	.rito_io_desc_store = io_item_desc_store,
 };
 
@@ -1150,8 +1145,8 @@ static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
         .rito_item_size = io_item_size_get,
         .rito_io_frags_nr_get = io_frags_nr_get,
         .rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
 	.rito_io_desc_store = io_item_desc_store,
 };
 
@@ -1163,17 +1158,21 @@ struct c2_rpc_item_type rpc_item_type_writev = {
         .rit_ops = &rpc_item_writev_type_ops,
 };
 
-C2_FOP_TYPE_DECLARE_NEW(c2_fop_cob_readv, "Read request",
-			C2_IOSERVICE_READV_OPCODE, &c2_io_cob_readv_ops,
-			&rpc_item_type_readv);
-C2_FOP_TYPE_DECLARE_NEW(c2_fop_cob_writev, "Write request",
-			C2_IOSERVICE_WRITEV_OPCODE, &c2_io_cob_writev_ops,
-			&rpc_item_type_writev);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
+		    &c2_io_cob_readv_ops, C2_IOSERVICE_READV_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST, &rpc_item_readv_type_ops);
+
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
+		    &c2_io_cob_writev_ops, C2_IOSERVICE_WRITEV_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST, &rpc_item_writev_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
-		    C2_IOSERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY, NULL);
+
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
-		    C2_IOSERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY, NULL);
 
 int c2_ioservice_fops_nr(void)
 {
