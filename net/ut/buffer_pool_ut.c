@@ -33,9 +33,9 @@ static void notempty(struct c2_net_buffer_pool *bp);
 static void low(struct c2_net_buffer_pool *bp);
 static void buffers_get_put(int rc);
 
-struct c2_net_buffer_pool bp;
-static struct c2_chan      buf_chan;
-static struct c2_net_xprt	  *xprt = &c2_net_bulk_sunrpc_xprt;
+struct c2_net_buffer_pool  bp;
+static struct c2_chan	   buf_chan;
+static struct c2_net_xprt *xprt = &c2_net_bulk_sunrpc_xprt;
 
 const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = notempty,
@@ -45,7 +45,7 @@ const struct c2_net_buffer_pool_ops b_ops = {
 /**
    Initialization of buffer pool.
  */
-void test_init(void)
+static void test_init(void)
 {
 	int rc;
 	c2_chan_init(&buf_chan);
@@ -62,7 +62,7 @@ void test_init(void)
 	C2_UT_ASSERT(rc == 10);
 }
 
-void test_get_put(void)
+static void test_get_put(void)
 {
 	struct c2_net_buffer *nb;
 	uint32_t	      free = bp.nbp_free;
@@ -77,7 +77,7 @@ void test_get_put(void)
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_get_put_colour(void)
+static void test_get_put_colour(void)
 {
 	struct c2_net_buffer *nb;
 	uint32_t	      free = bp.nbp_free;
@@ -97,7 +97,7 @@ void test_get_put_colour(void)
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_grow(void)
+static void test_grow(void)
 {
 	uint32_t buf_nr = bp.nbp_buf_nr;
 	c2_net_buffer_pool_lock(&bp);
@@ -108,7 +108,7 @@ void test_grow(void)
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_prune(void)
+static void test_prune(void)
 {
 	uint32_t buf_nr = bp.nbp_buf_nr;
 	c2_net_buffer_pool_lock(&bp);
@@ -118,11 +118,11 @@ void test_prune(void)
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_get_put_multiple(void)
+static void test_get_put_multiple(void)
 {
 	int		  i;
 	int		  rc;
-	const int 	  nr_client_threads = 5;
+	const int	  nr_client_threads = 10;
 	struct c2_thread *client_thread;
 
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
@@ -133,30 +133,12 @@ void test_get_put_multiple(void)
 				     NULL, &buffers_get_put,
 					~0, "client_%d", i);
 		C2_ASSERT(rc == 0);
-	}
-	for (i = 0; i < nr_client_threads; i++) {
-		c2_thread_join(&client_thread[i]);
-	}
-	c2_free(client_thread);
-	c2_net_buffer_pool_lock(&bp);
-	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
-	c2_net_buffer_pool_unlock(&bp);
-}
-
-void test_get_put_colour_multiple(void)
-{
-	int		  i;
-	int		  rc;
-	const int 	  nr_client_threads = 5;
-	struct c2_thread *client_thread;
-
-	C2_ALLOC_ARR(client_thread, nr_client_threads);
-	C2_UT_ASSERT(client_thread != NULL);
-	for (i = 0; i < nr_client_threads; i++) {
-		C2_SET0(&client_thread[i]);
+		C2_SET0(&client_thread[++i]);
+		/* value of integer 'i' is used to put ot get the
+		   buffer in coloured list */
 		rc = C2_THREAD_INIT(&client_thread[i], int,
 				     NULL, &buffers_get_put,
-					0, "client_%d", i);
+					i, "client_%d", i);
 		C2_ASSERT(rc == 0);
 	}
 	for (i = 0; i < nr_client_threads; i++) {
@@ -168,7 +150,7 @@ void test_get_put_colour_multiple(void)
 	c2_net_buffer_pool_unlock(&bp);
 }
 
-void test_fini(void)
+static void test_fini(void)
 {
 	c2_net_buffer_pool_lock(&bp);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
@@ -194,7 +176,7 @@ static void buffers_get_put(int rc)
 		if (nb == NULL)
 			c2_chan_wait(&buf_link);
 	} while (nb == NULL);
-	c2_nanosleep(c2_time_set(&t, .001, 0), NULL);
+	c2_nanosleep(c2_time_set(&t, 0, 100), NULL);
 	c2_net_buffer_pool_lock(&bp);
 	if (nb != NULL)
 		c2_net_buffer_pool_put(&bp, nb, rc);
@@ -218,16 +200,14 @@ const struct c2_test_suite buffer_pool_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "buffer_pool_init		      ", test_init},
-		{ "buffer_pool_get_put		      ", test_get_put},
-		{ "buffer_pool_get_put_colour	      ", test_get_put_colour},
-		{ "buffer_pool_grow		      ", test_grow},
-		{ "buffer_pool_prune		      ", test_prune},
-		{ "buffer_pool_get_put_multiple	      ", test_get_put_multiple},
-		{ "buffer_pool_get_put_colour_multiple",
-						  test_get_put_colour_multiple},
-		{ "buffer_pool_fini		      ", test_fini},
-		{ NULL,					 NULL }
+		{ "buffer_pool_init		", test_init},
+		{ "buffer_pool_get_put		", test_get_put},
+		{ "buffer_pool_get_put_colour	", test_get_put_colour},
+		{ "buffer_pool_grow		", test_grow},
+		{ "buffer_pool_prune		", test_prune},
+		{ "buffer_pool_get_put_multiple	", test_get_put_multiple},
+		{ "buffer_pool_fini		", test_fini},
+		{ NULL,				   NULL }
 	}
 };
 C2_EXPORTED(buffer_pool_ut);

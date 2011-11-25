@@ -73,7 +73,7 @@ static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 {
 	struct c2_net_buffer *nb;
 	if (!pool_tlist_is_empty(&pool->nbp_lru)) {
-		/* Casting is needed as it needs a non cast argument. */
+		/* Casting is needed as it needs a non const argument. */
 		c2_tlist_for(&pool_tl, (struct c2_tl *)&pool->nbp_lru, nb) {
 			if ((nb->nb_flags & C2_NET_BUF_IN_USE) ||
 			   !(nb->nb_flags & C2_NET_BUF_REGISTERED)) {
