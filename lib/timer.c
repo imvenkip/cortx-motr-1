@@ -541,13 +541,8 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 		timer->t_expire = c2_time_add(timer->t_expire,
 				timer->t_interval);
 		timer->t_callback(timer->t_data);
-		/** @todo
-		 * race condition problem here
-		 * if between (timer->t_left == 0) and (--timer->t_left == 0)
-		 * executed timer->t_left = 0; from c2_timer_stop()
-		 * then we have very big loop here and lock in c2_timer_stop()
-		*/
-		if (timer->t_left == 0 || --timer->t_left == 0)
+		--timer->t_left;
+		if (timer->t_left == 0 || timer->t_left == ~0)
 			break;
 	}
 }
