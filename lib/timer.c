@@ -219,8 +219,7 @@ void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	if (loc->tlo_rrtid == NULL)
 		loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
 	tt = loc->tlo_rrtid;
-	if (loc->tlo_rrtid == tid_tlist_tail(&loc->tlo_tids))
-		loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
+	loc->tlo_rrtid = tid_tlist_next(&loc->tlo_tids, tt);
 	c2_mutex_unlock(&loc->tlo_lock);
 	timer->t_info->ti_tid = tt->tt_tid;
 }
