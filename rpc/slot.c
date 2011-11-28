@@ -42,7 +42,7 @@
 #include "db/db.h"
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation.h"
 
 /**

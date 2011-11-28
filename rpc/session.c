@@ -43,7 +43,7 @@
 #include "db/db.h"
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 /**
    @addtogroup rpc_session
@@ -470,28 +470,29 @@ int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
 				  uint32_t timeout_sec)
 {
 	int rc;
+	bool state_reached;
 
 	rc = c2_rpc_session_establish(session);
 	if (rc != 0)
 		return rc;
 
 	/* Wait for session to become idle */
-	rc = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE | C2_RPC_SESSION_FAILED,
-				      c2_time_from_now(timeout_sec, 0));
-	if (rc != 0) {
-		switch (session->s_state) {
-		case C2_RPC_SESSION_IDLE:
-			rc = 0;
-			break;
-		case C2_RPC_SESSION_FAILED:
-			rc = -ECONNREFUSED;
-			break;
-		default:
-			C2_ASSERT("internal logic error in "
-				  "c2_rpc_session_timedwait()" == 0);
-		}
-	} else {
-		rc = -ETIMEDOUT;
+	state_reached = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE |
+						 C2_RPC_SESSION_FAILED,
+						 c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (session->s_state) {
+	case C2_RPC_SESSION_IDLE:
+		rc = 0;
+		break;
+	case C2_RPC_SESSION_FAILED:
+		rc = session->s_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in "
+			  "c2_rpc_session_timedwait()" == 0);
 	}
 
 	return rc;
@@ -720,6 +721,7 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 				  uint32_t timeout_sec)
 {
 	int rc;
+	bool state_reached;
 
 	/* Wait for session to become IDLE */
 	c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE,
@@ -731,23 +733,22 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 		return rc;
 
 	/* Wait for session to become TERMINATED */
-	rc = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
-				      C2_RPC_SESSION_FAILED,
-				      c2_time_from_now(timeout_sec, 0));
-	if (rc != 0) {
-		switch (session->s_state) {
-		case C2_RPC_SESSION_TERMINATED:
-			rc = 0;
-			break;
-		case C2_RPC_SESSION_FAILED:
-			rc = -ECONNREFUSED;
-			break;
-		default:
-			C2_ASSERT("internal logic error in "
-				  "c2_rpc_session_timedwait()" == 0);
-		}
-	} else {
-		rc = -ETIMEDOUT;
+	state_reached = c2_rpc_session_timedwait(session,
+				C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
+				c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (session->s_state) {
+	case C2_RPC_SESSION_TERMINATED:
+		rc = 0;
+		break;
+	case C2_RPC_SESSION_FAILED:
+		rc = session->s_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in "
+			  "c2_rpc_session_timedwait()" == 0);
 	}
 
 	return rc;

@@ -1,7 +1,7 @@
 conn.c
 formation.c
 rpc_onwire.c
-rpccore.c
+rpc2.c
 session.c
 session_foms.c
 session_fops.c
