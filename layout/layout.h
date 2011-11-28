@@ -86,11 +86,13 @@ struct c2_layout_enum_ops;
    for PDCLUST and COMPOSITE layout types.
 */
 struct c2_layout_type {
+	/** Layout type name. */
 	const char                       *lt_name;
 
 	/** Layout type id. */
 	uint64_t                          lt_id;
 
+	/** Layout type operations vector. */
 	const struct c2_layout_type_ops  *lt_ops;
 };
 

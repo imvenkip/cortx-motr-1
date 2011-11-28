@@ -31,19 +31,59 @@
 
 void c2_layout_init(struct c2_layout *lay)
 {
+/**
+	@code
+	Invoke lay->l_ops->lo_init().
+	@endcode
+*/
 }
 
 void c2_layout_fini(struct c2_layout *lay)
 {
+/**
+	@code
+	Invoke lay->l_ops->lo_fini().
+	@endcode
+*/
+}
+
+/** Adds a reference to the layout. */
+void c2_layout_get(struct c2_layout *lay)
+{
+/**
+	@code
+	Invoke lay->l_ops->lo_get().
+	@endcode
+*/
+}
+
+/** Releases a reference on the layout. */
+void c2_layout_put(struct c2_layout *lay)
+{
+/**
+	@code
+	Invoke lay->l_ops->lo_put().
+	@endcode
+*/
 }
 
 int c2_layouts_init(void)
 {
+/**
+	@code
+	Invoke lay->l_ops->lo_init() for all the registered layout types.
+	@endcode
+*/
 	return 0;
 }
 
 void c2_layouts_fini(void)
 {
+/**
+	@code
+	Invoke lay->l_ops->lo_fini() for all the registered layout types.
+	@endcode
+*/
 }
 
 /**
