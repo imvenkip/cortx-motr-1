@@ -27,7 +27,6 @@
 #include "rpc/rpccore.h" /* c2_rpcmachine */
 #include "db/db.h"	 /* c2_dbenv */
 #include "cob/cob.h"	 /* c2_cob_domain */
-#include "rpc/session.h" /* c2_rpc_conn */
 #include "reqh/reqh.h"	 /* c2_reqh */
 
 /**
@@ -104,7 +103,8 @@ enum {
 /**
  * @struct c2_console
  * @brief Console has all info required to process message and
- *	  to send it over rpc transport.
+ *	  to send it over rpc transport. Any program will have single
+ *	  instance of it.
  */
 struct c2_console {
         /** Transport structure */
@@ -155,8 +155,6 @@ struct c2_console {
  * @brief Helper function to initialize context for rpc client
  *
  * @param cons context information for rpc connection.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_client_init(struct c2_console *cons);
 
@@ -164,8 +162,6 @@ int c2_cons_rpc_client_init(struct c2_console *cons);
  * @brief Helper function to initialize context for rpc server.
  *
  * @param cons context information for rpc connection.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_server_init(struct c2_console *cons);
 
@@ -184,8 +180,6 @@ void c2_cons_rpc_server_fini(struct c2_console *cons);
  *        with provided server.
  *
  * @param cons Console object ref.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_client_connect(struct c2_console *cons);
 
@@ -193,8 +187,6 @@ int c2_cons_rpc_client_connect(struct c2_console *cons);
  * @brief Closes the RPC session and connection.
  *
  * @param cons Console object ref.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_client_disconnect(struct c2_console *cons);
 /**

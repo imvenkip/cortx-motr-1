@@ -38,17 +38,17 @@ static struct c2_cons_aggr_ops aggr_ops[FFA_NR];
 
 
 
-static void get_void(const struct c2_fop_field_type *ftype,
+static void void_get(const struct c2_fop_field_type *ftype,
 		     const char *name, void *data)
 {
 }
 
-static void set_void(const struct c2_fop_field_type *ftype,
+static void void_set(const struct c2_fop_field_type *ftype,
 		     const char *name, void *data)
 {
 }
 
-static void get_byte(const struct c2_fop_field_type *ftype,
+static void byte_get(const struct c2_fop_field_type *ftype,
 		     const char *name, void *data)
 {
 	char value = *(char *)data;
@@ -57,7 +57,7 @@ static void get_byte(const struct c2_fop_field_type *ftype,
 		printf("\t%s(%s) = %c\n", name, ftype->fft_name, value);
 }
 
-static void set_byte(const struct c2_fop_field_type *ftype,
+static void byte_set(const struct c2_fop_field_type *ftype,
 		     const char *name, void *data)
 {
 	void *tmp_value;
@@ -77,7 +77,7 @@ static void set_byte(const struct c2_fop_field_type *ftype,
 	}
 }
 
-static void get_u32(const struct c2_fop_field_type *ftype,
+static void u32_get(const struct c2_fop_field_type *ftype,
 		    const char *name, void *data)
 {
 	uint32_t value = *(uint32_t *)data;
@@ -86,7 +86,7 @@ static void get_u32(const struct c2_fop_field_type *ftype,
 		printf("\t%s(%s) = %d\n", name, ftype->fft_name, value);
 }
 
-static void set_u32(const struct c2_fop_field_type *ftype,
+static void u32_set(const struct c2_fop_field_type *ftype,
 		    const char *name, void *data)
 {
 	uint32_t  value;
@@ -106,7 +106,7 @@ static void set_u32(const struct c2_fop_field_type *ftype,
 	}
 }
 
-static void get_u64(const struct c2_fop_field_type *ftype,
+static void u64_get(const struct c2_fop_field_type *ftype,
 		    const char *name, void *data)
 {
 	uint64_t value = *(uint64_t *)data;
@@ -115,7 +115,7 @@ static void get_u64(const struct c2_fop_field_type *ftype,
 		printf("\t%s(%s) = %ld\n", name, ftype->fft_name, value);
 }
 
-static void set_u64(const struct c2_fop_field_type *ftype,
+static void u64_set(const struct c2_fop_field_type *ftype,
 		    const char *name, void *data)
 {
 	void *tmp_value;
@@ -140,13 +140,13 @@ static void set_u64(const struct c2_fop_field_type *ftype,
  * @brief Methods to hadle U64, U32, etc.
  */
 static struct c2_cons_atom_ops atom_ops[FPF_NR] = {
-        [FPF_VOID] = { get_void, set_void },
-        [FPF_BYTE] = { get_byte, set_byte },
-        [FPF_U32]  = { get_u32, set_u32 },
-        [FPF_U64]  = { get_u64, set_u64 }
+        [FPF_VOID] = { void_get, void_set },
+        [FPF_BYTE] = { byte_get, byte_set },
+        [FPF_U32]  = { u32_get, u32_set },
+        [FPF_U64]  = { u64_get, u64_set }
 };
 
-static void process_record(const struct c2_fop_field_type *ftype,
+static void record_process(const struct c2_fop_field_type *ftype,
 			   const char *name, void *data, bool output)
 {
 	struct c2_fop_field	 *child;
@@ -182,7 +182,7 @@ static void process_record(const struct c2_fop_field_type *ftype,
 	}
 }
 
-static void process_union(const struct c2_fop_field_type *ftype,
+static void union_process(const struct c2_fop_field_type *ftype,
 			  const char *name, void *data, bool output)
 {
 	struct c2_fop_field	 *child;
@@ -197,7 +197,7 @@ static void process_union(const struct c2_fop_field_type *ftype,
 
 }
 
-static void process_sequence(const struct c2_fop_field_type *ftype,
+static void sequence_process(const struct c2_fop_field_type *ftype,
 			     const char *name, void *data, bool output)
 {
 	struct c2_fop_field	 *child;
@@ -227,12 +227,12 @@ static void process_sequence(const struct c2_fop_field_type *ftype,
 	}
 }
 
-static void process_typedef(const struct c2_fop_field_type *ftype,
+static void typedef_process(const struct c2_fop_field_type *ftype,
 			    const char *name, void *data, bool output)
 {
 }
 
-static void process_atom(const struct c2_fop_field_type *ftype,
+static void atom_process(const struct c2_fop_field_type *ftype,
 			 const char *name, void *data, bool output)
 {
 	enum c2_fop_field_primitive_type  atype;
@@ -248,11 +248,11 @@ static void process_atom(const struct c2_fop_field_type *ftype,
  * @brief Methods to handle RECORD, SEQUENCE, etc.
  */
 static struct c2_cons_aggr_ops aggr_ops[FFA_NR] = {
-        [FFA_RECORD]   = { process_record   },
-        [FFA_UNION]    = { process_union    },
-        [FFA_SEQUENCE] = { process_sequence },
-        [FFA_TYPEDEF]  = { process_typedef  },
-        [FFA_ATOM]     = { process_atom     }
+        [FFA_RECORD]   = { record_process   },
+        [FFA_UNION]    = { union_process    },
+        [FFA_SEQUENCE] = { sequence_process },
+        [FFA_TYPEDEF]  = { typedef_process  },
+        [FFA_ATOM]     = { atom_process     }
 };
 
 void c2_cons_fop_fields_show(struct c2_fit *it)

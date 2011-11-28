@@ -49,45 +49,46 @@ static void default_fom_fini(struct c2_fom *fom)
 {
         return;
 }
+
+static int fop_reply_send(struct c2_fop *fop, struct c2_fop *rfop,
+			  uint32_t opcode, enum c2_cons_mesg_type type)
+{
+        struct c2_cons_fop_reply *reply_fop;
+        struct c2_rpc_item       *reply_item;
+        struct c2_rpc_item       *req_item;
+
+	/* Reply fop */
+        reply_fop = c2_fop_data(rfop);
+	C2_ASSERT(reply_fop != NULL);
+	reply_fop->cons_notify_type = type;
+	reply_fop->cons_return = opcode;
+
+	/* Request item */
+        req_item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(req_item != NULL);
+
+	/* Reply item */
+        reply_item = c2_fop_to_rpc_item(rfop);
+	C2_ASSERT(reply_item != NULL);
+        c2_rpc_item_init(reply_item);
+        reply_item->ri_type = &rfop->f_type->ft_rpc_item_type;
+        reply_item->ri_group = NULL;
+
+        return c2_rpc_reply_post(req_item, reply_item);
+}
 /*
  * Disk FOM processing
  */
 static int fom_disk_state(struct c2_fom *fom)
 {
         struct c2_cons_fom_disk  *disk_fom;
-	struct c2_cons_fop_disk  *disk_fop;
-        struct c2_cons_fop_reply *reply_fop;
-        struct c2_rpc_item       *reply_item;
-        struct c2_rpc_item       *req_item;
 	int			  rc;
 
 	/* Request FOM */
         disk_fom = container_of(fom, struct c2_cons_fom_disk, disk_gen);
-	C2_ASSERT(disk_fom != NULL);
 
-	/* Request FOP */
-	disk_fop = c2_fop_data(disk_fom->disk_fop);
-	C2_ASSERT(disk_fop != NULL);
-
-	/* Reply fop */
-        reply_fop = c2_fop_data(disk_fom->disk_reply_fop);
-	C2_ASSERT(reply_fop != NULL);
-	reply_fop->cons_notify_type = CMT_DISK_FAILURE;
-	reply_fop->cons_return = C2_CONS_FOP_DISK_OPCODE;
-
-	/* Request item */
-        req_item = c2_fop_to_rpc_item(disk_fom->disk_fop);
-	C2_ASSERT(req_item != NULL);
-
-	/* Reply item */
-        reply_item = c2_fop_to_rpc_item(disk_fom->disk_reply_fop);
-	C2_ASSERT(reply_item != NULL);
-        c2_rpc_item_init(reply_item);
-        reply_item->ri_type =
-	&disk_fom->disk_reply_fop->f_type->ft_rpc_item_type;
-        reply_item->ri_group = NULL;
-
-        rc = c2_rpc_reply_post(req_item, reply_item);
+	rc = fop_reply_send(disk_fom->disk_fop, disk_fom->disk_reply_fop,
+			    C2_CONS_FOP_DISK_OPCODE, CMT_DISK_FAILURE);
 	fom->fo_phase = FOPH_FINISH;
 
 	return rc;
@@ -99,7 +100,7 @@ const struct c2_fom_ops c2_cons_fom_disk_ops = {
 	.fo_home_locality = home_locality,
 };
 
-static struct c2_fom_type_ops c2_cons_fom_disk_type_ops = {
+const static struct c2_fom_type_ops c2_cons_fom_disk_type_ops = {
         .fto_create = NULL
 };
 
@@ -113,39 +114,13 @@ struct c2_fom_type c2_cons_fom_disk_type = {
 static int fom_device_state(struct c2_fom *fom)
 {
         struct c2_cons_fom_device  *dev_fom;
-        struct c2_cons_fop_device  *dev_fop;
-        struct c2_cons_fop_reply   *reply_fop;
-        struct c2_rpc_item         *reply_item;
-        struct c2_rpc_item         *req_item;
 	int			    rc;
 
         /* Request FOM */
         dev_fom = container_of(fom, struct c2_cons_fom_device, dev_gen);
-        C2_ASSERT(dev_fom != NULL);
 
-        /* Request FOP */
-        dev_fop = c2_fop_data(dev_fom->dev_fop);
-        C2_ASSERT(dev_fop != NULL);
-
-        /* Reply fop */
-        reply_fop = c2_fop_data(dev_fom->dev_reply_fop);
-        C2_ASSERT(reply_fop != NULL);
-        reply_fop->cons_notify_type = CMT_DEVICE_FAILURE;
-        reply_fop->cons_return = C2_CONS_FOP_DEVICE_OPCODE;
-
-        /* Request item */
-        req_item = c2_fop_to_rpc_item(dev_fom->dev_fop);
-        C2_ASSERT(req_item != NULL);
-
-        /* Reply item */
-        reply_item = c2_fop_to_rpc_item(dev_fom->dev_reply_fop);
-        C2_ASSERT(reply_item != NULL);
-        c2_rpc_item_init(reply_item);
-        reply_item->ri_type =
-	&dev_fom->dev_reply_fop->f_type->ft_rpc_item_type;
-        reply_item->ri_group = NULL;
-
-        rc = c2_rpc_reply_post(req_item, reply_item);
+	rc = fop_reply_send(dev_fom->dev_fop, dev_fom->dev_reply_fop,
+			    C2_CONS_FOP_DEVICE_OPCODE, CMT_DEVICE_FAILURE);
 	fom->fo_phase = FOPH_FINISH;
 
 	return rc;
@@ -157,7 +132,7 @@ const struct c2_fom_ops c2_cons_fom_device_ops = {
 	.fo_home_locality = home_locality,
 };
 
-static struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
+const static struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
         .fto_create = NULL
 };
 
