@@ -362,7 +362,9 @@
    to the nlx_core_buffer data structure.  The callback subroutine does the
    following:
 
-   -# It will ignore @c LNET_EVENT_SEND and @c LNET_EVENT_ACK events.
+   -# It will ignore @c LNET_EVENT_SEND events.
+   -# It will assert that an @c LNET_EVENT_ACK events is not received. This is
+      controllable in the LNetPut() call.
    -# It obtains the nlx_kcore_transfer_mc::ktm_bevq_lock spin lock.
    -# The bev_cqueue_pnext() subroutine is then used to locate the next buffer
       event structure in the circular buffer event queue which will be used to
@@ -454,9 +456,10 @@
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
-   -# Use the @c LNetPut() subroutine to send the MD to the destination.
-      The match bits must set to the destination TM identifier in the higher
-      order bits and zeros for the other bits.
+   -# Use the @c LNetPut() subroutine to send the MD to the destination.  The
+      match bits must set to the destination TM identifier in the higher order
+      bits and zeros for the other bits. No acknowledgment should be
+      requested.
    -# When the message is sent, an @c LNET_EVENT_SEND event will be delivered
       to the event queue, and processed as described in
       @ref KLNetCoreDLD-lspec-ev.
@@ -510,8 +513,9 @@
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
-   -# Use the @c LNetGet() subroutine to initiate the active read or the
-      @c LNetPut() subroutine to initiate the active write.
+   -# Use the @c LNetGet() subroutine to initiate the active read or the @c
+      LNetPut() subroutine to initiate the active write. No acknowledgment
+      should be requested.
    -# When a response to the @c LNetGet() or @c LNetPut() call completes, an @c
       LNET_EVENT_SEND event will be delivered to the event queue and should be
       ignored.  See @ref KLNetCoreDLD-lspec-ev for details.
