@@ -256,9 +256,9 @@
 
    It is critical for proper operation, that there be an available buffer event
    structure when the LNet callback is invoked, or else the event cannot be
-   delivered and will be lost.  As the event queue is in shared memory, is not
-   possible, let alone desirable, to allocate a new buffer event structure in
-   the callback context.
+   delivered and will be lost.  As the event queue is in shared memory, it is
+   not possible, let alone desirable, to allocate a new buffer event structure
+   in the callback context.
 
    The Core API guarantees the delivery of buffer operation completion status
    by maintaining a "pool" of free buffer event structures for this purpose.
