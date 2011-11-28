@@ -188,18 +188,24 @@ struct nlx_core_ep_addr {
 	uint32_t cepa_tmid;  /**< The Transfer Machine Identifier */
 };
 
+/* Match bit related definitions */
 enum {
 	/** Number of bits used for TM identifier */
-	C2_NET_LNET_TMID_NUM_BITS = 12,
-	/** Max TM identifier is 2^^12-1 */
-	C2_NET_LNET_TMID_MAX      = 4095,
+	C2_NET_LNET_TMID_BITS      = 12,
+	/** Shift to the TMID position (52) */
+	C2_NET_LNET_TMID_SHIFT     = 64 - C2_NET_LNET_TMID_BITS,
+	/** Max TM identifier is 2^12-1 (4095) */
+	C2_NET_LNET_TMID_MAX       = (1 << C2_NET_LNET_TMID_BITS) - 1,
 	/** Invalid value used for dynamic addressing */
-	C2_NET_LNET_TMID_INVALID  = C2_NET_LNET_TMID_MAX+1,
+	C2_NET_LNET_TMID_INVALID   = C2_NET_LNET_TMID_MAX+1,
+	/** Number of bits used for buffer identification (52) */
+	C2_NET_LNET_BUFFER_ID_BITS = 64 - C2_NET_LNET_TMID_BITS,
 	/** Minimum buffer match bit counter value */
-	C2_NET_LNET_MATCH_BIT_MIN = 1,
-	/** Maximum buffer match bit counter value: 2^^52-1; */
-	C2_NET_LNET_MATCH_BIT_MAX = 0xfffffffffffffULL,
+	C2_NET_LNET_BUFFER_ID_MIN  = 1,
+	/** Maximum buffer match bit counter value: 2^52-1 (0xfffffffffffff) */
+	C2_NET_LNET_BUFFER_ID_MAX  = (1ULL << C2_NET_LNET_BUFFER_ID_BITS) - 1,
 };
+C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
 
 /**
    Buffer events are linked in the buffer queue using this structure. It is
