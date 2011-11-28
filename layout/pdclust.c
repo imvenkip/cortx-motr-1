@@ -341,8 +341,8 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 }
 C2_EXPORTED(c2_pdclust_layout_inv);
 
-static bool pdclust_equal(const struct c2_layout *l0,
-			  const struct c2_layout *l1)
+static bool pdclust_equal(const struct c2_lay *l0,
+			  const struct c2_lay *l1)
 {
 	struct c2_pdclust_layout *p0;
 	struct c2_pdclust_layout *p1;
@@ -361,7 +361,7 @@ static bool pdclust_equal(const struct c2_layout *l0,
 	/* XXX and check that target objects are the same */
 }
 
-static const struct c2_layout_ops pdlclust_ops = {
+static const struct c2_lay_ops pdlclust_ops = {
 };
 
 void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
@@ -369,7 +369,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 	uint32_t i;
 
 	if (pdl != NULL) {
-		c2_layout_fini(&pdl->pl_layout);
+		c2_lay_fini(&pdl->pl_layout);
 		c2_free(pdl->pl_tile_cache.tc_inverse);
 		c2_free(pdl->pl_tile_cache.tc_permute);
 		c2_free(pdl->pl_tile_cache.tc_lcode);
@@ -409,10 +409,10 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
-		c2_layout_init(&pdl->pl_layout);
+		c2_lay_init(&pdl->pl_layout);
 		pdl->pl_layout.l_type    = &c2_pdclust_layout_type;
 
-		/** @todo Change the following to use fields from c2_layout_list_enum */
+		/** @todo Change the following to use fields from c2_lay_list_enum */
 		//pdl->pl_layout.l_form    = NULL;
 		//pdl->pl_layout.l_actuals = NULL;
 		pdl->pl_layout.l_ops     = &pdlclust_ops;
@@ -469,7 +469,7 @@ C2_EXPORTED(c2_pdclust_unit_classify);
    to create the layout.
 */
 static int pdclust_decode(const struct c2_bufvec_cursor *cur,
-		          struct c2_layout **out)
+		          struct c2_lay **out)
 {
    /**
 	@code
@@ -488,7 +488,7 @@ static int pdclust_decode(const struct c2_bufvec_cursor *cur,
    Implementation of lto_encode() for pdclust layout type.
    Stores layout representation in the buffer.
 */
-static int pdclust_encode(const struct c2_layout *l,
+static int pdclust_encode(const struct c2_lay *l,
 		          struct c2_bufvec_cursor *out)
 {
    /**
@@ -506,7 +506,7 @@ static int pdclust_encode(const struct c2_layout *l,
    Implementation of lto_rec_add for PDCLUST layout type.
 */
 int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
-		    struct c2_layout_schema *schema,
+		    struct c2_ldb_schema *schema,
 		    struct c2_db_tx *tx)
 {
    /**
@@ -524,7 +524,7 @@ int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_delete for PDCLUST layout type.
 */
 int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
-		       struct c2_layout_schema *schema,
+		       struct c2_ldb_schema *schema,
 		       struct c2_db_tx *tx)
 {
    /**
@@ -543,7 +543,7 @@ int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_update for PDCLUST layout type.
 */
 int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
-		       struct c2_layout_schema *schema,
+		       struct c2_ldb_schema *schema,
 		       struct c2_db_tx *tx)
 {
    /**
@@ -561,7 +561,7 @@ int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_lookup for PDCLUST layout type.
 */
 int pdclust_rec_lookup(const uint64_t *id,
-		       struct c2_layout_schema *schema,
+		       struct c2_ldb_schema *schema,
 		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *cur)
 {
@@ -577,7 +577,7 @@ int pdclust_rec_lookup(const uint64_t *id,
 	return 0;
 }
 
-static const struct c2_layout_type_ops pdclust_type_ops = {
+static const struct c2_lay_type_ops pdclust_type_ops = {
 	.lto_equal	= pdclust_equal,
 	.lto_decode	= pdclust_decode,
 	.lto_encode	= pdclust_encode,
@@ -587,7 +587,7 @@ static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_rec_lookup	= pdclust_rec_lookup
 };
 
-const struct c2_layout_type c2_pdclust_layout_type = {
+const struct c2_lay_type c2_pdclust_layout_type = {
 	.lt_name  = "pdclust",
 	.lt_ops   = &pdclust_type_ops
 };

@@ -29,7 +29,7 @@
    @{
  */
 
-void c2_layout_init(struct c2_layout *lay)
+void c2_lay_init(struct c2_lay *lay)
 {
 /**
 	@code
@@ -38,7 +38,7 @@ void c2_layout_init(struct c2_layout *lay)
 */
 }
 
-void c2_layout_fini(struct c2_layout *lay)
+void c2_lay_fini(struct c2_lay *lay)
 {
 /**
 	@code
@@ -48,7 +48,7 @@ void c2_layout_fini(struct c2_layout *lay)
 }
 
 /** Adds a reference to the layout. */
-void c2_layout_get(struct c2_layout *lay)
+void c2_lay_get(struct c2_lay *lay)
 {
 /**
 	@code
@@ -58,30 +58,11 @@ void c2_layout_get(struct c2_layout *lay)
 }
 
 /** Releases a reference on the layout. */
-void c2_layout_put(struct c2_layout *lay)
+void c2_lay_put(struct c2_lay *lay)
 {
 /**
 	@code
 	Invoke lay->l_ops->lo_put().
-	@endcode
-*/
-}
-
-int c2_layouts_init(void)
-{
-/**
-	@code
-	Invoke lay->l_ops->lo_init() for all the registered layout types.
-	@endcode
-*/
-	return 0;
-}
-
-void c2_layouts_fini(void)
-{
-/**
-	@code
-	Invoke lay->l_ops->lo_fini() for all the registered layout types.
 	@endcode
 */
 }
@@ -93,8 +74,8 @@ void c2_layouts_fini(void)
    representation stored in the data-base (including configuration
    information) or received over the network.
 */
-int c2_layout_decode(const struct c2_bufvec_cursor *cur,
-		     struct c2_layout **out)
+int c2_lay_decode(const struct c2_bufvec_cursor *cur,
+		     struct c2_lay **out)
 {
 	/**
 	@code
@@ -113,7 +94,7 @@ int c2_layout_decode(const struct c2_bufvec_cursor *cur,
 /**
    Store generic fields from a layout to the buffer.
 */
-int c2_layout_encode(const struct c2_layout *l,
+int c2_lay_encode(const struct c2_lay *l,
 		     struct c2_bufvec_cursor *out)
 {
 	/**
@@ -126,6 +107,26 @@ int c2_layout_encode(const struct c2_layout *l,
 	*/
 
 	return 0;
+}
+
+
+int c2_lays_init(void)
+{
+/**
+	@code
+	Invoke lay->l_ops->lo_init() for all the registered layout types.
+	@endcode
+*/
+	return 0;
+}
+
+void c2_lays_fini(void)
+{
+/**
+	@code
+	Invoke lay->l_ops->lo_fini() for all the registered layout types.
+	@endcode
+*/
 }
 
 /** @} end group layout */

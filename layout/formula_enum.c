@@ -31,8 +31,8 @@
    Continues to decode layout representation stored in the buffer and
    to create the layout.
 */
-static int layout_formula_enum_decode(const struct c2_bufvec_cursor *cur,
-				      struct c2_layout **out)
+static int lay_formula_enum_decode(const struct c2_bufvec_cursor *cur,
+				      struct c2_lay **out)
 {
    /**
 	@code
@@ -48,7 +48,7 @@ static int layout_formula_enum_decode(const struct c2_bufvec_cursor *cur,
    Implementation of leto_encode() for formula enumeration type.
    Continues to store layout representation in the buffer.
 */
-static int layout_formula_enum_encode(const struct c2_layout *l,
+static int lay_formula_enum_encode(const struct c2_lay *l,
 				      struct c2_bufvec_cursor *out)
 {
    /**
@@ -68,25 +68,25 @@ static int layout_formula_enum_encode(const struct c2_layout *l,
 */
 
 
-static const struct c2_layout_enum_type_ops formula_ops = {
-	.leto_decode		= layout_formula_enum_decode,
-	.leto_encode		= layout_formula_enum_encode,
+static const struct c2_lay_enum_type_ops formula_ops = {
+	.leto_decode		= lay_formula_enum_decode,
+	.leto_encode		= lay_formula_enum_encode,
 	.leto_rec_add		= NULL,
 	.leto_rec_delete	= NULL,
 	.leto_rec_update	= NULL,
 	.leto_rec_lookup	= NULL,
 };
 
-const struct c2_layout_enum_type c2_layout_formula_enum_type = {
+const struct c2_lay_enum_type c2_lay_formula_enum_type = {
 	.let_ops	= &formula_ops
 };
 
-static const struct c2_layout_formula_ops nkp_ops = {
+static const struct c2_lay_formula_ops nkp_ops = {
 	.lfo_subst	= NULL
 };
 
 /** @todo Check dat types for all the ids. */
-const struct c2_layout_formula c2_formula_NKP_formula = {
+const struct c2_lay_formula c2_formula_NKP_formula = {
 	.lf_id   = { .u_hi = 0x5041524954594445, /* PARITYDE */
 		     .u_lo = 0x434c55535445522e  /* CLUSTER. */
 	},

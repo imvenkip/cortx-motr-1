@@ -33,45 +33,45 @@
 #include "layout/layout.h"
 
 /* export */
-struct c2_layout_formula_enum ;
+struct c2_lay_formula_enum;
 
 /**
-   Extension of generic c2_layout_enum for a formula enumeration type.
+   Extension of generic c2_lay_enum for a formula enumeration type.
  */
-struct c2_layout_formula_enum {
+struct c2_lay_formula_enum {
 	/** super class */
-	struct c2_layout_enum			  lfe_enum;
+	struct c2_lay_enum			 lfe_enum;
 
-	const struct c2_layout_formula		 *lfe_form;
-	const struct c2_layout_formula_parameter *lfe_actuals;
+	const struct c2_lay_formula		*lfe_form;
+	const struct c2_lay_formula_parameter	*lfe_actuals;
 };
 
-struct c2_layout_formula {
+struct c2_lay_formula {
 	const struct c2_uint128			 lf_id;
-	const struct c2_layout_formula_ops	*lf_ops;
+	const struct c2_lay_formula_ops		*lf_ops;
 };
 
-struct c2_layout_formula_ops {
-	int	(*lfo_subst)(const struct c2_layout_formula *form,
+struct c2_lay_formula_ops {
+	int	(*lfo_subst)(const struct c2_lay_formula *form,
 			     uint16_t nr,
-			     const struct c2_layout_formula_parameter *actuals,
-			     struct c2_layout **out);
+			     const struct c2_lay_formula_parameter *actuals,
+			     struct c2_lay **out);
 };
 
-struct c2_layout_formula_parameter {
-	const struct c2_layout_parameter_type *lfp_type;
-	const void                            *lfp_value;
+struct c2_lay_formula_parameter {
+	const struct c2_lay_parameter_type	*lfp_type;
+	const void				*lfp_value;
 };
 
-struct c2_layout_formula_parameter_type {
+struct c2_lay_formula_parameter_type {
 	const char	*lfpt_name;
 
-	int		(*lfpt_convert)(const struct c2_layout_formula_parameter *other,
-					struct c2_layout_formula_parameter *out);
+	int		(*lfpt_convert)(const struct c2_lay_formula_parameter *other,
+					struct c2_lay_formula_parameter *out);
 };
 
-extern const struct c2_layout_enum_type c2_layout_formula_enum_type;
-extern const struct c2_layout_formula c2_formula_NKP_formula;
+extern const struct c2_lay_enum_type c2_lay_formula_enum_type;
+extern const struct c2_lay_formula c2_formula_NKP_formula;
 
 /** @} end group formula_enum */
 

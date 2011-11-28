@@ -36,14 +36,14 @@
 #include "layout/layout.h"
 
 /* export */
-struct c2_layout_list_enum;
+struct c2_lay_list_enum;
 
 /**
-   Extension of generic c2_layout_enum for a list enumeration type.
+   Extension of generic c2_lay_enum for a list enumeration type.
  */
-struct c2_layout_list_enum {
+struct c2_lay_list_enum {
 	/** super class */
-	struct c2_layout_enum	lle_enum;
+	struct c2_lay_enum	lle_enum;
 
 	/** List of COB identifiers which are part of this layout */
 	struct c2_tl		lle_list_of_cobs;
@@ -53,7 +53,7 @@ struct c2_layout_list_enum {
 };
 
 
-extern const struct c2_layout_enum_type c2_layout_list_enum_type;
+extern const struct c2_lay_enum_type c2_lay_list_enum_type;
 
 /** @} end group list_enum */
 

@@ -334,18 +334,18 @@
    @{
 */
 
-/** Invariant for c2_layout_rec */
-static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_layout_rec *l)
+/** Invariant for c2_ldb_rec */
+static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_ldb_rec *l)
 {
 	return true;
 }
 
-static int __attribute__ ((unused)) layout_schema_internal_init(struct c2_layout_schema *schema, struct c2_dbenv *db)
+static int __attribute__ ((unused)) ldb_schema_internal_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
 {
 	return 0;
 }
 
-static void __attribute__ ((unused))layout_schema_internal_fini(struct c2_layout_schema *schema)
+static void __attribute__ ((unused)) ldb_schema_internal_fini(struct c2_ldb_schema *schema)
 {
 }
 
@@ -359,8 +359,8 @@ static void __attribute__ ((unused))layout_schema_internal_fini(struct c2_layout
 /**
    Initializes new layout schema - creates the DB tables.
 */
-int c2_layout_schema_init(struct c2_layout_schema *schema,
-			  struct c2_dbenv *db)
+int c2_ldb_schema_init(struct c2_ldb_schema *schema,
+		       struct c2_dbenv *db)
 {
    /**
 	@code
@@ -374,7 +374,7 @@ int c2_layout_schema_init(struct c2_layout_schema *schema,
    De-initializes the layout schema - de-initializes the DB tables and the
    DB environment.
 */
-void c2_layout_schema_fini(struct c2_layout_schema *schema)
+void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
    /*
 	@code
@@ -388,10 +388,10 @@ void c2_layout_schema_fini(struct c2_layout_schema *schema)
 
 /**
    Registers a new layout type with the layout types maintained by
-   c2_layout_schema::ls_type[].
+   c2_ldb_schema::ls_type[].
 */
-void c2_layout_type_register(struct c2_layout_schema *schema,
-			     const struct c2_layout_type *lt)
+void c2_ldb_type_register(struct c2_ldb_schema *schema,
+			  const struct c2_lay_type *lt)
 {
    /**
 	@code
@@ -401,7 +401,7 @@ void c2_layout_type_register(struct c2_layout_schema *schema,
 	schema->ls_type[lt->lt_id] = lt;
 
 	Allocates type specific state is assigns it to
-	   *c2_layout_type_data().
+	   *c2_ldb_type_data().
 	lt->lto_register(lt, schema);
 
 	@endcode
@@ -411,20 +411,20 @@ void c2_layout_type_register(struct c2_layout_schema *schema,
 
 /**
    Unregisters a layout type from the layout types maintained by
-   c2_layout_schema::ls_enum[].
+   c2_ldb_schema::ls_enum[].
 */
-void c2_layout_type_unregister(struct c2_layout_schema *schema,
-			       const struct c2_layout_type *lt)
+void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
+			    const struct c2_lay_type *lt)
 {
 	return;
 }
 
 /**
    Registers a new enumeration type with the enumeration types
-   maintained by c2_layout_schema::ls_type[].
+   maintained by c2_ldb_schema::ls_type[].
 */
-void c2_layout_enum_register(struct c2_layout_schema *schema,
-			     const struct c2_layout_enum_type *et)
+void c2_ldb_enum_register(struct c2_ldb_schema *schema,
+			  const struct c2_lay_enum_type *et)
 {
    /**
 	@code
@@ -434,7 +434,7 @@ void c2_layout_enum_register(struct c2_layout_schema *schema,
 	schema->ls_enum[et->let_id] = et;
 
 	this allocates type specific state is assigns it to
-	*c2_layout_enum_data().
+	*c2_ldb_enum_data().
 	et->leto_register(et, schema);
 
 	@endcode
@@ -445,10 +445,10 @@ void c2_layout_enum_register(struct c2_layout_schema *schema,
 
 /**
    Unregisters an enumeration type from the enumeration types
-   maintained by c2_layout_schema::ls_enum[].
+   maintained by c2_ldb_schema::ls_enum[].
 */
-void c2_layout_enum_unregister(struct c2_layout_schema *schema,
-			       const struct c2_layout_enum_type *et)
+void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
+			    const struct c2_lay_enum_type *et)
 {
 	return;
 }
@@ -456,8 +456,8 @@ void c2_layout_enum_unregister(struct c2_layout_schema *schema,
 /**
    @todo Add description
 */
-void **c2_layout_type_data(struct c2_layout_schema *schema,
-			   const struct c2_layout_type *lt)
+void **c2_ldb_type_data(struct c2_ldb_schema *schema,
+			const struct c2_lay_type *lt)
 {
    /**
 	@code
@@ -471,8 +471,8 @@ void **c2_layout_type_data(struct c2_layout_schema *schema,
 /**
    @todo Add description
 */
-void **c2_layout_enum_data(struct c2_layout_schema *schema,
-			   const struct c2_layout_enum_type *et)
+void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
+			const struct c2_lay_enum_type *et)
 {
    /*
 	@code
@@ -488,13 +488,13 @@ void **c2_layout_enum_data(struct c2_layout_schema *schema,
    If applicable, adds information related to this layout, into the relevant
    tables.
 */
-int c2_layout_rec_add(const struct c2_layout *l,
-		      struct c2_layout_schema *schema,
-		      struct c2_db_tx *tx)
+int c2_ldb_rec_add(const struct c2_lay *l,
+		   struct c2_ldb_schema *schema,
+		   struct c2_db_tx *tx)
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_layout_encode().
+	Store layout representation in a buffer using c2_lay_encode().
 	Add record to the DB using l->l_type->lt_ops->lto_rec_add().
 	@endcode
    */
@@ -511,13 +511,13 @@ int c2_layout_rec_add(const struct c2_layout *l,
 
    A layout with formula enumeration type is never destroyed.
 */
-int c2_layout_rec_delete(const struct c2_layout *layout,
-			 struct c2_layout_schema *schema,
-			 struct c2_db_tx *tx)
+int c2_ldb_rec_delete(const struct c2_lay *layout,
+		      struct c2_ldb_schema *schema,
+		      struct c2_db_tx *tx)
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_layout_encode().
+	Store layout representation in a buffer using c2_lay_encode().
 	Use the function l->l_type->lt_ops->lto_rec_delete.
 	@endcode
    */
@@ -528,13 +528,13 @@ int c2_layout_rec_delete(const struct c2_layout *layout,
    Updates a layout record and its related information from the
    relevant tables.
 */
-int c2_layout_rec_update(const struct c2_layout *layout,
-			 struct c2_layout_schema *schema,
-			 struct c2_db_tx *tx)
+int c2_ldb_rec_update(const struct c2_lay *layout,
+		      struct c2_ldb_schema *schema,
+		      struct c2_db_tx *tx)
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_layout_encode().
+	Store layout representation in a buffer using c2_lay_encode().
 	Use the function l->l_type->lt_ops->lto_rec_update.
 	@endcode
    */
@@ -545,17 +545,17 @@ int c2_layout_rec_update(const struct c2_layout *layout,
    Obtains a layout record with the specified layout_id, and its related
    information from the relevant tables.
 */
-int c2_layout_rec_lookup(const uint64_t *id,
-			 struct c2_layout_schema *schema,
-			 struct c2_db_tx *tx,
-			 struct c2_layout *out)
+int c2_ldb_rec_lookup(const uint64_t *id,
+		      struct c2_ldb_schema *schema,
+		      struct c2_db_tx *tx,
+		      struct c2_lay *out)
 {
    /**
 	@code
 	Use the function l->l_type->lt_ops->lto_rec_update to obtain
 	the buffer including the record.
 
-	Convert the buffer into layout using using c2_layout_decode().
+	Convert the buffer into layout using using c2_lay_decode().
 	@endcode
    */
 	return 0;

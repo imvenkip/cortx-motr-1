@@ -31,8 +31,8 @@
 /**
    Implementation of leto_decode() for list enumeration type.
 */
-static int layout_list_enum_decode(const struct c2_bufvec_cursor *cur,
-				   struct c2_layout **out)
+static int lay_list_enum_decode(const struct c2_bufvec_cursor *cur,
+				   struct c2_lay **out)
 {
 	return 0;
 }
@@ -40,7 +40,7 @@ static int layout_list_enum_decode(const struct c2_bufvec_cursor *cur,
 /**
    Implementation of leto_encode() for list enumeration type.
 */
-static int layout_list_enum_encode(const struct c2_layout *l,
+static int lay_list_enum_encode(const struct c2_lay *l,
 				   struct c2_bufvec_cursor *cur)
 {
    /**
@@ -56,7 +56,7 @@ static int layout_list_enum_encode(const struct c2_layout *l,
    Implementation of leto_rec_add for list enumeration type.
 */
 int list_rec_add(const struct c2_bufvec_cursor *cur,
-		 struct c2_layout_schema *schema,
+		 struct c2_ldb_schema *schema,
 		 struct c2_db_tx *tx)
 {
    /**
@@ -71,7 +71,7 @@ int list_rec_add(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_delete for list enumeration type.
 */
 int list_rec_delete(const struct c2_bufvec_cursor *cur,
-		    struct c2_layout_schema *schema,
+		    struct c2_ldb_schema *schema,
 		    struct c2_db_tx *tx)
 {
    /**
@@ -87,7 +87,7 @@ int list_rec_delete(const struct c2_bufvec_cursor *cur,
    Implementation of leto_rec_update for list enumeration type.
 */
 int list_rec_update(const struct c2_bufvec_cursor *cur,
-		    struct c2_layout_schema *schema,
+		    struct c2_ldb_schema *schema,
 		    struct c2_db_tx *tx)
 {
    /**
@@ -103,7 +103,7 @@ int list_rec_update(const struct c2_bufvec_cursor *cur,
    Implementation of leto_rec_lookup for list enumeration type.
 */
 int list_rec_lookup(const uint64_t *id,
-		    struct c2_layout_schema *schema,
+		    struct c2_ldb_schema *schema,
 		    struct c2_db_tx *tx,
 		    struct c2_bufvec_cursor *cur)
 {
@@ -116,16 +116,16 @@ int list_rec_lookup(const uint64_t *id,
 	return 0;
 }
 
-static const struct c2_layout_enum_type_ops list_ops = {
-	.leto_decode		= layout_list_enum_decode,
-	.leto_encode		= layout_list_enum_encode,
+static const struct c2_lay_enum_type_ops list_ops = {
+	.leto_decode		= lay_list_enum_decode,
+	.leto_encode		= lay_list_enum_encode,
 	.leto_rec_add		= list_rec_add,
 	.leto_rec_delete	= list_rec_delete,
 	.leto_rec_update	= list_rec_update,
 	.leto_rec_lookup	= list_rec_lookup
 };
 
-const struct c2_layout_enum_type c2_layout_list_enum_type = {
+const struct c2_lay_enum_type c2_lay_list_enum_type = {
 	.let_ops		= &list_ops
 };
 

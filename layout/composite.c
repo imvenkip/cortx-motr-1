@@ -31,15 +31,15 @@
    to create the layout.
 */
 static int composite_decode(const struct c2_bufvec_cursor *cur,
-			    struct c2_layout **out)
+			    struct c2_lay **out)
 {
    /**
 	@code
 	Allocate new layout as an instance of c2_composite_layout that
-	embeds c2_layout.
+	embeds c2_lay.
 
 	Read composite layout type specific fields from the buffer
-	like information of sub-layouts and store it in the c2_layout
+	like information of sub-layouts and store it in the c2_lay
 	structure.
 	@endcode
    */
@@ -50,7 +50,7 @@ static int composite_decode(const struct c2_bufvec_cursor *cur,
    Implementation of lto_encode() for composite layout type.
    Stores layout representation in the buffer.
 */
-static int composite_encode(const struct c2_layout *l,
+static int composite_encode(const struct c2_lay *l,
 			    struct c2_bufvec_cursor *out)
 {
    /**
@@ -69,7 +69,7 @@ static int composite_encode(const struct c2_layout *l,
    Adds the relevant extent map into the comp_layout_ext_map table.
 */
 int composite_rec_add(const struct c2_bufvec_cursor *cur,
-		      struct c2_layout_schema *schema,
+		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx)
 {
    /**
@@ -90,7 +90,7 @@ int composite_rec_add(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_delete for COMPOSITE layout type.
 */
 int composite_rec_delete(const struct c2_bufvec_cursor *cur,
-			 struct c2_layout_schema *schema,
+			 struct c2_ldb_schema *schema,
 			 struct c2_db_tx *tx)
 {
    /**
@@ -112,7 +112,7 @@ int composite_rec_delete(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_update for COMPOSITE layout type.
 */
 int composite_rec_update(const struct c2_bufvec_cursor *cur,
-			 struct c2_layout_schema *schema,
+			 struct c2_ldb_schema *schema,
 			 struct c2_db_tx *tx)
 {
    /**
@@ -133,7 +133,7 @@ int composite_rec_update(const struct c2_bufvec_cursor *cur,
    Implementation of lto_rec_lookup for COMPOSITE layout type.
 */
 int composite_rec_lookup(const uint64_t *id,
-			 struct c2_layout_schema *schema,
+			 struct c2_ldb_schema *schema,
 			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *cur)
 {
@@ -152,7 +152,7 @@ int composite_rec_lookup(const uint64_t *id,
 }
 
 
-static const struct c2_layout_type_ops composite_type_ops = {
+static const struct c2_lay_type_ops composite_type_ops = {
 	.lto_equal      = NULL,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
@@ -164,7 +164,7 @@ static const struct c2_layout_type_ops composite_type_ops = {
 
 
 /** @todo Define value for lt_id */
-const struct c2_layout_type c2_composite_layout_type = {
+const struct c2_lay_type c2_composite_lay_type = {
 	.lt_name  = "composite",
 	.lt_id    = 1234,
 	.lt_ops   = &composite_type_ops
