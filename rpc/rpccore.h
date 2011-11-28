@@ -409,6 +409,19 @@ struct c2_rpc_stats {
 };
 
 /**
+   Statistical data for io path. IO data buffers don't go through rpc layer.
+   They go through a transport layer capable of doing zero-copy.
+   But since rpc bulk requests share the transfer machine belonging to
+   c2_rpcmachine, these stats are a part of rpc machine.
+ */
+struct c2_rpc_bulk_stats {
+	/** Number of rpc bulk instances created so far. */
+	uint64_t	rbs_bulk_nr;
+	/** Number of bytes sent/received through rpc bulk interface. */
+	c2_bcount_t	rbs_bytes_nr;
+};
+
+/**
    Associate an rpc with its corresponding rpc_item_type.
    Since rpc_item_type by itself can not be uniquely identified,
    rather it is tightly bound to its fop_type, the fop_type_code
@@ -500,6 +513,8 @@ struct c2_rpcmachine {
 	struct c2_list			  cr_ready_slots;
 	/** ADDB context for this rpcmachine */
 	struct c2_addb_ctx		  cr_rpc_machine_addb;
+	/** Statistics for rpc bulk path. */
+	struct c2_rpc_bulk_stats	  cr_bulk_stats;
 	/** Statistics for both incoming and outgoing paths */
 	struct c2_rpc_stats		  cr_rpc_stats[C2_RPC_PATH_NR];
 	/** Mutex to protect stats */
@@ -906,6 +921,20 @@ int c2_rpc_bulk_buf_load(struct c2_rpc_bulk_buf *rbuf,
    End users will register the io vectors using this structure and bulk
    transfer apis will take care of doing the data transfer in zero-copy
    fashion.
+   These APIs are primarily used by another in-memory structure c2_io_fop.
+   @see c2_io_fop.
+   The c2_rpc_bulk structure can be used like this.
+   @code
+   c2_rpc_bulk_init(rbulk, segs_nr, seg_size, net_domain);
+   ..
+   c2_clink_add(rbulk->rb_chan, clink);
+   c2_rpc_bulk_page_add(rbulk, page, index);
+   OR
+   c2_rpc_bulk_buf_add(rbulk, buf, count, index);
+   ..
+   c2_chan_wait(clink);
+   c2_rpc_bulk_fini(rbulk);
+   @endcode
  */
 struct c2_rpc_bulk {
 	/** Magic to verify sanity of struct c2_rpc_bulk. */

@@ -119,7 +119,10 @@ DEF(c2_io_indexvec, SEQUENCE,
 	_(ci_iosegs, c2_ioseg));
 
 /**
- * Represents sequence of index vector, one per net buffer.
+ * Represents sequence of index vector, one per network buffer.
+ * As a result of io coalescing, there could be multiple network
+ * buffers associated with an io fop. Hence a SEQUENCE of c2_io_indexvec
+ * is needed, one per network buffer.
  */
 DEF(c2_io_indexvec_seq, SEQUENCE,
 	_(cis_nr, U32),
@@ -127,6 +130,9 @@ DEF(c2_io_indexvec_seq, SEQUENCE,
 
 /**
  * Sequence of net buf desc that can be accommodated in single io fop.
+ * As a result of io coalescing, there could be multiple network
+ * buffers associated with an io fop. Hence a SEQUENCE of c2_net_buf_desc
+ * is needed.
  */
 DEF(c2_io_descs, SEQUENCE,
 	_(id_nr, U32),
@@ -138,10 +144,10 @@ DEF(c2_io_descs, SEQUENCE,
 DEF(c2_fop_cob_rw, RECORD,
 	/** File identifier of read/write request. */
 	_(crw_fid, c2_fop_file_fid),
-	/** Net buf desc representing the c2_net_buffer which contains
+	/** Net buf descriptors representing the c2_net_buffer containing
 	    the IO buffers. */
 	_(crw_desc, c2_io_descs),
-	/** Index vector representing the extent information for the
+	/** Index vectors representing the extent information for the
 	    IO request. */
 	_(crw_ivecs, c2_io_indexvec_seq),
 	_(crw_iovec, c2_fop_io_vec),
@@ -185,7 +191,7 @@ DEF(c2_fop_cob_writev, RECORD,
 	_(c_rwv, c2_fop_cob_rw));
 
 /**
- * Fops referring other remote fops (not present in same file).
+ * Fops referring other remote fops (not present in present file).
  */
 DEF(c2_test_ios_fop, RECORD,
 	_(if_st, U64),

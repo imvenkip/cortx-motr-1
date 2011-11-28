@@ -127,6 +127,19 @@ enum {
    rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
    Client side implementations use this structure to represent
    io fops and the associated rpc bulk structures.
+   The c2_io_fop structures can be populated and used like this.
+   @see c2_rpc_bulk().
+   @code
+   c2_io_fop_init(iofop, ftype, segs_nr, seg_size, net_domain);
+   ...
+   c2_rpc_bulk_page_add(iofop->if_rbulk, page, index);
+   OR
+   c2_rpc_bulk_buf_add(iofop->if_rbulk, buf, count, index);
+   ..
+   c2_rpc_bulk_buf_store(rbuf, rpcitem, net_buf_desc);
+   ..
+   c2_io_fop_fini(iofop);
+   @endcode
  */
 struct c2_io_fop {
 	/** Magic constant for IO fop. */

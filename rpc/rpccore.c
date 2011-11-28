@@ -856,6 +856,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	c2_addb_ctx_init(&machine->cr_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 	C2_SET_ARR0(machine->cr_rpc_stats);
+	C2_SET0(&machine->cr_bulk_stats);
 	machine->cr_dom = dom;
 	c2_db_tx_commit(&tx);
 	machine->cr_reqh = reqh;
@@ -1159,9 +1160,8 @@ int c2_rpc_bulk_page_add(struct c2_rpc_bulk *rbulk,
 	C2_PRE(rbulk != NULL);
 	C2_PRE(pg != NULL);
 	C2_PRE(rpc_bulk_invariant(rbulk));
-	C2_PRE(c2_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist) == 1);
 
-	buf = c2_tlist_head(&rpcbulk_tl, &rbulk->rb_buflist);
+	buf = c2_tlist_tail(&rpcbulk_tl, &rbulk->rb_buflist);
 	rc = c2_0vec_page_add(&buf->bb_zerovec, pg, index);
 
 	if (rc == 0)
@@ -1185,7 +1185,6 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	C2_PRE(buf != NULL);
 	C2_PRE(count != 0);
 	C2_PRE(rpc_bulk_invariant(rbulk));
-	C2_PRE(c2_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist) == 1);
 
 	cbuf.b_addr = buf;
 	cbuf.b_nob = count;
@@ -1220,12 +1219,11 @@ int c2_rpc_bulk_buf_store(struct c2_rpc_bulk_buf *rbuf,
 			  struct c2_net_buf_desc *to_desc)
 {
 	int				 rc;
+	struct c2_rpcmachine		*mach;
 	struct c2_net_transfer_mc	*tm;
 
 	C2_PRE(rbuf != NULL);
 	C2_PRE(rbuf->bb_nbuf.nb_flags & C2_NET_BUF_REGISTERED);
-	C2_PRE(rbuf->bb_nbuf.nb_length == c2_vec_count(
-	       &rbuf->bb_zerovec.z_bvec.ov_vec));
 	C2_PRE(rbuf->bb_nbuf.nb_ep != NULL);
 	C2_PRE(rbuf->bb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
 	       rbuf->bb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
@@ -1233,7 +1231,14 @@ int c2_rpc_bulk_buf_store(struct c2_rpc_bulk_buf *rbuf,
 	C2_PRE(item != NULL);
 	C2_PRE(to_desc != NULL);
 
-	tm = &item->ri_session->s_conn->c_rpcmachine->cr_tm;
+	mach = item->ri_session->s_conn->c_rpcmachine;
+	c2_mutex_lock(&mach->cr_stats_mutex);
+	mach->cr_bulk_stats.rbs_bulk_nr++;
+	mach->cr_bulk_stats.rbs_bytes_nr +=
+		c2_vec_count(&rbuf->bb_nbuf.nb_buffer.ov_vec);
+	c2_mutex_unlock(&mach->cr_stats_mutex);
+
+	tm = &mach->cr_tm;
 	C2_ASSERT(rbuf->bb_nbuf.nb_dom == tm->ntm_dom);
 
 	rc = c2_net_buffer_add(&rbuf->bb_nbuf, tm);
@@ -1252,8 +1257,9 @@ int c2_rpc_bulk_buf_load(struct c2_rpc_bulk_buf *rbuf,
 			 const struct c2_rpc_item *item,
 			 const struct c2_net_buf_desc *from_desc)
 {
-	int			   rc;
-	struct c2_net_transfer_mc *tm;
+	int				 rc;
+	struct c2_rpcmachine		*mach;
+	struct c2_net_transfer_mc	*tm;
 
 	C2_PRE(rbuf != NULL);
 	C2_PRE(rbuf->bb_nbuf.nb_flags & C2_NET_BUF_REGISTERED);
@@ -1262,7 +1268,13 @@ int c2_rpc_bulk_buf_load(struct c2_rpc_bulk_buf *rbuf,
 	C2_PRE(rpc_bulk_invariant(rbuf->bb_rbulk));
 	C2_PRE(from_desc != NULL);
 
-	tm = &item->ri_session->s_conn->c_rpcmachine->cr_tm;
+	mach = item->ri_session->s_conn->c_rpcmachine;
+	c2_mutex_lock(&mach->cr_stats_mutex);
+	mach->cr_bulk_stats.rbs_bulk_nr++;
+	mach->cr_bulk_stats.rbs_bytes_nr +=
+		c2_vec_count(&rbuf->bb_nbuf.nb_buffer.ov_vec);
+	c2_mutex_unlock(&mach->cr_stats_mutex);
+	tm = &mach->cr_tm;
 	C2_ASSERT(rbuf->bb_nbuf.nb_dom == tm->ntm_dom);
 
 	rc = c2_net_desc_copy(from_desc, &rbuf->bb_nbuf.nb_desc);
