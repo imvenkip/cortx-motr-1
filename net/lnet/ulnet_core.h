@@ -45,7 +45,7 @@ struct nlx_ucore_domain {
    This structure is pointed to by nlx_core_transfer_mc::lctm_upvt.
 */
 struct nlx_ucore_transfer_mc {
-	int   utm_dummy; /* placeholder */
+
 };
 
 /**
@@ -53,7 +53,7 @@ struct nlx_ucore_transfer_mc {
    This structure is pointed to by nlx_core_buffer::lcb_upvt.
 */
 struct nlx_ucore_buffer {
-	int   ub_dummy; /* placeholder */
+
 };
 
 /**
