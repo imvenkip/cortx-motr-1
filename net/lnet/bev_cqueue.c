@@ -445,11 +445,11 @@
 
    @test Initializing a queue of minimum size 2
 
-   @test Successfully producing an element in a slot
+   @test Successfully producing an element
 
-   @test Successfully consuming an element from a slot
+   @test Successfully consuming an element
 
-   @test Failing to consume a slot because the queue is empty
+   @test Failing to consume an element because the queue is empty
 
    @test Initializing a queue of larger size
 
@@ -498,7 +498,7 @@
 
    Subroutines are provided to:
    - initialize and finalize the nlx_core_bev_cqueue
-   - produce and consume slots in the queue
+   - produce and consume elements in the queue
 
    @see @ref bevcqueue "Detailed Functional Specification"
 
@@ -623,7 +623,6 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,
 			    struct nlx_core_bev_link *ql2);
 
-
 /**
    Adds a new element to the circular buffer queue.
    @param q the queue
@@ -655,8 +654,7 @@ static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q);
    @returns the link to the element in the consumer context,
    NULL when the queue is empty
  */
-static struct nlx_core_bev_link *bev_cqueue_get(
-					    struct nlx_core_bev_cqueue *q);
+static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q);
 
 /**
    Determine the next element in the queue that can be used by the producer.
@@ -674,6 +672,14 @@ static struct nlx_core_bev_link* bev_cqueue_pnext(
    @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
  */
 static void bev_cqueue_put(struct nlx_core_bev_cqueue *q);
+
+/**
+   Bless the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
+   the producer self value.
+   @param ql the link to bless, the caller must have already mapped the element
+   into the producer address space.
+ */
+static void bev_link_bless(struct nlx_core_bev_link *ql);
 
 /**
    @}
