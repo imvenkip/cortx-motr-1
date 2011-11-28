@@ -290,7 +290,7 @@ struct nlx_core_buffer_event {
 	c2_bcount_t                  cbe_offset;
 
 	/** Address of the other end point */
-	struct nlx_core_ep_addr  cbe_sender;
+	struct nlx_core_ep_addr      cbe_sender;
 
 	/** True if the buffer is no longer in use */
         bool                         cbe_unlinked;
@@ -479,10 +479,7 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 
 /**
    Enqueue a buffer for active bulk send.
-   The cb_match_bits field should be set to the value of the match bits of the
-   remote passive buffer.
-   The cb_addr field should be set with the end point address of the
-   transfer machine with the passive buffer.
+   See nlx_core_buf_active_recv() for how the buffer is to be initialized.
 
    The invoker should ensure that the subroutine is not invoked concurrently
    with any of the other buffer operation initiation subroutines or the
