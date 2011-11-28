@@ -23,7 +23,7 @@
 #include <config.h>
 #endif
 
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"

@@ -42,7 +42,7 @@
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "rpc/session_fops.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation.h"
 
 /**
@@ -568,26 +568,27 @@ out:
 int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 {
 	int rc;
+	bool state_reached;
 
 	rc = c2_rpc_conn_establish(conn);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
-				   c2_time_from_now(timeout_sec, 0));
-	if (rc != 0) {
-		switch (conn->c_state) {
-		case C2_RPC_CONN_ACTIVE:
-			rc = 0;
-			break;
-		case C2_RPC_CONN_FAILED:
-			rc = -ECONNREFUSED;
-			break;
-		default:
-			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
-		}
-	} else {
-		rc = -ETIMEDOUT;
+	state_reached = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE |
+					      C2_RPC_CONN_FAILED,
+					      c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (conn->c_state) {
+	case C2_RPC_CONN_ACTIVE:
+		rc = 0;
+		break;
+	case C2_RPC_CONN_FAILED:
+		rc = conn->c_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
 	}
 
 	return rc;
@@ -819,28 +820,29 @@ out:
 int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 {
 	int rc;
+	bool state_reached;
 
 	rc = c2_rpc_conn_terminate(conn);
-	if (rc)
-		goto out;
+	if (rc != 0)
+		return rc;
 
-	rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED | C2_RPC_CONN_FAILED,
-				   c2_time_from_now(timeout_sec, 0));
-	if (rc) {
-		switch (conn->c_state) {
-		case C2_RPC_CONN_TERMINATED:
-			rc = 0;
-			break;
-		case C2_RPC_CONN_FAILED:
-			rc = -ECONNREFUSED;
-			goto out;
-		default:
-			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
-		}
-	} else {
-		rc = -ETIMEDOUT;
+	state_reached = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
+					      C2_RPC_CONN_FAILED,
+					      c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (conn->c_state) {
+	case C2_RPC_CONN_TERMINATED:
+		rc = 0;
+		break;
+	case C2_RPC_CONN_FAILED:
+		rc = conn->c_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
 	}
-out:
+
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_terminate_sync);

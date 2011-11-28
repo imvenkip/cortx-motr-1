@@ -686,13 +686,11 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 
 	/* walk through the queues and cancel every buffer */
 	for (qt = 0; qt < C2_NET_QT_NR; ++qt) {
-		c2_list_for_each_entry(&tm->ntm_q[qt], nb,
-				       struct c2_net_buffer,
-				       nb_tm_linkage) {
+		c2_tlist_for(&tm_tl, &tm->ntm_q[qt], nb) {
 			mem_xo_buf_del(nb);
 			/* bump the del stat count */
 			tm->ntm_qstats[qt].nqs_num_dels += 1;
-		}
+		} c2_tlist_endfor;
 	}
 
 	/* set transition state and add the state change work item */
