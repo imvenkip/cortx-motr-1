@@ -173,11 +173,10 @@ struct nlx_core_ep_addr;
 struct nlx_core_transfer_mc;
 
 /**
-   Opaque type wide enough to represent an address in any address space
-   and accessible using atomic operations.
+   Opaque type wide enough to represent an address in any address space.
  */
-typedef struct uint64_t nlx_core_opaque_ptr_t;
-C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) == sizeof(void *));
+typedef uint64_t nlx_core_opaque_ptr_t;
+C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) >= sizeof(void *));
 
 /**
    This structure defines the fields in an LNet transport end point address.
