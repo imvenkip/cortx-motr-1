@@ -405,7 +405,7 @@
    is illustrated with the following pseudo-code:
    @code
        do {
-          rc = c2_net_semaphore_timed_down(&sem, &timeout);
+          rc = c2_semaphore_timeddown(&sem, &timeout);
           if (rc < 0)
               break; // timed out
           while (c2_semaphore_trydown(&sem))
@@ -446,7 +446,8 @@
 
    @subsection KLNetCoreDLD-lspec-send LNet Sending Messages
 
-   -# Create an MD using @c LNetMDBind().
+   -# Create an MD using @c LNetMDBind() each invocation of the
+      nlx_core_buf_msg_recv() subroutine.
       The MD is set up to unlink automatically.
       Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
@@ -478,7 +479,9 @@
       are obtained from the nlx_core_buffer::cb_match_bits field.  No ignore
       bits are set. The ME should be set up to unlink automatically, so there
       is no need to save the handle for later use.
-   -# Create and attach an MD to the ME using @c LNetMDAttach().
+   -# Create and attach an MD to the ME using @c LNetMDAttach() with each
+      invocation of the nlx_core_buf_passive_recv() or the
+      nlx_core_buf_passive_send() subroutines.
       The MD is set up to unlink automatically.
       Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
@@ -498,12 +501,13 @@
    @subsection KLNetCoreDLD-lspec-active LNet Active Bulk Read or Write
 
    -# Prior to invoking the nlx_core_buf_active_recv() or
-   nlx_core_buf_active_send() subroutines, the
-   transport should put the match bits of the remote passive buffer into the
-   nlx_core_buffer::cb_match_bits field. The destination address of the
-   remote transfer machine with the passive buffer should be set in the
-   nlx_core_buffer::cb_passive_addr field.
-   -# Create an MD using @c LNetMDBind().
+      nlx_core_buf_active_send() subroutines, the
+      transport should put the match bits of the remote passive buffer into the
+      nlx_core_buffer::cb_match_bits field. The destination address of the
+      remote transfer machine with the passive buffer should be set in the
+      nlx_core_buffer::cb_passive_addr field.
+   -# Create an MD using @c LNetMDBind() with each invocation of the
+      nlx_core_buf_active_recv() or nlx_core_buf_active_send() subroutines.
       The MD is set up to unlink automatically.
       Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
