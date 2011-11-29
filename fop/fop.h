@@ -28,7 +28,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "fop/fop_base.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 /**
    @defgroup fop File operation packet

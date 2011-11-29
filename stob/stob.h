@@ -34,7 +34,6 @@
 /* import */
 struct c2_dtx;
 struct c2_chan;
-struct c2_diovec;
 struct c2_indexvec;
 struct c2_io_scope;
 
@@ -590,13 +589,13 @@ struct c2_stob_io {
 	/**
 	   Where data are located in the user address space.
 
-	   @note buffer sizes in c2_stob_io::si_user.div_vec.ov_vec.v_count[]
+	   @note buffer sizes in c2_stob_io::si_user.ov_vec.v_count[]
 	   are in block size units (as determined by
 	   c2_stob_op::sop_block_shift). Buffer addresses in
-	   c2_stob_io::si_user.div_vec.ov_buf[] must be shifted block-shift bits
+	   c2_stob_io::si_user.ov_buf[] must be shifted block-shift bits
 	   to the left.
 	 */
-	struct c2_diovec            si_user;
+	struct c2_bufvec	    si_user;
 	/**
 	   Where data are located in the storage object name-space.
 
@@ -722,7 +721,7 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
    @pre c2_chan_has_waiters(&io->si_wait)
    @pre io->si_state == SIS_IDLE
    @pre io->si_opcode != SIO_INVALID
-   @pre c2_vec_count(&io->si_user.div_vec.ov_vec) == c2_vec_count(&io->si_stob.ov_vec)
+   @pre c2_vec_count(&io->si_user.ov_vec) == c2_vec_count(&io->si_stob.ov_vec)
    @pre c2_stob_io_user_is_valid(&io->si_user)
    @pre c2_stob_io_stob_is_valid(&io->si_stob)
 
@@ -738,7 +737,7 @@ int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
 /**
    Returns true if user is a valid vector of user IO buffers.
  */
-bool c2_stob_io_user_is_valid(const struct c2_diovec *user);
+bool c2_stob_io_user_is_valid(const struct c2_bufvec *user);
 /**
    Returns true if stob is a valid vector of target IO extents.
  */

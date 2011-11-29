@@ -22,7 +22,7 @@
 #define __COLIBRI_CONSOLE_MESG_H__
 
 #include "fop/fop.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/session.h"
 
 struct c2_cons_mesg;

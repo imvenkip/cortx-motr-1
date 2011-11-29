@@ -616,7 +616,7 @@ void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 	C2_PRE(seg != NULL);
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
 
-	seg->is_off = zvec->z_indices[seg_index];
+	seg->is_off = zvec->z_index[seg_index];
 	seg->is_count = zvec->z_bvec.ov_vec.v_count[seg_index];
 	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
 }
@@ -628,7 +628,7 @@ void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t seg_index,
 	C2_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
 
 	zvec->z_bvec.ov_buf[seg_index] = seg->is_buf;
-	zvec->z_indices[seg_index] = seg->is_off;
+	zvec->z_index[seg_index] = seg->is_off;
 	zvec->z_bvec.ov_vec.v_count[seg_index] = seg->is_count;
 }
 

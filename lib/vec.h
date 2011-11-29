@@ -237,40 +237,12 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 				  struct c2_bufvec_cursor *scur,
 				  c2_bcount_t num_bytes);
 
-struct c2_dio_cookie;
-struct c2_dio_engine;
-
-/**
-   Array of 4KB aligned areas, suitable for direct-IO.
-
-   @invariant size of every but last element of iovec is a multiple of 4KB.
- */
-struct c2_diovec {
-	struct c2_bufvec      div_vec;
-	struct c2_dio_cookie *div_seg;
-};
-
-enum {
-	C2_DIOVEC_SHIFT = 12,
-	C2_DIOVEC_ALIGN = (1 << C2_DIOVEC_SHIFT),
-	C2_DIOVEC_MASK  = ~(c2_bcount_t)(C2_DIOVEC_ALIGN - 1)
-};
-
-int         c2_diovec_alloc   (struct c2_diovec *vec,
-			       void *start, c2_bcount_t nob);
-void        c2_diovec_free    (struct c2_diovec *vec);
-int         c2_diovec_register(struct c2_diovec *vec,
-			       struct c2_dio_engine *eng);
-
 /**
    Zero vector is a full fledged IO vector containing IO extents
-   as well as the IO buffers. IO fop henceforth will contain
-   only c2_net_buf_desc object. Hence, wherever an IO fop needs to be
-   processed, its zero vector needs to be populated in-memory and all
-   processing happens using the zero vector.
-   An invariant (zerovec_invariant) is maintained for c2_0vec. It
+   as well as the IO buffers.
+   An invariant (c2_0vec_invariant) is maintained for c2_0vec. It
    always checks sanity of zero vector and keeps a bound check on
-   array of IO buffers using bufvec cursor.
+   array of IO buffers by checking buffer alignment and count check.
 
    Zero vector is typically allocated by upper layer by following
    the bounds of network layer (max buffer size, max segments,
@@ -280,9 +252,13 @@ struct c2_0vec {
 	/** Bufvec representing extent of IO vector and array of buffers. */
 	struct c2_bufvec	 z_bvec;
 	/** Array of indices of target object to start IO from. */
-	c2_bindex_t		*z_indices;
-	/** Cursor to traverse through the zero vector. */
-	struct c2_bufvec_cursor	 z_cursor;
+	c2_bindex_t		*z_index;
+};
+
+enum {
+	C2_0VEC_SHIFT = 12,
+	C2_0VEC_ALIGN = (1 << C2_0VEC_SHIFT),
+	C2_0VEC_MASK = C2_0VEC_ALIGN - 1,
 };
 
 /**
@@ -290,39 +266,38 @@ struct c2_0vec {
    @pre zvec != NULL.
    @param zvec The c2_0vec structure to be initialized.
    @param segs_nr Number of segments in zero vector.
-   @param seg_size Size of each segment.
    @post zvec->z_bvec.ov_buf != NULL &&
    zvec->z_bvec.ov_vec.v_nr != 0 &&
    zvec->z_bvec.ov_vec.v_count != NULL &&
-   zvec->z_indices != NULL
+   zvec->z_index != NULL
  */
-int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr,
-		 c2_bcount_t seg_size);
+int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr);
 
 /**
-   Free a c2_0vec structure.
+   Finalize a c2_0vec structure.
    @param The c2_0vec structure to be deallocated.
-   @see c2_0vec_init.
+   @see c2_0vec_init().
  */
-void c2_0vec_free(struct c2_0vec *zvec);
+void c2_0vec_fini(struct c2_0vec *zvec);
 
 /**
    Init the c2_0vec structure from given c2_bufvec structure and
    array of indices.
+   This API does not copy data. Only pointers are copied.
    @pre zvec != NULL && bufvec != NULL && indices != NULL.
    @param zvec The c2_0vec structure to be initialized.
    @param bufvec The c2_bufvec containing buffer starting addresses and
    with number of buffers and their byte counts.
    @param indices Target object indices to start the IO from.
-   @post zvec->z_cursor.bc_vc.vc_seg != 0 &&
-   zvec->z_cursor.bc_vc.vc_seg < zvec->z_bvec.ov_vec.v_nr
+   @post c2_0vec_invariant(zvec).
  */
-int c2_0vec_bvec_init(struct c2_0vec *zvec,
-		      const struct c2_bufvec *bufvec,
-		      const c2_bindex_t *indices);
+void c2_0vec_bvec_init(struct c2_0vec *zvec,
+		       const struct c2_bufvec *bufvec,
+		       const c2_bindex_t *indices);
 
 /**
    Init the c2_0vec structure from array of buffers with indices and counts.
+   This API does not copy data. Just pointers are copied.
    @note The c2_0vec struct should be allocated by user.
 
    @param zvec The c2_0vec structure to be initialized.
@@ -330,12 +305,11 @@ int c2_0vec_bvec_init(struct c2_0vec *zvec,
    @param indices Array of target object indices.
    @param counts Array of buffer counts.
    @param segs_nr Number of segments contained in the buf array.
-   @post zvec->z_cursor.bc_vc.vc_seg != 0 &&
-   zvec->z_cursor.bc_vc.vc_seg < zvec->z_bvec.ov_vec.v_nr
+   @post c2_0vec_invariant(zvec).
  */
-int c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
-		      const c2_bindex_t *indices, const c2_bcount_t *counts,
-		      uint32_t segs_nr);
+void c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
+		       const c2_bindex_t *indices, const c2_bcount_t *counts,
+		       uint32_t segs_nr);
 
 /**
    Add a c2_buf structure at given target index to c2_0vec structure.
@@ -345,7 +319,7 @@ int c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
    @param buf The c2_buf structure containing starting address of buffer
    and number of bytes in buffer.
    @param index Index of target object to start IO from.
-   @post ++zvec->z_cursor.bc_vc.vc_seg;
+   @post c2_0vec_invariant(zvec).
  */
 int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
 		     const c2_bindex_t *index);

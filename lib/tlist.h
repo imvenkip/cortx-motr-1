@@ -335,26 +335,28 @@ void   c2_tlist_move_tail(const struct c2_tl_descr *d,
 /**
    Returns the first element of a list or NULL if the list is empty.
  */
-void  *c2_tlist_head(const struct c2_tl_descr *d, struct c2_tl *list);
+void  *c2_tlist_head(const struct c2_tl_descr *d, const struct c2_tl *list);
 
 /**
    Returns the last element of a list or NULL if the list is empty.
  */
-void  *c2_tlist_tail(const struct c2_tl_descr *d, struct c2_tl *list);
+void  *c2_tlist_tail(const struct c2_tl_descr *d, const struct c2_tl *list);
 
 /**
    Returns the next element of a list or NULL if @obj is the last element.
 
    @pre c2_tlist_contains(d, list, obj)
  */
-void  *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
+void  *c2_tlist_next(const struct c2_tl_descr *d,
+		     const struct c2_tl *list, void *obj);
 
 /**
    Returns the previous element of a list or NULL if @obj is the first element.
 
    @pre c2_tlist_contains(d, list, obj)
  */
-void  *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
+void  *c2_tlist_prev(const struct c2_tl_descr *d,
+		     const struct c2_tl *list, void *obj);
 
 /**
    Iterates over elements of list @head of type @descr, assigning them in order
@@ -424,7 +426,7 @@ scope const struct c2_tl_descr name ## _tl
    static void foo_tlist_init(struct c2_tl *head);
    static void foo_tlink_init(struct foo *amb);
    static void foo_tlist_move(struct c2_tl *list, struct foo *amb);
-   static struct foo *foo_tlist_head(struct c2_tl *list);
+   static struct foo *foo_tlist_head(const struct c2_tl *list);
    @endcode
 
    &c.
@@ -453,10 +455,10 @@ scope void   name ## _tlist_add_before(amb_type *amb, amb_type *new);	\
 scope void   name ## _tlist_del(amb_type *amb);				\
 scope void   name ## _tlist_move(struct c2_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_move_tail(struct c2_tl *list, amb_type *amb); \
-scope amb_type *name ## _tlist_head(struct c2_tl *list);		\
-scope amb_type *name ## _tlist_tail(struct c2_tl *list);		\
-scope amb_type *name ## _tlist_next(struct c2_tl *list, amb_type *amb);	\
-scope amb_type *name ## _tlist_prev(struct c2_tl *list, amb_type *amb)
+scope amb_type *name ## _tlist_head(const struct c2_tl *list);		\
+scope amb_type *name ## _tlist_tail(const struct c2_tl *list);		\
+scope amb_type *name ## _tlist_next(const struct c2_tl *list, amb_type *amb);	\
+scope amb_type *name ## _tlist_prev(const struct c2_tl *list, amb_type *amb)
 
 #define __AUN __attribute__((unused))
 
@@ -571,22 +573,24 @@ scope __AUN void   name ## _tlist_move_tail(struct c2_tl *list, amb_type *amb) \
 	c2_tlist_move_tail(&name ## _tl, list, amb);			\
 }									\
 									\
-scope __AUN amb_type *name ## _tlist_head(struct c2_tl *list)		\
+scope __AUN amb_type *name ## _tlist_head(const struct c2_tl *list)	\
 {									\
 	return c2_tlist_head(&name ## _tl, list);			\
 }									\
 									\
-scope __AUN amb_type *name ## _tlist_tail(struct c2_tl *list)		\
+scope __AUN amb_type *name ## _tlist_tail(const struct c2_tl *list)	\
 {									\
 	return c2_tlist_tail(&name ## _tl, list);			\
 }									\
 									\
-scope __AUN amb_type *name ## _tlist_next(struct c2_tl *list, amb_type *amb) \
+scope __AUN amb_type *name ## _tlist_next(const struct c2_tl *list,     \
+				     amb_type *amb)			\
 {									\
 	return c2_tlist_next(&name ## _tl, list, amb);			\
 }									\
 									\
-scope __AUN amb_type *name ## _tlist_prev(struct c2_tl *list, amb_type *amb) \
+scope __AUN amb_type *name ## _tlist_prev(const struct c2_tl *list,     \
+				     amb_type *amb)                     \
 {									\
 	return c2_tlist_prev(&name ## _tl, list, amb);			\
 }									\

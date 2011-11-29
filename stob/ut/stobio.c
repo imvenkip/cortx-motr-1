@@ -110,8 +110,8 @@ static void stobio_io_prepare(struct stobio_test *test,
 			      struct c2_stob_io *io)
 {
 	io->si_flags  = 0;
-	io->si_user.div_vec.ov_vec.v_nr = RW_BUFF_NR;
-	io->si_user.div_vec.ov_vec.v_count = test->st_wrvec;
+	io->si_user.ov_vec.v_nr = RW_BUFF_NR;
+	io->si_user.ov_vec.v_count = test->st_wrvec;
 
 	io->si_stob.iv_vec.v_nr = RW_BUFF_NR;
 	io->si_stob.iv_vec.v_count = test->st_wrvec;
@@ -122,7 +122,7 @@ static void stobio_write_prepare(struct stobio_test *test,
 				 struct c2_stob_io *io)
 {
 	io->si_opcode = SIO_WRITE;
-	io->si_user.div_vec.ov_buf = (void **) test->st_wrbuf_packed;
+	io->si_user.ov_buf = (void **) test->st_wrbuf_packed;
 	stobio_io_prepare(test, io);
 }
 
@@ -130,7 +130,7 @@ static void stobio_read_prepare(struct stobio_test *test,
 				struct c2_stob_io *io)
 {
 	io->si_opcode = SIO_READ;
-	io->si_user.div_vec.ov_buf = (void **) test->st_rdbuf_packed;
+	io->si_user.ov_buf = (void **) test->st_rdbuf_packed;
 	stobio_io_prepare(test, io);
 }
 
