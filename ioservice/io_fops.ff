@@ -191,7 +191,7 @@ DEF(c2_fop_cob_writev, RECORD,
 	_(c_rwv, c2_fop_cob_rw));
 
 /**
- * Fops referring other remote fops (not present in present file).
+ * Fops referring other remote fops (not present in this file).
  */
 DEF(c2_test_ios_fop, RECORD,
 	_(if_st, U64),

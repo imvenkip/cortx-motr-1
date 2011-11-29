@@ -39,7 +39,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "lib/vec.h"	/* c2_0vec */
 #include "lib/memory.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "fop/fop_onwire.h"
 #include "lib/tlist.h"
 
@@ -742,7 +742,10 @@ static void io_fop_segments_coalesce(const struct c2_0vec *iovec,
 	}
 }
 
-static int io_netbufs_prepare(struct c2_fop *res_fop,
+/* Creates and populates net buffers as needed using the list of
+   coalesced io segments.
+ */
+static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 			      struct io_seg_set *ioseg_list,
 			      const struct c2_fop *bkp_fop)
 {
@@ -758,17 +761,17 @@ static int io_netbufs_prepare(struct c2_fop *res_fop,
 	struct c2_rpc_bulk	*rbulk;
 	struct c2_rpc_bulk_buf	*buf;
 
-	C2_PRE(res_fop != NULL);
+	C2_PRE(coalesced_fop != NULL);
 	C2_PRE(bkp_fop != NULL);
 	C2_PRE(ioseg_list != NULL);
 	C2_PRE(!c2_tlist_is_empty(&iosegset_tl, &ioseg_list->iss_list));
 
-	netdom = io_netdomain_get(res_fop);
+	netdom = io_netdomain_get(coalesced_fop);
 	max_bufsize = c2_net_domain_get_max_buffer_size(netdom);
 	max_segs_nr = c2_net_domain_get_max_buffer_segments(netdom);
-	rbulk = c2_fop_to_rpcbulk(res_fop);
+	rbulk = c2_fop_to_rpcbulk(coalesced_fop);
 	curr_segs_nr = c2_tlist_length(&iosegset_tl, &ioseg_list->iss_list);
-	buf = io_rpcbulk_buf_get(res_fop);
+	buf = io_rpcbulk_buf_get(coalesced_fop);
 
 	while (curr_segs_nr != 0) {
 		min_segs_nr = min32u(curr_segs_nr, max_segs_nr);
@@ -818,9 +821,9 @@ cleanup:
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 
-	io_0vec = io_0vec_get(res_fop);
+	io_0vec = io_0vec_get(coalesced_fop);
 	*io_0vec = *io_0vec_get(bkp_fop);
-	*iovec_get(res_fop) = io_0vec->z_bvec;
+	*iovec_get(coalesced_fop) = io_0vec->z_bvec;
 	return rc;
 }
 
@@ -873,7 +876,7 @@ cleanup:
 	return -ENOMEM;
 }
 
-/*
+/**
    Coalesces the io fops with same fid and intent (read/write). A list of
    coalesced io segments is generated which is attached to a single
    io fop - res_fop (which is already bound to a session) in form of
@@ -883,6 +886,9 @@ cleanup:
    coalesced io segments.
    The res_fop contents are backed up and restored on receiving reply
    so that upper layer is transparent of these operations.
+   @see item_io_coalesce().
+   @see c2_io_fop_init().
+   @see c2_rpc_bulk_init().
  */
 static int io_fop_coalesce(struct c2_fop *res_fop)
 {
@@ -891,11 +897,13 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 	struct io_seg_set	 aggr_list;
 	struct c2_tl		*items_list;
 	struct c2_0vec		*iovec;
+	struct c2_0vec		*bkp_iovec;
 	struct c2_rpc_item	*item;
 	struct ioseg		*ioseg;
 	struct c2_bufvec	*res_bvec;
 	struct c2_io_fop	*cfop;
 	struct c2_fop_cob_rw	*rw;
+	struct c2_fop_cob_rw	*bkp_rw;
 	struct c2_net_domain	*netdom;
 
 	C2_PRE(res_fop != NULL);
@@ -928,6 +936,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 
 	netdom = io_netdomain_get(res_fop);
 	iovec = io_0vec_get(res_fop);
+	bkp_iovec = io_0vec_get(bkp_fop);
 	res_bvec = iovec_get(res_fop);
 
 	rc = c2_io_fop_init(cfop, res_fop->f_type, res_bvec->ov_vec.v_nr,
@@ -937,8 +946,9 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 		goto cleanup;
 
 	rw = io_rw_get(res_fop);
-	*io_0vec_get(bkp_fop) = *iovec;
-	*io_rw_get(bkp_fop) = *rw;
+	bkp_rw = io_rw_get(bkp_fop);
+	*bkp_rw = *rw;
+	*bkp_iovec = *iovec;
 
 	/* Adds net buffers to rpc bulk structure till all io segments
 	   are exhausted. */
