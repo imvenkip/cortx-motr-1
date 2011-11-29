@@ -554,17 +554,17 @@ static void session_failed(struct c2_rpc_session *session, int32_t error)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }
 
-void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
-					     struct c2_rpc_item *reply,
-					     int                 rc)
+void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_session_establish_rep *fop_ser;
 	struct fop_session_establish_ctx        *ctx;
+	struct c2_rpc_item                      *reply = req->ri_reply;
 	struct c2_fop                           *fop;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_slot                      *slot;
 	uint64_t                                 sender_id;
 	uint64_t                                 session_id;
+	int32_t                                  rc    = req->ri_error;
 	int                                      i;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
@@ -769,17 +769,17 @@ int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
 }
 C2_EXPORTED(c2_rpc_session_destroy);
 
-void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
-					     struct c2_rpc_item *reply,
-					     int                 rc)
+void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_session_terminate_rep *fop_str;
 	struct c2_rpc_fop_session_terminate     *fop_st;
+	struct c2_rpc_item                      *reply = req->ri_reply;
 	struct c2_fop                           *fop;
 	struct c2_rpc_conn                      *conn;
 	struct c2_rpc_session                   *session;
 	uint64_t                                 sender_id;
 	uint64_t                                 session_id;
+	int32_t                                  rc    = req->ri_error;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
 		req->ri_session->s_session_id == SESSION_ID_0);

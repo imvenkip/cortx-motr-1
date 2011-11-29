@@ -76,24 +76,10 @@ enum stob_write_fom_phase {
 };
 
 static int stob_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
-static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc);
 
 /**
  * RPC item operations structures
  */
-static const struct c2_rpc_item_type_ops default_rpc_item_type_ops = {
-        .rito_replied = rpc_item_reply_cb,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-static const struct c2_rpc_item_type_ops default_rep_rpc_item_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
 /**
  * Fop operation structures for corresponding fops.
  */
@@ -109,34 +95,28 @@ static const struct c2_fop_type_ops default_rep_fop_ops = {
 /**
  * Fop type declarations for corresponding fops
  */
-C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_create, "stob_create", &default_fop_ops,
-			C2_STOB_IO_CREATE_REQ_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			&default_rpc_item_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_read, "stob_read", &default_fop_ops,
-			C2_STOB_IO_READ_REQ_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			&default_rpc_item_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_write, "stob_write", &default_fop_ops,
-			C2_STOB_IO_WRITE_REQ_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			&default_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_stob_io_create, "stob_create", &default_fop_ops,
+		    C2_STOB_IO_CREATE_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_stob_io_read, "stob_read", &default_fop_ops,
+		    C2_STOB_IO_READ_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_stob_io_write, "stob_write", &default_fop_ops,
+		    C2_STOB_IO_WRITE_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 
-C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_create_rep, "stob_create reply",
-			&default_rep_fop_ops,
-			C2_STOB_IO_CREATE_REPLY_OPCODE,
-			C2_RPC_ITEM_TYPE_REPLY,
-			&default_rep_rpc_item_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_read_rep, "stob_read reply",
-			&default_rep_fop_ops,
-			C2_STOB_IO_READ_REPLY_OPCODE,
-			C2_RPC_ITEM_TYPE_REPLY,
-			&default_rep_rpc_item_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_write_rep, "stob_write reply",
-			&default_rep_fop_ops,
-			C2_STOB_IO_WRITE_REPLY_OPCODE,
-			C2_RPC_ITEM_TYPE_REPLY,
-			&default_rep_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(c2_stob_io_create_rep, "stob_create reply",
+		    &default_rep_fop_ops,
+		    C2_STOB_IO_CREATE_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_stob_io_read_rep, "stob_read reply",
+		    &default_rep_fop_ops,
+		    C2_STOB_IO_READ_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_stob_io_write_rep, "stob_write reply",
+		    &default_rep_fop_ops,
+		    C2_STOB_IO_WRITE_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
 /**
  * Fop type structures required for initialising corresponding fops.
@@ -235,20 +215,13 @@ static struct c2_fom_type *stob_fom_types[] = {
 	&stob_read_fom_mopt,
 };
 
-static void rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
-{
-	C2_PRE(item != NULL);
-        C2_PRE(c2_chan_has_waiters(&item->ri_chan));
-
-        c2_chan_signal(&item->ri_chan);
-}
-
 /**
  * Function to map a fop to its corresponding fom
  */
 static struct c2_fom_type *stob_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_ASSERT(IS_IN_ARRAY((code - C2_STOB_IO_CREATE_REQ_OPCODE), stob_fom_types));
+	C2_ASSERT(IS_IN_ARRAY((code - C2_STOB_IO_CREATE_REQ_OPCODE),
+			      stob_fom_types));
 
 	return stob_fom_types[code - C2_STOB_IO_CREATE_REQ_OPCODE];
 }
