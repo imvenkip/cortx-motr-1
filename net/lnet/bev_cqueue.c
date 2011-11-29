@@ -536,13 +536,13 @@
    size_t needed;
    struct nlx_core_buffer_event *el;
 
-   ... ; // lock a lock shared with the consumer
+   ... ; // acquire the lock shared with the consumer
    while (needed > bev_cqueue_size(&myqueue)) {
        C2_ALLOC_PTR(el);
        ... ; // initialize the new element for both address spaces
        bev_cqueue_add(&myqueue, el);
    }
-   ... ; // unlock the lock shared with the consumer
+   ... ; // release the lock shared with the consumer
    @endcode
 
    @subsection cq-producer Producer
@@ -574,7 +574,7 @@
    struct nlx_core_buffer_event *el;
 
    while (!done) {
-       ... ; // lock a lock shared with the allocator
+       ... ; // acquire the lock shared with the allocator
        ql = bev_cqueue_get(&myqueue);
        if (ql == NULL) {
            ... ; // unlock a lock shared with the allocator
@@ -584,7 +584,7 @@
 
        el = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
        ... ; // operate on the current element
-       ... ; // unlock a lock shared with the allocator
+       ... ; // release the lock shared with the allocator
    }
    @endcode
 

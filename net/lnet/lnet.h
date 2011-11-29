@@ -81,7 +81,7 @@ enum {
    strings.
    @retval int Return value like strcmp().
  */
-extern int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
+int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
 
 /**
    @} LNetDFS end group

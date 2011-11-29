@@ -235,7 +235,7 @@ struct nlx_core_bev_link {
 };
 
 /**
-   Buffer event queue, operable from either from either kernel and user space
+   Buffer event queue, operable from either kernel and user space
    with a single producer and single consumer.
  */
 struct nlx_core_bev_cqueue {
