@@ -907,8 +907,7 @@ void us_recovery_complete(struct c2_update_stream *us)
 	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
-static void fop_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
-			     int32_t rc)
+static void fop_item_replied(struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 
@@ -1104,7 +1103,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
         item->ri_error = rc;
 	item->ri_reply = reply;
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-		item->ri_ops->rio_replied(item, reply, rc);
+		item->ri_ops->rio_replied(item);
 	c2_chan_broadcast(&item->ri_chan);
 }
 

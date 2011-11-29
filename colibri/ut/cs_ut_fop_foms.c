@@ -46,8 +46,7 @@
 #include "rpc/rpc_opcodes.h"
 
 static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m);
-static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item,
-				    struct c2_rpc_item *reply, int32_t rc);
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
 
 /*
   RPC item operations structures.
@@ -167,8 +166,7 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
         &cs_ds2_rep_fop_fopt
 };
 
-static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item,
-				    struct c2_rpc_item *reply, int32_t rc)
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
 	struct c2_fop *req_fop;
 	struct c2_fop *rep_fop;

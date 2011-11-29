@@ -210,12 +210,14 @@ struct c2_rpc_item_ops {
 	/**
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
-	   @param rc error code <0 if failure
+
 	   @note ri_added() and ri_sent() have been called before invoking this
 	   function.
+
+	   c2_rpc_item::ri_error and c2_rpc_item::ri_reply are already set by
+	   the time this method is called.
 	 */
-	void (*rio_replied)(struct c2_rpc_item *item,
-			    struct c2_rpc_item *reply, int32_t rc);
+	void (*rio_replied)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {
@@ -559,26 +561,23 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
   Rpc-layer will internally free the item when rpc-layer is sure that the item
   will not take part in recovery.
 
-  Rpc layer does not provide any API, to "wait until reply is received".
-  If item->ri_ops->rio_replied callback is set, then it will be called when
-  reply to the item is received.
+  Rpc layer does not provide any API, to "wait until reply is received".  If
+  item->ri_ops->rio_replied() callback is set, then it will be called when reply
+  to the item is received.
 
-  If caller of this function, wants to wait until reply is received, then
-  caller should:
+  If caller of this function, wants to wait until reply is received, then caller
+  should:
+
   - provide implementation of item->ri_ops->rio_replied() callback.
-    The implementation of ->rio_replied() should do at least two things:
-    - Third argument of this callback gives error code. Copy this error code to
-      req->ri_error (req is first argument of callback, and points to request
-      item for which reply is received).
-    - Broadcast on req->ri_chan.
 
   - add a clink to item->ri_chan and wait on the clink.
+
   - once out of wait, pointer to reply item can be retrieved from
     item->ri_reply, after checking item->ri_error.
 
   Note: setting item->ri_ops and adding clink to item->ri_chan MUST be done
-  before calling c2_rpc_post(), because reply to the item can be received
-  even before c2_rpc_post() returns.
+  before calling c2_rpc_post(), because reply to the item can be received even
+  before c2_rpc_post() returns.
 
   @pre item->ri_session != NULL
   @pre item->ri_priority is sane.
