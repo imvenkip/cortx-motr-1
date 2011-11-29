@@ -214,8 +214,8 @@ struct c2_rpc_item_ops {
 	   @note ri_added() and ri_sent() have been called before invoking this
 	   function.
 	 */
-	void (*rio_replied)(struct c2_rpc_item	*item,
-			   struct c2_rpc_item	*reply, int rc);
+	void (*rio_replied)(struct c2_rpc_item *item,
+			    struct c2_rpc_item *reply, int32_t rc);
 };
 
 struct c2_update_stream_ops {

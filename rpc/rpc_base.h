@@ -47,22 +47,6 @@ struct c2_rpc_item_type;
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
-	   Called when item's added to an RPC
-	   @param rpc reference to an RPC where item's added
-	   @param item reference to an item added to rpc
-	 */
-	void (*rito_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
-
-	/**
-	   Called when given item's replied.
-	   @param item reference to an RPC-item on which reply FOP was received.
-	   @param rc error code <0 if failure
-	   @note ri_added() and ri_sent() have been called before invoking
-	   this function.
-	 */
-	void (*rito_replied)(struct c2_rpc_item *item, int rc);
-
-	/**
 	   Restore original IO vector of rpc item.
 	 */
 	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,

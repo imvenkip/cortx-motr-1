@@ -46,14 +46,18 @@
 #include "rpc/rpc_opcodes.h"
 
 static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m);
-static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc);
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item,
+				    struct c2_rpc_item *reply, int32_t rc);
 
 /*
   RPC item operations structures.
  */
+
+static const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
+        .rio_replied = cs_ut_rpc_item_reply_cb,
+};
+
 static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
-        .rito_added = NULL,
-        .rito_replied = cs_ut_rpc_item_reply_cb,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -63,8 +67,6 @@ static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
 };
 
 static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
-        .rito_added = NULL,
-        .rito_replied = cs_ut_rpc_item_reply_cb,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -78,8 +80,6 @@ static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
   Reply rpc item type operations.
  */
 static const struct c2_rpc_item_type_ops cs_ds1_rep_fop_rpc_item_type_ops = {
-        .rito_added = NULL,
-        .rito_replied = NULL,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -89,8 +89,6 @@ static const struct c2_rpc_item_type_ops cs_ds1_rep_fop_rpc_item_type_ops = {
 };
 
 static const struct c2_rpc_item_type_ops cs_ds2_rep_fop_rpc_item_type_ops = {
-        .rito_added = NULL,
-        .rito_replied = NULL,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_items_equal = NULL,
         .rito_get_io_fragment_count = NULL,
@@ -169,7 +167,8 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
         &cs_ds2_rep_fop_fopt
 };
 
-static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item,
+				    struct c2_rpc_item *reply, int32_t rc)
 {
 	struct c2_fop *req_fop;
 	struct c2_fop *rep_fop;
@@ -189,8 +188,6 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
 		     C2_CS_DS1_REP_OPCODE ||
 		     rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
 		     C2_CS_DS2_REP_OPCODE);
-
-        c2_chan_signal(&item->ri_chan);
 }
 
 void c2_cs_ut_ds1_fop_fini(void)
@@ -494,6 +491,7 @@ void c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 
 			item = &fop[i]->f_item;
 			c2_rpc_item_init(item);
+			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
 			item->ri_deadline = 0;
 			item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 			item->ri_group = NULL;

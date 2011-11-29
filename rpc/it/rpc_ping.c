@@ -824,7 +824,7 @@ cleanup:
 
 
 #ifdef __KERNEL__
-bool client = true; 
+bool client = true;
 int c2_rpc_ping_init()
 #else
 /* Main function for rpc ping */

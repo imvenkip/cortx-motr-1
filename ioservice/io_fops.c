@@ -40,8 +40,10 @@
 #include "lib/vec.h"	/* c2_0vec */
 #include "rpc/rpc_opcodes.h"
 
+extern const struct c2_rpc_item_ops      rpc_item_iov_ops;
 extern const struct c2_rpc_item_type_ops rpc_item_readv_type_ops;
 extern const struct c2_rpc_item_type_ops rpc_item_writev_type_ops;
+extern const struct c2_rpc_item_ops      rpc_item_iov_type_ops;
 
 /**
    The IO fops code has been generalized to suit both read and write fops
