@@ -52,7 +52,6 @@ void c2_ping_fop_replied(struct c2_rpc_item *item, int rc)
 }
 
 struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
-        .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = c2_ping_fop_replied,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
@@ -64,7 +63,6 @@ struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
 };
 
 struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
-        .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
         .rito_item_size = c2_fop_item_type_default_onwire_size,

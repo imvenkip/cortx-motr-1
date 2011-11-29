@@ -52,7 +52,6 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc);
   RPC item operations structures.
  */
 static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = cs_ut_rpc_item_reply_cb,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
@@ -64,7 +63,6 @@ static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
 };
 
 static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = cs_ut_rpc_item_reply_cb,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
@@ -80,7 +78,6 @@ static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
   Reply rpc item type operations.
  */
 static const struct c2_rpc_item_type_ops cs_ds1_rep_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
         .rito_item_size = c2_fop_item_type_default_onwire_size,
@@ -92,7 +89,6 @@ static const struct c2_rpc_item_type_ops cs_ds1_rep_fop_rpc_item_type_ops = {
 };
 
 static const struct c2_rpc_item_type_ops cs_ds2_rep_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
         .rito_added = NULL,
         .rito_replied = NULL,
         .rito_item_size = c2_fop_item_type_default_onwire_size,

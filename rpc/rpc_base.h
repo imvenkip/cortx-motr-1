@@ -47,12 +47,6 @@ struct c2_rpc_item_type;
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
-	   Called when given item's sent.
-	   @param item reference to an RPC-item sent
-	   @note ri_added() has been called before invoking this function.
-	 */
-	void (*rito_sent)(struct c2_rpc_item *item);
-	/**
 	   Called when item's added to an RPC
 	   @param rpc reference to an RPC where item's added
 	   @param item reference to an item added to rpc

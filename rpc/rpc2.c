@@ -916,7 +916,6 @@ static void rpc_item_op_replied(struct c2_rpc_item *item, int rc)
 
 /** Debugging item operation vector */
 static const struct c2_rpc_item_type_ops rpc_item_ops = {
-	.rito_sent    = rpc_item_op_sent,
 	.rito_added   = rpc_item_op_added,
 	.rito_replied = rpc_item_op_replied
 };
@@ -1048,7 +1047,6 @@ int item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 }
 
 const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
-	.rito_sent = NULL,
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
@@ -1062,7 +1060,6 @@ const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 };
 
 const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
-	.rito_sent = NULL,
 	.rito_added = NULL,
 	.rito_replied = item_replied,
 	.rito_iovec_restore = item_vec_restore,
