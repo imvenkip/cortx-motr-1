@@ -64,15 +64,8 @@ size_t test_item_size_get(const struct c2_rpc_item *item)
 		return (size_t)len;
 }
 
-const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
-	.rito_encode = c2_fop_item_type_default_encode,
-	.rito_decode = c2_fop_item_type_default_decode,
-	.rito_item_size = c2_fop_item_type_default_onwire_size
-};
-
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
-			C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
-			&c2_rpc_item_test_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
+		    C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 
 static struct c2_verno verno = {
 	.vn_lsn = 1111,

@@ -56,46 +56,6 @@ static const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
         .rio_replied = cs_ut_rpc_item_reply_cb,
 };
 
-static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-
-/*
-  Reply rpc item type operations.
- */
-static const struct c2_rpc_item_type_ops cs_ds1_rep_fop_rpc_item_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-static const struct c2_rpc_item_type_ops cs_ds2_rep_fop_rpc_item_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
 /* DS1 service fop type operations.*/
 static const struct c2_fop_type_ops cs_ds1_req_fop_type_ops = {
         .fto_fom_init = cs_req_fop_fom_init,
@@ -134,21 +94,17 @@ static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
         .fto_io_coalesce = NULL,
 };
 
-C2_FOP_TYPE_DECLARE_OPS(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
-			C2_CS_DS1_REQ_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			&cs_ds1_req_fop_rpc_item_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(cs_ds1_rep_fop, "ds1 reply", &cs_ds1_rep_fop_type_ops,
-			C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-			&cs_ds1_rep_fop_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
+		    C2_CS_DS1_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(cs_ds1_rep_fop, "ds1 reply", &cs_ds1_rep_fop_type_ops,
+		    C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE_OPS(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
-			C2_CS_DS2_REQ_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			&cs_ds2_req_fop_rpc_item_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
-			C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-			&cs_ds2_rep_fop_rpc_item_type_ops);
+C2_FOP_TYPE_DECLARE(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
+		    C2_CS_DS2_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
+		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 /*
   Defines ds1 service fop types array.

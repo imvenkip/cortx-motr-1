@@ -142,12 +142,7 @@ C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
 		    C2_CONS_FOP_REPLY_OPCODE,
 		    C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE_OPS(c2_cons_fop_test, "Console Test",
-			NULL,
-			C2_CONS_TEST,
-			0,
-			NULL);
-
+C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
 
 static struct c2_fop_type *fops[] = {
         &c2_cons_fop_disk_fopt,

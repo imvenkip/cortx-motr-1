@@ -43,25 +43,6 @@
 /* Init for ping reply fom */
 int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
-const struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-const struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_items_equal = NULL,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-
 /* Ops vector for ping request. */
 const struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fom_init = c2_fop_ping_fom_init,

@@ -35,9 +35,6 @@ extern struct c2_fop_type_format c2_fop_ping_rep_tfmt;
 extern struct c2_fop_type c2_fop_ping_fopt;
 extern struct c2_fop_type c2_fop_ping_rep_fopt;
 
-extern const struct c2_rpc_item_type_ops rpc_item_ping_type_ops;
-extern const struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops;
-
 extern const struct c2_fop_type_ops c2_fop_ping_ops;
 extern const struct c2_fop_type_ops c2_fop_ping_rep_ops;
 
