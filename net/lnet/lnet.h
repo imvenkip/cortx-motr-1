@@ -18,8 +18,8 @@
  *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
  * Original creation date: 11/01/2011
  */
-#ifndef __COLIBRI_LNET_H__
-#define __COLIBRI_LNET_H__
+#ifndef __COLIBRI_NET_LNET_H__
+#define __COLIBRI_NET_LNET_H__
 
 /**
    @page LNetDLD-fspec LNet Transport Functional Specification
@@ -46,16 +46,16 @@
 
    @see @ref net "Networking"                     <!-- net/net.h -->
    @see @ref LNetDLD "LNet Transport DLD"         <!-- net/lnet/lnet_main.c -->
-   @see @ref LNetDFS "LNet Transport Interface"   <!-- below -->
+   @see @ref LNetDFS "LNet Transport"   <!-- below -->
 
  */
 
 /**
-   @defgroup LNetDFS LNet Transport Interface
+   @defgroup LNetDFS LNet Transport
    @ingroup net
 
    The external interfaces of the LNet transport are obtained by
-   including the file @ref net/lnet.h.
+   including the file @ref net/lnet/lnet.h.
 
    @see @ref LNetDLD "LNet Transport DLD"
 
@@ -70,7 +70,9 @@
 extern struct c2_net_xprt c2_net_lnet_xprt;
 
 enum {
-	/** @todo Max LNet ep addr length?, 4-tuple */
+	/** Max LNet ep addr length
+	    @todo Determine exact value for a 4-tuple LNet EP addr
+	*/
 	C2_NET_LNET_XEP_ADDR_LEN = 80,
 };
 
@@ -85,7 +87,7 @@ extern int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
    @} LNetDFS end group
 */
 
-#endif /* __COLIBRI_LNET_H__ */
+#endif /* __COLIBRI_NET_LNET_H__ */
 
 /*
  *  Local variables:

@@ -28,7 +28,7 @@
    - @ref LNetDLD-depends
    - @ref LNetDLD-highlights
    - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet_core.h" -->
-      - @ref LNetDFS "LNet Transport Interface"        <!-- net/lnet.h -->
+      - @ref LNetDFS "LNet Transport"                  <!-- net/lnet/lnet.h -->
       - @ref LNetXODFS "XO Interface"                  <!-- ./lnet_xo.h -->
    - @ref LNetDLD-lspec
       - @ref LNetDLD-lspec-comps

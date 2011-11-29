@@ -19,8 +19,8 @@
  * Original creation date: 11/01/2011
  *
  */
-#ifndef __COLIBRI_KLNET_CORE_H__
-#define __COLIBRI_KLNET_CORE_H__
+#ifndef __COLIBRI_NET_KLNET_CORE_H__
+#define __COLIBRI_NET_KLNET_CORE_H__
 
 /**
    @defgroup KLNetCore LNet Transport Core Kernel Private Interface
@@ -32,7 +32,7 @@
 #include "lib/semaphore.h"
 #include "lib/tlist.h"
 #include "lnet/include/lnet/types.h"
-#include "net/lnet_core.h"
+#include "net/lnet/lnet_core.h"
 
 #include <linux/spinlock.h>
 
@@ -113,7 +113,7 @@ struct nlx_kcore_buffer {
    @}
 */
 
-#endif /* __COLIBRI_KLNET_CORE_H__ */
+#endif /* __COLIBRI_NET_KLNET_CORE_H__ */
 
 /*
  *  Local variables:

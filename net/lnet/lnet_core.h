@@ -19,8 +19,8 @@
  * Original creation date: 11/01/2011
  *
  */
-#ifndef __COLIBRI_LNET_CORE_H__
-#define __COLIBRI_LNET_CORE_H__
+#ifndef __COLIBRI_NET_LNET_CORE_H__
+#define __COLIBRI_NET_LNET_CORE_H__
 
 /**
    @page LNetCoreDLD-fspec LNet Transport Core Functional Specfication
@@ -161,7 +161,7 @@
    @{
  */
 
-#include "net/lnet.h"
+#include "net/lnet/lnet.h"
 
 /* forward references */
 struct nlx_core_bev_link;
@@ -628,7 +628,7 @@ static void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm);
    @}
 */
 
-#endif /* __COLIBRI_LNET_CORE_H__ */
+#endif /* __COLIBRI_NET_LNET_CORE_H__ */
 
 /*
  *  Local variables:

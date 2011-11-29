@@ -19,8 +19,8 @@
  * Original creation date: 11/10/2011
  *
  */
-#ifndef __COLIBRI_LNET_XO_H__
-#define __COLIBRI_LNET_XO_H__
+#ifndef __COLIBRI_NET_LNET_XO_H__
+#define __COLIBRI_NET_LNET_XO_H__
 
 #include "net/lnet/lnet_core.h"
 #include "lib/thread.h"
@@ -48,10 +48,9 @@ struct nlx_xo_ep {
 	nlx_core_ep_addr        xe_core;
 
 	/** Memory for the string representation of the end point.
-	    Additional contiguous memory is allocated beyond this array.
-	    The nxe_ep::nep_addr field points to @c nxe_addr.
+	    The @c xe_ep.nep_addr field points to @c xe_addr.
 	*/
-	char                    xe_addr[1];
+	char                    xe_addr[C2_NET_LNET_XEP_ADDR_LEN];
 };
 
 /**
@@ -116,7 +115,7 @@ struct nlx_xo_buffer {
    @} LNetXODFS
 */
 
-#endif /* __COLIBRI_LNET_XO_H__ */
+#endif /* __COLIBRI_NET_LNET_XO_H__ */
 
 /*
  *  Local variables:

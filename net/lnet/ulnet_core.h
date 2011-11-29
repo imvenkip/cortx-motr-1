@@ -19,8 +19,8 @@
  * Original creation date: 11/01/2011
  *
  */
-#ifndef __COLIBRI_ULNET_CORE_H__
-#define __COLIBRI_ULNET_CORE_H__
+#ifndef __COLIBRI_NET_ULNET_CORE_H__
+#define __COLIBRI_NET_ULNET_CORE_H__
 
 /**
    @defgroup ULNetCore LNet Transport Core Userspace Private Interface
@@ -60,7 +60,7 @@ struct nlx_ucore_buffer {
    @}
 */
 
-#endif /* __COLIBRI_ULNET_CORE_H__ */
+#endif /* __COLIBRI_NET_ULNET_CORE_H__ */
 
 /*
  *  Local variables:
