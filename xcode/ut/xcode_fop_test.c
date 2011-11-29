@@ -63,8 +63,8 @@ struct c2_fop_type_ops test_ops = {
         .fto_execute = test_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_test, "test", &test_ops,
-		    C2_XCODE_UT_OPCODE, 0, NULL);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_test, "test", &test_ops,
+			C2_XCODE_UT_OPCODE, 0, NULL);
 
 static void fop_verify( struct c2_fop *fop)
 {

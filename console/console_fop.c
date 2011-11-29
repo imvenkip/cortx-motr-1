@@ -124,38 +124,29 @@ static struct c2_fop_type_ops c2_cons_fop_reply_ops = {
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
-static struct c2_rpc_item_type_ops default_item_type_ops = {
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-};
-
 /** Fop and RPC Item type definitions for disk and device failures and replies
     and replies
 */
 C2_FOP_TYPE_DECLARE(c2_cons_fop_disk, "Disk Failed",
-		     &c2_cons_fop_disk_ops,
-		     C2_CONS_FOP_DISK_OPCODE,
-		     C2_RPC_ITEM_TYPE_REQUEST,
-		     &default_item_type_ops);
+		    &c2_cons_fop_disk_ops,
+		    C2_CONS_FOP_DISK_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
-		     &c2_cons_fop_device_ops,
-		     C2_CONS_FOP_DEVICE_OPCODE,
-		     C2_RPC_ITEM_TYPE_REQUEST,
-		     &default_item_type_ops);
+		    &c2_cons_fop_device_ops,
+		    C2_CONS_FOP_DEVICE_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
-		     &c2_cons_fop_reply_ops,
-		     C2_CONS_FOP_REPLY_OPCODE,
-		     C2_RPC_ITEM_TYPE_REPLY,
-		     &default_item_type_ops);
+		    &c2_cons_fop_reply_ops,
+		    C2_CONS_FOP_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test",
-		     NULL,
-                     C2_CONS_TEST,
-                     0,
-		     NULL);
+C2_FOP_TYPE_DECLARE_OPS(c2_cons_fop_test, "Console Test",
+			NULL,
+			C2_CONS_TEST,
+			0,
+			NULL);
 
 
 static struct c2_fop_type *fops[] = {

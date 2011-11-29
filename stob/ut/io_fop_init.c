@@ -77,27 +77,20 @@ static struct c2_fop_type_ops quit_ops = {
 };
 
 C2_FOP_TYPE_DECLARE(c2_io_write, "write",  &write_ops,
-		      C2_STOB_UT_WRITE_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_STOB_UT_WRITE_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 C2_FOP_TYPE_DECLARE(c2_io_read, "read", &read_ops,
-		      C2_STOB_UT_READ_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_STOB_UT_READ_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 C2_FOP_TYPE_DECLARE(c2_io_create, "create", &create_ops,
-		      C2_STOB_UT_CREATE_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_STOB_UT_CREATE_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 C2_FOP_TYPE_DECLARE(c2_io_quit, "quit", &quit_ops,
-		      C2_STOB_UT_QUIT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_STOB_UT_QUIT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  NULL,
-		      C2_STOB_UT_WRITE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_STOB_UT_WRITE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply", NULL,
-		      C2_STOB_UT_READ_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_STOB_UT_READ_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", NULL,
-		      C2_STOB_UT_CREATE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_STOB_UT_CREATE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,

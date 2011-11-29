@@ -103,14 +103,14 @@ struct c2_fop_type_ops c2_fop_ping_rep_ops = {
 };
 
 /* Ping fop assignment */
-C2_FOP_TYPE_DECLARE(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
-		    C2_RPC_PING_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-		    &rpc_item_ping_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
+			C2_RPC_PING_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+			&rpc_item_ping_type_ops);
 
-C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
-                    C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-		    &rpc_item_ping_rep_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
+			C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
+			&rpc_item_ping_rep_type_ops);
 
 static struct c2_fop_type_format *fmts[] = {
         &c2_fop_ping_arr_tfmt,

@@ -36,8 +36,8 @@ static struct c2_fop_type_ops nettest_ops = {
 	.fto_execute = nettest_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_nettest, "nettest", &nettest_ops, C2_NET_TEST_OPCODE,
-		   0, NULL);
+C2_FOP_TYPE_DECLARE_OPS(c2_nettest, "nettest", &nettest_ops, C2_NET_TEST_OPCODE,
+			0, NULL);
 
 
 static struct c2_fop_type *net_ut_fops[] = {
@@ -70,7 +70,7 @@ int nettest_fop_init(void)
 	return result;
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
