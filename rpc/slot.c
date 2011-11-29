@@ -649,12 +649,6 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(c2_rpc_session_invariant(session));
 		c2_mutex_unlock(&session->s_mutex);
 
-		/*
-		 * On receiver, ->so_reply_consume(req, reply) will hand over
-		 * @reply to formation, to send it back to sender.
-		 * see: rcv_reply_consume(), snd_reply_consume()
-		 */
-		slot->sl_ops->so_reply_consume(req, reply);
 		slot_balance(slot);
 
 		c2_mutex_lock(&session->s_mutex);
@@ -665,6 +659,33 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 					&session->s_mutex);
 		}
 		c2_mutex_unlock(&session->s_mutex);
+
+		/*
+		 * On receiver, ->so_reply_consume(req, reply) will hand over
+		 * @reply to formation, to send it back to sender.
+		 * see: rcv_reply_consume(), snd_reply_consume()
+		 */
+		slot->sl_ops->so_reply_consume(req, reply);
+		/*
+		 * XXX On receiver, there is a potential race, from this point
+		 * to slot mutex unlock in c2_rpc_reply_post().
+		 * - Context switch happens at this point. slot->sl_mutex is
+		 *   yet to be unlocked.
+		 * - @reply reaches back to sender. This might make sender side
+		 *   session IDLE.
+		 * - sender sends SESSION_TERMINATE.
+		 * - SESSION_TERMINATE fop gets submitted to reqh and completes
+		 *    its execution. As part of session termination it frees all
+		 *    session and slot objects.
+		 * - execution of this thread resumes from this point.
+		 * - control returns to c2_rpc_reply_post() which tries to
+		 *   unlock the mutex, but the mutex is embeded in slot and
+		 *   slot is already freed during session termination. BOOM!!!
+		 * - Holding session mutex across c2_rpc_slot_reply_received()
+		 *   might sound obvious solution, but formation tries to
+		 *   aquire same session mutex while processing reply item,
+		 *   leading to self deadlock.
+		 */
 	}
 }
 
