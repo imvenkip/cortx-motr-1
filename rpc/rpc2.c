@@ -1024,18 +1024,7 @@ const struct c2_rpc_item_ops rpc_item_iov_ops = {
 	.rio_replied = fop_item_replied
 };
 
-const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
-	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = c2_fop_item_type_default_onwire_size,
-	.rito_items_equal = item_equal,
-	.rito_fid_equal = item_fid_equal,
-	.rito_get_io_fragment_count = item_fragment_count_get,
-	.rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode
-};
-
-const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
+const struct c2_rpc_item_type_ops rpc_item_iov_type_ops = {
 	.rito_iovec_restore = item_vec_restore,
 	.rito_item_size = c2_fop_item_type_default_onwire_size,
 	.rito_items_equal = item_equal,
