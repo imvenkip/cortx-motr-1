@@ -41,9 +41,9 @@
 
    There are two interfaces related to channels:
 
-       - producer interface. It consists of c2_chan_signal() and
-         c2_chan_broadcast() functions. These functions are called to declare
-         that new asynchronous event happened in the stream.
+       - producer interface. It consists of c2_chan_signal(), c2_clink_signal()
+         and c2_chan_broadcast() functions. These functions are called to
+         declare that new asynchronous event happened in the stream.
 
        - consumer interface. It consists of c2_clink_add(), c2_clink_del(),
          c2_clink_wait() and c2_clink_trywait() functions.
@@ -53,6 +53,12 @@
    registered with the channel. If event is a signal (c2_chan_signal()) it is
    delivered to a single clink (if any) registered with the channel. Clinks for
    delivery of consecutive signals are selected in a round-robin manner.
+
+   A special c2_clink_signal() function is provided to signal a particular
+   clink. c2_clink_signal() delivers a signal to its argument clink. This
+   function does not take any locks and is designed to be used in "awkward"
+   contexts, like interrupt handler or timer call-backs, where blocking on a
+   lock is not allowed. Use sparingly.
 
    The method of delivery depends on the clink interface used (c2_clink). If
    clink has a call-back, the delivery starts with calling this call-back. If a
@@ -286,6 +292,19 @@ void c2_chan_signal(struct c2_chan *chan);
    @see c2_chan_signal()
  */
 void c2_chan_broadcast(struct c2_chan *chan);
+
+/**
+   Notifies a given clink that a new event happened.
+
+   This function takes no locks.
+
+   c2_chan_signal() should be used instead, unless the event is announced in a
+   context where blocking is not allowed.
+
+   @see c2_chan_signal()
+   @see c2_chan_broadcast()
+ */
+void c2_clink_signal(struct c2_clink *clink);
 
 /**
    True iff there are clinks registered with the chan.
