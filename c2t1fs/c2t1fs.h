@@ -23,6 +23,7 @@
 #define __COLIBRI_C2T1FS_H
 
 #include <linux/fs.h>
+#include <linux/pagemap.h>
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
@@ -82,7 +83,7 @@
 
   - unit_size [value type: number]
       Size of each stripe unit. Optional parameter. Default value is
-      C2T1FS_DEFAULT_STRIPE_UNIT_SIZE (=PAGE_SIZE).
+      C2T1FS_DEFAULT_STRIPE_UNIT_SIZE (=PAGE_CACHE_SIZE).
 
    'device' argument of mount command is ignored.
 
@@ -198,7 +199,7 @@ enum {
 	C2T1FS_DEFAULT_NR_PARITY_UNITS = 0,
 	C2T1FS_DEFAULT_NR_CONTAINERS = C2T1FS_DEFAULT_NR_DATA_UNITS +
 					2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
-	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_SIZE,
+	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS = 1024,
 	C2T1FS_MAX_NR_DIR_ENTS = 10,
 };

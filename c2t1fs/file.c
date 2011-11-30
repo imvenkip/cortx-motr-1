@@ -189,8 +189,8 @@ static bool address_is_page_aligned(unsigned long addr)
 {
 	START();
 
-	TRACE("addr %lx mask %lx\n", addr, PAGE_SIZE - 1);
-	return (addr & (PAGE_SIZE - 1)) == 0;
+	TRACE("addr %lx mask %lx\n", addr, PAGE_CACHE_SIZE - 1);
+	return (addr & (PAGE_CACHE_SIZE - 1)) == 0;
 }
 
 static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
@@ -248,11 +248,11 @@ static int c2t1fs_pin_memory_area(char          *buf,
 	START();
 
 	addr = (unsigned long)buf;
-	off  = (addr & (PAGE_SIZE - 1)); /* as we've already confirmed buf is
-					    page aligned, off is always 0 */
-	addr &= PAGE_MASK;
+	off  = (addr & (PAGE_CACHE_SIZE - 1)); /* as we've already confirmed
+				       buf is page aligned, off is always 0 */
+	addr &= PAGE_CACHE_MASK;
 
-	nr_pages = (off + count + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	nr_pages = (off + count + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 
 	C2_ALLOC_ARR(pages, nr_pages);
 	if (pages == NULL) {
@@ -264,7 +264,8 @@ static int c2t1fs_pin_memory_area(char          *buf,
 
 	if (addr > PAGE_OFFSET) {
 		/* addr points in kernel space */
-		for (i = 0, va = addr; i < nr_pages; i++, va += PAGE_SIZE) {
+		for (i = 0, va = addr; i < nr_pages; i++,
+						     va += PAGE_CACHE_SIZE) {
 			pages[i] = virt_to_page(va);
 			get_page(pages[i]);
 		}
@@ -659,7 +660,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				 * memory area.
 				 */
 				/*
-				 ptr = c2_alloc_aligned(unit_size, PAGE_SHIFT);
+				 ptr = c2_alloc_aligned(unit_size,
+							PAGE_CACHE_SHIFT);
 				 */
 				ptr = c2_alloc(unit_size);
 				rc = c2t1fs_rw_desc_buf_add(rw_desc,
@@ -692,7 +694,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				 * we shouldn't
 				 */
 				/*
-				ptr = c2_alloc_aligned(unit_size, PAGE_SHIFT);
+				ptr = c2_alloc_aligned(unit_size,
+							PAGE_CACHE_SHIFT);
 				 */
 				ptr = c2_alloc(unit_size);
 				rc = c2t1fs_rw_desc_buf_add(rw_desc,

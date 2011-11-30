@@ -181,8 +181,8 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 
 	sb->s_fs_info = csb;
 
-	sb->s_blocksize      = PAGE_SIZE;
-	sb->s_blocksize_bits = PAGE_SHIFT;
+	sb->s_blocksize      = PAGE_CACHE_SIZE;
+	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
 	sb->s_magic          = C2T1FS_SUPER_MAGIC;
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
@@ -362,8 +362,8 @@ static int c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts)
 	 * Need to test, with unit size that is not multiple of page size.
 	 * Until then don't allow.
 	 */
-	if ((mnt_opts->mo_unit_size & (PAGE_SIZE - 1)) != 0) {
-		TRACE("ERROR: Unit size must be multiple of PAGE_SIZE\n");
+	if ((mnt_opts->mo_unit_size & (PAGE_CACHE_SIZE - 1)) != 0) {
+		TRACE("ERROR: Unit size must be multiple of PAGE_CACHE_SIZE\n");
 		goto invalid;
 	}
 
