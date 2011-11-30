@@ -239,7 +239,6 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 
 	c2_mutex_lock(&loc->tlo_lock);
 	tid_tlist_add(&loc->tlo_tids, tt);
-	loc->tlo_rrtid = NULL;
 	c2_mutex_unlock(&loc->tlo_lock);
 
 	return 0;
