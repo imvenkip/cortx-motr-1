@@ -48,7 +48,6 @@ const struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fom_init = c2_fop_ping_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_op_equal = NULL,
 	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
 };
@@ -64,7 +63,6 @@ const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
@@ -99,6 +97,7 @@ int c2_ping_fop_init(void)
         result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
         return result;
 }
+
 
 /*
  *  Local variables:

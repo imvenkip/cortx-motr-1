@@ -27,7 +27,159 @@
 #include "fop/fop.h"
 
 /**
-   @addtogroup io_fops
+   @page bulkclient-fspec Functional Specification for fop bulk client.
+   <i>Mandatory. This page describes the external interfaces of the
+   component. The section has mandatory sub-divisions created using the Doxygen
+   @@section command.  It is required that there be Table of Contents at the
+   top of the page that illustrates the sectioning of the page.</i>
+
+   - @ref bulkclient-fspec-ds
+   - @ref bulkclient-fspec-sub
+   - @ref bulkclient-fspec-cli
+   - @ref bulkclient-fspec-usecases
+   - @ref bulkclientDFS "Bulk IO client Detailed Functional Specification"
+
+   @section bulkclient-fspec-ds Data Structures
+   <i>Mandatory for programmatic interfaces.  Components with programming
+   interfaces should provide an enumeration and <i>brief</i> description of the
+   major externally visible data structures defined by this component.  No
+   details of the data structure are required here, just the salient
+   points.</i>
+
+   The io bulk client design includes data structures like
+   - c2_io_fop An in-memory definition of io fop which binds the io fop
+   with its network buffer.
+
+   @section bulkclient-fspec-sub Subroutines
+   <i>Mandatory for programmatic interfaces.  Components with programming
+   interfaces should provide an enumeration and brief description of the
+   externally visible programming interfaces.</i>
+
+   @subsection bulkclient-fspec-sub-cons Constructors and Destructors
+
+   - c2_io_fop_init() Initializes the c2_io_fop structure.
+
+   - c2_io_fop_fini() Finalizes a c2_io_fop structure.
+
+   @subsection bulkclient-fspec-sub-acc Accessors and Invariants
+
+   - c2_fop_to_rpcbulk() Retrieves struct c2_rpc_bulk from given c2_fop.
+
+   @subsection bulkclient-fspec-sub-opi Operational Interfaces
+
+   @section bulkclient-fspec-cli Command Usage
+   <i>Mandatory for command line programs.  Components that provide programs
+   would provide a specification of the command line invocation arguments.  In
+   addition, the format of any any structured file consumed or produced by the
+   interface must be described in this section.</i>
+   Not Applicable.
+
+   @section bulkclient-fspec-usecases Recipes
+   <i>This section could briefly explain what sequence of interface calls or
+   what program invocation flags are required to solve specific usage
+   scenarios.  It would be very nice if these examples can be linked
+   back to the HLD for the component.</i>
+
+   - IO bulk client allocates memory for a c2_io_fop and invokes
+   c2_io_fop_init() by providing fop type, number of io segments, size
+   of each segment and the network domain.
+   - IO bulk client client invokes c2_rpc_bulk_page_add() till all pages are
+   added to c2_rpc_bulk structure and then invokes c2_rpc_post() to
+   submit the fop to rpc layer.
+   - Rpc layer invokes io coalescing code which invokes c2_io_fop_to_rpcbulk()
+   and populates its network buffer descriptor.
+
+   - Colibri io server program (ioservice) creates a c2_io_fop and invokes
+   c2_io_fop_init() by providing fop type, number of io segments, size of
+   each segment and network domain.
+   - Ioservice invokes c2_rpc_bulk_buf_add() to attach buffers to the
+   c2_rpc_bulk structure.
+   - Ioservice invokes c2_rpc_bulk_load() to start the zero copy of data from
+   sender.
+
+   @see @ref bulkclientDFS "Bulk IO client Detailed Functional Specification"
+ */
+
+/**
+   @defgroup bulkclientDFS Detailed Functional Specification for io bulk client.
+   @{
+
+   The Detailed Functional Specification can be broken down in 2 major
+   subcomponents.
+
+   - @ref bulkclientDFSiofop
+   - @ref bulkclientDFSrpcbulk
+*/
+
+/**
+   @section bulkclientDFSiofop Generic io fop.
+ */
+
+/**
+   A magic constant to check sanity of struct c2_io_fop.
+ */
+enum {
+	C2_IO_FOP_MAGIC = 0x34832752309bdfeaULL,
+};
+
+/**
+   This data structure is used to associate an io fop with its
+   rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
+   Client side implementations use this structure to represent
+   io fops and the associated rpc bulk structures.
+   The c2_io_fop structures can be populated and used like this.
+   @see c2_rpc_bulk().
+   @code
+   c2_io_fop_init(iofop, ftype, segs_nr, seg_size, net_domain);
+   ...
+   c2_rpc_bulk_page_add(iofop->if_rbulk, page, index);
+   OR
+   c2_rpc_bulk_buf_add(iofop->if_rbulk, buf, count, index);
+   ..
+   c2_rpc_bulk_buf_store(rbuf, rpcitem, net_buf_desc);
+   ..
+   c2_io_fop_fini(iofop);
+   @endcode
+ */
+struct c2_io_fop {
+	/** Magic constant for IO fop. */
+	uint64_t		if_magic;
+	/** Inline fop for a generic IO fop. */
+	struct c2_fop		if_fop;
+	/** Rpc bulk structure containing zero vector for io fop. */
+	struct c2_rpc_bulk	if_rbulk;
+};
+
+/**
+   Initializes a c2_io_fop structure.
+   @param ftype Type of fop to be initialized.
+   @param segs_nr Max number of segments in the zero vector.
+   @param seg_size Size of each io segment.
+   @param netdom Network domain to which given iofop belongs. @see c2_net_domain
+   @pre iofop != NULL.
+   @post io_fop_invariant(iofop)
+ */
+int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype,
+		   uint32_t segs_nr, c2_bcount_t seg_size,
+		   struct c2_net_domain *netdom);
+
+/**
+   Finalizes a c2_io_fop structure.
+   @pre iofop != NULL.
+ */
+void c2_io_fop_fini(struct c2_io_fop *iofop);
+
+/**
+   Retrieves a c2_rpc_bulk structure from given c2_fop.
+   @pre fop != NULL.
+ */
+struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
+
+/**
+   @} bulkclientDFS end group
+*/
+
+/**
    In-memory definition of generic io fop and generic io segment.
  */
 struct page;
@@ -43,81 +195,6 @@ int c2_ioservice_fops_nr(void);
  */
 int c2_ioservice_fop_init(void);
 void c2_ioservice_fop_fini(void);
-
-/**
-   This data structure is used to associate an io fop with its
-   rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
-   Client side implementations use this structure to represent
-   io fops and the associated rpc bulk structures.
-
-   @todo Not complete yet. Need to build ops around c2_io_fop.
- */
-struct c2_io_fop {
-	/** Inline fop for a generic IO fop. */
-	struct c2_fop		if_fop;
-	/** Bulk structure containing zero vector for io fop. */
-	struct c2_rpc_bulk	if_bulk;
-};
-
-/**
-   Generic io segment that represents a contiguous stream of bytes
-   along with io extent. This structure is typically used by io coalescing
-   code from ioservice.
- */
-struct io_zeroseg {
-	/* Offset of target object to start io from. */
-	c2_bindex_t		 is_off;
-	/* Number of bytes in io segment. */
-	c2_bcount_t		 is_count;
-	/* Starting address of buffer. */
-	void			*is_buf;
-	/* Linkage to have such zero segments in a list. */
-	struct c2_list_link	 is_linkage;
-};
-
-/**
-   Allocate a zero segment.
-   @retval Valid io_zeroseg object if success, NULL otherwise.
- */
-struct io_zeroseg *io_zeroseg_alloc(void);
-
-/**
-   Deallocate a zero segment.
-   @param zseg - Zero segment to be deallocated.
- */
-void io_zeroseg_free(struct io_zeroseg *zseg);
-
-/**
-   Get the io segment indexed by index in array of io segments in zerovec.
-   @note The incoming c2_0vec should be allocated and initialized.
-
-   @param zvec The c2_0vec io vector from which io segment will be retrieved.
-   @param index Index of io segments in array of io segments from zerovec.
-   @param seg Out parameter to return io segment.
- */
-void io_zerovec_seg_get(const struct c2_0vec *zvec, uint32_t index,
-			struct io_zeroseg *seg);
-
-/**
-   Set the io segment referred by index into array of io segments from
-   the zero vector.
-   @note There is no data copy here. Just buffer pointers are copied since
-   this API is supposed to be used in same address space.
-
-   @note The incoming c2_0vec should be allocated and initialized.
-   @param zvec The c2_0vec io vector whose io segment will be changed.
-   @param seg Target segment for set.
- */
-void io_zerovec_seg_set(struct c2_0vec *zvec, uint32_t index,
-			const struct io_zeroseg *seg);
-
-/**
-   Allocate the io segments for the given c2_0vec structure.
-   @note The incoming c2_0vec should be allocated and initialized.
-   @param zvec The c2_0vec structure.
-   @param segs_nr Number of io segments to be allocated.
- */
-int io_zerovec_segs_alloc(struct c2_0vec *zvec, uint32_t segs_nr);
 
 /**
  * FOP definitions and corresponding fop type formats
@@ -138,8 +215,6 @@ extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
-
-/** @} end of io_fops group */
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif
