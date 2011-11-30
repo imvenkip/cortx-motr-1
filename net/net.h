@@ -25,7 +25,6 @@
 
 #include <stdarg.h>
 
-#include "lib/bitmap.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/list.h"
@@ -76,6 +75,7 @@
 
 /*import */
 struct c2_fop; /* deprecated */
+struct c2_bitmap;
 
 /* export */
 struct c2_net_xprt;
