@@ -28,7 +28,6 @@
    @addtogroup net
    @{
  */
-
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 {
 	return qt >= C2_NET_QT_MSG_RECV && qt < C2_NET_QT_NR;
@@ -77,8 +76,7 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 		return false;
 
 	/* EXPENSIVE: on the right TM list */
-	if (!c2_list_contains(&buf->nb_tm->ntm_q[buf->nb_qtype],
-			      &buf->nb_tm_linkage))
+	if (!tm_tlist_contains(&buf->nb_tm->ntm_q[buf->nb_qtype], buf))
 		return false;
 	return true;
 }
@@ -102,6 +100,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	buf->nb_xprt_private = NULL;
 	buf->nb_timeout = C2_TIME_NEVER;
 
+	buf->nb_magic = NET_BUFFER_LINK_MAGIC;
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
 	 */
@@ -133,6 +132,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	buf->nb_flags &= ~C2_NET_BUF_REGISTERED;
 	c2_list_del(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
+	buf->nb_magic = 0;
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;
@@ -143,7 +143,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
-	struct c2_list *ql;
+	struct c2_tl	     *ql;
 	struct buf_add_checks {
 		bool check_length;
 		bool check_ep;
@@ -215,7 +215,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	/* Optimistically add it to the queue's list before calling the xprt.
 	   Post will unlink on completion, or del on cancel.
 	 */
-	c2_list_add_tail(ql, &buf->nb_tm_linkage);
+	tm_tlink_init_at_tail(buf, ql);
 	buf->nb_flags |= C2_NET_BUF_QUEUED;
 	buf->nb_add_time = c2_time_now(); /* record time added */
 
@@ -223,7 +223,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	buf->nb_tm = tm;
 	rc = dom->nd_xprt->nx_ops->xo_buf_add(buf);
 	if (rc != 0) {
-		c2_list_del(&buf->nb_tm_linkage);
+		tm_tlink_del_fini(buf);
 		buf->nb_flags &= ~C2_NET_BUF_QUEUED;
 		goto m_err_exit;
 	}
@@ -330,7 +330,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
-	c2_list_del(&buf->nb_tm_linkage);
+	tm_tlist_del(buf);
 
 	qtype = buf->nb_qtype;
 	buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |

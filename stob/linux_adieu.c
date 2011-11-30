@@ -233,9 +233,9 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 
 	/* prefix fragments execution mode is not yet supported */
 	C2_ASSERT((io->si_flags & SIF_PREFIX) == 0);
-	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) > 0);
+	C2_PRE(c2_vec_count(&io->si_user.ov_vec) > 0);
 
-	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
+	c2_vec_cursor_init(&src, &io->si_user.ov_vec);
 	c2_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
 	frags = 0;
@@ -249,7 +249,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 		C2_ASSERT(eosrc == eodst);
 	} while (!eosrc);
 
-	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
+	c2_vec_cursor_init(&src, &io->si_user.ov_vec);
 	c2_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
 	lio->si_nr   = frags;
@@ -271,7 +271,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 				break;
 			}
 
-			buf = io->si_user.div_vec.ov_buf[src.vc_seg] +
+			buf = io->si_user.ov_buf[src.vc_seg] +
 				src.vc_offset;
 			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
 

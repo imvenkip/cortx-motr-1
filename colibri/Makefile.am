@@ -35,6 +35,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/sns/libcolibri-sns.la \
                             $(top_builddir)/stob/libcolibri-stob.la \
                             $(top_builddir)/udb/libcolibri-udb.la \
+                            $(top_builddir)/ut/libcolibri-ut.la \
                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
                             $(top_builddir)/rpc/libcolibri-rpc.la \
                             $(top_builddir)/xcode/libcolibri-xcode.la \

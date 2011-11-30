@@ -139,8 +139,8 @@
    mechanism, where an interrupt handler does little more than setting a flag
    and returning. This flag is checked when the kernel is just about to return
    to the user space. If the flag is set, the rest of interrupt processing
-   happens. In Linux similar mechanism is called a "top-half" and "bottom-half"
-   of interrupt processing. In Windows it is a DPC
+   happens. In Linux a similar mechanism is called a "top-half" and
+   "bottom-half" of interrupt processing. In Windows it is a DPC
    (http://en.wikipedia.org/wiki/Deferred_Procedure_Call) mechanism, in older
    DEC kernels it was called a "fork queue".
 
@@ -178,30 +178,29 @@
          in nor can call dynamic allocator, have to pre-allocate a pool of asts
          and to guarantee somehow that it is never exhausted.
 
-   If an ast is posted a c2_sm_group::s_signal channel is signalled. A user
+   If an ast is posted a c2_sm_group::s_clink clink is signalled. A user
    managing a state machine group might arrange a special "ast" thread (or a
    group of threads) to wait on this channel and to call c2_sm_asts_run() when
    the channel is signalled:
 
    @code
-   struct c2_clink waiter;
-
-   c2_clink_init(&waiter, NULL);
-
-   c2_sm_group_lock(G);
-   c2_chan_add(&G->s_signal, &waiter);
    while (1) {
-           c2_sm_group_unlock(G);
-           c2_chan_wait(&waiter);
+           c2_chan_wait(&G->s_clink);
            c2_sm_group_lock(G);
 	   c2_sm_asts_run(G);
+           c2_sm_group_unlock(G);
    }
    @endcode
 
    A special "ast" thread is not needed if there is an always running "worker"
    thread or pool of threads associated with the state machine group. In the
-   latter case, the worker thread can wait on c2_sm_group::s_signal in addition
+   latter case, the worker thread can wait on c2_sm_group::s_clink in addition
    to other channels it waits on (see c2_clink_attach()).
+
+   c2_sm_group_init() initialises c2_sm_group::s_clink with a NULL call-back. If
+   a user wants to re-initialise it with a different call-back or to attach it
+   to a clink group, it should call c2_clink_fini() followed by c2_clink_init()
+   or c2_link_attach() before any state machine is created in the group.
 
    @{
 */
@@ -390,9 +389,10 @@ struct c2_sm_ast {
 
 struct c2_sm_group {
 	struct c2_mutex   s_lock;
-	struct c2_chan    s_signal;
+	struct c2_clink   s_clink;
 	struct c2_sm_ast *s_forkq;
 	struct c2_tl      s_ast_free;
+	struct c2_chan    s_chan;
 };
 
 /**

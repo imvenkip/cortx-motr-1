@@ -21,7 +21,7 @@
  */
 
 #include "cob/cob.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "ioservice/io_fops.h"
 #include "rpc/rpcdbg.h"
 #include "lib/memory.h"
@@ -106,7 +106,6 @@ static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 };
 
 static const struct c2_update_stream_ops update_stream_ops;
-static const struct c2_rpc_item_type_ops rpc_item_ops;
 
 static int update_stream_init(struct c2_update_stream *us,
 			       struct c2_rpcmachine *mach)
@@ -897,28 +896,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 }
 C2_EXPORTED(c2_rpcmachine_fini);
 
-/** simple vector of RPC-item operations */
-static void rpc_item_op_sent(struct c2_rpc_item *item)
-{
-	//DBG("item: xid: %lu, SENT\n", item->ri_verno.vn_vc);
-}
-
-static void rpc_item_op_added(struct c2_rpc *rpc, struct c2_rpc_item *item)
-{
-	//DBG("item: xid: %lu, ADDED\n", item->ri_verno.vn_vc);
-}
-
-static void rpc_item_op_replied(struct c2_rpc_item *item, int rc)
-{
-	//DBG("item: xid: %lu, REPLIED\n", item->ri_verno.vn_vc);
-}
-
-static const struct c2_rpc_item_type_ops rpc_item_ops = {
-	.rito_sent    = rpc_item_op_sent,
-	.rito_added   = rpc_item_op_added,
-	.rito_replied = rpc_item_op_replied
-};
-
 /** simple vector of update stream operations */
 void us_timeout(struct c2_update_stream *us)
 {
@@ -930,7 +907,7 @@ void us_recovery_complete(struct c2_update_stream *us)
 	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
-static void item_replied(struct c2_rpc_item *item, int rc)
+static void fop_item_replied(struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 
@@ -1043,10 +1020,11 @@ int item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	return rc;
 }
 
-const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
-	.rito_sent = NULL,
-	.rito_added = NULL,
-	.rito_replied = item_replied,
+const struct c2_rpc_item_ops rpc_item_iov_ops = {
+	.rio_replied = fop_item_replied
+};
+
+const struct c2_rpc_item_type_ops rpc_item_iov_type_ops = {
 	.rito_iovec_restore = item_vec_restore,
 	.rito_item_size = c2_fop_item_type_default_onwire_size,
 	.rito_items_equal = item_equal,
@@ -1054,29 +1032,7 @@ const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_get_io_fragment_count = item_fragment_count_get,
 	.rito_io_coalesce = item_io_coalesce,
         .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
-	.rito_sent = NULL,
-	.rito_added = NULL,
-	.rito_replied = item_replied,
-	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = c2_fop_item_type_default_onwire_size,
-	.rito_items_equal = item_equal,
-	.rito_fid_equal = item_fid_equal,
-	.rito_get_io_fragment_count = item_fragment_count_get,
-	.rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-struct c2_rpc_item_type rpc_item_type_readv = {
-	.rit_ops = &rpc_item_readv_type_ops,
-};
-
-struct c2_rpc_item_type rpc_item_type_writev = {
-	.rit_ops = &rpc_item_writev_type_ops,
+        .rito_decode = c2_fop_item_type_default_decode
 };
 
 /**
@@ -1128,6 +1084,16 @@ void item_exit_stats_set(struct c2_rpc_item *item,
         st->rs_bytes_nr += c2_fop_item_type_default_onwire_size(item);
 
 	c2_mutex_unlock(&machine->cr_stats_mutex);
+}
+
+void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+		      uint32_t rc)
+{
+        item->ri_error = rc;
+	item->ri_reply = reply;
+	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
+		item->ri_ops->rio_replied(item);
+	c2_chan_broadcast(&item->ri_chan);
 }
 
 size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
@@ -1217,7 +1183,7 @@ int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
 	c2_chan_init(&rbulk->rb_chan);
 	rbulk->rb_magic = C2_RPC_BULK_MAGIC;
 	rbulk->rb_rc = 0;
-	return c2_0vec_init(&rbulk->rb_zerovec, segs_nr, seg_size);
+	return c2_0vec_init(&rbulk->rb_zerovec, segs_nr);
 }
 
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
@@ -1226,7 +1192,7 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 	C2_PRE(rpc_bulk_invariant(rbulk));
 
 	c2_chan_fini(&rbulk->rb_chan);
-	c2_0vec_free(&rbulk->rb_zerovec);
+	c2_0vec_fini(&rbulk->rb_zerovec);
 }
 
 #ifdef __KERNEL__

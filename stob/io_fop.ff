@@ -29,31 +29,31 @@
  *
  */
 
-DEF(reqh_ut_fom_fop_fid, RECORD,
+DEF(stob_io_fop_fid, RECORD,
 	_(f_seq, U64),
 	_(f_oid, U64));
 
-DEF(reqh_ut_fom_io_write, RECORD,
-	_(fiw_object, reqh_ut_fom_fop_fid),
+DEF(c2_stob_io_write, RECORD,
+	_(fiw_object, stob_io_fop_fid),
 	_(fiw_value, BYTE));
 
-DEF(reqh_ut_fom_io_write_rep, RECORD,
+DEF(c2_stob_io_write_rep, RECORD,
 	_(fiwr_rc, U32),
 	_(fiwr_count, U32));
 
-DEF(reqh_ut_fom_io_read, RECORD,
-	_(fir_object, reqh_ut_fom_fop_fid));
+DEF(c2_stob_io_read, RECORD,
+	_(fir_object, stob_io_fop_fid));
 
-DEF(reqh_ut_fom_io_read_rep, RECORD,
+DEF(c2_stob_io_read_rep, RECORD,
 	_(firr_rc, U32),
 	_(firr_count, U32),
 	_(firr_value, BYTE));
 
 
-DEF(reqh_ut_fom_io_create, RECORD,
-	_(fic_object, reqh_ut_fom_fop_fid));
+DEF(c2_stob_io_create, RECORD,
+	_(fic_object, stob_io_fop_fid));
 
-DEF(reqh_ut_fom_io_create_rep, RECORD,
+DEF(c2_stob_io_create_rep, RECORD,
 	_(ficr_rc, U32));
 
 /** @} end of reqh group */
