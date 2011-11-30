@@ -33,7 +33,7 @@
 
 enum {
 	MANY_TICKS = 1000,
-	NR_TIMERS = 10,
+	NR_TIMERS = 100,
 	NR_TICKS = 10
 };
 
@@ -193,7 +193,7 @@ void test_timer_soft(void)
 	return;
 }
 
-pid_t gettid()
+static pid_t gettid()
 {
 	return syscall(SYS_gettid);
 }
@@ -238,6 +238,7 @@ static void test_timer_oneshot(int iter_max)
 	C2_UT_ASSERT(oneshot_iterations == oneshot_iterations_max);
 
 	c2_timer_fini(&timer);
+	c2_timer_thread_detach(&loc);
 	c2_timer_locality_fini(&loc);
 }
 
@@ -287,10 +288,14 @@ static void test_timer_many_timers()
 	}
 
 	for (i = 0; i < NR_TIMERS; ++i)
+		c2_timer_stop(&timer[i]);
+
+	for (i = 0; i < NR_TIMERS; ++i)
 		c2_timer_fini(&timer[i]);
 
 	for (i = 0; i < NR_TIMERS; ++i)
 		C2_UT_ASSERT(many_iterations[i] == NR_TICKS);
+	c2_timer_thread_detach(&loc);
 	c2_timer_locality_fini(&loc);
 }
 

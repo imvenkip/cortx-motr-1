@@ -21,10 +21,11 @@
 #ifndef __COLIBRI_LIB_USER_SPACE_TIMER_H__
 #define __COLIBRI_LIB_USER_SPACE_TIMER_H__
 
-#include "lib/time.h"   /* c2_time_t */
-#include "lib/thread.h" /* c2_thread */
-#include "lib/mutex.h"	/* c2_mutex */
-#include "lib/tlist.h"  /* c2_tl */
+#include "lib/time.h"      /* c2_time_t */
+#include "lib/thread.h"    /* c2_thread */
+#include "lib/mutex.h"	   /* c2_mutex */
+#include "lib/tlist.h"	   /* c2_tl */
+#include "lib/semaphore.h" /* c2_semaphore */
 
 /**
    @addtogroup timer
@@ -33,7 +34,25 @@
    @{
 */
 
-struct c2_timer_info;
+/**
+   Timer can be in one of this states.
+   Transition matrix for states:
+			init	fini	start	stop	attach
+   (0) TIMER_UNINIT	1	-	-	-	-
+   (1) TIMER_INITED	-	0	2	-	1
+   (2) TIMER_RUNNING	-	-	-	1	-
+ */
+enum c2_timer_state {
+	/* Not initialized. */
+	TIMER_UNINIT= 0,
+	/* Initialized. */
+	TIMER_INITED,
+	/* Timer is running. */
+	TIMER_RUNNING,
+	/* Maximum value in enum */
+	TIMER_STATE_MAX
+};
+
 struct timer_tid;
 
 struct c2_timer_locality {
@@ -50,6 +69,12 @@ struct c2_timer_locality {
 	   in c2_timer_attach().
 	 */
 	struct timer_tid *tlo_rrtid;
+
+	/**
+	   Signal number for this locality.
+	   Will be assigned to every timer, attached to this locality.
+	 */
+	int tlo_signo;
 };
 
 struct c2_timer {
@@ -101,17 +126,67 @@ struct c2_timer {
 	struct c2_thread t_thread;
 
 	/**
-	   timer_info struct for hard timer
+	   Target thread ID for hard timer callback.
+	   Initially set in c2_timer_init() to callers TID.
+	   Can be changed by calling c2_timer_attach().
 	 */
-	struct c2_timer_info *t_info;
+	pid_t t_tid;
+
+	/**
+	   Signal number for POSIX timer.
+	   Used in hard timer implementation.
+	 */
+	int t_signo;
+
+	/**
+	   Timer state.
+	   Used in state changes checking in hard timer.
+	 */
+	enum c2_timer_state t_state;
+
+	/**
+	   Used in hard timer implementation.
+	 */
+	sig_atomic_t t_stopping;
+
+	/**
+	   Used in hard timer implementation.
+	 */
+	struct c2_semaphore t_stop_sem;
+
+	/**
+	   POSIX timer ID, returned by timer_create().
+	   Used in hard timer implementation.
+	 */
+	timer_t t_ptimer;
 };
 
 int c2_timers_init();
 void c2_timers_fini();
 
+/**
+   Init timer locality.
+   Locality is empty after creation.
+ */
 void c2_timer_locality_init(struct c2_timer_locality *loc);
+
+/**
+   Finish timer locality.
+   Locality must be empty.
+ */
 void c2_timer_locality_fini(struct c2_timer_locality *loc);
+
+/**
+   Add current thread to the list of threads in locality.
+   Can return -ENOMEM if there is no free memory for timer_tid structure.
+ */
 int c2_timer_thread_attach(struct c2_timer_locality *loc);
+
+/**
+   Remove current thread from the list of threads in locality.
+   Current thread must be in this list.
+ */
+void c2_timer_thread_detach(struct c2_timer_locality *loc);
 
 void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
 
