@@ -545,17 +545,41 @@ int c2_ldb_rec_update(const struct c2_lay *layout,
    Obtains a layout record with the specified layout_id, and its related
    information from the relevant tables.
 */
-int c2_ldb_rec_lookup(const uint64_t *id,
+int c2_ldb_rec_lookup(const uint64_t *lid,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx,
 		      struct c2_lay *out)
 {
    /**
 	@code
-	Use the function l->l_type->lt_ops->lto_rec_update to obtain
+	---
+	Use the function l->l_type->lt_ops->lto_rec_lookup to obtain
 	the buffer including the record.
-
 	Convert the buffer into layout using using c2_lay_decode().
+	---
+
+	Invoke
+	struct c2_db_pair	 pair;
+	struct c2_layout_rec	*rec;
+	struct c2_bufvec_cursor	 it;
+
+	c2_db_pair_setup(&pair, &schema->ls_layout_entries,
+			 lid, sizeof(uint64_t),
+			 c2_lay_rec, sizeof c2_lay_rec);
+
+
+	set_key_val_pair(lid);
+
+	c2_table_lookup(&schema->ls_layout_entries, &pair);
+
+	Setup cursor to point at the beginning of the key-val pair record.
+
+	Parse generic part of the key-val pair record using decode.
+	c2_layout_rec_decode(&it, &rec);
+
+	parse the layout type specific part using decode
+	schema->ls_types[rec->lr_lt_id]->lto_decode(&it, rec, out);
+
 	@endcode
    */
 	return 0;

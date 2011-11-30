@@ -42,6 +42,7 @@ struct c2_composite_layout;
 
 /**
    Extension of generic c2_lay for a composite layout.
+   @todo Change c2_composite_layout to c2_composite_lay and for pdclust too.
  */
 struct c2_composite_layout {
 	/** super class */

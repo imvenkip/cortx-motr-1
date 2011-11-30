@@ -30,10 +30,37 @@
 
 /**
    Implementation of leto_decode() for list enumeration type.
+
+   Continues to build the in-memory layout object from its representation
+   either 'stored in the Layout DB' or 'received over the network'.
+
+   @param fromDB - This flag indicates if the in-memory layout object is
+   being decoded 'from its representation stored in the Layout DB' or
+   'from its representation received over the network'.
 */
-static int lay_list_enum_decode(const struct c2_bufvec_cursor *cur,
-				   struct c2_lay **out)
+static int lay_list_enum_decode(bool fromDB, uint64_t lid,
+				const struct c2_bufvec_cursor *cur,
+				struct c2_lay **out)
 {
+   /**
+	@code
+	if (fromDB)
+		C2_PRE(lid != 0);
+	C2_PRE(cur != NULL);
+
+	if (fromDB) {
+		Read all the COB identifiers belonging to the layout with the
+		layout id 'lid', from the cob_lists table and store those in
+		the buffer pointed by cur.
+
+		Set the cursor cur to point at the beginning of the list of COB
+		identifiers.
+	}
+
+	Parse the cob identifiers list from the buffer (pointed by cur) and
+	store it in the c2_lay_list_enum::lle_list_of_cobs.
+	@endcode
+   */
 	return 0;
 }
 
@@ -52,77 +79,9 @@ static int lay_list_enum_encode(const struct c2_lay *l,
 	return 0;
 }
 
-/**
-   Implementation of leto_rec_add for list enumeration type.
-*/
-int list_rec_add(const struct c2_bufvec_cursor *cur,
-		 struct c2_ldb_schema *schema,
-		 struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Add list of cob ids to the cob_lists table.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of lto_rec_delete for list enumeration type.
-*/
-int list_rec_delete(const struct c2_bufvec_cursor *cur,
-		    struct c2_ldb_schema *schema,
-		    struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Delete relevant cob id list from the cob_lists
-	table.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of leto_rec_update for list enumeration type.
-*/
-int list_rec_update(const struct c2_bufvec_cursor *cur,
-		    struct c2_ldb_schema *schema,
-		    struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Update the relevant list of cob ids in the
-	cob_lists table.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of leto_rec_lookup for list enumeration type.
-*/
-int list_rec_lookup(const uint64_t *id,
-		    struct c2_ldb_schema *schema,
-		    struct c2_db_tx *tx,
-		    struct c2_bufvec_cursor *cur)
-{
-   /**
-	@code
-	Obtain the relevant list of cob ids from the
-	cob_lists table.
-	@endcode
-   */
-	return 0;
-}
-
 static const struct c2_lay_enum_type_ops list_ops = {
 	.leto_decode		= lay_list_enum_decode,
 	.leto_encode		= lay_list_enum_encode,
-	.leto_rec_add		= list_rec_add,
-	.leto_rec_delete	= list_rec_delete,
-	.leto_rec_update	= list_rec_update,
-	.leto_rec_lookup	= list_rec_lookup
 };
 
 const struct c2_lay_enum_type c2_lay_list_enum_type = {

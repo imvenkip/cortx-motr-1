@@ -751,9 +751,9 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 	int                         rpc_rc;
 	int	                    group;
 	int	                    unit;
-	int                         N = play->pl_N;
-	int                         K = play->pl_K;
-	int                         P = play->pl_P;
+	int                         N = play->pl_attr->pa_N;
+	int                         K = play->pl_attr->pa_K;
+	int                         P = play->pl_attr->pa_P;
 	int                         W = N + 2*K;
 	int                         I = npages / N;
 
@@ -973,8 +973,8 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 	C2_ASSERT(play != NULL);
 	C2_ASSERT(unitsize >= C2T1FS_DEFAULT_UNIT_SIZE);
 	/* XXX: just for now, full-stripe read/write */
-	if (npages % play->pl_N != 0 || off != 0
-	    || pos % (play->pl_N * unitsize) != 0) {
+	if (npages % play->pl_attr->pa_N != 0 || off != 0
+	    || pos % (play->pl_attr->pa_N * unitsize) != 0) {
 		/* rc = -EPARSE; */
 		DBG("Supporting only full-stripe read/write for now: "
 		    "npages=%d, off=%d, pos=%llu\n", npages, off, pos);

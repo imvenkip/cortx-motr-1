@@ -32,7 +32,6 @@
 /* export */
 struct c2_ldb_schema;
 struct c2_ldb_rec;
-struct c2_ldb_rec_attrs;
 
 /**
    @page Layout-DB-fspec Layout DB Functional Specification
@@ -51,7 +50,6 @@ struct c2_ldb_rec_attrs;
    @section Layout-DB-fspec-ds Data Structures
    - struct c2_ldb_schema
    - struct c2_ldb_rec
-   - struct c2_ldb_rec_attrs
 
    @section Layout-DB-fspec-sub Subroutines
    - int c2_ldb_schema_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
@@ -81,7 +79,7 @@ struct c2_ldb_rec_attrs;
    - The layout id is obtained from the basic file attributes.
    - A query is sent to the Layout module to obtain layout for this layout id.
    - Layout module checks if the layout record is cached and if not, it reads
-     the layout record from the layout DB.
+     the layout record from the layout DB. Examples are:
       - If the layout record is with the FORMULA enumeration method, then the
         formula is obtained from the DB, required parameters are substituted
         into the formula and thus the list of COB identifiers is obtained to
@@ -124,18 +122,6 @@ enum {
 */
 
 /**
-   Attributes for a layout record. e.g. Required in case of PDCLUST layout type.
-   @todo Decision is pending whether to make this pdclust specific struct or
-   create another table to store these fields.
-*/
-struct c2_ldb_rec_attrs {
-	/** Number of data units in the parity group (N) */
-	uint32_t		lra_num_of_data_units;
-	/** Number of parity units in the parity group (K) */
-	uint32_t		lra_num_of_parity_units;
-};
-
-/**
    In-memory data structure for the layout schema.
    It includes pointers to the layouts table and various related
    parameters.
@@ -145,12 +131,12 @@ struct c2_ldb_schema {
 	struct c2_table			 ls_layouts;
 
 	/** Layout types array.
-	    Used by the db code to find layout type with given identifier.
+	    It is used to find layout type with given identifier.
 	*/
 	struct c2_lay_type		*ls_type[C2_LAY_TYPE_MAX];
 
 	/** Enumeration types array.
-	    Used by the db code to find enumeration type with given identifier.
+	    It is used to find enumeration type with given identifier.
 	*/
 	struct c2_lay_enum_type		*ls_enum[C2_LAY_ENUM_MAX];
 
@@ -180,10 +166,10 @@ struct c2_ldb_rec {
 	*/
 	uint64_t			lr_ref_count;
 
-	/** Struct to store record attributes.
-	    Currently used only for PDCLUST layout type.
-	*/
-	struct c2_ldb_rec_attrs		lr_formula_attrs;
+	/** Layout type specific payload.
+	    Contains attributes specific to per layout type. */
+	char				lr_data[0];
+
 };
 
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
@@ -316,15 +302,14 @@ static const struct c2_table_ops cob_lists_table_ops = {
 struct layout_prefix {
 	/** Layout id for the composite layout.
 	    Value is same as c2_lay::l_id.
-	*/ 
+*/
 	uint64_t		lp_l_id;
 
 	/** Filler since prefix is a 128 bit field.
 	    Currently un-used.
 	*/
-	uint64_t		lp_filler;	
+	uint64_t		lp_filler;
 };
-
 
 
 /** @} end group LayoutDBDFSInternal */

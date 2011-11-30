@@ -70,11 +70,33 @@ struct c2_pool;
 struct c2_stob_id;
 
 /* export */
+struct c2_pdclust_attr;
 struct c2_pdclust_layout;
 enum c2_pdclust_unit_type;
 struct c2_pdclust_src_addr;
 struct c2_pdclust_tgt_addr;
 struct c2_pdclust_ops;
+
+/**
+   Attributes specific to PDCLUST layout type.
+   These are part of c2_pdclust_layout and stored in the Layout DB as well.
+*/
+struct c2_pdclust_attr {
+	/**
+	   Number of data units in a parity group.
+	 */
+	uint32_t                     pa_N;
+	/**
+	   Number of parity units in a parity group. This is also the number of
+	   spare units in a group.
+	 */
+	uint32_t                     pa_K;
+	/**
+	   Number of target objects over which this layout stripes the source.
+	 */
+	uint32_t                     pa_P;
+};
+
 
 /**
    Extension of generic c2_lay for a parity de-clustering.
@@ -85,23 +107,16 @@ struct c2_pdclust_ops;
 struct c2_pdclust_layout {
 	/** super class */
 	struct c2_lay                pl_layout;
+
+	/**
+	   Parity de-clustering layout attributes.
+	*/
+	struct c2_pdclust_attr      *pl_attr;
+
 	/**
 	   A datum used to seed PRNG to generate tile column permutations.
 	 */
 	struct c2_uint128            pl_seed;
-	/**
-	   Number of data units in a parity group.
-	 */
-	uint32_t                     pl_N;
-	/**
-	   Number of parity units in a parity group. This is also the number of
-	   spare units in a group.
-	 */
-	uint32_t                     pl_K;
-	/**
-	   Number of target objects over which this layout stripes the source.
-	 */
-	uint32_t                     pl_P;
 	/**
 	   Number of parity groups in a tile.
 	   
@@ -246,6 +261,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl);
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out);
+
 
 extern const struct c2_lay_type c2_pdclust_layout_type;
 

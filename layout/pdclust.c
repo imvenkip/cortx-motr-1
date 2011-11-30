@@ -175,7 +175,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 
 	const struct tile_cache *tc;
 
-	P = play->pl_P;
+	P = play->pl_attr->pa_P;
 
 	tc = &play->pl_tile_cache;
 	/*
@@ -195,7 +195,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 		   bijection. */
 	}
 	return
-		play->pl_C * (play->pl_N + 2*play->pl_K) == play->pl_L * P;
+		play->pl_C * (play->pl_attr->pa_N + 2*play->pl_attr->pa_K) == play->pl_L * P;
 }
 
 /**
@@ -230,7 +230,7 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 {
 	struct tile_cache *tc;
 
-	C2_ASSERT(t < play->pl_P);
+	C2_ASSERT(t < play->pl_attr->pa_P);
 	tc = &play->pl_tile_cache;
 	/*
 	 * If cached values are for different tile, update the cache.
@@ -240,7 +240,7 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 		uint64_t rstate;
 
 		/* initialise columns array that will be permuted. */
-		for (i = 0; i < play->pl_P; ++i)
+		for (i = 0; i < play->pl_attr->pa_P; ++i)
 			tc->tc_permute[i] = i;
 
 		/* initialize PRNG */
@@ -249,15 +249,15 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 			hash(play->pl_seed.u_lo + omega);
 
 		/* generate permutation number in lexicographic ordering */
-		for (i = 0; i < play->pl_P - 1; ++i)
-			tc->tc_lcode[i] = c2_rnd(play->pl_P - i, &rstate);
+		for (i = 0; i < play->pl_attr->pa_P - 1; ++i)
+			tc->tc_lcode[i] = c2_rnd(play->pl_attr->pa_P - i, &rstate);
 
 		/* apply the permutation */
-		permute(play->pl_P, tc->tc_lcode,
+		permute(play->pl_attr->pa_P, tc->tc_lcode,
 			tc->tc_permute, tc->tc_inverse);
 		tc->tc_tile_no = omega;
 	}
-	C2_ASSERT(tc->tc_permute[t] < play->pl_P);
+	C2_ASSERT(tc->tc_permute[t] < play->pl_attr->pa_P);
 	C2_ASSERT(tc->tc_inverse[tc->tc_permute[t]] == t);
 	C2_ASSERT(tc->tc_permute[tc->tc_inverse[t]] == t);
 	return tc->tc_permute[t];
@@ -280,9 +280,9 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	uint64_t r;
 	uint64_t t;
 
-	N = play->pl_N;
-	K = play->pl_K;
-	P = play->pl_P;
+	N = play->pl_attr->pa_N;
+	K = play->pl_attr->pa_K;
+	P = play->pl_attr->pa_P;
 	C = play->pl_C;
 	L = play->pl_L;
 
@@ -320,9 +320,9 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	uint64_t r;
 	uint64_t t;
 
-	N = play->pl_N;
-	K = play->pl_K;
-	P = play->pl_P;
+	N = play->pl_attr->pa_N;
+	K = play->pl_attr->pa_K;
+	P = play->pl_attr->pa_P;
 	C = play->pl_C;
 	L = play->pl_L;
 
@@ -352,9 +352,9 @@ static bool pdclust_equal(const struct c2_lay *l0,
 
 	return
 		c2_uint128_eq(&p0->pl_seed, &p1->pl_seed) &&
-		p0->pl_N == p1->pl_N &&
-		p0->pl_K == p1->pl_K &&
-		p0->pl_P == p1->pl_P &&
+		p0->pl_attr->pa_N == p1->pl_attr->pa_N &&
+		p0->pl_attr->pa_K == p1->pl_attr->pa_K &&
+		p0->pl_attr->pa_P == p1->pl_attr->pa_P &&
 		p0->pl_C == p1->pl_C &&
 		p0->pl_L == p1->pl_L &&
 		p0->pl_pool == p1->pl_pool;
@@ -374,7 +374,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 		c2_free(pdl->pl_tile_cache.tc_permute);
 		c2_free(pdl->pl_tile_cache.tc_lcode);
 		if (pdl->pl_tgt != NULL) {
-			for (i = 0; i < pdl->pl_P; ++i) {
+			for (i = 0; i < pdl->pl_attr->pa_P; ++i) {
 				if (c2_stob_id_is_set(&pdl->pl_tgt[i]))
 					c2_pool_put(pdl->pl_pool,
 						    &pdl->pl_tgt[i]);
@@ -419,14 +419,14 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		pdl->pl_layout.l_id      = *id;
 
 		pdl->pl_seed = *seed;
-		pdl->pl_N = N;
-		pdl->pl_K = K;
+		pdl->pl_attr->pa_N = N;
+		pdl->pl_attr->pa_K = K;
 
 		pdl->pl_pool = pool;
 		/* select minimal possible B (least common multiple of P and
 		   N+2*K */
 		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
-		pdl->pl_P = P;
+		pdl->pl_attr->pa_P = P;
 		pdl->pl_C = B/(N+2*K);
 		pdl->pl_L = B/P;
 
@@ -454,9 +454,9 @@ enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit)
 {
-	if (unit < play->pl_N)
+	if (unit < play->pl_attr->pa_N)
 		return PUT_DATA;
-	else if (unit < play->pl_N + play->pl_K)
+	else if (unit < play->pl_attr->pa_N + play->pl_attr->pa_K)
 		return PUT_PARITY;
 	else
 		return PUT_SPARE;
@@ -465,19 +465,48 @@ C2_EXPORTED(c2_pdclust_unit_classify);
 
 /**
    Implementation of lto_decode() for pdclust layout type.
-   Continues to decode layout representation stored in the buffer and
-   to create the layout.
+
+   Continues to build the in-memory layout object from its representation
+   either 'stored in the Layout DB' or 'received over the network'.
+
+   @param fromDB - This flag indicates if the in-memory layout object is
+   being decoded 'from its representation stored in the Layout DB' or
+   'from its representation received over the network'.
 */
-static int pdclust_decode(const struct c2_bufvec_cursor *cur,
+static int pdclust_decode(bool fromDB, uint64_t lid,
+			  const struct c2_bufvec_cursor *cur,
 		          struct c2_lay **out)
 {
    /**
 	@code
-	Allocate new layout as an instance of c2_pdclust_layout that
-	embeds c2_layout.
 
-	Read pdclust layout type specific fields from the buffer.
-	Based on the layout-enumeration type, call respective leto_decode().
+	if (fromDB)
+		C2_PRE(lid != 0);
+
+	C2_PRE(cur != NULL);
+
+	Allocate new layout as an instance of c2_pdclust_layout that
+	embeds c2_lay.
+
+	Now, that it is the PDCLUST layout type, we know that the layouts
+	table contains c2_pdclust_attr as a tail part of c2_ldb_rec. Hence,
+	let's re-read the record from the layouts table, with revised
+	recsize this time.
+
+	if (fromDB) {
+		struct c2_db_pair	pair;
+
+		uint64_t recsize = sizeof(struct c2_ldb_rec)
+					+ sizeof(c2_pdclust_attr);
+		ret = ldb_layout_read(&lid, recsize, &pair)
+
+		Set the cursor cur to point at the PDCLUST type specific
+		fields from the key-val pair.
+	}
+
+	Read pdclust layout type specific fields from the buffer and store
+	those in c2_pdclust_layout::pl_attr.
+
 	@endcode
    */
 
@@ -486,92 +515,26 @@ static int pdclust_decode(const struct c2_bufvec_cursor *cur,
 
 /**
    Implementation of lto_encode() for pdclust layout type.
-   Stores layout representation in the buffer.
+
+   Continues to use the in-memory layout object and either 'stores it in the
+   Layout DB' ot 'converts it to a buffer that can be passed on over the
+   network.
+
+   @param toDB - This flag indicates if 'the layout is to be stored in the
+   Layout DB' or 'if it is to be stored in the buffer'.
 */
-static int pdclust_encode(const struct c2_lay *l,
+static int pdclust_encode(bool toDB, const struct c2_lay *l,
 		          struct c2_bufvec_cursor *out)
 {
    /**
 	@code
 	Store pdclust layout type specific fields into the buffer.
+	if (toDB) {
+		uint64_t recsize = sizeof(struct c2_ldb_rec)
+					+ sizeof(c2_pdclust_attr);
+		ret = ldb_layout_write(recsize, out);
+	}
 
-	Based on the layout-enumeration type, call respective leto_encode().
-	@endcode
-   */
-	return 0;
-}
-
-
-/**
-   Implementation of lto_rec_add for PDCLUST layout type.
-*/
-int pdclust_rec_add(const struct c2_bufvec_cursor *cur,
-		    struct c2_ldb_schema *schema,
-		    struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Add a layout entry into the layouts table.
-	Invoke enumeration type specific leto_rec_add() so as to:
-	   - In case of LIST enumeration type, it adds list of cob ids
-	     to the cob_lists table.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of lto_rec_delete for PDCLUST layout type.
-*/
-int pdclust_rec_delete(const struct c2_bufvec_cursor *cur,
-		       struct c2_ldb_schema *schema,
-		       struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Invoke enumeration type specific leto_rec_add() so that:
-	   - In case of LIST enumeration type, if the reference count of the
-	     layout entry is 0, delete the relevant cob id list from the
-	     cob_lists table and delete layout entry from
-	     the layouts table in case of LIST enumeration type.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of lto_rec_update for PDCLUST layout type.
-*/
-int pdclust_rec_update(const struct c2_bufvec_cursor *cur,
-		       struct c2_ldb_schema *schema,
-		       struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Update the layout entry in the layouts table.
-	Invoke enumeration type specific leto_rec_update() so as to:
-	   - for LIST enumeration type, update the relevant list of cob ids
-	     in the cob_lists table.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of lto_rec_lookup for PDCLUST layout type.
-*/
-int pdclust_rec_lookup(const uint64_t *id,
-		       struct c2_ldb_schema *schema,
-		       struct c2_db_tx *tx,
-		       struct c2_bufvec_cursor *cur)
-{
-   /**
-	@code
-	Obtain the layout record with the specified layout id, from the
-	layouts table.
-	Invoke layout enumeration type specific leto_rec_lookup so that:
-	   - For LIST enumeration type, obtain the relevant list of cob
-	     ids from the cob_lists table.
 	@endcode
    */
 	return 0;
@@ -581,10 +544,6 @@ static const struct c2_lay_type_ops pdclust_type_ops = {
 	.lto_equal	= pdclust_equal,
 	.lto_decode	= pdclust_decode,
 	.lto_encode	= pdclust_encode,
-	.lto_rec_add	= pdclust_rec_add,
-	.lto_rec_delete	= pdclust_rec_delete,
-	.lto_rec_update	= pdclust_rec_update,
-	.lto_rec_lookup	= pdclust_rec_lookup
 };
 
 const struct c2_lay_type c2_pdclust_layout_type = {

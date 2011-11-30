@@ -69,6 +69,7 @@ struct c2_fid;
 struct c2_ldb_rec;
 struct c2_ldb_schema;
 struct c2_db_tx;
+struct c2_db_pair;
 
 /* export */
 struct c2_lay;
@@ -79,6 +80,8 @@ struct c2_lay_enum;
 struct c2_lay_enum_ops;
 struct c2_lay_enum_type;
 struct c2_lay_enum_type_ops;
+
+#define INVALID_LID 0
 
 /**
    Structure specific to per layout type.
@@ -107,41 +110,13 @@ struct c2_lay_type_ops {
 	    layout-type specific data-type which embeds c2_lay.
 	    Sets c2_lay::l_ops.
 	*/
-	int	(*lto_decode)(const struct c2_bufvec_cursor *cur,
+	int	(*lto_decode)(bool fromDB, uint64_t lid,
+			      const struct c2_bufvec_cursor *cur,
 			      struct c2_lay **out);
 
 	/** Continue storing layout representation in the buffer */
-	int	(*lto_encode)(const struct c2_lay *l,
+	int	(*lto_encode)(bool toDB, const struct c2_lay *l,
 			      struct c2_bufvec_cursor *out);
-
-	/** Adds a new layout record and its related information into the
-	    the relevant tables.
-	*/
-	int (*lto_rec_add)(const struct c2_bufvec_cursor *cur,
-			   struct c2_ldb_schema *schema,
-			   struct c2_db_tx *tx);
-
-	/** Deletes a layout record and its related information from the
-	    relevant tables.
-	*/
-	int	(*lto_rec_delete)(const struct c2_bufvec_cursor *cur,
-				  struct c2_ldb_schema *schema,
-				  struct c2_db_tx *tx);
-
-	/** Updates a layout record and its related information in the
-	    relevant tables.
-	*/
-	int	(*lto_rec_update)(const struct c2_bufvec_cursor *cur,
-				  struct c2_ldb_schema *schema,
-				  struct c2_db_tx *tx);
-
-	/** Locates a layout record and its related information from the
-	    relevant tables.
-	*/
-	int	(*lto_rec_lookup)(const uint64_t *l_id,
-				  struct c2_ldb_schema *schema,
-				  struct c2_db_tx *tx,
-				  struct c2_bufvec_cursor *out);
 };
 
 
@@ -181,33 +156,14 @@ struct c2_lay_enum_type_ops {
 	/** Continues encoding layout representation stored in the buffer and
 	    building the layout.
 	*/
-	int	(*leto_decode)(const struct c2_bufvec_cursor *cur,
+	int	(*leto_decode)(bool fromDB,
+			       uint64_t lid,
+			       const struct c2_bufvec_cursor *cur,
 			       struct c2_lay **out);
 
 	/** Continues storing layout representation in the buffer */
 	int	(*leto_encode)(const struct c2_lay *l,
 			       struct c2_bufvec_cursor *out);
-
-	/** Continues adding the new layout record by adding list of cob ids */
-	int	(*leto_rec_add)(const struct c2_bufvec_cursor *cur,
-				struct c2_ldb_schema *schema,
-				struct c2_db_tx *tx);
-
-	/** Continues deleting the layout record */
-	int	(*leto_rec_delete)(const struct c2_bufvec_cursor *cur,
-				   struct c2_ldb_schema *schema,
-				   struct c2_db_tx *tx);
-
-	/** Continues updating the layout record */
-	int	(*leto_rec_update)(const struct c2_bufvec_cursor *cur,
-				   struct c2_ldb_schema *schema,
-				   struct c2_db_tx *tx);
-
-	/** Continues locating layout record information */
-	int	(*leto_rec_lookup)(const uint64_t *id,
-				   struct c2_ldb_schema *schema,
-				   struct c2_db_tx *tx,
-				   struct c2_bufvec_cursor *out);
 };
 
 /**
@@ -217,6 +173,7 @@ struct c2_lay_enum {
 	const struct c2_lay_enum_ops	*le_ops;
 };
 
+/** @todo Define these functions in respective .c files */
 struct c2_lay_enum_ops {
 	/** Returns number of objects in the enumeration. */
 	uint32_t	(*leo_nr)(const struct c2_lay_enum *e);
@@ -233,13 +190,25 @@ struct c2_lay_enum_ops {
 void	c2_lay_init(struct c2_lay *lay);
 void	c2_lay_fini(struct c2_lay *lay);
 
-int	c2_lay_decode(const struct c2_bufvec_cursor *cur,
+
+int	c2_lay_decode(bool fromDB, uint64_t lid,
+		      const struct c2_bufvec_cursor *cur,
 		      struct c2_lay **out);
-int	c2_lay_encode(const struct c2_lay *l,
+
+int	c2_lay_encode(bool toDB, const struct c2_lay *l,
 		      struct c2_bufvec_cursor *out);
+
+/* todo Where to initialize all the layout types from. Check pdclust_layout_init() called from c2t1fs/main.c. */
 
 int	c2_lays_init(void);
 void	c2_lays_fini(void);
+
+
+
+int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
+		    struct c2_db_pair *pair);
+int ldb_layout_write(const uint32_t recsize,
+		    struct c2_bufvec_cursor *pair);
 
 /** @} end group layout */
 

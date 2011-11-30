@@ -27,20 +27,52 @@
 
 /**
    Implementation of lto_decode() for composite layout type.
-   Continues to decode layout representation stored in the buffer and
-   to create the layout.
+
+   Continues to build the in-memory layout object from its representation
+   either 'stored in the Layout DB' or 'received over the network'.
+
+   @param fromDB - This flag indicates if the in-memory layout object is
+   being decoded 'from its representation stored in the Layout DB' or
+   'from its representation received over the network'.
 */
-static int composite_decode(const struct c2_bufvec_cursor *cur,
+static int composite_decode(bool fromDB, uint64_t lid,
+			    const struct c2_bufvec_cursor *cur,
 			    struct c2_lay **out)
 {
    /**
 	@code
+
+	if (fromDB)
+		C2_PRE(lid != 0);
+	else
+		C2_PRE(cur != NULL);
+
 	Allocate new layout as an instance of c2_composite_layout that
 	embeds c2_lay.
 
-	Read composite layout type specific fields from the buffer
-	like information of sub-layouts and store it in the c2_lay
-	structure.
+	if (fromDB) {
+		struct c2_db_pair	pair;
+
+		uint32_t recsize = sizeof(struct c2_ldb_rec);
+
+		ret = ldb_layout_read(&lid, recsize, &pair)
+
+		Set the cursor cur to point at the beginning of the key-val
+		pair.
+	}
+
+	if (fromDB) {
+		Read all the segments from comp_layout_ext_map, belonging to
+		composite layout with layout id 'lid' and store them in the
+		buffer pointed by cur.
+
+		Set the cursor cur to point at the beginning of segments
+		stored in it.
+	}
+
+	Parse the sub-layout information from the buffer (pointed by
+	cur) and store it in the c2_composite_layout::cl_list_of_sub_layouts.
+
 	@endcode
    */
 	return 0;
@@ -50,102 +82,26 @@ static int composite_decode(const struct c2_bufvec_cursor *cur,
    Implementation of lto_encode() for composite layout type.
    Stores layout representation in the buffer.
 */
-static int composite_encode(const struct c2_lay *l,
+static int composite_encode(bool toDB, const struct c2_lay *l,
 			    struct c2_bufvec_cursor *out)
 {
    /**
 	@code
+
+	if (toDB) {
+		uint64_t recSize = sizeof(struct c2_ldb_rec);
+
+		ret = ldb_layout_write(recsize, out);
+	}
+
 	Store composite layout type specific fields like information
 	about the sub-layouts, into the buffer.
-	@endcode
-   */
-	return 0;
-}
+	if (toDB) {
+		Form records for the cob_lists table by using data from the
+		buffer and insert those records into the cob_lists table.
+	}
 
 
-/**
-   Implementation of lto_rec_add for COMPOSITE layout type.
-   Adds the layout entry into the layouts table.
-   Adds the relevant extent map into the comp_layout_ext_map table.
-*/
-int composite_rec_add(const struct c2_bufvec_cursor *cur,
-		      struct c2_ldb_schema *schema,
-		      struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Form c2_db_pair by using the data from the buffer.
-	Add a layout entry into the layouts table.
-	Add the relevant extent map into the comp_layout_ext_map table.
-
-	If any of the segments uses a composite layout again, add the
-        extent map for that composite layout as well.
-	Note: This means calling composite_rec_add() recursively.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of lto_rec_delete for COMPOSITE layout type.
-*/
-int composite_rec_delete(const struct c2_bufvec_cursor *cur,
-			 struct c2_ldb_schema *schema,
-			 struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Form c2_db_pair by using the data from the buffer.
-	Delete the layout entry from the table layouts.
-	Delete the relevant extent map from the comp_layout_ext_map table,
-	if an only if its reference count is 0.
-
-	If any of the segments uses a composite layout again, delete the
-        extent map for that composite layout as well.
-	Note: This means calling composite_rec_delete() recursively.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of lto_rec_update for COMPOSITE layout type.
-*/
-int composite_rec_update(const struct c2_bufvec_cursor *cur,
-			 struct c2_ldb_schema *schema,
-			 struct c2_db_tx *tx)
-{
-   /**
-	@code
-	Form c2_db_pair by using the data from the buffer.
-	Update the layout entry in the layouts table.
-	Update the relevant extent map in the comp_layout_ext_map table.
-
-	If any of the segments uses a composite layout again, update the
-        extent map for that composite layout as well.
-	Note: This means calling composite_rec_update() recursively.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of lto_rec_lookup for COMPOSITE layout type.
-*/
-int composite_rec_lookup(const uint64_t *id,
-			 struct c2_ldb_schema *schema,
-			 struct c2_db_tx *tx,
-			 struct c2_bufvec_cursor *cur)
-{
-   /**
-	@code
-	Form c2_db_pair by using the data from the buffer.
-	Obtain the layout entry from the layouts table.
-	Obtain the relevant extent map from the comp_layout_ext_map table.
-
-	If any of the segments uses a composite layout again, obtain the
-        extent map for that composite layout as well.
-	Note: This means calling composite_rec_lookup() recursively.
 	@endcode
    */
 	return 0;
@@ -156,10 +112,6 @@ static const struct c2_lay_type_ops composite_type_ops = {
 	.lto_equal      = NULL,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
-	.lto_rec_add    = composite_rec_add,
-	.lto_rec_delete = composite_rec_delete,
-	.lto_rec_update = composite_rec_update,
-	.lto_rec_lookup = composite_rec_lookup,
 };
 
 

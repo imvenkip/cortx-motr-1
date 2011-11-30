@@ -26,6 +26,7 @@
 
    A layout with formula enumeration type stores a formula that is
    used to enumerate all the component object identifiers.
+
    @{
 */
 
@@ -69,6 +70,7 @@ struct c2_lay_formula_parameter_type {
 	int		(*lfpt_convert)(const struct c2_lay_formula_parameter *other,
 					struct c2_lay_formula_parameter *out);
 };
+
 
 extern const struct c2_lay_enum_type c2_lay_formula_enum_type;
 extern const struct c2_lay_formula c2_formula_NKP_formula;

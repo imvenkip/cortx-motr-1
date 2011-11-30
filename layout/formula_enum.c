@@ -23,62 +23,18 @@
 /**
    @addtogroup formula_enum
 
+   Note: Layout enumeration type specific encode/decode methods are not
+   required for "formula" enumeration type, since the attributes required
+   specifically for a formula are:
+   - stored in the pl_attr structure which is part of in-memory structure
+     c2_pdclust_layout itself.
+   - stored in the layouts table itself.
+
    @{
 */
 
-/**
-   Implementation of leto_decode() for formula enumeration type.
-   Continues to decode layout representation stored in the buffer and
-   to create the layout.
-*/
-static int lay_formula_enum_decode(const struct c2_bufvec_cursor *cur,
-				      struct c2_lay **out)
-{
-   /**
-	@code
-	Read formula enumeration type specific fields like formula
-	from the buffer.
-
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of leto_encode() for formula enumeration type.
-   Continues to store layout representation in the buffer.
-*/
-static int lay_formula_enum_encode(const struct c2_lay *l,
-				      struct c2_bufvec_cursor *out)
-{
-   /**
-	@code
-	Read formula enumeration type specific fields like formula.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   @todo Do not need functions like formula_rec_add, lto_rec_delete,
-   lto_rec_update and lto_rec_lookup unless we want to store
-   attributes (applicable only for PDCLIUST type of layout
-   with FORMULA enumeration type) in a table different than
-   layouts.
-*/
-
-
-static const struct c2_lay_enum_type_ops formula_ops = {
-	.leto_decode		= lay_formula_enum_decode,
-	.leto_encode		= lay_formula_enum_encode,
-	.leto_rec_add		= NULL,
-	.leto_rec_delete	= NULL,
-	.leto_rec_update	= NULL,
-	.leto_rec_lookup	= NULL,
-};
-
 const struct c2_lay_enum_type c2_lay_formula_enum_type = {
-	.let_ops	= &formula_ops
+	.let_ops	= NULL
 };
 
 static const struct c2_lay_formula_ops nkp_ops = {
