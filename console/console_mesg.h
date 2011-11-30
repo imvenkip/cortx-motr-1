@@ -47,8 +47,6 @@ struct c2_cons_mesg {
 	const char		*cm_name;
 	/** Message type i.e disk or device failure */
 	enum c2_cons_mesg_type	 cm_type;
-	/** Console message operations */
-	const struct c2_cons_mesg_ops *cm_ops;
 	/** fop message to be send using console */
 	struct c2_fop		*cm_fop;
 	/** fop type to be send using console */

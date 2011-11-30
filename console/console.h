@@ -24,7 +24,7 @@
 #include "lib/time.h"	 /* c2_time_t */
 #include "net/net.h"	 /* c2_net_* */
 #include "rpc/session.h" /* c2_rpc_session */
-#include "rpc/rpc2.h" /* c2_rpcmachine */
+#include "rpc/rpc2.h"    /* c2_rpcmachine */
 #include "db/db.h"	 /* c2_dbenv */
 #include "cob/cob.h"	 /* c2_cob_domain */
 #include "reqh/reqh.h"	 /* c2_reqh */
