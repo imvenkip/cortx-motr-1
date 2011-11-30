@@ -221,7 +221,7 @@ struct c2_stob_op {
 	/**
 	  Create an object.
 
-	  Create the storage object for this c2_stob and set the attributes.
+	  Create the storage object for this c2_stob.
 
 	  @return 0 success, other values mean error.
 	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
