@@ -36,7 +36,7 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts);
 static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
-static int  c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts);
+static int  c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts);
 static int  c2t1fs_mnt_opts_parse(char                   *options,
 				  struct c2t1fs_mnt_opts *mnt_opts);
 
@@ -73,7 +73,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
 
 /* global instances */
 
-static struct super_operations c2t1fs_super_operations = {
+static const struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
 	.destroy_inode = c2t1fs_destroy_inode,
 	.drop_inode    = generic_delete_inode
@@ -349,7 +349,7 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 	END(0);
 }
 
-static int c2t1fs_mnt_opts_validate(struct c2t1fs_mnt_opts *mnt_opts)
+static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 {
 	START();
 
@@ -826,8 +826,8 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 }
 
 struct c2_rpc_session *
-c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
-			       uint64_t          container_id)
+c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
+			       uint64_t                container_id)
 {
 	struct c2t1fs_service_context        *ctx;
 

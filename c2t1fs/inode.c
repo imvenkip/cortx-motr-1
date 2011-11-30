@@ -31,7 +31,7 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque);
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
-bool c2t1fs_inode_is_root(struct inode *inode)
+bool c2t1fs_inode_is_root(const struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
 
@@ -277,7 +277,7 @@ out:
 /**
    XXX Temporary implementation of simple hash on fid
  */
-static unsigned long fid_hash(struct c2_fid *fid)
+static unsigned long fid_hash(const struct c2_fid *fid)
 {
 	START();
 	END(fid->f_key);

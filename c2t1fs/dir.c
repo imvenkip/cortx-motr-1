@@ -44,14 +44,14 @@ static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci);
 
 static int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid);
 
-struct file_operations c2t1fs_dir_file_operations = {
+const struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,
 	.readdir = c2t1fs_readdir,
 	.fsync   = simple_fsync,
 	.llseek  = generic_file_llseek,
 };
 
-struct inode_operations c2t1fs_dir_inode_operations = {
+const struct inode_operations c2t1fs_dir_inode_operations = {
 	.create = c2t1fs_create,
 	.lookup = c2t1fs_lookup,
 	.unlink = c2t1fs_unlink

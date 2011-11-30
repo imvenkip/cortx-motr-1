@@ -48,9 +48,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 					  loff_t               pos,
 					  int                  rw);
 
-static ssize_t c2t1fs_rpc_rw(struct c2_tl *rw_desc_list, int rw);
+static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
-struct file_operations c2t1fs_reg_file_operations = {
+const struct file_operations c2t1fs_reg_file_operations = {
 	.llseek    = generic_file_llseek,
 	.aio_read  = c2t1fs_file_aio_read,
 	.aio_write = c2t1fs_file_aio_write,
@@ -58,7 +58,7 @@ struct file_operations c2t1fs_reg_file_operations = {
 	.write     = do_sync_write,
 };
 
-struct inode_operations c2t1fs_reg_inode_operations = {
+const struct inode_operations c2t1fs_reg_inode_operations = {
 	NULL
 };
 
@@ -729,7 +729,7 @@ cleanup:
 	return rc;
 }
 
-static ssize_t c2t1fs_rpc_rw(struct c2_tl *rw_desc_list, int rw)
+static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 {
 	struct c2t1fs_rw_desc *rw_desc;
 	struct c2t1fs_buf     *buf;

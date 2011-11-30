@@ -137,7 +137,7 @@
 
    <B> Directory Operations: </B>
 
-   To create a regular file, c2t1fs sends cob create requests to mds(for global
+   To create a regular file, c2t1fs sends cob create requests to mds (for global
    object aka gob) and io-service (for target objects). Because, mds is not
    yet implemented, c2t1fs does not send cob create request to any mds.
    Instead all directory entries are stored in the in-memory root inode itself.
@@ -381,21 +381,21 @@ struct c2t1fs_inode
 	struct c2t1fs_dir_ent     ci_dir_ents[C2T1FS_MAX_NR_DIR_ENTS];
 };
 
-static inline struct c2t1fs_sb *C2T1FS_SB(struct super_block *sb)
+static inline struct c2t1fs_sb *C2T1FS_SB(const struct super_block *sb)
 {
 	return sb->s_fs_info;
 }
 
-static inline struct c2t1fs_inode *C2T1FS_I(struct inode *inode)
+static inline struct c2t1fs_inode *C2T1FS_I(const struct inode *inode)
 {
 	return container_of(inode, struct c2t1fs_inode, ci_inode);
 }
 
-extern struct file_operations c2t1fs_dir_file_operations;
-extern struct file_operations c2t1fs_reg_file_operations;
+extern const struct file_operations c2t1fs_dir_file_operations;
+extern const struct file_operations c2t1fs_reg_file_operations;
 
-extern struct inode_operations c2t1fs_dir_inode_operations;
-extern struct inode_operations c2t1fs_reg_inode_operations;
+extern const struct inode_operations c2t1fs_dir_inode_operations;
+extern const struct inode_operations c2t1fs_reg_inode_operations;
 
 /* super.c */
 
@@ -404,7 +404,7 @@ extern struct inode_operations c2t1fs_reg_inode_operations;
  */
 extern const struct c2_fid c2t1fs_root_fid;
 
-bool c2t1fs_inode_is_root(struct inode *inode);
+bool c2t1fs_inode_is_root(const struct inode *inode);
 
 int c2t1fs_get_sb(struct file_system_type *fstype,
 		  int                      flags,
@@ -417,8 +417,9 @@ void c2t1fs_kill_sb(struct super_block *sb);
 void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
 void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
 
-struct c2_rpc_session * c2t1fs_container_id_to_session(struct c2t1fs_sb *csb,
-						       uint64_t container_id);
+struct c2_rpc_session *
+c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
+			       uint64_t                container_id);
 
 /* inode.c */
 
