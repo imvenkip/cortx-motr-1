@@ -66,8 +66,6 @@
  *			timer_settime(disable)
  *			sem_post(t_stop_sem)
  *		return
- *	if (t_left == 0)
- *		return;
  *	t_callback(t_data);
  *	t_left--;
  *	if (t_left == 0)
