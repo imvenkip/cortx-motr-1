@@ -27,7 +27,7 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 /**
   @defgroup c2t1fs c2t1fs
