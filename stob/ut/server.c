@@ -77,7 +77,7 @@ static struct c2_fol          fol;
 static struct c2_reqh	      reqh;
 
 static struct c2_stob *object_find(const struct c2_fop_fid *fid,
-				   const void *attr, struct c2_dtx *tx)
+				   struct c2_dtx *tx)
 {
 	struct c2_stob_id  id;
 	struct c2_stob    *obj;
@@ -87,7 +87,7 @@ static struct c2_stob *object_find(const struct c2_fop_fid *fid,
 	id.si_bits.u_lo = fid->f_oid;
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
-	result = c2_stob_locate(obj, attr, tx);
+	result = c2_stob_locate(obj, tx);
 	return obj;
 }
 
@@ -98,7 +98,6 @@ int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_fop           *reply;
 	struct c2_stob          *obj;
 	struct c2_dtx            tx;
-	struct linux_stob_attr attr;
 	int                      result;
 
 	reply = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
@@ -108,12 +107,9 @@ int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	result = dom->sd_ops->sdo_tx_make(dom, &tx);
 	C2_ASSERT(result == 0);
 
-	attr.sa_dev = LINUX_BACKEND_FILE;
-	attr.sa_devpath = NULL;
+	obj = object_find(&in->sic_object, &tx);
 
-	obj = object_find(&in->sic_object, (void *)&attr, &tx);
-
-	result = c2_stob_create(obj, (void *)&attr, &tx);
+	result = c2_stob_create(obj, &tx);
 	C2_ASSERT(result == 0);
 	ex->sicr_rc = 0;
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
@@ -155,7 +151,7 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		result = dom->sd_ops->sdo_tx_make(dom, &tx);
 		C2_ASSERT(result == 0);
 
-		obj = object_find(&in->sir_object, (void *)&attr, &tx);
+		obj = object_find(&in->sir_object, &tx);
 
 		bshift = obj->so_op->sop_block_shift(obj);
 		bmask  = (1 << bshift) - 1;
@@ -245,7 +241,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		result = dom->sd_ops->sdo_tx_make(dom, &tx);
 		C2_ASSERT(result == 0);
 
-		obj = object_find(&in->siw_object, (void *)&attr, &tx);
+		obj = object_find(&in->siw_object, &tx);
 
 		bshift = obj->so_op->sop_block_shift(obj);
 		bmask  = (1 << bshift) - 1;
@@ -485,7 +481,6 @@ int main(int argc, char **argv)
 					}
 				};
 	struct c2_stob	       *addb_stob;
-	struct linux_stob_attr attr;
 
 	struct c2_table	        addb_table;
 
@@ -548,8 +543,6 @@ int main(int argc, char **argv)
 	result = c2_fol_init(&fol, &db);
 	C2_ASSERT(result == 0);
 
-	attr.sa_dev = LINUX_BACKEND_FILE;
-	attr.sa_devpath = NULL;
 	/*
 	 * Locate and create (if necessary) the backing store object.
 	 */
@@ -562,7 +555,7 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(bstore->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(bstore, (void *)&attr, NULL);
+	result = c2_stob_create(bstore, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(bstore->so_state == CSS_EXISTS);
 
@@ -582,7 +575,7 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(addb_stob->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(addb_stob, NULL, NULL);
+	result = c2_stob_create(addb_stob, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(addb_stob->so_state == CSS_EXISTS);
 	/* XXX The stob tail postion should be maintained & initialized */

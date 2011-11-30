@@ -226,7 +226,7 @@ struct c2_stob_op {
 	  @return 0 success, other values mean error.
 	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	*/
-	int (*sop_create)(struct c2_stob *stob, const void *attr, struct c2_dtx *tx);
+	int (*sop_create)(struct c2_stob *stob, struct c2_dtx *tx);
 
 	/**
 	   Locate a storage object for this c2_stob.
@@ -235,7 +235,7 @@ struct c2_stob_op {
 	   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
 	*/
-	int (*sop_locate)(struct c2_stob *obj, const void *attr, struct c2_dtx *tx);
+	int (*sop_locate)(struct c2_stob *obj, struct c2_dtx *tx);
 
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
@@ -331,7 +331,7 @@ void c2_stob_fini  (struct c2_stob *obj);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
    @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
  */
-int  c2_stob_locate(struct c2_stob *obj, const void *attr, struct c2_dtx *tx);
+int  c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Create an object.
@@ -341,7 +341,7 @@ int  c2_stob_locate(struct c2_stob *obj, const void *attr, struct c2_dtx *tx);
    @return 0 success, other values mean error.
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
  */
-int  c2_stob_create(struct c2_stob *obj, const void *attr, struct c2_dtx *tx);
+int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Acquires an additional reference on the object.

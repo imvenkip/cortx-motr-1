@@ -75,7 +75,6 @@ static int test_adieu_init(void)
 {
 	int i;
 	int result;
-	struct linux_stob_attr attr;
 
 	result = system("rm -fr ./__s");
 	C2_ASSERT(result == 0);
@@ -86,9 +85,6 @@ static int test_adieu_init(void)
 	result = mkdir("./__s/o", 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	attr.sa_dev = LINUX_BACKEND_FILE;
-	attr.sa_devpath = NULL;
-
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  "./__s", &dom);
 	C2_ASSERT(result == 0);
@@ -97,7 +93,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_locate(obj, (void *)&attr, NULL);
+	result = c2_stob_locate(obj, NULL);
 	C2_ASSERT(result == -ENOENT);
 	C2_ASSERT(obj->so_state == CSS_NOENT);
 
@@ -112,7 +108,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(obj, (void *)&attr, NULL);
+	result = c2_stob_create(obj, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 	c2_stob_put(obj);
@@ -121,7 +117,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_locate(obj, (void *)&attr, NULL);
+	result = c2_stob_locate(obj, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 

@@ -250,13 +250,9 @@ static void stobio_storage_fini(void)
 static int stobio_init(struct stobio_test *test)
 {
 	int result;
-	struct linux_stob_attr attr;
 
 	/* result = stobio_storage_init(); */
 	/* C2_UT_ASSERT(result == 0); */
-
-	attr.sa_dev = LINUX_BACKEND_FILE;
-	attr.sa_devpath = NULL;
 
 	result = linux_stob_type.st_op->
 		sto_domain_locate(&linux_stob_type, "./__s", &test->st_dom);
@@ -270,7 +266,7 @@ static int stobio_init(struct stobio_test *test)
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(test->st_obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(test->st_obj, (void *)&attr, NULL);
+	result = c2_stob_create(test->st_obj, NULL);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(test->st_obj->so_state == CSS_EXISTS);
 

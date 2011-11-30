@@ -296,7 +296,7 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 
    Closes the object's file descriptor.
 
-   @see linux_stob_attr_set()
+   @see c2_linux_stob_link()
  */
 static void linux_stob_fini(struct c2_stob *stob)
 {
@@ -311,9 +311,7 @@ static void linux_stob_fini(struct c2_stob *stob)
 		close(lstob->sl_fd);
 		lstob->sl_fd = -1;
 	}
-	if (lstob->sl_attr.sa_devpath != NULL) {
-		c2_free(lstob->sl_attr.sa_devpath);
-	}
+	c2_free(lstob->sl_attr.sa_devpath);
 	ls_tlink_del_fini(lstob);
 	c2_stob_fini(&lstob->sl_stob);
 	c2_free(lstob);
@@ -357,46 +355,22 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
 }
 
 /**
-   Helper function to set the object attributes.
-   The memory is allocated to copy the device path-name.
-   This memory is released in linux_stob_fini().
+   Helper function to set the object attributes. In this case underlying
+   backing store attribute is set.
 
-   @see linux_stob_fini()
+   @see c2_linux_stob_link()
  */
-static int linux_stob_attr_set(struct linux_stob *lstob, const void *attr)
+static void inline linux_stob_attr_set(struct linux_stob *lstob)
 {
-	int result = 0;
-	struct linux_stob_attr *lattr = (struct linux_stob_attr *) attr;
+	char *devpath = lstob->sl_attr.sa_devpath;
 
-	C2_PRE(lattr != NULL);
-	C2_PRE(lattr->sa_dev == LINUX_BACKEND_FILE ||
-	       lattr->sa_dev == LINUX_BACKEND_BLKDEV);
-	C2_PRE(ergo(lattr->sa_dev == LINUX_BACKEND_BLKDEV,
-		    lattr->sa_devpath != NULL));
-
-	/* Set stob attributes */
-	lstob->sl_attr.sa_dev = lattr->sa_dev;
-
-	/* If it's blockdevice, copy the device path */
-	if (lattr->sa_devpath != NULL) {
-		C2_ASSERT(lstob->sl_attr.sa_dev == LINUX_BACKEND_BLKDEV);
-		C2_ASSERT(lstob->sl_attr.sa_devpath == NULL);
-
-		lstob->sl_attr.sa_devpath
-		= c2_alloc(strlen(lattr->sa_devpath)+1);
-		if (lstob->sl_attr.sa_devpath == NULL)
-			result = -ENOMEM;
-		else
-			strcpy(lstob->sl_attr.sa_devpath, lattr->sa_devpath);
-
-	}
-
-	return result;
+	lstob->sl_attr.sa_dev = (devpath != NULL) ? LINUX_BACKEND_BLKDEV :
+				LINUX_BACKEND_FILE;
 }
 /**
    Implementation of c2_stob_op::sop_create().
  */
-static int linux_stob_create(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
+static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int oflags = O_RDWR|O_CREAT;
 	int result;
@@ -406,9 +380,8 @@ static int linux_stob_create(struct c2_stob *obj, const void *attr, struct c2_dt
 	if (ldom->use_directio)
 		oflags |= O_DIRECT;
 
-	result =  linux_stob_attr_set(stob2linux(obj), attr);
-	if (result == 0)
-		result =  linux_stob_open(stob2linux(obj), oflags);
+	linux_stob_attr_set(stob2linux(obj));
+	result =  linux_stob_open(stob2linux(obj), oflags);
 
 	return result;
 }
@@ -416,7 +389,7 @@ static int linux_stob_create(struct c2_stob *obj, const void *attr, struct c2_dt
 /**
    Implementation of c2_stob_op::sop_locate().
  */
-static int linux_stob_locate(struct c2_stob *obj, const void *attr, struct c2_dtx *tx)
+static int linux_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int oflags = O_RDWR;
 	int result;
@@ -426,9 +399,8 @@ static int linux_stob_locate(struct c2_stob *obj, const void *attr, struct c2_dt
 	if (ldom->use_directio)
 		oflags |= O_DIRECT;
 
-	result =  linux_stob_attr_set(stob2linux(obj), attr);
-	if (result == 0)
-		result =  linux_stob_open(stob2linux(obj), oflags);
+	linux_stob_attr_set(stob2linux(obj));
+	result =  linux_stob_open(stob2linux(obj), oflags);
 
 	return result;
 }
@@ -467,6 +439,60 @@ const struct c2_addb_ctx_type adieu_addb_ctx_type = {
 };
 
 struct c2_addb_ctx adieu_addb_ctx;
+
+/**
+   This function is called to set the path for the block device for a
+   given Linux stob. The memory is allocated for the device path.
+   This memory is released in linux_stob_fini().
+
+   This function should be called after creating Linux stob and before
+   calling c2_linux_stob_create() and c2_linux_stob_locate().
+
+   @pre obj is not NULL
+   @pre devpath is not NULL
+
+   @param obj -> stob object embedded inside Linux stob object
+   @param devpath -> Block device path
+
+   @retval 0 if successful
+           -ENOMEM if memory allocation fails
+           -errno status returned by stat()
+	   -EINVAL if stat() is successful, but devpath is not a block device
+
+   @see linux_stob_fini()
+ */
+int c2_linux_stob_link(struct c2_stob *obj, char *devpath)
+{
+	int result = 0;
+	struct linux_stob *lstob;
+	struct stat statbuf;
+
+	C2_PRE(obj != NULL);
+	C2_PRE(devpath != NULL);
+
+	result = stat(devpath, &statbuf);
+	if (result != 0)
+		goto err;
+
+	if(!S_ISBLK(statbuf.st_mode)) {
+		result = -EINVAL;
+		goto err;
+	}
+
+	lstob = stob2linux(obj);
+	C2_ASSERT(lstob->sl_attr.sa_devpath == NULL);
+
+	/* Validations complete. Now copy the device path */
+	lstob->sl_attr.sa_devpath = c2_alloc(strlen(devpath)+1);
+	if (lstob->sl_attr.sa_devpath == NULL)
+		result = -ENOMEM;
+	else {
+		strcpy(lstob->sl_attr.sa_devpath, devpath);
+	}
+
+err:
+	return result;
+}
 
 int c2_linux_stobs_init(void)
 {

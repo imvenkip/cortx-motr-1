@@ -769,7 +769,6 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 	int                      slen;
 	char                    *objpath;
         struct c2_stob          *bstore;
-	struct linux_stob_attr   attr;
 
 	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL &&
 								db != NULL);
@@ -781,8 +780,6 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 	 */
         stob->stob_id.si_bits.u_hi = 0x0;
         stob->stob_id.si_bits.u_lo = 0xdf11e;
-	attr.sa_dev = LINUX_BACKEND_FILE;
-	attr.sa_devpath = NULL;
 
 	slen = strlen(stob_path);
 	C2_ALLOC_ARR(objpath, slen + sizeof("/o"));
@@ -803,7 +800,7 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 	if (rc != 0)
 		goto cleanup;
 
-	rc = c2_stob_create(bstore, (void *)&attr, NULL);
+	rc = c2_stob_create(bstore, NULL);
 	if (rc != 0)
 		goto cleanup;
 
