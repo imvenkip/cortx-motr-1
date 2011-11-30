@@ -135,7 +135,7 @@ enum timer_func {
 };
 
 /**
- * Item of threads ID list in location.
+ * Item of threads ID list in locality.
  */
 struct timer_tid {
 	pid_t		tt_tid;
@@ -144,7 +144,7 @@ struct timer_tid {
 };
 
 /**
-   Signal number for every new hard timer is choosed in a round-robin fashion.
+   Signal number for every new hard timer is chosen in a round-robin fashion.
    This variable contains signal number for next timer.
  */
 static sig_atomic_t signo_rr;
