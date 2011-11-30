@@ -134,7 +134,6 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_stob_io      io;
 	struct c2_clink        clink;
 	struct c2_dtx          tx;
-	struct linux_stob_attr attr;
 	void                  *addr;
 	uint32_t               bshift;
 	uint64_t               bmask;
@@ -145,8 +144,6 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	attr.sa_dev = LINUX_BACKEND_FILE;
-	attr.sa_devpath = NULL;
 	while (1) {
 		result = dom->sd_ops->sdo_tx_make(dom, &tx);
 		C2_ASSERT(result == 0);
@@ -221,7 +218,6 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_stob         *obj;
 	struct c2_stob_io       io;
 	struct c2_dtx           tx;
-	struct linux_stob_attr attr;
 	void                   *addr;
 	c2_bcount_t             count;
 	c2_bindex_t             offset;
@@ -235,8 +231,6 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	attr.sa_dev = LINUX_BACKEND_FILE;
-	attr.sa_devpath = NULL;
 	while (1) {
 		result = dom->sd_ops->sdo_tx_make(dom, &tx);
 		C2_ASSERT(result == 0);
