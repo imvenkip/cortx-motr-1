@@ -200,7 +200,6 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc)
 {
 	C2_PRE(loc != NULL);
 
-	C2_ASSERT(tid_tlist_is_empty(&loc->tlo_tids));
 	c2_mutex_fini(&loc->tlo_lock);
 	tid_tlist_fini(&loc->tlo_tids);
 }
