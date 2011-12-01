@@ -26,6 +26,7 @@
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/time.h"
+#include "lib/thread.h"
 
 #include "addb/addb.h"
 #include "sm/sm.h"
@@ -33,14 +34,29 @@
 static struct c2_sm_group G;
 static struct c2_addb_ctx actx;
 static struct c2_sm       m;
-struct c2_sm_ast          ast;
+static struct c2_sm_ast   ast;
+static bool               more = true;
+static struct c2_thread   ath;
+
+static void ast_thread(int __d)
+{
+   while (more) {
+           c2_chan_wait(&G.s_clink);
+           c2_sm_group_lock(&G);
+	   c2_sm_asts_run(&G);
+           c2_sm_group_unlock(&G);
+   }
+}
 
 static int init(void) {
 	c2_sm_group_init(&G);
-	return 0;
+	return C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
 }
 
 static int fini(void) {
+	more = false;
+	c2_clink_signal(&G.s_clink);
+	c2_thread_join(&ath);
 	c2_sm_group_fini(&G);
 	return 0;
 }

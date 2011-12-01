@@ -28,18 +28,6 @@
 #include "console/console_mesg.h"
 
 /**
- * @brief Signals the waiting process/thread for item reply.
- */
-static void rpc_reply_recvd(struct c2_rpc_item *req,
-                            struct c2_rpc_item *reply,
-                            int rc)
-{
-        req->ri_error = rc;
-	req->ri_reply = reply;
-        c2_chan_signal(&req->ri_chan);
-}
-
-/**
  * @brief Prints name and type of console message.
  *
  * @param mesg console message
@@ -129,7 +117,6 @@ error:
  * @brief RPC item operation for disk failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_disk_ops = {
-        .rio_replied = rpc_reply_recvd
 };
 
 static struct c2_cons_mesg c2_cons_disk_mesg = {
@@ -145,7 +132,6 @@ static struct c2_cons_mesg c2_cons_disk_mesg = {
  * @brief RPC item operation for device failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_device_ops = {
-        .rio_replied = rpc_reply_recvd
 };
 
 static struct c2_cons_mesg c2_cons_device_mesg = {
@@ -162,7 +148,6 @@ static struct c2_cons_mesg c2_cons_device_mesg = {
  * @brief RPC item operation for device failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_reply_ops = {
-        .rio_replied = NULL,
 };
 
 static struct c2_cons_mesg c2_cons_reply_mesg = {

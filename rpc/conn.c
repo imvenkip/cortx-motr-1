@@ -500,13 +500,13 @@ out:
 }
 C2_EXPORTED(c2_rpc_conn_establish);
 
-void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc)
+void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_conn_establish_rep *fop_cer;
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_item                   *reply = req->ri_reply;
+	int32_t                               rc    = req->ri_error;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
 		req->ri_session->s_session_id == SESSION_ID_0);
@@ -745,13 +745,13 @@ out_unlock:
 }
 C2_EXPORTED(c2_rpc_conn_terminate);
 
-void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc)
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_conn_terminate_rep *fop_ctr;
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_item                   *reply = req->ri_reply;
+	int32_t                               rc    = req->ri_error;
 	uint64_t                              sender_id;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&

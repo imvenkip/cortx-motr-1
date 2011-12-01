@@ -69,7 +69,8 @@ static int send_fop(struct c2_rpc_session *session)
 	}
 
 	ping_fop = c2_fop_data(fop);
-	ping_fop->fp_arr.f_count = NR_PING_BYTES / sizeof(ping_fop->fp_arr.f_data);
+	ping_fop->fp_arr.f_count =
+		NR_PING_BYTES / sizeof(ping_fop->fp_arr.f_data);
 
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, ping_fop->fp_arr.f_count);
 	C2_UT_ASSERT(ping_fop->fp_arr.f_data != NULL);
