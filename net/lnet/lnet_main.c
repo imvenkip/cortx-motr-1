@@ -404,7 +404,7 @@
 	  }
       } else {                             // synchronous delivery
 	     c2_mutex_lock(&tm->ntm_mutex);
-	     if (lctm.xtm_ev_chan != NULL)
+	     if (lctm.xtm_ev_chan == NULL)
 	        c2_cond_timedwait(lctm->xtm_ev_cond, &tm->ntm_mutex, &timeout);
 	     if (lctm.xtm_ev_chan != NULL) {
 	        rc = nlx_core_buf_event_wait(lctm, &timeout);
