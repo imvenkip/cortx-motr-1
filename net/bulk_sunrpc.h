@@ -36,6 +36,8 @@
    the same process must use the same host and port, regardless of how many
    bulksunrpc domains are created.
 
+   The transport will fake support for synchronous network buffer delivery.
+
    @{
 **/
 

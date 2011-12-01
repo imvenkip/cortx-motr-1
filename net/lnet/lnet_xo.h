@@ -95,6 +95,17 @@ struct nlx_xo_transfer_mc {
 	/** Event thread */
 	struct c2_thread             xtm_ev_thread;
 
+	/** Condition variable used by the event thread for synchronous buffer
+	    event notification.
+	 */
+	struct c2_cond               xtm_ev_cond;
+
+	/** Channel used for synchronous buffer event notification */
+	struct c2_chan              *xtm_ev_chan;
+
+	/** Count of activities in progress out of the TM mutex */
+	int                          xtm_busy;
+
 	/** LNet Core transfer machine data (shared memory) */
 	struct nlx_core_transfer_mc  xtm_core;
 };

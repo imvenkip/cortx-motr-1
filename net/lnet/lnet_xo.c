@@ -88,6 +88,23 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 {
 }
 
+static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
+{
+}
+
+static int nlx_xo_bev_deliver_sync(struct c2_net_transfer_mc *tm)
+{
+}
+
+static bool nlx_xo_bev_pending(struct c2_net_transfer_mc *tm)
+{
+}
+
+static void nlx_xo_bev_notify(struct c2_net_transfer_mc *tm,
+			      struct c2_chan *chan)
+{
+}
+
 static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_dom_init                    = nlx_xo_dom_init,
 	.xo_dom_fini                    = nlx_xo_dom_fini,
@@ -104,6 +121,10 @@ static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 	.xo_tm_start                    = nlx_xo_tm_start,
 	.xo_tm_stop                     = nlx_xo_tm_stop,
 	.xo_tm_confine                  = nlx_xo_tm_confine,
+	.xo_bev_deliver_all             = nlx_xo_bev_deliver_all,
+	.xo_bev_deliver_sync            = nlx_xo_bev_deliver_sync,
+	.xo_bev_pending                 = nlx_xo_bev_pending,
+	.xo_bev_notify                  = nlx_xo_bev_notify,
 };
 
 /**

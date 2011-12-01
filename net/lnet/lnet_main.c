@@ -33,7 +33,9 @@
    - @ref LNetDLD-lspec
       - @ref LNetDLD-lspec-comps
       - @ref LNetDLD-lspec-ep
+      - @ref LNetDLD-lspec-tm-start
       - @ref LNetDLD-lspec-tm-stop
+      - @ref LNetDLD-lspec-bev-sync
       - @ref LNetDLD-lspec-tm-thread
       - @ref LNetDLD-lspec-buf-nbd
       - @ref LNetDLD-lspec-buf-op
@@ -87,6 +89,9 @@
    - @b r.c2.net.xprt.lnet.user-space The implementation must
      accommodate the needs of the user space LNet transport.
 
+   - @b r.c2.net.synchronous-buffer-event-delivery The implementation must
+     provide support for this feature as described in the HLD.
+
    <hr>
    @section LNetDLD-depends Dependencies
    <ul>
@@ -135,6 +140,35 @@
      receive buffer, without removing it from a transfer machine queue.
      This is indicated by the ::C2_NET_BUF_RETAIN flag.
 
+     The design adds the following fields to the c2_net_transfer_mc structure
+     to support the synchronous delivery of network buffer events:
+     @code
+     struct c2_net_transfer_mc {
+        ...
+	bool                        ntm_deliver_buffer_events;
+	struct c2_chan             *ntm_bev_chan;
+     };
+     @endcode
+     By default, @c ntm_deliver_buffer_events is set to @c true.  In addition
+     the following subroutines are defined:
+     - c2_net_buffer_event_deliver_all()
+     - c2_net_buffer_event_deliver_synchronously()
+     - c2_net_buffer_event_pending()
+     - c2_net_buffer_event_notify()
+     .
+     This results in corresponding operations being added to the
+     c2_net_xprt_ops structure:
+     @code
+     struct c2_net_xprt_ops {
+        ...
+        void (*xo_bev_deliver_all)(struct c2_net_transfer_mc *tm);
+        int  (*xo_bev_deliver_sync)(struct c2_net_transfer_mc *tm);
+	bool (*xo_bev_pending)(struct c2_net_transfer_mc *tm);
+	void (*xo_bev_notify)(struct c2_net_transfer_mc *tm,
+                              struct c2_chan *chan);
+     };
+     @endcode
+
    </li> <!-- end net module changes -->
 
    <li>The @ref bitmap "Bitmap Module". <!-- lib/bitmap.h -->
@@ -174,6 +208,7 @@
    - @ref LNetDLD-lspec-ep
    - @ref LNetDLD-lspec-tm-start
    - @ref LNetDLD-lspec-tm-stop
+   - @ref LNetDLD-lspec-bev-sync
    - @ref LNetDLD-lspec-tm-thread
    - @ref LNetDLD-lspec-buf-nbd
    - @ref LNetDLD-lspec-buf-op
@@ -242,27 +277,87 @@
 
    @subsection LNetDLD-lspec-tm-stop Transfer Machine Termination
    Termination of a transfer machine is requested through the c2_net_tm_stop()
-   subroutine, which results in a call to nlx_xo_tm_stop().
+   subroutine, which results in a call to nlx_xo_tm_stop(). The latter ensures
+   that the transfer machine's thread wakes up by signalling on the
+   nlx_xo_transfer_mc::xtm_cond condition variable.
 
    When terminating a transfer machine the application has a choice of draining
    current operations or aborting such activity.  If the latter choice is made,
    then the transport must first cancel all operations.
 
    Regardless, the transfer machine's event handler thread completes the
-   termination process.  It waits until all buffer queues are empty, then
-   invokes the nlx_core_tm_stop() subroutine to free the LNet EQ and other
-   resources associated with the transfer machine.  It then posts the transfer
-   machine state change event and terminates itself.
+   termination process.  It waits until all buffer queues are empty and any
+   ongoing synchronous network buffer delivery has completed, then invokes the
+   nlx_core_tm_stop() subroutine to free the LNet EQ and other resources
+   associated with the transfer machine.  It then posts the transfer machine
+   state change event and terminates itself.  See @ref LNetDLD-lspec-tm-thread
+   for further detail.
 
+   @subsection LNetDLD-lspec-bev-sync Synchronous Network Buffer Event Delivery
+
+   The transport supports the optional synchronous network buffer event
+   delivery as required by the HLD.  The default asynchronous delivery of
+   buffer events is done by the @ref LNetDLD-lspec-tm-thread.  Synchronous
+   delivery must be enabled before the transfer machine is started, and is
+   indicated by the value of the c2_net_transfer_mc::ntm_deliver_buffer_events
+   value being @c false.
+
+   The nlx_xo_bev_deliver_sync() transport operation is invoked to disable the
+   automatic delivery of buffer events. The subroutine simply returns without
+   error, and the invoking c2_net_buffer_event_deliver_synchronously()
+   subroutine will then set the value of
+   c2_net_transfer_mc::ntm_deliver_buffer_events value to @c false.
+
+   The nlx_xo_bev_pending() transport operation is invoked from the
+   c2_net_buffer_event_pending() subroutine to determine if there are pending
+   network buffer events.  It invokes the nlx_core_buf_event_wait() subroutine
+   with a timeout of 0 and uses the returned status value to determine if
+   events are present or not.
+
+   The nlx_xo_bev_notify() transport operation is invoked from the
+   c2_net_buffer_event_notify() subroutine.  It sets the
+   nlx_xo_transfer_mc::xtm_ev_chan value to the specified wait channel, and
+   signals on the nlx_xo_transfer_mc::xtm_ev_cond condition variable to wake up
+   the event thread.
+
+   The nlx_xo_bev_deliver_all() transport operation is invoked from the
+   c2_net_buffer_event_deliver_all() subroutine.  It attempts to deliver all
+   pending events.  The transfer machine lock is held across the call to the
+   nlx_core_buf_event_get() subroutine to serialize "consumers" of the
+   circualar buffer event queue, but is released during event delivery.  The
+   nlx_xo_transfer_mc::xtm_busy counter is incremented across the call to
+   prevent premature termination when operating outside of the protection of
+   the transfer machine mutex.  This is illustrated in the following
+   pseduo-code:
+   @code
+   int rc = 0;
+   C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+   lctm->xtm_busy++;
+   do { // consume all pending events
+        struct nlx_core_buffer_event lcbe;
+	struct c2_net_buffer_event nbev;
+	rc = nlx_core_buf_event_get(lctm, &lcbe);
+	if (rc == 0) {
+	  // create end point objects as needed
+        }
+	c2_mutex_unlock(&tm->ntm_mutex); // release lock
+	if (rc == 0) {
+	     nbe = ... // convert the event
+	     c2_net_buffer_event_post(&nbev);
+        }
+	c2_mutex_lock(&tm->ntm_mutex); // re-acquire lock
+   } while (rc == 0);
+   lctm->xtm_busy--;
+   @endcode
 
    @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Handler Thread
-   Each transfer machine processes buffer events from the Core API's event
-   queue.  The Core API guarantees that LNet operation completion events will
-   result in buffer events being enqueued in the order the API receives them,
-   and, in particular, that multiple buffer events for any given receive buffer
-   will be ordered.  This is very important for the transport, because it has
-   to ensure that a receive buffer operation is not prematurely flagged as
-   dequeued.
+   The default behavior of a transfer machine is to asynchronously delivery
+   buffer events from the Core API's event queue to the application.  The Core
+   API guarantees that LNet operation completion events will result in buffer
+   events being enqueued in the order the API receives them, and, in
+   particular, that multiple buffer events for any given receive buffer will be
+   ordered.  This is very important for the transport, because it has to ensure
+   that a receive buffer operation is not prematurely flagged as dequeued.
 
    The transport uses exactly one event handler thread to process buffer events
    from the Core API.  This has the following advantages:
@@ -278,17 +373,19 @@
    subroutine, which makes a copy of the desired processor affinity bitmask in
    nlx_xo_transfer_mc::xtm_processors.
 
-   In addition to buffer event processing, the event handler thread performs the
-   following functions:
+   In addition to asynchronous buffer event processing, the event handler
+   thread performs the following functions:
+   - Notify the presence of buffer events when synchronous buffer event
+     delivery is enabled
    - Transfer machine state change event posting
    - Buffer operation timeout processing
    - Logging of statistical data
 
-   The functionality of the event handler thread is illustrated by
+   The functionality of the event handler thread is best illustrated by
    the following pseudo-code:
    @code
    // start the transfer machine in the Core
-   rc = nlx_core_tm_start(&tm, &lctm, &cepa);
+   rc = nlx_core_tm_start(&tm, lctm, &cepa);
    // deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
    // the C2_NET_TM_STARTED or C2_NET_TM_FAILED states
    // Set the transfer machine's end point on success
@@ -298,30 +395,35 @@
    // loop forever
    while (1) {
       timeout = ...; // compute next timeout
-      rc = nlx_core_buf_event_wait(&lctm, &timeout);
-      // buffer event processing
-      if (rc == 0) { // did not time out - events pending
-          do { // consume all pending events
-             struct nlx_core_buffer_event lcbe;
-	     struct c2_net_buffer_event nbev;
-             c2_mutex_lock(&tm->ntm_mutex);
-             rc = nlx_core_buf_event_get(&lctm, &lcbe);
-             // may need to create/lookup msg sender end point objects here.
+      if (tm->ntm_deliver_buffer_events) { // asynchronous delivery
+	  rc = nlx_core_buf_event_wait(lctm, &timeout);
+	  // buffer event processing
+	  if (rc == 0) { // did not time out - events pending
+	     c2_mutex_lock(&tm->ntm_mutex);
+	     nlx_xo_bev_deliver_all(tm);
 	     c2_mutex_unlock(&tm->ntm_mutex);
-	     if (rc == 0) {
-	        nbe = ... // convert the event
-	        c2_net_buffer_event_post(&nbev);
+	  }
+      } else {                             // synchronous delivery
+	     c2_mutex_lock(&tm->ntm_mutex);
+	     if (lctm.xtm_ev_chan != NULL)
+	        c2_cond_timedwait(lctm->xtm_ev_cond, &tm->ntm_mutex, &timeout);
+	     if (lctm.xtm_ev_chan != NULL) {
+	        rc = nlx_core_buf_event_wait(lctm, &timeout);
+	        if (rc == 0) {
+		    c2_chan_signal(lctm->xtm_chan);
+		    lctm.xtm_chan = NULL;
+		}
              }
-          } while (rc == 0);
+	     c2_mutex_unlock(&tm->ntm_mutex);
       }
-      // do buffer operation timeout processing
+      // do buffer operation timeout processing periodically
       ...
       // termination processing
       if (tm->ntm_state == C2_NET_TM_STOPPING) {
             bool must_stop = false;
             c2_mutex_lock(&tm->ntm_mutex);
-            if (all_tm_queues_are_empty(tm)) {
-	       nlx_core_tm_stop(&lctm);
+            if (all_tm_queues_are_empty(tm) && lctm->xtm_busy == 0) {
+	       nlx_core_tm_stop(lctm);
 	       must_stop = true;
             }
             c2_mutex_unlock(&tm->ntm_mutex);
@@ -342,20 +444,25 @@
    Colibri coding style.)
 
    A few points to note on the above pseudo-code:
+   - The thread blocks in the nlx_core_buf_event_wait() if the default
+     asynchronous buffer event delivery mode is set, or on the
+     nlx_xo_transfer_mc::xtm_ev_cond condition variable otherwise. In the
+     latter case, it may also block in the nlx_core_buf_event_wait() subroutine
+     if the condition variable is signalled by the nlx_xo_bev_notify()
+     subroutine.
    - The transfer machine mutex is obtained across the call to dequeue buffer
      events to serialize with the "other" consumer of the buffer event queue,
      the nlx_xo_buf_add() subroutine that invokes the Core API buffer operation
      initiation subroutines.  This is because these subroutines may allocate
      additional buffer event structures to the queue.
-   - The transfer machine mutex may also be needed to create end point objects
-     to identify the sender of messages received by the transfer machine.
-   - The thread attempts to process as many events as it can each time around
-     the loop.  The call to the nlx_core_buf_event_wait() subroutine in the
-     user space transport is expensive as it makes a device driver @c ioctl
-     call internally.
+   - The nlx_xo_bev_deliver_all() subroutine processes as many events as it can
+     each time around the loop.  The call to the nlx_core_buf_event_wait()
+     subroutine in the user space transport is expensive as it makes a device
+     driver @c ioctl call internally.
    - The thread is responsible for terminating the transfer machine and
-     delivering its termination event.
-
+     delivering its termination event.  Termination serializes with concurrent
+     invocation of the nlx_xo_bev_deliver_all() subroutine in the case of
+     synchronous buffer event delivery.
 
    @subsection LNetDLD-lspec-buf-nbd Network Buffer Descriptor
    The transport has to define the format of the opaque network buffer
@@ -418,7 +525,10 @@
 
    The transfer machine is associated with an LNet event queue (EQ).  The EQ
    must be created when the transfer machine is started, and destroyed when the
-   transfer machine stops.
+   transfer machine stops.  The transfer machine operates by default in an
+   asynchronous network buffer delivery mode, but can also provide synchronous
+   network buffer delivery for locality sensitive applications like the Colibri
+   request handler.
 
    Buffers registered with a domain object are potentially associated with LNet
    kernel module resources and, if the transport is in user space, additional
@@ -429,9 +539,10 @@
    API.
 
    End point structures are exposed externally as struct c2_net_end_point, but
-   are allocated and managed internally by the transport with struct
-   nlx_xo_ep.  They do not use LNet resources, but just transport address space
-   memory. They are reference counted, and the application must release all
+   are allocated and managed internally by the transport with struct nlx_xo_ep.
+   They do not use LNet resources, but just transport address space
+   memory. Their creation and finalization is protected by the transfer machine
+   mutex. They are reference counted, and the application must release all
    references before attempting to finalize a transfer machine.
 
 
@@ -477,14 +588,22 @@
    The transport only has one thread, its event processing thread.  This thread
    uses the transfer machine lock when serialization is required by the Core
    API, and also when creating or looking up end point objects when processing
-   receive buffer events. See @ref LNetDLD-lspec-tm-thread for details.
-
+   receive buffer events.  Termination of the transfer machine is serialized
+   with concurrent invocation of the nlx_xo_bev_deliver_all() subroutine in the
+   case of synchronous buffer event delivery by means of the
+   nlx_xo_transfer_mc::xtm_busy counter.
+   See @ref LNetDLD-lspec-bev-sync and @ref LNetDLD-lspec-tm-thread for
+   details.
 
    @subsection LNetDLD-lspec-numa NUMA optimizations
    The application can establish specific processor affiliation for the event
    handler thread with the c2_net_tm_confine() subroutine prior to starting the
    transfer machine.  Buffer completion events and transfer machine state
    change events will be delivered through callbacks made from this thread.
+
+   Even greater locality of reference is obtained with synchronous network
+   buffer event delivery.  The application is able to co-ordinate references to
+   network objects and other objects beyond the scope of the network module.
 
    <hr>
    @section LNetDLD-conformance Conformance
@@ -517,6 +636,9 @@
    user-space event processing through the use of a circular queue maintained
    in shared memory and operated upon with atomic operations.
 
+   - @b i.c2.net.synchronous-buffer-event-delivery See @ref
+   LNetDLD-lspec-bev-sync and @ref LNetDLD-lspec-tm-thread for details.
+
    <hr>
    @section LNetDLD-ut Unit Tests
    To control symbol exposure, the transport code is compiled using a single C
@@ -541,7 +663,8 @@
    @test Initiation of buffer operations will be tested.
 
    @test Delivery of synthetic buffer events will be tested, including multiple
-         receive buffer events for a single receive buffer.
+         receive buffer events for a single receive buffer. Both asynchronous
+         and synchronous styles of buffer delivery will be tested.
 
    @test Management of the reference counted end point objects; the addresses
          themselves don't have to valid for these tests.
