@@ -99,11 +99,15 @@ struct c2_fop_type_ops {
 	uint64_t (*fto_get_nfragments)(const struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
 	int (*fto_io_coalesce)(struct c2_fop *fop);
-	/** Allocate memory for io descritor list. */
-	int (*fto_descs_alloc)(struct c2_fop *fop);
+	/** Allocates the net buf descriptors and index vectors from
+	    io fop and populates the index vectors. */
+	int (*fto_descs_ivec_prepare)(struct c2_fop *fop);
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct c2_fop *fop,
-			       struct c2_net_buf_desc **desc, int i);
+			        struct c2_net_buf_desc **desc);
+	/* Deallocates memory for net buf descriptors and index vectors
+	   from io fop. */
+	void (*fto_descs_ivec_destroy)(struct c2_fop *fop);
 };
 
 /**
