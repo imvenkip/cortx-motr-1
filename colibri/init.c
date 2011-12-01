@@ -78,7 +78,7 @@ struct init_fini_call subsystem[] = {
 	/* fol must be initialised before fops, because fop type registration
 	   registers a fol record type. */
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
-	{ &c2_lays_init,     &c2_lays_fini,    "layout" },
+	{ &c2_layouts_init,     &c2_layouts_fini,    "layout" },
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },

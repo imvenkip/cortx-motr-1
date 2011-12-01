@@ -115,7 +115,7 @@ struct c2_layout_type {
 	const char				*lt_name;
 
 	/** Layout type id. */
-	uint64_t			 	 lt_id;
+	uint64_t				 lt_id;
 
 	/** Layout type operations vector. */
 	const struct c2_layout_type_ops		*lt_ops;
@@ -240,8 +240,8 @@ int	c2_layout_encode(bool toDB, const struct c2_layout *l,
 
 /* todo Where to initialize all the layout types from. Check pdclust_layout_init() called from c2t1fs/main.c. */
 
-int	c2_lays_init(void);
-void	c2_lays_fini(void);
+int	c2_layouts_init(void);
+void	c2_layouts_fini(void);
 
 /** Read a layout record from the layouts table. */
 int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
