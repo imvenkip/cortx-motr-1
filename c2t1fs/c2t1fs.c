@@ -36,7 +36,7 @@ static struct file_system_type c2t1fs_fs_type = {
 	.name         = "c2t1fs",
 	.get_sb       = c2t1fs_get_sb,
 	.kill_sb      = c2t1fs_kill_sb,
-	.fs_flags     = FS_BINARY_MOUNTDATA | FS_REQUIRES_DEV
+	.fs_flags     = FS_BINARY_MOUNTDATA
 };
 
 enum {

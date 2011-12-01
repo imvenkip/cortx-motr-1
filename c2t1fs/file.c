@@ -58,9 +58,7 @@ const struct file_operations c2t1fs_reg_file_operations = {
 	.write     = do_sync_write,
 };
 
-const struct inode_operations c2t1fs_reg_inode_operations = {
-	NULL
-};
+const struct inode_operations c2t1fs_reg_inode_operations;
 
 #define KIOCB_TO_FILE_NAME(iocb) ((iocb)->ki_filp->f_path.dentry->d_name.name)
 
@@ -72,7 +70,7 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 	unsigned long i;
 	ssize_t       result = 0;
 	ssize_t       nr_bytes_read = 0;
-	ssize_t       count = 0;
+	ssize_t       count;
 
 	START();
 
@@ -247,10 +245,11 @@ static int c2t1fs_pin_memory_area(char          *buf,
 
 	START();
 
-	addr = (unsigned long)buf;
-	off  = (addr & (PAGE_CACHE_SIZE - 1)); /* as we've already confirmed
-				       buf is page aligned, off is always 0 */
-	addr &= PAGE_CACHE_MASK;
+	addr = (unsigned long)buf & PAGE_CACHE_MASK;
+	off  = (unsigned long)buf & (PAGE_CACHE_SIZE - 1);
+	/* as we've already confirmed that buf is page aligned,
+		should always be 0 */
+	C2_PRE(off == 0);
 
 	nr_pages = (off + count + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 
@@ -319,10 +318,7 @@ static ssize_t c2t1fs_read_write(struct file *file,
 
 	START();
 
-	if (count == 0) {
-		rc = 0;
-		goto out;
-	}
+	C2_PRE(count != 0);
 
 	inode = file->f_dentry->d_inode;
 	ci = C2T1FS_I(inode);
@@ -617,7 +613,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			 * For more info see "Containers and target objects"
 			 * section in c2t1fs.h
 			 */
-			tgt_fid = c2t1fs_target_fid(gob_fid,
+			tgt_fid = c2t1fs_target_fid(&gob_fid,
 						    tgt_addr.ta_obj + 1);
 
 			rw_desc = c2t1fs_rw_desc_get(&rw_desc_list, tgt_fid);

@@ -189,19 +189,19 @@ int c2t1fs_init(void);
 void c2t1fs_fini(void);
 
 enum {
-	C2T1FS_SUPER_MAGIC = 0x4332543153555052, /* "C2T1SUPR" */
-	MAX_NR_EP_PER_SERVICE_TYPE = 10,
-	C2T1FS_MAX_NAME_LEN = 8,
-	C2T1FS_RPC_TIMEOUT = 10, /* seconds */
-	C2T1FS_NR_SLOTS_PER_SESSION = 10,
-	C2T1FS_MAX_NR_RPC_IN_FLIGHT = 100,
-	C2T1FS_DEFAULT_NR_DATA_UNITS = 1,
-	C2T1FS_DEFAULT_NR_PARITY_UNITS = 0,
-	C2T1FS_DEFAULT_NR_CONTAINERS = C2T1FS_DEFAULT_NR_DATA_UNITS +
-					2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
+	C2T1FS_SUPER_MAGIC              = 0x4332543153555052, /* "C2T1SUPR" */
+	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
+	C2T1FS_MAX_NAME_LEN             = 256,
+	C2T1FS_RPC_TIMEOUT              = 10, /* seconds */
+	C2T1FS_NR_SLOTS_PER_SESSION     = 10,
+	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
+	C2T1FS_DEFAULT_NR_DATA_UNITS    = 1,
+	C2T1FS_DEFAULT_NR_PARITY_UNITS  = 0,
+	C2T1FS_DEFAULT_NR_CONTAINERS    = C2T1FS_DEFAULT_NR_DATA_UNITS +
+					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
-	C2T1FS_MAX_NR_CONTAINERS = 1024,
-	C2T1FS_MAX_NR_DIR_ENTS = 10,
+	C2T1FS_MAX_NR_CONTAINERS        = 1024,
+	C2T1FS_MAX_NR_DIR_ENTS          = 10,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure.
@@ -435,5 +435,5 @@ void          c2t1fs_destroy_inode(struct inode *inode);
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 				uint64_t unit_size);
 
-struct c2_fid c2t1fs_target_fid(const struct c2_fid gob_fid, int index);
+struct c2_fid c2t1fs_target_fid(const struct c2_fid *gob_fid, int index);
 #endif /* __COLIBRI_C2T1FS_H */

@@ -32,7 +32,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 static int c2t1fs_dir_ent_add(struct inode        *dir,
 			      const unsigned char *name,
 			      int                  namelen,
-			      struct c2_fid        fid);
+			      const struct c2_fid *fid);
 
 static int c2t1fs_readdir(struct file *f,
 			  void        *dirent,
@@ -42,7 +42,8 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
 static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci);
 
-static int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid);
+static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
+			     const struct c2_fid *cob_fid);
 
 const struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,
@@ -121,7 +122,7 @@ static int c2t1fs_create(struct inode     *dir,
 		goto out;
 
 	rc = c2t1fs_dir_ent_add(dir, dentry->d_name.name, dentry->d_name.len,
-					ci->ci_fid);
+					&ci->ci_fid);
 	if (rc != 0)
 		goto out;
 
@@ -142,7 +143,7 @@ out:
 static int c2t1fs_dir_ent_add(struct inode        *dir,
 			      const unsigned char *name,
 			      int                  namelen,
-			      struct c2_fid        fid)
+			      const struct c2_fid *fid)
 {
 	struct c2t1fs_inode   *ci;
 	struct c2t1fs_dir_ent *de;
@@ -171,11 +172,11 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	de = &ci->ci_dir_ents[ci->ci_nr_dir_ents++];
 	memcpy(&de->de_name, name, namelen);
 	de->de_name[namelen] = '\0';
-	de->de_fid = fid;
+	de->de_fid = *fid;
 
 	TRACE("Added name: %s[%lu:%lu]\n", de->de_name,
-					   (unsigned long)fid.f_container,
-					   (unsigned long)fid.f_key);
+					   (unsigned long)fid->f_container,
+					   (unsigned long)fid->f_key);
 
 	mark_inode_dirty(dir);
 out:
@@ -183,7 +184,7 @@ out:
 	return rc;
 }
 
-static bool c2t1fs_name_cmp(int len, const unsigned char *name, char *buf)
+static bool name_eq(int len, const unsigned char *name, char *buf)
 {
 	bool rc;
 
@@ -191,12 +192,11 @@ static bool c2t1fs_name_cmp(int len, const unsigned char *name, char *buf)
 
 	if (len <= C2T1FS_MAX_NAME_LEN && buf[len] != '\0') {
 		rc = false;
-		goto out;
+	} else {
+		TRACE("buf: \"%s\" name: \"%s\" len: %d\n", buf, name, len);
+		rc = (memcmp(name, buf, len) == 0);
 	}
-	TRACE("buf: \"%s\"\n", buf);
-	rc = (memcmp(name, buf, len) == 0);
 
-out:
 	END(rc);
 	return rc;
 }
@@ -220,7 +220,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 		de = &ci->ci_dir_ents[i];
 		C2_ASSERT(de != NULL);
 
-		if (c2t1fs_name_cmp(namelen, name, de->de_name)) {
+		if (name_eq(namelen, name, de->de_name)) {
 			END(de);
 			return de;
 		}
@@ -405,14 +405,14 @@ out:
 	return rc;
 }
 
-struct c2_fid c2t1fs_target_fid(const struct c2_fid gob_fid, int index)
+struct c2_fid c2t1fs_target_fid(const struct c2_fid *gob_fid, int index)
 {
 	struct c2_fid fid;
 
 	START();
 
 	fid.f_container = index;
-	fid.f_key       = gob_fid.f_key;
+	fid.f_key       = gob_fid->f_key;
 
 	TRACE("Out: [%lu:%lu]\n", (unsigned long)fid.f_container,
 				  (unsigned long)fid.f_key);
@@ -442,8 +442,8 @@ static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci)
 	C2_ASSERT(nr_containers >= 1);
 
 	for (i = 1; i <= nr_containers; i++) {
-		cob_fid = c2t1fs_target_fid(gob_fid, i);
-		rc = c2t1fs_cob_create(csb, cob_fid);
+		cob_fid = c2t1fs_target_fid(&gob_fid, i);
+		rc = c2t1fs_cob_create(csb, &cob_fid);
 		if (rc != 0) {
 			TRACE("Failed: create [%lu:%lu]\n",
 				(unsigned long)cob_fid.f_container,
@@ -456,18 +456,19 @@ out:
 	return rc;
 }
 
-static int c2t1fs_cob_create(struct c2t1fs_sb *csb, struct c2_fid cob_fid)
+static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
+			     const struct c2_fid *cob_fid)
 {
 	struct c2_rpc_session *session;
 
 	START();
 
-	session = c2t1fs_container_id_to_session(csb, cob_fid.f_container);
+	session = c2t1fs_container_id_to_session(csb, cob_fid->f_container);
 	C2_ASSERT(session != NULL);
 
 	TRACE("Send cob_create [%lu:%lu] to session %lu\n",
-				(unsigned long)cob_fid.f_container,
-				(unsigned long)cob_fid.f_key,
+				(unsigned long)cob_fid->f_container,
+				(unsigned long)cob_fid->f_key,
 				(unsigned long)session->s_session_id);
 	END(0);
 	return 0;
