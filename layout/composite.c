@@ -37,7 +37,9 @@
 */
 static int composite_decode(bool fromDB, uint64_t lid,
 			    const struct c2_bufvec_cursor *cur,
-			    struct c2_lay **out)
+			    struct c2_lay **out,
+			    struct c2_ldb_schema *schema,
+			    struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -55,7 +57,7 @@ static int composite_decode(bool fromDB, uint64_t lid,
 
 		uint32_t recsize = sizeof(struct c2_ldb_rec);
 
-		ret = ldb_layout_read(&lid, recsize, &pair)
+		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
 
 		Set the cursor cur to point at the beginning of the key-val
 		pair.
@@ -83,7 +85,9 @@ static int composite_decode(bool fromDB, uint64_t lid,
    Stores layout representation in the buffer.
 */
 static int composite_encode(bool toDB, const struct c2_lay *l,
-			    struct c2_bufvec_cursor *out)
+			    struct c2_bufvec_cursor *out,
+			    struct c2_ldb_schema *schema,
+			    struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -91,7 +95,7 @@ static int composite_encode(bool toDB, const struct c2_lay *l,
 	if (toDB) {
 		uint64_t recSize = sizeof(struct c2_ldb_rec);
 
-		ret = ldb_layout_write(recsize, out);
+		ret = ldb_layout_write(recsize, out, schema, tx);
 	}
 
 	Store composite layout type specific fields like information

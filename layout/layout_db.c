@@ -218,11 +218,10 @@
    a record (A, V) with a key (prefix, B). The high extent end is used as
    a part of the key.
 
-   @todo: Prefix has to be 128 bit.
    Since prefix is required to be 128 bit in size, layout id (unit64_t) of
-   the composite layout is used as a part of the prefix to identify an extent
-   map belonging to one specific composite layout. The lower 64 bits are
-   currently unused (fillers).
+   the composite layout is used as a part of the prefix (struct layout_prefix)
+   to identify an extent map belonging to one specific composite layout. The
+   lower 64 bits are currently unused (fillers).
 
    An example:
 

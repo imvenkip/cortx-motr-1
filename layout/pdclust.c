@@ -475,7 +475,9 @@ C2_EXPORTED(c2_pdclust_unit_classify);
 */
 static int pdclust_decode(bool fromDB, uint64_t lid,
 			  const struct c2_bufvec_cursor *cur,
-		          struct c2_lay **out)
+		          struct c2_lay **out,
+			  struct c2_ldb_schema *schema,
+			  struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -498,7 +500,7 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
 
 		uint64_t recsize = sizeof(struct c2_ldb_rec)
 					+ sizeof(c2_pdclust_attr);
-		ret = ldb_layout_read(&lid, recsize, &pair)
+		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
 
 		Set the cursor cur to point at the PDCLUST type specific
 		fields from the key-val pair.
@@ -524,7 +526,9 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
    Layout DB' or 'if it is to be stored in the buffer'.
 */
 static int pdclust_encode(bool toDB, const struct c2_lay *l,
-		          struct c2_bufvec_cursor *out)
+		          struct c2_bufvec_cursor *out,
+			  struct c2_ldb_schema *schema,
+			  struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -532,7 +536,7 @@ static int pdclust_encode(bool toDB, const struct c2_lay *l,
 	if (toDB) {
 		uint64_t recsize = sizeof(struct c2_ldb_rec)
 					+ sizeof(c2_pdclust_attr);
-		ret = ldb_layout_write(recsize, out);
+		ret = ldb_layout_write(recsize, out, schema, tx);
 	}
 
 	@endcode

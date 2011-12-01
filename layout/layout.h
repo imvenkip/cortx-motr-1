@@ -112,11 +112,15 @@ struct c2_lay_type_ops {
 	*/
 	int	(*lto_decode)(bool fromDB, uint64_t lid,
 			      const struct c2_bufvec_cursor *cur,
-			      struct c2_lay **out);
+			      struct c2_lay **out,
+			      struct c2_ldb_schema *schema,
+			      struct c2_db_tx *tx);
 
 	/** Continue storing layout representation in the buffer */
 	int	(*lto_encode)(bool toDB, const struct c2_lay *l,
-			      struct c2_bufvec_cursor *out);
+			      struct c2_bufvec_cursor *out,
+			      struct c2_ldb_schema *schema,
+			      struct c2_db_tx *tx);
 };
 
 
@@ -193,10 +197,14 @@ void	c2_lay_fini(struct c2_lay *lay);
 
 int	c2_lay_decode(bool fromDB, uint64_t lid,
 		      const struct c2_bufvec_cursor *cur,
-		      struct c2_lay **out);
+		      struct c2_lay **out,
+		      struct c2_ldb_schema *schema,
+		      struct c2_db_tx *tx);
 
 int	c2_lay_encode(bool toDB, const struct c2_lay *l,
-		      struct c2_bufvec_cursor *out);
+		      struct c2_bufvec_cursor *out,
+		      struct c2_ldb_schema *schema,
+		      struct c2_db_tx *tx);
 
 /* todo Where to initialize all the layout types from. Check pdclust_layout_init() called from c2t1fs/main.c. */
 
@@ -206,9 +214,13 @@ void	c2_lays_fini(void);
 
 
 int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
-		    struct c2_db_pair *pair);
+		    struct c2_db_pair *pair,
+		    struct c2_ldb_schema *schema,
+		    struct c2_db_tx *tx);
 int ldb_layout_write(const uint32_t recsize,
-		    struct c2_bufvec_cursor *pair);
+		    struct c2_bufvec_cursor *pair,
+		    struct c2_ldb_schema *schema,
+		    struct c2_db_tx *tx);
 
 /** @} end group layout */
 

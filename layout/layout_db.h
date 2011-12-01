@@ -302,7 +302,7 @@ static const struct c2_table_ops cob_lists_table_ops = {
 struct layout_prefix {
 	/** Layout id for the composite layout.
 	    Value is same as c2_lay::l_id.
-*/
+	*/
 	uint64_t		lp_l_id;
 
 	/** Filler since prefix is a 128 bit field.

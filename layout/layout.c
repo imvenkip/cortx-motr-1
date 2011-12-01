@@ -84,7 +84,9 @@ void c2_lay_put(struct c2_lay *lay)
 */
 int c2_lay_decode(bool fromDB, uint64_t lid,
 		  const struct c2_bufvec_cursor *cur,
-		  struct c2_lay **out)
+		  struct c2_lay **out,
+		  struct c2_ldb_schema *schema,
+		  struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -101,7 +103,7 @@ int c2_lay_decode(bool fromDB, uint64_t lid,
 
 		uint64_t recsize = sizeof(struct c2_ldb_rec);
 
-		ret = ldb_layout_read(&lid, recsize, &pair)
+		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
 
 		Set the cursor cur to point at the beginning of the key-val
 		pair.
@@ -146,7 +148,9 @@ int c2_lay_decode(bool fromDB, uint64_t lid,
    be passed over the network'.
 */
 int c2_lay_encode(bool toDB, const struct c2_lay *l,
-		  struct c2_bufvec_cursor *out)
+		  struct c2_bufvec_cursor *out,
+		  struct c2_ldb_schema *schema,
+		  struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -192,12 +196,11 @@ void c2_lays_fini(void)
    Read layout record from layouts table.
    Used from layout type specific implementation, with layout type
    specific record size.
-
-   @todo Add schema and tx as arguments to these functions.
-
 */
 int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
-		struct c2_db_pair *pair)
+		    struct c2_db_pair *pair,
+		    struct c2_ldb_schema *schema,
+		    struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -218,12 +221,11 @@ int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
    Write layout record to layouts table.
    Used from layout type specific implementation, with layout type
    specific record size.
-
-   @todo Add schema and tx as arguments to these functions.
-
 */
 int ldb_layout_write(const uint32_t recsize,
-		     struct c2_bufvec_cursor *cur)
+		     struct c2_bufvec_cursor *cur,
+		     struct c2_ldb_schema *schema,
+		     struct c2_db_tx *tx)
 {
    /**
 	@code
