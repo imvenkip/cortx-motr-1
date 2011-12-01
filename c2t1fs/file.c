@@ -295,7 +295,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 	END(0);
 	return 0;
 out:
-	*pinned_pages = NULL;
+	*pinned_pages    = NULL;
 	*nr_pinned_pages = 0;
 
 	END(rc);
@@ -377,8 +377,7 @@ enum {
 /**
    Read/write descriptor that describes io on cob identified by rd_fid.
  */
-struct rw_desc
-{
+struct rw_desc {
 	/** io fop should be sent on this session */
 	struct c2_rpc_session *rd_session;
 
@@ -407,8 +406,7 @@ static struct c2_tl_descr rwd_tl_descr = C2_TL_DESCR("rw descriptors",
 						     rd_magic,
 						     MAGIC_RW_DESC,
 						     MAGIC_RWDLSTHD);
-struct c2t1fs_buf
-{
+struct c2t1fs_buf {
 	/** <addr, len> giving memory area, target location for read operation,
 	    and source for write operation */
 	struct c2_buf             cb_buf;
@@ -621,9 +619,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				rc = -ENOMEM;
 				goto cleanup;
 			}
-			rw_desc->rd_offset = min_check(rw_desc->rd_offset,
+			rw_desc->rd_offset  = min_check(rw_desc->rd_offset,
 							pos);
-			rw_desc->rd_count += unit_size;
+			rw_desc->rd_count  += unit_size;
 			rw_desc->rd_session = c2t1fs_container_id_to_session(
 						     csb, tgt_fid.f_container);
 

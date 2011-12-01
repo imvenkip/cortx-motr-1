@@ -21,9 +21,9 @@
 #include <linux/slab.h>      /* kmem_cache */
 
 #include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
-#include "pool/pool.h"       /* c2_pool_init(), c2_pool_fini() */
-#include "lib/misc.h"        /* C2_SET0() */
-#include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free() */
+#include "pool/pool.h"       /* c2_pool_init(), c2_pool_fini()        */
+#include "lib/misc.h"        /* C2_SET0()                             */
+#include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
 #include "c2t1fs/c2t1fs.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
@@ -109,6 +109,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 		c2_free(pd_layout->pl_pool);
 		c2_pdclust_fini(pd_layout);
 	}
+
 	END(0);
 }
 

@@ -90,6 +90,7 @@ static int c2t1fs_create(struct inode     *dir,
 	/* Flat file system. create allowed only on root directory */
 	C2_ASSERT(c2t1fs_inode_is_root(dir));
 
+	/* new_inode() will call c2t1fs_alloc_inode() using super_operations */
 	inode = new_inode(sb);
 	if (inode == NULL) {
 		END(-ENOMEM);
@@ -98,16 +99,17 @@ static int c2t1fs_create(struct inode     *dir,
 
 	c2t1fs_fs_lock(csb);
 
-	inode->i_uid = 0;
-	inode->i_gid = 0;
-	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME_SEC;
+	inode->i_uid    = 0;
+	inode->i_gid    = 0;
+	inode->i_mtime  = inode->i_atime = inode->i_ctime = CURRENT_TIME_SEC;
 	inode->i_blocks = 0;
-	inode->i_op = &c2t1fs_reg_inode_operations;
-	inode->i_fop = &c2t1fs_reg_file_operations;
-	inode->i_mode = mode;
+	inode->i_op     = &c2t1fs_reg_inode_operations;
+	inode->i_fop    = &c2t1fs_reg_file_operations;
+	inode->i_mode   = mode;
 
-	ci = C2T1FS_I(inode);
-	ci->ci_fid = c2t1fs_fid_alloc(csb);
+	ci              = C2T1FS_I(inode);
+	ci->ci_fid      = c2t1fs_fid_alloc(csb);
+
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
@@ -155,7 +157,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	C2_ASSERT(c2t1fs_inode_is_root(dir));
 
 	if (namelen == 0) {
-		rc = -ENOENT;
+		rc = -EINVAL;
 		goto out;
 	}
 
@@ -185,7 +187,7 @@ out:
 	return rc;
 }
 
-static bool name_eq(int len, const unsigned char *name, char *buf)
+static bool name_eq(const unsigned char *name, const char *buf, int len)
 {
 	bool rc;
 
@@ -226,7 +228,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 		de = &ci->ci_dir_ents[i];
 		C2_ASSERT(de != NULL);
 
-		if (name_eq(namelen, name, de->de_name)) {
+		if (name_eq(name, de->de_name, namelen)) {
 			END(de);
 			return de;
 		}

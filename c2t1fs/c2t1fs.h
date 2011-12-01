@@ -169,16 +169,16 @@
 
 #ifdef C2T1FS_DEBUG
 
-#   define TRACE(format, args ...)  \
+#define TRACE(format, args ...)  \
 	printk("c2t1fs: %s[%d]: " format, __FUNCTION__, __LINE__, ## args)
-#   define START()   TRACE("Start\n")
-#   define END(rc)   TRACE("End (0x%lx)\n", (unsigned long)(rc))
+#define START()   TRACE("Start\n")
+#define END(rc)   TRACE("End (0x%lx)\n", (unsigned long)(rc))
 
 #else /* C2T1FS_DEBUG */
 
-#   define TRACE(format, args ...)
-#   define START()
-#   define END(rc)
+#define TRACE(format, args ...)
+#define START()
+#define END(rc)
 
 #endif /* C2T1FS_DEBUG */
 
@@ -206,8 +206,7 @@ enum {
 
 /** Anything that is global to c2t1fs module goes in this singleton structure.
     There is only one, global, instance of this type. */
-struct c2t1fs_globals
-{
+struct c2t1fs_globals {
 	struct c2_net_xprt      *g_xprt;
 	/** local endpoint address */
 	char                    *g_laddr;
@@ -223,8 +222,7 @@ struct c2t1fs_globals
 extern struct c2t1fs_globals c2t1fs_globals;
 
 /** Parsed mount options */
-struct c2t1fs_mnt_opts
-{
+struct c2t1fs_mnt_opts {
 	/** Input mount options */
 	char    *mo_options;
 
@@ -271,8 +269,7 @@ enum {
 
    XXX Better name???
  */
-struct c2t1fs_service_context
-{
+struct c2t1fs_service_context {
 	/** Superblock associated with this service context */
 	struct c2t1fs_sb         *sc_csb;
 
@@ -296,8 +293,7 @@ struct c2t1fs_service_context
    Given a container id of a container, map give service context of a service
    that is serving the container.
  */
-struct c2t1fs_container_location_map
-{
+struct c2t1fs_container_location_map {
 	/**
 	   Array of c2t1fs_sb::csb_nr_container valid elements.
 	   clm_map[i] points to c2t1fs_service_context of a service
@@ -310,8 +306,7 @@ struct c2t1fs_container_location_map
    In memory c2t1fs super block. One instance per mounted file-system.
    super_block::s_fs_info points to instance of this type.
  */
-struct c2t1fs_sb
-{
+struct c2t1fs_sb {
 	/** Parsed mount options */
 	struct c2t1fs_mnt_opts csb_mnt_opts;
 
@@ -353,8 +348,7 @@ struct c2t1fs_sb
 /**
    Directory entry.
  */
-struct c2t1fs_dir_ent
-{
+struct c2t1fs_dir_ent {
 	char          de_name[C2T1FS_MAX_NAME_LEN + 1];
 	struct c2_fid de_fid;
 };
@@ -362,8 +356,7 @@ struct c2t1fs_dir_ent
 /**
    Inode representing global file.
  */
-struct c2t1fs_inode
-{
+struct c2t1fs_inode {
 	/** vfs inode */
 	struct inode              ci_inode;
 
