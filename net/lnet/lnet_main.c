@@ -146,7 +146,6 @@
      struct c2_net_transfer_mc {
         ...
 	bool                        ntm_deliver_buffer_events;
-	struct c2_chan             *ntm_bev_chan;
      };
      @endcode
      By default, @c ntm_deliver_buffer_events is set to @c true.  In addition
