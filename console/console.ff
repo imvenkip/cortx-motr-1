@@ -29,21 +29,9 @@ DEF(c2_fop_fid, RECORD,
     _(ff_seq, U64),
     _(ff_oid, U64));
 
-DEF(c2_fop_seg, RECORD,
-    _(fs_offset, U64),
-    _(fs_count, U64));
-
 DEF(c2_fop_vec, SEQUENCE,
     _(fv_count, U32),
     _(fv_seg, BYTE));
-
-DEF(c2_fop_optfid, UNION,
-    _(fo_present, U32),
-    _case(1, fo_fid, c2_fop_fid),
-    _case(0, fo_none, VOID));
-
-DEF(c2_fop_fid_typedef, TYPEDEF,
-    _(, c2_fop_optfid));
 
 DEF(c2_cons_fop_test, RECORD,
     _(cons_id, c2_fop_fid),
