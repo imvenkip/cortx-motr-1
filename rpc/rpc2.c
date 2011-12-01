@@ -156,7 +156,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
         c2_list_link_init(&item->ri_rpcobject_linkage);
 	c2_list_link_init(&item->ri_unformed_linkage);
         c2_list_link_init(&item->ri_group_linkage);
-        c2_tlink_init(&rpcitem_tl, &item->ri_field);
+        c2_tlink_init(&rpcitem_tl, item);
 	c2_tlist_init(&rpcitem_tl, &item->ri_compound_items);
 	item->ri_state = RPC_ITEM_UNINITIALIZED;
 	item->ri_head_magic = C2_RPC_ITEM_HEAD_MAGIC;
@@ -183,7 +183,7 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
         c2_list_link_fini(&item->ri_rpcobject_linkage);
 	c2_list_link_fini(&item->ri_unformed_linkage);
         c2_list_link_fini(&item->ri_group_linkage);
-	c2_tlink_fini(&rpcitem_tl, &item->ri_field);
+	c2_tlink_fini(&rpcitem_tl, item);
 	c2_tlist_fini(&rpcitem_tl, &item->ri_compound_items);
 	item->ri_state = RPC_ITEM_FINALIZED;
 }
