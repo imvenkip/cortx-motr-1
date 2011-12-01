@@ -278,7 +278,7 @@
    Termination of a transfer machine is requested through the c2_net_tm_stop()
    subroutine, which results in a call to nlx_xo_tm_stop(). The latter ensures
    that the transfer machine's thread wakes up by signalling on the
-   nlx_xo_transfer_mc::xtm_cond condition variable.
+   nlx_xo_transfer_mc::xtm_ev_cond condition variable.
 
    When terminating a transfer machine the application has a choice of draining
    current operations or aborting such activity.  If the latter choice is made,
@@ -393,7 +393,7 @@
        return; // failure
    // loop forever
    while (1) {
-      timeout = ...; // compute next timeout
+      timeout = ...; // compute next timeout (short if asynchronous or stopping)
       if (tm->ntm_deliver_buffer_events) { // asynchronous delivery
 	  rc = nlx_core_buf_event_wait(lctm, &timeout);
 	  // buffer event processing
@@ -462,6 +462,11 @@
      delivering its termination event.  Termination serializes with concurrent
      invocation of the nlx_xo_bev_deliver_all() subroutine in the case of
      synchronous buffer event delivery.
+   - The timeout value can vary depending on the mode of operation. Synchronous
+     network delivery is best served by a long timeout value (in the order of a
+     minute), at least up to the time that the transfer machine is stopped.
+     Asynchronous delivery is better served by a short timeout value (in the
+     order of a second).
 
    @subsection LNetDLD-lspec-buf-nbd Network Buffer Descriptor
    The transport has to define the format of the opaque network buffer
