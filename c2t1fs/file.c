@@ -458,18 +458,18 @@ static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 	END(0);
 }
 
-static struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_tl  *list,
-						  struct c2_fid  fid)
+static struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_tl        *list,
+						  const struct c2_fid *fid)
 {
 	struct c2t1fs_rw_desc *rw_desc;
 
 	START();
-	TRACE("fid [%lu:%lu]\n", (unsigned long)fid.f_container,
-				 (unsigned long)fid.f_key);
+	TRACE("fid [%lu:%lu]\n", (unsigned long)fid->f_container,
+				 (unsigned long)fid->f_key);
 
 	c2_tlist_for(&rwd_tl_descr, list, rw_desc) {
 
-		if (c2_fid_eq(&fid, &rw_desc->rd_fid))
+		if (c2_fid_eq(fid, &rw_desc->rd_fid))
 			goto out;
 
 	} c2_tlist_endfor;
@@ -478,7 +478,7 @@ static struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_tl  *list,
 	if (rw_desc == NULL)
 		goto out;
 
-	rw_desc->rd_fid     = fid;
+	rw_desc->rd_fid     = *fid;
 	rw_desc->rd_offset  = C2_BSIGNED_MAX;
 	rw_desc->rd_count   = 0;
 	rw_desc->rd_session = NULL;
@@ -616,7 +616,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			tgt_fid = c2t1fs_target_fid(&gob_fid,
 						    tgt_addr.ta_obj + 1);
 
-			rw_desc = c2t1fs_rw_desc_get(&rw_desc_list, tgt_fid);
+			rw_desc = c2t1fs_rw_desc_get(&rw_desc_list, &tgt_fid);
 			if (rw_desc == NULL) {
 				rc = -ENOMEM;
 				goto cleanup;
