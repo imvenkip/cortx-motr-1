@@ -306,7 +306,6 @@ struct nlx_core_domain {
 
 };
 
-
 /**
    Core transfer machine data.  The transport layer should embed this in its
    private data.
@@ -380,7 +379,7 @@ struct nlx_core_buffer {
 
 
 /**
-   Allocate and initialize the network domain's private field for use by LNet.
+   Allocates and initializes the network domain's private field for use by LNet.
    @param dom The network domain pointer.
    @param lcdom The private data pointer for the domain to be initialized.
  */
@@ -388,28 +387,28 @@ static int nlx_core_dom_init(struct c2_net_domain *dom,
 			     struct nlx_core_domain *lcdom);
 
 /**
-   Release LNet transport resources related to the domain.
+   Releases LNet transport resources related to the domain.
  */
 static int nlx_core_dom_fini(struct nlx_core_domain *lcdom);
 
 /**
-   Get the maximum buffer size (counting all segments).
+   Gets the maximum buffer size (counting all segments).
  */
 static c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom);
 
 /**
-   Get the maximum size of a buffer segment.
+   Gets the maximum size of a buffer segment.
  */
 static c2_bcount_t nlx_core_get_max_buffer_segment_size(struct
 							nlx_core_domain *lcdom);
 
 /**
-   Get the maximum number of buffer segments.
+   Gets the maximum number of buffer segments.
  */
 static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
 
 /**
-   Register a network buffer.  In user space this results in the buffer memory
+   Registers a network buffer.  In user space this results in the buffer memory
    getting pinned.
    The subroutine allocates private data to associate with the network buffer.
    @param lcdom The domain private data to be initialized.
@@ -422,7 +421,7 @@ static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 				 struct nlx_core_buffer *lcbuf);
 
 /**
-   Deregister the buffer.
+   Deregisters the buffer.
    @param lcdom The domain private data to be initialized.
    @param lcbuf The buffer private data.
  */
@@ -430,7 +429,7 @@ static int nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 				   struct nlx_core_buffer *lcbuf);
 
 /**
-   Enqueue a buffer for message reception. Multiple messages may be received
+   Enqueues a buffer for message reception. Multiple messages may be received
    into the buffer, space permitting, up to the configured maximum.
 
    The invoker should ensure that the subroutine is not invoked concurrently
@@ -444,7 +443,7 @@ static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
 
 /**
-   Enqueue a buffer for message transmission.
+   Enqueues a buffer for message transmission.
 
    The invoker should ensure that the subroutine is not invoked concurrently
    with any of the other buffer operation initiation subroutines or the
@@ -458,7 +457,7 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
 
 /**
-   Enqueue a buffer for active bulk receive.
+   Enqueues a buffer for active bulk receive.
    The cb_match_bits field should be set to the value of the match bits of the
    remote passive buffer.
    The cb_addr field should be set with the end point address of the
@@ -478,7 +477,7 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer *lcbuf);
 
 /**
-   Enqueue a buffer for active bulk send.
+   Enqueues a buffer for active bulk send.
    See nlx_core_buf_active_recv() for how the buffer is to be initialized.
 
    The invoker should ensure that the subroutine is not invoked concurrently
@@ -512,7 +511,7 @@ static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
 					struct nlx_core_buffer *lcbuf);
 
 /**
-   Enqueue a buffer for passive bulk receive.
+   Enqueues a buffer for passive bulk receive.
    The match bits for the passive buffer should be set in the buffer with the
    nlx_core_buf_match_bits_set() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
@@ -531,7 +530,7 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
 
 /**
-   Enqueue buffer for passive bulk send.
+   Enqueues a buffer for passive bulk send.
    The match bits for the passive buffer should be set in the buffer with the
    nlx_core_buf_match_bits_set() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
@@ -550,7 +549,7 @@ static int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
 
 /**
-   Cancel a buffer operation if possible.
+   Cancels a buffer operation if possible.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -559,7 +558,7 @@ static int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 			    struct nlx_core_buffer *lcbuf);
 
 /**
-   Subroutine to wait for buffer events, or the timeout.
+   Waits for buffer events, or the timeout.
    @param lctm Transfer machine private data.
    @param timeout Absolute time at which to stop waiting.
    @retval 0 Events present.
@@ -569,7 +568,7 @@ static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 				   c2_time_t timeout);
 
 /**
-   Fetch the next event from the circular buffer event queue.
+   Fetches the next event from the circular buffer event queue.
 
    The invoker should ensure that the subroutine is not invoked concurrently
    with any of the buffer operation initiation subroutines, or another
@@ -584,7 +583,7 @@ static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 				   struct nlx_core_buffer_event *lcbe);
 
 /**
-   Subroutine to parse an end point address string and convert to internal form.
+   Parses an end point address string and convert to internal form.
    A "*" value for the transfer machine identifier results in a value of
    C2_NET_LNET_TMID_INVALID being set.
  */
@@ -593,7 +592,7 @@ static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 				   struct nlx_core_ep_addr *cepa);
 
 /**
-   Subroutine to construct the external address string from its internal form.
+   Constructs the external address string from its internal form.
    A value of C2_NET_LNET_TMID_INVALID for the cepa_tmid field results in
    a "*" being set for that field.
  */
@@ -602,7 +601,7 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 				    char buf[C2_NET_LNET_XEP_ADDR_LEN]);
 
 /**
-   Subroutine to start a transfer machine. Internally this results in
+   Starts a transfer machine. Internally this results in
    the creation of the LNet EQ associated with the transfer machine.
    @param tm The transfer machine pointer.
    @param lctm The transfer machine private data to be initialized.
@@ -617,7 +616,7 @@ static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 			     struct nlx_core_ep_addr *cepa);
 
 /**
-   Stop the transfer machine and release associated resources.  All operations
+   Stops the transfer machine and release associated resources.  All operations
    must be finalized prior to this call.
    @param lctm The transfer machine private data.
    @note There is no equivalent of the xo_tm_fini() subroutine.

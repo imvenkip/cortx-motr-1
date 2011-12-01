@@ -127,20 +127,20 @@ struct c2_net_xprt {
  */
 struct c2_net_xprt_ops {
 	/**
-	   Initialise transport specific part of a domain (e.g., start threads,
+	   Initialises transport specific part of a domain (e.g., start threads,
 	   initialise portals).
 	   Only the c2_net_mutex is held across this call.
 	 */
 	int  (*xo_dom_init)(struct c2_net_xprt *xprt,
 			    struct c2_net_domain *dom);
 	/**
-	   Finalise transport resources in a domain.
+	   Finalises transport resources in a domain.
 	   Only the c2_net_mutex is held across this call.
 	 */
 	void (*xo_dom_fini)(struct c2_net_domain *dom);
 
 	/**
-	   Perform transport level initialization of the transfer machine.
+	   Performs transport level initialization of the transfer machine.
 	   @param tm   Transfer machine pointer.
              All fields will be initialized at this time, specifically:
              @li ntm_dom
@@ -166,7 +166,7 @@ struct c2_net_xprt_ops {
 			     const struct c2_bitmap *processors);
 
 	/**
-	   Initiate the startup of the (initialized) transfer machine.
+	   Initiates the startup of the (initialized) transfer machine.
 	   A completion event should be posted when started, using a different
 	   thread.
 	   <b>Serialized using the transfer machine mutex.</b>
@@ -183,7 +183,7 @@ struct c2_net_xprt_ops {
 	int (*xo_tm_start)(struct c2_net_transfer_mc *tm, const char *addr);
 
 	/**
-	   Initiate the shutdown of a transfer machine, cancelling any
+	   Initiates the shutdown of a transfer machine, cancelling any
 	   pending startup.
 	   No incoming messages should be accepted.  Pending operations should
 	   drain or be cancelled if requested.
@@ -200,7 +200,7 @@ struct c2_net_xprt_ops {
 	int (*xo_tm_stop)(struct c2_net_transfer_mc *tm, bool cancel);
 
 	/**
-	   Release resources associated with a transfer machine.
+	   Releases resources associated with a transfer machine.
 	   The transfer machine will be in the stopped state.
 	   @param tm   Transfer machine pointer.
              The following fields are of special interest to this method:
@@ -212,7 +212,7 @@ struct c2_net_xprt_ops {
 	void (*xo_tm_fini)(struct c2_net_transfer_mc *tm);
 
 	/**
-	   Create an end point with a specific address.
+	   Creates an end point with a specific address.
 	   @param epp     Returned end point data structure.
 	   @param tm      Specify the transfer machine pointer.
 	   @param addr    Address string.  Could be NULL to
@@ -227,7 +227,7 @@ struct c2_net_xprt_ops {
 				   const char *addr);
 
 	/**
-	   Register the buffer for use with a transfer machine in
+	   Registers the buffer for use with a transfer machine in
 	   the manner indicated by the c2_net_buffer.nb_qtype value.
 	   @param nb  Buffer pointer with c2_net_buffer.nb_dom set.
            @retval 0 (success)
@@ -237,14 +237,14 @@ struct c2_net_xprt_ops {
 	int (*xo_buf_register)(struct c2_net_buffer *nb);
 
 	/**
-	   Deregister the buffer from the transfer machine.
+	   Deregisters the buffer from the transfer machine.
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
 	   @see c2_net_buffer_deregister()
 	 */
 	void (*xo_buf_deregister)(struct c2_net_buffer *nb);
 
 	/**
-	   Initiate an operation on a buffer on the transfer machine's
+	   Initiates an operation on a buffer on the transfer machine's
 	   queues.
 
 	   In the case of buffers added to the C2_NET_QT_ACTIVE_BULK_RECV
@@ -274,7 +274,7 @@ struct c2_net_xprt_ops {
 	int (*xo_buf_add)(struct c2_net_buffer *nb);
 
 	/**
-	   Cancel an operation involving a buffer.
+	   Cancels an operation involving a buffer.
 	   The method should cancel the operation involving use of the
 	   buffer, as described by the value of the c2_net_buffer.nb_qtype
 	   field.
@@ -289,7 +289,7 @@ struct c2_net_xprt_ops {
 	void (*xo_buf_del)(struct c2_net_buffer *nb);
 
 	/**
-	   Retrieve the maximum buffer size (includes all segments).
+	   Retrieves the maximum buffer size (includes all segments).
 	   @param dom     Domain pointer.
 	   @retval size    Returns the maximum buffer size.
 	   @see c2_net_domain_get_max_buffer_size()
@@ -297,7 +297,7 @@ struct c2_net_xprt_ops {
 	c2_bcount_t (*xo_get_max_buffer_size)(const struct c2_net_domain *dom);
 
 	/**
-	   Retrieve the maximum buffer segment size.
+	   Retrieves the maximum buffer segment size.
 	   @param dom     Domain pointer.
 	   @retval size    Returns the maximum segment size.
 	   @see c2_net_domain_get_max_buffer_segment_size()
@@ -306,7 +306,7 @@ struct c2_net_xprt_ops {
 						      *dom);
 
 	/**
-	   Retrieve the maximum number of buffer segments.
+	   Retrieves the maximum number of buffer segments.
 	   @param dom      Domain pointer.
 	   @retval num_segs Returns the maximum segment size.
 	   @see c2_net_domain_get_max_buffer_segment_size()
@@ -337,7 +337,7 @@ struct c2_net_xprt_ops {
 };
 
 /**
- Initialize the transport software.
+ Initializes the transport software.
  A network domain must be initialized to use the transport.
  @param xprt Tranport pointer.
  @retval 0 (success)
@@ -346,7 +346,7 @@ struct c2_net_xprt_ops {
 int  c2_net_xprt_init(struct c2_net_xprt *xprt);
 
 /**
- Shutdown the transport software.
+ Shuts down the transport software.
  All associated network domains should be cleaned up at this point.
  @pre Network domains should have been finalized.
  @param xprt Tranport pointer.
@@ -443,7 +443,7 @@ struct c2_net_domain {
 };
 
 /**
-   Initialize a domain.
+   Initializes a domain.
  @param dom Domain pointer.
  @param xprt Tranport pointer.
  @pre dom->nd_xprt == NULL
@@ -453,7 +453,7 @@ struct c2_net_domain {
 int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
 
 /**
-   Release resources related to a domain.
+   Releases resources related to a domain.
    @pre All end points, registered buffers and transfer machines released.
    @param dom Domain pointer.
  */
@@ -542,7 +542,7 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
 			    const char                *addr);
 
 /**
-   Increment the reference count of an end point data structure.
+   Increments the reference count of an end point data structure.
    This is used to safely point to the structure in a different context -
    when done, the reference count should be decremented by a call to
    c2_net_end_point_put().
@@ -553,7 +553,7 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
 void c2_net_end_point_get(struct c2_net_end_point *ep);
 
 /**
-   Decrement the reference count of an end point data structure.
+   Decrements the reference count of an end point data structure.
    The structure will be released when the count goes to 0.
    @param ep End point data structure pointer.
    Do not dereference this pointer after this call.
@@ -887,7 +887,7 @@ struct c2_net_transfer_mc {
 };
 
 /**
-   Initialize a transfer machine.
+   Initializes a transfer machine.
    @param tm  Pointer to transfer machine data structure to be initialized.
 
    Prior to invocation the following fields should be set:
@@ -906,7 +906,7 @@ struct c2_net_transfer_mc {
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
 
 /**
-   Finalize a transfer machine, releasing any associated
+   Finalizes a transfer machine, releasing any associated
    transport specific resources.
 
    All application references to end points associated with this transfer
@@ -924,7 +924,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
 void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 
 /**
-   Set the processor affinity of the threads of a transfer machine.
+   Sets the processor affinity of the threads of a transfer machine.
    The transfer machine must be initialized but not yet started.
 
    Support for this operation is transport specific.
@@ -940,7 +940,7 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 		      const struct c2_bitmap *processors);
 
 /**
-   Start a transfer machine.
+   Starts a transfer machine.
 
    The subroutine does not block the invoker. Instead the state is
    immediately changed to C2_NET_TM_STARTING, and an event will be
@@ -964,7 +964,7 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr);
 
 /**
-   Initiate the shutdown of a transfer machine.  New messages will
+   Initiates the shutdown of a transfer machine.  New messages will
    not be accepted and new end points cannot be created.
    Pending operations will be completed or aborted as desired.
 
@@ -994,7 +994,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr);
 int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
 
 /**
-   Retrieve transfer machine statistics for all or for a single logical queue,
+   Retrieves transfer machine statistics for all or for a single logical queue,
    optionally resetting the data.  The operation is performed atomically
    with respect to on-going transfer machine activity.
    @pre tm->ntm_state >= C2_NET_TM_INITIALIZED
@@ -1338,7 +1338,7 @@ struct c2_net_buffer {
 };
 
 /**
-   Register a buffer with the domain. The domain could perform some
+   Registers a buffer with the domain. The domain could perform some
    optimizations under the covers.
    @pre
 (buf->nb_flags == 0) &&
@@ -1359,7 +1359,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 			   struct c2_net_domain *dom);
 
 /**
-   Deregister a previously registered buffer and releases any transport
+   Deregisters a previously registered buffer and releases any transport
    specific resources associated with it.
    The buffer should not be in use, nor should this subroutine be
    invoked from a callback.
@@ -1373,7 +1373,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 			      struct c2_net_domain *dom);
 
 /**
-   Add a registered buffer to a transfer machine's logical queue specified
+   Adds a registered buffer to a transfer machine's logical queue specified
    by the c2_net_buffer.nb_qtype value.
    - Buffers added to the C2_NET_QT_MSG_RECV queue are used to receive
    messages.
@@ -1428,7 +1428,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm);
 
 /**
-   Remove a registered buffer from a logical queue, if possible,
+   Removes a registered buffer from a logical queue, if possible,
    cancelling any operation in progress.
 
    <b>Cancellation support is provided by the underlying transport.</b> It is
@@ -1490,7 +1490,7 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev);
 
 /**
-   Copy a network buffer descriptor.
+   Copies a network buffer descriptor.
    @param from_desc Specifies the source descriptor data structure.
    @param to_desc Specifies the destination descriptor data structure.
    @retval 0 (success)
@@ -1500,7 +1500,7 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
 		     struct c2_net_buf_desc *to_desc);
 
 /**
-   Free a network buffer descriptor.
+   Frees a network buffer descriptor.
    @param desc Specify the network buffer descriptor. Its fields will be
    cleared after this operation.
  */
@@ -1516,15 +1516,15 @@ void c2_net_domain_stats_init(struct c2_net_domain *dom);
 void c2_net_domain_stats_fini(struct c2_net_domain *dom);
 
 /**
- Collect values for stats.
+   Collects values for stats.
  */
 void c2_net_domain_stats_collect(struct c2_net_domain *dom,
                                  enum c2_net_stats_direction dir,
                                  uint64_t bytes,
                                  bool *sleeping);
 /**
- Report the network loading rate for a direction (in/out).
- @retval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
+   Reports the network loading rate for a direction (in/out).
+   @retval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
  */
 int c2_net_domain_stats_get(struct c2_net_domain *dom,
                             enum c2_net_stats_direction dir);
@@ -1567,7 +1567,7 @@ int  c2_service_id_init(struct c2_service_id *id, struct c2_net_domain *d, ...);
 void c2_service_id_fini(struct c2_service_id *id);
 
 /**
-   Compare node identifiers for equality.
+   Compares node identifiers for equality.
  */
 bool c2_services_are_same(const struct c2_service_id *c1,
 			  const struct c2_service_id *c2);
@@ -1667,7 +1667,7 @@ struct c2_net_conn_ops {
 };
 
 /**
-   Create a network connection to a given service.
+   Creates a network connection to a given service.
 
    Allocates resources and connects transport connection to some logical
    connection.  Logical connection is used to send rpc in the context of one or
@@ -1681,7 +1681,7 @@ struct c2_net_conn_ops {
 int c2_net_conn_create(struct c2_service_id *nid);
 
 /**
-   Find a connection to a specified service.
+   Finds a connection to a specified service.
 
    Scans the list of connections to find a logical connection associated with a
    given nid.
@@ -1694,7 +1694,7 @@ int c2_net_conn_create(struct c2_service_id *nid);
 struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid);
 
 /**
-   Release a connection.
+   Releases a connection.
 
    Releases a reference on network connection. Reference to transport connection
    is released when the last reference to network connection has been released.
@@ -1702,7 +1702,7 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid);
 void c2_net_conn_release(struct c2_net_conn *conn);
 
 /**
-   Unlink connection from connection list.
+   Unlinks connection from connection list.
 
    Transport connection(s) are released when the last reference on logical
    connection is released.

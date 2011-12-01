@@ -299,14 +299,14 @@
    -# set <tt>       consumer = newnode        </tt>
 
    Steps 2-4 are performed in bev_cqueue_add().  Because several pointers need
-   to be updated, simple atomic operations are insufficient.  Thus, the transport
-   layer must synchronize calls to bev_cqueue_add() and bev_cqueue_get(),
-   because both calls affect the consumer.  Given that bev_cqueue_add()
-   completes its three operations before returning, and bev_cqueue_add() is
-   called before the new buffer is added to the queue, there is no way the
-   producer will try to generate an event and move its pointer forward until
-   bev_cqueue_add() completes.  This allows the transport layer and core layer
-   to continue interact only using atomic operations.
+   to be updated, simple atomic operations are insufficient.  Thus, the
+   transport layer must synchronize calls to bev_cqueue_add() and
+   bev_cqueue_get(), because both calls affect the consumer.  Given that
+   bev_cqueue_add() completes its three operations before returning, and
+   bev_cqueue_add() is called before the new buffer is added to the queue,
+   there is no way the producer will try to generate an event and move its
+   pointer forward until bev_cqueue_add() completes.  This allows the transport
+   layer and core layer to continue interact only using atomic operations.
 
    A diagrammatic view of these steps is shown below.  The dotted arrows signify
    the pointers before the new node is added.  The Step numbers correspond to
@@ -636,7 +636,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q);
 
 /**
-   Test if the buffer event queue is empty.
+   Tests if the buffer event queue is empty.
    @note This operation is to be used only by the consumer.  The data structures
    do not provide a pointer to the consumer element from the producer's
    perspective.
@@ -644,12 +644,12 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q);
 static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q);
 
 /**
-   Return total size of the event queue, including in-use and free elements.
+   Returns total size of the event queue, including in-use and free elements.
  */
 static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q);
 
 /**
-   Get the oldest element in the FIFO circular queue, advancing the divider.
+   Gets the oldest element in the FIFO circular queue, advancing the divider.
    @param q the queue
    @returns the link to the element in the consumer context,
    NULL when the queue is empty
@@ -657,7 +657,7 @@ static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q);
 static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q);
 
 /**
-   Determine the next element in the queue that can be used by the producer.
+   Determines the next element in the queue that can be used by the producer.
    @param q the queue
    @returns a pointer to the next available element in the producer context
    @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
@@ -666,7 +666,7 @@ static struct nlx_core_bev_link* bev_cqueue_pnext(
 				      const struct nlx_core_bev_cqueue *q);
 
 /**
-   Put (produce) an element so it can be consumed.  The caller must first
+   Puts (produces) an element so it can be consumed.  The caller must first
    call bev_cqueue_pnext() to ensure such an element exists.
    @param q the queue
    @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
@@ -674,7 +674,7 @@ static struct nlx_core_bev_link* bev_cqueue_pnext(
 static void bev_cqueue_put(struct nlx_core_bev_cqueue *q);
 
 /**
-   Bless the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
+   Blesses the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
    the producer self value.
    @param ql the link to bless, the caller must have already mapped the element
    into the producer address space.

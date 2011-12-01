@@ -668,8 +668,8 @@
 
    @test Test the parsing of LNet addresses with the real LNet API.
 
-   @test Test each type of buffer operation, including single and multiple events
-         for receive buffers with the real LNet API.
+   @test Test each type of buffer operation, including single and multiple
+         events for receive buffers with the real LNet API.
 
    <hr>
    @section KLNetCoreDLD-st System Tests
@@ -734,4 +734,3 @@ static struct c2_tl nlx_kcore_tms;
  *  scroll-step: 1
  *  End:
  */
-

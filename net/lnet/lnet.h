@@ -77,7 +77,7 @@ enum {
 };
 
 /**
-   Subroutine to compare the network portions of two LNet end point address
+   Subroutine compares the network portions of two LNet end point address
    strings.
    @retval int Return value like strcmp().
  */
@@ -98,4 +98,3 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
  *  scroll-step: 1
  *  End:
  */
-
