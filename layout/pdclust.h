@@ -99,14 +99,14 @@ struct c2_pdclust_attr {
 
 
 /**
-   Extension of generic c2_lay for a parity de-clustering.
+   Extension of generic c2_layout for a parity de-clustering.
 
    @todo liveness rules
    @todo concurrency control
  */
 struct c2_pdclust_layout {
 	/** super class */
-	struct c2_lay                pl_layout;
+	struct c2_layout             pl_layout;
 
 	/**
 	   Parity de-clustering layout attributes.
@@ -263,7 +263,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     struct c2_pdclust_layout **out);
 
 
-extern const struct c2_lay_type c2_pdclust_layout_type;
+extern const struct c2_layout_type c2_pdclust_layout_type;
 
 /** @} end group pdclust */
 

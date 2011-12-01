@@ -37,11 +37,11 @@
 struct c2_lay_formula_enum;
 
 /**
-   Extension of generic c2_lay_enum for a formula enumeration type.
+   Extension of generic c2_layout_enum for a formula enumeration type.
  */
 struct c2_lay_formula_enum {
 	/** super class */
-	struct c2_lay_enum			 lfe_enum;
+	struct c2_layout_enum			 lfe_enum;
 
 	const struct c2_lay_formula		*lfe_form;
 	const struct c2_lay_formula_parameter	*lfe_actuals;
@@ -56,7 +56,7 @@ struct c2_lay_formula_ops {
 	int	(*lfo_subst)(const struct c2_lay_formula *form,
 			     uint16_t nr,
 			     const struct c2_lay_formula_parameter *actuals,
-			     struct c2_lay **out);
+			     struct c2_layout **out);
 };
 
 struct c2_lay_formula_parameter {
@@ -72,7 +72,7 @@ struct c2_lay_formula_parameter_type {
 };
 
 
-extern const struct c2_lay_enum_type c2_lay_formula_enum_type;
+extern const struct c2_layout_enum_type c2_lay_formula_enum_type;
 extern const struct c2_lay_formula c2_formula_NKP_formula;
 
 /** @} end group formula_enum */

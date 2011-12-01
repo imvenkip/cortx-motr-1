@@ -34,7 +34,7 @@
    Initializes table specifically required for LIST enum type.
 */
 int list_register(struct c2_ldb_schema *schema,
-		  const struct c2_lay_enum_type *et)
+		  const struct c2_layout_enum_type *et)
 {
    /**
 	@code
@@ -56,7 +56,7 @@ int list_register(struct c2_ldb_schema *schema,
    De-initializes table specifically required for LIST enum type.
 */
 int list_unregister(struct c2_ldb_schema *schema,
-		    const struct c2_lay_enum_type *et)
+		    const struct c2_layout_enum_type *et)
 {
    /**
 	@code
@@ -80,8 +80,10 @@ int list_unregister(struct c2_ldb_schema *schema,
    'from its representation received over the network'.
 */
 static int lay_list_enum_decode(bool fromDB, uint64_t lid,
+				struct c2_ldb_schema *schema,
+				struct c2_db_tx *tx,
 				const struct c2_bufvec_cursor *cur,
-				struct c2_lay **out)
+				struct c2_layout **out)
 {
    /**
 	@code
@@ -107,14 +109,26 @@ static int lay_list_enum_decode(bool fromDB, uint64_t lid,
 
 /**
    Implementation of leto_encode() for list enumeration type.
+
+   Continues to use the in-memory layout object and either 'stores it in the
+   Layout DB' ot 'converts it to a buffer that can be passed on over the
+   network'.
+
 */
-static int lay_list_enum_encode(const struct c2_lay *l,
-				   struct c2_bufvec_cursor *cur)
+static int lay_list_enum_encode(bool toDB, const struct c2_layout *l,
+				struct c2_ldb_schema *schema,
+				struct c2_db_tx *tx,
+				struct c2_bufvec_cursor *out)
 {
    /**
 	@code
-        Read list enumeration type specific fields like list of
-	component object identifiers.
+        Read the cob identifiers list from c2_lay_list_enum::lle_list_of_cobs
+	and store it into the buffer.
+
+	if (toDB) {
+		Write cob entires to the cob_lists table.
+	}
+
 	@endcode
    */
 	return 0;
@@ -123,7 +137,7 @@ static int lay_list_enum_encode(const struct c2_lay *l,
 /**
    Enumerate the COB identifiers for a layout with LIST enum type.
 */
-int list_enumerate(const struct c2_lay_enum *le)
+int list_enumerate(const struct c2_layout_enum *le)
 {
    /**
 	@code
@@ -131,7 +145,7 @@ int list_enumerate(const struct c2_lay_enum *le)
 	Use c2_ldb_rec_lookup() to read the layout with that layout id.
 	This will result into a list of COB identifiers stored in
 	c2_lay_list_enum::lle_list_of_cobs.
-	(c2_lay_list_enum is container of c2_lay_enum in this case or c2_lay).)
+	(c2_lay_list_enum is container of c2_layout_enum)
 
 	@endcode
    */
@@ -142,7 +156,7 @@ int list_enumerate(const struct c2_lay_enum *le)
    Implementation of leo_nr for LIST enumeration.
    Rerurns number of objects in the enumeration.
 */
-uint32_t list_nr(const struct c2_lay_enum *le)
+uint32_t list_nr(const struct c2_layout_enum *le)
 {
    /**
 	@code
@@ -157,7 +171,7 @@ uint32_t list_nr(const struct c2_lay_enum *le)
    Implementation of leo_get for LIST enumeration.
    Rerurns idx-th object from the enumeration.
 */
-void list_get(const struct c2_lay_enum *le,
+void list_get(const struct c2_layout_enum *le,
 	      uint32_t idx,
 	      struct c2_fid *out)
 {
@@ -170,14 +184,17 @@ void list_get(const struct c2_lay_enum *le,
 }
 
 
-static const struct c2_lay_enum_type_ops list_ops = {
+static const struct c2_layout_enum_type_ops list_ops = {
 	.leto_register		= list_register,
 	.leto_unregister	= list_unregister,
 	.leto_decode		= lay_list_enum_decode,
 	.leto_encode		= lay_list_enum_encode,
 };
 
-const struct c2_lay_enum_type c2_lay_list_enum_type = {
+/** @todo change c2_lay_list_enum_type to c2_list_enum_type */
+const struct c2_layout_enum_type c2_lay_list_enum_type = {
+	.let_name		= "list",
+	.let_id			= 0x4C495354454E554D, /* LISTENUM */
 	.let_ops		= &list_ops
 };
 

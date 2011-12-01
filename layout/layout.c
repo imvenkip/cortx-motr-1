@@ -29,41 +29,48 @@
    @{
  */
 
-void c2_lay_init(struct c2_lay *lay)
+void c2_layout_init(struct c2_layout *lay,
+		    const uint64_t id,
+		    const struct c2_layout_type *type,
+		    const struct c2_layout_enum *e,
+		    const struct c2_layout_ops *ops)
 {
    /**
 	@code
-	Invoke lay->l_ops->lo_init().
+	lay->l_id	= id;
+	lay->l_type	= type;
+	lay->l_enum	= e;
+	lay->l_ops	= ops;
 	@endcode
    */
 	return;
 }
 
-void c2_lay_fini(struct c2_lay *lay)
+void c2_layout_fini(struct c2_layout *lay)
 {
    /**
 	@code
-	Invoke lay->l_ops->lo_fini().
+	@todo
 	@endcode
    */
 }
 
 /** Adds a reference to the layout. */
-void c2_lay_get(struct c2_lay *lay)
+void c2_layout_get(struct c2_layout *lay)
 {
    /**
 	@code
-	Invoke lay->l_ops->lo_get().
+	@todo
 	@endcode
    */
 }
 
 /** Releases a reference on the layout. */
-void c2_lay_put(struct c2_lay *lay)
+void c2_layout_put(struct c2_layout *lay)
 {
    /**
 	@code
-	Invoke lay->l_ops->lo_put().
+	@todo
 	@endcode
    */
 }
@@ -72,7 +79,7 @@ void c2_lay_put(struct c2_lay *lay)
    This method builds an in-memory layout object from its representation
    either 'stored in the Layout DB' or 'received over the network'.
 
-   Two use cases of c2_lay_decode()
+   Two use cases of c2_layout_decode()
    - Client decodes a buffer received over the network, into an in-memory
      layout structure.
    - Server decodes an on-disk layout record by reading it from the Layout
@@ -82,21 +89,22 @@ void c2_lay_put(struct c2_lay *lay)
    to be decoded 'from its representation stored in the Layout DB' or
    'from its representation received over the network'.
 */
-int c2_lay_decode(bool fromDB, uint64_t lid,
-		  const struct c2_bufvec_cursor *cur,
-		  struct c2_lay **out,
-		  struct c2_ldb_schema *schema,
-		  struct c2_db_tx *tx)
+int c2_layout_decode(bool fromDB, uint64_t lid,
+		     struct c2_ldb_schema *schema,
+		     struct c2_db_tx *tx,
+		     const struct c2_bufvec_cursor *cur,
+		     struct c2_layout **out)
 {
    /**
 	@code
 
 	C2_PRE(cur != NULL);
 
-	if (fromDB)
+	if (fromDB) {
 		C2_PRE(lid != LID_NONE);
-	else
-		Confirm with C2_PRE() that the cursor does not contain data.
+		C2_PRE(schema != NULL);
+		C2_PRE(tx != NULL);
+	}
 
 	if (fromDB) {
 		struct c2_db_pair	pair;
@@ -110,8 +118,8 @@ int c2_lay_decode(bool fromDB, uint64_t lid,
 	}
 
 	Parse generic layout fields from the buffer (pointed by *cur) and store
-	them in the layout object. e.g. layout id, layout type id (lt_id),
-	enumeration type id (et_id), ref counter.
+	them in the layout object. e.g. layout id (l_id), layout type id,
+	enumeration type id, ref counter.
 
 	Now based on the layout type, call corresponding lto_decode() so as
         to continue decoding the layout type specific fields.
@@ -137,7 +145,7 @@ int c2_lay_decode(bool fromDB, uint64_t lid,
    Layout DB' or 'converts it to a buffer that can be passed on over the
    network'.
 
-   Two use cases of c2_lay_encode()
+   Two use cases of c2_layout_encode()
    - Server encodes an in-memory layout object into a buffer, so as to send
      it to the client.
    - Server encodes an in-memory layout object and stores it into the Layout
@@ -147,10 +155,10 @@ int c2_lay_decode(bool fromDB, uint64_t lid,
    Layout DB' or 'if it is to be stored in the buffer so that the buffer can
    be passed over the network'.
 */
-int c2_lay_encode(bool toDB, const struct c2_lay *l,
-		  struct c2_bufvec_cursor *out,
-		  struct c2_ldb_schema *schema,
-		  struct c2_db_tx *tx)
+int c2_layout_encode(bool toDB, const struct c2_layout *l,
+		     struct c2_ldb_schema *schema,
+		     struct c2_db_tx *tx,
+		     struct c2_bufvec_cursor *out)
 {
    /**
 	@code

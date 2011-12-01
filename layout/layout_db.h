@@ -53,16 +53,16 @@ struct c2_ldb_rec;
    @section Layout-DB-fspec-sub Subroutines
    - int c2_ldb_schema_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
    - void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
-   - void c2_ldb_type_register(struct c2_ldb_schema *schema, const struct c2_lay_type *lt)
-   - void c2_ldb_type_unregister(struct c2_ldb_schema *schema, const struct c2_lay_type *lt)
-   - void c2_ldb_enum_register(struct c2_ldb_schema *schema, const struct c2_lay_enum_type *et)
-   - void c2_ldb_enum_unregister(struct c2_ldb_schema *schema, const struct c2_lay_enum_type *et)
-   - void **c2_ldb_type_data(struct c2_ldb_schema *schema, const struct c2_lay_type *lt)
-   - void **c2_ldb_enum_data(struct c2_ldb_schema *schema, const struct c2_lay_enum_type *et)
-   - int c2_ldb_rec_add(const struct c2_lay *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
-   - int c2_ldb_rec_delete(const struct c2_lay *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
-   - int c2_ldb_rec_update(const struct c2_lay *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
-   - int c2_ldb_rec_lookup(const uint64_t *l_id, struct c2_ldb_schema *schema, struct c2_db_tx *tx, c2_lay *out);
+   - void c2_ldb_type_register(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+   - void c2_ldb_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+   - void c2_ldb_enum_register(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+   - void c2_ldb_enum_unregister(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+   - void **c2_ldb_type_data(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+   - void **c2_ldb_enum_data(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+   - int c2_ldb_rec_add(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
+   - int c2_ldb_rec_delete(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
+   - int c2_ldb_rec_update(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
+   - int c2_ldb_rec_lookup(const uint64_t *l_id, struct c2_ldb_schema *schema, struct c2_db_tx *tx, c2_layout *out);
 
    @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
 
@@ -132,12 +132,12 @@ struct c2_ldb_schema {
 	/** Layout types array.
 	    Used to find layout type with given identifier.
 	*/
-	struct c2_lay_type		*ls_type[C2_LAY_TYPE_MAX];
+	struct c2_layout_type		*ls_type[C2_LAY_TYPE_MAX];
 
 	/** Enumeration types array.
 	    Used to find enum type with given identifier.
 	*/
-	struct c2_lay_enum_type		*ls_enum[C2_LAY_ENUM_MAX];
+	struct c2_layout_enum_type	*ls_enum[C2_LAY_ENUM_MAX];
 
 	/** Layout type specific data. */
 	void				*ls_type_data[C2_LAY_TYPE_MAX];
@@ -148,16 +148,16 @@ struct c2_ldb_schema {
 
 /**
    layouts table
-   Key is uint64_t, value obtained from c2_lay::l_id.
+   Key is uint64_t, value obtained from c2_layout::l_id.
 */
 struct c2_ldb_rec {
 	/** Layout type id.
-	    Value obtained from  c2_lay_type::lt_id.
+	    Value obtained from  c2_layout_type::lt_id.
 	*/
 	uint64_t			lr_lt_id;
 
 	/** Layout enumeration type id.
-	    Value obtained from c2_lay_enum_type::let_id.
+	    Value obtained from c2_layout_enum_type::let_id.
 	*/
 	uint64_t			lr_let_id;
 
@@ -177,33 +177,33 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 void c2_ldb_schema_fini(struct c2_ldb_schema *schema);
 
 void c2_ldb_type_register(struct c2_ldb_schema *schema,
-			  const struct c2_lay_type *lt);
+			  const struct c2_layout_type *lt);
 void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
-			    const struct c2_lay_type *lt);
+			    const struct c2_layout_type *lt);
 
 void c2_ldb_enum_register(struct c2_ldb_schema *schema,
-			  const struct c2_lay_enum_type *et);
+			  const struct c2_layout_enum_type *et);
 void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
-			    const struct c2_lay_enum_type *et);
+			    const struct c2_layout_enum_type *et);
 
 void **c2_ldb_type_data(struct c2_ldb_schema *schema,
-			const struct c2_lay_type *lt);
+			const struct c2_layout_type *lt);
 void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
-			const struct c2_lay_enum_type *et);
+			const struct c2_layout_enum_type *et);
 
-int c2_ldb_rec_add(const struct c2_lay *layout,
+int c2_ldb_rec_add(const struct c2_layout *layout,
 		   struct c2_ldb_schema *schema,
 		   struct c2_db_tx *tx);
-int c2_ldb_rec_delete(const struct c2_lay *layout,
+int c2_ldb_rec_delete(const struct c2_layout *layout,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx);
-int c2_ldb_rec_update(const struct c2_lay *layout,
+int c2_ldb_rec_update(const struct c2_layout *layout,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx);
 int c2_ldb_rec_lookup(const uint64_t *id,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx,
-		      struct c2_lay *out);
+		      struct c2_layout *out);
 
 /** @} end group LayoutDBDFS */
 
@@ -242,7 +242,7 @@ static const struct c2_table_ops layouts_table_ops = {
    cob_lists table.
 */
 struct ldb_cob_lists_key {
-	/** Layout id, value obtained from c2_lay::l_id. */
+	/** Layout id, value obtained from c2_layout::l_id. */
 	uint64_t		lclk_id;
 
 	/** Index for the COB from the layout it is part of. */
@@ -285,7 +285,7 @@ static const struct c2_table_ops cob_lists_table_ops = {
 */
 struct layout_prefix {
 	/** Layout id for the composite layout.
-	    Value is same as c2_lay::l_id.
+	    Value is same as c2_layout::l_id.
 	*/
 	uint64_t		lp_l_id;
 

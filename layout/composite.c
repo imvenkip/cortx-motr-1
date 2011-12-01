@@ -31,7 +31,7 @@
    Intializes table specifically required for COMPOSITE layout type.
 */
 int composite_register(struct c2_ldb_schema *schema,
-		       const struct c2_lay_type *lt)
+		       const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -53,7 +53,7 @@ int composite_register(struct c2_ldb_schema *schema,
    Deintializes table specifically required for COMPOSITE layout type.
 */
 int composite_unregister(struct c2_ldb_schema *schema,
-			 const struct c2_lay_type *lt)
+			 const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -77,10 +77,10 @@ int composite_unregister(struct c2_ldb_schema *schema,
    'from its representation received over the network'.
 */
 static int composite_decode(bool fromDB, uint64_t lid,
-			    const struct c2_bufvec_cursor *cur,
-			    struct c2_lay **out,
 			    struct c2_ldb_schema *schema,
-			    struct c2_db_tx *tx)
+			    struct c2_db_tx *tx,
+			    const struct c2_bufvec_cursor *cur,
+			    struct c2_layout **out)
 {
    /**
 	@code
@@ -91,7 +91,7 @@ static int composite_decode(bool fromDB, uint64_t lid,
 		C2_PRE(cur != NULL);
 
 	Allocate new layout as an instance of c2_composite_layout that
-	embeds c2_lay.
+	embeds c2_layout.
 
 	if (fromDB) {
 		struct c2_db_pair	pair;
@@ -125,10 +125,10 @@ static int composite_decode(bool fromDB, uint64_t lid,
    Implementation of lto_encode() for composite layout type.
    Stores layout representation in the buffer.
 */
-static int composite_encode(bool toDB, const struct c2_lay *l,
-			    struct c2_bufvec_cursor *out,
+static int composite_encode(bool toDB, const struct c2_layout *l,
 			    struct c2_ldb_schema *schema,
-			    struct c2_db_tx *tx)
+			    struct c2_db_tx *tx,
+			    struct c2_bufvec_cursor *out)
 {
    /**
 	@code
@@ -152,18 +152,28 @@ static int composite_encode(bool toDB, const struct c2_lay *l,
 	return 0;
 }
 
+/** Implementation of lo_fini for composite layout type. */
+static void composite_fini(struct c2_layout *lay)
+{
+	/** @todo */
+	return;
+}
 
-static const struct c2_lay_type_ops composite_type_ops = {
+static const struct c2_layout_ops composite_ops = {
+	.lo_fini	= composite_fini
+};
+
+static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_register	= composite_register,
 	.lto_unregister	= composite_unregister,
 	.lto_equal      = NULL,
 	.lto_decode     = composite_decode,
-	.lto_encode     = composite_encode,
+	.lto_encode     = composite_encode
 };
 
 
 /** @todo Define value for lt_id */
-const struct c2_lay_type c2_composite_lay_type = {
+const struct c2_layout_type c2_composite_lay_type = {
 	.lt_name  = "composite",
 	.lt_id    = 0x434F4D504F534954,	/* COMPOSIT */
 	.lt_ops   = &composite_type_ops

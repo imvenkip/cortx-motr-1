@@ -341,8 +341,8 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 }
 C2_EXPORTED(c2_pdclust_layout_inv);
 
-static bool pdclust_equal(const struct c2_lay *l0,
-			  const struct c2_lay *l1)
+static bool pdclust_equal(const struct c2_layout *l0,
+			  const struct c2_layout *l1)
 {
 	struct c2_pdclust_layout *p0;
 	struct c2_pdclust_layout *p1;
@@ -361,7 +361,16 @@ static bool pdclust_equal(const struct c2_lay *l0,
 	/* XXX and check that target objects are the same */
 }
 
-static const struct c2_lay_ops pdlclust_ops = {
+/** Implementation of lo_fini for pdclust layout type. */
+static void pdclust_fini(struct c2_layout *lay)
+{
+	/** @todo */
+	/** Will this be called from c2_layout_fini() ? */
+	return;
+}
+
+static const struct c2_layout_ops pdlclust_ops = {
+	.lo_fini	= pdclust_fini
 };
 
 void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
@@ -369,7 +378,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 	uint32_t i;
 
 	if (pdl != NULL) {
-		c2_lay_fini(&pdl->pl_layout);
+		c2_layout_fini(&pdl->pl_layout);
 		c2_free(pdl->pl_tile_cache.tc_inverse);
 		c2_free(pdl->pl_tile_cache.tc_permute);
 		c2_free(pdl->pl_tile_cache.tc_lcode);
@@ -409,14 +418,14 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
-		c2_lay_init(&pdl->pl_layout);
-		pdl->pl_layout.l_type    = &c2_pdclust_layout_type;
+		c2_layout_init(&pdl->pl_layout, *id,
+                               &c2_pdclust_layout_type,
+                               NULL, /* todo */
+                               &pdlclust_ops);
 
 		/** @todo Change the following to use fields from c2_lay_list_enum */
 		//pdl->pl_layout.l_form    = NULL;
 		//pdl->pl_layout.l_actuals = NULL;
-		pdl->pl_layout.l_ops     = &pdlclust_ops;
-		pdl->pl_layout.l_id      = *id;
 
 		pdl->pl_seed = *seed;
 		pdl->pl_attr->pa_N = N;
@@ -474,10 +483,10 @@ C2_EXPORTED(c2_pdclust_unit_classify);
    'from its representation received over the network'.
 */
 static int pdclust_decode(bool fromDB, uint64_t lid,
-			  const struct c2_bufvec_cursor *cur,
-		          struct c2_lay **out,
 			  struct c2_ldb_schema *schema,
-			  struct c2_db_tx *tx)
+			  struct c2_db_tx *tx,
+			  const struct c2_bufvec_cursor *cur,
+		          struct c2_layout **out)
 {
    /**
 	@code
@@ -488,7 +497,7 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
 	C2_PRE(cur != NULL);
 
 	Allocate new layout as an instance of c2_pdclust_layout that
-	embeds c2_lay.
+	embeds c2_layout.
 
 	Now, that it is the PDCLUST layout type, we know that the layouts
 	table contains c2_pdclust_attr as a tail part of c2_ldb_rec. Hence,
@@ -520,15 +529,15 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
 
    Continues to use the in-memory layout object and either 'stores it in the
    Layout DB' ot 'converts it to a buffer that can be passed on over the
-   network.
+   network'.
 
    @param toDB - This flag indicates if 'the layout is to be stored in the
    Layout DB' or 'if it is to be stored in the buffer'.
 */
-static int pdclust_encode(bool toDB, const struct c2_lay *l,
-		          struct c2_bufvec_cursor *out,
+static int pdclust_encode(bool toDB, const struct c2_layout *l,
 			  struct c2_ldb_schema *schema,
-			  struct c2_db_tx *tx)
+			  struct c2_db_tx *tx,
+		          struct c2_bufvec_cursor *out)
 {
    /**
 	@code
@@ -544,7 +553,7 @@ static int pdclust_encode(bool toDB, const struct c2_lay *l,
 	return 0;
 }
 
-static const struct c2_lay_type_ops pdclust_type_ops = {
+static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register	= NULL,
 	.lto_unregister	= NULL,
 	.lto_equal	= pdclust_equal,
@@ -552,9 +561,9 @@ static const struct c2_lay_type_ops pdclust_type_ops = {
 	.lto_encode	= pdclust_encode,
 };
 
-const struct c2_lay_type c2_pdclust_layout_type = {
+const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_name	= "pdclust",
-	.lt_id		= 0x5044434C55535431,	/* PDCLUST1 */
+	.lt_id		= 0x5044434C55535431, /* PDCLUST1 */
 	.lt_ops		= &pdclust_type_ops
 };
 

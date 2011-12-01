@@ -390,7 +390,7 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
    c2_ldb_schema::ls_type[].
 */
 void c2_ldb_type_register(struct c2_ldb_schema *schema,
-			  const struct c2_lay_type *lt)
+			  const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -412,7 +412,7 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
    c2_ldb_schema::ls_enum[].
 */
 void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
-			    const struct c2_lay_type *lt)
+			    const struct c2_layout_type *lt)
 {
 	return;
 }
@@ -422,7 +422,7 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
    maintained by c2_ldb_schema::ls_type[].
 */
 void c2_ldb_enum_register(struct c2_ldb_schema *schema,
-			  const struct c2_lay_enum_type *let)
+			  const struct c2_layout_enum_type *let)
 {
    /**
 	@code
@@ -445,7 +445,7 @@ void c2_ldb_enum_register(struct c2_ldb_schema *schema,
    maintained by c2_ldb_schema::ls_enum[].
 */
 void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
-			    const struct c2_lay_enum_type *et)
+			    const struct c2_layout_enum_type *et)
 {
 	return;
 }
@@ -454,7 +454,7 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
    @todo Add description
 */
 void **c2_ldb_type_data(struct c2_ldb_schema *schema,
-			const struct c2_lay_type *lt)
+			const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -469,7 +469,7 @@ void **c2_ldb_type_data(struct c2_ldb_schema *schema,
    @todo Add description
 */
 void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
-			const struct c2_lay_enum_type *et)
+			const struct c2_layout_enum_type *et)
 {
    /*
 	@code
@@ -485,7 +485,7 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
    If applicable, adds information related to this layout, into the relevant
    tables.
 */
-int c2_ldb_rec_add(const struct c2_lay *l,
+int c2_ldb_rec_add(const struct c2_layout *l,
 		   struct c2_ldb_schema *schema,
 		   struct c2_db_tx *tx)
 {
@@ -508,7 +508,7 @@ int c2_ldb_rec_add(const struct c2_lay *l,
 
    A layout with formula enumeration type is never destroyed.
 */
-int c2_ldb_rec_delete(const struct c2_lay *layout,
+int c2_ldb_rec_delete(const struct c2_layout *layout,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx)
 {
@@ -525,7 +525,7 @@ int c2_ldb_rec_delete(const struct c2_lay *layout,
    Updates a layout record and its related information from the
    relevant tables.
 */
-int c2_ldb_rec_update(const struct c2_lay *layout,
+int c2_ldb_rec_update(const struct c2_layout *layout,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx)
 {
@@ -545,7 +545,7 @@ int c2_ldb_rec_update(const struct c2_lay *layout,
 int c2_ldb_rec_lookup(const uint64_t *lid,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx,
-		      struct c2_lay *out)
+		      struct c2_layout *out)
 {
    /**
 	@code

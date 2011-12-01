@@ -42,12 +42,11 @@
 struct c2_composite_layout;
 
 /**
-   Extension of generic c2_lay for a composite layout.
-   @todo Change c2_composite_layout to c2_composite_lay and for pdclust too.
+   Extension of generic c2_layout for a composite layout.
  */
 struct c2_composite_layout {
 	/** super class */
-	struct c2_lay		cl_layout;
+	struct c2_layout	cl_layout;
 
 	/** List of sub-layouts owned by this composite layout */
 	struct c2_tl		cl_list_of_sub_layouts;
@@ -61,7 +60,7 @@ struct composite_schema_data {
 	struct c2_emap		csd_comp_layout_ext_map;;
 };
 
-extern const struct c2_lay_type c2_composite_lay_type;
+extern const struct c2_layout_type c2_composite_lay_type;
 
 /** @} end group composite */
 
