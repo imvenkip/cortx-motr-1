@@ -423,7 +423,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
                                NULL, /* todo */
                                &pdlclust_ops);
 
-		/** @todo Change the following to use fields from c2_lay_list_enum */
+		/** @todo Change the following to use fields from c2_lay_formula_enum */
 		//pdl->pl_layout.l_form    = NULL;
 		//pdl->pl_layout.l_actuals = NULL;
 

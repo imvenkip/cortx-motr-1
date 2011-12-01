@@ -50,11 +50,11 @@ int formula_enumerate(const struct c2_layout_enum *le, struct c2_tl *list)
 	It would tell that the layout is with the FORMULA enumeration type
 	and will provide the required attributes.
 
-	Obtain the container of le that is of the type c2_lay_formula_enum.
-	c2_lay_formula_enum::lfe_actuals would contain the input parameters for
-	this formula for this specific instance of c2_lay_formula_enum.
+	Obtain the container of le that is of the type c2_layout_formula_enum.
+	c2_layout_formula_enum::lfe_actuals would contain the input parameters
+	for this formula for this specific instance of c2_layout_formula_enum.
 
-	Now invoke c2_lay_formula_enum::lfe_form->lf_ops->lfo_subst() with
+	Now invoke c2_layout_formula_enum::lfe_form->lf_ops->lfo_subst() with
 	the attributes and parameters obtained here.
 	This will result into COB identifiers enumeration, in the form of a
 	c2_tl list. Store it in list that is out argument of this routine.
@@ -101,18 +101,17 @@ void formula_get(const struct c2_layout_enum *le,
 }
 
 
-const struct c2_layout_enum_type c2_lay_formula_enum_type = {
+const struct c2_layout_enum_type c2_layout_formula_enum_type = {
 	.let_name	= "formula",
 	.let_id		= 0x464F524D554C4145, /* FORMULAE */
 	.let_ops	= NULL
 };
 
-static const struct c2_lay_formula_ops nkp_ops = {
+static const struct c2_layout_formula_ops nkp_ops = {
 	.lfo_subst	= NULL
 };
 
-/** @todo Check dat types for all the ids. */
-const struct c2_lay_formula c2_formula_NKP_formula = {
+const struct c2_layout_formula c2_formula_NKP_formula = {
 	.lf_id   = { .u_hi = 0x5041524954594445, /* PARITYDE */
 		     .u_lo = 0x434c55535445522e  /* CLUSTER. */
 	},

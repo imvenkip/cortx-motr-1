@@ -172,7 +172,6 @@ static const struct c2_layout_type_ops composite_type_ops = {
 };
 
 
-/** @todo Define value for lt_id */
 const struct c2_layout_type c2_composite_lay_type = {
 	.lt_name  = "composite",
 	.lt_id    = 0x434F4D504F534954,	/* COMPOSIT */

@@ -166,7 +166,6 @@ struct c2_layout_enum {
 	const struct c2_layout_enum_ops	*le_ops;
 };
 
-/** @todo Define these functions in respective .c files */
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
 	uint32_t	(*leo_nr)(const struct c2_layout_enum *e);
