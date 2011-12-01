@@ -28,6 +28,7 @@
 #include <config.h>
 #endif
 
+#include "lib/errno.h"	/* EINVAL */
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
@@ -50,52 +51,48 @@ static void default_fom_fini(struct c2_fom *fom)
         return;
 }
 
-static int fop_reply_send(struct c2_fop *fop, struct c2_fop *rfop,
-			  uint32_t opcode, enum c2_cons_mesg_type type)
+static int cons_fom_state(struct c2_fom *fom)
 {
         struct c2_cons_fop_reply *reply_fop;
         struct c2_rpc_item       *reply_item;
         struct c2_rpc_item       *req_item;
-
-	/* Reply fop */
-        reply_fop = c2_fop_data(rfop);
-	C2_ASSERT(reply_fop != NULL);
-	reply_fop->cons_notify_type = type;
-	reply_fop->cons_return = opcode;
-
-	/* Request item */
-        req_item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(req_item != NULL);
-
-	/* Reply item */
-        reply_item = c2_fop_to_rpc_item(rfop);
-	C2_ASSERT(reply_item != NULL);
-        c2_rpc_item_init(reply_item);
-        reply_item->ri_type = &rfop->f_type->ft_rpc_item_type;
-        reply_item->ri_group = NULL;
-
-        return c2_rpc_reply_post(req_item, reply_item);
-}
-/*
- * Disk FOM processing
- */
-static int fom_disk_state(struct c2_fom *fom)
-{
-        struct c2_cons_fom_disk  *disk_fom;
 	int			  rc;
 
-	/* Request FOM */
-        disk_fom = container_of(fom, struct c2_cons_fom_disk, disk_gen);
+        C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
-	rc = fop_reply_send(disk_fom->disk_fop, disk_fom->disk_reply_fop,
-			    C2_CONS_FOP_DISK_OPCODE, CMT_DISK_FAILURE);
+	/* Reply fop */
+        reply_fop = c2_fop_data(fom->fo_rep_fop);
+	if (reply_fop == NULL)
+		return -EINVAL;
+
+	if (fom->fo_fop->f_type == &c2_cons_fop_disk_fopt) {
+		/* For disk failure fop */
+		reply_fop->cons_notify_type = CMT_DISK_FAILURE;
+		reply_fop->cons_return = C2_CONS_FOP_DISK_OPCODE;
+	} else if (fom->fo_fop->f_type == &c2_cons_fop_device_fopt) {
+		/* For device failure fop */
+		reply_fop->cons_notify_type = CMT_DEVICE_FAILURE;
+		reply_fop->cons_return = C2_CONS_FOP_DEVICE_OPCODE;
+	} else
+		return -EINVAL;
+
+	/* Request item */
+        req_item = &fom->fo_fop->f_item;
+
+	/* Reply item */
+        reply_item = &fom->fo_rep_fop->f_item;
+        c2_rpc_item_init(reply_item);
+        reply_item->ri_type = &fom->fo_rep_fop->f_type->ft_rpc_item_type;
+        reply_item->ri_group = NULL;
 	fom->fo_phase = FOPH_FINISH;
+        rc = c2_rpc_reply_post(req_item, reply_item);
 
 	return rc;
 }
 
 const struct c2_fom_ops c2_cons_fom_disk_ops = {
-        .fo_state	  = fom_disk_state,
+        .fo_state	  = cons_fom_state,
 	.fo_fini	  = default_fom_fini,
 	.fo_home_locality = home_locality,
 };
@@ -108,26 +105,8 @@ struct c2_fom_type c2_cons_fom_disk_type = {
         .ft_ops = &c2_cons_fom_disk_type_ops
 };
 
-/*
- * Device FOM processing
- */
-static int fom_device_state(struct c2_fom *fom)
-{
-        struct c2_cons_fom_device  *dev_fom;
-	int			    rc;
-
-        /* Request FOM */
-        dev_fom = container_of(fom, struct c2_cons_fom_device, dev_gen);
-
-	rc = fop_reply_send(dev_fom->dev_fop, dev_fom->dev_reply_fop,
-			    C2_CONS_FOP_DEVICE_OPCODE, CMT_DEVICE_FAILURE);
-	fom->fo_phase = FOPH_FINISH;
-
-	return rc;
-}
-
 const struct c2_fom_ops c2_cons_fom_device_ops = {
-        .fo_state	  = fom_device_state,
+        .fo_state	  = cons_fom_state,
 	.fo_fini	  = default_fom_fini,
 	.fo_home_locality = home_locality,
 };

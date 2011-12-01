@@ -45,30 +45,32 @@
    @{
 */
 
-static int c2_cons_fop_disk_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int c2_cons_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-        struct c2_cons_fom_disk *fom_disk;
-        struct c2_fom           *fom;
+        struct c2_fom *fom;
 
         C2_PRE(fop != NULL);
         C2_PRE(m != NULL);
 
-        C2_ALLOC_PTR(fom_disk);
-        if (fom_disk == NULL)
+        C2_ALLOC_PTR(fom);
+        if (fom == NULL)
                 return -ENOMEM;
 
-        fop->f_type->ft_fom_type = c2_cons_fom_disk_type;
+	c2_fom_init(fom);
+	if (fop->f_type == &c2_cons_fop_disk_fopt)
+        	fom->fo_ops = &c2_cons_fom_disk_ops;
+	else if (fop->f_type == &c2_cons_fop_device_fopt)
+        	fom->fo_ops = &c2_cons_fom_device_ops;
+	else {
+                c2_free(fom);
+                return -EINVAL;
+	}
 
-        fom = &fom_disk->disk_gen;
 	fom->fo_fop = fop;
-        fom->fo_type = &c2_cons_fom_disk_type;
-        fom->fo_ops = &c2_cons_fom_disk_ops;
-
-        fom_disk->disk_fop = fop;
-        fom_disk->disk_reply_fop = c2_fop_alloc(&c2_cons_fop_reply_fopt,
-                                                NULL);
-        if (fom_disk->disk_reply_fop == NULL) {
-                c2_free(fom_disk);
+        fom->fo_type = &fop->f_type->ft_fom_type;;
+        fom->fo_rep_fop = c2_fop_alloc(&c2_cons_fop_reply_fopt, NULL);
+        if (fom->fo_rep_fop == NULL) {
+                c2_free(fom);
                 return -ENOMEM;
         }
 
@@ -78,44 +80,13 @@ static int c2_cons_fop_disk_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 /** Ops vector for disk failure notification. */
 static struct c2_fop_type_ops c2_cons_fop_disk_ops = {
-	.fto_fom_init = &c2_cons_fop_disk_fom_init,
+	.fto_fom_init = &c2_cons_fop_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
-static int c2_cons_fop_device_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-        struct c2_cons_fom_device *fom_dev;
-        struct c2_fom             *fom;
-
-        C2_PRE(fop != NULL);
-        C2_PRE(m != NULL);
-
-        C2_ALLOC_PTR(fom_dev);
-        if (fom_dev == NULL)
-                return -ENOMEM;
-
-        fop->f_type->ft_fom_type = c2_cons_fom_device_type;
-
-        fom = &fom_dev->dev_gen;
-	fom->fo_fop = fop;
-        fom->fo_type = &c2_cons_fom_device_type;
-        fom->fo_ops = &c2_cons_fom_device_ops;
-
-        fom_dev->dev_fop = fop;
-        fom_dev->dev_reply_fop = c2_fop_alloc(&c2_cons_fop_reply_fopt,
-                                                NULL);
-        if (fom_dev->dev_reply_fop == NULL) {
-                c2_free(fom_dev);
-                return -ENOMEM;
-        }
-
-        *m = fom;
-        return 0;
-}
-
 /* Ops vector for device failure notification */
 const static struct c2_fop_type_ops c2_cons_fop_device_ops = {
-	.fto_fom_init = &c2_cons_fop_device_fom_init,
+	.fto_fom_init = &c2_cons_fop_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
@@ -180,9 +151,14 @@ int c2_console_fop_init(void)
 {
         int result;
 
+
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
 	if (result == 0)
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+
+	/* Initialize fom type once */
+	c2_cons_fop_disk_fopt.ft_fom_type = c2_cons_fom_disk_type;
+	c2_cons_fop_device_fopt.ft_fom_type = c2_cons_fom_device_type;
 
 	if (result != 0)
 		c2_console_fop_fini();

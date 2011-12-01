@@ -91,7 +91,6 @@ int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
 	/* Init fop by input from console or yaml file */
 	mesg_input(fop);
 
-
 	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;
 	c2_rpc_item_init(item);
