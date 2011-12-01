@@ -341,6 +341,9 @@ struct c2t1fs_sb
 	/** Stripe unit size */
 	uint32_t               csb_unit_size;
 
+	/** used by temporary implementation of c2t1fs_fid_alloc(). */
+	uint64_t               csb_next_key;
+
 	struct c2t1fs_container_location_map csb_cl_map;
 
 	/** mutex that serialises all file and directory operations */
@@ -414,8 +417,9 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 
 void c2t1fs_kill_sb(struct super_block *sb);
 
-void c2t1fs_fs_lock(struct c2t1fs_sb *csb);
-void c2t1fs_fs_unlock(struct c2t1fs_sb *csb);
+void c2t1fs_fs_lock     (struct c2t1fs_sb *csb);
+void c2t1fs_fs_unlock   (struct c2t1fs_sb *csb);
+bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb);
 
 struct c2_rpc_session *
 c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
@@ -427,7 +431,7 @@ int  c2t1fs_inode_cache_init(void);
 void c2t1fs_inode_cache_fini(void);
 
 struct inode *c2t1fs_root_iget(struct super_block *sb);
-struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid);
+struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid);
 
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void          c2t1fs_destroy_inode(struct inode *inode);

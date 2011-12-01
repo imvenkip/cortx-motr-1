@@ -262,6 +262,7 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2_mutex_init(&csb->csb_mutex);
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
 	c2_tlist_init(&svc_ctx_tl_descr, &csb->csb_service_contexts);
+	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
 
 	END(0);
 	return 0;
@@ -276,11 +277,12 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 	c2_tlist_fini(&svc_ctx_tl_descr, &csb->csb_service_contexts);
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
+	csb->csb_next_key = 0;
 
 	END(0);
 }
 
-enum {
+enum c2t1fs_mntopts {
 	C2T1FS_MNTOPT_MGS = 1,
 	C2T1FS_MNTOPT_PROFILE,
 	C2T1FS_MNTOPT_MDS,
@@ -856,3 +858,7 @@ void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
 	END(0);
 }
 
+bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb)
+{
+	return c2_mutex_is_locked(&csb->csb_mutex);
+}

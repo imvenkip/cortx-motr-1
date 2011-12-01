@@ -62,13 +62,14 @@ const struct inode_operations c2t1fs_dir_inode_operations = {
    Allocate fid of global file.
    XXX temporary.
  */
-static struct c2_fid c2t1fs_fid_alloc(void)
+static struct c2_fid c2t1fs_fid_alloc(struct c2t1fs_sb *csb)
 {
 	struct c2_fid fid;
-	static int    key = 3; /* fid <0, 2> is of root directory. Hence 3 */
+
+	C2_PRE(c2t1fs_fs_is_locked(csb));
 
 	fid.f_container = 0;
-	fid.f_key = key++;
+	fid.f_key = csb->csb_next_key++;
 
 	return fid;
 }
@@ -106,7 +107,7 @@ static int c2t1fs_create(struct inode     *dir,
 	inode->i_mode = mode;
 
 	ci = C2T1FS_I(inode);
-	ci->ci_fid = c2t1fs_fid_alloc();
+	ci->ci_fid = c2t1fs_fid_alloc(csb);
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
@@ -206,6 +207,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 						  int                  namelen)
 {
 	struct c2t1fs_inode   *ci;
+	struct c2t1fs_sb      *csb;
 	struct c2t1fs_dir_ent *de = NULL;
 	int                    i;
 
@@ -215,7 +217,11 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	TRACE("Name: \"%s\"\n", name);
 
-	ci = C2T1FS_I(dir);
+	ci  = C2T1FS_I(dir);
+	csb = C2T1FS_SB(dir->i_sb);
+
+	C2_ASSERT(c2t1fs_fs_is_locked(csb));
+
 	for (i = 0; i < ci->ci_nr_dir_ents; i++) {
 		de = &ci->ci_dir_ents[i];
 		C2_ASSERT(de != NULL);

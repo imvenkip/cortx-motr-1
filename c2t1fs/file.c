@@ -377,7 +377,7 @@ enum {
 /**
    Read/write descriptor that describes io on cob identified by rd_fid.
  */
-struct c2t1fs_rw_desc
+struct rw_desc
 {
 	/** io fop should be sent on this session */
 	struct c2_rpc_session *rd_session;
@@ -402,7 +402,7 @@ struct c2t1fs_rw_desc
 };
 
 static struct c2_tl_descr rwd_tl_descr = C2_TL_DESCR("rw descriptors",
-						     struct c2t1fs_rw_desc,
+						     struct rw_desc,
 						     rd_link,
 						     rd_magic,
 						     MAGIC_RW_DESC,
@@ -416,7 +416,7 @@ struct c2t1fs_buf
 	/** type of contents in the cb_buf data, parity or spare */
 	enum c2_pdclust_unit_type cb_type;
 
-	/** link in c2t1fs_rw_desc::rd_buf_list */
+	/** link in rw_desc::rd_buf_list */
 	struct c2_tlink           cb_link;
 
 	/** magic = MAGIC_C2T1BUF */
@@ -458,10 +458,10 @@ static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 	END(0);
 }
 
-static struct c2t1fs_rw_desc * c2t1fs_rw_desc_get(struct c2_tl        *list,
-						  const struct c2_fid *fid)
+static struct rw_desc * rw_desc_get(struct c2_tl        *list,
+				    const struct c2_fid *fid)
 {
-	struct c2t1fs_rw_desc *rw_desc;
+	struct rw_desc *rw_desc;
 
 	START();
 	TRACE("fid [%lu:%lu]\n", (unsigned long)fid->f_container,
@@ -493,7 +493,7 @@ out:
 	return rw_desc;
 }
 
-static void c2t1fs_rw_desc_fini(struct c2t1fs_rw_desc *rw_desc)
+static void rw_desc_fini(struct rw_desc *rw_desc)
 {
 	struct c2t1fs_buf   *buf;
 
@@ -515,10 +515,10 @@ static void c2t1fs_rw_desc_fini(struct c2t1fs_rw_desc *rw_desc)
 	END(0);
 }
 
-static int c2t1fs_rw_desc_buf_add(struct c2t1fs_rw_desc    *rw_desc,
-				  char                     *addr,
-				  size_t                    len,
-				  enum c2_pdclust_unit_type type)
+static int rw_desc_add(struct rw_desc    *rw_desc,
+		       char                     *addr,
+		       size_t                    len,
+		       enum c2_pdclust_unit_type type)
 {
 	struct c2t1fs_buf *buf;
 
@@ -543,30 +543,30 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 					  loff_t               gob_pos,
 					  int                  rw)
 {
-	enum c2_pdclust_unit_type  unit_type;
-	struct c2_pdclust_src_addr src_addr;
-	struct c2_pdclust_tgt_addr tgt_addr;
-	struct c2_pdclust_layout  *pd_layout;
-	struct c2t1fs_rw_desc     *rw_desc;
-	struct c2t1fs_sb          *csb;
-	struct c2_tl               rw_desc_list;
-	struct c2_fid              gob_fid;
-	struct c2_fid              tgt_fid;
-	struct c2_buf             *data_bufs;
-	struct c2_buf             *parity_bufs;
-	loff_t                     pos;
-	size_t                     offset_in_buf;
-	uint64_t                   unit_size;
-	uint64_t                   nr_data_bytes_per_group;
-	ssize_t                    rc = 0;
-	char                      *ptr;
-	int                        nr_groups_to_rw;
-	int                        nr_units_per_group;
-	int                        nr_data_units;
-	int                        nr_parity_units;
-	int                        parity_index;
-	int                        unit;
-	int                        i;
+	enum   c2_pdclust_unit_type  unit_type;
+	struct c2_pdclust_src_addr   src_addr;
+	struct c2_pdclust_tgt_addr   tgt_addr;
+	struct c2_pdclust_layout    *pd_layout;
+	struct rw_desc              *rw_desc;
+	struct c2t1fs_sb            *csb;
+	struct c2_tl                 rw_desc_list;
+	struct c2_fid                gob_fid;
+	struct c2_fid                tgt_fid;
+	struct c2_buf               *data_bufs;
+	struct c2_buf               *parity_bufs;
+	loff_t                       pos;
+	size_t                       offset_in_buf;
+	uint64_t                     unit_size;
+	uint64_t                     nr_data_bytes_per_group;
+	ssize_t                      rc = 0;
+	char                        *ptr;
+	int                          nr_groups_to_rw;
+	int                          nr_units_per_group;
+	int                          nr_data_units;
+	int                          nr_parity_units;
+	int                          parity_index;
+	int                          unit;
+	int                          i;
 
 	START();
 
@@ -616,7 +616,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			tgt_fid = c2t1fs_target_fid(&gob_fid,
 						    tgt_addr.ta_obj + 1);
 
-			rw_desc = c2t1fs_rw_desc_get(&rw_desc_list, &tgt_fid);
+			rw_desc = rw_desc_get(&rw_desc_list, &tgt_fid);
 			if (rw_desc == NULL) {
 				rc = -ENOMEM;
 				goto cleanup;
@@ -632,10 +632,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			switch (unit_type) {
 			case PUT_DATA:
 				/* add data buffer to rw_desc */
-				rc = c2t1fs_rw_desc_buf_add(rw_desc,
-							   buf + offset_in_buf,
-							   unit_size,
-							   PUT_DATA);
+				rc = rw_desc_add(rw_desc, buf + offset_in_buf,
+						     unit_size, PUT_DATA);
 				if (rc != 0)
 					goto cleanup;
 
@@ -660,8 +658,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 							PAGE_CACHE_SHIFT);
 				 */
 				ptr = c2_alloc(unit_size);
-				rc = c2t1fs_rw_desc_buf_add(rw_desc,
-						ptr, unit_size, PUT_PARITY);
+				rc = rw_desc_add(rw_desc, ptr, unit_size,
+							PUT_PARITY);
 				if (rc != 0) {
 					c2_free(ptr);
 					goto cleanup;
@@ -671,7 +669,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 						unit_size);
 				/*
 				 * If this is last parity buffer and operation
-				 * is write, then compute parity.
+				 * is write, then compute all parity buffers
+				 * for the entire current group.
 				 */
 				if (parity_index == nr_parity_units - 1 &&
 						rw == WRITE) {
@@ -694,8 +693,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 							PAGE_CACHE_SHIFT);
 				 */
 				ptr = c2_alloc(unit_size);
-				rc = c2t1fs_rw_desc_buf_add(rw_desc,
-						     ptr, unit_size, PUT_SPARE);
+				rc = rw_desc_add(rw_desc, ptr, unit_size,
+							PUT_SPARE);
 				if (rc != 0) {
 					c2_free(ptr);
 					goto cleanup;
@@ -715,7 +714,7 @@ cleanup:
 
 		c2_tlist_del(&rwd_tl_descr, rw_desc);
 
-		c2t1fs_rw_desc_fini(rw_desc);
+		rw_desc_fini(rw_desc);
 		c2_free(rw_desc);
 
 	} c2_tlist_endfor;
@@ -727,7 +726,7 @@ cleanup:
 
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 {
-	struct c2t1fs_rw_desc *rw_desc;
+	struct rw_desc        *rw_desc;
 	struct c2t1fs_buf     *buf;
 	ssize_t                count = 0;
 

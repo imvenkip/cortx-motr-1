@@ -164,7 +164,7 @@ struct inode *c2t1fs_root_iget(struct super_block *sb)
 	 * configuration module. c2t1fs_root_iget() hides these details from
 	 * mount code path.
 	 */
-	inode = c2t1fs_iget(sb, (struct c2_fid *)&c2t1fs_root_fid);
+	inode = c2t1fs_iget(sb, &c2t1fs_root_fid);
 
 	END(inode);
 	return inode;
@@ -284,7 +284,7 @@ static unsigned long fid_hash(const struct c2_fid *fid)
 	return fid->f_key;
 }
 
-struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid)
+struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
 {
 	struct inode *inode;
 	unsigned long hash;
@@ -301,7 +301,7 @@ struct inode *c2t1fs_iget(struct super_block *sb, struct c2_fid *fid)
 	 * set I_NEW flag in inode->i_state for newly allocated inode.
 	 */
 	inode = iget5_locked(sb, hash, c2t1fs_inode_test, c2t1fs_inode_set,
-				fid);
+				(void *)fid);
 	if (inode != NULL) {
 		if ((inode->i_state & I_NEW) == 0) {
 			/* Not a new inode. No need to read it again */
