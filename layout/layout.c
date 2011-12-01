@@ -94,7 +94,7 @@ int c2_lay_decode(bool fromDB, uint64_t lid,
 	C2_PRE(cur != NULL);
 
 	if (fromDB)
-		C2_PRE(lid != INVALID_LID);
+		C2_PRE(lid != LID_NONE);
 	else
 		Confirm with C2_PRE() that the cursor does not contain data.
 

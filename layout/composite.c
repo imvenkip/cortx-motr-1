@@ -26,6 +26,47 @@
 */
 
 /**
+   Implementation of lto_register for COMPOSITE layout type.
+
+   Intializes table specifically required for COMPOSITE layout type.
+*/
+int composite_register(struct c2_ldb_schema *schema,
+		       const struct c2_lay_type *lt)
+{
+   /**
+	@code
+	struct composite_schema_data *csd;
+
+	C2_ALLocate_PTR(csd);
+
+	Initialize csd->csd_comp_layout_ext_map table.
+
+	schema->ls_enum_data[lt->lt_id] = csd;
+	@endcode
+   */
+	return 0;
+}
+
+/**
+   Implementation of lto_unregister for COMPOSITE layout type.
+
+   Deintializes table specifically required for COMPOSITE layout type.
+*/
+int composite_unregister(struct c2_ldb_schema *schema,
+			 const struct c2_lay_type *lt)
+{
+   /**
+	@code
+	Deinitialize schema->ls_enum_data[lt->lt_id]->csd_comp_layout_ext_map
+	table.
+
+	schema->ls_enum_data[lt->lt_id] = NULL;
+	@endcode
+   */
+	return 0;
+}
+
+/**
    Implementation of lto_decode() for composite layout type.
 
    Continues to build the in-memory layout object from its representation
@@ -113,6 +154,8 @@ static int composite_encode(bool toDB, const struct c2_lay *l,
 
 
 static const struct c2_lay_type_ops composite_type_ops = {
+	.lto_register	= composite_register,
+	.lto_unregister	= composite_unregister,
 	.lto_equal      = NULL,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
@@ -122,7 +165,7 @@ static const struct c2_lay_type_ops composite_type_ops = {
 /** @todo Define value for lt_id */
 const struct c2_lay_type c2_composite_lay_type = {
 	.lt_name  = "composite",
-	.lt_id    = 1234,
+	.lt_id    = 0x434F4D504F534954,	/* COMPOSIT */
 	.lt_ops   = &composite_type_ops
 };
 

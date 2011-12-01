@@ -29,6 +29,47 @@
 */
 
 /**
+   Implementation of leto_register for LIST enumeration type.
+
+   Initializes table specifically required for LIST enum type.
+*/
+int list_register(struct c2_ldb_schema *schema,
+		  const struct c2_lay_enum_type *et)
+{
+   /**
+	@code
+	struct list_schema_data *lsd;
+
+	C2_ALLOCATE_PTR(lsd);
+
+	Initialize lsd->lsd_cob_lists table.
+
+	schema->ls_type_data[et->let_id] = lsd;
+	@endcode
+   */
+	return 0;
+}
+
+/**
+   Implementation of leto_unregister for LIST enumeration type.
+
+   De-initializes table specifically required for LIST enum type.
+*/
+int list_unregister(struct c2_ldb_schema *schema,
+		    const struct c2_lay_enum_type *et)
+{
+   /**
+	@code
+	Deinitialize schema->ls_type_data[et->let_id]->lsd_cob_lists table.
+
+	schema->ls_type_data[et->let_id] = NULL;;
+	@endcode
+   */
+	return 0;
+}
+
+
+/**
    Implementation of leto_decode() for list enumeration type.
 
    Continues to build the in-memory layout object from its representation
@@ -79,7 +120,59 @@ static int lay_list_enum_encode(const struct c2_lay *l,
 	return 0;
 }
 
+/**
+   Enumerate the COB identifiers for a layout with LIST enum type.
+*/
+int list_enumerate(const struct c2_lay_enum *le)
+{
+   /**
+	@code
+	The layout is le->le_lptr->l_id.
+	Use c2_ldb_rec_lookup() to read the layout with that layout id.
+	This will result into a list of COB identifiers stored in
+	c2_lay_list_enum::lle_list_of_cobs.
+	(c2_lay_list_enum is container of c2_lay_enum in this case or c2_lay).)
+
+	@endcode
+   */
+	return 0;
+}
+
+/**
+   Implementation of leo_nr for LIST enumeration.
+   Rerurns number of objects in the enumeration.
+*/
+uint32_t list_nr(const struct c2_lay_enum *le)
+{
+   /**
+	@code
+	list_enumerate(le);
+	And provide number of objects for that layout enumeration.
+	@endcode
+   */
+	return 0;
+}
+
+/**
+   Implementation of leo_get for LIST enumeration.
+   Rerurns idx-th object from the enumeration.
+*/
+void list_get(const struct c2_lay_enum *le,
+	      uint32_t idx,
+	      struct c2_fid *out)
+{
+   /**
+	@code
+	list_enumerate(le);
+	And provide idx-th object from that layout enumeration.
+	@endcode
+   */
+}
+
+
 static const struct c2_lay_enum_type_ops list_ops = {
+	.leto_register		= list_register,
+	.leto_unregister	= list_unregister,
 	.leto_decode		= lay_list_enum_decode,
 	.leto_encode		= lay_list_enum_encode,
 };

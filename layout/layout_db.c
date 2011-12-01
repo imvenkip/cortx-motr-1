@@ -399,9 +399,8 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
 
 	schema->ls_type[lt->lt_id] = lt;
 
-	Allocates type specific state is assigns it to
-	   *c2_ldb_type_data().
-	lt->lto_register(lt, schema);
+	Allocate type specific schema data using lto_register().
+	lt->lto_register(schema, lt);
 
 	@endcode
    */
@@ -423,18 +422,17 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
    maintained by c2_ldb_schema::ls_type[].
 */
 void c2_ldb_enum_register(struct c2_ldb_schema *schema,
-			  const struct c2_lay_enum_type *et)
+			  const struct c2_lay_enum_type *let)
 {
    /**
 	@code
-	C2_PRE(IS_IN_ARRAY(et->let_id, schema->ls_enum));
-	C2_PRE(schema->ls_enum[et->let_id] == NULL);
+	C2_PRE(IS_IN_ARRAY(let->let_id, schema->ls_enum));
+	C2_PRE(schema->ls_enum[let->let_id] == NULL);
 
-	schema->ls_enum[et->let_id] = et;
+	schema->ls_enum[let->let_id] = let;
 
-	this allocates type specific state is assigns it to
-	*c2_ldb_enum_data().
-	et->leto_register(et, schema);
+	Allocates enum specific schema data using leto_register().
+	let->leto_register(schema, let);
 
 	@endcode
    */

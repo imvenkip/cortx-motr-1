@@ -32,6 +32,7 @@
 /* import */
 #include "lib/tlist.h"	/* struct c2_tl */
 #include "lib/mutex.h"	/* struct c2_mutex */
+#include "db/db.h"	/* struct c2_table */
 
 #include "layout/layout.h"
 
@@ -50,6 +51,11 @@ struct c2_lay_list_enum {
 
 	/** Lock to protect the list of COB identifiers */
 	struct c2_mutex		lle_cob_mutex;
+};
+
+struct list_schema_data {
+	/** Table to store COB lists for all the layout with LIST enum type. */
+	struct c2_table		lsd_cob_lists;
 };
 
 

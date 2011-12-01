@@ -29,8 +29,8 @@
    resources viz. component objects. Thus, it enlists identifiers for all the
    component objects one file maps to.
 
-   A layout is a resource (managed by the Resource Manager). A layout can be
-   assignd to a file both by server and the client.
+   A layout is a resource (managed by the 'Colibri Resource Manager'). A layout
+   can be assignd to a file both by server and the client.
 
    A 'layout type' specifies how a file is stored in a collection of component
    objects.
@@ -48,8 +48,8 @@
      This layout type partitions a file or a part of the file into
      various segments while each of those segment uses a different layout.
 
-   Enumeration method types (also referred as 'enumeration types') supported
-   are:
+   Enumeration method types (also referred as 'enumeration types' or 'enum
+   types') supported currently are:
    - FORMULA <BR>
      A layout with FORMULA enumeration method uses a formula to enumerate all
      its component object identifiers.
@@ -81,7 +81,30 @@ struct c2_lay_enum_ops;
 struct c2_lay_enum_type;
 struct c2_lay_enum_type_ops;
 
-#define INVALID_LID 0
+#define LID_NONE 0
+
+/**
+    In-memory representation of a layout.
+*/
+struct c2_lay {
+	/** Layout id */
+	uint64_t			 l_id;
+
+	/** Layout type */
+	const struct c2_lay_type	*l_type;
+
+	/** Layout enumeration */
+	const struct c2_lay_enum	*l_enum;
+
+	/** Layout operations vector */
+	const struct c2_lay_ops		*l_ops;
+};
+
+struct c2_lay_ops {
+	/** Cleans up while c2_layout object is about to be destoryed. */
+	void	(*lo_fini)(struct c2_lay *lay);
+};
+
 
 /**
    Structure specific to per layout type.
@@ -100,6 +123,16 @@ struct c2_lay_type {
 };
 
 struct c2_lay_type_ops {
+	/** Allocates layout type specific schema data.
+	    e.g. comp_layout_ext_map table.
+	*/
+	int	(*lto_register)(struct c2_ldb_schema *schema,
+				const struct c2_lay_type *lt);
+
+	/** Deallocates layout type specific schema data. */
+	int	(*lto_unregister)(struct c2_ldb_schema *schema,
+				  const struct c2_lay_type *lt);
+
 	/** Compares two layouts */
 	bool	(*lto_equal)(const struct c2_lay *l0,
 			     const struct c2_lay *l1);
@@ -125,22 +158,6 @@ struct c2_lay_type_ops {
 
 
 /**
-    In-memory representation of a layout.
-*/
-
-struct c2_lay {
-	uint64_t			 l_id;
-	const struct c2_lay_type	*l_type;
-	const struct c2_lay_enum	*l_enum;
-	const struct c2_lay_ops		*l_ops;
-};
-
-struct c2_lay_ops {
-	void	(*lo_init)(struct c2_lay *lay);
-	void	(*lo_fini)(struct c2_lay *lay);
-};
-
-/**
    Structure specific to per layout enumeration type.
    There is an instance of c2_lay_enum_type for each one of enumeration
    types. e.g. for FORMULA and LIST enumeration method types.
@@ -157,6 +174,15 @@ struct c2_lay_enum_type {
 };
 
 struct c2_lay_enum_type_ops {
+	/** Allocate enumeration type specific schema data.
+	    e.g. cob_lists table.
+	*/
+	int	(*leto_register)(struct c2_ldb_schema *schema,
+				 const struct c2_lay_enum_type *et);
+	/** Deallocate enumeration type specific schema data. */
+	int	(*leto_unregister)(struct c2_ldb_schema *schema,
+				   const struct c2_lay_enum_type *et);
+
 	/** Continues encoding layout representation stored in the buffer and
 	    building the layout.
 	*/
@@ -174,6 +200,9 @@ struct c2_lay_enum_type_ops {
    Layout enumeration method.
 */
 struct c2_lay_enum {
+	/** Pointer back to c2_lay object this c2_lay_enum is part of. */
+	const struct c2_lay		*le_lptr;
+
 	const struct c2_lay_enum_ops	*le_ops;
 };
 

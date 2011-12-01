@@ -25,7 +25,6 @@
 #include "lib/types.h"	/* struct c2_uint128 */
 #include "fid/fid.h"	/* struct c2_fid */
 #include "db/db.h"	/* struct c2_table */
-#include "db/extmap.h"	/* struct c2_emap */
 
 #include "layout/layout.h"
 
@@ -131,19 +130,20 @@ struct c2_ldb_schema {
 	struct c2_table			 ls_layouts;
 
 	/** Layout types array.
-	    It is used to find layout type with given identifier.
+	    Used to find layout type with given identifier.
 	*/
 	struct c2_lay_type		*ls_type[C2_LAY_TYPE_MAX];
 
 	/** Enumeration types array.
-	    It is used to find enumeration type with given identifier.
+	    Used to find enum type with given identifier.
 	*/
 	struct c2_lay_enum_type		*ls_enum[C2_LAY_ENUM_MAX];
 
+	/** Layout type specific data. */
 	void				*ls_type_data[C2_LAY_TYPE_MAX];
-	void				*ls_enum_data[C2_LAY_ENUM_MAX];
 
-	struct ldb_schema_internal	*ls_internal;
+	/** Layout enum type specific data. */
+	void				*ls_enum_data[C2_LAY_ENUM_MAX];
 };
 
 /**
@@ -211,22 +211,6 @@ int c2_ldb_rec_lookup(const uint64_t *id,
  * @addtogroup LayoutDBDFSInternal
  * @{
  */
-
-/**
-   Internal layout schema.
-   It includes pointers to tables used internally for storing data specific to
-   various layout types and various enumeration types.
-*/
-struct ldb_schema_internal {
-	/** Table for COB lists for all the layout types it is applicable for.
-            e.g. Currently, it is applicable for PDCLUST layout type with
-            LIST enumeration type.
-	*/
-	struct c2_table		lsi_cob_lists;
-
-	/* Table for extent maps for all the COMPOSITE type of layouts. */
-	struct c2_emap		lsi_comp_layout_ext_map;
-};
 
 /**
    Compare layouts table keys.
