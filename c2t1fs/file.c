@@ -574,6 +574,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	gob_fid   = ci->ci_fid;
 	unit_size = ci->ci_unit_size;
 
+	/* unit_size should be multiple of PAGE_CACHE_SIZE */
+	C2_ASSERT((unit_size & (PAGE_CACHE_SIZE - 1)) == 0);
+
 	nr_data_units           = pd_layout->pl_N;
 	nr_parity_units         = pd_layout->pl_K;
 	nr_units_per_group      = nr_data_units + 2 * nr_parity_units;

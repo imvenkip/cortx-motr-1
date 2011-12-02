@@ -127,7 +127,7 @@
 
    - container id 1,2..,P will be served by io-services. P number of containers
      will be equally divided among available io-services.
-     For a global file object having fid <0, K>, there will be P number of
+     For a global file object having fid <0, K>, there will be P
      target objects having fids {<i, K> | i = 1, 2, ..., P}.
      Data of global file will be striped across these P target objects, using
      parity declustered layout with N, K parameters coming from mount options
@@ -308,41 +308,38 @@ struct c2t1fs_container_location_map {
  */
 struct c2t1fs_sb {
 	/** Parsed mount options */
-	struct c2t1fs_mnt_opts csb_mnt_opts;
+	struct c2t1fs_mnt_opts        csb_mnt_opts;
 
-	/** rpc connection with management service (aka confd) */
-	struct c2_rpc_conn     csb_mgs_conn;
-
-	/** rpc session with management service */
-	struct c2_rpc_session  csb_mgs_session;
+	/** service context of MGS. Not a member of csb_service_contexts */
+	struct c2t1fs_service_context csb_mgs;
 
 	/** number of contexts in csb_service_contexts list, that have
 	    ACTIVE rpc connection and rpc session.
 	    csb_nr_active_contexts <= c2_tlist_length(&csb_service_contexts) */
-	uint32_t               csb_nr_active_contexts;
+	uint32_t                      csb_nr_active_contexts;
 
 	/** list of service contexs */
-	struct c2_tl           csb_service_contexts;
+	struct c2_tl                  csb_service_contexts;
 
 	/** Total number of containers. */
-	uint32_t               csb_nr_containers;
+	uint32_t                      csb_nr_containers;
 
 	/** Number of data units per parity group. N */
-	uint32_t               csb_nr_data_units;
+	uint32_t                      csb_nr_data_units;
 
 	/** Number of parity units per group. K */
-	uint32_t               csb_nr_parity_units;
+	uint32_t                      csb_nr_parity_units;
 
 	/** Stripe unit size */
-	uint32_t               csb_unit_size;
+	uint32_t                      csb_unit_size;
 
 	/** used by temporary implementation of c2t1fs_fid_alloc(). */
-	uint64_t               csb_next_key;
+	uint64_t                      csb_next_key;
 
 	struct c2t1fs_container_location_map csb_cl_map;
 
 	/** mutex that serialises all file and directory operations */
-	struct c2_mutex        csb_mutex;
+	struct c2_mutex               csb_mutex;
 };
 
 /**
