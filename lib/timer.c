@@ -159,8 +159,8 @@ static c2_time_t zero_time;
  */
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 		tt_linkage, tt_magic,
-		0x696c444954726d74,	/* ASCII "tmrTIDli" - timer thread ID list item */
-		0x686c444954726d74);	/* ASCII "tmrTIDlh" - timer thread ID list head */
+		0x696c444954726d74,	/** ASCII "tmrTIDli" - timer thread ID list item */
+		0x686c444954726d74);	/** ASCII "tmrTIDlh" - timer thread ID list head */
 C2_TL_DEFINE(tid, static, struct timer_tid);
 
 /**
@@ -504,11 +504,6 @@ static int timer_hard_stop(struct c2_timer *timer)
 	return 0;
 }
 
-/**
-   Set timer t_tid and t_signo to some thread from locality and signo
-   from locality.
-   Also delete and create POSIX timer with new t_tid and t_signo.
- */
 void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 {
 	struct timer_tid *tt;
