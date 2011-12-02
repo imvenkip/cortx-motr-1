@@ -49,8 +49,10 @@ enum c2_timer_state {
 	TIMER_INITED,
 	/* Timer is running. */
 	TIMER_RUNNING,
-	/* Maximum value in enum */
-	TIMER_STATE_MAX
+	/* Number of timer states */
+	TIMER_STATE_NR,
+	/* Invalid state */
+	TIMER_INVALID = TIMER_STATE_NR
 };
 
 struct timer_tid;

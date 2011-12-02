@@ -131,7 +131,7 @@ enum timer_func {
 	TIMER_START,
 	TIMER_STOP,
 	TIMER_ATTACH,
-	TIMER_FUNC_MAX
+	TIMER_FUNC_NR
 };
 
 /**
@@ -402,17 +402,34 @@ static void timer_state_change(struct c2_timer *timer, enum timer_func func)
 {
 	enum c2_timer_state new_state;
 	static enum c2_timer_state
-		transition[TIMER_FUNC_MAX][TIMER_STATE_MAX] = {
-		{ TIMER_INITED,    TIMER_STATE_MAX, TIMER_STATE_MAX },
-		{ TIMER_STATE_MAX, TIMER_UNINIT,    TIMER_STATE_MAX },
-		{ TIMER_STATE_MAX, TIMER_RUNNING,   TIMER_STATE_MAX },
-		{ TIMER_STATE_MAX, TIMER_STATE_MAX, TIMER_INITED    },
-		{ TIMER_STATE_MAX, TIMER_INITED,    TIMER_STATE_MAX } };
+		transition[TIMER_STATE_NR][TIMER_FUNC_NR] = {
+			[TIMER_UNINIT] = {
+				[TIMER_INIT]   = TIMER_INITED,
+				[TIMER_FINI]   = TIMER_INVALID,
+				[TIMER_START]  = TIMER_INVALID,
+				[TIMER_STOP]   = TIMER_INVALID,
+				[TIMER_ATTACH] = TIMER_INVALID
+			},
+			[TIMER_INITED] = {
+				[TIMER_INIT]   = TIMER_INVALID,
+				[TIMER_FINI]   = TIMER_UNINIT,
+				[TIMER_START]  = TIMER_RUNNING,
+				[TIMER_STOP]   = TIMER_INVALID,
+				[TIMER_ATTACH] = TIMER_INITED
+			},
+			[TIMER_RUNNING] = {
+				[TIMER_INIT]   = TIMER_INVALID,
+				[TIMER_FINI]   = TIMER_INVALID,
+				[TIMER_START]  = TIMER_INVALID,
+				[TIMER_STOP]   = TIMER_INITED,
+				[TIMER_ATTACH] = TIMER_INVALID
+			}
+		};
 
 	new_state = func == TIMER_INIT ? TIMER_INITED :
-		transition[func][timer->t_state];
+		transition[timer->t_state][func];
 
-	C2_ASSERT(new_state != TIMER_STATE_MAX);
+	C2_ASSERT(new_state != TIMER_INVALID);
 	timer->t_state = new_state;
 }
 
