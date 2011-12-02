@@ -386,7 +386,8 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 C2_EXPORTED(c2_pdclust_fini);
 
 int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
-		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     uint32_t N, uint32_t K, uint64_t unitsize,
+		     const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out)
 {
 	struct c2_pdclust_layout *pdl;
@@ -415,9 +416,10 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		pdl->pl_layout.l_ops     = &pdlclust_ops;
 		pdl->pl_layout.l_id      = *id;
 
-		pdl->pl_seed = *seed;
-		pdl->pl_N = N;
-		pdl->pl_K = K;
+		pdl->pl_seed      = *seed;
+		pdl->pl_N         = N;
+		pdl->pl_K         = K;
+		pdl->pl_unit_size = unitsize;
 
 		pdl->pl_pool = pool;
 		/* select minimal possible B (least common multiple of P and

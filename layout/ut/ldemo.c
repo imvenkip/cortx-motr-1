@@ -164,6 +164,7 @@ int main(int argc, char **argv)
 	int      R;
 	int      I;
 	int      result;
+	uint64_t unitsize = 4096;
 	struct c2_pdclust_layout  *play;
 	struct c2_pool             pool;
 	struct c2_uint128          id;
@@ -204,8 +205,8 @@ int main(int argc, char **argv)
 	if (result == 0) {
 		result = c2_pool_init(&pool, P);
 		if (result == 0) {
-			result = c2_pdclust_build(&pool, &id, N, K, &seed, 
-						  &play);
+			result = c2_pdclust_build(&pool, &id, N, K, unitsize,
+						  &seed, &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);
 			c2_pool_fini(&pool);

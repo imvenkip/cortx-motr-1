@@ -349,7 +349,8 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 	if (rc != 0)
 		goto out_free;
 
-	rc = c2_pdclust_build(pool, &layout_id, N, K, &seed, &ci->ci_pd_layout);
+	rc = c2_pdclust_build(pool, &layout_id, N, K, unit_size,
+				&seed, &ci->ci_pd_layout);
 	if (rc != 0)
 		goto out_fini;
 
