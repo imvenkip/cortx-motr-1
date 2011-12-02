@@ -365,7 +365,6 @@ static bool pdclust_equal(const struct c2_layout *l0,
 static void pdclust_fini(struct c2_layout *lay)
 {
 	/** @todo */
-	/** Will this be called from c2_layout_fini() ? */
 	return;
 }
 

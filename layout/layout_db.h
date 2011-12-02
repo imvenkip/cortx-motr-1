@@ -122,21 +122,17 @@ enum {
 
 /**
    In-memory data structure for the layout schema.
-   It includes pointers to the layouts table and various related
+   It includes pointer to the layouts table and various related
    parameters.
 */
 struct c2_ldb_schema {
-	/** Table for layout record entries */
+	/** Table for layout record entries. */
 	struct c2_table			 ls_layouts;
 
-	/** Layout types array.
-	    Used to find layout type with given identifier.
-	*/
+	/** Layout types array. */
 	struct c2_layout_type		*ls_type[C2_LAY_TYPE_MAX];
 
-	/** Enumeration types array.
-	    Used to find enum type with given identifier.
-	*/
+	/** Enumeration types array. */
 	struct c2_layout_enum_type	*ls_enum[C2_LAY_ENUM_MAX];
 
 	/** Layout type specific data. */
@@ -144,6 +140,12 @@ struct c2_ldb_schema {
 
 	/** Layout enum type specific data. */
 	void				*ls_enum_data[C2_LAY_ENUM_MAX];
+
+	/** Lock to protect ls_type[] and ls_type_data[]/ */
+	struct c2_mutex			 ls_type_mutex;
+
+	/** Lock to protect ls_enum[] and ls_enum_data[]/ */
+	struct c2_mutex			 ls_enum_mutex;
 };
 
 /**
@@ -161,7 +163,7 @@ struct c2_ldb_rec {
 	*/
 	uint64_t			lr_let_id;
 
-	/** Layout record reference count.
+	/** Layout reference count.
 	    Indicating number of files using this layout.
 	*/
 	uint64_t			lr_ref_count;

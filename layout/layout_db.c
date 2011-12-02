@@ -339,15 +339,6 @@ static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_ldb
 	return true;
 }
 
-static int __attribute__ ((unused)) ldb_schema_internal_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
-{
-	return 0;
-}
-
-static void __attribute__ ((unused)) ldb_schema_internal_fini(struct c2_ldb_schema *schema)
-{
-}
-
 /** @} end group LayoutDBDFSInternal */
 
 /**
@@ -356,14 +347,14 @@ static void __attribute__ ((unused)) ldb_schema_internal_fini(struct c2_ldb_sche
  */
 
 /**
-   Initializes new layout schema - creates the DB tables.
+   Initializes layout schema - creates the layouts table.
 */
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *db)
 {
    /**
 	@code
-	Use the DB interface c2_table_init() to intialize the DB tables.
+	Use the DB interface c2_table_init() to intialize the layouts table.
 	@endcode
    */
 	return 0;
@@ -491,8 +482,7 @@ int c2_ldb_rec_add(const struct c2_layout *l,
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_lay_encode().
-	Add record to the DB using l->l_type->lt_ops->lto_rec_add().
+	@todo Change desc for all these c2_ldb_rec* methods.
 	@endcode
    */
 
@@ -514,8 +504,7 @@ int c2_ldb_rec_delete(const struct c2_layout *layout,
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_lay_encode().
-	Use the function l->l_type->lt_ops->lto_rec_delete.
+	@todo Change desc for all these c2_ldb_rec* methods.
 	@endcode
    */
 	return 0;
@@ -531,8 +520,7 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
 {
    /**
 	@code
-	Store layout representation in a buffer using c2_lay_encode().
-	Use the function l->l_type->lt_ops->lto_rec_update.
+	@todo Change desc for all these c2_ldb_rec* methods.
 	@endcode
    */
 	return 0;
@@ -549,12 +537,9 @@ int c2_ldb_rec_lookup(const uint64_t *lid,
 {
    /**
 	@code
-	---
-	Use the function l->l_type->lt_ops->lto_rec_lookup to obtain
-	the buffer including the record.
-	Convert the buffer into layout using using c2_lay_decode().
-	---
+	@todo Change this pseudo code:
 
+	---
 	Invoke
 	struct c2_db_pair	 pair;
 	struct c2_layout_rec	*rec;
@@ -576,6 +561,7 @@ int c2_ldb_rec_lookup(const uint64_t *lid,
 
 	parse the layout type specific part using decode
 	schema->ls_types[rec->lr_lt_id]->lto_decode(&it, rec, out);
+	---
 
 	@endcode
    */

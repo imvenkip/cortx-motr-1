@@ -96,6 +96,11 @@ struct c2_layout {
 	/** Layout enumeration. */
 	const struct c2_layout_enum		*l_enum;
 
+	/** Layout reference count.
+	    Indicating how many files are using this layout.
+	*/
+	uint64_t				*l_ref;
+
 	/** Layout operations vector. */
 	const struct c2_layout_ops		*l_ops;
 };
@@ -132,7 +137,7 @@ struct c2_layout_type_ops {
 	int	(*lto_unregister)(struct c2_ldb_schema *schema,
 				  const struct c2_layout_type *lt);
 
-	/** Compares two layouts */
+	/** Compares two layouts. */
 	bool	(*lto_equal)(const struct c2_layout *l0,
 			     const struct c2_layout *l1);
 
@@ -221,8 +226,11 @@ struct c2_layout_enum_type_ops {
 			       struct c2_bufvec_cursor *out);
 };
 
+int	c2_layouts_init(void);
+void	c2_layouts_fini(void);
+
 void	c2_layout_init(struct c2_layout *lay,
-		       const uint64_t id,
+		       const uint64_t lid,
 		       const struct c2_layout_type *type,
 		       const struct c2_layout_enum *e,
 		       const struct c2_layout_ops *ops);
@@ -238,18 +246,10 @@ int	c2_layout_encode(bool toDB, const struct c2_layout *l,
 			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *out);
 
-/* todo Where to initialize all the layout types from. Check pdclust_layout_init() called from c2t1fs/main.c. */
-
-int	c2_layouts_init(void);
-void	c2_layouts_fini(void);
-
-/** Read a layout record from the layouts table. */
 int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
 		    struct c2_db_pair *pair,
 		    struct c2_ldb_schema *schema,
 		    struct c2_db_tx *tx);
-
-/** Write a layout record to the layouts table. */
 int ldb_layout_write(const uint32_t recsize,
 		    struct c2_bufvec_cursor *pair,
 		    struct c2_ldb_schema *schema,

@@ -68,7 +68,7 @@ struct c2_layout_formula_parameter_type {
 	const char	*lfpt_name;
 
 	int	(*lfpt_convert)(const struct c2_layout_formula_parameter *other,
-					struct c2_layout_formula_parameter *out);
+				struct c2_layout_formula_parameter *out);
 };
 
 

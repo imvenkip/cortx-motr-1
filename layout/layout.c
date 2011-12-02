@@ -29,6 +29,41 @@
    @{
  */
 
+/** 
+   Initializes layout schema, creates generic table to store layout records.
+   Registers all the layout types amd enum types by creating layout type and
+   enum type specific tables, if they do not exist already.
+*/
+int c2_layouts_init(void)
+{
+   /** 
+	@code
+	Invoke c2_ldb_schema_init().
+
+	Register pdclust layout type, using c2_ldb_type_register().
+	Register composite layout type, using c2_ldb_type_register().
+
+	Register list enumeration type, using c2_ldb_enum_register().
+	Register formula enumeration type, using c2_ldb_enum_register().
+	@endcode
+   */
+	return 0;	
+}
+
+/** Unregisters all the layout types amd enum types. */
+void c2_layouts_fini(void)
+{
+   /** 
+	@code
+	Unregister pdclust layout type, using c2_ldb_type_unregister().
+	Unregister composite layout type, using c2_ldb_type_unregister().
+
+	Unregister list enumeration type, using c2_ldb_enum_unregister().
+	Unregister formula enumeration type, using c2_ldb_enum_unregister().
+	@endcode
+   */	
+}
+
 void c2_layout_init(struct c2_layout *lay,
 		    const uint64_t id,
 		    const struct c2_layout_type *type,
@@ -177,26 +212,6 @@ int c2_layout_encode(bool toDB, const struct c2_layout *l,
    */
 
 	return 0;
-}
-
-
-int c2_lays_init(void)
-{
-   /**
-	@code
-	Invoke lay->l_ops->lo_init() for all the registered layout types.
-	@endcode
-   */
-	return 0;
-}
-
-void c2_lays_fini(void)
-{
-   /**
-	@code
-	Invoke lay->l_ops->lo_fini() for all the registered layout types.
-	@endcode
-   */
 }
 
 
