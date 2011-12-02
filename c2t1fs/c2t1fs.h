@@ -361,7 +361,7 @@ struct c2t1fs_inode {
 	struct c2_fid             ci_fid;
 
 	/** layout of file's data */
-	struct c2_pdclust_layout *ci_pd_layout;
+	struct c2_layout         *ci_layout;
 
 	/** valid number of entries in ci_dir_ents[] */
 	int                       ci_nr_dir_ents;

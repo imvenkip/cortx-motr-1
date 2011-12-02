@@ -50,6 +50,11 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
+static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
+{
+	return container_of(l, struct c2_pdclust_layout, pl_layout);
+}
+
 const struct file_operations c2t1fs_reg_file_operations = {
 	.llseek    = generic_file_llseek,
 	.aio_read  = c2t1fs_file_aio_read,
@@ -205,10 +210,10 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 
 	addr = (unsigned long)buf;
 
-	pd_layout = ci->ci_pd_layout;
+	pd_layout = layout_to_pd_layout(ci->ci_layout);
 
 	/* stripe width = number of data units * size of each unit */
-	stripe_width = pd_layout->pl_N * ci->ci_pd_layout->pl_unit_size;
+	stripe_width = pd_layout->pl_N * pd_layout->pl_unit_size;
 
 	/*
 	 * Requested IO size and position within file must be
@@ -570,9 +575,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 
-	pd_layout = ci->ci_pd_layout;
+	pd_layout = layout_to_pd_layout(ci->ci_layout);
 	gob_fid   = ci->ci_fid;
-	unit_size = ci->ci_pd_layout->pl_unit_size;
+	unit_size = pd_layout->pl_unit_size;
 
 	TRACE("Unit size: %lu\n", (unsigned long)unit_size);
 

@@ -89,7 +89,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	START();
 
 	C2_SET0(&ci->ci_fid);
-	ci->ci_pd_layout = NULL;
+	ci->ci_layout = NULL;
 
 	ci->ci_nr_dir_ents = 0;
 	C2_SET0(&ci->ci_dir_ents);
@@ -103,7 +103,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	START();
 
-	pd_layout = ci->ci_pd_layout;
+	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
+					pl_layout);
 	if (pd_layout != NULL) {
 		c2_pool_fini(pd_layout->pl_pool);
 		c2_free(pd_layout->pl_pool);
@@ -324,10 +325,11 @@ out_err:
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 				uint64_t unit_size)
 {
-	struct c2_uint128  layout_id;
-	struct c2_uint128  seed;
-	struct c2_pool    *pool;
-	int                rc;
+	struct c2_pdclust_layout *pd_layout;
+	struct c2_uint128         layout_id;
+	struct c2_uint128         seed;
+	struct c2_pool           *pool;
+	int                       rc;
 
 	START();
 
@@ -350,17 +352,21 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 		goto out_free;
 
 	rc = c2_pdclust_build(pool, &layout_id, N, K, unit_size,
-				&seed, &ci->ci_pd_layout);
+				&seed, &pd_layout);
 	if (rc != 0)
 		goto out_fini;
+
+	ci->ci_layout = &pd_layout->pl_layout;
 
 	END(0);
 	return 0;
 
 out_fini:
 	c2_pool_fini(pool);
+
 out_free:
 	c2_free(pool);
+
 out:
 	C2_ASSERT(rc != 0);
 	END(rc);
