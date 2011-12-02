@@ -34,14 +34,6 @@ void c2_fits_fini(void)
 {
 }
 
-void c2_fits_all_init(void)
-{
-}
-
-void c2_fits_all_fini(void)
-{
-}
-
 struct c2_fop_field_type;
 
 int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
