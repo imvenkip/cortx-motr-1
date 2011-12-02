@@ -144,8 +144,10 @@ struct timer_tid {
 };
 
 /**
-   Signal number for every new hard timer is chosen in a round-robin fashion.
-   This variable contains signal number for next timer.
+ * Signal number for every new hard timer is chosen in a round-robin fashion.
+ * This variable contains signal number for next timer.
+ * sig_atomic_t is chosen because for this type is guaranteed atomically
+ * reading or writing without "heavy" processor atomic instructions.
  */
 static sig_atomic_t signo_rr;
 /* magic interval for c2_timer_stop() */
@@ -157,8 +159,8 @@ static c2_time_t null_time;
  */
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 		tt_linkage, tt_magic,
-		0x696c444954726d74,	// ASCII "tmrTIDli" - timer thread ID list item
-		0x686c444954726d74);	// ASCII "tmrTIDlh" - timer thread ID list head
+		0x696c444954726d74,	/* ASCII "tmrTIDli" - timer thread ID list item */
+		0x686c444954726d74);	/* ASCII "tmrTIDlh" - timer thread ID list head */
 C2_TL_DEFINE(tid, static, struct timer_tid);
 
 /**
@@ -496,6 +498,7 @@ static int timer_hard_stop(struct c2_timer *timer)
 	rc = timer_posix_set(timer, c2_time_now(), magic_interval);
 	if (rc != 0)
 		return rc;
+	/* wait until internal POSIX timer is disarmed */
 	c2_semaphore_down(&timer->t_stop_sem);
 	timer->t_stopping = false;
 	return 0;

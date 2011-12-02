@@ -136,6 +136,8 @@ struct c2_timer {
 
 	/**
 	   Signal number for POSIX timer.
+	   Initially set in c2_timer_init() to some valid signal number.
+	   Can be changed by calling c2_timer_attach().
 	   Used in hard timer implementation.
 	 */
 	int t_signo;
@@ -147,7 +149,9 @@ struct c2_timer {
 	enum c2_timer_state t_state;
 
 	/**
-	   Used in hard timer implementation.
+	   Used in hard timer implementation as boolean variable.
+	   If it is true, than there is no need for callbacks executing
+	   for this timer.
 	 */
 	sig_atomic_t t_stopping;
 
@@ -180,6 +184,7 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc);
 
 /**
    Add current thread to the list of threads in locality.
+   Current thread must not be in this list.
    Can return -ENOMEM if there is no free memory for timer_tid structure.
  */
 int c2_timer_thread_attach(struct c2_timer_locality *loc);
@@ -190,6 +195,13 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc);
  */
 void c2_timer_thread_detach(struct c2_timer_locality *loc);
 
+/**
+   Attach hard timer to the given locality.
+   This function will set timer signal number to signal number, associated
+   with given locality, and thread ID for timer callback - it will be chosen
+   from locality threads list in round-robin fashion.
+   Therefore internal POSIX timer will be recreated.
+ */
 void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
 
 /** @} end of timer group */
