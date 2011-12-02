@@ -173,7 +173,7 @@ static void nothing(int unused)
 
 /**
    gettid(2) implementation.
-   Thread-safe, async-sighal-safe.
+   Thread-safe, async-signal-safe.
  */
 static pid_t gettid() {
 
@@ -346,7 +346,7 @@ static int timer_sigaction(int signo,
 }
 
 /**
-   Sighal handler for all POSIX timers.
+   Signal handler for all POSIX timers.
    si->si_value.sival_ptr contains pointer to corresponding c2_timer structure.
  */
 static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
