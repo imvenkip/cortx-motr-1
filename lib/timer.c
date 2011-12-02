@@ -310,7 +310,7 @@ static int timer_posix_set(struct c2_timer *timer,
    Get POSIX timer interval.
    Returns null_time for disarmed timer.
  */
-static void timer_posix_get_interval(struct c2_timer *timer,
+static void timer_posix_get(struct c2_timer *timer,
 		c2_time_t *interval)
 {
 	struct itimerspec it;
@@ -370,7 +370,7 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 		 * magic_interval as interval. In this case timer_hard_stop()
 		 * is locked on t_stop_sem semaphore.
 		 */
-		timer_posix_get_interval(timer, &interval);
+		timer_posix_get(timer, &interval);
 		if (interval == magic_interval) {
 			timer_posix_set(timer, null_time, null_time);
 			c2_semaphore_up(&timer->t_stop_sem);
