@@ -204,7 +204,7 @@ static void sequence_process(const struct c2_fop_field_type *ftype,
         struct c2_fop_field_type *cftype;
         enum c2_fop_field_aggr    cgtype;
 	void			 *tmp_value;
-	struct c2_fop_vec	 *vec_data;
+	struct c2_cons_fop_vec	 *vec_data;
 
 
 	if (!yaml_support)
@@ -214,7 +214,7 @@ static void sequence_process(const struct c2_fop_field_type *ftype,
 	cgtype = cftype->fft_aggr;
 	aggr_ops[cgtype].caggr_process_val(cftype, child->ff_name,
 					   data, output);
-	vec_data = (struct c2_fop_vec *)data;
+	vec_data = (struct c2_cons_fop_vec *)data;
 	C2_ALLOC_ARR(vec_data->fv_seg, vec_data->fv_count);
 	C2_ASSERT(vec_data->fv_seg != NULL);
 	if (yaml_support) {

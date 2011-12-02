@@ -14,7 +14,7 @@ libcolibri_console_la_SOURCES	= $(console_U_SOURCES) console.ff \
 				  console_yaml.h console_yaml.c \
 				  console_it.h console_it.c \
 				  console_mesg.h console_mesg.c \
-				  console.h console.c main.c
+				  console.h console.c
 
 EXTRA_DIST			= console.ff
 
