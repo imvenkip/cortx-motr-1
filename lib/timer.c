@@ -152,7 +152,7 @@ struct timer_tid {
 static sig_atomic_t signo_rr;
 /* magic interval for c2_timer_stop() */
 static c2_time_t magic_interval;
-static c2_time_t null_time;
+static c2_time_t zero_time;
 
 /**
  * Typed list of timer_tid structures.
@@ -287,7 +287,7 @@ static int timer_posix_init(struct c2_timer *timer)
 }
 
 /**
-   Delete POSIX timer timer->t_ptimer.
+   Delete POSIX timer.
  */
 static int timer_posix_fini(struct c2_timer *timer)
 {
@@ -311,7 +311,7 @@ static int timer_posix_set(struct c2_timer *timer,
 
 /**
    Get POSIX timer interval.
-   Returns null_time for disarmed timer.
+   Returns zero_time for disarmed timer.
  */
 static void timer_posix_get(struct c2_timer *timer,
 		c2_time_t *interval)
@@ -375,9 +375,9 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 		 */
 		timer_posix_get(timer, &interval);
 		if (interval == magic_interval) {
-			timer_posix_set(timer, null_time, null_time);
+			timer_posix_set(timer, zero_time, zero_time);
 			c2_semaphore_up(&timer->t_stop_sem);
-		} else if (interval != null_time) {
+		} else if (interval != zero_time) {
 			C2_IMPOSSIBLE("impossible POSIX timer interval");
 		}
 	} else if (timer->t_left > 0) {
@@ -388,7 +388,7 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 		timer->t_callback(timer->t_data);
 		if (--timer->t_left > 0) {
 			expire = c2_time_add(c2_time_now(), timer->t_interval);
-			timer_posix_set(timer, expire, null_time);
+			timer_posix_set(timer, expire, zero_time);
 		}
 	} else {
 		C2_IMPOSSIBLE("impossible signal for c2_timer");
@@ -481,7 +481,7 @@ static int timer_hard_start(struct c2_timer *timer)
 	if (timer->t_repeat != 0) {
 		timer->t_left = timer->t_repeat;
 		expire = c2_time_add(c2_time_now(), timer->t_interval);
-		return timer_posix_set(timer, expire, null_time);
+		return timer_posix_set(timer, expire, zero_time);
 	}
 	return 0;
 }
@@ -678,7 +678,7 @@ int c2_timers_init()
 		C2_ASSERT(rc == 0);
 	}
 	c2_time_set(&magic_interval, 60 * 60 * 24, 606024);
-	c2_time_set(&null_time, 0, 0);
+	c2_time_set(&zero_time, 0, 0);
 	return 0;
 }
 C2_EXPORTED(c2_timers_init);
