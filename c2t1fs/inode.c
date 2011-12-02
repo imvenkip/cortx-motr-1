@@ -31,6 +31,14 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque);
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
+const struct c2_tl_descr dir_ents_tld =
+			C2_TL_DESCR("Dir entries",
+				struct c2t1fs_dir_ent,
+				de_link,
+				de_magic,
+				MAGIC_DIRENT,
+				MAGIC_DIRENTHD);
+
 bool c2t1fs_inode_is_root(const struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
@@ -91,8 +99,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	C2_SET0(&ci->ci_fid);
 	ci->ci_layout = NULL;
 
-	ci->ci_nr_dir_ents = 0;
-	C2_SET0(&ci->ci_dir_ents);
+	c2_tlist_init(&dir_ents_tld, &ci->ci_dir_ents);
 
 	END(0);
 }
@@ -100,8 +107,17 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
 	struct c2_pdclust_layout *pd_layout;
+	struct c2t1fs_dir_ent    *de;
 
 	START();
+
+	c2_tlist_for(&dir_ents_tld, &ci->ci_dir_ents, de) {
+		c2_tlist_del(&dir_ents_tld, de);
+		c2t1fs_dir_ent_fini(de);
+		c2_free(de);
+	} c2_tlist_endfor;
+
+	c2_tlist_fini(&dir_ents_tld, &ci->ci_dir_ents);
 
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
 					pl_layout);

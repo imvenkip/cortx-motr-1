@@ -17,7 +17,8 @@
  * Original creation date: 10/14/2011
  */
 
-#include "lib/misc.h"   /* C2_SET0() */
+#include "lib/misc.h"      /* C2_SET0() */
+#include "lib/memory.h"    /* C2_ALLOC_PTR() */
 #include "c2t1fs/c2t1fs.h"
 
 static int c2t1fs_create(struct inode     *dir,
@@ -143,6 +144,33 @@ out:
 	return rc;
 }
 
+void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
+			 const unsigned char   *name,
+			 int                    namelen,
+			 const struct c2_fid   *fid)
+{
+	START();
+
+	memcpy(&de->de_name, name, namelen);
+	de->de_name[namelen] = '\0';
+	de->de_fid           = *fid;
+	de->de_magic         = MAGIC_DIRENT;
+
+	c2_tlink_init(&dir_ents_tld, de);
+
+	END(0);
+}
+
+void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de)
+{
+	START();
+
+	c2_tlink_fini(&dir_ents_tld, de);
+	de->de_magic = 0;
+
+	END(0);
+}
+
 static int c2t1fs_dir_ent_add(struct inode        *dir,
 			      const unsigned char *name,
 			      int                  namelen,
@@ -167,15 +195,15 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	}
 
 	ci = C2T1FS_I(dir);
-	if (ci->ci_nr_dir_ents > C2T1FS_MAX_NR_DIR_ENTS) {
-		rc = -ENOSPC;
+
+	C2_ALLOC_PTR(de);
+	if (de == NULL) {
+		rc = -ENOMEM;
 		goto out;
 	}
 
-	de = &ci->ci_dir_ents[ci->ci_nr_dir_ents++];
-	memcpy(&de->de_name, name, namelen);
-	de->de_name[namelen] = '\0';
-	de->de_fid = *fid;
+	c2t1fs_dir_ent_init(de, name, namelen, fid);
+	c2_tlist_add(&dir_ents_tld, &ci->ci_dir_ents, de);
 
 	TRACE("Added name: %s[%lu:%lu]\n", de->de_name,
 					   (unsigned long)fid->f_container,
@@ -211,7 +239,6 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 	struct c2t1fs_inode   *ci;
 	struct c2t1fs_sb      *csb;
 	struct c2t1fs_dir_ent *de = NULL;
-	int                    i;
 
 	START();
 
@@ -224,15 +251,15 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	C2_ASSERT(c2t1fs_fs_is_locked(csb));
 
-	for (i = 0; i < ci->ci_nr_dir_ents; i++) {
-		de = &ci->ci_dir_ents[i];
-		C2_ASSERT(de != NULL);
+	c2_tlist_for(&dir_ents_tld, &ci->ci_dir_ents, de) {
 
 		if (name_eq(name, de->de_name, namelen)) {
 			END(de);
 			return de;
 		}
-	}
+
+	} c2_tlist_endfor;
+
 	END(NULL);
 	return NULL;
 }
@@ -278,14 +305,15 @@ static int c2t1fs_readdir(struct file *f,
 			  void        *dirent,
 			  filldir_t    filldir)
 {
-	struct c2t1fs_inode *ci;
-	struct c2t1fs_sb    *csb;
-	struct dentry       *dentry;
-	struct inode        *dir;
-	ino_t                ino;
-	int                  i;
-	int                  j;
-	int                  rc;
+	struct c2t1fs_dir_ent *de;
+	struct c2t1fs_inode   *ci;
+	struct c2t1fs_sb      *csb;
+	struct dentry         *dentry;
+	struct inode          *dir;
+	ino_t                  ino;
+	int                    i;
+	int                    skip;
+	int                    rc;
 
 	START();
 
@@ -315,14 +343,18 @@ static int c2t1fs_readdir(struct file *f,
 		i++;
 		/* Fallthrough */
 	default:
-		/* Remember, "." and ".." are not kept in ci_dir_ents[] */
-		j = i - 2;
-		while (j < ci->ci_nr_dir_ents) {
-			struct c2t1fs_dir_ent *de;
-			char                  *name;
-			int                    namelen;
+		/* previous call to readdir() returned f->f_pos number of entries.
+		   Now we should continue after that point */
+		skip = i - 2;
+		c2_tlist_for(&dir_ents_tld, &ci->ci_dir_ents, de) {
+			char *name;
+			int   namelen;
 
-			de      = &ci->ci_dir_ents[j];
+			if (skip != 0) {
+				skip--;
+				continue;
+			}
+
 			name    = de->de_name;
 			namelen = strlen(name);
 
@@ -332,9 +364,8 @@ static int c2t1fs_readdir(struct file *f,
 				goto out;
 			TRACE("filled: \"%s\"\n", name);
 
-			j++;
 			f->f_pos++;
-		}
+		} c2_tlist_endfor;
 	}
 out:
 	c2t1fs_fs_unlock(csb);
@@ -344,34 +375,13 @@ out:
 
 static int c2t1fs_dir_ent_remove(struct inode *dir, struct c2t1fs_dir_ent *de)
 {
-	struct c2t1fs_inode *ci;
-	int                  rc = 0;
-	int                  i;
-	int                  nr_de;
-
 	START();
 
-	ci = C2T1FS_I(dir);
-	nr_de = ci->ci_nr_dir_ents;
+	TRACE("Name: \"%s\"\n", de->de_name);
+	c2_tlist_del(&dir_ents_tld, de);
 
-	i = de - &ci->ci_dir_ents[0];
-
-	TRACE("nr_de %d del entry at %d\n", nr_de, i);
-
-	if (nr_de == 0 || i < 0 || i >= nr_de) {
-		rc = -ENOENT;
-		goto out;
-	}
-
-	/* copy the last entry at index i, and clear last entry */
-	if (nr_de > 1)
-		ci->ci_dir_ents[i] = ci->ci_dir_ents[nr_de - 1];
-
-	C2_SET0(&ci->ci_dir_ents[nr_de - 1]);
-	ci->ci_nr_dir_ents--;
-out:
-	END(rc);
-	return rc;
+	END(0);
+	return 0;
 }
 
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)

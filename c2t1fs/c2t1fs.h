@@ -27,6 +27,7 @@
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
+#include "lib/tlist.h"
 #include "net/net.h"    /* c2_net_domain */
 #include "rpc/rpc2.h"
 
@@ -342,12 +343,24 @@ struct c2t1fs_sb {
 	struct c2_mutex               csb_mutex;
 };
 
+enum {
+	MAGIC_DIRENT   = 0x444952454e54,     /* "DIRENT" */
+	MAGIC_DIRENTHD = 0x444952454e544844  /* "DIRENTHD" */
+};
+
 /**
    Directory entry.
  */
 struct c2t1fs_dir_ent {
-	char          de_name[C2T1FS_MAX_NAME_LEN + 1];
-	struct c2_fid de_fid;
+	char            de_name[C2T1FS_MAX_NAME_LEN + 1];
+	struct c2_fid   de_fid;
+
+	/** Link in c2t1fs_inode::ci_dir_ents list.
+	    List descriptor dir_ents_tld */
+	struct c2_tlink de_link;
+
+	/** magic == MAGIC_DIRENT */
+	uint64_t        de_magic;
 };
 
 /**
@@ -363,12 +376,9 @@ struct c2t1fs_inode {
 	/** layout of file's data */
 	struct c2_layout         *ci_layout;
 
-	/** valid number of entries in ci_dir_ents[] */
-	int                       ci_nr_dir_ents;
-
-	/** list directory entries. Valid for only root inode.
-	    Unused for regular file's inode */
-	struct c2t1fs_dir_ent     ci_dir_ents[C2T1FS_MAX_NR_DIR_ENTS];
+	/** List of c2t1fs_dir_ent objects placed using de_link.
+	    List descriptor dir_ents_tld */
+	struct c2_tl              ci_dir_ents;
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(const struct super_block *sb)
@@ -427,4 +437,14 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 				uint64_t unit_size);
 
 struct c2_fid c2t1fs_target_fid(const struct c2_fid *gob_fid, int index);
+
+extern const struct c2_tl_descr dir_ents_tld;
+
+void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
+			 const unsigned char   *name,
+			 int                    namelen,
+			 const struct c2_fid   *fid);
+
+void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+
 #endif /* __COLIBRI_C2T1FS_H */
