@@ -157,7 +157,8 @@ static c2_time_t null_time;
  */
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 		tt_linkage, tt_magic,
-		0x48e42721b3738bfd, 0xc2fe5365aafe4064);
+		0x696c444954726d74,	// ASCII "tmrTIDli" - timer thread ID list item
+		0x686c444954726d74);	// ASCII "tmrTIDlh" - timer thread ID list head
 C2_TL_DEFINE(tid, static, struct timer_tid);
 
 /**
