@@ -444,8 +444,7 @@ static int timer_hard_init(struct c2_timer *timer)
 	timer_state_change(timer, TIMER_INIT);
 	timer->t_stopping = false;
 	timer->t_tid = gettid();
-	timer->t_signo = signo_rr;
-	signo_rr = signo_rr_get();
+	timer->t_signo = signo_rr_get();
 	rc = timer_posix_init(timer);
 	if (rc != 0)
 		return rc;
