@@ -862,9 +862,11 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 		 * In case the reply is duplicate/unwanted then
 		 * c2_rpc_slot_reply_received() sets req to NULL.
 		 */
-		if (req != NULL)
+		if (req != NULL) {
 			/* Send reply received event to formation component.*/
 			frm_item_reply_received(item, req);
+			rpc_item_replied(req, item, 0);
+		}
 	}
 	return 0;
 }

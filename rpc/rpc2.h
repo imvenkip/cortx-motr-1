@@ -983,6 +983,9 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item,
  */
 int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item);
 
+void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+					                      uint32_t rc);
+
 /** @} endgroup of rpc_bulk */
 
 /** @} end group rpc_layer_core */
