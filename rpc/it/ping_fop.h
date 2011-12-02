@@ -21,17 +21,10 @@
 #define __COLIBRI_PING_FOP_H__
 
 #include "fop/fop.h"
+#include "rpc/rpc_opcodes.h"
 
 int c2_ping_fop_init(void);
 void c2_ping_fop_fini(void);
-
-/**
- * The opcode from which IO service FOPS start.
- */
-enum c2_fop_ping_opcodes {
-	c2_fop_ping_opcode = 45,
-	c2_fop_ping_rep_opcode,
-};
 
 /**
  * FOP definitions and corresponding fop type formats
@@ -42,14 +35,11 @@ extern struct c2_fop_type_format c2_fop_ping_rep_tfmt;
 extern struct c2_fop_type c2_fop_ping_fopt;
 extern struct c2_fop_type c2_fop_ping_rep_fopt;
 
-extern struct c2_rpc_item_type_ops rpc_item_ping_type_ops;
-extern struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops;
+extern const struct c2_fop_type_ops c2_fop_ping_ops;
+extern const struct c2_fop_type_ops c2_fop_ping_rep_ops;
 
-extern struct c2_fop_type_ops c2_fop_ping_ops;
-extern struct c2_fop_type_ops c2_fop_ping_rep_ops;
-
-extern struct c2_rpc_item_type c2_rpc_item_type_ping;
-extern struct c2_rpc_item_type c2_rpc_item_type_ping_rep;
+extern const struct c2_rpc_item_type c2_rpc_item_type_ping;
+extern const struct c2_rpc_item_type c2_rpc_item_type_ping_rep;
 
 /* __COLIBRI_PING_FOP_H__ */
 #endif

@@ -39,7 +39,6 @@ extern const struct c2_test_suite emap_ut;
 extern const struct c2_test_suite fit_ut;
 extern const struct c2_test_suite fol_ut;
 extern const struct c2_test_suite fop_ut;
-extern const struct c2_test_suite net_client_ut; /* deprecated */
 extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite c2_net_bulk_sunrpc_ut;
@@ -48,13 +47,15 @@ extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite rm_ut;
-extern const struct c2_test_suite xdr_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
 extern const struct c2_test_suite reqh_ut;
+extern const struct c2_test_suite rpc_onwire_ut;
+extern const struct c2_test_suite xcode_bufvec_ut;
 extern const struct c2_test_suite colibri_setup_ut;
-extern const struct c2_test_suite rpc_helper_ut;
+extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite cfm_ut;
 extern const struct c2_test_suite yaml2db_ut;
+extern const struct c2_test_suite buffer_pool_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -76,9 +77,10 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-		c2_ut_add(&libc2_ut);
+	        c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
+		c2_ut_add(&buffer_pool_ut);
 		c2_ut_add(&capa_ut);
 		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);
@@ -92,16 +94,16 @@ int main(int argc, char *argv[])
 		c2_ut_add(&c2_net_bulk_if_ut);
 		c2_ut_add(&c2_net_bulk_mem_ut);
 		c2_ut_add(&c2_net_bulk_sunrpc_ut);
-		c2_ut_add(&net_client_ut);
 		c2_ut_add(&parity_math_ut);
 		c2_ut_add(&reqh_ut);
 		c2_ut_add(&rm_ut);
-		c2_ut_add(&rpc_helper_ut);
+		c2_ut_add(&rpclib_ut);
+		c2_ut_add(&rpc_onwire_ut);
 		c2_ut_add(&sm_ut);
 		c2_ut_add(&stobio_ut);
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xcode_bufvec_fop_ut);
-		c2_ut_add(&xdr_ut);
+		c2_ut_add(&xcode_bufvec_ut);
 		c2_ut_add(&yaml2db_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)

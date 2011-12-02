@@ -21,7 +21,7 @@
  */
 
 #include "cob/cob.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "ioservice/io_fops.h"
 #include "rpc/rpcdbg.h"
 #include "lib/memory.h"
@@ -35,6 +35,7 @@
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_onwire.h"
+#include "fop/fop_onwire.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
 
@@ -105,7 +106,6 @@ static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 };
 
 static const struct c2_update_stream_ops update_stream_ops;
-static const struct c2_rpc_item_type_ops rpc_item_ops;
 
 static int update_stream_init(struct c2_update_stream *us,
 			       struct c2_rpcmachine *mach)
@@ -293,6 +293,12 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 
 int c2_rpc_core_init(void)
 {
+	int	rc;
+
+	rc = c2_rpc_base_init();
+	if (rc != 0)
+		return rc;
+
 	return c2_rpc_session_module_init();
 }
 C2_EXPORTED(c2_rpc_core_init);
@@ -300,6 +306,7 @@ C2_EXPORTED(c2_rpc_core_init);
 void c2_rpc_core_fini(void)
 {
 	c2_rpc_session_module_fini();
+	c2_rpc_base_fini();
 }
 C2_EXPORTED(c2_rpc_core_fini);
 
@@ -889,28 +896,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 }
 C2_EXPORTED(c2_rpcmachine_fini);
 
-/** simple vector of RPC-item operations */
-static void rpc_item_op_sent(struct c2_rpc_item *item)
-{
-	//DBG("item: xid: %lu, SENT\n", item->ri_verno.vn_vc);
-}
-
-static void rpc_item_op_added(struct c2_rpc *rpc, struct c2_rpc_item *item)
-{
-	//DBG("item: xid: %lu, ADDED\n", item->ri_verno.vn_vc);
-}
-
-static void rpc_item_op_replied(struct c2_rpc_item *item, int rc)
-{
-	//DBG("item: xid: %lu, REPLIED\n", item->ri_verno.vn_vc);
-}
-
-static const struct c2_rpc_item_type_ops rpc_item_ops = {
-	.rito_sent    = rpc_item_op_sent,
-	.rito_added   = rpc_item_op_added,
-	.rito_replied = rpc_item_op_replied
-};
-
 /** simple vector of update stream operations */
 void us_timeout(struct c2_update_stream *us)
 {
@@ -922,7 +907,7 @@ void us_recovery_complete(struct c2_update_stream *us)
 	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
-static void item_replied(struct c2_rpc_item *item, int rc)
+static void fop_item_replied(struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 
@@ -931,26 +916,6 @@ static void item_replied(struct c2_rpc_item *item, int rc)
 	fop = c2_rpc_item_to_fop(item);
 	if (fop->f_type->ft_ops->fto_fop_replied != NULL)
 		fop->f_type->ft_ops->fto_fop_replied(fop);
-}
-
-/**
-   RPC item ops function
-   Function to return size of fop
- */
-static size_t item_size_get(const struct c2_rpc_item *item)
-{
-	uint64_t	 size;
-	struct c2_fop	*fop;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	if (fop->f_type->ft_ops->fto_size_get != NULL)
-		size = fop->f_type->ft_ops->fto_size_get(fop);
-	else
-		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-
-	return size;
 }
 
 /**
@@ -982,18 +947,6 @@ static bool item_fid_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 	fop2 = c2_rpc_item_to_fop(item2);
 
 	return fop1->f_type->ft_ops->fto_fid_equal(fop1, fop2);
-}
-
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
-{
-	struct c2_fop_type	*ftype;
-	struct c2_rpc_item_type *item_type;
-
-	ftype = c2_fop_type_search(opcode);
-	C2_ASSERT(ftype != NULL);
-	C2_ASSERT(ftype->ft_ri_type != NULL);
-	item_type = ftype->ft_ri_type;
-	return item_type;
 }
 
 /**
@@ -1067,95 +1020,20 @@ int item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	return rc;
 }
 
-static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
-	.rito_sent = NULL,
-	.rito_added = NULL,
-	.rito_replied = item_replied,
+const struct c2_rpc_item_ops rpc_item_iov_ops = {
+	.rio_replied = fop_item_replied
+};
+
+const struct c2_rpc_item_type_ops rpc_item_iov_type_ops = {
 	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = item_size_get,
+	.rito_item_size = c2_fop_item_type_default_onwire_size,
 	.rito_items_equal = item_equal,
 	.rito_fid_equal = item_fid_equal,
 	.rito_get_io_fragment_count = item_fragment_count_get,
 	.rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode
 };
-
-static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
-	.rito_sent = NULL,
-	.rito_added = NULL,
-	.rito_replied = item_replied,
-	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = item_size_get,
-	.rito_items_equal = item_equal,
-	.rito_fid_equal = item_fid_equal,
-	.rito_get_io_fragment_count = item_fragment_count_get,
-	.rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-};
-
-struct c2_rpc_item_type rpc_item_type_readv = {
-	.rit_ops = &rpc_item_readv_type_ops,
-};
-
-struct c2_rpc_item_type rpc_item_type_writev = {
-	.rit_ops = &rpc_item_writev_type_ops,
-};
-
-/**
-   Associate an rpc with its corresponding rpc_item_type.
-   Since rpc_item_type by itself can not be uniquely identified,
-   rather it is tightly bound to its fop_type, the fop_type_code
-   is passed, based on which the rpc_item is associated with its
-   rpc_item_type.
-   @todo Deprecated API. Need to be removed. Should not use this API anywhere.
- */
-void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
-{
-	uint32_t opcode;
-
-	C2_PRE(fopt != NULL);
-
-	/* XXX Needs to be implemented in a clean way. */
-	/* This is a temporary approach to associate an rpc_item
-	   with its rpc_item_type. It will be discarded once we
-	   have a better mapping function for associating
-	   rpc_item_type with an rpc_item. */
-	opcode = fopt->ft_code;
-	switch (opcode) {
-	case C2_IOSERVICE_READV_OPCODE:
-		fopt->ft_ri_type = &rpc_item_type_readv;
-		break;
-	case C2_IOSERVICE_WRITEV_OPCODE:
-		fopt->ft_ri_type = &rpc_item_type_writev;
-		break;
-	default:
-		/* FOP operations which need to set opcode should either
-		   attach on their own, or use this subroutine. Hence default
-		   is kept blank */
-		break;
-	};
-	/* XXX : Assign unique opcode to associated rpc item type.
-	 *       Will be removed once proper mapping and association between
-	 *	 rpc item and fop is established
-	 */
-	if(fopt->ft_ri_type != NULL)
-		fopt->ft_ri_type->rit_opcode = opcode;
-}
-C2_EXPORTED(c2_rpc_item_type_attach);
-
-/*
-void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
-{
-	uint32_t		opcode;
-
-	C2_PRE(fopt != NULL);
-
-	opcode = fopt->ft_code;
-	if(fopt->ft_ri_type != NULL)
-		fopt->ft_ri_type->rit_opcode = opcode;
-}*/
 
 /**
   Set the stats for outgoing rpc object
@@ -1203,7 +1081,7 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
 
         st->rs_items_nr++;
-        st->rs_bytes_nr += c2_rpc_item_default_size(item);
+        st->rs_bytes_nr += c2_fop_item_type_default_onwire_size(item);
 
 	c2_mutex_unlock(&machine->cr_stats_mutex);
 }
@@ -1295,7 +1173,7 @@ int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
 	c2_chan_init(&rbulk->rb_chan);
 	rbulk->rb_magic = C2_RPC_BULK_MAGIC;
 	rbulk->rb_rc = 0;
-	return c2_0vec_init(&rbulk->rb_zerovec, segs_nr, seg_size);
+	return c2_0vec_init(&rbulk->rb_zerovec, segs_nr);
 }
 
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
@@ -1304,7 +1182,7 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 	C2_PRE(rpc_bulk_invariant(rbulk));
 
 	c2_chan_fini(&rbulk->rb_chan);
-	c2_0vec_free(&rbulk->rb_zerovec);
+	c2_0vec_fini(&rbulk->rb_zerovec);
 }
 
 #ifdef __KERNEL__

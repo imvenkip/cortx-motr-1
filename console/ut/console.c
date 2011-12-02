@@ -55,7 +55,14 @@
  */
 
 enum {
-	MAXLINE = 1025
+	MAXLINE = 1025,
+	RID_ONE = 1,
+	RID_TWO = 2,
+	COB_DOM_CLIENT_ID  = 14,
+	COB_DOM_SERVER_ID = 15,
+	BASIC_TEST_PORT = 321124,
+	SUCC_TEST_PORT = 321125,
+	SEND_TEST_PORT = 321126,
 };
 
 const char *yaml_file = "/tmp/console_ut.yaml";
@@ -288,10 +295,51 @@ static void output_test(void)
 
 static void yaml_file_test(void)
 {
-	int result;
+	FILE *out_fp;
+	FILE *err_fp;
+	int   out_fd;
+	int   err_fd;
+	int   result;
+
+	/* save fd of stdout */
+	out_fd = dup(fileno(stdout));
+	C2_UT_ASSERT(out_fd != -1);
+
+	/* save fd of stderr */
+	err_fd = dup(fileno(stderr));
+	C2_UT_ASSERT(err_fd != -1);
+
+	/* redirect stdout */
+	out_fp = freopen(out_file, "w+", stdout);
+	C2_UT_ASSERT(out_fp != NULL);
+
+	/* redirect stderr */
+	err_fp = freopen(err_file, "w+", stderr);
+	C2_UT_ASSERT(err_fp != NULL);
 
 	result = c2_cons_yaml_init(yaml_file);
 	C2_UT_ASSERT(result != 0);
+
+	/* file cleanup */
+	fclose(out_fp);
+	fclose(err_fp);
+
+	/* restore stdout */
+	out_fd = dup2(out_fd, 1);
+	C2_UT_ASSERT(out_fd != -1);
+	stdout = fdopen(out_fd, "a+");
+	C2_UT_ASSERT(stdout != NULL);
+
+	/* restore stderr */
+	err_fd = dup2(err_fd, 2);
+	C2_UT_ASSERT(err_fd != -1);
+	stderr = fdopen(err_fd, "a+");
+	C2_UT_ASSERT(stderr != NULL);
+
+	result = remove(err_file);
+	C2_UT_ASSERT(result == 0);
+	result = remove(out_file);
+	C2_UT_ASSERT(result == 0);
 }
 
 static void yaml_parser_test(void)
@@ -465,26 +513,26 @@ static void conn_basic_test(void)
 {
 	struct c2_console client = {
 		.cons_lhost	      = "localhost",
-		.cons_lport	      = CLIENT_PORT,
+		.cons_lport	      = BASIC_TEST_PORT,
 		.cons_rhost	      = "localhost",
-		.cons_rport	      = CLIENT_PORT,
+		.cons_rport	      = BASIC_TEST_PORT,
 		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = 14 },
+		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 1,
+		.cons_rid	      = RID_ONE,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
 
 	struct c2_console server = {
 		.cons_lhost	      = "localhost",
-		.cons_lport	      = CLIENT_PORT,
+		.cons_lport	      = BASIC_TEST_PORT,
 		.cons_rhost	      = "localhost",
-		.cons_rport	      = CLIENT_PORT,
+		.cons_rport	      = BASIC_TEST_PORT,
 		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = 15 },
+		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 2,
+		.cons_rid	      = RID_TWO,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -504,13 +552,13 @@ static void success_client(int dummy)
 {
 	struct c2_console client = {
 		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23124,
+		.cons_lport	      = SUCC_TEST_PORT,
 		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23124,
+		.cons_rport	      = SUCC_TEST_PORT,
 		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = 14 },
+		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 1,
+		.cons_rid	      = RID_ONE,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -528,13 +576,13 @@ static void conn_success_test(void)
 {
 	struct c2_console server = {
 		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23124,
+		.cons_lport	      = SUCC_TEST_PORT,
 		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23124,
+		.cons_rport	      = SUCC_TEST_PORT,
 		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = 15 },
+		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 2,
+		.cons_rid	      = RID_TWO,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -555,13 +603,13 @@ static void mesg_send_client(int dummy)
 {
 	struct c2_console client = {
 		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23126,
+		.cons_lport	      = SEND_TEST_PORT,
 		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23126,
+		.cons_rport	      = SEND_TEST_PORT,
 		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = 14 },
+		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 1,
+		.cons_rid	      = RID_ONE,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -591,13 +639,13 @@ static void mesg_send_test(void)
 {
 	struct c2_console server = {
 		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23126,
+		.cons_lport	      = SEND_TEST_PORT,
 		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23126,
+		.cons_rport	      = SEND_TEST_PORT,
 		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = 15 },
+		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 2,
+		.cons_rid	      = RID_TWO,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};

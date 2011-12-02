@@ -73,6 +73,8 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 	fop_fol_type_fini(fopt);
 	if (fopt->ft_top != NULL) {
 		c2_mutex_lock(&fop_types_lock);
+		C2_ASSERT(&fopt->ft_rpc_item_type != NULL);
+		c2_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
 		ft_tlink_del_fini(fopt);
 		fopt->ft_magix = 0;
 		c2_mutex_unlock(&fop_types_lock);
@@ -99,6 +101,8 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 		result = fop_fol_type_init(fopt);
 		if (result == 0) {
 			fopt->ft_top = fmt->ftf_out;
+			result =
+			c2_rpc_item_type_register(&fopt->ft_rpc_item_type);
 			c2_addb_ctx_init(&fopt->ft_addb,
 					 &c2_fop_type_addb_ctx,
 					 &c2_addb_global_ctx);
@@ -129,20 +133,6 @@ int c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 	return result;
 }
 C2_EXPORTED(c2_fop_type_build_nr);
-
-struct c2_fop_type *c2_fop_type_search(uint32_t opcode)
-{
-	struct c2_fop_type *fop_type;
-
-	c2_mutex_lock(&fop_types_lock);
-	c2_tlist_for(&ft_tl, &fop_types_list, fop_type) {
-		if (fop_type->ft_code == opcode)
-			break;
-	} c2_tlist_endfor;
-	c2_mutex_unlock(&fop_types_lock);
-	return fop_type;
-}
-C2_EXPORTED(c2_fop_type_search);
 
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 {

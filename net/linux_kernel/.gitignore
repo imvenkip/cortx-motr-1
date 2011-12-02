@@ -1,4 +1,6 @@
 buf.c
+buffer_pool.c
+buffer_pool_ut.c
 bulk_if.c
 bulk_mem_ut.c
 bulk_sunrpc_ut.c

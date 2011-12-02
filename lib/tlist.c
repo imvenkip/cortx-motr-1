@@ -184,9 +184,9 @@ void c2_tlist_move_tail(const struct c2_tl_descr *d,
 }
 C2_EXPORTED(c2_tlist_move_tail);
 
-void *c2_tlist_head(const struct c2_tl_descr *d, struct c2_tl *list)
+void *c2_tlist_head(const struct c2_tl_descr *d, const struct c2_tl *list)
 {
-	struct c2_list *head;
+	const struct c2_list *head;
 
 	C2_PRE(c2_tlist_invariant(d, list));
 
@@ -195,9 +195,9 @@ void *c2_tlist_head(const struct c2_tl_descr *d, struct c2_tl *list)
 }
 C2_EXPORTED(c2_tlist_head);
 
-void *c2_tlist_tail(const struct c2_tl_descr *d, struct c2_tl *list)
+void *c2_tlist_tail(const struct c2_tl_descr *d, const struct c2_tl *list)
 {
-	struct c2_list *head;
+	const struct c2_list *head;
 
 	C2_PRE(c2_tlist_invariant(d, list));
 
@@ -206,7 +206,8 @@ void *c2_tlist_tail(const struct c2_tl_descr *d, struct c2_tl *list)
 }
 C2_EXPORTED(c2_tlist_tail);
 
-void *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
+void *c2_tlist_next(const struct c2_tl_descr *d,
+		    const struct c2_tl *list, void *obj)
 {
 	struct c2_list_link *next;
 
@@ -217,7 +218,8 @@ void *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
 }
 C2_EXPORTED(c2_tlist_next);
 
-void *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
+void *c2_tlist_prev(const struct c2_tl_descr *d,
+		    const struct c2_tl *list, void *obj)
 {
 	struct c2_list_link *prev;
 

@@ -155,6 +155,7 @@
 #include "rpc/session_internal.h"
 #include "rpc/session.h"
 #include "addb/addb.h"
+#include "rpc/rpc_base.h"
 
 enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_MIN,
@@ -192,89 +193,6 @@ enum {
 	C2_RPC_MAGIC = 0x7270636d61676963
 };
 
-/* TBD: different callbacks called on events occured while processing
-   in update stream */
-struct c2_rpc_item_type_ops {
-	/**
-	   Called when given item's sent.
-	   @param item reference to an RPC-item sent
-	   @note ri_added() has been called before invoking this function.
-	 */
-	void (*rito_sent)(struct c2_rpc_item *item);
-	/**
-	   Called when item's added to an RPC
-	   @param rpc reference to an RPC where item's added
-	   @param item reference to an item added to rpc
-	 */
-	void (*rito_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
-
-	/**
-	   Called when given item's replied.
-	   @param item reference to an RPC-item on which reply FOP was received.
-	   @param rc error code <0 if failure
-	   @note ri_added() and ri_sent() have been called before invoking
-	   this function.
-	 */
-	void (*rito_replied)(struct c2_rpc_item *item, int rc);
-
-	/**
-	   Restore original IO vector of rpc item.
-	 */
-	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
-			struct c2_fop *bkpfop);
-	/**
-	   Find out the size of rpc item.
-	 */
-	size_t (*rito_item_size)(const struct c2_rpc_item *item);
-
-	/**
-	   Find out if given rpc items belong to same type or not.
-	 */
-	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
-			c2_rpc_item *item2);
-	/**
-	   Find out if given rpc items refer to same c2_fid struct or not.
-	 */
-	bool (*rito_fid_equal)(struct c2_rpc_item *item1,
-			       struct c2_rpc_item *item2);
-	/**
-	  Return true iff item1 and item2 are equal.
-	 */
-	bool (*rito_eq)(const struct c2_rpc_item *i1,
-			const struct c2_rpc_item *i2);
-	/**
-	   Find out the count of fragmented buffers.
-	 */
-	uint64_t (*rito_get_io_fragment_count)(struct c2_rpc_item *item);
-	/**
-	   Coalesce rpc items that share same fid and intent(read/write).
-	 */
-	int (*rito_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
-			struct c2_rpc_item *item);
-	/**
-	   Serialise @item on provided xdr stream @xdrs
-	 */
-	int (*rito_encode)(struct c2_rpc_item_type *item_type,
-		           struct c2_rpc_item *item,
-	                   struct c2_bufvec_cursor *cur);
-	/**
-	   Create in memory item from serialised representation of item
-	 */
-	int (*rito_decode)(struct c2_rpc_item_type *item_type,
-			   struct c2_rpc_item **item,
-			   struct c2_bufvec_cursor *cur);
-	/**
-	   Return the c2_net_buf_desc from io fop.
-	 */
-	void (*rito_io_desc_get)(struct c2_rpc_item *item,
-				 struct c2_net_buf_desc *desc);
-	/**
-	   Store the c2_net_buf_desc into io fop from its net buffer.
-	 */
-	int (*rito_io_desc_store)(struct c2_rpc_item *item,
-				  struct c2_net_buf_desc *desc);
-};
-
 struct c2_rpc_item_ops {
 	/**
 	   Called when given item's sent.
@@ -292,12 +210,14 @@ struct c2_rpc_item_ops {
 	/**
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
-	   @param rc error code <0 if failure
+
 	   @note ri_added() and ri_sent() have been called before invoking this
 	   function.
+
+	   c2_rpc_item::ri_error and c2_rpc_item::ri_reply are already set by
+	   the time this method is called.
 	 */
-	void (*rio_replied)(struct c2_rpc_item	*item,
-			   struct c2_rpc_item	*reply, int rc);
+	void (*rio_replied)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {
@@ -354,40 +274,6 @@ enum c2_rpc_item_type_flag {
 	//C2_RPC_ITEM_UNSOLICITED = (1 << 2),
 };
 #endif
-/**
-   Possible values for c2_rpc_item_type::rit_flags.
-   Flags C2_RPC_ITEM_TYPE_REQUEST, C2_RPC_ITEM_TYPE_REPLY and
-   C2_RPC_ITEM_TYPE_UNSOLICITED are mutually exclusive.
- */
-enum c2_rpc_item_type_flags {
-	/** Receiver of item is expected to send reply to item of this
-	    type */
-	C2_RPC_ITEM_TYPE_REQUEST = 1,
-	/** Item of this type is reply to some item of C2_RPC_ITEM_TYPE_REQUEST
-	    type. */
-	C2_RPC_ITEM_TYPE_REPLY = (1 << 1),
-	/** This is a one-way item. There is no reply for this type of
-	    item */
-	C2_RPC_ITEM_TYPE_UNSOLICITED = (1 << 2),
-	/** Item of this type can modify file-system state on receiver. */
-	C2_RPC_ITEM_TYPE_MUTABO = (1 << 3)
-};
-
-/**
-   Definition is taken partly from 'DLD RPC FOP:core wire formats'
-   (not submitted yet).
-   Type of an RPC item.
-   There is an instance of c2_rpc_item_type for each value of
-   c2_rpc_opcode_t.
- */
-struct c2_rpc_item_type {
-	/** Unique operation code. */
-	uint32_t			   rit_opcode;
-	/** Operations that can be performed on the type */
-	const struct c2_rpc_item_type_ops *rit_ops;
-	/** see @c2_rpc_item_type_flags */
-	uint64_t			   rit_flags;
-};
 
 #define C2_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
 struct c2_rpc_item_type (itype) = {                      \
@@ -511,10 +397,6 @@ struct c2_rpc_stats {
 	/** Number of rpc objects (used to calculate packing density) */
 	uint64_t	rs_rpcs_nr;
 };
-
-/** Returns an rpc item type associated with a unique rpc
-item type opcode */
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
 /**
    Associate an rpc with its corresponding rpc_item_type.
@@ -680,25 +562,14 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
   will not take part in recovery.
 
   Rpc layer does not provide any API, to "wait until reply is received".
-  If item->ri_ops->rio_replied callback is set, then it will be called when
-  reply to the item is received.
-
-  If caller of this function, wants to wait until reply is received, then
-  caller should:
-  - provide implementation of item->ri_ops->rio_replied() callback.
-    The implementation of ->rio_replied() should do at least two things:
-    - Third argument of this callback gives error code. Copy this error code to
-      req->ri_error (req is first argument of callback, and points to request
-      item for which reply is received).
-    - Broadcast on req->ri_chan.
-
-  - add a clink to item->ri_chan and wait on the clink.
-  - once out of wait, pointer to reply item can be retrieved from
-    item->ri_reply, after checking item->ri_error.
+  Upon receiving reply to item, item->ri_chan is signaled.
+  If item->ri_ops->rio_replied() callback is set, then it will be called.
+  Pointer to reply item can be retrieved from item->ri_reply.
+  If any error occured, item->ri_error is set to non-zero value.
 
   Note: setting item->ri_ops and adding clink to item->ri_chan MUST be done
-  before calling c2_rpc_post(), because reply to the item can be received
-  even before c2_rpc_post() returns.
+  before calling c2_rpc_post(), because reply to the item can arrive even
+  before c2_rpc_post() returns.
 
   @pre item->ri_session != NULL
   @pre item->ri_priority is sane.

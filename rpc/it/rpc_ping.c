@@ -35,7 +35,7 @@
 #include "net/net_internal.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/session.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation.h"
 #include "fol/fol.h"
 #include "reqh/reqh.h"
@@ -387,7 +387,6 @@ void send_ping_fop(int nr)
 	uint32_t			 nr_arr_member;
 	int				 i;
 	c2_time_t                        timeout;
-	struct c2_fop_type		*ftype;
 
 	nr_mod = cctx.pc_nr_ping_bytes % 8;
 	if (nr_mod == 0)
@@ -396,7 +395,6 @@ void send_ping_fop(int nr)
 		nr_arr_member = (cctx.pc_nr_ping_bytes / 8) + 1;
 	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_ASSERT(fop != NULL);
-        fop->f_item.ri_type = fop->f_type->ft_ri_type;
 	ping_fop = c2_fop_data(fop);
 	ping_fop->fp_arr.f_count = nr_arr_member;
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
@@ -407,10 +405,7 @@ void send_ping_fop(int nr)
 	item->ri_deadline = 0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
-	item->ri_type = &c2_rpc_item_type_ping;
-	ftype = fop->f_type;
-	/** Associate ping fop type with its item type */
-	ftype->ft_ri_type = &c2_rpc_item_type_ping;
+	item->ri_type = &fop->f_type->ft_rpc_item_type;
 	item->ri_session = &cctx.pc_rpc_session;
 	c2_time_set(&timeout, 60, 0);
         c2_clink_init(&clink, NULL);
@@ -829,7 +824,7 @@ cleanup:
 
 
 #ifdef __KERNEL__
-bool client = true; 
+bool client = true;
 int c2_rpc_ping_init()
 #else
 /* Main function for rpc ping */

@@ -106,7 +106,7 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 
 		/* initialize the service */
 		C2_SET0(svc);
-		svc->s_table.not_start = s_fops[0]->ft_code;
+		svc->s_table.not_start = s_fops[0]->ft_rpc_item_type.rit_opcode;
 		svc->s_table.not_nr    = ARRAY_SIZE(s_fops);
 		svc->s_table.not_fopt  = s_fops;
 		svc->s_handler         = &sunrpc_bulk_handler;
@@ -232,9 +232,7 @@ static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
 		c2_mutex_lock(&tm->ntm_mutex);
 		/* iterate over buffers in each queue */
 		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
-			c2_list_for_each_entry(&tm->ntm_q[qt], nb,
-					       struct c2_net_buffer,
-					       nb_tm_linkage) {
+			c2_tlist_for(&tm_tl, &tm->ntm_q[qt], nb) {
 				if (nb->nb_timeout == C2_TIME_NEVER)
 					continue;
 				if (c2_time_after(nb->nb_timeout, now))
@@ -247,7 +245,7 @@ static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
 				   code.
 				*/
 				sunrpc_xo_buf_del(nb);
-			}
+			} c2_tlist_endfor;
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
