@@ -44,7 +44,7 @@
  */
 enum c2_timer_state {
 	/* Not initialized. */
-	TIMER_UNINIT= 0,
+	TIMER_UNINIT = 0,
 	/* Initialized. */
 	TIMER_INITED,
 	/* Timer is running. */
