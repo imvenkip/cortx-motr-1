@@ -208,7 +208,7 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 	pd_layout = ci->ci_pd_layout;
 
 	/* stripe width = number of data units * size of each unit */
-	stripe_width = pd_layout->pl_N * ci->ci_unit_size;
+	stripe_width = pd_layout->pl_N * ci->ci_pd_layout->pl_unit_size;
 
 	/*
 	 * Requested IO size and position within file must be
@@ -572,7 +572,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 	pd_layout = ci->ci_pd_layout;
 	gob_fid   = ci->ci_fid;
-	unit_size = ci->ci_unit_size;
+	unit_size = ci->ci_pd_layout->pl_unit_size;
+
+	TRACE("Unit size: %lu\n", (unsigned long)unit_size);
 
 	/* unit_size should be multiple of PAGE_CACHE_SIZE */
 	C2_ASSERT((unit_size & (PAGE_CACHE_SIZE - 1)) == 0);

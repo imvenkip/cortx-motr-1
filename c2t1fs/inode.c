@@ -354,8 +354,6 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 	if (rc != 0)
 		goto out_fini;
 
-	ci->ci_unit_size = unit_size;
-
 	END(0);
 	return 0;
 

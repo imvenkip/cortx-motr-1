@@ -363,9 +363,6 @@ struct c2t1fs_inode {
 	/** layout of file's data */
 	struct c2_pdclust_layout *ci_pd_layout;
 
-	/** stripe unit size */
-	uint64_t                  ci_unit_size;
-
 	/** valid number of entries in ci_dir_ents[] */
 	int                       ci_nr_dir_ents;
 
