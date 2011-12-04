@@ -1223,19 +1223,19 @@ struct c2_rpc_item_type rpc_item_type_writev = {
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
 		    &c2_io_cob_readv_ops, C2_IOSERVICE_READV_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST, &rpc_item_readv_type_ops);
+		    C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
 		    &c2_io_cob_writev_ops, C2_IOSERVICE_WRITEV_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST, &rpc_item_writev_type_ops);
+		    C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY, NULL);
+		    C2_RPC_ITEM_TYPE_REPLY);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY, NULL);
+		    C2_RPC_ITEM_TYPE_REPLY);
 
 int c2_ioservice_fops_nr(void)
 {

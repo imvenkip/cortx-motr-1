@@ -45,8 +45,29 @@
  *
  *  @{
  */
+#include "net/buffer_pool.h"
+#include "reqh/reqh_service.h"
+#include "lib/chan.h"
+#include "lib/tlist.h"
+
 int c2_ioservice_register(void);
 void c2_ioservice_unregister(void);
+
+/**
+ * Structure contains generic service structure and
+ * service specific information.
+ */
+
+struct c2_reqh_io_service {
+        /** Generic reqh service object */
+        struct c2_reqh_service       rios_gen;
+        /** Pointer to Network buffer pool. */
+        struct c2_net_buffer_pool    rios_nb_pool;
+        /** Buffer pool wait channel. */ 
+        struct c2_chan               rios_nbp_wait;
+        /** Buffer pool color mapping for transfer machine. */
+        struct c2_tl                        rios_nbp_color_map;
+};
 
 /** @} end of io_service */
 

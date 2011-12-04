@@ -308,6 +308,7 @@ struct c2_fom {
 	struct c2_fol		*fo_fol;
 	/** Transaction object to be used by this fom */
 	struct c2_dtx		 fo_tx;
+        struct c2_reqh_service   *fo_service;
 	/**
 	    FOM linkage in the locality runq list or wait list
 	    Every access to the FOM via this linkage is

@@ -156,14 +156,14 @@
  * operation and necessary context data
  */
 struct c2_io_fom {
+	/** Generic c2_fom object. */
+        struct c2_fom                    fcrw_gen;
         /** index of net buffer descriptor under process*/
         int                              fcrw_curr_desc_index;
         /** index of index vector under process*/
         int                              fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
-	/** Generic c2_fom object. */
-        struct c2_fom                    fcrw_gen;
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packet for the operation. */
@@ -171,7 +171,7 @@ struct c2_io_fom {
         /** rpc bulk load data*/
         struct c2_rpc_bulk               fcrw_bulk;
         /** network buffer list currently acuired by io service*/
-        c2_tl                            fcrw_netbuf_list;
+        struct c2_tl                     fcrw_netbuf_list;
 };
 
 /**
