@@ -49,7 +49,7 @@ struct c2_composite_layout {
 	struct c2_layout	cl_layout;
 
 	/** List of sub-layouts owned by this composite layout */
-	struct c2_tl		cl_list_of_sub_layouts;
+	struct c2_tl		cl_sub_layouts;
 
 	/** Lock to protect the list of sub-layouts */
 	struct c2_mutex		cl_sub_layouts_mutex;

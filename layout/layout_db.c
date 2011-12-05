@@ -292,6 +292,10 @@
 
    @test Unregistering each of LIST and FORMULA enum types.
 
+   @test Encode layout with each of layout type and enum types.
+
+   @test Decode layout with each of layout type and enum types.
+
    @test Adding layouts with all the possible combinations of all the layout types and enumeration types.
 
    @test Deleting layouts with all the possible combinations of all the layout types and enumeration types.
