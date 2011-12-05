@@ -23,6 +23,11 @@
    @todo hack, but without it timer_create(2) isn't declarated.
    in Makefile should be -iquote instead of -I
  */
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include </usr/include/time.h>	  /* timer_create */
 #include <unistd.h>	  /* syscall */
 #include <signal.h>	  /* timer_create */
