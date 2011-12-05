@@ -37,7 +37,7 @@
    @{
 */
 
-enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play, 
+enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
 				   int unit)
 {
 	if (unit < play->pl_attr->pa_N)

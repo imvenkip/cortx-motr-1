@@ -29,14 +29,14 @@
    @{
  */
 
-/** 
+/**
    Initializes layout schema, creates generic table to store layout records.
    Registers all the layout types amd enum types by creating layout type and
    enum type specific tables, if they do not exist already.
 */
 int c2_layouts_init(void)
 {
-   /** 
+   /**
 	@code
 	Invoke c2_ldb_schema_init().
 
@@ -47,13 +47,13 @@ int c2_layouts_init(void)
 	Register formula enumeration type, using c2_ldb_enum_register().
 	@endcode
    */
-	return 0;	
+	return 0;
 }
 
 /** Unregisters all the layout types amd enum types. */
 void c2_layouts_fini(void)
 {
-   /** 
+   /**
 	@code
 	Unregister pdclust layout type, using c2_ldb_type_unregister().
 	Unregister composite layout type, using c2_ldb_type_unregister().
@@ -61,7 +61,7 @@ void c2_layouts_fini(void)
 	Unregister list enumeration type, using c2_ldb_enum_unregister().
 	Unregister formula enumeration type, using c2_ldb_enum_unregister().
 	@endcode
-   */	
+   */
 }
 
 void c2_layout_init(struct c2_layout *lay,

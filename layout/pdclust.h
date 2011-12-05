@@ -119,7 +119,7 @@ struct c2_pdclust_layout {
 	struct c2_uint128            pl_seed;
 	/**
 	   Number of parity groups in a tile.
-	   
+
 	   @see c2_pdclust_layout::pl_L
 	 */
 	uint32_t                     pl_C;

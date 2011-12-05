@@ -41,7 +41,7 @@ struct c2_layout_formula_enum;
  */
 struct c2_layout_formula_enum {
 	/** super class */
-	struct c2_layout_enum			 	 lfe_enum;
+	struct c2_layout_enum				 lfe_enum;
 
 	/** formula id */
 	const struct c2_uint128				 lfe_id;
