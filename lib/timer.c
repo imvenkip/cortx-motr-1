@@ -224,6 +224,8 @@ static struct timer_tid *locality_tid_find(struct c2_timer_locality *loc,
 {
 	struct timer_tid *tt = NULL;
 
+	C2_PRE(loc != NULL);
+
 	c2_mutex_lock(&loc->tlo_lock);
 	c2_tlist_for(&tid_tl, &loc->tlo_tids, tt) {
 		if (tt->tt_tid == tid)
