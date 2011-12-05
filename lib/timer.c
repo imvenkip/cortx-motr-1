@@ -315,6 +315,8 @@ static int timer_posix_set(struct c2_timer *timer,
 {
 	struct itimerspec ts;
 
+	C2_PRE(timer != NULL);
+
 	ts.it_interval.tv_sec = c2_time_seconds(interval);
 	ts.it_interval.tv_nsec = c2_time_nanoseconds(interval);
 	ts.it_value.tv_sec = c2_time_seconds(expire);
@@ -331,6 +333,9 @@ static void timer_posix_get(struct c2_timer *timer,
 {
 	struct itimerspec it;
 	int rc;
+
+	C2_PRE(timer != NULL);
+	C2_PRE(interval != NULL);
 
 	rc = timer_gettime(timer->t_ptimer, &it);
 	/*
