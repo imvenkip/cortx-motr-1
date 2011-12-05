@@ -418,8 +418,10 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
    It checks the possibility of transition from the current state
    with a given function and if possible, changes timer state to a new state
    or executes C2_ASSERT() otherwise.
+   If try is true, than timer state doesn't changes.
  */
-static void timer_state_change(struct c2_timer *timer, enum timer_func func)
+static void timer_state_change(struct c2_timer *timer, enum timer_func func,
+		bool try)
 {
 	enum c2_timer_state new_state;
 	static enum c2_timer_state
@@ -449,9 +451,10 @@ static void timer_state_change(struct c2_timer *timer, enum timer_func func)
 
 	new_state = func == TIMER_INIT ? TIMER_INITED :
 		transition[timer->t_state][func];
-
 	C2_ASSERT(new_state != TIMER_INVALID);
-	timer->t_state = new_state;
+
+	if (!try)
+		timer->t_state = new_state;
 }
 
 /**
@@ -461,7 +464,7 @@ static int timer_hard_init(struct c2_timer *timer)
 {
 	int rc;
 
-	timer_state_change(timer, TIMER_INIT);
+	timer_state_change(timer, TIMER_INIT, true);
 	timer->t_stopping = false;
 	timer->t_tid = gettid();
 	timer->t_signo = signo_rr_get();
@@ -473,6 +476,7 @@ static int timer_hard_init(struct c2_timer *timer)
 		timer_posix_fini(timer);
 		return rc;
 	}
+	timer_state_change(timer, TIMER_INIT, false);
 	return 0;
 }
 
@@ -481,9 +485,14 @@ static int timer_hard_init(struct c2_timer *timer)
  */
 static int timer_hard_fini(struct c2_timer *timer)
 {
-	timer_state_change(timer, TIMER_FINI);
+	int rc;
+
+	timer_state_change(timer, TIMER_FINI, true);
 	c2_semaphore_fini(&timer->t_stop_sem);
-	return timer_posix_fini(timer);
+	rc = timer_posix_fini(timer);
+	if (rc == 0)
+		timer_state_change(timer, TIMER_FINI, false);
+	return rc;
 }
 
 /**
@@ -494,14 +503,17 @@ static int timer_hard_fini(struct c2_timer *timer)
 static int timer_hard_start(struct c2_timer *timer)
 {
 	c2_time_t expire;
+	int rc = 0;
 
-	timer_state_change(timer, TIMER_START);
+	timer_state_change(timer, TIMER_START, true);
 	if (timer->t_repeat != 0) {
 		timer->t_left = timer->t_repeat;
 		expire = c2_time_add(c2_time_now(), timer->t_interval);
-		return timer_posix_set(timer, expire, zero_time);
+		rc = timer_posix_set(timer, expire, zero_time);
 	}
-	return 0;
+	if (rc == 0)
+		timer_state_change(timer, TIMER_START, false);
+	return rc;
 }
 
 /**
@@ -511,26 +523,30 @@ static int timer_hard_stop(struct c2_timer *timer)
 {
 	int rc;
 
-	timer_state_change(timer, TIMER_STOP);
+	timer_state_change(timer, TIMER_STOP, true);
 	timer->t_stopping = true;
 	rc = timer_posix_set(timer, c2_time_now(), magic_interval);
-	if (rc != 0)
+	if (rc != 0) {
+		timer->t_stopping = false;
 		return rc;
+	}
 	/* wait until internal POSIX timer is disarmed */
 	c2_semaphore_down(&timer->t_stop_sem);
 	timer->t_stopping = false;
+	timer_state_change(timer, TIMER_STOP, false);
 	return 0;
 }
 
-void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
+int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 {
 	struct timer_tid *tt;
+	int rc;
 
 	C2_PRE(loc != NULL);
 	C2_PRE(timer != NULL);
 	C2_PRE(timer->t_type == C2_TIMER_HARD);
 
-	timer_state_change(timer, TIMER_ATTACH);
+	timer_state_change(timer, TIMER_ATTACH, true);
 
 	c2_mutex_lock(&loc->tlo_lock);
 	C2_ASSERT(!tid_tlist_is_empty(&loc->tlo_tids));
@@ -543,8 +559,12 @@ void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	timer->t_tid = tt->tt_tid;
 	timer->t_signo = loc->tlo_signo;
 
-	timer_posix_fini(timer);
-	timer_posix_init(timer);
+	rc = timer_posix_fini(timer);
+	if (rc == 0)
+		rc = timer_posix_init(timer);
+	if (rc == 0)
+		timer_state_change(timer, TIMER_ATTACH, false);
+	return rc;
 }
 C2_EXPORTED(c2_timer_attach);
 

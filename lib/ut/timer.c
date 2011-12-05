@@ -298,7 +298,8 @@ static void test_timer_many_timers(int timers_nr, int iter_nr)
 		rc = c2_timer_init(&timer[i], C2_TIMER_HARD, interval,
 				many_iterations_max[i], &many_callback, i);
 		C2_ASSERT(rc == 0);
-		c2_timer_attach(&timer[i], &loc);
+		rc = c2_timer_attach(&timer[i], &loc);
+		C2_ASSERT(rc == 0);
 	}
 
 	for (i = 0; i < timers_nr; ++i)
@@ -415,7 +416,8 @@ static void test_timer_master_mt(struct thread_group *tg)
 				test_timer_callback_mt, (unsigned long) tgt);
 		C2_ASSERT(rc == 0);
 		/* attach timer to timer group locality */
-		c2_timer_attach(&tg->tg_timers[i].tgt_timer, &tg->tg_loc);
+		rc = c2_timer_attach(&tg->tg_timers[i].tgt_timer, &tg->tg_loc);
+		C2_ASSERT(rc == 0);
 	}
 	/* synchronize with all master threads */
 	c2_semaphore_up(&tg->tg_sem_init);

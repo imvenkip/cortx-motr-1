@@ -202,7 +202,7 @@ void c2_timer_thread_detach(struct c2_timer_locality *loc);
    from locality threads list in round-robin fashion.
    Therefore internal POSIX timer will be recreated.
  */
-void c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
+int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
 
 /** @} end of timer group */
 
