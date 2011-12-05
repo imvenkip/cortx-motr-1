@@ -123,9 +123,19 @@ static int composite_decode(bool fromDB, uint64_t lid,
 
 /**
    Implementation of lto_encode() for composite layout type.
-   Stores layout representation in the buffer.
+
+   Continues to use the in-memory layout object and either 'stores it in the
+   Layout DB' ot 'converts it to a buffer that can be passed on over the
+   network'.
+
+   @param toDB - This flag indicates if 'the layout is to be stored in the
+   Layout DB' or 'if it is to be stored in the buffer'.
+
+   @param ifupdate - This flag indicates if 'the layout record is to be written
+   to the Layout DB' or 'if it is to be updated'.
 */
-static int composite_encode(bool toDB, const struct c2_layout *l,
+static int composite_encode(bool toDB, bool ifupdate,
+			    const struct c2_layout *l,
 			    struct c2_ldb_schema *schema,
 			    struct c2_db_tx *tx,
 			    struct c2_bufvec_cursor *out)
@@ -136,16 +146,16 @@ static int composite_encode(bool toDB, const struct c2_layout *l,
 	if (toDB) {
 		uint64_t recSize = sizeof(struct c2_ldb_rec);
 
-		ret = ldb_layout_write(recsize, out, schema, tx);
+		ret = ldb_layout_write(ifupdate, recsize, out, schema, tx);
 	}
 
 	Store composite layout type specific fields like information
 	about the sub-layouts, into the buffer.
 	if (toDB) {
 		Form records for the cob_lists table by using data from the
-		buffer and insert those records into the cob_lists table.
+		buffer and depending on the value of ifupdate, insert/update those
+		records into the cob_lists table.
 	}
-
 
 	@endcode
    */
@@ -155,7 +165,6 @@ static int composite_encode(bool toDB, const struct c2_layout *l,
 /** Implementation of lo_fini for composite layout type. */
 static void composite_fini(struct c2_layout *lay)
 {
-	/** @todo */
 	return;
 }
 

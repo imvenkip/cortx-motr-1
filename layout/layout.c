@@ -83,11 +83,6 @@ void c2_layout_init(struct c2_layout *lay,
 
 void c2_layout_fini(struct c2_layout *lay)
 {
-   /**
-	@code
-	@todo
-	@endcode
-   */
 }
 
 /** Adds a reference to the layout. */
@@ -95,7 +90,9 @@ void c2_layout_get(struct c2_layout *lay)
 {
    /**
 	@code
-	@todo
+	Increases reference on layout by incrementing c2_layout::l_ref and
+	uses c2_ldb_rec_update() to increase refernce on the layout record from
+	the layout DB.
 	@endcode
    */
 }
@@ -105,7 +102,9 @@ void c2_layout_put(struct c2_layout *lay)
 {
    /**
 	@code
-	@todo
+	Decreases reference on layout by decrementing c2_layout::l_ref and
+	uses c2_ldb_rec_update() to decrease refernce on the layout record from
+	the layout DB.
 	@endcode
    */
 }
@@ -124,7 +123,7 @@ void c2_layout_put(struct c2_layout *lay)
    to be decoded 'from its representation stored in the Layout DB' or
    'from its representation received over the network'.
 */
-int c2_layout_decode(bool fromDB, uint64_t lid,
+int c2_layout_decode(bool fromDB, const uint64_t lid,
 		     struct c2_ldb_schema *schema,
 		     struct c2_db_tx *tx,
 		     const struct c2_bufvec_cursor *cur,
@@ -133,13 +132,19 @@ int c2_layout_decode(bool fromDB, uint64_t lid,
    /**
 	@code
 
-	C2_PRE(cur != NULL);
 
 	if (fromDB) {
 		C2_PRE(lid != LID_NONE);
 		C2_PRE(schema != NULL);
 		C2_PRE(tx != NULL);
+		C2_PRE(cur == NULL);
+
+		Allocate bufvec using C2_BUFVEC_INIT_BUF.
+		Have cursor cur pointing to it using C2_BUFVEC_INIT_BUF.
+	} else {
+		C2_PRE(cur != NULL);
 	}
+
 
 	if (fromDB) {
 		struct c2_db_pair	pair;
@@ -189,19 +194,31 @@ int c2_layout_decode(bool fromDB, uint64_t lid,
    @param toDB - This flag indicates if 'the layout is to be stored in the
    Layout DB' or 'if it is to be stored in the buffer so that the buffer can
    be passed over the network'.
+
+   @param ifupdate - This flag indicates if 'the layout record is to be written
+   to the Layout DB' or 'if it is to be updated'.
 */
-int c2_layout_encode(bool toDB, const struct c2_layout *l,
+int c2_layout_encode(bool toDB, bool ifupdate,
+		     const struct c2_layout *l,
 		     struct c2_ldb_schema *schema,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *out)
 {
    /**
 	@code
+	if (toDB) {
+		C2_PRE(schema != NULL);
+		C2_PRE(tx != NULL);
+		C2_PRE(out == NULL);
 
-	C2_PRE(out != NULL);
+		Allocate bufvec using C2_BUFVEC_INIT_BUF.
+		Have cursor cur pointing to it using C2_BUFVEC_INIT_BUF.
+	} else {
+		C2_PRE(out != NULL);
+	}
 
 	Read generic fields from the layout object and store those in
-	the buffer.
+	the buffer pointed by cur
 
 	Based on the layout type, invoke corresponding lto_encode().
 
@@ -245,7 +262,8 @@ int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
    Used from layout type specific implementation, with layout type
    specific record size.
 */
-int ldb_layout_write(const uint32_t recsize,
+int ldb_layout_write(bool ifupdate,
+		     const uint32_t recsize,
 		     struct c2_bufvec_cursor *cur,
 		     struct c2_ldb_schema *schema,
 		     struct c2_db_tx *tx)
@@ -255,15 +273,18 @@ int ldb_layout_write(const uint32_t recsize,
 	struct c2_layout_rec	*rec;
 	struct c2_db_pair	 pair;
 
-	Collect data into lid and rec from the buffer pointed by cur and
+	Collect data into lid and rec, from the buffer pointed by cur and
 	by referring the recsize.
 
 	c2_db_pair_setup(&pair, &schema->ls_layout_entries,
 			 lid, sizeof(uint64_t),
 			 rec, recsize);
 
-	c2_table_insert(tx, &pair);
-
+	if (ifupdate) {
+		c2_table_insert(tx, &pair);
+	} else {
+		c2_table_update(tx, &pair);
+	}
 	@endcode
    */
 	return 0;

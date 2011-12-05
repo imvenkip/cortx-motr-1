@@ -79,11 +79,11 @@ int list_unregister(struct c2_ldb_schema *schema,
    being decoded 'from its representation stored in the Layout DB' or
    'from its representation received over the network'.
 */
-static int lay_list_enum_decode(bool fromDB, uint64_t lid,
-				struct c2_ldb_schema *schema,
-				struct c2_db_tx *tx,
-				const struct c2_bufvec_cursor *cur,
-				struct c2_layout **out)
+static int list_decode(bool fromDB, uint64_t lid,
+		       struct c2_ldb_schema *schema,
+		       struct c2_db_tx *tx,
+		       const struct c2_bufvec_cursor *cur,
+		       struct c2_layout **out)
 {
    /**
 	@code
@@ -114,11 +114,18 @@ static int lay_list_enum_decode(bool fromDB, uint64_t lid,
    Layout DB' ot 'converts it to a buffer that can be passed on over the
    network'.
 
+   @param toDB - This flag indicates if 'the layout is to be stored in the
+   Layout DB' or 'if it is to be stored in the buffer'.
+
+   @param ifupdate - This flag indicates if 'the layout record is to be written
+   to the Layout DB' or 'if it is to be updated'.
+
 */
-static int lay_list_enum_encode(bool toDB, const struct c2_layout *l,
-				struct c2_ldb_schema *schema,
-				struct c2_db_tx *tx,
-				struct c2_bufvec_cursor *out)
+static int list_encode(bool toDB, bool ifupdate,
+		       const struct c2_layout *l,
+		       struct c2_ldb_schema *schema,
+		       struct c2_db_tx *tx,
+		       struct c2_bufvec_cursor *out)
 {
    /**
 	@code
@@ -126,7 +133,8 @@ static int lay_list_enum_encode(bool toDB, const struct c2_layout *l,
 	and store it into the buffer.
 
 	if (toDB) {
-		Write cob entires to the cob_lists table.
+		Depending upon the value of ifupdate, insert/update cob entires
+		to the cob_lists table.
 	}
 
 	@endcode
@@ -187,12 +195,11 @@ void list_get(const struct c2_layout_enum *le,
 static const struct c2_layout_enum_type_ops list_ops = {
 	.leto_register		= list_register,
 	.leto_unregister	= list_unregister,
-	.leto_decode		= lay_list_enum_decode,
-	.leto_encode		= lay_list_enum_encode,
+	.leto_decode		= list_decode,
+	.leto_encode		= list_encode,
 };
 
-/** @todo change c2_lay_list_enum_type to c2_list_enum_type */
-const struct c2_layout_enum_type c2_lay_list_enum_type = {
+const struct c2_layout_enum_type c2_list_enum_type = {
 	.let_name		= "list",
 	.let_id			= 0x4C495354454E554D, /* LISTENUM */
 	.let_ops		= &list_ops

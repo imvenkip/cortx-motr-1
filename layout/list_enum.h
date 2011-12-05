@@ -59,7 +59,7 @@ struct list_schema_data {
 };
 
 
-extern const struct c2_layout_enum_type c2_lay_list_enum_type;
+extern const struct c2_layout_enum_type c2_list_enum_type;
 
 /** @} end group list_enum */
 

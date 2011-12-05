@@ -196,7 +196,7 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 int c2_ldb_rec_add(const struct c2_layout *layout,
 		   struct c2_ldb_schema *schema,
 		   struct c2_db_tx *tx);
-int c2_ldb_rec_delete(const struct c2_layout *layout,
+int c2_ldb_rec_delete(const uint64_t lid,
 		      struct c2_ldb_schema *schema,
 		      struct c2_db_tx *tx);
 int c2_ldb_rec_update(const struct c2_layout *layout,

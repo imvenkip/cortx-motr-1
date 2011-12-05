@@ -442,7 +442,7 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 }
 
 /**
-   @todo Add description
+   Returns pointer to the type specific data from the schema.
 */
 void **c2_ldb_type_data(struct c2_ldb_schema *schema,
 			const struct c2_layout_type *lt)
@@ -457,7 +457,7 @@ void **c2_ldb_type_data(struct c2_ldb_schema *schema,
 }
 
 /**
-   @todo Add description
+   Returns pointer to the enum specific data from the schema.
 */
 void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 			const struct c2_layout_enum_type *et)
@@ -472,8 +472,28 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 }
 
 /**
+   Obtains a layout record with the specified layout_id, and its related
+   information from the relevant tables.
+*/
+int c2_ldb_rec_lookup(const uint64_t *lid,
+		      struct c2_ldb_schema *schema,
+		      struct c2_db_tx *tx,
+		      struct c2_layout *out)
+{
+   /**
+	@code
+	Invoke c2_layout_decode() with fromDB flag set to TRUE.
+	c2_layout_decode(TRUE, lid, schema, tx, NULL, out);
+
+	@endcode
+   */
+	return 0;
+}
+
+
+/**
    Adds a new layout record entry into the layouts table.
-   If applicable, adds information related to this layout, into the relevant
+   If applicable, adds layout type and enum specific entries into the relevant
    tables.
 */
 int c2_ldb_rec_add(const struct c2_layout *l,
@@ -482,29 +502,9 @@ int c2_ldb_rec_add(const struct c2_layout *l,
 {
    /**
 	@code
-	@todo Change desc for all these c2_ldb_rec* methods.
-	@endcode
-   */
-
-	return 0;
-}
-
-/**
-   Deletes a layout record and its related information from the
-   relevant tables.
-
-   Layouts with enumeration type other than 'formula' are destroyed if and
-   only if their respective referecne count is 0.
-
-   A layout with formula enumeration type is never destroyed.
-*/
-int c2_ldb_rec_delete(const struct c2_layout *layout,
-		      struct c2_ldb_schema *schema,
-		      struct c2_db_tx *tx)
-{
-   /**
-	@code
-	@todo Change desc for all these c2_ldb_rec* methods.
+	Invoke c2_layout_encode() with toDB flag set to TRUE and with ifupdate
+	flag set to FALSE.
+	c2_layout_encode(TRUE, FALSE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
@@ -520,53 +520,35 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
 {
    /**
 	@code
-	@todo Change desc for all these c2_ldb_rec* methods.
+	Invoke c2_layout_encode() with toDB flag set to TRUE and with ifupdate
+	flag set to TRUE.
+	c2_layout_encode(TRUE, TRUE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
 }
 
 /**
-   Obtains a layout record with the specified layout_id, and its related
-   information from the relevant tables.
+   Deletes a layout record with given layout id and its related information from
+   the relevant tables.
+
+   Layouts with enumeration type other than 'formula' are deleted from the DB
+   if and only if their respective referecne count is 0.
+
+   A layout with 'formula' enumeration type is never destroyed.
 */
-int c2_ldb_rec_lookup(const uint64_t *lid,
+int c2_ldb_rec_delete(const uint64_t lid,
 		      struct c2_ldb_schema *schema,
-		      struct c2_db_tx *tx,
-		      struct c2_layout *out)
+		      struct c2_db_tx *tx)
 {
    /**
 	@code
-	@todo Change this pseudo code:
-
-	---
-	Invoke
-	struct c2_db_pair	 pair;
-	struct c2_layout_rec	*rec;
-	struct c2_bufvec_cursor	 it;
-
-	c2_db_pair_setup(&pair, &schema->ls_layout_entries,
-			 lid, sizeof(uint64_t),
-			 c2_lay_rec, sizeof c2_lay_rec);
-
-
-	set_key_val_pair(lid);
-
-	c2_table_lookup(&schema->ls_layout_entries, &pair);
-
-	Setup cursor to point at the beginning of the key-val pair record.
-
-	Parse generic part of the key-val pair record using decode.
-	c2_layout_rec_decode(&it, &rec);
-
-	parse the layout type specific part using decode
-	schema->ls_types[rec->lr_lt_id]->lto_decode(&it, rec, out);
-	---
-
+	Delete layout entry from the layouts table.
 	@endcode
    */
 	return 0;
 }
+
 
 /** @} end group LayoutDBDFS */
 

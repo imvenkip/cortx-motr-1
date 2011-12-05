@@ -43,17 +43,15 @@ struct c2_layout_formula_enum {
 	/** super class */
 	struct c2_layout_enum			 	 lfe_enum;
 
-	const struct c2_layout_formula			*lfe_form;
-	const struct c2_layout_formula_parameter	*lfe_actuals;
-};
+	/** formula id */
+	const struct c2_uint128				 lfe_id;
 
-struct c2_layout_formula {
-	const struct c2_uint128			 	 lf_id;
-	const struct c2_layout_formula_ops		*lf_ops;
+	const struct c2_layout_formula_parameter	*lfe_actuals;
+	const struct c2_layout_formula_ops		*lfe_ops;
 };
 
 struct c2_layout_formula_ops {
-	int	(*lfo_subst)(const struct c2_layout_formula *form,
+	int	(*lfo_subst)(const struct c2_layout_formula_enum *form,
 			     uint16_t nr,
 			     const struct c2_layout_formula_parameter *actuals,
 			     struct c2_layout **out);
@@ -72,7 +70,7 @@ struct c2_layout_formula_parameter_type {
 };
 
 
-extern const struct c2_layout_enum_type c2_layout_formula_enum_type;
+extern const struct c2_layout_enum_type c2_formula_enum_type;
 extern const struct c2_layout_formula c2_formula_NKP_formula;
 
 /** @} end group formula_enum */

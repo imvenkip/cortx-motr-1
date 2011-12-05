@@ -99,7 +99,7 @@ struct c2_layout {
 	/** Layout reference count.
 	    Indicating how many files are using this layout.
 	*/
-	uint64_t				*l_ref;
+	uint64_t				 l_ref;
 
 	/** Layout operations vector. */
 	const struct c2_layout_ops		*l_ops;
@@ -155,7 +155,8 @@ struct c2_layout_type_ops {
 
 	/** Continues storing the layout representation either in the buffer
 	    or in the DB. */
-	int	(*lto_encode)(bool toDB, const struct c2_layout *l,
+	int	(*lto_encode)(bool toDB, bool ifupdate,
+			      const struct c2_layout *l,
 			      struct c2_ldb_schema *schema,
 			      struct c2_db_tx *tx,
 			      struct c2_bufvec_cursor *out);
@@ -220,7 +221,8 @@ struct c2_layout_enum_type_ops {
 
 	/** Continues storing layout representation either in the buffer
 	    or in the DB. */
-	int	(*leto_encode)(bool toDB, const struct c2_layout *l,
+	int	(*leto_encode)(bool toDB, bool ifupdate,
+			       const struct c2_layout *l,
 			       struct c2_ldb_schema *schema,
 			       struct c2_db_tx *tx,
 			       struct c2_bufvec_cursor *out);
@@ -241,7 +243,8 @@ int	c2_layout_decode(bool fromDB, uint64_t lid,
 			 struct c2_db_tx *tx,
 			 const struct c2_bufvec_cursor *cur,
 			 struct c2_layout **out);
-int	c2_layout_encode(bool toDB, const struct c2_layout *l,
+int	c2_layout_encode(bool toDB, bool ifupdate,
+			 const struct c2_layout *l,
 			 struct c2_ldb_schema *schema,
 			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *out);
@@ -250,10 +253,11 @@ int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
 		    struct c2_db_pair *pair,
 		    struct c2_ldb_schema *schema,
 		    struct c2_db_tx *tx);
-int ldb_layout_write(const uint32_t recsize,
-		    struct c2_bufvec_cursor *pair,
-		    struct c2_ldb_schema *schema,
-		    struct c2_db_tx *tx);
+int ldb_layout_write(bool ifupdate,
+		     const uint32_t recsize,
+		     struct c2_bufvec_cursor *pair,
+		     struct c2_ldb_schema *schema,
+		     struct c2_db_tx *tx);
 
 /** @} end group layout */
 

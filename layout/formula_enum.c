@@ -101,7 +101,7 @@ void formula_get(const struct c2_layout_enum *le,
 }
 
 
-const struct c2_layout_enum_type c2_layout_formula_enum_type = {
+const struct c2_layout_enum_type c2_formula_enum_type = {
 	.let_name	= "formula",
 	.let_id		= 0x464F524D554C4145, /* FORMULAE */
 	.let_ops	= NULL
@@ -111,11 +111,9 @@ static const struct c2_layout_formula_ops nkp_ops = {
 	.lfo_subst	= NULL
 };
 
-const struct c2_layout_formula c2_formula_NKP_formula = {
-	.lf_id   = { .u_hi = 0x5041524954594445, /* PARITYDE */
-		     .u_lo = 0x434c55535445522e  /* CLUSTER. */
-	},
-	.lf_ops  = &nkp_ops
+const struct c2_uint128 c2_formula_NKP_formula_id = {
+	.u_hi = 0x5041524954594445, /* PARITYDE */
+	.u_lo = 0x434c55535445522e  /* CLUSTER. */
 };
 
 /** @} end group formula_enum */

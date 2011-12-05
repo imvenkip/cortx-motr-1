@@ -364,7 +364,6 @@ static bool pdclust_equal(const struct c2_layout *l0,
 /** Implementation of lo_fini for pdclust layout type. */
 static void pdclust_fini(struct c2_layout *lay)
 {
-	/** @todo */
 	return;
 }
 
@@ -417,14 +416,21 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
+		/**
+		@code
+			Create an object of the type c2_layout_formula_enum.
+			c2_layout_formula_enum::lfe_id may be set to
+			c2_formula_NKP_formula_id
+			c2_layout_formula_enum::lfe_actuals should be assigned with
+			a structure of the type c2_layout_formula_parameter with
+			appropriate parameter values set.
+			c2_layout_formula_enum::lfe_ops may be set to nkp_ops.
+		@endcode
+		*/
 		c2_layout_init(&pdl->pl_layout, *id,
                                &c2_pdclust_layout_type,
-                               NULL, /* todo */
+                               NULL, /* Pointer to c2_layout_formula_enum object */
                                &pdlclust_ops);
-
-		/** @todo Change the following to use fields from c2_lay_formula_enum */
-		//pdl->pl_layout.l_form    = NULL;
-		//pdl->pl_layout.l_actuals = NULL;
 
 		pdl->pl_seed = *seed;
 		pdl->pl_attr->pa_N = N;
@@ -532,8 +538,12 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
 
    @param toDB - This flag indicates if 'the layout is to be stored in the
    Layout DB' or 'if it is to be stored in the buffer'.
+
+   @param ifUpdate - This flag indicates if 'the layout record is to be written
+   to the Layout DB' or 'if it is to be updated'.
 */
-static int pdclust_encode(bool toDB, const struct c2_layout *l,
+static int pdclust_encode(bool toDB, bool ifUpdate,
+			  const struct c2_layout *l,
 			  struct c2_ldb_schema *schema,
 			  struct c2_db_tx *tx,
 		          struct c2_bufvec_cursor *out)
@@ -544,7 +554,7 @@ static int pdclust_encode(bool toDB, const struct c2_layout *l,
 	if (toDB) {
 		uint64_t recsize = sizeof(struct c2_ldb_rec)
 					+ sizeof(c2_pdclust_attr);
-		ret = ldb_layout_write(recsize, out, schema, tx);
+		ret = ldb_layout_write(ifUpdate, recsize, out, schema, tx);
 	}
 
 	@endcode
