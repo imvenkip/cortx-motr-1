@@ -268,7 +268,7 @@ static unsigned long many_callback(unsigned long data)
 {
 	C2_ASSERT(data >= 0 && data < NR_TIMERS);
 	C2_ASSERT(many_pids[data] == gettid());
-	if (++many_iterations[data] == NR_TICKS)
+	if (++many_iterations[data] == many_iterations_max[data])
 		c2_semaphore_up(&many_finished[data]);
 	return 0;
 }
@@ -280,24 +280,23 @@ static void test_timer_many_timers(int timers_nr, int iter_nr)
 	static struct c2_timer   timer[NR_TIMERS];
 	struct c2_timer_locality loc;
 	c2_time_t		 interval;
-	c2_time_t		 one_ms;
 
 	C2_ASSERT(timers_nr <= NR_TIMERS);
 
 	for (i = 0; i < timers_nr; ++i) {
 		c2_semaphore_init(&many_finished[i], 0);
 		many_iterations[i] = 0;
+		many_iterations_max[i] = iter_nr;
 		many_pids[i] = gettid();
 	}
 
 	c2_timer_locality_init(&loc);
 	c2_timer_thread_attach(&loc);
-	c2_time_set(&interval, 0, 10000000);
-	c2_time_set(&one_ms, 0, 1000000);
+	c2_time_set(&interval, 0, 100000);
 
 	for (i = 0; i < timers_nr; ++i) {
 		rc = c2_timer_init(&timer[i], C2_TIMER_HARD, interval,
-				iter_nr, &many_callback, i);
+				many_iterations_max[i], &many_callback, i);
 		C2_ASSERT(rc == 0);
 		c2_timer_attach(&timer[i], &loc);
 	}
@@ -411,7 +410,7 @@ static void test_timer_master_mt(struct thread_group *tg)
 		 * parameter for callback is pointer to corresponding
 		 * `struct tg_timer'
 		 */
-		rc = c2_timer_init(&tg->tg_timers[i].tgt_timer, C2_TIMER_SOFT,
+		rc = c2_timer_init(&tg->tg_timers[i].tgt_timer, C2_TIMER_HARD,
 				tgt->tgt_interval, tgt->tgt_repeat,
 				test_timer_callback_mt, (unsigned long) tgt);
 		C2_ASSERT(rc == 0);
