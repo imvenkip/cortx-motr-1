@@ -43,15 +43,15 @@
    (2) TIMER_RUNNING	-	-	-	1	-
  */
 enum c2_timer_state {
-	/* Not initialized. */
+	/** Not initialized. */
 	TIMER_UNINIT = 0,
-	/* Initialized. */
+	/** Initialized. */
 	TIMER_INITED,
-	/* Timer is running. */
+	/** Timer is running. */
 	TIMER_RUNNING,
-	/* Number of timer states */
+	/** Number of timer states */
 	TIMER_STATE_NR,
-	/* Invalid state */
+	/** Invalid state */
 	TIMER_INVALID = TIMER_STATE_NR
 };
 
