@@ -81,8 +81,7 @@
    back to the HLD for the component.</i>
 
    - IO bulk client allocates memory for a c2_io_fop and invokes
-   c2_io_fop_init() by providing fop type, number of io segments, size
-   of each segment and the network domain.
+   c2_io_fop_init() by providing fop type.
    - IO bulk client client invokes c2_rpc_bulk_page_add() till all pages are
    added to c2_rpc_bulk structure and then invokes c2_rpc_post() to
    submit the fop to rpc layer.
@@ -90,8 +89,7 @@
    and populates its network buffer descriptor.
 
    - Colibri io server program (ioservice) creates a c2_io_fop and invokes
-   c2_io_fop_init() by providing fop type, number of io segments, size of
-   each segment and network domain.
+   c2_io_fop_init() by providing fop type.
    - Ioservice invokes c2_rpc_bulk_buf_add() to attach buffers to the
    c2_rpc_bulk structure.
    - Ioservice invokes c2_rpc_bulk_load() to start the zero copy of data from
@@ -130,7 +128,7 @@ enum {
    The c2_io_fop structures can be populated and used like this.
    @see c2_rpc_bulk().
    @code
-   c2_io_fop_init(iofop, ftype, segs_nr, seg_size, net_domain);
+   c2_io_fop_init(iofop, ftype);
    ...
    c2_rpc_bulk_page_add(iofop->if_rbulk, page, index);
    OR
@@ -153,15 +151,10 @@ struct c2_io_fop {
 /**
    Initializes a c2_io_fop structure.
    @param ftype Type of fop to be initialized.
-   @param segs_nr Max number of segments in the zero vector.
-   @param seg_size Size of each io segment.
-   @param netdom Network domain to which given iofop belongs. @see c2_net_domain
    @pre iofop != NULL.
    @post io_fop_invariant(iofop)
  */
-int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype,
-		   uint32_t segs_nr, c2_bcount_t seg_size,
-		   struct c2_net_domain *netdom);
+int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype);
 
 /**
    Finalizes a c2_io_fop structure.

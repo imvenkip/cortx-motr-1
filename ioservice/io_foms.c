@@ -37,6 +37,7 @@
 #include "reqh/reqh_service.h"
 #include "net/buffer_pool.h"
 #include "ioservice/io_service.h"
+#include "rpc/rpc2.h"
 
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"
@@ -1013,8 +1014,10 @@ static int io_fom_rwv_initiate_zero_copy(struct c2_fom *fom)
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom          *fom_obj = NULL;
         struct c2_fop_cob_rw      *rwfop;
+        const struct c2_rpc_item  *rpc_item;
         struct c2_rpc_bulk        *rbulk;
         struct c2_net_buffer      *nb = NULL;
+        struct c2_net_buf_desc    *net_desc;
 
         fom_obj = container_of(fom, struct c2_io_fom, fcrw_gen);
         aquired_buf_count = c2_tlist_length(&netbufs_tl,
@@ -1027,14 +1030,13 @@ static int io_fom_rwv_initiate_zero_copy(struct c2_fom *fom)
         rwfop = io_rw_get(fop); 
         rbulk = &fom_obj->fcrw_bulk;
 
-        c2_rpc_bulk_init(rbulk, 0, 0, NULL);
+        c2_rpc_bulk_init(rbulk);
 
         c2_fom_block_at(fom, &rbulk->rb_chan);
 
         for (i = 0; i < fom_obj->fcrw_batch_size;
              i++, fom_obj->fcrw_curr_desc_index++) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
-                struct c2_net_buf_desc      net_desc;
 
                 C2_ALLOC_PTR(rb_buf);
                 if (rb_buf == NULL) {
@@ -1054,14 +1056,15 @@ static int io_fom_rwv_initiate_zero_copy(struct c2_fom *fom)
                 rb_buf->bb_rbulk = rbulk;
                 c2_tlink_init(&rpcbulk_tl, &rb_buf->bb_link);
                 c2_tlist_add(&rpcbulk_tl, &rbulk->rb_buflist, rb_buf);
+        }
 
-                net_desc = rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
-                rc = c2_rpc_bulk_buf_load(rb_buf, &fop->f_item, &net_desc);
-                if (rc != 0){
-                        fom->fo_rc = rc;
-                        fom->fo_phase = FOPH_FAILURE;
-                        return FSO_AGAIN;
-                }
+        net_desc = rwfop->crw_desc.id_descs;
+        rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
+        rc = c2_rpc_bulk_buf_load(rbulk, rpc_item, net_desc);
+        if (rc != 0){
+                fom->fo_rc = rc;
+                fom->fo_phase = FOPH_FAILURE;
+                return FSO_AGAIN;
         }
 
         if (is_read(fop))

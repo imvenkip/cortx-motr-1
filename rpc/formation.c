@@ -905,6 +905,50 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		c2_list_del(&slot->sl_link);
 }
 
+/* Invokes io coalescing op for io fops and stores the net buf descriptor
+   into io fop as a result. */
+static int item_io_coalesce(struct c2_rpc_item *item,
+			    struct c2_rpc_frm_sm *frm_sm)
+{
+	int				   rc;
+	struct c2_list			  *list;
+	struct c2_rpc_session		  *session;
+	const struct c2_rpc_item_type_ops *ops;
+
+	C2_PRE(item != NULL);
+	C2_PRE(frm_sm != NULL);
+	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
+
+	session = item->ri_session;
+	C2_PRE(session != NULL);
+	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
+
+	ops = item->ri_type->rit_ops;
+	if (ops->rito_io_coalesce)
+		ops->rito_io_coalesce(item, &session->s_unbound_items);
+
+	list = &frm_sm->fs_unformed[C2_RPC_ITEM_PRIO_NR - (item->ri_prio + 1)].
+	       pl_unformed_items;
+	if (ops->rito_io_desc_store) {
+		rc = ops->rito_io_desc_store(item);
+		/* If desc store operation fails, add the item back
+		   to list of bound items with formation state machine. */
+		if (rc != 0) {
+			/* If item was already bound when submitted to
+			   formation, move it to the head of its priority
+			   list else add it to its priority list. */
+			if (c2_list_link_is_in(&item->ri_unformed_linkage))
+				c2_list_move(list, &item->ri_unformed_linkage);
+			else
+				c2_list_add(list, &item->ri_unformed_linkage);
+
+			return rc;
+		}
+	}
+
+	return 0;
+}
+
 /* Add bound items to rpc object. Rpc items are added until size gets
    optimal or any other policy of formation module has met. */
 static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
@@ -951,30 +995,16 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				frags_policy_ok = frm_fragment_policy_in_bounds(
 						  frm_sm, item, frag_nr);
 				if (frags_policy_ok) {
-					/* Try to coalesce current bound
-					   item with list of unbound items
-					   in its rpc session. */
 					session = item->ri_session;
 					c2_mutex_lock(&session->s_mutex);
-					if (rit_ops->rito_io_coalesce)
-						rit_ops->rito_io_coalesce(item,
-						&session->s_unbound_items);
+					rc = item_io_coalesce(item, frm_sm);
 					c2_mutex_unlock(&session->s_mutex);
-					if (rit_ops->rito_io_desc_store) {
-						rc = rit_ops->rito_io_desc_store
-							(item);
-						if (rc != 0) {
-							c2_list_move(list,
-								    &item->
-								    ri_unformed_linkage);
-							continue;
-						}
-					}
 					c2_mutex_lock(&rpcmachine->
 							cr_ready_slots_mutex);
-					frm_add_to_rpc(frm_sm, rpcobj,
-							item, rpcobj_size,
-							frag_nr);
+					if (rc == 0)
+						frm_add_to_rpc(frm_sm, rpcobj,
+						       item, rpcobj_size,
+						       frag_nr);
 					c2_mutex_unlock(&rpcmachine->
 							cr_ready_slots_mutex);
 				}
@@ -1012,7 +1042,6 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	bool				   sz_policy_violated = false;
 	bool				   frags_policy_ok = false;
 	uint64_t			   rpc_size;
-	struct c2_list			  *list;
 	struct c2_rpc_item		  *item;
 	struct c2_rpc_item		  *item_next;
 	struct c2_rpc_slot		  *slot;
@@ -1066,23 +1095,13 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 						  frm_sm, item, frag_nr);
 				if (frags_policy_ok) {
 					frm_item_make_bound(slot, item);
-					if (rit_ops->rito_io_coalesce)
-						rit_ops->rito_io_coalesce(item,
-						&item->ri_session->
-						s_unbound_items);
-					if (rit_ops->rito_io_desc_store) {
-						rc = rit_ops->rito_io_desc_store
-							(item);
-						if (rc != 0) {
-							list = &frm_sm->
-							fs_unformed[C2_RPC_ITEM_PRIO_NR - (item->ri_prio + 1)].pl_unformed_items;
-							c2_list_add(list, &item
-									->ri_unformed_linkage);
-						}
-					}
-					frm_add_to_rpc(frm_sm, rpcobj, item,
-						       rpcobj_size, frag_nr);
 					c2_list_del(&item->ri_unbound_link);
+					rc = item_io_coalesce(item, frm_sm);
+					if (rc == 0)
+						frm_add_to_rpc(frm_sm, rpcobj,
+							       item,
+							       rpcobj_size,
+							       frag_nr);
 				}
 			} else
 				break;
