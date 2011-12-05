@@ -50,7 +50,9 @@
 
    @{
 */
-/*
+/**
+ * Hard timer states
+ *
  *	+-----------------+          +-------------+	       +---------+
  *	|		  |-- init >>|		   |-- start >>|	 |
  *	| not initialized |	     | initialized |           | running |
@@ -58,6 +60,9 @@
  *	+-----------------+	     +-------------+	       +---------+
  *				       v	 ^
  *				       + attach -+
+ */
+/**
+ * mini-DLD for timer functions
  *
  * signal handler
  *	if (t_stopping)
@@ -94,6 +99,9 @@
  *	timer_delete()
  *	choose t_tid
  *	timer_create(signo = t_signo, target tid = t_tid)
+ */
+/**
+ * c2_timer access table for timer functions (R - read, W - write)
  *
  * c2_timer field	init	fini	start	stop	attach	sighandler
  * -----------------------------------------------------------------------
@@ -146,10 +154,8 @@ struct timer_tid {
 /**
  * Signal number for every new hard timer is chosen in a round-robin fashion.
  * This variable contains signal number for next timer.
- * sig_atomic_t is chosen because for this type is guaranteed atomically
- * reading or writing without "heavy" processor atomic instructions.
  */
-static sig_atomic_t signo_rr;
+static int signo_rr;
 /* magic interval for c2_timer_stop() */
 static c2_time_t magic_interval;
 static c2_time_t zero_time;
