@@ -377,7 +377,8 @@ struct c2t1fs_inode {
 	struct c2_layout         *ci_layout;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
-	    List descriptor dir_ents_tld */
+	    List descriptor dir_ents_tld. Valid for only directory inode.
+	    Empty for regular file inodes. */
 	struct c2_tl              ci_dir_ents;
 };
 

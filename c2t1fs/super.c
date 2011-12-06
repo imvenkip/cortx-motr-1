@@ -51,8 +51,8 @@ static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 
 static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx);
 
-static int  c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb);
-static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb);
+static int  c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb);
+static void c2t1fs_service_contexts_discard(struct c2t1fs_sb *csb);
 
 static int  c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb);
 static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb);
@@ -242,7 +242,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	if (csb != NULL) {
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
-		c2t1fs_discard_service_contexts(csb);
+		c2t1fs_service_contexts_discard(csb);
 		c2t1fs_sb_fini(csb);
 		c2_free(csb);
 	}
@@ -575,7 +575,7 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 
 	START();
 
-	rc = c2t1fs_populate_service_contexts(csb);
+	rc = c2t1fs_service_contexts_populate(csb);
 	if (rc != 0)
 		goto out;
 
@@ -592,7 +592,7 @@ out:
 	return rc;
 }
 
-static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
+static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 {
 	struct c2t1fs_mnt_opts        *mntopts;
 	int                            rc = 0;
@@ -640,12 +640,12 @@ static int c2t1fs_populate_service_contexts(struct c2t1fs_sb *csb)
 	return 0;
 
 discard_all:
-	c2t1fs_discard_service_contexts(csb);
+	c2t1fs_service_contexts_discard(csb);
 	END(rc);
 	return rc;
 }
 
-static void c2t1fs_discard_service_contexts(struct c2t1fs_sb *csb)
+static void c2t1fs_service_contexts_discard(struct c2t1fs_sb *csb)
 {
 	struct c2t1fs_service_context *ctx;
 

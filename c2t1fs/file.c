@@ -426,6 +426,12 @@ struct c2t1fs_buf {
 	uint64_t                  cb_magic;
 };
 
+/*
+C2_TL_DESCR_DEFINE(bufs, "buf list", static, struct c2t1fs_buf, cb_link,
+			cb_magic, MAGIC_C2T1BUF, MAGIC_BUFLSTHD);
+
+C2_TL_DEFINE(bufs, static, struct c2t1fs_buf);
+*/
 static struct c2_tl_descr buf_tl_descr = C2_TL_DESCR("buf list",
 						struct c2t1fs_buf,
 						cb_link,
