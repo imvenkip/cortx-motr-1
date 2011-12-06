@@ -156,7 +156,7 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 	de->de_fid           = *fid;
 	de->de_magic         = MAGIC_DIRENT;
 
-	c2_tlink_init(&dir_ents_tld, de);
+	dir_ents_tlink_init(de);
 
 	END(0);
 }
@@ -165,7 +165,7 @@ void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de)
 {
 	START();
 
-	c2_tlink_fini(&dir_ents_tld, de);
+	dir_ents_tlink_fini(de);
 	de->de_magic = 0;
 
 	END(0);
@@ -203,7 +203,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	}
 
 	c2t1fs_dir_ent_init(de, name, namelen, fid);
-	c2_tlist_add(&dir_ents_tld, &ci->ci_dir_ents, de);
+	dir_ents_tlist_add_tail(&ci->ci_dir_ents, de);
 
 	TRACE("Added name: %s[%lu:%lu]\n", de->de_name,
 					   (unsigned long)fid->f_container,
@@ -252,7 +252,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	C2_ASSERT(c2t1fs_fs_is_locked(csb));
 
-	c2_tlist_for(&dir_ents_tld, &ci->ci_dir_ents, de) {
+	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
 
 		if (name_eq(name, de->de_name, namelen)) {
 			END(de);
@@ -347,7 +347,7 @@ static int c2t1fs_readdir(struct file *f,
 		/* previous call to readdir() returned f->f_pos number of entries.
 		   Now we should continue after that point */
 		skip = i - 2;
-		c2_tlist_for(&dir_ents_tld, &ci->ci_dir_ents, de) {
+		c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
 			char *name;
 			int   namelen;
 
@@ -379,7 +379,9 @@ static int c2t1fs_dir_ent_remove(struct inode *dir, struct c2t1fs_dir_ent *de)
 	START();
 
 	TRACE("Name: \"%s\"\n", de->de_name);
-	c2_tlist_del(&dir_ents_tld, de);
+	dir_ents_tlist_del(de);
+	c2t1fs_dir_ent_fini(de);
+	c2_free(de);
 
 	END(0);
 	return 0;

@@ -31,13 +31,10 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque);
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
-const struct c2_tl_descr dir_ents_tld =
-			C2_TL_DESCR("Dir entries",
-				struct c2t1fs_dir_ent,
-				de_link,
-				de_magic,
-				MAGIC_DIRENT,
-				MAGIC_DIRENTHD);
+C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
+			de_link, de_magic, MAGIC_DIRENT, MAGIC_DIRENTHD);
+
+C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
 
 bool c2t1fs_inode_is_root(const struct inode *inode)
 {
@@ -99,7 +96,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	C2_SET0(&ci->ci_fid);
 	ci->ci_layout = NULL;
 
-	c2_tlist_init(&dir_ents_tld, &ci->ci_dir_ents);
+	dir_ents_tlist_init(&ci->ci_dir_ents);
 
 	END(0);
 }
@@ -111,13 +108,14 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	START();
 
-	c2_tlist_for(&dir_ents_tld, &ci->ci_dir_ents, de) {
-		c2_tlist_del(&dir_ents_tld, de);
+	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
+		dir_ents_tlist_del(de);
+
 		c2t1fs_dir_ent_fini(de);
 		c2_free(de);
 	} c2_tlist_endfor;
 
-	c2_tlist_fini(&dir_ents_tld, &ci->ci_dir_ents);
+	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
 					pl_layout);
