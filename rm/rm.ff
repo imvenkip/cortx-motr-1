@@ -59,13 +59,14 @@
 DEF(c2_fop_rm_cookie, RECORD,
     _(co_hi, U64),
     _(co_lo, U64));
+
 DEF(c2_fop_rm_opaque, SEQUENCE,
     _(op_nr, U32),
     _(op_bytes, BYTE));
 
 DEF(c2_fop_rm_owner, RECORD,
     _(ow_cookie, c2_fop_rm_cookie),
-    _(ow_opaque, c2_fop_rm_opaque));
+    _(ow_resource, c2_fop_rm_opaque));
 
 DEF(c2_fop_rm_right, RECORD,
     _(ri_opaque, c2_fop_rm_opaque));
@@ -74,6 +75,7 @@ DEF(c2_fop_rm_borrow, RECORD,
     _(bo_rtype, U64),
     _(bo_owner, c2_fop_rm_owner),
     _(bo_right, c2_fop_rm_right),
+    _(bo_loan, c2_fop_rm_cookie),
     _(bo_flags, U64));
 
 DEF(c2_fop_rm_borrow_rep, RECORD,

@@ -24,13 +24,14 @@
 #include "lib/arith.h"  /* C2_CNT_{INC,DEC} */
 
 #include "rm/rm.h"
+#include "rm/rm_internal.h"
 
-/*@todo remove after RM:Fops is developed */
-#include "rm/ut/rmproto.h" /* PRO_LOAN_REPLY,PRO_OUT_REQUEST */
 /**
    @addtogroup rm
    @{
  */
+
+struct owner_invariant_state;
 
 static void resource_get           (struct c2_rm_resource *res);
 static void resource_put           (struct c2_rm_resource *res);
@@ -63,9 +64,6 @@ static void incoming_release       (struct c2_rm_incoming *in);
 
 static int  right_pin_nr           (const struct c2_rm_right *right,
 				    uint32_t flags);
-static bool right_invariant        (const struct c2_rm_right *right,
-				    enum right_queue q,
-				    enum c2_rm_owner_owned_state owos);
 static bool right_check            (const struct c2_rm_right *right, void *d);
 
 static int  service_locate         (struct c2_rm_resource_type *rtype,
@@ -73,13 +71,15 @@ static int  service_locate         (struct c2_rm_resource_type *rtype,
 static int  resource_locate        (struct c2_rm_resource_type *rtype,
 				    struct c2_rm_remote *rem);
 
-static int  loan_grant             (struct c2_rm_incoming *in);
-static void request_build          (struct c2_rm_req_reply *req,
+static int  outoging_check         (struct c2_rm_incoming *in,
+				    enum c2_rm_outgoing_type,
+				    struct c2_rm_right *right,
+				    struct c2_rm_remote *other);
+static int  revoke_send            (struct c2_rm_incoming *in,
 				    struct c2_rm_loan *loan,
-				    enum c2_rm_request_type type);
-static int  revoke_request_reply   (struct c2_rm_incoming *in);
-static int  loan_request_reply     (struct c2_rm_incoming *in);
-static int  out_request_send       (struct c2_rm_outgoing *out);
+				    struct c2_rm_right *right);
+static int  borrow_send            (struct c2_rm_incoming *in,
+				    struct c2_rm_right *right);
 
 static bool right_is_empty         (const struct c2_rm_right *right);
 static bool right_intersects       (const struct c2_rm_right *A,
@@ -188,7 +188,7 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
 	C2_PRE(rtype->rt_nr_resources == 0);
 
 	c2_mutex_lock(&dom->rd_lock);
-	C2_PRE(resource_type_invariant(rt));
+	C2_PRE(resource_type_invariant(rtype));
 
 	dom->rd_types[rtype->rt_id] = NULL;
 	rtype->rt_dom = NULL;
@@ -205,17 +205,15 @@ C2_EXPORTED(c2_rm_type_deregister);
 void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
 			struct c2_rm_resource *res)
 {
-	struct c2_rm_resource *r;
-
 	c2_mutex_lock(&rtype->rt_lock);
-	C2_PRE(resource_type_invariant(rt));
+	C2_PRE(resource_type_invariant(rtype));
 	C2_PRE(res->r_ref == 0);
 	C2_PRE(resource_find(rtype, res) == NULL);
 	res->r_type = rtype;
 	res_tlink_init_at(res, &rtype->rt_resources);
 	C2_CNT_INC(rtype->rt_nr_resources);
 	C2_POST(res_tlist_contains(&rtype->rt_resources, res));
-	C2_POST(resource_type_invariant(rt));
+	C2_POST(resource_type_invariant(rtype));
 	c2_mutex_unlock(&rtype->rt_lock);
 	C2_POST(res->r_type == rtype);
 }
@@ -227,12 +225,12 @@ void c2_rm_resource_del(struct c2_rm_resource *res)
 
 	c2_mutex_lock(&rtype->rt_lock);
 	C2_PRE(res_tlist_contains(&rtype->rt_resources, res));
-	C2_PRE(resource_type_invariant(rt));
+	C2_PRE(resource_type_invariant(rtype));
 
 	res_tlink_del_fini(res);
 	C2_CNT_DEC(rtype->rt_nr_resources);
 
-	C2_POST(resource_type_invariant(rt));
+	C2_POST(resource_type_invariant(rtype));
 	C2_POST(!res_tlist_contains(&rtype->rt_resources, res));
 	c2_mutex_unlock(&rtype->rt_lock);
 }
@@ -315,7 +313,6 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 	C2_POST(ergo(result == 0,
 		     (owner->ro_state == ROS_INITIALISING ||
 		      owner->ro_state == ROS_ACTIVE) &&
-		     owner->ro_resource == res &&
 		     ur_tlist_contains(&owner->ro_owned[OWOS_CACHED], r) &&
 		     owner_invariant(owner)));
 	return result;
@@ -420,35 +417,23 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem)
 	       rem->rem_state == REM_OWNER_LOCATED);
 	rem->rem_state = REM_FREED;
 	c2_chan_fini(&rem->rem_signal);
-	resource_put(res);
+	resource_put(rem->rem_resource);
 }
 C2_EXPORTED(c2_rm_remote_fini);
 
-/**
-   For a successfully completed RIT_LOAN incoming request, move granted rights
-   from "owned" to "sublet" list.
- */
-static int loan_grant(struct c2_rm_incoming *in)
+int c2_rm_borrow_commit(struct c2_rm_borrow_incoming *bor)
 {
-	struct c2_rm_owner *owner = in->rin_want.ri_owner;
-	struct c2_rm_pin   *pin;
-	struct c2_rm_right *right;
-	struct c2_rm_loan  *loan;
-	int                 result;
+	struct c2_rm_incoming *in     = &bor->bi_incoming;
+	struct c2_rm_loan     *loan   = bor->bi_loan;
+	struct c2_rm_owner    *owner  = in->rin_want.ri_owner;
+	struct c2_rm_pin      *pin;
+	struct c2_rm_right    *right;
+	int                    result;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 	C2_PRE(in->rin_state == RI_SUCCESS);
-	C2_PRE(in->rin_type == RIT_LOAN);
-
-	C2_ALLOC_PTR(loan);
-	if (loan == NULL)
-		return -ENOMEM;
-
-	c2_rm_right_init(&loan->rl_right, owner);
-
-	/*
-	 * XXX initialise the rest of loan.
-	 */
+	C2_PRE(in->rin_type == RIT_BORROW);
+	C2_PRE(loan->rl_right.ri_owner == owner);
 
 	/* Constructs a single cumulative right */
 	c2_tlist_for(&pi_tl, &in->rin_pins, pin) {
@@ -467,141 +452,12 @@ static int loan_grant(struct c2_rm_incoming *in)
 			c2_free(right);
 		} c2_tlist_endfor;
 		ur_tlist_add(&owner->ro_sublet, &loan->rl_right);
+		bor->bi_loan = NULL;
 	} else {
 		c2_rm_right_fini(&loan->rl_right);
 		c2_free(loan);
 	}
 	return result;
-}
-
-/**
-   Builds the request.
- */
-static void request_build(struct c2_rm_req_reply *req,
-			  struct c2_rm_loan *loan,
-			  enum c2_rm_request_type type)
-{
-        struct c2_rm_remote *rem = &loan->rl_other;
-
-        req->type = type;
-        req->sig_id = loan->rl_id;
-        req->reply_id = rem->rem_id;
-
-	c2_rm_incoming_init(&req->in);
-        c2_rm_right_init(&req->in.rin_want);
-        req->in.rin_state = RI_INITIALISED;
-        req->in.rin_priority = 0;
-        req->in.rin_type = RIT_LOCAL;
-        req->in.rin_policy = RIP_INPLACE;
-        req->in.rin_flags = RIF_LOCAL_WAIT;
-	c2_queue_link_init(&req->rq_link);
-}
-
-/**
-   Reply to the incoming revoke request
- */
-static int revoke_request_reply(struct c2_rm_incoming *in)
-{
-	struct c2_rm_right     *right;
-	struct c2_rm_right     *bo_right;
-	struct c2_rm_pin       *pin;
-	struct c2_rm_loan      *loan;
-	struct c2_rm_req_reply *request;
-	struct c2_rm_owner     *owner = in->rin_want.ri_owner;
-	int			result;
-
-	c2_tlist_for (&pi_tl, &in->rin_pins, pin) {
-		right = pin->rp_right;
-		loan = container_of(right, struct c2_rm_loan, rl_right);
-		if (c2_rm_net_locate(right, &loan->rl_other) == 0) {
-			C2_ALLOC_PTR(request);
-			if (request == NULL)
-				return -ENOMEM;
-			request_build(request, loan, PRO_LOAN_REPLY);
-			result = right_copy(&request->in.rin_want,
-					    &loan->rl_right);
-			if (result != 0)
-				return result;
-			/*@todo will be replaced by rpc call and fop will be
-			 * using rpc layer API's */
-			c2_mutex_lock(&rpc_lock);
-			c2_queue_put(&rpc_queue, &request->rq_link);
-			c2_mutex_unlock(&rpc_lock);
-
-			/* Revoke(cancel) request will remove rights from borrow
-			 * and owned lists
-			 */
-			c2_tlist_for (&ur_tl, &owner->ro_borrowed, bo_right) {
-				if (right_eq(right, bo_right)) {
-					ur_tlink_del_fini(bo_right);
-					c2_rm_right_fini(bo_right);
-					c2_free(bo_right);
-				}
-			} c2_tlist_endfor;
-			pin_del(pin);
-			ur_tlink_del_fini(right);
-			c2_free(right);
-		}
-	} c2_tlist_endfor;
-	return 0;
-}
-
-/**
-   Reply to the incoming loan request when wanted rights granted
- */
-static int loan_request_reply(struct c2_rm_incoming *in)
-{
-	struct c2_rm_right     *right;
-	struct c2_rm_pin       *pin;
-	struct c2_rm_loan      *loan;
-	struct c2_rm_req_reply *request;
-	int			result;
-
-	c2_tlist_for (&pi_tl, &in->rin_pins, pin) {
-		right = pin->rp_right;
-		loan = container_of(right, struct c2_rm_loan, rl_right);
-		/*@todo Form fop for each loan and reply or
-		 * we can apply rpc grouping and send reply
-		 */
-		if (!c2_rm_net_locate(right, &loan->rl_other)) {
-			C2_ALLOC_PTR(request);
-			if (request == NULL)
-				return -ENOMEM;
-			request_build(request, loan, PRO_LOAN_REPLY);
-			result = right_copy(&request->in.rin_want,
-					    &loan->rl_right);
-			if (result != 0)
-				return result;
-			c2_mutex_lock(&rpc_lock);
-			c2_queue_put(&rpc_queue, &request->rq_link);
-			c2_mutex_unlock(&rpc_lock);
-		}
-	} c2_tlist_endfor;
-
-	return 0;
-}
-
-/**
-   It sends out outgoing excited requests
- */
-static int out_request_send(struct c2_rm_outgoing *out)
-{
-	struct c2_rm_req_reply *request;
-	int			result;
-
-	C2_ALLOC_PTR(request);
-	if (request == NULL)
-		return -ENOMEM;
-	request_build(request, &out->rog_want, PRO_OUT_REQUEST);
-	result = right_copy(&request->in.rin_want, &out->rog_want.rl_right);
-	if (result != 0)
-		return result;
-	/*@todo following code will be replaced by rpc call */
-	c2_mutex_lock(&rpc_lock);
-	c2_queue_put(&rpc_queue, &request->rq_link);
-	c2_mutex_unlock(&rpc_lock);
-
-	return 0;
 }
 
 /**
@@ -713,9 +569,7 @@ static void owner_balance(struct c2_rm_owner *o)
 				C2_ASSERT(pin->rp_flags == RPF_TRACK);
 				pin_del(pin);
 			} c2_tlist_endfor;
-
 			ur_tlink_del_fini(right);
-			c2_free(out);
 		} c2_tlist_endfor;
 		for (prio = ARRAY_SIZE(o->ro_incoming) - 1; prio >= 0; prio--) {
 			c2_tlist_for(&ur_tl,
@@ -754,10 +608,10 @@ static void incoming_check(struct c2_rm_incoming *in)
 	result = right_copy(&rest, &in->rin_want);
 	result = result ?: incoming_check_with(in, &rest);
 	c2_rm_right_fini(&rest);
-	if (result > 0)
+	if (result > 0) {
 		C2_ASSERT(incoming_pin_nr(in, RPF_PROTECT) == 0);
 		in->rin_state = RI_WAIT;
-	else {
+	} else {
 		if (result == 0) {
 			C2_ASSERT(incoming_pin_nr(in, RPF_TRACK) == 0);
 			incoming_policy_apply(in);
@@ -796,7 +650,7 @@ static void incoming_check(struct c2_rm_incoming *in)
 static int incoming_check_with(struct c2_rm_incoming *in,
 			       struct c2_rm_right *rest)
 {
-	struct c2_rm_right *want = &in->win_want;
+	struct c2_rm_right *want = &in->rin_want;
 	struct c2_rm_owner *o    = want->ri_owner;
 	struct c2_rm_right *r;
 	struct c2_rm_loan  *loan;
@@ -828,7 +682,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 			result = result ?: right_diff(rest, r);
 			if (result != 0)
 				return result;
-		}
+		} c2_tlist_endfor;
 	}
 
 	if (!right_is_empty(rest)) {
@@ -847,11 +701,11 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 			 * XXX use rpc grouping here.
 			 */
 			wait++;
-			result = go_out(in, ROT_REVOKE, loan->rl_other, rest);
+			result = revoke_send(in, loan, rest);
 			result = result ?: right_diff(rest, r);
 			if (result != 0)
 				return result;
-		}
+		} c2_tlist_endfor;
 	}
 
 	if (!right_is_empty(rest)) {
@@ -859,7 +713,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 			if (!(in->rin_flags & RIF_MAY_BORROW))
 				return -EREMOTE;
 			wait++;
-			result = go_out(in, ROT_BORROW, o->ro_creditor, rest);
+			result = borrow_send(in, rest);
 		} else
 			result = -ESRCH;
 	}
@@ -933,28 +787,15 @@ static void incoming_policy_apply(struct c2_rm_incoming *in)
 }
 
 /**
-   Sends an outgoing request of type "otype" to a remote owner specified by
-   "other" and with requested (or cancelled) right @right.
+
  */
-int go_out(c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
-	   struct c2_rm_remote *other, struct c2_rm_right *right)
+static int outoging_check(struct c2_rm_incoming *in, enum c2_rm_outgoing_type,
+			  struct c2_rm_right *right, struct c2_rm_remote *other)
 {
-	struct c2_rm_outgoing *out;
-	struct c2_rm_owner    *owner = in->rin_owner;
-	struct c2_rm_right    *scan;
-	struct c2_rm_right     rest;
-	int                    result;
-	int                    i;
-	bool                   found = false;
+	int                 i;
+	struct c2_rm_owner *owner = in->rin_owner;
+	struct c2_rm_right *scan;
 
-	C2_PRE(right->ri_owner == owner);
-
-	c2_rm_right_init(&rest, owner);
-	result = right_copy(&rest, right);
-	if (result != 0)
-		return result;
-
-	/* first check for existing outgoing requests */
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++) {
 		c2_tlist_for(&ur_tl, &owner->ro_outgoing[i], scan) {
 			out = container_of(scan, struct c2_rm_outgoing,
@@ -970,8 +811,51 @@ int go_out(c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 					break;
 			}
 		} c2_tlist_endfor;
+		if (result != 0)
+			break;
 	}
+	return result;
+}
 
+/**
+   Sends an outgoing revoke request to remote owner specified by the "loan". The
+   request will revoke the right "right", which might be a part of original
+   loan.
+ */
+static int revoke_send(struct c2_rm_incoming *in,
+		       struct c2_rm_loan *loan, struct c2_rm_right *right)
+{
+	int result;
+
+	result = outgoing_check(in, ROT_REVOKE, right, loan->rl_other);
+	if (!right_is_empty(&rest) && result == 0) {
+		result = c2_rm_revoke_out(loan, right);
+	return result;
+}
+
+/**
+   Sends an outgoing borrow request to the upward creditor. The request will
+   borrow the right "right".
+ */
+static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
+{
+	int result;
+
+	C2_PRE(owner->ro_creditor != NULL);
+
+	result = outgoing_check(in, ROT_BORROW, right, owner->ro_creditor);
+	if (!right_is_empty(&rest) && result == 0) {
+		result = c2_rm_borrow_out(right);
+	return result;
+}
+
+/**
+   Sends an outgoing request of type "otype" to a remote owner specified by
+   "other" and with requested (or cancelled) right @right.
+ */
+int go_out(c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
+	   struct c2_rm_remote *other, struct c2_rm_right *right)
+{
 	if (!right_is_empty(&rest) && result == 0) {
 		C2_ALLOC_PTR(out);
 		if (out != NULL) {

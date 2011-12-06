@@ -199,7 +199,7 @@ int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
 			rm_in = &rm_fom->frr_in;
 
 			/* Prepare incoming request for RM generic layer */
-			rm_in->rin_type = RIT_LOAN;
+			rm_in->rin_type = RIT_BORROW;
 			rm_in->rin_state = RI_CHECK;
 			rm_in->rin_flags = RIF_MAY_BORROW;
 			c2_list_init(&rm_in->rin_pins);
