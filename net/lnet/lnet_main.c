@@ -245,13 +245,13 @@
    The end point data structure is not associated internally with any LNet
    kernel resources.
 
-   The transport does not support dynamic addressing: i.e. the @c addr field
-   can never be NULL in the c2_net_end_point_create() subroutine.  However, it
-   supports the dynamic assignment of transfer machine identifiers as described
-   in the HLD, but only for the @c addr parameter of the c2_net_tm_start()
-   subroutine.
+   The transport does not support dynamic addressing: i.e. the @c addr
+   parameter can never be NULL in the c2_net_end_point_create() subroutine.
+   However, it supports the dynamic assignment of transfer machine identifiers
+   as described in the HLD, but only for the @c addr parameter of the
+   c2_net_tm_start() subroutine.
 
-   A link list of all end point objects created for a transfer machine is
+   A linked list of all end point objects created for a transfer machine is
    maintained in the c2_net_transfer_mc::ntm_end_points list.  Objects are
    added to this list as a result of the application invoking the
    c2_net_end_point_create() subroutine, or as a side effect of receiving a
@@ -327,9 +327,9 @@
    nlx_xo_transfer_mc::xtm_busy counter is incremented across the call to
    prevent premature termination when operating outside of the protection of
    the transfer machine mutex.  This is illustrated in the following
-   pseduo-code:
+   pseduo-code for nlx_xo_bev_deliver_all():
    @code
-   int rc = 0;
+   int rc;
    C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
    lctm->xtm_busy++;
    do { // consume all pending events
@@ -350,7 +350,7 @@
    @endcode
 
    @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Processing Thread
-   The default behavior of a transfer machine is to asynchronously delivery
+   The default behavior of a transfer machine is to automatically deliver
    buffer events from the Core API's event queue to the application.  The Core
    API guarantees that LNet operation completion events will result in buffer
    events being enqueued in the order the API receives them, and, in
@@ -372,8 +372,8 @@
    nlx_xo_tm_confine() subroutine, which makes a copy of the desired processor
    affinity bitmask in nlx_xo_transfer_mc::xtm_processors.
 
-   In addition to asynchronous buffer event processing, the event processing
-   thread performs the following functions:
+   In addition to automatic buffer event delivery, the event processing thread
+   performs the following functions:
    - Notify the presence of buffer events when synchronous buffer event
      delivery is enabled
    - Transfer machine state change event posting
@@ -393,9 +393,9 @@
        return; // failure
    // loop forever
    while (1) {
-      timeout = ...; // compute next timeout (short if asynchronous or stopping)
-      if (tm->ntm_deliver_buffer_events) { // asynchronous delivery
-	  rc = nlx_core_buf_event_wait(lctm, &timeout);
+      timeout = ...; // compute next timeout (short if automatic or stopping)
+      if (tm->ntm_deliver_buffer_events) { // automatic delivery
+	  rc = nlx_core_buf_event_wait(lctm, timeout);
 	  // buffer event processing
 	  if (rc == 0) { // did not time out - events pending
 	     c2_mutex_lock(&tm->ntm_mutex);
@@ -405,9 +405,9 @@
       } else {                             // synchronous delivery
 	     c2_mutex_lock(&tm->ntm_mutex);
 	     if (lctm.xtm_ev_chan == NULL)
-	        c2_cond_timedwait(lctm->xtm_ev_cond, &tm->ntm_mutex, &timeout);
+	        c2_cond_timedwait(lctm->xtm_ev_cond, &tm->ntm_mutex, timeout);
 	     if (lctm.xtm_ev_chan != NULL) {
-	        rc = nlx_core_buf_event_wait(lctm, &timeout);
+	        rc = nlx_core_buf_event_wait(lctm, timeout);
 	        if (rc == 0) {
 		    c2_chan_signal(lctm->xtm_chan);
 		    lctm.xtm_chan = NULL;
@@ -444,7 +444,7 @@
 
    A few points to note on the above pseudo-code:
    - The thread blocks in the nlx_core_buf_event_wait() if the default
-     asynchronous buffer event delivery mode is set, or on the
+     automatic buffer event delivery mode is set, or on the
      nlx_xo_transfer_mc::xtm_ev_cond condition variable otherwise. In the
      latter case, it may also block in the nlx_core_buf_event_wait() subroutine
      if the condition variable is signalled by the nlx_xo_bev_notify()
@@ -465,8 +465,12 @@
    - The timeout value can vary depending on the mode of operation. Synchronous
      network delivery is best served by a long timeout value (in the order of a
      minute), at least up to the time that the transfer machine is stopped.
-     Asynchronous delivery is better served by a short timeout value (in the
-     order of a second).
+     Automatic buffer event delivery is better served by a short timeout value
+     (in the order of a second).  This is because in the user space transport
+     the thread would be blocked in an ioctl call in the kernel, and would not
+     respond in a lively manner to a shutdown request.  The timeout value is
+     also dependent on whether the transfer machine is stopping, the buffer
+     operation timeout check period and the statistical recording period.
 
    @subsection LNetDLD-lspec-buf-nbd Network Buffer Descriptor
    The transport has to define the format of the opaque network buffer
