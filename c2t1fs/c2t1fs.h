@@ -110,11 +110,18 @@
 
    The rpc-connections and rpc-sessions will be terminated at unmount time.
 
-   <B> Containers and target objects: </B>
+   <B> Containers and component objects: </B>
 
-   One service can serve zero or more number of containers. Given an id of a
-   container, "container location map", gives service that is serving
-   the container. Even if containers are not yet implemented, notion of
+   An io service provides access to storage objects and md service
+   provides access to md objects. Containers are used to migrate and
+   locate object. Each container is identified by container-id. Storage
+   objects and md objects are identified by fid which is a pair
+   <container-id, key>. All objects belonging to same container have same
+   value for fid.container_id which is equal to id of that container.
+
+   "Container location map" maps container-id to service.
+
+   Even if containers are not yet implemented, notion of
    container id is required, to be able to locate a service serving some
    object identified by fid.
 
@@ -128,28 +135,28 @@
    - container id 1,2..,P will be served by io-services. P number of containers
      will be equally divided among available io-services.
      For a global file object having fid <0, K>, there will be P
-     target objects having fids {<i, K> | i = 1, 2, ..., P}.
-     Data of global file will be striped across these P target objects, using
+     component objects having fids {<i, K> | i = 1, 2, ..., P}.
+     Data of global file will be striped across these P component objects, using
      parity declustered layout with N, K parameters coming from mount options
-     nr_data_units and nr_parity units respectively.
+     nr_data_units and nr_parity_units respectively.
 
    Container location map is populated at mount time.
 
    <B> Directory Operations: </B>
 
    To create a regular file, c2t1fs sends cob create requests to mds (for global
-   object aka gob) and io-service (for target objects). Because, mds is not
+   object aka gob) and io-service (for component objects). Because, mds is not
    yet implemented, c2t1fs does not send cob create request to any mds.
    Instead all directory entries are stored in the in-memory root inode itself.
    In memory c2t1fs inode has statically allocated array of
    C2T1FS_MAX_NR_DIR_ENT directory entries. "." and ".." are not stored in
-   this directory entry array. c2t1fs generates fid of new file and its target
-   objects. All target objects have same fid.key as that of global file's
-   fid.key They differ only in fid.container field. Key of global file is taken
-   from value of a monotonically increasing counter.
+   this directory entry array. c2t1fs generates fid of new file and its
+   component objects. All component objects have same fid.key as that of
+   global file's fid.key They differ only in fid.container field. Key of
+   global file is taken from value of a monotonically increasing counter.
 
-   If target object creation fails, c2t1fs does not attempt to cleanup
-   target objects that were successfully created. This should be handled by
+   If component object creation fails, c2t1fs does not attempt to cleanup
+   component objects that were successfully created. This should be handled by
    dtm component, which is not yet implemented.
 
    <B> Read/Write: </B>
@@ -162,7 +169,7 @@
    c2t1fs does not cache any data.
 
    For simplicity, c2t1fs does synchronous rpc with io-services, to read/write
-   target objects.
+   component objects.
  */
 
 #define C2T1FS_DEBUG 1
@@ -437,7 +444,7 @@ void          c2t1fs_destroy_inode(struct inode *inode);
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 				uint64_t unit_size);
 
-struct c2_fid c2t1fs_target_fid(const struct c2_fid *gob_fid, int index);
+struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index);
 
 C2_TL_DESCR_DECLARE(dir_ents, extern);
 C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);

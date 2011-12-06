@@ -386,10 +386,10 @@ struct rw_desc {
 	/** io fop should be sent on this session */
 	struct c2_rpc_session *rd_session;
 
-	/** fid of target component object */
+	/** fid of component object */
 	struct c2_fid          rd_fid;
 
-	/** offset within target object */
+	/** offset within component object */
 	loff_t                 rd_offset;
 
 	/** number of bytes to [read from|write to] rd_offset */
@@ -618,13 +618,12 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			/*
 			 * 1 must be added to tgt_addr.ta_obj, because ta_obj
-			 * is in range [0, P - 1] inclusive. But our target
+			 * is in range [0, P - 1] inclusive. But our component
 			 * objects are indexed in range [1, P] inclusive.
-			 * For more info see "Containers and target objects"
+			 * For more info see "Containers and component objects"
 			 * section in c2t1fs.h
 			 */
-			tgt_fid = c2t1fs_target_fid(&gob_fid,
-						    tgt_addr.ta_obj + 1);
+			tgt_fid = c2t1fs_cob_fid(&gob_fid, tgt_addr.ta_obj + 1);
 
 			rw_desc = rw_desc_get(&rw_desc_list, &tgt_fid);
 			if (rw_desc == NULL) {

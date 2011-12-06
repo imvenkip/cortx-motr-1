@@ -41,7 +41,7 @@ static int c2t1fs_readdir(struct file *f,
 
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
-static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci);
+static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci);
 
 static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid);
@@ -121,7 +121,7 @@ static int c2t1fs_create(struct inode     *dir,
 	if (rc != 0)
 		goto out;
 
-	rc = c2t1fs_create_target_objects(ci);
+	rc = c2t1fs_create_component_objects(ci);
 	if (rc != 0)
 		goto out;
 
@@ -394,7 +394,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	struct inode          *inode;
 	int                    rc;
 
-	/* XXX c2t1fs_unlink() should remove target objects of a file */
+	/* XXX c2t1fs_unlink() should remove component objects of a file */
 
 	START();
 
@@ -426,7 +426,7 @@ out:
 	return rc;
 }
 
-struct c2_fid c2t1fs_target_fid(const struct c2_fid *gob_fid, int index)
+struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
 {
 	struct c2_fid fid;
 
@@ -441,7 +441,7 @@ struct c2_fid c2t1fs_target_fid(const struct c2_fid *gob_fid, int index)
 	return fid;
 }
 
-static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci)
+static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 {
 	struct c2t1fs_sb *csb;
 	struct c2_fid     gob_fid;
@@ -454,7 +454,7 @@ static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci)
 
 	gob_fid = ci->ci_fid;
 
-	TRACE("Create target objects for [%lu:%lu]\n",
+	TRACE("Create component objects for [%lu:%lu]\n",
 				(unsigned long)gob_fid.f_container,
 				(unsigned long)gob_fid.f_key);
 
@@ -463,7 +463,7 @@ static int c2t1fs_create_target_objects(struct c2t1fs_inode *ci)
 	C2_ASSERT(nr_containers >= 1);
 
 	for (i = 1; i <= nr_containers; i++) {
-		cob_fid = c2t1fs_target_fid(&gob_fid, i);
+		cob_fid = c2t1fs_cob_fid(&gob_fid, i);
 		rc = c2t1fs_cob_create(csb, &cob_fid);
 		if (rc != 0) {
 			TRACE("Failed: create [%lu:%lu]\n",
