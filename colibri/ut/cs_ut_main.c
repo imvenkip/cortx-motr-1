@@ -22,19 +22,27 @@
 #include <config.h>
 #endif
 
-#include "lib/ut.h"
+#include "lib/ut.h"    /* C2_UT_ASSERT */
+#include "lib/misc.h"  /* C2_SET_ARR0 */
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
 
 #include "ut/rpc.h"
 #include "rpc/rpclib.h"
+#include "fop/fop.h"
 #include "net/bulk_sunrpc.h"
 #include "net/bulk_mem.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
-#include "colibri/ut/cs_ut_service.c"
+#include "fop/fop_format_def.h"
+
+#include "ut/cs_service.h"
+#include "ut/cs_fop_foms.h"
+#include "ut/cs_test_fops_u.h"
+#include "ut/cs_test_fops.ff"
+#include "rpc/rpc_opcodes.h"
 
 extern const struct c2_tl_descr ndoms_descr;
 static FILE  *cs_ut_outfile;
@@ -308,6 +316,51 @@ static void cs_ut_client_fini(struct cl_ctx *cctx)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_net_domain_fini(&cctx->cl_ndom);
+}
+
+/*
+  Sends fops to server.
+ */
+int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
+{
+	int                      rc;
+        uint32_t                 i;
+        struct c2_fop           *fop[10];
+	struct cs_ds1_req_fop   *cs_ds1_fop;
+	struct cs_ds2_req_fop   *cs_ds2_fop;
+	struct c2_rpc_item      *item;
+
+	C2_PRE(cl_rpc_session != NULL && dstype > 0);
+
+	C2_SET_ARR0(fop);
+	switch (dstype) {
+	case CS_UT_SERVICE1:
+		for (i = 0; i < 10; ++i) {
+			fop[i] = c2_fop_alloc(&cs_ds1_req_fop_fopt, NULL);
+			item = &fop[i]->f_item;
+			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
+			cs_ds1_fop = c2_fop_data(fop[i]);
+			cs_ds1_fop->csr_value = i;
+			rc = c2_rpc_client_call(fop[i], cl_rpc_session, 60);
+			C2_UT_ASSERT(rc == 0);
+		}
+		break;
+	case CS_UT_SERVICE2:
+		for (i = 0; i < 10; ++i) {
+			fop[i] = c2_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
+			item = &fop[i]->f_item;
+			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
+			cs_ds2_fop = c2_fop_data(fop[i]);
+			cs_ds2_fop->csr_value = i;
+			rc = c2_rpc_client_call(fop[i], cl_rpc_session, 60);
+			C2_UT_ASSERT(rc == 0);
+		}
+		break;
+	default:
+		C2_ASSERT("Invalid service type" == 0);
+	}
+
+	return rc;
 }
 
 static void test_cs_ut_service_one(void)

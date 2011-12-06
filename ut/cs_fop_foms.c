@@ -22,8 +22,6 @@
 #include <config.h>
 #endif
 
-#include "lib/ut.h"    /* C2_UT_ASSERT */
-#include "lib/misc.h"  /* C2_SET_ARR0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -41,7 +39,7 @@
 
 #include "fop/fop_format_def.h"
 
-#include "cs_ut_fop_foms.h"
+#include "cs_fop_foms.h"
 #include "cs_test_fops_u.h"
 #include "cs_test_fops.ff"
 #include "rpc/rpc_opcodes.h"
@@ -52,7 +50,7 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
 /*
   RPC item operations structures.
  */
-static const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
+const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
         .rio_replied = cs_ut_rpc_item_reply_cb,
 };
 
@@ -133,12 +131,12 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 	req_fop = c2_rpc_item_to_fop(item);
 	rep_fop = c2_rpc_item_to_fop(item->ri_reply);
 
-	C2_UT_ASSERT(req_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	C2_ASSERT(req_fop->f_type->ft_rpc_item_type.rit_opcode ==
 		    C2_CS_DS1_REQ_OPCODE ||
 		    req_fop->f_type->ft_rpc_item_type.rit_opcode ==
 		    C2_CS_DS2_REQ_OPCODE);
 
-	C2_UT_ASSERT(rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	C2_ASSERT(rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
 		     C2_CS_DS1_REP_OPCODE ||
 		     rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
 		     C2_CS_DS2_REP_OPCODE);
@@ -257,7 +255,7 @@ static struct c2_fom_type *cs_ut_fom_types[] = {
 
 static struct c2_fom_type *cs_ut_fom_type_map(c2_fop_type_code_t code)
 {
-        C2_UT_ASSERT(IS_IN_ARRAY((code - C2_CS_DS1_REQ_OPCODE),
+        C2_ASSERT(IS_IN_ARRAY((code - C2_CS_DS1_REQ_OPCODE),
 					  cs_ut_fom_types));
 
         return cs_ut_fom_types[code - C2_CS_DS1_REQ_OPCODE];
@@ -316,11 +314,11 @@ static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 	opcode = fop->f_type->ft_rpc_item_type.rit_opcode;
         fom_type = cs_ut_fom_type_map(opcode);
-        C2_UT_ASSERT(fom_type != NULL);
+        C2_ASSERT(fom_type != NULL);
 
         fop->f_type->ft_fom_type = *fom_type;
         result = fop->f_type->ft_fom_type.ft_ops->fto_create(&fop->f_type->ft_fom_type, m);
-        C2_UT_ASSERT(result == 0);
+        C2_ASSERT(result == 0);
 
 	(*m)->fo_fop = fop;
 	c2_fom_init(*m);
@@ -406,51 +404,6 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 		default:
 			 C2_ASSERT("Invalid fop" == 0);
 		}
-	}
-
-	return rc;
-}
-
-/*
-  Sends fops to server.
- */
-int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
-{
-	int                      rc;
-        uint32_t                 i;
-        struct c2_fop           *fop[10];
-	struct cs_ds1_req_fop   *cs_ds1_fop;
-	struct cs_ds2_req_fop   *cs_ds2_fop;
-	struct c2_rpc_item      *item;
-
-	C2_PRE(cl_rpc_session != NULL && dstype > 0);
-
-	C2_SET_ARR0(fop);
-	switch (dstype) {
-	case CS_UT_SERVICE1:
-		for (i = 0; i < 10; ++i) {
-			fop[i] = c2_fop_alloc(&cs_ds1_req_fop_fopt, NULL);
-			item = &fop[i]->f_item;
-			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
-			cs_ds1_fop = c2_fop_data(fop[i]);
-			cs_ds1_fop->csr_value = i;
-			rc = c2_rpc_client_call(fop[i], cl_rpc_session, 60);
-			C2_UT_ASSERT(rc == 0);
-		}
-		break;
-	case CS_UT_SERVICE2:
-		for (i = 0; i < 10; ++i) {
-			fop[i] = c2_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
-			item = &fop[i]->f_item;
-			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
-			cs_ds2_fop = c2_fop_data(fop[i]);
-			cs_ds2_fop->csr_value = i;
-			rc = c2_rpc_client_call(fop[i], cl_rpc_session, 60);
-			C2_UT_ASSERT(rc == 0);
-		}
-		break;
-	default:
-		C2_ASSERT("Invalid service type" == 0);
 	}
 
 	return rc;

@@ -22,14 +22,13 @@
 #include <config.h>
 #endif
 
-#include "lib/ut.h"     /* C2_UT_ASSERT */
 #include "lib/errno.h"
 #include "lib/memory.h"
 
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
-#include "colibri/ut/cs_ut_fop_foms.h"
+#include "ut/cs_fop_foms.h"
 
 static int ds1_service_start(struct c2_reqh_service *service);
 static int ds2_service_start(struct c2_reqh_service *service);
@@ -108,7 +107,7 @@ static int ds1_service_start(struct c2_reqh_service *service)
 
         /*Initialise service fops.*/
 	rc = c2_cs_ut_ds1_fop_init();
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
         return rc;
 }
@@ -121,7 +120,7 @@ static int ds2_service_start(struct c2_reqh_service *service)
 
         /*Initialise service fops.*/
         rc = c2_cs_ut_ds2_fop_init();
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
         return rc;
 }
