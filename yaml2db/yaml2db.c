@@ -159,40 +159,40 @@ static void yaml_parser_error_detect(const yaml_parser_t *parser)
 
 	switch (parser->error) {
 	case YAML_MEMORY_ERROR:
-	    fprintf(stderr, "\nMemory error: Not enough memory for parsing\n");
+	    fprintf(stderr, "Memory error: Not enough memory for parsing\n");
 	    break;
 	case YAML_READER_ERROR:
 	    if (parser->problem_value != -1)
-		fprintf(stderr, "\nReader error: %s: #%X at %lu\n",
+		fprintf(stderr, "Reader error: %s: #%X at %lu\n",
 			parser->problem, parser->problem_value,
 			parser->problem_offset);
 	    else
-		fprintf(stderr, "\nReader error: %s at %lu\n",
+		fprintf(stderr, "Reader error: %s at %lu\n",
 		        parser->problem, parser->problem_offset);
 		break;
 	case YAML_SCANNER_ERROR:
 	    if (parser->context)
-		fprintf(stderr, "\nScanner error: %s at line %lu, column %lu"
+		fprintf(stderr, "Scanner error: %s at line %lu, column %lu"
 			" %s at line %lu, column %lu\n",
 			parser->context, parser->context_mark.line+1,
 			parser->context_mark.column+1, parser->problem,
 			parser->problem_mark.line+1,
 			parser->problem_mark.column+1);
 	    else
-		fprintf(stderr, "\nScanner error: %s at line %lu, column %lu\n",
+		fprintf(stderr, "Scanner error: %s at line %lu, column %lu\n",
 			parser->problem, parser->problem_mark.line+1,
 			parser->problem_mark.column+1);
 	    break;
 	case YAML_PARSER_ERROR:
 	    if (parser->context)
-		fprintf(stderr, "\nParser error: %s at line %lu, column %lu"
+		fprintf(stderr, "Parser error: %s at line %lu, column %lu"
 			" %s at line %lu, column %lu\n",
 			parser->context, parser->context_mark.line+1,
 			parser->context_mark.column+1,parser->problem,
 			parser->problem_mark.line+1,
 			parser->problem_mark.column+1);
 	    else
-		fprintf(stderr, "\nParser error: %s at line %lu, column %lu\n",
+		fprintf(stderr, "Parser error: %s at line %lu, column %lu\n",
 			parser->problem, parser->problem_mark.line+1,
 			parser->problem_mark.column+1);
 		break;
