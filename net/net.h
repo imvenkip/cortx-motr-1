@@ -292,18 +292,18 @@ struct c2_net_xprt_ops {
 	void (*xo_buf_del)(struct c2_net_buffer *nb);
 
 	/**
-	   Invoked by the c2_net_buffer_event_deliver_synchronously()
+	   Invoked by the c2_net_tm_buffer_event_deliver_synchronously()
 	   subroutine to request the transport to disable automatic delivery
 	   of buffer events.  The method is optional and need not be specified
 	   if this support is not available.
 	   If supported, then the xo_bev_deliver_all() and the xo_bev_pending()
 	   operations must be provided.
-	   @see c2_net_buffer_event_deliver_synchronously()
+	   @see c2_net_tm_buffer_event_deliver_synchronously()
 	 */
 	int  (*xo_bev_deliver_sync)(struct c2_net_transfer_mc *tm);
 
 	/**
-	   Invoked by the c2_net_buffer_event_deliver_all() subroutine.
+	   Invoked by the c2_net_tm_buffer_event_deliver_all() subroutine.
 	   Optional if the synchronous buffer event delivery feature is not
 	   supported.
 	   As buffer event delivery takes place without holding the transfer
@@ -313,14 +313,14 @@ struct c2_net_xprt_ops {
 	void (*xo_bev_deliver_all)(struct c2_net_transfer_mc *tm);
 
 	/**
-	   Invoked by the c2_net_buffer_event_pending() subroutine.
+	   Invoked by the c2_net_tm_buffer_event_pending() subroutine.
 	   Optional if the synchronous buffer event delivery feature is not
 	   supported.
 	 */
 	bool (*xo_bev_pending)(struct c2_net_transfer_mc *tm);
 
 	/**
-	   Invoked by the c2_net_buffer_event_notify() subroutine.
+	   Invoked by the c2_net_tm_buffer_event_notify() subroutine.
 	   Optional if the synchronous buffer event delivery feature is not
 	   supported.
 	 */
@@ -925,7 +925,7 @@ struct c2_net_transfer_mc {
         void                       *ntm_xprt_private;
 
 	/** Indicates if automatic delivery of buffer events will take place. */
-	bool                        ntm_deliver_buffer_events;
+	bool                        ntm_bev_auto_deliver;
 };
 
 /**
@@ -942,6 +942,7 @@ struct c2_net_transfer_mc {
    appropriate initial values.
    @note An initialized TM cannot be fini'd without first starting it.
    @param dom Network domain pointer.
+   @post tm->ntm_bev_auto_deliver is set.
    @retval 0 (success)
    @retval -errno (failure)
  */
@@ -1537,18 +1538,18 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev);
    enabled.
    @param tm Pointer to a transfer machine which has been set up for
    synchronous network buffer event processing.
-   @see c2_net_buffer_event_deliver_synchronously(),
-   c2_net_buffer_event_pending(), c2_net_buffer_event_notify()
-   @pre tm->ntm_deliver_buffer_events == true
+   @see c2_net_tm_buffer_event_deliver_synchronously(),
+   c2_net_tm_buffer_event_pending(), c2_net_tm_buffer_event_notify()
+   @pre tm->ntm_bev_auto_deliver is not set.
  */
-void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm);
+void c2_net_tm_buffer_event_deliver_all(struct c2_net_transfer_mc *tm);
 
 /**
    This subroutine disables the automatic delivery of network buffer events.
-   Instead, the application should use the c2_net_buffer_event_pending()
+   Instead, the application should use the c2_net_tm_buffer_event_pending()
    subroutine to check for the presence of events, and the
-   c2_net_buffer_event_deliver_all() subroutine to cause pending events to
-   be delivered.  The c2_net_buffer_event_notify() subroutine can be used
+   c2_net_tm_buffer_event_deliver_all() subroutine to cause pending events to
+   be delivered.  The c2_net_tm_buffer_event_notify() subroutine can be used
    to get notified on a wait channel when buffer events arrive.
 
    Support for this mode of operation is transport specific.
@@ -1556,25 +1557,28 @@ void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm);
    The subroutine must be invoked before the transfer machine is started.
 
    @param tm Pointer to an initialized but not started transfer machine.
-   @see c2_net_buffer_event_pending(), c2_net_buffer_event_deliver_all(),
-   c2_net_buffer_event_notify()
+   @pre tm->ntm_bev_auto_deliver is set.
+   @post tm->ntm_bev_auto_deliver is not set.
+   @see c2_net_tm_buffer_event_pending(), c2_net_tm_buffer_event_deliver_all(),
+   c2_net_tm_buffer_event_notify()
  */
-int  c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm);
+int  c2_net_tm_buffer_event_deliver_synchronously(struct c2_net_transfer_mc
+						  *tm);
 
 /**
    This subroutine determines if there are pending network buffer events that
-   can be delivered with the c2_net_buffer_event_deliver_all() subroutine.
+   can be delivered with the c2_net_tm_buffer_event_deliver_all() subroutine.
    @param tm Pointer to a transfer machine which has been set up for
    synchronous network buffer event processing.
-   @see c2_net_buffer_event_deliver_synchronously()
-   @pre tm->ntm_deliver_buffer_events == true
+   @see c2_net_tm_buffer_event_deliver_synchronously()
+   @pre tm->ntm_bev_auto_deliver is not set.
  */
-bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm);
+bool c2_net_tm_buffer_event_pending(struct c2_net_transfer_mc *tm);
 
 /**
    This subroutine arranges for notification of the arrival of the next network
    buffer event to be signalled on the specified channel.  Typically, this
-   subroutine is called only when the the c2_net_buffer_event_pending()
+   subroutine is called only when the the c2_net_tm_buffer_event_pending()
    subroutine indicates that there are no events pending.
    The subroutine does not block the invoker.
    @note The subroutine exhibits "monoshot" behavior - it only signals once
@@ -1582,11 +1586,11 @@ bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm);
    @param tm Pointer to a transfer machine which has been set up for
    synchronous network buffer event processing.
    @param chan The wait channel on which to send the signal.
-   @see c2_net_buffer_event_deliver_synchronously()
-   @pre tm->ntm_deliver_buffer_events == true
+   @see c2_net_tm_buffer_event_deliver_synchronously()
+   @pre tm->ntm_bev_auto_deliver is not set.
  */
-void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
-				struct c2_chan *chan);
+void c2_net_tm_buffer_event_notify(struct c2_net_transfer_mc *tm,
+				   struct c2_chan *chan);
 
 /**
    Copies a network buffer descriptor.
