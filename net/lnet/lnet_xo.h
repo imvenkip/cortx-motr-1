@@ -45,7 +45,7 @@ struct nlx_xo_ep {
 	struct c2_net_end_point xe_ep;
 
 	/** LNet transport address */
-	nlx_core_ep_addr        xe_core;
+	struct nlx_core_ep_addr xe_core;
 
 	/** Memory for the string representation of the end point.
 	    The @c xe_ep.nep_addr field points to @c xe_addr.

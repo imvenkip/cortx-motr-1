@@ -234,7 +234,7 @@
    @code
    struct nlx_xo_ep {
        struct c2_net_end_point xe_ep;
-       nlx_core_ep_addr        xe_core;
+       struct nlx_core_ep_addr xe_core;
        char                    xe_addr[1];
    };
    @endcode
