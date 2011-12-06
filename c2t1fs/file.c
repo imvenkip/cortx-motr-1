@@ -598,6 +598,13 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 		for (unit = 0; unit < nr_units_per_group; unit++) {
 
+			unit_type = c2_pdclust_unit_classify(pd_layout, unit);
+			if (unit_type == PUT_SPARE) {
+				/* No need to read/write spare units */
+				TRACE("Skipped spare unit %d\n", unit);
+				continue;
+			}
+
 			src_addr.sa_unit = unit;
 
 			c2_pdclust_layout_map(pd_layout, &src_addr, &tgt_addr);
@@ -630,8 +637,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			rw_desc->rd_session = c2t1fs_container_id_to_session(
 						     csb, tgt_fid.f_container);
 
-			unit_type = c2_pdclust_unit_classify(pd_layout, unit);
-
 			switch (unit_type) {
 			case PUT_DATA:
 				/* add data buffer to rw_desc */
@@ -651,16 +656,11 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				/* Allocate buffer for parity and add it to
 				   rw_desc */
 				parity_index = unit - nr_data_units;
-				/*
-				 * XXX need to confirm from anand whether rpc
-				 * bulk API has any alignment requirement for
-				 * memory area.
-				 */
-				/*
-				 ptr = c2_alloc_aligned(unit_size,
-							PAGE_CACHE_SHIFT);
-				 */
 				ptr = c2_alloc(unit_size);
+				/* rpc bulk api require page aligned addr */
+				C2_ASSERT(
+				  address_is_page_aligned((unsigned long)ptr));
+
 				rc = rw_desc_add(rw_desc, ptr, unit_size,
 							PUT_PARITY);
 				if (rc != 0) {
@@ -677,8 +677,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				 */
 				if (parity_index == nr_parity_units - 1 &&
 						rw == WRITE) {
-					TRACE("Computing parity of group %d\n",
-								i);
+					TRACE("Computing parity of group %lu\n",
+						(unsigned long)src_addr.sa_group);
 					c2_parity_math_calculate(
 							&pd_layout->pl_math,
 							data_bufs,
@@ -687,21 +687,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				break;
 
 			case PUT_SPARE:
-				/* XXX Do we really need to read/write spare
-				 * units during normal operations???
-				 * we shouldn't
-				 */
-				/*
-				ptr = c2_alloc_aligned(unit_size,
-							PAGE_CACHE_SHIFT);
-				 */
-				ptr = c2_alloc(unit_size);
-				rc = rw_desc_add(rw_desc, ptr, unit_size,
-							PUT_SPARE);
-				if (rc != 0) {
-					c2_free(ptr);
-					goto cleanup;
-				}
+				/* we've decided to skip spare units. So we
+				   shouldn't reach here */
+				C2_ASSERT(0);
 				break;
 
 			default:
