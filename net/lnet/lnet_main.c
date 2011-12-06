@@ -262,9 +262,9 @@
    The c2_net_tm_start() subroutine is used to start a transfer machine, which
    results in a call to nlx_xo_tm_start().  The subroutine decodes the end
    point address using the nlx_core_ep_addr_decode() subroutine. It then starts
-   the background event thread with the desired processor affinity. The thread
-   will complete the transfer machine start up and deliver its state change
-   event.
+   the background event processing thread with the desired processor
+   affinity. The thread will complete the transfer machine start up and deliver
+   its state change event.
 
    The event processing thread will call the nlx_core_tm_start() subroutine to
    create the internal LNet EQ associated with the transfer machine.  This call
@@ -284,7 +284,7 @@
    current operations or aborting such activity.  If the latter choice is made,
    then the transport must first cancel all operations.
 
-   Regardless, the transfer machine's event handler thread completes the
+   Regardless, the transfer machine's event processing thread completes the
    termination process.  It waits until all buffer queues are empty and any
    ongoing synchronous network buffer delivery has completed, then invokes the
    nlx_core_tm_stop() subroutine to free the LNet EQ and other resources
@@ -317,7 +317,7 @@
    c2_net_buffer_event_notify() subroutine.  It sets the
    nlx_xo_transfer_mc::xtm_ev_chan value to the specified wait channel, and
    signals on the nlx_xo_transfer_mc::xtm_ev_cond condition variable to wake up
-   the event thread.
+   the event processing thread.
 
    The nlx_xo_bev_deliver_all() transport operation is invoked from the
    c2_net_buffer_event_deliver_all() subroutine.  It attempts to deliver all
@@ -349,7 +349,7 @@
    lctm->xtm_busy--;
    @endcode
 
-   @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Handler Thread
+   @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Processing Thread
    The default behavior of a transfer machine is to asynchronously delivery
    buffer events from the Core API's event queue to the application.  The Core
    API guarantees that LNet operation completion events will result in buffer
@@ -358,8 +358,8 @@
    ordered.  This is very important for the transport, because it has to ensure
    that a receive buffer operation is not prematurely flagged as dequeued.
 
-   The transport uses exactly one event handler thread to process buffer events
-   from the Core API.  This has the following advantages:
+   The transport uses exactly one event processing thread to process buffer
+   events from the Core API.  This has the following advantages:
    - The implementation is simple.
    - It implicitly race-free with respect to receive buffer events.
 
@@ -367,12 +367,12 @@
    this simple approach is acceptable.
 
    The application can establish specific processor affiliation for the event
-   handler thread with the c2_net_tm_confine() subroutine @em prior to starting
-   the transfer machine. This results in a call to the nlx_xo_tm_confine()
-   subroutine, which makes a copy of the desired processor affinity bitmask in
-   nlx_xo_transfer_mc::xtm_processors.
+   processing thread with the c2_net_tm_confine() subroutine @em prior to
+   starting the transfer machine. This results in a call to the
+   nlx_xo_tm_confine() subroutine, which makes a copy of the desired processor
+   affinity bitmask in nlx_xo_transfer_mc::xtm_processors.
 
-   In addition to asynchronous buffer event processing, the event handler
+   In addition to asynchronous buffer event processing, the event processing
    thread performs the following functions:
    - Notify the presence of buffer events when synchronous buffer event
      delivery is enabled
@@ -380,7 +380,7 @@
    - Buffer operation timeout processing
    - Logging of statistical data
 
-   The functionality of the event handler thread is best illustrated by
+   The functionality of the event processing thread is best illustrated by
    the following pseudo-code:
    @code
    // start the transfer machine in the Core
@@ -601,8 +601,8 @@
 
    @subsection LNetDLD-lspec-numa NUMA optimizations
    The application can establish specific processor affiliation for the event
-   handler thread with the c2_net_tm_confine() subroutine prior to starting the
-   transfer machine.  Buffer completion events and transfer machine state
+   processing thread with the c2_net_tm_confine() subroutine prior to starting
+   the transfer machine.  Buffer completion events and transfer machine state
    change events will be delivered through callbacks made from this thread.
 
    Even greater locality of reference is obtained with synchronous network
