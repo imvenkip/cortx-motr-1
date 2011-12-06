@@ -1,4 +1,3 @@
-                c2_tlink_init(&rpcbulk_tl, &rb_buf->bb_link);
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -593,12 +592,11 @@
 extern const struct c2_tl_descr c2_rh_sl_descr;
 extern const struct c2_tl_descr nbp_colormap_tl;
 
-C2_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct c2_stob_io,
-                   ft_linkage,  ft_magix,
-                   0xba11ab1ea5111dae /* bailable asilidae */,
-                   0xd15ea5e0fed1f1ce /* disease of edifice */);
+C2_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct c2_stob_io_desc,
+                   siod_linkage,  siod_magic,
+                   0x53544f42492f4f,  0x73746f62692f6f);
 
-C2_TL_DEFINE(ft, static, struct c2_fop_type);
+C2_TL_DEFINE(stobio, static, struct c2_stob_io_desc);
 
 struct c2_tl_descr netbufs_tl;
 struct c2_tl_descr rpcbulk_tl;
@@ -663,6 +661,32 @@ static const struct c2_fom_type c2_io_fom_read_mopt = {
  */
 static const struct c2_fom_type c2_io_fom_write_mopt = {
 	.ft_ops = &c2_io_write_type_ops,
+};
+
+static bool io_fom_rw_stob_complete_cb(struct c2_clink *clink)
+{
+        struct c2_io_fom         *fom_obj;
+        struct c2_stob_io_desc   *stio_desc;
+        
+        stio_desc = container_of(clink, struct c2_stob_io_desc, siod_clink);
+        fom_obj = stio_desc->siod_fom;
+
+        stio = &stio_desc->siod_stob_io;
+
+        if (stio->si_rc != 0){
+                fom_obj->fcrw_gen->fo_rc = stio->si_rc;
+                fom_obj->fcrw_gen->fo_phase = FOPH_FAILURE;
+        }
+
+        c2_free(stio->si_stob);;
+        c2_stob_io_fini(stio);
+        /** Remove c2_stob_io_desc from stob io desc list. */
+        stobio_tlist_del(stio_desc);
+
+        if (stobio_tlist_is_empty(&fom_obj->fcrw_stobio_list))
+                c2_chan_signal(&fom_obj->fcrw_wait); 
+
+        return true;
 };
 
 /**
@@ -869,7 +893,9 @@ int c2_io_fom_write_init(struct c2_fop *fop, struct c2_fom **out)
         fom_obj->fcrw_curr_desc_index = 0;
         fom_obj->fcrw_curr_ivec_index = 0;
         fom_obj->fcrw_batch_size = rwfop->crw_desc.id_nr;
+        c2_chan_init(&fom_obj->fcrw_wait);
         c2_tlist_init(&netbufs_tl, &fom_obj->fcrw_netbuf_list);
+        stobio_tlist_init(&fom_obj->fcrw_stobio_list);
 
         return result;
 }
@@ -1184,7 +1210,6 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
 	struct c2_fop			*fop;
 	struct c2_io_fom	        *fom_obj;
 	struct c2_stob_id		 stobid;
-	struct c2_stob_io		*stio;
         struct c2_net_buffer            *nb = NULL;
 	struct c2_fop_cob_rw		*rwfop;
 	struct c2_stob_domain		*fom_stdom;
@@ -1213,7 +1238,6 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
 	if (rc != 0)
 		goto cleanup_st;
 
-	c2_stob_io_init(stio);
 
 	/* Since the upper layer IO block size could differ with IO block size
 	   of storage object, the block alignment and mapping is necesary. */
@@ -1224,7 +1248,19 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
         c2_fom_block_at(fom, &stio->si_wait);
 
         c2_tlist_for(&&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
-                struct c2_indexvec     mem_ivec;
+                struct c2_indexvec     *mem_ivec;
+                struct c2_stob_io_desc *stio_desc;
+                struct c2_stob_io      *stio; 
+
+                C2_ALLOC_PTR(mem_ivec);
+                C2_ALLOC_PTR(stio_desc);
+
+                c2_clink_init(&stio_desc->siod_clink,
+                              &io_fom_rw_stob_complete_cb);
+                stio_desc->siod_fom = fom_obj;
+      
+	        stio = &stio_desc->siod_stob_io;
+	        c2_stob_io_init(stio);
 
 	        wire_ivec = rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
                 io_indexvec_wire2mem(&wire_ivec, &mem_ivec); 
@@ -1248,6 +1284,7 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
                 stio->si_user = nb->nb_buffer;
                 stio->si_stob = mem_ivec;
 
+                c2_clink_add(&stio->si_wait, &stio_desc->siod_clink);
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
                 if (rc != 0)
@@ -1255,7 +1292,11 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
                 else
                         fom_obj->fcrw_stobio_ref++;
 
+                stobio_tlist_add(&fom_obj->fcrw_stobio_list, stio_desc);
+
         } c2_tlist_endfor;
+
+        c2_fom_block_at(fom, &fom_obj->fcrw_wait);
 
         if (is_read(fop))
                 fom->fo_phase = FOPH_COB_READ_WAIT;
@@ -1286,36 +1327,24 @@ static int io_fom_rwv_io_launch_wait(struct c2_fom *fom)
 {
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom          *fom_obj;
-        struct c2_stob_io         *stio;
-        struct c2_fop_cob_rw      *rwfop; 
 
         C2_PRE(fom != NULL);
         C2_PRE(fom->fo_phase == FOPH_COB_READ_WAIT ||
                fom->fo_phase == FOPH_COB_WRITE_WAIT);
 
-        rwfop = io_rw_get(fop);
         fom_obj = container_of(fom, struct c2_io_fom, fcrw_gen);
-        stio = &fom_obj->fcrw_st_io;
 
-        if (stio->si_rc != 0){
-                fom->fo_rc = stio->si_rc;
-                fom->fo_phase = FOPH_FAILURE;
-                return FSO_AGAIN;
-        }
-        else {
-               fom_obj->fcrw_stobio_ref--; 
-        }
+        c2_stob_put(fom_obj->fcrw_stob);
 
-        if (!fom_obj->fcrw_stobio_ref) {
+        if (fom->rc != 0) {
+	        fom->fo_phase = FOPH_FAILURE;
+	        return FSO_AGAIN;
+        } 
 
-                c2_stob_io_fini(stio);
-                c2_stob_put(fom_obj->fcrw_stob);
-
-                if (is_read(fop))
-                        fom->fo_phase =  FOPH_ZERO_COPY_READ_INIT;
-                else
-                        fom->fo_phase = FOPH_WRITE_BUF_RELEASE;
-        }
+        if (is_read(fop))
+                fom->fo_phase =  FOPH_ZERO_COPY_READ_INIT;
+        else
+                fom->fo_phase = FOPH_WRITE_BUF_RELEASE;
 
         return FSO_AGAIN;
 }

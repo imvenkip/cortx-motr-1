@@ -157,8 +157,16 @@
  * will put FOM execution into runqueue only after all STOB I/O complete.
  */
 struct c2_stob_io_desc {
+	/** Magic to verify sanity of struct c2_stob_io_desc */
+	uint64_t		 siod_magic;
 	/** Stob IO packet for the operation. */
         struct c2_stob_io        siod_stob_io;
+        /** Link to get siganl for this stob io compelte*/
+        struct c2_clink          siod_clink;
+        /** Linkage into c2_io_fom::fcrw_stobio_list */
+        struct c2_tlink          siod_linkage;
+        /** Pointer to c2_io_fom to refer c2_stob_io_desc list*/
+        struct c2_io_fom         *siod_fom;
 };
 
 /**
@@ -176,12 +184,12 @@ struct c2_io_fom {
         int                              fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
-        /** Referance count for multiple async STOB I/O */
-        int                              fcrw_stobio_ref; 
+        /** Signal send to this chanel when io_fom ready to execute */
+        c2_chan                          fcrw_wait;
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
-	/** Stob IO packet for the operation. */
-        struct c2_stob_io		 fcrw_st_io;
+	/** Stob IO packets for the operation. */
+        struct c2_tl                     fcrw_stio_list;
         /** rpc bulk load data*/
         struct c2_rpc_bulk               fcrw_bulk;
         /** network buffer list currently acuired by io service*/
