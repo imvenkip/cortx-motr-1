@@ -66,10 +66,10 @@
 
 struct c2_bufvec_cursor;
 struct c2_fid;
-struct c2_ldb_rec;
-struct c2_ldb_schema;
 struct c2_db_tx;
 struct c2_db_pair;
+struct c2_ldb_rec;
+struct c2_ldb_schema;
 
 /* export */
 struct c2_layout;
@@ -111,6 +111,16 @@ struct c2_layout_ops {
 };
 
 /**
+   Layout DB operation on a layout record.
+*/
+enum c2_layout_encode_op {
+	LEO_NONE,
+	LEO_ADD,
+	LEO_UPDATE,
+	LEO_DELETE
+};
+
+/**
    Structure specific to per layout type.
    There is an instance of c2_layout_type for each one of layout types. e.g.
    for PDCLUST and COMPOSITE layout types.
@@ -147,7 +157,7 @@ struct c2_layout_type_ops {
 	    which embeds c2_layout.
 	    Sets c2_layout::l_ops.
 	*/
-	int	(*lto_decode)(bool fromDB, uint64_t lid,
+	int	(*lto_decode)(bool fromdb, uint64_t lid,
 			      struct c2_ldb_schema *schema,
 			      struct c2_db_tx *tx,
 			      const struct c2_bufvec_cursor *cur,
@@ -155,7 +165,7 @@ struct c2_layout_type_ops {
 
 	/** Continues storing the layout representation either in the buffer
 	    or in the DB. */
-	int	(*lto_encode)(bool toDB, bool ifupdate,
+	int	(*lto_encode)(bool todb, enum c2_layout_encode_op dbop,
 			      const struct c2_layout *l,
 			      struct c2_ldb_schema *schema,
 			      struct c2_db_tx *tx,
@@ -213,7 +223,7 @@ struct c2_layout_enum_type_ops {
 
 	/** Continues building the in-memory layout object, either from
 	    the buffer or from the DB. */
-	int	(*leto_decode)(bool fromDB, uint64_t lid,
+	int	(*leto_decode)(bool fromdb, uint64_t lid,
 			       struct c2_ldb_schema *schema,
 			       struct c2_db_tx *tx,
 			       const struct c2_bufvec_cursor *cur,
@@ -221,7 +231,7 @@ struct c2_layout_enum_type_ops {
 
 	/** Continues storing layout representation either in the buffer
 	    or in the DB. */
-	int	(*leto_encode)(bool toDB, bool ifupdate,
+	int	(*leto_encode)(bool todb, enum c2_layout_encode_op dbop,
 			       const struct c2_layout *l,
 			       struct c2_ldb_schema *schema,
 			       struct c2_db_tx *tx,
@@ -238,12 +248,12 @@ void	c2_layout_init(struct c2_layout *lay,
 		       const struct c2_layout_ops *ops);
 void	c2_layout_fini(struct c2_layout *lay);
 
-int	c2_layout_decode(bool fromDB, uint64_t lid,
+int	c2_layout_decode(bool fromdb, uint64_t lid,
 			 struct c2_ldb_schema *schema,
 			 struct c2_db_tx *tx,
 			 const struct c2_bufvec_cursor *cur,
 			 struct c2_layout **out);
-int	c2_layout_encode(bool toDB, bool ifupdate,
+int	c2_layout_encode(bool todb, enum c2_layout_encode_op dbop,
 			 const struct c2_layout *l,
 			 struct c2_ldb_schema *schema,
 			 struct c2_db_tx *tx,
@@ -253,7 +263,7 @@ int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
 		    struct c2_db_pair *pair,
 		    struct c2_ldb_schema *schema,
 		    struct c2_db_tx *tx);
-int ldb_layout_write(bool ifupdate,
+int ldb_layout_write(enum c2_layout_encode_op dbop,
 		     const uint32_t recsize,
 		     struct c2_bufvec_cursor *pair,
 		     struct c2_ldb_schema *schema,

@@ -72,11 +72,11 @@ int composite_unregister(struct c2_ldb_schema *schema,
    Continues to build the in-memory layout object from its representation
    either 'stored in the Layout DB' or 'received over the network'.
 
-   @param fromDB - This flag indicates if the in-memory layout object is
+   @param fromdb - This flag indicates if the in-memory layout object is
    being decoded 'from its representation stored in the Layout DB' or
    'from its representation received over the network'.
 */
-static int composite_decode(bool fromDB, uint64_t lid,
+static int composite_decode(bool fromdb, uint64_t lid,
 			    struct c2_ldb_schema *schema,
 			    struct c2_db_tx *tx,
 			    const struct c2_bufvec_cursor *cur,
@@ -85,7 +85,7 @@ static int composite_decode(bool fromDB, uint64_t lid,
    /**
 	@code
 
-	if (fromDB)
+	if (fromdb)
 		C2_PRE(lid != 0);
 	else
 		C2_PRE(cur != NULL);
@@ -93,7 +93,7 @@ static int composite_decode(bool fromDB, uint64_t lid,
 	Allocate new layout as an instance of c2_composite_layout that
 	embeds c2_layout.
 
-	if (fromDB) {
+	if (fromdb) {
 		struct c2_db_pair	pair;
 
 		uint32_t recsize = sizeof(struct c2_ldb_rec);
@@ -104,7 +104,7 @@ static int composite_decode(bool fromDB, uint64_t lid,
 		pair.
 	}
 
-	if (fromDB) {
+	if (fromdb) {
 		Read all the segments from comp_layout_ext_map, belonging to
 		composite layout with layout id 'lid' and store them in the
 		buffer pointed by cur.
@@ -128,13 +128,13 @@ static int composite_decode(bool fromDB, uint64_t lid,
    Layout DB' ot 'converts it to a buffer that can be passed on over the
    network'.
 
-   @param toDB - This flag indicates if 'the layout is to be stored in the
+   @param todb - This flag indicates if 'the layout is to be stored in the
    Layout DB' or 'if it is to be stored in the buffer'.
 
-   @param ifupdate - This flag indicates if 'the layout record is to be written
-   to the Layout DB' or 'if it is to be updated'.
+   @param dbop - This enum parameter indicates what is the DB operation to be
+   performed on the layout record which could be one of ADD/UPDATE/DELETE.
 */
-static int composite_encode(bool toDB, bool ifupdate,
+static int composite_encode(bool todb, enum c2_layout_encode_op dbop,
 			    const struct c2_layout *l,
 			    struct c2_ldb_schema *schema,
 			    struct c2_db_tx *tx,
@@ -143,18 +143,18 @@ static int composite_encode(bool toDB, bool ifupdate,
    /**
 	@code
 
-	if (toDB) {
+	if (todb) {
 		uint64_t recSize = sizeof(struct c2_ldb_rec);
 
-		ret = ldb_layout_write(ifupdate, recsize, out, schema, tx);
+		ret = ldb_layout_write(dbop, recsize, out, schema, tx);
 	}
 
 	Store composite layout type specific fields like information
 	about the sub-layouts, into the buffer.
-	if (toDB) {
+	if (todb) {
 		Form records for the cob_lists table by using data from the
-		buffer and depending on the value of ifupdate, insert/update those
-		records into the cob_lists table.
+		buffer and depending on the value of dbop, insert/update/delete
+		those records to/from the cob_lists table.
 	}
 
 	@endcode

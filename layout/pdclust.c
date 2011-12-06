@@ -483,11 +483,11 @@ C2_EXPORTED(c2_pdclust_unit_classify);
    Continues to build the in-memory layout object from its representation
    either 'stored in the Layout DB' or 'received over the network'.
 
-   @param fromDB - This flag indicates if the in-memory layout object is
+   @param fromdb - This flag indicates if the in-memory layout object is
    being decoded 'from its representation stored in the Layout DB' or
    'from its representation received over the network'.
 */
-static int pdclust_decode(bool fromDB, uint64_t lid,
+static int pdclust_decode(bool fromdb, uint64_t lid,
 			  struct c2_ldb_schema *schema,
 			  struct c2_db_tx *tx,
 			  const struct c2_bufvec_cursor *cur,
@@ -496,7 +496,7 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
    /**
 	@code
 
-	if (fromDB)
+	if (fromdb)
 		C2_PRE(lid != 0);
 
 	C2_PRE(cur != NULL);
@@ -509,7 +509,7 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
 	let's re-read the record from the layouts table, with revised
 	recsize this time.
 
-	if (fromDB) {
+	if (fromdb) {
 		struct c2_db_pair	pair;
 
 		uint64_t recsize = sizeof(struct c2_ldb_rec)
@@ -536,13 +536,13 @@ static int pdclust_decode(bool fromDB, uint64_t lid,
    Layout DB' ot 'converts it to a buffer that can be passed on over the
    network'.
 
-   @param toDB - This flag indicates if 'the layout is to be stored in the
+   @param todb - This flag indicates if 'the layout is to be stored in the
    Layout DB' or 'if it is to be stored in the buffer'.
 
-   @param ifUpdate - This flag indicates if 'the layout record is to be written
-   to the Layout DB' or 'if it is to be updated'.
+   @param dbop - This enum parameter indicates what is the DB operation to be
+   performed on the layout record which could be one of ADD/UPDATE/DELETE.
 */
-static int pdclust_encode(bool toDB, bool ifUpdate,
+static int pdclust_encode(bool todb, enum c2_layout_encode_op dbop,
 			  const struct c2_layout *l,
 			  struct c2_ldb_schema *schema,
 			  struct c2_db_tx *tx,
@@ -551,10 +551,10 @@ static int pdclust_encode(bool toDB, bool ifUpdate,
    /**
 	@code
 	Store pdclust layout type specific fields into the buffer.
-	if (toDB) {
+	if (todb) {
 		uint64_t recsize = sizeof(struct c2_ldb_rec)
 					+ sizeof(c2_pdclust_attr);
-		ret = ldb_layout_write(ifUpdate, recsize, out, schema, tx);
+		ret = ldb_layout_write(dbop, recsize, out, schema, tx);
 	}
 
 	@endcode

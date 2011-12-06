@@ -486,7 +486,7 @@ int c2_ldb_rec_lookup(const uint64_t *lid,
 {
    /**
 	@code
-	Invoke c2_layout_decode() with fromDB flag set to TRUE.
+	Invoke c2_layout_decode() with fromdb flag set to TRUE.
 	c2_layout_decode(TRUE, lid, schema, tx, NULL, out);
 
 	@endcode
@@ -506,9 +506,9 @@ int c2_ldb_rec_add(const struct c2_layout *l,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with toDB flag set to TRUE and with ifupdate
-	flag set to FALSE.
-	c2_layout_encode(TRUE, FALSE, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with todb flag set to TRUE and with dbop
+	set to LEO_ADD.
+	c2_layout_encode(TRUE, LEO_ADD, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
@@ -524,9 +524,9 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with toDB flag set to TRUE and with ifupdate
-	flag set to TRUE.
-	c2_layout_encode(TRUE, TRUE, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with todb flag set to TRUE and with dbop
+	set to LEO_UPDATE.
+	c2_layout_encode(TRUE, LEO_UPDATE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
@@ -547,7 +547,9 @@ int c2_ldb_rec_delete(const uint64_t lid,
 {
    /**
 	@code
-	Delete layout entry from the layouts table.
+	Invoke c2_layout_encode() with todb flag set to TRUE and with dbop
+	set to LEO_DELETE.
+	c2_layout_encode(TRUE, LEO_DELETE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;

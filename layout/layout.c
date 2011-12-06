@@ -119,11 +119,11 @@ void c2_layout_put(struct c2_layout *lay)
    - Server decodes an on-disk layout record by reading it from the Layout
      DB, into an in-memory layout structure.
 
-   @param fromDB - This flag indicates if the in-memory layout object is
+   @param fromdb - This flag indicates if the in-memory layout object is
    to be decoded 'from its representation stored in the Layout DB' or
    'from its representation received over the network'.
 */
-int c2_layout_decode(bool fromDB, const uint64_t lid,
+int c2_layout_decode(bool fromdb, const uint64_t lid,
 		     struct c2_ldb_schema *schema,
 		     struct c2_db_tx *tx,
 		     const struct c2_bufvec_cursor *cur,
@@ -133,7 +133,7 @@ int c2_layout_decode(bool fromDB, const uint64_t lid,
 	@code
 
 
-	if (fromDB) {
+	if (fromdb) {
 		C2_PRE(lid != LID_NONE);
 		C2_PRE(schema != NULL);
 		C2_PRE(tx != NULL);
@@ -146,7 +146,7 @@ int c2_layout_decode(bool fromDB, const uint64_t lid,
 	}
 
 
-	if (fromDB) {
+	if (fromdb) {
 		struct c2_db_pair	pair;
 
 		uint64_t recsize = sizeof(struct c2_ldb_rec);
@@ -165,13 +165,13 @@ int c2_layout_decode(bool fromDB, const uint64_t lid,
         to continue decoding the layout type specific fields.
 
 	uint64_t lt_id = *out->l_type->lt_id;
-	schema->ls_types[lt_id]->lto_decode(fromDB, lid, cur, out);
+	schema->ls_types[lt_id]->lto_decode(fromdb, lid, cur, out);
 
 	If the layout-enumeration type is LIST, then invoke respective
 	leto_decode().
 
 	uint64_t let_id = *out->l_enum->let_id;
-	schema->ls_enum[let_id]->leto_decode(fromDB, lid, cur, out);
+	schema->ls_enum[let_id]->leto_decode(fromdb, lid, cur, out);
 
 	@endcode
    */
@@ -191,14 +191,14 @@ int c2_layout_decode(bool fromDB, const uint64_t lid,
    - Server encodes an in-memory layout object and stores it into the Layout
      DB.
 
-   @param toDB - This flag indicates if 'the layout is to be stored in the
+   @param todb - This flag indicates if 'the layout is to be stored in the
    Layout DB' or 'if it is to be stored in the buffer so that the buffer can
    be passed over the network'.
 
-   @param ifupdate - This flag indicates if 'the layout record is to be written
-   to the Layout DB' or 'if it is to be updated'.
+   @param dbop - This enum parameter indicates what is the DB operation to be
+   performed on the layout record which could be one of ADD/UPDATE/DELETE.
 */
-int c2_layout_encode(bool toDB, bool ifupdate,
+int c2_layout_encode(bool todb, enum c2_layout_encode_op dbop,
 		     const struct c2_layout *l,
 		     struct c2_ldb_schema *schema,
 		     struct c2_db_tx *tx,
@@ -206,7 +206,7 @@ int c2_layout_encode(bool toDB, bool ifupdate,
 {
    /**
 	@code
-	if (toDB) {
+	if (todb) {
 		C2_PRE(schema != NULL);
 		C2_PRE(tx != NULL);
 		C2_PRE(out == NULL);
@@ -261,8 +261,11 @@ int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
    Write layout record to layouts table.
    Used from layout type specific implementation, with layout type
    specific record size.
+
+   @param dbop - This enum parameter indicates what is the DB operation to be
+   performed on the layout record which could be one of ADD/UPDATE/DELETE.
 */
-int ldb_layout_write(bool ifupdate,
+int ldb_layout_write(enum c2_layout_encode_op dbop,
 		     const uint32_t recsize,
 		     struct c2_bufvec_cursor *cur,
 		     struct c2_ldb_schema *schema,
@@ -280,10 +283,12 @@ int ldb_layout_write(bool ifupdate,
 			 lid, sizeof(uint64_t),
 			 rec, recsize);
 
-	if (ifupdate) {
+	if (dbop == LEO_ADD) {
 		c2_table_insert(tx, &pair);
-	} else {
+	} else if (dbop == LEO_UPDATE) {
 		c2_table_update(tx, &pair);
+	} else if (dbop == LEO_DELETE) {
+		c2_table_delete(tx, &pair);
 	}
 	@endcode
    */

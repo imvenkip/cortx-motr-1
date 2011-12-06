@@ -75,11 +75,11 @@ int list_unregister(struct c2_ldb_schema *schema,
    Continues to build the in-memory layout object from its representation
    either 'stored in the Layout DB' or 'received over the network'.
 
-   @param fromDB - This flag indicates if the in-memory layout object is
+   @param fromdb - This flag indicates if the in-memory layout object is
    being decoded 'from its representation stored in the Layout DB' or
    'from its representation received over the network'.
 */
-static int list_decode(bool fromDB, uint64_t lid,
+static int list_decode(bool fromdb, uint64_t lid,
 		       struct c2_ldb_schema *schema,
 		       struct c2_db_tx *tx,
 		       const struct c2_bufvec_cursor *cur,
@@ -87,11 +87,11 @@ static int list_decode(bool fromDB, uint64_t lid,
 {
    /**
 	@code
-	if (fromDB)
+	if (fromdb)
 		C2_PRE(lid != 0);
 	C2_PRE(cur != NULL);
 
-	if (fromDB) {
+	if (fromdb) {
 		Read all the COB identifiers belonging to the layout with the
 		layout id 'lid', from the cob_lists table and store those in
 		the buffer pointed by cur.
@@ -114,14 +114,13 @@ static int list_decode(bool fromDB, uint64_t lid,
    Layout DB' ot 'converts it to a buffer that can be passed on over the
    network'.
 
-   @param toDB - This flag indicates if 'the layout is to be stored in the
+   @param todb - This flag indicates if 'the layout is to be stored in the
    Layout DB' or 'if it is to be stored in the buffer'.
 
-   @param ifupdate - This flag indicates if 'the layout record is to be written
-   to the Layout DB' or 'if it is to be updated'.
-
+   @param dbop - This enum parameter indicates what is the DB operation to be
+   performed on the layout record which could be one of ADD/UPDATE/DELETE.
 */
-static int list_encode(bool toDB, bool ifupdate,
+static int list_encode(bool todb, enum c2_layout_encode_op dbop,
 		       const struct c2_layout *l,
 		       struct c2_ldb_schema *schema,
 		       struct c2_db_tx *tx,
@@ -132,9 +131,9 @@ static int list_encode(bool toDB, bool ifupdate,
         Read the cob identifiers list from c2_lay_list_enum::lle_list_of_cobs
 	and store it into the buffer.
 
-	if (toDB) {
-		Depending upon the value of ifupdate, insert/update cob entires
-		to the cob_lists table.
+	if (todb) {
+		Depending upon the value of dbop, insert/update/delete cob
+		entires to/from the cob_lists table.
 	}
 
 	@endcode
