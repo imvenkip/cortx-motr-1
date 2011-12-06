@@ -27,7 +27,6 @@
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "lib/tlist.h"
 #include "net/net.h"    /* c2_net_domain */
 #include "rpc/rpc2.h"
 
@@ -319,7 +318,8 @@ struct c2t1fs_sb {
 	    csb_nr_active_contexts <= c2_tlist_length(&csb_service_contexts) */
 	uint32_t                      csb_nr_active_contexts;
 
-	/** list of service contexs */
+	/** list of c2t1fs_service_context objects hanging using sc_link.
+	    tlist descriptor: svc_ctx_tl */
 	struct c2_tl                  csb_service_contexts;
 
 	/** Total number of containers. */
@@ -377,7 +377,7 @@ struct c2t1fs_inode {
 	struct c2_layout         *ci_layout;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
-	    List descriptor dir_ents_tld. Valid for only directory inode.
+	    List descriptor dir_ents_tl. Valid for only directory inode.
 	    Empty for regular file inodes. */
 	struct c2_tl              ci_dir_ents;
 };
