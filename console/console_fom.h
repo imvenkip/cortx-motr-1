@@ -31,23 +31,6 @@
 #include "fop/fop.h" /* c2_fop_ */
 #include "fop/fom.h" /* c2_fom_ */
 
-struct c2_cons_fom_disk {
-        struct c2_fom disk_gen;
-        struct c2_fop *disk_fop;
-        struct c2_fop *disk_reply_fop;
-};
-
-struct c2_cons_fom_device {
-        struct c2_fom dev_gen;
-        struct c2_fop *dev_fop;
-        struct c2_fop *dev_reply_fop;
-};
-int c2_cons_fop_disk_fom_state(struct c2_fom *fom);
-int c2_cons_fop_device_fom_state(struct c2_fom *fom);
-
-void c2_cons_fop_disk_fom_fini(struct c2_fom *fom);
-void c2_cons_fop_device_fom_fini(struct c2_fom *fom);
-
 extern const struct c2_fom_ops c2_cons_fom_disk_ops;
 extern const struct c2_fom_ops c2_cons_fom_device_ops;
 extern struct c2_fom_type c2_cons_fom_disk_type;

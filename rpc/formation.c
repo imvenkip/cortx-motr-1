@@ -470,7 +470,6 @@ static void frm_reply_received(struct c2_rpc_frm_sm *frm_sm,
 		if (c_item->ic_resultant_item == item)
 			coalesced_item_reply_post(c_item, reply);
 	}
-	rpc_item_replied(item, reply, 0);
 }
 
 /* Callback function for reply received of an rpc item. */

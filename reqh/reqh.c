@@ -175,7 +175,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	}
 
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	if (result != -ENOMEM) {
+	if (result == 0 && fom != NULL) {
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
 
