@@ -531,8 +531,7 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 
 /**
    Enqueues a buffer for passive bulk send.
-   The match bits for the passive buffer should be set in the buffer with the
-   nlx_core_buf_match_bits_set() subroutine before this call.
+   See nlx_core_buf_passive_recv() for how the buffer is to be initialized.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
 
