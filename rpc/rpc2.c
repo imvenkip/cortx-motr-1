@@ -109,7 +109,6 @@ static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 };
 
 static const struct c2_update_stream_ops update_stream_ops;
-static const struct c2_rpc_item_type_ops rpc_item_ops;
 
 static int update_stream_init(struct c2_update_stream *us,
 			       struct c2_rpcmachine *mach)
@@ -909,28 +908,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_addb_ctx_fini(&machine->cr_rpc_machine_addb);
 }
 C2_EXPORTED(c2_rpcmachine_fini);
-
-/** simple vector of RPC-item operations */
-static void rpc_item_op_sent(struct c2_rpc_item *item)
-{
-	//DBG("item: xid: %lu, SENT\n", item->ri_verno.vn_vc);
-}
-
-static void rpc_item_op_added(struct c2_rpc *rpc, struct c2_rpc_item *item)
-{
-	//DBG("item: xid: %lu, ADDED\n", item->ri_verno.vn_vc);
-}
-
-static void rpc_item_op_replied(struct c2_rpc_item *item, int rc)
-{
-	//DBG("item: xid: %lu, REPLIED\n", item->ri_verno.vn_vc);
-}
-
-static const struct c2_rpc_item_type_ops rpc_item_ops = {
-	.rito_sent    = rpc_item_op_sent,
-	.rito_added   = rpc_item_op_added,
-	.rito_replied = rpc_item_op_replied
-};
 
 /** simple vector of update stream operations */
 void us_timeout(struct c2_update_stream *us)

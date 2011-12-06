@@ -220,8 +220,9 @@ static void mandatory_fields_absent(void)
 	rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
 	C2_UT_ASSERT(rc == -EINVAL);
 
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) == NULL);
-	C2_UT_ASSERT(strstr("Error: Mandatory key not present", str) == NULL);
+	rewind(fp);
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) != NULL);
+	C2_UT_ASSERT(strstr(str, "Error: Mandatory key not present") != NULL);
 
 	fclose(fp);
 
@@ -371,6 +372,8 @@ static int generate_dirty_conf_file(const char *c_name,
 	return 0;
 }
 
+/* Introduce a scanner error and check if the corresponding error is displayed
+   by the code */
 static void scanner_error_detect(void)
 {
 	int	 rc;
@@ -400,8 +403,9 @@ static void scanner_error_detect(void)
 	rc = c2_yaml2db_doc_load(&yctx);
 	C2_UT_ASSERT(rc != 0);
 
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) == NULL);
-	C2_UT_ASSERT(strstr("Scanner error", str) == NULL);
+	rewind(fp);
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) != NULL);
+	C2_UT_ASSERT(strstr(str, "Scanner error") != NULL);
 
 	fclose(fp);
 
@@ -413,6 +417,8 @@ static void scanner_error_detect(void)
 	c2_yaml2db_fini(&yctx);
 }
 
+/* Introduce a parser error and check if the corresponding error is displayed
+   by the code */
 static void parser_error_detect(void)
 {
 	int	 rc;
@@ -442,8 +448,9 @@ static void parser_error_detect(void)
 	rc = c2_yaml2db_doc_load(&yctx);
 	C2_UT_ASSERT(rc != 0);
 
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) == NULL);
-	C2_UT_ASSERT(strstr("Parser error", str) == NULL);
+	rewind(fp);
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) != NULL);
+	C2_UT_ASSERT(strstr(str, "Parser error") != NULL);
 
 	fclose(fp);
 

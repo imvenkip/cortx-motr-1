@@ -134,8 +134,6 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 
 static void clink_signal(struct c2_clink *clink)
 {
-	C2_ASSERT(c2_clink_is_armed(clink));
-
 	if (clink->cl_cb == NULL || !clink->cl_cb(clink))
 		c2_semaphore_up(&clink->cl_group->cl_wait);
 }
@@ -284,6 +282,12 @@ bool c2_clink_is_armed(const struct c2_clink *link)
 	return link->cl_chan != NULL;
 }
 C2_EXPORTED(c2_clink_is_armed);
+
+void c2_clink_signal(struct c2_clink *clink)
+{
+	clink_signal(clink);
+}
+C2_EXPORTED(c2_clink_signal);
 
 bool c2_chan_trywait(struct c2_clink *link)
 {

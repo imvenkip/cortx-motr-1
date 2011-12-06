@@ -54,10 +54,14 @@
 
  */
 
-extern void item_exit_stats_set(struct c2_rpc_item *item,
-				enum c2_rpc_item_path path);
-extern void frm_item_reply_received(struct c2_rpc_item *reply_item,
-				    struct c2_rpc_item *req_item);
+void item_exit_stats_set(struct c2_rpc_item    *item,
+			 enum c2_rpc_item_path  path);
+
+void frm_item_reply_received(struct c2_rpc_item *reply_item,
+			     struct c2_rpc_item *req_item);
+
+void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+                      uint32_t rc);
 
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
@@ -141,17 +145,18 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 * XXX temporary value for lsn. This will be set to some proper value
 	 * when sessions will be integrated with FOL
 	 */
-	slot->sl_verno.vn_lsn = C2_LSN_RESERVED_NR + 2;
-	slot->sl_verno.vn_vc = 0;
-	slot->sl_slot_gen = 0;
-	slot->sl_xid = 1; /* xid 0 will be taken by dummy item */
-	slot->sl_in_flight = 0;
+	slot->sl_verno.vn_lsn  = C2_LSN_RESERVED_NR + 2;
+	slot->sl_verno.vn_vc   = 0;
+	slot->sl_slot_gen      = 0;
+	slot->sl_xid           = 1; /* xid 0 will be taken by dummy item */
+	slot->sl_in_flight     = 0;
 	slot->sl_max_in_flight = SLOT_DEFAULT_MAX_IN_FLIGHT;
+	slot->sl_cob           = NULL;
+	slot->sl_ops           = ops;
+
 	c2_list_init(&slot->sl_item_list);
 	c2_list_init(&slot->sl_ready_list);
 	c2_mutex_init(&slot->sl_mutex);
-	slot->sl_cob = NULL;
-	slot->sl_ops = ops;
 
 	/*
 	 * Add a dummy item with very low verno in item_list
@@ -159,23 +164,24 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 
 	dummy_item = &fop->f_item;
 
-	dummy_item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
+	dummy_item->ri_stage     = RPC_ITEM_STAGE_PAST_COMMITTED;
 	/* set ri_reply to some value. Doesn't matter what */
-	dummy_item->ri_reply = dummy_item;
-	slot->sl_last_sent = dummy_item;
+	dummy_item->ri_reply     = dummy_item;
+	slot->sl_last_sent       = dummy_item;
 	slot->sl_last_persistent = dummy_item;
 
-	sref = &dummy_item->ri_slot_refs[0];
-	sref->sr_slot = slot;
-	sref->sr_item = dummy_item;
-	sref->sr_xid = 0;
+	sref                  = &dummy_item->ri_slot_refs[0];
+	sref->sr_slot         = slot;
+	sref->sr_item         = dummy_item;
+	sref->sr_xid          = 0;
 	/*
 	 * XXX lsn will be assigned to some proper value once sessions code
 	 * will be integrated with FOL
 	 */
 	sref->sr_verno.vn_lsn = C2_LSN_DUMMY_ITEM;
-	sref->sr_verno.vn_vc = 0;
-	sref->sr_slot_gen = slot->sl_slot_gen;
+	sref->sr_verno.vn_vc  = 0;
+	sref->sr_slot_gen     = slot->sl_slot_gen;
+
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add(&slot->sl_item_list, &sref->sr_link);
 	return 0;
@@ -386,11 +392,11 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 
 	session = slot->sl_session;
 
-	sref = &item->ri_slot_refs[0];
-	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
+	sref                = &item->ri_slot_refs[0];
+	item->ri_stage      = RPC_ITEM_STAGE_FUTURE;
 	sref->sr_session_id = session->s_session_id;
-	sref->sr_sender_id = session->s_conn->c_sender_id;
-	sref->sr_uuid = session->s_conn->c_uuid;
+	sref->sr_sender_id  = session->s_conn->c_sender_id;
+	sref->sr_uuid       = session->s_conn->c_uuid;
 
 	/*
 	 * c2_rpc_slot_item_apply() will provide an item
@@ -399,9 +405,9 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	 * will call this routine only if verno of slot and item
 	 * matches
 	 */
-	sref->sr_slot_id = slot->sl_slot_id;
-	sref->sr_verno = slot->sl_verno;
-	sref->sr_xid = slot->sl_xid;
+	sref->sr_slot_id    = slot->sl_slot_id;
+	sref->sr_verno      = slot->sl_verno;
+	sref->sr_xid        = slot->sl_xid;
 
 	slot->sl_xid++;
 	if (c2_rpc_item_is_update(item)) {
@@ -415,8 +421,8 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	}
 
 	sref->sr_slot_gen = slot->sl_slot_gen;
-	sref->sr_slot = slot;
-	sref->sr_item = item;
+	sref->sr_slot     = slot;
+	sref->sr_item     = item;
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
 	if (session != NULL) {
@@ -649,12 +655,6 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(c2_rpc_session_invariant(session));
 		c2_mutex_unlock(&session->s_mutex);
 
-		/*
-		 * On receiver, ->so_reply_consume(req, reply) will hand over
-		 * @reply to formation, to send it back to sender.
-		 * see: rcv_reply_consume(), snd_reply_consume()
-		 */
-		slot->sl_ops->so_reply_consume(req, reply);
 		slot_balance(slot);
 
 		c2_mutex_lock(&session->s_mutex);
@@ -665,6 +665,33 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 					&session->s_mutex);
 		}
 		c2_mutex_unlock(&session->s_mutex);
+
+		/*
+		 * On receiver, ->so_reply_consume(req, reply) will hand over
+		 * @reply to formation, to send it back to sender.
+		 * see: rcv_reply_consume(), snd_reply_consume()
+		 */
+		slot->sl_ops->so_reply_consume(req, reply);
+		/*
+		 * XXX On receiver, there is a potential race, from this point
+		 * to slot mutex unlock in c2_rpc_reply_post().
+		 * - Context switch happens at this point. slot->sl_mutex is
+		 *   yet to be unlocked.
+		 * - @reply reaches back to sender. This might make sender side
+		 *   session IDLE.
+		 * - sender sends SESSION_TERMINATE.
+		 * - SESSION_TERMINATE fop gets submitted to reqh and completes
+		 *    its execution. As part of session termination it frees all
+		 *    session and slot objects.
+		 * - execution of this thread resumes from this point.
+		 * - control returns to c2_rpc_reply_post() which tries to
+		 *   unlock the mutex, but the mutex is embeded in slot and
+		 *   slot is already freed during session termination. BOOM!!!
+		 * - Holding session mutex across c2_rpc_slot_reply_received()
+		 *   might sound obvious solution, but formation tries to
+		 *   aquire same session mutex while processing reply item,
+		 *   leading to self deadlock.
+		 */
 	}
 }
 
@@ -844,16 +871,32 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
 			frm_item_reply_received(item, req);
-		}
-
-		if (req != NULL && req->ri_ops != NULL &&
-		    req->ri_ops->rio_replied != NULL) {
-			req->ri_ops->rio_replied(req, item, 0);
+			/*
+			 * informing upper layer that reply is received should
+			 * be the done after all the reply processing has been
+			 * done by rpc-layer.
+			 */
+			rpc_item_replied(req, item, 0);
 		}
 	}
 	return 0;
 }
 
+void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+                      uint32_t rc)
+{
+	item->ri_error = rc;
+	item->ri_reply = reply;
+	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
+		item->ri_ops->rio_replied(item);
+	c2_chan_broadcast(&item->ri_chan);
+	/*
+	 * If item is of type conn terminate reply,
+	 * then req and item (including any of its associated
+	 * rpc layer structures e.g. session, frm_sm etc.)
+	 * should not be accessed from this point onwards.
+	 */
+}
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
 			   uint32_t         slot_id,

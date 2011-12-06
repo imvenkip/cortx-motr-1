@@ -44,6 +44,9 @@ static const struct c2_addb_loc frm_addb_loc = {
 C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
 		C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
+void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+		      uint32_t rc);
+
 extern void item_exit_stats_set(struct c2_rpc_item *item,
 				enum c2_rpc_item_path path);
 
@@ -445,40 +448,16 @@ void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
 	c2_mutex_unlock(&frm_sm->fs_lock);
 }
 
-static void frm_reply_received(struct c2_rpc_frm_sm *frm_sm,
-			       struct c2_rpc_item *item)
-{
-	struct c2_rpc_item *citem;
-
-	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
-	C2_PRE(item != NULL);
-
-	if (item->ri_type->rit_ops->rito_replied)
-		item->ri_type->rit_ops->rito_replied(item, 0);
-
-	if (!c2_tlist_is_empty(&rpcitem_tl, &item->ri_compound_items)) {
-		c2_tlist_for(&rpcitem_tl, &item->ri_compound_items, citem) {
-			citem->ri_type->rit_ops->rito_replied(citem, 0);
-		} c2_tlist_endfor;
-	}
-}
-
 /* Callback function for reply received of an rpc item. */
 void frm_item_reply_received(struct c2_rpc_item *reply_item,
 			     struct c2_rpc_item *req_item)
 {
-	struct c2_rpc_frm_sm		*frm_sm;
-	enum c2_rpc_frm_state		 sm_state;
+	struct c2_rpc_frm_sm *frm_sm;
 
 	C2_PRE(req_item != NULL);
 
 	frm_sm = item_to_frm_sm(req_item);
 
-	c2_mutex_lock(&frm_sm->fs_lock);
-	frm_reply_received(frm_sm, req_item);
-	sm_state = frm_sm->fs_state;
-	c2_mutex_unlock(&frm_sm->fs_lock);
 	sm_forming_state(frm_sm, req_item);
 }
 

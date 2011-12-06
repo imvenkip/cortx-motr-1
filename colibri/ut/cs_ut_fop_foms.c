@@ -46,53 +46,14 @@
 #include "rpc/rpc_opcodes.h"
 
 static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m);
-static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc);
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
 
 /*
   RPC item operations structures.
  */
-static const struct c2_rpc_item_type_ops cs_ds1_req_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = cs_ut_rpc_item_reply_cb,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
 
-static const struct c2_rpc_item_type_ops cs_ds2_req_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = cs_ut_rpc_item_reply_cb,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-
-/*
-  Reply rpc item type operations.
- */
-static const struct c2_rpc_item_type_ops cs_ds1_rep_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = NULL,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-};
-
-static const struct c2_rpc_item_type_ops cs_ds2_rep_fop_rpc_item_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = NULL,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
+static const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
+        .rio_replied = cs_ut_rpc_item_reply_cb,
 };
 
 /* DS1 service fop type operations.*/
@@ -131,19 +92,15 @@ static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
 
 C2_FOP_TYPE_DECLARE(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
 		    C2_CS_DS1_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-		    &cs_ds1_req_fop_rpc_item_type_ops);
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 C2_FOP_TYPE_DECLARE(cs_ds1_rep_fop, "ds1 reply", &cs_ds1_rep_fop_type_ops,
-		    C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-                    &cs_ds1_rep_fop_rpc_item_type_ops);
+		    C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 C2_FOP_TYPE_DECLARE(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
 		    C2_CS_DS2_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-		    &cs_ds2_req_fop_rpc_item_type_ops);
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 C2_FOP_TYPE_DECLARE(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
-		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
-                    &cs_ds2_rep_fop_rpc_item_type_ops);
+		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 /*
   Defines ds1 service fop types array.
@@ -161,13 +118,13 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
         &cs_ds2_rep_fop_fopt
 };
 
-static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
 	struct c2_fop *req_fop;
 	struct c2_fop *rep_fop;
 
         C2_PRE(item != NULL);
-        C2_PRE(c2_chan_has_waiters(&item->ri_chan));
+	C2_PRE(c2_chan_has_waiters(&item->ri_chan));
 
 	req_fop = c2_rpc_item_to_fop(item);
 	rep_fop = c2_rpc_item_to_fop(item->ri_reply);
@@ -181,8 +138,6 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item, int rc)
 		     C2_CS_DS1_REP_OPCODE ||
 		     rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
 		     C2_CS_DS2_REP_OPCODE);
-
-        c2_chan_signal(&item->ri_chan);
 }
 
 void c2_cs_ut_ds1_fop_fini(void)
@@ -486,6 +441,7 @@ void c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 
 			item = &fop[i]->f_item;
 			c2_rpc_item_init(item);
+			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
 			item->ri_deadline = 0;
 			item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 			item->ri_group = NULL;
