@@ -1,3 +1,4 @@
+                c2_tlink_init(&rpcbulk_tl, &rb_buf->bb_link);
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -37,7 +38,6 @@
 #include "reqh/reqh_service.h"
 #include "net/buffer_pool.h"
 #include "ioservice/io_service.h"
-#include "rpc/rpc2.h"
 
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"
@@ -593,6 +593,13 @@
 extern const struct c2_tl_descr c2_rh_sl_descr;
 extern const struct c2_tl_descr nbp_colormap_tl;
 
+C2_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct c2_stob_io,
+                   ft_linkage,  ft_magix,
+                   0xba11ab1ea5111dae /* bailable asilidae */,
+                   0xd15ea5e0fed1f1ce /* disease of edifice */);
+
+C2_TL_DEFINE(ft, static, struct c2_fop_type);
+
 struct c2_tl_descr netbufs_tl;
 struct c2_tl_descr rpcbulk_tl;
 
@@ -845,11 +852,20 @@ int c2_io_fom_write_init(struct c2_fop *fop, struct c2_fom **out)
         if (result == 0) {
                 (*out)->fo_fop = fop;
                 c2_fom_init(*out);
+                /**
+                 * Since reqh services information not available
+                 * it is initiated to NULL. Service instance will 
+                 * be set to fom while FOM execution.
+                 * todo : This should be done by reqh handler 
+                 *        after FOM init call returns.
+                 */
+                (*out)->fo_service = NULL;
         }
 
         rwfop = io_rw_get(fop); 
 
         fom_obj = container_of(*out, struct c2_io_fom, fcrw_gen);
+        fom_obj->fcrw_ndesc = rwfop->crw_desc.id_nr;
         fom_obj->fcrw_curr_desc_index = 0;
         fom_obj->fcrw_curr_ivec_index = 0;
         fom_obj->fcrw_batch_size = rwfop->crw_desc.id_nr;
@@ -875,6 +891,8 @@ static int io_fom_rwv_get_net_buffer(struct c2_fom *fom)
 {   
         int                       i;
         int                       color;
+        int                       aquired_net_bufs;
+        int                       required_net_bufs;
         struct c2_tl              *services;
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom          *fom_obj = NULL;
@@ -888,34 +906,40 @@ static int io_fom_rwv_get_net_buffer(struct c2_fom *fom)
                fom->fo_phase == FOPH_WRITE_BUF_GET);
 
         /**
-         * TODO : This shoud me in reqh handler code after FOM create and 
+         * TODO : This shoud be done in reqh handler code after FOM create and 
          *        before adding FOM into runqueue.
          */
-        services = &fom->fo_loc->fl_dom->fd_reqh->rh_services;
-        c2_tlist_for(&c2_rh_sl_descr, services, service) {
-            if (strcmp(service->rs_type->rst_name, IOSERVICE_NAME) == 0) {
-                    fom->fo_service = service;
-                    break;
-            }
-        } c2_tlist_endfor;
-        /** End TODO */
+        if (fom->fo_service == NULL) {
+                services = &fom->fo_loc->fl_dom->fd_reqh->rh_services;
+                c2_tlist_for(&c2_rh_sl_descr, services, service) {
+                        if (strcmp(service->rs_type->rst_name,
+                            IOSERVICE_NAME) == 0) {
+                                fom->fo_service = service;
+                                break;
+                        }
+                } c2_tlist_endfor;
+        }
+	/** End TODO */
          
         fom_obj = container_of(fom, struct c2_io_fom, fcrw_gen);
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
         bp = &serv_obj->rios_nb_pool;
         tm = &fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
         color = get_color_for(&serv_obj->rios_nbp_color_map, tm);
+        aquired_net_bufs = c2_tlist_length(&netbufs_tl,
+                                           &fom_obj->fcrw_netbuf_list);
+        required_net_bufs = fom_obj->fcrw_ndesc - aquired_net_bufs;
+        
 
         /**
          * Aquire as many net buffers as to process all discriptors.
          */
         c2_net_buffer_pool_lock(bp);
-        for (i = 0; i < fom_obj->fcrw_batch_size; i++) {
+        for (;aquired_net_bufs < required_net_bufs;) {
             struct c2_net_buffer      *nb = NULL;
 
             nb = c2_net_buffer_pool_get(bp, color);
-            if ( nb == NULL &&
-                c2_tlist_is_empty(&netbufs_tl, &fom_obj->fcrw_netbuf_list)) {
+            if (nb == NULL && aquired_net_bufs == 0) {
                     /** 
                      * Network buffer not available. Atleast one
                      * buffer need for zero-copy. Registers FOM clink
@@ -933,7 +957,6 @@ static int io_fom_rwv_get_net_buffer(struct c2_fom *fom)
                     
             }
             else if (nb == NULL) {
-                    fom_obj->fcrw_batch_size = i+1;  
                     break;
             }
               
@@ -943,9 +966,11 @@ static int io_fom_rwv_get_net_buffer(struct c2_fom *fom)
                    nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
 
             c2_tlist_add(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb);
+            aquired_net_bufs++;
 
         }
         c2_net_buffer_pool_unlock(bp);
+        fom_obj->fcrw_batch_size = aquired_net_bufs;  
 
         if (is_read(fop))
                 fom->fo_phase = FOPH_COB_READ_INIT;
@@ -966,9 +991,10 @@ static int io_fom_rwv_get_net_buffer(struct c2_fom *fom)
 static int io_fom_rwv_release_net_buffer(struct c2_fom *fom)
 {
         int                             color;
+        int                             aquired_net_bufs;
+        int                             required_net_bufs;
         struct c2_fop                  *fop;
         struct c2_io_fom               *fom_obj = NULL;
-        struct c2_net_buffer           *nb;
         struct c2_reqh_io_service      *serv_obj;
         struct c2_net_buffer_pool      *bp;
         struct c2_net_transfer_mc      *tm;
@@ -983,17 +1009,38 @@ static int io_fom_rwv_release_net_buffer(struct c2_fom *fom)
                                 rios_gen);
         tm = &(fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm);
         color = get_color_for(&serv_obj->rios_nbp_color_map, tm);
+        aquired_net_bufs = c2_tlist_length(&netbufs_tl,
+                                           &fom_obj->fcrw_netbuf_list);
+        if (fom_obj->fcrw_curr_desc_index >= fom_obj->fcrw_ndesc)
+                required_net_bufs = 0;
+        else
+                required_net_bufs = fom_obj->fcrw_ndesc - aquired_net_bufs;
 
         bp = &serv_obj->rios_nb_pool;
 
         c2_net_buffer_pool_lock(bp);
-        c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb)
+        for (;aquired_net_bufs > required_net_bufs;) {
         {
+                struct c2_net_buffer           *nb = NULL;;
+
+                c2_tlist_tail(&netbufs_tl, &fom_obj->fcrw_netbuf_list)
                 C2_ASSERT(nb != NULL);
 
                 c2_net_buffer_pool_put(bp, nb, color);
-        } c2_tlist_endfor;
+                c2_tlist_del(&netbufs_tl, nb);
+                aquired_net_bufs--;
+        }
         c2_net_buffer_pool_unlock(bp);
+
+        if (!required_net_bufs) {
+               fom->fo_phase = FOPH_FINISH;
+        }
+        else {
+                if (is_read(fop))
+                        fom->fo_phase = FOPH_COB_READ_INIT;
+                else
+                        fom->fo_phase = FOPH_ZERO_COPY_WRITE_INIT;
+        }
 
         return FSO_AGAIN;
 }
@@ -1010,7 +1057,6 @@ static int io_fom_rwv_initiate_zero_copy(struct c2_fom *fom)
 {
         int                        i;
         int                        rc = 0;
-        static int                 aquired_buf_count;
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom          *fom_obj = NULL;
         struct c2_fop_cob_rw      *rwfop;
@@ -1019,24 +1065,20 @@ static int io_fom_rwv_initiate_zero_copy(struct c2_fom *fom)
         struct c2_net_buffer      *nb = NULL;
         struct c2_net_buf_desc    *net_desc;
 
-        fom_obj = container_of(fom, struct c2_io_fom, fcrw_gen);
-        aquired_buf_count = c2_tlist_length(&netbufs_tl,
-                                            &fom_obj->fcrw_netbuf_list);
-
         C2_PRE(fom->fo_phase == FOPH_ZERO_COPY_READ_INIT || 
                fom->fo_phase == FOPH_ZERO_COPY_WRITE_INIT);
-        C2_PRE(fom_obj->fcrw_batch_size <= aquired_buf_count);
 
         rwfop = io_rw_get(fop); 
         rbulk = &fom_obj->fcrw_bulk;
 
         c2_rpc_bulk_init(rbulk);
 
-        c2_fom_block_at(fom, &rbulk->rb_chan);
 
-        for (i = 0; i < fom_obj->fcrw_batch_size;
-             i++, fom_obj->fcrw_curr_desc_index++) {
+        /** find the domain */
+        c2_tlist_for(&&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
+
+                C2_ASSERT(nb != NULL);
 
                 C2_ALLOC_PTR(rb_buf);
                 if (rb_buf == NULL) {
@@ -1046,26 +1088,26 @@ static int io_fom_rwv_initiate_zero_copy(struct c2_fom *fom)
                 }
 
                 rb_buf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
-                if (nb == NULL)
-                        nb =  c2_tlist_head(&netbufs_tl,
-                                           &fom_obj->fcrw_netbuf_list);
-                else
-                        nb =  c2_tlist_next(&netbufs_tl,
-                                           &fom_obj->fcrw_netbuf_list, nb);
                 rb_buf->bb_nbuf = *nb; 
                 rb_buf->bb_rbulk = rbulk;
-                c2_tlink_init(&rpcbulk_tl, &rb_buf->bb_link);
-                c2_tlist_add(&rpcbulk_tl, &rbulk->rb_buflist, rb_buf);
-        }
 
-        net_desc = rwfop->crw_desc.id_descs;
+                c2_tlist_add(&rpcbulk_tl, &rbulk->rb_buflist, rb_buf);
+
+        } c2_tlist_endfor;
+
+        net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
         rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
-        rc = c2_rpc_bulk_buf_load(rbulk, rpc_item, net_desc);
+
+        c2_fom_block_at(fom, &rbulk->rb_chan);
+
+        rc = c2_rpc_bulk_load(rbulk, rpc_item, net_desc);
         if (rc != 0){
                 fom->fo_rc = rc;
                 fom->fo_phase = FOPH_FAILURE;
                 return FSO_AGAIN;
         }
+
+        fom_obj->fcrw_curr_desc_index += fom_obj->fcrw_batch_size;
 
         if (is_read(fop))
                 fom->fo_phase = FOPH_ZERO_COPY_READ_WAIT;
@@ -1089,6 +1131,7 @@ static int io_fom_rwv_initiate_zero_copy_wait(struct c2_fom *fom)
         struct c2_io_fom          *fom_obj;
         struct c2_rpc_bulk        *rbulk;
         struct c2_fop_cob_rw      *rwfop;
+        struct c2_rpc_bulk_buf    *rb_buf = NULL;
 
         C2_PRE(fom->fo_phase == FOPH_ZERO_COPY_READ_WAIT || 
                fom->fo_phase == FOPH_ZERO_COPY_WRITE_WAIT);
@@ -1104,15 +1147,16 @@ static int io_fom_rwv_initiate_zero_copy_wait(struct c2_fom *fom)
                 return FSO_AGAIN;
         }
 
+        c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
+                c2_tlist_del(&rpcbulk_tl, rbuf);
+        } c2_tlist_endfor;
+
+        c2_rpc_bulk_fini(rbulk);
+
         if (is_read(fop)) {
-                if (fom_obj->fcrw_curr_desc_index < rwfop->crw_desc.id_nr)
-                        fom->fo_phase = FOPH_COB_READ_INIT;
-                else
-                        fom->fo_phase = FOPH_READ_BUF_RELEASE;
-        }
-        else {
-                fom->fo_phase =  FOPH_COB_WRITE_INIT;
-        }
+                fom->fo_phase = FOPH_COB_READ_INIT;
+        else
+                fom->fo_phase = FOPH_READ_BUF_RELEASE;
 
         return FSO_AGAIN;
 }
@@ -1176,30 +1220,19 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
 
-        for (i = 0; i < fom_obj->fcrw_batch_size;
-             i++, fom_obj->fcrw_curr_ivec_index++) {
+        fom_obj->fcrw_stobio_ref = 0;
+        c2_fom_block_at(fom, &stio->si_wait);
+
+        c2_tlist_for(&&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_indexvec     mem_ivec;
 
-                if (nb == NULL)
-                        nb =  c2_tlist_head(&netbufs_tl,
-                                           &fom_obj->fcrw_netbuf_list);
-                else
-                        nb =  c2_tlist_next(&netbufs_tl,
-                                           &fom_obj->fcrw_netbuf_list, nb);
-
-	        wire_ivec = rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index];
+	        wire_ivec = rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
                 io_indexvec_wire2mem(&wire_ivec, &mem_ivec); 
 
                 /** Find out buffer address, offset and count required for stob
                    io. Due to existing limitations of kxdr wrapper over sunrpc,
                    read reply fop can not contain a vector, only a segment. 
                    Ideally, all IO fops should carry an IO vector. */
-                /** @todo With introduction of new rpc layer, ioservice has to
-                    be changed to handle the whole vector, not just one
-                    segment. */
-                /** This condition exists since read and write replies are
-                    not similar at the moment due to sunrpc restrictions
-                    mentioned above! */
                 if (is_write(fop)) {
                 	/* Make an FOL transaction record. */
                 	rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
@@ -1215,20 +1248,20 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
                 stio->si_user = nb->nb_buffer;
                 stio->si_stob = mem_ivec;
 
-                c2_fom_block_at(fom, &stio->si_wait);
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
-        } /** End of for loop */
-
-	if (rc == 0) {
-                if (is_read(fop))
-                        fom->fo_phase = FOPH_COB_READ_WAIT;
+                if (rc != 0)
+                        goto cleanup_st;
                 else
-                        fom->fo_phase = FOPH_COB_WRITE_WAIT;
-	}
-	else {
-		goto cleanup_st;
-	}
+                        fom_obj->fcrw_stobio_ref++;
+
+        } c2_tlist_endfor;
+
+        if (is_read(fop))
+                fom->fo_phase = FOPH_COB_READ_WAIT;
+        else
+                fom->fo_phase = FOPH_COB_WRITE_WAIT;
+
 	return FSO_WAIT;
 
 cleanup_st:
@@ -1264,22 +1297,22 @@ static int io_fom_rwv_io_launch_wait(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_io_fom, fcrw_gen);
         stio = &fom_obj->fcrw_st_io;
 
-        c2_stob_io_fini(stio);
-        c2_stob_put(fom_obj->fcrw_stob);
-
         if (stio->si_rc != 0){
                 fom->fo_rc = stio->si_rc;
                 fom->fo_phase = FOPH_FAILURE;
                 return FSO_AGAIN;
         }
-    
-        if (is_read(fop)) {
-                fom->fo_phase =  FOPH_ZERO_COPY_READ_INIT;
-        }
         else {
-                /** process next descriptor */
-                if (fom_obj->fcrw_curr_desc_index < rwfop->crw_desc.id_nr)
-                        fom->fo_phase = FOPH_ZERO_COPY_WRITE_INIT;
+               fom_obj->fcrw_stobio_ref--; 
+        }
+
+        if (!fom_obj->fcrw_stobio_ref) {
+
+                c2_stob_io_fini(stio);
+                c2_stob_put(fom_obj->fcrw_stob);
+
+                if (is_read(fop))
+                        fom->fo_phase =  FOPH_ZERO_COPY_READ_INIT;
                 else
                         fom->fo_phase = FOPH_WRITE_BUF_RELEASE;
         }

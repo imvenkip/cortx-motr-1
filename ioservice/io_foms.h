@@ -152,18 +152,32 @@
 #include "fop/fom.h"
 
 /**
+ * Since STOB I/O only launch io for single index vec, I/O service need
+ * to launch multiple STOB I/O and wait for all to complete. I/O service
+ * will put FOM execution into runqueue only after all STOB I/O complete.
+ */
+struct c2_stob_io_desc {
+	/** Stob IO packet for the operation. */
+        struct c2_stob_io        siod_stob_io;
+};
+
+/**
  * Object encompassing FOM for cob write
  * operation and necessary context data
  */
 struct c2_io_fom {
 	/** Generic c2_fom object. */
         struct c2_fom                    fcrw_gen;
+        /** Number of desc io_fop desc list*/
+        int                              fcrw_ndesc;
         /** index of net buffer descriptor under process*/
         int                              fcrw_curr_desc_index;
         /** index of index vector under process*/
         int                              fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
+        /** Referance count for multiple async STOB I/O */
+        int                              fcrw_stobio_ref; 
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packet for the operation. */
