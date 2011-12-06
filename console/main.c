@@ -41,14 +41,11 @@
  */
 
 static struct c2_console cons_client = {
-	.cons_lhost	      = "localhost",
-	.cons_lport	      = CLIENT_PORT,
-	.cons_rhost	      = "localhost",
-	.cons_rport	      = SERVER_PORT,
+	.cons_lepaddr	      = "127.0.0.1:123456:1",
+	.cons_repaddr	      = "127.0.0.1:123457:1",
 	.cons_db_name	      = "cons_client_db",
 	.cons_cob_dom_id      = { .id = 14 },
 	.cons_nr_slots	      = NR_SLOTS,
-	.cons_rid	      = RID,
 	.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 	.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 };
@@ -124,15 +121,17 @@ static int message_send_and_print(struct c2_console *cons,
 	return 0;
 }
 
-static void usage(void)
-{
-	fprintf(stderr, "c2console :"
-			" {-l FOP list | -f FOP type}"
-			" [-s server] [-p server port]"
-			" [-c client] [-P client port]"
+const char *usage_msg =	"c2console :"
+			" { -l FOP list | -f FOP type }"
+			" [-s server (e.g. 127.0.0.1:1024:1) ]"
+			" [-c client (e.g. 127.0.0.1:1025:1) ]"
 			" [-t timeout]"
 			" [[-i] [-y yaml file path]]"
-			" [-v]\n");
+			" [-v]";
+
+static void usage(void)
+{
+	fprintf(stderr, "%s\n", usage_msg);
 }
 
 /**
@@ -150,7 +149,10 @@ static void usage(void)
  *	  (U32, U64, BYTE and VOID).
  *
  *	  Usage:
- *	  c2console {-l | -f} [-s server] [-p port] [-t timeout] [[-i] [-y yaml file]] [-v]
+ *	  c2console :	{ -l FOP list | -f FOP type }
+ *			[-s server (e.g. 127.0.0.1:1024:1) ]
+ *			[-c client (e.g. 127.0.0.1:1025:1) ] 
+ *			[-t timeout] [[-i] [-y yaml file path]] [-v]
  *
  * @return 0 success, -errno failure.
  */
@@ -161,15 +163,12 @@ int main(int argc, char **argv)
 #endif
 {
 	enum c2_cons_mesg_type	type;
-	uint32_t		sport = 0;
-	uint32_t		cport = 0;
 	int			result;
 	bool			show = false;
 	bool			input = false;
 	const char		*server = NULL;
 	const char		*client = NULL;
 	const char		*yaml_path = NULL;
-	const char		*str = NULL;
 
 	verbose = false;
 	yaml_support = false;
@@ -182,12 +181,10 @@ int main(int argc, char **argv)
 	result = C2_GETOPTS("console", argc, argv,
 			    C2_FLAGARG('l', "show list of fops", &show),
 			    C2_FORMATARG('f', "fop type", "%u", &type),
-			    C2_STRINGARG('s', "server host name",
+			    C2_STRINGARG('s', "server",
 			    LAMBDA(void, (const char *name){ server = name; })),
-			    C2_FORMATARG('p', "server port", "%i", &sport),
-			    C2_STRINGARG('c', "client host name",
+			    C2_STRINGARG('c', "client",
 			    LAMBDA(void, (const char *name){ client = name; })),
-			    C2_FORMATARG('P', "client port", "%i", &sport),
 			    C2_FORMATARG('t', "wait time(in seconds)",
 					 "%u", &timeout),
 			    C2_FLAGARG('i', "yaml input", &input),
@@ -229,39 +226,19 @@ int main(int argc, char **argv)
 			goto yaml;
 		}
 
-		str = c2_cons_yaml_get_value("sport");
-		if (str == NULL) {
-			fprintf(stderr, "Port assignment failed\n");
-			result = EX_DATAERR;
-			goto yaml;
-		}
-		sport = strtoul(str, NULL, 10);
-
 		client = c2_cons_yaml_get_value("client");
 		if (server == NULL) {
 			fprintf(stderr, "Client assignment failed\n");
 			result = EX_DATAERR;
 			goto yaml;
 		}
-
-		str = c2_cons_yaml_get_value("cport");
-		if (str == NULL) {
-			fprintf(stderr, "client Port assignment failed\n");
-			result = EX_DATAERR;
-			goto yaml;
-		}
-		cport = strtoul(str, NULL, 10);
 	}
 
 	/* Init the console members from CLI input */
 	if (server != NULL)
-		cons_client.cons_rhost = server;
-	if (sport != 0)
-		cons_client.cons_rport = sport;
+		cons_client.cons_repaddr = server;
 	if (client != NULL)
-		cons_client.cons_lhost = client;
-	if (cport != 0)
-		cons_client.cons_lport = cport;
+		cons_client.cons_lepaddr = client;
 
 	result = c2_cons_mesg_init();
 	if (result != 0) {
@@ -309,8 +286,8 @@ int main(int argc, char **argv)
 		goto end2;
 	}
 
-	printf("Console Address = %s\n", cons_client.cons_laddr);
-	printf("Server Address = %s\n", cons_client.cons_raddr);
+	printf("Console Address = %s\n", cons_client.cons_lepaddr);
+	printf("Server Address = %s\n", cons_client.cons_repaddr);
 
 	/* Connect to the specified server */
 	result = c2_cons_rpc_client_connect(&cons_client);

@@ -6,6 +6,16 @@
  */
 
 struct c2_fop_type;
+struct c2_rpc_item_type;
+
+int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
+{
+	return 0;
+}
+
+void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
+{
+}
 
 int fop_fol_type_init(struct c2_fop_type *fopt)
 {
@@ -21,14 +31,6 @@ void c2_fits_init(void)
 }
 
 void c2_fits_fini(void)
-{
-}
-
-void c2_fits_all_init(void)
-{
-}
-
-void c2_fits_all_fini(void)
 {
 }
 

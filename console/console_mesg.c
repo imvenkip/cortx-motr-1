@@ -28,18 +28,6 @@
 #include "console/console_mesg.h"
 
 /**
- * @brief Signals the waiting process/thread for item reply.
- */
-static void rpc_reply_recvd(struct c2_rpc_item *req,
-                            struct c2_rpc_item *reply,
-                            int rc)
-{
-        req->ri_error = rc;
-	req->ri_reply = reply;
-        c2_chan_signal(&req->ri_chan);
-}
-
-/**
  * @brief Prints name and type of console message.
  *
  * @param mesg console message
@@ -50,7 +38,7 @@ void c2_cons_mesg_name_print(const struct c2_cons_mesg *mesg)
 }
 
 /**
- * @brief Prints names of FOP memebers.
+ * @brief Prints names of FOP members.
  */
 static void mesg_show(struct c2_fop *fop)
 {
@@ -63,7 +51,7 @@ static void mesg_show(struct c2_fop *fop)
 }
 
 /**
- * @brief Assignes values to FOP members using FOP iterator.
+ * @brief Assigns values to FOP members using FOP iterator.
  */
 static void mesg_input(struct c2_fop *fop)
 {
@@ -90,7 +78,6 @@ int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
 	mesg->cm_fop = fop;
 	/* Init fop by input from console or yaml file */
 	mesg_input(fop);
-
 
 	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;
@@ -130,7 +117,6 @@ error:
  * @brief RPC item operation for disk failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_disk_ops = {
-        .rio_replied = rpc_reply_recvd
 };
 
 static struct c2_cons_mesg c2_cons_disk_mesg = {
@@ -138,7 +124,7 @@ static struct c2_cons_mesg c2_cons_disk_mesg = {
 	.cm_type      = CMT_DISK_FAILURE,
 	.cm_fopt      = &c2_cons_fop_disk_fopt,
 	.cm_item_ops  = &c2_rpc_item_cons_disk_ops,
-	.cm_item_type = &c2_rpc_item_cons_disk,
+	.cm_item_type = &c2_cons_fop_disk_fopt.ft_rpc_item_type,
 };
 
 /* Device FOP message */
@@ -146,7 +132,6 @@ static struct c2_cons_mesg c2_cons_disk_mesg = {
  * @brief RPC item operation for device failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_device_ops = {
-        .rio_replied = rpc_reply_recvd
 };
 
 static struct c2_cons_mesg c2_cons_device_mesg = {
@@ -154,7 +139,7 @@ static struct c2_cons_mesg c2_cons_device_mesg = {
 	.cm_type     = CMT_DEVICE_FAILURE,
 	.cm_fopt     = &c2_cons_fop_device_fopt,
 	.cm_item_ops = &c2_rpc_item_cons_device_ops,
-	.cm_item_type = &c2_rpc_item_cons_device,
+	.cm_item_type = &c2_cons_fop_device_fopt.ft_rpc_item_type,
 };
 
 
@@ -163,7 +148,6 @@ static struct c2_cons_mesg c2_cons_device_mesg = {
  * @brief RPC item operation for device failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_reply_ops = {
-        .rio_replied = NULL,
 };
 
 static struct c2_cons_mesg c2_cons_reply_mesg = {
@@ -171,7 +155,7 @@ static struct c2_cons_mesg c2_cons_reply_mesg = {
 	.cm_type     = CMT_REPLY_FAILURE,
 	.cm_fopt     = &c2_cons_fop_reply_fopt,
 	.cm_item_ops = &c2_rpc_item_cons_reply_ops,
-	.cm_item_type = &c2_rpc_item_cons_reply,
+	.cm_item_type = &c2_cons_fop_reply_fopt.ft_rpc_item_type,
 };
 
 /**

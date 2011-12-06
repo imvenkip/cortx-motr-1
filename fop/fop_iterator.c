@@ -711,6 +711,14 @@ static struct c2_fit_watch fop_object_watch = {
 	.fif_bits = 0
 };
 
+/*
+ * Special FOP Iterator
+ */
+static struct c2_fit_type fop_all_object_itype = {
+        .fit_name  = "fop-all-object",
+        .fit_index = -1
+};
+
 void c2_fop_object_init(const struct c2_fop_type_format *fid_fop_type)
 {
 	struct c2_fop_field_type *fid_type;
@@ -765,22 +773,16 @@ void c2_fits_init(void)
 {
 	c2_fop_decorator_register(&fit_dec);
 	c2_fop_itype_init(&fop_object_itype);
+        c2_fop_itype_init(&fop_all_object_itype);
 }
 C2_EXPORTED(c2_fits_init);
 
 void c2_fits_fini(void)
 {
 	c2_fop_itype_fini(&fop_object_itype);
+        c2_fop_itype_fini(&fop_all_object_itype);
 }
 C2_EXPORTED(c2_fits_fini);
-
-/*
- * Special FOP Iterator
- */
-static struct c2_fit_type fop_all_object_itype = {
-        .fit_name  = "fop-all-object",
-        .fit_index = -1
-};
 
 void c2_fop_all_object_it_init(struct c2_fit *it, struct c2_fop *fop)
 {
@@ -804,19 +806,6 @@ void c2_fop_it_reset(struct c2_fit *it)
         top->ff_pos = 0;
 }
 C2_EXPORTED(c2_fop_it_reset);
-
-void c2_fits_all_init(void)
-{
-        c2_fop_decorator_register(&fit_dec);
-        c2_fop_itype_init(&fop_all_object_itype);
-}
-C2_EXPORTED(c2_fits_all_init);
-
-void c2_fits_all_fini(void)
-{
-        c2_fop_itype_fini(&fop_all_object_itype);
-}
-C2_EXPORTED(c2_fits_all_fini);
 
 /** @} end of fop group */
 

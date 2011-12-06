@@ -587,14 +587,13 @@ AC_CONFIG_FILES([
                  stob/ut/Makefile
                  udb/Makefile
                  udb/ut/Makefile
+                 ut/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
                  xcode/linux_kernel/Makefile
                  xcode/ut/Makefile
-		 xdr/Makefile
-		 xdr/ut/Makefile
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
 		 yaml2db/st/Makefile

@@ -34,15 +34,15 @@ SUBDIRS_LIBS = \
                sns \
                stob \
                udb \
+               ut \
                xcode \
-               xdr \
 	       yaml2db
 SUBDIR_IT = rpc/it
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \
 	    sns/ut desim/ut cob/ut console/ut colibri/ut net/ut \
 	    net/bulk_emulation/ut udb/ut capa/ut ioservice/ut reqh/ut rpc/ut \
-	    sm/ut xcode/ut xdr/ut yaml2db/ut
+	    sm/ut xcode/ut yaml2db/ut
 SUBDIR_ST = console/st net/st net/bulk_emulation/st yaml2db/st
 
 SUBDIR_UB =

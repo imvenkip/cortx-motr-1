@@ -35,13 +35,19 @@ void c2_sm_group_init(struct c2_sm_group *grp)
 {
 	C2_SET0(grp);
 	c2_mutex_init(&grp->s_lock);
-	c2_chan_init(&grp->s_signal);
+	/* add grp->s_clink to otherwise unused grp->s_chan, because c2_chan
+	   code assumes that a clink is always associated with a channel. */
+	c2_chan_init(&grp->s_chan);
+	c2_clink_init(&grp->s_clink, NULL);
+	c2_clink_add(&grp->s_chan, &grp->s_clink);
 }
 C2_EXPORTED(c2_sm_group_init);
 
 void c2_sm_group_fini(struct c2_sm_group *grp)
 {
-	c2_chan_fini(&grp->s_signal);
+	c2_clink_del(&grp->s_clink);
+	c2_clink_fini(&grp->s_clink);
+	c2_chan_fini(&grp->s_chan);
 	c2_mutex_fini(&grp->s_lock);
 }
 C2_EXPORTED(c2_sm_group_fini);
@@ -72,7 +78,7 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	do
 		ast->sa_next = grp->s_forkq;
 	while (!C2_ATOMIC64_CAS(&grp->s_forkq, ast->sa_next, ast));
-	c2_chan_signal(&grp->s_signal);
+	c2_clink_signal(&grp->s_clink);
 }
 C2_EXPORTED(c2_sm_ast_post);
 
@@ -198,17 +204,14 @@ C2_EXPORTED(c2_sm_fini);
 int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 {
 	struct c2_clink waiter;
-	struct c2_clink group_waiter;
 	int             result;
 
 	C2_ASSERT(c2_sm_invariant(mach));
 
 	result = 0;
 	c2_clink_init(&waiter, NULL);
-	c2_clink_attach(&group_waiter, &waiter, NULL);
 
 	c2_clink_add(&mach->sm_chan, &waiter);
-	c2_clink_add(&mach->sm_grp->s_signal, &group_waiter);
 	while (result == 0 && ((1 << mach->sm_state) & states) == 0) {
 		C2_ASSERT(c2_sm_invariant(mach));
 		if (sm_state(mach)->sd_flags & C2_SDF_TERMINAL)
@@ -220,8 +223,6 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 			sm_lock(mach);
 		}
 	}
-	c2_clink_del(&group_waiter);
-	c2_clink_fini(&group_waiter);
 	c2_clink_del(&waiter);
 	c2_clink_fini(&waiter);
 	C2_ASSERT(c2_sm_invariant(mach));

@@ -34,7 +34,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 
 /** Generic ops object for ping */
@@ -58,7 +58,7 @@ size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	return fom->fo_fop->f_type->ft_code;
+	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
 /**
@@ -77,9 +77,7 @@ int c2_fom_ping_state(struct c2_fom *fom)
         ping_fop_rep = c2_fop_data(fop);
         ping_fop_rep->fpr_rc = true;
 	item = c2_fop_to_rpc_item(fop);
-	item->ri_type = &c2_rpc_item_type_ping_rep;
 	item->ri_group = NULL;
-	fop->f_type->ft_ri_type = &c2_rpc_item_type_ping_rep;
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	fom->fo_phase = FOPH_FINISH;
 

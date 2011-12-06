@@ -469,6 +469,7 @@ struct c2_net_domain {
 
         /** <b>Deprecated.</b> Domain network stats */
         struct c2_net_stats nd_stats[NS_STATS_NR];
+
 	/**
 	   ADDB context for events related to this domain
 	 */
@@ -913,7 +914,7 @@ struct c2_net_transfer_mc {
 	/**
 	   Lists of c2_net_buffer structures by queue type.
 	 */
-	struct c2_list              ntm_q[C2_NET_QT_NR];
+	struct c2_tl		    ntm_q[C2_NET_QT_NR];
 
 	/** Statistics maintained per logical queue */
 	struct c2_net_qstats        ntm_qstats[C2_NET_QT_NR];
@@ -1337,7 +1338,13 @@ struct c2_net_buffer {
 
 	   The application should not modify this field.
 	 */
-	struct c2_list_link        nb_tm_linkage;
+	struct c2_tlink		   nb_tm_linkage;
+
+	/** Linkage into a network buffer pool. */
+	struct c2_tlink		   nb_lru;
+
+	/** Magic for network buffer list. */
+	uint64_t		   nb_magic;
 
 	/**
 	   Linkage into one of the domain list that tracks registered buffers.
@@ -1878,6 +1885,20 @@ void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
 extern struct c2_net_xprt c2_net_usunrpc_xprt;
 extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
+enum {
+	/* Hex ASCII value of "nb_lru" */
+	NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
+	/* Hex ASCII value of "nb_tm_linkage" */
+	NET_BUFFER_TM_LINK_MAGIC = 0x6e625f746d5f6c,
+	/* Hex ASCII value of "nb_head" */
+	NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
+};
+
+/** Descriptor for the tlist of buffers. */
+C2_TL_DESCR_DECLARE(pool, extern);
+C2_TL_DESCR_DECLARE(tm, extern);
+C2_TL_DECLARE(pool, extern, struct c2_net_buffer);
+C2_TL_DECLARE(tm, extern, struct c2_net_buffer);
 /** @} end of deprecated net group */
 
 #endif

@@ -42,7 +42,7 @@
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "rpc/session_fops.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation.h"
 
 /**
@@ -500,13 +500,13 @@ out:
 }
 C2_EXPORTED(c2_rpc_conn_establish);
 
-void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc)
+void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_conn_establish_rep *fop_cer;
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_item                   *reply = req->ri_reply;
+	int32_t                               rc    = req->ri_error;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
 		req->ri_session->s_session_id == SESSION_ID_0);
@@ -568,26 +568,27 @@ out:
 int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 {
 	int rc;
+	bool state_reached;
 
 	rc = c2_rpc_conn_establish(conn);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
-				   c2_time_from_now(timeout_sec, 0));
-	if (rc != 0) {
-		switch (conn->c_state) {
-		case C2_RPC_CONN_ACTIVE:
-			rc = 0;
-			break;
-		case C2_RPC_CONN_FAILED:
-			rc = -ECONNREFUSED;
-			break;
-		default:
-			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
-		}
-	} else {
-		rc = -ETIMEDOUT;
+	state_reached = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE |
+					      C2_RPC_CONN_FAILED,
+					      c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (conn->c_state) {
+	case C2_RPC_CONN_ACTIVE:
+		rc = 0;
+		break;
+	case C2_RPC_CONN_FAILED:
+		rc = conn->c_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
 	}
 
 	return rc;
@@ -744,13 +745,13 @@ out_unlock:
 }
 C2_EXPORTED(c2_rpc_conn_terminate);
 
-void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc)
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_conn_terminate_rep *fop_ctr;
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_item                   *reply = req->ri_reply;
+	int32_t                               rc    = req->ri_error;
 	uint64_t                              sender_id;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
@@ -819,28 +820,29 @@ out:
 int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 {
 	int rc;
+	bool state_reached;
 
 	rc = c2_rpc_conn_terminate(conn);
-	if (rc)
-		goto out;
+	if (rc != 0)
+		return rc;
 
-	rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED | C2_RPC_CONN_FAILED,
-				   c2_time_from_now(timeout_sec, 0));
-	if (rc) {
-		switch (conn->c_state) {
-		case C2_RPC_CONN_TERMINATED:
-			rc = 0;
-			break;
-		case C2_RPC_CONN_FAILED:
-			rc = -ECONNREFUSED;
-			goto out;
-		default:
-			C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
-		}
-	} else {
-		rc = -ETIMEDOUT;
+	state_reached = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
+					      C2_RPC_CONN_FAILED,
+					      c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (conn->c_state) {
+	case C2_RPC_CONN_TERMINATED:
+		rc = 0;
+		break;
+	case C2_RPC_CONN_FAILED:
+		rc = conn->c_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
 	}
-out:
+
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_terminate_sync);
@@ -1137,7 +1139,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 {
-	return item->ri_type == &c2_rpc_item_conn_establish;
+	return item->ri_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE;
 }
 
 #ifndef __KERNEL__
