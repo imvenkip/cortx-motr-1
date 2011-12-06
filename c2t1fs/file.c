@@ -266,7 +266,16 @@ static int c2t1fs_pin_memory_area(char          *buf,
 
 	TRACE("addr %lu off %d nr_pages %d\n", addr, off, nr_pages);
 
-	if (addr > PAGE_OFFSET) {
+	if (access_ok(rw == READ, addr, count)) {
+
+		/* addr points in user space */
+		down_read(&current->mm->mmap_sem);
+		nr_pinned = get_user_pages(current, current->mm, addr, nr_pages,
+				    rw == READ, 1, pages, NULL);
+		up_read(&current->mm->mmap_sem);
+
+	} else {
+
 		/* addr points in kernel space */
 		for (i = 0, va = addr; i < nr_pages; i++,
 						     va += PAGE_CACHE_SIZE) {
@@ -274,12 +283,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 			get_page(pages[i]);
 		}
 		nr_pinned = nr_pages;
-	} else {
-		/* addr points in user space */
-		down_read(&current->mm->mmap_sem);
-		nr_pinned = get_user_pages(current, current->mm, addr, nr_pages,
-				    rw == READ, 1, pages, NULL);
-		up_read(&current->mm->mmap_sem);
+
 	}
 
 	if (nr_pinned != nr_pages) {

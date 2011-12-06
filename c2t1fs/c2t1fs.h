@@ -132,7 +132,7 @@
      map entry will point to md-service. Hence, container field of global
      object's fid, will have value 0.
 
-   - container id 1,2..,P will be served by io-services. P number of containers
+   - container id 1,2..,P will be mapped to io-services. P number of containers
      will be equally divided among available io-services.
      For a global file object having fid <0, K>, there will be P
      component objects having fids {<i, K> | i = 1, 2, ..., P}.
