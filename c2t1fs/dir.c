@@ -178,7 +178,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 {
 	struct c2t1fs_inode   *ci;
 	struct c2t1fs_dir_ent *de;
-	int                    rc = 0;
+	int                    rc;
 
 	TRACE("name=\"%s\" namelen=%d\n", name, namelen);
 
@@ -210,6 +210,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 					   (unsigned long)fid->f_key);
 
 	mark_inode_dirty(dir);
+	rc = 0;
 out:
 	END(rc);
 	return rc;
