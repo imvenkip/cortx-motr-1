@@ -426,18 +426,10 @@ struct c2t1fs_buf {
 	uint64_t                  cb_magic;
 };
 
-/*
 C2_TL_DESCR_DEFINE(bufs, "buf list", static, struct c2t1fs_buf, cb_link,
 			cb_magic, MAGIC_C2T1BUF, MAGIC_BUFLSTHD);
 
 C2_TL_DEFINE(bufs, static, struct c2t1fs_buf);
-*/
-static struct c2_tl_descr buf_tl_descr = C2_TL_DESCR("buf list",
-						struct c2t1fs_buf,
-						cb_link,
-						cb_magic,
-						MAGIC_C2T1BUF,
-						MAGIC_BUFLSTHD);
 
 static void c2t1fs_buf_init(struct c2t1fs_buf *buf, char *addr, size_t len,
 			enum c2_pdclust_unit_type unit_type)
@@ -447,7 +439,7 @@ static void c2t1fs_buf_init(struct c2t1fs_buf *buf, char *addr, size_t len,
 	TRACE("buf %p addr %p len %lu\n", buf, addr, (unsigned long)len);
 
 	c2_buf_init(&buf->cb_buf, addr, len);
-	c2_tlink_init(&buf_tl_descr, buf);
+	bufs_tlink_init(buf);
 	buf->cb_type = unit_type;
 	buf->cb_magic = MAGIC_C2T1BUF;
 
@@ -461,7 +453,6 @@ static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 	if (buf->cb_type == PUT_PARITY || buf->cb_type == PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
 
-	c2_tlink_fini(&buf_tl_descr, buf);
 	buf->cb_magic = 0;
 
 	END(0);
@@ -493,7 +484,7 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 	rw_desc->rd_session = NULL;
 	rw_desc->rd_magic   = MAGIC_RW_DESC;
 
-	c2_tlist_init(&buf_tl_descr, &rw_desc->rd_buf_list);
+	bufs_tlist_init(&rw_desc->rd_buf_list);
 	c2_tlink_init(&rwd_tl_descr, rw_desc);
 
 	c2_tlist_add_tail(&rwd_tl_descr, list, rw_desc);
@@ -508,15 +499,14 @@ static void rw_desc_fini(struct rw_desc *rw_desc)
 
 	START();
 
-	c2_tlist_for(&buf_tl_descr, &rw_desc->rd_buf_list, buf) {
+	c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, buf) {
 
-		c2_tlist_del(&buf_tl_descr, buf);
-
+		bufs_tlink_del_fini(buf);
 		c2t1fs_buf_fini(buf);
 		c2_free(buf);
 
 	} c2_tlist_endfor;
-	c2_tlist_fini(&buf_tl_descr, &rw_desc->rd_buf_list);
+	bufs_tlist_fini(&rw_desc->rd_buf_list);
 
 	c2_tlink_fini(&rwd_tl_descr, rw_desc);
 	rw_desc->rd_magic = 0;
@@ -540,7 +530,7 @@ static int rw_desc_add(struct rw_desc    *rw_desc,
 	}
 	c2t1fs_buf_init(buf, addr, len, type);
 
-	c2_tlist_add_tail(&buf_tl_descr, &rw_desc->rd_buf_list, buf);
+	bufs_tlist_add_tail(&rw_desc->rd_buf_list, buf);
 
 	END(0);
 	return 0;
@@ -765,7 +755,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 		TRACE("Buf list\n");
 
-		c2_tlist_for(&buf_tl_descr, &rw_desc->rd_buf_list, buf) {
+		c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, buf) {
 
 			TRACE("addr %p len %lu type %s\n",
 				buf->cb_buf.b_addr,
