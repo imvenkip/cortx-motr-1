@@ -452,6 +452,7 @@ static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 	if (buf->cb_type == PUT_PARITY || buf->cb_type == PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
 
+	bufs_tlink_fini(buf);
 	buf->cb_magic = 0;
 
 	END(0);
@@ -499,13 +500,14 @@ static void rw_desc_fini(struct rw_desc *rw_desc)
 
 	c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, buf) {
 
-		bufs_tlink_del_fini(buf);
+		bufs_tlist_del(buf);
 		c2t1fs_buf_fini(buf);
 		c2_free(buf);
 
 	} c2_tlist_endfor;
 	bufs_tlist_fini(&rw_desc->rd_buf_list);
 
+	rwd_tlink_fini(rw_desc);
 	rw_desc->rd_magic = 0;
 
 	END(0);
@@ -713,7 +715,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 cleanup:
 	c2_tlist_for(&rwd_tl, &rw_desc_list, rw_desc) {
 
-		rwd_tlink_del_fini(rw_desc);
+		rwd_tlist_del(rw_desc);
 
 		rw_desc_fini(rw_desc);
 		c2_free(rw_desc);
