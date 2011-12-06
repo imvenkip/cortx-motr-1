@@ -921,13 +921,15 @@ int c2_rpc_bulk_buf_usrbuf_add(struct c2_rpc_bulk_buf *rbuf,
    @see c2_io_fop.
    The c2_rpc_bulk structure can be used like this.
    @code
-   c2_rpc_bulk_init(rbulk, segs_nr, seg_size, net_domain);
+   c2_rpc_bulk_init(rbulk);
+   ..
+   c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size, netdom);
+   c2_rpc_bulk_buf_page_add(rbulk, page, index);
+   OR
+   c2_rpc_bulk_buf_usrbuf_add(rbulk, buf, count, index);
    ..
    c2_clink_add(rbulk->rb_chan, clink);
-   c2_rpc_bulk_page_add(rbulk, page, index);
-   OR
-   c2_rpc_bulk_buf_add(rbulk, buf, count, index);
-   ..
+   c2_rpc_post(rpc_item);
    c2_chan_wait(clink);
    c2_rpc_bulk_fini(rbulk);
    @endcode
@@ -1001,8 +1003,9 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
 		      struct c2_net_buf_desc *to_desc);
 
 /**
-   Loads the c2_net_buf_desc pointing to the net buffer contained by
-   c2_rpc_bulk_buf structure and starts RDMA transfer of buffers.
+   Loads the c2_net_buf_descs pointing to net buffer contained by
+   c2_rpc_bulk_buf structures in rbulk->rb_buflist and starts RDMA transfer
+   of buffers.
    This API is typically used by receiver side in a zero-copy buffer transfer.
    @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
    structures, net buffers will be added to transfer machine.

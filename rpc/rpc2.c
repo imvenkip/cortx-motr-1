@@ -1297,9 +1297,9 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
 	return rpc_bulk_op(rbulk, item, to_desc, C2_RPC_BULK_STORE);
 }
 
-int c2_rpc_bulk_buf_load(struct c2_rpc_bulk *rbulk,
-			 const struct c2_rpc_item *item,
-			 struct c2_net_buf_desc *from_desc)
+int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
+		     const struct c2_rpc_item *item,
+		     struct c2_net_buf_desc *from_desc)
 {
 	return rpc_bulk_op(rbulk, item, from_desc, C2_RPC_BULK_LOAD);
 }

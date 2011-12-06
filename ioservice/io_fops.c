@@ -1111,7 +1111,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 #endif
 
-const struct c2_fop_type_ops io_fop_cob_rwv_ops = {
+const struct c2_fop_type_ops io_fop_rwv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
@@ -1282,11 +1282,11 @@ struct c2_rpc_item_type rpc_item_type_writev = {
 };
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
-		    &io_fop_cob_rwv_ops, C2_IOSERVICE_READV_OPCODE,
+		    &io_fop_rwv_ops, C2_IOSERVICE_READV_OPCODE,
 		    C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
-		    &io_fop_cob_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
+		    &io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
 		    C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
