@@ -409,6 +409,71 @@ static void test_sunrpc_desc(void)
 	c2_net_domain_fini(&dom1);
 }
 
+static void test_sunrpc_pa(void)
+{
+	static struct c2_net_domain dom1 = {
+		.nd_xprt = NULL
+	};
+
+	static const struct c2_net_tm_callbacks tm_cbs1 = {
+		.ntc_event_cb = sunrpc_tm_cb1
+	};
+	static struct c2_net_transfer_mc d1tm1 = {
+		.ntm_callbacks = &tm_cbs1,
+		.ntm_state = C2_NET_TM_UNDEFINED
+	};
+	struct c2_clink tmwait;
+	int rc;
+	bool brc;
+	struct c2_bitmap *procmask = (void *) -1; /* fake not null UT value */
+
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+
+	/* request thread confine */
+	rc = c2_net_tm_confine(&d1tm1, procmask);
+	C2_UT_ASSERT(rc == 0);
+
+	/* request synchronous delivery */
+	C2_UT_ASSERT(d1tm1.ntm_bev_auto_deliver);
+	rc = c2_net_buffer_event_deliver_synchronously(&d1tm1);
+	C2_UT_ASSERT(!d1tm1.ntm_bev_auto_deliver);
+	C2_UT_ASSERT(rc == 0);
+
+	/* start tm and wait for tm to notify it has started */
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, "127.0.0.1:31111:1"));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+	if (d1tm1.ntm_state == C2_NET_TM_FAILED) {
+		/* skip rest of this test, else C2_ASSERT will occur */
+		c2_net_tm_fini(&d1tm1);
+		c2_net_domain_fini(&dom1);
+		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		return;
+	}
+
+	/* test synchronous buffer event delivery APIs */
+	brc = c2_net_buffer_event_pending(&d1tm1);
+	C2_UT_ASSERT(!brc);
+	c2_net_buffer_event_notify(&d1tm1, &d1tm1.ntm_chan);
+	brc = c2_net_buffer_event_pending(&d1tm1);
+	C2_UT_ASSERT(!brc);
+	c2_net_buffer_event_deliver_all(&d1tm1);
+
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
+	c2_net_tm_fini(&d1tm1);
+
+	c2_net_domain_fini(&dom1);
+}
+
+
 enum {
 	PING_CLIENT_SEGMENTS = 8,
 	PING_CLIENT_SEGMENT_SIZE = 8192,
@@ -1104,6 +1169,7 @@ const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
 		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm },
 		{ "net_bulk_sunrpc_ep",         test_sunrpc_ep },
 		{ "net_bulk_sunrpc_desc",       test_sunrpc_desc },
+		{ "net_bulk_sunrpc_processor_affinity",  test_sunrpc_pa },
 		{ "net_bulk_sunrpc_failure",    test_sunrpc_failure },
 		{ "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
 		{ NULL, NULL }
