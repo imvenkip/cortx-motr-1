@@ -325,11 +325,13 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 }
 
 static bool ut_tm_confine_called = false;
+static const struct c2_bitmap *ut_tm_confine_bm;
 static int ut_tm_confine(struct c2_net_transfer_mc *tm,
 			 const struct c2_bitmap *processors)
 {
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_confine_called = true;
+	ut_tm_confine_bm = processors;
 	return 0;
 }
 
@@ -687,6 +689,7 @@ static void test_net_bulk_if(void)
 	rc = c2_net_tm_confine(tm, procmask);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_tm_confine_called);
+	C2_UT_ASSERT(ut_tm_confine_bm == procmask);
 
 	/* TM start */
 	c2_clink_init(&tmwait, NULL);
@@ -1094,13 +1097,13 @@ static void test_net_bulk_if(void)
 
 	/* request synchronous buffer event delivery */
 	C2_UT_ASSERT(dom->nd_xprt->nx_ops->xo_bev_deliver_sync == NULL);
-	rc = c2_net_tm_buffer_event_deliver_synchronously(tm);
+	rc = c2_net_buffer_event_deliver_synchronously(tm);
 	C2_UT_ASSERT(rc == -ENOSYS); /* optional support */
 	C2_UT_ASSERT(tm->ntm_bev_auto_deliver);
 	C2_UT_ASSERT(!ut_bev_deliver_sync_called);
 	ut_xprt_ops.xo_bev_deliver_sync = ut_bev_deliver_sync; /* set op */
 	C2_UT_ASSERT(dom->nd_xprt->nx_ops->xo_bev_deliver_sync != NULL);
-	rc = c2_net_tm_buffer_event_deliver_synchronously(tm);
+	rc = c2_net_buffer_event_deliver_synchronously(tm);
 	C2_UT_ASSERT(ut_bev_deliver_sync_called);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(!tm->ntm_bev_auto_deliver);
@@ -1117,21 +1120,21 @@ static void test_net_bulk_if(void)
 
 	/* test the synchronous buffer event delivery APIs */
 	C2_UT_ASSERT(!ut_bev_pending_called);
-	brc = c2_net_tm_buffer_event_pending(tm);
+	brc = c2_net_buffer_event_pending(tm);
 	C2_UT_ASSERT(ut_bev_pending_called);
 	C2_UT_ASSERT(!brc);
 
 	C2_UT_ASSERT(!ut_bev_notify_called);
-	c2_net_tm_buffer_event_notify(tm, &tm->ntm_chan);
+	c2_net_buffer_event_notify(tm, &tm->ntm_chan);
 	C2_UT_ASSERT(ut_bev_notify_called);
 
 	ut_bev_pending_called = false;
-	brc = c2_net_tm_buffer_event_pending(tm);
+	brc = c2_net_buffer_event_pending(tm);
 	C2_UT_ASSERT(ut_bev_pending_called);
 	C2_UT_ASSERT(brc);
 
 	C2_UT_ASSERT(!ut_bev_deliver_all_called);
-	c2_net_tm_buffer_event_deliver_all(tm);
+	c2_net_buffer_event_deliver_all(tm);
 	C2_UT_ASSERT(ut_bev_deliver_all_called);
 
 	/* TM stop and fini */
