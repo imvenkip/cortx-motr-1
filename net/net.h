@@ -1129,9 +1129,8 @@ struct c2_net_buffer_event {
 	   C2_NET_QT_ACTIVE_BULK_RECV queues.
 
 	   Provided for future support of multi-delivery buffer transports.
-	   The value will be set to 0 for now, but applications should
-	   take it into consideration when determining the starting location
-	   of the event data in the buffer.
+	   Applications should take it into consideration when determining the
+	   starting location of the event data in the buffer.
 	 */
 	c2_bcount_t                nbe_offset;
 
@@ -1317,16 +1316,12 @@ struct c2_net_buffer {
 	/**
 	   This field identifies an end point in the associated transfer
 	   machine.
-	   - When sending messages
-	   the application should specify the end point of the destination
-	   before adding the buffer to the C2_NET_QT_MSG_SEND queue.
-	   - When adding a buffer to the C2_NET_QT_PASSIVE_BULK_RECV or
-	   C2_NET_PASSIVE_BULK_SEND queues, the application must set this
-	   field to identify the end point that will initiate the bulk data
-	   transfer.
 
-	   The field is not used for the active bulk cases nor for received
-	   messages.
+	   When sending messages the application should specify the end point
+	   of the destination before adding the buffer to the
+	   C2_NET_QT_MSG_SEND queue.
+
+	   The field is not used for the bulk cases nor for received messages.
 	 */
 	struct c2_net_end_point   *nb_ep;
 
@@ -1511,20 +1506,29 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
    elsewhere after this subroutine returns, so may be allocated on the
    stack of the calling thread.
 
-   Multiple concurrent events may be delivered for a given buffer.
+   Multiple concurrent events may be delivered for a given buffer, depending
+   upon the transport.
 
-   The subroutine will remove the buffer from its queue if the
+   The subroutine will remove a buffer from its queue if the
    C2_NET_BUF_RETAIN flag is @em not set.  It will clear the C2_NET_BUF_QUEUED
    and C2_NET_BUF_IN_USE flags and set the nb_timeout field to C2_TIME_NEVER if
-   the buffer is dequeued.  It will always clear the C2_NET_BUF_CANCELLED and
-   C2_NET_BUF_TIMED_OUT flags prior to invoking the callback.  If the
-   C2_NET_BUF_CANCELLED flag was set, then the status is forced to -ECANCELED.
-   If the C2_NET_BUF_TIMED_OUT flag was set, then the status is forced to
+   the buffer is dequeued.  It will always clear the C2_NET_BUF_RETAIN,
+   C2_NET_BUF_CANCELLED and C2_NET_BUF_TIMED_OUT flags prior to invoking the
+   callback. The C2_NET_BUF_RETAIN flag must not be set if the status indicates
+   error.
+
+   If the C2_NET_BUF_CANCELLED flag was set, then the status must be
+   -ECANCELED.
+
+   If the C2_NET_BUF_TIMED_OUT flag was set, then the status must be
    -ETIMEDOUT.
 
    The subroutine will perform a c2_end_point_put() on the nbe_ep field
    in the event structure, if the queue type is C2_NET_QT_MSG_RECV and
-   the nbe_status value is 0.
+   the nbe_status value is 0, and for the C2_NET_QT_MSG_SEND queue to
+   match the c2_end_point_get() made in the c2_net_buffer_add() call.
+   Care should be taken by the transport to accomodate these adjustments
+   when invoking the subroutine with the C2_NET_BUF_RETAIN flag set.
 
    The subroutine will also signal to all waiters on the
    c2_net_transfer_mc.ntm_chan field after delivery of the callback.
@@ -1569,8 +1573,7 @@ void c2_net_tm_buffer_event_deliver_all(struct c2_net_transfer_mc *tm);
    @see c2_net_tm_buffer_event_pending(), c2_net_tm_buffer_event_deliver_all(),
    c2_net_tm_buffer_event_notify()
  */
-int  c2_net_tm_buffer_event_deliver_synchronously(struct c2_net_transfer_mc
-						  *tm);
+int c2_net_tm_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm);
 
 /**
    This subroutine determines if there are pending network buffer events that
