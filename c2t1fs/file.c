@@ -681,7 +681,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				if (parity_index == nr_parity_units - 1 &&
 						rw == WRITE) {
 					TRACE("Computing parity of group %lu\n",
-						(unsigned long)src_addr.sa_group);
+					     (unsigned long)src_addr.sa_group);
 					c2_parity_math_calculate(
 							&pd_layout->pl_math,
 							data_bufs,
