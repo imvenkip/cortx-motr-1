@@ -28,7 +28,7 @@
 #include "net/buffer_pool.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_fops.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "reqh/reqh.h"
 #include "ioservice/io_service.h"
 
@@ -95,13 +95,13 @@ C2_REQH_SERVICE_TYPE_DECLARE(c2_ioservice_type, &c2_ioservice_type_ops, "ioservi
  */
 static void c2_io_buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
 {
-        struct c2_reqh_service    *service;
+        struct c2_reqh_io_service    *service_obj;
 
         C2_PRE(bp != NULL);
 
-        service = container_of(bp, struct c2_reqh_service, rs_nb_pool);
+        service_obj = container_of(bp, struct c2_reqh_io_service, rios_nb_pool);
 
-        c2_chan_signal(&service->rs_nbp_wait);
+        c2_chan_signal(&service_obj->rios_nbp_wait);
 }
 
 /**
@@ -156,7 +156,7 @@ static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
         if (serv_obj == NULL)
                 return -ENOMEM;
 
-        serv_obj->rs_nb_pool.nbp_ops = &buffer_pool_ops;
+        serv_obj->rios_nb_pool.nbp_ops = &buffer_pool_ops;
 
         serv = &serv_obj->rios_gen;
 
@@ -215,7 +215,7 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
                               &service->rs_reqh->rh_rpcmachines, rpcmach)
         {
                 C2_ASSERT(rpcmach != NULL);
-                c2_tlist_add(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map, rpcmach->cr_tm);
+                c2_tlist_add(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map, &rpcmach->cr_tm);
         } c2_tlist_endfor;
 
         //ndom = rpcmach->cr_tm.ntm_dom;
@@ -230,7 +230,7 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
                                 network_buffer_pool_max_segment, colors);
 
         /** Initialize channel to get siganl from buffer pool. */
-        c2_chan_init(&service->rs_nbp_wait);
+        c2_chan_init(&serv_obj->rios_nbp_wait);
 
 
         /** Pre-allocate network buffers */

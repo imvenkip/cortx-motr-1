@@ -151,7 +151,7 @@
 #include "net/net.h"
 #include "fop/fom.h"
 
-struct c2_io_fom;
+struct c2_io_fom_cob_rw;
 
 /**
  * Since STOB I/O only launch io for single index vec, I/O service need
@@ -165,17 +165,17 @@ struct c2_stob_io_desc {
         struct c2_stob_io        siod_stob_io;
         /** Link to get siganl for this stob io compelte*/
         struct c2_clink          siod_clink;
-        /** Linkage into c2_io_fom::fcrw_stobio_list */
+        /** Linkage into c2_io_fom_cob_rw::fcrw_stobio_list */
         struct c2_tlink          siod_linkage;
-        /** Pointer to c2_io_fom to refer c2_stob_io_desc list*/
-        struct c2_io_fom         *siod_fom;
+        /** Pointer to c2_io_fom_cob_rw to refer c2_stob_io_desc list*/
+        struct c2_io_fom_cob_rw         *siod_fom;
 };
 
 /**
  * Object encompassing FOM for cob write
  * operation and necessary context data
  */
-struct c2_io_fom {
+struct c2_io_fom_cob_rw {
 	/** Generic c2_fom object. */
         struct c2_fom                    fcrw_gen;
         /** Number of desc io_fop desc list*/
@@ -186,8 +186,10 @@ struct c2_io_fom {
         int                              fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
+        /** Number of bytes successfully transfered. */
+        int                              fcrw_bytes_transfered;
         /** Signal send to this chanel when io_fom ready to execute */
-        struct c2_chan                          fcrw_wait;
+        struct c2_chan                   fcrw_wait;
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packets for the operation. */
@@ -202,34 +204,20 @@ struct c2_io_fom {
  * The various phases for readv FOM.
  * complete FOM and reqh infrastructure is in place.
  */
-enum c2_io_fom_readv_phases {
-        FOPH_READ_BUF_GET = FOPH_NR + 1,
-        FOPH_READ_BUF_GET_WAIT,
-        FOPH_COB_READ_INIT,
-        FOPH_COB_READ_WAIT,
-        FOPH_ZERO_COPY_READ_INIT,
-        FOPH_ZERO_COPY_READ_WAIT,
-        FOPH_READ_BUF_RELEASE,
-};
-
-/**
- * The various phases for writev FOM.
- * complete FOM and reqh infrastructure is in place.
- */
-enum c2_io_fom_writev_phases {
-        FOPH_WRITE_BUF_GET = FOPH_NR + 1,
-        FOPH_WRITE_BUF_GET_WAIT,
-        FOPH_ZERO_COPY_WRITE_INIT,
-        FOPH_ZERO_COPY_WRITE_WAIT,
-        FOPH_COB_WRITE_INIT,
-        FOPH_COB_WRITE_WAIT,
-        FOPH_WRITE_BUF_RELEASE,
+enum c2_io_fom_cob_rw_phases {
+        FOPH_IO_FOM_BUFFER_ACQUIRE = FOPH_NR + 1,
+        FOPH_IO_FOM_BUFFER_WAIT,
+        FOPH_IO_STOB_INIT,
+        FOPH_IO_STOB_WAIT,
+        FOPH_IO_ZERO_COPY_INIT,
+        FOPH_IO_ZERO_COPY_WAIT,
+        FOPH_IO_BUFFER_RELEASE,
 };
 
 /** @} end of io_foms */
 
 #endif /* __COLIBRI_IOSERVICE_IO_FOMS_H__ */
-/*
+ /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
