@@ -53,11 +53,12 @@
 int c2_ioservice_register(void);
 void c2_ioservice_unregister(void);
 
+
+
 /**
  * Structure contains generic service structure and
  * service specific information.
  */
-
 struct c2_reqh_io_service {
         /** Generic reqh service object */
         struct c2_reqh_service       rios_gen;

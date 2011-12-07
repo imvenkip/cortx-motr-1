@@ -54,6 +54,16 @@ C2_TL_DESCR_DECLARE(rpcitem, extern);
 /* Forward declarations. */
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static void io_item_replied(struct c2_rpc_item *item);
+static size_t io_item_size_get(const struct c2_rpc_item *item);
+static uint64_t io_frags_nr_get(const struct c2_rpc_item *item);
+static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list);
+static int io_item_desc_store(struct c2_rpc_item *item);
+static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
+static uint64_t io_fop_fragments_nr_get(const struct c2_fop *fop);
+static int io_fop_coalesce(struct c2_fop *res_fop);
+static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
+static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
@@ -75,9 +85,57 @@ static struct c2_fop_type *ioservice_fops[] = {
       &c2_fop_cob_writev_rep_fopt,
 };
 
+//extern const struct c2_rpc_item_ops      rpc_item_iov_ops;
+//extern const struct c2_rpc_item_type_ops rpc_item_iov_type_ops;
 
-extern const struct c2_rpc_item_ops      rpc_item_iov_ops;
-extern const struct c2_rpc_item_type_ops rpc_item_iov_type_ops;
+struct c2_rpc_item_ops io_rpc_item_ops = {
+	.rio_sent = NULL,
+	.rio_added = NULL,
+	.rio_replied = io_item_replied,
+};
+
+static const struct c2_rpc_item_type_ops io_item_type_ops = {
+        .rito_item_size = io_item_size_get,
+        .rito_io_frags_nr_get = io_frags_nr_get,
+        .rito_io_coalesce = item_io_coalesce,
+        .rito_encode = c2_fop_item_type_default_encode,
+        .rito_decode = c2_fop_item_type_default_decode,
+	.rito_io_desc_store = io_item_desc_store,
+};
+
+struct c2_rpc_item_type io_rwv_rpc_item_type = {
+        .rit_ops = &io_item_type_ops,
+};
+
+const struct c2_fop_type_ops io_fop_rwv_ops = {
+	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
+	.fto_fop_replied = io_fop_replied,
+	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_get_nfragments = io_fop_fragments_nr_get,
+	.fto_io_coalesce = io_fop_coalesce,
+	.fto_io_desc_get = io_fop_desc_get,
+};
+
+const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
+	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
+	.fto_size_get = c2_xcode_fop_size_get
+};
+
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",
+			&io_fop_rwv_ops, C2_IOSERVICE_READV_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
+
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
+			&io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
+
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
+
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
 /**
    @page io_bulk_client IO bulk transfer Detailed Level Design.
@@ -487,6 +545,9 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 	if (rc != 0)
 		return rc;
 
+	/* Assign rpc item ops to rpc item. */
+	iofop->if_fop.f_item.ri_ops = &io_rpc_item_ops;
+	iofop->if_fop.f_item.ri_type = &io_rwv_rpc_item_type;
 	c2_rpc_bulk_init(&iofop->if_rbulk);
 	C2_POST(io_fop_invariant(iofop));
 	return rc;
@@ -1070,31 +1131,25 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 	return (ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid);
 }
 
-void io_fop_replied(struct c2_fop *fop)
+static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)
 {
-	struct c2_fop		*bkpfop;
-	struct c2_rpc_item	*bkpitem;
-	struct c2_io_fop	*cfop;
-	struct c2_rpc_bulk	*rbulk;
+	struct c2_io_fop   *cfop;
+	struct c2_rpc_bulk *rbulk;
 
 	C2_PRE(fop != NULL);
+	C2_PRE(bkpfop != NULL);
 	C2_PRE(is_io(fop));
+	C2_PRE(is_io(bkpfop));
 
-	if (!c2_tlist_is_empty(&rpcbulk_tl, &fop->f_item.ri_compound_items)) {
-		bkpitem = c2_tlist_head(&rpcitem_tl,
-					&fop->f_item.ri_compound_items);
-		bkpfop = c2_rpc_item_to_fop(bkpitem);
-		rbulk = c2_fop_to_rpcbulk(fop);
-		c2_rpc_bulk_buflist_empty(rbulk);
-		io_fop_bulkbuf_move(bkpfop, fop);
-		cfop = container_of(bkpfop, struct c2_io_fop, if_fop);
-		c2_io_fop_fini(cfop);
-		c2_free(cfop);
-	} else
-		c2_tlist_del(&rpcitem_tl, &fop->f_item);
+	rbulk = c2_fop_to_rpcbulk(fop);
+	c2_rpc_bulk_buflist_empty(rbulk);
+	io_fop_bulkbuf_move(bkpfop, fop);
+	cfop = container_of(bkpfop, struct c2_io_fop, if_fop);
+	c2_io_fop_fini(cfop);
+	c2_free(cfop);
 }
 
-void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
+static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 {
 	struct c2_fop_cob_rw *rw;
 
@@ -1115,47 +1170,37 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 #endif
 
-const struct c2_fop_type_ops io_fop_cob_rwv_ops = {
-	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
-	.fto_fop_replied = io_fop_replied,
-	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_get_nfragments = io_fop_fragments_nr_get,
-	.fto_io_coalesce = io_fop_coalesce,
-	.fto_io_desc_get = io_fop_desc_get,
-};
-
 static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	return 0;
 }
 
-const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
-	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
-	.fto_size_get = c2_xcode_fop_size_get
-};
-
-/* Rpc item type ops for IO operations. */
-static void io_item_replied(struct c2_rpc_item *item, int rc)
+/* Rpc item ops for IO operations. */
+static void io_item_replied(struct c2_rpc_item *item)
 {
-	struct c2_fop *fop;
+	struct c2_fop	   *fop;
+	struct c2_fop	   *bkpfop;
+	struct c2_rpc_item *ritem;
 
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request", &c2_io_cob_readv_ops,
-			C2_IOSERVICE_READV_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
-			&rpc_item_iov_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
-			&c2_io_cob_writev_ops,
-			C2_IOSERVICE_WRITEV_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
-			&rpc_item_iov_type_ops);
+	C2_PRE(item != NULL);
 
-/**
- * FOP definitions of readv and writev reply FOPs.
- */
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev_rep, "Write reply",
-			&c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
-			C2_RPC_ITEM_TYPE_REPLY, &rpc_item_iov_type_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv_rep, "Read reply",
-			&c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
-			C2_RPC_ITEM_TYPE_REPLY,  &rpc_item_iov_type_ops);
+	fop = c2_rpc_item_to_fop(item);
+	/* Restore the contents of master coalesced fop from the first
+	   rpc item in c2_rpc_item::ri_compound_items list. This item
+	   is inserted by io coalescing code. */
+	if (!c2_tlist_is_empty(&rpcitem_tl, &item->ri_compound_items)) {
+		ritem = c2_tlist_head(&rpcitem_tl, &item->ri_compound_items);
+		c2_tlist_del(&rpcitem_tl, ritem);
+		bkpfop = c2_rpc_item_to_fop(ritem);
+		if (fop->f_type->ft_ops->fto_fop_replied != NULL)
+			fop->f_type->ft_ops->fto_fop_replied(fop, bkpfop);
+	}
+
+	c2_tlist_for(&rpcitem_tl, &item->ri_compound_items, ritem) {
+		c2_tlist_del(&rpcitem_tl, ritem);
+		c2_chan_broadcast(&ritem->ri_chan);
+	} c2_tlist_endfor;
+}
 
 static size_t io_item_size_get(const struct c2_rpc_item *item)
 {
@@ -1181,7 +1226,7 @@ static uint64_t io_frags_nr_get(const struct c2_rpc_item *item)
 	return fop->f_type->ft_ops->fto_get_nfragments(fop);
 }
 
-void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
+static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
 {
 	int			 rc;
 	struct c2_fop		*bfop;
@@ -1228,7 +1273,7 @@ void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list)
 	c2_tlist_del(&rpcitem_tl, head);
 }
 
-int io_item_desc_store(struct c2_rpc_item *item)
+static int io_item_desc_store(struct c2_rpc_item *item)
 {
 	int			 rc;
 	struct c2_fop		*fop;
@@ -1275,42 +1320,6 @@ int io_item_desc_store(struct c2_rpc_item *item)
 
 	return rc;
 }
-
-static const struct c2_rpc_item_type_ops io_item_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = io_item_replied,
-        .rito_item_size = io_item_size_get,
-        .rito_io_frags_nr_get = io_frags_nr_get,
-        .rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-	.rito_io_desc_store = io_item_desc_store,
-};
-
-struct c2_rpc_item_type rpc_item_type_readv = {
-        .rit_ops = &io_item_type_ops,
-};
-
-struct c2_rpc_item_type rpc_item_type_writev = {
-        .rit_ops = &io_item_type_ops,
-};
-
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
-		    &c2_io_cob_readv_ops, C2_IOSERVICE_READV_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST);
-
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
-		    &c2_io_cob_writev_ops, C2_IOSERVICE_WRITEV_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST);
-
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
-		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
-		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
 
 int c2_ioservice_fops_nr(void)
 {

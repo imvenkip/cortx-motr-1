@@ -151,6 +151,8 @@
 #include "net/net.h"
 #include "fop/fom.h"
 
+struct c2_io_fom;
+
 /**
  * Since STOB I/O only launch io for single index vec, I/O service need
  * to launch multiple STOB I/O and wait for all to complete. I/O service
@@ -185,7 +187,7 @@ struct c2_io_fom {
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
         /** Signal send to this chanel when io_fom ready to execute */
-        c2_chan                          fcrw_wait;
+        struct c2_chan                          fcrw_wait;
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packets for the operation. */

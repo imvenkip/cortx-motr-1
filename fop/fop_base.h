@@ -92,7 +92,7 @@ struct c2_fop_type_ops {
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 	/** Action to be taken on receiving reply of a fop. */
-	void (*fto_fop_replied)(struct c2_fop *fop);
+	void (*fto_fop_replied)(struct c2_fop *fop, struct c2_fop *bfop);
 	/** Return the size of fop object. */
 	size_t (*fto_size_get)(struct c2_fop *fop);
 	/** Return the number of IO fragements in the IO vector. */

@@ -920,132 +920,9 @@ void us_recovery_complete(struct c2_update_stream *us)
 	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
-static void fop_item_replied(struct c2_rpc_item *item)
-{
-	struct c2_fop *fop;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	if (fop->f_type->ft_ops->fto_fop_replied != NULL)
-		fop->f_type->ft_ops->fto_fop_replied(fop);
-}
-
-/**
-   Find if given 2 rpc items belong to same type or not.
- */
-static bool item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
-{
-	struct c2_fop *fop1;
-	struct c2_fop *fop2;
-
-	C2_PRE(item1 != NULL);
-	C2_PRE(item2 != NULL);
-
-	fop1 = c2_rpc_item_to_fop(item1);
-	fop2 = c2_rpc_item_to_fop(item2);
-
-	return fop1->f_type->ft_ops->fto_op_equal(fop1, fop2);
-}
-
-static bool item_fid_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
-{
-	struct c2_fop *fop1;
-	struct c2_fop *fop2;
-
-	C2_PRE(item1 != NULL);
-	C2_PRE(item2 != NULL);
-
-	fop1 = c2_rpc_item_to_fop(item1);
-	fop2 = c2_rpc_item_to_fop(item2);
-
-	return fop1->f_type->ft_ops->fto_fid_equal(fop1, fop2);
-}
-
-/**
-   RPC item ops function
-   Function to find out number of fragmented buffers in IO request
- */
-static uint64_t item_fragment_count_get(struct c2_rpc_item *item)
-{
-	struct c2_fop *fop;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-
-	return fop->f_type->ft_ops->fto_get_nfragments(fop);
-}
-
 static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_timeout           = us_timeout,
 	.uso_recovery_complete = us_recovery_complete
-};
-
-static void item_vec_restore(struct c2_rpc_item *b_item, struct c2_fop *bkpfop)
-{
-	struct c2_fop *fop;
-
-	C2_PRE(b_item != NULL);
-	C2_PRE(bkpfop == NULL);
-
-	fop = c2_rpc_item_to_fop(b_item);
-	fop->f_type->ft_ops->fto_iovec_restore(fop, bkpfop);
-}
-
-/**
-   Coalesce rpc items that share same fid and intent(read/write)
-   @param c_item - c2_rpc_frm_item_coalesced structure.
-   @param b_item - Given bound rpc item.
-   @retval - 0 if routine succeeds, -ve number(errno) otherwise.
- */
-int item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
-		struct c2_rpc_item *b_item)
-{
-	int			 rc;
-	struct c2_fop		*fop;
-	struct c2_fop		*fop_next;
-	struct c2_fop		*b_fop;
-	struct c2_list		 fop_list;
-	struct c2_rpc_item	*item;
-
-	C2_PRE(b_item != NULL);
-	C2_PRE(c_item != NULL);
-
-	c2_list_init(&fop_list);
-	c2_list_for_each_entry(&c_item->ic_member_list, item,
-			struct c2_rpc_item, ri_coalesced_linkage) {
-		fop = c2_rpc_item_to_fop(item);
-		c2_list_add(&fop_list, &fop->f_link);
-	}
-	b_fop = container_of(b_item, struct c2_fop, f_item);
-
-	rc = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop,
-			c_item->ic_bkpfop);
-
-	c2_list_for_each_entry_safe(&fop_list, fop, fop_next,
-			struct c2_fop, f_link)
-		c2_list_del(&fop->f_link);
-
-	c2_list_fini(&fop_list);
-	if (rc == 0)
-		c_item->ic_resultant_item = b_item;
-	return rc;
-}
-
-const struct c2_rpc_item_ops rpc_item_iov_ops = {
-	.rio_replied = fop_item_replied
-};
-
-const struct c2_rpc_item_type_ops rpc_item_iov_type_ops = {
-	.rito_iovec_restore = item_vec_restore,
-	.rito_item_size = c2_fop_item_type_default_onwire_size,
-	.rito_items_equal = item_equal,
-	.rito_fid_equal = item_fid_equal,
-	.rito_get_io_fragment_count = item_fragment_count_get,
-	.rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode
 };
 
 /**
@@ -1397,9 +1274,9 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
 	return rpc_bulk_op(rbulk, item, to_desc, C2_RPC_BULK_STORE);
 }
 
-int c2_rpc_bulk_buf_load(struct c2_rpc_bulk *rbulk,
-			 const struct c2_rpc_item *item,
-			 struct c2_net_buf_desc *from_desc)
+int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
+		     const struct c2_rpc_item *item,
+		     struct c2_net_buf_desc *from_desc)
 {
 	return rpc_bulk_op(rbulk, item, from_desc, C2_RPC_BULK_LOAD);
 }

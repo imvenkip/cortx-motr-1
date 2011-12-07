@@ -69,11 +69,6 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm,
 
 static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm);
 
-static void coalesced_item_fini(struct c2_rpc_frm_item_coalesced *c_item);
-
-static void coalesced_item_reply_post(struct c2_rpc_frm_item_coalesced *cs,
-				      struct c2_rpc_item *reply);
-
 static void sm_updating_state(struct c2_rpc_frm_sm *frm_sm,
 			      struct c2_rpc_item *item);
 
@@ -453,39 +448,16 @@ void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
 	c2_mutex_unlock(&frm_sm->fs_lock);
 }
 
-static void frm_reply_received(struct c2_rpc_frm_sm *frm_sm,
-			       struct c2_rpc_item *item,
-			       struct c2_rpc_item *reply)
-{
-	struct c2_rpc_frm_item_coalesced *c_item;
-	struct c2_rpc_frm_item_coalesced *c_item_next;
-
-	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
-	C2_PRE(item != NULL);
-
-	c2_list_for_each_entry_safe(&frm_sm->fs_coalesced_items,
-			c_item, c_item_next, struct c2_rpc_frm_item_coalesced,
-			ic_linkage) {
-		if (c_item->ic_resultant_item == item)
-			coalesced_item_reply_post(c_item, reply);
-	}
-}
-
 /* Callback function for reply received of an rpc item. */
 void frm_item_reply_received(struct c2_rpc_item *reply_item,
 			     struct c2_rpc_item *req_item)
 {
-	struct c2_rpc_frm_sm		*frm_sm;
-	enum c2_rpc_frm_state		 sm_state;
+	struct c2_rpc_frm_sm *frm_sm;
 
 	C2_PRE(req_item != NULL);
 
 	frm_sm = item_to_frm_sm(req_item);
 
-	c2_mutex_lock(&frm_sm->fs_lock);
-	frm_reply_received(frm_sm, req_item, reply_item);
-	c2_mutex_unlock(&frm_sm->fs_lock);
 	sm_forming_state(frm_sm, req_item);
 }
 
@@ -530,26 +502,6 @@ void frm_item_deadline(struct c2_rpc_item *item)
 	sm_state = frm_sm->fs_state;
 	c2_mutex_unlock(&frm_sm->fs_lock);
 	sm_forming_state(frm_sm, item);
-}
-
-static void coalesced_item_reply_post(struct c2_rpc_frm_item_coalesced *cs,
-				      struct c2_rpc_item *reply)
-{
-	struct c2_rpc_item *item;
-	struct c2_rpc_item *item_next;
-
-	C2_PRE(cs != NULL);
-
-	/* For all member items of coalesced_item struct, call
-	   their completion callbacks. */
-	c2_list_for_each_entry_safe(&cs->ic_member_list, item, item_next,
-			struct c2_rpc_item, ri_coalesced_linkage) {
-		c2_list_del(&item->ri_coalesced_linkage);
-		rpc_item_replied(item, reply, 0);
-	}
-	item = cs->ic_resultant_item;
-	item->ri_type->rit_ops->rito_iovec_restore(item, cs->ic_bkpfop);
-	coalesced_item_fini(cs);
 }
 
 /* Callback for timer expiry of an rpc item. */

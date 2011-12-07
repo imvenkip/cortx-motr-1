@@ -33,7 +33,12 @@
 #include "ioservice/io_service.h"
 
 /** Required for accessing rpcmachine list */
-extern const struct c2_tl_descr c2_rh_rpml_descr;
+C2_TL_DESCR_DEFINE(rpcmachines, "rpc machines associated with reqh", static,
+                   struct c2_rpcmachine, cr_rh_linkage, cr_magic,
+                   C2_REQH_MAGIC, C2_RPC_MAGIC);
+C2_TL_DEFINE(rpcmachines, static, struct c2_rpcmachine);
+
+const struct c2_tl_descr         nbp_colormap_tl;
 
 /** 
  * These values are supposed to get from configuration cache. Since 
@@ -190,7 +195,6 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
         int                        rc = 0;
         int                        colors;
         int                        nbuffs = 0;
-        struct c2_tl_descr         nbp_colormap_tl;
         struct c2_net_domain      *ndom;
         struct c2_rpcmachine      *rpcmach = NULL;
         struct c2_reqh_io_service *serv_obj;
@@ -207,8 +211,8 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
         c2_tlist_init(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map);
 
         /** find the domain */
-        c2_tlist_for(&c2_rh_rpml_descr,
-                     &service->rs_reqh->rh_rpcmachines, rpcmach)
+        c2_tlist_for(&rpcmachines_tl,
+                              &service->rs_reqh->rh_rpcmachines, rpcmach)
         {
                 C2_ASSERT(rpcmach != NULL);
                 c2_tlist_add(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map, rpcmach->cr_tm);
