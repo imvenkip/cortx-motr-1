@@ -423,7 +423,7 @@ struct c2_addb_ctx adieu_addb_ctx;
    @param tx -> transaction context
 
    @retval 0 if successful
-           -errno status returned by stat()
+           -errno on failure
 
    @see c2_linux_stob_open()
  */
