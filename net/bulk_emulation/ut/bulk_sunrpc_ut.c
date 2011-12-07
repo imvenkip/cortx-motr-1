@@ -559,6 +559,8 @@ static void test_sunrpc_failure(void)
 	};
 	static struct c2_net_buffer d1nb1;
 	static struct c2_net_buffer d1nb2;
+	static c2_bcount_t d1nb1_len;
+	static c2_bcount_t d1nb2_len;
 	struct c2_clink tmwait1;
 
 	/* dom 2 */
@@ -588,6 +590,8 @@ static void test_sunrpc_failure(void)
 	};
 	static struct c2_net_buffer d2nb1;
 	static struct c2_net_buffer d2nb2;
+	static c2_bcount_t d2nb1_len;
+	static c2_bcount_t d2nb2_len;
 	struct c2_clink tmwait2;
 
 	struct c2_net_end_point *ep;
@@ -605,10 +609,12 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr, "127.0.0.1:10000:1") == 0);
 	C2_SET0(&d1nb1);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d1nb1.nb_buffer, 4, 10000));
+	d1nb1_len = 4 * 10000;
 	C2_UT_ASSERT(!c2_net_buffer_register(&d1nb1, &dom1));
 	d1nb1.nb_callbacks = &buf_cbs1;
 	C2_SET0(&d1nb2);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d1nb2.nb_buffer, 1, 10000));
+	d1nb2_len = 1 * 10000;
 	C2_UT_ASSERT(!c2_net_buffer_register(&d1nb2, &dom1));
 	d1nb2.nb_callbacks = &buf_cbs1;
 
@@ -616,10 +622,12 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(!c2_net_domain_init(&dom2, &c2_net_bulk_sunrpc_xprt));
 	C2_SET0(&d2nb1);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d2nb1.nb_buffer, 4, 10));
+	d2nb1_len = 4 * 10;
 	C2_UT_ASSERT(!c2_net_buffer_register(&d2nb1, &dom2));
 	d2nb1.nb_callbacks = &buf_cbs2;
 	C2_SET0(&d2nb2);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d2nb2.nb_buffer, 1, 10));
+	d2nb2_len = 1 * 10;
 	C2_UT_ASSERT(!c2_net_buffer_register(&d2nb2, &dom2));
 	d2nb2.nb_callbacks = &buf_cbs2;
 
@@ -755,6 +763,8 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
 	d2nb2.nb_qtype = C2_NET_QT_MSG_RECV;
 	d2nb2.nb_ep = NULL;
+	d2nb2.nb_min_receive_size = d2nb2_len;
+	d2nb2.nb_max_receive_msgs = 1;
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
@@ -1042,6 +1052,8 @@ static void test_sunrpc_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	d2nb2.nb_qtype = C2_NET_QT_MSG_RECV;
 	d2nb2.nb_ep = NULL;
+	d2nb2.nb_min_receive_size = d2nb2_len;
+	d2nb2.nb_max_receive_msgs = 1;
 	d2nb2.nb_timeout = ut_timeout_after_secs(1);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
 	c2_chan_wait(&tmwait2);
