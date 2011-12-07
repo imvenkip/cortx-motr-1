@@ -81,7 +81,6 @@ int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
 
 	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;
-	c2_rpc_item_init(item);
 	/* Add link to wait for item reply */
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);

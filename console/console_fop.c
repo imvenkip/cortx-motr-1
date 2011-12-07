@@ -58,21 +58,21 @@ static int c2_cons_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 	c2_fom_init(fom);
 	if (fop->f_type == &c2_cons_fop_disk_fopt)
-        	fom->fo_ops = &c2_cons_fom_disk_ops;
+		fom->fo_ops = &c2_cons_fom_disk_ops;
 	else if (fop->f_type == &c2_cons_fop_device_fopt)
-        	fom->fo_ops = &c2_cons_fom_device_ops;
+		fom->fo_ops = &c2_cons_fom_device_ops;
 	else {
-                c2_free(fom);
-                return -EINVAL;
+		c2_free(fom);
+		return -EINVAL;
 	}
 
 	fom->fo_fop = fop;
         fom->fo_type = &fop->f_type->ft_fom_type;;
         fom->fo_rep_fop = c2_fop_alloc(&c2_cons_fop_reply_fopt, NULL);
-        if (fom->fo_rep_fop == NULL) {
-                c2_free(fom);
-                return -ENOMEM;
-        }
+	if (fom->fo_rep_fop == NULL) {
+		c2_free(fom);
+		return -ENOMEM;
+	}
 
         *m = fom;
         return 0;

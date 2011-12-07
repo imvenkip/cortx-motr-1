@@ -89,6 +89,7 @@ static int cons_fini(void)
 {
 	c2_processors_fini();
         c2_console_fop_fini();
+	fprintf(stdout, "\n");
 	return 0;
 }
 
