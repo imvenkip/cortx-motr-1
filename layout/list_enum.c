@@ -28,13 +28,18 @@
    @{
 */
 
+struct list_schema_data {
+	/** Table to store COB lists for all the layout with LIST enum type. */
+	struct c2_table		lsd_cob_lists;
+};
+
 /**
    Implementation of leto_register for LIST enumeration type.
 
    Initializes table specifically required for LIST enum type.
 */
-int list_register(struct c2_ldb_schema *schema,
-		  const struct c2_layout_enum_type *et)
+static int list_register(struct c2_ldb_schema *schema,
+			 const struct c2_layout_enum_type *et)
 {
    /**
 	@code
@@ -55,8 +60,8 @@ int list_register(struct c2_ldb_schema *schema,
 
    De-initializes table specifically required for LIST enum type.
 */
-int list_unregister(struct c2_ldb_schema *schema,
-		    const struct c2_layout_enum_type *et)
+static int list_unregister(struct c2_ldb_schema *schema,
+			   const struct c2_layout_enum_type *et)
 {
    /**
 	@code
@@ -75,23 +80,25 @@ int list_unregister(struct c2_ldb_schema *schema,
    Continues to build the in-memory layout object from its representation
    either 'stored in the Layout DB' or 'received over the network'.
 
-   @param fromdb - This flag indicates if the in-memory layout object is
-   being decoded 'from its representation stored in the Layout DB' or
-   'from its representation received over the network'.
+   @param op - This enum parameter indicates what if a DB operation is to be
+   performed on the layout record and it could be LOOKUP if at all.
+   If it is NONE, then the layout is decoded from its representation received
+   over the network.
 */
-static int list_decode(bool fromdb, uint64_t lid,
-		       struct c2_ldb_schema *schema,
-		       struct c2_db_tx *tx,
+static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		       const struct c2_bufvec_cursor *cur,
+		       enum c2_layout_xcode_op op,
+		       struct c2_db_tx *tx,
 		       struct c2_layout **out)
 {
    /**
 	@code
-	if (fromdb)
+	if (op == C2_LXO_LOOKUP) {
 		C2_PRE(lid != 0);
+	}
 	C2_PRE(cur != NULL);
 
-	if (fromdb) {
+	if (op == C2_LXO_LOOKUP) {
 		Read all the COB identifiers belonging to the layout with the
 		layout id 'lid', from the cob_lists table and store those in
 		the buffer pointed by cur.
@@ -114,15 +121,13 @@ static int list_decode(bool fromdb, uint64_t lid,
    Layout DB' ot 'converts it to a buffer that can be passed on over the
    network'.
 
-   @param todb - This flag indicates if 'the layout is to be stored in the
-   Layout DB' or 'if it is to be stored in the buffer'.
-
-   @param dbop - This enum parameter indicates what is the DB operation to be
-   performed on the layout record which could be one of ADD/UPDATE/DELETE.
+  @param op - This enum parameter indicates what is the DB operation to be
+   performed on the layout record if at all and it could be one of
+   ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
 */
-static int list_encode(bool todb, enum c2_layout_encode_op dbop,
+static int list_encode(struct c2_ldb_schema *schema,
 		       const struct c2_layout *l,
-		       struct c2_ldb_schema *schema,
+		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *out)
 {
@@ -131,8 +136,9 @@ static int list_encode(bool todb, enum c2_layout_encode_op dbop,
         Read the cob identifiers list from c2_lay_list_enum::lle_list_of_cobs
 	and store it into the buffer.
 
-	if (todb) {
-		Depending upon the value of dbop, insert/update/delete cob
+	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
+			       || (op == C2_LXO_DELETE)) {
+		Depending upon the value of op, insert/update/delete cob
 		entires to/from the cob_lists table.
 	}
 
@@ -144,7 +150,8 @@ static int list_encode(bool todb, enum c2_layout_encode_op dbop,
 /**
    Enumerate the COB identifiers for a layout with LIST enum type.
 */
-int list_enumerate(const struct c2_layout_enum *le)
+static int __attribute__ ((unused)) list_enumerate(
+			const struct c2_layout_enum *le)
 {
    /**
 	@code
@@ -163,7 +170,7 @@ int list_enumerate(const struct c2_layout_enum *le)
    Implementation of leo_nr for LIST enumeration.
    Rerurns number of objects in the enumeration.
 */
-uint32_t list_nr(const struct c2_layout_enum *le)
+static uint32_t list_nr(const struct c2_layout_enum *le)
 {
    /**
 	@code
@@ -178,9 +185,9 @@ uint32_t list_nr(const struct c2_layout_enum *le)
    Implementation of leo_get for LIST enumeration.
    Rerurns idx-th object from the enumeration.
 */
-void list_get(const struct c2_layout_enum *le,
-	      uint32_t idx,
-	      struct c2_fid *out)
+static void list_get(const struct c2_layout_enum *le,
+		     uint32_t idx,
+		     struct c2_fid *out)
 {
    /**
 	@code
@@ -190,8 +197,12 @@ void list_get(const struct c2_layout_enum *le,
    */
 }
 
+static const struct c2_layout_enum_ops list_enum_ops = {
+	.leo_nr			= list_nr,
+	.leo_get		= list_get
+};
 
-static const struct c2_layout_enum_type_ops list_ops = {
+static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_register		= list_register,
 	.leto_unregister	= list_unregister,
 	.leto_decode		= list_decode,
@@ -201,7 +212,7 @@ static const struct c2_layout_enum_type_ops list_ops = {
 const struct c2_layout_enum_type c2_list_enum_type = {
 	.let_name		= "list",
 	.let_id			= 0x4C495354454E554D, /* LISTENUM */
-	.let_ops		= &list_ops
+	.let_ops		= &list_type_ops
 };
 
 

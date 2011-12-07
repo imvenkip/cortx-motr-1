@@ -53,12 +53,6 @@ struct c2_lay_list_enum {
 	struct c2_mutex		lle_cob_mutex;
 };
 
-struct list_schema_data {
-	/** Table to store COB lists for all the layout with LIST enum type. */
-	struct c2_table		lsd_cob_lists;
-};
-
-
 extern const struct c2_layout_enum_type c2_list_enum_type;
 
 /** @} end group list_enum */

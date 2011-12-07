@@ -55,11 +55,6 @@ struct c2_composite_layout {
 	struct c2_mutex		cl_sub_layouts_mutex;
 };
 
-struct composite_schema_data {
-	/** Table to store extent maps for all the composite layouts. */
-	struct c2_emap		csd_comp_layout_ext_map;;
-};
-
 extern const struct c2_layout_type c2_composite_lay_type;
 
 /** @} end group composite */

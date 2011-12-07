@@ -40,7 +40,9 @@
 /**
    Enumerate the COB identifiers for a layout with FORMULA enum type.
 */
-int formula_enumerate(const struct c2_layout_enum *le, struct c2_tl *list)
+static int __attribute__ ((unused)) formula_enumerate(
+			     const struct c2_layout_enum *le,
+			     struct c2_tl *list)
 {
    /**
 	@code
@@ -67,7 +69,7 @@ int formula_enumerate(const struct c2_layout_enum *le, struct c2_tl *list)
    Implementation of leo_nr for FORMULA enumeration.
    Rerurns number of objects in the enumeration.
 */
-uint32_t formula_nr(const struct c2_layout_enum *le)
+static uint32_t formula_nr(const struct c2_layout_enum *le)
 {
    /**
 	@code
@@ -85,9 +87,9 @@ uint32_t formula_nr(const struct c2_layout_enum *le)
    Implementation of leo_get for FORMULA enumeration.
    Rerurns idx-th object from the enumeration.
 */
-void formula_get(const struct c2_layout_enum *le,
-		 uint32_t idx,
-		 struct c2_fid *out)
+static void formula_get(const struct c2_layout_enum *le,
+			uint32_t idx,
+			struct c2_fid *out)
 {
    /**
 	@code
@@ -100,6 +102,10 @@ void formula_get(const struct c2_layout_enum *le,
    */
 }
 
+static const struct c2_layout_enum_ops formula_enum_ops = {
+	.leo_nr		= formula_nr,
+	.leo_get	= formula_get
+};
 
 const struct c2_layout_enum_type c2_formula_enum_type = {
 	.let_name	= "formula",

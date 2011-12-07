@@ -79,7 +79,8 @@ struct c2_pdclust_ops;
 
 /**
    Attributes specific to PDCLUST layout type.
-   These are part of c2_pdclust_layout and stored in the Layout DB as well.
+   These attributes are part of c2_pdclust_layout which is in-memory layout
+   object and are stored in the Layout DB as well.
 */
 struct c2_pdclust_attr {
 	/**

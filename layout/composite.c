@@ -25,13 +25,18 @@
    @{
 */
 
+struct composite_schema_data {
+	/** Table to store extent maps for all the composite layouts. */
+	struct c2_emap		csd_comp_layout_ext_map;;
+};
+
 /**
    Implementation of lto_register for COMPOSITE layout type.
 
    Intializes table specifically required for COMPOSITE layout type.
 */
-int composite_register(struct c2_ldb_schema *schema,
-		       const struct c2_layout_type *lt)
+static int composite_register(struct c2_ldb_schema *schema,
+			      const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -52,8 +57,8 @@ int composite_register(struct c2_ldb_schema *schema,
 
    Deintializes table specifically required for COMPOSITE layout type.
 */
-int composite_unregister(struct c2_ldb_schema *schema,
-			 const struct c2_layout_type *lt)
+static int composite_unregister(struct c2_ldb_schema *schema,
+				const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -72,20 +77,21 @@ int composite_unregister(struct c2_ldb_schema *schema,
    Continues to build the in-memory layout object from its representation
    either 'stored in the Layout DB' or 'received over the network'.
 
-   @param fromdb - This flag indicates if the in-memory layout object is
-   being decoded 'from its representation stored in the Layout DB' or
-   'from its representation received over the network'.
+   @param op - This enum parameter indicates what if a DB operation is to be
+   performed on the layout record and it could be LOOKUP if at all.
+   If it is NONE, then the layout is decoded from its representation received
+   over the network.
 */
-static int composite_decode(bool fromdb, uint64_t lid,
-			    struct c2_ldb_schema *schema,
-			    struct c2_db_tx *tx,
+static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 			    const struct c2_bufvec_cursor *cur,
+			    enum c2_layout_xcode_op op,
+			    struct c2_db_tx *tx,
 			    struct c2_layout **out)
 {
    /**
 	@code
 
-	if (fromdb)
+	if (op == C2_LXO_LOOKUP) {
 		C2_PRE(lid != 0);
 	else
 		C2_PRE(cur != NULL);
@@ -93,7 +99,7 @@ static int composite_decode(bool fromdb, uint64_t lid,
 	Allocate new layout as an instance of c2_composite_layout that
 	embeds c2_layout.
 
-	if (fromdb) {
+	if (op == C2_LXO_LOOKUP) {
 		struct c2_db_pair	pair;
 
 		uint32_t recsize = sizeof(struct c2_ldb_rec);
@@ -104,7 +110,7 @@ static int composite_decode(bool fromdb, uint64_t lid,
 		pair.
 	}
 
-	if (fromdb) {
+	if (op == C2_LXO_LOOKUP) {
 		Read all the segments from comp_layout_ext_map, belonging to
 		composite layout with layout id 'lid' and store them in the
 		buffer pointed by cur.
@@ -128,32 +134,33 @@ static int composite_decode(bool fromdb, uint64_t lid,
    Layout DB' ot 'converts it to a buffer that can be passed on over the
    network'.
 
-   @param todb - This flag indicates if 'the layout is to be stored in the
-   Layout DB' or 'if it is to be stored in the buffer'.
-
-   @param dbop - This enum parameter indicates what is the DB operation to be
-   performed on the layout record which could be one of ADD/UPDATE/DELETE.
+   @param op - This enum parameter indicates what is the DB operation to be
+   performed on the layout record if at all and it could be one of
+   ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
 */
-static int composite_encode(bool todb, enum c2_layout_encode_op dbop,
+static int composite_encode(struct c2_ldb_schema *schema,
 			    const struct c2_layout *l,
-			    struct c2_ldb_schema *schema,
+			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
 			    struct c2_bufvec_cursor *out)
 {
    /**
 	@code
 
-	if (todb) {
+	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
+			       || (op == C2_LXO_DELETE)) {
 		uint64_t recSize = sizeof(struct c2_ldb_rec);
 
-		ret = ldb_layout_write(dbop, recsize, out, schema, tx);
+		ret = ldb_layout_write(op, recsize, out, schema, tx);
 	}
 
 	Store composite layout type specific fields like information
 	about the sub-layouts, into the buffer.
-	if (todb) {
+
+	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
+			       || (op == C2_LXO_DELETE)) {
 		Form records for the cob_lists table by using data from the
-		buffer and depending on the value of dbop, insert/update/delete
+		buffer and depending on the value of op, insert/update/delete
 		those records to/from the cob_lists table.
 	}
 
@@ -165,7 +172,6 @@ static int composite_encode(bool todb, enum c2_layout_encode_op dbop,
 /** Implementation of lo_fini for composite layout type. */
 static void composite_fini(struct c2_layout *lay)
 {
-	return;
 }
 
 static const struct c2_layout_ops composite_ops = {

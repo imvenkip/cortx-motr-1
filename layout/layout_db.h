@@ -22,7 +22,6 @@
 #define __COLIBRI_LAYOUT_LAYOUT_DB_H__
 
 /* import */
-#include "lib/types.h"	/* struct c2_uint128 */
 #include "fid/fid.h"	/* struct c2_fid */
 #include "db/db.h"	/* struct c2_table */
 
@@ -141,11 +140,10 @@ struct c2_ldb_schema {
 	/** Layout enum type specific data. */
 	void				*ls_enum_data[C2_LAY_ENUM_MAX];
 
-	/** Lock to protect ls_type[] and ls_type_data[]/ */
-	struct c2_mutex			 ls_type_mutex;
-
-	/** Lock to protect ls_enum[] and ls_enum_data[]/ */
-	struct c2_mutex			 ls_enum_mutex;
+	/** Lock to protect ls_type[], ls_type_data[], ls_enum[] and
+	    ls_enum_data[]
+	*/
+	struct c2_mutex			 ls_mutex;
 };
 
 /**

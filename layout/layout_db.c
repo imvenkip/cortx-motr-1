@@ -162,12 +162,12 @@
       - layout_type_id
       - layout_enumeration_type_id
       - reference_count
-      - layout_rec_attrs
+      - layout_type_specific_rec_attrs (optional)
 
    @endverbatim
 
    e.g. A layout with PDCLUST layout type and with FORMULA enumeration type,
-   uses the layout_rec_attrs to store attributes like N and K.
+   uses the structure c2_pdclust_attr to store attributes like N, K, P.
 
    It is possible that some layout types do not need to store any attributes.
    e.g. A layout with PDCLUST layout type with LIST enumeration type does
@@ -212,16 +212,10 @@
    extent map viz. comp_layout_ext_map. This table stores the "layout segment
    to sub-layout id mappings" for each compsite layout.
 
-   c2_emap table is a framework to store a collection of related extent maps.
-   Individual extent maps within a collection are identified by an element
-   of the key called as prefix (128 bit). A segment ([A, B), V) is stored as
-   a record (A, V) with a key (prefix, B). The high extent end is used as
-   a part of the key.
-
-   Since prefix is required to be 128 bit in size, layout id (unit64_t) of
-   the composite layout is used as a part of the prefix (struct layout_prefix)
-   to identify an extent map belonging to one specific composite layout. The
-   lower 64 bits are currently unused (fillers).
+   Since prefix (an element of the key for c2_emap) is required to be 128 bit
+   in size, layout id (unit64_t) of the composite layout is used as a part of
+   the prefix (struct layout_prefix) to identify an extent map belonging to one
+   specific composite layout. The lower 64 bits are currently unused (fillers).
 
    An example:
 
@@ -376,8 +370,6 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 	tables.
 	@endcode
    */
-
-	return;
 }
 
 /**
@@ -399,7 +391,6 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
 
 	@endcode
    */
-	return;
 }
 
 /**
@@ -409,7 +400,6 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
 void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_type *lt)
 {
-	return;
 }
 
 /**
@@ -431,8 +421,6 @@ void c2_ldb_enum_register(struct c2_ldb_schema *schema,
 
 	@endcode
    */
-
-	return;
 }
 
 /**
@@ -442,7 +430,6 @@ void c2_ldb_enum_register(struct c2_ldb_schema *schema,
 void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_enum_type *et)
 {
-	return;
 }
 
 /**
@@ -486,8 +473,8 @@ int c2_ldb_rec_lookup(const uint64_t *lid,
 {
    /**
 	@code
-	Invoke c2_layout_decode() with fromdb flag set to TRUE.
-	c2_layout_decode(TRUE, lid, schema, tx, NULL, out);
+	Invoke c2_layout_decode() with op set to LOOKUP.
+	c2_layout_decode(op, lid, schema, tx, NULL, out);
 
 	@endcode
    */
@@ -506,9 +493,8 @@ int c2_ldb_rec_add(const struct c2_layout *l,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with todb flag set to TRUE and with dbop
-	set to LEO_ADD.
-	c2_layout_encode(TRUE, LEO_ADD, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with op set to C2_LXO_ADD.
+	c2_layout_encode(TRUE, C2_LXO_ADD, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
@@ -524,9 +510,8 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with todb flag set to TRUE and with dbop
-	set to LEO_UPDATE.
-	c2_layout_encode(TRUE, LEO_UPDATE, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with op set to C2_LXO_UPDATE.
+	c2_layout_encode(TRUE, C2_LXO_UPDATE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
@@ -547,9 +532,8 @@ int c2_ldb_rec_delete(const uint64_t lid,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with todb flag set to TRUE and with dbop
-	set to LEO_DELETE.
-	c2_layout_encode(TRUE, LEO_DELETE, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with op set to C2_LXO_DELETE.
+	c2_layout_encode(TRUE, C2_LXO_DELETE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;

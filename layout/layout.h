@@ -35,8 +35,8 @@
    A 'layout type' specifies how a file is stored in a collection of component
    objects.
 
-   An 'enumeration method' determines how a collection of component object is
-   specified, either in the form of a list or as a formula.
+   An 'enumeration method' determines how a collection of component objects is
+   specified. e.g. it may be specified as a list or by means of some formula.
 
    Layout types supported currently are:
    - PDCLUST <BR>
@@ -74,14 +74,13 @@ struct c2_ldb_schema;
 /* export */
 struct c2_layout;
 struct c2_layout_ops;
+enum c2_layout_xcode_op;
 struct c2_layout_type;
 struct c2_layout_type_ops;
 struct c2_layout_enum;
 struct c2_layout_enum_ops;
 struct c2_layout_enum_type;
 struct c2_layout_enum_type_ops;
-
-#define LID_NONE 0
 
 /**
     In-memory representation of a layout.
@@ -113,11 +112,12 @@ struct c2_layout_ops {
 /**
    Layout DB operation on a layout record.
 */
-enum c2_layout_encode_op {
-	LEO_NONE,
-	LEO_ADD,
-	LEO_UPDATE,
-	LEO_DELETE
+enum c2_layout_xcode_op {
+	C2_LXO_NONE,
+	C2_LXO_ADD,
+	C2_LXO_UPDATE,
+	C2_LXO_DELETE,
+	C2_LXO_LOOKUP,
 };
 
 /**
@@ -157,17 +157,17 @@ struct c2_layout_type_ops {
 	    which embeds c2_layout.
 	    Sets c2_layout::l_ops.
 	*/
-	int	(*lto_decode)(bool fromdb, uint64_t lid,
-			      struct c2_ldb_schema *schema,
-			      struct c2_db_tx *tx,
+	int	(*lto_decode)(struct c2_ldb_schema *schema, uint64_t lid,
 			      const struct c2_bufvec_cursor *cur,
+			      enum c2_layout_xcode_op op,
+			      struct c2_db_tx *tx,
 			      struct c2_layout **out);
 
 	/** Continues storing the layout representation either in the buffer
 	    or in the DB. */
-	int	(*lto_encode)(bool todb, enum c2_layout_encode_op dbop,
+	int	(*lto_encode)(struct c2_ldb_schema *schema,
 			      const struct c2_layout *l,
-			      struct c2_ldb_schema *schema,
+			      enum c2_layout_xcode_op op,
 			      struct c2_db_tx *tx,
 			      struct c2_bufvec_cursor *out);
 };
@@ -223,17 +223,18 @@ struct c2_layout_enum_type_ops {
 
 	/** Continues building the in-memory layout object, either from
 	    the buffer or from the DB. */
-	int	(*leto_decode)(bool fromdb, uint64_t lid,
-			       struct c2_ldb_schema *schema,
-			       struct c2_db_tx *tx,
+	int	(*leto_decode)(struct c2_ldb_schema *schema,
+			       uint64_t lid,
 			       const struct c2_bufvec_cursor *cur,
+			       enum c2_layout_xcode_op op,
+			       struct c2_db_tx *tx,
 			       struct c2_layout **out);
 
 	/** Continues storing layout representation either in the buffer
 	    or in the DB. */
-	int	(*leto_encode)(bool todb, enum c2_layout_encode_op dbop,
+	int	(*leto_encode)(struct c2_ldb_schema *schema,
 			       const struct c2_layout *l,
-			       struct c2_ldb_schema *schema,
+			       enum c2_layout_xcode_op op,
 			       struct c2_db_tx *tx,
 			       struct c2_bufvec_cursor *out);
 };
@@ -248,26 +249,16 @@ void	c2_layout_init(struct c2_layout *lay,
 		       const struct c2_layout_ops *ops);
 void	c2_layout_fini(struct c2_layout *lay);
 
-int	c2_layout_decode(bool fromdb, uint64_t lid,
-			 struct c2_ldb_schema *schema,
-			 struct c2_db_tx *tx,
+int	c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 			 const struct c2_bufvec_cursor *cur,
+			 enum c2_layout_xcode_op op,
+			 struct c2_db_tx *tx,
 			 struct c2_layout **out);
-int	c2_layout_encode(bool todb, enum c2_layout_encode_op dbop,
+int	c2_layout_encode(struct c2_ldb_schema *schema,
 			 const struct c2_layout *l,
-			 struct c2_ldb_schema *schema,
+			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *out);
-
-int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
-		    struct c2_db_pair *pair,
-		    struct c2_ldb_schema *schema,
-		    struct c2_db_tx *tx);
-int ldb_layout_write(enum c2_layout_encode_op dbop,
-		     const uint32_t recsize,
-		     struct c2_bufvec_cursor *pair,
-		     struct c2_ldb_schema *schema,
-		     struct c2_db_tx *tx);
 
 /** @} end group layout */
 

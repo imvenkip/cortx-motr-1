@@ -29,6 +29,10 @@
    @{
  */
 
+enum {
+	LID_NONE = 0
+};
+
 /**
    Initializes layout schema, creates generic table to store layout records.
    Registers all the layout types amd enum types by creating layout type and
@@ -119,21 +123,22 @@ void c2_layout_put(struct c2_layout *lay)
    - Server decodes an on-disk layout record by reading it from the Layout
      DB, into an in-memory layout structure.
 
-   @param fromdb - This flag indicates if the in-memory layout object is
-   to be decoded 'from its representation stored in the Layout DB' or
-   'from its representation received over the network'.
+   @param op - This enum parameter indicates what if a DB operation is to be
+   performed on the layout record and it could be LOOKUP if at all.
+   If it is NONE, then the layout is decoded from its representation received
+   over the network.
 */
-int c2_layout_decode(bool fromdb, const uint64_t lid,
-		     struct c2_ldb_schema *schema,
-		     struct c2_db_tx *tx,
+int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
 		     const struct c2_bufvec_cursor *cur,
+		     enum c2_layout_xcode_op op,
+		     struct c2_db_tx *tx,
 		     struct c2_layout **out)
 {
    /**
 	@code
 
 
-	if (fromdb) {
+	if (op == C2_LXO_LOOKUP) {
 		C2_PRE(lid != LID_NONE);
 		C2_PRE(schema != NULL);
 		C2_PRE(tx != NULL);
@@ -146,7 +151,7 @@ int c2_layout_decode(bool fromdb, const uint64_t lid,
 	}
 
 
-	if (fromdb) {
+	if (op == C2_LXO_LOOKUP) {
 		struct c2_db_pair	pair;
 
 		uint64_t recsize = sizeof(struct c2_ldb_rec);
@@ -165,13 +170,13 @@ int c2_layout_decode(bool fromdb, const uint64_t lid,
         to continue decoding the layout type specific fields.
 
 	uint64_t lt_id = *out->l_type->lt_id;
-	schema->ls_types[lt_id]->lto_decode(fromdb, lid, cur, out);
+	schema->ls_types[lt_id]->lto_decode(op, lid, cur, out);
 
 	If the layout-enumeration type is LIST, then invoke respective
 	leto_decode().
 
 	uint64_t let_id = *out->l_enum->let_id;
-	schema->ls_enum[let_id]->leto_decode(fromdb, lid, cur, out);
+	schema->ls_enum[let_id]->leto_decode(op, lid, cur, out);
 
 	@endcode
    */
@@ -191,22 +196,21 @@ int c2_layout_decode(bool fromdb, const uint64_t lid,
    - Server encodes an in-memory layout object and stores it into the Layout
      DB.
 
-   @param todb - This flag indicates if 'the layout is to be stored in the
-   Layout DB' or 'if it is to be stored in the buffer so that the buffer can
-   be passed over the network'.
+   @param op - This enum parameter indicates what is the DB operation to be
+   performed on the layout record if at all and it could be one of
+   ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
 
-   @param dbop - This enum parameter indicates what is the DB operation to be
-   performed on the layout record which could be one of ADD/UPDATE/DELETE.
 */
-int c2_layout_encode(bool todb, enum c2_layout_encode_op dbop,
+int c2_layout_encode(struct c2_ldb_schema *schema,
 		     const struct c2_layout *l,
-		     struct c2_ldb_schema *schema,
+		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *out)
 {
    /**
 	@code
-	if (todb) {
+	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
+			       || (op == C2_LXO_DELETE)) {
 		C2_PRE(schema != NULL);
 		C2_PRE(tx != NULL);
 		C2_PRE(out == NULL);
@@ -237,10 +241,11 @@ int c2_layout_encode(bool todb, enum c2_layout_encode_op dbop,
    Used from layout type specific implementation, with layout type
    specific record size.
 */
-int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
-		    struct c2_db_pair *pair,
-		    struct c2_ldb_schema *schema,
-		    struct c2_db_tx *tx)
+static int __attribute__ ((unused)) ldb_layout_read(
+			   uint64_t *lid, const uint32_t recsize,
+			   struct c2_db_pair *pair,
+			   struct c2_ldb_schema *schema,
+			   struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -262,14 +267,15 @@ int ldb_layout_read(uint64_t *lid, const uint32_t recsize,
    Used from layout type specific implementation, with layout type
    specific record size.
 
-   @param dbop - This enum parameter indicates what is the DB operation to be
+   @param op - This enum parameter indicates what is the DB operation to be
    performed on the layout record which could be one of ADD/UPDATE/DELETE.
 */
-int ldb_layout_write(enum c2_layout_encode_op dbop,
-		     const uint32_t recsize,
-		     struct c2_bufvec_cursor *cur,
-		     struct c2_ldb_schema *schema,
-		     struct c2_db_tx *tx)
+static int __attribute__ ((unused)) ldb_layout_write(
+			    enum c2_layout_xcode_op op,
+			    const uint32_t recsize,
+			    struct c2_bufvec_cursor *cur,
+			    struct c2_ldb_schema *schema,
+			    struct c2_db_tx *tx)
 {
    /**
 	@code
@@ -283,18 +289,17 @@ int ldb_layout_write(enum c2_layout_encode_op dbop,
 			 lid, sizeof(uint64_t),
 			 rec, recsize);
 
-	if (dbop == LEO_ADD) {
+	if (op == C2_LXO_ADD) {
 		c2_table_insert(tx, &pair);
-	} else if (dbop == LEO_UPDATE) {
+	} else if (op == C2_LXO_UPDATE) {
 		c2_table_update(tx, &pair);
-	} else if (dbop == LEO_DELETE) {
+	} else if (op == C2_LXO_DELETE) {
 		c2_table_delete(tx, &pair);
 	}
 	@endcode
    */
 	return 0;
 }
-
 
 /** @} end group layout */
 
