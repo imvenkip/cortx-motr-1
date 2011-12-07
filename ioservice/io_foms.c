@@ -219,7 +219,7 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
 	count = count >> bshift;
 	offset = offset >> bshift;
 
-	bufvec = &stio->si_user.div_vec;
+	bufvec = &stio->si_user;
 	bufvec->ov_vec.v_count = &count;
 	bufvec->ov_buf = &addr;
 	bufvec->ov_vec.v_nr = 1;

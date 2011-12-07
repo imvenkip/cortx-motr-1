@@ -216,7 +216,6 @@ int c2_fops_init(void)
 	ft_tlist_init(&fop_types_list);
 	c2_mutex_init(&fop_types_lock);
 	c2_fits_init();
-        c2_fits_all_init();
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
@@ -231,7 +230,6 @@ void c2_fops_fini(void)
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
 	c2_fits_fini();
-        c2_fits_all_fini();
 	c2_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);
 }

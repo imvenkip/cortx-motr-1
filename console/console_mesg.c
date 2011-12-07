@@ -28,18 +28,6 @@
 #include "console/console_mesg.h"
 
 /**
- * @brief Signals the waiting process/thread for item reply.
- */
-static void rpc_reply_recvd(struct c2_rpc_item *req,
-                            struct c2_rpc_item *reply,
-                            int rc)
-{
-        req->ri_error = rc;
-	req->ri_reply = reply;
-        c2_chan_signal(&req->ri_chan);
-}
-
-/**
  * @brief Prints name and type of console message.
  *
  * @param mesg console message
@@ -50,7 +38,7 @@ void c2_cons_mesg_name_print(const struct c2_cons_mesg *mesg)
 }
 
 /**
- * @brief Prints names of FOP memebers.
+ * @brief Prints names of FOP members.
  */
 static void mesg_show(struct c2_fop *fop)
 {
@@ -63,7 +51,7 @@ static void mesg_show(struct c2_fop *fop)
 }
 
 /**
- * @brief Assignes values to FOP members using FOP iterator.
+ * @brief Assigns values to FOP members using FOP iterator.
  */
 static void mesg_input(struct c2_fop *fop)
 {
@@ -91,10 +79,8 @@ int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
 	/* Init fop by input from console or yaml file */
 	mesg_input(fop);
 
-
 	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;
-	c2_rpc_item_init(item);
 	/* Add link to wait for item reply */
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);
@@ -130,7 +116,6 @@ error:
  * @brief RPC item operation for disk failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_disk_ops = {
-        .rio_replied = rpc_reply_recvd
 };
 
 static struct c2_cons_mesg c2_cons_disk_mesg = {
@@ -146,7 +131,6 @@ static struct c2_cons_mesg c2_cons_disk_mesg = {
  * @brief RPC item operation for device failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_device_ops = {
-        .rio_replied = rpc_reply_recvd
 };
 
 static struct c2_cons_mesg c2_cons_device_mesg = {
@@ -163,7 +147,6 @@ static struct c2_cons_mesg c2_cons_device_mesg = {
  * @brief RPC item operation for device failure notification.
  */
 static const struct c2_rpc_item_ops c2_rpc_item_cons_reply_ops = {
-        .rio_replied = NULL,
 };
 
 static struct c2_cons_mesg c2_cons_reply_mesg = {

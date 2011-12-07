@@ -55,13 +55,22 @@
  */
 
 enum {
-	MAXLINE = 1025
+	MAXLINE = 1025,
+	COB_DOM_CLIENT_ID  = 14,
+	COB_DOM_SERVER_ID = 15,
 };
 
 const char *yaml_file = "/tmp/console_ut.yaml";
 const char *err_file = "/tmp/stderr";
 const char *out_file = "/tmp/stdout";
 const char *in_file = "/tmp/stdin";
+
+FILE *in_fp;
+FILE *out_fp;
+FILE *err_fp;
+int in_fd;
+int out_fd;
+int err_fd;
 
 static int cons_init(void)
 {
@@ -80,7 +89,69 @@ static int cons_fini(void)
 {
 	c2_processors_fini();
         c2_console_fop_fini();
+	fprintf(stdout, "\n");
 	return 0;
+}
+
+static void file_redirect_init(void)
+{
+	/* save fd of stdin */
+	in_fd = dup(fileno(stdin));
+	C2_UT_ASSERT(in_fd != -1);
+
+	/* redirect stdout */
+	in_fp = freopen(in_file, "a+", stdin);
+	C2_UT_ASSERT(in_fp != NULL);
+
+	/* save fd of stdout */
+	out_fd = dup(fileno(stdout));
+	C2_UT_ASSERT(out_fd != -1);
+
+	/* redirect stdout */
+	out_fp = freopen(out_file, "a+", stdout);
+	C2_UT_ASSERT(out_fp != NULL);
+
+	/* save fd of stderr */
+	err_fd = dup(fileno(stderr));
+	C2_UT_ASSERT(err_fd != -1);
+
+	/* redirect stderr */
+	err_fp = freopen(err_file, "a+", stderr);
+	C2_UT_ASSERT(err_fp != NULL);
+}
+
+static void file_redirect_fini(void)
+{
+	int result;
+
+	fclose(in_fp);
+	fclose(out_fp);
+	fclose(err_fp);
+
+	/* restore stdin */
+	in_fd = dup2(in_fd, 0);
+	C2_UT_ASSERT(in_fd != -1);
+	stdin = fdopen(in_fd, "a+");
+	C2_UT_ASSERT(stdin != NULL);
+
+	/* restore stdout */
+	out_fd = dup2(out_fd, 1);
+	C2_UT_ASSERT(out_fd != -1);
+	stdout = fdopen(out_fd, "a+");
+	C2_UT_ASSERT(stdout != NULL);
+
+	/* restore stderr */
+	err_fd = dup2(err_fd, 2);
+	C2_UT_ASSERT(err_fd != -1);
+	stderr = fdopen(err_fd, "a+");
+	C2_UT_ASSERT(stderr != NULL);
+
+	result = remove(in_file);
+	C2_UT_ASSERT(result == 0);
+	result = remove(out_file);
+	C2_UT_ASSERT(result == 0);
+	result = remove(err_file);
+	C2_UT_ASSERT(result == 0);
 }
 
 static int generate_yaml_file(const char *name)
@@ -230,11 +301,9 @@ static void file_compare(const char *in, const char *out)
 
 static void output_test(void)
 {
-        struct c2_fop           *f;
-        struct c2_fit            it;
-	FILE			*fp;
-	int			 fd;
-	int			 result;
+        struct c2_fop	*f;
+        struct c2_fit	 it;
+	int		 result;
 
 	verbose = true;
 	result = generate_yaml_file(yaml_file);
@@ -245,38 +314,16 @@ static void output_test(void)
         f = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
         C2_UT_ASSERT(f != NULL);
 
-	/* save fd of stdout */
-	fd = dup(fileno(stdout));
-	C2_UT_ASSERT(fd != -1);
-
-	/* redirect stdout */
-	fp = freopen(in_file, "w+", stdout);
-	C2_UT_ASSERT(fp != NULL);
+	file_redirect_init();
 
         c2_fop_all_object_it_init(&it, f);
         c2_cons_fop_obj_input(&it);
 
-	/* again redirect stdout */
-	fp = freopen(out_file, "w+", fp);
-	C2_UT_ASSERT(fp != NULL);
-
 	c2_fop_it_reset(&it);
 	c2_cons_fop_obj_output(&it);
 
-	/* file cleanup */
-	fclose(fp);
-	/* restore stdout */
-	fd = dup2(fd, 1);
-	C2_UT_ASSERT(fd != -1);
-	stdout = fdopen(fd, "a+");
-	C2_UT_ASSERT(stdout != NULL);
-
 	file_compare(in_file, out_file);
-
-	result = remove(out_file);
-	C2_UT_ASSERT(result == 0);
-	result = remove(in_file);
-	C2_UT_ASSERT(result == 0);
+	file_redirect_fini();
 
 	verbose = false;
         c2_fop_all_object_it_fini(&it);
@@ -288,10 +335,12 @@ static void output_test(void)
 
 static void yaml_file_test(void)
 {
-	int result;
+	int   result;
 
+	file_redirect_init();
 	result = c2_cons_yaml_init(yaml_file);
 	C2_UT_ASSERT(result != 0);
+	file_redirect_fini();
 }
 
 static void yaml_parser_test(void)
@@ -299,6 +348,7 @@ static void yaml_parser_test(void)
 	FILE *fp;
 	int   result;
 
+	file_redirect_init();
         fp = fopen(yaml_file, "w");
         C2_UT_ASSERT(fp != NULL);
 	fprintf(fp, "# Generated yaml file for console UT\n\n");
@@ -319,6 +369,7 @@ static void yaml_parser_test(void)
 	C2_UT_ASSERT(result != 0);
 	result = remove(yaml_file);
 	C2_UT_ASSERT(result == 0);
+	file_redirect_fini();
 }
 
 static void yaml_root_get_test(void)
@@ -326,6 +377,7 @@ static void yaml_root_get_test(void)
 	FILE *fp;
 	int   result;
 
+	file_redirect_init();
         fp = fopen(yaml_file, "w");
         C2_UT_ASSERT(fp != NULL);
 	fclose(fp);
@@ -334,6 +386,7 @@ static void yaml_root_get_test(void)
 	C2_UT_ASSERT(result != 0);
 	result = remove(yaml_file);
 	C2_UT_ASSERT(result == 0);
+	file_redirect_fini();
 }
 
 static void yaml_get_value_test(void)
@@ -464,27 +517,21 @@ static void cons_server_fini(struct c2_console *cons)
 static void conn_basic_test(void)
 {
 	struct c2_console client = {
-		.cons_lhost	      = "localhost",
-		.cons_lport	      = CLIENT_PORT,
-		.cons_rhost	      = "localhost",
-		.cons_rport	      = CLIENT_PORT,
+		.cons_lepaddr	      = "127.0.0.1:123456:1",
+		.cons_repaddr	      = "127.0.0.1:123456:2",
 		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = 14 },
+		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 1,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
 
 	struct c2_console server = {
-		.cons_lhost	      = "localhost",
-		.cons_lport	      = CLIENT_PORT,
-		.cons_rhost	      = "localhost",
-		.cons_rport	      = CLIENT_PORT,
+		.cons_lepaddr	      = "127.0.0.1:123456:2",
+		.cons_repaddr	      = "127.0.0.1:123456:1",
 		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = 15 },
+		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 2,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -503,14 +550,11 @@ static void conn_basic_test(void)
 static void success_client(int dummy)
 {
 	struct c2_console client = {
-		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23124,
-		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23124,
+		.cons_lepaddr	      = "127.0.0.1:123456:1",
+		.cons_repaddr	      = "127.0.0.1:123456:2",
 		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = 14 },
+		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 1,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -527,14 +571,11 @@ static void success_client(int dummy)
 static void conn_success_test(void)
 {
 	struct c2_console server = {
-		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23124,
-		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23124,
+		.cons_lepaddr	      = "127.0.0.1:123456:2",
+		.cons_repaddr	      = "127.0.0.1:123456:1",
 		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = 15 },
+		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 2,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -554,14 +595,11 @@ static void conn_success_test(void)
 static void mesg_send_client(int dummy)
 {
 	struct c2_console client = {
-		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23126,
-		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23126,
+		.cons_lepaddr	      = "127.0.0.1:123456:1",
+		.cons_repaddr	      = "127.0.0.1:123456:2",
 		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = 14 },
+		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 1,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
@@ -590,20 +628,18 @@ static void mesg_send_client(int dummy)
 static void mesg_send_test(void)
 {
 	struct c2_console server = {
-		.cons_lhost	      = "localhost",
-		.cons_lport	      = 23126,
-		.cons_rhost	      = "localhost",
-		.cons_rport	      = 23126,
+		.cons_lepaddr	      = "127.0.0.1:123456:2",
+		.cons_repaddr	      = "127.0.0.1:123456:1",
 		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = 15 },
+		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
 		.cons_nr_slots	      = NR_SLOTS,
-		.cons_rid	      = 2,
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
 	struct c2_thread client_handle;
 	int		 result;
 
+	file_redirect_init();
 	cons_server_init(&server);
 	C2_SET0(&client_handle);
 	result = C2_THREAD_INIT(&client_handle, int, NULL, &mesg_send_client,
@@ -612,6 +648,7 @@ static void mesg_send_test(void)
 	c2_thread_join(&client_handle);
 	c2_thread_fini(&client_handle);
 	cons_server_fini(&server);
+	file_redirect_fini();
 }
 
 static int console_cmd(const char *name, ...)
@@ -665,46 +702,23 @@ static int error_mesg_match(FILE *fp, const char *mesg)
 	return -EINVAL;
 }
 
-const char *umesg = "c2console :"
-		    " {-l FOP list | -f FOP type}"
-		    " [-s server] [-p server port]"
-		    " [-c client] [-P client port]"
-		    " [-t timeout]"
-		    " [[-i] [-y yaml file path]]"
-		    " [-v]";
-
 static void console_input_test(void)
 {
-	FILE *err_fp;
-	FILE *out_fp;
-	int   err_fd;
-	int   out_fd;
 	int   result;
 	char  buf[35];
 
-	/* save file fds of stderr and stdout */
-	err_fd = dup(fileno(stderr));
-	C2_UT_ASSERT(err_fd != -1);
-	out_fd = dup(fileno(stdout));
-	C2_UT_ASSERT(out_fd != -1);
-
-	/* redirect stderr and stdout */
-	err_fp = freopen(err_file, "w+", stderr);
-	C2_UT_ASSERT(err_fp != NULL);
-	out_fp = freopen(out_file, "w+", stdout);
-	C2_UT_ASSERT(out_fp != NULL);
-
+	file_redirect_init();
 	/* starts UT test for console main */
 	result = console_cmd("no_input", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, umesg);
+	result = error_mesg_match(err_fp, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
 	fseek(err_fp, 0L, SEEK_SET);
 
 	result = console_cmd("no_input", "-v", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, umesg);
+	result = error_mesg_match(err_fp, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
 	fseek(err_fp, 0L, SEEK_SET);
@@ -741,7 +755,7 @@ static void console_input_test(void)
 	sprintf(buf, "%d", CMT_MESG_NR);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, umesg);
+	result = error_mesg_match(err_fp, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
 	fseek(err_fp, 0L, SEEK_SET);
@@ -749,21 +763,21 @@ static void console_input_test(void)
 	sprintf(buf, "%d", CMT_MESG_NR + 1);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, umesg);
+	result = error_mesg_match(err_fp, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
 	fseek(err_fp, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-i", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, umesg);
+	result = error_mesg_match(err_fp, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
 	fseek(err_fp, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-y", yaml_file, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, umesg);
+	result = error_mesg_match(err_fp, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
 	fseek(err_fp, 0L, SEEK_SET);
@@ -774,23 +788,7 @@ static void console_input_test(void)
 	result = error_mesg_match(err_fp, "YAML Init failed");
 	C2_UT_ASSERT(result == 0);
 
-	/* file cleanup */
-	fclose(err_fp);
-	fclose(out_fp);
-	result = remove(err_file);
-	C2_UT_ASSERT(result == 0);
-	result = remove(out_file);
-	C2_UT_ASSERT(result == 0);
-
-	/* restore stderr and stdout */
-	err_fd = dup2(err_fd, 2);
-	C2_UT_ASSERT(err_fd != -1);
-	stderr = fdopen(err_fd, "a+");
-	C2_UT_ASSERT(stderr != NULL);
-	out_fd = dup2(out_fd, 1);
-	C2_UT_ASSERT(out_fd != -1);
-	stdout = fdopen(out_fd, "a+");
-	C2_UT_ASSERT(stdout != NULL);
+	file_redirect_fini();
 }
 
 const struct c2_test_suite console_ut = {

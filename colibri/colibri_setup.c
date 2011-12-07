@@ -38,7 +38,7 @@
 #include "stob/ad.h"
 #include "stob/linux.h"
 #include "net/net.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "balloc/balloc.h"

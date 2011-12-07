@@ -21,13 +21,6 @@
 #  include <config.h>
 #endif
 
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-
-#include <arpa/inet.h>
-#include <netdb.h>
-
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/errno.h"		/* ENOENT */
 #include "console/console.h"
@@ -39,63 +32,6 @@ uint32_t timeout;
    @addtogroup console
    @{
  */
-
-/**
- * @brief Resolve hostname into a dotted quad.  The result is stored in buf.
- *
- * @param hostname Machine hostname.
- * @param buf	   Dotted result stored.
- * @param bufsiz   Size of buffer
- *
- * @return 0 success and -errno failure.
- */
-static int canon_host(const char *hostname, char *buf, size_t bufsiz)
-{
-        int                i;
-        int                rc = 0;
-        struct in_addr     ipaddr;
-
-        /* c2_net_end_point_create requires string IPv4 address, not name */
-        if (inet_aton(hostname, &ipaddr) == 0) {
-                struct hostent he;
-                char he_buf[4096];
-                struct hostent *hp;
-                int herrno;
-
-                rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
-                                     &hp, &herrno);
-                if (rc != 0) {
-                        fprintf(stderr, "Can't get address for %s\n",
-                                hostname);
-                        return -ENOENT;
-                }
-                for (i = 0; hp->h_addr_list[i] != NULL; ++i) {
-                        /* take 1st IPv4 address found */
-                        if (hp->h_addrtype == AF_INET &&
-                            hp->h_length == sizeof(ipaddr))
-                                break;
-		}
-                if (hp->h_addr_list[i] == NULL) {
-                        fprintf(stderr, "No IPv4 address for %s\n",
-                                hostname);
-                        return -EPFNOSUPPORT;
-                }
-                if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
-                    NULL) {
-                        fprintf(stderr, "Cannot parse network address for %s\n",
-                                hostname);
-                        return -errno;
-                }
-        } else {
-                if (strlen(hostname) >= bufsiz) {
-                        fprintf(stderr, "Buffer size too small for %s\n",
-                                hostname);
-                        return -ENOSPC;
-                }
-                strcpy(buf, hostname);
-        }
-        return rc;
-}
 
 /**
  * @brief It creates the end point for any rpc connection.
@@ -114,39 +50,16 @@ static int canon_host(const char *hostname, char *buf, size_t bufsiz)
  */
 static int c2_cons_rpc_init_common(struct c2_console *cons)
 {
-	int  rc = 0;
-	char hostbuf[ADDR_LEN];
+	int  rc;
 
 	C2_PRE(cons != NULL);
 
-        /* Resolve client host name */
-        rc = canon_host(cons->cons_lhost, hostbuf, sizeof(hostbuf));
-	if (rc != 0) {
-		fprintf(stderr, "Failed to canon host\n");
-		return rc;
-	}
-
-        snprintf(cons->cons_laddr, ADDR_LEN, "%s:%u:%d", hostbuf,
-		 cons->cons_lport, cons->cons_rid);
-
-        /* Resolve server host name */
-        rc = canon_host(cons->cons_rhost, hostbuf, sizeof(hostbuf));
-	if (rc != 0) {
-		fprintf(stderr, "Failed to canon remote host\n");
-		return rc;
-	}
-
-        snprintf(cons->cons_raddr, ADDR_LEN, "%s:%u:%d", hostbuf,
-		 cons->cons_rport, cons->cons_rid);
-
-        /* Init Bulk sunrpc transport */
         rc = c2_net_xprt_init(cons->cons_xprt);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to Init transport\n");
 		return rc;
 	}
 
-        /* Init client side network domain */
 	C2_SET0(&cons->cons_ndom);
         rc = c2_net_domain_init(&cons->cons_ndom, cons->cons_xprt);
 	if (rc != 0) {
@@ -154,14 +67,12 @@ static int c2_cons_rpc_init_common(struct c2_console *cons)
 		goto xprt;
 	}
 
-        /* Init the db */
         rc = c2_dbenv_init(&cons->cons_db, cons->cons_db_name, 0);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to Init DBENV\n");
 		goto ndom;
 	}
 
-	/* Init the cob domain */
         rc = c2_cob_domain_init(&cons->cons_cob_domain, &cons->cons_db,
 				&cons->cons_cob_dom_id);
 	if (rc != 0) {
@@ -169,28 +80,24 @@ static int c2_cons_rpc_init_common(struct c2_console *cons)
 		goto db;
 	}
 
-	/* Init request handler */
 	rc = c2_reqh_init(&cons->cons_reqh, NULL, NULL, NULL, NULL, NULL);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to Init request handler\n");
 		goto cdom;
 	}
 
-        /* Init the rpc machine */
         rc = c2_rpcmachine_init(&cons->cons_rpc_mach, &cons->cons_cob_domain,
-				&cons->cons_ndom, cons->cons_laddr,
+				&cons->cons_ndom, cons->cons_lepaddr,
 				&cons->cons_reqh);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to Init RPC machine\n");
 		goto reqh;
 	}
 
-	/* Transfer machine assignment */
         cons->cons_trans_mc = &cons->cons_rpc_mach.cr_tm;
 
-        /* Create destination endpoint for client i.e server endpoint */
         rc = c2_net_end_point_create(&cons->cons_rendp, cons->cons_trans_mc,
-				     cons->cons_raddr);
+				     cons->cons_repaddr);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to create Remote Endpoint\n");
 		goto rpc;
@@ -198,22 +105,16 @@ static int c2_cons_rpc_init_common(struct c2_console *cons)
 
 	return 0;
 rpc:
-        /* Fini the RPC machine */
         c2_rpcmachine_fini(&cons->cons_rpc_mach);
 reqh:
-	/* Fini request handler */
 	c2_reqh_fini(&cons->cons_reqh);
 cdom:
-        /* Fini the COB domain */
         c2_cob_domain_fini(&cons->cons_cob_domain);
 db:
-        /* Fini the DB */
         c2_dbenv_fini(&cons->cons_db);
 ndom:
-        /* Fini the net domain */
         c2_net_domain_fini(&cons->cons_ndom);
 xprt:
-        /* Fini the transport */
         c2_net_xprt_fini(cons->cons_xprt);
 
 	return rc;
@@ -235,37 +136,29 @@ xprt:
  */
 static void c2_cons_rpc_fini_common(struct c2_console *cons)
 {
-        /* Fini the remote endpoint. */
         c2_net_end_point_put(cons->cons_rendp);
 
-        /* Fini the RPC machine */
         c2_rpcmachine_fini(&cons->cons_rpc_mach);
 
-	/* Fini request handler */
 	c2_reqh_fini(&cons->cons_reqh);
 
-        /* Fini the net domain */
         c2_net_domain_fini(&cons->cons_ndom);
 
-        /* Fini the transport */
         c2_net_xprt_fini(cons->cons_xprt);
 
-        /* Fini the COB domain */
         c2_cob_domain_fini(&cons->cons_cob_domain);
 
-        /* Fini the DB */
         c2_dbenv_fini(&cons->cons_db);
 }
 
 int c2_cons_rpc_client_init(struct c2_console *cons)
 {
-	int rc = 0;
+	int rc;
 
 	rc = c2_cons_rpc_init_common(cons);
 	if (rc != 0)
 		return rc;
 
-        /* Init the connection structure */
         rc = c2_rpc_conn_init(&cons->cons_rconn, cons->cons_rendp,
 			      &cons->cons_rpc_mach, cons->cons_items_in_flight);
 	if (rc != 0) {
@@ -273,7 +166,6 @@ int c2_cons_rpc_client_init(struct c2_console *cons)
 		goto common;
 	}
 
-	/* Init session */
 	rc = c2_rpc_session_init(&cons->cons_rpc_session, &cons->cons_rconn,
 				 cons->cons_nr_slots);
 	if (rc != 0) {
@@ -299,10 +191,8 @@ void c2_cons_rpc_client_fini(struct c2_console *cons)
 {
 	C2_PRE(cons != NULL);
 
-	/* Fini rpc session */
 	c2_rpc_session_fini(&cons->cons_rpc_session);
 
-	/* Fini rpc connection */
         c2_rpc_conn_fini(&cons->cons_rconn);
 
 	c2_cons_rpc_fini_common(cons);
@@ -330,10 +220,9 @@ int c2_cons_rpc_client_connect(struct c2_console *cons)
 	struct c2_rpc_conn	*conn = &cons->cons_rconn;
 	struct c2_rpc_session	*session = &cons->cons_rpc_session;
         c2_time_t		 deadline;
-	int			 rc = 0;
+	int			 rc;
 	bool			 rcb;
 
-        /* Create RPC connection */
         rc = c2_rpc_conn_establish(conn);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to create RPC Connection\n");
@@ -341,6 +230,7 @@ int c2_cons_rpc_client_connect(struct c2_console *cons)
 	}
 
 	deadline = c2_cons_timeout_construct(timeout);
+        /* Wait for session to become active */
 	rcb = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE |
 				    C2_RPC_CONN_FAILED, deadline);
 	if (rcb) {
@@ -359,14 +249,13 @@ int c2_cons_rpc_client_connect(struct c2_console *cons)
 		return -ETIMEDOUT;
 	}
 
-        /* Create RPC session */
         rc = c2_rpc_session_establish(session);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to create session\n");
 		goto cleanup;
 	}
 
-        /* Wait for session to become active */
+        /* Wait for session to become IDLE */
         rcb = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE, deadline);
 	if (rcb) {
                 if (session->s_state == C2_RPC_SESSION_IDLE) {
@@ -389,7 +278,6 @@ int c2_cons_rpc_client_connect(struct c2_console *cons)
 
 	return 0;
 cleanup:
-        /* Terminate RPC connection */
         rc = c2_rpc_conn_terminate(conn);
         if (rc != 0) {
                 fprintf(stderr, "Failed to terminate rpc connection\n");
@@ -417,7 +305,7 @@ int c2_cons_rpc_client_disconnect(struct c2_console *cons)
 	struct c2_rpc_conn	*conn = &cons->cons_rconn;
 	struct c2_rpc_session	*session = &cons->cons_rpc_session;
         c2_time_t		 deadline;
-	int			 rc = 0;
+	int			 rc;
 	bool			 rcb;
 
 	do {
@@ -452,7 +340,6 @@ int c2_cons_rpc_client_disconnect(struct c2_console *cons)
 		return -ETIMEDOUT;
 	}
 
-        /* Terminate RPC connection */
         rc = c2_rpc_conn_terminate(conn);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to terminate rpc connection\n");

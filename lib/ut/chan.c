@@ -79,8 +79,8 @@ static bool mfilter(struct c2_clink *clink)
 
 unsigned long signal_the_chan_in_timer(unsigned long data)
 {
-	struct c2_chan *chan = (struct c2_chan *)data;
-	c2_chan_signal(chan);
+	struct c2_clink *clink = (struct c2_clink *)data;
+	c2_clink_signal(clink);
 	return 0;
 }
 
@@ -156,7 +156,7 @@ void test_chan(void)
 	/* chan is signaled after 1 second. so the wait will return true */
 	c2_time_set(&expire, 1, 0);
 	c2_timer_init(&timer, C2_TIMER_SOFT, expire, 1,
-		      &signal_the_chan_in_timer, (unsigned long)&chan);
+		      &signal_the_chan_in_timer, (unsigned long)&clink1);
 	c2_timer_start(&timer);
 	expire = c2_time_add(c2_time_now(), delta);
 	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
@@ -168,7 +168,7 @@ void test_chan(void)
 	   return false. Another wait should work.*/
 	c2_time_set(&expire, 3, 0);
 	c2_timer_init(&timer, C2_TIMER_SOFT, expire, 1,
-		      &signal_the_chan_in_timer, (unsigned long)&chan);
+		      &signal_the_chan_in_timer, (unsigned long)&clink1);
 	c2_timer_start(&timer);
 	expire = c2_time_add(c2_time_now(), delta);
 	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
@@ -250,7 +250,7 @@ void test_chan(void)
 
 		flag = 0;
 		c2_timer_init(&timer, C2_TIMER_SOFT, delta, 1,
-			      &signal_the_chan_in_timer, (unsigned long)&c[j]);
+			      &signal_the_chan_in_timer, (unsigned long)&l[j]);
 
 		c2_timer_start(&timer);
 

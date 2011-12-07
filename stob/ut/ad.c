@@ -252,9 +252,9 @@ static void test_write(int i)
 
 	io.si_opcode = SIO_WRITE;
 	io.si_flags  = 0;
-	io.si_user.div_vec.ov_vec.v_nr = i;
-	io.si_user.div_vec.ov_vec.v_count = user_vec;
-	io.si_user.div_vec.ov_buf = (void **)user_bufs;
+	io.si_user.ov_vec.v_nr = i;
+	io.si_user.ov_vec.v_count = user_vec;
+	io.si_user.ov_buf = (void **)user_bufs;
 
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
@@ -284,9 +284,9 @@ static void test_read(int i)
 
 	io.si_opcode = SIO_READ;
 	io.si_flags  = 0;
-	io.si_user.div_vec.ov_vec.v_nr = i;
-	io.si_user.div_vec.ov_vec.v_count = user_vec;
-	io.si_user.div_vec.ov_buf = (void **)read_bufs;
+	io.si_user.ov_vec.v_nr = i;
+	io.si_user.ov_vec.v_count = user_vec;
+	io.si_user.ov_buf = (void **)read_bufs;
 
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;

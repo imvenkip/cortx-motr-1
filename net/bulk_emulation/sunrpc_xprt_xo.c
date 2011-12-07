@@ -58,31 +58,24 @@ static struct c2_fop_type_ops sunrpc_put_ops = {
 };
 
 C2_FOP_TYPE_DECLARE(sunrpc_msg, "sunrpc_msg", &sunrpc_msg_ops,
-		      C2_BULK_SUNRPC_MSG_OPCODE,
-		      C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_MSG_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 C2_FOP_TYPE_DECLARE(sunrpc_get, "sunrpc_get", &sunrpc_get_ops,
-		      C2_BULK_SUNRPC_GET_OPCODE,
-		      C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_GET_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 C2_FOP_TYPE_DECLARE(sunrpc_put, "sunrpc_put", &sunrpc_put_ops,
-		      C2_BULK_SUNRPC_PUT_OPCODE,
-		      C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
-
+		    C2_BULK_SUNRPC_PUT_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(sunrpc_msg_resp, "sunrpc_msg_reply", NULL,
-		      C2_BULK_SUNRPC_MSG_REPLY_OPCODE,
-		      C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_MSG_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 C2_FOP_TYPE_DECLARE(sunrpc_get_resp, "sunrpc_get_reply", NULL,
-		      C2_BULK_SUNRPC_GET_REPLY_OPCODE,
-		      C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_GET_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 C2_FOP_TYPE_DECLARE(sunrpc_put_resp, "sunrpc_put_reply", NULL,
-		      C2_BULK_SUNRPC_PUT_REPLY_OPCODE,
-		      C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_PUT_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *fops[] = {
 	&sunrpc_msg_fopt,

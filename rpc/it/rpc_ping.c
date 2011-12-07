@@ -35,7 +35,7 @@
 #include "net/net_internal.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/session.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation.h"
 #include "fol/fol.h"
 #include "reqh/reqh.h"
@@ -824,7 +824,7 @@ cleanup:
 
 
 #ifdef __KERNEL__
-bool client = true; 
+bool client = true;
 int c2_rpc_ping_init()
 #else
 /* Main function for rpc ping */
