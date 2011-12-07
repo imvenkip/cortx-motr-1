@@ -113,10 +113,11 @@ struct linux_domain {
 struct linux_stob {
 	struct c2_stob		sl_stob;
 
-	struct linux_stob_attr	sl_attr;
-
 	/** fd from returned open(2) */
 	int			sl_fd;
+	/** File mode as returned by stat(2) */
+	mode_t			sl_mode;
+
 	struct c2_tlink		sl_linkage;
 	uint64_t		sl_magix;
 };
