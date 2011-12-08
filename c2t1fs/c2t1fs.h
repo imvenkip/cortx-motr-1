@@ -172,23 +172,6 @@
    component objects.
  */
 
-#define C2T1FS_DEBUG 1
-
-#ifdef C2T1FS_DEBUG
-
-#define TRACE(format, args ...)  \
-	printk("c2t1fs: %s[%d]: " format, __FUNCTION__, __LINE__, ## args)
-#define START()   TRACE("Start\n")
-#define END(rc)   TRACE("End (0x%lx)\n", (unsigned long)(rc))
-
-#else /* C2T1FS_DEBUG */
-
-#define TRACE(format, args ...)
-#define START()
-#define END(rc)
-
-#endif /* C2T1FS_DEBUG */
-
 struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 

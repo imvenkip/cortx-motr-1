@@ -24,6 +24,7 @@
 
 #include "lib/misc.h"         /* C2_SET0()                 */
 #include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free() */
+#include "lib/trace.h"        /* C2_TRACE*() */
 #include "c2t1fs/c2t1fs.h"
 
 /* Super block */
@@ -105,12 +106,12 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 {
 	int rc;
 
-	TRACE("flags: 0x%x, devname: %s, data: %s\n", flags, devname,
+	C2_TRACE("flags: 0x%x, devname: %s, data: %s\n", flags, devname,
 							(char *)data);
 
 	rc = get_sb_nodev(fstype, flags, data, c2t1fs_fill_super, mnt);
 
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -121,7 +122,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	struct inode           *root_inode;
 	int                     rc;
 
-	START();
+	C2_TRACE_START();
 
 	C2_ALLOC_PTR(csb);
 	if (csb == NULL) {
@@ -147,9 +148,9 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	csb->csb_unit_size       = mntopts->mo_unit_size ?:
 					C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
 
-	TRACE("P = %d, N = %d, K = %d unit_size %d\n", csb->csb_nr_containers,
-			csb->csb_nr_data_units, csb->csb_nr_parity_units,
-			csb->csb_unit_size);
+	C2_TRACE("P = %d, N = %d, K = %d unit_size %d\n",
+			csb->csb_nr_containers, csb->csb_nr_data_units,
+			csb->csb_nr_parity_units, csb->csb_unit_size);
 
 	/* P >= N + 2 * K ??*/
 	if (csb->csb_nr_containers < csb->csb_nr_data_units +
@@ -198,7 +199,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		goto out_map_fini;
 	}
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 
 out_map_fini:
@@ -217,7 +218,7 @@ out:
 	sb->s_fs_info = NULL;
 
 	C2_ASSERT(rc != 0);
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -228,10 +229,10 @@ void c2t1fs_kill_sb(struct super_block *sb)
 {
 	struct c2t1fs_sb *csb;
 
-	START();
+	C2_TRACE_START();
 
 	csb = C2T1FS_SB(sb);
-	TRACE("csb = %p\n", csb);
+	C2_TRACE("csb = %p\n", csb);
 	/*
 	 * If c2t1fs_fill_super() fails then deactivate_locked_super() calls
 	 * c2t1fs_fs_type->kill_sb(). In that case, csb == NULL.
@@ -246,12 +247,12 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	}
 	kill_anon_super(sb);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 {
-	START();
+	C2_TRACE_START();
 
 	C2_ASSERT(csb != NULL);
 
@@ -262,13 +263,13 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
 	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 }
 
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 {
-	START();
+	C2_TRACE_START();
 
 	C2_ASSERT(csb != NULL);
 
@@ -277,7 +278,7 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 	csb->csb_next_key = 0;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 enum c2t1fs_mntopts {
@@ -307,19 +308,19 @@ static const match_table_t c2t1fs_mntopt_tokens = {
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts)
 {
-	START();
+	C2_TRACE_START();
 	C2_ASSERT(mntopts != NULL);
 
 	C2_SET0(mntopts);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 {
 	int i;
 
-	START();
+	C2_TRACE_START();
 	C2_ASSERT(mntopts != NULL);
 
 	for (i = 0; i < mntopts->mo_nr_ios_ep; i++) {
@@ -346,15 +347,16 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 
 	C2_SET0(mntopts);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 {
-	START();
+	C2_TRACE_START();
 
 	if (mnt_opts->mo_nr_ios_ep == 0) {
-		TRACE("ERROR: Must specify at least one io-service endpoint\n");
+		C2_TRACE("ERROR:"
+			 "Must specify at least one io-service endpoint\n");
 		goto invalid;
 	}
 
@@ -363,7 +365,8 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 	 * Until then don't allow.
 	 */
 	if ((mnt_opts->mo_unit_size & (PAGE_CACHE_SIZE - 1)) != 0) {
-		TRACE("ERROR: Unit size must be multiple of PAGE_CACHE_SIZE\n");
+		C2_TRACE("ERROR:"
+			 "Unit size must be multiple of PAGE_CACHE_SIZE\n");
 		goto invalid;
 	}
 
@@ -374,16 +377,16 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 	 */
 	if (mnt_opts->mo_nr_ios_ep > MAX_NR_EP_PER_SERVICE_TYPE ||
 	    mnt_opts->mo_nr_mds_ep > MAX_NR_EP_PER_SERVICE_TYPE) {
-		TRACE("ERROR: number of endpoints must be less than %d\n",
+		C2_TRACE("ERROR: number of endpoints must be less than %d\n",
 				MAX_NR_EP_PER_SERVICE_TYPE);
 		goto invalid;
 	}
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 
 invalid:
-	END(-EINVAL);
+	C2_TRACE_END(-EINVAL);
 	return -EINVAL;
 }
 
@@ -409,9 +412,9 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 		return rc;
 	}
 
-	START();
+	C2_TRACE_START();
 
-	TRACE("options: %p\n", options);
+	C2_TRACE("options: %p\n", options);
 
 	if (options == NULL) {
 		rc = -EINVAL;
@@ -423,7 +426,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 		rc = -ENOMEM;
 
 	while ((op = strsep(&options, ",")) != NULL) {
-		TRACE("Processing \"%s\"\n", op);
+		C2_TRACE("Processing \"%s\"\n", op);
 		if (*op == '\0')
 			continue;
 
@@ -436,7 +439,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			TRACE("ioservice: %s\n", value);
+			C2_TRACE("ioservice: %s\n", value);
 			mnt_opts->mo_ios_ep_addr[mnt_opts->mo_nr_ios_ep++] =
 						value;
 			break;
@@ -453,7 +456,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			TRACE("mdservice: %s\n", value);
+			C2_TRACE("mdservice: %s\n", value);
 			mnt_opts->mo_mds_ep_addr[mnt_opts->mo_nr_mds_ep++] =
 						value;
 			break;
@@ -464,7 +467,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			TRACE("mgservice: %s\n", value);
+			C2_TRACE("mgservice: %s\n", value);
 			mnt_opts->mo_mgs_ep_addr = value;
 			break;
 
@@ -474,7 +477,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			TRACE("profile: %s\n", value);
+			C2_TRACE("profile: %s\n", value);
 			mnt_opts->mo_profile = value;
 			break;
 
@@ -482,7 +485,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			TRACE("nr_containers = %lu\n", nr);
+			C2_TRACE("nr_containers = %lu\n", nr);
 			mnt_opts->mo_nr_containers = nr;
 			break;
 
@@ -490,7 +493,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			TRACE("nr_data_units = %lu\n", nr);
+			C2_TRACE("nr_data_units = %lu\n", nr);
 			mnt_opts->mo_nr_data_units = nr;
 			break;
 
@@ -498,7 +501,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			TRACE("nr_parity_units = %lu\n", nr);
+			C2_TRACE("nr_parity_units = %lu\n", nr);
 			mnt_opts->mo_nr_parity_units = nr;
 			break;
 
@@ -506,13 +509,13 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			TRACE("unit_size = %lu\n", nr);
+			C2_TRACE("unit_size = %lu\n", nr);
 			mnt_opts->mo_unit_size = nr;
 			break;
 
 		default:
-			TRACE("Unrecognized option: %s\n", op);
-			TRACE("Supported options: mgs,mds,ios,profile,"
+			C2_TRACE("Unrecognized option: %s\n", op);
+			C2_TRACE("Supported options: mgs,mds,ios,profile,"
 			      "nr_containers,nr_data_units,nr_parity_units,"
 			      "unit_size\n");
 			rc = -EINVAL;
@@ -523,7 +526,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 
 out:
 	/* if rc != 0, mnt_opts will be finalised from c2t1fs_sb_fini() */
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -532,7 +535,7 @@ static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 					enum c2t1fs_service_type       type,
 					char                          *ep_addr)
 {
-	START();
+	C2_TRACE_START();
 
 	C2_SET0(ctx);
 
@@ -543,26 +546,26 @@ static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 
 	svc_ctx_tlink_init(ctx);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
 {
-	START();
+	C2_TRACE_START();
 
 	svc_ctx_tlink_fini(ctx);
 	ctx->sc_magic = 0;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int c2t1fs_config_fetch(struct c2t1fs_sb *csb)
 {
-	START();
+	C2_TRACE_START();
 
 	/* XXX fetch configuration here */
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 }
 
@@ -571,7 +574,7 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 	struct c2t1fs_service_context *ctx;
 	int                            rc;
 
-	START();
+	C2_TRACE_START();
 
 	rc = c2t1fs_service_contexts_populate(csb);
 	if (rc != 0)
@@ -586,7 +589,7 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 		}
 	} c2_tlist_endfor;
 out:
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -603,11 +606,11 @@ static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 		char                          *ep_addr;
 		int                            i;
 
-		TRACE("n = %d type = %d\n", n, type);
+		C2_TRACE("n = %d type = %d\n", n, type);
 
 		for (i = 0; i < n; i++) {
 			ep_addr = ep_arr[i];
-			TRACE("i = %d ep_addr = %s\n", i, ep_addr);
+			C2_TRACE("i = %d ep_addr = %s\n", i, ep_addr);
 
 			C2_ALLOC_PTR(ctx);
 			if (ctx == NULL)
@@ -620,7 +623,7 @@ static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 		return 0;
 	}
 
-	START();
+	C2_TRACE_START();
 
 	mntopts = &csb->csb_mnt_opts;
 
@@ -634,12 +637,12 @@ static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 	if (rc != 0)
 		goto discard_all;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 
 discard_all:
 	c2t1fs_service_contexts_discard(csb);
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -647,19 +650,19 @@ static void c2t1fs_service_contexts_discard(struct c2t1fs_sb *csb)
 {
 	struct c2t1fs_service_context *ctx;
 
-	START();
+	C2_TRACE_START();
 
 	c2_tlist_for(&svc_ctx_tl, &csb->csb_service_contexts, ctx) {
 
 		svc_ctx_tlist_del(ctx);
-		TRACE("discard: %s\n", ctx->sc_addr);
+		C2_TRACE("discard: %s\n", ctx->sc_addr);
 
 		c2t1fs_service_context_fini(ctx);
 		c2_free(ctx);
 
 	} c2_tlist_endfor;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
@@ -671,7 +674,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	struct c2_rpc_session     *session;
 	int                        rc;
 
-	START();
+	C2_TRACE_START();
 
 	rpc_mach = &c2t1fs_globals.g_rpcmachine;
 	tm       = &rpc_mach->cr_tm;
@@ -695,9 +698,9 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 		goto conn_term;
 
 	ctx->sc_csb->csb_nr_active_contexts++;
-	TRACE("Connected to [%s] active_ctx %d\n", ctx->sc_addr,
+	C2_TRACE("Connected to [%s] active_ctx %d\n", ctx->sc_addr,
 				ctx->sc_csb->csb_nr_active_contexts);
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 
 conn_term:
@@ -705,13 +708,13 @@ conn_term:
 	c2_rpc_conn_fini(conn);
 out:
 	C2_ASSERT(rc != 0);
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
 static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 {
-	START();
+	C2_TRACE_START();
 
 	(void)c2_rpc_session_terminate_sync(&ctx->sc_session,
 						C2T1FS_RPC_TIMEOUT);
@@ -722,16 +725,16 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 	c2_rpc_conn_fini(&ctx->sc_conn);
 
 	ctx->sc_csb->csb_nr_active_contexts--;
-	TRACE("Disconnected from [%s] active_ctx %d\n", ctx->sc_addr,
+	C2_TRACE("Disconnected from [%s] active_ctx %d\n", ctx->sc_addr,
 				ctx->sc_csb->csb_nr_active_contexts);
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 {
 	struct c2t1fs_service_context *ctx;
 
-	START();
+	C2_TRACE_START();
 
 	c2_tlist_for(&svc_ctx_tl, &csb->csb_service_contexts, ctx) {
 
@@ -742,26 +745,26 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 
 	} c2_tlist_endfor;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int
 c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
 				   int nr_containers)
 {
-	START();
+	C2_TRACE_START();
 
 	C2_SET0(map);
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 }
 
 static void
 c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map)
 {
-	START();
-	END(0);
+	C2_TRACE_START();
+	C2_TRACE_END(0);
 }
 
 static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
@@ -774,7 +777,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 	int                                   i;
 	int                                   cur;
 
-	START();
+	C2_TRACE_START();
 
 	nr_ios = csb->csb_mnt_opts.mo_nr_ios_ep;
 	C2_ASSERT(nr_ios > 0);
@@ -786,7 +789,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 	if (nr_containers % nr_ios != 0)
 		nr_cont_per_svc++;
 
-	TRACE("nr_cont_per_svc = %d\n", nr_cont_per_svc);
+	C2_TRACE("nr_cont_per_svc = %d\n", nr_cont_per_svc);
 
 	map = &csb->csb_cl_map;
 	cur = 1;
@@ -799,14 +802,14 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 			/* Currently assuming only one MGS, which will serve
 			   container 0 */
 			map->clm_map[0] = ctx;
-			TRACE("container_id [0] at %s\n", ctx->sc_addr);
+			C2_TRACE("container_id [0] at %s\n", ctx->sc_addr);
 			break;
 
 		case C2T1FS_ST_IOS:
 			for (i = 0; i < nr_cont_per_svc &&
 				    cur <= nr_containers; i++, cur++) {
 				map->clm_map[cur] = ctx;
-				TRACE("container_id [%d] at %s\n", cur,
+				C2_TRACE("container_id [%d] at %s\n", cur,
 						ctx->sc_addr);
 			}
 			break;
@@ -820,7 +823,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 
 	} c2_tlist_endfor;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 }
 
@@ -830,29 +833,29 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 {
 	struct c2t1fs_service_context        *ctx;
 
-	START();
+	C2_TRACE_START();
 
 	C2_ASSERT(container_id <= csb->csb_nr_containers);
 
 	ctx = csb->csb_cl_map.clm_map[container_id];
 	C2_ASSERT(ctx != NULL);
 
-	END(&ctx->sc_session);
+	C2_TRACE_END(&ctx->sc_session);
 	return &ctx->sc_session;
 }
 
 void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
 {
-	START();
+	C2_TRACE_START();
 	c2_mutex_lock(&csb->csb_mutex);
-	END(0);
+	C2_TRACE_END(0);
 }
 
 void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
 {
-	START();
+	C2_TRACE_START();
 	c2_mutex_unlock(&csb->csb_mutex);
-	END(0);
+	C2_TRACE_END(0);
 }
 
 bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb)

@@ -22,6 +22,7 @@
 #include <linux/init.h>
 
 #include "c2t1fs/c2t1fs.h"
+#include "lib/trace.h"
 
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
@@ -55,7 +56,7 @@ int c2t1fs_init(void)
 {
 	int rc;
 
-	START();
+	C2_TRACE_START();
 
 	rc = c2t1fs_inode_cache_init();
 	if (rc != 0)
@@ -73,7 +74,7 @@ int c2t1fs_init(void)
 	if (rc != 0)
 		goto rpc_fini;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 
 rpc_fini:
@@ -86,14 +87,14 @@ icache_fini:
 	c2t1fs_inode_cache_fini();
 
 out:
-	END(rc);
+	C2_TRACE_END(rc);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
 
 void c2t1fs_fini(void)
 {
-	START();
+	C2_TRACE_START();
 
 	(void)unregister_filesystem(&c2t1fs_fs_type);
 
@@ -101,7 +102,7 @@ void c2t1fs_fini(void)
 	c2t1fs_net_fini();
 	c2t1fs_inode_cache_fini();
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int c2t1fs_net_init(void)
@@ -110,7 +111,7 @@ static int c2t1fs_net_init(void)
 	struct c2_net_domain *ndom;
 	int                   rc;
 
-	START();
+	C2_TRACE_START();
 
 	xprt =  c2t1fs_globals.g_xprt;
 	ndom = &c2t1fs_globals.g_ndom;
@@ -123,18 +124,18 @@ static int c2t1fs_net_init(void)
 	if (rc != 0)
 		c2_net_xprt_fini(xprt);
 out:
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
 static void c2t1fs_net_fini(void)
 {
-	START();
+	C2_TRACE_START();
 
 	c2_net_domain_fini(&c2t1fs_globals.g_ndom);
 	c2_net_xprt_fini(c2t1fs_globals.g_xprt);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int c2t1fs_rpc_init(void)
@@ -148,7 +149,7 @@ static int c2t1fs_rpc_init(void)
 	char                     *db_name;
 	int                       rc;
 
-	START();
+	C2_TRACE_START();
 
 	dbenv   = &c2t1fs_globals.g_dbenv;
 	db_name =  c2t1fs_globals.g_db_name;
@@ -172,7 +173,7 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto cob_dom_fini;
 
-	END(rc);
+	C2_TRACE_END(rc);
 	return 0;
 
 cob_dom_fini:
@@ -182,17 +183,17 @@ dbenv_fini:
 	c2_dbenv_fini(dbenv);
 
 out:
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
 static void c2t1fs_rpc_fini(void)
 {
-	START();
+	C2_TRACE_START();
 
 	c2_rpcmachine_fini(&c2t1fs_globals.g_rpcmachine);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
 
-	END(0);
+	C2_TRACE_END(0);
 }

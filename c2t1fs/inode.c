@@ -24,6 +24,7 @@
 #include "pool/pool.h"       /* c2_pool_init(), c2_pool_fini()        */
 #include "lib/misc.h"        /* C2_SET0()                             */
 #include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
+#include "lib/trace.h"       /* C2_TRACE*() */
 #include "c2t1fs/c2t1fs.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
@@ -48,21 +49,21 @@ static void init_once(void *foo)
 {
 	struct c2t1fs_inode *ci = foo;
 
-	START();
+	C2_TRACE_START();
 
 	ci->ci_fid.f_container = 0;
 	ci->ci_fid.f_key = 0;
 
 	inode_init_once(&ci->ci_inode);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 int c2t1fs_inode_cache_init(void)
 {
 	int rc = 0;
 
-	START();
+	C2_TRACE_START();
 
 	c2t1fs_inode_cachep = kmem_cache_create("c2t1fs_inode_cache",
 					sizeof(struct c2t1fs_inode),
@@ -70,35 +71,35 @@ int c2t1fs_inode_cache_init(void)
 	if (c2t1fs_inode_cachep == NULL)
 		rc = -ENOMEM;
 
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
 void c2t1fs_inode_cache_fini(void)
 {
-	START();
+	C2_TRACE_START();
 
 	if (c2t1fs_inode_cachep == NULL) {
-		END(0);
+		C2_TRACE_END(0);
 		return;
 	}
 
 	kmem_cache_destroy(c2t1fs_inode_cachep);
 	c2t1fs_inode_cachep = NULL;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 {
-	START();
+	C2_TRACE_START();
 
 	C2_SET0(&ci->ci_fid);
 	ci->ci_layout = NULL;
 
 	dir_ents_tlist_init(&ci->ci_dir_ents);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
@@ -106,7 +107,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	struct c2_pdclust_layout *pd_layout;
 	struct c2t1fs_dir_ent    *de;
 
-	START();
+	C2_TRACE_START();
 
 	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
@@ -125,7 +126,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 		c2_pdclust_fini(pd_layout);
 	}
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 /**
@@ -135,17 +136,17 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode *ci;
 
-	START();
+	C2_TRACE_START();
 
 	ci = kmem_cache_alloc(c2t1fs_inode_cachep, GFP_KERNEL);
 	if (ci == NULL) {
-		END(NULL);
+		C2_TRACE_END(NULL);
 		return NULL;
 	}
 
 	c2t1fs_inode_init(ci);
 
-	END(&ci->ci_inode);
+	C2_TRACE_END(&ci->ci_inode);
 	return &ci->ci_inode;
 }
 
@@ -155,23 +156,23 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 void c2t1fs_destroy_inode(struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
-	START();
+	C2_TRACE_START();
 
 	ci = C2T1FS_I(inode);
-	TRACE("fid [%lu:%lu]\n", (unsigned long)ci->ci_fid.f_container,
-				 (unsigned long)ci->ci_fid.f_key);
+	C2_TRACE("fid [%lu:%lu]\n", (unsigned long)ci->ci_fid.f_container,
+				    (unsigned long)ci->ci_fid.f_key);
 
 	c2t1fs_inode_fini(ci);
 	kmem_cache_free(c2t1fs_inode_cachep, ci);
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 struct inode *c2t1fs_root_iget(struct super_block *sb)
 {
 	struct inode *inode;
 
-	START();
+	C2_TRACE_START();
 
 	/*
 	 * Currently it is assumed, that fid of root of file-system is
@@ -182,7 +183,7 @@ struct inode *c2t1fs_root_iget(struct super_block *sb)
 	 */
 	inode = c2t1fs_iget(sb, &c2t1fs_root_fid);
 
-	END(inode);
+	C2_TRACE_END(inode);
 	return inode;
 }
 
@@ -201,19 +202,19 @@ static int c2t1fs_inode_test(struct inode *inode, void *opaque)
 	struct c2_fid       *fid = opaque;
 	int                  rc;
 
-	START();
+	C2_TRACE_START();
 
 	ci = C2T1FS_I(inode);
 
-	TRACE("inode(%p) [%lu:%lu] opaque [%lu:%lu]\n", inode,
-		(unsigned long)ci->ci_fid.f_container,
-		(unsigned long)ci->ci_fid.f_key,
-		(unsigned long)fid->f_container,
-		(unsigned long)fid->f_key);
+	C2_TRACE("inode(%p) [%lu:%lu] opaque [%lu:%lu]\n", inode,
+				(unsigned long)ci->ci_fid.f_container,
+				(unsigned long)ci->ci_fid.f_key,
+				(unsigned long)fid->f_container,
+				(unsigned long)fid->f_key);
 
 	rc = c2_fid_eq(&ci->ci_fid, fid);
 
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -222,21 +223,21 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 	struct c2t1fs_inode *ci;
 	struct c2_fid       *fid = opaque;
 
-	START();
-	TRACE("inode(%p) [%lu:%lu]\n", inode,
+	C2_TRACE_START();
+	C2_TRACE("inode(%p) [%lu:%lu]\n", inode,
 			(unsigned long)fid->f_container,
 			(unsigned long)fid->f_key);
 
 	ci = C2T1FS_I(inode);
 	ci->ci_fid = *fid;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 }
 
 static int c2t1fs_inode_refresh(struct inode *inode)
 {
-	START();
+	C2_TRACE_START();
 
 	/* XXX Make rpc call to fetch attributes of cob having fid == @fid */
 	if (c2t1fs_inode_is_root(inode)) {
@@ -254,7 +255,7 @@ static int c2t1fs_inode_refresh(struct inode *inode)
 	inode->i_gid   = 0;
 	inode->i_nlink = 1;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 }
 
@@ -262,7 +263,7 @@ static int c2t1fs_inode_read(struct inode *inode)
 {
 	int rc;
 
-	START();
+	C2_TRACE_START();
 
 	rc = c2t1fs_inode_refresh(inode);
 	if (rc != 0)
@@ -286,7 +287,7 @@ static int c2t1fs_inode_read(struct inode *inode)
 	}
 
 out:
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -295,8 +296,8 @@ out:
  */
 static unsigned long fid_hash(const struct c2_fid *fid)
 {
-	START();
-	END(fid->f_key);
+	C2_TRACE_START();
+	C2_TRACE_END(fid->f_key);
 	return fid->f_key;
 }
 
@@ -306,7 +307,7 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
 	unsigned long hash;
 	int           err;
 
-	START();
+	C2_TRACE_START();
 
 	hash = fid_hash(fid);
 
@@ -321,7 +322,7 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
 	if (inode != NULL) {
 		if ((inode->i_state & I_NEW) == 0) {
 			/* Not a new inode. No need to read it again */
-			END(inode);
+			C2_TRACE_END(inode);
 			return inode;
 		}
 		err = c2t1fs_inode_read(inode);
@@ -345,9 +346,9 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 	struct c2_pool           *pool;
 	int                       rc;
 
-	START();
+	C2_TRACE_START();
 
-	TRACE("fid[%lu:%lu]: N: %d K: %d P: %d\n",
+	C2_TRACE("fid[%lu:%lu]: N: %d K: %d P: %d\n",
 			(unsigned long)ci->ci_fid.f_container,
 			(unsigned long)ci->ci_fid.f_key,
 			N, K, P);
@@ -372,7 +373,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
 
 	ci->ci_layout = &pd_layout->pl_layout;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 
 out_fini:
@@ -383,7 +384,7 @@ out_free:
 
 out:
 	C2_ASSERT(rc != 0);
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 

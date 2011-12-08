@@ -24,6 +24,7 @@
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "layout/pdclust.h" /* PUT_* */
+#include "lib/trace.h"      /* C2_TRACE*() */
 #include "c2t1fs/c2t1fs.h"
 
 static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
@@ -77,20 +78,20 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 	ssize_t       nr_bytes_read = 0;
 	ssize_t       count;
 
-	START();
+	C2_TRACE_START();
 
-	TRACE("Read req: file \"%s\" pos %lu nr_segs %lu iov_len %lu\n",
-			KIOCB_TO_FILE_NAME(iocb),
-			(unsigned long)pos,
-			nr_segs,
-			iov_length(iov, nr_segs));
+	C2_TRACE("Read req: file \"%s\" pos %lu nr_segs %lu iov_len %lu\n",
+					KIOCB_TO_FILE_NAME(iocb),
+					(unsigned long)pos,
+					nr_segs,
+					iov_length(iov, nr_segs));
 
 	if (nr_segs == 0)
 		goto out;
 
 	result = generic_segment_checks(iov, &nr_segs, &count, VERIFY_WRITE);
 	if (result != 0) {
-		TRACE("Generic segment checks failed: %lu\n",
+		C2_TRACE("Generic segment checks failed: %lu\n",
 						(unsigned long)result);
 		goto out;
 	}
@@ -101,14 +102,14 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 	for (i = 0; i < nr_segs; i++) {
 		const struct iovec *vec = &iov[i];
 
-		TRACE("iov: base %p len %lu pos %lu\n", vec->iov_base,
+		C2_TRACE("iov: base %p len %lu pos %lu\n", vec->iov_base,
 					(unsigned long)vec->iov_len,
 					(unsigned long)iocb->ki_pos);
 
 		result = c2t1fs_read_write(iocb->ki_filp, vec->iov_base,
 					   vec->iov_len, &iocb->ki_pos, READ);
 
-		TRACE("result: %ld\n", (long)result);
+		C2_TRACE("result: %ld\n", (long)result);
 		if (result <= 0)
 			break;
 
@@ -118,7 +119,7 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 			break;
 	}
 out:
-	END(nr_bytes_read ?: result);
+	C2_TRACE_END(nr_bytes_read ?: result);
 	return nr_bytes_read ?: result;
 }
 
@@ -133,9 +134,9 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 	size_t        count = 0;
 	size_t        saved_count;
 
-	START();
+	C2_TRACE_START();
 
-	TRACE("WRITE req: file %s pos %lu nr_segs %lu iov_len %lu\n",
+	C2_TRACE("WRITE req: file %s pos %lu nr_segs %lu iov_len %lu\n",
 			KIOCB_TO_FILE_NAME(iocb),
 			(unsigned long)pos,
 			nr_segs,
@@ -143,7 +144,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 
 	result = generic_segment_checks(iov, &nr_segs, &count, VERIFY_READ);
 	if (result != 0) {
-		TRACE("Generic segment checks failed: %lu\n",
+		C2_TRACE("Generic segment checks failed: %lu\n",
 						(unsigned long)result);
 		goto out;
 	}
@@ -151,7 +152,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 	saved_count = count;
 	result = generic_write_checks(iocb->ki_filp, &pos, &count, 0);
 	if (result != 0) {
-		TRACE("generic_write_checks() failed %lu\n",
+		C2_TRACE("generic_write_checks() failed %lu\n",
 						(unsigned long)result);
 		goto out;
 	}
@@ -161,20 +162,20 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 
 	if (count != saved_count) {
 		nr_segs = iov_shorten((struct iovec *)iov, nr_segs, count);
-		TRACE("write size changed to %lu\n", (unsigned long)count);
+		C2_TRACE("write size changed to %lu\n", (unsigned long)count);
 	}
 
 	for (i = 0; i < nr_segs; i++) {
 		const struct iovec *vec = &iov[i];
 
-		TRACE("iov: base %p len %lu pos %lu\n", vec->iov_base,
+		C2_TRACE("iov: base %p len %lu pos %lu\n", vec->iov_base,
 					(unsigned long)vec->iov_len,
 					(unsigned long)iocb->ki_pos);
 
 		result = c2t1fs_read_write(iocb->ki_filp, vec->iov_base,
 					   vec->iov_len, &iocb->ki_pos, WRITE);
 
-		TRACE("result: %ld\n", (long)result);
+		C2_TRACE("result: %ld\n", (long)result);
 		if (result <= 0)
 			break;
 
@@ -184,15 +185,15 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 			break;
 	}
 out:
-	END(nr_bytes_written ?: result);
+	C2_TRACE_END(nr_bytes_written ?: result);
 	return nr_bytes_written ?: result;
 }
 
 static bool address_is_page_aligned(unsigned long addr)
 {
-	START();
+	C2_TRACE_START();
 
-	TRACE("addr %lx mask %lx\n", addr, PAGE_CACHE_SIZE - 1);
+	C2_TRACE("addr %lx mask %lx\n", addr, PAGE_CACHE_SIZE - 1);
 	return (addr & (PAGE_CACHE_SIZE - 1)) == 0;
 }
 
@@ -206,7 +207,7 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 	unsigned long             addr;
 	bool                      result;
 
-	START();
+	C2_TRACE_START();
 
 	addr = (unsigned long)buf;
 
@@ -220,8 +221,8 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 	 * multiple of stripe width.
 	 * Buffer address must be page aligned.
 	 */
-	TRACE("count = %lu\n", (unsigned long)count);
-	TRACE("width %lu count %% width %lu pos %% width %lu\n",
+	C2_TRACE("count = %lu\n", (unsigned long)count);
+	C2_TRACE("width %lu count %% width %lu pos %% width %lu\n",
 			(unsigned long)stripe_width,
 			(unsigned long)(count % stripe_width),
 			(unsigned long)(pos % stripe_width));
@@ -229,7 +230,7 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 		 pos   % stripe_width == 0 &&
 		 address_is_page_aligned(addr);
 
-	END(result);
+	C2_TRACE_END(result);
 	return result;
 }
 
@@ -248,7 +249,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 	int             i;
 	int             rc = 0;
 
-	START();
+	C2_TRACE_START();
 
 	addr = (unsigned long)buf & PAGE_CACHE_MASK;
 	off  = (unsigned long)buf & (PAGE_CACHE_SIZE - 1);
@@ -264,7 +265,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		goto out;
 	}
 
-	TRACE("addr %lu off %d nr_pages %d\n", addr, off, nr_pages);
+	C2_TRACE("addr %lu off %d nr_pages %d\n", addr, off, nr_pages);
 
 	if (access_ok(rw == READ, addr, count)) {
 
@@ -287,7 +288,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 	}
 
 	if (nr_pinned != nr_pages) {
-		TRACE("Failed: could pin only %d pages out of %d\n",
+		C2_TRACE("Failed: could pin only %d pages out of %d\n",
 				rc, nr_pages);
 
 		for (i = 0; i < nr_pinned; i++)
@@ -301,13 +302,13 @@ static int c2t1fs_pin_memory_area(char          *buf,
 	*pinned_pages    = pages;
 	*nr_pinned_pages = nr_pinned;
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 out:
 	*pinned_pages    = NULL;
 	*nr_pinned_pages = 0;
 
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -325,7 +326,7 @@ static ssize_t c2t1fs_read_write(struct file *file,
 	ssize_t               rc;
 	int                   i;
 
-	START();
+	C2_TRACE_START();
 
 	C2_PRE(count != 0);
 
@@ -341,13 +342,14 @@ static ssize_t c2t1fs_read_write(struct file *file,
 		/* check if io spans beyond file size */
 		if (pos + count > inode->i_size) {
 			count = inode->i_size - pos;
-			TRACE("i_size %lu, read truncated to %lu\n",
-				(unsigned long)inode->i_size,
-				(unsigned long)count);
+			C2_TRACE("i_size %lu, read truncated to %lu\n",
+					(unsigned long)inode->i_size,
+					(unsigned long)count);
 		}
 	}
 
-	TRACE("%s %lu bytes at pos %lu to %p\n", rw == READ ? "Read" : "Write",
+	C2_TRACE("%s %lu bytes at pos %lu to %p\n",
+				rw == READ ? "Read" : "Write",
 				(unsigned long)count,
 				(unsigned long)pos, buf);
 
@@ -372,7 +374,7 @@ static ssize_t c2t1fs_read_write(struct file *file,
 	for (i = 0; i < nr_pinned_pages; i++)
 		put_page(pinned_pages[i]);
 out:
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -437,21 +439,21 @@ C2_TL_DEFINE(bufs, static, struct c2t1fs_buf);
 static void c2t1fs_buf_init(struct c2t1fs_buf *buf, char *addr, size_t len,
 			enum c2_pdclust_unit_type unit_type)
 {
-	START();
+	C2_TRACE_START();
 
-	TRACE("buf %p addr %p len %lu\n", buf, addr, (unsigned long)len);
+	C2_TRACE("buf %p addr %p len %lu\n", buf, addr, (unsigned long)len);
 
 	c2_buf_init(&buf->cb_buf, addr, len);
 	bufs_tlink_init(buf);
 	buf->cb_type = unit_type;
 	buf->cb_magic = MAGIC_C2T1BUF;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 {
-	START();
+	C2_TRACE_START();
 
 	if (buf->cb_type == PUT_PARITY || buf->cb_type == PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
@@ -459,7 +461,7 @@ static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 	bufs_tlink_fini(buf);
 	buf->cb_magic = 0;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static struct rw_desc * rw_desc_get(struct c2_tl        *list,
@@ -467,9 +469,9 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 {
 	struct rw_desc *rw_desc;
 
-	START();
-	TRACE("fid [%lu:%lu]\n", (unsigned long)fid->f_container,
-				 (unsigned long)fid->f_key);
+	C2_TRACE_START();
+	C2_TRACE("fid [%lu:%lu]\n", (unsigned long)fid->f_container,
+				    (unsigned long)fid->f_key);
 
 	c2_tlist_for(&rwd_tl, list, rw_desc) {
 
@@ -492,7 +494,7 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 
 	rwd_tlink_init_at_tail(rw_desc, list);
 out:
-	END(rw_desc);
+	C2_TRACE_END(rw_desc);
 	return rw_desc;
 }
 
@@ -500,7 +502,7 @@ static void rw_desc_fini(struct rw_desc *rw_desc)
 {
 	struct c2t1fs_buf   *buf;
 
-	START();
+	C2_TRACE_START();
 
 	c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, buf) {
 
@@ -514,7 +516,7 @@ static void rw_desc_fini(struct rw_desc *rw_desc)
 	rwd_tlink_fini(rw_desc);
 	rw_desc->rd_magic = 0;
 
-	END(0);
+	C2_TRACE_END(0);
 }
 
 static int rw_desc_add(struct rw_desc    *rw_desc,
@@ -524,18 +526,18 @@ static int rw_desc_add(struct rw_desc    *rw_desc,
 {
 	struct c2t1fs_buf *buf;
 
-	START();
+	C2_TRACE_START();
 
 	C2_ALLOC_PTR(buf);
 	if (buf == NULL) {
-		END(-ENOMEM);
+		C2_TRACE_END(-ENOMEM);
 		return -ENOMEM;
 	}
 	c2t1fs_buf_init(buf, addr, len, type);
 
 	bufs_tlist_add_tail(&rw_desc->rd_buf_list, buf);
 
-	END(0);
+	C2_TRACE_END(0);
 	return 0;
 }
 
@@ -570,7 +572,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	int                          unit;
 	int                          i;
 
-	START();
+	C2_TRACE_START();
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 
@@ -578,7 +580,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	gob_fid   = ci->ci_fid;
 	unit_size = pd_layout->pl_unit_size;
 
-	TRACE("Unit size: %lu\n", (unsigned long)unit_size);
+	C2_TRACE("Unit size: %lu\n", (unsigned long)unit_size);
 
 	/* unit_size should be multiple of PAGE_CACHE_SIZE */
 	C2_ASSERT((unit_size & (PAGE_CACHE_SIZE - 1)) == 0);
@@ -605,7 +607,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			unit_type = c2_pdclust_unit_classify(pd_layout, unit);
 			if (unit_type == PUT_SPARE) {
 				/* No need to read/write spare units */
-				TRACE("Skipped spare unit %d\n", unit);
+				C2_TRACE("Skipped spare unit %d\n", unit);
 				continue;
 			}
 
@@ -613,10 +615,10 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			c2_pdclust_layout_map(pd_layout, &src_addr, &tgt_addr);
 
-			TRACE("src [%lu:%lu] maps to tgt [0:%lu]\n",
-				(unsigned long)src_addr.sa_group,
-				(unsigned long)src_addr.sa_unit,
-				(unsigned long)tgt_addr.ta_obj);
+			C2_TRACE("src [%lu:%lu] maps to tgt [0:%lu]\n",
+					(unsigned long)src_addr.sa_group,
+					(unsigned long)src_addr.sa_unit,
+					(unsigned long)tgt_addr.ta_obj);
 
 			pos = tgt_addr.ta_frame * unit_size;
 
@@ -680,7 +682,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				 */
 				if (parity_index == nr_parity_units - 1 &&
 						rw == WRITE) {
-					TRACE("Computing parity of group %lu\n",
+					C2_TRACE("Compute parity of grp %lu\n",
 					     (unsigned long)src_addr.sa_group);
 					c2_parity_math_calculate(
 							&pd_layout->pl_math,
@@ -714,7 +716,7 @@ cleanup:
 	} c2_tlist_endfor;
 	rwd_tlist_fini(&rw_desc_list);
 
-	END(rc);
+	C2_TRACE_END(rc);
 	return rc;
 }
 
@@ -724,30 +726,30 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 	struct c2t1fs_buf     *buf;
 	ssize_t                count = 0;
 
-	START();
+	C2_TRACE_START();
 
 	/*
 	 * XXX Here, rw_desc should be converted to fop and sent to appropriate
 	 * services.
 	 */
-	TRACE("Operation: %s\n", rw == READ ? "READ" : "WRITE");
+	C2_TRACE("Operation: %s\n", rw == READ ? "READ" : "WRITE");
 
 	if (rwd_tlist_is_empty(rw_desc_list))
-		TRACE("rw_desc_list is empty\n");
+		C2_TRACE("rw_desc_list is empty\n");
 
 	c2_tlist_for(&rwd_tl, rw_desc_list, rw_desc) {
 
-		TRACE("fid: [%lu:%lu] offset: %lu count: %lu\n",
-			(unsigned long)rw_desc->rd_fid.f_container,
-			(unsigned long)rw_desc->rd_fid.f_key,
-			(unsigned long)rw_desc->rd_offset,
-			(unsigned long)rw_desc->rd_count);
+		C2_TRACE("fid: [%lu:%lu] offset: %lu count: %lu\n",
+				(unsigned long)rw_desc->rd_fid.f_container,
+				(unsigned long)rw_desc->rd_fid.f_key,
+				(unsigned long)rw_desc->rd_offset,
+				(unsigned long)rw_desc->rd_count);
 
-		TRACE("Buf list\n");
+		C2_TRACE("Buf list\n");
 
 		c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, buf) {
 
-			TRACE("addr %p len %lu type %s\n",
+			C2_TRACE("addr %p len %lu type %s\n",
 				buf->cb_buf.b_addr,
 				(unsigned long)buf->cb_buf.b_nob,
 				(buf->cb_type == PUT_DATA) ? "DATA" :
@@ -762,6 +764,6 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 	} c2_tlist_endfor;
 
-	END(count);
+	C2_TRACE_END(count);
 	return count;
 }

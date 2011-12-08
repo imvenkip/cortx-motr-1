@@ -88,6 +88,51 @@ int   c2_trace_parse(void);
                                 (const struct t_body){ __VA_ARGS__ };	\
 })
 
+#ifdef __KERNEL__
+#   define __TRACE(format, args ...) printk(format, ## args)
+#else
+#   include <stdio.h>
+#   define __TRACE(format, args ...) fprintf(stderr, format, ## args)
+#endif
+
+/** No trace messages at all */
+#define C2_TRACE_LEVEL_DISABLED     0
+
+/** Do not trace function entry and exit points */
+#define C2_TRACE_LEVEL_NO_START_END 1
+
+/** Enable all trace points */
+#define C2_TRACE_LEVEL_ALL          2
+
+/** Select tracing level. Set to one of C2_TRACE_LEVEL_* */
+#define C2_TRACE_LEVEL              C2_TRACE_LEVEL_ALL
+
+/* Enable C2_TRACE() for all trace levels except C2_TRACE_LEVEL_DISABLED */
+
+#if C2_TRACE_LEVEL > C2_TRACE_LEVEL_DISABLED
+
+#   define C2_TRACE(format, args ...)  \
+        __TRACE("colibri: %s[%d]: " format, __FUNCTION__, __LINE__, ## args)
+
+#else /* C2_TRACE_LEVEL <= C2_TRACE_LEVEL_DISABLED */
+
+#   define C2_TRACE(format, args ...)
+
+#endif
+
+/* Enable C2_TRACE_START() and C2_TRACE_END() for only C2_TRACE_LEVEL_ALL */
+#if C2_TRACE_LEVEL >= C2_TRACE_LEVEL_ALL
+
+#   define C2_TRACE_START()   C2_TRACE("Start\n")
+#   define C2_TRACE_END(rc)   C2_TRACE("End (0x%lx)\n", (unsigned long)(rc))
+
+#else /* C2_TRACE_LEVEL < C2_TRACE_LEVEL_ALL */
+
+#   define C2_TRACE_START()
+#   define C2_TRACE_END(rc)
+
+#endif
+
 int  c2_trace_init(void);
 void c2_trace_fini(void);
 
