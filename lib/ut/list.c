@@ -22,7 +22,6 @@
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/list.h"
-#include "lib/trace.h"
 
 struct test1 {
 	struct c2_list_link	t_link;
