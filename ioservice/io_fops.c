@@ -85,7 +85,7 @@ static struct c2_fop_type *ioservice_fops[] = {
 	&c2_fop_cob_writev_rep_fopt,
 };
 
-struct c2_rpc_item_ops io_rpc_item_ops = {
+const struct c2_rpc_item_ops rpc_item_iov_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = io_item_replied,
@@ -543,8 +543,7 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 		return rc;
 
 	/* Assign rpc item ops to rpc item. */
-	iofop->if_fop.f_item.ri_ops = &io_rpc_item_ops;
-	iofop->if_fop.f_item.ri_type = &io_rwv_rpc_item_type;
+	iofop->if_fop.f_item.ri_ops = &rpc_item_iov_ops;
 	c2_rpc_bulk_init(&iofop->if_rbulk);
 	C2_POST(io_fop_invariant(iofop));
 	return rc;
@@ -803,10 +802,9 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 		min_segs_nr = min32u(curr_segs_nr, max_segs_nr);
 
 		rc = c2_rpc_bulk_buf_add(rbulk, min_segs_nr, seg_size,
-				netdom);
+					 netdom, &buf);
 		if (rc != 0)
 			goto cleanup;
-		buf = c2_tlist_tail(&rpcbulk_tl, &rbulk->rb_buflist);
 
 		c2_tlist_for(&iosegset_tl, &seg_set->iss_list, ioseg) {
 			curr_bufsize = c2_vec_count(&buf->bb_zerovec.

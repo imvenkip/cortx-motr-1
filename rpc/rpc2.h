@@ -874,7 +874,8 @@ struct c2_rpc_bulk_buf {
 int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 			uint32_t segs_nr,
 			c2_bcount_t seg_size,
-			struct c2_net_domain *netdom);
+			struct c2_net_domain *netdom,
+			struct c2_rpc_bulk_buf **out);
 
 /**
    Adds a buffer/page to the zero vector referred by rpc bulk structure.
