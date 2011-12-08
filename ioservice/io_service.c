@@ -45,8 +45,8 @@ C2_TL_DESCR_DEFINE(c2_ioservice_bufferpool_colors,
 
 const struct c2_tl_descr         nbp_colormap_tl;
 
-/** 
- * These values are supposed to get from configuration cache. Since 
+/**
+ * These values are supposed to get from configuration cache. Since
  * configuration cache module not available these values defines as constants
  */
 static const int network_buffer_pool_segment_size=4096;
@@ -93,7 +93,7 @@ C2_REQH_SERVICE_TYPE_DECLARE(c2_ioservice_type, &c2_ioservice_type_ops,
 
 /**
  * Buffer pool operation function. This function get called when buffer pool
- * becomes non empty. 
+ * becomes non empty.
  * It sends signal to FOM wating for network buffer.
  *
  * @param bp buffer pool pointer.
@@ -112,7 +112,7 @@ static void c2_io_buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
 
 /**
  * Buffer pool operation function.
- * This function get called when network buffer availability hits 
+ * This function get called when network buffer availability hits
  * lower threshould.
  *
  * @param bp buffer pool pointer.
@@ -158,7 +158,7 @@ void c2_ioservice_unregister(void)
 static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
                                        struct c2_reqh_service **service)
 {
-        int                             rc = 0;                 
+        int                             rc = 0;
         struct c2_reqh_service         *serv;
         struct c2_reqh_io_service      *serv_obj;
 
@@ -228,7 +228,7 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
         /**
           * Create color map for buffer pool.
           * Network buffer from buffer pool is associated with
-          * transfer machine. So, I/O service need to create 
+          * transfer machine. So, I/O service need to create
           * transfer machine color map so that FOM can specify
           * it's color which acquiring and releasing buffers.
           */
@@ -236,9 +236,15 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
                               &service->rs_reqh->rh_rpcmachines, rpcmach)
         {
                 C2_ASSERT(rpcmach != NULL);
-                c2_tlist_add(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map, &rpcmach->cr_tm);
+                c2_tlist_add(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map,
+                             &rpcmach->cr_tm);
         } c2_tlist_endfor;
 
+        /**
+         * Assuming all buffer pools are associated with a single domain.
+         * Todo : Request  handler may associated with multiple network
+         *        domains. So need to allocate buffer pool for each domain.
+         */
         ndom = rpcmach->cr_tm.ntm_dom;
 
         colors = c2_tlist_length(&nbp_colormap_tl,
@@ -249,7 +255,7 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
                                 network_buffer_pool_segment_size,
                                 network_buffer_pool_max_segment, colors);
 
-        /** 
+        /**
          * Initialize channel for sending availability of buffers
          * with buffer pool to I/O FOMs.
          */

@@ -47,7 +47,7 @@
      This holds the information about generic FOM (e.g. its generic states,
      type, locality, reply FOP, file operation log etc.)
    - Total number of descriptor for bulk data transfer requested.
-   - Current network buffer descriptor index 
+   - Current network buffer descriptor index
    - Current index vector list index
    - Batch size for bulk I/O processing.
    - Actual data transferd.
@@ -166,7 +166,7 @@ struct c2_stob_io_desc {
 };
 
 /**
- * Object encompassing FOM for cob I/O 
+ * Object encompassing FOM for cob I/O
  * operation and necessary context data
  */
 struct c2_io_fom_cob_rw {

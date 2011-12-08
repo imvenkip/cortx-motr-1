@@ -62,7 +62,7 @@ struct c2_reqh_io_service {
         struct c2_reqh_service       rios_gen;
         /** Pointer to Network buffer pool. */
         struct c2_net_buffer_pool    rios_nb_pool;
-        /** Buffer pool wait channel. */ 
+        /** Buffer pool wait channel. */
         struct c2_chan               rios_nbp_wait;
         /** Buffer pool color mapping for transfer machine. */
         struct c2_tl                 rios_nbp_color_map;
