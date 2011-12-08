@@ -170,11 +170,13 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_PRE(dom->nd_xprt != NULL);
 
 	C2_PRE(!(buf->nb_flags &
-	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED|
-		C2_NET_BUF_TIMED_OUT| C2_NET_BUF_RETAIN)));
+	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED |
+		C2_NET_BUF_TIMED_OUT | C2_NET_BUF_RETAIN)));
 	C2_PRE(ergo(buf->nb_qtype == C2_NET_QT_MSG_RECV,
 		    buf->nb_ep == NULL &&
 		    buf->nb_min_receive_size != 0 &&
+		    buf->nb_min_receive_size <=
+		                        c2_vec_count(&buf->nb_buffer.ov_vec) &&
 		    buf->nb_max_receive_msgs != 0));
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
 

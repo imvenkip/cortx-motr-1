@@ -414,17 +414,12 @@ allocate_buffers(c2_bcount_t buf_size,
 	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		C2_SET0(nb);
-		if (i == C2_NET_QT_MSG_RECV) {
-			sz = min64(256, buf_seg_size);
-			nr = 1;
+		nr = buf_segs;
+		if ((buf_size / buf_segs) > buf_seg_size) {
+			sz = buf_seg_size;
+			C2_ASSERT((sz * nr) <= buf_size);
 		} else {
-			nr = buf_segs;
-			if ((buf_size / buf_segs) > buf_seg_size) {
-				sz = buf_seg_size;
-				C2_ASSERT((sz * nr) <= buf_size);
-			} else {
-				sz = buf_size/buf_segs;
-			}
+			sz = buf_size/buf_segs;
 		}
 		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, sz);
 		C2_UT_ASSERT(rc == 0);
@@ -586,6 +581,7 @@ static void test_net_bulk_if(void)
 	struct c2_net_qstats qs[C2_NET_QT_NR];
 	c2_time_t c2tt_to_period;
 	struct c2_bitmap *procmask = (void *) -1; /* fake not null UT value */
+	enum { NUM_REUSES = 2 };
 
 	C2_SET0(&d1);
 	C2_SET0(&d2);
@@ -943,10 +939,9 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 3);
 
 	/* Issue multiple fake buffer "post" with the RETAIN flag. */
-#define NO_USES 2
-	for (reuse_cnt = 0; reuse_cnt < NO_USES; ++reuse_cnt) {
+	for (reuse_cnt = 0; reuse_cnt < NUM_REUSES; ++reuse_cnt) {
 		bool retain = true;
-		if (reuse_cnt == NO_USES-1)
+		if (reuse_cnt == NUM_REUSES - 1)
 			retain = false;
 		for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
 			c2_time_t to_before;
