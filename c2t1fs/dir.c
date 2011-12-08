@@ -62,6 +62,10 @@ const struct inode_operations c2t1fs_dir_inode_operations = {
 
 /**
    Allocate fid of global file.
+
+   See "Containers and component objects" section in c2t1fs.h for
+   more information.
+
    XXX temporary.
  */
 static struct c2_fid c2t1fs_fid_alloc(struct c2t1fs_sb *csb)
@@ -71,7 +75,7 @@ static struct c2_fid c2t1fs_fid_alloc(struct c2t1fs_sb *csb)
 	C2_PRE(c2t1fs_fs_is_locked(csb));
 
 	fid.f_container = 0;
-	fid.f_key = csb->csb_next_key++;
+	fid.f_key       = csb->csb_next_key++;
 
 	return fid;
 }
@@ -117,7 +121,7 @@ static int c2t1fs_create(struct inode     *dir,
 
 	rc = c2t1fs_inode_layout_init(ci, csb->csb_nr_data_units,
 					  csb->csb_nr_parity_units,
-					  csb->csb_nr_containers,
+					  csb->csb_pool_width,
 					  csb->csb_unit_size);
 	if (rc != 0)
 		goto out;
@@ -427,11 +431,19 @@ out:
 	return rc;
 }
 
+/**
+   See "Containers and component objects" section in c2t1fs.h for
+   more information.
+ */
 struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
 {
 	struct c2_fid fid;
 
 	C2_TRACE_START();
+
+	/* index 0 is currently reserved for gob_fid.f_container */
+	C2_ASSERT(gob_fid->f_container == 0);
+	C2_ASSERT(index > 0);
 
 	fid.f_container = index;
 	fid.f_key       = gob_fid->f_key;
@@ -447,7 +459,7 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 	struct c2t1fs_sb *csb;
 	struct c2_fid     gob_fid;
 	struct c2_fid     cob_fid;
-	int               nr_containers;
+	int               pool_width;
 	int               i;
 	int rc;
 
@@ -460,18 +472,20 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 				(unsigned long)gob_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
-	nr_containers = csb->csb_nr_containers;
-	C2_ASSERT(nr_containers >= 1);
+	pool_width = csb->csb_pool_width;
+	C2_ASSERT(pool_width >= 1);
 
-	for (i = 1; i <= nr_containers; i++) {
+	for (i = 1; i <= pool_width; i++) { /* i = 1 is intentional */
+
 		cob_fid = c2t1fs_cob_fid(&gob_fid, i);
-		rc = c2t1fs_cob_create(csb, &cob_fid);
+		rc      = c2t1fs_cob_create(csb, &cob_fid);
 		if (rc != 0) {
 			C2_TRACE("Failed: create [%lu:%lu]\n",
 				(unsigned long)cob_fid.f_container,
 				(unsigned long)cob_fid.f_key);
 			goto out;
 		}
+
 	}
 out:
 	C2_TRACE_END(rc);

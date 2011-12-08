@@ -52,7 +52,7 @@ static void init_once(void *foo)
 	C2_TRACE_START();
 
 	ci->ci_fid.f_container = 0;
-	ci->ci_fid.f_key = 0;
+	ci->ci_fid.f_key       = 0;
 
 	inode_init_once(&ci->ci_inode);
 

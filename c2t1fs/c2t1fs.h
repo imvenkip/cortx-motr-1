@@ -74,11 +74,11 @@
       Number of parity units in one parity group. Optional parameter.
       Default value is C2T1FS_DEFAULT_NR_PARITY_UNITS (=0).
 
-  - nr_containers [value type: number]
-      Number of containers. Optional parameter. Default value
-      is C2T1FS_DEFAULT_NR_CONTAINERS (=1).
-      nr_containers should be <= C2T1FS_MAX_NR_CONTAINERS (=1024).
-      nr_containers >= nr_data_units + 2 * nr_parity_units. (2 to account for
+  - pool_width [value type: number]
+      Number of component objects over which file contents are striped.
+      Optional parameter.
+      Default value is C2T1FS_DEFAULT_POOL_WIDTH (=1).
+      pool_width >= nr_data_units + 2 * nr_parity_units. (2 to account for
       nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
 
   - unit_size [value type: number]
@@ -125,20 +125,21 @@
    container id is required, to be able to locate a service serving some
    object identified by fid.
 
-   Number of containers is specified as a mount option. If number of
-   containers is P, then
+   Currently c2t1fs implements simple and temporary mechanism to build
+   container location map. Number of containers is assumed to be equal to
+   pool_width(i.e. P) + 1. pool_width is a mount option. And additional 1 for
+   meta-data container.
 
-   - container id 0 will be a meta-data container and its container location
-     map entry will point to md-service. Hence, container field of global
-     object's fid, will have value 0.
+   In the absense of feature of layout (called layout_enumeration), c2t1fs
+   implements a primitive mechanism to obtain fid of component objects.
 
-   - container id 1,2..,P will be mapped to io-services. P number of containers
-     will be equally divided among available io-services.
-     For a global file object having fid <0, K>, there will be P
-     component objects having fids {<i, K> | i = 1, 2, ..., P}.
-     Data of global file will be striped across these P component objects, using
-     parity declustered layout with N, K parameters coming from mount options
-     nr_data_units and nr_parity_units respectively.
+   Assume a user-visible file F. A gob representing F is assigned fid
+   <0, K>, where K is taken from a monotonically increasing counter
+   (c2t1fs_sb::csb_next_key). Container-id 0 is mapped to md-service,
+   by container location map.
+   There are P number of component objects of file F, having fids
+   { <i, K> | i = 1, 2..., P}. Here P is equal to pool_width mount option.
+   Container location map, maps container-ids from 1 to P, to io-services.
 
    Container location map is populated at mount time.
 
@@ -147,13 +148,8 @@
    To create a regular file, c2t1fs sends cob create requests to mds (for global
    object aka gob) and io-service (for component objects). Because, mds is not
    yet implemented, c2t1fs does not send cob create request to any mds.
-   Instead all directory entries are stored in the in-memory root inode itself.
-   In memory c2t1fs inode has statically allocated array of
-   C2T1FS_MAX_NR_DIR_ENT directory entries. "." and ".." are not stored in
-   this directory entry array. c2t1fs generates fid of new file and its
-   component objects. All component objects have same fid.key as that of
-   global file's fid.key They differ only in fid.container field. Key of
-   global file is taken from value of a monotonically increasing counter.
+   Instead all directory entries are maintained in an in-memory list in root
+   inode itself.
 
    If component object creation fails, c2t1fs does not attempt to cleanup
    component objects that were successfully created. This should be handled by
@@ -175,7 +171,7 @@
 struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 
-int c2t1fs_init(void);
+int  c2t1fs_init(void);
 void c2t1fs_fini(void);
 
 enum {
@@ -187,7 +183,7 @@ enum {
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
 	C2T1FS_DEFAULT_NR_DATA_UNITS    = 1,
 	C2T1FS_DEFAULT_NR_PARITY_UNITS  = 0,
-	C2T1FS_DEFAULT_NR_CONTAINERS    = C2T1FS_DEFAULT_NR_DATA_UNITS +
+	C2T1FS_DEFAULT_POOL_WIDTH       = C2T1FS_DEFAULT_NR_DATA_UNITS +
 					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
@@ -224,7 +220,7 @@ struct c2t1fs_mnt_opts {
 	uint32_t mo_nr_mds_ep;
 	uint32_t mo_nr_ios_ep;
 
-	uint32_t mo_nr_containers;   /* P */
+	uint32_t mo_pool_width;      /* P */
 	uint32_t mo_nr_data_units;   /* N */
 	uint32_t mo_nr_parity_units; /* K */
 
@@ -243,7 +239,7 @@ enum c2t1fs_service_type {
 };
 
 enum {
-	MAGIC_SVC_CTX  = 0x5356435f435458, /* "SVC_CTX" */
+	MAGIC_SVC_CTX  = 0x5356435f435458,   /* "SVC_CTX" */
 	MAGIC_SVCCTXHD = 0x5356434354584844, /* "SVCCTXHD" */
 };
 
@@ -255,8 +251,6 @@ enum {
    file-system and a service.
 
    Allocated at mount time and freed during unmount.
-
-   XXX Better name???
  */
 struct c2t1fs_service_context {
 	/** Superblock associated with this service context */
@@ -286,7 +280,7 @@ struct c2t1fs_container_location_map {
 	/**
 	   Array of c2t1fs_sb::csb_nr_container valid elements.
 	   clm_map[i] points to c2t1fs_service_context of a service
-	   that is serving container i
+	   that is serving objects belonging to container i
 	 */
 	struct c2t1fs_service_context *clm_map[C2T1FS_MAX_NR_CONTAINERS];
 };
@@ -313,6 +307,9 @@ struct c2t1fs_sb {
 
 	/** Total number of containers. */
 	uint32_t                      csb_nr_containers;
+
+	/** Number of target objects, over which file-contents are striped */
+	uint32_t                      csb_pool_width;
 
 	/** Number of data units per parity group. N */
 	uint32_t                      csb_nr_data_units;
@@ -345,7 +342,7 @@ struct c2t1fs_dir_ent {
 	struct c2_fid   de_fid;
 
 	/** Link in c2t1fs_inode::ci_dir_ents list.
-	    List descriptor dir_ents_tld */
+	    List descriptor dir_ents_tl */
 	struct c2_tlink de_link;
 
 	/** magic == MAGIC_DIRENT */

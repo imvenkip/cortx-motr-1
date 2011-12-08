@@ -82,7 +82,7 @@ static const struct super_operations c2t1fs_super_operations = {
 
 const struct c2_fid c2t1fs_root_fid = {
 	.f_container = 0,
-	.f_key = 2
+	.f_key       = 2
 };
 
 /**
@@ -139,21 +139,24 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	csb->csb_nr_containers   = mntopts->mo_nr_containers ?:
-					C2T1FS_DEFAULT_NR_CONTAINERS;
+	csb->csb_pool_width      = mntopts->mo_pool_width ?:
+					C2T1FS_DEFAULT_POOL_WIDTH;
 	csb->csb_nr_data_units   = mntopts->mo_nr_data_units ?:
 					C2T1FS_DEFAULT_NR_DATA_UNITS;
 	csb->csb_nr_parity_units = mntopts->mo_nr_parity_units ?:
 					C2T1FS_DEFAULT_NR_PARITY_UNITS;
 	csb->csb_unit_size       = mntopts->mo_unit_size ?:
 					C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
+	/* See "Containers and component objects" section in c2t1fs.h for more
+	   information on following line */
+	csb->csb_nr_containers   = csb->csb_pool_width + 1;
 
 	C2_TRACE("P = %d, N = %d, K = %d unit_size %d\n",
-			csb->csb_nr_containers, csb->csb_nr_data_units,
+			csb->csb_pool_width, csb->csb_nr_data_units,
 			csb->csb_nr_parity_units, csb->csb_unit_size);
 
 	/* P >= N + 2 * K ??*/
-	if (csb->csb_nr_containers < csb->csb_nr_data_units +
+	if (csb->csb_pool_width < csb->csb_nr_data_units +
 				2 * csb->csb_nr_parity_units ||
 		csb->csb_nr_containers > C2T1FS_MAX_NR_CONTAINERS) {
 
@@ -286,7 +289,7 @@ enum c2t1fs_mntopts {
 	C2T1FS_MNTOPT_PROFILE,
 	C2T1FS_MNTOPT_MDS,
 	C2T1FS_MNTOPT_IOS,
-	C2T1FS_MNTOPT_NR_CONTAINERS,
+	C2T1FS_MNTOPT_POOL_WIDTH,
 	C2T1FS_MNTOPT_NR_DATA_UNITS,
 	C2T1FS_MNTOPT_NR_PARITY_UNITS,
 	C2T1FS_MNTOPT_UNIT_SIZE,
@@ -294,16 +297,16 @@ enum c2t1fs_mntopts {
 };
 
 static const match_table_t c2t1fs_mntopt_tokens = {
-	{ C2T1FS_MNTOPT_MGS,             "mgs=%s" },
-	{ C2T1FS_MNTOPT_PROFILE,         "profile=%s" },
-	{ C2T1FS_MNTOPT_MDS,             "mds=%s" },
-	{ C2T1FS_MNTOPT_IOS,             "ios=%s" },
-	{ C2T1FS_MNTOPT_NR_CONTAINERS,   "nr_containers=%s" },
-	{ C2T1FS_MNTOPT_NR_DATA_UNITS,   "nr_data_units=%s" },
+	{ C2T1FS_MNTOPT_MGS,             "mgs=%s"             },
+	{ C2T1FS_MNTOPT_PROFILE,         "profile=%s"         },
+	{ C2T1FS_MNTOPT_MDS,             "mds=%s"             },
+	{ C2T1FS_MNTOPT_IOS,             "ios=%s"             },
+	{ C2T1FS_MNTOPT_POOL_WIDTH,      "pool_width=%s"      },
+	{ C2T1FS_MNTOPT_NR_DATA_UNITS,   "nr_data_units=%s"   },
 	{ C2T1FS_MNTOPT_NR_PARITY_UNITS, "nr_parity_units=%s" },
-	{ C2T1FS_MNTOPT_UNIT_SIZE,       "unit_size=%s" },
+	{ C2T1FS_MNTOPT_UNIT_SIZE,       "unit_size=%s"       },
 	/* match_token() requires last element must have NULL pattern */
-	{ C2T1FS_MNTOPT_ERR,              NULL },
+	{ C2T1FS_MNTOPT_ERR,              NULL                },
 };
 
 static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts)
@@ -481,12 +484,12 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			mnt_opts->mo_profile = value;
 			break;
 
-		case C2T1FS_MNTOPT_NR_CONTAINERS:
+		case C2T1FS_MNTOPT_POOL_WIDTH:
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			C2_TRACE("nr_containers = %lu\n", nr);
-			mnt_opts->mo_nr_containers = nr;
+			C2_TRACE("pool_width = %lu\n", nr);
+			mnt_opts->mo_pool_width = nr;
 			break;
 
 		case C2T1FS_MNTOPT_NR_DATA_UNITS:
@@ -516,7 +519,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 		default:
 			C2_TRACE("Unrecognized option: %s\n", op);
 			C2_TRACE("Supported options: mgs,mds,ios,profile,"
-			      "nr_containers,nr_data_units,nr_parity_units,"
+			      "pool_width,nr_data_units,nr_parity_units,"
 			      "unit_size\n");
 			rc = -EINVAL;
 			goto out;
@@ -772,7 +775,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 	struct c2t1fs_service_context        *ctx;
 	struct c2t1fs_container_location_map *map;
 	int                                   nr_cont_per_svc;
-	int                                   nr_containers;
+	int                                   nr_data_containers;
 	int                                   nr_ios;
 	int                                   i;
 	int                                   cur;
@@ -782,11 +785,12 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 	nr_ios = csb->csb_mnt_opts.mo_nr_ios_ep;
 	C2_ASSERT(nr_ios > 0);
 
-	nr_containers = csb->csb_nr_containers;
-	C2_ASSERT(nr_containers > 0);
+	/* Out of csb->csb_nr_containers 1 is md container */
+	nr_data_containers = csb->csb_nr_containers - 1;
+	C2_ASSERT(nr_data_containers > 0);
 
-	nr_cont_per_svc = nr_containers / nr_ios;
-	if (nr_containers % nr_ios != 0)
+	nr_cont_per_svc = nr_data_containers / nr_ios;
+	if (nr_data_containers % nr_ios != 0)
 		nr_cont_per_svc++;
 
 	C2_TRACE("nr_cont_per_svc = %d\n", nr_cont_per_svc);
@@ -807,7 +811,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 
 		case C2T1FS_ST_IOS:
 			for (i = 0; i < nr_cont_per_svc &&
-				    cur <= nr_containers; i++, cur++) {
+				    cur <= nr_data_containers; i++, cur++) {
 				map->clm_map[cur] = ctx;
 				C2_TRACE("container_id [%d] at %s\n", cur,
 						ctx->sc_addr);
@@ -835,7 +839,7 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 
 	C2_TRACE_START();
 
-	C2_ASSERT(container_id <= csb->csb_nr_containers);
+	C2_ASSERT(container_id < csb->csb_nr_containers);
 
 	ctx = csb->csb_cl_map.clm_map[container_id];
 	C2_ASSERT(ctx != NULL);
@@ -847,14 +851,18 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
 {
 	C2_TRACE_START();
+
 	c2_mutex_lock(&csb->csb_mutex);
+
 	C2_TRACE_END(0);
 }
 
 void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
 {
 	C2_TRACE_START();
+
 	c2_mutex_unlock(&csb->csb_mutex);
+
 	C2_TRACE_END(0);
 }
 
