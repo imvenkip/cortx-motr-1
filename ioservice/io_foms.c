@@ -171,7 +171,7 @@
    c [ label = Bulk_IO_Service, linecolor="#0000ff", textcolor="#0000ff"],
    d [ label = STOB_IO ];
 
-   a->c  [ label = "Write FOP (c2_net_bufs_desc)"];
+   a->c  [ label = "Write FOP (c2_net_bufs_desc list, indexvecs list)"];
    c=>b  [ label = "Get network buffer from buffer_pool"];
    b>>c  [ label = "Got network buffer (c2_net_bufs)"];
    c=>b  [ label = "Initiates zero-copy (c2_net_bufs, c2_net_bufs_desc)" ];
@@ -189,20 +189,26 @@
    @endmsc
 
    - Client sends write FOP to server. Write FOP contains the network buffer
-     descriptor instead of actual data.
+     descriptor list and indexvecs list instead of actual data.
    - To process write FOP, request handler creates & initiates write FOM and put
      it into run queue for execution.
    - State transition function go through generic and extended phases
-     @ref c2_io_fom_writev_phases defined for write FOM.
-         - Gets buffer from buffer_pool. If there are insufficient buffers
-           with buffer_pool Bulk I/O Service will wait till buffer_pool
-           becomes non-empty.
-         - Initiates zero-copy using rpc_bulk and wait for zero-copy to
-           complete
+     @ref c2_io_fom_cob_rw_phases defined for I/O FOM (write FOM).
+         - Gets as many buffers as it can from buffer_pool to transfer
+           data for all descriptors. If there are insufficient buffers
+           with buffer_pool to process all descriptors then its goes by
+           batch by batch. Atleast one buffer needed to start bulk
+           transfer. If no buffer available then bulk I/O Service will
+           wait till buffer_pool becomes non-empty.
+         - Initiates zero-copy using rpc_bulk on acquired buffers and
+           wait for zero-copy to complete for all descriptors on which
+           it initiated.
          - Zero-copy completes
-         - Initiates write data on STOB and wait for STOB I/O to complete
+         - Initiates write data on STOB for all indexvec and wait for
+           STOB I/O to complete
          - STOB I/O completes
-         - Returns back buffers to buffer_pool.
+         - Returns back some of buffers to buffer_pool if they are more
+           than remaining descriptors.
    - Enqueue response in fo_rep_fop for the request handler to send the response
      back to the client
 
@@ -233,28 +239,34 @@
    @endmsc
 
    - Client sends read FOP to server. Read FOP contains the network buffer
-     descriptor instead of actual data.
+     descriptor list and indexvecs list instead of actual data.
    - To process read FOP, request handler creates & initiates read FOM and puts
      it into run queue for execution.
    - State transition function go through generic and extended phases
      @ref c2_io_fom_readv_phases defined for read FOM.
-         - Gets buffer from buffer_pool. If there are insufficient buffers
-           with buffer_pool Bulk I/O Service will wait till buffer_pool
-           becomes non-empty.
-         - Initiates read data from STOB and wait for STOB I/O to completes
+         - Gets as many buffers as it can from buffer_pool to transfer
+           data for all descriptors. If there are insufficient buffers
+           with buffer_pool to process all descriptors then its goes by
+           batch by batch. Atleast one buffer needed to start bulk
+           transfer. If no buffer available then bulk I/O Service will
+           wait till buffer_pool becomes non-empty.
+         - Initiates read data from STOB for all indexvecs and wait for
+           STOB I/O to completes
          - STOB I/O completes
-         - Initiates zero-copy using rpc_bulk and wait for zero-copy to
-           complete
+         - Initiates zero-copy using rpc_bulk on acquired buffers and
+           wait for zero-copy to complete for all descriptors on which
+           it initiated.
          - Zero-copy completes
-         - Returns back buffers to buffer_pool.
+         - Returns back some of buffers to buffer_pool if they are more
+           than remaining descriptors.
    - Enqueue response in fo_rep_fop for the request handler to send the response
      back to the client
 
    On the basis of steps involved in these operations enumeration called
-   @ref c2_io_fom_readv_phases and @ref c2_io_fom_writev_phases will be defined,
-   that extends the standard FOM phases (enum c2_fom_phase) with new phases to
-   handle the state machine that sets up and executes read/write operations
-   respectively involving bulk I/O.
+   @ref c2_io_fom_cob_rw_phases will be defined, that extends the standard
+   FOM phases (enum c2_fom_phase) with new phases to handle the state machine
+   that sets up and executes read/write operations  respectively involving 
+   bulk I/O.
 
    <hr>
    @subsection DLD-bulk-server-lspec-state State Transition Diagrams
@@ -266,7 +278,7 @@
        node [shape=record, fontsize=10]
        S0 [label="Bulk I/O Service Init"]
        S1 [label="Initialize Write FOM"]
-       S2 [label="Get buffer from buffer_pool"]
+       S2 [label="Get buffers from buffer_pool"]
        S3 [label="Wait for buffer from buffer_pool"]
        S4 [label="Initiates zero-copy"]
        S5 [label="Wait for zero-copy to complete"]
@@ -284,7 +296,8 @@
        S5 -> S6 [label="zero-copy complete"]
        S6 -> S7 [label="launch I/O request"]
        S7 -> S8 [label="STOB I/O complete"]
-       S8 -> S9 [label="Buffer returned back"]
+       S8 -> S2 [label="process remaing request"] 
+       S8 -> S9 [label="Buffers returned back"]
    }
    @enddot
 
@@ -298,7 +311,7 @@
        node [shape=record, fontsize=10]
        S0 [label="Bulk I/O Service Init"]
        S1 [label="Initialize Read FOM"]
-       S2 [label="Get buffer from buffer_pool"]
+       S2 [label="Get buffers from buffer_pool"]
        S3 [label="Wait for buffer from buffer_pool"]
        S4 [label="STOB I/O"]
        S5 [label="Wait for STOB I/O to complete"]
@@ -316,6 +329,7 @@
        S5 -> S6 [label="STOB I/O complete"]
        S6 -> S7 [label="Initiates request"]
        S7 -> S8 [label="zero-copy complete"]
+       S8 -> S2 [label= "process remaining request"]
        S8 -> S9 [label="Buffer returned back"]
    }
    @enddot
@@ -424,129 +438,84 @@
    This is not required to use anther modules which are communicating with
    Bulk I/O Server modules.
 
-   - Test 01 : Call function c2_io_fom_read_create()<br>
+   - Test 01 : Call function c2_io_fom_cob_rw_create()<br>
                Input           : Read FOP (in-memory data structure c2_fop)<br>
                Expected Output : Create FOM of corresponding FOP type.
 
-   - Test 02 : Call function c2_io_fom_write_create()<br>
+   - Test 02 : Call function c2_io_fom_cob_rw_create()<br>
                Input           : Write FOP (in-memory data structure c2_fop)<br>
                Expected Output : Create FOM of corresponding FOP type.
 
-   - Test 03 : Call function c2_io_fom_read_init()<br>
+   - Test 03 : Call function c2_io_fom_cob_rw_init()<br>
                Input           : Read FOP (in-memory data structure c2_fop)<br>
                Expected Output : Initiates FOM with corresponding operation
                                  vectors and other pointers.
-   - Test 04 : Call function c2_io_fom_write_init()<br>
+   - Test 04 : Call function c2_io_fom_cob_rw_init()<br>
                Input           : Write FOP (in-memory data structure c2_fop)<br>
                Expected Output : Initiates FOM with corresponding operation
                                  vectors and other pointers.
 
-   - Test 05 : Call c2_io_fom_read_state() with buffer pool size 1<br>
-               Input : Read FOM with current phase FOPH_COB_READ_BUFS_GET<br>
+   - Test 05 : Call c2_io_fom_cob_rw_state() with buffer pool size 1<br>
+               Input : Read FOM with current phase 
+                       FOPH_IO_FOM_BUFFER_ACQUIRE<br>
                Expected Output : Gets network buffer and pointer set into FOM
-                                 with phase changed to FOPH_COB_READ and return
-                                 value FSO_AGAIN.
+                                 with phase changed to FOPH_IO_STOB_INIT and
+                                 return value FSO_AGAIN.
 
-   - Test 06 : Call c2_io_fom_read_state() with buffer pool size 0
+   - Test 06 : Call c2_io_fom_cob_rw_state() with buffer pool size 0
                (empty buffer_pool)<br>
-               Input : Read FOM with current phase FOPH_COB_READ_BUFS_GET<br>
+               Input : Read FOM with current phase 
+                       FOPH_IO_FOM_BUFFER_ACQUIRE<br>
                Expected Output : Should not gets network buffer and NULL pointer
                                  set into FOM with phase changed to
-                                 FOPH_COB_READ_BUFS_GET_WAIT and return
+                                 FOPH_IO_FOM_BUFFER_WAIT and return
                                  value FSO_WAIT.
 
-   - Test 07 : Call c2_io_fom_read_state() with buffer pool size 0
+   - Test 07 : Call c2_io_fom_cob_rw_state() with buffer pool size 0
                (empty buffer_pool)<br>
                Input : Read FOM with current phase
-                       FOPH_COB_READ_BUFS_GET_WAIT<br>
+                       FOPH_IO_FOM_BUFFER_WAIT<br>
                Expected Output : Should not gets network buffer and NULL pointer
                                  set into FOM with phase not changed and return
                                  value FSO_WAIT.
 
-   - Test 08 : Call c2_io_fom_read_state()<br>
-               Input : Read FOM with current phase FOPH_COB_READ<br>
+   - Test 08 : Call c2_io_fom_cob_rw_state()<br>
+               Input : Read FOM with current phase FOPH_IO_STOB_INIT<br>
                Expected Output : Initiates STOB read with phase changed to
-                                 FOPH_COB_READ_WAIT and return value FSO_WAIT.
+                                 FOPH_IO_STOB_WAIT and return value FSO_WAIT.
 
-   - Test 09 : Call c2_io_fom_read_state()<br>
-               Input : Read FOM with current phase FOPH_ZERO_COPY_READ_INIT<br>
+   - Test 09 : Call c2_io_fom_cob_rw_state()<br>
+               Input : Read FOM with current phase FOPH_IO_ZERO_COPY_INIT<br>
                Expected Output : Initiates zero-copy with phase changed to
-                                 FOPH_ZERO_COPY_READ_WAIT return value FSO_WAIT.
+                                 FOPH_IO_ZERO_COPY_WAIT return value FSO_WAIT.
 
-   - Test 10 : Call c2_io_fom_write_state() with buffer pool size 1<br>
-               Input : Write FOM with current phase FOPH_COB_WRITE_BUFS_GET<br>
+   - Test 10 : Call c2_io_fom_cob_rw_state() with buffer pool size 1<br>
+               Input : Write FOM with current phase
+                       FOPH_IO_FOM_BUFFER_ACQUIRE<br>
                Expected Output : Gets network buffer and pointer set into FOM
                                  with phase changed to
-                                 FOPH_ZERO_COPY_WRITE_INIT and return value
+                                 FOPH_IO_ZERO_COPY_INIT and return value
                                  FSO_AGAIN.
 
-   - Test 11 : Call c2_io_fom_write_state() with buffer pool size 0
-               (empty buffer_pool)<br>
-               Input : Write FOM with current phase FOPH_COB_WRITE_BUFS_GET<br>
-               Expected Output : Should not gets network buffer and NULL pointer
-                                 set into FOM with phase changed to
-                                 FOPH_COB_WRITE_BUFS_GET_WAIT and return value
-                                 FSO_WAIT.
-
-   - Test 12 : Call c2_io_fom_write_state() with buffer pool size 0
-               (empty buffer_pool)<br>
-               Input : Write FOM with current phase
-                       FOPH_COB_WRITE_BUFS_GET_WAIT<br>
-               Expected Output : Should not gets network buffer and NULL pointer
-                                 set into FOM with phase not changed and return
-                                 value FSO_WAIT.
-
-   - Test 13 : Call c2_io_fom_write_state()<br>
-               Input : Write FOM with current phase FOPH_ZERO_COPY_WRITE_INIT<br>
-               Expected Output : Initiates zero-copy with phase changed to
-                                 FOPH_ZERO_COPY_WRITE_WAIT and return value
-                                 FSO_WAIT.
-
-   - Test 14 : Call c2_io_fom_write_state()<br>
-               Input : Write FOM with current phase FOPH_COB_WRITE<br>
-               Expected Output : Initiates STOB write with phase changed to
-                                 FOPH_COB_WRITE_WAIT and return value FSO_WAIT.
-
-   - Test 15 : Call function c2_io_fom_read_fini()<br>
+   - Test 11 : Call function c2_io_fom_cob_rw_fini()<br>
                Input : Read FOM<br>
                Expected Output : Should de-allocate FOM.
 
-   - Test 16 : Call function c2_io_fom_write_fini()<br>
-               Input : Write FOM<br>
-               Expected Output : Should de-allocate FOM.
-
-   - Test 17 : Call c2_io_fom_read_state()<br>
+   - Test 12 : Call c2_io_fom_cob_rw_state()<br>
                Input : Read FOM with invalid STOB id and current phase
-                       FOPH_ZERO_COPY_READ_INIT.<br>
+                       FOPH_IO_STOB_INIT.<br>
                Expected Output : Should return error.
 
-   - Test 18 : Call c2_io_fom_write_state()<br>
-               Input : Write FOM with invalid STOB id and current phase
-                       FOPH_ZERO_COPY_WRITE_INIT.<br>
-               Expected Output : Should return error.
-
-   - Test 19 : Call c2_io_fom_read_state()<br>
-               Input : Read FOM with current phase FOPH_ZERO_COPY_READ_INIT
+   - Test 13 : Call c2_io_fom_cob_rw_state()<br>
+               Input : Read FOM with current phase FOPH_IO_ZERO_COPY_INIT 
                        and wrong network buffer descriptor.<br>
                Expected Output : Should return error.
 
-   - Test 20 : Call c2_io_fom_write_state()<br>
-               Input : Write FOM with current phase FOPH_ZERO_COPY_WRITE_INIT
-                       and wrong network buffer descriptor.<br>
-               Expected Output : Should return error.
-
-   - Test 21 : Call c2_io_fom_read_state()<br>
-               Input : Read FOM with current state FOPH_COB_READ_WAIT with
+   - Test 14 : Call c2_io_fom_cob_rw_state()<br>
+               Input : Read FOM with current phase FOPH_IO_STOB_WAIT with
                        result code of stob I/O c2_fom::c2_stob_io::si_rc set
                        to I/O error.
-               Expected Output : Should return error FOS_FAIL and I/O error
-                                 set in relay FOP.
-
-   - Test 22 : Call c2_io_fom_write_state()<br>
-               Input : Write FOM with current state FOPH_COB_WRITE_WAIT with
-                       result code of stob I/O c2_fom::c2_stob_io::si_rc set
-                       to I/O error.
-               Expected Output : Should return error FOS_FAIL and I/O error
+               Expected Output : Should return error FOS_FAILURE and I/O error
                                  set in relay FOP.
 
    <hr>
@@ -624,7 +593,7 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
 
 /**
- * Read FOM operation vector.
+ * I/O FOM operation vector.
  */
 static const struct c2_fom_ops c2_io_fom_cob_rw_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
@@ -633,18 +602,27 @@ static const struct c2_fom_ops c2_io_fom_cob_rw_ops = {
 };
 
 /**
- * Read FOM type operation vector.
+ * I/O FOM type operation vector.
  */
 static const struct c2_fom_type_ops c2_io_cob_rw_type_ops = {
 	.fto_create = c2_io_fom_cob_rw_create,
 };
 
 /**
- * Read FOM type operation.
+ * I/O FOM type operation.
  */
 static const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
 	.ft_ops = &c2_io_cob_rw_type_ops,
 };
+
+/**
+ * Call back function which gets invoked on a single STOB I/O complete.
+ * This function check for STOB I/O list and remove stobio entry from
+ * list for completed STOB I/O. After completion of all STOB I/O it 
+ * sends signal to FOM so that it can again put into run queue.
+ *
+ * @param clink clink for completed STOB I/O entry 
+ */
 
 static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
 {
@@ -679,12 +657,22 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
 
 /**
  * Funtion to get corresponding color for specified tm.
+ * 
+ * @param color_map color map (tm to number map) for buffer pool.
+ * @param tm transfer machine for which color value is needed.
+ *
+ * @pre color_map != NULL
+ * @pre tm != NULL;
  */
-static int io_fom_cob_rw_get_color(struct c2_tl *color_map, struct c2_net_transfer_mc *tm)
+static int io_fom_cob_rw_get_color(struct c2_tl *color_map,
+                                   struct c2_net_transfer_mc *tm)
 {
-         int color = 0;
+         int                        color = 0;
          struct c2_net_transfer_mc *tm_ptr = NULL;
        
+        C2_PRE(color_map != NULL); 
+        C2_PRE(tm != NULL); 
+
         /** find the domain */
         c2_tlist_for(&nbp_colormap_tl, color_map, tm_ptr)
         {
@@ -702,30 +690,68 @@ static int io_fom_cob_rw_get_color(struct c2_tl *color_map, struct c2_net_transf
  * storage object id).
  * Currently, this mapping is identity. But it is subject to
  * change as per the future requirements.
+ *
+ * @param in file identifier
+ * @param out corresponding STOB identifier
+ *
+ * @pre in != NULL
+ * @pre out != NULL
  */
-static void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in, struct c2_stob_id *out)
+static void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
+                                       struct c2_stob_id *out)
 {
+        C2_PRE(in != NULL);
+        C2_PRE(out != NULL);
+
 	out->si_bits.u_hi = in->f_container;
 	out->si_bits.u_lo = in->f_key;
 }
 
 /**
  * Function to map the on-wire FOP format to in-core FOP format.
+ *
+ * @param in file identifier wire format
+ * @param out file identifier memory format
+ *
+ * @pre in != NULL
+ * @pre out != NULL
  */
-static void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
+static void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
+                                       struct c2_fid *out)
 {
+        C2_PRE(in != NULL);
+        C2_PRE(out != NULL);
+
 	out->f_container = in->f_seq;
 	out->f_key = in->f_oid;
 }
 
 /**
- * Function to map the on-wire indexvec to in-memory format.
+ * Function to convert the on-wire indexvec to in-memory indexvec format.
+ * Since c2_io_indexvec (on-wire structure) and c2_indexvec (in-memory
+ * structure different, it needs conversion.
+ * c2_indexvec pointer from c2_stob_io so memory allocated for this
+ * should de-allocated before c2_stio_fini() when respective STOB I/O
+ * completes.
+ *
+ * @param in indexvec wire format
+ * @param out indexvec memory format
+ *
+ * @pre in != NULL
+ * @pre out != NULL
  */
 static void io_fom_cob_rw_indexvec_wire2mem(struct c2_io_indexvec *in,
                                  struct c2_indexvec *out)
 {
         int         i;
 
+        C2_PRE(in != NULL);
+        C2_PRE(out != NULL);
+
+        /** 
+         * This memory will be freed after its container stob 
+         * completes and before destructing container stob object.
+         */
         C2_ALLOC_ARR(out->iv_vec.v_count, in->ci_nr);
         C2_ALLOC_ARR(out->iv_index, in->ci_nr);
 
@@ -737,7 +763,7 @@ static void io_fom_cob_rw_indexvec_wire2mem(struct c2_io_indexvec *in,
 }
 
 /**
- * Allocate read FOM and return generic struct c2_fom
+ * Allocate I/O FOM and return generic struct c2_fom
  *
  * @param t file operation machine type need to process
  * @param out file operation machine instance 
@@ -766,7 +792,7 @@ static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **out)
 }
 
 /**
- * Initiate Read FOM and return generic struct c2_fom
+ * Initiate I/O FOM and return generic struct c2_fom
  * Find the corresponding fom_type and associate it with c2_fom.
  * Associate fop with fom type.
  *
@@ -834,17 +860,18 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
 }
 
 /**
- * Acquare network buffer.
- * Gets network buffer if available otherwise wait for
- * buffer pool becomes non empty.
- * If network buffer not available FOM goes to wait queue.
+ * Acquare network buffers.
+ * Gets as many network buffer as it can to process io request.
+ * It should atleast get one network buffer to start io processing.
+ * If not able to get single buffer, FOM wait for buffer pool to
+ * become non-empty.
+ * 
+ * If acquired buffers are less than number of fop descriptors then
+ * I/O processing will be done by batch.
  *
  * @param fom file operation machine instance.
  * @pre fom != NULL
- * @pre fom->fo_phase == FOPH_READ_BUF_GET || 
- *      fom->fo_phase == FOPH_WRITE_BUF_GET ||
- *      fom->fo_phase == FOPH_READ_BUF_GET_WAIT ||
- *      fom->fo_phase == FOPH_WRITE_BUF_GET_WAIT
+ * @pre fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE 
  */
 static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
 {   
@@ -889,6 +916,8 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
 
         /**
          * Aquire as many net buffers as to process all discriptors.
+         * If FOM able to acquire more buffers then it change batch side
+         * dynamically.
          */
         for (;aquired_net_bufs < required_net_bufs;) {
             struct c2_net_buffer      *nb = NULL;
@@ -901,15 +930,14 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
                      * Network buffer not available. Atleast one
                      * buffer need for zero-copy. Registers FOM clink
                      * with buffer pool wait channel to get buffer
-                     * pool nonempty signal. 
+                     * pool non-empty signal. 
                      */
                     c2_fom_block_at(fom, &serv_obj->rios_nbp_wait); 
 
                     fom->fo_phase = FOPH_IO_FOM_BUFFER_WAIT;
 
                     return  FSO_WAIT;
-            }
-            else if (nb == NULL) {
+            } else if (nb == NULL) {
                     break;
             }
               
@@ -935,10 +963,13 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
 /**
  * Release network buffer.
  * Return back netwotk buffer to buffer pool.
+ * If acquired buffers are more than the remaining descriptors
+ * release extra buffers so that other FOM can use.
  *
  * @param fom file operation machine.
- * @pre fom->fo_phase == FOPH_READ_BUF_RELEASE ||
- *      fom->fo_phase == FOPH_WRITE_BUF_RELEASE
+ *
+ * @pre fom != NULL
+ * @pre fom->fo_phase == FOPH_IO_BUFFER_RELEASE 
  */
 static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 {
@@ -952,6 +983,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         struct c2_net_transfer_mc      *tm;
 
 
+        C2_PRE(fom != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_BUFFER_RELEASE); 
 
         fop = fom->fo_fop;
@@ -984,8 +1016,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 
         if (!required_net_bufs) {
                fom->fo_phase = FOPH_FINISH;
-        }
-        else {
+        } else {
                 if (is_read(fop))
                         fom->fo_phase = FOPH_IO_STOB_INIT;
                 else
@@ -995,13 +1026,16 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         return FSO_AGAIN;
 }
 
-
 /**
  * Initiate zero-copy
+ * Initiates zero-copy for batch of descriptors.
+ * And wait for zero-copy to complete for all descriptors.
+ * Network layer signaled on c2_rpc_bulk::rb_chan on completion.
  *
  * @param fom file operation machine.
- * @pre fom->fo_phase == FOPH_ZERO_COPY_READ_INIT ||
- *      fom->fo_phase == FOPH_ZERO_COPY_WRITE_INIT
+ *
+ * @pre fom != NULL
+ * @pre fom->fo_phase == FOPH_IO_ZERO_COPY_INIT
  */
 static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 {
@@ -1014,13 +1048,13 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         struct c2_net_buffer      *nb = NULL;
         struct c2_net_buf_desc    *net_desc;
 
+        C2_PRE(fom != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
 
         rwfop = io_rw_get(fop); 
         rbulk = &fom_obj->fcrw_bulk;
 
         c2_rpc_bulk_init(rbulk);
-
 
         /** find the domain */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
@@ -1063,12 +1097,13 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 }
 
 /**
- * zero-copy wait
- * Network layer signaled on c2_rpc_bulk::rb_chan on completion.
+ * Zero-copy Finish 
+ * Check for zero-copy result. 
  *
  * @param fom file operation machine.
- * @pre fom->fo_phase == FOPH_ZERO_COPY_READ_WAIT ||
- *      fom->fo_phase == FOPH_ZERO_COPY_WRITE_WAIT
+ * 
+ * @pre fom != NULL
+ * @pre fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT
  */
 static int io_fom_cob_rw_initiate_zero_copy_wait(struct c2_fom *fom)
 {
@@ -1078,6 +1113,7 @@ static int io_fom_cob_rw_initiate_zero_copy_wait(struct c2_fom *fom)
         struct c2_fop_cob_rw      *rwfop;
         struct c2_rpc_bulk_buf    *rb_buf = NULL;
 
+        C2_PRE(fom != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT); 
 
         rwfop = io_rw_get(fop);
@@ -1106,17 +1142,20 @@ static int io_fom_cob_rw_initiate_zero_copy_wait(struct c2_fom *fom)
 }
 
 /**
+ * Launch STOB I/O
  * Helper function to launch STOB I/O. This is async
- * funciton it initiates STOB I/O and return. STOB I/O
- * signaled on channel in c2_stob_io::si_wait. Need to
- * register FOM clink with STOB I/O channled to get
- * completion signal.
- *
+ * funciton it initiates STOB I/O for all index vecs and
+ * return. STOB I/O signaled on channel in c2_stob_io::si_wait.
+ * There is a clink for each STOB I/O waiting on respective
+ * c2_stob_io::si_wait. For every STOB I/O completion call-back
+ * is launched to check its results and mark complete. After
+ * all STOB I/O completes call-back function send signal to FOM
+ * so that FOM gets out of wait-queue and placed in run-queue. 
+ * 
  * @param fom file operation machine
  *
  * @pre fom != NULL
- * @pre fom->fo_phase == FOPH_COB_READ_INIT ||
- *      fom->fo_phase == FOPH_COB_WRITE_INIT
+ * @pre fom->fo_phase == FOPH_IO_STOB_INIT
  */
 static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 {
@@ -1222,12 +1261,12 @@ cleanup:
 
 /**
  * This function finish STOB I/O.
+ * It's check for STOB I/O result and return back STOB instance. 
  *
  * @param fom instance file operation machine under execution
  *
  * @pre fom != NULL
- * @pre fom->fo_phase == FOPH_COB_READ_WAIT ||
- *      fom->fo_phase == FOPH_COB_WRITE_WAIT
+ * @pre fom->fo_phase == FOPH_IO_STOB_WAIT
  */
 static int io_fom_cob_rw_io_launch_wait(struct c2_fom *fom)
 {
@@ -1255,7 +1294,7 @@ static int io_fom_cob_rw_io_launch_wait(struct c2_fom *fom)
 }
 
 /**
- * State Transition function for read operation that executes
+ * State Transition function for I/O operation that executes
  * on data server.
  *
  * @param fom instance file operation machine under execution
@@ -1275,10 +1314,6 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
         }
 
         switch(fom->fo_phase){
-        case FOPH_NR:
-                /** Execute I/O specific next phase */
-                fom->fo_phase++;
-                break;
         case FOPH_IO_FOM_BUFFER_ACQUIRE:
                 rc = io_fom_cob_rw_get_net_buffer(fom);
                 break;
@@ -1308,7 +1343,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 }
 
 /**
- * Finalise of Read file operation machine.
+ * Finalise of I/O file operation machine.
  *
  * @param fom instance file operation machine under execution
  *
@@ -1316,19 +1351,17 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
  */
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 {
-        uint32_t                        bshift;
         struct c2_io_fom_cob_rw        *fom_obj;
         struct c2_fop_cob_rw_reply     *rwrep;
 
         C2_PRE(fom != NULL);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
-        bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 
         /** send operation status with replay fop*/
         rwrep = io_rw_rep_get(fom->fo_rep_fop);
         rwrep->rwr_rc = fom->fo_rc;
-        rwrep->rwr_count = fom_obj->fcrw_bytes_transfered << bshift;
+        rwrep->rwr_count = fom_obj->fcrw_bytes_transfered;
 
         fom->fo_rc = 0;
         fom->fo_phase = FOPH_SUCCESS;

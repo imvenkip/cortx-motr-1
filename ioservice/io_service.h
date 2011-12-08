@@ -53,8 +53,6 @@
 int c2_ioservice_register(void);
 void c2_ioservice_unregister(void);
 
-
-
 /**
  * Structure contains generic service structure and
  * service specific information.

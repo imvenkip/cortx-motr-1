@@ -41,22 +41,24 @@
    I/O FOMs use the following data structure:
 
    The Bulk I/O Service is required to maintain run-time context of I/O FOMs.
-   The data structure @ref c2_io_fom maintain required context data.
+   The data structure @ref c2_io_fom_cob_rw maintain required context data.
 
    - Pointer to generic FOM structure<br>
      This holds the information about generic FOM (e.g. its generic states,
      type, locality, reply FOP, file operation log etc.)
+   - Total number of descriptor for bulk data transfer requested.
+   - Current network buffer descriptor index 
+   - Current index vector list index
+   - Batch size for bulk I/O processing.
+   - Actual data transferd.
    - STOB identifier<br>
      Storage object identifier which tells the actual device on which I/O
      operation intended.
-   - STOB operation vector for direct I/O<br>
+   - List of STOB operation vector<br>
      This holds the information required for async STOB I/O (e.g. data segments,
      operations, channel to signal on completion etc.)
-   - Network buffers pointer<br>
-     zero-copy fills this buffers in bulk write case.
-   - Network buffer descriptor<br>
-     Client side (passive side) network buffer descriptors. Zero-copy use this
-     description while it pulls data from client in bulk write case.
+   - List acquired network buffers pointer<br>
+     zero-copy fills this buffers in bulk I/O case.
 
    @subsection DLD-bulk-server-fspec-if Interfaces
    Bulk I/O Service will be implemented as read FOM and write FOM. Since
@@ -65,34 +67,26 @@
    Bulk I/O FOP type Operations :
    @verbatim
 
-   c2_io_fom_read_init()        Request handler uses this interface to
-                                initiate read FOM.
-   c2_io_fom_write_init()       Request handler uses this interface to
-                                initiate write FOM.
+   c2_io_fom_cob_rw_init()      Request handler uses this interface to
+                                initiate I/O FOM.
    @endverbatim
 
    Bulk I/O FOM type operations:
 
    @verbatim
-   c2_io_fom_read_create()     Request handler uses this interface to
-                               create read FOM.
-   c2_io_fom_write_create()    Request handler uses this interface to
-                               create write FOM.
+   c2_io_fom_cob_rw_create()    Request handler uses this interface to
+                                create I/O FOM.
    @endverbatim
 
    Bulk I/O FOM operations :
 
    @verbatim
-   c2_io_fom_locality_get()   Request handler uses this interface to
-                              get the locality for this read FOM.
-   c2_io_fom_read_state()     Request handler uses this interface to
-                              execute next state of read FOM.
-   c2_io_fom_write_state()    Request handler uses this interface to
-                              execute next state of write FOM.
-   c2_io_fom_read_fini()      Request handler uses this interface after
-                              read FOM finishes its execution.
-   c2_io_fom_write_fini()     Request handler uses this interface after
-                              write FOM finishes its execution.
+   c2_io_fom_cob_rw_locality_get()   Request handler uses this interface to
+                                     get the locality for this I/O FOM.
+   c2_io_fom_cob_rw_state()          Request handler uses this interface to
+                                     execute next state of I/O FOM.
+   c2_io_fom_cob_rw_fini()           Request handler uses this interface after
+                                     I/O FOM finishes its execution.
    @endverbatim
 
    Bulk I/O Service type operations :
@@ -172,7 +166,7 @@ struct c2_stob_io_desc {
 };
 
 /**
- * Object encompassing FOM for cob write
+ * Object encompassing FOM for cob I/O 
  * operation and necessary context data
  */
 struct c2_io_fom_cob_rw {
@@ -201,7 +195,7 @@ struct c2_io_fom_cob_rw {
 };
 
 /**
- * The various phases for readv FOM.
+ * The various phases for I/O FOM.
  * complete FOM and reqh infrastructure is in place.
  */
 enum c2_io_fom_cob_rw_phases {
