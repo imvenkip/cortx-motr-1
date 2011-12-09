@@ -25,8 +25,8 @@
   Supported service types.
  */
 enum {
-        DS_ONE = 1,
-        DS_TWO,
+        CS_UT_SERVICE1 = 1,
+        CS_UT_SERVICE2,
 };
 
 /*
@@ -56,7 +56,7 @@ void c2_cs_ut_ds2_fop_fini(void);
 /*
   Sends fops to server.
  */
-void c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype);
+int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype);
 
 /* __COLIBRI_COLIBRI_UT_CS_UT_FOP_FOMS_H__ */
 #endif
