@@ -194,7 +194,6 @@ static void union_process(const struct c2_fop_field_type *ftype,
 	cgtype = cftype->fft_aggr;
 	aggr_ops[cgtype].caggr_process_val(cftype, child->ff_name,
 					   data, output);
-
 }
 
 static void sequence_process(const struct c2_fop_field_type *ftype,
@@ -204,26 +203,28 @@ static void sequence_process(const struct c2_fop_field_type *ftype,
         struct c2_fop_field_type *cftype;
         enum c2_fop_field_aggr    cgtype;
 	void			 *tmp_value;
-	struct c2_cons_fop_vec	 *vec_data;
+	struct c2_cons_fop_vec   *vec;
 
-
-	if (!yaml_support)
-		printf("Enter Count :");
 	child = ftype->fft_child[0];
 	cftype = child->ff_type;
 	cgtype = cftype->fft_aggr;
+	vec = (struct c2_cons_fop_vec *)data;
 	aggr_ops[cgtype].caggr_process_val(cftype, child->ff_name,
-					   data, output);
-	vec_data = (struct c2_cons_fop_vec *)data;
-	C2_ALLOC_ARR(vec_data->fv_seg, vec_data->fv_count);
-	C2_ASSERT(vec_data->fv_seg != NULL);
-	if (yaml_support) {
-		tmp_value = c2_cons_yaml_get_value(name);
-		C2_ASSERT(tmp_value != NULL);
-		memcpy(vec_data->fv_seg, tmp_value, vec_data->fv_count);
+					   &vec->cons_size, output);
+	child = ftype->fft_child[1];
+	if (output) {
+		printf("\t\t%s:%s", child->ff_name, vec->cons_buf);
 	} else {
-		printf("Enter value :");
-		scanf("%s", vec_data->fv_seg);
+		C2_ALLOC_ARR(vec->cons_buf, vec->cons_size);
+		C2_ASSERT(data != NULL);
+		if (yaml_support) {
+			tmp_value = c2_cons_yaml_get_value(child->ff_name);
+			C2_ASSERT(tmp_value != NULL);
+			memcpy(vec->cons_buf, tmp_value, vec->cons_size);
+		} else {
+			printf("\t%s:(Array):", child->ff_name);
+			scanf("%s", vec->cons_buf);
+		}
 	}
 }
 
