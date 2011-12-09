@@ -57,11 +57,11 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 }
 
 const struct file_operations c2t1fs_reg_file_operations = {
-	.llseek    = generic_file_llseek,
+	.llseek    = generic_file_llseek,   /* provided by linux kernel */
 	.aio_read  = c2t1fs_file_aio_read,
 	.aio_write = c2t1fs_file_aio_write,
-	.read      = do_sync_read,
-	.write     = do_sync_write,
+	.read      = do_sync_read,          /* provided by linux kernel */
+	.write     = do_sync_write,         /* provided by linux kernel */
 };
 
 const struct inode_operations c2t1fs_reg_inode_operations;
@@ -331,7 +331,7 @@ static ssize_t c2t1fs_read_write(struct file *file,
 	C2_PRE(count != 0);
 
 	inode = file->f_dentry->d_inode;
-	ci = C2T1FS_I(inode);
+	ci    = C2T1FS_I(inode);
 
 	if (rw == READ) {
 		if (pos > inode->i_size) {
@@ -564,10 +564,10 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	uint64_t                     nr_data_bytes_per_group;
 	ssize_t                      rc = 0;
 	char                        *ptr;
-	int                          nr_groups_to_rw;
-	int                          nr_units_per_group;
-	int                          nr_data_units;
-	int                          nr_parity_units;
+	uint32_t                     nr_groups_to_rw;
+	uint32_t                     nr_units_per_group;
+	uint32_t                     nr_data_units;
+	uint32_t                     nr_parity_units;
 	int                          parity_index;
 	int                          unit;
 	int                          i;

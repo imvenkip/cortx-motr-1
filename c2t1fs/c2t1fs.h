@@ -420,8 +420,9 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid);
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void          c2t1fs_destroy_inode(struct inode *inode);
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
-				uint64_t unit_size);
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
+			     uint32_t N, uint32_t K, uint32_t P,
+			     uint64_t unit_size);
 
 struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index);
 

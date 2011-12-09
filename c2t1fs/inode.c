@@ -228,7 +228,7 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 			(unsigned long)fid->f_container,
 			(unsigned long)fid->f_key);
 
-	ci = C2T1FS_I(inode);
+	ci         = C2T1FS_I(inode);
 	ci->ci_fid = *fid;
 
 	C2_TRACE_END(0);
@@ -337,7 +337,8 @@ out_err:
 	return ERR_PTR(-EIO);
 }
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci, int N, int K, int P,
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
+				uint32_t N, uint32_t K, uint32_t P,
 				uint64_t unit_size)
 {
 	struct c2_pdclust_layout *pd_layout;

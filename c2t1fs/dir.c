@@ -48,10 +48,10 @@ static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid);
 
 const struct file_operations c2t1fs_dir_file_operations = {
-	.read    = generic_read_dir,
+	.read    = generic_read_dir,    /* provided by linux kernel */
 	.readdir = c2t1fs_readdir,
-	.fsync   = simple_fsync,
-	.llseek  = generic_file_llseek,
+	.fsync   = simple_fsync,        /* provided by linux kernel */
+	.llseek  = generic_file_llseek, /* provided by linux kernel */
 };
 
 const struct inode_operations c2t1fs_dir_inode_operations = {
@@ -308,7 +308,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 }
 
 static int c2t1fs_readdir(struct file *f,
-			  void        *dirent,
+			  void        *buf,
 			  filldir_t    filldir)
 {
 	struct c2t1fs_dir_ent *de;
@@ -334,7 +334,7 @@ static int c2t1fs_readdir(struct file *f,
 	switch (i) {
 	case 0:
 		ino = dir->i_ino;
-		if (filldir(dirent, ".", 1, i, ino, DT_DIR) < 0)
+		if (filldir(buf, ".", 1, i, ino, DT_DIR) < 0)
 			break;
 		C2_TRACE("filled: \".\"\n");
 		f->f_pos++;
@@ -342,15 +342,15 @@ static int c2t1fs_readdir(struct file *f,
 		/* Fallthrough */
 	case 1:
 		ino = parent_ino(dentry);
-		if (filldir(dirent, "..", 2, i, ino, DT_DIR) < 0)
+		if (filldir(buf, "..", 2, i, ino, DT_DIR) < 0)
 			break;
 		C2_TRACE("filled: \"..\"\n");
 		f->f_pos++;
 		i++;
 		/* Fallthrough */
 	default:
-		/* previous call to readdir() returned f->f_pos number of entries.
-		   Now we should continue after that point */
+		/* previous call to readdir() returned f->f_pos number of
+		   entries Now we should continue after that point */
 		skip = i - 2;
 		c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
 			char *name;
@@ -364,7 +364,7 @@ static int c2t1fs_readdir(struct file *f,
 			name    = de->de_name;
 			namelen = strlen(name);
 
-			rc = filldir(dirent, name, namelen, f->f_pos,
+			rc = filldir(buf, name, namelen, f->f_pos,
 					i, DT_REG);
 			if (rc < 0)
 				goto out;

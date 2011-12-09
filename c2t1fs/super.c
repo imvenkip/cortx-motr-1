@@ -77,7 +77,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
 static const struct super_operations c2t1fs_super_operations = {
 	.alloc_inode   = c2t1fs_alloc_inode,
 	.destroy_inode = c2t1fs_destroy_inode,
-	.drop_inode    = generic_delete_inode
+	.drop_inode    = generic_delete_inode /* provided by linux kernel */
 };
 
 const struct c2_fid c2t1fs_root_fid = {
@@ -430,6 +430,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 
 	while ((op = strsep(&options, ",")) != NULL) {
 		C2_TRACE("Processing \"%s\"\n", op);
+
 		if (*op == '\0')
 			continue;
 
