@@ -52,6 +52,7 @@
 #endif
 
 #include "ioservice/io_fops.h"
+#include "ioservice/io_service.h"
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
@@ -94,8 +95,8 @@ struct init_fini_call subsystem[] = {
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
-	{ &c2_ioservice_fop_init, &c2_ioservice_fop_fini, "ioservice" },
-	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }
+	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
+	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" }
 };
 
 static void fini_nr(int i)
