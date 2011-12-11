@@ -1129,6 +1129,23 @@ static int io_fom_cob_rw_initiate_zero_copy_wait(struct c2_fom *fom)
                 return FSO_AGAIN;
         }
 
+        /**
+         * TODO :
+         * 1. RPC Bulk should send signal to ioservice after completion of
+         *    every net buffer processing, This will help ioservice
+         *    to parallels zero-copy and stob io (While i-th stob io going on
+         *    io service can process zero-copy for (i+1)th net buffer).
+         *    This can reduce one net buffer processing time from 2T to T.
+         *
+         * 2. RPC Bulk should provide interface to delete net buffer
+         *    entries from network layer queue so that on error remaing
+         *    can be removed from ACTIVE RECV queue.
+         *
+         * 3. Replay IO fop needs modification to send failed io desc into
+         *    to bulk client so that client can remove client side net
+         *    buffers from PASSIVE SEND queue.
+         */
+
         c2_tlist_for(&rpcbulkbufs_tl, &rbulk->rb_buflist, rb_buf) {
                 rpcbulkbufs_tlist_del(rb_buf);
         } c2_tlist_endfor;
