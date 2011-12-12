@@ -336,6 +336,20 @@ COLIBRI_LINUX_FILE_AIO_READ
 COLIBRI_LINUX_WRITE_BEGIN_END
 COLIBRI_LINUX_SENDFILE
 
+AC_MSG_CHECKING([for LNet header dir])
+AC_ARG_WITH([lustre],
+        [AC_HELP_STRING([--with-lustre=path], [set path to lustre sources])],
+        [LUSTRE=$with_lustre],
+        [LUSTRE=/usr/src/`ls /usr/src | grep lustre | tail -1`]
+)
+
+LNET_HEADERS=$LUSTRE/lnet/include
+if ! test -d $LNET_HEADERS; then
+	AC_MSG_ERROR([$LNET_HEADERS not found!])
+fi
+AC_MSG_RESULT([$LNET_HEADERS])
+AC_SUBST([LNET_HEADERS])
+
 AC_ARG_WITH([db],
         [AC_HELP_STRING([--with-db=path], [path where db was built])])
 
@@ -616,6 +630,7 @@ echo "Galois :  \"$GALOIS_SRC\""
 echo "YAML :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
 echo "Linux  :  \"$LINUX\""
+echo "LNet   :  \"$LNET_HEADERS\""
 echo ""
 
 echo "Type 'make' to build Colibri"
