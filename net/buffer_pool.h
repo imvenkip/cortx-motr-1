@@ -74,7 +74,7 @@
 	struct c2_net_xprt *xprt;
 	...
 	bp.nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096);
+	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10);
 	...
     @endcode
 
@@ -205,7 +205,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
    @pre colour == ~0 || colour < pool->nbp_colours_nr
    @pre pool->nbp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
-        !(buf->nb_flags & C2_NET_BUF_IN_USE)
+        !(buf->nb_flags & C2_NET_BUF_QUEUED)
  */
 void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 			    struct c2_net_buffer *buf, uint32_t colour);
