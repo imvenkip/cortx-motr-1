@@ -56,7 +56,7 @@ struct cl_ctx {
 	/* Client cob domain.*/
 	struct c2_cob_domain cl_cdom;
 	/* Client rpc context.*/
-	struct c2_rpc_ctx    cl_rctx;
+	struct c2_rpc_client_ctx    cl_ctx;
 };
 
 /* Server context */
@@ -275,7 +275,7 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 			struct c2_net_xprt *xprt)
 {
 	int                rc;
-	struct c2_rpc_ctx *cl_rctx;
+	struct c2_rpc_client_ctx *cl_ctx;
 
 	C2_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
 		dbname != NULL && xprt != NULL);
@@ -286,21 +286,20 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	rc = c2_net_domain_init(&cctx->cl_ndom, xprt);
 	C2_UT_ASSERT(rc == 0);
 
-	cl_rctx = &cctx->cl_rctx;
+	cl_ctx = &cctx->cl_ctx;
 
-	cl_rctx->rx_net_dom            = &cctx->cl_ndom;
-	cl_rctx->rx_reqh               = NULL;
-	cl_rctx->rx_local_addr         = cl_ep_addr;
-	cl_rctx->rx_remote_addr        = srv_ep_addr;
-	cl_rctx->rx_db_name            = dbname;
-	cl_rctx->rx_dbenv              = &cctx->cl_dbenv;
-	cl_rctx->rx_cob_dom_id         = ++cl_cdom_id;
-	cl_rctx->rx_cob_dom            = &cctx->cl_cdom;
-	cl_rctx->rx_nr_slots           = MAX_RPC_SLOTS_NR;
-	cl_rctx->rx_timeout_s          = RPC_TIMEOUTS;
-	cl_rctx->rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
+	cl_ctx->rcx_net_dom            = &cctx->cl_ndom;
+	cl_ctx->rcx_local_addr         = cl_ep_addr;
+	cl_ctx->rcx_remote_addr        = srv_ep_addr;
+	cl_ctx->rcx_db_name            = dbname;
+	cl_ctx->rcx_dbenv              = &cctx->cl_dbenv;
+	cl_ctx->rcx_cob_dom_id         = ++cl_cdom_id;
+	cl_ctx->rcx_cob_dom            = &cctx->cl_cdom;
+	cl_ctx->rcx_nr_slots           = MAX_RPC_SLOTS_NR;
+	cl_ctx->rcx_timeout_s          = RPC_TIMEOUTS;
+	cl_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
-	rc = c2_rpc_client_init(cl_rctx);
+	rc = c2_rpc_client_init(cl_ctx);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -312,7 +311,7 @@ static void cs_ut_client_fini(struct cl_ctx *cctx)
 
 	C2_PRE(cctx != NULL);
 
-	rc = c2_rpc_client_fini(&cctx->cl_rctx);
+	rc = c2_rpc_client_fini(&cctx->cl_ctx);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_net_domain_fini(&cctx->cl_ndom);
@@ -328,7 +327,6 @@ int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
         struct c2_fop           *fop[10];
 	struct cs_ds1_req_fop   *cs_ds1_fop;
 	struct cs_ds2_req_fop   *cs_ds2_fop;
-	struct c2_rpc_item      *item;
 
 	C2_PRE(cl_rpc_session != NULL && dstype > 0);
 
@@ -337,22 +335,20 @@ int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 	case CS_UT_SERVICE1:
 		for (i = 0; i < 10; ++i) {
 			fop[i] = c2_fop_alloc(&cs_ds1_req_fop_fopt, NULL);
-			item = &fop[i]->f_item;
-			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
 			cs_ds1_fop = c2_fop_data(fop[i]);
 			cs_ds1_fop->csr_value = i;
-			rc = c2_rpc_client_call(fop[i], cl_rpc_session, 60);
+			rc = c2_rpc_client_call(fop[i], cl_rpc_session,
+						&cs_ds_req_fop_rpc_item_ops, 60);
 			C2_UT_ASSERT(rc == 0);
 		}
 		break;
 	case CS_UT_SERVICE2:
 		for (i = 0; i < 10; ++i) {
 			fop[i] = c2_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
-			item = &fop[i]->f_item;
-			item->ri_ops = &cs_ds_req_fop_rpc_item_ops;
 			cs_ds2_fop = c2_fop_data(fop[i]);
 			cs_ds2_fop->csr_value = i;
-			rc = c2_rpc_client_call(fop[i], cl_rpc_session, 60);
+			rc = c2_rpc_client_call(fop[i], cl_rpc_session,
+						&cs_ds_req_fop_rpc_item_ops, 60);
 			C2_UT_ASSERT(rc == 0);
 		}
 		break;
@@ -378,7 +374,7 @@ static void test_cs_ut_service_one(void)
 				cdbnames[0], cs_xprts[0]);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_cs_ut_send_fops(&cctx.cl_rctx.rx_session, CS_UT_SERVICE1);
+	c2_cs_ut_send_fops(&cctx.cl_ctx.rcx_session, CS_UT_SERVICE1);
 
 	cs_ut_client_fini(&cctx);
 
@@ -407,7 +403,7 @@ static void test_cs_ut_services_many(void)
 
 	stype = CS_UT_SERVICE1;
 	for (i = 0; i < ARRAY_SIZE(cctx); ++i, ++stype)
-		c2_cs_ut_send_fops(&cctx[i].cl_rctx.rx_session, stype);
+		c2_cs_ut_send_fops(&cctx[i].cl_ctx.rcx_session, stype);
 
 	for (i = 0; i < ARRAY_SIZE(cctx); ++i)
 		cs_ut_client_fini(&cctx[i]);
@@ -436,7 +432,7 @@ static void test_cs_ut_reqhs_many(void)
 
 	stype = CS_UT_SERVICE1;
         for (i = 0; i < ARRAY_SIZE(cctx); ++i, ++stype)
-                c2_cs_ut_send_fops(&cctx[i].cl_rctx.rx_session, stype);
+                c2_cs_ut_send_fops(&cctx[i].cl_ctx.rcx_session, stype);
 
         for (i = 0; i < ARRAY_SIZE(cctx); ++i, ++stype) {
 		cs_ut_client_fini(&cctx[i]);
@@ -460,7 +456,7 @@ static void test_cs_ut_opts_jumbled(void)
 				cs_xprts[0]);
         C2_UT_ASSERT(rc == 0);
 
-        rc = c2_cs_ut_send_fops(&cctx.cl_rctx.rx_session, CS_UT_SERVICE1);
+        rc = c2_cs_ut_send_fops(&cctx.cl_ctx.rcx_session, CS_UT_SERVICE1);
 	C2_UT_ASSERT(rc == 0);
 
 	cs_ut_client_fini(&cctx);

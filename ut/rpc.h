@@ -21,40 +21,37 @@
 #ifndef __COLIBRI_UT_RPC_H__
 #define __COLIBRI_UT_RPC_H__
 
+#include "ut/cs_service.h" /* cs_default_stypes */
 
-struct c2_rpc_ctx;
 
-/**
-  A wrapper around c2_rpc_server_start(). It initializes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_server_start().
+#define C2_RPC_SERVER_CTX_DECLARE(name, xprt_ptr, server_argv, log_file_name)	\
+	struct c2_rpc_server_ctx (name) = {					\
+		.rsx_xprts            = &(xprt_ptr),				\
+		.rsx_xprts_nr         = 1,					\
+		.rsx_argv             = (server_argv),				\
+		.rsx_argc             = ARRAY_SIZE(server_argv),		\
+		.rsx_service_types    = cs_default_stypes,			\
+		.rsx_service_types_nr = cs_default_stypes_nr,			\
+		.rsx_log_file_name    = (log_file_name),			\
+	};
 
-  @param rctx  Initialized rpc context structure.
-*/
-int c2_rpc_server_init(struct c2_rpc_ctx *rctx);
-
-/**
-  A wrapper around c2_rpc_server_stop(). It finalizes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_server_stop().
-
-  @param rctx  Initialized rpc context structure.
-*/
-void c2_rpc_server_fini(struct c2_rpc_ctx *rctx);
+struct c2_rpc_client_ctx;
 
 /**
   A wrapper around c2_rpc_client_start(). It initializes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_client_start().
+  withing c2_rpc_client_ctx structure, and then calls c2_rpc_client_start().
 
   @param rctx  Initialized rpc context structure.
 */
-int c2_rpc_client_init(struct c2_rpc_ctx *rctx);
+int c2_rpc_client_init(struct c2_rpc_client_ctx *ctx);
 
 /**
   A wrapper around c2_rpc_client_stop(). It finalizes dbenv and cob_domain
-  withing c2_rpc_ctx structure, and then calls c2_rpc_client_stop().
+  withing c2_rpc_client_ctx structure, and then calls c2_rpc_client_stop().
 
   @param rctx  Initialized rpc context structure.
 */
-int c2_rpc_client_fini(struct c2_rpc_ctx *rctx);
+int c2_rpc_client_fini(struct c2_rpc_client_ctx *ctx);
 
 #endif /* __COLIBRI_UT_RPC_H__ */
 
