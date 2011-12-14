@@ -12,6 +12,7 @@ kdomain.c
 kkxdr.c
 ksunrpc_server.c
 ksunrpc_ut.c
+lnet_main.c
 net.c
 net_cli.c
 net_otw_types_k.c

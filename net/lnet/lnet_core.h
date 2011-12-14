@@ -264,7 +264,7 @@ struct nlx_core_bev_cqueue {
    struct c2_net_buffer_event.
  */
 struct nlx_core_buffer_event {
-	/** Linkage in one of the TM buffer event queues */
+	/** Linkage in the TM buffer event queue */
 	struct nlx_core_bev_link     cbe_tm_link;
 
 	/**
@@ -312,19 +312,10 @@ struct nlx_core_domain {
 */
 struct nlx_core_transfer_mc {
 	/** The transfer machine address */
-	struct c2_lnet_ep_addr     ctm_addr;
+	struct nlx_core_ep_addr    ctm_addr;
 
 	/** Boolean indicating if the transport is running in user space. */
 	bool                       ctm_user_space_xo;
-
-	/**
-	   List of available buffer event structures.  The queue is shared
-	   between the transport address space and the kernel.
-
-	   The transport is responsible for ensuring that there are sufficient
-	   free entries to return the results of all pending operations.
-	 */
-	struct nlx_core_bev_cqueue ctm_free_bevq;
 
 	/**
 	   Buffer completion event queue.  The queue is shared between the
@@ -425,8 +416,8 @@ static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
    @param lcdom The domain private data to be initialized.
    @param lcbuf The buffer private data.
  */
-static int nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
-				   struct nlx_core_buffer *lcbuf);
+static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
+				    struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueues a buffer for message reception. Multiple messages may be received

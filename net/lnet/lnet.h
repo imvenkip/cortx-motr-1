@@ -83,6 +83,10 @@ enum {
  */
 int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
 
+/* init and fini functions for colibri init */
+int c2_net_lnet_init(void);
+void c2_net_lnet_fini(void);
+
 /**
    @} LNetDFS end group
 */

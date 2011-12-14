@@ -735,7 +735,32 @@
  ******************************************************************************
  */
 
+#ifdef __KERNEL__
+#ifdef LUSTRE_CONFIG
+#include LUSTRE_CONFIG
+/* lustre config defines package macros also defined by c2 config */
+#undef PACKAGE
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+#undef VERSION
+#endif
+
+#include "libcfs/libcfs.h" /* lnet/types.h fails if this is not included */
+#include "lnet/types.h"
+#endif
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#include "lib/errno.h"
+#include "lib/misc.h" /* C2_SET0 */
+#include "lib/memory.h"
 #include "net/lnet/lnet_core.h"
+#include "net/lnet/lnet_xo.h"
 
 /* To reduce global symbols, yet make the code readable, we
    include other .c files with static symbols into this file.
@@ -752,6 +777,22 @@
 #endif
 #include "net/lnet/lnet_xo.c"
 
+int c2_net_lnet_init(void)
+{
+#ifdef __KERNEL__
+	return nlx_core_init();
+#else
+	return 0;
+#endif
+}
+
+void c2_net_lnet_fini(void)
+{
+#ifdef __KERNEL__
+	nlx_core_fini();
+#endif
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
@@ -761,4 +802,3 @@
  *  scroll-step: 1
  *  End:
  */
-

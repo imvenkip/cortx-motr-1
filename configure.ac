@@ -343,12 +343,14 @@ AC_ARG_WITH([lustre],
         [LUSTRE=/usr/src/`ls /usr/src | grep lustre | tail -1`]
 )
 
-LNET_HEADERS=$LUSTRE/lnet/include
-if ! test -d $LNET_HEADERS; then
-	AC_MSG_ERROR([$LNET_HEADERS not found!])
+if ! test -d $LUSTRE/lnet/include; then
+	AC_MSG_ERROR([lnet/include not found in $LUSTRE!])
 fi
-AC_MSG_RESULT([$LNET_HEADERS])
-AC_SUBST([LNET_HEADERS])
+if ! test -e $LUSTRE/config.h; then
+	AC_MSG_ERROR([$LUSTRE/config.h not found! Did you configure lustre?])
+fi
+AC_MSG_RESULT([$LUSTRE])
+AC_SUBST([LUSTRE])
 
 AC_ARG_WITH([db],
         [AC_HELP_STRING([--with-db=path], [path where db was built])])
@@ -576,6 +578,7 @@ AC_CONFIG_FILES([
 		 net/bulk_emulation/st/linux_kernel/Makefile
 		 net/bulk_emulation/ut/Makefile
                  net/linux_kernel/Makefile
+		 net/lnet/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
@@ -630,7 +633,7 @@ echo "Galois :  \"$GALOIS_SRC\""
 echo "YAML :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
 echo "Linux  :  \"$LINUX\""
-echo "LNet   :  \"$LNET_HEADERS\""
+echo "Lustre :  \"$LUSTRE\""
 echo ""
 
 echo "Type 'make' to build Colibri"

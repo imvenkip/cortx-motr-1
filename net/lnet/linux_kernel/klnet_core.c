@@ -715,11 +715,189 @@
    Kernel core lock.
    Provides serialization across the nlx_kcore_tms list.
  */
-static c2_mutex nlx_kcore_mutex;
+static struct c2_mutex nlx_kcore_mutex;
 
 /** List of all transfer machines. Protected by nlx_kcore_mutex. */
 static struct c2_tl nlx_kcore_tms;
 
+C2_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
+		   ktm_tm_linkage, ktm_magic, C2_NET_LNET_KCORE_TM_MAGIC,
+		   C2_NET_LNET_KCORE_TMS_MAGIC);
+C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
+
+int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
+{
+	return -ENOSYS;
+}
+
+int nlx_core_dom_fini(struct nlx_core_domain *lcdom)
+{
+	return -ENOSYS;
+}
+
+c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
+{
+	return 0;
+}
+
+c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
+{
+	return 0;
+}
+
+int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
+{
+	return 0;
+}
+
+int nlx_core_buf_register(struct nlx_core_domain *lcdom,
+			  struct c2_net_buffer *buf,
+			  struct nlx_core_buffer *lcbuf)
+{
+	return -ENOSYS;
+}
+
+void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
+			     struct nlx_core_buffer *lcbuf)
+{
+}
+
+int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
+			  struct nlx_core_buffer *lcbuf)
+{
+	/* XXX temp: really gets called in kernel event cb */
+	struct nlx_core_bev_link *ql;
+	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
+	C2_ASSERT(ql != NULL);
+	bev_cqueue_put(&lctm->ctm_bevq);
+
+	return -ENOSYS;
+}
+
+int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
+			  struct nlx_core_buffer *lcbuf)
+{
+	return -ENOSYS;
+}
+
+int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
+			     struct nlx_core_buffer *lcbuf)
+{
+	return -ENOSYS;
+}
+
+int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
+			     struct nlx_core_buffer *lcbuf)
+{
+	return -ENOSYS;
+}
+
+void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
+				 struct nlx_core_buffer *lcbuf)
+{
+}
+
+int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
+			      struct nlx_core_buffer *lcbuf)
+{
+	return -ENOSYS;
+}
+
+int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
+			      struct nlx_core_buffer *lcbuf)
+{
+	return -ENOSYS;
+}
+
+int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
+		     struct nlx_core_buffer *lcbuf)
+{
+	return -ENOSYS;
+}
+
+int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
+			    c2_time_t timeout)
+{
+	return -ENOSYS;
+}
+
+bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
+			    struct nlx_core_buffer_event *lcbe)
+{
+	struct nlx_core_bev_link *link;
+	struct nlx_core_buffer_event *bev;
+
+	C2_PRE(lctm != NULL);
+	C2_PRE(lcbe != NULL);
+
+	/* XXX temp code to cause APIs to be used */
+	if (!bev_cqueue_is_empty(&lctm->ctm_bevq)) {
+		link = bev_cqueue_get(&lctm->ctm_bevq);
+		if (link != NULL) {
+			bev = container_of(link, struct nlx_core_buffer_event,
+					   cbe_tm_link);
+			*lcbe = *bev;
+			C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
+			return true;
+		}
+	}
+	return false;
+}
+
+int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
+			    const char *ep_addr,
+			    struct nlx_core_ep_addr *cepa)
+{
+	return -ENOSYS;
+}
+
+void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
+			     struct nlx_core_ep_addr *cepa,
+			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
+{
+}
+
+int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
+		      struct nlx_core_transfer_mc *lctm,
+		      struct nlx_core_ep_addr *cepa)
+{
+	struct nlx_core_domain *dp = tm->ntm_dom->nd_xprt_private;
+	struct nlx_xo_ep *xep = container_of(cepa, struct nlx_xo_ep, xe_core);
+	struct nlx_core_buffer_event *e1;
+	struct nlx_core_buffer_event *e2;
+
+	/* XXX: temp, really belongs in async and/or kernel code */
+	C2_ALLOC_PTR(e1);
+	e1->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e1->cbe_tm_link;
+	bev_link_bless(&e1->cbe_tm_link);
+	C2_ALLOC_PTR(e2);
+	e2->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e2->cbe_tm_link;
+	bev_link_bless(&e2->cbe_tm_link);
+	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
+	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
+	nlx_core_ep_addr_encode(dp, cepa, xep->xe_addr);
+
+	return -ENOSYS;
+}
+
+void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
+{
+	/* XXX: temp, really belongs in async code */
+	bev_cqueue_fini(&lctm->ctm_bevq); /* XXX free elements */
+}
+
+int nlx_core_init(void)
+{
+	c2_mutex_init(&nlx_kcore_mutex);
+	tms_tlist_init(&nlx_kcore_tms);
+	return 0;
+}
+
+void nlx_core_fini(void)
+{
+	tms_tlist_fini(&nlx_kcore_tms);
+	c2_mutex_fini(&nlx_kcore_mutex);
+}
 
 /**
    @}

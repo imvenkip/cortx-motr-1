@@ -31,13 +31,13 @@
 
 #include "lib/semaphore.h"
 #include "lib/tlist.h"
-#include "lnet/include/lnet/types.h"
 #include "net/lnet/lnet_core.h"
 
 #include <linux/spinlock.h>
 
 enum {
 	C2_NET_LNET_KCORE_TM_MAGIC  = 0x4b436f7265544dULL,   /* KCoreTM */
+	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL,   /* KCoreTMs */
 	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
 };
 
@@ -103,7 +103,7 @@ struct nlx_kcore_buffer {
 	struct nlx_kcore_transfer_mc *kb_ktm;
 
 	/** The I/O vector. */
-	struct lnet_kiov_t            kb_kiov;
+	lnet_kiov_t                   kb_kiov;
 
 	/** MD handle */
 	lnet_handle_md_t              kb_mdh;

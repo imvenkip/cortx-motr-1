@@ -608,7 +608,20 @@
 /**
    Buffer event queue invariant.
  */
-static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q);
+static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
+{
+	return true;
+}
+
+/**
+   Adds a new element to the circular buffer queue.
+   @param q the queue
+   @param ql the element to add
+ */
+static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
+			   struct nlx_core_bev_link *ql)
+{
+}
 
 /**
    Initialises the buffer event queue. Should be lnvoked in the consumer address
@@ -621,19 +634,19 @@ static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q);
 */
 static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,
-			    struct nlx_core_bev_link *ql2);
+			    struct nlx_core_bev_link *ql2)
+{
+	bev_cqueue_add(q, ql1);
+	bev_cqueue_add(q, ql2);
+	C2_POST(bev_cqueue_invariant(q));
+}
 
-/**
-   Adds a new element to the circular buffer queue.
-   @param q the queue
-   @param ql the element to add
- */
-static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
-			   struct nlx_core_bev_link *ql);
 /**
    Finalise the buffer event queue.
  */
-static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q);
+static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q)
+{
+}
 
 /**
    Tests if the buffer event queue is empty.
@@ -641,12 +654,18 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q);
    do not provide a pointer to the consumer element from the producer's
    perspective.
  */
-static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q);
+static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q)
+{
+	return true;
+}
 
 /**
    Returns total size of the event queue, including in-use and free elements.
  */
-static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q);
+static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q)
+{
+	return q->cbcq_nr;
+}
 
 /**
    Gets the oldest element in the FIFO circular queue, advancing the divider.
@@ -654,7 +673,10 @@ static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q);
    @returns the link to the element in the consumer context,
    NULL when the queue is empty
  */
-static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q);
+static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
+{
+	return NULL;
+}
 
 /**
    Determines the next element in the queue that can be used by the producer.
@@ -663,7 +685,10 @@ static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q);
    @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
  */
 static struct nlx_core_bev_link* bev_cqueue_pnext(
-				      const struct nlx_core_bev_cqueue *q);
+				      const struct nlx_core_bev_cqueue *q)
+{
+	return NULL;
+}
 
 /**
    Puts (produces) an element so it can be consumed.  The caller must first
@@ -671,7 +696,9 @@ static struct nlx_core_bev_link* bev_cqueue_pnext(
    @param q the queue
    @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
  */
-static void bev_cqueue_put(struct nlx_core_bev_cqueue *q);
+static void bev_cqueue_put(struct nlx_core_bev_cqueue *q)
+{
+}
 
 /**
    Blesses the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
@@ -679,7 +706,9 @@ static void bev_cqueue_put(struct nlx_core_bev_cqueue *q);
    @param ql the link to bless, the caller must have already mapped the element
    into the producer address space.
  */
-static void bev_link_bless(struct nlx_core_bev_link *ql);
+static void bev_link_bless(struct nlx_core_bev_link *ql)
+{
+}
 
 /**
    @}
