@@ -81,15 +81,12 @@ int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
 
 	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;
-	c2_rpc_item_init(item);
 	/* Add link to wait for item reply */
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);
 	item->ri_deadline = 0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
-	item->ri_type = mesg->cm_item_type;
-	item->ri_ops = mesg->cm_item_ops;
 	item->ri_session = mesg->cm_rpc_session;
 	item->ri_error = 0;
         rc = c2_rpc_post(item);
@@ -112,57 +109,25 @@ error:
 	return rc;
 }
 
-/* Disk FOP message */
-/**
- * @brief RPC item operation for disk failure notification.
- */
-static const struct c2_rpc_item_ops c2_rpc_item_cons_disk_ops = {
-};
-
-static struct c2_cons_mesg c2_cons_disk_mesg = {
-	.cm_name      = "Disk FOP Message",
-	.cm_type      = CMT_DISK_FAILURE,
-	.cm_fopt      = &c2_cons_fop_disk_fopt,
-	.cm_item_ops  = &c2_rpc_item_cons_disk_ops,
-	.cm_item_type = &c2_cons_fop_disk_fopt.ft_rpc_item_type,
-};
-
 /* Device FOP message */
-/**
- * @brief RPC item operation for device failure notification.
- */
-static const struct c2_rpc_item_ops c2_rpc_item_cons_device_ops = {
-};
-
 static struct c2_cons_mesg c2_cons_device_mesg = {
 	.cm_name     = "Device FOP Message",
 	.cm_type     = CMT_DEVICE_FAILURE,
 	.cm_fopt     = &c2_cons_fop_device_fopt,
-	.cm_item_ops = &c2_rpc_item_cons_device_ops,
-	.cm_item_type = &c2_cons_fop_device_fopt.ft_rpc_item_type,
 };
 
 
 /* Reply FOP message */
-/**
- * @brief RPC item operation for device failure notification.
- */
-static const struct c2_rpc_item_ops c2_rpc_item_cons_reply_ops = {
-};
-
 static struct c2_cons_mesg c2_cons_reply_mesg = {
 	.cm_name     = "Reply FOP Message",
 	.cm_type     = CMT_REPLY_FAILURE,
 	.cm_fopt     = &c2_cons_fop_reply_fopt,
-	.cm_item_ops = &c2_rpc_item_cons_reply_ops,
-	.cm_item_type = &c2_cons_fop_reply_fopt.ft_rpc_item_type,
 };
 
 /**
  * @brief Array holds refrences to console message types.
  */
 static struct c2_cons_mesg *cons_mesg[] = {
-	&c2_cons_disk_mesg,
 	&c2_cons_device_mesg,
 	&c2_cons_reply_mesg
 };

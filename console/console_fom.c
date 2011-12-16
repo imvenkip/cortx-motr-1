@@ -56,21 +56,17 @@ static int cons_fom_state(struct c2_fom *fom)
         struct c2_cons_fop_reply *reply_fop;
         struct c2_rpc_item       *reply_item;
         struct c2_rpc_item       *req_item;
-	int			  rc;
+	struct c2_fop		 *fop = fom->fo_fop;
+	struct c2_fop		 *rfop = fom->fo_rep_fop;
 
-        C2_PRE(fom != NULL);
-	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+	C2_PRE(fom != NULL && fop != NULL && rfop != NULL);
 
 	/* Reply fop */
-        reply_fop = c2_fop_data(fom->fo_rep_fop);
+        reply_fop = c2_fop_data(rfop);
 	if (reply_fop == NULL)
 		return -EINVAL;
 
-	if (fom->fo_fop->f_type == &c2_cons_fop_disk_fopt) {
-		/* For disk failure fop */
-		reply_fop->cons_notify_type = CMT_DISK_FAILURE;
-		reply_fop->cons_return = C2_CONS_FOP_DISK_OPCODE;
-	} else if (fom->fo_fop->f_type == &c2_cons_fop_device_fopt) {
+	if (fop->f_type == &c2_cons_fop_device_fopt) {
 		/* For device failure fop */
 		reply_fop->cons_notify_type = CMT_DEVICE_FAILURE;
 		reply_fop->cons_return = C2_CONS_FOP_DEVICE_OPCODE;
@@ -78,32 +74,16 @@ static int cons_fom_state(struct c2_fom *fom)
 		return -EINVAL;
 
 	/* Request item */
-        req_item = &fom->fo_fop->f_item;
+        req_item = &fop->f_item;
 
 	/* Reply item */
-        reply_item = &fom->fo_rep_fop->f_item;
+        reply_item = &rfop->f_item;
         c2_rpc_item_init(reply_item);
-        reply_item->ri_type = &fom->fo_rep_fop->f_type->ft_rpc_item_type;
+        reply_item->ri_type = &rfop->f_type->ft_rpc_item_type;
         reply_item->ri_group = NULL;
 	fom->fo_phase = FOPH_FINISH;
-        rc = c2_rpc_reply_post(req_item, reply_item);
-
-	return rc;
+        return c2_rpc_reply_post(req_item, reply_item);
 }
-
-const struct c2_fom_ops c2_cons_fom_disk_ops = {
-        .fo_state	  = cons_fom_state,
-	.fo_fini	  = default_fom_fini,
-	.fo_home_locality = home_locality,
-};
-
-const static struct c2_fom_type_ops c2_cons_fom_disk_type_ops = {
-        .fto_create = NULL
-};
-
-struct c2_fom_type c2_cons_fom_disk_type = {
-        .ft_ops = &c2_cons_fom_disk_type_ops
-};
 
 const struct c2_fom_ops c2_cons_fom_device_ops = {
         .fo_state	  = cons_fom_state,
@@ -111,7 +91,7 @@ const struct c2_fom_ops c2_cons_fom_device_ops = {
 	.fo_home_locality = home_locality,
 };
 
-const static struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
+static const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
         .fto_create = NULL
 };
 

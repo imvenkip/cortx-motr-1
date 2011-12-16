@@ -21,13 +21,6 @@
 #  include <config.h>
 #endif
 
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-
-#include <arpa/inet.h>
-#include <netdb.h>
-
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/errno.h"		/* ENOENT */
 #include "console/console.h"

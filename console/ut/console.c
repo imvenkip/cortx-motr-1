@@ -76,7 +76,7 @@ static int cons_init(void)
 {
 	int result;
 
-	timeout = 5;
+	timeout = 10;
 	result = c2_console_fop_init();
         C2_ASSERT(result == 0);
 	result = c2_processors_init();
@@ -89,6 +89,7 @@ static int cons_fini(void)
 {
 	c2_processors_fini();
         c2_console_fop_fini();
+	fprintf(stdout, "\n");
 	return 0;
 }
 
@@ -172,8 +173,8 @@ static int generate_yaml_file(const char *name)
 	fprintf(fp, "cport   : 23126\n");
 	fprintf(fp, "\n\n");
 	fprintf(fp, "Test FOP:\n");
-	fprintf(fp, "  - ff_seq : 1\n");
-	fprintf(fp, "    ff_oid : 2\n");
+	fprintf(fp, "  - cons_seq : 1\n");
+	fprintf(fp, "    cons_oid : 2\n");
 	fprintf(fp, "    cons_test_type : d\n");
 	fprintf(fp, "    cons_test_id : 64\n");
 
@@ -183,8 +184,8 @@ static int generate_yaml_file(const char *name)
 
 static void init_test_fop(struct c2_cons_fop_test *fop)
 {
-	fop->cons_id.ff_seq = 1;
-        fop->cons_id.ff_oid = 2;
+	fop->cons_id.cons_seq = 1;
+        fop->cons_id.cons_oid = 2;
 	fop->cons_test_type = 'd';
 	fop->cons_test_id = 64;
 }
@@ -357,9 +358,9 @@ static void yaml_parser_test(void)
 	fprintf(fp, "cport   : 23126\n");
 	fprintf(fp, "\n\n");
 	fprintf(fp, "Test FOP:\n");
-	fprintf(fp, "  - ff_seq : 1\n");
+	fprintf(fp, "  - cons_seq : 1\n");
 	/* Error introduced here */
-	fprintf(fp, "ff_oid : 2\n");
+	fprintf(fp, "cons_oid : 2\n");
 	fprintf(fp, "    cons_test_type : d\n");
 	fprintf(fp, "    cons_test_id : 64\n");
 	fclose(fp);
@@ -417,12 +418,12 @@ static void yaml_get_value_test(void)
 	number = strtoul(value, NULL, 10);
 	C2_UT_ASSERT(number == 23126);
 
-	value = c2_cons_yaml_get_value("ff_seq");
+	value = c2_cons_yaml_get_value("cons_seq");
 	C2_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
 	C2_UT_ASSERT(number == 1);
 
-	value = c2_cons_yaml_get_value("ff_oid");
+	value = c2_cons_yaml_get_value("cons_oid");
 	C2_UT_ASSERT(value != NULL);
 	number = strtoul(value, NULL, 10);
 	C2_UT_ASSERT(number == 2);
@@ -445,7 +446,7 @@ static void yaml_get_value_test(void)
 }
 
 
-static int disk_yaml_file(const char *name)
+static int device_yaml_file(const char *name)
 {
 	FILE *fp;
 
@@ -464,10 +465,12 @@ static int disk_yaml_file(const char *name)
 	fprintf(fp, "cport   : 23126\n");
 	fprintf(fp, "\n\n");
 	fprintf(fp, "Test FOP:\n");
-	fprintf(fp, "  - ff_seq : 1\n");
-	fprintf(fp, "    ff_oid : 2\n");
+	fprintf(fp, "  - cons_seq : 1\n");
+	fprintf(fp, "    cons_oid : 2\n");
 	fprintf(fp, "    cons_notify_type : 0\n");
-	fprintf(fp, "    cons_disk_id : 64\n");
+	fprintf(fp, "    cons_dev_id : 64\n");
+	fprintf(fp, "    cons_size : 8\n");
+	fprintf(fp, "    cons_buf  : console\n");
 
 	fclose(fp);
 	return 0;
@@ -478,7 +481,7 @@ static void cons_client_init(struct c2_console *cons)
 	int result;
 
 	/* Init Test */
-	result = disk_yaml_file(yaml_file);
+	result = device_yaml_file(yaml_file);
 	C2_UT_ASSERT(result == 0);
 	result = c2_cons_yaml_init(yaml_file);
 	C2_UT_ASSERT(result == 0);
@@ -611,7 +614,7 @@ static void mesg_send_client(int dummy)
 	C2_UT_ASSERT(result == 0);
 
 	deadline = c2_cons_timeout_construct(10);
-	mesg = c2_cons_mesg_get(CMT_DISK_FAILURE);
+	mesg = c2_cons_mesg_get(CMT_DEVICE_FAILURE);
 	mesg->cm_rpc_mach = &client.cons_rpc_mach;
 	mesg->cm_rpc_session = &client.cons_rpc_session;
 	c2_cons_mesg_name_print(mesg);
@@ -732,21 +735,14 @@ static void console_input_test(void)
 
 	result = console_cmd("show_fops", "-l", "-f", "0", NULL);
 	C2_UT_ASSERT(result == EX_OK);
-	result = error_mesg_match(out_fp, "Info for \"00 Disk FOP Message\"");
+	result = error_mesg_match(out_fp, "Info for \"00 Device FOP Message\"");
 	C2_UT_ASSERT(result == 0);
 	truncate(out_file, 0L);
 	fseek(out_fp, 0L, SEEK_SET);
 
 	result = console_cmd("show_fops", "-l", "-f", "1", NULL);
 	C2_UT_ASSERT(result == EX_OK);
-	result = error_mesg_match(out_fp, "Info for \"01 Device FOP Message\"");
-	C2_UT_ASSERT(result == 0);
-	truncate(out_file, 0L);
-	fseek(out_fp, 0L, SEEK_SET);
-
-	result = console_cmd("show_fops", "-l", "-f", "2", NULL);
-	C2_UT_ASSERT(result == EX_OK);
-	result = error_mesg_match(out_fp, "Info for \"02 Reply FOP Message\"");
+	result = error_mesg_match(out_fp, "Info for \"01 Reply FOP Message\"");
 	C2_UT_ASSERT(result == 0);
 	truncate(out_file, 0L);
 	fseek(out_fp, 0L, SEEK_SET);
