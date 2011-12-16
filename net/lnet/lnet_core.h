@@ -380,7 +380,7 @@ static int nlx_core_dom_init(struct c2_net_domain *dom,
 /**
    Releases LNet transport resources related to the domain.
  */
-static int nlx_core_dom_fini(struct nlx_core_domain *lcdom);
+static void nlx_core_dom_fini(struct nlx_core_domain *lcdom);
 
 /**
    Gets the maximum buffer size (counting all segments).

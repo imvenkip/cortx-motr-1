@@ -19,14 +19,35 @@
  * Original creation date: 11/16/2011
  */
 
+static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm);
+
 /**
    @addtogroup LNetXODFS
    @{
 */
 
+static bool nlx_dom_invariant(const struct c2_net_domain *dom)
+{
+	struct nlx_xo_domain *dp = dom->nd_xprt_private;
+	return dp != NULL && dp->xd_dom == dom;
+}
+
+static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
+{
+	const struct nlx_xo_buffer *bp = nb->nb_xprt_private;
+	return bp != NULL && bp->xb_nb == nb && nlx_dom_invariant(nb->nb_dom);
+}
+
+static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
+{
+	const struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
+	return tp != NULL && tp->xtm_tm == tm && nlx_dom_invariant(tm->ntm_dom);
+}
+
 static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 {
-	struct nlx_core_domain *dp;
+	struct nlx_xo_domain *dp;
+	int rc;
 
 	C2_PRE(dom->nd_xprt_private == NULL);
 	C2_PRE(xprt == &c2_net_lnet_xprt);
@@ -34,41 +55,46 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 	if (dp == NULL)
 		return -ENOMEM;
 	dom->nd_xprt_private = dp;
+	dp->xd_dom = dom;
 
-	return nlx_core_dom_init(dom, dp);
+	rc = nlx_core_dom_init(dom, &dp->xd_core);
+	C2_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
+	return rc;
 }
 
 static void nlx_xo_dom_fini(struct c2_net_domain *dom)
 {
-	struct nlx_core_domain *dp = dom->nd_xprt_private;
+	struct nlx_xo_domain *dp = dom->nd_xprt_private;
 
-	C2_PRE(dp != NULL);
-	nlx_core_dom_fini(dp);
+	C2_PRE(nlx_dom_invariant(dom));
+	nlx_core_dom_fini(&dp->xd_core);
+	c2_free(dp);
+	dom->nd_xprt_private = NULL;
 }
 
 static c2_bcount_t nlx_xo_get_max_buffer_size(const struct c2_net_domain *dom)
 {
-	struct nlx_core_domain *dp = dom->nd_xprt_private;
+	struct nlx_xo_domain *dp = dom->nd_xprt_private;
 
-	C2_PRE(dp != NULL);
-	return nlx_core_get_max_buffer_size(dp);
+	C2_PRE(nlx_dom_invariant(dom));
+	return nlx_core_get_max_buffer_size(&dp->xd_core);
 }
 
 static c2_bcount_t nlx_xo_get_max_buffer_segment_size(const struct
 						      c2_net_domain *dom)
 {
-	struct nlx_core_domain *dp = dom->nd_xprt_private;
+	struct nlx_xo_domain *dp = dom->nd_xprt_private;
 
-	C2_PRE(dp != NULL);
-	return nlx_core_get_max_buffer_segment_size(dp);
+	C2_PRE(nlx_dom_invariant(dom));
+	return nlx_core_get_max_buffer_segment_size(&dp->xd_core);
 }
 
 static int32_t nlx_xo_get_max_buffer_segments(const struct c2_net_domain *dom)
 {
-	struct nlx_core_domain *dp = dom->nd_xprt_private;
+	struct nlx_xo_domain *dp = dom->nd_xprt_private;
 
-	C2_PRE(dp != NULL);
-	return nlx_core_get_max_buffer_segments(dp);
+	C2_PRE(nlx_dom_invariant(dom));
+	return nlx_core_get_max_buffer_segments(&dp->xd_core);
 }
 
 static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
@@ -80,110 +106,165 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 
 static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 {
-	struct nlx_core_domain *dp = nb->nb_dom->nd_xprt_private;
-	struct nlx_core_buffer *lcbuf;
+	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
+	struct nlx_xo_buffer *bp;
+	int rc;
 
-	C2_PRE(dp != NULL);
+	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
 	C2_PRE(nb->nb_xprt_private == NULL);
-	C2_ALLOC_PTR(lcbuf);
-	nb->nb_xprt_private = lcbuf;
+	C2_ALLOC_PTR(bp);
+	if (bp == NULL)
+		return -ENOMEM;
+	nb->nb_xprt_private = bp;
+	bp->xb_nb = nb;
 
-	return nlx_core_buf_register(dp, nb, lcbuf);
+	rc = nlx_core_buf_register(&dp->xd_core, nb, &bp->xb_core);
+	C2_POST(nlx_buffer_invariant(nb));
+	return rc;
 }
 
 static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 {
-	struct nlx_core_domain *dp = nb->nb_dom->nd_xprt_private;
-	struct nlx_core_buffer *bp = nb->nb_xprt_private;
+	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
+	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
 	C2_PRE(dp != NULL);
 	C2_PRE(bp != NULL);
 
-	nlx_core_buf_deregister(dp, bp);
+	nlx_core_buf_deregister(&dp->xd_core, &bp->xb_core);
 }
 
 static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 {
-	struct nlx_core_transfer_mc *tp = nb->nb_tm->ntm_xprt_private;
-	struct nlx_core_buffer *bp = nb->nb_xprt_private;
-	int ret;
+	struct nlx_xo_transfer_mc *tp = nb->nb_tm->ntm_xprt_private;
+	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
+	struct nlx_core_transfer_mc *ctp;
+	struct nlx_core_buffer *cbp;
+	int rc;
 
 	C2_PRE(tp != NULL);
 	C2_PRE(bp != NULL);
+	ctp = &tp->xtm_core;
+	cbp = &bp->xb_core;
 
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
-		ret = nlx_core_buf_msg_recv(tp, bp);
+		rc = nlx_core_buf_msg_recv(ctp, cbp);
 		break;
 	case C2_NET_QT_MSG_SEND:
-		ret = nlx_core_buf_msg_send(tp, bp);
+		rc = nlx_core_buf_msg_send(ctp, cbp);
 		break;
 	case C2_NET_QT_PASSIVE_BULK_RECV:
-		nlx_core_buf_match_bits_set(tp, bp);
-		ret = nlx_core_buf_passive_recv(tp, bp);
+		nlx_core_buf_match_bits_set(ctp, cbp);
+		rc = nlx_core_buf_passive_recv(ctp, cbp);
 		break;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
-		ret = nlx_core_buf_passive_send(tp, bp);
+		rc = nlx_core_buf_passive_send(ctp, cbp);
 		break;
 	case C2_NET_QT_ACTIVE_BULK_RECV:
-		ret = nlx_core_buf_active_recv(tp, bp);
+		rc = nlx_core_buf_active_recv(ctp, cbp);
 		break;
 	case C2_NET_QT_ACTIVE_BULK_SEND:
-		ret = nlx_core_buf_active_send(tp, bp);
+		rc = nlx_core_buf_active_send(ctp, cbp);
 		break;
 	default:
 		C2_IMPOSSIBLE("invalid queue type");
 		break;
 	}
 
-	return ret;
+	return rc;
 }
 
 static void nlx_xo_buf_del(struct c2_net_buffer *nb)
 {
-	struct nlx_core_transfer_mc *tp = nb->nb_tm->ntm_xprt_private;
-	struct nlx_core_buffer *bp = nb->nb_xprt_private;
+	struct nlx_xo_transfer_mc *tp = nb->nb_tm->ntm_xprt_private;
+	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
 	C2_PRE(tp != NULL);
 	C2_PRE(bp != NULL);
-	nlx_core_buf_del(tp, bp);
+	nlx_core_buf_del(&tp->xtm_core, &bp->xb_core);
 }
 
 static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)
 {
-	return -ENOSYS;
+	struct nlx_xo_domain *dp;
+	struct nlx_xo_transfer_mc *tp;
+	int rc;
+
+	C2_PRE(nlx_dom_invariant(tm->ntm_dom));
+	C2_PRE(tm->ntm_xprt_private == NULL);
+
+	dp = tm->ntm_dom->nd_xprt_private;
+	C2_ALLOC_PTR(tp);
+	if (tp == NULL)
+		return -ENOMEM;
+	tm->ntm_xprt_private = tp;
+
+	/* defer init of thread and xtm_core to start time */
+	rc = c2_bitmap_init(&tp->xtm_processors, 0);
+	C2_ASSERT(rc == 0);
+	c2_cond_init(&tp->xtm_ev_cond);
+
+	tp->xtm_tm = tm;
+	C2_POST(nlx_tm_invariant(tm));
+	return 0;
 }
 
 static void nlx_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
+	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
+
+	C2_PRE(nlx_tm_invariant(tm) && tp->xtm_busy == 0);
+
+	if (tp->xtm_ev_thread.t_state != TS_PARKED)
+		c2_thread_join(&tp->xtm_ev_thread);
+
+	c2_bitmap_fini(&tp->xtm_processors);
+	c2_cond_fini(&tp->xtm_ev_cond);
+	tm->ntm_xprt_private = NULL;
+	c2_free(tp);
 }
 
 static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
-	struct nlx_core_domain *dp = tm->ntm_dom->nd_xprt_private;
-	struct nlx_core_transfer_mc *tp = tm->ntm_xprt_private;
+	struct nlx_xo_domain *dp;
+	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_ep *ep;
-	int ret;
+	int rc;
 
-	C2_PRE(tp != NULL);
-	C2_PRE(dp != NULL);
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	dp = tm->ntm_dom->nd_xprt_private;
+	tp = tm->ntm_xprt_private;
+
 	C2_ALLOC_PTR(ep);
+	if (ep == NULL)
+		return -ENOMEM;
 
-	ret = nlx_core_ep_addr_decode(dp, addr, &ep->xe_core);
-	if (ret != 0) {
+	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr, &ep->xe_core);
+	if (rc != 0) {
 		c2_free(ep);
-		return ret;
+		return rc;
 	}
+	tm->ntm_ep = &ep->xe_ep;
 
-	return nlx_core_tm_start(tm, tp, &ep->xe_core);
+	rc = C2_THREAD_INIT(&tp->xtm_ev_thread,
+			    struct c2_net_transfer_mc *, NULL,
+			    &nlx_tm_ev_worker, tm,
+			    "nlx_tm_ev_worker");
+	if (rc != 0) {
+		tm->ntm_ep = NULL;
+		c2_free(ep);
+	}
+	return rc;
 }
 
 static int nlx_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
-	struct nlx_core_transfer_mc *tp = tm->ntm_xprt_private;
+	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 
 	C2_PRE(tp != NULL);
-	nlx_core_tm_stop(tp);
+	nlx_core_tm_stop(&tp->xtm_core);
 	return 0;
 }
 
@@ -195,11 +276,11 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 
 static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 {
-	struct nlx_core_transfer_mc *tp = tm->ntm_xprt_private;
+	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 	struct nlx_core_buffer_event bev;
 
 	C2_PRE(tp != NULL);
-	while (nlx_core_buf_event_get(tp, &bev))
+	while (nlx_core_buf_event_get(&tp->xtm_core, &bev))
 		/* deliver the event */ ;
 }
 
@@ -210,10 +291,10 @@ static int nlx_xo_bev_deliver_sync(struct c2_net_transfer_mc *tm)
 
 static bool nlx_xo_bev_pending(struct c2_net_transfer_mc *tm)
 {
-	struct nlx_core_transfer_mc *tp = tm->ntm_xprt_private;
+	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 
 	C2_PRE(tp != NULL);
-	return nlx_core_buf_event_wait(tp, 0) == 0;
+	return nlx_core_buf_event_wait(&tp->xtm_core, 0) == 0;
 }
 
 static void nlx_xo_bev_notify(struct c2_net_transfer_mc *tm,
@@ -247,17 +328,20 @@ static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
    @} LNetXODFS
 */
 
+/**
+   @addtogroup LNetDFS
+   @{
+*/
+
 struct c2_net_xprt c2_net_lnet_xprt = {
 	.nx_name = "lnet",
 	.nx_ops  = &nlx_xo_xprt_ops
 };
 C2_EXPORTED(c2_net_lnet_xprt);
 
-int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
-{
-	return false;
-}
-C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
+/**
+   @} LNetDFS
+*/
 
 /*
  *  Local variables:

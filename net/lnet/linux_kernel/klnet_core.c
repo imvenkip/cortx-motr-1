@@ -727,27 +727,28 @@ C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 {
-	return -ENOSYS;
+	C2_PRE(dom != NULL && lcdom != NULL);
+	lcdom->cd_kpvt = NULL;
+	return 0;
 }
 
-int nlx_core_dom_fini(struct nlx_core_domain *lcdom)
+void nlx_core_dom_fini(struct nlx_core_domain *lcdom)
 {
-	return -ENOSYS;
 }
 
 c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
 {
-	return 0;
+	return LNET_MAX_PAYLOAD;
 }
 
 c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
 {
-	return 0;
+	return PAGE_SIZE;
 }
 
 int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
 {
-	return 0;
+	return LNET_MAX_IOV;
 }
 
 int nlx_core_buf_register(struct nlx_core_domain *lcdom,
@@ -861,7 +862,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm,
 		      struct nlx_core_ep_addr *cepa)
 {
-	struct nlx_core_domain *dp = tm->ntm_dom->nd_xprt_private;
+	struct nlx_xo_domain *dp = tm->ntm_dom->nd_xprt_private;
 	struct nlx_xo_ep *xep = container_of(cepa, struct nlx_xo_ep, xe_core);
 	struct nlx_core_buffer_event *e1;
 	struct nlx_core_buffer_event *e2;
@@ -875,7 +876,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	bev_link_bless(&e2->cbe_tm_link);
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
-	nlx_core_ep_addr_encode(dp, cepa, xep->xe_addr);
+	nlx_core_ep_addr_encode(&dp->xd_core, cepa, xep->xe_addr);
 
 	return -ENOSYS;
 }

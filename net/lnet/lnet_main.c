@@ -776,6 +776,7 @@
 #include "net/lnet/ulnet_core.c"
 #endif
 #include "net/lnet/lnet_xo.c"
+#include "net/lnet/lnet_tm.c"
 
 int c2_net_lnet_init(void)
 {
@@ -792,6 +793,12 @@ void c2_net_lnet_fini(void)
 	nlx_core_fini();
 #endif
 }
+
+int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
+{
+	return false;
+}
+C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
 
 /*
  *  Local variables:
