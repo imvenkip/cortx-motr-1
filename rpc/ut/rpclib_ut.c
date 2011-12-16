@@ -103,7 +103,7 @@ static void test_rpclib(void)
 		"-s", "ds1", "-s", "ds2"
 	};
 
-	C2_RPC_SERVER_CTX_DECLARE(sctx, xprt, server_argv,
+	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, server_argv,
 				  SERVER_LOG_FILE_NAME);
 
 	struct c2_rpc_client_ctx cctx = {

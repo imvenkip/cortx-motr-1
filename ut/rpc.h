@@ -24,16 +24,22 @@
 #include "ut/cs_service.h" /* cs_default_stypes */
 
 
-#define C2_RPC_SERVER_CTX_DECLARE(name, xprt_ptr, server_argv, log_file_name)	\
+#define C2_RPC_SERVER_CTX_DECLARE(name, xprts, xprts_nr, server_argv,		\
+				  server_argc, log_file_name)			\
 	struct c2_rpc_server_ctx (name) = {					\
-		.rsx_xprts            = &(xprt_ptr),				\
-		.rsx_xprts_nr         = 1,					\
+		.rsx_xprts            = (xprts),				\
+		.rsx_xprts_nr         = (xprts_nr),				\
 		.rsx_argv             = (server_argv),				\
-		.rsx_argc             = ARRAY_SIZE(server_argv),		\
+		.rsx_argc             = (server_argc),				\
 		.rsx_service_types    = cs_default_stypes,			\
 		.rsx_service_types_nr = cs_default_stypes_nr,			\
 		.rsx_log_file_name    = (log_file_name),			\
 	};
+
+#define C2_RPC_SERVER_CTX_DECLARE_SIMPLE(name, xprt_ptr, server_argv,		\
+					 log_file_name)				\
+	C2_RPC_SERVER_CTX_DECLARE((name), &(xprt_ptr), 1, (server_argv),	\
+				  ARRAY_SIZE((server_argv)), (log_file_name))
 
 struct c2_rpc_client_ctx;
 
