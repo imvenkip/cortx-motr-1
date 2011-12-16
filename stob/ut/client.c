@@ -51,7 +51,7 @@
 
 #define SERVER_ENDPOINT_ADDR	"127.0.0.1:12346:1"
 #define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12347:1"
-#define CLIENT_DB_NAME		"stob_ut_client"
+#define CLIENT_DB_NAME		"stob_ut_client.db"
 
 enum {
 	CLIENT_COB_DOM_ID	= 18,
@@ -76,7 +76,7 @@ static void create_send(struct c2_rpc_session *session, const struct stob_io_fop
 	fop = c2_fop_alloc(&c2_stob_io_create_fopt, NULL);
 	fop_data = c2_fop_data(fop);
 	fop_data->fic_object = *fid;
-	rc = c2_rpc_client_call(fop, session, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
@@ -97,7 +97,7 @@ static void read_send(struct c2_rpc_session *session, const struct stob_io_fop_f
 	fop_data = c2_fop_data(fop);
 	fop_data->fir_object = *fid;
 
-	rc = c2_rpc_client_call(fop, session, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
@@ -121,7 +121,7 @@ static void write_send(struct c2_rpc_session *session, const struct stob_io_fop_
 	fop_data->fiw_object = *fid;
 	fop_data->fiw_value = 'x';
 
-	rc = c2_rpc_client_call(fop, session, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
@@ -162,25 +162,24 @@ int main(int argc, char **argv)
 	struct c2_dbenv       dbenv;
 	struct c2_cob_domain  cob_dom;
 
-	struct c2_rpc_ctx client_rctx = {
-		.rx_net_dom            = &net_dom,
-		.rx_reqh               = NULL,
-		.rx_local_addr         = CLIENT_ENDPOINT_ADDR,
-		.rx_remote_addr        = SERVER_ENDPOINT_ADDR,
-		.rx_dbenv              = &dbenv,
-		.rx_db_name            = CLIENT_DB_NAME,
-		.rx_cob_dom            = &cob_dom,
-		.rx_cob_dom_id         = CLIENT_COB_DOM_ID,
-		.rx_nr_slots           = SESSION_SLOTS,
-		.rx_timeout_s          = CONNECT_TIMEOUT,
-		.rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	struct c2_rpc_client_ctx cctx = {
+		.rcx_net_dom            = &net_dom,
+		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
+		.rcx_dbenv              = &dbenv,
+		.rcx_db_name            = CLIENT_DB_NAME,
+		.rcx_cob_dom            = &cob_dom,
+		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
+		.rcx_nr_slots           = SESSION_SLOTS,
+		.rcx_timeout_s          = CONNECT_TIMEOUT,
+		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
 	if (argc > 1)
-		client_rctx.rx_remote_addr = argv[1];
+		cctx.rcx_remote_addr = argv[1];
 
 	rc = c2_init();
 	C2_ASSERT(rc == 0);
@@ -197,7 +196,7 @@ int main(int argc, char **argv)
 	rc = c2_net_domain_init(&net_dom, xprt);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_rpc_client_init(&client_rctx);
+	rc = c2_rpc_client_init(&cctx);
 	C2_ASSERT(rc == 0);
 
 	printf("cmd> ");
@@ -225,13 +224,13 @@ int main(int argc, char **argv)
 
 		switch (cmd) {
 		case 'c':
-			create_send(&client_rctx.rx_session, &fid);
+			create_send(&cctx.rcx_session, &fid);
 			break;
 		case 'r':
-			read_send(&client_rctx.rx_session, &fid);
+			read_send(&cctx.rcx_session, &fid);
 			break;
 		case 'w':
-			write_send(&client_rctx.rx_session, &fid);
+			write_send(&cctx.rcx_session, &fid);
 			break;
 		case 'q':
 			got_quit = 1;
@@ -246,7 +245,7 @@ int main(int argc, char **argv)
 		printf("cmd> ");
 	}
 
-	rc = c2_rpc_client_fini(&client_rctx);
+	rc = c2_rpc_client_fini(&cctx);
 	C2_ASSERT(rc == 0);
 
 	c2_net_domain_fini(&net_dom);

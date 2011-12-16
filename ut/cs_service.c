@@ -22,14 +22,13 @@
 #include <config.h>
 #endif
 
-#include "lib/ut.h"     /* C2_UT_ASSERT */
 #include "lib/errno.h"
 #include "lib/memory.h"
 
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
-#include "colibri/ut/cs_ut_fop_foms.h"
+#include "ut/cs_fop_foms.h"
 
 static int ds1_service_start(struct c2_reqh_service *service);
 static int ds2_service_start(struct c2_reqh_service *service);
@@ -63,6 +62,13 @@ static const struct c2_reqh_service_ops ds2_service_ops = {
 
 C2_REQH_SERVICE_TYPE_DECLARE(ds1_service_type, &ds1_service_type_ops, "ds1");
 C2_REQH_SERVICE_TYPE_DECLARE(ds2_service_type, &ds2_service_type_ops, "ds2");
+
+static struct c2_reqh_service_type *_cs_default_stypes[] = {
+	&ds1_service_type,
+	&ds2_service_type,
+};
+struct c2_reqh_service_type **cs_default_stypes = _cs_default_stypes;
+size_t cs_default_stypes_nr = ARRAY_SIZE(_cs_default_stypes);
 
 static int ds1_service_alloc_init(struct c2_reqh_service_type *stype,
                                      struct c2_reqh_service **service)
@@ -108,7 +114,7 @@ static int ds1_service_start(struct c2_reqh_service *service)
 
         /*Initialise service fops.*/
 	rc = c2_cs_ut_ds1_fop_init();
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
         return rc;
 }
@@ -121,7 +127,7 @@ static int ds2_service_start(struct c2_reqh_service *service)
 
         /*Initialise service fops.*/
         rc = c2_cs_ut_ds2_fop_init();
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
         return rc;
 }
