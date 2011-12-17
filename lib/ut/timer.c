@@ -38,7 +38,8 @@ enum {
 	NR_TICKS = 10,
 	NR_TG = 10,		/* number of thread groups */
 	NR_THREADS_TG = 10,	/* number of slave threads per thread group */
-	NR_TIMERS_TG = 100	/* number of timers per thread group */
+	NR_TIMERS_TG = 100,	/* number of timers per thread group */
+	NR_TICKS_TG = 10	/* timer ticks TODO document */
 };
 
 struct thread_group;
@@ -396,10 +397,11 @@ static void test_timer_master_mt(struct thread_group *tg)
 		tgt = &tg->tg_timers[i];
 		tgt->tgt_group = tg;
 		/* interval is random in [1, 100] ms range */
+		// FIXME magic number 100
 		c2_time_set(&tgt->tgt_interval, 0,
 				(1 + rand_r(&tg->tg_seed) % 100) * 1000000);
-		/* repeat count is random in [1, 10] range */
-		tgt->tgt_repeat = 1 + rand_r(&tg->tg_seed) % 10;
+		/* repeat count is random in [1, NR_TICKS_TG] range */
+		tgt->tgt_repeat = 1 + rand_r(&tg->tg_seed) % NR_TICKS_TG;
 		tgt->tgt_left = tgt->tgt_repeat;
 		/* init timer semaphore */
 		rc = c2_semaphore_init(&tgt->tgt_done, 0);
@@ -533,7 +535,7 @@ static void test_timer_many_timers_mt()
 	}
 }
 
-static void test_timer_hard(void)
+void test_timer_hard(void)
 {
 	int tick;
 	int timer;

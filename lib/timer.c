@@ -19,15 +19,14 @@
  * Original creation date: 03/04/2011
  */
 
-/**
-   @todo hack, but without it timer_create(2) isn't declarated.
-   in Makefile should be -iquote instead of -I
- */
-
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
 
+/**
+ * @todo hack, but without it timer_create(2) isn't declarated.
+ * in Makefile should be -iquote instead of -I
+ */
 #include </usr/include/time.h>	  /* timer_create */
 #include <unistd.h>	  /* syscall */
 #include <signal.h>	  /* timer_create */
@@ -45,30 +44,33 @@
 #include "lib/timer.h"
 
 /**
-   @addtogroup timer
-
-   Implementation of c2_timer.
-
-   In userspace soft timer implementation, there is a timer thread running,
-   which checks the expire time and trigger timer callback if needed.
-   There is one timer thread for each timer.
-
-   @{
-*/
-/**
- * Hard timer states
+ * @addtogroup timer
  *
- *	+-----------------+          +-------------+	       +---------+
- *	|		  |-- init >>|		   |-- start >>|	 |
- *	| not initialized |	     | initialized |           | running |
- *	|		  |<< fini --|		   |<< stop ---|	 |
- *	+-----------------+	     +-------------+	       +---------+
- *				       v	 ^
- *				       + attach -+
- */
-/**
- * mini-DLD for timer functions
+ * Implementation of c2_timer.
  *
+ * In userspace soft timer implementation, there is a timer thread running,
+ * which checks the expire time and trigger timer callback if needed.
+ * There is one timer thread for each timer.
+ *
+ * <b>Hard timer states</b>
+ * @dot
+ * digraph example {
+ *     size = "5,6"
+ *     label = "RPC Session States"
+ *     node [shape=record, fontname=Helvetica, fontsize=10]
+ *     S0 [label="Uninitialized"]
+ *     S1 [label="Initialized"]
+ *     S2 [label="Running"]
+ *     S0 -> S1 [label="c2_timer_init()"]
+ *     S1 -> S0 [label="c2_timer_fini()"]
+ *     S1 -> S1 [label="c2_timer_attach()"]
+ *     S1 -> S2 [label="c2_timer_start()"]
+ *     S2 -> S1 [label="c2_timer_stop()"]
+ * }
+ * @enddot
+ *
+ * <b>Mini-DLD for timer functions</b>
+ * @verbatim
  * signal handler
  *	if (t_stopping)
  *		timer_gettime()
@@ -104,10 +106,10 @@
  *	timer_delete()
  *	choose t_tid
  *	timer_create(signo = t_signo, target tid = t_tid)
- */
-/**
- * c2_timer access table for timer functions (R - read, W - write)
+ * @endverbatim
  *
+ * <b>c2_timer access table for hard timer functions (R - read, W - write)</b>
+ * @verbatim
  * c2_timer field	init	fini	start	stop	attach	sighandler
  * -----------------------------------------------------------------------
  * t_interval		W	-	R	R	-	R
@@ -121,7 +123,9 @@
  * t_stop_sem		W	W	-	W	-	W
  * t_ptimer		W	-	R	R	RW	R
  * t_signo		W	-	-	-	W	R
+ * @endverbatim
  *
+ * @{
  */
 
 #ifndef C2_TIMER_DEBUG
@@ -170,21 +174,15 @@ static c2_time_t zero_time;
  */
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 		tt_linkage, tt_magic,
-		0x696c444954726d74,	/** ASCII "tmrTIDli" - timer thread ID list item */
-		0x686c444954726d74);	/** ASCII "tmrTIDlh" - timer thread ID list head */
+		0x696c444954726d74,	/** ASCII "tmrTIDli" -
+					  timer thread ID list item */
+		0x686c444954726d74);	/** ASCII "tmrTIDlh" -
+					  timer thread ID list head */
 C2_TL_DEFINE(tid, static, struct timer_tid);
 
 /**
-   Empty function for SIGUSR1 sighandler for soft timer scheduling thread.
-   Using for wake up thread.
-*/
-static void nothing(int unused)
-{
-}
-
-/**
-   gettid(2) implementation.
-   Thread-safe, async-signal-safe.
+ * gettid(2) implementation.
+ * Thread-safe, async-signal-safe.
  */
 static pid_t gettid() {
 
@@ -284,35 +282,48 @@ void c2_timer_thread_detach(struct c2_timer_locality *loc)
 C2_EXPORTED(c2_timer_thread_detach);
 
 /**
-   Init POSIX timer, write it to timer->t_ptimer.
-   Timer notification is signal timer->t_signo to
-   thread timer->t_tid.
+ * Init POSIX timer, write it to timer->t_ptimer.
+ * Timer notification is signal timer->t_signo to
+ * thread timer->t_tid.
  */
 static int timer_posix_init(struct c2_timer *timer)
 {
 	struct sigevent se;
+	timer_t ptimer;
+	int rc;
 
 	se.sigev_notify = SIGEV_THREAD_ID;
 	se.sigev_signo = timer->t_signo;
 	se._sigev_un._tid = timer->t_tid;
 	se.sigev_value.sival_ptr = timer;
-	return timer_create(CLOCK_REALTIME, &se, &timer->t_ptimer);
+	rc = timer_create(CLOCK_REALTIME, &se, &ptimer);
+	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
+	timer->t_ptimer = rc == 0 ? ptimer : timer->t_ptimer;
+	return rc;
 }
 
 /**
-   Delete POSIX timer.
+ * Delete POSIX timer.
  */
-static int timer_posix_fini(struct c2_timer *timer)
+static void timer_posix_fini(timer_t posix_timer)
 {
-	return timer_delete(timer->t_ptimer);
+	int rc;
+
+	rc = timer_delete(posix_timer);
+	/*
+	 * timer_delete() can fail iff timer->t_ptimer isn't valid timer ID.
+	 */
+	C2_ASSERT(rc == 0);
 }
 
 /**
-   Run timer_settime() with given expire time (absolute) and interval.
+ * Run timer_settime() with given expire time (absolute) and interval.
+ * FIXME race condition here (call from multiple threads for the same timer)
  */
-static int timer_posix_set(struct c2_timer *timer,
+static void timer_posix_set_unsafe(struct c2_timer *timer,
 		c2_time_t expire, c2_time_t interval)
 {
+	int rc;
 	struct itimerspec ts;
 
 	C2_PRE(timer != NULL);
@@ -321,12 +332,24 @@ static int timer_posix_set(struct c2_timer *timer,
 	ts.it_interval.tv_nsec = c2_time_nanoseconds(interval);
 	ts.it_value.tv_sec = c2_time_seconds(expire);
 	ts.it_value.tv_nsec = c2_time_nanoseconds(expire);
-	return timer_settime(timer->t_ptimer, TIMER_ABSTIME, &ts, NULL);
+
+	rc = timer_settime(timer->t_ptimer, TIMER_ABSTIME, &ts, NULL);
+	/*
+	 * timer_settime() can only fail if timer->t_ptimer isn't valid
+	 * timer ID or ts has invalid fiels.
+	 */
+	C2_ASSERT(rc == 0);
+}
+
+static void timer_posix_set(struct c2_timer *timer,
+		c2_time_t expire, c2_time_t interval)
+{
+	timer_posix_set_unsafe(timer, expire, interval);
 }
 
 /**
-   Get POSIX timer interval.
-   Returns zero_time for disarmed timer.
+ * Get POSIX timer interval.
+ * Returns zero_time for disarmed timer.
  */
 static void timer_posix_get(struct c2_timer *timer,
 		c2_time_t *interval)
@@ -347,14 +370,14 @@ static void timer_posix_get(struct c2_timer *timer,
 }
 
 /**
-   Set up signal handler sighandler for given signo.
+ * Set up signal handler sighandler for given signo.
  */
 static int timer_sigaction(int signo,
 		void (*sighandler)(int, siginfo_t*, void*))
 {
 	struct sigaction sa;
 
-	memset(&sa, 0, sizeof(sa));
+	C2_SET0(&sa);
 	sa.sa_sigaction = sighandler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_SIGINFO;
@@ -364,14 +387,13 @@ static int timer_sigaction(int signo,
 }
 
 /**
-   Signal handler for all POSIX timers.
-   si->si_value.sival_ptr contains pointer to corresponding c2_timer structure.
+ * Signal handler for all POSIX timers.
+ * si->si_value.sival_ptr contains pointer to corresponding c2_timer structure.
  */
 static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 {
 	struct c2_timer *timer;
 	c2_time_t interval;
-	c2_time_t expire;
 
 	C2_PRE(si != NULL && si->si_value.sival_ptr != 0);
 	C2_PRE(si->si_code == SI_TIMER);
@@ -400,13 +422,26 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 		}
 	} else if (timer->t_left > 0) {
 		/*
-		 * POSIX timer is disabled.
+		 * POSIX timer is disarmed.
 		 * Execute callback and arm it if needed.
 		 */
+		timer->t_expire = c2_time_add(timer->t_expire,
+				timer->t_interval);
 		timer->t_callback(timer->t_data);
 		if (--timer->t_left > 0) {
-			expire = c2_time_add(c2_time_now(), timer->t_interval);
-			timer_posix_set(timer, expire, zero_time);
+			timer_posix_set(timer, timer->t_expire, zero_time);
+			/*
+			 * There is a possible race condition here.
+			 * If there was timer_posix_set() from timer_hard_stop()
+			 * then t_stop_sem semaphore will be never raised.
+			 * To prevent this, simple check t_stopping after
+			 * set new expiration here, and set timer interval
+			 * to magic interval if it is true.
+			 * FIXME RESOLVED INVALID
+			 */
+			if (timer->t_stopping)
+				timer_posix_set(timer, c2_time_now(),
+						magic_interval);
 		}
 	} else {
 		C2_IMPOSSIBLE("impossible signal for c2_timer");
@@ -414,11 +449,41 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 }
 
 /**
-   This function called on every c2_timer_init/fini/start/stop/attach.
-   It checks the possibility of transition from the current state
-   with a given function and if possible, changes timer state to a new state
-   or executes C2_ASSERT() otherwise.
-   If try is true, than timer state doesn't changes.
+ * Soft timer working thread.
+ */
+static void c2_timer_working_thread(struct c2_timer *timer)
+{
+	bool killed = false;
+
+	while (timer->t_left > 0) {
+		if (c2_semaphore_timeddown(&timer->t_sleep_sem,
+					timer->t_expire)) {
+			killed = true;
+			break;
+		}
+		timer->t_expire = c2_time_add(timer->t_expire,
+				timer->t_interval);
+		timer->t_callback(timer->t_data);
+		timer->t_left--;
+	}
+	if (!killed)
+		c2_semaphore_down(&timer->t_sleep_sem);
+}
+
+bool c2_timer_invariant(struct c2_timer *timer)
+{
+	C2_PRE(timer != NULL);
+
+	return timer->t_type == C2_TIMER_HARD
+		|| timer->t_type == C2_TIMER_SOFT;
+}
+
+/**
+ * This function called on every c2_timer_init/fini/start/stop/attach.
+ * It checks the possibility of transition from the current state
+ * with a given function and if possible, changes timer state to a new state
+ * or executes C2_ASSERT() otherwise.
+ * If try is true, than timer state doesn't changes.
  */
 static void timer_state_change(struct c2_timer *timer, enum timer_func func,
 		bool try)
@@ -458,7 +523,7 @@ static void timer_state_change(struct c2_timer *timer, enum timer_func func,
 }
 
 /**
-   Create POSIX timer for given c2_timer.
+ * Create POSIX timer for the given c2_timer.
  */
 static int timer_hard_init(struct c2_timer *timer)
 {
@@ -472,75 +537,84 @@ static int timer_hard_init(struct c2_timer *timer)
 	if (rc != 0)
 		return rc;
 	rc = c2_semaphore_init(&timer->t_stop_sem, 0);
-	if (rc != 0) {
-		timer_posix_fini(timer);
-		return rc;
-	}
-	timer_state_change(timer, TIMER_INIT, false);
-	return 0;
-}
-
-/**
-   Delete POSIX timer for given c2_timer.
- */
-static int timer_hard_fini(struct c2_timer *timer)
-{
-	int rc;
-
-	timer_state_change(timer, TIMER_FINI, true);
-	c2_semaphore_fini(&timer->t_stop_sem);
-	rc = timer_posix_fini(timer);
-	if (rc == 0)
-		timer_state_change(timer, TIMER_FINI, false);
+	if (rc != 0)
+		timer_posix_fini(timer->t_ptimer);
 	return rc;
 }
 
 /**
-   Start one-shot POSIX timer for given c2_timer.
-   After every executed callback POSIX timer will be set again
-   to one-shot timer if necessary.
+ * Delete POSIX timer for the given c2_timer.
+ */
+static void timer_hard_fini(struct c2_timer *timer)
+{
+	c2_semaphore_fini(&timer->t_stop_sem);
+	timer_posix_fini(timer->t_ptimer);
+}
+
+/**
+ * Start one-shot POSIX timer for the given c2_timer.
+ * After every executed callback POSIX timer will be set again
+ * to one-shot timer if necessary.
  */
 static int timer_hard_start(struct c2_timer *timer)
 {
-	c2_time_t expire;
-	int rc = 0;
-
-	timer_state_change(timer, TIMER_START, true);
-	if (timer->t_repeat != 0) {
-		timer->t_left = timer->t_repeat;
-		expire = c2_time_add(c2_time_now(), timer->t_interval);
-		rc = timer_posix_set(timer, expire, zero_time);
-	}
-	if (rc == 0)
-		timer_state_change(timer, TIMER_START, false);
-	return rc;
+	timer_posix_set(timer, timer->t_expire, zero_time);
+	return 0;
 }
 
 /**
-   Stop POSIX timer.
+ * Stop POSIX timer for the given c2_timer and wait for termination
+ * of user-defined timer callback.
  */
 static int timer_hard_stop(struct c2_timer *timer)
 {
-	int rc;
-
-	timer_state_change(timer, TIMER_STOP, true);
 	timer->t_stopping = true;
-	rc = timer_posix_set(timer, c2_time_now(), magic_interval);
-	if (rc != 0) {
-		timer->t_stopping = false;
-		return rc;
-	}
+	timer_posix_set(timer, c2_time_now(), magic_interval);
 	/* wait until internal POSIX timer is disarmed */
 	c2_semaphore_down(&timer->t_stop_sem);
 	timer->t_stopping = false;
-	timer_state_change(timer, TIMER_STOP, false);
 	return 0;
+}
+
+static int timer_soft_init(struct c2_timer *timer)
+{
+	return c2_semaphore_init(&timer->t_sleep_sem, 0);
+}
+
+static void timer_soft_fini(struct c2_timer *timer)
+{
+	c2_semaphore_fini(&timer->t_sleep_sem);
+}
+
+/**
+ * Start soft timer thread.
+ */
+static int timer_soft_start(struct c2_timer *timer)
+{
+	return C2_THREAD_INIT(&timer->t_thread, struct c2_timer*, NULL,
+			    &c2_timer_working_thread,
+			    timer, "c2_timer_worker");
+}
+
+/**
+ * Stop soft timer thread and wait for its termination.
+ */
+static int timer_soft_stop(struct c2_timer *timer)
+{
+	int rc;
+
+	c2_semaphore_up(&timer->t_sleep_sem);
+	rc = c2_thread_join(&timer->t_thread);
+	if (rc == 0)
+		c2_thread_fini(&timer->t_thread);
+	return rc;
 }
 
 int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 {
 	struct timer_tid *tt;
 	int rc;
+	timer_t ptimer;
 
 	C2_PRE(loc != NULL);
 	C2_PRE(timer != NULL);
@@ -559,60 +633,31 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	timer->t_tid = tt->tt_tid;
 	timer->t_signo = loc->tlo_signo;
 
-	rc = timer_posix_fini(timer);
+	/* don't delete old posix timer until new one can be created */
+	ptimer = timer->t_ptimer;
+	rc = timer_posix_init(timer);
 	if (rc == 0)
-		rc = timer_posix_init(timer);
-	if (rc == 0)
-		timer_state_change(timer, TIMER_ATTACH, false);
+		timer_posix_fini(ptimer);
+
+	timer_state_change(timer, TIMER_ATTACH, rc != 0);
 	return rc;
 }
 C2_EXPORTED(c2_timer_attach);
 
 /**
-   Soft timer working thread
- */
-static void c2_timer_working_thread(struct c2_timer *timer)
-{
-	c2_time_t next;
-	c2_time_t now;
-	c2_time_t rem;
-	int rc;
-
-	c2_time_set(&rem, 0, 0);
-	/* capture this signal. It is used to wake this thread */
-	signal(SIGUSR1, nothing);
-
-	while (timer->t_left > 0) {
-		now = c2_time_now();
-		if (c2_time_after(now, timer->t_expire))
-			timer->t_expire = c2_time_add(now, timer->t_interval);
-
-		next = c2_time_sub(timer->t_expire, now);
-		while (timer->t_left > 0 &&
-				(rc = c2_nanosleep(next, &rem)) != 0) {
-			next = rem;
-		}
-		if (timer->t_left == 0)
-			break;
-		timer->t_expire = c2_time_add(timer->t_expire,
-				timer->t_interval);
-		timer->t_callback(timer->t_data);
-		--timer->t_left;
-		if (timer->t_left == 0 || timer->t_left == ~0)
-			break;
-	}
-}
-
-/**
-   Init the timer data structure.
+ * Init the timer data structure.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 		  c2_time_t interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data)
 {
+	int rc;
+
 	C2_PRE(callback != NULL);
 	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
 	C2_PRE(timer != NULL);
+	C2_PRE(repeat != 0);
+	C2_PRE(interval != zero_time);
 
 	C2_SET0(timer);
 	timer->t_type     = type;
@@ -623,76 +668,74 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	timer->t_data     = data;
 	c2_time_set(&timer->t_expire, 0, 0);
 
-	if (type == C2_TIMER_HARD)
-		return timer_hard_init(timer);
-	return 0;
+	rc = (timer->t_type == C2_TIMER_HARD ?
+			timer_hard_init : timer_soft_init)(timer);
+
+	timer_state_change(timer, TIMER_INIT, rc != 0);
+
+	return rc;
 }
 C2_EXPORTED(c2_timer_init);
 
 /**
-   Start a timer.
- */
-int c2_timer_start(struct c2_timer *timer)
-{
-	int rc;
-
-	C2_PRE(timer != NULL);
-
-	timer->t_expire = c2_time_add(c2_time_now(), timer->t_interval);
-	timer->t_left = timer->t_repeat;
-
-	if (timer->t_type == C2_TIMER_HARD) {
-		rc = timer_hard_start(timer);
-	} else {
-		rc = C2_THREAD_INIT(&timer->t_thread, struct c2_timer*, NULL,
-				    &c2_timer_working_thread,
-				    timer, "c2_timer_worker");
-	}
-
-	return rc;
-}
-C2_EXPORTED(c2_timer_start);
-
-/**
-   Stop a timer.
- */
-int c2_timer_stop(struct c2_timer *timer)
-{
-	C2_PRE(timer != NULL);
-
-	if (timer->t_type == C2_TIMER_HARD) {
-		timer_hard_stop(timer);
-	} else {
-		timer->t_left = 0;
-		c2_time_set(&timer->t_expire, 0, 0);
-
-		if (timer->t_thread.t_func != NULL) {
-			c2_thread_signal(&timer->t_thread, SIGUSR1);
-			c2_thread_join(&timer->t_thread);
-			c2_thread_fini(&timer->t_thread);
-		}
-	}
-
-	return 0;
-}
-C2_EXPORTED(c2_timer_stop);
-
-/**
-   Destroy the timer.
+ * Destroy the timer.
  */
 void c2_timer_fini(struct c2_timer *timer)
 {
-	C2_PRE(timer != NULL);
+	C2_PRE(c2_timer_invariant(timer));
 
-	if (timer->t_type == C2_TIMER_HARD)
-		timer_hard_fini(timer);
+	timer_state_change(timer, TIMER_FINI, true);
+
+	(timer->t_type == C2_TIMER_HARD ?
+			 timer_hard_fini : timer_soft_fini)(timer);
 
 	C2_SET0(timer);
 }
 C2_EXPORTED(c2_timer_fini);
 
 /**
-   Init data structures for hard timer
+ * Start a timer.
+ */
+int c2_timer_start(struct c2_timer *timer)
+{
+	int rc;
+
+	C2_PRE(c2_timer_invariant(timer));
+
+	timer_state_change(timer, TIMER_START, true);
+
+	timer->t_left = timer->t_repeat;
+	timer->t_expire = c2_time_add(c2_time_now(), timer->t_interval);
+
+	rc = (timer->t_type == C2_TIMER_HARD ?
+			timer_hard_start : timer_soft_start)(timer);
+
+	timer_state_change(timer, TIMER_START, rc != 0);
+	return rc;
+}
+C2_EXPORTED(c2_timer_start);
+
+/**
+ * Stop a timer.
+ */
+int c2_timer_stop(struct c2_timer *timer)
+{
+	int rc;
+
+	C2_PRE(c2_timer_invariant(timer));
+
+	timer_state_change(timer, TIMER_STOP, true);
+
+	rc = (timer->t_type == C2_TIMER_HARD ?
+			timer_hard_stop : timer_soft_stop)(timer);
+
+	timer_state_change(timer, TIMER_STOP, rc != 0);
+	return rc;
+}
+C2_EXPORTED(c2_timer_stop);
+
+/**
+ * Init data structures for hard timer
  */
 int c2_timers_init()
 {
@@ -710,14 +753,14 @@ int c2_timers_init()
 		 */
 		C2_ASSERT(rc == 0);
 	}
-	c2_time_set(&magic_interval, 60 * 60 * 24, 606024);
+	c2_time_set(&magic_interval, 366 * 60 * 60 * 24, 606024);
 	c2_time_set(&zero_time, 0, 0);
 	return 0;
 }
 C2_EXPORTED(c2_timers_init);
 
 /**
-   fini() all remaining hard timer data structures
+ * fini() all remaining hard timer data structures
  */
 void c2_timers_fini()
 {
