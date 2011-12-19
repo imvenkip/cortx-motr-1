@@ -610,22 +610,45 @@
  */
 static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 {
+	if (q == NULL || q->cbcq_consumer == 0 || q->cbcq_producer == 0)
+		return false;
+	if (q->cbcq_nr < 2)
+		return false;
 	return true;
 }
 
 /**
-   Adds a new element to the circular buffer queue.
+   Adds a new element to the circular buffer queue in the consumer address
+   space.
+   @note The new element must already be blessed via bev_cqueue_bless() in the
+   producer address space.  The cbl_c_self of the new element, ql, is set
+   by bev_cqueue_add().
    @param q the queue
    @param ql the element to add
  */
 static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 			   struct nlx_core_bev_link *ql)
 {
+	struct nlx_core_bev_link *consumer =
+	    ((struct nlx_core_bev_link *) (q->cbcq_consumer));
+	C2_PRE(q->cbcq_nr > 0 && consumer != NULL && ql->cbl_p_self != 0);
+	ql->cbl_c_self = (nlx_core_opaque_ptr_t) ql;
+
+	ql->cbl_c_next = consumer->cbl_c_next;
+	ql->cbl_p_next = consumer->cbl_p_next;
+	consumer->cbl_c_next = (nlx_core_opaque_ptr_t) ql;
+	consumer->cbl_p_next = ql->cbl_p_self;
+	q->cbcq_consumer = (nlx_core_opaque_ptr_t) ql;
+	q->cbcq_nr++;
+
+	C2_POST(bev_cqueue_invariant(q));
 }
 
 /**
-   Initialises the buffer event queue. Should be lnvoked in the consumer address
+   Initialises the buffer event queue. Should be invoked in the consumer address
    space only.
+   @note both elements, ql1 and ql2 must be blessed via bev_cqueue_bless() in
+   the producer address space before they are used here.
    @param q buffer event queue to initialise
    @param ql1 the first element in the new queue
    @param ql2 the second element in the new queue
@@ -636,7 +659,17 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,
 			    struct nlx_core_bev_link *ql2)
 {
-	bev_cqueue_add(q, ql1);
+	C2_SET0(q);
+
+	/* special case: add first element to the circular queue */
+	C2_ASSERT(ql1->cbl_p_self != 0);
+	ql1->cbl_c_self = (nlx_core_opaque_ptr_t) ql1;
+	ql1->cbl_c_next = (nlx_core_opaque_ptr_t) ql1;
+	ql1->cbl_p_next = ql1->cbl_p_self;
+	q->cbcq_consumer = (nlx_core_opaque_ptr_t) ql1;
+	q->cbcq_producer = ql1->cbl_p_self;
+	q->cbcq_nr++;
+
 	bev_cqueue_add(q, ql2);
 	C2_POST(bev_cqueue_invariant(q));
 }
@@ -656,7 +689,11 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q)
  */
 static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q)
 {
-	return true;
+	struct nlx_core_bev_link *consumer;
+	C2_PRE(bev_cqueue_invariant(q));
+
+	consumer = ((struct nlx_core_bev_link *) (q->cbcq_consumer));
+	return consumer->cbl_p_next == q->cbcq_producer;
 }
 
 /**
@@ -708,6 +745,7 @@ static void bev_cqueue_put(struct nlx_core_bev_cqueue *q)
  */
 static void bev_link_bless(struct nlx_core_bev_link *ql)
 {
+	ql->cbl_p_self = (nlx_core_opaque_ptr_t) ql;
 }
 
 /**

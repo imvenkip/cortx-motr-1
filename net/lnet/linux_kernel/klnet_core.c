@@ -910,12 +910,9 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	struct nlx_core_buffer_event *e1;
 	struct nlx_core_buffer_event *e2;
 
-	/* XXX: temp, really belongs in async and/or kernel code */
 	C2_ALLOC_PTR(e1);
-	e1->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e1->cbe_tm_link;
 	bev_link_bless(&e1->cbe_tm_link);
 	C2_ALLOC_PTR(e2);
-	e2->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e2->cbe_tm_link;
 	bev_link_bless(&e2->cbe_tm_link);
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
