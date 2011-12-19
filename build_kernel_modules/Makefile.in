@@ -4,6 +4,8 @@ KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
 
+KBUILD_EXTRA_SYMBOLS = @LUSTRE@/Module.symvers
+
 GCOV_PROFILE := @K_ENABLE_COVERAGE@
 
 testdirs := ../net/bulk_emulation/st/linux_kernel/ \

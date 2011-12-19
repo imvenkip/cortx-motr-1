@@ -346,10 +346,18 @@ AC_ARG_WITH([lustre],
 if ! test -d $LUSTRE/lnet/include; then
 	AC_MSG_ERROR([lnet/include not found in $LUSTRE!])
 fi
+AC_MSG_RESULT([$LUSTRE])
+
+AC_MSG_CHECKING([for Lustre config.h])
 if ! test -e $LUSTRE/config.h; then
 	AC_MSG_ERROR([$LUSTRE/config.h not found! Did you configure lustre?])
 fi
-AC_MSG_RESULT([$LUSTRE])
+AC_MSG_RESULT([$LUSTRE/config.h])
+AC_MSG_CHECKING([for Lustre symbols file])
+if ! test -e $LUSTRE/Module.symvers; then
+	AC_MSG_ERROR([$LUSTRE/Module.symvers not found! Did you build lustre?])
+fi
+AC_MSG_RESULT([$LUSTRE/Module.symvers])
 AC_SUBST([LUSTRE])
 
 AC_ARG_WITH([db],
