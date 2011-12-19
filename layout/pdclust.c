@@ -26,6 +26,7 @@
 
 #include "stob/stob.h"
 #include "pool/pool.h"
+#include "fid/fid.h"   /* struct c2_fid */
 
 #include "layout/pdclust.h"
 
@@ -175,7 +176,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 
 	const struct tile_cache *tc;
 
-	P = play->pl_attr->pa_P;
+	P = play->pl_attr.pa_P;
 
 	tc = &play->pl_tile_cache;
 	/*
@@ -195,7 +196,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 		   bijection. */
 	}
 	return
-		play->pl_C * (play->pl_attr->pa_N + 2*play->pl_attr->pa_K) == play->pl_L * P;
+		play->pl_C * (play->pl_attr.pa_N + 2*play->pl_attr.pa_K) == play->pl_L * P;
 }
 
 /**
@@ -230,7 +231,7 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 {
 	struct tile_cache *tc;
 
-	C2_ASSERT(t < play->pl_attr->pa_P);
+	C2_ASSERT(t < play->pl_attr.pa_P);
 	tc = &play->pl_tile_cache;
 	/*
 	 * If cached values are for different tile, update the cache.
@@ -240,7 +241,7 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 		uint64_t rstate;
 
 		/* initialise columns array that will be permuted. */
-		for (i = 0; i < play->pl_attr->pa_P; ++i)
+		for (i = 0; i < play->pl_attr.pa_P; ++i)
 			tc->tc_permute[i] = i;
 
 		/* initialize PRNG */
@@ -249,15 +250,15 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 			hash(play->pl_seed.u_lo + omega);
 
 		/* generate permutation number in lexicographic ordering */
-		for (i = 0; i < play->pl_attr->pa_P - 1; ++i)
-			tc->tc_lcode[i] = c2_rnd(play->pl_attr->pa_P - i, &rstate);
+		for (i = 0; i < play->pl_attr.pa_P - 1; ++i)
+			tc->tc_lcode[i] = c2_rnd(play->pl_attr.pa_P - i, &rstate);
 
 		/* apply the permutation */
-		permute(play->pl_attr->pa_P, tc->tc_lcode,
+		permute(play->pl_attr.pa_P, tc->tc_lcode,
 			tc->tc_permute, tc->tc_inverse);
 		tc->tc_tile_no = omega;
 	}
-	C2_ASSERT(tc->tc_permute[t] < play->pl_attr->pa_P);
+	C2_ASSERT(tc->tc_permute[t] < play->pl_attr.pa_P);
 	C2_ASSERT(tc->tc_inverse[tc->tc_permute[t]] == t);
 	C2_ASSERT(tc->tc_permute[tc->tc_inverse[t]] == t);
 	return tc->tc_permute[t];
@@ -280,9 +281,9 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	uint64_t r;
 	uint64_t t;
 
-	N = play->pl_attr->pa_N;
-	K = play->pl_attr->pa_K;
-	P = play->pl_attr->pa_P;
+	N = play->pl_attr.pa_N;
+	K = play->pl_attr.pa_K;
+	P = play->pl_attr.pa_P;
 	C = play->pl_C;
 	L = play->pl_L;
 
@@ -320,9 +321,9 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	uint64_t r;
 	uint64_t t;
 
-	N = play->pl_attr->pa_N;
-	K = play->pl_attr->pa_K;
-	P = play->pl_attr->pa_P;
+	N = play->pl_attr.pa_N;
+	K = play->pl_attr.pa_K;
+	P = play->pl_attr.pa_P;
 	C = play->pl_C;
 	L = play->pl_L;
 
@@ -352,9 +353,9 @@ static bool pdclust_equal(const struct c2_layout *l0,
 
 	return
 		c2_uint128_eq(&p0->pl_seed, &p1->pl_seed) &&
-		p0->pl_attr->pa_N == p1->pl_attr->pa_N &&
-		p0->pl_attr->pa_K == p1->pl_attr->pa_K &&
-		p0->pl_attr->pa_P == p1->pl_attr->pa_P &&
+		p0->pl_attr.pa_N == p1->pl_attr.pa_N &&
+		p0->pl_attr.pa_K == p1->pl_attr.pa_K &&
+		p0->pl_attr.pa_P == p1->pl_attr.pa_P &&
 		p0->pl_C == p1->pl_C &&
 		p0->pl_L == p1->pl_L &&
 		p0->pl_pool == p1->pl_pool;
@@ -381,7 +382,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 		c2_free(pdl->pl_tile_cache.tc_permute);
 		c2_free(pdl->pl_tile_cache.tc_lcode);
 		if (pdl->pl_tgt != NULL) {
-			for (i = 0; i < pdl->pl_attr->pa_P; ++i) {
+			for (i = 0; i < pdl->pl_attr.pa_P; ++i) {
 				if (c2_stob_id_is_set(&pdl->pl_tgt[i]))
 					c2_pool_put(pdl->pl_pool,
 						    &pdl->pl_tgt[i]);
@@ -433,14 +434,14 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
                                &pdlclust_ops);
 
 		pdl->pl_seed = *seed;
-		pdl->pl_attr->pa_N = N;
-		pdl->pl_attr->pa_K = K;
+		pdl->pl_attr.pa_N = N;
+		pdl->pl_attr.pa_K = K;
 
 		pdl->pl_pool = pool;
 		/* select minimal possible B (least common multiple of P and
 		   N+2*K */
 		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
-		pdl->pl_attr->pa_P = P;
+		pdl->pl_attr.pa_P = P;
 		pdl->pl_C = B/(N+2*K);
 		pdl->pl_L = B/P;
 
@@ -468,9 +469,9 @@ enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit)
 {
-	if (unit < play->pl_attr->pa_N)
+	if (unit < play->pl_attr.pa_N)
 		return PUT_DATA;
-	else if (unit < play->pl_attr->pa_N + play->pl_attr->pa_K)
+	else if (unit < play->pl_attr.pa_N + play->pl_attr.pa_K)
 		return PUT_PARITY;
 	else
 		return PUT_SPARE;
@@ -563,12 +564,28 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	return 0;
 }
 
+/**
+   Implementation of lto_subst for pdclust layout type.
+
+   Substitutes attributes and parameters into the formula and obtains list of
+   COB identifiers.
+
+   @note This function will be defined as a part of c2t1fs work.
+*/
+static int pdclust_subst(const struct c2_layout *l,
+			 struct c2_tl *outlist,
+			 struct c2_fid gfid)
+{
+	return 0;
+}
+
 static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register	= NULL,
 	.lto_unregister	= NULL,
 	.lto_equal	= pdclust_equal,
 	.lto_decode	= pdclust_decode,
 	.lto_encode	= pdclust_encode,
+	.lto_subst	= pdclust_subst
 };
 
 const struct c2_layout_type c2_pdclust_layout_type = {

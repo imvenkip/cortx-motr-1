@@ -18,6 +18,7 @@
  * Original creation date: 11/16/2011
  */
 
+#include "fid/fid.h"  /* struct c2_fid */
 #include "layout/list_enum.h"
 
 /**
@@ -169,8 +170,10 @@ static int __attribute__ ((unused)) list_enumerate(
 /**
    Implementation of leo_nr for LIST enumeration.
    Rerurns number of objects in the enumeration.
+   Argument fid is ignored here for LIST enumeration type.
 */
-static uint32_t list_nr(const struct c2_layout_enum *le)
+static uint32_t list_nr(const struct c2_layout_enum *le,
+			struct c2_fid *gfid)
 {
    /**
 	@code
@@ -184,9 +187,11 @@ static uint32_t list_nr(const struct c2_layout_enum *le)
 /**
    Implementation of leo_get for LIST enumeration.
    Rerurns idx-th object from the enumeration.
+   Argument fid is ignored here for LIST enumeration type.
 */
 static void list_get(const struct c2_layout_enum *le,
 		     uint32_t idx,
+		     struct c2_fid *gfid,
 		     struct c2_fid *out)
 {
    /**

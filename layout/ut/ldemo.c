@@ -40,9 +40,9 @@
 enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
 				   int unit)
 {
-	if (unit < play->pl_attr->pa_N)
+	if (unit < play->pl_attr.pa_N)
 		return PUT_DATA;
-	else if (unit < play->pl_attr->pa_N + play->pl_attr->pa_K)
+	else if (unit < play->pl_attr.pa_N + play->pl_attr.pa_K)
 		return PUT_PARITY;
 	else
 		return PUT_SPARE;
@@ -64,7 +64,7 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	struct c2_pdclust_src_addr map[R][P];
 	uint32_t                   incidence[P][P];
 	uint32_t                   usage[P][PUT_NR + 1];
-	uint32_t                   where[play->pl_attr->pa_N + 2*play->pl_attr->pa_K];
+	uint32_t                   where[play->pl_attr.pa_N + 2*play->pl_attr.pa_K];
 	const char                *brace[PUT_NR] = { "[]", "<>", "{}" };
 	const char                *head[PUT_NR+1] = { "D", "P", "S", "total" };
 
@@ -78,8 +78,8 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	C2_SET_ARR0(usage);
 	C2_SET_ARR0(incidence);
 
-	N = play->pl_attr->pa_N;
-	K = play->pl_attr->pa_K;
+	N = play->pl_attr.pa_N;
+	K = play->pl_attr.pa_K;
 	W = N + 2*K;
 
 	printf("layout: N: %u K: %u P: %u C: %u L: %u\n",

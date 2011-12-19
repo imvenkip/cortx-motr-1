@@ -32,7 +32,6 @@
  */
 
 /* import */
-#include "lib/tlist.h"	/* struct c2_tl */
 #include "lib/mutex.h"	/* struct c2_mutex */
 #include "db/extmap.h"	/* struct c2_emap */
 

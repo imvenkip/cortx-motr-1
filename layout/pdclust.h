@@ -112,7 +112,7 @@ struct c2_pdclust_layout {
 	/**
 	   Parity de-clustering layout attributes.
 	*/
-	struct c2_pdclust_attr      *pl_attr;
+	struct c2_pdclust_attr       pl_attr;
 
 	/**
 	   A datum used to seed PRNG to generate tile column permutations.

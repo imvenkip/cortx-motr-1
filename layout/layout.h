@@ -62,7 +62,8 @@
 
 /* import */
 #include "lib/cdefs.h"
-#include "lib/types.h"	/* uint64_t */
+#include "lib/types.h"    /* uint64_t */
+#include "lib/tlist.h"    /* struct c2_tl */
 
 struct c2_bufvec_cursor;
 struct c2_fid;
@@ -171,6 +172,16 @@ struct c2_layout_type_ops {
 			      enum c2_layout_xcode_op op,
 			      struct c2_db_tx *tx,
 			      struct c2_bufvec_cursor *out);
+
+	/** In case of a layouts using formula enumeration type, substitutes
+	    attributes and parameters into the formula and obtains list of COB
+	    identifiers.
+	    Defining this function is applicable for the layout types which may
+	    use formula enumeration type e.g. PDCLUST layout type.
+	*/
+	int	(*lto_subst)(const struct c2_layout *l,
+			     struct c2_tl *outlist,
+			     struct c2_fid gfid); 
 };
 
 /**
@@ -185,13 +196,15 @@ struct c2_layout_enum {
 
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
-	uint32_t	(*leo_nr)(const struct c2_layout_enum *e);
+	uint32_t	(*leo_nr)(const struct c2_layout_enum *e,
+				  struct c2_fid *gfid);
 
 	/** Returns idx-th object in the enumeration.
 	    @pre idx < e->l_enum_ops->leo_nr(e)
 	*/
 	void		(*leo_get)(const struct c2_layout_enum *e,
 				   uint32_t idx,
+				   struct c2_fid *gfid,
 				   struct c2_fid *out);
 };
 

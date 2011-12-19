@@ -42,24 +42,25 @@
 */
 static int __attribute__ ((unused)) formula_enumerate(
 			     const struct c2_layout_enum *le,
-			     struct c2_tl *list)
+			     struct c2_tl *outlist,
+			     struct c2_fid *gfid)
+
 {
    /**
 	@code
-	The layout is le->le_lptr->l_id.
+	The layouti id is le->le_lptr->l_id.
 	Use c2_ldb_rec_lookup() to read the layout with that layout id.
 
 	It would tell that the layout is with the FORMULA enumeration type
 	and will provide the required attributes.
 
-	Obtain the container of le that is of the type c2_layout_formula_enum.
-	c2_layout_formula_enum::lfe_actuals would contain the input parameters
-	for this formula for this specific instance of c2_layout_formula_enum.
+	Now derive list of COB identifiers 
 
-	Now invoke c2_layout_formula_enum::lfe_form->lf_ops->lfo_subst() with
-	the attributes and parameters obtained here.
-	This will result into COB identifiers enumeration, in the form of a
-	c2_tl list. Store it in list that is out argument of this routine.
+	Invoke 
+	c2_layout_formula_enum->lfe_enum->le_lptr->l_type->lt_ops->lto_subst(), by
+	passing it the attributes obtained by reading the layout and the parameter
+	gfid. This will result into COB identifiers enumeration, in the form of a
+	c2_tl list, stored in the list that is out argument of this routine.
 	@endcode
    */
 	return 0;
@@ -69,13 +70,14 @@ static int __attribute__ ((unused)) formula_enumerate(
    Implementation of leo_nr for FORMULA enumeration.
    Rerurns number of objects in the enumeration.
 */
-static uint32_t formula_nr(const struct c2_layout_enum *le)
+static uint32_t formula_nr(const struct c2_layout_enum *le,
+			   struct c2_fid *gfid)
 {
    /**
 	@code
 	c2_tl *list;
 
-	formula_enumerate(le, list);
+	formula_enumerate(le, list, gfid);
 
 	Provide number of objects for that layout enumeration.
 	@endcode
@@ -89,13 +91,14 @@ static uint32_t formula_nr(const struct c2_layout_enum *le)
 */
 static void formula_get(const struct c2_layout_enum *le,
 			uint32_t idx,
+			struct c2_fid *gfid,
 			struct c2_fid *out)
 {
    /**
 	@code
 	c2_tl *list;
 
-	formula_enumerate(le, list);
+	formula_enumerate(le, list, gfid);
 
 	Provide idx-th object from that layout enumeration.
 	@endcode
@@ -107,19 +110,15 @@ static const struct c2_layout_enum_ops formula_enum_ops = {
 	.leo_get	= formula_get
 };
 
+/**
+   @note Layout enum type specific implementation of leto_register,
+   leto_unregister, leto_decode and leto_encode methods is not required
+   for formula enumeration type.
+*/
 const struct c2_layout_enum_type c2_formula_enum_type = {
 	.let_name	= "formula",
 	.let_id		= 0x464F524D554C4145, /* FORMULAE */
 	.let_ops	= NULL
-};
-
-static const struct c2_layout_formula_ops nkp_ops = {
-	.lfo_subst	= NULL
-};
-
-const struct c2_uint128 c2_formula_NKP_formula_id = {
-	.u_hi = 0x5041524954594445, /* PARITYDE */
-	.u_lo = 0x434c55535445522e  /* CLUSTER. */
 };
 
 /** @} end group formula_enum */
