@@ -115,6 +115,7 @@ static int c2t1fs_create(struct inode     *dir,
 
 	ci              = C2T1FS_I(inode);
 	ci->ci_fid      = c2t1fs_fid_alloc(csb);
+	inode->i_ino    = ci->ci_fid.f_key;
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
@@ -334,6 +335,7 @@ static int c2t1fs_readdir(struct file *f,
 	switch (i) {
 	case 0:
 		ino = dir->i_ino;
+		C2_TRACE("i = %d ino = %lu\n", i, (unsigned long)ino);
 		if (filldir(buf, ".", 1, i, ino, DT_DIR) < 0)
 			break;
 		C2_TRACE("filled: \".\"\n");
@@ -342,7 +344,8 @@ static int c2t1fs_readdir(struct file *f,
 		/* Fallthrough */
 	case 1:
 		ino = parent_ino(dentry);
-		if (filldir(buf, "..", 2, i, ino, DT_DIR) < 0)
+		C2_TRACE("i = %d ino = %lu\n", i, (unsigned long)ino);
+		if (filldir(buf, "..", 2, i, 4, DT_DIR) < 0)
 			break;
 		C2_TRACE("filled: \"..\"\n");
 		f->f_pos++;
@@ -364,8 +367,11 @@ static int c2t1fs_readdir(struct file *f,
 			name    = de->de_name;
 			namelen = strlen(name);
 
+			C2_TRACE("off %lu ino %lu\n", (unsigned long)f->f_pos,
+					(unsigned long)i + 1);
+
 			rc = filldir(buf, name, namelen, f->f_pos,
-					i, DT_REG);
+					++i, DT_REG);
 			if (rc < 0)
 				goto out;
 			C2_TRACE("filled: \"%s\"\n", name);

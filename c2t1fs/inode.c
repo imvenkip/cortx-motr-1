@@ -228,8 +228,9 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 			(unsigned long)fid->f_container,
 			(unsigned long)fid->f_key);
 
-	ci         = C2T1FS_I(inode);
-	ci->ci_fid = *fid;
+	ci           = C2T1FS_I(inode);
+	ci->ci_fid   = *fid;
+	inode->i_ino = fid->f_key;
 
 	C2_TRACE_END(0);
 	return 0;
