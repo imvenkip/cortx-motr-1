@@ -33,131 +33,103 @@
 #include "addb/addb.h"
 #include "net/net.h"
 #include "net/usunrpc/usunrpc.h"
+#include "rpc/rpclib.h"
+#include "lib/processor.h"
 
 #include "stob/stob.h"
 #include "stob/linux.h"
+#include "stob/io_fop.h"
 #include "colibri/init.h"
+#include "ut/rpc.h"
 
-#include "io_u.h"
-#include "io_fop.h"
+#include "stob/io_fop_u.h"
 
 /**
    @addtogroup stob
    @{
  */
 
+#define SERVER_ENDPOINT_ADDR	"127.0.0.1:12346:1"
+#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12347:1"
+#define CLIENT_DB_NAME		"stob_ut_client.db"
+
+enum {
+	CLIENT_COB_DOM_ID	= 18,
+	SESSION_SLOTS		= 1,
+	MAX_RPCS_IN_FLIGHT	= 1,
+	CONNECT_TIMEOUT		= 5,
+};
+
+extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
+
 int got_quit = 0;
 
-static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
-		   struct c2_fop *ret)
+
+static void create_send(struct c2_rpc_session *session, const struct stob_io_fop_fid *fid)
 {
-	struct c2_net_call call = {
-		.ac_arg = arg,
-		.ac_ret = ret
-	};
-	return c2_net_cli_call(conn, &call);
+	int rc;
+	struct c2_fop                   *fop;
+	struct c2_fop                   *rep;
+	struct c2_stob_io_create	*fop_data;
+	struct c2_stob_io_create_rep	*rep_data;
+
+	fop = c2_fop_alloc(&c2_stob_io_create_fopt, NULL);
+	fop_data = c2_fop_data(fop);
+	fop_data->fic_object = *fid;
+	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(fop->f_item.ri_error == 0);
+	C2_ASSERT(fop->f_item.ri_reply != 0);
+	rep = container_of(fop->f_item.ri_reply, struct c2_fop, f_item);
+	rep_data = c2_fop_data(rep);
+	printf("GOT: %d %d\n", rc, rep_data->ficr_rc);
 }
 
-static void create_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
+static void read_send(struct c2_rpc_session *session, const struct stob_io_fop_fid *fid)
 {
-	int result;
-	struct c2_fop                    *f;
-	struct c2_fop                    *r;
-	struct c2_io_create     *fop;
-	struct c2_io_create_rep *rep;
+	int rc;
+	struct c2_fop                   *fop;
+	struct c2_fop                   *rep;
+	struct c2_stob_io_read		*fop_data;
+	struct c2_stob_io_read_rep	*rep_data;
 
-	f = c2_fop_alloc(&c2_io_create_fopt, NULL);
-	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
-	rep = c2_fop_data(r);
-	fop->sic_object = *fid;
+	fop = c2_fop_alloc(&c2_stob_io_read_fopt, NULL);
+	fop_data = c2_fop_data(fop);
+	fop_data->fir_object = *fid;
 
-	result = netcall(conn, f, r);
-	printf("GOT: %i %i\n", result, rep->sicr_rc);
+	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(fop->f_item.ri_error == 0);
+	C2_ASSERT(fop->f_item.ri_reply != 0);
+
+	rep = container_of(fop->f_item.ri_reply, struct c2_fop, f_item);
+	rep_data = c2_fop_data(rep);
+	printf("GOT: %d %d %u %c\n", rc, rep_data->firr_rc,
+			rep_data->firr_count, rep_data->firr_value);
 }
 
-static void read_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
+static void write_send(struct c2_rpc_session *session, const struct stob_io_fop_fid *fid)
 {
-	int result;
-	struct c2_fop                    *f;
-	struct c2_fop                    *r;
-	struct c2_io_read       *fop;
-	struct c2_io_read_rep   *rep;
-	int i;
+	int rc;
+	struct c2_fop                   *fop;
+	struct c2_fop                   *rep;
+	struct c2_stob_io_write		*fop_data;
+	struct c2_stob_io_write_rep	*rep_data;
 
-	f = c2_fop_alloc(&c2_io_read_fopt, NULL);
-	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
-	rep = c2_fop_data(r);
+	fop = c2_fop_alloc(&c2_stob_io_write_fopt, NULL);
+	fop_data = c2_fop_data(fop);
+	fop_data->fiw_object = *fid;
+	fop_data->fiw_value = 'x';
 
-	fop->sir_object = *fid;
-	if (scanf("%i", &i) != 1)
-		err(1, "wrong count conversion");
-	C2_ASSERT(i == 1);
-	if (scanf("%llu %llu",
-		  (unsigned long long *)&fop->sir_seg.f_offset,
-		  (unsigned long long *)&fop->sir_seg.f_count) != 2) {
-		err(1, "wrong offset conversion");
-	}
-	result = netcall(conn, f, r);
-	C2_ASSERT(result == 0);
-	printf("GOT: %i %i\n", rep->sirr_rc, rep->sirr_buf.cib_count);
-	printf("\t[");
-	for (i = 0; i < rep->sirr_buf.cib_count; ++i)
-		printf("%02x", rep->sirr_buf.cib_value[i]);
-	printf("]\n");
-}
+	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(fop->f_item.ri_error == 0);
+	C2_ASSERT(fop->f_item.ri_reply != 0);
 
-static void write_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
-{
-	int result;
-	struct c2_fop                    *f;
-	struct c2_fop                    *r;
-	struct c2_io_write      *fop;
-	struct c2_io_write_rep  *rep;
-	char filler;
-
-	f = c2_fop_alloc(&c2_io_write_fopt, NULL);
-	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
-	rep = c2_fop_data(r);
-
-	C2_SET0(&rep);
-	fop->siw_object = *fid;
-	if (scanf("%i", &result) != 1)
-		err(1, "wrong count conversion");
-	C2_ASSERT(result == 1);
-	if (scanf("%llu %u %c",
-		  (unsigned long long *)&fop->siw_offset,
-		  &fop->siw_buf.cib_count, &filler) != 3)
-		err(1, "wrong offset conversion");
-	fop->siw_buf.cib_value = c2_alloc(fop->siw_buf.cib_count);
-	C2_ASSERT(fop->siw_buf.cib_value != NULL);
-	memset(fop->siw_buf.cib_value, filler, fop->siw_buf.cib_count);
-
-	result = netcall(conn, f, r);
-	C2_ASSERT(result == 0);
-	rep = c2_fop_data(r);
-
-	printf("GOT: %i %i %i\n", result, rep->siwr_rc, rep->siwr_count);
-}
-
-static void quit_send(struct c2_net_conn *conn)
-{
-	struct c2_fop              *f;
-	struct c2_fop              *r;
-	struct c2_io_quit *rep;
-	int result;
-
-	f = c2_fop_alloc(&c2_io_quit_fopt, NULL);
-	r = c2_fop_alloc(&c2_io_quit_fopt, NULL);
-	rep = c2_fop_data(r);
-
-	result = netcall(conn, f, r);
-	C2_ASSERT(result == 0);
-	rep = c2_fop_data(r);
-	printf("GOT: %i %i\n", result, rep->siq_rc);
-	got_quit = 1;
+	rep = container_of(fop->f_item.ri_reply, struct c2_fop, f_item);
+	rep_data = c2_fop_data(rep);
+	printf("GOT: %d %d %u\n", rc, rep_data->fiwr_rc,
+			rep_data->fiwr_count);
 }
 
 /**
@@ -165,7 +137,7 @@ static void quit_send(struct c2_net_conn *conn)
 
    Synopsis:
 
-     client host port
+     client [ip_addr:port:id]
 
    After connecting to the server, the client reads commands from the standard
    input. The following commands are supported:
@@ -174,127 +146,115 @@ static void quit_send(struct c2_net_conn *conn)
 
            Create an object with the fid (D1:D2)
 
-       w <D1> <D2> <N> <OFF0> <COUNT0> <FILLER0> <OFF1> <COUNT1> <FILLER1> ...
+       w <D1> <D2>
 
-           Write into an object with the fid (D1:D2) N buffers described by
-           (offset, count, filler) triples that follow. Offset is the staring
-           offset in the file, count is buffer size in bytes and filler is a
-           character with which the buffer is filled.
+           Write into an object with the fid (D1:D2).
 
-       r <D1> <D2> <N> <OFF0> <COUNT0> <OFF1> <COUNT1> ...
+       r <D1> <D2>
 
-           Read from an object with the fid (D1:D2) N buffers with given offsets
-           and sizes.
-
-       q <D1> <D2>
-
-           Shutdown the server.
+           Read from an object with the fid (D1:D2).
  */
 int main(int argc, char **argv)
 {
-	int result;
+	int rc;
+	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_domain  net_dom = { };
+	struct c2_dbenv       dbenv;
+	struct c2_cob_domain  cob_dom;
 
-	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
-	struct c2_net_domain    ndom = {
-		.nd_xprt = NULL
+	struct c2_rpc_client_ctx cctx = {
+		.rcx_net_dom            = &net_dom,
+		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
+		.rcx_dbenv              = &dbenv,
+		.rcx_db_name            = CLIENT_DB_NAME,
+		.rcx_cob_dom            = &cob_dom,
+		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
+		.rcx_nr_slots           = SESSION_SLOTS,
+		.rcx_timeout_s          = CONNECT_TIMEOUT,
+		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};
-	struct c2_net_conn     *conn;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	if (argc != 3) {
-		fprintf(stderr, "%s host port\n", argv[0]);
-		return -1;
-	}
+	if (argc > 1)
+		cctx.rcx_remote_addr = argv[1];
 
-	result = c2_init();
-	C2_ASSERT(result == 0);
+	rc = c2_init();
+	C2_ASSERT(rc == 0);
 
-	result = io_fop_init();
-	C2_ASSERT(result == 0);
+	rc = c2_processors_init();
+	C2_ASSERT(rc == 0);
 
-	result = c2_net_xprt_init(&c2_net_usunrpc_xprt);
-	C2_ASSERT(result == 0);
+	rc = c2_stob_io_fop_init();
+	C2_ASSERT(rc == 0);
 
-	result = c2_net_domain_init(&ndom, &c2_net_usunrpc_xprt);
-	C2_ASSERT(result == 0);
+	rc = c2_net_xprt_init(xprt);
+	C2_ASSERT(rc == 0);
 
-	result = c2_service_id_init(&sid, &ndom, argv[1], atoi(argv[2]));
-	C2_ASSERT(result == 0);
+	rc = c2_net_domain_init(&net_dom, xprt);
+	C2_ASSERT(rc == 0);
 
-	result = c2_net_conn_create(&sid);
-	C2_ASSERT(result == 0);
+	rc = c2_rpc_client_init(&cctx);
+	C2_ASSERT(rc == 0);
 
-	conn = c2_net_conn_find(&sid);
-	C2_ASSERT(conn != NULL);
-
-	/* write addb record onto network */
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn);
+	printf("cmd> ");
 
 	while (!feof(stdin)) {
-		struct c2_fop_fid fid;
-		char cmd;
-		int n;
+		struct stob_io_fop_fid fid;
+		char                   cmd;
+		char                   *line = NULL;
+		size_t                 n = 0;
 
-		n = scanf("%c %lu %lu", &cmd, (unsigned long *)&fid.f_seq,
+		rc = getline(&line, &n, stdin);
+		if (rc == -1) {
+			if (feof(stdin))
+				return EXIT_SUCCESS;
+			else
+				err(EXIT_FAILURE, "failed to read line from STDIN");
+		}
+
+		n = sscanf(line, "%c %lu %lu\n", &cmd, (unsigned long *)&fid.f_seq,
 			  (unsigned long *)&fid.f_oid);
 		if (n != 3)
-			err(1, "wrong conversion: %i", n);
+			err(1, "wrong conversion: %zd", n);
+
+		free(line);
+
 		switch (cmd) {
 		case 'c':
-			create_send(conn, &fid);
+			create_send(&cctx.rcx_session, &fid);
 			break;
 		case 'r':
-			read_send(conn, &fid);
+			read_send(&cctx.rcx_session, &fid);
 			break;
 		case 'w':
-			write_send(conn, &fid);
+			write_send(&cctx.rcx_session, &fid);
 			break;
 		case 'q':
-			quit_send(conn);
+			got_quit = 1;
 			break;
 		default:
 			err(1, "Unknown command '%c'", cmd);
 		}
+
 		if (got_quit)
 			break;
-		n = scanf(" \n");
+
+		printf("cmd> ");
 	}
 
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
-	c2_net_conn_unlink(conn);
-	c2_net_conn_release(conn);
+	rc = c2_rpc_client_fini(&cctx);
+	C2_ASSERT(rc == 0);
 
-	c2_service_id_fini(&sid);
-	c2_net_domain_fini(&ndom);
-	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
-	io_fop_fini();
+	c2_net_domain_fini(&net_dom);
+	c2_net_xprt_fini(xprt);
+	c2_stob_io_fop_fini();
 	c2_fini();
 
 	return 0;
 }
-
-int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	return 0;
-}
-
-int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	return 0;
-}
-
-int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	return 0;
-}
-
-int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	return 0;
-}
-
 
 /** @} end group stob */
 

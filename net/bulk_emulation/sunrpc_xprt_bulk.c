@@ -74,9 +74,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	}
 
 	/* locate the passive buffer */
-	c2_list_for_each_entry(&tm->ntm_q[in->sg_desc.sbd_qtype], inb,
-			       struct c2_net_buffer,
-			       nb_tm_linkage) {
+	c2_tlist_for(&tm_tl, &tm->ntm_q[in->sg_desc.sbd_qtype], inb) {
 		if (sunrpc_desc_equal(&inb->nb_desc, &in->sg_desc) &&
 		    inb->nb_length == in->sg_desc.sbd_total) {
 			if ((inb->nb_flags & (C2_NET_BUF_CANCELLED |
@@ -84,7 +82,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 				nb = inb;
 			break;
 		}
-	}
+	} c2_tlist_endfor;
 	if (nb == NULL) {
 		rc = -ENOENT;
 		goto done;
@@ -144,16 +142,14 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	}
 
 	/* locate the passive buffer */
-	c2_list_for_each_entry(&tm->ntm_q[in->sp_desc.sbd_qtype], inb,
-			       struct c2_net_buffer,
-			       nb_tm_linkage) {
+	c2_tlist_for(&tm_tl, &tm->ntm_q[in->sp_desc.sbd_qtype], inb) {
 		if (sunrpc_desc_equal(&inb->nb_desc, &in->sp_desc)) {
 			if ((inb->nb_flags & (C2_NET_BUF_CANCELLED |
 					      C2_NET_BUF_TIMED_OUT)) == 0)
 				nb = inb;
 			break;
 		}
-	}
+	} c2_tlist_endfor;
 	if (nb == NULL) {
 		rc = -ENOENT;
 		goto done;
@@ -364,10 +360,6 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		rc = sunrpc_desc_decode(&nb->nb_desc, &sd);
 		if (rc != 0)
 			break;
-		if (!sunrpc_ep_equals_addr(tm->ntm_ep, &sd.sbd_active_ep)) {
-			rc = -EACCES;   /* wrong destination */
-			break;
-		}
 		if (nb->nb_qtype != inverse_qt[sd.sbd_qtype]) {
 			rc = -EPERM;    /* wrong operation */
 			break;

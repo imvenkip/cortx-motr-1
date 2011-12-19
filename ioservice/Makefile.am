@@ -6,7 +6,6 @@ io_fops_u.h io_fops_u.c: io_fops.ff \
                   $(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -u $<
 
-
 noinst_LTLIBRARIES		= libcolibri-ioservice.la
 libcolibri_ioservice_la_SOURCES	= io_fops_u.h io_fops_u.c \
 				  io_foms.c io_foms.h io_fops.c io_fops.h \

@@ -22,7 +22,7 @@
 #define __COLIBRI_CONSOLE_MESG_H__
 
 #include "fop/fop.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/session.h"
 
 struct c2_cons_mesg;
@@ -32,7 +32,6 @@ struct c2_cons_mesg;
  * @brief Console Notification types.
  */
 enum c2_cons_mesg_type {
-        CMT_DISK_FAILURE,	/**< Disk failure. */
         CMT_DEVICE_FAILURE,	/**< Device failure */
         CMT_REPLY_FAILURE,	/**< Reply to Device failure */
 	CMT_MESG_NR
@@ -47,16 +46,10 @@ struct c2_cons_mesg {
 	const char		*cm_name;
 	/** Message type i.e disk or device failure */
 	enum c2_cons_mesg_type	 cm_type;
-	/** Console message operations */
-	const struct c2_cons_mesg_ops *cm_ops;
 	/** fop message to be send using console */
 	struct c2_fop		*cm_fop;
 	/** fop type to be send using console */
 	struct c2_fop_type	*cm_fopt;
-	/** rpc item operation */
-	const struct c2_rpc_item_ops  *cm_item_ops;
-	/** RPC item type */
-	struct c2_rpc_item_type *cm_item_type;
 	/** RPC machine through which mesg to be send */
 	struct c2_rpcmachine	*cm_rpc_mach;
 	/** RPC session */

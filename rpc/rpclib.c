@@ -14,199 +14,191 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- * Original creation date: 04/09/2010
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 09/28/2011
  */
 
-#include <string.h>
 
-#include <lib/list.h>
-#include <lib/rwlock.h>
-#include <lib/memory.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
-#include <lib/refs.h>
+#include <errno.h> /* errno */
+#include <stdio.h> /* fopen(), fclose() */
 
-#include <net/net.h>
-#include <rpc/rpclib.h>
-#include <rpc/rpc_ops.h>
+#include "lib/cdefs.h"
+#include "lib/types.h"
+#include "lib/memory.h"
+#include "lib/assert.h"
+#include "rpc/rpc2.h"
+#include "net/net.h"
+#include "fop/fop.h"
+#include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
+#include "colibri/colibri_setup.h"
 
-bool c2_session_is_same(const struct c2_session_id *s1, const struct c2_session_id *s2)
+#include "rpc/rpclib.h"
+
+
+int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 {
-	return memcmp(s1, s2, sizeof *s1) == 0;
+	int  i;
+	int  rc;
+
+	C2_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);
+
+	/* Open error log file */
+	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
+	if (sctx->rsx_log_file == NULL)
+		return errno;
+
+	/* Register service types */
+	for (i = 0; i < sctx->rsx_service_types_nr; ++i) {
+		rc = c2_reqh_service_type_register(sctx->rsx_service_types[i]);
+		if (rc != 0)
+			goto fclose;
+	}
+
+	/* Start rpc server */
+	rc = c2_cs_init(&sctx->rsx_colibri_ctx, sctx->rsx_xprts,
+			sctx->rsx_xprts_nr, sctx->rsx_log_file);
+	if (rc != 0)
+		goto service_unreg;
+
+	rc = c2_cs_setup_env(&sctx->rsx_colibri_ctx, sctx->rsx_argc,
+			     sctx->rsx_argv);
+	if (rc != 0)
+		goto cs_fini;
+
+	rc = c2_cs_start(&sctx->rsx_colibri_ctx);
+
+	return rc;
+
+cs_fini:
+	c2_cs_fini(&sctx->rsx_colibri_ctx);
+service_unreg:
+	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
+		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
+fclose:
+	fclose(sctx->rsx_log_file);
+	return rc;
 }
 
-/**
- rpc server group
+void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
+{
+	int i;
+
+	c2_cs_fini(&sctx->rsx_colibri_ctx);
+
+	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
+		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
+
+	fclose(sctx->rsx_log_file);
+
+	return;
+}
+
+int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
+{
+	int rc;
+	struct c2_net_transfer_mc *tm;
+
+	rc = c2_rpcmachine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
+				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL);
+	if (rc != 0)
+		return rc;
+
+	tm = &cctx->rcx_rpc_machine.cr_tm;
+
+	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm, cctx->rcx_remote_addr);
+	if (rc != 0)
+		goto rpcmach_fini;
+
+	rc = c2_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
+				&cctx->rcx_rpc_machine,
+				cctx->rcx_max_rpcs_in_flight,
+				cctx->rcx_timeout_s);
+	if (rc != 0)
+		goto ep_put;
+
+	rc = c2_rpc_session_create(&cctx->rcx_session, &cctx->rcx_connection,
+				   cctx->rcx_nr_slots, cctx->rcx_timeout_s);
+	if (rc != 0)
+		goto conn_destroy;
+
+	return rc;
+
+conn_destroy:
+	c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
+ep_put:
+	c2_net_end_point_put(cctx->rcx_remote_ep);
+rpcmach_fini:
+	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+	C2_ASSERT(rc != 0);
+	return rc;
+}
+C2_EXPORTED(c2_rpc_client_start);
+
+int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
+		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s)
+{
+	int                 rc;
+	c2_time_t           timeout;
+	struct c2_clink     clink;
+	struct c2_rpc_item  *item;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(session != NULL);
+
+	item = &fop->f_item;
+	item->ri_ops = ri_ops;
+	item->ri_session = session;
+	item->ri_type = &fop->f_type->ft_rpc_item_type;
+	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&item->ri_chan, &clink);
+	c2_time_set(&timeout, timeout_s, 0);
+	timeout = c2_time_add(c2_time_now(), timeout);
+
+	rc = c2_rpc_post(item);
+	if (rc != 0)
+		goto clean;
+
+	rc = c2_rpc_reply_timedwait(&clink, timeout);
+clean:
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_client_call);
+
+int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
+{
+	int rc;
+
+	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
+	if (rc != 0)
+		return rc;
+
+	c2_net_end_point_put(cctx->rcx_remote_ep);
+	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_client_stop);
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
  */
-struct c2_rwlock servers_list_lock;
-static struct c2_list servers_list;
-
-static void c2_rpc_server_free(struct c2_ref *ref)
-{
-	struct c2_rpc_server *srv;
-
-	srv = container_of(ref, struct c2_rpc_server, rs_ref);
-
-	c2_free(srv);
-}
-
-struct c2_rpc_server *c2_rpc_server_create(const struct c2_service_id *srv_id)
-{
-	struct c2_rpc_server *srv;
-
-	C2_ALLOC_PTR(srv);
-	if (!srv)
-		return NULL;
-
-	c2_list_link_init(&srv->rs_link);
-	c2_ref_init(&srv->rs_ref, 1, c2_rpc_server_free);
-
-	srv->rs_id = *srv_id;
-
-	return srv;
-}
-
-void c2_rpc_server_register(struct c2_rpc_server *srv)
-{
-	c2_ref_get(&srv->rs_ref);
-
-	c2_rwlock_write_lock(&servers_list_lock);
-	c2_list_add(&servers_list, &srv->rs_link);
-	c2_rwlock_write_unlock(&servers_list_lock);
-}
-
-void c2_rpc_server_unregister(struct c2_rpc_server *srv)
-{
-	bool need_put = false;
-
-	c2_rwlock_write_lock(&servers_list_lock);
-	if (c2_list_link_is_in(&srv->rs_link)) {
-		c2_list_del(&srv->rs_link);
-		need_put = true;
-	}
-	c2_rwlock_write_unlock(&servers_list_lock);
-
-	if (need_put)
-		c2_ref_put(&srv->rs_ref);
-}
-
-
-struct c2_rpc_server *c2_rpc_server_find(const struct c2_service_id *srv_id)
-{
-	struct c2_rpc_server *srv = NULL;
-	bool found = false;
-
-	c2_rwlock_read_lock(&servers_list_lock);
-	c2_list_for_each_entry(&servers_list, srv,
-			       struct c2_rpc_server, rs_link) {
-		if (c2_services_are_same(&srv->rs_id, srv_id)) {
-			c2_ref_get(&srv->rs_ref);
-			found = true;
-			break;
-		}
-	}
-	c2_rwlock_read_unlock(&servers_list_lock);
-
-	return found ? srv : NULL;
-}
-
-/**
- rpc client group
- */
-struct c2_rwlock clients_list_lock;
-static struct c2_list clients_list;
-
-static void rpc_client_free(struct c2_ref *ref)
-{
-	struct c2_rpc_client *cli;
-
-	cli = container_of(ref, struct c2_rpc_client, rc_ref);
-
-	c2_rwlock_fini(&cli->rc_sessions_lock);
-	c2_list_fini(&cli->rc_sessions);
-	c2_net_conn_release(cli->rc_netlink);
-
-	c2_free(cli);
-}
-
-struct c2_rpc_client *c2_rpc_client_create(const struct c2_service_id *id)
-{
-	struct c2_rpc_client *cli;
-
-	C2_ALLOC_PTR(cli);
-	if(cli == NULL)
-		return NULL;
-
-	cli->rc_id = *id;
-	c2_ref_init(&cli->rc_ref, 1, rpc_client_free);
-	c2_rwlock_init(&cli->rc_sessions_lock);
-	c2_list_init(&cli->rc_sessions);
-
-	cli->rc_netlink = c2_net_conn_find(id);
-	if (cli->rc_netlink == NULL){
-		c2_ref_put(&cli->rc_ref);
-		return NULL;
-	}
-
-	c2_rwlock_write_lock(&clients_list_lock);
-	c2_list_add(&clients_list, &cli->rc_link);
-	c2_rwlock_write_unlock(&clients_list_lock);
-
-	return cli;
-}
-
-void c2_rpc_client_unlink(struct c2_rpc_client *cli)
-{
-	bool need_put = false;
-
-	c2_rwlock_write_lock(&clients_list_lock);
-	if (c2_list_link_is_in(&cli->rc_link)) {
-		c2_list_del(&cli->rc_link);
-		need_put = true;
-	}
-	c2_rwlock_write_unlock(&clients_list_lock);
-
-	if (need_put)
-		c2_ref_put(&cli->rc_ref);
-}
-
-struct c2_rpc_client *c2_rpc_client_find(const struct c2_service_id *id)
-{
-	struct c2_rpc_client *cli = NULL;
-	bool found = false;
-
-	c2_rwlock_read_lock(&clients_list_lock);
-	c2_list_for_each_entry(&clients_list, cli,
-			       struct c2_rpc_client, rc_link) {
-		if (c2_services_are_same(&cli->rc_id, id)) {
-			c2_ref_get(&cli->rc_ref);
-			found = true;
-			break;
-		}
-	}
-	c2_rwlock_read_unlock(&clients_list_lock);
-
-	return found ? cli : NULL;
-}
-
-int c2_rpclib_init()
-{
-	c2_list_init(&servers_list);
-	c2_rwlock_init(&servers_list_lock);
-
-	c2_list_init(&clients_list);
-	c2_rwlock_init(&clients_list_lock);
-
-	/** XXX */
-//	c2_session_register_ops(rpc_ops);
-	return 0;
-}
-
-void c2_rpclib_fini()
-{
-	c2_list_fini(&servers_list);
-	c2_rwlock_fini(&servers_list_lock);
-
-	c2_list_fini(&clients_list);
-	c2_rwlock_fini(&clients_list_lock);
-}

@@ -24,10 +24,9 @@
 #include "lib/time.h"	 /* c2_time_t */
 #include "net/net.h"	 /* c2_net_* */
 #include "rpc/session.h" /* c2_rpc_session */
-#include "rpc/rpccore.h" /* c2_rpcmachine */
+#include "rpc/rpc2.h"    /* c2_rpcmachine */
 #include "db/db.h"	 /* c2_dbenv */
 #include "cob/cob.h"	 /* c2_cob_domain */
-#include "rpc/session.h" /* c2_rpc_conn */
 #include "reqh/reqh.h"	 /* c2_reqh */
 
 /**
@@ -104,25 +103,18 @@ enum {
 /**
  * @struct c2_console
  * @brief Console has all info required to process message and
- *	  to send it over rpc transport.
+ *	  to send it over rpc transport. Any program will have single
+ *	  instance of it.
  */
 struct c2_console {
         /** Transport structure */
         struct c2_net_xprt        *cons_xprt;
         /** Network domain */
         struct c2_net_domain       cons_ndom;
-        /** Local host name */
-        const char                *cons_lhost;
-        /** Local port */
-        int                        cons_lport;
-	/** Dotted quad for local host */
-	char			   cons_laddr[ADDR_LEN];
-        /** Remote host name */
-        const char                *cons_rhost;
-        /** remote port */
-        int                        cons_rport;
-	/** Dotted quad for remote host */
-	char			   cons_raddr[ADDR_LEN];
+	/* Source end point address for client. */
+	const char                *cons_lepaddr;
+	/* Destination end point address for client, i.e. server end point. */
+	const char                *cons_repaddr;
         /** Remote end point */
         struct c2_net_end_point   *cons_rendp;
 	/** DB for rpc machine */
@@ -145,8 +137,6 @@ struct c2_console {
 	struct c2_reqh		   cons_reqh;
 	/** number of slots */
         int			   cons_nr_slots;
-	/** Console server/client ID */
-        uint32_t		   cons_rid;
 	/** No of items in flight for rpc */
 	uint64_t		   cons_items_in_flight;
 };
@@ -155,8 +145,6 @@ struct c2_console {
  * @brief Helper function to initialize context for rpc client
  *
  * @param cons context information for rpc connection.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_client_init(struct c2_console *cons);
 
@@ -164,8 +152,6 @@ int c2_cons_rpc_client_init(struct c2_console *cons);
  * @brief Helper function to initialize context for rpc server.
  *
  * @param cons context information for rpc connection.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_server_init(struct c2_console *cons);
 
@@ -184,8 +170,6 @@ void c2_cons_rpc_server_fini(struct c2_console *cons);
  *        with provided server.
  *
  * @param cons Console object ref.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_client_connect(struct c2_console *cons);
 
@@ -193,8 +177,6 @@ int c2_cons_rpc_client_connect(struct c2_console *cons);
  * @brief Closes the RPC session and connection.
  *
  * @param cons Console object ref.
- *
- * @return 0 success, -errno failure.
  */
 int c2_cons_rpc_client_disconnect(struct c2_console *cons);
 /**

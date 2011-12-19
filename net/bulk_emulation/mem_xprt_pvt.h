@@ -41,8 +41,6 @@ enum {
    Content on the network descriptor.
  */
 struct mem_desc {
-	/** Address of the active end point */
-	struct sockaddr_in     md_active;
 	/** Address of the passive end point */
 	struct sockaddr_in     md_passive;
 	/** Queue type */
@@ -67,7 +65,6 @@ static bool mem_eps_are_equal(const struct c2_net_end_point *ep1,
 static bool mem_ep_equals_addr(const struct c2_net_end_point *ep,
 			       const struct sockaddr_in *sa);
 static int mem_desc_create(struct c2_net_buf_desc *desc,
-			   struct c2_net_end_point *ep,
 			   struct c2_net_transfer_mc *tm,
 			   enum c2_net_queue_type qt,
 			   c2_bcount_t buflen,
@@ -117,14 +114,13 @@ static inline bool mem_bmo_buffer_in_bounds(const struct c2_net_buffer *nb)
    @see mem_desc_create()
  */
 static int mem_bmo_desc_create(struct c2_net_buf_desc *desc,
-			       struct c2_net_end_point *ep,
 			       struct c2_net_transfer_mc *tm,
 			       enum c2_net_queue_type qt,
 			       c2_bcount_t buflen,
 			       int64_t buf_id)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
-	return dp->xd_ops->bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);
+	return dp->xd_ops->bmo_desc_create(desc, tm, qt, buflen, buf_id);
 }
 
 /**

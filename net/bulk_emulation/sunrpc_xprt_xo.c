@@ -58,31 +58,24 @@ static struct c2_fop_type_ops sunrpc_put_ops = {
 };
 
 C2_FOP_TYPE_DECLARE(sunrpc_msg, "sunrpc_msg", &sunrpc_msg_ops,
-		      C2_BULK_SUNRPC_MSG_OPCODE,
-		      C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_MSG_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 C2_FOP_TYPE_DECLARE(sunrpc_get, "sunrpc_get", &sunrpc_get_ops,
-		      C2_BULK_SUNRPC_GET_OPCODE,
-		      C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_GET_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 C2_FOP_TYPE_DECLARE(sunrpc_put, "sunrpc_put", &sunrpc_put_ops,
-		      C2_BULK_SUNRPC_PUT_OPCODE,
-		      C2_RPC_ITEM_TYPE_REQUEST,
-		      &c2_rpc_fop_default_item_type_ops);
-
+		    C2_BULK_SUNRPC_PUT_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(sunrpc_msg_resp, "sunrpc_msg_reply", NULL,
-		      C2_BULK_SUNRPC_MSG_REPLY_OPCODE,
-		      C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_MSG_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 C2_FOP_TYPE_DECLARE(sunrpc_get_resp, "sunrpc_get_reply", NULL,
-		      C2_BULK_SUNRPC_GET_REPLY_OPCODE,
-		      C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_GET_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 C2_FOP_TYPE_DECLARE(sunrpc_put_resp, "sunrpc_put_reply", NULL,
-		      C2_BULK_SUNRPC_PUT_REPLY_OPCODE,
-		      C2_RPC_ITEM_TYPE_REPLY,
-		      &c2_rpc_fop_default_item_type_ops);
+		    C2_BULK_SUNRPC_PUT_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *fops[] = {
 	&sunrpc_msg_fopt,
@@ -840,6 +833,38 @@ static int sunrpc_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_stop(tm, cancel);
 }
 
+static int sunrpc_xo_tm_confine(struct c2_net_transfer_mc *tm,
+				const struct c2_bitmap *processors)
+{
+	C2_PRE(sunrpc_tm_invariant(tm));
+	return 0; /* fake the support */
+}
+
+static int sunrpc_xo_bev_deliver_sync(struct c2_net_transfer_mc *tm)
+{
+	C2_PRE(sunrpc_tm_invariant(tm));
+	return 0; /* fake the support */
+}
+
+static void sunrpc_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
+{
+	C2_PRE(sunrpc_tm_invariant(tm));
+	return; /* NO-OP - all delivery is automatic */
+}
+
+static bool sunrpc_xo_bev_pending(struct c2_net_transfer_mc *tm)
+{
+	C2_PRE(sunrpc_tm_invariant(tm));
+	return false; /* NO-OP - never any pending bevs */
+}
+
+static void sunrpc_xo_bev_notify(struct c2_net_transfer_mc *tm,
+				 struct c2_chan *chan)
+{
+	C2_PRE(sunrpc_tm_invariant(tm));
+	return; /* NO-OP - no signal on channel ever */
+}
+
 /* Internal methods of this transport. */
 static const struct c2_net_bulk_mem_ops sunrpc_xprt_methods = {
 	.bmo_work_fn = {
@@ -879,6 +904,11 @@ static const struct c2_net_xprt_ops sunrpc_xo_xprt_ops = {
 	.xo_tm_fini                     = sunrpc_xo_tm_fini,
 	.xo_tm_start                    = sunrpc_xo_tm_start,
 	.xo_tm_stop                     = sunrpc_xo_tm_stop,
+	.xo_tm_confine                  = sunrpc_xo_tm_confine,
+	.xo_bev_deliver_sync            = sunrpc_xo_bev_deliver_sync,
+        .xo_bev_deliver_all             = sunrpc_xo_bev_deliver_all,
+	.xo_bev_pending                 = sunrpc_xo_bev_pending,
+	.xo_bev_notify                  = sunrpc_xo_bev_notify,
 };
 
 struct c2_net_xprt c2_net_bulk_sunrpc_xprt = {

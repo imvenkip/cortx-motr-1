@@ -560,7 +560,7 @@ int ad_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
    Releases vectors allocated for back IO.
 
    @note that back->si_stob.ov_vec.v_count is _not_ freed separately, as it is
-   aliased to back->si_user.div_vec.ov_vec.v_count.
+   aliased to back->si_user.z_bvec.ov_vec.v_count.
 
    @see ad_vec_alloc()
  */
@@ -569,14 +569,14 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
 	struct c2_stob_io *back = &aio->ai_back;
 
 	C2_ASSERT(back->si_stob.iv_vec.v_count ==
-		  back->si_user.div_vec.ov_vec.v_count);
+		  back->si_user.ov_vec.v_count);
 
-	c2_free(back->si_user.div_vec.ov_vec.v_count);
-	back->si_user.div_vec.ov_vec.v_count = NULL;
+	c2_free(back->si_user.ov_vec.v_count);
+	back->si_user.ov_vec.v_count = NULL;
 	back->si_stob.iv_vec.v_count = NULL;
 
-	c2_free(back->si_user.div_vec.ov_buf);
-	back->si_user.div_vec.ov_buf = NULL;
+	c2_free(back->si_user.ov_buf);
+	back->si_user.ov_buf = NULL;
 
 	c2_free(back->si_stob.iv_index);
 	back->si_stob.iv_index = NULL;
@@ -611,7 +611,7 @@ static int ad_cursors_init(struct c2_stob_io *io, struct ad_domain *adom,
 	result = ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0],
 			   io->si_tx, it);
 	if (result == 0) {
-		c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+		c2_vec_cursor_init(src, &io->si_user.ov_vec);
 		c2_vec_cursor_init(dst, &io->si_stob.iv_vec);
 		c2_emap_caret_init(map, it, io->si_stob.iv_index[0]);
 	}
@@ -641,20 +641,20 @@ static int ad_vec_alloc(struct c2_stob *obj,
 	c2_bcount_t *counts;
 	int          result;
 
-	C2_ASSERT(back->si_user.div_vec.ov_vec.v_count == NULL);
+	C2_ASSERT(back->si_user.ov_vec.v_count == NULL);
 
 	result = 0;
 	if (frags > 0) {
 		C2_ALLOC_ARR(counts, frags);
-		back->si_user.div_vec.ov_vec.v_count = counts;
+		back->si_user.ov_vec.v_count = counts;
 		back->si_stob.iv_vec.v_count = counts;
-		C2_ALLOC_ARR(back->si_user.div_vec.ov_buf, frags);
+		C2_ALLOC_ARR(back->si_user.ov_buf, frags);
 		C2_ALLOC_ARR(back->si_stob.iv_index, frags);
 
-		back->si_user.div_vec.ov_vec.v_nr = frags;
+		back->si_user.ov_vec.v_nr = frags;
 		back->si_stob.iv_vec.v_nr = frags;
 
-		if (counts == NULL || back->si_user.div_vec.ov_buf == NULL ||
+		if (counts == NULL || back->si_user.ov_buf == NULL ||
 		    back->si_stob.iv_index == NULL) {
 			ADDB_ADD(obj, c2_addb_oom);
 			result = -ENOMEM;
@@ -791,7 +791,7 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		void        *buf;
 		c2_bindex_t  off;
 
-		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
+		buf = io->si_user.ov_buf[src->vc_seg] + src->vc_offset;
 		off = io->si_stob.iv_index[dst->vc_seg] + dst->vc_offset;
 
 		C2_ASSERT(off >= map->ct_index);
@@ -818,8 +818,8 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		} else {
 			C2_ASSERT(seg->ee_val < AET_MIN);
 
-			back->si_user.div_vec.ov_vec.v_count[idx] = frag_size;
-			back->si_user.div_vec.ov_buf[idx] = buf;
+			back->si_user.ov_vec.v_count[idx] = frag_size;
+			back->si_user.ov_buf[idx] = buf;
 
 			back->si_stob.iv_index[idx] = seg->ee_val +
 				(off - seg->ee_ext.e_start);
@@ -938,10 +938,10 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 		frag_size = min_check(c2_vec_cursor_step(src),
 				      ad_wext_cursor_step(wc));
 
-		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
+		buf = io->si_user.ov_buf[src->vc_seg] + src->vc_offset;
 
-		back->si_user.div_vec.ov_vec.v_count[idx] = frag_size;
-		back->si_user.div_vec.ov_buf[idx] = buf;
+		back->si_user.ov_vec.v_count[idx] = frag_size;
+		back->si_user.ov_buf[idx] = buf;
 
 		back->si_stob.iv_index[idx] =
 			wc->wc_wext->we_ext.e_start + wc->wc_done;
@@ -1126,7 +1126,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	C2_PRE(io->si_opcode == SIO_WRITE);
 
-	todo = c2_vec_count(&io->si_user.div_vec.ov_vec);
+	todo = c2_vec_count(&io->si_user.ov_vec);
 	back = &aio->ai_back;
 	wext = &head;
 	wext->we_next = NULL;
@@ -1159,13 +1159,13 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
-			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+			c2_vec_cursor_init(src, &io->si_user.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.iv_vec);
 			ad_wext_cursor_init(&wc, &head);
 
 			ad_write_back_fill(io, back, src, &wc);
 
-			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+			c2_vec_cursor_init(src, &io->si_user.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.iv_vec);
 			ad_wext_cursor_init(&wc, &head);
 
@@ -1198,7 +1198,7 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 	C2_PRE(adom->ad_setup);
 	C2_PRE(io->si_obj->so_domain->sd_type == &ad_stob_type);
 	C2_PRE(io->si_stob.iv_vec.v_nr > 0);
-	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) > 0);
+	C2_PRE(c2_vec_count(&io->si_user.ov_vec) > 0);
 
 	/* prefix fragments execution mode is not yet supported */
 	C2_ASSERT((io->si_flags & SIF_PREFIX) == 0);

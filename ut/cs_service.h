@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -13,29 +14,17 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- * Original creation date: 05/17/2010
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 12/06/2011
  */
 
-#ifndef __COLIBRI_RPC_RPC_OPS_H__
-#define __COLIBRI_RPC_RPC_OPS_H__
+#ifndef __COLIBRI_UT_CS_SERVICE_H__
+#define __COLIBRI_UT_CS_SERVICE_H__
 
-/**
- RPC commands supported by rpc library
- */
-enum c2_rpc_ops {
-	/**
-	 Create new session on server
-	 */
-	C2_SESSION_CREATE = 1,
-	/**
-	 Destroy session on server
-	 */
-	C2_SESSION_DESTROY,
-	/**
-	 send compound request over session
-	 */
-	C2_SESSION_COMPOUND
-};
+extern struct c2_reqh_service_type ds1_service_type;
+extern struct c2_reqh_service_type ds2_service_type;
 
-#endif
+extern struct c2_reqh_service_type **cs_default_stypes;
+extern size_t cs_default_stypes_nr;
+
+#endif /* __COLIBRI_UT_CS_SERVICE_H__ */

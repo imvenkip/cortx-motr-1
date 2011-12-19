@@ -37,6 +37,8 @@
    Atomic operations on 64bit quantities.
 
    Implementation of these is platform-specific.
+
+   @{
  */
 
 /**

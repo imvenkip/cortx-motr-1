@@ -1019,18 +1019,8 @@ static int processors_getsummary()
 static void processors_copy_c2bitmap(const struct c2_bitmap *src,
 			       struct c2_bitmap *dst)
 {
-	size_t	i;
-	bool	val;
-
-	C2_ASSERT(dst->b_nr >= src->b_nr);
 	C2_ASSERT(dst->b_nr <= sys_cpus.pss_max);
-
-	for (i = 0; i < src->b_nr; i++) {
-		val = c2_bitmap_get(src, i);
-		c2_bitmap_set(dst, i, val);
-
-	}/* for - scan the source bitmap */
-
+	c2_bitmap_copy(dst, src);
 }
 
 /* ---- Processor Interface Implementation ---- */

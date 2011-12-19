@@ -31,7 +31,7 @@
 #include "net/net.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/bulk_emulation/mem_xprt.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
 #include "layout/layout.h"
