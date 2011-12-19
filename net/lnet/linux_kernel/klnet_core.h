@@ -39,6 +39,7 @@ enum {
 	C2_NET_LNET_KCORE_TM_MAGIC  = 0x4b436f7265544dULL,   /* KCoreTM */
 	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL,   /* KCoreTMs */
 	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
+	C2_NET_LNET_NIDSTR_SIZE     = 32, /**< maximum size of a NID string */
 };
 
 /**

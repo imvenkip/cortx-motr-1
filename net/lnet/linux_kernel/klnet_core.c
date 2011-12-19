@@ -849,13 +849,56 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 			    const char *ep_addr,
 			    struct nlx_core_ep_addr *cepa)
 {
-	return -ENOSYS;
+	char nidstr[C2_NET_LNET_NIDSTR_SIZE];
+	char *cp = strchr(ep_addr, ':');
+	char *endp;
+	size_t n;
+
+	if (cp == NULL)
+		return -EINVAL;
+	n = cp - ep_addr;
+	if (n >= sizeof nidstr)
+		return -EINVAL;
+	strncpy(nidstr, ep_addr, n);
+	nidstr[n] = 0;
+	cepa->cepa_nid = libcfs_str2nid(nidstr);
+	if (cepa->cepa_nid == LNET_NID_ANY)
+		return -EINVAL;
+	++cp;
+	cepa->cepa_pid = simple_strtoul(cp, &endp, 10);
+	if (*endp != ':')
+		return -EINVAL;
+	cp = endp + 1;
+	cepa->cepa_portal = simple_strtoul(cp, &endp, 10);
+	if (*endp != ':')
+		return -EINVAL;
+	cp = endp + 1;
+	if (strcmp(cp, "*") == 0) {
+		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
+	} else {
+		cepa->cepa_tmid = simple_strtoul(cp, &endp, 10);
+		if (*endp != 0)
+			return -EINVAL;
+	}
+	return 0;
 }
 
 void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 			     struct nlx_core_ep_addr *cepa,
 			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
 {
+	char *cp = libcfs_nid2str(cepa->cepa_nid);
+	int n;
+
+	n = snprintf(buf, C2_NET_LNET_XEP_ADDR_LEN, "%s:%u:%u:", cp,
+		     cepa->cepa_pid, cepa->cepa_portal);
+	if (n < C2_NET_LNET_XEP_ADDR_LEN - 1) {
+		if (cepa->cepa_tmid == C2_NET_LNET_TMID_INVALID)
+			strcpy(buf + n, "*");
+		else
+			snprintf(buf + n, C2_NET_LNET_XEP_ADDR_LEN - n, "%u",
+				 cepa->cepa_tmid);
+	}
 }
 
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
