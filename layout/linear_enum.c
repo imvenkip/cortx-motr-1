@@ -19,18 +19,18 @@
  */
 
 #include "lib/tlist.h"	/* struct c2_tl */
-#include "layout/formula_enum.h"
+#include "layout/linear_enum.h"
 
 /**
-   @addtogroup formula_enum
+   @addtogroup linear_enum
 
    Notes:
    - Layout enumeration type specific register/unregister methods are not
-     required for "formula" enumeration type, since the layout schema does not
-     contain any separate tables specifically for "formula" enumeration type.
+     required for "linear" enumeration type, since the layout schema does not
+     contain any separate tables specifically for "linear" enumeration type.
    - Layout enumeration type specific encode/decode methods are not required
-     for "formula" enumeration type, since the attributes required specifically
-     for a formula are:
+     for "linear" enumeration type, since the attributes required specifically
+     for a linear are:
         - stored in the pl_attr structure which is part of in-memory structure
           c2_pdclust_layout itself.
         - stored in the layouts table itself.
@@ -38,9 +38,9 @@
 */
 
 /**
-   Enumerate the COB identifiers for a layout with FORMULA enum type.
+   Enumerate the COB identifiers for a layout with LINEAR enum type.
 */
-static int __attribute__ ((unused)) formula_enumerate(
+static int __attribute__ ((unused)) linear_enumerate(
 			     const struct c2_layout_enum *le,
 			     struct c2_tl *outlist,
 			     struct c2_fid *gfid)
@@ -51,13 +51,13 @@ static int __attribute__ ((unused)) formula_enumerate(
 	The layouti id is le->le_lptr->l_id.
 	Use c2_ldb_rec_lookup() to read the layout with that layout id.
 
-	It would tell that the layout is with the FORMULA enumeration type
+	It would tell that the layout is with the LINEAR enumeration type
 	and will provide the required attributes.
 
 	Now derive list of COB identifiers
 
 	Invoke
-	c2_layout_formula_enum->lfe_enum->le_lptr->l_type->lt_ops->lto_subst(),
+	c2_layout_linear_enum->lline_enum->le_lptr->l_type->lt_ops->lto_subst(),
 	by passing it the attributes obtained by reading the layout and the
 	parameter gfid. This will result into COB identifiers enumeration, in
 	the form of a c2_tl list, stored in the list that is out argument of
@@ -68,17 +68,17 @@ static int __attribute__ ((unused)) formula_enumerate(
 }
 
 /**
-   Implementation of leo_nr for FORMULA enumeration.
+   Implementation of leo_nr for LINEAR enumeration.
    Rerurns number of objects in the enumeration.
 */
-static uint32_t formula_nr(const struct c2_layout_enum *le,
-			   struct c2_fid *gfid)
+static uint32_t linear_nr(const struct c2_layout_enum *le,
+			  struct c2_fid *gfid)
 {
    /**
 	@code
 	c2_tl *list;
 
-	formula_enumerate(le, list, gfid);
+	linear_enumerate(le, list, gfid);
 
 	Provide number of objects for that layout enumeration.
 	@endcode
@@ -87,42 +87,42 @@ static uint32_t formula_nr(const struct c2_layout_enum *le,
 }
 
 /**
-   Implementation of leo_get for FORMULA enumeration.
+   Implementation of leo_get for LINEAR enumeration.
    Rerurns idx-th object from the enumeration.
 */
-static void formula_get(const struct c2_layout_enum *le,
-			uint32_t idx,
-			struct c2_fid *gfid,
-			struct c2_fid *out)
+static void linear_get(const struct c2_layout_enum *le,
+		       uint32_t idx,
+		       struct c2_fid *gfid,
+		       struct c2_fid *out)
 {
    /**
 	@code
 	c2_tl *list;
 
-	formula_enumerate(le, list, gfid);
+	linear_enumerate(le, list, gfid);
 
 	Provide idx-th object from that layout enumeration.
 	@endcode
    */
 }
 
-static const struct c2_layout_enum_ops formula_enum_ops = {
-	.leo_nr		= formula_nr,
-	.leo_get	= formula_get
+static const struct c2_layout_enum_ops linear_enum_ops = {
+	.leo_nr		= linear_nr,
+	.leo_get	= linear_get
 };
 
 /**
    @note Layout enum type specific implementation of leto_register,
    leto_unregister, leto_decode and leto_encode methods is not required
-   for formula enumeration type.
+   for linear enumeration type.
 */
-const struct c2_layout_enum_type c2_formula_enum_type = {
-	.let_name	= "formula",
-	.let_id		= 0x464F524D554C4145, /* FORMULAE */
+const struct c2_layout_enum_type c2_linear_enum_type = {
+	.let_name	= "linear",
+	.let_id		= 0x4C494E454152454E, /* LINEAREN */
 	.let_ops	= NULL
 };
 
-/** @} end group formula_enum */
+/** @} end group linear_enum */
 
 /*
  *  Local variables:

@@ -18,13 +18,13 @@
  * Original creation date: 11/16/2011
  */
 
-#ifndef __COLIBRI_LAYOUT_FORMULA_ENUM_H__
-#define __COLIBRI_LAYOUT_FORMULA_ENUM_H__
+#ifndef __COLIBRI_LAYOUT_LINEAR_ENUM_H__
+#define __COLIBRI_LAYOUT_LINEAR_ENUM_H__
 
 /**
-   @defgroup formula_enum Formula Enumeration Type.
+   @defgroup linear_enum Linear Enumeration Type.
 
-   A layout with formula enumeration type stores a formula that is
+   A layout with linear enumeration type stores a linear formula that is
    used to enumerate all the component object identifiers.
 
    @{
@@ -34,23 +34,23 @@
 #include "layout/layout.h"
 
 /* export */
-struct c2_layout_formula_enum;
+struct c2_layout_linear_enum;
 
 /**
-   Extension of generic c2_layout_enum for a formula enumeration type.
+   Extension of generic c2_layout_enum for a linear enumeration type.
  */
-struct c2_layout_formula_enum {
+struct c2_layout_linear_enum {
 	/** super class */
-	struct c2_layout_enum				 lfe_enum;
+	struct c2_layout_enum            lline_enum;
 
 };
 
 
-extern const struct c2_layout_enum_type c2_formula_enum_type;
+extern const struct c2_layout_enum_type c2_linear_enum_type;
 
-/** @} end group formula_enum */
+/** @} end group linear_enum */
 
-/* __COLIBRI_LAYOUT_FORMULA_ENUM_H__ */
+/* __COLIBRI_LAYOUT_LINEAR_ENUM_H__ */
 #endif
 
 /*

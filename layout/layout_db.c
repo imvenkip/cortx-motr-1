@@ -166,7 +166,7 @@
 
    @endverbatim
 
-   e.g. A layout with PDCLUST layout type and with FORMULA enumeration type,
+   e.g. A layout with PDCLUST layout type and with LINEAR enumeration type,
    uses the structure c2_pdclust_attr to store attributes like N, K, P.
 
    It is possible that some layout types do not need to store any attributes.
@@ -259,16 +259,16 @@
      the future.
    - I.LAYOUT.SCHEMA.Formulae:
       - Parameters:
-         - In case of PDCLUST layout type using FORMULA enumeration method,
-           formula is stored by the Layout DB and substituting parameters
-           in the stored formula derives the real mapping information that
-           is the list of COB identifiers.
+         - In case of PDCLUST layout type using LINEAR enumeration method,
+           linear formula is stored by the Layout DB and substituting
+	   parameters in the stored formula derives the real mapping
+	   information that is the list of COB identifiers.
       - Garbage Collection:
          - A layout with PDCLUST layout type and with LIST enumeration method
            is deleted when its last reference is released. Similarlly, a
            layout with COMPOSITE layout is deleted when its last reference
            is released.
-         - A layout with PDCLUST layout type and with FORMULA enumeration
+         - A layout with PDCLUST layout type and with LINEAR enumeration
            method is never deleted and thus can be reused.
    - I.LAYOUT.SCHEMA.Sub-Layouts: COMPOSITE type of layout is used to
      store sub-layouts.
@@ -282,9 +282,9 @@
 
    @test Unregistering layout types including PDCLUST amd COMPOSITE types.
 
-   @test Registering each of LIST and FORMULA enum types.
+   @test Registering each of LIST and LINEAR enum types.
 
-   @test Unregistering each of LIST and FORMULA enum types.
+   @test Unregistering each of LIST and LINEAR enum types.
 
    @test Encode layout with each of layout type and enum types.
 
@@ -521,10 +521,10 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
    Deletes a layout record with given layout id and its related information from
    the relevant tables.
 
-   Layouts with enumeration type other than 'formula' are deleted from the DB
+   Layouts with enumeration type other than 'linear' are deleted from the DB
    if and only if their respective referecne count is 0.
 
-   A layout with 'formula' enumeration type is never destroyed.
+   A layout with 'linear' enumeration type is never destroyed.
 */
 int c2_ldb_rec_delete(const uint64_t lid,
 		      struct c2_ldb_schema *schema,

@@ -419,18 +419,12 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
 		/**
 		@code
-			Create an object of the type c2_layout_formula_enum.
-			c2_layout_formula_enum::lfe_id may be set to
-			c2_formula_NKP_formula_id
-			c2_layout_formula_enum::lfe_actuals should be assigned with
-			a structure of the type c2_layout_formula_parameter with
-			appropriate parameter values set.
-			c2_layout_formula_enum::lfe_ops may be set to nkp_ops.
+			Create an object of the type c2_layout_linear_enum.
 		@endcode
 		*/
 		c2_layout_init(&pdl->pl_layout, *id,
                                &c2_pdclust_layout_type,
-                               NULL, /* Pointer to c2_layout_formula_enum object */
+                               NULL, /* Pointer to c2_layout_linear_enum object */
                                &pdlclust_ops);
 
 		pdl->pl_seed = *seed;
@@ -567,8 +561,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 /**
    Implementation of lto_subst for pdclust layout type.
 
-   Substitutes attributes and parameters into the formula and obtains list of
-   COB identifiers.
+   Substitutes attributes and parameters into the linear formula and obtains
+   list of COB identifiers.
 
    @note This function will be defined as a part of c2t1fs work.
 */

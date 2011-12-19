@@ -36,7 +36,8 @@
    objects.
 
    An 'enumeration method' determines how a collection of component objects is
-   specified. e.g. it may be specified as a list or by means of some formula.
+   specified. e.g. it may be specified as a list or by means of some linear
+   formula.
 
    Layout types supported currently are:
    - PDCLUST <BR>
@@ -50,8 +51,8 @@
 
    Enumeration method types (also referred as 'enumeration types' or 'enum
    types') supported currently are:
-   - FORMULA <BR>
-     A layout with FORMULA enumeration method uses a formula to enumerate all
+   - LINEAR <BR>
+     A layout with LINEAR enumeration method uses a formula to enumerate all
      its component object identifiers.
    - LIST <BR>
      A layout with LIST enumeration method uses a list to enumerate all its
@@ -173,11 +174,11 @@ struct c2_layout_type_ops {
 			      struct c2_db_tx *tx,
 			      struct c2_bufvec_cursor *out);
 
-	/** In case of a layouts using formula enumeration type, substitutes
+	/** In case of a layouts using linear enumeration type, substitutes
 	    attributes and parameters into the formula and obtains list of COB
 	    identifiers.
 	    Defining this function is applicable for the layout types which may
-	    use formula enumeration type e.g. PDCLUST layout type.
+	    use linear enumeration type e.g. PDCLUST layout type.
 	*/
 	int	(*lto_subst)(const struct c2_layout *l,
 			     struct c2_tl *outlist,
@@ -211,7 +212,7 @@ struct c2_layout_enum_ops {
 /**
    Structure specific to per layout enumeration type.
    There is an instance of c2_layout_enum_type for each one of enumeration
-   types. e.g. for FORMULA and LIST enumeration method types.
+   types. e.g. for LINEAR and LIST enumeration method types.
 */
 struct c2_layout_enum_type {
 	/** Layout enumeration type name. */

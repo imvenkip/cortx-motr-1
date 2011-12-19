@@ -48,7 +48,7 @@ int c2_layouts_init(void)
 	Register composite layout type, using c2_ldb_type_register().
 
 	Register list enumeration type, using c2_ldb_enum_register().
-	Register formula enumeration type, using c2_ldb_enum_register().
+	Register linear enumeration type, using c2_ldb_enum_register().
 	@endcode
    */
 	return 0;
@@ -63,7 +63,7 @@ void c2_layouts_fini(void)
 	Unregister composite layout type, using c2_ldb_type_unregister().
 
 	Unregister list enumeration type, using c2_ldb_enum_unregister().
-	Unregister formula enumeration type, using c2_ldb_enum_unregister().
+	Unregister linear enumeration type, using c2_ldb_enum_unregister().
 	@endcode
    */
 }

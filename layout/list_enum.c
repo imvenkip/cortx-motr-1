@@ -186,7 +186,7 @@ static uint32_t list_nr(const struct c2_layout_enum *le,
 
 /**
    Implementation of leo_get for LIST enumeration.
-   Rerurns idx-th object from the enumeration.
+   Returns idx-th object from the enumeration.
    Argument fid is ignored here for LIST enumeration type.
 */
 static void list_get(const struct c2_layout_enum *le,
