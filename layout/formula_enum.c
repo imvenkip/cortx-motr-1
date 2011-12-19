@@ -54,13 +54,14 @@ static int __attribute__ ((unused)) formula_enumerate(
 	It would tell that the layout is with the FORMULA enumeration type
 	and will provide the required attributes.
 
-	Now derive list of COB identifiers 
+	Now derive list of COB identifiers
 
-	Invoke 
-	c2_layout_formula_enum->lfe_enum->le_lptr->l_type->lt_ops->lto_subst(), by
-	passing it the attributes obtained by reading the layout and the parameter
-	gfid. This will result into COB identifiers enumeration, in the form of a
-	c2_tl list, stored in the list that is out argument of this routine.
+	Invoke
+	c2_layout_formula_enum->lfe_enum->le_lptr->l_type->lt_ops->lto_subst(),
+	by passing it the attributes obtained by reading the layout and the
+	parameter gfid. This will result into COB identifiers enumeration, in
+	the form of a c2_tl list, stored in the list that is out argument of
+	this routine.
 	@endcode
    */
 	return 0;

@@ -181,7 +181,7 @@ struct c2_layout_type_ops {
 	*/
 	int	(*lto_subst)(const struct c2_layout *l,
 			     struct c2_tl *outlist,
-			     struct c2_fid gfid); 
+			     struct c2_fid gfid);
 };
 
 /**
