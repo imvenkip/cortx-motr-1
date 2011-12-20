@@ -171,8 +171,8 @@
    - In case of a layout with PDCLUST layout type, the structure
      c2_pdclust_attr is used to store attributes like N, K, P.
    - In case of a layout with LIST enum type, an array of ldb_list_cob_entry
-     structure with size MAX_INLINE_COB_ENTRIES is used to a few COB entries
-     inline into the layouts table itself.
+     structure with size MAX_INLINE_COB_ENTRIES is used to store a few COB
+     entries inline into the layouts table itself.
    - It is possible that some layouts do not need to store any layout type or
      layout type specific data in this layouts table. e.g. A layout with
      COMPOSITE layout type.

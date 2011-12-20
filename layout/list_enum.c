@@ -34,6 +34,30 @@ struct list_schema_data {
 	struct c2_table		lsd_cob_lists;
 };
 
+struct ldb_list_cob_entry {
+	/** Index for the COB from the layout it is part of. */
+	uint32_t                llce_cob_index;
+
+	/** COB identifier. */
+	struct c2_fid           llce_cob_id;
+};
+
+enum {
+	MAX_INLINE_COB_ENTRIES = 32
+};
+
+/**
+   Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
+   into the layouts table.
+*/
+struct ldb_list_cob_entries {
+	/** Total number of COB Ids for the specific layout. */
+	uint32_t                    llces_nr;
+
+	/** Array for storing COB Ids. */
+	struct ldb_list_cob_entry   llces_cobs[MAX_INLINE_COB_ENTRIES];
+};
+
 /**
    Implementation of leto_register for LIST enumeration type.
 

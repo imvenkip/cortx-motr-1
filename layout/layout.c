@@ -31,7 +31,6 @@
 
 enum {
 	LID_NONE = 0,
-	MAX_INLINE_COB_ENTRIES = 32
 };
 
 /**
