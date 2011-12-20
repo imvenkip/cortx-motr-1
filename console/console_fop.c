@@ -109,7 +109,7 @@ static struct c2_fop_type *fops[] = {
 
 static struct c2_fop_type_format *fmts[] = {
 	&c2_cons_fop_fid_tfmt,
-	&c2_cons_fop_vec_tfmt,
+	&c2_cons_fop_buf_tfmt,
 };
 
 void c2_console_fop_fini(void)

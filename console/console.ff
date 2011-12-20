@@ -36,7 +36,7 @@ DEF(c2_cons_fop_fid, RECORD,
     _(cons_seq, U64),
     _(cons_oid, U64));
 
-DEF(c2_cons_fop_vec, SEQUENCE,
+DEF(c2_cons_fop_buf, SEQUENCE,
     _(cons_size, U32),
     _(cons_buf, BYTE));
 
@@ -55,7 +55,7 @@ DEF(c2_cons_fop_device, RECORD,
     _(cons_id, c2_cons_fop_fid),
     _(cons_notify_type, U32),
     _(cons_dev_id, U64),
-    _(cons_dev_name, c2_cons_fop_vec));
+    _(cons_dev_name, c2_cons_fop_buf));
 
 /** Reply fop to the notification fop
     - notify_type : Notification type of request fop.
