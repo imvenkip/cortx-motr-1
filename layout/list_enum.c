@@ -43,7 +43,7 @@ struct ldb_list_cob_entry {
 };
 
 enum {
-	MAX_INLINE_COB_ENTRIES = 32
+	MAX_INLINE_COB_ENTRIES = 20
 };
 
 /**
