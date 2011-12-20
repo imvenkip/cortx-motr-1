@@ -30,7 +30,8 @@
  */
 
 enum {
-	LID_NONE = 0
+	LID_NONE = 0,
+	MAX_INLINE_COB_ENTRIES = 32
 };
 
 /**
@@ -150,33 +151,14 @@ int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
 		C2_PRE(cur != NULL);
 	}
 
-
-	if (op == C2_LXO_LOOKUP) {
-		struct c2_db_pair	pair;
-
-		uint64_t recsize = sizeof(struct c2_ldb_rec);
-
-		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
-
-		Set the cursor cur to point at the beginning of the key-val
-		pair.
-	}
-
-	Parse generic layout fields from the buffer (pointed by *cur) and store
-	them in the layout object. e.g. layout id (l_id), layout type id,
-	enumeration type id, ref counter.
-
-	Now based on the layout type, call corresponding lto_decode() so as
-        to continue decoding the layout type specific fields.
+	Based on the layout type, call corresponding lto_decode().
 
 	uint64_t lt_id = *out->l_type->lt_id;
 	schema->ls_types[lt_id]->lto_decode(op, lid, cur, out);
 
-	If the layout-enumeration type is LIST, then invoke respective
-	leto_decode().
-
-	uint64_t let_id = *out->l_enum->let_id;
-	schema->ls_enum[let_id]->leto_decode(op, lid, cur, out);
+	Parse generic layout fields from the buffer (pointed by *cur) and store
+	those in the layout object. e.g. layout id (l_id), layout type id,
+	enumeration type id, ref counter.
 
 	@endcode
    */
@@ -225,9 +207,6 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	the buffer pointed by cur
 
 	Based on the layout type, invoke corresponding lto_encode().
-
-	If the layout-enumeration type is LIST, then invoke respective
-	leto_encode().
 
 	@endcode
    */

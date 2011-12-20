@@ -100,8 +100,8 @@ struct c2_ldb_rec;
  */
 
 enum {
-	C2_LAY_TYPE_MAX = 32,
-	C2_LAY_ENUM_MAX = 32
+	C2_LAY_TYPE_MAX        = 32,
+	C2_LAY_ENUM_MAX        = 32,
 };
 
 /** @} end group LayoutDBDFS */
@@ -250,7 +250,7 @@ struct ldb_cob_lists_key {
 };
 
 struct ldb_cob_lists_rec {
-	/* COB identifier. */
+	/** COB identifier. */
 	struct c2_fid		lclr_cob_id;
 };
 

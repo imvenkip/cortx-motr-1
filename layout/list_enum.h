@@ -49,8 +49,9 @@ struct c2_lay_list_enum {
 	struct c2_tl		lle_list_of_cobs;
 
 	/** @todo One change was suggested to move this to c2_layout so that the
-	    callers can lock/unlock it. Deferring it for a while since I need to
-	    understand the purpose of it. Once understood, I will implement it.
+	    callers can lock/unlock it. Deferring it for a while since I yet
+	    need to understand the purpose of it. Once understood, I will
+	    implement it.
 	    For now, list_decode() and list_encode() seem to access this list
 	    which are expected to lock it while using.
 	    If needed, should similar change be done for lock to protect the
@@ -58,6 +59,23 @@ struct c2_lay_list_enum {
 	*/
 	/** Lock to protect the list of COB identifiers */
 	struct c2_mutex		lle_cob_mutex;
+};
+
+struct ldb_list_cob_entry {
+	/** Index for the COB from the layout it is part of. */
+	uint32_t                llce_cob_index;
+
+	/** COB identifier. */
+	struct c2_fid           llce_cob_id;
+};
+
+/**
+   Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
+   into the layouts table.
+*/
+struct ldb_list_cob_entries {
+	uint32_t                llces_nr;
+	struct                  ldb_list_cob_entry[MAX_INLINE_COB_ENTRIES];
 };
 
 extern const struct c2_layout_enum_type c2_list_enum_type;

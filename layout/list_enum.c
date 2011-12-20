@@ -101,8 +101,9 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	if (op == C2_LXO_LOOKUP) {
 		Read all the COB identifiers belonging to the layout with the
-		layout id 'lid', from the cob_lists table and store those in
-		the buffer pointed by cur.
+		layout id 'lid' and index greater than MAX_INLINE_COB_ENTRIES,
+		from the cob_lists table and store those in the buffer pointed
+		by cur.
 
 		Set the cursor cur to point at the beginning of the list of COB
 		identifiers.
@@ -119,7 +120,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
    Implementation of leto_encode() for list enumeration type.
 
    Continues to use the in-memory layout object and either 'stores it in the
-   Layout DB' ot 'converts it to a buffer that can be passed on over the
+   Layout DB' or 'converts it to a buffer that can be passed on over the
    network'.
 
   @param op - This enum parameter indicates what is the DB operation to be
@@ -140,7 +141,11 @@ static int list_encode(struct c2_ldb_schema *schema,
 	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
 			       || (op == C2_LXO_DELETE)) {
 		Depending upon the value of op, insert/update/delete cob
-		entires to/from the cob_lists table.
+		entries beyond MAX_INLINE_COB_ENTRIES to/from the cob_lists
+		table.
+
+		(First MAX_INLINE_COB_ENTRIES number of entries are stored
+		inline into the layouts table itself.)
 	}
 
 	@endcode

@@ -501,16 +501,24 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	Allocate new layout as an instance of c2_pdclust_layout that
 	embeds c2_layout.
 
-	Now, that it is the PDCLUST layout type, we know that the layouts
-	table contains c2_pdclust_attr as a tail part of c2_ldb_rec. Hence,
-	let's re-read the record from the layouts table, with revised
-	recsize this time.
-
 	if (op == C2_LXO_LOOKUP) {
-		struct c2_db_pair	pair;
+		struct c2_db_pair       pair;
+		uint64_t                recsize;
 
-		uint64_t recsize = sizeof(struct c2_ldb_rec)
-					+ sizeof(c2_pdclust_attr);
+		if (layout-enumeration is LIST) {
+			struct ldb_list_cob_entries ces;
+
+			Fill MAX_INLINE_COB_ENTRIES number of entries into
+			ces structure.
+
+			recsize = sizeof(struct c2_ldb_rec)
+					+ sizeof(struct c2_pdclust_attr)
+					+ sizeof(struct ldb_list_cob_entries);
+		} else {
+			recsize = sizeof(struct c2_ldb_rec)
+					+ sizeof(struct c2_pdclust_attr);
+		}
+
 		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
 
 		Set the cursor cur to point at the PDCLUST type specific
@@ -519,6 +527,19 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	Read pdclust layout type specific fields from the buffer and store
 	those in c2_pdclust_layout::pl_attr.
+
+	Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from the
+	buffer (pointed by cur) and store those in the
+	c2_lay_list_enum->lle_list_of_cobs.
+
+	if ((op == C2_LXO_LOOKUP) && (layout-enumeration is LIST)
+		&& (ldb_list_cob_entries::llces_nr > MAX_INLINE_COB_ENTRIES)) {
+		Invoke corresponding leto_decode() so as to read cob entries
+		beyond MAX_INLINE_COB_ENTRIES.
+	}
+
+	Set the cursor cur to point at the beginning of the key-val pair read
+        from the layouts table.
 
 	@endcode
    */
@@ -530,7 +551,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
    Implementation of lto_encode() for pdclust layout type.
 
    Continues to use the in-memory layout object and either 'stores it in the
-   Layout DB' ot 'converts it to a buffer that can be passed on over the
+   Layout DB' or 'converts it to a buffer that can be passed on over the
    network'.
 
   @param op - This enum parameter indicates what is the DB operation to be
@@ -546,13 +567,37 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
    /**
 	@code
 	Store pdclust layout type specific fields into the buffer.
+
+	If the layout-enumeration type is LIST, then invoke respective
+	leto_encode().
+	leto_encode(schema, l, op, tx, out);
+
 	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
 			       || (op == C2_LXO_DELETE)) {
-		uint64_t recsize = sizeof(struct c2_ldb_rec)
-					+ sizeof(c2_pdclust_attr);
-		ret = ldb_layout_write(op, recsize, out, schema, tx);
-	}
+		uint64_t recsize;
+		if (layout-enumeration is LIST) {
+			struct ldb_list_cob_entries ces;
 
+			Fill MAX_INLINE_COB_ENTRIES number of entries into
+			ces structure.
+
+			recsize = sizeof(struct c2_ldb_rec)
+					+ sizeof(struct c2_pdclust_attr)
+					+ sizeof(struct ldb_list_cob_entries);
+		} else {
+			recsize = sizeof(struct c2_ldb_rec)
+					+ sizeof(struct c2_pdclust_attr);
+		}
+		ret = ldb_layout_write(op, recsize, out, schema, tx);
+
+		if ((layout-enumeration is LIST)
+		&& (c2_lay_list_enum::lle_list_of_cobs contains more than
+		    MAX_INLINE_COB_ENTRIES entries)) {
+			Invoke corresponding leto_encode() so as to
+			write/update/delete cob entries beyond
+			MAX_INLINE_COB_ENTRIES.
+		}
+	}
 	@endcode
    */
 	return 0;

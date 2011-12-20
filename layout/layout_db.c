@@ -162,17 +162,20 @@
       - layout_type_id
       - layout_enumeration_type_id
       - reference_count
-      - layout_type_specific_rec_attrs (optional)
+      - layout_type_specific_data (optional)
 
    @endverbatim
 
-   e.g. A layout with PDCLUST layout type and with LINEAR enumeration type,
-   uses the structure c2_pdclust_attr to store attributes like N, K, P.
-
-   It is possible that some layout types do not need to store any attributes.
-   e.g. A layout with PDCLUST layout type with LIST enumeration type does
-   not need to store any attributes. Similarlly, a layout with COMPOSITE
-   layout type does not need to store any attributes.
+   layout_type_specific_data field is used to store layout type or layout enum
+   type specific data. Structure of this field varies accordingly. e.g.
+   - In case of a layout with PDCLUST layout type, the structure
+     c2_pdclust_attr is used to store attributes like N, K, P.
+   - In case of a layout with LIST enum type, an array of ldb_list_cob_entry
+     structure with size MAX_INLINE_COB_ENTRIES is used to a few COB entries
+     inline into the layouts table itself.
+   - It is possible that some layouts do not need to store any layout type or
+     layout type specific data in this layouts table. e.g. A layout with
+     COMPOSITE layout type.
 
    @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
    @verbatim
@@ -189,6 +192,9 @@
    of layout with LIST enumeration type.
 
    layout_id is a foreign key referring record, in the layouts table.
+
+   cob_index for the first entry in this table will be continuation of the
+   llce_cob_index from the array of ldb_list_cob_entry stored in layouts table.
 
    @subsection Layout-DB-lspec-schema-comp_layout_ext_map Table comp_layout_ext_map
 

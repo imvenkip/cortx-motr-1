@@ -105,9 +105,6 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		uint32_t recsize = sizeof(struct c2_ldb_rec);
 
 		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
-
-		Set the cursor cur to point at the beginning of the key-val
-		pair.
 	}
 
 	if (op == C2_LXO_LOOKUP) {
@@ -122,6 +119,9 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	Parse the sub-layout information from the buffer (pointed by
 	cur) and store it in the c2_composite_layout::cl_list_of_sub_layouts.
 
+	Set the cursor cur to point at the beginning of the key-val pair read
+	from the layouts table.
+
 	@endcode
    */
 	return 0;
@@ -131,7 +131,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
    Implementation of lto_encode() for composite layout type.
 
    Continues to use the in-memory layout object and either 'stores it in the
-   Layout DB' ot 'converts it to a buffer that can be passed on over the
+   Layout DB' or 'converts it to a buffer that can be passed on over the
    network'.
 
    @param op - This enum parameter indicates what is the DB operation to be
