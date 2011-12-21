@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  */
 
@@ -920,7 +920,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
 	} else {
 		cepa->cepa_tmid = simple_strtoul(cp, &endp, 10);
-		if (*endp != 0)
+		if (*endp != 0 || cepa->cepa_tmid > C2_NET_LNET_TMID_MAX)
 			return -EINVAL;
 	}
 	return 0;
@@ -948,12 +948,21 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm,
 		      struct nlx_core_ep_addr *cepa)
 {
-	struct nlx_xo_domain *dp = tm->ntm_dom->nd_xprt_private;
-	struct nlx_xo_ep *xep = container_of(cepa, struct nlx_xo_ep, xe_core);
+	struct nlx_xo_domain *dp;
 	struct nlx_core_buffer_event *e1;
 	struct nlx_core_buffer_event *e2;
+	struct nlx_xo_transfer_mc *tp;
 	struct nlx_kcore_transfer_mc *kctm;
+	lnet_process_id_t id;
 	int rc;
+	int i;
+
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	tp = tm->ntm_xprt_private;
+	C2_PRE(lctm == &tp->xtm_core);
+	C2_PRE(cepa = &lctm->ctm_addr);
+	dp = tm->ntm_dom->nd_xprt_private;
 
 	C2_ALLOC_PTR(kctm);
 	C2_ALLOC_PTR(e1);
@@ -963,7 +972,24 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		goto fail;
 	}
 
-	/* XXX TODO how to validate cepa? */
+	/*
+	  cepa_nid/cepa_pid must match a local NID/PID.
+	  cepa_portal must be in range.  cepa_tmid is checked below.
+	 */
+	if (cepa->cepa_portal == LNET_RESERVED_PORTAL ||
+	    cepa->cepa_portal >= C2_NET_LNET_MAX_PORTALS) {
+		rc = -EINVAL;
+		goto fail;
+	}
+	i = 0;
+	do {
+		rc = LNetGetId(i, &id);
+		if (rc == 0 &&
+		    id.nid == cepa->cepa_nid && id.pid == cepa->cepa_pid)
+			break;
+	} while (rc != -ENOENT);
+	if (rc != 0)
+		goto fail;
 
 	tms_tlink_init(kctm);
 	kctm->ktm_tm = lctm;
@@ -986,9 +1012,18 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 				rc = -EADDRNOTAVAIL;
 				goto fail_with_eq;
 			}
+	} else if (cepa->cepa_tmid > C2_NET_LNET_TMID_MAX) {
+		c2_mutex_unlock(&nlx_kcore_mutex);
+		rc = -EINVAL;
+		goto fail_with_eq;
 	} else if (nlx_kcore_addr_in_use(cepa)) {
 		c2_mutex_unlock(&nlx_kcore_mutex);
 		rc = -EADDRINUSE;
+		goto fail_with_eq;
+	}
+	rc = nlx_ep_create(&tm->ntm_ep, tm, cepa);
+	if (rc != 0) {
+		c2_mutex_unlock(&nlx_kcore_mutex);
 		goto fail_with_eq;
 	}
 	tms_tlist_add(&nlx_kcore_tms, kctm);
@@ -1002,8 +1037,6 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	lctm->ctm_upvt = NULL;
 	lctm->ctm_kpvt = kctm;
 	lctm->ctm_user_space_xo = false;
-	lctm->ctm_addr = *cepa;
-	nlx_core_ep_addr_encode(&dp->xd_core, cepa, xep->xe_addr);
 	return 0;
 fail_with_eq:
 	LNetEQFree(kctm->ktm_eqh);

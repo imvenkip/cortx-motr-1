@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  *
  */
@@ -613,6 +613,18 @@ static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
 static void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm);
+
+/**
+   Compare two struct nlx_core_ep_addr objects.
+ */
+static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
+				  const struct nlx_core_ep_addr *cep2)
+{
+	return cep1->cepa_nid == cep2->cepa_nid &&
+		cep1->cepa_pid == cep2->cepa_pid &&
+		cep1->cepa_portal == cep2->cepa_portal &&
+		cep1->cepa_tmid == cep2->cepa_tmid;
+}
 
 /**
    @}

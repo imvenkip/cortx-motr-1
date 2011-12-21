@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 12/15/2011
  */
 
@@ -41,7 +41,6 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_core_transfer_mc *ctp;
-	struct nlx_xo_ep *xep;
 	struct c2_net_tm_event tmev = {
 		.nte_type   = C2_NET_TEV_STATE_CHANGE,
 		.nte_tm     = tm,
@@ -51,10 +50,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	int rc = 0;
 
 	C2_PRE(nlx_tm_invariant(tm));
-	C2_PRE(tm->ntm_ep != NULL);	/* nlx_xo_tm_start must set this */
 	tp = tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
-	xep = container_of(tm->ntm_ep, struct nlx_xo_ep, xe_ep);
 
 	if (tp->xtm_processors.b_nr != 0) {
 		struct c2_thread_handle me;
@@ -63,8 +60,12 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		rc = c2_thread_confine(&tp->xtm_ev_thread, &tp->xtm_processors);
 	}
 
-	if (rc == 0)
-		rc = nlx_core_tm_start(tm, ctp, &xep->xe_core);
+	if (rc == 0) {
+		c2_mutex_lock(&tm->ntm_mutex);
+		rc = nlx_core_tm_start(tm, ctp, &ctp->ctm_addr);
+		c2_mutex_unlock(&tm->ntm_mutex);
+	}
+
 	/*
 	  Deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
 	  the C2_NET_TM_STARTED or C2_NET_TM_FAILED states.
@@ -73,9 +74,9 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	if (rc != 0) {
 		tmev.nte_next_state = C2_NET_TM_FAILED;
 		tmev.nte_status = rc;
-		c2_free(xep);
 	} else {
 		tmev.nte_next_state = C2_NET_TM_STARTED;
+		C2_ASSERT(tm->ntm_ep != NULL);
 		tmev.nte_ep = tm->ntm_ep;
 	}
 	tmev.nte_time = c2_time_now();

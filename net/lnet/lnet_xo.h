@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/10/2011
  *
  */
@@ -37,10 +37,17 @@ struct nlx_xo_domain;
 struct nlx_xo_ep;
 struct nlx_xo_transfer_mc;
 
+enum {
+	C2_NET_LNET_XE_MAGIC = 0x4c4e6574786570ULL, /* LNetxep */
+};
+
 /**
    LNet transport's internal end point structure.
  */
 struct nlx_xo_ep {
+	/** Magic constant to validate end point */
+	uint64_t                xe_magic;
+
 	/** embedded network end point structure. */
 	struct c2_net_end_point xe_ep;
 

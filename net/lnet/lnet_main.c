@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  */
 
@@ -761,6 +761,7 @@
 #include "lib/memory.h"
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_xo.h"
+#include "net/lnet/lnet_pvt.h"
 
 /* To reduce global symbols, yet make the code readable, we
    include other .c files with static symbols into this file.
@@ -776,6 +777,7 @@
 #include "net/lnet/ulnet_core.c"
 #endif
 #include "net/lnet/lnet_xo.c"
+#include "net/lnet/lnet_ep.c"
 #include "net/lnet/lnet_tm.c"
 
 int c2_net_lnet_init(void)

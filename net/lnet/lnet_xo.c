@@ -14,12 +14,10 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/16/2011
  */
-
-static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm);
 
 /**
    @addtogroup LNetXODFS
@@ -28,8 +26,15 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm);
 
 static bool nlx_dom_invariant(const struct c2_net_domain *dom)
 {
-	struct nlx_xo_domain *dp = dom->nd_xprt_private;
+	const struct nlx_xo_domain *dp = dom->nd_xprt_private;
 	return dp != NULL && dp->xd_dom == dom;
+}
+
+static bool nlx_ep_invariant(const struct c2_net_end_point *ep)
+{
+	const struct nlx_xo_ep *xep = container_of(ep, struct nlx_xo_ep, xe_ep);
+	return xep->xe_magic == C2_NET_LNET_XE_MAGIC &&
+		xep->xe_ep.nep_addr == &xep->xe_addr[0];
 }
 
 static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
@@ -101,7 +106,18 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 				   struct c2_net_transfer_mc *tm,
 				   const char *addr)
 {
-	return -ENOSYS;
+	struct nlx_xo_domain *dp;
+	struct nlx_core_ep_addr cepa;
+	int rc;
+
+	dp = tm->ntm_dom->nd_xprt_private;
+	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr, &cepa);
+	if (rc != 0)
+		return rc;
+	if (cepa.cepa_tmid == C2_NET_LNET_TMID_INVALID)
+		return -EINVAL;
+
+	return nlx_ep_create(epp, tm, &cepa);
 }
 
 static int nlx_xo_buf_register(struct c2_net_buffer *nb)
@@ -229,7 +245,6 @@ static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
 	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
-	struct nlx_xo_ep *ep;
 	int rc;
 
 	C2_PRE(nlx_tm_invariant(tm));
@@ -237,25 +252,15 @@ static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	dp = tm->ntm_dom->nd_xprt_private;
 	tp = tm->ntm_xprt_private;
 
-	C2_ALLOC_PTR(ep);
-	if (ep == NULL)
-		return -ENOMEM;
-
-	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr, &ep->xe_core);
-	if (rc != 0) {
-		c2_free(ep);
+	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr,
+				     &tp->xtm_core.ctm_addr);
+	if (rc != 0)
 		return rc;
-	}
-	tm->ntm_ep = &ep->xe_ep;
 
 	rc = C2_THREAD_INIT(&tp->xtm_ev_thread,
 			    struct c2_net_transfer_mc *, NULL,
 			    &nlx_tm_ev_worker, tm,
 			    "nlx_tm_ev_worker");
-	if (rc != 0) {
-		tm->ntm_ep = NULL;
-		c2_free(ep);
-	}
 	return rc;
 }
 
