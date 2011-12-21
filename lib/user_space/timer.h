@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ *		    Maxim Medved <Max_Medved@xyratex.com>
  * Original creation date: 03/04/2011
  */
 
@@ -35,12 +36,8 @@
  */
 
 /**
- * Timer can be in one of this states.
- * Transition matrix for states:
- *			init	fini	start	stop	attach
- * (0) TIMER_UNINIT	1	-	-	-	-
- * (1) TIMER_INITED	-	0	2	-	1
- * (2) TIMER_RUNNING	-	-	-	1	-
+ * Timer state.
+ * @see timer_state_change()
  */
 enum c2_timer_state {
 	/** Not initialized. */
@@ -49,6 +46,8 @@ enum c2_timer_state {
 	TIMER_INITED,
 	/** Timer is running. */
 	TIMER_RUNNING,
+	/** Timer is stopped */
+	TIMER_STOPPED,
 	/** Number of timer states */
 	TIMER_STATE_NR,
 	/** Invalid state */
@@ -71,12 +70,6 @@ struct c2_timer_locality {
 	 * in c2_timer_attach().
 	 */
 	struct timer_tid *tlo_rrtid;
-
-	/**
-	 * Signal number for this locality.
-	 * Will be assigned to every timer, attached to this locality.
-	 */
-	int tlo_signo;
 };
 
 struct c2_timer {
@@ -84,28 +77,6 @@ struct c2_timer {
 	 * Timer type: C2_TIMER_SOFT or C2_TIMER_HARD
 	 */
 	enum c2_timer_type t_type;
-
-	/**
-	 * The interval to trigger the timer callback.
-	 */
-	c2_time_t t_interval;
-
-	/**
-	 * the repeat count for this timer.
-	 *
-	 * Initial value of 0XFFFFFFFFFFFFFFFF means the timer will be triggered
-	 * infinitely before wrapping.
-	 */
-	uint64_t       t_repeat;
-
-	/**
-	 * the left count for this timer.
-	 *
-	 * This value will be decreased everytime a timeout happens.
-	 * If this value reaches zero, time is stopped/unarmed.
-	 * The initial value of @t_left is equal to @t_repeat.
-	 */
-	uint64_t       t_left;
 
 	/**
 	 * Timer triggers this callback.
@@ -140,14 +111,6 @@ struct c2_timer {
 	pid_t t_tid;
 
 	/**
-	 * Signal number for POSIX timer.
-	 * Initially set in c2_timer_init() to some valid signal number.
-	 * Can be changed by calling c2_timer_attach().
-	 * Used in hard timer implementation.
-	 */
-	int t_signo;
-
-	/**
 	 * Timer state.
 	 * Used in state changes checking in hard timer.
 	 * c2_timer_init() will set state to TIMER_INITED.
@@ -157,13 +120,6 @@ struct c2_timer {
 	 * function, C2_ASSERT() will take `false' parameter.
 	 */
 	enum c2_timer_state t_state;
-
-	/**
-	 * Used in hard timer implementation as boolean variable.
-	 * If it is true, than there is no need for callbacks executing
-	 * for this timer.
-	 */
-	sig_atomic_t t_stopping;
 
 	/**
 	 * Used in hard timer implementation.
@@ -191,10 +147,10 @@ void c2_timers_fini();
 void c2_timer_locality_init(struct c2_timer_locality *loc);
 
 /**
- * Finish timer locality.
- * Locality must be empty.
+ * Fini timer locality.
  *
  * @pre c2_timer_locality_init() succesfully called.
+ * @pre locality is empty
  */
 void c2_timer_locality_fini(struct c2_timer_locality *loc);
 

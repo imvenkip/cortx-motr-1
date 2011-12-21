@@ -36,7 +36,6 @@
 #include "lib/mutex.h"  /* c2_mutex */
 #include "lib/thread.h" /* c2_thread */
 #include "lib/assert.h" /* C2_ASSERT */
-#include "lib/atomic.h" /* c2_atomic64 */
 #include "lib/memory.h" /* C2_ALLOC_PTR */
 #include "lib/errno.h"	/* errno */
 #include "lib/time.h"	/* c2_time_t */
@@ -51,81 +50,6 @@
  * In userspace soft timer implementation, there is a timer thread running,
  * which checks the expire time and trigger timer callback if needed.
  * There is one timer thread for each timer.
- *
- * <b>Hard timer states</b>
- * @dot
- * digraph example {
- *     size = "5,6"
- *     label = "RPC Session States"
- *     node [shape=record, fontname=Helvetica, fontsize=10]
- *     S0 [label="Uninitialized"]
- *     S1 [label="Initialized"]
- *     S2 [label="Running"]
- *     S0 -> S1 [label="c2_timer_init()"]
- *     S1 -> S0 [label="c2_timer_fini()"]
- *     S1 -> S1 [label="c2_timer_attach()"]
- *     S1 -> S2 [label="c2_timer_start()"]
- *     S2 -> S1 [label="c2_timer_stop()"]
- * }
- * @enddot
- *
- * <b>Mini-DLD for timer functions</b>
- * @verbatim
- * signal handler
- *	if (t_stopping)
- *		timer_gettime()
- *		if current_timer_interval is magic
- *			timer_settime(disable)
- *			sem_post(t_stop_sem)
- *		return
- *	t_callback(t_data);
- *	t_left--;
- *	if (t_left == 0)
- *		return;
- *	timer_settime(interval = t_interval, count = 1)
- *
- * init
- *	t_stopping = false
- *	t_tid = gettid()
- *	t_signo = signo with round-robin choosing
- *	init t_stop_sem
- *	timer_create(signo = t_signo, target tid = t_tid())
- * fini
- *	fini t_stop_sem
- *	timer_delete()
- * start
- *	if (t_repeat != 0)
- *		t_left = t_repeat
- *		timer_settime(interval = t_interval, count = 1)
- * stop
- *	t_stopping = true
- *	timer_settime(expireation = now, interval = magic interval)
- *	sem_wait(t_stop_sem)
- *	t_stopping = false
- * attach
- *	timer_delete()
- *	choose t_tid
- *	timer_create(signo = t_signo, target tid = t_tid)
- * @endverbatim
- *
- * <b>c2_timer access table for hard timer functions (R - read, W - write)</b>
- * @verbatim
- * c2_timer field	init	fini	start	stop	attach	sighandler
- * -----------------------------------------------------------------------
- * t_interval		W	-	R	R	-	R
- * t_repeat		W	-	R	-	-	-
- * t_left		W	-	W	-	-	RW
- * t_callback		W	-	-	-	-	R
- * t_data		W	-	-	-	-	R
- * t_expire		W	-	-	-	-	-
- * t_tid		W	-	-	-	W	R
- * t_stopping		W	-	-	W	-	R
- * t_stop_sem		W	W	-	W	-	W
- * t_ptimer		W	-	R	R	RW	R
- * t_signo		W	-	-	-	W	R
- * @endverbatim
- *
- * @{
  */
 
 #ifndef C2_TIMER_DEBUG
@@ -133,11 +57,10 @@
 #endif
 
 /**
- * Hard timer implementation will use real-time signals from
- * TIMER_SIGNO_MIN to TIMER_SIGNO_MAX inclusive.
+ * Hard timer implementation uses TIMER_SIGNO signal
+ * for user-defined callback delivery.
  */
-#define TIMER_SIGNO_MIN		SIGRTMIN
-#define TIMER_SIGNO_MAX		SIGRTMAX
+#define TIMER_SIGNO	SIGRTMIN
 
 /**
  * Function enum for timer_state_change() checks.
@@ -160,13 +83,6 @@ struct timer_tid {
 	uint64_t	tt_magic;
 };
 
-/**
- * Signal number for every new hard timer is chosen in a round-robin fashion.
- * This variable contains signal number for next timer.
- */
-static int signo_rr;
-/* magic interval for c2_timer_stop() */
-static c2_time_t magic_interval;
 static c2_time_t zero_time;
 
 /**
@@ -189,14 +105,6 @@ static pid_t gettid() {
 	return syscall(SYS_gettid);
 }
 
-static int signo_rr_get()
-{
-	int signo = signo_rr;
-
-	signo_rr = signo_rr == TIMER_SIGNO_MAX ? TIMER_SIGNO_MIN : signo_rr + 1;
-	return signo;
-}
-
 void c2_timer_locality_init(struct c2_timer_locality *loc)
 {
 	C2_PRE(loc != NULL);
@@ -204,7 +112,6 @@ void c2_timer_locality_init(struct c2_timer_locality *loc)
 	c2_mutex_init(&loc->tlo_lock);
 	tid_tlist_init(&loc->tlo_tids);
 	loc->tlo_rrtid = NULL;
-	loc->tlo_signo = signo_rr_get();
 }
 C2_EXPORTED(c2_timer_locality_init);
 
@@ -283,7 +190,7 @@ C2_EXPORTED(c2_timer_thread_detach);
 
 /**
  * Init POSIX timer, write it to timer->t_ptimer.
- * Timer notification is signal timer->t_signo to
+ * Timer notification is signal TIMER_SIGNO to
  * thread timer->t_tid.
  */
 static int timer_posix_init(struct c2_timer *timer)
@@ -293,7 +200,7 @@ static int timer_posix_init(struct c2_timer *timer)
 	int rc;
 
 	se.sigev_notify = SIGEV_THREAD_ID;
-	se.sigev_signo = timer->t_signo;
+	se.sigev_signo = TIMER_SIGNO;
 	se._sigev_un._tid = timer->t_tid;
 	se.sigev_value.sival_ptr = timer;
 	rc = timer_create(CLOCK_REALTIME, &se, &ptimer);
@@ -318,55 +225,30 @@ static void timer_posix_fini(timer_t posix_timer)
 
 /**
  * Run timer_settime() with given expire time (absolute) and interval.
- * FIXME race condition here (call from multiple threads for the same timer)
  */
-static void timer_posix_set_unsafe(struct c2_timer *timer,
-		c2_time_t expire, c2_time_t interval)
+static void timer_posix_set(struct c2_timer *timer,
+		c2_time_t expire, c2_time_t *old_expire)
 {
-	int rc;
+	int		  rc;
 	struct itimerspec ts;
+	struct itimerspec ots;
 
 	C2_PRE(timer != NULL);
 
-	ts.it_interval.tv_sec = c2_time_seconds(interval);
-	ts.it_interval.tv_nsec = c2_time_nanoseconds(interval);
+	ts.it_interval.tv_sec = 0;
+	ts.it_interval.tv_nsec = 0;
 	ts.it_value.tv_sec = c2_time_seconds(expire);
 	ts.it_value.tv_nsec = c2_time_nanoseconds(expire);
 
-	rc = timer_settime(timer->t_ptimer, TIMER_ABSTIME, &ts, NULL);
+	rc = timer_settime(timer->t_ptimer, TIMER_ABSTIME, &ts, &ots);
 	/*
 	 * timer_settime() can only fail if timer->t_ptimer isn't valid
 	 * timer ID or ts has invalid fiels.
 	 */
 	C2_ASSERT(rc == 0);
-}
-
-static void timer_posix_set(struct c2_timer *timer,
-		c2_time_t expire, c2_time_t interval)
-{
-	timer_posix_set_unsafe(timer, expire, interval);
-}
-
-/**
- * Get POSIX timer interval.
- * Returns zero_time for disarmed timer.
- */
-static void timer_posix_get(struct c2_timer *timer,
-		c2_time_t *interval)
-{
-	struct itimerspec it;
-	int rc;
-
-	C2_PRE(timer != NULL);
-	C2_PRE(interval != NULL);
-
-	rc = timer_gettime(timer->t_ptimer, &it);
-	/*
-	 * timer_gettime() can only fail if &it isn't valid pointer or
-	 * timer->t_ptimer isn't valid timer ID.
-	 */
-	C2_ASSERT(rc == 0);
-	c2_time_set(interval, it.it_interval.tv_sec, it.it_interval.tv_nsec);
+	if (old_expire != NULL)
+		c2_time_set(old_expire, ots.it_value.tv_sec,
+				ots.it_value.tv_nsec);
 }
 
 /**
@@ -393,59 +275,17 @@ static int timer_sigaction(int signo,
 static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 {
 	struct c2_timer *timer;
-	c2_time_t interval;
 
 	C2_PRE(si != NULL && si->si_value.sival_ptr != 0);
 	C2_PRE(si->si_code == SI_TIMER);
-	C2_PRE(signo >= TIMER_SIGNO_MIN && signo <= TIMER_SIGNO_MAX);
+	C2_PRE(signo == TIMER_SIGNO);
 
 	timer = si->si_value.sival_ptr;
-	C2_ASSERT(signo == timer->t_signo);
 #ifdef C2_TIMER_DEBUG
 	C2_ASSERT(timer->t_tid == gettid());
 #endif
-
-	if (timer->t_stopping) {
-		/*
-		 * When c2_timer is stopping, signal can be delivered for
-		 * expiration (and POSIX timer will be currently disarmed)
-		 * or for timer_settime() in timer_hard_stop() with
-		 * magic_interval as interval. In this case timer_hard_stop()
-		 * is locked on t_stop_sem semaphore.
-		 */
-		timer_posix_get(timer, &interval);
-		if (interval == magic_interval) {
-			timer_posix_set(timer, zero_time, zero_time);
-			c2_semaphore_up(&timer->t_stop_sem);
-		} else if (interval != zero_time) {
-			C2_IMPOSSIBLE("impossible POSIX timer interval");
-		}
-	} else if (timer->t_left > 0) {
-		/*
-		 * POSIX timer is disarmed.
-		 * Execute callback and arm it if needed.
-		 */
-		timer->t_expire = c2_time_add(timer->t_expire,
-				timer->t_interval);
-		timer->t_callback(timer->t_data);
-		if (--timer->t_left > 0) {
-			timer_posix_set(timer, timer->t_expire, zero_time);
-			/*
-			 * There is a possible race condition here.
-			 * If there was timer_posix_set() from timer_hard_stop()
-			 * then t_stop_sem semaphore will be never raised.
-			 * To prevent this, simple check t_stopping after
-			 * set new expiration here, and set timer interval
-			 * to magic interval if it is true.
-			 * FIXME RESOLVED INVALID
-			 */
-			if (timer->t_stopping)
-				timer_posix_set(timer, c2_time_now(),
-						magic_interval);
-		}
-	} else {
-		C2_IMPOSSIBLE("impossible signal for c2_timer");
-	}
+	timer->t_callback(timer->t_data);
+	c2_semaphore_up(&timer->t_stop_sem);
 }
 
 /**
@@ -453,21 +293,10 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
  */
 static void c2_timer_working_thread(struct c2_timer *timer)
 {
-	bool killed = false;
-
-	while (timer->t_left > 0) {
-		if (c2_semaphore_timeddown(&timer->t_sleep_sem,
-					timer->t_expire)) {
-			killed = true;
-			break;
-		}
-		timer->t_expire = c2_time_add(timer->t_expire,
-				timer->t_interval);
+	if (!c2_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire)) {
 		timer->t_callback(timer->t_data);
-		timer->t_left--;
-	}
-	if (!killed)
 		c2_semaphore_down(&timer->t_sleep_sem);
+	}
 }
 
 bool c2_timer_invariant(struct c2_timer *timer)
@@ -509,7 +338,14 @@ static void timer_state_change(struct c2_timer *timer, enum timer_func func,
 				[TIMER_INIT]   = TIMER_INVALID,
 				[TIMER_FINI]   = TIMER_INVALID,
 				[TIMER_START]  = TIMER_INVALID,
-				[TIMER_STOP]   = TIMER_INITED,
+				[TIMER_STOP]   = TIMER_STOPPED,
+				[TIMER_ATTACH] = TIMER_INVALID
+			},
+			[TIMER_STOPPED] = {
+				[TIMER_INIT]   = TIMER_INVALID,
+				[TIMER_FINI]   = TIMER_UNINIT,
+				[TIMER_START]  = TIMER_INVALID,
+				[TIMER_STOP]   = TIMER_INVALID,
 				[TIMER_ATTACH] = TIMER_INVALID
 			}
 		};
@@ -530,15 +366,13 @@ static int timer_hard_init(struct c2_timer *timer)
 	int rc;
 
 	timer_state_change(timer, TIMER_INIT, true);
-	timer->t_stopping = false;
 	timer->t_tid = gettid();
-	timer->t_signo = signo_rr_get();
 	rc = timer_posix_init(timer);
-	if (rc != 0)
-		return rc;
-	rc = c2_semaphore_init(&timer->t_stop_sem, 0);
-	if (rc != 0)
-		timer_posix_fini(timer->t_ptimer);
+	if (rc == 0) {
+		rc = c2_semaphore_init(&timer->t_stop_sem, 0);
+		if (rc != 0)
+			timer_posix_fini(timer->t_ptimer);
+	}
 	return rc;
 }
 
@@ -558,7 +392,7 @@ static void timer_hard_fini(struct c2_timer *timer)
  */
 static int timer_hard_start(struct c2_timer *timer)
 {
-	timer_posix_set(timer, timer->t_expire, zero_time);
+	timer_posix_set(timer, timer->t_expire, NULL);
 	return 0;
 }
 
@@ -568,11 +402,11 @@ static int timer_hard_start(struct c2_timer *timer)
  */
 static int timer_hard_stop(struct c2_timer *timer)
 {
-	timer->t_stopping = true;
-	timer_posix_set(timer, c2_time_now(), magic_interval);
-	/* wait until internal POSIX timer is disarmed */
-	c2_semaphore_down(&timer->t_stop_sem);
-	timer->t_stopping = false;
+	c2_time_t expire;
+	timer_posix_set(timer, zero_time, &expire);
+	/* if timer was expired then wait until callback is finished */
+	if (expire == zero_time)
+		c2_semaphore_down(&timer->t_stop_sem);
 	return 0;
 }
 
@@ -627,11 +461,9 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	if (loc->tlo_rrtid == NULL)
 		loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
 	tt = loc->tlo_rrtid;
+	timer->t_tid = tt->tt_tid;
 	loc->tlo_rrtid = tid_tlist_next(&loc->tlo_tids, tt);
 	c2_mutex_unlock(&loc->tlo_lock);
-
-	timer->t_tid = tt->tt_tid;
-	timer->t_signo = loc->tlo_signo;
 
 	/* don't delete old posix timer until new one can be created */
 	ptimer = timer->t_ptimer;
@@ -648,7 +480,7 @@ C2_EXPORTED(c2_timer_attach);
  * Init the timer data structure.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t interval, uint64_t repeat,
+		  c2_time_t expire,
 		  c2_timer_callback_t callback, unsigned long data)
 {
 	int rc;
@@ -656,17 +488,12 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	C2_PRE(callback != NULL);
 	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
 	C2_PRE(timer != NULL);
-	C2_PRE(repeat != 0);
-	C2_PRE(interval != zero_time);
 
 	C2_SET0(timer);
 	timer->t_type     = type;
-	timer->t_interval = interval;
-	timer->t_repeat   = repeat;
-	timer->t_left     = 0;
+	timer->t_expire	  = expire;
 	timer->t_callback = callback;
 	timer->t_data     = data;
-	c2_time_set(&timer->t_expire, 0, 0);
 
 	rc = (timer->t_type == C2_TIMER_HARD ?
 			timer_hard_init : timer_soft_init)(timer);
@@ -693,25 +520,26 @@ void c2_timer_fini(struct c2_timer *timer)
 }
 C2_EXPORTED(c2_timer_fini);
 
+int timer_start_stop(struct c2_timer *timer, enum timer_func func,
+		int (hard_func)(struct c2_timer *timer),
+		int (soft_func)(struct c2_timer *timer))
+{
+	int rc;
+
+	C2_PRE(c2_timer_invariant(timer));
+	timer_state_change(timer, func, true);
+	rc = (timer->t_type == C2_TIMER_HARD ? hard_func : soft_func)(timer);
+	timer_state_change(timer, func, rc != 0);
+	return rc;
+}
+
 /**
  * Start a timer.
  */
 int c2_timer_start(struct c2_timer *timer)
 {
-	int rc;
-
-	C2_PRE(c2_timer_invariant(timer));
-
-	timer_state_change(timer, TIMER_START, true);
-
-	timer->t_left = timer->t_repeat;
-	timer->t_expire = c2_time_add(c2_time_now(), timer->t_interval);
-
-	rc = (timer->t_type == C2_TIMER_HARD ?
-			timer_hard_start : timer_soft_start)(timer);
-
-	timer_state_change(timer, TIMER_START, rc != 0);
-	return rc;
+	return timer_start_stop(timer, TIMER_START,
+			timer_hard_start, timer_soft_start);
 }
 C2_EXPORTED(c2_timer_start);
 
@@ -720,17 +548,8 @@ C2_EXPORTED(c2_timer_start);
  */
 int c2_timer_stop(struct c2_timer *timer)
 {
-	int rc;
-
-	C2_PRE(c2_timer_invariant(timer));
-
-	timer_state_change(timer, TIMER_STOP, true);
-
-	rc = (timer->t_type == C2_TIMER_HARD ?
-			timer_hard_stop : timer_soft_stop)(timer);
-
-	timer_state_change(timer, TIMER_STOP, rc != 0);
-	return rc;
+	return timer_start_stop(timer, TIMER_STOP,
+			timer_hard_stop, timer_soft_stop);
 }
 C2_EXPORTED(c2_timer_stop);
 
@@ -739,21 +558,7 @@ C2_EXPORTED(c2_timer_stop);
  */
 int c2_timers_init()
 {
-	int i;
-	int rc;
-
-	C2_ASSERT(TIMER_SIGNO_MIN <= TIMER_SIGNO_MAX);
-
-	signo_rr = TIMER_SIGNO_MIN;
-	for (i = TIMER_SIGNO_MIN; i <= TIMER_SIGNO_MAX; ++i) {
-		rc = timer_sigaction(i, timer_sighandler);
-		/*
-		 * sigaction() can only fail if there is
-		 * a logic error in this implementation
-		 */
-		C2_ASSERT(rc == 0);
-	}
-	c2_time_set(&magic_interval, 366 * 60 * 60 * 24, 606024);
+	timer_sigaction(TIMER_SIGNO, timer_sighandler);
 	c2_time_set(&zero_time, 0, 0);
 	return 0;
 }

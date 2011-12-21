@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ *                  Maxim Medved <Max_Medved@xyratex.com>
  * Original creation date: 03/04/2011
  */
 
@@ -77,15 +78,14 @@ enum c2_timer_type {
  * @param repeat repeat count for this timer.
  * @param callback this callback will be triggered whem timer alarms.
  * @param data data for the callback.
- * @pre interval is not zero time
- * @pre repeat != 0
+ * @pre expire absolute expiration time for timer
  * @pre callback != NULL
  * @post timer is not running
  *
  * @return 0 means success, other values mean error.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t interval, uint64_t repeat,
+		  c2_time_t expire,
 		  c2_timer_callback_t callback, unsigned long data);
 
 /**

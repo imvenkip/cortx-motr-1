@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ *		    Maxim Medved <Max_Medved@xyratex.com>
  * Original creation date: 03/04/2011
  */
 
@@ -39,7 +40,6 @@ enum {
 	NR_TG = 10,		/* number of thread groups */
 	NR_THREADS_TG = 10,	/* number of slave threads per thread group */
 	NR_TIMERS_TG = 100,	/* number of timers per thread group */
-	NR_TICKS_TG = 10	/* timer ticks TODO document */
 };
 
 struct thread_group;
@@ -55,9 +55,7 @@ struct tg_slave {
 struct tg_timer {
 	struct c2_timer	     tgt_timer;
 	struct thread_group *tgt_group;
-	c2_time_t	     tgt_interval;
-	uint64_t	     tgt_repeat;
-	uint64_t	     tgt_left;
+	c2_time_t	     tgt_expire;
 	struct c2_semaphore  tgt_done;
 };
 
@@ -80,10 +78,9 @@ static pid_t		   loc_default_tid;
 static struct c2_semaphore loc_default_lock;
 
 static struct c2_semaphore many_finished[NR_TIMERS];
-static int		   many_iterations[NR_TIMERS];
-static int		   many_iterations_max[NR_TIMERS];
 static pid_t		   many_pids[NR_TIMERS];
 
+/* XXX rewrite soft timer tests */
 unsigned long tick(unsigned long data)
 {
 	c2_time_t now;
@@ -120,27 +117,29 @@ void test_2_timers()
 	c2_time_t       wait;
 
 	c2_time_set(&i1, 1, 0);
-	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, 5, tick, 0);
+	i1 = c2_time_add(c2_time_now(), i1);
+	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, tick, 0);
 	c2_timer_start(&timer1);
 
 	c2_time_set(&i2, 3, 0);
-	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, 5, tack, 10000);
+	i2 = c2_time_add(c2_time_now(), i2);
+	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, tack, 10000);
 	c2_timer_start(&timer2);
 
 	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
 	/* let's do something, e.g. just waiting */
-	while (count < 5)
+	while (count < 1)
 		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer1);
 
 	/* start timer1 again, and do something, e.g. just waiting */
 	c2_timer_start(&timer1);
-	while (count < 8)
+	while (count < 1)
 		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer2);
 	c2_timer_fini(&timer2);
 
-	while (count < 10)
+	while (count < 1)
 		c2_nanosleep(wait, NULL);
 
 	c2_timer_stop(&timer1);
@@ -154,19 +153,13 @@ void timer1_thread(int unused)
 	c2_time_t       wait;
 
 	c2_time_set(&i1, 1, 0);
-	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, 5, tick, 0);
+	i1 = c2_time_add(c2_time_now(), i1);
+	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, tick, 0);
 	c2_timer_start(&timer1);
 
 	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
 	/* let's do something, e.g. just waiting */
-	while (count < 5)
-		c2_nanosleep(wait, NULL);
-
-	/* stop and start timer1 again, and do something, e.g. just waiting */
-	c2_timer_stop(&timer1);
-	c2_timer_start(&timer1);
-
-	while (count < 10)
+	while (count < 1)
 		c2_nanosleep(wait, NULL);
 
 	c2_timer_stop(&timer1);
@@ -182,11 +175,12 @@ void timer2_thread(int unused)
 	c2_time_t       wait;
 
 	c2_time_set(&i2, 3, 0);
-	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, 5, tack, 10000);
+	i2 = c2_time_add(c2_time_now(), i2);
+	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, tack, 10000);
 	c2_timer_start(&timer2);
 
 	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
-	while (count < 8)
+	while (count < 1)
 		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer2);
 	c2_timer_fini(&timer2);
@@ -241,13 +235,14 @@ static unsigned long loc_default_callback(unsigned long data)
 
 static void test_timer_locality_default()
 {
-	c2_time_t	interval;
+	c2_time_t	expire;
 	int		rc;
 	struct c2_timer timer;
 
-	c2_time_set(&interval, 0, 100000000);	/* .1 sec */
-	rc = c2_timer_init(&timer, C2_TIMER_HARD, interval,
-			1, &loc_default_callback, 0);
+	c2_time_set(&expire, 0, 100000000);	/* .1 sec */
+	expire = c2_time_add(c2_time_now(), expire);
+	rc = c2_timer_init(&timer, C2_TIMER_HARD, expire,
+			&loc_default_callback, 0);
 	C2_ASSERT(rc == 0);
 
 	rc = c2_semaphore_init(&loc_default_lock, 0);
@@ -269,35 +264,32 @@ static unsigned long many_callback(unsigned long data)
 {
 	C2_ASSERT(data >= 0 && data < NR_TIMERS);
 	C2_ASSERT(many_pids[data] == gettid());
-	if (++many_iterations[data] == many_iterations_max[data])
-		c2_semaphore_up(&many_finished[data]);
+	c2_semaphore_up(&many_finished[data]);
 	return 0;
 }
 
-static void test_timer_many_timers(int timers_nr, int iter_nr)
+static void test_timer_many_timers(int timers_nr)
 {
 	int                      i;
 	int                      rc;
 	static struct c2_timer   timer[NR_TIMERS];
 	struct c2_timer_locality loc;
-	c2_time_t		 interval;
+	c2_time_t		 expire;
 
 	C2_ASSERT(timers_nr <= NR_TIMERS);
 
 	for (i = 0; i < timers_nr; ++i) {
 		c2_semaphore_init(&many_finished[i], 0);
-		many_iterations[i] = 0;
-		many_iterations_max[i] = iter_nr;
 		many_pids[i] = gettid();
 	}
 
 	c2_timer_locality_init(&loc);
 	c2_timer_thread_attach(&loc);
-	c2_time_set(&interval, 0, 100000);
+	c2_time_set(&expire, 0, 100000);
 
 	for (i = 0; i < timers_nr; ++i) {
-		rc = c2_timer_init(&timer[i], C2_TIMER_HARD, interval,
-				many_iterations_max[i], &many_callback, i);
+		rc = c2_timer_init(&timer[i], C2_TIMER_HARD, expire,
+				&many_callback, i);
 		C2_ASSERT(rc == 0);
 		rc = c2_timer_attach(&timer[i], &loc);
 		C2_ASSERT(rc == 0);
@@ -313,7 +305,6 @@ static void test_timer_many_timers(int timers_nr, int iter_nr)
 		c2_timer_stop(&timer[i]);
 		c2_timer_fini(&timer[i]);
 		c2_semaphore_fini(&many_finished[i]);
-		C2_UT_ASSERT(many_iterations[i] == iter_nr);
 	}
 
 	c2_timer_thread_detach(&loc);
@@ -344,11 +335,8 @@ static unsigned long test_timer_callback_mt(unsigned long data)
 			break;
 		}
 	C2_ASSERT(found);
-	/* check number of callback executed for this timer */
-	C2_ASSERT(tgt->tgt_left > 0);
-	/* if no callbacks left - `up' tg_timer semaphore */
-	if (--tgt->tgt_left == 0)
-		c2_semaphore_up(&tgt->tgt_done);
+	/* up tg_timer semaphore */
+	c2_semaphore_up(&tgt->tgt_done);
 	return 0;
 }
 
@@ -396,25 +384,21 @@ static void test_timer_master_mt(struct thread_group *tg)
 	for (i = 0; i < NR_TIMERS_TG; ++i) {
 		tgt = &tg->tg_timers[i];
 		tgt->tgt_group = tg;
-		/* interval is random in [1, 100] ms range */
-		// FIXME magic number 100
-		c2_time_set(&tgt->tgt_interval, 0,
+		/* expiration time is in [now + 1, now + 100] ms range */
+		c2_time_set(&tgt->tgt_expire, 0,
 				(1 + rand_r(&tg->tg_seed) % 100) * 1000000);
-		/* repeat count is random in [1, NR_TICKS_TG] range */
-		tgt->tgt_repeat = 1 + rand_r(&tg->tg_seed) % NR_TICKS_TG;
-		tgt->tgt_left = tgt->tgt_repeat;
+		tgt->tgt_expire = c2_time_add(c2_time_now(), tgt->tgt_expire);
 		/* init timer semaphore */
 		rc = c2_semaphore_init(&tgt->tgt_done, 0);
 		C2_ASSERT(rc == 0);
 		/* `unsigned long' must have enough space to contain `void*' */
 		C2_CASSERT(sizeof(unsigned long) >= sizeof(void *));
 		/* create timer.
-		 * FIXME grammar
 		 * parameter for callback is pointer to corresponding
 		 * `struct tg_timer'
 		 */
 		rc = c2_timer_init(&tg->tg_timers[i].tgt_timer, C2_TIMER_HARD,
-				tgt->tgt_interval, tgt->tgt_repeat,
+				tgt->tgt_expire,
 				test_timer_callback_mt, (unsigned long) tgt);
 		C2_ASSERT(rc == 0);
 		/* attach timer to timer group locality */
@@ -429,10 +413,7 @@ static void test_timer_master_mt(struct thread_group *tg)
 		rc = c2_timer_start(&tg->tg_timers[i].tgt_timer);
 		C2_ASSERT(rc == 0);
 	}
-	/* wait for all timers.
-	 * FIXME grammar
-	 * every timer will `up' their semaphore when done
-	 */
+	/* wait for all timers */
 	for (i = 0; i < NR_TIMERS_TG; ++i)
 		c2_semaphore_down(&tg->tg_timers[i].tgt_done);
 	/* stop() all timers */
@@ -467,7 +448,7 @@ static void test_timer_master_mt(struct thread_group *tg)
 /*
  * this (main) thread		master threads		slave threads
  * start all masters
- * wait for master init
+ * wait for masters init
  *				init slaves
  *				wait for all slaves
  *							attach to locality
@@ -537,14 +518,11 @@ static void test_timer_many_timers_mt()
 
 void test_timer_hard(void)
 {
-	int tick;
 	int timer;
 
 	test_timer_locality_default();
-	for (tick = 1; tick <= NR_TICKS; ++tick)
-		for (timer = 1; timer <= NR_TIMERS; ++timer)
-			test_timer_many_timers(timer, tick);
-	test_timer_many_timers(1, MANY_TICKS_NR);
+	for (timer = 1; timer <= NR_TIMERS; ++timer)
+		test_timer_many_timers(timer);
 	test_timer_many_timers_mt();
 }
 
