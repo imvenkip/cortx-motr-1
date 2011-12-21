@@ -998,6 +998,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	bev_link_bless(&e2->cbe_tm_link);
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
+	C2_ASSERT(bev_cqueue_is_empty(&lctm->ctm_bevq));
 	lctm->ctm_upvt = NULL;
 	lctm->ctm_kpvt = kctm;
 	lctm->ctm_user_space_xo = false;
