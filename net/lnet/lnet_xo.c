@@ -271,7 +271,15 @@ static int nlx_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 			     const struct c2_bitmap *processors)
 {
-	return -ENOSYS;
+	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
+	int rc;
+
+	C2_PRE(tp != NULL && processors != NULL);
+	c2_bitmap_fini(&tp->xtm_processors);
+	rc = c2_bitmap_init(&tp->xtm_processors, processors->b_nr);
+	if (rc == 0)
+		c2_bitmap_copy(&tp->xtm_processors, processors);
+	return rc;
 }
 
 static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)

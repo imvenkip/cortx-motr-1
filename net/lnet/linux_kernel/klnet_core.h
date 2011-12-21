@@ -40,6 +40,7 @@ enum {
 	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL,   /* KCoreTMs */
 	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
 	C2_NET_LNET_NIDSTR_SIZE     = 32, /**< maximum size of a NID string */
+	C2_NET_LNET_EQ_SIZE         = 8,  /**< size of LNet event queue */
 };
 
 /**
@@ -49,17 +50,13 @@ enum {
 struct nlx_kcore_transfer_mc {
 	uint64_t                         ktm_magic;
 
-	/**
-	   Kernel pointer to the shared memory TM structure.
-	 */
-	struct c2_lnet_core_transfer_mc *ktm_tm;
+	/** Kernel pointer to the shared memory TM structure. */
+	struct nlx_core_transfer_mc     *ktm_tm;
 
 	/** Transfer machine linkage */
 	struct c2_tlink                  ktm_tm_linkage;
 
-	/**
-	   Match bit counter. Range [1,C2_NET_LNET_MATCH_BIT_MAX].
-	 */
+	/** Match bit counter. Range [1,C2_NET_LNET_MATCH_BIT_MAX]. */
 	uint64_t                         ktm_mb_counter;
 
 	/**
@@ -68,10 +65,7 @@ struct nlx_kcore_transfer_mc {
 	 */
 	spinlock_t                       ktm_bevq_lock;
 
-	/**
-	   This semaphore increments with each LNet event added.
-
-	*/
+	/** This semaphore increments with each LNet event added. */
 	struct c2_semaphore              ktm_sem;
 
 	/** Handle of the LNet EQ associated with this transfer machine */

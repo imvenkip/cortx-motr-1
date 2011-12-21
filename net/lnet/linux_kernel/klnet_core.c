@@ -711,6 +711,8 @@
    @{
 */
 
+#include <lnet/api.h>
+
 /**
    Kernel core lock.
    Provides serialization across the nlx_kcore_tms list.
@@ -724,6 +726,34 @@ C2_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
 		   ktm_tm_linkage, ktm_magic, C2_NET_LNET_KCORE_TM_MAGIC,
 		   C2_NET_LNET_KCORE_TMS_MAGIC);
 C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
+
+/**
+   Tests if the specified address is in use by a running TM.
+   @note the nlx_kcore_mutex must be locked by the caller
+ */
+static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
+{
+	bool matched = false;
+	struct nlx_kcore_transfer_mc *scan;
+	struct nlx_core_ep_addr *scanaddr;
+	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
+
+	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
+		scanaddr = &scan->ktm_tm->ctm_addr;
+		if (scanaddr->cepa_nid == cepa->cepa_nid &&
+		    scanaddr->cepa_pid == cepa->cepa_pid &&
+		    scanaddr->cepa_portal == cepa->cepa_portal &&
+		    scanaddr->cepa_tmid == cepa->cepa_tmid) {
+			matched = true;
+			break;
+		}
+	} c2_tlist_endfor;
+	return matched;
+}
+
+static void nlx_kcore_eq_handler(lnet_event_t *event)
+{
+}
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 {
@@ -819,7 +849,20 @@ int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 			    c2_time_t timeout)
 {
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	bool any;
+
+	C2_PRE(kctm != NULL && kctm->ktm_magic == C2_NET_LNET_KCORE_TM_MAGIC);
+
+	do {
+		any = c2_semaphore_timeddown(&kctm->ktm_sem, timeout);
+		if (!any)
+			break;
+		while (c2_semaphore_trydown(&kctm->ktm_sem))
+			; /* exhaust the semaphore */
+	} while (bev_cqueue_is_empty(&lctm->ctm_bevq)); /* loop if empty */
+
+	return any ? 0 : -ETIMEDOUT;
 }
 
 bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
@@ -909,16 +952,65 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	struct nlx_xo_ep *xep = container_of(cepa, struct nlx_xo_ep, xe_core);
 	struct nlx_core_buffer_event *e1;
 	struct nlx_core_buffer_event *e2;
+	struct nlx_kcore_transfer_mc *kctm;
+	int rc;
 
+	C2_ALLOC_PTR(kctm);
 	C2_ALLOC_PTR(e1);
-	bev_link_bless(&e1->cbe_tm_link);
 	C2_ALLOC_PTR(e2);
+	if (kctm == NULL || e1 == NULL || e2 == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+
+	/* XXX TODO how to validate cepa? */
+
+	tms_tlink_init(kctm);
+	kctm->ktm_tm = lctm;
+	kctm->ktm_mb_counter = 1;
+	kctm->ktm_bevq_lock = __SPIN_LOCK_UNLOCKED(kctm.ktm_bevq_lock);
+	c2_semaphore_init(&kctm->ktm_sem, 0);
+	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE,
+			 nlx_kcore_eq_handler, &kctm->ktm_eqh);
+	if (rc < 0)
+		goto fail;
+	LNetInvalidateHandle(&kctm->ktm_meh);
+
+	c2_mutex_lock(&nlx_kcore_mutex);
+	if (cepa->cepa_tmid == C2_NET_LNET_TMID_INVALID) {
+		for (cepa->cepa_tmid = C2_NET_LNET_TMID_MAX;
+		     nlx_kcore_addr_in_use(cepa); --cepa->cepa_tmid)
+			if (cepa->cepa_tmid == 0) {
+				c2_mutex_unlock(&nlx_kcore_mutex);
+				cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
+				rc = -EADDRNOTAVAIL;
+				goto fail_with_eq;
+			}
+	} else if (nlx_kcore_addr_in_use(cepa)) {
+		c2_mutex_unlock(&nlx_kcore_mutex);
+		rc = -EADDRINUSE;
+		goto fail_with_eq;
+	}
+	tms_tlist_add(&nlx_kcore_tms, kctm);
+	c2_mutex_unlock(&nlx_kcore_mutex);
+
+	bev_link_bless(&e1->cbe_tm_link);
 	bev_link_bless(&e2->cbe_tm_link);
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
+	lctm->ctm_upvt = NULL;
+	lctm->ctm_kpvt = kctm;
+	lctm->ctm_user_space_xo = false;
+	lctm->ctm_addr = *cepa;
 	nlx_core_ep_addr_encode(&dp->xd_core, cepa, xep->xe_addr);
-
-	return -ENOSYS;
+	return 0;
+fail_with_eq:
+	LNetEQFree(kctm->ktm_eqh);
+fail:
+	c2_free(kctm);
+	c2_free(e1);
+	c2_free(e2);
+	return rc;
 }
 
 void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
