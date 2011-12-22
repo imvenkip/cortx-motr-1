@@ -307,10 +307,10 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_PRE(processors != NULL);
-	if (tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine != NULL) {
-		result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine(tm,
-								     processors);
-	} else
+	if (tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine != NULL)
+		result =
+		    tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine(tm, processors);
+	else
 		result = -ENOSYS;
 	C2_POST(c2_net__tm_invariant(tm));
 	C2_POST(tm->ntm_state == C2_NET_TM_INITIALIZED);
