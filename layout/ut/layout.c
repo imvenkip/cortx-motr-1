@@ -111,7 +111,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-decode", test_decode },
                 { "layout-add", test_add },
                 { "layout-lookup", test_lookup },
-                { "layout-update", test_update }, 
+                { "layout-update", test_update },
                 { "layout-delete", test_delete },
                 { "layout-persistence", test_persistence },
 		{ NULL, NULL }
