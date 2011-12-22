@@ -292,7 +292,9 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 	int rc;
 
-	C2_PRE(tp != NULL && processors != NULL);
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(processors != NULL);
 	c2_bitmap_fini(&tp->xtm_processors);
 	rc = c2_bitmap_init(&tp->xtm_processors, processors->b_nr);
 	if (rc == 0)
