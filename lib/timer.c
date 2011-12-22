@@ -243,7 +243,7 @@ static void timer_posix_set(struct c2_timer *timer,
 	rc = timer_settime(timer->t_ptimer, TIMER_ABSTIME, &ts, &ots);
 	/*
 	 * timer_settime() can only fail if timer->t_ptimer isn't valid
-	 * timer ID or ts has invalid fiels.
+	 * timer ID or ts has invalid fields.
 	 */
 	C2_ASSERT(rc == 0);
 	if (old_expire != NULL)
