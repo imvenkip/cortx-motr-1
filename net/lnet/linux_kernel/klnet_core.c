@@ -372,7 +372,7 @@
    -# It copies the event payload from the LNet event to the buffer event
       structure.  This includes the value of the @c unlinked field of the
       event, which must be copied to the nlx_core_buffer_event::cbe_unlinked
-      field.  For @c LNET_EVENT_UNLINK events, a @c -ECANCELLED value is
+      field.  For @c LNET_EVENT_UNLINK events, a @c -ECANCELED value is
       written to the nlx_core_buffer_event::cbe_status field and the
       nlx_core_buffer_event::cbe_unlinked field set to true.
    -# It invokes the bev_cqueue_put() subroutine to "produce" the event in the
@@ -751,8 +751,49 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
 	return matched;
 }
 
-static void nlx_kcore_eq_handler(lnet_event_t *event)
+/**
+   Callback for the LNet Event Queue.
+ */
+static void nlx_kcore_eq_cb(lnet_event_t *event)
 {
+	struct nlx_core_buffer *cbp;
+	struct nlx_kcore_buffer *kbp;
+	struct nlx_kcore_transfer_mc *ktm;
+	struct nlx_core_transfer_mc *lctm;
+	struct nlx_core_bev_link *ql;
+	struct nlx_core_buffer_event *bev;
+	c2_time_t now = c2_time_now();
+
+	C2_PRE(event != NULL && event->type != LNET_EVENT_ACK);
+	if (event->type == LNET_EVENT_SEND)
+		return;
+	cbp = event->md.user_ptr;
+	C2_ASSERT(cbp != NULL);
+	kbp = cbp->cb_kpvt;
+	C2_ASSERT(kbp != NULL);
+	ktm = kbp->kb_ktm;
+	C2_ASSERT(ktm != NULL);
+	lctm = ktm->ktm_tm;
+	C2_ASSERT(lctm != NULL);
+
+	spin_lock(&ktm->ktm_bevq_lock);
+	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
+	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
+	bev->cbe_core_buf = cbp->cb_buffer_id;
+	bev->cbe_time = now;
+	if (event->type == LNET_EVENT_UNLINK)
+		bev->cbe_status = -ECANCELED;
+	else
+		bev->cbe_status = event->status;
+	bev->cbe_length = event->mlength;
+	bev->cbe_offset = event->offset;
+	bev->cbe_sender.cepa_nid = event->initiator.nid;
+	bev->cbe_sender.cepa_pid = event->initiator.pid;
+	bev->cbe_sender.cepa_portal = event->pt_index;
+	bev->cbe_sender.cepa_tmid = event->match_bits >> C2_NET_LNET_TMID_SHIFT;
+	bev->cbe_unlinked = event->unlinked != 0;
+	bev_cqueue_put(&lctm->ctm_bevq);
+	spin_unlock(&ktm->ktm_bevq_lock);
 }
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
@@ -796,12 +837,6 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
-	/* XXX temp: really gets called in kernel event cb */
-	struct nlx_core_bev_link *ql;
-	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
-	C2_ASSERT(ql != NULL);
-	bev_cqueue_put(&lctm->ctm_bevq);
-
 	return -ENOSYS;
 }
 
@@ -994,10 +1029,9 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	tms_tlink_init(kctm);
 	kctm->ktm_tm = lctm;
 	kctm->ktm_mb_counter = 1;
-	kctm->ktm_bevq_lock = __SPIN_LOCK_UNLOCKED(kctm.ktm_bevq_lock);
+	spin_lock_init(&kctm->ktm_bevq_lock);
 	c2_semaphore_init(&kctm->ktm_sem, 0);
-	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE,
-			 nlx_kcore_eq_handler, &kctm->ktm_eqh);
+	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &kctm->ktm_eqh);
 	if (rc < 0)
 		goto fail;
 	LNetInvalidateHandle(&kctm->ktm_meh);
