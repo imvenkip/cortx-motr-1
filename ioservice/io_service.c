@@ -38,12 +38,11 @@ C2_TL_DESCR_DEFINE(rpcmachines, "rpc machines associated with reqh", static,
                    C2_REQH_MAGIC, C2_RPC_MAGIC);
 C2_TL_DEFINE(rpcmachines, static, struct c2_rpcmachine);
 
-C2_TL_DESCR_DEFINE(c2_ioservice_bufferpool_colors,
-                   "rpc machines associated with reqh", ,
-                   struct c2_rpcmachine, cr_rh_linkage, cr_magic,
-                   C2_REQH_MAGIC, C2_RPC_MAGIC);
+C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
+                   struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
+                   C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
+C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
 
-const struct c2_tl_descr         nbp_colormap_tl;
 
 /**
  * These values are supposed to get from configuration cache. Since
@@ -101,13 +100,14 @@ C2_REQH_SERVICE_TYPE_DECLARE(c2_ioservice_type, &c2_ioservice_type_ops,
  */
 static void c2_io_buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
 {
-        struct c2_reqh_io_service    *service_obj;
+        struct c2_rios_buffer_pool    *buffer_desc = NULL;
 
         C2_PRE(bp != NULL);
 
-        service_obj = container_of(bp, struct c2_reqh_io_service, rios_nb_pool);
+        buffer_desc = container_of(bp, struct c2_rios_buffer_pool,
+                                   rios_bp);
 
-        c2_chan_signal(&service_obj->rios_nbp_wait);
+        c2_chan_signal(&buffer_desc->rios_bp_wait);
 }
 
 /**
@@ -146,6 +146,93 @@ void c2_ioservice_unregister(void)
 }
 
 /**
+ * Create & initialize instance of buffer pool per domain.
+ * 1. This function scans rpcmachines from request handler
+ *    and creates buffer pool instance for each network domain.
+ *    It also create color map for transfer machines for
+ *    respective domain.
+ * 2. Initialise all buffer pools and make provision for 
+ *    configured number of buffers for all each buffer pool.
+ * 
+ * @param service pointer to service instance.
+ *
+ * @pre service != NULL
+ */
+static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
+{
+        bool                            found_buffer_pool = false;
+        int                             nbuffs = 0;
+        int                             colours;
+        int                             rc = 0;
+        struct c2_rpcmachine           *rpcmach;
+        struct c2_reqh_io_service      *serv_obj;
+        struct c2_rios_buffer_pool     *bp;
+        struct c2_rios_buffer_pool     *newbp;
+
+        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+ 
+        c2_tlist_for(&rpcmachines_tl,
+                              &service->rs_reqh->rh_rpcmachines, rpcmach)
+        {
+                C2_ASSERT(rpcmach != NULL);
+
+               /**
+                * Check buffer pool for network domain of rpcmachine
+                */
+               c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp)
+               {
+                       C2_ASSERT(bp != NULL);
+                
+                        if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom) {
+                                /** 
+                                 * Found buffer pool for domain.
+                                 * No need to create buffer pool
+                                 * for this domain. 
+                                 */
+                                found_buffer_pool = true;
+                                return rc;
+                        }
+               } c2_tlist_endfor; /* bufferpools */
+
+              /** Buffer pool for network domain not found create one */
+             C2_ALLOC_PTR(newbp);
+             if (newbp == NULL)
+                     return -ENOMEM;
+
+             newbp->rios_ndom = rpcmach->cr_tm.ntm_dom;
+	     /**
+	      * Initialize channel for sending availability of buffers
+	      * with buffer pool to I/O FOMs.
+	      */
+             c2_chan_init(&newbp->rios_bp_wait);
+             newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
+             colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
+             c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
+                                     network_buffer_pool_threshold,
+                                     network_buffer_pool_segment_size,
+                                     network_buffer_pool_max_segment, colours);
+
+             /** Pre-allocate network buffers */
+             c2_net_buffer_pool_lock(&newbp->rios_bp);
+             nbuffs = c2_net_buffer_pool_provision(&newbp->rios_bp,
+                                         network_buffer_pool_initial_size);
+             if (nbuffs <= 0) {
+                     rc = -1;
+                     break; 
+             }
+
+             c2_net_buffer_pool_unlock(&newbp->rios_bp);
+             newbp->rios_bp.nbp_ops = &buffer_pool_ops;
+
+             bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
+             
+        } c2_tlist_endfor; /* rpcmachines */
+
+        return rc;
+}
+
+
+/**
  * Allocate and initiate I/O Service instance.
  * This operation allocate & initiate service instance with its operation
  * vector.
@@ -168,7 +255,7 @@ static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
         if (serv_obj == NULL)
                 return -ENOMEM;
 
-        serv_obj->rios_nb_pool.nbp_ops = &buffer_pool_ops;
+        bufferpools_tlist_init(&serv_obj->rios_buffer_pools);
 
         serv = &serv_obj->rios_gen;
 
@@ -208,11 +295,6 @@ static void c2_ioservice_fini(struct c2_reqh_service *service)
 static int c2_ioservice_start(struct c2_reqh_service *service)
 {
         int                        rc = 0;
-        int                        colors;
-        int                        nbuffs = 0;
-        struct c2_net_domain      *ndom;
-        struct c2_rpcmachine      *rpcmach = NULL;
-        struct c2_reqh_io_service *serv_obj;
 
         C2_PRE(service != NULL);
 
@@ -221,55 +303,7 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
         if (rc != 0)
             return rc;
 
-        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
-
-        c2_tlist_init(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map);
-
-        /**
-          * Create color map for buffer pool.
-          * Network buffer from buffer pool is associated with
-          * transfer machine. So, I/O service need to create
-          * transfer machine color map so that FOM can specify
-          * it's color which acquiring and releasing buffers.
-          */
-        c2_tlist_for(&rpcmachines_tl,
-                              &service->rs_reqh->rh_rpcmachines, rpcmach)
-        {
-                C2_ASSERT(rpcmach != NULL);
-                c2_tlist_add(&nbp_colormap_tl, &serv_obj->rios_nbp_color_map,
-                             &rpcmach->cr_tm);
-        } c2_tlist_endfor;
-
-        /**
-         * Assuming all buffer pools are associated with a single domain.
-         * Todo : Request  handler may associated with multiple network
-         *        domains. So need to allocate buffer pool for each domain.
-         */
-        ndom = rpcmach->cr_tm.ntm_dom;
-
-        colors = c2_tlist_length(&nbp_colormap_tl,
-                                 &serv_obj->rios_nbp_color_map);
-
-        c2_net_buffer_pool_init(&serv_obj->rios_nb_pool, ndom,
-                                network_buffer_pool_threshold,
-                                network_buffer_pool_segment_size,
-                                network_buffer_pool_max_segment, colors);
-
-        /**
-         * Initialize channel for sending availability of buffers
-         * with buffer pool to I/O FOMs.
-         */
-        c2_chan_init(&serv_obj->rios_nbp_wait);
-
-
-        /** Pre-allocate network buffers */
-        c2_net_buffer_pool_lock(&serv_obj->rios_nb_pool);
-        nbuffs = c2_net_buffer_pool_provision(&serv_obj->rios_nb_pool,
-                                         network_buffer_pool_initial_size);
-        if (nbuffs <= 0)
-            rc = -1;
-
-        c2_net_buffer_pool_unlock(&serv_obj->rios_nb_pool);
+        rc = ioservice_create_buffer_pool(service);
 
         return rc;
 }
@@ -293,7 +327,9 @@ static void c2_ioservice_stop(struct c2_reqh_service *service)
 
         c2_ioservice_fop_fini();
 
-        c2_net_buffer_pool_fini(&serv_obj->rios_nb_pool);
+        // Need to write code 
+        //rc = ioservice_destoy_buffer_pool(service);
+        //c2_net_buffer_pool_fini(&serv_obj->rios_nb_pool);
 }
 
 /** @} endgroup io_service */

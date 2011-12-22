@@ -147,6 +147,11 @@
 
 struct c2_io_fom_cob_rw;
 
+enum {
+        C2_STOB_IO_DESC_LINK_MAGIC = 0x53544f42492f4f, 
+        C2_STOB_IO_DESC_HEAD_MAGIC = 0x73746f62692f6f
+};
+
 /**
  * Since STOB I/O only launch io for single index vec, I/O service need
  * to launch multiple STOB I/O and wait for all to complete. I/O service
@@ -162,7 +167,7 @@ struct c2_stob_io_desc {
         /** Linkage into c2_io_fom_cob_rw::fcrw_stobio_list */
         struct c2_tlink          siod_linkage;
         /** Pointer to c2_io_fom_cob_rw to refer c2_stob_io_desc list*/
-        struct c2_io_fom_cob_rw         *siod_fom;
+        struct c2_io_fom_cob_rw *siod_fom;
 };
 
 /**
@@ -190,7 +195,7 @@ struct c2_io_fom_cob_rw {
         struct c2_tl                     fcrw_stio_list;
         /** rpc bulk load data*/
         struct c2_rpc_bulk               fcrw_bulk;
-        /** network buffer list currently acuired by io service*/
+        /** network buffer list currently acquired by io service*/
         struct c2_tl                     fcrw_netbuf_list;
 };
 

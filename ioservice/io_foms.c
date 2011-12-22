@@ -514,7 +514,7 @@
    - Test 14 : Call c2_io_fom_cob_rw_state()<br>
                Input : Read FOM with current phase FOPH_IO_STOB_WAIT with
                        result code of stob I/O c2_fom::c2_stob_io::si_rc set
-                       to I/O error.
+                       to I/O error.<br>
                Expected Output : Should return error FOS_FAILURE and I/O error
                                  set in relay FOP.
 
@@ -558,27 +558,28 @@
  * @{
  */
 #define IOSERVICE_NAME "ioservice"
-extern const struct c2_tl_descr nbp_colormap_tl;
 
 C2_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct c2_stob_io_desc,
                    siod_linkage,  siod_magic,
-                   0x53544f42492f4f,  0x73746f62692f6f);
+                   C2_STOB_IO_DESC_LINK_MAGIC,  C2_STOB_IO_DESC_HEAD_MAGIC);
 C2_TL_DEFINE(stobio, static, struct c2_stob_io_desc);
 
 C2_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", static,
 		   struct c2_net_buffer, nb_lru, nb_magic,
-		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(netbufs, static, struct c2_net_buffer);
 
 C2_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
 		   struct c2_rpc_bulk_buf, bb_link, bb_magic,
-		   C2_RPC_BULK_BUF_MAGIC, 0xfacade12c3ed1b1f); /* head magic? */
+		   C2_RPC_BULK_BUF_MAGIC, C2_RPC_BULK_MAGIC);
 C2_TL_DEFINE(rpcbulkbufs, static, struct c2_rpc_bulk_buf);
 
 C2_TL_DESCR_DEFINE(services, "reqh handler services", static,
 		   struct c2_reqh_service, rs_linkage, rs_magic,
 		   C2_REQH_MAGIC, C2_RHS_MAGIC);
 C2_TL_DEFINE(services, static, struct c2_reqh_service);
+
+extern const struct c2_tl_descr bufferpools_tl;
 
 extern bool is_read(const struct c2_fop *fop);
 extern bool is_write(const struct c2_fop *fop);
@@ -653,36 +654,6 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
                 c2_chan_signal(&fom_obj->fcrw_wait);
 
         return true;
-};
-
-/**
- * Funtion to get corresponding color for specified tm.
- *
- * @param color_map color map (tm to number map) for buffer pool.
- * @param tm transfer machine for which color value is needed.
- *
- * @pre color_map != NULL
- * @pre tm != NULL;
- */
-static int io_fom_cob_rw_get_color(struct c2_tl *color_map,
-                                   struct c2_net_transfer_mc *tm)
-{
-         int                        color = 0;
-         struct c2_net_transfer_mc *tm_ptr = NULL;
-
-        C2_PRE(color_map != NULL);
-        C2_PRE(tm != NULL);
-
-        /** find the domain */
-        c2_tlist_for(&nbp_colormap_tl, color_map, tm_ptr)
-        {
-                C2_ASSERT(tm_ptr != NULL);
-                if (tm == tm_ptr)
-                        break;
-                color++;
-        } c2_tlist_endfor;
-
-	return color;;
 };
 
 /**
@@ -816,7 +787,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
         fop->f_type->ft_fom_type =  c2_io_fom_cob_rw_mopt;
         fomtype = fop->f_type->ft_fom_type;
         result = fomtype.ft_ops->fto_create(&(fop->f_type->ft_fom_type), out);
-        if (result == 0)
+        if (result != 0)
             return result;
 
         fom = *out;
@@ -877,22 +848,23 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
  */
 static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
 {
-        int                       color;
-        int                       aquired_net_bufs;
-        int                       required_net_bufs;
-        struct c2_tl              *services;
-        struct c2_fop             *fop = fom->fo_fop;
-        struct c2_io_fom_cob_rw   *fom_obj = NULL;
-        struct c2_reqh_service    *service;
-        struct c2_reqh_io_service *serv_obj;
-        struct c2_net_buffer_pool *bp = NULL;
-        struct c2_net_transfer_mc *tm = NULL;
+        int                           colour;
+        int                           acquired_net_bufs;
+        int                           required_net_bufs;
+        struct c2_tl                 *services;
+        struct c2_fop                *fop = fom->fo_fop;
+        struct c2_net_domain         *fop_ndom = NULL;
+        struct c2_io_fom_cob_rw      *fom_obj = NULL;
+        struct c2_reqh_service       *service;
+        struct c2_reqh_io_service    *serv_obj;
+        struct c2_net_buffer_pool    *bp = NULL;
+        struct c2_rios_buffer_pool   *bpdesc = NULL;
 
         C2_PRE(fom != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE);
 
         /**
-         * TODO : This shoud be done in reqh handler code after FOM create and
+         * @todo : This shoud be done in reqh handler code after FOM create and
          *        before adding FOM into runqueue.
          */
         if (fom->fo_service == NULL) {
@@ -905,36 +877,42 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
                         }
                 } c2_tlist_endfor;
         }
-	/** End TODO */
+        else
+                service = fom->fo_service;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
-        bp = &serv_obj->rios_nb_pool;
-        tm = &fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
-        color = io_fom_cob_rw_get_color(&serv_obj->rios_nbp_color_map, tm);
-        aquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
-        required_net_bufs = fom_obj->fcrw_ndesc - aquired_net_bufs;
 
+         /* Get network buffer pool for domain */
+        fop_ndom = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bpdesc) {
+                if (bpdesc->rios_ndom == fop_ndom)
+                        bp = &bpdesc->rios_bp;
+        } c2_tlist_endfor;
+
+        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+        acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
+        required_net_bufs = fom_obj->fcrw_ndesc - acquired_net_bufs;
 
         /**
          * Aquire as many net buffers as to process all discriptors.
          * If FOM able to acquire more buffers then it change batch side
          * dynamically.
          */
-        for (;aquired_net_bufs < required_net_bufs;) {
+        for (;acquired_net_bufs < required_net_bufs;) {
             struct c2_net_buffer      *nb = NULL;
 
             c2_net_buffer_pool_lock(bp);
-            nb = c2_net_buffer_pool_get(bp, color);
+            nb = c2_net_buffer_pool_get(bp, colour);
             c2_net_buffer_pool_unlock(bp);
-            if (nb == NULL && aquired_net_bufs == 0) {
+            if (nb == NULL && acquired_net_bufs == 0) {
                     /**
                      * Network buffer not available. Atleast one
                      * buffer need for zero-copy. Registers FOM clink
                      * with buffer pool wait channel to get buffer
                      * pool non-empty signal.
                      */
-                    c2_fom_block_at(fom, &serv_obj->rios_nbp_wait);
+                    c2_fom_block_at(fom, &bpdesc->rios_bp_wait);
 
                     fom->fo_phase = FOPH_IO_FOM_BUFFER_WAIT;
 
@@ -948,11 +926,12 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
             else
                    nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
 
+            netbufs_tlink_init(nb);
             netbufs_tlist_add(&fom_obj->fcrw_netbuf_list, nb);
-            aquired_net_bufs++;
+            acquired_net_bufs++;
 
         }
-        fom_obj->fcrw_batch_size = aquired_net_bufs;
+        fom_obj->fcrw_batch_size = acquired_net_bufs;
 
         if (is_read(fop))
                 fom->fo_phase = FOPH_IO_STOB_INIT;
@@ -964,7 +943,7 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
 
 /**
  * Release network buffer.
- * Return back netwotk buffer to buffer pool.
+ * Return back network buffer to buffer pool.
  * If acquired buffers are more than the remaining descriptors
  * release extra buffers so that other FOM can use.
  *
@@ -975,14 +954,15 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
  */
 static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 {
-        int                             color;
-        int                             aquired_net_bufs;
+        int                             colour;
+        int                             acquired_net_bufs;
         int                             required_net_bufs;
         struct c2_fop                  *fop;
+        struct c2_net_domain           *fop_ndom = NULL;
         struct c2_io_fom_cob_rw        *fom_obj = NULL;
         struct c2_reqh_io_service      *serv_obj;
         struct c2_net_buffer_pool      *bp;
-        struct c2_net_transfer_mc      *tm;
+        struct c2_rios_buffer_pool     *bpdesc = NULL;
 
 
         C2_PRE(fom != NULL);
@@ -992,33 +972,38 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         serv_obj = container_of(fom->fo_service, struct c2_reqh_io_service,
                                 rios_gen);
-        tm = &(fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm);
-        color = io_fom_cob_rw_get_color(&serv_obj->rios_nbp_color_map, tm);
-        aquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
+         /* Get network buffer pool for domain */
+        fop_ndom = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bpdesc) {
+                if (bpdesc->rios_ndom == fop_ndom)
+                        bp = &bpdesc->rios_bp;
+        } c2_tlist_endfor;
+
+        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+        acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
+
         if (fom_obj->fcrw_curr_desc_index >= fom_obj->fcrw_ndesc)
                 required_net_bufs = 0;
         else
-                required_net_bufs = fom_obj->fcrw_ndesc - aquired_net_bufs;
+                required_net_bufs = fom_obj->fcrw_ndesc - acquired_net_bufs;
 
-        bp = &serv_obj->rios_nb_pool;
-
-        for (;aquired_net_bufs > required_net_bufs;) {
+        for (;acquired_net_bufs > required_net_bufs;) {
                 struct c2_net_buffer           *nb = NULL;
 
-                netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
+                nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                 C2_ASSERT(nb != NULL);
 
                 c2_net_buffer_pool_lock(bp);
-                c2_net_buffer_pool_put(bp, nb, color);
+                c2_net_buffer_pool_put(bp, nb, colour);
                 c2_net_buffer_pool_unlock(bp);
 
                 netbufs_tlist_del(nb);
-                aquired_net_bufs--;
+                acquired_net_bufs--;
         }
 
-        if (!required_net_bufs) {
+        if (required_net_bufs == 0)
                fom->fo_phase = FOPH_FINISH;
-        } else {
+        else {
                 if (is_read(fop))
                         fom->fo_phase = FOPH_IO_STOB_INIT;
                 else
@@ -1053,12 +1038,13 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         C2_PRE(fom != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
 
+        fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         rwfop = io_rw_get(fop);
         rbulk = &fom_obj->fcrw_bulk;
 
         c2_rpc_bulk_init(rbulk);
 
-        /** find the domain */
+        /* Create rpc bulk bufs list using available net buffers */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
 
@@ -1075,6 +1061,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
                 rb_buf->bb_nbuf = *nb;
                 rb_buf->bb_rbulk = rbulk;
 
+                rpcbulkbufs_tlink_init(rb_buf);
                 rpcbulkbufs_tlist_add(&rbulk->rb_buflist, rb_buf);
 
         } c2_tlist_endfor;
@@ -1147,7 +1134,7 @@ static int io_fom_cob_rw_initiate_zero_copy_wait(struct c2_fom *fom)
          */
 
         c2_tlist_for(&rpcbulkbufs_tl, &rbulk->rb_buflist, rb_buf) {
-                rpcbulkbufs_tlist_del(rb_buf);
+                rpcbulkbufs_tlink_del_fini(rb_buf);
         } c2_tlist_endfor;
 
         c2_rpc_bulk_fini(rbulk);
@@ -1224,6 +1211,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 
                 C2_ALLOC_PTR(stio_desc);
 
+                stio_desc->siod_magic = C2_STOB_IO_DESC_LINK_MAGIC;
                 c2_clink_init(&stio_desc->siod_clink,
                               &io_fom_cob_rw_stobio_complete_cb);
                 stio_desc->siod_fom = fom_obj;

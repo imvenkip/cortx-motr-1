@@ -427,6 +427,9 @@ struct c2_net_domain {
 
 	/** Network magic */
 	uint64_t            nd_magic;
+
+        /** Transfer machine color counter */
+        int                 nd_colour_counter;
 };
 
 /**
@@ -868,6 +871,12 @@ struct c2_net_transfer_mc {
 
 	/** Domain linkage */
 	struct c2_list_link         ntm_dom_linkage;
+
+        /**
+         * Transfer machine colour. It is used to get
+         * buffer from buffer pool.
+         */
+        int                         ntm_colour;
 
 	/** Transport private data */
         void                       *ntm_xprt_private;
@@ -1731,11 +1740,11 @@ extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
 enum {
 	/* Hex ASCII value of "nb_lru" */
-	NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
+	C2_NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
 	/* Hex ASCII value of "nb_tm_linkage" */
 	NET_BUFFER_TM_LINK_MAGIC = 0x6e625f746d5f6c,
 	/* Hex ASCII value of "nb_head" */
-	NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
+	C2_NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
 };
 
 /** Descriptor for the tlist of buffers. */

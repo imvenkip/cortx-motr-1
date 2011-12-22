@@ -53,6 +53,27 @@
 int c2_ioservice_register(void);
 void c2_ioservice_unregister(void);
 
+enum {
+        C2_RIOS_BUFFER_POOL_MAGIC = 0x62756666657273,   /* buffers */
+        C2_RIOS_BUFFER_POOL_HEAD = 0x42554646455253   /* BUFFERS */
+};
+
+/**
+ * Data structure represents list of buffer pool per network domain.
+ */
+struct c2_rios_buffer_pool {
+        /** Pointer to net domain owner of this buffer pool */
+        struct c2_net_domain        *rios_ndom;
+        /** Pointer to Network buffer pool. */
+        struct c2_net_buffer_pool    rios_bp;
+        /** Buffer pool wait channel. */
+        struct c2_chan               rios_bp_wait;
+        /** Linkage into netowrk buffer pool list */ 
+        struct c2_tlink              rios_bp_linkage;
+        /** Magic */
+        uint64_t                     rios_bp_magic;
+};
+
 /**
  * Structure contains generic service structure and
  * service specific information.
@@ -60,12 +81,8 @@ void c2_ioservice_unregister(void);
 struct c2_reqh_io_service {
         /** Generic reqh service object */
         struct c2_reqh_service       rios_gen;
-        /** Pointer to Network buffer pool. */
-        struct c2_net_buffer_pool    rios_nb_pool;
-        /** Buffer pool wait channel. */
-        struct c2_chan               rios_nbp_wait;
-        /** Buffer pool color mapping for transfer machine. */
-        struct c2_tl                 rios_nbp_color_map;
+        /** Buffer pools belongs to thsi services */
+        struct c2_tl                 rios_buffer_pools;
 };
 
 /** @} end of io_service */
