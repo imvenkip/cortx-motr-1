@@ -139,7 +139,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
-int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+int c2_net__buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -161,7 +161,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	const struct buf_add_checks *todo;
 
 	C2_PRE(tm != NULL);
-	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
@@ -249,6 +249,15 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_POST(c2_net__tm_invariant(tm));
 
  m_err_exit:
+	return rc;
+}
+
+int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+{
+	int rc;
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	rc = c2_net__buffer_add(buf, tm);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
@@ -323,6 +332,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	c2_time_t tdiff;
 	c2_net_buffer_cb_proc_t cb;
 	c2_bcount_t len = 0;
+	struct c2_net_buffer_pool *pool = NULL;
 
 	C2_PRE(c2_net__buffer_event_invariant(ev));
 	buf = ev->nbe_buffer;
@@ -373,6 +383,12 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 			check_ep = true;
 			ep = ev->nbe_ep; /* from event */
 		}
+		if (!(buf->nb_flags & C2_NET_BUF_QUEUED) &&
+		    tm->ntm_state == C2_NET_TM_STARTED &&
+		    tm->ntm_recv_pool != NULL &&
+		    buf->nb_pool == tm->ntm_recv_pool) {
+			pool = tm->ntm_recv_pool;
+		}
 		break;
 	case C2_NET_QT_MSG_SEND:
 		/* must put() ep to match get in buffer_add() */
@@ -389,6 +405,9 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	cb = buf->nb_callbacks->nbc_cb[qtype];
 	tm->ntm_callback_counter++;
 	c2_mutex_unlock(&tm->ntm_mutex);
+
+	if (pool != NULL)
+		c2_net__tm_provision_recv_q(tm);
 
 	cb(ev);
 

@@ -193,6 +193,7 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
    @pre c2_net_buffer_pool_is_locked(pool)
    @pre colour == ~0 || colour < pool->nbp_colours_nr
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
+   @post ergo(result != NULL, result->nb_pool == pool)
  */
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 					     uint32_t colour);
