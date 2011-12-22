@@ -369,7 +369,7 @@ static void pdclust_fini(struct c2_layout *lay)
 }
 
 static const struct c2_layout_ops pdlclust_ops = {
-	.lo_fini	= pdclust_fini
+	.lo_fini        = pdclust_fini
 };
 
 void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
@@ -619,18 +619,18 @@ static int pdclust_subst(const struct c2_layout *l,
 }
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
-	.lto_register	= NULL,
-	.lto_unregister	= NULL,
-	.lto_equal	= pdclust_equal,
-	.lto_decode	= pdclust_decode,
-	.lto_encode	= pdclust_encode,
-	.lto_subst	= pdclust_subst
+	.lto_register   = NULL,
+	.lto_unregister = NULL,
+	.lto_equal      = pdclust_equal,
+	.lto_decode     = pdclust_decode,
+	.lto_encode     = pdclust_encode,
+	.lto_subst      = pdclust_subst
 };
 
 const struct c2_layout_type c2_pdclust_lay_type = {
-	.lt_name	= "pdclust",
-	.lt_id		= 0x5044434C55535431, /* PDCLUST1 */
-	.lt_ops		= &pdclust_type_ops
+	.lt_name        = "pdclust",
+	.lt_id          = 0x5044434C55535431, /* PDCLUST1 */
+	.lt_ops         = &pdclust_type_ops
 };
 
 /** @} end group pdclust */

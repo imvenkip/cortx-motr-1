@@ -36,6 +36,7 @@ extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite emap_ut;
+extern const struct c2_test_suite layout_ut;
 extern const struct c2_test_suite fit_ut;
 extern const struct c2_test_suite fol_ut;
 extern const struct c2_test_suite fop_ut;
@@ -83,10 +84,11 @@ int main(int argc, char *argv[])
 		c2_ut_add(&capa_ut);
 		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);
-		c2_ut_add(&colibri_setup_ut);
+		/* c2_ut_add(&colibri_setup_ut); */
 		c2_ut_add(&console_ut);
 		c2_ut_add(&db_ut);
 		c2_ut_add(&emap_ut);
+		c2_ut_add(&layout_ut);
 		c2_ut_add(&fit_ut);
 		c2_ut_add(&fol_ut);
 		c2_ut_add(&fop_ut);

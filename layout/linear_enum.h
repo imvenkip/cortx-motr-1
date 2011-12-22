@@ -41,7 +41,7 @@ struct c2_layout_linear_enum;
  */
 struct c2_layout_linear_enum {
 	/** super class */
-	struct c2_layout_enum            lline_enum;
+	struct c2_layout_enum     lline_enum;
 
 };
 

@@ -76,7 +76,7 @@ static uint32_t linear_nr(const struct c2_layout_enum *le,
 {
    /**
 	@code
-	c2_tl *list;
+	c2_tl          *list;
 
 	linear_enumerate(le, list, gfid);
 
@@ -97,7 +97,7 @@ static void linear_get(const struct c2_layout_enum *le,
 {
    /**
 	@code
-	c2_tl *list;
+	c2_tl          *list;
 
 	linear_enumerate(le, list, gfid);
 
@@ -107,8 +107,8 @@ static void linear_get(const struct c2_layout_enum *le,
 }
 
 static const struct c2_layout_enum_ops linear_enum_ops = {
-	.leo_nr		= linear_nr,
-	.leo_get	= linear_get
+	.leo_nr         = linear_nr,
+	.leo_get        = linear_get
 };
 
 /**
@@ -117,9 +117,9 @@ static const struct c2_layout_enum_ops linear_enum_ops = {
    for linear enumeration type.
 */
 const struct c2_layout_enum_type c2_linear_enum_type = {
-	.let_name	= "linear",
-	.let_id		= 0x4C494E454152454E, /* LINEAREN */
-	.let_ops	= NULL
+	.let_name       = "linear",
+	.let_id         = 0x4C494E454152454E, /* LINEAREN */
+	.let_ops        = NULL
 };
 
 /** @} end group linear_enum */

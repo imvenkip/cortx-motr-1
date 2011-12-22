@@ -76,10 +76,10 @@ void c2_layout_init(struct c2_layout *lay,
 {
    /**
 	@code
-	lay->l_id	= id;
-	lay->l_type	= type;
-	lay->l_enum	= e;
-	lay->l_ops	= ops;
+	lay->l_id       = id;
+	lay->l_type     = type;
+	lay->l_enum     = e;
+	lay->l_ops      = ops;
 	@endcode
    */
 	return;
@@ -227,7 +227,7 @@ static int __attribute__ ((unused)) ldb_layout_read(
 {
    /**
 	@code
-	struct c2_layout_rec	*rec;
+	struct c2_layout_rec     *rec;
 
 	c2_db_pair_setup(&pair, &schema->ls_layout_entries,
 			 lid, sizeof(uint64_t),
@@ -257,8 +257,8 @@ static int __attribute__ ((unused)) ldb_layout_write(
 {
    /**
 	@code
-	struct c2_layout_rec	*rec;
-	struct c2_db_pair	 pair;
+	struct c2_layout_rec     *rec;
+	struct c2_db_pair         pair;
 
 	Collect data into lid and rec, from the buffer pointed by cur and
 	by referring the recsize.

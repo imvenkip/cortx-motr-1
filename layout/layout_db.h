@@ -126,24 +126,24 @@ enum {
 */
 struct c2_ldb_schema {
 	/** Table for layout record entries. */
-	struct c2_table			 ls_layouts;
+	struct c2_table                ls_layouts;
 
 	/** Layout types array. */
-	struct c2_layout_type		*ls_type[C2_LAY_TYPE_MAX];
+	struct c2_layout_type         *ls_type[C2_LAY_TYPE_MAX];
 
 	/** Enumeration types array. */
-	struct c2_layout_enum_type	*ls_enum[C2_LAY_ENUM_MAX];
+	struct c2_layout_enum_type    *ls_enum[C2_LAY_ENUM_MAX];
 
 	/** Layout type specific data. */
-	void				*ls_type_data[C2_LAY_TYPE_MAX];
+	void                          *ls_type_data[C2_LAY_TYPE_MAX];
 
 	/** Layout enum type specific data. */
-	void				*ls_enum_data[C2_LAY_ENUM_MAX];
+	void                          *ls_enum_data[C2_LAY_ENUM_MAX];
 
 	/** Lock to protect ls_type[], ls_type_data[], ls_enum[] and
 	    ls_enum_data[]
 	*/
-	struct c2_mutex			 ls_mutex;
+	struct c2_mutex                ls_mutex;
 };
 
 /**
@@ -154,21 +154,21 @@ struct c2_ldb_rec {
 	/** Layout type id.
 	    Value obtained from  c2_layout_type::lt_id.
 	*/
-	uint64_t			lr_lt_id;
+	uint64_t                       lr_lt_id;
 
 	/** Layout enumeration type id.
 	    Value obtained from c2_layout_enum_type::let_id.
 	*/
-	uint64_t			lr_let_id;
+	uint64_t                       lr_let_id;
 
 	/** Layout reference count.
 	    Indicating number of files using this layout.
 	*/
-	uint64_t			lr_ref_count;
+	uint64_t                       lr_ref_count;
 
 	/** Layout type specific payload.
 	    Contains attributes specific to per layout type. */
-	char				lr_data[0];
+	char                           lr_data[0];
 
 };
 
@@ -243,15 +243,15 @@ static const struct c2_table_ops layouts_table_ops = {
 */
 struct ldb_cob_lists_key {
 	/** Layout id, value obtained from c2_layout::l_id. */
-	uint64_t		lclk_id;
+	uint64_t                  lclk_id;
 
 	/** Index for the COB from the layout it is part of. */
-	uint32_t		lclk_cob_index;
+	uint32_t                  lclk_cob_index;
 };
 
 struct ldb_cob_lists_rec {
 	/** COB identifier. */
-	struct c2_fid		lclr_cob_id;
+	struct c2_fid             lclr_cob_id;
 };
 
 /**
@@ -287,12 +287,12 @@ struct layout_prefix {
 	/** Layout id for the composite layout.
 	    Value is same as c2_layout::l_id.
 	*/
-	uint64_t		lp_l_id;
+	uint64_t                  lp_l_id;
 
 	/** Filler since prefix is a 128 bit field.
 	    Currently un-used.
 	*/
-	uint64_t		lp_filler;
+	uint64_t                  lp_filler;
 };
 
 

@@ -31,15 +31,15 @@
 
 struct list_schema_data {
 	/** Table to store COB lists for all the layout with LIST enum type. */
-	struct c2_table		lsd_cob_lists;
+	struct c2_table           lsd_cob_lists;
 };
 
 struct ldb_list_cob_entry {
 	/** Index for the COB from the layout it is part of. */
-	uint32_t                llce_cob_index;
+	uint32_t                  llce_cob_index;
 
 	/** COB identifier. */
-	struct c2_fid           llce_cob_id;
+	struct c2_fid             llce_cob_id;
 };
 
 enum {
@@ -52,10 +52,10 @@ enum {
 */
 struct ldb_list_cob_entries {
 	/** Total number of COB Ids for the specific layout. */
-	uint32_t                    llces_nr;
+	uint32_t                  llces_nr;
 
 	/** Array for storing COB Ids. */
-	struct ldb_list_cob_entry   llces_cobs[MAX_INLINE_COB_ENTRIES];
+	struct ldb_list_cob_entry llces_cobs[MAX_INLINE_COB_ENTRIES];
 };
 
 /**
@@ -68,7 +68,7 @@ static int list_register(struct c2_ldb_schema *schema,
 {
    /**
 	@code
-	struct list_schema_data *lsd;
+	struct list_schema_data  *lsd;
 
 	C2_ALLOCATE_PTR(lsd);
 
@@ -232,21 +232,21 @@ static void list_get(const struct c2_layout_enum *le,
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {
-	.leo_nr			= list_nr,
-	.leo_get		= list_get
+	.leo_nr              = list_nr,
+	.leo_get             = list_get
 };
 
 static const struct c2_layout_enum_type_ops list_type_ops = {
-	.leto_register		= list_register,
-	.leto_unregister	= list_unregister,
-	.leto_decode		= list_decode,
-	.leto_encode		= list_encode,
+	.leto_register       = list_register,
+	.leto_unregister     = list_unregister,
+	.leto_decode         = list_decode,
+	.leto_encode         = list_encode,
 };
 
 const struct c2_layout_enum_type c2_list_enum_type = {
-	.let_name		= "list",
-	.let_id			= 0x4C495354454E554D, /* LISTENUM */
-	.let_ops		= &list_type_ops
+	.let_name            = "list",
+	.let_id              = 0x4C495354454E554D, /* LISTENUM */
+	.let_ops             = &list_type_ops
 };
 
 

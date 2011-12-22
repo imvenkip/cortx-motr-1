@@ -30,8 +30,8 @@
  */
 
 /* import */
-#include "lib/mutex.h"	/* struct c2_mutex */
-#include "db/db.h"	/* struct c2_table */
+#include "lib/mutex.h"  /* struct c2_mutex */
+#include "db/db.h"      /* struct c2_table */
 
 #include "layout/layout.h"
 
@@ -43,10 +43,10 @@ struct c2_lay_list_enum;
  */
 struct c2_lay_list_enum {
 	/** super class */
-	struct c2_layout_enum	lle_enum;
+	struct c2_layout_enum     lle_enum;
 
 	/** List of COB identifiers which are part of this layout */
-	struct c2_tl		lle_list_of_cobs;
+	struct c2_tl              lle_list_of_cobs;
 
 	/** @todo One change was suggested to move this to c2_layout so that the
 	    callers can lock/unlock it. Deferring it for a while since I yet
@@ -58,7 +58,7 @@ struct c2_lay_list_enum {
 	    list of sub-layouts viz. cl_sub_layouts_mutex.
 	*/
 	/** Lock to protect the list of COB identifiers */
-	struct c2_mutex		lle_cob_mutex;
+	struct c2_mutex           lle_cob_mutex;
 };
 
 extern const struct c2_layout_enum_type c2_list_enum_type;

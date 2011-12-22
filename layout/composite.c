@@ -27,7 +27,7 @@
 
 struct composite_schema_data {
 	/** Table to store extent maps for all the composite layouts. */
-	struct c2_emap		csd_comp_layout_ext_map;;
+	struct c2_emap            csd_comp_layout_ext_map;;
 };
 
 /**
@@ -175,12 +175,12 @@ static void composite_fini(struct c2_layout *lay)
 }
 
 static const struct c2_layout_ops composite_ops = {
-	.lo_fini	= composite_fini
+	.lo_fini        = composite_fini
 };
 
 static const struct c2_layout_type_ops composite_type_ops = {
-	.lto_register	= composite_register,
-	.lto_unregister	= composite_unregister,
+	.lto_register   = composite_register,
+	.lto_unregister = composite_unregister,
 	.lto_equal      = NULL,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
