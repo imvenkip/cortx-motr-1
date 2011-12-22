@@ -131,19 +131,10 @@ void test_2_timers()
 	while (count < 1)
 		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer1);
+	c2_timer_fini(&timer1);
 
-	/* start timer1 again, and do something, e.g. just waiting */
-	c2_timer_start(&timer1);
-	while (count < 1)
-		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer2);
 	c2_timer_fini(&timer2);
-
-	while (count < 1)
-		c2_nanosleep(wait, NULL);
-
-	c2_timer_stop(&timer1);
-	c2_timer_fini(&timer1);
 }
 
 void timer1_thread(int unused)

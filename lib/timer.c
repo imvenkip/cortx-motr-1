@@ -293,10 +293,8 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
  */
 static void c2_timer_working_thread(struct c2_timer *timer)
 {
-	if (!c2_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire)) {
+	if (!c2_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire))
 		timer->t_callback(timer->t_data);
-		c2_semaphore_down(&timer->t_sleep_sem);
-	}
 }
 
 bool c2_timer_invariant(struct c2_timer *timer)
@@ -312,10 +310,10 @@ bool c2_timer_invariant(struct c2_timer *timer)
  * It checks the possibility of transition from the current state
  * with a given function and if possible, changes timer state to a new state
  * or executes C2_ASSERT() otherwise.
- * If try is true, than timer state doesn't changes.
+ * If dry_run is true, than timer state doesn't changes.
  */
 static void timer_state_change(struct c2_timer *timer, enum timer_func func,
-		bool try)
+		bool dry_run)
 {
 	enum c2_timer_state new_state;
 	static enum c2_timer_state
@@ -354,7 +352,7 @@ static void timer_state_change(struct c2_timer *timer, enum timer_func func,
 		transition[timer->t_state][func];
 	C2_ASSERT(new_state != TIMER_INVALID);
 
-	if (!try)
+	if (!dry_run)
 		timer->t_state = new_state;
 }
 
