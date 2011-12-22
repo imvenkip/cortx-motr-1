@@ -447,6 +447,7 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	struct timer_tid *tt;
 	int rc;
 	timer_t ptimer;
+	pid_t old_tid;
 
 	C2_PRE(loc != NULL);
 	C2_PRE(timer != NULL);
@@ -454,20 +455,27 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 
 	timer_state_change(timer, TIMER_ATTACH, true);
 
+	old_tid = timer->t_tid;
 	c2_mutex_lock(&loc->tlo_lock);
-	C2_ASSERT(!tid_tlist_is_empty(&loc->tlo_tids));
-	if (loc->tlo_rrtid == NULL)
-		loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
-	tt = loc->tlo_rrtid;
-	timer->t_tid = tt->tt_tid;
-	loc->tlo_rrtid = tid_tlist_next(&loc->tlo_tids, tt);
+	if (!tid_tlist_is_empty(&loc->tlo_tids)) {
+		if (loc->tlo_rrtid == NULL)
+			loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
+		tt = loc->tlo_rrtid;
+		timer->t_tid = tt->tt_tid;
+		loc->tlo_rrtid = tid_tlist_next(&loc->tlo_tids, tt);
+	}
 	c2_mutex_unlock(&loc->tlo_lock);
 
-	/* don't delete old posix timer until new one can be created */
-	ptimer = timer->t_ptimer;
-	rc = timer_posix_init(timer);
-	if (rc == 0)
-		timer_posix_fini(ptimer);
+	if (timer->t_tid != old_tid) {
+		/* 
+		 * don't delete old posix timer
+		 * until the new one can be created
+		 */
+		ptimer = timer->t_ptimer;
+		rc = timer_posix_init(timer);
+		if (rc == 0)
+			timer_posix_fini(ptimer);
+	}
 
 	timer_state_change(timer, TIMER_ATTACH, rc != 0);
 	return rc;
