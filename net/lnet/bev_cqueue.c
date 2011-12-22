@@ -733,6 +733,7 @@ static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 
 /**
    Determines the next element in the queue that can be used by the producer.
+   @note This operation is to be used only by the producer.
    @param q the queue
    @returns a pointer to the next available element in the producer context
    @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
@@ -740,7 +741,12 @@ static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 static struct nlx_core_bev_link* bev_cqueue_pnext(
 				      const struct nlx_core_bev_cqueue *q)
 {
-	return NULL;
+	struct nlx_core_bev_link* p;
+
+	C2_PRE(bev_cqueue_invariant(q));
+	p = (struct nlx_core_bev_link*) q->cbcq_producer;
+	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
+	return p;
 }
 
 /**
@@ -751,6 +757,12 @@ static struct nlx_core_bev_link* bev_cqueue_pnext(
  */
 static void bev_cqueue_put(struct nlx_core_bev_cqueue *q)
 {
+	struct nlx_core_bev_link* p;
+
+	C2_PRE(bev_cqueue_invariant(q));
+	p = (struct nlx_core_bev_link*) q->cbcq_producer;
+	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
+	q->cbcq_producer = p->cbl_p_next;
 }
 
 /**
