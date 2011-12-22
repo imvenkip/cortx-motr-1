@@ -23,6 +23,8 @@
 #define __COLIBRI_LIB_TIMER_H__
 
 #include "lib/types.h"
+#include "lib/tlist.h"	   /* c2_tl */
+#include "lib/mutex.h"	   /* c2_mutex */
 
 /**
  * @defgroup timer Generic timer manipulation
@@ -62,6 +64,31 @@ struct c2_timer;
 enum c2_timer_type {
 	C2_TIMER_SOFT,
 	C2_TIMER_HARD
+};
+
+/**
+ * Forward declaration for struct c2_timer_locality.
+ */
+struct timer_tid;
+
+/**
+ * Timer locality.
+ * Used in userspace hard timers.
+ */
+struct c2_timer_locality {
+	/**
+	 * Lock for tlo_tids
+	 */
+	struct c2_mutex   tlo_lock;
+	/**
+	 * List of thread ID's, associated with this locality
+	 */
+	struct c2_tl	  tlo_tids;
+	/**
+	 * ThreadID of next thread for round-robin timer thread choosing
+	 * in c2_timer_attach().
+	 */
+	struct timer_tid *tlo_rrtid;
 };
 
 #ifndef __KERNEL__
@@ -115,6 +142,65 @@ int c2_timer_stop(struct c2_timer *timer);
  * @pre timer is not running.
  */
 void c2_timer_fini(struct c2_timer *timer);
+
+/**
+ * Init timer locality.
+ *
+ * @post locality is empty.
+ */
+void c2_timer_locality_init(struct c2_timer_locality *loc);
+
+/**
+ * Fini timer locality.
+ *
+ * @pre c2_timer_locality_init() succesfully called.
+ * @pre locality is empty
+ */
+void c2_timer_locality_fini(struct c2_timer_locality *loc);
+
+/**
+ * Add current thread to the list of threads in locality.
+ *
+ * @pre c2_timer_locality_init() successfully called.
+ * @pre current thread is not attached to locality.
+ * @post current thread is attached to locality.
+ * @return 0 means success.
+ * @return -ENOMEM if there is no free memory for timer_tid structure.
+ */
+int c2_timer_thread_attach(struct c2_timer_locality *loc);
+
+/**
+ * Remove current thread from the list of threads in locality.
+ * Current thread must be in this list.
+ *
+ * @pre c2_timer_locality_init() successfully called.
+ * @pre current thread is attached to locality.
+ * @post current thread is not attached to locality.
+ */
+void c2_timer_thread_detach(struct c2_timer_locality *loc);
+
+/**
+ * Attach hard timer to the given locality.
+ * This function will set timer signal number to signal number, associated
+ * with given locality, and thread ID for timer callback - it will be chosen
+ * from locality threads list in round-robin fashion.
+ * Therefore internal POSIX timer will be recreated.
+ *
+ * @pre c2_timer_init() successfully called.
+ * @pre c2_timer_locality_init() successfully called.
+ * @pre locality has some threads attached.
+ * @pre timer type is C2_TIMER_HARD
+ * @pre timer is not running.
+ */
+int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
+
+/**
+ * Invariant for timer.
+ *
+ * @pre c2_timer_init() for this timer was succesfully called.
+ * @pre c2_timer_fini() wasn't called for this timer.
+ */
+bool c2_timer_invariant(struct c2_timer *timer);
 
 /** @} end of timer group */
 /* __COLIBRI_LIB_TIMER_H__ */
