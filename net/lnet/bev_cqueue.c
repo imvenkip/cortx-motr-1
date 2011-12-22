@@ -676,9 +676,25 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 
 /**
    Finalise the buffer event queue.
+   Buffer events in the queue are freed using the specified callback.
+   @note This operation is to be used only by the consumer.
  */
-static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q)
+static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q,
+			    void (*free_cb)(struct nlx_core_bev_link *))
 {
+	struct nlx_core_bev_link *ql;
+	struct nlx_core_bev_link *nql = NULL;
+
+	C2_PRE(bev_cqueue_invariant(q));
+	C2_PRE(free_cb != NULL);
+	for (ql = (struct nlx_core_bev_link *) q->cbcq_consumer;
+	     q->cbcq_nr > 0; ql = nql, --q->cbcq_nr) {
+		nql = (struct nlx_core_bev_link *) ql->cbl_c_next;
+		free_cb(ql);
+	}
+
+	q->cbcq_producer = 0;
+	q->cbcq_consumer = 0;
 }
 
 /**

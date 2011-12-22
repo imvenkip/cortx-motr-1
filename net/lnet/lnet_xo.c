@@ -267,9 +267,22 @@ static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 static int nlx_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
+	struct c2_net_buffer *nb;
+	int qt;
 
-	C2_PRE(tp != NULL);
-	nlx_core_tm_stop(&tp->xtm_core);
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+
+	/* walk through the queues and cancel every buffer if desired */
+	if (cancel)
+		for (qt = 0; qt < ARRAY_SIZE(tm->ntm_q); ++qt)
+			c2_tlist_for(&tm_tl, &tm->ntm_q[qt], nb) {
+				nlx_xo_buf_del(nb);
+				/* bump the del stat count */
+				tm->ntm_qstats[qt].nqs_num_dels++;
+			} c2_tlist_endfor;
+
+	c2_cond_signal(&tp->xtm_ev_cond, &tm->ntm_mutex);
 	return 0;
 }
 

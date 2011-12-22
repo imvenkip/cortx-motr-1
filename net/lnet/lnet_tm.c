@@ -26,7 +26,11 @@
 
 static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
 {
-	return true; /* XXX temp */
+	int i;
+	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i)
+		if (!tm_tlist_is_empty(&tm->ntm_q[i]))
+			return false;
+	return true;
 }
 
 /**
@@ -49,6 +53,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	c2_time_t timeout;
 	int rc = 0;
 
+	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(nlx_tm_invariant(tm));
 	tp = tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
@@ -60,11 +65,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		rc = c2_thread_confine(&tp->xtm_ev_thread, &tp->xtm_processors);
 	}
 
-	if (rc == 0) {
-		c2_mutex_lock(&tm->ntm_mutex);
+	if (rc == 0)
 		rc = nlx_core_tm_start(tm, ctp, &ctp->ctm_addr);
-		c2_mutex_unlock(&tm->ntm_mutex);
-	}
 
 	/*
 	  Deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
@@ -81,6 +83,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	}
 	tmev.nte_time = c2_time_now();
 	tm->ntm_ep = NULL;
+	c2_mutex_unlock(&tm->ntm_mutex);
 	c2_net_tm_event_post(&tmev);
 	if (rc != 0)
 		return;

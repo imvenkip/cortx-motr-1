@@ -1047,10 +1047,36 @@ fail:
 	return rc;
 }
 
+static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
+{
+	struct nlx_core_buffer_event *bev;
+	if (ql != NULL) {
+		bev = container_of(ql, struct nlx_core_buffer_event,
+				   cbe_tm_link);
+		c2_free(bev);
+	}
+}
+
 void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 {
-	/* XXX: temp, really belongs in async code */
-	bev_cqueue_fini(&lctm->ctm_bevq); /* XXX free elements */
+	struct nlx_xo_transfer_mc *tp;
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+
+	tp = container_of(lctm, struct nlx_xo_transfer_mc, xtm_core);
+	C2_PRE(nlx_tm_invariant(tp->xtm_tm));
+	C2_PRE(c2_mutex_is_locked(&tp->xtm_tm->ntm_mutex));
+	C2_PRE(kctm != NULL && kctm->ktm_magic == C2_NET_LNET_KCORE_TM_MAGIC);
+
+	/* XXX also free ktm_meh? */
+	LNetEQFree(kctm->ktm_eqh);
+	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
+	c2_semaphore_fini(&kctm->ktm_sem);
+
+	c2_mutex_lock(&nlx_kcore_mutex);
+	tms_tlist_del(kctm);
+	c2_mutex_unlock(&nlx_kcore_mutex);
+	lctm->ctm_kpvt = NULL;
+	c2_free(kctm);
 }
 
 int nlx_core_init(void)

@@ -173,10 +173,21 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	return -ENOSYS;
 }
 
+/* XXX duplicate code, see klnet_core.c */
+static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
+{
+	struct nlx_core_buffer_event *bev;
+	if (ql != NULL) {
+		bev = container_of(ql, struct nlx_core_buffer_event,
+				   cbe_tm_link);
+		c2_free(bev);
+	}
+}
+
 void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 {
 	/* XXX: temp, really belongs in async code */
-	bev_cqueue_fini(&lctm->ctm_bevq); /* XXX free elements */
+	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
 }
 
 /*
