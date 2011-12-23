@@ -41,17 +41,6 @@ void c2_trace_fini(void)
 
 }
 
-int c2_uts_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-void c2_uts_fini(void)
-{
-
-}
-
 int c2_memory_init(void)
 {
 	DUMMY_IMPLEMENTATION;
