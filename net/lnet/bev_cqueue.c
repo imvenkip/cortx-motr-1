@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/10/2011
  */
 
@@ -630,7 +630,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 			   struct nlx_core_bev_link *ql)
 {
 	struct nlx_core_bev_link *consumer =
-	    ((struct nlx_core_bev_link *) (q->cbcq_consumer));
+	    (struct nlx_core_bev_link *) (q->cbcq_consumer);
 	C2_PRE(q->cbcq_nr > 0 && consumer != NULL && ql->cbl_p_self != 0);
 	ql->cbl_c_self = (nlx_core_opaque_ptr_t) ql;
 
@@ -654,7 +654,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
    @param ql2 the second element in the new queue
    @pre q != NULL && ql1 != NULL && ql2 != NULL
    @post bev_cqueue_invariant(q)
-*/
+ */
 static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,
 			    struct nlx_core_bev_link *ql2)
@@ -725,10 +725,11 @@ static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q)
    @param q the queue
    @returns the link to the element in the consumer context,
    NULL when the queue is empty
+   @todo XXX implement bev_cqueue_get
  */
 static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 {
-	return NULL;
+	return NULL; /* XXX temporary */
 }
 
 /**
@@ -778,7 +779,7 @@ static void bev_link_bless(struct nlx_core_bev_link *ql)
 
 /**
    @}
-*/
+ */
 
 /*
  *  Local variables:

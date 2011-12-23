@@ -22,7 +22,7 @@
 /**
    @addtogroup LNetXODFS
    @{
-*/
+ */
 
 static bool nlx_dom_invariant(const struct c2_net_domain *dom)
 {
@@ -163,6 +163,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
 
+	/* XXX is this complete? */
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
 		rc = nlx_core_buf_msg_recv(ctp, cbp);
@@ -175,6 +176,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		rc = nlx_core_buf_passive_recv(ctp, cbp);
 		break;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
+		nlx_core_buf_match_bits_set(ctp, cbp);
 		rc = nlx_core_buf_passive_send(ctp, cbp);
 		break;
 	case C2_NET_QT_ACTIVE_BULK_RECV:
@@ -309,11 +311,12 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 
 	C2_PRE(tp != NULL);
 	while (nlx_core_buf_event_get(&tp->xtm_core, &bev))
-		/* deliver the event */ ;
+		/* XXX deliver the event */ ;
 }
 
 static int nlx_xo_bev_deliver_sync(struct c2_net_transfer_mc *tm)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
@@ -328,6 +331,7 @@ static bool nlx_xo_bev_pending(struct c2_net_transfer_mc *tm)
 static void nlx_xo_bev_notify(struct c2_net_transfer_mc *tm,
 			      struct c2_chan *chan)
 {
+	/* XXX implement */
 }
 
 static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
@@ -354,12 +358,12 @@ static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 
 /**
    @} LNetXODFS
-*/
+ */
 
 /**
    @addtogroup LNetDFS
    @{
-*/
+ */
 
 struct c2_net_xprt c2_net_lnet_xprt = {
 	.nx_name = "lnet",
@@ -369,7 +373,7 @@ C2_EXPORTED(c2_net_lnet_xprt);
 
 /**
    @} LNetDFS
-*/
+ */
 
 /*
  *  Local variables:

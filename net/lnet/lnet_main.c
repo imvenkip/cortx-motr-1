@@ -737,6 +737,11 @@
  */
 
 #ifdef __KERNEL__
+/*
+  Lustre config file is required by lnet/types.h.  Included via full-path macro
+  set in Makefile.in to differenciate with Colibri config.h, also in include
+  path.
+ */
 #ifdef LUSTRE_CONFIG
 #include LUSTRE_CONFIG
 /* lustre config defines package macros also defined by c2 config */
@@ -764,13 +769,14 @@
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
 
-/* To reduce global symbols, yet make the code readable, we
-   include other .c files with static symbols into this file.
-   Dependency information must be captured in Makefile.am.
+/*
+  To reduce global symbols, yet make the code readable, we
+  include other .c files with static symbols into this file.
+  Dependency information must be captured in Makefile.am.
 
-   Static functions should be declared in the private header file
-   so that the order of their definition does not matter.
-*/
+  Static functions should be declared in the private header file
+  so that the order of their definition does not matter.
+ */
 #include "net/lnet/bev_cqueue.c"
 #ifdef __KERNEL__
 #include "net/lnet/linux_kernel/klnet_core.c"
@@ -799,6 +805,7 @@ void c2_net_lnet_fini(void)
 
 int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 {
+	/* XXX implement */
 	return false;
 }
 C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);

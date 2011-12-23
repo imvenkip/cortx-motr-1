@@ -22,7 +22,7 @@
 /**
    @addtogroup LNetXODFS
    @{
-*/
+ */
 
 static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
 {
@@ -139,7 +139,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 
 /**
    @} LNetXODFS
-*/
+ */
 
 /*
  *  Local variables:

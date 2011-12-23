@@ -14,32 +14,37 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 12/14/2011
  */
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 void nlx_core_dom_fini(struct nlx_core_domain *lcdom)
 {
+	/* XXX implement */
 }
 
 c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
 {
+	/* XXX implement */
 	return 0;
 }
 
 c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
 {
+	/* XXX implement */
 	return 0;
 }
 
 int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
 {
+	/* XXX implement */
 	return 0;
 }
 
@@ -47,12 +52,14 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 			  struct c2_net_buffer *buf,
 			  struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 			     struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 }
 
 int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
@@ -70,47 +77,55 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 }
 
 int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 		     struct nlx_core_buffer *lcbuf)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 			    c2_time_t timeout)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
@@ -141,6 +156,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 			    const char *ep_addr,
 			    struct nlx_core_ep_addr *cepa)
 {
+	/* XXX implement */
 	return -ENOSYS;
 }
 
@@ -148,6 +164,7 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 			     struct nlx_core_ep_addr *cepa,
 			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
 {
+	/* XXX implement */
 }
 
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
@@ -173,7 +190,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	return -ENOSYS;
 }
 
-/* XXX duplicate code, see klnet_core.c */
+/* XXX duplicate code, see klnet_core.c, refactor during ulnet task */
 static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 {
 	struct nlx_core_buffer_event *bev;

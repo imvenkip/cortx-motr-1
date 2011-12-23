@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  */
 #ifndef __COLIBRI_NET_LNET_H__
@@ -60,7 +60,7 @@
    @see @ref LNetDLD "LNet Transport DLD"
 
    @{
-*/
+ */
 #include "net/net.h"
 
 /**
@@ -70,9 +70,9 @@
 extern struct c2_net_xprt c2_net_lnet_xprt;
 
 enum {
-	/** Max LNet ep addr length
-	    @todo Determine exact value for a 4-tuple LNet EP addr
-	*/
+	/** Maximum LNet end point address length.
+	    @todo XXX Determine exact value for a 4-tuple LNet EP addr
+	 */
 	C2_NET_LNET_XEP_ADDR_LEN = 80,
 };
 
@@ -89,7 +89,7 @@ void c2_net_lnet_fini(void);
 
 /**
    @} LNetDFS end group
-*/
+ */
 
 #endif /* __COLIBRI_NET_LNET_H__ */
 

@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  *
  */
@@ -27,7 +27,7 @@
    @ingroup LNetCore
 
    @{
-*/
+ */
 
 #include "lib/semaphore.h"
 #include "lib/tlist.h"
@@ -39,7 +39,6 @@ enum {
 	C2_NET_LNET_KCORE_TM_MAGIC  = 0x4b436f7265544dULL,   /* KCoreTM */
 	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL,   /* KCoreTMs */
 	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
-	C2_NET_LNET_NIDSTR_SIZE     = 32, /**< Maximum size of a NID string. */
 	C2_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */
 	C2_NET_LNET_EQ_SIZE         = 8,  /**< Size of LNet event queue. */
 
@@ -50,7 +49,7 @@ enum {
 /**
    Kernel transfer machine private data.
    This structure is pointed to by c2_lnet_core_transfer_mc::lctm_kpvt.
-*/
+ */
 struct nlx_kcore_transfer_mc {
 	uint64_t                         ktm_magic;
 
@@ -83,7 +82,7 @@ struct nlx_kcore_transfer_mc {
 /**
    Kernel buffer private data.
    This structure is pointed to by c2_lnet_core_buffer::lcb_kpvt.
-*/
+ */
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
 
@@ -109,7 +108,7 @@ struct nlx_kcore_buffer {
 
 /**
    @}
-*/
+ */
 
 #endif /* __COLIBRI_NET_KLNET_CORE_H__ */
 

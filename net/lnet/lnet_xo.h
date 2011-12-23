@@ -29,7 +29,7 @@
    @defgroup LNetXODFS LNet Transport XO Interface
    @ingroup LNetDFS
    @{
-*/
+ */
 
 struct nlx_xo_buf_desc;
 struct nlx_xo_buffer;
@@ -54,9 +54,10 @@ struct nlx_xo_ep {
 	/** LNet transport address */
 	struct nlx_core_ep_addr xe_core;
 
-	/** Memory for the string representation of the end point.
-	    The @c xe_ep.nep_addr field points to @c xe_addr.
-	*/
+	/**
+	   Memory for the string representation of the end point.
+	   The @c xe_ep.nep_addr field points to @c xe_addr.
+	 */
 	char                    xe_addr[C2_NET_LNET_XEP_ADDR_LEN];
 };
 
@@ -131,7 +132,7 @@ struct nlx_xo_buffer {
 
 /**
    @} LNetXODFS
-*/
+ */
 
 #endif /* __COLIBRI_NET_LNET_XO_H__ */
 

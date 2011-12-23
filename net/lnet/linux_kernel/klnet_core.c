@@ -707,7 +707,7 @@
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - The LNet API.
 
-*/
+ */
 
 /*
  ******************************************************************************
@@ -718,12 +718,12 @@
 #include "lib/mutex.h"
 #include "net/lnet/linux_kernel/klnet_core.h"
 
+#include <lnet/lnet.h> /* LNet API, LNET_NIDSTR_SIZE */
+
 /**
    @addtogroup KLNetCore
    @{
-*/
-
-#include <lnet/api.h>
+ */
 
 /**
    Kernel core lock.
@@ -752,10 +752,7 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
 
 	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
 		scanaddr = &scan->ktm_tm->ctm_addr;
-		if (scanaddr->cepa_nid == cepa->cepa_nid &&
-		    scanaddr->cepa_pid == cepa->cepa_pid &&
-		    scanaddr->cepa_portal == cepa->cepa_portal &&
-		    scanaddr->cepa_tmid == cepa->cepa_tmid) {
+		if (nlx_core_ep_eq(scanaddr, cepa)) {
 			matched = true;
 			break;
 		}
@@ -898,58 +895,68 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 			  struct c2_net_buffer *buf,
 			  struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
 void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 			     struct nlx_core_buffer *lcbuf)
 {
+	 /* XXX todo implement */
 }
 
 int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
 void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 }
 
 int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
 int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 		     struct nlx_core_buffer *lcbuf)
 {
+	/* XXX todo implement */
 	return -ENOSYS;
 }
 
@@ -978,19 +985,16 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	struct nlx_core_bev_link *link;
 	struct nlx_core_buffer_event *bev;
 
-	C2_PRE(lctm != NULL);
-	C2_PRE(lcbe != NULL);
+	C2_PRE(lctm != NULL && lcbe != NULL);
 
-	/* XXX temp code to cause APIs to be used */
-	if (!bev_cqueue_is_empty(&lctm->ctm_bevq)) {
-		link = bev_cqueue_get(&lctm->ctm_bevq);
-		if (link != NULL) {
-			bev = container_of(link, struct nlx_core_buffer_event,
-					   cbe_tm_link);
-			*lcbe = *bev;
-			C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
-			return true;
-		}
+	/* XXX must synchronize with calls to bev_cqueue_add */
+	link = bev_cqueue_get(&lctm->ctm_bevq);
+	if (link != NULL) {
+		bev = container_of(link, struct nlx_core_buffer_event,
+				   cbe_tm_link);
+		*lcbe = *bev;
+		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
+		return true;
 	}
 	return false;
 }
@@ -999,7 +1003,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 			    const char *ep_addr,
 			    struct nlx_core_ep_addr *cepa)
 {
-	char nidstr[C2_NET_LNET_NIDSTR_SIZE];
+	char nidstr[LNET_NIDSTR_SIZE];
 	char *cp = strchr(ep_addr, ':');
 	char *endp;
 	size_t n;
@@ -1040,8 +1044,8 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 	char *cp = libcfs_nid2str(cepa->cepa_nid);
 	int n;
 
-	n = snprintf(buf, C2_NET_LNET_XEP_ADDR_LEN, "%s:%u:%u:", cp,
-		     cepa->cepa_pid, cepa->cepa_portal);
+	n = snprintf(buf, C2_NET_LNET_XEP_ADDR_LEN, "%s:%u:%u:",
+		     cp, cepa->cepa_pid, cepa->cepa_portal);
 	if (n < C2_NET_LNET_XEP_ADDR_LEN - 1) {
 		if (cepa->cepa_tmid == C2_NET_LNET_TMID_INVALID)
 			strcpy(buf + n, "*");
@@ -1068,7 +1072,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	tp = tm->ntm_xprt_private;
 	C2_PRE(lctm == &tp->xtm_core);
-	C2_PRE(cepa = &lctm->ctm_addr);
+	C2_PRE(cepa == &lctm->ctm_addr);
 	dp = tm->ntm_dom->nd_xprt_private;
 
 	C2_ALLOC_PTR(kctm);
@@ -1199,7 +1203,7 @@ void nlx_core_fini(void)
 
 /**
    @}
-*/
+ */
 
 /*
  *  Local variables:

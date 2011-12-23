@@ -22,14 +22,13 @@
 /**
    @addtogroup LNetXODFS
    @{
-*/
+ */
 
 /**
-   End point release subroutine invoked when the reference count goes
-   to 0.
+   End point release subroutine invoked when the reference count goes to 0.
    Unlinks the end point from the TM, and releases the memory.
    Must be called holding the TM mutex.
-*/
+ */
 static void nlx_ep_release(struct c2_ref *ref)
 {
 	struct c2_net_end_point *ep;
@@ -88,7 +87,7 @@ static int nlx_ep_create(struct c2_net_end_point **epp,
 
 /**
    @} LNetXODFS
-*/
+ */
 
 /*
  *  Local variables:
