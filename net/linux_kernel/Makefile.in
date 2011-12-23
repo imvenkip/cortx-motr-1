@@ -46,11 +46,11 @@ $(NET_MOD)-y  := $(all_obj)
 
 dist_src      := Makefile.in $(local_src)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -DLUSTRE_CONFIG=\"@LUSTRE@/config.h\" \
-        -I@SRCDIR@ -I@SRCDIR@/net/ksunrpc -I@LUSTRE@/lnet/include \
-        -I@LUSTRE@/libcfs/include @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ -I@SRCDIR@/net/ksunrpc \
+        -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include @KCFLAGS@
 
 prepare: $(otw_k_c) $(otw_k_h) $(sio_k_c) $(sio_k_h)
+	ln -fs @LUSTRE@/config.h lustre_config.h
 	ln -fs $(link_net) $(link_lnet) $(link_ut) $(link_bulk) .
 	ln -fs $(link_depr) $(link_deprbulk) .
 	for f in $(depr_Ksrc) ; do ln -fs ../ksunrpc/$$f k$$f; done
@@ -64,6 +64,7 @@ uninstall:
 clean distclean:
 	$(RM) $(net_src) $(lnet_src) $(ut_src) $(bulk_src) $(otw_k_c) $(otw_k_h)
 	$(RM) $(depr_src) $(depr_ksrc) $(deprbulk_src) $(sio_k_h)
+	$(RM) lustre_config.h
 	$(RM) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 

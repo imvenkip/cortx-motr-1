@@ -737,13 +737,7 @@
  */
 
 #ifdef __KERNEL__
-/*
-  Lustre config file is required by lnet/types.h.  Included via full-path macro
-  set in Makefile.in to differenciate with Colibri config.h, also in include
-  path.
- */
-#ifdef LUSTRE_CONFIG
-#include LUSTRE_CONFIG
+#include "lustre_config.h" /* required by lnet/types.h */
 /* lustre config defines package macros also defined by c2 config */
 #undef PACKAGE
 #undef PACKAGE_BUGREPORT
@@ -752,7 +746,6 @@
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
 #undef VERSION
-#endif
 
 #include "libcfs/libcfs.h" /* lnet/types.h fails if this is not included */
 #include "lnet/types.h"
