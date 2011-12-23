@@ -827,16 +827,20 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	c2_time_t now = c2_time_now();
 
 	C2_PRE(event != NULL && event->type != LNET_EVENT_ACK);
-	if (event->type == LNET_EVENT_SEND)
-		return;
 	cbp = event->md.user_ptr;
 	C2_ASSERT(cbp != NULL);
 	kbp = cbp->cb_kpvt;
-	C2_ASSERT(kbp != NULL);
+	C2_ASSERT(kbp != NULL && kbp->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
 	ktm = kbp->kb_ktm;
 	C2_ASSERT(ktm != NULL);
 	lctm = ktm->ktm_tm;
 	C2_ASSERT(lctm != NULL);
+
+	/* SEND events are only significant for LNetPut operations */
+	if (event->type == LNET_EVENT_SEND &&
+	    cbp->cb_qtype != C2_NET_QT_MSG_SEND &&
+	    cbp->cb_qtype != C2_NET_QT_ACTIVE_BULK_SEND)
+		return;
 
 	spin_lock(&ktm->ktm_bevq_lock);
 	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
