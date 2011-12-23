@@ -116,11 +116,7 @@ stob_headers = stob.h
 stob_linux_kernel_src = kstob.c
 
 stob_ut_srcs = io_fop_init.c
-<<<<<<< HEAD
 stob_ut_headers = io_fop.h
-=======
-stob_ut_headers = io_fop.h #../stob.h
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 
 xcode_srcs = bufvec_xcode.c bufvec_xcode_fop.c bufvec_xcode_size.c
 
@@ -144,7 +140,6 @@ kcolibri-y += main.o init.o dummy_init_fini.o $(kcolibri_objects)
 
 obj-y += $(testdirs)
 
-<<<<<<< HEAD
 create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(f))
 
 all: initialize c2t1fs_prepare addb_dependency net_dependency \
@@ -153,62 +148,24 @@ all: initialize c2t1fs_prepare addb_dependency net_dependency \
 #	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
 #	for s in $(testdirs) ;do $(MAKE) -C $$s prepare ;done
 	@echo $(kcolibri_objects)
-=======
-create_links_module = $(shell ln -sf $(CORE_SRCDIR)/lib/$(f) \
-		$(CORE_SRCDIR)/lib/linux_kernel/$(f))
-
-create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(f))
-
-all: initialize c2t1fs_prepare addb_dependency net_dependency \
-	prepare_everything test_init #modules_init
-
-#	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
-#	for s in $(testdirs) ;do $(MAKE) -C $$s prepare ;done
-	echo hello $(kcolibri_objects)
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
 initialize:
 	ln -sf $(CORE_SRCDIR)/colibri/init.c .
-<<<<<<< HEAD
 # DO NOT append 'modules' target to the following $(MAKE)
-=======
-	# DO NOT append 'modules' target to the following $(MAKE)
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_srcs),   \
 		$(create_links)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_headers),\
 		$(create_links)))
-<<<<<<< HEAD
 
 clean distclean:
 #for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
 #for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
-=======
-
-modules_init:
-	$(foreach f, $(lib_srcs), $(create_links_module))
-	for f in $(ut_orig); do ln -fs $(CORE_SRCDIR)/lib/ut/$$f \
-	$(CORE_SRCDIR)/lib/linux_kernel/ut_$$f; done
-	for f in $(net_ut_orig); do ln -fs $(CORE_SRCDIR)/net/ut/$$f \
-	$(CORE_SRCDIR)/net/linux_kernel/$$f; done
-	for f in $(net_module_orig); do ln -fs $(CORE_SRCDIR)/net/$$f \
-	$(CORE_SRCDIR)/net/linux_kernel/$$f; done
-	for f in $(bulk_src); do ln -fs $(CORE_SRCDIR)/net/bulk_emulation/ut/$$f \
-	$(CORE_SRCDIR)/net/linux_kernel/$$f; done
-#	ln -sf $(CORE_SRCDIR)/net/st/kclient.c \
-#	$(CORE_SRCDIR)/net/linux_kernel/kclient.c
-
-clean distclean:
-	#for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
-	#for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
 	$(RM) Module.markers modules.order
 	$(RM) init.c
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
-<<<<<<< HEAD
 	$(RM) $(CORE_SRCDIR)/addb/addb_k.?
 	$(RM) $(CORE_SRCDIR)/addb/linux_kernel/addb_k.?
 	$(RM) $(CORE_SRCDIR)/rpc/session_k.?
@@ -227,12 +184,6 @@ clean distclean:
 addb_dependency: $(CORE_SRCDIR)/addb/addb.ff
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/addb/addb.ff
 	mv addb_k.? $(CORE_SRCDIR)/addb/
-=======
-
-addb_dependency: $(CORE_SRCDIR)/addb/addb.ff
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/addb/addb.ff
-	mv addb_k.* $(CORE_SRCDIR)/addb/
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 	ln -sf $(CORE_SRCDIR)/addb/addb_k.? $(CORE_SRCDIR)/addb/linux_kernel/
 
 install modules_install:
@@ -253,21 +204,12 @@ c2t1fs_prepare:
 
 prepare_everything:
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/rpc/session.ff
-<<<<<<< HEAD
 	mv session_k.? $(CORE_SRCDIR)/rpc/
 	ln -sf $(CORE_SRCDIR)/rpc/session_k.h rpc/session_k.h
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/stob/ut/io.ff
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/ioservice/io_fops.ff
 	mv io_k.? $(CORE_SRCDIR)/stob/ut/
 	mv io_fops_k.? $(CORE_SRCDIR)/ioservice/linux_kernel/
-=======
-	mv session_k* $(CORE_SRCDIR)/rpc/
-	ln -sf $(CORE_SRCDIR)/rpc/session_k.h rpc/session_k.h
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/stob/ut/io.ff
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/ioservice/io_fops.ff
-	mv io_k* $(CORE_SRCDIR)/stob/ut/
-	mv io_fops_k* $(CORE_SRCDIR)/ioservice/linux_kernel/
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.c $(CORE_SRCDIR)/c2t1fs/io_k.c
 	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.h $(CORE_SRCDIR)/c2t1fs/io_k.h
 	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.c stob/ut/io_k.c
@@ -277,23 +219,12 @@ net_dependency:
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/net/net_otw_types.ff
 	$(CORE_SRCDIR)/fop/fop2c -k \
 	$(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io.ff
-<<<<<<< HEAD
 	mv net_otw_types_k.? $(CORE_SRCDIR)/net/bulk_emulation/
 	mv sunrpc_io_k.? $(CORE_SRCDIR)/net/bulk_emulation/
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_xprt.h \
 	net/bulk_emulation/sunrpc_xprt.h
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.? \
 	$(CORE_SRCDIR)/net/linux_kernel/
-=======
-	mv net_otw_types_k* $(CORE_SRCDIR)/net/bulk_emulation/
-	mv sunrpc_io_k* $(CORE_SRCDIR)/net/bulk_emulation/
-	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_xprt.h \
-	net/bulk_emulation/sunrpc_xprt.h
-	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.c \
-	$(CORE_SRCDIR)/net/linux_kernel/net_otw_types_k.c
-	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.h \
-	$(CORE_SRCDIR)/net/linux_kernel/net_otw_types_k.h
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_xprt.h \
 	net/bulk_emulation/sunrpc_xprt.h
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/mem_xprt.h \
@@ -306,13 +237,8 @@ net_dependency:
 	net/linux_kernel/sunrpc_io_k.h
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.c \
 	net/linux_kernel/sunrpc_io_k.c
-<<<<<<< HEAD
 #ut_src        := bulk_if.c buffer_pool_ut.c
 #link_ut       := $(ut_src:%=../ut/%)
-=======
-	#ut_src        := bulk_if.c buffer_pool_ut.c
-	#link_ut       := $(ut_src:%=../ut/%)
->>>>>>> ea6db6c6535b2255f969c4503304e4dfd1fcebb2
 
 test_init:
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/st/ping.?  \
