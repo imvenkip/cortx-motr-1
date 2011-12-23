@@ -138,7 +138,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
 	@code
 
 
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		C2_PRE(lid != LID_NONE);
 		C2_PRE(schema != NULL);
 		C2_PRE(tx != NULL);
@@ -190,8 +190,8 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 {
    /**
 	@code
-	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
-			       || (op == C2_LXO_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
+			       || (op == C2_LXO_DB_DELETE)) {
 		C2_PRE(schema != NULL);
 		C2_PRE(tx != NULL);
 		C2_PRE(out == NULL);
@@ -267,11 +267,11 @@ static int __attribute__ ((unused)) ldb_layout_write(
 			 lid, sizeof(uint64_t),
 			 rec, recsize);
 
-	if (op == C2_LXO_ADD) {
+	if (op == C2_LXO_DB_ADD) {
 		c2_table_insert(tx, &pair);
-	} else if (op == C2_LXO_UPDATE) {
+	} else if (op == C2_LXO_DB_UPDATE) {
 		c2_table_update(tx, &pair);
-	} else if (op == C2_LXO_DELETE) {
+	} else if (op == C2_LXO_DB_DELETE) {
 		c2_table_delete(tx, &pair);
 	}
 	@endcode

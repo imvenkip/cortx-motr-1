@@ -492,7 +492,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
    /**
 	@code
 
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		C2_PRE(lid != 0);
 	}
 
@@ -501,7 +501,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	Allocate new layout as an instance of c2_pdclust_layout that
 	embeds c2_layout.
 
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		struct c2_db_pair       pair;
 		uint64_t                recsize;
 
@@ -532,7 +532,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	buffer (pointed by cur) and store those in the
 	c2_lay_list_enum->lle_list_of_cobs.
 
-	if ((op == C2_LXO_LOOKUP) && (layout-enumeration is LIST)
+	if ((op == C2_LXO_DB_LOOKUP) && (layout-enumeration is LIST)
 		&& (ldb_list_cob_entries::llces_nr > MAX_INLINE_COB_ENTRIES)) {
 		Invoke corresponding leto_decode() so as to read cob entries
 		beyond MAX_INLINE_COB_ENTRIES.
@@ -572,8 +572,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	leto_encode().
 	leto_encode(schema, l, op, tx, out);
 
-	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
-			       || (op == C2_LXO_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
+			       || (op == C2_LXO_DB_DELETE)) {
 		uint64_t recsize;
 		if (layout-enumeration is LIST) {
 			struct ldb_list_cob_entries ces;

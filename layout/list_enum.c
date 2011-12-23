@@ -118,12 +118,12 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 {
    /**
 	@code
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		C2_PRE(lid != 0);
 	}
 	C2_PRE(cur != NULL);
 
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the COB identifiers belonging to the layout with the
 		layout id 'lid' and index greater than MAX_INLINE_COB_ENTRIES,
 		from the cob_lists table and store those in the buffer pointed
@@ -162,8 +162,8 @@ static int list_encode(struct c2_ldb_schema *schema,
         Read the cob identifiers list from c2_lay_list_enum::lle_list_of_cobs
 	and store it into the buffer.
 
-	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
-			       || (op == C2_LXO_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
+			       || (op == C2_LXO_DB_DELETE)) {
 		Depending upon the value of op, insert/update/delete cob
 		entries beyond MAX_INLINE_COB_ENTRIES to/from the cob_lists
 		table.

@@ -499,8 +499,8 @@ int c2_ldb_rec_add(const struct c2_layout *l,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with op set to C2_LXO_ADD.
-	c2_layout_encode(TRUE, C2_LXO_ADD, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with op set to C2_LXO_DB_ADD.
+	c2_layout_encode(TRUE, C2_LXO_DB_ADD, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
@@ -516,8 +516,8 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with op set to C2_LXO_UPDATE.
-	c2_layout_encode(TRUE, C2_LXO_UPDATE, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with op set to C2_LXO_DB_UPDATE.
+	c2_layout_encode(TRUE, C2_LXO_DB_UPDATE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;
@@ -538,8 +538,8 @@ int c2_ldb_rec_delete(const uint64_t lid,
 {
    /**
 	@code
-	Invoke c2_layout_encode() with op set to C2_LXO_DELETE.
-	c2_layout_encode(TRUE, C2_LXO_DELETE, l, schema, tx, NULL);
+	Invoke c2_layout_encode() with op set to C2_LXO_DB_DELETE.
+	c2_layout_encode(TRUE, C2_LXO_DB_DELETE, l, schema, tx, NULL);
 	@endcode
    */
 	return 0;

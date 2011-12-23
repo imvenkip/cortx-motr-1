@@ -91,7 +91,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
    /**
 	@code
 
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		C2_PRE(lid != 0);
 	else
 		C2_PRE(cur != NULL);
@@ -99,7 +99,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	Allocate new layout as an instance of c2_composite_layout that
 	embeds c2_layout.
 
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		struct c2_db_pair	pair;
 
 		uint32_t recsize = sizeof(struct c2_ldb_rec);
@@ -107,7 +107,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
 	}
 
-	if (op == C2_LXO_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the segments from comp_layout_ext_map, belonging to
 		composite layout with layout id 'lid' and store them in the
 		buffer pointed by cur.
@@ -147,9 +147,9 @@ static int composite_encode(struct c2_ldb_schema *schema,
    /**
 	@code
 
-	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
-			       || (op == C2_LXO_DELETE)) {
-		uint64_t recSize = sizeof(struct c2_ldb_rec);
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
+			       || (op == C2_LXO_DB_DELETE)) {
+		uint64_t recsize = sizeof(struct c2_ldb_rec);
 
 		ret = ldb_layout_write(op, recsize, out, schema, tx);
 	}
@@ -157,8 +157,8 @@ static int composite_encode(struct c2_ldb_schema *schema,
 	Store composite layout type specific fields like information
 	about the sub-layouts, into the buffer.
 
-	if ((op == C2_LXO_ADD) || (op == C2_LXO_UPDATE)
-			       || (op == C2_LXO_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
+			       || (op == C2_LXO_DB_DELETE)) {
 		Form records for the cob_lists table by using data from the
 		buffer and depending on the value of op, insert/update/delete
 		those records to/from the cob_lists table.

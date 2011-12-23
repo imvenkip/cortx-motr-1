@@ -112,15 +112,16 @@ struct c2_layout_ops {
 };
 
 /**
-   Layout DB operation on a layout record.
-   C2_LXO_NONE indicates that encode/decode has to operate on a buffer.
+   Layout DB operation on a layout record, performed through either
+   c2_layout_decode or c2_layout_encode routines.
+   C2_LXO_DB_NONE indicates that encode/decode has to operate on a buffer.
 */
 enum c2_layout_xcode_op {
-	C2_LXO_NONE,
-	C2_LXO_ADD,
-	C2_LXO_UPDATE,
-	C2_LXO_DELETE,
-	C2_LXO_LOOKUP,
+	C2_LXO_DB_NONE,
+	C2_LXO_DB_ADD,
+	C2_LXO_DB_UPDATE,
+	C2_LXO_DB_DELETE,
+	C2_LXO_DB_LOOKUP,
 };
 
 /**
