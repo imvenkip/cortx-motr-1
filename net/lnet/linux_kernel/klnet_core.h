@@ -42,6 +42,9 @@ enum {
 	C2_NET_LNET_NIDSTR_SIZE     = 32, /**< Maximum size of a NID string. */
 	C2_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */
 	C2_NET_LNET_EQ_SIZE         = 8,  /**< Size of LNet event queue. */
+
+	/** Portal mask when encoded in hdr_data */
+	C2_NET_LNET_PORTAL_MASK     = C2_NET_LNET_BUFFER_ID_MAX,
 };
 
 /**
@@ -74,7 +77,6 @@ struct nlx_kcore_transfer_mc {
 
 	/** ME handle associated with the receive buffer queue */
 	lnet_handle_me_t                 ktm_meh;
-
 };
 
 
