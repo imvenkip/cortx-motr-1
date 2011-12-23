@@ -182,10 +182,10 @@ C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) >= sizeof(void *));
    This structure defines the fields in an LNet transport end point address.
  */
 struct nlx_core_ep_addr {
-	uint64_t cepa_nid;   /**< The LNet Network Identifier */
-	uint32_t cepa_pid;   /**< The LNet Process Identifier */
-	uint32_t cepa_portal;/**< The LNet Portal Number */
-	uint32_t cepa_tmid;  /**< The Transfer Machine Identifier */
+	uint64_t cepa_nid;    /**< The LNet Network Identifier */
+	uint32_t cepa_pid;    /**< The LNet Process Identifier */
+	uint32_t cepa_portal; /**< The LNet Portal Number */
+	uint32_t cepa_tmid;   /**< The Transfer Machine Identifier */
 };
 
 /* Match bit related definitions */
@@ -289,7 +289,7 @@ struct nlx_core_buffer_event {
 	/** Offset of start of the data in the buffer. (Receive only) */
 	c2_bcount_t                  cbe_offset;
 
-	/** Address of the other end point */
+	/** Address of the other end point.  (unsolicited Receive only)  */
 	struct nlx_core_ep_addr      cbe_sender;
 
 	/** True if the buffer is no longer in use */
@@ -298,7 +298,7 @@ struct nlx_core_buffer_event {
 
 /**
    Core domain data.  The transport layer should embed this in its private data.
-*/
+ */
 struct nlx_core_domain {
 
 	void *cd_upvt; /**< Core user space private */
@@ -309,7 +309,7 @@ struct nlx_core_domain {
 /**
    Core transfer machine data.  The transport layer should embed this in its
    private data.
-*/
+ */
 struct nlx_core_transfer_mc {
 	/** The transfer machine address */
 	struct nlx_core_ep_addr    ctm_addr;
@@ -329,7 +329,7 @@ struct nlx_core_transfer_mc {
 
 /**
    Core buffer data.  The transport layer should embed this in its private data.
-*/
+ */
 struct nlx_core_buffer {
 	/**
 	   The address of the c2_net_buffer structure in the transport address
@@ -367,7 +367,6 @@ struct nlx_core_buffer {
 	void                   *cb_upvt; /**< Core user space private */
 	void                   *cb_kpvt; /**< Core kernel space private */
 };
-
 
 /**
    Allocates and initializes the network domain's private field for use by LNet.
@@ -628,7 +627,7 @@ static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
 
 /**
    @}
-*/
+ */
 
 #endif /* __COLIBRI_NET_LNET_CORE_H__ */
 
