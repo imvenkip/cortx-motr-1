@@ -233,9 +233,10 @@
    representation of a struct c2_net_end_point.
    @code
    struct nlx_xo_ep {
+       uint64_t                xe_magic;
        struct c2_net_end_point xe_ep;
        struct nlx_core_ep_addr xe_core;
-       char                    xe_addr[1];
+       char                    xe_addr[C2_NET_LNET_XEP_ADDR_LEN];
    };
    @endcode
    The length of the structure depends on the length of the string
@@ -464,7 +465,7 @@
      synchronous buffer event delivery.
    - The timeout value can vary depending on the mode of operation. Synchronous
      network delivery is best served by a long timeout value (in the order of a
-     minute), at least up to the time that the transfer machine is stopped.
+     minute), at least up to the time that the transfer machine is stopping.
      Automatic buffer event delivery is better served by a short timeout value
      (in the order of a second).  This is because in the user space transport
      the thread would be blocked in an ioctl call in the kernel, and would not

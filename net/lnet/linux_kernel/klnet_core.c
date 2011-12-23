@@ -557,7 +557,7 @@
    as described in @ref KLNetCoreDLD-lspec-ev.
 
    LNet properly handles the race condition between the automatic unlink of the
-   MD and a call to LNetMDUnlink().
+   MD and a call to @c LNetMDUnlink().
 
 
    @subsection KLNetCoreDLD-lspec-state State Specification
@@ -608,7 +608,7 @@
       invoke the nlx_core_buf_event_wait() subroutine to block waiting for
       buffer events.  Internally this call waits on the
       nlx_kcore_transfer_mc::ktm_sem semaphore.  The semaphore is
-      incremented each time an event is added to the buffer even437t queue.
+      incremented each time an event is added to the buffer event queue.
    -# The event payload is actually delivered via a per transfer machine
       single producer, single consumer, lock-free circular buffer event queue.
       The only requirement for failure free operation is to ensure that there
@@ -625,7 +625,7 @@
       delivery of the events associated with any given receive buffer, thus the
       last event which unlinks the buffer is guaranteed to be delivered last.
    -# LNet properly handles the race condition between the automatic unlink
-      of the MD and a call to LNetMDUnlink().
+      of the MD and a call to @c LNetMDUnlink().
 
    @subsection KLNetCoreDLD-lspec-numa NUMA optimizations
    The LNet transport will initiate calls to the API on threads that may have
@@ -1171,7 +1171,8 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	C2_PRE(c2_mutex_is_locked(&tp->xtm_tm->ntm_mutex));
 	C2_PRE(kctm != NULL && kctm->ktm_magic == C2_NET_LNET_KCORE_TM_MAGIC);
 
-	/* XXX also free ktm_meh? */
+	if (!LNetHandleIsInvalid(kctm->ktm_meh))
+		LNetMEUnlink(kctm->ktm_meh);
 	LNetEQFree(kctm->ktm_eqh);
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
 	c2_semaphore_fini(&kctm->ktm_sem);
