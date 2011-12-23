@@ -66,15 +66,12 @@ static int cons_fom_state(struct c2_fom *fom)
 	if (reply_fop == NULL)
 		return -EINVAL;
 
-	if (fop->f_type == &c2_cons_fop_device_fopt) {
-		/* For device failure fop */
-		reply_fop->cons_notify_type = CMT_DEVICE_FAILURE;
-		reply_fop->cons_return = C2_CONS_FOP_DEVICE_OPCODE;
-	} else
-		return -EINVAL;
-
 	/* Request item */
         req_item = &fop->f_item;
+
+	/* Set repy FOP */
+	reply_fop->cons_notify_type = req_item->ri_type->rit_opcode;
+        reply_fop->cons_return = 0;
 
 	/* Reply item */
         reply_item = &rfop->f_item;

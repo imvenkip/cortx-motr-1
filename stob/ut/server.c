@@ -78,7 +78,7 @@ int main(int argc, char **argv)
 		"-s", "ds1", "-s", "ds2"
 	};
 
-	C2_RPC_SERVER_CTX_DECLARE(sctx, xprt, default_server_argv,
+	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, default_server_argv,
 				  SERVER_LOG_FILE_NAME);
 
 	/*

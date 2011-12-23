@@ -134,6 +134,23 @@ int c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 }
 C2_EXPORTED(c2_fop_type_build_nr);
 
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
+{
+	struct c2_fop_type *rtype;
+
+	c2_mutex_lock(&fop_types_lock);
+	if (ftype == NULL) {
+		/* Returns head of fop_types_list*/
+		rtype = ft_tlist_head(&fop_types_list);
+	} else {
+		/* Returns Next from fop_types_list*/
+		rtype = ft_tlist_next(&fop_types_list, ftype);
+	}
+	c2_mutex_unlock(&fop_types_lock);
+	return rtype;
+}
+C2_EXPORTED(c2_fop_type_next);
+
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 {
 	int i;

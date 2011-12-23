@@ -89,7 +89,6 @@ static int cons_fini(void)
 {
 	c2_processors_fini();
         c2_console_fop_fini();
-	fprintf(stdout, "\n");
 	return 0;
 }
 
@@ -190,47 +189,50 @@ static void init_test_fop(struct c2_cons_fop_test *fop)
 	fop->cons_test_id = 64;
 }
 
-static void check_values(struct c2_fit *it)
+static void check_values(struct c2_fop *fop)
 {
+	struct c2_fit		  it;
         struct c2_fit_yield       yield;
 	struct c2_fid		 *fid;
 	char			 *data;
 	uint64_t		 *value;
 	int			  result;
 
-	result = c2_fit_yield(it, &yield);
+	c2_fop_all_object_it_init(&it, fop);
+	result = c2_fit_yield(&it, &yield);
 	C2_UT_ASSERT(result != 0);
 	fid = (struct c2_fid *)yield.fy_val.ffi_val;
 	C2_UT_ASSERT(fid->f_container == 1);
 	C2_UT_ASSERT(fid->f_key == 2);
 
-	result = c2_fit_yield(it, &yield);
+	result = c2_fit_yield(&it, &yield);
 	C2_UT_ASSERT(result != 0);
 	data = (char *)yield.fy_val.ffi_val;
 	C2_UT_ASSERT(*data == 'd');
 
-	result = c2_fit_yield(it, &yield);
+	result = c2_fit_yield(&it, &yield);
 	C2_UT_ASSERT(result != 0);
 	value = (uint64_t *)yield.fy_val.ffi_val;
 	C2_UT_ASSERT(*value == 64);
+	c2_fop_all_object_it_fini(&it);
 }
 
 static void fop_iterator_test(void)
 {
-	struct c2_cons_fop_test *fop;
-        struct c2_fop           *f;
-        struct c2_fit            it;
+	struct c2_fit		 it;
+	struct c2_fop		*fop;
+        struct c2_cons_fop_test *f;
 
-        f = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
+        fop = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
+        C2_UT_ASSERT(fop != NULL);
+	f = c2_fop_data(fop);
         C2_UT_ASSERT(f != NULL);
-	fop = c2_fop_data(f);
 
-        c2_fop_all_object_it_init(&it, f);
-	init_test_fop(fop);
-	check_values(&it);
-
-        c2_fop_all_object_it_fini(&it);
-        c2_fop_free(f);
+        c2_fop_all_object_it_init(&it, fop);
+	init_test_fop(f);
+	check_values(fop);
+        c2_fop_free(fop);
+	c2_fop_all_object_it_fini(&it);
 }
 
 static void yaml_basic_test(void)
@@ -254,28 +256,25 @@ static void yaml_basic_test(void)
 
 static void input_test(void)
 {
-        struct c2_fop           *f;
-        struct c2_fit            it;
-	int			 result;
+        struct c2_fop	*fop;
+	int		 result;
 
+	file_redirect_init();
 	result = generate_yaml_file(yaml_file);
 	C2_UT_ASSERT(result == 0);
 	result = c2_cons_yaml_init(yaml_file);
 	C2_UT_ASSERT(result == 0);
 
-        f = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
-        C2_UT_ASSERT(f != NULL);
+        fop = c2_fop_alloc(&c2_cons_fop_test_fopt, NULL);
+        C2_UT_ASSERT(fop != NULL);
 
-        c2_fop_all_object_it_init(&it, f);
-        c2_cons_fop_obj_input(&it);
-	c2_fop_it_reset(&it);
-	check_values(&it);
-
-        c2_fop_all_object_it_fini(&it);
-        c2_fop_free(f);
+        c2_cons_fop_obj_input(fop);
+	check_values(fop);
+        c2_fop_free(fop);
 	c2_cons_yaml_fini();
 	result = remove(yaml_file);
 	C2_UT_ASSERT(result == 0);
+	file_redirect_fini();
 }
 
 static void file_compare(const char *in, const char *out)
@@ -302,7 +301,6 @@ static void file_compare(const char *in, const char *out)
 static void output_test(void)
 {
         struct c2_fop	*f;
-        struct c2_fit	 it;
 	int		 result;
 
 	verbose = true;
@@ -316,17 +314,13 @@ static void output_test(void)
 
 	file_redirect_init();
 
-        c2_fop_all_object_it_init(&it, f);
-        c2_cons_fop_obj_input(&it);
-
-	c2_fop_it_reset(&it);
-	c2_cons_fop_obj_output(&it);
+        c2_cons_fop_obj_input(f);
+	c2_cons_fop_obj_output(f);
 
 	file_compare(in_file, out_file);
 	file_redirect_fini();
 
 	verbose = false;
-        c2_fop_all_object_it_fini(&it);
         c2_fop_free(f);
 	c2_cons_yaml_fini();
 	result = remove(yaml_file);
@@ -485,8 +479,6 @@ static void cons_client_init(struct c2_console *cons)
 	C2_UT_ASSERT(result == 0);
 	result = c2_cons_yaml_init(yaml_file);
 	C2_UT_ASSERT(result == 0);
-	result = c2_cons_mesg_init();
-	C2_UT_ASSERT(result == 0);
 	result = c2_cons_rpc_client_init(cons);
 	C2_UT_ASSERT(result == 0);
 }
@@ -497,7 +489,6 @@ static void cons_client_fini(struct c2_console *cons)
 
 	/* Fini Test */
 	c2_cons_rpc_client_fini(cons);
-	c2_cons_mesg_fini();
 	c2_cons_yaml_fini();
 	result = remove(yaml_file);
 	C2_UT_ASSERT(result == 0);
@@ -605,21 +596,24 @@ static void mesg_send_client(int dummy)
 		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 	};
-	struct c2_cons_mesg *mesg;
-	c2_time_t	     deadline;
-	int		     result;
+	struct c2_fop_type *ftype;
+	struct c2_fop	   *fop;
+	c2_time_t	    deadline;
+	int		    result;
 
 	cons_client_init(&client);
 	result = c2_cons_rpc_client_connect(&client);
 	C2_UT_ASSERT(result == 0);
 
 	deadline = c2_cons_timeout_construct(10);
-	mesg = c2_cons_mesg_get(CMT_DEVICE_FAILURE);
-	mesg->cm_rpc_mach = &client.cons_rpc_mach;
-	mesg->cm_rpc_session = &client.cons_rpc_session;
-	c2_cons_mesg_name_print(mesg);
+	ftype = c2_cons_fop_type_find(C2_CONS_FOP_DEVICE_OPCODE);
+	C2_UT_ASSERT(ftype != NULL);
+	c2_cons_fop_name_print(ftype);
 	printf("\n");
-	result = c2_cons_mesg_send(mesg, deadline);
+	fop = c2_fop_alloc(ftype, NULL);
+	C2_UT_ASSERT(fop != NULL);
+	c2_cons_fop_obj_input(fop);
+	result = c2_cons_fop_send(fop, &client.cons_rpc_session, deadline);
 	C2_UT_ASSERT(result == 0);
 
 	result = c2_cons_rpc_client_disconnect(&client);
@@ -733,30 +727,27 @@ static void console_input_test(void)
 	truncate(out_file, 0L);
 	fseek(out_fp, 0L, SEEK_SET);
 
-	result = console_cmd("show_fops", "-l", "-f", "0", NULL);
+	sprintf(buf, "%d", C2_CONS_FOP_DEVICE_OPCODE);
+	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	C2_UT_ASSERT(result == EX_OK);
-	result = error_mesg_match(out_fp, "Info for \"00 Device FOP Message\"");
+	sprintf(buf, "%.2d, Device Failed",
+		     C2_CONS_FOP_DEVICE_OPCODE);
+	result = error_mesg_match(out_fp, buf);
 	C2_UT_ASSERT(result == 0);
 	truncate(out_file, 0L);
 	fseek(out_fp, 0L, SEEK_SET);
 
-	result = console_cmd("show_fops", "-l", "-f", "1", NULL);
+	sprintf(buf, "%d", C2_CONS_FOP_REPLY_OPCODE);
+	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	C2_UT_ASSERT(result == EX_OK);
-	result = error_mesg_match(out_fp, "Info for \"01 Reply FOP Message\"");
+	sprintf(buf, "%.2d, Console Reply",
+		     C2_CONS_FOP_REPLY_OPCODE);
+	result = error_mesg_match(out_fp, buf);
 	C2_UT_ASSERT(result == 0);
 	truncate(out_file, 0L);
 	fseek(out_fp, 0L, SEEK_SET);
 
-	sprintf(buf, "%d", CMT_MESG_NR);
-	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
-	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, usage_msg);
-	C2_UT_ASSERT(result == 0);
-	truncate(err_file, 0L);
-	fseek(err_fp, 0L, SEEK_SET);
-
-	sprintf(buf, "%d", CMT_MESG_NR + 1);
-	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
+	result = console_cmd("show_fops", "-l", "-f", 0, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
 	result = error_mesg_match(err_fp, usage_msg);
 	C2_UT_ASSERT(result == 0);
