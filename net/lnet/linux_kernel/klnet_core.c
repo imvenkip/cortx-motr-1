@@ -216,11 +216,12 @@
    @subsection KLNetCoreDLD-lspec-tm-list Transfer Machine Uniqueness
 
    The kernel Core module must ensure that all transfer machines on the host
-   have unique transfer machine identifiers, regardless of the transport
-   instance or network domain context in which these transfer machines are
-   created.  To support this, the ::nlx_kcore_tms list threads through all the
-   kernel Core's per-TM private data structures. This list is private to the
-   kernel Core, and is protected by the ::nlx_kcore_mutex.
+   have unique transfer machine identifiers for a given NID/PID/Portal,
+   regardless of the transport instance or network domain context in which
+   these transfer machines are created.  To support this, the ::nlx_kcore_tms
+   list threads through all the kernel Core's per-TM private data
+   structures. This list is private to the kernel Core, and is protected by the
+   ::nlx_kcore_mutex.
 
    The same list helps in assigning dynamic transfer machine identifiers.  The
    highest available value at the upper bound of the transfer machine
@@ -328,8 +329,10 @@
    - A Match Entry (ME) list. This is represented by the
      nlx_kcore_transfer_mc::ktm_meh handle.
 
-   The nlx_core_tm_start() subroutine creates these resources, and the
-   nlx_core_tm_stop() subroutine releases them.
+   The nlx_core_tm_start() subroutine creates the nlx_kcore_transfer_mc::ktm_eqh
+   handle. The nlx_kcore_transfer_mc::ktm_meh handle is created when the first
+   receive buffer is queued.  The nlx_core_tm_stop() subroutine releases both
+   handles.
 
    @subsection KLNetCoreDLD-lspec-buf-res LNet Buffer Resources
 
@@ -362,9 +365,10 @@
    to the nlx_core_buffer data structure.  The callback subroutine does the
    following:
 
-   -# It will ignore @c LNET_EVENT_SEND events.
+   -# It will ignore @c LNET_EVENT_SEND events delivered as a result of
+      a @c LNetGet() call.
    -# It will assert that an @c LNET_EVENT_ACK events is not received. This is
-      controllable in the LNetPut() call.
+      controllable in the @c LNetPut() call.
    -# It obtains the nlx_kcore_transfer_mc::ktm_bevq_lock spin lock.
    -# The bev_cqueue_pnext() subroutine is then used to locate the next buffer
       event structure in the circular buffer event queue which will be used to
@@ -375,6 +379,11 @@
       field.  For @c LNET_EVENT_UNLINK events, a @c -ECANCELED value is
       written to the nlx_core_buffer_event::cbe_status field and the
       nlx_core_buffer_event::cbe_unlinked field set to true.
+      For @c LNET_EVENT_PUT events corresponding to unsolicited message
+      delivery, the sender's TMID and Portal are encoded
+      in the hdr_data.  These values are decoded into the
+      nlx_core_buffer_event::cbe_sender, along with the initiator's NID and PID.
+      The nlx_core_buffer_event::cbe_sender is not set for other events.
    -# It invokes the bev_cqueue_put() subroutine to "produce" the event in the
       circular queue.
    -# It releases the nlx_kcore_transfer_mc::ktm_bevq_lock spin lock.
@@ -446,8 +455,8 @@
 
    @subsection KLNetCoreDLD-lspec-send LNet Sending Messages
 
-   -# Create an MD using @c LNetMDBind() each invocation of the
-      nlx_core_buf_msg_recv() subroutine.
+   -# Create an MD using @c LNetMDBind() with each invocation of the
+      nlx_core_buf_msg_send() subroutine.
       The MD is set up to unlink automatically.
       Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
@@ -459,8 +468,9 @@
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetPut() subroutine to send the MD to the destination.  The
       match bits must set to the destination TM identifier in the higher order
-      bits and zeros for the other bits. No acknowledgment should be
-      requested.
+      bits and zeros for the other bits. The hdr_data must be set to a value
+      encoding the TMID (in the upper bits, like the match bits) and the portal
+      (in the lower bits). No acknowledgment should be requested.
    -# When the message is sent, an @c LNET_EVENT_SEND event will be delivered
       to the event queue, and processed as described in
       @ref KLNetCoreDLD-lspec-ev.
@@ -505,7 +515,7 @@
       transport should put the match bits of the remote passive buffer into the
       nlx_core_buffer::cb_match_bits field. The destination address of the
       remote transfer machine with the passive buffer should be set in the
-      nlx_core_buffer::cb_passive_addr field.
+      nlx_core_buffer::cb_addr field.
    -# Create an MD using @c LNetMDBind() with each invocation of the
       nlx_core_buf_active_recv() or nlx_core_buf_active_send() subroutines.
       The MD is set up to unlink automatically.
@@ -518,14 +528,16 @@
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetGet() subroutine to initiate the active read or the @c
-      LNetPut() subroutine to initiate the active write. No acknowledgment
+      LNetPut() subroutine to initiate the active write. The hdr_data
+      is set to 0 in the case of @c LNetPut(). No acknowledgment
       should be requested.
    -# When a response to the @c LNetGet() or @c LNetPut() call completes, an @c
       LNET_EVENT_SEND event will be delivered to the event queue and should be
-      ignored.  See @ref KLNetCoreDLD-lspec-ev for details.
-   -# When the bulk data transfer completes, an @c LNET_EVENT_REPLY event will
-      be delivered to the event queue, and will be processed as described in
-      @ref KLNetCoreDLD-lspec-ev.
+      ignored in the case of @c LNetGet().  See @ref KLNetCoreDLD-lspec-ev
+      for details.
+   -# When the bulk data transfer for @c LNetGet() completes, an
+      @c LNET_EVENT_REPLY event will be delivered to the event queue, and will
+      be processed as described in @ref KLNetCoreDLD-lspec-ev.
 
 
    @subsection KLNetCoreDLD-lspec-lnet-cancel LNet Canceling Operations
@@ -752,6 +764,56 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
 }
 
 /**
+   Find an unused tmid.
+   @note The nlx_kcore_mutex must be locked by the caller
+   @param cepa The NID, PID and Portal are used to filter the ::nlx_kcore_tms
+   @return The largest available tmid, or -EADDRNOTAVAIL if none exists.
+ */
+static bool nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
+{
+	int tmid = C2_NET_LNET_TMID_MAX;
+	struct nlx_kcore_transfer_mc *scan;
+	struct nlx_core_ep_addr *scanaddr;
+	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
+
+	/* list is in descending order by tmid */
+	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
+		scanaddr = &scan->ktm_tm->ctm_addr;
+		if (scanaddr->cepa_nid == cepa->cepa_nid &&
+		    scanaddr->cepa_pid == cepa->cepa_pid &&
+		    scanaddr->cepa_portal == cepa->cepa_portal) {
+			if (scanaddr->cepa_tmid == tmid)
+				--tmid;
+			else if (scanaddr->cepa_tmid < tmid)
+				break;
+		}
+	} c2_tlist_endfor;
+	return tmid >= 0 ? tmid : -EADDRNOTAVAIL;
+}
+
+/**
+   Add the transfer machine to the ::nlx_kcore_tms.  The list is kept in
+   descending order sorted by nlx_core_ep_addr::cepa_tmid.
+   @note the nlx_kcore_mutex must be locked by the caller
+ */
+static void nlx_kcore_tms_list_add(struct nlx_kcore_transfer_mc *kctm)
+{
+	struct nlx_kcore_transfer_mc *scan;
+	struct nlx_core_ep_addr *scanaddr;
+	struct nlx_core_ep_addr *cepa = &kctm->ktm_tm->ctm_addr;
+	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
+
+	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
+		scanaddr = &scan->ktm_tm->ctm_addr;
+		if (scanaddr->cepa_tmid <= cepa->cepa_tmid) {
+			tms_tlist_add_before(scan, kctm);
+			return;
+		}
+	} c2_tlist_endfor;
+	tms_tlist_add_tail(&nlx_kcore_tms, kctm);
+}
+
+/**
    Callback for the LNet Event Queue.
  */
 static void nlx_kcore_eq_cb(lnet_event_t *event)
@@ -787,10 +849,16 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		bev->cbe_status = event->status;
 	bev->cbe_length = event->mlength;
 	bev->cbe_offset = event->offset;
-	bev->cbe_sender.cepa_nid = event->initiator.nid;
-	bev->cbe_sender.cepa_pid = event->initiator.pid;
-	bev->cbe_sender.cepa_portal = event->pt_index;
-	bev->cbe_sender.cepa_tmid = event->match_bits >> C2_NET_LNET_TMID_SHIFT;
+	if (event->hdr_data != 0) {
+		bev->cbe_sender.cepa_nid = event->initiator.nid;
+		bev->cbe_sender.cepa_pid = event->initiator.pid;
+		bev->cbe_sender.cepa_portal =
+		    event->hdr_data & C2_NET_LNET_PORTAL_MASK;
+		bev->cbe_sender.cepa_tmid =
+		    event->hdr_data >> C2_NET_LNET_TMID_SHIFT;
+	} else
+		C2_SET0(&bev->cbe_sender);
+
 	bev->cbe_unlinked = event->unlinked != 0;
 	bev_cqueue_put(&lctm->ctm_bevq);
 	spin_unlock(&ktm->ktm_bevq_lock);
@@ -1038,14 +1106,12 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 
 	c2_mutex_lock(&nlx_kcore_mutex);
 	if (cepa->cepa_tmid == C2_NET_LNET_TMID_INVALID) {
-		for (cepa->cepa_tmid = C2_NET_LNET_TMID_MAX;
-		     nlx_kcore_addr_in_use(cepa); --cepa->cepa_tmid)
-			if (cepa->cepa_tmid == 0) {
-				c2_mutex_unlock(&nlx_kcore_mutex);
-				cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
-				rc = -EADDRNOTAVAIL;
-				goto fail_with_eq;
-			}
+		rc = nlx_kcore_max_tmid_find(cepa);
+		if (rc < 0) {
+			c2_mutex_unlock(&nlx_kcore_mutex);
+			goto fail_with_eq;
+		}
+		cepa->cepa_tmid = rc;
 	} else if (cepa->cepa_tmid > C2_NET_LNET_TMID_MAX) {
 		c2_mutex_unlock(&nlx_kcore_mutex);
 		rc = -EINVAL;
@@ -1060,7 +1126,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		c2_mutex_unlock(&nlx_kcore_mutex);
 		goto fail_with_eq;
 	}
-	tms_tlist_add(&nlx_kcore_tms, kctm);
+	nlx_kcore_tms_list_add(kctm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 
 	bev_link_bless(&e1->cbe_tm_link);
