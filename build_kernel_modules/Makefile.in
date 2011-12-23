@@ -1,10 +1,14 @@
-CORE_SRCDIR = @SRCDIR@
-C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
-KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
-FOPDIR = @SRCDIR@/fop
-STOBDIR = @SRCDIR@/stob/ut
+CORE_SRCDIR = /mnt/hgfs/work/colibri/core
+C2T1FS_SRCDIR = $(CORE_SRCDIR)/c2t1fs
+KSUNRPC_SRCDIR = $(CORE_SRCDIR)/net/ksunrpc
+FOPDIR = $(CORE_SRCDIR)/fop
+STOBDIR = $(CORE_SRCDIR)/stob
+IOSERVICEDIR = $(CORE_SRCDIR)/ioservice
+GALOISDIR = $(CORE_SRCDIR)/../galois
 
-GCOV_PROFILE := @K_ENABLE_COVERAGE@
+KERNEL_BUILDDIR = /home/xyratex/Documents/linux-2.6.35
+
+GCOV_PROFILE := y
 
 testdirs := ../net/bulk_emulation/st/linux_kernel/ \
             ../rpc/it/linux_kernel/ \
@@ -19,27 +23,168 @@ subdirs := ../rpc/linux_kernel/ ../c2t1fs/ \
            ../ioservice/linux_kernel/ ../xcode/linux_kernel/ \
            ../fol/linux_kernel/ ../dtm/linux_kernel/ ../cob/linux_kernel/
 
-EXTRA_CFLAGS = -I$(CORE_SRCDIR)
-obj-y += $(subdirs)
+EXTRA_CFLAGS = -I. -I$(CORE_SRCDIR)
+
+#net dependencies
+
+#addb_dependencies
+
+#Directory listing in core/ having linux_kernel/
+dirs = addb addb/linux_kernel c2t1fs cob db db/linux_kernel dtm fid fol fop  \
+	galois ioservice ioservice/linux_kernel layout lib lib/linux_kernel  \
+	lib/ut net net/linux_kernel net/bulk_emulation net/bulk_emulation/ut \
+	net/ksunrpc net/ut pool rpc sm sns stob stob/linux_kernel stob/ut xcode
+
+#Source Listing
+addb_srcs = addb.c addb_fop.c addb_k.c
+addb_headers = addb_k.h
+
+addb_linux_kernel_srcs = addb_console.c
+
+c2t1fs_srcs = main.c io_k.c
+c2t1fs_headers = c2t1fs.h io_k.h io_fops_k.h
+
+cob_srcs = cob.c
+
+db_srcs = db_common.c
+db_linux_kernel_srcs = db.c
+db_linux_kernel_headers = db_impl.h
+
+dtm_srcs = verno.c
+
+fid_srcs = fid.c
+fid_headers = fid.h
+
+fol_srcs = fol.c
+fol_headers = fol.h
+
+fop_srcs = fop.c fom.c fop_format.c fop_iterator.c fop_base.c fop_onwire.c
+
+galois_srcs = galois.c
+galois_headers = galois.h
+
+ioservice_srcs = io_fops.c
+ioservice_headers = io_fops.h
+
+ioservice_linux_kernel_srcs = io_fops_k.c
+ioservice_linux_kernel_headers = io_fops_k.h
+
+layout_srcs = layout.c pdclust.c
+layout_headers = layout.h pdclust.h
+
+lib_srcs = bitstring.c vec.c list.c queue.c refs.c time.c bitmap.c chan.c \
+	misc.c buf.c cond.c thread.c tlist.c
+lib_headers = misc.h memory.h errno.h arith.h fop.h buf.h
+
+lib_linux_kernel_srcs = memory.c mutex.c rwlock.c ktime.c timer.c  \
+	kthread.c semaphore.c processor.c kvec.c ut.c main.c
+
+lib_ut_srcs = rwlock.c bitmap.c tlist.c chan.c list.c mutex.c \
+	queue.c refs.c tlist.c time.c vec.c zerovec.c thread.c
+
+net_srcs = buf.c domain.c ep.c net.c tm.c buffer_pool.c connection.c \
+	net_cli.c net_utils.c net_srv.c
+
+net_headers = net.h net_internal.h
+
+net_bulk_emulation_srcs = ksunrpc_server.c net_otw_types_k.c
+net_bulk_emulation_headers = net_otw_types_k.h
+
+net_bulk_emulation_ut_srcs = ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
+
+net_linux_kernel_srcs = sunrpc_io_k.c
+
+net_ksunrpc_srcs = domain.c client.c kxdr.c
+net_ksunrpc_headers = ksunrpc.h
+
+net_ut_srcs = bulk_if.c buffer_pool_ut.c
+
+pool_srcs = pool.c
+
+rpc_srcs = formation.c rpc2.c rpc_base.c session.c session_foms.c \
+	conn.c slot.c session_utils.c session_fops.c rpc_onwire.c \
+	session_k.c
+
+sm_srcs = sm.c
+
+sns_srcs = ls_solve.c matvec.c parity_math.c parity_ops.c
+sns_headers = parity_math.h
+
+stob_srcs = stob.c
+stob_headers = stob.h
+
+stob_linux_kernel_src = kstob.c
+
+stob_ut_srcs = io_fop_init.c
+stob_ut_headers = io_fop.h
+
+xcode_srcs = bufvec_xcode.c bufvec_xcode_fop.c bufvec_xcode_size.c
+
+ut_orig := bitmap.c chan.c list.c mutex.c queue.c refs.c rwlock.c \
+	thread.c time.c vec.c tlist.c zerovec.c
+
+net_ut_orig := bulk_if.c buffer_pool_ut.c
+
+net_module_orig := buf.c domain.c ep.c net.c tm.c buffer_pool.c \
+	connection.c net.c net_cli.c net_utils.c net_srv.c
+
+bulk_src := bulk_mem_ut.c ksunrpc_ut.c
+
+kcolibri_objects = $(foreach d, $(dirs), $(foreach f, \
+	$($(subst /,_,$(d))_srcs), $(addprefix $(d)/, $(subst .c,.o, $(f)))))
+
+#obj-y += $(subdirs)
 
 obj-m += kcolibri.o
-kcolibri-y += main.o init.o dummy_init_fini.o built-in.o
+kcolibri-y += main.o init.o dummy_init_fini.o $(kcolibri_objects)
 
 obj-y += $(testdirs)
 
-all:
-	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
-	for s in $(testdirs) ;do $(MAKE) -C $$s prepare ;done
+create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(f))
+
+all: initialize c2t1fs_prepare addb_dependency net_dependency \
+	prepare_everything test_init
+
+#	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
+#	for s in $(testdirs) ;do $(MAKE) -C $$s prepare ;done
+	@echo $(kcolibri_objects)
+	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
+
+initialize:
 	ln -sf $(CORE_SRCDIR)/colibri/init.c .
-	# DO NOT append 'modules' target to the following $(MAKE)
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd`
+# DO NOT append 'modules' target to the following $(MAKE)
+	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_srcs),   \
+		$(create_links)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_headers),\
+		$(create_links)))
 
 clean distclean:
-	for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
-	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+#for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
+#for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
+	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
 	$(RM) Module.markers modules.order
 	$(RM) init.c
+	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
+	$(RM) $(CORE_SRCDIR)/addb/addb_k.?
+	$(RM) $(CORE_SRCDIR)/addb/linux_kernel/addb_k.?
+	$(RM) $(CORE_SRCDIR)/rpc/session_k.?
+	$(RM) $(CORE_SRCDIR)/stob/ut/io_k.?
+	$(RM) $(CORE_SRCDIR)/ioservice/linux_kernel/io_fops_k.?
+	$(RM) $(CORE_SRCDIR)/c2t1fs/io_k.?
+	$(RM) $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.?
+	$(RM) $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.?
+	$(RM) $(CORE_SRCDIR)/net/linux_kernel/net_otw_types_k.?
+#	$(RM) $(CORE_SRCDIR)/net/bulk_emulation/st/linux_kernel/ping.?
+#	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/rpc_ping.?
+	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fop_k.?
+#	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fom.?
+	$(RM) $(CORE_SRCDIR)/net/linux_kernel/sunrpc_io_k.?
+
+addb_dependency: $(CORE_SRCDIR)/addb/addb.ff
+	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/addb/addb.ff
+	mv addb_k.? $(CORE_SRCDIR)/addb/
+	ln -sf $(CORE_SRCDIR)/addb/addb_k.? $(CORE_SRCDIR)/addb/linux_kernel/
 
 install modules_install:
 	for s in $(subdirs) ;do $(MAKE) -C $$s install ;done
@@ -53,3 +198,60 @@ dist distdir:
 	for s in $(subdirs) ;do $(MAKE) -C $$s distdir ;done
 	for s in $(testdirs) ;do $(MAKE) -C $$s distdir ;done
 
+c2t1fs_prepare:
+	ln -sf $(GALOISDIR)/galois.h $(CORE_SRCDIR)/sns
+	ln -sf $(GALOISDIR)/galois.[ch] $(CORE_SRCDIR)/galois
+
+prepare_everything:
+	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/rpc/session.ff
+	mv session_k.? $(CORE_SRCDIR)/rpc/
+	ln -sf $(CORE_SRCDIR)/rpc/session_k.h rpc/session_k.h
+	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/stob/ut/io.ff
+	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/ioservice/io_fops.ff
+	mv io_k.? $(CORE_SRCDIR)/stob/ut/
+	mv io_fops_k.? $(CORE_SRCDIR)/ioservice/linux_kernel/
+	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.c $(CORE_SRCDIR)/c2t1fs/io_k.c
+	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.h $(CORE_SRCDIR)/c2t1fs/io_k.h
+	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.c stob/ut/io_k.c
+	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.h stob/ut/io_k.h
+
+net_dependency:
+	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/net/net_otw_types.ff
+	$(CORE_SRCDIR)/fop/fop2c -k \
+	$(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io.ff
+	mv net_otw_types_k.? $(CORE_SRCDIR)/net/bulk_emulation/
+	mv sunrpc_io_k.? $(CORE_SRCDIR)/net/bulk_emulation/
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_xprt.h \
+	net/bulk_emulation/sunrpc_xprt.h
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.? \
+	$(CORE_SRCDIR)/net/linux_kernel/
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_xprt.h \
+	net/bulk_emulation/sunrpc_xprt.h
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/mem_xprt.h \
+	net/bulk_emulation/mem_xprt.h
+	ln -sf $(CORE_SRCDIR)/net/ksunrpc/ksunrpc.h \
+	net/bulk_emulation/ksunrpc.h
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.h \
+	net/bulk_emulation/sunrpc_io_k.h
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.h \
+	net/linux_kernel/sunrpc_io_k.h
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.c \
+	net/linux_kernel/sunrpc_io_k.c
+#ut_src        := bulk_if.c buffer_pool_ut.c
+#link_ut       := $(ut_src:%=../ut/%)
+
+test_init:
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/st/ping.?  \
+	$(CORE_SRCDIR)/net/bulk_emulation/st/linux_kernel/
+	ln -sf $(CORE_SRCDIR)/rpc/it/rpc_ping.?  \
+	$(CORE_SRCDIR)/rpc/it/linux_kernel/
+	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop_k.?  \
+	$(CORE_SRCDIR)/rpc/it/linux_kernel/
+	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop.?  \
+	$(CORE_SRCDIR)/rpc/it/linux_kernel/
+	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fom.?  \
+	$(CORE_SRCDIR)/rpc/it/linux_kernel/
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.? \
+	$(CORE_SRCDIR)/net/linux_kernel/
+	ln -sf $(CORE_SRCDIR)/ioservice/linux_kernel/io_fops_k.h \
+	c2t1fs/
