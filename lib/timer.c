@@ -127,18 +127,21 @@ C2_EXPORTED(c2_timer_locality_fini);
 static struct timer_tid *locality_tid_find(struct c2_timer_locality *loc,
 		pid_t tid)
 {
-	struct timer_tid *tt = NULL;
+	struct timer_tid *tt;
+	struct timer_tid *result = NULL;
 
 	C2_PRE(loc != NULL);
 
 	c2_mutex_lock(&loc->tlo_lock);
 	c2_tlist_for(&tid_tl, &loc->tlo_tids, tt) {
-		if (tt->tt_tid == tid)
+		if (tt->tt_tid == tid) {
+			result = tt;
 			break;
+		}
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&loc->tlo_lock);
 
-	return tt;
+	return result;
 }
 
 int c2_timer_thread_attach(struct c2_timer_locality *loc)
