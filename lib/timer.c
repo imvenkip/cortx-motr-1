@@ -353,9 +353,10 @@ static bool timer_state_change(struct c2_timer *timer, enum timer_func func,
 			}
 		};
 
+	C2_PRE(c2_timer_invariant(timer));
+
 	new_state = func == TIMER_INIT ? TIMER_INITED :
 		transition[timer->t_state][func];
-
 	if (!dry_run && new_state != TIMER_INVALID)
 		timer->t_state = new_state;
 	return func == TIMER_INIT || new_state != TIMER_INVALID;
@@ -507,8 +508,11 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	timer->t_callback = callback;
 	timer->t_data     = data;
 
-	rc = (timer->t_type == C2_TIMER_HARD ?
-			timer_hard_init : timer_soft_init)(timer);
+
+	if (timer->t_type == C2_TIMER_HARD)
+		rc = timer_hard_init(timer);
+	else
+		rc = timer_soft_init(timer);
 
 	timer_state_change(timer, TIMER_INIT, rc != 0);
 
@@ -521,40 +525,36 @@ C2_EXPORTED(c2_timer_init);
  */
 int c2_timer_fini(struct c2_timer *timer)
 {
-	C2_PRE(c2_timer_invariant(timer));
-
 	if (!timer_state_change(timer, TIMER_FINI, true))
 		return -EINVAL;
 
-	(timer->t_type == C2_TIMER_HARD ?
-			 timer_hard_fini : timer_soft_fini)(timer);
+	if (timer->t_type == C2_TIMER_HARD)
+		timer_hard_fini(timer);
+	else
+		timer_soft_fini(timer);
 
 	C2_SET0(timer);
 	return 0;
 }
 C2_EXPORTED(c2_timer_fini);
 
-int timer_start_stop(struct c2_timer *timer, enum timer_func func,
-		int (hard_func)(struct c2_timer *timer),
-		int (soft_func)(struct c2_timer *timer))
-{
-	int rc;
-
-	C2_PRE(c2_timer_invariant(timer));
-	if (!timer_state_change(timer, func, true))
-		return -EINVAL;
-	rc = (timer->t_type == C2_TIMER_HARD ? hard_func : soft_func)(timer);
-	timer_state_change(timer, func, rc != 0);
-	return rc;
-}
-
 /**
  * Start a timer.
  */
 int c2_timer_start(struct c2_timer *timer)
 {
-	return timer_start_stop(timer, TIMER_START,
-			timer_hard_start, timer_soft_start);
+	int rc;
+
+	if (!timer_state_change(timer, TIMER_START, true))
+		return -EINVAL;
+
+	if (timer->t_type == C2_TIMER_HARD)
+		rc = timer_hard_start(timer);
+	else
+		rc = timer_soft_start(timer);
+
+	timer_state_change(timer, TIMER_START, rc != 0);
+	return rc;
 }
 C2_EXPORTED(c2_timer_start);
 
@@ -563,8 +563,18 @@ C2_EXPORTED(c2_timer_start);
  */
 int c2_timer_stop(struct c2_timer *timer)
 {
-	return timer_start_stop(timer, TIMER_STOP,
-			timer_hard_stop, timer_soft_stop);
+	int rc;
+
+	if (!timer_state_change(timer, TIMER_STOP, true))
+		return -EINVAL;
+
+	if (timer->t_type == C2_TIMER_HARD)
+		rc = timer_hard_stop(timer);
+	else
+		rc = timer_soft_stop(timer);
+
+	timer_state_change(timer, TIMER_STOP, rc != 0);
+	return rc;
 }
 C2_EXPORTED(c2_timer_stop);
 
