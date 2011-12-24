@@ -106,11 +106,12 @@ C2_EXPORTED(c2_timer_stop);
 /**
    Destroy the timer.
  */
-void c2_timer_fini(struct c2_timer *timer)
+int c2_timer_fini(struct c2_timer *timer)
 {
 	timer->t_running = false;
 	timer->t_callback = NULL;
 	timer->t_data = 0;
+	return 0;
 }
 C2_EXPORTED(c2_timer_fini);
 

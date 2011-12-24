@@ -140,8 +140,9 @@ int c2_timer_stop(struct c2_timer *timer);
  *
  * @pre c2_timer_init() for this timer was succesfully called.
  * @pre timer is not running.
+ * @return 0 means success, other values mean error.
  */
-void c2_timer_fini(struct c2_timer *timer);
+int c2_timer_fini(struct c2_timer *timer);
 
 /**
  * Init timer locality.

@@ -314,9 +314,10 @@ bool c2_timer_invariant(struct c2_timer *timer)
  * It checks the possibility of transition from the current state
  * with a given function and if possible, changes timer state to a new state
  * or executes C2_ASSERT() otherwise.
- * If dry_run is true, than timer state doesn't changes.
+ * @param dry_run if it is true, than timer state doesn't changes.
+ * @return true if state can be changed with the given func, false otherwise
  */
-static void timer_state_change(struct c2_timer *timer, enum timer_func func,
+static bool timer_state_change(struct c2_timer *timer, enum timer_func func,
 		bool dry_run)
 {
 	enum c2_timer_state new_state;
@@ -354,10 +355,10 @@ static void timer_state_change(struct c2_timer *timer, enum timer_func func,
 
 	new_state = func == TIMER_INIT ? TIMER_INITED :
 		transition[timer->t_state][func];
-	C2_ASSERT(new_state != TIMER_INVALID);
 
-	if (!dry_run)
+	if (!dry_run && new_state != TIMER_INVALID)
 		timer->t_state = new_state;
+	return func == TIMER_INIT || new_state != TIMER_INVALID;
 }
 
 /**
@@ -457,7 +458,8 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	C2_PRE(timer != NULL);
 	C2_PRE(timer->t_type == C2_TIMER_HARD);
 
-	timer_state_change(timer, TIMER_ATTACH, true);
+	if (!timer_state_change(timer, TIMER_ATTACH, true))
+		return -EINVAL;
 
 	old_tid = timer->t_tid;
 	c2_mutex_lock(&loc->tlo_lock);
@@ -517,16 +519,18 @@ C2_EXPORTED(c2_timer_init);
 /**
  * Destroy the timer.
  */
-void c2_timer_fini(struct c2_timer *timer)
+int c2_timer_fini(struct c2_timer *timer)
 {
 	C2_PRE(c2_timer_invariant(timer));
 
-	timer_state_change(timer, TIMER_FINI, true);
+	if (!timer_state_change(timer, TIMER_FINI, true))
+		return -EINVAL;
 
 	(timer->t_type == C2_TIMER_HARD ?
 			 timer_hard_fini : timer_soft_fini)(timer);
 
 	C2_SET0(timer);
+	return 0;
 }
 C2_EXPORTED(c2_timer_fini);
 
@@ -537,7 +541,8 @@ int timer_start_stop(struct c2_timer *timer, enum timer_func func,
 	int rc;
 
 	C2_PRE(c2_timer_invariant(timer));
-	timer_state_change(timer, func, true);
+	if (!timer_state_change(timer, func, true))
+		return -EINVAL;
 	rc = (timer->t_type == C2_TIMER_HARD ? hard_func : soft_func)(timer);
 	timer_state_change(timer, func, rc != 0);
 	return rc;
