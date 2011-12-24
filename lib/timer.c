@@ -24,8 +24,8 @@
 #endif
 
 /**
- * @todo hack, but without it timer_create(2) isn't declarated.
- * in Makefile should be -iquote instead of -I
+   @todo hack, but without it timer_create(2) isn't declarated.
+   in Makefile should be -iquote instead of -I
  */
 #include </usr/include/time.h>	  /* timer_create */
 #include <unistd.h>	  /* syscall */
@@ -43,13 +43,13 @@
 #include "lib/timer.h"
 
 /**
- * @addtogroup timer
- *
- * Implementation of c2_timer.
- *
- * In userspace soft timer implementation, there is a timer thread running,
- * which checks the expire time and trigger timer callback if needed.
- * There is one timer thread for each timer.
+   @addtogroup timer
+
+   Implementation of c2_timer.
+
+   In userspace soft timer implementation, there is a timer thread running,
+   which checks the expire time and trigger timer callback if needed.
+   There is one timer thread for each timer.
  */
 
 #ifndef C2_TIMER_DEBUG
@@ -57,13 +57,13 @@
 #endif
 
 /**
- * Hard timer implementation uses TIMER_SIGNO signal
- * for user-defined callback delivery.
+   Hard timer implementation uses TIMER_SIGNO signal
+   for user-defined callback delivery.
  */
 #define TIMER_SIGNO	SIGRTMIN
 
 /**
- * Function enum for timer_state_change() checks.
+   Function enum for timer_state_change() checks.
  */
 enum timer_func {
 	TIMER_INIT = 0,
@@ -75,7 +75,7 @@ enum timer_func {
 };
 
 /**
- * Item of threads ID list in locality.
+   Item of threads ID list in locality.
  */
 struct timer_tid {
 	pid_t		tt_tid;
@@ -86,7 +86,7 @@ struct timer_tid {
 static c2_time_t zero_time;
 
 /**
- * Typed list of timer_tid structures.
+   Typed list of timer_tid structures.
  */
 C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 		tt_linkage, tt_magic,
@@ -97,8 +97,8 @@ C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
 C2_TL_DEFINE(tid, static, struct timer_tid);
 
 /**
- * gettid(2) implementation.
- * Thread-safe, async-signal-safe.
+   gettid(2) implementation.
+   Thread-safe, async-signal-safe.
  */
 static pid_t gettid() {
 
@@ -192,9 +192,9 @@ void c2_timer_thread_detach(struct c2_timer_locality *loc)
 C2_EXPORTED(c2_timer_thread_detach);
 
 /**
- * Init POSIX timer, write it to timer->t_ptimer.
- * Timer notification is signal TIMER_SIGNO to
- * thread timer->t_tid.
+   Init POSIX timer, write it to timer->t_ptimer.
+   Timer notification is signal TIMER_SIGNO to
+   thread timer->t_tid.
  */
 static int timer_posix_init(struct c2_timer *timer)
 {
@@ -214,7 +214,7 @@ static int timer_posix_init(struct c2_timer *timer)
 }
 
 /**
- * Delete POSIX timer.
+   Delete POSIX timer.
  */
 static void timer_posix_fini(timer_t posix_timer)
 {
@@ -228,7 +228,7 @@ static void timer_posix_fini(timer_t posix_timer)
 }
 
 /**
- * Run timer_settime() with given expire time (absolute) and interval.
+   Run timer_settime() with given expire time (absolute) and interval.
  */
 static void timer_posix_set(struct c2_timer *timer,
 		c2_time_t expire, c2_time_t *old_expire)
@@ -256,7 +256,7 @@ static void timer_posix_set(struct c2_timer *timer,
 }
 
 /**
- * Set up signal handler sighandler for given signo.
+   Set up signal handler sighandler for given signo.
  */
 static int timer_sigaction(int signo,
 		void (*sighandler)(int, siginfo_t*, void*))
@@ -273,8 +273,8 @@ static int timer_sigaction(int signo,
 }
 
 /**
- * Signal handler for all POSIX timers.
- * si->si_value.sival_ptr contains pointer to corresponding c2_timer structure.
+   Signal handler for all POSIX timers.
+   si->si_value.sival_ptr contains pointer to corresponding c2_timer structure.
  */
 static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 {
@@ -293,7 +293,7 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 }
 
 /**
- * Soft timer working thread.
+   Soft timer working thread.
  */
 static void c2_timer_working_thread(struct c2_timer *timer)
 {
@@ -310,12 +310,12 @@ bool c2_timer_invariant(struct c2_timer *timer)
 }
 
 /**
- * This function called on every c2_timer_init/fini/start/stop/attach.
- * It checks the possibility of transition from the current state
- * with a given function and if possible, changes timer state to a new state
- * or executes C2_ASSERT() otherwise.
- * @param dry_run if it is true, than timer state doesn't changes.
- * @return true if state can be changed with the given func, false otherwise
+   This function called on every c2_timer_init/fini/start/stop/attach.
+   It checks the possibility of transition from the current state
+   with a given function and if possible, changes timer state to a new state
+   or executes C2_ASSERT() otherwise.
+   @param dry_run if it is true, than timer state doesn't changes.
+   @return true if state can be changed with the given func, false otherwise
  */
 static bool timer_state_change(struct c2_timer *timer, enum timer_func func,
 		bool dry_run)
@@ -363,7 +363,7 @@ static bool timer_state_change(struct c2_timer *timer, enum timer_func func,
 }
 
 /**
- * Create POSIX timer for the given c2_timer.
+   Create POSIX timer for the given c2_timer.
  */
 static int timer_hard_init(struct c2_timer *timer)
 {
@@ -381,7 +381,7 @@ static int timer_hard_init(struct c2_timer *timer)
 }
 
 /**
- * Delete POSIX timer for the given c2_timer.
+   Delete POSIX timer for the given c2_timer.
  */
 static void timer_hard_fini(struct c2_timer *timer)
 {
@@ -390,9 +390,9 @@ static void timer_hard_fini(struct c2_timer *timer)
 }
 
 /**
- * Start one-shot POSIX timer for the given c2_timer.
- * After every executed callback POSIX timer will be set again
- * to one-shot timer if necessary.
+   Start one-shot POSIX timer for the given c2_timer.
+   After every executed callback POSIX timer will be set again
+   to one-shot timer if necessary.
  */
 static int timer_hard_start(struct c2_timer *timer)
 {
@@ -401,8 +401,8 @@ static int timer_hard_start(struct c2_timer *timer)
 }
 
 /**
- * Stop POSIX timer for the given c2_timer and wait for termination
- * of user-defined timer callback.
+   Stop POSIX timer for the given c2_timer and wait for termination
+   of user-defined timer callback.
  */
 static int timer_hard_stop(struct c2_timer *timer)
 {
@@ -425,7 +425,7 @@ static void timer_soft_fini(struct c2_timer *timer)
 }
 
 /**
- * Start soft timer thread.
+   Start soft timer thread.
  */
 static int timer_soft_start(struct c2_timer *timer)
 {
@@ -435,7 +435,7 @@ static int timer_soft_start(struct c2_timer *timer)
 }
 
 /**
- * Stop soft timer thread and wait for its termination.
+   Stop soft timer thread and wait for its termination.
  */
 static int timer_soft_stop(struct c2_timer *timer)
 {
@@ -490,7 +490,7 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 C2_EXPORTED(c2_timer_attach);
 
 /**
- * Init the timer data structure.
+   Init the timer data structure.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 		  c2_time_t expire,
@@ -521,7 +521,7 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 C2_EXPORTED(c2_timer_init);
 
 /**
- * Destroy the timer.
+   Destroy the timer.
  */
 int c2_timer_fini(struct c2_timer *timer)
 {
@@ -539,7 +539,7 @@ int c2_timer_fini(struct c2_timer *timer)
 C2_EXPORTED(c2_timer_fini);
 
 /**
- * Start a timer.
+   Start a timer.
  */
 int c2_timer_start(struct c2_timer *timer)
 {
@@ -559,7 +559,7 @@ int c2_timer_start(struct c2_timer *timer)
 C2_EXPORTED(c2_timer_start);
 
 /**
- * Stop a timer.
+   Stop a timer.
  */
 int c2_timer_stop(struct c2_timer *timer)
 {
@@ -579,7 +579,7 @@ int c2_timer_stop(struct c2_timer *timer)
 C2_EXPORTED(c2_timer_stop);
 
 /**
- * Init data structures for hard timer
+   Init data structures for hard timer
  */
 int c2_timers_init()
 {
@@ -590,7 +590,7 @@ int c2_timers_init()
 C2_EXPORTED(c2_timers_init);
 
 /**
- * fini() all remaining hard timer data structures
+   fini() all remaining hard timer data structures
  */
 void c2_timers_fini()
 {
