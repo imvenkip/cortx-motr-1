@@ -208,7 +208,8 @@ static int timer_posix_init(struct c2_timer *timer)
 	se.sigev_value.sival_ptr = timer;
 	rc = timer_create(CLOCK_REALTIME, &se, &ptimer);
 	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
-	timer->t_ptimer = rc == 0 ? ptimer : timer->t_ptimer;
+	if (rc == 0)
+		timer->t_ptimer = ptimer;
 	return rc;
 }
 
