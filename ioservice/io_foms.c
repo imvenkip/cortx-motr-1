@@ -566,18 +566,13 @@ C2_TL_DEFINE(stobio, static, struct c2_stob_io_desc);
 
 C2_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", static,
 		   struct c2_net_buffer, nb_lru, nb_magic,
-		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC_IOFOM);
 C2_TL_DEFINE(netbufs, static, struct c2_net_buffer);
 
 C2_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
 		   struct c2_rpc_bulk_buf, bb_link, bb_magic,
 		   C2_RPC_BULK_BUF_MAGIC, C2_RPC_BULK_MAGIC);
 C2_TL_DEFINE(rpcbulkbufs, static, struct c2_rpc_bulk_buf);
-
-C2_TL_DESCR_DEFINE(services, "reqh handler services", static,
-		   struct c2_reqh_service, rs_linkage, rs_magic,
-		   C2_REQH_MAGIC, C2_RHS_MAGIC);
-C2_TL_DEFINE(services, static, struct c2_reqh_service);
 
 extern const struct c2_tl_descr bufferpools_tl;
 
@@ -592,6 +587,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out);
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom);
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
+static const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
 
 /**
  * I/O FOM operation vector.
@@ -600,6 +596,7 @@ static const struct c2_fom_ops c2_io_fom_cob_rw_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = c2_io_fom_cob_rw_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
+        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 /**
@@ -844,6 +841,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
  *
  * @param fom file operation machine instance.
  * @pre fom != NULL
+ * @pre fom->fo_service != NULL
  * @pre fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE
  */
 static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
@@ -851,37 +849,20 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
         int                           colour;
         int                           acquired_net_bufs;
         int                           required_net_bufs;
-        struct c2_tl                 *services;
         struct c2_fop                *fop = fom->fo_fop;
         struct c2_net_domain         *fop_ndom = NULL;
         struct c2_io_fom_cob_rw      *fom_obj = NULL;
-        struct c2_reqh_service       *service;
         struct c2_reqh_io_service    *serv_obj;
         struct c2_net_buffer_pool    *bp = NULL;
         struct c2_rios_buffer_pool   *bpdesc = NULL;
 
         C2_PRE(fom != NULL);
+        C2_PRE(fom->fo_service != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE);
 
-        /**
-         * @todo : This shoud be done in reqh handler code after FOM create and
-         *        before adding FOM into runqueue.
-         */
-        if (fom->fo_service == NULL) {
-                services = &fom->fo_loc->fl_dom->fd_reqh->rh_services;
-                c2_tlist_for(&services_tl, services, service) {
-                        if (strcmp(service->rs_type->rst_name,
-                            IOSERVICE_NAME) == 0) {
-                                fom->fo_service = service;
-                                break;
-                        }
-                } c2_tlist_endfor;
-        }
-        else
-                service = fom->fo_service;
-
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
-        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+        serv_obj = container_of(fom->fo_service, struct c2_reqh_io_service,
+                                rios_gen);
 
          /* Get network buffer pool for domain */
         fop_ndom = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
@@ -950,6 +931,7 @@ static int io_fom_cob_rw_get_net_buffer(struct c2_fom *fom)
  * @param fom file operation machine.
  *
  * @pre fom != NULL
+ * @pre fom->fo_service != NULL
  * @pre fom->fo_phase == FOPH_IO_BUFFER_RELEASE
  */
 static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
@@ -966,6 +948,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 
 
         C2_PRE(fom != NULL);
+        C2_PRE(fom->fo_service != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
 
         fop = fom->fo_fop;
@@ -1094,7 +1077,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
  * @pre fom != NULL
  * @pre fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT
  */
-static int io_fom_cob_rw_initiate_zero_copy_wait(struct c2_fom *fom)
+static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
 {
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw   *fom_obj;
@@ -1117,7 +1100,8 @@ static int io_fom_cob_rw_initiate_zero_copy_wait(struct c2_fom *fom)
         }
 
         /**
-         * TODO :
+         * @todo :
+         * Zero-copy and STOB I/O can be parallelise.
          * 1. RPC Bulk should send signal to ioservice after completion of
          *    every net buffer processing, This will help ioservice
          *    to parallels zero-copy and stob io (While i-th stob io going on
@@ -1204,6 +1188,8 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
 
+        c2_fom_block_at(fom, &fom_obj->fcrw_wait);
+
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_indexvec     *mem_ivec;
                 struct c2_stob_io_desc *stio_desc;
@@ -1251,8 +1237,6 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 
         } c2_tlist_endfor;
 
-        c2_fom_block_at(fom, &fom_obj->fcrw_wait);
-
         fom->fo_phase = FOPH_IO_STOB_WAIT;
 
 	return FSO_WAIT;
@@ -1275,7 +1259,7 @@ cleanup:
  * @pre fom != NULL
  * @pre fom->fo_phase == FOPH_IO_STOB_WAIT
  */
-static int io_fom_cob_rw_io_launch_wait(struct c2_fom *fom)
+static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
 {
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw   *fom_obj;
@@ -1322,8 +1306,6 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
         switch(fom->fo_phase){
         case FOPH_IO_FOM_BUFFER_ACQUIRE:
-                rc = io_fom_cob_rw_get_net_buffer(fom);
-                break;
         case FOPH_IO_FOM_BUFFER_WAIT:
                 rc = io_fom_cob_rw_get_net_buffer(fom);
                 break;
@@ -1331,13 +1313,13 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
                 rc = io_fom_cob_rw_io_launch(fom);
                 break;
         case FOPH_IO_STOB_WAIT:
-                rc = io_fom_cob_rw_io_launch_wait(fom);
+                rc = io_fom_cob_rw_io_finish(fom);
                 break;
         case FOPH_IO_ZERO_COPY_INIT:
                 rc = io_fom_cob_rw_initiate_zero_copy(fom);
                 break;
         case FOPH_IO_ZERO_COPY_WAIT:
-                rc = io_fom_cob_rw_initiate_zero_copy_wait(fom);
+                rc = io_fom_cob_rw_zero_copy_finish(fom);
                 break;
         case FOPH_IO_BUFFER_RELEASE:
                rc = io_fom_cob_rw_release_net_buffer(fom);
@@ -1390,6 +1372,22 @@ static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom)
 	C2_PRE(fom->fo_fop != NULL);
 
         return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+}
+
+/**
+ * Returns service name which excutes this fom.
+ *
+ * @param fom instance file operation machine under execution
+ *
+ * @pre fom != NULL
+ * @pre fom->fo_fop != NULL
+ */
+static const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom)
+{
+        C2_PRE(fom != NULL);
+        C2_PRE(fom->fo_fop != NULL);
+
+        return IOSERVICE_NAME;
 }
 
 /** @} end of io_foms */

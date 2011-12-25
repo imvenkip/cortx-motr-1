@@ -205,6 +205,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 	      * with buffer pool to I/O FOMs.
 	      */
              c2_chan_init(&newbp->rios_bp_wait);
+             bufferpools_tlink_init(newbp);
              newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
              colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
              c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
@@ -231,6 +232,33 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
         return rc;
 }
 
+/**
+ * Delete instances of buffer pool.
+ * It go through buffer pool list and delete the instance. 
+ *
+ * @param service pointer to service instance.
+ *
+ * @pre service != NULL
+ */
+static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
+{
+        struct c2_reqh_io_service      *serv_obj;
+        struct c2_rios_buffer_pool     *bp;
+
+        C2_PRE(service != NULL);
+
+        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+ 
+        c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp)
+        {
+                C2_ASSERT(bp != NULL);
+
+                c2_chan_fini(&bp->rios_bp_wait);
+                bufferpools_tlink_fini(bp);
+                c2_net_buffer_pool_fini(&bp->rios_bp); 
+                
+        } c2_tlist_endfor; /* bufferpools */
+}
 
 /**
  * Allocate and initiate I/O Service instance.
@@ -251,7 +279,7 @@ static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
 
         C2_PRE(stype != NULL && service != NULL);
 
-        serv_obj= c2_alloc(sizeof *serv_obj);
+        C2_ALLOC_PTR(serv_obj);
         if (serv_obj == NULL)
                 return -ENOMEM;
 
@@ -277,9 +305,13 @@ static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
  */
 static void c2_ioservice_fini(struct c2_reqh_service *service)
 {
+        struct c2_reqh_io_service *serv_obj;
+
         C2_PRE(service != NULL);
 
-        c2_free(service);
+        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+
+        c2_free(serv_obj);
 }
 
 /**
@@ -325,11 +357,9 @@ static void c2_ioservice_stop(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_ioservice_fop_fini();
+        ioservice_delete_buffer_pool(service);
 
-        // Need to write code 
-        //rc = ioservice_destoy_buffer_pool(service);
-        //c2_net_buffer_pool_fini(&serv_obj->rios_nb_pool);
+        c2_ioservice_fop_fini();
 }
 
 /** @} endgroup io_service */

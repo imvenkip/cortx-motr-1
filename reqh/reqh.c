@@ -68,7 +68,6 @@ const struct c2_tl_descr c2_rh_sl_descr = C2_TL_DESCR("reqh service",
                                                  rs_magic,
                                                  C2_REQH_MAGIC,
                                                  C2_RHS_MAGIC);
-
 /**
    Tlist descriptor for rpc machines.
  */
@@ -176,6 +175,21 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	if (result == 0 && fom != NULL) {
+                struct c2_reqh_service       *service = NULL;
+                const char *service_name = fom->fo_ops->fo_service_name(fom);
+
+                /**
+                 * To access service specific data,
+                 * FOM needs pointer to service instance.
+                 */
+                c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
+                        if (strcmp(service->rs_type->rst_name,
+                            service_name) == 0) {
+                                fom->fo_service = service;
+                                break;
+                        }
+                } c2_tlist_endfor;
+
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
 
