@@ -91,7 +91,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
    /**
 	@code
 
-	if (op == C2_LXO_DB_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP)
 		C2_PRE(lid != 0);
 	else
 		C2_PRE(cur != NULL);
@@ -147,8 +147,8 @@ static int composite_encode(struct c2_ldb_schema *schema,
    /**
 	@code
 
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
-			       || (op == C2_LXO_DB_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
+			       (op == C2_LXO_DB_DELETE)) {
 		uint64_t recsize = sizeof(struct c2_ldb_rec);
 
 		ret = ldb_layout_write(op, recsize, out, schema, tx);
@@ -157,8 +157,8 @@ static int composite_encode(struct c2_ldb_schema *schema,
 	Store composite layout type specific fields like information
 	about the sub-layouts, into the buffer.
 
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
-			       || (op == C2_LXO_DB_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
+			       (op == C2_LXO_DB_DELETE)) {
 		Form records for the cob_lists table by using data from the
 		buffer and depending on the value of op, insert/update/delete
 		those records to/from the cob_lists table.
@@ -181,14 +181,13 @@ static const struct c2_layout_ops composite_ops = {
 static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_register   = composite_register,
 	.lto_unregister = composite_unregister,
-	.lto_equal      = NULL,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
 	.lto_subst      = NULL
 };
 
 
-const struct c2_layout_type c2_composite_lay_type = {
+const struct c2_layout_type c2_composite_layout_type = {
 	.lt_name  = "composite",
 	.lt_id    = 0x434F4D504F534954,	/* COMPOSIT */
 	.lt_ops   = &composite_type_ops

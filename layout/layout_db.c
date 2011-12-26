@@ -374,6 +374,7 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 	@code
 	Use the DB interface c2_table_fini() to de-intialize the DB
 	tables.
+	Check that all layout and enum types were deregistered.
 	@endcode
    */
 }
@@ -406,6 +407,11 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
 void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_type *lt)
 {
+   /**
+	@code
+	Clean schema->ls_type[lt->lt_id] slot and call lto_deregister()
+	@endcode
+   */
 }
 
 /**
@@ -434,8 +440,13 @@ void c2_ldb_enum_register(struct c2_ldb_schema *schema,
    maintained by c2_ldb_schema::ls_enum[].
 */
 void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
-			    const struct c2_layout_enum_type *et)
+			    const struct c2_layout_enum_type *let)
 {
+   /**
+	@code
+	Clean schema->ls_enum[let->let_id] slot and call leto_deregister()
+	@endcode
+   */
 }
 
 /**
@@ -447,6 +458,8 @@ void **c2_ldb_type_data(struct c2_ldb_schema *schema,
    /**
 	@code
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type_data));
+	C2_PRE(schema->ls_type[lt->lt_id] == lt);
+
 	return &schema->ls_type_data[lt->lt_id];
 	@endcode
    */
@@ -459,10 +472,24 @@ void **c2_ldb_type_data(struct c2_ldb_schema *schema,
 void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 			const struct c2_layout_enum_type *et)
 {
-   /*
+   /**
 	@code
 	C2_PRE(IS_IN_ARRAY(et->let_id, schema->ls_enum_data));
+	C2_PRE(schema->ls_enum[et->let_id] == et);
+
 	return &schema->ls_enum_data[et->let_id];
+	@endcode
+   */
+	return NULL;
+}
+
+struct c2_bufvec_cur *ldb_set_cursor()
+{
+   /**
+	@code
+	Allocate bufvec using C2_BUFVEC_INIT_BUF.
+	Have cursor cur pointing to it using c2_bufvec_cursor_init()
+	and return pointer to cur.
 	@endcode
    */
 	return NULL;
@@ -479,9 +506,10 @@ int c2_ldb_rec_lookup(const uint64_t *lid,
 {
    /**
 	@code
-	Invoke c2_layout_decode() with op set to LOOKUP.
-	c2_layout_decode(op, lid, schema, tx, NULL, out);
+	struct c2_bufvec_cursor *cur = ldb_set_cursor();
 
+	Invoke c2_layout_decode() with op set to LOOKUP.
+	c2_layout_decode(schema, lid, cur, op, tx, out);
 	@endcode
    */
 	return 0;
@@ -499,8 +527,10 @@ int c2_ldb_rec_add(const struct c2_layout *l,
 {
    /**
 	@code
+	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+
 	Invoke c2_layout_encode() with op set to C2_LXO_DB_ADD.
-	c2_layout_encode(TRUE, C2_LXO_DB_ADD, l, schema, tx, NULL);
+	c2_layout_encode(schema, l, op, tx, cur);
 	@endcode
    */
 	return 0;
@@ -516,8 +546,10 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
 {
    /**
 	@code
+	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+
 	Invoke c2_layout_encode() with op set to C2_LXO_DB_UPDATE.
-	c2_layout_encode(TRUE, C2_LXO_DB_UPDATE, l, schema, tx, NULL);
+	c2_layout_encode(schema, l, op, tx, cur);
 	@endcode
    */
 	return 0;
@@ -538,8 +570,10 @@ int c2_ldb_rec_delete(const uint64_t lid,
 {
    /**
 	@code
+	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+
 	Invoke c2_layout_encode() with op set to C2_LXO_DB_DELETE.
-	c2_layout_encode(TRUE, C2_LXO_DB_DELETE, l, schema, tx, NULL);
+	c2_layout_encode(schema, l, op, tx, cur);
 	@endcode
    */
 	return 0;

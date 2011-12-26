@@ -342,26 +342,6 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 }
 C2_EXPORTED(c2_pdclust_layout_inv);
 
-static bool pdclust_equal(const struct c2_layout *l0,
-			  const struct c2_layout *l1)
-{
-	struct c2_pdclust_layout *p0;
-	struct c2_pdclust_layout *p1;
-
-	p0 = container_of(l0, struct c2_pdclust_layout, pl_layout);
-	p1 = container_of(l1, struct c2_pdclust_layout, pl_layout);
-
-	return
-		c2_uint128_eq(&p0->pl_seed, &p1->pl_seed) &&
-		p0->pl_attr.pa_N == p1->pl_attr.pa_N &&
-		p0->pl_attr.pa_K == p1->pl_attr.pa_K &&
-		p0->pl_attr.pa_P == p1->pl_attr.pa_P &&
-		p0->pl_C == p1->pl_C &&
-		p0->pl_L == p1->pl_L &&
-		p0->pl_pool == p1->pl_pool;
-	/* XXX and check that target objects are the same */
-}
-
 /** Implementation of lo_fini for pdclust layout type. */
 static void pdclust_fini(struct c2_layout *lay)
 {
@@ -423,7 +403,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		@endcode
 		*/
 		c2_layout_init(&pdl->pl_layout, *id,
-                               &c2_pdclust_lay_type,
+                               &c2_pdclust_layout_type,
                                NULL, /* Pointer to c2_layout_linear_enum object */
                                &pdlclust_ops);
 
@@ -530,10 +510,10 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from the
 	buffer (pointed by cur) and store those in the
-	c2_lay_list_enum->lle_list_of_cobs.
+	c2_layout_list_enum->lle_list_of_cobs.
 
-	if ((op == C2_LXO_DB_LOOKUP) && (layout-enumeration is LIST)
-		&& (ldb_list_cob_entries::llces_nr > MAX_INLINE_COB_ENTRIES)) {
+	if ((op == C2_LXO_DB_LOOKUP) && (layout-enumeration is LIST) &&
+		    ldb_list_cob_entries::llces_nr > MAX_INLINE_COB_ENTRIES)) {
 		Invoke corresponding leto_decode() so as to read cob entries
 		beyond MAX_INLINE_COB_ENTRIES.
 	}
@@ -572,8 +552,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	leto_encode().
 	leto_encode(schema, l, op, tx, out);
 
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
-			       || (op == C2_LXO_DB_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
+			(op == C2_LXO_DB_DELETE)) {
 		uint64_t recsize;
 		if (layout-enumeration is LIST) {
 			struct ldb_list_cob_entries ces;
@@ -590,9 +570,9 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		}
 		ret = ldb_layout_write(op, recsize, out, schema, tx);
 
-		if ((layout-enumeration is LIST)
-		&& (c2_lay_list_enum::lle_list_of_cobs contains more than
-		    MAX_INLINE_COB_ENTRIES entries)) {
+		if ((layout-enumeration is LIST) &&
+			(c2_layout_list_enum::lle_list_of_cobs contains more
+			than MAX_INLINE_COB_ENTRIES entries)) {
 			Invoke corresponding leto_encode() so as to
 			write/update/delete cob entries beyond
 			MAX_INLINE_COB_ENTRIES.
@@ -613,7 +593,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 */
 static int pdclust_subst(const struct c2_layout *l,
 			 struct c2_tl *outlist,
-			 struct c2_fid gfid)
+			 struct c2_fid *gfid)
 {
 	return 0;
 }
@@ -621,13 +601,12 @@ static int pdclust_subst(const struct c2_layout *l,
 static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register   = NULL,
 	.lto_unregister = NULL,
-	.lto_equal      = pdclust_equal,
 	.lto_decode     = pdclust_decode,
 	.lto_encode     = pdclust_encode,
 	.lto_subst      = pdclust_subst
 };
 
-const struct c2_layout_type c2_pdclust_lay_type = {
+const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_name        = "pdclust",
 	.lt_id          = 0x5044434C55535431, /* PDCLUST1 */
 	.lt_ops         = &pdclust_type_ops

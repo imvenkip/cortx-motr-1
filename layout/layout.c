@@ -76,13 +76,14 @@ void c2_layout_init(struct c2_layout *lay,
 {
    /**
 	@code
+	C2_SET0(lay);
+
 	lay->l_id       = id;
 	lay->l_type     = type;
 	lay->l_enum     = e;
 	lay->l_ops      = ops;
 	@endcode
    */
-	return;
 }
 
 void c2_layout_fini(struct c2_layout *lay)
@@ -137,18 +138,10 @@ int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
    /**
 	@code
 
-
-	if (op == C2_LXO_DB_LOOKUP) {
-		C2_PRE(lid != LID_NONE);
-		C2_PRE(schema != NULL);
-		C2_PRE(tx != NULL);
-		C2_PRE(cur == NULL);
-
-		Allocate bufvec using C2_BUFVEC_INIT_BUF.
-		Have cursor cur pointing to it using C2_BUFVEC_INIT_BUF.
-	} else {
-		C2_PRE(cur != NULL);
-	}
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(schema != NULL);
+	C2_PRE(tx != NULL);
+	C2_PRE(cur != NULL);
 
 	Based on the layout type, call corresponding lto_decode().
 
@@ -190,17 +183,9 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 {
    /**
 	@code
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
-			       || (op == C2_LXO_DB_DELETE)) {
-		C2_PRE(schema != NULL);
-		C2_PRE(tx != NULL);
-		C2_PRE(out == NULL);
-
-		Allocate bufvec using C2_BUFVEC_INIT_BUF.
-		Have cursor cur pointing to it using C2_BUFVEC_INIT_BUF.
-	} else {
-		C2_PRE(out != NULL);
-	}
+	C2_PRE(schema != NULL);
+	C2_PRE(tx != NULL);
+	C2_PRE(out != NULL);
 
 	Read generic fields from the layout object and store those in
 	the buffer pointed by cur

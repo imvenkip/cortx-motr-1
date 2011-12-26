@@ -36,12 +36,12 @@
 #include "layout/layout.h"
 
 /* export */
-struct c2_lay_list_enum;
+struct c2_layout_list_enum;
 
 /**
    Extension of generic c2_layout_enum for a list enumeration type.
  */
-struct c2_lay_list_enum {
+struct c2_layout_list_enum {
 	/** super class */
 	struct c2_layout_enum     lle_enum;
 

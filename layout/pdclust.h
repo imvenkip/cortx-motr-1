@@ -264,7 +264,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     struct c2_pdclust_layout **out);
 
 
-extern const struct c2_layout_type c2_pdclust_lay_type;
+extern const struct c2_layout_type c2_pdclust_layout_type;
 
 /** @} end group pdclust */
 

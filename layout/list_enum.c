@@ -134,7 +134,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	}
 
 	Parse the cob identifiers list from the buffer (pointed by cur) and
-	store it in the c2_lay_list_enum::lle_list_of_cobs.
+	store it in the c2_layout_list_enum::lle_list_of_cobs.
 	@endcode
    */
 	return 0;
@@ -159,11 +159,11 @@ static int list_encode(struct c2_ldb_schema *schema,
 {
    /**
 	@code
-        Read the cob identifiers list from c2_lay_list_enum::lle_list_of_cobs
+        Read the cob identifiers list from c2_layout_list_enum::lle_list_of_cobs
 	and store it into the buffer.
 
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE)
-			       || (op == C2_LXO_DB_DELETE)) {
+	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
+			       (op == C2_LXO_DB_DELETE)) {
 		Depending upon the value of op, insert/update/delete cob
 		entries beyond MAX_INLINE_COB_ENTRIES to/from the cob_lists
 		table.
@@ -188,8 +188,8 @@ static int __attribute__ ((unused)) list_enumerate(
 	The layout is le->le_lptr->l_id.
 	Use c2_ldb_rec_lookup() to read the layout with that layout id.
 	This will result into a list of COB identifiers stored in
-	c2_lay_list_enum::lle_list_of_cobs.
-	(c2_lay_list_enum is container of c2_layout_enum)
+	c2_layout_list_enum::lle_list_of_cobs.
+	(c2_layout_list_enum is container of c2_layout_enum)
 
 	@endcode
    */

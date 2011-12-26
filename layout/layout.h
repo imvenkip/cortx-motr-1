@@ -98,7 +98,7 @@ struct c2_layout {
 	const struct c2_layout_enum     *l_enum;
 
 	/** Layout reference count.
-	    Indicating how many files are using this layout.
+	    Indicating how many users this layout has.
 	*/
 	uint64_t                         l_ref;
 
@@ -151,10 +151,6 @@ struct c2_layout_type_ops {
 	int    (*lto_unregister)(struct c2_ldb_schema *schema,
 				 const struct c2_layout_type *lt);
 
-	/** Compares two layouts. */
-	bool    (*lto_equal)(const struct c2_layout *l0,
-			     const struct c2_layout *l1);
-
 	/** Continues building the in-memory layout object either from the
 	    buffer or from the DB.
 	    Allocates an instance of some layout-type specific data-type
@@ -183,7 +179,7 @@ struct c2_layout_type_ops {
 	*/
 	int    (*lto_subst)(const struct c2_layout *l,
 			    struct c2_tl *outlist,
-			    struct c2_fid gfid);
+			    struct c2_fid *gfid);
 };
 
 /**

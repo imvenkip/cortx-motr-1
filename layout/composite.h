@@ -54,7 +54,7 @@ struct c2_composite_layout {
 	struct c2_mutex           cl_sub_layouts_mutex;
 };
 
-extern const struct c2_layout_type c2_composite_lay_type;
+extern const struct c2_layout_type c2_composite_layout_type;
 
 /** @} end group composite */
 
