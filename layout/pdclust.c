@@ -465,13 +465,13 @@ static uint64_t pdclust_recsize(void)
 	Invoke corresponding leto_recsize() so as to get the record size
 	into variable recsize. It returns the size required to store the
 	enumeration type specific data into the layouts table record, if
-	applicable. 
+	applicable.
 
 	recsize = recsize + sizeof(struct c2_pdclust_attr) +
 			    sizeof(struct c2_ldb_rec);
 
 	return recsize;
-	
+
 	@endcode
    */
 	return 0;
@@ -561,7 +561,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	@code
 	Store pdclust layout type specific fields into the buffer.
 
-	Invoke the respective leto_encode(). 
+	Invoke the respective leto_encode().
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			(op == C2_LXO_DB_DELETE)) {

@@ -81,7 +81,7 @@ static uint64_t composite_recsize(void)
 	return (sizeof(struct c2_ldb_rec));
 	@endcode
    */
-	return 0;	
+	return 0;
 }
 
 /**

@@ -101,7 +101,7 @@ static int list_unregister(struct c2_ldb_schema *schema,
 /**
    Implementation of leto_recsize() for list enumeration type.
    Returns record size for the part of the record required to store LIST enum
-   details viz. list of COB identifiers upto MAX_INLINE_COB_ENTRIES.  
+   details viz. list of COB identifiers upto MAX_INLINE_COB_ENTRIES.
 */
 static uint64_t list_recsize(void)
 {
@@ -111,7 +111,7 @@ static uint64_t list_recsize(void)
 /**
    Implementation of leto_rec_decode() for list enumeration type.
    Reads MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
-   the c2_layout_list_enum object.   
+   the c2_layout_list_enum object.
 */
 static int list_rec_decode(const struct c2_bufvec_cursor *cur,
 			   struct c2_layout_enum *e)
@@ -130,7 +130,7 @@ static int list_rec_decode(const struct c2_bufvec_cursor *cur,
 /**
    Implementation of leto_rec_encode() for list enumeration type.
    Reads MAX_INLINE_COB_ENTRIES number of cob identifiers from
-   the c2_layout_list_enum object into the buffer.   
+   the c2_layout_list_enum object into the buffer.
 */
 static int list_rec_encode(const struct c2_layout_enum *e,
 			   struct c2_bufvec_cursor *cur)
@@ -229,25 +229,6 @@ static int list_encode(struct c2_ldb_schema *schema,
 }
 
 /**
-   Enumerate the COB identifiers for a layout with LIST enum type.
-*/
-static int __attribute__ ((unused)) list_enumerate(
-			const struct c2_layout_enum *le)
-{
-   /**
-	@code
-	The layout is le->le_lptr->l_id.
-	Use c2_ldb_rec_lookup() to read the layout with that layout id.
-	This will result into a list of COB identifiers stored in
-	c2_layout_list_enum::lle_list_of_cobs.
-	(c2_layout_list_enum is container of c2_layout_enum)
-
-	@endcode
-   */
-	return 0;
-}
-
-/**
    Implementation of leo_nr for LIST enumeration.
    Rerurns number of objects in the enumeration.
    Argument fid is ignored here for LIST enumeration type.
@@ -257,8 +238,9 @@ static uint32_t list_nr(const struct c2_layout_enum *le,
 {
    /**
 	@code
-	list_enumerate(le);
-	And provide number of objects for that layout enumeration.
+	c2_layout_list_enum::lle_list_of_cobs has list of COB Ids in it.
+	Provide count of entries stored in
+	c2_layout_list_enum::lle_list_of_cobs
 	@endcode
    */
 	return 0;
@@ -276,8 +258,7 @@ static void list_get(const struct c2_layout_enum *le,
 {
    /**
 	@code
-	list_enumerate(le);
-	And provide idx-th object from that layout enumeration.
+	Provide idx-th object from c2_layout_list_enum::lle_list_of_cobs.
 	@endcode
    */
 }

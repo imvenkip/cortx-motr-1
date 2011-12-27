@@ -65,7 +65,7 @@
 #include "lib/cdefs.h"
 #include "lib/types.h"    /* uint64_t */
 #include "lib/tlist.h"    /* struct c2_tl */
-#include "lib/mutex.h"    /* struct c2_mutex */ 
+#include "lib/mutex.h"    /* struct c2_mutex */
 
 struct c2_bufvec_cursor;
 struct c2_fid;

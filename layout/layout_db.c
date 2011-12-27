@@ -252,7 +252,7 @@
    Various arrays in struct c2_ldb_schema are protected by using
    c2_ldb_schema::ls_lock.
 
-   The in-memory c2_layout object is protected using c2_layout::l_lock. 
+   The in-memory c2_layout object is protected using c2_layout::l_lock.
 
    @subsection Layout-DB-lspec-numa NUMA optimizations
 
