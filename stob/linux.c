@@ -422,9 +422,6 @@ struct c2_addb_ctx adieu_addb_ctx;
    @param path -> Path to other file (typically block device)
    @param tx -> transaction context
 
-   @retval 0 if successful
-           -errno on failure
-
    @see c2_linux_stob_open()
  */
 int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
@@ -447,6 +444,7 @@ int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
 
 	return result;
 }
+C2_EXPORTED(c2_linux_stob_link);
 
 int c2_linux_stobs_init(void)
 {
