@@ -32,7 +32,6 @@
  */
 
 /* import */
-#include "lib/mutex.h"	/* struct c2_mutex */
 #include "db/extmap.h"	/* struct c2_emap */
 
 #include "layout/layout.h"
@@ -49,9 +48,6 @@ struct c2_composite_layout {
 
 	/** List of sub-layouts owned by this composite layout */
 	struct c2_tl              cl_sub_layouts;
-
-	/** Lock to protect the list of sub-layouts */
-	struct c2_mutex           cl_sub_layouts_mutex;
 };
 
 extern const struct c2_layout_type c2_composite_layout_type;

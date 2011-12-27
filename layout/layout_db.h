@@ -140,10 +140,10 @@ struct c2_ldb_schema {
 	/** Layout enum type specific data. */
 	void                          *ls_enum_data[C2_LAY_ENUM_MAX];
 
-	/** Lock to protect ls_type[], ls_type_data[], ls_enum[] and
-	    ls_enum_data[]
+	/** Lock to protect the instance of c2_ldb_schema, including all
+	    its members.
 	*/
-	struct c2_mutex                ls_mutex;
+	struct c2_mutex                ls_lock;
 };
 
 /**

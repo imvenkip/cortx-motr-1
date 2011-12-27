@@ -30,7 +30,6 @@
  */
 
 /* import */
-#include "lib/mutex.h"  /* struct c2_mutex */
 #include "db/db.h"      /* struct c2_table */
 
 #include "layout/layout.h"
@@ -47,18 +46,6 @@ struct c2_layout_list_enum {
 
 	/** List of COB identifiers which are part of this layout */
 	struct c2_tl              lle_list_of_cobs;
-
-	/** @todo One change was suggested to move this to c2_layout so that the
-	    callers can lock/unlock it. Deferring it for a while since I yet
-	    need to understand the purpose of it. Once understood, I will
-	    implement it.
-	    For now, list_decode() and list_encode() access this list
-	    which are expected to lock it while accessing it.
-	    If needed, should similar change be done for lock to protect the
-	    list of sub-layouts viz. cl_sub_layouts_mutex.
-	*/
-	/** Lock to protect the list of COB identifiers */
-	struct c2_mutex           lle_cob_mutex;
 };
 
 extern const struct c2_layout_enum_type c2_list_enum_type;

@@ -78,16 +78,29 @@ void c2_layout_init(struct c2_layout *lay,
 	@code
 	C2_SET0(lay);
 
+	c2_mutex_lock(lay->l_lock);
+
 	lay->l_id       = id;
 	lay->l_type     = type;
 	lay->l_enum     = e;
 	lay->l_ops      = ops;
+
+	c2_mutex_unlock(lay->l_lock);
 	@endcode
    */
 }
 
 void c2_layout_fini(struct c2_layout *lay)
 {
+   /**
+	@code
+	c2_mutex_lock(lay->l_lock);
+	Perform whatever is required to be cleaned up while the object is
+	about to be deleted.
+
+	c2_mutex_unlock(lay->l_lock);
+	@endcode
+   */
 }
 
 /** Adds a reference to the layout. */
@@ -95,9 +108,13 @@ void c2_layout_get(struct c2_layout *lay)
 {
    /**
 	@code
+	c2_mutex_lock(lay->l_lock);
+
 	Increases reference on layout by incrementing c2_layout::l_ref and
 	uses c2_ldb_rec_update() to increase refernce on the layout record from
 	the layout DB.
+
+	c2_mutex_unlock(lay->l_lock);
 	@endcode
    */
 }
@@ -107,9 +124,13 @@ void c2_layout_put(struct c2_layout *lay)
 {
    /**
 	@code
+	c2_mutex_lock(lay->l_lock);
+
 	Decreases reference on layout by decrementing c2_layout::l_ref and
 	uses c2_ldb_rec_update() to decrease refernce on the layout record from
 	the layout DB.
+
+	c2_mutex_unlock(lay->l_lock);
 	@endcode
    */
 }
@@ -137,6 +158,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
 {
    /**
 	@code
+	c2_mutex_lock(out->l_lock);
 
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(schema != NULL);
@@ -152,6 +174,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
 	those in the layout object. e.g. layout id (l_id), layout type id,
 	enumeration type id, ref counter.
 
+	c2_mutex_unlock(lay->l_lock);
 	@endcode
    */
 
@@ -187,11 +210,14 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(tx != NULL);
 	C2_PRE(out != NULL);
 
+	c2_mutex_lock(l->l_lock);
+
 	Read generic fields from the layout object and store those in
 	the buffer pointed by cur
 
 	Based on the layout type, invoke corresponding lto_encode().
 
+	c2_mutex_unlock(l->l_lock);
 	@endcode
    */
 

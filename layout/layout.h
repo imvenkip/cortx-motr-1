@@ -65,6 +65,7 @@
 #include "lib/cdefs.h"
 #include "lib/types.h"    /* uint64_t */
 #include "lib/tlist.h"    /* struct c2_tl */
+#include "lib/mutex.h"    /* struct c2_mutex */ 
 
 struct c2_bufvec_cursor;
 struct c2_fid;
@@ -101,6 +102,13 @@ struct c2_layout {
 	    Indicating how many users this layout has.
 	*/
 	uint64_t                         l_ref;
+
+	/** Lock to protect a c2_layout instance and all its direct/indirect
+	    members.
+	    Generic layout management code is required to acquire this lock
+	    so as to synchoronize access to a layout along with its enumeration.
+	*/
+	struct c2_mutex                  l_lock;
 
 	/** Layout operations vector. */
 	const struct c2_layout_ops      *l_ops;

@@ -246,6 +246,13 @@
    @subsection Layout-DB-lspec-state State Specification
 
    @subsection Layout-DB-lspec-thread Threading and Concurrency Model
+   DB5 internally provides synchrnization against various table entries.
+   Hence layout schema need not do much in that regard.
+
+   Various arrays in struct c2_ldb_schema are protected by using
+   c2_ldb_schema::ls_lock.
+
+   The in-memory c2_layout object is protected using c2_layout::l_lock. 
 
    @subsection Layout-DB-lspec-numa NUMA optimizations
 
@@ -358,7 +365,11 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 {
    /**
 	@code
+	c2_mutex_lock(schema->ls_lock);
+
 	Use the DB interface c2_table_init() to intialize the layouts table.
+
+	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
 	return 0;
@@ -372,9 +383,13 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
    /*
 	@code
+	c2_mutex_lock(schema->ls_lock);
+
 	Use the DB interface c2_table_fini() to de-intialize the DB
 	tables.
 	Check that all layout and enum types were deregistered.
+
+	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
 }
@@ -391,11 +406,13 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type));
 	C2_PRE(schema->ls_type[lt->lt_id] == NULL);
 
+	c2_mutex_lock(schema->ls_lock);
 	schema->ls_type[lt->lt_id] = lt;
 
 	Allocate type specific schema data using lto_register().
 	lt->lto_register(schema, lt);
 
+	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
 }
@@ -409,7 +426,11 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 {
    /**
 	@code
+	c2_mutex_lock(schema->ls_lock);
+
 	Clean schema->ls_type[lt->lt_id] slot and call lto_deregister()
+
+	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
 }
@@ -426,11 +447,13 @@ void c2_ldb_enum_register(struct c2_ldb_schema *schema,
 	C2_PRE(IS_IN_ARRAY(let->let_id, schema->ls_enum));
 	C2_PRE(schema->ls_enum[let->let_id] == NULL);
 
+	c2_mutex_lock(schema->ls_lock);
 	schema->ls_enum[let->let_id] = let;
 
 	Allocates enum specific schema data using leto_register().
 	let->leto_register(schema, let);
 
+	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
 }
@@ -444,7 +467,11 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 {
    /**
 	@code
+	c2_mutex_lock(schema->ls_lock);
+
 	Clean schema->ls_enum[let->let_id] slot and call leto_deregister()
+
+	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
 }
@@ -496,8 +523,8 @@ struct c2_bufvec_cur *ldb_set_cursor()
 }
 
 /**
-   Obtains a layout record with the specified layout_id, and its related
-   information from the relevant tables.
+   Looks up a persistent layout record with the specified layout_id, and
+   its related information from the relevant tables.
 */
 int c2_ldb_rec_lookup(const uint64_t *lid,
 		      struct c2_ldb_schema *schema,
