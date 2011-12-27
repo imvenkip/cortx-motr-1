@@ -15,106 +15,104 @@ EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
 dirs = addb addb/linux_kernel c2t1fs cob db db/linux_kernel dtm fid fol fop  \
 	galois ioservice ioservice/linux_kernel layout lib lib/linux_kernel  \
 	lib/ut net net/bulk_emulation net/bulk_emulation/ut net/ksunrpc	     \
-	net/linux_kernel net/ut pool rpc sm sns stob stob/linux_kernel       \
-	stob/ut xcode
+	net/linux_kernel net/ut pool rpc sm sns stob stob/ut xcode
 
 #	Source Listing
-addb_srcs 			= addb.c addb_fop.c addb_k.c
-addb_headers 			= addb_k.h
+addb_SRCS 			:= addb.c addb_fop.c addb_k.c
+addb_HEADERS 			:= addb_k.h
 
-addb_linux_kernel_srcs 		= addb_console.c
+addb_linux_kernel_SRCS 		:= addb_console.c
 
-c2t1fs_srcs 			= main.c
-c2t1fs_headers 			= c2t1fs.h io_fops_k.h io_k.h
+c2t1fs_SRCS 			:= main.c
+c2t1fs_HEADERS 			:= c2t1fs.h io_fops_k.h io_k.h
 
-cob_srcs 			= cob.c
+cob_SRCS 			:= cob.c
 
-db_srcs 			= db_common.c
+db_SRCS 			:= db_common.c
 
-db_linux_kernel_srcs 		= db.c
-db_linux_kernel_headers 	= db_impl.h
+db_linux_kernel_SRCS 		:= db.c
+db_linux_kernel_HEADERS 	:= db_impl.h
 
-dtm_srcs 			= verno.c
+dtm_SRCS 			:= verno.c
 
-fid_srcs 			= fid.c
-fid_headers 			= fid.h
+fid_SRCS 			:= fid.c
+fid_HEADERS 			:= fid.h
 
-fol_srcs 			= fol.c
-fol_headers 			= fol.h
+fol_SRCS 			:= fol.c
+fol_HEADERS 			:= fol.h
 
-fop_srcs 			= fop.c fom.c fop_format.c fop_iterator.c       \
-				  fop_base.c fop_onwire.c
+fop_SRCS 			:= fop.c fom.c fop_format.c fop_iterator.c      \
+				   fop_base.c fop_onwire.c
 
-galois_srcs 			= galois.c
-galois_headers 			= galois.h
+galois_SRCS 			:= galois.c
+galois_HEADERS 			:= galois.h
 
-ioservice_srcs 			= io_fops.c
-ioservice_headers 		= io_fops.h
+ioservice_SRCS 			:= io_fops.c
+ioservice_HEADERS 		:= io_fops.h
 
-ioservice_linux_kernel_srcs 	= io_fops_k.c
-ioservice_linux_kernel_headers 	= io_fops_k.h
+ioservice_linux_kernel_SRCS 	:= io_fops_k.c
+ioservice_linux_kernel_HEADERS 	:= io_fops_k.h
 
-layout_srcs 			= layout.c pdclust.c
-layout_headers 			= layout.h pdclust.h
+layout_SRCS 			:= layout.c pdclust.c
+layout_HEADERS 			:= layout.h pdclust.h
 
-lib_srcs 			= bitstring.c vec.c list.c queue.c refs.c       \
-				  time.c bitmap.c chan.c misc.c buf.c cond.c    \
-				  thread.c tlist.c
-lib_headers 			= misc.h memory.h errno.h arith.h fop.h buf.h
+lib_SRCS 			:= bitstring.c vec.c list.c queue.c refs.c      \
+				   time.c bitmap.c chan.c misc.c buf.c cond.c   \
+				   thread.c tlist.c
+lib_HEADERS 			:= misc.h memory.h errno.h arith.h fop.h buf.h
 
-lib_linux_kernel_srcs 		= memory.c mutex.c rwlock.c ktime.c timer.c     \
-				  kthread.c semaphore.c processor.c kvec.c      \
-				  ut.c main.c
+lib_linux_kernel_SRCS 		:= memory.c mutex.c rwlock.c ktime.c timer.c    \
+				   kthread.c semaphore.c processor.c kvec.c     \
+				   ut.c main.c
 
-lib_ut_srcs 			= rwlock.c bitmap.c tlist.c chan.c list.c       \
-				  mutex.c queue.c refs.c tlist.c time.c vec.c   \
-				  zerovec.c thread.c
+lib_ut_SRCS 			:= rwlock.c bitmap.c tlist.c chan.c list.c      \
+				   mutex.c queue.c refs.c tlist.c time.c vec.c  \
+				   zerovec.c thread.c
 
-net_srcs 			= buf.c domain.c ep.c net.c tm.c buffer_pool.c  \
-				  connection.c net_cli.c net_utils.c net_srv.c
-net_headers 			= net.h net_internal.h
+net_SRCS 			:= buf.c domain.c ep.c net.c tm.c buffer_pool.c \
+				   connection.c net_cli.c net_utils.c net_srv.c
+net_HEADERS 			:= net.h net_internal.h
 
-net_bulk_emulation_srcs 	= net_otw_types_k.c ksunrpc_server.c
-net_bulk_emulation_headers 	= net_otw_types_k.h sunrpc_xprt.h mem_xprt.h    \
-				  sunrpc_io_k.h
+net_bulk_emulation_SRCS 	:= net_otw_types_k.c ksunrpc_server.c
+net_bulk_emulation_HEADERS 	:= net_otw_types_k.h sunrpc_xprt.h mem_xprt.h   \
+				   sunrpc_io_k.h
 
-net_bulk_emulation_ut_srcs 	= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
+net_bulk_emulation_ut_SRCS 	:= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
-net_ksunrpc_srcs 		= domain.c client.c kxdr.c
-net_ksunrpc_headers 		= ksunrpc.h
+net_ksunrpc_SRCS 		:= domain.c client.c kxdr.c
+net_ksunrpc_HEADERS 		:= ksunrpc.h
 
-net_linux_kernel_srcs 		= sunrpc_io_k.c
+net_linux_kernel_SRCS 		:= sunrpc_io_k.c
 
-net_ut_srcs 			= bulk_if.c buffer_pool_ut.c
+net_ut_SRCS 			:= bulk_if.c buffer_pool_ut.c
 
-pool_srcs 			= pool.c
+pool_SRCS 			:= pool.c
 
-rpc_srcs 			= formation.c rpc2.c rpc_base.c session.c       \
-				  session_foms.c conn.c slot.c session_utils.c  \
-				  session_fops.c rpc_onwire.c session_k.c
-rpc_headers 			= session_k.h
+rpc_SRCS 			:= formation.c rpc2.c rpc_base.c session.c      \
+				   session_foms.c conn.c slot.c session_utils.c \
+				   session_fops.c rpc_onwire.c session_k.c
+rpc_HEADERS 			:= session_k.h
 
-sm_srcs 			= sm.c
+sm_SRCS 			:= sm.c
 
-sns_srcs 			= ls_solve.c matvec.c parity_math.c parity_ops.c
-sns_headers 			= parity_math.h
+sns_SRCS 			:= ls_solve.c matvec.c parity_math.c parity_ops.c
+sns_HEADERS 			:= parity_math.h
 
-stob_srcs 			= stob.c
-stob_headers 			= stob.h
+stob_SRCS 			:= stob.c
+stob_HEADERS 			:= stob.h
 
-stob_linux_kernel_src 		= kstob.c
+stob_ut_SRCS 			:= io_fop_init.c io_k.c
+stob_ut_HEADERS 		:= io_fop.h io_k.h
 
-stob_ut_srcs 			= io_fop_init.c io_k.c
-stob_ut_headers 		= io_fop.h io_k.h
-
-xcode_srcs 			= bufvec_xcode.c bufvec_xcode_fop.c 		\
-				  bufvec_xcode_size.c
+xcode_SRCS 			:= bufvec_xcode.c bufvec_xcode_fop.c 		\
+				   bufvec_xcode_size.c
 
 #	Following lines create the list of objects required for creating
-#	kcolibri by putting %.o for each %.c file listed for each target of dirs.
+#	kcolibri by putting %.o for each %.c file listed for each target of
+#	$(dirs).
 
-kcolibri_objects = $(foreach d, $(dirs), $(foreach f, \
-	$($(subst /,_,$(d))_srcs), $(addprefix $(d)/, $(subst .c,.o, $(f)))))
+kcolibri_objects = $(foreach d, $(dirs), $(foreach f, 				\
+	$($(subst /,_,$(d))_SRCS), $(addprefix $(d)/, $(subst .c,.o, $(f)))))
 
 obj-m += kcolibri.o
 
@@ -127,19 +125,18 @@ obj-y += $(testdirs)
 
 create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(f))
 
-all: prepare_everythingelse c2t1fs_prepare initialize addb_prepare net_prepare  \
-	test_prepare
+all: initialize prepare_c2t1fs prepare_dirs prepare_addb prepare_net  \
+	prepare_test
 
-	@echo $(kcolibri_objects)
+	@echo $(kcolibri-y)
 #	DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
-initialize:
-	ln -sf $(CORE_SRCDIR)/colibri/init.c .
+prepare_dirs:
 	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_srcs),   \
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SRCS),   \
 		$(create_links)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_headers),\
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),\
 		$(create_links)))
 
 clean distclean:
@@ -166,19 +163,19 @@ clean distclean:
 	$(RM) $(CORE_SRCDIR)/rpc/session_k.[ch]
 	$(RM) $(CORE_SRCDIR)/stob/ut/io_k.[ch]
 
-addb_prepare:
+prepare_addb:
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/addb/addb.ff
 	mv addb_k.[ch] $(CORE_SRCDIR)/addb/
 	ln -sf $(CORE_SRCDIR)/addb/addb_k.[ch] $(CORE_SRCDIR)/addb/linux_kernel/
 
-c2t1fs_prepare:
+prepare_c2t1fs:
 	ln -sf $(GALOISDIR)/galois.h $(CORE_SRCDIR)/sns/
 	ln -sf $(GALOISDIR)/galois.[ch] $(CORE_SRCDIR)/galois/
 	ln -sf $(CORE_SRCDIR)/ioservice/linux_kernel/io_fops_k.h \
 		$(CORE_SRCDIR)/c2t1fs/
 	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.[ch] $(CORE_SRCDIR)/c2t1fs/
 
-net_prepare:
+prepare_net:
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/net/net_otw_types.ff
 	$(CORE_SRCDIR)/fop/fop2c -k \
 		$(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io.ff
@@ -193,7 +190,8 @@ net_prepare:
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.c \
 		$(BUILD_DIR)/net/linux_kernel/sunrpc_io_k.c
 
-prepare_everythingelse:
+initialize:
+	ln -sf $(CORE_SRCDIR)/colibri/init.c .
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/rpc/session.ff
 	mv session_k.[ch] $(CORE_SRCDIR)/rpc/
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/stob/ut/io.ff
@@ -201,7 +199,7 @@ prepare_everythingelse:
 	mv io_k.[ch] $(CORE_SRCDIR)/stob/ut/
 	mv io_fops_k.[ch] $(CORE_SRCDIR)/ioservice/linux_kernel/
 
-test_prepare:
+prepare_test:
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/st/ping.[ch]  \
 		$(CORE_SRCDIR)/net/bulk_emulation/st/linux_kernel/
 	ln -sf $(CORE_SRCDIR)/rpc/it/rpc_ping.c  \
