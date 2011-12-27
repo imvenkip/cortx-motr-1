@@ -170,8 +170,8 @@ int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
 	uint64_t lt_id = *out->l_type->lt_id;
 	schema->ls_types[lt_id]->lto_decode(op, lid, cur, out);
 
-	Parse generic layout fields from the buffer (pointed by *cur) and store
-	those in the layout object. e.g. layout id (l_id), layout type id,
+	Now, parse the generic layout fields from the buffer (pointed by *cur)
+	and store those in the layout object. e.g. layout id, layout type id,
 	enumeration type id, ref counter.
 
 	c2_mutex_unlock(lay->l_lock);

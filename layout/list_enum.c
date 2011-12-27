@@ -98,6 +98,54 @@ static int list_unregister(struct c2_ldb_schema *schema,
 	return 0;
 }
 
+/**
+   Implementation of leto_recsize() for list enumeration type.
+   Returns record size for the part of the record required to store LIST enum
+   details viz. list of COB identifiers upto MAX_INLINE_COB_ENTRIES.  
+*/
+static uint64_t list_recsize(void)
+{
+	return sizeof(struct ldb_list_cob_entries);
+}
+
+/**
+   Implementation of leto_rec_decode() for list enumeration type.
+   Reads MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
+   the c2_layout_list_enum object.   
+*/
+static int list_rec_decode(const struct c2_bufvec_cursor *cur,
+			   struct c2_layout_enum *e)
+{
+   /**
+	@code
+	Container_of(e) would give an object of the type c2_layout_list_enum,
+	say le.
+	Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from the
+	buffer (pointed by cur) into le->lle_list_of_cobs.
+	@endcode
+   */
+	return 0;
+}
+
+/**
+   Implementation of leto_rec_encode() for list enumeration type.
+   Reads MAX_INLINE_COB_ENTRIES number of cob identifiers from
+   the c2_layout_list_enum object into the buffer.   
+*/
+static int list_rec_encode(const struct c2_layout_enum *e,
+			   struct c2_bufvec_cursor *cur)
+{
+   /**
+	@code
+	Container_of(e) would give an object of the type c2_layout_list_enum,
+	say le.
+	Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from
+	le->lle_list_of_cobs, into the buffer (pointed by cur).
+	@endcode
+   */
+	return 0;
+}
+
 
 /**
    Implementation of leto_decode() for list enumeration type.
@@ -122,6 +170,9 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		C2_PRE(lid != 0);
 	}
 	C2_PRE(cur != NULL);
+
+	Nothing to be done if ldb_list_cob_entries::llces_nr <=
+	MAX_INLINE_COB_ENTRIES. Return from here if so.
 
 	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the COB identifiers belonging to the layout with the
@@ -239,6 +290,9 @@ static const struct c2_layout_enum_ops list_enum_ops = {
 static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_register       = list_register,
 	.leto_unregister     = list_unregister,
+	.leto_recsize        = list_recsize,
+	.leto_rec_decode     = list_rec_decode,
+	.leto_rec_encode     = list_rec_encode,
 	.leto_decode         = list_decode,
 	.leto_encode         = list_encode,
 };

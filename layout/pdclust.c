@@ -452,6 +452,31 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 }
 C2_EXPORTED(c2_pdclust_unit_classify);
 
+
+/**
+   Implementation of lto_recsize() for pdclust layout type.
+*/
+static uint64_t pdclust_recsize(void)
+{
+   /**
+	@code
+	uint64_t recsize;
+
+	Invoke corresponding leto_recsize() so as to get the record size
+	into variable recsize. It returns the size required to store the
+	enumeration type specific data into the layouts table record, if
+	applicable. 
+
+	recsize = recsize + sizeof(struct c2_pdclust_attr) +
+			    sizeof(struct c2_ldb_rec);
+
+	return recsize;
+	
+	@endcode
+   */
+	return 0;
+}
+
 /**
    Implementation of lto_decode() for pdclust layout type.
 
@@ -485,19 +510,8 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		struct c2_db_pair       pair;
 		uint64_t                recsize;
 
-		if (layout-enumeration is LIST) {
-			struct ldb_list_cob_entries ces;
-
-			Fill MAX_INLINE_COB_ENTRIES number of entries into
-			ces structure.
-
-			recsize = sizeof(struct c2_ldb_rec)
-					+ sizeof(struct c2_pdclust_attr)
-					+ sizeof(struct ldb_list_cob_entries);
-		} else {
-			recsize = sizeof(struct c2_ldb_rec)
-					+ sizeof(struct c2_pdclust_attr);
-		}
+		Invoke respective lto_recsize() to collect the layouts
+		table's record size into recsize.
 
 		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
 
@@ -508,14 +522,13 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	Read pdclust layout type specific fields from the buffer and store
 	those in c2_pdclust_layout::pl_attr.
 
-	Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from the
-	buffer (pointed by cur) and store those in the
-	c2_layout_list_enum->lle_list_of_cobs.
+	Invoke the corresponding leto_rec_decode() to read the enumeration type
+	specific data from the buffer (as is stored in the layouts table), into
+	the in-memory layout object.
 
-	if ((op == C2_LXO_DB_LOOKUP) && (layout-enumeration is LIST) &&
-		    ldb_list_cob_entries::llces_nr > MAX_INLINE_COB_ENTRIES)) {
-		Invoke corresponding leto_decode() so as to read cob entries
-		beyond MAX_INLINE_COB_ENTRIES.
+	if (op == C2_LXO_DB_LOOKUP) {
+		Invoke corresponding leto_decode() to read enumeration type
+		specific data from the disk.
 	}
 
 	Set the cursor cur to point at the beginning of the key-val pair read
@@ -548,35 +561,23 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	@code
 	Store pdclust layout type specific fields into the buffer.
 
-	If the layout-enumeration type is LIST, then invoke respective
-	leto_encode().
-	leto_encode(schema, l, op, tx, out);
+	Invoke the respective leto_encode(). 
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			(op == C2_LXO_DB_DELETE)) {
 		uint64_t recsize;
-		if (layout-enumeration is LIST) {
-			struct ldb_list_cob_entries ces;
 
-			Fill MAX_INLINE_COB_ENTRIES number of entries into
-			ces structure.
+		Invoke respective lto_recsize() to collect the layouts
+		table's record size into recsize.
 
-			recsize = sizeof(struct c2_ldb_rec)
-					+ sizeof(struct c2_pdclust_attr)
-					+ sizeof(struct ldb_list_cob_entries);
-		} else {
-			recsize = sizeof(struct c2_ldb_rec)
-					+ sizeof(struct c2_pdclust_attr);
-		}
+		Invoke the corresponding leto_rec_encode() to read the
+		enumeration type specific data from the c2_layout_list_enum
+		(to be stored in the layouts table), into the buffer.
+
 		ret = ldb_layout_write(op, recsize, out, schema, tx);
 
-		if ((layout-enumeration is LIST) &&
-			(c2_layout_list_enum::lle_list_of_cobs contains more
-			than MAX_INLINE_COB_ENTRIES entries)) {
-			Invoke corresponding leto_encode() so as to
-			write/update/delete cob entries beyond
-			MAX_INLINE_COB_ENTRIES.
-		}
+		Invoke corresponding leto_encode() so as to write/update/delete
+		enumeration type specific data ondisk.
 	}
 	@endcode
    */
@@ -601,6 +602,7 @@ static int pdclust_subst(const struct c2_layout *l,
 static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register   = NULL,
 	.lto_unregister = NULL,
+	.lto_recsize    = pdclust_recsize,
 	.lto_decode     = pdclust_decode,
 	.lto_encode     = pdclust_encode,
 	.lto_subst      = pdclust_subst
