@@ -1,17 +1,17 @@
-CORE_SRCDIR = /mnt/hgfs/work/colibri/core
-BUILD_DIR = $(CORE_SRCDIR)/build_kernel_modules
-GALOISDIR = $(CORE_SRCDIR)/../galois
-KERNEL_BUILDDIR = /home/xyratex/Documents/linux-2.6.35
+CORE_SRCDIR 	= @SRCDIR@
+BUILD_DIR 	= $(CORE_SRCDIR)/build_kernel_modules
+GALOISDIR 	= $(CORE_SRCDIR)/../galois
+KERNEL_BUILDDIR = @LINUX_OBJ@
 
-GCOV_PROFILE := y
+GCOV_PROFILE 	= @K_ENABLE_COVERAGE@
 
-testdirs := ../net/bulk_emulation/st/linux_kernel/ \
-            ../rpc/it/linux_kernel/ \
-	    ../utils/linux_kernel/
+testdirs 	= ../net/bulk_emulation/st/linux_kernel/ 		\
+	          ../rpc/it/linux_kernel/ 				\
+		  ../utils/linux_kernel/
 
-EXTRA_CFLAGS = -I. -I$(CORE_SRCDIR)
+EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
 
-#	Directory listing in core/ having linux_kernel/
+#	Directory listing from which we have to create kcolibri
 dirs = addb addb/linux_kernel c2t1fs cob db db/linux_kernel dtm fid fol fop  \
 	galois ioservice ioservice/linux_kernel layout lib lib/linux_kernel  \
 	lib/ut net net/bulk_emulation net/bulk_emulation/ut net/ksunrpc	     \
@@ -19,103 +19,115 @@ dirs = addb addb/linux_kernel c2t1fs cob db db/linux_kernel dtm fid fol fop  \
 	stob/ut xcode
 
 #	Source Listing
-addb_srcs = addb.c addb_fop.c addb_k.c
-addb_headers = addb_k.h
+addb_srcs 			= addb.c addb_fop.c addb_k.c
+addb_headers 			= addb_k.h
 
-addb_linux_kernel_srcs = addb_console.c
+addb_linux_kernel_srcs 		= addb_console.c
 
-c2t1fs_srcs = main.c
-c2t1fs_headers = c2t1fs.h io_fops_k.h io_k.h
+c2t1fs_srcs 			= main.c
+c2t1fs_headers 			= c2t1fs.h io_fops_k.h io_k.h
 
-cob_srcs = cob.c
+cob_srcs 			= cob.c
 
-db_srcs = db_common.c
+db_srcs 			= db_common.c
 
-db_linux_kernel_srcs = db.c
-db_linux_kernel_headers = db_impl.h
+db_linux_kernel_srcs 		= db.c
+db_linux_kernel_headers 	= db_impl.h
 
-dtm_srcs = verno.c
+dtm_srcs 			= verno.c
 
-fid_srcs = fid.c
-fid_headers = fid.h
+fid_srcs 			= fid.c
+fid_headers 			= fid.h
 
-fol_srcs = fol.c
-fol_headers = fol.h
+fol_srcs 			= fol.c
+fol_headers 			= fol.h
 
-fop_srcs = fop.c fom.c fop_format.c fop_iterator.c fop_base.c fop_onwire.c
+fop_srcs 			= fop.c fom.c fop_format.c fop_iterator.c       \
+				  fop_base.c fop_onwire.c
 
-galois_srcs = galois.c
-galois_headers = galois.h
+galois_srcs 			= galois.c
+galois_headers 			= galois.h
 
-ioservice_srcs = io_fops.c
-ioservice_headers = io_fops.h
+ioservice_srcs 			= io_fops.c
+ioservice_headers 		= io_fops.h
 
-ioservice_linux_kernel_srcs = io_fops_k.c
-ioservice_linux_kernel_headers = io_fops_k.h
+ioservice_linux_kernel_srcs 	= io_fops_k.c
+ioservice_linux_kernel_headers 	= io_fops_k.h
 
-layout_srcs = layout.c pdclust.c
-layout_headers = layout.h pdclust.h
+layout_srcs 			= layout.c pdclust.c
+layout_headers 			= layout.h pdclust.h
 
-lib_srcs = bitstring.c vec.c list.c queue.c refs.c time.c bitmap.c chan.c \
-	misc.c buf.c cond.c thread.c tlist.c
-lib_headers = misc.h memory.h errno.h arith.h fop.h buf.h
+lib_srcs 			= bitstring.c vec.c list.c queue.c refs.c       \
+				  time.c bitmap.c chan.c misc.c buf.c cond.c    \
+				  thread.c tlist.c
+lib_headers 			= misc.h memory.h errno.h arith.h fop.h buf.h
 
-lib_linux_kernel_srcs = memory.c mutex.c rwlock.c ktime.c timer.c  \
-	kthread.c semaphore.c processor.c kvec.c ut.c main.c
+lib_linux_kernel_srcs 		= memory.c mutex.c rwlock.c ktime.c timer.c     \
+				  kthread.c semaphore.c processor.c kvec.c      \
+				  ut.c main.c
 
-lib_ut_srcs = rwlock.c bitmap.c tlist.c chan.c list.c mutex.c \
-	queue.c refs.c tlist.c time.c vec.c zerovec.c thread.c
+lib_ut_srcs 			= rwlock.c bitmap.c tlist.c chan.c list.c       \
+				  mutex.c queue.c refs.c tlist.c time.c vec.c   \
+				  zerovec.c thread.c
 
-net_srcs = buf.c domain.c ep.c net.c tm.c buffer_pool.c connection.c \
-	net_cli.c net_utils.c net_srv.c
-net_headers = net.h net_internal.h
+net_srcs 			= buf.c domain.c ep.c net.c tm.c buffer_pool.c  \
+				  connection.c net_cli.c net_utils.c net_srv.c
+net_headers 			= net.h net_internal.h
 
-net_bulk_emulation_srcs = net_otw_types_k.c ksunrpc_server.c
-net_bulk_emulation_headers = net_otw_types_k.h sunrpc_xprt.h mem_xprt.h \
-				sunrpc_io_k.h
+net_bulk_emulation_srcs 	= net_otw_types_k.c ksunrpc_server.c
+net_bulk_emulation_headers 	= net_otw_types_k.h sunrpc_xprt.h mem_xprt.h    \
+				  sunrpc_io_k.h
 
-net_bulk_emulation_ut_srcs = ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
+net_bulk_emulation_ut_srcs 	= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
-net_ksunrpc_srcs = domain.c client.c kxdr.c
-net_ksunrpc_headers = ksunrpc.h
+net_ksunrpc_srcs 		= domain.c client.c kxdr.c
+net_ksunrpc_headers 		= ksunrpc.h
 
-net_linux_kernel_srcs = sunrpc_io_k.c
+net_linux_kernel_srcs 		= sunrpc_io_k.c
 
-net_ut_srcs = bulk_if.c buffer_pool_ut.c
+net_ut_srcs 			= bulk_if.c buffer_pool_ut.c
 
-pool_srcs = pool.c
+pool_srcs 			= pool.c
 
-rpc_srcs = formation.c rpc2.c rpc_base.c session.c session_foms.c \
-	conn.c slot.c session_utils.c session_fops.c rpc_onwire.c \
-	session_k.c
-rpc_headers = session_k.h
+rpc_srcs 			= formation.c rpc2.c rpc_base.c session.c       \
+				  session_foms.c conn.c slot.c session_utils.c  \
+				  session_fops.c rpc_onwire.c session_k.c
+rpc_headers 			= session_k.h
 
-sm_srcs = sm.c
+sm_srcs 			= sm.c
 
-sns_srcs = ls_solve.c matvec.c parity_math.c parity_ops.c
-sns_headers = parity_math.h
+sns_srcs 			= ls_solve.c matvec.c parity_math.c parity_ops.c
+sns_headers 			= parity_math.h
 
-stob_srcs = stob.c
-stob_headers = stob.h
+stob_srcs 			= stob.c
+stob_headers 			= stob.h
 
-stob_linux_kernel_src = kstob.c
+stob_linux_kernel_src 		= kstob.c
 
-stob_ut_srcs = io_fop_init.c io_k.c
-stob_ut_headers = io_fop.h io_k.h
+stob_ut_srcs 			= io_fop_init.c io_k.c
+stob_ut_headers 		= io_fop.h io_k.h
 
-xcode_srcs = bufvec_xcode.c bufvec_xcode_fop.c bufvec_xcode_size.c
+xcode_srcs 			= bufvec_xcode.c bufvec_xcode_fop.c 		\
+				  bufvec_xcode_size.c
+
+#	Following lines create the list of objects required for creating
+#	kcolibri by putting %.o for each %.c file listed for each target of dirs.
 
 kcolibri_objects = $(foreach d, $(dirs), $(foreach f, \
 	$($(subst /,_,$(d))_srcs), $(addprefix $(d)/, $(subst .c,.o, $(f)))))
 
 obj-m += kcolibri.o
+
 kcolibri-y += main.o init.o dummy_init_fini.o $(kcolibri_objects)
+
+#	Besides the module the UT's will be compiled separately by
+#	recursing into directories specified by $(testdirs)
 
 obj-y += $(testdirs)
 
 create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(f))
 
-all: prepare_everythingelse c2t1fs_prepare initialize addb_prepare net_prepare \
+all: prepare_everythingelse c2t1fs_prepare initialize addb_prepare net_prepare  \
 	test_prepare
 
 	@echo $(kcolibri_objects)
