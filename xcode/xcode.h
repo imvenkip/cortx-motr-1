@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 05/13/2010
+ * Original creation date: 25-Dec-2011
  */
 
 #ifndef __COLIBRI_XCODE_XCODE_H__
@@ -32,32 +32,127 @@ struct c2_xcode;
 struct c2_xcode_type;
 struct c2_xcode_type_ops;
 struct c2_xcode_ctx;
+struct c2_xcode_obj;
+struct c2_xcode_field;
+struct c2_xcode_cursor;
 
-struct c2_xcode {
-	struct c2_xcode_type *xc_type;
+enum c2_xcode_aggr {
+	C2_XA_RECORD,
+	C2_XA_UNION,
+	C2_XA_SEQUENCE,
+	C2_XA_TYPEDEF,
+	C2_XA_OPAQUE,
+	C2_XA_ATOM,
+	C2_XA_NR
+};
+
+extern const char *c2_xcode_aggr_name[C2_XA_NR];
+
+enum c2_xode_atom_type {
+	C2_XAT_VOID,
+	C2_XAT_BYTE,
+	C2_XAT_U32,
+	C2_XAT_U64,
+
+	C2_XAT_NR
+};
+
+extern const char *c2_xcode_atom_type_name[C2_XAT_NR];
+
+enum { C2_XCODE_DECOR_MAX = 10 };
+
+struct c2_xcode_field {
+	const char                 *xf_name;
+	const struct c2_xcode_type *xf_type;
+	union {
+		uint32_t                u_tag;
+		const struct c2_xcode_type *(*u_type)(const struct
+						      c2_xcode_obj *par);
+	}                           xf_u;
+	uint32_t                    xf_offset;
+	void                       *xf_decor[C2_XCODE_DECOR_MAX];
 };
 
 struct c2_xcode_type {
+	enum c2_xcode_aggr              xct_aggr;
 	const char                     *xct_name;
 	const struct c2_xcode_type_ops *xct_ops;
+	enum c2_xode_atom_type          xct_atype;
+	void                           *xct_decor[C2_XCODE_DECOR_MAX];
+	size_t                          xct_sizeof;
+	size_t                          xct_nr;
+	struct c2_xcode_field           xct_child[0];
+};
+
+struct c2_xcode_obj {
+	const struct c2_xcode_type *xo_type;
+	void                       *xo_ptr;
 };
 
 struct c2_xcode_type_ops {
-	int (*xto_length)(struct c2_xcode_ctx *ctx, const struct c2_xcode *xc);
-	int (*xto_encode)(struct c2_xcode_ctx *ctx, const struct c2_xcode *xc);
-	int (*xto_decode)(struct c2_xcode_ctx *ctx, struct c2_xcode *xc);
+	int (*xto_length)(struct c2_xcode_ctx *ctx, const void *obj);
+	int (*xto_encode)(struct c2_xcode_ctx *ctx, const void *obj);
+	int (*xto_decode)(struct c2_xcode_ctx *ctx, void *obj);
 };
 
 enum c2_xcode_endianness {
-	C2_XCODE_END_LE,
-	C2_XCODE_END_BE
+	C2_XEND_LE,
+	C2_XEND_BE,
+	C2_XEND_NR
 };
+
+extern const char *c2_xcode_endianness_name[C2_XEND_NR];
 
 struct c2_xcode_ctx {
 	enum c2_xcode_endianness xcx_end;
 	struct c2_bufvec_cursor  xcx_it;
 	c2_bcount_t              xcx_share_threshold;
 };
+
+int c2_xcode_decode(struct c2_xcode_ctx *ctx, struct c2_xcode_obj *obj);
+int c2_xcode_encode(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj);
+int c2_xcode_length(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj);
+
+void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fieldno, uint32_t elno);
+
+#define C2_XCODE_VAL(obj, fieldno, elno, __type) \
+        ((__type *)c2_xcode_addr(obj, fieldno, elno))
+
+void c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
+		     int fieldno, uint32_t elno);
+
+uint32_t c2_xcode_tag(struct c2_xcode_obj *obj);
+
+enum { C2_XCODE_DEPTH_MAX = 10 };
+
+enum c2_xcode_cursor_flag {
+	C2_XCODE_CURSOR_NONE,
+	C2_XCODE_CURSOR_PRE,
+	C2_XCODE_CURSOR_IN,
+	C2_XCODE_CURSOR_POST,
+	C2_XCODE_CURSOR_NR
+};
+
+extern const char *c2_xcode_cursor_flag_name[C2_XCODE_CURSOR_NR];
+
+struct c2_xcode_cursor {
+	int xcu_depth;
+	struct c2_xcode_cursor_frame {
+		struct c2_xcode_obj       s_obj;
+		int                       s_fieldno;
+		uint32_t                  s_elno;
+		enum c2_xcode_cursor_flag s_flag;
+	} xcu_stack[C2_XCODE_DEPTH_MAX];
+};
+
+int c2_xcode_next(struct c2_xcode_cursor *it);
+
+bool c2_xcode_type_invariant(const struct c2_xcode_type *xt);
+
+extern const struct c2_xcode_type C2_XT_VOID;
+extern const struct c2_xcode_type C2_XT_BYTE;
+extern const struct c2_xcode_type C2_XT_U32;
+extern const struct c2_xcode_type C2_XT_U64;
 
 /** @} end of xcode group */
 
