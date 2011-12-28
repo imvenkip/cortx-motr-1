@@ -269,6 +269,7 @@ static void xcode_cursor_test(void)
 	struct top T;
 	struct c2_xcode_cursor it;
 	char data[] = "Hello, world!\n";
+	int i;
 
 	T.t_foo.f_x = 7;
 	T.t_foo.f_y = 8;
@@ -299,51 +300,13 @@ static void xcode_cursor_test(void)
 	chk(&it, 2, &C2_XT_U32, &T.t_v.v_nr, 0, 0, C2_XCODE_CURSOR_PRE);
 	chk(&it, 2, &C2_XT_U32, &T.t_v.v_nr, 0, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 1, &xut_v.xt, &T.t_v, 0, 0, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[0], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[0], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 0, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[1], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[1], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 1, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[2], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[2], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 2, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[3], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[3], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 3, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[4], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[4], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 4, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[5], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[5], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 5, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[6], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[6], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 6, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[7], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[7], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 7, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[8], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[8], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 8, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[9], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[9], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 9, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[10], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[10], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 10, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[11], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[11], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 11, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[12], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[12], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 12, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[13], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[13], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 13, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[14], 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_v.v_data[14], 0, 0, C2_XCODE_CURSOR_POST);
-	chk(&it, 1, &xut_v.xt, &T.t_v, 1, 14, C2_XCODE_CURSOR_IN);
+	for (i = 0; i < ARRAY_SIZE(data); ++i) {
+		chk(&it, 2, &C2_XT_BYTE,
+		    &T.t_v.v_data[i], 0, 0, C2_XCODE_CURSOR_PRE);
+		chk(&it, 2, &C2_XT_BYTE,
+		    &T.t_v.v_data[i], 0, 0, C2_XCODE_CURSOR_POST);
+		chk(&it, 1, &xut_v.xt, &T.t_v, 1, i, C2_XCODE_CURSOR_IN);
+	}
 	chk(&it, 1, &xut_v.xt, &T.t_v, 2, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 0, &xut_top.xt, &T, 2, 0, C2_XCODE_CURSOR_IN);
 	chk(&it, 1, &xut_tdef.xt, &T.t_def, 0, 0, C2_XCODE_CURSOR_PRE);
