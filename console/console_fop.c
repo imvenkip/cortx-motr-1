@@ -57,9 +57,7 @@ static int c2_cons_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
                 return -ENOMEM;
 
 	c2_fom_init(fom);
-	if (fop->f_type == &c2_cons_fop_disk_fopt)
-		fom->fo_ops = &c2_cons_fom_disk_ops;
-	else if (fop->f_type == &c2_cons_fop_device_fopt)
+	if (fop->f_type == &c2_cons_fop_device_fopt)
 		fom->fo_ops = &c2_cons_fom_device_ops;
 	else {
 		c2_free(fom);
@@ -78,36 +76,19 @@ static int c2_cons_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
         return 0;
 }
 
-/** Ops vector for disk failure notification. */
-static struct c2_fop_type_ops c2_cons_fop_disk_ops = {
-	.fto_fom_init = &c2_cons_fop_fom_init,
-	.fto_size_get = c2_xcode_fop_size_get
-};
-
 /* Ops vector for device failure notification */
-const static struct c2_fop_type_ops c2_cons_fop_device_ops = {
+static const struct c2_fop_type_ops c2_cons_fop_device_ops = {
 	.fto_fom_init = &c2_cons_fop_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
 /* Ops vector for reply of any failure notification */
-const static struct c2_fop_type_ops c2_cons_fop_reply_ops = {
+static const struct c2_fop_type_ops c2_cons_fop_reply_ops = {
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
-const static struct c2_rpc_item_type_ops default_item_type_ops = {
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
-};
-
-/* Fop and RPC Item type definitions for disk and device failures and replies
+/* Fop and RPC Item type definitions for device failures and replies
    and replies */
-C2_FOP_TYPE_DECLARE(c2_cons_fop_disk, "Disk Failed",
-		    &c2_cons_fop_disk_ops,
-		    C2_CONS_FOP_DISK_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST);
-
 C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
 		    &c2_cons_fop_device_ops,
 		    C2_CONS_FOP_DEVICE_OPCODE,
@@ -121,7 +102,6 @@ C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
 C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
 
 static struct c2_fop_type *fops[] = {
-        &c2_cons_fop_disk_fopt,
         &c2_cons_fop_device_fopt,
         &c2_cons_fop_reply_fopt,
         &c2_cons_fop_test_fopt
@@ -129,7 +109,7 @@ static struct c2_fop_type *fops[] = {
 
 static struct c2_fop_type_format *fmts[] = {
 	&c2_cons_fop_fid_tfmt,
-	&c2_cons_fop_vec_tfmt,
+	&c2_cons_fop_buf_tfmt,
 };
 
 void c2_console_fop_fini(void)
@@ -148,7 +128,6 @@ int c2_console_fop_init(void)
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 
 	/* Initialize fom type once */
-	c2_cons_fop_disk_fopt.ft_fom_type = c2_cons_fom_disk_type;
 	c2_cons_fop_device_fopt.ft_fom_type = c2_cons_fom_device_type;
 
 	if (result != 0)

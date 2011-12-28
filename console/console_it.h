@@ -33,15 +33,23 @@
    @{
  */
 
+enum c2_cons_data_process_type {
+	CONS_IT_INPUT,
+	CONS_IT_OUTPUT,
+	CONS_IT_SHOW
+};
+
 /**
  * @struct c2_cons_atom_ops
- * @brief operatoin to get/set values of ATOM type (i.e. CHAR, U64 etc).
+ * @brief operation to get/set values of ATOM type (i.e. CHAR, U64 etc).
  */
 struct c2_cons_atom_ops {
-	void (*catom_get_val)(const struct c2_fop_field_type *ftype,
+	void (*catom_val_get)(const struct c2_fop_field_type *ftype,
 			      const char *name, void *data);
-	void (*catom_set_val)(const struct c2_fop_field_type *ftype,
+	void (*catom_val_set)(const struct c2_fop_field_type *ftype,
 			      const char *name, void *data);
+	void (*catom_val_show)(const struct c2_fop_field_type *ftype,
+			       const char *name, void *data);
 };
 
 /**
@@ -49,8 +57,10 @@ struct c2_cons_atom_ops {
  * @brief Operation to get/set values of UNION, SEQUENCE, etc.
  */
 struct c2_cons_aggr_ops {
-	void (*caggr_process_val)(const struct c2_fop_field_type *ftype,
-				  const char *name, void *data, bool output);
+	void (*caggr_val_process)(const struct c2_fop_field_type *ftype,
+				  const char *name, void *data,
+				  enum c2_cons_data_process_type type,
+				  int depth);
 };
 
 /**
@@ -58,7 +68,7 @@ struct c2_cons_aggr_ops {
  *
  * @param it Iterator ref.
  */
-void c2_cons_fop_fields_show(struct c2_fit *it);
+void c2_cons_fop_fields_show(struct c2_fop *fop);
 
 /**
  * @brief Iterate over FOP for Input and output.
@@ -66,21 +76,22 @@ void c2_cons_fop_fields_show(struct c2_fit *it);
  * @param it   Iterator ref.
  * @param output false input, true output.
  */
-void c2_cons_fop_obj_input_output(struct c2_fit *it, bool output);
+void c2_cons_fop_obj_input_output(struct c2_fit *it,
+				  enum c2_cons_data_process_type type);
 
 /**
  * @brief Helper function for FOP input
  *
  * @param it Iterator ref.
  */
-void c2_cons_fop_obj_input(struct c2_fit *it);
+void c2_cons_fop_obj_input(struct c2_fop *fop);
 
 /**
  * @brief Helper function for FOP output.
  *
  * @param it Iterator ref.
  */
-void c2_cons_fop_obj_output(struct c2_fit *it);
+void c2_cons_fop_obj_output(struct c2_fop *fop);
 
 /** @} end of console_it */
 

@@ -687,9 +687,11 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 
 	nb->nb_flags = 0;
 	nb->nb_qtype = qtype;
-	if (qtype == C2_NET_QT_MSG_RECV)
+	if (qtype == C2_NET_QT_MSG_RECV) {
 		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	else
+		nb->nb_min_receive_size = nrsegs * seg_size;
+		nb->nb_max_receive_msgs = 1;
+	} else
 		nb->nb_callbacks = &c2_rpc_send_buf_callbacks;
 
 	/* Register the buffer with given net domain. */

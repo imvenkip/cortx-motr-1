@@ -56,73 +56,79 @@ static struct c2_console cons_client = {
  * @param type 0 shows list of FOPS.
  *	       ~0 displays info related to FOP.
  */
-static void fop_info_show(enum c2_cons_mesg_type type)
+static int fop_info_show(uint32_t opcode)
 {
-	struct c2_cons_mesg *mesg;
+	struct c2_fop_type *ftype;
 
-	printf("\nInfo for \"");
-	mesg = c2_cons_mesg_get(type);
-	c2_cons_mesg_name_print(mesg);
-	printf("\"\n");
-	c2_cons_mesg_fop_show(mesg->cm_fopt);
+	fprintf(stdout, "\n");
+	ftype = c2_cons_fop_type_find(opcode);
+	if (ftype == NULL) {
+		fprintf(stderr, "Invalid FOP opcode %.2d.\n", opcode);
+		return -EINVAL;
+	}
+	c2_cons_fop_name_print(ftype);
+	fprintf(stdout, "\n");
+	return c2_cons_fop_show(ftype);
 }
 
 /**
  * @brief Build the RPC item using FOP(Embedded into item) and send it.
  *
  * @param cons Console object ref.
- * @param type FOP type(disk failure, device failure).
- *
- * @return item success, NULL failure.
+ * @param opcode FOP opcode.
  */
-static int message_send_and_print(struct c2_console *cons,
-				  enum c2_cons_mesg_type type)
+static int fop_send_and_print(struct c2_console *cons, uint32_t opcode)
 {
-        struct c2_fit		  it;
-	struct c2_cons_mesg	 *mesg;
-	struct c2_rpc_item	 *item;
-	struct c2_fop		 *fop;
-	c2_time_t		  deadline;
-	int			  rc;
+	struct c2_fop_type *ftype;
+	struct c2_rpc_item *item;
+	struct c2_fop	   *fop;
+	struct c2_fop	   *rfop;
+	c2_time_t	    deadline;
+	int		    rc;
 
 	C2_PRE(cons != NULL);
 
 	deadline = c2_cons_timeout_construct(timeout);
-	mesg = c2_cons_mesg_get(type);
-	mesg->cm_rpc_mach = &cons->cons_rpc_mach;
-	mesg->cm_rpc_session = &cons->cons_rpc_session;
-	printf("\nSending message for ");
-	c2_cons_mesg_name_print(mesg);
-	rc = c2_cons_mesg_send(mesg, deadline);
+	ftype = c2_cons_fop_type_find(opcode);
+	if (ftype == NULL)
+		return -EINVAL;
+
+	/* Allocate fop */
+	fop = c2_fop_alloc(ftype, NULL);
+	if (fop == NULL)
+		return -EINVAL;
+
+	fprintf(stdout, "\nSending message for ");
+	c2_cons_fop_name_print(ftype);
+	c2_cons_fop_obj_input(fop);
+	rc = c2_cons_fop_send(fop, &cons->cons_rpc_session, deadline);
 	if (rc != 0) {
 		fprintf(stderr, "Sending message failed!\n");
 		return -EINVAL;
 	}
 
 	/* Fetch the FOP reply */
-	item = &mesg->cm_fop->f_item;
+	item = &fop->f_item;
         if (item->ri_error != 0) {
 		fprintf(stderr, "rpc item receive failed.\n");
 		return -EINVAL;
 	}
 
-	fop = c2_rpc_item_to_fop(item->ri_reply);
-	if(fop == NULL) {
+	rfop = c2_rpc_item_to_fop(item->ri_reply);
+	if(rfop == NULL) {
 		fprintf(stderr, "RPC item reply not received.\n");
 		return -EINVAL;
 	}
 
 	/* Print reply */
-	printf("Print reply FOP: \n");
-        c2_fop_all_object_it_init(&it, fop);
-	c2_cons_fop_obj_output(&it);
-        c2_fop_all_object_it_fini(&it);
+	fprintf(stdout, "Print reply FOP: \n");
+	c2_cons_fop_obj_output(rfop);
 
 	return 0;
 }
 
 const char *usage_msg =	"c2console :"
-			" { -l FOP list | -f FOP type }"
+			" { -l FOP list | -f FOP opcode }"
 			" [-s server (e.g. 127.0.0.1:1024:1) ]"
 			" [-c client (e.g. 127.0.0.1:1025:1) ]"
 			" [-t timeout]"
@@ -149,7 +155,7 @@ static void usage(void)
  *	  (U32, U64, BYTE and VOID).
  *
  *	  Usage:
- *	  c2console :	{ -l FOP list | -f FOP type }
+ *	  c2console :	{ -l FOP list | -f FOP opcode }
  *			[-s server (e.g. 127.0.0.1:1024:1) ]
  *			[-c client (e.g. 127.0.0.1:1025:1) ] 
  *			[-t timeout] [[-i] [-y yaml file path]] [-v]
@@ -162,7 +168,7 @@ int console_main(int argc, char **argv)
 int main(int argc, char **argv)
 #endif
 {
-	enum c2_cons_mesg_type	type;
+	uint32_t		opcode;
 	int			result;
 	bool			show = false;
 	bool			input = false;
@@ -173,14 +179,14 @@ int main(int argc, char **argv)
 	verbose = false;
 	yaml_support = false;
 	timeout = TIME_TO_WAIT;
-	type = CMT_MESG_NR;
+	opcode = 0;
 
 	/*
 	 * Gets the info to connect to the service and type of fop to be send.
 	 */
 	result = C2_GETOPTS("console", argc, argv,
 			    C2_FLAGARG('l', "show list of fops", &show),
-			    C2_FORMATARG('f', "fop type", "%u", &type),
+			    C2_FORMATARG('f', "fop type", "%u", &opcode),
 			    C2_STRINGARG('s', "server",
 			    LAMBDA(void, (const char *name){ server = name; })),
 			    C2_STRINGARG('c', "client",
@@ -227,7 +233,7 @@ int main(int argc, char **argv)
 		}
 
 		client = c2_cons_yaml_get_value("client");
-		if (server == NULL) {
+		if (client == NULL) {
 			fprintf(stderr, "Client assignment failed\n");
 			result = EX_DATAERR;
 			goto yaml;
@@ -239,12 +245,6 @@ int main(int argc, char **argv)
 		cons_client.cons_repaddr = server;
 	if (client != NULL)
 		cons_client.cons_lepaddr = client;
-
-	result = c2_cons_mesg_init();
-	if (result != 0) {
-		fprintf(stderr, "c2_init failed\n");
-		return EX_SOFTWARE;
-	}
 
 #ifndef CONSOLE_UT
 	result = c2_init();
@@ -266,16 +266,17 @@ int main(int argc, char **argv)
 		goto end1;
 	}
 #endif
-	if (type >= CMT_MESG_NR) {
-		c2_cons_mesg_list_show();
+	if (show && opcode <= 0) {
+		c2_cons_fop_list_show();
 		usage();
 		result = EX_USAGE;
 		goto end1;
 	}
 
-	if (show && type < CMT_MESG_NR){
-		fop_info_show(type);
-		result = EX_OK;
+	if (show && opcode > 0) {
+		result = fop_info_show(opcode);
+		if (result == 0)
+			result = EX_OK;
 		goto end1;
 	}
 
@@ -298,9 +299,9 @@ int main(int argc, char **argv)
 	}
 
 	/* Build the fop/fom/item and send */
-	result = message_send_and_print(&cons_client, type);
+	result = fop_send_and_print(&cons_client, opcode);
 	if (result != 0) {
-		fprintf(stderr, "message_send_and_print failed\n");
+		fprintf(stderr, "fop_send_and_print failed\n");
 		result = EX_SOFTWARE;
 		goto cleanup;
 	}
@@ -324,8 +325,6 @@ end0:
 yaml:
 	if (input)
 		c2_cons_yaml_fini();
-
-	c2_cons_mesg_fini();
 
 	return result;
 }

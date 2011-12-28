@@ -153,8 +153,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	static const struct buf_add_checks checks[C2_NET_QT_NR] = {
 		[C2_NET_QT_MSG_RECV]          = { false, false, false, false },
 		[C2_NET_QT_MSG_SEND]          = { true,  true,  false, false },
-		[C2_NET_QT_PASSIVE_BULK_RECV] = { false, true,  false, true  },
-		[C2_NET_QT_PASSIVE_BULK_SEND] = { true,  true,  false, true  },
+		[C2_NET_QT_PASSIVE_BULK_RECV] = { false, false, false, true  },
+		[C2_NET_QT_PASSIVE_BULK_SEND] = { true,  false, false, true  },
 		[C2_NET_QT_ACTIVE_BULK_RECV]  = { false, false, true,  false },
 		[C2_NET_QT_ACTIVE_BULK_SEND]  = { true,  false, true,  false }
 	};
@@ -170,10 +170,14 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_PRE(dom->nd_xprt != NULL);
 
 	C2_PRE(!(buf->nb_flags &
-	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED|
-		C2_NET_BUF_TIMED_OUT)));
-
-	C2_PRE(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL);
+	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED |
+		C2_NET_BUF_TIMED_OUT | C2_NET_BUF_RETAIN)));
+	C2_PRE(ergo(buf->nb_qtype == C2_NET_QT_MSG_RECV,
+		    buf->nb_ep == NULL &&
+		    buf->nb_min_receive_size != 0 &&
+		    buf->nb_min_receive_size <=
+		                        c2_vec_count(&buf->nb_buffer.ov_vec) &&
+		    buf->nb_max_receive_msgs != 0));
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
 
 	/* determine what to do by queue type */
@@ -302,6 +306,9 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
 	if (!ergo(ev->nbe_buffer->nb_flags & C2_NET_BUF_TIMED_OUT,
 		  ev->nbe_status == -ETIMEDOUT))
 		return false;
+	if (!ergo(ev->nbe_buffer->nb_flags & C2_NET_BUF_RETAIN,
+		  ev->nbe_status == 0))
+		return false;
 	return true;
 }
 
@@ -330,13 +337,16 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
-	tm_tlist_del(buf);
+
+	if (!(buf->nb_flags & C2_NET_BUF_RETAIN)) {
+		tm_tlist_del(buf);
+		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
+				   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
+		buf->nb_timeout = C2_TIME_NEVER;
+	} else
+		buf->nb_flags &= ~C2_NET_BUF_RETAIN;
 
 	qtype = buf->nb_qtype;
-	buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
-			   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
-	buf->nb_timeout = C2_TIME_NEVER;
-
 	q = &tm->ntm_qstats[qtype];
 	if (ev->nbe_status < 0) {
 		q->nqs_num_f_events++;
@@ -365,8 +375,6 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 		}
 		break;
 	case C2_NET_QT_MSG_SEND:
-	case C2_NET_QT_PASSIVE_BULK_RECV:
-	case C2_NET_QT_PASSIVE_BULK_SEND:
 		/* must put() ep to match get in buffer_add() */
 		ep = buf->nb_ep;   /* from buffer */
 		break;

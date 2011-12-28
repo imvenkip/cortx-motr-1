@@ -21,12 +21,19 @@
 #ifndef __COLIBRI_COLIBRI_UT_CS_UT_FOP_FOMS_H__
 #define __COLIBRI_COLIBRI_UT_CS_UT_FOP_FOMS_H__
 
+extern struct c2_fop_type cs_ds1_req_fop_fopt;
+extern struct c2_fop_type cs_ds1_rep_fop_fopt;
+extern struct c2_fop_type cs_ds2_req_fop_fopt;
+extern struct c2_fop_type cs_ds2_rep_fop_fopt;
+
+extern const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops;
+
 /*
   Supported service types.
  */
 enum {
-        DS_ONE = 1,
-        DS_TWO,
+        CS_UT_SERVICE1 = 1,
+        CS_UT_SERVICE2,
 };
 
 /*
@@ -52,11 +59,6 @@ int c2_cs_ut_ds2_fop_init(void);
   Invoked from service specific startup function.
  */
 void c2_cs_ut_ds2_fop_fini(void);
-
-/*
-  Sends fops to server.
- */
-void c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype);
 
 /* __COLIBRI_COLIBRI_UT_CS_UT_FOP_FOMS_H__ */
 #endif
