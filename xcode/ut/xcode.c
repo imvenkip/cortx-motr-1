@@ -120,7 +120,7 @@ static const struct c2_xcode_type *opaq_type(const struct c2_xcode_obj *par)
 {
 	struct top *t = par->xo_ptr;
 
-	C2_ASSERT(par->xo_type == &xut_top.xt);
+	C2_UT_ASSERT(par->xo_type == &xut_top.xt);
 
 	return t->t_flag == 0xf ? &C2_XT_U32 : &C2_XT_U64;
 }
@@ -249,19 +249,19 @@ static void chk(struct c2_xcode_cursor *it, int depth,
 	struct c2_xcode_cursor_frame *f;
 
 	rc = c2_xcode_next(it);
-	C2_ASSERT(rc > 0);
+	C2_UT_ASSERT(rc > 0);
 
-	C2_ASSERT(it->xcu_depth == depth);
-	C2_ASSERT(IS_IN_ARRAY(depth, it->xcu_stack));
+	C2_UT_ASSERT(it->xcu_depth == depth);
+	C2_UT_ASSERT(IS_IN_ARRAY(depth, it->xcu_stack));
 
 	f   = &it->xcu_stack[it->xcu_depth];
 	obj = &f->s_obj;
 
-	C2_ASSERT(obj->xo_type == xt);
-	C2_ASSERT(obj->xo_ptr  == addr);
-	C2_ASSERT(f->s_fieldno == fieldno);
-	C2_ASSERT(f->s_elno    == elno);
-	C2_ASSERT(f->s_flag    == flag);
+	C2_UT_ASSERT(obj->xo_type == xt);
+	C2_UT_ASSERT(obj->xo_ptr  == addr);
+	C2_UT_ASSERT(f->s_fieldno == fieldno);
+	C2_UT_ASSERT(f->s_elno    == elno);
+	C2_UT_ASSERT(f->s_flag    == flag);
 }
 
 static void xcode_cursor_test(void)
@@ -366,7 +366,7 @@ static void xcode_cursor_test(void)
 	chk(&it, 0, &xut_top.xt, &T, 5, 0, C2_XCODE_CURSOR_IN);
 	chk(&it, 0, &xut_top.xt, &T, 6, 0, C2_XCODE_CURSOR_POST);
 
-	C2_ASSERT(c2_xcode_next(&it) == 0);
+	C2_UT_ASSERT(c2_xcode_next(&it) == 0);
 }
 
 const struct c2_test_suite xcode_ut = {
