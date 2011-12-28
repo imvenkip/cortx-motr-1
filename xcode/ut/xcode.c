@@ -305,6 +305,7 @@ static void xcode_cursor_test(void)
 		    &T.t_v.v_data[i], 0, 0, C2_XCODE_CURSOR_PRE);
 		chk(&it, 2, &C2_XT_BYTE,
 		    &T.t_v.v_data[i], 0, 0, C2_XCODE_CURSOR_POST);
+		C2_UT_ASSERT(*(char *)it.xcu_stack[2].s_obj.xo_ptr == data[i]);
 		chk(&it, 1, &xut_v.xt, &T.t_v, 1, i, C2_XCODE_CURSOR_IN);
 	}
 	chk(&it, 1, &xut_v.xt, &T.t_v, 2, 0, C2_XCODE_CURSOR_POST);
