@@ -268,7 +268,7 @@ static int a_u32_enc(struct c2_xcode_ctx *ctx, void *obj)
 
 	/* XXX endianness */
 	datum = datum;
-	return data_put(&ctx->xcx_it, obj, 4);
+	return data_put(&ctx->xcx_it, &datum, 4);
 }
 
 static int a_u32_dec(struct c2_xcode_ctx *ctx, void *obj)
@@ -291,7 +291,7 @@ static int a_u64_enc(struct c2_xcode_ctx *ctx, void *obj)
 
 	/* XXX endianness */
 	datum = datum;
-	return data_put(&ctx->xcx_it, obj, 8);
+	return data_put(&ctx->xcx_it, &datum, 8);
 }
 
 static int a_u64_dec(struct c2_xcode_ctx *ctx, void *obj)
@@ -361,15 +361,16 @@ int c2_xcode_length(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj)
 
 void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint32_t elno)
 {
-	char                       *addr = (char *)obj->xo_ptr;
-	const struct c2_xcode_type *xt   = obj->xo_type;
+	char                        *addr = (char *)obj->xo_ptr;
+	const struct c2_xcode_type  *xt   = obj->xo_type;
+	const struct c2_xcode_field *f    = &xt->xct_child[fileno];
+	const struct c2_xcode_type  *ct   = f->xf_type;
 
 	C2_ASSERT(fileno < xt->xct_nr);
-	addr += xt->xct_child[fileno].xf_offset;
+	addr += f->xf_offset;
 	if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 && elno != ~0)
-		addr = *((char **)addr) +
-			elno * xt->xct_child[1].xf_type->xct_sizeof;
-	else if (xt->xct_aggr == C2_XA_OPAQUE)
+		addr = *((char **)addr) + elno * ct->xct_sizeof;
+	else if (ct->xct_aggr == C2_XA_OPAQUE)
 		addr = *((char **)addr);
 	return addr;
 }
