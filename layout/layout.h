@@ -26,18 +26,16 @@
    @defgroup layout Layouts.
 
    A 'layout' is an attribute of a file. It maps a file onto a set of network
-   resources viz. component objects. Thus, it enlists identifiers for all the
-   component objects one file maps to.
+   resources. viz. component objects.
 
-   A layout is a resource (managed by the 'Colibri Resource Manager'). A layout
-   can be assignd to a file both by server and the client.
+   A 'layout type' specifies how a file is stored in a collection of targets.
+   It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
 
-   A 'layout type' specifies how a file is stored in a collection of component
-   objects.
+   An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping.
 
-   An 'enumeration method' determines how a collection of component objects is
-   specified. e.g. it may be specified as a list or by means of some linear
-   formula.
+   An 'enumeration type' determines how a collection of component object
+   identifiers (cob-fid) is specified. e.g. it may be specified as a list or
+   by means of some linear formula.
 
    Layout types supported currently are:
    - PDCLUST <BR>
@@ -58,6 +56,8 @@
      A layout with LIST enumeration method uses a list to enumerate all its
      component object identifiers.
 
+   A layout is a resource (managed by the 'Colibri Resource Manager'). A layout
+   can be assignd to a file both by server and the client.
    @{
 */
 

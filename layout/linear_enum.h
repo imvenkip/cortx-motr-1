@@ -43,8 +43,13 @@ struct c2_layout_linear_enum {
 	/** super class */
 	struct c2_layout_enum        lle_enum;
 
+	/** Number of elements present in the enumeration */
 	uint64_t                     lle_nr;
+
+	/** Constant A used in the linear equation A + idx * B */
 	uint64_t                     lle_A;
+
+	/** Constant B used in the linear equation A + idx * B */
 	uint64_t                     lle_B;
 };
 
