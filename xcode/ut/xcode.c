@@ -20,6 +20,7 @@
 
 #include <stdio.h>                          /* printf */
 
+#include "lib/vec.h"                        /* c2_bufvec */
 #include "lib/misc.h"                       /* C2_SET0 */
 #include "lib/ut.h"
 
@@ -264,19 +265,30 @@ static void chk(struct c2_xcode_cursor *it, int depth,
 	C2_UT_ASSERT(f->s_flag    == flag);
 }
 
+static char data[] = "Hello, world!\n";
+
+static struct top T = {
+	.t_foo  = {
+		.f_x = 7,
+		.f_y = 8
+	},
+	.t_flag = 0xF,
+	.t_v    = {
+		.v_nr   = sizeof data,
+		.v_data = data
+	},
+	.t_un   = {
+		.u_tag = 4
+	},
+	.t_opaq = {
+		.o_32 = &T.t_v.v_nr
+	}
+};
+
 static void xcode_cursor_test(void)
 {
-	struct top T;
+	int                    i;
 	struct c2_xcode_cursor it;
-	char data[] = "Hello, world!\n";
-	int i;
-
-	T.t_foo.f_x = 7;
-	T.t_foo.f_y = 8;
-	T.t_flag    = 0xF;
-	T.t_v.v_nr    = sizeof data;
-	T.t_v.v_data  = data;
-	T.t_un.u_tag  = 4;
 
 	C2_SET0(&it);
 
@@ -325,12 +337,30 @@ static void xcode_cursor_test(void)
 	chk(&it, 1, &xut_un.xt, &T.t_un, 2, 0, C2_XCODE_CURSOR_IN);
 	chk(&it, 1, &xut_un.xt, &T.t_un, 3, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 0, &xut_top.xt, &T, 4, 0, C2_XCODE_CURSOR_IN);
-	chk(&it, 1, &C2_XT_U32, &T.t_opaq.o_32, 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 1, &C2_XT_U32, &T.t_opaq.o_32, 0, 0, C2_XCODE_CURSOR_POST);
+	chk(&it, 1, &C2_XT_U32, T.t_opaq.o_32, 0, 0, C2_XCODE_CURSOR_PRE);
+	chk(&it, 1, &C2_XT_U32, T.t_opaq.o_32, 0, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 0, &xut_top.xt, &T, 5, 0, C2_XCODE_CURSOR_IN);
 	chk(&it, 0, &xut_top.xt, &T, 6, 0, C2_XCODE_CURSOR_POST);
 
 	C2_UT_ASSERT(c2_xcode_next(&it) == 0);
+}
+
+static void xcode_encode_test(void)
+{
+	char                ebuf[100];
+	c2_bcount_t         count = ARRAY_SIZE(ebuf);
+	void               *vec = ebuf;
+	struct c2_bufvec    bvec  = C2_BUFVEC_INIT_BUF(&vec, &count);
+	struct c2_xcode_ctx ctx;
+	struct c2_xcode_obj obj;
+	int                 result;
+
+	c2_bufvec_cursor_init(&ctx.xcx_it, &bvec);
+	obj.xo_type = &xut_top.xt;
+	obj.xo_ptr  = &T;
+
+	result = c2_xcode_encode(&ctx, &obj);
+	C2_UT_ASSERT(result == 0);
 }
 
 const struct c2_test_suite xcode_ut = {
@@ -339,6 +369,7 @@ const struct c2_test_suite xcode_ut = {
         .ts_fini = NULL,
         .ts_tests = {
                 { "xcode-cursor", xcode_cursor_test },
+                { "xcode-encode", xcode_encode_test },
                 { NULL, NULL }
         }
 };
