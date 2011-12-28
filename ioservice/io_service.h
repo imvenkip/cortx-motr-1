@@ -62,10 +62,10 @@ enum {
  * Data structure represents list of buffer pool per network domain.
  */
 struct c2_rios_buffer_pool {
-        /** Pointer to net domain owner of this buffer pool */
-        struct c2_net_domain        *rios_ndom;
         /** Pointer to Network buffer pool. */
         struct c2_net_buffer_pool    rios_bp;
+        /** Pointer to net domain owner of this buffer pool */
+        struct c2_net_domain        *rios_ndom;
         /** Buffer pool wait channel. */
         struct c2_chan               rios_bp_wait;
         /** Linkage into netowrk buffer pool list */ 

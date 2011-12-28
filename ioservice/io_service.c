@@ -49,7 +49,7 @@ C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
  * configuration cache module not available these values defines as constants
  */
 static const int network_buffer_pool_segment_size=4096;
-static const int network_buffer_pool_max_segment=16;
+static const int network_buffer_pool_segment_nr=16;
 static const int network_buffer_pool_threshold=8;
 static const int network_buffer_pool_initial_size=32;
 
@@ -210,8 +210,8 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
              colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
              c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
                                      network_buffer_pool_threshold,
-                                     network_buffer_pool_segment_size,
-                                     network_buffer_pool_max_segment, colours);
+                                     network_buffer_pool_segment_nr,
+                                     network_buffer_pool_segment_size, colours);
 
              /** Pre-allocate network buffers */
              c2_net_buffer_pool_lock(&newbp->rios_bp);

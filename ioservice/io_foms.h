@@ -188,6 +188,10 @@ struct c2_io_fom_cob_rw {
         int                              fcrw_batch_size;
         /** Number of bytes successfully transfered. */
         int                              fcrw_bytes_transfered;
+        /** Number of parallel stob io. */
+        int                              fcrw_parallel_stob_io;
+        /** Pointer to buffer pool refered by FOM */
+        struct c2_net_buffer_pool       *fcrw_bp;
         /** Signal send to this chanel when io_fom ready to execute */
         struct c2_chan                   fcrw_wait;
 	/** Stob object on which this FOM is acting. */
