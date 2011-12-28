@@ -357,7 +357,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 	uint32_t i;
 
 	if (pdl != NULL) {
-		c2_layout_fini(&pdl->pl_layout);
+		c2_layout_fini(&pdl->pl_layout.ls_base);
 		c2_free(pdl->pl_tile_cache.tc_inverse);
 		c2_free(pdl->pl_tile_cache.tc_permute);
 		c2_free(pdl->pl_tile_cache.tc_lcode);
@@ -402,11 +402,11 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 			Create an object of the type c2_layout_linear_enum.
 		@endcode
 		*/
-		c2_layout_init(&pdl->pl_layout, *id,
+		c2_layout_init(&pdl->pl_layout.ls_base, *id,
                                &c2_pdclust_layout_type,
-                               NULL, /* Pointer to c2_layout_linear_enum object */
                                &pdlclust_ops);
 
+		pdl->pl_layout.ls_enum = NULL, /* @todo Pointer to c2_layout_linear_enum object */
 		pdl->pl_seed = *seed;
 		pdl->pl_attr.pa_N = N;
 		pdl->pl_attr.pa_K = K;
@@ -467,7 +467,7 @@ static uint64_t pdclust_recsize(void)
 	enumeration type specific data into the layouts table record, if
 	applicable.
 
-	recsize = recsize + sizeof(struct c2_pdclust_attr) +
+	recsize = recsize + sizeof(struct c2_pdclust_rec) +
 			    sizeof(struct c2_ldb_rec);
 
 	return recsize;

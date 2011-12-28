@@ -278,13 +278,24 @@ struct c2_layout_enum_type_ops {
 				  struct c2_bufvec_cursor *out);
 };
 
+/**
+    Layout using enumeration.
+*/
+struct c2_layout_striped {
+	/** super class */
+	struct c2_layout                 ls_base;
+
+	/** Layout enumeration. */
+	const struct c2_layout_enum     *ls_enum;
+};
+
+
 int c2_layouts_init(void);
 void c2_layouts_fini(void);
 
 void c2_layout_init(struct c2_layout *lay,
 		    const uint64_t lid,
 		    const struct c2_layout_type *type,
-		    const struct c2_layout_enum *e,
 		    const struct c2_layout_ops *ops);
 void c2_layout_fini(struct c2_layout *lay);
 

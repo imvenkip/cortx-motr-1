@@ -41,8 +41,11 @@ struct c2_layout_linear_enum;
  */
 struct c2_layout_linear_enum {
 	/** super class */
-	struct c2_layout_enum     lline_enum;
+	struct c2_layout_enum        lle_enum;
 
+	uint64_t                     lle_nr;
+	uint64_t                     lle_A;
+	uint64_t                     lle_B;
 };
 
 

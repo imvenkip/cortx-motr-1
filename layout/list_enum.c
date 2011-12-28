@@ -240,7 +240,8 @@ static uint32_t list_nr(const struct c2_layout_enum *le,
 	@code
 	c2_layout_list_enum::lle_list_of_cobs has list of COB Ids in it.
 	Provide count of entries stored in
-	c2_layout_list_enum::lle_list_of_cobs
+	c2_layout_list_enum::lle_list_of_cobs. (Probably c2_tlist_length() can
+	be used for this purpose.)
 	@endcode
    */
 	return 0;

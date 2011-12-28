@@ -71,7 +71,6 @@ void c2_layouts_fini(void)
 void c2_layout_init(struct c2_layout *lay,
 		    const uint64_t id,
 		    const struct c2_layout_type *type,
-		    const struct c2_layout_enum *e,
 		    const struct c2_layout_ops *ops)
 {
    /**
@@ -82,7 +81,6 @@ void c2_layout_init(struct c2_layout *lay,
 
 	lay->l_id       = id;
 	lay->l_type     = type;
-	lay->l_enum     = e;
 	lay->l_ops      = ops;
 
 	c2_mutex_unlock(lay->l_lock);

@@ -80,7 +80,7 @@ struct c2_pdclust_ops;
 /**
    Attributes specific to PDCLUST layout type.
    These attributes are part of c2_pdclust_layout which is in-memory layout
-   object and are stored in the Layout DB as well.
+   object and are stored in the Layout DB as well through c2_pdclust_rec.
 */
 struct c2_pdclust_attr {
 	/**
@@ -98,6 +98,17 @@ struct c2_pdclust_attr {
 	uint32_t                     pa_P;
 };
 
+/**
+   Pdclust layout type specific part of record for layouts table.
+*/
+struct c2_pdclust_rec {
+	/** Layout enumeration type id.
+	    Value obtained from c2_layout_enum_type::let_id.
+	*/
+	uint64_t                     pr_let_id;
+
+	struct c2_pdclust_attr       pr_attr;
+};
 
 /**
    Extension of generic c2_layout for a parity de-clustering.
@@ -107,7 +118,7 @@ struct c2_pdclust_attr {
  */
 struct c2_pdclust_layout {
 	/** super class */
-	struct c2_layout             pl_layout;
+	struct c2_layout_striped     pl_layout;
 
 	/**
 	   Parity de-clustering layout attributes.

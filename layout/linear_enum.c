@@ -38,36 +38,6 @@
 */
 
 /**
-   Enumerate the COB identifiers for a layout with LINEAR enum type.
-*/
-static int __attribute__ ((unused)) linear_enumerate(
-			     const struct c2_layout_enum *le,
-			     struct c2_tl *outlist,
-			     struct c2_fid *gfid)
-
-{
-   /**
-	@code
-	The layouti id is le->le_lptr->l_id.
-	Use c2_ldb_rec_lookup() to read the layout with that layout id.
-
-	It would tell that the layout is with the LINEAR enumeration type
-	and will provide the required attributes.
-
-	Now derive list of COB identifiers
-
-	Invoke
-	c2_layout_linear_enum->lline_enum->le_lptr->l_type->lt_ops->lto_subst(),
-	by passing it the attributes obtained by reading the layout and the
-	parameter gfid. This will result into COB identifiers enumeration, in
-	the form of a c2_tl list, stored in the list that is out argument of
-	this routine.
-	@endcode
-   */
-	return 0;
-}
-
-/**
    Implementation of leo_nr for LINEAR enumeration.
    Rerurns number of objects in the enumeration.
 */
@@ -76,11 +46,10 @@ static uint32_t linear_nr(const struct c2_layout_enum *le,
 {
    /**
 	@code
-	c2_tl          *list;
+	struct c2_layout_linear_enum *lin;
 
-	linear_enumerate(le, list, gfid);
-
-	Provide number of objects for that layout enumeration.
+	lin = container_of(le, struct c2_layout_linear_enum, lle_base);
+	return lin->lle_nr;
 	@endcode
    */
 	return 0;
@@ -97,11 +66,13 @@ static void linear_get(const struct c2_layout_enum *le,
 {
    /**
 	@code
-	c2_tl          *list;
+	struct c2_layout_linear_enum *lin;
 
-	linear_enumerate(le, list, gfid);
+	lin = container_of(le, struct c2_layout_linear_enum, lle_base);
 
-	Provide idx-th object from that layout enumeration.
+	out->f_key = gfid->f_key;
+	out->f_container = lin->lle_A + idx * lin->lle_B;
+
 	@endcode
    */
 }

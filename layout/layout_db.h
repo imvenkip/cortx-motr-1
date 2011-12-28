@@ -156,11 +156,6 @@ struct c2_ldb_rec {
 	*/
 	uint64_t                       lr_lt_id;
 
-	/** Layout enumeration type id.
-	    Value obtained from c2_layout_enum_type::let_id.
-	*/
-	uint64_t                       lr_let_id;
-
 	/** Layout reference count.
 	    Indicating number of files using this layout.
 	*/
