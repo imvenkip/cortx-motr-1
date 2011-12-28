@@ -195,14 +195,6 @@ void c2_timer_thread_detach(struct c2_timer_locality *loc);
  */
 int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc);
 
-/**
-   Invariant for timer.
-
-   @pre c2_timer_init() for this timer was succesfully called.
-   @pre c2_timer_fini() wasn't called for this timer.
- */
-bool c2_timer_invariant(struct c2_timer *timer);
-
 /** @} end of timer group */
 /* __COLIBRI_LIB_TIMER_H__ */
 #endif

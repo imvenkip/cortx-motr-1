@@ -301,7 +301,7 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 		timer->t_callback(timer->t_data);
 }
 
-bool c2_timer_invariant(struct c2_timer *timer)
+static bool timer_invariant(struct c2_timer *timer)
 {
 	C2_PRE(timer != NULL);
 
@@ -353,7 +353,7 @@ static bool timer_state_change(struct c2_timer *timer, enum timer_func func,
 			}
 		};
 
-	C2_PRE(c2_timer_invariant(timer));
+	C2_PRE(timer_invariant(timer));
 
 	new_state = func == TIMER_INIT ? TIMER_INITED :
 		transition[timer->t_state][func];
