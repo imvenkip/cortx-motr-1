@@ -1102,12 +1102,15 @@ void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 			uint32_t segs_nr,
 			c2_bcount_t seg_size,
-			struct c2_net_domain *netdom)
+			struct c2_net_domain *netdom,
+			struct c2_rpc_bulk_buf **out)
 {
 	int			rc;
 	struct c2_rpc_bulk_buf *buf;
 
 	C2_PRE(rbulk != NULL);
+	C2_PRE(netdom != NULL);
+	C2_PRE(out != NULL);
 
 	if (seg_size > c2_net_domain_get_max_buffer_segment_size(netdom) ||
 	    segs_nr > c2_net_domain_get_max_buffer_segments(netdom) ||
@@ -1124,12 +1127,13 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 		return rc;
 	}
 
-	c2_tlist_init(&rpcbulk_tl, &rbulk->rb_buflist);
+	c2_tlink_init(&rpcbulk_tl, buf);
 	buf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
 	buf->bb_rbulk = rbulk;
 	c2_mutex_lock(&rbulk->rb_mutex);
 	c2_tlist_add(&rpcbulk_tl, &rbulk->rb_buflist, buf);
 	c2_mutex_unlock(&rbulk->rb_mutex);
+	*out = buf;
 	return 0;
 }
 
@@ -1214,16 +1218,19 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
 		nbuf = &rbuf->bb_nbuf;
 		nbuf->nb_ep = conn->c_rpcchan->rc_destep;
-		C2_ASSERT(rbuf->bb_nbuf.nb_dom == tm->ntm_dom);
-		if (op == C2_RPC_BULK_STORE)
+		nbuf->nb_length = c2_vec_count(&nbuf->nb_buffer.ov_vec);
+		if (op == C2_RPC_BULK_STORE) {
 			C2_ASSERT(nbuf->nb_qtype ==
 				  C2_NET_QT_PASSIVE_BULK_RECV ||
 				  nbuf->nb_qtype ==
 				  C2_NET_QT_PASSIVE_BULK_SEND);
-		else
+			nbuf->nb_callbacks = &rpc_bulk_sender_cb;
+		} else {
 			C2_ASSERT(nbuf->nb_qtype ==
 				  C2_NET_QT_ACTIVE_BULK_RECV ||
 				  nbuf->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+			nbuf->nb_callbacks = &rpc_bulk_receiver_cb;
+		}
 
 		if (nbuf->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
 		    nbuf->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV)
@@ -1233,7 +1240,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 
 		rc = c2_net_buffer_register(nbuf, netdom);
 		if (rc != 0)
-			return rc;
+			break;
 
 		if (op == C2_RPC_BULK_LOAD)
 			memcpy(desc_list[cnt].nbd_data, nbuf->nb_desc.nbd_data,
@@ -1242,7 +1249,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		rc = c2_net_buffer_add(nbuf, tm);
 		if (rc != 0) {
 			c2_net_buffer_deregister(nbuf, netdom);
-			return rc;
+			break;
 		}
 
 		if (op == C2_RPC_BULK_STORE)
@@ -1263,7 +1270,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 
-	C2_POST(rpc_bulk_invariant(rbuf->bb_rbulk));
+	C2_POST(rpc_bulk_invariant(rbulk));
 	return rc;
 }
 
