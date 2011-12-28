@@ -65,9 +65,9 @@ struct c2_xcode_field {
 	const char                 *xf_name;
 	const struct c2_xcode_type *xf_type;
 	union {
-		uint32_t                u_tag;
-		const struct c2_xcode_type *(*u_type)(const struct
-						      c2_xcode_obj *par);
+		uint32_t   u_tag;
+		int      (*u_type)(const struct c2_xcode_obj   *par,
+				   const struct c2_xcode_type **out);
 	}                           xf_u;
 	uint32_t                    xf_offset;
 	void                       *xf_decor[C2_XCODE_DECOR_MAX];
@@ -118,8 +118,8 @@ void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fieldno, uint32_t elno);
 #define C2_XCODE_VAL(obj, fieldno, elno, __type) \
         ((__type *)c2_xcode_addr(obj, fieldno, elno))
 
-void c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
-		     int fieldno, uint32_t elno);
+int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
+		    int fieldno, uint32_t elno);
 
 uint32_t c2_xcode_tag(struct c2_xcode_obj *obj);
 

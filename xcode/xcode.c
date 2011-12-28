@@ -167,8 +167,8 @@ static int field_walk(struct c2_walk_ctx *wc, int fieldno, uint32_t elno)
 		.wc_op  = wc->wc_op,
 		.wc_obj = &subobj
 	};
-	c2_xcode_subobj(&subobj, wc->wc_obj, fieldno, elno);
-	return ctx_walk(&subctx);
+	return c2_xcode_subobj(&subobj, wc->wc_obj, fieldno, elno) ?:
+		ctx_walk(&subctx);
 }
 
 static int record(struct c2_walk_ctx *wc)
@@ -375,18 +375,24 @@ void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint32_t elno)
 	return addr;
 }
 
-void c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
-		     int fieldno, uint32_t elno)
+int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
+		    int fieldno, uint32_t elno)
 {
 	const struct c2_xcode_field *f;
+	int                          result;
 
 	C2_PRE(0 <= fieldno && fieldno < obj->xo_type->xct_nr);
 
 	f = &obj->xo_type->xct_child[fieldno];
 
 	subobj->xo_ptr  = c2_xcode_addr(obj, fieldno, elno);
-	subobj->xo_type = f->xf_type->xct_aggr == C2_XA_OPAQUE ?
-		f->xf_u.u_type(obj) : f->xf_type;
+	if (f->xf_type->xct_aggr == C2_XA_OPAQUE) {
+		result = f->xf_u.u_type(obj, &subobj->xo_type);
+	} else {
+		subobj->xo_type = f->xf_type;
+		result = 0;
+	}
+	return result;
 }
 
 uint32_t c2_xcode_tag(struct c2_xcode_obj *obj)

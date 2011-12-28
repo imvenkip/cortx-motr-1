@@ -94,11 +94,16 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 		if (top->s_fieldno < nr) {
 			top->s_flag = C2_XCODE_CURSOR_IN;
 			if (xt->xct_aggr != C2_XA_ATOM) {
-				++it->xcu_depth;
+				int result;
 
+				++it->xcu_depth;
 				next = top_get(it);
-				c2_xcode_subobj(&next->s_obj, &top->s_obj,
-						top->s_fieldno, top->s_elno);
+				result = c2_xcode_subobj(&next->s_obj,
+							 &top->s_obj,
+							 top->s_fieldno,
+							 top->s_elno);
+				if (result != 0)
+					return result;
 				next->s_fieldno = 0;
 				next->s_elno    = 0;
 				next->s_flag    = C2_XCODE_CURSOR_PRE;

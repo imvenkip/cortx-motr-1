@@ -117,13 +117,15 @@ static struct static_xt xut_top = {
 	}
 };
 
-static const struct c2_xcode_type *opaq_type(const struct c2_xcode_obj *par)
+static int opaq_type(const struct c2_xcode_obj *par,
+		     const struct c2_xcode_type **out)
 {
 	struct top *t = par->xo_ptr;
 
 	C2_UT_ASSERT(par->xo_type == &xut_top.xt);
 
-	return t->t_flag == 0xf ? &C2_XT_U32 : &C2_XT_U64;
+	*out = t->t_flag == 0xf ? &C2_XT_U32 : &C2_XT_U64;
+	return 0;
 }
 
 static int xcode_init(void)
