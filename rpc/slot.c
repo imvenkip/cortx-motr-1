@@ -887,9 +887,9 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 {
 	item->ri_error = rc;
 	item->ri_reply = reply;
-	c2_chan_broadcast(&item->ri_chan);
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
+	c2_chan_broadcast(&item->ri_chan);
 	/*
 	 * If item is of type conn terminate reply,
 	 * then req and item (including any of its associated
