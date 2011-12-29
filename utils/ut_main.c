@@ -31,6 +31,7 @@
 extern const struct c2_test_suite libc2_ut; /* test lib first */
 extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite ad_ut;
+extern const struct c2_test_suite bulkio_ut;
 extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
@@ -76,6 +77,7 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
+	        c2_ut_add(&bulkio_ut);
 	        c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);

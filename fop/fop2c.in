@@ -9,7 +9,7 @@ OPTVAL=`getopt -o ukd:v -n 'fop2c' -- "$@"`
 # Note the quotes around `$OPTVAL': they are essential!
 eval set -- "$OPTVAL"
 
-verbose=4
+verbose=0
 topdir=$(dirname $0)/..
 
 CC=${CC:-"cc"}
