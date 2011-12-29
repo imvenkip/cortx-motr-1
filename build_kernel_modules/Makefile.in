@@ -11,29 +11,39 @@ testdirs 	= ../net/bulk_emulation/st/linux_kernel/ 		\
 
 EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
 
-#	Directory listing from which we have to create kcolibri
-dirs = addb addb/linux_kernel c2t1fs cob db db/linux_kernel dtm fid fol fop  \
-	galois ioservice ioservice/linux_kernel layout lib lib/linux_kernel  \
-	lib/ut net net/bulk_emulation net/bulk_emulation/ut net/ksunrpc	     \
-	net/linux_kernel net/ut pool rpc sm sns stob stob/ut xcode
+#	NOTE:
+#	It is assumed that user space build is done before starting to
+#	build kernel modules.
+
+#	Below is the directory listing from which we have to create kcolibri.ko
+#	To add a new directory 'd' to this list, add directory name
+#	to $(dirs); then add the names of '.c' files to d_SRCS and the
+#	headers to d_HEADERS as new targets.
+#	The $(dirs) list is maintained alphabetically
+
+dirs = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid fol \
+	fop  galois ioservice layout lib lib/linux_kernel lib/ut net 		\
+	net/bulk_emulation net/bulk_emulation/ut net/ksunrpc net/ut pool rpc sm \
+	sns stob stob/ut xcode
 
 #	Source Listing
 
-addb_SRCS 			:= addb.c addb_fop.c
+addb_SRCS 			:= addb.c addb_fop.c addb_k.c
+addb_HEADERS 			:= addb_k.h
 
-addb_linux_kernel_SRCS 		:= addb_console.c addb_k.c
-addb_linux_kernel_HEADERS 	:= addb_k.h
+addb_linux_kernel_SRCS 		:= addb_console.c
 
-#	.. specifies the source relative to current path of directory
-#	i.e. if there's a '..' in galois directory's target it means
-#	it refers to core/galois/.. --> core/
+#	If there's a directory 'd' in $(dirs) then the listing of files given for
+#	d_SRCS is relative to 'd'; e.g. in the following, ../ioservice/ points to
+#	c2t1fs/../ioservice/
 
 c2t1fs_SRCS 			:= main.c
-c2t1fs_HEADERS 			:= c2t1fs.h io_fops_k.h io_k.h 			\
-				   ../ioservice/linux_kernel/io_fops_k.h	\
+c2t1fs_HEADERS 			:= c2t1fs.h ../ioservice/io_fops_k.h 		\
 				   ../stob/ut/io_k.h
 
 cob_SRCS 			:= cob.c
+
+colibri_SRCS			:= init.c
 
 db_SRCS 			:= db_common.c
 
@@ -54,11 +64,8 @@ fop_SRCS 			:= fop.c fom.c fop_format.c fop_iterator.c      \
 galois_SRCS 			:= ../../galois/galois.c
 galois_HEADERS 			:= ../../galois/galois.h
 
-ioservice_SRCS 			:= io_fops.c
-ioservice_HEADERS 		:= io_fops.h
-
-ioservice_linux_kernel_SRCS 	:= io_fops_k.c
-ioservice_linux_kernel_HEADERS 	:= io_fops_k.h
+ioservice_SRCS 			:= io_fops.c io_fops_k.c
+ioservice_HEADERS 		:= io_fops.h io_fops_k.h
 
 layout_SRCS 			:= layout.c pdclust.c
 layout_HEADERS 			:= layout.h pdclust.h
@@ -77,23 +84,19 @@ lib_ut_SRCS 			:= rwlock.c bitmap.c tlist.c chan.c list.c      \
 				   zerovec.c thread.c
 
 net_SRCS 			:= buf.c domain.c ep.c net.c tm.c buffer_pool.c \
-				   connection.c net_cli.c net_utils.c net_srv.c
-net_HEADERS 			:= net.h net_internal.h
+				   connection.c net_cli.c net_utils.c net_srv.c	\
+				   net_otw_types_k.c
+net_HEADERS 			:= net.h net_internal.h net_otw_types_k.h
 
-net_bulk_emulation_SRCS 	:= ksunrpc_server.c 				\
-				   ../linux_kernel/net_otw_types_k.c
+net_bulk_emulation_SRCS 	:= ksunrpc_server.c sunrpc_io_k.c
 net_bulk_emulation_HEADERS 	:= sunrpc_xprt.h mem_xprt.h sunrpc_io_k.h 	\
 				   ../ksunrpc/ksunrpc.h 			\
-				   ../linux_kernel/sunrpc_io_k.h		\
-				   ../linux_kernel/net_otw_types_k.h
+				   ../net_otw_types_k.h
 
 net_bulk_emulation_ut_SRCS 	:= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
 net_ksunrpc_SRCS 		:= domain.c client.c kxdr.c
 net_ksunrpc_HEADERS 		:= ksunrpc.h
-
-net_linux_kernel_SRCS 		:= sunrpc_io_k.c
-net_linux_kernel_HEADERS	:= net_otw_types_k.h sunrpc_io_k.h
 
 net_ut_SRCS 			:= bulk_if.c buffer_pool_ut.c
 
@@ -121,6 +124,15 @@ xcode_SRCS 			:= bufvec_xcode.c bufvec_xcode_fop.c 		\
 #	Following lines create the list of objects required for creating
 #	kcolibri by putting %.o for each %.c file listed for each target of
 #	$(dirs).
+#	for d in $(dirs); do
+#		for f in $(d)_SRCS; do
+#			replace each *.c to *.o
+#			add prefix $(d)/ to each name
+#		done
+#	done
+#	$(notdir names...)
+#		extracts all but the directory-part of each file name in names
+#	e.g. $(notdir src/foo.c hacks) Produces the result 'foo.c hacks'
 
 kcolibri_objects = $(foreach d, $(dirs), $(foreach f, 				\
 			$($(subst /,_,$(d))_SRCS), $(addprefix $(d)/, 		\
@@ -128,74 +140,53 @@ kcolibri_objects = $(foreach d, $(dirs), $(foreach f, 				\
 
 obj-m += kcolibri.o
 
-kcolibri-y += main.o init.o dummy_init_fini.o $(kcolibri_objects)
+kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
 
-#	Besides the module the UT's will be compiled separately by
+#	Besides the kcolibri.ko, the UT's would be build separately by
 #	recursing into directories specified by $(testdirs)
 
 obj-y += $(testdirs)
 
 create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)))
 
-all: initialize prepare_dirs prepare_addb prepare_net  \
-	prepare_test
+all: prepare_test
 
 	@echo $(kcolibri-y)
+
+#	Following lines create links to files from core/ tree to
+#	build_kernel_modules/ tree
+#	for d in $(dirs); do
+#		for f in $(d)_SRCS; do
+#			ln -sf core/$(d)/$(f) core/build_kernel_modules/$(d)/$(f)
+#		done
+#	done
+
+	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SRCS),   	\
+		$(create_links)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),	\
+		$(create_links)))
 #	DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
-prepare_dirs:
-	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SRCS),   \
-		$(create_links)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),\
-		$(create_links)))
-
-initialize:
-	ln -sf $(CORE_SRCDIR)/colibri/init.c .
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/rpc/session.ff
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/stob/ut/io.ff
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/ioservice/io_fops.ff
-	mv session_k.[ch] $(CORE_SRCDIR)/rpc/
-	mv io_k.[ch] $(CORE_SRCDIR)/stob/ut/
-	mv io_fops_k.[ch] $(CORE_SRCDIR)/ioservice/linux_kernel/
-
-prepare_addb:
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/addb/addb.ff
-	mv addb_k.[ch] $(CORE_SRCDIR)/addb/linux_kernel
-
-prepare_net:
-	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/net/net_otw_types.ff
-	$(CORE_SRCDIR)/fop/fop2c -k \
-		$(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io.ff
-	mv net_otw_types_k.[ch] $(CORE_SRCDIR)/net/linux_kernel/
-	mv sunrpc_io_k.[ch] $(CORE_SRCDIR)/net/linux_kernel/
-
 prepare_test:
-	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/st/ping.[ch]  \
+	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/st/ping.[ch]  			\
 		$(CORE_SRCDIR)/net/bulk_emulation/st/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/rpc_ping.c  \
+	ln -sf $(CORE_SRCDIR)/rpc/it/rpc_ping.c  				\
 		$(CORE_SRCDIR)/rpc/it/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop_k.[ch]  \
+	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop_k.[ch]  				\
 		$(CORE_SRCDIR)/rpc/it/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop.[ch]  \
+	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop.[ch]  				\
 		$(CORE_SRCDIR)/rpc/it/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fom.[ch]  \
+	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fom.[ch]  				\
 		$(CORE_SRCDIR)/rpc/it/linux_kernel/
 
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
 	$(RM) Module.markers modules.order
-	$(RM) init.c
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
-	$(RM) $(CORE_SRCDIR)/addb/linux_kernel/addb_k.[ch]
-	$(RM) $(CORE_SRCDIR)/ioservice/linux_kernel/io_fops_k.[ch]
 	$(RM) $(CORE_SRCDIR)/net/bulk_emulation/st/linux_kernel/ping.[ch]
-	$(RM) $(CORE_SRCDIR)/net/linux_kernel/net_otw_types_k.[ch]
-	$(RM) $(CORE_SRCDIR)/net/linux_kernel/sunrpc_io_k.[ch]
 	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/rpc_ping.c
 	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fop_k.[ch]
 	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fop.[ch]
 	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fom.[ch]
-	$(RM) $(CORE_SRCDIR)/rpc/session_k.[ch]
-	$(RM) $(CORE_SRCDIR)/stob/ut/io_k.[ch]
