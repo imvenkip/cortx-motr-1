@@ -5,8 +5,8 @@ KERNEL_BUILDDIR = @LINUX_OBJ@
 
 GCOV_PROFILE 	= @K_ENABLE_COVERAGE@
 
-testdirs 	= ../net/bulk_emulation/st/linux_kernel/ 		\
-	          ../rpc/it/linux_kernel/ 				\
+testdirs 	= ../net/bulk_emulation/st/linux_kernel/ 			\
+	          ../rpc/it/linux_kernel/ 					\
 		  ../utils/linux_kernel/
 
 EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
@@ -17,8 +17,8 @@ EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
 
 #	Below is the directory listing from which we have to create kcolibri.ko
 #	To add a new directory 'd' to this list, add directory name
-#	to $(dirs); then add the names of '.c' files to d_SRCS and the
-#	headers to d_HEADERS as new targets. The $(dirs) list us maintained
+#	to $(dirs); then add the names of '.c' files to d_SOURCES and the
+#	headers to d_HEADERS. The $(dirs) list us maintained
 #	alphabetically
 
 dirs = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid fol \
@@ -28,106 +28,109 @@ dirs = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid fol 
 
 #	Source Listing
 
-addb_SRCS 			:= addb.c addb_fop.c addb_k.c
+addb_SOURCES 			:= addb.c addb_fop.c addb_k.c
 addb_HEADERS 			:= addb_k.h
 
-addb_linux_kernel_SRCS 		:= addb_console.c
+addb_linux_kernel_SOURCES 	:= addb_console.c
 
 #	If there's a directory 'd' in $(dirs) then the listing of files given for
-#	d_SRCS is relative to 'd'; e.g. in the following, ../ioservice/ points to
-#	c2t1fs/../ioservice/
+#	d_SOURCES is relative to $(CORE_SRCDIR)/d; e.g. in the following,
+#	../ioservice/ points to $(CORE_SRCDIR)/c2t1fs/../ioservice/
 
-c2t1fs_SRCS 			:= main.c
+c2t1fs_SOURCES 			:= main.c
 c2t1fs_HEADERS 			:= c2t1fs.h ../ioservice/io_fops_k.h 		\
 				   ../stob/ut/io_k.h
 
-cob_SRCS 			:= cob.c
+cob_SOURCES 			:= cob.c
 
-colibri_SRCS			:= init.c
+colibri_SOURCES			:= init.c
 
-db_SRCS 			:= db_common.c
+db_SOURCES 			:= db_common.c
 
-db_linux_kernel_SRCS 		:= db.c
+db_linux_kernel_SOURCES 	:= db.c
 db_linux_kernel_HEADERS 	:= db_impl.h
 
-dtm_SRCS 			:= verno.c
+dtm_SOURCES 			:= verno.c
 
-fid_SRCS 			:= fid.c
+fid_SOURCES 			:= fid.c
 fid_HEADERS 			:= fid.h
 
-fol_SRCS 			:= fol.c
+fol_SOURCES 			:= fol.c
 fol_HEADERS 			:= fol.h
 
-fop_SRCS 			:= fop.c fom.c fop_format.c fop_iterator.c      \
+fop_SOURCES 			:= fop.c fom.c fop_format.c fop_iterator.c      \
 				   fop_base.c fop_onwire.c
 
-galois_SRCS 			:= ../../galois/galois.c
+galois_SOURCES 			:= ../../galois/galois.c
 galois_HEADERS 			:= ../../galois/galois.h
 
-ioservice_SRCS 			:= io_fops.c io_fops_k.c
+ioservice_SOURCES 		:= io_fops.c io_fops_k.c
 ioservice_HEADERS 		:= io_fops.h io_fops_k.h
 
-layout_SRCS 			:= layout.c pdclust.c
+layout_SOURCES 			:= layout.c pdclust.c
 layout_HEADERS 			:= layout.h pdclust.h
 
-lib_SRCS 			:= bitstring.c vec.c list.c queue.c refs.c      \
+lib_SOURCES 			:= bitstring.c vec.c list.c queue.c refs.c      \
 				   time.c bitmap.c chan.c misc.c buf.c cond.c   \
 				   thread.c tlist.c
 lib_HEADERS 			:= misc.h memory.h errno.h arith.h fop.h buf.h
 
-lib_linux_kernel_SRCS 		:= memory.c mutex.c rwlock.c ktime.c timer.c    \
+lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c    \
 				   kthread.c semaphore.c processor.c kvec.c     \
 				   ut.c main.c
 
-lib_ut_SRCS 			:= rwlock.c bitmap.c tlist.c chan.c list.c      \
+lib_ut_SOURCES 			:= rwlock.c bitmap.c tlist.c chan.c list.c      \
 				   mutex.c queue.c refs.c tlist.c time.c vec.c  \
 				   zerovec.c thread.c
 
-net_SRCS 			:= buf.c domain.c ep.c net.c tm.c buffer_pool.c \
+net_SOURCES 			:= buf.c domain.c ep.c net.c tm.c buffer_pool.c \
 				   connection.c net_cli.c net_utils.c net_srv.c	\
 				   net_otw_types_k.c
 net_HEADERS 			:= net.h net_internal.h net_otw_types_k.h
 
-net_bulk_emulation_SRCS 	:= ksunrpc_server.c sunrpc_io_k.c
+net_bulk_emulation_SOURCES 	:= ksunrpc_server.c sunrpc_io_k.c
 net_bulk_emulation_HEADERS 	:= sunrpc_xprt.h mem_xprt.h sunrpc_io_k.h 	\
 				   ../ksunrpc/ksunrpc.h 			\
 				   ../net_otw_types_k.h
 
-net_bulk_emulation_ut_SRCS 	:= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
+net_bulk_emulation_ut_SOURCES 	:= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
-net_ksunrpc_SRCS 		:= domain.c client.c kxdr.c
+net_ksunrpc_SOURCES 		:= domain.c client.c kxdr.c
 net_ksunrpc_HEADERS 		:= ksunrpc.h
 
-net_ut_SRCS 			:= bulk_if.c buffer_pool_ut.c
+net_ut_SOURCES 			:= bulk_if.c buffer_pool_ut.c
 
-pool_SRCS 			:= pool.c
+pool_SOURCES 			:= pool.c
 
-rpc_SRCS 			:= formation.c rpc2.c rpc_base.c session.c      \
+rpc_SOURCES 			:= formation.c rpc2.c rpc_base.c session.c      \
 				   session_foms.c conn.c slot.c session_utils.c \
 				   session_fops.c rpc_onwire.c session_k.c
 rpc_HEADERS 			:= session_k.h
 
-sm_SRCS 			:= sm.c
+sm_SOURCES 			:= sm.c
 
-sns_SRCS 			:= ls_solve.c matvec.c parity_math.c parity_ops.c
+sns_SOURCES 			:= ls_solve.c matvec.c parity_math.c parity_ops.c
 sns_HEADERS 			:= parity_math.h ../galois/galois.h
 
-stob_SRCS 			:= stob.c
+stob_SOURCES 			:= stob.c
 stob_HEADERS 			:= stob.h
 
-stob_ut_SRCS 			:= io_fop_init.c io_k.c
+stob_ut_SOURCES 		:= io_fop_init.c io_k.c
 stob_ut_HEADERS 		:= io_fop.h io_k.h
 
-xcode_SRCS 			:= bufvec_xcode.c bufvec_xcode_fop.c 		\
+xcode_SOURCES 			:= bufvec_xcode.c bufvec_xcode_fop.c 		\
 				   bufvec_xcode_size.c
 
 #	Following lines create the list of objects required for creating
 #	kcolibri by putting %.o for each %.c file listed for each target of
-#	$(dirs).
+#	$(dirs). The following definition of kcolibri_objects is functionally
+#	equivalent to following shell script code snippet
 #	for d in $(dirs); do
-#		for f in $(d)_SRCS; do
-#			replace each *.c to *.o
-#			add prefix $(d)/ to each name
+#		var=`echo $d | sed 's/\//_/'`
+#		varsrc="${var}_SOURCES"
+#		for f in ${!varsrc}; do
+#                       objfname=`basename $f | sed 's/.c$/.o'`
+#			kcolibri_objects = "$kcolibri_objects $d/$objfname"
 #		done
 #	done
 #	$(notdir names...)
@@ -135,7 +138,7 @@ xcode_SRCS 			:= bufvec_xcode.c bufvec_xcode_fop.c 		\
 #	e.g. $(notdir src/foo.c hacks) Produces the result 'foo.c hacks'
 
 kcolibri_objects = $(foreach d, $(dirs), $(foreach f, 				\
-			$($(subst /,_,$(d))_SRCS), $(addprefix $(d)/, 		\
+			$($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/, 	\
 				$(subst .c,.o, $(notdir $(f))))))
 
 obj-m += kcolibri.o
@@ -147,45 +150,30 @@ kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
 
 obj-y += $(testdirs)
 
-create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)))
+create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)) 	\
+		2> /dev/null)
 
-all: prepare_test
+all:
 	@echo $(kcolibri-y)
-
+	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
 #	Following lines create links to files from core/ tree to
-#	build_kernel_modules/ tree
+#	build_kernel_modules/ tree if links does not already exists.
 #	for d in $(dirs); do
-#		for f in $(d)_SRCS; do
+#		for f in $(d)_SOURCES; do
 #			ln -sf core/$(d)/$(f) core/build_kernel_modules/$(d)/$(f)
 #		done
 #	done
 
 	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SRCS),   	\
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),   	\
 		$(create_links)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),	\
 		$(create_links)))
 #	DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
-prepare_test:
-	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/st/ping.[ch]  			\
-		$(CORE_SRCDIR)/net/bulk_emulation/st/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/rpc_ping.c  				\
-		$(CORE_SRCDIR)/rpc/it/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop_k.[ch]  				\
-		$(CORE_SRCDIR)/rpc/it/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fop.[ch]  				\
-		$(CORE_SRCDIR)/rpc/it/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/rpc/it/ping_fom.[ch]  				\
-		$(CORE_SRCDIR)/rpc/it/linux_kernel/
-
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
 	$(RM) Module.markers modules.order
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
-	$(RM) $(CORE_SRCDIR)/net/bulk_emulation/st/linux_kernel/ping.[ch]
-	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/rpc_ping.c
-	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fop_k.[ch]
-	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fop.[ch]
-	$(RM) $(CORE_SRCDIR)/rpc/it/linux_kernel/ping_fom.[ch]
+	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
