@@ -140,12 +140,12 @@ enum {
    @endcode
  */
 struct c2_io_fop {
-	/** Magic constant for IO fop. */
-	uint64_t		if_magic;
 	/** Inline fop for a generic IO fop. */
 	struct c2_fop		if_fop;
 	/** Rpc bulk structure containing zero vector for io fop. */
 	struct c2_rpc_bulk	if_rbulk;
+	/** Magic constant for IO fop. */
+	uint64_t		if_magic;
 };
 
 /**
@@ -169,6 +169,39 @@ void c2_io_fop_fini(struct c2_io_fop *iofop);
 struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
 
 /**
+   Allocates the number of index vectors and segments inside each index
+   vector.
+   @pre fop != NULL.
+ */
+int io_fop_ivec_alloc(struct c2_fop *fop);
+
+/**
+   Deallocates the number of index vectors and segments inside each index
+   vector.
+   @pre fop != NULL.
+ */
+void io_fop_ivec_dealloc(struct c2_fop *fop);
+
+/**
+   Allocates the array of c2_net_buf_desc objects contained in io fop.
+   @pre fop != NULL.
+ */
+int io_fop_desc_alloc(struct c2_fop *fop);
+
+/**
+   Deallocates the array of c2_net_buf_desc objects contained in io fop.
+   @pre fop != NULL.
+ */
+void io_fop_desc_dealloc(struct c2_fop *fop);
+
+/**
+   Populates the array of index vectors from the list of zero vectors
+   stored in c2_rpc_bulk structure.
+   @pre fop != NULL.
+ */
+void io_fop_ivec_prepare(struct c2_fop *fop);
+
+/**
    @} bulkclientDFS end group
 */
 
@@ -177,11 +210,6 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
  */
 struct page;
 struct c2_io_ioseg;
-
-/**
-   Returns the number of fops registered by ioservice.
- */
-int c2_ioservice_fops_nr(void);
 
 /**
    Init and fini of ioservice fops code.

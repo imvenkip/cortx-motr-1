@@ -89,10 +89,6 @@ struct c2_rpc_item_type_ops {
 	 */
 	void (*rito_io_desc_get)(struct c2_rpc_item *item,
 				 struct c2_net_buf_desc *desc);
-	/**
-	   Store the c2_net_buf_desc into io fop from its net buffer.
-	 */
-	int (*rito_io_desc_store)(struct c2_rpc_item *item);
 };
 
 /**

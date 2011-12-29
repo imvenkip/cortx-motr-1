@@ -411,21 +411,6 @@ struct c2_rpc_stats {
 };
 
 /**
-   Statistical data for io path. IO data buffers don't go through rpc layer.
-   They go through a transport layer capable of doing zero-copy.
-   But since rpc bulk requests share the transfer machine belonging to
-   c2_rpcmachine, these stats are a part of rpc machine.
- */
-struct c2_rpc_bulk_stats {
-	/** Number of net buffers sent through bulk interface. */
-	uint64_t	rbs_bulk_nr;
-	/** Number of bytes read through rpc bulk interface. */
-	c2_bcount_t	rbs_readbytes_nr;
-	/** Number of bytes writtem through rpc bulk interface. */
-	c2_bcount_t	rbs_writebytes_nr;
-};
-
-/**
    Associate an rpc with its corresponding rpc_item_type.
    Since rpc_item_type by itself can not be uniquely identified,
    rather it is tightly bound to its fop_type, the fop_type_code
@@ -517,8 +502,6 @@ struct c2_rpcmachine {
 	struct c2_list			  cr_ready_slots;
 	/** ADDB context for this rpcmachine */
 	struct c2_addb_ctx		  cr_rpc_machine_addb;
-	/** Statistics for rpc bulk path. */
-	struct c2_rpc_bulk_stats	  cr_bulk_stats;
 	/** Statistics for both incoming and outgoing paths */
 	struct c2_rpc_stats		  cr_rpc_stats[C2_RPC_PATH_NR];
 	/** Mutex to protect stats */
@@ -863,6 +846,10 @@ struct c2_rpc_bulk_buf {
 	struct c2_tlink		 bb_link;
 	/** Back link to parent c2_rpc_bulk structure. */
 	struct c2_rpc_bulk	*bb_rbulk;
+	/** Flag which tells if c2_rpc_bulk_buf has registered the
+	    inline net buffer with net domain.
+	    Default value of flag is false. */
+	bool			 bb_owner;
 };
 
 /**
@@ -981,8 +968,8 @@ enum c2_rpc_bulk_op_type {
    transfer.
    @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
    structures, the net buf descriptors of io fops will be populated.
-   @param item Rpc item belonging to fop whose net buf descriptor will
-   be populated.
+   @param conn The c2_rpc_conn object that represents the rpc connection
+   made with receiving node.
    @param to_desc Net buf descriptor from fop which will be populated.
    @pre rbuf != NULL && item != NULL && to_desc != NULL &&
    (rbuf->bb_nbuf & C2_NET_BUF_REGISTERED) &&
@@ -991,7 +978,7 @@ enum c2_rpc_bulk_op_type {
    @post rpc_bulk_invariant(rbulk).
  */
 int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
-		      const struct c2_rpc_item *item,
+		      const struct c2_rpc_conn *conn,
 		      struct c2_net_buf_desc *to_desc);
 
 /**
@@ -1001,7 +988,8 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
    This API is typically used by receiver side in a zero-copy buffer transfer.
    @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
    structures, net buffers will be added to transfer machine.
-   @param item Rpc item which contains the c2_net_buf_desc which is the
+   @param conn The c2_rpc_conn object which represents the rpc connection
+   made with receiving node.
    @param from_desc The source net buf descriptor which points to the source
    buffer from which data is copied.
    @pre rbuf != NULL && item != NULL && from_desc != NULL &&
@@ -1011,7 +999,7 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
    @post rpc_bulk_invariant(rbulk).
  */
 int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
-		     const struct c2_rpc_item *item,
+		     const struct c2_rpc_conn *conn,
 		     struct c2_net_buf_desc *from_desc);
 
 /** @} bulkclientDFS end group */
