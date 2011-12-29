@@ -18,8 +18,8 @@ EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
 #	Below is the directory listing from which we have to create kcolibri.ko
 #	To add a new directory 'd' to this list, add directory name
 #	to $(dirs); then add the names of '.c' files to d_SRCS and the
-#	headers to d_HEADERS as new targets.
-#	The $(dirs) list is maintained alphabetically
+#	headers to d_HEADERS as new targets. The $(dirs) list us maintained
+#	alphabetically
 
 dirs = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid fol \
 	fop  galois ioservice layout lib lib/linux_kernel lib/ut net 		\
@@ -150,7 +150,6 @@ obj-y += $(testdirs)
 create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)))
 
 all: prepare_test
-
 	@echo $(kcolibri-y)
 
 #	Following lines create links to files from core/ tree to
