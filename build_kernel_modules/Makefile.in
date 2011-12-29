@@ -18,10 +18,10 @@ dirs = addb addb/linux_kernel c2t1fs cob db db/linux_kernel dtm fid fol fop  \
 	net/linux_kernel net/ut pool rpc sm sns stob stob/ut xcode
 
 #	Source Listing
-addb_SRCS 			:= addb.c addb_fop.c addb_k.c
-addb_HEADERS 			:= addb_k.h
+addb_SRCS 			:= addb.c addb_fop.c
 
-addb_linux_kernel_SRCS 		:= addb_console.c
+addb_linux_kernel_SRCS 		:= addb_console.c addb_k.c
+addb_linux_kernel_HEADERS 	:= addb_k.h
 
 c2t1fs_SRCS 			:= main.c
 c2t1fs_HEADERS 			:= c2t1fs.h io_fops_k.h io_k.h
@@ -144,7 +144,6 @@ clean distclean:
 	$(RM) Module.markers modules.order
 	$(RM) init.c
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
-	$(RM) $(CORE_SRCDIR)/addb/addb_k.[ch]
 	$(RM) $(CORE_SRCDIR)/addb/linux_kernel/addb_k.[ch]
 	$(RM) $(CORE_SRCDIR)/c2t1fs/io_k.[ch]
 	$(RM) $(CORE_SRCDIR)/c2t1fs/io_fops_k.h
@@ -165,8 +164,7 @@ clean distclean:
 
 prepare_addb:
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/addb/addb.ff
-	mv addb_k.[ch] $(CORE_SRCDIR)/addb/
-	ln -sf $(CORE_SRCDIR)/addb/addb_k.[ch] $(CORE_SRCDIR)/addb/linux_kernel/
+	mv addb_k.[ch] $(CORE_SRCDIR)/addb/linux_kernel
 
 prepare_c2t1fs:
 	ln -sf $(GALOISDIR)/galois.h $(CORE_SRCDIR)/sns/
@@ -184,11 +182,11 @@ prepare_net:
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.[ch] \
 		$(CORE_SRCDIR)/net/linux_kernel/
 	ln -sf $(CORE_SRCDIR)/net/ksunrpc/ksunrpc.h \
-		$(BUILD_DIR)/net/bulk_emulation/ksunrpc.h
+		net/bulk_emulation/ksunrpc.h
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.h \
-		$(BUILD_DIR)/net/linux_kernel/sunrpc_io_k.h
+		net/linux_kernel/sunrpc_io_k.h
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.c \
-		$(BUILD_DIR)/net/linux_kernel/sunrpc_io_k.c
+		net/linux_kernel/sunrpc_io_k.c
 
 initialize:
 	ln -sf $(CORE_SRCDIR)/colibri/init.c .

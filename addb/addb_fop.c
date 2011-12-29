@@ -32,7 +32,7 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb_k.h"
+# include "linux_kernel/addb_k.h"
 # define c2_addb_handler NULL
 #else
 
