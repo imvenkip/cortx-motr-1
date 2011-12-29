@@ -18,6 +18,7 @@
  * Original creation date: 25-Dec-2011
  */
 
+#include "lib/misc.h"                           /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 
@@ -32,7 +33,7 @@
 static bool field_invariant(const struct c2_xcode_type *xt,
 			    const struct c2_xcode_field *field)
 {
-	return ergo(xt->xct_aggr == C2_XA_OPAQUE, field->xf_u.u_type != NULL);
+	return ergo(xt == &C2_XT_OPAQUE, field->xf_u.u_type != NULL);
 }
 
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
@@ -84,10 +85,12 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 		break;
 	case C2_XA_UNION:
 	case C2_XA_SEQUENCE:
-		if (xt->xct_child[0].xf_type != &C2_XT_U32)
+		if (xt->xct_child[0].xf_type->xct_aggr != C2_XA_ATOM)
 			return false;
 		break;
 	case C2_XA_OPAQUE:
+		if (xt != &C2_XT_OPAQUE)
+			return false;
 		if (xt->xct_sizeof != sizeof (void *))
 			return false;
 		break;
@@ -101,6 +104,8 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 	return true;
 }
 
+#include "cursor.c"
+
 enum xcode_op {
 	XO_ENC,
 	XO_DEC,
@@ -108,258 +113,161 @@ enum xcode_op {
 	XO_NR
 };
 
-struct c2_walk_ctx {
-	struct c2_xcode_ctx        *wc_p;
-	enum xcode_op               wc_op;
-	struct c2_xcode_obj        *wc_obj;
-	c2_bcount_t                *wc_len;
-};
-
-static int (*ctx_disp[C2_XA_NR])(struct c2_walk_ctx *wc);
-
-static int ctx_walk(struct c2_walk_ctx *wc)
+static ssize_t xcode_alloc(struct c2_xcode_ctx *ctx)
 {
-	const struct c2_xcode_type_ops *ops;
+	const struct c2_xcode_cursor_frame *prev;
+	const struct c2_xcode_obj          *par;
+	const struct c2_xcode_type         *xt;
+	const struct c2_xcode_type         *pt;
+	struct c2_xcode_cursor_frame       *top;
+	struct c2_xcode_obj                *obj;
+	size_t                              nob;
+	size_t                              size;
+	void                              **slot;
 
-	C2_ASSERT(c2_xcode_type_invariant(wc->wc_obj->xo_type));
+	nob  = 0;
+	top  = c2_xcode_cursor_top(&ctx->xcx_it);
+	prev = top - 1;
+	obj  = &top->s_obj;
+	par  = &prev->s_obj;
+	xt   = obj->xo_type;
+	pt   = par->xo_type;
+	size = xt->xct_sizeof;
 
-	ops = wc->wc_obj->xo_type->xct_ops;
-	if (ops != NULL) {
-		void *addr = wc->wc_obj->xo_ptr;
-
-		switch (wc->wc_op) {
-		case XO_ENC:
-			if (ops->xto_encode != NULL)
-				return ops->xto_encode(wc->wc_p, addr);
-			break;
-		case XO_DEC:
-			if (ops->xto_decode != NULL)
-				return ops->xto_decode(wc->wc_p, addr);
-			break;
-		case XO_LEN:
-			if (ops->xto_length != NULL)
-				return ops->xto_length(wc->wc_p, addr);
-			break;
-		default:
-			C2_IMPOSSIBLE("op");
-		}
+	if (ctx->xcx_it.xcu_depth == 0) {
+		nob = size;
+		slot = &obj->xo_ptr;
+	} else {
+		if (pt->xct_aggr == C2_XA_SEQUENCE &&
+		    prev->s_fieldno == 1 && prev->s_elno == 0)
+			nob  = c2_xcode_tag(par) * size;
+		else if (pt->xct_child[prev->s_fieldno].xf_type ==
+			   &C2_XT_OPAQUE)
+			nob = size;
+		slot = c2_xcode_addr(par, prev->s_fieldno, ~0ULL);
 	}
-	return ctx_disp[wc->wc_obj->xo_type->xct_aggr](wc);
-}
 
-static int xcode_op(struct c2_xcode_ctx *ctx, struct c2_xcode_obj *obj,
-		    enum xcode_op op, c2_bcount_t *len)
-{
-	struct c2_walk_ctx wc = {
-		.wc_p   = ctx,
-		.wc_op  = op,
-		.wc_obj = obj,
-		.wc_len = len
-	};
-	return ctx_walk(&wc);
-}
+	if (nob != 0) {
+		C2_ASSERT(obj->xo_ptr == NULL);
 
-static int field_walk(struct c2_walk_ctx *wc, int fieldno, uint32_t elno)
-{
-	struct c2_xcode_obj subobj;
-	struct c2_walk_ctx  subctx = {
-		.wc_p   = wc->wc_p,
-		.wc_op  = wc->wc_op,
-		.wc_obj = &subobj
-	};
-	return c2_xcode_subobj(&subobj, wc->wc_obj, fieldno, elno) ?:
-		ctx_walk(&subctx);
-}
-
-static int record(struct c2_walk_ctx *wc)
-{
-	size_t i;
-	int    result;
-
-	for (i = 0, result = 0;
-	     i < wc->wc_obj->xo_type->xct_nr && result == 0; ++i)
-		result = field_walk(wc, i, 0);
-	return result;
-}
-
-static uint32_t head_value(const struct c2_walk_ctx *wc)
-{
-	return c2_xcode_tag(wc->wc_obj);
-}
-
-static int head(struct c2_walk_ctx *wc)
-{
-	return field_walk(wc, 0, 0);
-}
-
-static int union_walk(struct c2_walk_ctx *wc)
-{
-	uint32_t discr;
-	size_t   i;
-	int      result;
-
-	result = head(wc);
-	if (result != 0)
-		return result;
-	discr = head_value(wc);
-	for (i = 1; i < wc->wc_obj->xo_type->xct_nr; ++i) {
-		if (wc->wc_obj->xo_type->xct_child[i].xf_u.u_tag == discr)
-			return field_walk(wc, i, 0);
+		obj->xo_ptr = *slot = ctx->xcx_alloc(ctx, nob);
+		if (obj->xo_ptr == NULL)
+			return -ENOMEM;
 	}
-	return -EPROTO;
-}
-
-static int sequence(struct c2_walk_ctx *wc)
-{
-	uint32_t i;
-	uint32_t nr;
-	int      result;
-
-	result = head(wc);
-	if (result != 0)
-		return result;
-	nr = head_value(wc);
-	for (i = 0, result = 0; i < nr && result == 0; ++i)
-		result = field_walk(wc, 1, i);
-	return result;
-}
-
-static int opaque(struct c2_walk_ctx *wc)
-{
-	C2_IMPOSSIBLE("opaque");
-}
-
-static int data_get(struct c2_bufvec_cursor *src, void *ptr, c2_bcount_t nob)
-{
-	struct c2_bufvec        bv = C2_BUFVEC_INIT_BUF(&ptr, &nob);
-	struct c2_bufvec_cursor dst;
-
-	c2_bufvec_cursor_init(&dst, &bv);
-	return c2_bufvec_cursor_copy(&dst, src, nob) == nob ? 0 : -EPROTO;
-}
-
-static int data_put(struct c2_bufvec_cursor *dst, void *ptr, c2_bcount_t nob)
-{
-	struct c2_bufvec        bv = C2_BUFVEC_INIT_BUF(&ptr, &nob);
-	struct c2_bufvec_cursor src;
-
-	c2_bufvec_cursor_init(&src, &bv);
-	return c2_bufvec_cursor_copy(dst, &src, nob) == nob ? 0 : -EPROTO;
-}
-
-static int a_void(struct c2_xcode_ctx *ctx, void *obj)
-{
 	return 0;
 }
 
-static int a_byte_enc(struct c2_xcode_ctx *ctx, void *obj)
+static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 {
-	return data_put(&ctx->xcx_it, obj, 1);
-}
+	void                   *ptr;
+	c2_bcount_t             size;
+	int                     length = 0;
+	int                     result;
+	struct c2_bufvec        area   = C2_BUFVEC_INIT_BUF(&ptr, &size);
+	struct c2_bufvec_cursor mem;
+	struct c2_xcode_cursor *it     = &ctx->xcx_it;
 
-static int a_byte_dec(struct c2_xcode_ctx *ctx, void *obj)
-{
-	return data_get(&ctx->xcx_it, obj, 1);
-}
+	while ((result = c2_xcode_next(it)) > 0) {
+		const struct c2_xcode_type     *xt;
+		const struct c2_xcode_type_ops *ops;
+		struct c2_xcode_obj            *cur;
+		struct c2_xcode_cursor_frame   *top;
 
-static int a_u32_enc(struct c2_xcode_ctx *ctx, void *obj)
-{
-	uint32_t datum = *(uint32_t *)obj;
+		top = c2_xcode_cursor_top(it);
 
-	/* XXX endianness */
-	datum = datum;
-	return data_put(&ctx->xcx_it, &datum, 4);
-}
+		if (top->s_flag != C2_XCODE_CURSOR_PRE)
+			continue;
 
-static int a_u32_dec(struct c2_xcode_ctx *ctx, void *obj)
-{
-	uint32_t datum;
-	int      result;
+		cur = &top->s_obj;
 
-	result = data_get(&ctx->xcx_it, &datum, 4);
-	if (result == 0) {
-		/* XXX endianness */
-		datum = datum;
-		*(uint32_t *)obj = datum;
+		if (op == XO_DEC) {
+			result = xcode_alloc(ctx);
+			if (result != 0)
+				return result;
+		}
+
+		xt  = cur->xo_type;
+		ptr = cur->xo_ptr;
+		ops = xt->xct_ops;
+
+		if (ops != NULL) {
+			switch (op) {
+			case XO_ENC:
+				if (ops->xto_encode != NULL)
+					result = ops->xto_encode(ctx, ptr);
+				break;
+			case XO_DEC:
+				if (ops->xto_decode != NULL)
+					result = ops->xto_decode(ctx, ptr);
+				break;
+			case XO_LEN:
+				if (ops->xto_length != NULL)
+					length += ops->xto_length(ctx, ptr);
+				break;
+			default:
+				C2_IMPOSSIBLE("op");
+			}
+			c2_xcode_skip(it);
+		} else if (xt->xct_aggr == C2_XA_ATOM) {
+			size = xt->xct_sizeof;
+
+			if (op == XO_LEN)
+				length += size;
+			else {
+				struct c2_bufvec_cursor *src;
+				struct c2_bufvec_cursor *dst;
+
+				c2_bufvec_cursor_init(&mem, &area);
+				/* XXX endianness and sharing */
+				switch (op) {
+				case XO_ENC:
+					src = &mem;
+					dst = &ctx->xcx_buf;
+					break;
+				case XO_DEC:
+					dst = &mem;
+					src = &ctx->xcx_buf;
+					break;
+				default:
+					C2_IMPOSSIBLE("op");
+				}
+				if (c2_bufvec_cursor_copy(dst,
+							  src, size) != size)
+					result = -EPROTO;
+			}
+		}
+		if (result < 0)
+			break;
 	}
+	if (result > 0)
+		result = 0;
+	if (op == XO_LEN)
+		result = result ?: length;
 	return result;
 }
 
-static int a_u64_enc(struct c2_xcode_ctx *ctx, void *obj)
+void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj)
 {
-	uint64_t datum = *(uint64_t *)obj;
-
-	/* XXX endianness */
-	datum = datum;
-	return data_put(&ctx->xcx_it, &datum, 8);
+	C2_SET0(ctx);
+	c2_xcode_cursor_top(&ctx->xcx_it)->s_obj = *obj;
 }
 
-static int a_u64_dec(struct c2_xcode_ctx *ctx, void *obj)
+int c2_xcode_decode(struct c2_xcode_ctx *ctx)
 {
-	uint64_t datum;
-	int      result;
-
-	result = data_get(&ctx->xcx_it, &datum, 8);
-	if (result == 0) {
-		/* XXX endianness */
-		datum = datum;
-		*(uint64_t *)obj = datum;
-	}
-	return result;
+	return ctx_walk(ctx, XO_DEC);
 }
 
-static int (*atom_disp[C2_XAT_NR][XO_NR - 1])(struct c2_xcode_ctx *ctx,
-					      void *obj) = {
-	[C2_XAT_VOID] = { a_void, a_void },
-	[C2_XAT_BYTE] = { a_byte_enc, a_byte_dec },
-	[C2_XAT_U32]  = { a_u32_enc, a_u32_dec },
-	[C2_XAT_U64]  = { a_u64_enc, a_u64_dec }
-};
-
-static int atom(struct c2_walk_ctx *wc)
+int c2_xcode_encode(struct c2_xcode_ctx *ctx)
 {
-	struct c2_xcode_obj        *obj;
-	const struct c2_xcode_type *xt;
-
-	obj = wc->wc_obj;
-	xt  = obj->xo_type;
-
-	if (wc->wc_op != XO_LEN) {
-		return atom_disp[xt->xct_atype][wc->wc_op](wc->wc_p,
-							   obj->xo_ptr);
-	} else {
-		wc->wc_len += xt->xct_sizeof;
-		return 0;
-	}
+	return ctx_walk(ctx, XO_ENC);
 }
 
-static int (*ctx_disp[C2_XA_NR])(struct c2_walk_ctx *wc) = {
-	[C2_XA_RECORD]   = record,
-	[C2_XA_UNION]    = union_walk,
-	[C2_XA_SEQUENCE] = sequence,
-	[C2_XA_TYPEDEF]  = head,
-	[C2_XA_OPAQUE]   = opaque,
-	[C2_XA_ATOM]     = atom
-};
-
-int c2_xcode_decode(struct c2_xcode_ctx *ctx, struct c2_xcode_obj *obj)
+int c2_xcode_length(struct c2_xcode_ctx *ctx)
 {
-	return xcode_op(ctx, obj, XO_DEC, NULL);
+	return ctx_walk(ctx, XO_LEN);
 }
 
-int c2_xcode_encode(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj)
-{
-	return xcode_op(ctx, (struct c2_xcode_obj *)obj, XO_ENC, NULL);
-}
-
-int c2_xcode_length(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj)
-{
-	c2_bcount_t len = 0;
-
-	return xcode_op(ctx, (struct c2_xcode_obj *)obj, XO_ENC, &len) ?: len;
-}
-
-void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint32_t elno)
+void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint64_t elno)
 {
 	char                        *addr = (char *)obj->xo_ptr;
 	const struct c2_xcode_type  *xt   = obj->xo_type;
@@ -368,15 +276,15 @@ void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint32_t elno)
 
 	C2_ASSERT(fileno < xt->xct_nr);
 	addr += f->xf_offset;
-	if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 && elno != ~0)
+	if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 && elno != ~0ULL)
 		addr = *((char **)addr) + elno * ct->xct_sizeof;
-	else if (ct->xct_aggr == C2_XA_OPAQUE)
+	else if (ct == &C2_XT_OPAQUE && elno != ~0ULL)
 		addr = *((char **)addr);
 	return addr;
 }
 
 int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
-		    int fieldno, uint32_t elno)
+		    int fieldno, uint64_t elno)
 {
 	const struct c2_xcode_field *f;
 	int                          result;
@@ -385,8 +293,8 @@ int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
 
 	f = &obj->xo_type->xct_child[fieldno];
 
-	subobj->xo_ptr  = c2_xcode_addr(obj, fieldno, elno);
-	if (f->xf_type->xct_aggr == C2_XA_OPAQUE) {
+	subobj->xo_ptr = c2_xcode_addr(obj, fieldno, elno);
+	if (f->xf_type == &C2_XT_OPAQUE) {
 		result = f->xf_u.u_type(obj, &subobj->xo_type);
 	} else {
 		subobj->xo_type = f->xf_type;
@@ -395,19 +303,39 @@ int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
 	return result;
 }
 
-uint32_t c2_xcode_tag(struct c2_xcode_obj *obj)
+uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 {
-	C2_PRE(obj->xo_type->xct_aggr == C2_XA_SEQUENCE ||
-	       obj->xo_type->xct_aggr == C2_XA_UNION);
+	const struct c2_xcode_type  *xt = obj->xo_type;
+	const struct c2_xcode_field *f  = &xt->xct_child[0];
+	uint64_t                     tag;
 
-	return *C2_XCODE_VAL(obj, 0, 0, uint32_t);
+	C2_PRE(xt->xct_aggr == C2_XA_SEQUENCE || xt->xct_aggr == C2_XA_UNION);
+	C2_PRE(f->xf_type->xct_aggr == C2_XA_ATOM);
+
+	switch (f->xf_type->xct_atype) {
+	case C2_XAT_VOID:
+		tag = f->xf_u.u_tag;
+		break;
+	case C2_XAT_BYTE:
+		tag = *C2_XCODE_VAL(obj, 0, 0, uint8_t);
+		break;
+	case C2_XAT_U32:
+		tag = *C2_XCODE_VAL(obj, 0, 0, uint32_t);
+		break;
+	case C2_XAT_U64:
+		tag = *C2_XCODE_VAL(obj, 0, 0, uint64_t);
+		break;
+	default:
+		C2_IMPOSSIBLE("atype");
+	}
+	return tag;
 }
 
 const struct c2_xcode_type C2_XT_VOID = {
 	.xct_aggr   = C2_XA_ATOM,
 	.xct_name   = "void",
 	.xct_atype  = C2_XAT_VOID,
-	.xct_sizeof = 0,
+	.xct_sizeof = sizeof(void),
 	.xct_nr     = 0
 };
 
@@ -415,7 +343,7 @@ const struct c2_xcode_type C2_XT_BYTE = {
 	.xct_aggr   = C2_XA_ATOM,
 	.xct_name   = "byte",
 	.xct_atype  = C2_XAT_BYTE,
-	.xct_sizeof = 1,
+	.xct_sizeof = sizeof(uint8_t),
 	.xct_nr     = 0
 };
 
@@ -423,7 +351,7 @@ const struct c2_xcode_type C2_XT_U32 = {
 	.xct_aggr   = C2_XA_ATOM,
 	.xct_name   = "u32",
 	.xct_atype  = C2_XAT_U32,
-	.xct_sizeof = 4,
+	.xct_sizeof = sizeof(uint32_t),
 	.xct_nr     = 0
 };
 
@@ -431,7 +359,14 @@ const struct c2_xcode_type C2_XT_U64 = {
 	.xct_aggr   = C2_XA_ATOM,
 	.xct_name   = "u64",
 	.xct_atype  = C2_XAT_U64,
-	.xct_sizeof = 8,
+	.xct_sizeof = sizeof(uint64_t),
+	.xct_nr     = 0
+};
+
+const struct c2_xcode_type C2_XT_OPAQUE = {
+	.xct_aggr   = C2_XA_OPAQUE,
+	.xct_name   = "opaque",
+	.xct_sizeof = sizeof (void *),
 	.xct_nr     = 0
 };
 

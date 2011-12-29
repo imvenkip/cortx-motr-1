@@ -28,16 +28,10 @@
    @{
  */
 
-static struct c2_xcode_cursor_frame *frame_get(struct c2_xcode_cursor *it,
-					       int depth)
+struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it)
 {
-	C2_PRE(IS_IN_ARRAY(depth, it->xcu_stack));
-	return &it->xcu_stack[depth];
-}
-
-static struct c2_xcode_cursor_frame *top_get(struct c2_xcode_cursor *it)
-{
-	return frame_get(it, it->xcu_depth);
+	C2_PRE(IS_IN_ARRAY(it->xcu_depth, it->xcu_stack));
+	return &it->xcu_stack[it->xcu_depth];
 }
 
 int c2_xcode_next(struct c2_xcode_cursor *it)
@@ -49,7 +43,7 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 
 	C2_PRE(it->xcu_depth >= 0);
 
-	top = top_get(it);
+	top = c2_xcode_cursor_top(it);
 	xt  = top->s_obj.xo_type;
 	nr  = xt->xct_nr;
 
@@ -97,7 +91,7 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 				int result;
 
 				++it->xcu_depth;
-				next = top_get(it);
+				next = c2_xcode_cursor_top(it);
 				result = c2_xcode_subobj(&next->s_obj,
 							 &top->s_obj,
 							 top->s_fieldno,
@@ -114,7 +108,7 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 	case C2_XCODE_CURSOR_POST:
 		if (--it->xcu_depth < 0)
 			return 0;
-		top = top_get(it);
+		top = c2_xcode_cursor_top(it);
 		C2_ASSERT(top->s_flag < C2_XCODE_CURSOR_POST);
 		top->s_flag = C2_XCODE_CURSOR_IN;
 		break;
@@ -122,6 +116,11 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 		C2_IMPOSSIBLE("wrong order");
 	}
 	return +1;
+}
+
+void c2_xcode_skip(struct c2_xcode_cursor *it)
+{
+	c2_xcode_cursor_top(it)->s_flag = C2_XCODE_CURSOR_POST;
 }
 
 /** @} end of xcode group */

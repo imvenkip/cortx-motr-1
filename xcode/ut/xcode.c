@@ -20,6 +20,7 @@
 
 #include <stdio.h>                          /* printf */
 
+#include "lib/memory.h"
 #include "lib/vec.h"                        /* c2_bufvec */
 #include "lib/misc.h"                       /* C2_SET0 */
 #include "lib/ut.h"
@@ -61,15 +62,6 @@ enum { CHILDREN_MAX = 16 };
 struct static_xt {
 	struct c2_xcode_type  xt;
 	struct c2_xcode_field field[CHILDREN_MAX];
-};
-
-static struct static_xt xut_opaq = {
-	.xt = {
-		.xct_aggr   = C2_XA_OPAQUE,
-		.xct_name   = "opaq",
-		.xct_sizeof = sizeof (void *),
-		.xct_nr     = 0
-	}
 };
 
 static struct static_xt xut_un = {
@@ -117,6 +109,54 @@ static struct static_xt xut_top = {
 	}
 };
 
+static char data[] = "Hello, world!\n";
+
+static struct top T = {
+	.t_foo  = {
+		.f_x = 7,
+		.f_y = 8
+	},
+	.t_flag = 0xF,
+	.t_v    = {
+		.v_nr   = sizeof data,
+		.v_data = data
+	},
+	.t_un   = {
+		.u_tag = 4
+	},
+	.t_opaq = {
+		.o_32 = &T.t_v.v_nr
+	}
+};
+
+static char                 ebuf[100];
+static c2_bcount_t          count = ARRAY_SIZE(ebuf);
+static void                *vec = ebuf;
+static struct c2_bufvec     bvec  = C2_BUFVEC_INIT_BUF(&vec, &count);
+static struct c2_xcode_ctx  ctx;
+
+static struct tdata {
+	struct _foo {
+		uint64_t f_x;
+		uint64_t f_y;
+	} __attribute__((packed)) t_foo;
+	uint32_t __attribute__((packed)) t_flag;
+	struct _v {
+		uint32_t v_nr;
+		char     v_data[sizeof data];
+	} __attribute__((packed)) t_v;
+	uint32_t __attribute__((packed)) t_def;
+	struct t_un {
+		uint32_t u_tag;
+		char     u_y;
+	} __attribute__((packed)) t_un;
+	uint32_t __attribute__((packed)) t_opaq;
+} __attribute__((packed)) TD;
+
+C2_BASSERT(sizeof TD < sizeof ebuf);
+
+static int failure;
+
 static int opaq_type(const struct c2_xcode_obj *par,
 		     const struct c2_xcode_type **out)
 {
@@ -124,8 +164,11 @@ static int opaq_type(const struct c2_xcode_obj *par,
 
 	C2_UT_ASSERT(par->xo_type == &xut_top.xt);
 
-	*out = t->t_flag == 0xf ? &C2_XT_U32 : &C2_XT_U64;
-	return 0;
+	if (!failure) {
+		*out = t->t_flag == 0xf ? &C2_XT_U32 : &C2_XT_U64;
+		return 0;
+	} else
+		return -ENOENT;
 }
 
 static int xcode_init(void)
@@ -179,7 +222,7 @@ static int xcode_init(void)
 	};
 	xut_top.xt.xct_child[5] = (struct c2_xcode_field){
 		.xf_name   = "t_opaq",
-		.xf_type   = &xut_opaq.xt,
+		.xf_type   = &C2_XT_OPAQUE,
 		.xf_u      = { .u_type = opaq_type },
 		.xf_offset = offsetof(struct top, t_opaq)
 	};
@@ -207,6 +250,18 @@ static int xcode_init(void)
 		.xf_u      = { .u_tag = 4 },
 		.xf_offset = offsetof(struct un, u.u_y)
 	};
+
+	TD.t_foo.f_x  =  T.t_foo.f_x;
+	TD.t_foo.f_y  =  T.t_foo.f_y;
+	TD.t_flag     =  T.t_flag;
+	TD.t_v.v_nr   =  T.t_v.v_nr;
+	C2_ASSERT(T.t_v.v_nr == ARRAY_SIZE(TD.t_v.v_data));
+	memcpy(TD.t_v.v_data, T.t_v.v_data, T.t_v.v_nr);
+	TD.t_def      =  T.t_def;
+	TD.t_un.u_tag =  T.t_un.u_tag;
+	TD.t_un.u_y   =  T.t_un.u.u_y;
+	TD.t_opaq     = *T.t_opaq.o_32;
+
 	return 0;
 }
 
@@ -216,7 +271,7 @@ __attribute__((unused)) static void it_print(const struct c2_xcode_cursor *it)
 	const struct c2_xcode_cursor_frame *f;
 
 	for (i = 0, f = &it->xcu_stack[0]; i < it->xcu_depth; ++i, ++f) {
-		printf(".%s[%u]",
+		printf(".%s[%lu]",
 		       f->s_obj.xo_type->xct_child[f->s_fieldno].xf_name,
 		       f->s_elno);
 	}
@@ -257,7 +312,7 @@ static void chk(struct c2_xcode_cursor *it, int depth,
 	C2_UT_ASSERT(it->xcu_depth == depth);
 	C2_UT_ASSERT(IS_IN_ARRAY(depth, it->xcu_stack));
 
-	f   = &it->xcu_stack[it->xcu_depth];
+	f   = c2_xcode_cursor_top(it);
 	obj = &f->s_obj;
 
 	C2_UT_ASSERT(obj->xo_type == xt);
@@ -266,26 +321,6 @@ static void chk(struct c2_xcode_cursor *it, int depth,
 	C2_UT_ASSERT(f->s_elno    == elno);
 	C2_UT_ASSERT(f->s_flag    == flag);
 }
-
-static char data[] = "Hello, world!\n";
-
-static struct top T = {
-	.t_foo  = {
-		.f_x = 7,
-		.f_y = 8
-	},
-	.t_flag = 0xF,
-	.t_v    = {
-		.v_nr   = sizeof data,
-		.v_data = data
-	},
-	.t_un   = {
-		.u_tag = 4
-	},
-	.t_opaq = {
-		.o_32 = &T.t_v.v_nr
-	}
-};
 
 static void xcode_cursor_test(void)
 {
@@ -347,22 +382,143 @@ static void xcode_cursor_test(void)
 	C2_UT_ASSERT(c2_xcode_next(&it) == 0);
 }
 
+static void *ut_alloc(struct c2_xcode_ctx *ctx, size_t nob)
+{
+	return c2_alloc(nob);
+}
+
+static void xcode_length_test(void)
+{
+	int result;
+
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){ &xut_top.xt, &T });
+	result = c2_xcode_length(&ctx);
+	C2_UT_ASSERT(result == sizeof TD);
+}
+
 static void xcode_encode_test(void)
 {
-	char                ebuf[100];
-	c2_bcount_t         count = ARRAY_SIZE(ebuf);
-	void               *vec = ebuf;
-	struct c2_bufvec    bvec  = C2_BUFVEC_INIT_BUF(&vec, &count);
-	struct c2_xcode_ctx ctx;
-	struct c2_xcode_obj obj;
-	int                 result;
+	int result;
 
-	c2_bufvec_cursor_init(&ctx.xcx_it, &bvec);
-	obj.xo_type = &xut_top.xt;
-	obj.xo_ptr  = &T;
-
-	result = c2_xcode_encode(&ctx, &obj);
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){ &xut_top.xt, &T });
+	c2_bufvec_cursor_init(&ctx.xcx_buf, &bvec);
+	result = c2_xcode_encode(&ctx);
 	C2_UT_ASSERT(result == 0);
+
+	C2_UT_ASSERT(memcmp(&TD, ebuf, sizeof TD) == 0);
+}
+
+static void xcode_opaque_test(void)
+{
+	int result;
+
+	failure = 1;
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){ &xut_top.xt, &T });
+	result = c2_xcode_length(&ctx);
+	C2_UT_ASSERT(result == -ENOENT);
+	failure = 0;
+}
+
+static void xcode_decode_test(void)
+{
+	int result;
+	struct top *TT;
+
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){ &xut_top.xt, NULL });
+	ctx.xcx_alloc = ut_alloc;
+	c2_bufvec_cursor_init(&ctx.xcx_buf, &bvec);
+
+	result = c2_xcode_decode(&ctx);
+	C2_UT_ASSERT(result == 0);
+
+	TT = ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
+	C2_UT_ASSERT( TT != NULL);
+	C2_UT_ASSERT( TT->t_foo.f_x    ==  T.t_foo.f_x);
+	C2_UT_ASSERT( TT->t_foo.f_y    ==  T.t_foo.f_y);
+	C2_UT_ASSERT( TT->t_flag       ==  T.t_flag);
+	C2_UT_ASSERT( TT->t_v.v_nr     ==  T.t_v.v_nr);
+	C2_UT_ASSERT(memcmp(TT->t_v.v_data, T.t_v.v_data, T.t_v.v_nr) == 0);
+	C2_UT_ASSERT( TT->t_def        ==  T.t_def);
+	C2_UT_ASSERT( TT->t_un.u_tag   ==  T.t_un.u_tag);
+	C2_UT_ASSERT( TT->t_un.u.u_y   ==  T.t_un.u.u_y);
+	C2_UT_ASSERT(*TT->t_opaq.o_32  == *T.t_opaq.o_32);
+
+	c2_free(TT->t_opaq.o_32);
+	c2_free(TT->t_v.v_data);
+	c2_free(TT);
+}
+
+enum {
+	FSIZE = sizeof(uint64_t) + sizeof(uint64_t)
+};
+
+static char             foo_buf[FSIZE];
+static void            *foo_addr  = foo_buf;
+static c2_bcount_t      foo_count = ARRAY_SIZE(foo_buf);
+static struct c2_bufvec foo_bvec  = C2_BUFVEC_INIT_BUF(&foo_addr, &foo_count);
+
+static int foo_length(struct c2_xcode_ctx *ctx, const void *obj)
+{
+	return ARRAY_SIZE(foo_buf);
+}
+
+static void foo_xor(char *buf)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(foo_buf); ++i)
+		buf[i] ^= 42;
+}
+
+static int foo_encode(struct c2_xcode_ctx *ctx, const void *obj)
+{
+	struct c2_bufvec_cursor cur;
+
+	c2_bufvec_cursor_init(&cur, &foo_bvec);
+	memcpy(foo_buf, obj, sizeof(struct foo));
+	foo_xor(foo_buf);
+	return c2_bufvec_cursor_copy(&ctx->xcx_buf, &cur, FSIZE) != FSIZE ?
+		-EPROTO : 0;
+}
+
+static int foo_decode(struct c2_xcode_ctx *ctx, void *obj)
+{
+	struct c2_bufvec_cursor cur;
+
+	c2_bufvec_cursor_init(&cur, &foo_bvec);
+	if (c2_bufvec_cursor_copy(&cur, &ctx->xcx_buf, FSIZE) == FSIZE) {
+		foo_xor(foo_buf);
+		memcpy(obj, foo_buf, sizeof(struct foo));
+		return 0;
+	} else
+		return -EPROTO;
+}
+
+static const struct c2_xcode_type_ops foo_ops = {
+	.xto_length = foo_length,
+	.xto_encode = foo_encode,
+	.xto_decode = foo_decode
+};
+
+static void xcode_nonstandard_test(void)
+{
+	int result;
+
+	xut_foo.xt.xct_ops = &foo_ops;
+
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){ &xut_top.xt, &T });
+	result = c2_xcode_length(&ctx);
+	C2_UT_ASSERT(result == sizeof TD);
+
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){ &xut_top.xt, &T });
+	c2_bufvec_cursor_init(&ctx.xcx_buf, &bvec);
+	result = c2_xcode_encode(&ctx);
+	C2_UT_ASSERT(result == 0);
+
+	foo_xor(ebuf);
+	C2_UT_ASSERT(memcmp(&TD, ebuf, sizeof TD) == 0);
+	foo_xor(ebuf);
+	xcode_decode_test();
 }
 
 const struct c2_test_suite xcode_ut = {
@@ -371,7 +527,11 @@ const struct c2_test_suite xcode_ut = {
         .ts_fini = NULL,
         .ts_tests = {
                 { "xcode-cursor", xcode_cursor_test },
+                { "xcode-length", xcode_length_test },
                 { "xcode-encode", xcode_encode_test },
+                { "xcode-opaque", xcode_opaque_test },
+                { "xcode-decode", xcode_decode_test },
+                { "xcode-nonstandard", xcode_nonstandard_test },
                 { NULL, NULL }
         }
 };
