@@ -24,7 +24,9 @@ addb_linux_kernel_SRCS 		:= addb_console.c addb_k.c
 addb_linux_kernel_HEADERS 	:= addb_k.h
 
 c2t1fs_SRCS 			:= main.c
-c2t1fs_HEADERS 			:= c2t1fs.h io_fops_k.h io_k.h
+c2t1fs_HEADERS 			:= c2t1fs.h io_fops_k.h io_k.h 			\
+				   ../ioservice/linux_kernel/io_fops_k.h	\
+				   ../stob/ut/io_k.h
 
 cob_SRCS 			:= cob.c
 
@@ -44,8 +46,8 @@ fol_HEADERS 			:= fol.h
 fop_SRCS 			:= fop.c fom.c fop_format.c fop_iterator.c      \
 				   fop_base.c fop_onwire.c
 
-galois_SRCS 			:= galois.c
-galois_HEADERS 			:= galois.h
+galois_SRCS 			:= ../../galois/galois.c
+galois_HEADERS 			:= ../../galois/galois.h
 
 ioservice_SRCS 			:= io_fops.c
 ioservice_HEADERS 		:= io_fops.h
@@ -75,14 +77,17 @@ net_HEADERS 			:= net.h net_internal.h
 
 net_bulk_emulation_SRCS 	:= net_otw_types_k.c ksunrpc_server.c
 net_bulk_emulation_HEADERS 	:= net_otw_types_k.h sunrpc_xprt.h mem_xprt.h   \
-				   sunrpc_io_k.h
+				   sunrpc_io_k.h ../ksunrpc/ksunrpc.h
 
 net_bulk_emulation_ut_SRCS 	:= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
 net_ksunrpc_SRCS 		:= domain.c client.c kxdr.c
 net_ksunrpc_HEADERS 		:= ksunrpc.h
 
-net_linux_kernel_SRCS 		:= sunrpc_io_k.c
+net_linux_kernel_SRCS 		:= sunrpc_io_k.c 				\
+				   ../bulk_emulation/sunrpc_io_k.c
+net_linux_kernel_HEADERS	:= ../bulk_emulation/net_otw_types_k.h		\
+				   ../bulk_emulation/sunrpc_io_k.h
 
 net_ut_SRCS 			:= bulk_if.c buffer_pool_ut.c
 
@@ -96,7 +101,7 @@ rpc_HEADERS 			:= session_k.h
 sm_SRCS 			:= sm.c
 
 sns_SRCS 			:= ls_solve.c matvec.c parity_math.c parity_ops.c
-sns_HEADERS 			:= parity_math.h
+sns_HEADERS 			:= parity_math.h ../galois/galois.h
 
 stob_SRCS 			:= stob.c
 stob_HEADERS 			:= stob.h
@@ -112,7 +117,8 @@ xcode_SRCS 			:= bufvec_xcode.c bufvec_xcode_fop.c 		\
 #	$(dirs).
 
 kcolibri_objects = $(foreach d, $(dirs), $(foreach f, 				\
-	$($(subst /,_,$(d))_SRCS), $(addprefix $(d)/, $(subst .c,.o, $(f)))))
+			$($(subst /,_,$(d))_SRCS), $(addprefix $(d)/, 		\
+				$(subst .c,.o, $(notdir $(f))))))
 
 obj-m += kcolibri.o
 
@@ -123,9 +129,9 @@ kcolibri-y += main.o init.o dummy_init_fini.o $(kcolibri_objects)
 
 obj-y += $(testdirs)
 
-create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(f))
+create_links = $(shell ln -sf $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)))
 
-all: initialize prepare_c2t1fs prepare_dirs prepare_addb prepare_net  \
+all: initialize prepare_dirs prepare_addb prepare_net  \
 	prepare_test
 
 	@echo $(kcolibri-y)
@@ -145,10 +151,6 @@ clean distclean:
 	$(RM) init.c
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
 	$(RM) $(CORE_SRCDIR)/addb/linux_kernel/addb_k.[ch]
-	$(RM) $(CORE_SRCDIR)/c2t1fs/io_k.[ch]
-	$(RM) $(CORE_SRCDIR)/c2t1fs/io_fops_k.h
-	$(RM) $(CORE_SRCDIR)/sns/galois.h
-	$(RM) $(CORE_SRCDIR)/galois/galois.[ch]
 	$(RM) $(CORE_SRCDIR)/ioservice/linux_kernel/io_fops_k.[ch]
 	$(RM) $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.[ch]
 	$(RM) $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.[ch]
@@ -166,13 +168,6 @@ prepare_addb:
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/addb/addb.ff
 	mv addb_k.[ch] $(CORE_SRCDIR)/addb/linux_kernel
 
-prepare_c2t1fs:
-	ln -sf $(GALOISDIR)/galois.h $(CORE_SRCDIR)/sns/
-	ln -sf $(GALOISDIR)/galois.[ch] $(CORE_SRCDIR)/galois/
-	ln -sf $(CORE_SRCDIR)/ioservice/linux_kernel/io_fops_k.h \
-		$(CORE_SRCDIR)/c2t1fs/
-	ln -sf  $(CORE_SRCDIR)/stob/ut/io_k.[ch] $(CORE_SRCDIR)/c2t1fs/
-
 prepare_net:
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/net/net_otw_types.ff
 	$(CORE_SRCDIR)/fop/fop2c -k \
@@ -181,13 +176,6 @@ prepare_net:
 	mv sunrpc_io_k.[ch] $(CORE_SRCDIR)/net/bulk_emulation/
 	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/net_otw_types_k.[ch] \
 		$(CORE_SRCDIR)/net/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/net/ksunrpc/ksunrpc.h \
-		net/bulk_emulation/ksunrpc.h
-	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.h \
-		net/linux_kernel/sunrpc_io_k.h
-	ln -sf $(CORE_SRCDIR)/net/bulk_emulation/sunrpc_io_k.c \
-		net/linux_kernel/sunrpc_io_k.c
-
 initialize:
 	ln -sf $(CORE_SRCDIR)/colibri/init.c .
 	$(CORE_SRCDIR)/fop/fop2c -k $(CORE_SRCDIR)/rpc/session.ff
