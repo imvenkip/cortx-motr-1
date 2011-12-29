@@ -47,7 +47,7 @@
 #include "stob/linux.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpc2.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "rpc/rpc_base.h"
 #include "xcode/bufvec_xcode.h"
 

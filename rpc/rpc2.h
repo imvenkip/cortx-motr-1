@@ -218,6 +218,11 @@ struct c2_rpc_item_ops {
 	   the time this method is called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item);
+
+	/**
+	   Finalise and free item.
+	 */
+	void (*rio_free)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {

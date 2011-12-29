@@ -34,7 +34,7 @@
 #else
 #include "rpc/session_u.h"
 #endif
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"

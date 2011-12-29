@@ -35,7 +35,7 @@
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_onwire.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
 
