@@ -140,8 +140,6 @@ int c2_timer_fini(struct c2_timer *timer);
 
 /**
    Init timer locality.
-
-   @post locality is empty.
  */
 void c2_timer_locality_init(struct c2_timer_locality *loc);
 
