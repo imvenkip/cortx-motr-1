@@ -97,7 +97,7 @@ C2_EXPORTED(c2_timer_start);
  */
 int c2_timer_stop(struct c2_timer *timer)
 {
-	int rc = del_timer_sync(&timer->t_timer); 
+	int rc = del_timer_sync(&timer->t_timer);
 
 	timer->t_running = false;
 	return rc;
