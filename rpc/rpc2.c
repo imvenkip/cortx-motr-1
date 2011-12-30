@@ -183,6 +183,14 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	struct c2_rpc_session *session;
 
 	C2_ASSERT(item != NULL && item->ri_type != NULL);
+
+	/*
+	 * It is mandatory to specify item_ops, because rpc layer needs
+	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
+	 * item. Consumer can use c2_fop_default_item_ops if, it is not
+	 * interested in implementing other (excluding ->rio_free())
+	 * interfaces of c2_rpc_item_ops.
+	 */
 	C2_ASSERT(item->ri_ops != NULL && item->ri_ops->rio_free != NULL);
 
 	session = item->ri_session;
