@@ -88,8 +88,6 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 	if (rc != 0)
 		c2_fop_free(fop);
 
-	(*item)->ri_ops = &c2_fop_default_item_ops;
-
 	return rc;
 }
 C2_EXPORTED(c2_fop_item_type_default_decode);
