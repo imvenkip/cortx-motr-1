@@ -305,8 +305,15 @@ static bool timer_invariant(struct c2_timer *timer)
 {
 	C2_PRE(timer != NULL);
 
-	return timer->t_type == C2_TIMER_HARD
-		|| timer->t_type == C2_TIMER_SOFT;
+	if (!(timer->t_type == C2_TIMER_HARD
+			|| timer->t_type == C2_TIMER_SOFT))
+		return false;
+	if (!(timer->t_state == TIMER_INITED
+			|| timer->t_state == TIMER_RUNNING
+			|| timer->t_state == TIMER_STOPPED
+			|| timer->t_state == TIMER_UNINIT))
+		return false;
+	return true;
 }
 
 /**
