@@ -896,17 +896,25 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc)
 {
+	bool broadcast = true;
+
 	item->ri_error = rc;
 	item->ri_reply = reply;
+
+	if (c2_rpc_item_is_conn_terminate(item))
+		broadcast = false;
+
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
-	c2_chan_broadcast(&item->ri_chan);
+
 	/*
 	 * If item is of type conn terminate reply,
 	 * then req and item (including any of its associated
 	 * rpc layer structures e.g. session, frm_sm etc.)
 	 * should not be accessed from this point onwards.
 	 */
+	if (broadcast)
+		c2_chan_broadcast(&item->ri_chan);
 }
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,

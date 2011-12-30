@@ -314,26 +314,6 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	ctx->cec_rpcmachine = machine;
 }
 
-const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops = {
-	.rio_replied = c2_rpc_conn_establish_reply_received,
-	.rio_free    = c2_fop_item_free,
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops = {
-	.rio_replied = c2_rpc_conn_terminate_reply_received,
-	.rio_free    = c2_fop_item_free,
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_session_establish_ops = {
-	.rio_replied = c2_rpc_session_establish_reply_received,
-	.rio_free    = c2_fop_item_free,
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops = {
-	.rio_replied = c2_rpc_session_terminate_reply_received,
-	.rio_free    = c2_fop_item_free,
-};
-
 /** @} End of rpc_session group */
 /*
  *  Local variables:
