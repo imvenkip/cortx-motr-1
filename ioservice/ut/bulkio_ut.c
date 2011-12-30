@@ -357,9 +357,9 @@ static void io_fop_populate(struct c2_io_fop *iofop, int index)
 						io_cbufs[index].b_nob,
 						io_offsets[index]);
 		C2_UT_ASSERT(rc == 0);
-		rbuf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 		io_offsets[index] -= io_cbufs[index].b_nob;
 	}
+	rbuf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 
 	/* Allocates memory for array of net buf descriptors and array of
 	   index vectors from io fop. */

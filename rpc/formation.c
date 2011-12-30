@@ -873,8 +873,8 @@ static void item_io_coalesce(struct c2_rpc_item *item,
 	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
 
 	ops = item->ri_type->rit_ops;
-	/*if (ops->rito_io_coalesce)
-		ops->rito_io_coalesce(item, &session->s_unbound_items);*/
+	if (ops->rito_io_coalesce)
+		ops->rito_io_coalesce(item, &session->s_unbound_items);
 }
 
 /* Add bound items to rpc object. Rpc items are added until size gets

@@ -785,23 +785,22 @@ static void io_fop_segments_coalesce(const struct c2_0vec *iovec,
    coalesced io segments.
  */
 static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
-			      struct io_seg_set *seg_set,
-			      const struct c2_fop *bkp_fop)
+			      struct io_seg_set *seg_set)
 {
 	int			 rc;
 	int32_t			 max_segs_nr;
-	int32_t			 min_segs_nr;
 	int32_t			 curr_segs_nr;
+	int32_t			 nr;
 	c2_bcount_t		 max_bufsize;
 	c2_bcount_t		 curr_bufsize;
 	c2_bcount_t		 seg_size;
+	uint32_t		 segs_nr;
 	struct ioseg		*ioseg;
 	struct c2_net_domain	*netdom;
 	struct c2_rpc_bulk	*rbulk;
 	struct c2_rpc_bulk_buf	*buf;
 
 	C2_PRE(coalesced_fop != NULL);
-	C2_PRE(bkp_fop != NULL);
 	C2_PRE(seg_set != NULL);
 	C2_PRE(!c2_tlist_is_empty(&iosegset_tl, &seg_set->iss_list));
 
@@ -814,7 +813,7 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 	ioseg = c2_tlist_head(&iosegset_tl, &seg_set->iss_list);
 	seg_size = ioseg->is_count;
 
-	while (curr_segs_nr != 0) {
+	/*while (curr_segs_nr != 0) {
 		min_segs_nr = min32u(curr_segs_nr, max_segs_nr);
 
 		rc = c2_rpc_bulk_buf_add(rbulk, min_segs_nr, seg_size,
@@ -841,7 +840,49 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 		C2_POST(c2_vec_count(&buf->bb_zerovec.z_bvec.ov_vec) <=
 			max_bufsize);
 		C2_POST(buf->bb_zerovec.z_bvec.ov_vec.v_nr <= max_segs_nr);
-	};
+	};*/
+
+	while (curr_segs_nr != 0) {
+		curr_bufsize = 0;
+		segs_nr = 0;
+		c2_tlist_for(&iosegset_tl, &seg_set->iss_list, ioseg) {
+			if (curr_bufsize + ioseg->is_count <= max_bufsize &&
+			    segs_nr <= max_segs_nr) {
+				curr_bufsize += ioseg->is_count;
+				++segs_nr;
+			} else
+				break;
+		} c2_tlist_endfor;
+
+		rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size,
+					 netdom, &buf);
+
+		if (rc != 0)
+			goto cleanup;
+
+		nr = 0;
+		c2_tlist_for(&iosegset_tl, &seg_set->iss_list, ioseg) {
+			rc = c2_rpc_bulk_buf_usrbuf_add(buf, ioseg->is_buf,
+							ioseg->is_count,
+							ioseg->is_index);
+
+			/* Since size and fragment calculations are made before
+			   hand, this buffer addition should succeed. */
+			C2_ASSERT(rc == 0);
+
+			ioseg_unlink_free(ioseg);
+			if (++nr == segs_nr)
+				break;
+		} c2_tlist_endfor;
+		C2_POST(c2_vec_count(&buf->bb_zerovec.z_bvec.ov_vec) <=
+			max_bufsize);
+		C2_POST(buf->bb_zerovec.z_bvec.ov_vec.v_nr <= max_segs_nr);
+		curr_segs_nr -= segs_nr;
+		if (is_read(coalesced_fop))
+			buf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
+		else
+			buf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
+	}
 	return 0;
 cleanup:
 	C2_ASSERT(rc != 0);
@@ -866,6 +907,7 @@ void io_fop_ivec_dealloc(struct c2_fop *fop)
 
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
 		c2_free(ivec[cnt].ci_iosegs);
+		++cnt;
 	} c2_tlist_endfor;
 	c2_free(ivec);
 }
@@ -895,6 +937,7 @@ int io_fop_ivec_alloc(struct c2_fop *fop)
 		if (ivec[cnt].ci_iosegs == NULL)
 			goto cleanup;
 		ivec[cnt].ci_nr = rbuf->bb_zerovec.z_bvec.ov_vec.v_nr;
+		++cnt;
 	} c2_tlist_endfor;
 	return 0;
 cleanup:
@@ -913,10 +956,10 @@ void io_fop_ivec_prepare(struct c2_fop *res_fop)
 
 	C2_PRE(res_fop != NULL);
 
+	cnt = 0;
 	rw = io_rw_get(res_fop);
 	rbulk = c2_fop_to_rpcbulk(res_fop);
 	rw->crw_ivecs.cis_nr = c2_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist);
-	cnt = 0;
 	ivec = rw->crw_ivecs.cis_ivecs;
 
 	/* Adds same number of index vector in io fop as there are buffers in
@@ -928,7 +971,7 @@ void io_fop_ivec_prepare(struct c2_fop *res_fop)
 			ivec[cnt].ci_iosegs[j].ci_count =
 				buf->bb_zerovec.z_bvec.ov_vec.v_count[j];
 		}
-		cnt++;
+		++cnt;
 	} c2_tlist_endfor;
 }
 
@@ -947,6 +990,10 @@ static void io_fop_bulkbuf_move(struct c2_fop *src, struct c2_fop *dest)
 	dbulk = c2_fop_to_rpcbulk(dest);
 	c2_mutex_lock(&sbulk->rb_mutex);
 	c2_tlist_for(&rpcbulk_tl, &sbulk->rb_buflist, rbuf) {
+		/* Removes the net buffer since the coalesced set of
+		   io segments will constitue new net buffer/s. */
+		c2_net_buffer_del(&rbuf->bb_nbuf, &src->f_item.ri_session->
+				  s_conn->c_rpcmachine->cr_tm);
 		c2_tlist_del(&rpcbulk_tl, rbuf);
 		c2_tlist_add(&rpcbulk_tl, &dbulk->rb_buflist, rbuf);
 	} c2_tlist_endfor;
@@ -999,8 +1046,7 @@ void io_fop_desc_dealloc(struct c2_fop *fop)
 /* Allocates memory for net buf descriptors array and index vector array
    and populate the array of index vectors.  */
 static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
-				    struct io_seg_set *aggr_set,
-				    struct c2_fop *bkp_fop)
+				    struct io_seg_set *aggr_set)
 {
 	int			 rc;
 	struct c2_rpc_bulk	*rbulk;
@@ -1009,7 +1055,7 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 
 	rbulk = c2_fop_to_rpcbulk(fop);
 
-	rc = io_netbufs_prepare(fop, aggr_set, bkp_fop);
+	rc = io_netbufs_prepare(fop, aggr_set);
 	if (rc != 0)
 		return rc;
 
@@ -1085,7 +1131,6 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 		return -ENOMEM;
 
 	bkp_fop = &cfop->if_fop;
-	c2_rpc_item_init(&bkp_fop->f_item);
 	aggr_set.iss_magic = IO_SEGMENT_SET_MAGIC;
 	c2_tlist_init(&iosegset_tl, &aggr_set.iss_list);
 
@@ -1112,7 +1157,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 	/* Prepares net buffers from set of io segments, allocates memory
 	   for net buf desriptors and index vectors and populates the index
 	   vectors. */
-	rc = io_fop_desc_ivec_prepare(res_fop, &aggr_set, bkp_fop);
+	rc = io_fop_desc_ivec_prepare(res_fop, &aggr_set);
 	if (rc != 0) {
 		io_fop_bulkbuf_move(bkp_fop, res_fop);
 		goto cleanup;
@@ -1136,6 +1181,8 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 	   and are part of res_fop. */
 	c2_tlist_for(&rpcitem_tl, items_list, item) {
 		fop = c2_rpc_item_to_fop(item);
+		if (fop == res_fop)
+			continue;
 		rbulk = c2_fop_to_rpcbulk(fop);
 		c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
 			c2_net_buffer_del(&rbuf->bb_nbuf, &res_fop->f_item.
@@ -1243,6 +1290,11 @@ static void io_item_replied(struct c2_rpc_item *item)
 			fop->f_type->ft_ops->fto_fop_replied(fop, bkpfop);
 	}
 
+	/* The rpc_item->ri_chan is signaled by sessions code
+	   (rpc_item_replied()) which is why only member coalesced items
+	   (items which were member of a parent coalesced item) are
+	   signaled from here as they are not sent on wire but hang off
+	   a list from parent coalesced item. */
 	c2_tlist_for(&rpcitem_tl, &item->ri_compound_items, ritem) {
 		c2_tlist_del(&rpcitem_tl, ritem);
 		c2_chan_broadcast(&ritem->ri_chan);
