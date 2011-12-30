@@ -201,7 +201,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	struct c2_rpc_item  *reply;
 	struct c2_rpc_item  *next;
 	struct c2_rpc_item  *dummy_item;
-//	struct c2_fop       *fop;
 	struct c2_list_link *link;
 	int                  count = 0;
 	bool                 first_item = true;
@@ -226,11 +225,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 			C2_ASSERT(reply->ri_ops != NULL &&
 					reply->ri_ops->rio_free != NULL);
 			reply->ri_ops->rio_free(reply);
-			/*
-			c2_rpc_item_fini(reply);
-			fop = c2_rpc_item_to_fop(reply);
-			c2_fop_free(fop);
-			*/
 		}
 		item->ri_reply = NULL;
 
@@ -239,11 +233,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 		C2_ASSERT(item->ri_ops != NULL &&
 				item->ri_ops->rio_free != NULL);
 		item->ri_ops->rio_free(item);
-		/*
-		c2_rpc_item_fini(item);
-		fop = c2_rpc_item_to_fop(item);
-		c2_fop_free(fop);
-		*/
 		count++;
 	}
         C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
