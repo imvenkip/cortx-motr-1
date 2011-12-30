@@ -212,6 +212,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                                      network_buffer_pool_threshold,
                                      network_buffer_pool_segment_nr,
                                      network_buffer_pool_segment_size, colours);
+             newbp->rios_bp.nbp_ops = &buffer_pool_ops;
 
              /** Pre-allocate network buffers */
              c2_net_buffer_pool_lock(&newbp->rios_bp);
@@ -223,7 +224,6 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
              }
 
              c2_net_buffer_pool_unlock(&newbp->rios_bp);
-             newbp->rios_bp.nbp_ops = &buffer_pool_ops;
 
              bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
              

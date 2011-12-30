@@ -88,6 +88,8 @@ C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 extern int c2_reqh_fop_init(void);
 extern void c2_reqh_fop_fini(void);
+static struct c2_reqh_service *get_reqh_service(const char *service_name,
+                                               const struct c2_reqh *reqh);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
@@ -175,20 +177,15 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	if (result == 0 && fom != NULL) {
-                struct c2_reqh_service       *service = NULL;
-                const char *service_name = fom->fo_ops->fo_service_name(fom);
-
                 /**
                  * To access service specific data,
                  * FOM needs pointer to service instance.
                  */
-                c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
-                        if (strcmp(service->rs_type->rst_name,
-                            service_name) == 0) {
-                                fom->fo_service = service;
-                                break;
-                        }
-                } c2_tlist_endfor;
+                if (fom->fo_ops->fo_service_name != NULL) {
+                        const char *service_name = NULL;
+                        service_name = fom->fo_ops->fo_service_name(fom);
+                        fom->fo_service = get_reqh_service(service_name, reqh);
+                }
 
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
@@ -211,6 +208,23 @@ bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 	C2_PRE(reqh != NULL);
 
 	return c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) == 0;
+}
+
+static struct c2_reqh_service *get_reqh_service(const char *service_name, 
+                                               const struct c2_reqh *reqh)
+{
+        struct c2_reqh_service        *service = NULL;
+
+        C2_PRE(reqh != NULL);
+        C2_PRE(service_name != NULL);
+
+        c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
+               C2_ASSERT(service != NULL);
+               if (strcmp(service->rs_type->rst_name, service_name) == 0)
+                       break;
+       } c2_tlist_endfor;
+
+       return service;
 }
 
 /** @} endgroup reqh */

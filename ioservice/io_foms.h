@@ -188,8 +188,6 @@ struct c2_io_fom_cob_rw {
         int                              fcrw_batch_size;
         /** Number of bytes successfully transfered. */
         int                              fcrw_bytes_transfered;
-        /** Number of parallel stob io. */
-        int                              fcrw_parallel_stob_io;
         /** Pointer to buffer pool refered by FOM */
         struct c2_net_buffer_pool       *fcrw_bp;
         /** Signal send to this chanel when io_fom ready to execute */
@@ -198,6 +196,8 @@ struct c2_io_fom_cob_rw {
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packets for the operation. */
         struct c2_tl                     fcrw_stio_list;
+        /** Mutex to protect access on list fcrw_stio_list. */
+        struct c2_mutex                  fcrw_stio_mutex;
         /** rpc bulk load data*/
         struct c2_rpc_bulk               fcrw_bulk;
         /** network buffer list currently acquired by io service*/
