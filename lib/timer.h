@@ -26,12 +26,6 @@
 #include "lib/tlist.h"	   /* c2_tl */
 #include "lib/mutex.h"	   /* c2_mutex */
 
-#ifndef __KERNEL__
-#include "lib/user_space/timer.h"
-#else
-#include "lib/linux_kernel/timer.h"
-#endif
-
 /**
    @defgroup timer Generic timer manipulation
 
@@ -71,6 +65,12 @@ enum c2_timer_type {
 	C2_TIMER_SOFT,
 	C2_TIMER_HARD
 };
+
+#ifndef __KERNEL__
+#include "lib/user_space/timer.h"
+#else
+#include "lib/linux_kernel/timer.h"
+#endif
 
 /**
    Forward declaration for struct c2_timer_locality.
