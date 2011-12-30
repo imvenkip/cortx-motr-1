@@ -471,7 +471,7 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	c2_mutex_unlock(&loc->tlo_lock);
 
 	if (timer->t_tid != old_tid) {
-		/* 
+		/*
 		 * don't delete old posix timer
 		 * until the new one can be created
 		 */
