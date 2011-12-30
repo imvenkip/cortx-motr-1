@@ -251,8 +251,6 @@ static void test_failure(void)
 	};
 	static struct c2_net_buffer d1nb1;
 	static struct c2_net_buffer d1nb2;
-	static c2_bcount_t d1nb1_len;
-	static c2_bcount_t d1nb2_len;
 	static struct c2_clink tmwait1;
 
 	/* dom 2 */
@@ -282,7 +280,6 @@ static void test_failure(void)
 	};
 	static struct c2_net_buffer d2nb1;
 	static struct c2_net_buffer d2nb2;
-	static c2_bcount_t d2nb1_len;
 	static c2_bcount_t d2nb2_len;
 	static struct c2_clink tmwait2;
 
@@ -301,12 +298,10 @@ static void test_failure(void)
 	C2_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr, "127.0.0.1:10") == 0);
 	C2_SET0(&d1nb1);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d1nb1.nb_buffer, 4, 10));
-	d1nb1_len = 4 * 10;
 	C2_UT_ASSERT(!c2_net_buffer_register(&d1nb1, &dom1));
 	d1nb1.nb_callbacks = &buf_cbs1;
 	C2_SET0(&d1nb2);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d1nb2.nb_buffer, 1, 10));
-	d1nb2_len = 1 * 10;
 	C2_UT_ASSERT(!c2_net_buffer_register(&d1nb2, &dom1));
 	d1nb2.nb_callbacks = &buf_cbs1;
 
@@ -325,7 +320,6 @@ static void test_failure(void)
 
 	C2_SET0(&d2nb1);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d2nb1.nb_buffer, 4, 10));
-	d2nb1_len = 4 * 10;
 	C2_UT_ASSERT(!c2_net_buffer_register(&d2nb1, &dom2));
 	d2nb1.nb_callbacks = &buf_cbs2;
 	C2_SET0(&d2nb2);
