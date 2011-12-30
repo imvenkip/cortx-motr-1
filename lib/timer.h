@@ -85,7 +85,7 @@ struct c2_timer_locality {
 	 */
 	struct c2_tl	  tlo_tids;
 	/**
-	   ThreadID of next thread for round-robin timer thread choosing
+	   ThreadID of next thread for round-robin timer thread selection
 	   in c2_timer_attach().
 	 */
 	struct timer_tid *tlo_rrtid;

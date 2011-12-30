@@ -314,7 +314,7 @@ static bool timer_invariant(struct c2_timer *timer)
    It checks the possibility of transition from the current state
    with a given function and if possible, changes timer state to a new state
    or executes C2_ASSERT() otherwise.
-   @param dry_run if it is true, than timer state doesn't changes.
+   @param dry_run if it is true, then timer state doesn't change.
    @return true if state can be changed with the given func, false otherwise
  */
 static bool timer_state_change(struct c2_timer *timer, enum timer_func func,
