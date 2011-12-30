@@ -18,8 +18,9 @@ EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
 #	Below is the directory listing from which we have to create kcolibri.ko
 #	To add a new directory 'd' to this list, add directory name
 #	to $(dirs); then add the names of '.c' files to d_SOURCES and the
-#	headers to d_HEADERS. The $(dirs) list us maintained
-#	alphabetically
+#	headers to d_HEADERS.
+
+#	The $(dirs) list is maintained alphabetically
 
 dirs = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid fol \
 	fop  galois ioservice layout lib lib/linux_kernel lib/ut net 		\
