@@ -232,9 +232,6 @@ void c2_fop_item_free(struct c2_rpc_item *item)
 	/* c2_fop_free() internally calls c2_fop_fini() on the fop, which
 	   calls c2_rpc_item_fini() on the rpc-item */
 	c2_fop_free(fop);
-#ifndef __KERNEL__
-	printf("free item %p\n", item);
-#endif
 }
 
 const struct c2_rpc_item_ops c2_fop_default_item_ops = {

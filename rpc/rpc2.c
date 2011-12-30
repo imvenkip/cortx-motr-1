@@ -189,7 +189,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
 	 * item. Consumer can use c2_fop_default_item_ops if, it is not
 	 * interested in implementing other (excluding ->rio_free())
-	 * interfaces of c2_rpc_item_ops.
+	 * interfaces of c2_rpc_item_ops. See also c2_fop_item_free().
 	 */
 	C2_ASSERT(item->ri_ops != NULL && item->ri_ops->rio_free != NULL);
 

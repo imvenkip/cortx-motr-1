@@ -356,7 +356,6 @@ void send_ping_fop(int nr)
 	item->ri_group    = NULL;
 	item->ri_type     = &fop->f_type->ft_rpc_item_type;
 	item->ri_session  = &cctx.pc_rpc_session;
-	item->ri_ops      = &c2_fop_default_item_ops;
 	c2_time_set(&timeout, 60, 0);
         c2_clink_init(&clink, NULL);
         c2_clink_add(&item->ri_chan, &clink);

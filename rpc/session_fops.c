@@ -137,9 +137,6 @@ static void conn_establish_item_free(struct c2_rpc_item *item)
 	fop = c2_rpc_item_to_fop(item);
 	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
 	c2_free(ctx);
-#ifndef __KERNEL__
-	printf("free rcv conn establish item\n");
-#endif
 }
 
 static const struct c2_rpc_item_ops rcv_conn_establish_item_ops = {

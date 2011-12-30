@@ -154,9 +154,10 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
 	 * item. Consumer can use c2_fop_default_item_ops if, it is not
 	 * interested in implementing other (excluding ->rio_free())
-	 * interfaces of c2_rpc_item_ops.
+	 * interfaces of c2_rpc_item_ops. See also c2_fop_item_free().
 	 */
 	C2_PRE(ri_ops != NULL);
+
 	item             = &fop->f_item;
 	item->ri_ops     = ri_ops;
 	item->ri_session = session;
