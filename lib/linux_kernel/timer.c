@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Huang Hua <hua_huang@xyratex.com>
+ *                  Maxim Medved <Max_Medved@xyratex.com>
  * Original creation date: 03/04/2011
  */
 
@@ -35,7 +36,7 @@
 
 void c2_timer_trampoline_callback(unsigned long data)
 {
-	struct c2_timer   *timer = (struct c2_timer*)data;
+	struct c2_timer *timer = (struct c2_timer*)data;
 
 	/* call the user callback */
 	C2_ASSERT(timer->t_callback != NULL);
