@@ -107,8 +107,6 @@ struct c2_timer_locality {
    @param data data for the callback.
    @pre callback != NULL
    @post timer is not running
-
-   @return 0 means success, other values mean error.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 		  c2_time_t expire,
@@ -119,7 +117,6 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 
    @pre c2_timer_init() successfully called.
    @pre timer is not running
-   @return 0 means success, other values mean error.
  */
 int c2_timer_start(struct c2_timer *timer);
 
@@ -130,7 +127,6 @@ int c2_timer_start(struct c2_timer *timer);
    @pre timer is running
    @post timer is not running
    @post callback isn't running
-   @return 0 means success, other values mean error.
  */
 int c2_timer_stop(struct c2_timer *timer);
 
@@ -139,7 +135,6 @@ int c2_timer_stop(struct c2_timer *timer);
 
    @pre c2_timer_init() for this timer was succesfully called.
    @pre timer is not running.
-   @return 0 means success, other values mean error.
  */
 int c2_timer_fini(struct c2_timer *timer);
 
@@ -164,8 +159,6 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc);
    @pre c2_timer_locality_init() successfully called.
    @pre current thread is not attached to locality.
    @post current thread is attached to locality.
-   @return 0 means success.
-   @return -ENOMEM if there is no free memory for timer_tid structure.
  */
 int c2_timer_thread_attach(struct c2_timer_locality *loc);
 
