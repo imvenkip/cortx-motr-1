@@ -369,7 +369,6 @@ static int timer_hard_init(struct c2_timer *timer)
 {
 	int rc;
 
-	timer_state_change(timer, TIMER_INIT, true);
 	timer->t_tid = gettid();
 	rc = timer_posix_init(timer);
 	if (rc == 0) {
