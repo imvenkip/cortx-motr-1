@@ -393,24 +393,22 @@ static void timer_hard_fini(struct c2_timer *timer)
    After every executed callback POSIX timer will be set again
    to one-shot timer if necessary.
  */
-static int timer_hard_start(struct c2_timer *timer)
+static void timer_hard_start(struct c2_timer *timer)
 {
 	timer_posix_set(timer, timer->t_expire, NULL);
-	return 0;
 }
 
 /**
    Stop POSIX timer for the given c2_timer and wait for termination
    of user-defined timer callback.
  */
-static int timer_hard_stop(struct c2_timer *timer)
+static void timer_hard_stop(struct c2_timer *timer)
 {
 	c2_time_t expire;
 	timer_posix_set(timer, zero_time, &expire);
 	/* if timer was expired then wait until callback is finished */
 	if (expire == zero_time)
 		c2_semaphore_down(&timer->t_stop_sem);
-	return 0;
 }
 
 static int timer_soft_init(struct c2_timer *timer)
@@ -542,13 +540,13 @@ C2_EXPORTED(c2_timer_fini);
  */
 int c2_timer_start(struct c2_timer *timer)
 {
-	int rc;
+	int rc = 0;
 
 	if (!timer_state_change(timer, TIMER_START, true))
 		return -EINVAL;
 
 	if (timer->t_type == C2_TIMER_HARD)
-		rc = timer_hard_start(timer);
+		timer_hard_start(timer);
 	else
 		rc = timer_soft_start(timer);
 
@@ -562,13 +560,13 @@ C2_EXPORTED(c2_timer_start);
  */
 int c2_timer_stop(struct c2_timer *timer)
 {
-	int rc;
+	int rc = 0;
 
 	if (!timer_state_change(timer, TIMER_STOP, true))
 		return -EINVAL;
 
 	if (timer->t_type == C2_TIMER_HARD)
-		rc = timer_hard_stop(timer);
+		timer_hard_stop(timer);
 	else
 		rc = timer_soft_stop(timer);
 
