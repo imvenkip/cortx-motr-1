@@ -26,6 +26,12 @@
 #include "lib/tlist.h"	   /* c2_tl */
 #include "lib/mutex.h"	   /* c2_mutex */
 
+#ifndef __KERNEL__
+#include "lib/user_space/timer.h"
+#else
+#include "lib/linux_kernel/timer.h"
+#endif
+
 /**
    @defgroup timer Generic timer manipulation
 
@@ -90,13 +96,6 @@ struct c2_timer_locality {
 	 */
 	struct timer_tid *tlo_rrtid;
 };
-
-#ifndef __KERNEL__
-#include "lib/user_space/timer.h"
-#else
-#include "lib/linux_kernel/timer.h"
-#endif
-
 
 /**
    Init the timer data structure.
