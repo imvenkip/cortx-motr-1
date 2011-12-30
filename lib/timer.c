@@ -228,7 +228,8 @@ static void timer_posix_fini(timer_t posix_timer)
 }
 
 /**
-   Run timer_settime() with given expire time (absolute) and interval.
+   Run timer_settime() with given expire time (absolute).
+   Return previous expiration time if old_expire != NULL.
  */
 static void timer_posix_set(struct c2_timer *timer,
 		c2_time_t expire, c2_time_t *old_expire)
@@ -319,8 +320,8 @@ static bool timer_invariant(struct c2_timer *timer)
 /**
    This function called on every c2_timer_init/fini/start/stop/attach.
    It checks the possibility of transition from the current state
-   with a given function and if possible, changes timer state to a new state
-   or executes C2_ASSERT() otherwise.
+   with a given function and if possible and changes timer state to a new state
+   if it needed.
    @param dry_run if it is true, then timer state doesn't change.
    @return true if state can be changed with the given func, false otherwise
  */
@@ -397,8 +398,6 @@ static void timer_hard_fini(struct c2_timer *timer)
 
 /**
    Start one-shot POSIX timer for the given c2_timer.
-   After every executed callback POSIX timer will be set again
-   to one-shot timer if necessary.
  */
 static void timer_hard_start(struct c2_timer *timer)
 {
@@ -593,9 +592,6 @@ int c2_timers_init()
 }
 C2_EXPORTED(c2_timers_init);
 
-/**
-   fini() all remaining hard timer data structures
- */
 void c2_timers_fini()
 {
 }
