@@ -350,12 +350,13 @@ void send_ping_fop(int nr)
 	for (i = 0; i < nr_arr_member; i++) {
 		ping_fop->fp_arr.f_data[i] = i+100;
 	}
-	item = &fop->f_item;
+	item              = &fop->f_item;
 	item->ri_deadline = 0;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_group = NULL;
-	item->ri_type = &fop->f_type->ft_rpc_item_type;
-	item->ri_session = &cctx.pc_rpc_session;
+	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group    = NULL;
+	item->ri_type     = &fop->f_type->ft_rpc_item_type;
+	item->ri_session  = &cctx.pc_rpc_session;
+	item->ri_ops      = &c2_fop_default_item_ops;
 	c2_time_set(&timeout, 60, 0);
         c2_clink_init(&clink, NULL);
         c2_clink_add(&item->ri_chan, &clink);

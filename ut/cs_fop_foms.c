@@ -52,6 +52,7 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
  */
 const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
         .rio_replied = cs_ut_rpc_item_reply_cb,
+	.rio_free    = c2_fop_item_free,
 };
 
 /* DS1 service fop type operations.*/

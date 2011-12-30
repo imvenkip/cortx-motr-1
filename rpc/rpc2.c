@@ -183,6 +183,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	struct c2_rpc_session *session;
 
 	C2_ASSERT(item != NULL && item->ri_type != NULL);
+	C2_ASSERT(item->ri_ops != NULL && item->ri_ops->rio_free != NULL);
 
 	session = item->ri_session;
 	C2_ASSERT(session != NULL);
@@ -208,6 +209,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 	C2_PRE(request->ri_session != NULL);
 	C2_PRE(reply->ri_type != NULL);
+	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
 
 	reply->ri_rpc_time = c2_time_now();
 

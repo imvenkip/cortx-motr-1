@@ -74,6 +74,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 			c2_free(fop);
 			fop = NULL;
 		}
+		fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	}
 	return fop;
 }
@@ -220,10 +221,8 @@ struct c2_fop_type *c2_item_type_to_fop_type
 }
 C2_EXPORTED(c2_item_type_to_fop_type);
 
-/**
-   Default implementation of c2_rpc_item_ops::rio_free() interface, for
-   fops. If fop is not embeded in any other object, then this routine
-   can be set to c2_rpc_item::ri_ops::rio_free().
+/*
+   See declaration for more information.
  */
 void c2_fop_item_free(struct c2_rpc_item *item)
 {
@@ -233,7 +232,14 @@ void c2_fop_item_free(struct c2_rpc_item *item)
 	/* c2_fop_free() internally calls c2_fop_fini() on the fop, which
 	   calls c2_rpc_item_fini() on the rpc-item */
 	c2_fop_free(fop);
+#ifndef __KERNEL__
+	printf("free item %p\n", item);
+#endif
 }
+
+const struct c2_rpc_item_ops c2_fop_default_item_ops = {
+	.rio_free = c2_fop_item_free,
+};
 
 /** @} end of fop group */
 

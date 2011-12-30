@@ -122,11 +122,13 @@ static void create_send()
 		rh_io_fop->fic_object.f_seq = i;
 		rh_io_fop->fic_object.f_oid = i;
 
-		item = &fop->f_item;
+		item              = &fop->f_item;
 		item->ri_deadline = 0;
-		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-		item->ri_group = NULL;
-		item->ri_session = &cl_rpc_session;
+		item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+		item->ri_group    = NULL;
+		item->ri_session  = &cl_rpc_session;
+		item->ri_ops      = &c2_fop_default_item_ops;
+
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
 		c2_clink_add(&item->ri_chan, &clink);
@@ -156,12 +158,14 @@ static void read_send()
 		rh_io_fop->fir_object.f_seq = i;
 		rh_io_fop->fir_object.f_oid = i;
 
-		item = &fop->f_item;
+		item              = &fop->f_item;
 		item->ri_deadline = 0;
-		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-		item->ri_group = NULL;
-		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_session = &cl_rpc_session;
+		item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+		item->ri_group    = NULL;
+		item->ri_type     = &fop->f_type->ft_rpc_item_type;
+		item->ri_session  = &cl_rpc_session;
+		item->ri_ops      = &c2_fop_default_item_ops;
+
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
 		c2_clink_add(&item->ri_chan, &clink);
@@ -191,12 +195,14 @@ static void write_send()
 		rh_io_fop->fiw_object.f_seq = i;
 		rh_io_fop->fiw_object.f_oid = i;
 
-		item = &fop->f_item;
+		item              = &fop->f_item;
 		item->ri_deadline = 0;
-		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-		item->ri_group = NULL;
-		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_session = &cl_rpc_session;
+		item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+		item->ri_group    = NULL;
+		item->ri_type     = &fop->f_type->ft_rpc_item_type;
+		item->ri_session  = &cl_rpc_session;
+		item->ri_ops      = &c2_fop_default_item_ops;
+
 		c2_time_set(&timeout, 60, 0);
 		c2_clink_init(&clink, NULL);
 		c2_clink_add(&item->ri_chan, &clink);
