@@ -33,7 +33,7 @@
 static bool field_invariant(const struct c2_xcode_type *xt,
 			    const struct c2_xcode_field *field)
 {
-	return ergo(xt == &C2_XT_OPAQUE, field->xf_u.u_type != NULL);
+	return ergo(xt == &C2_XT_OPAQUE, field->xf_type != NULL);
 }
 
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
@@ -295,7 +295,7 @@ int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
 
 	subobj->xo_ptr = c2_xcode_addr(obj, fieldno, elno);
 	if (f->xf_type == &C2_XT_OPAQUE) {
-		result = f->xf_u.u_type(obj, &subobj->xo_type);
+		result = f->xf_opaque(obj, &subobj->xo_type);
 	} else {
 		subobj->xo_type = f->xf_type;
 		result = 0;
@@ -314,7 +314,7 @@ uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 
 	switch (f->xf_type->xct_atype) {
 	case C2_XAT_VOID:
-		tag = f->xf_u.u_tag;
+		tag = f->xf_tag;
 		break;
 	case C2_XAT_BYTE:
 		tag = *C2_XCODE_VAL(obj, 0, 0, uint8_t);

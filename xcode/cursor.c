@@ -75,7 +75,7 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 			}
 			for (; top->s_fieldno < nr; ++top->s_fieldno) {
 				if (c2_xcode_tag(&top->s_obj) ==
-				    xt->xct_child[top->s_fieldno].xf_u.u_tag)
+				    xt->xct_child[top->s_fieldno].xf_tag)
 					break;
 			}
 			break;

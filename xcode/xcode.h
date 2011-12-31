@@ -24,6 +24,11 @@
 #include "lib/vec.h"                /* c2_bufvec_cursor */
 #include "lib/types.h"              /* c2_bcount_t */
 
+/**
+   @defgroup xcode
+ */
+/** @{ */
+
 /* import */
 struct c2_bufvec_cursor;
 
@@ -64,11 +69,9 @@ enum { C2_XCODE_DECOR_MAX = 10 };
 struct c2_xcode_field {
 	const char                 *xf_name;
 	const struct c2_xcode_type *xf_type;
-	union {
-		uint64_t   u_tag;
-		int      (*u_type)(const struct c2_xcode_obj   *par,
-				   const struct c2_xcode_type **out);
-	}                           xf_u;
+	uint64_t                    xf_tag;
+	int                       (*xf_opaque)(const struct c2_xcode_obj   *par,
+					       const struct c2_xcode_type **out);
 	uint32_t                    xf_offset;
 	void                       *xf_decor[C2_XCODE_DECOR_MAX];
 };

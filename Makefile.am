@@ -36,6 +36,7 @@ SUBDIRS_LIBS = \
                udb \
                ut \
                xcode \
+               xcode/ff2c \
 	       yaml2db
 SUBDIR_IT = rpc/it
 SUBDIR_KERNEL = build_kernel_modules

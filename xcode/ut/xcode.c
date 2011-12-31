@@ -223,7 +223,7 @@ static int xcode_init(void)
 	xut_top.xt.xct_child[5] = (struct c2_xcode_field){
 		.xf_name   = "t_opaq",
 		.xf_type   = &C2_XT_OPAQUE,
-		.xf_u      = { .u_type = opaq_type },
+		.xf_opaque = opaq_type,
 		.xf_offset = offsetof(struct top, t_opaq)
 	};
 
@@ -241,13 +241,13 @@ static int xcode_init(void)
 	xut_un.xt.xct_child[1] = (struct c2_xcode_field){
 		.xf_name   = "u_x",
 		.xf_type   = &C2_XT_U64,
-		.xf_u      = { .u_tag = 1 },
+		.xf_tag    = 1,
 		.xf_offset = offsetof(struct un, u.u_x)
 	};
 	xut_un.xt.xct_child[2] = (struct c2_xcode_field){
 		.xf_name   = "u_y",
 		.xf_type   = &C2_XT_BYTE,
-		.xf_u      = { .u_tag = 4 },
+		.xf_tag    = 4,
 		.xf_offset = offsetof(struct un, u.u_y)
 	};
 
