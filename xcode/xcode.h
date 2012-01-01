@@ -55,7 +55,7 @@ extern const char *c2_xcode_aggr_name[C2_XA_NR];
 
 enum c2_xode_atom_type {
 	C2_XAT_VOID,
-	C2_XAT_BYTE,
+	C2_XAT_U8,
 	C2_XAT_U32,
 	C2_XAT_U64,
 
@@ -159,11 +159,13 @@ uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj);
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt);
 
 extern const struct c2_xcode_type C2_XT_VOID;
-extern const struct c2_xcode_type C2_XT_BYTE;
+extern const struct c2_xcode_type C2_XT_U8;
 extern const struct c2_xcode_type C2_XT_U32;
 extern const struct c2_xcode_type C2_XT_U64;
 
 extern const struct c2_xcode_type C2_XT_OPAQUE;
+
+typedef struct {;} c2_void_t;
 
 /** @} end of xcode group */
 

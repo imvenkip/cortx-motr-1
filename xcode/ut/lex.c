@@ -25,6 +25,7 @@
 
 #include "xcode/ff2c/lex.h"
 #include "xcode/ff2c/parser.h"
+#include "xcode/ff2c/sem.h"
 #include "xcode/ff2c/gen.h"
 
 static const char samle[] =
@@ -60,6 +61,7 @@ static const char samle[] =
 "						\n"
 "record {				\n"
 "	fid      p_fid;				\n"
+"	c2_vec   p_vec;				\n"
 "	*c2_cred p_cred [c2_package_cred_get];	\n"
 "	sequence {				\n"
 "		u32 s_nr;			\n"
@@ -119,10 +121,61 @@ static void xcode_parser_test(void)
 	ff2c_context_fini(&ctx);
 }
 
+static void xcode_sem_test(void)
+{
+	int                  result;
+	struct ff2c_context  ctx;
+	struct ff2c_term    *term;
+	struct ff2c_ff       ff;
+	struct ff2c_require *r;
+	struct ff2c_type    *t;
+	struct ff2c_field   *f;
+
+	C2_SET0(&ctx);
+	C2_SET0(&ff);
+
+	ff2c_context_init_buf(&ctx, samle);
+	result = ff2c_parse(&ctx, &term);
+	C2_UT_ASSERT(result == 0);
+
+	ff2c_sem_init(&ff, term);
+
+	for (r = ff.ff_require.l_head; r != NULL; r = r->r_next)
+		printf("require %s\n", r->r_path);
+
+	for (t = ff.ff_type.l_head; t != NULL; t = t->t_next) {
+		printf("type %p name: %s xc: %s c: %s\n"
+		       "\t%s %s %s %s %s %s %i\n", t,
+		       t->t_name, t->t_xc_name, t->t_c_name,
+		       t->t_compound ? "comp" : "",
+		       t->t_atomic   ? "atom" : "",
+		       t->t_opaque   ? "opaq" : "",
+		       t->t_sequence ? "seq" : "",
+		       t->t_union    ? "unio" : "",
+		       t->t_record   ? "rec" : "",
+		       t->t_nr);
+		for (f = t->t_field.l_head; f != NULL; f = f->f_next) {
+			printf("\tfield: %p name: %s c: %s tag: %s escape: %s\n"
+			       "\t\tdecl: %s\n",
+			       f->f_type, f->f_name, f->f_c_name,
+			       f->f_tag ?: "", f->f_escape ?: "",
+			       f->f_decl ?: "");
+		}
+		printf("\n");
+	}
+
+
+	ff2c_sem_fini(&ff);
+
+	ff2c_term_fini(term);
+	ff2c_context_fini(&ctx);
+}
+
 static void xcode_gen_test(void)
 {
 	struct ff2c_context ctx;
 	struct ff2c_term   *t;
+	struct ff2c_ff      ff;
 	const struct ff2c_gen_opt opt ={
 		.go_basename = "basename",
 		.go_guardname = "__GUARD__"
@@ -135,8 +188,12 @@ static void xcode_gen_test(void)
 	result = ff2c_parse(&ctx, &t);
 	C2_UT_ASSERT(result == 0);
 
-	ff2c_h_gen(t, &opt);
+	ff2c_sem_init(&ff, t);
 
+	ff2c_h_gen(&ff, &opt);
+	ff2c_c_gen(&ff, &opt);
+
+	ff2c_sem_fini(&ff);
 	ff2c_term_fini(t);
 	ff2c_context_fini(&ctx);
 }
@@ -148,6 +205,7 @@ const struct c2_test_suite xcode_lex_ut = {
         .ts_tests = {
                 { "xcode-lex",    xcode_lex_test },
                 { "xcode-parser", xcode_parser_test },
+                { "xcode-sem",    xcode_sem_test },
                 { "xcode-gen",    xcode_gen_test },
                 { NULL, NULL }
         }

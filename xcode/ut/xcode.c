@@ -180,7 +180,7 @@ static int xcode_init(void)
 	};
 	xut_v.xt.xct_child[1] = (struct c2_xcode_field){
 		.xf_name   = "v_data",
-		.xf_type   = &C2_XT_BYTE,
+		.xf_type   = &C2_XT_U8,
 		.xf_offset = offsetof(struct v, v_data)
 	};
 
@@ -246,7 +246,7 @@ static int xcode_init(void)
 	};
 	xut_un.xt.xct_child[2] = (struct c2_xcode_field){
 		.xf_name   = "u_y",
-		.xf_type   = &C2_XT_BYTE,
+		.xf_type   = &C2_XT_U8,
 		.xf_tag    = 4,
 		.xf_offset = offsetof(struct un, u.u_y)
 	};
@@ -281,7 +281,7 @@ __attribute__((unused)) static void it_print(const struct c2_xcode_cursor *it)
 		case C2_XAT_VOID:
 			printf("void");
 			break;
-		case C2_XAT_BYTE:
+		case C2_XAT_U8:
 			printf("%c", *(char *)f->s_obj.xo_ptr);
 			break;
 		case C2_XAT_U32:
@@ -350,9 +350,9 @@ static void xcode_cursor_test(void)
 	chk(&it, 2, &C2_XT_U32, &T.t_v.v_nr, 0, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 1, &xut_v.xt, &T.t_v, 0, 0, C2_XCODE_CURSOR_IN);
 	for (i = 0; i < ARRAY_SIZE(data); ++i) {
-		chk(&it, 2, &C2_XT_BYTE,
+		chk(&it, 2, &C2_XT_U8,
 		    &T.t_v.v_data[i], 0, 0, C2_XCODE_CURSOR_PRE);
-		chk(&it, 2, &C2_XT_BYTE,
+		chk(&it, 2, &C2_XT_U8,
 		    &T.t_v.v_data[i], 0, 0, C2_XCODE_CURSOR_POST);
 		C2_UT_ASSERT(*(char *)it.xcu_stack[2].s_obj.xo_ptr == data[i]);
 		chk(&it, 1, &xut_v.xt, &T.t_v, 1, i, C2_XCODE_CURSOR_IN);
@@ -369,8 +369,8 @@ static void xcode_cursor_test(void)
 	chk(&it, 2, &C2_XT_U32, &T.t_un.u_tag, 0, 0, C2_XCODE_CURSOR_PRE);
 	chk(&it, 2, &C2_XT_U32, &T.t_un.u_tag, 0, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 1, &xut_un.xt, &T.t_un, 0, 0, C2_XCODE_CURSOR_IN);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_un.u.u_y, 0, 0, C2_XCODE_CURSOR_PRE);
-	chk(&it, 2, &C2_XT_BYTE, &T.t_un.u.u_y, 0, 0, C2_XCODE_CURSOR_POST);
+	chk(&it, 2, &C2_XT_U8, &T.t_un.u.u_y, 0, 0, C2_XCODE_CURSOR_PRE);
+	chk(&it, 2, &C2_XT_U8, &T.t_un.u.u_y, 0, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 1, &xut_un.xt, &T.t_un, 2, 0, C2_XCODE_CURSOR_IN);
 	chk(&it, 1, &xut_un.xt, &T.t_un, 3, 0, C2_XCODE_CURSOR_POST);
 	chk(&it, 0, &xut_top.xt, &T, 4, 0, C2_XCODE_CURSOR_IN);

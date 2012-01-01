@@ -316,7 +316,7 @@ uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 	case C2_XAT_VOID:
 		tag = f->xf_tag;
 		break;
-	case C2_XAT_BYTE:
+	case C2_XAT_U8:
 		tag = *C2_XCODE_VAL(obj, 0, 0, uint8_t);
 		break;
 	case C2_XAT_U32:
@@ -339,10 +339,10 @@ const struct c2_xcode_type C2_XT_VOID = {
 	.xct_nr     = 0
 };
 
-const struct c2_xcode_type C2_XT_BYTE = {
+const struct c2_xcode_type C2_XT_U8 = {
 	.xct_aggr   = C2_XA_ATOM,
-	.xct_name   = "byte",
-	.xct_atype  = C2_XAT_BYTE,
+	.xct_name   = "u8",
+	.xct_atype  = C2_XAT_U8,
 	.xct_sizeof = sizeof(uint8_t),
 	.xct_nr     = 0
 };
@@ -381,7 +381,7 @@ const char *c2_xcode_aggr_name[C2_XA_NR] = {
 
 const char *c2_xcode_atom_type_name[C2_XAT_NR] = {
 	[C2_XAT_VOID] = "void",
-	[C2_XAT_BYTE] = "byte",
+	[C2_XAT_U8]   = "u8",
 	[C2_XAT_U32]  = "u32",
 	[C2_XAT_U64]  = "u64",
 };

@@ -27,15 +27,15 @@
 /** @{ */
 
 /* import */
-struct ff2c_term *term;
+struct ff2c_ff;
 
 struct ff2c_gen_opt {
 	const char *go_basename;
 	const char *go_guardname;
 };
 
-int ff2c_h_gen(const struct ff2c_term *term, const struct ff2c_gen_opt *opts);
-int ff2c_c_gen(const struct ff2c_term *term, const struct ff2c_gen_opt *opts);
+int ff2c_h_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt);
+int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt);
 
 /** @} end of xcode group */
 
