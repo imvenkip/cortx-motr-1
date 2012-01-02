@@ -46,7 +46,7 @@ static void *alloc(size_t nr)
 }
 
 __attribute__((format(printf, 1, 2)))
-static char *fmt(const char *format, ...)
+char *fmt(const char *format, ...)
 {
 	va_list  args;
 	char    *out;

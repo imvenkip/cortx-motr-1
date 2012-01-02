@@ -70,13 +70,11 @@ struct ff2c_context {
 	size_t             fc_remain;
 	struct ff2c_token  fc_stack[FF2C_CTX_STACK_MAX];
 	int                fc_depth;
-	int                fc_fd;
 	int                fc_line;
 	int                fc_col;
 };
 
-void ff2c_context_init_buf(struct ff2c_context *ctx, const char *buf);
-void ff2c_context_init(struct ff2c_context *ctx, const char *path);
+void ff2c_context_init(struct ff2c_context *ctx, const char *buf, size_t size);
 void ff2c_context_fini(struct ff2c_context *ctx);
 int  ff2c_context_loc(struct ff2c_context *ctx, int nr, char *buf);
 

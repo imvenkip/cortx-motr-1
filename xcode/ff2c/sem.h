@@ -91,6 +91,8 @@ struct ff2c_ff {
 void ff2c_sem_init(struct ff2c_ff *ff, struct ff2c_term *top);
 void ff2c_sem_fini(struct ff2c_ff *ff);
 
+char *fmt(const char *format, ...) __attribute__((format(printf, 1, 2)));
+
 /** @} end of xcode group */
 
 /* __COLIBRI_XCODE_FF2C_SEM_H__ */

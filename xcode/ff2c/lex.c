@@ -24,17 +24,11 @@
    @{
  */
 
-#include <unistd.h>                   /* close */
-#include <sys/mman.h>                 /* mmap */
 #include <string.h>                   /* strchr, strlen */
 #include <stdbool.h>                  /* bool */
 #include <stdio.h>                    /* snprintf */
 #include <errno.h>
 #include <assert.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <err.h>
 
 #include "xcode/ff2c/lex.h"
@@ -216,43 +210,14 @@ void ff2c_token_put(struct ff2c_context *ctx, struct ff2c_token *tok)
 	ctx->fc_stack[ctx->fc_depth++] = *tok;
 }
 
-void ff2c_context_init_buf(struct ff2c_context *ctx, const char *buf)
+void ff2c_context_init(struct ff2c_context *ctx, const char *buf, size_t size)
 {
-	ctx->fc_remain = ctx->fc_size = strlen(buf);
-	ctx->fc_origin = ctx->fc_pt   =  buf;
-	ctx->fc_fd     = -1;
-}
-
-void ff2c_context_init(struct ff2c_context *ctx, const char *path)
-{
-	struct stat buf;
-	int         result;
-
-	ctx->fc_fd = open(path, O_RDONLY);
-	if (ctx->fc_fd == -1)
-		err(1, "cannot open \"%s\"", path);
-	result = fstat(ctx->fc_fd, &buf);
-	if (result == -1)
-		err(1, "cannot stat \"%s\"", path);
-	ctx->fc_remain = ctx->fc_size = buf.st_size;
-	ctx->fc_origin = ctx->fc_pt = mmap(NULL, ctx->fc_remain,
-					   PROT_READ, MAP_SHARED, ctx->fc_fd, 0);
-	if (ctx->fc_pt == MAP_FAILED)
-		err(1, "cannot mmap \"%s\"", path);
+	ctx->fc_remain = ctx->fc_size = size;
+	ctx->fc_origin = ctx->fc_pt   = buf;
 }
 
 void ff2c_context_fini(struct ff2c_context *ctx)
 {
-	int result;
-
-	if (ctx->fc_fd != -1) {
-		result = munmap((void *)ctx->fc_origin, ctx->fc_size);
-		if (result == -1)
-			warn("cannot munmap");
-		result = close(ctx->fc_fd);
-		if (result == -1)
-			warn("cannot close");
-	}
 }
 
 int ff2c_context_loc(struct ff2c_context *ctx, int nr, char *buf)

@@ -26,12 +26,15 @@
  */
 /** @{ */
 
+#include <stdio.h>                              /* FILE */
+
 /* import */
 struct ff2c_ff;
 
 struct ff2c_gen_opt {
 	const char *go_basename;
 	const char *go_guardname;
+	FILE       *go_out;
 };
 
 int ff2c_h_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt);

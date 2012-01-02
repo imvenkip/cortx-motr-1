@@ -1,0 +1,50 @@
+/* comment. */
+require "lib/vec";
+require "fop/fop";
+
+record {
+	u64 f_container;
+	u64 f_offset
+} fid;
+
+union {
+	u8  o_flag;
+	fid o_fid   :1;
+	u32 o_short :3
+} optfid;
+
+sequence {
+	u64    ofa_nr;
+	optfid ofa_data
+} optfidarray;
+
+sequence {
+	void   fa_none :NR;
+	optfid fa_data
+} fixarray;
+
+/* typedef {
+	optfid t_alias
+} tdeffid;
+
+void nothing;
+u8   byte;
+u32  quad;
+u64  hyper; */
+
+record {
+	fid      p_fid;
+       *c2_cred  p_cred [c2_package_cred_get];
+	sequence {
+		u32 s_nr;
+		record {
+			u8       e_flag;
+			fixarray e_payload;
+			record {
+				u64 d_0;
+				u64 d_1
+			} e_datum
+		} s_el
+	} p_name
+} package
+

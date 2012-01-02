@@ -18,7 +18,7 @@
  * Original creation date: 30-Dec-2011
  */
 
-#include <stdio.h>                          /* printf */
+#include <stdio.h>                          /* printf, stdout */
 
 #include "lib/misc.h"                       /* C2_SET0 */
 #include "lib/ut.h"
@@ -28,7 +28,7 @@
 #include "xcode/ff2c/sem.h"
 #include "xcode/ff2c/gen.h"
 
-static const char samle[] =
+static const char sample[] =
 "/* comment. */					\n"
 "require \"lib/vec.ff\";				\n"
 "						\n"
@@ -85,7 +85,7 @@ static void xcode_lex_test(void)
 	struct ff2c_token   tok;
 
 	C2_SET0(&ctx);
-	ff2c_context_init_buf(&ctx, samle);
+	ff2c_context_init(&ctx, sample, strlen(sample));
 
 	while (ff2c_token_get(&ctx, &tok) > 0)
 		token_print(&tok);
@@ -110,7 +110,7 @@ static void xcode_parser_test(void)
 	int result;
 
 	C2_SET0(&ctx);
-	ff2c_context_init_buf(&ctx, samle);
+	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &t);
 	C2_UT_ASSERT(result == 0);
 
@@ -134,7 +134,7 @@ static void xcode_sem_test(void)
 	C2_SET0(&ctx);
 	C2_SET0(&ff);
 
-	ff2c_context_init_buf(&ctx, samle);
+	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &term);
 	C2_UT_ASSERT(result == 0);
 
@@ -177,14 +177,15 @@ static void xcode_gen_test(void)
 	struct ff2c_term   *t;
 	struct ff2c_ff      ff;
 	const struct ff2c_gen_opt opt ={
-		.go_basename = "basename",
-		.go_guardname = "__GUARD__"
+		.go_basename  = "basename",
+		.go_guardname = "__GUARD__",
+		.go_out       = stdout
 	};
 
 	int result;
 
 	C2_SET0(&ctx);
-	ff2c_context_init_buf(&ctx, samle);
+	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &t);
 	C2_UT_ASSERT(result == 0);
 
