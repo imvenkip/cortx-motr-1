@@ -169,8 +169,8 @@
    layout_type_specific_data field is used to store layout type or layout enum
    type specific data. Structure of this field varies accordingly. e.g.
    - In case of a layout with PDCLUST layout type, the structure
-     c2_pdclust_rec is used to store attributes like enumeration type id, N, K,
-     P.
+     c2_ldb_pdclust_rec is used to store attributes like enumeration type id,
+     N, K, P.
    - In case of a layout with LIST enum type, an array of ldb_list_cob_entry
      structure with size MAX_INLINE_COB_ENTRIES is used to store a few COB
      entries inline into the layouts table itself.

@@ -37,20 +37,31 @@
 struct c2_layout_linear_enum;
 
 /**
+   Attributes specific to Linear enumeration type.
+   These attributes are part of c2_layout_linear_enum which is in-memory layout
+   enumeration object and are stored in the Layout DB as well.
+*/
+struct c2_layout_linear_attr {
+	/** Number of elements present in the enumeration */
+	uint64_t                     lla_nr;
+
+	/** Constant A used in the linear equation A + idx * B */
+	uint64_t                     lla_A;
+
+	/** Constant B used in the linear equation A + idx * B */
+	uint64_t                     lla_B;
+};
+
+/**
    Extension of generic c2_layout_enum for a linear enumeration type.
  */
 struct c2_layout_linear_enum {
 	/** super class */
 	struct c2_layout_enum        lle_enum;
 
-	/** Number of elements present in the enumeration */
-	uint64_t                     lle_nr;
+	struct c2_layout_linear_attr lle_attr;
 
-	/** Constant A used in the linear equation A + idx * B */
-	uint64_t                     lle_A;
 
-	/** Constant B used in the linear equation A + idx * B */
-	uint64_t                     lle_B;
 };
 
 

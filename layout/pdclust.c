@@ -467,7 +467,7 @@ static uint64_t pdclust_recsize(void)
 	enumeration type specific data into the layouts table record, if
 	applicable.
 
-	recsize = recsize + sizeof(struct c2_pdclust_rec) +
+	recsize = recsize + sizeof(struct c2_ldb_pdclust_rec) +
 			    sizeof(struct c2_ldb_rec);
 
 	return recsize;

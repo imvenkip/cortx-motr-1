@@ -95,9 +95,6 @@ struct c2_layout {
 	/** Layout type. */
 	const struct c2_layout_type     *l_type;
 
-	/** Layout enumeration. */
-	const struct c2_layout_enum     *l_enum;
-
 	/** Layout reference count.
 	    Indicating how many users this layout has.
 	*/
