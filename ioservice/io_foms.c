@@ -39,6 +39,7 @@
 #include "ioservice/io_service.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
+#include "addb/addb.h"
 
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"
@@ -575,6 +576,13 @@ C2_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
 		   C2_RPC_BULK_BUF_MAGIC, C2_RPC_BULK_MAGIC);
 C2_TL_DEFINE(rpcbulkbufs, static, struct c2_rpc_bulk_buf);
 
+/**
+ * I/O FOM addb event location object
+ */
+const struct c2_addb_loc io_fom_addb_loc = {
+        .al_name = "io_fom"
+};
+
 extern const struct c2_tl_descr bufferpools_tl;
 
 extern bool is_read(const struct c2_fop *fop);
@@ -758,10 +766,12 @@ static void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
  * @pre in != NULL
  * @pre out != NULL
  */
-static void io_fom_cob_rw_indexvec_wire2mem(struct c2_io_indexvec *in,
-                                 struct c2_indexvec *out)
+static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
+                                            struct c2_io_indexvec *in,
+                                            struct c2_indexvec *out)
 {
         int         i;
+        int         rc = 0;
 
         C2_PRE(in != NULL);
         C2_PRE(out != NULL);
@@ -771,13 +781,27 @@ static void io_fom_cob_rw_indexvec_wire2mem(struct c2_io_indexvec *in,
          * completes and before destructing container stob object.
          */
         C2_ALLOC_ARR(out->iv_vec.v_count, in->ci_nr);
+        if (out->iv_vec.v_count == NULL) {
+                rc = -ENOMEM;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_oom);
+                return rc;
+        }
         C2_ALLOC_ARR(out->iv_index, in->ci_nr);
+        if (out->iv_index == NULL) {
+                rc = -ENOMEM;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_oom);
+                return rc;
+        }
 
         out->iv_vec.v_nr = in->ci_nr;
         for (i = 0; i < in->ci_nr; i++) {
                 out->iv_index[i] = in->ci_iosegs[i].ci_index;
                 out->iv_vec.v_count[i] = in->ci_iosegs[i].ci_count;
         }
+
+        return 0;
 }
 
 /**
@@ -791,15 +815,20 @@ static void io_fom_cob_rw_indexvec_wire2mem(struct c2_io_indexvec *in,
  */
 static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **out)
 {
+        int                        rc = 0;
         struct c2_fom             *fom;
         struct c2_io_fom_cob_rw   *fom_obj;
 
         C2_PRE(t != NULL);
         C2_PRE(out != NULL);
 
-        fom_obj= c2_alloc(sizeof *fom_obj);
-        if (fom_obj == NULL)
-                return -ENOMEM;
+        C2_ALLOC_PTR(fom_obj);
+        if (fom_obj == NULL) {
+                rc = -ENOMEM;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_oom);
+                return rc;
+        }
         fom = &fom_obj->fcrw_gen;
         fom->fo_type = t;
 
@@ -822,7 +851,7 @@ static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **out)
  */
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
 {
-        int                      result;
+        int                      rc;
         struct c2_fom           *fom;
         struct c2_io_fom_cob_rw *fom_obj;
         struct c2_fop_cob_rw    *rwfop;
@@ -833,9 +862,12 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
 
         fop->f_type->ft_fom_type =  c2_io_fom_cob_rw_mopt;
         fomtype = fop->f_type->ft_fom_type;
-        result = fomtype.ft_ops->fto_create(&(fop->f_type->ft_fom_type), out);
-        if (result != 0)
-            return result;
+        rc = fomtype.ft_ops->fto_create(&(fop->f_type->ft_fom_type), out);
+        if (rc != 0) {
+            C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                        c2_addb_func_fail, "c2_io_fom_cob_rw_init", rc);
+            return rc;
+        }
 
         fom = *out;
 
@@ -859,7 +891,10 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
                                                NULL);
         if (fom->fo_rep_fop == NULL) {
                 c2_free(fom_obj);
-                return -ENOMEM;
+                rc = -ENOMEM;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_oom);
+                return rc;
         }
 
         fom_obj = container_of(*out, struct c2_io_fom_cob_rw, fcrw_gen);
@@ -878,7 +913,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
         stobio_tlist_init(&fom_obj->fcrw_stio_list);
         c2_mutex_init(&fom_obj->fcrw_stio_mutex);
 
-        return result;
+        return rc;
 }
 
 /**
@@ -932,7 +967,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
                                 break;
                         }
                 } c2_tlist_endfor;
-                C2_ASSERT(fom_obj->fcrw_bp == NULL);
+                C2_ASSERT(fom_obj->fcrw_bp != NULL);
         }
 
         colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
@@ -1088,6 +1123,8 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
                 if (rb_buf == NULL) {
                         fom->fo_rc = -ENOMEM;
                         fom->fo_phase = FOPH_FAILURE;
+                        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                    c2_addb_oom);
                         return FSO_AGAIN;
                 }
 
@@ -1119,6 +1156,9 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         if (rc != 0){
                 fom->fo_rc = rc;
                 fom->fo_phase = FOPH_FAILURE;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_func_fail,
+                            "io_fom_cob_rw_initiate_zero_copy", rc);
                 return FSO_AGAIN;
         }
 
@@ -1158,6 +1198,9 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
         if (rbulk->rb_rc != 0){
                 fom->fo_rc = rbulk->rb_rc;
                 fom->fo_phase = FOPH_FAILURE;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_func_fail,
+                            "io_fom_cob_rw_zero_copy_finish", fom->fo_rc);
                 return FSO_AGAIN;
         }
 
@@ -1238,8 +1281,11 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 struct c2_stob_io      *stio;
 
                 C2_ALLOC_PTR(stio_desc);
-                if (stio_desc == NULL)
+                if (stio_desc == NULL) {
+                        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                    c2_addb_oom);
                         break;
+                }
 
                 stio_desc->siod_magic = C2_STOB_IO_DESC_LINK_MAGIC;
                 c2_clink_init(&stio_desc->siod_clink,
@@ -1252,7 +1298,19 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 mem_ivec = &stio->si_stob;
 	        wire_ivec =
                 rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
-                io_fom_cob_rw_indexvec_wire2mem(&wire_ivec, mem_ivec);
+                rc = io_fom_cob_rw_indexvec_wire2mem(fom, &wire_ivec, mem_ivec);
+                if (rc != 0) {
+                        /**
+                         * Since this stob io not added into list 
+                         * yet, free it here.
+                         */  
+                        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                    c2_addb_func_fail,
+                                    "io_fom_cob_rw_io_launch", rc);
+                        c2_stob_io_fini(stio);
+                        c2_free(stio_desc);
+                	break;
+                }
 
                 /** Find out buffer address, offset and count required for stob
                    io. Due to existing limitations of kxdr wrapper over sunrpc,
@@ -1266,7 +1324,10 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                                 /**
                                  * Since this stob io not added into list 
                                  * yet, free it here.
-                                 */
+                                 */  
+                                C2_ADDB_ADD(&fom->fo_fop->f_addb,
+                                            &io_fom_addb_loc, c2_addb_func_fail,
+                                            "io_fom_cob_rw_io_launch", rc);
                                 c2_stob_io_fini(stio);
                                 c2_free(stio_desc);
                 		break;
@@ -1286,6 +1347,9 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                          * Since this stob io not added into list 
                          * yet, free it here.
                          */
+                        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                    c2_addb_func_fail,
+                                    "io_fom_cob_rw_io_launch", rc);
                         c2_stob_io_fini(stio);
                         c2_free(stio_desc);
                         break;
@@ -1306,6 +1370,8 @@ cleanup:
 	C2_ASSERT(rc != 0);
 	fom->fo_rc = rc;
 	fom->fo_phase = FOPH_FAILURE;
+        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_func_fail,
+                    "io_fom_cob_rw_io_launch", rc);
 	return FSO_AGAIN;
 }
 
@@ -1332,6 +1398,9 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
 
         if (fom->fo_rc != 0) {
 	        fom->fo_phase = FOPH_FAILURE;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_func_fail, "io_fom_cob_rw_io_finish",
+                            fom->fo_rc);
 	        return FSO_AGAIN;
         }
 
