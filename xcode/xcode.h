@@ -26,6 +26,92 @@
 
 /**
    @defgroup xcode
+
+   xcode module implements a modest set of introspection facilities. A user
+   defines a structure (c2_xcode_type) which describes the in memory layout of a
+   C data-type. xcode provides interfaces to iterate over hierarchy of such
+   descriptors and to associate user defined state with types and fields.
+
+   A motivating example of xcode usage is universal encoding and decoding
+   interface (c2_xcode_decode(), c2_xcode_encode(), c2_xcode_length()) which can
+   convert between an in-memory object and its serialized representation.
+
+   Other usages of xcoding interfaces are:
+
+       - pretty-printing,
+
+       - pointer swizzling and adjustment when loading RVM segments into memory,
+
+       - consistency checking: traversing data-structures in memory validating
+         check-sums and invariants.
+
+   Not every C data-structure can be represented by xcode. The set of
+   representable data-structures is defined inductively:
+
+       - scalar data-types void, uint8_t, uint32_t and uint64_t are
+         representable,
+
+       - a struct type, whose members are all representable is representable,
+
+       - a "discriminated union" structure of the form
+
+         @code
+         struct {
+                 scalar_t discriminator;
+	         union {
+	                 ...
+	         } u;
+         };
+         @endcode
+
+         where scalar_t is one of the scalar data-types mentioned above and all
+         union fields are representable is representable,
+
+       - a "counted array" structure of the form
+
+         @code
+         struct {
+                 scalar_t nr;
+		 el_t     el;
+         };
+         @endcode
+
+         where scalar_t is one of the scalar data-types mentioned above and el_t
+         is representable is representable,
+
+       - pointer type is representable when it is used as the type of a field in
+         a representable type and a special function
+         (c2_xcode_field::xf_opaque()) is assigned to the field, which returns
+         the representation of the type of an object the pointer points to.
+
+         The usage of function allows representation of pointer structures where
+         the actual type of the object pointed to depends on the contents of its
+         parent structure.
+
+   A representable type is described by an instance of struct c2_xcode_type,
+   which describes type attributes and also contains an array
+   (c2_xcode_type::xct_child[]) of "fields". A field is represented by struct
+   c2_xcode_field and describes a sub-object. The field points to a
+   c2_xcode_type instance, describing the type of sub-object. This way a
+   hierarchy (forest of trees) of types is organized. Its leaves are atomic
+   types.
+
+   Sub-objects are located contiguously in memory, except for SEQUENCE elements
+   and OPAQUE fields.
+
+   xcode description of a data-type can be provided either by
+
+       - manually creating an instance of c2_xcode_type structure, describing
+         properties of the data-type or
+
+       - by creating a description of the desired serialized format of a
+         data-type and using ff2c "compiler" (xcode/ff2c.c) to produce C files
+         (.c and .h) containing the matching data-type definitions and xcode
+         descriptors.
+
+   The first method is suitable for memory-only structures. The second method is
+   for structures designed to be transmitted over network of stored on
+   persistent storage (fops, db records, &c.).
  */
 /** @{ */
 
@@ -41,18 +127,74 @@ struct c2_xcode_obj;
 struct c2_xcode_field;
 struct c2_xcode_cursor;
 
+/**
+   Type of aggregation for a data-type.
+
+   A value of this enum, stored in c2_code_type::xct_aggr determines how fields
+   of the type are interpreted.
+ */
 enum c2_xcode_aggr {
+	/**
+	   RECORD corresponds to C struct. Fields of RECORD type are located one
+	   after another in memory.
+	 */
 	C2_XA_RECORD,
+	/**
+	   UNION corresponds to discriminated union. Its first field is referred
+	   to as a "discriminator" and has an atomic type. Other fields of union
+	   are tagged (c2_xcode_field::xf_tag) and the value of the
+	   discriminator field determines which of the following fields is
+	   actually used.
+
+	   @note that, similarly to C2_XA_SEQUENCE, the discriminator field can
+	   have C2_XAT_VOID type. In this case its tag is used instead of its
+	   value (use cases are not clear).
+	 */
 	C2_XA_UNION,
+	/**
+	   SEQUENCE corresponds to counted array. Sequence always has two
+	   fields: a scalar "counter" field and a field denoting the element of
+	   the array.
+
+	   @note if counter has type C2_XAT_VOID, its tag used as a
+	   counter. This is used to represent fixed size arrays without an
+	   explicit counter field.
+	 */
 	C2_XA_SEQUENCE,
+	/**
+	   TYPEDEF is an alias for another type. It always has a single field.
+	 */
 	C2_XA_TYPEDEF,
+	/**
+	   OPAQUE represents a pointer.
+
+	   A field of OPAQUE type must have c2_xcode_field::xf_opaque() function
+	   pointer set to a function which determines the actual type of the
+	   object pointed to.
+	 */
 	C2_XA_OPAQUE,
+	/**
+	   ATOM represents "atomic" data-types having no internal
+	   structure. c2_xcode_type-s with c2_xcode_type::xct_aggr set to
+	   C2_XA_ATOM have c2_xcode_type::xct_nr == 0 and no fields.
+
+	   Atomic types are enumerated in c2_xode_atom_type.
+	 */
 	C2_XA_ATOM,
 	C2_XA_NR
 };
 
+/**
+   Human-readable names of c2_xcode_aggr values.
+ */
 extern const char *c2_xcode_aggr_name[C2_XA_NR];
 
+/**
+    Atomic types.
+
+    To each value of this enumeration, except for C2_XAT_NR, a separate
+    c2_xcode_type (C2_XT_VOID, C2_XT_U8, &c.).
+ */
 enum c2_xode_atom_type {
 	C2_XAT_VOID,
 	C2_XAT_U8,
@@ -62,36 +204,97 @@ enum c2_xode_atom_type {
 	C2_XAT_NR
 };
 
+/** Human-readable names of elements of c2_xcode_atom_type */
 extern const char *c2_xcode_atom_type_name[C2_XAT_NR];
 
 enum { C2_XCODE_DECOR_MAX = 10 };
 
+/** Field of data-type. */
 struct c2_xcode_field {
+	/** Field name. */
 	const char                 *xf_name;
+	/** Field type. */
 	const struct c2_xcode_type *xf_type;
+	/** Tag, associated with this field.
+
+	    Tag is used in the following ways:
+
+	        - if first field of a SEQUENCE type has type VOID, its tag is
+                  used as a count of element in the sequence;
+
+		- tag of non-first field of a UNION type is used to determine
+                  when the field is actually present in the object: the field is
+                  present iff its tag equals the discriminator of the union.
+
+		  The discriminator is the value of the first field of the
+		  union.
+	 */
 	uint64_t                    xf_tag;
+	/**
+	   Fields with c2_xcode_type::xf_type == &C2_XT_OPAQUE are "opaque"
+	   fields. An opaque field corresponds to a
+	   pointer. c2_xcode_type::xf_opaque() is called by the xcode to follow
+	   the pointer. This function returns (in its "out" parameter) a type of
+	   the object pointed to. "par" parameter refers to the parent object to
+	   which the field belongs.
+	 */
 	int                       (*xf_opaque)(const struct c2_xcode_obj   *par,
 					       const struct c2_xcode_type **out);
+	/**
+	   Byte offset of this field from the beginning of the object.
+	 */
 	uint32_t                    xf_offset;
+	/**
+	   "Decorations" are used by xcode users to associate additional
+	   information with introspection elements.
+
+	   @see c2_xcode_decor_register()
+	   @see c2_xcode_type::xct_decor[]
+	 */
 	void                       *xf_decor[C2_XCODE_DECOR_MAX];
 };
 
+/**
+   This struct represent a data-type.
+ */
 struct c2_xcode_type {
+	/** What sub-objects instances of this type have and how they are
+	    organized? */
 	enum c2_xcode_aggr              xct_aggr;
+	/** Type name. */
 	const char                     *xct_name;
+	/** Custom operations. */
 	const struct c2_xcode_type_ops *xct_ops;
+	/** Which atomic type this is? */
 	enum c2_xode_atom_type          xct_atype;
+	/**
+	   "Decorations" are used by xcode users to associate additional
+	   information with introspection elements.
+
+	   @see c2_xcode_decor_register()
+	   @see c2_xcode_field::xf_decor[]
+	 */
 	void                           *xct_decor[C2_XCODE_DECOR_MAX];
+	/** Size in bytes of in-memory instances of this type. */
 	size_t                          xct_sizeof;
+	/** Number of fields. */
 	size_t                          xct_nr;
+	/** Array of fields. */
 	struct c2_xcode_field           xct_child[0];
 };
 
+/** "Typed" xcode obect. */
 struct c2_xcode_obj {
+	/** Object's type. */
 	const struct c2_xcode_type *xo_type;
+	/** Pointer to object in memory. */
 	void                       *xo_ptr;
 };
 
+/**
+
+    @see c2_xcode_decode()
+ */
 struct c2_xcode_type_ops {
 	int (*xto_length)(struct c2_xcode_ctx *ctx, const void *obj);
 	int (*xto_encode)(struct c2_xcode_ctx *ctx, const void *obj);
@@ -100,51 +303,180 @@ struct c2_xcode_type_ops {
 
 enum { C2_XCODE_DEPTH_MAX = 10 };
 
+/**
+   @name iteration
+
+   xcode provides an iteration interface to walk through the hierarchy of types
+   and fields.
+
+   This interface consists of two functions: c2_xcode_next(), c2_xcode_skip()
+   and a c2_xcode_cursor data-type.
+
+   c2_xcode_next() takes a starting type (c2_xcode_type) and walks the tree of
+   its fields, their types, their fields &c., all the way down to the atomic
+   types.
+
+   c2_xcode_next() can be used to walk the tree in any "standard" order:
+   preorder, inorder and postorder traversals are supported. To this end,
+   c2_xcode_next() visits each tree node multiple times, setting the flag
+   c2_xcode_cursor::xcu_stack[]::s_flag according to the order.
+ */
+/** @{ */
+
+/**
+    Traversal order.
+ */
 enum c2_xcode_cursor_flag {
+	/** This value is never returned by c2_xcode_next(). It is set by the
+	    user to indicate the beginning of iteration. */
 	C2_XCODE_CURSOR_NONE,
+	/** Tree element is visited for the first time. */
 	C2_XCODE_CURSOR_PRE,
+	/** The sub-tree, rooted at an element's field has been processed
+	    fully. */
 	C2_XCODE_CURSOR_IN,
+	/** All fields have been processed fully, this is the last time the
+	    element is visited. */
 	C2_XCODE_CURSOR_POST,
 	C2_XCODE_CURSOR_NR
 };
 
+/** Human-readable names of values in c2_xcode_cursor_flag */
 extern const char *c2_xcode_cursor_flag_name[C2_XCODE_CURSOR_NR];
 
+/**
+    Cursor that captures the state of iteration.
+
+    The cursor contains a stack of "frames". A frame describes the iteration at
+    a particular level.
+ */
 struct c2_xcode_cursor {
+	/** Depth of the iteration. */
 	int xcu_depth;
 	struct c2_xcode_cursor_frame {
+		/** An object that the iteration is currently in. */
 		struct c2_xcode_obj       s_obj;
+		/** A field within the object that the iteration is currently
+		    at. */
 		int                       s_fieldno;
+		/** A sequence element within the field that the iteration is
+		    currently at.
+
+		    This is valid iff ->s_obj->xo_type->xcf_aggr ==
+		    C2_XA_SEQUENCE.
+		 */
 		uint64_t                  s_elno;
+		/** Flag, indicating visiting order. */
 		enum c2_xcode_cursor_flag s_flag;
 	} xcu_stack[C2_XCODE_DEPTH_MAX];
 };
 
+/**
+   Iterates over tree of xcode types.
+
+   To start the iteration, call this with the cursor where
+   c2_xcode_cursor_frame::s_obj field of the 0th stack frame is set to the
+   desired object and the rest of the cursor is zeroed (see
+   c2_xcode_ctx_init()).
+
+   c2_xcode_next() returns a positive value when iteration can be continued, 0
+   when the iteration is complete and negative error code on error. The intended
+   usage pattern is
+
+   @code
+   while ((result = c2_xcode_next(it)) > 0) {
+           ... process next tree node ...
+   }
+   @endcode
+
+   On each return, c2_xcode_next() sets the cursor to point to the next element
+   reached in iteration. The information about the element is stored in the
+   topmost element of the cursor's stack and can be extracted with
+   c2_xcode_cursor_top().
+
+   Note that an element with N children (i.e., an object with a type with N
+   fields) is reached 1 + N + 1 times: once in preorder, once for each child in
+   inorder and once in postorder. For example, to traverse the tree in preorder,
+   one does something like
+
+   @code
+   while ((result = c2_xcode_next(it)) > 0) {
+           if (c2_xcode_cursor_top(it)->s_flag == C2_XCODE_CURSOR_PRE) {
+	           ... process the element ...
+           }
+   }
+   @endcode
+ */
 int  c2_xcode_next(struct c2_xcode_cursor *it);
+
+/**
+   Abandons the iteration at the current level and returns one level up.
+ */
 void c2_xcode_skip(struct c2_xcode_cursor *it);
+
+/** Returns the topmost frame in the cursor's stack. */
 struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it);
 
+/** @} iteration. */
+
+/**
+   @name xcoding.
+
+   Encoding-decoding (collectively xcoding) support is implemented on top of
+   introspection facilities provided by the xcode module.
+ */
+/** @{ xcoding */
+
+/** Endianness (http://en.wikipedia.org/wiki/Endianness) */
 enum c2_xcode_endianness {
+	/** Little-endian. */
 	C2_XEND_LE,
+	/** Big-endian. */
 	C2_XEND_BE,
 	C2_XEND_NR
 };
 
+/** Human-readable names of values in c2_xcode_endianness */
 extern const char *c2_xcode_endianness_name[C2_XEND_NR];
 
+/** xcoding context.
+
+    The context contains information about attributes of xcoding operation and
+    its progress.
+ */
 struct c2_xcode_ctx {
+	/** Endianness of serialized representation. */
 	enum c2_xcode_endianness xcx_end;
+	/**
+	    Current point in the buffer vector.
+
+	    The cursor points to the where encoding will write the next byte and
+	    from where decoding will read the next byte.
+	 */
 	struct c2_bufvec_cursor  xcx_buf;
-	c2_bcount_t              xcx_share_threshold;
+	/**
+	   State of the iteration through object tree.
+	 */
 	struct c2_xcode_cursor   xcx_it;
+	/**
+	   Allocation function used by decoding to allocate the topmost object
+	   and all its non-inline sub-objects (arrays and opaque sub-objects).
+	 */
 	void                  *(*xcx_alloc)(struct c2_xcode_ctx *ctx, size_t n);
 };
 
+/**
+   Sets up the context to start xcoding of a given object.
+ */
 void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj);
 
 int c2_xcode_decode(struct c2_xcode_ctx *ctx);
 int c2_xcode_encode(struct c2_xcode_ctx *ctx);
+
+/** Calculates the length of serialized representation. */
 int c2_xcode_length(struct c2_xcode_ctx *ctx);
+
+/** @} xcoding. */
 
 void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fieldno, uint64_t elno);
 
@@ -166,6 +498,8 @@ extern const struct c2_xcode_type C2_XT_U64;
 extern const struct c2_xcode_type C2_XT_OPAQUE;
 
 typedef struct {;} c2_void_t;
+
+int c2_xcode_decor_register(void);
 
 /** @} end of xcode group */
 
