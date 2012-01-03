@@ -585,24 +585,24 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
 
 /** @} end of bulkclientDFSInternal */
 
-bool is_read(const struct c2_fop *fop)
+bool c2_is_read_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_readv_fopt;
 }
 
-bool is_write(const struct c2_fop *fop)
+bool c2_is_write_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_writev_fopt;
 }
 
-bool is_io(const struct c2_fop *fop)
+bool c2_is_io_fop(const struct c2_fop *fop)
 {
-	return is_read(fop) || is_write(fop);
+	return c2_is_read_fop(fop) || c2_is_write_fop(fop);
 }
 
-bool is_read_rep(const struct c2_fop *fop)
+bool c2_is_read_fop_rep(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_readv_rep_fopt;
@@ -614,9 +614,9 @@ bool is_write_rep(const struct c2_fop *fop)
 	return fop->f_type == &c2_fop_cob_writev_rep_fopt;
 }
 
-bool is_io_rep(const struct c2_fop *fop)
+bool c2_is_io_fop_rep(const struct c2_fop *fop)
 {
-	return is_read_rep(fop) || is_write_rep(fop);
+	return c2_is_read_fop_rep(fop) || is_write_rep(fop);
 }
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
@@ -625,9 +625,9 @@ struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
 	struct c2_fop_cob_writev *wfop;
 
 	C2_PRE(fop != NULL);
-	C2_PRE(is_io(fop));
+	C2_PRE(c2_is_io_fop(fop));
 
-	if (is_read(fop)) {
+	if (c2_is_read_fop(fop)) {
 		rfop = c2_fop_data(fop);
 		return &rfop->c_rwv;
 	} else {
@@ -642,9 +642,9 @@ struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 	struct c2_fop_cob_writev_rep	*wfop;
 
 	C2_PRE(fop != NULL);
-	C2_PRE(is_io_rep(fop));
+	C2_PRE(c2_is_io_fop_rep(fop));
 
-	if (is_read_rep(fop)) {
+	if (c2_is_read_fop_rep(fop)) {
 		rfop = c2_fop_data(fop);
 		return &rfop->c_rep;
 	} else {
@@ -687,7 +687,7 @@ static uint64_t io_fop_fragments_nr_get(const struct c2_fop *fop)
 	struct c2_rpc_bulk_buf	*rbuf;
 
 	C2_PRE(fop != NULL);
-	C2_PRE(is_io(fop));
+	C2_PRE(c2_is_io_fop(fop));
 
 	rbulk = c2_fop_to_rpcbulk(fop);
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
@@ -1073,7 +1073,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop)
 	struct c2_rpc_bulk_buf	*rbuf;
 
 	C2_PRE(res_fop != NULL);
-	C2_PRE(is_io(res_fop));
+	C2_PRE(c2_is_io_fop(res_fop));
 
 	/* Compound list is populated by an rpc item type op, namely
 	   item_io_coalesce(). */
@@ -1185,8 +1185,8 @@ static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)
 
 	C2_PRE(fop != NULL);
 	C2_PRE(bkpfop != NULL);
-	C2_PRE(is_io(fop));
-	C2_PRE(is_io(bkpfop));
+	C2_PRE(c2_is_io_fop(fop));
+	C2_PRE(c2_is_io_fop(bkpfop));
 
 	rbulk = c2_fop_to_rpcbulk(fop);
 	c2_rpc_bulk_buflist_empty(rbulk);

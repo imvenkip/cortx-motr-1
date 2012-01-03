@@ -585,9 +585,9 @@ const struct c2_addb_loc io_fom_addb_loc = {
 
 extern const struct c2_tl_descr bufferpools_tl;
 
-extern bool is_read(const struct c2_fop *fop);
-extern bool is_write(const struct c2_fop *fop);
-extern bool is_io(const struct c2_fop *fop);
+extern bool c2_is_read_fop(const struct c2_fop *fop);
+extern bool c2_is_write_fop(const struct c2_fop *fop);
+extern bool c2_is_io_fop(const struct c2_fop *fop);
 extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 extern struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 
@@ -883,7 +883,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
          */
         fom->fo_service = NULL;
 
-        if (is_read(fop))
+        if (c2_is_read_fop(fop))
                 fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt,
                                                NULL);
         else
@@ -1008,7 +1008,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
                     break;
             }
 
-            if (is_read(fop))
+            if (c2_is_read_fop(fop))
                    nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
             else
                    nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
@@ -1020,7 +1020,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
         }
         fom_obj->fcrw_batch_size = acquired_net_bufs;
 
-        if (is_read(fop))
+        if (c2_is_read_fop(fop))
                 fom->fo_phase = FOPH_IO_STOB_INIT;
         else
                 fom->fo_phase = FOPH_IO_ZERO_COPY_INIT;
@@ -1206,7 +1206,7 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
 
         c2_rpc_bulk_fini(rbulk);
 
-        if (is_read(fop))
+        if (c2_is_read_fop(fop))
                 fom->fo_phase = FOPH_IO_BUFFER_RELEASE;
         else
                 fom->fo_phase = FOPH_IO_STOB_INIT;
@@ -1316,7 +1316,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                    io. Due to existing limitations of kxdr wrapper over sunrpc,
                    read reply fop can not contain a vector, only a segment.
                    Ideally, all IO fops should carry an IO vector. */
-                if (is_write(fop)) {
+                if (c2_is_write_fop(fop)) {
                 	/* Make an FOL transaction record. */
                 	rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
                                                 &fom->fo_tx.tx_dbtx);
@@ -1404,7 +1404,7 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
 	        return FSO_AGAIN;
         }
 
-        if (is_read(fop))
+        if (c2_is_read_fop(fop))
                 fom->fo_phase = FOPH_IO_ZERO_COPY_INIT;
         else
                 fom->fo_phase = FOPH_IO_BUFFER_RELEASE;
@@ -1426,7 +1426,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
         struct c2_io_fom_cob_rw   *fom_obj;
 
         C2_PRE(fom != NULL);
-        C2_PRE(is_io(fom->fo_fop));
+        C2_PRE(c2_is_io_fop(fom->fo_fop));
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
