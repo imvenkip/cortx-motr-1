@@ -59,7 +59,8 @@ struct c2_cons_atom_ops {
 struct c2_cons_aggr_ops {
 	void (*caggr_val_process)(const struct c2_fop_field_type *ftype,
 				  const char *name, void *data,
-				  enum c2_cons_data_process_type type);
+				  enum c2_cons_data_process_type type,
+				  int depth);
 };
 
 /**
