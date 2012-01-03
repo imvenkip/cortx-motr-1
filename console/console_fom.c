@@ -66,21 +66,15 @@ static int cons_fom_state(struct c2_fom *fom)
 	if (reply_fop == NULL)
 		return -EINVAL;
 
-	if (fop->f_type == &c2_cons_fop_device_fopt) {
-		/* For device failure fop */
-		reply_fop->cons_notify_type = CMT_DEVICE_FAILURE;
-		reply_fop->cons_return = C2_CONS_FOP_DEVICE_OPCODE;
-	} else
-		return -EINVAL;
-
 	/* Request item */
         req_item = &fop->f_item;
 
+	/* Set repy FOP */
+	reply_fop->cons_notify_type = req_item->ri_type->rit_opcode;
+        reply_fop->cons_return = 0;
+
 	/* Reply item */
-        reply_item = &rfop->f_item;
-        c2_rpc_item_init(reply_item);
-        reply_item->ri_type = &rfop->f_type->ft_rpc_item_type;
-        reply_item->ri_group = NULL;
+	reply_item = &rfop->f_item;
 	fom->fo_phase = FOPH_FINISH;
         return c2_rpc_reply_post(req_item, reply_item);
 }
