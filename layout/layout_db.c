@@ -107,11 +107,8 @@
 
 
    @subsection Layout-DB-lspec-comps Component Overview
-   The following diagram shows the internal components of the Layout module.
-
-   @todo Would like to reverse the positions of the "Layout DB" and the
-   "Layout" components though not able to achieve as of now! Any inputs
-   are welcome.
+   The following diagram shows the internal components of the "Layout" module,
+   including "Layout DB" component in it..
 
    @dot
    digraph {
@@ -273,12 +270,12 @@
      the future.
    - I.LAYOUT.SCHEMA.Formulae:
       - Parameters:
-         - In case of PDCLUST layout type using LINEAR enumeration method,
+         - In case of PDCLUST layout type using LINEAR enumeration,
            linear formula is stored by the Layout DB and substituting
 	   parameters in the stored formula derives the real mapping
 	   information that is the list of COB identifiers.
       - Garbage Collection:
-         - A layout with PDCLUST layout type and with LIST enumeration method
+         - A layout with PDCLUST layout type and with LIST enumeration 
            is deleted when its last reference is released. Similarlly, a
            layout with COMPOSITE layout is deleted when its last reference
            is released.

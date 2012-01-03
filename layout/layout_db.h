@@ -78,16 +78,16 @@ struct c2_ldb_rec;
    - A query is sent to the Layout module to obtain layout for this layout id.
    - Layout module checks if the layout record is cached and if not, it reads
      the layout record from the layout DB. Examples are:
-      - If the layout record is with the LINEAR enumeration method, then the
+      - If the layout record is with the LINEAR enumeration, then the
         linear formula is obtained from the DB, required parameters are
 	substituted into the formula and thus the list of COB identifiers is
 	obtained to operate upon.
-      - If the layout record is with the LIST enumeration method, then the
+      - If the layout record is with the LIST enumeration, then the
         the list of COB identifiers is obtained from the layout DB itself.
       - If the layout record is of the COMPOSITE layout type, it means it
         constitutes of multiple sub-layouts. In this case, the sub-layouts are
         read from the layout DB. Those sub-layout records in turn could be of
-        other layout types and with either LINEAR or LIST enumeration methods.
+        other layout types and with either LINEAR or LIST enumeration.
         The sub-layout records are then read accordingly until the time the
         final list of all the COB identifiers is obtained.
 

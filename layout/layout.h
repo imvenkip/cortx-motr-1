@@ -31,7 +31,9 @@
    A 'layout type' specifies how a file is stored in a collection of targets.
    It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
 
-   An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping.
+   An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
+   the layout types need an enumeration. e.g. Layouts with types composite,
+   de-dup do not need an enumeration.
 
    An 'enumeration type' determines how a collection of component object
    identifiers (cob-fid) is specified. e.g. it may be specified as a list or
@@ -47,17 +49,24 @@
      This layout type partitions a file or a part of the file into
      various segments while each of those segment uses a different layout.
 
-   Enumeration method types (also referred as 'enumeration types' or 'enum
-   types') supported currently are:
+   Enumeration types (also referred as 'enum types') supported currently are:
    - LINEAR <BR>
-     A layout with LINEAR enumeration method uses a formula to enumerate all
+     A layout with LINEAR enumeration type uses a formula to enumerate all
      its component object identifiers.
    - LIST <BR>
-     A layout with LIST enumeration method uses a list to enumerate all its
+     A layout with LIST enumeration type uses a list to enumerate all its
      component object identifiers.
 
-   A layout is a resource (managed by the 'Colibri Resource Manager'). A layout
-   can be assignd to a file both by server and the client.
+   A layout as well as a layout-id are resources (managed by the 'Colibri
+   Resource Manager').
+
+   Layout being a resource, it can be cached by clients and revoked when it is
+   changed.
+
+   Layout Id being a resource, a client can cache a range of layout ids that
+   it uses to create new layouts without contacting the server.
+
+   A layout can be assignd to a file both by server and the client.
    @{
 */
 
@@ -178,20 +187,10 @@ struct c2_layout_type_ops {
 			     enum c2_layout_xcode_op op,
 			     struct c2_db_tx *tx,
 			     struct c2_bufvec_cursor *out);
-
-	/** In case of a layouts using linear enumeration type, substitutes
-	    attributes and parameters into the formula and obtains list of COB
-	    identifiers.
-	    Defining this function is applicable for the layout types which may
-	    use linear enumeration type e.g. PDCLUST layout type.
-	*/
-	int    (*lto_subst)(const struct c2_layout *l,
-			    struct c2_tl *outlist,
-			    struct c2_fid *gfid);
 };
 
 /**
-   Layout enumeration method.
+   Layout enumeration.
 */
 struct c2_layout_enum {
 	/** Pointer back to c2_layout object this c2_layout_enum is part of. */
@@ -217,7 +216,7 @@ struct c2_layout_enum_ops {
 /**
    Structure specific to per layout enumeration type.
    There is an instance of c2_layout_enum_type for each one of enumeration
-   types. e.g. for LINEAR and LIST enumeration method types.
+   types. e.g. for LINEAR and LIST enumeration types.
 */
 struct c2_layout_enum_type {
 	/** Layout enumeration type name. */

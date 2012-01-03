@@ -118,7 +118,7 @@ struct c2_ldb_pdclust_rec {
  */
 struct c2_pdclust_layout {
 	/** super class */
-	struct c2_layout_striped     pl_layout;
+	struct c2_layout_striped     pl_base;
 
 	/**
 	   Parity de-clustering layout attributes.

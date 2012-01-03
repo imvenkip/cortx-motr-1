@@ -357,7 +357,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 	uint32_t i;
 
 	if (pdl != NULL) {
-		c2_layout_fini(&pdl->pl_layout.ls_base);
+		c2_layout_fini(&pdl->pl_base.ls_base);
 		c2_free(pdl->pl_tile_cache.tc_inverse);
 		c2_free(pdl->pl_tile_cache.tc_permute);
 		c2_free(pdl->pl_tile_cache.tc_lcode);
@@ -402,11 +402,11 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 			Create an object of the type c2_layout_linear_enum.
 		@endcode
 		*/
-		c2_layout_init(&pdl->pl_layout.ls_base, *id,
+		c2_layout_init(&pdl->pl_base.ls_base, *id,
                                &c2_pdclust_layout_type,
                                &pdlclust_ops);
 
-		pdl->pl_layout.ls_enum = NULL, /* @todo Pointer to c2_layout_linear_enum object */
+		pdl->pl_base.ls_enum = NULL, /* @todo Pointer to c2_layout_linear_enum object */
 		pdl->pl_seed = *seed;
 		pdl->pl_attr.pa_N = N;
 		pdl->pl_attr.pa_K = K;
@@ -584,20 +584,6 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	return 0;
 }
 
-/**
-   Implementation of lto_subst for pdclust layout type.
-
-   Substitutes attributes and parameters into the linear formula and obtains
-   list of COB identifiers.
-
-   @note This function will be defined as a part of c2t1fs work.
-*/
-static int pdclust_subst(const struct c2_layout *l,
-			 struct c2_tl *outlist,
-			 struct c2_fid *gfid)
-{
-	return 0;
-}
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register   = NULL,
@@ -605,7 +591,6 @@ static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_recsize    = pdclust_recsize,
 	.lto_decode     = pdclust_decode,
 	.lto_encode     = pdclust_encode,
-	.lto_subst      = pdclust_subst
 };
 
 const struct c2_layout_type c2_pdclust_layout_type = {

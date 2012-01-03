@@ -197,7 +197,6 @@ static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_recsize    = composite_recsize,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
-	.lto_subst      = NULL
 };
 
 

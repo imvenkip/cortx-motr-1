@@ -109,7 +109,7 @@ void c2_layout_get(struct c2_layout *lay)
 	c2_mutex_lock(lay->l_lock);
 
 	Increases reference on layout by incrementing c2_layout::l_ref and
-	uses c2_ldb_rec_update() to increase refernce on the layout record from
+	uses c2_ldb_rec_update() to increase reference on the layout record from
 	the layout DB.
 
 	c2_mutex_unlock(lay->l_lock);
@@ -125,7 +125,7 @@ void c2_layout_put(struct c2_layout *lay)
 	c2_mutex_lock(lay->l_lock);
 
 	Decreases reference on layout by decrementing c2_layout::l_ref and
-	uses c2_ldb_rec_update() to decrease refernce on the layout record from
+	uses c2_ldb_rec_update() to decrease reference on the layout record from
 	the layout DB.
 
 	c2_mutex_unlock(lay->l_lock);
@@ -143,8 +143,8 @@ void c2_layout_put(struct c2_layout *lay)
    - Server decodes an on-disk layout record by reading it from the Layout
      DB, into an in-memory layout structure.
 
-   @param op - This enum parameter indicates what if a DB operation is to be
-   performed on the layout record and it could be LOOKUP if at all.
+   @param op - This enum parameter indicates what is the DB operation to be
+   performed on the layout record. It could be LOOKUP if at all.
    If it is NONE, then the layout is decoded from its representation received
    over the network.
 */
@@ -211,7 +211,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	c2_mutex_lock(l->l_lock);
 
 	Read generic fields from the layout object and store those in
-	the buffer pointed by cur
+	the buffer pointed by cur.
 
 	Based on the layout type, invoke corresponding lto_encode().
 

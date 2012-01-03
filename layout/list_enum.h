@@ -42,7 +42,7 @@ struct c2_layout_list_enum;
  */
 struct c2_layout_list_enum {
 	/** super class */
-	struct c2_layout_enum     lle_enum;
+	struct c2_layout_enum     lle_base;
 
 	/** List of COB identifiers which are part of this layout */
 	struct c2_tl              lle_list_of_cobs;

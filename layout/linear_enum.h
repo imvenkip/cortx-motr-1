@@ -57,7 +57,7 @@ struct c2_layout_linear_attr {
  */
 struct c2_layout_linear_enum {
 	/** super class */
-	struct c2_layout_enum        lle_enum;
+	struct c2_layout_enum        lle_base;
 
 	struct c2_layout_linear_attr lle_attr;
 
