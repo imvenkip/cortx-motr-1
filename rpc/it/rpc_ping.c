@@ -39,6 +39,7 @@
 #include "ut/net.h"     /* canon_host */
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
 #include "ut/rpc.h"     /* c2_rpc_client_init */
+#include "fop/fop.h"    /* c2_fop_default_item_ops */
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -356,7 +357,8 @@ static void send_ping_fop(struct c2_rpc_session *session)
 		ping_fop->fp_arr.f_data[i] = i+100;
 	}
 
-	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+				CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
@@ -410,6 +412,7 @@ static int run_client(void)
 	if (rc != 0)
 		return rc;
 
+#ifndef __KERNEL__
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
@@ -417,7 +420,7 @@ static int run_client(void)
 	rc = c2_processors_init();
 	if (rc != 0)
 		goto c2_fini;
-
+#endif
 	rc = c2_ping_fop_init();
 	if (rc != 0)
 		goto proc_fini;
@@ -460,9 +463,11 @@ xprt_fini:
 fop_fini:
 	c2_ping_fop_fini();
 proc_fini:
+#ifndef __KERNEL__
 	c2_processors_fini();
 c2_fini:
 	c2_fini();
+#endif
 	return rc;
 }
 
@@ -487,7 +492,7 @@ static void quit_dialog(void)
 
 static int run_server(void)
 {
-	int  rc;
+	int rc;
 
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
@@ -524,8 +529,21 @@ static int run_server(void)
 
 	quit_dialog();
 
-	/*if (verbose)
-		print_stats(sctx...rpc_machine);*/
+	if (verbose) {
+		struct c2_rpcmachine *rpcmach;
+
+		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds1");
+		if (rpcmach != NULL) {
+			printf("########### Server DS1 statS ###########");
+			print_stats(rpcmach);
+		}
+
+		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds2");
+		if (rpcmach != NULL) {
+			printf("########### Server DS2 statS ###########");
+			print_stats(rpcmach);
+		}
+	}
 
 	c2_rpc_server_stop(&sctx);
 fop_fini:
@@ -579,5 +597,4 @@ int main(int argc, char *argv[])
 
 void c2_rpc_ping_fini(void)
 {
-	c2_ping_fop_fini();
 }

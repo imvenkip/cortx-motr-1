@@ -451,7 +451,7 @@ static bool service_is_registered(const char *service_name)
 	return false;
 }
 
-struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
+struct c2_rpcmachine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 					const struct c2_net_xprt *xprt,
 					const char *sname)
 {
@@ -475,13 +475,25 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 				nxprt = rpcmach->cr_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
 				if (strcmp(nxprt->nx_name, xprt->nx_name) == 0)
-					return &rpcmach->cr_tm;
+					return rpcmach;
 			} c2_tlist_endfor;
                 } c2_tlist_endfor;
         } c2_tlist_endfor;
 
         return NULL;
 
+}
+C2_EXPORTED(c2_cs_rpcmach_get);
+
+struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
+					const struct c2_net_xprt *xprt,
+					const char *sname)
+{
+	struct c2_rpcmachine *rpcmach;
+
+	rpcmach = c2_cs_rpcmach_get(cctx, xprt, sname);
+
+	return (rpcmach == NULL) ? NULL : &rpcmach->cr_tm;
 }
 
 /**

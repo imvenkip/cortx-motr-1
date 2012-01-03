@@ -3,6 +3,7 @@ formation.c
 rpc_base.c
 rpc_onwire.c
 rpc2.c
+rpclib.c
 session.c
 session_foms.c
 session_fops.c

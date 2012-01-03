@@ -17,7 +17,8 @@ subdirs := ../rpc/linux_kernel/ ../c2t1fs/ \
            ../pool/linux_kernel/ ../layout/linux_kernel/ \
            ../sm/linux_kernel/ ../stob/linux_kernel/ \
            ../ioservice/linux_kernel/ ../xcode/linux_kernel/ \
-           ../fol/linux_kernel/ ../dtm/linux_kernel/ ../cob/linux_kernel/
+           ../fol/linux_kernel/ ../dtm/linux_kernel/ ../cob/linux_kernel/ \
+	   ../ut/linux_kernel/
 
 EXTRA_CFLAGS = -I$(CORE_SRCDIR)
 obj-y += $(subdirs)

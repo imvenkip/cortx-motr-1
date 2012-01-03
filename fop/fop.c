@@ -237,6 +237,7 @@ void c2_fop_item_free(struct c2_rpc_item *item)
 const struct c2_rpc_item_ops c2_fop_default_item_ops = {
 	.rio_free = c2_fop_item_free,
 };
+C2_EXPORTED(c2_fop_default_item_ops);
 
 /** @} end of fop group */
 
