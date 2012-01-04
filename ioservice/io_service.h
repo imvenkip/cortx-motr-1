@@ -68,7 +68,7 @@ struct c2_rios_buffer_pool {
         struct c2_net_domain        *rios_ndom;
         /** Buffer pool wait channel. */
         struct c2_chan               rios_bp_wait;
-        /** Linkage into netowrk buffer pool list */ 
+        /** Linkage into netowrk buffer pool list */
         struct c2_tlink              rios_bp_linkage;
         /** Magic */
         uint64_t                     rios_bp_magic;
@@ -81,7 +81,7 @@ struct c2_rios_buffer_pool {
 struct c2_reqh_io_service {
         /** Generic reqh service object */
         struct c2_reqh_service       rios_gen;
-        /** Buffer pools belongs to thsi services */
+        /** Buffer pools belongs to this services */
         struct c2_tl                 rios_buffer_pools;
 };
 

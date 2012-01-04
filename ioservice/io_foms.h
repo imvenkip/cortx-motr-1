@@ -148,7 +148,7 @@
 struct c2_io_fom_cob_rw;
 
 enum {
-        C2_STOB_IO_DESC_LINK_MAGIC     = 0x53544f42492f4f, 
+        C2_STOB_IO_DESC_LINK_MAGIC     = 0x53544f42492f4f,
         C2_STOB_IO_DESC_HEAD_MAGIC     = 0x73746f62692f6f,
         C2_NET_BUFFER_HEAD_MAGIC_IOFOM = 0x696f666f6d,
 };
@@ -190,7 +190,7 @@ struct c2_io_fom_cob_rw {
         int                              fcrw_bytes_transfered;
         /** Pointer to buffer pool refered by FOM */
         struct c2_net_buffer_pool       *fcrw_bp;
-        /** Signal send to this chanel when io_fom ready to execute */
+        /** Signal send to this channel when io_fom ready to execute */
         struct c2_chan                   fcrw_wait;
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;

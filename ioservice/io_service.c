@@ -93,7 +93,7 @@ C2_REQH_SERVICE_TYPE_DECLARE(c2_ioservice_type, &c2_ioservice_type_ops,
 /**
  * Buffer pool operation function. This function get called when buffer pool
  * becomes non empty.
- * It sends signal to FOM wating for network buffer.
+ * It sends signal to FOM waiting for network buffer.
  *
  * @param bp buffer pool pointer.
  * @pre bp != NULL
@@ -113,7 +113,7 @@ static void c2_io_buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
 /**
  * Buffer pool operation function.
  * This function get called when network buffer availability hits
- * lower threshould.
+ * lower threshold.
  *
  * @param bp buffer pool pointer.
  * @pre bp != NULL
@@ -151,9 +151,9 @@ void c2_ioservice_unregister(void)
  *    and creates buffer pool instance for each network domain.
  *    It also create color map for transfer machines for
  *    respective domain.
- * 2. Initialise all buffer pools and make provision for 
+ * 2. Initialise all buffer pools and make provision for
  *    configured number of buffers for all each buffer pool.
- * 
+ *
  * @param service pointer to service instance.
  *
  * @pre service != NULL
@@ -170,7 +170,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
         struct c2_rios_buffer_pool     *newbp;
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
- 
+
         c2_tlist_for(&rpcmachines_tl,
                               &service->rs_reqh->rh_rpcmachines, rpcmach)
         {
@@ -182,12 +182,12 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp)
                {
                        C2_ASSERT(bp != NULL);
-                
+
                         if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom) {
-                                /** 
+
                                  * Found buffer pool for domain.
                                  * No need to create buffer pool
-                                 * for this domain. 
+                                 * for this domain.
                                  */
                                 found_buffer_pool = true;
                                 return rc;
@@ -220,13 +220,13 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                                          network_buffer_pool_initial_size);
              if (nbuffs <= 0) {
                      rc = -1;
-                     break; 
+                     break;
              }
 
              c2_net_buffer_pool_unlock(&newbp->rios_bp);
 
              bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
-             
+
         } c2_tlist_endfor; /* rpcmachines */
 
         return rc;
@@ -234,7 +234,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 
 /**
  * Delete instances of buffer pool.
- * It go through buffer pool list and delete the instance. 
+ * It go through buffer pool list and delete the instance.
  *
  * @param service pointer to service instance.
  *
@@ -248,15 +248,15 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
         C2_PRE(service != NULL);
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
- 
+
         c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp)
         {
                 C2_ASSERT(bp != NULL);
 
                 c2_chan_fini(&bp->rios_bp_wait);
                 bufferpools_tlink_fini(bp);
-                c2_net_buffer_pool_fini(&bp->rios_bp); 
-                
+                c2_net_buffer_pool_fini(&bp->rios_bp);
+
         } c2_tlist_endfor; /* bufferpools */
 }
 
