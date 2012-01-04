@@ -53,7 +53,7 @@ static void test_buf_copy(void)
 	static const char *msg = "abcdefghijklmnopqrstuvwxyz0123456789"
 		"ABCDEFGHIJK";
 	size_t msglen = strlen(msg)+1;
-	struct c2_net_buffer bufs[NR_BUFS];
+	static struct c2_net_buffer bufs[NR_BUFS];
 	int i;
 	struct c2_net_buffer *nb;
 
