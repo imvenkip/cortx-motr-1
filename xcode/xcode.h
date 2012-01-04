@@ -478,14 +478,67 @@ int c2_xcode_length(struct c2_xcode_ctx *ctx);
 
 /** @} xcoding. */
 
+
+/**
+   Returns the address of a sub-object within an object.
+
+   @param obj    - typed object
+   @param fileno - ordinal number of field
+
+   @param elno   - for a SEQUENCE field, index of the element to
+                   return the address of.
+
+   The behaviour of this function for SEQUENCE objects depends on "elno"
+   value. SEQEUNCE objects have the following structure:
+
+   @code
+   struct x_seq {
+           scalar_t  xs_nr;
+           struct y *xs_body;
+   };
+   @endcode
+
+   where xs_nr stores a number of elements in the sequence and xs_body points to
+   an array of the elements.
+
+   With fileno == 1, c2_xcode_addr() returns
+
+       - &xseq->xs_body when (elno == ~0ULL) and
+
+       - &xseq->xs_body[elno] otherwise.
+ */
 void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fieldno, uint64_t elno);
 
+/**
+   Helper macro to return field value cast to a given type.
+ */
 #define C2_XCODE_VAL(obj, fieldno, elno, __type) \
         ((__type *)c2_xcode_addr(obj, fieldno, elno))
 
+/**
+   Constructs a c2_xcode_obj instance representing a sub-object of a given
+   object.
+
+   Address of sub-object (subobj->xo_ptr) is obtained by calling
+   c2_xcode_addr().
+
+   Type of sub-object (subobj->xo_type) is usually the type stored in the parent
+   object's field (c2_xcode_field::xf_type), but for opaque fields it is
+   obtained by calling c2_xcode_field::xf_opaque().
+ */
 int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
 		    int fieldno, uint64_t elno);
 
+/**
+   Returns the value of first field in a given object, assuming this field is
+   atomic.
+
+   This function is suitable to return discriminator of a UNION object or
+   element count of a SEQUENCE object.
+
+   @note when first field has C2_XT_VOID type, the tag (c2_xcode_field::xf_tag)
+   of this field is returned.
+ */
 uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj);
 
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt);
@@ -497,8 +550,31 @@ extern const struct c2_xcode_type C2_XT_U64;
 
 extern const struct c2_xcode_type C2_XT_OPAQUE;
 
+/**
+   Void type used by ff2c in places where C syntax requires a type name.
+ */
 typedef struct {;} c2_void_t;
 
+/**
+   Returns a previously unused "decoration number", which can be used as an
+   index in c2_xcode_field::xf_decor[] and c2_xcode_type::xct_decor[] arrays.
+
+   This number can be used to associate additional state with xcode
+   introspection elements:
+
+   @code
+   // in module foo
+   foo_decor_num = c2_xcode_decor_register();
+
+   ...
+
+   struct c2_xcode_type  *xt;
+   struct c2_xcode_field *f;
+
+   xt->xct_decor[foo_decor_num] = c2_alloc(sizeof(struct foo_type_decor));
+   f->xf_decor[foo_decor_num] = c2_alloc(sizeof(struct foo_field_decor));
+   @endcode
+ */
 int c2_xcode_decor_register(void);
 
 /** @} end of xcode group */
