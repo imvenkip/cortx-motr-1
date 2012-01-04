@@ -59,7 +59,7 @@ struct c2_ldb_rec;
    - void **c2_ldb_type_data(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
    - void **c2_ldb_enum_data(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
    - int c2_ldb_rec_add(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
-   - int c2_ldb_rec_delete(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
+   - int c2_ldb_rec_delete(const uint64_t lid, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
    - int c2_ldb_rec_update(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
    - int c2_ldb_rec_lookup(const uint64_t *l_id, struct c2_ldb_schema *schema, struct c2_db_tx *tx, c2_layout *out);
 

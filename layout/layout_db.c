@@ -84,12 +84,12 @@
 
    <HR>
    @section Layout-DB-highlights Design Highlights
-   - Layout in itself is a managed resource.
+   - Layout and layout-id are managed resources. @see @ref layout
    - The Layout DB module provides support for storing layouts with multiple
      layout types.
-   - It provides support to store composite layout maps.
+   - It provides support for storing composite layout maps.
    - It is required that for adding a layout type or layout enumeration type,
-     central layout/layout.h should not require modifications.
+     central layout.h should not require modifications.
 
    <HR>
    @section Layout-DB-lspec Logical Specification
@@ -108,7 +108,7 @@
 
    @subsection Layout-DB-lspec-comps Component Overview
    The following diagram shows the internal components of the "Layout" module,
-   including "Layout DB" component in it..
+   including the "Layout DB" component.
 
    @dot
    digraph {
@@ -172,7 +172,7 @@
      structure with size MAX_INLINE_COB_ENTRIES is used to store a few COB
      entries inline into the layouts table itself.
    - It is possible that some layouts do not need to store any layout type or
-     layout type specific data in this layouts table. e.g. A layout with
+     layout enum type specific data in this layouts table. e.g. A layout with
      COMPOSITE layout type.
 
    @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
