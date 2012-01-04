@@ -13,6 +13,7 @@ kkxdr.c
 ksunrpc_server.c
 ksunrpc_ut.c
 lnet_main.c
+lnet_ut.c
 lustre_config.h
 net.c
 net_cli.c
