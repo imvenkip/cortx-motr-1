@@ -89,6 +89,10 @@
    Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
    conversions.
 
+   Note: Layout type specific register/unregister methods are not required for
+   "pdclust" layout type, since the layout schema does not contain any separate
+   tables specifically for "pdclust" layout type.
+
    @{
 */
 
@@ -483,7 +487,7 @@ static uint64_t pdclust_recsize(void)
    Continues to build the in-memory layout object from its representation
    either 'stored in the Layout DB' or 'received over the network'.
 
-   @param op - This enum parameter indicates what if a DB operation is to be
+   @param op - This enum parameter indicates what, if a DB operation is to be
    performed on the layout record and it could be LOOKUP if at all.
    If it is NONE, then the layout is decoded from its representation received
    over the network.
@@ -526,10 +530,8 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	specific data from the buffer (as is stored in the layouts table), into
 	the in-memory layout object.
 
-	if (op == C2_LXO_DB_LOOKUP) {
-		Invoke corresponding leto_decode() to read enumeration type
-		specific data from the disk.
-	}
+	Invoke corresponding leto_decode() (if it is non-null) to read
+	enumeration type specific data.
 
 	Set the cursor cur to point at the beginning of the key-val pair read
         from the layouts table.
@@ -561,8 +563,6 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	@code
 	Store pdclust layout type specific fields into the buffer.
 
-	Invoke the respective leto_encode().
-
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			(op == C2_LXO_DB_DELETE)) {
 		uint64_t recsize;
@@ -576,9 +576,11 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 
 		ret = ldb_layout_write(op, recsize, out, schema, tx);
 
-		Invoke corresponding leto_encode() so as to write/update/delete
-		enumeration type specific data ondisk.
 	}
+
+	Invoke corresponding leto_encode() (if it is non-null) to operate
+	upon the enumeration type specific data.
+
 	@endcode
    */
 	return 0;

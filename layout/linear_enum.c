@@ -132,11 +132,7 @@ static const struct c2_layout_enum_ops linear_enum_ops = {
 	.leo_get        = linear_get
 };
 
-/**
-   @note Layout enum type specific implementation of leto_register,
-   leto_unregister, leto_decode and leto_encode methods is not required
-   for linear enumeration type.
-*/
+
 static const struct c2_layout_enum_type_ops linear_type_ops = {
 	.leto_register       = NULL,
 	.leto_unregister     = NULL,

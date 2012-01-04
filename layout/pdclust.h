@@ -111,7 +111,7 @@ struct c2_ldb_pdclust_rec {
 };
 
 /**
-   Extension of generic c2_layout for a parity de-clustering.
+   Extension of generic c2_layout_striped for parity de-clustering.
 
    @todo liveness rules
    @todo concurrency control
