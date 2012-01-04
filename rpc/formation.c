@@ -858,8 +858,8 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 
 /* Invokes io coalescing op for io fops and stores the net buf descriptor
    into io fop as a result. */
-static void item_io_coalesce(struct c2_rpc_item *item,
-			     struct c2_rpc_frm_sm *frm_sm)
+static void io_coalesce(struct c2_rpc_item *item, struct c2_rpc_frm_sm *frm_sm,
+			uint64_t size)
 {
 	struct c2_rpc_session		  *session;
 	const struct c2_rpc_item_type_ops *ops;
@@ -872,9 +872,13 @@ static void item_io_coalesce(struct c2_rpc_item *item,
 	C2_PRE(session != NULL);
 	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
 
+	if (frm_sm->fs_max_msg_size - size == 0)
+		return;
+
 	ops = item->ri_type->rit_ops;
 	if (ops->rito_io_coalesce)
-		ops->rito_io_coalesce(item, &session->s_unbound_items);
+		ops->rito_io_coalesce(item, &session->s_unbound_items,
+				      frm_sm->fs_max_msg_size - size);
 }
 
 /* Add bound items to rpc object. Rpc items are added until size gets
@@ -924,7 +928,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				if (frags_policy_ok) {
 					session = item->ri_session;
 					c2_mutex_lock(&session->s_mutex);
-					item_io_coalesce(item, frm_sm);
+					io_coalesce(item, frm_sm, rpc_size);
 					c2_mutex_unlock(&session->s_mutex);
 					c2_mutex_lock(&rpcmachine->
 							cr_ready_slots_mutex);
@@ -1020,7 +1024,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				if (frags_policy_ok) {
 					frm_item_make_bound(slot, item);
 					c2_list_del(&item->ri_unbound_link);
-					item_io_coalesce(item, frm_sm);
+					io_coalesce(item, frm_sm, rpc_size);
 					frm_add_to_rpc(frm_sm, rpcobj, item,
 						       rpcobj_size, frag_nr);
 				}

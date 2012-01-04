@@ -197,6 +197,10 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	printf("No of descriptors = %d\n", rw->crw_desc.id_nr);
 	C2_UT_ASSERT(rw->crw_desc.id_nr != 0);
 
+	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i)
+		C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[0].ci_iosegs[i].
+				ci_count == 4096);
+
 	for (tc = 0, i = 0; i < rw->crw_desc.id_nr; ++i) {
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
 		desc = &rw->crw_desc.id_descs[i];
@@ -374,6 +378,16 @@ static void io_fop_populate(struct c2_io_fop *iofop, int index)
 	C2_UT_ASSERT(rc == 0);
 
 	rw->crw_flags = index;
+	
+	/* Temporary! Should be removed once bulk server UT code is merged
+	   with this code. */
+	rw->crw_iovec.iv_count = 1;
+	C2_ALLOC_ARR(rw->crw_iovec.iv_segs, rw->crw_iovec.iv_count);
+	C2_UT_ASSERT(rw->crw_iovec.iv_segs != NULL);
+	rw->crw_iovec.iv_segs[0].is_offset = 0;
+	rw->crw_iovec.iv_segs[0].is_buf.ib_count = 8;
+	C2_ALLOC_ARR(rw->crw_iovec.iv_segs[0].is_buf.ib_buf,
+		     rw->crw_iovec.iv_segs[0].is_buf.ib_count);
 }
 
 static void io_fops_create(void)
@@ -417,10 +431,14 @@ static void io_fops_create(void)
 static void io_fops_destroy(void)
 {
 	int i;
+	struct c2_fop_cob_rw *rw;
 
 	for (i = 0; i < IO_FOPS_NR; ++i) {
+		rw = io_rw_get(&io_fops[i]->if_fop);
 		io_fop_ivec_dealloc(&io_fops[i]->if_fop);
 		io_fop_desc_dealloc(&io_fops[i]->if_fop);
+		c2_free(rw->crw_iovec.iv_segs[0].is_buf.ib_buf);
+		c2_free(rw->crw_iovec.iv_segs);
 		/* XXX Can not deallocate fops from here since sessions code
 		   tries to free fops and faults in c2_rpc_slot_fini.
 		   And in cases, the program will run in an endless loop
@@ -428,6 +446,8 @@ static void io_fops_destroy(void)
 		   c2_rpc_session_terminate() if fops are deallocated here. */
 		//c2_io_fop_fini(io_fops[i]);
 		//c2_free(io_fops[i]);
+		C2_UT_ASSERT(c2_tlist_is_empty(&rpcbulk_tl, &io_fops[i]->
+			     if_rbulk.rb_buflist));
 	}
 	c2_free(io_fops);
 }
@@ -438,6 +458,7 @@ static void io_fops_rpc_submit(int i)
 	c2_time_t			 timeout;
 	struct c2_clink			 clink;
 	struct c2_rpc_item		*item;
+	struct c2_fop_cob_writev	*wfop;
 
 	item = &io_fops[i]->if_fop.f_item;
 	item->ri_session = &c_rctx.rx_session;
@@ -446,6 +467,8 @@ static void io_fops_rpc_submit(int i)
 	c2_clink_add(&item->ri_chan, &clink);
 	timeout = c2_time_add(timeout, c2_time_now());
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	wfop = c2_fop_data(&io_fops[i]->if_fop);
+	//wfop->c_rwv.crw_flags = i;
 
 	/* Posts the rpc item and waits until reply is received. */
 	rc = c2_rpc_post(item);

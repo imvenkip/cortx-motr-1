@@ -70,7 +70,7 @@ struct c2_rpc_item_type_ops {
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
 	void (*rito_io_coalesce)(struct c2_rpc_item *head,
-				 struct c2_list *list);
+				 struct c2_list *list, uint64_t size);
 
 	/**
 	   Serialise @item on provided xdr stream @xdrs

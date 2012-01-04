@@ -98,7 +98,7 @@ struct c2_fop_type_ops {
 	/** Return the number of IO fragements in the IO vector. */
 	uint64_t (*fto_get_nfragments)(const struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
-	int (*fto_io_coalesce)(struct c2_fop *fop);
+	int (*fto_io_coalesce)(struct c2_fop *fop, uint64_t size);
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct c2_fop *fop,
 			        struct c2_net_buf_desc **desc);
