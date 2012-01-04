@@ -98,7 +98,8 @@ static struct mock_balloc *b2mock(struct ad_balloc *ballroom)
 }
 
 static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
-			    uint32_t bshift)
+			    uint32_t bshift, c2_bindex_t container_size,
+			    c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
 	return 0;
 }
@@ -178,7 +179,9 @@ static int test_ad_init(void)
 						       &dom_fore);
 	C2_ASSERT(result == 0);
 
-	result = c2_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom);
+	result = c2_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,
+				  4096ULL * 1024 * 1024 * 1000,
+				  128 * 1024 * 1024, 2);
 	//result = c2_ad_stob_setup(dom_fore, &db, obj_back, &colibri_balloc.cb_ballroom);
 	C2_ASSERT(result == 0);
 

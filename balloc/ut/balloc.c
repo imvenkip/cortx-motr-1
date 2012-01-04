@@ -59,7 +59,8 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, 12);
+		(&colibri_balloc.cb_ballroom, &db, 12, 4096ULL * 1024 * 1024 * 1000,
+		 128 * 1024 * 1024, 2);
 
 	for (i = 0; i < MAX && result == 0; i++ ) {
 		do  {

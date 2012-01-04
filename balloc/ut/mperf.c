@@ -185,7 +185,9 @@ int main(int argc, char **argv)
 	threads = c2_alloc(num_threads * sizeof (struct c2_thread));
 	C2_ASSERT(threads != NULL);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db, 12);
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db, 12,
+							    4096ULL * 1024 * 1024 * 1000,
+							    128 * 1024 * 1024, 2);
 	C2_ASSERT(result == 0);
 	for (i = 0; i < num_threads; i++) {
 		result = C2_THREAD_INIT(&threads[i], struct c2_balloc*, NULL,

@@ -236,7 +236,9 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 }
 
 int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
-	     struct c2_stob *bstore, struct ad_balloc *ballroom)
+		     struct c2_stob *bstore, struct ad_balloc *ballroom,
+		     c2_bindex_t container_size, c2_bcount_t groupsize,
+		     c2_bcount_t res_groups)
 {
 	int result;
 	struct ad_domain *adom;
@@ -248,7 +250,8 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	C2_PRE(bstore->so_state == CSS_EXISTS);
 
 	result = ballroom->ab_ops->bo_init
-		(ballroom, dbenv, bstore->so_op->sop_block_shift(bstore));
+		(ballroom, dbenv, bstore->so_op->sop_block_shift(bstore),
+		 container_size, groupsize, res_groups);
 	if (result == 0) {
 		adom->ad_dbenv    = dbenv;
 		adom->ad_bstore   = bstore;

@@ -303,8 +303,7 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 	C2_PRE(c2_is_po2(req->bfr_blocksize));
 	C2_PRE(c2_is_po2(req->bfr_groupsize));
 
-	number_of_groups = req->bfr_totalsize / req->bfr_blocksize /
-			   req->bfr_groupsize;
+	number_of_groups = req->bfr_totalsize / req->bfr_groupsize;
 
 	if (number_of_groups == 0)
 		number_of_groups = 1;
@@ -566,7 +565,10 @@ static int c2_balloc_load_group_info(struct c2_balloc *cb,
  */
 static int c2_balloc_init_internal(struct c2_balloc *colibri,
 				   struct c2_dbenv  *dbenv,
-				   uint32_t bshift)
+				   uint32_t bshift,
+				   c2_bindex_t container_size,
+				   c2_bcount_t groupsize,
+				   c2_bcount_t res_groups)
 {
 	struct c2_balloc_group_info *gi;
 	int            	 rc;
@@ -605,10 +607,10 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		struct c2_balloc_format_req req = { 0 };
 
 		/* let's format this container */
-		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1000; //=400GB
+		req.bfr_totalsize = container_size;
 		req.bfr_blocksize = 1 << bshift;
-		req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
-		req.bfr_reserved_groups = 2;
+		req.bfr_groupsize = groupsize;
+		req.bfr_reserved_groups = res_groups;
 
 		rc = c2_balloc_format(colibri, &req);
 		if (rc != 0)
@@ -2049,7 +2051,8 @@ static int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 }
 
 static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
-			  uint32_t bshift)
+			  uint32_t bshift, c2_bindex_t container_size,
+			  c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
 	struct c2_balloc *colibri;
 	int rc;
@@ -2057,7 +2060,8 @@ static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 
 	colibri = b2c2(ballroom);
 
-	rc = c2_balloc_init_internal(colibri, db, bshift);
+	rc = c2_balloc_init_internal(colibri, db, bshift, container_size,
+				     groupsize, res_groups);
 
 	LEAVE;
 	return rc;
