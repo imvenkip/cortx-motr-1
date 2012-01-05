@@ -275,7 +275,7 @@
 	   parameters in the stored formula derives the real mapping
 	   information that is the list of COB identifiers.
       - Garbage Collection:
-         - A layout with PDCLUST layout type and with LIST enumeration 
+         - A layout with PDCLUST layout type and with LIST enumeration
            is deleted when its last reference is released. Similarlly, a
            layout with COMPOSITE layout is deleted when its last reference
            is released.
