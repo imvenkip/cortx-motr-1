@@ -33,7 +33,10 @@
 static bool field_invariant(const struct c2_xcode_type *xt,
 			    const struct c2_xcode_field *field)
 {
-	return ergo(xt == &C2_XT_OPAQUE, field->xf_type != NULL);
+	return
+		field->xf_name != NULL && field->xf_type != NULL &&
+		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
+		field->xf_offset + field->xf_type->xct_sizeof <= xt->xct_sizeof;
 }
 
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
@@ -69,15 +72,16 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 		const struct c2_xcode_field *f;
 
 		f = &xt->xct_child[i];
-		if (f->xf_name == NULL || f->xf_type == NULL)
-			return false;
 		if (!field_invariant(xt, f))
 			return false;
-		if (i > 0 && f->xf_offset < offset)
+		/* field doesn't overlap with the previous one */
+		if (i > 0 && offset +
+		    xt->xct_child[i - 1].xf_type->xct_sizeof > f->xf_offset)
 			return false;
-		offset = f->xf_offset;
-		if (offset > xt->xct_sizeof)
-			return false;
+		/* update the previous field offset: for UNION all branches
+		   follow the first field. */
+		if (i == 0 || xt->xct_aggr != C2_XA_UNION)
+			offset = f->xf_offset;
 	}
 	switch (xt->xct_aggr) {
 	case C2_XA_RECORD:
@@ -113,6 +117,16 @@ enum xcode_op {
 	XO_NR
 };
 
+/**
+   Handles memory allocation during decoding.
+
+   This function takes an xcode iteration cursor and, if necessary, allocates
+   memory where currently decided object will reside.
+
+   The pointer to the allocated memory is returned in c2_xcode_obj::xo_ptr. In
+   addition, this pointer is stored at the appropriate offset in the parent
+   object.
+ */
 static ssize_t xcode_alloc(struct c2_xcode_ctx *ctx)
 {
 	const struct c2_xcode_cursor_frame *prev;
@@ -125,24 +139,52 @@ static ssize_t xcode_alloc(struct c2_xcode_ctx *ctx)
 	size_t                              size;
 	void                              **slot;
 
+	/*
+	 * New memory has to be allocated in 3 cases:
+	 *
+	 * - to decode topmost object (this is different from sunrpc XDR
+	 *   interfaces, where topmost object is pre-allocated by the caller);
+	 *
+	 * - to store an array: a SEQUENCE object has the following in-memory
+	 *   structure:
+	 *
+	 *       struct  {
+	 *               scalar_t     count;
+	 *               struct elem *data;
+	 *
+	 *       };
+	 *
+	 *   This function allocates count * sizeof(struct elem) bytes to hold
+	 *   "data";
+	 *
+	 * - to store an object pointed to by an opaque pointer.
+	 *
+	 */
+
 	nob  = 0;
 	top  = c2_xcode_cursor_top(&ctx->xcx_it);
 	prev = top - 1;
-	obj  = &top->s_obj;
-	par  = &prev->s_obj;
+	obj  = &top->s_obj;  /* an object being decoded */
+	par  = &prev->s_obj; /* obj's parent object */
 	xt   = obj->xo_type;
 	pt   = par->xo_type;
 	size = xt->xct_sizeof;
 
 	if (ctx->xcx_it.xcu_depth == 0) {
+		/* allocate top-most object */
 		nob = size;
 		slot = &obj->xo_ptr;
 	} else {
 		if (pt->xct_aggr == C2_XA_SEQUENCE &&
 		    prev->s_fieldno == 1 && prev->s_elno == 0)
-			nob  = c2_xcode_tag(par) * size;
-		else if (pt->xct_child[prev->s_fieldno].xf_type ==
-			   &C2_XT_OPAQUE)
+			/* allocate array */
+			nob = c2_xcode_tag(par) * size;
+		else if (pt->xct_child[prev->s_fieldno].xf_type == &C2_XT_OPAQUE)
+			/*
+			 * allocate the object referenced by an opaque
+			 * pointer. At this moment "xt" is the type of the
+			 * pointed object.
+			 */
 			nob = size;
 		slot = c2_xcode_addr(par, prev->s_fieldno, ~0ULL);
 	}
@@ -157,6 +199,9 @@ static ssize_t xcode_alloc(struct c2_xcode_ctx *ctx)
 	return 0;
 }
 
+/**
+   Common xcoding function, implementing encoding, decoding and sizing.
+ */
 static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 {
 	void                   *ptr;

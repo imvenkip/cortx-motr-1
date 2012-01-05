@@ -105,9 +105,9 @@
          properties of the data-type or
 
        - by creating a description of the desired serialized format of a
-         data-type and using ff2c "compiler" (xcode/ff2c.c) to produce C files
-         (.c and .h) containing the matching data-type definitions and xcode
-         descriptors.
+         data-type and using ff2c "compiler" (xcode/ff2c/ff2c.c) to produce C
+         files (.c and .h) containing the matching data-type definitions and
+         xcode descriptors.
 
    The first method is suitable for memory-only structures. The second method is
    for structures designed to be transmitted over network of stored on
@@ -255,7 +255,7 @@ struct c2_xcode_field {
 };
 
 /**
-   This struct represent a data-type.
+   This struct represents a data-type.
  */
 struct c2_xcode_type {
 	/** What sub-objects instances of this type have and how they are
@@ -265,7 +265,11 @@ struct c2_xcode_type {
 	const char                     *xct_name;
 	/** Custom operations. */
 	const struct c2_xcode_type_ops *xct_ops;
-	/** Which atomic type this is? */
+	/**
+	    Which atomic type this is?
+
+	    This field is valid only when xt->xct_aggr == C2_XA_ATOM.
+	 */
 	enum c2_xode_atom_type          xct_atype;
 	/**
 	   "Decorations" are used by xcode users to associate additional
@@ -283,7 +287,7 @@ struct c2_xcode_type {
 	struct c2_xcode_field           xct_child[0];
 };
 
-/** "Typed" xcode obect. */
+/** "Typed" xcode object. */
 struct c2_xcode_obj {
 	/** Object's type. */
 	const struct c2_xcode_type *xo_type;
@@ -394,10 +398,19 @@ struct c2_xcode_cursor {
    topmost element of the cursor's stack and can be extracted with
    c2_xcode_cursor_top().
 
-   Note that an element with N children (i.e., an object with a type with N
-   fields) is reached 1 + N + 1 times: once in preorder, once for each child in
-   inorder and once in postorder. For example, to traverse the tree in preorder,
-   one does something like
+   Note that an element with N children is reached 1 + N + 1 times: once in
+   preorder, once for each child in inorder and once in postorder. Here N equals
+
+       - number of fields in a RECORD object;
+
+       - 2 in a UNION object;
+
+       - 1 + (number of elements in array) in a SEQUENCE object. Additional 1 is
+         for count field;
+
+       - 0 for an ATOMIC object.
+
+   For example, to traverse the tree in preorder, one does something like
 
    @code
    while ((result = c2_xcode_next(it)) > 0) {
@@ -423,7 +436,36 @@ struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it);
    @name xcoding.
 
    Encoding-decoding (collectively xcoding) support is implemented on top of
-   introspection facilities provided by the xcode module.
+   introspection facilities provided by the xcode module. xcoding provides 3
+   operations:
+
+       - sizing (c2_xcode_length()): returns the size of a buffer sufficient to
+         hold serialized object representation;
+
+       - encoding (c2_xcode_encode()): construct a serialized object
+         representation in a given buffer;
+
+       - decoding (c2_xcode_decode()): construct an in-memory object, given its
+         serialized representation.
+
+   xcoding traverses the tree of sub-objects, starting from the topmost object
+   to be xcoded. For each visited object, if a method, corresponding to the
+   xcoding operation (encode, decode, length) is not NULL in object's type
+   c2_xcode_type_ops vector, this method is called and no further processing of
+   this object is done. Otherwise, "standard xcoding" takes place.
+
+   Standard xcoding is non-trivial only for leaves in the sub-object tree (i.e.,
+   for objects of ATOMIC type):
+
+       - for encoding, place object's value into buffer, convert it to desired
+         endianness and advance buffer position;
+
+       - for decoding, extract value from the buffer, convert it, store in
+         in-memory object and advance buffer position;
+
+       - for sizing, increment required buffer size by size of atomic type.
+
+   In addition, decoding allocates memory as necessary.
  */
 /** @{ xcoding */
 
