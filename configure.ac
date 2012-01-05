@@ -490,8 +490,23 @@ fi
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
+# Check if gcc option is supported in current gcc version.
+iff_opt_supported() {
+        `$CC $1 -S -o /dev/null -xc /dev/null` 2>&1
+	if test $? -eq 0; then
+                echo $1
+        else
+                echo ""
+        fi
+}
+
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
-KCFLAGS="-Wall -Werror -Wno-unused-but-set-variable $KCFLAGS"
+# If some compiler option is compiler version specific, then add it to OPT_KCFLAGS.
+# iff_opt_supported() can be used to check if the compiler option is supported or not.
+# iff_opt_supported(opt) returns opt if opt is supported by compiler, "" otherwise.
+OPT_KCFLAGS="$OPT_KCFLAGS $(iff_opt_supported -Wno-unused-but-set-variable)"
+KCFLAGS=" -Wall -Werror $OPT_KCFLAGS $KCFLAGS"
+
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
