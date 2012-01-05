@@ -184,7 +184,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                        C2_ASSERT(bp != NULL);
 
                         if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom) {
-
+                               /**
                                  * Found buffer pool for domain.
                                  * No need to create buffer pool
                                  * for this domain.

@@ -695,20 +695,11 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
                 /** Update successfull data transfered count*/
                 fom_obj->fcrw_bytes_transfered += stio->si_count;
         }
-
-        c2_free(stio->si_stob.iv_vec.v_count);
-        c2_free(stio->si_stob.iv_index);
-
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
-        c2_clink_del(&stio_desc->siod_clink);
-        c2_clink_fini(&stio_desc->siod_clink);
-        c2_stob_io_fini(stio);
-
-        /** Remove c2_stob_io_desc from stob io desc list. */
-        stobio_tlist_del(stio_desc);
+        fom_obj->fcrw_num_stobio_launched--;
         c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
-        if (stobio_tlist_is_empty(&fom_obj->fcrw_stio_list))
+        if (fom_obj->fcrw_num_stobio_launched == 0)
                 c2_chan_signal(&fom_obj->fcrw_wait);
 
         return true;
@@ -910,6 +901,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
         fom_obj->fcrw_curr_ivec_index = 0;
         fom_obj->fcrw_batch_size = rwfop->crw_desc.id_nr;
         fom_obj->fcrw_bytes_transfered = 0;
+        fom_obj->fcrw_num_stobio_launched = 0;
         fom_obj->fcrw_bp = NULL;
         c2_chan_init(&fom_obj->fcrw_wait);
         netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
@@ -1078,7 +1070,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         }
 
         if (required_net_bufs == 0)
-               fom->fo_phase = FOPH_FINISH;
+               fom->fo_phase = FOPH_SUCCESS;
         else
                fom->fo_phase = FOPH_IO_FOM_BUFFER_ACQUIRE;
 
@@ -1253,6 +1245,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(stobio_tlist_is_empty(&fom_obj->fcrw_stio_list));
+        C2_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
 
 	fop = fom->fo_fop;
 	rwfop = io_rw_get(fop);
@@ -1359,6 +1352,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                         break;
                 }
 
+                fom_obj->fcrw_num_stobio_launched++;
                 stobio_tlink_init(stio_desc);
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, stio_desc);
 
@@ -1393,11 +1387,35 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
 {
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw   *fom_obj;
+        struct c2_stob_io_desc    *stio_desc;
 
         C2_PRE(fom != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_STOB_WAIT);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
+
+        /**
+         * Empty the list as all STOB I/O completed here.
+         */
+        c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
+        c2_tlist_for (&stobio_tl, &fom_obj->fcrw_stio_list, stio_desc) {
+                struct c2_stob_io *stio;
+                C2_ASSERT(stio_desc != NULL);
+
+                stio = &stio_desc->siod_stob_io;
+
+                c2_free(stio->si_stob.iv_vec.v_count);
+                c2_free(stio->si_stob.iv_index);
+
+                c2_clink_del(&stio_desc->siod_clink);
+                c2_clink_fini(&stio_desc->siod_clink);
+
+                c2_stob_io_fini(stio);
+
+                stobio_tlist_del(stio_desc);
+        } c2_tlist_endfor;
+        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
         c2_stob_put(fom_obj->fcrw_stob);
 
@@ -1538,6 +1556,8 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
                 stobio_tlist_del(stio_desc);
         } c2_tlist_endfor;
         c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
+
+        c2_fom_fini(fom);
 
         c2_free(fom_obj);
 }
