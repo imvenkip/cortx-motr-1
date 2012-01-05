@@ -22,45 +22,46 @@
 #include <stdlib.h>       /* srand, rand */
 #include <errno.h>
 #include <err.h>
+#include <sys/stat.h>     /* mkdir */
+#include <sys/types.h>    /* mkdir */
 
 #include "dtm/dtm.h"      /* c2_dtx */
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/misc.h"     /* C2_SET0 */
 #include "lib/assert.h"
+#include "lib/ut.h"
 #include "db/db.h"
 #include "balloc/balloc.h"
 
-extern	struct c2_balloc colibri_balloc;
-const int MAX = 100;
+extern	struct c2_balloc	colibri_balloc;
+const char			*db_name = "./__s";;
+const int			MAX = 100;
 
-int main(int argc, char **argv)
+enum balloc_io_flags {
+	BALLOC_IO_DIRECT = 0,
+	BALLOC_IO_BUFFERED = 12
+};
+
+int balloc_ops(int io_flag)
 {
-	const char           *db_name;
-	struct c2_dbenv       db;
-	struct c2_dtx         dtx;
-	int                   result;
-	struct c2_ext         ext[MAX];
-	struct c2_ext         tmp = { 0 };
-	c2_bcount_t	      count = 539;
-	int		      i = 0;
-	time_t		      now;
-
-	if (argc != 2) {
-		fprintf(stderr, "Usage: %s <db-dir>\n", argv[0]);
-		return 1;
-	}
-	db_name = argv[1];
-	memset(ext, 0, ARRAY_SIZE(ext));
+	struct c2_dbenv		db;
+	struct c2_dtx		dtx;
+	int			result;
+	struct c2_ext		ext[MAX];
+	struct c2_ext		tmp = { 0 };
+	c2_bcount_t		count = 539;
+	int			i = 0;
+	time_t			now;
 
 	time(&now);
 	srand(now);
 
 	result = c2_dbenv_init(&db, db_name, 0);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, 12, 4096ULL * 1024 * 1024 * 1000,
-		 128 * 1024 * 1024, 2);
+		(&colibri_balloc.cb_ballroom, &db, io_flag,
+		 4096ULL * 1024 * 1024 * 1000, 128 * 1024 * 1024, 2);
 
 	for (i = 0; i < MAX && result == 0; i++ ) {
 		do  {
@@ -68,14 +69,16 @@ int main(int argc, char **argv)
 		} while (count == 0);
 
 		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 
 		/* pass last result as goal. comment out this to turn off goal */
 		//tmp.e_start = tmp.e_end;
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &tmp);
+		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc
+			(&colibri_balloc.cb_ballroom, &dtx, count, &tmp);
 		ext[i] = tmp;
 
-		printf("%3d:rc = %d: requested count=%5d, result count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%3d:rc = %d: requested count=%5d, result count=%5d:"
+		       " [%08llx,%08llx)=[%8llu,%8llu)\n",
 			i, result, (int)count,
 			(int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
@@ -90,15 +93,17 @@ int main(int argc, char **argv)
 
 	for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
 	     i < colibri_balloc.cb_sb.bsb_groupcount && result == 0; i++ ) {
-		struct c2_balloc_group_info *grp = c2_balloc_gn2info(&colibri_balloc, i);
+		struct c2_balloc_group_info *grp = c2_balloc_gn2info
+			(&colibri_balloc, i);
 
 		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 		if (grp) {
 			c2_balloc_lock_group(grp);
-			result = c2_balloc_load_extents(&colibri_balloc, grp, &dtx.tx_dbtx);
+			result = c2_balloc_load_extents(&colibri_balloc, grp,
+							&dtx.tx_dbtx);
 			if (result == 0)
-				c2_balloc_debug_dump_group_extent(argv[0], grp);
+				c2_balloc_debug_dump_group_extent("balloc", grp);
 			c2_balloc_release_extents(grp);
 			c2_balloc_unlock_group(grp);
 		}
@@ -116,11 +121,13 @@ int main(int argc, char **argv)
 	for (i = 0; i < MAX && result == 0; i++ ) {
 
 		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 		if (ext[i].e_start != 0)
-			result = colibri_balloc.cb_ballroom.ab_ops->bo_free(&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
+			result = colibri_balloc.cb_ballroom.ab_ops->bo_free
+				(&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
 
-		printf("%3d:rc = %d: freed:                          len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%3d:rc = %d: freed:                          "
+		       "len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
 			i, result, (int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end,
@@ -134,20 +141,23 @@ int main(int argc, char **argv)
 
 	for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
 	     i < colibri_balloc.cb_sb.bsb_groupcount && result == 0; i++ ) {
-		struct c2_balloc_group_info *grp = c2_balloc_gn2info(&colibri_balloc, i);
+		struct c2_balloc_group_info *grp = c2_balloc_gn2info
+			(&colibri_balloc, i);
 
 		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 		if (grp) {
 			c2_balloc_lock_group(grp);
-			result = c2_balloc_load_extents(&colibri_balloc, grp, &dtx.tx_dbtx);
+			result = c2_balloc_load_extents(&colibri_balloc, grp,
+							&dtx.tx_dbtx);
 			if (result == 0)
-				c2_balloc_debug_dump_group_extent(argv[0], grp);
-			if (grp->bgi_freeblocks != colibri_balloc.cb_sb.bsb_groupsize) {
-				printf("corrupted grp %d: %llx != %llx\n",
-					i,
-					(unsigned long long)grp->bgi_freeblocks,
-					(unsigned long long)colibri_balloc.cb_sb.bsb_groupsize);
+				c2_balloc_debug_dump_group_extent("balloc", grp);
+			if (grp->bgi_freeblocks !=
+			    colibri_balloc.cb_sb.bsb_groupsize) {
+				printf("corrupted grp %d: %llx != %llx\n", i,
+				       (unsigned long long)grp->bgi_freeblocks,
+				       (unsigned long long)
+				       colibri_balloc.cb_sb.bsb_groupsize);
 				result = -EINVAL;
 			}
 			c2_balloc_release_extents(grp);
@@ -157,10 +167,41 @@ int main(int argc, char **argv)
 	}
 
 	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
+
 	c2_dbenv_fini(&db);
+
 	printf("done. status = %d\n", result);
 	return result;
 }
+
+void test_balloc()
+{
+	int result;
+
+	result = balloc_ops(BALLOC_IO_BUFFERED);
+	C2_UT_ASSERT(result == 0);
+
+	/* The blocksize in superblock needs to be changed.
+	 * so we delete the database directory due to which a new
+	 * directory will be created and eventually the superblock.
+	 */
+
+	result = system("rm -fr ./__s");
+	C2_UT_ASSERT(result == 0);
+
+	result = balloc_ops(BALLOC_IO_DIRECT);
+	C2_UT_ASSERT(result == 0);
+}
+
+const struct c2_test_suite balloc_ut = {
+        .ts_name = "balloc-ut",
+        .ts_init = NULL,
+        .ts_fini = NULL,
+        .ts_tests = {
+                { "balloc-test", test_balloc},
+		{ NULL, NULL }
+        }
+};
 
 /*
  *  Local variables:
