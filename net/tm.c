@@ -174,7 +174,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	tm->ntm_pool_colour = C2_NET_BUFFER_POOL_ANY_COLOR;
 
 	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);
-	if (result >= 0) {
+	if (result == 0) {
 		c2_list_add_tail(&dom->nd_tms, &tm->ntm_dom_linkage);
 		tm->ntm_state = C2_NET_TM_INITIALIZED;
 	} else
