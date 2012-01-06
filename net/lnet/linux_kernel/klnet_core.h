@@ -99,12 +99,18 @@ struct nlx_kcore_buffer {
 	/** Pointer to kernel core TM data. */
 	struct nlx_kcore_transfer_mc *kb_ktm;
 
-	/** The I/O vector. */
-	lnet_kiov_t                   kb_kiov;
+	/** The LNet I/O vector. */
+	lnet_kiov_t                   *kb_kiov;
+
+	/** The number of elements in kb_kiov */
+	size_t                        kb_kiov_len;
 
 	/** MD handle */
 	lnet_handle_md_t              kb_mdh;
 };
+
+static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
+					const struct c2_bufvec *bvec);
 
 /**
    @}

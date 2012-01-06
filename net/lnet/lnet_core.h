@@ -402,12 +402,14 @@ static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
    getting pinned.
    The subroutine allocates private data to associate with the network buffer.
    @param lcdom The domain private data to be initialized.
-   @param buf The network buffer pointer with its nb_dom field set.
+   @param buf The network buffer pointer in transport address space used
+   to set the cb_buffer_id field.
+   @param bufvec Buffer vector with core address space pointers.
    @param lcbuf The core private data pointer for the buffer.
-   @pre buf->nb_dom != NULL
  */
 static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
-				 struct c2_net_buffer *buf,
+				 const struct c2_net_buffer *buf,
+				 const struct c2_bufvec *bvec,
 				 struct nlx_core_buffer *lcbuf);
 
 /**

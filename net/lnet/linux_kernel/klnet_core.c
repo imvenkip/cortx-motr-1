@@ -720,6 +720,9 @@
 
 #include <lnet/lnet.h> /* LNet API, LNET_NIDSTR_SIZE */
 
+/* include local files */
+#include "net/lnet/linux_kernel/klnet_vec.c"
+
 /**
    @addtogroup KLNetCore
    @{
@@ -892,17 +895,47 @@ int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
 }
 
 int nlx_core_buf_register(struct nlx_core_domain *lcdom,
-			  struct c2_net_buffer *buf,
+			  const struct c2_net_buffer *buf,
+			  const struct c2_bufvec *bvec,
 			  struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	int rc;
+	struct nlx_kcore_buffer *kb;
+
+	C2_PRE(lcbuf->cb_kpvt == NULL);
+	C2_ALLOC_PTR(kb);
+	if (kb == NULL)
+		return -ENOMEM;
+	rc = nlx_kcore_buffer_kla_to_kiov(kb, bvec);
+	if (rc != 0)
+		goto fail_free_kb;
+	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
+	LNetInvalidateHandle(&kb->kb_mdh);
+	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
+	lcbuf->cb_kpvt      = kb;
+	lcbuf->cb_buffer_id = (nlx_core_opaque_ptr_t) buf;
+	return 0;
+
+ fail_free_kb:
+	C2_ASSERT(rc != 0);
+	c2_free(kb);
+	return rc;
 }
 
 void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 			     struct nlx_core_buffer *lcbuf)
 {
-	 /* XXX todo implement */
+	struct nlx_kcore_buffer *kb;
+
+	C2_PRE(lcbuf->cb_kpvt != NULL);
+	kb = lcbuf->cb_kpvt;
+	C2_PRE(kb->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
+	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
+	kb->kb_magic = 0;
+	c2_free(kb->kb_kiov);
+	c2_free(kb);
+	lcbuf->cb_kpvt = 0;
+	return;
 }
 
 int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
