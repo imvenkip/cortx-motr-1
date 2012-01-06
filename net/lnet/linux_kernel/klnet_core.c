@@ -895,7 +895,7 @@ int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
 }
 
 int nlx_core_buf_register(struct nlx_core_domain *lcdom,
-			  const struct c2_net_buffer *buf,
+			  nlx_core_opaque_ptr_t buffer_id,
 			  const struct c2_bufvec *bvec,
 			  struct nlx_core_buffer *lcbuf)
 {
@@ -913,7 +913,7 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	LNetInvalidateHandle(&kb->kb_mdh);
 	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
 	lcbuf->cb_kpvt      = kb;
-	lcbuf->cb_buffer_id = (nlx_core_opaque_ptr_t) buf;
+	lcbuf->cb_buffer_id = buffer_id;
 	return 0;
 
  fail_free_kb:

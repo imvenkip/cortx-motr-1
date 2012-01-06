@@ -49,7 +49,7 @@ int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
 }
 
 int nlx_core_buf_register(struct nlx_core_domain *lcdom,
-			  const struct c2_net_buffer *buf,
+			  nlx_core_opaque_ptr_t buffer_id,
 			  const struct c2_bufvec *bvec,
 			  struct nlx_core_buffer *lcbuf)
 {

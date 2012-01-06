@@ -152,8 +152,8 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	nb->nb_xprt_private = bp;
 	bp->xb_nb = nb;
 
-	rc = nlx_core_buf_register(&dp->xd_core, nb, &nb->nb_buffer,
-				   &bp->xb_core);
+	rc = nlx_core_buf_register(&dp->xd_core, (nlx_core_opaque_ptr_t)nb,
+				   &nb->nb_buffer, &bp->xb_core);
 	C2_POST(bp->xb_core.cb_buffer_id == (nlx_core_opaque_ptr_t)nb);
 	C2_POST(nlx_buffer_invariant(nb));
 	return rc;
