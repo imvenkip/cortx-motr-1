@@ -55,7 +55,8 @@ void c2_ioservice_unregister(void);
 
 enum {
         C2_RIOS_BUFFER_POOL_MAGIC = 0x62756666657273,   /* buffers */
-        C2_RIOS_BUFFER_POOL_HEAD = 0x42554646455253   /* BUFFERS */
+        C2_RIOS_BUFFER_POOL_HEAD = 0x42554646455253,  /* BUFFERS */
+        C2_REQH_IO_SERVICE_MAGIC = 0x72696f736f626a
 };
 
 /**
@@ -83,6 +84,8 @@ struct c2_reqh_io_service {
         struct c2_reqh_service       rios_gen;
         /** Buffer pools belongs to this services */
         struct c2_tl                 rios_buffer_pools;
+        /** magic to check io service object */
+        uint64_t                     rios_magic;
 };
 
 /** @} end of io_service */

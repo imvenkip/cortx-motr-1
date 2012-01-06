@@ -659,6 +659,21 @@ static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
         return true;
 }
 
+static bool c2_stob_io_desc_invariant(const struct c2_stob_io_desc *stobio_desc)
+{
+        if (stobio_desc->siod_magic != C2_STOB_IO_DESC_HEAD_MAGIC)
+                return false;
+
+        return true;
+}
+
+static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
+{
+        if (rios->rios_magic != C2_REQH_IO_SERVICE_MAGIC)
+                return false;
+
+        return true;
+}
 /**
  * Call back function which gets invoked on a single STOB I/O complete.
  * This function check for STOB I/O list and remove stobio entry from
@@ -675,13 +690,15 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
         struct c2_stob_io_desc   *stio_desc;
 
         stio_desc = container_of(clink, struct c2_stob_io_desc, siod_clink);
+        C2_ASSERT(c2_stob_io_desc_invariant(stio_desc));
+
         fom_obj = stio_desc->siod_fom;
 
         stio = &stio_desc->siod_stob_io;
 
         if (fom_obj->fcrw_gen.fo_rc == 0) {
 
-                /**
+                /*
                  * Set fom->fo_rc with error code. Now onward STOB I/O
                  * phase failed and need to ignored all next STOB I/O
                  * results (no need to increment transferd bytes and only
@@ -692,7 +709,7 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
                         fom_obj->fcrw_gen.fo_phase = FOPH_FAILURE;
                 }
 
-                /** Update successfull data transfered count*/
+                /* Update successfull data transfered count*/
                 fom_obj->fcrw_bytes_transfered += stio->si_count;
         }
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
@@ -770,7 +787,7 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
         C2_PRE(in != NULL);
         C2_PRE(out != NULL);
 
-        /**
+        /*
          * This memory will be freed after its container stob
          * completes and before destructing container stob object.
          */
@@ -852,6 +869,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
         struct c2_fom_type       fomtype;
 
         C2_PRE(fop != NULL);
+        C2_PRE(c2_is_io_fop(fop));
         C2_PRE(out != NULL);
 
         fop->f_type->ft_fom_type =  c2_io_fom_cob_rw_mopt;
@@ -868,14 +886,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
         c2_fom_init(fom);
         fom->fo_fop = fop;
 
-        /**
-         * Since reqh services information not available
-         * it is initiated to NULL. Service instance will
-         * be set to fom while FOM execution.
-         * todo : This should be done by reqh handler
-         *        after FOM init call returns.
-         */
-        fom->fo_service = NULL;
+        C2_ASSERT(c2_is_io_fop(fop));
 
         if (c2_is_read_fop(fop))
                 fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt,
@@ -899,7 +910,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
         fom_obj->fcrw_ndesc = rwfop->crw_desc.id_nr;
         fom_obj->fcrw_curr_desc_index = 0;
         fom_obj->fcrw_curr_ivec_index = 0;
-        fom_obj->fcrw_batch_size = rwfop->crw_desc.id_nr;
+        fom_obj->fcrw_batch_size = 0;
         fom_obj->fcrw_bytes_transfered = 0;
         fom_obj->fcrw_num_stobio_launched = 0;
         fom_obj->fcrw_bp = NULL;
@@ -914,7 +925,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
 /**
  * Acquire network buffers.
  * Gets as many network buffer as it can to process io request.
- * It should atleast get one network buffer to start io processing.
+ * It needs at least one network buffer to start io processing.
  * If not able to get single buffer, FOM wait for buffer pool to
  * become non-empty.
  *
@@ -935,10 +946,12 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
         struct c2_io_fom_cob_rw      *fom_obj = NULL;
 
         C2_PRE(fom != NULL);
+        C2_PRE(c2_is_io_fop(fom->fo_fop));
         C2_PRE(fom->fo_service != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
         /**
          * Get buffer pool if not got yet. Once it set
@@ -951,6 +964,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
 
                 serv_obj = container_of(fom->fo_service,
                                         struct c2_reqh_io_service, rios_gen);
+                C2_ASSERT(c2_reqh_io_service_invariant(serv_obj));
 
                 /* Get network buffer pool for network domain */
                 fop_ndom
@@ -969,7 +983,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
         acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
         required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
-        /**
+        /*
          * Aquire as many net buffers as to process all discriptors.
          * If FOM able to acquire more buffers then it change batch side
          * dynamically.
@@ -982,7 +996,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
             c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
             if (nb == NULL && acquired_net_bufs == 0) {
                     struct c2_rios_buffer_pool   *bpdesc = NULL;
-                    /**
+                    /*
                      * Network buffer not available. Atleast one
                      * buffer need for zero-copy. Registers FOM clink
                      * with buffer pool wait channel to get buffer
@@ -996,7 +1010,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
 
                     return  FSO_WAIT;
             } else if (nb == NULL) {
-                    /**
+                    /*
                      * Some network buffers are available for zero copy
                      * init. FOM can continue with available buffers.
                      */
@@ -1044,10 +1058,12 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         struct c2_io_fom_cob_rw        *fom_obj = NULL;
 
         C2_PRE(fom != NULL);
+        C2_PRE(c2_is_read_fop(fom->fo_fop) || c2_is_write_fop(fom->fo_fop));
         C2_PRE(fom->fo_service != NULL);
         C2_PRE(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
         C2_ASSERT(fom_obj->fcrw_bp == NULL);
 
         fop = fom->fo_fop;
@@ -1100,9 +1116,11 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         struct c2_net_buf_desc    *net_desc;
 
         C2_PRE(fom != NULL);
+        C2_PRE(c2_is_io_fop(fom->fo_fop));
         C2_PRE(fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
         rwfop = io_rw_get(fop);
         rbulk = &fom_obj->fcrw_bulk;
 
@@ -1143,7 +1161,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
          */
         c2_fom_block_at(fom, &rbulk->rb_chan);
 
-        /**
+        /*
          * This function deletes c2_rpc_bulk_buf object one
          * by one as zero copy completes on respective buffer.
          */
@@ -1180,9 +1198,11 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
         struct c2_rpc_bulk        *rbulk;
 
         C2_PRE(fom != NULL);
+        C2_PRE(c2_is_io_fop(fom->fo_fop));
         C2_PRE(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT);
 
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
         rbulk = &fom_obj->fcrw_bulk;
 
@@ -1211,9 +1231,9 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
 
 /**
  * Launch STOB I/O
- * Helper function to launch STOB I/O. This is async
- * function it initiates STOB I/O for all index vecs and
- * return. STOB I/O signaled on channel in c2_stob_io::si_wait.
+ * Helper function to launch STOB I/O.
+ * This function initiates STOB I/O for all index vecs.
+ * STOB I/O signaled on channel in c2_stob_io::si_wait.
  * There is a clink for each STOB I/O waiting on respective
  * c2_stob_io::si_wait. For every STOB I/O completion call-back
  * is launched to check its results and mark complete. After
@@ -1241,9 +1261,11 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	struct c2_fop_file_fid		*ffid;
 
 	C2_PRE(fom != NULL);
+        C2_PRE(c2_is_io_fop(fom->fo_fop));
         C2_PRE(fom->fo_phase == FOPH_IO_STOB_INIT);
 
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
         C2_ASSERT(stobio_tlist_is_empty(&fom_obj->fcrw_stio_list));
         C2_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
 
@@ -1263,10 +1285,13 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	if (rc != 0)
 		goto cleanup_st;
 
-	/* Since the upper layer IO block size could differ with IO block size
-	   of storage object, the block alignment and mapping is necesary. */
+	/*
+           Since the upper layer IO block size could differ with IO block size
+	   of storage object, the block alignment and mapping is necesary.
+         */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
+       /* @todo : Need to align addresses before STOB I/O launch */
 
         c2_fom_block_at(fom, &fom_obj->fcrw_wait);
 
@@ -1296,7 +1321,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
                 rc = io_fom_cob_rw_indexvec_wire2mem(fom, &wire_ivec, mem_ivec);
                 if (rc != 0) {
-                        /**
+                        /*
                          * Since this stob io not added into list
                          * yet, free it here.
                          */
@@ -1308,7 +1333,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 	break;
                 }
 
-                /** Find out buffer address, offset and count required for stob
+                /* Find out buffer address, offset and count required for stob
                    io. Due to existing limitations of kxdr wrapper over sunrpc,
                    read reply fop can not contain a vector, only a segment.
                    Ideally, all IO fops should carry an IO vector. */
@@ -1317,7 +1342,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 	rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
                                                 &fom->fo_tx.tx_dbtx);
                 	if (rc != 0) {
-                                /**
+                                /*
                                  * Since this stob io not added into list
                                  * yet, free it here.
                                  */
@@ -1339,7 +1364,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
                 if (rc != 0) {
-                        /**
+                        /*
                          * Since this stob io not added into list
                          * yet, free it here.
                          */
@@ -1390,12 +1415,14 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
         struct c2_stob_io_desc    *stio_desc;
 
         C2_PRE(fom != NULL);
+        C2_PRE(c2_is_io_fop(fom->fo_fop));
         C2_PRE(fom->fo_phase == FOPH_IO_STOB_WAIT);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
         C2_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
 
-        /**
+        /*
          * Empty the list as all STOB I/O completed here.
          */
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
@@ -1452,6 +1479,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
         C2_PRE(c2_is_io_fop(fom->fo_fop));
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
         if (fom->fo_phase < FOPH_NR) {
                 rc = c2_fom_state_generic(fom);
@@ -1482,7 +1510,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
                 C2_IMPOSSIBLE("Invalid phase of rw fom.");
         }
 
-        /** Set operation status in reply fop if FOM ends.*/
+        /* Set operation status in reply fop if FOM ends.*/
         if (fom->fo_phase == FOPH_SUCCESS || fom->fo_phase == FOPH_FAILURE) {
                 struct c2_fop_cob_rw_reply        *rwrep;
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
@@ -1556,6 +1584,7 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
                 stobio_tlist_del(stio_desc);
         } c2_tlist_endfor;
         c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
+        stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 
         c2_fom_fini(fom);
 
