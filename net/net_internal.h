@@ -79,7 +79,7 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
 
 /*
   Internal version of c2_net_buffer_add() that must be invoked holding the
-  TM mutex
+  TM mutex.
  */
 int c2_net__buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm);
 

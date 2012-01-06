@@ -54,7 +54,7 @@
 
    <hr>
    @section NetRQProvDLD-depends Dependencies
-   - Provisioning support primarily depends on @ref net_buffer_pool.  The
+   - Provisioning support primarily depends on the @ref net_buffer_pool.  The
      c2_net_buffer_pool_get() subroutine must be modified to set the value of
      the c2_net_buffer::nb_pool field.
 

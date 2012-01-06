@@ -112,6 +112,9 @@ void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 
 	(*tm->ntm_callbacks->ntc_event_cb)(ev);
 
+	/* post-callback, out of mutex:
+	   perform initial provisioning if required
+	 */
 	if (pool != NULL)
 		c2_net__tm_provision_recv_q(tm);
 
