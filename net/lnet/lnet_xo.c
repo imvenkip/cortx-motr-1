@@ -27,7 +27,8 @@
 static bool nlx_dom_invariant(const struct c2_net_domain *dom)
 {
 	const struct nlx_xo_domain *dp = dom->nd_xprt_private;
-	return dp != NULL && dp->xd_dom == dom;
+	return dp != NULL && dp->xd_dom == dom &&
+		dom->nd_xprt == &c2_net_lnet_xprt;
 }
 
 static bool nlx_ep_invariant(const struct c2_net_end_point *ep)
@@ -40,7 +41,8 @@ static bool nlx_ep_invariant(const struct c2_net_end_point *ep)
 static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
 {
 	const struct nlx_xo_buffer *bp = nb->nb_xprt_private;
-	return bp != NULL && bp->xb_nb == nb && nlx_dom_invariant(nb->nb_dom);
+	return bp != NULL && bp->xb_nb == nb && nlx_dom_invariant(nb->nb_dom) &&
+		ergo(nb->nb_tm != NULL, nlx_tm_invariant(nb->nb_tm));
 }
 
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
@@ -110,6 +112,7 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 	struct nlx_core_ep_addr cepa;
 	int rc;
 
+	C2_PRE(nlx_dom_invariant(tm->ntm_dom));
 	dp = tm->ntm_dom->nd_xprt_private;
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr, &cepa);
 	if (rc != 0)
@@ -144,26 +147,24 @@ static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
-	C2_PRE(dp != NULL);
-	C2_PRE(bp != NULL);
+	C2_PRE(nlx_buffer_invariant(nb));
 
 	nlx_core_buf_deregister(&dp->xd_core, &bp->xb_core);
 }
 
 static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_transfer_mc *tp = nb->nb_tm->ntm_xprt_private;
+	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 	struct nlx_core_transfer_mc *ctp;
 	struct nlx_core_buffer *cbp;
 	int rc;
 
-	C2_PRE(tp != NULL);
-	C2_PRE(bp != NULL);
+	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
+	tp = nb->nb_tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
 
-	/* XXX is this complete? */
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
 		rc = nlx_core_buf_msg_recv(ctp, cbp);
@@ -195,11 +196,11 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 
 static void nlx_xo_buf_del(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_transfer_mc *tp = nb->nb_tm->ntm_xprt_private;
+	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
-	C2_PRE(tp != NULL);
-	C2_PRE(bp != NULL);
+	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
+	tp = nb->nb_tm->ntm_xprt_private;
 	nlx_core_buf_del(&tp->xtm_core, &bp->xb_core);
 }
 
@@ -232,6 +233,7 @@ static void nlx_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 
+	/** @todo xtm_busy may be replaced by use of ntm_callback_counter */
 	C2_PRE(nlx_tm_invariant(tm) && tp->xtm_busy == 0);
 
 	if (tp->xtm_ev_thread.t_state != TS_PARKED)

@@ -53,6 +53,7 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 			  struct nlx_core_buffer *lcbuf)
 {
 	/* XXX implement */
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	return -ENOSYS;
 }
 
@@ -169,7 +170,8 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm,
-		      struct nlx_core_ep_addr *cepa)
+		      struct nlx_core_ep_addr *cepa,
+		      struct c2_net_end_point **epp)
 {
 	struct nlx_xo_domain *dp = tm->ntm_dom->nd_xprt_private;
 	struct nlx_xo_ep *xep = container_of(cepa, struct nlx_xo_ep, xe_core);
