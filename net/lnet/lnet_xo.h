@@ -111,7 +111,9 @@ struct nlx_xo_transfer_mc {
 	/** Channel used for synchronous buffer event notification */
 	struct c2_chan              *xtm_ev_chan;
 
-	/** Count of activities in progress out of the TM mutex */
+	/** Count of activities in progress out of the TM mutex
+	    @todo determine if ntm_callback_counter can be used instead
+	 */
 	int                          xtm_busy;
 
 	/** LNet Core transfer machine data (shared memory) */
