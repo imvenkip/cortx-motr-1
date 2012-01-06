@@ -12,7 +12,7 @@ local_src     :=
 ut_src        := bulk_if.c buffer_pool_ut.c
 link_ut       := $(ut_src:%=../ut/%)
 kernel_src    := $(local_src) $(otw_k_c) $(ut_src)
-net_src       := buf.c domain.c ep.c net.c tm.c buffer_pool.c
+net_src       := buf.c domain.c ep.c net.c tm.c buffer_pool.c tm_provision.c
 link_net      := $(net_src:%=../%)
 # link in the unit test file as it includes mem_xprt_xo.c
 bulk_src      := bulk_mem_ut.c ksunrpc_ut.c

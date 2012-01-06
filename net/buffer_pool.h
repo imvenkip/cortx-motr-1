@@ -94,7 +94,8 @@
     @endcode
 
     - To get a buffer from the pool:
-	For any colour buffer variable colour should be ~0.
+	For any colour buffer variable colour should be
+	@c C2_NET_BUFFER_POOL_ANY_COLOR (~0).
     @code
 	c2_net_buffer_pool_lock(&bp);
 	nb = c2_net_buffer_pool_get(&bp, colour);
@@ -106,7 +107,8 @@
     @endcode
 
    - To put back the buffer in the pool:
-	For any colour buffer variable colour should be ~0.
+	For any colour buffer variable colour should be
+	@c C2_NET_BUFFER_POOL_ANY_COLOR (~0).
     @code
 	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_put(&bp, nb, colour);
@@ -128,6 +130,11 @@
     @endcode
    @{
   */
+
+enum {
+  /** Specify this constant as the colour when colouring is not an issue. */
+  C2_NET_BUFFER_POOL_ANY_COLOR = ~0,
+};
 
 struct c2_net_buffer_pool;
 
@@ -191,7 +198,7 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
    list is not empty then the buffer is taken from the head of this list.
    Otherwise the buffer is taken from the head of the per buffer pool list.
    @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == ~0 || colour < pool->nbp_colours_nr
+   @pre colour == C2_NET_BUFFER_POOL_ANY_COLOR || colour < pool->nbp_colours_nr
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
    @post ergo(result != NULL, result->nb_pool == pool)
  */
@@ -203,7 +210,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
    If the colour is specfied then the buffer is put at the head of corresponding
    coloured list and also put at the tail of the global list.
    @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == ~0 || colour < pool->nbp_colours_nr
+   @pre colour == C2_NET_BUFFER_POOL_ANY_COLOR || colour < pool->nbp_colours_nr
    @pre pool->nbp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
         !(buf->nb_flags & C2_NET_BUF_QUEUED)

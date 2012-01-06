@@ -979,7 +979,7 @@ struct c2_net_transfer_mc {
    @note An initialized TM cannot be fini'd without first starting it.
    @param dom Network domain pointer.
    @post tm->ntm_bev_auto_deliver is set.
-   @post (tm->ntm_pool_colour == ~0 &&
+   @post (tm->ntm_pool_colour == C2_NET_BUFFER_POOL_ANY_COLOR &&
           tm->ntm_recv_pool_queue_min_length == C2_NET_TM_RECV_QUEUE_DEF_LEN)
    @retval 0 (success)
    @retval -errno (failure)
