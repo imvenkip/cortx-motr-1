@@ -415,21 +415,21 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
 	pool = tm->ntm_recv_pool;
-	if (tm->ntm_state == C2_NET_TM_STARTED && pool != NULL) {
-		C2_PRE(c2_net_buffer_pool_is_locked(pool));
-		need = c2_atomic64_get(&tm->ntm_recv_queue_deficit);
-		while (need > 0) {
-			/** @todo Provision until post conditions statisfied
-			    or pool exhausted. */
-			/** @todo nb = c2_net_buffer_pool_get()
-			    C2_POST(nb->nb_pool == tm->ntm_recv_pool); */
-			/** @todo Use c2_net__buffer_add() */
-			/** @todo C2_ASSERT(nb->nb_callbacks ==
-			    tm->ntm_recv_pool_callbacks); */
-			--need;
-		}
-		/** @todo Set ntm_recv_queue_deficit correctly before return. */
+	if (tm->ntm_state != C2_NET_TM_STARTED || pool == NULL)
+		return; /* provisioning not required */
+	C2_PRE(c2_net_buffer_pool_is_locked(pool));
+	need = c2_atomic64_get(&tm->ntm_recv_queue_deficit);
+	while (need > 0) {
+		/** @todo Provision until post conditions statisfied
+		    or pool exhausted. */
+		/** @todo nb = c2_net_buffer_pool_get()
+		    C2_POST(nb->nb_pool == tm->ntm_recv_pool); */
+		/** @todo Use c2_net__buffer_add() */
+		/** @todo C2_ASSERT(nb->nb_callbacks ==
+		    tm->ntm_recv_pool_callbacks); */
+		--need;
 	}
+	/** @todo Set ntm_recv_queue_deficit correctly before return. */
 	return;
 }
 
