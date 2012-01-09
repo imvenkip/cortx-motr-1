@@ -74,10 +74,7 @@ static int cons_fom_state(struct c2_fom *fom)
         reply_fop->cons_return = 0;
 
 	/* Reply item */
-        reply_item = &rfop->f_item;
-        c2_rpc_item_init(reply_item);
-        reply_item->ri_type = &rfop->f_type->ft_rpc_item_type;
-        reply_item->ri_group = NULL;
+	reply_item = &rfop->f_item;
 	fom->fo_phase = FOPH_FINISH;
         return c2_rpc_reply_post(req_item, reply_item);
 }

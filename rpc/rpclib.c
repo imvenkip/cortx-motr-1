@@ -149,12 +149,19 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 
 	C2_PRE(fop != NULL);
 	C2_PRE(session != NULL);
+	/*
+	 * It is mandatory to specify item_ops, because rpc layer needs
+	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
+	 * item. Consumer can use c2_fop_default_item_ops if, it is not
+	 * interested in implementing other (excluding ->rio_free())
+	 * interfaces of c2_rpc_item_ops. See also c2_fop_item_free().
+	 */
+	C2_PRE(ri_ops != NULL);
 
-	item = &fop->f_item;
-	item->ri_ops = ri_ops;
+	item             = &fop->f_item;
+	item->ri_ops     = ri_ops;
 	item->ri_session = session;
-	item->ri_type = &fop->f_type->ft_rpc_item_type;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_prio    = C2_RPC_ITEM_PRIO_MAX;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);

@@ -34,7 +34,7 @@
 #else
 #include "rpc/session_u.h"
 #endif
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"
@@ -129,6 +129,20 @@ int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
 	return 0;
 }
 
+static void conn_establish_item_free(struct c2_rpc_item *item)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+	struct c2_fop                        *fop;
+
+	fop = c2_rpc_item_to_fop(item);
+	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
+	c2_free(ctx);
+}
+
+static const struct c2_rpc_item_ops rcv_conn_establish_item_ops = {
+	.rio_free = conn_establish_item_free,
+};
+
 static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 				      struct c2_rpc_item     **item,
 				      struct c2_bufvec_cursor *cur)
@@ -157,7 +171,9 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	if (rc != 0)
 		goto out;
 
-	*item = &fop->f_item;
+	*item           = &fop->f_item;
+	(*item)->ri_ops = &rcv_conn_establish_item_ops;
+
 	return 0;
 out:
 	c2_free(ctx);
@@ -297,23 +313,6 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	ctx->cec_sender_ep = ep;
 	ctx->cec_rpcmachine = machine;
 }
-
-
-const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops = {
-	.rio_replied = c2_rpc_conn_establish_reply_received
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops = {
-	.rio_replied = c2_rpc_conn_terminate_reply_received
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_session_establish_ops = {
-	.rio_replied = c2_rpc_session_establish_reply_received
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops = {
-	.rio_replied = c2_rpc_session_terminate_reply_received
-};
 
 /** @} End of rpc_session group */
 /*

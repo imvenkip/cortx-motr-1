@@ -30,7 +30,7 @@
 
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "lib/errno.h"		/* ENOMEM */
-#include "fop/fop_onwire.h"	/* default fop encode/decode */
+#include "fop/fop_item_type.h"	/* default fop encode/decode */
 #include "fop/fop_format_def.h" /* console.ff */
 
 
