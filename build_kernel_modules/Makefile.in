@@ -60,7 +60,7 @@ fol_SOURCES 			:= fol.c
 fol_HEADERS 			:= fol.h
 
 fop_SOURCES 			:= fop.c fom.c fop_format.c fop_iterator.c      \
-				   fop_base.c fop_onwire.c
+				   fop_base.c fop_item_type.c
 
 galois_SOURCES 			:= ../../galois/galois.c
 galois_HEADERS 			:= ../../galois/galois.h
