@@ -21,8 +21,37 @@
 #include "lib/cdefs.h"
 #include "lib/ut.h"
 
+#include "net/lnet/lnet.h"
+
 static void test_tm_initfini(void)
 {
+	static struct c2_net_domain dom1 = {
+		.nd_xprt = NULL
+	};
+	const struct c2_net_tm_callbacks cbs1 = {
+		.ntc_event_cb = LAMBDA(void,(const struct c2_net_tm_event *ev) {
+				       }),
+	};
+	struct c2_net_transfer_mc d1tm1 = {
+		.ntm_callbacks = &cbs1,
+		.ntm_state = C2_NET_TM_UNDEFINED
+	};
+
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+
+	/* should be able to fini it immediately */
+	c2_net_tm_fini(&d1tm1);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_UNDEFINED);
+
+	/* should be able to init it again */
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_INITIALIZED);
+	C2_UT_ASSERT(c2_list_contains(&dom1.nd_tms, &d1tm1.ntm_dom_linkage));
+
+	/* fini */
+	c2_net_tm_fini(&d1tm1);
+	c2_net_domain_fini(&dom1);
 }
 
 static void test_tm_startstop(void)
