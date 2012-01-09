@@ -1330,7 +1330,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                                     "io_fom_cob_rw_io_launch", rc);
                         c2_stob_io_fini(stio);
                         c2_free(stio_desc);
-                	break;
+                        break;
                 }
 
                 /* Find out buffer address, offset and count required for stob
@@ -1338,10 +1338,10 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                    read reply fop can not contain a vector, only a segment.
                    Ideally, all IO fops should carry an IO vector. */
                 if (c2_is_write_fop(fop)) {
-                	/* Make an FOL transaction record. */
-                	rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
+                        /* Make an FOL transaction record. */
+                        rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
                                                 &fom->fo_tx.tx_dbtx);
-                	if (rc != 0) {
+                        if (rc != 0) {
                                 /*
                                  * Since this stob io not added into list
                                  * yet, free it here.
@@ -1351,7 +1351,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                                             "io_fom_cob_rw_io_launch", rc);
                                 c2_stob_io_fini(stio);
                                 c2_free(stio_desc);
-                		break;
+                                break;
                         }
 
                 	stio->si_opcode = SIO_WRITE;
