@@ -317,7 +317,7 @@ static bool timer_invariant(struct c2_timer *timer)
 	return true;
 }
 
-/**
+/*
    This function called on every c2_timer_init/fini/start/stop/attach.
    It checks the possibility of transition from the current state
    with a given function and if possible and changes timer state to a new state
