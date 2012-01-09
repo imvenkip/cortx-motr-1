@@ -19,27 +19,24 @@
  * Original creation date: 03/04/2011
  */
 
-#include "lib/ut.h"
-#include "lib/time.h"
-#include "lib/timer.h"
-#include "lib/assert.h"
-#include "lib/thread.h"
-#include "lib/mutex.h"
-#include "lib/semaphore.h"
+#include "lib/ut.h"		/* C2_UT_ASSERT */
+#include "lib/time.h"		/* c2_time_t */
+#include "lib/timer.h"		/* c2_timer */
+#include "lib/assert.h"		/* C2_ASSERT */
+#include "lib/thread.h"		/* C2_THREAD_INIT */
+#include "lib/semaphore.h"	/* c2_semaphore */
+#include "lib/memory.h"		/* C2_ALLOC_ARR */
+#include "lib/atomic.h"		/* c2_atomic64 */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/syscall.h>
+#include <stdlib.h>		/* rand */
+#include <unistd.h>		/* syscall */
+#include <sys/syscall.h>	/* syscall */
 
 enum {
-	MANY_TICKS_NR = 1000,
-	NR_TIMERS = 10,
-	NR_TICKS = 10,
-	NR_TG = 10,		/* number of thread groups */
+	NR_TIMERS     = 10,	/* number of timers in tests */
+	NR_TG	      = 10,	/* number of thread groups */
 	NR_THREADS_TG = 10,	/* number of slave threads per thread group */
-	NR_TIMERS_TG = 100,	/* number of timers per thread group */
+	NR_TIMERS_TG  = 100,	/* number of timers per thread group */
 };
 
 struct thread_group;
@@ -50,7 +47,6 @@ struct tg_slave {
 	struct c2_semaphore  tgs_sem_resume;
 	struct thread_group *tgs_group;
 };
-
 
 struct tg_timer {
 	struct c2_timer	     tgt_timer;
@@ -71,173 +67,135 @@ struct thread_group {
 	unsigned int		 tg_seed;
 };
 
-static int count = 0;
-static int verbose = 0;
-
 static pid_t		   loc_default_tid;
 static struct c2_semaphore loc_default_lock;
 
-static struct c2_semaphore many_finished[NR_TIMERS];
-static pid_t		   many_pids[NR_TIMERS];
+static pid_t		    test_locality_tid;
+static struct c2_semaphore *test_locality_lock;
 
-/* XXX rewrite soft timer tests */
-unsigned long tick(unsigned long data)
-{
-	c2_time_t now;
-
-	now = c2_time_now();
-	count ++;
-	if (verbose)
-		printf("%lu.%lu: timer1 tick = %d\n",
-		       c2_time_seconds(now), c2_time_nanoseconds(now), count);
-
-	return 0;
-}
-
-unsigned long tack(unsigned long data)
-{
-	static int tack;
-	c2_time_t  now;
-
-	now = c2_time_now();
-	tack += data;
-	if (verbose)
-		printf("%lu.%lu:    timer2 tack = %d\n",
-			c2_time_seconds(now), c2_time_nanoseconds(now), tack);
-
-	return 0;
-}
-
-void test_2_timers()
-{
-	struct c2_timer timer1;
-	struct c2_timer timer2;
-	c2_time_t       i1;
-	c2_time_t       i2;
-	c2_time_t       wait;
-
-	c2_time_set(&i1, 1, 0);
-	i1 = c2_time_add(c2_time_now(), i1);
-	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, tick, 0);
-	c2_timer_start(&timer1);
-
-	c2_time_set(&i2, 3, 0);
-	i2 = c2_time_add(c2_time_now(), i2);
-	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, tack, 10000);
-	c2_timer_start(&timer2);
-
-	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
-	/* let's do something, e.g. just waiting */
-	while (count < 1)
-		c2_nanosleep(wait, NULL);
-	c2_timer_stop(&timer1);
-	c2_timer_fini(&timer1);
-
-	c2_timer_stop(&timer2);
-	c2_timer_fini(&timer2);
-}
-
-void timer1_thread(int unused)
-{
-	struct c2_timer timer1;
-	c2_time_t       i1;
-	c2_time_t       wait;
-
-	c2_time_set(&i1, 1, 0);
-	i1 = c2_time_add(c2_time_now(), i1);
-	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, tick, 0);
-	c2_timer_start(&timer1);
-
-	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
-	/* let's do something, e.g. just waiting */
-	while (count < 1)
-		c2_nanosleep(wait, NULL);
-
-	c2_timer_stop(&timer1);
-	c2_timer_fini(&timer1);
-	if (verbose)
-		printf("timer1 thread exit\n");
-}
-
-void timer2_thread(int unused)
-{
-	struct c2_timer timer2;
-	c2_time_t       i2;
-	c2_time_t       wait;
-
-	c2_time_set(&i2, 3, 0);
-	i2 = c2_time_add(c2_time_now(), i2);
-	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, tack, 10000);
-	c2_timer_start(&timer2);
-
-	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
-	while (count < 1)
-		c2_nanosleep(wait, NULL);
-	c2_timer_stop(&timer2);
-	c2_timer_fini(&timer2);
-	if (verbose)
-		printf("timer2 thread exit\n");
-}
-
-void test_timer_soft(void)
-{
-	struct c2_thread t1 = { 0 };
-	struct c2_thread t2 = { 0 };
-	int rc;
-
-	verbose = 1;
-
-	printf("start timer testing... this takes about 20 seconds\n");
-	test_2_timers();
-
-	if (verbose)
-		printf("==================\nstart 2 timers in 2 threads ...\n");
-
-	count = 0;
-
-	rc = C2_THREAD_INIT(&t1, int, NULL, &timer1_thread, 0, "timer1_thread");
-	C2_ASSERT(rc == 0);
-	rc = C2_THREAD_INIT(&t2, int, NULL, &timer2_thread, 0, "timer2_thread");
-	C2_ASSERT(rc == 0);
-
-	c2_thread_join(&t1);
-	c2_thread_fini(&t1);
-	c2_thread_join(&t2);
-	c2_thread_fini(&t2);
-
-	if (verbose)
-		printf("end timer testing...\n");
-
-	verbose = 0;
-	return;
-}
+static struct c2_atomic64 callbacks_executed;
 
 static pid_t gettid()
 {
 	return syscall(SYS_gettid);
 }
 
-static unsigned long loc_default_callback(unsigned long data)
+static c2_time_t make_time(int ms)
+{
+	c2_time_t t;
+
+	c2_time_set(&t, ms / 1000, (ms % 1000) * 1000000);
+	return t;
+}
+
+static c2_time_t make_time_abs(int ms)
+{
+	return c2_time_add(c2_time_now(), make_time(ms));
+}
+
+static int time_rand_ms(int min_ms, int max_ms)
+{
+	return min_ms + (rand() * 1. / RAND_MAX) * (max_ms - min_ms);
+}
+
+static void sem_init_zero(struct c2_semaphore *sem)
+{
+	int rc = c2_semaphore_init(sem, 0);
+	C2_ASSERT(rc == 0);
+}
+
+static unsigned long timer_callback(unsigned long data)
+{
+	c2_atomic64_inc(&callbacks_executed);
+	return 0;
+}
+
+/**
+   Test timers.
+
+   @param timer_type timer type
+   @param nr_timers number of timers in this test
+   @param interval_min_ms minimum value for timer interval
+   @param interval_max_ms maximum value for timer interval
+	  for every timer it will be chosen with rand()
+	  in range [interval_min_ms, interval_max_ms]
+   @param wait_time_ms function will wait this time and then c2_time_stop()
+	  for all timers
+   @param callbacks_min @see callbacks_max
+   @param callbacks_max number of executed callbacks should be
+	  in the interval [callbacks_min, callbacks_max]
+	  (this is checked with C2_UT_ASSERT())
+ */
+static void test_timers(enum c2_timer_type timer_type, int nr_timers,
+		int interval_min_ms, int interval_max_ms,
+		int wait_time_ms, int callbacks_min, int callbacks_max)
+{
+	struct c2_timer *timers;
+	int		 i;
+	int		 time;
+	int		 rc;
+	c2_time_t	 zero_time;
+	c2_time_t	 wait;
+	c2_time_t	 rem;
+
+	c2_atomic64_set(&callbacks_executed, 0);
+	srand(0);
+	C2_ALLOC_ARR(timers, nr_timers);
+
+	/* c2_timer_init() */
+	for (i = 0; i < nr_timers; ++i) {
+		time = time_rand_ms(interval_min_ms, interval_max_ms);
+		rc = c2_timer_init(&timers[i], timer_type, 
+				make_time_abs(time),
+				timer_callback,
+				i);
+		C2_ASSERT(rc == 0);
+	}
+	/* c2_timer_start() */
+	for (i = 0; i < nr_timers; ++i) {
+		rc = c2_timer_start(&timers[i]);
+		C2_ASSERT(rc == 0);
+	}
+	/* wait some time */
+	c2_time_set(&zero_time, 0, 0);
+	wait = make_time(wait_time_ms);
+	do
+		c2_nanosleep(wait, &rem);
+	while ((wait = rem) != zero_time);
+	/* c2_timer_stop() */
+	for (i = 0; i < nr_timers; ++i) {
+		rc = c2_timer_stop(&timers[i]);
+		C2_ASSERT(rc == 0);
+	}
+	/* c2_timer_fini() */
+	for (i = 0; i < nr_timers; ++i) {
+		rc = c2_timer_fini(&timers[i]);
+		C2_UT_ASSERT(rc == 0);
+	}
+
+	c2_free(timers);
+
+	C2_UT_ASSERT(c2_atomic64_get(&callbacks_executed) >= callbacks_min);
+	C2_UT_ASSERT(c2_atomic64_get(&callbacks_executed) <= callbacks_max);
+}
+
+static unsigned long locality_default_callback(unsigned long data)
 {
 	C2_UT_ASSERT(gettid() == loc_default_tid);
 	c2_semaphore_up(&loc_default_lock);
 	return 0;
 }
 
-static void test_timer_locality_default()
+static void timer_locality_default_test()
 {
-	c2_time_t	expire;
 	int		rc;
 	struct c2_timer timer;
 
-	c2_time_set(&expire, 0, 100000000);	/* .1 sec */
-	expire = c2_time_add(c2_time_now(), expire);
-	rc = c2_timer_init(&timer, C2_TIMER_HARD, expire,
-			&loc_default_callback, 0);
+	rc = c2_timer_init(&timer, C2_TIMER_HARD, make_time_abs(100),
+			&locality_default_callback, 0);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_semaphore_init(&loc_default_lock, 0);
-	C2_ASSERT(rc == 0);
+	sem_init_zero(&loc_default_lock);
 
 	loc_default_tid = gettid();
 	rc = c2_timer_start(&timer);
@@ -248,77 +206,86 @@ static void test_timer_locality_default()
 	C2_ASSERT(rc == 0);
 
 	c2_semaphore_fini(&loc_default_lock);
-	c2_timer_fini(&timer);
+	rc = c2_timer_fini(&timer);
+	C2_UT_ASSERT(rc == 0);
 }
 
-static unsigned long many_callback(unsigned long data)
+static unsigned long locality_test_callback(unsigned long data)
 {
-	C2_ASSERT(data >= 0 && data < NR_TIMERS);
-	C2_ASSERT(many_pids[data] == gettid());
-	c2_semaphore_up(&many_finished[data]);
+	C2_ASSERT(data >= 0);
+	C2_ASSERT(test_locality_tid == gettid());
+	c2_semaphore_up(&test_locality_lock[data]);
 	return 0;
 }
 
-static void test_timer_many_timers(int timers_nr)
+static void timer_locality_test(int nr_timers,
+		int interval_min_ms, int interval_max_ms)
 {
 	int                      i;
 	int                      rc;
-	static struct c2_timer   timer[NR_TIMERS];
+	struct c2_timer		*timers;
 	struct c2_timer_locality loc;
-	c2_time_t		 expire;
+	int			 time;
 
-	C2_ASSERT(timers_nr <= NR_TIMERS);
+	C2_ALLOC_ARR(timers, nr_timers);
+	C2_ALLOC_ARR(test_locality_lock, nr_timers);
 
-	for (i = 0; i < timers_nr; ++i) {
-		c2_semaphore_init(&many_finished[i], 0);
-		many_pids[i] = gettid();
-	}
+	test_locality_tid = gettid();
+	for (i = 0; i < nr_timers; ++i)
+		sem_init_zero(&test_locality_lock[i]);
 
 	c2_timer_locality_init(&loc);
-	c2_timer_thread_attach(&loc);
-	c2_time_set(&expire, 0, 100000);
+	rc = c2_timer_thread_attach(&loc);
+	C2_ASSERT(rc == 0);
 
-	for (i = 0; i < timers_nr; ++i) {
-		rc = c2_timer_init(&timer[i], C2_TIMER_HARD, expire,
-				&many_callback, i);
+	/* c2_timer_init() */
+	for (i = 0; i < nr_timers; ++i) {
+		time = time_rand_ms(interval_min_ms, interval_max_ms);
+		rc = c2_timer_init(&timers[i], C2_TIMER_HARD,
+				make_time_abs(time),
+				&locality_test_callback, i);
 		C2_ASSERT(rc == 0);
-		rc = c2_timer_attach(&timer[i], &loc);
+		rc = c2_timer_attach(&timers[i], &loc);
 		C2_ASSERT(rc == 0);
 	}
 
-	for (i = 0; i < timers_nr; ++i)
-		c2_timer_start(&timer[i]);
+	/* c2_timer_start() */
+	for (i = 0; i < nr_timers; ++i) {
+		rc = c2_timer_start(&timers[i]);
+		C2_ASSERT(rc == 0);
+	}
 
-	for (i = 0; i < timers_nr; ++i)
-		c2_semaphore_down(&many_finished[i]);
+	for (i = 0; i < nr_timers; ++i)
+		c2_semaphore_down(&test_locality_lock[i]);
 
-	for (i = 0; i < timers_nr; ++i) {
-		c2_timer_stop(&timer[i]);
-		c2_timer_fini(&timer[i]);
-		c2_semaphore_fini(&many_finished[i]);
+	/* c2_timer_stop(), c2_timer_fini() */
+	for (i = 0; i < nr_timers; ++i) {
+		rc = c2_timer_stop(&timers[i]);
+		C2_ASSERT(rc == 0);
+		rc = c2_timer_fini(&timers[i]);
+		C2_UT_ASSERT(rc == 0);
+		c2_semaphore_fini(&test_locality_lock[i]);
 	}
 
 	c2_timer_thread_detach(&loc);
 	c2_timer_locality_fini(&loc);
-}
 
-static void sem_init_zero(struct c2_semaphore *sem)
-{
-	int rc = c2_semaphore_init(sem, 0);
-	C2_ASSERT(rc == 0);
+	c2_free(test_locality_lock);
+	c2_free(timers);
 }
 
 /*
- * It isn't safe to use C2_UT_ASSERT in signal handler code,
- * therefore instead of C2_UT_ASSERT used C2_ASSERT.
+   It isn't safe to use C2_UT_ASSERT() in signal handler code,
+   therefore instead of C2_UT_ASSERT() was used C2_ASSERT().
  */
 static unsigned long test_timer_callback_mt(unsigned long data)
 {
-	struct tg_timer *tgt = (struct tg_timer *) data;
+	struct tg_timer *tgt = (struct tg_timer *)data;
 	bool		 found = false;
 	pid_t		 tid = gettid();
 	int		 i;
 
+	C2_ASSERT(tgt != NULL);
 	/* check thread ID */
 	for (i = 0; i < NR_THREADS_TG; ++i)
 		if (tgt->tgt_group->tg_slaves[i].tgs_tid == tid) {
@@ -326,16 +293,19 @@ static unsigned long test_timer_callback_mt(unsigned long data)
 			break;
 		}
 	C2_ASSERT(found);
-	/* up tg_timer semaphore */
+	/* callback is done */
 	c2_semaphore_up(&tgt->tgt_done);
 	return 0;
 }
 
 static void test_timer_slave_mt(struct tg_slave *slave)
 {
+	int rc;
+
 	slave->tgs_tid = gettid();
 	/* add slave thread to locality */
-	c2_timer_thread_attach(&slave->tgs_group->tg_loc);
+	rc = c2_timer_thread_attach(&slave->tgs_group->tg_loc);
+	C2_ASSERT(rc == 0);
 	/* signal to master thread about init */
 	c2_semaphore_up(&slave->tgs_sem_init);
 
@@ -380,11 +350,11 @@ static void test_timer_master_mt(struct thread_group *tg)
 				(1 + rand_r(&tg->tg_seed) % 100) * 1000000);
 		tgt->tgt_expire = c2_time_add(c2_time_now(), tgt->tgt_expire);
 		/* init timer semaphore */
-		rc = c2_semaphore_init(&tgt->tgt_done, 0);
-		C2_ASSERT(rc == 0);
+		sem_init_zero(&tgt->tgt_done);
 		/* `unsigned long' must have enough space to contain `void*' */
 		C2_CASSERT(sizeof(unsigned long) >= sizeof(void *));
-		/* create timer.
+		/*
+		 * create timer.
 		 * parameter for callback is pointer to corresponding
 		 * `struct tg_timer'
 		 */
@@ -414,7 +384,8 @@ static void test_timer_master_mt(struct thread_group *tg)
 	}
 	/* fini() all timers */
 	for (i = 0; i < NR_TIMERS_TG; ++i) {
-		c2_timer_fini(&tg->tg_timers[i].tgt_timer);
+		rc = c2_timer_fini(&tg->tg_timers[i].tgt_timer);
+		C2_ASSERT(rc == 0);
 		c2_semaphore_fini(&tg->tg_timers[i].tgt_done);
 	}
 	/* resume all slaves */
@@ -422,7 +393,8 @@ static void test_timer_master_mt(struct thread_group *tg)
 		c2_semaphore_up(&tg->tg_slaves[i].tgs_sem_resume);
 	/* fini() all slave threads */
 	for (i = 0; i < NR_THREADS_TG; ++i) {
-		c2_thread_join(&tg->tg_threads[i]);
+		rc = c2_thread_join(&tg->tg_threads[i]);
+		C2_ASSERT(rc == 0);
 		c2_thread_fini(&tg->tg_threads[i]);
 	}
 	/* fini() thread group locality */
@@ -436,28 +408,30 @@ static void test_timer_master_mt(struct thread_group *tg)
 	c2_semaphore_up(&tg->tg_sem_done);
 }
 
-/*
- * this (main) thread		master threads		slave threads
- * start all masters
- * wait for masters init
- *				init slaves
- *				wait for all slaves
- *							attach to locality
- *				barrier with slaves	barrier with master
- *				sync with main
- *				wait for all masters
- * barrier with all masters	barrier with main
- *				init all timers
- *				run all timers
- *				fini() all timers
- *				barrier with slaves	barrier with master
- *							detach from locality
- *							exit from thread
- *				wait for slaves
- *					termination
- * barrier with all masters	barrier with main
- *				exit from thread
- * wait for masters termination
+/**
+   @verbatim
+   this (main) thread		master threads		slave threads
+   start all masters
+   wait for masters init
+				init slaves
+				wait for all slaves
+							attach to locality
+				barrier with slaves	barrier with master
+				sync with main
+				wait for all masters
+   barrier with all masters	barrier with main
+				init all timers
+				run all timers
+				fini() all timers
+				barrier with slaves	barrier with master
+							detach from locality
+							exit from thread
+				wait for slaves
+					termination
+   barrier with all masters	barrier with main
+				exit from thread
+   wait for masters termination
+   @endverbatim
  */
 static void test_timer_many_timers_mt()
 {
@@ -502,25 +476,35 @@ static void test_timer_many_timers_mt()
 		c2_semaphore_fini(&tg[i].tg_sem_resume);
 		c2_semaphore_fini(&tg[i].tg_sem_done);
 
-		c2_thread_join(&tg[i].tg_master);
+		rc = c2_thread_join(&tg[i].tg_master);
+		C2_ASSERT(rc == 0);
 		c2_thread_fini(&tg[i].tg_master);
 	}
 }
 
-void test_timer_hard(void)
-{
-	int timer;
-
-	test_timer_locality_default();
-	for (timer = 1; timer <= NR_TIMERS; ++timer)
-		test_timer_many_timers(timer);
-	test_timer_many_timers_mt();
-}
-
 void test_timer(void)
 {
-	// test_timer_soft();
-	test_timer_hard();
+	int		   i;
+	int		   j;
+	enum c2_timer_type timer_types[2] = {C2_TIMER_SOFT, C2_TIMER_HARD};
+
+	/* soft and hard timers tests */
+	for (j = 0; j < 2; ++j)
+		for (i = 1; i < NR_TIMERS; ++i) {
+			/* simple test */
+			test_timers(timer_types[j], i, 0, 10, 5, 0, i);
+			/* zero-time test */
+			test_timers(timer_types[j], i, 0, 0, 50, i, i);
+			/* cancel-timer-before-callback-executed test */
+			test_timers(timer_types[j], i, 10000, 10000, 50, 0, 0);
+		}
+	/* simple hard timer default locality test */
+	timer_locality_default_test();
+	/* test many hard timers in locality */
+	for (i = 1; i < NR_TIMERS; ++i)
+		timer_locality_test(i, 10, 30);
+	/* hard timer test in multithreaded environment */
+	test_timer_many_timers_mt();
 }
 
 /*
