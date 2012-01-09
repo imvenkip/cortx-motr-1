@@ -65,6 +65,10 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 	dp->xd_dom = dom;
 
 	rc = nlx_core_dom_init(dom, &dp->xd_core);
+	if (rc != 0) {
+		c2_free(dp);
+		dom->nd_xprt_private = NULL;
+	}
 	C2_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
 	return rc;
 }
@@ -125,12 +129,13 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 
 static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_buffer *bp;
 	int rc;
 
 	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
 	C2_PRE(nb->nb_xprt_private == NULL);
+	dp = nb->nb_dom->nd_xprt_private;
 	C2_ALLOC_PTR(bp);
 	if (bp == NULL)
 		return -ENOMEM;
@@ -138,16 +143,22 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	bp->xb_nb = nb;
 
 	rc = nlx_core_buf_register(&dp->xd_core, nb, &bp->xb_core);
+	if (rc != 0) {
+		c2_free(bp);
+		nb->nb_xprt_private = NULL;
+	}
 	C2_POST(nlx_buffer_invariant(nb));
 	return rc;
 }
 
 static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
+	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
 	C2_PRE(nlx_buffer_invariant(nb));
+	dp = nb->nb_dom->nd_xprt_private;
 
 	nlx_core_buf_deregister(&dp->xd_core, &bp->xb_core);
 }
