@@ -1354,9 +1354,9 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                                 break;
                         }
 
-                	stio->si_opcode = SIO_WRITE;
+                        stio->si_opcode = SIO_WRITE;
                 } else {
-                	stio->si_opcode = SIO_READ;
+                        stio->si_opcode = SIO_READ;
                 }
                 stio->si_user = nb->nb_buffer;
 
