@@ -144,11 +144,11 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 
 	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
 	C2_PRE(nb->nb_xprt_private == NULL);
+	C2_PRE(nlx_xo_buffer_size_in_bounds(nb));
+
 	C2_ALLOC_PTR(bp);
 	if (bp == NULL)
 		return -ENOMEM;
-	if (!nlx_xo_buffer_size_in_bounds(nb))
-		return -EFBIG;
 	nb->nb_xprt_private = bp;
 	bp->xb_nb = nb;
 
