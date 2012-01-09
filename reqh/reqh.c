@@ -210,7 +210,7 @@ bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 	return c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) == 0;
 }
 
-static struct c2_reqh_service *get_reqh_service(const char *service_name, 
+static struct c2_reqh_service *get_reqh_service(const char *service_name,
                                                const struct c2_reqh *reqh)
 {
         struct c2_reqh_service        *service = NULL;
