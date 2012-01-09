@@ -66,7 +66,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	}
 
 	if (rc == 0)
-		rc = nlx_core_tm_start(tm, ctp, &ctp->ctm_addr);
+		rc = nlx_core_tm_start(tm, ctp, &ctp->ctm_addr, &tmev.nte_ep);
 
 	/*
 	  Deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
@@ -74,12 +74,10 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	  Set the transfer machine's end point in the event on success.
 	 */
 	if (rc != 0) {
+		tmev.nte_next_state = C2_NET_TM_STARTED;
+	} else {
 		tmev.nte_next_state = C2_NET_TM_FAILED;
 		tmev.nte_status = rc;
-	} else {
-		tmev.nte_next_state = C2_NET_TM_STARTED;
-		C2_ASSERT(tm->ntm_ep != NULL);
-		tmev.nte_ep = tm->ntm_ep;
 	}
 	tmev.nte_time = c2_time_now();
 	tm->ntm_ep = NULL;
