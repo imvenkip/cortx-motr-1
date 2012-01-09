@@ -954,8 +954,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
         /**
-         * Get buffer pool if not got yet. Once it set
-         * this will not required again in FOM life time.
+         * Cache buffer pool pointer with FOM object.
          */
         if (fom_obj->fcrw_bp == NULL) {
                 struct c2_reqh_io_service    *serv_obj;
