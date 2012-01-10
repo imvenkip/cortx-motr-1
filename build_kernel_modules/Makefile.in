@@ -22,8 +22,8 @@ EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR)
 
 #	The $(dirs) list is maintained alphabetically
 
-dirs = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid fol \
-	fop  galois ioservice layout lib lib/linux_kernel lib/ut net 		\
+dirs  = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid fol \
+	fop galois ioservice layout lib lib/linux_kernel lib/ut net 		\
 	net/bulk_emulation net/bulk_emulation/ut net/ksunrpc net/ut pool rpc sm \
 	sns stob stob/ut xcode
 
@@ -165,6 +165,14 @@ all:
 #		done
 #	done
 
+# XXX:
+# The galois directory in core/ is redundant. We dont require any files in it
+# but due to structure of build process it is required to be present so that links
+# can be created. The build process creates the directory during build process,
+# and removes the directory during clean.
+
+	$(foreach d, "galois", $(shell  [[ -d $(d) ]] || mkdir -p 		\
+		$(CORE_SRCDIR)/$(d)))
 	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),   	\
 		$(create_links)))
@@ -174,6 +182,7 @@ all:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
 clean distclean:
+	$(shell rm -rf $(CORE_SRCDIR)/galois)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
 	$(RM) Module.markers modules.order
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
