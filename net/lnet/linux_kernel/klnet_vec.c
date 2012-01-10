@@ -38,11 +38,13 @@
  */
 static unsigned bufvec_seg_page_count(const struct c2_bufvec *bvec, unsigned n)
 {
-	c2_bcount_t seg_len = bvec->ov_vec.v_count[n];
-	void *seg_addr = bvec->ov_buf[n];
+	c2_bcount_t seg_len;
+	void *seg_addr;
 	unsigned npages;
 
 	C2_ASSERT(n < bvec->ov_vec.v_nr);
+	seg_len  = bvec->ov_vec.v_count[n];
+	seg_addr = bvec->ov_buf[n];
 
 	/* npages = last_page_num - first_page_num + 1 */
 	npages = (uint64_t)(seg_addr + seg_len - 1) / PAGE_SIZE -
@@ -63,12 +65,12 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
 				       unsigned n,
 				       lnet_kiov_t *kiov)
 {
-	c2_bcount_t seg_len = bvec->ov_vec.v_count[n];
 	unsigned num_pages  = bufvec_seg_page_count(bvec, n);
+	c2_bcount_t seg_len = bvec->ov_vec.v_count[n];
 	uint64_t seg_addr   = (uint64_t) bvec->ov_buf[n];
 	int pnum;
 
-	for (pnum = 0; pnum < num_pages; pnum++) {
+	for (pnum = 0; pnum < num_pages; ++pnum) {
 		uint64_t offset = seg_addr % PAGE_SIZE;
 		uint64_t len    = PAGE_SIZE - offset;
 		struct page *pg;
@@ -94,7 +96,7 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
    a bufvec containing kernel logical addresses.
    @param kb Kcore buffer private pointer
    @param bufvec Vector with kernel logical addresses.
-   @retval -EINVAL if the IO vector is too large.
+   @retval -EFBIG if the IO vector is too large.
  */
 int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 				 const struct c2_bufvec *bvec)
@@ -107,7 +109,7 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 
 	/* compute the number of pages required */
 	num_pages = 0;
-	for (i = 0; i < bvec->ov_vec.v_nr; i++)
+	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
 		num_pages += bufvec_seg_page_count(bvec, i);
 	C2_ASSERT(num_pages > 0);
 	if (num_pages > LNET_MAX_IOV)
@@ -121,7 +123,7 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 
 	/* fill in the kiov elements */
 	knum = 0;
-	for (i=0; i < bvec->ov_vec.v_nr; i++)
+	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
 		knum += bufvec_seg_kla_to_kiov(bvec, i, &kb->kb_kiov[knum]);
 	C2_POST(knum == num_pages);
 
