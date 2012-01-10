@@ -207,6 +207,11 @@ enum {
 };
 C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
 
+/* Magic numbers */
+enum {
+	C2_NET_LNET_CORE_BUF_MAGIC = 0x436f7265427566ULL, /* CoreBuf */
+};
+
 /**
    Buffer events are linked in the buffer queue using this structure. It is
    designed to be operated upon from either kernel or user space with a single
@@ -331,6 +336,8 @@ struct nlx_core_transfer_mc {
    Core buffer data.  The transport layer should embed this in its private data.
  */
 struct nlx_core_buffer {
+	uint64_t                cb_magic;
+
 	/**
 	   The address of the c2_net_buffer structure in the transport address
 	   space. The value is set by the nlx_core_buffer_register()
@@ -600,11 +607,13 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
    lcpea_tmid field value is C2_NET_LNET_TMID_INVALID then a transfer machine
    identifier is dynamically assigned to the transfer machine and returned
    in this structure itself.
+   @param epp The end point resulting from starting the TM is returned here.
    @note There is no equivalent of the xo_tm_init() subroutine.
  */
 static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 			     struct nlx_core_transfer_mc *lctm,
-			     struct nlx_core_ep_addr *cepa);
+			     struct nlx_core_ep_addr *cepa,
+			     struct c2_net_end_point **epp);
 
 /**
    Stops the transfer machine and release associated resources.  All operations

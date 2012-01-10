@@ -771,6 +771,7 @@
   so that the order of their definition does not matter.
  */
 #include "net/lnet/bev_cqueue.c"
+#include "net/lnet/lnet_core.c"
 #ifdef __KERNEL__
 #include "net/lnet/linux_kernel/klnet_core.c"
 #else
