@@ -816,6 +816,23 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
 }
 
 /**
+ * Align address.
+ * This function align bufvec &  indexvec.
+ */
+void io_fom_cob_rw_align_bufvec (struct c2_bufvec *buf, uint32_t bshift)
+{
+        int             i;
+
+        /* Align bufvec */
+        for (i = 0; i < buf->ov_vec.v_nr; i++) {
+                buf->ov_vec.v_count[i]
+                = buf->ov_vec.v_count[i] >> bshift;
+                buf->ov_buf[i]
+                = c2_stob_addr_pack(buf->ov_buf[i], bshift);
+        }
+}
+
+/**
  * Allocate I/O FOM and return generic struct c2_fom
  *
  * @param t file operation machine type need to process
@@ -836,8 +853,6 @@ static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **out)
         C2_ALLOC_PTR(fom_obj);
         if (fom_obj == NULL) {
                 rc = -ENOMEM;
-                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                            c2_addb_oom);
                 return rc;
         }
         fom = &fom_obj->fcrw_gen;
@@ -876,25 +891,23 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
         fomtype = fop->f_type->ft_fom_type;
         rc = fomtype.ft_ops->fto_create(&(fop->f_type->ft_fom_type), out);
         if (rc != 0) {
-            C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                        c2_addb_func_fail, "c2_io_fom_cob_rw_init", rc);
             return rc;
         }
 
         fom = *out;
+        fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
         c2_fom_init(fom);
         fom->fo_fop = fop;
 
         C2_ASSERT(c2_is_io_fop(fop));
 
-        if (c2_is_read_fop(fop))
-                fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt,
-                                               NULL);
-        else
-                fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt,
-                                               NULL);
+	fom->fo_rep_fop = c2_is_read_fop(fop) ?
+			     c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL) :
+			     c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
+
         if (fom->fo_rep_fop == NULL) {
+                c2_fom_fini(fom);
                 c2_free(fom_obj);
                 rc = -ENOMEM;
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
@@ -902,18 +915,18 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
                 return rc;
         }
 
-        fom_obj = container_of(*out, struct c2_io_fom_cob_rw, fcrw_gen);
-
         fom_obj->fcrw_stob = NULL;
 
         rwfop = io_rw_get(fop);
-        fom_obj->fcrw_ndesc = rwfop->crw_desc.id_nr;
-        fom_obj->fcrw_curr_desc_index = 0;
-        fom_obj->fcrw_curr_ivec_index = 0;
-        fom_obj->fcrw_batch_size = 0;
-        fom_obj->fcrw_bytes_transfered = 0;
+
+        fom_obj->fcrw_ndesc               = rwfop->crw_desc.id_nr;
+        fom_obj->fcrw_curr_desc_index     = 0;
+        fom_obj->fcrw_curr_ivec_index     = 0;
+        fom_obj->fcrw_batch_size          = 0;
+        fom_obj->fcrw_bytes_transfered    = 0;
         fom_obj->fcrw_num_stobio_launched = 0;
-        fom_obj->fcrw_bp = NULL;
+        fom_obj->fcrw_bp                  = NULL;
+
         c2_chan_init(&fom_obj->fcrw_wait);
         netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
         stobio_tlist_init(&fom_obj->fcrw_stio_list);
@@ -1359,6 +1372,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 }
                 stio->si_user = nb->nb_buffer;
 
+                io_fom_cob_rw_align_bufvec(&stio->si_user, bshift);
                 c2_clink_add(&stio->si_wait, &stio_desc->siod_clink);
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
