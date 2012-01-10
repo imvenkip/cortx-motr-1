@@ -26,7 +26,8 @@
 
 static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *cb)
 {
-	return cb != NULL && cb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC;
+	return cb != NULL && cb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC &&
+		cb->cb_buffer_id != 0;
 }
 
 /**

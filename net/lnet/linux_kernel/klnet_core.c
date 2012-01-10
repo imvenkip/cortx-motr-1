@@ -743,6 +743,18 @@ C2_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
 C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 
 /**
+   KCore buffer invariant.
+*/
+static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
+{
+	if (kcb == NULL)
+		return false;
+	if (kcb->kb_magic != C2_NET_LNET_KCORE_BUF_MAGIC)
+		return false;
+	return true;
+}
+
+/**
    Tests if the specified address is in use by a running TM.
    @note the nlx_kcore_mutex must be locked by the caller
  */
@@ -906,14 +918,17 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_ALLOC_PTR(kb);
 	if (kb == NULL)
 		return -ENOMEM;
+	kb->kb_magic = C2_NET_LNET_KCORE_BUF_MAGIC;
 	rc = nlx_kcore_buffer_kla_to_kiov(kb, bvec);
 	if (rc != 0)
 		goto fail_free_kb;
 	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
 	LNetInvalidateHandle(&kb->kb_mdh);
-	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
 	lcbuf->cb_kpvt      = kb;
 	lcbuf->cb_buffer_id = buffer_id;
+	lcbuf->cb_magic     = C2_NET_LNET_CORE_BUF_MAGIC;
+	C2_POST(nlx_core_buffer_invariant(lcbuf));
+	C2_POST(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
 	return 0;
 
  fail_free_kb:
@@ -927,14 +942,15 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 {
 	struct nlx_kcore_buffer *kb;
 
-	C2_PRE(lcbuf->cb_kpvt != NULL);
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	kb = lcbuf->cb_kpvt;
-	C2_PRE(kb->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
+	C2_PRE(nlx_kcore_buffer_invariant(kb));
 	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
 	kb->kb_magic = 0;
 	c2_free(kb->kb_kiov);
 	c2_free(kb);
 	lcbuf->cb_kpvt = 0;
+	lcbuf->cb_magic = 0;
 	return;
 }
 

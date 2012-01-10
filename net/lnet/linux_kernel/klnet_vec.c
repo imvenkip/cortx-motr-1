@@ -85,6 +85,8 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
 		kiov[pnum].kiov_len    = len;
 		kiov[pnum].kiov_offset = offset;
 
+		/** @todo kmap(seg_addr) with kunmap on deregister? */
+
 		seg_addr += len;
 		seg_len  -= len;
 	}
@@ -105,6 +107,7 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	unsigned num_pages;
 	unsigned knum;
 
+	C2_PRE(nlx_kcore_buffer_invariant(kb));
 	C2_PRE(kb->kb_kiov == NULL && kb->kb_kiov_len == 0);
 
 	/* compute the number of pages required */

@@ -109,6 +109,7 @@ struct nlx_kcore_buffer {
 	lnet_handle_md_t              kb_mdh;
 };
 
+static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
 
