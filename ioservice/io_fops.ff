@@ -43,6 +43,9 @@
  *
  */
 
+FOPDEP("net/net_otw_types.ff");
+FOPDEP("addb/addb.ff");
+
 /**
  * @section IO FOP Definitions
  */
@@ -101,12 +104,52 @@ DEF(c2_fop_cob_readv_rep, RECORD,
 	_(c_iobuf, c2_fop_io_buf));
 
 /**
+ * Represents the extent information for an io segment.
+ */
+DEF(c2_ioseg, RECORD,
+	_(ci_index, U64),
+	_(ci_count, U64));
+
+/**
+ * Represents the index vector along with extent information for given IO
+ * request.
+ */
+DEF(c2_io_indexvec, SEQUENCE,
+	_(ci_nr, U32),
+	_(ci_iosegs, c2_ioseg));
+
+/**
+ * Represents sequence of index vector, one per network buffer.
+ * As a result of io coalescing, there could be multiple network
+ * buffers associated with an io fop. Hence a SEQUENCE of c2_io_indexvec
+ * is needed, one per network buffer.
+ */
+DEF(c2_io_indexvec_seq, SEQUENCE,
+	_(cis_nr, U32),
+	_(cis_ivecs, c2_io_indexvec));
+
+/**
+ * Sequence of net buf desc that can be accommodated in single io fop.
+ * As a result of io coalescing, there could be multiple network
+ * buffers associated with an io fop. Hence a SEQUENCE of c2_net_buf_desc
+ * is needed.
+ */
+DEF(c2_io_descs, SEQUENCE,
+	_(id_nr, U32),
+	_(id_descs, c2_net_buf_desc));
+
+/**
  * Common structure for read and write request fops.
  */
 DEF(c2_fop_cob_rw, RECORD,
 	/** File identifier of read/write request. */
 	_(crw_fid, c2_fop_file_fid),
-	/** IO vector containing read/write data. */
+	/** Net buf descriptors representing the c2_net_buffer containing
+	    the IO buffers. */
+	_(crw_desc, c2_io_descs),
+	/** Index vectors representing the extent information for the
+	    IO request. */
+	_(crw_ivecs, c2_io_indexvec_seq),
 	_(crw_iovec, c2_fop_io_vec),
 	/** Miscellaneous flags. */
 	_(crw_flags, U64));
@@ -146,6 +189,17 @@ DEF(c2_fop_cob_writev_rep, RECORD,
 DEF(c2_fop_cob_writev, RECORD,
 	/** Common definition of read/write fops. */
 	_(c_rwv, c2_fop_cob_rw));
+
+/**
+ * Fops referring other remote fops (not present in this file).
+ */
+DEF(c2_test_ios_fop, RECORD,
+	_(if_st, U64),
+	_(if_nbd, c2_net_buf_desc));
+
+DEF(c2_test_io_addb, RECORD,
+	_(if_st, U64),
+	_(if_addb, c2_addb_record));
 
 /** @} end of FOP_data_ops */
 

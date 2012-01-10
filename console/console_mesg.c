@@ -38,7 +38,7 @@ void c2_cons_mesg_name_print(const struct c2_cons_mesg *mesg)
 }
 
 /**
- * @brief Prints names of FOP memebers.
+ * @brief Prints names of FOP members.
  */
 static void mesg_show(struct c2_fop *fop)
 {
@@ -51,7 +51,7 @@ static void mesg_show(struct c2_fop *fop)
 }
 
 /**
- * @brief Assignes values to FOP members using FOP iterator.
+ * @brief Assigns values to FOP members using FOP iterator.
  */
 static void mesg_input(struct c2_fop *fop)
 {
@@ -78,7 +78,6 @@ int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline)
 	mesg->cm_fop = fop;
 	/* Init fop by input from console or yaml file */
 	mesg_input(fop);
-
 
 	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;

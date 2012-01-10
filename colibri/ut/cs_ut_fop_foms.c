@@ -61,7 +61,6 @@ static const struct c2_fop_type_ops cs_ds1_req_fop_type_ops = {
         .fto_fom_init = cs_req_fop_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
@@ -70,7 +69,6 @@ static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
@@ -80,7 +78,6 @@ static const struct c2_fop_type_ops cs_ds2_req_fop_type_ops = {
         .fto_fom_init = cs_req_fop_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
@@ -89,7 +86,6 @@ static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
         .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
@@ -128,7 +124,7 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 	struct c2_fop *rep_fop;
 
         C2_PRE(item != NULL);
-        C2_PRE(c2_chan_has_waiters(&item->ri_chan));
+	C2_PRE(c2_chan_has_waiters(&item->ri_chan));
 
 	req_fop = c2_rpc_item_to_fop(item);
 	rep_fop = c2_rpc_item_to_fop(item->ri_reply);

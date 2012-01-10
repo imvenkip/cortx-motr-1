@@ -35,7 +35,7 @@
 
 /**
  * @struct c2_cons_atom_ops
- * @brief operatoin to get/set values of ATOM type(i.e. CHAR, U64 etc).
+ * @brief operatoin to get/set values of ATOM type (i.e. CHAR, U64 etc).
  */
 struct c2_cons_atom_ops {
 	void (*catom_get_val)(const struct c2_fop_field_type *ftype,

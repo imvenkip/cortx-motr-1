@@ -34,7 +34,7 @@
 /** Descriptor for the tlist of buffers. */
 C2_TL_DESCR_DEFINE(pool, "net_buffer_pool", ,
 		   struct c2_net_buffer, nb_lru, nb_magic,
-		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(pool, , struct c2_net_buffer);
 C2_EXPORTED(pool_tl);
 
@@ -230,7 +230,7 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);
 	C2_PRE(pool->nbp_ndom == buf->nb_dom);
 
-	C2_ASSERT(buf->nb_magic == NET_BUFFER_LINK_MAGIC);
+	C2_ASSERT(buf->nb_magic == C2_NET_BUFFER_LINK_MAGIC);
 	C2_ASSERT(!pool_tlink_is_in(buf));
 	if (colour != ~0) {
 		C2_ASSERT(!tm_tlink_is_in(buf));
