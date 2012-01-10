@@ -38,11 +38,17 @@ const char			*db_name = "./__s";;
 const int			MAX = 100;
 
 enum balloc_io_flags {
-	BALLOC_IO_DIRECT = 0,
-	BALLOC_IO_BUFFERED = 12
+	BALLOC_IO_DIRECT_BSHIFT   = 0,
+	BALLOC_IO_BUFFERED_BSHIFT = 12
 };
 
-int balloc_ops(int io_flag)
+enum {
+	BALLOC_UT_CONTAINER_SIZE  = 4096ULL * 1024 * 1024 * 1000, // = 400GB
+	BALLOC_UT_GROUP_SIZE      = 128 * 1024 * 1024, // = ext4 group size
+	BALLOC_UT_RESERVED_GROUPS = 2
+};
+
+int test_balloc_ut_ops(int io_flag)
 {
 	struct c2_dbenv		db;
 	struct c2_dtx		dtx;
@@ -61,7 +67,8 @@ int balloc_ops(int io_flag)
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
 		(&colibri_balloc.cb_ballroom, &db, io_flag,
-		 4096ULL * 1024 * 1024 * 1000, 128 * 1024 * 1024, 2);
+		 BALLOC_UT_CONTAINER_SIZE, BALLOC_UT_GROUP_SIZE,
+		 BALLOC_UT_RESERVED_GROUPS);
 
 	for (i = 0; i < MAX && result == 0; i++ ) {
 		do  {
@@ -76,15 +83,16 @@ int balloc_ops(int io_flag)
 		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc
 			(&colibri_balloc.cb_ballroom, &dtx, count, &tmp);
 		ext[i] = tmp;
-
+#ifdef BALLOC_DEBUG
 		printf("%3d:rc = %d: requested count=%5d, result count=%5d:"
 		       " [%08llx,%08llx)=[%8llu,%8llu)\n",
-			i, result, (int)count,
-			(int)c2_ext_length(&ext[i]),
-			(unsigned long long)ext[i].e_start,
-			(unsigned long long)ext[i].e_end,
-			(unsigned long long)ext[i].e_start,
-			(unsigned long long)ext[i].e_end);
+		       i, result, (int)count,
+		       (int)c2_ext_length(&ext[i]),
+		       (unsigned long long)ext[i].e_start,
+		       (unsigned long long)ext[i].e_end,
+		       (unsigned long long)ext[i].e_start,
+		       (unsigned long long)ext[i].e_end);
+#endif
 		if (result == 0)
 			c2_db_tx_commit(&dtx.tx_dbtx);
 		else
@@ -125,14 +133,15 @@ int balloc_ops(int io_flag)
 		if (ext[i].e_start != 0)
 			result = colibri_balloc.cb_ballroom.ab_ops->bo_free
 				(&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
-
+#ifdef BALLOC_DEBUG
 		printf("%3d:rc = %d: freed:                          "
 		       "len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
-			i, result, (int)c2_ext_length(&ext[i]),
-			(unsigned long long)ext[i].e_start,
-			(unsigned long long)ext[i].e_end,
-			(unsigned long long)ext[i].e_start,
-			(unsigned long long)ext[i].e_end);
+		       i, result, (int)c2_ext_length(&ext[i]),
+		       (unsigned long long)ext[i].e_start,
+		       (unsigned long long)ext[i].e_end,
+		       (unsigned long long)ext[i].e_start,
+		       (unsigned long long)ext[i].e_end);
+#endif
 		if (result == 0)
 			c2_db_tx_commit(&dtx.tx_dbtx);
 		else
@@ -170,7 +179,7 @@ int balloc_ops(int io_flag)
 
 	c2_dbenv_fini(&db);
 
-	printf("done. status = %d\n", result);
+	//printf("done. status = %d\n", result);
 	return result;
 }
 
@@ -178,18 +187,18 @@ void test_balloc()
 {
 	int result;
 
-	result = balloc_ops(BALLOC_IO_BUFFERED);
+	result = test_balloc_ut_ops(BALLOC_IO_BUFFERED_BSHIFT);
 	C2_UT_ASSERT(result == 0);
 
 	/* The blocksize in superblock needs to be changed.
-	 * so we delete the database directory due to which a new
+	 * So we delete the database directory due to which a new
 	 * directory will be created and eventually the superblock.
 	 */
 
 	result = system("rm -fr ./__s");
 	C2_UT_ASSERT(result == 0);
 
-	result = balloc_ops(BALLOC_IO_DIRECT);
+	result = test_balloc_ut_ops(BALLOC_IO_DIRECT_BSHIFT);
 	C2_UT_ASSERT(result == 0);
 }
 
@@ -198,7 +207,7 @@ const struct c2_test_suite balloc_ut = {
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-                { "balloc-test", test_balloc},
+                { "balloc", test_balloc},
 		{ NULL, NULL }
         }
 };

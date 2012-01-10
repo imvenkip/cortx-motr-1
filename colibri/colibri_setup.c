@@ -70,6 +70,12 @@ enum {
 	WAIT_FOR_REQH_SHUTDOWN = 1000000,
 };
 
+enum {
+	CS_CONTAINER_SIZE  = 4096ULL * 1024 * 1024 * 1000, // = 400GB
+	CS_GROUP_SIZE      = 128 * 1024 * 1024, // = ext4 group size
+	CS_RESERVED_GROUPS = 2
+};
+
 extern const struct c2_tl_descr c2_rstypes_descr;
 extern struct c2_tl c2_rstypes;
 extern struct c2_mutex c2_rstypes_mutex;
@@ -812,9 +818,8 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 
 	if (strcasecmp(stob_type, cs_stobs[AD_STOB]) == 0)
 		rc = cs_ad_stob_init(stob_path, stob, db, &bstore,
-				     4096ULL * 1024 * 1024 * 1000,
-				     128 * 1024 * 1024, 2);
-
+				     CS_CONTAINER_SIZE, CS_GROUP_SIZE,
+				     CS_RESERVED_GROUPS);
 	if (rc != 0)
 		goto cleanup;
 
