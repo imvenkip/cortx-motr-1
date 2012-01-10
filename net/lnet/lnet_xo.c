@@ -130,7 +130,7 @@ static bool nlx_xo_buffer_size_in_bounds(const struct c2_net_buffer *nb)
 	if (v->v_nr > nlx_xo_get_max_buffer_segments(nb->nb_dom))
 		return false;
 	max_seg_size = nlx_xo_get_max_buffer_segment_size(nb->nb_dom);
-	for (i=0; i < v->v_nr; i++)
+	for (i = 0; i < v->v_nr; ++i)
 		if (v->v_count[i] > max_seg_size)
 			return false;
 	return true;

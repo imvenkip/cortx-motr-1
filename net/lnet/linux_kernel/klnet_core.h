@@ -100,7 +100,7 @@ struct nlx_kcore_buffer {
 	struct nlx_kcore_transfer_mc *kb_ktm;
 
 	/** The LNet I/O vector. */
-	lnet_kiov_t                   *kb_kiov;
+	lnet_kiov_t                  *kb_kiov;
 
 	/** The number of elements in kb_kiov */
 	size_t                        kb_kiov_len;
