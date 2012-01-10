@@ -737,7 +737,7 @@
  */
 
 #ifdef __KERNEL__
-#include "lustre_config.h" /* required by lnet/types.h */
+#include "net/linux_kernel/lustre_config.h" /* required by lnet/types.h */
 /* lustre config defines package macros also defined by c2 config */
 #undef PACKAGE
 #undef PACKAGE_BUGREPORT
@@ -771,6 +771,7 @@
   so that the order of their definition does not matter.
  */
 #include "net/lnet/bev_cqueue.c"
+#include "net/lnet/lnet_core.c"
 #ifdef __KERNEL__
 #include "net/lnet/linux_kernel/klnet_core.c"
 #else

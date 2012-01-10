@@ -652,15 +652,14 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
    @param q buffer event queue to initialise
    @param ql1 the first element in the new queue
    @param ql2 the second element in the new queue
-   @pre q != NULL && ql1 != NULL && ql2 != NULL
+   @pre q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL
    @post bev_cqueue_invariant(q)
  */
 static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,
 			    struct nlx_core_bev_link *ql2)
 {
-	C2_SET0(q);
-
+	C2_PRE(q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL);
 	/* special case: add first element to the circular queue */
 	C2_ASSERT(ql1->cbl_p_self != 0);
 	ql1->cbl_c_self = (nlx_core_opaque_ptr_t) ql1;

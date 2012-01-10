@@ -15,13 +15,16 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ *                  Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 1/4/2012
  */
 
-#include "lib/cdefs.h"
+#include "net/lnet/lnet_main.c"
 #include "lib/ut.h"
 
-#include "net/lnet/lnet.h"
+#ifdef __KERNEL__
+#include "net/lnet/ut/linux_kernel/klnet_ut.c"
+#endif
 
 static void test_tm_initfini(void)
 {
@@ -71,6 +74,9 @@ const struct c2_test_suite c2_net_lnet_ut = {
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
+#ifdef __KERNEL__
+		{ "net_lnet_buf_shape (K)", ktest_buf_shape },
+#endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
                 { "net_lnet_ep",            test_ep },

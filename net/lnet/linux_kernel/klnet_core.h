@@ -37,7 +37,7 @@
 
 enum {
 	C2_NET_LNET_KCORE_TM_MAGIC  = 0x4b436f7265544dULL,   /* KCoreTM */
-	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL,   /* KCoreTMs */
+	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL, /* KCoreTMs */
 	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
 	C2_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */
 	C2_NET_LNET_EQ_SIZE         = 8,  /**< Size of LNet event queue. */

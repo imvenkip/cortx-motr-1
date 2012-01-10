@@ -361,9 +361,9 @@
    non-blocking. Given that the circular queue assumes a single producer and
    single consumer, a spin lock is used to serialize access to the queue.
 
-   The event callback requires that the MD @c user_ptr field be set up to point
-   to the nlx_core_buffer data structure.  The callback subroutine does the
-   following:
+   The event callback requires that the MD @c user_ptr field be set up to the
+   kernel address of the nlx_core_buffer data structure.  The callback
+   subroutine does the following:
 
    -# It will ignore @c LNET_EVENT_SEND events delivered as a result of
       a @c LNetGet() call.
@@ -439,7 +439,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_kcore_buffer in the
+      - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c threshold value to the nlx_kcore_buffer::kb_max_recv_msgs
@@ -462,7 +462,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_kcore_buffer in the
+      - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
@@ -497,7 +497,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_kcore_buffer in the
+      - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field, along with either
@@ -523,7 +523,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_kcore_buffer in the
+      - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
@@ -828,7 +828,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 
 	C2_PRE(event != NULL && event->type != LNET_EVENT_ACK);
 	cbp = event->md.user_ptr;
-	C2_ASSERT(cbp != NULL);
+	C2_ASSERT(nlx_core_buffer_invariant(cbp));
 	kbp = cbp->cb_kpvt;
 	C2_ASSERT(kbp != NULL && kbp->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
 	ktm = kbp->kb_ktm;
@@ -1044,7 +1044,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	if (cp == NULL)
 		return -EINVAL;
 	n = cp - ep_addr;
-	if (n >= sizeof nidstr)
+	if (n == 0 || n >= sizeof nidstr)
 		return -EINVAL;
 	strncpy(nidstr, ep_addr, n);
 	nidstr[n] = 0;
@@ -1074,39 +1074,33 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 			     struct nlx_core_ep_addr *cepa,
 			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
 {
-	char *cp = libcfs_nid2str(cepa->cepa_nid);
-	int n;
+	const char *cp = libcfs_nid2str(cepa->cepa_nid);
+	const char *fmt;
 
-	n = snprintf(buf, C2_NET_LNET_XEP_ADDR_LEN, "%s:%u:%u:",
-		     cp, cepa->cepa_pid, cepa->cepa_portal);
-	if (n < C2_NET_LNET_XEP_ADDR_LEN - 1) {
-		if (cepa->cepa_tmid == C2_NET_LNET_TMID_INVALID)
-			strcpy(buf + n, "*");
-		else
-			snprintf(buf + n, C2_NET_LNET_XEP_ADDR_LEN - n, "%u",
-				 cepa->cepa_tmid);
-	}
+	if (cepa->cepa_tmid != C2_NET_LNET_TMID_INVALID)
+		fmt = "%s:%u:%u:%u";
+	else
+		fmt = "%s:%u:%u:*";
+	snprintf(buf, C2_NET_LNET_XEP_ADDR_LEN, fmt,
+		 cp, cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
 }
 
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm,
-		      struct nlx_core_ep_addr *cepa)
+		      struct nlx_core_ep_addr *cepa,
+		      struct c2_net_end_point **epp)
 {
-	struct nlx_xo_domain *dp;
 	struct nlx_core_buffer_event *e1;
 	struct nlx_core_buffer_event *e2;
-	struct nlx_xo_transfer_mc *tp;
 	struct nlx_kcore_transfer_mc *kctm;
 	lnet_process_id_t id;
 	int rc;
 	int i;
 
-	C2_PRE(nlx_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	tp = tm->ntm_xprt_private;
-	C2_PRE(lctm == &tp->xtm_core);
+	C2_PRE(nlx_tm_invariant(tm));
 	C2_PRE(cepa == &lctm->ctm_addr);
-	dp = tm->ntm_dom->nd_xprt_private;
+	C2_PRE(epp != NULL);
 
 	C2_ALLOC_PTR(kctm);
 	C2_ALLOC_PTR(e1);
@@ -1125,13 +1119,12 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		rc = -EINVAL;
 		goto fail;
 	}
-	i = 0;
-	do {
+	for (i = 0, rc = 0; rc != -ENOENT; ++i) {
 		rc = LNetGetId(i, &id);
 		if (rc == 0 &&
 		    id.nid == cepa->cepa_nid && id.pid == cepa->cepa_pid)
 			break;
-	} while (rc != -ENOENT);
+	}
 	if (rc != 0)
 		goto fail;
 
@@ -1162,7 +1155,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		rc = -EADDRINUSE;
 		goto fail_with_eq;
 	}
-	rc = nlx_ep_create(&tm->ntm_ep, tm, cepa);
+	rc = nlx_ep_create(epp, tm, cepa);
 	if (rc != 0) {
 		c2_mutex_unlock(&nlx_kcore_mutex);
 		goto fail_with_eq;
@@ -1185,6 +1178,7 @@ fail:
 	c2_free(kctm);
 	c2_free(e1);
 	c2_free(e2);
+	C2_ASSERT(rc != 0);
 	return rc;
 }
 
@@ -1200,17 +1194,15 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 
 void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 {
-	struct nlx_xo_transfer_mc *tp;
 	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	int rc;
 
-	tp = container_of(lctm, struct nlx_xo_transfer_mc, xtm_core);
-	C2_PRE(nlx_tm_invariant(tp->xtm_tm));
-	C2_PRE(c2_mutex_is_locked(&tp->xtm_tm->ntm_mutex));
 	C2_PRE(kctm != NULL && kctm->ktm_magic == C2_NET_LNET_KCORE_TM_MAGIC);
 
 	if (!LNetHandleIsInvalid(kctm->ktm_meh))
 		LNetMEUnlink(kctm->ktm_meh);
-	LNetEQFree(kctm->ktm_eqh);
+	rc = LNetEQFree(kctm->ktm_eqh);
+	C2_ASSERT(rc == 0);
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
 	c2_semaphore_fini(&kctm->ktm_sem);
 
