@@ -883,6 +883,10 @@ c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
 
 c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
 {
+	/* PAGE_SIZE limit applies only when LNET_MD_KIOV has been set in
+	 * lnet_md_t::options. There's no such limit in MD fragment size when
+	 * LNET_MD_IOVEC is set.  DLD calls for only LNET_MD_KIOV to be used.
+	 */
 	return PAGE_SIZE;
 }
 
@@ -1140,7 +1144,8 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	lctm->ctm_user_space_xo = false;
 	return 0;
 fail_with_eq:
-	LNetEQFree(kctm->ktm_eqh);
+	i = LNetEQFree(kctm->ktm_eqh);
+	C2_ASSERT(i == 0);
 fail:
 	c2_free(kctm);
 	c2_free(e1);
