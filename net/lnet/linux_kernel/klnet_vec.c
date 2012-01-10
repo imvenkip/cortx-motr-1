@@ -56,6 +56,9 @@ static unsigned bufvec_seg_page_count(const struct c2_bufvec *bvec, unsigned n)
 /**
    Fill in a kiov array with pages from a segment of a c2_bufvec containing
    kernel logical addresses.
+
+   The page reference count is not incremented.
+
    @param bvec Colibri buffer vector pointer
    @param n    Segment number in the vector
    @param kiov Pointer to array of lnet_kiov_t structures.
@@ -96,6 +99,9 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
 /**
    This subroutine sets up the LNet kernel I/O vector in the kcore buffer from
    a bufvec containing kernel logical addresses.
+
+   The page reference count is not incremented.
+
    @param kb Kcore buffer private pointer
    @param bufvec Vector with kernel logical addresses.
    @retval -EFBIG if the IO vector is too large.

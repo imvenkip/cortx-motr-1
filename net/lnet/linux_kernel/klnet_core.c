@@ -321,6 +321,12 @@
    c2_net_bufvec into the nlx_kcore_buffer::kb_kiov field of the buffer private
    data.
 
+   The kernel implementation of the Core API does not increment the page count
+   of the buffer pages.  The supposition here is that the buffers are allocated
+   by Colibri file system clients, and the Core API has no business imposing
+   memory management policy beneath such a client.
+
+
    @subsection KLNetCoreDLD-lspec-tm-res LNet Transfer Machine Resources
 
    A transfer machine is associated with the following LNet resources:
@@ -697,7 +703,9 @@
    - The time taken for the transport to dequeue a pending buffer event
    depends upon the operating system scheduler.  The algorithmic
    processing involved is in constant time.
-   - The time taken to register a buffer is in constant time.
+   - The time taken to register a buffer is in constant time.  The reference
+     count of the buffer pages is not incremented, so there are no VM subsystem
+     imposed delays.
    - The time taken to process outbound buffer operations is unpredictable,
    and depends, at the minimum, on current system load, other LNet users,
    and on the network load.
