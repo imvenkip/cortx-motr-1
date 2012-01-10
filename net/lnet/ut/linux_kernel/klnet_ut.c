@@ -46,13 +46,12 @@ if (!ut_bufvec_alloc(&v,n)) {	\
 
 static void ktest_buf_shape(void)
 {
-	static struct c2_net_domain dom1 = {
-		.nd_xprt = NULL
-	};
+	struct c2_net_domain dom1;
 	struct c2_bufvec bv1;
 	void *base;
 	unsigned num_pages;
 
+	C2_SET0(&dom1);
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 
 	/* buffer shape APIs */
