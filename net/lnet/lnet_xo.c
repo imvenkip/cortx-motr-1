@@ -65,6 +65,10 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 	dp->xd_dom = dom;
 
 	rc = nlx_core_dom_init(dom, &dp->xd_core);
+	if (rc != 0) {
+		c2_free(dp);
+		dom->nd_xprt_private = NULL;
+	}
 	C2_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
 	return rc;
 }
@@ -125,12 +129,13 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 
 static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_buffer *bp;
 	int rc;
 
 	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
 	C2_PRE(nb->nb_xprt_private == NULL);
+	dp = nb->nb_dom->nd_xprt_private;
 	C2_ALLOC_PTR(bp);
 	if (bp == NULL)
 		return -ENOMEM;
@@ -138,16 +143,22 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	bp->xb_nb = nb;
 
 	rc = nlx_core_buf_register(&dp->xd_core, nb, &bp->xb_core);
+	if (rc != 0) {
+		c2_free(bp);
+		nb->nb_xprt_private = NULL;
+	}
 	C2_POST(nlx_buffer_invariant(nb));
 	return rc;
 }
 
 static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
+	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
 	C2_PRE(nlx_buffer_invariant(nb));
+	dp = nb->nb_dom->nd_xprt_private;
 
 	nlx_core_buf_deregister(&dp->xd_core, &bp->xb_core);
 }
@@ -208,7 +219,6 @@ static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
-	int rc;
 
 	C2_PRE(nlx_dom_invariant(tm->ntm_dom));
 	C2_PRE(tm->ntm_xprt_private == NULL);
@@ -219,9 +229,7 @@ static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)
 		return -ENOMEM;
 	tm->ntm_xprt_private = tp;
 
-	/* defer init of thread and xtm_core to start time */
-	rc = c2_bitmap_init(&tp->xtm_processors, 0);
-	C2_ASSERT(rc == 0);
+	/* defer init of processors, thread and xtm_core to TM confine/start */
 	c2_cond_init(&tp->xtm_ev_cond);
 
 	tp->xtm_tm = tm;
@@ -239,7 +247,8 @@ static void nlx_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	if (tp->xtm_ev_thread.t_state != TS_PARKED)
 		c2_thread_join(&tp->xtm_ev_thread);
 
-	c2_bitmap_fini(&tp->xtm_processors);
+	if (tp->xtm_processors.b_words != NULL)
+		c2_bitmap_fini(&tp->xtm_processors);
 	c2_cond_fini(&tp->xtm_ev_cond);
 	tm->ntm_xprt_private = NULL;
 	c2_free(tp);
@@ -299,7 +308,8 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 	C2_PRE(nlx_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(processors != NULL);
-	c2_bitmap_fini(&tp->xtm_processors);
+	if (tp->xtm_processors.b_words != NULL)
+		c2_bitmap_fini(&tp->xtm_processors);
 	rc = c2_bitmap_init(&tp->xtm_processors, processors->b_nr);
 	if (rc == 0)
 		c2_bitmap_copy(&tp->xtm_processors, processors);
