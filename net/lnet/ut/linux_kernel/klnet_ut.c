@@ -23,11 +23,36 @@
  * file.
  */
 
+static bool ut_bufvec_alloc(struct c2_bufvec *bv, size_t n)
+{
+	C2_ALLOC_ARR(bv->ov_vec.v_count, n);
+	C2_ALLOC_ARR(bv->ov_buf, n);
+	if (bv->ov_vec.v_count == 0 || bv->ov_buf == 0) {
+		return false;
+	}
+	bv->ov_vec.v_nr = n;
+	return true;
+}
+
+#define UT_BUFVEC_ALLOC(v,n)	\
+if (!ut_bufvec_alloc(&v,n)) {	\
+	C2_UT_FAIL("no memory");\
+	return;			\
+}
+
+#define UT_BUFVEC_FREE(v)				\
+	c2_free(v.ov_vec.v_count);			\
+	c2_free(v.ov_buf)
+
 static void ktest_buf_shape(void)
 {
 	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
+	struct c2_bufvec bv1;
+	size_t n;
+	void *base;
+	unsigned num_pages;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 
@@ -39,7 +64,32 @@ static void ktest_buf_shape(void)
 	C2_UT_ASSERT(c2_net_domain_get_max_buffer_segments(&dom1)
 		     == LNET_MAX_IOV);
 
+	/* test the segment page count computation */
+	n = 1;
+	UT_BUFVEC_ALLOC(bv1, n);
+	/* get a page aligned address */
+	base = (void *)(((uint64_t)&base >> PAGE_SHIFT) << PAGE_SHIFT);
+
+#define EXP_SEG_COUNT(ptr,segsize,expcount)		\
+	bv1.ov_buf[0] = (ptr);				\
+	bv1.ov_vec.v_count[0] = (segsize);		\
+	num_pages = bufvec_seg_page_count(&bv1, 0);	\
+	C2_UT_ASSERT(num_pages == (expcount))
+
+	EXP_SEG_COUNT(base, PAGE_SIZE, 1);                 /* pg aligned, 1 pg */
+	EXP_SEG_COUNT(base, PAGE_SIZE+1, 2);               /* pg aligned,>1 pg */
+	EXP_SEG_COUNT(base, PAGE_SIZE-1, 1);               /* pg aligned,<1 pg */
+	EXP_SEG_COUNT(base, 2*PAGE_SIZE, 2);               /* pg aligned, 2 pg */
+	EXP_SEG_COUNT(base+PAGE_SIZE/2, 2*PAGE_SIZE, 3);   /* mid-pg,  2 pg */
+	EXP_SEG_COUNT(base+PAGE_SIZE/2, PAGE_SIZE, 2);     /* mid-pg,  1 pg */
+	EXP_SEG_COUNT(base+PAGE_SIZE/2, PAGE_SIZE/2+1, 2); /* mid-pg, >0.5 pg */
+	EXP_SEG_COUNT(base+PAGE_SIZE/2, PAGE_SIZE/2, 1);   /* mid-pg,  0.5 pg */
+	EXP_SEG_COUNT(base+PAGE_SIZE/2, PAGE_SIZE/2-1, 1); /* mid-pg, <0.5 pg */
+
+#undef EXP_SEG_COUNT
+
 	/* fini */
+	UT_BUFVEC_FREE(bv1);
 	c2_net_domain_fini(&dom1);
 }
 
@@ -100,3 +150,13 @@ static void ktest_buf_reg(void)
 	c2_bufvec_free(&nb1.nb_buffer);
 	c2_net_domain_fini(&dom1);
 }
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 79
+ *  scroll-step: 1
+ *  End:
+ */
