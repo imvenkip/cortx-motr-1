@@ -90,16 +90,15 @@ static void test_tm_startstop(void)
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
 	static struct c2_clink tmwait1;
-	const char *epstr = "127.0.0.1@tcp:12345:30:10";
+	char **nidstrs;
+	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
+	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&dom1, &nidstrs));
+	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
+	sprintf(epstr, "%s:12345:30:10", nidstrs[0]);
+	c2_net_lnet_ifaces_put(&dom1, nidstrs);
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
-	if (d1tm1.ntm_state == C2_NET_TM_INITIALIZED) {
-		c2_net_tm_fini(&d1tm1);
-		c2_net_domain_fini(&dom1);
-		C2_UT_PASS("skipping rest of test");
-		return;
-	}
 
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);

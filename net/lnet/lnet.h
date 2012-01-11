@@ -83,6 +83,19 @@ enum {
  */
 int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
 
+/**
+   Gets a list of strings corresponding to the local LNET network interfaces.
+   The returned array must be released using c2_net_lnet_ifaces_put().
+   @param dom The domain object.
+   @param addrs A NULL-terminated (like argv) array of NID strings is returned.
+ */
+int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char ***addrs);
+
+/**
+   Releases the string array returned by nlx_core_nidstrs_get().
+ */
+void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char **addrs);
+
 /* init and fini functions for colibri init */
 int c2_net_lnet_init(void);
 void c2_net_lnet_fini(void);

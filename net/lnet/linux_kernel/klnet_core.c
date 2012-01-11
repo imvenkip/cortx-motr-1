@@ -734,6 +734,13 @@ static struct c2_mutex nlx_kcore_mutex;
 /** List of all transfer machines. Protected by nlx_kcore_mutex. */
 static struct c2_tl nlx_kcore_tms;
 
+/** NID strings of LNIs. */
+static char **nlx_kcore_lni_nidstrs;
+/** The count of non-NULL entries in nlx_kcore_lni_nidstrs. */
+static unsigned int nlx_kcore_lni_nr;
+/** Reference counter for nlx_kcore_lni_nidstrs. */
+static struct c2_atomic64 nlx_kcore_lni_refcount;
+
 C2_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
 		   ktm_tm_linkage, ktm_magic, C2_NET_LNET_KCORE_TM_MAGIC,
 		   C2_NET_LNET_KCORE_TMS_MAGIC);
@@ -1056,6 +1063,20 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 		 cp, cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
 }
 
+int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char ***nidary)
+{
+	C2_PRE(nlx_kcore_lni_nidstrs != NULL);
+	*nidary = nlx_kcore_lni_nidstrs;
+	c2_atomic64_inc(&nlx_kcore_lni_refcount);
+	return 0;
+}
+
+void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char **nidary)
+{
+	C2_PRE(nidary == nlx_kcore_lni_nidstrs);
+	c2_atomic64_dec(&nlx_kcore_lni_refcount);
+}
+
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm,
 		      struct nlx_core_ep_addr *cepa,
@@ -1090,14 +1111,16 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		rc = -EINVAL;
 		goto fail;
 	}
-	for (i = 0, rc = 0; rc != -ENOENT; ++i) {
+	for (i = 0; i < nlx_kcore_lni_nr; ++i) {
 		rc = LNetGetId(i, &id);
-		if (rc == 0 &&
-		    id.nid == cepa->cepa_nid && id.pid == cepa->cepa_pid)
+		C2_ASSERT(rc == 0);
+		if (id.nid == cepa->cepa_nid && id.pid == cepa->cepa_pid)
 			break;
 	}
-	if (rc != 0)
+	if (i == nlx_kcore_lni_nr) {
+		rc = -ENOENT;
 		goto fail;
+	}
 
 	tms_tlink_init(kctm);
 	kctm->ktm_tm = lctm;
@@ -1185,17 +1208,60 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	c2_free(kctm);
 }
 
-int nlx_core_init(void)
+static void nlx_core_fini(void)
 {
-	c2_mutex_init(&nlx_kcore_mutex);
-	tms_tlist_init(&nlx_kcore_tms);
-	return 0;
-}
-
-void nlx_core_fini(void)
-{
+	int rc;
+	int i;
+	C2_ASSERT(c2_atomic64_get(&nlx_kcore_lni_refcount) == 0);
+	if (nlx_kcore_lni_nidstrs != NULL) {
+		for (i = 0; nlx_kcore_lni_nidstrs[i] != NULL; ++i)
+			c2_free(nlx_kcore_lni_nidstrs[i]);
+		c2_free(nlx_kcore_lni_nidstrs);
+		nlx_kcore_lni_nidstrs = NULL;
+	}
+	nlx_kcore_lni_nr = 0;
 	tms_tlist_fini(&nlx_kcore_tms);
 	c2_mutex_fini(&nlx_kcore_mutex);
+	rc = LNetNIFini();
+	C2_ASSERT(rc == 0);
+}
+
+static int nlx_core_init(void)
+{
+	int rc;
+	int i;
+	lnet_process_id_t id;
+	const char *nidstr;
+
+	/* Init LNet with same PID as Lustre would use in case we are first. */
+	rc = LNetNIInit(LUSTRE_SRV_LNET_PID);
+	C2_ASSERT(rc == 0);
+	c2_mutex_init(&nlx_kcore_mutex);
+	tms_tlist_init(&nlx_kcore_tms);
+
+	for (i = 0, rc = 0; rc != -ENOENT; ++i)
+		rc = LNetGetId(i, &id);
+	C2_ALLOC_ARR(nlx_kcore_lni_nidstrs, i);
+	if (nlx_kcore_lni_nidstrs == NULL) {
+		nlx_core_fini();
+		return -ENOMEM;
+	}
+	nlx_kcore_lni_nr = i - 1;
+	for (i = 0; i < nlx_kcore_lni_nr; ++i) {
+		rc = LNetGetId(i, &id);
+		C2_ASSERT(rc == 0);
+		nidstr = libcfs_nid2str(id.nid);
+		C2_ASSERT(nidstr != NULL);
+		nlx_kcore_lni_nidstrs[i] = c2_alloc(strlen(nidstr) + 1);
+		if (nlx_kcore_lni_nidstrs[i] == NULL) {
+			nlx_core_fini();
+			return -ENOMEM;
+		}
+		strcpy(nlx_kcore_lni_nidstrs[i], nidstr);
+	}
+	c2_atomic64_set(&nlx_kcore_lni_refcount, 0);
+
+	return 0;
 }
 
 /**

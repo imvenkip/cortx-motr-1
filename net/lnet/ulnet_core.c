@@ -168,6 +168,17 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 	/* XXX implement */
 }
 
+int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char ***nidary)
+{
+	/* XXX implement */
+	return -ENOSYS;
+}
+
+void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char **nidary)
+{
+	/* XXX implement */
+}
+
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm,
 		      struct nlx_core_ep_addr *cepa,
@@ -207,6 +218,15 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 {
 	/* XXX: temp, really belongs in async code */
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
+}
+
+static void nlx_core_fini(void)
+{
+}
+
+static int nlx_core_init(void)
+{
+	return 0;
 }
 
 /*
