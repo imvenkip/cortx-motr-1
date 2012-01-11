@@ -55,7 +55,7 @@ C2_TL_DESCR_DECLARE(rpcitem, extern);
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **m);
 static void io_item_replied(struct c2_rpc_item *item);
-static size_t io_item_size_get(const struct c2_rpc_item *item);
+//static size_t io_item_size_get(const struct c2_rpc_item *item);
 static uint64_t io_frags_nr_get(const struct c2_rpc_item *item);
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list);
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
@@ -91,7 +91,7 @@ const struct c2_rpc_item_ops rpc_item_iov_ops = {
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
-        .rito_item_size = io_item_size_get,
+        .rito_item_size = c2_fop_item_type_default_onwire_size,
         .rito_io_frags_nr_get = io_frags_nr_get,
         .rito_io_coalesce = item_io_coalesce,
         .rito_encode = c2_fop_item_type_default_encode,
@@ -1249,6 +1249,7 @@ static void io_item_replied(struct c2_rpc_item *item)
 	} c2_tlist_endfor;
 }
 
+#if 0
 static size_t io_item_size_get(const struct c2_rpc_item *item)
 {
         size_t		 size;
@@ -1262,7 +1263,7 @@ static size_t io_item_size_get(const struct c2_rpc_item *item)
 
         return size;
 }
-
+#endif
 static uint64_t io_frags_nr_get(const struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
