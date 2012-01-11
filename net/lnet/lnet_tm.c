@@ -73,7 +73,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	  the C2_NET_TM_STARTED or C2_NET_TM_FAILED states.
 	  Set the transfer machine's end point in the event on success.
 	 */
-	if (rc != 0) {
+	if (rc == 0) {
 		tmev.nte_next_state = C2_NET_TM_STARTED;
 	} else {
 		tmev.nte_next_state = C2_NET_TM_FAILED;
