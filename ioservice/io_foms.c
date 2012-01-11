@@ -817,7 +817,7 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
 
 /**
  * Align address.
- * This function align bufvec &  indexvec.
+ * This function align bufvec & indexvec.
  */
 void io_fom_cob_rw_align_bufvec (struct c2_bufvec *buf, uint32_t bshift)
 {
