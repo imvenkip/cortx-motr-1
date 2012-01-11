@@ -33,8 +33,8 @@
    descriptors and to associate user defined state with types and fields.
 
    A motivating example of xcode usage is universal encoding and decoding
-   interface (c2_xcode_decode(), c2_xcode_encode(), c2_xcode_length()) which can
-   convert between an in-memory object and its serialized representation.
+   interface (c2_xcode_decode(), c2_xcode_encode(), c2_xcode_length()) which
+   converts between an in-memory object and its serialized representation.
 
    Other usages of xcoding interfaces are:
 
@@ -46,14 +46,16 @@
          check-sums and invariants.
 
    Not every C data-structure can be represented by xcode. The set of
-   representable data-structures is defined inductively:
+   representable data-structures is defined inductively according to the
+   "aggregation type" of data-structure:
 
-       - scalar data-types void, uint8_t, uint32_t and uint64_t are
-         representable,
+       - ATOM aggregation type: scalar data-types void, uint8_t, uint32_t and
+         uint64_t are representable,
 
-       - a struct type, whose members are all representable is representable,
+       - RECORD aggregation type: a struct type, whose members are all
+         representable is representable,
 
-       - a "discriminated union" structure of the form
+       - UNION aggregation type: a "discriminated union" structure of the form
 
          @code
          struct {
@@ -67,7 +69,7 @@
          where scalar_t is one of the scalar data-types mentioned above and all
          union fields are representable is representable,
 
-       - a "counted array" structure of the form
+       - SEQUENCE aggregation type: a "counted array" structure of the form
 
          @code
          struct {
@@ -79,8 +81,8 @@
          where scalar_t is one of the scalar data-types mentioned above and el_t
          is representable is representable,
 
-       - pointer type is representable when it is used as the type of a field in
-         a representable type and a special function
+       - OPAQUE aggregation type: pointer type is representable when it is used
+         as the type of a field in a representable type and a special function
          (c2_xcode_field::xf_opaque()) is assigned to the field, which returns
          the representation of the type of an object the pointer points to.
 
@@ -105,7 +107,7 @@
          properties of the data-type or
 
        - by creating a description of the desired serialized format of a
-         data-type and using ff2c "compiler" (xcode/ff2c/ff2c.c) to produce C
+         data-type and using ff2c translator (xcode/ff2c/ff2c.c) to produce C
          files (.c and .h) containing the matching data-type definitions and
          xcode descriptors.
 
@@ -296,8 +298,12 @@ struct c2_xcode_obj {
 };
 
 /**
+   Custom xcoding functions.
 
-    @see c2_xcode_decode()
+   User provides these functions (which are all optional) to use non-standard
+   xcoding.
+
+   @see c2_xcode_decode()
  */
 struct c2_xcode_type_ops {
 	int (*xto_length)(struct c2_xcode_ctx *ctx, const void *obj);
@@ -398,8 +404,8 @@ struct c2_xcode_cursor {
    topmost element of the cursor's stack and can be extracted with
    c2_xcode_cursor_top().
 
-   Note that an element with N children is reached 1 + N + 1 times: once in
-   preorder, once for each child in inorder and once in postorder. Here N equals
+   An element with N children is reached 1 + N + 1 times: once in preorder, once
+   in inorder after each child is processed and once in postorder. Here N equals
 
        - number of fields in a RECORD object;
 
@@ -442,10 +448,10 @@ struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it);
        - sizing (c2_xcode_length()): returns the size of a buffer sufficient to
          hold serialized object representation;
 
-       - encoding (c2_xcode_encode()): construct a serialized object
+       - encoding (c2_xcode_encode()): constructs a serialized object
          representation in a given buffer;
 
-       - decoding (c2_xcode_decode()): construct an in-memory object, given its
+       - decoding (c2_xcode_decode()): constructs an in-memory object, given its
          serialized representation.
 
    xcoding traverses the tree of sub-objects, starting from the topmost object
@@ -455,15 +461,15 @@ struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it);
    this object is done. Otherwise, "standard xcoding" takes place.
 
    Standard xcoding is non-trivial only for leaves in the sub-object tree (i.e.,
-   for objects of ATOMIC type):
+   for objects of ATOM aggregation type):
 
-       - for encoding, place object's value into buffer, convert it to desired
-         endianness and advance buffer position;
+       - for encoding, place object's value into the buffer, convert it to
+         desired endianness and advance buffer position;
 
-       - for decoding, extract value from the buffer, convert it, store in
+       - for decoding, extract value from the buffer, convert it, store in the
          in-memory object and advance buffer position;
 
-       - for sizing, increment required buffer size by size of atomic type.
+       - for sizing, increment required buffer size by the size of atomic type.
 
    In addition, decoding allocates memory as necessary.
  */
@@ -526,7 +532,6 @@ int c2_xcode_length(struct c2_xcode_ctx *ctx);
 
    @param obj    - typed object
    @param fileno - ordinal number of field
-
    @param elno   - for a SEQUENCE field, index of the element to
                    return the address of.
 
@@ -578,8 +583,8 @@ int c2_xcode_subobj(struct c2_xcode_obj *subobj, const struct c2_xcode_obj *obj,
    This function is suitable to return discriminator of a UNION object or
    element count of a SEQUENCE object.
 
-   @note when first field has C2_XT_VOID type, the tag (c2_xcode_field::xf_tag)
-   of this field is returned.
+   @note when the first field has C2_XT_VOID type, the tag
+   (c2_xcode_field::xf_tag) of this field is returned.
  */
 uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj);
 

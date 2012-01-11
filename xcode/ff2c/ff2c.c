@@ -29,8 +29,8 @@
    xcode data (c2_xcode_type and c2_xcode_field) for generated types is
    produced.
 
-   Serialized representation descriptions are given in a very simple language
-   with the following grammar:
+   Serialized representation descriptions are given in a language with the
+   following grammar:
 
    @verbatim
 ff             ::= statement-list
@@ -160,6 +160,23 @@ record {
 	} p_name
 } package
 @endcode
+
+  The translator is structured as a sequence of 4 passes:
+
+      - lexical analysis (lex.c): takes a buffer as an input and produces a
+        stream of tokens;
+
+      - parser (parser.h): builds a parse tree out of stream of tokens. Every
+        node in the tree have the same structure: it contains a token and a list
+        of child nodes;
+
+      - semantical pass (sem.h): traverses parse tree and builds a tree of
+        semantical nodes, corresponding to types and fields. Semantical nodes
+        are "higher level" than syntax nodes are more closely aligned with the
+        requirements of the following generation pass;
+
+      - generation (gen.h): take semantic tree and produce corresponding C
+        declarations and definitions.
 
    @{
  */
