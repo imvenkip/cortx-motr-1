@@ -94,6 +94,12 @@ static void test_tm_startstop(void)
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	if (d1tm1.ntm_state == C2_NET_TM_INITIALIZED) {
+		c2_net_tm_fini(&d1tm1);
+		c2_net_domain_fini(&dom1);
+		C2_UT_PASS("skipping rest of test");
+		return;
+	}
 
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
@@ -142,6 +148,9 @@ const struct c2_test_suite c2_net_lnet_ut = {
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
+#ifdef __KERNEL__
+		{ "net_lnet_ep_addr (K)",   ktest_core_ep_addr },
+#endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
                 { "net_lnet_ep",            test_ep },

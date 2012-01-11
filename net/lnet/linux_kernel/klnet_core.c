@@ -1042,7 +1042,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 }
 
 void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
-			     struct nlx_core_ep_addr *cepa,
+			     const struct nlx_core_ep_addr *cepa,
 			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
 {
 	const char *cp = libcfs_nid2str(cepa->cepa_nid);
