@@ -154,6 +154,8 @@ obj-y += $(testdirs)
 create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)) 	\
 		2> /dev/null)
 
+createdirs := galois
+
 all:
 	@echo $(kcolibri-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
@@ -169,9 +171,10 @@ all:
 # The galois directory in core/ is redundant. We dont require any files in it
 # but due to structure of build process it is required to be present so that links
 # can be created. The build process creates the directory during build process,
-# and removes the directory during clean.
+# and removes the directory during clean. The list of such directories can be
+# maintained in variable $(createdirs).
 
-	$(foreach d, "galois", $(shell  [[ -d $(d) ]] || mkdir -p 		\
+	$(foreach d, $(createdirs), $(shell  [[ -d $(d) ]] || mkdir -p 		\
 		$(CORE_SRCDIR)/$(d)))
 	$(foreach d, $(dirs), $(shell  [[ -d $(d) ]] || mkdir -p $(d)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),   	\
@@ -182,8 +185,8 @@ all:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
 clean distclean:
-	$(shell rm -rf $(CORE_SRCDIR)/galois)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
 	$(RM) Module.markers modules.order
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
+	$(foreach d, $(createdirs), $(shell rm -rf $(CORE_SRCDIR)/$(d)))
 	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
