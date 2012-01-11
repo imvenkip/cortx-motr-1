@@ -68,12 +68,6 @@ int c2_rpc_session_fop_init(void);
 
 void c2_rpc_session_fop_fini(void);
 
-
-extern const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops;
-extern const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;
-extern const struct c2_rpc_item_ops c2_rpc_item_session_establish_ops;
-extern const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops;
-
 /**
    Container for CONN_ESTABLISH fop.
 

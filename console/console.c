@@ -21,13 +21,6 @@
 #  include <config.h>
 #endif
 
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-
-#include <arpa/inet.h>
-#include <netdb.h>
-
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/errno.h"		/* ENOENT */
 #include "console/console.h"
@@ -39,63 +32,6 @@ uint32_t timeout;
    @addtogroup console
    @{
  */
-
-/**
- * @brief Resolve hostname into a dotted quad.  The result is stored in buf.
- *
- * @param hostname Machine hostname.
- * @param buf	   Dotted result stored.
- * @param bufsiz   Size of buffer
- *
- * @return 0 success and -errno failure.
- */
-static int canon_host(const char *hostname, char *buf, size_t bufsiz)
-{
-        int                i;
-        int                rc;
-        struct in_addr     ipaddr;
-
-        /* c2_net_end_point_create requires string IPv4 address, not name */
-        if (inet_aton(hostname, &ipaddr) == 0) {
-                struct hostent he;
-                char he_buf[4096];
-                struct hostent *hp;
-                int herrno;
-
-                rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
-                                     &hp, &herrno);
-                if (rc != 0) {
-                        fprintf(stderr, "Can't get address for %s\n",
-                                hostname);
-                        return -ENOENT;
-                }
-                for (i = 0; hp->h_addr_list[i] != NULL; ++i) {
-                        /* take 1st IPv4 address found */
-                        if (hp->h_addrtype == AF_INET &&
-                            hp->h_length == sizeof(ipaddr))
-                                break;
-		}
-                if (hp->h_addr_list[i] == NULL) {
-                        fprintf(stderr, "No IPv4 address for %s\n",
-                                hostname);
-                        return -EPFNOSUPPORT;
-                }
-                if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
-                    NULL) {
-                        fprintf(stderr, "Cannot parse network address for %s\n",
-                                hostname);
-                        return -errno;
-                }
-        } else {
-                if (strlen(hostname) >= bufsiz) {
-                        fprintf(stderr, "Buffer size too small for %s\n",
-                                hostname);
-                        return -ENOSPC;
-                }
-                strcpy(buf, hostname);
-        }
-        return rc;
-}
 
 /**
  * @brief It creates the end point for any rpc connection.
@@ -115,27 +51,8 @@ static int canon_host(const char *hostname, char *buf, size_t bufsiz)
 static int c2_cons_rpc_init_common(struct c2_console *cons)
 {
 	int  rc;
-	char hostbuf[ADDR_LEN];
 
 	C2_PRE(cons != NULL);
-
-        rc = canon_host(cons->cons_lhost, hostbuf, sizeof(hostbuf));
-	if (rc != 0) {
-		fprintf(stderr, "Failed to canon host\n");
-		return rc;
-	}
-
-        snprintf(cons->cons_laddr, ADDR_LEN, "%s:%u:%d", hostbuf,
-		 cons->cons_lport, cons->cons_rid);
-
-        rc = canon_host(cons->cons_rhost, hostbuf, sizeof(hostbuf));
-	if (rc != 0) {
-		fprintf(stderr, "Failed to canon remote host\n");
-		return rc;
-	}
-
-        snprintf(cons->cons_raddr, ADDR_LEN, "%s:%u:%d", hostbuf,
-		 cons->cons_rport, cons->cons_rid);
 
         rc = c2_net_xprt_init(cons->cons_xprt);
 	if (rc != 0) {
@@ -170,7 +87,7 @@ static int c2_cons_rpc_init_common(struct c2_console *cons)
 	}
 
         rc = c2_rpcmachine_init(&cons->cons_rpc_mach, &cons->cons_cob_domain,
-				&cons->cons_ndom, cons->cons_laddr,
+				&cons->cons_ndom, cons->cons_lepaddr,
 				&cons->cons_reqh);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to Init RPC machine\n");
@@ -180,7 +97,7 @@ static int c2_cons_rpc_init_common(struct c2_console *cons)
         cons->cons_trans_mc = &cons->cons_rpc_mach.cr_tm;
 
         rc = c2_net_end_point_create(&cons->cons_rendp, cons->cons_trans_mc,
-				     cons->cons_raddr);
+				     cons->cons_repaddr);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to create Remote Endpoint\n");
 		goto rpc;

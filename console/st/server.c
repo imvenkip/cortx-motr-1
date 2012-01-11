@@ -45,14 +45,11 @@
  */
 
 struct c2_console cons_server = {
-	.cons_lhost	      = "localhost",
-	.cons_lport	      = SERVER_PORT,
-	.cons_rhost	      = "localhost",
-	.cons_rport	      = CLIENT_PORT,
+	.cons_lepaddr	      = "127.0.0.1:123457:1",
+	.cons_repaddr	      = "127.0.0.1:123456:1",
 	.cons_db_name	      = "cons_server_db",
 	.cons_cob_dom_id      = { .id = 15 },
 	.cons_nr_slots	      = NR_SLOTS,
-	.cons_rid	      = RID,
 	.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
 	.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
 };
@@ -83,7 +80,6 @@ static void sig_handler(int num)
  */
 int main(int argc, char **argv)
 {
-	uint32_t    port = 0;
 	int	    result;
 	const char *client = NULL;
 
@@ -100,7 +96,6 @@ int main(int argc, char **argv)
 	result = C2_GETOPTS("server", argc, argv,
 			C2_STRINGARG('s', "remote host name",
 			LAMBDA(void, (const char *name) { client = name; })),
-			C2_FORMATARG('p', "remote host port", "%i", &port),
 			C2_FLAGARG('v', "verbose", &verbose));
 
 	if (result != 0) {
@@ -109,10 +104,7 @@ int main(int argc, char **argv)
 	}
 
 	if (client != NULL)
-		cons_server.cons_rhost = client;
-
-	if (port != 0)
-		cons_server.cons_rport = port;
+		cons_server.cons_repaddr = client;
 
 	result = c2_console_fop_init();
 	if (result != 0) {
@@ -132,8 +124,8 @@ int main(int argc, char **argv)
 		goto fini;
 	}
 
-        printf("Server Address = %s\n", cons_server.cons_laddr);
-        printf("Console Address = %s\n", cons_server.cons_raddr);
+        printf("Server Address = %s\n", cons_server.cons_lepaddr);
+        printf("Console Address = %s\n", cons_server.cons_repaddr);
 
 	printf("Press CTRL+C to quit.\n");
 	signal(SIGINT, sig_handler);

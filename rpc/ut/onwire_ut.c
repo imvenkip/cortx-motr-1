@@ -30,7 +30,7 @@
 #include "rpc/ut/test.ff"
 #include "rpc/rpc2.h"
 #include "fop/fop_base.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 #include "lib/vec.h"

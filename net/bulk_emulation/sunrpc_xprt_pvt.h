@@ -35,7 +35,6 @@ static int sunrpc_ep_init_sid(struct c2_service_id *sid,
 			      struct c2_net_domain *rpc_dom,
 			      struct c2_net_end_point *ep);
 static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
-			      struct c2_net_end_point *ep,
 			      struct c2_net_transfer_mc *tm,
 			      enum c2_net_queue_type qt,
 			      c2_bcount_t buflen,

@@ -41,6 +41,7 @@
 #include "reqh/reqh.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
+#include "ut/net.h" /* canon_host */
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -200,58 +201,6 @@ void do_cleanup(void)
 /* Request handler for rpc ping */
 static struct c2_reqh   reqh_ping;
 
-/**
-   Resolve hostname into a dotted quad.  The result is stored in buf.
-   @retval 0 success
-   @retval -errno failure
- */
-static int canon_host(const char *hostname, char *buf, size_t bufsiz)
-{
-	int                i;
-	int		   rc = 0;
-	struct in_addr     ipaddr;
-
-	/* c2_net_end_point_create requires string IPv4 address, not name */
-	if (inet_aton(hostname, &ipaddr) == 0) {
-		struct hostent he;
-		char he_buf[4096];
-		struct hostent *hp;
-		int herrno;
-
-		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
-				     &hp, &herrno);
-		if (rc != 0) {
-			fprintf(stderr, "Can't get address for %s\n",
-				hostname);
-			return -ENOENT;
-		}
-		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
-			/* take 1st IPv4 address found */
-			if (hp->h_addrtype == AF_INET &&
-			    hp->h_length == sizeof(ipaddr))
-				break;
-		if (hp->h_addr_list[i] == NULL) {
-			fprintf(stderr, "No IPv4 address for %s\n",
-				hostname);
-			return -EPFNOSUPPORT;
-		}
-		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
-		    NULL) {
-			fprintf(stderr, "Cannot parse network address for %s\n",
-				hostname);
-			rc = -errno;
-		}
-	} else {
-		if (strlen(hostname) >= bufsiz) {
-			fprintf(stderr, "Buffer size too small for %s\n",
-				hostname);
-			return -ENOSPC;
-		}
-		strcpy(buf, hostname);
-	}
-	return rc;
-}
-
 /* Poll the server */
 void server_poll()
 {
@@ -401,12 +350,12 @@ void send_ping_fop(int nr)
 	for (i = 0; i < nr_arr_member; i++) {
 		ping_fop->fp_arr.f_data[i] = i+100;
 	}
-	item = &fop->f_item;
+	item              = &fop->f_item;
 	item->ri_deadline = 0;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_group = NULL;
-	item->ri_type = &fop->f_type->ft_rpc_item_type;
-	item->ri_session = &cctx.pc_rpc_session;
+	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group    = NULL;
+	item->ri_type     = &fop->f_type->ft_rpc_item_type;
+	item->ri_session  = &cctx.pc_rpc_session;
 	c2_time_set(&timeout, 60, 0);
         c2_clink_init(&clink, NULL);
         c2_clink_add(&item->ri_chan, &clink);

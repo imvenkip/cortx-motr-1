@@ -74,6 +74,23 @@ struct c2_fop_type {
 	uint64_t                          ft_magix;
 };
 
+/**
+    Iterates through the registered fop types.
+
+    To iterate across all registered fop types, first call this function with
+    NULL parameter. NULL is returned to indicate end of the iteration.
+
+    If a fop type is registered or unregistered while an iteration is in
+    progress, behaviour is undefined.
+
+    @code
+    ftype = NULL;
+    while ((ftype = c2_fop_type_next(ftype)) != NULL) {
+            do something with ftype
+    }
+    @endcode
+ */
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
 
