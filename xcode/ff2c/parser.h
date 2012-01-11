@@ -23,6 +23,10 @@
 
 /**
    @addtogroup xcode
+
+   <b>ff2c. Lexical analysis.</b>
+
+   Recursive-descent parser.
  */
 /** @{ */
 

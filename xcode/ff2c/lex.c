@@ -132,6 +132,14 @@ int ff2c_token_get(struct ff2c_context *ctx, struct ff2c_token *tok)
 {
 	const struct keyword *kw;
 
+	/*
+	 * Majority of token types are constant keywords, detected by iterating
+	 * over keywords[] array.
+	 *
+	 * Others are (not entirely coincidentally) identifiable by their first
+	 * character, which makes analyzing very simple.
+	 */
+
 	if (ctx->fc_depth > 0) {
 		*tok = ctx->fc_stack[--ctx->fc_depth];
 		return +1;
