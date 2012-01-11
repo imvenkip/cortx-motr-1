@@ -783,18 +783,12 @@
 
 int c2_net_lnet_init(void)
 {
-#ifdef __KERNEL__
 	return nlx_core_init();
-#else
-	return 0;
-#endif
 }
 
 void c2_net_lnet_fini(void)
 {
-#ifdef __KERNEL__
 	nlx_core_fini();
-#endif
 }
 
 int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
@@ -803,6 +797,26 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 	return false;
 }
 C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
+
+int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char ***addrs)
+{
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	return nlx_core_nidstrs_get(&dp->xd_core, addrs);
+}
+C2_EXPORTED(c2_net_lnet_ifaces_get);
+
+void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char **addrs)
+{
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	nlx_core_nidstrs_put(&dp->xd_core, addrs);
+}
+C2_EXPORTED(c2_net_lnet_ifaces_put);
 
 /*
  *  Local variables:
