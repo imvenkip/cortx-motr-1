@@ -71,8 +71,8 @@
 
          @code
          struct {
-                 scalar_t nr;
-		 el_t     el;
+                 scalar_t  nr;
+		 el_t     *el;
          };
          @endcode
 
