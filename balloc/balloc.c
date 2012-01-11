@@ -572,7 +572,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 {
 	struct c2_balloc_group_info *gi;
 	int		rc;
-	c2_bcount_t 	i;
+	c2_bcount_t	i;
 	struct c2_db_tx init_tx;
 	struct timeval  now;
 	int		tx_started = 0;
