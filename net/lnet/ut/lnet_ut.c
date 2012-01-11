@@ -15,13 +15,16 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ *                  Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 1/4/2012
  */
 
-#include "lib/cdefs.h"
+#include "net/lnet/lnet_main.c"
 #include "lib/ut.h"
 
-#include "net/lnet/lnet.h"
+#ifdef __KERNEL__
+#include "net/lnet/ut/linux_kernel/klnet_ut.c"
+#endif
 
 static void test_tm_initfini(void)
 {
