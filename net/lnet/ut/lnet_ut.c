@@ -92,6 +92,7 @@ static void test_tm_startstop(void)
 	static struct c2_clink tmwait1;
 	char **nidstrs;
 	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+	struct c2_bitmap procs;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&dom1, &nidstrs));
@@ -129,8 +130,30 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STOPPED);
 	C2_UT_ASSERT(ecb_status == 0);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
-
 	c2_net_tm_fini(&d1tm1);
+
+	/* test combination of start with confine */
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	C2_UT_ASSERT(c2_bitmap_init(&procs, 1) == 0);
+	c2_bitmap_set(&procs, 0, true);
+	C2_UT_ASSERT(c2_net_tm_confine(&d1tm1, &procs) == 0);
+
+	ecb_reset();
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, epstr));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STOPPED);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
+	c2_net_tm_fini(&d1tm1);
+
 	c2_net_domain_fini(&dom1);
 }
 
