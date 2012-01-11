@@ -249,6 +249,11 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	C2_PRE(!adom->ad_setup);
 	C2_PRE(bstore->so_state == CSS_EXISTS);
 
+	C2_PRE(container_size > groupsize);
+	C2_PRE(container_size > 1 << bstore->so_op->sop_block_shift(bstore));
+	C2_PRE(groupsize > 1 << bstore->so_op->sop_block_shift(bstore));
+	C2_PRE((container_size / groupsize) > res_groups);
+
 	result = ballroom->ab_ops->bo_init
 		(ballroom, dbenv, bstore->so_op->sop_block_shift(bstore),
 		 container_size, groupsize, res_groups);
