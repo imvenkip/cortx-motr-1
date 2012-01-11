@@ -1017,17 +1017,26 @@ static bool rpc_bulk_invariant(struct c2_rpc_bulk *rbulk)
 	c2_tlist_for (&rpcbulk_tl, &rbulk->rb_buflist, buf) {
 		if (buf->bb_rbulk != rbulk)
 			return false;
-	}; c2_tlist_endfor;
+	} c2_tlist_endfor;
 
 	return true;
 }
 
-static void c2_rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
+static bool rpc_bulk_buf_invariant(struct c2_rpc_bulk_buf *rbuf)
 {
-	C2_PRE(rbuf != NULL);
-	C2_PRE(rbuf->bb_magic == C2_RPC_BULK_BUF_MAGIC);
-	C2_PRE(!rpcbulk_tlink_is_in(rbuf));
+	return
+		!(rbuf == NULL ||
+		  rbuf->bb_magic != C2_RPC_BULK_BUF_MAGIC ||
+		  rbuf->bb_rbulk == NULL ||
+		  rbuf->bb_nbuf.nb_buffer.ov_vec.v_nr !=
+		  rbuf->bb_zerovec.z_bvec.ov_vec.v_nr);
+}
 
+static void rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
+{
+	C2_PRE(rpc_bulk_buf_invariant(rbuf));
+
+	c2_net_desc_free(&rbuf->bb_nbuf.nb_desc);
 	c2_0vec_fini(&rbuf->bb_zerovec);
 	c2_free(rbuf);
 }
@@ -1046,8 +1055,9 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	buf = container_of(nb, struct c2_rpc_bulk_buf, bb_nbuf);
 	rbulk = buf->bb_rbulk;
 
+	C2_ASSERT(rpc_bulk_buf_invariant(buf));
 	C2_ASSERT(rpc_bulk_invariant(rbulk));
-	C2_ASSERT(buf->bb_magic == C2_RPC_BULK_BUF_MAGIC);
+	C2_ASSERT(rpcbulk_tlink_is_in(buf));
 
 	if (nb->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
 	    nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV)
@@ -1069,7 +1079,7 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	if (buf->bb_owner)
 		c2_net_buffer_deregister(nb, nb->nb_dom);
-	c2_rpc_bulk_buf_fini(buf);
+	rpc_bulk_buf_fini(buf);
 }
 
 const struct c2_net_buffer_callbacks rpc_bulk_cb  = {
@@ -1089,6 +1099,7 @@ void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk)
 	c2_chan_init(&rbulk->rb_chan);
 	c2_mutex_init(&rbulk->rb_mutex);
 	rbulk->rb_magic = C2_RPC_BULK_MAGIC;
+	rbulk->rb_bytes = 0;
 	rbulk->rb_rc = 0;
 }
 
@@ -1107,16 +1118,12 @@ void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 {
 	struct c2_rpc_bulk_buf *buf;
 
-	C2_PRE(rbulk != NULL);
+	C2_PRE(rpc_bulk_invariant(rbulk));
 
 	c2_mutex_lock(&rbulk->rb_mutex);
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
 		rpcbulk_tlist_del(buf);
-		c2_0vec_fini(&buf->bb_zerovec);
-		if (buf->bb_owner)
-			c2_net_buffer_deregister(&buf->bb_nbuf,
-						 buf->bb_nbuf.nb_dom);
-		c2_free(buf);
+		rpc_bulk_buf_fini(buf);
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 }
@@ -1131,6 +1138,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	struct c2_rpc_bulk_buf *buf;
 
 	C2_PRE(rbulk != NULL);
+	C2_PRE(rpc_bulk_invariant(rbulk));
 	C2_PRE(netdom != NULL);
 	C2_PRE(out != NULL);
 
@@ -1153,10 +1161,13 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	buf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
 	buf->bb_rbulk = rbulk;
 	buf->bb_owner = false;
+	buf->bb_nbuf.nb_buffer = buf->bb_zerovec.z_bvec;
 	c2_mutex_lock(&rbulk->rb_mutex);
 	rpcbulk_tlist_add(&rbulk->rb_buflist, buf);
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	*out = buf;
+	C2_POST(rpc_bulk_buf_invariant(buf));
+	C2_POST(rpc_bulk_invariant(rbulk));
 	return 0;
 }
 
@@ -1169,7 +1180,7 @@ int c2_rpc_bulk_buf_page_add(struct c2_rpc_bulk_buf *rbuf,
 	struct c2_rpc_bulk *rbulk;
 
 	C2_PRE(rbuf != NULL);
-	C2_PRE(rpcbulk_tlink_is_in(rbuf));
+	C2_PRE(rpc_bulk_buf_invariant(rbuf));
 	C2_PRE(pg != NULL);
 
 	rbulk = rbuf->bb_rbulk;
@@ -1179,6 +1190,7 @@ int c2_rpc_bulk_buf_page_add(struct c2_rpc_bulk_buf *rbuf,
 		return rc;
 
 	rbuf->bb_nbuf.nb_buffer = rbuf->bb_zerovec.z_bvec;
+	C2_POST(rpc_bulk_buf_invariant(rbuf));
 	C2_POST(rpc_bulk_invariant(rbulk));
 	return rc;
 }
@@ -1194,7 +1206,7 @@ int c2_rpc_bulk_buf_usrbuf_add(struct c2_rpc_bulk_buf *rbuf,
 	struct c2_rpc_bulk	*rbulk;
 
 	C2_PRE(rbuf != NULL);
-	C2_PRE(rpcbulk_tlink_is_in(rbuf));
+	C2_PRE(rpc_bulk_buf_invariant(rbuf));
 	C2_PRE(buf != NULL);
 	C2_PRE(count != 0);
 
@@ -1206,13 +1218,14 @@ int c2_rpc_bulk_buf_usrbuf_add(struct c2_rpc_bulk_buf *rbuf,
 		return rc;
 
 	rbuf->bb_nbuf.nb_buffer = rbuf->bb_zerovec.z_bvec;
+	C2_POST(rpc_bulk_buf_invariant(rbuf));
 	C2_POST(rpc_bulk_invariant(rbulk));
 	return rc;
 }
 
 static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		       const struct c2_rpc_conn *conn,
-		       struct c2_net_buf_desc *desc_list,
+		       struct c2_net_buf_desc *descs,
 		       enum c2_rpc_bulk_op_type op)
 {
 	int				 rc;
@@ -1225,7 +1238,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 
 	C2_PRE(rbulk != NULL);
 	C2_PRE(rpc_bulk_invariant(rbulk));
-	C2_PRE(desc_list != NULL);
+	C2_PRE(descs != NULL);
 	C2_PRE(op == C2_RPC_BULK_STORE || op == C2_RPC_BULK_LOAD);
 
 	rpcmach = conn->c_rpcmachine;
@@ -1237,6 +1250,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
 		nbuf = &rbuf->bb_nbuf;
 		nbuf->nb_length = c2_vec_count(&nbuf->nb_buffer.ov_vec);
+		C2_ASSERT(rpc_bulk_buf_invariant(rbuf));
 		if (op == C2_RPC_BULK_STORE) {
 			C2_ASSERT(nbuf->nb_qtype ==
 				  C2_NET_QT_PASSIVE_BULK_RECV ||
@@ -1264,14 +1278,15 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		}
 
 		if (op == C2_RPC_BULK_LOAD) {
-			rc = c2_net_desc_copy(&desc_list[cnt], &nbuf->nb_desc);
+			rc = c2_net_desc_copy(&descs[cnt], &nbuf->nb_desc);
 			if (rc != 0) {
 				C2_ADDB_ADD(&rpcmach->cr_rpc_machine_addb,
 					    &rpc_machine_addb_loc,
 					    rpc_machine_func_fail,
 					    "Load: Net buf desc copy failed.",
 					    rc);
-				c2_net_buffer_deregister(nbuf, netdom);
+				if (rbuf->bb_owner)
+					c2_net_buffer_deregister(nbuf, netdom);
 				goto cleanup;
 			}
 		}
@@ -1288,21 +1303,20 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		}
 
 		if (op == C2_RPC_BULK_STORE) {
-			rc = c2_net_desc_copy(&nbuf->nb_desc, &desc_list[cnt]);
-			if (rc != 0) {
-				C2_ADDB_ADD(&rpcmach->cr_rpc_machine_addb,
-					    &rpc_machine_addb_loc,
-					    rpc_machine_func_fail,
-					    "Store: Net buf desc copy failed.",
-					    rc);
-				c2_net_buffer_del(nbuf, tm);
-				if (rbuf->bb_owner)
-					c2_net_buffer_deregister(nbuf, netdom);
-				goto cleanup;
-			}
+			rc = c2_net_desc_copy(&nbuf->nb_desc, &descs[cnt]);
+                        if (rc != 0) {
+                                C2_ADDB_ADD(&rpcmach->cr_rpc_machine_addb,
+                                            &rpc_machine_addb_loc,
+                                            rpc_machine_func_fail,
+                                            "Store: Net buf desc copy failed.",
+                                            rc);
+                                c2_net_buffer_del(nbuf, tm);
+                                goto cleanup;
+                        }
 		}
 
 		++cnt;
+		rbulk->rb_bytes += c2_vec_count(&nbuf->nb_buffer.ov_vec);
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 

@@ -130,13 +130,6 @@ struct c2_rpc_ctx		c_rctx = {
 	.rx_timeout_s		= IO_RPC_CONN_TIMEOUT,
 };
 
-
-/* Dummy io fom object. Used for bulk IO client UT.
-   !!This should be removed after bulk IO server UT code is in place!! */
-struct io_fop_dummy_fom {
-	struct c2_fom df_fom;
-};
-
 static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /* An alternate io fop type op vector to test bulk client functionality only.
@@ -149,7 +142,6 @@ struct c2_fop_type_ops bulkio_fop_ut_ops = {
 	.fto_fom_init = io_fop_dummy_fom_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
@@ -164,10 +156,7 @@ static struct c2_fom_type bulkio_fom_type = {
 
 static void bulkio_fom_fini(struct c2_fom *fom)
 {
-	struct io_fop_dummy_fom *fom_ctx;
-
-	fom_ctx = container_of(fom, struct io_fop_dummy_fom, df_fom);
-	c2_free(fom_ctx);
+	c2_free(fom);
 }
 
 static int bulkio_fom_state(struct c2_fom *fom)
@@ -179,9 +168,8 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	c2_bcount_t			 tc;
 	struct c2_fop			*fop;
 	struct c2_clink			 clink;
-	struct c2_fop_cob_writev	*wfop;
+	struct c2_bufvec		**bvecs;
 	struct c2_fop_cob_rw		*rw;
-	struct c2_net_buffer		**nbufs;
 	struct c2_io_indexvec		*ivec;
 	struct c2_net_buf_desc		*desc;
 	struct c2_rpc_bulk		*rbulk;
@@ -192,12 +180,11 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	printf("Entering fom state\n");
 	conn = fom->fo_fop->f_item.ri_session->s_conn;
-	wfop = c2_fop_data(fom->fo_fop);
-	rw = &wfop->c_rwv;
+	rw = io_rw_get(fom->fo_fop);
 	C2_UT_ASSERT(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
 
-	C2_ALLOC_ARR(nbufs, rw->crw_desc.id_nr);
-	C2_UT_ASSERT(nbufs != NULL);
+	C2_ALLOC_ARR(bvecs, rw->crw_desc.id_nr);
+	C2_UT_ASSERT(bvecs != NULL);
 
 	C2_ALLOC_PTR(rbulk);
 	C2_UT_ASSERT(rbulk != NULL);
@@ -213,16 +200,12 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
 		desc = &rw->crw_desc.id_descs[i];
 
-		C2_ALLOC_PTR(nbufs[i]);
-		C2_UT_ASSERT(nbufs[i] != NULL);
+		C2_ALLOC_PTR(bvecs[i]);
+		C2_UT_ASSERT(bvecs[i] != NULL);
 
-		rc = c2_bufvec_alloc(&nbufs[i]->nb_buffer, ivec->ci_nr,
+		rc = c2_bufvec_alloc(bvecs[i], ivec->ci_nr,
 				     ivec->ci_iosegs[0].ci_count);
 		C2_UT_ASSERT(rc == 0);
-
-		nbufs[i]->nb_qtype = is_write(fom->fo_fop) ?
-				     C2_NET_QT_ACTIVE_BULK_RECV :
-				     C2_NET_QT_ACTIVE_BULK_SEND;
 
 		rc = c2_rpc_bulk_buf_add(rbulk, ivec->ci_nr,
 					 ivec->ci_iosegs[0].ci_count,
@@ -232,14 +215,17 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(rbuf != NULL);
 
-		rbuf->bb_nbuf = *nbufs[i];
-		tc += c2_vec_count(&nbufs[i]->nb_buffer.ov_vec);
+		rbuf->bb_nbuf.nb_buffer = *bvecs[i];
+		rbuf->bb_nbuf.nb_qtype = is_write(fom->fo_fop) ?
+					 C2_NET_QT_ACTIVE_BULK_RECV :
+					 C2_NET_QT_ACTIVE_BULK_SEND;
+		tc += c2_vec_count(&bvecs[i]->ov_vec);
 
 		if (is_read(fom->fo_fop)) {
 			for (j = 0; j < ivec->ci_nr; ++j)
 				/* Sets a pattern in data buffer so that
 				   it can be verified at other side. */
-				memset(nbufs[i]->nb_buffer.ov_buf[j], 'b',
+				memset(bvecs[i]->ov_buf[j], 'b',
 				       ivec->ci_iosegs[j].ci_count);
 		}
 	}
@@ -261,11 +247,11 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	/* Checks if the write io bulk data is received as is. */
 	for (i = 0; i < rw->crw_desc.id_nr && is_write(fom->fo_fop); ++i) {
-		cmp = wfop->c_rwv.crw_flags;
-		for (j = 0; j < nbufs[i]->nb_buffer.ov_vec.v_nr; ++j) { 
+		cmp = rw->crw_flags;
+		for (j = 0; j < bvecs[i]->ov_vec.v_nr; ++j) { 
 			rc = memcmp(io_buf[cmp].nb_buffer.ov_buf[j],
-				    nbufs[i]->nb_buffer.ov_buf[j],
-				    nbufs[i]->nb_buffer.ov_vec.v_count[j]);
+				    bvecs[i]->ov_buf[j],
+				    bvecs[i]->ov_vec.v_count[j]);
 			C2_UT_ASSERT(rc == 0);
 		}
 	}
@@ -292,10 +278,10 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	fom->fo_phase = FOPH_FINISH;
 	/* Deallocates net buffers and c2_buvec structures. */
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		c2_bufvec_free(&nbufs[i]->nb_buffer);
-		c2_free(nbufs[i]);
+		c2_bufvec_free(bvecs[i]);
+		c2_free(bvecs[i]);
 	}
-	c2_free(nbufs);
+	c2_free(bvecs);
 	c2_rpc_bulk_fini(rbulk);
 	c2_free(rbulk);
 
@@ -316,13 +302,11 @@ static struct c2_fom_ops bulkio_fom_ops = {
 
 static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_fom		*fom;
-	struct io_fop_dummy_fom *fom_ctx;
+	struct c2_fom *fom;
 
-	C2_ALLOC_PTR(fom_ctx);
-	C2_UT_ASSERT(fom_ctx != NULL);
+	C2_ALLOC_PTR(fom);
+	C2_UT_ASSERT(fom != NULL);
 
-	fom = &fom_ctx->df_fom;
 	fom->fo_fop = fop;
 	c2_fom_init(fom);
 	fop->f_type->ft_fom_type.ft_ops = &bulkio_fom_type_ops;
@@ -537,6 +521,9 @@ static void io_fops_rpc_submit(int i)
 				    io_buf[i].nb_buffer.ov_vec.v_count[j]);
 			C2_UT_ASSERT(rc == 0);
 		}
+		c2_mutex_lock(&rbulk->rb_mutex);
+		C2_UT_ASSERT(rbulk->rb_rc == 0);
+		c2_mutex_unlock(&rbulk->rb_mutex);
 	}
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);

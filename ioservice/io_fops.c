@@ -58,11 +58,9 @@ C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 static void io_item_replied(struct c2_rpc_item *item);
-static uint64_t io_frags_nr_get(const struct c2_rpc_item *item);
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			     uint64_t size);
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
-static uint64_t io_fop_fragments_nr_get(const struct c2_fop *fop);
 static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
 static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
@@ -110,7 +108,6 @@ const struct c2_rpc_item_ops rpc_item_iov_ops = {
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
         .rito_item_size = c2_fop_item_type_default_onwire_size,
-        .rito_io_frags_nr_get = io_frags_nr_get,
         .rito_io_coalesce = item_io_coalesce,
         .rito_encode = c2_fop_item_type_default_encode,
         .rito_decode = c2_fop_item_type_default_decode,
@@ -120,7 +117,6 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
@@ -705,29 +701,6 @@ static bool io_fop_type_equal(const struct c2_fop *fop1,
 	return fop1->f_type == fop2->f_type;
 }
 
-static uint64_t io_fop_fragments_nr_get(const struct c2_fop *fop)
-{
-	uint32_t		 i;
-	uint64_t		 frag_nr = 1;
-	struct c2_0vec		*iovec;
-	struct c2_rpc_bulk	*rbulk;
-	struct c2_rpc_bulk_buf	*rbuf;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(is_io(fop));
-
-	rbulk = c2_fop_to_rpcbulk(fop);
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
-		iovec = io_0vec_get(rbuf);
-		for (i = 0; i < iovec->z_bvec.ov_vec.v_nr - 1; ++i)
-			if (iovec->z_index[i] +
-			    iovec->z_bvec.ov_vec.v_count[i] !=
-			    iovec->z_index[i+1])
-				frag_nr++;
-	} c2_tlist_endfor;
-	return frag_nr;
-}
-
 static int io_fop_seg_init(struct ioseg **ns, const struct ioseg *cseg)
 {
 	struct ioseg *new_seg;
@@ -1005,6 +978,7 @@ static void io_fop_bulkbuf_move(struct c2_fop *src, struct c2_fop *dest)
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&sbulk->rb_mutex);
 
+	
 	srw = io_rw_get(src);
 	drw = io_rw_get(dest);
 	drw->crw_desc = srw->crw_desc;
@@ -1031,22 +1005,12 @@ int io_fop_desc_alloc(struct c2_fop *fop)
 
 void io_fop_desc_dealloc(struct c2_fop *fop)
 {
-	uint32_t		 i;
 	struct c2_fop_cob_rw	*rw;
-	struct c2_net_buf_desc	*desc;
 
 	C2_PRE(fop != NULL);
 
 	rw = io_rw_get(fop);
 
-	/* io_fop_desc_alloc does not allocate c2_net_buf_desc->nbd_data
-	   but it is allocated internally by c2_rpc_bulk_store() while
-	   doing adding buffer to transfer machine. This loop deallocates
-	   that memory contained in each c2_net_buf_desc. */
-	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		desc = &rw->crw_desc.id_descs[i];
-		c2_free(desc->nbd_data);
-	}
 	c2_free(rw->crw_desc.id_descs);
 }
 
@@ -1091,12 +1055,8 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 
 static void io_fop_desc_ivec_destroy(struct c2_fop *fop)
 {
-	struct c2_rpc_bulk *rbulk;
-
 	C2_PRE(fop != NULL);
 
-	rbulk = c2_fop_to_rpcbulk(fop);
-	c2_rpc_bulk_buflist_empty(rbulk);
 	io_fop_desc_dealloc(fop);
 	io_fop_ivec_dealloc(fop);
 }
@@ -1127,6 +1087,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	struct io_seg_set	   aggr_set;
 	struct c2_rpc_item	  *item;
 	struct c2_rpc_bulk	  *rbulk;
+	struct c2_rpc_bulk	  *bbulk;
 	struct c2_fop_cob_rw	  *rw;
 	struct c2_rpc_bulk_buf    *rbuf;
 	struct c2_net_transfer_mc *tm;
@@ -1229,12 +1190,18 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	/* Removes the net buffers from transfer machine contained by rpc bulk
 	   structure belonging to res_fop since they will be replaced by
 	   new coalesced net buffers. */
-	rbulk = c2_fop_to_rpcbulk(bkp_fop);
+	bbulk = c2_fop_to_rpcbulk(bkp_fop);
+	rbulk = c2_fop_to_rpcbulk(res_fop);
+	c2_mutex_lock(&bbulk->rb_mutex);
 	c2_mutex_lock(&rbulk->rb_mutex);
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
+	c2_tlist_for(&rpcbulk_tl, &bbulk->rb_buflist, rbuf) {
+		rpcbulk_tlist_del(rbuf);
+		rpcbulk_tlist_add(&rbulk->rb_buflist, rbuf);
 		c2_net_buffer_del(&rbuf->bb_nbuf, tm);
+		rbulk->rb_bytes -= c2_vec_count(&rbuf->bb_nbuf.nb_buffer.ov_vec);
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
+	c2_mutex_unlock(&bbulk->rb_mutex);
 
 	C2_POST(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
 	rpcitem_tlist_add(&res_fop->f_item.ri_compound_items, &bkp_fop->f_item);
@@ -1319,18 +1286,31 @@ static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 /* Rpc item ops for IO operations. */
 static void io_item_replied(struct c2_rpc_item *item)
 {
-	struct c2_fop	   *fop;
-	struct c2_fop	   *bkpfop;
-	struct c2_rpc_item *ritem;
-	struct c2_rpc_bulk *rbulk;
+	struct c2_fop		   *fop;
+	struct c2_fop		   *rfop;
+	struct c2_fop		   *bkpfop;
+	struct c2_rpc_item	   *ritem;
+	struct c2_rpc_bulk	   *rbulk;
+	struct c2_fop_cob_rw_reply *reply;
 
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
+	rbulk = c2_fop_to_rpcbulk(fop);
+	rfop = c2_rpc_item_to_fop(item->ri_reply);
+	reply = io_rw_rep_get(rfop);
+
+	if (item->ri_error != 0 || reply->rwr_count != rbulk->rb_bytes) {
+		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+			    bulkclient_func_fail, "io fop failed.",
+			    item->ri_error);
+	}
+
 	/* Restores the contents of master coalesced fop from the first
 	   rpc item in c2_rpc_item::ri_compound_items list. This item
 	   is inserted by io coalescing code. */
 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
+		io_fop_desc_ivec_destroy(fop);
 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
 		rpcitem_tlist_del(ritem);
 		bkpfop = c2_rpc_item_to_fop(ritem);
@@ -1350,19 +1330,11 @@ static void io_item_replied(struct c2_rpc_item *item)
 		c2_mutex_lock(&rbulk->rb_mutex);
 		C2_ASSERT(rbulk != NULL && c2_tlist_is_empty(&rpcbulk_tl,
 			  &rbulk->rb_buflist));
+		/* Notifies all member coalesced items of completion status. */
+		rbulk->rb_rc = item->ri_error;
 		c2_mutex_unlock(&rbulk->rb_mutex);
 		c2_chan_broadcast(&ritem->ri_chan);
 	} c2_tlist_endfor;
-}
-
-static uint64_t io_frags_nr_get(const struct c2_rpc_item *item)
-{
-	struct c2_fop *fop;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	return fop->f_type->ft_ops->fto_get_nfragments(fop);
 }
 
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,

@@ -595,7 +595,7 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 	}
 
 	/* If item is bound, remove it from formation state machine data. */
-	if (c2_rpc_item_is_bound(item))
+	if (c2_list_link_is_in(&item->ri_unformed_linkage))
 		c2_list_del(&item->ri_unformed_linkage);
 
 	if (item->ri_group == NULL)
@@ -801,47 +801,21 @@ static void sm_updating_state(struct c2_rpc_frm_sm *frm_sm,
 		sm_forming_state(frm_sm, item);
 }
 
-/* Checks if addition of current fragment count and number of fragments
-   from current rpc item fit within max_fragments count from formation
-   state machine. Returns TRUE if current count of fragments fit within
-   max value, FALSE otherwise. */
-static bool frm_fragment_policy_in_bounds(const struct c2_rpc_frm_sm *frm_sm,
-		struct c2_rpc_item *item, uint64_t *frag_nr)
-{
-	uint64_t curr_fragments;
-
-	C2_PRE(frm_sm != NULL);
-	C2_PRE(item != NULL);
-	C2_PRE(frag_nr != NULL);
-
-	if (item->ri_type->rit_ops->rito_io_frags_nr_get) {
-		curr_fragments = item->ri_type->rit_ops->
-			rito_io_frags_nr_get(item);
-		if ((*frag_nr + curr_fragments) > frm_sm->fs_max_frags)
-			return false;
-	}
-	return true;
-}
-
 /* Add an rpc item to the formed list of an rpc object. */
 static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc *rpc, struct c2_rpc_item *item,
-		uint64_t *rpcobj_size, uint64_t *frag_nr)
+		uint64_t *rpcobj_size)
 {
 	struct c2_rpc_slot *slot;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
 	C2_PRE(rpcobj_size != NULL);
-	C2_PRE(frag_nr != NULL);
 	C2_PRE(item->ri_state != RPC_ITEM_ADDED);
 
 	/* Update size of rpc object and current count of fragments. */
 	c2_list_add(&rpc->r_items, &item->ri_rpcobject_linkage);
 	*rpcobj_size += item->ri_type->rit_ops->rito_item_size(item);
-	if (item->ri_type->rit_ops->rito_io_frags_nr_get != NULL)
-		*frag_nr += item->ri_type->rit_ops->
-			rito_io_frags_nr_get(item);
 
 	/* Remove the item data from c2_rpc_frm_sm structure. */
 	frm_item_remove(frm_sm, item);
@@ -884,12 +858,10 @@ static void io_coalesce(struct c2_rpc_item *item, struct c2_rpc_frm_sm *frm_sm,
 /* Add bound items to rpc object. Rpc items are added until size gets
    optimal or any other policy of formation module has met. */
 static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
-				   struct c2_rpc *rpcobj, uint64_t *rpcobj_size,
-				   uint64_t *frag_nr)
+				   struct c2_rpc *rpcobj, uint64_t *rpcobj_size)
 {
 	int				   cnt;
 	bool				   sz_policy_violated = false;
-	bool				   frags_policy_ok = false;
 	uint64_t			   rpc_size;
 	struct c2_list			  *list;
 	struct c2_rpc_item		  *item;
@@ -901,7 +873,6 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 	C2_PRE(rpcobj_size != NULL);
-	C2_PRE(frag_nr != NULL);
 	C2_PRE(rpcobj != NULL);
 
 	/* Iterate over the priority bands and add items arranged in
@@ -923,20 +894,16 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			/* If size threshold is not reached or other formation
 			   policies are met, add item to rpc object. */
 			if (!sz_policy_violated) {
-				frags_policy_ok = frm_fragment_policy_in_bounds(
-						  frm_sm, item, frag_nr);
-				if (frags_policy_ok) {
-					session = item->ri_session;
-					c2_mutex_lock(&session->s_mutex);
-					io_coalesce(item, frm_sm, rpc_size);
-					c2_mutex_unlock(&session->s_mutex);
-					c2_mutex_lock(&rpcmachine->
-							cr_ready_slots_mutex);
-					frm_add_to_rpc(frm_sm, rpcobj, item,
-						       rpcobj_size, frag_nr);
-					c2_mutex_unlock(&rpcmachine->
-							cr_ready_slots_mutex);
-				}
+				session = item->ri_session;
+				c2_mutex_lock(&session->s_mutex);
+				io_coalesce(item, frm_sm, rpc_size);
+				c2_mutex_unlock(&session->s_mutex);
+				c2_mutex_lock(&rpcmachine->
+					      cr_ready_slots_mutex);
+				frm_add_to_rpc(frm_sm, rpcobj, item,
+					       rpcobj_size);
+				c2_mutex_unlock(&rpcmachine->
+						cr_ready_slots_mutex);
 			} else
 				break;
 		}
@@ -965,10 +932,9 @@ static void frm_item_make_bound(struct c2_rpc_slot *slot,
    until rpc becomes optimal size or other formation policies are met. */
 static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				     struct c2_rpc *rpcobj,
-				     uint64_t *rpcobj_size, uint64_t *frag_nr)
+				     uint64_t *rpcobj_size)
 {
 	bool				   sz_policy_violated = false;
-	bool				   frags_policy_ok = false;
 	uint64_t			   rpc_size;
 	struct c2_rpc_item		  *item;
 	struct c2_rpc_item		  *item_next;
@@ -981,7 +947,6 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(rpcobj != NULL);
-	C2_PRE(frag_nr != NULL);
 	C2_PRE(rpcobj_size != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 
@@ -1019,15 +984,11 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 					rpc_size, rit_ops->rito_item_size(
 						item));
 			if (!sz_policy_violated) {
-				frags_policy_ok = frm_fragment_policy_in_bounds(
-						  frm_sm, item, frag_nr);
-				if (frags_policy_ok) {
-					frm_item_make_bound(slot, item);
-					c2_list_del(&item->ri_unbound_link);
-					io_coalesce(item, frm_sm, rpc_size);
-					frm_add_to_rpc(frm_sm, rpcobj, item,
-						       rpcobj_size, frag_nr);
-				}
+				frm_item_make_bound(slot, item);
+				c2_list_del(&item->ri_unbound_link);
+				io_coalesce(item, frm_sm, rpc_size);
+				frm_add_to_rpc(frm_sm, rpcobj, item,
+					       rpcobj_size);
 			} else
 				break;
 		}
@@ -1071,7 +1032,6 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 {
 	bool		 size_optimal;
 	bool		 frm_policy;
-	uint64_t	 frag_nr = 0;
 	uint64_t	 rpcobj_size = 0;
 	struct c2_rpc	*rpcobj;
 
@@ -1111,11 +1071,11 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 
 	/* Try to include bound rpc items in rpc. This routine also includes
 	   IO coalescing amongst a bound item and a stream of unbound items. */
-	bound_items_add_to_rpc(frm_sm, rpcobj, &rpcobj_size, &frag_nr);
+	bound_items_add_to_rpc(frm_sm, rpcobj, &rpcobj_size);
 
 	/* Try to include unbound rpc items in rpc. Unbound items are made
 	   bound once they are included in rpc. */
-	unbound_items_add_to_rpc(frm_sm, rpcobj, &rpcobj_size, &frag_nr);
+	unbound_items_add_to_rpc(frm_sm, rpcobj, &rpcobj_size);
 
 	if (c2_list_is_empty(&rpcobj->r_items)) {
 		c2_rpcobj_fini(rpcobj);

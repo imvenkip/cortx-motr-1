@@ -46,11 +46,6 @@ struct c2_rpc_item_type;
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
-	   Restore original IO vector of rpc item.
-	 */
-	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
-			struct c2_fop *bkpfop);
-	/**
 	   Find out the size of rpc item.
 	 */
 	size_t (*rito_item_size)(const struct c2_rpc_item *item);
@@ -60,11 +55,6 @@ struct c2_rpc_item_type_ops {
 	 */
 	bool (*rito_eq)(const struct c2_rpc_item *i1,
 			const struct c2_rpc_item *i2);
-
-	/**
-	   Find out the count of fragmented buffers.
-	 */
-	uint64_t (*rito_io_frags_nr_get)(const struct c2_rpc_item *item);
 
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
