@@ -1048,7 +1048,7 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	struct c2_net_buffer	*nb;
 	bool			 receiver = false;
 
-	C2_PRE(evt != NULL); 
+	C2_PRE(evt != NULL);
 	C2_PRE(evt->nbe_buffer != NULL);
 
 	nb = evt->nbe_buffer;
@@ -1066,7 +1066,7 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	rbulk->rb_rc = evt->nbe_status;
 
 	if (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
-	    nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) 
+	    nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND)
 		receiver = true;
 
 	c2_mutex_lock(&rbulk->rb_mutex);
