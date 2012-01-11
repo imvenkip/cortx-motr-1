@@ -81,7 +81,7 @@ static struct c2_thread		  io_threads[IO_FOPS_NR];
 
 /* A standard buffer containing a data pattern.
    Primarily used for data verification. */
-static char 			  io_cbuf[IO_SEG_SIZE];
+static char			  io_cbuf[IO_SEG_SIZE];
 
 /* Request handler for io service on server side. */
 static struct c2_reqh		  io_reqh;
@@ -97,7 +97,7 @@ static char			  c_endp_addr[] = "127.0.0.1:23123:2";
 static char			  s_db_name[]	= "bulk_s_db";
 static char			  c_db_name[]	= "bulk_c_db";
 
-extern struct c2_net_xprt 	  c2_net_bulk_sunrpc_xprt;
+extern struct c2_net_xprt	  c2_net_bulk_sunrpc_xprt;
 static struct c2_net_domain	  io_netdom;
 static struct c2_net_xprt	 *xprt = &c2_net_bulk_sunrpc_xprt;
 
@@ -248,7 +248,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	/* Checks if the write io bulk data is received as is. */
 	for (i = 0; i < rw->crw_desc.id_nr && is_write(fom->fo_fop); ++i) {
 		cmp = rw->crw_flags;
-		for (j = 0; j < bvecs[i]->ov_vec.v_nr; ++j) { 
+		for (j = 0; j < bvecs[i]->ov_vec.v_nr; ++j) {
 			rc = memcmp(io_buf[cmp].nb_buffer.ov_buf[j],
 				    bvecs[i]->ov_buf[j],
 				    bvecs[i]->ov_vec.v_count[j]);
@@ -398,7 +398,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 			io_buf[index].nb_buffer.ov_vec.v_count[i];
 	}
 
-	rbuf->bb_nbuf.nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ? 
+	rbuf->bb_nbuf.nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
 		C2_NET_QT_PASSIVE_BULK_SEND : C2_NET_QT_PASSIVE_BULK_RECV;
 
 	/* Allocates memory for array of net buf descriptors and array of
@@ -414,7 +414,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 	C2_UT_ASSERT(rc == 0);
 
 	rw->crw_flags = index;
-	
+
 	/* Temporary! Should be removed once bulk server UT code is merged
 	   with this code. */
 	rw->crw_iovec.iv_count = 1;

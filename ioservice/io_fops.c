@@ -978,7 +978,6 @@ static void io_fop_bulkbuf_move(struct c2_fop *src, struct c2_fop *dest)
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&sbulk->rb_mutex);
 
-	
 	srw = io_rw_get(src);
 	drw = io_rw_get(dest);
 	drw->crw_desc = srw->crw_desc;
