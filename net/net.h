@@ -1275,6 +1275,9 @@ struct c2_net_buffer {
 	/** Linkage into a network buffer pool. */
 	struct c2_tlink		   nb_lru;
 
+        /* This link is used by I/O service */
+        struct c2_tlink            nb_ioservice_linkage;
+
 	/** Magic for network buffer list. */
 	uint64_t		   nb_magic;
 
