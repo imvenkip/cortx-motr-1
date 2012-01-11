@@ -31,6 +31,7 @@
 
 #include <libaio.h>
 
+#include "lib/queue.h"
 #include "lib/tlist.h"
 #include "lib/thread.h"
 #include "stob/stob.h"

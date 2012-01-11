@@ -439,7 +439,7 @@ int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
 	result = linux_stob_path(lstob, ARRAY_SIZE(symlinkname), symlinkname);
 	if (result == 0) {
 		result = symlink(path, symlinkname);
-		result = (result < 0 && result != -EEXIST) ? -errno : 0;
+		result = result < 0  ? -errno : 0;
 	}
 
 	return result;

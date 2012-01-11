@@ -37,6 +37,8 @@ void c2_linux_stobs_fini(void);
 struct c2_stob_domain;
 
 int c2_linux_stob_setup(struct c2_stob_domain *dom, bool use_directio);
+int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
+			const char *path, struct c2_dtx *tx);
 
 /** @} end group stoblinux */
 

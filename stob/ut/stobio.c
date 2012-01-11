@@ -21,6 +21,7 @@
 #include <stdio.h>     /* fopen, fgetc, ... */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
+#include <linux/limits.h>
 
 #include "lib/misc.h"    /* C2_SET0 */
 #include "lib/memory.h"
@@ -32,6 +33,7 @@
 
 #include "stob/stob.h"
 #include "stob/linux.h"
+#include "stob/linux_internal.h"
 #include "stob/ad.h"
 #include "balloc/balloc.h"
 #include "colibri/init.h"
@@ -54,6 +56,8 @@ struct stobio_test {
 	/* ctrl part */
 	struct c2_stob	        *st_obj;
 	const struct c2_stob_id  st_id;
+	/* Real block device, if any */
+	char			*st_dev_path;
 
 	struct c2_stob_domain   *st_dom;
 	struct c2_stob_io	 st_io;
@@ -102,9 +106,60 @@ struct stobio_test test[TEST_NR] = {
 		.st_directio = true },
 	[8] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } },
 		.st_directio = true },
-	[9] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } },
-		.st_directio = true },
+	[9] = { .st_id = { .si_bits = { .u_hi = 10, .u_lo = 0 } },
+		.st_directio = true, .st_dev_path="/dev/loop0"  },
 };
+
+/*
+ * Assumes that we are dealing with loop-back devices and not real devices.
+ */
+static void stob_dev_init(const struct stobio_test *test)
+{
+	struct stat statbuf;
+	int	    result;
+	int	    dev_sz;
+	char	    sysbuf[PATH_MAX];
+
+	result = stat(test->st_dev_path, &statbuf);
+	C2_ASSERT(result == 0);
+
+	if(strncmp(test->st_dev_path, "/dev/loop", strlen("/dev/loop")))
+		return;
+
+	/* Device size in KB */
+	dev_sz = (MIN_BUFF_SIZE/1024) * MIN_BUFF_SIZE_IN_BLOCKS * RW_BUFF_NR * \
+		 TEST_NR * TEST_NR;
+
+	/* Device size in MB */
+	dev_sz = (dev_sz > 1024) ? ((dev_sz/1024) + 1) : 1;
+
+	sprintf(sysbuf, "dd if=/dev/zero of=./__s/%lu bs=1M count=%d",
+			test->st_id.si_bits.u_hi, dev_sz);
+	result = system(sysbuf);
+	C2_ASSERT(result == 0);
+
+	sprintf(sysbuf, "losetup %s ./__s/%lu", test->st_dev_path,
+						test->st_id.si_bits.u_hi);
+	result = system(sysbuf);
+	C2_ASSERT(result == 0);
+}
+
+static void stob_dev_fini(const struct stobio_test *test)
+{
+	int	    result;
+	char	    sysbuf[PATH_MAX];
+
+	if(strncmp(test->st_dev_path, "/dev/loop", strlen("/dev/loop")))
+		return;
+
+	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
+	result = system(sysbuf);
+	C2_ASSERT(result == 0);
+
+	sprintf(sysbuf, "cp ./__s/%lu /root/testfile", test->st_id.si_bits.u_hi);
+	result = system(sysbuf);
+	C2_ASSERT(result == 0);
+}
 
 static void stobio_io_prepare(struct stobio_test *test,
 			      struct c2_stob_io *io)
@@ -242,7 +297,6 @@ static int stobio_storage_init(void)
 static void stobio_storage_fini(void)
 {
 	int result;
-
 	result = system("rm -fr ./__s");
 	C2_UT_ASSERT(result == 0);
 }
@@ -250,9 +304,7 @@ static void stobio_storage_fini(void)
 static int stobio_init(struct stobio_test *test)
 {
 	int result;
-
-	/* result = stobio_storage_init(); */
-	/* C2_UT_ASSERT(result == 0); */
+	struct linux_stob *lstob;
 
 	result = linux_stob_type.st_op->
 		sto_domain_locate(&linux_stob_type, "./__s", &test->st_dom);
@@ -266,9 +318,19 @@ static int stobio_init(struct stobio_test *test)
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(test->st_obj->so_state == CSS_UNKNOWN);
 
+	if(test->st_dev_path != NULL) {
+		stob_dev_init(test);
+		result = c2_linux_stob_link(test->st_dom, test->st_obj,
+					    test->st_dev_path, NULL);
+		C2_ASSERT(result == 0);
+
+	}
+
 	result = c2_stob_create(test->st_obj, NULL);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(test->st_obj->so_state == CSS_EXISTS);
+	lstob = stob2linux(test->st_obj);
+	C2_ASSERT(S_ISREG(lstob->sl_mode) || S_ISBLK(lstob->sl_mode));
 
 	test->st_block_shift = test->st_obj->so_op->sop_block_shift(test->st_obj);
 	test->st_block_size = 1 << test->st_block_shift;
@@ -280,19 +342,18 @@ static int stobio_init(struct stobio_test *test)
 
 	stobio_rw_buffs_init(test);
 
-	/* c2_stob_put(test->st_obj); */
-	/* c2_stob_get(test->st_obj); */
-
 	return 0;
 }
 
 static void stobio_fini(struct stobio_test *test)
 {
-	/* c2_stob_get(test->st_obj); */
 	c2_stob_put(test->st_obj);
 	test->st_dom->sd_ops->sdo_fini(test->st_dom);
-	/* stobio_storage_fini(); */
 	stobio_rw_buffs_fini(test);
+
+	if(test->st_dev_path != NULL)
+		stob_dev_fini(test);
+
 }
 
 static void stobio_rwsegs_prepare(struct stobio_test *test, int starts_from)
@@ -355,8 +416,6 @@ void test_stobio(void)
 	int result;
 
 	c2_mutex_init(&lock);
-	/* result = c2_init(); */
-	/* C2_UT_ASSERT(result == 0); */
 
 	result = stobio_storage_init();
 	C2_UT_ASSERT(result == 0);
@@ -378,7 +437,6 @@ void test_stobio(void)
 	stobio_storage_fini();
 
 	c2_mutex_fini(&lock);
-	/* return 0; */
 }
 
 const struct c2_test_suite stobio_ut = {
