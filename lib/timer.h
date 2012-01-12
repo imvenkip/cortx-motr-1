@@ -97,7 +97,9 @@ struct c2_timer_locality {
 
    @param timer c2_timer structure
    @param type timer type (C2_TIMER_SOFT or C2_TIMER_HARD)
-   @param expire absolute expiration time for timer
+   @param expire absolute expiration time for timer. If this time is already
+	  passed, then the timer callback will be executed immediatelly
+	  after c2_timer_start().
    @param callback this callback will be triggered whem timer alarms.
    @param data data for the callback.
    @pre callback != NULL
