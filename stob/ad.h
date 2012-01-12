@@ -65,7 +65,7 @@ struct ad_balloc_ops {
 	    @param block size shift in bytes, similarly to
 	    c2_stob_op::sop_block_shift().
 	    @param container_size Total size of the container in bytes
-	    @param groupsize Block size in blocks
+	    @param groupsize Total size of group in bytes
 	    @param res_groups # of reserved groups
 	 */
 	int  (*bo_init)(struct ad_balloc *ballroom, struct c2_dbenv *db,

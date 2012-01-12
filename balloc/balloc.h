@@ -153,7 +153,7 @@ static inline struct c2_balloc *b2c2(struct ad_balloc *ballroom)
 struct c2_balloc_format_req {
 	c2_bindex_t 	bfr_totalsize;	      /*< total size in bytes */
 	c2_bcount_t	bfr_blocksize;        /*< block size in bytes */
-	c2_bcount_t	bfr_groupsize;        /*< block size in blocks */
+	c2_bcount_t	bfr_groupsize;        /*< group size in bytes */
 	c2_bcount_t	bfr_reserved_groups;  /*< # of resvered groups */
 };
 
