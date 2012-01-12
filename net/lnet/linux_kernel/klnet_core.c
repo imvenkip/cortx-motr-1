@@ -773,7 +773,7 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
    @param cepa The NID, PID and Portal are used to filter the ::nlx_kcore_tms
    @return The largest available tmid, or -EADDRNOTAVAIL if none exists.
  */
-static bool nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
+static int nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
 {
 	int tmid = C2_NET_LNET_TMID_MAX;
 	struct nlx_kcore_transfer_mc *scan;
