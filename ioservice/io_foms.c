@@ -1100,13 +1100,13 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
                 nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                 C2_ASSERT(nb != NULL);
 
-                c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
-                c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
-                c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
-
                 /* XXX HACK :-( remove this -Amit */
                 rc = c2_net_buffer_register(nb,
                          fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
+
+                c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
+                c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
+                c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
                 netbufs_tlist_del(nb);
                 acquired_net_bufs--;
@@ -1313,8 +1313,10 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 		goto cleanup;
 
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
-	if (rc != 0)
+	if (rc != 0) {
+		C2_TRACE("Couldn't locate stob\n");
 		goto cleanup_st;
+	}
 
 	/*
            Since the upper layer IO block size could differ with IO block size
@@ -1602,13 +1604,13 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         c2_tlist_for (&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 C2_ASSERT(nb != NULL);
 
-                c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
-                c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
-                c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
-
                 /* XXX HACK :-( remove this -Amit */
                 rc = c2_net_buffer_register(nb,
                          fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
+
+                c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
+                c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
+                c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
                 netbufs_tlist_del(nb);
         } c2_tlist_endfor;

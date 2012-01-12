@@ -424,7 +424,7 @@ void send_ping_fop(int nr)
 	struct c2_fop_cob_writev *wrfop;
 	struct c2_rpc_bulk_buf   *rbuf;
 	struct c2_rpc_bulk       *rbulk;
-	struct c2_io_fop          io_fop;
+	struct c2_io_fop         *io_fop;
 	char                     *mydata;
 	int                       rc;
 	enum {
@@ -439,16 +439,19 @@ void send_ping_fop(int nr)
 	mydata = c2_alloc_aligned(DATA_SIZE, SHIFT);
 	C2_ASSERT(mydata != NULL);
 
-	rc = c2_io_fop_init(&io_fop, &c2_fop_cob_writev_fopt);
+	C2_ALLOC_PTR(io_fop);
+	C2_ASSERT(io_fop != NULL);
+
+	rc = c2_io_fop_init(io_fop, &c2_fop_cob_writev_fopt);
 	C2_ASSERT(rc == 0);
 
-	wrfop = c2_fop_data(&io_fop.if_fop);
+	wrfop = c2_fop_data(&io_fop->if_fop);
 	C2_ASSERT(wrfop != NULL);
 
 	wrfop->c_rwv.crw_fid.f_seq = 5;
 	wrfop->c_rwv.crw_fid.f_oid = 0;
 
-	rbulk = &io_fop.if_rbulk;
+	rbulk = &io_fop->if_rbulk;
 	rc = c2_rpc_bulk_buf_add(rbulk, NR_SEGS, SEG_SIZE, &cctx.pc_dom,
 					&rbuf);
 	C2_ASSERT(rc == 0);
@@ -459,22 +462,22 @@ void send_ping_fop(int nr)
 	C2_ASSERT(rc == 0);
 	rbuf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 
-        rc = io_fop_ivec_alloc(&io_fop.if_fop);
+        rc = io_fop_ivec_alloc(&io_fop->if_fop);
         C2_ASSERT(rc == 0);
 
-        rc = io_fop_desc_alloc(&io_fop.if_fop);
+        rc = io_fop_desc_alloc(&io_fop->if_fop);
         C2_ASSERT(rc == 0);
 
-        io_fop_ivec_prepare(&io_fop.if_fop);
+        io_fop_ivec_prepare(&io_fop->if_fop);
 
         rc = c2_rpc_bulk_store(rbulk, &cctx.pc_conn,
                                wrfop->c_rwv.crw_desc.id_descs); 
         C2_ASSERT(rc == 0);
 
-	rc = c2_rpc_client_call(&io_fop.if_fop, &cctx.pc_rpc_session,
+	rc = c2_rpc_client_call(&io_fop->if_fop, &cctx.pc_rpc_session,
 					TIMEOUT);
 	C2_ASSERT(rc == 0);
-	C2_TRACE("Done !!!\n");
+	C2_TRACE("Done !!! rc [%d]\n", rbulk->rb_rc);
 #endif /* !__KERNEL__ */
 }
 
