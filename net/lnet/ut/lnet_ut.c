@@ -82,6 +82,9 @@ static void test_tm_startstop(void)
 	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
+	static struct c2_net_domain dom2 = {
+		.nd_xprt = NULL
+	};
 	const struct c2_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = tf_tm_ecb,
 	};
@@ -89,15 +92,21 @@ static void test_tm_startstop(void)
 		.ntm_callbacks = &cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
+	struct c2_net_transfer_mc d2tm1 = {
+		.ntm_callbacks = &cbs1,
+		.ntm_state = C2_NET_TM_UNDEFINED
+	};
 	static struct c2_clink tmwait1;
 	char **nidstrs;
 	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&dom1, &nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
-	sprintf(epstr, "%s:12345:30:10", nidstrs[0]);
+	sprintf(epstr, "%s:12345:30:101", nidstrs[0]);
+	sprintf(dyn_epstr, "%s:12345:30:*", nidstrs[0]);
 	c2_net_lnet_ifaces_put(&dom1, nidstrs);
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
@@ -132,19 +141,37 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
 	c2_net_tm_fini(&d1tm1);
 
-	/* test combination of start with confine */
+	/* test combination of dynamic endpoint, start with confine,
+	 * and multiple domains and TMs
+	 */
+	C2_UT_ASSERT(!c2_net_domain_init(&dom2, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	C2_UT_ASSERT(!c2_net_tm_init(&d2tm1, &dom2));
 	C2_UT_ASSERT(c2_bitmap_init(&procs, 1) == 0);
 	c2_bitmap_set(&procs, 0, true);
 	C2_UT_ASSERT(c2_net_tm_confine(&d1tm1, &procs) == 0);
 
 	ecb_reset();
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
-	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, epstr));
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, dyn_epstr));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STARTED);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr, dyn_epstr) != 0);
+	printk("d1tm1.ntm_ep->nep_addr = %s\n", d1tm1.ntm_ep->nep_addr);
+
+	ecb_reset();
+	c2_clink_add(&d2tm1.ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_start(&d2tm1, dyn_epstr));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(d2tm1.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(strcmp(d2tm1.ntm_ep->nep_addr, dyn_epstr) != 0);
+	C2_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr,
+			    d2tm1.ntm_ep->nep_addr) != 0);
+	printk("d2tm1.ntm_ep->nep_addr = %s\n", d2tm1.ntm_ep->nep_addr);
 
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
@@ -152,17 +179,19 @@ static void test_tm_startstop(void)
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STOPPED);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
+
+	c2_clink_add(&d2tm1.ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_stop(&d2tm1, false));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STOPPED);
+	C2_UT_ASSERT(d2tm1.ntm_state == C2_NET_TM_STOPPED);
+
 	c2_net_tm_fini(&d1tm1);
+	c2_net_tm_fini(&d2tm1);
 
+	c2_net_domain_fini(&dom2);
 	c2_net_domain_fini(&dom1);
-}
-
-static void test_ep(void)
-{
-}
-
-static void test_failure(void)
-{
 }
 
 const struct c2_test_suite c2_net_lnet_ut = {
@@ -175,8 +204,6 @@ const struct c2_test_suite c2_net_lnet_ut = {
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
-                { "net_lnet_ep",            test_ep },
-                { "net_lnet_failure_tests", test_failure },
                 { NULL, NULL }
         }
 };
