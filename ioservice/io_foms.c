@@ -568,7 +568,7 @@ C2_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct c2_stob_io_desc,
 C2_TL_DEFINE(stobio, static, struct c2_stob_io_desc);
 
 C2_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", static,
-		   struct c2_net_buffer, nb_lru, nb_magic,
+		   struct c2_net_buffer, nb_ioservice_linkage, nb_magic,
 		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC_IOFOM);
 C2_TL_DEFINE(netbufs, static, struct c2_net_buffer);
 
@@ -818,7 +818,7 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
 
 /**
  * Align address.
- * This function align bufvec &  indexvec.
+ * This function align bufvec & indexvec.
  */
 void io_fom_cob_rw_align_bufvec (struct c2_bufvec *buf, uint32_t bshift)
 {
@@ -1324,8 +1324,6 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	bmask = (1 << bshift) - 1;
        /* @todo : Need to align addresses before STOB I/O launch */
 
-        c2_fom_block_at(fom, &fom_obj->fcrw_wait);
-
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_indexvec     *mem_ivec;
@@ -1336,6 +1334,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 if (stio_desc == NULL) {
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                                     c2_addb_oom);
+                        rc = -ENOMEM;
                         break;
                 }
 
@@ -1414,11 +1413,29 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, stio_desc);
 
         } c2_tlist_endfor;
+
+        /*
+           1. Add FOM clink to wait channel only if atleast one STOB I/O
+              launched.
+           2. Unlock STOB I/O mutex only after FOM clink added to waiting
+              channel.
+         */
+        if ( fom_obj->fcrw_num_stobio_launched > 0) {
+                c2_fom_block_at(fom, &fom_obj->fcrw_wait);
+
+                /*
+                 * If I/O launched less that batch size call-back will
+                 * ignore STOB I/O results.
+                 */
+	        fom->fo_rc = rc;
+                fom->fo_phase = FOPH_IO_STOB_WAIT;
+
+                c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
+
+	        return FSO_WAIT;
+        }
+
         c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
-
-        fom->fo_phase = FOPH_IO_STOB_WAIT;
-
-	return FSO_WAIT;
 
 cleanup_st:
         c2_stob_put(fom_obj->fcrw_stob);
