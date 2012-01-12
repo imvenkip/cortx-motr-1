@@ -776,7 +776,7 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
    @param cepa The NID, PID and Portal are used to filter the ::nlx_kcore_tms
    @return The largest available tmid, or -EADDRNOTAVAIL if none exists.
  */
-static bool nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
+static int nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
 {
 	int tmid = C2_NET_LNET_TMID_MAX;
 	struct nlx_kcore_transfer_mc *scan;
@@ -1268,7 +1268,7 @@ static int nlx_core_init(void)
 
 	/* Init LNet with same PID as Lustre would use in case we are first. */
 	rc = LNetNIInit(LUSTRE_SRV_LNET_PID);
-	C2_ASSERT(rc == 0);
+	C2_ASSERT(rc >= 0);
 	c2_mutex_init(&nlx_kcore_mutex);
 	tms_tlist_init(&nlx_kcore_tms);
 
