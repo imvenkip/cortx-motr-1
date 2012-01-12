@@ -409,7 +409,8 @@ struct c2_xcode_cursor {
 
        - number of fields in a RECORD object;
 
-       - 2 in a UNION object;
+       - 1 or 2 in a UNION object: one for discriminator and one for an actually
+         present field, if any;
 
        - 1 + (number of elements in array) in a SEQUENCE object. Additional 1 is
          for count field;
@@ -536,7 +537,7 @@ int c2_xcode_length(struct c2_xcode_ctx *ctx);
                    return the address of.
 
    The behaviour of this function for SEQUENCE objects depends on "elno"
-   value. SEQEUNCE objects have the following structure:
+   value. SEQUENCE objects have the following structure:
 
    @code
    struct x_seq {

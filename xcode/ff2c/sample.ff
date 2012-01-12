@@ -138,4 +138,10 @@ record {
  *                                            } s_el;
  *                                    } p_name;
  *                            };
+ *
+ * And (in sample.c):
+ *
+ * int c2_package_cred_get(const struct c2_xcode_obj *par,
+ *                         const struct c2_xcode_type **out);
+ *
  */
