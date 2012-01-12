@@ -720,6 +720,31 @@ cleanup:
 	return rc;
 }
 
+static struct c2_io_fop *
+rw_desc_to_io_fop(const struct rw_desc *rw_desc, int rw) attribute((__unused__))
+{
+	struct c2_fop_type *fopt;
+	struct c2_io_fop   *iofop;
+	int                 rc;
+
+	C2_TRACE_START();
+
+	C2_ALLOC_PTR(iofop);
+	if (iofop == NULL)
+		goto out;
+
+	fopt = (rw == READ) ? &c2_fop_cob_readv_fopt : &c2_fop_cob_writev_fopt;
+
+	rc = c2_io_fop_init(iofop, fopt);
+	if (rc != 0)
+		goto free_iofop;
+
+free_iofop:
+	c2_free(iofop);
+out:
+	C2_TRACE_END(NULL);
+	return NULL;
+}
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 {
 	struct rw_desc        *rw_desc;
@@ -728,10 +753,6 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 	C2_TRACE_START();
 
-	/*
-	 * XXX Here, rw_desc should be converted to fop and sent to appropriate
-	 * services.
-	 */
 	C2_TRACE("Operation: %s\n", rw == READ ? "READ" : "WRITE");
 
 	if (rwd_tlist_is_empty(rw_desc_list))
