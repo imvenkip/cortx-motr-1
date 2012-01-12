@@ -460,7 +460,9 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 
 	C2_PRE(loc != NULL);
 	C2_PRE(timer != NULL);
-	C2_PRE(timer->t_type == C2_TIMER_HARD);
+
+	if (timer->t_type == C2_TIMER_SOFT)
+		return 0;
 
 	if (!timer_state_change(timer, TIMER_ATTACH, true))
 		return -EINVAL;
