@@ -41,8 +41,13 @@ static bool nlx_ep_invariant(const struct c2_net_end_point *ep)
 static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
 {
 	const struct nlx_xo_buffer *bp = nb->nb_xprt_private;
-	return bp != NULL && bp->xb_nb == nb && nlx_dom_invariant(nb->nb_dom) &&
-		ergo(nb->nb_tm != NULL, nlx_tm_invariant(nb->nb_tm));
+	if (bp == NULL || bp->xb_nb != nb || !nlx_dom_invariant(nb->nb_dom))
+		return false;
+	if (bp->xb_core.cb_buffer_id != (nlx_core_opaque_ptr_t) nb)
+		return false;
+	if (!ergo(nb->nb_tm != NULL, nlx_tm_invariant(nb->nb_tm)))
+		return false;
+	return true;
 }
 
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
@@ -165,8 +170,7 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 		c2_free(bp);
 		nb->nb_xprt_private = NULL;
 	}
-	C2_POST(bp->xb_core.cb_buffer_id == (nlx_core_opaque_ptr_t)nb);
-	C2_POST(nlx_buffer_invariant(nb));
+	C2_POST(ergo(rc == 0, nlx_buffer_invariant(nb)));
 	return rc;
 }
 
