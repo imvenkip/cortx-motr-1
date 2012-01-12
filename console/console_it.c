@@ -35,13 +35,11 @@
 
 static struct c2_cons_atom_ops atom_ops[FPF_NR];
 static struct c2_cons_aggr_ops aggr_ops[FFA_NR];
-static int fop_depth;
 
 static void depth_print(int depth)
 {
-	int i;
-	for (i = depth; i > 0; i--)
-		printf("\t");
+	static const char ruler[] = "\t\t\t\t\t.....\t";
+	printf("%*.*s", depth, depth, ruler);
 }
 
 static void default_show(const struct c2_fop_field_type *ftype,
@@ -162,7 +160,8 @@ static struct c2_cons_atom_ops atom_ops[FPF_NR] = {
 
 static void record_process(const struct c2_fop_field_type *ftype,
 			   const char *name, void *data,
-			   enum c2_cons_data_process_type type)
+			   enum c2_cons_data_process_type type,
+			   int depth)
 {
 	struct c2_fop_field	 *child;
         struct c2_fop_field_type *cftype;
@@ -175,17 +174,17 @@ static void record_process(const struct c2_fop_field_type *ftype,
 		cftype = child->ff_type;
 		cgtype = cftype->fft_aggr;
 		if (cgtype != FFA_ATOM && verbose) {
-			++fop_depth;
-			depth_print(fop_depth);
+			++depth;
+			depth_print(depth);
 			printf("%s:%s {\n", child->ff_name,
 					    child->ff_type->fft_name);
 		}
 		aggr_ops[cgtype].caggr_val_process(cftype, child->ff_name,
-						   data, type);
+						   data, type, depth);
 		if (cgtype != FFA_ATOM && verbose) {
-			depth_print(fop_depth);
+			depth_print(depth);
 			printf("}\n");
-			--fop_depth;
+			--depth;
 		}
 		atype = cftype->fft_u.u_atom.a_type;
 
@@ -208,7 +207,8 @@ static void record_process(const struct c2_fop_field_type *ftype,
 
 static void union_process(const struct c2_fop_field_type *ftype,
 			  const char *name, void *data,
-			  enum c2_cons_data_process_type type)
+			  enum c2_cons_data_process_type type,
+			  int depth)
 {
 	struct c2_fop_field	 *child;
         struct c2_fop_field_type *cftype;
@@ -218,17 +218,17 @@ static void union_process(const struct c2_fop_field_type *ftype,
 	cftype = child->ff_type;
 	cgtype = cftype->fft_aggr;
 	aggr_ops[cgtype].caggr_val_process(cftype, child->ff_name,
-					   data, type);
+					   data, type, depth);
 }
 
 static void byte_pointer_process(const struct c2_fop_field *child, void *data,
-				 enum c2_cons_data_process_type type)
+				 enum c2_cons_data_process_type type, int depth)
 {
 	struct c2_cons_fop_buf	*buf;
 	void			*tmp_value;
 
-	++fop_depth;
-	depth_print(fop_depth);
+	++depth;
+	depth_print(depth);
 	buf = (struct c2_cons_fop_buf *)data;
 	if (type == CONS_IT_OUTPUT) {
 		printf("%s(%s) = %s\n", child->ff_name,
@@ -250,12 +250,13 @@ static void byte_pointer_process(const struct c2_fop_field *child, void *data,
 			scanf("%s", buf->cons_buf);
 		}
 	}
-	--fop_depth;
+	--depth;
 }
 
 static void sequence_process(const struct c2_fop_field_type *ftype,
 			     const char *name, void *data,
-			     enum c2_cons_data_process_type type)
+			     enum c2_cons_data_process_type type,
+			     int depth)
 {
 	struct c2_fop_field		 *child;
         struct c2_fop_field_type	 *cftype;
@@ -266,45 +267,47 @@ static void sequence_process(const struct c2_fop_field_type *ftype,
 	cftype = child->ff_type;
 	cgtype = cftype->fft_aggr;
 	aggr_ops[cgtype].caggr_val_process(cftype, child->ff_name,
-					   data, type);
+					   data, type, depth);
 	child = ftype->fft_child[1];
 	cftype = child->ff_type;
 	cgtype = cftype->fft_aggr;
 	atype = cftype->fft_u.u_atom.a_type;
 	if (cgtype == FFA_ATOM && atype == FPF_BYTE && type != CONS_IT_SHOW)
-		byte_pointer_process(child, data, type);
+		byte_pointer_process(child, data, type, depth);
 	else {
 		data = data + sizeof(uint32_t);
 		if (cgtype != FFA_ATOM && verbose) {
-			++fop_depth;
-			depth_print(fop_depth);
+			++depth;
+			depth_print(depth);
 			printf("%s:%s {\n", child->ff_name,
 					    child->ff_type->fft_name);
 		}
 		aggr_ops[cgtype].caggr_val_process(cftype, child->ff_name,
-						   data, type);
+						   data, type, depth);
 		if (cgtype != FFA_ATOM && verbose) {
-			depth_print(fop_depth);
+			depth_print(depth);
 			printf("}\n");
-			--fop_depth;
+			--depth;
 		}
 	}
 }
 
 static void typedef_process(const struct c2_fop_field_type *ftype,
 			    const char *name, void *data,
-			    enum c2_cons_data_process_type type)
+			    enum c2_cons_data_process_type type,
+			    int depth)
 {
 }
 
 static void atom_process(const struct c2_fop_field_type *ftype,
 			 const char *name, void *data,
-			 enum c2_cons_data_process_type type)
+			 enum c2_cons_data_process_type type,
+			 int depth)
 {
 	enum c2_fop_field_primitive_type  atype;
 
-	++fop_depth;
-	depth_print(fop_depth);
+	++depth;
+	depth_print(depth);
 	atype = ftype->fft_u.u_atom.a_type;
 	switch (type) {
 	case CONS_IT_INPUT:
@@ -317,7 +320,7 @@ static void atom_process(const struct c2_fop_field_type *ftype,
 	default:
 		atom_ops[atype].catom_val_show(ftype, name, data);
 	}
-	--fop_depth;
+	--depth;
 }
 
 /**
@@ -339,7 +342,9 @@ void c2_cons_fop_obj_input_output(struct c2_fit *it,
 	struct c2_fop_field_type  *ftype;
 	struct c2_fop_type_format *fop_format;
 	enum c2_fop_field_aggr     gtype;
+	int			   fop_depth;
 
+	fop_depth = 0;
 	fop_format = it->fi_fop->f_type->ft_fmt;
 	C2_ASSERT(fop_format != NULL);
 	if (verbose)
@@ -355,7 +360,8 @@ void c2_cons_fop_obj_input_output(struct c2_fit *it,
 					    field->ff_type->fft_name);
 		}
 		aggr_ops[gtype].caggr_val_process(ftype, field->ff_name,
-						  yield.fy_val.ffi_val, type);
+						  yield.fy_val.ffi_val,
+						  type, fop_depth);
 		if (gtype != FFA_ATOM && verbose) {
 			depth_print(fop_depth);
 			printf("}\n");
@@ -370,7 +376,6 @@ void c2_cons_fop_obj_input(struct c2_fop *fop)
 {
 	struct c2_fit it;
 
-	fop_depth = 0;
 	/* FOP iterator will prompt for each field in fop. */
 	c2_fop_all_object_it_init(&it, fop);
 	c2_cons_fop_obj_input_output(&it, CONS_IT_INPUT);
@@ -381,7 +386,6 @@ void c2_cons_fop_obj_output(struct c2_fop *fop)
 {
 	struct c2_fit it;
 
-	fop_depth = 0;
 	c2_fop_all_object_it_init(&it, fop);
 	c2_cons_fop_obj_input_output(&it, CONS_IT_OUTPUT);
 	c2_fop_all_object_it_fini(&it);
@@ -392,7 +396,6 @@ void c2_cons_fop_fields_show(struct c2_fop *fop)
 	struct c2_fit it;
 
 	verbose = true;
-	fop_depth = 0;
 	c2_fop_all_object_it_init(&it, fop);
 	c2_cons_fop_obj_input_output(&it, CONS_IT_SHOW);
 	c2_fop_all_object_it_fini(&it);

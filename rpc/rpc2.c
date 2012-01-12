@@ -35,7 +35,7 @@
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_onwire.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
 
@@ -184,6 +184,15 @@ int c2_rpc_post(struct c2_rpc_item *item)
 
 	C2_ASSERT(item != NULL && item->ri_type != NULL);
 
+	/*
+	 * It is mandatory to specify item_ops, because rpc layer needs
+	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
+	 * item. Consumer can use c2_fop_default_item_ops if, it is not
+	 * interested in implementing other (excluding ->rio_free())
+	 * interfaces of c2_rpc_item_ops. See also c2_fop_item_free().
+	 */
+	C2_ASSERT(item->ri_ops != NULL && item->ri_ops->rio_free != NULL);
+
 	session = item->ri_session;
 	C2_ASSERT(session != NULL);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
@@ -208,6 +217,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 	C2_PRE(request->ri_session != NULL);
 	C2_PRE(reply->ri_type != NULL);
+	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
 
 	reply->ri_rpc_time = c2_time_now();
 

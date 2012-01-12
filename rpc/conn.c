@@ -90,6 +90,21 @@ static int conn_persistent_state_attach(struct c2_rpc_conn *conn,
 					uint64_t            sender_id,
 					struct c2_db_tx    *tx);
 
+/*
+ * This is sender side item_ops of conn_establish fop.
+ * Receiver side conn_establish fop has different item_ops
+ * rcv_conn_establish_item_ops defined in rpc/session_fops.c
+ */
+static const struct c2_rpc_item_ops conn_establish_item_ops = {
+	.rio_replied = c2_rpc_conn_establish_reply_received,
+	.rio_free    = c2_fop_item_free,
+};
+
+static const struct c2_rpc_item_ops conn_terminate_item_ops = {
+	.rio_replied = c2_rpc_conn_terminate_reply_received,
+	.rio_free    = c2_fop_item_free,
+};
+
 /**
    Checks connection object invariant.
 
@@ -484,7 +499,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 
 	session_0 = c2_rpc_conn_session0(conn);
 
-	rc = c2_rpc__fop_post(fop, session_0, &c2_rpc_item_conn_establish_ops);
+	rc = c2_rpc__fop_post(fop, session_0, &conn_establish_item_ops);
 	if (rc != 0) {
 		conn_failed(conn, rc);
 		c2_fop_free(fop);
@@ -729,7 +744,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	fop_ct->ct_sender_id = conn->c_sender_id;
 
 	session_0 = c2_rpc_conn_session0(conn);
-	rc = c2_rpc__fop_post(fop, session_0, &c2_rpc_item_conn_terminate_ops);
+	rc = c2_rpc__fop_post(fop, session_0, &conn_terminate_item_ops);
 	if (rc != 0) {
 		conn_failed(conn, rc);
 		c2_fop_free(fop);
@@ -1140,6 +1155,11 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 {
 	return item->ri_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE;
+}
+
+bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item)
+{
+	return item->ri_type->rit_opcode == C2_RPC_CONN_TERMINATE_OPCODE;
 }
 
 #ifndef __KERNEL__

@@ -33,7 +33,6 @@
    Also create identical buffers for exact shape testing.
 */
 enum { NR_BUFS = 10 };
-static struct c2_net_buffer bufs[NR_BUFS];
 
 static void test_buf_copy(void)
 {
@@ -55,6 +54,7 @@ static void test_buf_copy(void)
 	static const char *msg = "abcdefghijklmnopqrstuvwxyz0123456789"
 		"ABCDEFGHIJK";
 	size_t msglen = strlen(msg)+1;
+	static struct c2_net_buffer bufs[NR_BUFS];
 	int i;
 	struct c2_net_buffer *nb;
 

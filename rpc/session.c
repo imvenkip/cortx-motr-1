@@ -110,6 +110,18 @@ struct fop_session_establish_ctx
 	struct c2_rpc_session *sec_session;
 };
 
+static void fop_session_establish_item_free(struct c2_rpc_item *item);
+
+static const struct c2_rpc_item_ops session_establish_item_ops = {
+	.rio_replied = c2_rpc_session_establish_reply_received,
+	.rio_free    = fop_session_establish_item_free,
+};
+
+static const struct c2_rpc_item_ops session_terminate_item_ops = {
+	.rio_replied = c2_rpc_session_terminate_reply_received,
+	.rio_free    = c2_fop_item_free,
+};
+
 extern void frm_item_ready(struct c2_rpc_item *item);
 extern void frm_slot_idle(struct c2_rpc_slot *slot);
 
@@ -436,7 +448,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 
 	session_0 = c2_rpc_conn_session0(conn);
 	rc = c2_rpc__fop_post(fop, session_0,
-				&c2_rpc_item_session_establish_ops);
+				&session_establish_item_ops);
 	if (rc == 0) {
 		/*
 		 * conn->c_mutex protects from a race, if reply comes before
@@ -626,6 +638,16 @@ out:
 	c2_mutex_unlock(&session->s_mutex);
 }
 
+static void fop_session_establish_item_free(struct c2_rpc_item *item)
+{
+	struct fop_session_establish_ctx *ctx;
+	struct c2_fop                    *fop;
+
+	fop = c2_rpc_item_to_fop(item);
+	ctx = container_of(fop, struct fop_session_establish_ctx, sec_fop);
+	c2_free(ctx);
+}
+
 int c2_rpc_session_terminate(struct c2_rpc_session *session)
 {
 	struct c2_fop                       *fop;
@@ -697,7 +719,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	c2_mutex_unlock(&session->s_mutex);
 
 	rc = c2_rpc__fop_post(fop, session_0,
-				&c2_rpc_item_session_terminate_ops);
+				&session_terminate_item_ops);
 
 	c2_mutex_lock(&session->s_mutex);
 
