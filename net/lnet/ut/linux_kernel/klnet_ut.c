@@ -64,8 +64,7 @@ static void ktest_buf_shape(void)
 
 	/* test the segment page count computation */
 	UT_BUFVEC_ALLOC(bv1, 1);
-	base = (void *)(((uint64_t)&base >> PAGE_SHIFT)
-			<< PAGE_SHIFT); /* arbitrary page aligned address */
+	base = (void *)((uint64_t)&base & PAGE_MASK); /* arbitrary, page aligned */
 
 #define EXP_SEG_COUNT(ptr,segsize,expcount)		\
 	bv1.ov_buf[0] = (ptr);				\
@@ -95,6 +94,7 @@ static void ktest_buf_reg(void)
 	struct c2_net_domain dom1;
 	struct c2_net_buffer nb1;
 	struct c2_net_buffer nb2;
+	struct c2_net_buffer nb3;
 	c2_bcount_t bsize;
 	c2_bcount_t bsegsize;
 	int32_t     bsegs;
@@ -105,10 +105,13 @@ static void ktest_buf_reg(void)
 	int i;
 	struct c2_bufvec *v1;
 	struct c2_bufvec *v2;
+	struct c2_bufvec *v3;
+	c2_bcount_t thunk;
 
 	C2_SET0(&dom1);
 	C2_SET0(&nb1);
 	C2_SET0(&nb2);
+	C2_SET0(&nb3);
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 
@@ -196,6 +199,25 @@ static void ktest_buf_reg(void)
 		}
 	}
 
+	/* TEST
+	   Provide a buffer whose c2_bufvec shape is legal, but whose kiov will
+	   exceed the internal limits.
+	   Use the same allocated memory segments from the first network buffer.
+	 */
+	UT_BUFVEC_ALLOC(nb3.nb_buffer, bsegs);
+	v3 = &nb3.nb_buffer;
+	thunk = PAGE_SIZE;
+	for (i = 0; i < v3->ov_vec.v_nr; ++i) {
+		/* each segment spans 2 pages */
+		v3->ov_vec.v_count[i] = thunk;
+		v3->ov_buf[i] = v1->ov_buf[i] + PAGE_SIZE - 1;
+	}
+
+	/* register the buffer */
+	nb3.nb_flags = 0;
+	i = c2_net_buffer_register(&nb3, &dom1);
+	C2_UT_ASSERT(i == -EFBIG);
+
 	/* fini */
 	c2_net_buffer_deregister(&nb1, &dom1);
 	C2_UT_ASSERT(!(nb1.nb_flags & C2_NET_BUF_REGISTERED));
@@ -204,6 +226,7 @@ static void ktest_buf_reg(void)
 	C2_UT_ASSERT(!(nb2.nb_flags & C2_NET_BUF_REGISTERED));
 	C2_UT_ASSERT(nb2.nb_xprt_private == NULL);
 
+	UT_BUFVEC_FREE(nb3.nb_buffer); /* just vector, not segs */
 	UT_BUFVEC_FREE(nb2.nb_buffer); /* just vector, not segs */
 	c2_bufvec_free(&nb1.nb_buffer);
 	c2_net_domain_fini(&dom1);
