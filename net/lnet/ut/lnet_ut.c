@@ -159,7 +159,6 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STARTED);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
 	C2_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr, dyn_epstr) != 0);
-	printk("d1tm1.ntm_ep->nep_addr = %s\n", d1tm1.ntm_ep->nep_addr);
 
 	ecb_reset();
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait1);
@@ -171,7 +170,6 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(strcmp(d2tm1.ntm_ep->nep_addr, dyn_epstr) != 0);
 	C2_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr,
 			    d2tm1.ntm_ep->nep_addr) != 0);
-	printk("d2tm1.ntm_ep->nep_addr = %s\n", d2tm1.ntm_ep->nep_addr);
 
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
