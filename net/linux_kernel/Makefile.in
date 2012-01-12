@@ -63,8 +63,8 @@ uninstall:
 	rm -fr @LUNUX_MOD@/kernel/fs/$(NET_MOD)
 
 clean distclean:
-	$(RM) $(net_src) $(ut_src) $(bulk_src) $(otw_k_c) $(otw_k_h)
-	$(RM) $(depr_src) $(depr_ksrc) $(deprbulk_src) $(sio_k_h)
+	$(RM) $(net_src) $(ut_src) $(lnet_ut_src) $(otw_k_c) $(otw_k_h)
+	$(RM) $(bulk_src) $(depr_src) $(depr_ksrc) $(deprbulk_src) $(sio_k_h)
 	$(RM) lustre_config.h
 	$(RM) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
