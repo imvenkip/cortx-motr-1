@@ -131,6 +131,7 @@ struct nlx_xo_buffer {
 	struct nlx_core_buffer  xb_core;
 };
 
+static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb);
 
 /**
    @} LNetXODFS

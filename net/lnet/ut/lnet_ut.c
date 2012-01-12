@@ -201,6 +201,7 @@ const struct c2_test_suite c2_net_lnet_ut = {
         .ts_tests = {
 #ifdef __KERNEL__
 		{ "net_lnet_buf_shape (K)", ktest_buf_shape },
+		{ "net_lnet_buf_reg (K)",   ktest_buf_reg },
 		{ "net_lnet_ep_addr (K)",   ktest_core_ep_addr },
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },

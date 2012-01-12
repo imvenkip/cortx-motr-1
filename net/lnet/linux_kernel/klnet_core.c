@@ -321,6 +321,12 @@
    c2_net_bufvec into the nlx_kcore_buffer::kb_kiov field of the buffer private
    data.
 
+   The kernel implementation of the Core API does not increment the page count
+   of the buffer pages.  The supposition here is that the buffers are allocated
+   by Colibri file system clients, and the Core API has no business imposing
+   memory management policy beneath such a client.
+
+
    @subsection KLNetCoreDLD-lspec-tm-res LNet Transfer Machine Resources
 
    A transfer machine is associated with the following LNet resources:
@@ -697,7 +703,9 @@
    - The time taken for the transport to dequeue a pending buffer event
    depends upon the operating system scheduler.  The algorithmic
    processing involved is in constant time.
-   - The time taken to register a buffer is in constant time.
+   - The time taken to register a buffer is in constant time.  The reference
+     count of the buffer pages is not incremented, so there are no VM subsystem
+     imposed delays.
    - The time taken to process outbound buffer operations is unpredictable,
    and depends, at the minimum, on current system load, other LNet users,
    and on the network load.
@@ -748,6 +756,18 @@ C2_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
 		   ktm_tm_linkage, ktm_magic, C2_NET_LNET_KCORE_TM_MAGIC,
 		   C2_NET_LNET_KCORE_TMS_MAGIC);
 C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
+
+/**
+   KCore buffer invariant.
+*/
+static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
+{
+	if (kcb == NULL)
+		return false;
+	if (kcb->kb_magic != C2_NET_LNET_KCORE_BUF_MAGIC)
+		return false;
+	return true;
+}
 
 /**
    Tests if the specified address is in use by a running TM.
@@ -917,14 +937,17 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_ALLOC_PTR(kb);
 	if (kb == NULL)
 		return -ENOMEM;
+	kb->kb_magic = C2_NET_LNET_KCORE_BUF_MAGIC;
 	rc = nlx_kcore_buffer_kla_to_kiov(kb, bvec);
 	if (rc != 0)
 		goto fail_free_kb;
 	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
 	LNetInvalidateHandle(&kb->kb_mdh);
-	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
 	lcbuf->cb_kpvt      = kb;
 	lcbuf->cb_buffer_id = buffer_id;
+	lcbuf->cb_magic     = C2_NET_LNET_CORE_BUF_MAGIC;
+	C2_POST(nlx_core_buffer_invariant(lcbuf));
+	C2_POST(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
 	return 0;
 
  fail_free_kb:
@@ -938,14 +961,15 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 {
 	struct nlx_kcore_buffer *kb;
 
-	C2_PRE(lcbuf->cb_kpvt != NULL);
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	kb = lcbuf->cb_kpvt;
-	C2_PRE(kb->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
+	C2_PRE(nlx_kcore_buffer_invariant(kb));
 	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
 	kb->kb_magic = 0;
 	c2_free(kb->kb_kiov);
 	c2_free(kb);
 	lcbuf->cb_kpvt = 0;
+	lcbuf->cb_magic = 0;
 	return;
 }
 

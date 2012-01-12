@@ -41,8 +41,15 @@ static bool nlx_ep_invariant(const struct c2_net_end_point *ep)
 static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
 {
 	const struct nlx_xo_buffer *bp = nb->nb_xprt_private;
-	return bp != NULL && bp->xb_nb == nb && nlx_dom_invariant(nb->nb_dom) &&
-		ergo(nb->nb_tm != NULL, nlx_tm_invariant(nb->nb_tm));
+	if (bp == NULL || bp->xb_nb != nb || !nlx_dom_invariant(nb->nb_dom))
+		return false;
+	if (bp->xb_core.cb_buffer_id != (nlx_core_opaque_ptr_t) nb)
+		return false;
+	if (!ergo(nb->nb_tm != NULL, nlx_tm_invariant(nb->nb_tm)))
+		return false;
+	if (!nlx_xo_buffer_bufvec_invariant(nb))
+		return false;
+	return true;
 }
 
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
@@ -127,9 +134,10 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 	return nlx_ep_create(epp, tm, &cepa);
 }
 
-static bool nlx_xo_buffer_size_in_bounds(const struct c2_net_buffer *nb)
+static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb)
 {
 	const struct c2_vec *v = &nb->nb_buffer.ov_vec;
+	const struct c2_bufvec *bv = &nb->nb_buffer;
 	c2_bcount_t max_seg_size;
 	int i;
 	if (c2_vec_count(v) > nlx_xo_get_max_buffer_size(nb->nb_dom))
@@ -137,26 +145,26 @@ static bool nlx_xo_buffer_size_in_bounds(const struct c2_net_buffer *nb)
 	if (v->v_nr > nlx_xo_get_max_buffer_segments(nb->nb_dom))
 		return false;
 	max_seg_size = nlx_xo_get_max_buffer_segment_size(nb->nb_dom);
-	for (i=0; i < v->v_nr; i++)
-		if (v->v_count[i] > max_seg_size)
+	for (i = 0; i < v->v_nr; ++i)
+		if (v->v_count[i] == 0 || v->v_count[i] > max_seg_size ||
+		    bv->ov_buf[i] == NULL)
 			return false;
 	return true;
 }
 
 static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_domain *dp;
+	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
 	struct nlx_xo_buffer *bp;
 	int rc;
 
 	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
 	C2_PRE(nb->nb_xprt_private == NULL);
-	dp = nb->nb_dom->nd_xprt_private;
+	C2_PRE(nlx_xo_buffer_bufvec_invariant(nb));
+
 	C2_ALLOC_PTR(bp);
 	if (bp == NULL)
 		return -ENOMEM;
-	if (!nlx_xo_buffer_size_in_bounds(nb))
-		return -EFBIG;
 	nb->nb_xprt_private = bp;
 	bp->xb_nb = nb;
 
@@ -166,8 +174,7 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 		c2_free(bp);
 		nb->nb_xprt_private = NULL;
 	}
-	C2_POST(bp->xb_core.cb_buffer_id == (nlx_core_opaque_ptr_t)nb);
-	C2_POST(nlx_buffer_invariant(nb));
+	C2_POST(ergo(rc == 0, nlx_buffer_invariant(nb)));
 	return rc;
 }
 
