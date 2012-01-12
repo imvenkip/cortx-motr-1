@@ -74,27 +74,18 @@ enum timer_func {
 	TIMER_FUNC_NR
 };
 
-/**
-   Item of threads ID list in locality.
- */
-struct timer_tid {
-	pid_t		tt_tid;
-	struct c2_tlink tt_linkage;
-	uint64_t	tt_magic;
-};
-
 static c2_time_t zero_time;
 
 /**
-   Typed list of timer_tid structures.
+   Typed list of c2_timer_tid structures.
  */
-C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct timer_tid,
+C2_TL_DESCR_DEFINE(tid, "thread IDs", static, struct c2_timer_tid,
 		tt_linkage, tt_magic,
 		0x696c444954726d74,	/** ASCII "tmrTIDli" -
 					  timer thread ID list item */
 		0x686c444954726d74);	/** ASCII "tmrTIDlh" -
 					  timer thread ID list head */
-C2_TL_DEFINE(tid, static, struct timer_tid);
+C2_TL_DEFINE(tid, static, struct c2_timer_tid);
 
 /**
    gettid(2) implementation.
@@ -124,11 +115,11 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc)
 }
 C2_EXPORTED(c2_timer_locality_fini);
 
-static struct timer_tid *locality_tid_find(struct c2_timer_locality *loc,
+static struct c2_timer_tid *locality_tid_find(struct c2_timer_locality *loc,
 		pid_t tid)
 {
-	struct timer_tid *tt;
-	struct timer_tid *result = NULL;
+	struct c2_timer_tid *tt;
+	struct c2_timer_tid *result = NULL;
 
 	C2_PRE(loc != NULL);
 
@@ -147,7 +138,7 @@ static struct timer_tid *locality_tid_find(struct c2_timer_locality *loc,
 int c2_timer_thread_attach(struct c2_timer_locality *loc)
 {
 	pid_t tid;
-	struct timer_tid *tt;
+	struct c2_timer_tid *tt;
 
 	C2_PRE(loc != NULL);
 
@@ -172,7 +163,7 @@ C2_EXPORTED(c2_timer_thread_attach);
 void c2_timer_thread_detach(struct c2_timer_locality *loc)
 {
 	pid_t tid;
-	struct timer_tid *tt;
+	struct c2_timer_tid *tt;
 
 	C2_PRE(loc != NULL);
 
@@ -453,7 +444,7 @@ static int timer_soft_stop(struct c2_timer *timer)
 
 int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 {
-	struct timer_tid *tt;
+	struct c2_timer_tid *tt;
 	int rc;
 	timer_t ptimer;
 	pid_t old_tid;

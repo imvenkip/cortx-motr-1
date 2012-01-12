@@ -73,6 +73,16 @@ enum c2_timer_type {
 #endif
 
 /**
+   Item of threads ID list in locality.
+   Used in the implementation of userspace hard timer.
+ */
+struct c2_timer_tid {
+	pid_t		tt_tid;
+	struct c2_tlink tt_linkage;
+	uint64_t	tt_magic;
+};
+
+/**
    Timer locality.
    Used in userspace hard timers.
  */
@@ -89,7 +99,7 @@ struct c2_timer_locality {
 	   ThreadID of next thread for round-robin timer thread selection
 	   in c2_timer_attach(). It is pointer to timer_tid structure.
 	 */
-	void *tlo_rrtid;
+	struct c2_timer_tid *tlo_rrtid;
 };
 
 /**
