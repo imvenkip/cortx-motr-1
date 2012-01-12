@@ -69,7 +69,7 @@ struct ad_balloc_ops {
 	    @param res_groups # of reserved groups
 	 */
 	int  (*bo_init)(struct ad_balloc *ballroom, struct c2_dbenv *db,
-			uint32_t bshift, c2_bindex_t container_size,
+			uint32_t bshift, c2_bcount_t container_size,
 			c2_bcount_t groupsize, c2_bcount_t res_groups);
 	void (*bo_fini)(struct ad_balloc *ballroom);
 	/** Allocates count of blocks. On success, allocated extent, also

@@ -179,7 +179,10 @@ int test_balloc_ut_ops(int io_flag)
 
 	c2_dbenv_fini(&db);
 
-	//printf("done. status = %d\n", result);
+#ifdef BALLOC_DEBUG
+	printf("done. status = %d\n", result);
+#endif
+
 	return result;
 }
 

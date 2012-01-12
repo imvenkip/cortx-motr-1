@@ -566,7 +566,7 @@ static int c2_balloc_load_group_info(struct c2_balloc *cb,
 static int c2_balloc_init_internal(struct c2_balloc *colibri,
 				   struct c2_dbenv  *dbenv,
 				   uint32_t bshift,
-				   c2_bindex_t container_size,
+				   c2_bcount_t container_size,
 				   c2_bcount_t groupsize,
 				   c2_bcount_t res_groups)
 {
@@ -2051,7 +2051,7 @@ static int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 }
 
 static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
-			  uint32_t bshift, c2_bindex_t container_size,
+			  uint32_t bshift, c2_bcount_t container_size,
 			  c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
 	struct c2_balloc *colibri;
