@@ -124,13 +124,11 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	if (num_pages > LNET_MAX_IOV)
 		return -EFBIG;
 
-	/* allocate the kiov */
+	/* allocate and fill in the kiov */
 	C2_ALLOC_ARR(kb->kb_kiov, num_pages);
 	if (kb->kb_kiov == 0)
 		return -ENOMEM;
 	kb->kb_kiov_len = num_pages;
-
-	/* fill in the kiov elements */
 	knum = 0;
 	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
 		knum += bufvec_seg_kla_to_kiov(bvec, i, &kb->kb_kiov[knum]);

@@ -86,7 +86,7 @@ struct nlx_kcore_transfer_mc {
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
 
-	/** Mimumum space remaining for re-use of the receive buffer.
+	/** Minimum space remaining for re-use of the receive buffer.
 	    The value is set from c2_net_buffer::nb_min_receive_size.
 	 */
 	c2_bcount_t                   kb_min_recv_size;
