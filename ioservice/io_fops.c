@@ -99,7 +99,9 @@ static const struct c2_rpc_item_type_ops io_item_type_ops = {
 };
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
+#ifndef __KERNEL__
 	.fto_fom_init = c2_io_fom_cob_rw_init,
+#endif
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
