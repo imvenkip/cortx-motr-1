@@ -89,7 +89,7 @@ static void test_tm_startstop(void)
 		.ntc_event_cb = tf_tm_ecb,
 	};
 	static struct c2_clink tmwait1;
-	char **nidstrs;
+	char * const *nidstrs;
 	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;

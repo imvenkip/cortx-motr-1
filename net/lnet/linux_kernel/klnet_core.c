@@ -1063,7 +1063,7 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 		 cp, cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
 }
 
-int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char ***nidary)
+int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
 {
 	C2_PRE(nlx_kcore_lni_nidstrs != NULL);
 	*nidary = nlx_kcore_lni_nidstrs;
@@ -1071,7 +1071,7 @@ int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char ***nidary)
 	return 0;
 }
 
-void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char **nidary)
+void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const *nidary)
 {
 	C2_PRE(nidary == nlx_kcore_lni_nidstrs);
 	c2_atomic64_dec(&nlx_kcore_lni_refcount);
