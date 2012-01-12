@@ -269,7 +269,7 @@ static void ktest_core_ep_addr(void)
 		},
 	};
 	char buf[C2_NET_LNET_XEP_ADDR_LEN];
-	char **nidstrs;
+	char * const *nidstrs;
 	int rc;
 	int i;
 

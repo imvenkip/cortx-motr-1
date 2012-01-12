@@ -798,7 +798,7 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 }
 C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
 
-int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char ***addrs)
+int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs)
 {
 	struct nlx_xo_domain *dp;
 
@@ -808,7 +808,7 @@ int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char ***addrs)
 }
 C2_EXPORTED(c2_net_lnet_ifaces_get);
 
-void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char **addrs)
+void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const *addrs)
 {
 	struct nlx_xo_domain *dp;
 

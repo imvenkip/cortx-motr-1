@@ -15,8 +15,8 @@ kernel_src    := $(local_src) $(otw_k_c) $(ut_src)
 net_src       := buf.c domain.c ep.c net.c tm.c buffer_pool.c
 link_net      := $(net_src:%=../%)
 # link in unit test file as it includes lnet_main.c
-lnet_ut_src   := lnet_ut.c
-link_lnet     := $(lnet_ut_src:%=../lnet/ut/%)
+lnet_src      := lnet_ut.c
+link_lnet     := $(lnet_src:%=../lnet/ut/%)
 # link in the unit test file as it includes mem_xprt_xo.c
 bulk_src      := bulk_mem_ut.c ksunrpc_ut.c
 link_bulk     := $(bulk_src:%=../bulk_emulation/ut/%)
@@ -38,8 +38,8 @@ deprbulk_src  := $(deprbulk_lsrc) $(sio_k_c) $(deprbulk_lut)
 link_deprbulk := $(deprbulk_lsrc:%=../bulk_emulation/%) \
                  $(deprbulk_lut:%=../bulk_emulation/ut/%)
 
-all_src       := $(kernel_src) $(net_src) $(lnet_ut_src) \
-                 $(bulk_src) $(depr_src) $(depr_ksrc) $(deprbulk_src)
+all_src       := $(kernel_src) $(net_src) $(lnet_src) $(bulk_src) \
+                 $(depr_src) $(depr_ksrc) $(deprbulk_src)
 all_obj       := $(all_src:.c=.o)
 
 obj-y         := $(NET_MOD).o
@@ -63,7 +63,7 @@ uninstall:
 	rm -fr @LUNUX_MOD@/kernel/fs/$(NET_MOD)
 
 clean distclean:
-	$(RM) $(net_src) $(ut_src) $(bulk_src) $(otw_k_c) $(otw_k_h)
+	$(RM) $(net_src) $(lnet_src) $(ut_src) $(bulk_src) $(otw_k_c) $(otw_k_h)
 	$(RM) $(depr_src) $(depr_ksrc) $(deprbulk_src) $(sio_k_h)
 	$(RM) lustre_config.h
 	$(RM) Module.markers Module.symvers modules.order
