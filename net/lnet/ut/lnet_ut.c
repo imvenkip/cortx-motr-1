@@ -26,6 +26,17 @@
 #include "net/lnet/ut/linux_kernel/klnet_ut.c"
 #endif
 
+static int test_lnet_init(void)
+{
+	return c2_net_xprt_init(&c2_net_lnet_xprt);
+}
+
+static int test_lnet_fini(void)
+{
+	c2_net_xprt_fini(&c2_net_lnet_xprt);
+	return 0;
+}
+
 static void test_tm_initfini(void)
 {
 	static struct c2_net_domain dom1 = {
@@ -215,8 +226,8 @@ static void test_tm_startstop(void)
 
 const struct c2_test_suite c2_net_lnet_ut = {
         .ts_name = "net-lnet",
-        .ts_init = NULL,
-        .ts_fini = NULL,
+        .ts_init = test_lnet_init,
+        .ts_fini = test_lnet_fini,
         .ts_tests = {
 #ifdef __KERNEL__
 		{ "net_lnet_ep_addr (K)",   ktest_core_ep_addr },
