@@ -274,7 +274,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
 		nr_pinned = get_user_pages(current, current->mm, addr, nr_pages,
-				    rw == READ, 1, pages, NULL);
+				    rw == READ, 0, pages, NULL);
 		up_read(&current->mm->mmap_sem);
 
 	} else {
@@ -730,8 +730,8 @@ static struct page *addr_to_page(void *addr)
 
 	enum {
 		NR_PAGES      = 1,
-		READONLY_PAGE = 0,
-		FORCE         = 1,
+		WRITABLE      = 1,
+		FORCE         = 0,
 	};
 
 	C2_TRACE_START();
@@ -745,11 +745,17 @@ static struct page *addr_to_page(void *addr)
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
 		nr_pinned = get_user_pages(current, current->mm, ul_addr, NR_PAGES,
-						READONLY_PAGE, FORCE, &pg, NULL);
+						!WRITABLE, FORCE, &pg, NULL);
 		up_read(&current->mm->mmap_sem);
-		/* The page is already pinned by c2t1fs_pin_memory_area().
-		   we're only interested in page*, so drop the ref */
-		put_page(pg);
+
+		if (nr_pinned <= 0) {
+			C2_TRACE("get_user_pages() failed: [%d]\n", nr_pinned);
+			pg = NULL;
+		} else {
+			/* The page is already pinned by c2t1fs_pin_memory_area().
+			   we're only interested in page*, so drop the ref */
+			put_page(pg);
+		}
 
 	} else {
 
@@ -786,14 +792,18 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	C2_TRACE_START();
 
 	C2_ALLOC_PTR(iofop);
-	if (iofop == NULL)
+	if (iofop == NULL) {
+		C2_TRACE("iofop allocation failed\n");
 		goto out;
+	}
 
 	fopt = (rw == READ) ? &c2_fop_cob_readv_fopt : &c2_fop_cob_writev_fopt;
 
 	rc = c2_io_fop_init(iofop, fopt);
-	if (rc != 0)
+	if (rc != 0) {
+		C2_TRACE("io_fop_init() failed rc [%d]", rc);
 		goto iofop_free;
+	}
 
 	rwfop = io_rw_get(&iofop->if_fop);
 	C2_ASSERT(rwfop != NULL);
@@ -803,38 +813,53 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	cbuf = bufs_tlist_head(&rw_desc->rd_buf_list);
 
+	/*
+	 * ASSUMING all c2t1fs_buf objects in rw_desc->rd_buf_list have same
+	 * number of bytes i.e. c2t1fs_buf::cb_buf.b_nob. This holds true for
+	 * now because, only full-stripe width io is supported. So each
+	 * c2t1fs_buf is representing in-memory location of one stripe unit.
+	 */
+
 	buf_size = cbuf->cb_buf.b_nob;
-	/* Make sure, buf_size is multiple of page size */
+
+	/*
+	 * Make sure, buf_size is multiple of page size. Because cbuf is
+	 * stripe unit and this implementation assumes stripe unit is
+	 * multiple of PAGE_CACHE_SIZE.
+	 */
+
 	C2_ASSERT((buf_size & (PAGE_CACHE_SIZE - 1)) == 0);
 	nr_pages_per_buf = buf_size >> PAGE_CACHE_SHIFT;
 
-	/* ASSUMING all c2t1fs_buf objects in rw_desc->rd_buf_list have same
-	   number of bytes i.e. c2t1fs_buf::cb_buf.b_nob. This holds true for
-	   now because, only full-stripe width io is supported. So each
-	   c2t1fs_buf is representing in-memory location of one stripe unit. */
-
-	/* Hmmm... kernel mode implementation of c2_rpc_bulk_buf treats each
-	   page as a separate segment. See c2_rpc_bulk_buf_page_add(). It uses
-	   one entry from rbuf->bb_zerovec for each page_add operation.
-	   XXX The c2_rpc_bulk_buf apis should deal with only addresses. And
-	       uniformaly in both user and kernel spaces, shouldn't it?
-	       This will allow same implementation of
-	       c2_rpc_bulk_buf_usrbuf_add() to be applicable in both user and
-	       kernel space. (Of course, the function name need to be changed).
-	       c2_rpc_bulk_buf_page_add() internally takes address of the page
-	       and stores it in bb_zerovec exactly the same way as it
-	       does for user-space.
+	/*
+	 * Hmmm... kernel mode implementation of c2_rpc_bulk_buf treats each
+	 * page as a separate segment. See c2_rpc_bulk_buf_page_add(). It uses
+	 * one entry from rbuf->bb_zerovec for each page_add operation.
+	 * XXX The c2_rpc_bulk_buf apis should deal with only addresses. And
+	 *     uniformaly in both user and kernel spaces, shouldn't it?
+	 *     This will allow same implementation of
+	 *     c2_rpc_bulk_buf_usrbuf_add() to be applicable in both user and
+	 *     kernel space. (Of course, the function name need to be changed).
+	 *     c2_rpc_bulk_buf_page_add() internally takes address of the page
+	 *     and stores it in bb_zerovec exactly the same way as it
+	 *     does for user-space.
 	 */
 	nr_segments = bufs_tlist_length(&rw_desc->rd_buf_list) *
 				nr_pages_per_buf;
 	C2_ASSERT(nr_segments > 0);
 
+	C2_TRACE("bufsize [%lu] pg/buf [%d] nr_bufs [%d] nr_segments [%d]\n",
+			(unsigned long)buf_size, nr_pages_per_buf,
+			(int)bufs_tlist_length(&rw_desc->rd_buf_list),
+			nr_segments);
 
 	rbulk = &iofop->if_rbulk;
 	rc = c2_rpc_bulk_buf_add(rbulk, nr_segments, PAGE_CACHE_SIZE,
 				  SESSION_TO_NDOM(rw_desc->rd_session), &rbuf);
-	if (rc != 0)
+	if (rc != 0) {
+		C2_TRACE("bulk_buf_add() failed: rc [%d]\n", rc);
 		goto iofop_fini;
+	}
 
 	C2_ASSERT(rbuf != NULL);
 
@@ -858,6 +883,11 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			if (rc != 0)
 				goto iofop_fini;
 
+			C2_TRACE("Added: pg [%p] addr [%p] off [%lu] "
+				 "count [%lu]\n", page, addr,
+				(unsigned long)offset_in_stob,
+				(unsigned long)count);
+
 			offset_in_stob += PAGE_CACHE_SIZE;
 			count          += PAGE_CACHE_SIZE;
 			addr           += PAGE_CACHE_SIZE;
@@ -867,7 +897,23 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	C2_ASSERT(count == rw_desc->rd_count);
 
-	/* XXX TODO: set qtype, alloc and prepare vecs */
+	rbuf->bb_nbuf.nb_qtype = (rw == READ) ? C2_NET_QT_PASSIVE_BULK_RECV
+					      : C2_NET_QT_PASSIVE_BULK_SEND;
+
+        rc = io_fop_ivec_alloc(&iofop->if_fop);
+	if (rc != 0) {
+		C2_TRACE("io_fop_ivec_alloc() failed: rc [%d]\n", rc);
+		goto iofop_fini;
+	}
+
+        rc = io_fop_desc_alloc(&iofop->if_fop);
+	if (rc != 0) {
+		C2_TRACE("io_fop_desc_alloc() failed: rc [%d]\n", rc);
+		goto iofop_fini;
+	}
+
+        io_fop_ivec_prepare(&iofop->if_fop);
+
 	C2_TRACE_END(iofop);
 	return iofop;
 
@@ -884,6 +930,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 {
 	struct rw_desc        *rw_desc;
 	struct c2t1fs_buf     *buf;
+	struct c2_io_fop      *iofop;
 	ssize_t                count = 0;
 
 	C2_TRACE_START();
@@ -917,7 +964,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 				count += buf->cb_buf.b_nob;
 
 		} c2_tlist_endfor;
-
+		iofop = rw_desc_to_io_fop(rw_desc, rw);
 	} c2_tlist_endfor;
 
 	C2_TRACE_END(count);
