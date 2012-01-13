@@ -307,6 +307,28 @@ static void ktest_core_ep_addr(void)
 	}
 }
 
+static void ktest_match_bits(void)
+{
+	uint32_t tmid;
+	uint64_t counter;
+
+	/* TEST
+	   Check that decode reverses encode.
+	*/
+#define TEST_MATCH_BIT_ENCODE(_t, _c)					\
+	nlx_kcore_decode_match_bits(nlx_kcore_encode_match_bits((_t),(_c)), \
+				    &tmid, &counter);			\
+	C2_UT_ASSERT(tmid == (_t));					\
+	C2_UT_ASSERT(counter == (_c))
+
+	TEST_MATCH_BIT_ENCODE(0, 0);
+	TEST_MATCH_BIT_ENCODE(C2_NET_LNET_TMID_MAX, 0);
+	TEST_MATCH_BIT_ENCODE(C2_NET_LNET_TMID_MAX, C2_NET_LNET_BUFFER_ID_MIN);
+	TEST_MATCH_BIT_ENCODE(C2_NET_LNET_TMID_MAX, C2_NET_LNET_BUFFER_ID_MAX);
+
+#undef TEST_MATCH_BIT_ENCODE
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
