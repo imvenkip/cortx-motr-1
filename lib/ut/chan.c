@@ -154,11 +154,12 @@ void test_chan(void)
 	C2_UT_ASSERT(!got);
 
 	/* chan is signaled after 1 second. so the wait will return true */
-	c2_time_set(&expire, 1, 0);
-	expire = c2_time_add(c2_time_now(), expire);
+	c2_time_set(&delta, 1, 0);
+	expire = c2_time_add(c2_time_now(), delta);
 	c2_timer_init(&timer, C2_TIMER_SOFT, expire,
-		      &signal_the_chan_in_timer, (unsigned long)&chan);
+		      &signal_the_chan_in_timer, (unsigned long)&clink1);
 	c2_timer_start(&timer);
+	c2_time_set(&delta, 2, 0);
 	expire = c2_time_add(c2_time_now(), delta);
 	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(got);
@@ -167,11 +168,12 @@ void test_chan(void)
 
 	/* chan is signaled after 3 seconds. so the wait will timeout and
 	   return false. Another wait should work.*/
-	c2_time_set(&expire, 3, 0);
-	expire = c2_time_add(c2_time_now(), expire);
+	c2_time_set(&delta, 3, 0);
+	expire = c2_time_add(c2_time_now(), delta);
 	c2_timer_init(&timer, C2_TIMER_SOFT, expire,
-		      &signal_the_chan_in_timer, (unsigned long)&chan);
+		      &signal_the_chan_in_timer, (unsigned long)&clink1);
 	c2_timer_start(&timer);
+	c2_time_set(&delta, 2, 0);
 	expire = c2_time_add(c2_time_now(), delta);
 	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(!got);
@@ -249,12 +251,11 @@ void test_chan(void)
 			c2_clink_add(&c[i], &l[i]);
 
 		c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
-		delta = c2_time_add(delta, c2_time_now());
+		expire = c2_time_add(c2_time_now(), delta);
 
 		flag = 0;
-		c2_timer_init(&timer, C2_TIMER_SOFT, delta,
+		c2_timer_init(&timer, C2_TIMER_SOFT, expire,
 			      &signal_the_chan_in_timer, (unsigned long)&l[j]);
-
 		c2_timer_start(&timer);
 
 		c2_chan_wait(&l[(j + 1) % ARRAY_SIZE(c)]);
