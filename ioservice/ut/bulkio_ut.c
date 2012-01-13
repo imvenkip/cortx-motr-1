@@ -216,12 +216,12 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		C2_UT_ASSERT(rbuf != NULL);
 
 		rbuf->bb_nbuf.nb_buffer = *bvecs[i];
-		rbuf->bb_nbuf.nb_qtype = is_write(fom->fo_fop) ?
+		rbuf->bb_nbuf.nb_qtype = c2_is_write_fop(fom->fo_fop) ?
 					 C2_NET_QT_ACTIVE_BULK_RECV :
 					 C2_NET_QT_ACTIVE_BULK_SEND;
 		tc += c2_vec_count(&bvecs[i]->ov_vec);
 
-		if (is_read(fom->fo_fop)) {
+		if (c2_is_read_fop(fom->fo_fop)) {
 			for (j = 0; j < ivec->ci_nr; ++j)
 				/* Sets a pattern in data buffer so that
 				   it can be verified at other side. */
@@ -246,7 +246,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	c2_clink_fini(&clink);
 
 	/* Checks if the write io bulk data is received as is. */
-	for (i = 0; i < rw->crw_desc.id_nr && is_write(fom->fo_fop); ++i) {
+	for (i = 0; i < rw->crw_desc.id_nr && c2_is_write_fop(fom->fo_fop); ++i) {
 		cmp = rw->crw_flags;
 		for (j = 0; j < bvecs[i]->ov_vec.v_nr; ++j) {
 			rc = memcmp(io_buf[cmp].nb_buffer.ov_buf[j],
@@ -256,7 +256,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		}
 	}
 
-	if (is_write(fom->fo_fop)) {
+	if (c2_is_write_fop(fom->fo_fop)) {
 		fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 		wrep = c2_fop_data(fop);
 		wrep->c_rep.rwr_rc = rbulk->rb_rc;
@@ -515,7 +515,7 @@ static void io_fops_rpc_submit(int i)
 	rc = c2_rpc_reply_timedwait(&clink, timeout);
 	if (rc != 0)
 		printf("Rpc item post failed. rc = %d\n", rc);
-	else if (is_read(&io_fops[i]->if_fop)) {
+	else if (c2_is_read_fop(&io_fops[i]->if_fop)) {
 		for (j = 0; j < io_buf[i].nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(io_buf[i].nb_buffer.ov_buf[j], io_cbuf,
 				    io_buf[i].nb_buffer.ov_vec.v_count[j]);
