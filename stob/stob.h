@@ -27,19 +27,15 @@
 #include "lib/vec.h"
 #include "lib/chan.h"
 #include "lib/rwlock.h"
+#include "lib/tlist.h"
 #include "addb/addb.h"
 #include "sm/sm.h"
 
 /* import */
-struct c2_sm;
 struct c2_dtx;
 struct c2_chan;
-struct c2_diovec;
 struct c2_indexvec;
 struct c2_io_scope;
-
-struct c2_list;
-struct c2_list_link;
 
 struct c2_db_tx;
 
@@ -72,7 +68,7 @@ struct c2_stob_type {
 	const struct c2_stob_type_op *st_op;
 	const char                   *st_name;
 	const uint32_t                st_magic;
-	struct c2_list		      st_domains; /**< list of domains */
+	struct c2_tl		      st_domains; /**< list of domains */
 	struct c2_addb_ctx            st_addb;
 };
 
@@ -85,7 +81,7 @@ struct c2_stob_type_op {
 
 	   @return 0 success, any other value means error.
 	*/
-	int (*sto_domain_locate)(struct c2_stob_type *type, 
+	int (*sto_domain_locate)(struct c2_stob_type *type,
 				 const char *domain_name,
 				 struct c2_stob_domain **dom);
 };
@@ -108,10 +104,11 @@ void c2_stob_type_fini(struct c2_stob_type *kind);
 struct c2_stob_domain {
 	const char 		       *sd_name;
 	const struct c2_stob_domain_op *sd_ops;
-	struct c2_stob_type 	       *sd_type;
-	struct c2_list_link	        sd_domain_linkage;
+	struct c2_stob_type            *sd_type;
+	struct c2_tlink                 sd_domain_linkage;
 	struct c2_rwlock                sd_guard;
 	struct c2_addb_ctx              sd_addb;
+	uint64_t                        sd_magic;
 };
 
 /**
@@ -354,7 +351,7 @@ int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
 void c2_stob_get(struct c2_stob *obj);
 
 /**
-   Releases a reference on the object. 
+   Releases a reference on the object.
 
    When the last reference is released, the object can either return to the
    cache or can be immediately destroyed at the storage object type
@@ -503,7 +500,7 @@ void c2_stob_put(struct c2_stob *obj);
                        |  |
      c2_stob_io_init() |  | c2_stob_io_fini()
                        |  |
-                       V  |    
+                       V  |
                      SIS_IDLE
                        |  ^
                        |  |
@@ -549,7 +546,7 @@ enum c2_stob_io_opcode {
 enum c2_stob_io_state {
 	/** State used to detect un-initialised c2_stob_io. */
 	SIS_ZERO = 0,
-	/** 
+	/**
 	    User owns c2_stob_io and data pages. No IO is ongoing.
 	 */
 	SIS_IDLE,
@@ -592,13 +589,13 @@ struct c2_stob_io {
 	/**
 	   Where data are located in the user address space.
 
-	   @note buffer sizes in c2_stob_io::si_user.div_vec.ov_vec.v_count[]
+	   @note buffer sizes in c2_stob_io::si_user.ov_vec.v_count[]
 	   are in block size units (as determined by
 	   c2_stob_op::sop_block_shift). Buffer addresses in
-	   c2_stob_io::si_user.div_vec.ov_buf[] must be shifted block-shift bits
+	   c2_stob_io::si_user.ov_buf[] must be shifted block-shift bits
 	   to the left.
 	 */
-	struct c2_diovec            si_user;
+	struct c2_bufvec	    si_user;
 	/**
 	   Where data are located in the storage object name-space.
 
@@ -655,7 +652,7 @@ struct c2_stob_io {
 	struct c2_io_scope         *si_scope;
 	/**
 	   Pointer to implementation private data associated with the IO
-	   operation. 
+	   operation.
 
 	   This pointer is initialized when c2_stob_io is queued for the first
 	   time. When IO completes, the memory allocated by implementation is
@@ -684,10 +681,6 @@ struct c2_stob_io {
 	   of time.
 	 */
 	uint32_t                    si_stob_magic;
-	/**
-	   IO operation is a state machine, see State diagram for adieu.
-	 */
-	struct c2_sm                si_mach;
 };
 
 struct c2_stob_io_op {
@@ -728,7 +721,7 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
    @pre c2_chan_has_waiters(&io->si_wait)
    @pre io->si_state == SIS_IDLE
    @pre io->si_opcode != SIO_INVALID
-   @pre c2_vec_count(&io->si_user.div_vec.ov_vec) == c2_vec_count(&io->si_stob.ov_vec)
+   @pre c2_vec_count(&io->si_user.ov_vec) == c2_vec_count(&io->si_stob.ov_vec)
    @pre c2_stob_io_user_is_valid(&io->si_user)
    @pre c2_stob_io_stob_is_valid(&io->si_stob)
 
@@ -738,13 +731,13 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
    finishes. Because of this no post-conditions for io->si_state are imposed in
    the successful return case.
  */
-int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
+int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
 			struct c2_dtx *tx, struct c2_io_scope *scope);
 
 /**
    Returns true if user is a valid vector of user IO buffers.
  */
-bool c2_stob_io_user_is_valid(const struct c2_diovec *user);
+bool c2_stob_io_user_is_valid(const struct c2_bufvec *user);
 /**
    Returns true if stob is a valid vector of target IO extents.
  */

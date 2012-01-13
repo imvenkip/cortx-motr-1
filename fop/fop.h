@@ -28,7 +28,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "fop/fop_base.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 /**
    @defgroup fop File operation packet
@@ -130,6 +130,15 @@ struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
 /**  Returns a fop type associated with an rpc item type */
 struct c2_fop_type *c2_item_type_to_fop_type
 		   (const struct c2_rpc_item_type *rit);
+
+/**
+   Default implementation of c2_rpc_item_ops::rio_free() interface, for
+   fops. If fop is not embeded in any other object, then this routine
+   can be set to c2_rpc_item::ri_ops::rio_free().
+ */
+void c2_fop_item_free(struct c2_rpc_item *item);
+
+extern const struct c2_rpc_item_ops c2_fop_default_item_ops;
 
 #include "fop/fop_format.h"
 

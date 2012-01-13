@@ -55,6 +55,9 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 			 &fopt->ft_addb);
 	c2_list_link_init(&fop->f_link);
 
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
+
 	return 0;
 }
 C2_EXPORTED(c2_fop_init);
@@ -71,6 +74,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 			c2_free(fop);
 			fop = NULL;
 		}
+		fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	}
 	return fop;
 }
@@ -80,6 +84,7 @@ void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);
 
+	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
 	c2_free(fop->f_data.fd_data);
 	c2_list_link_fini(&fop->f_link);
@@ -127,11 +132,12 @@ int fop_fol_type_init(struct c2_fop_type *fopt)
 {
 	struct c2_fol_rec_type *rtype;
 
-	C2_CASSERT(sizeof rtype->rt_opcode == sizeof fopt->ft_code);
+	C2_CASSERT(sizeof rtype->rt_opcode == sizeof
+		   fopt->ft_rpc_item_type.rit_opcode);
 
 	rtype = &fopt->ft_rec_type;
 	rtype->rt_name   = fopt->ft_name;
-	rtype->rt_opcode = fopt->ft_code;
+	rtype->rt_opcode = fopt->ft_rpc_item_type.rit_opcode;
 	if (fopt->ft_ops != NULL && fopt->ft_ops->fto_rec_ops != NULL)
 		rtype->rt_ops = fopt->ft_ops->fto_rec_ops;
 	else
@@ -151,7 +157,8 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 	struct c2_fol_rec_desc desc;
 
 	fopt = fop->f_type;
-	C2_CASSERT(sizeof desc.rd_header.rh_opcode == sizeof fopt->ft_code);
+	C2_CASSERT(sizeof desc.rd_header.rh_opcode ==
+		   sizeof fopt->ft_rpc_item_type.rit_opcode);
 
 	C2_SET0(&desc);
 	desc.rd_type               = &fop->f_type->ft_rec_type;
@@ -208,16 +215,28 @@ C2_EXPORTED(c2_rpc_item_to_fop);
 struct c2_fop_type *c2_item_type_to_fop_type
 		    (const struct c2_rpc_item_type *item_type)
 {
-	struct c2_fop_type		*ftype;
-	int				 opcode;
 	C2_PRE(item_type != NULL);
 
-	opcode = item_type->rit_opcode;
-	ftype = c2_fop_type_search(opcode);
-	C2_ASSERT(ftype != NULL);
-	return ftype;
+	return container_of(item_type, struct c2_fop_type, ft_rpc_item_type);
 }
 C2_EXPORTED(c2_item_type_to_fop_type);
+
+/*
+   See declaration for more information.
+ */
+void c2_fop_item_free(struct c2_rpc_item *item)
+{
+	struct c2_fop *fop;
+
+	fop = c2_rpc_item_to_fop(item);
+	/* c2_fop_free() internally calls c2_fop_fini() on the fop, which
+	   calls c2_rpc_item_fini() on the rpc-item */
+	c2_fop_free(fop);
+}
+
+const struct c2_rpc_item_ops c2_fop_default_item_ops = {
+	.rio_free = c2_fop_item_free,
+};
 
 /** @} end of fop group */
 

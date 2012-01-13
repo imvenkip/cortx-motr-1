@@ -52,7 +52,7 @@
    @{
 */
 
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "xcode/bufvec_xcode.h"
 
 enum {
@@ -69,7 +69,7 @@ struct c2_rpc_header {
 
 /**
    Header information per rpc item in an rpc object. The detailed description
-   of the various fields is present in struct c2_rpc_item /rpc/rpccore.h.
+   of the various fields is present in struct c2_rpc_item /rpc/rpc2.h.
 */
 struct c2_rpc_item_header {
 	uint32_t			rih_opcode;
@@ -134,40 +134,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
    @retval -errno on failure.
 */
 int c2_rpc_decode( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb );
-
-/**
-   Generic bufvec serialization routine for a fop rpc item type.
-   @param item_type Pointer to the item type struct for the item.
-   @param item  pointer to the item which is to be serialized.
-   @param cur current position of the cursor in the bufvec.
-   @retval 0 On success.
-   @retval -errno On failure.
-*/
-int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item *item,
-			      struct c2_bufvec_cursor *cur);
-
-/**
-   Generic deserialization routine for a fop rpc item type. Allocates a new rpc
-   item and decodes the header and the payload into this item.
-   @param item_type Pointer to the item type struct for the item.
-   @param item Pointer to the item containing deserialized rpc onwire data and
-   payload.
-   @param cur current position of the cursor in the bufvec.
-   @retval 0 On success.
-   @retval -errno if failure.
-*/
-int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item **item,
-			      struct c2_bufvec_cursor *cur);
-
-/**
-   Return the onwire size of the item in bytes.
-   The onwire size of an item equals = size of (header + payload).
-   @param item The rpc item for which the on wire size is to be calculated
-   @retval Size of the item in bytes.
-*/
-size_t c2_rpc_item_default_size(const struct c2_rpc_item *item);
 
 int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 			enum c2_bufvec_what what);

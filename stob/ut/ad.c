@@ -27,6 +27,7 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
+#include "dtm/dtm.h"     /* c2_dtx */
 #include "lib/arith.h"   /* min64u */
 #include "lib/misc.h"    /* C2_SET0 */
 #include "lib/memory.h"
@@ -252,9 +253,9 @@ static void test_write(int i)
 
 	io.si_opcode = SIO_WRITE;
 	io.si_flags  = 0;
-	io.si_user.div_vec.ov_vec.v_nr = i;
-	io.si_user.div_vec.ov_vec.v_count = user_vec;
-	io.si_user.div_vec.ov_buf = (void **)user_bufs;
+	io.si_user.ov_vec.v_nr = i;
+	io.si_user.ov_vec.v_count = user_vec;
+	io.si_user.ov_buf = (void **)user_bufs;
 
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;
@@ -284,9 +285,9 @@ static void test_read(int i)
 
 	io.si_opcode = SIO_READ;
 	io.si_flags  = 0;
-	io.si_user.div_vec.ov_vec.v_nr = i;
-	io.si_user.div_vec.ov_vec.v_count = user_vec;
-	io.si_user.div_vec.ov_buf = (void **)read_bufs;
+	io.si_user.ov_vec.v_nr = i;
+	io.si_user.ov_vec.v_count = user_vec;
+	io.si_user.ov_buf = (void **)read_bufs;
 
 	io.si_stob.iv_vec.v_nr = i;
 	io.si_stob.iv_vec.v_count = user_vec;

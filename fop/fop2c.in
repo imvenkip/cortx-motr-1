@@ -13,8 +13,8 @@ verbose=0
 topdir=$(dirname $0)/..
 
 CC=${CC:-"cc"}
-CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
-LDFLAGS=${LDFLAGS:-"-rdynamic -pthread"}
+CFLAGS="@CFLAGS@"
+LDFLAGS="@LDFLAGS@ -rdynamic -pthread"
 DEFINES="-DHAVE_CONFIG"
 INC="-I$topdir -I@DB_SRC@ -I@DB_SRC@/build_unix"
 
@@ -143,8 +143,6 @@ void prefix(void)
 	printf("\n");
 	printf("#include \"lib/cdefs.h\"\n");
 	printf("#include \"fop/fop_base.h\"\n");
-	if (todo == UDEF) 
-		printf("#include <rpc/rpc.h>\n");
 	if (todo == ULAY || todo == KLAY) 
 		printf("#include \"%s\"\n", incl);
 	if (todo == ULAY) 
@@ -219,5 +217,6 @@ done
 
 if [ $verbose -eq 0 ] ;then
     rm -fr $fbase*
+    rm -fr fop2c-$tid*
 fi
 

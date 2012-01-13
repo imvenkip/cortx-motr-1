@@ -28,10 +28,11 @@
 
 #include "stob/ut/io_fop.h"
 #include "fop/fop_format_def.h"
+#include "rpc/rpc_opcodes.h"
 
 #ifdef __KERNEL__
 # include "io_k.h"
-# include "addb/linux_kernel/addb_k.h"
+# include "addb/addb_k.h"
 # define write_handler NULL
 # define read_handler NULL
 # define create_handler NULL
@@ -39,17 +40,20 @@
 
 #else
 
-int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
+# define write_handler NULL
+# define read_handler NULL
+# define create_handler NULL
+# define quit_handler NULL
+/*int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
+int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);*/
 
 #include "io_u.h"
 # include "addb/addb_u.h"
 #endif
 
 #include "stob/ut/io.ff"
-#include "addb/addb.ff"
 
 /**
    @addtogroup stob
@@ -72,41 +76,31 @@ static struct c2_fop_type_ops quit_ops = {
 	.fto_execute = quit_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_io_write,      "write",  10, &write_ops);
-C2_FOP_TYPE_DECLARE(c2_io_read,       "read",   11, &read_ops);
-C2_FOP_TYPE_DECLARE(c2_io_create,     "create", 12, &create_ops);
-C2_FOP_TYPE_DECLARE(c2_io_quit,       "quit",   13, &quit_ops);
+C2_FOP_TYPE_DECLARE(c2_io_write, "write",  &write_ops,
+		    C2_STOB_UT_WRITE_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE(c2_io_read, "read", &read_ops,
+		    C2_STOB_UT_READ_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE(c2_io_create, "create", &create_ops,
+		    C2_STOB_UT_CREATE_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE(c2_io_quit, "quit", &quit_ops,
+		    C2_STOB_UT_QUIT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 
-C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  21, NULL);
-C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply",   22, NULL);
-C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 23, NULL);
-
-struct c2_fop_type c2_addb_record_fopt = {
-	.ft_code = (14),
-	.ft_name = "addb",
-	.ft_fmt  = &c2_addb_record_header_tfmt,
-	.ft_ops  = NULL
-};
-
-struct c2_fop_type c2_addb_reply_fopt = {
-	.ft_code = (24),
-	.ft_name = "addb reply",
-	.ft_fmt  = &c2_addb_reply_tfmt,
-	.ft_ops  = NULL
-};
+C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  NULL,
+		    C2_STOB_UT_WRITE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply", NULL,
+		    C2_STOB_UT_READ_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", NULL,
+		    C2_STOB_UT_CREATE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
 	&c2_io_quit_fopt,
-	&c2_addb_record_fopt,
 
 	&c2_io_write_rep_fopt,
 	&c2_io_read_rep_fopt,
 	&c2_io_create_rep_fopt,
-
-	&c2_addb_reply_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {

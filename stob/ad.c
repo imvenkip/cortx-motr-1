@@ -24,9 +24,12 @@
 #include <errno.h>
 #include <string.h>                 /* memset */
 
+#include "dtm/dtm.h"                /* c2_dtx */
 #include "lib/thread.h"             /* LAMBDA */
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
+#include "lib/tlist.h"
+
 #include "stob/ad.h"
 
 /**
@@ -99,8 +102,8 @@ struct ad_domain {
 	struct c2_emap             ad_adata;
 
 	/**
-	   Set to true in c2_ad_stob_setup(). Used in pre-conditions to guarantee that
-	   the domain is fully initialized.
+	   Set to true in c2_ad_stob_setup(). Used in pre-conditions to
+	   guarantee that the domain is fully initialized.
 	 */
 	bool                       ad_setup;
 	/**
@@ -109,7 +112,7 @@ struct ad_domain {
 	 */
 	struct c2_stob            *ad_bstore;
 	/** List of all existing c2_stob's. */
-	struct c2_list             ad_object;
+	struct c2_tl               ad_object;
 	struct ad_balloc          *ad_ballroom;
 
 };
@@ -121,8 +124,15 @@ struct ad_domain {
  */
 struct ad_stob {
 	struct c2_stob      as_stob;
-	struct c2_list_link as_linkage;
+	struct c2_tlink     as_linkage;
+	uint64_t            as_magix;
 };
+
+C2_TL_DESCR_DEFINE(ad, "ad stobs", static, struct ad_stob, as_linkage, as_magix,
+		   0xc01101da1fe11c1a /* colloidal felicia */,
+		   0x1dea112ed5ea51de /* idealized seaside */);
+
+C2_TL_DEFINE(ad, static, struct ad_stob);
 
 static inline struct ad_stob *stob2ad(struct c2_stob *stob)
 {
@@ -190,6 +200,7 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 		c2_emap_fini(&adom->ad_adata);
 		c2_stob_put(adom->ad_bstore);
 	}
+	ad_tlist_fini(&adom->ad_object);
 	c2_stob_domain_fini(self);
 	c2_free(adom);
 }
@@ -197,8 +208,8 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 /**
    Implementation of c2_stob_type_op::sto_domain_locate().
 
-   @note the domain returned is not immediately ready for use. c2_ad_stob_setup() has to
-   be called against it first.
+   @note the domain returned is not immediately ready for
+   use. c2_ad_stob_setup() has to be called against it first.
  */
 static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 				      const char *domain_name,
@@ -211,7 +222,7 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	C2_ALLOC_PTR(adom);
 	if (adom != NULL) {
 		adom->ad_setup = false;
-		c2_list_init(&adom->ad_object);
+		ad_tlist_init(&adom->ad_object);
 		dom = &adom->ad_base;
 		dom->sd_ops = &ad_stob_domain_op;
 		c2_stob_domain_init(dom, type);
@@ -265,14 +276,13 @@ static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
 	C2_PRE(adom->ad_setup);
 
 	found = false;
-	c2_list_for_each_entry(&adom->ad_object, obj,
-			       struct ad_stob, as_linkage) {
+	c2_tlist_for(&ad_tl, &adom->ad_object, obj) {
 		if (c2_stob_id_eq(id, &obj->as_stob.so_id)) {
 			c2_stob_get(&obj->as_stob);
 			found = true;
 			break;
 		}
-	}
+	} c2_tlist_endfor;
 	return found ? obj : NULL;
 }
 
@@ -309,8 +319,7 @@ static int ad_domain_stob_find(struct c2_stob_domain *dom,
 				stob = &astob->as_stob;
 				stob->so_op = &ad_stob_op;
 				c2_stob_init(stob, id, dom);
-				c2_list_add(&adom->ad_object,
-					    &astob->as_linkage);
+				ad_tlink_init_at(astob, &adom->ad_object);
 			} else {
 				c2_free(astob);
 				astob = ghost;
@@ -350,7 +359,7 @@ static void ad_stob_fini(struct c2_stob *stob)
 	struct ad_stob *astob;
 
 	astob = stob2ad(stob);
-	c2_list_del(&astob->as_linkage);
+	ad_tlink_del_fini(astob);
 	c2_stob_fini(&astob->as_stob);
 	c2_free(astob);
 }
@@ -494,7 +503,7 @@ struct ad_stob_io {
 	struct c2_clink    ai_clink;
 };
 
-static void ad_endio(struct c2_clink *link);
+static bool ad_endio(struct c2_clink *link);
 
 /**
    Helper function to allocate a given number of blocks in the underlying
@@ -551,7 +560,7 @@ int ad_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
    Releases vectors allocated for back IO.
 
    @note that back->si_stob.ov_vec.v_count is _not_ freed separately, as it is
-   aliased to back->si_user.div_vec.ov_vec.v_count.
+   aliased to back->si_user.z_bvec.ov_vec.v_count.
 
    @see ad_vec_alloc()
  */
@@ -560,14 +569,14 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
 	struct c2_stob_io *back = &aio->ai_back;
 
 	C2_ASSERT(back->si_stob.iv_vec.v_count ==
-		  back->si_user.div_vec.ov_vec.v_count);
+		  back->si_user.ov_vec.v_count);
 
-	c2_free(back->si_user.div_vec.ov_vec.v_count);
-	back->si_user.div_vec.ov_vec.v_count = NULL;
+	c2_free(back->si_user.ov_vec.v_count);
+	back->si_user.ov_vec.v_count = NULL;
 	back->si_stob.iv_vec.v_count = NULL;
 
-	c2_free(back->si_user.div_vec.ov_buf);
-	back->si_user.div_vec.ov_buf = NULL;
+	c2_free(back->si_user.ov_buf);
+	back->si_user.ov_buf = NULL;
 
 	c2_free(back->si_stob.iv_index);
 	back->si_stob.iv_index = NULL;
@@ -602,7 +611,7 @@ static int ad_cursors_init(struct c2_stob_io *io, struct ad_domain *adom,
 	result = ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0],
 			   io->si_tx, it);
 	if (result == 0) {
-		c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+		c2_vec_cursor_init(src, &io->si_user.ov_vec);
 		c2_vec_cursor_init(dst, &io->si_stob.iv_vec);
 		c2_emap_caret_init(map, it, io->si_stob.iv_index[0]);
 	}
@@ -632,20 +641,20 @@ static int ad_vec_alloc(struct c2_stob *obj,
 	c2_bcount_t *counts;
 	int          result;
 
-	C2_ASSERT(back->si_user.div_vec.ov_vec.v_count == NULL);
+	C2_ASSERT(back->si_user.ov_vec.v_count == NULL);
 
 	result = 0;
 	if (frags > 0) {
 		C2_ALLOC_ARR(counts, frags);
-		back->si_user.div_vec.ov_vec.v_count = counts;
+		back->si_user.ov_vec.v_count = counts;
 		back->si_stob.iv_vec.v_count = counts;
-		C2_ALLOC_ARR(back->si_user.div_vec.ov_buf, frags);
+		C2_ALLOC_ARR(back->si_user.ov_buf, frags);
 		C2_ALLOC_ARR(back->si_stob.iv_index, frags);
 
-		back->si_user.div_vec.ov_vec.v_nr = frags;
+		back->si_user.ov_vec.v_nr = frags;
 		back->si_stob.iv_vec.v_nr = frags;
 
-		if (counts == NULL || back->si_user.div_vec.ov_buf == NULL ||
+		if (counts == NULL || back->si_user.ov_buf == NULL ||
 		    back->si_stob.iv_index == NULL) {
 			ADDB_ADD(obj, c2_addb_oom);
 			result = -ENOMEM;
@@ -782,7 +791,7 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		void        *buf;
 		c2_bindex_t  off;
 
-		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
+		buf = io->si_user.ov_buf[src->vc_seg] + src->vc_offset;
 		off = io->si_stob.iv_index[dst->vc_seg] + dst->vc_offset;
 
 		C2_ASSERT(off >= map->ct_index);
@@ -809,8 +818,8 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		} else {
 			C2_ASSERT(seg->ee_val < AET_MIN);
 
-			back->si_user.div_vec.ov_vec.v_count[idx] = frag_size;
-			back->si_user.div_vec.ov_buf[idx] = buf;
+			back->si_user.ov_vec.v_count[idx] = frag_size;
+			back->si_user.ov_buf[idx] = buf;
 
 			back->si_stob.iv_index[idx] = seg->ee_val +
 				(off - seg->ee_ext.e_start);
@@ -929,10 +938,10 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 		frag_size = min_check(c2_vec_cursor_step(src),
 				      ad_wext_cursor_step(wc));
 
-		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
+		buf = io->si_user.ov_buf[src->vc_seg] + src->vc_offset;
 
-		back->si_user.div_vec.ov_vec.v_count[idx] = frag_size;
-		back->si_user.div_vec.ov_buf[idx] = buf;
+		back->si_user.ov_vec.v_count[idx] = frag_size;
+		back->si_user.ov_buf[idx] = buf;
 
 		back->si_stob.iv_index[idx] =
 			wc->wc_wext->we_ext.e_start + wc->wc_done;
@@ -1062,9 +1071,9 @@ static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
 
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
-		
+
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
-		
+
 		if (result != 0)
 			break;
 
@@ -1117,7 +1126,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	C2_PRE(io->si_opcode == SIO_WRITE);
 
-	todo = c2_vec_count(&io->si_user.div_vec.ov_vec);
+	todo = c2_vec_count(&io->si_user.ov_vec);
 	back = &aio->ai_back;
 	wext = &head;
 	wext->we_next = NULL;
@@ -1150,13 +1159,13 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
-			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+			c2_vec_cursor_init(src, &io->si_user.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.iv_vec);
 			ad_wext_cursor_init(&wc, &head);
 
 			ad_write_back_fill(io, back, src, &wc);
 
-			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+			c2_vec_cursor_init(src, &io->si_user.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.iv_vec);
 			ad_wext_cursor_init(&wc, &head);
 
@@ -1189,7 +1198,7 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 	C2_PRE(adom->ad_setup);
 	C2_PRE(io->si_obj->so_domain->sd_type == &ad_stob_type);
 	C2_PRE(io->si_stob.iv_vec.v_nr > 0);
-	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) > 0);
+	C2_PRE(c2_vec_count(&io->si_user.ov_vec) > 0);
 
 	/* prefix fragments execution mode is not yet supported */
 	C2_ASSERT((io->si_flags & SIF_PREFIX) == 0);
@@ -1266,7 +1275,7 @@ static uint32_t ad_stob_block_shift(const struct c2_stob *stob)
 	return ad_bshift(domain2ad(stob->so_domain));
 }
 
-static void ad_endio(struct c2_clink *link)
+static bool ad_endio(struct c2_clink *link)
 {
 	struct ad_stob_io *aio;
 	struct c2_stob_io *io;
@@ -1282,6 +1291,7 @@ static void ad_endio(struct c2_clink *link)
 	io->si_state  = SIS_IDLE;
 	ad_stob_io_release(aio);
 	c2_chan_broadcast(&io->si_wait);
+	return true;
 }
 
 static const struct c2_stob_io_op ad_stob_io_op = {

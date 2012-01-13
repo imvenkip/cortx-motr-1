@@ -17,7 +17,6 @@ AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
-AH_TEMPLATE([HAVE_CUNIT], [Have cunit library])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -201,7 +200,7 @@ _ACEOF
 ])
 
 # Checks for programs.
-AC_PROG_CC
+AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_LN_S
@@ -239,28 +238,7 @@ AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
 
-# Checking for CUnit
-OLD_CFLAGS=$CFLAGS
-
-# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
-CFLAGS="-I/usr/local/include -I/opt/local/include"
-AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h],
-[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])],
-[
-#ifdef CUNIT_CUNIT_H
-#include <CUnit/CUnit.h>
-#endif
-])
-
-OLD_LIBS=$LIBS
-
-# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
-LIBS="$LIBS -L/usr/local/lib -L/opt/local/lib"
-AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])])
-CUNIT_LIBS=$LIBS
-AC_SUBST([CUNIT_LIBS])
-LIBS=$OLD_LIBS
-CFLAGS=$OLD_CFLAGS
+XY_CHECK_CUNIT
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -308,6 +286,29 @@ AC_ARG_WITH([linux],
 
 AC_MSG_RESULT([$LINUX])
 AC_SUBST([LINUX])
+
+AC_ARG_ENABLE(coverage,
+	[  --enable-coverage  Build for test coverage analysis],
+	[case "${enableval}" in
+		yes) ENABLE_COVERAGE=1 ;;
+		no) ENABLE_COVERAGE=0 ;;
+		*) AC_MSG_ERROR([Invalid value ${enableval} for --enable-coverage]) ;;
+	esac],
+	[ENABLE_COVERAGE=0])
+
+AC_SUBST([ENABLE_COVERAGE])
+
+if test "x[$]ENABLE_COVERAGE" = "x1"
+then
+	# Remove -O<digit> flag from $CFLAGS
+	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
+	LDFLAGS="-lgcov"
+	K_ENABLE_COVERAGE=y
+else
+	K_ENABLE_COVERAGE=n
+fi
+
+AC_SUBST([K_ENABLE_COVERAGE])
 
 AC_MSG_CHECKING([for linux objects dir])
 AC_ARG_WITH([linux-obj],
@@ -489,8 +490,23 @@ fi
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
+# Check if gcc option is supported in current gcc version.
+iff_opt_supported() {
+        `$CC $1 -S -o /dev/null -xc /dev/null` 2>&1
+	if test $? -eq 0; then
+                echo $1
+        else
+                echo ""
+        fi
+}
+
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
-KCFLAGS="-Wall -Werror $KCFLAGS"
+# If some compiler option is compiler version specific, then add it to OPT_KCFLAGS.
+# iff_opt_supported() can be used to check if the compiler option is supported or not.
+# iff_opt_supported(opt) returns opt if opt is supported by compiler, "" otherwise.
+OPT_KCFLAGS="$OPT_KCFLAGS $(iff_opt_supported -Wno-unused-but-set-variable)"
+KCFLAGS=" -Wall -Werror $OPT_KCFLAGS $KCFLAGS"
+
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
@@ -505,43 +521,38 @@ AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
-                 addb/linux_kernel/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
-                 c2t1fs/Makefile
                  capa/Makefile
                  capa/ut/Makefile
+                 cfg/Makefile
                  cob/Makefile
-                 cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
+                 colibri/ut/Makefile
+		 console/Makefile
+                 console/bin/Makefile
+                 console/ut/Makefile
+                 console/st/Makefile
                  db/Makefile
-                 db/linux_kernel/Makefile
                  db/ut/Makefile
-                 dtm/linux_kernel/Makefile
                  desim/Makefile
                  desim/ut/Makefile
                  doc/Makefile
                  dtm/Makefile
                  fid/Makefile
-                 fid/linux_kernel/Makefile
                  fol/Makefile
-                 fol/linux_kernel/Makefile
                  fol/ut/Makefile
                  fop/Makefile
                  fop/fop2c
-                 fop/linux_kernel/Makefile
                  fop/rt/Makefile
                  fop/ut/Makefile
-                 galois/linux_kernel/Makefile
                  ioservice/Makefile
-                 ioservice/linux_kernel/Makefile
+                 ioservice/ut/Makefile
                  layout/Makefile
-                 layout/linux_kernel/Makefile
                  layout/ut/Makefile
                  lib/Makefile
-                 lib/linux_kernel/Makefile
                  lib/user_space/Makefile
                  lib/ut/Makefile
                  m4/Makefile
@@ -553,39 +564,35 @@ AC_CONFIG_FILES([
 		 net/bulk_emulation/st/Makefile
 		 net/bulk_emulation/st/linux_kernel/Makefile
 		 net/bulk_emulation/ut/Makefile
-                 net/linux_kernel/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
-                 pool/linux_kernel/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
                  rpc/Makefile
                  rpc/ut/Makefile
                  rpc/it/Makefile
-		 rpc/linux_kernel/Makefile
 		 rpc/it/linux_kernel/Makefile
                  sm/Makefile
-                 sm/linux_kernel/Makefile
+                 sm/ut/Makefile
                  sns/Makefile
-                 sns/linux_kernel/Makefile
                  sns/ut/Makefile
                  stob/Makefile
-                 stob/linux_kernel/Makefile
                  stob/ut/Makefile
                  udb/Makefile
                  udb/ut/Makefile
+                 ut/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
-                 xcode/linux_kernel/Makefile
                  xcode/ut/Makefile
-		 xdr/Makefile
-                 xdr/ut/Makefile
+		 yaml2db/Makefile
+		 yaml2db/ut/Makefile
+		 yaml2db/st/Makefile
                 ])
 AC_OUTPUT
 

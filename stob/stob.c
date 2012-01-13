@@ -47,10 +47,15 @@ static const struct c2_addb_ctx_type c2_stob_addb = {
 	.act_name = "stob-domain"
 };
 
+C2_TL_DESCR_DEFINE(dom, "stob domains", static, struct c2_stob_domain,
+		   sd_domain_linkage, sd_magic, 0xABD1CAB1EAB5CE55,
+		   0xACCE551B1EEFFACE);
+C2_TL_DEFINE(dom, static, struct c2_stob_domain);
+
 int c2_stob_type_init(struct c2_stob_type *kind)
 {
-	c2_list_init(&kind->st_domains);
-	c2_addb_ctx_init(&kind->st_addb, &c2_stob_type_addb, 
+	dom_tlist_init(&kind->st_domains);
+	c2_addb_ctx_init(&kind->st_addb, &c2_stob_type_addb,
 			 &c2_addb_global_ctx);
 	return 0;
 }
@@ -58,14 +63,14 @@ int c2_stob_type_init(struct c2_stob_type *kind)
 void c2_stob_type_fini(struct c2_stob_type *kind)
 {
 	c2_addb_ctx_fini(&kind->st_addb);
-	c2_list_fini(&kind->st_domains);
+	dom_tlist_fini(&kind->st_domains);
 }
 
 void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 {
 	c2_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
-	c2_list_add_tail(&t->st_domains, &dom->sd_domain_linkage);
+	dom_tlink_init_at_tail(dom, &t->st_domains);
 	c2_addb_ctx_init(&dom->sd_addb, &c2_stob_domain_addb, &t->st_addb);
 }
 
@@ -73,7 +78,8 @@ void c2_stob_domain_fini(struct c2_stob_domain *dom)
 {
 	c2_addb_ctx_fini(&dom->sd_addb);
 	c2_rwlock_fini(&dom->sd_guard);
-	c2_list_del(&dom->sd_domain_linkage);
+	dom_tlink_del_fini(dom);
+	dom->sd_magic = 0;
 }
 
 int c2_stob_find(struct c2_stob_domain *dom, const struct c2_stob_id *id,
@@ -218,7 +224,6 @@ void c2_stob_io_init(struct c2_stob_io *io)
 	io->si_opcode = SIO_INVALID;
 	io->si_state  = SIS_IDLE;
 	c2_chan_init(&io->si_wait);
-	c2_sm_init(&io->si_mach);
 
 	C2_POST(io->si_state == SIS_IDLE);
 }
@@ -228,13 +233,12 @@ void c2_stob_io_fini(struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
 
-	c2_sm_fini(&io->si_mach);
 	c2_chan_fini(&io->si_wait);
 	c2_stob_io_private_fini(io);
 }
 C2_EXPORTED(c2_stob_io_fini);
 
-int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj, 
+int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		      struct c2_dtx *tx, struct c2_io_scope *scope)
 {
 	int result;
@@ -244,7 +248,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_PRE(io->si_obj == NULL);
 	C2_PRE(io->si_state == SIS_IDLE);
 	C2_PRE(io->si_opcode != SIO_INVALID);
-	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) == 
+	C2_PRE(c2_vec_count(&io->si_user.ov_vec) == 
 	       c2_vec_count(&io->si_stob.iv_vec));
 	C2_PRE(c2_stob_io_user_is_valid(&io->si_user));
 	C2_PRE(c2_stob_io_stob_is_valid(&io->si_stob));
@@ -274,7 +278,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 }
 C2_EXPORTED(c2_stob_io_launch);
 
-bool c2_stob_io_user_is_valid(const struct c2_diovec *user)
+bool c2_stob_io_user_is_valid(const struct c2_bufvec *user)
 {
 	return true;
 }
@@ -311,7 +315,7 @@ void *c2_stob_addr_open(const void *buf, uint32_t shift)
 
 /** @} end group stob */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

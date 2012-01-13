@@ -42,7 +42,7 @@
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "rpc/session_fops.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation.h"
 
 /**
@@ -89,6 +89,21 @@ static int conn_persistent_state_create(struct c2_cob_domain  *dom,
 static int conn_persistent_state_attach(struct c2_rpc_conn *conn,
 					uint64_t            sender_id,
 					struct c2_db_tx    *tx);
+
+/*
+ * This is sender side item_ops of conn_establish fop.
+ * Receiver side conn_establish fop has different item_ops
+ * rcv_conn_establish_item_ops defined in rpc/session_fops.c
+ */
+static const struct c2_rpc_item_ops conn_establish_item_ops = {
+	.rio_replied = c2_rpc_conn_establish_reply_received,
+	.rio_free    = c2_fop_item_free,
+};
+
+static const struct c2_rpc_item_ops conn_terminate_item_ops = {
+	.rio_replied = c2_rpc_conn_terminate_reply_received,
+	.rio_free    = c2_fop_item_free,
+};
 
 /**
    Checks connection object invariant.
@@ -208,6 +223,9 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 static void __conn_fini(struct c2_rpc_conn *conn)
 {
 	C2_ASSERT(conn != NULL);
+
+	/* Release the reference on c2_rpc_chan structure being used. */
+	rpc_chan_put(conn->c_rpcchan);
 
 	c2_list_fini(&conn->c_sessions);
 	c2_cond_fini(&conn->c_state_changed);
@@ -455,8 +473,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 		C2_ASSERT(c2_rpc_conn_invariant(conn));
 		goto out;
 	}
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -483,7 +499,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 
 	session_0 = c2_rpc_conn_session0(conn);
 
-	rc = c2_rpc__fop_post(fop, session_0, &c2_rpc_item_conn_establish_ops);
+	rc = c2_rpc__fop_post(fop, session_0, &conn_establish_item_ops);
 	if (rc != 0) {
 		conn_failed(conn, rc);
 		c2_fop_free(fop);
@@ -499,13 +515,13 @@ out:
 }
 C2_EXPORTED(c2_rpc_conn_establish);
 
-void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc)
+void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_conn_establish_rep *fop_cer;
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_item                   *reply = req->ri_reply;
+	int32_t                               rc    = req->ri_error;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
 		req->ri_session->s_session_id == SESSION_ID_0);
@@ -563,6 +579,56 @@ out:
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 }
+
+int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+{
+	int rc;
+	bool state_reached;
+
+	rc = c2_rpc_conn_establish(conn);
+	if (rc != 0)
+		return rc;
+
+	state_reached = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE |
+					      C2_RPC_CONN_FAILED,
+					      c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (conn->c_state) {
+	case C2_RPC_CONN_ACTIVE:
+		rc = 0;
+		break;
+	case C2_RPC_CONN_FAILED:
+		rc = conn->c_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
+	}
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_establish_sync);
+
+int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
+		       struct c2_net_end_point *ep,
+		       struct c2_rpcmachine    *rpc_machine,
+		       uint64_t			max_rpcs_in_flight,
+		       uint32_t			timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_rpc_conn_establish_sync(conn, timeout_sec);
+	if (rc != 0)
+		c2_rpc_conn_fini(conn);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_create);
 
 static int session_zero_attach(struct c2_rpc_conn *conn)
 {
@@ -654,9 +720,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		goto out_unlock;
 	}
 
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = fop->f_type->ft_ri_type;
-
 	c2_mutex_lock(&conn->c_mutex);
 
 	/*
@@ -681,7 +744,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	fop_ct->ct_sender_id = conn->c_sender_id;
 
 	session_0 = c2_rpc_conn_session0(conn);
-	rc = c2_rpc__fop_post(fop, session_0, &c2_rpc_item_conn_terminate_ops);
+	rc = c2_rpc__fop_post(fop, session_0, &conn_terminate_item_ops);
 	if (rc != 0) {
 		conn_failed(conn, rc);
 		c2_fop_free(fop);
@@ -697,13 +760,13 @@ out_unlock:
 }
 C2_EXPORTED(c2_rpc_conn_terminate);
 
-void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc)
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req)
 {
 	struct c2_rpc_fop_conn_terminate_rep *fop_ctr;
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_item                   *reply = req->ri_reply;
+	int32_t                               rc    = req->ri_error;
 	uint64_t                              sender_id;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
@@ -765,11 +828,53 @@ out:
 	C2_POST(c2_rpc_conn_invariant(conn));
 	C2_POST(conn->c_state == C2_RPC_CONN_TERMINATED ||
 		conn->c_state == C2_RPC_CONN_FAILED);
-	/* Release the reference on c2_rpc_chan structure being used. */
-	rpc_chan_put(conn->c_rpcchan);
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 }
+
+int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+{
+	int rc;
+	bool state_reached;
+
+	rc = c2_rpc_conn_terminate(conn);
+	if (rc != 0)
+		return rc;
+
+	state_reached = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
+					      C2_RPC_CONN_FAILED,
+					      c2_time_from_now(timeout_sec, 0));
+	if (!state_reached)
+		return -ETIMEDOUT;
+
+	switch (conn->c_state) {
+	case C2_RPC_CONN_TERMINATED:
+		rc = 0;
+		break;
+	case C2_RPC_CONN_FAILED:
+		rc = conn->c_rc;
+		break;
+	default:
+		C2_ASSERT("internal logic error in c2_rpc_conn_timedwait()" == 0);
+	}
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_terminate_sync);
+
+int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_conn_terminate_sync(conn, timeout_sec);
+	if (rc != 0)
+		return rc;
+
+	c2_rpc_conn_fini(conn);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_conn_destroy);
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
 			   uint64_t              sender_id,
@@ -1009,15 +1114,9 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	else
 		c2_db_tx_abort(&tx);
 out:
-	if (rc != 0) {
-		struct c2_rpc_session *session0;
-
-		/*
-		 * Take out slot0 of session0 out of ready slots list.
-		 */
-		session0 = c2_rpc_conn_session0(conn);
+	if (rc != 0)
 		conn_failed(conn, rc);
-	}
+
 	/*
 	 * Note: conn is not moved to TERMINATED state even if operation is
 	 * successful. This is required to be able to send successful conn
@@ -1047,8 +1146,6 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_rc = 0;
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	rpc_chan_put(conn->c_rpcchan);
-
 	c2_mutex_unlock(&conn->c_mutex);
 
 	c2_rpc_conn_fini(conn);
@@ -1057,7 +1154,12 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 {
-	return item->ri_type == &c2_rpc_item_conn_establish;
+	return item->ri_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE;
+}
+
+bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item)
+{
+	return item->ri_type->rit_opcode == C2_RPC_CONN_TERMINATE_OPCODE;
 }
 
 #ifndef __KERNEL__

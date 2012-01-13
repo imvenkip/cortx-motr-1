@@ -506,7 +506,6 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	timer->t_callback = callback;
 	timer->t_data     = data;
 
-
 	if (timer->t_type == C2_TIMER_HARD)
 		rc = timer_hard_init(timer);
 	else
@@ -575,6 +574,12 @@ int c2_timer_stop(struct c2_timer *timer)
 	return rc;
 }
 C2_EXPORTED(c2_timer_stop);
+
+bool c2_timer_is_started(const struct c2_timer *timer)
+{
+	return timer->t_state == TIMER_RUNNING;
+}
+C2_EXPORTED(c2_timer_is_started);
 
 /**
    Init data structures for hard timer

@@ -37,7 +37,12 @@
    @{
  */
 
-static struct c2_list cnts;
+C2_TL_DESCR_DEFINE(cnts, "counters", static, struct cnt,
+		   c_linkage, c_magic, 0xFACE1E550FF1C1A1,
+		   0x5CA1AB1E011F1E1D);
+C2_TL_DEFINE(cnts, static, struct cnt);
+
+static struct c2_tl cnts;
 
 void cnt_init(struct cnt *cnt, struct cnt *parent, const char *format, ...)
 {
@@ -50,7 +55,7 @@ void cnt_init(struct cnt *cnt, struct cnt *parent, const char *format, ...)
 	sim_name_vaset(&cnt->c_name, format, valist);
 	va_end(valist);
 	cnt->c_parent = parent;
-	c2_list_add_tail(&cnts, &cnt->c_linkage);
+	cnts_tlink_init_at_tail(cnt, &cnts);
 }
 
 void cnt_dump(struct cnt *cnt)
@@ -62,7 +67,7 @@ void cnt_dump(struct cnt *cnt)
 		avg = cnt->c_sum / cnt->c_nr;
 		sig = sqrt(cnt->c_sq/cnt->c_nr - avg*avg);
 		sim_log(NULL, SLL_INFO, "[%s: %llu (%llu) %llu %llu %f]\n",
-			cnt->c_name, avg, cnt->c_nr, 
+			cnt->c_name, avg, cnt->c_nr,
 			cnt->c_min, cnt->c_max, sig);
 	} else
 		sim_log(NULL, SLL_INFO, "[%s: empty]\n", cnt->c_name);
@@ -72,15 +77,17 @@ void cnt_dump_all(void)
 {
 	struct cnt *scan;
 
-	c2_list_for_each_entry(&cnts, scan, struct cnt, c_linkage)
+	c2_tlist_for(&cnts_tl, &cnts, scan)
 		cnt_dump(scan);
+	c2_tlist_endfor;
 }
 
 void cnt_fini(struct cnt *cnt)
 {
 	if (cnt->c_name != NULL)
 		free(cnt->c_name);
-	c2_list_del(&cnt->c_linkage);
+	cnts_tlink_del_fini(cnt);
+	cnt->c_magic = 0;
 }
 
 
@@ -99,23 +106,23 @@ void cnt_mod(struct cnt *cnt, cnt_t val)
 
 void cnt_global_init(void)
 {
-	c2_list_init(&cnts);
+	cnts_tlist_init(&cnts);
 }
 
 void cnt_global_fini(void)
 {
 	struct cnt *scan;
-	struct cnt *next;
 
-	c2_list_for_each_entry_safe(&cnts, scan, next, struct cnt, c_linkage)
+	c2_tlist_for(&cnts_tl, &cnts, scan)
 		cnt_fini(scan);
+	c2_tlist_endfor;
 
-	c2_list_fini(&cnts);
+	cnts_tlist_fini(&cnts);
 }
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

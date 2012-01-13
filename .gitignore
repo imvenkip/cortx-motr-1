@@ -43,6 +43,9 @@ missing
 *.ko.unsigned.cmd
 *.mod.c
 *.mod.o
+*.gcda
+*.gcno
+*.gcov
 *~
 doc/html/
 .#*
@@ -65,3 +68,5 @@ ut-sandbox
 ub-sandbox
 gmon.out
 doxygen_*tmp
+cscope.out
+tags

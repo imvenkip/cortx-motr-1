@@ -51,6 +51,16 @@ enum {
 c2_time_t c2_time_now(void);
 
 /**
+   Create a c2_time_t initialized with seconds + nanosecond in the future.
+
+   @param secs seconds from now
+   @param ns nanoseconds from now
+
+   @retval the result time.
+*/
+c2_time_t c2_time_from_now(uint64_t secs, long ns);
+
+/**
    Create a c2_time_t from seconds and nanosecond
 
    @param time [OUT] the result time.

@@ -27,7 +27,7 @@
 #include "fop/fom.h"
 #include "reqh/reqh.h"
 #include "nrs/nrs.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 
 /**
    @addtogroup nrs

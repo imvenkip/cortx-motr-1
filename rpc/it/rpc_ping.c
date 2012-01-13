@@ -35,12 +35,13 @@
 #include "net/net_internal.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/session.h"
-#include "rpc/rpccore.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation.h"
 #include "fol/fol.h"
 #include "reqh/reqh.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
+#include "ut/net.h" /* canon_host */
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -200,58 +201,6 @@ void do_cleanup(void)
 /* Request handler for rpc ping */
 static struct c2_reqh   reqh_ping;
 
-/**
-   Resolve hostname into a dotted quad.  The result is stored in buf.
-   @retval 0 success
-   @retval -errno failure
- */
-static int canon_host(const char *hostname, char *buf, size_t bufsiz)
-{
-	int                i;
-	int		   rc = 0;
-	struct in_addr     ipaddr;
-
-	/* c2_net_end_point_create requires string IPv4 address, not name */
-	if (inet_aton(hostname, &ipaddr) == 0) {
-		struct hostent he;
-		char he_buf[4096];
-		struct hostent *hp;
-		int herrno;
-
-		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
-				     &hp, &herrno);
-		if (rc != 0) {
-			fprintf(stderr, "Can't get address for %s\n",
-				hostname);
-			return -ENOENT;
-		}
-		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
-			/* take 1st IPv4 address found */
-			if (hp->h_addrtype == AF_INET &&
-			    hp->h_length == sizeof(ipaddr))
-				break;
-		if (hp->h_addr_list[i] == NULL) {
-			fprintf(stderr, "No IPv4 address for %s\n",
-				hostname);
-			return -EPFNOSUPPORT;
-		}
-		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
-		    NULL) {
-			fprintf(stderr, "Cannot parse network address for %s\n",
-				hostname);
-			rc = -errno;
-		}
-	} else {
-		if (strlen(hostname) >= bufsiz) {
-			fprintf(stderr, "Buffer size too small for %s\n",
-				hostname);
-			return -ENOSPC;
-		}
-		strcpy(buf, hostname);
-	}
-	return rc;
-}
-
 /* Poll the server */
 void server_poll()
 {
@@ -274,9 +223,6 @@ void server_poll()
 /* Fini the server */
 void server_fini(void)
 {
-	/* Fini the net endpoint. */
-	c2_net_end_point_put(sctx.pc_rep);
-
 	/* Fini the rpcmachine */
 	c2_rpcmachine_fini(&sctx.pc_rpc_mach);
 
@@ -300,7 +246,6 @@ void server_init(int dummy)
 {
 	int			 rc = 0;
 	char			 addr_local[ADDR_LEN];
-	char			 addr_remote[ADDR_LEN];
 	char			 hostbuf[ADDR_LEN];
 
 	/* Init Bulk sunrpc transport */
@@ -356,7 +301,13 @@ void server_init(int dummy)
 	}
 
 	/* Init request handler */
-	c2_reqh_init(&reqh_ping, NULL, NULL, NULL, NULL);
+	rc = c2_reqh_init(&reqh_ping, NULL, NULL, &sctx.pc_db, &sctx.pc_cob_domain,
+										NULL);
+        if(rc != 0){
+                printf("Failed to start request handler\n");
+                goto cleanup;
+	}
+
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
 			&sctx.pc_dom, addr_local, &reqh_ping);
@@ -365,29 +316,6 @@ void server_init(int dummy)
 		goto cleanup;
 	} else {
 		printf("RPC machine init completed \n");
-	}
-
-	/* Resolve Client hostname */
-	rc = canon_host(sctx.pc_rhostname, hostbuf, sizeof(hostbuf));
-	if(rc != 0) {
-		printf("Failed to canon host\n");
-		goto cleanup;
-	} else {
-		printf("Client Hostname Resolved \n");
-	}
-
-	sprintf(addr_remote, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
-	printf("Client Addr = %s\n",addr_remote);
-
-        sctx.pc_tm = &sctx.pc_rpc_mach.cr_tm;
-
-	/* Create destination endpoint for server i.e client endpoint */
-	rc = c2_net_end_point_create(&sctx.pc_rep, sctx.pc_tm, addr_remote);
-	if(rc != 0){
-		printf("Failed to create endpoint\n");
-		goto cleanup;
-	} else {
-		printf("Client Endpoint created \n");
 	}
 
 cleanup:
@@ -408,7 +336,6 @@ void send_ping_fop(int nr)
 	uint32_t			 nr_arr_member;
 	int				 i;
 	c2_time_t                        timeout;
-	struct c2_fop_type		*ftype;
 
 	nr_mod = cctx.pc_nr_ping_bytes % 8;
 	if (nr_mod == 0)
@@ -417,33 +344,26 @@ void send_ping_fop(int nr)
 		nr_arr_member = (cctx.pc_nr_ping_bytes / 8) + 1;
 	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_ASSERT(fop != NULL);
-        c2_rpc_item_init(&fop->f_item);
-        fop->f_item.ri_type = fop->f_type->ft_ri_type;
 	ping_fop = c2_fop_data(fop);
 	ping_fop->fp_arr.f_count = nr_arr_member;
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	for (i = 0; i < nr_arr_member; i++) {
 		ping_fop->fp_arr.f_data[i] = i+100;
 	}
-	item = &fop->f_item;
-	c2_rpc_item_init(item);
+	item              = &fop->f_item;
 	item->ri_deadline = 0;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_group = NULL;
-	item->ri_type = &c2_rpc_item_type_ping;
-	ftype = fop->f_type;
-	/** Associate ping fop type with its item type */
-	ftype->ft_ri_type = &c2_rpc_item_type_ping;
-	item->ri_session = &cctx.pc_rpc_session;
+	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group    = NULL;
+	item->ri_type     = &fop->f_type->ft_rpc_item_type;
+	item->ri_session  = &cctx.pc_rpc_session;
 	c2_time_set(&timeout, 60, 0);
         c2_clink_init(&clink, NULL);
         c2_clink_add(&item->ri_chan, &clink);
         timeout = c2_time_add(c2_time_now(), timeout);
-        c2_rpc_post(item);
+        C2_ASSERT(c2_rpc_post(item) == 0);
         c2_rpc_reply_timedwait(&clink, timeout);
         c2_clink_del(&clink);
         c2_clink_fini(&clink);
-
 }
 
 /* Get stats from rpcmachine and print them */
@@ -853,7 +773,7 @@ cleanup:
 
 
 #ifdef __KERNEL__
-bool client = true; 
+bool client = true;
 int c2_rpc_ping_init()
 #else
 /* Main function for rpc ping */

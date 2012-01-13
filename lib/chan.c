@@ -55,6 +55,11 @@ C2_TL_DESCR_DEFINE(clink,
 
 C2_TL_DEFINE(clink, static, struct c2_clink);
 
+static bool clink_is_head(const struct c2_clink *clink)
+{
+	return clink->cl_group == clink;
+}
+
 /**
    Channel invariant: all clinks on the list are clinks for this channel and
    number of waiters matches list length.
@@ -62,12 +67,19 @@ C2_TL_DEFINE(clink, static, struct c2_clink);
 static bool c2_chan_invariant_locked(struct c2_chan *chan)
 {
 	struct c2_clink *scan;
+	struct c2_clink *group;
 
 	if (chan->ch_waiters != clink_tlist_length(&chan->ch_links))
 		return false;
 
 	c2_tlist_for(&clink_tl, &chan->ch_links, scan) {
+		group = scan->cl_group;
+
 		if (scan->cl_chan != chan)
+			return false;
+		if (group == NULL)
+			return false;
+		if (!clink_is_head(group))
 			return false;
 	} c2_tlist_endfor;
 	return true;
@@ -122,12 +134,8 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 
 static void clink_signal(struct c2_clink *clink)
 {
-	C2_ASSERT(clink->cl_chan != NULL);
-
-	if (clink->cl_cb != NULL)
-		clink->cl_cb(clink);
-	else
-		c2_semaphore_up(&clink->cl_wait);
+	if (clink->cl_cb == NULL || !clink->cl_cb(clink))
+		c2_semaphore_up(&clink->cl_group->cl_wait);
 }
 
 static void chan_signal_nr(struct c2_chan *chan, uint32_t nr)
@@ -168,11 +176,19 @@ bool c2_chan_has_waiters(struct c2_chan *chan)
 }
 C2_EXPORTED(c2_chan_has_waiters);
 
+static void clink_init(struct c2_clink *link,
+		       struct c2_clink *group, c2_chan_cb_t cb)
+{
+	link->cl_group = group;
+	link->cl_chan  = NULL;
+	link->cl_cb    = cb;
+	clink_tlink_init(link);
+	C2_POST(clink_is_head(group));
+}
+
 void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb)
 {
-	link->cl_chan = NULL;
-	link->cl_cb = cb;
-	clink_tlink_init(link);
+	clink_init(link, link, cb);
 	/* do NOT initialise the semaphore here */
 }
 C2_EXPORTED(c2_clink_init);
@@ -183,6 +199,15 @@ void c2_clink_fini(struct c2_clink *link)
 	clink_tlink_fini(link);
 }
 C2_EXPORTED(c2_clink_fini);
+
+void c2_clink_attach(struct c2_clink *link,
+		     struct c2_clink *group, c2_chan_cb_t cb)
+{
+	C2_PRE(clink_is_head(group));
+
+	clink_init(link, group, cb);
+}
+C2_EXPORTED(c2_clink_attach);
 
 static void clink_lock(struct c2_clink *clink)
 {
@@ -203,14 +228,19 @@ void c2_clink_add(struct c2_chan *chan, struct c2_clink *link)
 	int rc;
 
 	C2_PRE(!c2_clink_is_armed(link));
+	/* head is registered first */
+	C2_PRE(ergo(!clink_is_head(link), c2_clink_is_armed(link->cl_group)));
 
 	link->cl_chan = chan;
+	if (clink_is_head(link)) {
+		rc = c2_semaphore_init(&link->cl_wait, 0);
+		C2_ASSERT(rc == 0);
+	}
+
 	clink_lock(link);
 	C2_ASSERT(c2_chan_invariant_locked(chan));
 	chan->ch_waiters++;
 	clink_tlist_add_tail(&chan->ch_links, link);
-	rc = c2_semaphore_init(&link->cl_wait, 0);
-	C2_ASSERT(rc == 0);
 	C2_ASSERT(c2_chan_invariant_locked(chan));
 	clink_unlock(link);
 
@@ -227,6 +257,8 @@ void c2_clink_del(struct c2_clink *link)
 	struct c2_chan *chan;
 
 	C2_PRE(c2_clink_is_armed(link));
+	/* head is de-registered last */
+	C2_PRE(ergo(!clink_is_head(link), c2_clink_is_armed(link->cl_group)));
 
 	clink_lock(link);
 	chan = link->cl_chan;
@@ -238,7 +270,8 @@ void c2_clink_del(struct c2_clink *link)
 	clink_unlock(link);
 
 	link->cl_chan = NULL;
-	c2_semaphore_fini(&link->cl_wait);
+	if (clink_is_head(link))
+		c2_semaphore_fini(&link->cl_wait);
 
 	C2_POST(!c2_clink_is_armed(link));
 }
@@ -250,13 +283,18 @@ bool c2_clink_is_armed(const struct c2_clink *link)
 }
 C2_EXPORTED(c2_clink_is_armed);
 
+void c2_clink_signal(struct c2_clink *clink)
+{
+	clink_signal(clink);
+}
+C2_EXPORTED(c2_clink_signal);
+
 bool c2_chan_trywait(struct c2_clink *link)
 {
 	bool result;
 
-	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	result = c2_semaphore_trydown(&link->cl_wait);
+	result = c2_semaphore_trydown(&link->cl_group->cl_wait);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	return result;
 }
@@ -265,8 +303,7 @@ C2_EXPORTED(c2_chan_trywait);
 void c2_chan_wait(struct c2_clink *link)
 {
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	C2_ASSERT(link->cl_cb == NULL);
-	c2_semaphore_down(&link->cl_wait);
+	c2_semaphore_down(&link->cl_group->cl_wait);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 }
 C2_EXPORTED(c2_chan_wait);
@@ -275,10 +312,9 @@ bool c2_chan_timedwait(struct c2_clink *link, const c2_time_t abs_timeout)
 {
 	bool result;
 
-	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 
-	result = c2_semaphore_timeddown(&link->cl_wait, abs_timeout);
+	result = c2_semaphore_timeddown(&link->cl_group->cl_wait, abs_timeout);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	return result;
 }

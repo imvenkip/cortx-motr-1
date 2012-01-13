@@ -24,6 +24,7 @@
 
 #include "fop/fop.h"
 #include "fop/fom.h"
+#include "rpc/rpc_opcodes.h"
 
 /**
    @addtogroup rpc_session
@@ -33,18 +34,6 @@
    Declarations of all the fops belonging to rpc-session module along with
    associated item types.
  */
-
-enum c2_rpc_session_opcodes {
-	C2_RPC_FOP_CONN_ESTABLISH_OPCODE = 50,
-	C2_RPC_FOP_CONN_TERMINATE_OPCODE,
-	C2_RPC_FOP_SESSION_ESTABLISH_OPCODE,
-	C2_RPC_FOP_SESSION_TERMINATE_OPCODE,
-	C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
-	C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
-	C2_RPC_FOP_SESSION_ESTABLISH_REP_OPCODE,
-	C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
-	C2_RPC_FOP_NOOP
-};
 
 extern const struct c2_fop_type_ops c2_rpc_fop_conn_establish_ops;
 extern const struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops;
@@ -78,21 +67,6 @@ int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
 int c2_rpc_session_fop_init(void);
 
 void c2_rpc_session_fop_fini(void);
-
-extern struct c2_rpc_item_type c2_rpc_item_conn_establish;
-extern struct c2_rpc_item_type c2_rpc_item_conn_establish_rep;
-extern struct c2_rpc_item_type c2_rpc_item_session_establish;
-extern struct c2_rpc_item_type c2_rpc_item_session_establish_rep;
-extern struct c2_rpc_item_type c2_rpc_item_session_terminate;
-extern struct c2_rpc_item_type c2_rpc_item_session_terminate_rep;
-extern struct c2_rpc_item_type c2_rpc_item_conn_terminate;
-extern struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep;
-extern struct c2_rpc_item_type c2_rpc_item_noop;
-
-extern const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops;
-extern const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;
-extern const struct c2_rpc_item_ops c2_rpc_item_session_establish_ops;
-extern const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops;
 
 /**
    Container for CONN_ESTABLISH fop.

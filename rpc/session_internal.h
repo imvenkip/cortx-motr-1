@@ -198,7 +198,6 @@ int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
   Creates /SESSIONS entry in cob namespace
  */
 int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
-				   struct c2_cob       **out,
 				   struct c2_db_tx      *tx);
 
 /**
@@ -402,36 +401,28 @@ void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 
    The routine is executed when reply to conn create fop is received
  */
-void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc);
+void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req);
 
 /**
    Callback routine called through item->ri_ops->rio_replied().
 
    The routine is executed when reply to conn terminate fop is received
  */
-void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int                 rc);
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req);
 
 /**
    Callback routine called through item->ri_ops->rio_replied().
 
    The routine is executed when reply to session create fop is received
  */
-void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
-					     struct c2_rpc_item *reply,
-					     int                 rc);
+void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req);
 
 /**
    Callback routine called through item->ri_ops->rio_replied().
 
    The routine is executed when reply to session terminate fop is received
  */
-void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
-					     struct c2_rpc_item *reply,
-					     int                 rc);
+void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
 /**
   A callback called when conn terminate reply has been put on network.
   Finalizes and frees conn.
@@ -473,6 +464,11 @@ struct c2_rpc_slot_ops {
    Returns true iff given rpc item is conn_establish.
  */
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
+
+/**
+   Returns true iff given rpc item is conn_terminate.
+ */
+bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item);
 
 /**
    @see c2_rpc_fop_conn_establish_ctx for more information.

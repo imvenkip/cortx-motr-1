@@ -33,6 +33,7 @@
 #define DEF_RESPONSE "active pong"
 #define DEF_SEND "passive ping"
 #define SEND_RESP    " pong"
+/** Descriptor for the tlist of buffers. */
 
 enum {
 	SEND_RETRIES = 3,
@@ -909,6 +910,7 @@ void ping_fini(struct ping_ctx *ctx)
 			c2_bufvec_free(&nb->nb_buffer);
 		}
 		c2_free(ctx->pc_nbs);
+		c2_bitmap_fini(&ctx->pc_nbbm);
 	}
 	if (ctx->pc_dom.nd_xprt != NULL)
 		c2_net_domain_fini(&ctx->pc_dom);
@@ -946,6 +948,8 @@ void ping_server(struct ping_ctx *ctx)
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
 		nb->nb_timeout = C2_TIME_NEVER;
 		nb->nb_ep = NULL;
+		nb->nb_min_receive_size = ctx->pc_segments * ctx->pc_seg_size;
+		nb->nb_max_receive_msgs = 1;
 		rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 		c2_bitmap_set(&ctx->pc_nbbm, i, true);
 		C2_ASSERT(rc == 0);
@@ -992,7 +996,7 @@ void ping_server(struct ping_ctx *ctx)
 	/* wait for active buffers to flush */
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	for (i = 0; i < C2_NET_QT_NR; ++i)
-		while (!c2_list_is_empty(&ctx->pc_tm.ntm_q[i])) {
+		while (!tm_tlist_is_empty(&ctx->pc_tm.ntm_q[i])) {
 			ctx->pc_ops->pf("waiting for queue %d to empty\n", i);
 			c2_chan_wait(&tmwait);
 		}
@@ -1042,6 +1046,8 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_timeout = C2_TIME_NEVER;
 	nb->nb_ep = NULL;
+	nb->nb_min_receive_size = ctx->pc_segments * ctx->pc_seg_size;
+	nb->nb_max_receive_msgs = 1;
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 

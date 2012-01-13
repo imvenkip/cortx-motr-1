@@ -219,6 +219,155 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 }
 C2_EXPORTED(c2_bufvec_cursor_copy);
 
+void c2_0vec_fini(struct c2_0vec *zvec)
+{
+	if (zvec != NULL) {
+		c2_free(zvec->z_bvec.ov_vec.v_count);
+		c2_free(zvec->z_bvec.ov_buf);
+		c2_free(zvec->z_index);
+	}
+}
+C2_EXPORTED(c2_0vec_fini);
+
+static bool addr_is_4k_aligned(void *addr)
+{
+	return ((uint64_t)addr & C2_0VEC_MASK) == 0;
+}
+
+static bool c2_0vec_invariant(struct c2_0vec *zvec)
+{
+	uint32_t	  i;
+	struct c2_bufvec *bvec;
+
+	if (zvec == NULL || zvec->z_index == NULL)
+		return false;
+
+	bvec = &zvec->z_bvec;
+	if (bvec->ov_buf == NULL ||
+	    bvec->ov_vec.v_count == NULL ||
+	    bvec->ov_vec.v_nr == 0)
+		return false;
+
+	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
+		/* Checks if all segments are aligned on 4k boundary
+		   and the sizes of all segments except the last one
+		   are positive multiples of 4k. */
+		if (!addr_is_4k_aligned(bvec->ov_buf[i]) ||
+		    (bvec->ov_vec.v_count[i] & C2_0VEC_MASK &&
+		     i < bvec->ov_vec.v_nr - 1))
+			return false;
+
+	return true;
+}
+
+int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr)
+{
+	C2_PRE(zvec != NULL);
+	C2_PRE(segs_nr != 0);
+
+	C2_SET0(zvec);
+	C2_ALLOC_ARR(zvec->z_index, segs_nr);
+	if (zvec->z_index == NULL)
+		return -ENOMEM;
+
+	C2_ALLOC_ARR(zvec->z_bvec.ov_vec.v_count, segs_nr);
+	if (zvec->z_bvec.ov_vec.v_count == NULL)
+		goto failure;
+
+	zvec->z_bvec.ov_vec.v_nr = segs_nr;
+
+	C2_ALLOC_ARR(zvec->z_bvec.ov_buf, segs_nr);
+	if (zvec->z_bvec.ov_buf == NULL)
+		goto failure;
+
+	return 0;
+failure:
+	c2_0vec_fini(zvec);
+	return -ENOMEM;
+}
+C2_EXPORTED(c2_0vec_init);
+
+void c2_0vec_bvec_init(struct c2_0vec *zvec,
+		       const struct c2_bufvec *src,
+		       const c2_bindex_t *index)
+{
+	uint32_t	  i;
+	struct c2_bufvec *dst;
+
+	C2_PRE(zvec != NULL);
+	C2_PRE(src != NULL);
+	C2_PRE(index != NULL);
+	C2_PRE(src->ov_vec.v_nr <= zvec->z_bvec.ov_vec.v_nr);
+
+	dst = &zvec->z_bvec;
+	for (i = 0; i < src->ov_vec.v_nr; ++i) {
+		zvec->z_index[i] = index[i];
+		dst->ov_vec.v_count[i] = src->ov_vec.v_count[i];
+		C2_ASSERT(dst->ov_buf[i] == NULL);
+		dst->ov_buf[i] = src->ov_buf[i];
+	}
+
+	C2_POST(c2_0vec_invariant(zvec));
+}
+C2_EXPORTED(c2_0vec_bvec_init);
+
+void c2_0vec_bufs_init(struct c2_0vec *zvec,
+		       void **bufs,
+		       const c2_bindex_t *index,
+		       const c2_bcount_t *counts,
+		       uint32_t segs_nr)
+{
+	uint32_t	  i;
+	struct c2_bufvec *bvec;
+
+	C2_PRE(zvec != NULL);
+	C2_PRE(bufs != NULL);
+	C2_PRE(index != NULL);
+	C2_PRE(counts != NULL);
+	C2_PRE(segs_nr != 0);
+	C2_PRE(segs_nr <= zvec->z_bvec.ov_vec.v_nr);
+
+	bvec = &zvec->z_bvec;
+
+	for (i = 0; i < segs_nr; ++i) {
+		zvec->z_index[i] = index[i];
+		bvec->ov_vec.v_count[i] = counts[i];
+		C2_ASSERT(bvec->ov_buf[i] == NULL);
+		bvec->ov_buf[i] = bufs[i];
+	}
+
+	C2_POST(c2_0vec_invariant(zvec));
+}
+C2_EXPORTED(c2_0vec_bufs_init);
+
+int c2_0vec_cbuf_add(struct c2_0vec *zvec,
+		     const struct c2_buf *buf,
+		     const c2_bindex_t *index)
+{
+	uint32_t	  curr_seg;
+	struct c2_bufvec *bvec;
+
+	C2_PRE(zvec != NULL);
+	C2_PRE(buf != NULL);
+	C2_PRE(index != NULL);
+
+	bvec = &zvec->z_bvec;
+	for (curr_seg = 0; curr_seg < bvec->ov_vec.v_nr &&
+	     bvec->ov_buf[curr_seg] != NULL; ++curr_seg);
+
+	if (curr_seg == bvec->ov_vec.v_nr)
+		return -EMSGSIZE;
+
+	C2_ASSERT(bvec->ov_buf[curr_seg] == NULL);
+	bvec->ov_buf[curr_seg] = buf->b_addr;
+	bvec->ov_vec.v_count[curr_seg] = buf->b_nob;
+	zvec->z_index[curr_seg] = *index;
+
+	C2_POST(c2_0vec_invariant(zvec));
+	return 0;
+}
+C2_EXPORTED(c2_0vec_cbuf_add);
+
 /** @} end of vec group */
 
 /*

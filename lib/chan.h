@@ -36,17 +36,17 @@
    can wait or register a call-back for.
 
    A clink (c2_clink) is a record of interest in events on a particular
-   channel. A user adds a clink to a channel and appearance of new events in the
-   stream is recorded in the clink.
+   channel. A user adds a clink to a channel and appearance of new events in
+   the stream is recorded in the clink.
 
    There are two interfaces related to channels:
 
-   @li producer interface. It consists of c2_chan_signal() and
-   c2_chan_broadcast() functions. These functions are called to declare that new
-   asynchronous event happened in the stream.
+       - producer interface. It consists of c2_chan_signal(), c2_clink_signal()
+         and c2_chan_broadcast() functions. These functions are called to
+         declare that new asynchronous event happened in the stream.
 
-   @li consumer interface. It consists of c2_clink_add(), c2_clink_del(),
-   c2_clink_wait() and c2_clink_trywait() functions.
+       - consumer interface. It consists of c2_clink_add(), c2_clink_del(),
+         c2_clink_wait() and c2_clink_trywait() functions.
 
    When a producer declares an event on a channel, this event is delivered. If
    event is a broadcast (c2_chan_broadcast()) it is delivered to all clinks
@@ -54,21 +54,123 @@
    delivered to a single clink (if any) registered with the channel. Clinks for
    delivery of consecutive signals are selected in a round-robin manner.
 
+   A special c2_clink_signal() function is provided to signal a particular
+   clink. c2_clink_signal() delivers a signal to its argument clink. This
+   function does not take any locks and is designed to be used in "awkward"
+   contexts, like interrupt handler or timer call-backs, where blocking on a
+   lock is not allowed. Use sparingly.
+
    The method of delivery depends on the clink interface used (c2_clink). If
-   clink has a call-back, the delivery consists in calling this call-back. If a
-   clink has no call-back, the delivered event becomes pending on the
-   clink. Pending events can be consumed by calls to c2_chan_wait() and
-   c2_chan_trywait().
+   clink has a call-back, the delivery starts with calling this call-back. If a
+   clink has no call-back or the call-back returns false, the delivered event
+   becomes pending on the clink. Pending events can be consumed by calls to
+   c2_chan_wait(), c2_chan_timedwait() and c2_chan_trywait().
+
+   <b>Filtered wake-ups.</b>
+
+   By returning true from a call-back, it is possible to "filter" some events
+   out and avoid potentially expensive thread wake-up. A typical use case for
+   this is the following:
+
+   @code
+   struct wait_state {
+           struct c2_clink f_clink;
+	   ...
+   };
+
+   static bool callback(struct c2_clink *clink)
+   {
+           struct wait_state *f = container_of(clink, struct foo, f_clink);
+	   return !condition_is_right(f);
+   }
+
+   {
+           struct wait_state g;
+
+	   c2_clink_init(&g.f_clink, &callback);
+	   c2_clink_add(chan, &g.f_clink);
+	   ...
+	   while (!condition_is_right(g)) {
+	           c2_chan_wait(&g.f_clink);
+	   }
+   }
+   @endcode
+
+   The idea behind this idiom is that the call-back is called in the same
+   context where the event is declared and it is much cheaper to test whether a
+   condition is right than to wake up a waiting thread that would check this
+   and go back to sleep if it is not.
+
+   <b>Multiple channels.</b>
+
+   It is possible to wait for an event to be announced on a channel from a
+   set. To this end, first a clink is created as usual. Then, additional
+   (unintialised) clinks are attached to the first by a call to
+   c2_clink_attach(), forming a "clink group" consisting of the original clink
+   and all clinks attached. Clinks from the group can be registered with
+   multiple (or the same) channels. Events announced on any channel are
+   delivered to all clinks in the group.
+
+   Groups are used as following:
+
+       - initialise a "group head" clink;
+
+       - attach other clinks to the group, without initialising them;
+
+       - register the group clinks with their channels, starting with the head;
+
+       - to wait for an event on any channel, wait on the group head.
+
+       - call-backs can be used for event filtering on any channel as usual;
+
+       - if N clinks from the group are registered with the same channel, an
+         event in this channel will be delivered N times.
+
+       - de-register the clinks, head last.
+
+   @code
+   struct c2_clink cl0;
+   struct c2_clink cl1;
+
+   c2_clink_init(&cl0, call_back0);
+   c2_clink_attach(&cl1, &cl0, call_back1);
+
+   c2_clink_add(chan0, &cl0);
+   c2_clink_add(chan1, &cl1);
+
+   // wait for an event on chan0 or chan1
+   c2_chan_wait(&cl0);
+
+   // de-register clinks, head last
+   c2_clink_del(chan1, &cl1);
+   c2_clink_del(chan0, &cl0);
+
+   // finalise in any order
+   c2_clink_fini(chan0, &cl0);
+   c2_clink_fini(chan1, &cl1);
+   @endcode
 
    @note An interface similar to c2_chan was a part of historical UNIX kernel
    implementations. It is where "CHAN" field in ps(1) output comes from.
+
+   @todo The next scalability improvement is to allow c2_chan to use an
+   externally specified mutex instead of a built-in one. This would allow
+   larger state machines with multiple channels to operate under fewer locks,
+   reducing coherency bus traffic.
 
    @{
 */
 
 struct c2_chan;
 struct c2_clink;
-typedef void (*c2_chan_cb_t)(struct c2_clink *link);
+
+/**
+   Clink call-back called when event is delivered to the clink. The call-back
+   returns true iff the event has been "consumed". Otherwise, the event will
+   remain pending on the clink for future consumption by the waiting
+   interfaces.
+ */
+typedef bool (*c2_chan_cb_t)(struct c2_clink *link);
 
 /**
    A stream of asynchronous events.
@@ -123,7 +225,7 @@ struct c2_chan {
 
    A clink records the appearance of events in the stream.
 
-   There are two mutually exclusive ways to use a clink:
+   There are two ways to use a clink:
 
    @li an asynchronous call-back can be specified as an argument to clink
    constructor c2_clink_init(). This call-back is called when an event happens
@@ -134,6 +236,9 @@ struct c2_chan {
 
    @li once a clink is registered with a channel, it is possible to wait until
    an event happens by calling c2_clink_wait().
+
+   See the "Filtered wake-ups" section in the top-level comment on how to
+   combine call-backs with waiting.
 
    <b>Concurrency control</b>
 
@@ -154,6 +259,8 @@ struct c2_clink {
 	struct c2_chan     *cl_chan;
 	/** Call-back to be called when event is declared. */
 	c2_chan_cb_t        cl_cb;
+	/** The head of the clink group. */
+	struct c2_clink    *cl_group;
 	/** Linkage into c2_chan::ch_links */
 	struct c2_tlink     cl_linkage;
 	struct c2_semaphore cl_wait;
@@ -164,7 +271,7 @@ void c2_chan_init(struct c2_chan *chan);
 void c2_chan_fini(struct c2_chan *chan);
 
 /**
-   Notify a clink currently registered with the channel that a new event
+   Notifies a clink currently registered with the channel that a new event
    happened.
 
    @see c2_chan_broadcast()
@@ -172,7 +279,7 @@ void c2_chan_fini(struct c2_chan *chan);
 void c2_chan_signal(struct c2_chan *chan);
 
 /**
-   Notify all clinks currently registered with the channel that a new event
+   Notifies all clinks currently registered with the channel that a new event
    happened.
 
    No guarantees about behaviour in the case when clinks are added or removed
@@ -187,6 +294,19 @@ void c2_chan_signal(struct c2_chan *chan);
 void c2_chan_broadcast(struct c2_chan *chan);
 
 /**
+   Notifies a given clink that a new event happened.
+
+   This function takes no locks.
+
+   c2_chan_signal() should be used instead, unless the event is announced in a
+   context where blocking is not allowed.
+
+   @see c2_chan_signal()
+   @see c2_chan_broadcast()
+ */
+void c2_clink_signal(struct c2_clink *clink);
+
+/**
    True iff there are clinks registered with the chan.
 
    @note the return value of this function can, in general, be obsolete by the
@@ -199,7 +319,13 @@ void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb);
 void c2_clink_fini(struct c2_clink *link);
 
 /**
-   Register the clink with the channel.
+   Attaches @link to a clink group. @group is the original clink in the group.
+ */
+void c2_clink_attach(struct c2_clink *link,
+		     struct c2_clink *group, c2_chan_cb_t cb);
+
+/**
+   Registers the clink with the channel.
 
    @pre !c2_clink_is_armed(link)
    @post c2_clink_is_armed(link)
@@ -207,7 +333,7 @@ void c2_clink_fini(struct c2_clink *link);
 void c2_clink_add     (struct c2_chan *chan, struct c2_clink *link);
 
 /**
-   Un-register the clink from the channel.
+   Un-registers the clink from the channel.
 
    @pre   c2_clink_is_armed(link)
    @post !c2_clink_is_armed(link)

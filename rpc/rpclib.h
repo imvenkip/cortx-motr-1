@@ -14,183 +14,180 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- * Original creation date: 04/09/2010
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 09/28/2011
  */
 
 #ifndef __COLIBRI_RPC_RPCLIB_H__
-
 #define __COLIBRI_RPC_RPCLIB_H__
 
-#include <lib/cdefs.h>
-#include <lib/refs.h>
-#include <lib/list.h>
-#include <lib/rwlock.h>
-#include <lib/cache.h>
+#include <stdio.h> /* FILE */
 
-#include <net/net.h>
-#include <rpc/rpc_types.h>
+#include "rpc/rpc2.h"    /* struct c2_rpcmachine, c2_rpc_item */
+#include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
+#include "db/db.h"       /* struct c2_dbenv */
+#include "cob/cob.h"     /* struct c2_cob_domain */
+#include "net/net.h"     /* struct c2_net_end_point */
+#include "colibri/colibri_setup.h" /* struct c2_colibri */
+
+
+struct c2_net_xprt;
+struct c2_net_domain;
+struct c2_reqh;
+struct c2_reqh_service_type;
 
 /**
- @page rpc-lib
-*/
-
-/**
- rpc client structure.
-
- structure describe rpc client.
- 
- one structure is describe one service on server side, 
- structure is created when user application want to send
- operations from client side to server.
- structure have reference counter protection and will freed
- after upper layers will call c2_rpc_client function and all rpc's
- are finished and release own sessions.
+ * RPC server context structure.
+ *
+ * Contains all required data to initialize an RPC server,
+ * using colibri-setup API.
  */
-struct c2_rpc_client {
+struct c2_rpc_server_ctx {
+
+	/** a pointer to array of transports, which can be used by server */
+	struct c2_net_xprt          **rsx_xprts;
+	/** number of transports in array */
+	int                         rsx_xprts_nr;
+
 	/**
-	 global client list linkage
-	*/
-	struct c2_list_link	rc_link;
-	/**
-	 remote service identifier
+	 * ARGV-like array of CLI options to configure colibri-setup, which is
+	 * passed to c2_cs_setup_env()
 	 */
-	struct c2_service_id	rc_id;
+	char                        **rsx_argv;
+	/** number of elements in rsx_argv array */
+	int                         rsx_argc;
+
+	/** a pointer to array of service types, which can be used by server */
+	struct c2_reqh_service_type **rsx_service_types;
+	/** number of service types in array */
+	int                         rsx_service_types_nr;
+
+	const char                  *rsx_log_file_name;
+
+	/** an embedded colibri context structure */
+	struct c2_colibri           rsx_colibri_ctx;
+
 	/**
-	 reference counter
+	 * this is an internal variable, which is used by c2_rpc_server_stop()
+	 * to close log file; it should not be initialized by a caller
 	 */
-	struct c2_ref		rc_ref;
-	/**
-	 protect concurrency access to session list
-	 */
-	struct c2_rwlock	rc_sessions_lock;
-	/**
-	 sessions list
-	 */
-	struct c2_list		rc_sessions;
-	/**
-	 network logical connection assigned to a client
-	 */
-	struct c2_net_conn	*rc_netlink;
+	FILE                        *rsx_log_file;
 };
 
 /**
- create rpc client instance and add into system list
-
- @param id remote service identifier
-
- @return pointer to allocated rpc structure or NULL if not have enough memory
+ * RPC client context structure.
+ *
+ * Contains all required data to initialize an RPC client and connect to server.
  */
-struct c2_rpc_client *c2_rpc_client_init(const struct c2_service_id *id);
-struct c2_rpc_client *c2_rpc_client_create(const struct c2_service_id *id);
+struct c2_rpc_client_ctx {
 
-/**
- unlink rpc client from system list. structure will
- freed after release last reference
-
- @param cli pointer to rpc client instance
-
- @return none
- */
-void c2_rpc_client_unlink(struct c2_rpc_client *cli);
-
-
-/**
- find rpc client instance in system list.
-
- @param id pointer to client identifier
-
- @return pointer to rpc client instance of NULL if rpc client not found
-*/
-struct c2_rpc_client *c2_rpc_client_find(const struct c2_service_id *id);
-
-
-/**
- RPC server structure (need store in memory pool db)
- 
- structure is describe one service on server side.
- service have responsible to process incoming requests.
- 
- structure created by request of configure options and
- and live until service shutdown will called.
- to prevent to an early freed - structure has reference counter
- protection. 
- */
-struct c2_rpc_server {
 	/**
-	 linkage to global server list
+	 * Input parameters.
+	 *
+	 * They are initialized and filled in by a caller of
+	 * c2_rpc_server_start() and c2_rpc_client_stop().
 	 */
-	struct c2_list_link	rs_link;
+
 	/**
-	 unique server identifier
+	 * A pointer to net domain struct which will be initialized and used by
+	 * c2_rpc_client_start()
 	 */
-	struct c2_service_id	rs_id;
+	struct c2_net_domain    *rcx_net_dom;
+
+	/** Transport specific local address (client's address) */
+	const char              *rcx_local_addr;
+
+	/** Transport specific remote address (server's address) */
+	const char              *rcx_remote_addr;
+
+	/** Name of database used by the RPC machine */
+	const char              *rcx_db_name;
+
 	/**
-	 reference counter
+	 * A pointer to dbenv struct which will be initialized and used by
+	 * c2_rpc_client_start()
 	 */
-	struct c2_ref		rs_ref;
+	struct c2_dbenv         *rcx_dbenv;
+
+	/** Identity of cob used by the RPC machine */
+	uint32_t                rcx_cob_dom_id;
+
 	/**
-	 DB environment with transaction support
-	*/
-	DB_ENV			*rs_env;
-	/**
-	 DB transaction used to execute sequence of operation
-	*/
-	/**
-	 persistent session cache
+	 * A pointer to cob domain struct which will be initialized and used by
+	 * c2_rpc_client_start()
 	 */
-	struct c2_cache		rs_sessions;
+	struct c2_cob_domain    *rcx_cob_dom;
+
+	/** Number of session slots */
+	uint32_t                rcx_nr_slots;
+
+	uint64_t                rcx_max_rpcs_in_flight;
+
 	/**
-	 persistent reply cache
+	 * Time in seconds after which connection/session
+	 * establishment is aborted.
 	 */
-	struct c2_cache		rs_cache;
+	uint32_t                rcx_timeout_s;
+
+	/**
+	 * Output parameters.
+	 *
+	 * They are initialized and filled in by c2_rpc_server_init() and
+	 * c2_rpc_client_start().
+	 */
+
+	struct c2_rpcmachine    rcx_rpc_machine;
+	struct c2_net_end_point *rcx_remote_ep;
+	struct c2_rpc_conn      rcx_connection;
+	struct c2_rpc_session   rcx_session;
 };
 
 /**
- create instance of rpc server object
+  Starts server's rpc machine.
 
- @param srv_id server identifier
+  @param sctx  Initialized rpc context structure.
 
- @return pointer to rpc server object, or NULL if don't possible to create
- */
-struct c2_rpc_server *c2_rpc_server_create(const struct c2_service_id *srv_id);
-
-/**
- register rpc server object in system, notify transport layer about ability
- to accept requests.
-
- @param srv rpc server object pointer
-
- @return none
- */
-void c2_rpc_server_register(struct c2_rpc_server *srv);
+  @pre sctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
+*/
+int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx);
 
 /**
- unregister rpc server object in system
+  Stops RPC server.
 
- @param srv rpc server object pointer
-
- @return none
- */
-void c2_rpc_server_unregister(struct c2_rpc_server *srv);
-
+  @param sctx  Initialized rpc context structure.
+*/
+void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx);
 
 /**
- find registered rpc server object in system
+  Starts client's rpc machine. Creates a connection to a server and establishes
+  an rpc session on top of it.  Created session object can be set in an rpc item
+  and used in c2_rpc_post().
 
- @param srv rpc server object pointer
+  @param cctx  Initialized rpc context structure.
 
- @return rpc server object pointer, or NULL if not found
- */
-struct c2_rpc_server *c2_rpc_server_find(const struct c2_service_id *srv_id);
-
-/**
- constructor for rpc library
- */
-int c2_rpclib_init(void);
+  @pre cctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
+*/
+int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
 
 /**
- destructor for rpc library
- */
-void c2_rpclib_fini(void);
-#endif
+  Make an RPC call to a server, blocking for a reply if desired.
+
+  @param item        The rpc item to send.  Presumably ri_reply will hold the
+                     reply upon successful return.
+  @param rpc_session The session to be used for the client call.
+  @param ri_ops      Pointer to RPC item ops structure.
+  @param timeout_s   Timeout in seconds.  0 implies don't wait for a reply.
+*/
+int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
+		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s);
+
+/**
+  Terminates RPC session and connection with server and finalize client's RPC
+  machine.
+
+  @param cctx  Initialized rpc context structure.
+*/
+int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
+
+#endif /* __COLIBRI_RPC_RPCLIB_H__ */
+

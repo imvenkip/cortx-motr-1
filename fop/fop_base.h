@@ -5,11 +5,13 @@
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
-#include "lib/list.h"
+#include "lib/tlist.h"
+#include "lib/vec.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "lib/vec.h"
+#include "rpc/rpc_base.h"
 
 /**
    @addtogroup fop
@@ -31,7 +33,6 @@
 /* import */
 struct c2_fol;
 struct c2_fop;
-struct c2_rpc_item_type;
 struct c2_fop_io_vec;
 
 /* export */
@@ -51,12 +52,10 @@ typedef uint32_t c2_fop_type_code_t;
    for "write", "truncate", etc.
  */
 struct c2_fop_type {
-	/** Unique operation code. */
-	c2_fop_type_code_t                ft_code;
 	/** Operation name. */
 	const char                       *ft_name;
 	/** Linkage into a list of all known operations. */
-	struct c2_list_link               ft_linkage;
+	struct c2_tlink                   ft_linkage;
 	/** Type of a top level field in fops of this type. */
 	struct c2_fop_field_type         *ft_top;
 	const struct c2_fop_type_ops     *ft_ops;
@@ -67,26 +66,38 @@ struct c2_fop_type {
 	struct c2_fom_type                ft_fom_type;
 	/** The rpc_item_type associated with rpc_item
 	    embedded with this fop. */
-	struct c2_rpc_item_type		 *ft_ri_type;
+	struct c2_rpc_item_type		  ft_rpc_item_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */
 	struct c2_addb_ctx                ft_addb;
+	uint64_t                          ft_magix;
 };
 
+/**
+    Iterates through the registered fop types.
+
+    To iterate across all registered fop types, first call this function with
+    NULL parameter. NULL is returned to indicate end of the iteration.
+
+    If a fop type is registered or unregistered while an iteration is in
+    progress, behaviour is undefined.
+
+    @code
+    ftype = NULL;
+    while ((ftype = c2_fop_type_next(ftype)) != NULL) {
+            do something with ftype
+    }
+    @endcode
+ */
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
 
-/**
-  Given an opcode, return the corrosponding fop type
-  @param opcode Unique fop operation code
-  @retval pointer to the c2_fop_type for the opcode.
-  @retval NULL if the fop type for that opcode doesnt exist
-*/
-struct c2_fop_type *c2_fop_type_search(c2_fop_type_code_t opcode);
-
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
+
+struct c2_list;
 
 /** fop type operations. */
 struct c2_fop_type_ops {

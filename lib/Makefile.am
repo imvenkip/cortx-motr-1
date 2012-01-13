@@ -8,7 +8,7 @@ libc2_HEADERS        = adt.h atomic.h cond.h getopts.h misc.h refs.h trace.h \
                        semaphore.h tlist.h
 
 noinst_LTLIBRARIES   = libc2.la
-libc2_la_SOURCES     = libc2.c memory.c list.c refs.c \
+libc2_la_SOURCES     = c2lib.c memory.c list.c refs.c \
                        queue.c vec.c chan.c mutex.c cond.c buf.c \
                        assert.c time.c timer.c thread.c bitmap.c \
                        adt.h rwlock.h memory.h list.h \

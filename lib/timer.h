@@ -138,6 +138,11 @@ int c2_timer_start(struct c2_timer *timer);
 int c2_timer_stop(struct c2_timer *timer);
 
 /**
+   Returns true iff the timer is running.
+ */
+bool c2_timer_is_started(const struct c2_timer *timer);
+
+/**
    Destroy the timer.
 
    @pre c2_timer_init() for this timer was succesfully called.

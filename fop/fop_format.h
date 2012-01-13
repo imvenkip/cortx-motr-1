@@ -79,6 +79,8 @@
 # include "linux_kernel/fop_kernel.h"
 #endif
 
+extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
+
 struct c2_fop_memlayout;
 
 struct c2_fop_type_format {
@@ -202,24 +204,22 @@ struct c2_fop_memlayout {
 	} fm_child[];
 };
 
-#define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
-struct c2_fop_type fopt ## _fopt = {			\
-	.ft_code = (opcode),				\
-	.ft_name = name,				\
-	.ft_fmt  = &__paste(fopt),			\
-	.ft_ops  = (ops)				\
-};							\
+#define C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags, itops) \
+struct c2_fop_type fopt ## _fopt = {					\
+	.ft_name = name,						\
+	.ft_fmt  = &__paste(fopt),					\
+	.ft_ops  = (ops),						\
+	.ft_rpc_item_type = {						\
+		.rit_opcode = (opcode),					\
+		.rit_flags  = (itflags),				\
+		.rit_ops    = (itops)					\
+	}								\
+};									\
 C2_EXPORTED(fopt ## _fopt)
 
-#define C2_FOP_TYPE_DECLARE_NEW(fopt, name, opcode, ops, itype) \
-struct c2_fop_type fopt ## _fopt = {			\
-	.ft_code = (opcode),	\
-	.ft_name = name,				\
-	.ft_fmt  = &__paste(fopt),			\
-	.ft_ops  = (ops),				\
-	.ft_ri_type = (itype),				\
-};							\
-C2_EXPORTED(fopt ## _fopt)
+#define C2_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags)		\
+        C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags,	\
+				&c2_rpc_fop_default_item_type_ops)
 
 /** @} end of fop group */
 

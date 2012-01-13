@@ -52,20 +52,35 @@ static void t0(int self)
 
 static int flag;
 
-static void cb1(struct c2_clink *clink)
+static bool cb1(struct c2_clink *clink)
 {
 	flag += 1;
+	return false;
 }
 
-static void cb2(struct c2_clink *clink)
+static bool cb2(struct c2_clink *clink)
 {
 	flag += 2;
+	return false;
+}
+
+static bool cb_filter(struct c2_clink *clink)
+{
+	return flag == 1;
+}
+
+static bool mfilter(struct c2_clink *clink)
+{
+	C2_UT_ASSERT(flag == 0);
+
+	flag = 1;
+	return false;
 }
 
 unsigned long signal_the_chan_in_timer(unsigned long data)
 {
-	struct c2_chan *chan = (struct c2_chan *)data;
-	c2_chan_signal(chan);
+	struct c2_clink *clink = (struct c2_clink *)data;
+	c2_clink_signal(clink);
 	return 0;
 }
 
@@ -74,10 +89,12 @@ void test_chan(void)
 	struct c2_chan  chan;
 	struct c2_clink clink1;
 	struct c2_clink clink2;
+	struct c2_clink clink3;
 	c2_time_t       delta;
 	c2_time_t       expire;
 	struct c2_timer timer;
 	int i;
+	int j;
 	bool got;
 
 	c2_chan_init(&chan);
@@ -165,6 +182,23 @@ void test_chan(void)
 	c2_clink_del(&clink1);
 	c2_clink_fini(&clink1);
 
+	/* test filtered events. */
+	c2_clink_init(&clink3, &cb_filter);
+	c2_clink_add(&chan, &clink3);
+
+	flag = 1;
+	c2_chan_signal(&chan);
+	got = c2_chan_trywait(&clink3);
+	C2_UT_ASSERT(!got);
+
+	flag = 0;
+	c2_chan_signal(&chan);
+	got = c2_chan_trywait(&clink3);
+	C2_UT_ASSERT(got);
+
+	c2_clink_del(&clink3);
+	c2_clink_fini(&clink3);
+
 	c2_chan_fini(&chan);
 
 	/* multi-threaded test */
@@ -190,6 +224,52 @@ void test_chan(void)
 		c2_clink_fini(&l[i]);
 		c2_chan_fini(&c[i]);
 	}
+
+	/*
+	 * multi-channel test
+	 *
+	 * NR clinks are arranged in a group, with c[0] as a head. Each clink is
+	 * added to the corresponding channel.
+	 *
+	 * j-th channel is signalled and the signal is awaited for on the (j+1)
+	 * (in cyclic order) channel.
+	 *
+	 * mfilter() attached to j-th channel to check filtering for groups.
+	 */
+
+	for (j = 0; j < ARRAY_SIZE(c); ++j) {
+		for (i = 0; i < ARRAY_SIZE(c); ++i)
+			c2_chan_init(&c[i]);
+
+		c2_clink_init(&l[0], j == 0 ? mfilter : NULL);
+		for (i = 1; i < ARRAY_SIZE(c); ++i)
+			c2_clink_attach(&l[i], &l[0], j == i ? mfilter : NULL);
+
+		for (i = 0; i < ARRAY_SIZE(c); ++i)
+			c2_clink_add(&c[i], &l[i]);
+
+		c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
+		delta = c2_time_add(delta, c2_time_now());
+
+		flag = 0;
+		c2_timer_init(&timer, C2_TIMER_SOFT, delta,
+			      &signal_the_chan_in_timer, (unsigned long)&l[j]);
+
+		c2_timer_start(&timer);
+
+		c2_chan_wait(&l[(j + 1) % ARRAY_SIZE(c)]);
+		C2_UT_ASSERT(flag == 1);
+
+		c2_timer_stop(&timer);
+		c2_timer_fini(&timer);
+
+		for (i = ARRAY_SIZE(c) - 1; i >= 0; --i) {
+			c2_clink_del(&l[i]);
+			c2_clink_fini(&l[i]);
+			c2_chan_fini(&c[i]);
+		}
+	}
+
 }
 C2_EXPORTED(test_chan);
 

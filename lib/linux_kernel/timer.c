@@ -104,6 +104,12 @@ int c2_timer_stop(struct c2_timer *timer)
 }
 C2_EXPORTED(c2_timer_stop);
 
+bool c2_timer_is_started(const struct c2_timer *timer)
+{
+	return timer->t_running;
+}
+C2_EXPORTED(c2_timer_is_started);
+
 /**
    Destroy the timer.
  */

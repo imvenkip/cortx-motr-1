@@ -218,7 +218,7 @@ static int io_fom_rwv_io_launch(struct c2_fom *fom)
 	count = count >> bshift;
 	offset = offset >> bshift;
 
-	bufvec = &stio->si_user.div_vec;
+	bufvec = &stio->si_user;
 	bufvec->ov_vec.v_count = &count;
 	bufvec->ov_buf = &addr;
 	bufvec->ov_vec.v_nr = 1;
@@ -332,7 +332,7 @@ static size_t io_fom_locality_get(const struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL);
 
-	return fom->fo_fop->f_type->ft_code;
+	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
 /** @} end of io_foms */

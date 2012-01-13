@@ -311,14 +311,14 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
    Interfaces to change attributes of rpc items that have been already
    submitted to rpc layer.
  */
-int c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
-				 enum c2_rpc_item_priority prio);
+void c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
+				  enum c2_rpc_item_priority prio);
 
-int c2_rpc_frm_item_deadline_set(struct c2_rpc_item *item,
-				c2_time_t deadline);
+void c2_rpc_frm_item_deadline_set(struct c2_rpc_item *item,
+				  c2_time_t deadline);
 
-int c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
-			      struct c2_rpc_group *group);
+void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
+			       struct c2_rpc_group *group);
 
 /** @} endgroup of rpc_formation */
 

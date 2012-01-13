@@ -143,13 +143,16 @@
        ->sendfile() and ->write() file operations to being implemented.
 
  */
+
+extern const struct c2_rpc_item_ops rpc_item_iov_ops;
+
 static struct kmem_cache     *c2t1fs_inode_cachep = NULL;
 static struct c2_net_domain  c2t1fs_domain;
 
-MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jinshan Xiong");
-MODULE_DESCRIPTION("Colibri C2T1 File System");
-MODULE_LICENSE("GPL");
-
+static inline struct c2t1fs_inode_info *i2cii(struct inode *inode)
+{
+	return container_of(inode, struct c2t1fs_inode_info, cii_vfs_inode);
+}
 
 /**
  * Global container id used to identify the corresponding
@@ -180,6 +183,9 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 	}
+
+	f->f_item.ri_ops = &rpc_item_iov_ops;
+	r->f_item.ri_ops = &rpc_item_iov_ops;
 
 	DBG("%s data %s server(%llu/%d/%ld/%lld)\n",
 	    rw == WRITE? "writing":"reading", rw == WRITE? "to":"from",
@@ -1442,7 +1448,7 @@ static void c2t1fs_destroy_inodecache(void)
 	c2t1fs_inode_cachep = NULL;
 }
 
-int init_module(void)
+int c2t1fs_init_module(void)
 {
 	struct c2_net_domain *dom = &c2t1fs_domain;
         int rc;
@@ -1477,7 +1483,7 @@ int init_module(void)
         return rc;
 }
 
-void cleanup_module(void)
+void c2t1fs_cleanup_module(void)
 {
         int rc;
 

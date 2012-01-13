@@ -24,7 +24,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"          /* C2_SET0 */
 #include "lib/cdefs.h"         /* C2_EXPORTED */
-
+#include "rpc/rpc_opcodes.h"
 #include "fol/fol.h"
 
 /**
@@ -235,7 +235,7 @@ static const struct c2_fol_rec_type_ops anchor_ops = {
  */
 static const struct c2_fol_rec_type anchor_type = {
 	.rt_name   = "anchor",
-	.rt_opcode = 4,
+	.rt_opcode = C2_FOL_ANCHOR_TYPE_OPCODE,
 	.rt_ops    = &anchor_ops
 };
 
