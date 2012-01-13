@@ -141,6 +141,7 @@ static void test_timers(enum c2_timer_type timer_type, int nr_timers,
 	c2_atomic64_set(&callbacks_executed, 0);
 	srand(0);
 	C2_ALLOC_ARR(timers, nr_timers);
+	C2_ASSERT(timers != NULL);
 
 	/* c2_timer_init() */
 	for (i = 0; i < nr_timers; ++i) {
@@ -228,7 +229,9 @@ static void timer_locality_test(int nr_timers,
 	int			 time;
 
 	C2_ALLOC_ARR(timers, nr_timers);
+	C2_ASSERT(timers != NULL);
 	C2_ALLOC_ARR(test_locality_lock, nr_timers);
+	C2_ASSERT(test_locality_lock != NULL);
 
 	test_locality_tid = gettid();
 	for (i = 0; i < nr_timers; ++i)
