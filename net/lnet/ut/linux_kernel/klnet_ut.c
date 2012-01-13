@@ -64,7 +64,7 @@ static void ktest_core_ep_addr(void)
 	int rc;
 	int i;
 
-	C2_UT_ASSERT(!nlx_core_nidstrs_get(&dom.xd_core, &nidstrs));
+	C2_UT_ASSERT(!nlx_core_nidstrs_get(&nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL);
 	for (i = 0; nidstrs[i] != NULL; ++i) {
 		char *network;
@@ -89,7 +89,7 @@ static void ktest_core_ep_addr(void)
 			C2_UT_ASSERT(strcmp(buf, epstr[i]) == 0);
 		}
 	}
-	nlx_core_nidstrs_put(&dom.xd_core, nidstrs);
+	nlx_core_nidstrs_put(nidstrs);
 
 	for (i = 0; i < ARRAY_SIZE(failepstr); ++i) {
 		rc = nlx_core_ep_addr_decode(&dom.xd_core, failepstr[i],

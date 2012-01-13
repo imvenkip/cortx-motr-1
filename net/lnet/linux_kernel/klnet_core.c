@@ -1063,7 +1063,7 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 		 cp, cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
 }
 
-int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
+int nlx_core_nidstrs_get(char * const **nidary)
 {
 	C2_PRE(nlx_kcore_lni_nidstrs != NULL);
 	*nidary = nlx_kcore_lni_nidstrs;
@@ -1071,7 +1071,7 @@ int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
 	return 0;
 }
 
-void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const *nidary)
+void nlx_core_nidstrs_put(char * const *nidary)
 {
 	C2_PRE(nidary == nlx_kcore_lni_nidstrs);
 	c2_atomic64_dec(&nlx_kcore_lni_refcount);
@@ -1239,6 +1239,7 @@ static int nlx_core_init(void)
 	c2_mutex_init(&nlx_kcore_mutex);
 	tms_tlist_init(&nlx_kcore_tms);
 
+	c2_atomic64_set(&nlx_kcore_lni_refcount, 0);
 	for (i = 0, rc = 0; rc != -ENOENT; ++i)
 		rc = LNetGetId(i, &id);
 	C2_ALLOC_ARR(nlx_kcore_lni_nidstrs, i);
@@ -1259,7 +1260,6 @@ static int nlx_core_init(void)
 		}
 		strcpy(nlx_kcore_lni_nidstrs[i], nidstr);
 	}
-	c2_atomic64_set(&nlx_kcore_lni_refcount, 0);
 
 	return 0;
 }
