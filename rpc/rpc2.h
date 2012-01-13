@@ -938,6 +938,8 @@ int c2_rpc_bulk_buf_usrbuf_add(struct c2_rpc_bulk_buf *rbuf,
 	..
 	..
    } while (not_empty);
+   c2_rpc_bulk_store(rbulk, conn, desc);
+   ..
    c2_clink_add(rbulk->rb_chan, clink);
    c2_rpc_post(rpc_item);
    c2_chan_wait(clink);

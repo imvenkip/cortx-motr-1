@@ -127,16 +127,26 @@ enum {
    io fops and the associated rpc bulk structures.
    The c2_io_fop structures can be populated and used like this.
    @see c2_rpc_bulk().
+
    @code
+
    c2_io_fop_init(iofop, ftype);
-   ...
-   c2_rpc_bulk_page_add(iofop->if_rbulk, page, index);
-   OR
-   c2_rpc_bulk_buf_add(iofop->if_rbulk, buf, count, index);
+   do {
+	c2_rpc_bulk_buf_add(&iofop->if_rbulk, rbuf);
+	..
+	c2_rpc_bulk_buf_page_add(rbuf, page, index);
+	OR
+	c2_rpc_bulk_buf_usrbuf_add(rbuf, buf, count, index);
+	..
+   } while (not_empty);
    ..
    c2_rpc_bulk_buf_store(rbuf, rpcitem, net_buf_desc);
    ..
+   c2_clink_add(rbulk->rb_chan, clink);
+   c2_rpc_post(rpc_item);
+   c2_chan_wait(clink);
    c2_io_fop_fini(iofop);
+
    @endcode
  */
 struct c2_io_fop {
