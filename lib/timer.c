@@ -478,6 +478,8 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 		rc = timer_posix_init(timer);
 		if (rc == 0)
 			timer_posix_fini(ptimer);
+	} else {
+		rc = 0;
 	}
 
 	timer_state_change(timer, TIMER_ATTACH, rc != 0);
