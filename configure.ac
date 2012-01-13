@@ -524,7 +524,6 @@ AC_CONFIG_FILES([
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
-                 c2t1fs/Makefile
                  capa/Makefile
                  capa/ut/Makefile
                  cfg/Makefile
