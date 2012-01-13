@@ -26,6 +26,17 @@
 #include "net/lnet/ut/linux_kernel/klnet_ut.c"
 #endif
 
+static int test_lnet_init(void)
+{
+	return c2_net_xprt_init(&c2_net_lnet_xprt);
+}
+
+static int test_lnet_fini(void)
+{
+	c2_net_xprt_fini(&c2_net_lnet_xprt);
+	return 0;
+}
+
 static void test_tm_initfini(void)
 {
 	static struct c2_net_domain dom1 = {
@@ -79,7 +90,13 @@ static void tf_tm_ecb(const struct c2_net_tm_event *ev)
 
 enum {
 	STARTSTOP_DOM_NR = 3,
+	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
+	STARTSTOP_PORTAL = 30,
 };
+#ifdef __KERNEL__
+/* LUSTRE_SRV_LNET_PID macro is not available in user space */
+C2_BASSERT(STARTSTOP_PID == LUSTRE_SRV_LNET_PID);
+#endif
 
 static void test_tm_startstop(void)
 {
@@ -92,6 +109,7 @@ static void test_tm_startstop(void)
 	char * const *nidstrs;
 	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
+	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
 	int i;
 
@@ -101,11 +119,13 @@ static void test_tm_startstop(void)
 	tm->ntm_callbacks = &cbs1;
 
 	C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));
-	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(dom, &nidstrs));
+	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
-	sprintf(epstr, "%s:12345:30:101", nidstrs[0]);
-	sprintf(dyn_epstr, "%s:12345:30:*", nidstrs[0]);
-	c2_net_lnet_ifaces_put(dom, nidstrs);
+	sprintf(epstr, "%s:%d:%d:101",
+		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
+	sprintf(dyn_epstr, "%s:%d:%d:*",
+		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
+	c2_net_lnet_ifaces_put(nidstrs);
 	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
 
 	c2_clink_init(&tmwait1, NULL);
@@ -172,6 +192,24 @@ static void test_tm_startstop(void)
 					    tm[i-1].ntm_ep->nep_addr) < 0);
 	}
 
+	/* subtest: dynamic TMID reuse using middle TM */
+	strcpy(save_epstr, tm[1].ntm_ep->nep_addr);
+	c2_clink_add(&tm[1].ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_stop(&tm[1], false));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(tm[1].ntm_state == C2_NET_TM_STOPPED);
+	c2_net_tm_fini(&tm[1]);
+	C2_UT_ASSERT(!c2_net_tm_init(&tm[1], &dom[1]));
+
+	c2_clink_add(&tm[1].ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_start(&tm[1], dyn_epstr));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(tm[1].ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(strcmp(tm[1].ntm_ep->nep_addr, save_epstr) == 0);
+
 	for (i = 0; i < STARTSTOP_DOM_NR; ++i) {
 		c2_clink_add(&tm[i].ntm_chan, &tmwait1);
 		C2_UT_ASSERT(!c2_net_tm_stop(&tm[i], false));
@@ -188,8 +226,8 @@ static void test_tm_startstop(void)
 
 const struct c2_test_suite c2_net_lnet_ut = {
         .ts_name = "net-lnet",
-        .ts_init = NULL,
-        .ts_fini = NULL,
+        .ts_init = test_lnet_init,
+        .ts_fini = test_lnet_fini,
         .ts_tests = {
 #ifdef __KERNEL__
 		{ "net_lnet_buf_shape (K)", ktest_buf_shape },

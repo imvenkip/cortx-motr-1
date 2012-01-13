@@ -169,13 +169,13 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 	/* XXX implement */
 }
 
-int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
+int nlx_core_nidstrs_get(char * const **nidary)
 {
 	/* XXX implement */
 	return -ENOSYS;
 }
 
-void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const *nidary)
+void nlx_core_nidstrs_put(char * const *nidary)
 {
 	/* XXX implement */
 }
