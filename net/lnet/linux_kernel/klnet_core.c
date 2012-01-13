@@ -759,7 +759,7 @@ C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 
 /**
    KCore buffer invariant.
-*/
+ */
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 {
 	if (kcb == NULL)
