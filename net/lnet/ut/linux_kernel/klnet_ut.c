@@ -27,7 +27,7 @@ static bool ut_bufvec_alloc(struct c2_bufvec *bv, size_t n)
 {
 	C2_ALLOC_ARR(bv->ov_vec.v_count, n);
 	C2_ALLOC_ARR(bv->ov_buf, n);
-	if (bv->ov_vec.v_count == 0 || bv->ov_buf == 0) {
+	if (bv->ov_vec.v_count == 0 || bv->ov_buf == NULL) {
 		return false;
 	}
 	bv->ov_vec.v_nr = n;
