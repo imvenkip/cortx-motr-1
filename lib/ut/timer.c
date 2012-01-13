@@ -145,7 +145,7 @@ static void test_timers(enum c2_timer_type timer_type, int nr_timers,
 	/* c2_timer_init() */
 	for (i = 0; i < nr_timers; ++i) {
 		time = time_rand_ms(interval_min_ms, interval_max_ms);
-		rc = c2_timer_init(&timers[i], timer_type, 
+		rc = c2_timer_init(&timers[i], timer_type,
 				make_time_abs(time),
 				timer_callback,
 				i);
