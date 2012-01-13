@@ -28,6 +28,7 @@
 #include "c2t1fs/c2t1fs.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_k.h"
+#include "rpc/rpclib.h"
 
 static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 				    const struct iovec *iov,
@@ -886,14 +887,14 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			if (rc != 0)
 				goto iofop_fini;
 
+			offset_in_stob += PAGE_CACHE_SIZE;
+			count          += PAGE_CACHE_SIZE;
+			addr           += PAGE_CACHE_SIZE;
+
 			C2_TRACE("Added: pg [0x%p] addr [0x%p] off [%lu] "
 				 "count [%lu]\n", page, addr,
 				(unsigned long)offset_in_stob,
 				(unsigned long)count);
-
-			offset_in_stob += PAGE_CACHE_SIZE;
-			count          += PAGE_CACHE_SIZE;
-			addr           += PAGE_CACHE_SIZE;
 
 		}
 	} c2_tlist_endfor;
@@ -929,12 +930,35 @@ out:
 	return NULL;
 }
 
+static int io_fop_do_sync_io(struct c2_io_fop     *iofop,
+			    struct c2_rpc_session *session)
+{
+	struct c2_fop_cob_rw *rwfop;
+	int                   rc;
+
+	C2_TRACE_START();
+
+	rwfop = io_rw_get(&iofop->if_fop);
+	C2_ASSERT(rwfop != NULL);
+
+	rc = c2_rpc_bulk_store(&iofop->if_rbulk, session->s_conn,
+					rwfop->crw_desc.id_descs);
+	if (rc != 0)
+		goto out;
+
+	rc = c2_rpc_client_call(&iofop->if_fop, session, C2T1FS_RPC_TIMEOUT);
+out:
+	C2_TRACE_END(rc);
+	return rc;
+}
+
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 {
 	struct rw_desc        *rw_desc;
 	struct c2t1fs_buf     *buf;
 	struct c2_io_fop      *iofop;
 	ssize_t                count = 0;
+	int                    rc;
 
 	C2_TRACE_START();
 
@@ -967,7 +991,10 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 				count += buf->cb_buf.b_nob;
 
 		} c2_tlist_endfor;
+
 		iofop = rw_desc_to_io_fop(rw_desc, rw);
+		rc    = io_fop_do_sync_io(iofop, rw_desc->rd_session);
+		/* XXX handle error */
 	} c2_tlist_endfor;
 
 	C2_TRACE_END(count);

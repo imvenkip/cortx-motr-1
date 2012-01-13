@@ -7,7 +7,7 @@ GCOV_PROFILE := @K_ENABLE_COVERAGE@
 obj-y		:= krpc.o
 shared_src	:= formation.c rpc2.c rpc_base.c session.c session_foms.c \
 			conn.c slot.c session_utils.c session_fops.c \
-			rpc_onwire.c session_k.c
+			rpc_onwire.c session_k.c rpclib.c
 kernel_src	:=
 krpc-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)

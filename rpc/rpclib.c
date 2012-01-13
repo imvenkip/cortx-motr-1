@@ -23,7 +23,7 @@
 #include <config.h>
 #endif
 
-#include <errno.h>
+#include "lib/errno.h"
 
 #include "lib/cdefs.h"
 #include "lib/types.h"
