@@ -163,11 +163,11 @@ struct c2_stob_io_desc {
 	uint64_t		 siod_magic;
 	/** Stob IO packet for the operation. */
         struct c2_stob_io        siod_stob_io;
-        /** Link to get siganl for this stob io compelte*/
+        /** Link to get signal for this stob io compelte */
         struct c2_clink          siod_clink;
         /** Linkage into c2_io_fom_cob_rw::fcrw_stobio_list */
         struct c2_tlink          siod_linkage;
-        /** Pointer to c2_io_fom_cob_rw to refer c2_stob_io_desc list*/
+        /** Pointer to I/O FOM */
         struct c2_io_fom_cob_rw *siod_fom;
 };
 
