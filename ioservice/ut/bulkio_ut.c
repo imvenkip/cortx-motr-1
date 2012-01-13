@@ -37,7 +37,7 @@
 #include "reqh/reqh.h"		/* c2_reqh */
 #include "net/net.h"		/* C2_NET_QT_PASSICE_BULK_SEND */
 #include "ut/rpc.h"		/* c2_rpc_client_init, c2_rpc_server_init */
-#include "lib/processor.h"	/* c2_processors_init */
+#include "ut/cs_service.h"	/* ds1_service_type */
 #include "fop/fop.h"
 #include "fop/fop_base.h"
 #include "lib/thread.h"		/* C2_THREAD_INIT */
@@ -70,8 +70,11 @@ static struct c2_fop_file_fid	  io_fids[IO_FIDS_NR];
 /* Tracks offsets for global fids. */
 static uint64_t			  io_offsets[IO_FIDS_NR];
 
-/* In-memory io fops. */
-static struct c2_io_fop		**io_fops;
+/* In-memory fops for read IO. */
+static struct c2_io_fop		**rfops;
+
+/* In-memory fops for write IO. */
+static struct c2_io_fop		**wfops;
 
 /* Read buffers to which data will be transferred. */
 static struct c2_net_buffer	  io_buf[IO_FOPS_NR];
@@ -83,51 +86,44 @@ static struct c2_thread		  io_threads[IO_FOPS_NR];
    Primarily used for data verification. */
 static char			  io_cbuf[IO_SEG_SIZE];
 
-/* Request handler for io service on server side. */
-static struct c2_reqh		  io_reqh;
-
-static struct c2_dbenv		  c_dbenv;
-static struct c2_dbenv		  s_dbenv;
-
-static struct c2_cob_domain	  c_cbdom;
-static struct c2_cob_domain	  s_cbdom;
-
-static char			  s_endp_addr[] = "127.0.0.1:23123:1";
-static char			  c_endp_addr[] = "127.0.0.1:23123:2";
-static char			  s_db_name[]	= "bulk_s_db";
-static char			  c_db_name[]	= "bulk_c_db";
-
-extern struct c2_net_xprt	  c2_net_bulk_sunrpc_xprt;
-static struct c2_net_domain	  io_netdom;
-static struct c2_net_xprt	 *xprt = &c2_net_bulk_sunrpc_xprt;
-
-/* Rpc context structures for client and server. */
-struct c2_rpc_ctx		s_rctx = {
-	.rx_net_dom		= &io_netdom,
-	.rx_reqh		= &io_reqh,
-	.rx_local_addr		= s_endp_addr,
-	.rx_remote_addr		= c_endp_addr,
-	.rx_db_name		= s_db_name,
-	.rx_dbenv		= &s_dbenv,
-	.rx_cob_dom_id		= IO_SERVER_COBDOM_ID,
-	.rx_cob_dom		= &s_cbdom,
-	.rx_nr_slots		= IO_RPC_SESSION_SLOTS,
-	.rx_max_rpcs_in_flight	= IO_RPC_MAX_IN_FLIGHT,
-	.rx_timeout_s		= IO_RPC_CONN_TIMEOUT,
+/* A structure used to pass as argument to io threads. */
+struct thrd_arg {
+	/* Index in fops array to be posted to rpc layer. */
+	int			ta_index;
+	/* Type of fop to be sent (read/write). */
+	enum C2_RPC_OPCODES	ta_op;
 };
 
-struct c2_rpc_ctx		c_rctx = {
-	.rx_net_dom		= &io_netdom,
-	.rx_reqh		= NULL,
-	.rx_local_addr		= c_endp_addr,
-	.rx_remote_addr		= s_endp_addr,
-	.rx_db_name		= c_db_name,
-	.rx_dbenv		= &c_dbenv,
-	.rx_cob_dom_id		= IO_CLIENT_COBDOM_ID,
-	.rx_cob_dom		= &c_cbdom,
-	.rx_nr_slots		= IO_RPC_SESSION_SLOTS,
-	.rx_max_rpcs_in_flight	= IO_RPC_MAX_IN_FLIGHT,
-	.rx_timeout_s		= IO_RPC_CONN_TIMEOUT,
+static struct c2_dbenv		  c_dbenv;
+
+static struct c2_cob_domain	  c_cbdom;
+
+static char			  c_endp_addr[] = "127.0.0.1:23123:2";
+static char			  c_db_name[]	= "bulk_c_db";
+static char			  s_db_file[]	= "bulkio_ut.db";
+static char			  s_stob_file[]	= "bulkio_ut_stob";
+static char			  s_log_file[]	= "bulkio_ut.log";
+
+#define S_ENDP_ADDR		  "127.0.0.1:23123:1"
+#define S_ENDPOINT		  "bulk-sunrpc:"S_ENDP_ADDR
+
+extern struct c2_net_xprt	  c2_net_bulk_sunrpc_xprt;
+
+/* Net domain for rpc client. */
+static struct c2_net_domain	  c_netdom;
+static struct c2_net_xprt	 *xprt = &c2_net_bulk_sunrpc_xprt;
+
+struct c2_rpc_client_ctx c_rctx = {
+	.rcx_net_dom		= &c_netdom,
+	.rcx_local_addr		= c_endp_addr,
+	.rcx_remote_addr	= S_ENDP_ADDR,
+	.rcx_db_name		= c_db_name,
+	.rcx_dbenv		= &c_dbenv,
+	.rcx_cob_dom_id		= IO_CLIENT_COBDOM_ID,
+	.rcx_cob_dom		= &c_cbdom,
+	.rcx_nr_slots		= IO_RPC_SESSION_SLOTS,
+	.rcx_max_rpcs_in_flight	= IO_RPC_MAX_IN_FLIGHT,
+	.rcx_timeout_s		= IO_RPC_CONN_TIMEOUT,
 };
 
 static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
@@ -156,6 +152,7 @@ static struct c2_fom_type bulkio_fom_type = {
 
 static void bulkio_fom_fini(struct c2_fom *fom)
 {
+	c2_fom_fini(fom);
 	c2_free(fom);
 }
 
@@ -328,14 +325,13 @@ static void io_fids_init(void)
 	}
 }
 
-/* A fixed set of buffers are used to populate io fops. */
 static void io_buffers_allocate(void)
 {
 	int		  i;
 	int		  j;
 	struct c2_bufvec *buf;
 
-	/* Initialized the standard buffer with a data pattern. */
+	/* Initialized the standard buffer with a data pattern for read IO. */
 	memset(io_cbuf, 'b', IO_SEG_SIZE);
 
 	C2_SET_ARR0(io_buf);
@@ -375,10 +371,15 @@ static void io_fop_populate(int index, uint64_t off_index,
 	struct c2_rpc_bulk	*rbulk;
 	struct c2_rpc_bulk_buf	*rbuf;
 	struct c2_fop_cob_rw	*rw;
+	struct c2_io_fop	**io_fops;
 
+	io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
 	iofop = io_fops[index];
 	rbulk = &iofop->if_rbulk;
-	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, IO_SEG_SIZE, &io_netdom,
+
+	/* Adds a c2_rpc_bulk_buf structure to list of such structures
+	   in c2_rpc_bulk. */
+	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, IO_SEG_SIZE, &c_netdom,
 				 &rbuf);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(rbuf != NULL);
@@ -403,13 +404,12 @@ static void io_fop_populate(int index, uint64_t off_index,
 
 	/* Allocates memory for array of net buf descriptors and array of
 	   index vectors from io fop. */
-	rc = io_fop_ivec_alloc(&iofop->if_fop);
+	rc = io_fop_prepare(&iofop->if_fop);
 	C2_UT_ASSERT(rc == 0);
-	rc = io_fop_desc_alloc(&iofop->if_fop);
-	C2_UT_ASSERT(rc == 0);
-	io_fop_ivec_prepare(&iofop->if_fop);
 
-	rc = c2_rpc_bulk_store(rbulk, &c_rctx.rx_connection,
+	/* Stores the net buf desc/s after adding the corresponding
+	   net buffers to transfer machine to io fop wire format. */
+	rc = c2_rpc_bulk_store(rbulk, &c_rctx.rcx_connection,
 			       rw->crw_desc.id_descs);
 	C2_UT_ASSERT(rc == 0);
 
@@ -433,22 +433,25 @@ static void io_fops_create(enum C2_RPC_OPCODES op)
 	uint64_t		  seed;
 	uint64_t		  rnd;
 	struct c2_fop_type	 *fopt;
+	struct c2_io_fop	**io_fops;
 
+	seed = 0;
 	for (i = 0; i < IO_FIDS_NR; ++i)
 		io_offsets[i] = IO_SEG_START_OFFSET;
 
-	C2_ALLOC_ARR(io_fops, IO_FOPS_NR);
+	if (op == C2_IOSERVICE_WRITEV_OPCODE) {
+		C2_ALLOC_ARR(wfops, IO_FOPS_NR);
+		fopt = &c2_fop_cob_writev_fopt;
+		io_fops = wfops;
+	} else {
+		C2_ALLOC_ARR(rfops, IO_FOPS_NR);
+		fopt = &c2_fop_cob_readv_fopt;
+		io_fops = rfops;
+	}
 	C2_UT_ASSERT(io_fops != NULL);
-
-	fopt = (op == C2_IOSERVICE_WRITEV_OPCODE) ? &c2_fop_cob_writev_fopt :
-	       &c2_fop_cob_readv_fopt;
 
 	/* Allocates io fops. */
 	for (i = 0; i < IO_FOPS_NR; ++i) {
-		/* Since read and write fops are similar and the io coalescing
-		   code is same for read and write fops, it doesn't
-		   matter what type of fop is created. */
-
 		C2_ALLOC_PTR(io_fops[i]);
 		C2_UT_ASSERT(io_fops[i] != NULL);
 		rc = c2_io_fop_init(io_fops[i], fopt);
@@ -467,41 +470,28 @@ static void io_fops_create(enum C2_RPC_OPCODES op)
 
 static void io_fops_destroy(void)
 {
-	int i;
-	struct c2_fop_cob_rw *rw;
-
-	for (i = 0; i < IO_FOPS_NR; ++i) {
-		rw = io_rw_get(&io_fops[i]->if_fop);
-		io_fop_ivec_dealloc(&io_fops[i]->if_fop);
-		io_fop_desc_dealloc(&io_fops[i]->if_fop);
-		c2_free(rw->crw_iovec.iv_segs[0].is_buf.ib_buf);
-		c2_free(rw->crw_iovec.iv_segs);
-		/* XXX Can not deallocate fops from here since sessions code
-		   tries to free fops and faults in c2_rpc_slot_fini.
-		   And in cases, the program will run in an endless loop
-		   in nr_active_items_count() which is called from
-		   c2_rpc_session_terminate() if fops are deallocated here. */
-		//c2_io_fop_fini(io_fops[i]);
-		//c2_free(io_fops[i]);
-		C2_UT_ASSERT(c2_tlist_is_empty(&rpcbulk_tl, &io_fops[i]->
-			     if_rbulk.rb_buflist));
-	}
-	c2_free(io_fops);
+	c2_free(rfops);
+	c2_free(wfops);
 }
 
-static void io_fops_rpc_submit(int i)
+static void io_fops_rpc_submit(struct thrd_arg *t)
 {
-	int			 j;
-	int			 rc;
-	c2_time_t		 timeout;
-	struct c2_clink		 clink;
-	struct c2_rpc_item	*item;
-	struct c2_rpc_bulk	*rbulk;
+	int			  j;
+	int			  rc;
+	c2_time_t		  timeout;
+	struct c2_clink		  clink;
+	struct c2_rpc_item	 *item;
+	struct c2_rpc_bulk	 *rbulk;
+	struct c2_io_fop	**io_fops;
 
-	rbulk = c2_fop_to_rpcbulk(&io_fops[i]->if_fop);
-	item = &io_fops[i]->if_fop.f_item;
-	item->ri_session = &c_rctx.rx_session;
+	io_fops = (t->ta_op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
+	rbulk = c2_fop_to_rpcbulk(&io_fops[t->ta_index]->if_fop);
+	item = &io_fops[t->ta_index]->if_fop.f_item;
+	item->ri_session = &c_rctx.rcx_session;
 	c2_time_set(&timeout, IO_RPC_ITEM_TIMEOUT, 0);
+
+	/* Initializes and adds a clink to rpc item channel to wait for
+	   reply. */
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);
 	timeout = c2_time_add(timeout, c2_time_now());
@@ -509,16 +499,19 @@ static void io_fops_rpc_submit(int i)
 
 	/* Posts the rpc item and waits until reply is received. */
 	rc = c2_rpc_post(item);
-	printf("Item %d posted to rpc.\n", i);
+	printf("Item %d posted to rpc.\n", t->ta_index);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_reply_timedwait(&clink, timeout);
 	if (rc != 0)
 		printf("Rpc item post failed. rc = %d\n", rc);
-	else if (is_read(&io_fops[i]->if_fop)) {
-		for (j = 0; j < io_buf[i].nb_buffer.ov_vec.v_nr; ++j) {
-			rc = memcmp(io_buf[i].nb_buffer.ov_buf[j], io_cbuf,
-				    io_buf[i].nb_buffer.ov_vec.v_count[j]);
+	else if (is_read(&io_fops[t->ta_index]->if_fop)) {
+		for (j = 0; j < io_buf[t->ta_index].nb_buffer.ov_vec.v_nr;
+		     ++j) {
+			rc = memcmp(io_buf[t->ta_index].nb_buffer.ov_buf[j],
+				    io_cbuf,
+				    io_buf[t->ta_index].nb_buffer.ov_vec.
+				    v_count[j]);
 			C2_UT_ASSERT(rc == 0);
 		}
 		c2_mutex_lock(&rbulk->rb_mutex);
@@ -534,23 +527,19 @@ void bulkio_test(void)
 	int		    rc;
 	int		    i;
 	enum C2_RPC_OPCODES op;
+	struct thrd_arg     targ[IO_FOPS_NR];
+	char		   *server_args[] =
+			    {"bulkio_ut", "-r", "-T", "AD", "-D", s_db_file,
+			    "-S", s_stob_file, "-e", S_ENDPOINT, "-s", "ds1",
+			    "-s", "ds2"};
 
-	C2_SET0(&io_reqh);
-	rc = c2_processors_init();
+	rc = c2_net_domain_init(&c_netdom, xprt);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Start an rpc server and an rpc client. */
-	rc = c2_net_xprt_init(xprt);
-	C2_UT_ASSERT(rc == 0);
+	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(s_rctx, xprt, server_args, s_log_file);
 
-	rc = c2_net_domain_init(&io_netdom, xprt);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = c2_reqh_init(&io_reqh, NULL, NULL, s_rctx.rx_dbenv,
-			  s_rctx.rx_cob_dom, NULL);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = c2_rpc_server_init(&s_rctx);
+	/* Starts a colibri server. */
+	rc = c2_rpc_server_start(&s_rctx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_client_init(&c_rctx);
@@ -566,29 +555,30 @@ void bulkio_test(void)
 
 		io_fops_create(op);
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
-			rc = C2_THREAD_INIT(&io_threads[i], int, NULL,
-					&io_fops_rpc_submit, i, "io_thrd%d", i);
+			targ[i].ta_index = i;
+			targ[i].ta_op = op;
+			rc = C2_THREAD_INIT(&io_threads[i], struct thrd_arg *,
+					    NULL, &io_fops_rpc_submit,
+					    &targ[i], "io_thrd");
 			C2_UT_ASSERT(rc == 0);
 		}
 
 		/* Waits till all threads finish their job. */
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
 			c2_thread_join(&io_threads[i]);
-
-		io_fops_destroy();
 	}
-	io_buffers_deallocate();
 
 	rc = c2_rpc_client_fini(&c_rctx);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_rpc_server_fini(&s_rctx);
+	c2_rpc_server_stop(&s_rctx);
 
-	c2_reqh_fini(&io_reqh);
-
-	c2_net_domain_fini(&io_netdom);
+	c2_net_domain_fini(&c_netdom);
 
 	c2_net_xprt_fini(xprt);
+
+	io_fops_destroy();
+	io_buffers_deallocate();
 }
 
 const struct c2_test_suite bulkio_ut = {

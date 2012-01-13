@@ -169,37 +169,17 @@ void c2_io_fop_fini(struct c2_io_fop *iofop);
 struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
 
 /**
-   Allocates the number of index vectors and segments inside each index
-   vector.
+   Allocates memory for net buf descriptors array and index vector array
+   and populate the array of index vectors.
    @pre fop != NULL.
  */
-int io_fop_ivec_alloc(struct c2_fop *fop);
+int io_fop_prepare(struct c2_fop *fop);
 
 /**
-   Deallocates the number of index vectors and segments inside each index
-   vector.
-   @pre fop != NULL.
+   Deallocates memory for sequence of net buf desc and sequence of index
+   vector from io fop wire format.
  */
-void io_fop_ivec_dealloc(struct c2_fop *fop);
-
-/**
-   Allocates the array of c2_net_buf_desc objects contained in io fop.
-   @pre fop != NULL.
- */
-int io_fop_desc_alloc(struct c2_fop *fop);
-
-/**
-   Deallocates the array of c2_net_buf_desc objects contained in io fop.
-   @pre fop != NULL.
- */
-void io_fop_desc_dealloc(struct c2_fop *fop);
-
-/**
-   Populates the array of index vectors from the list of zero vectors
-   stored in c2_rpc_bulk structure.
-   @pre fop != NULL.
- */
-void io_fop_ivec_prepare(struct c2_fop *fop);
+void io_fop_destroy(struct c2_fop *fop);
 
 /**
    @} bulkclientDFS end group

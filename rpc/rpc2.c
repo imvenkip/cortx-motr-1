@@ -1040,13 +1040,12 @@ static bool rpc_bulk_buf_invariant(struct c2_rpc_bulk_buf *rbuf)
 		!(rbuf == NULL ||
 		  rbuf->bb_magic != C2_RPC_BULK_BUF_MAGIC ||
 		  rbuf->bb_rbulk == NULL ||
-		  rbuf->bb_nbuf.nb_buffer.ov_vec.v_nr !=
-		  rbuf->bb_zerovec.z_bvec.ov_vec.v_nr);
+		  !rpcbulk_tlink_is_in(rbuf));
 }
 
 static void rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
 {
-	C2_PRE(rpc_bulk_buf_invariant(rbuf));
+	C2_PRE(rbuf != NULL);
 
 	c2_net_desc_free(&rbuf->bb_nbuf.nb_desc);
 	c2_0vec_fini(&rbuf->bb_zerovec);
@@ -1088,9 +1087,10 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 		if (rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
 			c2_chan_signal(&rbulk->rb_chan);
 	}
-	c2_mutex_unlock(&rbulk->rb_mutex);
 	if (buf->bb_owner)
 		c2_net_buffer_deregister(nb, nb->nb_dom);
+
+	c2_mutex_unlock(&rbulk->rb_mutex);
 	rpc_bulk_buf_fini(buf);
 }
 
