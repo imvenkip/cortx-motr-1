@@ -28,6 +28,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm);
 static int nlx_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_transfer_mc *tm,
 			 struct nlx_core_ep_addr *cepa);
+static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb);
 
 #endif /* __COLIBRI_NET_LNET_PVT_H__ */
 

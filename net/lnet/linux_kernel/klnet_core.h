@@ -112,6 +112,9 @@ struct nlx_kcore_buffer {
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
+static __u64 nlx_kcore_encode_match_bits(uint32_t tmid, uint64_t counter);
+static void nlx_kcore_decode_match_bits(__u64 mb, uint32_t *tmid,
+					uint64_t *counter);
 
 /**
    @}

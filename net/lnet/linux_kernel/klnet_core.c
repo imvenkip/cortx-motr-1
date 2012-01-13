@@ -1001,6 +1001,33 @@ int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 	return -ENOSYS;
 }
 
+/**
+   Subroutine to construct the match bit value from its components.
+   @param tmid Transfer machine identifier.
+   @param counter Buffer counter value.  The value of 0 is reserved for
+   the TM receive message queue.
+   @retval MatchBits
+ */
+__u64 nlx_kcore_encode_match_bits(uint32_t tmid, uint64_t counter)
+{
+	__u64 mb;
+	mb = ((__u64) tmid << C2_NET_LNET_TMID_SHIFT) |
+		((__u64) counter & C2_NET_LNET_BUFFER_ID_MASK);
+	return mb;
+}
+
+/**
+   Subroutine to decode the match bits into its components.
+   @param mb Match bit field.
+   @param tmid Pointer to returned Transfer Machine id.
+   @param counter Pointer to returned buffer counter value.
+ */
+void nlx_kcore_decode_match_bits(__u64 mb, uint32_t *tmid, uint64_t *counter)
+{
+	*tmid = (uint32_t)(mb >> C2_NET_LNET_TMID_SHIFT);
+	*counter = (uint64_t)(mb & C2_NET_LNET_BUFFER_ID_MASK);
+}
+
 void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf)
 {
@@ -1207,10 +1234,18 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		goto fail_with_eq;
 	}
 	rc = nlx_ep_create(epp, tm, cepa);
+	if (rc == 0) {
+		__u64 mb = nlx_kcore_encode_match_bits(cepa->cepa_tmid, 0);
+		id.nid = cepa->cepa_nid;
+		id.pid = cepa->cepa_pid;
+		rc = LNetMEAttach(cepa->cepa_portal, id, mb, 0,
+				  LNET_RETAIN, LNET_INS_AFTER, &kctm->ktm_meh);
+	}
 	if (rc != 0) {
 		c2_mutex_unlock(&nlx_kcore_mutex);
 		goto fail_with_eq;
 	}
+
 	nlx_kcore_tms_list_add(kctm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 

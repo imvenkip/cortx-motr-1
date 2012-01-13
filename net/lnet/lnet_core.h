@@ -204,6 +204,8 @@ enum {
 	C2_NET_LNET_BUFFER_ID_MIN  = 1,
 	/** Maximum buffer match bit counter value: 2^52-1 (0xfffffffffffff) */
 	C2_NET_LNET_BUFFER_ID_MAX  = (1ULL << C2_NET_LNET_BUFFER_ID_BITS) - 1,
+	/** Buffer match bit mask */
+	C2_NET_LNET_BUFFER_ID_MASK = C2_NET_LNET_BUFFER_ID_MAX,
 };
 C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
 
