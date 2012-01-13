@@ -300,6 +300,9 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		rc = -EFAULT;
 		goto out;
 	}
+	for (i = 0; i < nr_pages; i++)
+		C2_TRACE("Pinned page[0x%p] buf [0x%p] count [%lu]\n",
+				pages[i], buf, (unsigned long)count);
 
 	*pinned_pages    = pages;
 	*nr_pinned_pages = nr_pinned;
@@ -883,7 +886,7 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			if (rc != 0)
 				goto iofop_fini;
 
-			C2_TRACE("Added: pg [%p] addr [%p] off [%lu] "
+			C2_TRACE("Added: pg [0x%p] addr [0x%p] off [%lu] "
 				 "count [%lu]\n", page, addr,
 				(unsigned long)offset_in_stob,
 				(unsigned long)count);

@@ -23,6 +23,7 @@
 
 #include "c2t1fs/c2t1fs.h"
 #include "lib/trace.h"
+#include "ioservice/io_fops.h"
 
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
@@ -57,6 +58,10 @@ int c2t1fs_init(void)
 	int rc;
 
 	C2_TRACE_START();
+
+	rc = c2_ioservice_fop_init();
+	if (rc != 0)
+		goto out;
 
 	rc = c2t1fs_inode_cache_init();
 	if (rc != 0)
@@ -101,6 +106,7 @@ void c2t1fs_fini(void)
 	c2t1fs_rpc_fini();
 	c2t1fs_net_fini();
 	c2t1fs_inode_cache_fini();
+	c2_ioservice_fop_fini();
 
 	C2_TRACE_END(0);
 }
