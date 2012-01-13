@@ -931,10 +931,11 @@ out:
 }
 
 static int io_fop_do_sync_io(struct c2_io_fop     *iofop,
-			    struct c2_rpc_session *session)
+			     struct c2_rpc_session *session)
 {
-	struct c2_fop_cob_rw *rwfop;
-	int                   rc;
+	struct c2_fop_cob_rw_reply *rw_reply;
+	struct c2_fop_cob_rw       *rwfop;
+	int                         rc;
 
 	C2_TRACE_START();
 
@@ -946,7 +947,20 @@ static int io_fop_do_sync_io(struct c2_io_fop     *iofop,
 	if (rc != 0)
 		goto out;
 
+	/*
+	 * XXX For simplicity, doing IO to multiple cobs, one after other,
+	 * serially. This should be modified, so that io requests on
+	 * cobs are processed parallely.
+	 */
+
 	rc = c2_rpc_client_call(&iofop->if_fop, session, C2T1FS_RPC_TIMEOUT);
+	if (rc != 0)
+		goto out;
+
+	rw_reply = io_rw_rep_get(
+			c2_rpc_item_to_fop(iofop->if_fop.f_item.ri_reply));
+	rc = rw_reply->rwr_rc;
+
 out:
 	C2_TRACE_END(rc);
 	return rc;
@@ -994,7 +1008,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 		iofop = rw_desc_to_io_fop(rw_desc, rw);
 		rc    = io_fop_do_sync_io(iofop, rw_desc->rd_session);
-		/* XXX handle error */
+		if (rc != 0) {
+			/* For now, if one io fails, fail entire IO. */
+			C2_TRACE("io_fop_do_sync_io() failed: rc [%d]\n", rc);
+			C2_TRACE_END(rc);
+			return rc;
+		}
 	} c2_tlist_endfor;
 
 	C2_TRACE_END(count);
