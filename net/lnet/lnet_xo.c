@@ -33,7 +33,10 @@ static bool nlx_dom_invariant(const struct c2_net_domain *dom)
 
 static bool nlx_ep_invariant(const struct c2_net_end_point *ep)
 {
-	const struct nlx_xo_ep *xep = container_of(ep, struct nlx_xo_ep, xe_ep);
+	const struct nlx_xo_ep *xep;
+	if (ep == NULL)
+		return false;
+	xep = container_of(ep, struct nlx_xo_ep, xe_ep);
 	return xep->xe_magic == C2_NET_LNET_XE_MAGIC &&
 		xep->xe_ep.nep_addr == &xep->xe_addr[0];
 }
@@ -154,7 +157,7 @@ static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb)
 
 static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 {
-	struct nlx_xo_domain *dp = nb->nb_dom->nd_xprt_private;
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_buffer *bp;
 	int rc;
 
@@ -162,6 +165,7 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	C2_PRE(nb->nb_xprt_private == NULL);
 	C2_PRE(nlx_xo_buffer_bufvec_invariant(nb));
 
+	dp = nb->nb_dom->nd_xprt_private;
 	C2_ALLOC_PTR(bp);
 	if (bp == NULL)
 		return -ENOMEM;
@@ -197,18 +201,29 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 	struct nlx_core_transfer_mc *ctp;
 	struct nlx_core_buffer *cbp;
+	c2_bcount_t bufsize;
 	int rc;
 
 	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
+	C2_PRE(nb->nb_offset == 0); /* do not support an offset during add */
 	tp = nb->nb_tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
 
+	bufsize = c2_vec_count(&nb->nb_buffer.ov_vec);
+	cbp->cb_length = bufsize; /* default for passive cases */
+
+	cbp->cb_qtype = nb->nb_qtype;
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
+		cbp->cb_min_receive_size = nb->nb_min_receive_size;
+		cbp->cb_max_receive_msgs = nb->nb_max_receive_msgs;
 		rc = nlx_core_buf_msg_recv(ctp, cbp);
 		break;
 	case C2_NET_QT_MSG_SEND:
+		C2_ASSERT(nb->nb_length <= bufsize);
+		cbp->cb_length = nb->nb_length;
+		cbp->cb_addr = *nlx_ep_to_core(nb->nb_ep); /* dest addr */
 		rc = nlx_core_buf_msg_send(ctp, cbp);
 		break;
 	case C2_NET_QT_PASSIVE_BULK_RECV:

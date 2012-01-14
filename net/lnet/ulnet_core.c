@@ -73,6 +73,9 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	C2_ASSERT(ql != NULL);
 	bev_cqueue_put(&lctm->ctm_bevq);
 
+	/* XXX temp: just to compile in user space */
+	(void)nlx_core_bevq_provision(lctm, lcbuf->cb_max_receive_msgs);
+
 	return -ENOSYS;
 }
 
@@ -201,6 +204,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
 	nlx_core_ep_addr_encode(&dp->xd_core, cepa, xep->xe_addr);
 
+	C2_POST(nlx_core_tm_invariant(lctm));
 	return -ENOSYS;
 }
 
@@ -219,6 +223,12 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 {
 	/* XXX: temp, really belongs in async code */
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
+}
+
+int nlx_core_new_buffer_event(struct nlx_core_transfer_mc *ctm,
+			      struct nlx_core_buffer_event **bevp)
+{
+	return -ENOSYS;
 }
 
 static void nlx_core_fini(void)

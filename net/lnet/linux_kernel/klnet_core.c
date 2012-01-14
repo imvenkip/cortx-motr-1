@@ -332,13 +332,9 @@
    A transfer machine is associated with the following LNet resources:
    - An Event Queue (EQ).  This is represented by the
      nlx_kcore_transfer_mc::ktm_eqh handle.
-   - A Match Entry (ME) list. This is represented by the
-     nlx_kcore_transfer_mc::ktm_meh handle.
 
    The nlx_core_tm_start() subroutine creates the nlx_kcore_transfer_mc::ktm_eqh
-   handle. The nlx_kcore_transfer_mc::ktm_meh handle is created when the first
-   receive buffer is queued.  The nlx_core_tm_stop() subroutine releases both
-   handles.
+   handle. The nlx_core_tm_stop() subroutine releases the handle.
 
    @subsection KLNetCoreDLD-lspec-buf-res LNet Buffer Resources
 
@@ -349,8 +345,13 @@
    explicitly tracked.
 
    All the buffer operation initiation subroutines of the kernel Core API
-   create this MD.  The MD is set up to explicitly unlink upon completion, but
-   the value is saved in case an operation needs to be cancelled.
+   create such MDs.  Although an MD is set up to explicitly unlink upon
+   completion, the value is saved in case an operation needs to be
+   cancelled.
+
+   All MDs are associated with the EQ of the transfer machine
+   (nlx_kcore_transfer_mc::ktm_eqh).
+
 
    @subsection KLNetCoreDLD-lspec-ev LNet Event Callback Processing
 
@@ -436,9 +437,10 @@
       the portal, match and ignore bits. All receive buffers for a given TM
       will use a match bit value equal to the TM identifier in the higher order
       bits and zeros for the other bits.  No ignore bits are set. The ME should
-      @b not be set up to unlink automatically as it will be used for all
-      receive buffers of this transfer machine.  Save the ME handle in the
-      nlx_kcore_transfer_mc::ktm_meh field.
+      be set up to unlink automatically as it will be used for all receive
+      buffers of this transfer machine.  The ME entry should be positioned at
+      the end of the portal match list.  There is no need to retain the ME
+      handle beyond the subsequent @c LNetMDAttach() call.
    -# Create and attach an MD to the ME using @c LNetMDAttach().
       The MD is set up to unlink automatically.
       Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
@@ -494,7 +496,8 @@
       fields as appropriate for the transfer machine.  The buffer's match bits
       are obtained from the nlx_core_buffer::cb_match_bits field.  No ignore
       bits are set. The ME should be set up to unlink automatically, so there
-      is no need to save the handle for later use.
+      is no need to save the handle for later use.  The ME should be positioned
+      at the end of the portal match list.
    -# Create and attach an MD to the ME using @c LNetMDAttach() with each
       invocation of the nlx_core_buf_passive_recv() or the
       nlx_core_buf_passive_send() subroutines.
@@ -730,6 +733,7 @@
 
 /* include local files */
 #include "net/lnet/linux_kernel/klnet_vec.c"
+#include "net/lnet/linux_kernel/klnet_utils.c"
 
 /**
    @addtogroup KLNetCore
@@ -762,9 +766,25 @@ C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
  */
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 {
-	if (kcb == NULL)
+	if (kcb == NULL || kcb->kb_magic != C2_NET_LNET_KCORE_BUF_MAGIC)
 		return false;
-	if (kcb->kb_magic != C2_NET_LNET_KCORE_BUF_MAGIC)
+	if (kcb->kb_cb == NULL || kcb->kb_cb->cb_kpvt != kcb)
+		return false;
+	if (!nlx_core_buffer_invariant(kcb->kb_cb))
+		return false;
+	return true;
+}
+
+/**
+   KCore tm invariant.
+ */
+static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm)
+{
+	if (kctm == NULL || kctm->ktm_magic != C2_NET_LNET_KCORE_TM_MAGIC)
+		return false;
+	if (kctm->ktm_ctm == NULL || kctm->ktm_ctm->ctm_kpvt != kctm)
+		return false;
+	if (!nlx_core_tm_invariant(kctm->ktm_ctm))
 		return false;
 	return true;
 }
@@ -781,7 +801,7 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
 	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
 
 	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
-		scanaddr = &scan->ktm_tm->ctm_addr;
+		scanaddr = &scan->ktm_ctm->ctm_addr;
 		if (nlx_core_ep_eq(scanaddr, cepa)) {
 			matched = true;
 			break;
@@ -805,7 +825,7 @@ static int nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
 
 	/* list is in descending order by tmid */
 	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
-		scanaddr = &scan->ktm_tm->ctm_addr;
+		scanaddr = &scan->ktm_ctm->ctm_addr;
 		if (scanaddr->cepa_nid == cepa->cepa_nid &&
 		    scanaddr->cepa_pid == cepa->cepa_pid &&
 		    scanaddr->cepa_portal == cepa->cepa_portal) {
@@ -827,11 +847,11 @@ static void nlx_kcore_tms_list_add(struct nlx_kcore_transfer_mc *kctm)
 {
 	struct nlx_kcore_transfer_mc *scan;
 	struct nlx_core_ep_addr *scanaddr;
-	struct nlx_core_ep_addr *cepa = &kctm->ktm_tm->ctm_addr;
+	struct nlx_core_ep_addr *cepa = &kctm->ktm_ctm->ctm_addr;
 	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
 
 	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
-		scanaddr = &scan->ktm_tm->ctm_addr;
+		scanaddr = &scan->ktm_ctm->ctm_addr;
 		if (scanaddr->cepa_tmid <= cepa->cepa_tmid) {
 			tms_tlist_add_before(scan, kctm);
 			return;
@@ -855,13 +875,11 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 
 	C2_PRE(event != NULL && event->type != LNET_EVENT_ACK);
 	cbp = event->md.user_ptr;
-	C2_ASSERT(nlx_core_buffer_invariant(cbp));
 	kbp = cbp->cb_kpvt;
-	C2_ASSERT(kbp != NULL && kbp->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
+	C2_ASSERT(nlx_kcore_buffer_invariant(kbp));
 	ktm = kbp->kb_ktm;
-	C2_ASSERT(ktm != NULL);
-	lctm = ktm->ktm_tm;
-	C2_ASSERT(lctm != NULL);
+	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
+	lctm = ktm->ktm_ctm;
 
 	/* SEND events are only significant for LNetPut operations */
 	if (event->type == LNET_EVENT_SEND &&
@@ -883,10 +901,9 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	if (event->hdr_data != 0) {
 		bev->cbe_sender.cepa_nid = event->initiator.nid;
 		bev->cbe_sender.cepa_pid = event->initiator.pid;
-		bev->cbe_sender.cepa_portal =
-		    event->hdr_data & C2_NET_LNET_PORTAL_MASK;
-		bev->cbe_sender.cepa_tmid =
-		    event->hdr_data >> C2_NET_LNET_TMID_SHIFT;
+		nlx_kcore_hdr_data_decode((uint64_t)event->hdr_data,
+					  &bev->cbe_sender.cepa_portal,
+					  &bev->cbe_sender.cepa_tmid);
 	} else
 		C2_SET0(&bev->cbe_sender);
 
@@ -937,21 +954,24 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_ALLOC_PTR(kb);
 	if (kb == NULL)
 		return -ENOMEM;
-	kb->kb_magic = C2_NET_LNET_KCORE_BUF_MAGIC;
+	LNetInvalidateHandle(&kb->kb_mdh);
+	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
+	kb->kb_cb           = lcbuf;
+	lcbuf->cb_kpvt      = kb;
+	lcbuf->cb_buffer_id = buffer_id;
+	lcbuf->cb_magic     = C2_NET_LNET_CORE_BUF_MAGIC;
+
 	rc = nlx_kcore_buffer_kla_to_kiov(kb, bvec);
 	if (rc != 0)
 		goto fail_free_kb;
 	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
-	LNetInvalidateHandle(&kb->kb_mdh);
-	lcbuf->cb_kpvt      = kb;
-	lcbuf->cb_buffer_id = buffer_id;
-	lcbuf->cb_magic     = C2_NET_LNET_CORE_BUF_MAGIC;
-	C2_POST(nlx_core_buffer_invariant(lcbuf));
 	C2_POST(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
 	return 0;
 
  fail_free_kb:
 	C2_ASSERT(rc != 0);
+	kb->kb_magic = 0;
+	lcbuf->cb_magic = 0;
 	c2_free(kb);
 	return rc;
 }
@@ -959,13 +979,12 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 			     struct nlx_core_buffer *lcbuf)
 {
-	struct nlx_kcore_buffer *kb;
+	struct nlx_kcore_buffer *kb = lcbuf->cb_kpvt;
 
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	kb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
 	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
 	kb->kb_magic = 0;
+	kb->kb_cb = 0;
 	c2_free(kb->kb_kiov);
 	c2_free(kb);
 	lcbuf->cb_kpvt = 0;
@@ -976,15 +995,50 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_MSG_RECV);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_min_receive_size >= lcbuf->cb_length);
+	C2_PRE(lcbuf->cb_max_receive_msgs > 0);
+
+	rc = nlx_core_bevq_provision(lctm, lcbuf->cb_max_receive_msgs);
+	if (rc != 0)
+		return rc;
+
+	nlx_kcore_umd_init(lctm, lcbuf, lcbuf->cb_max_receive_msgs,
+			   lcbuf->cb_min_receive_size,  LNET_MD_OP_PUT, &umd);
+	lcbuf->cb_match_bits =
+		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
+	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	return rc;
 }
 
 int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_MSG_SEND);
+	C2_PRE(lcbuf->cb_length > 0);
+
+	rc = nlx_core_bevq_provision(lctm, 1);
+	if (rc != 0)
+		return rc;
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
+	lcbuf->cb_match_bits =
+		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
+	rc = nlx_kcore_LNetPut(lctm, lcbuf, &umd);
+	return rc;
 }
 
 int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
@@ -999,33 +1053,6 @@ int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 {
 	/* XXX todo implement */
 	return -ENOSYS;
-}
-
-/**
-   Subroutine to construct the match bit value from its components.
-   @param tmid Transfer machine identifier.
-   @param counter Buffer counter value.  The value of 0 is reserved for
-   the TM receive message queue.
-   @retval MatchBits
- */
-__u64 nlx_kcore_encode_match_bits(uint32_t tmid, uint64_t counter)
-{
-	__u64 mb;
-	mb = ((__u64) tmid << C2_NET_LNET_TMID_SHIFT) |
-		((__u64) counter & C2_NET_LNET_BUFFER_ID_MASK);
-	return mb;
-}
-
-/**
-   Subroutine to decode the match bits into its components.
-   @param mb Match bit field.
-   @param tmid Pointer to returned Transfer Machine id.
-   @param counter Pointer to returned buffer counter value.
- */
-void nlx_kcore_decode_match_bits(__u64 mb, uint32_t *tmid, uint64_t *counter)
-{
-	*tmid = (uint32_t)(mb >> C2_NET_LNET_TMID_SHIFT);
-	*counter = (uint64_t)(mb & C2_NET_LNET_BUFFER_ID_MASK);
 }
 
 void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
@@ -1061,7 +1088,7 @@ int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
 	bool any;
 
-	C2_PRE(kctm != NULL && kctm->ktm_magic == C2_NET_LNET_KCORE_TM_MAGIC);
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
 
 	do {
 		any = c2_semaphore_timeddown(&kctm->ktm_sem, timeout);
@@ -1207,14 +1234,13 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	}
 
 	tms_tlink_init(kctm);
-	kctm->ktm_tm = lctm;
+	kctm->ktm_ctm = lctm;
 	kctm->ktm_mb_counter = 1;
 	spin_lock_init(&kctm->ktm_bevq_lock);
 	c2_semaphore_init(&kctm->ktm_sem, 0);
 	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &kctm->ktm_eqh);
 	if (rc < 0)
 		goto fail;
-	LNetInvalidateHandle(&kctm->ktm_meh);
 
 	c2_mutex_lock(&nlx_kcore_mutex);
 	if (cepa->cepa_tmid == C2_NET_LNET_TMID_INVALID) {
@@ -1234,13 +1260,6 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		goto fail_with_eq;
 	}
 	rc = nlx_ep_create(epp, tm, cepa);
-	if (rc == 0) {
-		__u64 mb = nlx_kcore_encode_match_bits(cepa->cepa_tmid, 0);
-		id.nid = cepa->cepa_nid;
-		id.pid = cepa->cepa_pid;
-		rc = LNetMEAttach(cepa->cepa_portal, id, mb, 0,
-				  LNET_RETAIN, LNET_INS_AFTER, &kctm->ktm_meh);
-	}
 	if (rc != 0) {
 		c2_mutex_unlock(&nlx_kcore_mutex);
 		goto fail_with_eq;
@@ -1257,6 +1276,8 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	lctm->ctm_upvt = NULL;
 	lctm->ctm_kpvt = kctm;
 	lctm->ctm_user_space_xo = false;
+	lctm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
+	C2_POST(nlx_kcore_tm_invariant(kctm));
 	return 0;
 fail_with_eq:
 	i = LNetEQFree(kctm->ktm_eqh);
@@ -1284,10 +1305,8 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
 	int rc;
 
-	C2_PRE(kctm != NULL && kctm->ktm_magic == C2_NET_LNET_KCORE_TM_MAGIC);
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
 
-	if (!LNetHandleIsInvalid(kctm->ktm_meh))
-		LNetMEUnlink(kctm->ktm_meh);
 	rc = LNetEQFree(kctm->ktm_eqh);
 	C2_ASSERT(rc == 0);
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
@@ -1298,6 +1317,19 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	c2_mutex_unlock(&nlx_kcore_mutex);
 	lctm->ctm_kpvt = NULL;
 	c2_free(kctm);
+}
+
+int nlx_core_new_buffer_event(struct nlx_core_transfer_mc *ctm,
+			      struct nlx_core_buffer_event **bevp)
+{
+	struct nlx_core_buffer_event *bev;
+	C2_ALLOC_PTR(bev);
+	if (bev == NULL)
+		return -ENOMEM;
+	bev->cbe_tm_link.cbl_p_self = (nlx_core_opaque_ptr_t) &bev->cbe_tm_link;
+	bev_link_bless(&bev->cbe_tm_link);
+	*bevp = bev;
+	return 0;
 }
 
 static void nlx_core_fini(void)

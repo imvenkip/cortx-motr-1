@@ -212,6 +212,7 @@ C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
 /* Magic numbers */
 enum {
 	C2_NET_LNET_CORE_BUF_MAGIC = 0x436f7265427566ULL, /* CoreBuf */
+	C2_NET_LNET_CORE_TM_MAGIC  = 0x436f7265544dULL,   /* CoreTM */
 };
 
 /**
@@ -318,6 +319,8 @@ struct nlx_core_domain {
    private data.
  */
 struct nlx_core_transfer_mc {
+	uint64_t                   ctm_magic;
+
 	/** The transfer machine address */
 	struct nlx_core_ep_addr    ctm_addr;
 
@@ -329,6 +332,13 @@ struct nlx_core_transfer_mc {
 	   transport address space and the kernel.
 	 */
 	struct nlx_core_bev_cqueue ctm_bevq;
+
+	/**
+	   Count of bevq entries needed. Incremented by each add()
+	   operation (not necessarily by 1), and decremented with each
+	   buffer event returned by nlx_core_buf_event_get().
+	 */
+	size_t                     ctm_bev_needed;
 
 	void                      *ctm_upvt; /**< Core user space private */
 	void                      *ctm_kpvt; /**< Core kernel space private */
@@ -354,12 +364,30 @@ struct nlx_core_buffer {
         enum c2_net_queue_type  cb_qtype;
 
 	/**
+	   The length of data involved in the operation.
+	   Note this is less than or equal to the buffer length.
+	 */
+	c2_bcount_t             cb_length;
+
+	/**
+	   Value from nb_min_receive_size for receive queue buffers only.
+	 */
+	c2_bcount_t             cb_min_receive_size;
+
+	/**
+	   Value from nb_max_receive_msgs for receive queue buffers only.
+	 */
+	uint32_t                cb_max_receive_msgs;
+
+	/**
 	   The match bits for a passive bulk buffer, including the TMID field.
 	   They should be set using the nlx_core_buf_match_bits_set()
 	   subroutine.
 
-	   The file is also used in an active buffer to describe the match
+	   The field is also used in an active buffer to describe the match
 	   bits of the remote passive buffer.
+
+	   The field is set automatically for receive buffers.
 	 */
 	uint64_t                cb_match_bits;
 
@@ -436,8 +464,13 @@ static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
+   Increments the lctm->ctm_bev_needed count by lcbuf->cb_max_receive_msgs.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
+   @pre lcbuf->cb_length is valid
+   @pre lcbuf->cb_min_receive_size is valid
+   @pre lcbuf->cb_max_receive_msgs is valid
  */
 static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
@@ -449,8 +482,11 @@ static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
+   Increments the lctm->ctm_bev_needed count by 1.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
+   @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_addr is valid
  */
 static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
@@ -467,9 +503,12 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
+   Increments the lctm->ctm_bev_needed count by 1.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
    @pre lcbuf->cb_addr is valid
  */
@@ -484,9 +523,12 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
+   Increments the lctm->ctm_bev_needed count by 1.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
    @pre lcbuf->cb_addr is valid
  */
@@ -521,9 +563,12 @@ static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
+   Increments the lctm->ctm_bev_needed count by 1.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
  */
 static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
@@ -539,9 +584,12 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
+   Increments the lctm->ctm_bev_needed count by 1.
+
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
+   @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
  */
 static int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,

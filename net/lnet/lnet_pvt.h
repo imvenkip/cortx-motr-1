@@ -25,10 +25,38 @@
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm);
 static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm);
+static bool nlx_ep_invariant(const struct c2_net_end_point *ep);
 static int nlx_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_transfer_mc *tm,
 			 struct nlx_core_ep_addr *cepa);
 static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb);
+
+/**
+   Inline helper to get the Core EP address pointer from an end point.
+ */
+static inline
+struct nlx_core_ep_addr *nlx_ep_to_core(struct c2_net_end_point *ep)
+{
+	struct nlx_xo_ep *xep;
+	C2_PRE(nlx_ep_invariant(ep));
+	xep = container_of(ep, struct nlx_xo_ep, xe_ep);
+	return &xep->xe_core;
+}
+
+
+/* core private */
+
+/**
+   Subroutine to allocate a new buffer event structure initialized
+   with the producer space self pointer set.
+   This subroutine is defined separately for the kernel and user space.
+   @param ctm Core transfer machine pointer.
+   @param bevp Buffer event return pointer.
+   @post bev_cqueue_bless(&bevp->cbe_tm_link) has been invoked.
+   @see bev_cqueue_bless()
+ */
+static int nlx_core_new_buffer_event(struct nlx_core_transfer_mc *ctm,
+				     struct nlx_core_buffer_event **bevp);
 
 #endif /* __COLIBRI_NET_LNET_PVT_H__ */
 

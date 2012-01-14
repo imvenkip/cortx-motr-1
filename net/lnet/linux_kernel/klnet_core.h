@@ -54,7 +54,7 @@ struct nlx_kcore_transfer_mc {
 	uint64_t                         ktm_magic;
 
 	/** Kernel pointer to the shared memory TM structure. */
-	struct nlx_core_transfer_mc     *ktm_tm;
+	struct nlx_core_transfer_mc     *ktm_ctm;
 
 	/** Transfer machine linkage */
 	struct c2_tlink                  ktm_tm_linkage;
@@ -73,9 +73,6 @@ struct nlx_kcore_transfer_mc {
 
 	/** Handle of the LNet EQ associated with this transfer machine */
 	lnet_handle_eq_t                 ktm_eqh;
-
-	/** ME handle associated with the receive buffer queue */
-	lnet_handle_me_t                 ktm_meh;
 };
 
 
@@ -96,6 +93,9 @@ struct nlx_kcore_buffer {
 	 */
 	uint32_t                      kb_max_recv_msgs;
 
+	/** Pointer to the shared memory buffer data. */
+	struct nlx_core_buffer       *kb_cb;
+
 	/** Pointer to kernel core TM data. */
 	struct nlx_kcore_transfer_mc *kb_ktm;
 
@@ -110,11 +110,9 @@ struct nlx_kcore_buffer {
 };
 
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
+static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
-static __u64 nlx_kcore_encode_match_bits(uint32_t tmid, uint64_t counter);
-static void nlx_kcore_decode_match_bits(__u64 mb, uint32_t *tmid,
-					uint64_t *counter);
 
 /**
    @}
