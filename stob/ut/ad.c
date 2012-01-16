@@ -180,9 +180,9 @@ static int test_ad_init(void)
 	C2_ASSERT(result == 0);
 
 	result = c2_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,
-				  4096ULL * 1024 * 1024 * 1000,
-				  128 * 1024 * 1024, 2);
-	//result = c2_ad_stob_setup(dom_fore, &db, obj_back, &colibri_balloc.cb_ballroom);
+				  BALLOC_DEF_CONTAINER_SIZE,
+				  BALLOC_DEF_GROUP_SIZE,
+				  BALLOC_DEF_RESERVED_GROUPS);
 	C2_ASSERT(result == 0);
 
 	c2_stob_put(obj_back);
