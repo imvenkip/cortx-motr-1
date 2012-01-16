@@ -66,6 +66,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"
+#include "balloc/balloc.h"
 
 /**
    @addtogroup reqh
@@ -206,8 +207,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,
-			      4096ULL * 1024 * 1024 * 1000,
-			      128 * 1024 * 1024, 2);
+			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
+			      BALLOC_DEF_RESERVED_GROUPS);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_stob_put(*bstore);
