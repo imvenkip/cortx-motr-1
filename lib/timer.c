@@ -150,10 +150,9 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 		return -ENOMEM;
 
 	tt->tt_tid = tid;
-	tid_tlink_init(tt);
 
 	c2_mutex_lock(&loc->tlo_lock);
-	tid_tlist_add(&loc->tlo_tids, tt);
+	tid_tlink_init_at_tail(tt, &loc->tlo_tids);
 	c2_mutex_unlock(&loc->tlo_lock);
 
 	return 0;
@@ -174,10 +173,9 @@ void c2_timer_thread_detach(struct c2_timer_locality *loc)
 	c2_mutex_lock(&loc->tlo_lock);
 	if (loc->tlo_rrtid == tt)
 		loc->tlo_rrtid = NULL;
-	tid_tlist_del(tt);
+	tid_tlink_del_fini(tt);
 	c2_mutex_unlock(&loc->tlo_lock);
 
-	tid_tlink_fini(tt);
 	c2_free(tt);
 }
 C2_EXPORTED(c2_timer_thread_detach);
