@@ -184,144 +184,86 @@ static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size
 	return 0;
 }
 
+static void print_rpc_stats(struct c2_rpc_stats *stats)
+{
+	uint64_t nsec;
+#ifdef __KERNEL__
+	uint64_t sec = 0;
+	uint64_t usec = 0;
+	uint64_t thruput;
+	uint64_t packing_density;
+#else
+	double   sec = 0;
+	double   msec = 0;
+	double   thruput;
+	double   packing_density;
+#endif
+
+	printf("\t\trpcs:\t%llu\n",
+			(unsigned long long) stats->rs_rpcs_nr);
+	printf("\t\titems:\t%llu\n",
+			(unsigned long long) stats->rs_items_nr);
+	printf("\t\tbytes:\t%llu\n",
+			(unsigned long long) stats->rs_bytes_nr);
+#ifndef __KERNEL__
+	packing_density = (double) stats->rs_items_nr /
+			  (double) stats->rs_rpcs_nr;
+	printf("\t\tpacking_density: %lf\n", packing_density);
+#else
+	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
+	printf("\t\tpacking_density: %llu\n", packing_density);
+#endif
+	sec = 0;
+	sec = c2_time_seconds(stats->rs_min_lat);
+	nsec = c2_time_nanoseconds(stats->rs_min_lat);
+#ifdef __KERNEL__
+	usec = (uint64_t) nsec / 1000;
+	usec += (uint64_t) (sec * 1000000);
+	printf("\t\tmin_latency:\t %llu # usec\n", usec);
+	if (usec != 0) {
+		thruput = (uint64_t)stats->rs_bytes_nr/usec;
+		printf("\t\tmax_throughput:\t %llu # MB/s\n", thruput);
+	}
+#else
+	sec += (double) nsec/1000000000;
+	msec = (double) sec * 1000;
+	printf("\t\tmin_latency:\t %lf # msec\n", msec);
+
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	printf("\t\tmax_throughput:\t %lf # MB/s\n", thruput);
+#endif
+
+	sec = 0;
+	sec = c2_time_seconds(stats->rs_max_lat);
+	nsec = c2_time_nanoseconds(stats->rs_max_lat);
+#ifdef __KERNEL__
+	usec = (uint64_t) nsec / 1000;
+	usec += (uint64_t) (sec * 1000000);
+	printf("\t\tmax_latency:\t %llu # usec\n", usec);
+	if (usec != 0) {
+		thruput = (uint64_t)stats->rs_bytes_nr/usec;
+		printf("min_throughput:\t %llu # MB/s\n", thruput);
+	}
+#else
+	sec += (double) nsec/1000000000;
+	msec = (double) sec * 1000;
+	printf("\t\tmax_latency:\t %lf # msec\n", msec);
+
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	printf("\t\tmin_throughput:\t %lf # MB/s\n", thruput);
+#endif
+}
+
 /* Get stats from rpcmachine and print them */
 static void print_stats(struct c2_rpcmachine *rpc_mach)
 {
-	struct c2_rpc_stats	*stats;
-	uint64_t		 nsec;
-#ifdef __KERNEL__
-	uint64_t		 sec = 0;
-	uint64_t		 usec = 0;
-	uint64_t		 thruput;
-	uint64_t		 packing_density;
-#else
-	double			 sec = 0;
-	double			 msec = 0;
-	double			 thruput;
-	double			 packing_density;
-#endif
+	printf("stats:\n");
 
-	stats = &rpc_mach->cr_rpc_stats[C2_RPC_PATH_OUTGOING];
-	printf("\n\n*********************************************\n");
-	printf("Stats on Outgoing Path\n");
-	printf("*********************************************\n");
-	printf("Number of outgoing items = %llu\n",
-			(unsigned long long) stats->rs_items_nr);
-	printf("Number of outgoing bytes = %llu\n",
-			(unsigned long long) stats->rs_bytes_nr);
-	printf("Number of outgoing rpc's = %llu\n",
-			(unsigned long long) stats->rs_rpcs_nr);
-#ifndef __KERNEL__
-        packing_density = (double) stats->rs_items_nr /
-			  (double) stats->rs_rpcs_nr;
-        printf("RPC packing density      = %lf\n", packing_density);
-#else
-        packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
-        printf("RPC packing density      = %llu\n", packing_density);
-#endif
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_min_lat);
-	nsec = c2_time_nanoseconds(stats->rs_min_lat);
-#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-        usec += (uint64_t) (sec * 1000000);
-        printf("\nMin latency    (usecs)   = %llu\n", usec);
-	if (usec != 0) {
-       		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-       		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
-	}
-#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nMin latency    (msecs)   = %lf\n", msec);
+	printf("\tin:\n");
+	print_rpc_stats(&rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING]);
 
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
-#endif
-
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_max_lat);
-	nsec = c2_time_nanoseconds(stats->rs_max_lat);
-#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-        usec += (uint64_t) (sec * 1000000);
-        printf("\nMax latency    (usecs)   = %llu\n", usec);
-	if (usec != 0) {
-        	thruput = (uint64_t)stats->rs_bytes_nr/usec;
-        	printf("Min Throughput (MB/sec)  = %llu\n", thruput);
-	}
-#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nMax latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
-#endif
-
-	printf("*********************************************\n");
-
-	stats = &rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING];
-
-	printf("\n\n*********************************************\n");
-	printf("Stats on Incoming Path\n");
-	printf("*********************************************\n");
-	printf("Number of incoming items = %llu\n",
-			(unsigned long long) stats->rs_items_nr);
-	printf("Number of incoming bytes = %llu\n",
-			(unsigned long long) stats->rs_bytes_nr);
-	printf("Number of incoming rpc's = %llu\n",
-			(unsigned long long) stats->rs_rpcs_nr);
-#ifndef __KERNEL__
-        packing_density = (double) stats->rs_items_nr /
-			  (double)stats->rs_rpcs_nr;
-	printf("RPC packing density      = %lf\n", packing_density);
-#else
-	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
-        printf("RPC packing density      = %llu\n", packing_density);
-#endif
-
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_min_lat);
-	nsec = c2_time_nanoseconds(stats->rs_min_lat);
-#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-        usec += (uint64_t) (sec * 1000000);
-	printf("\nMin latency    (usecs)   = %llu\n", usec);
-	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
-	}
-#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nMin latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
-#endif
-
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_max_lat);
-	nsec = c2_time_nanoseconds(stats->rs_max_lat);
-#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-        usec += (uint64_t) (sec * 1000000);
-	printf("\nMax latency    (usecs)   = %llu\n", usec);
-	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("Min Throughput (MB/sec)  = %llu\n", thruput);
-	}
-#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nMax latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
-#endif
-
-	printf("*********************************************\n");
+	printf("\tout:\n");
+	print_rpc_stats(&rpc_mach->cr_rpc_stats[C2_RPC_PATH_OUTGOING]);
 }
 
 /* Create a ping fop and post it to rpc layer */
@@ -534,13 +476,14 @@ static int run_server(void)
 
 		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds1");
 		if (rpcmach != NULL) {
-			printf("########### Server DS1 statS ###########");
+			printf("########### Server DS1 statS ###########\n");
 			print_stats(rpcmach);
 		}
 
 		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds2");
 		if (rpcmach != NULL) {
-			printf("########### Server DS2 statS ###########");
+			printf("\n");
+			printf("########### Server DS2 statS ###########\n");
 			print_stats(rpcmach);
 		}
 	}
