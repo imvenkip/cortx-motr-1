@@ -63,8 +63,8 @@ struct c2_balloc_group_info {
         struct c2_mutex bgi_mutex;      /*< per-group lock */
 
 	struct c2_ext   *bgi_extents;   /*< (bgi_fragments+1) of extents */
-	
-        /** 
+
+        /**
 	   Nr of free power-of-two-block regions, index is order.
            bb_counters[3] = 5 means 5 free 8-block regions.
         c2_bcount_t     bgi_counters[];
@@ -109,7 +109,7 @@ struct c2_balloc_super_block {
         c2_bcount_t	bsb_stripe_size;   /*< stripe size in blocks */
 };
 
-enum c2_balloc_super_block_magic { 
+enum c2_balloc_super_block_magic {
 	C2_BALLOC_SB_MAGIC =  0xC011B21AC08EC08EULL,
 };
 
@@ -136,7 +136,7 @@ struct c2_balloc {
 	struct c2_table  cb_db_group_extents;/*< db for free extent */
 	struct c2_table  cb_db_group_desc;   /*< db for group desc */
 	struct c2_balloc_group_info *cb_group_info; /*< array of group info */
-	
+
 	struct c2_ext    cb_last;
 
 	struct ad_balloc cb_ballroom;
@@ -154,7 +154,7 @@ struct c2_balloc_format_req {
 	c2_bindex_t 	bfr_totalsize;	      /*< total size in bytes */
 	c2_bcount_t	bfr_blocksize;        /*< block size in bytes */
 	c2_bcount_t	bfr_groupsize;        /*< group size in bytes */
-	c2_bcount_t	bfr_reserved_groups;  /*< # of resvered groups */
+	c2_bcount_t	bfr_reserved_groups;  /*< # of reserved groups */
 };
 
 struct c2_balloc_free_extent {
@@ -234,6 +234,11 @@ struct c2_balloc_discard_req {
 	void           *bdr_prealloc; /*< User opaque prealloc result */
 };
 
+enum {
+	BALLOC_DEF_CONTAINER_SIZE  = 4096ULL * 1024 * 1024 * 1000,// = 400GB
+	BALLOC_DEF_GROUP_SIZE      = 128 * 1024 * 1024,// = ext4 group size
+	BALLOC_DEF_RESERVED_GROUPS = 2
+};
 
 extern struct c2_balloc colibri_balloc;
 

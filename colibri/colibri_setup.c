@@ -818,8 +818,9 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 
 	if (strcasecmp(stob_type, cs_stobs[AD_STOB]) == 0)
 		rc = cs_ad_stob_init(stob_path, stob, db, &bstore,
-				     CS_CONTAINER_SIZE, CS_GROUP_SIZE,
-				     CS_RESERVED_GROUPS);
+				     BALLOC_DEF_CONTAINER_SIZE,
+				     BALLOC_DEF_GROUP_SIZE,
+				     BALLOC_DEF_RESERVED_GROUPS);
 	if (rc != 0)
 		goto cleanup;
 

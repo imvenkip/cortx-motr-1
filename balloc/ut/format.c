@@ -51,9 +51,9 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, 12,
-		 4096ULL * 1024 * 1024 * 1000,
-		 128 * 1024 * 1024, 2);
+		(&colibri_balloc.cb_ballroom, &db, 12,//Block size = 1 << 12
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
+		 BALLOC_DEF_RESERVED_GROUPS);
 
 	result = c2_db_tx_commit(&dtx.tx_dbtx);
 	C2_ASSERT(result == 0);

@@ -51,9 +51,10 @@ int main(int argc, char **argv)
 	result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 	C2_ASSERT(result == 0);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom,
-							    &db, 12, 4096ULL * 1024 * 1024 * 1000,
-							    128 * 1024 * 1024, 2);
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(
+		    &colibri_balloc.cb_ballroom, &db, 12,//Block size = 1 << 12
+		    BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
+		    BALLOC_DEF_RESERVED_GROUPS);
 
 	if (result == 0) {
 		c2_balloc_debug_dump_sb(argv[0], &colibri_balloc.cb_sb);

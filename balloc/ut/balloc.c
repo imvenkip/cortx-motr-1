@@ -42,12 +42,6 @@ enum balloc_io_flags {
 	BALLOC_IO_BUFFERED_BSHIFT = 12
 };
 
-enum {
-	BALLOC_UT_CONTAINER_SIZE  = 4096ULL * 1024 * 1024 * 1000, // = 400GB
-	BALLOC_UT_GROUP_SIZE      = 128 * 1024 * 1024, // = ext4 group size
-	BALLOC_UT_RESERVED_GROUPS = 2
-};
-
 int test_balloc_ut_ops(int io_flag)
 {
 	struct c2_dbenv		db;
@@ -67,8 +61,8 @@ int test_balloc_ut_ops(int io_flag)
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
 		(&colibri_balloc.cb_ballroom, &db, io_flag,
-		 BALLOC_UT_CONTAINER_SIZE, BALLOC_UT_GROUP_SIZE,
-		 BALLOC_UT_RESERVED_GROUPS);
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
+		 BALLOC_DEF_RESERVED_GROUPS);
 
 	for (i = 0; i < MAX && result == 0; i++ ) {
 		do  {

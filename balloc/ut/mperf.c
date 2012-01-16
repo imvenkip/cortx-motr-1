@@ -77,7 +77,8 @@ repeat:
 		C2_ASSERT(result == 0);
 		tmp.e_start = tmp.e_end;
 		gettimeofday(&alloc_begin, NULL);
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &ext[i]);
+		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(
+			    &colibri_balloc.cb_ballroom, &dtx, count, &ext[i]);
 		gettimeofday(&alloc_end, NULL);
 		alloc_usec += timesub(&alloc_begin, &alloc_end);
 		tmp = ext[i];
@@ -93,28 +94,23 @@ repeat:
 			usleep( rand() & 0xfff);
 			goto repeat;
 		}
-/*
-		printf("%lx %5d: rc = %d: requested count=%5d, result count=%5d: [%08llx,%08llx)=[%10llu,%10llu)\n",
+#ifdef BALLOC_DEBUG
+
+		printf("%lx %5d: rc = %d: requested count=%5d, result count=%5d:"
+		       "[%08llx,%08llx)=[%10llu,%10llu)\n",
 			(long)pthread_self(), i, result, (int)count,
 			(int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end,
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end);
-*/
+#endif
 	}
 
-	printf("=======%lx====%d========\tPerf: alloc/sec = %lu\n", (long)pthread_self(), i, (unsigned long)i * 1000000 / alloc_usec);
+	printf("=======%lx====%d========\tPerf: alloc/sec = %lu\n",
+	       (long)pthread_self(), i, (unsigned long)i * 1000000 / alloc_usec);
 	alloc = i;
-	/* randonmize the array*/
-	/*
-	for (i = 0; i < alloc * 2; i++ ) {
-		int a, b;
-		a = rand() % alloc;
-		b = rand() % alloc;
-		C2_SWAP(ext[a], ext[b]);
-	}
-	*/
+
 	result = 0;
 
 	for (i = alloc - 1; i >= 0 && result == 0; i-- ) {
@@ -125,7 +121,8 @@ repeat_free:
 
 		gettimeofday(&free_begin, NULL);
 		if (ext[i].e_start != 0)
-			result = colibri_balloc.cb_ballroom.ab_ops->bo_free(&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
+			result = colibri_balloc.cb_ballroom.ab_ops->bo_free(
+				    &colibri_balloc.cb_ballroom, &dtx, &ext[i]);
 		gettimeofday(&free_end, NULL);
 		free_usec += timesub(&free_begin, &free_end);
 		if (result == 0 )
@@ -136,18 +133,20 @@ repeat_free:
 			usleep( rand() & 0xfff);
 			goto repeat_free;
 		}
-/*
-		printf("%lx %5d: rc = %d: freed: len=%5d: [%08llx,%08llx)=[%10llu,%10llu)\n",
-			(long)pthread_self(), i, result, (int)c2_ext_length(&ext[i]),
-			(unsigned long long)ext[i].e_start,
-			(unsigned long long)ext[i].e_end,
-			(unsigned long long)ext[i].e_start,
-			(unsigned long long)ext[i].e_end);
-*/
+#ifdef BALLOC_DEBUG
+		printf("%lx %5d: rc = %d: freed: len=%5d: [%08llx,%08llx)="
+		       "[%10llu,%10llu)\n",
+		       (long)pthread_self(), i, result, (int)c2_ext_length(&ext[i]),
+		       (unsigned long long)ext[i].e_start,
+		       (unsigned long long)ext[i].e_end,
+		       (unsigned long long)ext[i].e_start,
+		       (unsigned long long)ext[i].e_end);
+#endif
 	}
 
-
-	printf("=======%lx====%d========\tPerf: free/sec  = %lu\n", (long)pthread_self(), i, (unsigned long)alloc * 1000000 / free_usec);
+	printf("=======%lx====%d========\tPerf: free/sec  = %lu\n",
+	       (long)pthread_self(), i, (unsigned long)alloc * 1000000
+	       / free_usec);
 }
 
 int main(int argc, char **argv)
@@ -162,7 +161,8 @@ int main(int argc, char **argv)
 	struct c2_thread      *threads;
 
 	if (argc != 5) {
-		fprintf(stderr, "Usage: %s <db-dir> number_of_loops num_of_threads num_of_blocks\n", argv[0]);
+		fprintf(stderr, "Usage: %s <db-dir> number_of_loops"
+			"num_of_threads num_of_blocks\n", argv[0]);
 		return 1;
 	}
 	db_name = argv[1];
@@ -185,9 +185,10 @@ int main(int argc, char **argv)
 	threads = c2_alloc(num_threads * sizeof (struct c2_thread));
 	C2_ASSERT(threads != NULL);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db, 12,
-							    4096ULL * 1024 * 1024 * 1000,
-							    128 * 1024 * 1024, 2);
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(
+		    &colibri_balloc.cb_ballroom, &db, 12,// block size = 1 << 12
+		    BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
+		    BALLOC_DEF_RESERVED_GROUPS);
 	C2_ASSERT(result == 0);
 	for (i = 0; i < num_threads; i++) {
 		result = C2_THREAD_INIT(&threads[i], struct c2_balloc*, NULL,
@@ -199,11 +200,15 @@ int main(int argc, char **argv)
 		result = c2_thread_join(&threads[i]);
 		C2_ASSERT(result == 0);
 	}
-
+#ifdef BALLOC_DEBUG
 	printf("all threads exited\n");
+#endif
 	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
 	c2_dbenv_fini(&db);
+
+#ifdef BALLOC_DEBUG
 	printf("done\n");
+#endif
 	return 0;
 }
 
