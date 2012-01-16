@@ -948,6 +948,8 @@ void ping_server(struct ping_ctx *ctx)
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
 		nb->nb_timeout = C2_TIME_NEVER;
 		nb->nb_ep = NULL;
+		nb->nb_min_receive_size = ctx->pc_segments * ctx->pc_seg_size;
+		nb->nb_max_receive_msgs = 1;
 		rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 		c2_bitmap_set(&ctx->pc_nbbm, i, true);
 		C2_ASSERT(rc == 0);
@@ -1044,6 +1046,8 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_timeout = C2_TIME_NEVER;
 	nb->nb_ep = NULL;
+	nb->nb_min_receive_size = ctx->pc_segments * ctx->pc_seg_size;
+	nb->nb_max_receive_msgs = 1;
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 

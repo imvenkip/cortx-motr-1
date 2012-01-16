@@ -74,7 +74,7 @@ static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 	struct c2_net_buffer *nb;
 	if (!pool_tlist_is_empty(&pool->nbp_lru)) {
 		c2_tlist_for(&pool_tl, &pool->nbp_lru, nb) {
-			if ((nb->nb_flags & C2_NET_BUF_IN_USE) ||
+			if ((nb->nb_flags & C2_NET_BUF_QUEUED) ||
 			   !(nb->nb_flags & C2_NET_BUF_REGISTERED)) {
 				return false;
 			}
@@ -226,7 +226,7 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 	C2_PRE(buf != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 	C2_PRE(colour == ~0 || colour < pool->nbp_colours_nr);
-	C2_PRE(!(buf->nb_flags & C2_NET_BUF_IN_USE));
+	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);
 	C2_PRE(pool->nbp_ndom == buf->nb_dom);
 

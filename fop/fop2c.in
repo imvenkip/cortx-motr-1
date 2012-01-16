@@ -135,11 +135,6 @@ EOF
 	for hdr in $depfiles; do
 	    hdr=${hdr}_$(echo $where | tr [A-Z] [a-z])
 
-	    #Change the path to appropriate dir for kernel definitions.
-	    if [ $where == K ] ;then
-		hdr=$(echo $hdr | sed -e 's/\//\/linux_kernel\//g')
-	    fi
-
 	    hdr=$hdr.h
 	    echo "static const char dfiles$i[] = \""$hdr"\";" >> $tfile
 	    let i=i+1

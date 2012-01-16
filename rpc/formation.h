@@ -44,7 +44,7 @@ struct c2_fop;
    The rpc items cache is grouped into several lists, either in the list
    of unbound items in some slot or list of ready items on a slot.
    Each list contains rpc items destined for given endpoint.
-   These lists are sorted by deadlines. So the items with least deadline 
+   These lists are sorted by deadlines. So the items with least deadline
    will be at the HEAD of list.
    Refer to the HLD of RPC Formation -
    https://docs.google.com/a/xyratex.com/Doc?docid=0AXXBPOl-5oGtZGRzMzZ2NXdfMGQ0ZjNweGdz&hl=en

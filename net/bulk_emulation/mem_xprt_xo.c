@@ -426,7 +426,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		nb->nb_length = 0;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
 		bp->xb_buf_id = ++dp->xd_buf_id_counter;
-		rc = mem_bmo_desc_create(&nb->nb_desc, nb->nb_ep, tm,
+		rc = mem_bmo_desc_create(&nb->nb_desc, tm,
 					 nb->nb_qtype, nb->nb_length,
 					 bp->xb_buf_id);
 		if (rc != 0)

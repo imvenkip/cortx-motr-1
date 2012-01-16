@@ -84,6 +84,15 @@ bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
  */
 void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
 
+/**
+   Copies the bit values from one bitmap to another.
+   @param dst destination bitmap, must already be initialised.  If dst
+   is larger than src, bits beyond src->b_nr are cleared in dst.
+   @param src source bitmap
+   @pre dst->b_nr >= src->b_nr
+ */
+void c2_bitmap_copy(struct c2_bitmap *dst, const struct c2_bitmap *src);
+
 C2_BASSERT(8 == sizeof ((struct c2_bitmap *)0)->b_words[0]);
 
 /** @} end of bitmap group */

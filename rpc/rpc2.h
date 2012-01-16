@@ -219,6 +219,14 @@ struct c2_rpc_item_ops {
 	   the time this method is called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item);
+
+	/**
+	   Finalise and free item.
+	   @see c2_fop_default_item_ops
+	   @see c2_fop_item_free(), can be used with fops that are not embedded
+	   in any other object.
+	 */
+	void (*rio_free)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {
@@ -853,6 +861,8 @@ struct c2_rpc_bulk_buf {
 	struct c2_rpc_bulk	*bb_rbulk;
 	/** Flag which tells if c2_rpc_bulk_buf has registered the
 	    inline net buffer with net domain.
+	    If buffer is registered internally, it is also deregistered
+	    by rpc bulk code.
 	    Default value of flag is false. */
 	bool			 bb_owner;
 };
@@ -928,6 +938,8 @@ int c2_rpc_bulk_buf_usrbuf_add(struct c2_rpc_bulk_buf *rbuf,
 	..
 	..
    } while (not_empty);
+   c2_rpc_bulk_store(rbulk, conn, desc);
+   ..
    c2_clink_add(rbulk->rb_chan, clink);
    c2_rpc_post(rpc_item);
    c2_chan_wait(clink);
@@ -960,7 +972,7 @@ struct c2_rpc_bulk {
 /**
    Initializes a rpc bulk structure.
    @param rbulk rpc bulk structure to be initialized.
-   @pre rbulk != NULL && segs_nr != 0 && netdom != NULL.
+   @pre rbulk != NULL.
    @post rpc_bulk_invariant(rbulk).
  */
 void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk);
@@ -983,17 +995,19 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk);
    Enum to identify the type of bulk operation going on.
  */
 enum c2_rpc_bulk_op_type {
-	/** Store the net buf descriptors from net buffers to io fops. */
+	/** Store the net buf descriptors from net buffers to io fops.
+	    Typically used by bulk client. */
 	C2_RPC_BULK_STORE = (1 << 0),
 	/** Load the net buf descriptors from io fops to destination
-	    net buffers. */
+	    net buffers.
+	    Typically used by bulk server. */
 	C2_RPC_BULK_LOAD  = (1 << 1),
 };
 
 /**
-   Stores the c2_net_buf_desc for the net buffer pointed to by c2_rpc_bulk_buf
-   structure in the provided buffer descriptor.
-   This API is typically invoked from the sender side in a zero-copy buffer
+   Stores the c2_net_buf_desc/s for net buffer/s pointed to by c2_rpc_bulk_buf
+   structure/s in the io fop wire format.
+   This API is typically invoked by bulk client in a zero-copy buffer
    transfer.
    @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
    structures, the net buf descriptors of io fops will be populated.
@@ -1011,10 +1025,10 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
 		      struct c2_net_buf_desc *to_desc);
 
 /**
-   Loads the c2_net_buf_descs pointing to net buffer contained by
-   c2_rpc_bulk_buf structures in rbulk->rb_buflist and starts RDMA transfer
+   Loads the c2_net_buf_desc/s pointing to net buffer/s contained by
+   c2_rpc_bulk_buf structure/s in rbulk->rb_buflist and starts RDMA transfer
    of buffers.
-   This API is typically used by receiver side in a zero-copy buffer transfer.
+   This API is typically used by bulk server in a zero-copy buffer transfer.
    @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
    structures, net buffers will be added to transfer machine.
    @param conn The c2_rpc_conn object which represents the rpc connection

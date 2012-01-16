@@ -127,16 +127,26 @@ enum {
    io fops and the associated rpc bulk structures.
    The c2_io_fop structures can be populated and used like this.
    @see c2_rpc_bulk().
+
    @code
+
    c2_io_fop_init(iofop, ftype);
-   ...
-   c2_rpc_bulk_page_add(iofop->if_rbulk, page, index);
-   OR
-   c2_rpc_bulk_buf_add(iofop->if_rbulk, buf, count, index);
+   do {
+	c2_rpc_bulk_buf_add(&iofop->if_rbulk, rbuf);
+	..
+	c2_rpc_bulk_buf_page_add(rbuf, page, index);
+	OR
+	c2_rpc_bulk_buf_usrbuf_add(rbuf, buf, count, index);
+	..
+   } while (not_empty);
    ..
    c2_rpc_bulk_buf_store(rbuf, rpcitem, net_buf_desc);
    ..
+   c2_clink_add(rbulk->rb_chan, clink);
+   c2_rpc_post(rpc_item);
+   c2_chan_wait(clink);
    c2_io_fop_fini(iofop);
+
    @endcode
  */
 struct c2_io_fop {
@@ -169,37 +179,17 @@ void c2_io_fop_fini(struct c2_io_fop *iofop);
 struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
 
 /**
-   Allocates the number of index vectors and segments inside each index
-   vector.
+   Allocates memory for net buf descriptors array and index vector array
+   and populate the array of index vectors.
    @pre fop != NULL.
  */
-int io_fop_ivec_alloc(struct c2_fop *fop);
+int io_fop_prepare(struct c2_fop *fop);
 
 /**
-   Deallocates the number of index vectors and segments inside each index
-   vector.
-   @pre fop != NULL.
+   Deallocates memory for sequence of net buf desc and sequence of index
+   vector from io fop wire format.
  */
-void io_fop_ivec_dealloc(struct c2_fop *fop);
-
-/**
-   Allocates the array of c2_net_buf_desc objects contained in io fop.
-   @pre fop != NULL.
- */
-int io_fop_desc_alloc(struct c2_fop *fop);
-
-/**
-   Deallocates the array of c2_net_buf_desc objects contained in io fop.
-   @pre fop != NULL.
- */
-void io_fop_desc_dealloc(struct c2_fop *fop);
-
-/**
-   Populates the array of index vectors from the list of zero vectors
-   stored in c2_rpc_bulk structure.
-   @pre fop != NULL.
- */
-void io_fop_ivec_prepare(struct c2_fop *fop);
+void io_fop_destroy(struct c2_fop *fop);
 
 /**
    @} bulkclientDFS end group

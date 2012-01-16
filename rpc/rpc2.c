@@ -34,7 +34,7 @@
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_onwire.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
 
@@ -196,6 +196,15 @@ int c2_rpc_post(struct c2_rpc_item *item)
 
 	C2_ASSERT(item != NULL && item->ri_type != NULL);
 
+	/*
+	 * It is mandatory to specify item_ops, because rpc layer needs
+	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
+	 * item. Consumer can use c2_fop_default_item_ops if, it is not
+	 * interested in implementing other (excluding ->rio_free())
+	 * interfaces of c2_rpc_item_ops. See also c2_fop_item_free().
+	 */
+	C2_ASSERT(item->ri_ops != NULL && item->ri_ops->rio_free != NULL);
+
 	session = item->ri_session;
 	C2_ASSERT(session != NULL);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
@@ -220,6 +229,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 	C2_PRE(request->ri_session != NULL);
 	C2_PRE(reply->ri_type != NULL);
+	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
 
 	reply->ri_rpc_time = c2_time_now();
 
@@ -701,9 +711,11 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 
 	nb->nb_flags = 0;
 	nb->nb_qtype = qtype;
-	if (qtype == C2_NET_QT_MSG_RECV)
+	if (qtype == C2_NET_QT_MSG_RECV) {
 		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	else
+		nb->nb_min_receive_size = nrsegs * seg_size;
+		nb->nb_max_receive_msgs = 1;
+	} else
 		nb->nb_callbacks = &c2_rpc_send_buf_callbacks;
 
 	/* Register the buffer with given net domain. */
@@ -1028,13 +1040,12 @@ static bool rpc_bulk_buf_invariant(struct c2_rpc_bulk_buf *rbuf)
 		!(rbuf == NULL ||
 		  rbuf->bb_magic != C2_RPC_BULK_BUF_MAGIC ||
 		  rbuf->bb_rbulk == NULL ||
-		  rbuf->bb_nbuf.nb_buffer.ov_vec.v_nr !=
-		  rbuf->bb_zerovec.z_bvec.ov_vec.v_nr);
+		  !rpcbulk_tlink_is_in(rbuf));
 }
 
 static void rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
 {
-	C2_PRE(rpc_bulk_buf_invariant(rbuf));
+	C2_PRE(rbuf != NULL);
 
 	c2_net_desc_free(&rbuf->bb_nbuf.nb_desc);
 	c2_0vec_fini(&rbuf->bb_zerovec);
@@ -1076,9 +1087,10 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 		if (rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
 			c2_chan_signal(&rbulk->rb_chan);
 	}
-	c2_mutex_unlock(&rbulk->rb_mutex);
 	if (buf->bb_owner)
 		c2_net_buffer_deregister(nb, nb->nb_dom);
+
+	c2_mutex_unlock(&rbulk->rb_mutex);
 	rpc_bulk_buf_fini(buf);
 }
 

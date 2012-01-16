@@ -111,18 +111,10 @@ struct c2_console {
         struct c2_net_xprt        *cons_xprt;
         /** Network domain */
         struct c2_net_domain       cons_ndom;
-        /** Local host name */
-        const char                *cons_lhost;
-        /** Local port */
-        int                        cons_lport;
-	/** Dotted quad for local host */
-	char			   cons_laddr[ADDR_LEN];
-        /** Remote host name */
-        const char                *cons_rhost;
-        /** remote port */
-        int                        cons_rport;
-	/** Dotted quad for remote host */
-	char			   cons_raddr[ADDR_LEN];
+	/* Source end point address for client. */
+	const char                *cons_lepaddr;
+	/* Destination end point address for client, i.e. server end point. */
+	const char                *cons_repaddr;
         /** Remote end point */
         struct c2_net_end_point   *cons_rendp;
 	/** DB for rpc machine */
@@ -145,8 +137,6 @@ struct c2_console {
 	struct c2_reqh		   cons_reqh;
 	/** number of slots */
         int			   cons_nr_slots;
-	/** Console server/client ID */
-        uint32_t		   cons_rid;
 	/** No of items in flight for rpc */
 	uint64_t		   cons_items_in_flight;
 };

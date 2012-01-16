@@ -26,7 +26,7 @@
 #include "ioservice/io_fops.h"
 
 #ifdef __KERNEL__
-#include "ioservice/linux_kernel/io_fops_k.h"
+#include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif
@@ -40,7 +40,7 @@
 #include "lib/vec.h"	/* c2_0vec */
 #include "lib/memory.h"
 #include "rpc/rpc2.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "lib/tlist.h"
 
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
@@ -60,6 +60,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **m);
 static void io_item_replied(struct c2_rpc_item *item);
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			     uint64_t size);
+static void io_item_free(struct c2_rpc_item *item);
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
 static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
@@ -100,23 +101,25 @@ static struct c2_fop_type *ioservice_fops[] = {
       &c2_fop_cob_writev_rep_fopt,
 };
 
-const struct c2_rpc_item_ops rpc_item_iov_ops = {
-	.rio_sent = NULL,
-	.rio_added = NULL,
-	.rio_replied = io_item_replied,
+/* Used for REQUEST items only. */
+const struct c2_rpc_item_ops io_req_rpc_item_ops = {
+	.rio_sent	= NULL,
+	.rio_added	= NULL,
+	.rio_replied	= io_item_replied,
+	.rio_free	= io_item_free,
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
+        .rito_item_size   = c2_fop_item_type_default_onwire_size,
         .rito_io_coalesce = item_io_coalesce,
-        .rito_encode = c2_fop_item_type_default_encode,
-        .rito_decode = c2_fop_item_type_default_decode,
+        .rito_encode	  = c2_fop_item_type_default_encode,
+        .rito_decode	  = c2_fop_item_type_default_decode,
 };
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
 	.fto_fom_init = c2_io_fom_cob_rw_init,
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_size_get	 = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
@@ -132,7 +135,8 @@ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",
 
 C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
 			&io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
+			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+			&io_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
@@ -582,7 +586,7 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 	}
 
 	/* Assign rpc item ops to rpc item. */
-	iofop->if_fop.f_item.ri_ops = &rpc_item_iov_ops;
+	iofop->if_fop.f_item.ri_ops = &io_req_rpc_item_ops;
 	c2_rpc_bulk_init(&iofop->if_rbulk);
 	C2_POST(io_fop_invariant(iofop));
 	return rc;
@@ -783,8 +787,7 @@ static void io_fop_segments_coalesce(const struct c2_0vec *iovec,
 }
 
 /* Creates and populates net buffers as needed using the list of
-   coalesced io segments.
- */
+   coalesced io segments. */
 static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 			      struct io_seg_set *seg_set)
 {
@@ -862,6 +865,7 @@ cleanup:
 	return rc;
 }
 
+/* Deallocates memory claimed by index vector/s from io fop wire format. */
 void io_fop_ivec_dealloc(struct c2_fop *fop)
 {
 	int			 cnt;
@@ -886,7 +890,8 @@ void io_fop_ivec_dealloc(struct c2_fop *fop)
 	c2_free(ivec);
 }
 
-int io_fop_ivec_alloc(struct c2_fop *fop)
+/* Allocates memory for index vector/s from io fop wore format. */
+static int io_fop_ivec_alloc(struct c2_fop *fop)
 {
 	int			 cnt;
 	struct c2_rpc_bulk	*rbulk;
@@ -926,7 +931,8 @@ cleanup:
 	return -ENOMEM;
 }
 
-void io_fop_ivec_prepare(struct c2_fop *res_fop)
+/* Populates index vector/s from io fop wire format. */
+static void io_fop_ivec_prepare(struct c2_fop *res_fop)
 {
 	int			 cnt;
 	uint32_t		 j;
@@ -984,7 +990,7 @@ static void io_fop_bulkbuf_move(struct c2_fop *src, struct c2_fop *dest)
 	drw->crw_ivecs = srw->crw_ivecs;
 }
 
-int io_fop_desc_alloc(struct c2_fop *fop)
+static int io_fop_desc_alloc(struct c2_fop *fop)
 {
 	struct c2_rpc_bulk	*rbulk;
 	struct c2_fop_cob_rw	*rw;
@@ -1002,7 +1008,7 @@ int io_fop_desc_alloc(struct c2_fop *fop)
 	return rw->crw_desc.id_descs == NULL ? -ENOMEM : 0;
 }
 
-void io_fop_desc_dealloc(struct c2_fop *fop)
+static void io_fop_desc_dealloc(struct c2_fop *fop)
 {
 	struct c2_fop_cob_rw	*rw;
 
@@ -1014,7 +1020,32 @@ void io_fop_desc_dealloc(struct c2_fop *fop)
 }
 
 /* Allocates memory for net buf descriptors array and index vector array
-   and populate the array of index vectors.  */
+   and populates the array of index vectors in io fop wire format. */
+int io_fop_prepare(struct c2_fop *fop)
+{
+	int rc;
+
+	C2_PRE(fop != NULL);
+
+	rc = io_fop_desc_alloc(fop);
+	if (rc != 0)
+		return -ENOMEM;
+
+	rc = io_fop_ivec_alloc(fop);
+	if (rc != 0) {
+		io_fop_desc_dealloc(fop);
+		return -ENOMEM;
+	}
+
+	io_fop_ivec_prepare(fop);
+
+	return rc;
+}
+
+/* Creates new net buffers from aggregate list and adds them to
+   associated c2_rpc_bulk object. Also calls io_fop_prepare() to
+   allocate memory for net buf desc sequence and index vector
+   sequence in io fop wire format. */
 static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 				    struct io_seg_set *aggr_set)
 {
@@ -1034,25 +1065,15 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 		return rc;
 	}
 
-	rc = io_fop_desc_alloc(fop);
-	if (rc != 0) {
+	rc = io_fop_prepare(fop);
+	if (rc != 0)
 		c2_rpc_bulk_buflist_empty(rbulk);
-		return rc;
-	}
-
-	rc = io_fop_ivec_alloc(fop);
-	if (rc != 0) {
-		c2_rpc_bulk_buflist_empty(rbulk);
-		io_fop_desc_dealloc(fop);
-		return rc;
-	}
-
-	io_fop_ivec_prepare(fop);
-
 	return rc;
 }
 
-static void io_fop_desc_ivec_destroy(struct c2_fop *fop)
+/* Deallocates memory for sequence of net buf desc and sequence of index
+   vectors from io fop wire format. */
+void io_fop_destroy(struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
@@ -1150,7 +1171,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 			    bulkclient_func_fail,
 			    "c2_rpc_bulk_store() failed for coalesced io fop.",
 			    rc);
-		io_fop_desc_ivec_destroy(res_fop);
+		io_fop_destroy(res_fop);
 		goto cleanup;
 	}
 
@@ -1167,7 +1188,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 			c2_net_buffer_del(&rbuf->bb_nbuf, tm);
 		} c2_tlist_endfor;
 		c2_mutex_unlock(&rbulk->rb_mutex);
-		io_fop_desc_ivec_destroy(res_fop);
+		io_fop_destroy(res_fop);
 		goto cleanup;
 	}
 
@@ -1309,7 +1330,7 @@ static void io_item_replied(struct c2_rpc_item *item)
 	   rpc item in c2_rpc_item::ri_compound_items list. This item
 	   is inserted by io coalescing code. */
 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
-		io_fop_desc_ivec_destroy(fop);
+		io_fop_destroy(fop);
 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
 		rpcitem_tlist_del(ritem);
 		bkpfop = c2_rpc_item_to_fop(ritem);
@@ -1405,6 +1426,27 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			    bulkclient_func_fail, "io_fop_coalesce succeeded.",
 			    rc);
 	}
+}
+
+/* From bulk client side, IO REQUEST fops are typically bundled in
+   struct c2_io_fop. So c2_io_fop is deallocated from here. */
+static void io_item_free(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop;
+	struct c2_io_fop	*iofop;
+	struct c2_fop_cob_rw	*rw;
+
+	fop = c2_rpc_item_to_fop(item);
+	iofop = container_of(fop, struct c2_io_fop, if_fop);
+	rw = io_rw_get(fop);
+
+	io_fop_destroy(&iofop->if_fop);
+	/* Temporary!! Should be removed after integration with bulk server. */
+	c2_free(rw->crw_iovec.iv_segs[0].is_buf.ib_buf);
+	c2_free(rw->crw_iovec.iv_segs);
+
+	c2_io_fop_fini(iofop);
+	c2_free(iofop);
 }
 
 /*
