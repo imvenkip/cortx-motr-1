@@ -70,12 +70,6 @@ enum {
 	WAIT_FOR_REQH_SHUTDOWN = 1000000,
 };
 
-enum {
-	CS_CONTAINER_SIZE  = 4096ULL * 1024 * 1024 * 1000, // = 400GB
-	CS_GROUP_SIZE      = 128 * 1024 * 1024, // = ext4 group size
-	CS_RESERVED_GROUPS = 2
-};
-
 extern const struct c2_tl_descr c2_rstypes_descr;
 extern struct c2_tl c2_rstypes;
 extern struct c2_mutex c2_rstypes_mutex;
