@@ -762,16 +762,15 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 
    @todo Use generic mechanism to generate stob ids
  */
-static int cs_storage_init(const char *stob_type, const char *stob_path,
-                           struct cs_reqh_stobs *stob, struct c2_dbenv *db)
+int cs_storage_init(const char *stob_type, const char *stob_path,
+                    struct cs_reqh_stobs *stob, struct c2_dbenv *db)
 {
 	int                      rc;
 	int                      slen;
 	char                    *objpath;
         struct c2_stob          *bstore;
 
-	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL &&
-								db != NULL);
+	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
 	stob->stype = stob_type;
 
@@ -830,7 +829,7 @@ cleanup:
 
    @pre stob != NULL
  */
-static void cs_storage_fini(struct cs_reqh_stobs *stob)
+void cs_storage_fini(struct cs_reqh_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 

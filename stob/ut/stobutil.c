@@ -1,9 +1,11 @@
+#include <stdio.h>
+
 #include "colibri/init.h"
-#include "lib/trace.h"
 #include "lib/getopts.h"
 #include "lib/misc.h"
 #include "lib/thread.h"
 #include "lib/errno.h"
+#include "db/db.h"
 #include "stob/stob.h"
 
 enum {
@@ -52,9 +54,9 @@ static int cmd_line_args_process(struct cmd_line_args *clargs,
 			LAMBDA(void, (const char *str)
 			{
 				clargs->cla_stob_dom_type =
-				   strcmp(str, "AD") == 0    ? STOB_DOM_AD :
-				   strcmp(str, "linux") == 0 ? STOB_DOM_LINUX :
-							     STOB_DOM_INVALID;
+				strcasecmp(str, "AD") == 0    ? STOB_DOM_AD :
+				strcasecmp(str, "linux") == 0 ? STOB_DOM_LINUX :
+							       STOB_DOM_INVALID;
 			})),
 
 		C2_STRINGARG('d', "db path",
@@ -174,12 +176,93 @@ static void usage(void)
 
 }
 
+/**
+   XXX IMPORTANT: This structure definition is copied from
+       colibri/colibri_setup.c
+
+   It is assumed that, stobutil.c has very short lifetime. Hence it is
+   better to copy the structure definition than to modify colibri_setup.c
+   for stobutil.
+
+   Internal structure which encapsulates stob type and
+   stob domain references for linux and ad stobs respectively.
+ */
+struct cs_reqh_stobs {
+        /**
+           Type of storage domain to be initialise (e.g. Linux or AD)
+         */
+        const char            *stype;
+        /**
+           Backend storage object id
+         */
+        struct c2_stob_id      stob_id;
+        /**
+           Linux storage domain type.
+         */
+        struct c2_stob_domain *linuxstob;
+        /**
+           Allocation data storage domain type.
+         */
+        struct c2_stob_domain *adstob;
+};
+
+/*
+ * Defined in colibri/colibri_setup.c
+ */
+int cs_storage_init(const char *stob_type, const char *stob_path,
+                    struct cs_reqh_stobs *stob, struct c2_dbenv *db);
+
+void cs_storage_fini(struct cs_reqh_stobs *stob);
+
+static struct cs_reqh_stobs reqh_stobs;
+struct c2_dbenv             dbenv;
+
 static int stob_domain_locate_or_create(enum stob_dom_type      dom_type,
 					const char             *dom_path,
 					const char             *db_path,
 					struct c2_stob_domain **out)
 {
+	/* dbenv is not required for linux stob domain. */
+	struct c2_dbenv *dbenvp = NULL;
+	char            *str_dom_type;
+	int              rc;
 
+	/*
+	 * XXX It is important to note that, mechanism to create stob domain
+	 * in this routine MUST be same as that of provided by
+	 * colibri_setup.c:cs_storage_init(). Otherwise, ioservice will not
+	 * be able to access the stob-domain.
+	 * Rather than re-implementating same thing, better to call very
+	 * cs_storage_init() here. We need to prepare input as required
+	 * by cs_storage_init().
+	 */
+	C2_ASSERT(dom_type == STOB_DOM_AD || dom_type == STOB_DOM_LINUX);
+
+	*out = NULL;
+
+	if (dom_type == STOB_DOM_AD) {
+		rc = c2_dbenv_init(&dbenv, db_path, 0);
+		if (rc != 0) {
+			fprintf(stderr, "Failed to init dbenv\n");
+			return rc;
+		}
+		dbenvp = &dbenv;
+	}
+
+	str_dom_type = (dom_type == STOB_DOM_AD) ? "AD" : "Linux";
+
+	rc = cs_storage_init(str_dom_type, dom_path, &reqh_stobs, dbenvp);
+
+	if (rc == 0)
+		*out = (dom_type == STOB_DOM_AD) ? reqh_stobs.adstob
+						 : reqh_stobs.linuxstob;
+
+	return rc;
+}
+
+static void stob_domain_fini(struct c2_stob_domain *stob_domain)
+{
+	cs_storage_fini(&reqh_stobs);
 }
 
 int main(int argc, char *argv[])
@@ -200,9 +283,21 @@ int main(int argc, char *argv[])
 	if (clargs.cla_verbose)
 		cmd_line_args_print(&clargs);
 
+	rc = c2_init();
+	if (rc != 0) {
+		fprintf(stderr, "Colibri initailisation failed\n");
+		return rc;
+	}
+
 	rc = stob_domain_locate_or_create(clargs.cla_stob_dom_type,
 					  clargs.cla_dom_path,
 					  clargs.cla_db_path,
 					  &stob_domain);
+	if (rc == 0) {
+		fprintf(stderr, "stob_domain_locate_or_create successful\n");
+		stob_domain_fini(stob_domain);
+	}
+
+	c2_fini();
 	return 0;
 }
