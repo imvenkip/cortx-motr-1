@@ -16,11 +16,11 @@ enum {
 	MAX_STR_ARG_LEN = 256,
 };
 
-enum stob_dom_type {
-	STOB_DOM_NOT_ENTERED = 0,
-	STOB_DOM_AD,
-	STOB_DOM_LINUX,
-	STOB_DOM_INVALID,
+enum stob_type {
+	UNINITIALISED_STOB_TYPE = 0,
+	AD_STOB_TYPE,
+	LINUX_STOB_TYPE,
+	INVALID_STOB_TYPE,
 };
 
 struct cmd_line_args {
@@ -29,7 +29,7 @@ struct cmd_line_args {
 
 	bool               cla_verbose;
 
-	enum stob_dom_type cla_stob_dom_type;
+	enum stob_type     cla_stob_type;
 
 	/** Path to database */
 	char               cla_db_path[MAX_STR_ARG_LEN + 1];
@@ -54,13 +54,13 @@ static int cmd_line_args_process(struct cmd_line_args *clargs,
 
 		C2_FLAGARG('v', "verbose", &clargs->cla_verbose),
 
-		C2_STRINGARG('t', "Stob domain type [AD/linux]",
+		C2_STRINGARG('t', "Stob type [AD/linux]",
 			LAMBDA(void, (const char *str)
 			{
-				clargs->cla_stob_dom_type =
-				strcasecmp(str, "AD") == 0    ? STOB_DOM_AD :
-				strcasecmp(str, "linux") == 0 ? STOB_DOM_LINUX :
-							       STOB_DOM_INVALID;
+				clargs->cla_stob_type =
+				strcasecmp(str, "AD") == 0    ? AD_STOB_TYPE :
+				strcasecmp(str, "linux") == 0 ? LINUX_STOB_TYPE:
+							      INVALID_STOB_TYPE;
 			})),
 
 		C2_STRINGARG('d', "db path",
@@ -108,15 +108,15 @@ bool cmd_line_args_are_valid(const struct cmd_line_args *clargs)
 		 rc = false;
 	}
 
-	switch (clargs->cla_stob_dom_type) {
+	switch (clargs->cla_stob_type) {
 
-		case STOB_DOM_NOT_ENTERED:
+		case UNINITIALISED_STOB_TYPE:
 			fprintf(stderr, "Error: Missing -t option\n");
 			rc = false;
 			break;
 
-		case STOB_DOM_INVALID:
-			fprintf(stderr, "Error: Domain type must be either "
+		case INVALID_STOB_TYPE:
+			fprintf(stderr, "Error: Stob type must be either "
 					"\"AD\" or \"linux\"\n");
 			rc = false;
 			break;
@@ -125,10 +125,10 @@ bool cmd_line_args_are_valid(const struct cmd_line_args *clargs)
 			break;
 	}
 
-	/* if domain type is "Ad" then is db path entered ? */
-	if (clargs->cla_stob_dom_type == STOB_DOM_AD &&
+	/* if stob type is "Ad" then is db path entered ? */
+	if (clargs->cla_stob_type == AD_STOB_TYPE &&
 		string_is_empty(clargs->cla_db_path)) {
-		fprintf(stderr, "Error: db path is must if domain type is "
+		fprintf(stderr, "Error: db path is must if stob type is "
 				"\"AD\"\n");
 		rc = false;
 	}
@@ -152,14 +152,14 @@ bool cmd_line_args_are_valid(const struct cmd_line_args *clargs)
 void cmd_line_args_print(const struct cmd_line_args *clargs)
 {
 	fprintf(stderr, "Create: %s\n"
-			"Domain type: %s\n"
+			"Stob type: %s\n"
 			"db path: %s\n"
 			"domain path: %s\n"
 			"stob id: %lu:%lu\n"
 			"verbose: %s\n",
 			clargs->cla_create ? "true" : "false",
-			clargs->cla_stob_dom_type == STOB_DOM_AD ? "AD"
-								 : "linux",
+			clargs->cla_stob_type == AD_STOB_TYPE ? "AD"
+							      : "linux",
 			clargs->cla_db_path,
 			clargs->cla_dom_path,
 			(unsigned long)clargs->cla_stob_id.si_bits.u_hi,
@@ -173,7 +173,7 @@ static void usage(void)
 	fprintf(stderr, "stobutil -c -t [AD -d /db/path |linux] "
 			"-p /stob/dom/path -s hi:lo\n");
 	fprintf(stderr, "\n         -c       : Create stob"
-			"\n         -t string: Stob domain type [AD/linux]"
+			"\n         -t string: Stob type [AD/linux]"
 			"\n         -d string: db path"
 			"\n         -p string: Domain path"
 			"\n         -s string: Stob id: hi:lo\n");
@@ -221,14 +221,14 @@ void cs_storage_fini(struct cs_reqh_stobs *stob);
 static struct cs_reqh_stobs reqh_stobs;
 struct c2_dbenv             dbenv;
 
-static int stob_domain_locate_or_create(enum stob_dom_type      dom_type,
+static int stob_domain_locate_or_create(enum stob_type          stob_type,
 					const char             *dom_path,
 					const char             *db_path,
 					struct c2_stob_domain **out)
 {
 	/* dbenv is not required for linux stob domain. */
 	struct c2_dbenv *dbenvp = NULL;
-	char            *str_dom_type;
+	char            *str_stob_type;
 	int              rc;
 
 	/*
@@ -240,11 +240,11 @@ static int stob_domain_locate_or_create(enum stob_dom_type      dom_type,
 	 * cs_storage_init() here. We need to prepare input as required
 	 * by cs_storage_init().
 	 */
-	C2_ASSERT(dom_type == STOB_DOM_AD || dom_type == STOB_DOM_LINUX);
+	C2_ASSERT(stob_type == AD_STOB_TYPE || stob_type == LINUX_STOB_TYPE);
 
 	*out = NULL;
 
-	if (dom_type == STOB_DOM_AD) {
+	if (stob_type == AD_STOB_TYPE) {
 		rc = c2_dbenv_init(&dbenv, db_path, 0);
 		if (rc != 0) {
 			fprintf(stderr, "Failed to init dbenv\n");
@@ -253,13 +253,13 @@ static int stob_domain_locate_or_create(enum stob_dom_type      dom_type,
 		dbenvp = &dbenv;
 	}
 
-	str_dom_type = (dom_type == STOB_DOM_AD) ? "AD" : "Linux";
+	str_stob_type = (stob_type == AD_STOB_TYPE) ? "AD" : "Linux";
 
-	rc = cs_storage_init(str_dom_type, dom_path, &reqh_stobs, dbenvp);
+	rc = cs_storage_init(str_stob_type, dom_path, &reqh_stobs, dbenvp);
 
 	if (rc == 0)
-		*out = (dom_type == STOB_DOM_AD) ? reqh_stobs.adstob
-						 : reqh_stobs.linuxstob;
+		*out = (stob_type == AD_STOB_TYPE) ? reqh_stobs.adstob
+						   : reqh_stobs.linuxstob;
 
 	return rc;
 }
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
 		return rc;
 	}
 
-	rc = stob_domain_locate_or_create(clargs.cla_stob_dom_type,
+	rc = stob_domain_locate_or_create(clargs.cla_stob_type,
 					  clargs.cla_dom_path,
 					  clargs.cla_db_path,
 					  &stob_domain);
