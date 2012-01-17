@@ -485,13 +485,13 @@ void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype);
    Initialises global list of service types.
    This is invoked from c2_reqhs_init().
  */
-int c2_reqh_service_types_init();
+int c2_reqh_service_types_init(void);
 
 /**
    Finalises global list of service types.
    This is invoked from c2_reqhs_fini();
  */
-void c2_reqh_service_types_fini();
+void c2_reqh_service_types_fini(void);
 
 /**
    Checks consistency of a particular service.

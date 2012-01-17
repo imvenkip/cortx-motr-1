@@ -174,15 +174,11 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
         c2_tlist_for(&rpcmachines_tl,
                               &service->rs_reqh->rh_rpcmachines, rpcmach)
         {
-                C2_ASSERT(rpcmach != NULL);
-
                /*
                 * Check buffer pool for network domain of rpcmachine
                 */
                c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp)
                {
-                       C2_ASSERT(bp != NULL);
-
                         if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom) {
                                /*
                                 * Found buffer pool for domain.
@@ -205,7 +201,6 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 	      * with buffer pool to I/O FOMs.
 	      */
              c2_chan_init(&newbp->rios_bp_wait);
-             bufferpools_tlink_init(newbp);
              newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
              colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
              c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
@@ -225,6 +220,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 
              c2_net_buffer_pool_unlock(&newbp->rios_bp);
 
+             bufferpools_tlink_init(newbp);
              bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
         } c2_tlist_endfor; /* rpcmachines */
@@ -254,10 +250,14 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
                 C2_ASSERT(bp != NULL);
 
                 c2_chan_fini(&bp->rios_bp_wait);
-                bufferpools_tlink_fini(bp);
+                bufferpools_tlink_del_fini(bp);
+
+                c2_net_buffer_pool_lock(&bp->rios_bp);
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 
         } c2_tlist_endfor; /* bufferpools */
+
+        bufferpools_tlist_fini(&serv_obj->rios_buffer_pools);
 }
 
 /**

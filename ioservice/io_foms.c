@@ -767,7 +767,8 @@ static void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
  */
 static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
                                             struct c2_io_indexvec *in,
-                                            struct c2_indexvec *out)
+                                            struct c2_indexvec *out,
+                                            uint32_t bshift)
 {
         int         i;
         int         rc = 0;
@@ -796,8 +797,8 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
 
         out->iv_vec.v_nr = in->ci_nr;
         for (i = 0; i < in->ci_nr; i++) {
-                out->iv_index[i] = in->ci_iosegs[i].ci_index;
-                out->iv_vec.v_count[i] = in->ci_iosegs[i].ci_count;
+                out->iv_index[i] = in->ci_iosegs[i].ci_index >> bshift;
+                out->iv_vec.v_count[i] = in->ci_iosegs[i].ci_count >> bshift;
         }
 
         return 0;
@@ -807,16 +808,17 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
  * Align address.
  * This function align bufvec & indexvec.
  */
-void io_fom_cob_rw_align_bufvec (struct c2_bufvec *buf, uint32_t bshift)
+void io_fom_cob_rw_align_bufvec (struct c2_bufvec *obuf,
+                                 struct c2_bufvec *ibuf,
+                                 uint32_t bshift)
 {
-        int             i;
+        int        i;
 
         /* Align bufvec */
-        for (i = 0; i < buf->ov_vec.v_nr; i++) {
-                buf->ov_vec.v_count[i]
-                = buf->ov_vec.v_count[i] >> bshift;
-                buf->ov_buf[i]
-                = c2_stob_addr_pack(buf->ov_buf[i], bshift);
+        for (i = 0; i < ibuf->ov_vec.v_nr; i++) {
+                obuf->ov_vec.v_count[i] = ibuf->ov_vec.v_count[i] >> bshift;
+                obuf->ov_buf[i]         = c2_stob_addr_pack(ibuf->ov_buf[i],
+                                                            bshift);
         }
 }
 
@@ -1020,6 +1022,11 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
                     break;
             }
             c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+            /*
+             * @todo : Need to remove this code after bulk-integration task.
+             */
+            c2_net_buffer_deregister(nb,
+            fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
 
             if (c2_is_read_fop(fop))
                    nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
@@ -1087,9 +1094,14 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
                 nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                 C2_ASSERT(nb != NULL);
 
+                /*
+                 * @todo : Need to remove this code after bulk-integration task.
+                 */
+                c2_net_buffer_register(nb,
+                fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
 
-                netbufs_tlist_del(nb);
+                netbufs_tlink_del_fini(nb);
                 acquired_net_bufs--;
         }
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
@@ -1140,8 +1152,6 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         /* Create rpc bulk bufs list using available net buffers */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
-
-                C2_ASSERT(nb != NULL);
 
                 C2_ALLOC_PTR(rb_buf);
                 if (rb_buf == NULL) {
@@ -1331,7 +1341,8 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 mem_ivec = &stio->si_stob;
 	        wire_ivec =
                 rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
-                rc = io_fom_cob_rw_indexvec_wire2mem(fom, &wire_ivec, mem_ivec);
+                rc = io_fom_cob_rw_indexvec_wire2mem(fom, &wire_ivec,
+                                                     mem_ivec, bshift);
                 if (rc != 0) {
                         /*
                          * Since this stob io not added into list
@@ -1370,9 +1381,9 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 } else {
                         stio->si_opcode = SIO_READ;
                 }
-                stio->si_user = nb->nb_buffer;
 
-                io_fom_cob_rw_align_bufvec(&stio->si_user, bshift);
+                io_fom_cob_rw_align_bufvec(&stio->si_user, &nb->nb_buffer,
+                                           bshift);
                 c2_clink_add(&stio->si_wait, &stio_desc->siod_clink);
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
@@ -1468,7 +1479,6 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         c2_tlist_for (&stobio_tl, &fom_obj->fcrw_stio_list, stio_desc) {
                 struct c2_stob_io *stio;
-                C2_ASSERT(stio_desc != NULL);
 
                 stio = &stio_desc->siod_stob_io;
 
@@ -1618,20 +1628,23 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
         c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
         c2_tlist_for (&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
-                C2_ASSERT(nb != NULL);
 
+                /*
+                 * @todo : Need to remove this code after bulk-integration task.
+                 */
+                c2_net_buffer_register(nb,
+                fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
 
-                netbufs_tlist_del(nb);
+                netbufs_tlink_del_fini(nb);
         } c2_tlist_endfor;
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
         netbufs_tlist_fini(&fom_obj->fcrw_netbuf_list);
 
         c2_mutex_lock(&fom_obj->fcrw_bulk.rb_mutex);
         c2_tlist_for (&rpcbulkbufs_tl, &fom_obj->fcrw_bulk.rb_buflist, rb_buf) {
-                C2_ASSERT(rb_buf != NULL);
 
-                rpcbulkbufs_tlist_del(rb_buf);
+                rpcbulkbufs_tlink_del_fini(rb_buf);
                 c2_free(rb_buf);
         } c2_tlist_endfor;
         c2_mutex_unlock(&fom_obj->fcrw_bulk.rb_mutex);
@@ -1641,7 +1654,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         c2_tlist_for (&stobio_tl, &fom_obj->fcrw_stio_list, stio_desc) {
                 struct c2_stob_io *stio;
-                C2_ASSERT(stio_desc != NULL);
 
                 stio = &stio_desc->siod_stob_io;
 
