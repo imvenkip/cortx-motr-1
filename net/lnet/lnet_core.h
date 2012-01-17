@@ -267,6 +267,13 @@ struct nlx_core_bev_cqueue {
 	nlx_core_opaque_ptr_t cbcq_consumer;
 };
 
+enum {
+	/** Minimum number of buffer event entries in the queue. */
+	C2_NET_LNET_BEVQ_MIN_SIZE  = 2,
+	/** Number of unused guard buffer event entries in the queue. */
+	C2_NET_LNET_BEVQ_NUM_GUARD = 1,
+};
+
 /**
    This structure describes a buffer event. It is very similar to
    struct c2_net_buffer_event.

@@ -225,8 +225,8 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
 }
 
-int nlx_core_new_buffer_event(struct nlx_core_transfer_mc *ctm,
-			      struct nlx_core_buffer_event **bevp)
+int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm,
+			     struct nlx_core_buffer_event **bevp)
 {
 	return -ENOSYS;
 }

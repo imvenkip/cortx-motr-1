@@ -30,6 +30,7 @@ static int nlx_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_transfer_mc *tm,
 			 struct nlx_core_ep_addr *cepa);
 static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb);
+static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *ctm);
 
 /**
    Inline helper to get the Core EP address pointer from an end point.
@@ -43,6 +44,12 @@ struct nlx_core_ep_addr *nlx_ep_to_core(struct c2_net_end_point *ep)
 	return &xep->xe_core;
 }
 
+static inline struct nlx_xo_transfer_mc *
+nlx_core_tm_to_xo_tm(struct nlx_core_transfer_mc *ctm)
+{
+	return container_of(ctm, struct nlx_xo_transfer_mc, xtm_core);
+}
+
 
 /* core private */
 
@@ -51,12 +58,15 @@ struct nlx_core_ep_addr *nlx_ep_to_core(struct c2_net_end_point *ep)
    with the producer space self pointer set.
    This subroutine is defined separately for the kernel and user space.
    @param ctm Core transfer machine pointer.
+   In the user space transport this must be initialized at least with the
+   core device driver file descriptor.
+   In kernel space this is not used.
    @param bevp Buffer event return pointer.
    @post bev_cqueue_bless(&bevp->cbe_tm_link) has been invoked.
    @see bev_cqueue_bless()
  */
-static int nlx_core_new_buffer_event(struct nlx_core_transfer_mc *ctm,
-				     struct nlx_core_buffer_event **bevp);
+static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm,
+				    struct nlx_core_buffer_event **bevp);
 
 #endif /* __COLIBRI_NET_LNET_PVT_H__ */
 

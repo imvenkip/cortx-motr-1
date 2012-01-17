@@ -1206,8 +1206,8 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_PRE(epp != NULL);
 
 	C2_ALLOC_PTR(kctm);
-	C2_ALLOC_PTR(e1);
-	C2_ALLOC_PTR(e2);
+	(void)nlx_core_new_blessed_bev(kctm, &e1);
+	(void)nlx_core_new_blessed_bev(kctm, &e2);
 	if (kctm == NULL || e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
 		goto fail;
@@ -1268,8 +1268,6 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	nlx_kcore_tms_list_add(kctm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 
-	bev_link_bless(&e1->cbe_tm_link);
-	bev_link_bless(&e2->cbe_tm_link);
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
 	C2_ASSERT(bev_cqueue_is_empty(&lctm->ctm_bevq));
@@ -1319,13 +1317,15 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	c2_free(kctm);
 }
 
-int nlx_core_new_buffer_event(struct nlx_core_transfer_mc *ctm,
-			      struct nlx_core_buffer_event **bevp)
+int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
+			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
 	C2_ALLOC_PTR(bev);
-	if (bev == NULL)
+	if (bev == NULL) {
+		*bevp = NULL;
 		return -ENOMEM;
+	}
 	bev->cbe_tm_link.cbl_p_self = (nlx_core_opaque_ptr_t) &bev->cbe_tm_link;
 	bev_link_bless(&bev->cbe_tm_link);
 	*bevp = bev;
