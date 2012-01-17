@@ -181,7 +181,8 @@ static int test_ad_init(void)
 
 	result = c2_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,
 				  BALLOC_DEF_CONTAINER_SIZE,
-				  BALLOC_DEF_GROUP_SIZE,
+				  BALLOC_DEF_BLOCK_SHIFT,
+				  BALLOC_DEF_BLOCKS_PER_GROUP,
 				  BALLOC_DEF_RESERVED_GROUPS);
 	C2_ASSERT(result == 0);
 

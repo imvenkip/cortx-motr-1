@@ -65,12 +65,12 @@ struct ad_balloc_ops {
 	    @param block size shift in bytes, similarly to
 	    c2_stob_op::sop_block_shift().
 	    @param container_size Total size of the container in bytes
-	    @param groupsize Total size of group in bytes
+	    @param  blocks_per_group # of blocks per group
 	    @param res_groups # of reserved groups
 	 */
 	int  (*bo_init)(struct ad_balloc *ballroom, struct c2_dbenv *db,
 			uint32_t bshift, c2_bcount_t container_size,
-			c2_bcount_t groupsize, c2_bcount_t res_groups);
+			c2_bcount_t blocks_per_group, c2_bcount_t res_groups);
 	void (*bo_fini)(struct ad_balloc *ballroom);
 	/** Allocates count of blocks. On success, allocated extent, also
 	    measured in blocks, is returned in out parameter. */
@@ -95,8 +95,8 @@ struct ad_balloc_ops {
  */
 int  c2_ad_stob_setup(struct c2_stob_domain *adom, struct c2_dbenv *dbenv,
 		      struct c2_stob *bstore, struct ad_balloc *ballroom,
-		      c2_bindex_t container_size, c2_bcount_t groupsize,
-		      c2_bcount_t res_groups);
+		      c2_bindex_t container_size, c2_bcount_t bshift,
+		      c2_bcount_t blocks_per_group, c2_bcount_t res_groups);
 
 int  c2_ad_stobs_init(void);
 void c2_ad_stobs_fini(void);

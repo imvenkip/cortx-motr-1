@@ -105,8 +105,8 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, 12, // blocksize = 1 << 12
-		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
+		(&colibri_balloc.cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	for (i = 0; i < loops && result == 0; i++ ) {
@@ -148,7 +148,7 @@ int main(int argc, char **argv)
 	}
 	printf("==================\nPerf: alloc/sec = %lu\n", (unsigned long)loops * 1000000 / alloc_usec);
 
-	/* randonmize the array */
+	/* randomize the array */
 	if (r) {
 		for (i = 0; i < loops * 2; i++ ) {
 			int a, b;

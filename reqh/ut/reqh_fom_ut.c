@@ -207,7 +207,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,
-			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
+			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCK_SHIFT,
+			      BALLOC_DEF_BLOCKS_PER_GROUP,
 			      BALLOC_DEF_RESERVED_GROUPS);
 	C2_UT_ASSERT(rc == 0);
 

@@ -151,9 +151,9 @@ static inline struct c2_balloc *b2c2(struct ad_balloc *ballroom)
    Request to format a container.
  */
 struct c2_balloc_format_req {
-	c2_bindex_t 	bfr_totalsize;	      /*< total size in bytes */
-	c2_bcount_t	bfr_blocksize;        /*< block size in bytes */
-	c2_bcount_t	bfr_groupsize;        /*< group size in bytes */
+	c2_bcount_t 	bfr_totalsize;	      /*< total size in bytes  */
+	c2_bcount_t	bfr_blocksize;        /*< block size in bytes  */
+	c2_bcount_t	bfr_groupsize;        /*< group size in blocks */
 	c2_bcount_t	bfr_reserved_groups;  /*< # of reserved groups */
 };
 
@@ -234,10 +234,16 @@ struct c2_balloc_discard_req {
 	void           *bdr_prealloc; /*< User opaque prealloc result */
 };
 
+/*
+ * BALLOC_DEF_BLOCKS_PER_GROUP * 1 << BALLOC_DEF_BLOCK_SHIFT = 128 MB -->
+ * which equals group size in ext4
+ */
+
 enum {
-	BALLOC_DEF_CONTAINER_SIZE  = 4096ULL * 1024 * 1024 * 1000,// = 400GB
-	BALLOC_DEF_GROUP_SIZE      = 128 * 1024 * 1024,// = ext4 group size
-	BALLOC_DEF_RESERVED_GROUPS = 2
+	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 1024 * 1024 * 1000,//= 400GB
+	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
+	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
+	BALLOC_DEF_RESERVED_GROUPS	= 2
 };
 
 extern struct c2_balloc colibri_balloc;

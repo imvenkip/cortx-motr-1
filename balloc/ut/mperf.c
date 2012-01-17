@@ -111,6 +111,16 @@ repeat:
 	       (long)pthread_self(), i, (unsigned long)i * 1000000 / alloc_usec);
 	alloc = i;
 
+	/* Uncomment the following region to perform a worst case test */
+	/* randomize the array */
+	/*
+	for (i = 0; i < alloc * 2; i++ ) {
+		int a, b;
+		a = rand() % alloc;
+		b = rand() % alloc;
+		C2_SWAP(ext[a], ext[b]);
+	}
+	*/
 	result = 0;
 
 	for (i = alloc - 1; i >= 0 && result == 0; i-- ) {
@@ -185,10 +195,11 @@ int main(int argc, char **argv)
 	threads = c2_alloc(num_threads * sizeof (struct c2_thread));
 	C2_ASSERT(threads != NULL);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(
-		    &colibri_balloc.cb_ballroom, &db, 12,// block size = 1 << 12
-		    BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_GROUP_SIZE,
-		    BALLOC_DEF_RESERVED_GROUPS);
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc.cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
+		 BALLOC_DEF_RESERVED_GROUPS);
+
 	C2_ASSERT(result == 0);
 	for (i = 0; i < num_threads; i++) {
 		result = C2_THREAD_INIT(&threads[i], struct c2_balloc*, NULL,
