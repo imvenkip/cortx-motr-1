@@ -43,6 +43,70 @@ struct cmd_line_args {
 
 static int cmd_line_args_process(struct cmd_line_args *clargs,
 				 int                   argc,
+				 char                 *argv[]);
+
+static bool cmd_line_args_are_valid(const struct cmd_line_args *clargs);
+
+static void cmd_line_args_print(const struct cmd_line_args *clargs);
+
+static void usage(void);
+
+static int stob_domain_locate_or_create(enum stob_type          stob_type,
+					const char             *dom_path,
+					const char             *db_path,
+					struct c2_stob_domain **out);
+
+static void stob_domain_fini(struct c2_stob_domain *stob_domain);
+
+static int stob_create(struct c2_stob_domain    *dom,
+		       const struct c2_stob_id  *stob_id,
+		       struct c2_stob          **out);
+
+int main(int argc, char *argv[])
+{
+	struct c2_stob_domain *stob_domain;
+	struct c2_stob        *stob;
+	struct cmd_line_args   clargs;
+	int                    rc;
+
+	rc = cmd_line_args_process(&clargs, argc, argv);
+	if (rc != 0)
+		return -EINVAL;
+
+	if (!cmd_line_args_are_valid(&clargs)) {
+		usage();
+		return -EINVAL;
+	}
+
+	if (clargs.cla_verbose)
+		cmd_line_args_print(&clargs);
+
+	rc = c2_init();
+	if (rc != 0) {
+		fprintf(stderr, "Colibri initailisation failed\n");
+		return rc;
+	}
+
+	rc = stob_domain_locate_or_create(clargs.cla_stob_type,
+					  clargs.cla_dom_path,
+					  clargs.cla_db_path,
+					  &stob_domain);
+	if (rc != 0)
+		goto out;
+
+	rc = stob_create(stob_domain, &clargs.cla_stob_id, &stob);
+	if (stob != NULL)
+		c2_stob_put(stob);
+
+	stob_domain_fini(stob_domain);
+
+out:
+	c2_fini();
+	return rc;
+}
+
+static int cmd_line_args_process(struct cmd_line_args *clargs,
+				 int                   argc,
 				 char                 *argv[])
 {
 	int rc;
@@ -91,7 +155,7 @@ static int cmd_line_args_process(struct cmd_line_args *clargs,
 	return rc;
 }
 
-bool cmd_line_args_are_valid(const struct cmd_line_args *clargs)
+static bool cmd_line_args_are_valid(const struct cmd_line_args *clargs)
 {
 	bool rc = true;
 
@@ -149,7 +213,7 @@ bool cmd_line_args_are_valid(const struct cmd_line_args *clargs)
 	return rc;
 }
 
-void cmd_line_args_print(const struct cmd_line_args *clargs)
+static void cmd_line_args_print(const struct cmd_line_args *clargs)
 {
 	fprintf(stderr, "Create: %s\n"
 			"Stob type: %s\n"
@@ -219,7 +283,7 @@ int cs_storage_init(const char *stob_type, const char *stob_path,
 void cs_storage_fini(struct cs_reqh_stobs *stob);
 
 static struct cs_reqh_stobs reqh_stobs;
-struct c2_dbenv             dbenv;
+static struct c2_dbenv      dbenv;
 
 static int stob_domain_locate_or_create(enum stob_type          stob_type,
 					const char             *dom_path,
@@ -317,48 +381,5 @@ static int stob_create(struct c2_stob_domain    *dom,
 		c2_stob_put(stob);
 	}
 
-	return rc;
-}
-
-int main(int argc, char *argv[])
-{
-	struct c2_stob_domain *stob_domain;
-	struct c2_stob        *stob;
-	struct cmd_line_args   clargs;
-	int                    rc;
-
-	rc = cmd_line_args_process(&clargs, argc, argv);
-	if (rc != 0)
-		return -EINVAL;
-
-	if (!cmd_line_args_are_valid(&clargs)) {
-		usage();
-		return -EINVAL;
-	}
-
-	if (clargs.cla_verbose)
-		cmd_line_args_print(&clargs);
-
-	rc = c2_init();
-	if (rc != 0) {
-		fprintf(stderr, "Colibri initailisation failed\n");
-		return rc;
-	}
-
-	rc = stob_domain_locate_or_create(clargs.cla_stob_type,
-					  clargs.cla_dom_path,
-					  clargs.cla_db_path,
-					  &stob_domain);
-	if (rc != 0)
-		goto out;
-
-	rc = stob_create(stob_domain, &clargs.cla_stob_id, &stob);
-	if (stob != NULL)
-		c2_stob_put(stob);
-
-	stob_domain_fini(stob_domain);
-
-out:
-	c2_fini();
 	return rc;
 }
