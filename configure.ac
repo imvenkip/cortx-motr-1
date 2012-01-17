@@ -238,8 +238,6 @@ AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
 
-XY_CHECK_CUNIT
-
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 
@@ -423,6 +421,27 @@ else
         AC_MSG_RESULT([$YAML_LIBS])
 fi
 
+# Check for CUnit
+CUNIT_SRC=$SRCDIR/../cunit
+CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/.libs/libcunit.la"
+CUNIT_HEADERS="$CUNIT_SRC/CUnit/Headers"
+AC_MSG_CHECKING([for cunit libs])
+if ! test -e $CUNIT_LIBS; then
+	AC_MSG_RESULT([building $CUNIT_SRC])
+	oldcwd=$(pwd)
+	cd $CUNIT_SRC && ./configure && make
+	res=$?
+	cd $oldcwd
+	if ! test $res -eq 0 ; then
+		AC_MSG_ERROR([An error occured while building libcunit!])
+	fi
+	if ! test -e $CUNIT_LIBS; then
+		AC_MSG_ERROR([$CUNIT_LIBS not found! Build failed?])
+	fi
+else
+	AC_MSG_RESULT([$CUNIT_LIBS])
+fi
+
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
@@ -443,6 +462,7 @@ AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
+AC_SUBST([CUNIT_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
@@ -500,7 +520,9 @@ iff_opt_supported() {
         fi
 }
 
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
+CFLAGS=`echo "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing" \
+             "-I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include" \
+             "-I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"`
 # If some compiler option is compiler version specific, then add it to OPT_KCFLAGS.
 # iff_opt_supported() can be used to check if the compiler option is supported or not.
 # iff_opt_supported(opt) returns opt if opt is supported by compiler, "" otherwise.
@@ -610,8 +632,9 @@ echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
 echo "Galois :  \"$GALOIS_SRC\""
-echo "YAML :  \"$YAML_SRC\""
+echo "YAML   :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
+echo "CUnit  :  \"$CUNIT_SRC\""
 echo "Linux  :  \"$LINUX\""
 echo ""
 
