@@ -290,6 +290,7 @@ void cs_storage_fini(struct cs_reqh_stobs *stob);
 
 static struct cs_reqh_stobs reqh_stobs;
 static struct c2_dbenv      dbenv;
+bool                        fini_db = false;
 
 static int stob_domain_locate_or_create(enum stob_type          stob_type,
 					const char             *dom_path,
@@ -321,6 +322,7 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 			return rc;
 		}
 		dbenvp = &dbenv;
+		fini_db = true;
 	}
 
 	str_stob_type = (stob_type == AD_STOB_TYPE) ? "AD" : "Linux";
@@ -337,6 +339,9 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 static void stob_domain_fini(struct c2_stob_domain *stob_domain)
 {
 	cs_storage_fini(&reqh_stobs);
+
+	if (fini_db)
+		c2_dbenv_fini(&dbenv);
 }
 
 static int stob_create(struct c2_stob_domain    *dom,
@@ -348,6 +353,16 @@ static int stob_create(struct c2_stob_domain    *dom,
 	int             rc;
 
 	*out = NULL;
+
+	rc = c2_stob_find(dom, stob_id, &stob);
+	if (rc != 0)
+		return rc;
+	/*
+	 * Here, stob != NULL and c2_stob_find() has taken
+	 * reference on stob.
+	 * Must call c2_stob_put() on stob, after this point.
+	 */
+
 	dtx  = NULL;
 	if (dom->sd_type == &ad_stob_type) {
 		C2_ALLOC_PTR(dtx);
@@ -358,20 +373,12 @@ static int stob_create(struct c2_stob_domain    *dom,
 		}
 	}
 
-	rc = c2_stob_find(dom, stob_id, &stob);
-	if (rc != 0)
-		return rc;
-
-	/*
-	 * Here, stob != NULL and c2_stob_find() has taken
-	 * reference on stob.
-	 * Must call c2_stob_put() on stob, after this point.
-	 */
-	rc = c2_stob_locate(stob, dtx);
+	rc = c2_stob_locate(stob, dtx); /* dtx == NULL of linux stob type
+					   and != NULL for ad stob type */
 	if (rc == 0) {
 		fprintf(stderr, "Stob already exists\n");
 		*out = stob;
-		return rc;
+		return -EEXIST;
 	}
 
 	rc = c2_stob_create(stob, dtx);
@@ -386,6 +393,9 @@ static int stob_create(struct c2_stob_domain    *dom,
 			rc = c2_db_tx_abort(&dtx->tx_dbtx);
 		c2_stob_put(stob);
 	}
+
+	if (dtx != NULL)
+		c2_free(dtx);
 
 	return rc;
 }
