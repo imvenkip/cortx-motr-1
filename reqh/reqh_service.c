@@ -189,8 +189,7 @@ void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype)
 {
 	C2_PRE(rstype != NULL);
 
-	c2_tlist_del(&c2_rstypes_descr, rstype);
-	c2_tlink_fini(&c2_rstypes_descr, rstype);
+	c2_tlink_del_fini(&c2_rstypes_descr, rstype);
 }
 
 int c2_reqh_service_types_init(void)

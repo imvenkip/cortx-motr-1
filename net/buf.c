@@ -133,6 +133,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	c2_list_del(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 	buf->nb_magic = 0;
+        buf->nb_dom = NULL;
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;
