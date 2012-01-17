@@ -201,13 +201,14 @@ C2_EXPORTED(c2_ioservice_fop_init);
    This document describes the working of client side of io bulk transfer.
    This functionality is used only for io path.
    IO bulk client constitues the client side of bulk IO carried out between
-   Colibri client file system and data server. Colibri network layer
-   incorporates a bulk transport mechanism to transfer user buffers in
-   zero-copy fashion.
+   Colibri client file system and data server (ioservice aka bulk io server).
+   Colibri network layer incorporates a bulk transport mechanism to
+   transfer user buffers in zero-copy fashion.
    The generic io fop contains a network buffer descriptor which refers to a
    network buffer.
-   The bulk client creates IO fops and attaches the kernel pages to net
-   buffer associated with io fop and submits it to rpc layer.
+   The bulk client creates IO fops and attaches the kernel pages or a vector
+   in user mode to net buffer associated with io fop and submits it
+   to rpc layer.
    The rpc layer populates the net buffer descriptor from io fop and sends
    the fop over wire.
    The receiver starts the zero-copy of buffers using the net buffer
@@ -222,13 +223,13 @@ C2_EXPORTED(c2_ioservice_fop_init);
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   - c2t1fs Colibri client file system. It works as a kernel module.
-   - Bulk transport Event based, asynchronous message passing functionality
+   - c2t1fs - Colibri client file system. It works as a kernel module.
+   - Bulk transport - Event based, asynchronous message passing functionality
    of Colibri network layer.
-   - io fop A generic io fop that is used for read and write.
-   - rpc bulk An interface to abstract the usage of network buffers by
+   - io fop - A generic io fop that is used for read and write.
+   - rpc bulk - An interface to abstract the usage of network buffers by
    client and server programs.
-   - ioservice A service providing io routines in Colibri. It runs only
+   - ioservice - A service providing io routines in Colibri. It runs only
    on server side.
 
    <hr>
@@ -252,7 +253,8 @@ C2_EXPORTED(c2_ioservice_fop_init);
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
-   - r.misc.net_rpc_convert Bulk Client needs Colibri client file system to be    using new network layer apis which include c2_net_domain and c2_net_buffer.
+   - r.misc.net_rpc_convert Bulk Client needs Colibri client file system to be
+   using new network layer apis which include c2_net_domain and c2_net_buffer.
    - r.fop.referring_another_fop With introduction of a net buffer
    descriptor in io fop, a mechanism needs to be introduced so that fop
    definitions from one component can refer to definitions from another
@@ -271,8 +273,8 @@ C2_EXPORTED(c2_ioservice_fop_init);
    This in-memory io fop contains another abstract structure to represent
    the network buffer associated with the fop.
    The bulk client creates c2_io_fop structures as necessary and attaches
-   kernel pages to associated c2_rpc_bulk structure and submits the fop
-   to rpc layer.
+   kernel pages or user space vector to associated c2_rpc_bulk structure
+   and submits the fop to rpc layer.
    Rpc layer populates the network buffer descriptor embedded in the io fop
    and sends the fop over wire. The associated network buffer is added to
    appropriate buffer queue of transfer machine owned by rpc layer.
@@ -331,7 +333,7 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    Ioservice subsystem primarily comprises of 2 sub-components
    - IO client (comprises of IO coalescing code)
-   - Io server (server part of io routines)
+   - IO server (server part of io routines)
    The IO client subsystem under which IO requests belonging to same fid
    and intent (read/write) are clubbed together in one fop and this resultant
    fop is sent instead of member io fops.
@@ -351,8 +353,7 @@ C2_EXPORTED(c2_ioservice_fop_init);
    <i>This section briefly describes the interfaces of the sub-component that
    are of significance to the design.</i>
 
-   - ioseg_get Retrieves an ioseg given its index in zero
-   vector.
+   - ioseg_get() - Retrieves an ioseg given its index in zero vector.
 
    @subsection bulkclient-lspec-state State Specification
    <i>Mandatory.
@@ -368,22 +369,21 @@ C2_EXPORTED(c2_ioservice_fop_init);
 	S1 [label = "IO fop initialized"]
 	S2 [label = "Rpc bulk structure initialized"]
 	S3 [label = "Pages added to rpc bulk structure"]
-	S4 [label = "Rpc item posted to rpc layer"]
-	S5 [label = "Client waiting for reply"]
-	S6 [label = "Net buf desc populated in IO fop & net buffer enqueued"
-	"transfer machine."]
+	S4 [label = "Net buf desc stored in io fop wire format."]
+	S5 [label = "Rpc item posted to rpc layer"]
+	S6 [label = "Client waiting for reply"]
 	S7 [label = "Reply received"]
 	S8 [label = "Terminate"]
 	S0 -> S1 [label = "Allocate"]
 	S1 -> S2 [label = "c2_rpc_bulk_init()"]
 	S1 -> S8 [label = "Failed"]
 	S2 -> S8 [label = "Failed"]
-	S2 -> S3 [label = "c2_rpc_bulk_page_add()"]
+	S2 -> S3 [label = "c2_rpc_bulk_buf_page_add()"]
 	S3 -> S8 [label = "Failed"]
-	S3 -> S4 [label = "c2_rpc_item_post()"]
-	S4 -> S5 [label = "c2_chan_wait(rpc_bulk->rb_chan)"]
-	S5 -> S6 [label = "rpc_item->rit_ops->rito_io_desc_store(item)"]
-	S6 -> S7 [label = "c2_chan_signal(&rpc_bulk->rb_chan)"]
+	S3 -> S4 [label = "c2_rpc_bulk_store()"]
+	S4 -> S5 [label = "c2_rpc_post()"]
+	S5 -> S6 [label = "c2_chan_wait(item->ri_chan)"]
+	S6 -> S7 [label = "c2_chan_signal(item->ri_chan)"]
 	S7 -> S8 [label = "c2_rpc_bulk_fini(rpc_bulk)"]
    }
    @enddot

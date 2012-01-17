@@ -82,9 +82,10 @@ static struct c2_net_buffer	  io_buf[IO_FOPS_NR];
 /* Threads to post rpc items to rpc layer. */
 static struct c2_thread		  io_threads[IO_FOPS_NR];
 
-/* A standard buffer containing a data pattern.
-   Primarily used for data verification. */
-static char			  io_cbuf[IO_SEG_SIZE];
+/* Standard buffers containing a data pattern.
+   Primarily used for data verification in read and write IO. */
+static char			  readbuf[IO_SEG_SIZE];
+static char			  writebuf[IO_SEG_SIZE];
 
 /* A structure used to pass as argument to io threads. */
 struct thrd_arg {
@@ -161,7 +162,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	int				 rc;
 	uint32_t			 i;
 	uint32_t			 j;
-	uint64_t			 cmp;
 	c2_bcount_t			 tc;
 	struct c2_fop			*fop;
 	struct c2_clink			 clink;
@@ -246,8 +246,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	for (i = 0; i < rw->crw_desc.id_nr && c2_is_write_fop(fom->fo_fop); ++i) {
 		cmp = rw->crw_flags;
 		for (j = 0; j < bvecs[i]->ov_vec.v_nr; ++j) {
-			rc = memcmp(io_buf[cmp].nb_buffer.ov_buf[j],
-				    bvecs[i]->ov_buf[j],
+			rc = memcmp(writebuf, bvecs[i]->ov_buf[j],
 				    bvecs[i]->ov_vec.v_count[j]);
 			C2_UT_ASSERT(rc == 0);
 		}
@@ -332,7 +331,8 @@ static void io_buffers_allocate(void)
 	struct c2_bufvec *buf;
 
 	/* Initialized the standard buffer with a data pattern for read IO. */
-	memset(io_cbuf, 'b', IO_SEG_SIZE);
+	memset(readbuf, 'b', IO_SEG_SIZE);
+	memset(writebuf, 'a', IO_SEG_SIZE);
 
 	C2_SET_ARR0(io_buf);
 	for (i = 0; i < IO_FOPS_NR; ++i) {
@@ -349,7 +349,6 @@ static void io_buffers_allocate(void)
 							  C2_0VEC_SHIFT);
 			C2_UT_ASSERT(buf->ov_buf[j] != NULL);
 			buf->ov_vec.v_count[j] = IO_SEG_SIZE;
-			memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 		}
 	}
 }
@@ -413,8 +412,6 @@ static void io_fop_populate(int index, uint64_t off_index,
 			       rw->crw_desc.id_descs);
 	C2_UT_ASSERT(rc == 0);
 
-	rw->crw_flags = index;
-
 	/* Temporary! Should be removed once bulk server UT code is merged
 	   with this code. */
 	rw->crw_iovec.iv_count = 1;
@@ -476,6 +473,7 @@ static void io_fops_destroy(void)
 
 static void io_fops_rpc_submit(struct thrd_arg *t)
 {
+	int			  i;
 	int			  j;
 	int			  rc;
 	c2_time_t		  timeout;
@@ -484,9 +482,10 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 	struct c2_rpc_bulk	 *rbulk;
 	struct c2_io_fop	**io_fops;
 
+	i = t->ta_index;
 	io_fops = (t->ta_op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
-	rbulk = c2_fop_to_rpcbulk(&io_fops[t->ta_index]->if_fop);
-	item = &io_fops[t->ta_index]->if_fop.f_item;
+	rbulk = c2_fop_to_rpcbulk(&io_fops[i]->if_fop);
+	item = &io_fops[i]->if_fop.f_item;
 	item->ri_session = &c_rctx.rcx_session;
 	c2_time_set(&timeout, IO_RPC_ITEM_TIMEOUT, 0);
 
@@ -499,7 +498,7 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 
 	/* Posts the rpc item and waits until reply is received. */
 	rc = c2_rpc_post(item);
-	printf("Item %d posted to rpc.\n", t->ta_index);
+	printf("Item %d posted to rpc.\n", i);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_reply_timedwait(&clink, timeout);
@@ -508,10 +507,9 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 	else if (c2_is_read_fop(&io_fops[t->ta_index]->if_fop)) {
 		for (j = 0; j < io_buf[t->ta_index].nb_buffer.ov_vec.v_nr;
 		     ++j) {
-			rc = memcmp(io_buf[t->ta_index].nb_buffer.ov_buf[j],
-				    io_cbuf,
-				    io_buf[t->ta_index].nb_buffer.ov_vec.
-				    v_count[j]);
+			rc = memcmp(io_buf[i].nb_buffer.ov_buf[j], readbuf,
+				    io_buf[i].nb_buffer.ov_vec.v_count[j]);
+			memset(io_buf[i].nb_buffer.ov_buf[j], 'a', IO_SEG_SIZE);
 			C2_UT_ASSERT(rc == 0);
 		}
 		c2_mutex_lock(&rbulk->rb_mutex);
