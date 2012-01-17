@@ -328,7 +328,15 @@
 
  */
 
+#include "lib/errno.h"
+#include "lib/vec.h"
+#include "lib/arith.h"
+#include "layout/pdclust.h"         /* struct c2_ldb_pdclust_rec */
+#include "layout/linear_enum.h"     /* struct c2_layout_linear_attr */
+#include "layout/layout_internal.h"
+
 #include "layout/layout_db.h"
+
 
 /**
    @defgroup LayoutDBDFSInternal Layout DB Internals
@@ -363,11 +371,10 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 {
    /**
 	@code
-	c2_mutex_lock(schema->ls_lock);
 
+	c2_mutex_fini(&schema->ls_lock);
 	Use the DB interface c2_table_init() to intialize the layouts table.
 
-	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
 	return 0;
@@ -381,13 +388,12 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
    /*
 	@code
-	c2_mutex_lock(schema->ls_lock);
 
 	Use the DB interface c2_table_fini() to de-intialize the DB
 	tables.
 	Check that all layout and enum types were deregistered.
 
-	c2_mutex_unlock(schema->ls_lock);
+	c2_mutex_fini(&schema->ls_lock);
 	@endcode
    */
 }
@@ -508,11 +514,35 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 	return NULL;
 }
 
-struct c2_bufvec_cur *ldb_set_cursor()
+/**
+   Returns max possible size for a record in the layouts table only (without
+   considering the data in the comp_layout_ext_map and the cob_lists tables).
+
+   (In case we plan to restrict max possible number of sub-layouts and max
+   possible number of COB identifiers with a list enumeration, then this
+   function can be enhanced further.)
+
+   This will need to be modified when newer layout types or enumeration types
+   are added, if applicable.
+*/
+uint32_t c2_ldb_max_size()
+{
+	uint32_t max_size;
+
+	max_size = sizeof(struct c2_ldb_rec) +
+		sizeof(struct c2_ldb_pdclust_rec) +
+		max32(sizeof(struct ldb_inline_cob_entries),
+			sizeof(struct c2_layout_linear_attr));
+
+	return max_size;
+}
+
+struct c2_bufvec_cur *ldb_set_cursor(struct c2_ldb_schema *schema)
 {
    /**
 	@code
-	Allocate bufvec using C2_BUFVEC_INIT_BUF.
+	Allocate bufvec using C2_BUFVEC_INIT_BUF with the size returned by
+	c2_ldb_max_size(schema).
 	Have cursor cur pointing to it using c2_bufvec_cursor_init()
 	and return pointer to cur.
 	@endcode
@@ -523,39 +553,56 @@ struct c2_bufvec_cur *ldb_set_cursor()
 /**
    Looks up a persistent layout record with the specified layout_id, and
    its related information from the relevant tables.
-*/
-int c2_ldb_rec_lookup(const uint64_t *lid,
-		      struct c2_ldb_schema *schema,
-		      struct c2_db_tx *tx,
-		      struct c2_layout *out)
-{
-   /**
-	@code
-	struct c2_bufvec_cursor *cur = ldb_set_cursor();
 
-	Invoke c2_layout_decode() with op set to LOOKUP.
-	c2_layout_decode(schema, lid, cur, op, tx, out);
-	@endcode
-   */
+   @pre c2_db_pair is allocated by the caller. This is to leave the buffer
+   allocation with the caller, by taking help of c2_ldb_max_size().
+*/
+int c2_ldb_lookup(struct c2_ldb_schema *schema,
+		  uint64_t *lid,
+		  struct c2_db_pair *pair,
+		  struct c2_db_tx *tx,
+		  struct c2_layout **out)
+{
+	struct c2_bufvec         bv;
+	struct c2_bufvec_cursor  cur;
+
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
+
+	pair->dp_key.db_buf.b_addr = lid;
+
+	c2_table_lookup(tx, pair);
+
+	/* @todo Following is somehow giving a compilation error at this
+	   point - error: expected expression before '{' token. Need to look
+	   into it. But basically have buffer pointing the record read from
+	   the DB.
+	 */
+
+	/* bv = C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+				&pair->dp_rec.db_buf.b_nob); */
+
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	c2_layout_decode(schema, *lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
+
 	return 0;
 }
 
 
 /**
    Adds a new layout record entry into the layouts table.
-   If applicable, adds layout type and enum specific entries into the relevant
-   tables.
+   If applicable, adds layout type and enum type specific entries into the
+   relevant tables.
 */
-int c2_ldb_rec_add(const struct c2_layout *l,
-		   struct c2_ldb_schema *schema,
-		   struct c2_db_tx *tx)
+int c2_ldb_add(struct c2_ldb_schema *schema,
+	       const struct c2_layout *l,
+	       struct c2_db_tx *tx)
 {
-   /**
+   /** @todo Add pseudo code here and for delete/update.
 	@code
-	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+	struct c2_bufvec_cursor *cur = ldb_set_cursor(schema);
 
-	Invoke c2_layout_encode() with op set to C2_LXO_DB_ADD.
-	c2_layout_encode(schema, l, op, tx, cur);
+	c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, cur);
 	@endcode
    */
 	return 0;
@@ -565,16 +612,16 @@ int c2_ldb_rec_add(const struct c2_layout *l,
    Updates a layout record and its related information from the
    relevant tables.
 */
-int c2_ldb_rec_update(const struct c2_layout *layout,
-		      struct c2_ldb_schema *schema,
-		      struct c2_db_tx *tx)
+int c2_ldb_update(struct c2_ldb_schema *schema,
+		  const struct c2_layout *layout,
+		  struct c2_db_tx *tx)
 {
    /**
 	@code
-	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+	struct c2_bufvec_cursor *cur = ldb_set_cursor(schema);
 
 	Invoke c2_layout_encode() with op set to C2_LXO_DB_UPDATE.
-	c2_layout_encode(schema, l, op, tx, cur);
+	c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx, cur);
 	@endcode
    */
 	return 0;
@@ -589,16 +636,16 @@ int c2_ldb_rec_update(const struct c2_layout *layout,
 
    A layout with 'linear' enumeration type is never destroyed.
 */
-int c2_ldb_rec_delete(const uint64_t lid,
-		      struct c2_ldb_schema *schema,
-		      struct c2_db_tx *tx)
+int c2_ldb_delete(struct c2_ldb_schema *schema,
+		  uint64_t lid,
+		  struct c2_db_tx *tx)
 {
    /**
 	@code
-	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+	struct c2_bufvec_cursor *cur = ldb_set_cursor(schema);
 
 	Invoke c2_layout_encode() with op set to C2_LXO_DB_DELETE.
-	c2_layout_encode(schema, l, op, tx, cur);
+	c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, cur);
 	@endcode
    */
 	return 0;

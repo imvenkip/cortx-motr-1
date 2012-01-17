@@ -68,7 +68,7 @@
 
    A layout can be assignd to a file both by server and the client.
    @{
-*/
+ */
 
 /* import */
 #include "lib/cdefs.h"
@@ -96,7 +96,7 @@ struct c2_layout_enum_type_ops;
 
 /**
     In-memory representation of a layout.
-*/
+ */
 struct c2_layout {
 	/** Layout id. */
 	uint64_t                         l_id;
@@ -104,16 +104,18 @@ struct c2_layout {
 	/** Layout type. */
 	const struct c2_layout_type     *l_type;
 
-	/** Layout reference count.
+	/**
+	    Layout reference count.
 	    Indicating how many users this layout has.
-	*/
+	 */
 	uint64_t                         l_ref;
 
-	/** Lock to protect a c2_layout instance and all its direct/indirect
+	/**
+	    Lock to protect a c2_layout instance and all its direct/indirect
 	    members.
 	    Generic layout management code is required to acquire this lock
 	    so as to synchoronize access to a layout along with its enumeration.
-	*/
+	 */
 	struct c2_mutex                  l_lock;
 
 	/** Layout operations vector. */
@@ -129,7 +131,7 @@ struct c2_layout_ops {
    Layout DB operation on a layout record, performed through either
    c2_layout_decode or c2_layout_encode routines.
    C2_LXO_DB_NONE indicates that encode/decode has to operate on a buffer.
-*/
+ */
 enum c2_layout_xcode_op {
 	C2_LXO_DB_NONE,
 	C2_LXO_DB_ADD,
@@ -142,7 +144,7 @@ enum c2_layout_xcode_op {
    Structure specific to per layout type.
    There is an instance of c2_layout_type for each one of layout types. e.g.
    for PDCLUST and COMPOSITE layout types.
-*/
+ */
 struct c2_layout_type {
 	/** Layout type name. */
 	const char                      *lt_name;
@@ -155,9 +157,10 @@ struct c2_layout_type {
 };
 
 struct c2_layout_type_ops {
-	/** Allocates layout type specific schema data.
+	/**
+	    Allocates layout type specific schema data.
 	    e.g. comp_layout_ext_map table.
-	*/
+	 */
 	int        (*lto_register)(struct c2_ldb_schema *schema,
 				   const struct c2_layout_type *lt);
 
@@ -165,23 +168,22 @@ struct c2_layout_type_ops {
 	int        (*lto_unregister)(struct c2_ldb_schema *schema,
 				     const struct c2_layout_type *lt);
 
-	/** Returns applicable record size for the layouts table. */
-	uint64_t   (*lto_recsize)(void);
-
-	/** Continues building the in-memory layout object either from the
+	/**
+	    Continues building the in-memory layout object either from the
 	    buffer or from the DB.
 	    Allocates an instance of some layout-type specific data-type
-	    which embeds c2_layout.
-	    Sets c2_layout::l_ops.
-	*/
+	    which embeds c2_layout. Sets c2_layout::l_ops.
+	 */
 	int    (*lto_decode)(struct c2_ldb_schema *schema, uint64_t lid,
-			     const struct c2_bufvec_cursor *cur,
+			     struct c2_bufvec_cursor *cur,
 			     enum c2_layout_xcode_op op,
 			     struct c2_db_tx *tx,
 			     struct c2_layout **out);
 
-	/** Continues storing the layout representation either in the buffer
-	    or in the DB. */
+	/**
+	    Continues storing the layout representation either in the buffer
+	    or in the DB.
+	 */
 	int    (*lto_encode)(struct c2_ldb_schema *schema,
 			     const struct c2_layout *l,
 			     enum c2_layout_xcode_op op,
@@ -191,25 +193,27 @@ struct c2_layout_type_ops {
 
 /**
    Layout enumeration.
-*/
+ */
 struct c2_layout_enum {
 	/** Pointer back to c2_layout object this c2_layout_enum is part of. */
-	const struct c2_layout          *le_lptr;
+	const struct c2_layout            *le_lptr;
 
-	const struct c2_layout_enum_ops *le_ops;
+	/** Layout Enumeration type. */
+	const struct c2_layout_enum_type *le_type
+;
+	const struct c2_layout_enum_ops  *le_ops;
 };
 
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
-	uint32_t    (*leo_nr)(const struct c2_layout_enum *e,
-			      struct c2_fid *gfid);
+	uint32_t    (*leo_nr)(const struct c2_layout_enum *e);
 
 	/** Returns idx-th object in the enumeration.
 	    @pre idx < e->l_enum_ops->leo_nr(e)
 	*/
 	void    (*leo_get)(const struct c2_layout_enum *e,
 			   uint32_t idx,
-			   struct c2_fid *gfid,
+			   const struct c2_fid *gfid,
 			   struct c2_fid *out);
 };
 
@@ -243,24 +247,11 @@ struct c2_layout_enum_type_ops {
 	/** Returns applicable record size for the layouts table. */
 	uint64_t   (*leto_recsize)(void);
 
-	/** Reads enumeration type specific data from the buffer as is stored
-	    in the the layouts table record. Store it in the in-memory layout
-	    object. */
-	int        (*leto_rec_decode)(const struct c2_bufvec_cursor *cur,
-				      struct c2_layout_enum *e);
-
-	/** Reads enumeration type specific data from the in-memory layout
-	    object as is stored in the layouts table and stores it in the
-	    buffer.
-	*/
-	int        (*leto_rec_encode)(const struct c2_layout_enum *e,
-				      struct c2_bufvec_cursor *cur);
-
 	/** Continues building the in-memory layout object, either from
 	    the buffer or from the DB. */
 	int        (*leto_decode)(struct c2_ldb_schema *schema,
 				  uint64_t lid,
-				  const struct c2_bufvec_cursor *cur,
+				  struct c2_bufvec_cursor *cur,
 				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
 				  struct c2_layout **out);
@@ -279,10 +270,10 @@ struct c2_layout_enum_type_ops {
 */
 struct c2_layout_striped {
 	/** super class */
-	struct c2_layout                 ls_base;
+	struct c2_layout           ls_base;
 
 	/** Layout enumeration. */
-	const struct c2_layout_enum     *ls_enum;
+	struct c2_layout_enum     *ls_enum;
 };
 
 
@@ -290,18 +281,18 @@ int c2_layouts_init(void);
 void c2_layouts_fini(void);
 
 void c2_layout_init(struct c2_layout *lay,
-		    const uint64_t lid,
+		    uint64_t lid,
 		    const struct c2_layout_type *type,
 		    const struct c2_layout_ops *ops);
 void c2_layout_fini(struct c2_layout *lay);
 
 int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
-		     const struct c2_bufvec_cursor *cur,
+		     struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
 		     struct c2_layout **out);
 int c2_layout_encode(struct c2_ldb_schema *schema,
-		     const struct c2_layout *l,
+		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *out);

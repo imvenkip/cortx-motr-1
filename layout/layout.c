@@ -22,6 +22,12 @@
 #  include <config.h>
 #endif
 
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "lib/vec.h"
+
+#include "layout/layout_db.h"
+#include "layout/layout_internal.h"
 #include "layout/layout.h"
 
 /**
@@ -29,9 +35,6 @@
    @{
  */
 
-enum {
-	LID_NONE = 0,
-};
 
 /**
    Initializes layout schema, creates generic table to store layout records.
@@ -69,7 +72,7 @@ void c2_layouts_fini(void)
 }
 
 void c2_layout_init(struct c2_layout *lay,
-		    const uint64_t id,
+		    uint64_t id,
 		    const struct c2_layout_type *type,
 		    const struct c2_layout_ops *ops)
 {
@@ -77,13 +80,12 @@ void c2_layout_init(struct c2_layout *lay,
 	@code
 	C2_SET0(lay);
 
-	c2_mutex_lock(lay->l_lock);
+	c2_mutex_init(&lay->l_lock);
 
 	lay->l_id       = id;
 	lay->l_type     = type;
 	lay->l_ops      = ops;
 
-	c2_mutex_unlock(lay->l_lock);
 	@endcode
    */
 }
@@ -92,11 +94,11 @@ void c2_layout_fini(struct c2_layout *lay)
 {
    /**
 	@code
-	c2_mutex_lock(lay->l_lock);
 	Perform whatever is required to be cleaned up while the object is
 	about to be deleted.
 
-	c2_mutex_unlock(lay->l_lock);
+	c2_mutex_fini(&lay->l_lock);
+
 	@endcode
    */
 }
@@ -108,9 +110,7 @@ void c2_layout_get(struct c2_layout *lay)
 	@code
 	c2_mutex_lock(lay->l_lock);
 
-	Increases reference on layout by incrementing c2_layout::l_ref and
-	uses c2_ldb_rec_update() to increase reference on the layout record from
-	the layout DB.
+	Increases reference on layout by incrementing c2_layout::l_ref.
 
 	c2_mutex_unlock(lay->l_lock);
 	@endcode
@@ -124,9 +124,7 @@ void c2_layout_put(struct c2_layout *lay)
 	@code
 	c2_mutex_lock(lay->l_lock);
 
-	Decreases reference on layout by decrementing c2_layout::l_ref and
-	uses c2_ldb_rec_update() to decrease reference on the layout record from
-	the layout DB.
+	Decreases reference on layout by decrementing c2_layout::l_ref.
 
 	c2_mutex_unlock(lay->l_lock);
 	@endcode
@@ -134,56 +132,69 @@ void c2_layout_put(struct c2_layout *lay)
 }
 
 /**
-   This method builds an in-memory layout object from its representation
-   either 'stored in the Layout DB' or 'received over the network'.
+   This method
+   @li Either continues to builds an in-memory layout object from its
+       representation 'stored in the Layout DB'
+   @li Or builds an in-memory layout object from its representation 'received
+       over the network'.
 
    Two use cases of c2_layout_decode()
    - Client decodes a buffer received over the network, into an in-memory
      layout structure.
    - Server decodes an on-disk layout record by reading it from the Layout
-     DB, into an in-memory layout structure.
+     DB, into an in-memory layout structure. This is done by calling
+     c2_ldb_rec_lookup().
 
    @param op - This enum parameter indicates what is the DB operation to be
    performed on the layout record. It could be LOOKUP if at all.
    If it is NONE, then the layout is decoded from its representation received
    over the network.
 */
-int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
-		     const struct c2_bufvec_cursor *cur,
+int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
+		     struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
 		     struct c2_layout **out)
 {
-   /**
-	@code
-	c2_mutex_lock(out->l_lock);
+	struct c2_layout_type *lt;
+	struct c2_ldb_rec     *rec;
 
-	C2_PRE(lid != LID_NONE);
 	C2_PRE(schema != NULL);
-	C2_PRE(tx != NULL);
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	if (op == C2_LXO_DB_LOOKUP)
+		C2_PRE(tx != NULL);
 
-	Based on the layout type, call corresponding lto_decode().
+	rec = (struct c2_ldb_rec *)c2_bufvec_cursor_addr(cur);
 
-	uint64_t lt_id = *out->l_type->lt_id;
-	schema->ls_types[lt_id]->lto_decode(op, lid, cur, out);
+	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type))
+		return -EPROTO;
 
-	Now, parse the generic layout fields from the buffer (pointed by *cur)
-	and store those in the layout object. e.g. layout id, layout type id,
-	enumeration type id, ref counter.
+	lt = schema->ls_type[rec->lr_lt_id];
+	if (lt == NULL)
+		return -ENOENT;
 
-	c2_mutex_unlock(lay->l_lock);
-	@endcode
-   */
+	/** Move the cursor to point to rec->lr_data. */
+	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+
+	lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
+
+	c2_mutex_lock(&(*out)->l_lock);
+
+	(*out)->l_id = lid;
+	(*out)->l_type = lt;
+	(*out)->l_ref = rec->lr_ref_count;
+
+	c2_mutex_unlock(&(*out)->l_lock);
 
 	return 0;
-
 }
 
 /**
-   This method uses an in-memory layout object and either 'stores it in the
-   Layout DB' or 'converts it to a buffer that can be passed on over the
-   network'.
+   This method uses an in-memory layout object and
+   @li Either adds/updates/deletes it to/from the Layout DB
+   @li Or converts it to a buffer that can be passed on over the network.
 
    Two use cases of c2_layout_encode()
    - Server encodes an in-memory layout object into a buffer, so as to send
@@ -197,83 +208,63 @@ int c2_layout_decode(struct c2_ldb_schema *schema, const uint64_t lid,
 
 */
 int c2_layout_encode(struct c2_ldb_schema *schema,
-		     const struct c2_layout *l,
+		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *out)
 {
-   /**
-	@code
+	struct c2_ldb_rec     *rec;
+	struct c2_layout_type *lt;
+
 	C2_PRE(schema != NULL);
-	C2_PRE(tx != NULL);
+	C2_PRE(l != NULL); /** @todo This will be replaced by the invariant. */
+	C2_PRE(op == C2_LXO_DB_ADD ||
+		op == C2_LXO_DB_UPDATE ||
+		op == C2_LXO_DB_DELETE ||
+		op == C2_LXO_DB_NONE);
+	if (op != C2_LXO_DB_NONE)
+		C2_PRE(tx != NULL);
 	C2_PRE(out != NULL);
 
-	c2_mutex_lock(l->l_lock);
+	C2_ALLOC_PTR(rec);
 
-	Read generic fields from the layout object and store those in
-	the buffer pointed by cur.
+	c2_mutex_lock(&l->l_lock);
 
-	Based on the layout type, invoke corresponding lto_encode().
+	rec->lr_lt_id     = l->l_type->lt_id;
+	rec->lr_ref_count = l->l_ref;
 
-	c2_mutex_unlock(l->l_lock);
-	@endcode
-   */
+	/** Copy rec to the buffer pointed by out. */
+	data_to_bufvec_copy(out, rec, sizeof(struct c2_ldb_rec));
+
+	lt = schema->ls_type[rec->lr_lt_id];
+	if (lt == NULL)
+		return -ENOENT;
+
+	lt->lt_ops->lto_encode(schema, l, op, tx, out);
+
+	c2_mutex_unlock(&l->l_lock);
 
 	return 0;
 }
 
 
-/**
-   Read layout record from layouts table.
-   Used from layout type specific implementation, with layout type
-   specific record size.
-*/
-static int __attribute__ ((unused)) ldb_layout_read(
-			   uint64_t *lid, const uint32_t recsize,
-			   struct c2_db_pair *pair,
-			   struct c2_ldb_schema *schema,
-			   struct c2_db_tx *tx)
+int ldb_layout_write(struct c2_ldb_schema *schema,
+		     enum c2_layout_xcode_op op,
+		     uint32_t recsize,
+		     struct c2_bufvec_cursor *cur,
+		     struct c2_db_tx *tx)
 {
-   /**
-	@code
-	struct c2_layout_rec     *rec;
+	uint64_t              lid;
+	struct c2_layout_rec *rec;
+	struct c2_db_pair     pair;
 
-	c2_db_pair_setup(&pair, &schema->ls_layout_entries,
-			 lid, sizeof(uint64_t),
-			 rec, recsize);
+   /**	@todo Collect data into lid and rec, from the buffer pointed by cur and
+	by referring the recsize. Till then initializing rec to NULL to avoid
+        uninitialization error. */
+	rec = NULL;
 
-	c2_table_lookup(tx, &pair);
-
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Write layout record to layouts table.
-   Used from layout type specific implementation, with layout type
-   specific record size.
-
-   @param op - This enum parameter indicates what is the DB operation to be
-   performed on the layout record which could be one of ADD/UPDATE/DELETE.
-*/
-static int __attribute__ ((unused)) ldb_layout_write(
-			    enum c2_layout_xcode_op op,
-			    const uint32_t recsize,
-			    struct c2_bufvec_cursor *cur,
-			    struct c2_ldb_schema *schema,
-			    struct c2_db_tx *tx)
-{
-   /**
-	@code
-	struct c2_layout_rec     *rec;
-	struct c2_db_pair         pair;
-
-	Collect data into lid and rec, from the buffer pointed by cur and
-	by referring the recsize.
-
-	c2_db_pair_setup(&pair, &schema->ls_layout_entries,
-			 lid, sizeof(uint64_t),
+	c2_db_pair_setup(&pair, &schema->ls_layouts,
+			 &lid, sizeof(uint64_t),
 			 rec, recsize);
 
 	if (op == C2_LXO_DB_ADD) {
@@ -283,10 +274,51 @@ static int __attribute__ ((unused)) ldb_layout_write(
 	} else if (op == C2_LXO_DB_DELETE) {
 		c2_table_delete(tx, &pair);
 	}
-	@endcode
-   */
 	return 0;
 }
+
+
+/**
+ * Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
+ * Initializes a c2_bufvec containing a single element of specified size.
+ */
+void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
+			   size_t *len)
+{
+	C2_PRE(src_buf != NULL);
+	C2_PRE(len != 0);
+	C2_PRE(data != NULL);
+
+	src_buf->ov_vec.v_nr = 1;
+	src_buf->ov_vec.v_count = (c2_bcount_t *)len;
+	src_buf->ov_buf = data;
+}
+
+/**
+ * Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
+ * Helper functions to copy opaque data with specified size to and from a
+ * c2_bufvec.
+ */
+int data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+			       size_t len)
+{
+	c2_bcount_t		 count;
+	struct c2_bufvec_cursor  src_cur;
+	struct c2_bufvec	 src_buf;
+
+	C2_PRE(cur != NULL);
+	C2_PRE(data != NULL);
+	C2_PRE(len != 0);
+
+	data_to_bufvec(&src_buf, &data, &len);
+	c2_bufvec_cursor_init(&src_cur, &src_buf);
+	count = c2_bufvec_cursor_copy(cur, &src_cur, len);
+	if (count != len)
+		return -EFAULT;
+	return 0;
+}
+
+
 
 /** @} end group layout */
 

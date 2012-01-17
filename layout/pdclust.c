@@ -22,11 +22,13 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/arith.h" /* c2_rnd() */
+#include "lib/arith.h"        /* c2_rnd() */
 
 #include "stob/stob.h"
 #include "pool/pool.h"
-#include "fid/fid.h"   /* struct c2_fid */
+#include "fid/fid.h"          /* struct c2_fid */
+#include "layout/layout_db.h" /* struct c2_ldb_schema */
+#include "layout/layout_internal.h"
 
 #include "layout/pdclust.h"
 
@@ -457,29 +459,7 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 C2_EXPORTED(c2_pdclust_unit_classify);
 
 
-/**
-   Implementation of lto_recsize() for pdclust layout type.
-*/
-static uint64_t pdclust_recsize(void)
-{
-   /**
-	@code
-	uint64_t recsize;
-
-	Invoke corresponding leto_recsize() so as to get the record size
-	into variable recsize. It returns the size required to store the
-	enumeration type specific data into the layouts table record, if
-	applicable.
-
-	recsize = recsize + sizeof(struct c2_ldb_pdclust_rec) +
-			    sizeof(struct c2_ldb_rec);
-
-	return recsize;
-
-	@endcode
-   */
-	return 0;
-}
+static const struct c2_layout_ops pdclust_ops;
 
 /**
    Implementation of lto_decode() for pdclust layout type.
@@ -493,61 +473,68 @@ static uint64_t pdclust_recsize(void)
    over the network.
 */
 static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
-			  const struct c2_bufvec_cursor *cur,
+			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
 		          struct c2_layout **out)
 {
-   /**
-	@code
+	struct c2_pdclust_layout   *pl;
+	struct c2_layout_striped   *stl;
+	struct c2_layout           *l;
+	struct c2_ldb_pdclust_rec  *pl_rec;
+	struct c2_layout_enum_type *et;
 
-	if (op == C2_LXO_DB_LOOKUP) {
-		C2_PRE(lid != 0);
-	}
-
+	C2_PRE(schema != NULL);
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	if (op == C2_LXO_DB_LOOKUP)
+		C2_PRE(tx != NULL);
 
-	Allocate new layout as an instance of c2_pdclust_layout that
-	embeds c2_layout.
+	C2_ALLOC_PTR(pl);
 
-	if (op == C2_LXO_DB_LOOKUP) {
-		struct c2_db_pair       pair;
-		uint64_t                recsize;
+	stl = &pl->pl_base;
+	l = &stl->ls_base;
+	l->l_ops = &pdclust_ops;
 
-		Invoke respective lto_recsize() to collect the layouts
-		table's record size into recsize.
+	/** @todo Check this with a test prog */
+	*out = l;
 
-		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
+	/** Read pdclust layout type specific fields from the buffer and store
+	those in c2_pdclust_layout::pl_attr. */
 
-		Set the cursor cur to point at the PDCLUST type specific
-		fields from the key-val pair.
-	}
+	pl_rec = (struct c2_ldb_pdclust_rec *)c2_bufvec_cursor_addr(cur);
 
-	Read pdclust layout type specific fields from the buffer and store
-	those in c2_pdclust_layout::pl_attr.
+	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum))
+		return -EPROTO;
 
-	Invoke the corresponding leto_rec_decode() to read the enumeration type
-	specific data from the buffer (as is stored in the layouts table), into
-	the in-memory layout object.
+	et = schema->ls_enum[pl_rec->pr_let_id];
+	if (et == NULL)
+		return -ENOENT;
 
-	Invoke corresponding leto_decode() (if it is non-null) to read
-	enumeration type specific data.
+	pl->pl_attr.pa_N = pl_rec->pr_attr.pa_N;
+	pl->pl_attr.pa_K = pl_rec->pr_attr.pa_K;
+	pl->pl_attr.pa_P = pl_rec->pr_attr.pa_P;
 
-	Set the cursor cur to point at the beginning of the key-val pair read
-        from the layouts table.
+	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
 
-	@endcode
-   */
+	/** Invoke the corresponding leto_decode() to:
+	    1) Read the enumeration type specific data from the buffer, as is
+	       stored in the layouts table,
+	    2) Read the enumeration type specific data from table other than
+	       the layouts table, if applicable.
+	    into the in-memory layout object. */
 
+	et->let_ops->leto_decode(schema, lid, cur, op, tx, out);
 	return 0;
 }
 
 /**
    Implementation of lto_encode() for pdclust layout type.
 
-   Continues to use the in-memory layout object and either 'stores it in the
-   Layout DB' or 'converts it to a buffer that can be passed on over the
-   network'.
+   Continues to use the in-memory layout object and
+   @li Either adds/updates or deletes it to/from the Layout DB
+   @li Or converts it to a buffer that can be passed on over the network.
 
   @param op - This enum parameter indicates what is the DB operation to be
    performed on the layout record if at all and it could be one of
@@ -559,38 +546,65 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 			  struct c2_db_tx *tx,
 		          struct c2_bufvec_cursor *out)
 {
-   /**
-	@code
-	Store pdclust layout type specific fields into the buffer.
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_striped     *stl;
+	struct c2_ldb_pdclust_rec    *pl_rec;
+	struct c2_layout_type        *lt;
+	struct c2_layout_enum_type   *et;
+
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+
+	C2_ALLOC_PTR(pl_rec);
+
+	pl_rec->pr_let_id    = stl->ls_enum->le_type->let_id;
+	pl_rec->pr_attr.pa_N = pl->pl_attr.pa_N;
+	pl_rec->pr_attr.pa_K = pl->pl_attr.pa_K;
+	pl_rec->pr_attr.pa_P = pl->pl_attr.pa_P;
+
+	/** Copy pdclust layout type specific attributes into the buffer. */
+	data_to_bufvec_copy(out, pl_rec, sizeof(struct c2_ldb_pdclust_rec));
+
+	if (!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
+		return -EPROTO;
+
+	lt = schema->ls_type[l->l_type->lt_id];
+	if (lt == NULL)
+		return -ENOENT;
+
+	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum))
+		return -EPROTO;
+
+	et = schema->ls_enum[pl_rec->pr_let_id];
+	if (et == NULL)
+		return -ENOENT;
+
+	if (et->let_ops->leto_encode != NULL)
+		et->let_ops->leto_encode(schema, l, op, tx, out);
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
-			(op == C2_LXO_DB_DELETE)) {
+		(op == C2_LXO_DB_DELETE)) {
 		uint64_t recsize;
 
-		Invoke respective lto_recsize() to collect the layouts
-		table's record size into recsize.
+		recsize = sizeof(struct c2_ldb_rec) +
+			sizeof(struct c2_ldb_pdclust_rec);
 
-		Invoke the corresponding leto_rec_encode() to read the
-		enumeration type specific data from the c2_layout_list_enum
-		(to be stored in the layouts table), into the buffer.
+		recsize = recsize + et->let_ops->leto_recsize();
 
-		ret = ldb_layout_write(op, recsize, out, schema, tx);
-
+		ldb_layout_write(schema, op, recsize, out, tx);
 	}
 
-	Invoke corresponding leto_encode() (if it is non-null) to operate
-	upon the enumeration type specific data.
-
-	@endcode
-   */
 	return 0;
 }
 
 
+static const struct c2_layout_ops pdclust_ops = {
+	.lo_fini        = NULL
+};
+
 static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register   = NULL,
 	.lto_unregister = NULL,
-	.lto_recsize    = pdclust_recsize,
 	.lto_decode     = pdclust_decode,
 	.lto_encode     = pdclust_encode,
 };

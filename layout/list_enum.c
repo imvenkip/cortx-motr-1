@@ -18,7 +18,9 @@
  * Original creation date: 11/16/2011
  */
 
+#include "lib/vec.h"
 #include "fid/fid.h"  /* struct c2_fid */
+#include "layout/layout_internal.h"
 #include "layout/list_enum.h"
 
 /**
@@ -28,35 +30,6 @@
    object identifiers in itself.
    @{
 */
-
-struct list_schema_data {
-	/** Table to store COB lists for all the layout with LIST enum type. */
-	struct c2_table           lsd_cob_lists;
-};
-
-struct ldb_list_cob_entry {
-	/** Index for the COB from the layout it is part of. */
-	uint32_t                  llce_cob_index;
-
-	/** COB identifier. */
-	struct c2_fid             llce_cob_id;
-};
-
-enum {
-	MAX_INLINE_COB_ENTRIES = 20
-};
-
-/**
-   Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
-   into the layouts table.
-*/
-struct ldb_list_cob_entries {
-	/** Total number of COB Ids for the specific layout. */
-	uint32_t                  llces_nr;
-
-	/** Array for storing COB Ids. */
-	struct ldb_list_cob_entry llces_cobs[MAX_INLINE_COB_ENTRIES];
-};
 
 /**
    Implementation of leto_register for LIST enumeration type.
@@ -105,53 +78,15 @@ static int list_unregister(struct c2_ldb_schema *schema,
 */
 static uint64_t list_recsize(void)
 {
-	return sizeof(struct ldb_list_cob_entries);
+	return sizeof(struct ldb_inline_cob_entries);
 }
-
-/**
-   Implementation of leto_rec_decode() for list enumeration type.
-   Reads MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
-   the c2_layout_list_enum object.
-*/
-static int list_rec_decode(const struct c2_bufvec_cursor *cur,
-			   struct c2_layout_enum *e)
-{
-   /**
-	@code
-	Container_of(e) would give an object of the type c2_layout_list_enum,
-	say le.
-	Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from the
-	buffer (pointed by cur) into le->lle_list_of_cobs.
-	@endcode
-   */
-	return 0;
-}
-
-/**
-   Implementation of leto_rec_encode() for list enumeration type.
-   Reads MAX_INLINE_COB_ENTRIES number of cob identifiers from
-   the c2_layout_list_enum object into the buffer.
-*/
-static int list_rec_encode(const struct c2_layout_enum *e,
-			   struct c2_bufvec_cursor *cur)
-{
-   /**
-	@code
-	Container_of(e) would give an object of the type c2_layout_list_enum,
-	say le.
-	Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from
-	le->lle_list_of_cobs, into the buffer (pointed by cur).
-	@endcode
-   */
-	return 0;
-}
-
 
 /**
    Implementation of leto_decode() for list enumeration type.
 
-   Continues to build the in-memory layout object from its representation
-   either 'stored in the Layout DB' or 'received over the network'.
+   Reads MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
+   the c2_layout_list_enum object. Then reads further cob identifiers either
+   from the DB or from the buffer, as applicable.
 
    @param op - This enum parameter indicates what if a DB operation is to be
    performed on the layout record and it could be LOOKUP if at all.
@@ -159,33 +94,40 @@ static int list_rec_encode(const struct c2_layout_enum *e,
    over the network.
 */
 static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
-		       const struct c2_bufvec_cursor *cur,
+		       struct c2_bufvec_cursor *cur,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
 		       struct c2_layout **out)
 {
+	struct c2_layout_striped      *stl;
+	struct c2_layout_list_enum    *list_enum;
+	struct ldb_inline_cob_entries *inline_cobs;
+
+	stl = container_of(*out, struct c2_layout_striped, ls_base);
+
+	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
+			lle_base);
+
+	inline_cobs = (struct ldb_inline_cob_entries *)c2_bufvec_cursor_addr(
+			cur);
+
    /**
 	@code
-	if (op == C2_LXO_DB_LOOKUP) {
-		C2_PRE(lid != 0);
-	}
-	C2_PRE(cur != NULL);
+	Copy cob entries from inline_cobs to list_enum.
 
-	Nothing to be done if ldb_list_cob_entries::llces_nr <=
-	MAX_INLINE_COB_ENTRIES. Return from here if so.
+	Nothing to be done if inline_cobs->llces_nr <= MAX_INLINE_COB_ENTRIES.
+	Return from here if so.
 
 	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the COB identifiers belonging to the layout with the
 		layout id 'lid' and index greater than MAX_INLINE_COB_ENTRIES,
-		from the cob_lists table and store those in the buffer pointed
-		by cur.
-
-		Set the cursor cur to point at the beginning of the list of COB
-		identifiers.
+		from the cob_lists table and store those in the
+		c2_layout_list_enum::lle_list_of_cobs.
+	} else {
+		Parse the cob identifiers list from the buffer and store it in
+		the c2_layout_list_enum::lle_list_of_cobs.
 	}
 
-	Parse the cob identifiers list from the buffer (pointed by cur) and
-	store it in the c2_layout_list_enum::lle_list_of_cobs.
 	@endcode
    */
 	return 0;
@@ -208,23 +150,50 @@ static int list_encode(struct c2_ldb_schema *schema,
 		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *out)
 {
-   /**
-	@code
-        Read the cob identifiers list from c2_layout_list_enum::lle_list_of_cobs
-	and store it into the buffer.
+	struct c2_layout_striped      *stl;
+	struct c2_layout_list_enum    *list_enum;
+	struct ldb_inline_cob_entries *inline_cobs;
+
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+
+	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
+			lle_base);
+
+	/** Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from
+	    le->lle_list_of_cobs, into inline_cobs. Temporarily assigning NULL
+	    to inline_cobs to avoid the uninitialization error. */
+	inline_cobs = NULL;
+
+	data_to_bufvec_copy(out, inline_cobs,
+				sizeof(struct ldb_inline_cob_entries));
+
+	/**
+	    If we are here through DB operation, then the buffer is at the
+	    end by now since it was allocated with the max size possible
+	    for a record in the layouts table. Add assert to verify that.
+	 */
+
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
+		/**
 		Depending upon the value of op, insert/update/delete cob
 		entries beyond MAX_INLINE_COB_ENTRIES to/from the cob_lists
 		table.
 
 		(First MAX_INLINE_COB_ENTRIES number of entries are stored
 		inline into the layouts table itself.)
+		*/
+	} else {
+
+		/**
+		Read the cob identifiers list beyond the index
+		MAX_INLINE_COB_ENTRIES from
+		c2_layout_list_enum::lle_list_of_cobs and store it into the
+		buffer.
+		*/
 	}
 
-	@endcode
-   */
 	return 0;
 }
 
@@ -233,8 +202,7 @@ static int list_encode(struct c2_ldb_schema *schema,
    Rerurns number of objects in the enumeration.
    Argument fid is ignored here for LIST enumeration type.
 */
-static uint32_t list_nr(const struct c2_layout_enum *le,
-			struct c2_fid *gfid)
+static uint32_t list_nr(const struct c2_layout_enum *le)
 {
    /**
 	@code
@@ -254,7 +222,7 @@ static uint32_t list_nr(const struct c2_layout_enum *le,
 */
 static void list_get(const struct c2_layout_enum *le,
 		     uint32_t idx,
-		     struct c2_fid *gfid,
+		     const struct c2_fid *gfid,
 		     struct c2_fid *out)
 {
    /**
@@ -273,8 +241,6 @@ static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_register       = list_register,
 	.leto_unregister     = list_unregister,
 	.leto_recsize        = list_recsize,
-	.leto_rec_decode     = list_rec_decode,
-	.leto_rec_encode     = list_rec_encode,
 	.leto_decode         = list_decode,
 	.leto_encode         = list_encode,
 };

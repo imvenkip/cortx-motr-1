@@ -18,6 +18,12 @@
  * Original creation date: 11/16/2011
  */
 
+#include "lib/memory.h"
+#include "lib/assert.h"
+#include "lib/vec.h"
+
+#include "layout/layout_internal.h"
+#include "layout/layout_db.h"       /* struct c2_ldb_rec */
 #include "layout/composite.h"
 
 /**
@@ -71,18 +77,7 @@ static int composite_unregister(struct c2_ldb_schema *schema,
 	return 0;
 }
 
-/**
-   Implementation of lto_recsize() for COMPOSITE layout type.
-*/
-static uint64_t composite_recsize(void)
-{
-   /**
-	@code
-	return (sizeof(struct c2_ldb_rec));
-	@endcode
-   */
-	return 0;
-}
+static const struct c2_layout_ops composite_ops;
 
 /**
    Implementation of lto_decode() for composite layout type.
@@ -96,44 +91,44 @@ static uint64_t composite_recsize(void)
    over the network.
 */
 static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
-			    const struct c2_bufvec_cursor *cur,
+			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
 			    struct c2_layout **out)
 {
+	struct c2_composite_layout   *cl;
+	struct c2_layout             *l;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(cur != NULL);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(tx != NULL);
+
+	/**
+	   There is no data expected in c2_ldb_rec::lr_data[] for the composite
+	   layout type. Thus the buffer is expected to be at the end.
+	 */
+	C2_PRE(c2_bufvec_cursor_move(cur, 0));
+
+	C2_ALLOC_PTR(cl);
+
+	l = &cl->cl_base;
+	l->l_ops = &composite_ops;
+
+	/** @todo Check this with a test prog */
+	*out = l;
+
    /**
 	@code
-
-	if (op == C2_LXO_DB_LOOKUP)
-		C2_PRE(lid != 0);
-	else
-		C2_PRE(cur != NULL);
-
-	Allocate new layout as an instance of c2_composite_layout that
-	embeds c2_layout.
-
-	if (op == C2_LXO_DB_LOOKUP) {
-		struct c2_db_pair	pair;
-
-		uint32_t recsize = lto_recsize();
-
-		ret = ldb_layout_read(&lid, recsize, &pair, schema, tx)
-	}
-
 	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the segments from comp_layout_ext_map, belonging to
 		composite layout with layout id 'lid' and store them in the
-		buffer pointed by cur.
-
-		Set the cursor cur to point at the beginning of segments
-		stored in it.
+		cl->cl_sub_layouts.
+	} else {
+		Parse the sub-layout information from the buffer pointed by
+		cur and store it in cl->cl_sub_layouts.
 	}
-
-	Parse the sub-layout information from the buffer (pointed by
-	cur) and store it in the c2_composite_layout::cl_list_of_sub_layouts.
-
-	Set the cursor cur to point at the beginning of the key-val pair read
-	from the layouts table.
 
 	@endcode
    */
@@ -157,28 +152,33 @@ static int composite_encode(struct c2_ldb_schema *schema,
 			    struct c2_db_tx *tx,
 			    struct c2_bufvec_cursor *out)
 {
-   /**
-	@code
-
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
 		uint64_t recsize = sizeof(struct c2_ldb_rec);
 
-		ret = ldb_layout_write(op, recsize, out, schema, tx);
+		ldb_layout_write(schema, op, recsize, out, tx);
 	}
 
-	Store composite layout type specific fields like information
-	about the sub-layouts, into the buffer.
+	/**
+	    If we are here through DB operation, then the buffer is at the
+	    end by now since it was allocated with the max size possible
+	    for a record in the layouts table. Add assert to verify that.
+	 */
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
+		/**
 		Form records for the cob_lists table by using data from the
 		buffer and depending on the value of op, insert/update/delete
 		those records to/from the cob_lists table.
+		 */
+	} else {
+		/**
+		Store composite layout type specific fields like information
+		about the sub-layouts, into the buffer.
+		 */
 	}
 
-	@endcode
-   */
 	return 0;
 }
 
@@ -194,7 +194,6 @@ static const struct c2_layout_ops composite_ops = {
 static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_register   = composite_register,
 	.lto_unregister = composite_unregister,
-	.lto_recsize    = composite_recsize,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
 };

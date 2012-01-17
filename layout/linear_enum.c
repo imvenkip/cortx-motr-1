@@ -19,6 +19,8 @@
  */
 
 #include "lib/tlist.h"	/* struct c2_tl */
+#include "lib/vec.h"
+#include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
 /**
@@ -28,9 +30,7 @@
    - Layout enumeration type specific register/unregister methods are not
      required for "linear" enumeration type, since the layout schema does not
      contain any separate tables specifically for "linear" enumeration type.
-   - Layout enumeration type specific encode/decode methods are not required
-     for "linear" enumeration type, since the attributes required specifically
-     for a linear enumeration are stored in the layouts table itself.
+
    @{
 */
 
@@ -46,52 +46,71 @@ static uint64_t linear_recsize(void)
 
 
 /**
-   Implementation of leto_rec_decode() for linear enumeration type.
+   Implementation of leto_decode() for linear enumeration type.
    Reads linear enumeration type specific attributes from the buffer into
    the c2_layout_linear_enum::c2_layout_linear_attr object.
 */
-static int linear_rec_decode(const struct c2_bufvec_cursor *cur,
-			     struct c2_layout_enum *e)
+static int linear_decode(struct c2_ldb_schema *schema,
+			uint64_t lid,
+			struct c2_bufvec_cursor *cur,
+			enum c2_layout_xcode_op op,
+			struct c2_db_tx *tx,
+			struct c2_layout **out)
 {
-   /**
-	@code
-	Container_of(e) would give an object of the type c2_layout_linear_enum,
-	say le.
+	struct c2_layout_striped     *stl;
+	struct c2_layout_linear_enum *lin_enum;
+	struct c2_layout_linear_attr *lin_attr;
 
-	Read the linear enumeration type specific attributes like nr, A and B
-	from buffer (pointed by cur) into le->lle_attr.
-	@endcode
-   */
+	stl = container_of(*out, struct c2_layout_striped, ls_base);
+
+	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
+			lle_base);
+
+	lin_attr = (struct c2_layout_linear_attr *)c2_bufvec_cursor_addr(cur);
+
+	lin_enum->lle_attr.lla_nr = lin_attr->lla_nr;
+	lin_enum->lle_attr.lla_A  = lin_attr->lla_A;
+	lin_enum->lle_attr.lla_B  = lin_attr->lla_B;
+
+	/**
+	   There is no more data expected in the buffer for the linear
+	   enumeration. Thus the buffer is expected to be at the end.
+	 */
+	C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
+
 	return 0;
 }
 
 /**
-   Implementation of leto_rec_encode() for linear enumeration type.
+   Implementation of leto_encode() for linear enumeration type.
    Reads linear enumeration type specific attributes from the
    c2_layout_linear_enum object into the buffer.
 */
-static int linear_rec_encode(const struct c2_layout_enum *e,
-			     struct c2_bufvec_cursor *cur)
+static int linear_encode(struct c2_ldb_schema *schema,
+			 const struct c2_layout *l,
+			 enum c2_layout_xcode_op op,
+			 struct c2_db_tx *tx,
+			 struct c2_bufvec_cursor *out)
 {
-   /**
-	@code
-	Container_of(e) would give an object of the type c2_layout_linear_enum,
-	say le.
+	struct c2_layout_striped     *stl;
+	struct c2_layout_linear_enum *lin_enum;
 
-	Read the linear enumeration type specific attributes like nr, A and B
-	from le->lle_attr, into the buffer (pointed by cur).
-	@endcode
-   */
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+
+	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
+			lle_base);
+
+	data_to_bufvec_copy(out, lin_enum,
+			sizeof(struct c2_layout_linear_enum));
+
 	return 0;
 }
-
 
 /**
    Implementation of leo_nr for LINEAR enumeration.
    Rerurns number of objects in the enumeration.
 */
-static uint32_t linear_nr(const struct c2_layout_enum *le,
-			  struct c2_fid *gfid)
+static uint32_t linear_nr(const struct c2_layout_enum *le)
 {
    /**
 	@code
@@ -110,7 +129,7 @@ static uint32_t linear_nr(const struct c2_layout_enum *le,
 */
 static void linear_get(const struct c2_layout_enum *le,
 		       uint32_t idx,
-		       struct c2_fid *gfid,
+		       const struct c2_fid *gfid,
 		       struct c2_fid *out)
 {
    /**
@@ -132,17 +151,13 @@ static const struct c2_layout_enum_ops linear_enum_ops = {
 	.leo_get        = linear_get
 };
 
-
 static const struct c2_layout_enum_type_ops linear_type_ops = {
 	.leto_register       = NULL,
 	.leto_unregister     = NULL,
 	.leto_recsize        = linear_recsize,
-	.leto_rec_decode     = linear_rec_decode,
-	.leto_rec_encode     = linear_rec_encode,
-	.leto_decode         = NULL,
-	.leto_encode         = NULL
+	.leto_decode         = linear_decode,
+	.leto_encode         = linear_encode
 };
-
 
 const struct c2_layout_enum_type c2_linear_enum_type = {
 	.let_name       = "linear",
