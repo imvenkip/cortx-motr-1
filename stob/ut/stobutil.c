@@ -13,13 +13,19 @@
 #include "dtm/dtm.h"
 
 enum {
+	/** maximum number of characters in value of one command line option */
 	MAX_STR_ARG_LEN = 256,
 };
 
 enum stob_type {
+	/** stob type is not entered on command line */
 	UNINITIALISED_STOB_TYPE = 0,
+
 	AD_STOB_TYPE,
+
 	LINUX_STOB_TYPE,
+
+	/** Stob type is entered, but is not "ad" or "linux" */
 	INVALID_STOB_TYPE,
 };
 
