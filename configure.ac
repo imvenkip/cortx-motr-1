@@ -505,7 +505,7 @@ CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/
 # iff_opt_supported() can be used to check if the compiler option is supported or not.
 # iff_opt_supported(opt) returns opt if opt is supported by compiler, "" otherwise.
 OPT_KCFLAGS="$OPT_KCFLAGS $(iff_opt_supported -Wno-unused-but-set-variable)"
-KCFLAGS=" -Wall -Werror $OPT_KCFLAGS $KCFLAGS"
+KCFLAGS=" -Wall -Werror $KCFLAGS"
 
 LDFLAGS="-rdynamic $LDFLAGS"
 

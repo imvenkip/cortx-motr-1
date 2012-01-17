@@ -162,6 +162,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	int				 rc;
 	uint32_t			 i;
 	uint32_t			 j;
+        uint64_t                         cmp;
 	c2_bcount_t			 tc;
 	struct c2_fop			*fop;
 	struct c2_clink			 clink;
