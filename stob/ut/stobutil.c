@@ -2,11 +2,15 @@
 
 #include "colibri/init.h"
 #include "lib/getopts.h"
+#include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/thread.h"
 #include "lib/errno.h"
+#include "lib/memory.h"
 #include "db/db.h"
 #include "stob/stob.h"
+#include "stob/ad.h"
+#include "dtm/dtm.h"
 
 enum {
 	MAX_STR_ARG_LEN = 256,
@@ -265,9 +269,56 @@ static void stob_domain_fini(struct c2_stob_domain *stob_domain)
 	cs_storage_fini(&reqh_stobs);
 }
 
+static int stob_create(struct c2_stob_domain    *dom,
+		       const struct c2_stob_id  *stob_id,
+		       struct c2_stob          **out)
+{
+	struct c2_stob *stob;
+	struct c2_dtx  *dtx;
+	int             rc;
+
+	*out = NULL;
+	dtx  = NULL;
+	if (dom->sd_type == &ad_stob_type) {
+		C2_ALLOC_PTR(dtx);
+		rc = dom->sd_ops->sdo_tx_make(dom, dtx);
+		if (rc != 0) {
+			C2_TRACE("Unable to create transaction context\n");
+			return rc;
+		}
+	}
+
+	rc = c2_stob_find(dom, stob_id, &stob);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_stob_locate(stob, dtx);
+	if (rc == 0) {
+		fprintf(stderr, "Stob already exists\n");
+		*out = stob;
+		return rc;
+	}
+
+	rc = c2_stob_create(stob, dtx);
+	if (rc == 0) {
+		fprintf(stderr, "Stob created successfuly\n");
+		if (dtx != NULL)
+			rc = c2_db_tx_commit(&dtx->tx_dbtx);
+		*out = stob;
+	} else {
+		fprintf(stderr, "Stob creation failed [%d]\n", rc);
+		if (dtx != NULL)
+			rc = c2_db_tx_abort(&dtx->tx_dbtx);
+		c2_stob_put(stob);
+	}
+
+	return rc;
+}
+
 int main(int argc, char *argv[])
 {
 	struct c2_stob_domain *stob_domain;
+	struct c2_stob        *stob;
 	struct cmd_line_args   clargs;
 	int                    rc;
 
@@ -293,11 +344,16 @@ int main(int argc, char *argv[])
 					  clargs.cla_dom_path,
 					  clargs.cla_db_path,
 					  &stob_domain);
-	if (rc == 0) {
-		fprintf(stderr, "stob_domain_locate_or_create successful\n");
-		stob_domain_fini(stob_domain);
-	}
+	if (rc != 0)
+		goto out;
 
+	rc = stob_create(stob_domain, &clargs.cla_stob_id, &stob);
+	if (stob != NULL)
+		c2_stob_put(stob);
+
+	stob_domain_fini(stob_domain);
+
+out:
 	c2_fini();
-	return 0;
+	return rc;
 }
