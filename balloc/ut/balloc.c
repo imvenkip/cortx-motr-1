@@ -37,12 +37,7 @@ extern	struct c2_balloc	colibri_balloc;
 const char			*db_name = "./__s";;
 const int			MAX = 100;
 
-enum balloc_io_flags {
-	BALLOC_IO_DIRECT_BSHIFT   = 0,
-	BALLOC_IO_BUFFERED_BSHIFT = 12
-};
-
-int test_balloc_ut_ops(int io_flag)
+int test_balloc_ut_ops()
 {
 	struct c2_dbenv		db;
 	struct c2_dtx		dtx;
@@ -226,18 +221,10 @@ void test_balloc()
 {
 	int result;
 
-	result = test_balloc_ut_ops(BALLOC_IO_BUFFERED_BSHIFT);
+	result = test_balloc_ut_ops();
 	C2_UT_ASSERT(result == 0);
-
-	/* The blocksize in superblock needs to be changed.
-	 * So we delete the database directory due to which a new
-	 * directory will be created and eventually the superblock.
-	 */
 
 	result = system("rm -fr ./__s");
-	C2_UT_ASSERT(result == 0);
-
-	result = test_balloc_ut_ops(BALLOC_IO_DIRECT_BSHIFT);
 	C2_UT_ASSERT(result == 0);
 }
 

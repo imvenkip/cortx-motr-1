@@ -303,7 +303,8 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 	C2_PRE(c2_is_po2(req->bfr_blocksize));
 	C2_PRE(c2_is_po2(req->bfr_groupsize));
 
-	number_of_groups = req->bfr_totalsize / req->bfr_groupsize;
+	number_of_groups = req->bfr_totalsize / req->bfr_groupsize /
+		req->bfr_blocksize;
 
 	if (number_of_groups == 0)
 		number_of_groups = 1;
@@ -609,7 +610,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		/* let's format this container */
 		req.bfr_totalsize = container_size;
 		req.bfr_blocksize = 1 << bshift;
-		req.bfr_groupsize = blocks_per_group * req.bfr_blocksize;
+		req.bfr_groupsize = blocks_per_group;
 		req.bfr_reserved_groups = res_groups;
 
 		rc = c2_balloc_format(colibri, &req);
