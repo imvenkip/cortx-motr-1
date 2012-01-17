@@ -292,6 +292,11 @@ static int stob_create(struct c2_stob_domain    *dom,
 	if (rc != 0)
 		return rc;
 
+	/*
+	 * Here, stob != NULL and c2_stob_find() has taken
+	 * reference on stob.
+	 * Must call c2_stob_put() on stob, after this point.
+	 */
 	rc = c2_stob_locate(stob, dtx);
 	if (rc == 0) {
 		fprintf(stderr, "Stob already exists\n");
