@@ -40,5 +40,6 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
                             $(top_builddir)/rpc/libcolibri-rpc.la \
                             $(top_builddir)/xcode/libcolibri-xcode.la \
+                            $(top_builddir)/xcode/ff2c/libcolibri-xcode-ff2c.la \
 			    $(top_builddir)/../yaml/src/libyaml.la \
 			    $(top_builddir)/yaml2db/libcolibri-yaml2db.la

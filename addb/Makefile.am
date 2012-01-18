@@ -14,7 +14,7 @@ INCLUDES                    = -I. -I$(top_srcdir)/include
 
 addb_u.h addb_u.c: addb.ff \
                   $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -u $<
+	$(top_builddir)/fop/fop2c -uk $<
 
 addb.c : addb.h addb_u.h
 

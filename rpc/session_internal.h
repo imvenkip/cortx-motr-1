@@ -466,6 +466,11 @@ struct c2_rpc_slot_ops {
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
 
 /**
+   Returns true iff given rpc item is conn_terminate.
+ */
+bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item);
+
+/**
    @see c2_rpc_fop_conn_establish_ctx for more information.
  */
 void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,

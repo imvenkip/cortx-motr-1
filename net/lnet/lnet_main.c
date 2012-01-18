@@ -741,7 +741,7 @@
  */
 
 #ifdef __KERNEL__
-#include "net/linux_kernel/lustre_config.h" /* required by lnet/types.h */
+#include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
 /* lustre config defines package macros also defined by c2 config */
 #undef PACKAGE
 #undef PACKAGE_BUGREPORT
