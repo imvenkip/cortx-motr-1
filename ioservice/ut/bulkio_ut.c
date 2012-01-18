@@ -80,7 +80,7 @@ static struct c2_io_fop		**wfops;
 static struct c2_net_buffer	  io_buf[IO_FOPS_NR];
 
 /* Threads to post rpc items to rpc layer. */
-//static struct c2_thread		  io_threads[IO_FOPS_NR];
+static struct c2_thread		  io_threads[IO_FOPS_NR];
 
 /* Standard buffers containing a data pattern.
    Primarily used for data verification in read and write IO. */
@@ -215,8 +215,8 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(rbuf != NULL);
 
-		rbuf->bb_nbuf.nb_buffer = *bvecs[i];
-		rbuf->bb_nbuf.nb_qtype = c2_is_write_fop(fom->fo_fop) ?
+		rbuf->bb_nbuf->nb_buffer = *bvecs[i];
+		rbuf->bb_nbuf->nb_qtype = c2_is_write_fop(fom->fo_fop) ?
 					 C2_NET_QT_ACTIVE_BULK_RECV :
 					 C2_NET_QT_ACTIVE_BULK_SEND;
 		tc += c2_vec_count(&bvecs[i]->ov_vec);
@@ -456,7 +456,7 @@ static void io_fops_create(enum C2_RPC_OPCODES op)
 		C2_UT_ASSERT(io_fops[i] != NULL);
 		rc = c2_io_fop_init(io_fops[i], fopt);
 		C2_UT_ASSERT(rc == 0);
-	//	io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
+		io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
 	}
 
 	/* Populates io fops. */
@@ -533,7 +533,7 @@ void bulkio_test(void)
 			    {"bulkio_ut", "-r", "-T", "AD", "-D", s_db_file,
 			    "-S", s_stob_file, "-e", S_ENDPOINT,
                             "-s", "ioservice"};
-        struct c2_bufvec *buf;
+  //     struct c2_bufvec *buf;
 
 	rc = c2_net_domain_init(&c_netdom, xprt);
 	C2_UT_ASSERT(rc == 0);
@@ -549,7 +549,7 @@ void bulkio_test(void)
 
 	io_fids_init();
 	io_buffers_allocate();
-
+/*
         buf = &io_buf[0].nb_buffer;
         for (i = 0;i < IO_SEGS_NR; ++i) { 
                memset(buf->ov_buf[i], 'b', IO_SEG_SIZE);
@@ -566,8 +566,8 @@ void bulkio_test(void)
         targ[0].ta_index = 0;
         targ[0].ta_op = op;
         io_fops_rpc_submit(&targ[0]);
+*/
 
-/*
 	for (op = C2_IOSERVICE_READV_OPCODE; op <= C2_IOSERVICE_WRITEV_OPCODE;
 	     ++op) {
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
@@ -588,7 +588,7 @@ void bulkio_test(void)
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
 			c2_thread_join(&io_threads[i]);
 	}
-*/
+
 	rc = c2_rpc_client_fini(&c_rctx);
 	C2_UT_ASSERT(rc == 0);
 

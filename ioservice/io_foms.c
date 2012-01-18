@@ -1025,12 +1025,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
                     break;
             }
             c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
-            /*
-             * @todo : Need to remove this code after bulk-integration task.
-             */
-            c2_net_buffer_deregister(nb,
-            fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
-
+            
             if (c2_is_read_fop(fop))
                    nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
             else
@@ -1096,14 +1091,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 
                 nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                 C2_ASSERT(nb != NULL);
-
-                /*
-                 * @todo : Need to remove this code after bulk-integration task.
-                 */
-                c2_net_buffer_register(nb,
-                fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
-
                 netbufs_tlink_del_fini(nb);
                 acquired_net_bufs--;
         }
@@ -1168,7 +1156,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
                 }
 
                 rb_buf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
-                rb_buf->bb_nbuf = *nb;
+                rb_buf->bb_nbuf  = nb;
                 rb_buf->bb_rbulk = rbulk;
 
                 rpcbulkbufs_tlink_init(rb_buf);
@@ -1636,14 +1624,7 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
         c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
         c2_tlist_for (&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
-
-                /*
-                 * @todo : Need to remove this code after bulk-integration task.
-                 */
-                c2_net_buffer_register(nb,
-                fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
-
                 netbufs_tlink_del_fini(nb);
         } c2_tlist_endfor;
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);

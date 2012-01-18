@@ -857,7 +857,7 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 		C2_POST(buf->bb_zerovec.z_bvec.ov_vec.v_nr <= max_segs_nr);
 		curr_segs_nr -= segs_nr;
 		if (c2_is_read_fop(coalesced_fop))
-			buf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
+			buf->bb_nbuf->nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 		else
 			buf->bb_nbuf->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	}
