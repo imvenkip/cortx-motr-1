@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
+ *		    Madhavrao Vemuri <madhav_vemuri@xyratec.com>
  * Original creation date: 09/29/2011
  */
 
@@ -44,8 +45,11 @@
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "lib/misc.h"		/* C2_SET_ARR0 */
 
-#include "ioservice/io_fops.c"	/* To access static apis for testing. */
+#include "ioservice/io_foms.h"
+#include "ioservice/io_service.h"
 
+#include "ioservice/io_fops.c"	/* To access static apis for testing. */
+#include "ioservice/io_foms.c"
 enum IO_UT_VALUES {
 	IO_KERN_PAGES		= 1,
 	IO_FIDS_NR		= 4,
@@ -54,7 +58,7 @@ enum IO_UT_VALUES {
 	IO_FOPS_NR		= 32,
 	IO_SEG_SIZE		= 4096,
 	IO_RPC_ITEM_TIMEOUT	= 300,
-	IO_SEG_START_OFFSET	= 4096,//IO_SEG_SIZE * IO_SEGS_NR * IO_FOPS_NR,
+	IO_SEG_START_OFFSET	= IO_SEG_SIZE,
 	IO_CLIENT_COBDOM_ID	= 21,
 	IO_SERVER_COBDOM_ID	= 29,
 	IO_RPC_SESSION_SLOTS	= 8,
@@ -128,6 +132,24 @@ struct c2_rpc_client_ctx c_rctx = {
 };
 
 static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_server_write_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_server_read_fom_init(struct c2_fop *fop, struct c2_fom **m);
+
+struct c2_fop_type_ops bulkio_server_write_fop_ut_ops = {
+	.fto_fom_init = io_fop_server_write_fom_init,
+	.fto_fop_replied = io_fop_replied,
+	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_io_coalesce = io_fop_coalesce,
+	.fto_io_desc_get = io_fop_desc_get,
+};
+
+struct c2_fop_type_ops bulkio_server_read_fop_ut_ops = {
+	.fto_fom_init = io_fop_server_read_fom_init,
+	.fto_fop_replied = io_fop_replied,
+	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_io_coalesce = io_fop_coalesce,
+	.fto_io_desc_get = io_fop_desc_get,
+};
 
 /* An alternate io fop type op vector to test bulk client functionality only.
    Only .fto_fom_init is pointed to a UT function which tests the received
@@ -143,6 +165,14 @@ struct c2_fop_type_ops bulkio_fop_ut_ops = {
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
+static struct c2_fom_type_ops bulkio_server_fom_type_ops = {
+	.fto_create = NULL,
+};
+
+static struct c2_fom_type bulkio_server_fom_type = {
+	.ft_ops = &bulkio_server_fom_type_ops,
+};
+
 static struct c2_fom_type_ops bulkio_fom_type_ops = {
 	.fto_create = NULL,
 };
@@ -151,10 +181,89 @@ static struct c2_fom_type bulkio_fom_type = {
 	.ft_ops = &bulkio_fom_type_ops,
 };
 
+static void bulkio_server_fom_fini(struct c2_fom *fom)
+{
+	c2_io_fom_cob_rw_fini(fom);
+}
+
 static void bulkio_fom_fini(struct c2_fom *fom)
 {
 	c2_fom_fini(fom);
 	c2_free(fom);
+}
+
+static int bulkio_server_write_fom_state(struct c2_fom *fom)
+{
+	struct c2_io_fom_cob_rw   *fom_obj = NULL;
+	int rc;
+	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+
+	switch(fom->fo_phase) {
+		case FOPH_IO_FOM_BUFFER_ACQUIRE :
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
+			break;
+		case FOPH_IO_ZERO_COPY_INIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT);
+			break;
+		case FOPH_IO_ZERO_COPY_WAIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_INIT);
+			break;
+		case FOPH_IO_STOB_INIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_WAIT);
+			break;
+		case FOPH_IO_STOB_WAIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
+			break;
+		case FOPH_IO_BUFFER_RELEASE:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_SUCCESS);
+			break;
+		default :
+			rc = c2_io_fom_cob_rw_state(fom);
+	}
+	return rc;
+}
+
+static int bulkio_server_read_fom_state(struct c2_fom *fom)
+{
+	struct c2_io_fom_cob_rw   *fom_obj = NULL;
+	int rc;
+	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+
+	switch(fom->fo_phase) {
+		case FOPH_IO_FOM_BUFFER_ACQUIRE :
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_INIT);
+			break;
+		case FOPH_IO_ZERO_COPY_INIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT);
+			break;
+		case FOPH_IO_ZERO_COPY_WAIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
+			break;
+		case FOPH_IO_STOB_INIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_WAIT);
+			break;
+		case FOPH_IO_STOB_WAIT:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
+			break;
+		case FOPH_IO_BUFFER_RELEASE:
+			rc = c2_io_fom_cob_rw_state(fom);
+	 		C2_UT_ASSERT(fom->fo_phase == FOPH_SUCCESS);
+			break;
+		default :
+			rc = c2_io_fom_cob_rw_state(fom);
+	}
+	return rc;
 }
 
 static int bulkio_fom_state(struct c2_fom *fom)
@@ -162,7 +271,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	int				 rc;
 	uint32_t			 i;
 	uint32_t			 j;
-        uint64_t                         cmp;
 	c2_bcount_t			 tc;
 	struct c2_fop			*fop;
 	struct c2_clink			 clink;
@@ -176,7 +284,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	struct c2_fop_cob_writev_rep	*wrep;
 	struct c2_fop_cob_readv_rep	*rrep;
 
-	printf("Entering fom state\n");
 	conn = fom->fo_fop->f_item.ri_session->s_conn;
 	rw = io_rw_get(fom->fo_fop);
 	C2_UT_ASSERT(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
@@ -187,14 +294,12 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	C2_ALLOC_PTR(rbulk);
 	C2_UT_ASSERT(rbulk != NULL);
 	c2_rpc_bulk_init(rbulk);
-	printf("No of descriptors = %d\n", rw->crw_desc.id_nr);
 	C2_UT_ASSERT(rw->crw_desc.id_nr != 0);
 
 	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i)
 		for (j = 0; j < rw->crw_ivecs.cis_ivecs[i].ci_nr; ++j)
 			C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[i].ci_iosegs[j].
 			     ci_count == IO_SEG_SIZE);
-
 
 	for (tc = 0, i = 0; i < rw->crw_desc.id_nr; ++i) {
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
@@ -247,7 +352,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	/* Checks if the write io bulk data is received as is. */
 	for (i = 0; i < rw->crw_desc.id_nr && c2_is_write_fop(fom->fo_fop); ++i) {
-		cmp = rw->crw_flags;
 		for (j = 0; j < bvecs[i]->ov_vec.v_nr; ++j) {
 			rc = memcmp(writebuf, bvecs[i]->ov_buf[j],
 				    bvecs[i]->ov_vec.v_count[j]);
@@ -284,8 +388,8 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	c2_rpc_bulk_fini(rbulk);
 	c2_free(rbulk);
 
-	printf("Exiting fom state\n");
 	return rc;
+
 }
 
 static size_t bulkio_fom_locality(const struct c2_fom *fom)
@@ -293,11 +397,52 @@ static size_t bulkio_fom_locality(const struct c2_fom *fom)
 	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
+static struct c2_fom_ops bulkio_server_write_fom_ops = {
+	.fo_fini = bulkio_server_fom_fini,
+	.fo_state = bulkio_server_write_fom_state,
+	.fo_home_locality = bulkio_fom_locality,
+        .fo_service_name = c2_io_fom_cob_rw_service_name,
+};
+
+static struct c2_fom_ops bulkio_server_read_fom_ops = {
+	.fo_fini = bulkio_server_fom_fini,
+	.fo_state = bulkio_server_read_fom_state,
+	.fo_home_locality = bulkio_fom_locality,
+        .fo_service_name = c2_io_fom_cob_rw_service_name,
+};
 static struct c2_fom_ops bulkio_fom_ops = {
 	.fo_fini = bulkio_fom_fini,
 	.fo_state = bulkio_fom_state,
 	.fo_home_locality = bulkio_fom_locality,
 };
+
+static int io_fop_server_write_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	int rc;
+	struct c2_fom *fom;
+	 rc = c2_io_fom_cob_rw_init(fop, &fom);
+        C2_UT_ASSERT(rc == 0);
+	fop->f_type->ft_fom_type.ft_ops = &bulkio_server_fom_type_ops;
+	fom->fo_type = &bulkio_server_fom_type;
+	fom->fo_ops = &bulkio_server_write_fom_ops;
+	*m = fom;
+        C2_UT_ASSERT(fom->fo_fop != 0);
+	return rc;
+}
+
+static int io_fop_server_read_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	int rc;
+	struct c2_fom *fom;
+	 rc = c2_io_fom_cob_rw_init(fop, &fom);
+        C2_UT_ASSERT(rc == 0);
+	fop->f_type->ft_fom_type.ft_ops = &bulkio_server_fom_type_ops;
+	fom->fo_type = &bulkio_server_fom_type;
+	fom->fo_ops = &bulkio_server_read_fom_ops;
+	*m = fom;
+        C2_UT_ASSERT(fom->fo_fop != 0);
+	return rc;
+}
 
 static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
@@ -314,6 +459,7 @@ static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 	*m = fom;
 	return 0;
+
 }
 
 static void io_fids_init(void)
@@ -352,6 +498,7 @@ static void io_buffers_allocate(void)
 							  C2_0VEC_SHIFT);
 			C2_UT_ASSERT(buf->ov_buf[j] != NULL);
 			buf->ov_vec.v_count[j] = IO_SEG_SIZE;
+			memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 		}
 	}
 }
@@ -396,7 +543,6 @@ static void io_fop_populate(int index, uint64_t off_index,
 				io_buf[index].nb_buffer.ov_vec.v_count[i],
 				io_offsets[off_index]);
 		C2_UT_ASSERT(rc == 0);
-
 		io_offsets[off_index] +=
 			io_buf[index].nb_buffer.ov_vec.v_count[i];
 	}
@@ -416,14 +562,15 @@ static void io_fop_populate(int index, uint64_t off_index,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Temporary! Should be removed once bulk server UT code is merged
-	   with this code. */
-	rw->crw_iovec.iv_count = 1;
-	C2_ALLOC_ARR(rw->crw_iovec.iv_segs, rw->crw_iovec.iv_count);
-	C2_UT_ASSERT(rw->crw_iovec.iv_segs != NULL);
-	rw->crw_iovec.iv_segs[0].is_offset = 0;
-	rw->crw_iovec.iv_segs[0].is_buf.ib_count = IO_SEQ_LEN;
-	C2_ALLOC_ARR(rw->crw_iovec.iv_segs[0].is_buf.ib_buf,
-		     rw->crw_iovec.iv_segs[0].is_buf.ib_count);
+           with this code. */
+        rw->crw_iovec.iv_count = 1;
+        C2_ALLOC_ARR(rw->crw_iovec.iv_segs, rw->crw_iovec.iv_count);
+        C2_UT_ASSERT(rw->crw_iovec.iv_segs != NULL);
+        rw->crw_iovec.iv_segs[0].is_offset = 0;
+        rw->crw_iovec.iv_segs[0].is_buf.ib_count = IO_SEQ_LEN;
+        C2_ALLOC_ARR(rw->crw_iovec.iv_segs[0].is_buf.ib_buf,
+                     rw->crw_iovec.iv_segs[0].is_buf.ib_count);
+
 }
 
 static void io_fops_create(enum C2_RPC_OPCODES op)
@@ -456,7 +603,7 @@ static void io_fops_create(enum C2_RPC_OPCODES op)
 		C2_UT_ASSERT(io_fops[i] != NULL);
 		rc = c2_io_fop_init(io_fops[i], fopt);
 		C2_UT_ASSERT(rc == 0);
-//		io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
+		/* removed this actual integration */
 	}
 
 	/* Populates io fops. */
@@ -501,14 +648,13 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 
 	/* Posts the rpc item and waits until reply is received. */
 	rc = c2_rpc_post(item);
-	printf("Item %d posted to rpc.\n", i);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_reply_timedwait(&clink, timeout);
-	if (rc != 0)
-		printf("Rpc item post failed. rc = %d\n", rc);
-	else if (c2_is_read_fop(&io_fops[t->ta_index]->if_fop)) {
-		for (j = 0; j < io_buf[t->ta_index].nb_buffer.ov_vec.v_nr;
+	C2_UT_ASSERT(rc == 0);
+	
+	if (rc == 0 && c2_is_read_fop(&io_fops[i]->if_fop)) {
+		for (j = 0; j < io_buf[i].nb_buffer.ov_vec.v_nr;
 		     ++j) {
 			rc = memcmp(io_buf[i].nb_buffer.ov_buf[j], readbuf,
 				    io_buf[i].nb_buffer.ov_vec.v_count[j]);
@@ -523,59 +669,113 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 	c2_clink_fini(&clink);
 }
 
-void bulkio_test(void)
+char	*server_args[] =
+		{"bulkio_ut", "-r", "-T", "AD", "-D", s_db_file,
+		 "-S", s_stob_file, "-e", S_ENDPOINT, "-s", "ioservice"};
+
+struct c2_reqh_service_type *stypes[] = {
+		&ds1_service_type,  
+		&ds2_service_type,  
+};
+
+struct c2_rpc_server_ctx s_rctx =  {
+		.rsx_xprts            = &xprt,
+		.rsx_xprts_nr         = 1,
+		.rsx_argv             = server_args,
+		.rsx_argc             = ARRAY_SIZE(server_args),
+		.rsx_service_types    = stypes,
+		.rsx_service_types_nr = ARRAY_SIZE(stypes),
+		.rsx_log_file_name    = s_log_file,   
+};
+
+
+void bulkio_test_init(void)
 {
 	int		    rc;
-	int		    i;
-	enum C2_RPC_OPCODES op;
-	struct thrd_arg     targ[IO_FOPS_NR];
-	char		   *server_args[] =
-			    {"bulkio_ut", "-r", "-T", "AD", "-D", s_db_file,
-			    "-S", s_stob_file, "-e", S_ENDPOINT,
-                            "-s", "ioservice"};
-       struct c2_bufvec *buf;
 
 	rc = c2_net_domain_init(&c_netdom, xprt);
 	C2_UT_ASSERT(rc == 0);
 
-	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(s_rctx, xprt, server_args, s_log_file);
-
 	/* Starts a colibri server. */
 	rc = c2_rpc_server_start(&s_rctx);
 	C2_UT_ASSERT(rc == 0);
-
 	rc = c2_rpc_client_init(&c_rctx);
 	C2_UT_ASSERT(rc == 0);
 
 	io_fids_init();
 	io_buffers_allocate();
+	
+}
 
-        buf = &io_buf[0].nb_buffer;
-        for (i = 0;i < IO_SEGS_NR; ++i) {
-               memset(buf->ov_buf[i], 'b', IO_SEG_SIZE);
-        }
+void bulkio_server_single_read_write(void)
+{
+	int		    j;
+	enum C2_RPC_OPCODES op;
+	struct thrd_arg     targ[IO_FOPS_NR];
+	struct c2_bufvec   *buf;
 
-        op = C2_IOSERVICE_WRITEV_OPCODE;
-        io_fops_create(op);
-        targ[0].ta_index = 0;
-        targ[0].ta_op = op;
-        io_fops_rpc_submit(&targ[0]);
+	buf = &io_buf[0].nb_buffer;
+	for (j = 0; j < IO_SEGS_NR; ++j) { 
+		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
+	}
+	op = C2_IOSERVICE_WRITEV_OPCODE;
+	io_fops_create(op);
+	targ[0].ta_index = 0;
+	targ[0].ta_op = op;
+	io_fops_rpc_submit(&targ[0]);
+	
+	op = C2_IOSERVICE_READV_OPCODE;
+	io_fops_create(op);
+	targ[0].ta_index = 0;
+	targ[0].ta_op = op;
+	io_fops_rpc_submit(&targ[0]);
+}
 
-        op = C2_IOSERVICE_READV_OPCODE;
-        io_fops_create(op);
-        targ[0].ta_index = 0;
-        targ[0].ta_op = op;
-        io_fops_rpc_submit(&targ[0]);
+void bulkio_server_read_write_state_test(void)
+{
+	int		    j;
+	enum C2_RPC_OPCODES op;
+	struct thrd_arg     targ[IO_FOPS_NR];
+	struct c2_bufvec   *buf;
 
+	buf = &io_buf[0].nb_buffer;
+	for (j = 0; j < IO_SEGS_NR; ++j) { 
+		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
+	}
+	op = C2_IOSERVICE_WRITEV_OPCODE;
+	io_fops_create(op);
+	wfops[0]->if_fop.f_type->ft_ops = &bulkio_server_write_fop_ut_ops;
+	targ[0].ta_index = 0;
+	targ[0].ta_op = op;
+	io_fops_rpc_submit(&targ[0]);
+	
+	op = C2_IOSERVICE_READV_OPCODE;
+	io_fops_create(op);
+	rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
+	targ[0].ta_index = 0;
+	targ[0].ta_op = op;
+	io_fops_rpc_submit(&targ[0]);
+}
+
+void bulkio_test_client(void)
+{
+	int		    rc;
+	int		    i;
+	enum C2_RPC_OPCODES op;
+	struct thrd_arg     targ[IO_FOPS_NR];
+	
+	
+	struct c2_io_fop	**io_fops;
 
 	for (op = C2_IOSERVICE_READV_OPCODE; op <= C2_IOSERVICE_WRITEV_OPCODE;
-	     ++op) {
+	  ++op) {
+		io_fops_create(op);
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
 		       sizeof(struct c2_thread));
+		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
+		for (i = 0; i < IO_FOPS_NR; ++i)
+			io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
 
-		/* IO fops are deallocated by an rpc item type op on receiving
-		   the reply fop. See io_item_free(). */
-/*		io_fops_create(op);
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
@@ -584,12 +784,14 @@ void bulkio_test(void)
 					    &targ[i], "io_thrd");
 			C2_UT_ASSERT(rc == 0);
 		}
-
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
 			c2_thread_join(&io_threads[i]);
-*/	
 	}
+}
 
+void bulkio_test_fini(void)
+{
+	int rc;
 	rc = c2_rpc_client_fini(&c_rctx);
 	C2_UT_ASSERT(rc == 0);
 
@@ -608,7 +810,11 @@ const struct c2_test_suite bulkio_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "bulkio", bulkio_test},
+		{ "bulkio_init                 ", bulkio_test_init},
+		{ "bulkio_single_read_write    ", bulkio_server_single_read_write},
+		{ "bulkio_read_write_state_test", bulkio_server_read_write_state_test},
+		{ "bulkio_client               ", bulkio_test_client},
+		{ "bulkio_fini                 ", bulkio_test_fini},
 		{ NULL, NULL }
 	}
 };
