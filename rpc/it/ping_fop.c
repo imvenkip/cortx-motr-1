@@ -37,7 +37,7 @@
 #include "rpc/it/ping_fop.ff"
 #include "lib/errno.h"
 #include "rpc/rpc2.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "xcode/bufvec_xcode.h"
 
 /* Init for ping reply fom */
@@ -48,7 +48,6 @@ const struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fom_init = c2_fop_ping_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
 };
 
@@ -63,7 +62,6 @@ const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
 

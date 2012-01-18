@@ -420,18 +420,21 @@ static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, const char *ep)
    Checks if specified service has already a duplicate entry in given request
    handler context.
  */
-static bool service_is_duplicate(const char *service_name,
-					const struct cs_reqh_context *rctx)
+static bool service_is_duplicate(const struct c2_colibri *cctx, const char *sname)
 {
-	int idx;
-	int cnt;
+	int                     idx;
+	int                     cnt;
+        struct cs_reqh_context *rctx;
 
-	for (idx = 0, cnt = 0; idx < rctx->rc_snr; ++idx) {
-		if (strcasecmp(rctx->rc_services[idx], service_name) == 0)
-			++cnt;
-		if (cnt > 1)
-			return true;
-	}
+        cnt = 0;
+        c2_tlist_for(&rctx_descr, &cctx->cc_reqh_ctxs, rctx) {
+                for (idx = 0; idx < rctx->rc_snr; ++idx) {
+                        if (strcasecmp(rctx->rc_services[idx], sname) == 0)
+                                ++cnt;
+                        if (cnt > 1)
+                                return true;
+                }
+        } c2_tlist_endfor;
 
 	return false;
 }
@@ -1369,7 +1372,7 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 				cs_services_list(ofd);
 				return -ENOENT;
 			}
-			if (service_is_duplicate(rctx->rc_services[idx], rctx)) {
+			if (service_is_duplicate(cctx, rctx->rc_services[idx])) {
 				fprintf(ofd, "COLIBRI: Duplicate service: %s\n",
                                                        rctx->rc_services[idx]);
 				return -EADDRINUSE;

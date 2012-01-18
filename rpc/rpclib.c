@@ -24,7 +24,6 @@
 #endif
 
 #include "lib/errno.h"
-
 #include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/memory.h"
@@ -33,65 +32,119 @@
 #include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
+
+#ifndef __KERNEL__
+#include <stdio.h> /* fopen(), fclose() */
+#include "colibri/colibri_setup.h"
+#endif
 
 #include "rpc/rpclib.h"
 
-
-int c2_rpc_server_start(struct c2_rpc_ctx *rctx)
+#ifndef __KERNEL__
+int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 {
-	return c2_rpcmachine_init(&rctx->rx_rpc_machine, rctx->rx_cob_dom,
-				  rctx->rx_net_dom, rctx->rx_local_addr,
-				  rctx->rx_reqh);
+	int  i;
+	int  rc;
+
+	C2_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);
+
+	/* Open error log file */
+	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
+	if (sctx->rsx_log_file == NULL)
+		return errno;
+
+	/* Register service types */
+	for (i = 0; i < sctx->rsx_service_types_nr; ++i) {
+		rc = c2_reqh_service_type_register(sctx->rsx_service_types[i]);
+		if (rc != 0)
+			goto fclose;
+	}
+
+	/* Start rpc server */
+	rc = c2_cs_init(&sctx->rsx_colibri_ctx, sctx->rsx_xprts,
+			sctx->rsx_xprts_nr, sctx->rsx_log_file);
+	if (rc != 0)
+		goto service_unreg;
+
+	rc = c2_cs_setup_env(&sctx->rsx_colibri_ctx, sctx->rsx_argc,
+			     sctx->rsx_argv);
+	if (rc != 0)
+		goto cs_fini;
+
+	rc = c2_cs_start(&sctx->rsx_colibri_ctx);
+
+	return rc;
+
+cs_fini:
+	c2_cs_fini(&sctx->rsx_colibri_ctx);
+service_unreg:
+	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
+		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
+fclose:
+	fclose(sctx->rsx_log_file);
+	return rc;
 }
 
-void c2_rpc_server_stop(struct c2_rpc_ctx *rctx)
+void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 {
-	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
+	int i;
+
+	c2_cs_fini(&sctx->rsx_colibri_ctx);
+
+	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
+		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
+
+	fclose(sctx->rsx_log_file);
+
+	return;
 }
 
-int c2_rpc_client_start(struct c2_rpc_ctx *rctx)
+#endif /* __KERNEL__ */
+
+int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 	struct c2_net_transfer_mc *tm;
 
-	rc = c2_rpcmachine_init(&rctx->rx_rpc_machine, rctx->rx_cob_dom,
-				rctx->rx_net_dom, rctx->rx_local_addr, NULL);
+	rc = c2_rpcmachine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
+				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL);
 	if (rc != 0)
 		return rc;
 
-	tm = &rctx->rx_rpc_machine.cr_tm;
+	tm = &cctx->rcx_rpc_machine.cr_tm;
 
-	rc = c2_net_end_point_create(&rctx->rx_remote_ep, tm, rctx->rx_remote_addr);
+	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm, cctx->rcx_remote_addr);
 	if (rc != 0)
 		goto rpcmach_fini;
 
-	rc = c2_rpc_conn_create(&rctx->rx_connection, rctx->rx_remote_ep,
-				&rctx->rx_rpc_machine,
-				rctx->rx_max_rpcs_in_flight,
-				rctx->rx_timeout_s);
+	rc = c2_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
+				&cctx->rcx_rpc_machine,
+				cctx->rcx_max_rpcs_in_flight,
+				cctx->rcx_timeout_s);
 	if (rc != 0)
 		goto ep_put;
 
-	rc = c2_rpc_session_create(&rctx->rx_session, &rctx->rx_connection,
-				   rctx->rx_nr_slots, rctx->rx_timeout_s);
+	rc = c2_rpc_session_create(&cctx->rcx_session, &cctx->rcx_connection,
+				   cctx->rcx_nr_slots, cctx->rcx_timeout_s);
 	if (rc != 0)
 		goto conn_destroy;
 
 	return rc;
 
 conn_destroy:
-	c2_rpc_conn_destroy(&rctx->rx_connection, rctx->rx_timeout_s);
+	c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
 ep_put:
-	c2_net_end_point_put(rctx->rx_remote_ep);
+	c2_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
-	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
+	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_client_start);
 
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
-		       uint32_t timeout_s)
+		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s)
 {
 	int                 rc;
 	c2_time_t           timeout;
@@ -100,13 +153,21 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 
 	C2_PRE(fop != NULL);
 	C2_PRE(session != NULL);
+	/*
+	 * It is mandatory to specify item_ops, because rpc layer needs
+	 * implementation of c2_rpc_item_ops::rio_free() in order to free the
+	 * item. Consumer can use c2_fop_default_item_ops if, it is not
+	 * interested in implementing other (excluding ->rio_free())
+	 * interfaces of c2_rpc_item_ops. See also c2_fop_item_free().
+	 */
+	C2_PRE(ri_ops != NULL);
 
-	item = &fop->f_item;
-	c2_rpc_item_init(item);
-
+	item             = &fop->f_item;
 	item->ri_session = session;
-	item->ri_type = &fop->f_type->ft_rpc_item_type;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_prio    = C2_RPC_ITEM_PRIO_MAX;
+
+	if (item->ri_ops == NULL)
+		item->ri_ops = ri_ops;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);
@@ -126,20 +187,20 @@ clean:
 }
 C2_EXPORTED(c2_rpc_client_call);
 
-int c2_rpc_client_stop(struct c2_rpc_ctx *rctx)
+int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	rc = c2_rpc_session_destroy(&rctx->rx_session, rctx->rx_timeout_s);
+	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_rpc_conn_destroy(&rctx->rx_connection, rctx->rx_timeout_s);
+	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
 	if (rc != 0)
 		return rc;
 
-	c2_net_end_point_put(rctx->rx_remote_ep);
-	c2_rpcmachine_fini(&rctx->rx_rpc_machine);
+	c2_net_end_point_put(cctx->rcx_remote_ep);
+	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
 
 	return rc;
 }

@@ -74,6 +74,23 @@ struct c2_fop_type {
 	uint64_t                          ft_magix;
 };
 
+/**
+    Iterates through the registered fop types.
+
+    To iterate across all registered fop types, first call this function with
+    NULL parameter. NULL is returned to indicate end of the iteration.
+
+    If a fop type is registered or unregistered while an iteration is in
+    progress, behaviour is undefined.
+
+    @code
+    ftype = NULL;
+    while ((ftype = c2_fop_type_next(ftype)) != NULL) {
+            do something with ftype
+    }
+    @endcode
+ */
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
 
@@ -95,10 +112,8 @@ struct c2_fop_type_ops {
 	void (*fto_fop_replied)(struct c2_fop *fop, struct c2_fop *bfop);
 	/** Return the size of fop object. */
 	size_t (*fto_size_get)(struct c2_fop *fop);
-	/** Return the number of IO fragements in the IO vector. */
-	uint64_t (*fto_get_nfragments)(const struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
-	int (*fto_io_coalesce)(struct c2_fop *fop);
+	int (*fto_io_coalesce)(struct c2_fop *fop, uint64_t size);
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct c2_fop *fop,
 			        struct c2_net_buf_desc **desc);

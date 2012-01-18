@@ -29,6 +29,7 @@
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
 #include "lib/tlist.h"
+#include "lib/misc.h"		    /* C2_SET0 */
 
 #include "stob/ad.h"
 
@@ -1128,6 +1129,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	todo = c2_vec_count(&io->si_user.ov_vec);
 	back = &aio->ai_back;
+        C2_SET0(&head);
 	wext = &head;
 	wext->we_next = NULL;
 	while (1) {

@@ -482,6 +482,9 @@
    along the lines of the Functional Specification.  This can be deferred
    to the UT phase where additional details on the unit tests are available.
 
+   Use the Doxygen @@test tag to identify each test.  Doxygen collects these
+   and displays them on a "Test List" page.
+
    <hr>
    @section DLD-st System Tests
    <i>Mandatory.

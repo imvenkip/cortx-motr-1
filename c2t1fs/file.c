@@ -26,9 +26,9 @@
 #include "layout/pdclust.h" /* PUT_* */
 #include "lib/trace.h"      /* C2_TRACE*() */
 #include "c2t1fs/c2t1fs.h"
+#include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_k.h"
-#include "rpc/rpclib.h"
 
 static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 				    const struct iovec *iov,
@@ -904,19 +904,11 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	rbuf->bb_nbuf.nb_qtype = (rw == READ) ? C2_NET_QT_PASSIVE_BULK_RECV
 					      : C2_NET_QT_PASSIVE_BULK_SEND;
 
-        rc = io_fop_ivec_alloc(&iofop->if_fop);
+        rc = io_fop_prepare(&iofop->if_fop);
 	if (rc != 0) {
-		C2_TRACE("io_fop_ivec_alloc() failed: rc [%d]\n", rc);
+		C2_TRACE("io_fop_prepare() failed: rc [%d]\n", rc);
 		goto iofop_fini;
 	}
-
-        rc = io_fop_desc_alloc(&iofop->if_fop);
-	if (rc != 0) {
-		C2_TRACE("io_fop_desc_alloc() failed: rc [%d]\n", rc);
-		goto iofop_fini;
-	}
-
-        io_fop_ivec_prepare(&iofop->if_fop);
 
 	C2_TRACE_END(iofop);
 	return iofop;
@@ -953,7 +945,8 @@ static int io_fop_do_sync_io(struct c2_io_fop     *iofop,
 	 * cobs are processed parallely.
 	 */
 
-	rc = c2_rpc_client_call(&iofop->if_fop, session, C2T1FS_RPC_TIMEOUT);
+	rc = c2_rpc_client_call(&iofop->if_fop, session, NULL,
+						C2T1FS_RPC_TIMEOUT);
 	if (rc != 0)
 		goto out;
 

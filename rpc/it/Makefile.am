@@ -6,14 +6,15 @@ ping_fop_u.h ping_fop_u.c ping_fop_k.h ping_fop_k.c: ping_fop.ff \
 		$(top_builddir)/fop/fop2c
 		$(top_builddir)/fop/fop2c -ku $<
 
-noinst_PROGRAMS      = rpcping
+noinst_PROGRAMS     = rpcping
 
 rpcping_SOURCES     = ping_fop_u.h ping_fop_u.c ping_fop.h ping_fop.c \
 		      ping_fom.h ping_fom.c rpc_ping.c
 
-rpcping_LDADD       = $(top_builddir)/colibri/libcolibri.la
+rpcping_LDADD       = $(top_builddir)/colibri/libcolibri.la \
+		      $(top_builddir)/ut/libcolibri-ut.la
 
-EXTRA_DIST     = ping_fop.ff
+EXTRA_DIST          = ping_fop.ff
 
 clean-local:
 	cd $(rpcpingdir) ; \
