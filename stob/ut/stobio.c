@@ -117,8 +117,9 @@ static void stob_dev_init(const struct stobio_test *test)
 {
 	struct stat statbuf;
 	int	    result;
-	int	    dev_sz;
+	c2_bcount_t dev_sz;
 	char	    sysbuf[PATH_MAX];
+	char	    backingfile[PATH_MAX];
 
 	result = stat(test->st_dev_path, &statbuf);
 	C2_ASSERT(result == 0);
@@ -127,19 +128,20 @@ static void stob_dev_init(const struct stobio_test *test)
 		return;
 
 	/* Device size in KB */
-	dev_sz = (MIN_BUFF_SIZE/1024) * MIN_BUFF_SIZE_IN_BLOCKS * RW_BUFF_NR * \
+	dev_sz = MIN_BUFF_SIZE/1024 * MIN_BUFF_SIZE_IN_BLOCKS * RW_BUFF_NR * \
 		 TEST_NR * TEST_NR;
 
 	/* Device size in MB */
-	dev_sz = (dev_sz > 1024) ? ((dev_sz/1024) + 1) : 1;
+	dev_sz = (dev_sz/1024) + 1;
 
-	sprintf(sysbuf, "dd if=/dev/zero of=./__s/%lu bs=1M count=%d",
-			test->st_id.si_bits.u_hi, dev_sz);
+	sprintf(backingfile, "%s/%lu", test->st_dom->sd_name,
+				       test->st_id.si_bits.u_hi);
+	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu",
+			backingfile, (unsigned long)dev_sz);
 	result = system(sysbuf);
 	C2_ASSERT(result == 0);
 
-	sprintf(sysbuf, "losetup %s ./__s/%lu", test->st_dev_path,
-						test->st_id.si_bits.u_hi);
+	sprintf(sysbuf, "losetup %s %s", test->st_dev_path, backingfile);
 	result = system(sysbuf);
 	C2_ASSERT(result == 0);
 }
@@ -149,14 +151,13 @@ static void stob_dev_fini(const struct stobio_test *test)
 	int	    result;
 	char	    sysbuf[PATH_MAX];
 
+	if(test->st_dev_path == NULL)
+		return;
+
 	if(strncmp(test->st_dev_path, "/dev/loop", strlen("/dev/loop")))
 		return;
 
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
-	result = system(sysbuf);
-	C2_ASSERT(result == 0);
-
-	sprintf(sysbuf, "cp ./__s/%lu /root/testfile", test->st_id.si_bits.u_hi);
 	result = system(sysbuf);
 	C2_ASSERT(result == 0);
 }
@@ -350,9 +351,7 @@ static void stobio_fini(struct stobio_test *test)
 	c2_stob_put(test->st_obj);
 	test->st_dom->sd_ops->sdo_fini(test->st_dom);
 	stobio_rw_buffs_fini(test);
-
-	if(test->st_dev_path != NULL)
-		stob_dev_fini(test);
+	stob_dev_fini(test);
 
 }
 

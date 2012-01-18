@@ -36,10 +36,6 @@
 #include "lib/thread.h"
 #include "stob/stob.h"
 
-#ifndef MAXPATHLEN
-#define MAXPATHLEN 1024
-#endif
-
 enum {
 	/** Default number of threads to create in a storage object domain. */
 	IOQ_NR_THREADS     = 8,

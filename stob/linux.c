@@ -147,6 +147,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 	struct c2_stob_domain *dom;
 	int                    result;
 
+	C2_ASSERT(domain_name != NULL);
 	C2_ASSERT(strlen(domain_name) < ARRAY_SIZE(ldom->sdl_path));
 
 	C2_ALLOC_PTR(ldom);
@@ -162,6 +163,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 		else
 			linux_domain_fini(dom);
 		ldom->use_directio = false;
+		dom->sd_name = ldom->sdl_path;
 	} else {
 		C2_ADDB_ADD(&type->st_addb,
 			    &c2_linux_stob_addb_loc, c2_addb_oom);
@@ -334,7 +336,6 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
 		if (lstob->sl_fd == -1)
 			result = -errno;
 		else {
-			/** Determine file mode */
 			result = fstat(lstob->sl_fd, &statbuf);
 			if (result == 0)
 				lstob->sl_mode = statbuf.st_mode;
@@ -438,8 +439,7 @@ int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
 
 	result = linux_stob_path(lstob, ARRAY_SIZE(symlinkname), symlinkname);
 	if (result == 0) {
-		result = symlink(path, symlinkname);
-		result = result < 0  ? -errno : 0;
+		result = symlink(path, symlinkname) < 0  ? -errno : 0;
 	}
 
 	return result;
