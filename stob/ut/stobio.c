@@ -111,7 +111,8 @@ struct stobio_test test[TEST_NR] = {
 };
 
 /*
- * Assumes that we are dealing with loop-back devices and not real devices.
+ * Assumes that we are dealing with loop-back device /dev/loop0
+ * We don't deal with real device in UT.
  */
 static void stob_dev_init(const struct stobio_test *test)
 {
@@ -124,7 +125,7 @@ static void stob_dev_init(const struct stobio_test *test)
 	result = stat(test->st_dev_path, &statbuf);
 	C2_ASSERT(result == 0);
 
-	if(strncmp(test->st_dev_path, "/dev/loop", strlen("/dev/loop")))
+	if(strcmp(test->st_dev_path, "/dev/loop0"))
 		return;
 
 	/* Device size in KB */
@@ -154,7 +155,7 @@ static void stob_dev_fini(const struct stobio_test *test)
 	if(test->st_dev_path == NULL)
 		return;
 
-	if(strncmp(test->st_dev_path, "/dev/loop", strlen("/dev/loop")))
+	if(strcmp(test->st_dev_path, "/dev/loop0"))
 		return;
 
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
