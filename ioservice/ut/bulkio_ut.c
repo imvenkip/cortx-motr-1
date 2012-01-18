@@ -456,7 +456,7 @@ static void io_fops_create(enum C2_RPC_OPCODES op)
 		C2_UT_ASSERT(io_fops[i] != NULL);
 		rc = c2_io_fop_init(io_fops[i], fopt);
 		C2_UT_ASSERT(rc == 0);
-		io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
+//		io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
 	}
 
 	/* Populates io fops. */
@@ -533,7 +533,7 @@ void bulkio_test(void)
 			    {"bulkio_ut", "-r", "-T", "AD", "-D", s_db_file,
 			    "-S", s_stob_file, "-e", S_ENDPOINT,
                             "-s", "ioservice"};
-  //     struct c2_bufvec *buf;
+       struct c2_bufvec *buf;
 
 	rc = c2_net_domain_init(&c_netdom, xprt);
 	C2_UT_ASSERT(rc == 0);
@@ -549,11 +549,11 @@ void bulkio_test(void)
 
 	io_fids_init();
 	io_buffers_allocate();
-/*
+
         buf = &io_buf[0].nb_buffer;
-        for (i = 0;i < IO_SEGS_NR; ++i) { 
+        for (i = 0;i < IO_SEGS_NR; ++i) {
                memset(buf->ov_buf[i], 'b', IO_SEG_SIZE);
-        }        
+        }
 
         op = C2_IOSERVICE_WRITEV_OPCODE;
         io_fops_create(op);
@@ -566,7 +566,7 @@ void bulkio_test(void)
         targ[0].ta_index = 0;
         targ[0].ta_op = op;
         io_fops_rpc_submit(&targ[0]);
-*/
+
 
 	for (op = C2_IOSERVICE_READV_OPCODE; op <= C2_IOSERVICE_WRITEV_OPCODE;
 	     ++op) {
@@ -575,7 +575,7 @@ void bulkio_test(void)
 
 		/* IO fops are deallocated by an rpc item type op on receiving
 		   the reply fop. See io_item_free(). */
-		io_fops_create(op);
+/*		io_fops_create(op);
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
@@ -587,6 +587,7 @@ void bulkio_test(void)
 
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
 			c2_thread_join(&io_threads[i]);
+*/	
 	}
 
 	rc = c2_rpc_client_fini(&c_rctx);

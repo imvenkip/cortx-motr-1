@@ -1220,13 +1220,6 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
 
         rbulk = &fom_obj->fcrw_bulk;
 
-        c2_mutex_lock(&rbulk->rb_mutex);
-        /*
-         * @todo : need to be remove. Defect in c2_rpc_bulk_load().
-         */
-        //C2_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
-        c2_mutex_unlock(&rbulk->rb_mutex);
-
         if (rbulk->rb_rc != 0){
                 fom->fo_rc = rbulk->rb_rc;
                 fom->fo_phase = FOPH_FAILURE;
@@ -1297,6 +1290,9 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
 	if (rc != 0)
 		goto cleanup;
+	/**@todo IT needs to createated outside this function */
+	if (c2_is_write_fop(fop))
+		rc = c2_stob_create(fom_obj->fcrw_stob, &fom->fo_tx);
 
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
 	if (rc != 0)
@@ -1610,7 +1606,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         struct c2_fop                  *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw        *fom_obj;
         struct c2_net_buffer           *nb = NULL;
-        struct c2_rpc_bulk_buf         *rb_buf = NULL;
         struct c2_stob_io_desc         *stio_desc = NULL;
 
         C2_PRE(fom != NULL);
@@ -1630,13 +1625,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
         netbufs_tlist_fini(&fom_obj->fcrw_netbuf_list);
 
-        c2_mutex_lock(&fom_obj->fcrw_bulk.rb_mutex);
-        c2_tlist_for (&rpcbulkbufs_tl, &fom_obj->fcrw_bulk.rb_buflist, rb_buf) {
-
-                rpcbulkbufs_tlink_del_fini(rb_buf);
-                c2_free(rb_buf);
-        } c2_tlist_endfor;
-        c2_mutex_unlock(&fom_obj->fcrw_bulk.rb_mutex);
         c2_rpc_bulk_fini(&fom_obj->fcrw_bulk);
 
         C2_ASSERT(c2_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
