@@ -420,7 +420,7 @@ static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 
 /**
    Deregisters the buffer.
-   @param lcdom The domain private data to be initialized.
+   @param lcdom The domain private data.
    @param lcbuf The buffer private data.
  */
 static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
