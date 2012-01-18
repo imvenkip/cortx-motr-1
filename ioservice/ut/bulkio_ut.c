@@ -49,12 +49,12 @@
 enum IO_UT_VALUES {
 	IO_KERN_PAGES		= 1,
 	IO_FIDS_NR		= 4,
-	IO_SEGS_NR		= 128,
+	IO_SEGS_NR		= 16,
 	IO_SEQ_LEN		= 8,
 	IO_FOPS_NR		= 32,
 	IO_SEG_SIZE		= 4096,
 	IO_RPC_ITEM_TIMEOUT	= 300,
-	IO_SEG_START_OFFSET	= IO_SEG_SIZE * IO_SEGS_NR * IO_FOPS_NR,
+	IO_SEG_START_OFFSET	= 4096,//IO_SEG_SIZE * IO_SEGS_NR * IO_FOPS_NR,
 	IO_CLIENT_COBDOM_ID	= 21,
 	IO_SERVER_COBDOM_ID	= 29,
 	IO_RPC_SESSION_SLOTS	= 8,
@@ -80,7 +80,7 @@ static struct c2_io_fop		**wfops;
 static struct c2_net_buffer	  io_buf[IO_FOPS_NR];
 
 /* Threads to post rpc items to rpc layer. */
-static struct c2_thread		  io_threads[IO_FOPS_NR];
+//static struct c2_thread		  io_threads[IO_FOPS_NR];
 
 /* Standard buffers containing a data pattern.
    Primarily used for data verification in read and write IO. */
@@ -395,7 +395,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 				io_offsets[off_index]);
 		C2_UT_ASSERT(rc == 0);
 
-		io_offsets[off_index] -=
+		io_offsets[off_index] +=
 			io_buf[index].nb_buffer.ov_vec.v_count[i];
 	}
 
@@ -454,7 +454,7 @@ static void io_fops_create(enum C2_RPC_OPCODES op)
 		C2_UT_ASSERT(io_fops[i] != NULL);
 		rc = c2_io_fop_init(io_fops[i], fopt);
 		C2_UT_ASSERT(rc == 0);
-		io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
+	//	io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
 	}
 
 	/* Populates io fops. */
@@ -529,8 +529,9 @@ void bulkio_test(void)
 	struct thrd_arg     targ[IO_FOPS_NR];
 	char		   *server_args[] =
 			    {"bulkio_ut", "-r", "-T", "AD", "-D", s_db_file,
-			    "-S", s_stob_file, "-e", S_ENDPOINT, "-s", "ds1",
-			    "-s", "ds2"};
+			    "-S", s_stob_file, "-e", S_ENDPOINT,
+                            "-s", "ioservice"};
+        struct c2_bufvec *buf;
 
 	rc = c2_net_domain_init(&c_netdom, xprt);
 	C2_UT_ASSERT(rc == 0);
@@ -547,6 +548,24 @@ void bulkio_test(void)
 	io_fids_init();
 	io_buffers_allocate();
 
+        buf = &io_buf[0].nb_buffer;
+        for (i = 0;i < IO_SEGS_NR; ++i) { 
+               memset(buf->ov_buf[i], 'b', IO_SEG_SIZE);
+        }        
+
+        op = C2_IOSERVICE_WRITEV_OPCODE;
+        io_fops_create(op);
+        targ[0].ta_index = 0;
+        targ[0].ta_op = op;
+        io_fops_rpc_submit(&targ[0]);
+
+        op = C2_IOSERVICE_READV_OPCODE;
+        io_fops_create(op);
+        targ[0].ta_index = 0;
+        targ[0].ta_op = op;
+        io_fops_rpc_submit(&targ[0]);
+
+/*
 	for (op = C2_IOSERVICE_READV_OPCODE; op <= C2_IOSERVICE_WRITEV_OPCODE;
 	     ++op) {
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
@@ -562,11 +581,10 @@ void bulkio_test(void)
 			C2_UT_ASSERT(rc == 0);
 		}
 
-		/* Waits till all threads finish their job. */
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
 			c2_thread_join(&io_threads[i]);
 	}
-
+*/
 	rc = c2_rpc_client_fini(&c_rctx);
 	C2_UT_ASSERT(rc == 0);
 

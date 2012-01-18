@@ -139,6 +139,38 @@ fail:
 }
 C2_EXPORTED(c2_bufvec_alloc);
 
+int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
+			    uint32_t          num_segs,
+			    c2_bcount_t       seg_size,
+			    unsigned shift)
+{
+	uint32_t i;
+
+	C2_PRE(num_segs > 0 && seg_size > 0);
+	bufvec->ov_buf = NULL;
+	bufvec->ov_vec.v_nr = num_segs;
+	C2_ALLOC_ARR(bufvec->ov_vec.v_count, num_segs);
+	if (bufvec->ov_vec.v_count == NULL)
+		goto fail;
+	C2_ALLOC_ARR(bufvec->ov_buf, num_segs);
+	if (bufvec->ov_buf == NULL)
+		goto fail;
+
+	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
+		bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
+		if (bufvec->ov_buf[i] == NULL)
+			goto fail;
+		bufvec->ov_vec.v_count[i] = seg_size;
+	}
+
+	return 0;
+
+fail:
+	c2_bufvec_free(bufvec);
+	return -ENOMEM;
+}
+C2_EXPORTED(c2_bufvec_alloc_aligned);
+
 void c2_bufvec_free(struct c2_bufvec *bufvec)
 {
 	if (bufvec != NULL) {

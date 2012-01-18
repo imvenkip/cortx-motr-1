@@ -814,6 +814,9 @@ void io_fom_cob_rw_align_bufvec (struct c2_bufvec *obuf,
 {
         int        i;
 
+        C2_ALLOC_ARR(obuf->ov_vec.v_count, ibuf->ov_vec.v_nr);
+        C2_ALLOC_ARR(obuf->ov_buf, ibuf->ov_vec.v_nr);
+        obuf->ov_vec.v_nr = ibuf->ov_vec.v_nr;
         /* Align bufvec */
         for (i = 0; i < ibuf->ov_vec.v_nr; i++) {
                 obuf->ov_vec.v_count[i] = ibuf->ov_vec.v_count[i] >> bshift;
@@ -1105,6 +1108,8 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
                 acquired_net_bufs--;
         }
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+       
+        fom_obj->fcrw_batch_size = acquired_net_bufs;
 
         if (required_net_bufs == 0)
                fom->fo_phase = FOPH_SUCCESS;
@@ -1228,7 +1233,10 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
         rbulk = &fom_obj->fcrw_bulk;
 
         c2_mutex_lock(&rbulk->rb_mutex);
-        C2_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
+        /*
+         * @todo : need to be remove. Defect in c2_rpc_bulk_load().
+         */
+        //C2_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
         c2_mutex_unlock(&rbulk->rb_mutex);
 
         if (rbulk->rb_rc != 0){
