@@ -34,6 +34,23 @@
    @{
 */
 
+void c2_layout_linear_enum_init(struct c2_layout_linear_enum *lin_enum,
+				uint64_t nr, uint64_t A, uint64_t B,
+				struct c2_layout *l,
+				struct c2_layout_enum_type *lt,
+				struct c2_layout_enum_ops *ops)
+{
+	c2_layout_enum_init(&lin_enum->lle_base, l, lt, ops);
+
+	lin_enum->lle_attr.lla_nr = nr;
+	lin_enum->lle_attr.lla_A  = nr;
+	lin_enum->lle_attr.lla_B  = nr;
+}
+
+void c2_layout_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
+{
+}
+
 /**
    Implementation of leto_recsize() for linear enumeration type.
    Returns record size for the part of the record required to store LINEAR enum

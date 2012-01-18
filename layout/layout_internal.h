@@ -69,7 +69,6 @@ struct ldb_inline_cob_entries {
 };
 
 
-
 /**
    Write layout record to layouts table.
    Used from layout type specific implementation, with layout type
@@ -85,14 +84,14 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 		     struct c2_db_tx *tx);
 
 /**
- * Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
+ * @todo Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
  * Initializes a c2_bufvec containing a single element of specified size.
  */
 void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
 			   size_t *len);
 
 /**
- * Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
+ * @todo Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
  * Helper functions to copy opaque data with specified size to and from a
  * c2_bufvec.
  */

@@ -36,6 +36,29 @@ struct composite_schema_data {
 	struct c2_emap            csd_comp_layout_ext_map;;
 };
 
+
+void c2_composite_init(struct c2_composite_layout *clay,
+		       uint64_t id,
+		       const struct c2_layout_type *type,
+		       const struct c2_layout_ops *ops,
+		       struct c2_tl *sub_layouts)
+{
+	c2_layout_init(&clay->cl_base, id, type, ops);
+
+	/**
+	   Intialize list_enum->lle_list_of_cobs by using list_of_cobs.
+	   @todo Yet, need to explore this in detail.
+	 */
+}
+
+void c2_composite_fini(struct c2_composite_layout *clay)
+{
+	/**
+	   De-intialize list_enum->lle_list_of_cob.
+	   @todo Yet, need to explore this in detail.
+	 */
+}
+
 /**
    Implementation of lto_register for COMPOSITE layout type.
 
@@ -106,8 +129,9 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(tx != NULL);
 
 	/**
-	   There is no data expected in c2_ldb_rec::lr_data[] for the composite
-	   layout type. Thus the buffer is expected to be at the end.
+	   No data is expected in c2_ldb_rec::lr_data[] for the composite
+	   layout type. Thus the buffer is expected to be at the end, at this
+	   point.
 	 */
 	C2_PRE(c2_bufvec_cursor_move(cur, 0));
 
@@ -116,7 +140,6 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	l = &cl->cl_base;
 	l->l_ops = &composite_ops;
 
-	/** @todo Check this with a test prog */
 	*out = l;
 
    /**
@@ -129,7 +152,6 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		Parse the sub-layout information from the buffer pointed by
 		cur and store it in cl->cl_sub_layouts.
 	}
-
 	@endcode
    */
 	return 0;
@@ -169,13 +191,15 @@ static int composite_encode(struct c2_ldb_schema *schema,
 			       (op == C2_LXO_DB_DELETE)) {
 		/**
 		Form records for the cob_lists table by using data from the
-		buffer and depending on the value of op, insert/update/delete
-		those records to/from the cob_lists table.
+		c2_layout object l and depending on the value of op,
+		insert/update/delete those records to/from the cob_lists table.
 		 */
 	} else {
 		/**
 		Store composite layout type specific fields like information
-		about the sub-layouts, into the buffer.
+		about the sub-layouts, into the buffer by referring it from
+		c2_layout object l. If the buffer is found to be insufficient,
+		return the error ENOBUFS.
 		 */
 	}
 

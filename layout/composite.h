@@ -50,6 +50,11 @@ struct c2_composite_layout {
 	struct c2_tl              cl_sub_layouts;
 };
 
+void c2_composite_build(struct c2_tl *sub_layouts,
+			struct c2_composite_layout **out);
+void c2_composite_fini(struct c2_composite_layout *clay);
+
+
 extern const struct c2_layout_type c2_composite_layout_type;
 
 /** @} end group composite */

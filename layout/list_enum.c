@@ -31,6 +31,29 @@
    @{
 */
 
+void c2_layout_list_enum_init(struct c2_layout_list_enum *list_enum,
+			      struct c2_tl *list_of_cobs,
+			      struct c2_layout *l,
+			      struct c2_layout_enum_type *lt,
+			      struct c2_layout_enum_ops *ops)
+{
+	c2_layout_enum_init(&list_enum->lle_base, l, lt, ops);
+
+	/**
+	   Intialize list_enum->lle_list_of_cobs by using list_of_cobs.
+	   @todo Yet, need to explore this in detail.
+	 */
+}
+
+void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum)
+{
+
+	/**
+	   De-intialize list_enum->lle_list_of_cob.
+	   @todo Yet, need to explore this in detail.
+	 */
+}
+
 /**
    Implementation of leto_register for LIST enumeration type.
 
@@ -110,7 +133,6 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	inline_cobs = (struct ldb_inline_cob_entries *)c2_bufvec_cursor_addr(
 			cur);
-
    /**
 	@code
 	Copy cob entries from inline_cobs to list_enum.
@@ -123,6 +145,8 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		layout id 'lid' and index greater than MAX_INLINE_COB_ENTRIES,
 		from the cob_lists table and store those in the
 		c2_layout_list_enum::lle_list_of_cobs.
+
+		Assert that the buffer is at the end at this point.
 	} else {
 		Parse the cob identifiers list from the buffer and store it in
 		the c2_layout_list_enum::lle_list_of_cobs.
@@ -160,8 +184,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 			lle_base);
 
 	/** Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from
-	    le->lle_list_of_cobs, into inline_cobs. Temporarily assigning NULL
-	    to inline_cobs to avoid the uninitialization error. */
+	    list_enum->lle_list_of_cobs, into inline_cobs. Temporarily,
+	    assigning NULL to inline_cobs to avoid the uninitialization error.
+	 */
 	inline_cobs = NULL;
 
 	data_to_bufvec_copy(out, inline_cobs,
@@ -190,7 +215,8 @@ static int list_encode(struct c2_ldb_schema *schema,
 		Read the cob identifiers list beyond the index
 		MAX_INLINE_COB_ENTRIES from
 		c2_layout_list_enum::lle_list_of_cobs and store it into the
-		buffer.
+		buffer. If the buffer is found to be insufficient, return the
+		error ENOBUFS.
 		*/
 	}
 

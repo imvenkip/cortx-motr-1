@@ -380,6 +380,12 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 }
 C2_EXPORTED(c2_pdclust_fini);
 
+
+/**
+   @todo
+   Change the prototype of c2_pdclust_build() to accept an additional argument
+   say c2_layout_enum *enum.
+*/
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out)
@@ -403,16 +409,19 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
-		/**
-		@code
-			Create an object of the type c2_layout_linear_enum.
-		@endcode
-		*/
 		c2_layout_init(&pdl->pl_base.ls_base, *id,
                                &c2_pdclust_layout_type,
                                &pdlclust_ops);
+		/**
+		@code
+		   Call to c2_layout_init() need to be replaced by
+		   the following ? Where to initilize the enum from?
+		   c2_layout_striped_init(&pdl->pl_base, e, *id,
+					  &c2_pdclust_layout_type,
+					  &pdlclust_ops);
+		@endcode
+		*/
 
-		pdl->pl_base.ls_enum = NULL, /* @todo Pointer to c2_layout_linear_enum object */
 		pdl->pl_seed = *seed;
 		pdl->pl_attr.pa_N = N;
 		pdl->pl_attr.pa_K = K;
@@ -497,7 +506,6 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	l = &stl->ls_base;
 	l->l_ops = &pdclust_ops;
 
-	/** @todo Check this with a test prog */
 	*out = l;
 
 	/** Read pdclust layout type specific fields from the buffer and store
@@ -533,7 +541,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
    Implementation of lto_encode() for pdclust layout type.
 
    Continues to use the in-memory layout object and
-   @li Either adds/updates or deletes it to/from the Layout DB
+   @li Either adds/updates/deletes it to/from the Layout DB
    @li Or converts it to a buffer that can be passed on over the network.
 
   @param op - This enum parameter indicates what is the DB operation to be

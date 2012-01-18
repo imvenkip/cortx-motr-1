@@ -134,10 +134,10 @@ struct c2_layout_ops {
  */
 enum c2_layout_xcode_op {
 	C2_LXO_DB_NONE,
+	C2_LXO_DB_LOOKUP,
 	C2_LXO_DB_ADD,
 	C2_LXO_DB_UPDATE,
 	C2_LXO_DB_DELETE,
-	C2_LXO_DB_LOOKUP,
 };
 
 /**
@@ -196,11 +196,11 @@ struct c2_layout_type_ops {
  */
 struct c2_layout_enum {
 	/** Pointer back to c2_layout object this c2_layout_enum is part of. */
-	const struct c2_layout            *le_lptr;
+	const struct c2_layout            *le_l;
 
-	/** Layout Enumeration type. */
-	const struct c2_layout_enum_type *le_type
-;
+	/** Layout enumeration type. */
+	const struct c2_layout_enum_type *le_type;
+
 	const struct c2_layout_enum_ops  *le_ops;
 };
 
@@ -285,6 +285,20 @@ void c2_layout_init(struct c2_layout *lay,
 		    const struct c2_layout_type *type,
 		    const struct c2_layout_ops *ops);
 void c2_layout_fini(struct c2_layout *lay);
+
+void c2_layout_striped_init(struct c2_layout_striped *str_lay,
+			    struct c2_layout_enum *e,
+			    uint64_t lid,
+			    const struct c2_layout_type *type,
+			    const struct c2_layout_ops *ops);
+void c2_layout_striped_fini(struct c2_layout_striped *strl);
+
+void c2_layout_enum_init(struct c2_layout_enum *le,
+			 struct c2_layout *l,
+			 struct c2_layout_enum_type *lt,
+			 struct c2_layout_enum_ops *ops);
+void c2_layout_enum_fini(struct c2_layout_enum *le);
+
 
 int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		     struct c2_bufvec_cursor *cur,

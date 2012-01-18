@@ -329,6 +329,7 @@
  */
 
 #include "lib/errno.h"
+#include "lib/memory.h"
 #include "lib/vec.h"
 #include "lib/arith.h"
 #include "layout/pdclust.h"         /* struct c2_ldb_pdclust_rec */
@@ -525,7 +526,7 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
    This will need to be modified when newer layout types or enumeration types
    are added, if applicable.
 */
-uint32_t c2_ldb_max_size()
+uint32_t c2_ldb_rec_max_size(void)
 {
 	uint32_t max_size;
 
@@ -537,25 +538,12 @@ uint32_t c2_ldb_max_size()
 	return max_size;
 }
 
-struct c2_bufvec_cur *ldb_set_cursor(struct c2_ldb_schema *schema)
-{
-   /**
-	@code
-	Allocate bufvec using C2_BUFVEC_INIT_BUF with the size returned by
-	c2_ldb_max_size(schema).
-	Have cursor cur pointing to it using c2_bufvec_cursor_init()
-	and return pointer to cur.
-	@endcode
-   */
-	return NULL;
-}
-
 /**
    Looks up a persistent layout record with the specified layout_id, and
    its related information from the relevant tables.
 
-   @pre c2_db_pair is allocated by the caller. This is to leave the buffer
-   allocation with the caller, by taking help of c2_ldb_max_size().
+   c2_db_pair is allocated by the caller. This is to leave the buffer
+   allocation with the caller, by taking help of c2_ldb_rec_max_size().
 */
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t *lid,
@@ -574,10 +562,9 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	/* @todo Following is somehow giving a compilation error at this
 	   point - error: expected expression before '{' token. Need to look
-	   into it. But basically have buffer pointing the record read from
+	   into it. But basically have buffer pointing to the record read from
 	   the DB.
 	 */
-
 	/* bv = C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob); */
 
@@ -588,6 +575,18 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	return 0;
 }
 
+struct c2_bufvec_cursor *ldb_set_cursor()
+{
+   /**
+	@code
+	Allocate bufvec using C2_BUFVEC_INIT_BUF with the size returned by
+	c2_ldb_rec_max_size().
+	Have cursor cur pointing to it using c2_bufvec_cursor_init()
+	and return pointer to cur.
+	@endcode
+   */
+	return NULL;
+}
 
 /**
    Adds a new layout record entry into the layouts table.
@@ -595,16 +594,13 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
    relevant tables.
 */
 int c2_ldb_add(struct c2_ldb_schema *schema,
-	       const struct c2_layout *l,
+	       struct c2_layout *l,
 	       struct c2_db_tx *tx)
 {
-   /** @todo Add pseudo code here and for delete/update.
-	@code
-	struct c2_bufvec_cursor *cur = ldb_set_cursor(schema);
+	struct c2_bufvec_cursor *cur = ldb_set_cursor();
 
 	c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, cur);
-	@endcode
-   */
+
 	return 0;
 }
 
@@ -613,17 +609,13 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
    relevant tables.
 */
 int c2_ldb_update(struct c2_ldb_schema *schema,
-		  const struct c2_layout *layout,
+		  struct c2_layout *l,
 		  struct c2_db_tx *tx)
 {
-   /**
-	@code
-	struct c2_bufvec_cursor *cur = ldb_set_cursor(schema);
+	struct c2_bufvec_cursor *cur = ldb_set_cursor();
 
-	Invoke c2_layout_encode() with op set to C2_LXO_DB_UPDATE.
 	c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx, cur);
-	@endcode
-   */
+
 	return 0;
 }
 
@@ -640,14 +632,16 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  uint64_t lid,
 		  struct c2_db_tx *tx)
 {
-   /**
-	@code
-	struct c2_bufvec_cursor *cur = ldb_set_cursor(schema);
+	struct c2_layout *l;
 
-	Invoke c2_layout_encode() with op set to C2_LXO_DB_DELETE.
+	C2_ALLOC_PTR(l);
+
+	l->l_id = lid;
+
+	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+
 	c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, cur);
-	@endcode
-   */
+
 	return 0;
 }
 

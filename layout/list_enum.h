@@ -48,6 +48,15 @@ struct c2_layout_list_enum {
 	struct c2_tl              lle_list_of_cobs;
 };
 
+
+void c2_layout_list_enum_init(struct c2_layout_list_enum *list_enum,
+			      struct c2_tl *list_of_cobs,
+			      struct c2_layout *l,
+			      struct c2_layout_enum_type *lt,
+			      struct c2_layout_enum_ops *ops);
+void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum);
+
+
 extern const struct c2_layout_enum_type c2_list_enum_type;
 
 /** @} end group list_enum */
