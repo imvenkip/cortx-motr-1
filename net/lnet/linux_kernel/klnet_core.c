@@ -987,7 +987,8 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 	kb->kb_cb = 0;
 	c2_free(kb->kb_kiov);
 	c2_free(kb);
-	lcbuf->cb_kpvt = 0;
+	lcbuf->cb_buffer_id = 0;
+	lcbuf->cb_kpvt = NULL;
 	lcbuf->cb_magic = 0;
 	return;
 }
