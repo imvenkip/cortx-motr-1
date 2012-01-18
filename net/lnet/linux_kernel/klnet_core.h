@@ -113,6 +113,11 @@ static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
 
+#ifdef PAGE_OFFSET
+#undef PAGE_OFFSET
+#endif
+#define PAGE_OFFSET(addr) ((addr) & ~PAGE_MASK)
+
 /**
    @}
  */

@@ -74,7 +74,7 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
 	int pnum;
 
 	for (pnum = 0; pnum < num_pages; ++pnum) {
-		uint64_t offset = seg_addr % PAGE_SIZE;
+		uint64_t offset = PAGE_OFFSET(seg_addr);
 		uint64_t len    = PAGE_SIZE - offset;
 		struct page *pg;
 
