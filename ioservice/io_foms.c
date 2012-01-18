@@ -39,7 +39,6 @@
 #include "ioservice/io_service.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
-#include "lib/trace.h"
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
@@ -996,9 +995,6 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
         acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
         required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
-	C2_TRACE("acq %d req %d\n", acquired_net_bufs, required_net_bufs);
-	C2_TRACE("ndesc %d curr_desc_index %d\n", fom_obj->fcrw_ndesc,
-				fom_obj->fcrw_curr_desc_index);
         /*
          * Aquire as many net buffers as to process all discriptors.
          * If FOM able to acquire more buffers then it change batch side
@@ -1070,7 +1066,6 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         int                             colour;
         int                             acquired_net_bufs;
         int                             required_net_bufs;
-        int                             rc;
         struct c2_fop                  *fop;
         struct c2_io_fom_cob_rw        *fom_obj = NULL;
 
@@ -1088,9 +1083,6 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
         required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
-	C2_TRACE("acq %d req %d\n", acquired_net_bufs, required_net_bufs);
-	C2_TRACE("ndesc %d curr_desc_index %d\n", fom_obj->fcrw_ndesc,
-				fom_obj->fcrw_curr_desc_index);
         for (;acquired_net_bufs > required_net_bufs;) {
                 struct c2_net_buffer           *nb = NULL;
 
@@ -1146,7 +1138,6 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 
         c2_rpc_bulk_init(rbulk);
 
-	C2_TRACE("Before loop\n");
         /* Create rpc bulk bufs list using available net buffers */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
@@ -1169,7 +1160,6 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
                 rpcbulkbufs_tlink_init(rb_buf);
                 c2_mutex_lock(&rbulk->rb_mutex);
                 rpcbulkbufs_tlist_add(&rbulk->rb_buflist, rb_buf);
-		C2_TRACE("Added to rb_buflist %p\n", rb_buf);
                 c2_mutex_unlock(&rbulk->rb_mutex);
 
         } c2_tlist_endfor;
@@ -1294,8 +1284,6 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	fop = fom->fo_fop;
 	rwfop = io_rw_get(fop);
 
-	C2_TRACE("Got request!!!\n");
-
 	ffid = &rwfop->crw_fid;
 	io_fom_cob_rw_fid_wire2mem(ffid, &fid);
 	io_fom_cob_rw_fid2stob_map(&fid, &stobid);
@@ -1307,7 +1295,6 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
 	if (rc != 0) {
-		C2_TRACE("Couldn't locate stob\n");
 		goto cleanup_st;
 	}
 
@@ -1579,7 +1566,6 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 {
         int                             colour = 0;
-        int                             rc;
         struct c2_fop                  *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw        *fom_obj;
         struct c2_net_buffer           *nb = NULL;
