@@ -1357,6 +1357,17 @@ struct c2_net_buffer {
         void                      *nb_xprt_private;
 
 	/**
+	   Application specific private data associated with the buffer.
+	   It is populated and used by the end user.
+	   It is end user's responsibility to use this field to allocate
+	   or deallocate any memory regions stored in this field.
+
+	   It is neither verified by net code nor do the net layer
+	   invariants touch it.
+	 */
+	void			  *nb_app_private;
+
+	/**
 	   Buffer state is tracked with bitmap flags from
 	   enum c2_net_buf_flags.
 
