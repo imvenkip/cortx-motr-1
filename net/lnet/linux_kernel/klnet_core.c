@@ -892,7 +892,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
 	bev->cbe_core_buf = cbp->cb_buffer_id;
 	bev->cbe_time = now;
-	if (event->type == LNET_EVENT_UNLINK)
+	if (event->type == LNET_EVENT_UNLINK) /* see nlx_core_buf_del */
 		bev->cbe_status = -ECANCELED;
 	else
 		bev->cbe_status = event->status;
@@ -1078,6 +1078,12 @@ int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 		     struct nlx_core_buffer *lcbuf)
 {
+	/* Subtle: Cancelling the MD associated with the buffer
+	   could result in a LNet UNLINK event if the buffer operation is
+	   terminated by LNet.
+	   The unlink bit is also set in other LNet events but does not
+	   signify cancel in those cases.
+	*/
 	/* XXX todo implement */
 	return -ENOSYS;
 }
@@ -1108,14 +1114,15 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	struct nlx_core_buffer_event *bev;
 
 	C2_PRE(lctm != NULL && lcbe != NULL);
+	C2_PRE(nlx_core_tm_is_locked(lctm));
 
-	/* XXX must synchronize with calls to bev_cqueue_add */
 	link = bev_cqueue_get(&lctm->ctm_bevq);
 	if (link != NULL) {
 		bev = container_of(link, struct nlx_core_buffer_event,
 				   cbe_tm_link);
 		*lcbe = *bev;
 		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
+		lctm->ctm_bev_needed--;
 		return true;
 	}
 	return false;
@@ -1206,8 +1213,8 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_PRE(epp != NULL);
 
 	C2_ALLOC_PTR(kctm);
-	(void)nlx_core_new_blessed_bev(kctm, &e1);
-	(void)nlx_core_new_blessed_bev(kctm, &e2);
+	(void)nlx_core_new_blessed_bev(lctm, &e1);
+	(void)nlx_core_new_blessed_bev(lctm, &e2);
 	if (kctm == NULL || e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
 		goto fail;
@@ -1317,7 +1324,7 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	c2_free(kctm);
 }
 
-int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
+int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm, /* not used */
 			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;

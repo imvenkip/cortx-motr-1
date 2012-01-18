@@ -206,6 +206,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 
 	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
 	C2_PRE(nb->nb_offset == 0); /* do not support an offset during add */
+	C2_PRE((nb->nb_flags & C2_NET_BUF_RETAIN) == 0);
 	tp = nb->nb_tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
@@ -284,8 +285,9 @@ static void nlx_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 
-	/** @todo xtm_busy may be replaced by use of ntm_callback_counter */
-	C2_PRE(nlx_tm_invariant(tm) && tp->xtm_busy == 0);
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(tm->ntm_callback_counter == 0);
 
 	if (tp->xtm_ev_thread.t_state != TS_PARKED)
 		c2_thread_join(&tp->xtm_ev_thread);
@@ -362,11 +364,61 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
-	struct nlx_core_buffer_event bev;
+	struct nlx_core_buffer_event cbev;
+	int num_events = 0;
 
-	C2_PRE(tp != NULL);
-	while (nlx_core_buf_event_get(&tp->xtm_core, &bev))
-		/* XXX deliver the event */ ;
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
+
+	while (nlx_core_buf_event_get(&tp->xtm_core, &cbev)) {
+		struct c2_net_buffer_event nbev;
+		int rc;
+
+		rc = nlx_xo_core_bev_to_net_bev(tm, &cbev, &nbev);
+		if (rc != 0) {
+			/* Failure can only happen for receive message events
+			   when end point creation fails due to lack
+			   of memory.
+			   We can ignore the event unless LNet also indicates
+			   that it has unlinked the buffer; in the latter case
+			   we will deliver a failure buffer operation to the
+			   application.
+			   We will increment the failure counters for the
+			   cases where we eat the event.  Note that LNet still
+			   knows about the buffer.
+			*/
+			C2_ASSERT(nbev.nbe_buffer->nb_qtype ==
+				  C2_NET_QT_MSG_RECV);
+			C2_ASSERT(rc == -ENOMEM);
+			if (!cbev.cbe_unlinked) {
+				struct c2_net_qstats *q;
+				q = &tm->ntm_qstats[nbev.nbe_buffer->nb_qtype];
+				q->nqs_num_f_events++;
+				continue;
+			}
+		}
+
+		/* Deliver the event out of the mutex.  Increment the
+		   callback counter to protect the state of the TM.
+		*/
+		tm->ntm_callback_counter++;
+		c2_mutex_unlock(&tm->ntm_mutex);
+
+		num_events++;
+		c2_net_buffer_event_post(&nbev);
+
+		/* re-enter the mutex */
+		c2_mutex_lock(&tm->ntm_mutex);
+		tm->ntm_callback_counter--;
+		C2_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
+	}
+
+	/* if we ever left the mutex, wake up waiters on the callback counter */
+	if (num_events > 0)
+		c2_chan_broadcast(&tm->ntm_chan);
+
+	return;
 }
 
 static int nlx_xo_bev_deliver_sync(struct c2_net_transfer_mc *tm)

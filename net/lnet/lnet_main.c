@@ -325,14 +325,15 @@
    pending events.  The transfer machine lock is held across the call to the
    nlx_core_buf_event_get() subroutine to serialize "consumers" of the
    circualar buffer event queue, but is released during event delivery.  The
-   nlx_xo_transfer_mc::xtm_busy counter is incremented across the call to
-   prevent premature termination when operating outside of the protection of
-   the transfer machine mutex.  This is illustrated in the following
-   pseduo-code for nlx_xo_bev_deliver_all():
+   c2_net_transfer_mc::ntm_callback_counter field is incremented across the
+   call to prevent premature termination when operating outside of the
+   protection of the transfer machine mutex.  This is illustrated in the
+   following pseduo-code for nlx_xo_bev_deliver_all():
    @code
    int rc;
+   bool delivered_events = false;
    C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-   lctm->xtm_busy++;
+   tm->ntm_callback_counter++;
    do { // consume all pending events
         struct nlx_core_buffer_event lcbe;
 	struct c2_net_buffer_event nbev;
@@ -344,10 +345,13 @@
 	if (rc == 0) {
 	     nbe = ... // convert the event
 	     c2_net_buffer_event_post(&nbev);
+	     delivered_events = true;
         }
 	c2_mutex_lock(&tm->ntm_mutex); // re-acquire lock
    } while (rc == 0);
-   lctm->xtm_busy--;
+   tm->ntm_callback_counter--;
+   if (delivered_events)
+        c2_chan_broadcast(&tm->ntm_chan);
    @endcode
 
    @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Processing Thread
@@ -422,7 +426,7 @@
       if (tm->ntm_state == C2_NET_TM_STOPPING) {
             bool must_stop = false;
             c2_mutex_lock(&tm->ntm_mutex);
-            if (all_tm_queues_are_empty(tm) && lctm->xtm_busy == 0) {
+            if (all_tm_queues_are_empty(tm) && tm->ntm_callback_counter == 0) {
 	       nlx_core_tm_stop(lctm);
 	       must_stop = true;
             }
@@ -600,7 +604,7 @@
    receive buffer events.  Termination of the transfer machine is serialized
    with concurrent invocation of the nlx_xo_bev_deliver_all() subroutine in the
    case of synchronous buffer event delivery by means of the
-   nlx_xo_transfer_mc::xtm_busy counter.
+   c2_net_transfer_mc::ntm_callback_counter field.
    See @ref LNetDLD-lspec-bev-sync and @ref LNetDLD-lspec-tm-thread for
    details.
 
@@ -758,6 +762,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/memory.h"
+#include "net/net_internal.h"
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"

@@ -624,6 +624,7 @@ static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 
 /**
    Fetches the next event from the circular buffer event queue.
+   It decrements the struct nlx_core_transfer_mc::ctm_bev_needed counter.
 
    The invoker should ensure that the subroutine is not invoked concurrently
    with any of the buffer operation initiation subroutines, or another
@@ -633,6 +634,7 @@ static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
    @param lcbe The next buffer event is returned here.
    @retval true Event returned.
    @retval false No events on the queue.
+   @see nlx_core_bevq_provision()
  */
 static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 				   struct nlx_core_buffer_event *lcbe);
@@ -706,6 +708,41 @@ static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
 		cep1->cepa_portal == cep2->cepa_portal &&
 		cep1->cepa_tmid == cep2->cepa_tmid;
 }
+
+/**
+   Subroutine to provision additional buffer event entries on the
+   buffer event queue if needed.
+   It increments the struct nlx_core_transfer_mc::ctm_bev_needed counter
+   by the number of LNet events that can be delivered, as indicated by the
+   @c need paramter.
+
+   The subroutine is to be used in the consumer address space only, and uses
+   a kernel or user space specific allocator subroutine to obtain an
+   appropriately blessed entry in the producer space.
+
+   The invoker must lock the transfer machine prior to this call.
+
+   @param lctm Pointer to LNet core TM data structure.
+   @param need Number of additional buffer entries required.
+   @see nlx_core_new_blessed_bev()
+ */
+static int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm,
+				   size_t need);
+
+/**
+   Subroutine to allocate a new buffer event structure initialized
+   with the producer space self pointer set.
+   This subroutine is defined separately for the kernel and user space.
+   @param lctm LNet core transfer machine pointer.
+   In the user space transport this must be initialized at least with the
+   core device driver file descriptor.
+   In kernel space this is not used.
+   @param bevp Buffer event return pointer.
+   @post bev_cqueue_bless(&bevp->cbe_tm_link) has been invoked.
+   @see bev_cqueue_bless()
+ */
+static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
+				    struct nlx_core_buffer_event **bevp);
 
 /**
    @}

@@ -118,7 +118,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		if (tm->ntm_state == C2_NET_TM_STOPPING) {
 			bool must_stop = false;
 			c2_mutex_lock(&tm->ntm_mutex);
-			if (all_tm_queues_are_empty(tm) && tp->xtm_busy == 0) {
+			if (all_tm_queues_are_empty(tm) &&
+			    tm->ntm_callback_counter == 0) {
 				nlx_core_tm_stop(ctp);
 				must_stop = true;
 			}
@@ -133,6 +134,62 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 
 		/* XXX Log statistical data periodically using ADDB */
 	}
+}
+
+/**
+   Helper subroutine to create the network buffer event from the internal
+   core buffer event.
+   @param tm Pointer to TM.
+   @param lcbev Pointer to LNet transport core buffer event.
+   @param nbev Pointer to network buffer event to fill in.
+   @pre c2_mutex_is_locked(&tm->ntm_mutex)
+   @post ergo(nbev->nbe_buffer->nb_flags & C2_NET_BUF_RETAIN,
+              rc == 0 && !lcbev->cbe_unlinked);
+   @post rc == 0 || rc == -ENOMEM
+ */
+int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
+			       struct nlx_core_buffer_event *lcbev,
+			       struct c2_net_buffer_event *nbev)
+{
+	struct c2_net_buffer *nb;
+	int rc = 0;
+
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+
+	/* Recover the transport space network buffer address from the
+	   opaque data set during registration.
+	 */
+	nb = (struct c2_net_buffer *)lcbev->cbe_core_buf;
+	C2_ASSERT(c2_net__buffer_invariant(nb));
+
+	C2_SET0(nbev);
+	nbev->nbe_buffer = nb;
+	nbev->nbe_status = lcbev->cbe_status;
+	nbev->nbe_time   = lcbev->cbe_time;
+	if (nbev->nbe_status != 0)
+		goto done; /* this is not an error from this sub */
+	if (nb->nb_qtype == C2_NET_QT_MSG_RECV) {
+		rc = nlx_ep_create(&nbev->nbe_ep, tm, &lcbev->cbe_sender);
+		if (rc != 0) {
+			nbev->nbe_status = rc;
+			goto done;
+		}
+		nbev->nbe_offset = lcbev->cbe_offset;
+	}
+	if (nb->nb_qtype == C2_NET_QT_MSG_RECV ||
+	    nb->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
+	    nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
+		nbev->nbe_length = lcbev->cbe_length;
+	}
+	if (!lcbev->cbe_unlinked)
+		nb->nb_flags |= C2_NET_BUF_RETAIN;
+ done:
+	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
+		     rc == 0 && !lcbev->cbe_unlinked));
+	/* currently we only support RETAIN for received messages */
+	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
+		     nb->nb_qtype == C2_NET_QT_MSG_RECV));
+	return rc;
 }
 
 /**
