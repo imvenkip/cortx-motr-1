@@ -1032,9 +1032,6 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
                      */
                     break;
             }
-            /* XXX HACK :-( remove this -Amit */
-            c2_net_buffer_deregister(nb,
-		fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
 
             if (c2_is_read_fop(fop))
                    nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
@@ -1099,10 +1096,6 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 
                 nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                 C2_ASSERT(nb != NULL);
-
-                /* XXX HACK :-( remove this -Amit */
-                rc = c2_net_buffer_register(nb,
-                         fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
 
                 c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
@@ -1603,10 +1596,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_ASSERT(fom_obj->fcrw_bp != NULL);
         c2_tlist_for (&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 C2_ASSERT(nb != NULL);
-
-                /* XXX HACK :-( remove this -Amit */
-                rc = c2_net_buffer_register(nb,
-                         fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom);
 
                 c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
