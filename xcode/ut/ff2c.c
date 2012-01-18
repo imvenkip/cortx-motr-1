@@ -70,7 +70,7 @@ static const char sample[] =
 "} package					\n"
 "						\n";
 
-static void token_print(const struct ff2c_token *tok)
+__attribute__((unused)) static void token_print(const struct ff2c_token *tok)
 {
 	if (tok->ft_type != 0)
 		printf("[%s: %*.*s]", ff2c_token_type_name[tok->ft_type],
@@ -79,20 +79,20 @@ static void token_print(const struct ff2c_token *tok)
 		printf("[no token]");
 }
 
-static void xcode_lex_test(void)
+static void ff2c_lex_test(void)
 {
 	struct ff2c_context ctx;
-	struct ff2c_token   tok;
+	/* struct ff2c_token   tok; */
 
 	C2_SET0(&ctx);
 	ff2c_context_init(&ctx, sample, strlen(sample));
 
-	while (ff2c_token_get(&ctx, &tok) > 0)
-		token_print(&tok);
+	/* while (ff2c_token_get(&ctx, &tok) > 0)
+		token_print(&tok); */
 	ff2c_context_fini(&ctx);
 }
 
-static void parser_print(struct ff2c_term *t, int depth)
+__attribute__((unused)) static void parser_print(struct ff2c_term *t, int depth)
 {
 	const char ruler[] = "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t";
 	printf("%*.*s %11.11s: ", depth, depth, ruler,
@@ -103,7 +103,7 @@ static void parser_print(struct ff2c_term *t, int depth)
 		parser_print(t, depth + 1);
 }
 
-static void xcode_parser_test(void)
+static void ff2c_parser_test(void)
 {
 	struct ff2c_context ctx;
 	struct ff2c_term   *t;
@@ -113,23 +113,23 @@ static void xcode_parser_test(void)
 	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &t);
 	C2_UT_ASSERT(result == 0);
-
+	/*
 	printf("\n");
 	parser_print(t, 0);
-
+	*/
 	ff2c_term_fini(t);
 	ff2c_context_fini(&ctx);
 }
 
-static void xcode_sem_test(void)
+static void ff2c_sem_test(void)
 {
 	int                  result;
 	struct ff2c_context  ctx;
 	struct ff2c_term    *term;
 	struct ff2c_ff       ff;
-	struct ff2c_require *r;
+/*	struct ff2c_require *r;
 	struct ff2c_type    *t;
-	struct ff2c_field   *f;
+	struct ff2c_field   *f; */
 
 	C2_SET0(&ctx);
 	C2_SET0(&ff);
@@ -139,7 +139,7 @@ static void xcode_sem_test(void)
 	C2_UT_ASSERT(result == 0);
 
 	ff2c_sem_init(&ff, term);
-
+/*
 	for (r = ff.ff_require.l_head; r != NULL; r = r->r_next)
 		printf("require %s\n", r->r_path);
 
@@ -163,7 +163,7 @@ static void xcode_sem_test(void)
 		}
 		printf("\n");
 	}
-
+*/
 
 	ff2c_sem_fini(&ff);
 
@@ -171,7 +171,7 @@ static void xcode_sem_test(void)
 	ff2c_context_fini(&ctx);
 }
 
-static void xcode_gen_test(void)
+static void ff2c_gen_test(void)
 {
 	struct ff2c_context ctx;
 	struct ff2c_term   *t;
@@ -179,12 +179,14 @@ static void xcode_gen_test(void)
 	const struct ff2c_gen_opt opt ={
 		.go_basename  = "basename",
 		.go_guardname = "__GUARD__",
-		.go_out       = stdout
+		.go_out       = fopen("/dev/null", "w") /* stdout */
 	};
 
 	int result;
 
 	C2_SET0(&ctx);
+	C2_SET0(&ff);
+
 	ff2c_context_init(&ctx, sample, strlen(sample));
 	result = ff2c_parse(&ctx, &t);
 	C2_UT_ASSERT(result == 0);
@@ -199,15 +201,15 @@ static void xcode_gen_test(void)
 	ff2c_context_fini(&ctx);
 }
 
-const struct c2_test_suite xcode_lex_ut = {
-        .ts_name = "xcode-lex-ut",
+const struct c2_test_suite xcode_ff2c_ut = {
+        .ts_name = "ff2c-ut",
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-                { "xcode-lex",    xcode_lex_test },
-                { "xcode-parser", xcode_parser_test },
-                { "xcode-sem",    xcode_sem_test },
-                { "xcode-gen",    xcode_gen_test },
+                { "xcode-lex",    ff2c_lex_test },
+                { "xcode-parser", ff2c_parser_test },
+                { "xcode-sem",    ff2c_sem_test },
+                { "xcode-gen",    ff2c_gen_test },
                 { NULL, NULL }
         }
 };

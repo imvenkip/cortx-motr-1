@@ -48,7 +48,7 @@ extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
 extern const struct c2_test_suite xcode_bufvec_ut;
-extern const struct c2_test_suite xcode_lex_ut;
+extern const struct c2_test_suite xcode_ff2c_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite reqh_ut;
 extern const struct c2_test_suite rpc_onwire_ut;
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-/*	        c2_ut_add(&libc2_ut);
+	        c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&buffer_pool_ut);
@@ -103,10 +103,10 @@ int main(int argc, char *argv[])
 		c2_ut_add(&stobio_ut);
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xcode_bufvec_fop_ut);
-		c2_ut_add(&xcode_bufvec_ut); */
+		c2_ut_add(&xcode_bufvec_ut);
 		c2_ut_add(&xcode_ut);
-		c2_ut_add(&xcode_lex_ut);
-/*		c2_ut_add(&yaml2db_ut); */
+		c2_ut_add(&xcode_ff2c_ut);
+		c2_ut_add(&yaml2db_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
 			unit_end(UT_SANDBOX);
