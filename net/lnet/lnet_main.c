@@ -804,7 +804,7 @@ int c2_net_lnet_ifaces_get(char * const **addrs)
 }
 C2_EXPORTED(c2_net_lnet_ifaces_get);
 
-void c2_net_lnet_ifaces_put(char * const *addrs)
+void c2_net_lnet_ifaces_put(char * const **addrs)
 {
 	nlx_core_nidstrs_put(addrs);
 }

@@ -91,9 +91,9 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
 int c2_net_lnet_ifaces_get(char * const **addrs);
 
 /**
-   Releases the string array returned by nlx_core_nidstrs_get().
+   Releases the string array returned by c2_net_lnet_ifaces_get().
  */
-void c2_net_lnet_ifaces_put(char * const *addrs);
+void c2_net_lnet_ifaces_put(char * const **addrs);
 
 /* init and fini functions for colibri init */
 int c2_net_lnet_init(void);

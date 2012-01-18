@@ -608,7 +608,7 @@ static int nlx_core_nidstrs_get(char * const **nidary);
 /**
    Releases the string array returned by nlx_core_nidstrs_get().
  */
-static void nlx_core_nidstrs_put(char * const *nidary);
+static void nlx_core_nidstrs_put(char * const **nidary);
 
 /**
    Starts a transfer machine. Internally this results in

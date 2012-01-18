@@ -125,7 +125,8 @@ static void test_tm_startstop(void)
 		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
 	sprintf(dyn_epstr, "%s:%d:%d:*",
 		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
-	c2_net_lnet_ifaces_put(nidstrs);
+	c2_net_lnet_ifaces_put(&nidstrs);
+	C2_UT_ASSERT(nidstrs == NULL);
 	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
 
 	c2_clink_init(&tmwait1, NULL);

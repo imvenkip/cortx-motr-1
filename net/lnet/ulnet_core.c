@@ -175,7 +175,7 @@ int nlx_core_nidstrs_get(char * const **nidary)
 	return -ENOSYS;
 }
 
-void nlx_core_nidstrs_put(char * const *nidary)
+void nlx_core_nidstrs_put(char * const **nidary)
 {
 	/* XXX implement */
 }
