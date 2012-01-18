@@ -209,13 +209,13 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		rc = c2_rpc_bulk_buf_add(rbulk, ivec->ci_nr,
 					 ivec->ci_iosegs[0].ci_count,
 					 conn->c_rpcmachine->cr_tm.ntm_dom,
-					 &rbuf);
+					 NULL, &rbuf);
 
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(rbuf != NULL);
 
-		rbuf->bb_nbuf.nb_buffer = *bvecs[i];
-		rbuf->bb_nbuf.nb_qtype = is_write(fom->fo_fop) ?
+		rbuf->bb_nbuf->nb_buffer = *bvecs[i];
+		rbuf->bb_nbuf->nb_qtype = is_write(fom->fo_fop) ?
 					 C2_NET_QT_ACTIVE_BULK_RECV :
 					 C2_NET_QT_ACTIVE_BULK_SEND;
 		tc += c2_vec_count(&bvecs[i]->ov_vec);
@@ -380,7 +380,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 	/* Adds a c2_rpc_bulk_buf structure to list of such structures
 	   in c2_rpc_bulk. */
 	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, IO_SEG_SIZE, &c_netdom,
-				 &rbuf);
+				 NULL, &rbuf);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(rbuf != NULL);
 
@@ -399,7 +399,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 			io_buf[index].nb_buffer.ov_vec.v_count[i];
 	}
 
-	rbuf->bb_nbuf.nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
+	rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
 		C2_NET_QT_PASSIVE_BULK_SEND : C2_NET_QT_PASSIVE_BULK_RECV;
 
 	/* Allocates memory for array of net buf descriptors and array of
