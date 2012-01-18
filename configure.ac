@@ -381,66 +381,56 @@ else
 	fi
 fi
 
+#
+# Helper function to build external library.
+#
+# Input parameters:
+#     1st -- library name
+#     2nd -- directory with library sources
+#     3rd -- path to compiled library binary
+#     4th -- (optional) options for configure script
+#
+build_lib()
+{
+	NAME=$1
+	SRC=$2
+	LIBS=$3
+	CFGOPTS=$4
+	if ! test -e $LIBS; then
+		AC_MSG_RESULT([building $SRC])
+		oldcwd=$(pwd)
+		cd $SRC && ./configure $CFGOPTS && make
+		res=$?
+		cd $oldcwd
+		if ! test $res -eq 0 ; then
+			AC_MSG_ERROR([An error occured while building lib$NAME!])
+		fi
+		if ! test -e $LIBS; then
+			AC_MSG_ERROR([$LIBS not found! Build failed?])
+		fi
+	else
+		AC_MSG_RESULT([$LIBS])
+	fi
+}
+
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
 GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-if ! test -e $GALOIS_LIBS; then
-        AC_MSG_RESULT([building $GALOIS_SRC])
-	oldcwd=$(pwd)
-	cd $GALOIS_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-	if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libgalois!])
-        fi
-	if ! test -e $GALOIS_LIBS; then
-                AC_MSG_ERROR([$GALOIS_LIBS not found! Build failed?])
-        fi
-else
-	AC_MSG_RESULT([$GALOIS_LIBS])
-fi
+build_lib galois $GALOIS_SRC $GALOIS_LIBS
 
 # Check for yaml
 YAML_SRC=$SRCDIR/../yaml
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
-if ! test -e $YAML_LIBS; then
-        AC_MSG_RESULT([building $YAML_SRC])
-        oldcwd=$(pwd)
-        cd $YAML_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-        if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libyaml!])
-        fi
-        if ! test -e $YAML_LIBS; then
-                AC_MSG_ERROR([$YAML_LIBS not found! Build failed?])
-        fi
-else
-        AC_MSG_RESULT([$YAML_LIBS])
-fi
+build_lib yaml $YAML_SRC $YAML_LIBS
 
 # Check for CUnit
 CUNIT_SRC=$SRCDIR/../cunit
 CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/.libs/libcunit.la"
 CUNIT_HEADERS="$CUNIT_SRC/CUnit/Headers"
 AC_MSG_CHECKING([for cunit libs])
-if ! test -e $CUNIT_LIBS; then
-	AC_MSG_RESULT([building $CUNIT_SRC])
-	oldcwd=$(pwd)
-	cd $CUNIT_SRC && ./configure && make
-	res=$?
-	cd $oldcwd
-	if ! test $res -eq 0 ; then
-		AC_MSG_ERROR([An error occured while building libcunit!])
-	fi
-	if ! test -e $CUNIT_LIBS; then
-		AC_MSG_ERROR([$CUNIT_LIBS not found! Build failed?])
-	fi
-else
-	AC_MSG_RESULT([$CUNIT_LIBS])
-fi
+build_lib cunit $CUNIT_SRC $CUNIT_LIBS '--with-pic --enable-curses'
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
