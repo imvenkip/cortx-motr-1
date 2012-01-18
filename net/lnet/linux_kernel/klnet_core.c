@@ -1071,10 +1071,12 @@ int nlx_core_nidstrs_get(char * const **nidary)
 	return 0;
 }
 
-void nlx_core_nidstrs_put(char * const *nidary)
+void nlx_core_nidstrs_put(char * const **nidary)
 {
-	C2_PRE(nidary == nlx_kcore_lni_nidstrs);
+	C2_PRE(*nidary == nlx_kcore_lni_nidstrs);
+	C2_PRE(c2_atomic64_get(&nlx_kcore_lni_refcount) > 0);
 	c2_atomic64_dec(&nlx_kcore_lni_refcount);
+	*nidary = NULL;
 }
 
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
@@ -1212,6 +1214,7 @@ static void nlx_core_fini(void)
 {
 	int rc;
 	int i;
+
 	C2_ASSERT(c2_atomic64_get(&nlx_kcore_lni_refcount) == 0);
 	if (nlx_kcore_lni_nidstrs != NULL) {
 		for (i = 0; nlx_kcore_lni_nidstrs[i] != NULL; ++i)

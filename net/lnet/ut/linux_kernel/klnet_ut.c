@@ -89,7 +89,8 @@ static void ktest_core_ep_addr(void)
 			C2_UT_ASSERT(strcmp(buf, epstr[i]) == 0);
 		}
 	}
-	nlx_core_nidstrs_put(nidstrs);
+	nlx_core_nidstrs_put(&nidstrs);
+	C2_UT_ASSERT(nidstrs == NULL);
 
 	for (i = 0; i < ARRAY_SIZE(failepstr); ++i) {
 		rc = nlx_core_ep_addr_decode(&dom.xd_core, failepstr[i],
