@@ -373,7 +373,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
    /**
 	@code
 
-	c2_mutex_fini(&schema->ls_lock);
+	c2_mutex_init(&schema->ls_lock);
 	Use the DB interface c2_table_init() to intialize the layouts table.
 
 	@endcode
