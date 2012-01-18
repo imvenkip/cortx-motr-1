@@ -47,9 +47,11 @@ extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
+extern const struct c2_test_suite xcode_bufvec_ut;
+extern const struct c2_test_suite xcode_ff2c_ut;
+extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite reqh_ut;
 extern const struct c2_test_suite rpc_onwire_ut;
-extern const struct c2_test_suite xcode_bufvec_ut;
 extern const struct c2_test_suite colibri_setup_ut;
 extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite cfm_ut;
@@ -102,6 +104,8 @@ int main(int argc, char *argv[])
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xcode_bufvec_fop_ut);
 		c2_ut_add(&xcode_bufvec_ut);
+		c2_ut_add(&xcode_ut);
+		c2_ut_add(&xcode_ff2c_ut);
 		c2_ut_add(&yaml2db_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
