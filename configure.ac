@@ -589,6 +589,7 @@ AC_CONFIG_FILES([
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
+                 xcode/ff2c/Makefile
                  xcode/ut/Makefile
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
