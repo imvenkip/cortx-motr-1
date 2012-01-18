@@ -1175,7 +1175,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	buf->bb_owner = false;
 	buf->bb_nbuf.nb_buffer = buf->bb_zerovec.z_bvec;
 	c2_mutex_lock(&rbulk->rb_mutex);
-	rpcbulk_tlist_add(&rbulk->rb_buflist, buf);
+	rpcbulk_tlist_add_tail(&rbulk->rb_buflist, buf);
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	*out = buf;
 	C2_POST(rpc_bulk_buf_invariant(buf));

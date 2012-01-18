@@ -190,8 +190,10 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	C2_UT_ASSERT(rw->crw_desc.id_nr != 0);
 
 	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i)
-		C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[0].ci_iosegs[i].
+		for (j = 0; j < rw->crw_ivecs.cis_ivecs[i].ci_nr; ++j)
+			C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[i].ci_iosegs[j].
 			     ci_count == IO_SEG_SIZE);
+
 
 	for (tc = 0, i = 0; i < rw->crw_desc.id_nr; ++i) {
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
@@ -550,6 +552,8 @@ void bulkio_test(void)
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
 		       sizeof(struct c2_thread));
 
+		/* IO fops are deallocated by an rpc item type op on receiving
+		   the reply fop. See io_item_free(). */
 		io_fops_create(op);
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;

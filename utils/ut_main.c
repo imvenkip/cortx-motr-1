@@ -77,11 +77,11 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-	        c2_ut_add(&bulkio_ut);
 	        c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&buffer_pool_ut);
+	        c2_ut_add(&bulkio_ut);
 		c2_ut_add(&capa_ut);
 		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);
