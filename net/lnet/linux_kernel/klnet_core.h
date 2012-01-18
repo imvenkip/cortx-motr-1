@@ -86,7 +86,7 @@ struct nlx_kcore_transfer_mc {
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
 
-	/** Mimumum space remaining for re-use of the receive buffer.
+	/** Minimum space remaining for re-use of the receive buffer.
 	    The value is set from c2_net_buffer::nb_min_receive_size.
 	 */
 	c2_bcount_t                   kb_min_recv_size;
@@ -100,7 +100,7 @@ struct nlx_kcore_buffer {
 	struct nlx_kcore_transfer_mc *kb_ktm;
 
 	/** The LNet I/O vector. */
-	lnet_kiov_t                   *kb_kiov;
+	lnet_kiov_t                  *kb_kiov;
 
 	/** The number of elements in kb_kiov */
 	size_t                        kb_kiov_len;
@@ -109,8 +109,14 @@ struct nlx_kcore_buffer {
 	lnet_handle_md_t              kb_mdh;
 };
 
+static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
+
+#ifdef PAGE_OFFSET
+#undef PAGE_OFFSET
+#endif
+#define PAGE_OFFSET(addr) ((addr) & ~PAGE_MASK)
 
 /**
    @}
