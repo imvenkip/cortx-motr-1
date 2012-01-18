@@ -612,7 +612,7 @@ static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 {
 	if (q == NULL || q->cbcq_consumer == 0 || q->cbcq_producer == 0)
 		return false;
-	if (q->cbcq_nr < 2)
+	if (q->cbcq_nr < C2_NET_LNET_BEVQ_MIN_SIZE)
 		return false;
 	return true;
 }
