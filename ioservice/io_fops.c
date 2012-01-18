@@ -833,7 +833,7 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 		} c2_tlist_endfor;
 
 		rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size,
-					 netdom, &buf);
+					 netdom, NULL, &buf);
 
 		if (rc != 0)
 			goto cleanup;
@@ -859,7 +859,7 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 		if (c2_is_read_fop(coalesced_fop))
 			buf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 		else
-			buf->bb_nbuf.nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
+			buf->bb_nbuf->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	}
 	return 0;
 cleanup:
@@ -1188,7 +1188,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 			    -EMSGSIZE);
 		c2_mutex_lock(&rbulk->rb_mutex);
 		c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
-			c2_net_buffer_del(&rbuf->bb_nbuf, tm);
+			c2_net_buffer_del(rbuf->bb_nbuf, tm);
 		} c2_tlist_endfor;
 		c2_mutex_unlock(&rbulk->rb_mutex);
 		io_fop_destroy(res_fop);
@@ -1205,7 +1205,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 		rbulk = c2_fop_to_rpcbulk(fop);
 		c2_mutex_lock(&rbulk->rb_mutex);
 		c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
-			c2_net_buffer_del(&rbuf->bb_nbuf, tm);
+			c2_net_buffer_del(rbuf->bb_nbuf, tm);
 		} c2_tlist_endfor;
 		c2_mutex_unlock(&rbulk->rb_mutex);
 	} c2_tlist_endfor;
@@ -1220,8 +1220,9 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	c2_tlist_for(&rpcbulk_tl, &bbulk->rb_buflist, rbuf) {
 		rpcbulk_tlist_del(rbuf);
 		rpcbulk_tlist_add(&rbulk->rb_buflist, rbuf);
-		c2_net_buffer_del(&rbuf->bb_nbuf, tm);
-		rbulk->rb_bytes -= c2_vec_count(&rbuf->bb_nbuf.nb_buffer.ov_vec);
+		c2_net_buffer_del(rbuf->bb_nbuf, tm);
+		rbulk->rb_bytes -= c2_vec_count(&rbuf->bb_nbuf->
+						nb_buffer.ov_vec);
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	c2_mutex_unlock(&bbulk->rb_mutex);

@@ -191,8 +191,10 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	C2_UT_ASSERT(rw->crw_desc.id_nr != 0);
 
 	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i)
-		C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[0].ci_iosegs[i].
+		for (j = 0; j < rw->crw_ivecs.cis_ivecs[i].ci_nr; ++j)
+			C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[i].ci_iosegs[j].
 			     ci_count == IO_SEG_SIZE);
+
 
 	for (tc = 0, i = 0; i < rw->crw_desc.id_nr; ++i) {
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
@@ -208,7 +210,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		rc = c2_rpc_bulk_buf_add(rbulk, ivec->ci_nr,
 					 ivec->ci_iosegs[0].ci_count,
 					 conn->c_rpcmachine->cr_tm.ntm_dom,
-					 &rbuf);
+					 NULL, &rbuf);
 
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(rbuf != NULL);
@@ -380,7 +382,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 	/* Adds a c2_rpc_bulk_buf structure to list of such structures
 	   in c2_rpc_bulk. */
 	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, IO_SEG_SIZE, &c_netdom,
-				 &rbuf);
+				 NULL, &rbuf);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(rbuf != NULL);
 
@@ -399,7 +401,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 			io_buf[index].nb_buffer.ov_vec.v_count[i];
 	}
 
-	rbuf->bb_nbuf.nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
+	rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
 		C2_NET_QT_PASSIVE_BULK_SEND : C2_NET_QT_PASSIVE_BULK_RECV;
 
 	/* Allocates memory for array of net buf descriptors and array of
@@ -571,6 +573,8 @@ void bulkio_test(void)
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
 		       sizeof(struct c2_thread));
 
+		/* IO fops are deallocated by an rpc item type op on receiving
+		   the reply fop. See io_item_free(). */
 		io_fops_create(op);
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
