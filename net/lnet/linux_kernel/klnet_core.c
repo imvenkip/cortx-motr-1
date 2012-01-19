@@ -1085,8 +1085,7 @@ int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 	   The unlink bit is also set in other LNet events but does not
 	   signify cancel in those cases.
 	*/
-	/* XXX todo implement */
-	return -ENOSYS;
+	return nlx_kcore_LNetMDUnlink(lctm, lcbuf);
 }
 
 int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
