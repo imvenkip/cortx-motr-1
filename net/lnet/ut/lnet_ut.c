@@ -234,7 +234,7 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_buf_shape (K)", ktest_buf_shape },
 		{ "net_lnet_buf_reg (K)",   ktest_buf_reg },
 		{ "net_lnet_ep_addr (K)",   ktest_core_ep_addr },
-		{ "net_lnet_mb (K)",        ktest_match_bits },
+		{ "net_lnet_enc_dec (K)",   ktest_enc_dec },
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
