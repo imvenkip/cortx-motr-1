@@ -74,7 +74,8 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	bev_cqueue_put(&lctm->ctm_bevq);
 
 	/* XXX temp: just to compile in user space */
-	(void)nlx_core_bevq_provision(lctm, lcbuf->cb_max_receive_msgs);
+	nlx_core_bevq_provision(lctm, lcbuf->cb_max_receive_msgs);
+	nlx_core_bevq_release(lctm, lcbuf->cb_max_receive_msgs);
 
 	return -ENOSYS;
 }

@@ -760,7 +760,7 @@
 #endif
 
 #include "lib/errno.h"
-#include "lib/misc.h" /* C2_SET0 */
+#include "lib/misc.h"
 #include "lib/memory.h"
 #include "net/net_internal.h"
 #include "net/lnet/lnet_core.h"

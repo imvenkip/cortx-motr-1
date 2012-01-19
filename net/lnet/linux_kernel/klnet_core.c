@@ -761,6 +761,9 @@ C2_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
 		   C2_NET_LNET_KCORE_TMS_MAGIC);
 C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 
+/* assert the equivalence of LNet and Colibri data types */
+C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
+
 /**
    KCore buffer invariant.
  */
@@ -875,6 +878,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 
 	C2_PRE(event != NULL && event->type != LNET_EVENT_ACK);
 	cbp = event->md.user_ptr;
+	C2_ASSERT(nlx_core_buffer_invariant(cbp));
 	kbp = cbp->cb_kpvt;
 	C2_ASSERT(nlx_kcore_buffer_invariant(kbp));
 	ktm = kbp->kb_ktm;
@@ -890,7 +894,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	spin_lock(&ktm->ktm_bevq_lock);
 	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
 	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
-	bev->cbe_core_buf = cbp->cb_buffer_id;
+	bev->cbe_buffer_id = cbp->cb_buffer_id;
 	bev->cbe_time = now;
 	if (event->type == LNET_EVENT_UNLINK) /* see nlx_core_buf_del */
 		bev->cbe_status = -ECANCELED;
@@ -901,7 +905,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	if (event->hdr_data != 0) {
 		bev->cbe_sender.cepa_nid = event->initiator.nid;
 		bev->cbe_sender.cepa_pid = event->initiator.pid;
-		nlx_kcore_hdr_data_decode((uint64_t)event->hdr_data,
+		nlx_kcore_hdr_data_decode(event->hdr_data,
 					  &bev->cbe_sender.cepa_portal,
 					  &bev->cbe_sender.cepa_tmid);
 	} else
@@ -979,8 +983,10 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 			     struct nlx_core_buffer *lcbuf)
 {
-	struct nlx_kcore_buffer *kb = lcbuf->cb_kpvt;
+	struct nlx_kcore_buffer *kb;
 
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
 	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
 	kb->kb_magic = 0;
@@ -996,10 +1002,12 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
 	lnet_md_t umd;
 	int rc;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
 	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_MSG_RECV);
@@ -1012,20 +1020,24 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 		return rc;
 
 	nlx_kcore_umd_init(lctm, lcbuf, lcbuf->cb_max_receive_msgs,
-			   lcbuf->cb_min_receive_size,  LNET_MD_OP_PUT, &umd);
+			   lcbuf->cb_min_receive_size, LNET_MD_OP_PUT, &umd);
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	if (rc != 0)
+		nlx_core_bevq_release(lctm, lcbuf->cb_max_receive_msgs);
 	return rc;
 }
 
 int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
 	lnet_md_t umd;
 	int rc;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
 	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_MSG_SEND);
@@ -1039,6 +1051,8 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetPut(lctm, lcbuf, &umd);
+	if (rc != 0)
+		nlx_core_bevq_release(lctm, 1);
 	return rc;
 }
 
@@ -1091,9 +1105,11 @@ int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 			    c2_time_t timeout)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
 	bool any;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 
 	do {
@@ -1122,7 +1138,7 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 				   cbe_tm_link);
 		*lcbe = *bev;
 		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
-		lctm->ctm_bev_needed--;
+		nlx_core_bevq_release(lctm, 1);
 		return true;
 	}
 	return false;
@@ -1211,12 +1227,13 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(cepa == &lctm->ctm_addr);
 	C2_PRE(epp != NULL);
 
 	C2_ALLOC_PTR(kctm);
-	(void)nlx_core_new_blessed_bev(lctm, &e1);
-	(void)nlx_core_new_blessed_bev(lctm, &e2);
+	nlx_core_new_blessed_bev(lctm, &e1);
+	nlx_core_new_blessed_bev(lctm, &e2);
 	if (kctm == NULL || e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
 		goto fail;
@@ -1278,7 +1295,8 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	c2_mutex_unlock(&nlx_kcore_mutex);
 
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
-	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
+	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) ==
+		  C2_NET_LNET_BEVQ_MIN_SIZE);
 	C2_ASSERT(bev_cqueue_is_empty(&lctm->ctm_bevq));
 	lctm->ctm_upvt = NULL;
 	lctm->ctm_kpvt = kctm;
@@ -1309,9 +1327,11 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 
 void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
 	int rc;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 
 	rc = LNetEQFree(kctm->ktm_eqh);
