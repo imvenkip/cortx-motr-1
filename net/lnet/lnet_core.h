@@ -270,8 +270,11 @@ struct nlx_core_bev_cqueue {
 enum {
 	/** Minimum number of buffer event entries in the queue. */
 	C2_NET_LNET_BEVQ_MIN_SIZE  = 2,
-	/** Number of unused guard buffer event entries in the queue. */
-	C2_NET_LNET_BEVQ_NUM_GUARD = 1,
+	/** Number of unusable buffer event entries in the queue.
+	    The entry pointed to by the consumer is owned by the consumer and
+	    thus cannot be used by the producer.
+	 */
+	C2_NET_LNET_BEVQ_NUM_UNUSABLE = 1,
 };
 
 /**
@@ -290,7 +293,7 @@ struct nlx_core_buffer_event {
 	    to navigate back to its outer buffer private data and from there
 	    back to the c2_net_buffer.
 	 */
-	nlx_core_opaque_ptr_t        cbe_core_buf;
+	nlx_core_opaque_ptr_t        cbe_buffer_id;
 
 	/** Event timestamp */
 	c2_time_t                    cbe_time;
@@ -724,10 +727,24 @@ static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
 
    @param lctm Pointer to LNet core TM data structure.
    @param need Number of additional buffer entries required.
-   @see nlx_core_new_blessed_bev()
+   @see nlx_core_new_blessed_bev(), nlx_core_bevq_release()
  */
 static int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm,
 				   size_t need);
+
+/**
+   Subroutine to reduce the needed capacity of the buffer event queue.
+   Note: Entries are never actually released from the circular queue.
+
+   The subroutine is to be used in the consumer address space only.
+   The invoker must lock the transfer machine prior to this call.
+
+   @param lctm Pointer to LNet core TM data structure.
+   @param release Number of buffer entries released.
+   @see nlx_core_bevq_provision()
+ */
+static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
+				  size_t release);
 
 /**
    Subroutine to allocate a new buffer event structure initialized

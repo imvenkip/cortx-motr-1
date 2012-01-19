@@ -64,7 +64,7 @@ int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 	C2_PRE(need > 0);
 
-	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_GUARD;
+	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_UNUSABLE;
 	C2_ASSERT(have >= lctm->ctm_bev_needed);
 	num_to_alloc = lctm->ctm_bev_needed + need - have;
 	while (num_to_alloc > 0) {
@@ -78,9 +78,19 @@ int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 	}
 	if (rc == 0)
 		lctm->ctm_bev_needed += need;
-	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_GUARD;
+	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_UNUSABLE;
 	C2_POST(have >= lctm->ctm_bev_needed);
 	return rc;
+}
+
+void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
+{
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(release > 0);
+	C2_PRE(lctm->ctm_bev_needed >= release);
+
+	lctm->ctm_bev_needed -= release;
+	return;
 }
 
 /**

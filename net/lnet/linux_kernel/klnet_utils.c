@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -52,7 +52,7 @@ static inline void nlx_kcore_match_bits_decode(uint64_t mb,
 					       uint32_t *tmid,
 					       uint64_t *counter)
 {
-	*tmid = (uint32_t)(mb >> C2_NET_LNET_TMID_SHIFT);
+	*tmid = (uint32_t) (mb >> C2_NET_LNET_TMID_SHIFT);
 	*counter = mb & C2_NET_LNET_BUFFER_ID_MASK;
 	return;
 }
@@ -84,7 +84,7 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
 					     uint32_t *portal,
 					     uint32_t *tmid)
 {
-	*portal = (uint32_t)(hdr_data & C2_NET_LNET_PORTAL_MASK);
+	*portal = (uint32_t) (hdr_data & C2_NET_LNET_PORTAL_MASK);
 	*tmid = hdr_data >> C2_NET_LNET_TMID_SHIFT;
 	return;
 }
@@ -108,10 +108,14 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 			       unsigned options,
 			       lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer *kcb = lcbuf->cb_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
+	struct nlx_kcore_buffer *kcb;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(threshold > 0);
 	C2_PRE(lcbuf->cb_length > 0);
@@ -152,13 +156,17 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 				  struct nlx_core_buffer *lcbuf,
 				  lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer *kcb = lcbuf->cb_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
+	struct nlx_kcore_buffer *kcb;
 	lnet_handle_me_t meh;
 	lnet_process_id_t id;
 	int rc;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(lcbuf->cb_match_bits != 0);
 
@@ -192,11 +200,15 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 				   struct nlx_core_buffer *lcbuf)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer *kcb = lcbuf->cb_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
+	struct nlx_kcore_buffer *kcb;
 	int rc;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(kcb->kb_ktm == kctm);
 	rc = LNetMDUnlink(kcb->kb_mdh);
@@ -222,12 +234,16 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf,
 			     lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer *kcb = lcbuf->cb_kpvt;
+	struct nlx_kcore_transfer_mc *kctm;
+	struct nlx_kcore_buffer *kcb;
 	lnet_process_id_t target;
 	int rc;
 
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(lcbuf->cb_match_bits != 0);
 
@@ -239,8 +255,8 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 	target.pid = lcbuf->cb_addr.cepa_pid;
 	rc = LNetPut(LNET_NID_ANY, kcb->kb_mdh, LNET_NOACK_REQ,
 		     target, lcbuf->cb_addr.cepa_portal,
-		     (__u64)lcbuf->cb_match_bits, 0,
-		     (__u64)nlx_kcore_hdr_data_encode(lctm));
+		     lcbuf->cb_match_bits, 0,
+		     nlx_kcore_hdr_data_encode(lctm));
 	if (rc == 0)
 		kcb->kb_ktm = kctm;
 

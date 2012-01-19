@@ -159,7 +159,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	/* Recover the transport space network buffer address from the
 	   opaque data set during registration.
 	 */
-	nb = (struct c2_net_buffer *)lcbev->cbe_core_buf;
+	nb = (struct c2_net_buffer *) lcbev->cbe_buffer_id;
 	C2_ASSERT(c2_net__buffer_invariant(nb));
 
 	C2_SET0(nbev);
@@ -189,6 +189,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	/* currently we only support RETAIN for received messages */
 	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
 		     nb->nb_qtype == C2_NET_QT_MSG_RECV));
+	C2_POST(rc == 0 || rc == -ENOMEM);
 	return rc;
 }
 
