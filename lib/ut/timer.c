@@ -141,7 +141,9 @@ static void test_timers(enum c2_timer_type timer_type, int nr_timers,
 	c2_atomic64_set(&callbacks_executed, 0);
 	srand(0);
 	C2_ALLOC_ARR(timers, nr_timers);
-	C2_ASSERT(timers != NULL);
+	C2_UT_ASSERT(timers != NULL);
+	if (timers == NULL)
+		return;
 
 	/* c2_timer_init() */
 	for (i = 0; i < nr_timers; ++i) {
@@ -174,10 +176,10 @@ static void test_timers(enum c2_timer_type timer_type, int nr_timers,
 		C2_UT_ASSERT(rc == 0);
 	}
 
-	c2_free(timers);
-
 	C2_UT_ASSERT(c2_atomic64_get(&callbacks_executed) >= callbacks_min);
 	C2_UT_ASSERT(c2_atomic64_get(&callbacks_executed) <= callbacks_max);
+
+	c2_free(timers);
 }
 
 static unsigned long locality_default_callback(unsigned long data)
@@ -229,9 +231,14 @@ static void timer_locality_test(int nr_timers,
 	int			 time;
 
 	C2_ALLOC_ARR(timers, nr_timers);
-	C2_ASSERT(timers != NULL);
+	C2_UT_ASSERT(timers != NULL);
+	if (timers == NULL)
+		return;
+
 	C2_ALLOC_ARR(test_locality_lock, nr_timers);
-	C2_ASSERT(test_locality_lock != NULL);
+	C2_UT_ASSERT(test_locality_lock != NULL);
+	if (test_locality_lock == NULL)
+		goto free_timers;
 
 	test_locality_tid = gettid();
 	for (i = 0; i < nr_timers; ++i)
@@ -274,6 +281,7 @@ static void timer_locality_test(int nr_timers,
 	c2_timer_locality_fini(&loc);
 
 	c2_free(test_locality_lock);
+free_timers:
 	c2_free(timers);
 }
 
