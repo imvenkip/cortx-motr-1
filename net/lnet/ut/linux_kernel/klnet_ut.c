@@ -354,8 +354,6 @@ static void ktest_enc_dec(void)
 	TEST_HDR_DATA_ENCODE(63, C2_NET_LNET_TMID_MAX);
 
 #undef TEST_HDR_DATA_ENCODE
-=======
->>>>>>> Test match bit encode/decode.
 }
 
 /*
