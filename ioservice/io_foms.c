@@ -627,18 +627,41 @@ static const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
  * I/O Read FOM state transition table.
  */
 struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
-{ FOPH_IO_FOM_BUFFER_ACQUIRE, io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
-{ FOPH_IO_FOM_BUFFER_WAIT, io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
-{ FOPH_IO_FOM_BUFFER_ACQUIRE, io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
-{ FOPH_IO_FOM_BUFFER_ACQUIRE, io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
-{ FOPH_IO_FOM_BUFFER_ACQUIRE, io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
-{ FOPH_IO_FOM_BUFFER_ACQUIRE, io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
+
+{ FOPH_IO_FOM_BUFFER_ACQUIRE,
+  io_fom_cob_rw_acquire_net_buffer,
+  FOPH_IO_STOB_INIT,
+  FOPH_IO_FOM_BUFFER_WAIT, },
+
+{ FOPH_IO_FOM_BUFFER_WAIT,
+  io_fom_cob_rw_acquire_net_buffer,
+  FOPH_IO_STOB_INIT,
+  FOPH_IO_FOM_BUFFER_WAIT, },
+
+{ FOPH_IO_STOB_INIT,
+  io_fom_cob_rw_io_launch,
+  FOPH_IO_ZERO_COPY_INIT,
+   FOPH_IO_STOB_WAIT, },
+
+{ FOPH_IO_STOB_WAIT,
+  io_fom_cob_rw_io_finish,
+  FOPH_IO_ZERO_COPY_INIT,
+  FOPH_IO_STOB_WAIT, },
+
+{ FOPH_IO_ZERO_COPY_INIT,
+  io_fom_cob_rw_initiate_zero_copy,
+  FOPH_IO_BUFFER_RELEASE,
+  FOPH_IO_ZERO_COPY_WAIT, },
+
+{ FOPH_IO_ZERO_COPY_WAIT,
+  io_fom_cob_rw_zero_copy_finish,
+  FOPH_IO_BUFFER_RELEASE,
+  FOPH_IO_ZERO_COPY_WAIT, },
+
+{ FOPH_IO_BUFFER_RELEASE,
+  io_fom_cob_rw_release_net_buffer,
+  FOPH_IO_ZERO_COPY_INIT,
+  FOPH_IO_FOM_BUFFER_WAIT, },
 };
 
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
