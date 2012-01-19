@@ -36,6 +36,63 @@
 extern	struct c2_balloc	colibri_balloc;
 const char			*db_name = "./__s";;
 const int			MAX = 100;
+c2_bcount_t			prev_free_blocks;
+c2_bcount_t			prev_totalsize;
+struct c2_balloc_group_info*	prev_group_info;
+
+enum balloc_invariant_enum {
+	INVAR_ALLOC,
+	INVAR_FREE
+};
+
+static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
+				int		balloc_invariant_flag)
+{
+	c2_bcount_t		len   = c2_ext_length(&alloc_ext),
+				group;
+
+	group = alloc_ext.e_start >> colibri_balloc.cb_sb.bsb_gsbits;
+
+	switch(balloc_invariant_flag) {
+	    case INVAR_ALLOC:
+		 prev_free_blocks -= len;
+		 prev_totalsize -= len;
+		 prev_group_info[group].bgi_freeblocks -= len;
+		 prev_totalsize -= len;
+
+		 // Check free blocks in super block
+		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
+			 return false;
+
+		 // Check free blocks in group descriptor
+		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
+		    prev_group_info[group].bgi_freeblocks)
+			 return false;
+
+		 // Check for overlapping extents
+
+		 break;
+	    case INVAR_FREE:
+		 prev_free_blocks += len;
+		 prev_totalsize += len;
+		 prev_group_info[group].bgi_freeblocks += len;
+		 prev_totalsize += len;
+
+		 // Check free blocks in super block
+		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
+			 return false;
+
+		 // Check free blocks in group descriptor
+		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
+		    prev_group_info[group].bgi_freeblocks)
+			 return false;
+
+		 // Check for overlapping extents
+
+		 break;
+	}
+	return true;
+}
 
 int test_balloc_ut_ops()
 {
@@ -47,8 +104,6 @@ int test_balloc_ut_ops()
 	c2_bcount_t		count = 539;
 	int			i = 0;
 	time_t			now;
-	c2_bcount_t		prev_totalsize;
-	c2_bcount_t		prev_free_blocks;
 
 	time(&now);
 	srand(now);
@@ -65,6 +120,7 @@ int test_balloc_ut_ops()
 
 		prev_totalsize = colibri_balloc.cb_sb.bsb_totalsize;
 		prev_free_blocks = colibri_balloc.cb_sb.bsb_freeblocks;
+		prev_group_info = colibri_balloc.cb_group_info;
 
 		for (i = 0; i < MAX; i++ ) {
 			do  {
@@ -92,6 +148,8 @@ int test_balloc_ut_ops()
 					" count %5d\n", (int)count);
 				result = -EINVAL;
 			}
+
+			C2_UT_ASSERT(balloc_ut_invariant(tmp, INVAR_ALLOC));
 #ifdef BALLOC_DEBUG
 			printf("%3d:rc = %d: requested count=%5d, result"
 			       " count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
@@ -152,6 +210,8 @@ int test_balloc_ut_ops()
 					(int)c2_ext_length(&ext[i]));
 				return result;
 			}
+
+			C2_UT_ASSERT(balloc_ut_invariant(ext[i], INVAR_FREE));
 #ifdef BALLOC_DEBUG
 			printf("%3d:rc = %d: freed:                          "
 			       "len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",

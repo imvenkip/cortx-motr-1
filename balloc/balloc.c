@@ -1703,7 +1703,7 @@ c2_balloc_regular_allocator(struct c2_balloc_allocation_context *bac)
 	bac->bac_order2 = 0;
 	/*
 	 * We search using buddy data only if the order of the request
-	 * is greater than equal to the threshould.
+	 * is greater than equal to the threshold.
 	 */
 	if (i >= 2) {
 		/*
