@@ -490,8 +490,23 @@ fi
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
+# Check if gcc option is supported in current gcc version.
+iff_opt_supported() {
+        `$CC $1 -S -o /dev/null -xc /dev/null` 2>&1
+	if test $? -eq 0; then
+                echo $1
+        else
+                echo ""
+        fi
+}
+
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
-KCFLAGS="-Wall -Werror $KCFLAGS"
+# If some compiler option is compiler version specific, then add it to OPT_KCFLAGS.
+# iff_opt_supported() can be used to check if the compiler option is supported or not.
+# iff_opt_supported(opt) returns opt if opt is supported by compiler, "" otherwise.
+OPT_KCFLAGS="$OPT_KCFLAGS $(iff_opt_supported -Wno-unused-but-set-variable)"
+KCFLAGS=" -Wall -Werror $OPT_KCFLAGS $KCFLAGS"
+
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
@@ -506,16 +521,13 @@ AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
-                 addb/linux_kernel/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
-                 c2t1fs/Makefile
                  capa/Makefile
                  capa/ut/Makefile
                  cfg/Makefile
                  cob/Makefile
-                 cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
                  colibri/ut/Makefile
@@ -524,32 +536,23 @@ AC_CONFIG_FILES([
                  console/ut/Makefile
                  console/st/Makefile
                  db/Makefile
-                 db/linux_kernel/Makefile
                  db/ut/Makefile
-                 dtm/linux_kernel/Makefile
                  desim/Makefile
                  desim/ut/Makefile
                  doc/Makefile
                  dtm/Makefile
                  fid/Makefile
-                 fid/linux_kernel/Makefile
                  fol/Makefile
-                 fol/linux_kernel/Makefile
                  fol/ut/Makefile
                  fop/Makefile
                  fop/fop2c
-                 fop/linux_kernel/Makefile
                  fop/rt/Makefile
                  fop/ut/Makefile
-                 galois/linux_kernel/Makefile
                  ioservice/Makefile
-                 ioservice/linux_kernel/Makefile
                  ioservice/ut/Makefile
                  layout/Makefile
-                 layout/linux_kernel/Makefile
                  layout/ut/Makefile
                  lib/Makefile
-                 lib/linux_kernel/Makefile
                  lib/user_space/Makefile
                  lib/ut/Makefile
                  m4/Makefile
@@ -561,29 +564,23 @@ AC_CONFIG_FILES([
 		 net/bulk_emulation/st/Makefile
 		 net/bulk_emulation/st/linux_kernel/Makefile
 		 net/bulk_emulation/ut/Makefile
-                 net/linux_kernel/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
-                 pool/linux_kernel/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
                  rpc/Makefile
                  rpc/ut/Makefile
                  rpc/it/Makefile
-		 rpc/linux_kernel/Makefile
 		 rpc/it/linux_kernel/Makefile
                  sm/Makefile
                  sm/ut/Makefile
-                 sm/linux_kernel/Makefile
                  sns/Makefile
-                 sns/linux_kernel/Makefile
                  sns/ut/Makefile
                  stob/Makefile
-                 stob/linux_kernel/Makefile
                  stob/ut/Makefile
                  udb/Makefile
                  udb/ut/Makefile
@@ -592,7 +589,7 @@ AC_CONFIG_FILES([
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
-                 xcode/linux_kernel/Makefile
+                 xcode/ff2c/Makefile
                  xcode/ut/Makefile
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile

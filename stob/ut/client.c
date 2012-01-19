@@ -76,7 +76,8 @@ static void create_send(struct c2_rpc_session *session, const struct stob_io_fop
 	fop = c2_fop_alloc(&c2_stob_io_create_fopt, NULL);
 	fop_data = c2_fop_data(fop);
 	fop_data->fic_object = *fid;
-	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+					CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
@@ -97,7 +98,8 @@ static void read_send(struct c2_rpc_session *session, const struct stob_io_fop_f
 	fop_data = c2_fop_data(fop);
 	fop_data->fir_object = *fid;
 
-	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+					CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
@@ -121,7 +123,8 @@ static void write_send(struct c2_rpc_session *session, const struct stob_io_fop_
 	fop_data->fiw_object = *fid;
 	fop_data->fiw_value = 'x';
 
-	rc = c2_rpc_client_call(fop, session, NULL, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+					CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
