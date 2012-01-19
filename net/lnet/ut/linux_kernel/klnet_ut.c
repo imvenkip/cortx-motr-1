@@ -309,13 +309,15 @@ static void ktest_core_ep_addr(void)
 	}
 }
 
-static void ktest_match_bits(void)
+static void ktest_enc_dec(void)
 {
 	uint32_t tmid;
 	uint64_t counter;
+	uint32_t portal;
+	struct nlx_core_transfer_mc lctm;
 
 	/* TEST
-	   Check that decode reverses encode.
+	   Check that match bit decode reverses encode.
 	*/
 #define TEST_MATCH_BIT_ENCODE(_t, _c)					\
 	nlx_kcore_match_bits_decode(nlx_kcore_match_bits_encode((_t),(_c)), \
@@ -329,6 +331,29 @@ static void ktest_match_bits(void)
 	TEST_MATCH_BIT_ENCODE(C2_NET_LNET_TMID_MAX, C2_NET_LNET_BUFFER_ID_MAX);
 
 #undef TEST_MATCH_BIT_ENCODE
+
+	/* TEST
+	   Check that hdr data decode reverses encode.
+	*/
+	C2_SET0(&lctm);
+	lctm.ctm_magic = C2_NET_LNET_CORE_TM_MAGIC; /* fake */
+	C2_UT_ASSERT(nlx_core_tm_invariant(&lctm)); /* to make this pass */
+
+#define TEST_HDR_DATA_ENCODE(_p, _t)					\
+	lctm.ctm_addr.cepa_tmid = (_t);					\
+	lctm.ctm_addr.cepa_portal = (_p);				\
+	nlx_kcore_hdr_data_decode(nlx_kcore_hdr_data_encode(&lctm),	\
+				  &portal, &tmid);			\
+	C2_UT_ASSERT(portal == (_p));					\
+	C2_UT_ASSERT(tmid == (_t))
+
+	TEST_HDR_DATA_ENCODE(0,  0);
+	TEST_HDR_DATA_ENCODE(30, 0);
+	TEST_HDR_DATA_ENCODE(30, C2_NET_LNET_TMID_MAX);
+	TEST_HDR_DATA_ENCODE(63, 0);
+	TEST_HDR_DATA_ENCODE(63, C2_NET_LNET_TMID_MAX);
+
+#undef TEST_HDR_DATA_ENCODE
 }
 
 /*
