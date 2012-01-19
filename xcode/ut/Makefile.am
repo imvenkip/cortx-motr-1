@@ -3,7 +3,8 @@ noinst_LTLIBRARIES   = libxcode-ut.la
 
 #xcode_ut_LDADD = $(top_builddir)/colibri/libcolibri.la
 
-libxcode_ut_la_SOURCES  = test_u.h test_u.c xcode_fop_test.c xcode_test.c
+libxcode_ut_la_SOURCES  = test_u.h test_u.c xcode_fop_test.c xcode_test.c \
+			xcode.c ff2c.c
 
 test_u.h test_u.c : test.ff \
 	$(top_builddir)/fop/rt/libc2rt.la
