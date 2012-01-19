@@ -183,6 +183,27 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 }
 
 /**
+   Helper subroutine to unlink an MD.
+   @param lctm Pointer to kcore TM private data.
+   @param lcbuf Pointer to kcore buffer private data with kb_mdh set.
+   @pre kcb->kb_mdh set (may or may not be valid by the time the call is made).
+   @pre kcb->kb_ktm == kctm
+ */
+static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
+				   struct nlx_core_buffer *lcbuf)
+{
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_buffer *kcb = lcbuf->cb_kpvt;
+	int rc;
+
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(kcb));
+	C2_PRE(kcb->kb_ktm == kctm);
+	rc = LNetMDUnlink(kcb->kb_mdh);
+	return rc;
+}
+
+/**
    Helper subroutine to send a buffer to a remote destination using @c LNetPut().
    - The MD is set up to automatically unlink.
    - The MD handle is set in the struct nlx_kcore_buffer::kb_mdh field.
