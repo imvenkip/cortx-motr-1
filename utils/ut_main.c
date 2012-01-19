@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&buffer_pool_ut);
+	        c2_ut_add(&bulkio_ut);
 		c2_ut_add(&capa_ut);
 		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);

@@ -843,6 +843,20 @@ enum {
 };
 
 /**
+   Represents attributes of struct c2_rpc_bulk_buf.
+ */
+enum {
+	/** The net buffer belonging to struct c2_rpc_bulk_buf is
+	    allocated by rpc bulk APIs.
+	    So it should be deallocated by rpc bulk APIs as well. */
+	C2_RPC_BULK_NETBUF_ALLOCATED = 1,
+	/** The net buffer belonging to struct c2_rpc_bulk_buf is
+	    registered with net domain by rpc bulk APIs.
+	    So it should be deregistered by rpc bulk APIs as well. */
+	C2_RPC_BULK_NETBUF_REGISTERED,
+};
+
+/**
    Represents rpc bulk equivalent of a c2_net_buffer. Contains an inline
    net buffer, a zero vector which does all the in-memory manipulations
    and a backlink to c2_rpc_bulk structure to report back the status.
@@ -851,7 +865,7 @@ struct c2_rpc_bulk_buf {
 	/** Magic constant to verify sanity of data. */
 	uint64_t		 bb_magic;
 	/** Net buffer containing IO data. */
-	struct c2_net_buffer	 bb_nbuf;
+	struct c2_net_buffer	*bb_nbuf;
 	/** Zero vector pointing to user data. */
 	struct c2_0vec		 bb_zerovec;
 	/** Linkage into list of c2_rpc_bulk_buf hanging off
@@ -859,12 +873,8 @@ struct c2_rpc_bulk_buf {
 	struct c2_tlink		 bb_link;
 	/** Back link to parent c2_rpc_bulk structure. */
 	struct c2_rpc_bulk	*bb_rbulk;
-	/** Flag which tells if c2_rpc_bulk_buf has registered the
-	    inline net buffer with net domain.
-	    If buffer is registered internally, it is also deregistered
-	    by rpc bulk code.
-	    Default value of flag is false. */
-	bool			 bb_owner;
+	/** Flags bearing attributes of c2_rpc_bulk_buf structure. */
+	uint64_t		 bb_flags;
 };
 
 /**
@@ -876,6 +886,9 @@ struct c2_rpc_bulk_buf {
    @param netdom The c2_net_domain structure to which new c2_rpc_bulk_buf
    structure will belong to. It is primarily used to keep a check on
    thresholds like max_seg_size, max_buf_size and max_number_of_segs.
+   @param nb Net buf pointer if user wants to use preallocated network
+   buffer. (nb == NULL) suggests, the net buffer should be allocated by
+   c2_rpc_bulk_buf_add().
    @param out Out parameter through which newly created c2_rpc_bulk_buf
    structure is returned back to the caller.
    Users need not remove the c2_rpc_bulk_buf structures manually.
@@ -889,6 +902,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 			uint32_t segs_nr,
 			c2_bcount_t seg_size,
 			struct c2_net_domain *netdom,
+			struct c2_net_buffer *nb,
 			struct c2_rpc_bulk_buf **out);
 
 /**

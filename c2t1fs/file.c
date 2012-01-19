@@ -859,7 +859,8 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	rbulk = &iofop->if_rbulk;
 	rc = c2_rpc_bulk_buf_add(rbulk, nr_segments, PAGE_CACHE_SIZE,
-				  SESSION_TO_NDOM(rw_desc->rd_session), &rbuf);
+				  SESSION_TO_NDOM(rw_desc->rd_session), NULL,
+				  &rbuf);
 	if (rc != 0) {
 		C2_TRACE("bulk_buf_add() failed: rc [%d]\n", rc);
 		goto iofop_fini;
@@ -901,7 +902,7 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	C2_ASSERT(count == rw_desc->rd_count);
 
-	rbuf->bb_nbuf.nb_qtype = (rw == READ) ? C2_NET_QT_PASSIVE_BULK_RECV
+	rbuf->bb_nbuf->nb_qtype = (rw == READ) ? C2_NET_QT_PASSIVE_BULK_RECV
 					      : C2_NET_QT_PASSIVE_BULK_SEND;
 
         rc = io_fop_prepare(&iofop->if_fop);
