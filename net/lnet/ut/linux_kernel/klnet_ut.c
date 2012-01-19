@@ -318,7 +318,7 @@ static void ktest_match_bits(void)
 	   Check that decode reverses encode.
 	*/
 #define TEST_MATCH_BIT_ENCODE(_t, _c)					\
-	nlx_kcore_decode_match_bits(nlx_kcore_encode_match_bits((_t),(_c)), \
+	nlx_kcore_match_bits_decode(nlx_kcore_match_bits_encode((_t),(_c)), \
 				    &tmid, &counter);			\
 	C2_UT_ASSERT(tmid == (_t));					\
 	C2_UT_ASSERT(counter == (_c))
