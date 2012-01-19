@@ -81,6 +81,9 @@ struct stobio_test {
 	c2_bcount_t st_wrvec[RW_BUFF_NR];
 };
 
+/* Test block device */
+static const char test_blkdev[] = "/dev/loop0";
+
 /* sync object for init/fini */
 static struct c2_mutex lock;
 static struct c2_thread thread[TEST_NR];
@@ -123,9 +126,9 @@ static void stob_dev_init(const struct stobio_test *test)
 	char	    backingfile[PATH_MAX];
 
 	result = stat(test->st_dev_path, &statbuf);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
-	if(strcmp(test->st_dev_path, "/dev/loop0"))
+	if(strcmp(test->st_dev_path, test_blkdev))
 		return;
 
 	/* Device size in KB */
@@ -133,18 +136,18 @@ static void stob_dev_init(const struct stobio_test *test)
 		 TEST_NR * TEST_NR;
 
 	/* Device size in MB */
-	dev_sz = (dev_sz/1024) + 1;
+	dev_sz = dev_sz/1024 + 1;
 
 	sprintf(backingfile, "%s/%lu", test->st_dom->sd_name,
 				       test->st_id.si_bits.u_hi);
 	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu",
 			backingfile, (unsigned long)dev_sz);
 	result = system(sysbuf);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	sprintf(sysbuf, "losetup %s %s", test->st_dev_path, backingfile);
 	result = system(sysbuf);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 }
 
 static void stob_dev_fini(const struct stobio_test *test)
@@ -155,12 +158,12 @@ static void stob_dev_fini(const struct stobio_test *test)
 	if(test->st_dev_path == NULL)
 		return;
 
-	if(strcmp(test->st_dev_path, "/dev/loop0"))
+	if(strcmp(test->st_dev_path, test_blkdev))
 		return;
 
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
 	result = system(sysbuf);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 }
 
 static void stobio_io_prepare(struct stobio_test *test,
@@ -324,7 +327,7 @@ static int stobio_init(struct stobio_test *test)
 		stob_dev_init(test);
 		result = c2_linux_stob_link(test->st_dom, test->st_obj,
 					    test->st_dev_path, NULL);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 
 	}
 
@@ -332,7 +335,7 @@ static int stobio_init(struct stobio_test *test)
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(test->st_obj->so_state == CSS_EXISTS);
 	lstob = stob2linux(test->st_obj);
-	C2_ASSERT(S_ISREG(lstob->sl_mode) || S_ISBLK(lstob->sl_mode));
+	C2_UT_ASSERT(S_ISREG(lstob->sl_mode) || S_ISBLK(lstob->sl_mode));
 
 	test->st_block_shift = test->st_obj->so_op->sop_block_shift(test->st_obj);
 	test->st_block_size = 1 << test->st_block_shift;
