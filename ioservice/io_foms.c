@@ -805,24 +805,59 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom *fom,
 }
 
 /**
- * Align address.
- * This function align bufvec & indexvec.
+ * Copy aligned address.
+ * This function align bufvec.
  */
-void io_fom_cob_rw_align_bufvec (struct c2_bufvec *obuf,
-                                 struct c2_bufvec *ibuf,
-                                 uint32_t bshift)
+static int io_fom_cob_rw_align_bufvec (struct c2_fom           *fom,
+                                       struct c2_bufvec *obuf,
+                                       struct c2_bufvec *ibuf,
+                                       c2_bcount_t       ivec_count,
+                                       uint32_t          bshift)
 {
-        int        i;
+        int                rc = 0;
+        int                i = 0;
+        c2_bcount_t        bufvec_count = 0;
+        int                bufvec_seg_size = 0;
 
-        C2_ALLOC_ARR(obuf->ov_vec.v_count, ibuf->ov_vec.v_nr);
-        C2_ALLOC_ARR(obuf->ov_buf, ibuf->ov_vec.v_nr);
-        obuf->ov_vec.v_nr = ibuf->ov_vec.v_nr;
+        /*
+         * ivec_count in I/O request is already aligned with stob shift.
+         * for bufvec count bufvec segment count should also align with shift.
+         */
+         bufvec_seg_size = ibuf->ov_vec.v_count[0] >> bshift;
+        /*
+         * It calculates number of bufvecs for I/O request on
+         * the basis of index vec count.
+         * @todo : Assuming size of each bufvec is same.
+         *         can be better expressin ( or math function).
+         */
+        bufvec_count = (ivec_count / bufvec_seg_size) +
+                       ((ivec_count % bufvec_seg_size) == 0 ? 0:1);
+
+        C2_ALLOC_ARR(obuf->ov_vec.v_count, bufvec_count);
+        if (obuf->ov_vec.v_count == NULL) {
+                rc = -ENOMEM;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_oom);
+                return rc;
+        }
+
+        C2_ALLOC_ARR(obuf->ov_buf, bufvec_count);
+        if (obuf->ov_buf == NULL) {
+                rc = -ENOMEM;
+                C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                            c2_addb_oom);
+                return rc;
+        }
+
+        obuf->ov_vec.v_nr = bufvec_count;
         /* Align bufvec */
-        for (i = 0; i < ibuf->ov_vec.v_nr; i++) {
+        for (i = 0; i < bufvec_count; i++) {
                 obuf->ov_vec.v_count[i] = ibuf->ov_vec.v_count[i] >> bshift;
                 obuf->ov_buf[i]         = c2_stob_addr_pack(ibuf->ov_buf[i],
                                                             bshift);
         }
+
+        return rc;
 }
 
 /**
@@ -1068,6 +1103,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         int                             required_net_bufs;
         struct c2_fop                  *fop;
         struct c2_io_fom_cob_rw        *fom_obj = NULL;
+        
 
         C2_PRE(fom != NULL);
         C2_PRE(c2_is_read_fop(fom->fo_fop) || c2_is_write_fop(fom->fo_fop));
@@ -1128,6 +1164,9 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         struct c2_rpc_bulk        *rbulk;
         struct c2_net_buffer      *nb = NULL;
         struct c2_net_buf_desc    *net_desc;
+        struct c2_net_domain      *dom;
+
+        
 
         C2_PRE(fom != NULL);
         C2_PRE(c2_is_io_fop(fom->fo_fop));
@@ -1142,27 +1181,25 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
 
+        dom =  fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
         /* Create rpc bulk bufs list using available net buffers */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
+                uint32_t                    segs_nr;
+                c2_bcount_t                 seg_size;
 
-                C2_ALLOC_PTR(rb_buf);
-                if (rb_buf == NULL) {
-                        fom->fo_rc = -ENOMEM;
+                segs_nr = nb->nb_buffer.ov_vec.v_nr;
+                seg_size = nb->nb_buffer.ov_vec.v_count[0];
+                rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size,
+                                         dom, nb, &rb_buf);
+                if (rc != 0) {
+                        fom->fo_rc = rc;
                         fom->fo_phase = FOPH_FAILURE;
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                                    c2_addb_oom);
+                                    c2_addb_func_fail,
+                                    "io_fom_cob_rw_initiate_zero_copy", rc);
                         return FSO_AGAIN;
                 }
-
-                rb_buf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
-                rb_buf->bb_nbuf  = nb;
-                rb_buf->bb_rbulk = rbulk;
-
-                rpcbulkbufs_tlink_init(rb_buf);
-                c2_mutex_lock(&rbulk->rb_mutex);
-                rpcbulkbufs_tlist_add(&rbulk->rb_buflist, rb_buf);
-                c2_mutex_unlock(&rbulk->rb_mutex);
 
         } c2_tlist_endfor;
 
@@ -1290,10 +1327,6 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
 	if (rc != 0)
 		goto cleanup;
-	/**@todo IT needs to createated outside this function */
-/*	if (c2_is_write_fop(fop))
-		rc = c2_stob_create(fom_obj->fcrw_stob, &fom->fo_tx);
-*/
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
 	if (rc != 0)
 		goto cleanup_st;
@@ -1313,6 +1346,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                 struct c2_indexvec     *mem_ivec;
                 struct c2_stob_io_desc *stio_desc;
                 struct c2_stob_io      *stio;
+                c2_bcount_t             ivec_count;
 
                 C2_ALLOC_PTR(stio_desc);
                 if (stio_desc == NULL) {
@@ -1374,8 +1408,28 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                         stio->si_opcode = SIO_READ;
                 }
 
-                io_fom_cob_rw_align_bufvec(&stio->si_user, &nb->nb_buffer,
-                                           bshift);
+                ivec_count = c2_vec_count(&mem_ivec->iv_vec);
+                rc = io_fom_cob_rw_align_bufvec(fom, &stio->si_user,
+                                                &nb->nb_buffer,
+                                                ivec_count,
+                                                bshift);
+                if (rc != 0) {
+                        /*
+                         * Since this stob io not added into list
+                         * yet, free it here.
+                         */
+                        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                    c2_addb_func_fail,
+                                    "io_fom_cob_rw_io_launch", rc);
+                        /* 
+                         * @todo: need to add memory free allocated in stio
+                         *        in thid function.
+                         */
+                        c2_stob_io_fini(stio);
+                        c2_free(stio_desc);
+                        break;
+                }
+
                 c2_clink_add(&stio->si_wait, &stio_desc->siod_clink);
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);

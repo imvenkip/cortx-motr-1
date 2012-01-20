@@ -677,7 +677,7 @@ struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 		rfop->c_iobuf.ib_count = 1;
 		C2_ALLOC_ARR(rfop->c_iobuf.ib_buf,
 			rfop->c_iobuf.ib_count);
-		
+
 		return &rfop->c_rep;
 	} else {
 		wfop = c2_fop_data(fop);
