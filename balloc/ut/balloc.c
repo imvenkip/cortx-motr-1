@@ -18,20 +18,7 @@
  * Original creation date: 09/02/2010
  */
 
-#include <stdio.h>        /* fprintf */
-#include <stdlib.h>       /* srand, rand */
-#include <errno.h>
-#include <err.h>
-#include <sys/stat.h>     /* mkdir */
-#include <sys/types.h>    /* mkdir */
-
-#include "dtm/dtm.h"      /* c2_dtx */
-#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
-#include "lib/misc.h"     /* C2_SET0 */
-#include "lib/assert.h"
-#include "lib/ut.h"
-#include "db/db.h"
-#include "balloc/balloc.h"
+#include "balloc/ut/balloc_ut.h"
 
 extern	struct c2_balloc	 colibri_balloc;
 const char			*db_name = "./__s";;
@@ -45,45 +32,36 @@ enum balloc_invariant_enum {
 	INVAR_FREE
 };
 
-static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
-				int		balloc_invariant_flag)
+bool balloc_ut_invariant(struct c2_ext	alloc_ext,
+			 int		balloc_invariant_flag)
 {
 	c2_bcount_t	len = c2_ext_length(&alloc_ext),
 			group;
 
 	group = alloc_ext.e_start >> colibri_balloc.cb_sb.bsb_gsbits;
 
-	switch(balloc_invariant_flag) {
+	if (colibri_balloc.cb_sb.bsb_magic != C2_BALLOC_SB_MAGIC)
+		return false;
+
+	switch (balloc_invariant_flag) {
 	    case INVAR_ALLOC:
 		 prev_free_blocks		       -= len;
 		 prev_totalsize			       -= len;
 		 prev_group_info[group].bgi_freeblocks -= len;
-
-		 // Check free blocks in group descriptor
-		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
-		    prev_group_info[group].bgi_freeblocks)
-			 return false;
-
-		 // Check free blocks in super block
-		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
-			 return false;
 		 break;
 	    case INVAR_FREE:
 		 prev_free_blocks		       += len;
 		 prev_totalsize			       += len;
 		 prev_group_info[group].bgi_freeblocks += len;
-
-		 // Check free blocks in group descriptor
-		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
-		    prev_group_info[group].bgi_freeblocks)
-			 return false;
-
-		 // Check free blocks in super block
-		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
-			 return false;
 		 break;
+	    default:
+		 return false;
 	}
-	return true;
+
+	return colibri_balloc.cb_group_info[group].bgi_freeblocks ==
+			 prev_group_info[group].bgi_freeblocks &&
+			 colibri_balloc.cb_sb.bsb_freeblocks ==
+			 prev_free_blocks;
 }
 
 int test_balloc_ut_ops()

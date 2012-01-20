@@ -18,17 +18,7 @@
  * Original creation date: 09/02/2010
  */
 
-#include <stdio.h>        /* fprintf */
-#include <stdlib.h>       /* atoll */
-#include <errno.h>
-#include <err.h>
-
-#include "dtm/dtm.h"      /* c2_dtx */
-#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
-#include "lib/misc.h"     /* C2_SET0 */
-#include "lib/assert.h"
-#include "db/db.h"
-#include "balloc/balloc.h"
+#include "balloc/ut/balloc_ut.h"
 
 extern	struct c2_balloc colibri_balloc;
 int main(int argc, char **argv)
