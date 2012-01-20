@@ -20,6 +20,7 @@
 
 #include "lib/tlist.h"	/* struct c2_tl */
 #include "lib/vec.h"
+#include "lib/memory.h"
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
@@ -53,14 +54,13 @@ void c2_layout_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
 
 /**
    Implementation of leto_recsize() for linear enumeration type.
-   Returns record size for the part of the record required to store LINEAR enum
-   details viz. nr, A, B.
+   Returns record size for the part of the layouts table record required to
+   store LINEAR enum details.
 */
-static uint64_t linear_recsize(void)
+static uint32_t linear_recsize(void)
 {
 	return sizeof(struct c2_layout_linear_attr);
 }
-
 
 /**
    Implementation of leto_decode() for linear enumeration type.
@@ -72,26 +72,23 @@ static int linear_decode(struct c2_ldb_schema *schema,
 			struct c2_bufvec_cursor *cur,
 			enum c2_layout_xcode_op op,
 			struct c2_db_tx *tx,
-			struct c2_layout **out)
+			struct c2_layout_enum **out)
 {
-	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *lin_attr;
 
-	stl = container_of(*out, struct c2_layout_striped, ls_base);
-
-	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
-			lle_base);
-
 	lin_attr = c2_bufvec_cursor_addr(cur);
+
+	C2_ALLOC_PTR(lin_enum);
 
 	lin_enum->lle_attr.lla_nr = lin_attr->lla_nr;
 	lin_enum->lle_attr.lla_A  = lin_attr->lla_A;
 	lin_enum->lle_attr.lla_B  = lin_attr->lla_B;
 
+	*out = &lin_enum->lle_base;
+
 	/**
-	   There is no more data expected in the buffer for the linear
-	   enumeration. Thus the buffer is expected to be at the end.
+	 *  The buffer is now expected to be at the end.
 	 */
 	C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
 

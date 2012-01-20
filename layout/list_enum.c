@@ -19,6 +19,7 @@
  */
 
 #include "lib/vec.h"
+#include "lib/memory.h"
 #include "fid/fid.h"  /* struct c2_fid */
 #include "layout/layout_internal.h"
 #include "layout/list_enum.h"
@@ -96,10 +97,10 @@ static int list_unregister(struct c2_ldb_schema *schema,
 
 /**
    Implementation of leto_recsize() for list enumeration type.
-   Returns record size for the part of the record required to store LIST enum
-   details viz. list of COB identifiers upto MAX_INLINE_COB_ENTRIES.
+   Returns record size for the part of the layouts table record required to
+   store LIST enum details.
 */
-static uint64_t list_recsize(void)
+static uint32_t list_recsize(void)
 {
 	return sizeof(struct ldb_inline_cob_entries);
 }
@@ -120,21 +121,21 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		       struct c2_bufvec_cursor *cur,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
-		       struct c2_layout **out)
+		       struct c2_layout_enum **out)
 {
-	struct c2_layout_striped      *stl;
 	struct c2_layout_list_enum    *list_enum;
 	struct ldb_inline_cob_entries *inline_cobs;
 
-	stl = container_of(*out, struct c2_layout_striped, ls_base);
-
-	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
-			lle_base);
-
 	inline_cobs = c2_bufvec_cursor_addr(cur);
+
+	C2_ALLOC_PTR(list_enum);
+
+	/* Copy cob entries from inline_cobs to list_enum. */
+
+	*out = &list_enum->lle_base;
+
    /**
 	@code
-	Copy cob entries from inline_cobs to list_enum.
 
 	Nothing to be done if inline_cobs->llces_nr <= MAX_INLINE_COB_ENTRIES.
 	Return from here if so.
@@ -145,7 +146,8 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		from the cob_lists table and store those in the
 		c2_layout_list_enum::lle_list_of_cobs.
 
-		Assert that the buffer is at the end at this point.
+		The buffer is now expected to be at the end.
+		C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
 	} else {
 		Parse the cob identifiers list from the buffer and store it in
 		the c2_layout_list_enum::lle_list_of_cobs.

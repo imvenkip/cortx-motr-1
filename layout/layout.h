@@ -168,6 +168,9 @@ struct c2_layout_type_ops {
 	int        (*lto_unregister)(struct c2_ldb_schema *schema,
 				     const struct c2_layout_type *lt);
 
+	/** Returns applicable record size for the layouts table. */
+	uint32_t   (*lto_recsize)(struct c2_ldb_schema *schema);
+
 	/**
 	    Continues building the in-memory layout object either from the
 	    buffer or from the DB.
@@ -245,7 +248,7 @@ struct c2_layout_enum_type_ops {
 				      const struct c2_layout_enum_type *et);
 
 	/** Returns applicable record size for the layouts table. */
-	uint64_t   (*leto_recsize)(void);
+	uint32_t   (*leto_recsize)(void);
 
 	/** Continues building the in-memory layout object, either from
 	    the buffer or from the DB. */
@@ -254,7 +257,7 @@ struct c2_layout_enum_type_ops {
 				  struct c2_bufvec_cursor *cur,
 				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
-				  struct c2_layout **out);
+				  struct c2_layout_enum **out);
 
 	/** Continues storing layout representation either in the buffer
 	    or in the DB. */

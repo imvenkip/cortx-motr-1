@@ -246,9 +246,9 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
    ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
 
    @pre
-   - In case c2_layout_decode() is called through c2_ldb_add()/c2_ldb_update()
-   or c2_ldb_delete(), then the buffer should be with the size returned by
-   c2_ldb_rec_max_size().
+   - In case c2_layout_decode() is called through c2_ldb_add(), then the
+   buffer should be capable of ontaining all the data that is to be read from
+   the layouts table.
    - In case c2_layout_decode() is called by some other caller, then the
    buffer size should be capable of incorporating all data belonging to the
    specific layout.
@@ -266,7 +266,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	struct c2_layout_type *lt;
 
 	C2_PRE(schema != NULL);
-	C2_PRE(l != NULL);
+	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD ||
 		op == C2_LXO_DB_UPDATE ||
 		op == C2_LXO_DB_DELETE ||
@@ -296,37 +296,11 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	return 0;
 }
 
-int ldb_layout_write(struct c2_ldb_schema *schema,
-		     enum c2_layout_xcode_op op,
-		     uint32_t recsize,
-		     struct c2_bufvec_cursor *cur,
-		     struct c2_db_tx *tx)
+bool layout_invariant(const struct c2_layout *l)
 {
-	uint64_t              lid;
-	struct c2_layout_rec *rec;
-	struct c2_db_pair     pair;
-
-	/**
-	   Collect data into lid and rec, from the buffer pointed by cur and
-	   by referring the recsize. Till then initializing rec to NULL to avoid
-           uninitialization error.
-	 */
-	rec = NULL;
-
-	c2_db_pair_setup(&pair, &schema->ls_layouts,
-			 &lid, sizeof(uint64_t),
-			 rec, recsize);
-
-	if (op == C2_LXO_DB_ADD) {
-		c2_table_insert(tx, &pair);
-	} else if (op == C2_LXO_DB_UPDATE) {
-		c2_table_update(tx, &pair);
-	} else if (op == C2_LXO_DB_DELETE) {
-		c2_table_delete(tx, &pair);
-	}
-	return 0;
+	/* Verify the members are sane. */
+	return true;
 }
-
 
 /** @} end group layout */
 

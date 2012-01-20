@@ -100,6 +100,15 @@ static int composite_unregister(struct c2_ldb_schema *schema,
 	return 0;
 }
 
+/**
+   Implementation of lto_recsize() for COMPOSITE layout type.
+*/
+static uint32_t composite_recsize(struct c2_ldb_schema *schema)
+{
+	return 0;
+}
+
+
 static const struct c2_layout_ops composite_ops;
 
 /**
@@ -173,19 +182,6 @@ static int composite_encode(struct c2_ldb_schema *schema,
 {
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
-		uint64_t recsize = sizeof(struct c2_ldb_rec);
-
-		ldb_layout_write(schema, op, recsize, out, tx);
-	}
-
-	/**
-	    If we are here through DB operation, then the buffer is at the
-	    end by now since it was allocated with the max size possible
-	    for a record in the layouts table. Add assert to verify that.
-	 */
-
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
-			       (op == C2_LXO_DB_DELETE)) {
 		/**
 		The buffer is expected to be at the end, at this point.
 		C2_PRE(c2_bufvec_cursor_move(out, 0));
@@ -218,6 +214,7 @@ static const struct c2_layout_ops composite_ops = {
 static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_register   = composite_register,
 	.lto_unregister = composite_unregister,
+	.lto_recsize    = composite_recsize,
 	.lto_decode     = composite_decode,
 	.lto_encode     = composite_encode,
 };

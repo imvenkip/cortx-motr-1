@@ -333,33 +333,8 @@
 #include "lib/vec.h"
 #include "lib/arith.h"
 
-/** @todo Remove following 3 lines. */
-#include "layout/pdclust.h"         /* struct c2_ldb_pdclust_rec */
-#include "layout/linear_enum.h"     /* struct c2_layout_linear_attr */
-#include "layout/list_enum.h"
-
+#include "layout/layout_internal.h"
 #include "layout/layout_db.h"
-
-
-/**
-   @defgroup LayoutDBDFSInternal Layout DB Internals
-   @brief Detailed functional specification of the internals of the
-   Layout-DB module.
-
-   This section covers the data structures and sub-routines used internally.
-
-   @see @ref Layout-DB "Layout-DB DLD" and @ref Layout-DB-lspec "Layout-DB Logical Specification".
-
-   @{
-*/
-
-/** Invariant for c2_ldb_rec */
-static bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_ldb_rec *l)
-{
-	return true;
-}
-
-/** @} end group LayoutDBDFSInternal */
 
 /**
  * @addtogroup LayoutDBDFS
@@ -518,34 +493,36 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 }
 
 /**
-   Returns max possible size for a record in the layouts table only (without
-   considering the data in the comp_layout_ext_map and the cob_lists tables).
-
-   (In case we plan to restrict max possible number of sub-layouts and max
-   possible number of COB identifiers with a list enumeration, then this
-   function can be enhanced further.)
-
-   This will need to be modified when newer layout types or enumeration types
-   are added, if applicable.
+   Returns max possible size for a record in the layouts table (without
+   considering the data in the tables other than layouts).
 */
-uint32_t c2_ldb_rec_max_size(void)
+uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 {
-	uint32_t max_size;
+	int        i;
+	uint32_t   recsize;
+	uint32_t   max_recsize = 0;
 
-	max_size = sizeof(struct c2_ldb_rec) +
-		sizeof(struct c2_ldb_pdclust_rec) +
-		max32(sizeof(struct ldb_inline_cob_entries),
-			sizeof(struct c2_layout_linear_attr));
+	/*
+	 * Iterate over all the layout types to find maximum possible recsize.
+	 */
+	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
+		recsize = schema->ls_type[i]->lt_ops->lto_recsize(schema);
+		max_recsize = max32(max_recsize, recsize);
+	}
 
-	return max_size;
+	max_recsize = sizeof(struct c2_ldb_rec) + max_recsize;
+
+	return max_recsize;
 }
 
 /**
    Looks up a persistent layout record with the specified layout_id, and
    its related information from the relevant tables.
 
-   c2_db_pair is allocated by the caller. This is to leave the buffer
-   allocation with the caller, by taking help of c2_ldb_rec_max_size().
+   @param pair A c2_db_pair allocated by the caller and set using
+   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+   size of the buffer.
 */
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t lid,
@@ -562,9 +539,9 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	c2_table_lookup(tx, pair);
 
 	/*
-	 * Breaking the coding style by decalring the variable bv here. It is
-	 * required for the usage of the macro C2_BUFVEC_INIT_BUF that is a way
-	 * of declaring the variable of the type struct c2_bufvec.
+	 * Violating the coding style by decalring the variable bv here. It is
+	 * required for the usage of the macro C2_BUFVEC_INIT_BUF which is a
+	 * way of declaring the variable of the type struct c2_bufvec.
 	 */
 	struct c2_bufvec bv = C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
@@ -576,19 +553,6 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	return 0;
 }
 
-struct c2_bufvec_cursor *ldb_set_cursor()
-{
-   /**
-	@code
-	Allocate bufvec using C2_BUFVEC_INIT_BUF with the size returned by
-	c2_ldb_rec_max_size().
-	Have cursor cur pointing to it using c2_bufvec_cursor_init()
-	and return pointer to cur.
-	@endcode
-   */
-	return NULL;
-}
-
 /**
    Adds a new layout record entry into the layouts table.
    If applicable, adds layout type and enum type specific entries into the
@@ -596,11 +560,27 @@ struct c2_bufvec_cursor *ldb_set_cursor()
 */
 int c2_ldb_add(struct c2_ldb_schema *schema,
 	       struct c2_layout *l,
+	       struct c2_db_pair *pair,
 	       struct c2_db_tx *tx)
 {
-	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+	struct c2_bufvec_cursor  cur;
+	struct c2_bufvec         bv = C2_BUFVEC_INIT_BUF(
+					&pair->dp_rec.db_buf.b_addr,
+					&pair->dp_rec.db_buf.b_nob);
+	uint32_t                 recsize;
+	struct c2_layout_type   *lt;
 
-	c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, cur);
+	C2_PRE(layout_invariant(l));
+
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, &cur);
+
+	lt = schema->ls_type[l->l_type->lt_id];
+
+	recsize = lt->lt_ops->lto_recsize(schema);
+
+	ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair, recsize, tx);
 
 	return 0;
 }
@@ -611,11 +591,27 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 */
 int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
+		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx)
 {
-	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+	struct c2_bufvec_cursor  cur;
+	struct c2_bufvec         bv = C2_BUFVEC_INIT_BUF(
+					&pair->dp_rec.db_buf.b_addr,
+					&pair->dp_rec.db_buf.b_nob);
+	uint32_t                 recsize;
+	struct c2_layout_type   *lt;
 
-	c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx, cur);
+	C2_PRE(layout_invariant(l));
+
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx, &cur);
+
+	lt = schema->ls_type[l->l_type->lt_id];
+
+	recsize = lt->lt_ops->lto_recsize(schema);
+
+	ldb_layout_write(schema, C2_LXO_DB_UPDATE, l->l_id, pair, recsize, tx);
 
 	return 0;
 }
@@ -626,17 +622,81 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 */
 int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
+		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx)
 {
-	struct c2_bufvec_cursor *cur = ldb_set_cursor();
+	struct c2_bufvec_cursor  cur;
+	struct c2_bufvec         bv = C2_BUFVEC_INIT_BUF(
+					&pair->dp_rec.db_buf.b_addr,
+					&pair->dp_rec.db_buf.b_nob);
+	uint32_t                 recsize;
+	struct c2_layout_type   *lt;
 
-	c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, cur);
+	C2_PRE(layout_invariant(l));
 
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, &cur);
+
+	lt = schema->ls_type[l->l_type->lt_id];
+
+	recsize = lt->lt_ops->lto_recsize(schema);
+
+	ldb_layout_write(schema, C2_LXO_DB_DELETE, l->l_id, pair, recsize, tx);
+
+	return 0;
+}
+
+int ldb_layout_write(struct c2_ldb_schema *schema,
+		     enum c2_layout_xcode_op op,
+		     uint64_t lid,
+		     struct c2_db_pair *pair,
+		     uint32_t recsize,
+		     struct c2_db_tx *tx)
+{
+	void *rec_addr = &pair->dp_rec.db_buf.b_addr;
+
+	/* The c2_db_pair was set earlier by the client. But the recsize could
+	 * have been set to more than what is required. Hence, need to reset it
+	 * now that we know the exact recsize.
+	 */
+	c2_db_pair_setup(pair, &schema->ls_layouts,
+			 &lid, sizeof(uint64_t),
+			 rec_addr, recsize);
+
+	if (op == C2_LXO_DB_ADD) {
+		c2_table_insert(tx, pair);
+	} else if (op == C2_LXO_DB_UPDATE) {
+		c2_table_update(tx, pair);
+	} else if (op == C2_LXO_DB_DELETE) {
+		c2_table_delete(tx, pair);
+	}
 	return 0;
 }
 
 
 /** @} end group LayoutDBDFS */
+
+/**
+   @defgroup LayoutDBDFSInternal Layout DB Internals
+   @brief Detailed functional specification of the internals of the
+   Layout-DB module.
+
+   This section covers the data structures and sub-routines used internally.
+
+   @see @ref Layout-DB "Layout-DB DLD" and @ref Layout-DB-lspec "Layout-DB Logical Specification".
+
+   @{
+*/
+
+bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_ldb_rec *l)
+{
+	/* Verify that the record is sane. */
+	return true;
+}
+
+/** @} end group LayoutDBDFSInternal */
+
 
 /*
  *  Local variables:

@@ -28,6 +28,8 @@
 
 #include "db/db.h"
 
+struct c2_layout;
+struct c2_ldb_rec;
 struct c2_db_pair;
 struct c2_ldb_schema;
 struct c2_db_tx;
@@ -36,6 +38,9 @@ enum c2_layout_xcode_op;
 enum {
 	LID_NONE = 0
 };
+
+bool layout_invariant(const struct c2_layout *l);
+bool ldb_rec_invariant(const struct c2_ldb_rec *l);
 
 /**
    Write layout record to layouts table.
@@ -47,8 +52,9 @@ enum {
 */
 int ldb_layout_write(struct c2_ldb_schema *schema,
 		     enum c2_layout_xcode_op op,
+		     uint64_t lid,
+		     struct c2_db_pair *pair,
 		     uint32_t recsize,
-		     struct c2_bufvec_cursor *cur,
 		     struct c2_db_tx *tx);
 
 

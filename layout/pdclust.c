@@ -467,6 +467,29 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 C2_EXPORTED(c2_pdclust_unit_classify);
 
 
+/**
+   Implementation of lto_recsize() for pdclust layout type.
+*/
+static uint32_t pdclust_recsize(struct c2_ldb_schema *schema)
+{
+	int        i;
+	uint32_t   e_recsize;
+	uint32_t   max_recsize = 0;
+
+	/*
+	 * Iterate over all the enum types to find maximum possible recsize.
+	 */
+        for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
+                e_recsize = schema->ls_enum[i]->let_ops->leto_recsize();
+		max_recsize = max32(max_recsize, e_recsize);
+        }
+
+	max_recsize = sizeof(struct c2_ldb_pdclust_rec) + max_recsize;
+
+	return max_recsize;
+}
+
+
 static const struct c2_layout_ops pdclust_ops;
 
 /**
@@ -532,7 +555,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	       the layouts table, if applicable.
 	    into the in-memory layout object. */
 
-	et->let_ops->leto_decode(schema, lid, cur, op, tx, out);
+	et->let_ops->leto_decode(schema, lid, cur, op, tx, &stl->ls_enum);
 	return 0;
 }
 
@@ -589,18 +612,6 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	if (et->let_ops->leto_encode != NULL)
 		et->let_ops->leto_encode(schema, l, op, tx, out);
 
-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
-		(op == C2_LXO_DB_DELETE)) {
-		uint64_t recsize;
-
-		recsize = sizeof(struct c2_ldb_rec) +
-			sizeof(struct c2_ldb_pdclust_rec);
-
-		recsize = recsize + et->let_ops->leto_recsize();
-
-		ldb_layout_write(schema, op, recsize, out, tx);
-	}
-
 	return 0;
 }
 
@@ -612,6 +623,7 @@ static const struct c2_layout_ops pdclust_ops = {
 static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register   = NULL,
 	.lto_unregister = NULL,
+	.lto_recsize	= pdclust_recsize,
 	.lto_decode     = pdclust_decode,
 	.lto_encode     = pdclust_encode,
 };
