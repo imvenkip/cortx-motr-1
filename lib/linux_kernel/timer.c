@@ -20,6 +20,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/jiffies.h>
 
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/time.h"
@@ -76,17 +77,24 @@ C2_EXPORTED(c2_timer_init);
  */
 int c2_timer_start(struct c2_timer *timer)
 {
-	struct timespec ts = {
-			.tv_sec  = c2_time_seconds(timer->t_expire),
-			.tv_nsec = c2_time_nanoseconds(timer->t_expire)
-		};
+	c2_time_t now = c2_time_now();
+	c2_time_t rem;
+	struct timespec ts;
+
 	if (timer->t_running)
 		return -EBUSY;
 
 	C2_ASSERT(timer->t_callback != NULL);
 
+	if (c2_time_after(timer->t_expire, now))
+		rem = c2_time_sub(timer->t_expire, now);
+	else
+		c2_time_set(&rem, 0, 0);
+	ts.tv_sec  = c2_time_seconds(rem);
+	ts.tv_nsec = c2_time_nanoseconds(rem);
+	timer->t_timer.expires = jiffies + timespec_to_jiffies(&ts);
+
 	timer->t_running = true;
-	timer->t_timer.expires = timespec_to_jiffies(&ts);
 	add_timer(&timer->t_timer);
 	return 0;
 }
