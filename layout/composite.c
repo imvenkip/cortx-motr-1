@@ -46,7 +46,7 @@ void c2_composite_init(struct c2_composite_layout *clay,
 	c2_layout_init(&clay->cl_base, id, type, ops);
 
 	/**
-	   Intialize list_enum->lle_list_of_cobs by using list_of_cobs.
+	   Intialize clay->cl_sub_layouts by using sub_layouts.
 	   @todo Yet, need to explore this in detail.
 	 */
 }
@@ -54,7 +54,7 @@ void c2_composite_init(struct c2_composite_layout *clay,
 void c2_composite_fini(struct c2_composite_layout *clay)
 {
 	/**
-	   De-intialize list_enum->lle_list_of_cob.
+	   De-intialize clay->cl_sub_layouts.
 	   @todo Yet, need to explore this in detail.
 	 */
 }
@@ -71,11 +71,11 @@ static int composite_register(struct c2_ldb_schema *schema,
 	@code
 	struct composite_schema_data *csd;
 
-	C2_ALLocate_PTR(csd);
+	C2_ALLOC_PTR(csd);
 
 	Initialize csd->csd_comp_layout_ext_map table.
 
-	schema->ls_enum_data[lt->lt_id] = csd;
+	schema->ls_type_data[lt->lt_id] = csd;
 	@endcode
    */
 	return 0;
@@ -91,10 +91,10 @@ static int composite_unregister(struct c2_ldb_schema *schema,
 {
    /**
 	@code
-	Deinitialize schema->ls_enum_data[lt->lt_id]->csd_comp_layout_ext_map
+	Deinitialize schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
 	table.
 
-	schema->ls_enum_data[lt->lt_id] = NULL;
+	schema->ls_type_data[lt->lt_id] = NULL;
 	@endcode
    */
 	return 0;
@@ -128,13 +128,6 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(tx != NULL);
 
-	/**
-	   No data is expected in c2_ldb_rec::lr_data[] for the composite
-	   layout type. Thus the buffer is expected to be at the end, at this
-	   point.
-	 */
-	C2_PRE(c2_bufvec_cursor_move(cur, 0));
-
 	C2_ALLOC_PTR(cl);
 
 	l = &cl->cl_base;
@@ -145,9 +138,13 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
    /**
 	@code
 	if (op == C2_LXO_DB_LOOKUP) {
-		Read all the segments from comp_layout_ext_map, belonging to
-		composite layout with layout id 'lid' and store them in the
-		cl->cl_sub_layouts.
+		The buffer is expected to be at the end, at this point.
+		C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
+
+		Read all the segments from the comp_layout_ext_map table,
+		belonging to composite layout with layout id 'lid' and store
+		them in the cl->cl_sub_layouts.
+
 	} else {
 		Parse the sub-layout information from the buffer pointed by
 		cur and store it in cl->cl_sub_layouts.
@@ -190,6 +187,9 @@ static int composite_encode(struct c2_ldb_schema *schema,
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
 		/**
+		The buffer is expected to be at the end, at this point.
+		C2_PRE(c2_bufvec_cursor_move(out, 0));
+
 		Form records for the cob_lists table by using data from the
 		c2_layout object l and depending on the value of op,
 		insert/update/delete those records to/from the cob_lists table.

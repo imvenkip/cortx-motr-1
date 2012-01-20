@@ -382,9 +382,8 @@ C2_EXPORTED(c2_pdclust_fini);
 
 
 /**
-   @todo
-   Change the prototype of c2_pdclust_build() to accept an additional argument
-   say c2_layout_enum *enum.
+   @todo Change the prototype of c2_pdclust_build() to accept an additional
+   argument say c2_layout_enum *enum.
 */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
@@ -511,7 +510,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/** Read pdclust layout type specific fields from the buffer and store
 	those in c2_pdclust_layout::pl_attr. */
 
-	pl_rec = (struct c2_ldb_pdclust_rec *)c2_bufvec_cursor_addr(cur);
+	pl_rec = c2_bufvec_cursor_addr(cur);
 
 	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum))
 		return -EPROTO;
@@ -571,7 +570,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	pl_rec->pr_attr.pa_P = pl->pl_attr.pa_P;
 
 	/** Copy pdclust layout type specific attributes into the buffer. */
-	data_to_bufvec_copy(out, pl_rec, sizeof(struct c2_ldb_pdclust_rec));
+	c2_bufvec_cursor_copyto(out, pl_rec, sizeof(struct c2_ldb_pdclust_rec));
 
 	if (!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -EPROTO;

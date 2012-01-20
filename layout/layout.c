@@ -203,12 +203,9 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
-	if (op == C2_LXO_DB_LOOKUP)
-		C2_PRE(tx != NULL);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	c2_mutex_lock(&(*out)->l_lock);
-
-	rec = (struct c2_ldb_rec *)c2_bufvec_cursor_addr(cur);
+	rec = c2_bufvec_cursor_addr(cur);
 
 	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type))
 		return -EPROTO;
@@ -221,6 +218,8 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
 
 	lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
+
+	c2_mutex_lock(&(*out)->l_lock);
 
 	(*out)->l_id = lid;
 	(*out)->l_type = lt;
@@ -284,7 +283,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	rec->lr_ref_count = l->l_ref;
 
 	/** Copy rec to the buffer pointed by out. */
-	data_to_bufvec_copy(out, rec, sizeof(struct c2_ldb_rec));
+	c2_bufvec_cursor_copyto(out, rec, sizeof(struct c2_ldb_rec));
 
 	lt = schema->ls_type[rec->lr_lt_id];
 	if (lt == NULL)
@@ -327,48 +326,6 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 	}
 	return 0;
 }
-
-
-/**
- * Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
- * Initializes a c2_bufvec containing a single element of specified size.
- */
-void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
-			   size_t *len)
-{
-	C2_PRE(src_buf != NULL);
-	C2_PRE(len != 0);
-	C2_PRE(data != NULL);
-
-	src_buf->ov_vec.v_nr = 1;
-	src_buf->ov_vec.v_count = (c2_bcount_t *)len;
-	src_buf->ov_buf = data;
-}
-
-/**
- * Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
- * Helper functions to copy opaque data with specified size to and from a
- * c2_bufvec.
- */
-int data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
-			       size_t len)
-{
-	c2_bcount_t		 count;
-	struct c2_bufvec_cursor  src_cur;
-	struct c2_bufvec	 src_buf;
-
-	C2_PRE(cur != NULL);
-	C2_PRE(data != NULL);
-	C2_PRE(len != 0);
-
-	data_to_bufvec(&src_buf, &data, &len);
-	c2_bufvec_cursor_init(&src_cur, &src_buf);
-	count = c2_bufvec_cursor_copy(cur, &src_cur, len);
-	if (count != len)
-		return -EFAULT;
-	return 0;
-}
-
 
 
 /** @} end group layout */

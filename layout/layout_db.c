@@ -332,9 +332,11 @@
 #include "lib/memory.h"
 #include "lib/vec.h"
 #include "lib/arith.h"
+
+/** @todo Remove following 3 lines. */
 #include "layout/pdclust.h"         /* struct c2_ldb_pdclust_rec */
 #include "layout/linear_enum.h"     /* struct c2_layout_linear_attr */
-#include "layout/layout_internal.h"
+#include "layout/list_enum.h"
 
 #include "layout/layout_db.h"
 
@@ -546,31 +548,30 @@ uint32_t c2_ldb_rec_max_size(void)
    allocation with the caller, by taking help of c2_ldb_rec_max_size().
 */
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
-		  uint64_t *lid,
+		  uint64_t lid,
 		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx,
 		  struct c2_layout **out)
 {
-	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
 
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 
-	pair->dp_key.db_buf.b_addr = lid;
+	pair->dp_key.db_buf.b_addr = &lid;
 
 	c2_table_lookup(tx, pair);
 
-	/* @todo Following is somehow giving a compilation error at this
-	   point - error: expected expression before '{' token. Need to look
-	   into it. But basically have buffer pointing to the record read from
-	   the DB.
+	/*
+	 * Breaking the coding style by decalring the variable bv here. It is
+	 * required for the usage of the macro C2_BUFVEC_INIT_BUF that is a way
+	 * of declaring the variable of the type struct c2_bufvec.
 	 */
-	/* bv = C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-				&pair->dp_rec.db_buf.b_nob); */
+	struct c2_bufvec bv = C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+				&pair->dp_rec.db_buf.b_nob);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	c2_layout_decode(schema, *lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
+	c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
 
 	return 0;
 }
@@ -622,22 +623,11 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 /**
    Deletes a layout record with given layout id and its related information from
    the relevant tables.
-
-   Layouts with enumeration type other than 'linear' are deleted from the DB
-   if and only if their respective referecne count is 0.
-
-   A layout with 'linear' enumeration type is never destroyed.
 */
 int c2_ldb_delete(struct c2_ldb_schema *schema,
-		  uint64_t lid,
+		  struct c2_layout *l,
 		  struct c2_db_tx *tx)
 {
-	struct c2_layout *l;
-
-	C2_ALLOC_PTR(l);
-
-	l->l_id = lid;
-
 	struct c2_bufvec_cursor *cur = ldb_set_cursor();
 
 	c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, cur);

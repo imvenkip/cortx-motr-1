@@ -58,7 +58,7 @@ struct c2_ldb_rec;
    - void c2_ldb_enum_unregister(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
    - void **c2_ldb_type_data(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
    - void **c2_ldb_enum_data(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
-   - int c2_ldb_lookup(const uint64_t *l_id, struct c2_ldb_schema *schema, struct c2_db_tx *tx, c2_layout *out);
+   - int c2_ldb_lookup(const uint64_t l_id, struct c2_ldb_schema *schema, struct c2_db_tx *tx, c2_layout *out);
    - int c2_ldb_add(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
    - int c2_ldb_update(const struct c2_layout *l, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
    - int c2_ldb_delete(const uint64_t lid, struct c2_ldb_schema *schema, struct c2_db_tx *tx)
@@ -162,7 +162,7 @@ struct c2_ldb_rec {
 	uint64_t                       lr_ref_count;
 
 	/** Layout type specific payload.
-	    Contains attributes specific to per layout type. */
+	    Contains attributes specific to the layout type. */
 	char                           lr_data[0];
 
 };
@@ -189,7 +189,7 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 uint32_t c2_ldb_rec_max_size(void);
 
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
-		  uint64_t *id,
+		  uint64_t id,
 		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx,
 		  struct c2_layout **out);
@@ -200,7 +200,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_layout *layout,
 		  struct c2_db_tx *tx);
 int c2_ldb_delete(struct c2_ldb_schema *schema,
-		  uint64_t lid,
+		  struct c2_layout *layout,
 		  struct c2_db_tx *tx);
 
 /** @} end group LayoutDBDFS */

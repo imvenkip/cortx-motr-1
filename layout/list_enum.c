@@ -131,8 +131,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
 			lle_base);
 
-	inline_cobs = (struct ldb_inline_cob_entries *)c2_bufvec_cursor_addr(
-			cur);
+	inline_cobs = c2_bufvec_cursor_addr(cur);
    /**
 	@code
 	Copy cob entries from inline_cobs to list_enum.
@@ -189,7 +188,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	 */
 	inline_cobs = NULL;
 
-	data_to_bufvec_copy(out, inline_cobs,
+	c2_bufvec_cursor_copyto(out, inline_cobs,
 				sizeof(struct ldb_inline_cob_entries));
 
 	/**
@@ -202,6 +201,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
 		/**
+		Thus the buffer is expected to be at the end, at this point.
+		C2_ASSERT(c2_bufvec_cursor_move(out, 0));
+
 		Depending upon the value of op, insert/update/delete cob
 		entries beyond MAX_INLINE_COB_ENTRIES to/from the cob_lists
 		table.

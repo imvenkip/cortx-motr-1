@@ -27,8 +27,6 @@
  */
 
 #include "db/db.h"
-#include "fid/fid.h"
-#include "lib/vec.h"
 
 struct c2_db_pair;
 struct c2_ldb_schema;
@@ -38,36 +36,6 @@ enum c2_layout_xcode_op;
 enum {
 	LID_NONE = 0
 };
-
-struct list_schema_data {
-	/** Table to store COB lists for all the layout with LIST enum type. */
-	struct c2_table           lsd_cob_lists;
-};
-
-struct ldb_list_cob_entry {
-	/** Index for the COB from the layout it is part of. */
-	uint32_t                  llce_cob_index;
-
-	/** COB identifier. */
-	struct c2_fid             llce_cob_id;
-};
-
-enum {
-	MAX_INLINE_COB_ENTRIES = 20
-};
-
-/**
-   Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
-   into the layouts table.
-*/
-struct ldb_inline_cob_entries {
-	/** Total number of COB Ids for the specific layout. */
-	uint32_t                  llces_nr;
-
-	/** Array for storing COB Ids. */
-	struct ldb_list_cob_entry llces_cobs[MAX_INLINE_COB_ENTRIES];
-};
-
 
 /**
    Write layout record to layouts table.
@@ -82,22 +50,6 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 		     uint32_t recsize,
 		     struct c2_bufvec_cursor *cur,
 		     struct c2_db_tx *tx);
-
-/**
- * @todo Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
- * Initializes a c2_bufvec containing a single element of specified size.
- */
-void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
-			   size_t *len);
-
-/**
- * @todo Copied verbatim from bufvec_xcode.c, need to see how to refactor it.
- * Helper functions to copy opaque data with specified size to and from a
- * c2_bufvec.
- */
-int data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
-			       size_t len);
-
 
 
 /** @} end group layout */

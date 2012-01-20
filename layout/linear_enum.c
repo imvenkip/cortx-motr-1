@@ -83,7 +83,7 @@ static int linear_decode(struct c2_ldb_schema *schema,
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
 			lle_base);
 
-	lin_attr = (struct c2_layout_linear_attr *)c2_bufvec_cursor_addr(cur);
+	lin_attr = c2_bufvec_cursor_addr(cur);
 
 	lin_enum->lle_attr.lla_nr = lin_attr->lla_nr;
 	lin_enum->lle_attr.lla_A  = lin_attr->lla_A;
@@ -117,7 +117,7 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
 			lle_base);
 
-	data_to_bufvec_copy(out, lin_enum,
+	c2_bufvec_cursor_copyto(out, lin_enum,
 			sizeof(struct c2_layout_linear_enum));
 
 	return 0;
