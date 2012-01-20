@@ -21,6 +21,7 @@
 
 #include "lib/ut.h"
 #include "lib/list.h"
+#include "lib/trace.h"
 #include "colibri/init.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
@@ -331,6 +332,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	struct c2_rpc_conn		*conn;
 	struct c2_fop_cob_writev_rep	*wrep;
 	struct c2_fop_cob_readv_rep	*rrep;
+	static int                       cnt;
 
 	conn = fom->fo_fop->f_item.ri_session->s_conn;
 	rw = io_rw_get(fom->fo_fop);
@@ -423,6 +425,9 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	fop->f_item.ri_group = NULL;
 	rc = c2_rpc_reply_post(&fom->fo_fop->f_item, &fop->f_item);
 	C2_UT_ASSERT(rc == 0);
+
+	C2_TRACE("Reply sent %d\n", cnt);
+	cnt++;
 
 	fom->fo_phase = FOPH_FINISH;
 	/* Deallocates net buffers and c2_buvec structures. */
