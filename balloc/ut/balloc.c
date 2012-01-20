@@ -48,7 +48,8 @@ enum balloc_invariant_enum {
 static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 				int		balloc_invariant_flag)
 {
-	c2_bcount_t	len = c2_ext_length(&alloc_ext), group;
+	c2_bcount_t	len = c2_ext_length(&alloc_ext),
+			group;
 
 	group = alloc_ext.e_start >> colibri_balloc.cb_sb.bsb_gsbits;
 
@@ -57,7 +58,6 @@ static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 		 prev_free_blocks		       -= len;
 		 prev_totalsize			       -= len;
 		 prev_group_info[group].bgi_freeblocks -= len;
-		 prev_totalsize			       -= len;
 
 		 // Check free blocks in super block
 		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
@@ -72,7 +72,6 @@ static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 		 prev_free_blocks		       += len;
 		 prev_totalsize			       += len;
 		 prev_group_info[group].bgi_freeblocks += len;
-		 prev_totalsize			       += len;
 
 		 // Check free blocks in super block
 		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
