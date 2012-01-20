@@ -59,13 +59,13 @@ static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 		 prev_totalsize			       -= len;
 		 prev_group_info[group].bgi_freeblocks -= len;
 
-		 // Check free blocks in super block
-		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
-			 return false;
-
 		 // Check free blocks in group descriptor
 		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
 		    prev_group_info[group].bgi_freeblocks)
+			 return false;
+
+		 // Check free blocks in super block
+		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
 			 return false;
 		 break;
 	    case INVAR_FREE:
@@ -73,13 +73,13 @@ static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 		 prev_totalsize			       += len;
 		 prev_group_info[group].bgi_freeblocks += len;
 
-		 // Check free blocks in super block
-		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
-			 return false;
-
 		 // Check free blocks in group descriptor
 		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
 		    prev_group_info[group].bgi_freeblocks)
+			 return false;
+
+		 // Check free blocks in super block
+		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
 			 return false;
 		 break;
 	}
