@@ -41,7 +41,7 @@ static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *lctm)
 	const struct nlx_xo_transfer_mc *xtm;
 	if (!nlx_core_tm_invariant(lctm))
 		return false;
-	xtm = nlx_core_tm_to_xo_tm((struct nlx_core_transfer_mc *)lctm);
+	xtm = container_of(lctm, struct nlx_xo_transfer_mc, xtm_core);
 	if (!nlx_tm_invariant(xtm->xtm_tm))
 		return false;
 	if (!c2_mutex_is_locked(&xtm->xtm_tm->ntm_mutex))
@@ -64,7 +64,7 @@ int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 	C2_PRE(need > 0);
 
-	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_UNUSABLE;
+	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_RESERVED;
 	C2_ASSERT(have >= lctm->ctm_bev_needed);
 	num_to_alloc = lctm->ctm_bev_needed + need - have;
 	while (num_to_alloc > 0) {
@@ -78,7 +78,7 @@ int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 	}
 	if (rc == 0)
 		lctm->ctm_bev_needed += need;
-	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_UNUSABLE;
+	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_RESERVED;
 	C2_POST(have >= lctm->ctm_bev_needed);
 	return rc;
 }

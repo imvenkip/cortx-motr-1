@@ -270,11 +270,12 @@ struct nlx_core_bev_cqueue {
 enum {
 	/** Minimum number of buffer event entries in the queue. */
 	C2_NET_LNET_BEVQ_MIN_SIZE  = 2,
-	/** Number of unusable buffer event entries in the queue.
+	/** Number of reserved buffer event entries in the queue.
 	    The entry pointed to by the consumer is owned by the consumer and
 	    thus cannot be used by the producer.
+	    It will eventually be used when the pointers advance.
 	 */
-	C2_NET_LNET_BEVQ_NUM_UNUSABLE = 1,
+	C2_NET_LNET_BEVQ_NUM_RESERVED = 1,
 };
 
 /**
@@ -288,10 +289,8 @@ struct nlx_core_buffer_event {
 	/**
 	    This value is set by the kernel Core module's LNet event handler,
 	    and is copied from the nlx_core_buffer::cb_buffer_id
-	    field. The value is a pointer to the core buffer data in the
-	    transport address space, and is provided to enable the transport
-	    to navigate back to its outer buffer private data and from there
-	    back to the c2_net_buffer.
+	    field. The value is a pointer to the c2_net_buffer structure in the
+	    transport address space.
 	 */
 	nlx_core_opaque_ptr_t        cbe_buffer_id;
 
@@ -385,9 +384,14 @@ struct nlx_core_buffer {
 	c2_bcount_t             cb_min_receive_size;
 
 	/**
-	   Value from nb_max_receive_msgs for receive queue buffers only.
+	   Value from nb_max_receive_msgs for receive queue buffers.
+	   Set to 1 in other cases.
+	   The value is used for the threshold field of an lnet_md_t, and
+	   specifies the number of internal buffer event structures that
+	   have to be provisioned to accommodate the expected result
+	   notifications.
 	 */
-	uint32_t                cb_max_receive_msgs;
+	uint32_t                cb_max_operations;
 
 	/**
 	   The match bits for a passive bulk buffer, including the TMID field.
@@ -474,13 +478,15 @@ static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
-   Increments the lctm->ctm_bev_needed count by lcbuf->cb_max_receive_msgs.
+   The invoker should provision sufficient buffer event structures prior to
+   the call, using the nlx_core_bevq_provision() subroutine.
 
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_min_receive_size is valid
-   @pre lcbuf->cb_max_receive_msgs is valid
+   @pre lcbuf->cb_max_operations > 0
+   @see nlx_core_bevq_provision()
  */
 static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
@@ -492,12 +498,15 @@ static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
-   Increments the lctm->ctm_bev_needed count by 1.
+   The invoker should provision sufficient buffer event structures prior to
+   the call, using the nlx_core_bevq_provision() subroutine.
 
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_addr is valid
+   @pre lcbuf->cb_max_operations == 1
+   @see nlx_core_bevq_provision()
  */
 static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
@@ -513,7 +522,8 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
-   Increments the lctm->ctm_bev_needed count by 1.
+   The invoker should provision sufficient buffer event structures prior to
+   the call, using the nlx_core_bevq_provision() subroutine.
 
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
@@ -521,6 +531,8 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
    @pre lcbuf->cb_addr is valid
+   @pre lcbuf->cb_max_operations == 1
+   @see nlx_core_bevq_provision()
  */
 static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer *lcbuf);
@@ -533,7 +545,8 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
-   Increments the lctm->ctm_bev_needed count by 1.
+   The invoker should provision sufficient buffer event structures prior to
+   the call, using the nlx_core_bevq_provision() subroutine.
 
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
@@ -541,6 +554,8 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
    @pre lcbuf->cb_addr is valid
+   @pre lcbuf->cb_max_operations == 1
+   @see nlx_core_bevq_provision()
  */
 static int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer *lcbuf);
@@ -573,13 +588,16 @@ static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
-   Increments the lctm->ctm_bev_needed count by 1.
+   The invoker should provision sufficient buffer event structures prior to
+   the call, using the nlx_core_bevq_provision() subroutine.
 
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
    @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
+   @pre lcbuf->cb_max_operations == 1
+   @see nlx_core_bevq_provision()
  */
 static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
@@ -594,13 +612,16 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
    with any of the other buffer operation initiation subroutines or the
    nlx_core_buf_event_get() subroutine.
 
-   Increments the lctm->ctm_bev_needed count by 1.
+   The invoker should provision sufficient buffer event structures prior to
+   the call, using the nlx_core_bevq_provision() subroutine.
 
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
    @pre lcbuf->cb_length is valid
    @pre lcbuf->cb_match_bits != 0
+   @pre lcbuf->cb_max_operations == 1
+   @see nlx_core_bevq_provision()
  */
 static int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
@@ -627,7 +648,6 @@ static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 
 /**
    Fetches the next event from the circular buffer event queue.
-   It decrements the struct nlx_core_transfer_mc::ctm_bev_needed counter.
 
    The invoker should ensure that the subroutine is not invoked concurrently
    with any of the buffer operation initiation subroutines, or another
