@@ -946,8 +946,9 @@ static int io_fop_do_sync_io(struct c2_io_fop     *iofop,
 	 * cobs are processed parallely.
 	 */
 
-	rc = c2_rpc_client_call(&iofop->if_fop, session, NULL,
-						C2T1FS_RPC_TIMEOUT);
+	rc = c2_rpc_client_call(&iofop->if_fop, session,
+					iofop->if_fop.f_item.ri_ops,
+					C2T1FS_RPC_TIMEOUT);
 	if (rc != 0)
 		goto out;
 

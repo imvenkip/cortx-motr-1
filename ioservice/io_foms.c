@@ -1291,6 +1291,13 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	if (rc != 0)
 		goto cleanup;
 
+#if 0
+	/* This is only need to run ut.
+	   XXX @todo Remove following if statement. */
+	if (c2_is_write_fop(fop))
+		rc = c2_stob_create(fom_obj->fcrw_stob, &fom->fo_tx);
+#endif
+
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
 	if (rc != 0) {
 		goto cleanup_st;
