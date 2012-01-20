@@ -102,6 +102,8 @@ EOF
 	    #Include the ff file containing dependency fops.
 	    echo "#include \"$ff\"" >> $tfile
 	done
+	# Get rid of .ff suffix so as to include corresponding headers in
+	# .c files.
 	depfiles=`echo $depfiles | sed -e 's/.ff//g'`
     fi
 
@@ -136,6 +138,7 @@ EOF
 	    hdr=${hdr}_$(echo $where | tr [A-Z] [a-z])
 
 	    hdr=$hdr.h
+	    # The filename is added as a string to the generated DEF/LAY files.
 	    echo "static const char dfiles$i[] = \""$hdr"\";" >> $tfile
 	    let i=i+1
 	done

@@ -57,13 +57,13 @@
 
    @subsection bulkclient-fspec-sub-cons Constructors and Destructors
 
-   - c2_io_fop_init() Initializes the c2_io_fop structure.
+   - c2_io_fop_init() - Initializes the c2_io_fop structure.
 
-   - c2_io_fop_fini() Finalizes a c2_io_fop structure.
+   - c2_io_fop_fini() - Finalizes a c2_io_fop structure.
 
    @subsection bulkclient-fspec-sub-acc Accessors and Invariants
 
-   - c2_fop_to_rpcbulk() Retrieves struct c2_rpc_bulk from given c2_fop.
+   - c2_fop_to_rpcbulk() - Retrieves struct c2_rpc_bulk from given c2_fop.
 
    @subsection bulkclient-fspec-sub-opi Operational Interfaces
 
@@ -80,18 +80,30 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
+   Using bulk APIs on client side.
    - IO bulk client allocates memory for a c2_io_fop and invokes
    c2_io_fop_init() by providing fop type.
-   - IO bulk client client invokes c2_rpc_bulk_page_add() till all pages are
-   added to c2_rpc_bulk structure and then invokes c2_rpc_post() to
+   - IO bulk client client invokes c2_rpc_bulk_buf_page_add() or
+   c2_rpc_bulk_buf_usrbuf_add()  till all pages or user buffers are added
+   to c2_rpc_bulk structure and then invokes c2_rpc_post() to
    submit the fop to rpc layer.
-   - Rpc layer invokes io coalescing code which invokes c2_io_fop_to_rpcbulk()
-   and populates its network buffer descriptor.
+   - Bulk client invokes c2_rpc_bulk_store() to store the network buffer
+   memory descriptor/s to io fop wire format. The network buffer memory
+   descriptor is retrieved after adding the network buffer to transfer
+   machine belonging to c2_rpcmachine.
+   - The network buffers added by bulk client to c2_rpc_bulk structure
+   are removed and deallocated by network buffer completion callbacks.
+   Bulk client user need not remove or deallocate these network buffers
+   by itself.
 
-   - Colibri io server program (ioservice) creates a c2_io_fop and invokes
-   c2_io_fop_init() by providing fop type.
+   Using bulk APIs on server side.
+   - Colibri io server program (ioservice) creates a c2_rpc_bulk structure
+   and invokes c2_rpc_bulk_init().
    - Ioservice invokes c2_rpc_bulk_buf_add() to attach buffers to the
    c2_rpc_bulk structure.
+   - Typically, ioservice uses a pre-allocated and pre-registered pool of
+   network buffers which are supposed to be used while doing bulk transfer.
+   These buffers are provided while invoking c2_rpc_bulk_buf_add() API.
    - Ioservice invokes c2_rpc_bulk_load() to start the zero copy of data from
    sender.
 

@@ -48,13 +48,12 @@ extern struct c2_fop_type_format c2_addb_record_tfmt;
 
 #include "ioservice/io_fops.ff"
 
-/* tlists and tlist apis referred from rpc layer. */
+/* tlists and tlist APIs referred from rpc layer. */
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
 C2_TL_DESCR_DECLARE(rpcitem, extern);
 C2_TL_DECLARE(rpcbulk, extern, struct c2_rpc_bulk_buf);
 C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
 
-/* Forward declarations. */
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **m);
 static void io_item_replied(struct c2_rpc_item *item);
@@ -101,7 +100,7 @@ static struct c2_fop_type *ioservice_fops[] = {
       &c2_fop_cob_writev_rep_fopt,
 };
 
-/* Used for REQUEST items only. */
+/* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 	.rio_sent	= NULL,
 	.rio_added	= NULL,
@@ -279,7 +278,10 @@ C2_EXPORTED(c2_ioservice_fop_init);
    and sends the fop over wire. The associated network buffer is added to
    appropriate buffer queue of transfer machine owned by rpc layer.
    Once, the receiver side receives the io fop, it acquires a local network
-   buffer and calls a c2_rpc_bulk apis to start the zero-copy. @see
+   buffer and calls a c2_rpc_bulk apis to start the zero-copy.
+   So, io fop typically carries the net buf descriptor and bulk server asks
+   the transfer machine belonging to rpc layer to start zero copy of
+   data buffers.
 
    <hr>
    @section bulkclient-lspec Logical Specification
@@ -510,27 +512,27 @@ enum {
 };
 
 /**
-   Generic io segment that represents a contiguous stream of bytes
-   along with io extent. This structure is typically used by io coalescing
-   code from ioservice.
+ * Generic io segment that represents a contiguous stream of bytes
+ * along with io extent. This structure is typically used by io coalescing
+ * code from ioservice.
  */
 struct ioseg {
-	/** Magic constant to verify sanity of structure. */
+	/* Magic constant to verify sanity of structure. */
 	uint64_t		 is_magic;
 	/* Index in target object to start io from. */
 	c2_bindex_t		 is_index;
 	/* Number of bytes in io segment. */
-	c2_bcount_t		 is_count;
+	c2_bcount_t		 is_size;
 	/* Starting address of buffer. */
 	void			*is_buf;
-	/* Linkage to have such IO segments in a list hanging off
-	   io_seg_set::iss_list. */
+	/*
+	 * Linkage to have such IO segments in a list hanging off
+	 * io_seg_set::iss_list.
+	 */
 	struct c2_tlink		 is_linkage;
 };
 
-/**
-   Represents coalesced set of io segments.
- */
+/** Represents coalesced set of io segments. */
 struct io_seg_set {
 	/** Magic constant to verify sanity of structure. */
 	uint64_t	iss_magic;
@@ -552,7 +554,7 @@ static void ioseg_get(const struct c2_0vec *zvec, uint32_t seg_index,
 	C2_PRE(seg != NULL);
 
 	seg->is_index = zvec->z_index[seg_index];
-	seg->is_count = zvec->z_bvec.ov_vec.v_count[seg_index];
+	seg->is_size = zvec->z_bvec.ov_vec.v_count[seg_index];
 	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
 }
 
@@ -757,10 +759,12 @@ static void io_fop_seg_coalesce(const struct ioseg *seg,
 	C2_PRE(seg != NULL);
 	C2_PRE(aggr_set != NULL);
 
-	/* Coalesces all io segments in increasing order of offset.
-	   This will create new net buffer/s which will be associated with
-	   only one io fop and it will be sent on wire. While rest of io fops
-	   will hang off a list c2_rpc_item::ri_compound_items. */
+	/*
+	 * Coalesces all io segments in increasing order of offset.
+	 * This will create new net buffer/s which will be associated with
+	 * only one io fop and it will be sent on wire. While rest of io fops
+	 * will hang off a list c2_rpc_item::ri_compound_items.
+	 */
 	c2_tlist_for(&iosegset_tl, &aggr_set->iss_list, ioseg) {
 		rc = io_fop_seg_add_cond(ioseg, seg);
 		if ( rc == 0 || rc == -ENOMEM)
@@ -782,17 +786,21 @@ static void io_fop_segments_coalesce(const struct c2_0vec *iovec,
 	C2_PRE(iovec != NULL);
 	C2_PRE(aggr_set != NULL);
 
-	/* For each segment from incoming IO vector, check if it can
-	   be merged with any of the existing segments from aggr_set.
-	   If yes, merge it else, add a new entry in aggr_set. */
+	/*
+	 * For each segment from incoming IO vector, check if it can
+	 * be merged with any of the existing segments from aggr_set.
+	 * If yes, merge it else, add a new entry in aggr_set.
+	 */
 	for (i = 0; i < iovec->z_bvec.ov_vec.v_nr; ++i) {
 		ioseg_get(iovec, i, &seg);
 		io_fop_seg_coalesce(&seg, aggr_set);
 	}
 }
 
-/* Creates and populates net buffers as needed using the list of
-   coalesced io segments. */
+/*
+ * Creates and populates net buffers as needed using the list of
+ * coalesced io segments.
+ */
 static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 			      struct io_seg_set *seg_set)
 {
@@ -820,15 +828,22 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 	rbulk = c2_fop_to_rpcbulk(coalesced_fop);
 	curr_segs_nr = iosegset_tlist_length(&seg_set->iss_list);
 	ioseg = iosegset_tlist_head(&seg_set->iss_list);
-	seg_size = ioseg->is_count;
+	seg_size = ioseg->is_size;
 
 	while (curr_segs_nr != 0) {
 		curr_bufsize = 0;
 		segs_nr = 0;
+		/*
+		 * Calculates the number of segments that can fit into max
+		 * buffer size. These are needed to add a c2_rpc_bulk_buf
+		 * structure into struct c2_rpc_bulk. Selected io segments
+		 * are removed from io segments list, hence the loop always
+		 * starts from the first element.
+		 */
 		c2_tlist_for(&iosegset_tl, &seg_set->iss_list, ioseg) {
-			if (curr_bufsize + ioseg->is_count <= max_bufsize &&
+			if (curr_bufsize + ioseg->is_size <= max_bufsize &&
 			    segs_nr <= max_segs_nr) {
-				curr_bufsize += ioseg->is_count;
+				curr_bufsize += ioseg->is_size;
 				++segs_nr;
 			} else
 				break;
@@ -842,12 +857,14 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 
 		nr = 0;
 		c2_tlist_for(&iosegset_tl, &seg_set->iss_list, ioseg) {
-			rc = c2_rpc_bulk_buf_usrbuf_add(buf, ioseg->is_buf,
-							ioseg->is_count,
-							ioseg->is_index);
+			rc = c2_rpc_bulk_buf_databuf_add(buf, ioseg->is_buf,
+							 ioseg->is_size,
+							 ioseg->is_index);
 
-			/* Since size and fragment calculations are made before
-			   hand, this buffer addition should succeed. */
+			/*
+			 * Since size and fragment calculations are made before
+			 * hand, this buffer addition should succeed.
+			 */
 			C2_ASSERT(rc == 0);
 
 			ioseg_unlink_free(ioseg);
@@ -955,8 +972,10 @@ static void io_fop_ivec_prepare(struct c2_fop *res_fop)
 	rw->crw_ivecs.cis_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
 	ivec = rw->crw_ivecs.cis_ivecs;
 
-	/* Adds same number of index vector in io fop as there are buffers in
-	   c2_rpc_bulk::rb_buflist. */
+	/*
+	 * Adds same number of index vector in io fop as there are buffers in
+	 * c2_rpc_bulk::rb_buflist.
+	 */
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
 		for (j = 0; j < ivec[cnt].ci_nr ; ++j) {
 			ivec[cnt].ci_iosegs[j].ci_index =
@@ -1024,8 +1043,10 @@ static void io_fop_desc_dealloc(struct c2_fop *fop)
 	c2_free(rw->crw_desc.id_descs);
 }
 
-/* Allocates memory for net buf descriptors array and index vector array
-   and populates the array of index vectors in io fop wire format. */
+/*
+ * Allocates memory for net buf descriptors array and index vector array
+ * and populates the array of index vectors in io fop wire format.
+ */
 int io_fop_prepare(struct c2_fop *fop)
 {
 	int rc;
@@ -1047,10 +1068,12 @@ int io_fop_prepare(struct c2_fop *fop)
 	return rc;
 }
 
-/* Creates new net buffers from aggregate list and adds them to
-   associated c2_rpc_bulk object. Also calls io_fop_prepare() to
-   allocate memory for net buf desc sequence and index vector
-   sequence in io fop wire format. */
+/*
+ * Creates new net buffers from aggregate list and adds them to
+ * associated c2_rpc_bulk object. Also calls io_fop_prepare() to
+ * allocate memory for net buf desc sequence and index vector
+ * sequence in io fop wire format.
+ */
 static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 				    struct io_seg_set *aggr_set)
 {
@@ -1076,8 +1099,10 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 	return rc;
 }
 
-/* Deallocates memory for sequence of net buf desc and sequence of index
-   vectors from io fop wire format. */
+/*
+ * Deallocates memory for sequence of net buf desc and sequence of index
+ * vectors from io fop wire format.
+ */
 void io_fop_destroy(struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
@@ -1087,18 +1112,18 @@ void io_fop_destroy(struct c2_fop *fop)
 }
 
 /**
-   Coalesces the io fops with same fid and intent (read/write). A list of
-   coalesced io segments is generated which is attached to a single
-   io fop - res_fop (which is already bound to a session) in form of
-   one of more network buffers and rest of the io fops hang off a list
-   c2_rpc_item::ri_compound_items in resultant fop.
-   The index vector array from io fop is also populated from the list of
-   coalesced io segments.
-   The res_fop contents are backed up and restored on receiving reply
-   so that upper layer is transparent of these operations.
-   @see item_io_coalesce().
-   @see c2_io_fop_init().
-   @see c2_rpc_bulk_init().
+ * Coalesces the io fops with same fid and intent (read/write). A list of
+ * coalesced io segments is generated which is attached to a single
+ * io fop - res_fop (which is already bound to a session) in form of
+ * one of more network buffers and rest of the io fops hang off a list
+ * c2_rpc_item::ri_compound_items in resultant fop.
+ * The index vector array from io fop is also populated from the list of
+ * coalesced io segments.
+ * The res_fop contents are backed up and restored on receiving reply
+ * so that upper layer is transparent of these operations.
+ * @see item_io_coalesce().
+ * @see c2_io_fop_init().
+ * @see c2_rpc_bulk_init().
  */
 static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 {
@@ -1120,8 +1145,10 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	C2_PRE(res_fop != NULL);
 	C2_PRE(c2_is_io_fop(res_fop));
 
-	/* Compound list is populated by an rpc item type op, namely
-	   item_io_coalesce(). */
+	/*
+	 * Compound list is populated by an rpc item type op, namely
+	 * item_io_coalesce().
+	 */
 	items_list = &res_fop->f_item.ri_compound_items;
 	C2_PRE(!rpcitem_tlist_is_empty(items_list));
 
@@ -1139,9 +1166,11 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	aggr_set.iss_magic = IO_SEGMENT_SET_MAGIC;
 	iosegset_tlist_init(&aggr_set.iss_list);
 
-	/* Traverses the fop_list, get the IO vector from each fop,
-	   pass it to a coalescing routine and get result back
-	   in another list. */
+	/*
+	 * Traverses the fop_list, get the IO vector from each fop,
+	 * pass it to a coalescing routine and get result back
+	 * in another list.
+	 */
 	c2_tlist_for(&rpcitem_tl, items_list, item) {
 		fop = c2_rpc_item_to_fop(item);
 		rbulk = c2_fop_to_rpcbulk(fop);
@@ -1153,20 +1182,26 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 		c2_mutex_unlock(&rbulk->rb_mutex);
 	} c2_tlist_endfor;
 
-	/* Removes c2_rpc_bulk_buf from the c2_rpc_bulk::rb_buflist and
-	   add it to same list belonging to bkp_fop. */
+	/*
+	 * Removes c2_rpc_bulk_buf from the c2_rpc_bulk::rb_buflist and
+	 * add it to same list belonging to bkp_fop.
+	 */
 	io_fop_bulkbuf_move(res_fop, bkp_fop);
 
-	/* Prepares net buffers from set of io segments, allocates memory
-	   for net buf desriptors and index vectors and populates the index
-	   vectors. */
+	/*
+	 * Prepares net buffers from set of io segments, allocates memory
+	 * for net buf desriptors and index vectors and populates the index
+	 * vectors
+	 */
 	rc = io_fop_desc_ivec_prepare(res_fop, &aggr_set);
 	if (rc != 0)
 		goto cleanup;
 
-	/* Adds the net buffers from res_fop to transfer machine and
-	   populates res_fop with net buf descriptor/s got from network
-	   buffer addition. */
+	/*
+	 * Adds the net buffers from res_fop to transfer machine and
+	 * populates res_fop with net buf descriptor/s got from network
+	 * buffer addition.
+	 */
 	rw = io_rw_get(res_fop);
 	rbulk = c2_fop_to_rpcbulk(res_fop);
 	rc = c2_rpc_bulk_store(rbulk, res_fop->f_item.ri_session->s_conn,
@@ -1180,8 +1215,10 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 		goto cleanup;
 	}
 
-	/* Checks if current size of res_fop fits into the size
-	   provided as input. */
+	/*
+	 * Checks if current size of res_fop fits into the size
+	 * provided as input.
+	 */
 	if (res_fop->f_type->ft_ops->fto_size_get &&
 	    res_fop->f_type->ft_ops->fto_size_get(res_fop) > size) {
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
@@ -1197,9 +1234,11 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 		goto cleanup;
 	}
 
-	/* Removes the net buffers belonging to coalesced member fops
-	   from transfer machine since these buffers are coalesced now
-	   and are part of res_fop. */
+	/*
+	 * Removes the net buffers belonging to coalesced member fops
+	 * from transfer machine since these buffers are coalesced now
+	 * and are part of res_fop.
+	 */
 	c2_tlist_for(&rpcitem_tl, items_list, item) {
 		fop = c2_rpc_item_to_fop(item);
 		if (fop == res_fop)
@@ -1212,9 +1251,11 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 		c2_mutex_unlock(&rbulk->rb_mutex);
 	} c2_tlist_endfor;
 
-	/* Removes the net buffers from transfer machine contained by rpc bulk
-	   structure belonging to res_fop since they will be replaced by
-	   new coalesced net buffers. */
+	/*
+	 * Removes the net buffers from transfer machine contained by rpc bulk
+	 * structure belonging to res_fop since they will be replaced by
+	 * new coalesced net buffers.
+	 */
 	bbulk = c2_fop_to_rpcbulk(bkp_fop);
 	rbulk = c2_fop_to_rpcbulk(res_fop);
 	c2_mutex_lock(&bbulk->rb_mutex);
@@ -1332,9 +1373,11 @@ static void io_item_replied(struct c2_rpc_item *item)
 			    item->ri_error);
 	}
 
-	/* Restores the contents of master coalesced fop from the first
-	   rpc item in c2_rpc_item::ri_compound_items list. This item
-	   is inserted by io coalescing code. */
+	/*
+	 * Restores the contents of master coalesced fop from the first
+	 * rpc item in c2_rpc_item::ri_compound_items list. This item
+	 * is inserted by io coalescing code.
+	 */
 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
 		io_fop_destroy(fop);
 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
@@ -1344,11 +1387,13 @@ static void io_item_replied(struct c2_rpc_item *item)
 			fop->f_type->ft_ops->fto_fop_replied(fop, bkpfop);
 	}
 
-	/* The rpc_item->ri_chan is signaled by sessions code
-	   (rpc_item_replied()) which is why only member coalesced items
-	   (items which were member of a parent coalesced item) are
-	   signaled from here as they are not sent on wire but hang off
-	   a list from parent coalesced item. */
+	/*
+	 * The rpc_item->ri_chan is signaled by sessions code
+	 * (rpc_item_replied()) which is why only member coalesced items
+	 * (items which were member of a parent coalesced item) are
+	 * signaled from here as they are not sent on wire but hang off
+	 * a list from parent coalesced item.
+	 */
 	c2_tlist_for(&rpcitem_tl, &item->ri_compound_items, ritem) {
 		rpcitem_tlist_del(ritem);
 		fop = c2_rpc_item_to_fop(ritem);
@@ -1384,22 +1429,26 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	if (c2_list_is_empty(list))
 		return;
 
-	/* Traverses through the list and finds out items that match with
-	   head on basis of fid and intent (read/write). Matching items
-	   are removed from session->s_unbound_items list and added to
-	   head->compound_items list. */
+	/*
+	 * Traverses through the list and finds out items that match with
+	 * head on basis of fid and intent (read/write). Matching items
+	 * are removed from session->s_unbound_items list and added to
+	 * head->compound_items list.
+	 */
 	bfop = c2_rpc_item_to_fop(head);
 	c2_list_for_each_entry_safe(list, item, item_next, struct c2_rpc_item,
 				    ri_unbound_link) {
 		ufop = c2_rpc_item_to_fop(item);
 		if (io_fop_type_equal(bfop, ufop) &&
 		    io_fop_fid_equal(bfop, ufop)) {
-			/* The item is removed from session->unbound list
-			   only when io coalescing succeeds because
-			   this routine is called from a loop over
-			   session->unbound items and any tinkering will
-			   mess up the order of processing of items in
-			   session->unbound items list. */
+			/*
+			 * The item is removed from session->unbound list
+			 * only when io coalescing succeeds because
+			 * this routine is called from a loop over
+			 * session->unbound items and any tinkering will
+			 * mess up the order of processing of items in
+			 * session->unbound items list.
+			 */
 			rpcitem_tlist_add(&head->ri_compound_items, item);
 		}
 	}
@@ -1407,8 +1456,10 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	if (rpcitem_tlist_is_empty(&head->ri_compound_items))
 		return;
 
-	/* Add the bound item to list of compound items as this will
-	   include the bound item's io vector in io coalescing. */
+	/*
+	 * Add the bound item to list of compound items as this will
+	 * include the bound item's io vector in io coalescing
+	 */
 	rpcitem_tlist_add(&head->ri_compound_items, head);
 
 	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop, size);
@@ -1420,8 +1471,10 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			rpcitem_tlist_del(item);
 		} c2_tlist_endfor;
 	} else {
-		/* Item at head is the backup item which is not present
-		   in sessions unbound list. */
+		/*
+		 * Item at head is the backup item which is not present
+		 * in sessions unbound list.
+		 */
 		item_next = rpcitem_tlist_head(&head->ri_compound_items);
 		rpcitem_tlist_del(head);
 		c2_tlist_for (&rpcitem_tl, &head->ri_compound_items, item) {
@@ -1434,8 +1487,10 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	}
 }
 
-/* From bulk client side, IO REQUEST fops are typically bundled in
-   struct c2_io_fop. So c2_io_fop is deallocated from here. */
+/*
+ * From bulk client side, IO REQUEST fops are typically bundled in
+ * struct c2_io_fop. So c2_io_fop is deallocated from here.
+ */
 static void io_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop		*fop;
