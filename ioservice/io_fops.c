@@ -852,9 +852,9 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 
 		nr = 0;
 		c2_tlist_for(&iosegset_tl, &seg_set->iss_list, ioseg) {
-			rc = c2_rpc_bulk_buf_usrbuf_add(buf, ioseg->is_buf,
-							ioseg->is_size,
-							ioseg->is_index);
+			rc = c2_rpc_bulk_buf_databuf_add(buf, ioseg->is_buf,
+							 ioseg->is_size,
+							 ioseg->is_index);
 
 			/*
 			 * Since size and fragment calculations are made before

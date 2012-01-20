@@ -910,20 +910,8 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 			struct c2_rpc_bulk_buf **out);
 
 /**
-   Adds a buffer/page to the zero vector referred by rpc bulk structure.
-   @param rbulk rpc bulk structure to which a page/buffer will be added.
-   @param pg Buffer referring to user data.
-   @param index Index of target object to which io is targeted.
-   @pre rbulk != NULL && pg != NULL.
-   @post rpc_bulk_invariant(rbulk).
- */
-int c2_rpc_bulk_buf_page_add(struct c2_rpc_bulk_buf *rbuf,
-			     struct page *pg,
-			     c2_bindex_t index);
-
-/**
-   Adds a user space buffer to zero vector referred to by rpc bulk structure.
-   @param rbulk rpc bulk structure to which user space buffer will be added.
+   Adds a data buffer to zero vector referred to by rpc bulk structure.
+   @param rbulk rpc bulk structure to which data buffer will be added.
    @param buf User space buffer starting address.
    @param count Number of bytes in user space buffer.
    @param index Index of target object to which io is targeted.
@@ -931,10 +919,10 @@ int c2_rpc_bulk_buf_page_add(struct c2_rpc_bulk_buf *rbuf,
    rpc_bulk_invariant(rbulk).
    @post rpc_bulk_invariant(rbulk).
  */
-int c2_rpc_bulk_buf_usrbuf_add(struct c2_rpc_bulk_buf *rbuf,
-			       void *buf,
-			       c2_bcount_t count,
-			       c2_bindex_t index);
+int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
+			        void *buf,
+			        c2_bcount_t count,
+			        c2_bindex_t index);
 
 /**
    An abstract data structure that avails bulk transport for io operations.

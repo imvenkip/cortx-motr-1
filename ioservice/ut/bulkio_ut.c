@@ -406,7 +406,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < IO_SEGS_NR; ++i) {
-		rc = c2_rpc_bulk_buf_usrbuf_add(rbuf,
+		rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 				io_buf[index].nb_buffer.ov_buf[i],
 				io_buf[index].nb_buffer.ov_vec.v_count[i],
 				io_offsets[off_index]);

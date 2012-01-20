@@ -1057,8 +1057,10 @@ static void rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
 static int rpc_bulk_buf_init(struct c2_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 			     struct c2_net_buffer *nb)
 {
-	int	     rc;
-	c2_bindex_t *ivec;
+	int		rc;
+	uint32_t	i;
+	struct c2_buf	cbuf;
+	c2_bindex_t	index = 0;
 
 	C2_PRE(rbuf != NULL);
 	C2_PRE(segs_nr > 0);
@@ -1083,13 +1085,15 @@ static int rpc_bulk_buf_init(struct c2_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 		 * request could refer to smaller size. Hence initialize
 		 * the zero vector to get correct size of bulk transfer.
 		 */
-		C2_ALLOC_ARR(ivec, segs_nr);
-		if (ivec == NULL) {
-			c2_0vec_fini(&rbuf->bb_zerovec);
-			return -ENOMEM;
+		for (i = 0; i < segs_nr; ++i) {
+			cbuf.b_addr = nb->nb_buffer.ov_buf[i];
+			cbuf.b_nob = nb->nb_buffer.ov_vec.v_count[i];
+			rc = c2_0vec_cbuf_add(&rbuf->bb_zerovec, &cbuf, &index);
+			if (rc != 0) {
+				c2_0vec_fini(&rbuf->bb_zerovec);
+				return rc;
+			}
 		}
-		c2_0vec_bvec_init(&rbuf->bb_zerovec, &nb->nb_buffer, ivec);
-		c2_free(ivec);
 	}
 
 	rpcbulk_tlink_init(rbuf);
@@ -1225,35 +1229,10 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	return 0;
 }
 
-#ifdef __KERNEL__
-int c2_rpc_bulk_buf_page_add(struct c2_rpc_bulk_buf *rbuf,
-			     struct page *pg,
-			     c2_bindex_t index)
-{
-	int rc;
-	struct c2_rpc_bulk *rbulk;
-
-	C2_PRE(rbuf != NULL);
-	C2_PRE(rpc_bulk_buf_invariant(rbuf));
-	C2_PRE(pg != NULL);
-
-	rbulk = rbuf->bb_rbulk;
-	rc = c2_0vec_page_add(&rbuf->bb_zerovec, pg, index);
-
-	if (rc != 0)
-		return rc;
-
-	rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
-	C2_POST(rpc_bulk_buf_invariant(rbuf));
-	C2_POST(rpc_bulk_invariant(rbulk));
-	return rc;
-}
-#endif
-
-int c2_rpc_bulk_buf_usrbuf_add(struct c2_rpc_bulk_buf *rbuf,
-			       void *buf,
-			       c2_bcount_t count,
-			       c2_bindex_t index)
+int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
+			        void *buf,
+			        c2_bcount_t count,
+			        c2_bindex_t index)
 {
 	int			 rc;
 	struct c2_buf		 cbuf;
