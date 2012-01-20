@@ -835,19 +835,6 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	C2_ASSERT((buf_size & (PAGE_CACHE_SIZE - 1)) == 0);
 	nr_pages_per_buf = buf_size >> PAGE_CACHE_SHIFT;
 
-	/*
-	 * Hmmm... kernel mode implementation of c2_rpc_bulk_buf treats each
-	 * page as a separate segment. See c2_rpc_bulk_buf_page_add(). It uses
-	 * one entry from rbuf->bb_zerovec for each page_add operation.
-	 * XXX The c2_rpc_bulk_buf apis should deal with only addresses. And
-	 *     uniformaly in both user and kernel spaces, shouldn't it?
-	 *     This will allow same implementation of
-	 *     c2_rpc_bulk_buf_usrbuf_add() to be applicable in both user and
-	 *     kernel space. (Of course, the function name need to be changed).
-	 *     c2_rpc_bulk_buf_page_add() internally takes address of the page
-	 *     and stores it in bb_zerovec exactly the same way as it
-	 *     does for user-space.
-	 */
 	nr_segments = bufs_tlist_length(&rw_desc->rd_buf_list) *
 				nr_pages_per_buf;
 	C2_ASSERT(nr_segments > 0);
