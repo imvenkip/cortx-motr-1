@@ -99,15 +99,16 @@ DEF(c2_fop_cob_readv_rep, RECORD,
 	_(c_rep, c2_fop_cob_rw_reply));
 
 /**
- * Represents the extent information for an io segment.
+ * Represents the extent information for an io segment. c2_ioseg typically
+ * represents a user space data buffer or a kernel page.
  */
 DEF(c2_ioseg, RECORD,
 	_(ci_index, U64),
 	_(ci_count, U64));
 
 /**
- * Represents the index vector along with extent information for given IO
- * request.
+ * Represents an index vector with {index, count}  tuples for a target
+ * device (typically a cob).
  */
 DEF(c2_io_indexvec, SEQUENCE,
 	_(ci_nr, U32),

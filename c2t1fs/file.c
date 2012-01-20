@@ -883,8 +883,10 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			page = addr_to_page(addr);
 			C2_ASSERT(page != NULL);
 
-			rc = c2_rpc_bulk_buf_page_add(rbuf, page,
-						      offset_in_stob);
+			rc = c2_rpc_bulk_buf_databuf_add(rbuf,
+						page_address(page),
+						PAGE_CACHE_SIZE,
+						offset_in_stob);
 			if (rc != 0)
 				goto iofop_fini;
 
