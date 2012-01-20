@@ -1227,7 +1227,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(nlx_tm_invariant(tm));
-	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(lctm != NULL);
 	C2_PRE(cepa == &lctm->ctm_addr);
 	C2_PRE(epp != NULL);
 
