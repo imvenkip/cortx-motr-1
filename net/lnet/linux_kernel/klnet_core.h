@@ -59,7 +59,7 @@ struct nlx_kcore_transfer_mc {
 	/** Transfer machine linkage */
 	struct c2_tlink                  ktm_tm_linkage;
 
-	/** Match bit counter. Range [1,C2_NET_LNET_MATCH_BIT_MAX]. */
+	/** Match bit counter. Range [1,C2_NET_LNET_BUFFER_ID_MAX]. */
 	uint64_t                         ktm_mb_counter;
 
 	/**

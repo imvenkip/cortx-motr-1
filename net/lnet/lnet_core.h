@@ -343,9 +343,9 @@ struct nlx_core_transfer_mc {
 	struct nlx_core_bev_cqueue ctm_bevq;
 
 	/**
-	   Count of bevq entries needed. Incremented by each add()
-	   operation (not necessarily by 1), and decremented with each
-	   buffer event returned by nlx_core_buf_event_get().
+	   Count of bevq entries needed. Incremented by each nlx_xo_buf_add()
+	   operation (not necessarily by 1), and decremented when the
+	   buffer is unlinked by LNet, in nlx_xo_bev_deliver_all().
 	 */
 	size_t                     ctm_bev_needed;
 
@@ -734,7 +734,7 @@ static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
    buffer event queue if needed.
    It increments the struct nlx_core_transfer_mc::ctm_bev_needed counter
    by the number of LNet events that can be delivered, as indicated by the
-   @c need paramter.
+   @c need parameter.
 
    The subroutine is to be used in the consumer address space only, and uses
    a kernel or user space specific allocator subroutine to obtain an
@@ -751,7 +751,8 @@ static int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm,
 
 /**
    Subroutine to reduce the needed capacity of the buffer event queue.
-   Note: Entries are never actually released from the circular queue.
+   Note: Entries are never actually released from the circular queue until
+   termination.
 
    The subroutine is to be used in the consumer address space only.
    The invoker must lock the transfer machine prior to this call.
