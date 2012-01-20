@@ -45,12 +45,6 @@ struct nlx_core_ep_addr *nlx_ep_to_core(struct c2_net_end_point *ep)
 	return &xep->xe_core;
 }
 
-static inline struct nlx_xo_transfer_mc *
-nlx_core_tm_to_xo_tm(struct nlx_core_transfer_mc *ctm)
-{
-	return container_of(ctm, struct nlx_xo_transfer_mc, xtm_core);
-}
-
 static int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 				      struct nlx_core_buffer_event *lcbev,
 				      struct c2_net_buffer_event *nbev);

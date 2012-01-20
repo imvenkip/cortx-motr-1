@@ -64,10 +64,11 @@ static inline void nlx_kcore_match_bits_decode(uint64_t mb,
  */
 static uint64_t nlx_kcore_hdr_data_encode(struct nlx_core_transfer_mc *lctm)
 {
-	struct nlx_core_ep_addr *cepa = &lctm->ctm_addr;
+	struct nlx_core_ep_addr *cepa;
 	uint64_t hdr_data;
 
 	C2_PRE(nlx_core_tm_invariant(lctm));
+	cepa = &lctm->ctm_addr;
 	hdr_data = ((uint64_t) cepa->cepa_tmid << C2_NET_LNET_TMID_SHIFT) |
 		(cepa->cepa_portal & C2_NET_LNET_PORTAL_MASK);
 	return hdr_data;
@@ -130,7 +131,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->options |= LNET_MD_KIOV;
 	umd->length = lcbuf->cb_length;
 	umd->threshold = threshold;
-	if (max_size) {
+	if (max_size != 0) {
 		umd->max_size = max_size;
 		umd->options |= LNET_MD_MAX_SIZE;
 	}
@@ -173,7 +174,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	id.nid = lctm->ctm_addr.cepa_nid;
 	id.pid = lctm->ctm_addr.cepa_pid;
 	rc = LNetMEAttach(lctm->ctm_addr.cepa_portal, id,
-			  (__u64)lcbuf->cb_match_bits, 0,
+			  lcbuf->cb_match_bits, 0,
 			  LNET_UNLINK, LNET_INS_AFTER, &meh);
 	if (rc != 0)
 		return rc;
@@ -182,8 +183,10 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc == 0)
 		kcb->kb_ktm = kctm;
-	else
-		(void)LNetMEUnlink(meh);
+	else {
+		int trc = LNetMEUnlink(meh);
+		C2_ASSERT(trc == 0);
+	}
 
 	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
 	C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
