@@ -673,9 +673,11 @@ struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 
 	if (c2_is_read_fop_rep(fop)) {
 		rfop = c2_fop_data(fop);
+		/* @todo to be removed after integrating with new c2t1fs */
 		rfop->c_iobuf.ib_count = 1;
 		C2_ALLOC_ARR(rfop->c_iobuf.ib_buf,
 			rfop->c_iobuf.ib_count);
+		
 		return &rfop->c_rep;
 	} else {
 		wfop = c2_fop_data(fop);
@@ -1445,10 +1447,6 @@ static void io_item_free(struct c2_rpc_item *item)
 	rw = io_rw_get(fop);
 
 	io_fop_destroy(&iofop->if_fop);
-	/* Temporary!! Should be removed after integration with bulk server. */
-	c2_free(rw->crw_iovec.iv_segs[0].is_buf.ib_buf);
-	c2_free(rw->crw_iovec.iv_segs);
-
 	c2_io_fop_fini(iofop);
 	c2_free(iofop);
 }

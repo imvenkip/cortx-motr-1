@@ -142,7 +142,7 @@ C2_EXPORTED(c2_bufvec_alloc);
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 			    uint32_t          num_segs,
 			    c2_bcount_t       seg_size,
-			    unsigned shift)
+			    unsigned	      shift)
 {
 	uint32_t i;
 

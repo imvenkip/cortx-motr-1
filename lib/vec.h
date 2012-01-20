@@ -168,10 +168,13 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    uint32_t          num_segs,
 		    c2_bcount_t       seg_size);
 
+/**
+   Allocates aligned memory as specified by shift value for a struct c2_bufvec.
+ */
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
-		    uint32_t          num_segs,
-		    c2_bcount_t       seg_size,
-		    unsigned shift);
+		    	    uint32_t          num_segs,
+		    	    c2_bcount_t       seg_size,
+		    	    unsigned	      shift);
 
 /**
    Frees the buffers pointed to by c2_bufvec.ov_buf and
