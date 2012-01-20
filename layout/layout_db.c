@@ -557,6 +557,11 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
    Adds a new layout record entry into the layouts table.
    If applicable, adds layout type and enum type specific entries into the
    relevant tables.
+
+   @param pair A c2_db_pair allocated by the caller and set using
+   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+   size of the buffer.
 */
 int c2_ldb_add(struct c2_ldb_schema *schema,
 	       struct c2_layout *l,
@@ -588,6 +593,11 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 /**
    Updates a layout record and its related information from the
    relevant tables.
+
+   @param pair A c2_db_pair allocated by the caller and set using
+   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+   size of the buffer.
 */
 int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
@@ -619,6 +629,11 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 /**
    Deletes a layout record with given layout id and its related information from
    the relevant tables.
+
+   @param pair A c2_db_pair allocated by the caller and set using
+   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+   size of the buffer.
 */
 int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
@@ -654,14 +669,17 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 		     uint32_t recsize,
 		     struct c2_db_tx *tx)
 {
+	void *lid_addr = &pair->dp_key.db_buf.b_addr;
 	void *rec_addr = &pair->dp_rec.db_buf.b_addr;
+
+	C2_PRE(*(uint64_t *)lid_addr == lid);
 
 	/* The c2_db_pair was set earlier by the client. But the recsize could
 	 * have been set to more than what is required. Hence, need to reset it
 	 * now that we know the exact recsize.
 	 */
 	c2_db_pair_setup(pair, &schema->ls_layouts,
-			 &lid, sizeof(uint64_t),
+			 lid_addr, sizeof(uint64_t),
 			 rec_addr, recsize);
 
 	if (op == C2_LXO_DB_ADD) {
