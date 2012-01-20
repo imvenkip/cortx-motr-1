@@ -31,6 +31,7 @@
 #include "net/net.h"
 #include "fid/fid.h"
 #include "reqh/reqh.h"
+#include "stob/linux.h"
 
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"

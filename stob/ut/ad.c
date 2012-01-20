@@ -179,7 +179,6 @@ static int test_ad_init(void)
 	C2_ASSERT(result == 0);
 
 	result = c2_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom);
-	//result = c2_ad_stob_setup(dom_fore, &db, obj_back, &colibri_balloc.cb_ballroom);
 	C2_ASSERT(result == 0);
 
 	c2_stob_put(obj_back);
