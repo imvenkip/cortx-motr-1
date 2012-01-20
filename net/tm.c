@@ -36,6 +36,10 @@ C2_TL_DEFINE(tm, , struct c2_net_buffer);
 C2_EXPORTED(tm_tl);
 C2_EXPORTED(tm_tlist_is_empty);
 
+const struct c2_addb_ctx_type c2_net_tm_addb_ctx = {
+	.act_name = "net-tm"
+};
+
 bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
 {
 	return ts >= C2_NET_TM_UNDEFINED && ts <= C2_NET_TM_FAILED;
@@ -158,6 +162,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	C2_SET_ARR0(tm->ntm_qstats);
 	tm->ntm_xprt_private = NULL;
 	tm->ntm_bev_auto_deliver = true;
+	c2_addb_ctx_init(&tm->ntm_addb, &c2_net_tm_addb_ctx, &dom->nd_addb);
 
 	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);
 	if (result >= 0) {
@@ -219,6 +224,7 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	tm->ntm_state = C2_NET_TM_UNDEFINED;
 	c2_net__tm_cleanup(tm);
 	c2_list_link_fini(&tm->ntm_dom_linkage);
+	c2_addb_ctx_fini(&tm->ntm_addb);
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;

@@ -16,7 +16,7 @@
  *
  * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
  *                  Nikita Danilov <Nikita_Danilov@xyratex.com>,
- *                  Carl Braganza <Carl_Braganza@us.xyratex.com>
+ *                  Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 04/01/2010
  */
 
@@ -470,9 +470,7 @@ struct c2_net_domain {
         /** <b>Deprecated.</b> Domain network stats */
         struct c2_net_stats nd_stats[NS_STATS_NR];
 
-	/**
-	   ADDB context for events related to this domain
-	 */
+	/** ADDB context for events related to this domain */
 	struct c2_addb_ctx  nd_addb;
 
         /** Linkage for invoking application */
@@ -918,6 +916,9 @@ struct c2_net_transfer_mc {
 
 	/** Statistics maintained per logical queue */
 	struct c2_net_qstats        ntm_qstats[C2_NET_QT_NR];
+
+	/** ADDB context for events related to this transfer machine */
+	struct c2_addb_ctx          ntm_addb;
 
 	/** Domain linkage */
 	struct c2_list_link         ntm_dom_linkage;
@@ -1380,6 +1381,9 @@ struct c2_net_buffer {
 	   The value may not be 0 for buffers in the C2_NET_QT_MSG_RECV queue.
 	 */
 	uint32_t                   nb_max_receive_msgs;
+
+	/** ADDB context for events related to this buffer */
+	struct c2_addb_ctx         nb_addb;
 };
 
 /**
