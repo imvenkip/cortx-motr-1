@@ -33,12 +33,12 @@
 #include "db/db.h"
 #include "balloc/balloc.h"
 
-extern	struct c2_balloc	colibri_balloc;
+extern	struct c2_balloc	 colibri_balloc;
 const char			*db_name = "./__s";;
-const int			MAX = 100;
-c2_bcount_t			prev_free_blocks;
-c2_bcount_t			prev_totalsize;
-struct c2_balloc_group_info*	prev_group_info;
+const int			 MAX	 = 100;
+c2_bcount_t			 prev_free_blocks;
+c2_bcount_t			 prev_totalsize;
+struct c2_balloc_group_info*	 prev_group_info;
 
 enum balloc_invariant_enum {
 	INVAR_ALLOC,
@@ -48,17 +48,16 @@ enum balloc_invariant_enum {
 static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 				int		balloc_invariant_flag)
 {
-	c2_bcount_t		len   = c2_ext_length(&alloc_ext),
-				group;
+	c2_bcount_t	len = c2_ext_length(&alloc_ext), group;
 
 	group = alloc_ext.e_start >> colibri_balloc.cb_sb.bsb_gsbits;
 
 	switch(balloc_invariant_flag) {
 	    case INVAR_ALLOC:
-		 prev_free_blocks -= len;
-		 prev_totalsize -= len;
+		 prev_free_blocks		       -= len;
+		 prev_totalsize			       -= len;
 		 prev_group_info[group].bgi_freeblocks -= len;
-		 prev_totalsize -= len;
+		 prev_totalsize			       -= len;
 
 		 // Check free blocks in super block
 		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
@@ -68,15 +67,12 @@ static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
 		    prev_group_info[group].bgi_freeblocks)
 			 return false;
-
-		 // Check for overlapping extents
-
 		 break;
 	    case INVAR_FREE:
-		 prev_free_blocks += len;
-		 prev_totalsize += len;
+		 prev_free_blocks		       += len;
+		 prev_totalsize			       += len;
 		 prev_group_info[group].bgi_freeblocks += len;
-		 prev_totalsize += len;
+		 prev_totalsize			       += len;
 
 		 // Check free blocks in super block
 		 if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks)
@@ -86,9 +82,6 @@ static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 		 if(colibri_balloc.cb_group_info[group].bgi_freeblocks !=
 		    prev_group_info[group].bgi_freeblocks)
 			 return false;
-
-		 // Check for overlapping extents
-
 		 break;
 	}
 	return true;
@@ -96,14 +89,14 @@ static bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 
 int test_balloc_ut_ops()
 {
-	struct c2_dbenv		db;
-	struct c2_dtx		dtx;
-	int			result;
-	struct c2_ext		ext[MAX];
-	struct c2_ext		tmp = { 0 };
-	c2_bcount_t		count = 539;
-	int			i = 0;
-	time_t			now;
+	struct c2_dbenv	db;
+	struct c2_dtx	dtx;
+	int		result;
+	struct c2_ext	ext[MAX];
+	struct c2_ext	tmp   = { 0 };
+	c2_bcount_t	count = 539;
+	int		i     = 0;
+	time_t		now;
 
 	time(&now);
 	srand(now);
@@ -118,9 +111,9 @@ int test_balloc_ut_ops()
 
 	if(result == 0) {
 
-		prev_totalsize = colibri_balloc.cb_sb.bsb_totalsize;
+		prev_totalsize	 = colibri_balloc.cb_sb.bsb_totalsize;
 		prev_free_blocks = colibri_balloc.cb_sb.bsb_freeblocks;
-		prev_group_info = colibri_balloc.cb_group_info;
+		prev_group_info	 = colibri_balloc.cb_group_info;
 
 		for (i = 0; i < MAX; i++ ) {
 			do  {
@@ -149,7 +142,7 @@ int test_balloc_ut_ops()
 				result = -EINVAL;
 			}
 
-			C2_UT_ASSERT(balloc_ut_invariant(tmp, INVAR_ALLOC));
+			C2_UT_ASSERT(balloc_ut_invariant(ext[i], INVAR_ALLOC));
 #ifdef BALLOC_DEBUG
 			printf("%3d:rc = %d: requested count=%5d, result"
 			       " count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
@@ -289,9 +282,9 @@ void test_balloc()
 }
 
 const struct c2_test_suite balloc_ut = {
-        .ts_name = "balloc-ut",
-        .ts_init = NULL,
-        .ts_fini = NULL,
+        .ts_name  = "balloc-ut",
+        .ts_init  = NULL,
+        .ts_fini  = NULL,
         .ts_tests = {
                 { "balloc", test_balloc},
 		{ NULL, NULL }
