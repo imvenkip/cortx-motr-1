@@ -48,10 +48,10 @@ C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
  * These values are supposed to get from configuration cache. Since
  * configuration cache module not available these values defines as constants
  */
-static const int network_buffer_pool_segment_size=4096;
-static const int network_buffer_pool_segment_nr=16;
-static const int network_buffer_pool_threshold=8;
-static const int network_buffer_pool_initial_size=32;
+static const int network_buffer_pool_segment_size = 4096;
+static const int network_buffer_pool_segment_nr = 128;
+static const int network_buffer_pool_threshold = 8;
+static const int network_buffer_pool_initial_size = 32;
 
 static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
                                      struct c2_reqh_service **service);

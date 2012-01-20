@@ -53,7 +53,7 @@
 enum IO_UT_VALUES {
 	IO_KERN_PAGES		= 1,
 	IO_FIDS_NR		= 4,
-	IO_SEGS_NR		= 16,
+	IO_SEGS_NR		= 128,
 	IO_SEQ_LEN		= 8,
 	IO_FOPS_NR		= 32,
 	IO_SEG_SIZE		= 4096,
