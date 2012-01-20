@@ -1191,7 +1191,6 @@ void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 
 int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 			uint32_t segs_nr,
-			c2_bcount_t seg_size,
 			struct c2_net_domain *netdom,
 			struct c2_net_buffer *nb,
 			struct c2_rpc_bulk_buf **out)
@@ -1204,9 +1203,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	C2_PRE(netdom != NULL);
 	C2_PRE(out != NULL);
 
-	if (seg_size > c2_net_domain_get_max_buffer_segment_size(netdom) ||
-	    segs_nr > c2_net_domain_get_max_buffer_segments(netdom) ||
-	    segs_nr * seg_size > c2_net_domain_get_max_buffer_size(netdom))
+	if (segs_nr > c2_net_domain_get_max_buffer_segments(netdom))
 		return -EMSGSIZE;
 
 	C2_ALLOC_PTR(buf);
@@ -1232,7 +1229,8 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 			        void *buf,
 			        c2_bcount_t count,
-			        c2_bindex_t index)
+			        c2_bindex_t index,
+				struct c2_net_domain *netdom)
 {
 	int			 rc;
 	struct c2_buf		 cbuf;
@@ -1242,6 +1240,12 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 	C2_PRE(rpc_bulk_buf_invariant(rbuf));
 	C2_PRE(buf != NULL);
 	C2_PRE(count != 0);
+	C2_PRE(netdom != NULL);
+
+	if (c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec) + count >
+	    c2_net_domain_get_max_buffer_size(netdom) ||
+	    count > c2_net_domain_get_max_buffer_segment_size(netdom))
+		return -EMSGSIZE;
 
 	cbuf.b_addr = buf;
 	cbuf.b_nob = count;

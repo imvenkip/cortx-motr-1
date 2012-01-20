@@ -886,7 +886,6 @@ struct c2_rpc_bulk_buf {
    c2_rpc_bulk structure.
    @param segs_nr Number of segments needed in new c2_rpc_bulk_buf
    structure.
-   @param seg_size Size of each segment in new c2_rpc_bulk_buf structure.
    @param netdom The c2_net_domain structure to which new c2_rpc_bulk_buf
    structure will belong to. It is primarily used to keep a check on
    thresholds like max_seg_size, max_buf_size and max_number_of_segs.
@@ -904,7 +903,6 @@ struct c2_rpc_bulk_buf {
  */
 int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 			uint32_t segs_nr,
-			c2_bcount_t seg_size,
 			struct c2_net_domain *netdom,
 			struct c2_net_buffer *nb,
 			struct c2_rpc_bulk_buf **out);
@@ -915,14 +913,17 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
    @param buf User space buffer starting address.
    @param count Number of bytes in user space buffer.
    @param index Index of target object to which io is targeted.
-   @pre rbulk != NULL && buf != NULL && count != 0 &&
+   @param netdom Net domain to which the net buffer from c2_rpc_bulk_buf
+   belongs.
+   @pre buf != NULL && count != 0 && netdom != NULL &&
    rpc_bulk_invariant(rbulk).
    @post rpc_bulk_invariant(rbulk).
  */
 int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 			        void *buf,
 			        c2_bcount_t count,
-			        c2_bindex_t index);
+			        c2_bindex_t index,
+				struct c2_net_domain *netdom);
 
 /**
    An abstract data structure that avails bulk transport for io operations.

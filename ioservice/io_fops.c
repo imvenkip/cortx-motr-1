@@ -844,9 +844,7 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 				break;
 		} c2_tlist_endfor;
 
-		rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size,
-					 netdom, NULL, &buf);
-
+		rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, netdom, NULL, &buf);
 		if (rc != 0)
 			goto cleanup;
 
@@ -854,7 +852,8 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 		c2_tlist_for(&iosegset_tl, &seg_set->iss_list, ioseg) {
 			rc = c2_rpc_bulk_buf_databuf_add(buf, ioseg->is_buf,
 							 ioseg->is_size,
-							 ioseg->is_index);
+							 ioseg->is_index,
+							 netdom);
 
 			/*
 			 * Since size and fragment calculations are made before
