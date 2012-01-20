@@ -417,8 +417,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		rrep = c2_fop_data(fop);
 		rrep->c_rep.rwr_rc = rbulk->rb_rc;
 		rrep->c_rep.rwr_count = tc;
-		rrep->c_iobuf.ib_count = IO_SEQ_LEN;
-		C2_ALLOC_ARR(rrep->c_iobuf.ib_buf, rrep->c_iobuf.ib_count);
 	}
 	C2_UT_ASSERT(fop != NULL);
 
