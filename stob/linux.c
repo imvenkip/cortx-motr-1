@@ -147,6 +147,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 	struct c2_stob_domain *dom;
 	int                    result;
 
+	C2_ASSERT(domain_name != NULL);
 	C2_ASSERT(strlen(domain_name) < ARRAY_SIZE(ldom->sdl_path));
 
 	C2_ALLOC_PTR(ldom);
@@ -162,6 +163,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 		else
 			linux_domain_fini(dom);
 		ldom->use_directio = false;
+		dom->sd_name = ldom->sdl_path;
 	} else {
 		C2_ADDB_ADD(&type->st_addb,
 			    &c2_linux_stob_addb_loc, c2_addb_oom);
@@ -295,6 +297,8 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
    Implementation of c2_stob_op::sop_fini().
 
    Closes the object's file descriptor.
+
+   @see c2_linux_stob_link()
  */
 static void linux_stob_fini(struct c2_stob *stob)
 {
@@ -321,6 +325,7 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
 	char                 pathname[64];
 	int                  result;
+	struct stat          statbuf;
 
 	C2_ASSERT(linux_stob_invariant(lstob));
 	C2_ASSERT(lstob->sl_fd == -1);
@@ -330,6 +335,13 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
 		lstob->sl_fd = open(pathname, oflag, 0700);
 		if (lstob->sl_fd == -1)
 			result = -errno;
+		else {
+			result = fstat(lstob->sl_fd, &statbuf);
+			if (result == 0)
+				lstob->sl_mode = statbuf.st_mode;
+			else
+				result = -errno;
+		}
 	}
 	return result;
 }
@@ -398,6 +410,41 @@ const struct c2_addb_ctx_type adieu_addb_ctx_type = {
 };
 
 struct c2_addb_ctx adieu_addb_ctx;
+
+/**
+   This function is called to link a path of an existing file to a stob id,
+   for a given Linux stob. This path will be typically a block device path.
+
+   @pre obj != NULL
+   @pre path != NULL
+
+   @param dom -> storage domain
+   @param obj -> stob object embedded inside Linux stob object
+   @param path -> Path to other file (typically block device)
+   @param tx -> transaction context
+
+   @see c2_linux_stob_open()
+ */
+int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
+		       const char *path, struct c2_dtx *tx)
+{
+	int                result;
+	char               symlinkname[64];
+	struct linux_stob *lstob;
+
+	C2_PRE(obj != NULL);
+	C2_PRE(path != NULL);
+
+	lstob = stob2linux(obj);
+
+	result = linux_stob_path(lstob, ARRAY_SIZE(symlinkname), symlinkname);
+	if (result == 0) {
+		result = symlink(path, symlinkname) < 0  ? -errno : 0;
+	}
+
+	return result;
+}
+C2_EXPORTED(c2_linux_stob_link);
 
 int c2_linux_stobs_init(void)
 {
