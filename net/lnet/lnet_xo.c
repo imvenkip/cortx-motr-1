@@ -202,14 +202,26 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	struct nlx_core_transfer_mc *ctp;
 	struct nlx_core_buffer *cbp;
 	c2_bcount_t bufsize;
+	size_t need;
 	int rc;
 
 	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
+	C2_PRE(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
 	C2_PRE(nb->nb_offset == 0); /* do not support an offset during add */
 	C2_PRE((nb->nb_flags & C2_NET_BUF_RETAIN) == 0);
 	tp = nb->nb_tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
+
+	/* Provision the required number of internal buffer event structures for
+	   the maximum expected completion notifications.
+	   Release is done in nlx_xo_bev_deliver_all().
+	*/
+	need = nb->nb_qtype == C2_NET_QT_MSG_RECV ? nb->nb_max_receive_msgs : 1;
+	rc = nlx_core_bevq_provision(ctp, need);
+	if (rc != 0)
+		return rc;
+	cbp->cb_max_operations = need;
 
 	bufsize = c2_vec_count(&nb->nb_buffer.ov_vec);
 	cbp->cb_length = bufsize; /* default for passive cases */
@@ -218,7 +230,6 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
 		cbp->cb_min_receive_size = nb->nb_min_receive_size;
-		cbp->cb_max_receive_msgs = nb->nb_max_receive_msgs;
 		rc = nlx_core_buf_msg_recv(ctp, cbp);
 		break;
 	case C2_NET_QT_MSG_SEND:
@@ -245,6 +256,9 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		C2_IMPOSSIBLE("invalid queue type");
 		break;
 	}
+
+	if (rc != 0)
+		nlx_core_bevq_release(ctp, need);
 
 	return rc;
 }
@@ -397,6 +411,22 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 				q->nqs_num_f_events++;
 				continue;
 			}
+		}
+		C2_ASSERT(nlx_buffer_invariant(nbev.nbe_buffer));
+
+		/* Release provisioned internal buffer event structures.  Done
+		   on unlink only rather than piece-meal with each
+		   nlx_core_buf_event_get() so as to not lose count due to
+		   premature termination on failure and cancellation.
+		*/
+		if (cbev.cbe_unlinked) {
+			struct nlx_xo_buffer *bp;
+			struct nlx_core_buffer *cbp;
+			size_t need;
+			bp = nbev.nbe_buffer->nb_xprt_private;
+			cbp = &bp->xb_core;
+			need = cbp->cb_max_operations;
+			nlx_core_bevq_release(&tp->xtm_core, need);
 		}
 
 		/* Deliver the event out of the mutex.  Increment the

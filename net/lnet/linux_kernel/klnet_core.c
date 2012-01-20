@@ -1013,19 +1013,13 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_MSG_RECV);
 	C2_PRE(lcbuf->cb_length > 0);
 	C2_PRE(lcbuf->cb_min_receive_size >= lcbuf->cb_length);
-	C2_PRE(lcbuf->cb_max_receive_msgs > 0);
+	C2_PRE(lcbuf->cb_max_operations > 0);
 
-	rc = nlx_core_bevq_provision(lctm, lcbuf->cb_max_receive_msgs);
-	if (rc != 0)
-		return rc;
-
-	nlx_kcore_umd_init(lctm, lcbuf, lcbuf->cb_max_receive_msgs,
+	nlx_kcore_umd_init(lctm, lcbuf, lcbuf->cb_max_operations,
 			   lcbuf->cb_min_receive_size, LNET_MD_OP_PUT, &umd);
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
-	if (rc != 0)
-		nlx_core_bevq_release(lctm, lcbuf->cb_max_receive_msgs);
 	return rc;
 }
 
@@ -1042,17 +1036,12 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
 	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_MSG_SEND);
 	C2_PRE(lcbuf->cb_length > 0);
-
-	rc = nlx_core_bevq_provision(lctm, 1);
-	if (rc != 0)
-		return rc;
+	C2_PRE(lcbuf->cb_max_operations == 1);
 
 	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetPut(lctm, lcbuf, &umd);
-	if (rc != 0)
-		nlx_core_bevq_release(lctm, 1);
 	return rc;
 }
 
@@ -1138,7 +1127,7 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 				   cbe_tm_link);
 		*lcbe = *bev;
 		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
-		nlx_core_bevq_release(lctm, 1);
+		/* Event structures released when buffer is unlinked */
 		return true;
 	}
 	return false;

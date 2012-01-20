@@ -139,6 +139,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 /**
    Helper subroutine to create the network buffer event from the internal
    core buffer event.
+
    @param tm Pointer to TM.
    @param lcbev Pointer to LNet transport core buffer event.
    @param nbev Pointer to network buffer event to fill in.
@@ -151,10 +152,13 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 			       struct nlx_core_buffer_event *lcbev,
 			       struct c2_net_buffer_event *nbev)
 {
+	struct nlx_xo_transfer_mc *tp;
 	struct c2_net_buffer *nb;
 	int rc = 0;
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
+	tp = tm->ntm_xprt_private;
 
 	/* Recover the transport space network buffer address from the
 	   opaque data set during registration.
