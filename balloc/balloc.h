@@ -67,7 +67,7 @@ struct c2_balloc_group_info {
         /**
 	   Nr of free power-of-two-block regions, index is order.
            bb_counters[3] = 5 means 5 free 8-block regions.
-        c2_bcount_t     bgi_counters[];
+	   c2_bcount_t     bgi_counters[];
         */
 };
 
@@ -172,13 +172,14 @@ struct c2_balloc_free_extent {
    the maximum available chunk size is returned in bar_max_avail.
  */
 struct c2_balloc_allocate_req {
-	c2_bindex_t	bar_logical;   /*< [in]logical offset within the object */
-	c2_bcount_t	bar_len;       /*< [in]count of blocks, */
-	c2_bindex_t	bar_goal;      /*< [in]prefered physical block number */
-	uint64_t	bar_flags;     /*< [in]allocation flags from c2_balloc_allocation_flag */
-        struct c2_ext   bar_result;    /*< [out]physical offset, result */
+	c2_bindex_t	bar_logical; /*< [in]logical offset within the object */
+	c2_bcount_t	bar_len;     /*< [in]count of blocks, */
+	c2_bindex_t	bar_goal;    /*< [in]prefered physical block number */
+	uint64_t	bar_flags;   /*< [in]allocation flags from
+				      * c2_balloc_allocation_flag */
+        struct c2_ext   bar_result;  /*< [out]physical offset, result */
 
-	void           *bar_prealloc;  /*< [in][out]User opaque prealloc result */
+	void           *bar_prealloc;/*< [in][out]User opaque prealloc result */
 };
 
 enum c2_balloc_allocation_flag {
@@ -240,7 +241,7 @@ struct c2_balloc_discard_req {
  */
 
 enum {
-	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 1024 * 1024 * 1000,//= 400GB
+	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 1024 * 1024 * 1000,
 	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
 	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 	BALLOC_DEF_RESERVED_GROUPS	= 2

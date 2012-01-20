@@ -133,7 +133,8 @@ repeat_free:
 #ifdef BALLOC_DEBUG
 		printf("%lx %5d: rc = %d: freed: len=%5d: [%08llx,%08llx)="
 		       "[%10llu,%10llu)\n",
-		       (long)pthread_self(), i, result, (int)c2_ext_length(&ext[i]),
+		       (long)pthread_self(), i, result,
+		       (int)c2_ext_length(&ext[i]),
 		       (unsigned long long)ext[i].e_start,
 		       (unsigned long long)ext[i].e_end,
 		       (unsigned long long)ext[i].e_start,

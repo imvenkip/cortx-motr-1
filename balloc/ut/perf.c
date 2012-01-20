@@ -112,12 +112,14 @@ int main(int argc, char **argv)
 			tmp.e_start = 0;
 
 		gettimeofday(&alloc_begin, NULL);
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, target, &tmp);
+		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(
+			    &colibri_balloc.cb_ballroom, &dtx, target, &tmp);
 		gettimeofday(&alloc_end, NULL);
 		alloc_usec += timesub(&alloc_begin, &alloc_end);
 		ext[i] = tmp;
 		if (verbose)
-		printf("%d: rc = %d: requested count=%5d, result count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%d: rc = %d: requested count=%5d, result count=%5d:"
+		       " [%08llx,%08llx)=[%8llu,%8llu)\n",
 			i, result, (int)count,
 			(int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
@@ -133,7 +135,8 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
-	printf("==================\nPerf: alloc/sec = %lu\n", (unsigned long)loops * 1000000 / alloc_usec);
+	printf("==================\nPerf: alloc/sec = %lu\n",
+	       (unsigned long)loops * 1000000 / alloc_usec);
 
 	/* randomize the array */
 	if (r) {
@@ -150,12 +153,14 @@ int main(int argc, char **argv)
 		C2_ASSERT(result == 0);
 
 		gettimeofday(&free_begin, NULL);
-		if (ext[i].e_start != 0)
-			result = colibri_balloc.cb_ballroom.ab_ops->bo_free(&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
+		if (ext[i].e_start !=
+		    0) result = colibri_balloc.cb_ballroom.ab_ops->bo_free(
+				&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
 		gettimeofday(&free_end, NULL);
 		free_usec += timesub(&free_begin, &free_end);
 		if (verbose)
-		printf("%d: rc = %d: freed: len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%d: rc = %d: freed: len=%5d: [%08llx,%08llx)=[%8llu,"
+		       "%8llu)\n",
 			i, result, (int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end,
@@ -171,7 +176,8 @@ int main(int argc, char **argv)
 
 	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
 	c2_dbenv_fini(&db);
-	printf("==================\nPerf: free/sec = %lu\n", (unsigned long)loops * 1000000 / free_usec);
+	printf("==================\nPerf: free/sec = %lu\n",
+	       (unsigned long)loops * 1000000 / free_usec);
 	printf("done\n");
 	return 0;
 }
