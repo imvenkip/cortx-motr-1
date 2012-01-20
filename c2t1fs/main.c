@@ -144,7 +144,7 @@
 
  */
 
-extern const struct c2_rpc_item_ops rpc_item_iov_ops;
+extern const struct c2_rpc_item_ops io_req_rpc_item_ops;
 
 static struct kmem_cache     *c2t1fs_inode_cachep = NULL;
 static struct c2_net_domain  c2t1fs_domain;
@@ -184,8 +184,8 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 	}
 
-	f->f_item.ri_ops = &rpc_item_iov_ops;
-	r->f_item.ri_ops = &rpc_item_iov_ops;
+	f->f_item.ri_ops = &io_req_rpc_item_ops;
+	r->f_item.ri_ops = &io_req_rpc_item_ops;
 
 	DBG("%s data %s server(%llu/%d/%ld/%lld)\n",
 	    rw == WRITE? "writing":"reading", rw == WRITE? "to":"from",

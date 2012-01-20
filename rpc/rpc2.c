@@ -1054,6 +1054,49 @@ static void rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
 	c2_free(rbuf);
 }
 
+static int rpc_bulk_buf_init(struct c2_rpc_bulk_buf *rbuf, uint32_t segs_nr,
+			     struct c2_net_buffer *nb)
+{
+	int	     rc;
+	c2_bindex_t *ivec;
+
+	C2_PRE(rbuf != NULL);
+	C2_PRE(segs_nr > 0);
+
+	rc = c2_0vec_init(&rbuf->bb_zerovec, segs_nr);
+	if (rc != 0)
+		return rc;
+
+	rbuf->bb_flags = 0;
+	if (nb == NULL) {
+		C2_ALLOC_PTR(rbuf->bb_nbuf);
+		if (rbuf->bb_nbuf == NULL) {
+			c2_0vec_fini(&rbuf->bb_zerovec);
+			return -ENOMEM;
+		}
+		rbuf->bb_flags |= C2_RPC_BULK_NETBUF_ALLOCATED;
+		rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
+	} else {
+		rbuf->bb_nbuf = nb;
+		/*
+		 * Incoming buffer can be bigger while the bulk transfer
+		 * request could refer to smaller size. Hence initialize
+		 * the zero vector to get correct size of bulk transfer.
+		 */
+		C2_ALLOC_ARR(ivec, segs_nr);
+		if (ivec == NULL) {
+			c2_0vec_fini(&rbuf->bb_zerovec);
+			return -ENOMEM;
+		}
+		c2_0vec_bvec_init(&rbuf->bb_zerovec, &nb->nb_buffer, ivec);
+		c2_free(ivec);
+	}
+
+	rpcbulk_tlink_init(rbuf);
+	rbuf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
+	return rc;
+}
+
 static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 {
 	struct c2_rpc_bulk	*rbulk;
@@ -1100,8 +1143,8 @@ const struct c2_net_buffer_callbacks rpc_bulk_cb  = {
 	.nbc_cb = {
 		[C2_NET_QT_PASSIVE_BULK_SEND] = rpc_bulk_buf_cb,
 		[C2_NET_QT_PASSIVE_BULK_RECV] = rpc_bulk_buf_cb,
-		[C2_NET_QT_ACTIVE_BULK_RECV] = rpc_bulk_buf_cb,
-		[C2_NET_QT_ACTIVE_BULK_SEND] = rpc_bulk_buf_cb,
+		[C2_NET_QT_ACTIVE_BULK_RECV]  = rpc_bulk_buf_cb,
+		[C2_NET_QT_ACTIVE_BULK_SEND]  = rpc_bulk_buf_cb,
 	}
 };
 
@@ -1166,29 +1209,14 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	if (buf == NULL)
 		return -ENOMEM;
 
-	rc = c2_0vec_init(&buf->bb_zerovec, segs_nr);
+	rc = rpc_bulk_buf_init(buf, segs_nr, nb);
 	if (rc != 0) {
 		c2_free(buf);
 		return rc;
 	}
 
-	buf->bb_flags = 0;
-	if (nb == NULL) {
-		C2_ALLOC_PTR(buf->bb_nbuf);
-		if (buf->bb_nbuf == NULL) {
-			c2_0vec_fini(&buf->bb_zerovec);
-			c2_free(buf);
-			return -ENOMEM;
-		}
-		buf->bb_flags |= C2_RPC_BULK_NETBUF_ALLOCATED;
-		buf->bb_nbuf->nb_buffer = buf->bb_zerovec.z_bvec;
-	} else
-		buf->bb_nbuf = nb;
-
-	rpcbulk_tlink_init(buf);
-	buf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
-	buf->bb_rbulk = rbulk;
 	c2_mutex_lock(&rbulk->rb_mutex);
+	buf->bb_rbulk = rbulk;
 	rpcbulk_tlist_add_tail(&rbulk->rb_buflist, buf);
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	*out = buf;
@@ -1275,7 +1303,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
 		nb = rbuf->bb_nbuf;
-		nb->nb_length = c2_vec_count(&nb->nb_buffer.ov_vec);
+		nb->nb_length = c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec);
 		C2_ASSERT(rpc_bulk_buf_invariant(rbuf));
 		if (op == C2_RPC_BULK_STORE) {
 			C2_ASSERT(nb->nb_qtype ==
@@ -1289,8 +1317,10 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 				  nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
 		nb->nb_callbacks = &rpc_bulk_cb;
 
-		/* Registers the net buffer with net domain if it is not
-		   registered already. */
+		/*
+		 * Registers the net buffer with net domain if it is not
+		 * registered already.
+		 */
 		if (!(nb->nb_flags & C2_NET_BUF_REGISTERED)) {
 			rc = c2_net_buffer_register(nb, netdom);
 			if (rc != 0) {
@@ -1344,7 +1374,8 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		}
 
 		++cnt;
-		rbulk->rb_bytes += c2_vec_count(&nb->nb_buffer.ov_vec);
+		rbulk->rb_bytes += c2_vec_count(&rbuf->bb_zerovec.z_bvec.
+						ov_vec);
 	} c2_tlist_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 

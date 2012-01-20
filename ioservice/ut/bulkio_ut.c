@@ -64,6 +64,9 @@ enum IO_UT_VALUES {
 
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
 
+static void vec_alloc(struct c2_bufvec *bvec, uint32_t segs_nr,
+		      c2_bcount_t seg_size);
+
 /* Fids of global files. */
 static struct c2_fop_file_fid	  io_fids[IO_FIDS_NR];
 
@@ -82,8 +85,10 @@ static struct c2_net_buffer	  io_buf[IO_FOPS_NR];
 /* Threads to post rpc items to rpc layer. */
 static struct c2_thread		  io_threads[IO_FOPS_NR];
 
-/* Standard buffers containing a data pattern.
-   Primarily used for data verification in read and write IO. */
+/*
+ * Standard buffers containing a data pattern.
+ * Primarily used for data verification in read and write IO.
+ */
 static char			  readbuf[IO_SEG_SIZE];
 static char			  writebuf[IO_SEG_SIZE];
 
@@ -129,12 +134,14 @@ struct c2_rpc_client_ctx c_rctx = {
 
 static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
-/* An alternate io fop type op vector to test bulk client functionality only.
-   Only .fto_fom_init is pointed to a UT function which tests the received
-   io fop is sane and bulk io transfer is taking place properly using data
-   from io fop. Rest all ops are same as io_fop_rwv_ops.
-   !! This whole block of code should be removed after bulk IO server UT
-   code is in place!! */
+/*
+ * An alternate io fop type op vector to test bulk client functionality only.
+ * Only .fto_fom_init is pointed to a UT function which tests the received
+ * io fop is sane and bulk io transfer is taking place properly using data
+ * from io fop. Rest all ops are same as io_fop_rwv_ops.
+ * !! This whole block of code should be removed after bulk IO server UT
+ * code is in place!!
+ */
 struct c2_fop_type_ops bulkio_fop_ut_ops = {
 	.fto_fom_init = io_fop_dummy_fom_init,
 	.fto_fop_replied = io_fop_replied,
@@ -162,10 +169,11 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	int				 rc;
 	uint32_t			 i;
 	uint32_t			 j;
+	uint32_t			 k;
 	c2_bcount_t			 tc;
 	struct c2_fop			*fop;
 	struct c2_clink			 clink;
-	struct c2_bufvec		**bvecs;
+	struct c2_net_buffer		**netbufs;
 	struct c2_fop_cob_rw		*rw;
 	struct c2_io_indexvec		*ivec;
 	struct c2_net_buf_desc		*desc;
@@ -180,8 +188,8 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	rw = io_rw_get(fom->fo_fop);
 	C2_UT_ASSERT(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
 
-	C2_ALLOC_ARR(bvecs, rw->crw_desc.id_nr);
-	C2_UT_ASSERT(bvecs != NULL);
+	C2_ALLOC_ARR(netbufs, rw->crw_desc.id_nr);
+	C2_UT_ASSERT(netbufs != NULL);
 
 	C2_ALLOC_PTR(rbulk);
 	C2_UT_ASSERT(rbulk != NULL);
@@ -194,37 +202,38 @@ static int bulkio_fom_state(struct c2_fom *fom)
 			C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[i].ci_iosegs[j].
 			     ci_count == IO_SEG_SIZE);
 
-
 	for (tc = 0, i = 0; i < rw->crw_desc.id_nr; ++i) {
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
 		desc = &rw->crw_desc.id_descs[i];
 
-		C2_ALLOC_PTR(bvecs[i]);
-		C2_UT_ASSERT(bvecs[i] != NULL);
+		C2_ALLOC_PTR(netbufs[i]);
+		C2_UT_ASSERT(netbufs[i] != NULL);
 
-		rc = c2_bufvec_alloc(bvecs[i], ivec->ci_nr,
-				     ivec->ci_iosegs[0].ci_count);
-		C2_UT_ASSERT(rc == 0);
+		vec_alloc(&netbufs[i]->nb_buffer, ivec->ci_nr,
+			  ivec->ci_iosegs[0].ci_count);
 
 		rc = c2_rpc_bulk_buf_add(rbulk, ivec->ci_nr,
 					 ivec->ci_iosegs[0].ci_count,
 					 conn->c_rpcmachine->cr_tm.ntm_dom,
-					 NULL, &rbuf);
+					 netbufs[i], &rbuf);
 
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(rbuf != NULL);
 
-		rbuf->bb_nbuf->nb_buffer = *bvecs[i];
 		rbuf->bb_nbuf->nb_qtype = is_write(fom->fo_fop) ?
 					 C2_NET_QT_ACTIVE_BULK_RECV :
 					 C2_NET_QT_ACTIVE_BULK_SEND;
-		tc += c2_vec_count(&bvecs[i]->ov_vec);
+
+		for (k = 0; k < ivec->ci_nr; ++k)
+			tc += ivec->ci_iosegs[k].ci_count;
 
 		if (is_read(fom->fo_fop)) {
 			for (j = 0; j < ivec->ci_nr; ++j)
-				/* Sets a pattern in data buffer so that
-				   it can be verified at other side. */
-				memset(bvecs[i]->ov_buf[j], 'b',
+				/*
+				 * Sets a pattern in data buffer so that
+				 * it can be verified at other side.
+				 */
+				memset(netbufs[i]->nb_buffer.ov_buf[j], 'b',
 				       ivec->ci_iosegs[j].ci_count);
 		}
 	}
@@ -246,9 +255,9 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	/* Checks if the write io bulk data is received as is. */
 	for (i = 0; i < rw->crw_desc.id_nr && is_write(fom->fo_fop); ++i) {
-		for (j = 0; j < bvecs[i]->ov_vec.v_nr; ++j) {
-			rc = memcmp(writebuf, bvecs[i]->ov_buf[j],
-				    bvecs[i]->ov_vec.v_count[j]);
+		for (j = 0; j < netbufs[i]->nb_buffer.ov_vec.v_nr; ++j) {
+			rc = memcmp(writebuf, netbufs[i]->nb_buffer.ov_buf[j],
+				    netbufs[i]->nb_buffer.ov_vec.v_count[j]);
 			C2_UT_ASSERT(rc == 0);
 		}
 	}
@@ -275,10 +284,10 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	fom->fo_phase = FOPH_FINISH;
 	/* Deallocates net buffers and c2_buvec structures. */
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		c2_bufvec_free(bvecs[i]);
-		c2_free(bvecs[i]);
+		c2_bufvec_free(&netbufs[i]->nb_buffer);
+		c2_free(netbufs[i]);
 	}
-	c2_free(bvecs);
+	c2_free(netbufs);
 	c2_rpc_bulk_fini(rbulk);
 	c2_free(rbulk);
 
@@ -325,33 +334,39 @@ static void io_fids_init(void)
 	}
 }
 
+/*
+ * Zero vector needs buffers aligned on 4k boundary.
+ * Hence c2_bufvec_alloc can not be used.
+ */
+static void vec_alloc(struct c2_bufvec *bvec, uint32_t segs_nr,
+		      c2_bcount_t seg_size)
+{
+	uint32_t i;
+
+	bvec->ov_vec.v_nr = segs_nr;
+	C2_ALLOC_ARR(bvec->ov_vec.v_count, segs_nr);
+	C2_UT_ASSERT(bvec->ov_vec.v_count != NULL);
+	C2_ALLOC_ARR(bvec->ov_buf, segs_nr);
+	C2_UT_ASSERT(bvec->ov_buf != NULL);
+	
+	for (i = 0; i < segs_nr; ++i) {
+		bvec->ov_buf[i] = c2_alloc_aligned(IO_SEG_SIZE, C2_0VEC_SHIFT);
+		C2_UT_ASSERT(bvec->ov_buf[i] != NULL);
+		bvec->ov_vec.v_count[i] = IO_SEG_SIZE;
+	}
+}
+
 static void io_buffers_allocate(void)
 {
-	int		  i;
-	int		  j;
-	struct c2_bufvec *buf;
+	int i;
 
 	/* Initialized the standard buffer with a data pattern for read IO. */
 	memset(readbuf, 'b', IO_SEG_SIZE);
 	memset(writebuf, 'a', IO_SEG_SIZE);
 
 	C2_SET_ARR0(io_buf);
-	for (i = 0; i < IO_FOPS_NR; ++i) {
-		/* Zero vector needs buffers aligned on 4k boundary.
-		   Hence c2_bufvec_alloc can not be used. */
-		buf = &io_buf[i].nb_buffer;
-		buf->ov_vec.v_nr = IO_SEGS_NR;
-		C2_ALLOC_ARR(buf->ov_vec.v_count, IO_SEGS_NR);
-		C2_UT_ASSERT(buf->ov_vec.v_count != NULL);
-		C2_ALLOC_ARR(buf->ov_buf, IO_SEGS_NR);
-		C2_UT_ASSERT(buf->ov_buf != NULL);
-		for (j = 0; j < IO_SEGS_NR; ++j) {
-			buf->ov_buf[j] = c2_alloc_aligned(IO_SEG_SIZE,
-							  C2_0VEC_SHIFT);
-			C2_UT_ASSERT(buf->ov_buf[j] != NULL);
-			buf->ov_vec.v_count[j] = IO_SEG_SIZE;
-		}
-	}
+	for (i = 0; i < IO_FOPS_NR; ++i)
+		vec_alloc(&io_buf[i].nb_buffer, IO_SEGS_NR, IO_SEG_SIZE);
 }
 
 static void io_buffers_deallocate(void)
@@ -377,8 +392,10 @@ static void io_fop_populate(int index, uint64_t off_index,
 	iofop = io_fops[index];
 	rbulk = &iofop->if_rbulk;
 
-	/* Adds a c2_rpc_bulk_buf structure to list of such structures
-	   in c2_rpc_bulk. */
+	/*
+	 * Adds a c2_rpc_bulk_buf structure to list of such structures
+	 * in c2_rpc_bulk.
+	 */
 	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, IO_SEG_SIZE, &c_netdom,
 				 NULL, &rbuf);
 	C2_UT_ASSERT(rc == 0);
@@ -402,19 +419,25 @@ static void io_fop_populate(int index, uint64_t off_index,
 	rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
 		C2_NET_QT_PASSIVE_BULK_SEND : C2_NET_QT_PASSIVE_BULK_RECV;
 
-	/* Allocates memory for array of net buf descriptors and array of
-	   index vectors from io fop. */
+	/*
+	 * Allocates memory for array of net buf descriptors and array of
+	 * index vectors from io fop.
+	 */
 	rc = io_fop_prepare(&iofop->if_fop);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Stores the net buf desc/s after adding the corresponding
-	   net buffers to transfer machine to io fop wire format. */
+	/*
+	 * Stores the net buf desc/s after adding the corresponding
+	 * net buffers to transfer machine to io fop wire format.
+	 */
 	rc = c2_rpc_bulk_store(rbulk, &c_rctx.rcx_connection,
 			       rw->crw_desc.id_descs);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Temporary! Should be removed once bulk server UT code is merged
-	   with this code. */
+	/*
+	 * Temporary! Should be removed once bulk server UT code is merged
+	 * with this code.
+	 */
 	rw->crw_iovec.iv_count = 1;
 	C2_ALLOC_ARR(rw->crw_iovec.iv_segs, rw->crw_iovec.iv_count);
 	C2_UT_ASSERT(rw->crw_iovec.iv_segs != NULL);
@@ -490,8 +513,10 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 	item->ri_session = &c_rctx.rcx_session;
 	c2_time_set(&timeout, IO_RPC_ITEM_TIMEOUT, 0);
 
-	/* Initializes and adds a clink to rpc item channel to wait for
-	   reply. */
+	/*
+	 * Initializes and adds a clink to rpc item channel to wait for
+	 * reply.
+	 */
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);
 	timeout = c2_time_add(timeout, c2_time_now());
@@ -552,8 +577,10 @@ void bulkio_test(void)
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
 		       sizeof(struct c2_thread));
 
-		/* IO fops are deallocated by an rpc item type op on receiving
-		   the reply fop. See io_item_free(). */
+		/*
+		 * IO fops are deallocated by an rpc item type op on receiving
+		 * the reply fop. See io_item_free().
+		 */
 		io_fops_create(op);
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
