@@ -356,6 +356,9 @@ static void ktest_enc_dec(void)
 #undef TEST_HDR_DATA_ENCODE
 }
 
+#undef UT_BUFVEC_FREE
+#undef UT_BUFVEC_ALLOC
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

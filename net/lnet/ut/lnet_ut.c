@@ -225,6 +225,178 @@ static void test_tm_startstop(void)
 	c2_free(dom);
 }
 
+
+static void test_msg(void) {
+#define TM_BUFS1    1
+#define TM_BUFSEGS1 2
+#define TM_BUFS2    1
+#define TM_BUFSEGS2 1
+	struct test_msg_data {
+		struct c2_net_tm_callbacks tmcb;
+		struct c2_net_domain       dom1;
+		struct c2_net_transfer_mc  tm1;
+		struct c2_clink            tmwait1;
+		struct c2_net_buffer       bufs1[TM_BUFS1];
+		struct c2_net_domain       dom2;
+		struct c2_net_transfer_mc  tm2;
+		struct c2_clink            tmwait2;
+		struct c2_net_buffer       bufs2[TM_BUFS2];
+	} *td;
+	char * const *nidstrs = NULL;
+	int i;
+	int rc;
+	struct c2_net_domain      *dom1;
+	struct c2_net_transfer_mc *tm1;
+	struct c2_net_buffer      *nb1;
+	struct c2_net_domain      *dom2;
+	struct c2_net_transfer_mc *tm2;
+	struct c2_net_buffer      *nb2;
+
+	/*
+	  Setup.
+	 */
+	C2_ALLOC_PTR(td);
+	C2_UT_ASSERT(td != NULL);
+	dom1 = &td->dom1;
+	tm1  = &td->tm1;
+	dom2 = &td->dom2;
+	tm2  = &td->tm2;
+	c2_clink_init(&td->tmwait1, NULL);
+	c2_clink_init(&td->tmwait2, NULL);
+	td->tmcb.ntc_event_cb = tf_tm_ecb;
+	tm1->ntm_callbacks = &td->tmcb;
+	tm2->ntm_callbacks = &td->tmcb;
+
+	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
+	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
+
+	C2_UT_ASSERT(!c2_net_domain_init(dom1, &c2_net_lnet_xprt));
+	{
+		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+		c2_bcount_t max_seg_size;
+
+		max_seg_size = c2_net_domain_get_max_buffer_segment_size(dom1);
+		C2_UT_ASSERT(max_seg_size > 0);
+		for (i=0; i < TM_BUFS1; ++i) {
+			nb1 = &td->bufs1[i];
+			rc = c2_bufvec_alloc(&nb1->nb_buffer, TM_BUFSEGS1,
+					     max_seg_size);
+			C2_UT_ASSERT(rc == 0);
+			if (rc != 0) {
+				C2_UT_FAIL("aborting: buf alloc failed");
+				goto dereg1;
+			}
+			rc = c2_net_buffer_register(nb1, dom1);
+			if (rc != 0) {
+				C2_UT_FAIL("aborting: buf reg failed");
+				goto dereg1;
+			}
+			C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_REGISTERED);
+		}
+
+		C2_UT_ASSERT(!c2_net_tm_init(tm1, dom1));
+
+		sprintf(epstr, "%s:%d:%d:*",
+			nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
+		c2_clink_add(&tm1->ntm_chan, &td->tmwait1);
+		C2_UT_ASSERT(!c2_net_tm_start(tm1, epstr));
+		c2_chan_wait(&td->tmwait1);
+		c2_clink_del(&td->tmwait1);
+		C2_UT_ASSERT(tm1->ntm_state == C2_NET_TM_STARTED);
+		if (tm1->ntm_state == C2_NET_TM_FAILED) {
+			C2_UT_FAIL("aborting: tm1 startup failed");
+			goto fini1;
+		}
+		printk("tm1: %s\n", tm1->ntm_ep->nep_addr);
+	}
+
+	C2_UT_ASSERT(!c2_net_domain_init(dom2, &c2_net_lnet_xprt));
+	{
+		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+		c2_bcount_t max_seg_size;
+
+		max_seg_size = c2_net_domain_get_max_buffer_segment_size(dom2);
+		C2_UT_ASSERT(max_seg_size > 0);
+		for (i=0; i < TM_BUFS2; ++i) {
+			nb2 = &td->bufs2[i];
+			rc = c2_bufvec_alloc(&nb2->nb_buffer, TM_BUFSEGS2,
+					     max_seg_size);
+			C2_UT_ASSERT(rc == 0);
+			if (rc != 0) {
+				C2_UT_FAIL("aborting: buf alloc failed");
+				goto dereg2;
+			}
+			rc = c2_net_buffer_register(nb2, dom2);
+			if (rc != 0) {
+				C2_UT_FAIL("aborting: buf reg failed");
+				goto dereg2;
+			}
+			C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_REGISTERED);
+		}
+
+		C2_UT_ASSERT(!c2_net_tm_init(tm2, dom2));
+
+		sprintf(epstr, "%s:%d:%d:*",
+			nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
+		c2_clink_add(&tm2->ntm_chan, &td->tmwait2);
+		C2_UT_ASSERT(!c2_net_tm_start(tm2, epstr));
+		c2_chan_wait(&td->tmwait2);
+		c2_clink_del(&td->tmwait2);
+		C2_UT_ASSERT(tm2->ntm_state == C2_NET_TM_STARTED);
+		if (tm2->ntm_state == C2_NET_TM_FAILED) {
+			C2_UT_FAIL("aborting: tm2 startup failed");
+			goto fini2;
+		}
+		printk("tm2: %s\n", tm2->ntm_ep->nep_addr);
+	}
+
+	/*
+	  Teardown
+	*/
+	c2_clink_add(&tm2->ntm_chan, &td->tmwait2);
+	C2_UT_ASSERT(!c2_net_tm_stop(tm2, false));
+	c2_chan_wait(&td->tmwait2);
+	c2_clink_del(&td->tmwait2);
+	C2_UT_ASSERT(tm2->ntm_state == C2_NET_TM_STOPPED);
+ fini2:
+	c2_net_tm_fini(&td->tm2);
+ dereg2:
+	for (i=0; i < TM_BUFS2; ++i) {
+		nb2 = &td->bufs2[i];
+		if (nb2->nb_buffer.ov_vec.v_nr == 0)
+			continue;
+		c2_net_buffer_deregister(nb2, dom2);
+		c2_bufvec_free(&nb2->nb_buffer);
+	}
+	c2_net_domain_fini(&td->dom2);
+
+	c2_clink_add(&tm1->ntm_chan, &td->tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_stop(tm1, false));
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(tm1->ntm_state == C2_NET_TM_STOPPED);
+ fini1:
+	c2_net_tm_fini(&td->tm1);
+ dereg1:
+	for (i=0; i < TM_BUFS1; ++i) {
+		nb1 = &td->bufs1[i];
+		if (nb1->nb_buffer.ov_vec.v_nr == 0)
+			continue;
+		c2_net_buffer_deregister(nb1, dom1);
+		c2_bufvec_free(&nb1->nb_buffer);
+	}
+	c2_net_domain_fini(&td->dom1);
+
+	if (nidstrs)
+		c2_net_lnet_ifaces_put(&nidstrs);
+	C2_UT_ASSERT(nidstrs == NULL);
+	c2_clink_fini(&td->tmwait1);
+	c2_clink_fini(&td->tmwait2);
+	c2_free(td);
+
+	/* XXX PUT UNDEFS HERE */
+}
+
 const struct c2_test_suite c2_net_lnet_ut = {
         .ts_name = "net-lnet",
         .ts_init = test_lnet_init,
@@ -238,6 +410,7 @@ const struct c2_test_suite c2_net_lnet_ut = {
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
+		{ "net_lnet_msg",           test_msg },
                 { NULL, NULL }
         }
 };
