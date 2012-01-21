@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  *
  */
@@ -29,36 +29,41 @@
    @todo This section will be filled in by the (net, lnet-user, DLD) task.
 
    @{
-*/
+ */
 
 /**
    Userspace domain private data.
-   This structure is pointed to by nlx_core_domain::lcd_upvt.
+   This structure is pointed to by nlx_core_domain::cd_upvt.
  */
 struct nlx_ucore_domain {
 	/** File descriptor to the kernel device */
-	int      ucd_fd;
+	int                             ud_fd;
+
+	/** ADDB context for events related to this domain */
+	struct c2_addb_ctx              ud_addb;
 };
 
 /**
    Userspace transfer machine private data.
-   This structure is pointed to by nlx_core_transfer_mc::lctm_upvt.
-*/
+   This structure is pointed to by nlx_core_transfer_mc::ctm_upvt.
+ */
 struct nlx_ucore_transfer_mc {
-
+	/** ADDB context for events related to this transfer machine */
+	struct c2_addb_ctx              utm_addb;
 };
 
 /**
    Userspace buffer private data.
-   This structure is pointed to by nlx_core_buffer::lcb_upvt.
-*/
+   This structure is pointed to by nlx_core_buffer::cb_upvt.
+ */
 struct nlx_ucore_buffer {
-
+	/** ADDB context for events related to this buffer */
+	struct c2_addb_ctx              ub_addb;
 };
 
 /**
    @}
-*/
+ */
 
 #endif /* __COLIBRI_NET_ULNET_CORE_H__ */
 

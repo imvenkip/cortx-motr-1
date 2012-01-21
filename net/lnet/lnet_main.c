@@ -786,6 +786,15 @@
 #include "net/lnet/lnet_ep.c"
 #include "net/lnet/lnet_tm.c"
 
+/**
+   @addtogroup LNetDFS
+   @{
+ */
+
+const struct c2_addb_loc c2_net_lnet_addb_loc = {
+	.al_name = "net-lnet"
+};
+
 int c2_net_lnet_init(void)
 {
 	return nlx_core_init();
@@ -814,6 +823,10 @@ void c2_net_lnet_ifaces_put(char * const **addrs)
 	nlx_core_nidstrs_put(addrs);
 }
 C2_EXPORTED(c2_net_lnet_ifaces_put);
+
+/**
+   @} LNetDFS end group
+ */
 
 /*
  *  Local variables:

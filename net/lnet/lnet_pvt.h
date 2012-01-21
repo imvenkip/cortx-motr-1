@@ -22,6 +22,8 @@
 #ifndef __COLIBRI_NET_LNET_PVT_H__
 #define __COLIBRI_NET_LNET_PVT_H__
 
+extern const struct c2_addb_loc c2_net_lnet_addb_loc;
+
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm);
 static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm);

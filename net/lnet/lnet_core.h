@@ -317,10 +317,8 @@ struct nlx_core_buffer_event {
    Core domain data.  The transport layer should embed this in its private data.
  */
 struct nlx_core_domain {
-
 	void *cd_upvt; /**< Core user space private */
 	void *cd_kpvt; /**< Core kernel space private */
-
 };
 
 /**

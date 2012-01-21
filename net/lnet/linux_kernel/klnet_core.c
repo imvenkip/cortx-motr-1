@@ -751,7 +751,10 @@ static struct c2_tl nlx_kcore_tms;
 
 /** NID strings of LNIs. */
 static char **nlx_kcore_lni_nidstrs;
-/** The count of non-NULL entries in nlx_kcore_lni_nidstrs. */
+/** The count of non-NULL entries in nlx_kcore_lni_nidstrs.
+    @note Caching this count and the string list will no longer be possible
+    if and when dynamic NI addition/removal is supported by LNet.
+ */
 static unsigned int nlx_kcore_lni_nr;
 /** Reference counter for nlx_kcore_lni_nidstrs. */
 static struct c2_atomic64 nlx_kcore_lni_refcount;
@@ -763,6 +766,16 @@ C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 
 /* assert the equivalence of LNet and Colibri data types */
 C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
+
+/**
+   KCore domain invariant.
+ */
+static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
+{
+	if (kd == NULL || kd->kd_magic != C2_NET_LNET_KCORE_DOM_MAGIC)
+		return false;
+	return true;
+}
 
 /**
    KCore buffer invariant.
@@ -918,13 +931,29 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 {
+	struct nlx_kcore_domain *kd;
+
 	C2_PRE(dom != NULL && lcdom != NULL);
-	lcdom->cd_kpvt = NULL;
+	C2_ALLOC_PTR(kd);
+	if (kd == NULL)
+		return -ENOMEM;
+	kd->kd_magic = C2_NET_LNET_KCORE_DOM_MAGIC;
+	c2_addb_ctx_init(&kd->kd_addb, &nlx_core_domain_addb_ctx,
+			 &dom->nd_addb);
+	lcdom->cd_kpvt = kd;
 	return 0;
 }
 
 void nlx_core_dom_fini(struct nlx_core_domain *lcdom)
 {
+	struct nlx_kcore_domain *kd;
+
+	C2_PRE(lcdom != NULL);
+	kd = lcdom->cd_kpvt;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	c2_addb_ctx_fini(&kd->kd_addb);
+	c2_free(kd);
+	lcdom->cd_kpvt = NULL;
 }
 
 c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
@@ -953,13 +982,18 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 {
 	int rc;
 	struct nlx_kcore_buffer *kb;
+	struct nlx_kcore_domain *kd;
 
-	C2_PRE(lcbuf->cb_kpvt == NULL);
+	C2_PRE(lcbuf != NULL && lcbuf->cb_kpvt == NULL);
+	C2_PRE(lcdom != NULL);
+	kd = lcdom->cd_kpvt;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
 	C2_ALLOC_PTR(kb);
 	if (kb == NULL)
 		return -ENOMEM;
 	LNetInvalidateHandle(&kb->kb_mdh);
 	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
+	c2_addb_ctx_init(&kb->kb_addb, &nlx_core_buffer_addb_ctx, &kd->kd_addb);
 	kb->kb_cb           = lcbuf;
 	lcbuf->cb_kpvt      = kb;
 	lcbuf->cb_buffer_id = buffer_id;
@@ -991,6 +1025,7 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
 	kb->kb_magic = 0;
 	kb->kb_cb = 0;
+	c2_addb_ctx_fini(&kb->kb_addb);
 	c2_free(kb->kb_kiov);
 	c2_free(kb);
 	lcbuf->cb_buffer_id = 0;
@@ -1287,6 +1322,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) ==
 		  C2_NET_LNET_BEVQ_MIN_SIZE);
 	C2_ASSERT(bev_cqueue_is_empty(&lctm->ctm_bevq));
+	c2_addb_ctx_init(&kctm->ktm_addb, &nlx_core_tm_addb_ctx, &tm->ntm_addb);
 	lctm->ctm_upvt = NULL;
 	lctm->ctm_kpvt = kctm;
 	lctm->ctm_user_space_xo = false;
@@ -1331,6 +1367,7 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	c2_mutex_lock(&nlx_kcore_mutex);
 	tms_tlist_del(kctm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
+	c2_addb_ctx_fini(&kctm->ktm_addb);
 	lctm->ctm_kpvt = NULL;
 	c2_free(kctm);
 }
