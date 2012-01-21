@@ -93,6 +93,9 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 			rc = nlx_core_buf_event_wait(ctp, timeout);
 			/* buffer event processing */
 			if (rc == 0) { /* did not time out - events pending */
+#ifdef __KERNEL__
+				printk("tm_ev_worker(%p): got event\n", ctp);
+#endif
 				c2_mutex_lock(&tm->ntm_mutex);
 				nlx_xo_bev_deliver_all(tm);
 				c2_mutex_unlock(&tm->ntm_mutex);
@@ -159,6 +162,19 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(nlx_tm_invariant(tm));
 	tp = tm->ntm_xprt_private;
+
+#ifdef __KERNEL__
+	printk("\tcbe_buffer_id: %lx\n", (unsigned long) lcbev->cbe_buffer_id);
+	printk("\t   cbe_status: %d\n", lcbev->cbe_status);
+	printk("\t cbe_unlinked: %d\n", (int) lcbev->cbe_unlinked);
+	printk("\t   cbe_length: %ld\n", (unsigned long) lcbev->cbe_length);
+	printk("\t   cbe_offset: %ld\n", (unsigned long) lcbev->cbe_offset);
+	printk("\t   cbe_sender: %ld %d %d %d\n",
+	       (unsigned long) lcbev->cbe_sender.cepa_nid,
+	       (unsigned) lcbev->cbe_sender.cepa_pid,
+	       (unsigned) lcbev->cbe_sender.cepa_portal,
+	       (unsigned) lcbev->cbe_sender.cepa_tmid);
+#endif
 
 	/* Recover the transport space network buffer address from the
 	   opaque data set during registration.

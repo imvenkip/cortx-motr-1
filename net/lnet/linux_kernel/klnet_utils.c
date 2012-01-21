@@ -21,6 +21,85 @@
 
 /* This file is designed to be included in klnet_core.c. */
 
+#define NLX_KDEBUG
+#ifdef NLX_KDEBUG
+static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
+{
+	char buf[32];
+	LNetSnprintHandle(buf, sizeof(buf)-1, h);
+	printk("%s: %s\n", pre, buf);
+}
+
+static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
+{
+	printk("%s: NID=%lu PID=%u\n", pre,
+	       (long unsigned) p.nid, (unsigned) p.pid);
+}
+
+static void nlx_kprint_lnet_md(const char *pre, lnet_md_t *md)
+{
+	printk("%s: %p\n", pre, md);
+	printk("\t    start: %p\n", md->start);
+	printk("\t  options: %x\n", md->options);
+	printk("\t   length: %d\n", md->length);
+	printk("\tthreshold: %d\n", md->threshold);
+	printk("\t max_size: %d\n", md->max_size);
+	printk("\t user_ptr: %p\n", md->user_ptr);
+	nlx_kprint_lnet_handle("\teq_handle", md->eq_handle);
+#if 0
+	{
+		int i;
+		for(i=0; i < kcb->kb_kiov_len; ++i) {
+			printk("\t[%d] %p %d %d\n", i,
+			       kcb->kb_kiov[i].kiov_page,
+			       kcb->kb_kiov[i].kiov_len,
+			       kcb->kb_kiov[i].kiov_offset);
+		}
+	}
+#endif
+}
+
+static void nlx_kprint_lnet_event(const char *pre, lnet_event_t *e)
+{
+	if (e == NULL) {
+		printk("%s: <null>\n", pre);
+		return;
+	}
+	printk("%s: %p\n", pre, e);
+	nlx_kprint_lnet_process_id("\t   target:", e->target);
+	nlx_kprint_lnet_process_id("\tinitiator:", e->target);
+	printk("\t    sender: %ld\n", (long unsigned) e->sender);
+	printk("\t      type: %d\n", e->type);
+	printk("\t  pt_index: %u\n", e->pt_index);
+	printk("\tmatch_bits: %lx\n", (long unsigned) e->match_bits);
+	printk("\t   rlength: %u\n", e->rlength);
+	printk("\t   mlength: %u\n", e->mlength);
+	nlx_kprint_lnet_handle("\t md_handle:", e->md_handle);
+	printk("\t  hdr_data: %lx\n", (long unsigned) e->hdr_data);
+	printk("\t    status: %d\n", e->status);
+	printk("\t  unlinked: %d\n", e->unlinked);
+	printk("\t    offset: %u\n", e->offset);
+	nlx_kprint_lnet_md("\t        md:", &e->md);
+}
+#else
+static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
+{
+	return;
+}
+static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
+{
+	return;
+}
+static void nlx_kprint_lnet_md(const char *pre, lnet_md_t md)
+{
+	return;
+}
+static void nlx_kprint_lnet_event(const char *pre, lnet_event_t *e)
+{
+	return;
+}
+#endif
+
 /**
    @addtogroup KLNetCore
    @{
@@ -119,7 +198,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(threshold > 0);
-	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(kcb->kb_kiov_len > 0);
 	C2_PRE(max_size >= 0);
 	C2_PRE(options == 0 ||
 	       options == LNET_MD_OP_PUT ||
@@ -129,7 +208,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->options = options;
 	umd->start = kcb->kb_kiov;
 	umd->options |= LNET_MD_KIOV;
-	umd->length = lcbuf->cb_length;
+	umd->length = kcb->kb_kiov_len;
 	umd->threshold = threshold;
 	if (max_size != 0) {
 		umd->max_size = max_size;
@@ -137,6 +216,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	}
 	umd->user_ptr = lcbuf;
 	umd->eq_handle = kctm->ktm_eqh;
+	nlx_kprint_lnet_md("umd init", umd);
 }
 
 /**
@@ -181,9 +261,10 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	C2_POST(!LNetHandleIsInvalid(meh));
 
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
-	if (rc == 0)
+	if (rc == 0) {
 		kcb->kb_ktm = kctm;
-	else {
+		nlx_kprint_lnet_handle("MDAttach", kcb->kb_mdh);
+	} else {
 		int trc = LNetMEUnlink(meh);
 		C2_ASSERT(trc == 0);
 	}
@@ -214,6 +295,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(kcb->kb_ktm == kctm);
+	nlx_kprint_lnet_handle("MDUnlink", kcb->kb_mdh);
 	rc = LNetMDUnlink(kcb->kb_mdh);
 	return rc;
 }
@@ -260,8 +342,10 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 		     target, lcbuf->cb_addr.cepa_portal,
 		     lcbuf->cb_match_bits, 0,
 		     nlx_kcore_hdr_data_encode(lctm));
-	if (rc == 0)
+	if (rc == 0) {
 		kcb->kb_ktm = kctm;
+		nlx_kprint_lnet_handle("LNetBind/Put", kcb->kb_mdh);
+	}
 
 	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
 	C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));

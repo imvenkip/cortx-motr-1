@@ -356,6 +356,26 @@ static void ktest_enc_dec(void)
 #undef TEST_HDR_DATA_ENCODE
 }
 
+static void _ktest_umd_init(struct c2_net_transfer_mc *tm,
+			    struct c2_net_buffer *nb)
+{
+	struct nlx_xo_transfer_mc      *tp = tm->ntm_xprt_private;
+	struct nlx_core_transfer_mc  *lctm = &tp->xtm_core;
+	struct nlx_xo_buffer           *bp = nb->nb_xprt_private;
+	struct nlx_core_buffer      *lcbuf = &bp->xb_core;
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
+
+	lnet_md_t umd;
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 1, 0, &umd);
+	C2_UT_ASSERT(umd.start == kcb->kb_kiov);
+	C2_UT_ASSERT(umd.length == kcb->kb_kiov_len);
+	C2_UT_ASSERT(umd.options & LNET_MD_KIOV);
+	C2_UT_ASSERT(umd.user_ptr == lcbuf);
+	C2_UT_ASSERT(LNetHandleIsEqual(umd.eq_handle, kctm->ktm_eqh));
+}
+
+
 #undef UT_BUFVEC_FREE
 #undef UT_BUFVEC_ALLOC
 

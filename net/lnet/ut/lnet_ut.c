@@ -22,6 +22,13 @@
 #include "net/lnet/lnet_main.c"
 #include "lib/ut.h"
 
+static bool ut_chan_timedwait(struct c2_clink *link, uint32_t secs)
+{
+	c2_time_t timeout;
+	timeout = c2_time_from_now(secs,0);
+	return c2_chan_timedwait(link, timeout);
+}
+
 #ifdef __KERNEL__
 #include "net/lnet/ut/linux_kernel/klnet_ut.c"
 #endif
@@ -226,21 +233,71 @@ static void test_tm_startstop(void)
 }
 
 
+static enum c2_net_queue_type cb_qt1;
+static struct c2_net_buffer *cb_nb1;
+static int32_t cb_status1;
+
+static void ut_buf_cb1(const struct c2_net_buffer_event *ev)
+{
+	cb_nb1     = ev->nbe_buffer;
+	cb_qt1     = cb_nb1->nb_qtype;
+	cb_status1 = ev->nbe_status;
+}
+
+static void ut_cbreset1(void)
+{
+	cb_nb1     = NULL;
+	cb_qt1     = C2_NET_QT_NR;
+	cb_status1 = 9999999;
+}
+
+static enum c2_net_queue_type cb_qt2;
+static struct c2_net_buffer *cb_nb2;
+static int32_t cb_status2;
+
+static void ut_buf_cb2(const struct c2_net_buffer_event *ev)
+{
+	cb_nb2     = ev->nbe_buffer;
+	cb_qt2     = cb_nb2->nb_qtype;
+	cb_status2 = ev->nbe_status;
+}
+
+static void ut_cbreset2(void)
+{
+	cb_nb2     = NULL;
+	cb_qt2     = C2_NET_QT_NR;
+	cb_status2 = 9999999;
+}
+
+static void ut_cbreset(void)
+{
+	ut_cbreset1();
+	ut_cbreset2();
+}
+
+static char ut_line_buf[1024];
+#define zUT(x,label) { int rc = x; if(rc!=0) { sprintf(ut_line_buf,"%s %d: %s: %d",__FILE__,__LINE__,#x,rc); C2_UT_FAIL(ut_line_buf); goto label;}}
+
 static void test_msg(void) {
 #define TM_BUFS1    1
 #define TM_BUFSEGS1 2
 #define TM_BUFS2    1
 #define TM_BUFSEGS2 1
+#define TM_MSG_SIZE 1024
+
 	struct test_msg_data {
-		struct c2_net_tm_callbacks tmcb;
-		struct c2_net_domain       dom1;
-		struct c2_net_transfer_mc  tm1;
-		struct c2_clink            tmwait1;
-		struct c2_net_buffer       bufs1[TM_BUFS1];
-		struct c2_net_domain       dom2;
-		struct c2_net_transfer_mc  tm2;
-		struct c2_clink            tmwait2;
-		struct c2_net_buffer       bufs2[TM_BUFS2];
+		struct c2_net_tm_callbacks     tmcb;
+		struct c2_net_domain           dom1;
+		struct c2_net_transfer_mc      tm1;
+		struct c2_clink                tmwait1;
+		struct c2_net_buffer_callbacks buf_cb1;
+		struct c2_net_buffer           bufs1[TM_BUFS1];
+		struct c2_net_domain           dom2;
+		struct c2_net_transfer_mc      tm2;
+		struct c2_clink                tmwait2;
+		struct c2_net_buffer_callbacks buf_cb2;
+		struct c2_net_buffer           bufs2[TM_BUFS2];
+		struct c2_net_qstats           qs;
 	} *td;
 	char * const *nidstrs = NULL;
 	int i;
@@ -257,6 +314,8 @@ static void test_msg(void) {
 	 */
 	C2_ALLOC_PTR(td);
 	C2_UT_ASSERT(td != NULL);
+	if (td == NULL)
+		return;
 	dom1 = &td->dom1;
 	tm1  = &td->tm1;
 	dom2 = &td->dom2;
@@ -266,6 +325,10 @@ static void test_msg(void) {
 	td->tmcb.ntc_event_cb = tf_tm_ecb;
 	tm1->ntm_callbacks = &td->tmcb;
 	tm2->ntm_callbacks = &td->tmcb;
+	for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
+		td->buf_cb1.nbc_cb[i] = ut_buf_cb1;
+		td->buf_cb2.nbc_cb[i] = ut_buf_cb2;
+	}
 
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
@@ -277,6 +340,7 @@ static void test_msg(void) {
 
 		max_seg_size = c2_net_domain_get_max_buffer_segment_size(dom1);
 		C2_UT_ASSERT(max_seg_size > 0);
+		C2_UT_ASSERT(max_seg_size >= TM_MSG_SIZE);
 		for (i=0; i < TM_BUFS1; ++i) {
 			nb1 = &td->bufs1[i];
 			rc = c2_bufvec_alloc(&nb1->nb_buffer, TM_BUFSEGS1,
@@ -292,6 +356,7 @@ static void test_msg(void) {
 				goto dereg1;
 			}
 			C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_REGISTERED);
+			nb1->nb_callbacks = &td->buf_cb1;
 		}
 
 		C2_UT_ASSERT(!c2_net_tm_init(tm1, dom1));
@@ -317,6 +382,7 @@ static void test_msg(void) {
 
 		max_seg_size = c2_net_domain_get_max_buffer_segment_size(dom2);
 		C2_UT_ASSERT(max_seg_size > 0);
+		C2_UT_ASSERT(max_seg_size >= TM_MSG_SIZE);
 		for (i=0; i < TM_BUFS2; ++i) {
 			nb2 = &td->bufs2[i];
 			rc = c2_bufvec_alloc(&nb2->nb_buffer, TM_BUFSEGS2,
@@ -332,6 +398,7 @@ static void test_msg(void) {
 				goto dereg2;
 			}
 			C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_REGISTERED);
+			nb2->nb_callbacks = &td->buf_cb2;
 		}
 
 		C2_UT_ASSERT(!c2_net_tm_init(tm2, dom2));
@@ -351,8 +418,38 @@ static void test_msg(void) {
 	}
 
 	/*
+	  TEST
+	  Add a buffer for message receive then cancel it.
+	 */
+	nb1 = &td->bufs1[0];
+	nb1->nb_min_receive_size = TM_MSG_SIZE;
+	nb1->nb_max_receive_msgs = 1;
+	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
+#ifdef __KERNEL__
+	_ktest_umd_init(tm1, nb1);
+#endif
+	ut_cbreset();
+	zUT(c2_net_buffer_add(nb1, tm1), teardown);
+
+	c2_clink_add(&tm1->ntm_chan, &td->tmwait1);
+	c2_net_buffer_del(nb1, tm1);
+	printk("after buffer del\n");
+	ut_chan_timedwait(&td->tmwait1, 30);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_status1 == -ECANCELED);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(tm1, C2_NET_QT_PASSIVE_BULK_RECV,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 1);
+
+	/*
 	  Teardown
 	*/
+ teardown:
 	c2_clink_add(&tm2->ntm_chan, &td->tmwait2);
 	C2_UT_ASSERT(!c2_net_tm_stop(tm2, false));
 	c2_chan_wait(&td->tmwait2);
