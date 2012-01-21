@@ -889,7 +889,9 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	struct nlx_core_buffer_event *bev;
 	c2_time_t now = c2_time_now();
 
-	C2_PRE(event != NULL && event->type != LNET_EVENT_ACK);
+	C2_PRE(event != NULL);
+	if (event->type == LNET_EVENT_ACK)
+		return;
 	cbp = event->md.user_ptr;
 	C2_ASSERT(nlx_core_buffer_invariant(cbp));
 	kbp = cbp->cb_kpvt;
