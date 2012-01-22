@@ -21,10 +21,13 @@
 #define __COLIBRI_LIB_UT_H_
 
 #ifndef __KERNEL__
+# include <stdbool.h>     /* bool */
 # include <CUnit/Basic.h>
 #else
 # include "lib/types.h"
 #endif
+
+#include "lib/list.h" /* c2_list_link, c2_list */
 
 /**
    @defgroup ut Unit testing.
@@ -77,6 +80,12 @@ struct c2_test_suite {
 	const struct c2_test  ts_tests[];
 };
 
+struct c2_test_suite_entry {
+	struct c2_list_link  tse_linkage;
+	const char           *tse_suite_name;
+	const char           *tse_test_name;
+};
+
 /**
    Global constructor for unit tests.
  */
@@ -97,13 +106,43 @@ void c2_uts_fini(void);
 void c2_ut_add(const struct c2_test_suite *ts);
 
 /**
- run tests and write log into file
+ * CUnit user interfaces
+ */
+enum c2_ut_run_mode {
+	C2_UT_KERNEL_MODE,    /** A stub for kernel version of c2_ut_run() */
+	C2_UT_BASIC_MODE,     /** Basic CUnit interface with console output */
+	C2_UT_ICONSOLE_MODE,  /** Interactive CUnit console interface */
+	C2_UT_ICURSES_MODE,   /** Interactive CUnit curses interface */
+	C2_UT_AUTOMATED_MODE, /** Automated CUnit interface with xml output */
+};
 
- @param log_file - name of file to a write testing log
+#ifndef __KERNEL__
+/**
+ run tests
+
+ @param mode         - CUnit interface mode
+ @param test_list    - list of tests/suites to run, it can be empty, which means
+                       to run all the tests
+ @param exclude_list - list of tests/suites to exclude from running, it also can
+                       be empty
 
  @return NONE
  */
-void c2_ut_run(const char *log_file);
+void c2_ut_run(enum c2_ut_run_mode mode, struct c2_list *test_list,
+	       struct c2_list *exclude_list);
+#else
+void c2_ut_run(void);
+#endif
+
+/**
+ print all available test suites in YAML format to STDOUT
+
+ @param with_tests - if true, then all tests of each suite are printed in
+                     addition
+
+ @return NONE
+ */
+void c2_ut_list(bool with_tests);
 
 /**
  commonly used test database reset function
