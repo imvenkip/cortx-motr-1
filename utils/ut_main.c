@@ -110,8 +110,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&xcode_ff2c_ut);
 		c2_ut_add(&yaml2db_ut);
 		c2_ut_run("c2ut.log");
-		if (!keep)
-			unit_end(UT_SANDBOX);
+		unit_end(UT_SANDBOX, keep_sandbox);
 	}
 
 	return 0;
