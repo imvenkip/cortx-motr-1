@@ -19,6 +19,57 @@
  * Original creation date: 11/16/2011
  */
 
+#ifdef NLX_DEBUG
+static void nlx_print_core_buffer_event(const char *pre,
+				const struct nlx_core_buffer_event *lcbev)
+{
+	NLXP("%s: %p\n", pre, lcbev);
+	NLXP("\tcbe_buffer_id: %lx\n", (unsigned long) lcbev->cbe_buffer_id);
+	NLXP("\t     cbe_time: %lx\n", (unsigned long) lcbev->cbe_time);
+	NLXP("\t   cbe_status: %d\n", lcbev->cbe_status);
+	NLXP("\t cbe_unlinked: %d\n", (int) lcbev->cbe_unlinked);
+	NLXP("\t   cbe_length: %ld\n", (unsigned long) lcbev->cbe_length);
+	NLXP("\t   cbe_offset: %ld\n", (unsigned long) lcbev->cbe_offset);
+	NLXP("\t   cbe_sender: %ld %d %d %d\n",
+	     (unsigned long) lcbev->cbe_sender.cepa_nid,
+	     (unsigned) lcbev->cbe_sender.cepa_pid,
+	     (unsigned) lcbev->cbe_sender.cepa_portal,
+	     (unsigned) lcbev->cbe_sender.cepa_tmid);
+}
+#else
+static void nlx_print_core_buffer_event(const char *pre,
+				const struct nlx_core_buffer_event *lcbev)
+{
+}
+#endif
+
+#ifdef NLX_DEBUG
+static void nlx_print_net_buffer_event(const char *pre,
+				       const struct c2_net_buffer_event *nbev)
+{
+	NLXP("%s: %p\n", pre, nbev);
+	NLXP("\t  nbe_time: %lx\n", (unsigned long) nbev->nbe_time);
+	NLXP("\tnbe_status: %d\n", nbev->nbe_status);
+	NLXP("\tnbe_length: %ld\n", (unsigned long) nbev->nbe_length);
+	NLXP("\tnbe_offset: %ld\n", (unsigned long) nbev->nbe_offset);
+	if (nbev->nbe_ep != NULL)
+		NLXP("\t    nbe_ep: %s\n", nbev->nbe_ep->nep_addr);
+	else
+		NLXP("\t    nbe_ep: %s\n", "NULL");
+	NLXP("\tnbe_buffer: %p\n", nbev->nbe_buffer);
+	if (nbev->nbe_buffer != NULL) {
+		struct c2_net_buffer *nb = nbev->nbe_buffer;
+		NLXP("\t\t  nb_qtype: %d\n", nb->nb_qtype);
+		NLXP("\t\t  nb_flags: %lx\n", (unsigned long) nb->nb_flags);
+	}
+}
+#else
+static void nlx_print_net_buffer_event(const char *pre,
+				       const struct c2_net_buffer_event *nbev)
+{
+}
+#endif
+
 /**
    @addtogroup LNetCore
    @{

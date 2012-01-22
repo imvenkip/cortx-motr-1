@@ -239,6 +239,7 @@ static int32_t cb_status1;
 
 static void ut_buf_cb1(const struct c2_net_buffer_event *ev)
 {
+	nlx_print_net_buffer_event("ut_buf_cb1", ev);
 	cb_nb1     = ev->nbe_buffer;
 	cb_qt1     = cb_nb1->nb_qtype;
 	cb_status1 = ev->nbe_status;
@@ -257,6 +258,7 @@ static int32_t cb_status2;
 
 static void ut_buf_cb2(const struct c2_net_buffer_event *ev)
 {
+	nlx_print_net_buffer_event("ut_buf_cb2", ev);
 	cb_nb2     = ev->nbe_buffer;
 	cb_qt2     = cb_nb2->nb_qtype;
 	cb_status2 = ev->nbe_status;
@@ -433,13 +435,12 @@ static void test_msg(void) {
 
 	c2_clink_add(&tm1->ntm_chan, &td->tmwait1);
 	c2_net_buffer_del(nb1, tm1);
-	printk("after buffer del\n");
-	ut_chan_timedwait(&td->tmwait1, 30);
+	ut_chan_timedwait(&td->tmwait1, 10);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
 	C2_UT_ASSERT(cb_nb1 == nb1);
 	C2_UT_ASSERT(cb_status1 == -ECANCELED);
-	C2_UT_ASSERT(!c2_net_tm_stats_get(tm1, C2_NET_QT_PASSIVE_BULK_RECV,
+	C2_UT_ASSERT(!c2_net_tm_stats_get(tm1, C2_NET_QT_MSG_RECV,
 					  &td->qs, true));
 	C2_UT_ASSERT(td->qs.nqs_num_f_events == 1);
 	C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
@@ -450,35 +451,41 @@ static void test_msg(void) {
 	  Teardown
 	*/
  teardown:
+	NLXP("stopping tm2\n");
 	c2_clink_add(&tm2->ntm_chan, &td->tmwait2);
 	C2_UT_ASSERT(!c2_net_tm_stop(tm2, false));
 	c2_chan_wait(&td->tmwait2);
 	c2_clink_del(&td->tmwait2);
 	C2_UT_ASSERT(tm2->ntm_state == C2_NET_TM_STOPPED);
  fini2:
+	NLXP("fini tm2\n");
 	c2_net_tm_fini(&td->tm2);
  dereg2:
 	for (i=0; i < TM_BUFS2; ++i) {
 		nb2 = &td->bufs2[i];
 		if (nb2->nb_buffer.ov_vec.v_nr == 0)
 			continue;
+		NLXP("deregister2: %p\n", nb2);
 		c2_net_buffer_deregister(nb2, dom2);
 		c2_bufvec_free(&nb2->nb_buffer);
 	}
 	c2_net_domain_fini(&td->dom2);
 
+	NLXP("stopping tm1\n");
 	c2_clink_add(&tm1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(!c2_net_tm_stop(tm1, false));
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(tm1->ntm_state == C2_NET_TM_STOPPED);
  fini1:
+	NLXP("fini tm1\n");
 	c2_net_tm_fini(&td->tm1);
  dereg1:
 	for (i=0; i < TM_BUFS1; ++i) {
 		nb1 = &td->bufs1[i];
 		if (nb1->nb_buffer.ov_vec.v_nr == 0)
 			continue;
+		NLXP("deregister1: %p\n", nb1);
 		c2_net_buffer_deregister(nb1, dom1);
 		c2_bufvec_free(&nb1->nb_buffer);
 	}

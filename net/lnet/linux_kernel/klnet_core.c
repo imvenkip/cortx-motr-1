@@ -731,8 +731,6 @@
 
 #include <lnet/lnet.h> /* LNet API, LNET_NIDSTR_SIZE */
 
-#define PFLUSH() {int i; for(i=0;i<5;++i)printk(KERN_ERR "\n");}
-
 /* include local files */
 #include "net/lnet/linux_kernel/klnet_vec.c"
 #include "net/lnet/linux_kernel/klnet_utils.c"
@@ -890,6 +888,9 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
 	lctm = ktm->ktm_ctm;
 
+	if (event->unlinked != 0)
+		LNetInvalidateHandle(&kbp->kb_mdh);
+
 	/* SEND events are only significant for LNetPut operations */
 	if (event->type == LNET_EVENT_SEND &&
 	    cbp->cb_qtype != C2_NET_QT_MSG_SEND &&
@@ -917,7 +918,6 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		C2_SET0(&bev->cbe_sender);
 
 	bev->cbe_unlinked = event->unlinked != 0;
-	printk("put event: %p\n", ql);
 	bev_cqueue_put(&lctm->ctm_bevq);
 	spin_unlock(&ktm->ktm_bevq_lock);
 	c2_semaphore_up(&ktm->ktm_sem);
@@ -1013,7 +1013,6 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	lnet_md_t umd;
 	int rc;
 
-	printk("nlx_core_buf_msg_recv\n"); PFLUSH();
 	C2_PRE(nlx_core_tm_invariant(lctm));
 	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
@@ -1110,7 +1109,6 @@ int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 
 	do {
-		printk("buf_event_wait(%p)\n", lctm);
 		any = c2_semaphore_timeddown(&kctm->ktm_sem, timeout);
 		if (!any)
 			break;
@@ -1118,8 +1116,6 @@ int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 			; /* exhaust the semaphore */
 	} while (bev_cqueue_is_empty(&lctm->ctm_bevq)); /* loop if empty */
 
-	if (any)
-		printk("buf_event_wait(%p) -> Events pending\n", lctm);
 	return any ? 0 : -ETIMEDOUT;
 }
 
@@ -1138,11 +1134,9 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 				   cbe_tm_link);
 		*lcbe = *bev;
 		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
-		/* Event structures released when buffer is unlinked */
-		printk("buf_event_get(%p): got %p\n", lctm, link);
+		/* Event structures released when network buffer unlinked */
 		return true;
 	}
-	printk("buf_event_get(%p): got nothing\n", lctm);
 	return false;
 }
 

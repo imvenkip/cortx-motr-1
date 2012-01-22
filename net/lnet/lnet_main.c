@@ -767,6 +767,21 @@
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
 
+
+/* debug print support */
+#define NLX_DEBUG
+#ifdef NLX_DEBUG
+
+/* note Linux uses the LP64 standard */
+#ifdef __KERNEL__
+#define NLXP(fmt,...) printk(KERN_ERR fmt,## __VA_ARGS__)
+#else
+#define NLXP(fmt,...) fprintf(stderr, fmt,## __VA_ARGS__)
+#endif
+#else
+#define NLXP(fmt,...)
+#endif /* !NLX_DEBUG */
+
 /*
   To reduce global symbols, yet make the code readable, we
   include other .c files with static symbols into this file.

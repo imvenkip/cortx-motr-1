@@ -21,22 +21,35 @@
 
 /* This file is designed to be included in klnet_core.c. */
 
-#define NLX_KDEBUG
-#ifdef NLX_KDEBUG
+#ifdef NLX_DEBUG
 static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
 	LNetSnprintHandle(buf, sizeof(buf)-1, h);
 	printk("%s: %s\n", pre, buf);
 }
+#else
+static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
+{
+	return;
+}
+#endif
 
+#ifdef NLX_DEBUG
 static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
 {
 	printk("%s: NID=%lu PID=%u\n", pre,
 	       (long unsigned) p.nid, (unsigned) p.pid);
 }
+#else
+static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
+{
+	return;
+}
+#endif
 
-static void nlx_kprint_lnet_md(const char *pre, lnet_md_t *md)
+#ifdef NLX_DEBUG
+static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 {
 	printk("%s: %p\n", pre, md);
 	printk("\t    start: %p\n", md->start);
@@ -58,8 +71,15 @@ static void nlx_kprint_lnet_md(const char *pre, lnet_md_t *md)
 	}
 #endif
 }
+#else
+static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
+{
+	return;
+}
+#endif
 
-static void nlx_kprint_lnet_event(const char *pre, lnet_event_t *e)
+#ifdef NLX_DEBUG
+static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 {
 	if (e == NULL) {
 		printk("%s: <null>\n", pre);
@@ -82,19 +102,7 @@ static void nlx_kprint_lnet_event(const char *pre, lnet_event_t *e)
 	nlx_kprint_lnet_md("\t        md:", &e->md);
 }
 #else
-static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
-{
-	return;
-}
-static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
-{
-	return;
-}
-static void nlx_kprint_lnet_md(const char *pre, lnet_md_t md)
-{
-	return;
-}
-static void nlx_kprint_lnet_event(const char *pre, lnet_event_t *e)
+static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 {
 	return;
 }
@@ -295,7 +303,6 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(kcb->kb_ktm == kctm);
-	nlx_kprint_lnet_handle("MDUnlink", kcb->kb_mdh);
 	rc = LNetMDUnlink(kcb->kb_mdh);
 	return rc;
 }

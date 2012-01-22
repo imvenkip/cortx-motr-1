@@ -48,7 +48,8 @@ static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
 		return false;
 	if (bp->xb_core.cb_buffer_id != (nlx_core_opaque_ptr_t) nb)
 		return false;
-	if (!ergo(nb->nb_tm != NULL, nlx_tm_invariant(nb->nb_tm)))
+	if (!ergo(nb->nb_flags & C2_NET_BUF_QUEUED,
+		  nb->nb_tm != NULL && nlx_tm_invariant(nb->nb_tm)))
 		return false;
 	if (!nlx_xo_buffer_bufvec_invariant(nb))
 		return false;
@@ -385,17 +386,9 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
 
-#ifdef __KERNEL__
-	printk("deliver_all(%p)\n", &tp->xtm_core);
-#endif
-
 	while (nlx_core_buf_event_get(&tp->xtm_core, &cbev)) {
 		struct c2_net_buffer_event nbev;
 		int rc;
-
-#ifdef __KERNEL__
-		printk("got event\n");
-#endif
 
 		rc = nlx_xo_core_bev_to_net_bev(tm, &cbev, &nbev);
 		if (rc != 0) {
@@ -410,10 +403,6 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 			   cases where we eat the event.  Note that LNet still
 			   knows about the buffer.
 			*/
-#ifdef __KERNEL__
-			printk("bev_to_net failed: %d QT=%d\n",
-			       rc, nbev.nbe_buffer->nb_qtype);
-#endif
 			C2_ASSERT(nbev.nbe_buffer->nb_qtype ==
 				  C2_NET_QT_MSG_RECV);
 			C2_ASSERT(rc == -ENOMEM);
@@ -441,11 +430,6 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 			nlx_core_bevq_release(&tp->xtm_core, need);
 		}
 
-#ifdef __KERNEL__
-		printk("buffer_event_post(nb=%p, status=%d)\n", nbev.nbe_buffer,
-		       nbev.nbe_status);
-#endif
-
 		/* Deliver the event out of the mutex.  Increment the
 		   callback counter to protect the state of the TM.
 		*/
@@ -460,10 +444,6 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 		tm->ntm_callback_counter--;
 		C2_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
 	}
-
-#ifdef __KERNEL__
-	printk("deliver_all(%p): got %d events\n", &tp->xtm_core, num_events);
-#endif
 
 	/* if we ever left the mutex, wake up waiters on the callback counter */
 	if (num_events > 0)
