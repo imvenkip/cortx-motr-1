@@ -129,10 +129,12 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 	C2_PRE(nlx_dom_invariant(tm->ntm_dom));
 	dp = tm->ntm_dom->nd_xprt_private;
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr, &cepa);
-	if (rc != 0)
+	if (rc == 0 && cepa.cepa_tmid == C2_NET_LNET_TMID_INVALID)
+		rc = -EINVAL;
+	if (rc != 0) {
+		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_end_point_create", rc);
 		return rc;
-	if (cepa.cepa_tmid == C2_NET_LNET_TMID_INVALID)
-		return -EINVAL;
+	}
 
 	return nlx_ep_create(epp, tm, &cepa);
 }
@@ -328,13 +330,11 @@ static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr,
 				     &tp->xtm_core.ctm_addr);
-	if (rc != 0)
-		return rc;
-
-	rc = C2_THREAD_INIT(&tp->xtm_ev_thread,
-			    struct c2_net_transfer_mc *, NULL,
-			    &nlx_tm_ev_worker, tm,
-			    "nlx_tm_ev_worker");
+	if (rc == 0)
+		rc = C2_THREAD_INIT(&tp->xtm_ev_thread,
+				    struct c2_net_transfer_mc *, NULL,
+				    &nlx_tm_ev_worker, tm,
+				    "nlx_tm_ev_worker");
 	if (rc != 0)
 		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_tm_start", rc);
 	return rc;

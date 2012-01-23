@@ -1175,7 +1175,7 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	return false;
 }
 
-int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
+int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom, /* not used */
 			    const char *ep_addr,
 			    struct nlx_core_ep_addr *cepa)
 {
@@ -1183,42 +1183,34 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	char *cp = strchr(ep_addr, ':');
 	char *endp;
 	size_t n;
-	struct nlx_kcore_domain *kd;
-
-	C2_PRE(lcdom != NULL);
-	kd = lcdom->cd_kpvt;
-	C2_PRE(nlx_kcore_domain_invariant(kd));
 
 	if (cp == NULL)
-		goto fail;
+		return -EINVAL;
 	n = cp - ep_addr;
 	if (n == 0 || n >= sizeof nidstr)
-		goto fail;
+		return -EINVAL;
 	strncpy(nidstr, ep_addr, n);
 	nidstr[n] = 0;
 	cepa->cepa_nid = libcfs_str2nid(nidstr);
 	if (cepa->cepa_nid == LNET_NID_ANY)
-		goto fail;
+		return -EINVAL;
 	++cp;
 	cepa->cepa_pid = simple_strtoul(cp, &endp, 10);
 	if (*endp != ':')
-		goto fail;
+		return -EINVAL;
 	cp = endp + 1;
 	cepa->cepa_portal = simple_strtoul(cp, &endp, 10);
 	if (*endp != ':')
-		goto fail;
+		return -EINVAL;
 	cp = endp + 1;
 	if (strcmp(cp, "*") == 0) {
 		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
 	} else {
 		cepa->cepa_tmid = simple_strtoul(cp, &endp, 10);
 		if (*endp != 0 || cepa->cepa_tmid > C2_NET_LNET_TMID_MAX)
-			goto fail;
+			return -EINVAL;
 	}
 	return 0;
-fail:
-	LNET_ADDB_ADD(kd->kd_addb, "nlx_core_ep_addr_decode", -EINVAL);
-	return -EINVAL;
 }
 
 void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
