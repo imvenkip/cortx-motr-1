@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -125,7 +125,8 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 		return -EFBIG;
 
 	/* allocate and fill in the kiov */
-	C2_ALLOC_ARR(kb->kb_kiov, num_pages);
+	C2_ALLOC_ARR_ADDB(kb->kb_kiov, num_pages,
+			  &kb->kb_addb, &c2_net_lnet_addb_loc);
 	if (kb->kb_kiov == 0)
 		return -ENOMEM;
 	kb->kb_kiov_len = num_pages;

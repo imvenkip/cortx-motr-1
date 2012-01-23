@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -68,7 +68,7 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 
 	C2_PRE(dom->nd_xprt_private == NULL);
 	C2_PRE(xprt == &c2_net_lnet_xprt);
-	C2_ALLOC_PTR(dp);
+	C2_ALLOC_PTR_ADDB(dp, &dom->nd_addb, &c2_net_lnet_addb_loc);
 	if (dp == NULL)
 		return -ENOMEM;
 	dom->nd_xprt_private = dp;
@@ -166,7 +166,7 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	C2_PRE(nlx_xo_buffer_bufvec_invariant(nb));
 
 	dp = nb->nb_dom->nd_xprt_private;
-	C2_ALLOC_PTR(bp);
+	C2_ALLOC_PTR_ADDB(bp, &nb->nb_addb, &c2_net_lnet_addb_loc);
 	if (bp == NULL)
 		return -ENOMEM;
 	nb->nb_xprt_private = bp;
@@ -282,7 +282,7 @@ static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)
 	C2_PRE(tm->ntm_xprt_private == NULL);
 
 	dp = tm->ntm_dom->nd_xprt_private;
-	C2_ALLOC_PTR(tp);
+	C2_ALLOC_PTR_ADDB(tp, &tm->ntm_addb, &c2_net_lnet_addb_loc);
 	if (tp == NULL)
 		return -ENOMEM;
 	tm->ntm_xprt_private = tp;
