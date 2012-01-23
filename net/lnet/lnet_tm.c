@@ -58,6 +58,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	tp = tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 
+	nlx_core_tm_set_debug(ctp, tp->_debug_);
+
 	if (tp->xtm_processors.b_nr != 0) {
 		struct c2_thread_handle me;
 		c2_thread_self(&me);
@@ -188,9 +190,9 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	if (!lcbev->cbe_unlinked)
 		nb->nb_flags |= C2_NET_BUF_RETAIN;
  done:
-	nlx_print_core_buffer_event("bev_to_net_bev: cbev", lcbev);
-	nlx_print_net_buffer_event("bev_to_net_bev: nbev:", nbev);
-	NLXP("bev_to_net_bev: rc=%d\n", rc);
+	NLXDBG(tp,1,nlx_print_core_buffer_event("bev_to_net_bev: cbev", lcbev));
+	NLXDBG(tp,1,nlx_print_net_buffer_event("bev_to_net_bev: nbev:", nbev));
+	NLXDBG(tp,1,NLXP("bev_to_net_bev: rc=%d\n", rc));
 
 	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
 		     rc == 0 && !lcbev->cbe_unlinked));

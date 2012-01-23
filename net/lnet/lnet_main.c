@@ -778,8 +778,10 @@
 #else
 #define NLXP(fmt,...) fprintf(stderr, fmt,## __VA_ARGS__)
 #endif
+#define NLXDBG(ptr,dbg,stmt) if ((ptr)->_debug_ >= (dbg)) stmt
 #else
 #define NLXP(fmt,...)
+#define NLXDBG(ptr,dbg,stmt)
 #endif /* !NLX_DEBUG */
 
 /*
@@ -829,6 +831,30 @@ void c2_net_lnet_ifaces_put(char * const **addrs)
 	nlx_core_nidstrs_put(addrs);
 }
 C2_EXPORTED(c2_net_lnet_ifaces_put);
+
+void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
+{
+	struct nlx_xo_domain *dp;
+	C2_PRE(dom != NULL);
+	c2_mutex_lock(&c2_net_mutex);
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	dp->_debug_ = dbg;
+	nlx_core_dom_set_debug(&dp->xd_core, dbg);
+	c2_mutex_unlock(&c2_net_mutex);
+}
+
+void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
+{
+	struct nlx_xo_transfer_mc *tp;
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(nlx_tm_invariant(tm));
+	tp = tm->ntm_xprt_private;
+	tp->_debug_ = dbg;
+	nlx_core_tm_set_debug(&tp->xtm_core, dbg);
+	c2_mutex_unlock(&tm->ntm_mutex);
+}
 
 /*
  *  Local variables:

@@ -19,7 +19,6 @@
  * Original creation date: 11/16/2011
  */
 
-#ifdef NLX_DEBUG
 static void nlx_print_core_buffer_event(const char *pre,
 				const struct nlx_core_buffer_event *lcbev)
 {
@@ -36,14 +35,7 @@ static void nlx_print_core_buffer_event(const char *pre,
 	     (unsigned) lcbev->cbe_sender.cepa_portal,
 	     (unsigned) lcbev->cbe_sender.cepa_tmid);
 }
-#else
-static void nlx_print_core_buffer_event(const char *pre,
-				const struct nlx_core_buffer_event *lcbev)
-{
-}
-#endif
 
-#ifdef NLX_DEBUG
 static void nlx_print_net_buffer_event(const char *pre,
 				       const struct c2_net_buffer_event *nbev)
 {
@@ -63,12 +55,6 @@ static void nlx_print_net_buffer_event(const char *pre,
 		NLXP("\t\t  nb_flags: %lx\n", (unsigned long) nb->nb_flags);
 	}
 }
-#else
-static void nlx_print_net_buffer_event(const char *pre,
-				       const struct c2_net_buffer_event *nbev)
-{
-}
-#endif
 
 /**
    @addtogroup LNetCore
@@ -143,6 +129,17 @@ void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 	lctm->ctm_bev_needed -= release;
 	return;
 }
+
+void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
+{
+	lcdom->_debug_ = dbg;
+}
+
+void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm, unsigned dbg)
+{
+	lctm->_debug_ = dbg;
+}
+
 
 /**
    @}

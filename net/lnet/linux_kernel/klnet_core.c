@@ -876,7 +876,6 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	struct nlx_core_buffer_event *bev;
 	c2_time_t now = c2_time_now();
 
-	nlx_kprint_lnet_event("eq_cb", event);
 	C2_PRE(event != NULL);
 	if (event->type == LNET_EVENT_ACK)
 		return;
@@ -887,6 +886,8 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	ktm = kbp->kb_ktm;
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
 	lctm = ktm->ktm_ctm;
+
+	NLXDBG(lctm,2,nlx_kprint_lnet_event("eq_cb", event));
 
 	if (event->unlinked != 0)
 		LNetInvalidateHandle(&kbp->kb_mdh);

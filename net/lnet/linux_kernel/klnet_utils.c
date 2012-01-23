@@ -21,34 +21,19 @@
 
 /* This file is designed to be included in klnet_core.c. */
 
-#ifdef NLX_DEBUG
 static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
 	LNetSnprintHandle(buf, sizeof(buf)-1, h);
 	printk("%s: %s\n", pre, buf);
 }
-#else
-static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
-{
-	return;
-}
-#endif
 
-#ifdef NLX_DEBUG
 static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
 {
 	printk("%s: NID=%lu PID=%u\n", pre,
 	       (long unsigned) p.nid, (unsigned) p.pid);
 }
-#else
-static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
-{
-	return;
-}
-#endif
 
-#ifdef NLX_DEBUG
 static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 {
 	printk("%s: %p\n", pre, md);
@@ -71,14 +56,7 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 	}
 #endif
 }
-#else
-static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
-{
-	return;
-}
-#endif
 
-#ifdef NLX_DEBUG
 static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 {
 	if (e == NULL) {
@@ -101,12 +79,6 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 	printk("\t    offset: %u\n", e->offset);
 	nlx_kprint_lnet_md("\t        md:", &e->md);
 }
-#else
-static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
-{
-	return;
-}
-#endif
 
 /**
    @addtogroup KLNetCore
@@ -224,7 +196,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	}
 	umd->user_ptr = lcbuf;
 	umd->eq_handle = kctm->ktm_eqh;
-	nlx_kprint_lnet_md("umd init", umd);
+	NLXDBG(lctm, 1, nlx_kprint_lnet_md("umd init", umd));
 }
 
 /**
@@ -271,10 +243,13 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc == 0) {
 		kcb->kb_ktm = kctm;
-		nlx_kprint_lnet_handle("MDAttach", kcb->kb_mdh);
+		NLXDBG(lctm, 1, nlx_kprint_lnet_handle("MDAttach", kcb->kb_mdh));
 	} else {
 		int trc = LNetMEUnlink(meh);
+		NLXDBG(lctm, 1, NLXP("LNetMDAttach: %d\n", rc));
+		NLXDBG(lctm, 1, NLXP("LNetMEUnlink: %d\n", trc));
 		C2_ASSERT(trc == 0);
+		LNetInvalidateHandle(&kcb->kb_mdh);
 	}
 
 	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
@@ -304,6 +279,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(kcb->kb_ktm == kctm);
 	rc = LNetMDUnlink(kcb->kb_mdh);
+	NLXDBG(lctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
 	return rc;
 }
 
@@ -351,7 +327,14 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 		     nlx_kcore_hdr_data_encode(lctm));
 	if (rc == 0) {
 		kcb->kb_ktm = kctm;
-		nlx_kprint_lnet_handle("LNetBind/Put", kcb->kb_mdh);
+		NLXDBG(lctm, 1,
+		       nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
+	} else {
+		int trc = LNetMDUnlink(kcb->kb_mdh);
+		NLXDBG(lctm, 1, NLXP("LNetPut: %d\n", rc));
+		NLXDBG(lctm, 1, NLXP("LNetMDUnlink: %d\n", trc));
+		C2_ASSERT(trc == 0);
+		LNetInvalidateHandle(&kcb->kb_mdh);
 	}
 
 	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));

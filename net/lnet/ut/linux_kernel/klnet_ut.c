@@ -356,25 +356,33 @@ static void ktest_enc_dec(void)
 #undef TEST_HDR_DATA_ENCODE
 }
 
-static void _ktest_umd_init(struct c2_net_transfer_mc *tm,
-			    struct c2_net_buffer *nb)
+static void ktest_lnet_basics_body(struct test_msg_data *td)
 {
-	struct nlx_xo_transfer_mc      *tp = tm->ntm_xprt_private;
-	struct nlx_core_transfer_mc  *lctm = &tp->xtm_core;
-	struct nlx_xo_buffer           *bp = nb->nb_xprt_private;
-	struct nlx_core_buffer      *lcbuf = &bp->xb_core;
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
-
+	struct c2_net_buffer            *nb1 = &td->bufs1[0];
+	struct nlx_xo_transfer_mc       *tp1 = TM1->ntm_xprt_private;
+	struct nlx_core_transfer_mc   *lctm1 = &tp1->xtm_core;
+	struct nlx_xo_buffer            *bp1 = nb1->nb_xprt_private;
+	struct nlx_core_buffer       *lcbuf1 = &bp1->xb_core;
+	struct nlx_kcore_transfer_mc  *kctm1 = lctm1->ctm_kpvt;
+	struct nlx_kcore_buffer        *kcb1 = lcbuf1->cb_kpvt;
 	lnet_md_t umd;
-	nlx_kcore_umd_init(lctm, lcbuf, 1, 1, 0, &umd);
-	C2_UT_ASSERT(umd.start == kcb->kb_kiov);
-	C2_UT_ASSERT(umd.length == kcb->kb_kiov_len);
+
+	nb1->nb_min_receive_size = UT_MSG_SIZE;
+	nb1->nb_max_receive_msgs = 1;
+	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
+
+	nlx_kcore_umd_init(lctm1, lcbuf1, 1, 1, 0, &umd);
+	C2_UT_ASSERT(umd.start == kcb1->kb_kiov);
+	C2_UT_ASSERT(umd.length == kcb1->kb_kiov_len);
 	C2_UT_ASSERT(umd.options & LNET_MD_KIOV);
-	C2_UT_ASSERT(umd.user_ptr == lcbuf);
-	C2_UT_ASSERT(LNetHandleIsEqual(umd.eq_handle, kctm->ktm_eqh));
+	C2_UT_ASSERT(umd.user_ptr == lcbuf1);
+	C2_UT_ASSERT(LNetHandleIsEqual(umd.eq_handle, kctm1->ktm_eqh));
+
 }
 
+static void ktest_lnet_basics(void) {
+	ut_test_framework(&ktest_lnet_basics_body);
+}
 
 #undef UT_BUFVEC_FREE
 #undef UT_BUFVEC_ALLOC

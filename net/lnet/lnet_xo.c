@@ -80,6 +80,7 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 		c2_free(dp);
 		dom->nd_xprt_private = NULL;
 	}
+	nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
 	C2_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
 	return rc;
 }

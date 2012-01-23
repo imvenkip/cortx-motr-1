@@ -99,6 +99,12 @@ void c2_net_lnet_ifaces_put(char * const **addrs);
 int c2_net_lnet_init(void);
 void c2_net_lnet_fini(void);
 
+/*
+   Debug support.
+ */
+void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg);
+void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg);
+
 /**
    @} LNetDFS end group
  */
