@@ -112,6 +112,7 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	unsigned i;
 	unsigned num_pages;
 	unsigned knum;
+	int rc;
 
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
 	C2_PRE(kb->kb_kiov == NULL && kb->kb_kiov_len == 0);
@@ -121,14 +122,18 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
 		num_pages += bufvec_seg_page_count(bvec, i);
 	C2_ASSERT(num_pages > 0);
-	if (num_pages > LNET_MAX_IOV)
-		return -EFBIG;
+	if (num_pages > LNET_MAX_IOV) {
+		rc = -EFBIG;
+		goto fail;
+	}
 
 	/* allocate and fill in the kiov */
 	C2_ALLOC_ARR_ADDB(kb->kb_kiov, num_pages,
 			  &kb->kb_addb, &c2_net_lnet_addb_loc);
-	if (kb->kb_kiov == 0)
-		return -ENOMEM;
+	if (kb->kb_kiov == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
 	kb->kb_kiov_len = num_pages;
 	knum = 0;
 	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
@@ -136,6 +141,9 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	C2_POST(knum == num_pages);
 
 	return 0;
+fail:
+	LNET_ADDB_ADD(kb->kb_addb, "nlx_kcore_buffer_kla_to_kiov", rc);
+	return rc;
 }
 
 /**

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -23,6 +23,9 @@
 #define __COLIBRI_NET_LNET_PVT_H__
 
 extern const struct c2_addb_loc c2_net_lnet_addb_loc;
+
+#define LNET_ADDB_ADD(ctx, name, rc) \
+ C2_ADDB_ADD(&(ctx), &c2_net_lnet_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm);

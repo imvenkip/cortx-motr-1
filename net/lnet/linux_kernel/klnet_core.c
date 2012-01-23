@@ -1012,6 +1012,7 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_ASSERT(rc != 0);
 	kb->kb_magic = 0;
 	lcbuf->cb_magic = 0;
+	LNET_ADDB_ADD(kb->kb_addb, "nlx_core_buf_register", rc);
 	c2_free(kb);
 	return rc;
 }
@@ -1057,6 +1058,8 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_ADD(kctm->ktm_addb, "nlx_core_buf_msg_recv", rc);
 	return rc;
 }
 
@@ -1079,6 +1082,8 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetPut(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_ADD(kctm->ktm_addb, "nlx_core_buf_msg_send", rc);
 	return rc;
 }
 
@@ -1178,34 +1183,42 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	char *cp = strchr(ep_addr, ':');
 	char *endp;
 	size_t n;
+	struct nlx_kcore_domain *kd;
+
+	C2_PRE(lcdom != NULL);
+	kd = lcdom->cd_kpvt;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
 
 	if (cp == NULL)
-		return -EINVAL;
+		goto fail;
 	n = cp - ep_addr;
 	if (n == 0 || n >= sizeof nidstr)
-		return -EINVAL;
+		goto fail;
 	strncpy(nidstr, ep_addr, n);
 	nidstr[n] = 0;
 	cepa->cepa_nid = libcfs_str2nid(nidstr);
 	if (cepa->cepa_nid == LNET_NID_ANY)
-		return -EINVAL;
+		goto fail;
 	++cp;
 	cepa->cepa_pid = simple_strtoul(cp, &endp, 10);
 	if (*endp != ':')
-		return -EINVAL;
+		goto fail;
 	cp = endp + 1;
 	cepa->cepa_portal = simple_strtoul(cp, &endp, 10);
 	if (*endp != ':')
-		return -EINVAL;
+		goto fail;
 	cp = endp + 1;
 	if (strcmp(cp, "*") == 0) {
 		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
 	} else {
 		cepa->cepa_tmid = simple_strtoul(cp, &endp, 10);
 		if (*endp != 0 || cepa->cepa_tmid > C2_NET_LNET_TMID_MAX)
-			return -EINVAL;
+			goto fail;
 	}
 	return 0;
+fail:
+	LNET_ADDB_ADD(kd->kd_addb, "nlx_core_ep_addr_decode", -EINVAL);
+	return -EINVAL;
 }
 
 void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
@@ -1344,6 +1357,7 @@ fail:
 fail_kctm:
 	c2_free(kctm);
 	C2_ASSERT(rc != 0);
+	LNET_ADDB_ADD(tm->ntm_addb, "nlx_core_tm_start", rc);
 	return rc;
 }
 
