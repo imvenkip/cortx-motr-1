@@ -875,7 +875,7 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 						PAGE_CACHE_SIZE,
 						offset_in_stob);
 			if (rc != 0)
-				goto iofop_fini;
+				goto buflist_empty;
 
 			offset_in_stob += PAGE_CACHE_SIZE;
 			count          += PAGE_CACHE_SIZE;
@@ -892,21 +892,26 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	C2_ASSERT(count == rw_desc->rd_count);
 
 	rbuf->bb_nbuf->nb_qtype = (rw == READ) ? C2_NET_QT_PASSIVE_BULK_RECV
-					      : C2_NET_QT_PASSIVE_BULK_SEND;
+					       : C2_NET_QT_PASSIVE_BULK_SEND;
 
         rc = io_fop_prepare(&iofop->if_fop);
 	if (rc != 0) {
 		C2_TRACE("io_fop_prepare() failed: rc [%d]\n", rc);
-		goto iofop_fini;
+		goto buflist_empty;
 	}
 
 	C2_TRACE_END(iofop);
 	return iofop;
 
+buflist_empty:
+	c2_rpc_bulk_buflist_empty(rbulk);
+
 iofop_fini:
 	c2_io_fop_fini(iofop);
+
 iofop_free:
 	c2_free(iofop);
+
 out:
 	C2_TRACE_END(NULL);
 	return NULL;

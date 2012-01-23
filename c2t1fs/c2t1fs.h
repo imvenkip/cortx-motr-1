@@ -68,16 +68,16 @@
 
   - nr_data_units [value type: number]
       Number of data units in one parity group. Optional parameter.
-      Default value is C2T1FS_DEFAULT_NR_DATA_UNITS (=1).
+      Default value is C2T1FS_DEFAULT_NR_DATA_UNITS.
 
   - nr_parity_units [value type: number]
       Number of parity units in one parity group. Optional parameter.
-      Default value is C2T1FS_DEFAULT_NR_PARITY_UNITS (=0).
+      Default value is C2T1FS_DEFAULT_NR_PARITY_UNITS.
 
   - pool_width [value type: number]
       Number of component objects over which file contents are striped.
       Optional parameter.
-      Default value is C2T1FS_DEFAULT_POOL_WIDTH (=1).
+      Default value is C2T1FS_DEFAULT_POOL_WIDTH.
       pool_width >= nr_data_units + 2 * nr_parity_units. (2 to account for
       nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
 
@@ -182,7 +182,7 @@ enum {
 	C2T1FS_NR_SLOTS_PER_SESSION     = 10,
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
 	C2T1FS_DEFAULT_NR_DATA_UNITS    = 1,
-	C2T1FS_DEFAULT_NR_PARITY_UNITS  = 0,
+	C2T1FS_DEFAULT_NR_PARITY_UNITS  = 1,
 	C2T1FS_DEFAULT_POOL_WIDTH       = C2T1FS_DEFAULT_NR_DATA_UNITS +
 					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
