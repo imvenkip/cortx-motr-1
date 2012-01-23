@@ -35,8 +35,10 @@
 #include "lib/ut.h"
 #include "balloc/balloc.h"
 
+#define BALLOC_DBNAME "./__balloc_dbdir"
+
 extern	struct c2_balloc		 colibri_balloc;
-static const char			*db_name = "./__s";;
+static const char			*db_name = BALLOC_DBNAME;
 static const int			 MAX	 = 100;
 static c2_bcount_t			 prev_free_blocks;
 static struct c2_balloc_group_info*	 prev_group_info;
@@ -264,7 +266,7 @@ void test_balloc()
 	result = test_balloc_ut_ops();
 	C2_UT_ASSERT(result == 0);
 
-	result = system("rm -fr ./__s");
+	result = system("rm -fr "BALLOC_DBNAME);
 	C2_UT_ASSERT(result == 0);
 }
 
