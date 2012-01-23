@@ -637,7 +637,7 @@ struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
 { FOPH_IO_FOM_BUFFER_WAIT,
   io_fom_cob_rw_acquire_net_buffer,
   FOPH_IO_STOB_INIT,
-  0, },
+  FOPH_IO_FOM_BUFFER_WAIT, },
 
 { FOPH_IO_STOB_INIT,
   io_fom_cob_rw_io_launch,
@@ -678,7 +678,7 @@ struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 { FOPH_IO_FOM_BUFFER_WAIT,
   io_fom_cob_rw_acquire_net_buffer,
   FOPH_IO_ZERO_COPY_INIT,
-  0, },
+  FOPH_IO_FOM_BUFFER_WAIT, },
 
 { FOPH_IO_ZERO_COPY_INIT,
   io_fom_cob_rw_initiate_zero_copy,
@@ -686,8 +686,8 @@ struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
   FOPH_IO_ZERO_COPY_WAIT, },
 
 { FOPH_IO_ZERO_COPY_WAIT,
-  io_fom_cob_rw_io_finish,
-  FOPH_IO_ZERO_COPY_INIT,
+  io_fom_cob_rw_zero_copy_finish,
+  FOPH_IO_STOB_INIT,
   0, },
 
 { FOPH_IO_STOB_INIT,
@@ -696,7 +696,7 @@ struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
   FOPH_IO_STOB_WAIT, },
 
 { FOPH_IO_STOB_WAIT,
-  io_fom_cob_rw_zero_copy_finish,
+  io_fom_cob_rw_io_finish,
   FOPH_IO_BUFFER_RELEASE,
   0, },
 
@@ -722,6 +722,9 @@ static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
 
         if (io->fcrw_curr_ivec_index < 0 ||
             io->fcrw_curr_ivec_index > rwfop->crw_ivecs.cis_nr)
+                return false;
+
+        if (!c2_tlist_invariant(&netbufs_tl, &io->fcrw_netbuf_list))
                 return false;
 
         acquired_net_buffs = netbufs_tlist_length(&io->fcrw_netbuf_list);
@@ -931,7 +934,7 @@ static int io_fom_cob_rw_align_bufvec (struct c2_fom    *fom,
          * It calculates number of bufvecs for I/O request on
          * the basis of index vec count.
          * @todo : Assuming size of each bufvec is same.
-         *         can be better expressin ( or math function).
+         *         This can be better expressin ( or math function).
          */
         bufvec_count = (ivec_count / bufvec_seg_size) +
                        ((ivec_count % bufvec_seg_size) == 0 ? 0:1);
@@ -1352,7 +1355,6 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
 
         c2_mutex_lock(&rbulk->rb_mutex);
         C2_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
-        c2_mutex_unlock(&rbulk->rb_mutex);
 
 
         if (rbulk->rb_rc != 0){
@@ -1361,9 +1363,11 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail,
                             "io_fom_cob_rw_zero_copy_finish", fom->fo_rc);
+                c2_mutex_unlock(&rbulk->rb_mutex);
                 return FSO_AGAIN;
         }
 
+        c2_mutex_unlock(&rbulk->rb_mutex);
         c2_rpc_bulk_fini(rbulk);
 
         return FSO_AGAIN;
@@ -1474,10 +1478,32 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                         break;
                 }
 
-                /* Find out buffer address, offset and count required for stob
-                   io. Due to existing limitations of kxdr wrapper over sunrpc,
-                   read reply fop can not contain a vector, only a segment.
-                   Ideally, all IO fops should carry an IO vector. */
+                /*
+                 * Copy aligned network buffer to stobio object.
+                 * Also trim network buffer as per I/O size.
+                 */
+                ivec_count = c2_vec_count(&mem_ivec->iv_vec);
+                rc = io_fom_cob_rw_align_bufvec(fom, &stio->si_user,
+                                                &nb->nb_buffer,
+                                                ivec_count,
+                                                bshift);
+                if (rc != 0) {
+                        /*
+                         * Since this stob io not added into list
+                         * yet, free it here.
+                         */
+                        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                    c2_addb_func_fail,
+                                    "io_fom_cob_rw_io_launch", rc);
+                        /*
+                         * @todo: need to add memory free allocated in stio
+                         *        in thid function.
+                         */
+                        c2_stob_io_fini(stio);
+                        c2_free(stio_desc);
+                        break;
+                }
+
                 if (c2_is_write_fop(fop)) {
                         /* Make an FOL transaction record. */
                         rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
@@ -1498,28 +1524,6 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                         stio->si_opcode = SIO_WRITE;
                 } else {
                         stio->si_opcode = SIO_READ;
-                }
-
-                ivec_count = c2_vec_count(&mem_ivec->iv_vec);
-                rc = io_fom_cob_rw_align_bufvec(fom, &stio->si_user,
-                                                &nb->nb_buffer,
-                                                ivec_count,
-                                                bshift);
-                if (rc != 0) {
-                        /*
-                         * Since this stob io not added into list
-                         * yet, free it here.
-                         */
-                        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                                    c2_addb_func_fail,
-                                    "io_fom_cob_rw_io_launch", rc);
-                        /* 
-                         * @todo: need to add memory free allocated in stio
-                         *        in thid function.
-                         */
-                        c2_stob_io_fini(stio);
-                        c2_free(stio_desc);
-                        break;
                 }
 
                 c2_clink_add(&stio->si_wait, &stio_desc->siod_clink);
@@ -1691,8 +1695,8 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
         fom->fo_phase = (rc == FSO_AGAIN) ? st.fcrw_st_next_phase_again :
                         st.fcrw_st_next_phase_wait;
-        C2_ASSERT(fom->fo_phase > FOPH_NR);
-        C2_ASSERT(fom->fo_phase <= FOPH_IO_BUFFER_RELEASE);
+        C2_ASSERT(fom->fo_phase > FOPH_NR &&
+                  fom->fo_phase <= FOPH_IO_BUFFER_RELEASE);
 
         return rc;
 }
