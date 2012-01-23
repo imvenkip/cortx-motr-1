@@ -771,9 +771,9 @@ static struct page *addr_to_page(void *addr)
 	return pg;
 }
 
-struct c2_io_fop *
-rw_desc_to_io_fop(const struct rw_desc *rw_desc,
-		  int                   rw)
+int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
+		      int                   rw,
+		      struct c2_io_fop    **out)
 {
 	struct c2_fop_type     *fopt;
 	struct c2_fop_cob_rw   *rwfop;
@@ -795,9 +795,13 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	C2_TRACE_START();
 
+	C2_ASSERT(rw_desc != NULL && out != NULL);
+	*out = NULL;
+
 	C2_ALLOC_PTR(iofop);
 	if (iofop == NULL) {
 		C2_TRACE("iofop allocation failed\n");
+		rc = -ENOMEM;
 		goto out;
 	}
 
@@ -900,8 +904,10 @@ rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 		goto buflist_empty;
 	}
 
-	C2_TRACE_END(iofop);
-	return iofop;
+	*out = iofop;
+
+	C2_TRACE_END(rc);
+	return rc;
 
 buflist_empty:
 	c2_rpc_bulk_buflist_empty(rbulk);
@@ -913,8 +919,8 @@ iofop_free:
 	c2_free(iofop);
 
 out:
-	C2_TRACE_END(NULL);
-	return NULL;
+	C2_TRACE_END(rc);
+	return rc;
 }
 
 static int io_fop_do_sync_io(struct c2_io_fop     *iofop,
@@ -925,6 +931,8 @@ static int io_fop_do_sync_io(struct c2_io_fop     *iofop,
 	int                         rc;
 
 	C2_TRACE_START();
+
+	C2_ASSERT(iofop != NULL && session != NULL);
 
 	rwfop = io_rw_get(&iofop->if_fop);
 	C2_ASSERT(rwfop != NULL);
@@ -995,7 +1003,14 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 		} c2_tlist_endfor;
 
-		iofop = rw_desc_to_io_fop(rw_desc, rw);
+		rc = rw_desc_to_io_fop(rw_desc, rw, &iofop);
+		if (rc != 0) {
+			/* For now, if one io fails, fail entire IO. */
+			C2_TRACE("rw_desc_to_io_fop() failed: rc [%d]\n", rc);
+			C2_TRACE_END(rc);
+			return rc;
+		}
+
 		rc    = io_fop_do_sync_io(iofop, rw_desc->rd_session);
 		if (rc != 0) {
 			/* For now, if one io fails, fail entire IO. */
