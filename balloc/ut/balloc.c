@@ -24,7 +24,6 @@ extern	struct c2_balloc	 colibri_balloc;
 const char			*db_name = "./__s";;
 const int			 MAX	 = 100;
 c2_bcount_t			 prev_free_blocks;
-c2_bcount_t			 prev_totalsize;
 struct c2_balloc_group_info*	 prev_group_info;
 
 enum balloc_invariant_enum {
@@ -46,12 +45,10 @@ bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 	switch (balloc_invariant_flag) {
 	    case INVAR_ALLOC:
 		 prev_free_blocks		       -= len;
-		 prev_totalsize			       -= len;
 		 prev_group_info[group].bgi_freeblocks -= len;
 		 break;
 	    case INVAR_FREE:
 		 prev_free_blocks		       += len;
-		 prev_totalsize			       += len;
 		 prev_group_info[group].bgi_freeblocks += len;
 		 break;
 	    default:
@@ -88,7 +85,6 @@ int test_balloc_ut_ops()
 
 	if(result == 0) {
 
-		prev_totalsize	 = colibri_balloc.cb_sb.bsb_totalsize;
 		prev_free_blocks = colibri_balloc.cb_sb.bsb_freeblocks;
 		prev_group_info	 = colibri_balloc.cb_group_info;
 
@@ -197,8 +193,7 @@ int test_balloc_ut_ops()
 				c2_db_tx_abort(&dtx.tx_dbtx);
 		}
 
-		if(colibri_balloc.cb_sb.bsb_totalsize != prev_totalsize ||
-		   colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks) {
+		if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks) {
 			fprintf(stderr, "Size mismatch during block reclaim\n");
 			result = -EINVAL;
 		}
