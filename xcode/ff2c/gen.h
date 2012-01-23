@@ -14,38 +14,38 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 04/28/2010
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 30-Dec-2011
  */
 
-#ifndef __COLIBRI_STOB_LINUX_H__
-#define __COLIBRI_STOB_LINUX_H__
+#ifndef __COLIBRI_XCODE_FF2C_GEN_H__
+#define __COLIBRI_XCODE_FF2C_GEN_H__
 
 /**
-   @defgroup stoblinux Storage object based on Linux specific file system
-   and block device interfaces.
-
-   @see stob
-   @{
+   @addtogroup xcode
  */
+/** @{ */
 
-extern struct c2_stob_type linux_stob_type;
+#include <stdio.h>                              /* FILE */
 
-int  c2_linux_stobs_init(void);
-void c2_linux_stobs_fini(void);
+/* import */
+struct ff2c_ff;
 
-struct c2_stob_domain;
+struct ff2c_gen_opt {
+	const char *go_basename;
+	const char *go_guardname;
+	FILE       *go_out;
+};
 
-int c2_linux_stob_setup(struct c2_stob_domain *dom, bool use_directio);
-int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
-			const char *path, struct c2_dtx *tx);
+int ff2c_h_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt);
+int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt);
 
-/** @} end group stoblinux */
+/** @} end of xcode group */
 
-/* __COLIBRI_STOB_LINUX_H__ */
+/* __COLIBRI_XCODE_FF2C_GEN_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

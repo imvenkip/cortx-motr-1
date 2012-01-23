@@ -45,4 +45,7 @@ void sim_global_fini(void);
 int c2_reqhs_init(void);
 void c2_reqhs_fini(void);
 
+int c2_timers_init(void);
+void c2_timers_fini(void);
+
 #endif /* __C2_DUMMY_INIT_FINI_H */

@@ -95,6 +95,8 @@ C2_ADDB_ADD(&(obj)->so_addb, &ad_stob_addb_loc, c2_addb_func_fail, (name), (rc))
 struct ad_domain {
 	struct c2_stob_domain      ad_base;
 
+	char			   ad_path[MAXPATHLEN];
+
 	struct c2_dbenv           *ad_dbenv;
 	/**
 	   Extent map storing mapping from logical to physical offsets.
@@ -219,6 +221,9 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	struct c2_stob_domain *dom;
 	int                    result;
 
+	C2_ASSERT(domain_name != NULL);
+	C2_ASSERT(strlen(domain_name) < ARRAY_SIZE(adom->ad_path));
+
 	C2_ALLOC_PTR(adom);
 	if (adom != NULL) {
 		adom->ad_setup = false;
@@ -226,6 +231,8 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 		dom = &adom->ad_base;
 		dom->sd_ops = &ad_stob_domain_op;
 		c2_stob_domain_init(dom, type);
+		strcpy(adom->ad_path, domain_name);
+		dom->sd_name = adom->ad_path;
 		*out = dom;
 		result = 0;
 	} else {

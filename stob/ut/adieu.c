@@ -85,7 +85,7 @@ static int test_adieu_init(void)
 	result = mkdir("./__s/o", 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
+	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  "./__s", &dom);
 	C2_ASSERT(result == 0);
 
