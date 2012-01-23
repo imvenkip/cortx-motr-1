@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -34,6 +34,10 @@ extern struct c2_addb_ctx c2_net_addb;
 extern const struct c2_addb_ctx_type c2_net_dom_addb_ctx;
 extern const struct c2_addb_ctx_type c2_net_buffer_addb_ctx;
 extern const struct c2_addb_ctx_type c2_net_tm_addb_ctx;
+
+#define NET_ADDB_ADD(ctx, name, rc)					      \
+	C2_ADDB_ADD(&(ctx), &c2_net_addb_loc, c2_addb_func_fail, (name), (rc))
+
 extern struct c2_mutex c2_net_mutex;
 
 /**
