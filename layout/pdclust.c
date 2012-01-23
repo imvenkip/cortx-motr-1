@@ -96,14 +96,14 @@
    tables specifically for "pdclust" layout type.
 
    @{
-*/
+ */
 
 /**
-   "Encoding" function: returns the number that a (row, column) element of a
-   matrix with "width" columns has when elements are counted row by row. This
-   function is denoted e_{width} in the HLD.
+ * "Encoding" function: returns the number that a (row, column) element of a
+ * matrix with "width" columns has when elements are counted row by row. This
+ * function is denoted e_{width} in the HLD.
 
-   @see m_dec()
+ * @see m_dec()
  */
 static uint64_t m_enc(uint64_t width, uint64_t row, uint64_t column)
 {
@@ -112,11 +112,11 @@ static uint64_t m_enc(uint64_t width, uint64_t row, uint64_t column)
 }
 
 /**
-   "Decoding" function: returns (row, column) coordinates of a pos-th element in
-   a matrix with "width" column when elements are counted row by row. This
-   function is denoted d_{width} in the HLD.
-
-   @see m_enc()
+ * "Decoding" function: returns (row, column) coordinates of a pos-th element in
+ * a matrix with "width" column when elements are counted row by row. This
+ * function is denoted d_{width} in the HLD.
+ *
+ * @see m_enc()
  */
 static void m_dec(uint64_t width, uint64_t pos, uint64_t *row, uint64_t *column)
 {
@@ -125,18 +125,18 @@ static void m_dec(uint64_t width, uint64_t pos, uint64_t *row, uint64_t *column)
 }
 
 /**
-   Apply a permutation given by its Lehmer code in k[] to a set s[] of n
-   elements and build inverse permutation in r[].
-
-   @param n - number of elements in k[], s[] and r[]
-   @param k - Lehmer code of the permutation
-   @param s - an array to permute
-   @param r - an array to build inverse permutation in
-
-   @pre  k[i] + i < n
-   @pre  s[i] < n && ergo(s[i] == s[j], i == j)
-   @post s[i] < n && ergo(s[i] == s[j], i == j)
-   @post s[r[i]] == i && r[s[i]] == i
+ * Apply a permutation given by its Lehmer code in k[] to a set s[] of n
+ * elements and build inverse permutation in r[].
+ *
+ * @param n - number of elements in k[], s[] and r[]
+ * @param k - Lehmer code of the permutation
+ * @param s - an array to permute
+ * @param r - an array to build inverse permutation in
+ *
+ * @pre  k[i] + i < n
+ * @pre  s[i] < n && ergo(s[i] == s[j], i == j)
+ * @post s[i] < n && ergo(s[i] == s[j], i == j)
+ * @post s[r[i]] == i && r[s[i]] == i
  */
 static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 {
@@ -198,8 +198,10 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 			return false;
 		if (tc->tc_inverse[tc->tc_permute[i]] != i)
 			return false;
-		/* existence of inverse guarantees that tc->tc_permute[] is a
-		   bijection. */
+		/*
+		 * existence of inverse guarantees that tc->tc_permute[] is a
+		 * bijection.
+		 */
 	}
 	return
 		play->pl_C * (play->pl_attr.pa_N + 2*play->pl_attr.pa_K) == play->pl_L * P;
@@ -229,8 +231,8 @@ static uint64_t hash(uint64_t x)
 }
 
 /**
-   Returns column number that a column t has after a permutation for tile omega
-   is applied.
+ * Returns column number that a column t has after a permutation for tile omega
+ * is applied.
  */
 static uint64_t permute_column(struct c2_pdclust_layout *play,
 			       uint64_t omega, uint64_t t)
@@ -239,9 +241,8 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 
 	C2_ASSERT(t < play->pl_attr.pa_P);
 	tc = &play->pl_tile_cache;
-	/*
-	 * If cached values are for different tile, update the cache.
-	 */
+
+	/* If cached values are for different tile, update the cache. */
 	if (tc->tc_tile_no != omega) {
 		uint32_t i;
 		uint64_t rstate;
@@ -295,8 +296,10 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 
 	C2_ASSERT(c2_pdclust_layout_invariant(play));
 
-	/* first translate source address into a tile number and parity group
-	   number in the tile. */
+	/*
+	 * first translate source address into a tile number and parity group
+	 * number in the tile.
+	 */
 	m_dec(C, src->sa_group, &omega, &j);
 	/*
 	 * then, convert from C*(N+2*K) coordinates to L*P coordinates within a
@@ -338,8 +341,10 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 
 	C2_ASSERT(c2_pdclust_layout_invariant(play));
 
-	/* execute inverses of the steps of c2_pdclust_layout_map() in reverse
-	   order.  */
+	/*
+	 * execute inverses of the steps of c2_pdclust_layout_map() in reverse
+	   order.
+	 */
 	m_dec(L, tgt->ta_frame, &omega, &r);
 	permute_column(play, omega, t); /* force tile cache update */
 	t = play->pl_tile_cache.tc_inverse[t];
@@ -382,9 +387,9 @@ C2_EXPORTED(c2_pdclust_fini);
 
 
 /**
-   @todo Change the prototype of c2_pdclust_build() to accept an additional
-   argument say c2_layout_enum *enum.
-*/
+ * @todo Change the prototype of c2_pdclust_build() to accept an additional
+ * argument say c2_layout_enum *enum.
+ */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out)
@@ -426,8 +431,10 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		pdl->pl_attr.pa_K = K;
 
 		pdl->pl_pool = pool;
-		/* select minimal possible B (least common multiple of P and
-		   N+2*K */
+		/*
+		 * select minimal possible B (least common multiple of P and
+		 * N+2*K
+		 */
 		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
 		pdl->pl_attr.pa_P = P;
 		pdl->pl_C = B/(N+2*K);
@@ -467,18 +474,14 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 C2_EXPORTED(c2_pdclust_unit_classify);
 
 
-/**
-   Implementation of lto_recsize() for pdclust layout type.
-*/
+/** Implementation of lto_recsize() for pdclust layout type. */
 static uint32_t pdclust_recsize(struct c2_ldb_schema *schema)
 {
 	int        i;
 	uint32_t   e_recsize;
 	uint32_t   max_recsize = 0;
 
-	/*
-	 * Iterate over all the enum types to find maximum possible recsize.
-	 */
+	/* Iterate over all the enum types to find maximum possible recsize. */
         for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
                 e_recsize = schema->ls_enum[i]->let_ops->leto_recsize();
 		max_recsize = max32(max_recsize, e_recsize);
@@ -493,16 +496,16 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema)
 static const struct c2_layout_ops pdclust_ops;
 
 /**
-   Implementation of lto_decode() for pdclust layout type.
-
-   Continues to build the in-memory layout object from its representation
-   either 'stored in the Layout DB' or 'received over the network'.
-
-   @param op - This enum parameter indicates what, if a DB operation is to be
-   performed on the layout record and it could be LOOKUP if at all.
-   If it is NONE, then the layout is decoded from its representation received
-   over the network.
-*/
+ * Implementation of lto_decode() for pdclust layout type.
+ *
+ * Continues to build the in-memory layout object from its representation
+ * either 'stored in the Layout DB' or 'received over the network'.
+ *
+ * @param op - This enum parameter indicates what, if a DB operation is to be
+ * performed on the layout record and it could be LOOKUP if at all.
+ * If it is NONE, then the layout is decoded from its representation received
+ * over the network.
+ */
 static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
@@ -560,16 +563,16 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 }
 
 /**
-   Implementation of lto_encode() for pdclust layout type.
-
-   Continues to use the in-memory layout object and
-   @li Either adds/updates/deletes it to/from the Layout DB
-   @li Or converts it to a buffer that can be passed on over the network.
-
-  @param op - This enum parameter indicates what is the DB operation to be
-   performed on the layout record if at all and it could be one of
-   ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
-*/
+ * Implementation of lto_encode() for pdclust layout type.
+ *
+ * Continues to use the in-memory layout object and
+ * @li Either adds/updates/deletes it to/from the Layout DB
+ * @li Or converts it to a buffer that can be passed on over the network.
+ *
+ * @param op - This enum parameter indicates what is the DB operation to be
+ * performed on the layout record if at all and it could be one of
+ * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
+ */
 static int pdclust_encode(struct c2_ldb_schema *schema,
 			  const struct c2_layout *l,
 			  enum c2_layout_xcode_op op,

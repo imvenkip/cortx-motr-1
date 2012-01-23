@@ -77,117 +77,111 @@ struct c2_pdclust_src_addr;
 struct c2_pdclust_tgt_addr;
 
 /**
-   Attributes specific to PDCLUST layout type.
-   These attributes are part of c2_pdclust_layout which is in-memory layout
-   object and are stored in the Layout DB as well through c2_ldb_pdclust_rec.
-*/
+ * Attributes specific to PDCLUST layout type.
+ * These attributes are part of c2_pdclust_layout which is in-memory layout
+ * object and are stored in the Layout DB as well through c2_ldb_pdclust_rec.
+ */
 struct c2_pdclust_attr {
-	/**
-	   Number of data units in a parity group.
-	 */
+	/** Number of data units in a parity group. */
 	uint32_t                     pa_N;
 	/**
-	   Number of parity units in a parity group. This is also the number of
-	   spare units in a group.
+	 * Number of parity units in a parity group. This is also the number of
+	 * spare units in a group.
 	 */
 	uint32_t                     pa_K;
 	/**
-	   Number of target objects over which this layout stripes the source.
+	 * Number of target objects over which this layout stripes the source.
 	 */
 	uint32_t                     pa_P;
 };
 
 /**
-   Pdclust layout type specific part of record for the layouts table.
-*/
+ * Pdclust layout type specific part of record for the layouts table.
+ */
 struct c2_ldb_pdclust_rec {
-	/** Layout enumeration type id.
-	    Value obtained from c2_layout_enum_type::let_id.
-	*/
+	/**
+	 * Layout enumeration type id.
+	 * Value obtained from c2_layout_enum_type::let_id.
+	 */
 	uint64_t                     pr_let_id;
 
 	struct c2_pdclust_attr       pr_attr;
 };
 
 /**
-   Extension of generic c2_layout_striped for parity de-clustering.
-
-   @todo liveness rules
-   @todo concurrency control
+ * Extension of generic c2_layout_striped for parity de-clustering.
+ *
+ * @todo liveness rules
+ * @todo concurrency control
  */
 struct c2_pdclust_layout {
 	/** super class */
 	struct c2_layout_striped     pl_base;
 
-	/**
-	   Parity de-clustering layout attributes.
-	*/
+	/** Parity de-clustering layout attributes. */
 	struct c2_pdclust_attr       pl_attr;
 
-	/**
-	   A datum used to seed PRNG to generate tile column permutations.
-	 */
+	/** A datum used to seed PRNG to generate tile column permutations. */
 	struct c2_uint128            pl_seed;
-	/**
-	   Number of parity groups in a tile.
 
-	   @see c2_pdclust_layout::pl_L
+	/**
+	 * Number of parity groups in a tile.
+	 * @see c2_pdclust_layout::pl_L
 	 */
 	uint32_t                     pl_C;
 	/**
-	   Number of "frame rows" in a tile. L * P == C * (N + 2 * K).
-
-	   @see c2_pdclust_layout::pl_L
+	 * Number of "frame rows" in a tile. L * P == C * (N + 2 * K).
+	 * @see c2_pdclust_layout::pl_L
 	 */
 	uint32_t                     pl_L;
 
-	/**
-	   Storage pool this layout is for.
-	 */
+	/** Storage pool this layout is for. */
 	struct c2_pool              *pl_pool;
-	/**
-	   Target object identifiers.
-	 */
+
+	/** Target object identifiers. */
 	struct c2_stob_id           *pl_tgt;
 
 	/**
-	   Caches information about the most recently used tile.
-
-	   Some auxiliary data, such as permutations, used by layout mapping
-	   function is relatively expensive to re-compute. To reduce the
-	   overhead, such information is cached.
-
-	   Currently only information for a single tile is cached. More
-	   sophisticated schemes are possible.
+	 * Caches information about the most recently used tile.
+	 *
+	 * Some auxiliary data, such as permutations, used by layout mapping
+	 * function is relatively expensive to re-compute. To reduce the
+	 * overhead, such information is cached.
+	 *
+	 * Currently only information for a single tile is cached. More
+	 * sophisticated schemes are possible.
 	 */
 	struct tile_cache {
 		/** Tile to which caches information pertains. */
 		uint64_t  tc_tile_no;
-		/** Column permutation for this tile.  
 
-		    This is an array of c2_pdclust_layout::pl_P elements, each
-		    element less than c2_pdclust_layout::pl_P without
-		    duplicates.
+		/**
+		 * Column permutation for this tile.
+		 * This is an array of c2_pdclust_layout::pl_P elements, each
+		 * element less than c2_pdclust_layout::pl_P without
+		 * duplicates.
 		 */
 		uint32_t *tc_permute;
-		/** Inverse column permutation. 
-
-		    @invariant tc_permute[tc_inverse[x]] == x
-		    @invariant tc_inverse[tc_permute[x]] == x
+		/**
+		 * Inverse column permutation.
+		 *
+		 * @invariant tc_permute[tc_inverse[x]] == x
+		 * @invariant tc_inverse[tc_permute[x]] == x
 		 */
 		uint32_t *tc_inverse;
-		/** Lehmer code of permutation.
 
-		    This array of c2_pdclust_layout::pl_P elements is used to
-		    generate tc_permute[] and tc_inverse[] arrays. Strictly
-		    speaking, it is not needed after above arrays are built, but
-		    as it is kept for completeness.
-
-		    Technically speaking, this array is a lexicographic number
-		    of permutation written in factorial number system (see HLD
-		    for references).
-
-		    @see http://en.wikipedia.org/wiki/Lehmer_code
+		/**
+		 * Lehmer code of permutation.
+		 * This array of c2_pdclust_layout::pl_P elements is used to
+		 * generate tc_permute[] and tc_inverse[] arrays. Strictly
+		 * speaking, it is not needed after above arrays are built, but
+		 * as it is kept for completeness.
+		 *
+		 * Technically speaking, this array is a lexicographic number
+		 * of permutation written in factorial number system (see HLD
+		 * for references).
+		 *
+		 * @see http://en.wikipedia.org/wiki/Lehmer_code
 		 */
 		uint32_t *tc_lcode;
 	} pl_tile_cache;
@@ -207,7 +201,7 @@ enum c2_pdclust_unit_type {
 };
 
 /**
-   Returns type of the given unit according to layout information.
+ * Returns type of the given unit according to layout information.
  */
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
@@ -215,54 +209,48 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 
 
 /**
-   Source unit address.
-
-   Source unit address uniquely identifies data, parity or spare unit in a
-   layout.
+ * Source unit address.
+ *
+ * Source unit address uniquely identifies data, parity or spare unit in a
+ * layout.
  */
 struct c2_pdclust_src_addr {
-	/**
-	   Parity group number.
-	 */
+	/** Parity group number. */
 	uint64_t sa_group;
-	/**
-	   Unit number within its parity group.
-	 */
+
+	/** Unit number within its parity group. */
 	uint64_t sa_unit;
 };
 
 /**
-   Target frame address.
-
-   Target frame address uniquely identifies a frame in one of layout target
-   objects.
+ * Target frame address.
+ *
+ * Target frame address uniquely identifies a frame in one of layout target
+ * objects.
  */
 struct c2_pdclust_tgt_addr {
-	/**
-	   Number of the frame of in its object.
-	 */
+	/** Number of the frame of in its object. */
 	uint64_t ta_frame;
-	/**
-	   Target object number within a layout.
-	 */
+
+	/** Target object number within a layout. */
 	uint64_t ta_obj;
 };
 
 /**
-   Layout mapping function.
-
-   This function contains main parity de-clustering logic. It maps source units
-   to target frames. It is used by client IO code to build IO requests and to
-   direct them to the target objects.
+ * Layout mapping function.
+ *
+ * This function contains main parity de-clustering logic. It maps source units
+ * to target frames. It is used by client IO code to build IO requests and to
+ * direct them to the target objects.
  */
 void c2_pdclust_layout_map(struct c2_pdclust_layout *play, 
 			   const struct c2_pdclust_src_addr *src, 
 			   struct c2_pdclust_tgt_addr *tgt);
 /**
-   Reverse layout mapping function.
-
-   This function is a right inverse of layout mapping function. It is used by
-   SNS repair and other server side mechanisms.
+ * Reverse layout mapping function.
+ *
+ * This function is a right inverse of layout mapping function. It is used by
+ * SNS repair and other server side mechanisms.
  */
 void c2_pdclust_layout_inv(struct c2_pdclust_layout *play, 
 			   const struct c2_pdclust_tgt_addr *tgt,

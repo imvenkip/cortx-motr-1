@@ -22,11 +22,11 @@
 #define __COLIBRI_LAYOUT_LIST_ENUM_H__
 
 /**
-   @defgroup list_enum List Enumeration Type.
-
-   List Enumeration Type. A layout with list enumeration type lists all the
-   COB identifiers as a part of the layout itself.
-   @{
+ * @defgroup list_enum List Enumeration Type.
+ *
+ * List Enumeration Type. A layout with list enumeration type lists all the
+ * COB identifiers as a part of the layout itself.
+ * @{
  */
 
 /* import */
@@ -39,7 +39,7 @@
 struct c2_layout_list_enum;
 
 /**
-   Extension of generic c2_layout_enum for a list enumeration type.
+ * Extension of generic c2_layout_enum for a list enumeration type.
  */
 struct c2_layout_list_enum {
 	/** super class */
@@ -68,9 +68,9 @@ enum {
 };
 
 /**
-   Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
-   into the layouts table.
-*/
+ * Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
+ * into the layouts table.
+ */
 struct ldb_inline_cob_entries {
 	/** Total number of COB Ids for the specific layout. */
 	uint32_t                  llces_nr;

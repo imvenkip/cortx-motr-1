@@ -22,12 +22,12 @@
 #define __COLIBRI_LAYOUT_LINEAR_ENUM_H__
 
 /**
-   @defgroup linear_enum Linear Enumeration Type.
-
-   A layout with linear enumeration type stores a linear formula that is
-   used to enumerate all the component object identifiers.
-
-   @{
+ * @defgroup linear_enum Linear Enumeration Type.
+ *
+ * A layout with linear enumeration type stores a linear formula that is
+ * used to enumerate all the component object identifiers.
+ *
+ * @{
 */
 
 /* import */
@@ -37,10 +37,10 @@
 struct c2_layout_linear_enum;
 
 /**
-   Attributes specific to Linear enumeration type.
-   These attributes are part of c2_layout_linear_enum which is in-memory layout
-   enumeration object and are stored in the Layout DB as well.
-*/
+ * Attributes specific to Linear enumeration type.
+ * These attributes are part of c2_layout_linear_enum which is in-memory layout
+ * enumeration object and are stored in the Layout DB as well.
+ */
 struct c2_layout_linear_attr {
 	/** Number of elements present in the enumeration */
 	uint64_t                     lla_nr;
@@ -53,7 +53,7 @@ struct c2_layout_linear_attr {
 };
 
 /**
-   Extension of generic c2_layout_enum for a linear enumeration type.
+ * Extension of generic c2_layout_enum for a linear enumeration type.
  */
 struct c2_layout_linear_enum {
 	/** super class */

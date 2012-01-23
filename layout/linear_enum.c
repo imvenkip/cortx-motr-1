@@ -25,15 +25,15 @@
 #include "layout/linear_enum.h"
 
 /**
-   @addtogroup linear_enum
-
-   Notes:
-   - Layout enumeration type specific register/unregister methods are not
-     required for "linear" enumeration type, since the layout schema does not
-     contain any separate tables specifically for "linear" enumeration type.
-
-   @{
-*/
+ * @addtogroup linear_enum
+ *
+ * Notes:
+ * - Layout enumeration type specific register/unregister methods are not
+ *   required for "linear" enumeration type, since the layout schema does not
+ *   contain any separate tables specifically for "linear" enumeration type.
+ *
+ * @{
+ */
 
 void c2_layout_linear_enum_init(struct c2_layout_linear_enum *lin_enum,
 				uint64_t nr, uint64_t A, uint64_t B,
@@ -53,20 +53,20 @@ void c2_layout_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
 }
 
 /**
-   Implementation of leto_recsize() for linear enumeration type.
-   Returns record size for the part of the layouts table record required to
-   store LINEAR enum details.
-*/
+ * Implementation of leto_recsize() for linear enumeration type.
+ * Returns record size for the part of the layouts table record required to
+ * store LINEAR enum details.
+ */
 static uint32_t linear_recsize(void)
 {
 	return sizeof(struct c2_layout_linear_attr);
 }
 
 /**
-   Implementation of leto_decode() for linear enumeration type.
-   Reads linear enumeration type specific attributes from the buffer into
-   the c2_layout_linear_enum::c2_layout_linear_attr object.
-*/
+ * Implementation of leto_decode() for linear enumeration type.
+ * Reads linear enumeration type specific attributes from the buffer into
+ * the c2_layout_linear_enum::c2_layout_linear_attr object.
+ */
 static int linear_decode(struct c2_ldb_schema *schema,
 			uint64_t lid,
 			struct c2_bufvec_cursor *cur,
@@ -87,19 +87,17 @@ static int linear_decode(struct c2_ldb_schema *schema,
 
 	*out = &lin_enum->lle_base;
 
-	/**
-	 *  The buffer is now expected to be at the end.
-	 */
+	/* The buffer is now expected to be at the end. */
 	C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
 
 	return 0;
 }
 
 /**
-   Implementation of leto_encode() for linear enumeration type.
-   Reads linear enumeration type specific attributes from the
-   c2_layout_linear_enum object into the buffer.
-*/
+ * Implementation of leto_encode() for linear enumeration type.
+ * Reads linear enumeration type specific attributes from the
+ * c2_layout_linear_enum object into the buffer.
+ */
 static int linear_encode(struct c2_ldb_schema *schema,
 			 const struct c2_layout *l,
 			 enum c2_layout_xcode_op op,
@@ -121,9 +119,9 @@ static int linear_encode(struct c2_ldb_schema *schema,
 }
 
 /**
-   Implementation of leo_nr for LINEAR enumeration.
-   Rerurns number of objects in the enumeration.
-*/
+ * Implementation of leo_nr for LINEAR enumeration.
+ * Rerurns number of objects in the enumeration.
+ */
 static uint32_t linear_nr(const struct c2_layout_enum *le)
 {
    /**
@@ -138,9 +136,9 @@ static uint32_t linear_nr(const struct c2_layout_enum *le)
 }
 
 /**
-   Implementation of leo_get for LINEAR enumeration.
-   Rerurns idx-th object from the enumeration.
-*/
+ * Implementation of leo_get for LINEAR enumeration.
+ * Rerurns idx-th object from the enumeration.
+ */
 static void linear_get(const struct c2_layout_enum *le,
 		       uint32_t idx,
 		       const struct c2_fid *gfid,

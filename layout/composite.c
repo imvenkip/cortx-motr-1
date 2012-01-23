@@ -27,9 +27,9 @@
 #include "layout/composite.h"
 
 /**
-   @addtogroup composite
-   @{
-*/
+ * @addtogroup composite
+ * @{
+ */
 
 struct composite_schema_data {
 	/** Table to store extent maps for all the composite layouts. */
@@ -60,10 +60,10 @@ void c2_composite_fini(struct c2_composite_layout *clay)
 }
 
 /**
-   Implementation of lto_register for COMPOSITE layout type.
-
-   Intializes table specifically required for COMPOSITE layout type.
-*/
+ * Implementation of lto_register for COMPOSITE layout type.
+ *
+ * Intializes table specifically required for COMPOSITE layout type.
+ */
 static int composite_register(struct c2_ldb_schema *schema,
 			      const struct c2_layout_type *lt)
 {
@@ -82,10 +82,10 @@ static int composite_register(struct c2_ldb_schema *schema,
 }
 
 /**
-   Implementation of lto_unregister for COMPOSITE layout type.
-
-   Deintializes table specifically required for COMPOSITE layout type.
-*/
+ * Implementation of lto_unregister for COMPOSITE layout type.
+ *
+ *  Deintializes table specifically required for COMPOSITE layout type.
+ */
 static int composite_unregister(struct c2_ldb_schema *schema,
 				const struct c2_layout_type *lt)
 {
@@ -101,8 +101,8 @@ static int composite_unregister(struct c2_ldb_schema *schema,
 }
 
 /**
-   Implementation of lto_recsize() for COMPOSITE layout type.
-*/
+ * Implementation of lto_recsize() for COMPOSITE layout type.
+ */
 static uint32_t composite_recsize(struct c2_ldb_schema *schema)
 {
 	return 0;
@@ -112,16 +112,16 @@ static uint32_t composite_recsize(struct c2_ldb_schema *schema)
 static const struct c2_layout_ops composite_ops;
 
 /**
-   Implementation of lto_decode() for composite layout type.
-
-   Continues to build the in-memory layout object from its representation
-   either 'stored in the Layout DB' or 'received over the network'.
-
-   @param op - This enum parameter indicates what if a DB operation is to be
-   performed on the layout record and it could be LOOKUP if at all.
-   If it is NONE, then the layout is decoded from its representation received
-   over the network.
-*/
+ * Implementation of lto_decode() for composite layout type.
+ *
+ * Continues to build the in-memory layout object from its representation
+ * either 'stored in the Layout DB' or 'received over the network'.
+ *
+ * @param op - This enum parameter indicates what if a DB operation is to be
+ * performed on the layout record and it could be LOOKUP if at all.
+ * If it is NONE, then the layout is decoded from its representation received
+ * over the network.
+ */
 static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
@@ -164,16 +164,16 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 }
 
 /**
-   Implementation of lto_encode() for composite layout type.
-
-   Continues to use the in-memory layout object and either 'stores it in the
-   Layout DB' or 'converts it to a buffer that can be passed on over the
-   network'.
-
-   @param op - This enum parameter indicates what is the DB operation to be
-   performed on the layout record if at all and it could be one of
-   ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
-*/
+ * Implementation of lto_encode() for composite layout type.
+ *
+ * Continues to use the in-memory layout object and either 'stores it in the
+ * Layout DB' or 'converts it to a buffer that can be passed on over the
+ * network'.
+ *
+ * @param op - This enum parameter indicates what is the DB operation to be
+ * performed on the layout record if at all and it could be one of
+ * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
+ */
 static int composite_encode(struct c2_ldb_schema *schema,
 			    const struct c2_layout *l,
 			    enum c2_layout_xcode_op op,

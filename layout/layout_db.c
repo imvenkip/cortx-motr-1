@@ -342,8 +342,8 @@
  */
 
 /**
-   Initializes layout schema - creates the layouts table.
-*/
+ * Initializes layout schema - creates the layouts table.
+ */
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *db)
 {
@@ -359,9 +359,9 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 }
 
 /**
-   De-initializes the layout schema - de-initializes the DB tables and the
-   DB environment.
-*/
+ * De-initializes the layout schema - de-initializes the DB tables and the
+ *  DB environment.
+ */
 void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
    /*
@@ -377,9 +377,9 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 }
 
 /**
-   Registers a new layout type with the layout types maintained by
-   c2_ldb_schema::ls_type[].
-*/
+ * Registers a new layout type with the layout types maintained by
+ *  c2_ldb_schema::ls_type[].
+ */
 void c2_ldb_type_register(struct c2_ldb_schema *schema,
 			  const struct c2_layout_type *lt)
 {
@@ -400,9 +400,9 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
 }
 
 /**
-   Unregisters a layout type from the layout types maintained by
-   c2_ldb_schema::ls_enum[].
-*/
+ * Unregisters a layout type from the layout types maintained by
+ * c2_ldb_schema::ls_enum[].
+ */
 void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_type *lt)
 {
@@ -418,9 +418,9 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 }
 
 /**
-   Registers a new enumeration type with the enumeration types
-   maintained by c2_ldb_schema::ls_type[].
-*/
+ * Registers a new enumeration type with the enumeration types
+ * maintained by c2_ldb_schema::ls_type[].
+ */
 void c2_ldb_enum_register(struct c2_ldb_schema *schema,
 			  const struct c2_layout_enum_type *let)
 {
@@ -441,9 +441,9 @@ void c2_ldb_enum_register(struct c2_ldb_schema *schema,
 }
 
 /**
-   Unregisters an enumeration type from the enumeration types
-   maintained by c2_ldb_schema::ls_enum[].
-*/
+ * Unregisters an enumeration type from the enumeration types
+ * maintained by c2_ldb_schema::ls_enum[].
+ */
 void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_enum_type *let)
 {
@@ -459,8 +459,8 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 }
 
 /**
-   Returns pointer to the type specific data from the schema.
-*/
+ * Returns pointer to the type specific data from the schema.
+ */
 void **c2_ldb_type_data(struct c2_ldb_schema *schema,
 			const struct c2_layout_type *lt)
 {
@@ -476,8 +476,8 @@ void **c2_ldb_type_data(struct c2_ldb_schema *schema,
 }
 
 /**
-   Returns pointer to the enum specific data from the schema.
-*/
+ * Returns pointer to the enum specific data from the schema.
+ */
 void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 			const struct c2_layout_enum_type *et)
 {
@@ -493,9 +493,9 @@ void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 }
 
 /**
-   Returns max possible size for a record in the layouts table (without
-   considering the data in the tables other than layouts).
-*/
+ * Returns max possible size for a record in the layouts table (without
+ * considering the data in the tables other than layouts).
+ */
 uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 {
 	int        i;
@@ -516,14 +516,14 @@ uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 }
 
 /**
-   Looks up a persistent layout record with the specified layout_id, and
-   its related information from the relevant tables.
+ * Looks up a persistent layout record with the specified layout_id, and
+ * its related information from the relevant tables.
 
-   @param pair A c2_db_pair allocated by the caller and set using
-   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
-   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
-   size of the buffer.
-*/
+ * @param pair A c2_db_pair allocated by the caller and set using
+ * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+ * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+ * size of the buffer.
+ */
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t lid,
 		  struct c2_db_pair *pair,
@@ -554,15 +554,15 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 }
 
 /**
-   Adds a new layout record entry into the layouts table.
-   If applicable, adds layout type and enum type specific entries into the
-   relevant tables.
+ * Adds a new layout record entry into the layouts table.
+ * If applicable, adds layout type and enum type specific entries into the
+ * relevant tables.
 
-   @param pair A c2_db_pair allocated by the caller and set using
-   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
-   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
-   size of the buffer.
-*/
+ * @param pair A c2_db_pair allocated by the caller and set using
+ * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+ * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+ * size of the buffer.
+ */
 int c2_ldb_add(struct c2_ldb_schema *schema,
 	       struct c2_layout *l,
 	       struct c2_db_pair *pair,
@@ -591,14 +591,14 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 }
 
 /**
-   Updates a layout record and its related information from the
-   relevant tables.
+ * Updates a layout record and its related information from the
+ * relevant tables.
 
-   @param pair A c2_db_pair allocated by the caller and set using
-   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
-   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
-   size of the buffer.
-*/
+ * @param pair A c2_db_pair allocated by the caller and set using
+ * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+ * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+ * size of the buffer.
+ */
 int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
 		  struct c2_db_pair *pair,
@@ -627,14 +627,14 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 }
 
 /**
-   Deletes a layout record with given layout id and its related information from
-   the relevant tables.
+ * Deletes a layout record with given layout id and its related information from
+ * the relevant tables.
 
-   @param pair A c2_db_pair allocated by the caller and set using
-   c2_ldb_pair_setup(). This is to leave the buffer allocation with the
-   caller. The caller may take help of c2_ldb_max_recsize() while deciding the
-   size of the buffer.
-*/
+ * @param pair A c2_db_pair allocated by the caller and set using
+ * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
+ * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
+ * size of the buffer.
+ */
 int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
 		  struct c2_db_pair *pair,
@@ -661,6 +661,21 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	return 0;
 }
+
+
+/** @} end group LayoutDBDFS */
+
+/**
+ * @defgroup LayoutDBDFSInternal Layout DB Internals
+ * @brief Detailed functional specification of the internals of the
+ * Layout-DB module.
+
+ * This section covers the data structures and sub-routines used internally.
+
+ * @see @ref Layout-DB "Layout-DB DLD" and @ref Layout-DB-lspec "Layout-DB Logical Specification".
+
+ * @{
+ */
 
 int ldb_layout_write(struct c2_ldb_schema *schema,
 		     enum c2_layout_xcode_op op,
@@ -692,20 +707,6 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 	return 0;
 }
 
-
-/** @} end group LayoutDBDFS */
-
-/**
-   @defgroup LayoutDBDFSInternal Layout DB Internals
-   @brief Detailed functional specification of the internals of the
-   Layout-DB module.
-
-   This section covers the data structures and sub-routines used internally.
-
-   @see @ref Layout-DB "Layout-DB DLD" and @ref Layout-DB-lspec "Layout-DB Logical Specification".
-
-   @{
-*/
 
 bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_ldb_rec *l)
 {

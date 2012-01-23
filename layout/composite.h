@@ -40,7 +40,7 @@
 struct c2_composite_layout;
 
 /**
-   Extension of generic c2_layout for a composite layout.
+ * Extension of generic c2_layout for a composite layout.
  */
 struct c2_composite_layout {
 	/** super class */

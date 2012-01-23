@@ -95,18 +95,6 @@ struct c2_ldb_rec;
 */
 
 /**
- * @addtogroup LayoutDBDFSInternal
- * @{
- */
-
-enum {
-	C2_LAY_TYPE_MAX        = 32,
-	C2_LAY_ENUM_MAX        = 32,
-};
-
-/** @} end group LayoutDBDFS */
-
-/**
    @defgroup LayoutDBDFS Layout DB
    @brief Detailed functional specification for Layout DB.
 
@@ -119,11 +107,16 @@ enum {
    @{
 */
 
+enum {
+	C2_LAY_TYPE_MAX        = 32,
+	C2_LAY_ENUM_MAX        = 32,
+};
+
 /**
-   In-memory data structure for the layout schema.
-   It includes pointer to the layouts table and various related
-   parameters.
-*/
+ * In-memory data structure for the layout schema.
+ * It includes pointer to the layouts table and various related
+ * parameters.
+ */
 struct c2_ldb_schema {
 	/** Table for layout record entries. */
 	struct c2_table                ls_layouts;
@@ -141,28 +134,29 @@ struct c2_ldb_schema {
 	void                          *ls_enum_data[C2_LAY_ENUM_MAX];
 
 	/** Lock to protect the instance of c2_ldb_schema, including all
-	    its members.
-	*/
+	 *  its members.
+	 */
 	struct c2_mutex                ls_lock;
 };
 
 /**
-   layouts table
-   Key is uint64_t, value obtained from c2_layout::l_id.
-*/
+ * layouts table
+ * Key is uint64_t, value obtained from c2_layout::l_id.
+ */
 struct c2_ldb_rec {
 	/** Layout type id.
-	    Value obtained from  c2_layout_type::lt_id.
-	*/
+	 *  Value obtained from  c2_layout_type::lt_id.
+	 */
 	uint64_t                       lr_lt_id;
 
 	/** Layout reference count.
-	    Indicating number of files using this layout.
-	*/
+	 *  Indicating number of files using this layout.
+	 */
 	uint64_t                       lr_ref_count;
 
 	/** Layout type specific payload.
-	    Contains attributes specific to the layout type. */
+	 *  Contains attributes specific to the layout type.
+	 */
 	char                           lr_data[0];
 
 };
@@ -214,9 +208,9 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
  */
 
 /**
-   Compare layouts table keys.
-   This is a 3WAY comparison.
-*/
+ * Compare layouts table keys.
+ * This is a 3WAY comparison.
+ */
 static int l_key_cmp(struct c2_table *table,
 		     const void *key0,
 		     const void *key1)
@@ -225,8 +219,8 @@ static int l_key_cmp(struct c2_table *table,
 }
 
 /**
-   table_ops for layouts table.
-*/
+ * table_ops for layouts table.
+ */
 static const struct c2_table_ops layouts_table_ops = {
 	.to = {
 		[TO_KEY] = {
@@ -240,8 +234,8 @@ static const struct c2_table_ops layouts_table_ops = {
 };
 
 /**
-   cob_lists table.
-*/
+ * cob_lists table.
+ */
 struct ldb_cob_lists_key {
 	/** Layout id, value obtained from c2_layout::l_id. */
 	uint64_t                  lclk_id;
@@ -256,9 +250,9 @@ struct ldb_cob_lists_rec {
 };
 
 /**
-   Compare cob_lists table keys.
-   This is a 3WAY comparison.
-*/
+ * Compare cob_lists table keys.
+ * This is a 3WAY comparison.
+ */
 static int lcl_key_cmp(struct c2_table *table,
 		       const void *key0,
 		       const void *key1)
@@ -267,8 +261,8 @@ static int lcl_key_cmp(struct c2_table *table,
 }
 
 /**
-   table_ops for cob_lists table.
-*/
+ * table_ops for cob_lists table.
+ */
 static const struct c2_table_ops cob_lists_table_ops = {
 	.to = {
 		[TO_KEY] = {
@@ -282,17 +276,17 @@ static const struct c2_table_ops cob_lists_table_ops = {
 };
 
 /**
-   Prefix for comp_layout_ext_map table.
-*/
+ * Prefix for comp_layout_ext_map table.
+ */
 struct layout_prefix {
 	/** Layout id for the composite layout.
-	    Value is same as c2_layout::l_id.
-	*/
+	 *  Value is same as c2_layout::l_id.
+	 */
 	uint64_t                  lp_l_id;
 
 	/** Filler since prefix is a 128 bit field.
-	    Currently un-used.
-	*/
+	 *  Currently un-used.
+	 */
 	uint64_t                  lp_filler;
 };
 

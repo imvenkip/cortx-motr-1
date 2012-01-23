@@ -25,12 +25,12 @@
 #include "layout/list_enum.h"
 
 /**
-   @addtogroup list_enum
-
-   A layout with list enumeration type contains list of component
-   object identifiers in itself.
-   @{
-*/
+ * @addtogroup list_enum
+ *
+ * A layout with list enumeration type contains list of component
+ * object identifiers in itself.
+ * @{
+ */
 
 void c2_layout_list_enum_init(struct c2_layout_list_enum *list_enum,
 			      struct c2_tl *list_of_cobs,
@@ -56,10 +56,10 @@ void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum)
 }
 
 /**
-   Implementation of leto_register for LIST enumeration type.
-
-   Initializes table specifically required for LIST enum type.
-*/
+ * Implementation of leto_register for LIST enumeration type.
+ *
+ * Initializes table specifically required for LIST enum type.
+ */
 static int list_register(struct c2_ldb_schema *schema,
 			 const struct c2_layout_enum_type *et)
 {
@@ -78,10 +78,10 @@ static int list_register(struct c2_ldb_schema *schema,
 }
 
 /**
-   Implementation of leto_unregister for LIST enumeration type.
-
-   De-initializes table specifically required for LIST enum type.
-*/
+ * Implementation of leto_unregister for LIST enumeration type.
+ *
+ * De-initializes table specifically required for LIST enum type.
+ */
 static int list_unregister(struct c2_ldb_schema *schema,
 			   const struct c2_layout_enum_type *et)
 {
@@ -96,27 +96,28 @@ static int list_unregister(struct c2_ldb_schema *schema,
 }
 
 /**
-   Implementation of leto_recsize() for list enumeration type.
-   Returns record size for the part of the layouts table record required to
-   store LIST enum details.
-*/
+ * Implementation of leto_recsize() for list enumeration type.
+ *
+ * Returns record size for the part of the layouts table record required to
+ * store LIST enum details.
+ */
 static uint32_t list_recsize(void)
 {
 	return sizeof(struct ldb_inline_cob_entries);
 }
 
 /**
-   Implementation of leto_decode() for list enumeration type.
-
-   Reads MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
-   the c2_layout_list_enum object. Then reads further cob identifiers either
-   from the DB or from the buffer, as applicable.
-
-   @param op - This enum parameter indicates what if a DB operation is to be
-   performed on the layout record and it could be LOOKUP if at all.
-   If it is NONE, then the layout is decoded from its representation received
-   over the network.
-*/
+ * Implementation of leto_decode() for list enumeration type.
+ *
+ * Reads MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
+ * the c2_layout_list_enum object. Then reads further cob identifiers either
+ * from the DB or from the buffer, as applicable.
+ *
+ * @param op - This enum parameter indicates what if a DB operation is to be
+ * performed on the layout record and it could be LOOKUP if at all.
+ * If it is NONE, then the layout is decoded from its representation received
+ * over the network.
+ */
 static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		       struct c2_bufvec_cursor *cur,
 		       enum c2_layout_xcode_op op,
@@ -159,16 +160,16 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 }
 
 /**
-   Implementation of leto_encode() for list enumeration type.
+ * Implementation of leto_encode() for list enumeration type.
+ *
+ * Continues to use the in-memory layout object and either 'stores it in the
+ * Layout DB' or 'converts it to a buffer that can be passed on over the
+ * network'.
 
-   Continues to use the in-memory layout object and either 'stores it in the
-   Layout DB' or 'converts it to a buffer that can be passed on over the
-   network'.
-
-  @param op - This enum parameter indicates what is the DB operation to be
-   performed on the layout record if at all and it could be one of
-   ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
-*/
+ * @param op - This enum parameter indicates what is the DB operation to be
+ * performed on the layout record if at all and it could be one of
+ * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
+ */
 static int list_encode(struct c2_ldb_schema *schema,
 		       const struct c2_layout *l,
 		       enum c2_layout_xcode_op op,
@@ -228,10 +229,10 @@ static int list_encode(struct c2_ldb_schema *schema,
 }
 
 /**
-   Implementation of leo_nr for LIST enumeration.
-   Rerurns number of objects in the enumeration.
-   Argument fid is ignored here for LIST enumeration type.
-*/
+ * Implementation of leo_nr for LIST enumeration.
+ * Rerurns number of objects in the enumeration.
+ * Argument fid is ignored here for LIST enumeration type.
+ */
 static uint32_t list_nr(const struct c2_layout_enum *le)
 {
    /**
@@ -246,10 +247,10 @@ static uint32_t list_nr(const struct c2_layout_enum *le)
 }
 
 /**
-   Implementation of leo_get for LIST enumeration.
-   Returns idx-th object from the enumeration.
-   Argument fid is ignored here for LIST enumeration type.
-*/
+ * Implementation of leo_get for LIST enumeration.
+ * Returns idx-th object from the enumeration.
+ * Argument fid is ignored here for LIST enumeration type.
+ */
 static void list_get(const struct c2_layout_enum *le,
 		     uint32_t idx,
 		     const struct c2_fid *gfid,

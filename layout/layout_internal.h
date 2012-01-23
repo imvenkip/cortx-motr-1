@@ -22,8 +22,8 @@
 #define __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__
 
 /**
-   @addtogroup layout
-   @{
+ * @addtogroup layout
+ * @{
  */
 
 #include "db/db.h"
@@ -43,13 +43,13 @@ bool layout_invariant(const struct c2_layout *l);
 bool ldb_rec_invariant(const struct c2_ldb_rec *l);
 
 /**
-   Write layout record to layouts table.
-   Used from layout type specific implementation, with layout type
-   specific record size.
-
-   @param op - This enum parameter indicates what is the DB operation to be
-   performed on the layout record which could be one of ADD/UPDATE/DELETE.
-*/
+ * Write layout record to layouts table.
+ * Used from layout type specific implementation, with layout type
+ * specific record size.
+ *
+ * @param op - This enum parameter indicates what is the DB operation to be
+ * performed on the layout record which could be one of ADD/UPDATE/DELETE.
+ */
 int ldb_layout_write(struct c2_ldb_schema *schema,
 		     enum c2_layout_xcode_op op,
 		     uint64_t lid,
