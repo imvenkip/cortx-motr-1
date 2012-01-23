@@ -35,7 +35,7 @@
 #include "lib/ut.h"
 #include "balloc/balloc.h"
 
-#define BALLOC_DBNAME "./__balloc_dbdir"
+#define BALLOC_DBNAME "./__balloc_db"
 
 extern	struct c2_balloc		 colibri_balloc;
 static const char			*db_name = BALLOC_DBNAME;
