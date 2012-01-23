@@ -18,13 +18,28 @@
  * Original creation date: 09/02/2010
  */
 
-#include "balloc/ut/balloc_ut.h"
+#include <stdio.h>        /* fprintf */
+#include <stdlib.h>       /* srand, rand */
+#include <errno.h>
+#include <sys/time.h>
+#include <err.h>
 
-extern	struct c2_balloc	 colibri_balloc;
-const char			*db_name = "./__s";;
-const int			 MAX	 = 100;
-c2_bcount_t			 prev_free_blocks;
-struct c2_balloc_group_info*	 prev_group_info;
+#include "dtm/dtm.h"      /* c2_dtx */
+#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
+#include "lib/misc.h"     /* C2_SET0 */
+#include "lib/assert.h"
+#include "lib/memory.h"
+#include "lib/thread.h"
+#include "lib/getopts.h"
+#include "db/db.h"
+#include "lib/ut.h"
+#include "balloc/balloc.h"
+
+extern	struct c2_balloc		 colibri_balloc;
+static const char			*db_name = "./__s";;
+static const int			 MAX	 = 100;
+static c2_bcount_t			 prev_free_blocks;
+static struct c2_balloc_group_info*	 prev_group_info;
 
 enum balloc_invariant_enum {
 	INVAR_ALLOC,
@@ -143,11 +158,11 @@ int test_balloc_ut_ops()
 			if (grp) {
 				c2_balloc_lock_group(grp);
 				result = c2_balloc_load_extents(&colibri_balloc,
-								grp,
-								&dtx.tx_dbtx);
-				if (result ==
-				    0) c2_balloc_debug_dump_group_extent(
-						"balloc", grp);
+							     grp,
+							     &dtx.tx_dbtx);
+				if (result == 0)
+					c2_balloc_debug_dump_group_extent(
+						    "balloc", grp);
 				c2_balloc_release_extents(grp);
 				c2_balloc_unlock_group(grp);
 			}
@@ -211,9 +226,9 @@ int test_balloc_ut_ops()
 				result = c2_balloc_load_extents(&colibri_balloc,
 								grp,
 								&dtx.tx_dbtx);
-				if (result ==
-				    0) c2_balloc_debug_dump_group_extent(
-						"balloc", grp);
+				if (result == 0)
+					c2_balloc_debug_dump_group_extent(
+						    "balloc", grp);
 				if (grp->bgi_freeblocks !=
 				    colibri_balloc.cb_sb.bsb_groupsize) {
 					printf("corrupted grp %d: %llx != %llx\n",

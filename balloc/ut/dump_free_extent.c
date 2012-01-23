@@ -17,8 +17,22 @@
  * Original author: Huang Hua <hua_huang@xyratex.com>
  * Original creation date: 09/02/2010
  */
+#include <stdio.h>        /* fprintf */
+#include <stdlib.h>       /* srand, rand */
+#include <errno.h>
+#include <sys/time.h>
+#include <err.h>
 
-#include "balloc/ut/balloc_ut.h"
+#include "dtm/dtm.h"      /* c2_dtx */
+#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
+#include "lib/misc.h"     /* C2_SET0 */
+#include "lib/assert.h"
+#include "lib/memory.h"
+#include "lib/thread.h"
+#include "lib/getopts.h"
+#include "db/db.h"
+#include "lib/ut.h"
+#include "balloc/balloc.h"
 
 extern	struct c2_balloc colibri_balloc;
 int main(int argc, char **argv)
