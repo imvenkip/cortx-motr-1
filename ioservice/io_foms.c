@@ -1259,6 +1259,7 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
 
         c2_mutex_lock(&rbulk->rb_mutex);
         if (rbulk->rb_rc != 0){
+                c2_mutex_unlock(&rbulk->rb_mutex);
                 fom->fo_rc = rbulk->rb_rc;
                 fom->fo_phase = FOPH_FAILURE;
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
