@@ -203,6 +203,13 @@ int io_fop_prepare(struct c2_fop *fop);
  */
 void io_fop_destroy(struct c2_fop *fop);
 
+bool c2_is_read_fop(const struct c2_fop *fop);
+bool c2_is_write_fop(const struct c2_fop *fop);
+bool c2_is_io_fop(const struct c2_fop *fop);
+struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
+struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
+
+
 /**
    @} bulkclientDFS end group
 */

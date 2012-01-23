@@ -585,12 +585,6 @@ const struct c2_addb_loc io_fom_addb_loc = {
 
 extern const struct c2_tl_descr bufferpools_tl;
 
-extern bool c2_is_read_fop(const struct c2_fop *fop);
-extern bool c2_is_write_fop(const struct c2_fop *fop);
-extern bool c2_is_io_fop(const struct c2_fop *fop);
-extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
-extern struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
-
 static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **m);
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out);
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom);
