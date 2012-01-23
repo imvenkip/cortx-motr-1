@@ -1257,6 +1257,7 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
 
         rbulk = &fom_obj->fcrw_bulk;
 
+        c2_mutex_lock(&rbulk->rb_mutex);
         if (rbulk->rb_rc != 0){
                 fom->fo_rc = rbulk->rb_rc;
                 fom->fo_phase = FOPH_FAILURE;
@@ -1266,6 +1267,7 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
                 return FSO_AGAIN;
         }
 
+        c2_mutex_unlock(&rbulk->rb_mutex);
         c2_rpc_bulk_fini(rbulk);
 
         if (c2_is_read_fop(fop))
