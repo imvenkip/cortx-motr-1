@@ -875,7 +875,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 					max_nr_segments, remaining_segments);
 
 			rc = c2_rpc_bulk_buf_add(rbulk, nr_segments,
-					PAGE_CACHE_SIZE, ndom, NULL, &rbuf);
+						 ndom, NULL, &rbuf);
 			if (rc != 0) {
 				C2_TRACE("bulk_buf_add() failed: rc [%d]\n",
 							rc);
@@ -898,7 +898,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 						page_address(page),
 						PAGE_CACHE_SIZE,
-						offset_in_stob);
+						offset_in_stob, ndom);
 
 			/* we've already allocated enough. So rc must
 			   never be -EMSGSIZE */

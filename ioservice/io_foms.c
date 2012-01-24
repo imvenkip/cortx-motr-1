@@ -1166,7 +1166,6 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         struct c2_net_buf_desc    *net_desc;
         struct c2_net_domain      *dom;
         uint32_t                   segs_nr;
-        c2_bcount_t                seg_size;
         uint32_t                   index;
 
         C2_PRE(fom != NULL);
@@ -1183,15 +1182,13 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
 	index = fom_obj->fcrw_curr_desc_index;
         segs_nr = rwfop->crw_ivecs.cis_ivecs[index].ci_nr;
-        seg_size = rwfop->crw_ivecs.cis_ivecs[index].ci_iosegs[0].ci_count;
         dom =  fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
 
         /* Create rpc bulk bufs list using available net buffers */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
 
-                rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size,
-                                         dom, nb, &rb_buf);
+                rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
                 if (rc != 0) {
                         fom->fo_rc = rc;
                         fom->fo_phase = FOPH_FAILURE;
