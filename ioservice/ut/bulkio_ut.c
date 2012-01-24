@@ -367,7 +367,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 			  ivec->ci_iosegs[0].ci_count);
 
 		rc = c2_rpc_bulk_buf_add(rbulk, ivec->ci_nr,
-					 ivec->ci_iosegs[0].ci_count,
 					 conn->c_rpcmachine->cr_tm.ntm_dom,
 					 netbufs[i], &rbuf);
 
@@ -613,8 +612,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 	 * Adds a c2_rpc_bulk_buf structure to list of such structures
 	 * in c2_rpc_bulk.
 	 */
-	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, IO_SEG_SIZE, &c_netdom,
-				 NULL, &rbuf);
+	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, &c_netdom, NULL, &rbuf);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(rbuf != NULL);
 
@@ -626,7 +624,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 		rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 				io_buf[index].nb_buffer.ov_buf[i],
 				io_buf[index].nb_buffer.ov_vec.v_count[i],
-				io_offsets[off_index]);
+				io_offsets[off_index], &c_netdom);
 		C2_UT_ASSERT(rc == 0);
 		io_offsets[off_index] +=
 			io_buf[index].nb_buffer.ov_vec.v_count[i];
