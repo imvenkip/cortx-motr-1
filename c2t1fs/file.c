@@ -792,7 +792,6 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	uint64_t                offset_in_stob;
 	uint64_t                count;
 	int                     nr_segments;
-	int                     max_nr_segments;
 	int                     remaining_segments;
 	int                     seg;
 	int                     nr_pages_per_buf;
@@ -803,9 +802,19 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	int add_rpc_buffer(void)
 	{
+		int      max_nr_segments;
+		uint64_t max_buf_size;
+
 		C2_TRACE_START();
 
-		nr_segments = min_type(int, max_nr_segments, remaining_segments);
+		max_nr_segments = c2_net_domain_get_max_buffer_segments(ndom);
+		max_buf_size    = c2_net_domain_get_max_buffer_size(ndom);
+
+		/* Assuming each segment is of size PAGE_CACHE_SIZE */
+		nr_segments = min_type(int, max_nr_segments,
+					max_buf_size / PAGE_CACHE_SIZE);
+		nr_segments = min_type(int, nr_segments, remaining_segments);
+
 		C2_TRACE("max_nr_seg [%d] remaining [%d]\n", max_nr_segments,
 							     remaining_segments);
 
@@ -878,7 +887,6 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			remaining_segments);
 
 	ndom            = SESSION_TO_NDOM(rw_desc->rd_session);
-	max_nr_segments = c2_net_domain_get_max_buffer_segments(ndom);
 
 	offset_in_stob  = rw_desc->rd_offset;
 	count           = 0;
