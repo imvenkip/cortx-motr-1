@@ -23,12 +23,16 @@
 #include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
+#include "lib/arith.h"      /* min_type() */
 #include "layout/pdclust.h" /* PUT_* */
 #include "lib/trace.h"      /* C2_TRACE*() */
 #include "c2t1fs/c2t1fs.h"
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_k.h"
+
+/* Imports */
+struct c2_net_domain;
 
 static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 				    const struct iovec *iov,
@@ -775,6 +779,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 		      int                   rw,
 		      struct c2_io_fop    **out)
 {
+	struct c2_net_domain   *ndom;
 	struct c2_fop_type     *fopt;
 	struct c2_fop_cob_rw   *rwfop;
 	struct c2t1fs_buf      *cbuf;
@@ -787,6 +792,9 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	uint64_t                offset_in_stob;
 	uint64_t                count;
 	int                     nr_segments;
+	int                     max_nr_segments;
+	int                     remaining_segments;
+	int                     seg;
 	int                     nr_pages_per_buf;
 	int                     rc;
 	int                     i;
@@ -839,30 +847,43 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	C2_ASSERT((buf_size & (PAGE_CACHE_SIZE - 1)) == 0);
 	nr_pages_per_buf = buf_size >> PAGE_CACHE_SHIFT;
 
-	nr_segments = bufs_tlist_length(&rw_desc->rd_buf_list) *
+	remaining_segments = bufs_tlist_length(&rw_desc->rd_buf_list) *
 				nr_pages_per_buf;
-	C2_ASSERT(nr_segments > 0);
+	C2_ASSERT(remaining_segments > 0);
 
-	C2_TRACE("bufsize [%lu] pg/buf [%d] nr_bufs [%d] nr_segments [%d]\n",
+	C2_TRACE("bufsize [%lu] pg/buf [%d] nr_bufs [%d] rem_segments [%d]\n",
 			(unsigned long)buf_size, nr_pages_per_buf,
 			(int)bufs_tlist_length(&rw_desc->rd_buf_list),
-			nr_segments);
+			remaining_segments);
 
-	rbulk = &iofop->if_rbulk;
-	rc = c2_rpc_bulk_buf_add(rbulk, nr_segments, PAGE_CACHE_SIZE,
-				  SESSION_TO_NDOM(rw_desc->rd_session), NULL,
-				  &rbuf);
-	if (rc != 0) {
-		C2_TRACE("bulk_buf_add() failed: rc [%d]\n", rc);
-		goto iofop_fini;
-	}
+	ndom            = SESSION_TO_NDOM(rw_desc->rd_session);
+	max_nr_segments = c2_net_domain_get_max_buffer_segments(ndom);
 
-	C2_ASSERT(rbuf != NULL);
+	rbulk           = &iofop->if_rbulk;
 
-	offset_in_stob = rw_desc->rd_offset;
-	count = 0;
+	offset_in_stob  = rw_desc->rd_offset;
+	count           = 0;
+	seg             = 0;
+
 	c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, cbuf) {
 		addr = cbuf->cb_buf.b_addr;
+
+		if (seg % max_nr_segments == 0) {
+			nr_segments = min_type(int, max_nr_segments,
+						    remaining_segments);
+			C2_TRACE("max_nr_seg [%d] remaining [%d]\n",
+					max_nr_segments, remaining_segments);
+
+			rc = c2_rpc_bulk_buf_add(rbulk, nr_segments,
+					PAGE_CACHE_SIZE, ndom, NULL, &rbuf);
+			if (rc != 0) {
+				C2_TRACE("bulk_buf_add() failed: rc [%d]\n",
+							rc);
+				goto buflist_empty;
+			}
+		}
+
+		C2_ASSERT(rbuf != NULL);
 
 		/* See comments earlier in this function, to understand
 		   following assertion. */
@@ -878,6 +899,11 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 						page_address(page),
 						PAGE_CACHE_SIZE,
 						offset_in_stob);
+
+			/* we've already allocated enough. So rc must
+			   never be -EMSGSIZE */
+			C2_ASSERT(rc != -EMSGSIZE);
+
 			if (rc != 0)
 				goto buflist_empty;
 
@@ -885,10 +911,14 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			count          += PAGE_CACHE_SIZE;
 			addr           += PAGE_CACHE_SIZE;
 
+			seg++;
+			remaining_segments--;
+
 			C2_TRACE("Added: pg [0x%p] addr [0x%p] off [%lu] "
-				 "count [%lu]\n", page, addr,
+				 "count [%lu] seg [%d] remaining [%d]\n",
+				 page, addr,
 				(unsigned long)offset_in_stob,
-				(unsigned long)count);
+				(unsigned long)count, seg, remaining_segments);
 
 		}
 	} c2_tlist_endfor;
@@ -912,7 +942,6 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 buflist_empty:
 	c2_rpc_bulk_buflist_empty(rbulk);
 
-iofop_fini:
 	c2_io_fop_fini(iofop);
 
 iofop_free:
