@@ -801,6 +801,27 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 #define SESSION_TO_NDOM(session) (session)->s_conn->c_rpcmachine->cr_tm.ntm_dom
 
+	int add_rpc_buffer(void)
+	{
+		C2_TRACE_START();
+
+		nr_segments = min_type(int, max_nr_segments, remaining_segments);
+		C2_TRACE("max_nr_seg [%d] remaining [%d]\n", max_nr_segments,
+							     remaining_segments);
+
+		rc = c2_rpc_bulk_buf_add(rbulk, nr_segments, ndom, NULL, &rbuf);
+		if (rc != 0)
+			C2_TRACE("bulk_buf_add() failed: rc [%d]\n", rc);
+
+		C2_ASSERT(ergo(rc == 0, rbuf != NULL));
+		rbuf->bb_nbuf->nb_qtype = (rw == READ)
+						? C2_NET_QT_PASSIVE_BULK_RECV
+					        : C2_NET_QT_PASSIVE_BULK_SEND;
+
+		C2_TRACE_END(rc);
+		return rc;
+	}
+
 	C2_TRACE_START();
 
 	C2_ASSERT(rw_desc != NULL && out != NULL);
@@ -859,31 +880,18 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	ndom            = SESSION_TO_NDOM(rw_desc->rd_session);
 	max_nr_segments = c2_net_domain_get_max_buffer_segments(ndom);
 
-	rbulk           = &iofop->if_rbulk;
-
 	offset_in_stob  = rw_desc->rd_offset;
 	count           = 0;
 	seg             = 0;
 
+	rbulk           = &iofop->if_rbulk;
+
+	rc = add_rpc_buffer();
+	if (rc != 0)
+		goto buflist_empty;
+
 	c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, cbuf) {
 		addr = cbuf->cb_buf.b_addr;
-
-		if (seg % max_nr_segments == 0) {
-			nr_segments = min_type(int, max_nr_segments,
-						    remaining_segments);
-			C2_TRACE("max_nr_seg [%d] remaining [%d]\n",
-					max_nr_segments, remaining_segments);
-
-			rc = c2_rpc_bulk_buf_add(rbulk, nr_segments,
-						 ndom, NULL, &rbuf);
-			if (rc != 0) {
-				C2_TRACE("bulk_buf_add() failed: rc [%d]\n",
-							rc);
-				goto buflist_empty;
-			}
-		}
-
-		C2_ASSERT(rbuf != NULL);
 
 		/* See comments earlier in this function, to understand
 		   following assertion. */
@@ -895,14 +903,21 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			page = addr_to_page(addr);
 			C2_ASSERT(page != NULL);
 
+retry:
 			rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 						page_address(page),
 						PAGE_CACHE_SIZE,
 						offset_in_stob, ndom);
 
-			/* we've already allocated enough. So rc must
-			   never be -EMSGSIZE */
-			C2_ASSERT(rc != -EMSGSIZE);
+			if (rc == -EMSGSIZE) {
+				/* add_rpc_buffer() is nested function.
+				   add_rpc_buffer() modifies rbuf */
+				rc = add_rpc_buffer();
+				if (rc != 0)
+					goto buflist_empty;
+				C2_TRACE("rpc buffer added\n");
+				goto retry;
+			}
 
 			if (rc != 0)
 				goto buflist_empty;
@@ -924,9 +939,6 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	} c2_tlist_endfor;
 
 	C2_ASSERT(count == rw_desc->rd_count);
-
-	rbuf->bb_nbuf->nb_qtype = (rw == READ) ? C2_NET_QT_PASSIVE_BULK_RECV
-					       : C2_NET_QT_PASSIVE_BULK_SEND;
 
         rc = io_fop_prepare(&iofop->if_fop);
 	if (rc != 0) {
