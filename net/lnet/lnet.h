@@ -41,6 +41,10 @@
    - c2_net_lnet_ep_addr_net_cmp()
      Compare the network portion of two LNet transport end point addresses.
      It is intended for use by the Request Handler setup logic.
+   - c2_net_lnet_ifaces_get()
+     Get a reference to the list of registered LNet interfaces, as strings.
+   - c2_net_lnet_ifaces_put()
+     Releases the reference to the list of registered LNet interfaces.
    - c2_net_lnet_tm_stat_interval_set()
      Sets the interval at which a started LNet transfer machine will generate
      ADDB events with transfer machine statistics.
