@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,6 +21,32 @@
 
 #include "net/lnet/lnet_main.c"
 #include "lib/ut.h"
+
+static int ut_subs_saved;;
+static struct nlx_xo_interceptable_subs saved_xo_subs;
+#ifdef __KERNEL__
+static struct nlx_kcore_interceptable_subs saved_kcore_subs;
+#endif
+
+static void ut_save_subs(void)
+{
+	if (ut_subs_saved > 0)
+		return;
+	ut_subs_saved = 1;
+	saved_xo_subs = nlx_xo_iv;
+#ifdef __KERNEL__
+	saved_kcore_subs = nlx_kcore_iv;
+#endif
+}
+
+static void ut_restore_subs(void)
+{
+	C2_ASSERT(ut_subs_saved > 0);
+	nlx_xo_iv = saved_xo_subs;
+#ifdef __KERNEL__
+	nlx_kcore_iv = saved_kcore_subs;
+#endif
+}
 
 static bool ut_chan_timedwait(struct c2_clink *link, uint32_t secs)
 {
@@ -62,6 +88,10 @@ C2_BASSERT(STARTSTOP_PID == LUSTRE_SRV_LNET_PID);
 static enum c2_net_queue_type cb_qt1;
 static struct c2_net_buffer *cb_nb1;
 static int32_t cb_status1;
+static c2_bcount_t cb_length1;
+static c2_bcount_t cb_offset1;
+static bool cb_save_ep1; /* save ep next call only */
+static struct c2_net_end_point *cb_ep1; /* QT_MSG_RECV only */
 
 static void ut_buf_cb1(const struct c2_net_buffer_event *ev)
 {
@@ -69,6 +99,14 @@ static void ut_buf_cb1(const struct c2_net_buffer_event *ev)
 	cb_nb1     = ev->nbe_buffer;
 	cb_qt1     = cb_nb1->nb_qtype;
 	cb_status1 = ev->nbe_status;
+	cb_length1 = ev->nbe_length;
+	cb_offset1 = ev->nbe_offset;
+	if (cb_qt1 == C2_NET_QT_MSG_RECV && cb_save_ep1 && ev->nbe_ep != NULL) {
+		cb_ep1 = ev->nbe_ep;
+		c2_net_end_point_get(cb_ep1);
+	} else
+		cb_ep1 = NULL;
+	cb_save_ep1 = false;
 }
 
 static void ut_cbreset1(void)
@@ -76,11 +114,19 @@ static void ut_cbreset1(void)
 	cb_nb1     = NULL;
 	cb_qt1     = C2_NET_QT_NR;
 	cb_status1 = 9999999;
+	cb_length1 = 0;
+	cb_offset1 = 0;
+	C2_ASSERT(cb_ep1 == NULL); /* be harsh */
+	cb_save_ep1 = false;
 }
 
 static enum c2_net_queue_type cb_qt2;
 static struct c2_net_buffer *cb_nb2;
 static int32_t cb_status2;
+static c2_bcount_t cb_length2;
+static c2_bcount_t cb_offset2;
+static bool cb_save_ep2; /* save ep next call only */
+static struct c2_net_end_point *cb_ep2; /* QT_MSG_RECV only */
 
 static void ut_buf_cb2(const struct c2_net_buffer_event *ev)
 {
@@ -88,6 +134,14 @@ static void ut_buf_cb2(const struct c2_net_buffer_event *ev)
 	cb_nb2     = ev->nbe_buffer;
 	cb_qt2     = cb_nb2->nb_qtype;
 	cb_status2 = ev->nbe_status;
+	cb_length2 = ev->nbe_length;
+	cb_offset2 = ev->nbe_offset;
+	if (cb_qt2 == C2_NET_QT_MSG_RECV && cb_save_ep2 && ev->nbe_ep != NULL) {
+		cb_ep2 = ev->nbe_ep;
+		c2_net_end_point_get(cb_ep2);
+	} else
+		cb_ep2 = NULL;
+	cb_save_ep2 = false;
 }
 
 static void ut_cbreset2(void)
@@ -95,6 +149,10 @@ static void ut_cbreset2(void)
 	cb_nb2     = NULL;
 	cb_qt2     = C2_NET_QT_NR;
 	cb_status2 = 9999999;
+	cb_length2 = 0;
+	cb_offset2 = 0;
+	C2_ASSERT(cb_ep2 == NULL); /* be harsh */
+	cb_save_ep2 = false;
 }
 
 static void ut_cbreset(void)
@@ -106,11 +164,13 @@ static void ut_cbreset(void)
 static char ut_line_buf[1024];
 #define zUT(x,label) { int rc = x; if(rc!=0) { sprintf(ut_line_buf,"%s %d: %s: %d",__FILE__,__LINE__,#x,rc); C2_UT_FAIL(ut_line_buf); goto label;}}
 
-#define UT_BUFS1    1
-#define UT_BUFSEGS1 2
-#define UT_BUFS2    1
-#define UT_BUFSEGS2 1
-#define UT_MSG_SIZE 1024
+enum {
+	UT_BUFS1    = 1,
+	UT_BUFSEGS1 = 2,
+	UT_BUFS2    = 1,
+	UT_BUFSEGS2 = 1,
+	UT_MSG_SIZE = 1024
+};
 struct test_msg_data {
 	struct c2_net_tm_callbacks     tmcb;
 	struct c2_net_domain           dom1;
@@ -304,11 +364,13 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 
 static int test_lnet_init(void)
 {
+	ut_save_subs();
 	return c2_net_xprt_init(&c2_net_lnet_xprt);
 }
 
 static int test_lnet_fini(void)
 {
+	ut_restore_subs();
 	c2_net_xprt_fini(&c2_net_lnet_xprt);
 	return 0;
 }
@@ -519,7 +581,7 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_buf_reg (K)",   ktest_buf_reg },
 		{ "net_lnet_ep_addr (K)",   ktest_core_ep_addr },
 		{ "net_lnet_enc_dec (K)",   ktest_enc_dec },
-		{ "net_lnet_basics (K)",    ktest_lnet_basics },
+		{ "net_lnet_msg (K)",       ktest_msg },
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },

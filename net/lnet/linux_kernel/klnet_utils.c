@@ -118,20 +118,31 @@ static inline void nlx_kcore_match_bits_decode(uint64_t mb,
 
 /**
    Helper subroutine to encode header data for LNetPut operations.
+   @param tmid Transfer machine id
+   @param portal Portal number
+   @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
+ */
+static inline uint64_t nlx_kcore_hdr_data_encode_raw(uint32_t tmid,
+						     uint32_t portal)
+{
+	return ((uint64_t) tmid << C2_NET_LNET_TMID_SHIFT) |
+		(portal & C2_NET_LNET_PORTAL_MASK);
+}
+
+/**
+   Helper subroutine to encode header data for LNetPut operations.
    @param lctm Pointer to kcore TM private data.
-   @see nlx_kcore_hdr_data_decode()
+   @see nlx_kcore_hdr_data_decode(), nlx_kcore_hdr_data_encode_raw()
  */
 static uint64_t nlx_kcore_hdr_data_encode(struct nlx_core_transfer_mc *lctm)
 {
 	struct nlx_core_ep_addr *cepa;
-	uint64_t hdr_data;
 
 	C2_PRE(nlx_core_tm_invariant(lctm));
 	cepa = &lctm->ctm_addr;
-	hdr_data = ((uint64_t) cepa->cepa_tmid << C2_NET_LNET_TMID_SHIFT) |
-		(cepa->cepa_portal & C2_NET_LNET_PORTAL_MASK);
-	return hdr_data;
+	return nlx_kcore_hdr_data_encode_raw(cepa->cepa_tmid, cepa->cepa_portal);
 }
+
 
 /**
    Helper subroutine to decode header data from an LNetPut event.

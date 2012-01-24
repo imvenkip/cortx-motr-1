@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -356,7 +356,68 @@ static void ktest_enc_dec(void)
 #undef TEST_HDR_DATA_ENCODE
 }
 
-static void ktest_lnet_basics_body(struct test_msg_data *td)
+/* ktest_msg */
+enum {
+	UT_KMSG_OPS  = 3,
+};
+static bool ut_ktest_msg_LNetMDAttach1_called;
+static int ut_ktest_msg_LNetMDAttach1(struct nlx_core_transfer_mc *lctm,
+				      struct nlx_core_buffer *lcbuf,
+				      lnet_md_t *umd)
+{
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
+	uint32_t portal;
+	uint64_t counter;
+
+	ut_ktest_msg_LNetMDAttach1_called = true;
+	NLXDBG(lctm, 1, printk("intercepted LNetMDAttach\n"));
+	NLXDBG(lctm, 1, nlx_kprint_lnet_md("ktest_msg", umd));
+
+	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
+	C2_UT_ASSERT(umd->start == kcb->kb_kiov);
+	C2_UT_ASSERT(umd->length == kcb->kb_kiov_len);
+
+	C2_UT_ASSERT(umd->threshold == UT_KMSG_OPS);
+
+	C2_UT_ASSERT(umd->options & LNET_MD_MAX_SIZE);
+	C2_UT_ASSERT(umd->max_size == UT_MSG_SIZE);
+
+	C2_UT_ASSERT(umd->options & LNET_MD_OP_PUT);
+	C2_UT_ASSERT(umd->user_ptr == lcbuf);
+	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
+
+	nlx_kcore_match_bits_decode(lcbuf->cb_match_bits, &portal, &counter);
+	C2_UT_ASSERT(portal == lctm->ctm_addr.cepa_tmid);
+	C2_UT_ASSERT(counter == 0);
+
+	kcb->kb_ktm = kctm;
+
+	return 0;
+}
+
+static void ut_ktest_msg_post_event(struct nlx_core_buffer *lcbuf,
+				    unsigned mlength,
+				    unsigned offset,
+				    int status,
+				    int unlinked,
+				    uint64_t hdr_data)
+{
+	lnet_event_t ev;
+
+	C2_SET0(&ev);
+	ev.md.user_ptr = lcbuf;
+	ev.type        = LNET_EVENT_PUT;
+	ev.mlength     = mlength;
+	ev.rlength     = mlength;
+	ev.offset      = offset;
+	ev.status      = status;
+	ev.unlinked    = unlinked;
+	ev.hdr_data    = hdr_data;
+	nlx_kcore_eq_cb(&ev);
+}
+
+static void ktest_msg_body(struct test_msg_data *td)
 {
 	struct c2_net_buffer            *nb1 = &td->bufs1[0];
 	struct nlx_xo_transfer_mc       *tp1 = TM1->ntm_xprt_private;
@@ -366,7 +427,16 @@ static void ktest_lnet_basics_body(struct test_msg_data *td)
 	struct nlx_kcore_transfer_mc  *kctm1 = lctm1->ctm_kpvt;
 	struct nlx_kcore_buffer        *kcb1 = lcbuf1->cb_kpvt;
 	lnet_md_t umd;
+	int needed;
+	uint32_t tmid;
+	uint32_t portal;
+	unsigned len;
+	unsigned offset;
 
+	/* TEST
+	   Check that the lnet_md_t is properly constructed from a registered
+	   network buffer.
+	 */
 	nb1->nb_min_receive_size = UT_MSG_SIZE;
 	nb1->nb_max_receive_msgs = 1;
 	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
@@ -378,10 +448,110 @@ static void ktest_lnet_basics_body(struct test_msg_data *td)
 	C2_UT_ASSERT(umd.user_ptr == lcbuf1);
 	C2_UT_ASSERT(LNetHandleIsEqual(umd.eq_handle, kctm1->ktm_eqh));
 
+	/* TEST
+	   Enqueue a buffer for send.
+	   Check that buf_msg_recv sends the correct arguments to LNet.
+	   Check that the needed count is correctly incremented.
+	   Intercept the utils sub to validate.
+	*/
+	nlx_kcore_iv._nlx_kcore_LNetMDAttach = ut_ktest_msg_LNetMDAttach1;
+	ut_ktest_msg_LNetMDAttach1_called = false;
+
+	nb1->nb_min_receive_size = UT_MSG_SIZE;
+	nb1->nb_max_receive_msgs = UT_KMSG_OPS;
+	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
+	needed = lctm1->ctm_bev_needed;
+
+	c2_net_lnet_tm_set_debug(TM1, 2);
+	zUT(c2_net_buffer_add(nb1, TM1), done);
+	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach1_called);
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	/* TEST
+	   Send a sequence of events.
+	   The buffer should not get dequeued until the last event, even
+	   if there are intermediate failures.
+	   The length and offset reported should be as sent.
+	 */
+	ut_cbreset();
+	cb_save_ep1 = true;
+	tmid = 3;
+	portal = 35;
+	offset = 0;
+	len = 1;
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	NLXDBGP(lctm1, 2, "Posting message (%d, %d)\n", (int)portal, (int)tmid);
+	ut_ktest_msg_post_event(lcbuf1, len, offset, 0, 0,
+				nlx_kcore_hdr_data_encode_raw(tmid, portal));
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_length1 == len);
+	C2_UT_ASSERT(cb_offset1 == offset);
+	C2_UT_ASSERT(cb_ep1 != NULL);
+	NLXDBGP(lctm1, 2, "ep: %s\n", cb_ep1->nep_addr);
+	zUT(c2_net_end_point_put(cb_ep1), done);
+	cb_ep1 = NULL;
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	ut_cbreset();
+	cb_save_ep1 = true;
+	tmid = 9;
+	portal = 37;
+	offset += len;
+	len = 10;
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	NLXDBGP(lctm1, 2, "Posting message (%d, %d)\n", (int)portal, (int)tmid);
+	ut_ktest_msg_post_event(lcbuf1, len, offset, 0, 0,
+				nlx_kcore_hdr_data_encode_raw(tmid, portal));
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_length1 == len);
+	C2_UT_ASSERT(cb_offset1 == offset);
+	C2_UT_ASSERT(cb_ep1 != NULL);
+	NLXDBGP(lctm1, 2, "ep: %s\n", cb_ep1->nep_addr);
+	zUT(c2_net_end_point_put(cb_ep1), done);
+	cb_ep1 = NULL;
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	ut_cbreset();
+	cb_save_ep1 = true;
+	tmid = 12;
+	portal = 45;
+	offset += len;
+	len = 11;
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	NLXDBGP(lctm1, 2, "Posting message (%d, %d)\n", (int)portal, (int)tmid);
+	ut_ktest_msg_post_event(lcbuf1, len, offset, 0, 1,
+				nlx_kcore_hdr_data_encode_raw(tmid, portal));
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_length1 == len);
+	C2_UT_ASSERT(cb_offset1 == offset);
+	C2_UT_ASSERT(cb_ep1 != NULL);
+	NLXDBGP(lctm1, 2, "ep: %s\n", cb_ep1->nep_addr);
+	zUT(c2_net_end_point_put(cb_ep1), done);
+	cb_ep1 = NULL;
+
+	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+ done:
+	cb_ep1 = NULL;
+	c2_net_lnet_tm_set_debug(TM1, 0);
 }
 
-static void ktest_lnet_basics(void) {
-	ut_test_framework(&ktest_lnet_basics_body);
+static void ktest_msg(void) {
+	ut_save_subs();
+	ut_test_framework(&ktest_msg_body);
+	ut_restore_subs();
 }
 
 #undef UT_BUFVEC_FREE

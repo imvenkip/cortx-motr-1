@@ -778,10 +778,12 @@
 #else
 #define NLXP(fmt,...) fprintf(stderr, fmt,## __VA_ARGS__)
 #endif
-#define NLXDBG(ptr,dbg,stmt) if ((ptr)->_debug_ >= (dbg)) stmt
+#define NLXDBG(ptr,dbg,stmt) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); stmt; } } while (0)
+#define NLXDBGP(ptr,dbg,fmt,...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); NLXP(fmt,## __VA_ARGS__); } } while (0)
 #else
 #define NLXP(fmt,...)
-#define NLXDBG(ptr,dbg,stmt)
+#define NLXDBG(ptr,dbg,stmt) do { ; } while (0)
+#define NLXDBGP(ptr,dbg,fmt,...) do { ; } while (0)
 #endif /* !NLX_DEBUG */
 
 /*

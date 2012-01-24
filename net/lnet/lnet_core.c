@@ -19,10 +19,20 @@
  * Original creation date: 11/16/2011
  */
 
+static void nlx_print_core_ep_addr(const char *pre,
+				   const struct nlx_core_ep_addr *cepa)
+{
+	NLXP("%s: %p nlx_core_ep_addr\n", pre, cepa);
+	NLXP("\t    nid = %ld\n", (unsigned long) cepa->cepa_nid);
+	NLXP("\t    pid = %d\n",  (unsigned) cepa->cepa_pid);
+	NLXP("\t portal = %d\n", (unsigned) cepa->cepa_portal);
+	NLXP("\t   tmid = %d\n", (unsigned) cepa->cepa_tmid);
+}
+
 static void nlx_print_core_buffer_event(const char *pre,
 				const struct nlx_core_buffer_event *lcbev)
 {
-	NLXP("%s: %p\n", pre, lcbev);
+	NLXP("%s: %p nlx_core_buffer_event\n", pre, lcbev);
 	NLXP("\tcbe_buffer_id: %lx\n", (unsigned long) lcbev->cbe_buffer_id);
 	NLXP("\t     cbe_time: %lx\n", (unsigned long) lcbev->cbe_time);
 	NLXP("\t   cbe_status: %d\n", lcbev->cbe_status);
@@ -39,7 +49,7 @@ static void nlx_print_core_buffer_event(const char *pre,
 static void nlx_print_net_buffer_event(const char *pre,
 				       const struct c2_net_buffer_event *nbev)
 {
-	NLXP("%s: %p\n", pre, nbev);
+	NLXP("%s: %p c2_net_buffer_event\n", pre, nbev);
 	NLXP("\t  nbe_time: %lx\n", (unsigned long) nbev->nbe_time);
 	NLXP("\tnbe_status: %d\n", nbev->nbe_status);
 	NLXP("\tnbe_length: %ld\n", (unsigned long) nbev->nbe_length);

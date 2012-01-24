@@ -764,6 +764,31 @@ C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 /* assert the equivalence of LNet and Colibri data types */
 C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
 
+/* Unit test intercept support.
+   Conventions to use:
+   - All such subs must be declared in headers.
+   - A macro with the prefix in caps should be used to call the
+   subroutine via this intercept vector.
+   - UT should restore the vector upon completion. It is not declared
+   const so that the UTs can modify it.
+ */
+struct nlx_kcore_interceptable_subs {
+	int (*_nlx_kcore_LNetMDAttach)(struct nlx_core_transfer_mc *lctm,
+				       struct nlx_core_buffer *lcbuf,
+				       lnet_md_t *umd);
+
+};
+static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
+#define _NLXIS(s) ._##s = s
+
+	_NLXIS(nlx_kcore_LNetMDAttach),
+
+#undef _NLXI
+};
+
+#define NLX_KCORE_LNetMDAttach(lctm, lcbuf, umd)		\
+ (*nlx_kcore_iv._nlx_kcore_LNetMDAttach)(lctm, lcbuf, umd)
+
 /**
    KCore buffer invariant.
  */
@@ -1027,7 +1052,7 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 			   lcbuf->cb_min_receive_size, LNET_MD_OP_PUT, &umd);
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
-	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	rc = NLX_KCORE_LNetMDAttach(lctm, lcbuf, &umd);
 	return rc;
 }
 
@@ -1347,12 +1372,12 @@ int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm, /* not used */
 			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
+
 	C2_ALLOC_PTR(bev);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
 	}
-	bev->cbe_tm_link.cbl_p_self = (nlx_core_opaque_ptr_t) &bev->cbe_tm_link;
 	bev_link_bless(&bev->cbe_tm_link);
 	*bevp = bev;
 	return 0;
