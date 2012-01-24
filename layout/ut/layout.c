@@ -71,8 +71,8 @@ const struct c2_layout_type test_layout_type = {
 	.lt_name     = "test",
 	.lt_id       = 0x544553544C41594F, /* TESTLAYO */
 	.lt_ops      = NULL
-}; 
- 
+};
+
 static void test_type_reg_unreg(void)
 {
 	struct c2_layout_type *lt;
@@ -83,7 +83,7 @@ static void test_type_reg_unreg(void)
 	C2_UT_ASSERT(IS_IN_ARRAY(test_layout_type.lt_id, schema.ls_type));
 
 	lt = schema.ls_type[test_layout_type.lt_id];
-	C2_UT_ASSERT(lt == &test_layout_type);	
+	C2_UT_ASSERT(lt == &test_layout_type);
 
 	/* Should be able to unregister it. */
 	c2_ldb_type_unregister(&schema, &test_layout_type);
@@ -95,7 +95,7 @@ static void test_type_reg_unreg(void)
 	C2_UT_ASSERT(IS_IN_ARRAY(test_layout_type.lt_id, schema.ls_type));
 
 	lt = schema.ls_type[test_layout_type.lt_id];
-	C2_UT_ASSERT(lt == &test_layout_type);	
+	C2_UT_ASSERT(lt == &test_layout_type);
 
 	/* Should not be able to register it without unregistering it. */
 	c2_ldb_type_register(&schema, &test_layout_type);
@@ -122,7 +122,7 @@ static void test_etype_reg_unreg(void)
 	C2_UT_ASSERT(IS_IN_ARRAY(test_enum_type.let_id, schema.ls_enum));
 
 	le = schema.ls_enum[test_enum_type.let_id];
-	C2_UT_ASSERT(le == &test_enum_type);	
+	C2_UT_ASSERT(le == &test_enum_type);
 
 	/* Should be able to unregister it. */
 	c2_ldb_enum_unregister(&schema, &test_enum_type);
@@ -134,7 +134,7 @@ static void test_etype_reg_unreg(void)
 	C2_UT_ASSERT(IS_IN_ARRAY(test_enum_type.let_id, schema.ls_enum));
 
 	le = schema.ls_enum[test_enum_type.let_id];
-	C2_UT_ASSERT(le == &test_enum_type);	
+	C2_UT_ASSERT(le == &test_enum_type);
 
 	/* Should not be able to register it without unregistering it. */
 	c2_ldb_enum_register(&schema, &test_enum_type);
@@ -158,7 +158,7 @@ static void test_schema_init_fini(void)
 	rc = c2_ldb_schema_init(&t_schema, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Should be able finalize it. */	
+	/* Should be able finalize it. */
 	rc = c2_ldb_schema_fini(&schema);
 	C2_UT_ASSERT(rc == 0);
 
@@ -198,12 +198,14 @@ static void test_schema_init_fini(void)
 	c2_ldb_enum_unregister(&t_schema, &test_enum_type);
 	C2_UT_ASSERT(!IS_IN_ARRAY(test_enum_type.let_id, t_schema.ls_enum));
 
-	/* Should now be able to finalize it. */	
+	/* Should now be able to finalize it. */
 	rc = c2_ldb_schema_fini(&t_schema);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_dbenv_fini(&t_dbenv);
 }
+
+
 
 static void test_encode(void)
 {
@@ -234,9 +236,9 @@ static void test_persistence(void)
 }
 
 const struct c2_test_suite layout_ut = {
-	.ts_name = "layout-ut",
-	.ts_init = test_init,
-	.ts_fini = test_fini,
+	.ts_name  = "layout-ut",
+	.ts_init  = test_init,
+	.ts_fini  = test_fini,
 	.ts_tests = {
 		{ "layout-type-register-unregister", test_type_reg_unreg },
 		{ "layout-etype-register-unregister", test_etype_reg_unreg },
