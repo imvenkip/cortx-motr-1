@@ -881,6 +881,10 @@ void bulkio_test_client(void)
 
 	for (op = C2_IOSERVICE_READV_OPCODE; op <= C2_IOSERVICE_WRITEV_OPCODE;
 	  ++op) {
+		/*
+		 * IO fops are deallocated by an rpc item type op on receiving
+		 * the reply fop. See io_item_free().
+		 */
 		io_fops_create(op);
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
 		       sizeof(struct c2_thread));
@@ -888,11 +892,6 @@ void bulkio_test_client(void)
 		for (i = 0; i < IO_FOPS_NR; ++i)
 			io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
 
-		/*
-		 * IO fops are deallocated by an rpc item type op on receiving
-		 * the reply fop. See io_item_free().
-		 */
-		io_fops_create(op);
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
@@ -903,6 +902,54 @@ void bulkio_test_client(void)
 		}
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
 			c2_thread_join(&io_threads[i]);
+	}
+}
+
+void bulkio_server_multiple_read_write(void)
+{
+	int		     rc;
+	int		     i;
+	int		     j;
+	enum C2_RPC_OPCODES  op;
+	struct thrd_arg      targ[IO_FOPS_NR];
+	struct c2_io_fop   **io_fops;
+	struct c2_bufvec   *buf;
+
+	for (i = 0; i < IO_FOPS_NR; ++i) {
+		buf = &io_buf[i].nb_buffer;
+		for (j = 0; j < IO_SEGS_NR; ++j) {
+			memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
+		}
+	}
+	for (op = C2_IOSERVICE_WRITEV_OPCODE; op >= C2_IOSERVICE_READV_OPCODE;
+	  ++op) {
+		/*
+		 * IO fops are deallocated by an rpc item type op on receiving
+		 * the reply fop. See io_item_free().
+		 */
+		io_fops_create(op);
+		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
+		       sizeof(struct c2_thread));
+		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
+		for (i = 0; i < IO_FOPS_NR; ++i)
+			io_fops[i]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+
+		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
+			targ[i].ta_index = i;
+			targ[i].ta_op = op;
+			rc = C2_THREAD_INIT(&io_threads[i], struct thrd_arg *,
+					    NULL, &io_fops_rpc_submit,
+					    &targ[i], "io_thrd");
+			C2_UT_ASSERT(rc == 0);
+		}
+		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
+			c2_thread_join(&io_threads[i]);
+		for (i = 0; i < IO_FOPS_NR; ++i) {
+			buf = &io_buf[i].nb_buffer;
+			for (j = 0; j < IO_SEGS_NR; ++j) {
+				memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
+			}
+		}
 	}
 }
 
@@ -931,6 +978,7 @@ const struct c2_test_suite bulkio_ut = {
 		{ "bulkio_stob_create           ", bulkio_stobe_create},
 		{ "bulkio_single_read_write     ", bulkio_server_single_read_write},
 		{ "bulkio_read_write_state_test ", bulkio_server_read_write_state_test},
+		{ "bulkio_multiple_read_write   ", bulkio_server_multiple_read_write},
 		{ "bulkio_client                ", bulkio_test_client},
 		{ "bulkio_fini                  ", bulkio_test_fini},
 		{ NULL, NULL }
