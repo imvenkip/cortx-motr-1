@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -34,6 +34,54 @@ static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
 }
 
 /**
+   Logs statistical data periodically using ADDB.
+   @param tm the transfer machine to report about
+   @todo addb lacks a mechanism for statistics reporting, use of LNET_ADDB_ADD
+   is temporary
+ */
+static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
+{
+	struct nlx_xo_transfer_mc *tp;
+	struct c2_net_qstats *qs;
+	char stat_name[64];
+	static const char *qn[] = {
+		"msg_recv", "msg_send",
+		"pas_recv", "pas_send",
+		"act_recv", "act_send",
+	};
+	int i;
+	uint32_t tmid;
+
+#define STAT_NAME(field, i)						\
+	snprintf(stat_name, sizeof stat_name,				\
+		 "nlx_tm_stats:%d:%s:" field, tmid, qn[i])
+
+	C2_PRE(tm != NULL && nlx_tm_invariant(tm));
+	tp = tm->ntm_xprt_private;
+	tmid = tp->xtm_core.ctm_addr.cepa_tmid;
+	C2_CASSERT(ARRAY_SIZE(tm->ntm_q) == ARRAY_SIZE(qn));
+	C2_CASSERT(sizeof qs->nqs_time_in_queue == sizeof(uint64_t));
+	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
+		qs = &tm->ntm_qstats[i];
+		STAT_NAME("adds", i);
+		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_adds);
+		STAT_NAME("dels", i);
+		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_dels);
+		STAT_NAME("success", i);
+		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_s_events);
+		STAT_NAME("fail", i);
+		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_f_events);
+		STAT_NAME("inqueue", i);
+		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_time_in_queue);
+		STAT_NAME("totbytes", i);
+		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_total_bytes);
+		STAT_NAME("maxbytes", i);
+		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_max_bytes);
+	}
+#undef STAT_NAME
+}
+
+/**
    The entry point of the LNet transport event processing thread.
    It is spawned when the transfer machine starts.  It completes
    the start-up process and then loops, handling asynchronous buffer event
@@ -51,6 +99,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		.nte_status = 0
 	};
 	c2_time_t timeout;
+	c2_time_t stat_time;
+	c2_time_t now;
 	int rc = 0;
 
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -86,6 +136,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	c2_net_tm_event_post(&tmev);
 	if (rc != 0)
 		return;
+	stat_time = c2_time_now();
 
 	while (1) {
 		/* compute next timeout (XXX short if automatic or stopping) */
@@ -122,6 +173,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 			if (all_tm_queues_are_empty(tm) &&
 			    tm->ntm_callback_counter == 0) {
 				nlx_core_tm_stop(ctp);
+				nlx_tm_stats_report(tm);
 				must_stop = true;
 			}
 			c2_mutex_unlock(&tm->ntm_mutex);
@@ -133,7 +185,13 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 			}
 		}
 
-		/* XXX Log statistical data periodically using ADDB */
+		now = c2_time_now();
+		c2_mutex_lock(&tm->ntm_mutex);
+		if (c2_time_add(stat_time, tp->xtm_stat_interval) <= now) {
+			nlx_tm_stats_report(tm);
+			stat_time = now;
+		}
+		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 }
 

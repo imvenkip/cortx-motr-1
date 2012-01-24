@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -823,6 +823,42 @@ void c2_net_lnet_ifaces_put(char * const **addrs)
 	nlx_core_nidstrs_put(addrs);
 }
 C2_EXPORTED(c2_net_lnet_ifaces_put);
+
+void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
+				      uint64_t secs)
+{
+	struct nlx_xo_transfer_mc *tp;
+
+	C2_PRE(secs > 0);
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state <= C2_NET_TM_STOPPING);
+	C2_PRE(nlx_tm_invariant(tm));
+
+	tp = tm->ntm_xprt_private;
+	c2_time_set(&tp->xtm_stat_interval, secs, 0);
+	c2_mutex_unlock(&tm->ntm_mutex);
+}
+C2_EXPORTED(c2_net_lnet_tm_stat_interval_set);
+
+uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
+{
+	struct nlx_xo_transfer_mc *tp;
+	uint64_t ret;
+
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state <= C2_NET_TM_STOPPING);
+	C2_PRE(nlx_tm_invariant(tm));
+
+	tp = tm->ntm_xprt_private;
+	ret = c2_time_seconds(tp->xtm_stat_interval);
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return ret;
+}
+C2_EXPORTED(c2_net_lnet_tm_stat_interval_get);
 
 /**
    @} LNetDFS end group

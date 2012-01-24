@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -74,6 +74,10 @@ enum {
 	    @todo XXX Determine exact value for a 4-tuple LNet EP addr
 	 */
 	C2_NET_LNET_XEP_ADDR_LEN = 80,
+	/**
+	   Report TM statistics once every 5 minutes by default.
+	 */
+	C2_NET_LNET_TM_STAT_INTERVAL = 60 * 5,
 };
 
 /**
@@ -94,6 +98,26 @@ int c2_net_lnet_ifaces_get(char * const **addrs);
    Releases the string array returned by c2_net_lnet_ifaces_get().
  */
 void c2_net_lnet_ifaces_put(char * const **addrs);
+
+/**
+   Sets the transfer machine statistics reporting interval.
+   By default, the interval is @c C2_NET_LNET_TM_STAT_INTERVAL seconds.
+   @param tm   Pointer to the transfer machine.
+   @param secs The interval in seconds. Must be greater than 0.
+   @pre tm->ntm_state >= C2_NET_TM_INITIALIZED &&
+   tm->ntm_state <= C2_NET_TM_STOPPING &&
+   secs > 0
+ */
+void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
+				      uint64_t secs);
+
+/**
+   Gets the transfer machine statistics reporting interval.
+   @param tm  Pointer to the transfer machine.
+   @pre tm->ntm_state >= C2_NET_TM_INITIALIZED &&
+   tm->ntm_state <= C2_NET_TM_STOPPING
+ */
+uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm);
 
 /* init and fini functions for colibri init */
 int c2_net_lnet_init(void);

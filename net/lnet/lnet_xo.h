@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -99,6 +99,9 @@ struct nlx_xo_transfer_mc {
 
 	/** Transfer machine thread processor affinity */
 	struct c2_bitmap             xtm_processors;
+
+	/** statistics reporting interval, in nanoseconds */
+	c2_time_t                    xtm_stat_interval;
 
 	/** Event thread */
 	struct c2_thread             xtm_ev_thread;
