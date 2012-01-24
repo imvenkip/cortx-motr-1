@@ -1190,8 +1190,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
 
-                rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size,
-                                         dom, nb, &rb_buf);
+                rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
                 if (rc != 0) {
                         fom->fo_rc = rc;
                         fom->fo_phase = FOPH_FAILURE;
