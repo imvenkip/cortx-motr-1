@@ -358,7 +358,7 @@ static void ktest_enc_dec(void)
 
 /* ktest_msg */
 enum {
-	UT_KMSG_OPS  = 3,
+	UT_KMSG_OPS  = 4,
 };
 static bool ut_ktest_msg_LNetMDAttach1_called;
 static int ut_ktest_msg_LNetMDAttach1(struct nlx_core_transfer_mc *lctm,
@@ -396,24 +396,27 @@ static int ut_ktest_msg_LNetMDAttach1(struct nlx_core_transfer_mc *lctm,
 	return 0;
 }
 
-static void ut_ktest_msg_post_event(struct nlx_core_buffer *lcbuf,
-				    unsigned mlength,
-				    unsigned offset,
-				    int status,
-				    int unlinked,
-				    uint64_t hdr_data)
+static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
+				   unsigned mlength,
+				   unsigned offset,
+				   int status,
+				   int unlinked,
+				   struct nlx_core_ep_addr *addr)
 {
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr = lcbuf;
-	ev.type        = LNET_EVENT_PUT;
-	ev.mlength     = mlength;
-	ev.rlength     = mlength;
-	ev.offset      = offset;
-	ev.status      = status;
-	ev.unlinked    = unlinked;
-	ev.hdr_data    = hdr_data;
+	ev.md.user_ptr   = lcbuf;
+	ev.type          = LNET_EVENT_PUT;
+	ev.mlength       = mlength;
+	ev.rlength       = mlength;
+	ev.offset        = offset;
+	ev.status        = status;
+	ev.unlinked      = unlinked;
+	ev.initiator.nid = addr->cepa_nid;
+	ev.initiator.pid = addr->cepa_pid;
+	ev.hdr_data      = nlx_kcore_hdr_data_encode_raw(addr->cepa_tmid,
+							 addr->cepa_portal);
 	nlx_kcore_eq_cb(&ev);
 }
 
@@ -426,12 +429,13 @@ static void ktest_msg_body(struct test_msg_data *td)
 	struct nlx_core_buffer       *lcbuf1 = &bp1->xb_core;
 	struct nlx_kcore_transfer_mc  *kctm1 = lctm1->ctm_kpvt;
 	struct nlx_kcore_buffer        *kcb1 = lcbuf1->cb_kpvt;
+	struct nlx_core_ep_addr        *cepa;
+	struct nlx_core_ep_addr         addr;
 	lnet_md_t umd;
 	int needed;
-	uint32_t tmid;
-	uint32_t portal;
 	unsigned len;
 	unsigned offset;
+	unsigned bevs_left;
 
 	/* TEST
 	   Check that the lnet_md_t is properly constructed from a registered
@@ -449,7 +453,7 @@ static void ktest_msg_body(struct test_msg_data *td)
 	C2_UT_ASSERT(LNetHandleIsEqual(umd.eq_handle, kctm1->ktm_eqh));
 
 	/* TEST
-	   Enqueue a buffer for send.
+	   Enqueue a buffer for message reception.
 	   Check that buf_msg_recv sends the correct arguments to LNet.
 	   Check that the needed count is correctly incremented.
 	   Intercept the utils sub to validate.
@@ -461,29 +465,34 @@ static void ktest_msg_body(struct test_msg_data *td)
 	nb1->nb_max_receive_msgs = UT_KMSG_OPS;
 	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
 	needed = lctm1->ctm_bev_needed;
+	bevs_left = nb1->nb_max_receive_msgs;
 
-	c2_net_lnet_tm_set_debug(TM1, 2);
+	c2_net_lnet_tm_set_debug(TM1, 0);
 	zUT(c2_net_buffer_add(nb1, TM1), done);
 	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach1_called);
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
 
 	/* TEST
-	   Send a sequence of events.
-	   The buffer should not get dequeued until the last event, even
-	   if there are intermediate failures.
+	   Send a sequence of successful events.
+	   The buffer should not get dequeued until the last event.
 	   The length and offset reported should be as sent.
+	   The reference count on end points is as it should be.
 	 */
 	ut_cbreset();
 	cb_save_ep1 = true;
-	tmid = 3;
-	portal = 35;
+	cepa = nlx_ep_to_core(TM1->ntm_ep);
+	addr.cepa_nid = cepa->cepa_nid; /* use real NID */
+	addr.cepa_pid = 22;
+	C2_UT_ASSERT(cepa->cepa_tmid > 10);
+	addr.cepa_tmid = cepa->cepa_tmid - 10;
+	addr.cepa_portal = 35;
 	offset = 0;
 	len = 1;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	NLXDBGP(lctm1, 2, "Posting message (%d, %d)\n", (int)portal, (int)tmid);
-	ut_ktest_msg_post_event(lcbuf1, len, offset, 0, 0,
-				nlx_kcore_hdr_data_encode_raw(tmid, portal));
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -492,21 +501,21 @@ static void ktest_msg_body(struct test_msg_data *td)
 	C2_UT_ASSERT(cb_length1 == len);
 	C2_UT_ASSERT(cb_offset1 == offset);
 	C2_UT_ASSERT(cb_ep1 != NULL);
-	NLXDBGP(lctm1, 2, "ep: %s\n", cb_ep1->nep_addr);
-	zUT(c2_net_end_point_put(cb_ep1), done);
+	cepa = nlx_ep_to_core(cb_ep1);
+	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
+	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
+	// do not release end point yet
 	cb_ep1 = NULL;
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 
 	ut_cbreset();
 	cb_save_ep1 = true;
-	tmid = 9;
-	portal = 37;
 	offset += len;
 	len = 10;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	NLXDBGP(lctm1, 2, "Posting message (%d, %d)\n", (int)portal, (int)tmid);
-	ut_ktest_msg_post_event(lcbuf1, len, offset, 0, 0,
-				nlx_kcore_hdr_data_encode_raw(tmid, portal));
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -515,21 +524,25 @@ static void ktest_msg_body(struct test_msg_data *td)
 	C2_UT_ASSERT(cb_length1 == len);
 	C2_UT_ASSERT(cb_offset1 == offset);
 	C2_UT_ASSERT(cb_ep1 != NULL);
-	NLXDBGP(lctm1, 2, "ep: %s\n", cb_ep1->nep_addr);
+	cepa = nlx_ep_to_core(cb_ep1);
+	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
+	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 2);
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
 	zUT(c2_net_end_point_put(cb_ep1), done);
+	zUT(c2_net_end_point_put(cb_ep1), done);
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
 	cb_ep1 = NULL;
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 
 	ut_cbreset();
 	cb_save_ep1 = true;
-	tmid = 12;
-	portal = 45;
+	C2_UT_ASSERT(addr.cepa_tmid > 12);
+	addr.cepa_tmid -= 12;
 	offset += len;
 	len = 11;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	NLXDBGP(lctm1, 2, "Posting message (%d, %d)\n", (int)portal, (int)tmid);
-	ut_ktest_msg_post_event(lcbuf1, len, offset, 0, 1,
-				nlx_kcore_hdr_data_encode_raw(tmid, portal));
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 1, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -538,11 +551,16 @@ static void ktest_msg_body(struct test_msg_data *td)
 	C2_UT_ASSERT(cb_length1 == len);
 	C2_UT_ASSERT(cb_offset1 == offset);
 	C2_UT_ASSERT(cb_ep1 != NULL);
-	NLXDBGP(lctm1, 2, "ep: %s\n", cb_ep1->nep_addr);
+	cepa = nlx_ep_to_core(cb_ep1);
+	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
+	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
 	zUT(c2_net_end_point_put(cb_ep1), done);
 	cb_ep1 = NULL;
 
 	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed);
+	ut_restore_subs();
+
  done:
 	cb_ep1 = NULL;
 	c2_net_lnet_tm_set_debug(TM1, 0);
