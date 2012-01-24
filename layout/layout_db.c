@@ -360,9 +360,9 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 
 /**
  * De-initializes the layout schema - de-initializes the DB tables and the
- *  DB environment.
+ * DB environment.
  */
-void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
+int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
    /*
 	@code
@@ -374,14 +374,15 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 	c2_mutex_fini(&schema->ls_lock);
 	@endcode
    */
+	return 0;
 }
 
 /**
  * Registers a new layout type with the layout types maintained by
- *  c2_ldb_schema::ls_type[].
+ * c2_ldb_schema::ls_type[].
  */
-void c2_ldb_type_register(struct c2_ldb_schema *schema,
-			  const struct c2_layout_type *lt)
+int c2_ldb_type_register(struct c2_ldb_schema *schema,
+			 const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -397,6 +398,7 @@ void c2_ldb_type_register(struct c2_ldb_schema *schema,
 	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
+	return 0;
 }
 
 /**
@@ -421,8 +423,8 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
  * Registers a new enumeration type with the enumeration types
  * maintained by c2_ldb_schema::ls_type[].
  */
-void c2_ldb_enum_register(struct c2_ldb_schema *schema,
-			  const struct c2_layout_enum_type *let)
+int c2_ldb_enum_register(struct c2_ldb_schema *schema,
+			 const struct c2_layout_enum_type *let)
 {
    /**
 	@code
@@ -438,6 +440,7 @@ void c2_ldb_enum_register(struct c2_ldb_schema *schema,
 	c2_mutex_unlock(schema->ls_lock);
 	@endcode
    */
+	return 0;
 }
 
 /**
@@ -669,11 +672,12 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
  * @defgroup LayoutDBDFSInternal Layout DB Internals
  * @brief Detailed functional specification of the internals of the
  * Layout-DB module.
-
+ *
  * This section covers the data structures and sub-routines used internally.
-
- * @see @ref Layout-DB "Layout-DB DLD" and @ref Layout-DB-lspec "Layout-DB Logical Specification".
-
+ *
+ * @see @ref Layout-DB "Layout-DB DLD"
+ * and @ref Layout-DB-lspec "Layout-DB Logical Specification".
+ *
  * @{
  */
 
@@ -689,9 +693,9 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 
 	C2_PRE(*(uint64_t *)lid_addr == lid);
 
-	/* The c2_db_pair was set earlier by the client. But the recsize could
-	 * have been set to more than what is required. Hence, need to reset it
-	 * now that we know the exact recsize.
+	/* The c2_db_pair was set earlier. But the recsize could have been set
+	 * to more than what is required. Hence, need to reset it, now that we
+	 * know the exact recsize.
 	 */
 	c2_db_pair_setup(pair, &schema->ls_layouts,
 			 lid_addr, sizeof(uint64_t),

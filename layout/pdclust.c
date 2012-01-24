@@ -628,7 +628,7 @@ static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_unregister = NULL,
 	.lto_recsize	= pdclust_recsize,
 	.lto_decode     = pdclust_decode,
-	.lto_encode     = pdclust_encode,
+	.lto_encode     = pdclust_encode
 };
 
 const struct c2_layout_type c2_pdclust_layout_type = {
