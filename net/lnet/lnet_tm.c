@@ -257,7 +257,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 }
 
 /**
-   @} LNetXODFS
+   @}
  */
 
 /*

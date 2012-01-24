@@ -130,7 +130,7 @@ struct nlx_xo_buffer {
 };
 
 /**
-   @} LNetXODFS
+   @}
  */
 
 #endif /* __COLIBRI_NET_LNET_XO_H__ */

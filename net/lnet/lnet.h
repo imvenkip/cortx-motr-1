@@ -41,14 +41,20 @@
    - c2_net_lnet_ep_addr_net_cmp()
      Compare the network portion of two LNet transport end point addresses.
      It is intended for use by the Request Handler setup logic.
-
-   The use of this subroutine is not mandatory.
+   - c2_net_lnet_tm_stat_interval_set()
+     Sets the interval at which a started LNet transfer machine will generate
+     ADDB events with transfer machine statistics.
+   - c2_net_lnet_tm_stat_interval_get()
+     Gets the current statistics interval.
+   The use of these subroutines is not mandatory.
 
    @see @ref net "Networking"                     <!-- net/net.h -->
    @see @ref LNetDLD "LNet Transport DLD"         <!-- net/lnet/lnet_main.c -->
    @see @ref LNetDFS "LNet Transport"   <!-- below -->
 
  */
+
+#include "net/net.h"
 
 /**
    @defgroup LNetDFS LNet Transport
@@ -61,7 +67,6 @@
 
    @{
  */
-#include "net/net.h"
 
 /**
    The LNet transport is used by specifying this data structure to the
@@ -124,7 +129,7 @@ int c2_net_lnet_init(void);
 void c2_net_lnet_fini(void);
 
 /**
-   @} LNetDFS end group
+   @}
  */
 
 #endif /* __COLIBRI_NET_LNET_H__ */

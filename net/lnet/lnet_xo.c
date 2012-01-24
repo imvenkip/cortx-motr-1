@@ -503,7 +503,7 @@ static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {
 };
 
 /**
-   @} LNetXODFS
+   @}
  */
 
 /**
@@ -518,7 +518,7 @@ struct c2_net_xprt c2_net_lnet_xprt = {
 C2_EXPORTED(c2_net_lnet_xprt);
 
 /**
-   @} LNetDFS
+   @}
  */
 
 /*

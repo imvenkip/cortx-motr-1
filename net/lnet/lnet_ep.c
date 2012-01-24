@@ -86,7 +86,7 @@ static int nlx_ep_create(struct c2_net_end_point **epp,
 }
 
 /**
-   @} LNetXODFS
+   @}
  */
 
 /*
