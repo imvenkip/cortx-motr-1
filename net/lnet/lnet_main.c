@@ -861,7 +861,7 @@ uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
 C2_EXPORTED(c2_net_lnet_tm_stat_interval_get);
 
 /**
-   @} LNetDFS end group
+   @}
  */
 
 /*
