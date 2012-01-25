@@ -243,10 +243,14 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 }
 
 int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
-	     struct c2_stob *bstore, struct ad_balloc *ballroom)
+		     struct c2_stob *bstore, struct ad_balloc *ballroom,
+		     c2_bcount_t container_size, c2_bcount_t bshift,
+		     c2_bcount_t blocks_per_group, c2_bcount_t res_groups)
 {
-	int result;
-	struct ad_domain *adom;
+	int			 result;
+	c2_bcount_t		 groupsize;
+	c2_bcount_t		 blocksize;
+	struct ad_domain	*adom;
 
 	adom = domain2ad(dom);
 
@@ -254,8 +258,15 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	C2_PRE(!adom->ad_setup);
 	C2_PRE(bstore->so_state == CSS_EXISTS);
 
+	blocksize = 1 << bshift;
+	groupsize = blocks_per_group * blocksize;
+
+	C2_PRE(groupsize > blocksize);
+	C2_PRE(container_size > groupsize);
+	C2_PRE(container_size / groupsize > res_groups);
+
 	result = ballroom->ab_ops->bo_init
-		(ballroom, dbenv, bstore->so_op->sop_block_shift(bstore));
+		(ballroom, dbenv, bshift, container_size, blocks_per_group, res_groups);
 	if (result == 0) {
 		adom->ad_dbenv    = dbenv;
 		adom->ad_bstore   = bstore;
