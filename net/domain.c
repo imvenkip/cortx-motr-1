@@ -74,7 +74,7 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	if (rc != 0) {
 		dom->nd_xprt = NULL; /* prevent call to xo_dom_fini */
 		c2_net__domain_fini(dom);
-		NET_ADDB_ADD(c2_net_addb, "c2_net__domain_init", rc);
+		NET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
 	}
 	return rc;
 }

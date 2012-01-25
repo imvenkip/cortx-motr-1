@@ -115,7 +115,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
 	} else {
-		NET_ADDB_ADD(dom->nd_addb, "c2_net_buffer_register", rc);
+		NET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
 		c2_addb_ctx_fini(&buf->nb_addb);
 	}
 
@@ -262,7 +262,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
  m_err_exit:
 	c2_mutex_unlock(&tm->ntm_mutex);
 	if (rc != 0)
-		NET_ADDB_ADD(buf->nb_addb, "c2_net_buffer_add", rc);
+		NET_ADDB_FUNCFAIL_ADD(buf->nb_addb, rc);
 	return rc;
 }
 C2_EXPORTED(c2_net_buffer_add);

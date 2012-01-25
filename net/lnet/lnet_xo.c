@@ -132,7 +132,7 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 	if (rc == 0 && cepa.cepa_tmid == C2_NET_LNET_TMID_INVALID)
 		rc = -EINVAL;
 	if (rc != 0) {
-		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_end_point_create", rc);
+		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 		return rc;
 	}
 
@@ -222,7 +222,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	need = nb->nb_qtype == C2_NET_QT_MSG_RECV ? nb->nb_max_receive_msgs : 1;
 	rc = nlx_core_bevq_provision(ctp, need);
 	if (rc != 0) {
-		LNET_ADDB_ADD(nb->nb_addb, "nlx_xo_buf_add", rc);
+		LNET_ADDB_FUNCFAIL_ADD(nb->nb_addb, rc);
 		return rc;
 	}
 	cbp->cb_max_operations = need;
@@ -338,7 +338,7 @@ static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 				    &nlx_tm_ev_worker, tm,
 				    "nlx_tm_ev_worker");
 	if (rc != 0)
-		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_tm_start", rc);
+		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	return rc;
 }
 
@@ -379,7 +379,7 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 	if (rc == 0)
 		c2_bitmap_copy(&tp->xtm_processors, processors);
 	if (rc != 0)
-		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_tm_confine", rc);
+		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	return rc;
 }
 
@@ -417,8 +417,7 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 				struct c2_net_qstats *q;
 				q = &tm->ntm_qstats[nbev.nbe_buffer->nb_qtype];
 				q->nqs_num_f_events++;
-				LNET_ADDB_ADD(tm->ntm_addb,
-					      "nlx_xo_bev_deliver_all", rc);
+				LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 				continue;
 			}
 		}

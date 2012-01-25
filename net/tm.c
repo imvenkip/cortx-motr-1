@@ -171,7 +171,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 		tm->ntm_state = C2_NET_TM_INITIALIZED;
 	} else {
 		c2_net__tm_cleanup(tm);
-		NET_ADDB_ADD(dom->nd_addb, "c2_net_tm_init", rc);
+		NET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
 	}
 	c2_mutex_unlock(&dom->nd_mutex);
 
@@ -252,7 +252,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	}
 	C2_POST(c2_net__tm_invariant(tm));
 	if (rc != 0)
-		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_start", rc);
+		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	return rc;
@@ -276,7 +276,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	if (rc < 0)
 		tm->ntm_state = oldstate;
 	if (rc != 0)
-		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_stop", rc);
+		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
 
@@ -327,7 +327,7 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 	C2_POST(c2_net__tm_invariant(tm));
 	C2_POST(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	if (rc != 0)
-		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_confine", rc);
+		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
@@ -349,8 +349,7 @@ int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
 	C2_POST(ergo(rc == 0, !tm->ntm_bev_auto_deliver));
 	C2_POST(c2_net__tm_invariant(tm));
 	if (rc != 0)
-		NET_ADDB_ADD(tm->ntm_addb,
-			     "c2_net_buffer_event_deliver_synchronously", rc);
+		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
