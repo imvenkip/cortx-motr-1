@@ -51,6 +51,7 @@ extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 extern struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 
 static int io_fom_cob_rwv_state(struct c2_fom *fom);
+static int io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 static void io_fom_cob_rwv_fini(struct c2_fom *fom);
 static size_t io_fom_locality_get(const struct c2_fom *fom);
 
@@ -61,7 +62,7 @@ static struct c2_fom_ops c2_io_fom_rwv_ops = {
 };
 
 static const struct c2_fom_type_ops c2_io_cob_rwv_type_ops = {
-	.fto_create = NULL,
+	.fto_create = io_fop_cob_rwv_fom_init,
 };
 
 static struct c2_fom_type c2_io_cob_rwv_type = {
@@ -95,7 +96,7 @@ static void io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
  * Find the corresponding fom_type and associate it with c2_fom.
  * Associate fop with fom type.
  */
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_fom			*fom;
 	struct c2_io_fom_cob_rwv	*fom_obj;

@@ -334,8 +334,8 @@ void c2_fom_queue(struct c2_fom *fom);
 
 /**
    Initialises fom allocated by the caller.
-   Invoked from c2_fop_type_ops::fto_fom_init implementation for
-   corresponding fop.
+   Invoked from c2_fom_type_ops::fto_create implementation for
+   corresponding fom.
    Fom starts in FOPH_INIT phase and FOS_READY state to begin its
    execution.
 
@@ -400,8 +400,8 @@ enum c2_fom_state_outcome {
 
 /** Fom type operation vector. */
 struct c2_fom_type_ops {
-	/** Create a new fom of this type. */
-	int (*fto_create)(struct c2_fom_type *t, struct c2_fom **out);
+	/** Create a new fom for the given fop. */
+	int (*fto_create)(struct c2_fop *fop, struct c2_fom **out);
 };
 
 /** Fom operations vector. */

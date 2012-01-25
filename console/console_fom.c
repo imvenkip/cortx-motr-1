@@ -28,7 +28,8 @@
 #include <config.h>
 #endif
 
-#include "lib/errno.h"	/* EINVAL */
+#include "lib/errno.h"		/* EINVAL */
+#include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
@@ -49,6 +50,36 @@ static size_t home_locality(const struct c2_fom *fom)
 static void default_fom_fini(struct c2_fom *fom)
 {
         return;
+}
+
+static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
+{
+        struct c2_fom *fom;
+	struct c2_fop *rep_fop;
+
+        C2_PRE(fop != NULL);
+        C2_PRE(m != NULL);
+
+	if (fop->f_type != &c2_cons_fop_device_fopt)
+		return -EINVAL;
+
+        C2_ALLOC_PTR(fom);
+        if (fom == NULL)
+                return -ENOMEM;
+        rep_fop = c2_fop_alloc(&c2_cons_fop_reply_fopt, NULL);
+	if (rep_fop == NULL) {
+		c2_free(fom);
+		return -ENOMEM;
+	}
+
+	c2_fom_init(fom);
+	fom->fo_ops	= &c2_cons_fom_device_ops;
+        fom->fo_type	= &fop->f_type->ft_fom_type;
+	fom->fo_fop	= fop;
+        fom->fo_rep_fop = rep_fop;
+
+        *m = fom;
+        return 0;
 }
 
 static int cons_fom_state(struct c2_fom *fom)
@@ -86,7 +117,7 @@ const struct c2_fom_ops c2_cons_fom_device_ops = {
 };
 
 static const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
-        .fto_create = NULL
+        .fto_create = cons_fop_fom_create
 };
 
 struct c2_fom_type c2_cons_fom_device_type = {
