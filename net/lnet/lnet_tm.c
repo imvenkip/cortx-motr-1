@@ -175,7 +175,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	if (nbev->nbe_status != 0)
 		goto done; /* this is not an error from this sub */
 	if (nb->nb_qtype == C2_NET_QT_MSG_RECV) {
-		rc = nlx_ep_create(&nbev->nbe_ep, tm, &lcbev->cbe_sender);
+		rc = NLX_ep_create(&nbev->nbe_ep, tm, &lcbev->cbe_sender);
 		if (rc != 0) {
 			nbev->nbe_status = rc;
 			goto done;

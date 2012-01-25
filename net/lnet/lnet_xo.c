@@ -73,17 +73,23 @@ static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
 struct nlx_xo_interceptable_subs {
 	int (*_nlx_core_buf_event_wait)(struct nlx_core_transfer_mc *lctm,
 					c2_time_t timeout);
+	int (*_nlx_ep_create)(struct c2_net_end_point **epp,
+			      struct c2_net_transfer_mc *tm,
+			      struct nlx_core_ep_addr *cepa);
 };
 static struct nlx_xo_interceptable_subs nlx_xo_iv = {
 #define _NLXIS(s) ._##s = s
 
 	_NLXIS(nlx_core_buf_event_wait),
+	_NLXIS(nlx_ep_create),
 
 #undef _NLXI
 };
 
 #define NLX_CORE_buf_event_wait(lctm, timeout) \
 	(*nlx_xo_iv._nlx_core_buf_event_wait)(lctm, timeout)
+#define NLX_ep_create(epp, tm, cepa) \
+	(*nlx_xo_iv._nlx_ep_create)(epp, tm, cepa)
 
 static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 {

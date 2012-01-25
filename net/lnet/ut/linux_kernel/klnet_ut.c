@@ -414,6 +414,18 @@ int ut_ktest_msg_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 	return nlx_core_buf_event_wait(lctm, timeout);
 }
 
+static struct c2_atomic64 ut_ktest_msg_ep_create_fail;
+static int ut_ktest_msg_ep_create(struct c2_net_end_point **epp,
+				  struct c2_net_transfer_mc *tm,
+				  struct nlx_core_ep_addr *cepa)
+{
+	if (c2_atomic64_get(&ut_ktest_msg_ep_create_fail) > 0) {
+		c2_atomic64_inc(&ut_ktest_msg_ep_create_fail);
+		return -ENOMEM;
+	}
+	return nlx_ep_create(epp, tm, cepa);
+}
+
 static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
 				   unsigned mlength,
 				   unsigned offset,
@@ -648,9 +660,94 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(cb_called1 == count);
 
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
-
 	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed);
+
+	/* TEST
+	   Enqueue a receive buffer.  Send a sequence of events. Arrange for
+	   failure in the ep creation subroutine.
+	   The buffer should not get dequeued until the last event.
+	   The ep failure should not invoke the callback, but the failure
+	   statistics should be updated.
+	 */
+
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1,C2_NET_QT_MSG_RECV,&td->qs,true));
+
+	/* enqueue buffer */
+	nb1->nb_min_receive_size = UT_MSG_SIZE;
+	nb1->nb_max_receive_msgs = UT_KMSG_OPS;
+	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
+	needed = lctm1->ctm_bev_needed;
+	bevs_left = nb1->nb_max_receive_msgs;
+	zUT(c2_net_buffer_add(nb1, TM1), done);
+	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach1_called);
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	ut_cbreset();
+	C2_UT_ASSERT(cb_called1 == 0);
+	cb_save_ep1 = true;
+
+	/* verify normal delivery */
+	offset = 0;
+	len = 5;
+	C2_UT_ASSERT(bevs_left-- > 0);
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_length1 == len);
+	C2_UT_ASSERT(cb_offset1 == offset);
+	C2_UT_ASSERT(cb_ep1 != NULL);
+	cepa = nlx_ep_to_core(cb_ep1);
+	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
+	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
+	zUT(c2_net_end_point_put(cb_ep1), done);
+	cb_ep1 = NULL;
+
+	/* arrange for ep creation failure */
+	c2_atomic64_set(&ut_ktest_msg_ep_create_fail, 1);
+	count = 0;
+	ut_cbreset();
+	C2_UT_ASSERT(cb_called1 == 0);
+	cb_save_ep1 = true;
+
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+
+	addr.cepa_portal += 1;
+	offset += len;
+	len = 15;
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	count++;
+
+	offset += len;
+	len = 5;
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 1, &addr);
+	count++;
+
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_called1 == 1); /* just one callback! */
+	C2_UT_ASSERT(cb_status1 == -ENOMEM);
+	C2_UT_ASSERT(c2_atomic64_get(&ut_ktest_msg_ep_create_fail) == count + 1);
+	C2_UT_ASSERT(cb_ep1 == NULL); /* no EP */
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1,C2_NET_QT_MSG_RECV,&td->qs,true));
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == count);
+
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
+	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed);
+	c2_atomic64_set(&ut_ktest_msg_ep_create_fail, 0);
 
  done:
 	cb_ep1 = NULL;
@@ -660,9 +757,11 @@ static void ktest_msg_body(struct ut_data *td)
 static void ktest_msg(void) {
 	ut_save_subs();
 
-	/* intercept nlx_core_buf_event_wait before the TM starts */
+	/* intercept these before the TM starts */
 	nlx_xo_iv._nlx_core_buf_event_wait = ut_ktest_msg_buf_event_wait;
 	c2_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 0);
+	nlx_xo_iv._nlx_ep_create = ut_ktest_msg_ep_create;
+	c2_atomic64_set(&ut_ktest_msg_ep_create_fail, 0);
 
 	ut_test_framework(&ktest_msg_body);
 
