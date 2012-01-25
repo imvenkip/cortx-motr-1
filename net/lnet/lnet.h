@@ -50,6 +50,7 @@
      ADDB events with transfer machine statistics.
    - c2_net_lnet_tm_stat_interval_get()
      Gets the current statistics interval.
+
    The use of these subroutines is not mandatory.
 
    @see @ref net "Networking"                     <!-- net/net.h -->
