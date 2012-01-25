@@ -626,84 +626,58 @@ static const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
 
 /**
  * I/O Read FOM state transition table.
+ * @see DLD-bulk-server-lspec-state
  */
-struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
+static struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
 
-{ FOPH_IO_FOM_BUFFER_ACQUIRE,
-  &io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_STOB_INIT,
-  FOPH_IO_FOM_BUFFER_WAIT, },
+{ FOPH_IO_FOM_BUFFER_ACQUIRE, &io_fom_cob_rw_acquire_net_buffer,
+  FOPH_IO_STOB_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
 
-{ FOPH_IO_FOM_BUFFER_WAIT,
-  io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_STOB_INIT,
-  FOPH_IO_FOM_BUFFER_WAIT, },
+{ FOPH_IO_FOM_BUFFER_WAIT, io_fom_cob_rw_acquire_net_buffer,
+  FOPH_IO_STOB_INIT,  FOPH_IO_FOM_BUFFER_WAIT, },
 
-{ FOPH_IO_STOB_INIT,
-  io_fom_cob_rw_io_launch,
-  0,
-  FOPH_IO_STOB_WAIT, },
+{ FOPH_IO_STOB_INIT, io_fom_cob_rw_io_launch,
+  0,  FOPH_IO_STOB_WAIT, },
 
-{ FOPH_IO_STOB_WAIT,
-  io_fom_cob_rw_io_finish,
-  FOPH_IO_ZERO_COPY_INIT,
-  0, },
+{ FOPH_IO_STOB_WAIT, io_fom_cob_rw_io_finish,
+  FOPH_IO_ZERO_COPY_INIT, 0, },
 
-{ FOPH_IO_ZERO_COPY_INIT,
-  io_fom_cob_rw_initiate_zero_copy,
-  0,
-  FOPH_IO_ZERO_COPY_WAIT, },
+{ FOPH_IO_ZERO_COPY_INIT, io_fom_cob_rw_initiate_zero_copy,
+  0, FOPH_IO_ZERO_COPY_WAIT, },
 
-{ FOPH_IO_ZERO_COPY_WAIT,
-  io_fom_cob_rw_zero_copy_finish,
-  FOPH_IO_BUFFER_RELEASE,
-  0, },
+{ FOPH_IO_ZERO_COPY_WAIT, io_fom_cob_rw_zero_copy_finish,
+  FOPH_IO_BUFFER_RELEASE, 0, },
 
-{ FOPH_IO_BUFFER_RELEASE,
-  io_fom_cob_rw_release_net_buffer,
-  FOPH_IO_FOM_BUFFER_ACQUIRE,
-  0, },
+{ FOPH_IO_BUFFER_RELEASE, io_fom_cob_rw_release_net_buffer,
+  FOPH_IO_FOM_BUFFER_ACQUIRE,  0, },
 };
 
 /**
  * I/O Write FOM state transition table.
+ * @see DLD-bulk-server-lspec-state
  */
-struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
+static struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 
-{ FOPH_IO_FOM_BUFFER_ACQUIRE,
-  &io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_STOB_INIT,
-  FOPH_IO_FOM_BUFFER_WAIT, },
+{ FOPH_IO_FOM_BUFFER_ACQUIRE, &io_fom_cob_rw_acquire_net_buffer,
+  FOPH_IO_STOB_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
 
-{ FOPH_IO_FOM_BUFFER_WAIT,
-  io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_ZERO_COPY_INIT,
-  FOPH_IO_FOM_BUFFER_WAIT, },
+{ FOPH_IO_FOM_BUFFER_WAIT, io_fom_cob_rw_acquire_net_buffer,
+  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
 
-{ FOPH_IO_ZERO_COPY_INIT,
-  io_fom_cob_rw_initiate_zero_copy,
-  0,
-  FOPH_IO_ZERO_COPY_WAIT, },
+{ FOPH_IO_ZERO_COPY_INIT, io_fom_cob_rw_initiate_zero_copy,
+  0, FOPH_IO_ZERO_COPY_WAIT, },
 
-{ FOPH_IO_ZERO_COPY_WAIT,
-  io_fom_cob_rw_zero_copy_finish,
-  FOPH_IO_STOB_INIT,
-  0, },
+{ FOPH_IO_ZERO_COPY_WAIT, io_fom_cob_rw_zero_copy_finish,
+  FOPH_IO_STOB_INIT, 0, },
 
-{ FOPH_IO_STOB_INIT,
-  io_fom_cob_rw_io_launch,
-  0,
-  FOPH_IO_STOB_WAIT, },
+{ FOPH_IO_STOB_INIT, io_fom_cob_rw_io_launch,
+  0, FOPH_IO_STOB_WAIT, },
 
-{ FOPH_IO_STOB_WAIT,
-  io_fom_cob_rw_io_finish,
-  FOPH_IO_BUFFER_RELEASE,
-  0, },
+{ FOPH_IO_STOB_WAIT, io_fom_cob_rw_io_finish,
+  FOPH_IO_BUFFER_RELEASE, 0, },
 
-{ FOPH_IO_BUFFER_RELEASE,
-  io_fom_cob_rw_release_net_buffer,
-  FOPH_IO_FOM_BUFFER_ACQUIRE,
-  0, },
+{ FOPH_IO_BUFFER_RELEASE, io_fom_cob_rw_release_net_buffer,
+  FOPH_IO_FOM_BUFFER_ACQUIRE, 0, },
 };
 
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
@@ -859,7 +833,6 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom         *fom,
                                             uint32_t               bshift)
 {
         int         i;
-        int         rc = 0;
 
         C2_PRE(fom != NULL);
         C2_PRE(in != NULL);
@@ -871,18 +844,16 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom         *fom,
          */
         C2_ALLOC_ARR(out->iv_vec.v_count, in->ci_nr);
         if (out->iv_vec.v_count == NULL) {
-                rc = -ENOMEM;
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_oom);
-                return rc;
+                return -ENOMEM;
         }
         C2_ALLOC_ARR(out->iv_index, in->ci_nr);
         if (out->iv_index == NULL) {
-                rc = -ENOMEM;
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_oom);
                 c2_free(out->iv_vec.v_count);
-                return rc;
+                return -ENOMEM;
         }
 
         out->iv_vec.v_nr = in->ci_nr;
