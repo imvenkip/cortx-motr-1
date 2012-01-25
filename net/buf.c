@@ -114,8 +114,10 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	if (rc == 0) {
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
-	} else
+	} else {
 		NET_ADDB_ADD(dom->nd_addb, "c2_net_buffer_register", rc);
+		c2_addb_ctx_fini(&buf->nb_addb);
+	}
 
 	C2_POST(ergo(rc == 0, c2_net__buffer_invariant(buf)));
 	C2_POST(ergo(rc == 0, buf->nb_timeout == C2_TIME_NEVER));

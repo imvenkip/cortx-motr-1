@@ -87,7 +87,7 @@ enum {
 	/**
 	   Report TM statistics once every 5 minutes by default.
 	 */
-	C2_NET_LNET_TM_STAT_INTERVAL = 60 * 5,
+	C2_NET_LNET_TM_STAT_INTERVAL_SECS = 60 * 5,
 };
 
 /**
@@ -111,7 +111,7 @@ void c2_net_lnet_ifaces_put(char * const **addrs);
 
 /**
    Sets the transfer machine statistics reporting interval.
-   By default, the interval is @c C2_NET_LNET_TM_STAT_INTERVAL seconds.
+   By default, the interval is @c C2_NET_LNET_TM_STAT_INTERVAL_SECS seconds.
    @param tm   Pointer to the transfer machine.
    @param secs The interval in seconds. Must be greater than 0.
    @pre tm->ntm_state >= C2_NET_TM_INITIALIZED &&
