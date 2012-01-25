@@ -41,24 +41,20 @@ static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
  */
 static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
 {
-	struct nlx_xo_transfer_mc *tp;
 	struct c2_net_qstats *qs;
-	char stat_name[64];
+	char stat_name[128];
 	static const char *qn[] = {
 		"msg_recv", "msg_send",
 		"pas_recv", "pas_send",
 		"act_recv", "act_send",
 	};
 	int i;
-	uint32_t tmid;
 
 #define STAT_NAME(field, i)						\
 	snprintf(stat_name, sizeof stat_name,				\
-		 "nlx_tm_stats:%d:%s:" field, tmid, qn[i])
+		 "nlx_tm_stats:%s:%s:" field, tm->ntm_ep->nep_addr, qn[i])
 
 	C2_PRE(tm != NULL && nlx_tm_invariant(tm));
-	tp = tm->ntm_xprt_private;
-	tmid = tp->xtm_core.ctm_addr.cepa_tmid;
 	C2_CASSERT(ARRAY_SIZE(tm->ntm_q) == ARRAY_SIZE(qn));
 	C2_CASSERT(sizeof qs->nqs_time_in_queue == sizeof(uint64_t));
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {

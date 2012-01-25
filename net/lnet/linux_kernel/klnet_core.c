@@ -943,6 +943,7 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 	c2_addb_ctx_init(&kd->kd_addb, &nlx_core_domain_addb_ctx,
 			 &dom->nd_addb);
 	lcdom->cd_kpvt = kd;
+	C2_POST(nlx_kcore_domain_invariant(kd));
 	return 0;
 }
 
@@ -1012,7 +1013,8 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_ASSERT(rc != 0);
 	kb->kb_magic = 0;
 	lcbuf->cb_magic = 0;
-	LNET_ADDB_ADD(kb->kb_addb, "nlx_core_buf_register", rc);
+	LNET_ADDB_ADD(kd->kd_addb, "nlx_core_buf_register", rc);
+	c2_addb_ctx_fini(&kb->kb_addb);
 	c2_free(kb);
 	return rc;
 }
