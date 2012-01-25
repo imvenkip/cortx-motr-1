@@ -58,9 +58,7 @@ const struct c2_test_suite libc2_ut = {
 		{ "refs",      test_refs      },
 		{ "thread",    test_thread    },
 		{ "time",      test_time      },
-		/*
 		{ "timer",     test_timer     },
-		*/
 		{ "tlist",     test_tlist     },
 		{ "trace",     test_trace     },
 		{ "vec",       test_vec       },
