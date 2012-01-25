@@ -1013,7 +1013,7 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_ASSERT(rc != 0);
 	kb->kb_magic = 0;
 	lcbuf->cb_magic = 0;
-	LNET_ADDB_ADD(kd->kd_addb, "nlx_core_buf_register", rc);
+	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	c2_addb_ctx_fini(&kb->kb_addb);
 	c2_free(kb);
 	return rc;
@@ -1061,7 +1061,7 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
 	if (rc != 0)
-		LNET_ADDB_ADD(kctm->ktm_addb, "nlx_core_buf_msg_recv", rc);
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
 	return rc;
 }
 
@@ -1085,7 +1085,7 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetPut(lctm, lcbuf, &umd);
 	if (rc != 0)
-		LNET_ADDB_ADD(kctm->ktm_addb, "nlx_core_buf_msg_send", rc);
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
 	return rc;
 }
 
@@ -1351,7 +1351,7 @@ fail:
 fail_kctm:
 	c2_free(kctm);
 	C2_ASSERT(rc != 0);
-	LNET_ADDB_ADD(tm->ntm_addb, "nlx_core_tm_start", rc);
+	LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	return rc;
 }
 

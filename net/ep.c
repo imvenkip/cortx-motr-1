@@ -72,7 +72,7 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
 	C2_POST(ergo(rc == 0, c2_net__ep_invariant(*epp, tm, true)));
 
 	if (rc != 0)
-		NET_ADDB_ADD(tm->ntm_addb, "c2_net_end_point_create", rc);
+		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }

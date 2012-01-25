@@ -36,13 +36,13 @@ static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
 /**
    Logs statistical data periodically using ADDB.
    @param tm the transfer machine to report about
-   @todo addb lacks a mechanism for statistics reporting, use of LNET_ADDB_ADD
-   is temporary
+   @todo addb lacks a mechanism for statistics reporting, use of
+   LNET_ADDB_STAT_ADD is temporary.
  */
 static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_qstats *qs;
-	char stat_name[128];
+	char name[128];
 	static const char *qn[] = {
 		"msg_recv", "msg_send",
 		"pas_recv", "pas_send",
@@ -51,7 +51,7 @@ static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
 	int i;
 
 #define STAT_NAME(field, i)						\
-	snprintf(stat_name, sizeof stat_name,				\
+	snprintf(name, sizeof name,					\
 		 "nlx_tm_stats:%s:%s:" field, tm->ntm_ep->nep_addr, qn[i])
 
 	C2_PRE(tm != NULL && nlx_tm_invariant(tm));
@@ -60,19 +60,19 @@ static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		qs = &tm->ntm_qstats[i];
 		STAT_NAME("adds", i);
-		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_adds);
+		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_num_adds);
 		STAT_NAME("dels", i);
-		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_dels);
+		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_num_dels);
 		STAT_NAME("success", i);
-		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_s_events);
+		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_num_s_events);
 		STAT_NAME("fail", i);
-		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_num_f_events);
+		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_num_f_events);
 		STAT_NAME("inqueue", i);
-		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_time_in_queue);
+		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_time_in_queue);
 		STAT_NAME("totbytes", i);
-		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_total_bytes);
+		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_total_bytes);
 		STAT_NAME("maxbytes", i);
-		LNET_ADDB_ADD(tm->ntm_addb, stat_name, qs->nqs_max_bytes);
+		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_max_bytes);
 	}
 #undef STAT_NAME
 }
@@ -124,7 +124,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	} else {
 		tmev.nte_next_state = C2_NET_TM_FAILED;
 		tmev.nte_status = rc;
-		LNET_ADDB_ADD(tm->ntm_addb, "nlx_tm_ev_worker", rc);
+		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	}
 	tmev.nte_time = c2_time_now();
 	tm->ntm_ep = NULL;
