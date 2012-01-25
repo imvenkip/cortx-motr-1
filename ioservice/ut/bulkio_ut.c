@@ -327,7 +327,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	uint32_t			 j;
 	uint32_t			 k;
 	c2_bcount_t			 tc;
-	struct c2_fop			*fop;
+        struct c2_fop                   *fop;
 	struct c2_clink			 clink;
 	struct c2_net_buffer		**netbufs;
 	struct c2_fop_cob_rw		*rw;
@@ -336,8 +336,8 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	struct c2_rpc_bulk		*rbulk;
 	struct c2_rpc_bulk_buf		*rbuf;
 	struct c2_rpc_conn		*conn;
-	struct c2_fop_cob_writev_rep	*wrep;
-	struct c2_fop_cob_readv_rep	*rrep;
+        struct c2_fop_cob_writev_rep    *wrep;
+        struct c2_fop_cob_readv_rep     *rrep;
 
 	conn = fom->fo_fop->f_item.ri_session->s_conn;
 	rw = io_rw_get(fom->fo_fop);
