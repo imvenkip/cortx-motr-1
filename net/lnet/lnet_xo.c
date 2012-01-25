@@ -71,22 +71,19 @@ static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
    const so that the UTs can modify it.
  */
 struct nlx_xo_interceptable_subs {
-	int (*_nlx_xo_core_bev_to_net_bev)(struct c2_net_transfer_mc *tm,
-					   struct nlx_core_buffer_event *lcbev,
-					   struct c2_net_buffer_event *nbev);
-
+	int (*_nlx_core_buf_event_wait)(struct nlx_core_transfer_mc *lctm,
+					c2_time_t timeout);
 };
 static struct nlx_xo_interceptable_subs nlx_xo_iv = {
 #define _NLXIS(s) ._##s = s
 
-	_NLXIS(nlx_xo_core_bev_to_net_bev),
+	_NLXIS(nlx_core_buf_event_wait),
 
 #undef _NLXI
 };
 
-#define NLX_XO_core_bev_to_net_bev(tm, lcbev, nbev) \
- (*nlx_xo_iv._nlx_xo_core_bev_to_net_bev)(tm, lcbev, nbev)
-
+#define NLX_CORE_buf_event_wait(lctm, timeout) \
+	(*nlx_xo_iv._nlx_core_buf_event_wait)(lctm, timeout)
 
 static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 {
@@ -417,7 +414,7 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 		struct c2_net_buffer_event nbev;
 		int rc;
 
-		rc = NLX_XO_core_bev_to_net_bev(tm, &cbev, &nbev);
+		rc = nlx_xo_core_bev_to_net_bev(tm, &cbev, &nbev);
 		if (rc != 0) {
 			/* Failure can only happen for receive message events
 			   when end point creation fails due to lack

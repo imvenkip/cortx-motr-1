@@ -92,10 +92,11 @@ static c2_bcount_t cb_length1;
 static c2_bcount_t cb_offset1;
 static bool cb_save_ep1; /* save ep next call only */
 static struct c2_net_end_point *cb_ep1; /* QT_MSG_RECV only */
+static unsigned cb_called1;
 
 static void ut_buf_cb1(const struct c2_net_buffer_event *ev)
 {
-	/* nlx_print_net_buffer_event("ut_buf_cb1", ev); */
+	/* nlx_print_net_buffer_event("ut_buf_cb1", ev);*/
 	cb_nb1     = ev->nbe_buffer;
 	cb_qt1     = cb_nb1->nb_qtype;
 	cb_status1 = ev->nbe_status;
@@ -107,6 +108,7 @@ static void ut_buf_cb1(const struct c2_net_buffer_event *ev)
 	} else
 		cb_ep1 = NULL;
 	cb_save_ep1 = false;
+	cb_called1++;
 }
 
 static void ut_cbreset1(void)
@@ -118,6 +120,7 @@ static void ut_cbreset1(void)
 	cb_offset1 = 0;
 	C2_ASSERT(cb_ep1 == NULL); /* be harsh */
 	cb_save_ep1 = false;
+	cb_called1 = 0;
 }
 
 static enum c2_net_queue_type cb_qt2;
@@ -127,6 +130,7 @@ static c2_bcount_t cb_length2;
 static c2_bcount_t cb_offset2;
 static bool cb_save_ep2; /* save ep next call only */
 static struct c2_net_end_point *cb_ep2; /* QT_MSG_RECV only */
+static unsigned cb_called2;
 
 static void ut_buf_cb2(const struct c2_net_buffer_event *ev)
 {
@@ -142,6 +146,7 @@ static void ut_buf_cb2(const struct c2_net_buffer_event *ev)
 	} else
 		cb_ep2 = NULL;
 	cb_save_ep2 = false;
+	cb_called2++;
 }
 
 static void ut_cbreset2(void)
@@ -153,6 +158,7 @@ static void ut_cbreset2(void)
 	cb_offset2 = 0;
 	C2_ASSERT(cb_ep2 == NULL); /* be harsh */
 	cb_save_ep2 = false;
+	cb_called2 = 0;
 }
 
 static void ut_cbreset(void)
@@ -171,7 +177,7 @@ enum {
 	UT_BUFSEGS2 = 1,
 	UT_MSG_SIZE = 1024
 };
-struct test_msg_data {
+struct ut_data {
 	struct c2_net_tm_callbacks     tmcb;
 	struct c2_net_domain           dom1;
 	struct c2_net_transfer_mc      tm1;
@@ -191,10 +197,10 @@ struct test_msg_data {
 #define TM1  (&td->tm1)
 #define TM2  (&td->tm2)
 
-typedef void (*ut_test_fw_body_t)(struct test_msg_data *td);
+typedef void (*ut_test_fw_body_t)(struct ut_data *td);
 
 static void ut_test_framework(ut_test_fw_body_t body) {
-	struct test_msg_data *td;
+	struct ut_data *td;
 	char * const *nidstrs = NULL;
 	int i;
 	int rc;
@@ -260,7 +266,7 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			C2_UT_FAIL("aborting: TM1 startup failed");
 			goto fini1;
 		}
-		printk("TM1: %s\n", TM1->ntm_ep->nep_addr);
+		/* NLXP("TM1: %s\n", TM1->ntm_ep->nep_addr);*/
 	}
 
 	C2_UT_ASSERT(!c2_net_domain_init(DOM2, &c2_net_lnet_xprt));
@@ -303,7 +309,7 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			C2_UT_FAIL("aborting: TM2 startup failed");
 			goto fini2;
 		}
-		printk("TM2: %s\n", TM2->ntm_ep->nep_addr);
+		/* NLXP("TM2: %s\n", TM2->ntm_ep->nep_addr);*/
 	}
 
 	(*body)(td);
@@ -534,7 +540,7 @@ static void test_tm_startstop(void)
 	c2_free(dom);
 }
 
-static void test_msg_body(struct test_msg_data *td)
+static void test_msg_body(struct ut_data *td)
 {
 	struct c2_net_buffer      *nb1;
 

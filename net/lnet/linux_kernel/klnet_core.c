@@ -776,7 +776,6 @@ struct nlx_kcore_interceptable_subs {
 	int (*_nlx_kcore_LNetMDAttach)(struct nlx_core_transfer_mc *lctm,
 				       struct nlx_core_buffer *lcbuf,
 				       lnet_md_t *umd);
-
 };
 static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 #define _NLXIS(s) ._##s = s

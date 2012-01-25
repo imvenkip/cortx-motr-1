@@ -396,6 +396,24 @@ static int ut_ktest_msg_LNetMDAttach1(struct nlx_core_transfer_mc *lctm,
 	return 0;
 }
 
+static struct c2_atomic64 ut_ktest_msg_buf_event_wait_stall;
+static struct c2_chan *ut_ktest_msg_buf_event_wait_delay_chan;
+int ut_ktest_msg_buf_event_wait(struct nlx_core_transfer_mc *lctm,
+				c2_time_t timeout)
+{
+	if (c2_atomic64_get(&ut_ktest_msg_buf_event_wait_stall) > 0) {
+		struct c2_clink cl;
+		C2_ASSERT(ut_ktest_msg_buf_event_wait_delay_chan != NULL);
+		c2_atomic64_inc(&ut_ktest_msg_buf_event_wait_stall);
+		c2_clink_init(&cl, NULL);
+		c2_clink_add(ut_ktest_msg_buf_event_wait_delay_chan,&cl);
+		c2_chan_timedwait(&cl, timeout);
+		c2_clink_del(&cl);
+		return -ETIMEDOUT;
+	}
+	return nlx_core_buf_event_wait(lctm, timeout);
+}
+
 static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
 				   unsigned mlength,
 				   unsigned offset,
@@ -420,7 +438,7 @@ static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
-static void ktest_msg_body(struct test_msg_data *td)
+static void ktest_msg_body(struct ut_data *td)
 {
 	struct c2_net_buffer            *nb1 = &td->bufs1[0];
 	struct nlx_xo_transfer_mc       *tp1 = TM1->ntm_xprt_private;
@@ -436,6 +454,7 @@ static void ktest_msg_body(struct test_msg_data *td)
 	unsigned len;
 	unsigned offset;
 	unsigned bevs_left;
+	unsigned count;
 
 	/* TEST
 	   Check that the lnet_md_t is properly constructed from a registered
@@ -473,6 +492,8 @@ static void ktest_msg_body(struct test_msg_data *td)
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
+	count = bev_cqueue_size(&lctm1->ctm_bevq);
+	C2_UT_ASSERT(count >= lctm1->ctm_bev_needed);
 
 	/* TEST
 	   Send a sequence of successful events.
@@ -554,12 +575,82 @@ static void ktest_msg_body(struct test_msg_data *td)
 	cepa = nlx_ep_to_core(cb_ep1);
 	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
 	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
 	zUT(c2_net_end_point_put(cb_ep1), done);
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
 	cb_ep1 = NULL;
 
 	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed);
-	ut_restore_subs();
+	C2_UT_ASSERT(bev_cqueue_size(&lctm1->ctm_bevq) == count); /* !freed */
+
+	/* TEST
+	   Send a sequence of successful events.
+	   Arrange that they build up in the circular queue, so
+	   that the "deliver_all" will have multiple events
+	   to process.
+	*/
+
+	/* enqueue buffer */
+	nb1->nb_min_receive_size = UT_MSG_SIZE;
+	nb1->nb_max_receive_msgs = UT_KMSG_OPS;
+	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
+	needed = lctm1->ctm_bev_needed;
+	bevs_left = nb1->nb_max_receive_msgs;
+	zUT(c2_net_buffer_add(nb1, TM1), done);
+	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach1_called);
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	/* stall event delivery */
+	ut_cbreset();
+	C2_UT_ASSERT(cb_called1 == 0);
+	cb_save_ep1 = false;
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	ut_ktest_msg_buf_event_wait_delay_chan = &TM2->ntm_chan;/* unused here */
+	c2_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 1);
+	while(c2_atomic64_get(&ut_ktest_msg_buf_event_wait_stall) == 1)
+		ut_chan_timedwait(&td->tmwait1, 1);/* wait for acknowledgment */
+
+	/* start pushing put events */
+	count = 0;
+
+	offset = 0;
+	len = 5;
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	count++;
+	C2_UT_ASSERT(cb_called1 == 0);
+
+	offset += len;
+	len = 10;
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	count++;
+	C2_UT_ASSERT(cb_called1 == 0);
+
+	offset += len;
+	len = 15;
+	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 1, &addr);
+	count++;
+	C2_UT_ASSERT(cb_called1 == 0);
+
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
+
+	/* open the spigot ... */
+	c2_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 0);
+	c2_chan_signal(ut_ktest_msg_buf_event_wait_delay_chan);
+	while (cb_called1 < count) {
+		ut_chan_timedwait(&td->tmwait1,1);
+	}
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_called1 == count);
+
+	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
+
+	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed);
 
  done:
 	cb_ep1 = NULL;
@@ -568,8 +659,15 @@ static void ktest_msg_body(struct test_msg_data *td)
 
 static void ktest_msg(void) {
 	ut_save_subs();
+
+	/* intercept nlx_core_buf_event_wait before the TM starts */
+	nlx_xo_iv._nlx_core_buf_event_wait = ut_ktest_msg_buf_event_wait;
+	c2_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 0);
+
 	ut_test_framework(&ktest_msg_body);
+
 	ut_restore_subs();
+	ut_ktest_msg_buf_event_wait_delay_chan = NULL;
 }
 
 #undef UT_BUFVEC_FREE
