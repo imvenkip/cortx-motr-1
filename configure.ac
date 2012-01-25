@@ -487,11 +487,25 @@ else
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
+# Check if gcc option is supported in current gcc version.
+AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
+[AC_MSG_CHECKING([whether compiler $CC supports $1 option])
+OLD_CFLAGS="$CFLAGS"
+CFLAGS="$OLD_CFLAGS $1"
+AC_COMPILE_IFELSE([COLIBRI_LANG_PROGRAM([[]], [[]])],
+        [AC_MSG_RESULT([yes]);
+         KCFLAGS="$KCFLAGS $1"],
+        [AC_MSG_RESULT([no]);
+	 KCFLAGS="$KCFLAGS"]
+)]
+CFLAGS="$OLD_CFLAGS")
+
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
+KCFLAGS="-Wall -Werror $KCFLAGS"
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
-KCFLAGS=" -Wall -Werror"
+COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
 
