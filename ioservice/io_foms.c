@@ -659,7 +659,7 @@ static struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
 static struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 
 { FOPH_IO_FOM_BUFFER_ACQUIRE, &io_fom_cob_rw_acquire_net_buffer,
-  FOPH_IO_STOB_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
+  FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
 
 { FOPH_IO_FOM_BUFFER_WAIT, io_fom_cob_rw_acquire_net_buffer,
   FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
