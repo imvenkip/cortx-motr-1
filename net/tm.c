@@ -276,7 +276,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	if (rc < 0)
 		tm->ntm_state = oldstate;
 	if (rc != 0)
-		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_start", rc);
+		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_stop", rc);
 	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
 
