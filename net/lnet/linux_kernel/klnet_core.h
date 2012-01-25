@@ -36,6 +36,7 @@
 #include <linux/spinlock.h>
 
 enum {
+	C2_NET_LNET_KCORE_DOM_MAGIC = 0x4b436f7265446f6dULL, /* KCoreDom */
 	C2_NET_LNET_KCORE_TM_MAGIC  = 0x4b436f7265544dULL,   /* KCoreTM */
 	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL, /* KCoreTMs */
 	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
@@ -47,8 +48,19 @@ enum {
 };
 
 /**
+   Kernel domain private data.
+   This structure is pointed to by nlx_core_domain::cd_kpvt.
+ */
+struct nlx_kcore_domain {
+	uint64_t                         kd_magic;
+
+	/** ADDB context for events related to this domain */
+	struct c2_addb_ctx               kd_addb;
+};
+
+/**
    Kernel transfer machine private data.
-   This structure is pointed to by c2_lnet_core_transfer_mc::lctm_kpvt.
+   This structure is pointed to by c2_lnet_core_transfer_mc::ctm_kpvt.
  */
 struct nlx_kcore_transfer_mc {
 	uint64_t                         ktm_magic;
@@ -73,12 +85,15 @@ struct nlx_kcore_transfer_mc {
 
 	/** Handle of the LNet EQ associated with this transfer machine */
 	lnet_handle_eq_t                 ktm_eqh;
+
+	/** ADDB context for events related to this transfer machine */
+	struct c2_addb_ctx               ktm_addb;
 };
 
 
 /**
    Kernel buffer private data.
-   This structure is pointed to by c2_lnet_core_buffer::lcb_kpvt.
+   This structure is pointed to by c2_lnet_core_buffer::cb_kpvt.
  */
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
@@ -107,8 +122,12 @@ struct nlx_kcore_buffer {
 
 	/** MD handle */
 	lnet_handle_md_t              kb_mdh;
+
+	/** ADDB context for events related to this buffer */
+	struct c2_addb_ctx            kb_addb;
 };
 
+static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd);
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -35,6 +35,10 @@ C2_TL_DESCR_DEFINE(tm, "tm list", ,
 C2_TL_DEFINE(tm, , struct c2_net_buffer);
 C2_EXPORTED(tm_tl);
 C2_EXPORTED(tm_tlist_is_empty);
+
+const struct c2_addb_ctx_type c2_net_tm_addb_ctx = {
+	.act_name = "net-tm"
+};
 
 bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
 {
@@ -132,12 +136,13 @@ static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 		tm_tlist_fini(&tm->ntm_q[i]);
 	}
 	tm->ntm_xprt_private = NULL;
+	c2_addb_ctx_fini(&tm->ntm_addb);
 	return;
 }
 
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 {
-	int result;
+	int rc;
 	int i;
 
 	c2_mutex_lock(&dom->nd_mutex);
@@ -158,16 +163,19 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	C2_SET_ARR0(tm->ntm_qstats);
 	tm->ntm_xprt_private = NULL;
 	tm->ntm_bev_auto_deliver = true;
+	c2_addb_ctx_init(&tm->ntm_addb, &c2_net_tm_addb_ctx, &dom->nd_addb);
 
-	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);
-	if (result >= 0) {
+	rc = dom->nd_xprt->nx_ops->xo_tm_init(tm);
+	if (rc >= 0) {
 		c2_list_add_tail(&dom->nd_tms, &tm->ntm_dom_linkage);
 		tm->ntm_state = C2_NET_TM_INITIALIZED;
-	} else
+	} else {
 		c2_net__tm_cleanup(tm);
+		NET_ADDB_ADD(dom->nd_addb, "c2_net_tm_init", rc);
+	}
 	c2_mutex_unlock(&dom->nd_mutex);
 
-	return result;
+	return rc;
 }
 C2_EXPORTED(c2_net_tm_init);
 
@@ -227,7 +235,7 @@ C2_EXPORTED(c2_net_tm_fini);
 
 int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
-	int result;
+	int rc;
 
 	C2_ASSERT(addr != NULL);
 	C2_PRE(tm != NULL);
@@ -236,22 +244,24 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 
 	tm->ntm_state = C2_NET_TM_STARTING;
-	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_start(tm, addr);
-	if (result < 0) {
+	rc = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_start(tm, addr);
+	if (rc < 0) {
 		/* xprt did not start, no retry supported */
 		tm->ntm_state = C2_NET_TM_FAILED;
 		C2_ASSERT(tm->ntm_ep == NULL);
 	}
 	C2_POST(c2_net__tm_invariant(tm));
+	if (rc != 0)
+		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_start", rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
-	return result;
+	return rc;
 }
 C2_EXPORTED(c2_net_tm_start);
 
 int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 {
-	int result;
+	int rc;
 	enum c2_net_tm_state oldstate;
 
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -262,13 +272,15 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 
 	oldstate = tm->ntm_state;
 	tm->ntm_state = C2_NET_TM_STOPPING;
-	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
-	if (result < 0)
+	rc = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
+	if (rc < 0)
 		tm->ntm_state = oldstate;
+	if (rc != 0)
+		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_start", rc);
 	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
 
-	return result;
+	return rc;
 }
 C2_EXPORTED(c2_net_tm_stop);
 
@@ -302,40 +314,45 @@ C2_EXPORTED(c2_net_tm_stats_get);
 int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 		      const struct c2_bitmap *processors)
 {
-	int result;
+	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_PRE(processors != NULL);
 	if (tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine != NULL)
-		result =
+		rc =
 		    tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine(tm, processors);
 	else
-		result = -ENOSYS;
+		rc = -ENOSYS;
 	C2_POST(c2_net__tm_invariant(tm));
 	C2_POST(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	if (rc != 0)
+		NET_ADDB_ADD(tm->ntm_addb, "c2_net_tm_confine", rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return result;
+	return rc;
 }
 C2_EXPORTED(c2_net_tm_confine);
 
 int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
 {
-	int result;
+	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_PRE(tm->ntm_bev_auto_deliver);
 	if (tm->ntm_dom->nd_xprt->nx_ops->xo_bev_deliver_sync != NULL) {
-		result = tm->ntm_dom->nd_xprt->nx_ops->xo_bev_deliver_sync(tm);
-		if (result == 0)
+		rc = tm->ntm_dom->nd_xprt->nx_ops->xo_bev_deliver_sync(tm);
+		if (rc == 0)
 			tm->ntm_bev_auto_deliver = false;
 	} else
-		result = -ENOSYS;
-	C2_POST(ergo(result == 0, !tm->ntm_bev_auto_deliver));
+		rc = -ENOSYS;
+	C2_POST(ergo(rc == 0, !tm->ntm_bev_auto_deliver));
 	C2_POST(c2_net__tm_invariant(tm));
+	if (rc != 0)
+		NET_ADDB_ADD(tm->ntm_addb,
+			     "c2_net_buffer_event_deliver_synchronously", rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return result;
+	return rc;
 }
 C2_EXPORTED(c2_net_buffer_event_deliver_synchronously);
 

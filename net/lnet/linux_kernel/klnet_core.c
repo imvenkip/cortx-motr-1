@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -751,7 +751,10 @@ static struct c2_tl nlx_kcore_tms;
 
 /** NID strings of LNIs. */
 static char **nlx_kcore_lni_nidstrs;
-/** The count of non-NULL entries in nlx_kcore_lni_nidstrs. */
+/** The count of non-NULL entries in nlx_kcore_lni_nidstrs.
+    @note Caching this count and the string list will no longer be possible
+    if and when dynamic NI addition/removal is supported by LNet.
+ */
 static unsigned int nlx_kcore_lni_nr;
 /** Reference counter for nlx_kcore_lni_nidstrs. */
 static struct c2_atomic64 nlx_kcore_lni_refcount;
@@ -763,6 +766,16 @@ C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 
 /* assert the equivalence of LNet and Colibri data types */
 C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
+
+/**
+   KCore domain invariant.
+ */
+static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
+{
+	if (kd == NULL || kd->kd_magic != C2_NET_LNET_KCORE_DOM_MAGIC)
+		return false;
+	return true;
+}
 
 /**
    KCore buffer invariant.
@@ -920,13 +933,29 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 {
+	struct nlx_kcore_domain *kd;
+
 	C2_PRE(dom != NULL && lcdom != NULL);
-	lcdom->cd_kpvt = NULL;
+	C2_ALLOC_PTR_ADDB(kd, &dom->nd_addb, &c2_net_lnet_addb_loc);
+	if (kd == NULL)
+		return -ENOMEM;
+	kd->kd_magic = C2_NET_LNET_KCORE_DOM_MAGIC;
+	c2_addb_ctx_init(&kd->kd_addb, &nlx_core_domain_addb_ctx,
+			 &dom->nd_addb);
+	lcdom->cd_kpvt = kd;
 	return 0;
 }
 
 void nlx_core_dom_fini(struct nlx_core_domain *lcdom)
 {
+	struct nlx_kcore_domain *kd;
+
+	C2_PRE(lcdom != NULL);
+	kd = lcdom->cd_kpvt;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	c2_addb_ctx_fini(&kd->kd_addb);
+	c2_free(kd);
+	lcdom->cd_kpvt = NULL;
 }
 
 c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
@@ -955,13 +984,18 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 {
 	int rc;
 	struct nlx_kcore_buffer *kb;
+	struct nlx_kcore_domain *kd;
 
-	C2_PRE(lcbuf->cb_kpvt == NULL);
-	C2_ALLOC_PTR(kb);
+	C2_PRE(lcbuf != NULL && lcbuf->cb_kpvt == NULL);
+	C2_PRE(lcdom != NULL);
+	kd = lcdom->cd_kpvt;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &c2_net_lnet_addb_loc);
 	if (kb == NULL)
 		return -ENOMEM;
 	LNetInvalidateHandle(&kb->kb_mdh);
 	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
+	c2_addb_ctx_init(&kb->kb_addb, &nlx_core_buffer_addb_ctx, &kd->kd_addb);
 	kb->kb_cb           = lcbuf;
 	lcbuf->cb_kpvt      = kb;
 	lcbuf->cb_buffer_id = buffer_id;
@@ -978,6 +1012,7 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_ASSERT(rc != 0);
 	kb->kb_magic = 0;
 	lcbuf->cb_magic = 0;
+	LNET_ADDB_ADD(kb->kb_addb, "nlx_core_buf_register", rc);
 	c2_free(kb);
 	return rc;
 }
@@ -993,6 +1028,7 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
 	kb->kb_magic = 0;
 	kb->kb_cb = 0;
+	c2_addb_ctx_fini(&kb->kb_addb);
 	c2_free(kb->kb_kiov);
 	c2_free(kb);
 	lcbuf->cb_buffer_id = 0;
@@ -1022,6 +1058,8 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_ADD(kctm->ktm_addb, "nlx_core_buf_msg_recv", rc);
 	return rc;
 }
 
@@ -1044,6 +1082,8 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = nlx_kcore_LNetPut(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_ADD(kctm->ktm_addb, "nlx_core_buf_msg_send", rc);
 	return rc;
 }
 
@@ -1135,7 +1175,7 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	return false;
 }
 
-int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
+int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom, /* not used */
 			    const char *ep_addr,
 			    struct nlx_core_ep_addr *cepa)
 {
@@ -1222,10 +1262,14 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_PRE(cepa == &lctm->ctm_addr);
 	C2_PRE(epp != NULL);
 
-	C2_ALLOC_PTR(kctm);
+	C2_ALLOC_PTR_ADDB(kctm, &tm->ntm_addb, &c2_net_lnet_addb_loc);
+	if (kctm == NULL) {
+		rc = -ENOMEM;
+		goto fail_kctm;
+	}
 	nlx_core_new_blessed_bev(lctm, &e1);
 	nlx_core_new_blessed_bev(lctm, &e2);
-	if (kctm == NULL || e1 == NULL || e2 == NULL) {
+	if (e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
 		goto fail;
 	}
@@ -1289,6 +1333,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) ==
 		  C2_NET_LNET_BEVQ_MIN_SIZE);
 	C2_ASSERT(bev_cqueue_is_empty(&lctm->ctm_bevq));
+	c2_addb_ctx_init(&kctm->ktm_addb, &nlx_core_tm_addb_ctx, &tm->ntm_addb);
 	lctm->ctm_upvt = NULL;
 	lctm->ctm_kpvt = kctm;
 	lctm->ctm_user_space_xo = false;
@@ -1299,10 +1344,12 @@ fail_with_eq:
 	i = LNetEQFree(kctm->ktm_eqh);
 	C2_ASSERT(i == 0);
 fail:
-	c2_free(kctm);
 	c2_free(e1);
 	c2_free(e2);
+fail_kctm:
+	c2_free(kctm);
 	C2_ASSERT(rc != 0);
+	LNET_ADDB_ADD(tm->ntm_addb, "nlx_core_tm_start", rc);
 	return rc;
 }
 
@@ -1333,6 +1380,7 @@ void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 	c2_mutex_lock(&nlx_kcore_mutex);
 	tms_tlist_del(kctm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
+	c2_addb_ctx_fini(&kctm->ktm_addb);
 	lctm->ctm_kpvt = NULL;
 	c2_free(kctm);
 }
@@ -1341,7 +1389,9 @@ int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm, /* not used */
 			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
-	C2_ALLOC_PTR(bev);
+
+	/* cannot use lctm->ctm_kpvt->ktm_addb here, may not be set yet */
+	C2_ALLOC_PTR_ADDB(bev, &c2_net_addb, &c2_net_lnet_addb_loc);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
@@ -1387,7 +1437,8 @@ static int nlx_core_init(void)
 	c2_atomic64_set(&nlx_kcore_lni_refcount, 0);
 	for (i = 0, rc = 0; rc != -ENOENT; ++i)
 		rc = LNetGetId(i, &id);
-	C2_ALLOC_ARR(nlx_kcore_lni_nidstrs, i);
+	C2_ALLOC_ARR_ADDB(nlx_kcore_lni_nidstrs, i,
+			  &c2_net_addb, &c2_net_lnet_addb_loc);
 	if (nlx_kcore_lni_nidstrs == NULL) {
 		nlx_core_fini();
 		return -ENOMEM;
@@ -1400,6 +1451,8 @@ static int nlx_core_init(void)
 		C2_ASSERT(nidstr != NULL);
 		nlx_kcore_lni_nidstrs[i] = c2_alloc(strlen(nidstr) + 1);
 		if (nlx_kcore_lni_nidstrs[i] == NULL) {
+			C2_ADDB_ADD(&c2_net_addb, &c2_net_lnet_addb_loc,
+				    c2_addb_oom);
 			nlx_core_fini();
 			return -ENOMEM;
 		}

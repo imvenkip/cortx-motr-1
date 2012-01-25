@@ -74,9 +74,9 @@ static const struct c2_addb_loc ksunrpc_addb_server = {
 };
 
 C2_ADDB_EV_DEFINE(ksunrpc_addb_req,       "req",
-		  C2_ADDB_EVENT_USUNRPC_REQ, C2_ADDB_STAMP);
+		  C2_ADDB_EVENT_SUNRPC_REQ, C2_ADDB_STAMP);
 C2_ADDB_EV_DEFINE(ksunrpc_addb_opnotsupp, "EOPNOTSUPP",
-		  C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT, C2_ADDB_INVAL);
+		  C2_ADDB_EVENT_SUNRPC_OPNOTSUPPORT, C2_ADDB_INVAL);
 
 #define ADDB_ADD(service, ev, ...) \
 C2_ADDB_ADD(&(service)->s_addb, &ksunrpc_addb_server, ev , ## __VA_ARGS__)

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 04/05/2011
  */
 
@@ -28,6 +28,11 @@
    @addtogroup net
    @{
  */
+
+const struct c2_addb_ctx_type c2_net_buffer_addb_ctx = {
+	.act_name = "net-buffer"
+};
+
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 {
 	return qt >= C2_NET_QT_MSG_RECV && qt < C2_NET_QT_NR;
@@ -99,8 +104,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	buf->nb_dom = dom;
 	buf->nb_xprt_private = NULL;
 	buf->nb_timeout = C2_TIME_NEVER;
-
 	buf->nb_magic = NET_BUFFER_LINK_MAGIC;
+	c2_addb_ctx_init(&buf->nb_addb, &c2_net_buffer_addb_ctx, &dom->nd_addb);
+
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
 	 */
@@ -108,7 +114,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	if (rc == 0) {
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
-	}
+	} else
+		NET_ADDB_ADD(dom->nd_addb, "c2_net_buffer_register", rc);
+
 	C2_POST(ergo(rc == 0, c2_net__buffer_invariant(buf)));
 	C2_POST(ergo(rc == 0, buf->nb_timeout == C2_TIME_NEVER));
 
@@ -133,6 +141,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	c2_list_del(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 	buf->nb_magic = 0;
+	c2_addb_ctx_fini(&buf->nb_addb);
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;
@@ -250,6 +259,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 
  m_err_exit:
 	c2_mutex_unlock(&tm->ntm_mutex);
+	if (rc != 0)
+		NET_ADDB_ADD(buf->nb_addb, "c2_net_buffer_add", rc);
 	return rc;
 }
 C2_EXPORTED(c2_net_buffer_add);

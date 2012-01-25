@@ -215,6 +215,8 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(kcb->kb_ktm == kctm);
 	rc = LNetMDUnlink(kcb->kb_mdh);
+	if (rc != 0)
+		LNET_ADDB_ADD(kctm->ktm_addb, "nlx_kcore_LNetMDUnlink", rc);
 	return rc;
 }
 

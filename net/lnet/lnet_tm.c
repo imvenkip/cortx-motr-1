@@ -78,6 +78,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	} else {
 		tmev.nte_next_state = C2_NET_TM_FAILED;
 		tmev.nte_status = rc;
+		LNET_ADDB_ADD(tm->ntm_addb, "nlx_tm_ev_worker", rc);
 	}
 	tmev.nte_time = c2_time_now();
 	tm->ntm_ep = NULL;

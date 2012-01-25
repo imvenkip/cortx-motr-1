@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -520,8 +520,8 @@
    struct nlx_core_buffer_event *e2;
    struct nlx_core_bev_cqueue myqueue;
 
-   C2_ALLOC_PTR(e1);
-   C2_ALLOC_PTR(e2);
+   C2_ALLOC_PTR_ADDB(e1, ...);
+   C2_ALLOC_PTR_ADDB(e2, ...);
    bev_cqueue_init(&myqueue, &e1->cbe_tm_link, &e2->cbe_tm_link);
    @endcode
 
@@ -538,7 +538,7 @@
 
    ... ; // acquire the lock shared with the consumer
    while (needed > bev_cqueue_size(&myqueue)) {
-       C2_ALLOC_PTR(el);
+       C2_ALLOC_PTR_ADDB(el, ...);
        ... ; // initialize the new element for both address spaces
        bev_cqueue_add(&myqueue, el);
    }

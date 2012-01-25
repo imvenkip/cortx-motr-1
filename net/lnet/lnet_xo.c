@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -68,7 +68,7 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 
 	C2_PRE(dom->nd_xprt_private == NULL);
 	C2_PRE(xprt == &c2_net_lnet_xprt);
-	C2_ALLOC_PTR(dp);
+	C2_ALLOC_PTR_ADDB(dp, &dom->nd_addb, &c2_net_lnet_addb_loc);
 	if (dp == NULL)
 		return -ENOMEM;
 	dom->nd_xprt_private = dp;
@@ -129,10 +129,12 @@ static int nlx_xo_end_point_create(struct c2_net_end_point **epp,
 	C2_PRE(nlx_dom_invariant(tm->ntm_dom));
 	dp = tm->ntm_dom->nd_xprt_private;
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr, &cepa);
-	if (rc != 0)
+	if (rc == 0 && cepa.cepa_tmid == C2_NET_LNET_TMID_INVALID)
+		rc = -EINVAL;
+	if (rc != 0) {
+		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_end_point_create", rc);
 		return rc;
-	if (cepa.cepa_tmid == C2_NET_LNET_TMID_INVALID)
-		return -EINVAL;
+	}
 
 	return nlx_ep_create(epp, tm, &cepa);
 }
@@ -166,7 +168,7 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	C2_PRE(nlx_xo_buffer_bufvec_invariant(nb));
 
 	dp = nb->nb_dom->nd_xprt_private;
-	C2_ALLOC_PTR(bp);
+	C2_ALLOC_PTR_ADDB(bp, &nb->nb_addb, &c2_net_lnet_addb_loc);
 	if (bp == NULL)
 		return -ENOMEM;
 	nb->nb_xprt_private = bp;
@@ -219,8 +221,10 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	*/
 	need = nb->nb_qtype == C2_NET_QT_MSG_RECV ? nb->nb_max_receive_msgs : 1;
 	rc = nlx_core_bevq_provision(ctp, need);
-	if (rc != 0)
+	if (rc != 0) {
+		LNET_ADDB_ADD(nb->nb_addb, "nlx_xo_buf_add", rc);
 		return rc;
+	}
 	cbp->cb_max_operations = need;
 
 	bufsize = c2_vec_count(&nb->nb_buffer.ov_vec);
@@ -282,7 +286,7 @@ static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)
 	C2_PRE(tm->ntm_xprt_private == NULL);
 
 	dp = tm->ntm_dom->nd_xprt_private;
-	C2_ALLOC_PTR(tp);
+	C2_ALLOC_PTR_ADDB(tp, &tm->ntm_addb, &c2_net_lnet_addb_loc);
 	if (tp == NULL)
 		return -ENOMEM;
 	tm->ntm_xprt_private = tp;
@@ -326,13 +330,13 @@ static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr,
 				     &tp->xtm_core.ctm_addr);
+	if (rc == 0)
+		rc = C2_THREAD_INIT(&tp->xtm_ev_thread,
+				    struct c2_net_transfer_mc *, NULL,
+				    &nlx_tm_ev_worker, tm,
+				    "nlx_tm_ev_worker");
 	if (rc != 0)
-		return rc;
-
-	rc = C2_THREAD_INIT(&tp->xtm_ev_thread,
-			    struct c2_net_transfer_mc *, NULL,
-			    &nlx_tm_ev_worker, tm,
-			    "nlx_tm_ev_worker");
+		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_tm_start", rc);
 	return rc;
 }
 
@@ -372,6 +376,8 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 	rc = c2_bitmap_init(&tp->xtm_processors, processors->b_nr);
 	if (rc == 0)
 		c2_bitmap_copy(&tp->xtm_processors, processors);
+	if (rc != 0)
+		LNET_ADDB_ADD(tm->ntm_addb, "nlx_xo_tm_confine", rc);
 	return rc;
 }
 
@@ -409,6 +415,8 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 				struct c2_net_qstats *q;
 				q = &tm->ntm_qstats[nbev.nbe_buffer->nb_qtype];
 				q->nqs_num_f_events++;
+				LNET_ADDB_ADD(tm->ntm_addb,
+					      "nlx_xo_bev_deliver_all", rc);
 				continue;
 			}
 		}
