@@ -29,11 +29,11 @@ static const struct c2_addb_ctx_type nlx_core_domain_addb_ctx = {
 };
 
 static const struct c2_addb_ctx_type nlx_core_buffer_addb_ctx = {
-	.act_name = "net-lnet-core-tm"
+	.act_name = "net-lnet-core-buffer"
 };
 
 static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
-	.act_name = "net-lnet-core-buffer"
+	.act_name = "net-lnet-core-tm"
 };
 
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
