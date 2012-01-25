@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,6 +21,8 @@
 
 #include "net/lnet/lnet_main.c"
 #include "lib/ut.h"
+
+#include "db/db.h" /* c2_dbenv, c2_table */
 
 #ifdef __KERNEL__
 #include "net/lnet/ut/linux_kernel/klnet_ut.c"
@@ -88,6 +90,19 @@ static void tf_tm_ecb(const struct c2_net_tm_event *ev)
 	ecb_count++;
 }
 
+static struct c2_table mock_table;
+static struct c2_dbenv mock_dbenv;
+static int lnet_stat_ev_count;
+
+int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
+		struct c2_table *db)
+{
+	if (dp->ad_name != NULL &&
+	    strncmp(dp->ad_name, "nlx_tm_stats:", 13) == 0)
+		lnet_stat_ev_count++;
+	return 0;
+}
+
 enum {
 	STARTSTOP_DOM_NR = 3,
 	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
@@ -111,12 +126,18 @@ static void test_tm_startstop(void)
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
+	int rc;
 	int i;
 
 	C2_ALLOC_PTR(dom);
 	C2_ALLOC_PTR(tm);
 	C2_UT_ASSERT(dom != NULL && tm != NULL);
 	tm->ntm_callbacks = &cbs1;
+
+	/* mock addb db store */
+	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_DB,
+					mock_db_add, &mock_table, &mock_dbenv);
+	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
@@ -145,6 +166,8 @@ static void test_tm_startstop(void)
 		c2_net_domain_fini(dom);
 		c2_free(tm);
 		c2_free(dom);
+		rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+		C2_UT_ASSERT(rc == 0);
 		C2_UT_FAIL("aborting test case, endpoint in-use?");
 		return;
 	}
@@ -160,6 +183,7 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STOPPED);
 	C2_UT_ASSERT(ecb_status == 0);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);
+	C2_UT_ASSERT(lnet_stat_ev_count > 0);
 	c2_net_tm_fini(tm);
 	c2_net_domain_fini(dom);
 	c2_free(tm);
@@ -223,6 +247,8 @@ static void test_tm_startstop(void)
 	}
 	c2_free(tm);
 	c2_free(dom);
+	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+	C2_UT_ASSERT(rc == 0);
 }
 
 const struct c2_test_suite c2_net_lnet_ut = {
