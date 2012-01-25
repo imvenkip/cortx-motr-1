@@ -32,7 +32,7 @@
 
 #ifdef __KERNEL__
 # include "io_k.h"
-# include "addb/linux_kernel/addb_k.h"
+# include "addb/addb_k.h"
 # define write_handler NULL
 # define read_handler NULL
 # define create_handler NULL

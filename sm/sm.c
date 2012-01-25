@@ -343,10 +343,7 @@ int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
 	c2_clink_init(&to->st_clink, sm_timeout_cancel);
 	c2_clink_add(&mach->sm_chan, &to->st_clink);
 	c2_timer_init(tm, C2_TIMER_SOFT,
-		      /* XXX kludge: c2_timer_init() takes a _relative_
-			 deadline. */
-		      c2_time_sub(timeout, c2_time_now()),
-		      1, sm_timeout_top,
+		      timeout, sm_timeout_top,
 		      (unsigned long)to);
 	result = c2_timer_start(tm);
 	if (result != 0)

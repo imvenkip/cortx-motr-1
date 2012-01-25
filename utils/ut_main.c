@@ -48,14 +48,17 @@ extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
+extern const struct c2_test_suite xcode_bufvec_ut;
+extern const struct c2_test_suite xcode_ff2c_ut;
+extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite reqh_ut;
 extern const struct c2_test_suite rpc_onwire_ut;
-extern const struct c2_test_suite xcode_bufvec_ut;
 extern const struct c2_test_suite colibri_setup_ut;
 extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite cfm_ut;
 extern const struct c2_test_suite yaml2db_ut;
 extern const struct c2_test_suite buffer_pool_ut;
+extern const struct c2_test_suite balloc_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -77,9 +80,10 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-	        c2_ut_add(&libc2_ut);
+		c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&adieu_ut);
+		c2_ut_add(&balloc_ut);
 		c2_ut_add(&buffer_pool_ut);
 		c2_ut_add(&capa_ut);
 		c2_ut_add(&cfm_ut);
@@ -104,6 +108,8 @@ int main(int argc, char *argv[])
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xcode_bufvec_fop_ut);
 		c2_ut_add(&xcode_bufvec_ut);
+		c2_ut_add(&xcode_ut);
+		c2_ut_add(&xcode_ff2c_ut);
 		c2_ut_add(&yaml2db_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
