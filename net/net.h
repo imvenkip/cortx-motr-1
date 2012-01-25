@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -754,7 +754,7 @@ struct c2_net_tm_event {
 	   field implies successful completion, and a negative error number
 	   is used to indicate the reasons for failure.
 	   The following errors are well defined:
-	   	- <b>-ENOBUFS</b> This indicates that the transfer machine
+		- <b>-ENOBUFS</b> This indicates that the transfer machine
 		lost messages due to a lack of receive buffers.
 
 	   Diagnostic events are free to make any use of this field.

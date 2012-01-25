@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 04/04/2011
  */
 
