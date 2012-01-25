@@ -360,17 +360,17 @@ static void ktest_enc_dec(void)
 enum {
 	UT_KMSG_OPS  = 4,
 };
-static bool ut_ktest_msg_LNetMDAttach1_called;
-static int ut_ktest_msg_LNetMDAttach1(struct nlx_core_transfer_mc *lctm,
-				      struct nlx_core_buffer *lcbuf,
-				      lnet_md_t *umd)
+static bool ut_ktest_msg_LNetMDAttach_called;
+static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
+				     struct nlx_core_buffer *lcbuf,
+				     lnet_md_t *umd)
 {
 	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
 	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
 	uint32_t portal;
 	uint64_t counter;
 
-	ut_ktest_msg_LNetMDAttach1_called = true;
+	ut_ktest_msg_LNetMDAttach_called = true;
 	NLXDBG(lctm, 1, printk("intercepted LNetMDAttach\n"));
 	NLXDBG(lctm, 1, nlx_kprint_lnet_md("ktest_msg", umd));
 
@@ -390,6 +390,42 @@ static int ut_ktest_msg_LNetMDAttach1(struct nlx_core_transfer_mc *lctm,
 	nlx_kcore_match_bits_decode(lcbuf->cb_match_bits, &portal, &counter);
 	C2_UT_ASSERT(portal == lctm->ctm_addr.cepa_tmid);
 	C2_UT_ASSERT(counter == 0);
+
+	kcb->kb_ktm = kctm;
+
+	return 0;
+}
+
+static bool ut_ktest_msg_LNetPut_called;
+static struct c2_net_end_point *ut_ktest_msg_LNetPut_ep;
+static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
+				struct nlx_core_buffer *lcbuf,
+				lnet_md_t *umd)
+{
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
+	struct nlx_core_ep_addr      *cepa;
+	size_t len;
+
+	ut_ktest_msg_LNetPut_called = true;
+	NLXDBG(lctm, 1, printk("intercepted LNetPut\n"));
+	NLXDBG(lctm, 1, nlx_kprint_lnet_md("ktest_msg", umd));
+
+	C2_UT_ASSERT((lnet_kiov_t *) umd->start == kcb->kb_kiov);
+	len = nlx_kcore_num_kiov_entries_for_bytes(kcb->kb_kiov,
+						   kcb->kb_kiov_len,
+						   lcbuf->cb_length);
+	C2_UT_ASSERT(umd->length == len);
+	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
+	C2_UT_ASSERT(umd->threshold == 1);
+	C2_UT_ASSERT(umd->user_ptr == lcbuf);
+	C2_UT_ASSERT(umd->max_size == 0);
+	C2_UT_ASSERT(!(umd->options & (LNET_MD_OP_PUT | LNET_MD_OP_GET)));
+	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
+
+	C2_UT_ASSERT(ut_ktest_msg_LNetPut_ep != NULL);
+	cepa = nlx_ep_to_core(ut_ktest_msg_LNetPut_ep);
+	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &lcbuf->cb_addr));
 
 	kcb->kb_ktm = kctm;
 
@@ -450,6 +486,24 @@ static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
+static void ut_ktest_msg_send_event(struct nlx_core_buffer *lcbuf,
+				    unsigned mlength,
+				    int status)
+{
+	lnet_event_t ev;
+
+	C2_SET0(&ev);
+	ev.md.user_ptr   = lcbuf;
+	ev.type          = LNET_EVENT_SEND;
+	ev.mlength       = mlength;
+	ev.rlength       = mlength;
+	ev.offset        = 0;
+	ev.status        = status;
+	ev.unlinked      = 1;
+	ev.hdr_data      = 0;
+	nlx_kcore_eq_cb(&ev);
+}
+
 static void ktest_msg_body(struct ut_data *td)
 {
 	struct c2_net_buffer            *nb1 = &td->bufs1[0];
@@ -484,13 +538,26 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(LNetHandleIsEqual(umd.eq_handle, kctm1->ktm_eqh));
 
 	/* TEST
+	   Check that the count of the number of kiov elements required
+	   for different byte sizes.
+	 */
+#define KEB(b)								\
+	nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd.start,	\
+					     umd.length, (b))
+	C2_UT_ASSERT(KEB(td->buf_size1) == umd.length);
+	C2_UT_ASSERT(KEB(1)             == 1);
+	C2_UT_ASSERT(KEB(PAGE_SIZE - 1) == 1);
+	C2_UT_ASSERT(KEB(PAGE_SIZE)     == 1);
+	C2_UT_ASSERT(KEB(PAGE_SIZE + 1) == 2);
+#undef KEB
+
+	/* TEST
 	   Enqueue a buffer for message reception.
 	   Check that buf_msg_recv sends the correct arguments to LNet.
 	   Check that the needed count is correctly incremented.
 	   Intercept the utils sub to validate.
 	*/
-	nlx_kcore_iv._nlx_kcore_LNetMDAttach = ut_ktest_msg_LNetMDAttach1;
-	ut_ktest_msg_LNetMDAttach1_called = false;
+	ut_ktest_msg_LNetMDAttach_called = false;
 
 	nb1->nb_min_receive_size = UT_MSG_SIZE;
 	nb1->nb_max_receive_msgs = UT_KMSG_OPS;
@@ -500,7 +567,7 @@ static void ktest_msg_body(struct ut_data *td)
 
 	c2_net_lnet_tm_set_debug(TM1, 0);
 	zUT(c2_net_buffer_add(nb1, TM1), done);
-	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach1_called);
+	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach_called);
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
@@ -610,7 +677,7 @@ static void ktest_msg_body(struct ut_data *td)
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = nb1->nb_max_receive_msgs;
 	zUT(c2_net_buffer_add(nb1, TM1), done);
-	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach1_called);
+	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach_called);
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 
@@ -680,7 +747,7 @@ static void ktest_msg_body(struct ut_data *td)
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = nb1->nb_max_receive_msgs;
 	zUT(c2_net_buffer_add(nb1, TM1), done);
-	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach1_called);
+	C2_UT_ASSERT(ut_ktest_msg_LNetMDAttach_called);
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 
@@ -749,6 +816,128 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed);
 	c2_atomic64_set(&ut_ktest_msg_ep_create_fail, 0);
 
+	/* TEST
+	   Enqueue a buffer for sending.
+	   Ensure that the destination address is correctly conveyed.
+	   Intercept the utils sub to validate.
+	   Ensure that the reference count of the ep is maintained correctly.
+	   Send a success event.
+	 */
+	ut_ktest_msg_LNetPut_called = false;
+	ut_cbreset();
+	C2_UT_ASSERT(cb_called1 == 0);
+
+	{       /* create a destination end point */
+		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+		sprintf(epstr, "%s:%d:%d:1024",
+			td->nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
+		zUT(c2_net_end_point_create(&ut_ktest_msg_LNetPut_ep,
+					    TM1, epstr), done);
+	}
+
+	nb1->nb_min_receive_size = 0;
+	nb1->nb_max_receive_msgs = 0;
+	nb1->nb_qtype = C2_NET_QT_MSG_SEND;
+	nb1->nb_length = UT_MSG_SIZE;
+	nb1->nb_ep = ut_ktest_msg_LNetPut_ep;
+	C2_UT_ASSERT(c2_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 1);
+	needed = lctm1->ctm_bev_needed;
+	zUT(c2_net_buffer_add(nb1, TM1), done);
+	C2_UT_ASSERT(ut_ktest_msg_LNetPut_called);
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	/* this transport does not pin the ep, but the network layer does */
+	C2_UT_ASSERT(c2_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 2);
+	zUT(c2_net_end_point_put(ut_ktest_msg_LNetPut_ep), done);
+	ut_ktest_msg_LNetPut_ep = NULL;
+
+	/* deliver the completion event */
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	{
+		int i;
+		count = nlx_kcore_num_kiov_entries_for_bytes(kcb1->kb_kiov,
+							     kcb1->kb_kiov_len,
+							     lcbuf1->cb_length);
+		C2_UT_ASSERT(count > 0);
+		len = 0;
+		for (i = 0; i < count; ++i) {
+			len += kcb1->kb_kiov[i].kiov_len;
+		}
+	}
+	ut_ktest_msg_send_event(lcbuf1, len, 0);
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_called1 == 1);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
+	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_ep1 == NULL);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1,C2_NET_QT_MSG_SEND,&td->qs,true));
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+
+	/* TEST
+	   Repeat previous test, but send a failure event.
+	 */
+	ut_ktest_msg_LNetPut_called = false;
+	ut_cbreset();
+	C2_UT_ASSERT(cb_called1 == 0);
+
+	{       /* create a destination end point */
+		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+		sprintf(epstr, "%s:%d:%d:1024",
+			td->nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
+		zUT(c2_net_end_point_create(&ut_ktest_msg_LNetPut_ep,
+					    TM1, epstr), done);
+	}
+
+	nb1->nb_min_receive_size = 0;
+	nb1->nb_max_receive_msgs = 0;
+	nb1->nb_qtype = C2_NET_QT_MSG_SEND;
+	nb1->nb_length = UT_MSG_SIZE;
+	nb1->nb_ep = ut_ktest_msg_LNetPut_ep;
+	C2_UT_ASSERT(c2_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 1);
+	needed = lctm1->ctm_bev_needed;
+	zUT(c2_net_buffer_add(nb1, TM1), done);
+	C2_UT_ASSERT(ut_ktest_msg_LNetPut_called);
+	C2_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	/* this transport does not pin the ep, but the network layer does */
+	C2_UT_ASSERT(c2_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 2);
+	zUT(c2_net_end_point_put(ut_ktest_msg_LNetPut_ep), done);
+	ut_ktest_msg_LNetPut_ep = NULL;
+
+	/* deliver the completion event */
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	{
+		int i;
+		count = nlx_kcore_num_kiov_entries_for_bytes(kcb1->kb_kiov,
+							     kcb1->kb_kiov_len,
+							     lcbuf1->cb_length);
+		C2_UT_ASSERT(count > 0);
+		len = 0;
+		for (i = 0; i < count; ++i) {
+			len += kcb1->kb_kiov[i].kiov_len;
+		}
+	}
+	ut_ktest_msg_send_event(lcbuf1, len, -1);
+	c2_chan_wait(&td->tmwait1);
+	c2_clink_del(&td->tmwait1);
+	C2_UT_ASSERT(cb_called1 == 1);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
+	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+	C2_UT_ASSERT(cb_status1 == -1);
+	C2_UT_ASSERT(cb_ep1 == NULL);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1,C2_NET_QT_MSG_SEND,&td->qs,true));
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 1);
+
  done:
 	cb_ep1 = NULL;
 	c2_net_lnet_tm_set_debug(TM1, 0);
@@ -762,6 +951,9 @@ static void ktest_msg(void) {
 	c2_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 0);
 	nlx_xo_iv._nlx_ep_create = ut_ktest_msg_ep_create;
 	c2_atomic64_set(&ut_ktest_msg_ep_create_fail, 0);
+
+	nlx_kcore_iv._nlx_kcore_LNetMDAttach = ut_ktest_msg_LNetMDAttach;
+	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_msg_LNetPut;
 
 	ut_test_framework(&ktest_msg_body);
 

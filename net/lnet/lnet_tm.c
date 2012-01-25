@@ -92,7 +92,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		/* compute next timeout (XXX short if automatic or stopping) */
 		timeout = c2_time_from_now(1, 0);
 		if (tm->ntm_bev_auto_deliver) {
-			rc = NLX_CORE_buf_event_wait(ctp, timeout);
+			rc = NLX_core_buf_event_wait(ctp, timeout);
 			/* buffer event processing */
 			if (rc == 0) { /* did not time out - events pending */
 				c2_mutex_lock(&tm->ntm_mutex);

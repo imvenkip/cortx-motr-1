@@ -184,12 +184,15 @@ struct ut_data {
 	struct c2_clink                tmwait1;
 	struct c2_net_buffer_callbacks buf_cb1;
 	struct c2_net_buffer           bufs1[UT_BUFS1];
+	size_t                         buf_size1;
 	struct c2_net_domain           dom2;
 	struct c2_net_transfer_mc      tm2;
 	struct c2_clink                tmwait2;
 	struct c2_net_buffer_callbacks buf_cb2;
 	struct c2_net_buffer           bufs2[UT_BUFS2];
+	size_t                         buf_size2;
 	struct c2_net_qstats           qs;
+	char * const                  *nidstrs;
 };
 
 #define DOM1 (&td->dom1)
@@ -252,6 +255,7 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_REGISTERED);
 			nb1->nb_callbacks = &td->buf_cb1;
 		}
+		td->buf_size1 = max_seg_size * UT_BUFSEGS1;
 
 		C2_UT_ASSERT(!c2_net_tm_init(TM1, DOM1));
 
@@ -295,6 +299,7 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_REGISTERED);
 			nb2->nb_callbacks = &td->buf_cb2;
 		}
+		td->buf_size2 = max_seg_size * UT_BUFSEGS2;
 
 		C2_UT_ASSERT(!c2_net_tm_init(TM2, DOM2));
 
@@ -312,6 +317,7 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 		/* NLXP("TM2: %s\n", TM2->ntm_ep->nep_addr);*/
 	}
 
+	td->nidstrs = nidstrs;
 	(*body)(td);
 
 	/*

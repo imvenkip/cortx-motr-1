@@ -65,8 +65,9 @@ static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
 /* Unit test intercept support.
    Conventions to use:
    - All such subs must be declared in headers.
-   - A macro with the prefix in caps should be used to call the
-   subroutine via this intercept vector.
+   - A macro named for the subroutine, but with the "NLX" portion of the prefix
+   in capitals, should be used to call the subroutine via this intercept
+   vector.
    - UT should restore the vector upon completion. It is not declared
    const so that the UTs can modify it.
  */
@@ -86,7 +87,7 @@ static struct nlx_xo_interceptable_subs nlx_xo_iv = {
 #undef _NLXI
 };
 
-#define NLX_CORE_buf_event_wait(lctm, timeout) \
+#define NLX_core_buf_event_wait(lctm, timeout) \
 	(*nlx_xo_iv._nlx_core_buf_event_wait)(lctm, timeout)
 #define NLX_ep_create(epp, tm, cepa) \
 	(*nlx_xo_iv._nlx_ep_create)(epp, tm, cepa)

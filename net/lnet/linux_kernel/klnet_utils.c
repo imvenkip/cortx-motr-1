@@ -211,6 +211,35 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 }
 
 /**
+   Helper subroutine to adjust the length of the kiov vector in a UMD
+   to match a specified byte length.
+   This is needed for SEND and active buffer operations.
+   @param lctm Pointer to kcore TM private data.
+   @param lcbuf Pointer to kcore buffer private data with match bits set.
+   @param umd Pointer to the UMD.
+   @param bytes The byte count desired.
+ */
+static void nlx_kcore_umd_adjust_kiov_length(struct nlx_core_transfer_mc *lctm,
+					     struct nlx_core_buffer *lcbuf,
+					     lnet_md_t *umd,
+					     c2_bcount_t bytes)
+{
+	size_t num;
+
+	C2_PRE(umd->start != NULL);
+	C2_PRE(umd->options & LNET_MD_KIOV);
+	C2_PRE(umd->length > 0);
+	num = nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd->start,
+						   umd->length, bytes);
+	NLXDBGP(lctm, 2, "%p: buf:%p size:%ld vec:%lu/%lu\n",
+		lctm, lcbuf, (unsigned long) bytes,
+		(unsigned long) num, (unsigned long) umd->length);
+	if (umd->length != num)
+		umd->length = num;
+	return;
+}
+
+/**
    Helper subroutine to attach a network buffer to the match list
    associated with the transfer machine's portal.
    - The ME entry created is put at the end of the match list.

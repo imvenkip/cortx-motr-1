@@ -138,6 +138,34 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 }
 
 /**
+   Helper subroutine to determine the number of kiov vector elements are
+   required to match a specified byte length.
+   @param kiov Pointer to the KIOV vector.
+   @param kiov_len Length of the KIOV vector.
+   @param bytes The byte count desired.
+   @retval uint32_t The number of KIOV entries required.
+   @post return value <= kiov_len
+ */
+static size_t nlx_kcore_num_kiov_entries_for_bytes(const lnet_kiov_t *kiov,
+						   size_t kiov_len,
+						   c2_bcount_t bytes)
+{
+	c2_bcount_t count;
+	size_t i;
+
+	C2_PRE(kiov != NULL);
+	C2_PRE(kiov_len > 0);
+
+	for (i = 0, count = 0; i < kiov_len && count < bytes; ++i, ++kiov) {
+		count += (c2_bcount_t) kiov->kiov_len;
+	}
+
+	C2_POST(i <= kiov_len);
+	return i;
+}
+
+
+/**
    @}
  */
 
