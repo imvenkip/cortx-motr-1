@@ -252,7 +252,6 @@ int c2_bufvec_uint32(struct c2_bufvec_cursor *vc, uint32_t *val,
 
 	return rc;
 }
-C2_EXPORTED(c2_bufvec_uint32);
 
 int c2_bufvec_uint64(struct c2_bufvec_cursor *vc, uint64_t *val,
 		     enum c2_bufvec_what what)
@@ -271,7 +270,6 @@ int c2_bufvec_uint64(struct c2_bufvec_cursor *vc, uint64_t *val,
 	return rc;
 }
 
-C2_EXPORTED(c2_bufvec_uint64);
 int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
 		    size_t max_size, size_t el_size, c2_bufvec_xcode_t el_proc,
 		    enum c2_bufvec_what what)

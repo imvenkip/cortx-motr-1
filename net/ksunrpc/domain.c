@@ -119,7 +119,6 @@ struct c2_net_xprt c2_net_ksunrpc_xprt = {
 	.nx_name = "sunrpc/linux_kernel",
 	.nx_ops  = &ksunrpc_xprt_ops
 };
-C2_EXPORTED(c2_net_ksunrpc_xprt);
 
 /**
    Minimal version of the ksunrpc transport with a total of 4 threads
@@ -134,13 +133,11 @@ int c2_ksunrpc_init(void)
 {
 	return ksunrpc_server_init();
 }
-C2_EXPORTED(c2_ksunrpc_init);
 
 void c2_ksunrpc_fini(void)
 {
 	ksunrpc_server_fini();
 }
-C2_EXPORTED(c2_ksunrpc_fini);
 
 /** @} end of group usunrpc */
 

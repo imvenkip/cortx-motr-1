@@ -277,7 +277,6 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	}
 	return result;
 }
-C2_EXPORTED(c2_ad_stob_setup);
 
 /**
    Searches for the object with a given identifier in the domain object list.
@@ -1356,14 +1355,12 @@ int c2_ad_stobs_init(void)
 			 &c2_addb_global_ctx);
 	return ad_stob_type.st_op->sto_init(&ad_stob_type);
 }
-C2_EXPORTED(c2_ad_stobs_init);
 
 void c2_ad_stobs_fini(void)
 {
 	ad_stob_type.st_op->sto_fini(&ad_stob_type);
 	c2_addb_ctx_fini(&ad_stob_ctx);
 }
-C2_EXPORTED(c2_ad_stobs_fini);
 
 /** @} end group stobad */
 

@@ -503,7 +503,6 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	return rc;
 }
-C2_EXPORTED(c2_fom_state_generic);
 
 /** @} endgroup reqh */
 

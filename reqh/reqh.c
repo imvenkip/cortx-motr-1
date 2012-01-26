@@ -125,7 +125,6 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 
 	return result;
 }
-C2_EXPORTED(c2_reqh_init);
 
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
@@ -135,7 +134,6 @@ void c2_reqh_fini(struct c2_reqh *reqh)
         c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
 	c2_mutex_fini(&reqh->rh_lock);
 }
-C2_EXPORTED(c2_reqh_fini);
 
 void c2_reqhs_fini(void)
 {
@@ -143,7 +141,6 @@ void c2_reqhs_fini(void)
 	c2_reqh_service_types_fini();
 	c2_reqh_fop_fini();
 }
-C2_EXPORTED(c2_reqhs_fini);
 
 int c2_reqhs_init(void)
 {
@@ -152,7 +149,6 @@ int c2_reqhs_init(void)
 	c2_reqh_service_types_init();
 	return c2_reqh_fop_init();
 }
-C2_EXPORTED(c2_reqhs_init);
 
 void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 {
@@ -190,7 +186,6 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
 }
-C2_EXPORTED(c2_reqh_fop_handle);
 
 bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 {

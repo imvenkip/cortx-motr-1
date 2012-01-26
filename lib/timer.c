@@ -104,7 +104,6 @@ void c2_timer_locality_init(struct c2_timer_locality *loc)
 	tid_tlist_init(&loc->tlo_tids);
 	loc->tlo_rrtid = NULL;
 }
-C2_EXPORTED(c2_timer_locality_init);
 
 void c2_timer_locality_fini(struct c2_timer_locality *loc)
 {
@@ -113,7 +112,6 @@ void c2_timer_locality_fini(struct c2_timer_locality *loc)
 	c2_mutex_fini(&loc->tlo_lock);
 	tid_tlist_fini(&loc->tlo_tids);
 }
-C2_EXPORTED(c2_timer_locality_fini);
 
 static struct c2_timer_tid *locality_tid_find(struct c2_timer_locality *loc,
 		pid_t tid)
@@ -157,7 +155,6 @@ int c2_timer_thread_attach(struct c2_timer_locality *loc)
 
 	return 0;
 }
-C2_EXPORTED(c2_timer_thread_attach);
 
 void c2_timer_thread_detach(struct c2_timer_locality *loc)
 {
@@ -178,7 +175,6 @@ void c2_timer_thread_detach(struct c2_timer_locality *loc)
 
 	c2_free(tt);
 }
-C2_EXPORTED(c2_timer_thread_detach);
 
 /**
    Init POSIX timer, write it to timer->t_ptimer.
@@ -483,7 +479,6 @@ int c2_timer_attach(struct c2_timer *timer, struct c2_timer_locality *loc)
 	timer_state_change(timer, TIMER_ATTACH, rc != 0);
 	return rc;
 }
-C2_EXPORTED(c2_timer_attach);
 
 /**
    Init the timer data structure.
@@ -513,7 +508,6 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 
 	return rc;
 }
-C2_EXPORTED(c2_timer_init);
 
 /**
    Destroy the timer.
@@ -531,7 +525,6 @@ int c2_timer_fini(struct c2_timer *timer)
 	C2_SET0(timer);
 	return 0;
 }
-C2_EXPORTED(c2_timer_fini);
 
 /**
    Start a timer.
@@ -551,7 +544,6 @@ int c2_timer_start(struct c2_timer *timer)
 	timer_state_change(timer, TIMER_START, rc != 0);
 	return rc;
 }
-C2_EXPORTED(c2_timer_start);
 
 /**
    Stop a timer.
@@ -571,13 +563,11 @@ int c2_timer_stop(struct c2_timer *timer)
 	timer_state_change(timer, TIMER_STOP, rc != 0);
 	return rc;
 }
-C2_EXPORTED(c2_timer_stop);
 
 bool c2_timer_is_started(const struct c2_timer *timer)
 {
 	return timer->t_state == TIMER_RUNNING;
 }
-C2_EXPORTED(c2_timer_is_started);
 
 /**
    Init data structures for hard timer
@@ -588,12 +578,10 @@ int c2_timers_init()
 	c2_time_set(&zero_time, 0, 0);
 	return 0;
 }
-C2_EXPORTED(c2_timers_init);
 
 void c2_timers_fini()
 {
 }
-C2_EXPORTED(c2_timers_fini);
 
 /** @} end of timer group */
 

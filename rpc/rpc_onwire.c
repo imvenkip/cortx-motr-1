@@ -259,7 +259,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 end:
 	return rc;
 }
-C2_EXPORTED(c2_rpc_encode);
 
 int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 {
@@ -324,7 +323,6 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	}
 	return rc;
 }
-C2_EXPORTED(c2_rpc_decode);
 
 /*
  *  Local variables:
