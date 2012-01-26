@@ -26,7 +26,7 @@ libc2_la_SOURCES     = c2lib.c memory.c list.c refs.c \
                        user_space/timer.h semaphore.h \
                        user_space/semaphore.c user_space/semaphore.h
 
-libc2_la_LDFLAGS       = @PTHREAD_LIBS@
+libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
 EXTRA_DIST             = linux_kernel/assert.h linux_kernel/cdefs.h \
                          linux_kernel/memory.c linux_kernel/mutex.c \
                          linux_kernel/mutex.h linux_kernel/ktime.c \

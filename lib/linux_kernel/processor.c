@@ -855,17 +855,6 @@ c2_processor_nr_t c2_processor_getcpu(void)
 	return cpu;
 }
 
-/** Export interfaces */
-C2_EXPORTED(c2_processors_init);
-C2_EXPORTED(c2_processors_fini);
-C2_EXPORTED(c2_processor_is_initialized);
-C2_EXPORTED(c2_processor_nr_max);
-C2_EXPORTED(c2_processors_possible);
-C2_EXPORTED(c2_processors_available);
-C2_EXPORTED(c2_processors_online);
-C2_EXPORTED(c2_processor_describe);
-C2_EXPORTED(c2_processor_getcpu);
-
 
 /*
  *  Local variables:

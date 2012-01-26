@@ -567,14 +567,12 @@ int c2_ioservice_fops_nr(void)
 {
 	return ARRAY_SIZE(ioservice_fops);
 }
-C2_EXPORTED(c2_ioservice_fops_nr);
 
 void c2_ioservice_fop_fini(void)
 {
 	c2_fop_type_fini_nr(ioservice_fops, ARRAY_SIZE(ioservice_fops));
 	c2_fop_type_format_fini_nr(ioservice_fmts, ARRAY_SIZE(ioservice_fmts));
 }
-C2_EXPORTED(c2_ioservice_fop_fini);
 
 int c2_ioservice_fop_init(void)
 {
@@ -589,7 +587,6 @@ int c2_ioservice_fop_init(void)
 		c2_ioservice_fop_fini();
 	return rc;
 }
-C2_EXPORTED(c2_ioservice_fop_init);
 
 struct io_zeroseg *io_zeroseg_alloc(void)
 {

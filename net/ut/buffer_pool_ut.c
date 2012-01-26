@@ -196,7 +196,7 @@ static void low(struct c2_net_buffer_pool *bp)
 }
 
 const struct c2_test_suite buffer_pool_ut = {
-	.ts_name = "bufifer_pool_ut",
+	.ts_name = "buffer_pool_ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {

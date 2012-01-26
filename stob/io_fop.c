@@ -670,7 +670,6 @@ int c2_stob_io_fop_init(void)
 		c2_stob_io_fop_fini();
 	return result;
 }
-C2_EXPORTED(c2_stob_io_fop_init);
 
 /**
  * Function to clean stob io fops
@@ -680,7 +679,6 @@ void c2_stob_io_fop_fini(void)
 	c2_fop_object_fini();
 	c2_fop_type_fini_nr(stob_fops, ARRAY_SIZE(stob_fops));
 }
-C2_EXPORTED(c2_stob_io_fop_fini);
 
 /*
  *  Local variables:

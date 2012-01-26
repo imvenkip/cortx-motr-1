@@ -142,7 +142,6 @@ void c2_parity_math_fini(struct c2_parity_math *math)
 
 	c2_parity_fini();
 }
-C2_EXPORTED(c2_parity_math_fini);
 
 int  c2_parity_math_init(struct c2_parity_math *math,
 			 uint32_t data_count, uint32_t parity_count)
@@ -201,7 +200,6 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	c2_parity_math_fini(math);
 	return ret;
 }
-C2_EXPORTED(c2_parity_math_init);
 
 void c2_parity_math_calculate(struct c2_parity_math *math,
 			      struct c2_buf *data,
@@ -227,7 +225,6 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 			((uint8_t*)parity[ui].b_addr)[ei] = *c2_vector_elem_get(&math->pmi_parity, ui);
 	}
 }
-C2_EXPORTED(c2_parity_math_calculate);
 
 void c2_parity_math_refine(struct c2_parity_math *math,
 			   struct c2_buf *data,
@@ -341,7 +338,6 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 	/* recalculate parity */
 	c2_parity_math_calculate(math, data, parity);
 }
-C2_EXPORTED(c2_parity_math_recover);
 
 /*
  *  Local variables:

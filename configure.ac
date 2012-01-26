@@ -219,6 +219,14 @@ if ! test -d $SRCDIR; then
 fi
 AC_SUBST([SRCDIR])
 
+AC_MSG_CHECKING([whether target platform is 64bit one])
+AC_COMPUTE_INT(n_bits, [sizeof(long) * 8])
+if test $n_bits -lt 64; then
+	AC_MSG_RESULT([no])
+	AC_MSG_ERROR([Only 64bit platforms are supported!])
+fi
+AC_MSG_RESULT([yes])
+
 # Checks for libraries.
 OLD_LIBS=$LIBS
 AC_SEARCH_LIBS([xdr_domainname], [c nsl], [], [AC_MSG_ERROR([xdr_domainname cannot be found!])])
@@ -487,25 +495,25 @@ else
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
+# Check if gcc option is supported in current gcc version.
+AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
+[AC_MSG_CHECKING([whether compiler $CC supports $1 option])
+OLD_CFLAGS="$CFLAGS"
+CFLAGS="$OLD_CFLAGS $1"
+AC_COMPILE_IFELSE([COLIBRI_LANG_PROGRAM()],
+        [AC_MSG_RESULT([yes]);
+         KCFLAGS="$KCFLAGS $1"],
+        [AC_MSG_RESULT([no]);
+	 KCFLAGS="$KCFLAGS"]
+)]
+CFLAGS="$OLD_CFLAGS")
+
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
+KCFLAGS="-Wall -Werror $KCFLAGS"
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
-# Check if gcc option is supported in current gcc version.
-iff_opt_supported() {
-        `$CC $1 -S -o /dev/null -xc /dev/null` 2>&1
-	if test $? -eq 0; then
-                echo $1
-        else
-                echo ""
-        fi
-}
-
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
-# If some compiler option is compiler version specific, then add it to OPT_KCFLAGS.
-# iff_opt_supported() can be used to check if the compiler option is supported or not.
-# iff_opt_supported(opt) returns opt if opt is supported by compiler, "" otherwise.
-OPT_KCFLAGS="$OPT_KCFLAGS $(iff_opt_supported -Wno-unused-but-set-variable)"
-KCFLAGS=" -Wall -Werror $OPT_KCFLAGS $KCFLAGS"
+COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
 
@@ -589,6 +597,7 @@ AC_CONFIG_FILES([
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
+                 xcode/ff2c/Makefile
                  xcode/ut/Makefile
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
