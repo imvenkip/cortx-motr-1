@@ -415,7 +415,8 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 
 	C2_PRE(nlx_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED ||
+	       tm->ntm_state == C2_NET_TM_STOPPING);
 
 	while (nlx_core_buf_event_get(&tp->xtm_core, &cbev)) {
 		struct c2_net_buffer_event nbev;
@@ -468,9 +469,10 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 			tp, nbev.nbe_buffer, (int) nbev.nbe_status,
 			(unsigned long) nbev.nbe_buffer->nb_flags);
 
-		/* Deliver the event out of the mutex.  Increment the
-		   callback counter to protect the state of the TM.
-		*/
+		/* Deliver the event out of the mutex.
+		   Suppress signalling on the TM channel by incrementing
+		   the callback counter.
+		 */
 		tm->ntm_callback_counter++;
 		c2_mutex_unlock(&tm->ntm_mutex);
 
@@ -480,12 +482,14 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 		/* re-enter the mutex */
 		c2_mutex_lock(&tm->ntm_mutex);
 		tm->ntm_callback_counter--;
-		C2_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
+
+		C2_PRE(tm->ntm_state == C2_NET_TM_STARTED ||
+		       tm->ntm_state == C2_NET_TM_STOPPING);
 	}
 	NLXDBGP(tp,2,"%p: delivered %d events\n", tp, num_events);
 
-	/* if we ever left the mutex, wake up waiters on the callback counter */
-	if (num_events > 0)
+	/* if we ever left the mutex, wake up waiters on the TM channel */
+	if (num_events > 0 && tm->ntm_callback_counter == 0)
 		c2_chan_broadcast(&tm->ntm_chan);
 
 	return;

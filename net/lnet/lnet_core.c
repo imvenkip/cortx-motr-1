@@ -71,6 +71,10 @@ static void nlx_print_net_buffer_event(const char *pre,
    @{
  */
 
+/**
+   Core TM invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
+ */
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 {
 	return lctm != NULL && lctm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC;
@@ -96,6 +100,10 @@ static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *lctm)
 	return true;
 }
 
+/**
+   Core buffer invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
+ */
 static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *lcb)
 {
 	return lcb != NULL && lcb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC &&

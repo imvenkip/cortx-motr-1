@@ -804,6 +804,7 @@ static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 
 /**
    KCore buffer invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
  */
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 {
@@ -818,6 +819,7 @@ static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 
 /**
    KCore tm invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
  */
 static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm)
 {
@@ -925,10 +927,14 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
 	lctm = ktm->ktm_ctm;
 
-	NLXDBG(lctm,2,nlx_kprint_lnet_event("eq_cb", event));
+	NLXDBGP(lctm, 1, "%p: eq_cb: %p\n", lctm, event);
+	NLXDBG(lctm, 2, nlx_kprint_lnet_event("eq_cb", event));
+	NLXDBG(lctm, 2, nlx_kprint_kcore_tm("eq_cb", ktm));
 
-	if (event->unlinked != 0)
+	if (event->unlinked != 0) {
 		LNetInvalidateHandle(&kbp->kb_mdh);
+		kbp->kb_ktm = NULL;
+	}
 
 	/* SEND events are only significant for LNetPut operations */
 	if (event->type == LNET_EVENT_SEND &&

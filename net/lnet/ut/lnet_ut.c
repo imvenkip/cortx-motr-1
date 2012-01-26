@@ -55,6 +55,58 @@ static bool ut_chan_timedwait(struct c2_clink *link, uint32_t secs)
 	return c2_chan_timedwait(link, timeout);
 }
 
+/* write a pattern to a buffer */
+static void ut_net_buffer_sign(struct c2_net_buffer *nb,
+			       c2_bcount_t len,
+			       unsigned char seed)
+{
+	struct c2_bufvec_cursor cur;
+	c2_bcount_t i;
+	c2_bcount_t step;
+	unsigned char val;
+	unsigned char *p;
+
+	val = seed;
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+	i = 0;
+	do {
+		step = c2_bufvec_cursor_step(&cur);
+		p = c2_bufvec_cursor_addr(&cur);
+		for ( ; i < len && i < step; ++i, ++p) {
+			*p = val++;
+		}
+	} while (i < len && c2_bufvec_cursor_move(&cur, step));
+	C2_UT_ASSERT(i == len);
+	return;
+}
+
+/* check the pattern in the buffer */
+static bool ut_net_buffer_authenticate(struct c2_net_buffer *nb,
+				       c2_bcount_t len,
+				       unsigned char seed)
+{
+	struct c2_bufvec_cursor cur;
+	c2_bcount_t i;
+	c2_bcount_t step;
+	unsigned char val;
+	unsigned char *p;
+
+	val = seed;
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+	i = 0;
+	do {
+		step = c2_bufvec_cursor_step(&cur);
+		p = c2_bufvec_cursor_addr(&cur);
+		for ( ; i < len && i < step; ++i, ++p) {
+			if (*p != val++)
+				return false;
+		}
+	} while (i < len && c2_bufvec_cursor_move(&cur, step));
+	if (i != len)
+		return false;
+	return true;
+}
+
 static enum c2_net_tm_ev_type ecb_evt;
 static enum c2_net_tm_state ecb_tms;
 static int32_t ecb_status;
@@ -175,9 +227,10 @@ enum {
 	UT_BUFSEGS1 = 2,
 	UT_BUFS2    = 1,
 	UT_BUFSEGS2 = 1,
-	UT_MSG_SIZE = 1024
+	UT_MSG_SIZE = 1024,
 };
 struct ut_data {
+	int                            _debug_;
 	struct c2_net_tm_callbacks     tmcb;
 	struct c2_net_domain           dom1;
 	struct c2_net_transfer_mc      tm1;
@@ -202,7 +255,62 @@ struct ut_data {
 
 typedef void (*ut_test_fw_body_t)(struct ut_data *td);
 
-static void ut_test_framework(ut_test_fw_body_t body) {
+static void ut_test_framework_dom_cleanup(struct ut_data *td,
+					  struct c2_net_domain *dom)
+{
+	struct c2_clink cl;
+	struct c2_net_buffer *nb;
+	struct c2_net_transfer_mc *tm;
+
+	c2_clink_init(&cl, NULL);
+
+	c2_list_for_each_entry(&dom->nd_tms, tm,
+			       struct c2_net_transfer_mc, ntm_dom_linkage) {
+		size_t len;
+		int qt;
+		int i;
+		/* iterate over buffers in each queue */
+		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
+			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
+			/* best effort; can't say if this will always work */
+			for (i = 0; i < len; ++i) {
+				nb = tm_tlist_head(&tm->ntm_q[qt]);
+				c2_clink_add(&tm->ntm_chan, &cl);
+				NLXDBGP(td,2,"Cleanup/DEL D:%p T:%p Q:%d B:%p\n",
+					dom, tm, qt, nb);
+				c2_net_buffer_del(nb, tm);
+				ut_chan_timedwait(&cl, 10);
+				c2_clink_del(&cl);
+			}
+			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
+			if (len != 0) {
+				NLXDBGP(td,0,"Cleanup D:%p T:%p Q:%d B failed\n",
+					dom, tm, qt);
+			}
+		}
+		/* iterate over end points */
+		if (c2_list_length(&tm->ntm_end_points) > 1) {
+			struct c2_net_end_point *ep;
+			struct c2_net_end_point *ep_next;
+			c2_list_for_each_entry_safe(&tm->ntm_end_points, ep,
+						    ep_next,
+						    struct c2_net_end_point,
+						    nep_tm_linkage) {
+				if (ep == tm->ntm_ep)
+					continue;
+				while(c2_atomic64_get(&ep->nep_ref.ref_cnt) >= 1){
+					NLXDBGP(td,2,"Cleanup/PUT D:%p T:%p "
+						"E:%p\n", dom, tm, ep);
+					c2_net_end_point_put(ep);
+				}
+			}
+		}
+		if (c2_list_length(&tm->ntm_end_points) > 1)
+			NLXDBGP(td,0,"Cleanup D:%p T:%p E failed\n", dom, tm);
+	}
+}
+
+static void ut_test_framework(ut_test_fw_body_t body, int dbg) {
 	struct ut_data *td;
 	char * const *nidstrs = NULL;
 	int i;
@@ -215,6 +323,7 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 	C2_UT_ASSERT(td != NULL);
 	if (td == NULL)
 		return;
+	td->_debug_ = dbg;
 
 	c2_clink_init(&td->tmwait1, NULL);
 	c2_clink_init(&td->tmwait2, NULL);
@@ -254,6 +363,8 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			}
 			C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_REGISTERED);
 			nb1->nb_callbacks = &td->buf_cb1;
+			NLXDBGPnl(td,1,"D:%p T:%p B:%p (%u*%d)\n",DOM1,TM1,nb1,
+				  (unsigned)max_seg_size, UT_BUFSEGS1);
 		}
 		td->buf_size1 = max_seg_size * UT_BUFSEGS1;
 
@@ -270,7 +381,7 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			C2_UT_FAIL("aborting: TM1 startup failed");
 			goto fini1;
 		}
-		/* NLXP("TM1: %s\n", TM1->ntm_ep->nep_addr);*/
+		NLXDBGPnl(td,1,"D:%p T:%p E:%s\n",DOM1,TM1,TM1->ntm_ep->nep_addr);
 	}
 
 	C2_UT_ASSERT(!c2_net_domain_init(DOM2, &c2_net_lnet_xprt));
@@ -298,6 +409,8 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			}
 			C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_REGISTERED);
 			nb2->nb_callbacks = &td->buf_cb2;
+			NLXDBGPnl(td,1,"D:%p T:%p B:%p (%u*%d)\n",DOM2,TM2,nb2,
+				  (unsigned)max_seg_size, UT_BUFSEGS2);
 		}
 		td->buf_size2 = max_seg_size * UT_BUFSEGS2;
 
@@ -314,11 +427,14 @@ static void ut_test_framework(ut_test_fw_body_t body) {
 			C2_UT_FAIL("aborting: TM2 startup failed");
 			goto fini2;
 		}
-		/* NLXP("TM2: %s\n", TM2->ntm_ep->nep_addr);*/
+		NLXDBGPnl(td,1,"D:%p T:%p E:%s\n",DOM2,TM2,TM2->ntm_ep->nep_addr);
 	}
 
 	td->nidstrs = nidstrs;
 	(*body)(td);
+
+	ut_test_framework_dom_cleanup(td, DOM2);
+	ut_test_framework_dom_cleanup(td, DOM1);
 
 	/*
 	  Teardown
@@ -546,27 +662,40 @@ static void test_tm_startstop(void)
 	c2_free(dom);
 }
 
+/* test_msg_body */
+enum {
+	UT_MSG_OPS  = 4,
+};
+
+
+
 static void test_msg_body(struct ut_data *td)
 {
-	struct c2_net_buffer      *nb1;
+	struct c2_net_buffer    *nb1;
+	struct c2_net_buffer    *nb2;
+	struct c2_net_end_point *ep2;
+	c2_bcount_t msg_size;
 
-	/*
-	  TEST
-	  Add a buffer for message receive then cancel it.
-	 */
 	nb1 = &td->bufs1[0];
+	nb2 = &td->bufs2[0];
+
+	/* TEST
+	   Add a buffer for message receive then cancel it.
+	 */
 	nb1->nb_min_receive_size = UT_MSG_SIZE;
 	nb1->nb_max_receive_msgs = 1;
 	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
 
+	NLXDBGPnl(td,1,"TEST: add/del on the receive queue\n");
+
 	ut_cbreset();
-	zUT(c2_net_buffer_add(nb1, TM1), done);
+	zUT(c2_net_buffer_add(nb1, TM1), aborted1);
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	c2_net_buffer_del(nb1, TM1);
 	ut_chan_timedwait(&td->tmwait1, 10);
 	c2_clink_del(&td->tmwait1);
-	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+ 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
 	C2_UT_ASSERT(cb_nb1 == nb1);
 	C2_UT_ASSERT(cb_status1 == -ECANCELED);
 	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, C2_NET_QT_MSG_RECV,
@@ -575,12 +704,83 @@ static void test_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 1);
- done:
+
+	/* TEST
+	   Add a buffer for receive in TM1 and send a message from TM2.
+	 */
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	c2_net_lnet_tm_set_debug(TM2, 0);
+	ut_cbreset();
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, C2_NET_QT_MSG_SEND,
+					  &td->qs, true));
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM2, C2_NET_QT_MSG_SEND,
+					  &td->qs, true));
+
+	cb_save_ep1 = true;
+	nb1->nb_min_receive_size = UT_MSG_SIZE;
+	nb1->nb_max_receive_msgs = UT_MSG_OPS;
+	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	zUT(c2_net_buffer_add(nb1, TM1), aborted1);
+
+	msg_size = UT_MSG_SIZE / 3;
+	ut_net_buffer_sign(nb2, msg_size, 'a');
+	C2_UT_ASSERT(ut_net_buffer_authenticate(nb2, msg_size, 'a'));
+	zUT(c2_net_end_point_create(&ep2, TM2, TM1->ntm_ep->nep_addr), aborted1);
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
+
+	nb2->nb_qtype = C2_NET_QT_MSG_SEND;
+	nb2->nb_length = msg_size;
+	nb2->nb_ep = ep2;
+	NLXDBGPnl(td,1,"TEST: Sending a message to %s from %s\n", ep2->nep_addr,
+		  TM2->ntm_ep->nep_addr);
+	c2_clink_add(&TM2->ntm_chan, &td->tmwait2);
+	zUT(c2_net_buffer_add(nb2, TM2), aborted2);
+
+	c2_chan_wait(&td->tmwait2);
+	C2_UT_ASSERT(cb_called2 == 1);
+	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_MSG_SEND);
+	C2_UT_ASSERT(cb_nb2 == nb2);
+	C2_UT_ASSERT(cb_status2 == 0);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM2, C2_NET_QT_MSG_SEND,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+	c2_chan_wait(&td->tmwait1);
+	C2_UT_ASSERT(cb_called1 == 1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_nb1->nb_flags & C2_NET_BUF_QUEUED);
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_length1 == msg_size);
+	C2_UT_ASSERT(ut_net_buffer_authenticate(nb1, msg_size, 'a'));
+	C2_UT_ASSERT(cb_ep1 != NULL);
+	C2_UT_ASSERT(strcmp(TM2->ntm_ep->nep_addr, cb_ep1->nep_addr) == 0);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, C2_NET_QT_MSG_RECV,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
+	zUT(c2_net_end_point_put(cb_ep1), aborted2);
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
+	zUT(c2_net_end_point_put(ep2), aborted2);
+	ep2 = NULL;
+
+ aborted2:
+	c2_clink_del(&td->tmwait2);
+ aborted1:
+	c2_clink_del(&td->tmwait1);
 	return;
 }
 
 static void test_msg(void) {
-	ut_test_framework(&test_msg_body);
+	ut_test_framework(&test_msg_body, 0);
 }
 
 const struct c2_test_suite c2_net_lnet_ut = {

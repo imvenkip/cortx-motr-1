@@ -80,6 +80,17 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 	nlx_kprint_lnet_md("\t        md:", &e->md);
 }
 
+static void nlx_kprint_kcore_tm(const char *pre,
+				const struct nlx_kcore_transfer_mc *ktm)
+{
+	printk("%s: %p (nlx_kcore_transfer_mc)\n", pre, ktm);
+	if (ktm == NULL)
+		return;
+	printk("\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
+	printk("\t mb_counter: %lu\n", (unsigned long) ktm->ktm_mb_counter);
+	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
+}
+
 /**
    @addtogroup KLNetCore
    @{
@@ -295,6 +306,7 @@ static void nlx_kcore_kiov_restore_length(struct nlx_core_transfer_mc *lctm,
    values set for the desired operation.
    @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
    @post ergo(rc == 0, kcb->kb_ktm == kctm)
+   @note LNet event could potentially be delivered before this sub returns.
  */
 static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 				  struct nlx_core_buffer *lcbuf,
@@ -323,9 +335,9 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 		return rc;
 	C2_POST(!LNetHandleIsInvalid(meh));
 
+	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc == 0) {
-		kcb->kb_ktm = kctm;
 		NLXDBG(lctm, 1, nlx_kprint_lnet_handle("MDAttach", kcb->kb_mdh));
 	} else {
 		int trc = LNetMEUnlink(meh);
@@ -333,10 +345,14 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 		NLXDBG(lctm, 1, NLXP("LNetMEUnlink: %d\n", trc));
 		C2_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
+		kcb->kb_ktm = NULL;
 	}
 
-	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
-	C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	/* Cannot make these assertions here as delivery is asynchronous, and
+	   could have completed before we got here.
+	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	*/
 	return rc;
 }
 
@@ -346,6 +362,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
    @param lcbuf Pointer to kcore buffer private data with kb_mdh set.
    @pre kcb->kb_mdh set (may or may not be valid by the time the call is made).
    @pre kcb->kb_ktm == kctm
+   @note LNet event could potentially be delivered before this sub returns.
  */
 static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 				   struct nlx_core_buffer *lcbuf)
@@ -380,6 +397,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
    @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
    @post ergo(rc == 0, kcb->kb_ktm == kctm)
    @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
+   @note LNet event could potentially be delivered before this sub returns.
  */
 static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf,
@@ -404,12 +422,12 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 
 	target.nid = lcbuf->cb_addr.cepa_nid;
 	target.pid = lcbuf->cb_addr.cepa_pid;
+	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
 	rc = LNetPut(LNET_NID_ANY, kcb->kb_mdh, LNET_NOACK_REQ,
 		     target, lcbuf->cb_addr.cepa_portal,
 		     lcbuf->cb_match_bits, 0,
 		     nlx_kcore_hdr_data_encode(lctm));
 	if (rc == 0) {
-		kcb->kb_ktm = kctm;
 		NLXDBG(lctm, 1,
 		       nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
 	} else {
@@ -418,10 +436,14 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 		NLXDBG(lctm, 1, NLXP("LNetMDUnlink: %d\n", trc));
 		C2_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
+		kcb->kb_ktm = NULL;
 	}
 
-	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
-	C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	/* Cannot make these assertions here, because loopback can deliver
+	   before we get here.  Leaving the assertions in the comment.
+	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	*/
 	return rc;
 }
 

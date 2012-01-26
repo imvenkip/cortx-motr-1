@@ -995,7 +995,7 @@ static void ktest_msg(void) {
 	nlx_kcore_iv._nlx_kcore_LNetMDAttach = ut_ktest_msg_LNetMDAttach;
 	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_msg_LNetPut;
 
-	ut_test_framework(&ktest_msg_body);
+	ut_test_framework(&ktest_msg_body, 0);
 
 	ut_restore_subs();
 	ut_ktest_msg_buf_event_wait_delay_chan = NULL;
