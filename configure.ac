@@ -219,6 +219,14 @@ if ! test -d $SRCDIR; then
 fi
 AC_SUBST([SRCDIR])
 
+AC_MSG_CHECKING([whether target platform is 64bit one])
+AC_COMPUTE_INT(n_bits, [sizeof(long) * 8])
+if test $n_bits -lt 64; then
+	AC_MSG_RESULT([no])
+	AC_MSG_ERROR([Only 64bit platforms are supported!])
+fi
+AC_MSG_RESULT([yes])
+
 # Checks for libraries.
 OLD_LIBS=$LIBS
 AC_SEARCH_LIBS([xdr_domainname], [c nsl], [], [AC_MSG_ERROR([xdr_domainname cannot be found!])])
