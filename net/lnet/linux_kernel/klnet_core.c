@@ -473,6 +473,9 @@
       - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
+        The number of entries in the KIOV and the length field in the last
+	element of the vector must be adjusted to reflect the desired byte
+	count.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetPut() subroutine to send the MD to the destination.  The
       match bits must set to the destination TM identifier in the higher order
@@ -492,6 +495,7 @@
       the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
+      The network descriptor also encodes the number of bytes to be transferred.
    -# Create an ME using @c LNetMEAttach(). Specify the portal and match_id
       fields as appropriate for the transfer machine.  The buffer's match bits
       are obtained from the nlx_core_buffer::cb_match_bits field.  No ignore
@@ -535,6 +539,9 @@
       - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
+        The number of entries in the KIOV and the length field in the last
+	element of the vector must be adjusted to reflect the desired byte
+	count.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetGet() subroutine to initiate the active read or the @c
       LNetPut() subroutine to initiate the active write. The hdr_data
@@ -1078,10 +1085,11 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_max_operations == 1);
 
 	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
-	nlx_kcore_umd_adjust_kiov_length(lctm, lcbuf, &umd, lcbuf->cb_length);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = NLX_kcore_LNetPut(lctm, lcbuf, &umd);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
 	return rc;
 }
 

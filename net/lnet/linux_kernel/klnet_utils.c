@@ -214,28 +214,71 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
    Helper subroutine to adjust the length of the kiov vector in a UMD
    to match a specified byte length.
    This is needed for SEND and active buffer operations.
+   Restore the kiov with nlx_kcore_kiov_restore_length().
    @param lctm Pointer to kcore TM private data.
    @param lcbuf Pointer to kcore buffer private data with match bits set.
    @param umd Pointer to the UMD.
    @param bytes The byte count desired.
+   @param nlx_kcore_kiov_restore_length()
+   @post kcb->kb_kiov_adj_idx >= 0
+   @post kcb->kb_kiov_adj_idx < kcb->kb_kiov_len
+   @post nlx_kcore_kiov_invariant(umd->start, umd->length)
  */
-static void nlx_kcore_umd_adjust_kiov_length(struct nlx_core_transfer_mc *lctm,
-					     struct nlx_core_buffer *lcbuf,
-					     lnet_md_t *umd,
-					     c2_bcount_t bytes)
+static void nlx_kcore_kiov_adjust_length(struct nlx_core_transfer_mc *lctm,
+					 struct nlx_core_buffer *lcbuf,
+					 lnet_md_t *umd,
+					 c2_bcount_t bytes)
 {
+	struct nlx_kcore_buffer *kcb;
 	size_t num;
+	unsigned last;
 
 	C2_PRE(umd->start != NULL);
 	C2_PRE(umd->options & LNET_MD_KIOV);
 	C2_PRE(umd->length > 0);
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
+	C2_PRE(nlx_kcore_buffer_invariant(kcb));
+	C2_PRE(umd->start == kcb->kb_kiov);
+
 	num = nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd->start,
-						   umd->length, bytes);
-	NLXDBGP(lctm, 2, "%p: buf:%p size:%ld vec:%lu/%lu\n",
+						   umd->length, bytes, &last);
+	NLXDBGP(lctm, 2, "%p: buf:%p size:%ld vec:%lu/%lu loff:%u\n",
 		lctm, lcbuf, (unsigned long) bytes,
-		(unsigned long) num, (unsigned long) umd->length);
-	if (umd->length != num)
-		umd->length = num;
+		(unsigned long) num, (unsigned long) umd->length, last);
+	kcb->kb_kiov_adj_idx = num - 1;
+	C2_POST(kcb->kb_kiov_adj_idx >= 0);
+	C2_POST(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
+	kcb->kb_kiov_orig_len = kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len;
+	kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len = last;
+	umd->length = num;
+	C2_POST(nlx_kcore_kiov_invariant(umd->start, umd->length));
+	return;
+}
+
+/**
+   Helper subroutine to restore the original length of the buffer's kiov.
+   @param lctm Pointer to kcore TM private data.
+   @param lcbuf Pointer to kcore buffer private data with match bits set.
+   @see nlx_kcore_kiov_adjust_length()
+   @pre kcb->kb_kiov_adj_idx >= 0
+   @pre kcb->kb_kiov_adj_idx < kcb->kb_kiov_len
+   @post nlx_kcore_kiov_invariant(kcb->kb_kiov, kcb->kb_kiov_len)
+*/
+static void nlx_kcore_kiov_restore_length(struct nlx_core_transfer_mc *lctm,
+					  struct nlx_core_buffer *lcbuf)
+{
+	struct nlx_kcore_buffer *kcb;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
+	C2_PRE(nlx_kcore_buffer_invariant(kcb));
+	C2_PRE(kcb->kb_kiov_adj_idx >= 0);
+	C2_PRE(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
+	kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len = kcb->kb_kiov_orig_len;
+	C2_POST(nlx_kcore_kiov_invariant(kcb->kb_kiov, kcb->kb_kiov_len));
 	return;
 }
 

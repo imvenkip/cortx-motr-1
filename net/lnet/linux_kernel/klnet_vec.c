@@ -31,6 +31,31 @@
  */
 
 /**
+   Invariant for an LNet compatible KIOV
+ */
+static bool nlx_kcore_kiov_invariant(const lnet_kiov_t *k, size_t len)
+{
+	size_t i;
+
+	if (k == NULL || len == 0 || len > LNET_MAX_IOV)
+		return false;
+	for (i = 0; i < len; ++i, ++k) {
+		if (k->kiov_page == NULL || k->kiov_len == 0 ||
+		    k->kiov_len > PAGE_SIZE)
+			return false;
+		if (k->kiov_offset != 0 && i != 0)
+			return false; /* permitted only on first */
+		if (k->kiov_len != PAGE_SIZE && i != (len - 1) &&
+		    k->kiov_offset == 0)
+			return false; /* permitted only on last entry */
+		if (k->kiov_offset != 0 &&
+		    (k->kiov_offset + k->kiov_len) > PAGE_SIZE)
+			return false;
+	}
+	return true;
+}
+
+/**
    Count the number of pages in a segment of a c2_bufvec.
    @param bvec Colibri buffer vector pointer
    @param n    Segment number in the vector
@@ -133,6 +158,7 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
 		knum += bufvec_seg_kla_to_kiov(bvec, i, &kb->kb_kiov[knum]);
 	C2_POST(knum == num_pages);
+	C2_POST(nlx_kcore_kiov_invariant(kb->kb_kiov, kb->kb_kiov_len));
 
 	return 0;
 }
@@ -143,12 +169,15 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
    @param kiov Pointer to the KIOV vector.
    @param kiov_len Length of the KIOV vector.
    @param bytes The byte count desired.
+   @param last_len Returns the number of bytes used in the last kiov
+   element.
    @retval uint32_t The number of KIOV entries required.
    @post return value <= kiov_len
  */
 static size_t nlx_kcore_num_kiov_entries_for_bytes(const lnet_kiov_t *kiov,
 						   size_t kiov_len,
-						   c2_bcount_t bytes)
+						   c2_bcount_t bytes,
+						   unsigned *last_len)
 {
 	c2_bcount_t count;
 	size_t i;
@@ -161,6 +190,15 @@ static size_t nlx_kcore_num_kiov_entries_for_bytes(const lnet_kiov_t *kiov,
 	}
 
 	C2_POST(i <= kiov_len);
+	--kiov;
+	*last_len = (kiov->kiov_len - count + bytes) % kiov->kiov_len;
+	if (*last_len == 0)
+		*last_len = kiov->kiov_len;
+#if 0
+	NLXP("bytes=%lu n=%lu c=%ld k=%ld l=%u\n", (unsigned long) bytes,
+	     (unsigned long) i, (unsigned long) count,
+	     (unsigned long) kiov->kiov_len, *last_len);
+#endif
 	return i;
 }
 

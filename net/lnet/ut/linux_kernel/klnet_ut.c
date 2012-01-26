@@ -95,7 +95,6 @@ static void ktest_buf_reg(void)
 {
 	struct c2_net_domain dom1;
 	struct c2_net_buffer nb1;
-	struct c2_net_buffer nb2;
 	struct c2_net_buffer nb3;
 	c2_bcount_t bsize;
 	c2_bcount_t bsegsize;
@@ -103,16 +102,13 @@ static void ktest_buf_reg(void)
 	struct nlx_xo_buffer *xb;
 	struct nlx_core_buffer *cb;
 	struct nlx_kcore_buffer *kcb1;
-	struct nlx_kcore_buffer *kcb2;
 	int i;
 	struct c2_bufvec *v1;
-	struct c2_bufvec *v2;
 	struct c2_bufvec *v3;
 	c2_bcount_t thunk;
 
 	C2_SET0(&dom1);
 	C2_SET0(&nb1);
-	C2_SET0(&nb2);
 	C2_SET0(&nb3);
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
@@ -152,54 +148,7 @@ static void ktest_buf_reg(void)
 		C2_UT_ASSERT(addr == nb1.nb_buffer.ov_buf[i]);
 	}
 
-	/* TEST
-	   Register a network buffer with half page segments.
-	   Use the same allocated memory segments from the first network buffer.
-	   We should get a kiov of the same length with 2 adjacent elements
-	   for each page, with the first having offset 0 and the second
-	   PAGE_SIZE/2.
-	 */
-	UT_BUFVEC_ALLOC(nb2.nb_buffer, bsegs);
 	v1 = &nb1.nb_buffer;
-	v2 = &nb2.nb_buffer;
-	for (i = 0; i < v2->ov_vec.v_nr; i += 2) {
-		v2->ov_vec.v_count[i] = v1->ov_vec.v_count[i] / 2;
-		v2->ov_buf[i] = v1->ov_buf[i];
-		v2->ov_vec.v_count[i+1] = v2->ov_vec.v_count[i];
-		v2->ov_buf[i+1] = v2->ov_buf[i] + v2->ov_vec.v_count[i];
-	}
-
-	/* register the buffer */
-	nb2.nb_flags = 0;
-	C2_UT_ASSERT(!c2_net_buffer_register(&nb2, &dom1));
-	C2_UT_ASSERT(nb2.nb_flags & C2_NET_BUF_REGISTERED);
-
-	/* check the kcore data structure */
-	xb = nb2.nb_xprt_private;
-	cb = &xb->xb_core;
-	C2_UT_ASSERT(cb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC);
-	kcb2 = cb->cb_kpvt;
-	C2_UT_ASSERT(kcb2->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
-	C2_UT_ASSERT(kcb2->kb_min_recv_size == 0);
-	C2_UT_ASSERT(kcb2->kb_max_recv_msgs == 0);
-	C2_UT_ASSERT(LNetHandleIsInvalid(kcb2->kb_mdh));
-	C2_UT_ASSERT(kcb2->kb_kiov != NULL);
-	C2_UT_ASSERT(kcb2->kb_kiov_len == bsegs);
-	for (i = 0; i < kcb2->kb_kiov_len; ++i) {
-		void *addr;
-		C2_UT_ASSERT(kcb2->kb_kiov[i].kiov_len == bsegsize/2);
-		addr = page_address(kcb2->kb_kiov[i].kiov_page);
-		if (i % 2 == 0) {
-			C2_UT_ASSERT(addr == nb2.nb_buffer.ov_buf[i]);
-			C2_UT_ASSERT(kcb2->kb_kiov[i].kiov_offset == 0);
-		} else {
-			C2_UT_ASSERT(kcb2->kb_kiov[i].kiov_offset == bsegsize/2);
-			C2_UT_ASSERT(kcb2->kb_kiov[i].kiov_page ==
-				     kcb2->kb_kiov[i-1].kiov_page);
-			C2_UT_ASSERT(addr ==
-				     nb2.nb_buffer.ov_buf[i] - bsegsize/2);
-		}
-	}
 
 	/* TEST
 	   Provide a buffer whose c2_bufvec shape is legal, but whose kiov will
@@ -224,12 +173,9 @@ static void ktest_buf_reg(void)
 	c2_net_buffer_deregister(&nb1, &dom1);
 	C2_UT_ASSERT(!(nb1.nb_flags & C2_NET_BUF_REGISTERED));
 	C2_UT_ASSERT(nb1.nb_xprt_private == NULL);
-	c2_net_buffer_deregister(&nb2, &dom1);
-	C2_UT_ASSERT(!(nb2.nb_flags & C2_NET_BUF_REGISTERED));
-	C2_UT_ASSERT(nb2.nb_xprt_private == NULL);
+
 
 	UT_BUFVEC_FREE(nb3.nb_buffer); /* just vector, not segs */
-	UT_BUFVEC_FREE(nb2.nb_buffer); /* just vector, not segs */
 	c2_bufvec_free(&nb1.nb_buffer);
 	c2_net_domain_fini(&dom1);
 }
@@ -406,6 +352,7 @@ static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
 	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
 	struct nlx_core_ep_addr      *cepa;
 	size_t len;
+	unsigned last;
 
 	ut_ktest_msg_LNetPut_called = true;
 	NLXDBG(lctm, 1, printk("intercepted LNetPut\n"));
@@ -414,7 +361,8 @@ static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT((lnet_kiov_t *) umd->start == kcb->kb_kiov);
 	len = nlx_kcore_num_kiov_entries_for_bytes(kcb->kb_kiov,
 						   kcb->kb_kiov_len,
-						   lcbuf->cb_length);
+						   lcbuf->cb_length,
+						   &last);
 	C2_UT_ASSERT(umd->length == len);
 	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
 	C2_UT_ASSERT(umd->threshold == 1);
@@ -504,6 +452,61 @@ static void ut_ktest_msg_send_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
+/* memory duplicate only; no ref count increment */
+static lnet_kiov_t *ut_ktest_kiov_mem_dup(const lnet_kiov_t *kiov, size_t len)
+{
+	lnet_kiov_t *k;
+	size_t i;
+
+	C2_ALLOC_ARR(k, len);
+	C2_UT_ASSERT(k != NULL);
+	if (k == NULL)
+		return NULL;
+	for (i = 0; i < len; ++i, ++kiov) {
+		k[i] = *kiov;
+#if 0
+		NLXP("[%u] %p %u %u\n", (unsigned) i,
+		     kiov->kiov_page, kiov->kiov_len, kiov->kiov_offset);
+#endif
+	}
+	return k;
+}
+
+/* inverse of mem_dup */
+static void ut_ktest_kiov_mem_free(lnet_kiov_t *kiov)
+{
+	c2_free(kiov);
+}
+
+static bool ut_ktest_kiov_eq(const lnet_kiov_t *k1,
+			     const lnet_kiov_t *k2,
+			     size_t len)
+{
+	int i;
+
+	for (i = 0; i < len; ++i, ++k1, ++k2)
+		if (k1->kiov_page   != k2->kiov_page  ||
+		    k1->kiov_len    != k2->kiov_len   ||
+		    k1->kiov_offset != k2->kiov_offset)
+			return false;
+	return true;
+}
+
+static unsigned ut_ktest_kiov_count(const lnet_kiov_t *k, size_t len)
+{
+	unsigned count;
+	size_t i;
+
+	for (i = 0, count = 0; i < len; ++i, ++k) {
+		count += k->kiov_len;
+#if 0
+		NLXP("[%u] %p %u %u count=%d\n", (unsigned) i,
+		     k->kiov_page, k->kiov_len, k->kiov_offset, count);
+#endif
+	}
+	return count;
+}
+
 static void ktest_msg_body(struct ut_data *td)
 {
 	struct c2_net_buffer            *nb1 = &td->bufs1[0];
@@ -516,11 +519,13 @@ static void ktest_msg_body(struct ut_data *td)
 	struct nlx_core_ep_addr        *cepa;
 	struct nlx_core_ep_addr         addr;
 	lnet_md_t umd;
+	lnet_kiov_t *kdup;
 	int needed;
 	unsigned len;
 	unsigned offset;
 	unsigned bevs_left;
 	unsigned count;
+	unsigned last;
 
 	/* TEST
 	   Check that the lnet_md_t is properly constructed from a registered
@@ -543,13 +548,70 @@ static void ktest_msg_body(struct ut_data *td)
 	 */
 #define KEB(b)								\
 	nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd.start,	\
-					     umd.length, (b))
+					     umd.length, (b), &last)
+
 	C2_UT_ASSERT(KEB(td->buf_size1) == umd.length);
+	C2_UT_ASSERT(last               == PAGE_SIZE);
+
 	C2_UT_ASSERT(KEB(1)             == 1);
+	C2_UT_ASSERT(last               == 1);
+
 	C2_UT_ASSERT(KEB(PAGE_SIZE - 1) == 1);
+	C2_UT_ASSERT(last               == PAGE_SIZE - 1);
+
 	C2_UT_ASSERT(KEB(PAGE_SIZE)     == 1);
+	C2_UT_ASSERT(last               == PAGE_SIZE);
+
 	C2_UT_ASSERT(KEB(PAGE_SIZE + 1) == 2);
+	C2_UT_ASSERT(last               == 1);
+
+	C2_UT_ASSERT(KEB(UT_MSG_SIZE)   == 1);
+	C2_UT_ASSERT(last               == UT_MSG_SIZE);
+
 #undef KEB
+
+	/* TEST
+	   Ensure that the kiov adjustment and restoration logic works
+	   correctly.
+	 */
+	kdup = ut_ktest_kiov_mem_dup(kcb1->kb_kiov, kcb1->kb_kiov_len);
+	if (kdup == NULL)
+		goto done;
+	C2_UT_ASSERT(ut_ktest_kiov_eq(kcb1->kb_kiov, kdup, kcb1->kb_kiov_len));
+
+	/* init the UMD that will be adjusted */
+	nlx_kcore_umd_init(lctm1, lcbuf1, 1, 0, 0, &umd);
+	C2_UT_ASSERT(kcb1->kb_kiov == umd.start);
+	C2_UT_ASSERT(ut_ktest_kiov_count(umd.start,umd.length) == td->buf_size1);
+	C2_UT_ASSERT(UT_MSG_SIZE < td->buf_size1);
+
+	/* Adjust for message size. This should not modify the kiov data. */
+	{
+		size_t size;
+		lnet_kiov_t *k = kcb1->kb_kiov;
+		size = kcb1->kb_kiov_len;
+		nlx_kcore_kiov_adjust_length(lctm1, lcbuf1, &umd, UT_MSG_SIZE);
+		C2_UT_ASSERT(kcb1->kb_kiov == k);
+		C2_UT_ASSERT(kcb1->kb_kiov_len == size);
+	}
+
+	/* validate adjustments */
+	C2_UT_ASSERT(ut_ktest_kiov_count(umd.start, umd.length) == UT_MSG_SIZE);
+	C2_UT_ASSERT(umd.length == (UT_MSG_SIZE / PAGE_SIZE + 1));
+	C2_UT_ASSERT(kcb1->kb_kiov_len != umd.length);
+	C2_UT_ASSERT(kcb1->kb_kiov_adj_idx == umd.length - 1);
+	C2_UT_ASSERT(!ut_ktest_kiov_eq(kcb1->kb_kiov, kdup, kcb1->kb_kiov_len));
+	C2_UT_ASSERT(kcb1->kb_kiov[umd.length - 1].kiov_len !=
+		     kdup[umd.length - 1].kiov_len);
+	C2_UT_ASSERT(kcb1->kb_kiov_orig_len == kdup[umd.length - 1].kiov_len);
+
+	/* validate restoration */
+	nlx_kcore_kiov_restore_length(lctm1, lcbuf1);
+	C2_UT_ASSERT(ut_ktest_kiov_eq(kcb1->kb_kiov, kdup, kcb1->kb_kiov_len));
+	C2_UT_ASSERT(ut_ktest_kiov_count(kcb1->kb_kiov, kcb1->kb_kiov_len)
+		     == td->buf_size1);
+
+	ut_ktest_kiov_mem_free(kdup);
 
 	/* TEST
 	   Enqueue a buffer for message reception.
@@ -853,18 +915,7 @@ static void ktest_msg_body(struct ut_data *td)
 
 	/* deliver the completion event */
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	{
-		int i;
-		count = nlx_kcore_num_kiov_entries_for_bytes(kcb1->kb_kiov,
-							     kcb1->kb_kiov_len,
-							     lcbuf1->cb_length);
-		C2_UT_ASSERT(count > 0);
-		len = 0;
-		for (i = 0; i < count; ++i) {
-			len += kcb1->kb_kiov[i].kiov_len;
-		}
-	}
-	ut_ktest_msg_send_event(lcbuf1, len, 0);
+	ut_ktest_msg_send_event(lcbuf1, UT_MSG_SIZE, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -912,18 +963,7 @@ static void ktest_msg_body(struct ut_data *td)
 
 	/* deliver the completion event */
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	{
-		int i;
-		count = nlx_kcore_num_kiov_entries_for_bytes(kcb1->kb_kiov,
-							     kcb1->kb_kiov_len,
-							     lcbuf1->cb_length);
-		C2_UT_ASSERT(count > 0);
-		len = 0;
-		for (i = 0; i < count; ++i) {
-			len += kcb1->kb_kiov[i].kiov_len;
-		}
-	}
-	ut_ktest_msg_send_event(lcbuf1, len, -1);
+	ut_ktest_msg_send_event(lcbuf1, UT_MSG_SIZE, -1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
