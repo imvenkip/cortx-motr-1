@@ -645,9 +645,8 @@ int c2_stob_io_fop_init(void)
 	result = c2_fop_type_format_parse_nr(stob_fmts, ARRAY_SIZE(stob_fmts));
 	if (result == 0) {
 		result = c2_fop_type_build_nr(stob_fops, ARRAY_SIZE(stob_fops));
-                if (result == 0)
+                if (result == 0) {
                         c2_fop_object_init(&stob_io_fop_fid_tfmt);
-		if (result == 0)
 			for (i = 0; i < ARRAY_SIZE(stob_fops) / 2; ++i) {
 				fop_type = stob_fops[i];
 				code = fop_type->ft_rpc_item_type.rit_opcode;
@@ -658,6 +657,7 @@ int c2_stob_io_fop_init(void)
 				}
 				fop_type->ft_fom_type = *fom_type;
 			}
+		}
 
 	}
 	if (result != 0)
