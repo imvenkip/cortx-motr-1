@@ -642,14 +642,14 @@ enum c2_net_queue_type {
 
 	/**
 	   Queue with buffers awaiting completion of
-	   remotly initiated bulk data send operations
+	   remotely initiated bulk data send operations
 	   that will read from these buffers.
 	 */
 	C2_NET_QT_PASSIVE_BULK_RECV,
 
 	/**
 	   Queue with buffers awaiting completion of
-	   remotly initiated bulk data receive operations
+	   remotely initiated bulk data receive operations
 	   that will write to these buffers.
 	 */
 	C2_NET_QT_PASSIVE_BULK_SEND,
