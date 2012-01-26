@@ -57,7 +57,7 @@ extern void item_exit_stats_set(struct c2_rpc_item   *item,
    Common implementation of c2_fom::fo_ops::fo_fini() for conn establish,
    conn terminate, session establish and session terminate foms
 
-   @see session_gen_fom_init
+   @see session_gen_fom_create
  */
 static void session_gen_fom_fini(struct c2_fom *fom)
 {
@@ -70,7 +70,7 @@ static void session_gen_fom_fini(struct c2_fom *fom)
    conn establish, conn terminate, session establish,
    session terminate fop types.
  */
-static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	const struct c2_fom_ops *fom_ops;
 	struct c2_fom           *fom;
@@ -130,8 +130,6 @@ static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 out:
 	if (rc != 0) {
-		// XXX should c2_fom_fini() be here?
-		c2_fom_fini(fom);
 		c2_free(fom);
 		*m = NULL;
 	}
@@ -145,7 +143,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
-	.fto_create = session_gen_fom_init
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_conn_establish_type = {
@@ -302,7 +300,7 @@ const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
-	.fto_create = session_gen_fom_init
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_session_establish_type = {
@@ -400,7 +398,7 @@ const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
-	.fto_create = session_gen_fom_init
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_session_terminate_type = {
@@ -487,7 +485,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
-	.fto_create = session_gen_fom_init
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
