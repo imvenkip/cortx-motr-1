@@ -59,10 +59,19 @@ static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 
         C2_PRE(fop != NULL);
         C2_PRE(m != NULL);
+	C2_PRE(fop->f_type == &c2_cons_fop_device_fopt);
 
-	if (fop->f_type != &c2_cons_fop_device_fopt)
-		return -EINVAL;
-
+	/*
+	 * XXX
+	 * The proper way to do this is to do
+	 * struct c2_cons_fom {
+	 *         struct c2_fom cf_fom;
+	 *         struct c2_fop cf_reply;
+	 *         struct c2_cons_fop_reply cf_reply_data;
+	 * };
+	 * Then fom, reply fop and its data packet can be allocated at once,
+	 * simplifying memory management.
+	 */
         C2_ALLOC_PTR(fom);
         if (fom == NULL)
                 return -ENOMEM;
