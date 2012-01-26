@@ -98,8 +98,8 @@ static void io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
  */
 static int io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_fom			*fom;
-	struct c2_io_fom_cob_rwv	*fom_obj;
+	struct c2_io_fom_cob_rwv *fom_obj;
+	struct c2_fop		 *rep_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -109,27 +109,22 @@ static int io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	if (fom_obj == NULL)
 		return -ENOMEM;
 
-	fom = &fom_obj->fcrw_gen;
-	fom->fo_fop = fop;
-	c2_fom_init(fom);
 	fop->f_type->ft_fom_type.ft_ops = &c2_io_cob_rwv_type_ops;
-	fom->fo_type = &c2_io_cob_rwv_type;
-	fom->fo_ops = &c2_io_fom_rwv_ops;
-
 	if (is_read(fop))
-		fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt,
-					       NULL);
+		rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 	else
-		fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt,
-					       NULL);
+		rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 
-	if (fom->fo_rep_fop == NULL) {
+	if (rep_fop == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
 	}
 
+	c2_fom_create(&fom_obj->fcrw_gen, &c2_io_cob_rwv_type,
+			&c2_io_fom_rwv_ops, fop, rep_fop);
+
 	fom_obj->fcrw_stob = NULL;
-	*m = fom;
+	*m = &fom_obj->fcrw_gen;
 	return 0;
 }
 

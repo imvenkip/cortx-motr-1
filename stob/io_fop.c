@@ -245,13 +245,12 @@ static struct c2_stob *stob_object_find(const struct stob_io_fop_fid *fid,
 
 /**
  * Fom initialization function, invoked from reqh_fop_handle.
- * Invokes c2_fom_init()
+ * Invokes c2_fom_create()
  */
 static int stob_io_fop_fom_create_helper(struct c2_fop *fop,
 		struct c2_fom_ops *fom_ops, struct c2_fop_type *fop_type,
 		struct c2_fom **out)
 {
-	struct c2_fom	      *fom;
 	struct c2_stob_io_fom *fom_obj;
 
 	C2_PRE(fop != NULL);
@@ -269,14 +268,10 @@ static int stob_io_fop_fom_create_helper(struct c2_fop *fop,
 	}
 	fom_obj->sif_stobj = NULL;
 
-	fom = &fom_obj->sif_fom;
-	fom->fo_type = &fop->f_type->ft_fom_type;
-	fom->fo_ops = fom_ops;
-	fom->fo_fop = fop;
+	c2_fom_create(&fom_obj->sif_fom, &fop->f_type->ft_fom_type, fom_ops, fop,
+			fom_obj->sif_rep_fop);
 
-	c2_fom_init(fom);
-
-	*out = fom;
+	*out = &fom_obj->sif_fom;
 	return 0;
 }
 

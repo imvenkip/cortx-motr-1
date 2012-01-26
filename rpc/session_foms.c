@@ -82,8 +82,6 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	if (fom == NULL)
 		return -ENOMEM;
 
-	c2_fom_init(fom);
-
 	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
 
 		reply_fopt = &c2_rpc_fop_conn_establish_rep_fopt;
@@ -114,17 +112,13 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 		goto out;
 	}
 
-	fom->fo_ops = fom_ops;
-	fom->fo_type = &fop->f_type->ft_fom_type;
-
 	reply_fop = c2_fop_alloc(reply_fopt, NULL);
 	if (reply_fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
-	fom->fo_rep_fop = reply_fop;
-	fom->fo_fop = fop;
+	c2_fom_create(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
 	*m = fom;
 	rc = 0;
 

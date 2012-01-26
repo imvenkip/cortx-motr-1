@@ -364,6 +364,21 @@ void c2_fom_fini(struct c2_fom *fom);
  */
 bool c2_fom_invariant(const struct c2_fom *fom);
 
+/**
+   Initialises fom allocated by caller.
+   Invokes c2_fom_init().
+   @see c2_fom_init()
+   @param fom A fom to be initialized
+   @param fom_type Fom type
+   @param ops Fom operations structure
+   @param fop Request fop object
+   @param reply Reply fop object
+   @pre fom != NULL
+ */
+void c2_fom_create(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		const struct c2_fom_ops *ops, struct c2_fop *fop,
+		struct c2_fop *reply);
+
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
 	const struct c2_fom_type_ops *ft_ops;
