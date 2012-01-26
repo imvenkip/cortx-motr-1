@@ -142,6 +142,7 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 
 	return 0;
 fail:
+	C2_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(kb->kb_addb, rc);
 	return rc;
 }

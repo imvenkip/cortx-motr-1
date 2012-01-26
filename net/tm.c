@@ -19,7 +19,6 @@
  * Original creation date: 04/07/2011
  */
 
-#include "lib/arith.h" /* max64u */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
@@ -249,12 +248,11 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 		/* xprt did not start, no retry supported */
 		tm->ntm_state = C2_NET_TM_FAILED;
 		C2_ASSERT(tm->ntm_ep == NULL);
+		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	}
 	C2_POST(c2_net__tm_invariant(tm));
-	if (rc != 0)
-		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
-
+	C2_ASSERT(rc <= 0);
 	return rc;
 }
 C2_EXPORTED(c2_net_tm_start);
@@ -273,13 +271,13 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	oldstate = tm->ntm_state;
 	tm->ntm_state = C2_NET_TM_STOPPING;
 	rc = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
-	if (rc < 0)
+	if (rc < 0) {
 		tm->ntm_state = oldstate;
-	if (rc != 0)
 		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+	}
 	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
-
+	C2_ASSERT(rc <= 0);
 	return rc;
 }
 C2_EXPORTED(c2_net_tm_stop);
