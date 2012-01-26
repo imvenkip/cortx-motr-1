@@ -651,10 +651,7 @@ int c2_stob_io_fop_init(void)
 				fop_type = stob_fops[i];
 				code = fop_type->ft_rpc_item_type.rit_opcode;
 				fom_type = stob_fom_type_map(code);
-				if (fom_type == NULL) {
-					result = -EINVAL;
-					break;
-				}
+				C2_ASSERT(fom_type != NULL);
 				fop_type->ft_fom_type = *fom_type;
 			}
 		}
