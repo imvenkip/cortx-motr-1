@@ -59,25 +59,34 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 
 static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 {
+	static const char *lnet_event_s[7] = {
+		"GET", "PUT", "REPLY", "ACK", "SEND", "UNLINK", "<Unknown>"
+	};
+	const char *name;
 	if (e == NULL) {
-		printk("%s: <null>\n", pre);
+		printk("%s: <null> (lnet_event_t)\n", pre);
 		return;
 	}
-	printk("%s: %p\n", pre, e);
+	C2_ASSERT(LNET_EVENT_UNLINK == 5);
+	if (e->type >= 0 && e->type <= LNET_EVENT_UNLINK)
+		name = lnet_event_s[e->type];
+	else
+		name = lnet_event_s[6];
+	printk("%s: %p (lnet_event_t)\n", pre, e);
 	nlx_kprint_lnet_process_id("\t   target:", e->target);
 	nlx_kprint_lnet_process_id("\tinitiator:", e->target);
 	printk("\t    sender: %ld\n", (long unsigned) e->sender);
-	printk("\t      type: %d\n", e->type);
+	printk("\t      type: %d %s\n", e->type, name);
 	printk("\t  pt_index: %u\n", e->pt_index);
 	printk("\tmatch_bits: %lx\n", (long unsigned) e->match_bits);
 	printk("\t   rlength: %u\n", e->rlength);
 	printk("\t   mlength: %u\n", e->mlength);
-	nlx_kprint_lnet_handle("\t md_handle:", e->md_handle);
+	nlx_kprint_lnet_handle("\t md_handle", e->md_handle);
 	printk("\t  hdr_data: %lx\n", (long unsigned) e->hdr_data);
 	printk("\t    status: %d\n", e->status);
 	printk("\t  unlinked: %d\n", e->unlinked);
 	printk("\t    offset: %u\n", e->offset);
-	nlx_kprint_lnet_md("\t        md:", &e->md);
+	nlx_kprint_lnet_md("\t        md", &e->md);
 }
 
 static void nlx_kprint_kcore_tm(const char *pre,
@@ -331,8 +340,10 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	rc = LNetMEAttach(lctm->ctm_addr.cepa_portal, id,
 			  lcbuf->cb_match_bits, 0,
 			  LNET_UNLINK, LNET_INS_AFTER, &meh);
-	if (rc != 0)
+	if (rc != 0) {
+		NLXDBGP(lctm, 1,"LNetMEAttach: %d\n", rc);
 		return rc;
+	}
 	C2_POST(!LNetHandleIsInvalid(meh));
 
 	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
@@ -341,8 +352,8 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 		NLXDBG(lctm, 1, nlx_kprint_lnet_handle("MDAttach", kcb->kb_mdh));
 	} else {
 		int trc = LNetMEUnlink(meh);
-		NLXDBG(lctm, 1, NLXP("LNetMDAttach: %d\n", rc));
-		NLXDBG(lctm, 1, NLXP("LNetMEUnlink: %d\n", trc));
+		NLXDBGP(lctm, 1, "LNetMDAttach: %d\n", rc);
+		NLXDBGP(lctm, 1, "LNetMEUnlink: %d\n", trc);
 		C2_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
@@ -417,8 +428,11 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_match_bits != 0);
 
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
-	if (rc != 0)
+	if (rc != 0) {
+		NLXDBGP(lctm, 1,"LNetMDBind: %d\n", rc);
 		return rc;
+	}
+	NLXDBG(lctm, 1, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
 
 	target.nid = lcbuf->cb_addr.cepa_nid;
 	target.pid = lcbuf->cb_addr.cepa_pid;
@@ -427,13 +441,10 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 		     target, lcbuf->cb_addr.cepa_portal,
 		     lcbuf->cb_match_bits, 0,
 		     nlx_kcore_hdr_data_encode(lctm));
-	if (rc == 0) {
-		NLXDBG(lctm, 1,
-		       nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
-	} else {
+	if (rc != 0) {
 		int trc = LNetMDUnlink(kcb->kb_mdh);
-		NLXDBG(lctm, 1, NLXP("LNetPut: %d\n", rc));
-		NLXDBG(lctm, 1, NLXP("LNetMDUnlink: %d\n", trc));
+		NLXDBGP(lctm, 1, "LNetPut: %d\n", rc);
+		NLXDBGP(lctm, 1, "LNetMDUnlink: %d\n", trc);
 		C2_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;

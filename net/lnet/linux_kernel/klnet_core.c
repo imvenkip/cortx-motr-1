@@ -917,8 +917,10 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	c2_time_t now = c2_time_now();
 
 	C2_PRE(event != NULL);
-	if (event->type == LNET_EVENT_ACK)
+	if (event->type == LNET_EVENT_ACK) {
+		nlx_kprint_lnet_event("eq_cb ACK", event);
 		return;
+	}
 	cbp = event->md.user_ptr;
 	C2_ASSERT(nlx_core_buffer_invariant(cbp));
 	kbp = cbp->cb_kpvt;

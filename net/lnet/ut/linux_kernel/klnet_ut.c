@@ -531,6 +531,8 @@ static void ktest_msg_body(struct ut_data *td)
 	   Check that the lnet_md_t is properly constructed from a registered
 	   network buffer.
 	 */
+	NLXDBGPnl(td,1,"TEST: net buffer to MD\n");
+
 	nb1->nb_min_receive_size = UT_MSG_SIZE;
 	nb1->nb_max_receive_msgs = 1;
 	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
@@ -546,6 +548,8 @@ static void ktest_msg_body(struct ut_data *td)
 	   Check that the count of the number of kiov elements required
 	   for different byte sizes.
 	 */
+	NLXDBGPnl(td,1,"TEST: kiov size arithmetic\n");
+
 #define KEB(b)								\
 	nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd.start,	\
 					     umd.length, (b), &last)
@@ -574,6 +578,8 @@ static void ktest_msg_body(struct ut_data *td)
 	   Ensure that the kiov adjustment and restoration logic works
 	   correctly.
 	 */
+	NLXDBGPnl(td,1,"TEST: kiov adjustments for length\n");
+
 	kdup = ut_ktest_kiov_mem_dup(kcb1->kb_kiov, kcb1->kb_kiov_len);
 	if (kdup == NULL)
 		goto done;
@@ -619,6 +625,8 @@ static void ktest_msg_body(struct ut_data *td)
 	   Check that the needed count is correctly incremented.
 	   Intercept the utils sub to validate.
 	*/
+	NLXDBGPnl(td,1,"TEST: receive queue logic\n");
+
 	ut_ktest_msg_LNetMDAttach_called = false;
 
 	nb1->nb_min_receive_size = UT_MSG_SIZE;
@@ -642,6 +650,8 @@ static void ktest_msg_body(struct ut_data *td)
 	   The length and offset reported should be as sent.
 	   The reference count on end points is as it should be.
 	 */
+	NLXDBGPnl(td,1,"TEST: bevq delivery, single\n");
+
 	ut_cbreset();
 	cb_save_ep1 = true;
 	cepa = nlx_ep_to_core(TM1->ntm_ep);
@@ -731,6 +741,7 @@ static void ktest_msg_body(struct ut_data *td)
 	   that the "deliver_all" will have multiple events
 	   to process.
 	*/
+	NLXDBGPnl(td,1,"TEST: bevq delivery, batched\n");
 
 	/* enqueue buffer */
 	nb1->nb_min_receive_size = UT_MSG_SIZE;
@@ -799,6 +810,7 @@ static void ktest_msg_body(struct ut_data *td)
 	   The ep failure should not invoke the callback, but the failure
 	   statistics should be updated.
 	 */
+	NLXDBGPnl(td,1,"TEST: EP failure during message receive\n");
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1,C2_NET_QT_MSG_RECV,&td->qs,true));
 
@@ -885,6 +897,8 @@ static void ktest_msg_body(struct ut_data *td)
 	   Ensure that the reference count of the ep is maintained correctly.
 	   Send a success event.
 	 */
+	NLXDBGPnl(td,1,"TEST: send queue success logic\n");
+
 	ut_ktest_msg_LNetPut_called = false;
 	ut_cbreset();
 	C2_UT_ASSERT(cb_called1 == 0);
@@ -933,6 +947,8 @@ static void ktest_msg_body(struct ut_data *td)
 	/* TEST
 	   Repeat previous test, but send a failure event.
 	 */
+	NLXDBGPnl(td,1,"TEST: send queue failure logic\n");
+
 	ut_ktest_msg_LNetPut_called = false;
 	ut_cbreset();
 	C2_UT_ASSERT(cb_called1 == 0);
@@ -995,7 +1011,7 @@ static void ktest_msg(void) {
 	nlx_kcore_iv._nlx_kcore_LNetMDAttach = ut_ktest_msg_LNetMDAttach;
 	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_msg_LNetPut;
 
-	ut_test_framework(&ktest_msg_body, 0);
+	ut_test_framework(&ktest_msg_body, ut_verbose);
 
 	ut_restore_subs();
 	ut_ktest_msg_buf_event_wait_delay_chan = NULL;
