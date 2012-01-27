@@ -66,18 +66,19 @@ int main(int argc, char *argv[])
 	int  result;
 	bool keep   = false;
 
-	result = C2_GETOPTS("ut", argc, argv,
-			    C2_VOIDARG('T', "parse trace log produced earlier",
-				       LAMBDA(void, (void) {
-						       c2_trace_parse();
-						       exit(0);
-					       })),
-			    C2_FLAGARG('k', "keep the sandbox directory",
-				       &keep));
-	if (result != 0)
-		return result;
-
 	if (unit_start(UT_SANDBOX) == 0) {
+		result = C2_GETOPTS("ut", argc, argv,
+				    C2_VOIDARG('T',
+					       "parse trace produced earlier",
+					       LAMBDA(void, (void) {
+							       c2_trace_parse();
+							       exit(0);
+						       })),
+				    C2_FLAGARG('k', "keep the sandbox directory",
+					       &keep));
+		if (result != 0)
+			return result;
+
 		/* sort test suites in alphabetic order */
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
