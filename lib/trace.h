@@ -30,7 +30,65 @@
 
    Fast and light-weight tracing facility.
 
+   The story.
+
+   The general ideas are: (0) minimal synchronisation between threads
+   and (1) minimal amount of data copying.  For (0) we use a cyclic
+   buffer. Space is allocated with a single atomic add+return.
+   This incurs the following requirement: the size of a trace record
+   must be known beforehand.  This doesn't hold for online sprintf-based
+   tracing. Instead, we do offline sprintf parsing (read below).
+
+   If you look at Lustre C2_DEBUG implementation it first snprintfs
+   the record   into an char[0] buffer to calculate its size and
+   then allocates the space in the buffer -- a lot of overhead. By
+   the way, another step to address (0) requirement is to make
+   buffers per-cpu (or per-locality). But let's postpone this.
+
+   Now, we have 2 requirements: fixed-size records and minimal copying.
+   What we do is we define a static (in C language sense) descriptor
+   of a record (see DECL in C2_TRACE_POINT() macro below). The
+   record in the trace buffer contains some header, plus a pointer
+   to the descriptor. This pointer is stored in the resulting trace
+   file, that means that the same binary has to parse records.
+
+   Now, the solution to solve the "fixed size" problem is to make
+   a C declaration of a record structure one of its parameters.
+   This declaration is used to calculate the record size (sizeof).
+   The printf-like formatting string which describes the context
+   and how to parse the record data is stored in the descriptor.
+   This string is feed into printf(3) at the c2_trace_parse() stage.
+
    @{
+ */
+
+/**
+   C2_LOG(fmt, ...) is the main user interface for the tracing. It accepts
+   the arguments in printf(3) format for the numbers, but there are some
+   tricks for string arguments.
+
+   String arguments should be specified like this:
+
+   @code
+   C2_LOG("%s", (char *)"foo");
+   @endcode
+
+   i.e. explicitly typecasted to the pointer. It is because typeof("foo")
+   is not the same as typeof((char*)"foo").
+
+   @note The number of arguments after fmt is limited to 9!
+
+   C2_LOG() counts the number of arguments and calls correspondent C2_LOGx().
+ */
+#define C2_LOG(...) \
+	CAT(C2_LOG, N_ARGS(__VA_ARGS__))(__VA_ARGS__)
+
+int  c2_trace_init(void);
+void c2_trace_fini(void);
+int  c2_trace_parse(void);
+
+/**
+   Below is the internal stuff.
  */
 
 struct c2_trace_rec_header;
@@ -59,31 +117,21 @@ printf_check(const char *fmt, ...)
 {}
 
 void *c2_trace_allot(const struct c2_trace_descr *td);
-int   c2_trace_parse(void);
 
 /**
    This is a low-level entry point into tracing sub-system.
 
-   Don't call this directly, use C2_LOG* macros instead.
+   Don't call this directly, use C2_LOG() macros instead.
 
    Add a fixed-size trace entry into the trace buffer.
 
-   A typical examples of usage are
-
-   @code
-   C2_TRACE_POINT(1, { uint32_t nr_calls; }, { 0 }, "Calls: %u", calls++);
-   @endcode
-
-   and
-
-   @code
-   C2_TRACE_POINT({ uint64_t fop_opcode; uint16_t got_lock; },
-                  { 0, 8 }, "Opcode: %llx, lock: %u",
-                  fop->f_opcode, c2_mutex_is_locked(&queue_lock));
-   @endcode
-
-   The DECL parameter is a C definition of a trace entry format. The variadic
-   arguments must match the number and types of fields in the format.
+   @param NR the number of arguments
+   @param DECL C definition of a trace entry format
+   @param OFFSET the set of offsets of each argument
+   @param SIZEOF the set of sizes of each argument
+   @param FMT the printf-like format string
+   @note The variadic arguments must match the number
+         and types of fields in the format.
  */
 #define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
 ({									\
@@ -100,7 +148,7 @@ int   c2_trace_parse(void);
 		.td_offset = _offset,					\
 		.td_sizeof = _sizeof					\
 	};								\
-	printf_check(FMT , ## __VA_ARGS__);					\
+	printf_check(FMT , ## __VA_ARGS__);				\
 	*(struct t_body *)c2_trace_allot(&td) = 			\
                                 (const struct t_body){ __VA_ARGS__ };	\
 })
@@ -109,6 +157,11 @@ enum {
 	C2_TRACE_ARGC_MAX = 9
 };
 
+/**
+   Helpers for C2_TRACE_POINT().
+
+   __T_P() is used for grouping the args
+ */
 #define __T_T(a, v) typeof(a) v
 #define __T_O(v) offsetof(struct t_body, v)
 #define __T_S(a) sizeof(a)
@@ -116,80 +169,93 @@ enum {
 
 #define C2_LOG0(fmt)     C2_TRACE_POINT(0, { ; }, {}, {}, fmt)
 
-#define C2_LOG1(fmt, a0)			\
-C2_TRACE_POINT(1,				\
-	       { __T_T(a0, v0); },			\
-	       { __T_O(v0) },			\
-	       { __T_S(a0) },			\
-	       fmt, a0)
+#define C2_LOG1(fmt, a0)		\
+C2_TRACE_POINT(1,			\
+	{ __T_T(a0, v0); },		\
+	{ __T_O(v0) },			\
+	{ __T_S(a0) },			\
+	fmt, a0)
 
 
 #define C2_LOG2(fmt, a0, a1)			\
 C2_TRACE_POINT(2,				\
-	       { __T_T(a0, v0); __T_T(a1, v1); },	\
-	       __T_P({ __T_O(v0), __T_O(v1) }),		\
-	       __T_P({ __T_S(a0), __T_S(a1) }),		\
-	       fmt, a0, a1)
+       { __T_T(a0, v0); __T_T(a1, v1); },	\
+       __T_P({ __T_O(v0), __T_O(v1) }),		\
+       __T_P({ __T_S(a0), __T_S(a1) }),		\
+       fmt, a0, a1)
 
 #define C2_LOG3(fmt, a0, a1, a2)			\
 C2_TRACE_POINT(3,					\
-	       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); },	\
-	       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2) }),		\
-	       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2) }),		\
-	       fmt, a0, a1, a2)
+       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); },	\
+       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2) }),		\
+       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2) }),		\
+       fmt, a0, a1, a2)
 
 #define C2_LOG4(fmt, a0, a1, a2, a3)					\
 C2_TRACE_POINT(4,							\
-	       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); },	\
-	       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3) }),	\
-	       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3) }),	\
-	       fmt, a0, a1, a2, a3)
+       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); },	\
+       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3) }),	\
+       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3) }),	\
+       fmt, a0, a1, a2, a3)
 
 #define C2_LOG5(fmt, a0, a1, a2, a3, a4)				\
 C2_TRACE_POINT(5,							\
-	       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); __T_T(a4, v4); },	\
-	       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4) }),		\
-	       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4) }),		\
-	       fmt, a0, a1, a2, a3, a4)
+       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3);	\
+	 __T_T(a4, v4); },	\
+       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4) }), \
+       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4) }), \
+       fmt, a0, a1, a2, a3, a4)
 
 #define C2_LOG6(fmt, a0, a1, a2, a3, a4, a5)				\
 C2_TRACE_POINT(6,							\
-	       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); __T_T(a4, v4); \
-		 __T_T(a5, v5); },						\
-	       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), __T_O(v5) }),	\
-	       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), __T_S(a5) }),	\
-	       fmt, a0, a1, a2, a3, a4, a5)
+       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); \
+	 __T_T(a4, v4); __T_T(a5, v5); },			\
+       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), \
+	       __T_O(v5) }),	\
+       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), \
+	       __T_S(a5) }),	\
+       fmt, a0, a1, a2, a3, a4, a5)
 
 #define C2_LOG7(fmt, a0, a1, a2, a3, a4, a5, a6)			\
 C2_TRACE_POINT(7,							\
-	       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); __T_T(a4, v4); \
-		 __T_T(a5, v5); __T_T(a6, v6); },				\
-	       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), __T_O(v5), __T_O(v6) }), \
-	       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), __T_S(a5), __T_S(a6) }), \
-	       fmt, a0, a1, a2, a3, a4, a5, a6)
+       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); \
+	 __T_T(a4, v4); __T_T(a5, v5); __T_T(a6, v6); },	\
+       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), \
+	       __T_O(v5), __T_O(v6) }), \
+       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), \
+	       __T_S(a5), __T_S(a6) }), \
+       fmt, a0, a1, a2, a3, a4, a5, a6)
 
 #define C2_LOG8(fmt, a0, a1, a2, a3, a4, a5, a6, a7)			\
 C2_TRACE_POINT(8,							\
-	       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); __T_T(a4, v4); \
-		 __T_T(a5, v5); __T_T(a6, v6); __T_T(a7, v7); },			\
-	       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), __T_O(v5), __T_O(v6), \
-				       __T_O(v7) }),			\
-	       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), __T_S(a5), __T_S(a6), \
-				       __T_S(a7) }),			\
-	       fmt, a0, a1, a2, a3, a4, a5, a6, a7)
+       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); \
+	 __T_T(a4, v4); __T_T(a5, v5); __T_T(a6, v6); __T_T(a7, v7); },	\
+       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), \
+	       __T_O(v5), __T_O(v6), __T_O(v7) }),	\
+       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), \
+	       __T_S(a5), __T_S(a6), __T_S(a7) }),	\
+       fmt, a0, a1, a2, a3, a4, a5, a6, a7)
 
 #define C2_LOG9(fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)		\
 C2_TRACE_POINT(9,							\
-	       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); __T_T(a4, v4); \
-		 __T_T(a5, v5); __T_T(a6, v6); __T_T(a7, v7); __T_T(a8, v8); },	\
-	       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), __T_O(v5), __T_O(v6), \
-				       __T_O(v7), __T_O(v8) }),		\
-	       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), __T_S(a5), __T_S(a6), \
-				       __T_S(a7), __T_S(a8) }),		\
-	       fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)
+       { __T_T(a0, v0); __T_T(a1, v1); __T_T(a2, v2); __T_T(a3, v3); \
+	 __T_T(a4, v4); __T_T(a5, v5); __T_T(a6, v6); __T_T(a7, v7); \
+	 __T_T(a8, v8); },	\
+       __T_P({ __T_O(v0), __T_O(v1), __T_O(v2), __T_O(v3), __T_O(v4), \
+	       __T_O(v5), __T_O(v6), __T_O(v7), __T_O(v8) }),	\
+       __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), \
+	       __T_S(a5), __T_S(a6), __T_S(a7), __T_S(a8) }),	\
+       fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)
 
-int  c2_trace_init(void);
-void c2_trace_fini(void);
+/**
+   Helpers for C2_LOG() to calc N of args and transform it into
+   correspondent C2_LOGx()
+ */
+#define CAT(A, B) CAT2(A, B)
+#define CAT2(A, B) A ## B
+#define N_ARGS(...) \
+	N_ARGS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)
+#define N_ARGS2(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_, ...) _
 
 /** @} end of trace group */
 
