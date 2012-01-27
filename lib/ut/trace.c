@@ -57,6 +57,11 @@ void test_trace(void)
 		c2_thread_fini(&t[i]);
 	}
 	C2_LOG2("X: %i and Y: %i", 43, result + 1);
+	C2_LOG4("%llx char: %c %llx string: %s",
+		0x1234567887654321ULL,
+		'c',
+		0xfefefefefefefefeULL,
+		(char *)"foobar");
 }
 
 enum {
