@@ -273,7 +273,7 @@ const struct c2_addb_ev_ops C2_ADDB_TRACE = {
 	.aeo_getsize = c2_addb_trace_getsize,
 	.aeo_size    = sizeof(char *),
 	.aeo_name    = "trace",
-	.aeo_level   = AEL_TRACE
+	.aeo_level   = AEL_WARN
 };
 C2_EXPORTED(C2_ADDB_TRACE);
 

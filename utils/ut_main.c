@@ -56,6 +56,7 @@ extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite cfm_ut;
 extern const struct c2_test_suite yaml2db_ut;
 extern const struct c2_test_suite buffer_pool_ut;
+extern const struct c2_test_suite addb_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
 		/* sort test suites in alphabetic order */
 	        c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
+		c2_ut_add(&addb_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&buffer_pool_ut);
 		c2_ut_add(&bulkio_ut);

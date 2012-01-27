@@ -383,7 +383,8 @@ typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp,
 
 /** Report this event when a trace message has to be put into addb */
 extern struct c2_addb_ev c2_addb_trace;
-typedef int __c2_addb_trace_typecheck_t(struct c2_addb_dp *dp);
+typedef int __c2_addb_trace_typecheck_t(struct c2_addb_dp *dp,
+					const char *name);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */
