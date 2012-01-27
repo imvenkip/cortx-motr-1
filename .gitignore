@@ -71,3 +71,5 @@ gmon.out
 doxygen_*tmp
 cscope.out
 tags
+TAGS*
+*_[uk].*

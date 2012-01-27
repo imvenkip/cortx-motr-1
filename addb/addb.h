@@ -195,7 +195,7 @@ struct c2_addb_ev_ops {
 /**
    Global wide Event ID.
 
-   To aviod event ID conflict, all event ID should be defined here.
+   To avoid event ID conflict, all event ID should be defined here.
 */
 enum c2_addb_event_id {
 	C2_ADDB_EVENT_USUNRPC_REQ           = 0x1ULL,
@@ -207,6 +207,8 @@ enum c2_addb_event_id {
 
 	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
 	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
+
+	C2_ADDB_EVENT_TRACE		    = 0x30ULL
 };
 
 /**
@@ -356,9 +358,9 @@ __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
 
 /** A call to an external system component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
-/** A call to an given function failed. */
+/** A call to a given function failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_FUNC_CALL, const char *fname, int rc);
-/** A call to an C2 component failed. */
+/** A call to a C2 component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_CALL, int rc);
 /** An invalid value was supplied. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_INVAL, uint64_t val);
@@ -366,6 +368,8 @@ C2_ADDB_OPS_DEFINE(C2_ADDB_INVAL, uint64_t val);
 C2_ADDB_OPS_DEFINE(C2_ADDB_STAMP);
 /** Record a Boolean condition. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
+/** Record a trace event. */
+C2_ADDB_OPS_DEFINE(C2_ADDB_TRACE, const char *message);
 
 /** Report this event when memory allocation fails. */
 extern struct c2_addb_ev c2_addb_oom;
@@ -376,6 +380,10 @@ typedef int __c2_addb_oom_typecheck_t(struct c2_addb_dp *dp);
 extern struct c2_addb_ev c2_addb_func_fail;
 typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp,
 					    const char *name, int rc);
+
+/** Report this event when a trace message has to be put into addb */
+extern struct c2_addb_ev c2_addb_trace;
+typedef int __c2_addb_trace_typecheck_t(struct c2_addb_dp *dp);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */
