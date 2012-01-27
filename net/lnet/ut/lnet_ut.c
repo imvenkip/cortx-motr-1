@@ -831,7 +831,7 @@ static void test_msg_body(struct ut_data *td)
 	c2_net_buffer_del(nb1, TM1);
 	ut_chan_timedwait(&td->tmwait1, 10);
 	c2_clink_del(&td->tmwait1);
- 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
 	C2_UT_ASSERT(cb_nb1 == nb1);
 	C2_UT_ASSERT(cb_status1 == -ECANCELED);
 	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, C2_NET_QT_MSG_RECV,
