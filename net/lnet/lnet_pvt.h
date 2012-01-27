@@ -26,8 +26,8 @@ extern const struct c2_addb_loc c2_net_lnet_addb_loc;
 
 #define LNET_ADDB_FUNCFAIL_ADD(ctx, rc)					\
  C2_ADDB_ADD(&(ctx), &c2_net_lnet_addb_loc, c2_addb_func_fail, __func__, (rc))
-#define LNET_ADDB_STAT_ADD(ctx, name, rc)				\
- C2_ADDB_ADD(&(ctx), &c2_net_lnet_addb_loc, c2_addb_func_fail, (name), (rc))
+#define LNET_ADDB_STAT_ADD(ctx, name, cnt)				\
+ C2_ADDB_ADD(&(ctx), &c2_net_lnet_addb_loc, c2_addb_func_fail, (name), (cnt))
 
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm);

@@ -378,7 +378,7 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 	rc = c2_bitmap_init(&tp->xtm_processors, processors->b_nr);
 	if (rc == 0)
 		c2_bitmap_copy(&tp->xtm_processors, processors);
-	if (rc != 0)
+	else
 		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	return rc;
 }
