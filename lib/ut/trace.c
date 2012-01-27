@@ -36,10 +36,10 @@ void test_trace(void)
 	int result;
 	struct c2_thread t[NR];
 
-	C2_TRACE_POINT({ uint32_t a; }, 42);
-	C2_TRACE_POINT({ uint32_t b; }, 43);
+	C2_LOG1("forty two: %i", 42);
+	C2_LOG1("forty three: %i", 43);
 	for (i = 0; i < NR_INNER; ++i)
-		C2_TRACE_POINT({ uint32_t c; uint64_t d; }, i, i*i);
+		C2_LOG2("c: %i, d: %i", i, i*i);
 
 	C2_SET_ARR0(t);
 	for (i = 0; i < NR; ++i) {
@@ -48,8 +48,7 @@ void test_trace(void)
 			int j;
 
 			for (j = 0; j < NR_INNER; ++j)
-				C2_TRACE_POINT({ uint32_t c; uint64_t d; },
-					       d, d * j);
+				C2_LOG2("d: %i, d*j: %i", d, d * j);
 						}), i, "test_trace_%i", i);
 		C2_ASSERT(result == 0);
 	}
@@ -57,6 +56,7 @@ void test_trace(void)
 		c2_thread_join(&t[i]);
 		c2_thread_fini(&t[i]);
 	}
+	C2_LOG2("X: %i and Y: %i", 43, result + 1);
 }
 
 enum {
@@ -65,24 +65,18 @@ enum {
 
 static void ub_empty(int i)
 {
-	C2_TRACE_POINT({},);
+	C2_LOG0("msg");
 }
 
 static void ub_8(int i)
 {
-	C2_TRACE_POINT({ uint64_t x; }, i);
+	C2_LOG1("%i", i);
 }
 
 static void ub_64(int i)
 {
-	C2_TRACE_POINT({ uint64_t x0;
-			uint64_t x1;
-			uint64_t x2;
-			uint64_t x3;
-			uint64_t x4;
-			uint64_t x5;
-			uint64_t x6;
-			uint64_t x7; }, i, i + 1, i + 2, i + 3, i + 4, i + 5,
+	C2_LOG8("%i %i %i %i %i %i %i %i",
+		i, i + 1, i + 2, i + 3, i + 4, i + 5,
 		i + 6, i + 7);
 }
 

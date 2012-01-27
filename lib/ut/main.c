@@ -45,7 +45,7 @@ const struct c2_test_suite libc2_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "atomic",    test_atomic    },
+/*		{ "atomic",    test_atomic    },
 		{ "bitmap",    test_bitmap    },
 		{ "chan",      test_chan      },
 		{ "getopts",   test_getopts   },
@@ -59,7 +59,7 @@ const struct c2_test_suite libc2_ut = {
 		{ "thread",    test_thread    },
 		{ "time",      test_time      },
 		{ "timer",     test_timer     },
-		{ "tlist",     test_tlist     },
+		{ "tlist",     test_tlist     }, */
 		{ "trace",     test_trace     },
 		{ "vec",       test_vec       },
 		{ "zerovec",   test_zerovec   },
