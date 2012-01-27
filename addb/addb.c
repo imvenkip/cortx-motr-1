@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -165,6 +165,14 @@ static int subst_void(struct c2_addb_dp *dp)
 	return 0;
 }
 
+static int subst_name_uint64_t(struct c2_addb_dp *dp, const char *name,
+			       uint64_t val)
+{
+	dp->ad_name = name;
+	dp->ad_rc = val;
+	return 0;
+}
+
 static int subst_uint64_t(struct c2_addb_dp *dp, uint64_t val)
 {
 	dp->ad_name = "";
@@ -189,6 +197,10 @@ extern int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 extern int c2_addb_call_getsize(struct c2_addb_dp *dp);
 extern int c2_addb_call_pack(struct c2_addb_dp *dp,
 			     struct c2_addb_record *rec);
+
+extern int c2_addb_statistic_getsize(struct c2_addb_dp *dp);
+extern int c2_addb_statistic_pack(struct c2_addb_dp *dp,
+				  struct c2_addb_record *rec);
 
 extern int c2_addb_flag_getsize(struct c2_addb_dp *dp);
 extern int c2_addb_flag_pack(struct c2_addb_dp *dp,
@@ -222,6 +234,16 @@ const struct c2_addb_ev_ops C2_ADDB_CALL = {
 	.aeo_level   = AEL_NOTE
 };
 C2_EXPORTED(C2_ADDB_CALL);
+
+const struct c2_addb_ev_ops C2_ADDB_STATISTIC = {
+	.aeo_subst   = (c2_addb_ev_subst_t)subst_name_uint64_t,
+	.aeo_pack    = c2_addb_statistic_pack,
+	.aeo_getsize = c2_addb_statistic_getsize,
+	.aeo_size    = sizeof(uint64_t) + sizeof(char *),
+	.aeo_name    = "statistic",
+	.aeo_level   = AEL_INFO
+};
+C2_EXPORTED(C2_ADDB_STATISTIC);
 
 const struct c2_addb_ev_ops C2_ADDB_STAMP = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
@@ -268,6 +290,13 @@ struct c2_addb_ev c2_addb_func_fail = {
 	.ae_ops  = &C2_ADDB_FUNC_CALL
 };
 C2_EXPORTED(c2_addb_func_fail);
+
+struct c2_addb_ev c2_addb_statistic = {
+	.ae_name = "stat",
+	.ae_id   = 0x5,
+	.ae_ops  = &C2_ADDB_STATISTIC
+};
+C2_EXPORTED(c2_addb_statistic);
 
 static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
 	.act_name = "global"

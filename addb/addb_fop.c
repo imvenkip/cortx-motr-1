@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -77,6 +77,16 @@ struct c2_addb_func_fail_body {
 */
 struct c2_addb_call_body {
 	uint32_t rc;
+};
+
+/**
+   ADDB record body for run-time statistic event.
+
+   This event includes a name and a value.
+*/
+struct c2_addb_statistic_body {
+	uint64_t val;
+	char     name[0];
 };
 
 /**
@@ -181,6 +191,12 @@ int c2_addb_call_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(uint32_t), 8);
 }
+
+int c2_addb_statistic_getsize(struct c2_addb_dp *dp)
+{
+	return c2_align(sizeof(uint64_t) + strlen(dp->ad_name) + 1, 8);
+}
+
 int c2_addb_flag_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(bool), 8);
@@ -233,6 +249,27 @@ int c2_addb_call_pack(struct c2_addb_dp *dp,
 
 		C2_ASSERT(body != NULL);
 		body->rc = (uint32_t)dp->ad_rc;
+	}
+	return rc;
+}
+
+/** packing statistic addb record */
+int c2_addb_statistic_pack(struct c2_addb_dp *dp,
+			   struct c2_addb_record *rec)
+{
+	struct c2_addb_record_header  *header = &rec->ar_header;
+	struct c2_addb_statistic_body *body;
+	int rc;
+
+	C2_ASSERT(c2_addb_statistic_getsize(dp) == rec->ar_data.cmb_count);
+
+	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+		body = (struct c2_addb_statistic_body *)rec->ar_data.cmb_value;
+
+		C2_ASSERT(body != NULL);
+		body->val = (uint64_t)dp->ad_rc;
+		strcpy(body->name, dp->ad_name);
 	}
 	return rc;
 }

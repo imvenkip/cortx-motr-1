@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -25,7 +25,7 @@
 
 /*
    XXX
-   all interfaces here are only for building the pseudu
+   all interfaces here are only for building the pseudo
    addb library, which is used to build fop/fop2c, which is used
    to build full addb library
 */
@@ -42,6 +42,10 @@ int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 int c2_addb_call_getsize(struct c2_addb_dp *dp) { return 0; }
 int c2_addb_call_pack(struct c2_addb_dp *dp,
 		      struct c2_addb_record *rec) { return 0; }
+
+int c2_addb_statistic_getsize(struct c2_addb_dp *dp)  { return 8; }
+int c2_addb_statistic_pack(struct c2_addb_dp *dp,
+			   struct c2_addb_record *rec) { return 0; }
 
 int c2_addb_flag_getsize(struct c2_addb_dp *dp) { return 0; }
 int c2_addb_flag_pack(struct c2_addb_dp *dp,
