@@ -908,6 +908,48 @@ static void test_msg_body(struct ut_data *td)
 	zUT(c2_net_end_point_put(ep2), aborted);
 	ep2 = NULL;
 
+	/* TEST
+	   Send a message to a non-existent TM address.
+	*/
+	NLXDBGPnl(td,1,"TEST: send to non-existent TM - no error expected\n");
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	c2_net_lnet_tm_set_debug(TM2, 0);
+
+	{       /* create a destination end point */
+		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+		sprintf(epstr, "%s:%d:%d:1024",
+			td->nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
+		zUT(c2_net_end_point_create(&ep2, TM2, epstr), aborted);
+	}
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
+
+	ut_cbreset();
+
+	nb2->nb_qtype = C2_NET_QT_MSG_SEND;
+	nb2->nb_length = UT_MSG_SIZE;
+	nb2->nb_ep = ep2;
+	NLXDBGPnl(td,2,"Sending %lu bytes to %s from %s\n",
+		  (unsigned long) UT_MSG_SIZE, ep2->nep_addr,
+		  TM2->ntm_ep->nep_addr);
+	zUT(c2_net_buffer_add(nb2, TM2), aborted);
+
+	c2_chan_wait(&td->tmwait2);
+	C2_UT_ASSERT(cb_called2 == 1);
+	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_MSG_SEND);
+	C2_UT_ASSERT(cb_nb2 == nb2);
+	C2_UT_ASSERT(!(cb_nb2->nb_flags & C2_NET_BUF_QUEUED));
+	C2_UT_ASSERT(cb_status2 == 0); /* send doesn't see the error */
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM2, C2_NET_QT_MSG_SEND,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
+	zUT(c2_net_end_point_put(ep2), aborted);
+	ep2 = NULL;
+
  aborted:
 	c2_clink_del(&td->tmwait2);
  done:
