@@ -41,7 +41,7 @@ void c2_layout_list_enum_init(struct c2_layout_list_enum *list_enum,
 	c2_layout_enum_init(&list_enum->lle_base, l, lt, ops);
 
 	/**
-	   Intialize list_enum->lle_list_of_cobs by using list_of_cobs.
+	   Initialize list_enum->lle_list_of_cobs by using list_of_cobs.
 	   @todo Yet, need to explore this in detail.
 	 */
 }
@@ -50,7 +50,7 @@ void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum)
 {
 
 	/**
-	   De-intialize list_enum->lle_list_of_cob.
+	   De-initialize list_enum->lle_list_of_cob.
 	   @todo Yet, need to explore this in detail.
 	 */
 }
