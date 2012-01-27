@@ -871,7 +871,7 @@ static void test_msg_body(struct ut_data *td)
 	/* TEST
 	   Send a message when there is no receive buffer
 	*/
-	NLXDBGPnl(td,1,"TEST: send with no receive buffer\n");
+	NLXDBGPnl(td,1,"TEST: send with no receive buffer - no error expected\n");
 
 	c2_net_lnet_tm_set_debug(TM1, 0);
 	c2_net_lnet_tm_set_debug(TM2, 0);
@@ -896,11 +896,11 @@ static void test_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_MSG_SEND);
 	C2_UT_ASSERT(cb_nb2 == nb2);
 	C2_UT_ASSERT(!(cb_nb2->nb_flags & C2_NET_BUF_QUEUED));
-	C2_UT_ASSERT(cb_status2 != 0);
+	C2_UT_ASSERT(cb_status2 != 1); /* send doesn't see the error */
 	C2_UT_ASSERT(!c2_net_tm_stats_get(TM2, C2_NET_QT_MSG_SEND,
-					  &td->qs, false));
-	C2_UT_ASSERT(td->qs.nqs_num_f_events == 1);
-	C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
 	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
 

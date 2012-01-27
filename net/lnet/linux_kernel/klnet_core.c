@@ -485,7 +485,8 @@
    -# When the message is sent, an @c LNET_EVENT_SEND event will be delivered
       to the event queue, and processed as described in
       @ref KLNetCoreDLD-lspec-ev.
-
+      @note The event does not indicate if the recepient was able to save the
+      data, but merely that it left the host.
 
    @subsection KLNetCoreDLD-lspec-passive LNet Staging Passive Bulk Buffers
 
@@ -551,6 +552,8 @@
       LNET_EVENT_SEND event will be delivered to the event queue and should be
       ignored in the case of @c LNetGet().  See @ref KLNetCoreDLD-lspec-ev
       for details.
+      @note In the case of an @c LNetPut(), the event does not indicate if the
+      recepient was able to save the data, but merely that it left the host.
    -# When the bulk data transfer for @c LNetGet() completes, an
       @c LNET_EVENT_REPLY event will be delivered to the event queue, and will
       be processed as described in @ref KLNetCoreDLD-lspec-ev.

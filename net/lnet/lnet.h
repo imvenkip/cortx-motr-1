@@ -57,6 +57,15 @@
    The external interfaces of the LNet transport are obtained by
    including the file @ref net/lnet/lnet.h.
 
+   Note that LNet does not provide any guarantees to a sender of data that the
+   data was actually received by its intended recepient.  In LNet semantics, a
+   successful buffer completion callback for C2_NET_QT_MSG_SEND and
+   C2_NET_QT_ACTIVE_BULK_SEND only indicates that the data was successfully
+   transmitted from the buffer and that the buffer can be reused.  It does not
+   provide any indication if recepient was able to store the data or not.  This
+   makes it very important for an application to keep the unsolicited receive
+   message queue (C2_NET_QT_MSG_RECV) populated at all times.
+
    @see @ref LNetDLD "LNet Transport DLD"
 
    @{
