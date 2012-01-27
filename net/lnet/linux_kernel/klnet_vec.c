@@ -128,8 +128,7 @@ int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 	}
 
 	/* allocate and fill in the kiov */
-	C2_ALLOC_ARR_ADDB(kb->kb_kiov, num_pages,
-			  &kb->kb_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_ARR_ADDB(kb->kb_kiov, num_pages, &kb->kb_addb, &nlx_addb_loc);
 	if (kb->kb_kiov == NULL) {
 		rc = -ENOMEM;
 		goto fail;

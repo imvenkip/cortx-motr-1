@@ -22,12 +22,10 @@
 #ifndef __COLIBRI_NET_LNET_PVT_H__
 #define __COLIBRI_NET_LNET_PVT_H__
 
-extern const struct c2_addb_loc c2_net_lnet_addb_loc;
-
 #define LNET_ADDB_FUNCFAIL_ADD(ctx, rc)					\
- C2_ADDB_ADD(&(ctx), &c2_net_lnet_addb_loc, c2_addb_func_fail, __func__, (rc))
+ C2_ADDB_ADD(&(ctx), &nlx_addb_loc, nlx_func_fail, __func__, (rc))
 #define LNET_ADDB_STAT_ADD(ctx, name, cnt)				\
- C2_ADDB_ADD(&(ctx), &c2_net_lnet_addb_loc, c2_addb_func_fail, (name), (cnt))
+ C2_ADDB_ADD(&(ctx), &nlx_addb_loc, nlx_statistic, (name), (cnt))
 
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm);

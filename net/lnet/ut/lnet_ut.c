@@ -97,9 +97,11 @@ static int lnet_stat_ev_count;
 int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 		struct c2_table *db)
 {
-	if (dp->ad_name != NULL &&
-	    strncmp(dp->ad_name, "nlx_tm_stats:", 13) == 0)
+	if (dp->ad_ev == &nlx_statistic) {
+		C2_UT_ASSERT(dp->ad_name != NULL);
+		C2_UT_ASSERT(strncmp(dp->ad_name, "nlx_tm_stats:", 13) == 0);
 		lnet_stat_ev_count++;
+	}
 	return 0;
 }
 
@@ -108,6 +110,7 @@ enum {
 	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
 	STARTSTOP_PORTAL = 30,
 	STARTSTOP_STAT_SECS = 5,
+	STARTSTOP_STAT_PER_PERIOD = 42,
 };
 #ifdef __KERNEL__
 /* LUSTRE_SRV_LNET_PID macro is not available in user space */
@@ -128,7 +131,6 @@ static void test_tm_startstop(void)
 	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
 	c2_time_t sleeptime;
-	int save_stat_ev_count;
 	int rc;
 	int i;
 
@@ -181,8 +183,7 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(lnet_stat_ev_count == 0);
 	c2_time_set(&sleeptime, 2 * STARTSTOP_STAT_SECS, 0);
 	C2_UT_ASSERT(c2_nanosleep(sleeptime, NULL) == 0);
-	C2_UT_ASSERT(lnet_stat_ev_count > 0);
-	save_stat_ev_count = lnet_stat_ev_count;
+	C2_UT_ASSERT(lnet_stat_ev_count == STARTSTOP_STAT_PER_PERIOD);
 	ecb_reset();
 	c2_clink_add(&tm->ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));
@@ -193,7 +194,7 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STOPPED);
 	C2_UT_ASSERT(ecb_status == 0);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);
-	C2_UT_ASSERT(lnet_stat_ev_count > save_stat_ev_count);
+	C2_UT_ASSERT(lnet_stat_ev_count == 2 * STARTSTOP_STAT_PER_PERIOD);
 	c2_net_tm_fini(tm);
 	c2_net_domain_fini(dom);
 	c2_free(tm);

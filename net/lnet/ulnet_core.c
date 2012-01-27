@@ -195,10 +195,10 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	struct nlx_core_buffer_event *e2;
 
 	/* XXX: temp, really belongs in async and/or kernel code */
-	C2_ALLOC_PTR_ADDB(e1, &tm->ntm_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_PTR_ADDB(e1, &tm->ntm_addb, &nlx_addb_loc);
 	e1->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e1->cbe_tm_link;
 	bev_link_bless(&e1->cbe_tm_link);
-	C2_ALLOC_PTR_ADDB(e2, &tm->ntm_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_PTR_ADDB(e2, &tm->ntm_addb, &nlx_addb_loc);
 	e2->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e2->cbe_tm_link;
 	bev_link_bless(&e2->cbe_tm_link);
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);

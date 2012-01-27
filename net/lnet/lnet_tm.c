@@ -34,10 +34,8 @@ static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
 }
 
 /**
-   Logs statistical data periodically using ADDB.
+   Logs periodic statistical data using ADDB.
    @param tm the transfer machine to report about
-   @todo addb lacks a mechanism for statistics reporting, use of
-   LNET_ADDB_STAT_ADD is temporary.
  */
 static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
 {

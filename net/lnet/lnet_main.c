@@ -767,6 +767,24 @@
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
 
+/**
+   @addtogroup LNetDFS
+   @{
+ */
+
+static const struct c2_addb_loc nlx_addb_loc = {
+	.al_name = "net-lnet"
+};
+
+static C2_ADDB_EV_DEFINE(nlx_func_fail, "nlx_func_fail",
+			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+static C2_ADDB_EV_DEFINE(nlx_statistic, "nlx_stat",
+			 C2_ADDB_EVENT_STATISTIC, C2_ADDB_STATISTIC);
+
+/**
+   @}
+ */
+
 /*
   To reduce global symbols, yet make the code readable, we
   include other .c files with static symbols into this file.
@@ -790,10 +808,6 @@
    @addtogroup LNetDFS
    @{
  */
-
-const struct c2_addb_loc c2_net_lnet_addb_loc = {
-	.al_name = "net-lnet"
-};
 
 int c2_net_lnet_init(void)
 {
