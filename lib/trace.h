@@ -100,7 +100,7 @@ int   c2_trace_parse(void);
 		.td_offset = _offset,					\
 		.td_sizeof = _sizeof					\
 	};								\
-	printf_check(FMT , ## __VA_ARGS__);					\
+	printf_check(FMT , ## __VA_ARGS__);				\
 	*(struct t_body *)c2_trace_allot(&td) = 			\
                                 (const struct t_body){ __VA_ARGS__ };	\
 })
