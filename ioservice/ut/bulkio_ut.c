@@ -52,10 +52,10 @@
 #include "ioservice/io_foms.c"
 enum IO_UT_VALUES {
 	IO_KERN_PAGES		= 1,
-	IO_FIDS_NR		= 4,
-	IO_SEGS_NR		= 128,
+	IO_FIDS_NR		= 16,
+	IO_SEGS_NR		= 16,
 	IO_SEQ_LEN		= 8,
-	IO_FOPS_NR		= 32,
+	IO_FOPS_NR		= 16,
 	IO_SEG_SIZE		= 4096,
 	IO_RPC_ITEM_TIMEOUT	= 300,
 	IO_SEG_START_OFFSET	= IO_SEG_SIZE,
@@ -212,7 +212,6 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 	struct c2_io_fom_cob_rw   *fom_obj = NULL;
 	int rc;
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
-
 	switch(fom->fo_phase) {
 		case FOPH_IO_FOM_BUFFER_ACQUIRE :
 			rc = c2_io_fom_cob_rw_state(fom);
@@ -350,7 +349,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	C2_UT_ASSERT(rbulk != NULL);
 	c2_rpc_bulk_init(rbulk);
 	C2_UT_ASSERT(rw->crw_desc.id_nr != 0);
-
 	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i)
 		for (j = 0; j < rw->crw_ivecs.cis_ivecs[i].ci_nr; ++j)
 			C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs[i].ci_iosegs[j].
@@ -617,7 +615,7 @@ static void io_fop_populate(int index, uint64_t off_index,
 	C2_UT_ASSERT(rbuf != NULL);
 
 	rw = io_rw_get(&iofop->if_fop);
-	rw->crw_fid = io_fids[index];
+	rw->crw_fid = io_fids[off_index];
 
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < IO_SEGS_NR; ++i) {
@@ -922,7 +920,7 @@ void bulkio_server_multiple_read_write(void)
 		}
 	}
 	for (op = C2_IOSERVICE_WRITEV_OPCODE; op >= C2_IOSERVICE_READV_OPCODE;
-	  ++op) {
+	  --op) {
 		/*
 		 * IO fops are deallocated by an rpc item type op on receiving
 		 * the reply fop. See io_item_free().
@@ -978,8 +976,8 @@ const struct c2_test_suite bulkio_ut = {
 		{ "bulkio_stob_create           ", bulkio_stobe_create},
 		{ "bulkio_single_read_write     ", bulkio_server_single_read_write},
 		{ "bulkio_read_write_state_test ", bulkio_server_read_write_state_test},
-		{ "bulkio_multiple_read_write   ", bulkio_server_multiple_read_write},
 		{ "bulkio_client                ", bulkio_test_client},
+		{ "bulkio_multiple_read_write   ", bulkio_server_multiple_read_write},
 		{ "bulkio_fini                  ", bulkio_test_fini},
 		{ NULL, NULL }
 	}

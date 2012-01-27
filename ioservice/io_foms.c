@@ -1386,27 +1386,10 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                    io. Due to existing limitations of kxdr wrapper over sunrpc,
                    read reply fop can not contain a vector, only a segment.
                    Ideally, all IO fops should carry an IO vector. */
-                if (c2_is_write_fop(fop)) {
-                        /* Make an FOL transaction record. */
-                        rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
-                                                &fom->fo_tx.tx_dbtx);
-                        if (rc != 0) {
-                                /*
-                                 * Since this stob io not added into list
-                                 * yet, free it here.
-                                 */
-                                C2_ADDB_ADD(&fom->fo_fop->f_addb,
-                                            &io_fom_addb_loc, c2_addb_func_fail,
-                                            "io_fom_cob_rw_io_launch", rc);
-                                c2_stob_io_fini(stio);
-                                c2_free(stio_desc);
-                                break;
-                        }
-
+                if (c2_is_write_fop(fop))
                         stio->si_opcode = SIO_WRITE;
-                } else {
+                else
                         stio->si_opcode = SIO_READ;
-                }
 
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
                 rc = io_fom_cob_rw_align_bufvec(fom, &stio->si_user,
@@ -1590,6 +1573,8 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
                         break;
                 case FOPH_IO_STOB_INIT:
                         rc = io_fom_cob_rw_io_launch(fom);
+			/* @todo Need to be removed */
+			c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
                         break;
                 case FOPH_IO_STOB_WAIT:
                         rc = io_fom_cob_rw_io_finish(fom);
@@ -1620,6 +1605,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
                         break;
                 case FOPH_IO_STOB_INIT:
                         rc = io_fom_cob_rw_io_launch(fom);
+			c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
                         break;
                 case FOPH_IO_STOB_WAIT:
                         rc = io_fom_cob_rw_io_finish(fom);
@@ -1636,7 +1622,18 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
         /* Set operation status in reply fop if FOM ends.*/
         if (fom->fo_phase == FOPH_SUCCESS || fom->fo_phase == FOPH_FAILURE) {
-                struct c2_fop_cob_rw_reply        *rwrep;
+                struct c2_fop_cob_rw_reply *rwrep;
+		int                         result;
+		struct c2_reqh             *reqh;
+
+		reqh = fom->fo_loc->fl_dom->fd_reqh;
+		/* @todo Need to be removed */
+		c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);                                                                                                                                      
+                /* Make an FOL transaction record. */
+                result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+                                           &fom->fo_tx.tx_dbtx);
+                C2_ASSERT(result == 0);
+
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
                 rwrep->rwr_rc = fom->fo_rc;
                 rwrep->rwr_count = fom_obj->fcrw_bytes_transfered;
