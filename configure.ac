@@ -246,8 +246,6 @@ AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
 
-XY_CHECK_CUNIT
-
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 
@@ -391,45 +389,56 @@ else
 	fi
 fi
 
+#
+# Helper function to build external library.
+#
+# Input parameters:
+#     1st -- library name
+#     2nd -- directory with library sources
+#     3rd -- path to compiled library binary
+#     4th -- (optional) options for configure script
+#
+build_lib()
+{
+	NAME=$1
+	SRC=$2
+	LIBS=$3
+	CFGOPTS=$4
+	if ! test -e $LIBS; then
+		AC_MSG_RESULT([building $SRC])
+		oldcwd=$(pwd)
+		cd $SRC && ./configure $CFGOPTS && make
+		res=$?
+		cd $oldcwd
+		if ! test $res -eq 0 ; then
+			AC_MSG_ERROR([An error occured while building lib$NAME!])
+		fi
+		if ! test -e $LIBS; then
+			AC_MSG_ERROR([$LIBS not found! Build failed?])
+		fi
+	else
+		AC_MSG_RESULT([$LIBS])
+	fi
+}
+
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
 GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-if ! test -e $GALOIS_LIBS; then
-        AC_MSG_RESULT([building $GALOIS_SRC])
-	oldcwd=$(pwd)
-	cd $GALOIS_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-	if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libgalois!])
-        fi
-	if ! test -e $GALOIS_LIBS; then
-                AC_MSG_ERROR([$GALOIS_LIBS not found! Build failed?])
-        fi
-else
-	AC_MSG_RESULT([$GALOIS_LIBS])
-fi
+build_lib galois $GALOIS_SRC $GALOIS_LIBS
 
 # Check for yaml
 YAML_SRC=$SRCDIR/../yaml
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
-if ! test -e $YAML_LIBS; then
-        AC_MSG_RESULT([building $YAML_SRC])
-        oldcwd=$(pwd)
-        cd $YAML_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-        if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libyaml!])
-        fi
-        if ! test -e $YAML_LIBS; then
-                AC_MSG_ERROR([$YAML_LIBS not found! Build failed?])
-        fi
-else
-        AC_MSG_RESULT([$YAML_LIBS])
-fi
+build_lib yaml $YAML_SRC $YAML_LIBS
+
+# Check for CUnit
+CUNIT_SRC=$SRCDIR/../cunit
+CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/.libs/libcunit.la"
+CUNIT_HEADERS="$CUNIT_SRC/CUnit/Headers"
+AC_MSG_CHECKING([for cunit libs])
+build_lib cunit $CUNIT_SRC $CUNIT_LIBS '--with-pic --enable-curses'
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
@@ -451,6 +460,7 @@ AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
+AC_SUBST([CUNIT_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
@@ -508,11 +518,13 @@ AC_COMPILE_IFELSE([COLIBRI_LANG_PROGRAM()],
 )]
 CFLAGS="$OLD_CFLAGS")
 
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
-KCFLAGS="-Wall -Werror $KCFLAGS"
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
+CFLAGS=`echo "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing" \
+             "-I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include" \
+             "-I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"`
+KCFLAGS="-Wall -Werror $KCFLAGS"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
@@ -618,8 +630,9 @@ echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
 echo "Galois :  \"$GALOIS_SRC\""
-echo "YAML :  \"$YAML_SRC\""
+echo "YAML   :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
+echo "CUnit  :  \"$CUNIT_SRC\""
 echo "Linux  :  \"$LINUX\""
 echo ""
 

@@ -22,7 +22,7 @@
 #define __COLIBRI_UTILS_COMMON_H__
 
 int  unit_start(const char *sandbox);
-void unit_end  (const char *sandbox);
+void unit_end(const char *sandbox, bool keep_sandbox);
 
 /* __COLIBRI_UTILS_COMMON_H__ */
 #endif

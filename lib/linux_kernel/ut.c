@@ -107,11 +107,8 @@ static void uts_summary(void)
 	       c2_time_seconds(diff), msec);
 }
 
-void c2_ut_run(const char *log_file)
+void c2_ut_run(void)
 {
-	/* maybe in the future we can use log_file as a /proc
-	   file or something. For now it is ignored.
-	*/
 	struct test_suite_elem *ts;
 	struct c2_list_link    *pos;
 	const struct c2_test   *t;

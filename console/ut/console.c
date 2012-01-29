@@ -40,6 +40,7 @@
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
 #include "lib/misc.h"		  /* C2_SET0 */
+#include "ut/ioredirect.h"        /* redirect_std_stream, restore_std_stream */
 
 #include "console/console.h"
 #include "console/console_u.h"
@@ -71,6 +72,9 @@ FILE *err_fp;
 int in_fd;
 int out_fd;
 int err_fd;
+fpos_t in_pos;
+fpos_t out_pos;
+fpos_t err_pos;
 
 static int cons_init(void)
 {
@@ -94,56 +98,18 @@ static int cons_fini(void)
 
 static void file_redirect_init(void)
 {
-	/* save fd of stdin */
-	in_fd = dup(fileno(stdin));
-	C2_UT_ASSERT(in_fd != -1);
-
-	/* redirect stdout */
-	in_fp = freopen(in_file, "a+", stdin);
-	C2_UT_ASSERT(in_fp != NULL);
-
-	/* save fd of stdout */
-	out_fd = dup(fileno(stdout));
-	C2_UT_ASSERT(out_fd != -1);
-
-	/* redirect stdout */
-	out_fp = freopen(out_file, "a+", stdout);
-	C2_UT_ASSERT(out_fp != NULL);
-
-	/* save fd of stderr */
-	err_fd = dup(fileno(stderr));
-	C2_UT_ASSERT(err_fd != -1);
-
-	/* redirect stderr */
-	err_fp = freopen(err_file, "a+", stderr);
-	C2_UT_ASSERT(err_fp != NULL);
+	redirect_std_stream(stdin, in_file, &in_fd, &in_pos, &in_fp);
+	redirect_std_stream(stdout, out_file, &out_fd, &out_pos, &out_fp);
+	redirect_std_stream(stderr, err_file, &err_fd, &err_pos, &err_fp);
 }
 
 static void file_redirect_fini(void)
 {
 	int result;
 
-	fclose(in_fp);
-	fclose(out_fp);
-	fclose(err_fp);
-
-	/* restore stdin */
-	in_fd = dup2(in_fd, 0);
-	C2_UT_ASSERT(in_fd != -1);
-	stdin = fdopen(in_fd, "a+");
-	C2_UT_ASSERT(stdin != NULL);
-
-	/* restore stdout */
-	out_fd = dup2(out_fd, 1);
-	C2_UT_ASSERT(out_fd != -1);
-	stdout = fdopen(out_fd, "a+");
-	C2_UT_ASSERT(stdout != NULL);
-
-	/* restore stderr */
-	err_fd = dup2(err_fd, 2);
-	C2_UT_ASSERT(err_fd != -1);
-	stderr = fdopen(err_fd, "a+");
-	C2_UT_ASSERT(stderr != NULL);
+	restore_std_stream(stdin, 0, in_fd, &in_pos);
+	restore_std_stream(stdout, 1, out_fd, &out_pos);
+	restore_std_stream(stderr, 2, err_fd, &err_pos);
 
 	result = remove(in_file);
 	C2_UT_ASSERT(result == 0);
