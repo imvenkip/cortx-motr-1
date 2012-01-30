@@ -81,7 +81,7 @@
    C2_LOG() counts the number of arguments and calls correspondent C2_LOGx().
  */
 #define C2_LOG(...) \
-	CAT(C2_LOG, N_ARGS(__VA_ARGS__))(__VA_ARGS__)
+	CAT(C2_LOG, COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 
 int  c2_trace_init(void);
 void c2_trace_fini(void);
@@ -111,10 +111,6 @@ struct c2_trace_descr {
 	const int  *td_offset;
 	const int  *td_sizeof;
 };
-
-__attribute__ ((format (printf, 1, 2))) static inline void
-printf_check(const char *fmt, ...)
-{}
 
 void *c2_trace_allot(const struct c2_trace_descr *td);
 
@@ -246,16 +242,6 @@ C2_TRACE_POINT(9,							\
        __T_P({ __T_S(a0), __T_S(a1), __T_S(a2), __T_S(a3), __T_S(a4), \
 	       __T_S(a5), __T_S(a6), __T_S(a7), __T_S(a8) }),	\
        fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)
-
-/**
-   Helpers for C2_LOG() to calc N of args and transform it into
-   correspondent C2_LOGx()
- */
-#define CAT(A, B) CAT2(A, B)
-#define CAT2(A, B) A ## B
-#define N_ARGS(...) \
-	N_ARGS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)
-#define N_ARGS2(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_, ...) _
 
 /** @} end of trace group */
 
