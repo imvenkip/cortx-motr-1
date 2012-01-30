@@ -110,7 +110,8 @@ enum {
 	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
 	STARTSTOP_PORTAL = 30,
 	STARTSTOP_STAT_SECS = 5,
-	STARTSTOP_STAT_PER_PERIOD = 42,
+	STARTSTOP_STAT_PER_PERIOD = 7,
+	STARTSTOP_STAT_BUF_NR = 4,
 };
 #ifdef __KERNEL__
 /* LUSTRE_SRV_LNET_PID macro is not available in user space */
@@ -121,6 +122,11 @@ static void test_tm_startstop(void)
 {
 	struct c2_net_domain *dom;
 	struct c2_net_transfer_mc *tm;
+	const struct c2_net_qstats fake_stats = {
+		.nqs_num_adds = STARTSTOP_STAT_BUF_NR,
+		.nqs_num_dels = STARTSTOP_STAT_BUF_NR,
+		.nqs_num_s_events = STARTSTOP_STAT_BUF_NR,
+	};
 	const struct c2_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = tf_tm_ecb,
 	};
@@ -181,7 +187,8 @@ static void test_tm_startstop(void)
 
 	/* also test periodic statistics */
 	C2_UT_ASSERT(lnet_stat_ev_count == 0);
-	c2_time_set(&sleeptime, 2 * STARTSTOP_STAT_SECS, 0);
+	tm->ntm_qstats[C2_NET_QT_MSG_RECV] = fake_stats;
+	c2_time_set(&sleeptime, STARTSTOP_STAT_SECS + 1, 0);
 	C2_UT_ASSERT(c2_nanosleep(sleeptime, NULL) == 0);
 	C2_UT_ASSERT(lnet_stat_ev_count == STARTSTOP_STAT_PER_PERIOD);
 	ecb_reset();

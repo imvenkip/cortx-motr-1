@@ -57,6 +57,8 @@ static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
 	C2_CASSERT(sizeof qs->nqs_time_in_queue == sizeof(uint64_t));
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		qs = &tm->ntm_qstats[i];
+		if (qs->nqs_num_adds == 0)
+			continue;
 		STAT_NAME("adds", i);
 		LNET_ADDB_STAT_ADD(tm->ntm_addb, name, qs->nqs_num_adds);
 		STAT_NAME("dels", i);
