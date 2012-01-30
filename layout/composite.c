@@ -116,12 +116,22 @@ static int composite_unregister(struct c2_ldb_schema *schema,
 }
 
 /**
- * Implementation of lto_recsize() for COMPOSITE layout type.
+ * Implementation of lto_max_recsize() for COMPOSITE layout type.
  */
-static uint32_t composite_recsize(struct c2_ldb_schema *schema)
+static uint32_t composite_max_recsize(struct c2_ldb_schema *schema)
 {
 	return 0;
 }
+
+/**
+ * Implementation of lto_recsize() for COMPOSITE layout type.
+ */
+static uint32_t composite_recsize(struct c2_ldb_schema *schema,
+				  struct c2_layout *l)
+{
+	return 0;
+}
+
 
 
 static const struct c2_layout_ops composite_ops;
@@ -221,11 +231,12 @@ static const struct c2_layout_ops composite_ops = {
 };
 
 static const struct c2_layout_type_ops composite_type_ops = {
-	.lto_register   = composite_register,
-	.lto_unregister = composite_unregister,
-	.lto_recsize    = composite_recsize,
-	.lto_decode     = composite_decode,
-	.lto_encode     = composite_encode,
+	.lto_register    = composite_register,
+	.lto_unregister  = composite_unregister,
+	.lto_max_recsize = composite_max_recsize,
+	.lto_recsize     = composite_recsize,
+	.lto_decode      = composite_decode,
+	.lto_encode      = composite_encode,
 };
 
 

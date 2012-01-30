@@ -473,9 +473,8 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 }
 C2_EXPORTED(c2_pdclust_unit_classify);
 
-
-/** Implementation of lto_recsize() for pdclust layout type. */
-static uint32_t pdclust_recsize(struct c2_ldb_schema *schema)
+/** Implementation of lto_max_recsize() for pdclust layout type. */
+static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)
 {
 	int        i;
 	uint32_t   e_recsize;
@@ -483,13 +482,36 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema)
 
 	/* Iterate over all the enum types to find maximum possible recsize. */
         for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
-                e_recsize = schema->ls_enum[i]->let_ops->leto_recsize();
+                e_recsize = schema->ls_enum[i]->let_ops->leto_max_recsize();
 		max_recsize = max32(max_recsize, e_recsize);
         }
 
 	return sizeof(struct c2_ldb_pdclust_rec) + max_recsize;
 }
 
+/** Implementation of lto_recsize() for pdclust layout type. */
+static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
+				struct c2_layout *l)
+{
+	uint32_t                      e_recsize;
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_striped     *stl;
+	struct c2_layout_enum_type   *et;
+
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+
+	if (!IS_IN_ARRAY(stl->ls_enum->le_type->let_id, schema->ls_enum))
+		return -EPROTO;
+
+	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
+	if (et == NULL)
+		return -ENOENT;
+
+	e_recsize = et->let_ops->leto_recsize(stl->ls_enum);
+
+	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize; 
+}
 
 static const struct c2_layout_ops pdclust_ops;
 
@@ -622,11 +644,12 @@ static const struct c2_layout_ops pdclust_ops = {
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
-	.lto_register   = NULL,
-	.lto_unregister = NULL,
-	.lto_recsize	= pdclust_recsize,
-	.lto_decode     = pdclust_decode,
-	.lto_encode     = pdclust_encode
+	.lto_register    = NULL,
+	.lto_unregister  = NULL,
+	.lto_max_recsize = pdclust_max_recsize,
+	.lto_recsize     = pdclust_recsize,
+	.lto_decode      = pdclust_decode,
+	.lto_encode      = pdclust_encode
 };
 
 const struct c2_layout_type c2_pdclust_layout_type = {

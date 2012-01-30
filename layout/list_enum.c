@@ -139,15 +139,35 @@ static int list_unregister(struct c2_ldb_schema *schema,
 }
 
 /**
- * Implementation of leto_recsize() for list enumeration type.
+ * Implementation of leto_max_recsize() for list enumeration type.
  *
- * Returns record size for the part of the layouts table record required to
- * store LIST enum details.
+ * Returns maximum record size for the part of the layouts table record,
+ * required to store LIST enum details.
  */
-static uint32_t list_recsize(void)
+static uint32_t list_max_recsize(void)
 {
 	return sizeof(struct ldb_inline_cob_entries);
 }
+
+/**
+ * Implementation of leto_recsize() for list enumeration type.
+ *
+ * Returns record size for the part of the layouts table record required to
+ * store LIST enum details, for the specified layout.
+ */
+static uint32_t list_recsize(struct c2_layout_enum *e)
+{
+	struct c2_layout_list_enum  *list_enum;
+
+	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+ 
+	if (list_enum->lle_nr >= MAX_INLINE_COB_ENTRIES)
+		return sizeof(struct ldb_inline_cob_entries);
+	else
+		/* @todo Calculate the size required */
+		return 0;
+}
+
 
 /**
  * Implementation of leto_decode() for list enumeration type.
@@ -301,6 +321,7 @@ static const struct c2_layout_enum_ops list_enum_ops = {
 static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_register       = list_register,
 	.leto_unregister     = list_unregister,
+	.leto_max_recsize    = list_max_recsize,
 	.leto_recsize        = list_recsize,
 	.leto_decode         = list_decode,
 	.leto_encode         = list_encode,

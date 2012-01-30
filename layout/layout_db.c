@@ -510,7 +510,7 @@ uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 	 */
 	/* @todo Check for (schema->ls_type[i] != NULL) */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
-		recsize = schema->ls_type[i]->lt_ops->lto_recsize(schema);
+		recsize = schema->ls_type[i]->lt_ops->lto_max_recsize(schema);
 		max_recsize = max32(max_recsize, recsize);
 	}
 
@@ -581,7 +581,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	recsize = lt->lt_ops->lto_recsize(schema);
+	recsize = lt->lt_ops->lto_recsize(schema, l);
 
 	ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair, recsize, tx);
 
@@ -617,7 +617,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	recsize = lt->lt_ops->lto_recsize(schema);
+	recsize = lt->lt_ops->lto_recsize(schema, l);
 
 	ldb_layout_write(schema, C2_LXO_DB_UPDATE, l->l_id, pair, recsize, tx);
 
@@ -653,7 +653,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	recsize = lt->lt_ops->lto_recsize(schema);
+	recsize = lt->lt_ops->lto_recsize(schema, l);
 
 	ldb_layout_write(schema, C2_LXO_DB_DELETE, l->l_id, pair, recsize, tx);
 

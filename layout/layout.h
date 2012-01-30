@@ -168,8 +168,15 @@ struct c2_layout_type_ops {
 	int        (*lto_unregister)(struct c2_ldb_schema *schema,
 				     const struct c2_layout_type *lt);
 
-	/** Returns applicable record size for the layouts table. */
-	uint32_t   (*lto_recsize)(struct c2_ldb_schema *schema);
+	/** Returns applicable max record size for the layouts table. */
+	uint32_t   (*lto_max_recsize)(struct c2_ldb_schema *schema);
+
+	/**
+	 * Returns applicable record size for the layouts table, for the
+	 * specified layout.
+	 */
+	uint32_t   (*lto_recsize)(struct c2_ldb_schema *schema,
+				  struct c2_layout *l);
 
 	/**
 	    Continues building the in-memory layout object either from the
@@ -247,8 +254,14 @@ struct c2_layout_enum_type_ops {
 	int        (*leto_unregister)(struct c2_ldb_schema *schema,
 				      const struct c2_layout_enum_type *et);
 
-	/** Returns applicable record size for the layouts table. */
-	uint32_t   (*leto_recsize)(void);
+	/** Returns applicable max record size for the layouts table. */
+	uint32_t   (*leto_max_recsize)(void);
+
+	/**
+	 * Returns applicable record size for the layouts table, for the
+	 * specified layout.
+	 */
+	uint32_t   (*leto_recsize)(struct c2_layout_enum *e);
 
 	/** Continues building the in-memory layout object, either from
 	    the buffer or from the DB. */

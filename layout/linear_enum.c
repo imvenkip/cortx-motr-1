@@ -53,11 +53,23 @@ void c2_layout_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
 }
 
 /**
- * Implementation of leto_recsize() for linear enumeration type.
- * Returns record size for the part of the layouts table record required to
- * store LINEAR enum details.
+ * Implementation of leto_max_recsize() for linear enumeration type.
+ *
+ * Returns maximum record size for the part of the layouts table record,
+ * required to store LINEAR enum details.
  */
-static uint32_t linear_recsize(void)
+static uint32_t linear_max_recsize(void)
+{
+	return sizeof(struct c2_layout_linear_attr);
+}
+
+/**
+ * Implementation of leto_recsize() for linear enumeration type.
+ *
+ * Returns record size for the part of the layouts table record required to
+ * store LINEAR enum details, for the specified layout.
+ */
+static uint32_t linear_recsize(struct c2_layout_enum *e)
 {
 	return sizeof(struct c2_layout_linear_attr);
 }
@@ -161,6 +173,7 @@ static const struct c2_layout_enum_ops linear_enum_ops = {
 static const struct c2_layout_enum_type_ops linear_type_ops = {
 	.leto_register       = NULL,
 	.leto_unregister     = NULL,
+	.leto_max_recsize    = linear_max_recsize,
 	.leto_recsize        = linear_recsize,
 	.leto_decode         = linear_decode,
 	.leto_encode         = linear_encode
