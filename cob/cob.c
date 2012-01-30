@@ -239,7 +239,6 @@ void c2_cob_put(struct c2_cob *cob)
 {
         c2_ref_put(&cob->co_ref);
 }
-C2_EXPORTED(c2_cob_put);
 
 /**
    Allocate a new cob
@@ -427,7 +426,6 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
         *out = cob;
 	return rc;
 }
-C2_EXPORTED(c2_cob_lookup);
 
 /**
    Check if a cob with this fid is in the cache
@@ -579,7 +577,6 @@ out_free:
         C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
         return rc;
 }
-C2_EXPORTED(c2_cob_create);
 
 /** For assertions only */
 static bool c2_cob_is_valid(struct c2_cob *cob)
@@ -648,7 +645,6 @@ out:
         c2_cob_put(cob);
         return rc;
 }
-C2_EXPORTED(c2_cob_delete);
 
 int c2_cob_update(struct c2_cob		*cob,
 		  struct c2_cob_nsrec	*nsrec,
@@ -713,7 +709,6 @@ void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
         c2_bitstring_len_set(&key->cnk_name, strlen(name));
         *keyh = key;
 }
-C2_EXPORTED(c2_cob_nskey_make);
 
 void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 {

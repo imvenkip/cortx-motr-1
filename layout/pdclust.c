@@ -311,7 +311,6 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	/* and translate back from tile to target address. */
 	tgt->ta_frame = m_enc(L, omega, r);
 }
-C2_EXPORTED(c2_pdclust_layout_map);
 
 void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   const struct c2_pdclust_tgt_addr *tgt,
@@ -351,7 +350,6 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	m_dec(N + 2*K, m_enc(P, r, t), &j, &src->sa_unit);
 	src->sa_group = m_enc(C, omega, j);
 }
-C2_EXPORTED(c2_pdclust_layout_inv);
 
 /** Implementation of lo_fini for pdclust layout type. */
 static void pdclust_fini(struct c2_layout *lay)
@@ -383,7 +381,6 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 		c2_free(pdl);
 	}
 }
-C2_EXPORTED(c2_pdclust_fini);
 
 
 /**
@@ -458,7 +455,6 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		c2_pdclust_fini(pdl);
 	return result;
 }
-C2_EXPORTED(c2_pdclust_build);
 
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
@@ -471,7 +467,6 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 	else
 		return PUT_SPARE;
 }
-C2_EXPORTED(c2_pdclust_unit_classify);
 
 /** Implementation of lto_max_recsize() for pdclust layout type. */
 static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)

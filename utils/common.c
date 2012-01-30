@@ -23,6 +23,7 @@
 #include <sys/stat.h> /* mkdir */
 #include <unistd.h>   /* chdir */
 #include <errno.h>
+#include <stdbool.h>  /* bool */
 
 #include "colibri/init.h"
 #include "lib/assert.h"
@@ -68,7 +69,7 @@ int unit_start(const char *sandbox)
 	return result;
 }
 
-void unit_end(const char *sandbox)
+void unit_end(const char *sandbox, bool keep_sandbox)
 {
 	int rc;
 
@@ -77,7 +78,8 @@ void unit_end(const char *sandbox)
 	rc = chdir("..");
 	C2_ASSERT(rc == 0);
 
-	reset_sandbox(sandbox);
+        if (!keep_sandbox)
+                reset_sandbox(sandbox);
 }
 
 /*

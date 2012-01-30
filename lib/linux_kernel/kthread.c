@@ -125,7 +125,6 @@ int c2_thread_signal(struct c2_thread *q, int sig)
 {
 	return -ENOSYS;
 }
-C2_EXPORTED(c2_thread_signal);
 
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 {
@@ -170,20 +169,17 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 	free_cpumask_var(cpuset);
 	return result;
 }
-C2_EXPORTED(c2_thread_confine);
 
 void c2_thread_self(struct c2_thread_handle *id)
 {
 	id->h_t = current;
 }
-C2_EXPORTED(c2_thread_self);
 
 bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 			 struct c2_thread_handle *h2)
 {
 	return h1->h_t == h2->h_t;
 }
-C2_EXPORTED(c2_thread_handle_eq);
 
 /** @} end of thread group */
 

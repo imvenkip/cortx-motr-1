@@ -69,7 +69,6 @@ void c2_queue_link_init(struct c2_queue_link *ql)
 {
 	ql->ql_next = NULL;
 }
-C2_EXPORTED(c2_queue_link_init);
 
 void c2_queue_link_fini(struct c2_queue_link *ql)
 {
@@ -137,7 +136,6 @@ void c2_queue_put(struct c2_queue *q, struct c2_queue_link *ql)
 	ql->ql_next = EOQ;
 	C2_ASSERT(c2_queue_invariant(q));
 }
-C2_EXPORTED(c2_queue_put);
 
 bool c2_queue_invariant(const struct c2_queue *q)
 {

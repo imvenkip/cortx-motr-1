@@ -85,7 +85,6 @@ void c2_net_reply_post(struct c2_service *service,
 {
 	service->s_ops->so_reply_post(service, fop, cookie);
 }
-C2_EXPORTED(c2_net_reply_post);
 
 /** @} end of net group */
 
