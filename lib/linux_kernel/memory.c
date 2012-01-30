@@ -1,4 +1,3 @@
-#ifdef HAVE_CONFIG_H
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -17,6 +16,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 08/04/2010
  */
+
+#ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
 
