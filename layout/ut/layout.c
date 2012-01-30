@@ -247,7 +247,7 @@ static int pdclust_build(struct c2_pdclust_layout **play, uint64_t lid,
 	uint32_t         K = 1;
 
 	rc = c2_pdclust_build(&pool, &lid, N, K, seed, play);
-	C2_UT_ASSERT(rc == 0);	
+	C2_UT_ASSERT(rc == 0);
 
 	return rc;
 }
@@ -271,9 +271,9 @@ static void test_encode(void)
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
-	
+
 	struct c2_bufvec buf = C2_BUFVEC_INIT_BUF(area, &num_bytes);
-	c2_bufvec_cursor_init(&cur, &buf); 
+	c2_bufvec_cursor_init(&cur, &buf);
 
 	/* Encode for pdclust type of layout with list enumeration type. */
 	lid = c2_rnd(lid_max, &lid_seed);

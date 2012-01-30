@@ -160,7 +160,7 @@ static uint32_t list_recsize(struct c2_layout_enum *e)
 	struct c2_layout_list_enum  *list_enum;
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
- 
+
 	if (list_enum->lle_nr >= MAX_INLINE_COB_ENTRIES)
 		return sizeof(struct ldb_inline_cob_entries);
 	else

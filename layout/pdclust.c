@@ -510,7 +510,7 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	e_recsize = et->let_ops->leto_recsize(stl->ls_enum);
 
-	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize; 
+	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
 }
 
 static const struct c2_layout_ops pdclust_ops;
