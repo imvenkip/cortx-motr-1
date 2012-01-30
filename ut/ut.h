@@ -38,6 +38,7 @@
 */
 
 #include "ut/rpc.h"
+#include "ut/ioredirect.h"
 
 /**
    @} colibri-ut end group
