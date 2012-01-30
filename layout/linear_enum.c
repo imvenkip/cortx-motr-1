@@ -44,8 +44,8 @@ void c2_layout_linear_enum_init(struct c2_layout_linear_enum *lin_enum,
 	c2_layout_enum_init(&lin_enum->lle_base, l, lt, ops);
 
 	lin_enum->lle_attr.lla_nr = nr;
-	lin_enum->lle_attr.lla_A  = nr;
-	lin_enum->lle_attr.lla_B  = nr;
+	lin_enum->lle_attr.lla_A  = A;
+	lin_enum->lle_attr.lla_B  = B;
 }
 
 void c2_layout_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
@@ -81,14 +81,9 @@ static int linear_decode(struct c2_ldb_schema *schema,
 
 	C2_ALLOC_PTR(lin_enum);
 
-	lin_enum->lle_attr.lla_nr = lin_attr->lla_nr;
-	lin_enum->lle_attr.lla_A  = lin_attr->lla_A;
-	lin_enum->lle_attr.lla_B  = lin_attr->lla_B;
+	lin_enum->lle_attr = *lin_attr;
 
 	*out = &lin_enum->lle_base;
-
-	/* The buffer is now expected to be at the end. */
-	C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
 
 	return 0;
 }

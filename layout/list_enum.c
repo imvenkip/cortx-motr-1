@@ -32,6 +32,49 @@
  * @{
  */
 
+/**
+ * cob_lists table.
+ */
+struct ldb_cob_lists_key {
+	/** Layout id, value obtained from c2_layout::l_id. */
+	uint64_t                  lclk_id;
+
+	/** Index for the COB from the layout it is part of. */
+	uint32_t                  lclk_cob_index;
+};
+
+struct ldb_cob_lists_rec {
+	/** COB identifier. */
+	struct c2_fid             lclr_cob_id;
+};
+
+/**
+ * Compare cob_lists table keys.
+ * This is a 3WAY comparison.
+ */
+static int lcl_key_cmp(struct c2_table *table,
+		       const void *key0,
+		       const void *key1)
+{
+	return 0;
+}
+
+/**
+ * table_ops for cob_lists table.
+ */
+static const struct c2_table_ops cob_lists_table_ops = {
+	.to = {
+		[TO_KEY] = {
+			.max_size = sizeof(struct ldb_cob_lists_key)
+		},
+		[TO_REC] = {
+			.max_size = sizeof(struct ldb_cob_lists_rec)
+		}
+	},
+	.key_cmp = lcl_key_cmp
+};
+
+
 void c2_layout_list_enum_init(struct c2_layout_list_enum *list_enum,
 			      struct c2_tl *list_of_cobs,
 			      struct c2_layout *l,
@@ -146,9 +189,6 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		layout id 'lid' and index greater than MAX_INLINE_COB_ENTRIES,
 		from the cob_lists table and store those in the
 		c2_layout_list_enum::lle_list_of_cobs.
-
-		The buffer is now expected to be at the end.
-		C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
 	} else {
 		Parse the cob identifiers list from the buffer and store it in
 		the c2_layout_list_enum::lle_list_of_cobs.
@@ -194,19 +234,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 	c2_bufvec_cursor_copyto(out, inline_cobs,
 				sizeof(struct ldb_inline_cob_entries));
 
-	/**
-	    If we are here through DB operation, then the buffer is at the
-	    end by now since it was allocated with the max size possible
-	    for a record in the layouts table. Add assert to verify that.
-	 */
-
-
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
 		/**
-		Thus the buffer is expected to be at the end, at this point.
-		C2_ASSERT(c2_bufvec_cursor_move(out, 0));
-
 		Depending upon the value of op, insert/update/delete cob
 		entries beyond MAX_INLINE_COB_ENTRIES to/from the cob_lists
 		table.

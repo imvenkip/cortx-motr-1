@@ -487,9 +487,7 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema)
 		max_recsize = max32(max_recsize, e_recsize);
         }
 
-	max_recsize = sizeof(struct c2_ldb_pdclust_rec) + max_recsize;
-
-	return max_recsize;
+	return sizeof(struct c2_ldb_pdclust_rec) + max_recsize;
 }
 
 

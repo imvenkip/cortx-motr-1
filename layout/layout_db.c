@@ -508,24 +508,23 @@ uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 	/*
 	 * Iterate over all the layout types to find maximum possible recsize.
 	 */
+	/* @todo Check for (schema->ls_type[i] != NULL) */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
 		recsize = schema->ls_type[i]->lt_ops->lto_recsize(schema);
 		max_recsize = max32(max_recsize, recsize);
 	}
 
-	max_recsize = sizeof(struct c2_ldb_rec) + max_recsize;
-
-	return max_recsize;
+	return sizeof(struct c2_ldb_rec) + max_recsize;
 }
 
 /**
  * Looks up a persistent layout record with the specified layout_id, and
  * its related information from the relevant tables.
-
- * @param pair A c2_db_pair allocated by the caller and set using
- * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
- * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
- * size of the buffer.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
+ * while deciding the size of the buffer.
  */
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t lid,
@@ -534,6 +533,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  struct c2_layout **out)
 {
 	struct c2_bufvec_cursor  cur;
+	struct c2_bufvec         bv;
 
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 
@@ -541,12 +541,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	c2_table_lookup(tx, pair);
 
-	/*
-	 * Violating the coding style by decalring the variable bv here. It is
-	 * required for the usage of the macro C2_BUFVEC_INIT_BUF which is a
-	 * way of declaring the variable of the type struct c2_bufvec.
-	 */
-	struct c2_bufvec bv = C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -560,11 +555,11 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
  * Adds a new layout record entry into the layouts table.
  * If applicable, adds layout type and enum type specific entries into the
  * relevant tables.
-
- * @param pair A c2_db_pair allocated by the caller and set using
- * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
- * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
- * size of the buffer.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
+ * while deciding the size of the buffer.
  */
 int c2_ldb_add(struct c2_ldb_schema *schema,
 	       struct c2_layout *l,
@@ -596,11 +591,11 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 /**
  * Updates a layout record and its related information from the
  * relevant tables.
-
- * @param pair A c2_db_pair allocated by the caller and set using
- * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
- * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
- * size of the buffer.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
+ * while deciding the size of the buffer.
  */
 int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
@@ -632,11 +627,11 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 /**
  * Deletes a layout record with given layout id and its related information from
  * the relevant tables.
-
- * @param pair A c2_db_pair allocated by the caller and set using
- * c2_ldb_pair_setup(). This is to leave the buffer allocation with the
- * caller. The caller may take help of c2_ldb_max_recsize() while deciding the
- * size of the buffer.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
+ * while deciding the size of the buffer.
  */
 int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,

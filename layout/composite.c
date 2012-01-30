@@ -36,6 +36,21 @@ struct composite_schema_data {
 	struct c2_emap            csd_comp_layout_ext_map;;
 };
 
+/**
+ * Prefix for comp_layout_ext_map table.
+ */
+struct layout_prefix {
+	/** Layout id for the composite layout.
+	 *  Value is same as c2_layout::l_id.
+	 */
+	uint64_t                  lp_l_id;
+
+	/** Filler since prefix is a 128 bit field.
+	 *  Currently un-used.
+	 */
+	uint64_t                  lp_filler;
+};
+
 
 void c2_composite_init(struct c2_composite_layout *clay,
 		       uint64_t id,
@@ -147,9 +162,6 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
    /**
 	@code
 	if (op == C2_LXO_DB_LOOKUP) {
-		The buffer is expected to be at the end, at this point.
-		C2_ASSERT(c2_bufvec_cursor_move(cur, 0));
-
 		Read all the segments from the comp_layout_ext_map table,
 		belonging to composite layout with layout id 'lid' and store
 		them in the cl->cl_sub_layouts.
@@ -183,9 +195,6 @@ static int composite_encode(struct c2_ldb_schema *schema,
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			       (op == C2_LXO_DB_DELETE)) {
 		/**
-		The buffer is expected to be at the end, at this point.
-		C2_PRE(c2_bufvec_cursor_move(out, 0));
-
 		Form records for the cob_lists table by using data from the
 		c2_layout object l and depending on the value of op,
 		insert/update/delete those records to/from the cob_lists table.

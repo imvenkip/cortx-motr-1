@@ -233,63 +233,6 @@ static const struct c2_table_ops layouts_table_ops = {
 	.key_cmp = l_key_cmp
 };
 
-/**
- * cob_lists table.
- */
-struct ldb_cob_lists_key {
-	/** Layout id, value obtained from c2_layout::l_id. */
-	uint64_t                  lclk_id;
-
-	/** Index for the COB from the layout it is part of. */
-	uint32_t                  lclk_cob_index;
-};
-
-struct ldb_cob_lists_rec {
-	/** COB identifier. */
-	struct c2_fid             lclr_cob_id;
-};
-
-/**
- * Compare cob_lists table keys.
- * This is a 3WAY comparison.
- */
-static int lcl_key_cmp(struct c2_table *table,
-		       const void *key0,
-		       const void *key1)
-{
-	return 0;
-}
-
-/**
- * table_ops for cob_lists table.
- */
-static const struct c2_table_ops cob_lists_table_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = sizeof(struct ldb_cob_lists_key)
-		},
-		[TO_REC] = {
-			.max_size = sizeof(struct ldb_cob_lists_rec)
-		}
-	},
-	.key_cmp = lcl_key_cmp
-};
-
-/**
- * Prefix for comp_layout_ext_map table.
- */
-struct layout_prefix {
-	/** Layout id for the composite layout.
-	 *  Value is same as c2_layout::l_id.
-	 */
-	uint64_t                  lp_l_id;
-
-	/** Filler since prefix is a 128 bit field.
-	 *  Currently un-used.
-	 */
-	uint64_t                  lp_filler;
-};
-
 
 /** @} end group LayoutDBDFSInternal */
 
