@@ -748,6 +748,8 @@ static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
 
 static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
 {
+        struct c2_fop            *fop = NULL;
+        struct c2_fom            *fom = NULL;
         struct c2_stob_io        *stio;
         struct c2_io_fom_cob_rw  *fom_obj;
         struct c2_stob_io_desc   *stio_desc;
@@ -756,23 +758,34 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
         C2_ASSERT(c2_stob_io_desc_invariant(stio_desc));
 
         fom_obj = stio_desc->siod_fom;
-
-        stio = &stio_desc->siod_stob_io;
+        stio    = &stio_desc->siod_stob_io;
+        fop     = fom_obj->fcrw_gen.fo_fop;
+        fom     = &fom_obj->fcrw_gen;
 
         /* Update transfered data count till no error in FOM execution. */
-        if (fom_obj->fcrw_gen.fo_rc == 0) {
+        if (fom->fo_rc == 0) {
 
                 /*
                  * If stob I/O failed, declared FOM as failed and assign
                  * STOB I/O error code to FOM return code.
                  */
-                if (stio->si_rc != 0) {
-                        fom_obj->fcrw_gen.fo_rc = stio->si_rc;
-                        fom_obj->fcrw_gen.fo_phase = FOPH_FAILURE;
+                if (stio->si_rc == 0) {
+		        if (c2_is_write_fop(fop)) {
+                                int rc = 0;
+			        /*
+                                 * Make an FOL transaction record.
+                                 * @todo : Need to consider FOL failure.
+                                 */
+			          rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
+						          &fom->fo_tx.tx_dbtx);
+                          }
+                          /* Update successfull data transfered count*/
+		          fom_obj->fcrw_bytes_transfered += stio->si_count;
+                } else {
+                        fom->fo_rc = stio->si_rc;
+                        fom->fo_phase = FOPH_FAILURE;
                 }
 
-                /* Update successfull data transfered count*/
-                fom_obj->fcrw_bytes_transfered += stio->si_count;
         }
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         fom_obj->fcrw_num_stobio_launched--;
@@ -1492,27 +1505,10 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                         break;
                 }
 
-                if (c2_is_write_fop(fop)) {
-                        /* Make an FOL transaction record. */
-                        rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
-                                                &fom->fo_tx.tx_dbtx);
-                        if (rc != 0) {
-                                /*
-                                 * Since this stob io not added into list
-                                 * yet, free it here.
-                                 */
-                                C2_ADDB_ADD(&fom->fo_fop->f_addb,
-                                            &io_fom_addb_loc, c2_addb_func_fail,
-                                            "io_fom_cob_rw_io_launch", rc);
-                                c2_stob_io_fini(stio);
-                                c2_free(stio_desc);
-                                break;
-                        }
-
+                if (c2_is_write_fop(fop))
                         stio->si_opcode = SIO_WRITE;
-                } else {
+                else
                         stio->si_opcode = SIO_READ;
-                }
 
                 c2_clink_add(&stio->si_wait, &stio_desc->siod_clink);
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
@@ -1673,8 +1669,10 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
         /* Set operation status in reply fop if FOM ends.*/
         if (fom->fo_phase == FOPH_SUCCESS || fom->fo_phase == FOPH_FAILURE) {
-                struct c2_fop_cob_rw_reply        *rwrep;
+                struct c2_fop_cob_rw_reply *rwrep;
+
                 C2_ASSERT(ergo(fom->fo_phase == FOPH_FAILURE, fom->fo_rc < 0));
+
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
                 rwrep->rwr_rc = fom->fo_rc;
                 rwrep->rwr_count = fom_obj->fcrw_bytes_transfered;
