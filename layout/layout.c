@@ -72,63 +72,71 @@ void c2_layouts_fini(void)
    */
 }
 
-void c2_layout_init(struct c2_layout *lay,
+void c2_layout_init(struct c2_layout *l,
 		    uint64_t id,
 		    const struct c2_layout_type *type,
 		    const struct c2_layout_ops *ops)
 {
-	C2_SET0(lay);
+	C2_PRE(l != NULL);
+	C2_PRE(id != LID_NONE);
+	C2_PRE(type != NULL);
+	C2_PRE(ops != NULL);
 
-	c2_mutex_init(&lay->l_lock);
+	C2_SET0(l);
 
-	lay->l_id       = id;
-	lay->l_type     = type;
-	lay->l_ops      = ops;
+	c2_mutex_init(&l->l_lock);
+
+	l->l_id     = id;
+	l->l_type   = type;
+	l->l_ops    = ops;
 }
 
-void c2_layout_fini(struct c2_layout *lay)
+void c2_layout_fini(struct c2_layout *l)
 {
-   /**
-	@code
-	Perform whatever is required to be cleaned up while the object is
-	about to be deleted.
+	C2_PRE(layout_invariant(l));
 
-	c2_mutex_fini(&lay->l_lock);
-
-	@endcode
-   */
+	c2_mutex_fini(&l->l_lock);
 }
 
-void c2_layout_striped_init(struct c2_layout_striped *str_lay,
+void c2_layout_striped_init(struct c2_layout_striped *str_l,
 			    struct c2_layout_enum *e,
-			    uint64_t lid,
+			    uint64_t id,
 			    const struct c2_layout_type *type,
 			    const struct c2_layout_ops *ops)
 {
-	C2_SET0(str_lay);
+	C2_PRE(str_l != NULL);
+	C2_PRE(e != NULL);
+	C2_PRE(id != LID_NONE);
+	C2_PRE(type != NULL);
+	C2_PRE(ops != NULL);
 
-	c2_layout_init(&str_lay->ls_base, lid, type, ops);
+	C2_SET0(str_l);
 
-	str_lay->ls_enum = e;
+	c2_layout_init(&str_l->ls_base, id, type, ops);
+
+	str_l->ls_enum = e;
 }
 
-void c2_layout_striped_fini(struct c2_layout_striped *str_lay)
+void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 {
-	c2_layout_fini(&str_lay->ls_base);
+	C2_PRE(str_l != NULL);
+
+	c2_layout_fini(&str_l->ls_base);
 }
 
 void c2_layout_enum_init(struct c2_layout_enum *le,
 			 struct c2_layout *l,
-			 struct c2_layout_enum_type *lt,
+			 struct c2_layout_enum_type *et,
 			 struct c2_layout_enum_ops *ops)
 {
-   /**
-	@code
+	C2_PRE(le != NULL);
+	C2_PRE(l != NULL);
+	C2_PRE(et != NULL);
+	C2_PRE(ops != NULL);
+
 	le->le_l    = l;
-	le_le_type  = lt;
+	le->le_type  = et;
 	le->le_ops  = ops;
-	@endcode
-    */
 }
 
 void c2_layout_enum_fini(struct c2_layout_enum *le)
@@ -136,31 +144,23 @@ void c2_layout_enum_fini(struct c2_layout_enum *le)
 }
 
 /** Adds a reference to the layout. */
-void c2_layout_get(struct c2_layout *lay)
+void c2_layout_get(struct c2_layout *l)
 {
-   /**
-	@code
-	c2_mutex_lock(lay->l_lock);
+	C2_PRE(l != NULL);
 
-	Increases reference on layout by incrementing c2_layout::l_ref.
-
-	c2_mutex_unlock(lay->l_lock);
-	@endcode
-   */
+	c2_mutex_lock(&l->l_lock);
+	l->l_ref++;
+	c2_mutex_unlock(&l->l_lock);
 }
 
 /** Releases a reference on the layout. */
-void c2_layout_put(struct c2_layout *lay)
+void c2_layout_put(struct c2_layout *l)
 {
-   /**
-	@code
-	c2_mutex_lock(lay->l_lock);
+	C2_PRE(l != NULL);
 
-	Decreases reference on layout by decrementing c2_layout::l_ref.
-
-	c2_mutex_unlock(lay->l_lock);
-	@endcode
-   */
+	c2_mutex_lock(&l->l_lock);
+	l->l_ref--;
+	c2_mutex_unlock(&l->l_lock);
 }
 
 /**
@@ -198,6 +198,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 {
 	struct c2_layout_type *lt;
 	struct c2_ldb_rec     *rec;
+	int                    rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -215,9 +216,11 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		return -ENOENT;
 
 	/** Move the cursor to point to rec->lr_data[] */
-	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+	rc = c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+	C2_ASSERT(rc == 0); /** @todo is this fine if the rec contains only
+				c2_ldb_rec, probably not */
 
-	lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
+	rc = lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
 
 	c2_mutex_lock(&(*out)->l_lock);
 
@@ -298,9 +301,13 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 bool layout_invariant(const struct c2_layout *l)
 {
-	/* Verify the members are sane. */
+	if (l == NULL || l->l_id == LID_NONE || l->l_type == NULL ||
+			 l->l_ops == NULL)
+		return false;
+
 	return true;
 }
+
 
 /** @} end group layout */
 

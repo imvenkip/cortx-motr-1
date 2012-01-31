@@ -40,7 +40,6 @@ enum {
 };
 
 bool layout_invariant(const struct c2_layout *l);
-bool ldb_rec_invariant(const struct c2_ldb_rec *l);
 
 /**
  * Write layout record to layouts table.

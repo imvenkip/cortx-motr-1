@@ -532,23 +532,35 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  struct c2_db_tx *tx,
 		  struct c2_layout **out)
 {
-	struct c2_bufvec_cursor  cur;
+	int                      rc;
 	struct c2_bufvec         bv;
+	struct c2_bufvec_cursor  cur;
 
+	C2_PRE(schema != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(pair != NULL);
+	C2_PRE(tx != NULL);
+	C2_PRE(out != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
+	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
-	pair->dp_key.db_buf.b_addr = &lid;
+	pair->dp_table = &schema->ls_layouts;
+	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 
-	c2_table_lookup(tx, pair);
+	rc = c2_table_lookup(tx, pair);
+	if (rc != 0)
+		return rc;
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
-
-	return 0;
+	rc = c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
+	
+	return rc;
 }
 
 /**
@@ -566,14 +578,24 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	       struct c2_db_pair *pair,
 	       struct c2_db_tx *tx)
 {
+	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
-	struct c2_bufvec         bv = C2_BUFVEC_INIT_BUF(
-					&pair->dp_rec.db_buf.b_addr,
-					&pair->dp_rec.db_buf.b_nob);
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
 
+	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
+	C2_PRE(pair != NULL);
+	C2_PRE(tx != NULL);
+
+	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof(l->l_id));
+	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
+
+	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+				&pair->dp_rec.db_buf.b_nob);
+	
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
@@ -609,7 +631,10 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
 
+	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
+	C2_PRE(pair != NULL);
+	C2_PRE(tx != NULL);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
@@ -645,7 +670,10 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
 
+	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
+	C2_PRE(pair != NULL);
+	C2_PRE(tx != NULL);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
@@ -676,6 +704,14 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
  * @{
  */
 
+static bool layout_db_rec_invariant(const struct c2_ldb_rec *rec)
+{
+	if (rec == NULL || rec->lr_lt_id == LID_NONE)
+		return false;
+
+	return true;
+}
+
 int ldb_layout_write(struct c2_ldb_schema *schema,
 		     enum c2_layout_xcode_op op,
 		     uint64_t lid,
@@ -683,18 +719,16 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 		     uint32_t recsize,
 		     struct c2_db_tx *tx)
 {
-	void *lid_addr = &pair->dp_key.db_buf.b_addr;
 	void *rec_addr = &pair->dp_rec.db_buf.b_addr;
 
-	C2_PRE(*(uint64_t *)lid_addr == lid);
-
-	/* The c2_db_pair was set earlier. But the recsize could have been set
-	 * to more than what is required. Hence, need to reset it, now that we
-	 * know the exact recsize.
+	/*
+	 * The rec_addr may be containing data beyond struct c2_ldb_rec.
+	 * But still validating the struct c2_ldb_rec part of it.
 	 */
-	c2_db_pair_setup(pair, &schema->ls_layouts,
-			 lid_addr, sizeof(uint64_t),
-			 rec_addr, recsize);
+	C2_PRE(layout_db_rec_invariant((const struct c2_ldb_rec *)rec_addr));
+
+	pair->dp_table = &schema->ls_layouts;
+	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 
 	if (op == C2_LXO_DB_ADD) {
 		c2_table_insert(tx, pair);
@@ -706,12 +740,6 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 	return 0;
 }
 
-
-bool __attribute__ ((unused)) layout_db_rec_invariant(const struct c2_ldb_rec *l)
-{
-	/* Verify that the record is sane. */
-	return true;
-}
 
 /** @} end group LayoutDBDFSInternal */
 
