@@ -23,6 +23,10 @@
 
 #include "lib/types.h"
 
+#ifndef __KERNEL__
+#include "lib/user_space/trace.h"
+#endif
+
 /**
    @defgroup trace Tracing.
 
@@ -85,11 +89,14 @@
 
 int  c2_trace_init(void);
 void c2_trace_fini(void);
-int  c2_trace_parse(void);
 
 /**
    Below is the internal stuff.
  */
+
+enum {
+	MAGIC = 0xc0de1eafacc01adeULL,
+};
 
 struct c2_trace_rec_header;
 struct c2_trace_descr;

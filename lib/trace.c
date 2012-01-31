@@ -18,25 +18,22 @@
  * Original creation date: 08/12/2010
  */
 
+#ifndef __KERNEL__
 #include <sys/mman.h> /* mmap */
-#include <time.h>
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <string.h>   /* memset */
-#include <stdio.h>    /* getchar */
-#include <ctype.h>    /* isspace */
+#endif
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/cdefs.h"
 #include "lib/arith.h" /* c2_align */
-#include "lib/memory.h"
 #include "lib/trace.h"
 
 /**
    @addtogroup trace
 
-   <b>User space trace implementation.</b>
+   <b>Tracing facilities implementation.</b>
 
    Trace entries are placed in a largish buffer backed up by a memory mapped
    file. Buffer space allocation is controlled by a single atomic variable
@@ -57,12 +54,50 @@ static void              *logbuf;
 static uint32_t           bufshift;
 static uint32_t           bufsize;
 static uint32_t           bufmask;
-static int                logfd;
 static struct c2_atomic64 cur;
+#ifndef __KERNEL__
+static int                logfd;
+#endif
 
 enum {
-	MAGIC = 0xc0de1eafacc01adeULL,
+	BUFSHIFT = 10 + 12, /* 4MB log buffer */
+	BUFSIZE  = 1 << BUFSHIFT
 };
+
+int c2_trace_init(void)
+{
+#ifndef __KERNEL__
+	int psize;
+
+	c2_atomic64_set(&cur, 0);
+	bufshift = BUFSHIFT;
+	bufsize  = BUFSIZE;
+	bufmask  = bufsize - 1;
+
+	psize = getpagesize();
+	C2_ASSERT((BUFSIZE % psize) == 0);
+
+	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
+	if (logfd != -1) {
+		if (ftruncate(logfd, BUFSIZE) == 0) {
+			logbuf = mmap(NULL, BUFSIZE, PROT_WRITE,
+				      MAP_SHARED, logfd, 0);
+		}
+	}
+	return -errno;
+#else
+	return 0;
+#endif
+}
+
+void c2_trace_fini(void)
+{
+#ifndef __KERNEL__
+	munmap(logbuf, bufsize);
+	close(logfd);
+#endif
+}
+
 
 /*
  * XXX x86_64 version.
@@ -123,131 +158,6 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
 	return ((void *)header) + header_len;
-}
-
-static void align(unsigned align)
-{
-	C2_ASSERT(c2_is_po2(align));
-	while (ftell(stdin) & (align - 1))
-		getchar();
-}
-
-/**
-   Parse log buffer supplied at stdin.
- */
-int c2_trace_parse(void)
-{
-	uint64_t                     magic;
-	uint64_t                     no;
-	uint64_t                     timestamp;
-	const struct c2_trace_descr *td;
-	int                          nr;
-	int                          i;
-	char                        *buf;
-	union {
-		uint8_t  v8;
-		uint16_t v16;
-		uint32_t v32;
-		uint64_t v64;
-	} v[C2_TRACE_ARGC_MAX];
-
-	while (!feof(stdin)) {
-		/* At the beginning of a record */
-		align(8);
-
-		do {
-			nr = fread(&magic, sizeof magic, 1, stdin);
-			if (nr == 0) {
-				C2_ASSERT(feof(stdin));
-				return 0;
-			}
-		} while (magic != MAGIC);
-
-		nr = fread(&no, sizeof no, 1, stdin);
-		C2_ASSERT(nr == 1);
-
-		nr = fread(&timestamp, sizeof timestamp, 1, stdin);
-		C2_ASSERT(nr == 1);
-
-		nr = fread(&td, sizeof td, 1, stdin);
-		C2_ASSERT(nr == 1);
-
-		printf("%10.10lu  %10.10lu  %15s %15s %4i %3.3i %i\n\t",
-		       no, timestamp, td->td_func, td->td_file,
-		       td->td_line, td->td_size, td->td_nr);
-		align(8);
-		C2_ASSERT(td->td_nr <= C2_TRACE_ARGC_MAX);
-
-		buf = c2_alloc(td->td_size);
-		C2_ASSERT(buf != NULL);
-
-		nr = fread(buf, 1, td->td_size, stdin);
-		C2_ASSERT(nr == td->td_size);
-
-		for (i = 0; i < td->td_nr; ++i) {
-			char *addr;
-
-			addr = buf + td->td_offset[i];
-			switch (td->td_sizeof[i]) {
-			case 0:
-				break;
-			case 1:
-				v[i].v8 = *(uint8_t *)addr;
-				break;
-			case 2:
-				v[i].v16 = *(uint16_t *)addr;
-				break;
-			case 4:
-				v[i].v32 = *(uint32_t *)addr;
-				break;
-			case 8:
-				v[i].v64 = *(uint64_t *)addr;
-				break;
-			default:
-				C2_IMPOSSIBLE("sizeof");
-			}
-		}
-		printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
-		       v[7], v[8]);
-
-		c2_free(buf);
-		align(8);
-		printf("\n");
-	}
-	return 0;
-}
-
-enum {
-	BUFSHIFT = 10 + 12, /* 4MB log buffer */
-	BUFSIZE  = 1 << BUFSHIFT
-};
-
-int c2_trace_init(void)
-{
-	int psize;
-
-	c2_atomic64_set(&cur, 0);
-	bufshift = BUFSHIFT;
-	bufsize  = BUFSIZE;
-	bufmask  = bufsize - 1;
-
-	psize = getpagesize();
-	C2_ASSERT((BUFSIZE % psize) == 0);
-
-	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
-	if (logfd != -1) {
-		if (ftruncate(logfd, BUFSIZE) == 0) {
-			logbuf = mmap(NULL, BUFSIZE, PROT_WRITE,
-				      MAP_SHARED, logfd, 0);
-		}
-	}
-	return -errno;
-}
-
-void c2_trace_fini(void)
-{
-	munmap(logbuf, bufsize);
-	close(logfd);
 }
 
 /** @} end of trace group */
