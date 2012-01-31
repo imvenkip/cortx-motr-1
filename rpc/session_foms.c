@@ -57,12 +57,77 @@ extern void item_exit_stats_set(struct c2_rpc_item   *item,
    Common implementation of c2_fom::fo_ops::fo_fini() for conn establish,
    conn terminate, session establish and session terminate foms
 
-   @see session_gen_fom_init
+   @see session_gen_fom_create
  */
 static void session_gen_fom_fini(struct c2_fom *fom)
 {
 	c2_fom_fini(fom);
 	c2_free(fom);
+}
+
+/**
+   implementation of fop->f_type->ft_fom_type.ft_ops->fto_create for
+   conn establish, conn terminate, session establish,
+   session terminate fop types.
+ */
+static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
+{
+	const struct c2_fom_ops *fom_ops;
+	struct c2_fom           *fom;
+	struct c2_fop_type      *reply_fopt;
+	struct c2_fop           *reply_fop;
+	int                      rc;
+
+	C2_ALLOC_PTR(fom);
+	if (fom == NULL)
+		return -ENOMEM;
+
+	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
+
+		reply_fopt = &c2_rpc_fop_conn_establish_rep_fopt;
+		fom_ops = &c2_rpc_fom_conn_establish_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_conn_terminate_fopt) {
+
+		reply_fopt = &c2_rpc_fop_conn_terminate_rep_fopt;
+		fom_ops = &c2_rpc_fom_conn_terminate_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_session_establish_fopt) {
+
+		reply_fopt = &c2_rpc_fop_session_establish_rep_fopt;
+		fom_ops = &c2_rpc_fom_session_establish_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_session_terminate_fopt) {
+
+		reply_fopt = &c2_rpc_fop_session_terminate_rep_fopt;
+		fom_ops = &c2_rpc_fom_session_terminate_ops;
+
+	} else {
+		reply_fopt = NULL;
+		fom_ops = NULL;
+	}
+
+	if (reply_fopt == NULL || fom_ops == NULL) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	reply_fop = c2_fop_alloc(reply_fopt, NULL);
+	if (reply_fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	c2_fom_create(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
+	*m = fom;
+	rc = 0;
+
+out:
+	if (rc != 0) {
+		c2_free(fom);
+		*m = NULL;
+	}
+	return rc;
 }
 
 const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
@@ -72,7 +137,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
-	.fto_create = NULL
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_conn_establish_type = {
@@ -229,7 +294,7 @@ const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
-	.fto_create = NULL
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_session_establish_type = {
@@ -327,7 +392,7 @@ const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
-	.fto_create = NULL
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_session_terminate_type = {
@@ -414,7 +479,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
-	.fto_create = NULL
+	.fto_create = session_gen_fom_create
 };
 
 struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
