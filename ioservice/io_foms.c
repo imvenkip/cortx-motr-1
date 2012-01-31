@@ -630,24 +630,31 @@ static const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
  */
 static struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
 
+[FOPH_IO_FOM_BUFFER_ACQUIRE] =
 { FOPH_IO_FOM_BUFFER_ACQUIRE, &io_fom_cob_rw_acquire_net_buffer,
   FOPH_IO_STOB_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
 
+[FOPH_IO_FOM_BUFFER_WAIT] =
 { FOPH_IO_FOM_BUFFER_WAIT, io_fom_cob_rw_acquire_net_buffer,
   FOPH_IO_STOB_INIT,  FOPH_IO_FOM_BUFFER_WAIT, },
 
+[FOPH_IO_STOB_INIT] =
 { FOPH_IO_STOB_INIT, io_fom_cob_rw_io_launch,
   0,  FOPH_IO_STOB_WAIT, },
 
+[FOPH_IO_STOB_WAIT] =
 { FOPH_IO_STOB_WAIT, io_fom_cob_rw_io_finish,
   FOPH_IO_ZERO_COPY_INIT, 0, },
 
+[FOPH_IO_ZERO_COPY_INIT] =
 { FOPH_IO_ZERO_COPY_INIT, io_fom_cob_rw_initiate_zero_copy,
   0, FOPH_IO_ZERO_COPY_WAIT, },
 
+[FOPH_IO_ZERO_COPY_WAIT] =
 { FOPH_IO_ZERO_COPY_WAIT, io_fom_cob_rw_zero_copy_finish,
   FOPH_IO_BUFFER_RELEASE, 0, },
 
+[FOPH_IO_BUFFER_RELEASE] =
 { FOPH_IO_BUFFER_RELEASE, io_fom_cob_rw_release_net_buffer,
   FOPH_IO_FOM_BUFFER_ACQUIRE,  0, },
 };
@@ -658,24 +665,31 @@ static struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
  */
 static struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 
+[FOPH_IO_FOM_BUFFER_ACQUIRE] =
 { FOPH_IO_FOM_BUFFER_ACQUIRE, &io_fom_cob_rw_acquire_net_buffer,
   FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
 
+[FOPH_IO_FOM_BUFFER_WAIT] =
 { FOPH_IO_FOM_BUFFER_WAIT, io_fom_cob_rw_acquire_net_buffer,
   FOPH_IO_ZERO_COPY_INIT, FOPH_IO_FOM_BUFFER_WAIT, },
 
+[FOPH_IO_ZERO_COPY_INIT] =
 { FOPH_IO_ZERO_COPY_INIT, io_fom_cob_rw_initiate_zero_copy,
   0, FOPH_IO_ZERO_COPY_WAIT, },
 
+[FOPH_IO_ZERO_COPY_WAIT] =
 { FOPH_IO_ZERO_COPY_WAIT, io_fom_cob_rw_zero_copy_finish,
   FOPH_IO_STOB_INIT, 0, },
 
+[FOPH_IO_STOB_INIT] =
 { FOPH_IO_STOB_INIT, io_fom_cob_rw_io_launch,
   0, FOPH_IO_STOB_WAIT, },
 
+[FOPH_IO_STOB_WAIT] =
 { FOPH_IO_STOB_WAIT, io_fom_cob_rw_io_finish,
   FOPH_IO_BUFFER_RELEASE, 0, },
 
+[FOPH_IO_BUFFER_RELEASE] =
 { FOPH_IO_BUFFER_RELEASE, io_fom_cob_rw_release_net_buffer,
   FOPH_IO_FOM_BUFFER_ACQUIRE, 0, },
 };
@@ -1650,9 +1664,9 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
         }
 
         if (c2_is_read_fop(fom->fo_fop))
-                st = io_fom_read_st[fom->fo_phase - FOPH_NR];
+                st = io_fom_read_st[fom->fo_phase];
         else
-                st = io_fom_write_st[fom->fo_phase - FOPH_NR];
+                st = io_fom_write_st[fom->fo_phase];
 
         rc = (*st.fcrw_st_state_function)(fom);
         C2_ASSERT(rc == FSO_AGAIN || rc == FSO_WAIT);
