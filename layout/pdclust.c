@@ -649,7 +649,7 @@ static const struct c2_layout_type_ops pdclust_type_ops = {
 
 const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_name        = "pdclust",
-	.lt_id          = 0x5044434C55535431, /* PDCLUST1 */
+	.lt_id          = 0,
 	.lt_ops         = &pdclust_type_ops
 };
 

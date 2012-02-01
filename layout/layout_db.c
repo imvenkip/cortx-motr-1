@@ -343,37 +343,59 @@
 
 /**
  * Initializes layout schema - creates the layouts table.
+ * @pre db Caller should have performed c2_dbenv_init() on db.
  */
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *db)
 {
-   /**
-	@code
+	int rc;
+	int i;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(db != NULL);
+
+	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
+		schema->ls_type[i]      = NULL;
+		schema->ls_type_data[i] = NULL;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
+		schema->ls_enum[i]      = NULL;
+		schema->ls_enum_data[i] = NULL;
+	}
 
 	c2_mutex_init(&schema->ls_lock);
-	Use the DB interface c2_table_init() to intialize the layouts table.
 
-	@endcode
-   */
-	return 0;
+	rc = c2_table_init(&schema->ls_layouts, db, "layouts", 0,
+			   &layouts_table_ops);
+
+	return rc;
 }
 
 /**
- * De-initializes the layout schema - de-initializes the DB tables and the
- * DB environment.
+ * De-initializes the layout schema.
  */
 int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
-   /*
-	@code
+	int i;
 
-	Use the DB interface c2_table_fini() to de-intialize the DB
-	tables.
-	Check that all layout and enum types were deregistered.
+	C2_PRE(schema != NULL);
 
+	/* Verify that all the layout types were deregistered. */
+	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
+		if (schema->ls_type[i] != NULL)
+			return -EPROTO;
+	}
+
+	/* Verify that all the enum types were deregistered. */
+	for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
+		if (schema->ls_enum[i] != NULL)
+			return -EPROTO;
+	}
+
+	c2_table_fini(&schema->ls_layouts);
 	c2_mutex_fini(&schema->ls_lock);
-	@endcode
-   */
+
 	return 0;
 }
 
@@ -384,63 +406,77 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 int c2_ldb_type_register(struct c2_ldb_schema *schema,
 			 const struct c2_layout_type *lt)
 {
-   /**
-	@code
+	int rc = 0;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(lt != NULL);
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type));
-	C2_PRE(schema->ls_type[lt->lt_id] == NULL);
 
-	c2_mutex_lock(schema->ls_lock);
-	schema->ls_type[lt->lt_id] = lt;
+	if (schema->ls_type[lt->lt_id] == lt)
+		return -EEXIST;
 
-	Allocate type specific schema data using lto_register().
-	lt->lto_register(schema, lt);
+	C2_ASSERT(schema->ls_type[lt->lt_id] == NULL);
 
-	c2_mutex_unlock(schema->ls_lock);
-	@endcode
-   */
-	return 0;
+	c2_mutex_lock(&schema->ls_lock);
+	schema->ls_type[lt->lt_id] = (struct c2_layout_type *)lt;
+
+	/* Allocate type specific schema data using lto_register(). */
+	if (lt->lt_ops != NULL && lt->lt_ops->lto_register != NULL)
+		rc = lt->lt_ops->lto_register(schema, lt);
+
+	c2_mutex_unlock(&schema->ls_lock);
+
+	return rc;
 }
 
 /**
  * Unregisters a layout type from the layout types maintained by
- * c2_ldb_schema::ls_enum[].
+ * c2_ldb_schema::ls_type[].
  */
 void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_type *lt)
 {
-   /**
-	@code
-	c2_mutex_lock(schema->ls_lock);
+	C2_PRE(schema != NULL);
+	C2_PRE(lt != NULL);
 
-	Clean schema->ls_type[lt->lt_id] slot and call lto_deregister()
+	c2_mutex_lock(&schema->ls_lock);
 
-	c2_mutex_unlock(schema->ls_lock);
-	@endcode
-   */
+	schema->ls_type[lt->lt_id] = NULL;
+
+	if (lt->lt_ops != NULL)
+		lt->lt_ops->lto_unregister(schema, lt);
+
+	c2_mutex_unlock(&schema->ls_lock);
 }
 
 /**
  * Registers a new enumeration type with the enumeration types
- * maintained by c2_ldb_schema::ls_type[].
+ * maintained by c2_ldb_schema::ls_enum[].
  */
 int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 			 const struct c2_layout_enum_type *let)
 {
-   /**
-	@code
+	int rc = 0;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(let != NULL);
 	C2_PRE(IS_IN_ARRAY(let->let_id, schema->ls_enum));
-	C2_PRE(schema->ls_enum[let->let_id] == NULL);
 
-	c2_mutex_lock(schema->ls_lock);
-	schema->ls_enum[let->let_id] = let;
+	if (schema->ls_enum[let->let_id] == let)
+		return -EEXIST;
 
-	Allocates enum specific schema data using leto_register().
-	let->leto_register(schema, let);
+	C2_ASSERT(schema->ls_enum[let->let_id] == NULL);
 
-	c2_mutex_unlock(schema->ls_lock);
-	@endcode
-   */
-	return 0;
+	c2_mutex_lock(&schema->ls_lock);
+	schema->ls_enum[let->let_id] = (struct c2_layout_enum_type *)let;
+
+	/* Allocate enum specific schema data using leto_register(). */
+	if (let->let_ops != NULL && let->let_ops->leto_register != NULL)
+		rc = let->let_ops->leto_register(schema, let);
+
+	c2_mutex_unlock(&schema->ls_lock);
+
+	return rc;
 }
 
 /**
@@ -450,15 +486,17 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_enum_type *let)
 {
-   /**
-	@code
-	c2_mutex_lock(schema->ls_lock);
+	C2_PRE(schema != NULL);
+	C2_PRE(let != NULL);
 
-	Clean schema->ls_enum[let->let_id] slot and call leto_deregister()
+	c2_mutex_lock(&schema->ls_lock);
 
-	c2_mutex_unlock(schema->ls_lock);
-	@endcode
-   */
+	schema->ls_enum[let->let_id] = NULL;
+
+	if (let->let_ops != NULL)
+		let->let_ops->leto_unregister(schema, let);
+
+	c2_mutex_unlock(&schema->ls_lock);
 }
 
 /**

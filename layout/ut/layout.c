@@ -21,12 +21,13 @@
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/memory.h"
-#include "lib/misc.h"              /* C2_SET0 */
+#include "lib/misc.h"        /* C2_SET0 */
 #include "lib/bitstring.h"
 #include "lib/vec.h"
-#include "lib/arith.h"             /* c2_rnd() */
+#include "lib/arith.h"       /* c2_rnd() */
+#include "lib/trace.h"       /* C2_LOG */
 
-#include "pool/pool.h"             /* c2_pool_init() */
+#include "pool/pool.h"       /* c2_pool_init() */
 #include "layout/layout.h"
 #include "layout/pdclust.h"
 #include "layout/layout_db.h"
@@ -59,40 +60,24 @@ static int test_init(void)
 {
 	c2_ut_db_reset(db_name);
 
+	/*
+	 * Note: Need to use C2_ASSERT() instead of C2_UT_ASSERT() in
+	 * test_init() and test_fini().
+	 */
+
 	rc = c2_dbenv_init(&dbenv, db_name, 0);
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
 	rc = c2_ldb_schema_init(&schema, &dbenv);
-	C2_UT_ASSERT(rc == 0);
-
-	/* @todo test_init is called by ub_init which hates C2_UT_ASSERT */
-	/* C2_ASSERT(rc == 0); */
-
-	c2_ldb_type_register(&schema, &c2_pdclust_layout_type);
-	c2_ldb_type_register(&schema, &c2_composite_layout_type);
-
-	c2_ldb_enum_register(&schema, &c2_list_enum_type);
-	c2_ldb_enum_register(&schema, &c2_linear_enum_type);
-
-	rc = c2_pool_init(&pool, P);
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
 	return rc;
-
 }
 
 static int test_fini(void)
 {
-	c2_pool_fini(&pool);
-
-	c2_ldb_enum_unregister(&schema, &c2_list_enum_type);
-	c2_ldb_enum_unregister(&schema, &c2_linear_enum_type);
-
-	c2_ldb_type_unregister(&schema, &c2_pdclust_layout_type);
-	c2_ldb_type_unregister(&schema, &c2_composite_layout_type);
-
 	rc = c2_ldb_schema_fini(&schema);
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
 	c2_dbenv_fini(&dbenv);
 
@@ -101,83 +86,72 @@ static int test_fini(void)
 
 const struct c2_layout_type test_layout_type = {
 	.lt_name     = "test",
-	.lt_id       = 0x544553544C41594F, /* TESTLAYO */
+	.lt_id       = 2,
 	.lt_ops      = NULL
 };
 
 static void test_type_reg_unreg(void)
 {
-	struct c2_layout_type *lt;
-
 	/* Register a layout type. */
-	c2_ldb_type_register(&schema, &test_layout_type);
+	rc = c2_ldb_type_register(&schema, &test_layout_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(IS_IN_ARRAY(test_layout_type.lt_id, schema.ls_type));
-
-	lt = schema.ls_type[test_layout_type.lt_id];
-	C2_UT_ASSERT(lt == &test_layout_type);
+	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] ==
+		     &test_layout_type);
 
 	/* Should be able to unregister it. */
 	c2_ldb_type_unregister(&schema, &test_layout_type);
-	C2_UT_ASSERT(!IS_IN_ARRAY(test_layout_type.lt_id, schema.ls_type));
+	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] == NULL);
 
 	/* Should be able to register it again. */
 	c2_ldb_type_register(&schema, &test_layout_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(IS_IN_ARRAY(test_layout_type.lt_id, schema.ls_type));
-
-	lt = schema.ls_type[test_layout_type.lt_id];
-	C2_UT_ASSERT(lt == &test_layout_type);
-
-	/* Should not be able to register it without unregistering it. */
-	c2_ldb_type_register(&schema, &test_layout_type);
-	C2_UT_ASSERT(rc != 0);
-
-	/* Unregister it. */
-	c2_ldb_type_unregister(&schema, &test_layout_type);
-	C2_UT_ASSERT(!IS_IN_ARRAY(test_layout_type.lt_id, schema.ls_type));
-}
-
-const struct c2_layout_enum_type test_enum_type = {
-	.let_name    = "test",
-	.let_id      = 0x54455354454E554D , /* TESTENUM */
-	.let_ops     = NULL
-};
-
-static void test_etype_reg_unreg(void)
-{
-	struct c2_layout_enum_type *le;
-
-	/* Register a layout enum type. */
-	c2_ldb_enum_register(&schema, &test_enum_type);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(IS_IN_ARRAY(test_enum_type.let_id, schema.ls_enum));
-
-	le = schema.ls_enum[test_enum_type.let_id];
-	C2_UT_ASSERT(le == &test_enum_type);
-
-	/* Should be able to unregister it. */
-	c2_ldb_enum_unregister(&schema, &test_enum_type);
-	C2_UT_ASSERT(!IS_IN_ARRAY(test_enum_type.let_id, schema.ls_enum));
-
-	/* Should be able to register it again. */
-	c2_ldb_enum_register(&schema, &test_enum_type);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(IS_IN_ARRAY(test_enum_type.let_id, schema.ls_enum));
-
-	le = schema.ls_enum[test_enum_type.let_id];
-	C2_UT_ASSERT(le == &test_enum_type);
+	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] ==
+		     &test_layout_type);
 
 	/*
 	 * Should not be able to register it again without first unregistering
 	 * it.
 	 */
+	rc = c2_ldb_type_register(&schema, &test_layout_type);
+	C2_UT_ASSERT(rc != 0);
+
+	/* Unregister it. */
+	c2_ldb_type_unregister(&schema, &test_layout_type);
+	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] == NULL);
+}
+
+const struct c2_layout_enum_type test_enum_type = {
+	.let_name    = "test",
+	.let_id      = 2,
+	.let_ops     = NULL
+};
+
+static void test_etype_reg_unreg(void)
+{
+	/* Register a layout enum type. */
+	rc = c2_ldb_enum_register(&schema, &test_enum_type);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == &test_enum_type);
+
+	/* Should be able to unregister it. */
+	c2_ldb_enum_unregister(&schema, &test_enum_type);
+	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == NULL);
+
+	/* Should be able to register it again. */
 	c2_ldb_enum_register(&schema, &test_enum_type);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == &test_enum_type);
+
+	/*
+	 * Should not be able to register it again without first unregistering
+	 * it.
+	 */
+	rc = c2_ldb_enum_register(&schema, &test_enum_type);
 	C2_UT_ASSERT(rc != 0);
 
 	/* Unregister it. */
 	c2_ldb_enum_unregister(&schema, &test_enum_type);
-	C2_UT_ASSERT(!IS_IN_ARRAY(test_enum_type.let_id, schema.ls_enum));
+	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == NULL);
 }
 
 static void test_schema_init_fini(void)
@@ -204,12 +178,14 @@ static void test_schema_init_fini(void)
 	/* Register a layout type. */
 	c2_ldb_type_register(&t_schema, &test_layout_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(IS_IN_ARRAY(test_layout_type.lt_id, t_schema.ls_type));
+	C2_UT_ASSERT(t_schema.ls_type[test_layout_type.lt_id] ==
+		     &test_layout_type);
 
 	/* Register a layout enum type. */
 	c2_ldb_enum_register(&t_schema, &test_enum_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(IS_IN_ARRAY(test_enum_type.let_id, t_schema.ls_enum));
+	C2_UT_ASSERT(t_schema.ls_enum[test_enum_type.let_id] ==
+		     &test_enum_type);
 
 	/*
 	 * Should not be able to finalize it since a layout type and an enum
@@ -220,7 +196,7 @@ static void test_schema_init_fini(void)
 
 	/* Unregister the layout type. */
 	c2_ldb_type_unregister(&t_schema, &test_layout_type);
-	C2_UT_ASSERT(!IS_IN_ARRAY(test_layout_type.lt_id, t_schema.ls_type));
+	C2_UT_ASSERT(t_schema.ls_type[test_layout_type.lt_id] == NULL);
 
 	/*
 	 * Still should not be able to finalize it since an enum type is still
@@ -231,13 +207,39 @@ static void test_schema_init_fini(void)
 
 	/* Unregister the enum type. */
 	c2_ldb_enum_unregister(&t_schema, &test_enum_type);
-	C2_UT_ASSERT(!IS_IN_ARRAY(test_enum_type.let_id, t_schema.ls_enum));
+	C2_UT_ASSERT(t_schema.ls_enum[test_enum_type.let_id] == NULL);
 
 	/* Should now be able to finalize it. */
 	rc = c2_ldb_schema_fini(&t_schema);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_dbenv_fini(&t_dbenv);
+}
+
+static int internal_init()
+{
+	/*
+	 * @todo Do not care if any of the layout type or enum type is already
+	 * registered. But what about unregistering those.
+	 */
+	c2_ldb_type_register(&schema, &c2_pdclust_layout_type);
+	c2_ldb_type_register(&schema, &c2_composite_layout_type);
+
+	c2_ldb_enum_register(&schema, &c2_list_enum_type);
+	c2_ldb_enum_register(&schema, &c2_linear_enum_type);
+
+	return c2_pool_init(&pool, P);
+}
+
+static void internal_fini()
+{
+	c2_pool_fini(&pool);
+
+	c2_ldb_enum_unregister(&schema, &c2_list_enum_type);
+	c2_ldb_enum_unregister(&schema, &c2_linear_enum_type);
+
+	c2_ldb_type_unregister(&schema, &c2_pdclust_layout_type);
+	c2_ldb_type_unregister(&schema, &c2_composite_layout_type);
 }
 
 static int pdclust_build(struct c2_pdclust_layout **play, uint64_t lid,
@@ -268,6 +270,9 @@ static void test_encode(void)
 	uint64_t                   lid;
 	struct c2_uint128          play_seed;
 
+	rc = internal_init();
+	C2_UT_ASSERT(rc == 0);
+
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
@@ -293,6 +298,8 @@ static void test_encode(void)
 	/* Encode composite type of layout. */
 	rc = composite_build();
 	C2_UT_ASSERT(rc == 0);
+
+	internal_fini();
 }
 
 static void test_decode(void)

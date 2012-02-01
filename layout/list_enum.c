@@ -125,8 +125,8 @@ static int list_register(struct c2_ldb_schema *schema,
  *
  * De-initializes table specifically required for LIST enum type.
  */
-static int list_unregister(struct c2_ldb_schema *schema,
-			   const struct c2_layout_enum_type *et)
+static void list_unregister(struct c2_ldb_schema *schema,
+			    const struct c2_layout_enum_type *et)
 {
    /**
 	@code
@@ -135,7 +135,7 @@ static int list_unregister(struct c2_ldb_schema *schema,
 	schema->ls_type_data[et->let_id] = NULL;;
 	@endcode
    */
-	return 0;
+	//return 0;
 }
 
 /**
@@ -329,7 +329,7 @@ static const struct c2_layout_enum_type_ops list_type_ops = {
 
 const struct c2_layout_enum_type c2_list_enum_type = {
 	.let_name            = "list",
-	.let_id              = 0x4C495354454E554D, /* LISTENUM */
+	.let_id              = 0,
 	.let_ops             = &list_type_ops
 };
 

@@ -165,7 +165,7 @@ struct c2_layout_type_ops {
 				   const struct c2_layout_type *lt);
 
 	/** Deallocates layout type specific schema data. */
-	int        (*lto_unregister)(struct c2_ldb_schema *schema,
+	void       (*lto_unregister)(struct c2_ldb_schema *schema,
 				     const struct c2_layout_type *lt);
 
 	/** Returns applicable max record size for the layouts table. */
@@ -251,7 +251,7 @@ struct c2_layout_enum_type_ops {
 				    const struct c2_layout_enum_type *et);
 
 	/** Deallocates enumeration type specific schema data. */
-	int        (*leto_unregister)(struct c2_ldb_schema *schema,
+	void       (*leto_unregister)(struct c2_ldb_schema *schema,
 				      const struct c2_layout_enum_type *et);
 
 	/** Returns applicable max record size for the layouts table. */

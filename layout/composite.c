@@ -101,8 +101,8 @@ static int composite_register(struct c2_ldb_schema *schema,
  *
  *  Deintializes table specifically required for COMPOSITE layout type.
  */
-static int composite_unregister(struct c2_ldb_schema *schema,
-				const struct c2_layout_type *lt)
+static void composite_unregister(struct c2_ldb_schema *schema,
+				 const struct c2_layout_type *lt)
 {
    /**
 	@code
@@ -112,7 +112,7 @@ static int composite_unregister(struct c2_ldb_schema *schema,
 	schema->ls_type_data[lt->lt_id] = NULL;
 	@endcode
    */
-	return 0;
+//	return 0;
 }
 
 /**
@@ -242,7 +242,7 @@ static const struct c2_layout_type_ops composite_type_ops = {
 
 const struct c2_layout_type c2_composite_layout_type = {
 	.lt_name  = "composite",
-	.lt_id    = 0x434F4D504F534954,	/* COMPOSIT */
+	.lt_id    = 1,
 	.lt_ops   = &composite_type_ops
 };
 
