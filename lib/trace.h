@@ -104,7 +104,8 @@ struct c2_trace_descr;
 
 struct c2_trace_rec_header {
 	uint64_t                     thr_magic;
-	uint64_t                     thr_no;
+	uint32_t                     thr_no;
+	uint32_t                     trh_tid;
 	uint64_t                     trh_timestamp;
 	const struct c2_trace_descr *trh_descr;
 };

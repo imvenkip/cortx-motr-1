@@ -45,7 +45,8 @@ static void align(unsigned align)
 int c2_trace_parse(void)
 {
 	uint64_t                     magic;
-	uint64_t                     no;
+	uint32_t                     no;
+	uint32_t                     tid;
 	uint64_t                     timestamp;
 	const struct c2_trace_descr *td;
 	int                          nr;
@@ -56,6 +57,9 @@ int c2_trace_parse(void)
 		uint32_t v32;
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
+
+	printf("  pos  |  tstamp  | tid |     func           |     src     | sz|narg\n");
+	printf("--------------------------------------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
@@ -80,14 +84,17 @@ int c2_trace_parse(void)
 		nr = fread(&no, sizeof no, 1, stdin);
 		C2_TRACE_RECORD_CHECK(nr == 1);
 
+		nr = fread(&tid, sizeof tid, 1, stdin);
+		C2_TRACE_RECORD_CHECK(nr == 1);
+
 		nr = fread(&timestamp, sizeof timestamp, 1, stdin);
 		C2_TRACE_RECORD_CHECK(nr == 1);
 
 		nr = fread(&td, sizeof td, 1, stdin);
 		C2_TRACE_RECORD_CHECK(nr == 1);
 
-		printf("%10.10lu  %10.10lu  %15s %15s %4i %3.3i %i\n\t",
-		       no, timestamp, td->td_func, td->td_file,
+		printf("%7.7u %10.10lu %5u %-20s %10s:%-3i %3.3i %i\n\t",
+		       no, timestamp, tid, td->td_func, td->td_file,
 		       td->td_line, td->td_size, td->td_nr);
 		C2_TRACE_RECORD_CHECK(td->td_nr <= C2_TRACE_ARGC_MAX);
 		align(8);

@@ -28,6 +28,7 @@
 #  include <linux/sysctl.h>
 #else
 #  include <linux/slab.h>
+#  include <linux/sched.h>
 #endif
 
 #include "lib/errno.h"
@@ -198,8 +199,12 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 
 	header                = logbuf + pos_in_buf;
 	header->thr_magic     = MAGIC;
-	/* select thr_no so that it increases over time but never 0. */
-	header->thr_no        = (pos & ((1ULL << 62) - 1)) + 1;
+	header->thr_no        = pos;
+#ifdef __KERNEL__
+	header->trh_tid       = (uint32_t)current->pid;
+#else
+	header->trh_tid       = syscall(SYS_gettid);
+#endif
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
 	return (void*)header + header_len;
