@@ -1548,6 +1548,12 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                  FOPH_IO_STOB_WAIT and check for STOB I/O results.
           */
         if ( fom_obj->fcrw_num_stobio_launched > 0) {
+                /*
+                 * Since db4 interface is blocking some of stobio APIs
+                 * block the thread for some db activity.
+                 * c2_fom_block_leave() should call on stobio compleion.
+                 */
+                c2_fom_block_enter(fom);
                 c2_fom_block_at(fom, &fom_obj->fcrw_wait);
 
                 /*
@@ -1628,9 +1634,11 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail, "io_fom_cob_rw_io_finish",
                             fom->fo_rc);
+                c2_fom_block_leave(fom);
 	        return FSO_AGAIN;
         }
 
+        c2_fom_block_leave(fom);
         return FSO_AGAIN;
 }
 
