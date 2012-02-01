@@ -32,11 +32,10 @@
    @{
  */
 
-
 static void align(unsigned align)
 {
 	C2_ASSERT(c2_is_po2(align));
-	while (ftell(stdin) & (align - 1))
+	while (!feof(stdin) && (ftell(stdin) & (align - 1)))
 		getchar();
 }
 
