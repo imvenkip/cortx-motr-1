@@ -55,6 +55,7 @@
    record in the trace buffer contains some header, plus a pointer
    to the descriptor. This pointer is stored in the resulting trace
    file, that means that the same binary has to parse records.
+   (Note: make sure kernel.randomize_va_space is set to 0)
 
    Now, the solution to solve the "fixed size" problem is to make
    a C declaration of a record structure one of its parameters.
@@ -137,11 +138,11 @@ void *c2_trace_allot(const struct c2_trace_descr *td);
          and types of fields in the format.
  */
 #define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
-({									\
+{									\
 	struct t_body DECL;						\
 	static const int _offset[NR] = OFFSET;				\
 	static const int _sizeof[NR] = SIZEOF;				\
-	static const struct c2_trace_descr td  = {			\
+	static const struct c2_trace_descr td = {			\
                 .td_fmt    = (FMT),					\
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
@@ -154,7 +155,7 @@ void *c2_trace_allot(const struct c2_trace_descr *td);
 	printf_check(FMT , ## __VA_ARGS__);				\
 	*(struct t_body *)c2_trace_allot(&td) = 			\
                                 (const struct t_body){ __VA_ARGS__ };	\
-})
+}
 
 enum {
 	C2_TRACE_ARGC_MAX = 9
