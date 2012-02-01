@@ -53,7 +53,7 @@
  */
 
 /* single buffer for now */
-static void              *logbuf;
+static void              *logbuf = NULL;
 static uint32_t           bufshift;
 static uint32_t           bufsize;
 static uint32_t           bufmask;
@@ -70,6 +70,8 @@ enum {
 int c2_trace_init(void)
 {
 	int psize;
+
+	C2_ASSERT(logbuf == NULL);
 
 	c2_atomic64_set(&cur, 0);
 	bufshift = BUFSHIFT;
@@ -96,6 +98,7 @@ int c2_trace_init(void)
 	} else {
 		perror("open");
 	}
+
 	return -errno;
 #else
 	logbuf = kzalloc(BUFSIZE, GFP_KERNEL);
@@ -108,6 +111,7 @@ void c2_trace_fini(void)
 {
 #ifndef __KERNEL__
 	munmap(logbuf, bufsize);
+	logbuf = NULL;
 	close(logfd);
 #else
 	kfree(logbuf);
@@ -130,13 +134,11 @@ static inline uint64_t rdtsc(void)
 
 void *c2_trace_allot(const struct c2_trace_descr *td)
 {
-	uint32_t                    record_len;
-	uint32_t                    header_len;
+	uint32_t header_len, record_len, pos_in_buf;
+	uint64_t pos, endpos;
 	struct c2_trace_rec_header *header;
-	uint64_t                    pos;
-	uint64_t                    endpos;
-	uint32_t                    pos_in_buf;
 
+	C2_ASSERT(logbuf);
 	/*
 	 * Allocate space in trace buffer to store trace record header
 	 * (header_len bytes) and record payload (record_len bytes).
@@ -173,7 +175,7 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 	header->thr_no        = (pos & ((1ULL << 62) - 1)) + 1;
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
-	return ((void *)header) + header_len;
+	return (void*)header + header_len;
 }
 
 /** @} end of trace group */
