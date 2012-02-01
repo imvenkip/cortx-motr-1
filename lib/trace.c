@@ -19,10 +19,13 @@
  */
 
 #ifndef __KERNEL__
-#include <sys/mman.h> /* mmap */
-#include <unistd.h>   /* getpagesize */
-#include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
-#include <string.h>   /* memset */
+#  include <sys/mman.h> /* mmap */
+#  include <unistd.h>   /* getpagesize */
+#  include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
+#  include <string.h>   /* memset */
+#  include <stdio.h>
+#else
+#  include <linux/slab.h>
 #endif
 
 #include "lib/errno.h"
@@ -66,7 +69,6 @@ enum {
 
 int c2_trace_init(void)
 {
-#ifndef __KERNEL__
 	int psize;
 
 	c2_atomic64_set(&cur, 0);
@@ -74,19 +76,31 @@ int c2_trace_init(void)
 	bufsize  = BUFSIZE;
 	bufmask  = bufsize - 1;
 
+#ifdef __KERNEL__
+	psize = PAGE_SIZE;
+#else
 	psize = getpagesize();
+#endif
 	C2_ASSERT((BUFSIZE % psize) == 0);
 
+#ifndef __KERNEL__
+	errno = 0;
 	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
 	if (logfd != -1) {
 		if (ftruncate(logfd, BUFSIZE) == 0) {
 			logbuf = mmap(NULL, BUFSIZE, PROT_WRITE,
 				      MAP_SHARED, logfd, 0);
+			if (logbuf == MAP_FAILED)
+				perror("mmap");
 		}
+	} else {
+		perror("open");
 	}
 	return -errno;
 #else
-	return 0;
+	logbuf = kzalloc(BUFSIZE, GFP_KERNEL);
+
+	return logbuf ? 0 : -ENOMEM;
 #endif
 }
 
@@ -95,6 +109,8 @@ void c2_trace_fini(void)
 #ifndef __KERNEL__
 	munmap(logbuf, bufsize);
 	close(logfd);
+#else
+	kfree(logbuf);
 #endif
 }
 
