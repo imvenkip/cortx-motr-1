@@ -155,10 +155,6 @@ int main(int argc, char *argv[])
 	struct c2_list test_list;
 	struct c2_list exclude_list;
 
-	result = unit_start(UT_SANDBOX);
-	if (result != 0)
-		return result;
-
 	result = C2_GETOPTS("ut", argc, argv,
 			    C2_HELPARG('h'),
 			    C2_VOIDARG('T', "parse trace log produced earlier",
@@ -215,6 +211,10 @@ int main(int argc, char *argv[])
 		result = EXIT_FAILURE;
 		goto out;
 	}
+
+	result = unit_start(UT_SANDBOX);
+	if (result != 0)
+		return result;
 
 	c2_list_init(&test_list);
 	c2_list_init(&exclude_list);
