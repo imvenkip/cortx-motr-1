@@ -81,11 +81,14 @@ void c2_ping_fop_fini(void)
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
 
+extern struct c2_fom_type c2_fom_ping_mopt;
+
 int c2_ping_fop_init(void)
 {
         int result;
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
         result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_mopt;
         return result;
 }
 

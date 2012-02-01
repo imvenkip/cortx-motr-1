@@ -51,7 +51,7 @@ static const struct c2_fom_type_ops c2_fom_ping_type_ops = {
 };
 
 /** Ping specific FOM type operations vector. */
-static struct c2_fom_type c2_fom_ping_mopt = {
+struct c2_fom_type c2_fom_ping_mopt = {
         .ft_ops = &c2_fom_ping_type_ops,
 };
 
