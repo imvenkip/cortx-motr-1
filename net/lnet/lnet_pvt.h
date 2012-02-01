@@ -24,8 +24,21 @@
 
 #define LNET_ADDB_FUNCFAIL_ADD(ctx, rc)					\
  C2_ADDB_ADD(&(ctx), &nlx_addb_loc, nlx_func_fail, __func__, (rc))
-#define LNET_ADDB_STAT_ADD(ctx, name, cnt)				\
- C2_ADDB_ADD(&(ctx), &nlx_addb_loc, nlx_statistic, (name), (cnt))
+
+#define LNET_ADDB_STAT_ADD(ctx, ...)					\
+({									\
+	struct nlx_addb_dp __dp;					\
+									\
+	__dp.ad_dp.ad_ctx   = &(ctx);					\
+	__dp.ad_dp.ad_loc   = &nlx_addb_loc;				\
+	__dp.ad_dp.ad_ev    = &nlx_qstat;				\
+	__dp.ad_dp.ad_level = (c2_addb_level_default);			\
+									\
+	(void)sizeof(((__nlx_qstat_typecheck_t *)NULL)			\
+		     (&__dp.ad_dp , ## __VA_ARGS__));			\
+	if (nlx_qstat.ae_ops->aeo_subst(&__dp.ad_dp , ## __VA_ARGS__) == 0) \
+		c2_addb_add(&__dp.ad_dp);				\
+})
 
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm);

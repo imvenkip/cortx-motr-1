@@ -90,6 +90,19 @@ static void tf_tm_ecb(const struct c2_net_tm_event *ev)
 	ecb_count++;
 }
 
+enum {
+	STARTSTOP_DOM_NR = 3,
+	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
+	STARTSTOP_PORTAL = 30,
+	STARTSTOP_STAT_SECS = 5,
+	STARTSTOP_STAT_PER_PERIOD = 1,
+	STARTSTOP_STAT_BUF_NR = 4,
+};
+#ifdef __KERNEL__
+/* LUSTRE_SRV_LNET_PID macro is not available in user space */
+C2_BASSERT(STARTSTOP_PID == LUSTRE_SRV_LNET_PID);
+#endif
+
 static struct c2_table mock_table;
 static struct c2_dbenv mock_dbenv;
 static int lnet_stat_ev_count;
@@ -97,26 +110,35 @@ static int lnet_stat_ev_count;
 int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 		struct c2_table *db)
 {
-	if (dp->ad_ev == &nlx_statistic) {
+	if (dp->ad_ev == &nlx_qstat) {
+		const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
+		struct nlx_qstat_body *body;
+		struct c2_addb_record rec;
+		struct nlx_addb_dp *ndp;
+
+		ndp = container_of(dp, struct nlx_addb_dp, ad_dp);
 		C2_UT_ASSERT(dp->ad_name != NULL);
 		C2_UT_ASSERT(strncmp(dp->ad_name, "nlx_tm_stats:", 13) == 0);
+		C2_UT_ASSERT(ndp->ad_qs != NULL);
+
+		/* test the pack and getsize ops */
+		C2_SET0(&rec);
+		C2_UT_ASSERT(ops == &nlx_addb_qstats);
+		rec.ar_data.cmb_count = ops->aeo_getsize(dp);
+		C2_UT_ASSERT(rec.ar_data.cmb_count != 0);
+		rec.ar_data.cmb_value = c2_alloc(rec.ar_data.cmb_count);
+		C2_ASSERT(rec.ar_data.cmb_value != NULL);
+		C2_UT_ASSERT(ops->aeo_pack(dp, &rec) == 0);
+		body = (struct nlx_qstat_body *)rec.ar_data.cmb_value;
+		C2_UT_ASSERT(body->sb_qid == dp->ad_rc);
+		C2_UT_ASSERT(body->sb_qstats.nqs_num_adds ==
+			     STARTSTOP_STAT_BUF_NR);
+		c2_free(rec.ar_data.cmb_value);
+
 		lnet_stat_ev_count++;
 	}
 	return 0;
 }
-
-enum {
-	STARTSTOP_DOM_NR = 3,
-	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
-	STARTSTOP_PORTAL = 30,
-	STARTSTOP_STAT_SECS = 5,
-	STARTSTOP_STAT_PER_PERIOD = 7,
-	STARTSTOP_STAT_BUF_NR = 4,
-};
-#ifdef __KERNEL__
-/* LUSTRE_SRV_LNET_PID macro is not available in user space */
-C2_BASSERT(STARTSTOP_PID == LUSTRE_SRV_LNET_PID);
-#endif
 
 static void test_tm_startstop(void)
 {

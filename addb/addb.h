@@ -202,9 +202,9 @@ enum c2_addb_event_id {
 	C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT = 0x2ULL,
 	C2_ADDB_EVENT_OOM                   = 0x3ULL,
 	C2_ADDB_EVENT_FUNC_FAIL             = 0x4ULL,
-	C2_ADDB_EVENT_STATISTIC             = 0x5ULL,
 	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
 	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
+	C2_ADDB_EVENT_NET_QSTATS            = 0x12ULL,
 
 	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
 	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
@@ -346,7 +346,7 @@ enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
    Declare addb event operations vector with a given collection of formal
    parameter.
 
-   @see C2_ADDB_SYSCALL, C2_ADDB_FUNC_CALL, C2_ADDB_CALL, C2_ADDB_STATISTIC
+   @see C2_ADDB_SYSCALL, C2_ADDB_FUNC_CALL, C2_ADDB_CALL
    @see C2_ADDB_STAMP, C2_ADDB_FLAG
  */
 #define C2_ADDB_OPS_DEFINE(ops, ...)					\
@@ -367,8 +367,6 @@ C2_ADDB_OPS_DEFINE(C2_ADDB_INVAL, uint64_t val);
 C2_ADDB_OPS_DEFINE(C2_ADDB_STAMP);
 /** Record a Boolean condition. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
-/** A named run-time statistic. */
-C2_ADDB_OPS_DEFINE(C2_ADDB_STATISTIC, const char *sname, uint64_t val);
 
 /** Report this event when memory allocation fails. */
 extern struct c2_addb_ev c2_addb_oom;
@@ -379,11 +377,6 @@ typedef int __c2_addb_oom_typecheck_t(struct c2_addb_dp *dp);
 extern struct c2_addb_ev c2_addb_func_fail;
 typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp,
 					    const char *name, int rc);
-
-/** Report this event for a run-time statistic. */
-extern struct c2_addb_ev c2_addb_statistic;
-typedef int __c2_addb_statistic_typecheck_t(struct c2_addb_dp *dp,
-					    const char *name, uint64_t val);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */
