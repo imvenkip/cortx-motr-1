@@ -19,11 +19,13 @@
  */
 
 #ifndef __KERNEL__
-#  include <sys/mman.h> /* mmap */
-#  include <unistd.h>   /* getpagesize */
-#  include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #  include <string.h>   /* memset */
 #  include <stdio.h>
+#  include <unistd.h>   /* getpagesize */
+#  include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
+#  include <sys/mman.h> /* mmap */
+#  include <sys/syscall.h>
+#  include <linux/sysctl.h>
 #else
 #  include <linux/slab.h>
 #endif
@@ -72,6 +74,31 @@ int c2_trace_init(void)
 	int psize;
 
 	C2_ASSERT(logbuf == NULL);
+#ifndef __KERNEL__
+	{
+		int name[] = { CTL_KERN, KERN_RANDOMIZE };
+		struct __sysctl_args args;
+		int val;
+		size_t val_sz = sizeof val;
+
+		memset(&args, 0, sizeof args);
+		args.name = name;
+		args.nlen = ARRAY_SIZE(name);
+		args.oldval  = &val;
+		args.oldlenp = &val_sz;
+
+		if (syscall(SYS__sysctl, &args) == -1) {
+			perror("_sysctl");
+			return -errno;
+		}
+
+		if (val != 0) {
+			fprintf(stderr, "System configuration ERROR: "
+			   "kernel.randomize_va_space should be set to 0.\n");
+			return -1;
+		}
+	}
+#endif
 
 	c2_atomic64_set(&cur, 0);
 	bufshift = BUFSHIFT;
