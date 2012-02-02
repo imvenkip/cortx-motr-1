@@ -199,19 +199,19 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	double   packing_density;
 #endif
 
-	printf("\t\trpcs:\t%llu\n",
+	printf("                rpcs:   %llu\n",
 			(unsigned long long) stats->rs_rpcs_nr);
-	printf("\t\titems:\t%llu\n",
+	printf("                items:  %llu\n",
 			(unsigned long long) stats->rs_items_nr);
-	printf("\t\tbytes:\t%llu\n",
+	printf("                bytes:  %llu\n",
 			(unsigned long long) stats->rs_bytes_nr);
 #ifndef __KERNEL__
 	packing_density = (double) stats->rs_items_nr /
 			  (double) stats->rs_rpcs_nr;
-	printf("\t\tpacking_density: %lf\n", packing_density);
+	printf("                packing_density: %lf\n", packing_density);
 #else
 	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
-	printf("\t\tpacking_density: %llu\n", packing_density);
+	printf("                packing_density: %llu\n", packing_density);
 #endif
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_min_lat);
@@ -219,18 +219,19 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 #ifdef __KERNEL__
 	usec = (uint64_t) nsec / 1000;
 	usec += (uint64_t) (sec * 1000000);
-	printf("\t\tmin_latency:\t %llu # usec\n", usec);
+	printf("                min_latency: %llu # usec\n", usec);
 	if (usec != 0) {
 		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("\t\tmax_throughput:\t %llu # MB/s\n", thruput);
+		printf("                max_throughput: %llu # MB/s\n",
+					thruput);
 	}
 #else
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
-	printf("\t\tmin_latency:\t %lf # msec\n", msec);
+	printf("                min_latency:\t %lf # msec\n", msec);
 
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("\t\tmax_throughput:\t %lf # MB/s\n", thruput);
+	printf("                max_throughput:\t %lf # MB/s\n", thruput);
 #endif
 
 	sec = 0;
@@ -239,18 +240,19 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 #ifdef __KERNEL__
 	usec = (uint64_t) nsec / 1000;
 	usec += (uint64_t) (sec * 1000000);
-	printf("\t\tmax_latency:\t %llu # usec\n", usec);
+	printf("                max_latency: %llu # usec\n", usec);
 	if (usec != 0) {
 		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("min_throughput:\t %llu # MB/s\n", thruput);
+		printf("                min_throughput: %llu # MB/s\n",
+					thruput);
 	}
 #else
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
-	printf("\t\tmax_latency:\t %lf # msec\n", msec);
+	printf("                max_latency:\t %lf # msec\n", msec);
 
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("\t\tmin_throughput:\t %lf # MB/s\n", thruput);
+	printf("                min_throughput:\t %lf # MB/s\n", thruput);
 #endif
 }
 
@@ -259,10 +261,10 @@ static void print_stats(struct c2_rpcmachine *rpc_mach)
 {
 	printf("stats:\n");
 
-	printf("\tin:\n");
+	printf("        in:\n");
 	print_rpc_stats(&rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING]);
 
-	printf("\tout:\n");
+	printf("        out:\n");
 	print_rpc_stats(&rpc_mach->cr_rpc_stats[C2_RPC_PATH_OUTGOING]);
 }
 
