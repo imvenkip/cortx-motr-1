@@ -32,11 +32,17 @@
    @{
  */
 
+static int read_count;
+
 static void align(unsigned align)
 {
+	int pos = read_count ? read_count - 1 : 0;
 	C2_ASSERT(c2_is_po2(align));
-	while (!feof(stdin) && (ftell(stdin) & (align - 1)))
+	while (!feof(stdin) && (pos & (align - 1))) {
 		getchar();
+		pos++;
+	}
+	read_count = pos + 1;
 }
 
 /**
@@ -46,7 +52,7 @@ int c2_trace_parse(void)
 {
 	struct c2_trace_rec_header   trh;
 	const struct c2_trace_descr *td;
-	int                          nr;
+	int                          nr, n2r;
 	int                          i;
 	union {
 		uint8_t  v8;
@@ -55,11 +61,7 @@ int c2_trace_parse(void)
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
 
-	if (ftell(stdin) == -1) {
-		fprintf(stderr, "Input stream can not be PIPE-like, correct usage:\n");
-		fprintf(stderr, "  $ prog < c2.trace\n");
-		return 1;
-	}
+	read_count = 0;
 
 	printf("  pos  |   tstamp      | tid |        func        |        src        | sz|narg\n");
 	printf("-------------------------------------------------------------------------------\n");
@@ -70,34 +72,35 @@ int c2_trace_parse(void)
 		/* Find the complete record */
 		for (;;) {
 			align(8); /* At the beginning of a record */
-			nr = fread(&trh.trh_magic, sizeof trh.trh_magic, 1, stdin);
-			if (nr == 0) {
+			nr = fread(&trh.trh_magic, 1, sizeof trh.trh_magic, stdin);
+			if (nr != sizeof trh.trh_magic) {
 				C2_ASSERT(feof(stdin));
 				return 0;
 			}
+			read_count += nr;
 			if (trh.trh_magic != MAGIC)
 				continue;
-			nr = fread(&trh.trh_flags, sizeof trh.trh_flags, 1, stdin);
-			if (nr == 0) {
+			nr = fread(&trh.trh_flags, 1, sizeof trh.trh_flags, stdin);
+			if (nr != sizeof trh.trh_flags) {
 				C2_ASSERT(feof(stdin));
-				return 0;
+				return 1;
 			}
+			read_count += nr;
 			if (trh.trh_flags != TRH_FLAG_COMPLETE) {
+				nr = sizeof trh.trh_flags + sizeof trh.trh_magic;
 				fprintf(stderr,
-				"WARNING: the record at %ld is broken, skipped...\n",
-					ftell(stdin) - sizeof trh.trh_flags
-					             - sizeof trh.trh_magic);
+				"WARNING: the record at %d is broken, skipped...\n",
+					read_count-1 - nr);
 				continue;
 			}
 			break;
 		}
-		nr = fseek(stdin, - sizeof trh.trh_flags
-		                  - sizeof trh.trh_magic, SEEK_CUR);
-		C2_ASSERT(nr == 0);
 
 		/* Now we might have complete record */
-		nr = fread(&trh, sizeof trh, 1, stdin);
-		C2_ASSERT(nr == 1);
+		n2r = sizeof trh - sizeof trh.trh_flags - sizeof trh.trh_magic;
+		nr = fread(&trh.trh_tid, 1, n2r, stdin);
+		C2_ASSERT(nr == n2r);
+		read_count += nr;
 
 		td = trh.trh_descr;
 
@@ -111,6 +114,7 @@ int c2_trace_parse(void)
 
 		nr = fread(buf, 1, td->td_size, stdin);
 		C2_ASSERT(nr == td->td_size);
+		read_count += nr;
 
 		for (i = 0; i < td->td_nr; ++i) {
 			char *addr;
