@@ -21,10 +21,11 @@
 
 /* This file is designed to be included in klnet_core.c. */
 
+#ifdef NLX_DEBUG
 static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
-	LNetSnprintHandle(buf, sizeof(buf)-1, h);
+	LNetSnprintHandle(buf, sizeof buf - 1, h);
 	printk("%s: %s\n", pre, buf);
 }
 
@@ -47,7 +48,7 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 #if 0
 	{
 		int i;
-		for(i=0; i < kcb->kb_kiov_len; ++i) {
+		for(i = 0; i < kcb->kb_kiov_len; ++i) {
 			printk("\t[%d] %p %d %d\n", i,
 			       kcb->kb_kiov[i].kiov_page,
 			       kcb->kb_kiov[i].kiov_len,
@@ -67,7 +68,7 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 		printk("%s: <null> (lnet_event_t)\n", pre);
 		return;
 	}
-	C2_ASSERT(LNET_EVENT_UNLINK == 5);
+	C2_ASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 1);
 	if (e->type >= 0 && e->type <= LNET_EVENT_UNLINK)
 		name = lnet_event_s[e->type];
 	else
@@ -99,6 +100,7 @@ static void nlx_kprint_kcore_tm(const char *pre,
 	printk("\t mb_counter: %lu\n", (unsigned long) ktm->ktm_mb_counter);
 	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
 }
+#endif
 
 /**
    @addtogroup KLNetCore
@@ -239,7 +241,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
    @param lcbuf Pointer to kcore buffer private data with match bits set.
    @param umd Pointer to the UMD.
    @param bytes The byte count desired.
-   @param nlx_kcore_kiov_restore_length()
+   @see nlx_kcore_kiov_restore_length()
    @post kcb->kb_kiov_adj_idx >= 0
    @post kcb->kb_kiov_adj_idx < kcb->kb_kiov_len
    @post nlx_kcore_kiov_invariant(umd->start, umd->length)

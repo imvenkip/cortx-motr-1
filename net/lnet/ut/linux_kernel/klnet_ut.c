@@ -499,10 +499,6 @@ static unsigned ut_ktest_kiov_count(const lnet_kiov_t *k, size_t len)
 
 	for (i = 0, count = 0; i < len; ++i, ++k) {
 		count += k->kiov_len;
-#if 0
-		NLXP("[%u] %p %u %u count=%d\n", (unsigned) i,
-		     k->kiov_page, k->kiov_len, k->kiov_offset, count);
-#endif
 	}
 	return count;
 }
@@ -656,10 +652,10 @@ static void ktest_msg_body(struct ut_data *td)
 	cb_save_ep1 = true;
 	cepa = nlx_ep_to_core(TM1->ntm_ep);
 	addr.cepa_nid = cepa->cepa_nid; /* use real NID */
-	addr.cepa_pid = 22;
+	addr.cepa_pid = 22;  /* arbitrary */
 	C2_UT_ASSERT(cepa->cepa_tmid > 10);
-	addr.cepa_tmid = cepa->cepa_tmid - 10;
-	addr.cepa_portal = 35;
+	addr.cepa_tmid = cepa->cepa_tmid - 10;  /* arbitrarily different */
+	addr.cepa_portal = 35; /* arbitrary */
 	offset = 0;
 	len = 1;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);

@@ -19,6 +19,7 @@
  * Original creation date: 11/16/2011
  */
 
+#ifdef NLX_DEBUG
 static void nlx_print_core_ep_addr(const char *pre,
 				   const struct nlx_core_ep_addr *cepa)
 {
@@ -65,6 +66,7 @@ static void nlx_print_net_buffer_event(const char *pre,
 		NLXP("\t\t  nb_flags: %lx\n", (unsigned long) nb->nb_flags);
 	}
 }
+#endif
 
 /**
    @addtogroup LNetCore

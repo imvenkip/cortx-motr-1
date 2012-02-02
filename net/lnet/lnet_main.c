@@ -769,23 +769,23 @@
 
 
 /* debug print support */
-#define NLX_DEBUG
+#undef NLX_DEBUG
 #ifdef NLX_DEBUG
 
 /* note Linux uses the LP64 standard */
 #ifdef __KERNEL__
-#define NLXP(fmt,...) printk(KERN_ERR fmt,## __VA_ARGS__)
+#define NLXP(fmt, ...) printk(KERN_ERR fmt, ## __VA_ARGS__)
 #else
-#define NLXP(fmt,...) fprintf(stderr, fmt,## __VA_ARGS__)
+#define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
 #endif
-#define NLXDBG(ptr,dbg,stmt) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); stmt; } } while (0)
-#define NLXDBGP(ptr,dbg,fmt,...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); NLXP(fmt,## __VA_ARGS__); } } while (0)
-#define NLXDBGPnl(ptr,dbg,fmt,...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP(fmt,## __VA_ARGS__); } } while (0)
+#define NLXDBG(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); stmt; } } while (0)
+#define NLXDBGP(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); NLXP(fmt, ## __VA_ARGS__); } } while (0)
+#define NLXDBGPnl(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP(fmt, ## __VA_ARGS__); } } while (0)
 #else
-#define NLXP(fmt,...)
-#define NLXDBG(ptr,dbg,stmt) do { ; } while (0)
-#define NLXDBGP(ptr,dbg,fmt,...) do { ; } while (0)
-#define NLXDBGPnl(ptr,dbg,fmt,...) do { ; } while (0)
+#define NLXP(fmt, ...)
+#define NLXDBG(ptr, dbg, stmt) do { ; } while (0)
+#define NLXDBGP(ptr, dbg, fmt, ...) do { ; } while (0)
+#define NLXDBGPnl(ptr, dbg, fmt, ...) do { ; } while (0)
 #endif /* !NLX_DEBUG */
 
 /*
@@ -839,6 +839,7 @@ C2_EXPORTED(c2_net_lnet_ifaces_put);
 void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
 {
 	struct nlx_xo_domain *dp;
+
 	C2_PRE(dom != NULL);
 	c2_mutex_lock(&c2_net_mutex);
 	C2_PRE(nlx_dom_invariant(dom));
@@ -851,6 +852,7 @@ void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
 void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
 {
 	struct nlx_xo_transfer_mc *tp;
+
 	C2_PRE(tm != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(nlx_tm_invariant(tm));

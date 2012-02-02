@@ -730,7 +730,7 @@ static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 	struct nlx_core_bev_link *link;
 	if (bev_cqueue_is_empty(q)) /* also checks invariant */
 		return NULL;
-	link = ((struct nlx_core_bev_link *) (q->cbcq_consumer));
+	link = (struct nlx_core_bev_link *) q->cbcq_consumer;
 	C2_ASSERT(link->cbl_c_next != 0);
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) link->cbl_c_next;
 	return (struct nlx_core_bev_link *) (q->cbcq_consumer);

@@ -62,7 +62,7 @@ static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
 	return tp != NULL && tp->xtm_tm == tm && nlx_dom_invariant(tm->ntm_dom);
 }
 
-/* Unit test intercept support.
+/** Unit test intercept support.
    Conventions to use:
    - All such subs must be declared in headers.
    - A macro named for the subroutine, but with the "NLX" portion of the prefix
