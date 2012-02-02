@@ -22,6 +22,7 @@
 #define __COLIBRI_LIB_TRACE_H__
 
 #include "lib/types.h"
+#include "lib/arith.h"
 
 #ifndef __KERNEL__
 #include "lib/user_space/trace.h"
@@ -99,16 +100,21 @@ enum {
 	MAGIC = 0xc0de1eafacc01adeULL,
 };
 
-struct c2_trace_rec_header;
-struct c2_trace_descr;
+enum trh_flags {
+	TRH_FLAG_INIT,
+	TRH_FLAG_COMPLETE
+};
 
+#pragma pack(push, 8)
 struct c2_trace_rec_header {
-	uint64_t                     thr_magic;
-	uint32_t                     thr_no;
+	uint64_t                     trh_magic;
+	uint32_t                     trh_flags;
 	uint32_t                     trh_tid;
+	uint64_t                     trh_no;
 	uint64_t                     trh_timestamp;
 	const struct c2_trace_descr *trh_descr;
 };
+#pragma pack(pop)
 
 struct c2_trace_descr {
 	const char *td_fmt;
@@ -121,7 +127,7 @@ struct c2_trace_descr {
 	const int  *td_sizeof;
 };
 
-void *c2_trace_allot(const struct c2_trace_descr *td);
+struct c2_trace_rec_header* c2_trace_allot(const struct c2_trace_descr *td);
 
 /**
    This is a low-level entry point into tracing sub-system.
@@ -140,7 +146,8 @@ void *c2_trace_allot(const struct c2_trace_descr *td);
  */
 #define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
 {									\
-	struct t_body DECL;						\
+	struct c2_trace_rec_header *header;				\
+	struct t_body DECL         *body;				\
 	static const int _offset[NR] = OFFSET;				\
 	static const int _sizeof[NR] = SIZEOF;				\
 	static const struct c2_trace_descr td = {			\
@@ -148,14 +155,16 @@ void *c2_trace_allot(const struct c2_trace_descr *td);
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
 		.td_line   = __LINE__,					\
-		.td_size   = sizeof(struct t_body),			\
+		.td_size   = sizeof(*body),				\
 		.td_nr     = (NR),					\
 		.td_offset = _offset,					\
 		.td_sizeof = _sizeof					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
-	*(struct t_body *)c2_trace_allot(&td) = 			\
-                                (const struct t_body){ __VA_ARGS__ };	\
+	header = c2_trace_allot(&td);					\
+	body   = (void*)header + c2_align(sizeof *header, 8);		\
+	*body  = (const struct t_body){ __VA_ARGS__ };			\
+	header->trh_flags = TRH_FLAG_COMPLETE;				\
 }
 
 enum {

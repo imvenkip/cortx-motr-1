@@ -44,10 +44,7 @@ static void align(unsigned align)
  */
 int c2_trace_parse(void)
 {
-	uint64_t                     magic;
-	uint32_t                     no;
-	uint32_t                     tid;
-	uint64_t                     timestamp;
+	struct c2_trace_rec_header   trh;
 	const struct c2_trace_descr *td;
 	int                          nr;
 	int                          i;
@@ -63,47 +60,54 @@ int c2_trace_parse(void)
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
-		/* At the beginning of a record */
-		align(8);
 
-		do {
-			nr = fread(&magic, sizeof magic, 1, stdin);
+		/* Find the complete record */
+		for (;;) {
+			align(8); /* At the beginning of a record */
+			nr = fread(&trh.trh_magic, sizeof trh.trh_magic, 1, stdin);
 			if (nr == 0) {
 				C2_ASSERT(feof(stdin));
 				return 0;
 			}
-		} while (magic != MAGIC);
+			if (trh.trh_magic != MAGIC)
+				continue;
+			nr = fread(&trh.trh_flags, sizeof trh.trh_flags, 1, stdin);
+			if (nr == 0) {
+				C2_ASSERT(feof(stdin));
+				return 0;
+			}
+			if (trh.trh_flags != TRH_FLAG_COMPLETE) {
+				fprintf(stderr,
+				"WARNING: the record at %ld is broken, skipped...\n",
+					ftell(stdin) - sizeof trh.trh_flags
+					             - sizeof trh.trh_magic);
+				continue;
+			}
+			break;
+		}
+		nr = fseek(stdin, - sizeof trh.trh_flags
+		                  - sizeof trh.trh_magic, SEEK_CUR);
+		C2_ASSERT(nr == 0);
 
-#define C2_TRACE_RECORD_CHECK(predicate) \
-	if (!(predicate)) { \
-		fprintf(stderr, "WARNING: the record at %ld is broken, skipped...\n", \
-			ftell(stdin)); \
-		goto next; \
-	}
+		/* Now we have complete record */
+		nr = fread(&trh, sizeof trh, 1, stdin);
+		if (nr != 1) {
+			C2_ASSERT(feof(stdin));
+			return 0;
+		}
 		
-		nr = fread(&no, sizeof no, 1, stdin);
-		C2_TRACE_RECORD_CHECK(nr == 1);
+		td = trh.trh_descr;
 
-		nr = fread(&tid, sizeof tid, 1, stdin);
-		C2_TRACE_RECORD_CHECK(nr == 1);
-
-		nr = fread(&timestamp, sizeof timestamp, 1, stdin);
-		C2_TRACE_RECORD_CHECK(nr == 1);
-
-		nr = fread(&td, sizeof td, 1, stdin);
-		C2_TRACE_RECORD_CHECK(nr == 1);
-
-		printf("%7.7u %15.15lu %5u %-20s %15s:%-3i %3.3i %3i\n\t",
-		       no, timestamp, tid, td->td_func, td->td_file,
-		       td->td_line, td->td_size, td->td_nr);
-		C2_TRACE_RECORD_CHECK(td->td_nr <= C2_TRACE_ARGC_MAX);
-		align(8);
+		printf("%7.7lu %15.15lu %5u %-20s %15s:%-3i %3.3i %3i\n\t",
+		       trh.trh_no, trh.trh_timestamp, trh.trh_tid,
+		       td->td_func, td->td_file, td->td_line, td->td_size,
+		       td->td_nr);
 
 		buf = c2_alloc(td->td_size);
 		C2_ASSERT(buf != NULL);
 
 		nr = fread(buf, 1, td->td_size, stdin);
-		C2_TRACE_RECORD_CHECK(nr == td->td_size);
+		C2_ASSERT(nr == td->td_size);
 
 		for (i = 0; i < td->td_nr; ++i) {
 			char *addr;
@@ -132,7 +136,6 @@ int c2_trace_parse(void)
 		       v[7], v[8]);
 		printf("\n");
 
-next:
 		if (buf)
 			c2_free(buf);
 		align(8);

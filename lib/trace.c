@@ -158,7 +158,8 @@ static inline uint64_t rdtsc(void)
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
 }
 
-void *c2_trace_allot(const struct c2_trace_descr *td)
+struct c2_trace_rec_header *
+c2_trace_allot(const struct c2_trace_descr *td)
 {
 	uint32_t header_len, record_len, pos_in_buf, endpos_in_buf;
 	uint64_t pos, endpos;
@@ -195,8 +196,9 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 	}
 
 	header                = logbuf + pos_in_buf;
-	header->thr_magic     = MAGIC;
-	header->thr_no        = pos;
+	header->trh_magic     = MAGIC;
+	header->trh_flags     = TRH_FLAG_INIT;
+	header->trh_no        = pos;
 #ifdef __KERNEL__
 	header->trh_tid       = (uint32_t)current->pid;
 #else
@@ -204,7 +206,7 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 #endif
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
-	return (void*)header + header_len;
+	return header;
 }
 
 /** @} end of trace group */
