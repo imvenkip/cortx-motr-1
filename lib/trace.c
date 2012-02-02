@@ -57,7 +57,6 @@
 
 /* single buffer for now */
 static void              *logbuf = NULL;
-static uint32_t           bufshift;
 static uint32_t           bufsize;
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
@@ -102,7 +101,6 @@ int c2_trace_init(void)
 #endif
 
 	c2_atomic64_set(&cur, 0);
-	bufshift = BUFSHIFT;
 	bufsize  = BUFSIZE;
 	bufmask  = bufsize - 1;
 
@@ -162,7 +160,7 @@ static inline uint64_t rdtsc(void)
 
 void *c2_trace_allot(const struct c2_trace_descr *td)
 {
-	uint32_t header_len, record_len, pos_in_buf;
+	uint32_t header_len, record_len, pos_in_buf, endpos_in_buf;
 	uint64_t pos, endpos;
 	struct c2_trace_rec_header *header;
 
@@ -185,14 +183,15 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 		endpos = c2_atomic64_add_return(&cur, record_len);
 		pos    = endpos - record_len;
 		pos_in_buf = pos & bufmask;
+		endpos_in_buf = endpos & bufmask;
 		/*
 		 * If allocated space crosses buffer end, zero allocated parts
 		 * of the buffer and allocate anew. Allocated space remains lost
 		 * until the buffer is wrapped over again.
 		 */
-		if ((pos >> bufshift) != (endpos >> bufshift)) {
+		if (pos_in_buf > endpos_in_buf && endpos_in_buf) {
 			memset(logbuf + pos_in_buf, 0, bufsize - pos_in_buf);
-			memset(logbuf, 0, endpos & bufmask);
+			memset(logbuf, 0, endpos_in_buf);
 		} else
 			break;
 	}
