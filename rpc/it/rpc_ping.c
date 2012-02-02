@@ -315,6 +315,37 @@ out:
 	return;
 }
 
+/*
+ * An rpcping-specific implementation of client fini function, which is used
+ * instead of c2_rpc_client_fini(). It's required in order to get a correct
+ * statistics from rpc machine, which is possible only when all connections,
+ * associated with rpc machine, are terminated, but rpc machine itself is not
+ * finalized yet.
+ */
+static int client_fini(struct c2_rpc_client_ctx *cctx)
+{
+	int rc;
+
+	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
+	if (rc != 0)
+		return rc;
+
+	c2_net_end_point_put(cctx->rcx_remote_ep);
+
+	if (verbose)
+		print_stats(&cctx->rcx_rpc_machine);
+
+	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+	c2_cob_domain_fini(cctx->rcx_cob_dom);
+	c2_dbenv_fini(cctx->rcx_dbenv);
+
+	return rc;
+}
+
 static int run_client(void)
 {
 	int  rc;
@@ -393,10 +424,11 @@ static int run_client(void)
 		c2_thread_join(&client_thread[i]);
 	}
 
-	if (verbose)
-		print_stats(cctx.rcx_session.s_conn->c_rpcmachine);
-
-	rc = c2_rpc_client_fini(&cctx);
+	/*
+	 * NOTE: don't use c2_rpc_client_fini() here, see the comment above
+	 * client_fini() for explanation.
+	 */
+	rc = client_fini(&cctx);
 
 net_dom_fini:
 	c2_net_domain_fini(&client_net_dom);
