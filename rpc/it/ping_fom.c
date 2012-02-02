@@ -103,11 +103,12 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
         C2_ASSERT(fom_type != NULL);
         fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fp_gen;
+	c2_fom_init(fom);
 	fom->fo_type = fom_type;
 	fom->fo_ops = &c2_fom_ping_ops;
 	fom->fo_fop = fop;
 	fom_obj->fp_fop = fop;
-        *m = &fom_obj->fp_gen;
+	*m = fom;
 	return 0;
 }
 
@@ -116,6 +117,7 @@ void c2_fop_ping_fom_fini(struct c2_fom *fom)
 	struct c2_fom_ping *fom_obj;
 
 	fom_obj = container_of(fom, struct c2_fom_ping, fp_gen);
+	c2_fom_fini(fom);
 	c2_free(fom_obj);
 
 	return;
