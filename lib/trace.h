@@ -21,8 +21,8 @@
 #ifndef __COLIBRI_LIB_TRACE_H__
 #define __COLIBRI_LIB_TRACE_H__
 
-#include "lib/assert.h"                            /* C2_CASSERT */
-#include "lib/cdefs.h"                             /* c2_is_array */
+#include "lib/assert.h"               /* C2_CASSERT */
+#include "lib/cdefs.h"                /* c2_is_array, C2_CAT, C2_COUNT_PARAMS */
 #include "lib/types.h"
 
 #ifndef __KERNEL__
