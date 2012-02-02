@@ -68,10 +68,18 @@ struct c2_test_suite {
 	const char           *ts_name;
 	/**
 	   function to prepare tests in suite
+
+	   @warning it's not allowed to use any of CUnit assertion macros, like
+		    CU_ASSERT or C2_UT_ASSERT, in this function because it will
+		    lead to a crash; use C2_ASSERT instead if required.
 	 */
 	int                 (*ts_init)(void);
 	/**
 	   function to free resources after tests run
+
+	   @warning it's not allowed to use any of CUnit assertion macros, like
+		    CU_ASSERT or C2_UT_ASSERT, in this function because it will
+		    lead to a crash; use C2_ASSERT instead if required.
 	 */
 	int                 (*ts_fini)(void);
 	/**
