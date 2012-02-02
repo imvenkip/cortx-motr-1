@@ -133,6 +133,7 @@ int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 		C2_UT_ASSERT(body->sb_qid == dp->ad_rc);
 		C2_UT_ASSERT(body->sb_qstats.nqs_num_adds ==
 			     STARTSTOP_STAT_BUF_NR);
+		C2_UT_ASSERT(strcmp(dp->ad_name, body->sb_name) == 0);
 		c2_free(rec.ar_data.cmb_value);
 
 		lnet_stat_ev_count++;

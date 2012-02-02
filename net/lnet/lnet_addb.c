@@ -53,6 +53,7 @@ struct nlx_addb_dp {
 	struct c2_net_qstats *ad_qs;
 };
 
+/** A function failure event in net/lnet */
 static C2_ADDB_EV_DEFINE(nlx_func_fail, "nlx_func_fail",
 			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
@@ -70,12 +71,12 @@ typedef int __nlx_addb_qstats_typecheck_t(struct c2_addb_dp *dp,
 					  const char *sname, uint64_t qid,
 					  struct c2_net_qstats *qs);
 
+/** A queue statistics event for net/lnet */
 static C2_ADDB_EV_DEFINE(nlx_qstat, "nlx_qstat",
 			 C2_ADDB_EVENT_NET_QSTATS, nlx_addb_qstats);
 
 /**
    ADDB record body for run-time statistics event.
-
    This event includes a name, queue ID and qstats.
  */
 struct nlx_qstat_body {
