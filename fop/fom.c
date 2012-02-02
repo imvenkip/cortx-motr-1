@@ -740,6 +740,20 @@ void c2_fom_fini(struct c2_fom *fom)
 	c2_list_link_fini(&fom->fo_linkage);
 }
 
+void c2_fom_create(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		const struct c2_fom_ops *ops, struct c2_fop *fop,
+		struct c2_fop *reply)
+{
+	C2_PRE(fom != NULL);
+
+	c2_fom_init(fom);
+
+	fom->fo_type	= fom_type;
+	fom->fo_ops	= ops;
+	fom->fo_fop	= fop;
+	fom->fo_rep_fop = reply;
+}
+C2_EXPORTED(c2_fom_create);
 /** @} endgroup fom */
 
 /*

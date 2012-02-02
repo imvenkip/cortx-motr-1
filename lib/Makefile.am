@@ -17,7 +17,9 @@ libc2_la_SOURCES     = c2lib.c memory.c list.c refs.c \
                        user_space/user_x86_64_atomic.h assert.h cdefs.h \
                        misc.c misc.h ext.c ext.h bitstring.h bitstring.c \
                        tlist.c tlist.h \
-                       ut.c ut.h ub.c ub.h trace.h user_space/trace.c \
+                       ut.c ut.h ub.c ub.h \
+                       trace.c trace.h \
+                       user_space/trace_parse.c user_space/trace.h \
                        getopts.c getopts.h user_space/assert.h \
                        user_space/mutex.h user_space/cdefs.h \
                        user_space/utime.c user_space/types.h \

@@ -25,6 +25,10 @@
 #include "lib/cdefs.h"                             /* c2_is_array */
 #include "lib/types.h"
 
+#ifndef __KERNEL__
+#include "lib/user_space/trace.h"
+#endif
+
 /**
    @defgroup trace Tracing.
 
@@ -156,14 +160,14 @@
 
 int  c2_trace_init(void);
 void c2_trace_fini(void);
-int  c2_trace_parse(void);
 
 struct c2_trace_rec_header;
 struct c2_trace_descr;
 
 struct c2_trace_rec_header {
 	uint64_t                     thr_magic;
-	uint64_t                     thr_no;
+	uint32_t                     thr_no;
+	uint32_t                     trh_tid;
 	uint64_t                     trh_timestamp;
 	const struct c2_trace_descr *trh_descr;
 };
@@ -202,11 +206,11 @@ void *c2_trace_allot(const struct c2_trace_descr *td);
          and types of fields in the format.
  */
 #define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
-({									\
+{									\
 	struct t_body DECL;						\
 	static const int _offset[NR] = OFFSET;				\
 	static const int _sizeof[NR] = SIZEOF;				\
-	static const struct c2_trace_descr td  = {			\
+	static const struct c2_trace_descr td = {			\
                 .td_fmt    = (FMT),					\
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
@@ -219,7 +223,7 @@ void *c2_trace_allot(const struct c2_trace_descr *td);
 	printf_check(FMT , ## __VA_ARGS__);				\
 	*(struct t_body *)c2_trace_allot(&td) = 			\
                                 (const struct t_body){ __VA_ARGS__ };	\
-})
+}
 
 enum {
 	C2_TRACE_ARGC_MAX = 9

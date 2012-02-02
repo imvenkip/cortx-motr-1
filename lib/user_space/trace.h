@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -13,49 +14,27 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Andriy Tkachuk <Andriy_Tkachuk@xyratex.com>
+ * Original creation date: 01/30/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
-#include <linux/slab.h>
-#include <linux/module.h>
-
-#include "lib/cdefs.h"  /* C2_EXPORTED */
-#include "lib/memory.h"
+#ifndef __COLIBRI_LIB_USERSP_TRACE_H__
+#define __COLIBRI_LIB_USERSP_TRACE_H__
 
 /**
-   @addtogroup memory
+   @defgroup trace Tracing.
 
-   <b>Linux kernel kmalloc based allocator.</b>
+   User-space specific declarations.
 
-   @{
-*/
+ */
+int  c2_trace_parse(void);
 
-void *c2_alloc(size_t size)
-{
-	return kzalloc(size, GFP_KERNEL);
-}
-C2_EXPORTED(c2_alloc);
+/** @} end of trace group */
 
-void c2_free(void *data)
-{
-	kfree(data);
-}
-C2_EXPORTED(c2_free);
+/* __COLIBRI_LIB_USERSP_TRACE_H__ */
+#endif
 
-size_t c2_allocated(void)
-{
-	return 0;
-}
-C2_EXPORTED(c2_allocated);
-
-/** @} end of memory group */
-
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

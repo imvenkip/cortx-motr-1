@@ -168,16 +168,6 @@ static void ioseg_unlink_free(struct c2_io_ioseg *ioseg)
 	c2_free(ioseg);
 }
 
-/* Dummy definition for kernel mode. */
-#ifdef __KERNEL__
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-#else
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
-#endif
-
 /**
    Returns if given 2 fops belong to same type.
  */
@@ -482,7 +472,6 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
  * readv FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
-	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
@@ -496,7 +485,6 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
  * writev FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
-	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
@@ -507,21 +495,9 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 };
 
 /**
- * Init function to initialize readv and writev reply FOMs.
- * Since there is no client side FOMs as of now, this is empty.
- * @param fop - fop on which this fom_init methods operates.
- * @param m - fom object to be created here.
- */
-static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
-/**
  * readv and writev reply FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
-	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
