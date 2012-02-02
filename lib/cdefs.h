@@ -73,21 +73,26 @@ extern void __dummy_function(void);
 #define C2_HAS_TYPE(expr, type) __builtin_types_compatible_p(typeof(expr), type)
 
 /**
- * Calc the number of macro args (up to 9)
+ * Returns the number of parameters given to this variadic macro (up to 9
+ * parameters are supported)
  */
-#define COUNT_PARAMS(...) \
-	COUNT_PARAMS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)
-#define COUNT_PARAMS2(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_, ...) _
+#define C2_COUNT_PARAMS(...) \
+	C2_COUNT_PARAMS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)
+#define C2_COUNT_PARAMS2(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_, ...) _
 
 /**
- * ConCATenate macro-names
+ * Concatenates two arguments to produce a single token.
  */
-#define CAT(A, B) CAT2(A, B)
-#define CAT2(A, B) A ## B
+#define C2_CAT(A, B) C2_CAT2(A, B)
+#define C2_CAT2(A, B) A ## B
 
 
 /**
- * Fake function to check printf format string
+ * Check printf format string against parameters.
+ *
+ * This function does nothing except checking that the format string matches the
+ * rest of arguments and producing a compilation warning in case it doesn't. It
+ * is handy in macros which accept printf-like parameters with a format string.
  *
  * For example usage, refer to C2_TRACE_POINT() macro
  */
