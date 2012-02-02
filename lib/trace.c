@@ -185,9 +185,7 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 		pos_in_buf = pos & bufmask;
 		endpos_in_buf = endpos & bufmask;
 		/*
-		 * If allocated space crosses buffer end, zero allocated parts
-		 * of the buffer and allocate anew. Allocated space remains lost
-		 * until the buffer is wrapped over again.
+		 * The record should not cross the buffer.
 		 */
 		if (pos_in_buf > endpos_in_buf && endpos_in_buf) {
 			memset(logbuf + pos_in_buf, 0, bufsize - pos_in_buf);

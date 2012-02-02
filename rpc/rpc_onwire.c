@@ -21,6 +21,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/arith.h"
+#include "lib/trace.h"
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "rpc/session_internal.h"
@@ -319,6 +320,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 		offset += item_type->rit_ops->rito_item_size(item);
 		if (offset > len)
 			return -EMSGSIZE;
+		C2_LOG("ri_rpcobject_linkage: add %p", &item->ri_rpcobject_linkage);
 		c2_list_add(&rpc_obj->r_items, &item->ri_rpcobject_linkage);
 	}
 	return rc;

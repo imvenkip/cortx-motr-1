@@ -36,9 +36,9 @@
 #include "fop/fop_iterator.h"
 #include "lib/errno.h"            /* ETIMEDOUT */
 #include "net/bulk_sunrpc.h"      /* bulk transport */
-#include "colibri/init.h"         /* c2_init */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
+#include "lib/trace.h"
 #include "lib/misc.h"		  /* C2_SET0 */
 #include "ut/ioredirect.h"        /* redirect_std_stream, restore_std_stream */
 
@@ -92,7 +92,7 @@ static int cons_init(void)
 static int cons_fini(void)
 {
 	c2_processors_fini();
-        c2_console_fop_fini();
+	c2_console_fop_fini();
 	return 0;
 }
 
