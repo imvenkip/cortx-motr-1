@@ -58,8 +58,8 @@ int c2_trace_parse(void)
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
 
-	printf("  pos  |  tstamp  | tid |     func           |     src     | sz|narg\n");
-	printf("--------------------------------------------------------------------\n");
+	printf("  pos  |   tstamp      | tid |        func        |        src        | sz|narg\n");
+	printf("-------------------------------------------------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
@@ -93,7 +93,7 @@ int c2_trace_parse(void)
 		nr = fread(&td, sizeof td, 1, stdin);
 		C2_TRACE_RECORD_CHECK(nr == 1);
 
-		printf("%7.7u %10.10lu %5u %-20s %15s:%-3i %3.3i %i\n\t",
+		printf("%7.7u %15.15lu %5u %-20s %15s:%-3i %3.3i %3i\n\t",
 		       no, timestamp, tid, td->td_func, td->td_file,
 		       td->td_line, td->td_size, td->td_nr);
 		C2_TRACE_RECORD_CHECK(td->td_nr <= C2_TRACE_ARGC_MAX);
