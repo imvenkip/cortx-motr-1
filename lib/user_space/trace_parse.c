@@ -55,6 +55,12 @@ int c2_trace_parse(void)
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
 
+	if (ftell(stdin) == -1) {
+		fprintf(stderr, "Input stream can not be PIPE-like, correct usage:\n");
+		fprintf(stderr, "  $ prog < c2.trace\n");
+		return 1;
+	}
+
 	printf("  pos  |   tstamp      | tid |        func        |        src        | sz|narg\n");
 	printf("-------------------------------------------------------------------------------\n");
 
@@ -89,13 +95,10 @@ int c2_trace_parse(void)
 		                  - sizeof trh.trh_magic, SEEK_CUR);
 		C2_ASSERT(nr == 0);
 
-		/* Now we have complete record */
+		/* Now we might have complete record */
 		nr = fread(&trh, sizeof trh, 1, stdin);
-		if (nr != 1) {
-			C2_ASSERT(feof(stdin));
-			return 0;
-		}
-		
+		C2_ASSERT(nr == 1);
+
 		td = trh.trh_descr;
 
 		printf("%7.7lu %15.15lu %5u %-20s %15s:%-3i %3.3i %3i\n\t",
