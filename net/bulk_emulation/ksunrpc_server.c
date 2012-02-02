@@ -308,7 +308,7 @@ static int ksunrpc_service_start(struct c2_service *service,
 	xs->s_serv = serv;
 
 	/* create transport/socket */
-	rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
+	rc = svc_create_xprt(serv, "tcp", NULL, PF_INET, xid->ssi_port,
 			     SVC_SOCK_DEFAULTS);
 	if (rc < 0) {
 		ADDB_CALL(service, "svc_create_xprt", rc);

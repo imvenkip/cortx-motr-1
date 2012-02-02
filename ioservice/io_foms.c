@@ -40,6 +40,7 @@
 #include "lib/tlist.h"
 #include "lib/assert.h"
 #include "addb/addb.h"
+#include "stob/linux.h"
 
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"
@@ -585,7 +586,7 @@ const struct c2_addb_loc io_fom_addb_loc = {
 
 extern const struct c2_tl_descr bufferpools_tl;
 
-static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **m);
+static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m);
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out);
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom);
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
@@ -620,7 +621,7 @@ static const struct c2_fom_type_ops c2_io_cob_rw_type_ops = {
 /**
  * I/O FOM type operation.
  */
-static const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
+const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
 	.ft_ops = &c2_io_cob_rw_type_ops,
 };
 
@@ -966,39 +967,7 @@ static int io_fom_cob_rw_align_bufvec (struct c2_fom    *fom,
 }
 
 /**
- * Allocate I/O FOM and return generic struct c2_fom
- *
- * @param t file operation machine type need to process
- * @param out file operation machine instance
- *
- * @pre t != NULL
- * @pre out != NULL
- */
-static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **out)
-{
-        int                        rc = 0;
-        struct c2_fom             *fom;
-        struct c2_io_fom_cob_rw   *fom_obj;
-
-        C2_PRE(t != NULL);
-        C2_PRE(out != NULL);
-
-        C2_ALLOC_PTR(fom_obj);
-        if (fom_obj == NULL) {
-                rc = -ENOMEM;
-                return rc;
-        }
-        fom = &fom_obj->fcrw_gen;
-        fom->fo_type = t;
-
-        fom->fo_ops = &c2_io_fom_cob_rw_ops;
-
-        *out = fom;
-        return 0;
-}
-
-/**
- * Initiate I/O FOM and return generic struct c2_fom
+ * Create and initiate I/O FOM and return generic struct c2_fom
  * Find the corresponding fom_type and associate it with c2_fom.
  * Associate fop with fom type.
  *
@@ -1008,33 +977,30 @@ static int c2_io_fom_cob_rw_create(struct c2_fom_type *t, struct c2_fom **out)
  * @pre fop != NULL
  * @pre m != NULL
  */
-int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out)
+int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
 {
-        int                      rc;
+        int                      rc = 0;
         struct c2_fom           *fom;
         struct c2_io_fom_cob_rw *fom_obj;
         struct c2_fop_cob_rw    *rwfop;
-        struct c2_fom_type       fomtype;
 
         C2_PRE(fop != NULL);
         C2_PRE(c2_is_io_fop(fop));
         C2_PRE(out != NULL);
 
-        fop->f_type->ft_fom_type =  c2_io_fom_cob_rw_mopt;
-        fomtype = fop->f_type->ft_fom_type;
-        rc = fomtype.ft_ops->fto_create(&(fop->f_type->ft_fom_type), out);
-        if (rc != 0) {
-            return rc;
+        C2_ALLOC_PTR(fom_obj);
+        if (fom_obj == NULL) {
+                rc = -ENOMEM;
+                return rc;
         }
 
-        fom = *out;
-        fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
-
+        fom  = &fom_obj->fcrw_gen;
+        *out = fom;
         c2_fom_init(fom);
-        fom->fo_fop = fop;
 
-        C2_ASSERT(c2_is_io_fop(fop));
-
+        fom->fo_type    = &fop->f_type->ft_fom_type;
+        fom->fo_ops     = &c2_io_fom_cob_rw_ops;
+        fom->fo_fop     = fop;
 	fom->fo_rep_fop = c2_is_read_fop(fop) ?
 			     c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL) :
 			     c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);

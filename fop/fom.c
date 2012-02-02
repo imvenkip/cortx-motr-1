@@ -83,7 +83,6 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 	return dom != NULL && dom->fd_localities != NULL &&
 		dom->fd_ops != NULL;
 }
-C2_EXPORTED(c2_fom_domain_invariant);
 
 bool c2_locality_invariant(const struct c2_fom_locality *loc)
 {
@@ -93,7 +92,6 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 		c2_list_invariant(&loc->fl_wail) &&
 		c2_list_invariant(&loc->fl_threads);
 }
-C2_EXPORTED(c2_locality_invariant);
 
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
@@ -123,7 +121,6 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		return false;
 	}
 }
-C2_EXPORTED(c2_fom_invariant);
 
 bool fom_wait_time_is_out(const struct c2_fom_domain *dom, const struct c2_fom *fom)
 {
@@ -211,7 +208,6 @@ void c2_fom_block_enter(struct c2_fom *fom)
 		}
 	}
 }
-C2_EXPORTED(c2_fom_block_enter);
 
 void c2_fom_block_leave(struct c2_fom *fom)
 {
@@ -223,7 +219,6 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	C2_CNT_DEC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 }
-C2_EXPORTED(c2_fom_block_leave);
 
 void c2_fom_queue(struct c2_fom *fom)
 {
@@ -239,7 +234,6 @@ void c2_fom_queue(struct c2_fom *fom)
 	fom_ready(fom);
 	c2_mutex_unlock(&loc->fl_lock);
 }
-C2_EXPORTED(c2_fom_queue);
 
 /**
  * Puts fom on locality wait list if fom performs a blocking
@@ -277,7 +271,6 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 	c2_mutex_lock(&fom->fo_loc->fl_lock);
 	c2_clink_add(chan, &fom->fo_clink);
 }
-C2_EXPORTED(c2_fom_block_at);
 
 /**
  * Invokes fom state transition method, which transitions fom
@@ -710,7 +703,6 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 
 	return result;
 }
-C2_EXPORTED(c2_fom_domain_init);
 
 void c2_fom_domain_fini(struct c2_fom_domain *dom)
 {
@@ -727,7 +719,6 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	c2_addb_ctx_fini(&dom->fd_addb_ctx);
 	c2_free(dom->fd_localities);
 }
-C2_EXPORTED(c2_fom_domain_fini);
 
 void c2_fom_init(struct c2_fom *fom)
 {
@@ -740,7 +731,6 @@ void c2_fom_init(struct c2_fom *fom)
 	c2_clink_init(&fom->fo_clink, &fom_cb);
 	c2_list_link_init(&fom->fo_linkage);
 }
-C2_EXPORTED(c2_fom_init);
 
 void c2_fom_fini(struct c2_fom *fom)
 {
@@ -750,8 +740,21 @@ void c2_fom_fini(struct c2_fom *fom)
 	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 }
-C2_EXPORTED(c2_fom_fini);
 
+void c2_fom_create(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		const struct c2_fom_ops *ops, struct c2_fop *fop,
+		struct c2_fop *reply)
+{
+	C2_PRE(fom != NULL);
+
+	c2_fom_init(fom);
+
+	fom->fo_type	= fom_type;
+	fom->fo_ops	= ops;
+	fom->fo_fop	= fop;
+	fom->fo_rep_fop = reply;
+}
+C2_EXPORTED(c2_fom_create);
 /** @} endgroup fom */
 
 /*

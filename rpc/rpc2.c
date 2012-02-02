@@ -323,14 +323,12 @@ int c2_rpc_core_init(void)
 
 	return c2_rpc_session_module_init();
 }
-C2_EXPORTED(c2_rpc_core_init);
 
 void c2_rpc_core_fini(void)
 {
 	c2_rpc_session_module_fini();
 	c2_rpc_base_fini();
 }
-C2_EXPORTED(c2_rpc_core_fini);
 
 static void rpc_chan_ref_release(struct c2_ref *ref)
 {

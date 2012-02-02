@@ -43,7 +43,6 @@ c2_bcount_t c2_vec_count(const struct c2_vec *vec)
 	}
 	return count;
 }
-C2_EXPORTED(c2_vec_count);
 
 static bool c2_vec_cursor_invariant(const struct c2_vec_cursor *cur)
 {
@@ -76,7 +75,6 @@ void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec)
 	c2_vec_cursor_normalize(cur);
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 }
-C2_EXPORTED(c2_vec_cursor_init);
 
 bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count)
 {
@@ -98,7 +96,6 @@ bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count)
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 	return cur->vc_seg == cur->vc_vec->v_nr;
 }
-C2_EXPORTED(c2_vec_cursor_move);
 
 c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 {
@@ -106,7 +103,6 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 	return cur->vc_vec->v_count[cur->vc_seg] - cur->vc_offset;
 }
-C2_EXPORTED(c2_vec_cursor_step);
 
 int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    uint32_t          num_segs,
@@ -259,7 +255,6 @@ void c2_0vec_fini(struct c2_0vec *zvec)
 		c2_free(zvec->z_index);
 	}
 }
-C2_EXPORTED(c2_0vec_fini);
 
 static bool addr_is_4k_aligned(void *addr)
 {
@@ -317,7 +312,6 @@ failure:
 	c2_0vec_fini(zvec);
 	return -ENOMEM;
 }
-C2_EXPORTED(c2_0vec_init);
 
 void c2_0vec_bvec_init(struct c2_0vec *zvec,
 		       const struct c2_bufvec *src,
@@ -341,7 +335,6 @@ void c2_0vec_bvec_init(struct c2_0vec *zvec,
 
 	C2_POST(c2_0vec_invariant(zvec));
 }
-C2_EXPORTED(c2_0vec_bvec_init);
 
 void c2_0vec_bufs_init(struct c2_0vec *zvec,
 		       void **bufs,
@@ -370,7 +363,6 @@ void c2_0vec_bufs_init(struct c2_0vec *zvec,
 
 	C2_POST(c2_0vec_invariant(zvec));
 }
-C2_EXPORTED(c2_0vec_bufs_init);
 
 int c2_0vec_cbuf_add(struct c2_0vec *zvec,
 		     const struct c2_buf *buf,
@@ -398,7 +390,6 @@ int c2_0vec_cbuf_add(struct c2_0vec *zvec,
 	C2_POST(c2_0vec_invariant(zvec));
 	return 0;
 }
-C2_EXPORTED(c2_0vec_cbuf_add);
 
 /** @} end of vec group */
 

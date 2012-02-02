@@ -160,13 +160,12 @@ struct c2_rpc_server_ctx s_rctx = {
 	.rsx_log_file_name	= s_log_file,
 };
 
-static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
-static int io_fop_server_write_fom_init(struct c2_fop *fop, struct c2_fom **m);
-static int io_fop_server_read_fom_init(struct c2_fop *fop, struct c2_fom **m);
-static int io_fop_stob_create_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_dummy_fom_create(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m);
 
 struct c2_fop_type_ops bulkio_stob_create_ops = {
-	.fto_fom_init = io_fop_stob_create_fom_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
@@ -174,7 +173,6 @@ struct c2_fop_type_ops bulkio_stob_create_ops = {
 };
 
 struct c2_fop_type_ops bulkio_server_write_fop_ut_ops = {
-	.fto_fom_init = io_fop_server_write_fom_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
@@ -182,7 +180,6 @@ struct c2_fop_type_ops bulkio_server_write_fop_ut_ops = {
 };
 
 struct c2_fop_type_ops bulkio_server_read_fop_ut_ops = {
-	.fto_fom_init = io_fop_server_read_fom_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
@@ -196,19 +193,41 @@ struct c2_fop_type_ops bulkio_server_read_fop_ut_ops = {
  * from io fop. Rest all ops are same as io_fop_rwv_ops.
  */
 struct c2_fop_type_ops bulkio_fop_ut_ops = {
-	.fto_fom_init = io_fop_dummy_fom_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-static struct c2_fom_type_ops bulkio_fom_type_ops = {
-	.fto_create = NULL,
+static struct c2_fom_type_ops bulkio_dummy_fom_type_ops = {
+	.fto_create = io_fop_dummy_fom_create,
 };
 
-static struct c2_fom_type bulkio_fom_type = {
-	.ft_ops = &bulkio_fom_type_ops,
+static struct c2_fom_type_ops bulkio_server_write_fom_type_ops = {
+	.fto_create = io_fop_server_write_fom_create,
+};
+
+static struct c2_fom_type_ops bulkio_server_read_fom_type_ops = {
+	.fto_create = io_fop_server_read_fom_create,
+};
+
+static struct c2_fom_type_ops bulkio_stob_create_fom_type_ops = {
+	.fto_create = io_fop_stob_create_fom_create,
+};
+
+static struct c2_fom_type bulkio_dummy_fom_type = {
+	.ft_ops = &bulkio_dummy_fom_type_ops,
+};
+
+static struct c2_fom_type bulkio_server_write_fom_type = {
+	.ft_ops = &bulkio_server_write_fom_type_ops,
+};
+
+static struct c2_fom_type bulkio_server_read_fom_type = {
+	.ft_ops = &bulkio_server_read_fom_type_ops,
+};
+static struct c2_fom_type bulkio_stob_create_fom_type = {
+	.ft_ops = &bulkio_stob_create_fom_type_ops,
 };
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
@@ -501,60 +520,57 @@ static struct c2_fom_ops bulkio_fom_ops = {
 	.fo_home_locality = bulkio_fom_locality,
 };
 
-static int io_fop_stob_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	 rc = c2_io_fom_cob_rw_init(fop, &fom);
+	 rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
-	fop->f_type->ft_fom_type.ft_ops = &bulkio_fom_type_ops;
-	fom->fo_type = &bulkio_fom_type;
+	fop->f_type->ft_fom_type = bulkio_stob_create_fom_type;
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
 	return rc;
 }
 
-static int io_fop_server_write_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	 rc = c2_io_fom_cob_rw_init(fop, &fom);
+	 rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
-	fop->f_type->ft_fom_type.ft_ops = &bulkio_fom_type_ops;
-	fom->fo_type = &bulkio_fom_type;
+	fop->f_type->ft_fom_type = bulkio_server_write_fom_type;
 	fom->fo_ops = &bulkio_server_write_fom_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
 	return rc;
 }
 
-static int io_fop_server_read_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	 rc = c2_io_fom_cob_rw_init(fop, &fom);
+	rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
-	fop->f_type->ft_fom_type.ft_ops = &bulkio_fom_type_ops;
-	fom->fo_type = &bulkio_fom_type;
+	fop->f_type->ft_fom_type = bulkio_server_read_fom_type;
 	fom->fo_ops = &bulkio_server_read_fom_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
 	return rc;
 }
 
-static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int io_fop_dummy_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_fom *fom;
 
-	C2_ALLOC_PTR(fom);
+        C2_ALLOC_PTR(fom);
 	C2_UT_ASSERT(fom != NULL);
 
 	fom->fo_fop = fop;
 	c2_fom_init(fom);
-	fop->f_type->ft_fom_type.ft_ops = &bulkio_fom_type_ops;
-	fom->fo_type = &bulkio_fom_type;
+	fop->f_type->ft_fom_type = bulkio_dummy_fom_type;
 	fom->fo_ops = &bulkio_fom_ops;
+        fom->fo_type = &bulkio_dummy_fom_type;
 
 	*m = fom;
 	return 0;
@@ -795,6 +811,9 @@ void bulkio_stob_create(void)
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		C2_ALLOC_PTR(wfops[i]);
  	 	rc = c2_io_fop_init(wfops[i], &c2_fop_cob_writev_fopt);
+                wfops[i]->if_fop.f_type->ft_fom_type =
+                bulkio_stob_create_fom_type;
+                
 		rw = io_rw_get(&wfops[i]->if_fop);
 		wfops[i]->if_fop.f_type->ft_ops = &bulkio_stob_create_ops;
 		rw->crw_fid = io_fids[i];
@@ -848,6 +867,7 @@ void bulkio_server_single_read_write(void)
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
+	rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
@@ -866,6 +886,7 @@ void bulkio_server_read_write_state_test(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
+        wfops[0]->if_fop.f_type->ft_fom_type = bulkio_server_write_fom_type;
 	wfops[0]->if_fop.f_type->ft_ops = &bulkio_server_write_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
@@ -877,6 +898,7 @@ void bulkio_server_read_write_state_test(void)
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
+        rfops[0]->if_fop.f_type->ft_fom_type = bulkio_server_read_fom_type;
 	rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
@@ -901,8 +923,10 @@ void bulkio_test_client(void)
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
 		       sizeof(struct c2_thread));
 		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
-		for (i = 0; i < IO_FOPS_NR; ++i)
+		for (i = 0; i < IO_FOPS_NR; ++i) {
 			io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
+                        io_fops[i]->if_fop.f_type->ft_fom_type = bulkio_dummy_fom_type;
+                }
 
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
@@ -943,8 +967,13 @@ void bulkio_server_multiple_read_write(void)
 		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
 		       sizeof(struct c2_thread));
 		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
-		for (i = 0; i < IO_FOPS_NR; ++i)
+		for (i = 0; i < IO_FOPS_NR; ++i) { 
 			io_fops[i]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+                        if (op == C2_IOSERVICE_WRITEV_OPCODE)
+                        io_fops[i]->if_fop.f_type->ft_fom_type = bulkio_server_write_fom_type;
+                        else
+                        io_fops[i]->if_fop.f_type->ft_fom_type = bulkio_server_read_fom_type;
+                }
 
 		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
@@ -1287,14 +1316,14 @@ const struct c2_test_suite bulkio_ut = {
 		 * bulkio_init() as .ts_init requires changing all
 		 * C2_UT_ASSERTS to C2_ASSERTS.
 		 */
-		{ "bulkio_init                  ", bulkio_test_init},
-		{ "bulkio_single_read_write     ", bulkio_server_single_read_write},
-		{ "bulkio_read_write_state_test ", bulkio_server_read_write_state_test},
-		{ "bulkio_client_vectored_rw    ", bulkio_test_client},
-		{ "bulkio_client_api_test       ", bulkioapi_test},
-		{ "bulkio_vectored_read_write   ", bulkio_server_multiple_read_write},
-		{ "bulkio_rw_multiple_nb_server ", bulkio_server_read_write_multiple_nb},
-		{ "bulkio_fini                  ", bulkio_test_fini},
+		{ "bulkio_init", bulkio_test_init},
+		{ "bulkio_single_read_write", bulkio_server_single_read_write},
+		{ "bulkio_read_write_state_test", bulkio_server_read_write_state_test},
+		{ "bulkio_client_api_test", bulkioapi_test},
+		{ "bulkio_vectored_read_write", bulkio_server_multiple_read_write},
+		{ "bulkio_rw_multiple_nb_server", bulkio_server_read_write_multiple_nb},
+		{ "bulkio_client_vectored_rw", bulkio_test_client},
+		{ "bulkio_fini", bulkio_test_fini},
 		{ NULL, NULL }
 	}
 };

@@ -44,7 +44,6 @@
 #include "cs_test_fops.ff"
 #include "rpc/rpc_opcodes.h"
 
-static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m);
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
 
 /*
@@ -57,14 +56,12 @@ const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
 
 /* DS1 service fop type operations.*/
 static const struct c2_fop_type_ops cs_ds1_req_fop_type_ops = {
-        .fto_fom_init = cs_req_fop_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
         .fto_io_coalesce = NULL,
 };
 
 static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
-        .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
         .fto_io_coalesce = NULL,
@@ -72,14 +69,12 @@ static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
 
 /* DS2 service fop type operations */
 static const struct c2_fop_type_ops cs_ds2_req_fop_type_ops = {
-        .fto_fom_init = cs_req_fop_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
         .fto_io_coalesce = NULL,
 };
 
 static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
-        .fto_fom_init = NULL,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
         .fto_io_coalesce = NULL,
@@ -111,6 +106,55 @@ static struct c2_fop_type *cs_ds1_fopts[] = {
 static struct c2_fop_type *cs_ds2_fopts[] = {
         &cs_ds2_req_fop_fopt,
         &cs_ds2_rep_fop_fopt
+};
+
+/*
+  Fom specific routines for corresponding fops.
+ */
+static int cs_req_fop_fom_state(struct c2_fom *fom);
+static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static void cs_ut_fom_fini(struct c2_fom *fom);
+static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom);
+
+/*
+  Operation structures for ds1 service foms.
+ */
+static const struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
+        .fo_fini = cs_ut_fom_fini,
+        .fo_state = cs_req_fop_fom_state,
+        .fo_home_locality = cs_ut_find_fom_home_locality,
+};
+
+/*
+  Operation structures for ds2 service foms.
+ */
+static const struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
+        .fo_fini = cs_ut_fom_fini,
+        .fo_state = cs_req_fop_fom_state,
+        .fo_home_locality = cs_ut_find_fom_home_locality,
+};
+
+/*
+  Fom type operations for ds1 service foms.
+ */
+static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
+        .fto_create = cs_ds1_req_fop_fom_create,
+};
+
+static struct c2_fom_type cs_ds1_req_fop_fom_mopt = {
+	.ft_ops = &cs_ds1_req_fop_fom_type_ops,
+};
+
+/*
+  Fom type operations for ds2 service foms.
+ */
+static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
+        .fto_create = cs_ds2_req_fop_fom_create,
+};
+
+static struct c2_fom_type cs_ds2_req_fop_fom_mopt = {
+	.ft_ops = &cs_ds2_req_fop_fom_type_ops,
 };
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
@@ -156,6 +200,8 @@ int c2_cs_ut_ds1_fop_init(void)
          */
 	cs_ds1_fopts[0]->ft_fmt = &cs_ds1_req_fop_tfmt;
 	cs_ds1_fopts[1]->ft_fmt = &cs_ds1_rep_fop_tfmt;
+	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
+	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
 
         result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
         if (result != 0)
@@ -183,6 +229,8 @@ int c2_cs_ut_ds2_fop_init(void)
 	 */
 	cs_ds2_fopts[0]->ft_fmt = &cs_ds2_req_fop_tfmt;
 	cs_ds2_fopts[1]->ft_fmt = &cs_ds2_rep_fop_tfmt;
+	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
+	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
 
         result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
         if (result != 0)
@@ -191,133 +239,35 @@ int c2_cs_ut_ds2_fop_init(void)
 }
 
 /*
-  Fom specific routines for corresponding fops.
- */
-static int cs_req_fop_fom_state(struct c2_fom *fom);
-static int cs_ds1_req_fop_fom_create(struct c2_fom_type *ft, struct c2_fom **out);
-static int cs_ds2_req_fop_fom_create(struct c2_fom_type *ft, struct c2_fom **out);
-static void cs_ut_fom_fini(struct c2_fom *fom);
-static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom);
-
-/*
-  Operation structures for ds1 service foms.
- */
-static const struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
-        .fo_fini = cs_ut_fom_fini,
-        .fo_state = cs_req_fop_fom_state,
-        .fo_home_locality = cs_ut_find_fom_home_locality,
-};
-
-/*
-  Operation structures for ds2 service foms.
- */
-static const struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
-        .fo_fini = cs_ut_fom_fini,
-        .fo_state = cs_req_fop_fom_state,
-        .fo_home_locality = cs_ut_find_fom_home_locality,
-};
-
-/*
-  Fom type operations for ds1 service foms.
- */
-static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
-        .fto_create = cs_ds1_req_fop_fom_create,
-};
-
-static struct c2_fom_type cs_ds1_req_fop_fom_mopt = {
-	.ft_ops = &cs_ds1_req_fop_fom_type_ops,
-};
-
-/*
-  Fom type operations for ds2 service foms.
- */
-static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
-        .fto_create = cs_ds2_req_fop_fom_create,
-};
-
-static struct c2_fom_type cs_ds2_req_fop_fom_mopt = {
-                .ft_ops = &cs_ds2_req_fop_fom_type_ops,
-};
-
-static struct c2_fom_type *cs_ut_fom_types[] = {
-        [C2_CS_DS1_REQ_OPCODE - C2_CS_DS1_REQ_OPCODE] =
-        &cs_ds1_req_fop_fom_mopt,
-        [C2_CS_DS2_REQ_OPCODE - C2_CS_DS1_REQ_OPCODE] =
-	&cs_ds2_req_fop_fom_mopt
-};
-
-static struct c2_fom_type *cs_ut_fom_type_map(c2_fop_type_code_t code)
-{
-        C2_ASSERT(IS_IN_ARRAY((code - C2_CS_DS1_REQ_OPCODE),
-					  cs_ut_fom_types));
-
-        return cs_ut_fom_types[code - C2_CS_DS1_REQ_OPCODE];
-}
-
-/*
   Allocates and initialises a fom.
  */
-static int cs_ds1_req_fop_fom_create(struct c2_fom_type *ft, struct c2_fom **out)
+static int cs_ds_req_fop_fom_create(struct c2_fop *fop,
+		const struct c2_fom_ops *ops, struct c2_fom **out)
 {
         struct c2_fom *fom;
 
-	C2_PRE(ft != NULL);
+	C2_PRE(fop != NULL);
+	C2_PRE(ops != NULL);
         C2_PRE(out != NULL);
 
         C2_ALLOC_PTR(fom);
         if (fom == NULL)
                 return -ENOMEM;
 
-        fom->fo_type = ft;
-	fom->fo_ops = &cs_ds1_req_fop_fom_ops;
-        *out = fom;
+	c2_fom_create(fom, &fop->f_type->ft_fom_type, ops, fop, NULL);
 
+        *out = fom;
         return 0;
 }
 
-static int cs_ds2_req_fop_fom_create(struct c2_fom_type *ft, struct c2_fom **out)
+static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-        struct c2_fom *fom;
-
-        C2_PRE(ft != NULL);
-        C2_PRE(out != NULL);
-
-        C2_ALLOC_PTR(fom);
-        if (fom == NULL)
-                return -ENOMEM;
-
-        fom->fo_type = ft;
-	fom->fo_ops = &cs_ds2_req_fop_fom_ops;
-        *out = fom;
-
-        return 0;
+	return cs_ds_req_fop_fom_create(fop, &cs_ds1_req_fop_fom_ops, out);
 }
 
-/*
-  Initialises a fom.
- */
-static int cs_req_fop_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	struct c2_fom_type      *fom_type;
-        int                      result;
-	uint64_t                 opcode;
-
-        C2_PRE(fop != NULL);
-        C2_PRE(m != NULL);
-
-	opcode = fop->f_type->ft_rpc_item_type.rit_opcode;
-        fom_type = cs_ut_fom_type_map(opcode);
-        C2_ASSERT(fom_type != NULL);
-
-        fop->f_type->ft_fom_type = *fom_type;
-        result = fop->f_type->ft_fom_type.ft_ops->fto_create(&fop->f_type->ft_fom_type, m);
-        C2_ASSERT(result == 0);
-
-	(*m)->fo_fop = fop;
-	c2_fom_init(*m);
-
-        return result;
-
+	return cs_ds_req_fop_fom_create(fop, &cs_ds2_req_fop_fom_ops, out);
 }
 
 /*

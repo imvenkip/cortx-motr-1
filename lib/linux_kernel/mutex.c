@@ -54,7 +54,6 @@ int c2_mutex_trylock(struct c2_mutex *mutex)
 {
 	return mutex_trylock(&mutex->m_mutex);
 }
-C2_EXPORTED(c2_mutex_trylock);
 
 void c2_mutex_unlock(struct c2_mutex *mutex)
 {
@@ -66,13 +65,11 @@ bool c2_mutex_is_locked(const struct c2_mutex *mutex)
 {
 	return true;
 }
-C2_EXPORTED(c2_mutex_is_locked);
 
 bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
 {
 	return true;
 }
-C2_EXPORTED(c2_mutex_is_not_locked);
 
 /** @} end of mutex group */
 

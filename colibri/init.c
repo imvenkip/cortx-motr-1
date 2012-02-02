@@ -42,6 +42,7 @@
 #include "stob/ad.h"
 #include "fol/fol.h"
 #include "reqh/reqh.h"
+#include "lib/timer.h"
 
 #include "colibri/init.h"
 
@@ -74,6 +75,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
 	{ &c2_uts_init,      &c2_uts_fini,     "ut" },
 	{ &c2_threads_init,  &c2_threads_fini, "thread" },
+	{ &c2_timers_init,   &c2_timers_fini,  "timer" },
 	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
 	{ &c2_db_init,       &c2_db_fini,      "db" },
 	/* fol must be initialised before fops, because fop type registration
