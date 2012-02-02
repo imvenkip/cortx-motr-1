@@ -18,12 +18,6 @@
  * Original creation date: 11/16/2011
  */
 
-#include "lib/tlist.h"	/* struct c2_tl */
-#include "lib/vec.h"
-#include "lib/memory.h"
-#include "layout/layout_internal.h"
-#include "layout/linear_enum.h"
-
 /**
  * @addtogroup linear_enum
  *
@@ -34,6 +28,14 @@
  *
  * @{
  */
+
+#include "lib/errno.h"
+#include "lib/tlist.h"	/* struct c2_tl */
+#include "lib/vec.h"
+#include "lib/memory.h"
+
+#include "layout/layout_internal.h"
+#include "layout/linear_enum.h"
 
 void c2_layout_linear_enum_init(struct c2_layout_linear_enum *lin_enum,
 				uint64_t nr, uint64_t A, uint64_t B,
@@ -79,23 +81,31 @@ static uint32_t linear_recsize(struct c2_layout_enum *e)
  * Reads linear enumeration type specific attributes from the buffer into
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
-static int linear_decode(struct c2_ldb_schema *schema,
-			uint64_t lid,
-			struct c2_bufvec_cursor *cur,
-			enum c2_layout_xcode_op op,
-			struct c2_db_tx *tx,
-			struct c2_layout_enum **out)
+static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
+			 struct c2_bufvec_cursor *cur,
+			 enum c2_layout_xcode_op op,
+			 struct c2_db_tx *tx,
+			 struct c2_layout_enum **out)
 {
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *lin_attr;
 
-	lin_attr = c2_bufvec_cursor_addr(cur);
+	C2_PRE(schema != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(cur != NULL);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
 	C2_ALLOC_PTR(lin_enum);
-
-	lin_enum->lle_attr = *lin_attr;
+	if (lin_enum == NULL)
+		return -ENOMEM;
 
 	*out = &lin_enum->lle_base;
+
+	lin_attr = c2_bufvec_cursor_addr(cur);
+	C2_ASSERT(lin_attr != NULL);
+
+	lin_enum->lle_attr = *lin_attr;
 
 	return 0;
 }

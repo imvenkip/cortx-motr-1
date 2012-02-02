@@ -18,12 +18,6 @@
  * Original creation date: 11/16/2011
  */
 
-#include "lib/vec.h"
-#include "lib/memory.h"
-#include "fid/fid.h"  /* struct c2_fid */
-#include "layout/layout_internal.h"
-#include "layout/list_enum.h"
-
 /**
  * @addtogroup list_enum
  *
@@ -31,6 +25,13 @@
  * object identifiers in itself.
  * @{
  */
+
+#include "lib/errno.h"
+#include "lib/vec.h"
+#include "lib/memory.h"
+#include "fid/fid.h"  /* struct c2_fid */
+#include "layout/layout_internal.h"
+#include "layout/list_enum.h"
 
 /**
  * cob_lists table.
@@ -189,33 +190,52 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 {
 	struct c2_layout_list_enum    *list_enum;
 	struct ldb_inline_cob_entries *inline_cobs;
+	uint32_t                       num_inline; /* No. of inline cobs */
+	int                            i;
 
-	inline_cobs = c2_bufvec_cursor_addr(cur);
+	C2_PRE(schema != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(cur != NULL);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
 	C2_ALLOC_PTR(list_enum);
-
-	/* Copy cob entries from inline_cobs to list_enum. */
+	if (list_enum == NULL)
+		return -ENOMEM;
 
 	*out = &list_enum->lle_base;
 
-   /**
-	@code
+	inline_cobs = c2_bufvec_cursor_addr(cur);
+	C2_ASSERT(inline_cobs != NULL);
 
-	Nothing to be done if inline_cobs->llces_nr <= MAX_INLINE_COB_ENTRIES.
-	Return from here if so.
+	num_inline = inline_cobs->llces_nr >= MAX_INLINE_COB_ENTRIES ?
+			MAX_INLINE_COB_ENTRIES : inline_cobs->llces_nr;
+
+	for (i = 0; i < num_inline; ++i) {
+		/* @todo Copy cob entry from inline_cobs->llces_cobs[] to
+		 list_enum->lle_list_of_cobs */
+	}
+
+	if (inline_cobs->llces_nr <= MAX_INLINE_COB_ENTRIES)
+		return 0;
 
 	if (op == C2_LXO_DB_LOOKUP) {
+		/* @todo
 		Read all the COB identifiers belonging to the layout with the
 		layout id 'lid' and index greater than MAX_INLINE_COB_ENTRIES,
 		from the cob_lists table and store those in the
 		c2_layout_list_enum::lle_list_of_cobs.
+		*/
 	} else {
+		c2_bufvec_cursor_move(cur,
+			sizeof(struct ldb_inline_cob_entries)
+			+ num_inline * sizeof(struct ldb_list_cob_entry));
+		/* @todo
 		Parse the cob identifiers list from the buffer and store it in
 		the c2_layout_list_enum::lle_list_of_cobs.
+		*/
 	}
 
-	@endcode
-   */
 	return 0;
 }
 

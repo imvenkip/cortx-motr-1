@@ -18,6 +18,11 @@
  * Original creation date: 11/16/2011
  */
 
+/**
+ * @addtogroup composite
+ * @{
+ */
+
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/vec.h"
@@ -26,10 +31,6 @@
 #include "layout/layout_db.h"       /* struct c2_ldb_rec */
 #include "layout/composite.h"
 
-/**
- * @addtogroup composite
- * @{
- */
 
 struct composite_schema_data {
 	/** Table to store extent maps for all the composite layouts. */

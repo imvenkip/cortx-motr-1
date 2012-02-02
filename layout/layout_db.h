@@ -21,16 +21,6 @@
 #ifndef __COLIBRI_LAYOUT_LAYOUT_DB_H__
 #define __COLIBRI_LAYOUT_LAYOUT_DB_H__
 
-/* import */
-#include "fid/fid.h"	/* struct c2_fid */
-#include "db/db.h"	/* struct c2_table */
-
-#include "layout/layout.h"
-
-/* export */
-struct c2_ldb_schema;
-struct c2_ldb_rec;
-
 /**
    @page Layout-DB-fspec Layout DB Functional Specification
    Layout DB Module is used by the Layout module to make persistent records for
@@ -93,6 +83,17 @@ struct c2_ldb_rec;
 
    @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
 */
+
+/* import */
+#include "fid/fid.h"	/* struct c2_fid */
+#include "db/db.h"	/* struct c2_table */
+
+#include "layout/layout.h"
+
+/* export */
+struct c2_ldb_schema;
+struct c2_ldb_rec;
+
 
 /**
    @defgroup LayoutDBDFS Layout DB

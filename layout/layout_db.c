@@ -443,7 +443,7 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 
 	schema->ls_type[lt->lt_id] = NULL;
 
-	if (lt->lt_ops != NULL)
+	if (lt->lt_ops != NULL && lt->lt_ops->lto_unregister != NULL)
 		lt->lt_ops->lto_unregister(schema, lt);
 
 	c2_mutex_unlock(&schema->ls_lock);
@@ -493,7 +493,7 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 
 	schema->ls_enum[let->let_id] = NULL;
 
-	if (let->let_ops != NULL)
+	if ((let->let_ops != NULL) && let->let_ops->leto_unregister != NULL)
 		let->let_ops->leto_unregister(schema, let);
 
 	c2_mutex_unlock(&schema->ls_lock);
@@ -548,6 +548,9 @@ uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 	 */
 	/* @todo Check for (schema->ls_type[i] != NULL) */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
+		if (schema->ls_type[i] == NULL)
+			continue;
+
 		recsize = schema->ls_type[i]->lt_ops->lto_max_recsize(schema);
 		max_recsize = max32(max_recsize, recsize);
 	}
@@ -579,6 +582,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 	C2_PRE(out != NULL);
+
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
@@ -597,7 +601,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
-	
+
 	return rc;
 }
 
@@ -633,7 +637,6 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
-	
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
@@ -742,14 +745,6 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
  * @{
  */
 
-static bool layout_db_rec_invariant(const struct c2_ldb_rec *rec)
-{
-	if (rec == NULL || rec->lr_lt_id == LID_NONE)
-		return false;
-
-	return true;
-}
-
 int ldb_layout_write(struct c2_ldb_schema *schema,
 		     enum c2_layout_xcode_op op,
 		     uint64_t lid,
@@ -757,14 +752,6 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 		     uint32_t recsize,
 		     struct c2_db_tx *tx)
 {
-	void *rec_addr = &pair->dp_rec.db_buf.b_addr;
-
-	/*
-	 * The rec_addr may be containing data beyond struct c2_ldb_rec.
-	 * But still validating the struct c2_ldb_rec part of it.
-	 */
-	C2_PRE(layout_db_rec_invariant((const struct c2_ldb_rec *)rec_addr));
-
 	pair->dp_table = &schema->ls_layouts;
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 

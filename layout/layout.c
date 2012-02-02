@@ -22,6 +22,11 @@
 #  include <config.h>
 #endif
 
+/**
+   @addtogroup layout
+   @{
+ */
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"
@@ -30,12 +35,6 @@
 #include "layout/layout_db.h"
 #include "layout/layout_internal.h"
 #include "layout/layout.h"
-
-/**
-   @addtogroup layout
-   @{
- */
-
 
 /**
    Initializes layout schema, creates generic table to store layout records.
@@ -207,6 +206,9 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
 	rec = c2_bufvec_cursor_addr(cur);
+	C2_ASSERT(rec != NULL);
+	if (rec == NULL)
+		return -EPROTO;
 
 	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type))
 		return -EPROTO;
@@ -215,12 +217,23 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (lt == NULL)
 		return -ENOENT;
 
-	/** Move the cursor to point to rec->lr_data[] */
+	/* Move the cursor to point to the layout type specific payload. */
 	rc = c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
-	C2_ASSERT(rc == 0); /** @todo is this fine if the rec contains only
-				c2_ldb_rec, probably not */
+
+	/*
+	 * It is fine if any of the layout does not contain any data in
+	 * rec->lr_data[], unless it is required by the specific layout type,
+	 * which will be caught by the respective lto_decode() implementation.
+	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
+	 * @todo Remove the following assert and the rc assignment above.
+	 * Check if cur is NULL when rc is non-zero.
+	 */
+	C2_ASSERT(rc == 0);
 
 	rc = lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
+	C2_ASSERT(rc == 0);
+	if (rc != 0)
+		return rc;
 
 	c2_mutex_lock(&(*out)->l_lock);
 

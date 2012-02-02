@@ -78,8 +78,9 @@ struct ldb_inline_cob_entries {
 	/** Total number of COB Ids for the specific layout. */
 	uint32_t                  llces_nr;
 
-	/** Array for storing COB Ids. */
-	struct ldb_list_cob_entry llces_cobs[MAX_INLINE_COB_ENTRIES];
+	/** Array for storing COB Ids, max upto MAX_INLINE_COB_ENTRIES. */
+	//struct ldb_list_cob_entry llces_cobs[MAX_INLINE_COB_ENTRIES];
+	char                      llces_cobs[0];
 };
 
 

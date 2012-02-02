@@ -19,19 +19,6 @@
  * Original creation date: 07/15/2010
  */
 
-#include "lib/errno.h"
-#include "lib/assert.h"
-#include "lib/memory.h"
-#include "lib/arith.h"        /* c2_rnd() */
-
-#include "stob/stob.h"
-#include "pool/pool.h"
-#include "fid/fid.h"          /* struct c2_fid */
-#include "layout/layout_db.h" /* struct c2_ldb_schema */
-#include "layout/layout_internal.h"
-
-#include "layout/pdclust.h"
-
 /**
    @addtogroup pdclust
 
@@ -97,6 +84,19 @@
 
    @{
  */
+
+#include "lib/errno.h"
+#include "lib/assert.h"
+#include "lib/memory.h"
+#include "lib/arith.h"        /* c2_rnd() */
+
+#include "stob/stob.h"
+#include "pool/pool.h"
+#include "fid/fid.h"          /* struct c2_fid */
+#include "layout/layout_db.h" /* struct c2_ldb_schema */
+#include "layout/layout_internal.h"
+
+#include "layout/pdclust.h"
 
 /**
  * "Encoding" function: returns the number that a (row, column) element of a
@@ -477,6 +477,9 @@ static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)
 
 	/* Iterate over all the enum types to find maximum possible recsize. */
         for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
+		if (schema->ls_enum[i] == NULL)
+			continue;
+
                 e_recsize = schema->ls_enum[i]->let_ops->leto_max_recsize();
 		max_recsize = max32(max_recsize, e_recsize);
         }
@@ -537,10 +540,11 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
-	if (op == C2_LXO_DB_LOOKUP)
-		C2_PRE(tx != NULL);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
 	C2_ALLOC_PTR(pl);
+	if (pl == NULL)
+		return -ENOMEM;
 
 	stl = &pl->pl_base;
 	l = &stl->ls_base;
@@ -548,10 +552,10 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	*out = l;
 
-	/** Read pdclust layout type specific fields from the buffer and store
-	those in c2_pdclust_layout::pl_attr. */
-
 	pl_rec = c2_bufvec_cursor_addr(cur);
+	C2_ASSERT(pl_rec != NULL);
+	if (pl_rec == NULL)
+		return -EPROTO;
 
 	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum))
 		return -EPROTO;
@@ -560,21 +564,12 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (et == NULL)
 		return -ENOENT;
 
-	pl->pl_attr.pa_N = pl_rec->pr_attr.pa_N;
-	pl->pl_attr.pa_K = pl_rec->pr_attr.pa_K;
-	pl->pl_attr.pa_P = pl_rec->pr_attr.pa_P;
+	pl->pl_attr = pl_rec->pr_attr;
 
 	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
 
-	/** Invoke the corresponding leto_decode() to:
-	    1) Read the enumeration type specific data from the buffer, as is
-	       stored in the layouts table,
-	    2) Read the enumeration type specific data from table other than
-	       the layouts table, if applicable.
-	    into the in-memory layout object. */
-
-	et->let_ops->leto_decode(schema, lid, cur, op, tx, &stl->ls_enum);
-	return 0;
+	return et->let_ops->leto_decode(schema, lid, cur, op, tx,
+					&stl->ls_enum);
 }
 
 /**

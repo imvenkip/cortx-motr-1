@@ -36,6 +36,8 @@
 static const char            db_name[] = "ut-layout";
 static struct c2_ldb_schema  schema;
 static struct c2_dbenv       dbenv;
+static uint64_t              dbflags = 0;
+struct c2_db_tx              tx;
 static struct c2_pool        pool;
 static uint32_t              P = 20;
 static int                   rc;
@@ -228,11 +230,19 @@ static int internal_init()
 	c2_ldb_enum_register(&schema, &c2_list_enum_type);
 	c2_ldb_enum_register(&schema, &c2_linear_enum_type);
 
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
 	return c2_pool_init(&pool, P);
+
+
 }
 
 static void internal_fini()
 {
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+
 	c2_pool_fini(&pool);
 
 	c2_ldb_enum_unregister(&schema, &c2_list_enum_type);
@@ -260,6 +270,78 @@ static int composite_build()
 
 	return rc;
 }
+
+static int build_layout_buf(struct c2_bufvec_cursor *dcur,
+			    uint64_t lid)
+{
+	struct c2_ldb_rec              rec;
+	struct c2_ldb_pdclust_rec      pl_rec;
+	struct ldb_inline_cob_entries  list_rec;
+	struct ldb_list_cob_entry      cob_list[5];
+	int                            i;
+
+	rec.lr_lt_id           = lid;
+	rec.lr_ref_count       = 0;
+
+	pl_rec.pr_let_id       = c2_list_enum_type.let_id;
+	pl_rec.pr_attr.pa_N    = 4;
+	pl_rec.pr_attr.pa_K    = 1;
+	pl_rec.pr_attr.pa_P    = 1;
+
+	list_rec.llces_nr      = 5; /* 5 COB entries */
+
+	for (i = 0; i < list_rec.llces_nr; ++i) {
+		cob_list[i].llce_cob_index = lid + i;
+		cob_list[i].llce_cob_id.f_container = (lid + i + 1) * 100;
+		cob_list[i].llce_cob_id.f_key =
+				cob_list[i].llce_cob_id.f_container + 5;
+	}
+
+	c2_bufvec_cursor_copyto(dcur, &rec, sizeof(rec));
+	c2_bufvec_cursor_copyto(dcur, &pl_rec, sizeof(pl_rec));
+	c2_bufvec_cursor_copyto(dcur, &list_rec, sizeof(list_rec));
+	c2_bufvec_cursor_copyto(dcur, cob_list, ARRAY_SIZE(cob_list));
+
+	return 0;
+}
+
+static void test_decode(void)
+{
+	void                      *area;
+	struct c2_bufvec           bv;
+	struct c2_bufvec_cursor    cur;
+	c2_bcount_t                num_bytes;
+	uint64_t                   lid;
+	struct c2_layout           *l;
+
+	rc = internal_init();
+	C2_UT_ASSERT(rc == 0);
+
+	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
+	area = c2_alloc(num_bytes);
+	C2_UT_ASSERT(area != NULL);
+
+	//struct c2_bufvec bv = C2_BUFVEC_INIT_BUF(&area, &num_bytes);
+	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	lid = 1;
+
+	rc = build_layout_buf(&cur, lid); 
+	C2_UT_ASSERT(rc == 0);
+
+	//rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, &tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_LOOKUP, &tx, &l);
+	C2_UT_ASSERT(rc == 0);
+
+	C2_UT_ASSERT(l->l_id == lid);
+	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
+	C2_UT_ASSERT(l->l_ref == 0);
+	C2_UT_ASSERT(l->l_ops != NULL);
+
+	internal_fini();
+}
+
 
 static void test_encode(void)
 {
@@ -302,10 +384,6 @@ static void test_encode(void)
 	internal_fini();
 }
 
-static void test_decode(void)
-{
-}
-
 static void test_add(void)
 {
 }
@@ -334,8 +412,8 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-type-register-unregister", test_type_reg_unreg },
 		{ "layout-etype-register-unregister", test_etype_reg_unreg },
 		{ "layout-schema-init-fini", test_schema_init_fini },
-		{ "layout-encode", test_encode },
 		{ "layout-decode", test_decode },
+		{ "layout-encode", test_encode },
                 { "layout-add", test_add },
                 { "layout-lookup", test_lookup },
                 { "layout-update", test_update },
