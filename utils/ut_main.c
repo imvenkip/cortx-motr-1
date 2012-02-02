@@ -159,8 +159,7 @@ int main(int argc, char *argv[])
 			    C2_HELPARG('h'),
 			    C2_VOIDARG('T', "parse trace log produced earlier",
 					LAMBDA(void, (void) {
-							c2_trace_parse();
-							exit(0);
+							exit(c2_trace_parse());
 					})),
 			    C2_FLAGARG('k', "keep the sandbox directory",
 					&keep_sandbox),
