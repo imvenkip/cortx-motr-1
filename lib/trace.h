@@ -29,7 +29,7 @@
 #endif
 
 /**
-   @defgroup trace Tracing.
+   @defgroup trace Tracing
 
    See doc/logging-and-tracing.
 

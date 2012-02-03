@@ -605,6 +605,7 @@ AC_CONFIG_FILES([
                  udb/Makefile
                  udb/ut/Makefile
                  ut/Makefile
+                 ut/linux_kernel/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
