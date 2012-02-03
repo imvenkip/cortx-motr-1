@@ -37,11 +37,14 @@
 
 #define BALLOC_DBNAME "./__balloc_db"
 
-extern	struct c2_balloc		 colibri_balloc;
-static const char			*db_name = BALLOC_DBNAME;
-static const int			 MAX	 = 100;
-static c2_bcount_t			 prev_free_blocks;
-static struct c2_balloc_group_info*	 prev_group_info;
+#define GROUP_SIZE (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
+						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
+
+extern	struct c2_balloc	 colibri_balloc;
+static const char		*db_name = BALLOC_DBNAME;
+static const int		 MAX	 = 100;
+static c2_bcount_t		 prev_free_blocks;
+c2_bcount_t			*prev_group_info_free_blocks;
 
 enum balloc_invariant_enum {
 	INVAR_ALLOC,
@@ -61,21 +64,21 @@ bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 
 	switch (balloc_invariant_flag) {
 	    case INVAR_ALLOC:
-		 prev_free_blocks		       -= len;
-		 prev_group_info[group].bgi_freeblocks -= len;
+		 prev_free_blocks		    -= len;
+		 prev_group_info_free_blocks[group] -= len;
 		 break;
 	    case INVAR_FREE:
-		 prev_free_blocks		       += len;
-		 prev_group_info[group].bgi_freeblocks += len;
+		 prev_free_blocks		    += len;
+		 prev_group_info_free_blocks[group] += len;
 		 break;
 	    default:
 		 return false;
 	}
 
 	return colibri_balloc.cb_group_info[group].bgi_freeblocks ==
-			 prev_group_info[group].bgi_freeblocks &&
-			 colibri_balloc.cb_sb.bsb_freeblocks ==
-			 prev_free_blocks;
+		prev_group_info_free_blocks[group] &&
+		colibri_balloc.cb_sb.bsb_freeblocks ==
+		prev_free_blocks;
 }
 
 int test_balloc_ut_ops()
@@ -103,7 +106,14 @@ int test_balloc_ut_ops()
 	if(result == 0) {
 
 		prev_free_blocks = colibri_balloc.cb_sb.bsb_freeblocks;
-		prev_group_info	 = colibri_balloc.cb_group_info;
+
+		C2_ALLOC_ARR(prev_group_info_free_blocks, GROUP_SIZE);
+
+		for(i=0; i<GROUP_SIZE; i++)
+		{
+			prev_group_info_free_blocks[i] =
+				colibri_balloc.cb_group_info[i].bgi_freeblocks;
+		}
 
 		for (i = 0; i < MAX; i++ ) {
 			do  {
@@ -249,6 +259,8 @@ int test_balloc_ut_ops()
 		colibri_balloc.cb_ballroom.ab_ops->bo_fini(
 			    &colibri_balloc.cb_ballroom);
 	}
+
+	c2_free(prev_group_info_free_blocks);
 
 	c2_dbenv_fini(&db);
 
