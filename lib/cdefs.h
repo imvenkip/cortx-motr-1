@@ -28,17 +28,12 @@
 #include "linux_kernel/cdefs.h"
 #endif
 
-/**
- * @defgroup ergo_equi
- *
+/*
  * Helper macros for implication and equivalence.
  *
  * Unfortunately, name clashes are possible and c2_ prefix is too awkward. See
  * C2_BASSERT() checks in lib/misc.c
- *
- * @{
  */
-
 #ifndef ergo
 #define ergo(a, b) (!(a) || (b))
 #endif
@@ -46,8 +41,6 @@
 #ifndef equi
 #define equi(a, b) (!(a) == !(b))
 #endif
-
-/** @} end of ergo_equi group */
 
 extern void __dummy_function(void);
 
