@@ -58,7 +58,6 @@ int c2_rpc_base_init(void)
 	rit_tlist_init(&rpc_item_types_list);
 	return 0;
 }
-C2_EXPORTED(c2_rpc_base_init);
 
 void c2_rpc_base_fini(void)
 {
@@ -72,7 +71,6 @@ void c2_rpc_base_fini(void)
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 	c2_rwlock_fini(&rpc_item_types_lock);
 }
-C2_EXPORTED(c2_rpc_base_fini);
 
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 {
@@ -86,7 +84,6 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 
 	return 0;
 }
-C2_EXPORTED(c2_rpc_item_type_register);
 
 void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 {
@@ -97,7 +94,6 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 	item_type->rit_magic = 0;
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 }
-C2_EXPORTED(c2_rpc_item_type_deregister);
 
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
@@ -117,7 +113,6 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 
 	return NULL;
 }
-C2_EXPORTED(c2_rpc_item_type_lookup);
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

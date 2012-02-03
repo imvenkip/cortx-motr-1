@@ -207,10 +207,10 @@ static int fom_auth_wait(struct c2_fom *fom)
 static int create_loc_ctx(struct c2_fom *fom)
 {
 	int		rc;
-	struct c2_stob_domain  *fom_stdom;
+	struct c2_reqh *reqh; 
 
-	fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
-	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
 	if (rc != 0)
 		fom->fo_rc = rc;
 
@@ -503,7 +503,6 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	return rc;
 }
-C2_EXPORTED(c2_fom_state_generic);
 
 /** @} endgroup reqh */
 

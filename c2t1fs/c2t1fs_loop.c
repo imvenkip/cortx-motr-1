@@ -1367,8 +1367,6 @@ int loop_unregister_transfer(int number)
 	return 0;
 }
 
-C2_EXPORTED(loop_register_transfer);
-C2_EXPORTED(loop_unregister_transfer);
 
 static struct loop_device *loop_alloc(int i)
 {

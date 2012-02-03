@@ -30,6 +30,7 @@
 #include "lib/atomic.h"
 #include "lib/cdefs.h"
 #include "lib/arith.h" /* c2_align */
+#include "lib/memory.h"
 #include "lib/trace.h"
 
 /**
@@ -131,81 +132,8 @@ static void align(unsigned align)
 		getchar();
 }
 
-static void trace_decl(const char *decl)
-{
-	void skip(void) {
-		while (isspace(*decl))
-			decl++;
-	}
-
-	bool gotmatch(const char *keyword) {
-		if (!strncmp(decl, keyword, strlen(keyword))) {
-			decl += strlen(keyword);
-			return true;
-		} else
-			return false;
-	}
-
-	void field(int size, const char *fmt, int alignment) {
-		union {
-			uint16_t v16;
-			uint32_t v32;
-			uint64_t v64;
-		} val;
-		int  nr;
-
-		align(alignment);
-		nr = fread(&val, size, 1, stdin);
-		C2_ASSERT(nr == 1);
-
-		skip();
-		/* skip field name */
-		while (('A' <= toupper(*decl) && toupper(*decl) <= 'Z') ||
-		       ('0' <= *decl && *decl <= '9') ||
-		       index("_$", *decl) != NULL)
-			printf("%c", *decl++);
-
-		printf(": ");
-		printf(fmt, val);
-		printf(" ");
-
-		skip();
-		C2_ASSERT(*decl == ';');
-		decl++;
-		skip();
-	}
-
-#define DECL(type, fmt)						\
-	if (gotmatch(#type)) {					\
-		field(sizeof(type), "%"fmt, __alignof__(type));	\
-		continue;					\
-	}
-
-	skip();
-	C2_ASSERT(*decl == '{');
-	decl++;
-	skip();
-	while (*decl != '}') {
-		while (gotmatch("const") || gotmatch("volatile") ||
-		       gotmatch("unsigned"))
-			skip();
-
-		DECL(uint32_t, "u");
-		DECL(uint16_t, "u");
-		DECL(uint64_t, "lu");
-		DECL(int32_t,  "d");
-		DECL(int16_t,  "d");
-		DECL(int64_t,  "ld");
-	}
-}
-
 /**
-   Parse log buffer supplied at stderr.
-
-   When a trace record is defined by C2_TRACE_POINT(), a declaration of its
-   format is stored in c2_trace_descr::td_decl as a NUL-terminated string
-   containing C declaration. trace_decl() is an extremely crude ad-hoc parser
-   for this string.
+   Parse log buffer supplied at stdin.
  */
 int c2_trace_parse(void)
 {
@@ -214,10 +142,14 @@ int c2_trace_parse(void)
 	uint64_t                     timestamp;
 	const struct c2_trace_descr *td;
 	int                          nr;
-
-	char int2ch(int x) {
-		return x < 10 ? '0' + x : 'a' + x - 10;
-	}
+	int                          i;
+	char                        *buf;
+	union {
+		uint8_t  v8;
+		uint16_t v16;
+		uint32_t v32;
+		uint64_t v64;
+	} v[C2_TRACE_ARGC_MAX];
 
 	while (!feof(stdin)) {
 		/* At the beginning of a record */
@@ -240,11 +172,45 @@ int c2_trace_parse(void)
 		nr = fread(&td, sizeof td, 1, stdin);
 		C2_ASSERT(nr == 1);
 
-		printf("%10.10lu  %10.10lu  %15s %15s %4i %3.3i %s\n\t",
+		printf("%10.10lu  %10.10lu  %15s %15s %4i %3.3i %i\n\t",
 		       no, timestamp, td->td_func, td->td_file,
-		       td->td_line, td->td_size, td->td_decl);
+		       td->td_line, td->td_size, td->td_nr);
 		align(8);
-		trace_decl(td->td_decl);
+		C2_ASSERT(td->td_nr <= C2_TRACE_ARGC_MAX);
+
+		buf = c2_alloc(td->td_size);
+		C2_ASSERT(buf != NULL);
+
+		nr = fread(buf, 1, td->td_size, stdin);
+		C2_ASSERT(nr == td->td_size);
+
+		for (i = 0; i < td->td_nr; ++i) {
+			char *addr;
+
+			addr = buf + td->td_offset[i];
+			switch (td->td_sizeof[i]) {
+			case 0:
+				break;
+			case 1:
+				v[i].v8 = *(uint8_t *)addr;
+				break;
+			case 2:
+				v[i].v16 = *(uint16_t *)addr;
+				break;
+			case 4:
+				v[i].v32 = *(uint32_t *)addr;
+				break;
+			case 8:
+				v[i].v64 = *(uint64_t *)addr;
+				break;
+			default:
+				C2_IMPOSSIBLE("sizeof");
+			}
+		}
+		printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
+		       v[7], v[8]);
+
+		c2_free(buf);
 		align(8);
 		printf("\n");
 	}

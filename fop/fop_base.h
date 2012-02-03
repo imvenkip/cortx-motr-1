@@ -101,8 +101,6 @@ struct c2_list;
 
 /** fop type operations. */
 struct c2_fop_type_ops {
-	/** Create a fom that will carry out operation described by the fop. */
-	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
 	/** XXX temporary entry point for threaded fop execution. */
 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
 	/** fol record type operations for this fop type, or NULL is standard

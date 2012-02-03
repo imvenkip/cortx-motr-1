@@ -22,8 +22,9 @@
 #define __COLIBRI_UT_RPC_H__
 
 #include "ut/cs_service.h" /* cs_default_stypes */
+#include "rpc/rpclib.h"    /* c2_rpc_server_ctx */
 
-
+#ifndef __KERNEL__
 #define C2_RPC_SERVER_CTX_DECLARE(name, xprts, xprts_nr, server_argv,		\
 				  server_argc, log_file_name)			\
 	struct c2_rpc_server_ctx (name) = {					\
@@ -40,6 +41,7 @@
 					 log_file_name)				\
 	C2_RPC_SERVER_CTX_DECLARE((name), &(xprt_ptr), 1, (server_argv),	\
 				  ARRAY_SIZE((server_argv)), (log_file_name))
+#endif
 
 struct c2_rpc_client_ctx;
 

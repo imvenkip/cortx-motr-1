@@ -1,0 +1,10 @@
+The intent of this library is to include all code, which could be potentially
+useful for several UTs and thus can be shared, avoiding duplication of
+similar code.
+
+*** NOTE ***  This library is linked as colibri module and not as colibri -ut
+              library. This allows to use it in both - UTs and in standalone
+              programs which don't use CUnit (and in kernel space as well).
+              That's why it's important to avoid usage of CUnit constructs like
+              C2_UT_ASSERT in this lib.
+
