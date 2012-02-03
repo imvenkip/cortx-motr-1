@@ -124,9 +124,9 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 }
 
 void c2_layout_enum_init(struct c2_layout_enum *le,
-			 struct c2_layout *l,
-			 struct c2_layout_enum_type *et,
-			 struct c2_layout_enum_ops *ops)
+			 const struct c2_layout *l,
+			 const struct c2_layout_enum_type *et,
+			 const struct c2_layout_enum_ops *ops)
 {
 	C2_PRE(le != NULL);
 	C2_PRE(l != NULL);
@@ -280,36 +280,40 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 {
 	struct c2_ldb_rec     *rec;
 	struct c2_layout_type *lt;
+	int                    rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
-	C2_PRE(op == C2_LXO_DB_ADD ||
-		op == C2_LXO_DB_UPDATE ||
-		op == C2_LXO_DB_DELETE ||
-		op == C2_LXO_DB_NONE);
-	if (op != C2_LXO_DB_NONE)
-		C2_PRE(tx != NULL);
+	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
+		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
+	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
 
-	C2_ALLOC_PTR(rec);
-
 	c2_mutex_lock(&l->l_lock);
+
+	C2_ALLOC_PTR(rec);
+	if (rec == NULL) {
+		c2_mutex_unlock(&l->l_lock);
+		return -ENOMEM;
+	}
 
 	rec->lr_lt_id     = l->l_type->lt_id;
 	rec->lr_ref_count = l->l_ref;
 
-	/** Copy rec to the buffer pointed by out. */
-	c2_bufvec_cursor_copyto(out, rec, sizeof(struct c2_ldb_rec));
+	rc = c2_bufvec_cursor_copyto(out, rec, sizeof(struct c2_ldb_rec));
+	C2_ASSERT(rc == 0);
 
 	lt = schema->ls_type[rec->lr_lt_id];
-	if (lt == NULL)
+	if (lt == NULL) {
+		c2_mutex_unlock(&l->l_lock);
 		return -ENOENT;
+	}
 
-	lt->lt_ops->lto_encode(schema, l, op, tx, out);
+	rc = lt->lt_ops->lto_encode(schema, l, op, tx, out);
 
 	c2_mutex_unlock(&l->l_lock);
 
-	return 0;
+	return rc;
 }
 
 bool layout_invariant(const struct c2_layout *l)

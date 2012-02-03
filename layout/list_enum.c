@@ -259,23 +259,36 @@ static int list_encode(struct c2_ldb_schema *schema,
 	struct c2_layout_striped      *stl;
 	struct c2_layout_list_enum    *list_enum;
 	struct ldb_inline_cob_entries *inline_cobs;
+	uint32_t                       num_inline; /* No. of inline cobs */
+	int                            rc;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(layout_invariant(l));
+	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
+		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
+	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	C2_PRE(out != NULL);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
 			lle_base);
 
-	/** Read the MAX_INLINE_COB_ENTRIES number of cob identifiers from
+	num_inline = list_enum->lle_nr >= MAX_INLINE_COB_ENTRIES ?
+			MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
+
+	/** @todo Read the num_inline number of cob identifiers from
 	    list_enum->lle_list_of_cobs, into inline_cobs. Temporarily,
 	    assigning NULL to inline_cobs to avoid the uninitialization error.
 	 */
 	inline_cobs = NULL;
 
-	c2_bufvec_cursor_copyto(out, inline_cobs,
-				sizeof(struct ldb_inline_cob_entries));
+	rc = c2_bufvec_cursor_copyto(out, inline_cobs,
+		sizeof(struct ldb_inline_cob_entries));
+	C2_ASSERT(rc == 0);
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
-			       (op == C2_LXO_DB_DELETE)) {
+			(op == C2_LXO_DB_DELETE)) {
 		/**
 		Depending upon the value of op, insert/update/delete cob
 		entries beyond MAX_INLINE_COB_ENTRIES to/from the cob_lists

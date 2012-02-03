@@ -37,7 +37,6 @@ static const char            db_name[] = "ut-layout";
 static struct c2_ldb_schema  schema;
 static struct c2_dbenv       dbenv;
 static uint64_t              dbflags = 0;
-struct c2_db_tx              tx;
 static struct c2_pool        pool;
 static uint32_t              P = 20;
 static int                   rc;
@@ -218,6 +217,10 @@ static void test_schema_init_fini(void)
 	c2_dbenv_fini(&t_dbenv);
 }
 
+static void test_schema_max_recsize()
+{
+}
+
 static int internal_init()
 {
 	/*
@@ -230,19 +233,11 @@ static int internal_init()
 	c2_ldb_enum_register(&schema, &c2_list_enum_type);
 	c2_ldb_enum_register(&schema, &c2_linear_enum_type);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
-	C2_UT_ASSERT(rc == 0);
-
 	return c2_pool_init(&pool, P);
-
-
 }
 
 static void internal_fini()
 {
-	rc = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
-
 	c2_pool_fini(&pool);
 
 	c2_ldb_enum_unregister(&schema, &c2_list_enum_type);
@@ -250,25 +245,6 @@ static void internal_fini()
 
 	c2_ldb_type_unregister(&schema, &c2_pdclust_layout_type);
 	c2_ldb_type_unregister(&schema, &c2_composite_layout_type);
-}
-
-static int pdclust_build(struct c2_pdclust_layout **play, uint64_t lid,
-			 const struct c2_uint128 *seed)
-{
-	uint32_t         N = 4;
-	uint32_t         K = 1;
-
-	rc = c2_pdclust_build(&pool, &lid, N, K, seed, play);
-	C2_UT_ASSERT(rc == 0);
-
-	return rc;
-}
-
-static int composite_build()
-{
-
-
-	return rc;
 }
 
 static int build_layout_buf(struct c2_bufvec_cursor *dcur,
@@ -313,6 +289,7 @@ static void test_decode(void)
 	c2_bcount_t                num_bytes;
 	uint64_t                   lid;
 	struct c2_layout           *l;
+	struct c2_db_tx            *tx = NULL;
 
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
@@ -321,7 +298,6 @@ static void test_decode(void)
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
 
-	//struct c2_bufvec bv = C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
@@ -330,8 +306,8 @@ static void test_decode(void)
 	rc = build_layout_buf(&cur, lid); 
 	C2_UT_ASSERT(rc == 0);
 
-	//rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, &tx, &l);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_LOOKUP, &tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(l->l_id == lid);
@@ -340,17 +316,36 @@ static void test_decode(void)
 	C2_UT_ASSERT(l->l_ops != NULL);
 
 	internal_fini();
+
+	/** @todo
+	 * rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, &l);
+	 */
+}
+
+static int pdclust_build(struct c2_pdclust_layout **play, uint64_t lid)
+{
+	uint32_t         N = 4;
+	uint32_t         K = 1;
+	struct c2_uint128          seed;
+
+	c2_uint128_init(&seed, "updownupdownupdo");
+
+	rc = c2_pdclust_build(&pool, &lid, N, K, &seed, play);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
 }
 
 
-static void test_encode(void)
+static int encode_pdclust_linear(uint64_t lid)
 {
-	struct c2_pdclust_layout  *play;
-	void                      *area;
-	struct c2_bufvec_cursor    cur;
+	struct c2_pdclust_layout  *pl;
 	size_t                     num_bytes;
-	uint64_t                   lid;
-	struct c2_uint128          play_seed;
+	void                      *area;
+	struct c2_bufvec           bv;
+	struct c2_bufvec_cursor    cur;
+	struct c2_layout          *l;
+	struct c2_db_tx           *tx = NULL;
 
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
@@ -359,33 +354,87 @@ static void test_encode(void)
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
 
-	struct c2_bufvec buf = C2_BUFVEC_INIT_BUF(area, &num_bytes);
-	c2_bufvec_cursor_init(&cur, &buf);
+	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
+	c2_bufvec_cursor_init(&cur, &bv);
 
-	/* Encode for pdclust type of layout with list enumeration type. */
-	lid = c2_rnd(lid_max, &lid_seed);
-	c2_uint128_init(&play_seed, "updownupdownupdo");
-
-	rc = pdclust_build(&play, lid, &play_seed);
+	rc = pdclust_build(&pl, lid);
 	C2_UT_ASSERT(rc == 0);
 
-	rc  = c2_layout_encode(&schema, &play->pl_base.ls_base, C2_LXO_DB_NONE,
-			       NULL, &cur);
+	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
+			C2_LXO_DB_NONE, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
-
-
-	/* Encode for pdclust type of layout with linear enumeration type. */
-
-	/* Encode composite type of layout. */
-	rc = composite_build();
+	/* Now verify .... */
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
 	C2_UT_ASSERT(rc == 0);
+
+	C2_UT_ASSERT(l->l_id == pl->pl_base.ls_base.l_id);
+	C2_UT_ASSERT(pl->pl_base.ls_base.l_type == &c2_pdclust_layout_type);
+	C2_UT_ASSERT(l->l_type == pl->pl_base.ls_base.l_type);
+	C2_UT_ASSERT(l->l_ref == pl->pl_base.ls_base.l_ref);
+	C2_UT_ASSERT(l->l_ops == pl->pl_base.ls_base.l_ops);
 
 	internal_fini();
+
+	return rc;
+}
+
+static int encode_pdclust_list(uint64_t lid)
+{
+	return 0;
+}
+
+static int encode_composite(uint64_t lid)
+{
+	return 0;
+}
+
+static void test_encode(void)
+{
+	uint64_t                   lid;
+
+	/*
+	while (lid == 0) {
+		lid = c2_rnd(lid_max, &lid_seed);
+	}
+	*/
+
+	/* Encode for 'pdclust' layout type and 'linear' enumeration type. */
+	lid = 1111;
+	rc = encode_pdclust_linear(lid);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Encode for 'pdclust' layout type and 'list' enumeration type. */
+	lid = 2222;
+	rc = encode_pdclust_list(lid);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Encode for 'composite' layout type. */
+	lid = 3333;
+	rc = encode_composite(lid);
+	C2_UT_ASSERT(rc == 0);
 }
 
 static void test_add(void)
 {
+	uint64_t                   lid;
+	struct c2_pdclust_layout  *pl;
+	struct c2_db_pair           pair;
+	struct c2_db_tx            tx;
+
+	/** @todo Alocate buffers for key and rec and attach those to pair */
+
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	lid = 4444;
+	rc = pdclust_build(&pl, lid);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
 }
 
 static void test_lookup(void)
@@ -412,6 +461,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-type-register-unregister", test_type_reg_unreg },
 		{ "layout-etype-register-unregister", test_etype_reg_unreg },
 		{ "layout-schema-init-fini", test_schema_init_fini },
+		{ "layout-schema-max-recsize", test_schema_max_recsize },
 		{ "layout-decode", test_decode },
 		{ "layout-encode", test_encode },
                 { "layout-add", test_add },

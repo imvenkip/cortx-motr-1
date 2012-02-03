@@ -37,13 +37,15 @@
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
+
+static const struct c2_layout_enum_ops linear_enum_ops;
+
 void c2_layout_linear_enum_init(struct c2_layout_linear_enum *lin_enum,
 				uint64_t nr, uint64_t A, uint64_t B,
-				struct c2_layout *l,
-				struct c2_layout_enum_type *lt,
-				struct c2_layout_enum_ops *ops)
+				const struct c2_layout *l,
+				const struct c2_layout_enum_type *lt)
 {
-	c2_layout_enum_init(&lin_enum->lle_base, l, lt, ops);
+	c2_layout_enum_init(&lin_enum->lle_base, l, lt, &linear_enum_ops);
 
 	lin_enum->lle_attr.lla_nr = nr;
 	lin_enum->lle_attr.lla_A  = A;
@@ -123,16 +125,27 @@ static int linear_encode(struct c2_ldb_schema *schema,
 {
 	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
+	int                           rc;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(layout_invariant(l));
+	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
+		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
+	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	C2_PRE(out != NULL);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
 			lle_base);
 
-	c2_bufvec_cursor_copyto(out, lin_enum,
+	rc = c2_bufvec_cursor_copyto(out, lin_enum,
 			sizeof(struct c2_layout_linear_enum));
 
-	return 0;
+	/** @todo remove this assert later */
+	C2_ASSERT(rc == 0);
+
+	return rc;
 }
 
 /**

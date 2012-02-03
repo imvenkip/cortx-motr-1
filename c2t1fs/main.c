@@ -400,7 +400,8 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 static void pdclust_layout_fini(struct c2_pdclust_layout *play)
 {
 	c2_pool_fini(play->pl_pool);
-	c2_pdclust_fini(play);
+	/** @todo Change this to use lto->lo_fini() */
+	c2_pdclust_fini(&play->pl_base.ls_base);
 }
 
 /**

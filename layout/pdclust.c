@@ -95,6 +95,8 @@
 #include "fid/fid.h"          /* struct c2_fid */
 #include "layout/layout_db.h" /* struct c2_ldb_schema */
 #include "layout/layout_internal.h"
+#include "layout/list_enum.h"
+#include "layout/linear_enum.h"
 
 #include "layout/pdclust.h"
 
@@ -352,36 +354,34 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 }
 
 /** Implementation of lo_fini for pdclust layout type. */
-static void pdclust_fini(struct c2_layout *lay)
-{
-	return;
-}
-
-static const struct c2_layout_ops pdlclust_ops = {
-	.lo_fini        = pdclust_fini
-};
-
-void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
+/** @todo Need to take out c2_ from the name. */
+void c2_pdclust_fini(struct c2_layout *l)
 {
 	uint32_t i;
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_striped     *stl;
 
-	if (pdl != NULL) {
-		c2_layout_fini(&pdl->pl_base.ls_base);
-		c2_free(pdl->pl_tile_cache.tc_inverse);
-		c2_free(pdl->pl_tile_cache.tc_permute);
-		c2_free(pdl->pl_tile_cache.tc_lcode);
-		if (pdl->pl_tgt != NULL) {
-			for (i = 0; i < pdl->pl_attr.pa_P; ++i) {
-				if (c2_stob_id_is_set(&pdl->pl_tgt[i]))
-					c2_pool_put(pdl->pl_pool,
-						    &pdl->pl_tgt[i]);
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+
+	if (pl != NULL) {
+		c2_layout_fini(&pl->pl_base.ls_base);
+		c2_free(pl->pl_tile_cache.tc_inverse);
+		c2_free(pl->pl_tile_cache.tc_permute);
+		c2_free(pl->pl_tile_cache.tc_lcode);
+		if (pl->pl_tgt != NULL) {
+			for (i = 0; i < pl->pl_attr.pa_P; ++i) {
+				if (c2_stob_id_is_set(&pl->pl_tgt[i]))
+					c2_pool_put(pl->pl_pool,
+						    &pl->pl_tgt[i]);
 			}
-			c2_free(pdl->pl_tgt);
+			c2_free(pl->pl_tgt);
 		}
-		c2_free(pdl);
+		c2_free(pl);
 	}
 }
 
+static const struct c2_layout_ops pdclust_ops;
 
 /**
  * @todo Change the prototype of c2_pdclust_build() to accept an additional
@@ -392,6 +392,8 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     struct c2_pdclust_layout **out)
 {
 	struct c2_pdclust_layout *pdl;
+	struct c2_layout_linear_enum *lin_enum;
+
 	uint32_t B;
 	uint32_t i;
 	uint32_t P;
@@ -406,22 +408,26 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_permute, P);
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_inverse, P);
 
+	C2_ALLOC_PTR(lin_enum);
+
 	if (pdl != NULL && pdl->pl_tgt != NULL &&
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
-	    pdl->pl_tile_cache.tc_inverse != NULL) {
+	    pdl->pl_tile_cache.tc_inverse != NULL &&
+	    lin_enum != NULL) {
+/*
 		c2_layout_init(&pdl->pl_base.ls_base, *id,
-                               &c2_pdclust_layout_type,
-                               &pdlclust_ops);
-		/**
-		@code
-		   Call to c2_layout_init() need to be replaced by
-		   the following ? Where to initilize the enum from?
-		   c2_layout_striped_init(&pdl->pl_base, e, *id,
-					  &c2_pdclust_layout_type,
-					  &pdlclust_ops);
-		@endcode
-		*/
+			       &c2_pdclust_layout_type,
+			       &pdclust_ops); */
+
+		/** @todo TBD: whether enum should be accepted as arg to
+		  * this function. */
+		c2_layout_linear_enum_init(lin_enum, 20, 5, 2,
+			&pdl->pl_base.ls_base,
+			&c2_linear_enum_type);
+		c2_layout_striped_init(&pdl->pl_base, &lin_enum->lle_base, *id,
+			       &c2_pdclust_layout_type,
+			       &pdclust_ops);
 
 		pdl->pl_seed = *seed;
 		pdl->pl_attr.pa_N = N;
@@ -452,7 +458,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	if (result == 0)
 		*out = pdl;
 	else
-		c2_pdclust_fini(pdl);
+		c2_pdclust_fini(&pdl->pl_base.ls_base);
 	return result;
 }
 
@@ -511,7 +517,6 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
 }
 
-static const struct c2_layout_ops pdclust_ops;
 
 /**
  * Implementation of lto_decode() for pdclust layout type.
@@ -594,19 +599,28 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	struct c2_ldb_pdclust_rec    *pl_rec;
 	struct c2_layout_type        *lt;
 	struct c2_layout_enum_type   *et;
+	int                           rc;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(layout_invariant(l));
+	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
+		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
+	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	C2_PRE(out != NULL);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
 	C2_ALLOC_PTR(pl_rec);
+	if (pl_rec == NULL)
+		return -ENOMEM;
 
-	pl_rec->pr_let_id    = stl->ls_enum->le_type->let_id;
-	pl_rec->pr_attr.pa_N = pl->pl_attr.pa_N;
-	pl_rec->pr_attr.pa_K = pl->pl_attr.pa_K;
-	pl_rec->pr_attr.pa_P = pl->pl_attr.pa_P;
+	pl_rec->pr_let_id  = stl->ls_enum->le_type->let_id;
+	pl_rec->pr_attr    = pl->pl_attr;
 
-	/** Copy pdclust layout type specific attributes into the buffer. */
-	c2_bufvec_cursor_copyto(out, pl_rec, sizeof(struct c2_ldb_pdclust_rec));
+	rc = c2_bufvec_cursor_copyto(out, pl_rec,
+			 sizeof(struct c2_ldb_pdclust_rec));
+	C2_ASSERT(rc == 0);
 
 	if (!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -EPROTO;
@@ -623,14 +637,14 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		return -ENOENT;
 
 	if (et->let_ops->leto_encode != NULL)
-		et->let_ops->leto_encode(schema, l, op, tx, out);
+		rc = et->let_ops->leto_encode(schema, l, op, tx, out);
 
 	return 0;
 }
 
 
 static const struct c2_layout_ops pdclust_ops = {
-	.lo_fini        = NULL
+	.lo_fini        = &c2_pdclust_fini
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {

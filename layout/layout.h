@@ -289,7 +289,7 @@ struct c2_layout_striped {
 	struct c2_layout           ls_base;
 
 	/** Layout enumeration. */
-	struct c2_layout_enum     *ls_enum;
+	struct c2_layout_enum      *ls_enum;
 };
 
 
@@ -310,9 +310,9 @@ void c2_layout_striped_init(struct c2_layout_striped *str_lay,
 void c2_layout_striped_fini(struct c2_layout_striped *strl);
 
 void c2_layout_enum_init(struct c2_layout_enum *le,
-			 struct c2_layout *l,
-			 struct c2_layout_enum_type *lt,
-			 struct c2_layout_enum_ops *ops);
+			 const struct c2_layout *l,
+			 const struct c2_layout_enum_type *lt,
+			 const struct c2_layout_enum_ops *ops);
 void c2_layout_enum_fini(struct c2_layout_enum *le);
 
 
