@@ -158,8 +158,7 @@ static inline uint64_t rdtsc(void)
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
 }
 
-struct c2_trace_rec_header *
-c2_trace_allot(const struct c2_trace_descr *td)
+void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 {
 	uint32_t header_len, record_len;
 	uint32_t pos_in_buf, endpos_in_buf;
@@ -203,7 +202,9 @@ c2_trace_allot(const struct c2_trace_descr *td)
 	header->trh_sp        = sp;
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
-	return header;
+	memcpy((void*)header + header_len, body, td->td_size);
+	/** @todo put memory barrier here before writing the magic */
+	header->trh_magic = MAGIC;     
 }
 
 /** @} end of trace group */

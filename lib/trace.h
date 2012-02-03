@@ -197,7 +197,7 @@ struct c2_trace_descr {
 	const int  *td_sizeof;
 };
 
-struct c2_trace_rec_header* c2_trace_allot(const struct c2_trace_descr *td);
+void c2_trace_allot(const struct c2_trace_descr *, const void *data);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging
@@ -221,8 +221,7 @@ struct c2_trace_rec_header* c2_trace_allot(const struct c2_trace_descr *td);
  */
 #define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
 ({									\
-	struct c2_trace_rec_header *header;				\
-	struct t_body DECL         *body;				\
+	struct t_body DECL;						\
 	static const int _offset[NR] = OFFSET;				\
 	static const int _sizeof[NR] = SIZEOF;				\
 	static const struct c2_trace_descr td = {			\
@@ -230,16 +229,13 @@ struct c2_trace_rec_header* c2_trace_allot(const struct c2_trace_descr *td);
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
 		.td_line   = __LINE__,					\
-		.td_size   = sizeof(*body),				\
+		.td_size   = sizeof(struct t_body),			\
 		.td_nr     = (NR),					\
 		.td_offset = _offset,					\
 		.td_sizeof = _sizeof					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
-	header = c2_trace_allot(&td);					\
-	body   = (void*)header + c2_align(sizeof *header, 8);		\
-	*body  = (const struct t_body){ __VA_ARGS__ };			\
-	header->trh_magic = MAGIC;					\
+	c2_trace_allot(&td, &(const struct t_body){ __VA_ARGS__ });	\
 })
 
 enum {
