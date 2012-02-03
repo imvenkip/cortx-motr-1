@@ -168,15 +168,13 @@ enum {
 	MAGIC = 0xc0de1eafacc01adeULL,
 };
 
-#pragma pack(push, 8)
 struct c2_trace_rec_header {
 	uint64_t                     trh_magic;
-	uint32_t                     trh_tid;
+	uint64_t                     trh_tid;
 	uint64_t                     trh_no;
 	uint64_t                     trh_timestamp;
 	const struct c2_trace_descr *trh_descr;
 };
-#pragma pack(pop)
 
 struct c2_trace_descr {
 	const char *td_fmt;

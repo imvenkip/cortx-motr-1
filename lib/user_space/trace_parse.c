@@ -69,9 +69,10 @@ int c2_trace_parse(void)
 	while (!feof(stdin)) {
 		char *buf = NULL;
 
+		align(8); /* At the beginning of a record */
+
 		/* Find the complete record */
 		do {
-			align(8); /* At the beginning of a record */
 			nr = fread(&trh.trh_magic, 1, sizeof trh.trh_magic, stdin);
 			if (nr != sizeof trh.trh_magic) {
 				C2_ASSERT(feof(stdin));
@@ -88,7 +89,7 @@ int c2_trace_parse(void)
 
 		td = trh.trh_descr;
 
-		printf("%7.7lu %15.15lu %5u %-20s %15s:%-3i %3.3i %3i\n\t",
+		printf("%7.7lu %15.15lu %5lu %-20s %15s:%-3i %3.3i %3i\n\t",
 		       trh.trh_no, trh.trh_timestamp, trh.trh_tid,
 		       td->td_func, td->td_file, td->td_line, td->td_size,
 		       td->td_nr);
