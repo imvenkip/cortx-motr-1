@@ -161,9 +161,11 @@ static inline uint64_t rdtsc(void)
 struct c2_trace_rec_header *
 c2_trace_allot(const struct c2_trace_descr *td)
 {
-	uint32_t header_len, record_len, pos_in_buf, endpos_in_buf;
+	uint32_t header_len, record_len;
+	uint32_t pos_in_buf, endpos_in_buf;
 	uint64_t pos, endpos;
 	struct c2_trace_rec_header *header;
+	register unsigned long sp asm ("sp");
 
 	C2_ASSERT(logbuf != NULL);
 	/*
@@ -198,11 +200,7 @@ c2_trace_allot(const struct c2_trace_descr *td)
 	header                = logbuf + pos_in_buf;
 	header->trh_magic     = 0;
 	header->trh_no        = pos;
-#ifdef __KERNEL__
-	header->trh_tid       = (uint32_t)current->pid;
-#else
-	header->trh_tid       = syscall(SYS_gettid);
-#endif
+	header->trh_sp        = sp;
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
 	return header;

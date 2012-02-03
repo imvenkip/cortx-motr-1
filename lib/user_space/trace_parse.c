@@ -63,8 +63,8 @@ int c2_trace_parse(void)
 
 	read_count = 0;
 
-	printf("  pos  |   tstamp      | tid |        func        |        src        | sz|narg\n");
-	printf("-------------------------------------------------------------------------------\n");
+	printf("  pos  |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
+	printf("------------------------------------------------------------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
@@ -83,14 +83,14 @@ int c2_trace_parse(void)
 
 		/* Now we might have complete record */
 		n2r = sizeof trh - sizeof trh.trh_magic;
-		nr = fread(&trh.trh_tid, 1, n2r, stdin);
+		nr = fread(&trh.trh_sp, 1, n2r, stdin);
 		C2_ASSERT(nr == n2r);
 		read_count += nr;
 
 		td = trh.trh_descr;
 
-		printf("%7.7lu %15.15lu %5lu %-20s %15s:%-3i %3.3i %3i\n\t",
-		       trh.trh_no, trh.trh_timestamp, trh.trh_tid,
+		printf("%7.7lu %15.15lu %16.16lx %-20s %15s:%-3i %3.3i %3i\n\t",
+		       trh.trh_no, trh.trh_timestamp, trh.trh_sp,
 		       td->td_func, td->td_file, td->td_line, td->td_size,
 		       td->td_nr);
 

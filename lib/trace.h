@@ -160,18 +160,28 @@
 int  c2_trace_init(void);
 void c2_trace_fini(void);
 
-/**
-   Below is the internal stuff.
+/*
+ * Below is the internal implementation stuff.
  */
 
+/** Magic number to locate the record */
 enum {
 	MAGIC = 0xc0de1eafacc01adeULL,
 };
 
+/**
+ * Record header structure
+ *
+ * @li magic number to locate the record in buffer
+ * @li stack pointer - useful to distinguish between threads
+ * @li global record number
+ * @li timestamp
+ * @li pointer to record description in the program file
+ */
 struct c2_trace_rec_header {
 	uint64_t                     trh_magic;
-	uint64_t                     trh_tid;
-	uint64_t                     trh_no;
+	uint64_t                     trh_sp; /**< stack pointer */
+	uint64_t                     trh_no; /**< record # */
 	uint64_t                     trh_timestamp;
 	const struct c2_trace_descr *trh_descr;
 };
@@ -195,19 +205,19 @@ struct c2_trace_rec_header* c2_trace_allot(const struct c2_trace_descr *td);
  */
 
 /**
-   This is a low-level entry point into tracing sub-system.
-
-   Don't call this directly, use C2_LOG() macros instead.
-
-   Add a fixed-size trace entry into the trace buffer.
-
-   @param NR the number of arguments
-   @param DECL C definition of a trace entry format
-   @param OFFSET the set of offsets of each argument
-   @param SIZEOF the set of sizes of each argument
-   @param FMT the printf-like format string
-   @note The variadic arguments must match the number
-         and types of fields in the format.
+ * This is a low-level entry point into tracing sub-system.
+ *
+ * Don't call this directly, use C2_LOG() macros instead.
+ *
+ * Add a fixed-size trace entry into the trace buffer.
+ *
+ * @param NR the number of arguments
+ * @param DECL C definition of a trace entry format
+ * @param OFFSET the set of offsets of each argument
+ * @param SIZEOF the set of sizes of each argument
+ * @param FMT the printf-like format string
+ * @note The variadic arguments must match the number
+ *       and types of fields in the format.
  */
 #define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
 ({									\
