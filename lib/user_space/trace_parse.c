@@ -70,7 +70,7 @@ int c2_trace_parse(void)
 		char *buf = NULL;
 
 		/* Find the complete record */
-		for (;;) {
+		do {
 			align(8); /* At the beginning of a record */
 			nr = fread(&trh.trh_magic, 1, sizeof trh.trh_magic, stdin);
 			if (nr != sizeof trh.trh_magic) {
@@ -78,26 +78,10 @@ int c2_trace_parse(void)
 				return 0;
 			}
 			read_count += nr;
-			if (trh.trh_magic != MAGIC)
-				continue;
-			nr = fread(&trh.trh_flags, 1, sizeof trh.trh_flags, stdin);
-			if (nr != sizeof trh.trh_flags) {
-				C2_ASSERT(feof(stdin));
-				return 1;
-			}
-			read_count += nr;
-			if (trh.trh_flags != TRH_FLAG_COMPLETE) {
-				nr = sizeof trh.trh_flags + sizeof trh.trh_magic;
-				fprintf(stderr,
-				"WARNING: the record at %d is broken, skipped...\n",
-					read_count-1 - nr);
-				continue;
-			}
-			break;
-		}
+		} while (trh.trh_magic != MAGIC);
 
 		/* Now we might have complete record */
-		n2r = sizeof trh - sizeof trh.trh_flags - sizeof trh.trh_magic;
+		n2r = sizeof trh - sizeof trh.trh_magic;
 		nr = fread(&trh.trh_tid, 1, n2r, stdin);
 		C2_ASSERT(nr == n2r);
 		read_count += nr;

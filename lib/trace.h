@@ -168,15 +168,9 @@ enum {
 	MAGIC = 0xc0de1eafacc01adeULL,
 };
 
-enum trh_flags {
-	TRH_FLAG_INIT,
-	TRH_FLAG_COMPLETE
-};
-
 #pragma pack(push, 8)
 struct c2_trace_rec_header {
 	uint64_t                     trh_magic;
-	uint32_t                     trh_flags;
 	uint32_t                     trh_tid;
 	uint64_t                     trh_no;
 	uint64_t                     trh_timestamp;
@@ -237,7 +231,7 @@ struct c2_trace_rec_header* c2_trace_allot(const struct c2_trace_descr *td);
 	header = c2_trace_allot(&td);					\
 	body   = (void*)header + c2_align(sizeof *header, 8);		\
 	*body  = (const struct t_body){ __VA_ARGS__ };			\
-	header->trh_flags = TRH_FLAG_COMPLETE;				\
+	header->trh_magic = MAGIC;					\
 })
 
 enum {

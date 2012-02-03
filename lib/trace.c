@@ -196,8 +196,7 @@ c2_trace_allot(const struct c2_trace_descr *td)
 	}
 
 	header                = logbuf + pos_in_buf;
-	header->trh_magic     = MAGIC;
-	header->trh_flags     = TRH_FLAG_INIT;
+	header->trh_magic     = 0;
 	header->trh_no        = pos;
 #ifdef __KERNEL__
 	header->trh_tid       = (uint32_t)current->pid;
