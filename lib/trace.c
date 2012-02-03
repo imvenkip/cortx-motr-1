@@ -135,13 +135,13 @@ int c2_trace_init(void)
 
 void c2_trace_fini(void)
 {
-#ifndef __KERNEL__
-	munmap(logbuf, bufsize);
-	logbuf = NULL;
-	close(logfd);
-#else
+#ifdef __KERNEL__
 	kfree(logbuf);
+#else
+	munmap(logbuf, bufsize);
+	close(logfd);
 #endif
+	logbuf = NULL;
 }
 
 
@@ -165,7 +165,7 @@ c2_trace_allot(const struct c2_trace_descr *td)
 	uint64_t pos, endpos;
 	struct c2_trace_rec_header *header;
 
-	C2_ASSERT(logbuf);
+	C2_ASSERT(logbuf != NULL);
 	/*
 	 * Allocate space in trace buffer to store trace record header
 	 * (header_len bytes) and record payload (record_len bytes).
