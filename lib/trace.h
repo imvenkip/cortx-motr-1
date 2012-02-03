@@ -254,7 +254,7 @@ enum {
 #define LOG_SIZEOF(a) sizeof(a)
 
 #define LOG_CHECK(a)							\
-C2_CASSERT(C2_HAS_TYPE(a, void*) ||					\
+C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
 	   (sizeof(a) == 1 || sizeof(a) == 2 || sizeof(a) == 4 ||	\
 	    sizeof(a) == 8))
 
