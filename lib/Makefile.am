@@ -103,6 +103,7 @@ libc2_la_SOURCES     = \
                        user_space/finject_init.c \
                        user_space/getopts.h \
                        user_space/memory.c \
+                       user_space/umisc.c \
                        user_space/mutex.h \
                        user_space/processor.c \
                        user_space/rwlock.c \
@@ -133,6 +134,7 @@ EXTRA_DIST             = \
                          linux_kernel/cdefs.h \
                          linux_kernel/finject_init.c \
                          linux_kernel/kcookie.c \
+                         linux_kernel/kmisc.c \
                          linux_kernel/kthread.c \
                          linux_kernel/ktrace.c \
                          linux_kernel/ktime.c \

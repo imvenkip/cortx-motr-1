@@ -82,10 +82,10 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 				top->s_fieldno = nr;
 				break;
 			}
-			for (; top->s_fieldno < nr; ++top->s_fieldno) {
-				if (c2_xcode_tag(&top->s_obj) ==
-				    xt->xct_child[top->s_fieldno].xf_tag)
-					break;
+			while (++top->s_fieldno < nr &&
+			       c2_xcode_tag(&top->s_obj) !=
+			       xt->xct_child[top->s_fieldno].xf_tag) {
+				;
 			}
 			break;
 		case C2_XA_OPAQUE:

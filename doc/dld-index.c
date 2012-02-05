@@ -29,7 +29,7 @@ Detailed designs, ordered alphabetically:
 - @subpage SNSRepairCMDLD "SNS Repair copy machine DLD"
            <!-- sns/repair/cm.c -->
 - @subpage NetRQProvDLD "Auto-Provisioning of Receive Message Queue Buffers DLD"
-	   <!-- net/tm_provision.c -->
+           <!-- net/tm_provision.c -->
 - @subpage io_bulk_client "IO bulk transfer Detailed Level Design"
            <!-- ioservice/io_fops.c -->
 - @subpage DLD-bulk-server "DLD of Bulk Server"
