@@ -162,7 +162,7 @@ struct c2_rpc_server_ctx s_rctx = {
 
 static int io_fop_dummy_fom_create(struct c2_fop *fop, struct c2_fom **m);
 static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m);
-static int io_fop_server_write_fom_create_negative(struct c2_fop *fop, struct c2_fom **m);
+static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m);
 static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m);
 static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m);
 
@@ -216,8 +216,8 @@ static struct c2_fom_type_ops bulkio_stob_create_fom_type_ops = {
 	.fto_create = io_fop_stob_create_fom_create,
 };
 
-static struct c2_fom_type_ops bulkio_fom_write_state_negative = {
-	.fto_create = io_fop_server_write_fom_create_negative,
+static struct c2_fom_type_ops ut_io_fom_cob_rw_type_ops = {
+	.fto_create = ut_io_fom_cob_rw_create,
 };
 
 static struct c2_fom_type bulkio_dummy_fom_type = {
@@ -234,8 +234,8 @@ static struct c2_fom_type bulkio_server_read_fom_type = {
 static struct c2_fom_type bulkio_stob_create_fom_type = {
 	.ft_ops = &bulkio_stob_create_fom_type_ops,
 };
-static struct c2_fom_type bulkio_fom_write_state_negative_type = {
-	.ft_ops = &bulkio_fom_write_state_negative,
+static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
+	.ft_ops = &ut_io_fom_cob_rw_type_ops,
 };
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
@@ -413,7 +413,7 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
  * - Validation of next phase is done as per state transtion in detail design.
  *   @see DLD-bulk-server-lspec-state
  */
-static int bulkio_server_write_fom_state_negative(struct c2_fom *fom)
+static int ut_io_fom_cob_rw_state(struct c2_fom *fom)
 {
         int                           rc = 0;
         int                           i = 0;
@@ -941,9 +941,9 @@ static struct c2_fom_ops bulkio_server_write_fom_ops = {
         .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
-static struct c2_fom_ops bulkio_server_write_fom_nagative_ops = {
+static struct c2_fom_ops ut_io_fom_cob_rw_ops = {
 	.fo_fini = bulkio_server_fom_fini,
-	.fo_state = bulkio_server_write_fom_state_negative,
+	.fo_state = ut_io_fom_cob_rw_state,
 	.fo_home_locality = bulkio_fom_locality,
         .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
@@ -986,14 +986,14 @@ static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	return rc;
 }
 
-static int io_fop_server_write_fom_create_negative(struct c2_fop *fop, struct c2_fom **m)
+static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
 	 rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
-	fop->f_type->ft_fom_type = bulkio_fom_write_state_negative_type;
-	fom->fo_ops = &bulkio_server_write_fom_nagative_ops;
+	fop->f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
+	fom->fo_ops = &ut_io_fom_cob_rw_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
 	return rc;
@@ -1358,7 +1358,7 @@ void bulkio_server_read_write_state_test(void)
 	io_fops_rpc_submit(&targ);
 }
 
-void bulkio_server_read_write_state_test_nagative(void)
+void bulkio_server_write_state_transition_test(void)
 {
 	int		    j;
 	enum C2_RPC_OPCODES op;
@@ -1371,7 +1371,7 @@ void bulkio_server_read_write_state_test_nagative(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
-        wfops[0]->if_fop.f_type->ft_fom_type = bulkio_fom_write_state_negative_type;
+        wfops[0]->if_fop.f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
 	wfops[0]->if_fop.f_type->ft_ops = &bulkio_server_write_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
@@ -1808,7 +1808,7 @@ const struct c2_test_suite bulkio_ut = {
 		{ "bulkio_vectored_read_write", bulkio_server_multiple_read_write},
 		{ "bulkio_rw_multiple_nb_server", bulkio_server_read_write_multiple_nb},
 		{ "bulkio_client_vectored_rw", bulkio_test_client},
-		{ "bulkio_read_write_state_test_nagative", bulkio_server_read_write_state_test_nagative},
+		{ "bulkio_server_write_state_transition_test", bulkio_server_write_state_transition_test},
 		{ "bulkio_fini", bulkio_test_fini},
 		{ NULL, NULL }
 	}
