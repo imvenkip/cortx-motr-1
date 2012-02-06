@@ -1675,10 +1675,14 @@ static void io_fops_create(enum C2_RPC_OPCODES op, int fids_nr, int fops_nr,
 
 	/* Populates io fops. */
 	for (i = 0; i < fops_nr; ++i) {
-		rnd = c2_rnd(fids_nr, &seed);
-		C2_UT_ASSERT(rnd < fids_nr);
+		if (fids_nr < fops_nr) {
+			rnd = c2_rnd(fids_nr, &seed);
+			C2_UT_ASSERT(rnd < fids_nr);
+		}
+		else rnd = i;
 
-		io_fop_populate(i, rnd, op, segs_nr);
+		io_fop_populate(i, i, op, segs_nr);
+		
 	}
 }
 
