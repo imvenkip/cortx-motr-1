@@ -1060,7 +1060,8 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
         C2_PRE(fom != NULL);
         C2_PRE(c2_is_io_fop(fom->fo_fop));
         C2_PRE(fom->fo_service != NULL);
-        C2_PRE(fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE);
+        C2_PRE(fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE || 
+               fom->fo_phase == FOPH_IO_FOM_BUFFER_WAIT);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
@@ -1199,8 +1200,6 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         }
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
        
-        fom_obj->fcrw_batch_size = acquired_net_bufs;
-
         fom_obj->fcrw_batch_size = acquired_net_bufs;
 
         if (required_net_bufs == 0)
@@ -1391,6 +1390,13 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 	rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
 	if (rc != 0)
 		goto cleanup;
+
+        /*
+         * Internally c2_db_cursor_get() takes explicitely RW lock.
+         * Need to define enum lock modes and pass to c2_db_cursor_get().
+         * Till this issue fix, I/O FOM use c2_fom_block_enter() aftre 
+         * stob io launch
+         */
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
 	if (rc != 0)
 		goto cleanup_st;
