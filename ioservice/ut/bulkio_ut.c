@@ -141,7 +141,7 @@ struct c2_rpc_client_ctx c_rctx = {
 };
 
 /* Input arguments for colibri server setup. */
-char *server_args[]		= {"bulkio_ut", "-r", "-T", "AD", "-D",
+char *server_args[]		= {"bulkio_ut", "-r", "-T", "linux", "-D",
 				   s_db_file, "-S", s_stob_file, "-e",
 				   S_ENDPOINT, "-s", "ioservice"};
 
@@ -317,7 +317,7 @@ static bool ut_fom_cb_dummy(struct c2_clink *clink)
 /*
  * - This is positive test case to test c2_io_fom_cob_rw_state(fom).
  * - This function test next phase after every defined phase for Write FOM.
- * - Validation of next phase is done as per state transtion in detail design.
+ * - Validation of next phase is done as per state transition in detail design.
  *   @see DLD-bulk-server-lspec-state
  */
 static int bulkio_server_write_fom_state(struct c2_fom *fom)
@@ -361,7 +361,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 /*
  * - This is positive test case to test c2_io_fom_cob_rw_state(fom).
  * - This function test next phase after every defined phase for Read FOM.
- * - Validation of next phase is done as per state transtion in detail design.
+ * - Validation of next phase is done as per state transition in detail design.
  *   @see DLD-bulk-server-lspec-state
  */
 static int bulkio_server_read_fom_state(struct c2_fom *fom)
@@ -410,7 +410,7 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
  * This ut FOM work with real fop send by bulk client.
  * - Client first send write fop
  * - Fops at server side are intercepted by this dummy state function and
-     checks all possbile state transitions.
+     checks all possible state transitions.
  * - It simulates failure environment for particular state and restore
  *   it again after each test.
  * - After reply fop is received by client, client sends a read fop to read
@@ -517,7 +517,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         /*
          * Case 02 : No network buffer is available with the buffer pool.
          *         Even after getting buffer pool not-empty event, buffers are
-         *         not available in pool (which could be used by other fom's
+         *         not available in pool (which could be used by other FOMs
          *         in the server).
          *         Input phase          : FOPH_IO_FOM_BUFFER_WAIT
          *         Expected Output phase: FOPH_IO_FOM_BUFFER_WAIT
@@ -724,7 +724,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
         /*
          * Cleanup & make clean FOM for next test.
-         * Since this fom will not go actual wait queue,
+         * Since this FOM	 will not go actual wait queue,
          * need to unlock locality.
          */
         ut_fom_wait_dummy(fom);
@@ -921,7 +921,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         /*
          * Case 02 : No network buffer is available with buffer pool.
          *         Even after getting buffer pool not-empty event, buffers are
-         *         not available in pool (which could be used by other fom's
+         *         not available in pool (which could be used by other FOMs
          *         in the server).
          *         Input phase          : FOPH_IO_FOM_BUFFER_WAIT
          *         Expected Output phase: FOPH_IO_FOM_BUFFER_WAIT
@@ -1156,7 +1156,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 
         /*
          * Cleanup & restore FOM for next test.
-         * Since this fom will not go actual wait queue,
+         * Since this FOM will not go actual wait queue,
          * need to unlock locality.
          */
         ut_fom_wait_dummy(fom);
@@ -1203,7 +1203,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 
 
         /*
-         * Case 13 : Processing of remainig buffer descriptors.
+         * Case 13 : Processing of remaining buffer descriptors.
          *         Input phase          : FOPH_IO_BUFFER_RELEASE
          *         Expected Output phase: FOPH_IO_FOM_BUFFER_ACQUIRE
          */
@@ -1868,8 +1868,8 @@ void bulkio_server_read_write_state_test(void)
 }
 
 /*
- * This function sends write & read fop to ut FOM to check
- * state transtion for I/O FOM.
+ * This function sends write & read fop to UT FOM to check
+ * state transition for I/O FOM.
  */
 
 void bulkio_server_rw_state_transition_test(void)

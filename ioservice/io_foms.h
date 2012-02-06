@@ -221,7 +221,7 @@ enum c2_io_fom_cob_rw_phases {
 };
 
 /**
- * State transition information. 
+ * State transition information.
  */
 struct c2_io_fom_cob_rw_state_transition {
         /** Current phase of I/O FOM */
@@ -229,7 +229,7 @@ struct c2_io_fom_cob_rw_state_transition {
         /** Function which executes current phase */
         int        (*fcrw_st_state_function)(struct c2_fom *);
         /** Next phase in which FOM is going to execute */
-        int        fcrw_st_next_phase_again; 
+        int        fcrw_st_next_phase_again;
         /** Next phase in which FOM is going to wait */
         int        fcrw_st_next_phase_wait;
 };
