@@ -236,6 +236,10 @@ static struct c2_fom_type bulkio_server_read_fom_type = {
 static struct c2_fom_type bulkio_stob_create_fom_type = {
 	.ft_ops = &bulkio_stob_create_fom_type_ops,
 };
+
+/*
+ * Intercepting FOM to test I/O FOM functions for different phases.
+ */
 static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
 	.ft_ops = &ut_io_fom_cob_rw_type_ops,
 };
@@ -247,11 +251,6 @@ static void bulkio_stob_fom_fini(struct c2_fom *fom)
         c2_stob_put(fom_obj->fcrw_stob);
 	c2_fom_fini(fom);
 	c2_free(fom);
-}
-
-static void bulkio_server_fom_fini(struct c2_fom *fom)
-{
-	c2_io_fom_cob_rw_fini(fom);
 }
 
 static void bulkio_fom_fini(struct c2_fom *fom)
@@ -1422,23 +1421,23 @@ static struct c2_fom_ops bulkio_stob_create_fom_ops = {
 };
 
 static struct c2_fom_ops bulkio_server_write_fom_ops = {
-	.fo_fini = bulkio_server_fom_fini,
+	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = bulkio_server_write_fom_state,
-	.fo_home_locality = bulkio_fom_locality,
+	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
         .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops ut_io_fom_cob_rw_ops = {
-	.fo_fini = bulkio_server_fom_fini,
+	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = ut_io_fom_cob_rw_state,
-	.fo_home_locality = bulkio_fom_locality,
+	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
         .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops bulkio_server_read_fom_ops = {
-	.fo_fini = bulkio_server_fom_fini,
+	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = bulkio_server_read_fom_state,
-	.fo_home_locality = bulkio_fom_locality,
+	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
         .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 static struct c2_fom_ops bulkio_fom_ops = {
@@ -1473,12 +1472,25 @@ static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	return rc;
 }
 
+/*
+ * This creates FOM for ut.
+ */
 static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	 rc = c2_io_fom_cob_rw_create(fop, &fom);
-        C2_UT_ASSERT(rc == 0);
+        /*
+         * Case : This test the creation of I/O FOM. 
+         *        It use real I/O FOP
+         */
+	rc = c2_io_fom_cob_rw_create(fop, &fom);
+        C2_UT_ASSERT(rc == 0 &&
+                     fom != NULL &&
+                     fom->fo_rep_fop != NULL &&
+                     fom->fo_fop != NULL &&
+                     fom->fo_type != NULL &&
+                     fom->fo_ops != NULL);
+
 	fop->f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
 	fom->fo_ops = &ut_io_fom_cob_rw_ops;
 	*m = fom;
