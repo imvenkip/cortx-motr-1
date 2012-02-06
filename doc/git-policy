@@ -105,7 +105,7 @@ where P, L and S are decimal numbers with the following meaning:
     S - a sprint number, counting from the beginning of the phase
 
 Sprint and landing tags intended to be a kind of release points. They allow
-to see which tasks were finished withing a sprint.
+to see which tasks were finished within a sprint.
 
 
 MERGE POLICY
