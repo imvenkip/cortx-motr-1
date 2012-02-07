@@ -19,9 +19,9 @@
  */
 
 #ifdef __KERNEL__
-# include "addb/addb_k.h"
+# include "addb/addbff/addb_k.h"
 #else
-# include "addb/addb_u.h"
+# include "addb/addbff/addb_u.h"
 #endif
 
 extern int c2_addb_record_header_pack(struct c2_addb_dp *dp,

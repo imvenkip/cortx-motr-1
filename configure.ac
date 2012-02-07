@@ -545,6 +545,7 @@ AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
+                 addb/addbff/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
