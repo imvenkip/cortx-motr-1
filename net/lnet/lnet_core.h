@@ -171,6 +171,7 @@ struct nlx_core_buffer_event;
 struct nlx_core_domain;
 struct nlx_core_ep_addr;
 struct nlx_core_transfer_mc;
+struct nlx_core_buf_desc;
 
 /**
    Opaque type wide enough to represent an address in any address space.
@@ -213,6 +214,7 @@ C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
 enum {
 	C2_NET_LNET_CORE_BUF_MAGIC = 0x436f7265427566ULL, /* CoreBuf */
 	C2_NET_LNET_CORE_TM_MAGIC  = 0x436f7265544dULL,   /* CoreTM */
+	C2_NET_LNET_CORE_NBD_MAGIC = 0x436f72654e4244ULL, /* CoreNBD */
 };
 
 /**
@@ -424,6 +426,32 @@ struct nlx_core_buffer {
 	void                   *cb_upvt; /**< Core user space private */
 	void                   *cb_kpvt; /**< Core kernel space private */
 };
+
+/**
+   The LNet transport's Network Buffer Descriptor format.
+   The external form is the opaque c2_net_buf_desc.
+   All fields are stored in little-endian order, and the structure is
+   copied as-is to the external opaque form.
+ */
+struct nlx_core_buf_desc {
+	/** Match bits of the passive buffer */
+	uint64_t                 cbd_match_bits;
+
+	/** Passive TM's end point */
+	struct nlx_core_ep_addr  cbd_passive_ep;
+
+	/** Passive buffer queue type (enum c2_net_queue_type) expressed
+	    here explicitly as a 32 bit number.
+	 */
+	uint32_t                 cbd_qtype;
+
+	/** Passive buffer size */
+	c2_bcount_t              cbd_size;
+
+	/** Magic number */
+	uint64_t                 cbd_magic;
+};
+
 
 /**
    Allocates and initializes the network domain's private field for use by LNet.

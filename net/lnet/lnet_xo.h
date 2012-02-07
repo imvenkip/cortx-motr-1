@@ -31,7 +31,6 @@
    @{
  */
 
-struct nlx_xo_buf_desc;
 struct nlx_xo_buffer;
 struct nlx_xo_domain;
 struct nlx_xo_ep;
@@ -59,24 +58,6 @@ struct nlx_xo_ep {
 	   The @c xe_ep.nep_addr field points to @c xe_addr.
 	 */
 	char                    xe_addr[C2_NET_LNET_XEP_ADDR_LEN];
-};
-
-/**
-   Internal form of the LNet transport's Network Buffer Descriptor.
-   The external form is the opaque c2_net_buf_desc.
- */
-struct nlx_xo_buf_desc {
-	/** Match bits of the passive buffer */
-        uint64_t                 xbd_match_bits;
-
-	/** Passive TM's end point */
-        struct nlx_core_ep_addr  xbd_passive_ep;
-
-	/** Passive buffer queue type */
-        enum c2_net_queue_type   xbd_qtype;
-
-	/** Passive buffer size */
-        c2_bcount_t              xbd_size;
 };
 
 /**
