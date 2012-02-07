@@ -152,7 +152,7 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 			    unsigned	      shift)
 {
 	/* Currently in kernel mode only c2_alloc is available. */
-	#ifndef __KERNEL__
+	#ifdef __KERNEL__
 		if (shift != 0) shift = 0;
 	#endif
 	

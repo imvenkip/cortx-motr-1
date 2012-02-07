@@ -169,7 +169,6 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
         struct c2_reqh_io_service      *serv_obj;
         struct c2_rios_buffer_pool     *bp;
         struct c2_rios_buffer_pool     *newbp;
-	struct c2_stob_domain	       *sdom;
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
@@ -205,8 +204,8 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
              c2_chan_init(&newbp->rios_bp_wait);
              newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
              colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
-	     sdom    = rpcmach->cr_reqh->rh_stdom;
-	     bshift  = sdom->sd_ops->sdo_block_shift(sdom);
+	     /* Ovec needs 4k aligned addresses. */ 
+	     bshift  = C2_0VEC_SHIFT;
 	     c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
                                      network_buffer_pool_threshold,
                                      network_buffer_pool_segment_nr,
