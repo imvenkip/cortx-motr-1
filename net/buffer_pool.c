@@ -240,7 +240,7 @@ static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	if (nb == NULL)
 		return false;
 	rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, pool->nbp_seg_nr,
-			    	      pool->nbp_seg_size, pool->nbp_align);
+				      pool->nbp_seg_size, pool->nbp_align);
 	if (rc != 0)
 		goto clean;
 	rc = c2_net_buffer_register(nb, pool->nbp_ndom);
