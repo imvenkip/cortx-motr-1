@@ -155,7 +155,6 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 	#ifdef __KERNEL__
 		if (shift != 0) shift = 0;
 	#endif
-	
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, shift);
 }
 C2_EXPORTED(c2_bufvec_alloc_aligned);
