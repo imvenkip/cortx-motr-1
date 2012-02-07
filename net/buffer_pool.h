@@ -133,7 +133,7 @@
 
 enum {
 	BUFFER_ANY_COLOUR = ~0
-}
+};
 struct c2_net_buffer_pool;
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
