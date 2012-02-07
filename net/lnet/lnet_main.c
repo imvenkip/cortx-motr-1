@@ -482,19 +482,20 @@
    descriptor returned to the application, to encode the identity of the
    passive buffers.
 
-   The following internal format is used:
+   The data structure will be defined by the Core API along the following lines:
    @code
-   struct nlx_xo_buf_desc {
-        uint64_t                 xbd_match_bits;
-        struct nlx_core_ep_addr  xbd_passive_ep;
-        enum c2_net_queue_type   xbd_qtype;
-        c2_bcount_t              xbd_size;
+   struct nlx_core_buf_desc {
+        uint64_t                 cbd_match_bits;
+        struct nlx_core_ep_addr  cbd_passive_ep;
+        enum c2_net_queue_type   cbd_qtype;
+        c2_bcount_t              cbd_size;
    };
    @endcode
 
    All the fields are integer fields and the structure is of fixed length.  It
    is encoded and decoded into its opaque over-the-wire struct c2_net_buf_desc
-   format with dedicated encoding routines.
+   format with dedicated encoding routines.  It will not make use of either XDR
+   nor the Colibri Xcode modules.  The encoding will be little-endian optimized.
 
 
    @subsection LNetDLD-lspec-buf-op Buffer operations
@@ -766,7 +767,6 @@
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
-
 
 /* debug print support */
 #undef NLX_DEBUG
