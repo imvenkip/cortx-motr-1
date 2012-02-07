@@ -174,21 +174,22 @@ int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 /** get size for data point opaque data */
 int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1, 8);
+	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1,
+			C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 int c2_addb_call_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(uint32_t), 8);
+	return c2_align(sizeof(uint32_t), C2_ADDB_RECORD_LEN_ALIGN);
 }
 int c2_addb_flag_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(bool), 8);
+	return c2_align(sizeof(bool), C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 int c2_addb_inval_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(uint64_t), 8);
+	return c2_align(sizeof(uint64_t), C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 int c2_addb_empty_getsize(struct c2_addb_dp *dp)

@@ -163,6 +163,22 @@ struct c2_addb_record_header;
 */
 struct c2_addb_record;
 
+enum {
+	/** addb record size alignment */
+	C2_ADDB_RECORD_LEN_ALIGN = 8,
+};
+
+/**
+   Pack the record header into a buffer.
+
+   @param dp the data point
+   @param header pointer to the header within the buffer
+   @param size total size of the record
+ */
+int c2_addb_record_header_pack(struct c2_addb_dp *dp,
+			       struct c2_addb_record_header *header,
+			       int size);
+
 /**
    Packing this event into a buffer.
 
@@ -202,6 +218,7 @@ enum c2_addb_event_id {
 	C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT = 0x2ULL,
 	C2_ADDB_EVENT_OOM                   = 0x3ULL,
 	C2_ADDB_EVENT_FUNC_FAIL             = 0x4ULL,
+
 	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
 	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
 	C2_ADDB_EVENT_NET_QSTATS            = 0x12ULL,

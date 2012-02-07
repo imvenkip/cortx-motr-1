@@ -24,10 +24,6 @@
 # include "addb/addbff/addb_u.h"
 #endif
 
-extern int c2_addb_record_header_pack(struct c2_addb_dp *dp,
-				      struct c2_addb_record_header *header,
-				      int size);
-
 /* forward references within this file */
 static int subst_name_uint64_t_qstats(struct c2_addb_dp *dp, const char *name,
 				      uint64_t qid, struct c2_net_qstats *qs);
@@ -88,7 +84,7 @@ struct nlx_qstat_body {
 int nlx_statistic_getsize(struct c2_addb_dp *dp)
 {
 	return c2_align(sizeof(uint64_t) + sizeof(struct c2_net_qstats) +
-			strlen(dp->ad_name) + 1, 8);
+			strlen(dp->ad_name) + 1, C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 /** packing statistic addb record */
