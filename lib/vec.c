@@ -104,9 +104,11 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 	return cur->vc_vec->v_count[cur->vc_seg] - cur->vc_offset;
 }
 
-int c2_bufvec_alloc(struct c2_bufvec *bufvec,
-		    uint32_t          num_segs,
-		    c2_bcount_t       seg_size)
+
+static int c2__bufvec_alloc(struct c2_bufvec *bufvec,
+		    	    uint32_t          num_segs,
+		    	    c2_bcount_t       seg_size,
+		    unsigned	      shift)
 {
 	uint32_t i;
 
@@ -121,7 +123,9 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		goto fail;
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
-		bufvec->ov_buf[i] = c2_alloc(seg_size);
+		if (shift != 0)
+			bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
+		else	bufvec->ov_buf[i] = c2_alloc(seg_size);
 		if (bufvec->ov_buf[i] == NULL)
 			goto fail;
 		bufvec->ov_vec.v_count[i] = seg_size;
@@ -133,6 +137,13 @@ fail:
 	c2_bufvec_free(bufvec);
 	return -ENOMEM;
 }
+
+int c2_bufvec_alloc(struct c2_bufvec *bufvec,
+		    uint32_t          num_segs,
+		    c2_bcount_t       seg_size)
+{
+	return c2__bufvec_alloc(bufvec, num_segs, seg_size, 0);
+}
 C2_EXPORTED(c2_bufvec_alloc);
 
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
@@ -140,30 +151,12 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 			    c2_bcount_t       seg_size,
 			    unsigned	      shift)
 {
-	uint32_t i;
-
-	C2_PRE(num_segs > 0 && seg_size > 0);
-	bufvec->ov_buf = NULL;
-	bufvec->ov_vec.v_nr = num_segs;
-	C2_ALLOC_ARR(bufvec->ov_vec.v_count, num_segs);
-	if (bufvec->ov_vec.v_count == NULL)
-		goto fail;
-	C2_ALLOC_ARR(bufvec->ov_buf, num_segs);
-	if (bufvec->ov_buf == NULL)
-		goto fail;
-
-	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
-		bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
-		if (bufvec->ov_buf[i] == NULL)
-			goto fail;
-		bufvec->ov_vec.v_count[i] = seg_size;
-	}
-
-	return 0;
-
-fail:
-	c2_bufvec_free(bufvec);
-	return -ENOMEM;
+	/* Currently in kernel mode only c2_alloc is available. */
+	#ifndef __KERNEL__
+		if (shift != 0) shift = 0;
+	#endif
+	
+	return c2__bufvec_alloc(bufvec, num_segs, seg_size, shift);
 }
 C2_EXPORTED(c2_bufvec_alloc_aligned);
 

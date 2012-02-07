@@ -150,6 +150,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
    @param seg_nr    Number of segments in each buffer.
    @param colours   Number of colours in the pool.
    @param seg_size  Size of each segment in a buffer.
+   @param shift	    Alignment needed for network buffers.
    @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom) &&
 	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
    @post c2_net_buffer_pool_invariant(pool)
@@ -157,7 +158,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
 			    uint32_t seg_nr, c2_bcount_t seg_size,
-			    uint32_t colours);
+			    uint32_t colours, unsigned shift);
 
 /**
    It adds the buf_nr buffers in the buffer pool.
@@ -246,6 +247,8 @@ struct c2_net_buffer_pool {
 	    lists.
 	*/
 	struct c2_tl			    *nbp_colour;
+	/* Alignement for network buffers */
+	unsigned			     nbp_align;
 	/**
 	   A list of all buffers in the pool.
 	   This list is maintained in LRU order. The head of this list (which is

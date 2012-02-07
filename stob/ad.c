@@ -1294,6 +1294,14 @@ static uint32_t ad_stob_block_shift(const struct c2_stob *stob)
 	return ad_bshift(domain2ad(stob->so_domain));
 }
 
+/**
+   An implementation of c2_stob_domain_op::sdo_block_shift() method.
+ */
+static uint32_t ad_stob_domain_block_shift(struct c2_stob_domain *sd)
+{
+	return ad_bshift(domain2ad(sd));
+}
+
 static bool ad_endio(struct c2_clink *link)
 {
 	struct ad_stob_io *aio;
@@ -1325,9 +1333,10 @@ static const struct c2_stob_type_op ad_stob_type_op = {
 };
 
 static const struct c2_stob_domain_op ad_stob_domain_op = {
-	.sdo_fini      = ad_domain_fini,
-	.sdo_stob_find = ad_domain_stob_find,
-	.sdo_tx_make   = ad_domain_tx_make
+	.sdo_fini        = ad_domain_fini,
+	.sdo_stob_find   = ad_domain_stob_find,
+	.sdo_tx_make     = ad_domain_tx_make,
+	.sdo_block_shift = ad_stob_domain_block_shift
 };
 
 static const struct c2_stob_op ad_stob_op = {

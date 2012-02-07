@@ -170,6 +170,7 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 
 /**
    Allocates aligned memory as specified by shift value for a struct c2_bufvec.
+   Currently in kernel mode it supports PAGE_SIZE alignment only.
  */
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 		    	    uint32_t          num_segs,

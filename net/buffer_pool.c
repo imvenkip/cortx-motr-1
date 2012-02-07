@@ -85,7 +85,7 @@ static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
 			    uint32_t seg_nr, c2_bcount_t seg_size,
-			    uint32_t colours)
+			    uint32_t colours, unsigned shift)
 {
 	int i;
 
@@ -101,6 +101,7 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_seg_nr     = seg_nr;
 	pool->nbp_seg_size   = seg_size;
 	pool->nbp_colours_nr = colours;
+	pool->nbp_align	     = shift;
 
 	C2_ALLOC_ARR(pool->nbp_colour, colours);
 	c2_mutex_init(&pool->nbp_mutex);
@@ -246,7 +247,7 @@ bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	if (nb == NULL)
 		return false;
 	rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, pool->nbp_seg_nr,
-			      pool->nbp_seg_size, 12);
+			    	      pool->nbp_seg_size, pool->nbp_align);
 	if (rc != 0)
 		goto clean;
 	rc = c2_net_buffer_register(nb, pool->nbp_ndom);

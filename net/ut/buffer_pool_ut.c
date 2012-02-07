@@ -55,7 +55,7 @@ static void test_init(void)
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096, 10);
+	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096, 10, 12);
 	c2_net_buffer_pool_lock(&bp);
 	rc = c2_net_buffer_pool_provision(&bp, 10);
 	c2_net_buffer_pool_unlock(&bp);
@@ -134,7 +134,7 @@ static void test_get_put_multiple(void)
 					~0, "client_%d", i);
 		C2_ASSERT(rc == 0);
 		C2_SET0(&client_thread[++i]);
-		/* value of integer 'i' is used to put ot get the
+		/* value of integer 'i' is used to put or get the
 		   buffer in coloured list */
 		rc = C2_THREAD_INIT(&client_thread[i], int,
 				     NULL, &buffers_get_put,
