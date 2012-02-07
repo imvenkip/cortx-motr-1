@@ -768,6 +768,8 @@
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
 
+#include <asm/byteorder.h>  /* byte swapping macros */
+
 /* debug print support */
 #undef NLX_DEBUG
 #ifdef NLX_DEBUG

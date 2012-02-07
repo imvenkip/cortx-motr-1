@@ -190,16 +190,53 @@ static uint64_t nlx_core_match_bits_encode(uint32_t tmid, uint64_t counter)
    @see nlx_core_match_bits_encode()
  */
 static inline void nlx_core_match_bits_decode(uint64_t mb,
-					       uint32_t *tmid,
-					       uint64_t *counter)
+					      uint32_t *tmid,
+					      uint64_t *counter)
 {
 	*tmid = (uint32_t) (mb >> C2_NET_LNET_TMID_SHIFT);
 	*counter = mb & C2_NET_LNET_BUFFER_ID_MASK;
 	return;
 }
 
+/**
+   Helper subroutine to encode the internal form of a network buffer
+   descriptor.
+   @param lctm Pointer to the TM core private data.
+   @param lcbuf Pointer to the buffer core private data with the cb_match_bits,
+   cb_qtype and cb_length fields set.
+   @param cbd Pointer to the descriptor structure to set up. The values are
+   all little-endian.
+ */
+static void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
+				     struct nlx_core_buffer *lcbuf,
+				     struct nlx_core_buf_desc *cbd)
+{
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+
+	cbd->cbd_match_bits = __cpu_to_le64(lcbuf->cb_match_bits);
+
+#define CBD_EP(f) cbd->cbd_passive_ep.cepa_ ## f
+#define TM_EP(f) lctm->ctm_addr.cepa_ ## f
+
+	CBD_EP(nid)         = __cpu_to_le64(TM_EP(nid));
+	CBD_EP(pid)         = __cpu_to_le32(TM_EP(pid));
+	CBD_EP(portal)      = __cpu_to_le32(TM_EP(portal));
+	CBD_EP(tmid)        = __cpu_to_le32(TM_EP(tmid));
+
+#undef TM_EP
+#undef CBD_EP
+
+	cbd->cbd_qtype      = __cpu_to_le32(lcbuf->cb_qtype);
+	cbd->cbd_size       = __cpu_to_le64(lcbuf->cb_length);
+	cbd->cbd_magic      = __cpu_to_le64(C2_NET_LNET_CORE_NBD_MAGIC);
+
+	return;
+}
+
 void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
-				 struct nlx_core_buffer *lcbuf)
+				 struct nlx_core_buffer *lcbuf,
+				 struct nlx_core_buf_desc *cbd)
 {
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 	C2_PRE(nlx_core_tm_invariant(lctm));
@@ -211,11 +248,12 @@ void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
 	if (++lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
 		lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 
+	nlx_core_buf_desc_encode(lctm, lcbuf, cbd);
+
 	C2_POST(nlx_core_tm_invariant(lctm));
 	C2_POST(nlx_core_buffer_invariant(lcbuf));
 	return;
 }
-
 
 void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
 {

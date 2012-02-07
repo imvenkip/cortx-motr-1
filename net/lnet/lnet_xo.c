@@ -229,12 +229,56 @@ static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 	return;
 }
 
+/**
+   Helper function to encode a network buffer descriptor.
+   Since it is encoded in little endian format and its size is predefined,
+   it is simply copied to allocated memory.
+ */
+static int nlx_xo__nbd_create(struct c2_net_transfer_mc *tm,
+			      const struct nlx_core_buf_desc *cbd,
+			      struct c2_net_buf_desc *nbd)
+{
+	C2_PRE(tm != NULL);
+	C2_PRE(nbd != NULL);
+	C2_PRE(cbd != NULL);
+
+	nbd->nbd_len = sizeof(struct nlx_core_buf_desc);
+	C2_ALLOC_ADDB(nbd->nbd_data, nbd->nbd_len,
+		      &tm->ntm_addb, &c2_net_lnet_addb_loc);
+	if (nbd->nbd_data == NULL)
+		return -ENOMEM;
+	memcpy(nbd->nbd_data, cbd, nbd->nbd_len);
+
+	return 0;
+}
+
+#if 0
+/**
+   Helper function to recover the internal network buffer descriptor.
+ */
+static int nlx_xo__nbd_recover(struct c2_net_transfer_mc *tm,
+			       const struct c2_net_buf_desc *nbd,
+			       struct nlx_core_buf_desc *cbd)
+{
+	C2_PRE(tm != NULL);
+	C2_PRE(nbd != NULL);
+	C2_PRE(cbd != NULL);
+
+	if (nbd->nbd_len != sizeof(struct c2_net_buf_desc))
+		return -EINVAL;
+	memcpy(cbd, nbd->nbd_data, nbd->nbd_len);
+
+	return 0;
+}
+#endif
+
 static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 {
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 	struct nlx_core_transfer_mc *ctp;
 	struct nlx_core_buffer *cbp;
+	struct nlx_core_buf_desc cbd;
 	c2_bcount_t bufsize;
 	size_t need;
 	int rc;
@@ -260,7 +304,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	cbp->cb_max_operations = need;
 
 	bufsize = c2_vec_count(&nb->nb_buffer.ov_vec);
-	cbp->cb_length = bufsize; /* default for passive cases */
+	cbp->cb_length = bufsize; /* default for receive cases */
 
 	cbp->cb_qtype = nb->nb_qtype;
 	switch (nb->nb_qtype) {
@@ -268,26 +312,44 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		cbp->cb_min_receive_size = nb->nb_min_receive_size;
 		rc = nlx_core_buf_msg_recv(ctp, cbp);
 		break;
+
 	case C2_NET_QT_MSG_SEND:
 		C2_ASSERT(nb->nb_length <= bufsize);
 		cbp->cb_length = nb->nb_length;
 		cbp->cb_addr = *nlx_ep_to_core(nb->nb_ep); /* dest addr */
 		rc = nlx_core_buf_msg_send(ctp, cbp);
 		break;
+
 	case C2_NET_QT_PASSIVE_BULK_RECV:
-		nlx_core_buf_match_bits_set(ctp, cbp);
+		nlx_core_buf_match_bits_set(ctp, cbp, &cbd);
+		rc = nlx_xo__nbd_create(nb->nb_tm, &cbd, &nb->nb_desc);
+		if (rc != 0)
+			break;
 		rc = nlx_core_buf_passive_recv(ctp, cbp);
+		if (rc != 0)
+			c2_free(nb->nb_desc.nbd_data);
 		break;
+
 	case C2_NET_QT_PASSIVE_BULK_SEND:
-		nlx_core_buf_match_bits_set(ctp, cbp);
+		C2_ASSERT(nb->nb_length <= bufsize);
+		cbp->cb_length = nb->nb_length;
+		nlx_core_buf_match_bits_set(ctp, cbp, &cbd);
+		rc = nlx_xo__nbd_create(nb->nb_tm, &cbd, &nb->nb_desc);
+		if (rc != 0)
+			break;
 		rc = nlx_core_buf_passive_send(ctp, cbp);
+		if (rc != 0)
+			c2_free(nb->nb_desc.nbd_data);
 		break;
+
 	case C2_NET_QT_ACTIVE_BULK_RECV:
 		rc = nlx_core_buf_active_recv(ctp, cbp);
 		break;
+
 	case C2_NET_QT_ACTIVE_BULK_SEND:
 		rc = nlx_core_buf_active_send(ctp, cbp);
 		break;
+
 	default:
 		C2_IMPOSSIBLE("invalid queue type");
 		break;

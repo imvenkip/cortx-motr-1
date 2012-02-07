@@ -606,10 +606,12 @@ static int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 
    @param lctm  Transfer machine private data.
    @param lcbuf The buffer private data.
+   @param cbd Descriptor structure to be filled in.
    @pre The buffer is queued on the specified transfer machine.
  */
 static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
-					struct nlx_core_buffer *lcbuf);
+					struct nlx_core_buffer *lcbuf,
+					struct nlx_core_buf_desc *cbd);
 
 /**
    Enqueues a buffer for passive bulk receive.

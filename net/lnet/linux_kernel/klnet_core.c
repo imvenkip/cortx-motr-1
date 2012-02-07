@@ -1165,15 +1165,61 @@ int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lctm->ctm_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, LNET_MD_OP_PUT, &umd);
+	rc = NLX_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	return rc;
 }
 
 int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lctm->ctm_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, LNET_MD_OP_GET, &umd);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
+	rc = NLX_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
+	return rc;
 }
 
 int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
