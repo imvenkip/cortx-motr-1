@@ -198,6 +198,25 @@ static inline void nlx_core_match_bits_decode(uint64_t mb,
 	return;
 }
 
+void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
+				 struct nlx_core_buffer *lcbuf)
+{
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+
+	lcbuf->cb_match_bits =
+		nlx_core_match_bits_encode(lcbuf->cb_addr.cepa_tmid,
+					   lctm->ctm_mb_counter);
+	if (++lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
+		lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
+
+	C2_POST(nlx_core_tm_invariant(lctm));
+	C2_POST(nlx_core_buffer_invariant(lcbuf));
+	return;
+}
+
+
 void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
 {
 	lcdom->_debug_ = dbg;
