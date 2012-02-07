@@ -184,6 +184,7 @@ static size_t nlx_kcore_num_kiov_entries_for_bytes(const lnet_kiov_t *kiov,
 
 	C2_PRE(kiov != NULL);
 	C2_PRE(kiov_len > 0);
+	C2_PRE(last_len != NULL);
 
 	for (i = 0, count = 0; i < kiov_len && count < bytes; ++i, ++kiov) {
 		count += (c2_bcount_t) kiov->kiov_len;

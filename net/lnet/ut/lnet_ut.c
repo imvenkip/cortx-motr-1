@@ -25,7 +25,7 @@
 
 static int ut_verbose = 0;
 
-static int ut_subs_saved;;
+static int ut_subs_saved;
 static struct nlx_xo_interceptable_subs saved_xo_subs;
 #ifdef __KERNEL__
 static struct nlx_kcore_interceptable_subs saved_kcore_subs;
@@ -68,7 +68,7 @@ static void ut_net_buffer_sign(struct c2_net_buffer *nb,
 	unsigned char val;
 	unsigned char *p;
 
-	val = ((c2_bcount_t) seed + (((c2_bcount_t) seed - 1) * len)) & 0xff;
+	val = (c2_bcount_t) seed + ((c2_bcount_t) seed - 1) * len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	i = 0;
 	do {
@@ -98,7 +98,7 @@ static bool ut_net_buffer_authenticate(struct c2_net_buffer *nb,
 	if (nb == NULL)
 		return false;
 
-	val = ((c2_bcount_t) seed + (((c2_bcount_t) seed - 1) * len)) & 0xff;
+	val = (c2_bcount_t) seed + ((c2_bcount_t) seed - 1) * len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	i = 0;
 	len += offset; /* range: offset <= i < len */
@@ -244,7 +244,8 @@ static char ut_line_buf[1024];
 do {									\
 	int rc = x;							\
 	if (rc != 0) {							\
-		sprintf(ut_line_buf,"%s %d: %s: %d",__FILE__,__LINE__,#x,rc); \
+		snprintf(ut_line_buf, sizeof(ut_line_buf),		\
+			 "%s %d: %s: %d",__FILE__,__LINE__, #x, rc);	\
 		C2_UT_FAIL(ut_line_buf);				\
 		goto label;						\
 	}								\
@@ -340,7 +341,8 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 	}
 }
 
-static void ut_test_framework(ut_test_fw_body_t body, int dbg) {
+static void ut_test_framework(ut_test_fw_body_t body, int dbg)
+{
 	struct ut_data *td;
 	char * const *nidstrs = NULL;
 	int i;
@@ -368,103 +370,87 @@ static void ut_test_framework(ut_test_fw_body_t body, int dbg) {
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
 
-	C2_UT_ASSERT(!c2_net_domain_init(DOM1, &c2_net_lnet_xprt));
-	{
-		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
-		c2_bcount_t max_seg_size;
-		struct c2_net_buffer      *nb1;
+#define SETUP_DOM(which)						\
+do {									\
+        struct c2_net_domain *dom = &td->dom ## which;			\
+	struct c2_net_transfer_mc *tm = &td->tm ## which;		\
+        C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));	\
+	{								\
+		char epstr[C2_NET_LNET_XEP_ADDR_LEN];			\
+		c2_bcount_t max_seg_size;				\
+		struct c2_net_buffer      *nb;				\
+									\
+		max_seg_size = c2_net_domain_get_max_buffer_segment_size(dom); \
+		C2_UT_ASSERT(max_seg_size > 0);				\
+		C2_UT_ASSERT(max_seg_size >= UT_MSG_SIZE);		\
+		td->buf_size ## which = max_seg_size * UT_BUFSEGS ## which; \
+		td->buf_seg_size ## which = max_seg_size;		\
+		for (i = 0; i < UT_BUFS ## which; ++i) {		\
+			nb = &td->bufs ## which [i];			\
+			rc = c2_bufvec_alloc(&nb->nb_buffer,		\
+					     UT_BUFSEGS ## which,	\
+					     max_seg_size);		\
+			C2_UT_ASSERT(rc == 0);				\
+			if (rc != 0) {					\
+				C2_UT_FAIL("aborting: buf alloc failed"); \
+				goto dereg ## which;			\
+			}						\
+			rc = c2_net_buffer_register(nb, dom);		\
+			if (rc != 0) {					\
+				C2_UT_FAIL("aborting: buf reg failed");	\
+				goto dereg ## which;			\
+			}						\
+			C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_REGISTERED); \
+			nb->nb_callbacks = &td->buf_cb ## which;	\
+			NLXDBGPnl(td, 1, "D:%p T:%p B:%p [%u,%d]=%lu\n", \
+				  dom, tm, nb, (unsigned) max_seg_size,	\
+				  UT_BUFSEGS ## which,			\
+				  (unsigned long) td->buf_size ## which); \
+		}							\
+									\
+		C2_UT_ASSERT(!c2_net_tm_init(tm, dom));			\
+									\
+		sprintf(epstr, "%s:%d:%d:*",				\
+			nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);	\
+		c2_clink_add(&tm->ntm_chan, &td->tmwait ## which);	\
+		C2_UT_ASSERT(!c2_net_tm_start(tm, epstr));		\
+		c2_chan_wait(&td->tmwait ## which);			\
+		c2_clink_del(&td->tmwait ## which);			\
+		C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);	\
+		if (tm->ntm_state == C2_NET_TM_FAILED) {		\
+			C2_UT_FAIL("aborting: tm" #which " startup failed"); \
+			goto fini ## which;				\
+		}							\
+		NLXDBGPnl(td, 1, "D:%p T:%p E:%s\n", dom, tm,		\
+			  tm->ntm_ep->nep_addr);			\
+	}								\
+} while (0)
 
-		max_seg_size = c2_net_domain_get_max_buffer_segment_size(DOM1);
-		C2_UT_ASSERT(max_seg_size > 0);
-		C2_UT_ASSERT(max_seg_size >= UT_MSG_SIZE);
-		td->buf_size1 = max_seg_size * UT_BUFSEGS1;
-		td->buf_seg_size1 = max_seg_size;
-		for (i = 0; i < UT_BUFS1; ++i) {
-			nb1 = &td->bufs1[i];
-			rc = c2_bufvec_alloc(&nb1->nb_buffer, UT_BUFSEGS1,
-					     max_seg_size);
-			C2_UT_ASSERT(rc == 0);
-			if (rc != 0) {
-				C2_UT_FAIL("aborting: buf alloc failed");
-				goto dereg1;
-			}
-			rc = c2_net_buffer_register(nb1, DOM1);
-			if (rc != 0) {
-				C2_UT_FAIL("aborting: buf reg failed");
-				goto dereg1;
-			}
-			C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_REGISTERED);
-			nb1->nb_callbacks = &td->buf_cb1;
-			NLXDBGPnl(td,1,"D:%p T:%p B:%p [%u,%d]=%lu\n",
-				  DOM1, TM1, nb1, (unsigned) max_seg_size,
-				  UT_BUFSEGS1, (unsigned long) td->buf_size1);
-		}
+#define TEARDOWN_DOM(which)					\
+do {								\
+        struct c2_net_domain *dom = &td->dom ## which;		\
+	struct c2_net_transfer_mc *tm = &td->tm ## which;	\
+	c2_clink_add(&tm->ntm_chan, &td->tmwait ## which);	\
+	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));		\
+	c2_chan_wait(&td->tmwait ## which);			\
+	c2_clink_del(&td->tmwait ## which);			\
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);	\
+ fini ## which:							\
+	c2_net_tm_fini(tm);					\
+ dereg ## which:						\
+	for (i = 0; i < UT_BUFS ## which; ++i) {		\
+		struct c2_net_buffer      *nb;			\
+		nb = &td->bufs ## which [i];			\
+		if (nb->nb_buffer.ov_vec.v_nr == 0)		\
+			continue;				\
+		c2_net_buffer_deregister(nb, dom);		\
+		c2_bufvec_free(&nb->nb_buffer);			\
+	}							\
+	c2_net_domain_fini(dom);				\
+} while (0)
 
-		C2_UT_ASSERT(!c2_net_tm_init(TM1, DOM1));
-
-		sprintf(epstr, "%s:%d:%d:*",
-			nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
-		c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-		C2_UT_ASSERT(!c2_net_tm_start(TM1, epstr));
-		c2_chan_wait(&td->tmwait1);
-		c2_clink_del(&td->tmwait1);
-		C2_UT_ASSERT(TM1->ntm_state == C2_NET_TM_STARTED);
-		if (TM1->ntm_state == C2_NET_TM_FAILED) {
-			C2_UT_FAIL("aborting: TM1 startup failed");
-			goto fini1;
-		}
-		NLXDBGPnl(td, 1, "D:%p T:%p E:%s\n", DOM1, TM1,
-			  TM1->ntm_ep->nep_addr);
-	}
-
-	C2_UT_ASSERT(!c2_net_domain_init(DOM2, &c2_net_lnet_xprt));
-	{
-		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
-		c2_bcount_t max_seg_size;
-		struct c2_net_buffer      *nb2;
-
-		max_seg_size = c2_net_domain_get_max_buffer_segment_size(DOM2);
-		C2_UT_ASSERT(max_seg_size > 0);
-		C2_UT_ASSERT(max_seg_size >= UT_MSG_SIZE);
-		td->buf_size2 = max_seg_size * UT_BUFSEGS2;
-		td->buf_seg_size2 = max_seg_size;
-		for (i = 0; i < UT_BUFS2; ++i) {
-			nb2 = &td->bufs2[i];
-			rc = c2_bufvec_alloc(&nb2->nb_buffer, UT_BUFSEGS2,
-					     max_seg_size);
-			C2_UT_ASSERT(rc == 0);
-			if (rc != 0) {
-				C2_UT_FAIL("aborting: buf alloc failed");
-				goto dereg2;
-			}
-			rc = c2_net_buffer_register(nb2, DOM2);
-			if (rc != 0) {
-				C2_UT_FAIL("aborting: buf reg failed");
-				goto dereg2;
-			}
-			C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_REGISTERED);
-			nb2->nb_callbacks = &td->buf_cb2;
-			NLXDBGPnl(td, 1, "D:%p T:%p B:%p [%u,%d]=%lu\n",
-				  DOM2, TM2, nb2, (unsigned) max_seg_size,
-				  UT_BUFSEGS2, (unsigned long) td->buf_size2);
-		}
-
-		C2_UT_ASSERT(!c2_net_tm_init(TM2, DOM2));
-
-		sprintf(epstr, "%s:%d:%d:*",
-			nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
-		c2_clink_add(&TM2->ntm_chan, &td->tmwait2);
-		C2_UT_ASSERT(!c2_net_tm_start(TM2, epstr));
-		c2_chan_wait(&td->tmwait2);
-		c2_clink_del(&td->tmwait2);
-		C2_UT_ASSERT(TM2->ntm_state == C2_NET_TM_STARTED);
-		if (TM2->ntm_state == C2_NET_TM_FAILED) {
-			C2_UT_FAIL("aborting: TM2 startup failed");
-			goto fini2;
-		}
-		NLXDBGPnl(td, 1, "D:%p T:%p E:%s\n", DOM2, TM2,
-			  TM2->ntm_ep->nep_addr);
-	}
+	SETUP_DOM(1);
+	SETUP_DOM(2);
 
 	td->nidstrs = nidstrs;
 	(*body)(td);
@@ -472,51 +458,19 @@ static void ut_test_framework(ut_test_fw_body_t body, int dbg) {
 	ut_test_framework_dom_cleanup(td, DOM2);
 	ut_test_framework_dom_cleanup(td, DOM1);
 
-	/*
-	  Teardown
-	*/
-	c2_clink_add(&TM2->ntm_chan, &td->tmwait2);
-	C2_UT_ASSERT(!c2_net_tm_stop(TM2, false));
-	c2_chan_wait(&td->tmwait2);
-	c2_clink_del(&td->tmwait2);
-	C2_UT_ASSERT(TM2->ntm_state == C2_NET_TM_STOPPED);
- fini2:
-	c2_net_tm_fini(TM2);
- dereg2:
-	for (i = 0; i < UT_BUFS2; ++i) {
-		struct c2_net_buffer      *nb2;
-		nb2 = &td->bufs2[i];
-		if (nb2->nb_buffer.ov_vec.v_nr == 0)
-			continue;
-		c2_net_buffer_deregister(nb2, DOM2);
-		c2_bufvec_free(&nb2->nb_buffer);
-	}
-	c2_net_domain_fini(DOM2);
+	TEARDOWN_DOM(2);
+	TEARDOWN_DOM(1);
 
-	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	C2_UT_ASSERT(!c2_net_tm_stop(TM1, false));
-	c2_chan_wait(&td->tmwait1);
-	c2_clink_del(&td->tmwait1);
-	C2_UT_ASSERT(TM1->ntm_state == C2_NET_TM_STOPPED);
- fini1:
-	c2_net_tm_fini(TM1);
- dereg1:
-	for (i = 0; i < UT_BUFS1; ++i) {
-		struct c2_net_buffer      *nb1;
-		nb1 = &td->bufs1[i];
-		if (nb1->nb_buffer.ov_vec.v_nr == 0)
-			continue;
-		c2_net_buffer_deregister(nb1, DOM1);
-		c2_bufvec_free(&nb1->nb_buffer);
-	}
-	c2_net_domain_fini(DOM1);
-
-	if (nidstrs)
+	if (nidstrs != NULL)
 		c2_net_lnet_ifaces_put(&nidstrs);
 	C2_UT_ASSERT(nidstrs == NULL);
 	c2_clink_fini(&td->tmwait1);
 	c2_clink_fini(&td->tmwait2);
 	c2_free(td);
+
+#undef TEARDOWN_DOM
+#undef SETUP_DOM
+
 	return;
 }
 

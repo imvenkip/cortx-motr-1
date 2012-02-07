@@ -57,7 +57,7 @@
    The external interfaces of the LNet transport are obtained by
    including the file @ref net/lnet/lnet.h.
 
-   Some LNet transport idiocyncrasies to be aware of:
+   Some LNet transport idiosyncrasies to be aware of:
    - LNet does not provide any guarantees to a sender of data that the data was
      actually received by its intended recipient.  In LNet semantics, a
      successful buffer completion callback for C2_NET_QT_MSG_SEND and

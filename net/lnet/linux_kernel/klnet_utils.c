@@ -25,7 +25,7 @@
 static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
-	LNetSnprintHandle(buf, sizeof buf - 1, h);
+	LNetSnprintHandle(buf, sizeof buf, h);
 	printk("%s: %s\n", pre, buf);
 }
 

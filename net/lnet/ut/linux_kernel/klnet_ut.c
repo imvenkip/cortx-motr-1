@@ -464,10 +464,6 @@ static lnet_kiov_t *ut_ktest_kiov_mem_dup(const lnet_kiov_t *kiov, size_t len)
 		return NULL;
 	for (i = 0; i < len; ++i, ++kiov) {
 		k[i] = *kiov;
-#if 0
-		NLXP("[%u] %p %u %u\n", (unsigned) i,
-		     kiov->kiov_page, kiov->kiov_len, kiov->kiov_offset);
-#endif
 	}
 	return k;
 }
@@ -673,14 +669,14 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
 	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
-	// do not release end point yet
+	/* do not release end point yet */
 	cb_ep1 = NULL;
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 
 	ut_cbreset();
 	cb_save_ep1 = true;
 	offset += len;
-	len = 10;
+	len = 10; /* arbitrary */
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
