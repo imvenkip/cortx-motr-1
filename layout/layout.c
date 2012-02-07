@@ -114,6 +114,9 @@ void c2_layout_striped_init(struct c2_layout_striped *str_l,
 	c2_layout_init(&str_l->ls_base, id, type, ops);
 
 	str_l->ls_enum = e;
+
+	/* @todo Check if this is the rt place for the following */
+	e->le_l = &str_l->ls_base;
 }
 
 void c2_layout_striped_fini(struct c2_layout_striped *str_l)

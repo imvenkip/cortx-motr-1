@@ -368,10 +368,12 @@ struct super_operations c2t1fs_super_operations = {
 
 static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 {
-	int                 result;
-	uint64_t            id;
-	struct c2_uint128   seed;
-	struct c2_pool     *pool;
+	int                           result;
+	uint64_t                      id;
+	struct c2_uint128             seed;
+	struct c2_pool               *pool;
+	uint64_t                      A;
+	uint64_t                      B;
 
 	C2_ALLOC_PTR(pool);
 	if (pool == NULL)
@@ -380,6 +382,10 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 	id = 0x4A494E4E49455349; /* "jinniesi" */
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
+	/* @todo A and B will be provided as input to this function. */
+	A = 20;
+	B = 40;
+
 	result = c2_pool_init(pool, N+2*K);
 
 	if (result != 0) {
@@ -387,7 +393,7 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 		return result;
 	}
 
-	result = c2_pdclust_build(pool, &id, N, K, &seed, play);
+	result = c2_pdclust_build(pool, &id, N, K, &seed, A, B, play);
 
 	if (result != 0) {
 		c2_pool_fini(pool);

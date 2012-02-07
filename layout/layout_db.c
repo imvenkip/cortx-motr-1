@@ -331,7 +331,10 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"
-#include "lib/arith.h"
+#include "lib/arith.h"               /* C2_LOG() */
+#include "lib/trace.h"
+
+#include "db/db_common.h"            /* c2_db_buf_init() */
 
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
@@ -353,6 +356,8 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 
 	C2_PRE(schema != NULL);
 	C2_PRE(db != NULL);
+
+	C2_LOG0("Inside c2_ldb_schema_init()");
 
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
 		schema->ls_type[i]      = NULL;
@@ -591,6 +596,16 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	pair->dp_table = &schema->ls_layouts;
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 
+	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
+		       pair->dp_key.db_buf.b_addr,
+		       pair->dp_key.db_buf.b_nob);
+	pair->dp_key.db_static = false;
+
+	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
+		       pair->dp_rec.db_buf.b_addr,
+		       pair->dp_rec.db_buf.b_nob);
+	pair->dp_rec.db_static = false;
+
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0)
 		return rc;
@@ -754,6 +769,16 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 {
 	pair->dp_table = &schema->ls_layouts;
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
+
+	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
+		       pair->dp_key.db_buf.b_addr,
+		       pair->dp_key.db_buf.b_nob);
+	pair->dp_key.db_static = false;
+
+	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
+		       pair->dp_rec.db_buf.b_addr,
+		       pair->dp_rec.db_buf.b_nob);
+	pair->dp_rec.db_static = false;
 
 	if (op == C2_LXO_DB_ADD) {
 		c2_table_insert(tx, pair);

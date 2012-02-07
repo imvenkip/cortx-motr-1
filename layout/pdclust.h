@@ -259,6 +259,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 void c2_pdclust_fini(struct c2_layout *l);
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     uint64_t A, uint64_t B,
 		     struct c2_pdclust_layout **out);
 
 extern const struct c2_layout_type c2_pdclust_layout_type;

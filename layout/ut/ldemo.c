@@ -204,7 +204,9 @@ int main(int argc, char **argv)
 	if (result == 0) {
 		result = c2_pool_init(&pool, P);
 		if (result == 0) {
-			result = c2_pdclust_build(&pool, &id, N, K, &seed, 
+			/* @todo Check values of A and B */
+			result = c2_pdclust_build(&pool, &id, N, K, &seed,
+						  0, 0,
 						  &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);

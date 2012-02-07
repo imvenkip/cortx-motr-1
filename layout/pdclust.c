@@ -366,6 +366,8 @@ void c2_pdclust_fini(struct c2_layout *l)
 
 	if (pl != NULL) {
 		c2_layout_fini(&pl->pl_base.ls_base);
+		/* Check if this is the rt place for the following */
+		c2_free(stl->ls_enum);
 		c2_free(pl->pl_tile_cache.tc_inverse);
 		c2_free(pl->pl_tile_cache.tc_permute);
 		c2_free(pl->pl_tile_cache.tc_lcode);
@@ -389,12 +391,12 @@ static const struct c2_layout_ops pdclust_ops;
  */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     uint64_t A, uint64_t B,
 		     struct c2_pdclust_layout **out)
 {
 	struct c2_pdclust_layout *pdl;
 	struct c2_layout_linear_enum *lin_enum;
 
-	uint32_t B;
 	uint32_t i;
 	uint32_t P;
 	int      result;
@@ -420,9 +422,8 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 			       &c2_pdclust_layout_type,
 			       &pdclust_ops); */
 
-		/** @todo TBD: whether enum should be accepted as arg to
-		  * this function. */
-		c2_layout_linear_enum_init(lin_enum, 20, 5, 2,
+		/** @todo TBD: I think nr is to be derived from pdclust. */
+		c2_layout_linear_enum_init(lin_enum, 40, A, B,
 			&pdl->pl_base.ls_base,
 			&c2_linear_enum_type);
 		c2_layout_striped_init(&pdl->pl_base, &lin_enum->lle_base, *id,
