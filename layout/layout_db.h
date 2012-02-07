@@ -141,7 +141,7 @@ struct c2_ldb_schema {
 };
 
 /**
- * layouts table
+ * layouts table.
  * Key is uint64_t, value obtained from c2_layout::l_id.
  */
 struct c2_ldb_rec {

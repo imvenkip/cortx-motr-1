@@ -284,6 +284,7 @@ static int layout_buf_pdclust_list_build(struct c2_bufvec_cursor *dcur,
 					 uint32_t N, uint32_t K, uint32_t nr)
 
 {
+/*
 	struct ldb_inline_cob_entries  list_rec;
 	struct ldb_list_cob_entry      cob_list[nr];
 	int                            i;
@@ -301,7 +302,7 @@ static int layout_buf_pdclust_list_build(struct c2_bufvec_cursor *dcur,
 
 	c2_bufvec_cursor_copyto(dcur, &list_rec, sizeof list_rec);
 	c2_bufvec_cursor_copyto(dcur, cob_list, ARRAY_SIZE(cob_list));
-
+*/
 	return 0;
 }
 
@@ -441,15 +442,24 @@ static void test_decode(void)
 	internal_fini();
 }
 
-static int pdclust_build(struct c2_pdclust_layout **pl, uint64_t lid)
+static int pdclust_linear_build(struct c2_pdclust_layout **pl, uint64_t lid,
+				uint32_t N, uint32_t K,
+				uint64_t A, uint64_t B)
 {
-	uint32_t            N = 4;
-	uint32_t            K = 1;
-	struct c2_uint128   seed;
+
+	struct c2_layout_linear_enum *le;
+	struct c2_uint128             seed;
+
+	rc = c2_linear_enum_build(pool.po_width, A, B, &le);
+	C2_UT_ASSERT(rc == 0);
+
+	C2_UT_ASSERT(le != NULL);
+	C2_UT_ASSERT(le->lle_base.le_type == &c2_linear_enum_type);
+	C2_UT_ASSERT(le->lle_base.le_type->let_id == c2_linear_enum_type.let_id);
 
 	c2_uint128_init(&seed, "updownupdownupdo");
 
-	rc = c2_pdclust_build(&pool, &lid, N, K, &seed, 20, 40, pl);
+	rc = c2_pdclust_build(&pool, &lid, N, K, &seed, &le->lle_base, pl);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -493,7 +503,7 @@ static int encode_pdclust_linear(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = pdclust_build(&pl, lid);
+	rc = pdclust_linear_build(&pl, lid, 4, 1, 10, 20);
 	C2_UT_ASSERT(rc == 0);
 
 	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
@@ -567,7 +577,7 @@ static void test_add(void)
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
 	lid = 4444;
-	rc = pdclust_build(&pl, lid);
+	rc = pdclust_linear_build(&pl, lid, 4, 1, 100, 200);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);

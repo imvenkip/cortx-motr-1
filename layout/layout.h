@@ -205,9 +205,10 @@ struct c2_layout_type_ops {
    Layout enumeration.
  */
 struct c2_layout_enum {
-	/* @todo Check need of this one. */
-	/** Pointer back to c2_layout object this c2_layout_enum is part of. */
+	/* @todo Check need of this one.
+	 Pointer back to c2_layout object this c2_layout_enum is part of.
 	const struct c2_layout            *le_l;
+	*/
 
 	/** Layout enumeration type. */
 	const struct c2_layout_enum_type *le_type;
@@ -311,7 +312,6 @@ void c2_layout_striped_init(struct c2_layout_striped *str_lay,
 void c2_layout_striped_fini(struct c2_layout_striped *strl);
 
 void c2_layout_enum_init(struct c2_layout_enum *le,
-			 const struct c2_layout *l,
 			 const struct c2_layout_enum_type *lt,
 			 const struct c2_layout_enum_ops *ops);
 void c2_layout_enum_fini(struct c2_layout_enum *le);

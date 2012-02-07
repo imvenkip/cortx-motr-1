@@ -31,6 +31,7 @@
 #include "pool/pool.h"
 #include "layout/layout.h"
 #include "layout/pdclust.h"
+#include "layout/linear_enum.h" /* c2_linear_enum_build() */
 
 /**
    @addtogroup layout
@@ -164,10 +165,11 @@ int main(int argc, char **argv)
 	int      R;
 	int      I;
 	int      result;
-	struct c2_pdclust_layout  *play;
-	struct c2_pool             pool;
-	uint64_t                   id;
-	struct c2_uint128          seed;
+	struct c2_pdclust_layout     *play;
+	struct c2_pool                pool;
+	uint64_t                      id;
+	struct c2_uint128             seed;
+	struct c2_layout_linear_enum *le;
 
 	if (argc != 6) {
 		printf(
@@ -201,19 +203,24 @@ int main(int argc, char **argv)
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
 	result = c2_init();
+	if (result != 0)
+		return result;
+
+	result = c2_pool_init(&pool, P);
 	if (result == 0) {
-		result = c2_pool_init(&pool, P);
+		result = c2_linear_enum_build(pool.po_width, 100, 200, &le);
 		if (result == 0) {
-			/* @todo Check values of A and B */
 			result = c2_pdclust_build(&pool, &id, N, K, &seed,
-						  0, 0,
+						  &le->lle_base,
 						  &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);
 			c2_pool_fini(&pool);
 		}
-		c2_fini();
 	}
+
+	c2_fini();
+
 	return result;
 }
 

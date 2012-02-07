@@ -34,6 +34,27 @@
 #include "layout/list_enum.h"
 
 /**
+ * Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
+ * into the layouts table.
+ */
+struct ldb_inline_cob_entries {
+	/** Total number of COB Ids for the specific layout. */
+	uint32_t                  llces_nr;
+
+	/** Payload storing COB Ids, max upto MAX_INLINE_COB_ENTRIES. */
+	char                      llces_cobs[0];
+};
+
+enum {
+	MAX_INLINE_COB_ENTRIES = 20
+};
+
+struct list_schema_data {
+	/** Table to store COB lists for all the layouts with LIST enum type. */
+	struct c2_table           lsd_cob_lists;
+};
+
+/**
  * cob_lists table.
  */
 struct ldb_cob_lists_key {
@@ -76,18 +97,26 @@ static const struct c2_table_ops cob_lists_table_ops = {
 };
 
 
-void c2_layout_list_enum_init(struct c2_layout_list_enum *list_enum,
-			      struct c2_tl *list_of_cobs,
-			      struct c2_layout *l,
-			      struct c2_layout_enum_type *lt,
-			      struct c2_layout_enum_ops *ops)
+static const struct c2_layout_enum_ops list_enum_ops;
+
+int c2_list_enum_build(struct c2_tl *list_of_cobs,
+		       struct c2_layout_list_enum **out)
 {
-	c2_layout_enum_init(&list_enum->lle_base, l, lt, ops);
+	struct c2_layout_list_enum *list_enum;
+
+	C2_ALLOC_PTR(list_enum);
+	if (list_enum == NULL)
+		return -ENOMEM;
+
+	c2_layout_enum_init(&list_enum->lle_base, &c2_list_enum_type,
+			    &list_enum_ops);
 
 	/**
 	   Initialize list_enum->lle_list_of_cobs by using list_of_cobs.
 	   @todo Yet, need to explore this in detail.
 	 */
+
+	return 0;
 }
 
 void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum)
@@ -97,6 +126,8 @@ void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum)
 	   De-initialize list_enum->lle_list_of_cob.
 	   @todo Yet, need to explore this in detail.
 	 */
+
+	c2_layout_enum_fini(&list_enum->lle_base);
 }
 
 /**
@@ -227,10 +258,10 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		c2_layout_list_enum::lle_list_of_cobs.
 		*/
 	} else {
+		/* @todo
 		c2_bufvec_cursor_move(cur,
 			sizeof(struct ldb_inline_cob_entries)
 			+ num_inline * sizeof(struct ldb_list_cob_entry));
-		/* @todo
 		Parse the cob identifiers list from the buffer and store it in
 		the c2_layout_list_enum::lle_list_of_cobs.
 		*/

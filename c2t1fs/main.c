@@ -45,6 +45,7 @@
 #include "stob/ut/io_fop.h"
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
+#include "layout/linear_enum.h"
 #include "pool/pool.h"
 #include "lib/buf.h"
 
@@ -368,12 +369,11 @@ struct super_operations c2t1fs_super_operations = {
 
 static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 {
-	int                           result;
-	uint64_t                      id;
-	struct c2_uint128             seed;
-	struct c2_pool               *pool;
-	uint64_t                      A;
-	uint64_t                      B;
+	int                            result;
+	uint64_t                       id;
+	struct c2_uint128              seed;
+	struct c2_pool                *pool;
+	struct c2_layout_linear_enum  *le;
 
 	C2_ALLOC_PTR(pool);
 	if (pool == NULL)
@@ -382,9 +382,7 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 	id = 0x4A494E4E49455349; /* "jinniesi" */
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
-	/* @todo A and B will be provided as input to this function. */
-	A = 20;
-	B = 40;
+	/* @todo create an object for enum. */
 
 	result = c2_pool_init(pool, N+2*K);
 
@@ -393,11 +391,19 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 		return result;
 	}
 
-	result = c2_pdclust_build(pool, &id, N, K, &seed, A, B, play);
+	result = c2_linear_enum_build(pool->po_width, 100, 200, &le);
 
 	if (result != 0) {
 		c2_pool_fini(pool);
 		c2_free(pool);
+	}
+
+	result = c2_pdclust_build(pool, &id, N, K, &seed, &le->lle_base, play);
+
+	if (result != 0) {
+		c2_pool_fini(pool);
+		c2_free(pool);
+		/* @todo le->le_ops->le_fini();	*/
 	}
 
 	return result;

@@ -114,9 +114,6 @@ void c2_layout_striped_init(struct c2_layout_striped *str_l,
 	c2_layout_init(&str_l->ls_base, id, type, ops);
 
 	str_l->ls_enum = e;
-
-	/* @todo Check if this is the rt place for the following */
-	e->le_l = &str_l->ls_base;
 }
 
 void c2_layout_striped_fini(struct c2_layout_striped *str_l)
@@ -127,17 +124,14 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 }
 
 void c2_layout_enum_init(struct c2_layout_enum *le,
-			 const struct c2_layout *l,
 			 const struct c2_layout_enum_type *et,
 			 const struct c2_layout_enum_ops *ops)
 {
 	C2_PRE(le != NULL);
-	C2_PRE(l != NULL);
 	C2_PRE(et != NULL);
 	C2_PRE(ops != NULL);
 
-	le->le_l    = l;
-	le->le_type  = et;
+	le->le_type = et;
 	le->le_ops  = ops;
 }
 

@@ -391,12 +391,11 @@ static const struct c2_layout_ops pdclust_ops;
  */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
-		     uint64_t A, uint64_t B,
+		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out)
 {
-	struct c2_pdclust_layout *pdl;
-	struct c2_layout_linear_enum *lin_enum;
-
+	struct c2_pdclust_layout     *pdl;
+	uint32_t B;
 	uint32_t i;
 	uint32_t P;
 	int      result;
@@ -404,29 +403,20 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	P = pool->po_width;
 	C2_PRE(N + 2 * K <= P);
 
+	C2_PRE(le != NULL);
+
 	C2_ALLOC_PTR(pdl);
 	C2_ALLOC_ARR(pdl->pl_tgt, P);
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_lcode, P);
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_permute, P);
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_inverse, P);
 
-	C2_ALLOC_PTR(lin_enum);
-
 	if (pdl != NULL && pdl->pl_tgt != NULL &&
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
-	    pdl->pl_tile_cache.tc_inverse != NULL &&
-	    lin_enum != NULL) {
-/*
-		c2_layout_init(&pdl->pl_base.ls_base, *id,
-			       &c2_pdclust_layout_type,
-			       &pdclust_ops); */
+	    pdl->pl_tile_cache.tc_inverse != NULL) {
 
-		/** @todo TBD: I think nr is to be derived from pdclust. */
-		c2_layout_linear_enum_init(lin_enum, 40, A, B,
-			&pdl->pl_base.ls_base,
-			&c2_linear_enum_type);
-		c2_layout_striped_init(&pdl->pl_base, &lin_enum->lle_base, *id,
+		c2_layout_striped_init(&pdl->pl_base, le, *id,
 			       &c2_pdclust_layout_type,
 			       &pdclust_ops);
 

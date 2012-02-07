@@ -49,46 +49,11 @@ struct c2_layout_list_enum {
 	uint64_t                  lle_nr;
 
 	/** List of COB identifiers which are part of this layout */
-	struct c2_tl              lle_list_of_cobs;
+	struct c2_tl             *lle_list_of_cobs;
 };
 
-
-struct list_schema_data {
-	/** Table to store COB lists for all the layout with LIST enum type. */
-	struct c2_table           lsd_cob_lists;
-};
-
-struct ldb_list_cob_entry {
-	/** Index for the COB from the layout it is part of. */
-	uint32_t                  llce_cob_index;
-
-	/** COB identifier. */
-	struct c2_fid             llce_cob_id;
-};
-
-enum {
-	MAX_INLINE_COB_ENTRIES = 20
-};
-
-/**
- * Structure used to store MAX_INLINE_COB_ENTRIES number of cob entries inline
- * into the layouts table.
- */
-struct ldb_inline_cob_entries {
-	/** Total number of COB Ids for the specific layout. */
-	uint32_t                  llces_nr;
-
-	/** Array for storing COB Ids, max upto MAX_INLINE_COB_ENTRIES. */
-	//struct ldb_list_cob_entry llces_cobs[MAX_INLINE_COB_ENTRIES];
-	char                      llces_cobs[0];
-};
-
-
-void c2_layout_list_enum_init(struct c2_layout_list_enum *list_enum,
-			      struct c2_tl *list_of_cobs,
-			      struct c2_layout *l,
-			      struct c2_layout_enum_type *lt,
-			      struct c2_layout_enum_ops *ops);
+int c2_list_enum_build(struct c2_tl *list_of_cobs,
+		       struct c2_layout_list_enum **out);
 void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum);
 
 extern const struct c2_layout_enum_type c2_list_enum_type;

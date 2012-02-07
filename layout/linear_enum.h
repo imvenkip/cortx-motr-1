@@ -62,10 +62,8 @@ struct c2_layout_linear_enum {
 	struct c2_layout_linear_attr lle_attr;
 };
 
-void c2_layout_linear_enum_init(struct c2_layout_linear_enum *lin_enum,
-				uint64_t nr, uint64_t A, uint64_t B,
-				const struct c2_layout *l,
-				const struct c2_layout_enum_type *lt);
+int c2_linear_enum_build(uint64_t nr, uint64_t A, uint64_t B,
+			 struct c2_layout_linear_enum **out);
 void c2_layout_linear_enum_fini(struct c2_layout_linear_enum *lin_enum);
 
 extern const struct c2_layout_enum_type c2_linear_enum_type;
