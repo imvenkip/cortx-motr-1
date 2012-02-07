@@ -91,7 +91,12 @@ static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
  */
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 {
-	return lctm != NULL && lctm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC;
+	if (lctm == NULL || lctm->ctm_magic != C2_NET_LNET_CORE_TM_MAGIC)
+		return false;
+	if (lctm->ctm_mb_counter < C2_NET_LNET_BUFFER_ID_MIN ||
+	    lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
+		return false;
+	return true;
 }
 
 /**
@@ -159,6 +164,37 @@ void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 	C2_PRE(lctm->ctm_bev_needed >= release);
 
 	lctm->ctm_bev_needed -= release;
+	return;
+}
+
+/**
+   Helper subroutine to construct the match bit value from its components.
+   @param tmid Transfer machine identifier.
+   @param counter Buffer counter value.  The value of 0 is reserved for
+   the TM receive message queue.
+   @see nlx_core_match_bits_decode()
+ */
+static uint64_t nlx_core_match_bits_encode(uint32_t tmid, uint64_t counter)
+{
+	uint64_t mb;
+	mb = ((uint64_t) tmid << C2_NET_LNET_TMID_SHIFT) |
+		(counter & C2_NET_LNET_BUFFER_ID_MASK);
+	return mb;
+}
+
+/**
+   Helper subroutine to decode the match bits into its components.
+   @param mb Match bit field.
+   @param tmid Pointer to returned Transfer Machine id.
+   @param counter Pointer to returned buffer counter value.
+   @see nlx_core_match_bits_encode()
+ */
+static inline void nlx_core_match_bits_decode(uint64_t mb,
+					       uint32_t *tmid,
+					       uint64_t *counter)
+{
+	*tmid = (uint32_t) (mb >> C2_NET_LNET_TMID_SHIFT);
+	*counter = mb & C2_NET_LNET_BUFFER_ID_MASK;
 	return;
 }
 

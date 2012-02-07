@@ -348,6 +348,11 @@ struct nlx_core_transfer_mc {
 	 */
 	size_t                     ctm_bev_needed;
 
+	/** Match bit counter.
+	    Range [C2_NET_LNET_BUFFER_ID_MIN, C2_NET_LNET_BUFFER_ID_MAX].
+	*/
+	uint64_t                   ctm_mb_counter;
+
 	void                      *ctm_upvt; /**< Core user space private */
 	void                      *ctm_kpvt; /**< Core kernel space private */
 

@@ -97,7 +97,6 @@ static void nlx_kprint_kcore_tm(const char *pre,
 	if (ktm == NULL)
 		return;
 	printk("\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
-	printk("\t mb_counter: %lu\n", (unsigned long) ktm->ktm_mb_counter);
 	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
 }
 #endif
@@ -106,37 +105,6 @@ static void nlx_kprint_kcore_tm(const char *pre,
    @addtogroup KLNetCore
    @{
  */
-
-/**
-   Helper subroutine to construct the match bit value from its components.
-   @param tmid Transfer machine identifier.
-   @param counter Buffer counter value.  The value of 0 is reserved for
-   the TM receive message queue.
-   @see nlx_kcore_match_bits_decode()
- */
-static uint64_t nlx_kcore_match_bits_encode(uint32_t tmid, uint64_t counter)
-{
-	uint64_t mb;
-	mb = ((uint64_t) tmid << C2_NET_LNET_TMID_SHIFT) |
-		(counter & C2_NET_LNET_BUFFER_ID_MASK);
-	return mb;
-}
-
-/**
-   Helper subroutine to decode the match bits into its components.
-   @param mb Match bit field.
-   @param tmid Pointer to returned Transfer Machine id.
-   @param counter Pointer to returned buffer counter value.
-   @see nlx_kcore_match_bits_encode()
- */
-static inline void nlx_kcore_match_bits_decode(uint64_t mb,
-					       uint32_t *tmid,
-					       uint64_t *counter)
-{
-	*tmid = (uint32_t) (mb >> C2_NET_LNET_TMID_SHIFT);
-	*counter = mb & C2_NET_LNET_BUFFER_ID_MASK;
-	return;
-}
 
 /**
    Helper subroutine to encode header data for LNetPut operations.
