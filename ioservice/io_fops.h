@@ -238,6 +238,9 @@ extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_create_fopt;
+extern struct c2_fop_type c2_fop_cob_delete_fopt;
+extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif

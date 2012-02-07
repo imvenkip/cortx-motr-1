@@ -209,9 +209,7 @@ static void bulkio_fom_fini(struct c2_fom *fom)
 
 static int bulkio_server_write_fom_state(struct c2_fom *fom)
 {
-	struct c2_io_fom_cob_rw   *fom_obj = NULL;
 	int rc;
-	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 	switch(fom->fo_phase) {
 		case FOPH_IO_FOM_BUFFER_ACQUIRE :
 			rc = c2_io_fom_cob_rw_state(fom);
@@ -245,9 +243,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 
 static int bulkio_server_read_fom_state(struct c2_fom *fom)
 {
-	struct c2_io_fom_cob_rw   *fom_obj = NULL;
 	int rc;
-	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
 	switch(fom->fo_phase) {
 		case FOPH_IO_FOM_BUFFER_ACQUIRE :
@@ -331,7 +327,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	struct c2_net_buffer		**netbufs;
 	struct c2_fop_cob_rw		*rw;
 	struct c2_io_indexvec		*ivec;
-	struct c2_net_buf_desc		*desc;
 	struct c2_rpc_bulk		*rbulk;
 	struct c2_rpc_bulk_buf		*rbuf;
 	struct c2_rpc_conn		*conn;
@@ -356,7 +351,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	for (tc = 0, i = 0; i < rw->crw_desc.id_nr; ++i) {
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
-		desc = &rw->crw_desc.id_descs[i];
 
 		C2_ALLOC_PTR(netbufs[i]);
 		C2_UT_ASSERT(netbufs[i] != NULL);
@@ -770,6 +764,7 @@ void bulkio_stob_create(void)
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		C2_ALLOC_PTR(wfops[i]);
  	 	rc = c2_io_fop_init(wfops[i], &c2_fop_cob_writev_fopt);
+		C2_UT_ASSERT(rc == 0);
 		rw = io_rw_get(&wfops[i]->if_fop);
 		wfops[i]->if_fop.f_type->ft_ops = &bulkio_stob_create_ops;
 		rw->crw_fid = io_fids[i];

@@ -220,6 +220,71 @@ enum c2_io_fom_cob_rw_phases {
         FOPH_IO_BUFFER_RELEASE,
 };
 
+/**
+ * Common part of cob create and cob delete foms.
+ */
+struct c2_fom_cob_common {
+	/** Generic fom object. */
+	struct c2_fom		 cc_fom;
+	/** Fid of global file. */
+	struct c2_fid		 cc_pfid;
+	/** Fid of component object. */
+	struct c2_fid		 cc_cfid;
+	/** In-memory representation of component object. */
+	struct c2_cob		*cc_cob;
+};
+
+/**
+ * Fom context object for "cob create" request. Cob create fop is sent to
+ * data servers on creation of a global file.
+ */
+struct c2_fom_cob_create {
+	/** Stob Identifier. */
+	struct c2_stob		*fcc_stob;
+	/** Common part of cob operation foms. */
+	struct c2_fom_cob_common fcc_cc;
+};
+
+/**
+ * Phases of c2_fom_cob_create state machine.
+ */
+enum c2_fom_cob_create_phases {
+	/**
+	 * @todo When containers code will be in place, the stobs will not be
+	 * created on the fly but will be located during cob_create
+	 * request. 
+	 * The association of a cob and a stob being identity mapping
+	 * is temporary and is subject to change.
+	 */
+	FOPH_CC_STOB_CREATE	= FOPH_NR + 1,
+	FOPH_CC_COB_CREATE,
+	FOPH_CC_COBFID_MAP_ADD,
+};
+
+/**
+ * Fom context object for "cob delete" request. Cob delete fop is sent
+ * to data servers on deletion of a global file.
+ */
+struct c2_fom_cob_delete {
+	/** Stob identifier. */
+	struct c2_stob_id	 fcd_stobid;
+	/** Common part of cob operation foms. */
+	struct c2_fom_cob_common fcd_cc;
+};
+
+/**
+ * Phases of c2_fom_cob_delete state machine.
+ */
+enum c2_fom_cob_delete_phases {
+	FOPH_CD_COB_DEL = FOPH_NR + 1,
+	/**
+	 * @todo Will be removed when containers code is in place.
+	 * Later, only the reference held on stob will be released.
+	 */
+	FOPH_CD_STOB_DEL,
+	FOPH_CD_COBFID_MAP_DEL,
+};
+
 /** @} end of io_foms */
 
 #endif /* __COLIBRI_IOSERVICE_IO_FOMS_H__ */

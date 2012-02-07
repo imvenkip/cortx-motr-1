@@ -91,13 +91,19 @@ static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_io_descs_tfmt,
 	&c2_io_indexvec_seq_tfmt,
 	&c2_fop_cob_rw_tfmt,
+	&c2_fop_cob_create_tfmt,
+	&c2_fop_cob_delete_tfmt,
+	&c2_fop_cob_op_reply_tfmt,
 };
 
 static struct c2_fop_type *ioservice_fops[] = {
-      &c2_fop_cob_readv_fopt,
-      &c2_fop_cob_writev_fopt,
-      &c2_fop_cob_readv_rep_fopt,
-      &c2_fop_cob_writev_rep_fopt,
+	&c2_fop_cob_readv_fopt,
+	&c2_fop_cob_writev_fopt,
+	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_cob_writev_rep_fopt,
+	&c2_fop_cob_create_fopt,
+	&c2_fop_cob_delete_fopt,
+	&c2_fop_cob_op_reply_fopt,
 };
 
 /* Used for IO REQUEST items only. */
@@ -116,14 +122,29 @@ static const struct c2_rpc_item_type_ops io_item_type_ops = {
 };
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
-	.fto_fom_init = c2_io_fom_cob_rw_init,
+	.fto_fom_init    = c2_io_fom_cob_rw_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get	 = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
+const struct c2_fop_type_ops cob_fop_type_ops = {
+	.fto_fom_init	 = NULL,
+	.fto_fop_replied = NULL,
+	.fto_size_get	 = c2_xcode_fop_size_get,
+	.fto_io_coalesce = NULL,
+	.fto_io_desc_get = NULL,
+};
+
+static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
+	.rito_item_size   = c2_fop_item_type_default_onwire_size,
+	.rito_io_coalesce = NULL,
+	.rito_encode      = c2_fop_item_type_default_encode,
+	.rito_decode	  = c2_fop_item_type_default_decode,
+};
+
+static const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
 };
@@ -144,6 +165,18 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
 		    C2_RPC_ITEM_TYPE_REPLY);
+
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_create, "Cob create request",
+			&cob_fop_type_ops, C2_IOSERVICE_COB_CREATE_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
+
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_delete, "Cob delete request",
+			&cob_fop_type_ops, C2_IOSERVICE_COB_DELETE_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
+
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
+			&cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
+			C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops);
 
 void c2_ioservice_fop_fini(void)
 {
@@ -810,7 +843,6 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 	int32_t			 nr;
 	c2_bcount_t		 max_bufsize;
 	c2_bcount_t		 curr_bufsize;
-	c2_bcount_t		 seg_size;
 	uint32_t		 segs_nr;
 	struct ioseg		*ioseg;
 	struct c2_net_domain	*netdom;
@@ -828,7 +860,6 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 	rbulk = c2_fop_to_rpcbulk(coalesced_fop);
 	curr_segs_nr = iosegset_tlist_length(&seg_set->iss_list);
 	ioseg = iosegset_tlist_head(&seg_set->iss_list);
-	seg_size = ioseg->is_size;
 
 	while (curr_segs_nr != 0) {
 		curr_bufsize = 0;
@@ -1494,11 +1525,9 @@ static void io_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop		*fop;
 	struct c2_io_fop	*iofop;
-	struct c2_fop_cob_rw	*rw;
 
 	fop = c2_rpc_item_to_fop(item);
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
-	rw = io_rw_get(fop);
 
 	io_fop_destroy(&iofop->if_fop);
 	c2_io_fop_fini(iofop);

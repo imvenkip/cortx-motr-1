@@ -31,6 +31,7 @@
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
 #include "ioservice/io_service.h"
+#include "colibri/colibri_setup.h"
 
 /** Required for accessing rpcmachine list */
 C2_TL_DESCR_DEFINE(rpcmachines, "rpc machines associated with reqh", static,
@@ -160,7 +161,6 @@ void c2_ioservice_unregister(void)
  */
 static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 {
-        bool                            found_buffer_pool = false;
         int                             nbuffs = 0;
         int                             colours;
         int                             rc = 0;
@@ -185,7 +185,6 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                                 * No need to create buffer pool
                                 * for this domain.
                                 */
-                                found_buffer_pool = true;
                                 return rc;
                         }
                } c2_tlist_endfor; /* bufferpools */
@@ -326,7 +325,8 @@ static void c2_ioservice_fini(struct c2_reqh_service *service)
  */
 static int c2_ioservice_start(struct c2_reqh_service *service)
 {
-        int                        rc = 0;
+        int			rc = 0;
+	struct c2_cobfid_setup *s;
 
         C2_PRE(service != NULL);
 
@@ -336,6 +336,11 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
             return rc;
 
         rc = ioservice_create_buffer_pool(service);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_cobfid_setup_get(&s, service);
+	C2_POST(ergo(rc == 0, s != NULL));
 
         return rc;
 }
@@ -351,15 +356,13 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
  */
 static void c2_ioservice_stop(struct c2_reqh_service *service)
 {
-        struct c2_reqh_io_service *serv_obj;
-
         C2_PRE(service != NULL);
-
-        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
         ioservice_delete_buffer_pool(service);
 
         c2_ioservice_fop_fini();
+
+	c2_cobfid_setup_put(service);
 }
 
 /** @} endgroup io_service */
