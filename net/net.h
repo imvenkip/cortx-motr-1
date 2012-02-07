@@ -1472,6 +1472,10 @@ ergo(buf->nb_qtype == C2_NET_QT_MSG_SEND ||
    @retval -ETIME nb_timeout is set to other than C2_TIME_NEVER, and occurs in
    the past.
    Note that this differs from them buffer timeout error code of -ETIMEDOUT.
+   @note Receiving a successful buffer completion callback is not a guarantee
+   that a data transfer actually took place, but merely an indication that the
+   transport reported the operation was successfully executed.  See the
+   transport documentation for details.
  */
 int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm);

@@ -68,6 +68,21 @@
    The external interfaces of the LNet transport are obtained by
    including the file @ref net/lnet/lnet.h.
 
+   Some LNet transport idiosyncrasies to be aware of:
+   - LNet does not provide any guarantees to a sender of data that the data was
+     actually received by its intended recipient.  In LNet semantics, a
+     successful buffer completion callback for C2_NET_QT_MSG_SEND and
+     C2_NET_QT_ACTIVE_BULK_SEND only indicates that the data was successfully
+     transmitted from the buffer and that the buffer can be reused.  It does
+     not provide any indication if recipient was able to store the data or not.
+     This makes it very important for an application to keep the unsolicited
+     receive message queue (C2_NET_QT_MSG_RECV) populated at all times.
+
+   - Similar to the previous case, LNet may not provide indication that an end
+     point address is invalid during buffer operations. A C2_NET_QT_MSG_SEND
+     operation may succeed even if the end point provided as the destination
+     address does not exist.
+
    @see @ref LNetDLD "LNet Transport DLD"
 
    @{
@@ -132,6 +147,12 @@ uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm);
 /* init and fini functions for colibri init */
 int c2_net_lnet_init(void);
 void c2_net_lnet_fini(void);
+
+/*
+   Debug support.
+ */
+void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg);
+void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg);
 
 /**
    @}

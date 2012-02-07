@@ -52,6 +52,8 @@ static int nlx_ep_create(struct c2_net_end_point **epp,
 	struct nlx_xo_domain *dp;
 	struct nlx_xo_ep *xep;
 
+	NLXDBG((struct nlx_xo_transfer_mc *)tm->ntm_xprt_private, 2,
+	       nlx_print_core_ep_addr("nlx_ep_create", cepa));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(nlx_tm_invariant(tm));
 	dp = tm->ntm_dom->nd_xprt_private;

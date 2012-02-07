@@ -48,7 +48,8 @@ static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
 		return false;
 	if (bp->xb_core.cb_buffer_id != (nlx_core_opaque_ptr_t) nb)
 		return false;
-	if (!ergo(nb->nb_tm != NULL, nlx_tm_invariant(nb->nb_tm)))
+	if (!ergo(nb->nb_flags & C2_NET_BUF_QUEUED,
+		  nb->nb_tm != NULL && nlx_tm_invariant(nb->nb_tm)))
 		return false;
 	if (!nlx_xo_buffer_bufvec_invariant(nb))
 		return false;
@@ -60,6 +61,36 @@ static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
 	const struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 	return tp != NULL && tp->xtm_tm == tm && nlx_dom_invariant(tm->ntm_dom);
 }
+
+/** Unit test intercept support.
+   Conventions to use:
+   - All such subs must be declared in headers.
+   - A macro named for the subroutine, but with the "NLX" portion of the prefix
+   in capitals, should be used to call the subroutine via this intercept
+   vector.
+   - UT should restore the vector upon completion. It is not declared
+   const so that the UTs can modify it.
+ */
+struct nlx_xo_interceptable_subs {
+	int (*_nlx_core_buf_event_wait)(struct nlx_core_transfer_mc *lctm,
+					c2_time_t timeout);
+	int (*_nlx_ep_create)(struct c2_net_end_point **epp,
+			      struct c2_net_transfer_mc *tm,
+			      struct nlx_core_ep_addr *cepa);
+};
+static struct nlx_xo_interceptable_subs nlx_xo_iv = {
+#define _NLXIS(s) ._##s = s
+
+	_NLXIS(nlx_core_buf_event_wait),
+	_NLXIS(nlx_ep_create),
+
+#undef _NLXI
+};
+
+#define NLX_core_buf_event_wait(lctm, timeout) \
+	(*nlx_xo_iv._nlx_core_buf_event_wait)(lctm, timeout)
+#define NLX_ep_create(epp, tm, cepa) \
+	(*nlx_xo_iv._nlx_ep_create)(epp, tm, cepa)
 
 static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 {
@@ -79,6 +110,7 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 		c2_free(dp);
 		dom->nd_xprt_private = NULL;
 	}
+	nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
 	C2_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
 	return rc;
 }
@@ -391,7 +423,8 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 
 	C2_PRE(nlx_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED ||
+	       tm->ntm_state == C2_NET_TM_STOPPING);
 
 	while (nlx_core_buf_event_get(&tp->xtm_core, &cbev)) {
 		struct c2_net_buffer_event nbev;
@@ -418,8 +451,10 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 				q = &tm->ntm_qstats[nbev.nbe_buffer->nb_qtype];
 				q->nqs_num_f_events++;
 				LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+				NLXDBGP(tp, 1, "%p: skipping event\n", tp);
 				continue;
 			}
+			NLXDBGP(tp, 1, "%p: event conversion failed\n", tp);
 		}
 		C2_ASSERT(nlx_buffer_invariant(nbev.nbe_buffer));
 
@@ -435,12 +470,18 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 			bp = nbev.nbe_buffer->nb_xprt_private;
 			cbp = &bp->xb_core;
 			need = cbp->cb_max_operations;
+			NLXDBGP(tp, 3, "%p: reducing need by %d\n",
+				tp, (int) need);
 			nlx_core_bevq_release(&tp->xtm_core, need);
 		}
+		NLXDBGP(tp, 1, "%p: post:%p status:%d flags:%lx\n",
+			tp, nbev.nbe_buffer, (int) nbev.nbe_status,
+			(unsigned long) nbev.nbe_buffer->nb_flags);
 
-		/* Deliver the event out of the mutex.  Increment the
-		   callback counter to protect the state of the TM.
-		*/
+		/* Deliver the event out of the mutex.
+		   Suppress signalling on the TM channel by incrementing
+		   the callback counter.
+		 */
 		tm->ntm_callback_counter++;
 		c2_mutex_unlock(&tm->ntm_mutex);
 
@@ -450,11 +491,14 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 		/* re-enter the mutex */
 		c2_mutex_lock(&tm->ntm_mutex);
 		tm->ntm_callback_counter--;
-		C2_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
-	}
 
-	/* if we ever left the mutex, wake up waiters on the callback counter */
-	if (num_events > 0)
+		C2_PRE(tm->ntm_state == C2_NET_TM_STARTED ||
+		       tm->ntm_state == C2_NET_TM_STOPPING);
+	}
+	NLXDBGP(tp,2,"%p: delivered %d events\n", tp, num_events);
+
+	/* if we ever left the mutex, wake up waiters on the TM channel */
+	if (num_events > 0 && tm->ntm_callback_counter == 0)
 		c2_chan_broadcast(&tm->ntm_chan);
 
 	return;

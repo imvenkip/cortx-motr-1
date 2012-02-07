@@ -767,6 +767,27 @@
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
 
+
+/* debug print support */
+#undef NLX_DEBUG
+#ifdef NLX_DEBUG
+
+/* note Linux uses the LP64 standard */
+#ifdef __KERNEL__
+#define NLXP(fmt, ...) printk(KERN_ERR fmt, ## __VA_ARGS__)
+#else
+#define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
+#endif
+#define NLXDBG(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); stmt; } } while (0)
+#define NLXDBGP(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); NLXP(fmt, ## __VA_ARGS__); } } while (0)
+#define NLXDBGPnl(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP(fmt, ## __VA_ARGS__); } } while (0)
+#else
+#define NLXP(fmt, ...)
+#define NLXDBG(ptr, dbg, stmt) do { ; } while (0)
+#define NLXDBGP(ptr, dbg, fmt, ...) do { ; } while (0)
+#define NLXDBGPnl(ptr, dbg, fmt, ...) do { ; } while (0)
+#endif /* !NLX_DEBUG */
+
 /*
   To reduce global symbols, yet make the code readable, we
   include other .c files with static symbols into this file.
@@ -859,6 +880,32 @@ uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
 	return ret;
 }
 C2_EXPORTED(c2_net_lnet_tm_stat_interval_get);
+
+void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
+{
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(dom != NULL);
+	c2_mutex_lock(&c2_net_mutex);
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	dp->_debug_ = dbg;
+	nlx_core_dom_set_debug(&dp->xd_core, dbg);
+	c2_mutex_unlock(&c2_net_mutex);
+}
+
+void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
+{
+	struct nlx_xo_transfer_mc *tp;
+
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(nlx_tm_invariant(tm));
+	tp = tm->ntm_xprt_private;
+	tp->_debug_ = dbg;
+	nlx_core_tm_set_debug(&tp->xtm_core, dbg);
+	c2_mutex_unlock(&tm->ntm_mutex);
+}
 
 /**
    @}

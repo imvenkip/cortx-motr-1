@@ -88,6 +88,8 @@ struct nlx_xo_domain {
 
 	/** LNet Core transfer domain data (shared memory) */
 	struct nlx_core_domain  xd_core;
+
+	unsigned                _debug_;
 };
 
 /**
@@ -116,6 +118,8 @@ struct nlx_xo_transfer_mc {
 
 	/** LNet Core transfer machine data (shared memory) */
 	struct nlx_core_transfer_mc  xtm_core;
+
+	unsigned                     _debug_;
 };
 
 /**

@@ -120,6 +120,18 @@ struct nlx_kcore_buffer {
 	/** The number of elements in kb_kiov */
 	size_t                        kb_kiov_len;
 
+	/** The length of a kiov vector element is adjusted at runtime to
+	    reflect the actual buffer data length under consideration.
+	    This field keeps track of the element index adjusted.
+	*/
+	size_t                        kb_kiov_adj_idx;
+
+	/** The kiov is adjusted at runtime to reflect the actual buffer
+	    data length under consideration.
+	    This field keeps track of original length.
+	*/
+	unsigned                      kb_kiov_orig_len;
+
 	/** MD handle */
 	lnet_handle_md_t              kb_mdh;
 
@@ -132,6 +144,7 @@ static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
+static bool nlx_kcore_kiov_invariant(const lnet_kiov_t *k, size_t len);
 
 #ifdef PAGE_OFFSET
 #undef PAGE_OFFSET

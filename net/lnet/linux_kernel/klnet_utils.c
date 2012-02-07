@@ -21,6 +21,87 @@
 
 /* This file is designed to be included in klnet_core.c. */
 
+#ifdef NLX_DEBUG
+static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
+{
+	char buf[32];
+	LNetSnprintHandle(buf, sizeof buf, h);
+	printk("%s: %s\n", pre, buf);
+}
+
+static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
+{
+	printk("%s: NID=%lu PID=%u\n", pre,
+	       (long unsigned) p.nid, (unsigned) p.pid);
+}
+
+static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
+{
+	printk("%s: %p\n", pre, md);
+	printk("\t    start: %p\n", md->start);
+	printk("\t  options: %x\n", md->options);
+	printk("\t   length: %d\n", md->length);
+	printk("\tthreshold: %d\n", md->threshold);
+	printk("\t max_size: %d\n", md->max_size);
+	printk("\t user_ptr: %p\n", md->user_ptr);
+	nlx_kprint_lnet_handle("\teq_handle", md->eq_handle);
+#if 0
+	{
+		int i;
+		for(i = 0; i < kcb->kb_kiov_len; ++i) {
+			printk("\t[%d] %p %d %d\n", i,
+			       kcb->kb_kiov[i].kiov_page,
+			       kcb->kb_kiov[i].kiov_len,
+			       kcb->kb_kiov[i].kiov_offset);
+		}
+	}
+#endif
+}
+
+static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
+{
+	static const char *lnet_event_s[7] = {
+		"GET", "PUT", "REPLY", "ACK", "SEND", "UNLINK", "<Unknown>"
+	};
+	const char *name;
+	if (e == NULL) {
+		printk("%s: <null> (lnet_event_t)\n", pre);
+		return;
+	}
+	C2_ASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 1);
+	if (e->type >= 0 && e->type <= LNET_EVENT_UNLINK)
+		name = lnet_event_s[e->type];
+	else
+		name = lnet_event_s[6];
+	printk("%s: %p (lnet_event_t)\n", pre, e);
+	nlx_kprint_lnet_process_id("\t   target:", e->target);
+	nlx_kprint_lnet_process_id("\tinitiator:", e->target);
+	printk("\t    sender: %ld\n", (long unsigned) e->sender);
+	printk("\t      type: %d %s\n", e->type, name);
+	printk("\t  pt_index: %u\n", e->pt_index);
+	printk("\tmatch_bits: %lx\n", (long unsigned) e->match_bits);
+	printk("\t   rlength: %u\n", e->rlength);
+	printk("\t   mlength: %u\n", e->mlength);
+	nlx_kprint_lnet_handle("\t md_handle", e->md_handle);
+	printk("\t  hdr_data: %lx\n", (long unsigned) e->hdr_data);
+	printk("\t    status: %d\n", e->status);
+	printk("\t  unlinked: %d\n", e->unlinked);
+	printk("\t    offset: %u\n", e->offset);
+	nlx_kprint_lnet_md("\t        md", &e->md);
+}
+
+static void nlx_kprint_kcore_tm(const char *pre,
+				const struct nlx_kcore_transfer_mc *ktm)
+{
+	printk("%s: %p (nlx_kcore_transfer_mc)\n", pre, ktm);
+	if (ktm == NULL)
+		return;
+	printk("\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
+	printk("\t mb_counter: %lu\n", (unsigned long) ktm->ktm_mb_counter);
+	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
+}
+#endif
+
 /**
    @addtogroup KLNetCore
    @{
@@ -59,20 +140,31 @@ static inline void nlx_kcore_match_bits_decode(uint64_t mb,
 
 /**
    Helper subroutine to encode header data for LNetPut operations.
+   @param tmid Transfer machine id
+   @param portal Portal number
+   @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
+ */
+static inline uint64_t nlx_kcore_hdr_data_encode_raw(uint32_t tmid,
+						     uint32_t portal)
+{
+	return ((uint64_t) tmid << C2_NET_LNET_TMID_SHIFT) |
+		(portal & C2_NET_LNET_PORTAL_MASK);
+}
+
+/**
+   Helper subroutine to encode header data for LNetPut operations.
    @param lctm Pointer to kcore TM private data.
-   @see nlx_kcore_hdr_data_decode()
+   @see nlx_kcore_hdr_data_decode(), nlx_kcore_hdr_data_encode_raw()
  */
 static uint64_t nlx_kcore_hdr_data_encode(struct nlx_core_transfer_mc *lctm)
 {
 	struct nlx_core_ep_addr *cepa;
-	uint64_t hdr_data;
 
 	C2_PRE(nlx_core_tm_invariant(lctm));
 	cepa = &lctm->ctm_addr;
-	hdr_data = ((uint64_t) cepa->cepa_tmid << C2_NET_LNET_TMID_SHIFT) |
-		(cepa->cepa_portal & C2_NET_LNET_PORTAL_MASK);
-	return hdr_data;
+	return nlx_kcore_hdr_data_encode_raw(cepa->cepa_tmid, cepa->cepa_portal);
 }
+
 
 /**
    Helper subroutine to decode header data from an LNetPut event.
@@ -119,7 +211,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	kcb = lcbuf->cb_kpvt;
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(threshold > 0);
-	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(kcb->kb_kiov_len > 0);
 	C2_PRE(max_size >= 0);
 	C2_PRE(options == 0 ||
 	       options == LNET_MD_OP_PUT ||
@@ -129,7 +221,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->options = options;
 	umd->start = kcb->kb_kiov;
 	umd->options |= LNET_MD_KIOV;
-	umd->length = lcbuf->cb_length;
+	umd->length = kcb->kb_kiov_len;
 	umd->threshold = threshold;
 	if (max_size != 0) {
 		umd->max_size = max_size;
@@ -137,6 +229,79 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	}
 	umd->user_ptr = lcbuf;
 	umd->eq_handle = kctm->ktm_eqh;
+	NLXDBG(lctm, 1, nlx_kprint_lnet_md("umd init", umd));
+}
+
+/**
+   Helper subroutine to adjust the length of the kiov vector in a UMD
+   to match a specified byte length.
+   This is needed for SEND and active buffer operations.
+   Restore the kiov with nlx_kcore_kiov_restore_length().
+   @param lctm Pointer to kcore TM private data.
+   @param lcbuf Pointer to kcore buffer private data with match bits set.
+   @param umd Pointer to the UMD.
+   @param bytes The byte count desired.
+   @see nlx_kcore_kiov_restore_length()
+   @post kcb->kb_kiov_adj_idx >= 0
+   @post kcb->kb_kiov_adj_idx < kcb->kb_kiov_len
+   @post nlx_kcore_kiov_invariant(umd->start, umd->length)
+ */
+static void nlx_kcore_kiov_adjust_length(struct nlx_core_transfer_mc *lctm,
+					 struct nlx_core_buffer *lcbuf,
+					 lnet_md_t *umd,
+					 c2_bcount_t bytes)
+{
+	struct nlx_kcore_buffer *kcb;
+	size_t num;
+	unsigned last;
+
+	C2_PRE(umd->start != NULL);
+	C2_PRE(umd->options & LNET_MD_KIOV);
+	C2_PRE(umd->length > 0);
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
+	C2_PRE(nlx_kcore_buffer_invariant(kcb));
+	C2_PRE(umd->start == kcb->kb_kiov);
+
+	num = nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd->start,
+						   umd->length, bytes, &last);
+	NLXDBGP(lctm, 2, "%p: buf:%p size:%ld vec:%lu/%lu loff:%u\n",
+		lctm, lcbuf, (unsigned long) bytes,
+		(unsigned long) num, (unsigned long) umd->length, last);
+	kcb->kb_kiov_adj_idx = num - 1;
+	C2_POST(kcb->kb_kiov_adj_idx >= 0);
+	C2_POST(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
+	kcb->kb_kiov_orig_len = kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len;
+	kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len = last;
+	umd->length = num;
+	C2_POST(nlx_kcore_kiov_invariant(umd->start, umd->length));
+	return;
+}
+
+/**
+   Helper subroutine to restore the original length of the buffer's kiov.
+   @param lctm Pointer to kcore TM private data.
+   @param lcbuf Pointer to kcore buffer private data with match bits set.
+   @see nlx_kcore_kiov_adjust_length()
+   @pre kcb->kb_kiov_adj_idx >= 0
+   @pre kcb->kb_kiov_adj_idx < kcb->kb_kiov_len
+   @post nlx_kcore_kiov_invariant(kcb->kb_kiov, kcb->kb_kiov_len)
+*/
+static void nlx_kcore_kiov_restore_length(struct nlx_core_transfer_mc *lctm,
+					  struct nlx_core_buffer *lcbuf)
+{
+	struct nlx_kcore_buffer *kcb;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
+	C2_PRE(nlx_kcore_buffer_invariant(kcb));
+	C2_PRE(kcb->kb_kiov_adj_idx >= 0);
+	C2_PRE(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
+	kcb->kb_kiov[kcb->kb_kiov_adj_idx].kiov_len = kcb->kb_kiov_orig_len;
+	C2_POST(nlx_kcore_kiov_invariant(kcb->kb_kiov, kcb->kb_kiov_len));
+	return;
 }
 
 /**
@@ -152,6 +317,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
    values set for the desired operation.
    @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
    @post ergo(rc == 0, kcb->kb_ktm == kctm)
+   @note LNet event could potentially be delivered before this sub returns.
  */
 static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 				  struct nlx_core_buffer *lcbuf,
@@ -176,20 +342,30 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	rc = LNetMEAttach(lctm->ctm_addr.cepa_portal, id,
 			  lcbuf->cb_match_bits, 0,
 			  LNET_UNLINK, LNET_INS_AFTER, &meh);
-	if (rc != 0)
+	if (rc != 0) {
+		NLXDBGP(lctm, 1,"LNetMEAttach: %d\n", rc);
 		return rc;
+	}
 	C2_POST(!LNetHandleIsInvalid(meh));
 
+	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
-	if (rc == 0)
-		kcb->kb_ktm = kctm;
-	else {
+	if (rc == 0) {
+		NLXDBG(lctm, 1, nlx_kprint_lnet_handle("MDAttach", kcb->kb_mdh));
+	} else {
 		int trc = LNetMEUnlink(meh);
+		NLXDBGP(lctm, 1, "LNetMDAttach: %d\n", rc);
+		NLXDBGP(lctm, 1, "LNetMEUnlink: %d\n", trc);
 		C2_ASSERT(trc == 0);
+		LNetInvalidateHandle(&kcb->kb_mdh);
+		kcb->kb_ktm = NULL;
 	}
 
-	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
-	C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	/* Cannot make these assertions here as delivery is asynchronous, and
+	   could have completed before we got here.
+	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	*/
 	return rc;
 }
 
@@ -199,6 +375,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
    @param lcbuf Pointer to kcore buffer private data with kb_mdh set.
    @pre kcb->kb_mdh set (may or may not be valid by the time the call is made).
    @pre kcb->kb_ktm == kctm
+   @note LNet event could potentially be delivered before this sub returns.
  */
 static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 				   struct nlx_core_buffer *lcbuf)
@@ -215,6 +392,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(kcb->kb_ktm == kctm);
 	rc = LNetMDUnlink(kcb->kb_mdh);
+	NLXDBG(lctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
 	return rc;
@@ -234,6 +412,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
    @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
    @post ergo(rc == 0, kcb->kb_ktm == kctm)
    @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
+   @note LNet event could potentially be delivered before this sub returns.
  */
 static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf,
@@ -253,20 +432,33 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_match_bits != 0);
 
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
-	if (rc != 0)
+	if (rc != 0) {
+		NLXDBGP(lctm, 1,"LNetMDBind: %d\n", rc);
 		return rc;
+	}
+	NLXDBG(lctm, 1, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
 
 	target.nid = lcbuf->cb_addr.cepa_nid;
 	target.pid = lcbuf->cb_addr.cepa_pid;
+	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
 	rc = LNetPut(LNET_NID_ANY, kcb->kb_mdh, LNET_NOACK_REQ,
 		     target, lcbuf->cb_addr.cepa_portal,
 		     lcbuf->cb_match_bits, 0,
 		     nlx_kcore_hdr_data_encode(lctm));
-	if (rc == 0)
-		kcb->kb_ktm = kctm;
+	if (rc != 0) {
+		int trc = LNetMDUnlink(kcb->kb_mdh);
+		NLXDBGP(lctm, 1, "LNetPut: %d\n", rc);
+		NLXDBGP(lctm, 1, "LNetMDUnlink: %d\n", trc);
+		C2_ASSERT(trc == 0);
+		LNetInvalidateHandle(&kcb->kb_mdh);
+		kcb->kb_ktm = NULL;
+	}
 
-	C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
-	C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	/* Cannot make these assertions here, because loopback can deliver
+	   before we get here.  Leaving the assertions in the comment.
+	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	*/
 	return rc;
 }
 

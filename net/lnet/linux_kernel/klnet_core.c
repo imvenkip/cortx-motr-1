@@ -473,6 +473,9 @@
       - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
+        The number of entries in the KIOV and the length field in the last
+	element of the vector must be adjusted to reflect the desired byte
+	count.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetPut() subroutine to send the MD to the destination.  The
       match bits must set to the destination TM identifier in the higher order
@@ -482,7 +485,8 @@
    -# When the message is sent, an @c LNET_EVENT_SEND event will be delivered
       to the event queue, and processed as described in
       @ref KLNetCoreDLD-lspec-ev.
-
+      @note The event does not indicate if the recipient was able to save the
+      data, but merely that it left the host.
 
    @subsection KLNetCoreDLD-lspec-passive LNet Staging Passive Bulk Buffers
 
@@ -492,6 +496,7 @@
       the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
+      The network descriptor also encodes the number of bytes to be transferred.
    -# Create an ME using @c LNetMEAttach(). Specify the portal and match_id
       fields as appropriate for the transfer machine.  The buffer's match bits
       are obtained from the nlx_core_buffer::cb_match_bits field.  No ignore
@@ -535,6 +540,9 @@
       - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
+        The number of entries in the KIOV and the length field in the last
+	element of the vector must be adjusted to reflect the desired byte
+	count.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetGet() subroutine to initiate the active read or the @c
       LNetPut() subroutine to initiate the active write. The hdr_data
@@ -544,6 +552,8 @@
       LNET_EVENT_SEND event will be delivered to the event queue and should be
       ignored in the case of @c LNetGet().  See @ref KLNetCoreDLD-lspec-ev
       for details.
+      @note In the case of an @c LNetPut(), the event does not indicate if the
+      recipient was able to save the data, but merely that it left the host.
    -# When the bulk data transfer for @c LNetGet() completes, an
       @c LNET_EVENT_REPLY event will be delivered to the event queue, and will
       be processed as described in @ref KLNetCoreDLD-lspec-ev.
@@ -767,6 +777,37 @@ C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
 /* assert the equivalence of LNet and Colibri data types */
 C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
 
+/** Unit test intercept support.
+   Conventions to use:
+   - All such subs must be declared in headers.
+   - A macro named for the subroutine, but with the "NLX" portion of the prefix
+   in capitals, should be used to call the subroutine via this intercept
+   vector.
+   - UT should restore the vector upon completion. It is not declared
+   const so that the UTs can modify it.
+ */
+struct nlx_kcore_interceptable_subs {
+	int (*_nlx_kcore_LNetMDAttach)(struct nlx_core_transfer_mc *lctm,
+				       struct nlx_core_buffer *lcbuf,
+				       lnet_md_t *umd);
+	int (*_nlx_kcore_LNetPut)(struct nlx_core_transfer_mc *lctm,
+				  struct nlx_core_buffer *lcbuf,
+				  lnet_md_t *umd);
+};
+static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
+#define _NLXIS(s) ._##s = s
+
+	_NLXIS(nlx_kcore_LNetMDAttach),
+	_NLXIS(nlx_kcore_LNetPut),
+
+#undef _NLXI
+};
+
+#define NLX_kcore_LNetMDAttach(lctm, lcbuf, umd)	\
+	(*nlx_kcore_iv._nlx_kcore_LNetMDAttach)(lctm, lcbuf, umd)
+#define NLX_kcore_LNetPut(lctm, lcbuf, umd)		\
+	(*nlx_kcore_iv._nlx_kcore_LNetPut)(lctm, lcbuf, umd)
+
 /**
    KCore domain invariant.
  */
@@ -779,6 +820,7 @@ static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
 
 /**
    KCore buffer invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
  */
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 {
@@ -793,6 +835,7 @@ static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 
 /**
    KCore tm invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
  */
 static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm)
 {
@@ -890,8 +933,12 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	c2_time_t now = c2_time_now();
 
 	C2_PRE(event != NULL);
-	if (event->type == LNET_EVENT_ACK)
+	if (event->type == LNET_EVENT_ACK) {
+#ifdef NLX_DEBUG
+		nlx_kprint_lnet_event("eq_cb ACK", event);
+#endif
 		return;
+	}
 	cbp = event->md.user_ptr;
 	C2_ASSERT(nlx_core_buffer_invariant(cbp));
 	kbp = cbp->cb_kpvt;
@@ -899,6 +946,15 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	ktm = kbp->kb_ktm;
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
 	lctm = ktm->ktm_ctm;
+
+	NLXDBGP(lctm, 1, "%p: eq_cb: %p\n", lctm, event);
+	NLXDBG(lctm, 2, nlx_kprint_lnet_event("eq_cb", event));
+	NLXDBG(lctm, 2, nlx_kprint_kcore_tm("eq_cb", ktm));
+
+	if (event->unlinked != 0) {
+		LNetInvalidateHandle(&kbp->kb_mdh);
+		kbp->kb_ktm = NULL;
+	}
 
 	/* SEND events are only significant for LNetPut operations */
 	if (event->type == LNET_EVENT_SEND &&
@@ -929,6 +985,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	bev->cbe_unlinked = event->unlinked != 0;
 	bev_cqueue_put(&lctm->ctm_bevq);
 	spin_unlock(&ktm->ktm_bevq_lock);
+	c2_semaphore_up(&ktm->ktm_sem);
 }
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
@@ -1052,14 +1109,14 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
 	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_MSG_RECV);
 	C2_PRE(lcbuf->cb_length > 0);
-	C2_PRE(lcbuf->cb_min_receive_size >= lcbuf->cb_length);
+	C2_PRE(lcbuf->cb_min_receive_size <= lcbuf->cb_length);
 	C2_PRE(lcbuf->cb_max_operations > 0);
 
 	nlx_kcore_umd_init(lctm, lcbuf, lcbuf->cb_max_operations,
 			   lcbuf->cb_min_receive_size, LNET_MD_OP_PUT, &umd);
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
-	rc = nlx_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	rc = NLX_kcore_LNetMDAttach(lctm, lcbuf, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
 	return rc;
@@ -1081,11 +1138,13 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_max_operations == 1);
 
 	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
 	lcbuf->cb_match_bits =
 		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
-	rc = nlx_kcore_LNetPut(lctm, lcbuf, &umd);
+	rc = NLX_kcore_LNetPut(lctm, lcbuf, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
 	return rc;
 }
 
@@ -1171,7 +1230,7 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 				   cbe_tm_link);
 		*lcbe = *bev;
 		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
-		/* Event structures released when buffer is unlinked */
+		/* Event structures released when network buffer unlinked */
 		return true;
 	}
 	return false;
@@ -1398,7 +1457,6 @@ int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm, /* not used */
 		*bevp = NULL;
 		return -ENOMEM;
 	}
-	bev->cbe_tm_link.cbl_p_self = (nlx_core_opaque_ptr_t) &bev->cbe_tm_link;
 	bev_link_bless(&bev->cbe_tm_link);
 	*bevp = bev;
 	return 0;

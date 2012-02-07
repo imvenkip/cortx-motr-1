@@ -19,6 +19,55 @@
  * Original creation date: 11/16/2011
  */
 
+#ifdef NLX_DEBUG
+static void nlx_print_core_ep_addr(const char *pre,
+				   const struct nlx_core_ep_addr *cepa)
+{
+	NLXP("%s: %p nlx_core_ep_addr\n", pre, cepa);
+	NLXP("\t    nid = %ld\n", (unsigned long) cepa->cepa_nid);
+	NLXP("\t    pid = %d\n",  (unsigned) cepa->cepa_pid);
+	NLXP("\t portal = %d\n", (unsigned) cepa->cepa_portal);
+	NLXP("\t   tmid = %d\n", (unsigned) cepa->cepa_tmid);
+}
+
+static void nlx_print_core_buffer_event(const char *pre,
+				const struct nlx_core_buffer_event *lcbev)
+{
+	NLXP("%s: %p nlx_core_buffer_event\n", pre, lcbev);
+	NLXP("\tcbe_buffer_id: %lx\n", (unsigned long) lcbev->cbe_buffer_id);
+	NLXP("\t     cbe_time: %lx\n", (unsigned long) lcbev->cbe_time);
+	NLXP("\t   cbe_status: %d\n", lcbev->cbe_status);
+	NLXP("\t cbe_unlinked: %d\n", (int) lcbev->cbe_unlinked);
+	NLXP("\t   cbe_length: %ld\n", (unsigned long) lcbev->cbe_length);
+	NLXP("\t   cbe_offset: %ld\n", (unsigned long) lcbev->cbe_offset);
+	NLXP("\t   cbe_sender: %ld %d %d %d\n",
+	     (unsigned long) lcbev->cbe_sender.cepa_nid,
+	     (unsigned) lcbev->cbe_sender.cepa_pid,
+	     (unsigned) lcbev->cbe_sender.cepa_portal,
+	     (unsigned) lcbev->cbe_sender.cepa_tmid);
+}
+
+static void nlx_print_net_buffer_event(const char *pre,
+				       const struct c2_net_buffer_event *nbev)
+{
+	NLXP("%s: %p c2_net_buffer_event\n", pre, nbev);
+	NLXP("\t  nbe_time: %lx\n", (unsigned long) nbev->nbe_time);
+	NLXP("\tnbe_status: %d\n", nbev->nbe_status);
+	NLXP("\tnbe_length: %ld\n", (unsigned long) nbev->nbe_length);
+	NLXP("\tnbe_offset: %ld\n", (unsigned long) nbev->nbe_offset);
+	if (nbev->nbe_ep != NULL)
+		NLXP("\t    nbe_ep: %s\n", nbev->nbe_ep->nep_addr);
+	else
+		NLXP("\t    nbe_ep: %s\n", "NULL");
+	NLXP("\tnbe_buffer: %p\n", nbev->nbe_buffer);
+	if (nbev->nbe_buffer != NULL) {
+		struct c2_net_buffer *nb = nbev->nbe_buffer;
+		NLXP("\t\t  nb_qtype: %d\n", nb->nb_qtype);
+		NLXP("\t\t  nb_flags: %lx\n", (unsigned long) nb->nb_flags);
+	}
+}
+#endif
+
 /**
    @addtogroup LNetCore
    @{
@@ -36,6 +85,10 @@ static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
 	.act_name = "net-lnet-core-tm"
 };
 
+/**
+   Core TM invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
+ */
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 {
 	return lctm != NULL && lctm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC;
@@ -61,6 +114,10 @@ static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *lctm)
 	return true;
 }
 
+/**
+   Core buffer invariant.
+   @note Shouldn't require the mutex as it is called from nlx_kcore_eq_cb.
+ */
 static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *lcb)
 {
 	return lcb != NULL && lcb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC &&
@@ -104,6 +161,17 @@ void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 	lctm->ctm_bev_needed -= release;
 	return;
 }
+
+void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
+{
+	lcdom->_debug_ = dbg;
+}
+
+void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm, unsigned dbg)
+{
+	lctm->_debug_ = dbg;
+}
+
 
 /**
    @}

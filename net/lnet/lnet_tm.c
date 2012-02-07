@@ -104,6 +104,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	tp = tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 
+	nlx_core_tm_set_debug(ctp, tp->_debug_);
+
 	if (tp->xtm_processors.b_nr != 0) {
 		struct c2_thread_handle me;
 		c2_thread_self(&me);
@@ -138,7 +140,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		/* compute next timeout (XXX short if automatic or stopping) */
 		timeout = c2_time_from_now(1, 0);
 		if (tm->ntm_bev_auto_deliver) {
-			rc = nlx_core_buf_event_wait(ctp, timeout);
+			rc = NLX_core_buf_event_wait(ctp, timeout);
 			/* buffer event processing */
 			if (rc == 0) { /* did not time out - events pending */
 				c2_mutex_lock(&tm->ntm_mutex);
@@ -230,7 +232,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	if (nbev->nbe_status != 0)
 		goto done; /* this is not an error from this sub */
 	if (nb->nb_qtype == C2_NET_QT_MSG_RECV) {
-		rc = nlx_ep_create(&nbev->nbe_ep, tm, &lcbev->cbe_sender);
+		rc = NLX_ep_create(&nbev->nbe_ep, tm, &lcbev->cbe_sender);
 		if (rc != 0) {
 			nbev->nbe_status = rc;
 			goto done;
@@ -245,6 +247,10 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	if (!lcbev->cbe_unlinked)
 		nb->nb_flags |= C2_NET_BUF_RETAIN;
  done:
+	NLXDBG(tp,1,nlx_print_core_buffer_event("bev_to_net_bev: cbev", lcbev));
+	NLXDBG(tp,1,nlx_print_net_buffer_event("bev_to_net_bev: nbev:", nbev));
+	NLXDBG(tp,1,NLXP("bev_to_net_bev: rc=%d\n", rc));
+
 	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
 		     rc == 0 && !lcbev->cbe_unlinked));
 	/* currently we only support RETAIN for received messages */

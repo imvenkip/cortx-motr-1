@@ -319,6 +319,7 @@ struct nlx_core_buffer_event {
 struct nlx_core_domain {
 	void *cd_upvt; /**< Core user space private */
 	void *cd_kpvt; /**< Core kernel space private */
+	unsigned _debug_;
 };
 
 /**
@@ -349,6 +350,8 @@ struct nlx_core_transfer_mc {
 
 	void                      *ctm_upvt; /**< Core user space private */
 	void                      *ctm_kpvt; /**< Core kernel space private */
+
+	unsigned                   _debug_;
 };
 
 /**
@@ -776,6 +779,10 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
  */
 static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer_event **bevp);
+
+static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
+static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
+				  unsigned dbg);
 
 /**
    @}
