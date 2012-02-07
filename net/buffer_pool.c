@@ -22,7 +22,6 @@
 #include <config.h>
 #endif
 #include "lib/memory.h"/* C2_ALLOC_PTR */
-#include "lib/errno.h" /* ENOMEM */
 #include "lib/arith.h" /* C2_CNT_INC, C2_CNT_DEC */
 #include "net/buffer_pool.h"
 
@@ -71,14 +70,11 @@ static bool pool_colour_check(const struct c2_net_buffer_pool *pool)
 static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 {
 	struct c2_net_buffer *nb;
-	if (!pool_tlist_is_empty(&pool->nbp_lru)) {
-		c2_tlist_for(&pool_tl, &pool->nbp_lru, nb) {
-			if ((nb->nb_flags & C2_NET_BUF_QUEUED) ||
-			   !(nb->nb_flags & C2_NET_BUF_REGISTERED)) {
-				return false;
-			}
-		} c2_tlist_endfor;
-	}
+	c2_tlist_for(&pool_tl, &pool->nbp_lru, nb) {
+		if ((nb->nb_flags & C2_NET_BUF_QUEUED) ||
+		   !(nb->nb_flags & C2_NET_BUF_REGISTERED))
+			return false;
+	} c2_tlist_endfor;
 	return true;
 }
 
@@ -91,7 +87,7 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 
 	C2_PRE(pool != NULL);
 	C2_PRE(ndom != NULL);
-	C2_PRE((seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom));
+	C2_PRE(seg_nr   <= c2_net_domain_get_max_buffer_segments(ndom));
 	C2_PRE(seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom));
 
 	pool->nbp_threshold  = threshold;
@@ -104,6 +100,7 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_align	     = shift;
 
 	C2_ALLOC_ARR(pool->nbp_colour, colours);
+	C2_ASSERT(pool->nbp_colour != NULL);
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_lru);
 	for (i = 0; i < colours; i++)
@@ -114,7 +111,7 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
    Adds a buffer to the pool to increase the capacity.
    @pre c2_net_buffer_pool_is_locked(pool)
  */
-bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool);
+static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool);
 
 
 int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
@@ -122,7 +119,6 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 {
 	int buffers = 0;
 
-	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 
 	while (buf_nr--) {
@@ -136,7 +132,7 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 }
 
 /** It removes the given buffer from the pool */
-void buffer_remove(struct c2_net_buffer_pool *pool, struct c2_net_buffer *nb)
+static void buffer_remove(struct c2_net_buffer_pool *pool, struct c2_net_buffer *nb)
 {
 	pool_tlink_del_fini(nb);
 	if (tm_tlink_is_in(nb))
@@ -154,12 +150,10 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	int		      i;
 	struct c2_net_buffer *nb;
 
-	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 	C2_PRE(pool->nbp_free == pool->nbp_buf_nr);
 
 	c2_tlist_for(&pool_tl, &pool->nbp_lru, nb) {
-		C2_ASSERT(nb != NULL);
 		C2_CNT_DEC(pool->nbp_free);
 		buffer_remove(pool, nb);
 	} c2_tlist_endfor;
@@ -190,13 +184,13 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 {
 	struct c2_net_buffer *nb;
 
-	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
-	C2_PRE(colour == ~0 || colour < pool->nbp_colours_nr);
+	C2_PRE(colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
 
 	if (pool->nbp_free <= 0)
 		return NULL;
-	if (colour != ~0 && !tm_tlist_is_empty(&pool->nbp_colour[colour]))
+	if (colour != BUFFER_ANY_COLOUR &&
+	   !tm_tlist_is_empty(&pool->nbp_colour[colour]))
 		nb = tm_tlist_head(&pool->nbp_colour[colour]);
 	else
 		nb = pool_tlist_head(&pool->nbp_lru);
@@ -215,17 +209,16 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 			    struct c2_net_buffer *buf, uint32_t colour)
 {
-	C2_PRE(pool != NULL);
 	C2_PRE(buf != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
-	C2_PRE(colour == ~0 || colour < pool->nbp_colours_nr);
+	C2_PRE(colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
 	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);
 	C2_PRE(pool->nbp_ndom == buf->nb_dom);
 
 	C2_ASSERT(buf->nb_magic == C2_NET_BUFFER_LINK_MAGIC);
 	C2_ASSERT(!pool_tlink_is_in(buf));
-	if (colour != ~0) {
+	if (colour != BUFFER_ANY_COLOUR) {
 		C2_ASSERT(!tm_tlink_is_in(buf));
 		tm_tlist_add(&pool->nbp_colour[colour], buf);
 	}
@@ -236,7 +229,7 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 }
 
-bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
+static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 {
 	int		      rc;
 	struct c2_net_buffer *nb;
@@ -256,14 +249,13 @@ bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	pool_tlink_init(nb);
 	tm_tlink_init(nb);
 
-	c2_net_buffer_pool_put(pool, nb, ~0);
+	c2_net_buffer_pool_put(pool, nb, BUFFER_ANY_COLOUR);
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return true;
 clean:
-	if (rc != 0 && nb != NULL) {
-		c2_bufvec_free(&nb->nb_buffer);
-		c2_free(nb);
-	}
+	C2_ASSERT(rc != 0);
+	c2_bufvec_free(&nb->nb_buffer);
+	c2_free(nb);
 	return false;
 }
 
@@ -271,7 +263,6 @@ bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool)
 {
 	struct c2_net_buffer *nb;
 
-	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 
 	if (pool->nbp_free <= pool->nbp_threshold)

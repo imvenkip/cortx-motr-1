@@ -33,7 +33,7 @@
 	  Users request a buffer from the pool and after its usage is over
 	  gives back to the pool.
 
-	  It provides suppport for a pool of network buffers involving no higher
+	  It provides support for a pool of network buffers involving no higher
 	  level interfaces than the network module itself.
 	  It is associated with a single network domain.
 	  Non-blocking interfaces are available to get and put network buffers.
@@ -74,7 +74,7 @@
 	struct c2_net_xprt *xprt;
 	...
 	bp.nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10);
+	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10, ...);
 	...
     @endcode
 
@@ -94,7 +94,8 @@
     @endcode
 
     - To get a buffer from the pool:
-	For any colour buffer variable colour should be ~0.
+	To use any colour for the buffer variable colour should be
+	BUFFER_ANY_COLOUR.
     @code
 	c2_net_buffer_pool_lock(&bp);
 	nb = c2_net_buffer_pool_get(&bp, colour);
@@ -106,7 +107,8 @@
     @endcode
 
    - To put back the buffer in the pool:
-	For any colour buffer variable colour should be ~0.
+	To use any colour for the buffer variable colour should be
+	BUFFER_ANY_COLOUR.
     @code
 	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_put(&bp, nb, colour);
@@ -129,6 +131,9 @@
    @{
   */
 
+enum {
+	BUFFER_ANY_COLOUR = ~0
+}
 struct c2_net_buffer_pool;
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
@@ -151,7 +156,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
    @param colours   Number of colours in the pool.
    @param seg_size  Size of each segment in a buffer.
    @param shift	    Alignment needed for network buffers.
-   @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom) &&
+   @pre seg_nr   <= c2_net_domain_get_max_buffer_segments(ndom) &&
 	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
    @post c2_net_buffer_pool_invariant(pool)
  */
@@ -162,7 +167,7 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 
 /**
    It adds the buf_nr buffers in the buffer pool.
-   Suppose to add 10 items to the pool, c2_net_buffer_pool_provison(pool, 10)
+   Suppose to add 10 items to the pool, c2_net_buffer_pool_provision(pool, 10)
    can be used.
    @pre c2_net_buffer_pool_is_locked(pool)
    @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
@@ -192,7 +197,7 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
    list is not empty then the buffer is taken from the head of this list.
    Otherwise the buffer is taken from the head of the per buffer pool list.
    @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == ~0 || colour < pool->nbp_colours_nr
+   @pre colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
  */
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
@@ -203,7 +208,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
    If the colour is specfied then the buffer is put at the head of corresponding
    coloured list and also put at the tail of the global list.
    @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == ~0 || colour < pool->nbp_colours_nr
+   @pre colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
    @pre pool->nbp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
         !(buf->nb_flags & C2_NET_BUF_QUEUED)
