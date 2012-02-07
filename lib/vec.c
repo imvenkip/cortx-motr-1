@@ -106,9 +106,9 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 
 
 static int c2__bufvec_alloc(struct c2_bufvec *bufvec,
-		    	    uint32_t          num_segs,
-		    	    c2_bcount_t       seg_size,
-		    unsigned	      shift)
+	                    uint32_t          num_segs,
+	                    c2_bcount_t       seg_size,
+	                    unsigned	      shift)
 {
 	uint32_t i;
 
@@ -139,17 +139,17 @@ fail:
 }
 
 int c2_bufvec_alloc(struct c2_bufvec *bufvec,
-		    uint32_t          num_segs,
-		    c2_bcount_t       seg_size)
+	            uint32_t          num_segs,
+	            c2_bcount_t       seg_size)
 {
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, 0);
 }
 C2_EXPORTED(c2_bufvec_alloc);
 
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
-			    uint32_t          num_segs,
-			    c2_bcount_t       seg_size,
-			    unsigned	      shift)
+		            uint32_t          num_segs,
+		            c2_bcount_t       seg_size,
+		            unsigned	      shift)
 {
 	/* Currently in kernel mode only c2_alloc is available. */
 	#ifdef __KERNEL__
