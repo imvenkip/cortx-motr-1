@@ -1115,7 +1115,7 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	nlx_kcore_umd_init(lctm, lcbuf, lcbuf->cb_max_operations,
 			   lcbuf->cb_min_receive_size, LNET_MD_OP_PUT, &umd);
 	lcbuf->cb_match_bits =
-		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
+		nlx_core_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
 	rc = NLX_kcore_LNetMDAttach(lctm, lcbuf, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
@@ -1140,7 +1140,7 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
 	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
 	lcbuf->cb_match_bits =
-		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
+		nlx_core_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = NLX_kcore_LNetPut(lctm, lcbuf, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
@@ -1357,7 +1357,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 
 	tms_tlink_init(kctm);
 	kctm->ktm_ctm = lctm;
-	kctm->ktm_mb_counter = 1;
+	lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 	spin_lock_init(&kctm->ktm_bevq_lock);
 	c2_semaphore_init(&kctm->ktm_sem, 0);
 	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &kctm->ktm_eqh);

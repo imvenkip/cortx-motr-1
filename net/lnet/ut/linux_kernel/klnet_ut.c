@@ -266,8 +266,8 @@ static void ktest_enc_dec(void)
 	   Check that match bit decode reverses encode.
 	*/
 #define TEST_MATCH_BIT_ENCODE(_t, _c)					\
-	nlx_kcore_match_bits_decode(nlx_kcore_match_bits_encode((_t),(_c)), \
-				    &tmid, &counter);			\
+	nlx_core_match_bits_decode(nlx_core_match_bits_encode((_t),(_c)), \
+				   &tmid, &counter);			\
 	C2_UT_ASSERT(tmid == (_t));					\
 	C2_UT_ASSERT(counter == (_c))
 
@@ -283,6 +283,7 @@ static void ktest_enc_dec(void)
 	*/
 	C2_SET0(&lctm);
 	lctm.ctm_magic = C2_NET_LNET_CORE_TM_MAGIC; /* fake */
+	lctm.ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 	C2_UT_ASSERT(nlx_core_tm_invariant(&lctm)); /* to make this pass */
 
 #define TEST_HDR_DATA_ENCODE(_p, _t)					\
@@ -333,7 +334,7 @@ static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT(umd->user_ptr == lcbuf);
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
 
-	nlx_kcore_match_bits_decode(lcbuf->cb_match_bits, &portal, &counter);
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &portal, &counter);
 	C2_UT_ASSERT(portal == lctm->ctm_addr.cepa_tmid);
 	C2_UT_ASSERT(counter == 0);
 
