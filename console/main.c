@@ -127,13 +127,13 @@ static int fop_send_and_print(struct c2_console *cons, uint32_t opcode)
 	return 0;
 }
 
-const char *usage_msg =	"c2console :"
+const char *usage_msg =	"Usage: c2console "
 			" { -l FOP list | -f FOP opcode }"
 			" [-s server (e.g. 127.0.0.1:1024:1) ]"
 			" [-c client (e.g. 127.0.0.1:1025:1) ]"
 			" [-t timeout]"
 			" [[-i] [-y yaml file path]]"
-			" [-v]";
+			" [-h] [-v]";
 
 static void usage(void)
 {
@@ -184,7 +184,8 @@ int main(int argc, char **argv)
 	/*
 	 * Gets the info to connect to the service and type of fop to be send.
 	 */
-	result = C2_GETOPTS("console", argc, argv,
+	result = C2_GETOPTS("c2console", argc, argv,
+			    C2_HELPARG('h'),
 			    C2_FLAGARG('l', "show list of fops", &show),
 			    C2_FORMATARG('f', "fop type", "%u", &opcode),
 			    C2_STRINGARG('s', "server",
@@ -197,9 +198,15 @@ int main(int argc, char **argv)
 			    C2_STRINGARG('y', "yaml file path",
 			    LAMBDA(void, (const char *name){ yaml_path = name; })),
 			    C2_FLAGARG('v', "verbose", &verbose));
+	if (result != 0)
+		/*
+		 * No need to print "usage" here, C2_GETOPTS will automatically
+		 * do it for us
+		 */
+		return EX_USAGE;
 
 	/* If no argument provided */
-	if (result != 0 || argc == 1) {
+	if (argc == 1) {
 		usage();
 		return EX_USAGE;
 	}
