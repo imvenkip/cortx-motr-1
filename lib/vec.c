@@ -123,12 +123,12 @@ static int c2__bufvec_alloc(struct c2_bufvec *bufvec,
 		goto fail;
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
-		if (shift != 0)
-	/* Currently in kernel mode c2_alloc_aligned  is not available. */
-	#ifdef __KERNEL__
+		if (shift != 0) {
+		/* Currently in kernel mode c2_alloc_aligned  is not available. */
+#ifndef __KERNEL__
 			bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
-	#endif
-		else	bufvec->ov_buf[i] = c2_alloc(seg_size);
+#endif
+		} else	bufvec->ov_buf[i] = c2_alloc(seg_size);
 		if (bufvec->ov_buf[i] == NULL)
 			goto fail;
 		bufvec->ov_vec.v_count[i] = seg_size;
