@@ -791,7 +791,6 @@
 /*
   To reduce global symbols, yet make the code readable, we
   include other .c files with static symbols into this file.
-  Dependency information must be captured in Makefile.am.
 
   Static functions should be declared in the private header file
   so that the order of their definition does not matter.
