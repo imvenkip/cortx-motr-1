@@ -128,7 +128,8 @@
      - nlx_core_buf_msg_send()
      - nlx_core_buf_passive_recv()
      - nlx_core_buf_passive_send()
-     - nlx_core_buf_match_bits_set()
+     - nlx_core_buf_desc_encode()
+     - nlx_core_buf_desc_decode()
      .
      The buffer operation initiation calls are all invoked in the context of
      the c2_net_buffer_add() subroutine.  All operations are immediately
@@ -403,7 +404,7 @@ struct nlx_core_buffer {
 
 	/**
 	   The match bits for a passive bulk buffer, including the TMID field.
-	   They should be set using the nlx_core_buf_match_bits_set()
+	   They should be set using the nlx_core_buf_desc_encode()
 	   subroutine.
 
 	   The field is also used in an active buffer to describe the match
@@ -607,16 +608,46 @@ static int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
    @param lctm  Transfer machine private data.
    @param lcbuf The buffer private data.
    @param cbd Descriptor structure to be filled in.
-   @pre The buffer is queued on the specified transfer machine.
+   @pre The buffer is queued on the specified transfer machine on one of the
+   passive bulk queues.
+   @see nlx_core_buf_desc_decode()
  */
-static void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
-					struct nlx_core_buffer *lcbuf,
-					struct nlx_core_buf_desc *cbd);
+static void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
+				     struct nlx_core_buffer *lcbuf,
+				     struct nlx_core_buf_desc *cbd);
+
+/**
+   This subroutine decodes the buffer descriptor and copies the values into the
+   given core buffer private data.  It is the inverse operation of the
+   nlx_core_buf_desc_encode().
+
+   It does the following:
+   - The descriptor is validated.
+   - The cb_addr field and cb_match_bits fields are set from the descriptor,
+     providing the address of the passive buffer.
+   - The operation being performed (SEND or RECV) is validated against the
+     descriptor.
+   - The active buffer length is validated against the passive buffer.
+   - The size of the active transfer is set in the cb_length field.
+
+   @param lctm  Transfer machine private data.
+   @param lcbuf The buffer private data with cb_length set to the buffer size.
+   @param cbd Descriptor structure to be filled in.
+   @retval -EINVAL Invalid descriptor
+   @retval -EPERM  Invalid operation
+   @retval -EFBIG  Buffer too small
+   @pre The buffer is queued on the specified transfer machine on one of the
+   active bulk queues.
+   @see nlx_core_buf_desc_encode()
+ */
+static int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
+				    struct nlx_core_buffer *lcbuf,
+				    struct nlx_core_buf_desc *cbd);
 
 /**
    Enqueues a buffer for passive bulk receive.
    The match bits for the passive buffer should be set in the buffer with the
-   nlx_core_buf_match_bits_set() subroutine before this call.
+   nlx_core_buf_desc_encode() subroutine before this call.
    It is guaranteed that the buffer can be remotely accessed when the
    subroutine returns.
 

@@ -793,12 +793,16 @@ struct nlx_kcore_interceptable_subs {
 	int (*_nlx_kcore_LNetPut)(struct nlx_core_transfer_mc *lctm,
 				  struct nlx_core_buffer *lcbuf,
 				  lnet_md_t *umd);
+	int (*_nlx_kcore_LNetGet)(struct nlx_core_transfer_mc *lctm,
+				  struct nlx_core_buffer *lcbuf,
+				  lnet_md_t *umd);
 };
 static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 #define _NLXIS(s) ._##s = s
 
 	_NLXIS(nlx_kcore_LNetMDAttach),
 	_NLXIS(nlx_kcore_LNetPut),
+	_NLXIS(nlx_kcore_LNetGet),
 
 #undef _NLXI
 };
@@ -807,6 +811,8 @@ static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 	(*nlx_kcore_iv._nlx_kcore_LNetMDAttach)(lctm, lcbuf, umd)
 #define NLX_kcore_LNetPut(lctm, lcbuf, umd)		\
 	(*nlx_kcore_iv._nlx_kcore_LNetPut)(lctm, lcbuf, umd)
+#define NLX_kcore_LNetGet(lctm, lcbuf, umd)			\
+	(*nlx_kcore_iv._nlx_kcore_LNetGet)(lctm, lcbuf, umd)
 
 /**
    KCore domain invariant.
@@ -1151,15 +1157,65 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	C2_PRE(lcbuf->cb_match_bits > 0);
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lcbuf->cb_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
+	rc = NLX_kcore_LNetGet(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
+	return rc;
 }
 
 int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	C2_PRE(lcbuf->cb_match_bits > 0);
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lcbuf->cb_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
+	rc = NLX_kcore_LNetPut(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
+	return rc;
 }
 
 int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,

@@ -198,62 +198,98 @@ static inline void nlx_core_match_bits_decode(uint64_t mb,
 	return;
 }
 
-/**
-   Helper subroutine to encode the internal form of a network buffer
-   descriptor.
-   @param lctm Pointer to the TM core private data.
-   @param lcbuf Pointer to the buffer core private data with the cb_match_bits,
-   cb_qtype and cb_length fields set.
-   @param cbd Pointer to the descriptor structure to set up. The values are
-   all little-endian.
- */
-static void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
-				     struct nlx_core_buffer *lcbuf,
-				     struct nlx_core_buf_desc *cbd)
-{
-	C2_PRE(nlx_core_tm_invariant(lctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-
-	cbd->cbd_match_bits = __cpu_to_le64(lcbuf->cb_match_bits);
-
 #define CBD_EP(f) cbd->cbd_passive_ep.cepa_ ## f
 #define TM_EP(f) lctm->ctm_addr.cepa_ ## f
+#define B_EP(f) lcbuf->cb_addr.cepa_ ## f
 
-	CBD_EP(nid)         = __cpu_to_le64(TM_EP(nid));
-	CBD_EP(pid)         = __cpu_to_le32(TM_EP(pid));
-	CBD_EP(portal)      = __cpu_to_le32(TM_EP(portal));
-	CBD_EP(tmid)        = __cpu_to_le32(TM_EP(tmid));
-
-#undef TM_EP
-#undef CBD_EP
-
-	cbd->cbd_qtype      = __cpu_to_le32(lcbuf->cb_qtype);
-	cbd->cbd_size       = __cpu_to_le64(lcbuf->cb_length);
-	cbd->cbd_magic      = __cpu_to_le64(C2_NET_LNET_CORE_NBD_MAGIC);
-
-	return;
-}
-
-void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
-				 struct nlx_core_buffer *lcbuf,
-				 struct nlx_core_buf_desc *cbd)
+void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
+			      struct nlx_core_buffer *lcbuf,
+			      struct nlx_core_buf_desc *cbd)
 {
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 
+	/* generate match bits */
 	lcbuf->cb_match_bits =
 		nlx_core_match_bits_encode(lcbuf->cb_addr.cepa_tmid,
 					   lctm->ctm_mb_counter);
 	if (++lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
 		lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 
-	nlx_core_buf_desc_encode(lctm, lcbuf, cbd);
+	/* create the descriptor */
+	cbd->cbd_match_bits = __cpu_to_le64(lcbuf->cb_match_bits);
+
+	CBD_EP(nid)         = __cpu_to_le64(TM_EP(nid));
+	CBD_EP(pid)         = __cpu_to_le32(TM_EP(pid));
+	CBD_EP(portal)      = __cpu_to_le32(TM_EP(portal));
+	CBD_EP(tmid)        = __cpu_to_le32(TM_EP(tmid));
+
+	cbd->cbd_qtype      = __cpu_to_le32(lcbuf->cb_qtype);
+	cbd->cbd_size       = __cpu_to_le64(lcbuf->cb_length);
+	cbd->cbd_magic      = __cpu_to_le64(C2_NET_LNET_CORE_NBD_MAGIC);
 
 	C2_POST(nlx_core_tm_invariant(lctm));
 	C2_POST(nlx_core_buffer_invariant(lcbuf));
 	return;
 }
+
+int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
+			     struct nlx_core_buffer *lcbuf,
+			     struct nlx_core_buf_desc *cbd)
+{
+	uint64_t i64;
+	uint32_t i32;
+
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+
+	i64 = __le64_to_cpu(cbd->cbd_magic);
+	if (i64 != C2_NET_LNET_CORE_NBD_MAGIC)
+		return -EINVAL;
+
+	i64 = __le64_to_cpu(cbd->cbd_size);
+
+	i32 = __le32_to_cpu(cbd->cbd_qtype);
+	if (i32 == C2_NET_QT_PASSIVE_BULK_SEND) {
+		if (lcbuf->cb_qtype != C2_NET_QT_ACTIVE_BULK_RECV)
+			return -EPERM;
+		if (i64 > lcbuf->cb_length)
+			return -EFBIG;
+	} else if (i32 == C2_NET_QT_PASSIVE_BULK_RECV) {
+		if (lcbuf->cb_qtype != C2_NET_QT_ACTIVE_BULK_SEND)
+			return -EPERM;
+		if (lcbuf->cb_length > i64)
+			return -EFBIG;
+	} else
+		return -EINVAL;
+	lcbuf->cb_length = i64; /* actual transfer size */
+
+	B_EP(nid)    = __le64_to_cpu(CBD_EP(nid));
+	B_EP(pid)    = __le32_to_cpu(CBD_EP(pid));
+	B_EP(portal) = __le32_to_cpu(CBD_EP(portal));
+	B_EP(tmid)   = __le32_to_cpu(CBD_EP(tmid));
+
+	lcbuf->cb_match_bits = __le64_to_cpu(cbd->cbd_match_bits);
+
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &i32, &i64);
+	if (i32 != lcbuf->cb_addr.cepa_tmid)
+		return -EINVAL;
+	if (i64 < C2_NET_LNET_BUFFER_ID_MIN ||
+	    i64 > C2_NET_LNET_BUFFER_ID_MAX)
+		return -EINVAL;
+
+	return 0;
+}
+
+#undef B_EP
+#undef TM_EP
+#undef CBD_EP
 
 void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
 {
