@@ -32,6 +32,7 @@
 #include "layout/pdclust.h"
 #include "layout/layout_db.h"
 #include "layout/list_enum.h"
+#include "layout/list_enum.c"
 #include "layout/linear_enum.h"
 
 static const char            db_name[] = "ut-layout";
@@ -284,7 +285,6 @@ static int layout_buf_pdclust_list_build(struct c2_bufvec_cursor *dcur,
 					 uint32_t N, uint32_t K, uint32_t nr)
 
 {
-/*
 	struct ldb_inline_cob_entries  list_rec;
 	struct ldb_list_cob_entry      cob_list[nr];
 	int                            i;
@@ -302,15 +302,15 @@ static int layout_buf_pdclust_list_build(struct c2_bufvec_cursor *dcur,
 
 	c2_bufvec_cursor_copyto(dcur, &list_rec, sizeof list_rec);
 	c2_bufvec_cursor_copyto(dcur, cob_list, ARRAY_SIZE(cob_list));
-*/
+
 	return 0;
 }
 
 static int layout_buf_pdclust_lin_build(struct c2_bufvec_cursor *dcur,
 					uint64_t lid,
 					uint32_t N, uint32_t K,
-					uint64_t A, uint64_t B,
-					uint64_t nr)
+					uint32_t A, uint32_t B,
+					uint32_t nr)
 
 {
 	struct c2_layout_linear_attr   lin_rec;
@@ -376,31 +376,31 @@ static int layout_buf_pdclust_lin_verify(struct c2_bufvec_cursor *cur,
 					  uint32_t nr,
 					  struct c2_layout *l)
 {
-	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
+	struct c2_layout_linear_enum *lin_enum;
 
 	layout_buf_pdclust_verify(cur, lid, N, K, l);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
-	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
-	/* @todo Verify the A, B, and nr */
+	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
+				lle_base);
+
+	C2_UT_ASSERT(lin_enum->lle_attr.lla_nr == nr);
+	C2_UT_ASSERT(lin_enum->lle_attr.lla_A == A);
+	C2_UT_ASSERT(lin_enum->lle_attr.lla_B == B);
 
 	return 0;
 }
 
-static void test_decode(void)
+static int decode_pdclust_list(uint64_t lid)
 {
 	void                      *area;
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
 	c2_bcount_t                num_bytes;
-	uint64_t                   lid;
 	struct c2_layout           *l;
 	struct c2_db_tx            *tx = NULL;
-
-	rc = internal_init();
-	C2_UT_ASSERT(rc == 0);
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -408,12 +408,6 @@ static void test_decode(void)
 
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
-
-	/*
-	 * Decode a layout with PDCLUST layout type and LIST enumeration
-	 * type.
-	 */
-	lid = 0x50444C4953543031; /*PDLIST01 */
 
 	rc = layout_buf_pdclust_list_build(&cur, lid, 4, 2, 5);
 	C2_UT_ASSERT(rc == 0);
@@ -424,11 +418,24 @@ static void test_decode(void)
 	rc = layout_buf_pdclust_list_verify(&cur, lid, 4, 2, 5, l);
 	C2_UT_ASSERT(rc == 0);
 
-	/*
-	 * Decode a layout with PDCLUST layout type and LINEAR enumeration
-	 * type.
-	 */
-	lid = 0x50444C4953543032; /*PDLIST02 */
+	return rc;
+}
+
+static int decode_pdclust_linear(uint64_t lid)
+{
+	void                      *area;
+	struct c2_bufvec           bv;
+	struct c2_bufvec_cursor    cur;
+	c2_bcount_t                num_bytes;
+	struct c2_layout           *l;
+	struct c2_db_tx            *tx = NULL;
+
+	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
+	area = c2_alloc(num_bytes);
+	C2_UT_ASSERT(area != NULL);
+
+	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
+	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = layout_buf_pdclust_lin_build(&cur, lid, 4, 2, 10, 20, 5);
 	C2_UT_ASSERT(rc == 0);
@@ -438,6 +445,25 @@ static void test_decode(void)
 
 	rc = layout_buf_pdclust_lin_verify(&cur, lid, 4, 2, 10, 20, 5, l);
 	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+
+static void test_decode(void)
+{
+	uint64_t                   lid;
+
+	rc = internal_init();
+	C2_UT_ASSERT(rc == 0);
+
+	/* Decode a layout with PDCLUST layout type and LIST enum type. */
+	lid = 0x50444C4953543031; /*PDLIST01 */
+	rc = decode_pdclust_list(lid);
+
+	/* Decode a layout with PDCLUST layout type and LINEAR enum type. */
+	lid = 0x50444C4953543032; /*PDLIST02 */
+
+	rc = decode_pdclust_linear(lid);
 
 	internal_fini();
 }
@@ -457,7 +483,7 @@ static int layout_pdclust_build(struct c2_pdclust_layout **pl, uint64_t lid,
 
 static int layout_pdclust_linear_build(struct c2_pdclust_layout **pl, uint64_t lid,
 				uint32_t N, uint32_t K,
-				uint64_t A, uint64_t B)
+				uint32_t A, uint32_t B)
 {
 
 	struct c2_layout_linear_enum *le;

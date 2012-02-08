@@ -43,13 +43,13 @@ struct c2_layout_linear_enum;
  */
 struct c2_layout_linear_attr {
 	/** Number of elements present in the enumeration */
-	uint64_t                     lla_nr;
+	uint32_t                     lla_nr;
 
 	/** Constant A used in the linear equation A + idx * B */
-	uint64_t                     lla_A;
+	uint32_t                     lla_A;
 
 	/** Constant B used in the linear equation A + idx * B */
-	uint64_t                     lla_B;
+	uint32_t                     lla_B;
 };
 
 /**

@@ -46,7 +46,7 @@ struct c2_layout_list_enum {
 	struct c2_layout_enum     lle_base;
 
 	/** Number of elements present in the enumeration */
-	uint64_t                  lle_nr;
+	uint32_t                  lle_nr;
 
 	/**
 	 * List of COB identifiers which are part of the layout this enum
