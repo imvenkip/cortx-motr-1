@@ -524,7 +524,7 @@ static int layout_pdclust_list_build(struct c2_pdclust_layout **pl, uint64_t lid
 		rc = c2_list_enum_add(le, lid, i, &cob_fid);
 		C2_UT_ASSERT(rc == 0);
 	}
-	
+
 	rc = layout_pdclust_build(pl, lid, N, K, &le->lle_base);
 	C2_UT_ASSERT(rc == 0);
 
