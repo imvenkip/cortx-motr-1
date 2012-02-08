@@ -183,8 +183,8 @@ all:
 # process, and removes the directory during clean. The list of such directories
 # can be maintained in variable $(createdirs).
 
-	$(foreach d, $(createdirs), $(shell  [ -d $(d) ] || mkdir -p 	  \
-		$(CORE_SRCDIR)/$(d)))
+	$(foreach d, $(createdirs), $(shell  [ -d $(CORE_SRCDIR)/$(d) ] || \
+		mkdir -p $(CORE_SRCDIR)/$(d)))
 	$(foreach d, $(dirs), $(shell  [ -d $(d) ] || mkdir -p $(d)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),  \
 		$(create_links)))
