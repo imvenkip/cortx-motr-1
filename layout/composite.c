@@ -24,7 +24,6 @@
  */
 
 #include "lib/memory.h"
-#include "lib/assert.h"
 #include "lib/vec.h"
 
 #include "layout/layout_internal.h"

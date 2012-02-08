@@ -61,7 +61,7 @@ int c2_linear_enum_build(uint64_t nr, uint64_t A, uint64_t B,
 	return 0;
 }
 
-void c2_layout_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
+void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
 {
 	c2_layout_enum_fini(&lin_enum->lle_base);
 }

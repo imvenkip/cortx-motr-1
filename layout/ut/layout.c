@@ -441,29 +441,70 @@ static void test_decode(void)
 
 	internal_fini();
 }
+static int layout_pdclust_build(struct c2_pdclust_layout **pl, uint64_t lid,
+			 uint32_t N, uint32_t K,
+			 struct c2_layout_enum *le)
+{
+	struct c2_uint128             seed;
 
-static int pdclust_linear_build(struct c2_pdclust_layout **pl, uint64_t lid,
+	c2_uint128_init(&seed, "updownupdownupdo");
+
+	rc = c2_pdclust_build(&pool, &lid, N, K, &seed, le, pl);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+
+static int layout_pdclust_linear_build(struct c2_pdclust_layout **pl, uint64_t lid,
 				uint32_t N, uint32_t K,
 				uint64_t A, uint64_t B)
 {
 
 	struct c2_layout_linear_enum *le;
-	struct c2_uint128             seed;
 
 	rc = c2_linear_enum_build(pool.po_width, A, B, &le);
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(le != NULL);
 	C2_UT_ASSERT(le->lle_base.le_type == &c2_linear_enum_type);
-	C2_UT_ASSERT(le->lle_base.le_type->let_id == c2_linear_enum_type.let_id);
+	C2_UT_ASSERT(le->lle_base.le_type->let_id
+		      == c2_linear_enum_type.let_id);
 
-	c2_uint128_init(&seed, "updownupdownupdo");
-
-	rc = c2_pdclust_build(&pool, &lid, N, K, &seed, &le->lle_base, pl);
+	rc = layout_pdclust_build(pl, lid, N, K, &le->lle_base);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
 }
+
+static int layout_pdclust_list_build(struct c2_pdclust_layout **pl, uint64_t lid,
+			      uint32_t N, uint32_t K,
+			      uint32_t nr)
+{
+
+	struct c2_layout_list_enum *le;
+	struct c2_fid               cob_fid;
+	int                         i;
+
+	rc = c2_list_enum_build(&le);
+	C2_UT_ASSERT(rc == 0);
+
+	C2_UT_ASSERT(le != NULL);
+	C2_UT_ASSERT(le->lle_base.le_type == &c2_list_enum_type);
+	C2_UT_ASSERT(le->lle_base.le_type->let_id == c2_list_enum_type.let_id);
+
+	for (i = 0; i < nr; ++i) {
+		cob_fid.f_container = i * 100 + 1;
+		cob_fid.f_key = i + 1;
+		rc = c2_list_enum_add(le, lid, i, &cob_fid);
+		C2_UT_ASSERT(rc == 0);
+	}
+	
+	rc = layout_pdclust_build(pl, lid, N, K, &le->lle_base);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+
 
 static int pdclust_verify(struct c2_pdclust_layout *pl,
 			  struct c2_layout *l)
@@ -475,11 +516,6 @@ static int pdclust_verify(struct c2_pdclust_layout *pl,
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_ops == l->l_ops);
 
 	/* @todo And further verification. */
-	return 0;
-}
-
-static int encode_pdclust_list(uint64_t lid)
-{
 	return 0;
 }
 
@@ -503,7 +539,7 @@ static int encode_pdclust_linear(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = pdclust_linear_build(&pl, lid, 4, 1, 10, 20);
+	rc = layout_pdclust_linear_build(&pl, lid, 4, 1, 10, 20);
 	C2_UT_ASSERT(rc == 0);
 
 	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
@@ -522,6 +558,48 @@ static int encode_pdclust_linear(uint64_t lid)
 
 	return rc;
 }
+
+static int encode_pdclust_list(uint64_t lid)
+{
+	struct c2_pdclust_layout  *pl;
+	size_t                     num_bytes;
+	void                      *area;
+	struct c2_bufvec           bv;
+	struct c2_bufvec_cursor    cur;
+	struct c2_layout          *l;
+	struct c2_db_tx           *tx = NULL;
+
+	rc = internal_init();
+	C2_UT_ASSERT(rc == 0);
+
+	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
+	area = c2_alloc(num_bytes);
+	C2_UT_ASSERT(area != NULL);
+
+	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	rc = layout_pdclust_list_build(&pl, lid, 4, 1, 5);
+	C2_UT_ASSERT(rc == 0);
+
+	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
+			C2_LXO_DB_NONE, NULL, &cur);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Now verify .... */
+	/* @todo Should verify by reading it from the buffer. */
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = pdclust_verify(pl, l);
+	C2_UT_ASSERT(rc == 0);
+
+	internal_fini();
+
+	return rc;
+}
+
+
 
 static int encode_composite(uint64_t lid)
 {
@@ -577,7 +655,7 @@ static void test_add(void)
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
 	lid = 4444;
-	rc = pdclust_linear_build(&pl, lid, 4, 1, 100, 200);
+	rc = layout_pdclust_linear_build(&pl, lid, 4, 1, 100, 200);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);

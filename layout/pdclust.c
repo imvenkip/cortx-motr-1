@@ -86,7 +86,6 @@
  */
 
 #include "lib/errno.h"
-#include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/arith.h"        /* c2_rnd() */
 

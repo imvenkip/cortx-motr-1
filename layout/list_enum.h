@@ -48,13 +48,18 @@ struct c2_layout_list_enum {
 	/** Number of elements present in the enumeration */
 	uint64_t                  lle_nr;
 
-	/** List of COB identifiers which are part of this layout */
-	struct c2_tl             *lle_list_of_cobs;
+	/**
+	 * List of COB identifiers which are part of the layout this enum
+	 * is assocaited with.
+	 */
+	struct c2_tl              lle_list_of_cobs;
 };
 
-int c2_list_enum_build(struct c2_tl *list_of_cobs,
-		       struct c2_layout_list_enum **out);
-void c2_layout_list_enum_fini(struct c2_layout_list_enum *list_enum);
+int c2_list_enum_build(struct c2_layout_list_enum **out);
+int c2_list_enum_add(struct c2_layout_list_enum *le, uint64_t lid,
+		     uint32_t idx, struct c2_fid *cob_id);
+
+void c2_list_enum_fini(struct c2_layout_list_enum *list_enum);
 
 extern const struct c2_layout_enum_type c2_list_enum_type;
 

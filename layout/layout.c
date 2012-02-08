@@ -131,6 +131,7 @@ void c2_layout_enum_init(struct c2_layout_enum *le,
 	C2_PRE(et != NULL);
 	C2_PRE(ops != NULL);
 
+	
 	le->le_type = et;
 	le->le_ops  = ops;
 }
