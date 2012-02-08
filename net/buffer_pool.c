@@ -125,7 +125,7 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 		buffers++;
 		C2_CNT_INC(pool->nbp_buf_nr);
 		if (!net_buffer_pool_grow(pool)) {
-			C2_CNT_DECC(pool->nbp_buf_nr);
+			C2_CNT_DEC(pool->nbp_buf_nr);
 			return --buffers;
 		}
 	}
