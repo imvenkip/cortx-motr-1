@@ -18,7 +18,10 @@
  * Original creation date: 08/12/2010
  */
 
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+#  include <linux/slab.h>
+#  include <linux/sched.h>
+#else
 #  include <string.h>   /* memset */
 #  include <stdio.h>
 #  include <unistd.h>   /* getpagesize */
@@ -26,9 +29,6 @@
 #  include <sys/mman.h> /* mmap */
 #  include <sys/syscall.h>
 #  include <linux/sysctl.h>
-#else
-#  include <linux/slab.h>
-#  include <linux/sched.h>
 #endif
 
 #include "lib/errno.h"
@@ -37,22 +37,22 @@
 #include "lib/trace.h"
 
 /**
-   @addtogroup trace
-
-   <b>Tracing facilities implementation.</b>
-
-   Trace entries are placed in a largish buffer backed up by a memory mapped
-   file. Buffer space allocation is controlled by a single atomic variable
-   (cur).
-
-   Trace entries contain pointers from the process address space. To interpret
-   them, c2_trace_parse() must be called in the same binary. See utils/ut_main.c
-   for example.
-
-   @note things like address space layout randomization might break this
-   implementation.
-
-   @{
+ * @addtogroup trace
+ *
+ * <b>Tracing facilities implementation.</b>
+ *
+ * Trace entries are placed in a largish buffer backed up by a memory mapped
+ * file. Buffer space allocation is controlled by a single atomic variable
+ * (cur).
+ *
+ * Trace entries contain pointers from the process address space. To interpret
+ * them, c2_trace_parse() must be called in the same binary. See utils/ut_main.c
+ * for example.
+ *
+ * @note things like address space layout randomization might break this
+ * implementation.
+ *
+ * @{
  */
 
 /* single buffer for now */
@@ -128,8 +128,12 @@ int c2_trace_init(void)
 	return -errno;
 #else
 	logbuf = kzalloc(BUFSIZE, GFP_KERNEL);
+	if (logbuf == NULL)
+		return -ENOMEM;
 
-	return logbuf ? 0 : -ENOMEM;
+	printk("trace buffer address: 0x%p\n", logbuf);
+
+	return 0;
 #endif
 }
 
