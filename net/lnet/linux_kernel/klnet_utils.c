@@ -430,6 +430,70 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 	return rc;
 }
 
+/**
+   Helper subroutine to fetch a buffer from a remote destination using
+   @c LNetGet().
+   - The MD is set up to automatically unlink.
+   - The MD handle is set in the struct nlx_kcore_buffer::kb_mdh field.
+   - The TM's portal and TMID are encoded in the header data.
+   - Sets the kb_ktm field in the KCore buffer private data.
+   @param lctm Pointer to kcore TM private data.
+   @param lcbuf Pointer to kcore buffer private data with match bits set, and
+   the address of the remote destination in struct nlx_core_buffer::cb_addr.
+   @param umd Pointer to lnet_md_t structure for the buffer, with appropriate
+   values set for the desired operation.
+   @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
+   @post ergo(rc == 0, kcb->kb_ktm == kctm)
+   @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
+   @note LNet event could potentially be delivered before this sub returns.
+ */
+static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
+			     struct nlx_core_buffer *lcbuf,
+			     lnet_md_t *umd)
+{
+	struct nlx_kcore_transfer_mc *kctm;
+	struct nlx_kcore_buffer *kcb;
+	lnet_process_id_t target;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	kcb = lcbuf->cb_kpvt;
+	C2_PRE(nlx_kcore_buffer_invariant(kcb));
+	C2_PRE(lcbuf->cb_match_bits != 0);
+
+	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
+	if (rc != 0) {
+		NLXDBGP(lctm, 1,"LNetMDBind: %d\n", rc);
+		return rc;
+	}
+	NLXDBG(lctm, 1, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
+
+	target.nid = lcbuf->cb_addr.cepa_nid;
+	target.pid = lcbuf->cb_addr.cepa_pid;
+	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetGet call */
+	rc = LNetGet(LNET_NID_ANY, kcb->kb_mdh,
+		     target, lcbuf->cb_addr.cepa_portal,
+		     lcbuf->cb_match_bits, 0);
+	if (rc != 0) {
+		int trc = LNetMDUnlink(kcb->kb_mdh);
+		NLXDBGP(lctm, 1, "LNetGet: %d\n", rc);
+		NLXDBGP(lctm, 1, "LNetMDUnlink: %d\n", trc);
+		C2_ASSERT(trc == 0);
+		LNetInvalidateHandle(&kcb->kb_mdh);
+		kcb->kb_ktm = NULL;
+	}
+
+	/* Cannot make these assertions here, because loopback can deliver
+	   before we get here.  Leaving the assertions in the comment.
+	   C2_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   C2_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
+	*/
+	return rc;
+}
+
 
 /**
    @}

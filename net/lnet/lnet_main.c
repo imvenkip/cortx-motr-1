@@ -492,10 +492,15 @@
    };
    @endcode
 
-   All the fields are integer fields and the structure is of fixed length.  It
-   is encoded and decoded into its opaque over-the-wire struct c2_net_buf_desc
-   format with dedicated encoding routines.  It will not make use of either XDR
-   nor the Colibri Xcode modules.  The encoding will be little-endian optimized.
+   The nlx_core_buf_desc_encode() and nlx_core_buf_desc_decode() subroutines
+   are provided by the Core API to generate and process the descriptor.  All
+   the descriptor fields are integers, the structure is of fixed length and all
+   values are in little-endian format.  No use is made of either the standard
+   XDR or the Colibri Xcode modules.
+
+   The transport will handle the conversion of the descriptor into its opaque
+   over the wire format by simply copying the memory area, as the descriptor is
+   inherently portable.
 
 
    @subsection LNetDLD-lspec-buf-op Buffer operations
@@ -503,17 +508,18 @@
    operation which points to the nlx_xo_buf_add() subroutine. The subroutine
    will invoke the appropriate Core API buffer initiation operations.
 
-   In passive buffer operations, the transport must first obtain suitable match
-   bits for the buffer using the nlx_core_buf_match_bits_set() subroutine.  The
-   transport is responsible for ensuring that the assigned match bits are not
-   in use currently; however this step can be ignored with relative safety as
-   the match bit space is very large and the match bit counter will only wrap
-   around after a very long while.  These match bits should also be encoded in
-   the network buffer descriptor that the transport must return.
+   In passive bulk buffer operations, the transport must first obtain suitable
+   match bits for the buffer using the nlx_core_buf_desc_encode() subroutine.
+   The transport is responsible for ensuring that the assigned match bits are
+   not in use currently; however this step can be ignored with relative safety
+   as the match bit space is very large and the match bit counter will only
+   wrap around after a very long while.  These match bits should also be
+   encoded in the network buffer descriptor that the transport must return.
 
-   In active buffer operations, the size of the active buffer should be
+   In active bulk buffer operations, the size of the active buffer should be
    validated against the size of the passive buffer as given in its network
-   buffer descriptor.
+   buffer descriptor.  The nlx_core_buf_desc_decode() subroutine should be used
+   to decode the descriptor.
 
 
    @subsection LNetDLD-lspec-state State Specification
