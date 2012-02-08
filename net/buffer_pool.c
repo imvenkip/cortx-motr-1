@@ -122,12 +122,12 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 
 	while (buf_nr--) {
-		buffers++;
 		C2_CNT_INC(pool->nbp_buf_nr);
 		if (!net_buffer_pool_grow(pool)) {
 			C2_CNT_DEC(pool->nbp_buf_nr);
-			return --buffers;
+			return buffers;
 		}
+		buffers++;
 	}
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return buffers;
@@ -255,8 +255,8 @@ static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return true;
 clean:
-	C2_ASSERT(rc != 0);
-	c2_bufvec_free(&nb->nb_buffer);
+	if (&nb->nb_buffer != NULL)
+		c2_bufvec_free(&nb->nb_buffer);
 	c2_free(nb);
 	return false;
 }
