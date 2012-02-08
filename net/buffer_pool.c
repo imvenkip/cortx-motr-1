@@ -124,8 +124,10 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	while (buf_nr--) {
 		buffers++;
 		C2_CNT_INC(pool->nbp_buf_nr);
-		if (!net_buffer_pool_grow(pool))
+		if (!net_buffer_pool_grow(pool)) {
+			C2_CNT_DECC(pool->nbp_buf_nr);
 			return --buffers;
+		}
 	}
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return buffers;
