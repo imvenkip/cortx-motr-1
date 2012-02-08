@@ -993,7 +993,7 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 	struct nlx_kcore_domain *kd;
 
 	C2_PRE(dom != NULL && lcdom != NULL);
-	C2_ALLOC_PTR_ADDB(kd, &dom->nd_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_PTR_ADDB(kd, &dom->nd_addb, &nlx_addb_loc);
 	if (kd == NULL)
 		return -ENOMEM;
 	kd->kd_magic = C2_NET_LNET_KCORE_DOM_MAGIC;
@@ -1048,7 +1048,7 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	C2_PRE(lcdom != NULL);
 	kd = lcdom->cd_kpvt;
 	C2_PRE(nlx_kcore_domain_invariant(kd));
-	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
 	if (kb == NULL)
 		return -ENOMEM;
 	LNetInvalidateHandle(&kb->kb_mdh);
@@ -1323,7 +1323,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_PRE(cepa == &lctm->ctm_addr);
 	C2_PRE(epp != NULL);
 
-	C2_ALLOC_PTR_ADDB(kctm, &tm->ntm_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_PTR_ADDB(kctm, &tm->ntm_addb, &nlx_addb_loc);
 	if (kctm == NULL) {
 		rc = -ENOMEM;
 		goto fail_kctm;
@@ -1452,7 +1452,7 @@ int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm, /* not used */
 	struct nlx_core_buffer_event *bev;
 
 	/* cannot use lctm->ctm_kpvt->ktm_addb here, may not be set yet */
-	C2_ALLOC_PTR_ADDB(bev, &c2_net_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
@@ -1498,7 +1498,7 @@ static int nlx_core_init(void)
 	for (i = 0, rc = 0; rc != -ENOENT; ++i)
 		rc = LNetGetId(i, &id);
 	C2_ALLOC_ARR_ADDB(nlx_kcore_lni_nidstrs, i,
-			  &c2_net_addb, &c2_net_lnet_addb_loc);
+			  &c2_net_addb, &nlx_addb_loc);
 	if (nlx_kcore_lni_nidstrs == NULL) {
 		nlx_core_fini();
 		return -ENOMEM;
@@ -1511,8 +1511,7 @@ static int nlx_core_init(void)
 		C2_ASSERT(nidstr != NULL);
 		nlx_kcore_lni_nidstrs[i] = c2_alloc(strlen(nidstr) + 1);
 		if (nlx_kcore_lni_nidstrs[i] == NULL) {
-			C2_ADDB_ADD(&c2_net_addb, &c2_net_lnet_addb_loc,
-				    c2_addb_oom);
+			C2_ADDB_ADD(&c2_net_addb, &nlx_addb_loc, c2_addb_oom);
 			nlx_core_fini();
 			return -ENOMEM;
 		}

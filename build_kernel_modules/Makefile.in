@@ -25,15 +25,17 @@ EXTRA_CFLAGS 	= -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR)                  \
 
 #	The $(dirs) list is maintained alphabetically
 
-dirs  = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid \
-	fol fop galois ioservice layout lib lib/linux_kernel lib/ut net      \
-	net/bulk_emulation net/bulk_emulation/ut net/ksunrpc net/lnet/ut     \
-	net/ut pool rpc sm sns stob stob/ut xcode
+dirs  = addb addb/addbff addb/linux_kernel c2t1fs cob colibri db             \
+	db/linux_kernel dtm fid fol fop galois ioservice layout lib          \
+	lib/linux_kernel lib/ut net net/bulk_emulation net/bulk_emulation/ut \
+	net/ksunrpc net/lnet/ut net/ut pool rpc sm sns stob stob/ut xcode
 
 #	Source Listing
 
-addb_SOURCES 			:= addb.c addb_fop.c addb_k.c
-addb_HEADERS 			:= addb_k.h
+addb_SOURCES 			:= addb.c addb_fop.c
+
+addb_addbff_SOURCES		:= addb_k.c
+addb_addbff_HEADERS		:= addb_k.h
 
 addb_linux_kernel_SOURCES 	:= addb_console.c
 

@@ -797,6 +797,7 @@
   so that the order of their definition does not matter.
  */
 #include "net/lnet/bev_cqueue.c"
+#include "net/lnet/lnet_addb.c"
 #include "net/lnet/lnet_core.c"
 #ifdef __KERNEL__
 #include "net/lnet/linux_kernel/klnet_core.c"
@@ -811,10 +812,6 @@
    @addtogroup LNetDFS
    @{
  */
-
-const struct c2_addb_loc c2_net_lnet_addb_loc = {
-	.al_name = "net-lnet"
-};
 
 int c2_net_lnet_init(void)
 {

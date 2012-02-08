@@ -23,6 +23,8 @@
 #include "lib/arith.h" /* max64u */
 #include "lib/ut.h"
 
+#include "db/db.h" /* c2_dbenv, c2_table */
+
 static int ut_verbose = 0;
 
 static int ut_subs_saved;
@@ -150,6 +152,9 @@ enum {
 	STARTSTOP_DOM_NR = 3,
 	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
 	STARTSTOP_PORTAL = 30,
+	STARTSTOP_STAT_SECS = 5,
+	STARTSTOP_STAT_PER_PERIOD = 1,
+	STARTSTOP_STAT_BUF_NR = 4,
 };
 #ifdef __KERNEL__
 /* LUSTRE_SRV_LNET_PID macro is not available in user space */
@@ -524,10 +529,53 @@ static void test_tm_initfini(void)
 	c2_net_domain_fini(&dom1);
 }
 
+static struct c2_table mock_table;
+static struct c2_dbenv mock_dbenv;
+static int lnet_stat_ev_count;
+
+int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
+		struct c2_table *db)
+{
+	if (dp->ad_ev == &nlx_qstat) {
+		const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
+		struct nlx_qstat_body *body;
+		struct c2_addb_record rec;
+		struct nlx_addb_dp *ndp;
+
+		ndp = container_of(dp, struct nlx_addb_dp, ad_dp);
+		C2_UT_ASSERT(dp->ad_name != NULL);
+		C2_UT_ASSERT(strncmp(dp->ad_name, "nlx_tm_stats:", 13) == 0);
+		C2_UT_ASSERT(ndp->ad_qs != NULL);
+
+		/* test the pack and getsize ops */
+		C2_SET0(&rec);
+		C2_UT_ASSERT(ops == &nlx_addb_qstats);
+		rec.ar_data.cmb_count = ops->aeo_getsize(dp);
+		C2_UT_ASSERT(rec.ar_data.cmb_count != 0);
+		rec.ar_data.cmb_value = c2_alloc(rec.ar_data.cmb_count);
+		C2_ASSERT(rec.ar_data.cmb_value != NULL);
+		C2_UT_ASSERT(ops->aeo_pack(dp, &rec) == 0);
+		body = (struct nlx_qstat_body *)rec.ar_data.cmb_value;
+		C2_UT_ASSERT(body->sb_qid == dp->ad_rc);
+		C2_UT_ASSERT(body->sb_qstats.nqs_num_adds ==
+			     STARTSTOP_STAT_BUF_NR);
+		C2_UT_ASSERT(strcmp(dp->ad_name, body->sb_name) == 0);
+		c2_free(rec.ar_data.cmb_value);
+
+		lnet_stat_ev_count++;
+	}
+	return 0;
+}
+
 static void test_tm_startstop(void)
 {
 	struct c2_net_domain *dom;
 	struct c2_net_transfer_mc *tm;
+	const struct c2_net_qstats fake_stats = {
+		.nqs_num_adds = STARTSTOP_STAT_BUF_NR,
+		.nqs_num_dels = STARTSTOP_STAT_BUF_NR,
+		.nqs_num_s_events = STARTSTOP_STAT_BUF_NR,
+	};
 	const struct c2_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = ut_tm_ecb,
 	};
@@ -537,6 +585,8 @@ static void test_tm_startstop(void)
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
+	c2_time_t sleeptime;
+	int rc;
 	int i;
 
 	C2_ALLOC_PTR(dom);
@@ -544,6 +594,11 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(dom != NULL && tm != NULL);
 	tm->ntm_callbacks = &cbs1;
 	ecb_reset();
+
+	/* mock addb db store */
+	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_DB,
+					mock_db_add, &mock_table, &mock_dbenv);
+	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
@@ -555,6 +610,7 @@ static void test_tm_startstop(void)
 	c2_net_lnet_ifaces_put(&nidstrs);
 	C2_UT_ASSERT(nidstrs == NULL);
 	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
+	c2_net_lnet_tm_stat_interval_set(tm, STARTSTOP_STAT_SECS);
 
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait1);
@@ -572,11 +628,19 @@ static void test_tm_startstop(void)
 		c2_net_domain_fini(dom);
 		c2_free(tm);
 		c2_free(dom);
+		rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+		C2_UT_ASSERT(rc == 0);
 		C2_UT_FAIL("aborting test case, endpoint in-use?");
 		return;
 	}
 	C2_UT_ASSERT(strcmp(tm->ntm_ep->nep_addr, epstr) == 0);
 
+	/* also test periodic statistics */
+	C2_UT_ASSERT(lnet_stat_ev_count == 0);
+	tm->ntm_qstats[C2_NET_QT_MSG_RECV] = fake_stats;
+	c2_time_set(&sleeptime, STARTSTOP_STAT_SECS + 1, 0);
+	C2_UT_ASSERT(c2_nanosleep(sleeptime, NULL) == 0);
+	C2_UT_ASSERT(lnet_stat_ev_count == STARTSTOP_STAT_PER_PERIOD);
 	ecb_reset();
 	c2_clink_add(&tm->ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));
@@ -587,6 +651,7 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(ecb_tms == C2_NET_TM_STOPPED);
 	C2_UT_ASSERT(ecb_status == 0);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);
+	C2_UT_ASSERT(lnet_stat_ev_count == 2 * STARTSTOP_STAT_PER_PERIOD);
 	c2_net_tm_fini(tm);
 	c2_net_domain_fini(dom);
 	c2_free(tm);
@@ -650,6 +715,8 @@ static void test_tm_startstop(void)
 	}
 	c2_free(tm);
 	c2_free(dom);
+	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+	C2_UT_ASSERT(rc == 0);
 }
 
 /* test_msg_body */
@@ -1001,7 +1068,8 @@ static void test_msg_body(struct ut_data *td)
 	return;
 }
 
-static void test_msg(void) {
+static void test_msg(void)
+{
 	ut_test_framework(&test_msg_body, ut_verbose);
 }
 

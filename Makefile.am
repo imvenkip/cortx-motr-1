@@ -13,6 +13,7 @@ SUBDIRS_LIBS = \
                fid \
                fop/rt \
                \
+               addb/addbff \
                net \
                fop \
                addb \

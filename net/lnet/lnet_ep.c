@@ -71,7 +71,7 @@ static int nlx_ep_create(struct c2_net_end_point **epp,
 		}
 	}
 
-	C2_ALLOC_PTR_ADDB(xep, &tm->ntm_addb, &c2_net_lnet_addb_loc);
+	C2_ALLOC_PTR_ADDB(xep, &tm->ntm_addb, &nlx_addb_loc);
 	if (xep == NULL)
 		return -ENOMEM;
 	xep->xe_magic = C2_NET_LNET_XE_MAGIC;

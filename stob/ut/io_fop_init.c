@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -32,7 +32,7 @@
 
 #ifdef __KERNEL__
 # include "io_k.h"
-# include "addb/addb_k.h"
+# include "addb/addbff/addb_k.h"
 # define write_handler NULL
 # define read_handler NULL
 # define create_handler NULL
@@ -50,7 +50,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);*/
 
 #include "io_u.h"
-# include "addb/addb_u.h"
+#include "addb/addbff/addb_u.h"
 #endif
 
 #include "stob/ut/io.ff"
