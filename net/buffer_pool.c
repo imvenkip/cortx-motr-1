@@ -62,7 +62,7 @@ static bool pool_colour_check(const struct c2_net_buffer_pool *pool)
 	struct c2_net_buffer *nb;
 
 	for (i = 0; i < pool->nbp_colours_nr; i++) {
-		c2_tlist_for(&tm_tl, &pool->nbp_colour[i], nb) {
+		c2_tlist_for(&tm_tl, &pool->nbp_colours[i], nb) {
 			if (!pool_tlink_is_in(nb))
 				return false;
 		} c2_tlist_endfor;
@@ -102,15 +102,15 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_colours_nr = colours;
 	pool->nbp_align	     = shift;
 
-	C2_ALLOC_ARR(pool->nbp_colour, colours);
-	if(pool->nbp_colour == NULL) {
+	C2_ALLOC_ARR(pool->nbp_colours, colours);
+	if(pool->nbp_colours == NULL) {
 		C2_ADDB_ADD(&ndom->nd_addb, &c2_pool_addb_loc, c2_addb_oom);
 		return;
 	}
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_lru);
 	for (i = 0; i < colours; i++)
-		tm_tlist_init(&pool->nbp_colour[i]);
+		tm_tlist_init(&pool->nbp_colours[i]);
 }
 
 /**
@@ -164,8 +164,8 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	} c2_tlist_endfor;
 	pool_tlist_fini(&pool->nbp_lru);
 	for (i = 0; i < pool->nbp_colours_nr; i++)
-		tm_tlist_fini(&pool->nbp_colour[i]);
-	c2_free(pool->nbp_colour);
+		tm_tlist_fini(&pool->nbp_colours[i]);
+	c2_free(pool->nbp_colours);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 
@@ -195,8 +195,8 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	if (pool->nbp_free <= 0)
 		return NULL;
 	if (colour != BUFFER_ANY_COLOUR &&
-	   !tm_tlist_is_empty(&pool->nbp_colour[colour]))
-		nb = tm_tlist_head(&pool->nbp_colour[colour]);
+	   !tm_tlist_is_empty(&pool->nbp_colours[colour]))
+		nb = tm_tlist_head(&pool->nbp_colours[colour]);
 	else
 		nb = pool_tlist_head(&pool->nbp_lru);
 	C2_ASSERT(nb != NULL);
@@ -225,7 +225,7 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 	C2_ASSERT(!pool_tlink_is_in(buf));
 	if (colour != BUFFER_ANY_COLOUR) {
 		C2_ASSERT(!tm_tlink_is_in(buf));
-		tm_tlist_add(&pool->nbp_colour[colour], buf);
+		tm_tlist_add(&pool->nbp_colours[colour], buf);
 	}
 	pool_tlist_add_tail(&pool->nbp_lru, buf);
 	C2_CNT_INC(pool->nbp_free);
