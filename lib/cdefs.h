@@ -28,13 +28,12 @@
 #include "linux_kernel/cdefs.h"
 #endif
 
-/**
+/*
  * Helper macros for implication and equivalence.
  *
  * Unfortunately, name clashes are possible and c2_ prefix is too awkward. See
  * C2_BASSERT() checks in lib/misc.c
  */
-
 #ifndef ergo
 #define ergo(a, b) (!(a) || (b))
 #endif

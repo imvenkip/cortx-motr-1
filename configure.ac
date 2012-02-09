@@ -14,6 +14,8 @@ AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
 AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
 AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
+AH_TEMPLATE([HAVE_STRUCT_NET], [Use struct net in sunrpc])
+AH_TEMPLATE([HAVE_CRED_IN_REQ], [Have rq_cred in rpc_rqst])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
@@ -188,6 +190,40 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 ])
 
+AC_DEFUN([COLIBRI_LINUX_STRUCT_NET],
+[
+AC_MSG_CHECKING([if kernel sunrpc uses struct net])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/sunrpc/clnt.h>
+],[
+        struct rpc_create_args a;
+
+        a.net = NULL;
+], [
+        AC_MSG_RESULT([yes])
+        AC_DEFINE([HAVE_STRUCT_NET])
+],[
+        AC_MSG_RESULT([no])
+])
+])
+
+AC_DEFUN([COLIBRI_LINUX_CRED_IN_REQ],
+[
+AC_MSG_CHECKING([if kernel sunrpc has rq_cred in rpc_rqst])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/sunrpc/clnt.h>
+],[
+        struct rpc_rqst r;
+
+        r.rq_cred = NULL;
+], [
+        AC_MSG_RESULT([yes])
+        AC_DEFINE([HAVE_CRED_IN_REQ])
+],[
+        AC_MSG_RESULT([no])
+])
+])
+
 AC_DEFUN([COLIBRI_LINUX_INIT_CONFIG], [
 rm -fr config > /dev/null 2>&1
 mkdir config
@@ -341,6 +377,8 @@ COLIBRI_LINUX_FILE_READV
 COLIBRI_LINUX_FILE_AIO_READ
 COLIBRI_LINUX_WRITE_BEGIN_END
 COLIBRI_LINUX_SENDFILE
+COLIBRI_LINUX_STRUCT_NET
+COLIBRI_LINUX_CRED_IN_REQ
 
 AC_ARG_WITH([db],
         [AC_HELP_STRING([--with-db=path], [path where db was built])])
@@ -605,6 +643,7 @@ AC_CONFIG_FILES([
                  udb/Makefile
                  udb/ut/Makefile
                  ut/Makefile
+                 ut/linux_kernel/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile

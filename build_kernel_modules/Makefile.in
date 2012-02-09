@@ -9,7 +9,7 @@ testdirs 	= ../net/bulk_emulation/st/linux_kernel/ 		\
 	          ../rpc/it/linux_kernel/ 				\
 		  ../utils/linux_kernel/
 
-EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR) @KCFLAGS@
+EXTRA_CFLAGS 	= -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
 #	NOTE:
 #	It is assumed that user space build is done before starting to
@@ -25,7 +25,7 @@ EXTRA_CFLAGS 	= -I. -I$(CORE_SRCDIR) @KCFLAGS@
 dirs  = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid \
 	fol fop galois ioservice layout lib lib/linux_kernel lib/ut net      \
 	net/bulk_emulation net/bulk_emulation/ut net/ksunrpc net/ut pool rpc \
-	sm sns stob stob/ut xcode
+	sm sns stob stob/ut ut xcode
 
 #	Source Listing
 
@@ -105,7 +105,7 @@ pool_SOURCES 			:= pool.c
 rpc_SOURCES 			:= formation.c rpc2.c rpc_base.c session.c    \
 				   session_foms.c conn.c slot.c		      \
 				   session_utils.c session_fops.c	      \
-				   rpc_onwire.c session_k.c
+				   rpc_onwire.c session_k.c rpclib.c
 rpc_HEADERS 			:= session_k.h
 
 sm_SOURCES 			:= sm.c
@@ -119,6 +119,9 @@ stob_HEADERS 			:= stob.h
 
 stob_ut_SOURCES 		:= io_fop_init.c io_k.c
 stob_ut_HEADERS 		:= io_fop.h io_k.h
+
+ut_SOURCES 			:= rpc.c
+ut_HEADERS 			:= rpc.h
 
 xcode_SOURCES 			:= bufvec_xcode.c bufvec_xcode_fop.c	      \
 				   bufvec_xcode_size.c
