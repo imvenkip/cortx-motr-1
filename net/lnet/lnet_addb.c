@@ -100,7 +100,7 @@ int nlx_statistic_pack(struct c2_addb_dp *dp, struct c2_addb_record *rec)
 
 	ndp = container_of(dp, struct nlx_addb_dp, ad_dp);
 	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
-	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+	if (rc == 0) {
 		body = (struct nlx_qstat_body *)rec->ar_data.cmb_value;
 
 		C2_ASSERT(body != NULL);
