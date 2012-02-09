@@ -211,7 +211,7 @@ struct c2_io_fom_cob_rw {
  * complete FOM and reqh infrastructure is in place.
  */
 enum c2_io_fom_cob_rw_phases {
-        FOPH_IO_FOM_BUFFER_ACQUIRE = FOPH_NR + 1,
+        FOPH_IO_FOM_BUFFER_ACQUIRE = FOPH_NR+1,
         FOPH_IO_FOM_BUFFER_WAIT,
         FOPH_IO_STOB_INIT,
         FOPH_IO_STOB_WAIT,
@@ -219,6 +219,21 @@ enum c2_io_fom_cob_rw_phases {
         FOPH_IO_ZERO_COPY_WAIT,
         FOPH_IO_BUFFER_RELEASE,
 };
+
+/**
+ * State transition information.
+ */
+struct c2_io_fom_cob_rw_state_transition {
+        /** Current phase of I/O FOM */
+        int        fcrw_st_current_phase;
+        /** Function which executes current phase */
+        int        (*fcrw_st_state_function)(struct c2_fom *);
+        /** Next phase in which FOM is going to execute */
+        int        fcrw_st_next_phase_again;
+        /** Next phase in which FOM is going to wait */
+        int        fcrw_st_next_phase_wait;
+};
+
 
 /** @} end of io_foms */
 

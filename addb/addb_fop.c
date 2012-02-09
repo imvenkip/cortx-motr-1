@@ -44,12 +44,6 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #include "fop/fop_format_def.h"
 #include "addb/addb.ff"
 #include "rpc/rpc_opcodes.h"
-/*
-C2_EXPORTED(c2_mem_buf_tfmt);
-C2_EXPORTED(c2_addb_record_header_tfmt);
-C2_EXPORTED(c2_addb_record_tfmt);
-C2_EXPORTED(c2_addb_reply_tfmt);
-*/
 
 static struct c2_fop_type_ops addb_ops = {
 	.fto_execute = c2_addb_handler,

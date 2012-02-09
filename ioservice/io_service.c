@@ -163,6 +163,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
         bool                            found_buffer_pool = false;
         int                             nbuffs = 0;
         int                             colours;
+        unsigned int                    bshift;
         int                             rc = 0;
         struct c2_rpcmachine           *rpcmach;
         struct c2_reqh_io_service      *serv_obj;
@@ -203,10 +204,13 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
              c2_chan_init(&newbp->rios_bp_wait);
              newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
              colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
-             c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
+	     /* Zero-vec needs 4k aligned addresses. */
+	     bshift  = C2_0VEC_SHIFT;
+	     c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
                                      network_buffer_pool_threshold,
                                      network_buffer_pool_segment_nr,
-                                     network_buffer_pool_segment_size, colours);
+                                     network_buffer_pool_segment_size,
+				     colours, bshift);
              newbp->rios_bp.nbp_ops = &buffer_pool_ops;
 
              /* Pre-allocate network buffers */

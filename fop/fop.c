@@ -60,7 +60,6 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 
 	return 0;
 }
-C2_EXPORTED(c2_fop_init);
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
@@ -89,7 +88,6 @@ void c2_fop_fini(struct c2_fop *fop)
 	c2_free(fop->f_data.fd_data);
 	c2_list_link_fini(&fop->f_link);
 }
-C2_EXPORTED(c2_fop_fini);
 
 void c2_fop_free(struct c2_fop *fop)
 {
@@ -98,7 +96,6 @@ void c2_fop_free(struct c2_fop *fop)
 		c2_free(fop);
 	}
 }
-C2_EXPORTED(c2_fop_free);
 
 void *c2_fop_data(struct c2_fop *fop)
 {
@@ -171,7 +168,6 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 	 */
 	return c2_fol_add(fol, tx, &desc);
 }
-C2_EXPORTED(c2_fop_fol_rec_add);
 
 static size_t fol_pack_size(struct c2_fol_rec_desc *desc)
 {
@@ -210,7 +206,6 @@ struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
 {
 	return container_of(item, struct c2_fop, f_item);
 }
-C2_EXPORTED(c2_rpc_item_to_fop);
 
 struct c2_fop_type *c2_item_type_to_fop_type
 		    (const struct c2_rpc_item_type *item_type)
@@ -219,7 +214,6 @@ struct c2_fop_type *c2_item_type_to_fop_type
 
 	return container_of(item_type, struct c2_fop_type, ft_rpc_item_type);
 }
-C2_EXPORTED(c2_item_type_to_fop_type);
 
 /*
    See declaration for more information.

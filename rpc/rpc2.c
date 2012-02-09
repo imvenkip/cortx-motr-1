@@ -323,14 +323,12 @@ int c2_rpc_core_init(void)
 
 	return c2_rpc_session_module_init();
 }
-C2_EXPORTED(c2_rpc_core_init);
 
 void c2_rpc_core_fini(void)
 {
 	c2_rpc_session_module_fini();
 	c2_rpc_base_fini();
 }
-C2_EXPORTED(c2_rpc_core_fini);
 
 static void rpc_chan_ref_release(struct c2_ref *ref)
 {
@@ -1139,8 +1137,8 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	if (buf->bb_flags & C2_RPC_BULK_NETBUF_REGISTERED)
 		c2_net_buffer_deregister(nb, nb->nb_dom);
 
-	c2_mutex_unlock(&rbulk->rb_mutex);
 	rpc_bulk_buf_fini(buf);
+	c2_mutex_unlock(&rbulk->rb_mutex);
 }
 
 const struct c2_net_buffer_callbacks rpc_bulk_cb  = {

@@ -1340,6 +1340,7 @@ struct c2_net_buffer {
 	   There is only one linkage for all of the queues, as a buffer
 	   can only be used for one type of operation at a time.
 
+	   It is also used for linkage into c2_net_buffer_pool::nbp_colour[].
 	   The application should not modify this field.
 	 */
 	struct c2_tlink		   nb_tm_linkage;

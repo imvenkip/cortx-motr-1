@@ -356,6 +356,17 @@ uint32_t linux_stob_block_shift(const struct c2_stob *stob)
 }
 
 /**
+   An implementation of c2_stob_domain_op::sdo_block_shift() method.
+ */
+uint32_t linux_stob_domain_block_shift(struct c2_stob_domain *sdomain)
+{
+	struct linux_domain *ldom;
+
+	ldom  = domain2linux(sdomain);
+	return LINUX_DOM_BSHIFT(ldom);
+}
+
+/**
    Removes an element from the (non-empty) admission queue and returns it.
  */
 static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)

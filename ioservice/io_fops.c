@@ -55,7 +55,6 @@ C2_TL_DECLARE(rpcbulk, extern, struct c2_rpc_bulk_buf);
 C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
-int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **m);
 static void io_item_replied(struct c2_rpc_item *item);
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			     uint64_t size);
@@ -63,7 +62,6 @@ static void io_item_free(struct c2_rpc_item *item);
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
 static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
-static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /* ADDB context for ioservice. */
 static struct c2_addb_ctx bulkclient_addb;
@@ -116,9 +114,6 @@ static const struct c2_rpc_item_type_ops io_item_type_ops = {
 };
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
-#ifndef __KERNEL__
-	.fto_fom_init    = c2_io_fom_cob_rw_init,
-#endif
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get	 = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
@@ -126,7 +121,6 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 };
 
 const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
-	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
@@ -166,6 +160,12 @@ int c2_ioservice_fop_init(void)
 	if (rc == 0)
 		rc = c2_fop_type_build_nr(ioservice_fops,
 				ARRAY_SIZE(ioservice_fops));
+
+#ifndef __KERNEL__
+        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+#endif
+
 	if (rc != 0)
 		c2_ioservice_fop_fini();
 	return rc;
@@ -700,6 +700,9 @@ static void ioseg_unlink_free(struct ioseg *ioseg)
 	c2_free(ioseg);
 }
 
+/**
+   Returns if given 2 fops belong to same type.
+ */
 static bool io_fop_type_equal(const struct c2_fop *fop1,
 			      const struct c2_fop *fop2)
 {
@@ -1329,21 +1332,6 @@ static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 
 	rw = io_rw_get(fop);
 	*desc = rw->crw_desc.id_descs;
-}
-
-/* Dummy definition for kernel mode. */
-#ifdef __KERNEL__
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	        return 0;
-}
-#else
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
-#endif
-
-static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
 }
 
 /* Rpc item ops for IO operations. */

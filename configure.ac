@@ -219,6 +219,14 @@ if ! test -d $SRCDIR; then
 fi
 AC_SUBST([SRCDIR])
 
+AC_MSG_CHECKING([whether target platform is 64bit one])
+AC_COMPUTE_INT(n_bits, [sizeof(long) * 8])
+if test $n_bits -lt 64; then
+	AC_MSG_RESULT([no])
+	AC_MSG_ERROR([Only 64bit platforms are supported!])
+fi
+AC_MSG_RESULT([yes])
+
 # Checks for libraries.
 OLD_LIBS=$LIBS
 AC_SEARCH_LIBS([xdr_domainname], [c nsl], [], [AC_MSG_ERROR([xdr_domainname cannot be found!])])
@@ -237,8 +245,6 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
-
-XY_CHECK_CUNIT
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -383,45 +389,56 @@ else
 	fi
 fi
 
+#
+# Helper function to build external library.
+#
+# Input parameters:
+#     1st -- library name
+#     2nd -- directory with library sources
+#     3rd -- path to compiled library binary
+#     4th -- (optional) options for configure script
+#
+build_lib()
+{
+	NAME=$1
+	SRC=$2
+	LIBS=$3
+	CFGOPTS=$4
+	if ! test -e $LIBS; then
+		AC_MSG_RESULT([building $SRC])
+		oldcwd=$(pwd)
+		cd $SRC && ./configure $CFGOPTS && make
+		res=$?
+		cd $oldcwd
+		if ! test $res -eq 0 ; then
+			AC_MSG_ERROR([An error occured while building lib$NAME!])
+		fi
+		if ! test -e $LIBS; then
+			AC_MSG_ERROR([$LIBS not found! Build failed?])
+		fi
+	else
+		AC_MSG_RESULT([$LIBS])
+	fi
+}
+
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
 GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-if ! test -e $GALOIS_LIBS; then
-        AC_MSG_RESULT([building $GALOIS_SRC])
-	oldcwd=$(pwd)
-	cd $GALOIS_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-	if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libgalois!])
-        fi
-	if ! test -e $GALOIS_LIBS; then
-                AC_MSG_ERROR([$GALOIS_LIBS not found! Build failed?])
-        fi
-else
-	AC_MSG_RESULT([$GALOIS_LIBS])
-fi
+build_lib galois $GALOIS_SRC $GALOIS_LIBS
 
 # Check for yaml
 YAML_SRC=$SRCDIR/../yaml
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
-if ! test -e $YAML_LIBS; then
-        AC_MSG_RESULT([building $YAML_SRC])
-        oldcwd=$(pwd)
-        cd $YAML_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-        if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libyaml!])
-        fi
-        if ! test -e $YAML_LIBS; then
-                AC_MSG_ERROR([$YAML_LIBS not found! Build failed?])
-        fi
-else
-        AC_MSG_RESULT([$YAML_LIBS])
-fi
+build_lib yaml $YAML_SRC $YAML_LIBS
+
+# Check for CUnit
+CUNIT_SRC=$SRCDIR/../cunit
+CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/.libs/libcunit.la"
+CUNIT_HEADERS="$CUNIT_SRC/CUnit/Headers"
+AC_MSG_CHECKING([for cunit libs])
+build_lib cunit $CUNIT_SRC $CUNIT_LIBS '--with-pic --enable-curses'
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
@@ -443,6 +460,7 @@ AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
+AC_SUBST([CUNIT_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
@@ -487,25 +505,27 @@ else
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
+# Check if gcc option is supported in current gcc version.
+AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
+[AC_MSG_CHECKING([whether compiler $CC supports $1 option])
+OLD_CFLAGS="$CFLAGS"
+CFLAGS="$OLD_CFLAGS $1"
+AC_COMPILE_IFELSE([COLIBRI_LANG_PROGRAM()],
+        [AC_MSG_RESULT([yes]);
+         KCFLAGS="$KCFLAGS $1"],
+        [AC_MSG_RESULT([no]);
+	 KCFLAGS="$KCFLAGS"]
+)]
+CFLAGS="$OLD_CFLAGS")
+
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
-# Check if gcc option is supported in current gcc version.
-iff_opt_supported() {
-        `$CC $1 -S -o /dev/null -xc /dev/null` 2>&1
-	if test $? -eq 0; then
-                echo $1
-        else
-                echo ""
-        fi
-}
-
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
-# If some compiler option is compiler version specific, then add it to OPT_KCFLAGS.
-# iff_opt_supported() can be used to check if the compiler option is supported or not.
-# iff_opt_supported(opt) returns opt if opt is supported by compiler, "" otherwise.
-OPT_KCFLAGS="$OPT_KCFLAGS $(iff_opt_supported -Wno-unused-but-set-variable)"
-KCFLAGS=" -Wall -Werror $KCFLAGS"
+CFLAGS=`echo "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing" \
+             "-I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include" \
+             "-I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"`
+KCFLAGS="-Wall -Werror $KCFLAGS"
+COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
 
@@ -525,7 +545,6 @@ AC_CONFIG_FILES([
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
-                 c2t1fs/Makefile
                  capa/Makefile
                  capa/ut/Makefile
                  cfg/Makefile
@@ -591,6 +610,7 @@ AC_CONFIG_FILES([
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
+                 xcode/ff2c/Makefile
                  xcode/ut/Makefile
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
@@ -611,8 +631,9 @@ echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
 echo "Galois :  \"$GALOIS_SRC\""
-echo "YAML :  \"$YAML_SRC\""
+echo "YAML   :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
+echo "CUnit  :  \"$CUNIT_SRC\""
 echo "Linux  :  \"$LINUX\""
 echo ""
 

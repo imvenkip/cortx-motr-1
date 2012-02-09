@@ -35,7 +35,6 @@ int c2_0vec_page_add(struct c2_0vec *zvec,
 
 	return c2_0vec_cbuf_add(zvec, &buf, &index);
 }
-C2_EXPORTED(c2_0vec_page_add);
 
 /*
  *  Local variables:

@@ -141,7 +141,6 @@ rpcmach_fini:
 	C2_ASSERT(rc != 0);
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_start);
 
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s)
@@ -184,7 +183,6 @@ clean:
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_call);
 
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
@@ -203,7 +201,6 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_stop);
 
 /*
  *  Local variables:

@@ -37,6 +37,7 @@ SUBDIRS_LIBS = \
                udb \
                ut \
                xcode \
+               xcode/ff2c \
 	       yaml2db
 SUBDIR_IT = rpc/it
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \

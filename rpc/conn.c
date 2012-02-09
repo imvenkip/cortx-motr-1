@@ -628,7 +628,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_conn_create);
 
 static int session_zero_attach(struct c2_rpc_conn *conn)
 {
@@ -874,7 +873,6 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_conn_destroy);
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
 			   uint64_t              sender_id,

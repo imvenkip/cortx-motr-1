@@ -68,7 +68,6 @@ void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype)
 		field->ff_decor = NULL;
 	}
 }
-C2_EXPORTED(c2_fop_field_type_unprepare);
 
 int c2_fop_field_type_prepare(struct c2_fop_field_type *ftype)
 {
@@ -99,7 +98,6 @@ int c2_fop_field_type_prepare(struct c2_fop_field_type *ftype)
 		c2_fop_field_type_unprepare(ftype);
 	return result;
 }
-C2_EXPORTED(c2_fop_field_type_prepare);
 
 int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 {
@@ -185,7 +183,6 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 		c2_fop_type_format_fini(fmt);
 	return result;
 }
-C2_EXPORTED(c2_fop_type_format_parse);
 
 void *c2_fop_type_decoration_get(const struct c2_fop_field_type *ftype,
 				 const struct c2_fop_decorator *dec)
@@ -233,7 +230,6 @@ void c2_fop_type_format_fini(struct c2_fop_type_format *fmt)
 		fmt->ftf_out = NULL;
 	}
 }
-C2_EXPORTED(c2_fop_type_format_fini);
 
 int c2_fop_type_format_parse_nr(struct c2_fop_type_format **fmt, int nr)
 {
@@ -258,7 +254,6 @@ void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr)
 	for (i = 0; i < nr; ++i)
 		c2_fop_type_format_fini(fmt[i]);
 }
-C2_EXPORTED(c2_fop_type_format_fini_nr);
 
 void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 			     int fileno, uint32_t elno)
@@ -272,7 +267,6 @@ void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 			ftype->fft_child[1]->ff_type->fft_layout->fm_sizeof;
 	return addr;
 }
-C2_EXPORTED(c2_fop_type_field_addr);
 
 struct c2_fop_field *
 c2_fop_type_field_find(const struct c2_fop_field_type *ftype, const char *fname)
@@ -285,7 +279,6 @@ c2_fop_type_field_find(const struct c2_fop_field_type *ftype, const char *fname)
 	}
 	return NULL;
 }
-C2_EXPORTED(c2_fop_type_field_find);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_VOID,
@@ -294,7 +287,6 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt = {
 	.ftf_val   = FPF_VOID,
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
-C2_EXPORTED(C2_FOP_TYPE_FORMAT_VOID_tfmt);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_BYTE,
@@ -303,7 +295,6 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt = {
 	.ftf_val   = FPF_BYTE,
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
-C2_EXPORTED(C2_FOP_TYPE_FORMAT_BYTE_tfmt);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_U32,

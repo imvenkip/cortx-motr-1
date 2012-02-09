@@ -712,7 +712,7 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
    Initialises AD type stob.
  */
 static int cs_ad_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
-				struct c2_dbenv *db, struct c2_stob **bstob)
+			   struct c2_dbenv *db, struct c2_stob **bstob)
 {
 	int rc;
 
@@ -721,8 +721,11 @@ static int cs_ad_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 
 	if (rc == 0)
 		rc = c2_ad_stob_setup(stob->adstob, db, *bstob,
-				&colibri_balloc.cb_ballroom);
-
+				      &colibri_balloc.cb_ballroom,
+				      BALLOC_DEF_CONTAINER_SIZE,
+				      BALLOC_DEF_BLOCK_SHIFT,
+				      BALLOC_DEF_BLOCKS_PER_GROUP,
+				      BALLOC_DEF_RESERVED_GROUPS);
 	return rc;
 }
 
@@ -739,7 +742,7 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 					stob_path, &stob->linuxstob);
 	if  (rc == 0) {
 		sdom = stob->linuxstob;
-		rc = c2_linux_stob_setup(sdom, true);
+		rc = c2_linux_stob_setup(sdom, false);
 		if  (rc == 0)
 			rc = sdom->sd_ops->sdo_stob_find(stob->linuxstob,
 						&stob->stob_id, bstob);
