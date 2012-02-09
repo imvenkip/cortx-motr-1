@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,10 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 07/01/2010
  */
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
 #include <linux/sunrpc/clnt.h>
 #include <linux/sunrpc/svc.h>
@@ -271,7 +275,11 @@ static int kxdr_sequence_rep(struct kxdr_ctx *ctx, void *obj)
 
 		/* Believe or not this is how kernel rpc users are supposed to
 		   indicate size of a reply. */
+#ifdef HAVE_CRED_IN_REQ
+		auth = ctx->kc_creq->rq_cred->cr_auth;
+#else
 		auth = ctx->kc_creq->rq_task->tk_msg.rpc_cred->cr_auth;
+#endif
 		offset = ((RPC_REPHDRSIZE + auth->au_rslack + 3) << 2) +
 			*ctx->kc_nob;
 		xdr_inline_pages(&ctx->kc_creq->rq_rcv_buf, offset,

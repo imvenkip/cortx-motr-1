@@ -251,8 +251,8 @@ struct c2_net_buffer_pool {
 	    Buffers are linked through c2_net_buffer::nb_tm_linkage to these
 	    lists.
 	*/
-	struct c2_tl			    *nbp_colour;
-	/* Alignement for network buffers */
+	struct c2_tl			    *nbp_colours;
+	/* Alignment for network buffers */
 	unsigned			     nbp_align;
 	/**
 	   A list of all buffers in the pool.

@@ -21,6 +21,10 @@
 #ifndef __COLIBRI_RPC_RPCLIB_H__
 #define __COLIBRI_RPC_RPCLIB_H__
 
+#ifndef __KERNEL__
+#include <stdio.h> /* FILE */
+#endif
+
 #include "rpc/rpc2.h"    /* struct c2_rpcmachine, c2_rpc_item */
 #include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
 #include "db/db.h"       /* struct c2_dbenv */
@@ -28,18 +32,13 @@
 #include "net/net.h"     /* struct c2_net_end_point */
 
 #ifndef __KERNEL__
-
-#include <stdio.h> /* FILE */
 #include "colibri/colibri_setup.h" /* struct c2_colibri */
-
 #endif
 
-struct c2_net_xprt;
-struct c2_net_domain;
-struct c2_reqh;
-struct c2_reqh_service_type;
 
 #ifndef __KERNEL__
+struct c2_reqh_service_type;
+
 /**
  * RPC server context structure.
  *
@@ -78,7 +77,26 @@ struct c2_rpc_server_ctx {
 	FILE                        *rsx_log_file;
 };
 
-#endif /* __KERNEL__ */
+/**
+  Starts server's rpc machine.
+
+  @param sctx  Initialized rpc context structure.
+
+  @pre sctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
+*/
+int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx);
+
+/**
+  Stops RPC server.
+
+  @param sctx  Initialized rpc context structure.
+*/
+void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx);
+#endif
+
+struct c2_net_xprt;
+struct c2_net_domain;
+
 /**
  * RPC client context structure.
  *
@@ -147,24 +165,6 @@ struct c2_rpc_client_ctx {
 	struct c2_rpc_session   rcx_session;
 };
 
-#ifndef __KERNEL__
-/**
-  Starts server's rpc machine.
-
-  @param sctx  Initialized rpc context structure.
-
-  @pre sctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
-*/
-int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx);
-
-/**
-  Stops RPC server.
-
-  @param sctx  Initialized rpc context structure.
-*/
-void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx);
-
-#endif /* __KERNEL__ */
 /**
   Starts client's rpc machine. Creates a connection to a server and establishes
   an rpc session on top of it.  Created session object can be set in an rpc item

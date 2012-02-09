@@ -23,7 +23,11 @@
 #include <config.h>
 #endif
 
-#include "lib/errno.h"
+#ifndef __KERNEL__
+#include <errno.h> /* errno */
+#include <stdio.h> /* fopen(), fclose() */
+#endif
+
 #include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/memory.h"
@@ -31,15 +35,14 @@
 #include "rpc/rpc2.h"
 #include "net/net.h"
 #include "fop/fop.h"
-#include "reqh/reqh.h"
-#include "reqh/reqh_service.h"
+#include "rpc/rpclib.h"
 
 #ifndef __KERNEL__
-#include <stdio.h> /* fopen(), fclose() */
+#include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 #endif
 
-#include "rpc/rpclib.h"
 
 #ifndef __KERNEL__
 int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
@@ -99,8 +102,7 @@ void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 
 	return;
 }
-
-#endif /* __KERNEL__ */
+#endif
 
 int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 {
@@ -166,7 +168,6 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	item->ri_session = session;
 	item->ri_prio    = C2_RPC_ITEM_PRIO_MAX;
 
-
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);
 	c2_time_set(&timeout, timeout_s, 0);
@@ -183,6 +184,7 @@ clean:
 
 	return rc;
 }
+C2_EXPORTED(c2_rpc_client_call);
 
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {

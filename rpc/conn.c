@@ -873,6 +873,7 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 
 	return rc;
 }
+C2_EXPORTED(c2_rpc_conn_destroy);
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
 			   uint64_t              sender_id,
