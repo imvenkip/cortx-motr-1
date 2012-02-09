@@ -40,7 +40,9 @@
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
 #include "lib/misc.h"		  /* C2_SET0 */
+#include "rpc/rpclib.h"           /* c2_rpc_server_start */
 #include "ut/ioredirect.h"
+#include "ut/rpc.h"               /* c2_rpc_client_init */
 
 #include "console/console.h"
 #include "console/console_u.h"
@@ -70,6 +72,65 @@ static struct c2_ut_redirect in_redir;
 static struct c2_ut_redirect out_redir;
 static struct c2_ut_redirect err_redir;
 
+#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:123456:1"
+#define CLIENT_DB_NAME		"cons_client_db"
+
+#define SERVER_ENDPOINT_ADDR	"127.0.0.1:123456:2"
+#define SERVER_ENDPOINT		"bulk-sunrpc:" SERVER_ENDPOINT_ADDR
+#define SERVER_DB_FILE_NAME	"cons_server_db"
+#define SERVER_STOB_FILE_NAME	"cons_server_stob"
+#define SERVER_LOG_FILE_NAME	"cons_server.log"
+
+enum {
+	CLIENT_COB_DOM_ID	= 14,
+	SESSION_SLOTS		= 1,
+	MAX_RPCS_IN_FLIGHT	= 1,
+	CONNECT_TIMEOUT		= 5,
+};
+
+extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
+
+static struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+static struct c2_net_domain  client_net_dom = { };
+static struct c2_dbenv       client_dbenv;
+static struct c2_cob_domain  client_cob_dom;
+
+static struct c2_rpc_client_ctx cctx = {
+	.rcx_net_dom            = &client_net_dom,
+	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
+	.rcx_db_name            = CLIENT_DB_NAME,
+	.rcx_dbenv              = &client_dbenv,
+	.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
+	.rcx_cob_dom            = &client_cob_dom,
+	.rcx_nr_slots           = SESSION_SLOTS,
+	.rcx_timeout_s          = CONNECT_TIMEOUT,
+	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+};
+
+static char *server_argv[] = {
+	"console_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
+	"-s", "ds1", "-s", "ds2"
+};
+
+static struct c2_rpc_server_ctx sctx = {
+	.rsx_xprts            = &xprt,
+	.rsx_xprts_nr         = 1,
+	.rsx_argv             = server_argv,
+	.rsx_argc             = ARRAY_SIZE(server_argv),
+	.rsx_service_types    = cs_default_stypes,
+	/*
+	 * can't use cs_default_stypes_nr to initialize rsx_service_types_nr,
+	 * since it leads to compile-time error 'initializer element is not
+	 * constant', because sctx here is a global/static variable, which not
+	 * allowed to be initialized with non-constant values
+	 */
+	.rsx_service_types_nr = 2,
+	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
+};
+
+
 static int cons_init(void)
 {
 	int result;
@@ -77,7 +138,16 @@ static int cons_init(void)
 	timeout = 10;
 	result = c2_console_fop_init();
         C2_ASSERT(result == 0);
-	result = c2_processors_init();
+	/*result = c2_processors_init();*/
+	C2_ASSERT(result == 0);
+
+	/*
+	 * There is no need to initialize xprt explicitly if client and server
+	 * run withing a single process, because in this case transport is
+	 * initialized by c2_rpc_server_start().
+	 */
+
+	result = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(result == 0);
 
 	return result;
@@ -85,7 +155,8 @@ static int cons_init(void)
 
 static int cons_fini(void)
 {
-	c2_processors_fini();
+	c2_net_domain_fini(&client_net_dom);
+	/*c2_processors_fini();*/
         c2_console_fop_fini();
 	return 0;
 }
@@ -430,7 +501,7 @@ static int device_yaml_file(const char *name)
 	return 0;
 }
 
-static void cons_client_init(struct c2_console *cons)
+static void cons_client_init(struct c2_rpc_client_ctx *cctx)
 {
 	int result;
 
@@ -439,133 +510,72 @@ static void cons_client_init(struct c2_console *cons)
 	C2_UT_ASSERT(result == 0);
 	result = c2_cons_yaml_init(yaml_file);
 	C2_UT_ASSERT(result == 0);
-	result = c2_cons_rpc_client_init(cons);
+	result = c2_rpc_client_init(cctx);
 	C2_UT_ASSERT(result == 0);
 }
 
-static void cons_client_fini(struct c2_console *cons)
+static void cons_client_fini(struct c2_rpc_client_ctx *cctx)
 {
 	int result;
 
 	/* Fini Test */
-	c2_cons_rpc_client_fini(cons);
+	result = c2_rpc_client_fini(cctx);
+	C2_UT_ASSERT(result == 0);
 	c2_cons_yaml_fini();
 	result = remove(yaml_file);
 	C2_UT_ASSERT(result == 0);
 }
 
-static void cons_server_init(struct c2_console *cons)
+static void cons_server_init(struct c2_rpc_server_ctx *sctx)
 {
 	int result;
 
-	result = c2_cons_rpc_server_init(cons);
+	result = c2_rpc_server_start(sctx);
 	C2_UT_ASSERT(result == 0);
 }
 
-static void cons_server_fini(struct c2_console *cons)
+static void cons_server_fini(struct c2_rpc_server_ctx *sctx)
 {
-	c2_cons_rpc_server_fini(cons);
+	c2_rpc_server_stop(sctx);
 }
 
 static void conn_basic_test(void)
 {
-	struct c2_console client = {
-		.cons_lepaddr	      = "127.0.0.1:123456:1",
-		.cons_repaddr	      = "127.0.0.1:123456:2",
-		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
-		.cons_nr_slots	      = NR_SLOTS,
-		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-	};
-
-	struct c2_console server = {
-		.cons_lepaddr	      = "127.0.0.1:123456:2",
-		.cons_repaddr	      = "127.0.0.1:123456:1",
-		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
-		.cons_nr_slots	      = NR_SLOTS,
-		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-	};
-	int		result;
-
-	cons_server_init(&server);
-	cons_client_init(&client);
-	result = c2_cons_rpc_client_connect(&client);
-	C2_UT_ASSERT(result == 0);
-	result = c2_cons_rpc_client_disconnect(&client);
-	C2_UT_ASSERT(result == 0);
-	cons_client_fini(&client);
-	cons_server_fini(&server);
+	cons_server_init(&sctx);
+	cons_client_init(&cctx);
+	cons_client_fini(&cctx);
+	cons_server_fini(&sctx);
 }
 
 static void success_client(int dummy)
 {
-	struct c2_console client = {
-		.cons_lepaddr	      = "127.0.0.1:123456:1",
-		.cons_repaddr	      = "127.0.0.1:123456:2",
-		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
-		.cons_nr_slots	      = NR_SLOTS,
-		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-	};
-	int		result;
-
-	cons_client_init(&client);
-	result = c2_cons_rpc_client_connect(&client);
-	C2_UT_ASSERT(result == 0);
-	result = c2_cons_rpc_client_disconnect(&client);
-	C2_UT_ASSERT(result == 0);
-	cons_client_fini(&client);
+	cons_client_init(&cctx);
+	cons_client_fini(&cctx);
 }
 
 static void conn_success_test(void)
 {
-	struct c2_console server = {
-		.cons_lepaddr	      = "127.0.0.1:123456:2",
-		.cons_repaddr	      = "127.0.0.1:123456:1",
-		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
-		.cons_nr_slots	      = NR_SLOTS,
-		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-	};
 	struct c2_thread client_handle;
 	int		 result;
 
-	cons_server_init(&server);
+	cons_server_init(&sctx);
 	C2_SET0(&client_handle);
 	result = C2_THREAD_INIT(&client_handle, int, NULL, &success_client,
 				0, "console-client");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&client_handle);
 	c2_thread_fini(&client_handle);
-	cons_server_fini(&server);
+	cons_server_fini(&sctx);
 }
 
 static void mesg_send_client(int dummy)
 {
-	struct c2_console client = {
-		.cons_lepaddr	      = "127.0.0.1:123456:1",
-		.cons_repaddr	      = "127.0.0.1:123456:2",
-		.cons_db_name	      = "cons_client_db",
-		.cons_cob_dom_id      = { .id = COB_DOM_CLIENT_ID },
-		.cons_nr_slots	      = NR_SLOTS,
-		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-	};
 	struct c2_fop_type *ftype;
 	struct c2_fop	   *fop;
-	c2_time_t	    deadline;
 	int		    result;
 
-	cons_client_init(&client);
-	result = c2_cons_rpc_client_connect(&client);
-	C2_UT_ASSERT(result == 0);
+	cons_client_init(&cctx);
 
-	deadline = c2_cons_timeout_construct(10);
 	ftype = c2_cons_fop_type_find(C2_CONS_FOP_DEVICE_OPCODE);
 	C2_UT_ASSERT(ftype != NULL);
 	c2_cons_fop_name_print(ftype);
@@ -573,37 +583,27 @@ static void mesg_send_client(int dummy)
 	fop = c2_fop_alloc(ftype, NULL);
 	C2_UT_ASSERT(fop != NULL);
 	c2_cons_fop_obj_input(fop);
-	result = c2_cons_fop_send(fop, &client.cons_rpc_session, deadline);
+	result = c2_rpc_client_call(fop, &cctx.rcx_session,
+				    &c2_fop_default_item_ops, CONNECT_TIMEOUT);
 	C2_UT_ASSERT(result == 0);
 
-	result = c2_cons_rpc_client_disconnect(&client);
-	C2_UT_ASSERT(result == 0);
-	cons_client_fini(&client);
+	cons_client_fini(&cctx);
 }
 
 static void mesg_send_test(void)
 {
-	struct c2_console server = {
-		.cons_lepaddr	      = "127.0.0.1:123456:2",
-		.cons_repaddr	      = "127.0.0.1:123456:1",
-		.cons_db_name	      = "cons_server_db",
-		.cons_cob_dom_id      = { .id = COB_DOM_SERVER_ID },
-		.cons_nr_slots	      = NR_SLOTS,
-		.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-		.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-	};
 	struct c2_thread client_handle;
 	int		 result;
 
 	file_redirect_init();
-	cons_server_init(&server);
+	cons_server_init(&sctx);
 	C2_SET0(&client_handle);
 	result = C2_THREAD_INIT(&client_handle, int, NULL, &mesg_send_client,
 				0, "console-client");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&client_handle);
 	c2_thread_fini(&client_handle);
-	cons_server_fini(&server);
+	cons_server_fini(&sctx);
 	file_redirect_fini();
 }
 

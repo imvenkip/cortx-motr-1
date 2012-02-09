@@ -49,6 +49,9 @@ static size_t home_locality(const struct c2_fom *fom)
 
 static void default_fom_fini(struct c2_fom *fom)
 {
+	c2_fom_fini(fom);
+	c2_free(fom);
+
         return;
 }
 

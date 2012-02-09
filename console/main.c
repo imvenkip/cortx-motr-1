@@ -28,6 +28,8 @@
 #include "colibri/init.h"	  /* c2_init */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
+#include "rpc/rpclib.h"
+#include "ut/rpc.h"
 
 #include "console/console.h"
 #include "console/console_mesg.h"
@@ -40,15 +42,7 @@
    @{
  */
 
-static struct c2_console cons_client = {
-	.cons_lepaddr	      = "127.0.0.1:123456:1",
-	.cons_repaddr	      = "127.0.0.1:123457:1",
-	.cons_db_name	      = "cons_client_db",
-	.cons_cob_dom_id      = { .id = 14 },
-	.cons_nr_slots	      = NR_SLOTS,
-	.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-	.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-};
+uint32_t timeout;
 
 /**
  * @brief Iterator over FOP and prints names of its members.
@@ -77,18 +71,14 @@ static int fop_info_show(uint32_t opcode)
  * @param cons Console object ref.
  * @param opcode FOP opcode.
  */
-static int fop_send_and_print(struct c2_console *cons, uint32_t opcode)
+static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 {
 	struct c2_fop_type *ftype;
 	struct c2_rpc_item *item;
 	struct c2_fop	   *fop;
 	struct c2_fop	   *rfop;
-	c2_time_t	    deadline;
 	int		    rc;
 
-	C2_PRE(cons != NULL);
-
-	deadline = c2_cons_timeout_construct(timeout);
 	ftype = c2_cons_fop_type_find(opcode);
 	if (ftype == NULL)
 		return -EINVAL;
@@ -101,7 +91,8 @@ static int fop_send_and_print(struct c2_console *cons, uint32_t opcode)
 	fprintf(stdout, "\nSending message for ");
 	c2_cons_fop_name_print(ftype);
 	c2_cons_fop_obj_input(fop);
-	rc = c2_cons_fop_send(fop, &cons->cons_rpc_session, deadline);
+	rc = c2_rpc_client_call(fop, &cctx->rcx_session,
+				&c2_fop_default_item_ops, timeout);
 	if (rc != 0) {
 		fprintf(stderr, "Sending message failed!\n");
 		return -EINVAL;
@@ -140,6 +131,8 @@ static void usage(void)
 	fprintf(stderr, "%s\n", usage_msg);
 }
 
+extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
+
 /**
  * @brief The service to connect to is specified at the command line.
  *
@@ -168,18 +161,35 @@ int console_main(int argc, char **argv)
 int main(int argc, char **argv)
 #endif
 {
-	uint32_t		opcode;
-	int			result;
-	bool			show = false;
-	bool			input = false;
-	const char		*server = NULL;
-	const char		*client = NULL;
-	const char		*yaml_path = NULL;
+	int         result;
+	uint32_t    opcode     = 0;
+	bool        show       = false;
+	bool        input      = false;
+	const char  *server    = NULL;
+	const char  *client    = NULL;
+	const char  *yaml_path = NULL;
+
+	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_domain  client_net_dom = { };
+	struct c2_dbenv       client_dbenv;
+	struct c2_cob_domain  client_cob_dom;
+
+	struct c2_rpc_client_ctx cctx = {
+		.rcx_net_dom            = &client_net_dom,
+		.rcx_local_addr         = "127.0.0.1:123456:1",
+		.rcx_remote_addr        = "127.0.0.1:123457:1",
+		.rcx_db_name            = "cons_client_db",
+		.rcx_dbenv              = &client_dbenv,
+		.rcx_cob_dom_id         = 14,
+		.rcx_cob_dom            = &client_cob_dom,
+		.rcx_nr_slots           = 1,
+		.rcx_timeout_s          = 5,
+		.rcx_max_rpcs_in_flight = 1,
+	};
 
 	verbose = false;
 	yaml_support = false;
-	timeout = TIME_TO_WAIT;
-	opcode = 0;
+	timeout = 10;
 
 	/*
 	 * Gets the info to connect to the service and type of fop to be send.
@@ -249,9 +259,9 @@ int main(int argc, char **argv)
 
 	/* Init the console members from CLI input */
 	if (server != NULL)
-		cons_client.cons_repaddr = server;
+		cctx.rcx_remote_addr = server;
 	if (client != NULL)
-		cons_client.cons_lepaddr = client;
+		cctx.rcx_local_addr = client;
 
 #ifndef CONSOLE_UT
 	result = c2_init();
@@ -287,26 +297,24 @@ int main(int argc, char **argv)
 		goto end1;
 	}
 
-	result = c2_cons_rpc_client_init(&cons_client);
+	result = c2_net_xprt_init(xprt);
+	C2_ASSERT(result == 0);
+
+	result = c2_net_domain_init(&client_net_dom, xprt);
+	C2_ASSERT(result == 0);
+
+	result = c2_rpc_client_init(&cctx);
 	if (result != 0) {
-		fprintf(stderr, "c2_cons_rpc_client_init failed\n");
+		fprintf(stderr, "c2_rpc_client_init failed\n");
 		result = EX_SOFTWARE;
 		goto end2;
 	}
 
-	printf("Console Address = %s\n", cons_client.cons_lepaddr);
-	printf("Server Address = %s\n", cons_client.cons_repaddr);
-
-	/* Connect to the specified server */
-	result = c2_cons_rpc_client_connect(&cons_client);
-	if (result != 0) {
-		fprintf(stderr, "c2_cons_rpc_client_connect failed\n");
-		result = EX_SOFTWARE;
-		goto fini;
-	}
+	printf("Console Address = %s\n", cctx.rcx_local_addr);
+	printf("Server Address = %s\n", cctx.rcx_remote_addr);
 
 	/* Build the fop/fom/item and send */
-	result = fop_send_and_print(&cons_client, opcode);
+	result = fop_send_and_print(&cctx, opcode);
 	if (result != 0) {
 		fprintf(stderr, "fop_send_and_print failed\n");
 		result = EX_SOFTWARE;
@@ -314,10 +322,8 @@ int main(int argc, char **argv)
 	}
 
 cleanup:
-	/* Close connection */
-	c2_cons_rpc_client_disconnect(&cons_client);
-fini:
-	c2_cons_rpc_client_fini(&cons_client);
+	result = c2_rpc_client_fini(&cctx);
+	C2_ASSERT(result == 0);
 end2:
 #ifndef CONSOLE_UT
 	c2_processors_fini();
