@@ -244,7 +244,7 @@ static int nlx_xo__nbd_allocate(struct c2_net_transfer_mc *tm,
 
 	nbd->nbd_len = sizeof(struct nlx_core_buf_desc);
 	C2_ALLOC_ADDB(nbd->nbd_data, nbd->nbd_len,
-		      &tm->ntm_addb, &c2_net_lnet_addb_loc);
+		      &tm->ntm_addb, &nlx_addb_loc);
 	if (nbd->nbd_data == NULL) {
 		nbd->nbd_len = 0; /* for c2_net_desc_free() safety */
 		return -ENOMEM;
