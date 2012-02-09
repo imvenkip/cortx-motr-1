@@ -283,8 +283,6 @@ static void nlx_kcore_kiov_restore_length(struct nlx_core_transfer_mc *lctm,
    @param lcbuf Pointer to kcore buffer private data with match bits set.
    @param umd Pointer to lnet_md_t structure for the buffer, with appropriate
    values set for the desired operation.
-   @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
-   @post ergo(rc == 0, kcb->kb_ktm == kctm)
    @note LNet event could potentially be delivered before this sub returns.
  */
 static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
@@ -377,8 +375,6 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
    the address of the remote destination in struct nlx_core_buffer::cb_addr.
    @param umd Pointer to lnet_md_t structure for the buffer, with appropriate
    values set for the desired operation.
-   @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
-   @post ergo(rc == 0, kcb->kb_ktm == kctm)
    @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
    @note LNet event could potentially be delivered before this sub returns.
  */
@@ -442,8 +438,6 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
    the address of the remote destination in struct nlx_core_buffer::cb_addr.
    @param umd Pointer to lnet_md_t structure for the buffer, with appropriate
    values set for the desired operation.
-   @post ergo(rc == 0, LNetHandleIsValid(kcb->kb_mdh))
-   @post ergo(rc == 0, kcb->kb_ktm == kctm)
    @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
    @note LNet event could potentially be delivered before this sub returns.
  */

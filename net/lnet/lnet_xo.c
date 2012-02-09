@@ -242,7 +242,7 @@ static int nlx_xo__nbd_allocate(struct c2_net_transfer_mc *tm,
 	C2_PRE(nbd != NULL);
 	C2_PRE(cbd != NULL);
 
-	nbd->nbd_len = sizeof(struct nlx_core_buf_desc);
+	nbd->nbd_len = sizeof(*cbd);
 	C2_ALLOC_ADDB(nbd->nbd_data, nbd->nbd_len,
 		      &tm->ntm_addb, &nlx_addb_loc);
 	if (nbd->nbd_data == NULL) {
@@ -265,7 +265,7 @@ static int nlx_xo__nbd_recover(struct c2_net_transfer_mc *tm,
 	C2_PRE(nbd != NULL);
 	C2_PRE(cbd != NULL);
 
-	if (nbd->nbd_len != sizeof(struct c2_net_buf_desc)) {
+	if (nbd->nbd_len != sizeof(*cbd)) {
 		int rc = -EINVAL;
 		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 		return rc;
