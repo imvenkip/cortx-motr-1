@@ -36,6 +36,9 @@ C2_TL_DESCR_DEFINE(pool, "net_buffer_pool", ,
 		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(pool, , struct c2_net_buffer);
 
+const struct c2_addb_loc c2_pool_addb_loc = {
+	.al_name = "buffer pool"
+};
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool);
 static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool);
 
@@ -100,7 +103,10 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_align	     = shift;
 
 	C2_ALLOC_ARR(pool->nbp_colour, colours);
-	C2_ASSERT(pool->nbp_colour != NULL);
+	if(pool->nbp_colour == NULL) {
+		C2_ADDB_ADD(&ndom->nd_addb, &c2_pool_addb_loc, c2_addb_oom);
+		return;
+	}
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_lru);
 	for (i = 0; i < colours; i++)
@@ -122,11 +128,8 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 
 	while (buf_nr--) {
-		C2_CNT_INC(pool->nbp_buf_nr);
-		if (!net_buffer_pool_grow(pool)) {
-			C2_CNT_DEC(pool->nbp_buf_nr);
+		if (!net_buffer_pool_grow(pool))
 			return buffers;
-		}
 		buffers++;
 	}
 	C2_POST(c2_net_buffer_pool_invariant(pool));
@@ -251,12 +254,13 @@ static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	pool_tlink_init(nb);
 	tm_tlink_init(nb);
 
+	C2_CNT_INC(pool->nbp_buf_nr);
 	c2_net_buffer_pool_put(pool, nb, BUFFER_ANY_COLOUR);
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return true;
 clean:
-	if (&nb->nb_buffer != NULL)
-		c2_bufvec_free(&nb->nb_buffer);
+	C2_ASSERT(rc != 0);
+	c2_bufvec_free(&nb->nb_buffer);
 	c2_free(nb);
 	return false;
 }
