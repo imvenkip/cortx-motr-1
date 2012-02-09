@@ -252,7 +252,7 @@ struct c2_net_buffer_pool {
 	    lists.
 	*/
 	struct c2_tl			    *nbp_colours;
-	/* Alignement for network buffers */
+	/* Alignment for network buffers */
 	unsigned			     nbp_align;
 	/**
 	   A list of all buffers in the pool.
