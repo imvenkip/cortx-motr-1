@@ -453,7 +453,6 @@ struct nlx_core_buf_desc {
 	uint64_t                 cbd_magic;
 };
 
-
 /**
    Allocates and initializes the network domain's private field for use by LNet.
    @param dom The network domain pointer.
