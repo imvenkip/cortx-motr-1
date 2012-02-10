@@ -252,7 +252,7 @@ enum c2_fom_cob_create_phases {
 	/**
 	 * @todo When containers code will be in place, the stobs will not be
 	 * created on the fly but will be located during cob_create
-	 * request. 
+	 * request.
 	 * The association of a cob and a stob being identity mapping
 	 * is temporary and is subject to change.
 	 */

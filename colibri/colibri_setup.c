@@ -1283,7 +1283,7 @@ int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_reqh_service *s)
 
 	C2_PRE(s != NULL);
 
-	cc = reqh_svc_colibri_locate(s); 
+	cc = reqh_svc_colibri_locate(s);
 	C2_ASSERT(cc != NULL);
 
 	c2_mutex_lock(&cc->cc_mutex);

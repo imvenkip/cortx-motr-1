@@ -107,7 +107,7 @@
  */
 
 /**
- * Represents the infrastructure to host and maintain a 
+ * Represents the infrastructure to host and maintain a
  * cob fid map which is an auxiliary database which maintains
  * mapping of a container_id and global_file_fid to its cob_fid.
  * Every Colibri data server is supposed to have only one
