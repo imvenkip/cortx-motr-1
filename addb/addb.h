@@ -298,14 +298,28 @@ void c2_addb_fini(void);
                     );
    @endcode
  */
-#define C2_ADDB_EV_DEFINE(var, name, id, ops, ...)			\
+
+#define __C2_ADDB_EV_DEFINE(var, name, id, ops)				\
 const struct c2_addb_ev var = {						\
 	.ae_name  = (name),						\
 	.ae_id    = (id),						\
 	.ae_ops   = &(ops)						\
-};									\
+};
+
+#define C2_ADDB_EV_DEFINE(var, name, id, ops)				\
+	__C2_ADDB_EV_DEFINE(var, name, id, ops)				\
 									\
-typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
+	typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
+
+
+#define C2_ADDB_EV_DEFINE_PUBLIC(var, name, id, ops)	\
+	__C2_ADDB_EV_DEFINE(var, name, id, ops)
+
+#define C2_ADDB_EV_DECLARE(var, ops)					\
+	extern const struct c2_addb_ev var;				\
+									\
+	typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
+
 
 /**
    Type-safe addb posting interface.
@@ -371,20 +385,17 @@ C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
 /** Record a trace event. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_TRACE, const char *message);
 
+/** Events which are used throughout Colibri */
+
 /** Report this event when memory allocation fails. */
-extern struct c2_addb_ev c2_addb_oom;
-typedef int __c2_addb_oom_typecheck_t(struct c2_addb_dp *dp);
+C2_ADDB_EV_DECLARE(c2_addb_oom, C2_ADDB_STAMP);
 
 /** Report this event when function call fails that doesn't fit into a more
     specific event. */
-extern struct c2_addb_ev c2_addb_func_fail;
-typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp,
-					    const char *name, int rc);
+C2_ADDB_EV_DECLARE(c2_addb_func_fail, C2_ADDB_FUNC_CALL);
 
 /** Report this event when a trace message has to be put into addb */
-extern struct c2_addb_ev c2_addb_trace;
-typedef int __c2_addb_trace_typecheck_t(struct c2_addb_dp *dp,
-					const char *name);
+C2_ADDB_EV_DECLARE(c2_addb_trace, C2_ADDB_TRACE);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */
@@ -396,7 +407,6 @@ extern struct c2_fop_type_format c2_mem_buf_tfmt;
 extern struct c2_fop_type_format c2_addb_record_header_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
 extern struct c2_fop_type_format c2_addb_reply_tfmt;
-
 
 /** @} end of addb group */
 

@@ -70,6 +70,7 @@ void add_uts(void)
 	c2_ut_add(&libc2_ut);
 	c2_ut_add(&ad_ut);
 	c2_ut_add(&adieu_ut);
+	c2_ut_add(&addb_ut);
 	c2_ut_add(&balloc_ut);
 	c2_ut_add(&buffer_pool_ut);
         c2_ut_add(&bulkio_ut);

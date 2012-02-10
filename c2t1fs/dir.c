@@ -50,7 +50,7 @@ static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
 const struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,    /* provided by linux kernel */
 	.readdir = c2t1fs_readdir,
-	.fsync   = simple_fsync,	/* provided by linux kernel */
+	.fsync   = generic_file_fsync,	/* provided by linux kernel */
 	.llseek  = generic_file_llseek, /* provided by linux kernel */
 };
 
