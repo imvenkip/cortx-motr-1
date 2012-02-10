@@ -282,11 +282,11 @@ static void layout_buf_pdclust_build(struct c2_bufvec_cursor *dcur,
 	pl_rec.pr_attr.pa_P   = pool.po_width;
 
 	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &pl_rec,
-		sizeof pl_rec);
+						   sizeof pl_rec);
 	C2_UT_ASSERT(num_bytes_copied == sizeof pl_rec);
 }
-/*
-static int layout_buf_pdclust_list_build(struct c2_bufvec_cursor *dcur,
+
+static int layout_buf_pdclust_list_l_build(struct c2_bufvec_cursor *dcur,
 					 uint64_t lid,
 					 uint32_t N, uint32_t K, uint32_t nr)
 
@@ -317,9 +317,8 @@ static int layout_buf_pdclust_list_build(struct c2_bufvec_cursor *dcur,
 
 	return 0;
 }
-*/
 
-static int layout_buf_pdclust_lin_build(struct c2_bufvec_cursor *dcur,
+static int pdclust_lin_lbuf_build(struct c2_bufvec_cursor *dcur,
 					uint64_t lid,
 					uint32_t N, uint32_t K,
 					uint32_t A, uint32_t B,
@@ -340,7 +339,7 @@ static int layout_buf_pdclust_lin_build(struct c2_bufvec_cursor *dcur,
 }
 
 
-static int layout_buf_verify(struct c2_bufvec_cursor *cur,
+static int l_verify(struct c2_bufvec_cursor *cur,
 			     uint64_t lid,
 			     struct c2_layout *l)
 {
@@ -351,7 +350,7 @@ static int layout_buf_verify(struct c2_bufvec_cursor *cur,
 	return 0;
 }
 
-static int layout_buf_pdclust_verify(struct c2_bufvec_cursor *cur,
+static int pdclust_l_verify(struct c2_bufvec_cursor *cur,
 				     uint64_t lid,
 				     uint32_t N, uint32_t K,
 				     struct c2_layout *l)
@@ -359,7 +358,7 @@ static int layout_buf_pdclust_verify(struct c2_bufvec_cursor *cur,
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 
-	layout_buf_verify(cur, lid, l);
+	l_verify(cur, lid, l);
 
 	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
 
@@ -372,23 +371,22 @@ static int layout_buf_pdclust_verify(struct c2_bufvec_cursor *cur,
 
 	return 0;
 }
-/*
-static int layout_buf_pdclust_list_verify(struct c2_bufvec_cursor *cur,
+
+static int pdclust_list_l_verify(struct c2_bufvec_cursor *cur,
 					  uint64_t lid,
 					  uint32_t N, uint32_t K,
 					  uint32_t nr,
 					  struct c2_layout *l)
 {
 
-	layout_buf_pdclust_verify(cur, lid, N, K, l);
+	pdclust_l_verify(cur, lid, N, K, l);
 
-
-	@todo Verify the list
+	/* @todo todo Verify the list */
 
 	return 0;
 }
-*/
-static int layout_buf_pdclust_lin_verify(struct c2_bufvec_cursor *cur,
+
+static int pdclust_lin_l_verify(struct c2_bufvec_cursor *cur,
 					  uint64_t lid,
 					  uint32_t N, uint32_t K,
 					  uint32_t A, uint32_t B,
@@ -398,7 +396,7 @@ static int layout_buf_pdclust_lin_verify(struct c2_bufvec_cursor *cur,
 	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
 
-	layout_buf_pdclust_verify(cur, lid, N, K, l);
+	pdclust_l_verify(cur, lid, N, K, l);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
@@ -411,8 +409,8 @@ static int layout_buf_pdclust_lin_verify(struct c2_bufvec_cursor *cur,
 
 	return 0;
 }
-/*
-static int decode_pdclust_list(uint64_t lid)
+
+static int test_decode_pdclust_list(uint64_t lid)
 {
 	void                      *area;
 	struct c2_bufvec           bv;
@@ -428,7 +426,7 @@ static int decode_pdclust_list(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = layout_buf_pdclust_list_build(&cur, lid, 4, 2, 5);
+	rc = layout_buf_pdclust_list_l_build(&cur, lid, 4, 2, 5);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -436,14 +434,13 @@ static int decode_pdclust_list(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = layout_buf_pdclust_list_verify(&cur, lid, 4, 2, 5, l);
+	rc = pdclust_list_l_verify(&cur, lid, 4, 2, 5, l);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
 }
-*/
 
-static int decode_pdclust_linear(uint64_t lid)
+static int test_decode_pdclust_linear(uint64_t lid)
 {
 	void                      *area;
 	struct c2_bufvec           bv;
@@ -461,7 +458,7 @@ static int decode_pdclust_linear(uint64_t lid)
 	c2_bufvec_cursor_init(&cur, &bv);
 	c2_bufvec_cursor_init(&cur1, &bv);
 
-	rc = layout_buf_pdclust_lin_build(&cur, lid, 4, 2, 777, 888, 999);
+	rc = pdclust_lin_lbuf_build(&cur, lid, 4, 2, 777, 888, 999);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -469,7 +466,7 @@ static int decode_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = layout_buf_pdclust_lin_verify(&cur1, lid, 4, 2, 777, 888, 999, l);
+	rc = pdclust_lin_l_verify(&cur1, lid, 4, 2, 777, 888, 999, l);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -477,26 +474,28 @@ static int decode_pdclust_linear(uint64_t lid)
 
 static void test_decode(void)
 {
-	uint64_t                   lid;
+	uint64_t    lid;
 
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
 
 	/* Decode a layout with PDCLUST layout type and LIST enum type. */
 	lid = 0x50444C4953543031; /*PDLIST01 */
-	//rc = decode_pdclust_list(lid);
+	rc = test_decode_pdclust_list(lid);
+	C2_UT_ASSERT(rc == 0);
 
 	/* Decode a layout with PDCLUST layout type and LINEAR enum type. */
 	lid = 0x50444C4953543032; /*PDLIST02 */
-	rc = decode_pdclust_linear(lid);
+	rc = test_decode_pdclust_linear(lid);
+	C2_UT_ASSERT(rc == 0);
 
 	internal_fini();
 }
-static int layout_pdclust_build(struct c2_pdclust_layout **pl, uint64_t lid,
+static int pdclust_l_build(struct c2_pdclust_layout **pl, uint64_t lid,
 			 uint32_t N, uint32_t K,
 			 struct c2_layout_enum *le)
 {
-	struct c2_uint128             seed;
+	struct c2_uint128   seed;
 
 	c2_uint128_init(&seed, "updownupdownupdo");
 
@@ -506,11 +505,11 @@ static int layout_pdclust_build(struct c2_pdclust_layout **pl, uint64_t lid,
 	return rc;
 }
 
-static int layout_pdclust_linear_build(struct c2_pdclust_layout **pl, uint64_t lid,
-				uint32_t N, uint32_t K,
-				uint32_t A, uint32_t B)
+static int pdclust_linear_l_build(struct c2_pdclust_layout **pl,
+				       uint64_t lid,
+				       uint32_t N, uint32_t K,
+				       uint32_t A, uint32_t B)
 {
-
 	struct c2_layout_linear_enum *le;
 
 	rc = c2_linear_enum_build(pool.po_width, A, B, &le);
@@ -521,13 +520,13 @@ static int layout_pdclust_linear_build(struct c2_pdclust_layout **pl, uint64_t l
 	C2_UT_ASSERT(le->lle_base.le_type->let_id
 		      == c2_linear_enum_type.let_id);
 
-	rc = layout_pdclust_build(pl, lid, N, K, &le->lle_base);
+	rc = pdclust_l_build(pl, lid, N, K, &le->lle_base);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
 }
 
-static int layout_pdclust_list_build(struct c2_pdclust_layout **pl,
+static int pdclust_list_l_build(struct c2_pdclust_layout **pl,
 				     uint64_t lid,
 				     uint32_t N, uint32_t K,
 				     uint32_t nr)
@@ -550,13 +549,26 @@ static int layout_pdclust_list_build(struct c2_pdclust_layout **pl,
 		C2_UT_ASSERT(rc == 0);
 	}
 
-	rc = layout_pdclust_build(pl, lid, N, K, &le->lle_base);
+	rc = pdclust_l_build(pl, lid, N, K, &le->lle_base);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
 }
 
-static void layout_pdclust_verify(struct c2_pdclust_layout *pl,
+static void lbuf_verify(struct c2_bufvec_cursor *cur, uint64_t *lt_id)
+{
+	struct c2_ldb_rec  *rec;
+
+	rec = c2_bufvec_cursor_addr(cur);
+	C2_UT_ASSERT(rec != NULL);
+
+	*lt_id = rec->lr_lt_id;
+
+	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+}
+
+
+static void pdclust_lbuf_verify(struct c2_pdclust_layout *pl,
 				 uint32_t N, uint32_t K,
 				 struct c2_bufvec_cursor *cur,
 				 uint64_t *let_id)
@@ -570,32 +582,20 @@ static void layout_pdclust_verify(struct c2_pdclust_layout *pl,
 	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
 }
 
-static void layout_verify(struct c2_bufvec_cursor *cur, uint64_t *lt_id)
-{
-	struct c2_ldb_rec  *rec;
-
-	rec = c2_bufvec_cursor_addr(cur);
-	C2_UT_ASSERT(rec != NULL);
-
-	*lt_id = rec->lr_lt_id;
-
-	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
-}
-
-static int layout_pdclust_linear_verify(struct c2_pdclust_layout *pl,
+static int pdclust_linear_lbuf_verify(struct c2_pdclust_layout *pl,
 					uint64_t lid,
 					uint32_t N, uint32_t K,
 					uint32_t A, uint32_t B,
 					struct c2_bufvec_cursor *cur)
 {
-	uint64_t lt_id = 500;
-	uint64_t let_id = 600;
+	uint64_t lt_id;
+	uint64_t let_id;
 	struct c2_layout_linear_attr *lin_attr;
 
-	layout_verify(cur, &lt_id);
+	lbuf_verify(cur, &lt_id);
 	C2_UT_ASSERT(lt_id == c2_pdclust_layout_type.lt_id);
 
-	layout_pdclust_verify(pl, N, K, cur, &let_id);
+	pdclust_lbuf_verify(pl, N, K, cur, &let_id);
 	C2_UT_ASSERT(let_id == c2_linear_enum_type.let_id);
 	C2_UT_ASSERT(let_id == 31);
 
@@ -607,7 +607,7 @@ static int layout_pdclust_linear_verify(struct c2_pdclust_layout *pl,
 	return rc;
 }
 
-static int layout_pdclust_list_verify(struct c2_pdclust_layout *pl,
+static int pdclust_list_lbuf_verify(struct c2_pdclust_layout *pl,
 					uint64_t lid,
 					uint32_t N, uint32_t K,
 					uint32_t nr,
@@ -616,21 +616,22 @@ static int layout_pdclust_list_verify(struct c2_pdclust_layout *pl,
 	uint64_t lt_id = 500;
 	uint64_t let_id = 600;
 
-	layout_verify(cur, &lt_id);
+	lbuf_verify(cur, &lt_id);
 	C2_UT_ASSERT(lt_id == c2_pdclust_layout_type.lt_id);
 
-	layout_pdclust_verify(pl, N, K, cur, &let_id);
+	pdclust_lbuf_verify(pl, N, K, cur, &let_id);
 	C2_UT_ASSERT(let_id == c2_list_enum_type.let_id);
-	/* todo */
+
+	/* todo Verify the list contents - inline and from the cob_lists
+	 * table */
 
 	return rc;
 }
 
-
-static int encode_pdclust_linear(uint64_t lid)
+static int test_encode_pdclust_linear(uint64_t lid)
 {
 	struct c2_pdclust_layout  *pl;
-	size_t                     num_bytes;
+	c2_bcount_t                num_bytes;
 	void                      *area;
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
@@ -647,14 +648,13 @@ static int encode_pdclust_linear(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = layout_pdclust_linear_build(&pl, lid, 4, 1, 10, 20);
+	rc = pdclust_linear_l_build(&pl, lid, 4, 1, 10, 20);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_id == lid);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_ref == 0);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_ops != NULL);
 	C2_UT_ASSERT(pl->pl_base.ls_enum != NULL);
 	C2_UT_ASSERT(pl->pl_base.ls_enum != NULL);
-
 
 	lin_enum = container_of(pl->pl_base.ls_enum,
 				struct c2_layout_linear_enum, lle_base);
@@ -666,21 +666,20 @@ static int encode_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = layout_pdclust_linear_verify(pl, lid, 4, 1, 10, 20, &cur);
+	rc = pdclust_linear_lbuf_verify(pl, lid, 4, 1, 10, 20, &cur);
 
 	internal_fini();
 
 	return rc;
 }
 
-static int encode_pdclust_list(uint64_t lid)
+static int test_encode_pdclust_list(uint64_t lid)
 {
 	struct c2_pdclust_layout  *pl;
-	size_t                     num_bytes;
+	c2_bcount_t                num_bytes;
 	void                      *area;
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
-	//todo struct c2_bufvec_cursor    cur;
 
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
@@ -692,29 +691,26 @@ static int encode_pdclust_list(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = layout_pdclust_list_build(&pl, lid, 4, 1, 5);
+	rc = pdclust_list_l_build(&pl, lid, 4, 1, 5);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_id == lid);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_ref == 0);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_ops != NULL);
 	C2_UT_ASSERT(pl->pl_base.ls_enum != NULL);
-	C2_UT_ASSERT(pl->pl_base.ls_enum != NULL);
-
 
 	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
-			C2_LXO_DB_NONE, NULL, &cur);
+			       C2_LXO_DB_NONE, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = layout_pdclust_list_verify(pl, lid, 4, 1, 5, &cur);
+	rc = pdclust_list_lbuf_verify(pl, lid, 4, 1, 5, &cur);
+
 	internal_fini();
 
 	return rc;
 }
 
-
-
-static int encode_composite(uint64_t lid)
+static int test_encode_composite(uint64_t lid)
 {
 	return 0;
 }
@@ -731,24 +727,24 @@ static void test_encode(void)
 
 	/* Encode for 'pdclust' layout type and 'list' enumeration type. */
 	lid = 1111;
-	rc = encode_pdclust_list(lid);
+	rc = test_encode_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Encode for 'pdclust' layout type and 'linear' enumeration type. */
 	lid = 2222;
-	rc = encode_pdclust_linear(lid);
+	rc = test_encode_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Encode for 'composite' layout type. */
 	lid = 3333;
-	rc = encode_composite(lid);
+	rc = test_encode_composite(lid);
 	C2_UT_ASSERT(rc == 0);
 }
 
 static void test_add(void)
 {
 	uint64_t                   lid;
-	size_t                     num_bytes;
+	c2_bcount_t                num_bytes;
 	void                      *area;
 	struct c2_pdclust_layout  *pl;
 	struct c2_db_pair          pair;
@@ -768,7 +764,7 @@ static void test_add(void)
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
 	lid = 4444;
-	rc = layout_pdclust_linear_build(&pl, lid, 4, 1, 100, 200);
+	rc = pdclust_linear_l_build(&pl, lid, 4, 1, 100, 200);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
@@ -786,7 +782,7 @@ static void test_add(void)
 static void test_lookup(void)
 {
 	uint64_t                   lid;
-	size_t                     num_bytes;
+	c2_bcount_t                num_bytes;
 	void                      *area;
 	struct c2_layout          *l;
 	struct c2_db_pair          pair;
@@ -831,7 +827,7 @@ static void test_persistence(void)
 {
 }
 
-static void buf_copyto_buf_build(struct c2_bufvec_cursor *dcur)
+static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 {
 	c2_bcount_t                   num_bytes_copied;
 	struct c2_ldb_rec             rec;
@@ -863,7 +859,7 @@ static void buf_copyto_buf_build(struct c2_bufvec_cursor *dcur)
 	C2_UT_ASSERT(num_bytes_copied == sizeof lin_rec);
 }
 
-static void buf_copyto_buf_verify(struct c2_bufvec_cursor *cur)
+static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 {
 	struct c2_ldb_rec             *rec;
 	struct c2_ldb_pdclust_rec     *pl_rec;
@@ -896,7 +892,7 @@ static void buf_copyto_buf_verify(struct c2_bufvec_cursor *cur)
 }
 
 
-static void test_buf_copyto(void)
+static void test_bufvec_copyto(void)
 {
 	void                         *area;
 	struct c2_bufvec              bv;
@@ -910,11 +906,11 @@ static void test_buf_copyto(void)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&dcur, &bv);
 
-	buf_copyto_buf_build(&dcur);
+	bufvec_copyto_use(&dcur);
 
 	c2_bufvec_cursor_init(&dcur, &bv);
 
-	buf_copyto_buf_verify(&dcur);
+	bufvec_copyto_verify(&dcur);
 
 }
 
@@ -933,7 +929,7 @@ const struct c2_test_suite layout_ut = {
                 { "layout-lookup", test_lookup },
                 { "layout-update", test_update },
                 { "layout-delete", test_delete },
-                { "layout-buf-copyto", test_buf_copyto },
+                { "layout-buf-copyto", test_bufvec_copyto },
                 { "layout-persistence", test_persistence },
 		{ NULL, NULL }
 	}
