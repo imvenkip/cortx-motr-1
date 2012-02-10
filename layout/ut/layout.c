@@ -290,29 +290,27 @@ static int pdclust_list_lbuf_build(uint64_t lid,
 				   struct c2_bufvec_cursor *dcur)
 
 {
-	struct ldb_inline_cob_entries  list_rec;
-	struct ldb_list_cob_entry      cob_list[nr];
+	struct ldb_inline_cob_entries  ldb_cobs; //list_rec;
+	struct ldb_list_cob_entry      cob_entry; //cob_list;
 	int                            i;
 	c2_bcount_t                    num_bytes_copied;
 
 	pdclust_lbuf_build(lid, N, K, c2_list_enum_type.let_id, dcur);
 
-	list_rec.llces_nr      = nr;
+	ldb_cobs.llces_nr      = nr;
+	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &ldb_cobs,
+						   sizeof ldb_cobs);
+	C2_UT_ASSERT(num_bytes_copied == sizeof ldb_cobs);
 
-	for (i = 0; i < list_rec.llces_nr; ++i) {
-		cob_list[i].llce_cob_index = lid + i;
-		cob_list[i].llce_cob_id.f_container = (lid + i + 1) * 100;
-		cob_list[i].llce_cob_id.f_key =
-				cob_list[i].llce_cob_id.f_container + 5;
+	for (i = 0; i < ldb_cobs.llces_nr; ++i) {
+		cob_entry.llce_cob_index = i;
+		cob_entry.llce_cob_id.f_container = i * 100 + 1;
+		cob_entry.llce_cob_id.f_key = i + 1;
+		num_bytes_copied = c2_bufvec_cursor_copyto(
+					dcur, &cob_entry,
+					sizeof cob_entry);
+		C2_UT_ASSERT(num_bytes_copied == sizeof cob_entry);
 	}
-
-	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &list_rec,
-		sizeof list_rec);
-	C2_UT_ASSERT(num_bytes_copied == sizeof list_rec);
-
-	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, cob_list,
-		ARRAY_SIZE(cob_list));
-	C2_UT_ASSERT(num_bytes_copied == ARRAY_SIZE(cob_list));
 
 	return 0;
 }
@@ -348,17 +346,9 @@ static int l_verify(uint64_t lid, struct c2_layout *l)
 
 static int pdclust_l_verify(uint64_t lid,
 			    uint32_t N, uint32_t K,
-			    struct c2_layout *l)
+			    struct c2_pdclust_layout *pl)
 {
-	struct c2_pdclust_layout     *pl;
-	struct c2_layout_striped     *stl;
-
-	l_verify(lid, l);
-
-	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
-
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+	l_verify(lid, &pl->pl_base.ls_base);
 
 	C2_UT_ASSERT(pl->pl_attr.pa_N == N);
 	C2_UT_ASSERT(pl->pl_attr.pa_K == K);
@@ -372,10 +362,49 @@ static int pdclust_list_l_verify(uint64_t lid,
 				 uint32_t nr,
 				 struct c2_layout *l)
 {
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_striped     *stl;
+	struct c2_layout_list_enum   *list_enum;
+	uint32_t                      num_inline;
+	struct list_cob_entry        *cob_entry;
+	int                           i;
+	int                           j;
+	bool                          found;
 
-	pdclust_l_verify(lid, N, K, l);
+	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
 
-	/* @todo todo Verify the list */
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+
+	pdclust_l_verify(lid, N, K, pl);
+
+	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
+				 lle_base);
+
+	num_inline = list_enum->lle_nr >= MAX_INLINE_COB_ENTRIES ?
+			MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
+
+	i = 0;
+	c2_tlist_for(&cob_list_tl, &list_enum->lle_list_of_cobs, cob_entry) {
+		found = false;
+		/* COB entries are read in last in first out order. */
+		for (j = 0; j < list_enum->lle_nr; ++j) {
+			if (cob_entry->cle_cob_index == j) {
+				found = true;
+				break;
+			}
+		}
+
+		C2_ASSERT(found == true);
+		C2_ASSERT(cob_entry->cle_cob_id.f_container ==
+			  j * 100 + 1);
+		C2_ASSERT(cob_entry->cle_cob_id.f_key == j + 1);
+
+		if (i++ == num_inline - 1)
+			break;
+	} c2_tlist_endfor;
+
+	/* @todo todo Verify the list further */
 
 	return 0;
 }
@@ -386,12 +415,14 @@ static int pdclust_lin_l_verify(uint64_t lid,
 				uint32_t nr,
 				struct c2_layout *l)
 {
+	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
 
-	pdclust_l_verify(lid, N, K, l);
-
 	stl = container_of(l, struct c2_layout_striped, ls_base);
+	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+
+	pdclust_l_verify(lid, N, K, pl);
 
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
 				lle_base);
@@ -589,10 +620,9 @@ static int pdclust_linear_lbuf_verify(uint64_t lid,
 
 	pdclust_lbuf_verify(N, K, cur, &let_id);
 	C2_UT_ASSERT(let_id == c2_linear_enum_type.let_id);
-	C2_UT_ASSERT(let_id == 31);
 
 	lin_attr = c2_bufvec_cursor_addr(cur);
-	//C2_UT_ASSERT(lin_attr->lla_nr == ....);
+	C2_UT_ASSERT(lin_attr->lla_nr == pool.po_width);
 	C2_UT_ASSERT(lin_attr->lla_A == A);
 	C2_UT_ASSERT(lin_attr->lla_B == B);
 
@@ -604,8 +634,12 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 				    uint32_t nr,
 				    struct c2_bufvec_cursor *cur)
 {
-	uint64_t lt_id = 500;
-	uint64_t let_id = 600;
+	uint64_t                        lt_id;
+	uint64_t                        let_id;
+	uint32_t                        i;
+	struct ldb_inline_cob_entries  *ldb_cobs;
+	struct ldb_list_cob_entry      *ldb_cob_entry;
+	uint32_t                        num_inline; /* No. of inline cobs */
 
 	lbuf_verify(cur, &lt_id);
 	C2_UT_ASSERT(lt_id == c2_pdclust_layout_type.lt_id);
@@ -613,8 +647,29 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 	pdclust_lbuf_verify(N, K, cur, &let_id);
 	C2_UT_ASSERT(let_id == c2_list_enum_type.let_id);
 
-	/* todo Verify the list contents - inline and from the cob_lists
-	 * table */
+	ldb_cobs = c2_bufvec_cursor_addr(cur);
+	C2_ASSERT(ldb_cobs != NULL);
+	if (ldb_cobs == NULL)
+		return -EPROTO;
+	c2_bufvec_cursor_move(cur, sizeof(struct ldb_inline_cob_entries));
+
+	C2_ASSERT(ldb_cobs->llces_nr > 0);
+
+	num_inline = ldb_cobs->llces_nr >= MAX_INLINE_COB_ENTRIES ?
+		MAX_INLINE_COB_ENTRIES : ldb_cobs->llces_nr;
+
+	for (i = 0; i < num_inline; ++i) {
+		ldb_cob_entry = c2_bufvec_cursor_addr(cur);
+		C2_ASSERT(ldb_cob_entry != NULL);
+		C2_ASSERT(ldb_cob_entry->llce_cob_index <= ldb_cobs->llces_nr);
+		C2_ASSERT(ldb_cob_entry->llce_cob_id.f_container ==
+			  ldb_cob_entry->llce_cob_index * 100 + 1);
+		C2_ASSERT(ldb_cob_entry->llce_cob_id.f_key ==
+			  ldb_cob_entry->llce_cob_index + 1);
+		c2_bufvec_cursor_move(cur, sizeof(struct ldb_list_cob_entry));
+	}
+
+	/* todo Verify the list contents from the cob_lists table */
 
 	return rc;
 }

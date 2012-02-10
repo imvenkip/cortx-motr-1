@@ -304,9 +304,12 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		       struct c2_layout_enum **out)
 {
 	struct c2_layout_list_enum    *list_enum;
-	struct ldb_inline_cob_entries *inline_cobs;
+	struct ldb_inline_cob_entries *ldb_cobs;
+	struct ldb_list_cob_entry     *ldb_cob_entry;
 	uint32_t                       num_inline; /* No. of inline cobs */
+	struct c2_fid                  cob_fid;
 	int                            i;
+	int                            rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -314,24 +317,40 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	C2_ALLOC_PTR(list_enum);
+	//C2_ALLOC_PTR(list_enum);
+	rc = c2_list_enum_build(&list_enum);
+	C2_ASSERT(rc == 0);
 	if (list_enum == NULL)
 		return -ENOMEM;
 
 	*out = &list_enum->lle_base;
 
-	inline_cobs = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(inline_cobs != NULL);
+	/* todo Do enum build her */
 
-	num_inline = inline_cobs->llces_nr >= MAX_INLINE_COB_ENTRIES ?
-			MAX_INLINE_COB_ENTRIES : inline_cobs->llces_nr;
+	ldb_cobs = c2_bufvec_cursor_addr(cur);
+	C2_ASSERT(ldb_cobs != NULL);
+	c2_bufvec_cursor_move(cur, sizeof(struct ldb_inline_cob_entries));
+
+	num_inline = ldb_cobs->llces_nr >= MAX_INLINE_COB_ENTRIES ?
+			MAX_INLINE_COB_ENTRIES : ldb_cobs->llces_nr;
 
 	for (i = 0; i < num_inline; ++i) {
 		/* @todo Copy cob entry from inline_cobs->llces_cobs[] to
 		 list_enum->lle_list_of_cobs */
+		ldb_cob_entry = c2_bufvec_cursor_addr(cur);
+		C2_ASSERT(ldb_cob_entry != NULL);
+		C2_ASSERT(ldb_cob_entry->llce_cob_index <= ldb_cobs->llces_nr);
+		
+		cob_fid.f_container = ldb_cob_entry->llce_cob_id.f_container;
+		cob_fid.f_key = ldb_cob_entry->llce_cob_id.f_key;
+
+		rc = c2_list_enum_add(list_enum, lid, i, &cob_fid);
+		C2_ASSERT(rc == 0);
+
+		c2_bufvec_cursor_move(cur, sizeof(struct ldb_list_cob_entry));
 	}
 
-	if (inline_cobs->llces_nr <= MAX_INLINE_COB_ENTRIES)
+	if (ldb_cobs->llces_nr <= MAX_INLINE_COB_ENTRIES)
 		return 0;
 
 	if (op == C2_LXO_DB_LOOKUP) {
@@ -390,7 +409,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
-			lle_base);
+				 lle_base);
 
 	num_inline = list_enum->lle_nr >= MAX_INLINE_COB_ENTRIES ?
 			MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
@@ -417,10 +436,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 					     sizeof(struct ldb_list_cob_entry));
 		C2_ASSERT(num_bytes == sizeof(struct ldb_list_cob_entry));
 
-		if (i == num_inline - 1)
+		if (i++ == num_inline - 1)
 			break;
 	} c2_tlist_endfor;
-
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
 			(op == C2_LXO_DB_DELETE)) {
@@ -497,7 +515,7 @@ static const struct c2_layout_enum_type_ops list_type_ops = {
 
 const struct c2_layout_enum_type c2_list_enum_type = {
 	.let_name            = "list",
-	.let_id              = 20, /* 0 */
+	.let_id              = 0,
 	.let_ops             = &list_type_ops
 };
 
