@@ -253,8 +253,7 @@ static void internal_fini()
 	c2_ldb_type_unregister(&schema, &c2_composite_layout_type);
 }
 
-static void layout_buf_build(struct c2_bufvec_cursor *dcur,
-			     uint64_t lt_id)
+static void lbuf_build(uint64_t lt_id, struct c2_bufvec_cursor *dcur)
 {
 	struct c2_ldb_rec    rec;
 	c2_bcount_t          num_bytes_copied;
@@ -266,15 +265,15 @@ static void layout_buf_build(struct c2_bufvec_cursor *dcur,
 	C2_UT_ASSERT(num_bytes_copied == sizeof rec);
 }
 
-static void layout_buf_pdclust_build(struct c2_bufvec_cursor *dcur,
-				     uint64_t lid,
-				     uint32_t N, uint32_t K,
-				     uint64_t let_id)
+static void pdclust_lbuf_build(uint64_t lid,
+			       uint32_t N, uint32_t K,
+			       uint64_t let_id,
+			       struct c2_bufvec_cursor *dcur)
 {
 	struct c2_ldb_pdclust_rec pl_rec;
 	c2_bcount_t               num_bytes_copied;
 
-	layout_buf_build(dcur, c2_pdclust_layout_type.lt_id);
+	lbuf_build(c2_pdclust_layout_type.lt_id, dcur);
 
 	pl_rec.pr_let_id      = let_id;
 	pl_rec.pr_attr.pa_N   = N;
@@ -286,9 +285,9 @@ static void layout_buf_pdclust_build(struct c2_bufvec_cursor *dcur,
 	C2_UT_ASSERT(num_bytes_copied == sizeof pl_rec);
 }
 
-static int layout_buf_pdclust_list_l_build(struct c2_bufvec_cursor *dcur,
-					 uint64_t lid,
-					 uint32_t N, uint32_t K, uint32_t nr)
+static int pdclust_list_lbuf_build(uint64_t lid,
+				   uint32_t N, uint32_t K, uint32_t nr,
+				   struct c2_bufvec_cursor *dcur)
 
 {
 	struct ldb_inline_cob_entries  list_rec;
@@ -296,7 +295,7 @@ static int layout_buf_pdclust_list_l_build(struct c2_bufvec_cursor *dcur,
 	int                            i;
 	c2_bcount_t                    num_bytes_copied;
 
-	layout_buf_pdclust_build(dcur, lid, N, K, c2_list_enum_type.let_id);
+	pdclust_lbuf_build(lid, N, K, c2_list_enum_type.let_id, dcur);
 
 	list_rec.llces_nr      = nr;
 
@@ -318,16 +317,15 @@ static int layout_buf_pdclust_list_l_build(struct c2_bufvec_cursor *dcur,
 	return 0;
 }
 
-static int pdclust_lin_lbuf_build(struct c2_bufvec_cursor *dcur,
-					uint64_t lid,
-					uint32_t N, uint32_t K,
-					uint32_t A, uint32_t B,
-					uint32_t nr)
-
+static int pdclust_lin_lbuf_build(uint64_t lid,
+				  uint32_t N, uint32_t K,
+				  uint32_t A, uint32_t B,
+				  uint32_t nr,
+				  struct c2_bufvec_cursor *dcur)
 {
 	struct c2_layout_linear_attr   lin_rec;
 
-	layout_buf_pdclust_build(dcur, lid, N, K, c2_linear_enum_type.let_id);
+	pdclust_lbuf_build(lid, N, K, c2_linear_enum_type.let_id, dcur);
 
 	lin_rec.lla_nr    = nr;
 	lin_rec.lla_A     = A;
@@ -421,7 +419,7 @@ static int test_decode_pdclust_list(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = layout_buf_pdclust_list_l_build(&cur, lid, 4, 2, 5);
+	rc = pdclust_list_lbuf_build(lid, 4, 2, 5, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -453,7 +451,7 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	c2_bufvec_cursor_init(&cur, &bv);
 	c2_bufvec_cursor_init(&cur1, &bv);
 
-	rc = pdclust_lin_lbuf_build(&cur, lid, 4, 2, 777, 888, 999);
+	rc = pdclust_lin_lbuf_build(lid, 4, 2, 777, 888, 999, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -486,9 +484,10 @@ static void test_decode(void)
 
 	internal_fini();
 }
-static int pdclust_l_build(struct c2_pdclust_layout **pl, uint64_t lid,
-			 uint32_t N, uint32_t K,
-			 struct c2_layout_enum *le)
+
+static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
+			   struct c2_layout_enum *le,
+			   struct c2_pdclust_layout **pl)
 {
 	struct c2_uint128   seed;
 
@@ -500,10 +499,10 @@ static int pdclust_l_build(struct c2_pdclust_layout **pl, uint64_t lid,
 	return rc;
 }
 
-static int pdclust_linear_l_build(struct c2_pdclust_layout **pl,
-				       uint64_t lid,
-				       uint32_t N, uint32_t K,
-				       uint32_t A, uint32_t B)
+static int pdclust_linear_l_build(uint64_t lid,
+				  uint32_t N, uint32_t K,
+				  uint32_t A, uint32_t B,
+				  struct c2_pdclust_layout **pl)
 {
 	struct c2_layout_linear_enum *le;
 
@@ -515,16 +514,16 @@ static int pdclust_linear_l_build(struct c2_pdclust_layout **pl,
 	C2_UT_ASSERT(le->lle_base.le_type->let_id
 		      == c2_linear_enum_type.let_id);
 
-	rc = pdclust_l_build(pl, lid, N, K, &le->lle_base);
+	rc = pdclust_l_build(lid, N, K, &le->lle_base, pl);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
 }
 
-static int pdclust_list_l_build(struct c2_pdclust_layout **pl,
-				     uint64_t lid,
-				     uint32_t N, uint32_t K,
-				     uint32_t nr)
+static int pdclust_list_l_build(uint64_t lid,
+				uint32_t N, uint32_t K,
+				uint32_t nr,
+				struct c2_pdclust_layout **pl)
 {
 	struct c2_layout_list_enum *le;
 	struct c2_fid               cob_fid;
@@ -544,7 +543,7 @@ static int pdclust_list_l_build(struct c2_pdclust_layout **pl,
 		C2_UT_ASSERT(rc == 0);
 	}
 
-	rc = pdclust_l_build(pl, lid, N, K, &le->lle_base);
+	rc = pdclust_l_build(lid, N, K, &le->lle_base, pl);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -640,7 +639,7 @@ static int test_encode_pdclust_linear(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = pdclust_linear_l_build(&pl, lid, 4, 1, 10, 20);
+	rc = pdclust_linear_l_build(lid, 4, 1, 10, 20, &pl);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_id == lid);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_ref == 0);
@@ -683,7 +682,7 @@ static int test_encode_pdclust_list(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = pdclust_list_l_build(&pl, lid, 4, 1, 5);
+	rc = pdclust_list_l_build(lid, 4, 1, 5, &pl);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_id == lid);
 	C2_UT_ASSERT(pl->pl_base.ls_base.l_ref == 0);
@@ -756,7 +755,7 @@ static void test_add(void)
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
 	lid = 4444;
-	rc = pdclust_linear_l_build(&pl, lid, 4, 1, 100, 200);
+	rc = pdclust_linear_l_build(lid, 4, 1, 100, 200, &pl);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
