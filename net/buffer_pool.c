@@ -22,6 +22,7 @@
 #include <config.h>
 #endif
 #include "lib/memory.h"/* C2_ALLOC_PTR */
+#include "lib/errno.h" /* ENOMEM */
 #include "lib/arith.h" /* C2_CNT_INC, C2_CNT_DEC */
 #include "net/buffer_pool.h"
 
@@ -81,7 +82,7 @@ static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 	return true;
 }
 
-void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
+int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
 			    uint32_t seg_nr, c2_bcount_t seg_size,
 			    uint32_t colours, unsigned shift)
@@ -105,12 +106,13 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	C2_ALLOC_ARR_ADDB(pool->nbp_colours, colours, &ndom->nd_addb,
 			 &c2_pool_addb_loc);
 	if(pool->nbp_colours == NULL) {
-		return;
+		return -ENOMEM;
 	}
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_lru);
 	for (i = 0; i < colours; i++)
 		tm_tlist_init(&pool->nbp_colours[i]);
+	return 0;
 }
 
 /**
