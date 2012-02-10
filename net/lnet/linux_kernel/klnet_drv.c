@@ -520,6 +520,7 @@
 
  */
 
+#include "net/lnet/lnet_ioctl.h"
 #include "klnet_drv.h"
 
 /**
@@ -534,21 +535,141 @@
 
    Please make sure that the module cross-reference the DLD, as shown below.
 
-   @see @ref LNetDRVDLD and @ref LNetDRVDLD-lspec
+   @see @ref LNetDRVDLD "LNet Transport Device DLD" and @ref LNetDRVDLD-lspec
 
    @{
  */
 
-/**
-   @}
-*/
+enum {
+	DD_MAGIC = 0x64645f6d61676963ULL, /* dd_magic */
+	DD_INITIAL_VALUE = 41,
+};
 
-/**
-   External documentation can be continued if need be - usually it should
-   be fully documented in the header only.
-   @addtogroup LNetDRVDLDDFS
-   @{
-*/
+/** Private data for each nlx file */
+struct nlx_dev_data {
+	uint64_t dd_magic;
+	struct c2_mutex dd_mutex;
+	unsigned int dd_value;
+};
+
+static int nlx_dev_ioctl(struct inode *inode, struct file *file,
+			 unsigned int cmd, unsigned long arg)
+{
+	struct nlx_dev_data *dd = (struct nlx_dev_data *) file->private_data;
+        int rc = -ENOTTY;
+
+	C2_PRE(dd != NULL && dd->dd_magic == DD_MAGIC);
+
+        if (_IOC_TYPE(cmd) != C2_LNET_IOC_MAGIC ||
+            _IOC_NR(cmd) < C2_LNET_IOC_MIN_NR  ||
+            _IOC_NR(cmd) > C2_LNET_IOC_MAX_NR) {
+		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
+		return rc;
+	}
+
+	/** @todo check capable(CAP_SYS_ADMIN)? */
+
+	rc = 0;
+	c2_mutex_lock(&dd->dd_mutex);
+	switch (cmd) {
+	case C2_LNET_PROTOREAD:
+		if (put_user(dd->dd_value, (unsigned int __user *) arg))
+			rc = -EFAULT;
+		break;
+	case C2_LNET_PROTOWRITE:
+		if (get_user(dd->dd_value, (unsigned int __user *) arg))
+			rc = -EFAULT;
+		break;
+	case C2_LNET_PROTOMAP:
+		rc = -ENOTTY; /** @todo code C2_LNET_PROTOMAP */
+		break;
+	case C2_LNET_PROTOUNMAP:
+		rc = -ENOTTY; /** @todo code C2_LNET_PROTOUNMAP */
+		break;
+	default:
+		rc = -ENOTTY;
+		break;
+	}
+	c2_mutex_unlock(&dd->dd_mutex);
+	return rc;
+}
+
+static int nlx_dev_open(struct inode *inode, struct file *file)
+{
+	int cnt = try_module_get(THIS_MODULE);
+	struct nlx_dev_data *dd;
+
+	if (cnt == 0) {
+		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -ENODEV);
+		return -ENODEV;
+	}
+
+	C2_ALLOC_PTR_ADDB(dd, &c2_net_addb, &nlx_addb_loc);
+	if (dd == NULL)
+		return -ENOMEM;
+	dd->dd_magic = DD_MAGIC;
+	dd->dd_value = DD_INITIAL_VALUE;
+	c2_mutex_init(&dd->dd_mutex);
+	file->private_data = dd;
+	printk("c2_net: opened\n");
+        return 0;
+}
+
+int nlx_dev_close(struct inode *inode, struct file *file)
+{
+	struct nlx_dev_data *dd = file->private_data;
+
+	C2_PRE(dd != NULL && dd->dd_magic == DD_MAGIC);
+
+	/** @todo release all resources */
+	file->private_data = NULL;
+	c2_mutex_fini(&dd->dd_mutex);
+	c2_free(dd);
+
+	module_put(THIS_MODULE);
+	printk("c2_net: opened\n");
+	return 0;
+}
+
+static struct file_operations nlx_dev_file_ops = {
+        .ioctl   = nlx_dev_ioctl,
+        .open    = nlx_dev_open,
+        .release = nlx_dev_close
+};
+
+static struct miscdevice nlx_dev = {
+        .minor   = MISC_DYNAMIC_MINOR,
+        .name    = "c2_lnet",
+        .fops    = &nlx_dev_file_ops
+};
+static bool nlx_dev_registered = false;
+
+int nlx_dev_init(void)
+{
+	int rc;
+
+	rc = misc_register(&nlx_dev);
+	if (rc != 0) {
+		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
+		return rc;
+	}
+	nlx_dev_registered = true;
+	printk("%s registered with minor %d\n", nlx_dev.name, nlx_dev.minor);
+	return rc;
+}
+
+void nlx_dev_fini(void)
+{
+	int rc;
+
+	if (nlx_dev_registered) {
+		rc = misc_deregister(&nlx_dev);
+		if (rc != 0)
+			LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
+		nlx_dev_registered = false;
+		printk("%s deregistered\n", nlx_dev.name);
+	}
+}
 
 /** @} */
 

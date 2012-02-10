@@ -19,10 +19,99 @@
  * Original creation date: 1/9/2012
  */
 
-/* Kernel specific LNet unit tests.
+/*
+ * Kernel specific LNet unit tests.
  * The tests cases are loaded from the address space agnostic ../lnet_ut.c
  * file.
  */
+
+enum {
+	UT_PROC_WRITE_SIZE = 128, /**< max size of data to write to proc file */
+
+	UT_TEST_NONE = 0,	  /**< no test requested, user program idles */
+	UT_TEST_MOCK = 1,	  /**< a mock test */
+
+	UT_USER_READY = 1,	  /**< user program ready to start testing */
+	UT_USER_DONE = 2,	  /**< user program done testing */
+};
+
+#define UT_PROC_NAME "c2_lnet_ut"
+static struct proc_dir_entry *proc_lnet_ut;
+
+/** identifier of test to run in user/kernel space */
+static struct c2_atomic64 ktest_id;
+
+static int read_lnet_ut(char *page, char **start, off_t off,
+			int count, int *eof, void *data)
+{
+	int ret;
+
+	/* page[PAGE_SIZE] and simpleminded proc file */
+	ret = sprintf(page, "%lld\n", c2_atomic64_get(&ktest_id));
+	*eof = 1;
+	return ret;
+}
+
+/**
+   Simple-minded prototype for synchronizing a user space program used to drive
+   tests in the kernel lnet UT.  A real mechanism must include real tests and
+   time out if the user space program stops responding or never starts.  Time
+   outs are needed to allow the kernel module to unload cleanly even if there
+   are defects in the user space program.  In this prototype, only the ability
+   to synchronize is included.  The kernel UT does not do anything with
+   ktest_id at present, so it needs no timeout.
+ */
+static int write_lnet_ut(struct file *file, const char __user *buffer,
+			 unsigned long count, void *data)
+{
+	char buf[UT_PROC_WRITE_SIZE];
+	char *endp;
+	long i;
+
+	if (count >= UT_PROC_WRITE_SIZE) {
+		printk("%s: writing wrong size %ld to proc file, max %d\n",
+		       __func__, count, UT_PROC_WRITE_SIZE - 1);
+		return -EINVAL;
+	}
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+	buf[count] = 0;
+	printk("%s: user wrote to file count=%ld: %s\n", __func__, count, buf);
+	i = simple_strtol(buf, &endp, 10);
+	if (*endp > ' ') {
+		printk("%s: expected a numeric value\n", __func__);
+		return -EINVAL;
+	}
+	switch (i) {
+	case UT_USER_READY:
+		c2_atomic64_set(&ktest_id, UT_TEST_MOCK);
+		break;
+	case UT_USER_DONE:
+		c2_atomic64_set(&ktest_id, UT_TEST_NONE);
+		break;
+	default:
+		printk("%s: unknown user test state: %ld\n", __func__, i);
+		return -EINVAL;
+	}
+	return count;
+}
+
+static int ktest_lnet_init(void)
+{
+	c2_atomic64_set(&ktest_id, UT_TEST_NONE);
+	proc_lnet_ut = create_proc_entry(UT_PROC_NAME, 0644, NULL);
+	if (proc_lnet_ut != NULL) {
+		proc_lnet_ut->read_proc  = read_lnet_ut;
+		proc_lnet_ut->write_proc = write_lnet_ut;
+	}
+	return 0;
+}
+
+static void ktest_lnet_fini(void)
+{
+	if (proc_lnet_ut != NULL)
+		remove_proc_entry(UT_PROC_NAME, NULL);
+}
 
 static bool ut_bufvec_alloc(struct c2_bufvec *bv, size_t n)
 {

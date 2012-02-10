@@ -744,6 +744,7 @@
 /* include local files */
 #include "net/lnet/linux_kernel/klnet_vec.c"
 #include "net/lnet/linux_kernel/klnet_utils.c"
+#include "net/lnet/linux_kernel/klnet_drv.c"
 
 /**
    @addtogroup KLNetCore
@@ -1468,6 +1469,7 @@ static void nlx_core_fini(void)
 	int i;
 
 	C2_ASSERT(c2_atomic64_get(&nlx_kcore_lni_refcount) == 0);
+	nlx_dev_fini();
 	if (nlx_kcore_lni_nidstrs != NULL) {
 		for (i = 0; nlx_kcore_lni_nidstrs[i] != NULL; ++i)
 			c2_free(nlx_kcore_lni_nidstrs[i]);
@@ -1518,7 +1520,11 @@ static int nlx_core_init(void)
 		strcpy(nlx_kcore_lni_nidstrs[i], nidstr);
 	}
 
-	return 0;
+	rc = nlx_dev_init();
+	if (rc != 0)
+		nlx_core_fini();
+
+	return rc;
 }
 
 /**

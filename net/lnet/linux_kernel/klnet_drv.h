@@ -74,7 +74,6 @@ struct nlx_sample_ds1 {
 
    Simple lists can also suffice:
    - nlx_sample_ds1
-   - nlx_bad_example
 
    The section could also describe what use it makes of data structures
    described elsewhere.
@@ -151,49 +150,26 @@ struct nlx_sample_ds1 {
    @{
 */
 
-/**
-   Data structure to do something.
-
- */
-struct nlx_sample_ds1 {
-	/** The z field */
-	int dsd_z_field;
-	/** Flux density */
-	int dsd_flux_density;
+enum {
+	C2_NET_LNET_NM_MAGIC = 0x4b4465764d6170ULL, /* KDevMap */
 };
 
-/* Documented elsewhere to illustrate bad documentation of an external symbol.
-   Doxygen cannot automatically reference it from elsewhere, as can be seen in
-   the Doxygen output for the reference in the Functional Specification above.
- */
-extern unsigned int nlx_bad_example;
-
 /**
-   Subroutine1 opens a foo for access.
+   This data structure describes a memory area that is to be mapped or
+   unmapped from user space.
+ */
+struct nlx_map {
+	uint64_t nm_magic;
+	/** Size of area to map */
+	uint32_t nm_size;
+	/** User space pointer to start of memory to be shared */
+	void *nm_user_ptr;
+};
 
-   Some particulars:
-   - Proper grammar, punctuation and spelling is required
-   in all documentation.
-   This requirement is not relaxed in the detailed functional specification.
-   - Function documentation should be in the 3rd person, singular, present
-   tense, indicative mood, active voice.  For example, "creates",
-   "initializes", "finds", etc.
-   - Functional parameters should not trivialize the
-   documentation by repeating what is already clear from the function
-   prototype.  For example it would be wrong to say, <tt>"@param read_only
-   A boolean parameter."</tt>.
-   - The default return convention (0 for success and <tt>-errno</tt>
-   on failure) should not be repeated.
-   - The @@pre and @@post conditions are preferably expressed in code.
-
-   @param param1 Parameter 1 must be locked before use.
-   @param read_only This controls the modifiability of the foo object.
-   Set to @c true to prevent modification.
-   @retval return value
-   @pre Pre-condition, preferably expressed in code.
-   @post Post-condition, preferably expressed in code.
-*/
-int nlx_sample_sub1(struct nlx_sample_ds1 *param1, bool read_only);
+/** Initialise the C2 LNet Transport device. */
+int nlx_dev_init(void);
+/** Finalise the C2 LNet device. */
+void nlx_dev_fini(void);
 
 /**
    @}
