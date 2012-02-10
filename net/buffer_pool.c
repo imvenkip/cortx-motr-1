@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -36,7 +36,7 @@ C2_TL_DESCR_DEFINE(pool, "net_buffer_pool", ,
 		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(pool, , struct c2_net_buffer);
 
-const struct c2_addb_loc c2_pool_addb_loc = {
+static const struct c2_addb_loc c2_pool_addb_loc = {
 	.al_name = "buffer pool"
 };
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool);
@@ -102,9 +102,9 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_colours_nr = colours;
 	pool->nbp_align	     = shift;
 
-	C2_ALLOC_ARR(pool->nbp_colours, colours);
+	C2_ALLOC_ARR_ADDB(pool->nbp_colours, colours, &ndom->nd_addb,
+			 &c2_pool_addb_loc);
 	if(pool->nbp_colours == NULL) {
-		C2_ADDB_ADD(&ndom->nd_addb, &c2_pool_addb_loc, c2_addb_oom);
 		return;
 	}
 	c2_mutex_init(&pool->nbp_mutex);
