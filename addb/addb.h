@@ -364,7 +364,7 @@ __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
  * @pre sizeof fmt < ADDB_CUSTOM_MSG_SIZE.
  */
 void c2_addb_add_custom(struct c2_addb_ctx *ctx, const struct c2_addb_loc *loc,
-			const char *fmt, ...); 
+			const char *fmt, ...);
 
 /** A call to an external system component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
