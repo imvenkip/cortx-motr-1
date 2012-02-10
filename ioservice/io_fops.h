@@ -146,9 +146,7 @@ enum {
    do {
 	c2_rpc_bulk_buf_add(&iofop->if_rbulk, rbuf);
 	..
-	c2_rpc_bulk_buf_page_add(rbuf, page, index);
-	OR
-	c2_rpc_bulk_buf_usrbuf_add(rbuf, buf, count, index);
+	c2_rpc_bulk_buf_databuf_add(rbuf, buf, count, index);
 	..
    } while (not_empty);
    ..

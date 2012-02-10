@@ -939,9 +939,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
    do {
    	c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size, netdom, out);
 	..
-	c2_rpc_bulk_buf_page_add(rbulk, page, index);
-	OR
-	c2_rpc_bulk_buf_usrbuf_add(rbulk, buf, count, index);
+	c2_rpc_bulk_buf_databuf_add(rbulk, buf, count, index);
 	..
 	..
    } while (not_empty);
