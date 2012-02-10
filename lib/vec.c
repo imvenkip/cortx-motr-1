@@ -216,10 +216,9 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 }
 C2_EXPORTED(c2_bufvec_cursor_copy);
 
-int c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur, void *sdata,
-			    c2_bcount_t num_bytes)
+c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
+				    void *sdata, c2_bcount_t num_bytes)
 {
-	c2_bcount_t              count;
 	struct c2_bufvec_cursor  scur;
 	struct c2_bufvec         sbuf = C2_BUFVEC_INIT_BUF(&sdata, &num_bytes);
 
@@ -228,15 +227,12 @@ int c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur, void *sdata,
 
 	c2_bufvec_cursor_init(&scur, &sbuf);
 
-	count = c2_bufvec_cursor_copy(dcur, &scur, num_bytes);
-
-	return count != num_bytes ? -EFAULT : 0;
+	return c2_bufvec_cursor_copy(dcur, &scur, num_bytes);
 }
 
-int c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur, void *ddata,
-			      c2_bcount_t num_bytes)
+c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
+				      void *ddata, c2_bcount_t num_bytes)
 {
-	c2_bcount_t              count;
 	struct c2_bufvec_cursor  dcur;
 	struct c2_bufvec         dbuf = C2_BUFVEC_INIT_BUF(&ddata, &num_bytes);
 
@@ -245,9 +241,7 @@ int c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur, void *ddata,
 
 	c2_bufvec_cursor_init(&dcur, &dbuf);
 
-	count = c2_bufvec_cursor_copy(&dcur, scur, num_bytes);
-
-	return count != num_bytes ? -EFAULT : 0;
+	return c2_bufvec_cursor_copy(&dcur, scur, num_bytes);
 }
 
 void c2_0vec_fini(struct c2_0vec *zvec)

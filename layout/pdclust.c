@@ -530,6 +530,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	struct c2_layout           *l;
 	struct c2_ldb_pdclust_rec  *pl_rec;
 	struct c2_layout_enum_type *et;
+	int                         rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -563,8 +564,18 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
 
-	return et->let_ops->leto_decode(schema, lid, cur, op, tx,
+	//return et->let_ops->leto_decode(schema, lid, cur, op, tx,
+					//&stl->ls_enum);
+
+	rc = et->let_ops->leto_decode(schema, lid, cur, op, tx,
 					&stl->ls_enum);
+
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(stl->ls_enum != NULL);
+
+	/* todo Need to perform c2_layout_striped_init here. */
+
+	return rc;
 }
 
 /**
@@ -610,7 +621,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 
 	rc = c2_bufvec_cursor_copyto(out, pl_rec,
 			 sizeof(struct c2_ldb_pdclust_rec));
-	C2_ASSERT(rc == 0);
+	C2_ASSERT(rc == sizeof(struct c2_ldb_pdclust_rec));
 
 	if (!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -EPROTO;
@@ -626,8 +637,10 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	if (et == NULL)
 		return -ENOENT;
 
-	if (et->let_ops->leto_encode != NULL)
+	if (et->let_ops->leto_encode != NULL) {
 		rc = et->let_ops->leto_encode(schema, l, op, tx, out);
+		C2_ASSERT(rc == 0);
+	}
 
 	return 0;
 }

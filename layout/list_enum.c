@@ -376,9 +376,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 	struct ldb_inline_cob_entries *inline_cobs;
 	uint32_t                       num_inline; /* No. of inline cobs */
 	struct list_cob_entry         *cob_entry;
-	int                            rc;
 	int                            i;
 	struct ldb_list_cob_entry      ldb_cob_entry;
+	c2_bcount_t                    num_bytes;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
@@ -404,18 +404,18 @@ static int list_encode(struct c2_ldb_schema *schema,
 	/** @todo Copy all the cob entries from list_enum->lle_list_of_cobs
 	 * to the buffer. */
 
-	rc = c2_bufvec_cursor_copyto(out, inline_cobs,
+	num_bytes = c2_bufvec_cursor_copyto(out, inline_cobs,
 		sizeof(struct ldb_inline_cob_entries));
-	C2_ASSERT(rc == 0);
+	C2_ASSERT(num_bytes == sizeof(struct ldb_inline_cob_entries));
 
 	i = 0;
 	c2_tlist_for(&cob_list_tl, &list_enum->lle_list_of_cobs, cob_entry) {
 		ldb_cob_entry.llce_cob_index = cob_entry->cle_cob_index;
 		ldb_cob_entry.llce_cob_id = cob_entry->cle_cob_id;
 
-		rc = c2_bufvec_cursor_copyto(out, &ldb_cob_entry,
+		num_bytes = c2_bufvec_cursor_copyto(out, &ldb_cob_entry,
 					     sizeof(struct ldb_list_cob_entry));
-		C2_ASSERT(rc == 0);
+		C2_ASSERT(num_bytes == sizeof(struct ldb_list_cob_entry));
 
 		if (i == num_inline - 1)
 			break;
@@ -497,7 +497,7 @@ static const struct c2_layout_enum_type_ops list_type_ops = {
 
 const struct c2_layout_enum_type c2_list_enum_type = {
 	.let_name            = "list",
-	.let_id              = 0,
+	.let_id              = 20, /* 0 */
 	.let_ops             = &list_type_ops
 };
 

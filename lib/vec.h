@@ -244,16 +244,16 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
    @param sdata Pointer to area where the data is to be copied from.
    @param num_bytes The number of bytes to copy.
  */
-int c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur, void *sdata,
-			    c2_bcount_t num_bytes);
+c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
+				    void *sdata, c2_bcount_t num_bytes);
 /**
    Copy data with specified size from a cursor.
    @param scur Pointer to the source buffer cursor positioned appropriately.
    @param ddata Pointer to area where the data is to be copied to.
    @num_bytes The number of bytes to copy.
  */
-int c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur, void *ddata,
-			      c2_bcount_t num_bytes);
+c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
+				      void *ddata, c2_bcount_t num_bytes);
 
 /**
    Zero vector is a full fledged IO vector containing IO extents

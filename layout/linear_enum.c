@@ -112,10 +112,14 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (lin_enum == NULL)
 		return -ENOMEM;
 
-	*out = &lin_enum->lle_base;
+	*out = &(lin_enum->lle_base);
 
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
+
+	C2_ASSERT(lin_attr->lla_nr != 0);
+	C2_ASSERT(lin_attr->lla_A != 0);
+	C2_ASSERT(lin_attr->lla_B != 0);
 
 	lin_enum->lle_attr = *lin_attr;
 
@@ -135,7 +139,8 @@ static int linear_encode(struct c2_ldb_schema *schema,
 {
 	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
-	int                           rc;
+	c2_bcount_t                   num_bytes;
+
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
@@ -149,13 +154,16 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
 			lle_base);
 
-	rc = c2_bufvec_cursor_copyto(out, lin_enum,
-			sizeof(struct c2_layout_linear_enum));
+	C2_ASSERT(lin_enum->lle_attr.lla_nr != 0);
+	C2_ASSERT(lin_enum->lle_attr.lla_A != 0);
+	C2_ASSERT(lin_enum->lle_attr.lla_B != 0);
 
-	/** @todo remove this assert later */
-	C2_ASSERT(rc == 0);
+	num_bytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
+			sizeof(struct c2_layout_linear_attr));
 
-	return rc;
+	C2_ASSERT(num_bytes == sizeof(struct c2_layout_linear_attr));
+
+	return 0;
 }
 
 /**
@@ -214,7 +222,7 @@ static const struct c2_layout_enum_type_ops linear_type_ops = {
 
 const struct c2_layout_enum_type c2_linear_enum_type = {
 	.let_name       = "linear",
-	.let_id         = 1,
+	.let_id         = 31, /* todo 1 */
 	.let_ops        = &linear_type_ops
 };
 
