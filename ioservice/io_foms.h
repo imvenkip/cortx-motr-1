@@ -182,7 +182,7 @@ struct c2_io_fom_cob_rw {
         int                              fcrw_ndesc;
         /** index of net buffer descriptor under process*/
         int                              fcrw_curr_desc_index;
-        /** index of index vector under process*/
+        /** index of index vector under process */
         int                              fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
@@ -202,6 +202,9 @@ struct c2_io_fom_cob_rw {
         struct c2_mutex                  fcrw_stio_mutex;
         /** rpc bulk load data*/
         struct c2_rpc_bulk               fcrw_bulk;
+        c2_time_t                        fcrw_phase_start_time;
+        c2_time_t                        fcrw_start_time;
+        c2_time_t                        fcrw_end_time;
         /** network buffer list currently acquired by io service*/
         struct c2_tl                     fcrw_netbuf_list;
 };
@@ -225,13 +228,15 @@ enum c2_io_fom_cob_rw_phases {
  */
 struct c2_io_fom_cob_rw_state_transition {
         /** Current phase of I/O FOM */
-        int        fcrw_st_current_phase;
+        int         fcrw_st_current_phase;
         /** Function which executes current phase */
-        int        (*fcrw_st_state_function)(struct c2_fom *);
+        int         (*fcrw_st_state_function)(struct c2_fom *);
         /** Next phase in which FOM is going to execute */
-        int        fcrw_st_next_phase_again;
+        int         fcrw_st_next_phase_again;
         /** Next phase in which FOM is going to wait */
-        int        fcrw_st_next_phase_wait;
+        int         fcrw_st_next_phase_wait;
+        /** Description of phase */
+        const char *fcrw_st_desc;
 };
 
 
