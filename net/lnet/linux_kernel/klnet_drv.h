@@ -154,18 +154,6 @@ enum {
 	C2_NET_LNET_NM_MAGIC = 0x4b4465764d6170ULL, /* KDevMap */
 };
 
-/**
-   This data structure describes a memory area that is to be mapped or
-   unmapped from user space.
- */
-struct nlx_map {
-	uint64_t nm_magic;
-	/** Size of area to map */
-	uint32_t nm_size;
-	/** User space pointer to start of memory to be shared */
-	void *nm_user_ptr;
-};
-
 /** Initialise the C2 LNet Transport device. */
 int nlx_dev_init(void);
 /** Finalise the C2 LNet device. */

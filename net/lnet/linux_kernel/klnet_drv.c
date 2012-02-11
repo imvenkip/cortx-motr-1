@@ -545,17 +545,134 @@ enum {
 	DD_INITIAL_VALUE = 41,
 };
 
+/**
+   Track each mapped memory region
+ */
+struct nlx_mem_area {
+	/** Opaque user space address corresponding to this memory area. */
+	unsigned long ma_user_addr;
+	/** pages for each mapped object, assume each object < PAGE_SIZE
+	    so max of 2 structs are required.
+	 */
+	struct page *ma_page[2];
+	/** kernel addresses corresponding to each page */
+	void *ma_addr[2];
+	/** link in the nlx_dev_data::dd_mem_area @todo should be a tlink */
+	struct c2_list_link ma_link;
+};
+
 /** Private data for each nlx file */
 struct nlx_dev_data {
 	uint64_t dd_magic;
 	struct c2_mutex dd_mutex;
+	/** proof-of-concept value to exchange via ioctl */
 	unsigned int dd_value;
+	/** list of struct nlx_mem_area, @todo should be a tlist */
+	struct c2_list dd_mem_areas;
 };
+
+/**
+   Release (unmap, unpin, unlink and free) a memory area.
+   @param ma the memory area to release
+ */
+static void nlx_mem_area_put(struct nlx_mem_area *ma)
+{
+	kunmap(ma->ma_addr[0]);
+	put_page(ma->ma_page[0]);
+	if (ma->ma_addr[1] != NULL) {
+		C2_ASSERT(ma->ma_page[1] != NULL);
+		kunmap(ma->ma_addr[1]);
+		put_page(ma->ma_page[1]);
+	}
+	c2_list_del(&ma->ma_link);
+	c2_free(ma);
+}
+
+/**
+   Record a memory area in the list of mapped user memory areas.
+   On success, a new struct nlx_mem_area object is added to the
+   list of memory areas tracked in the struct nlx_dev_data.
+   @param dd device data structure tracking all resources for this instance
+   @param uma memory descriptor, copied in from user space
+ */
+static int nlx_mem_area_map(struct nlx_dev_data *dd,
+			    struct c2_net_lnet_mem_area *uma)
+{
+	int rc;
+	int count;
+	struct nlx_mem_area *ma;
+
+	C2_PRE(c2_mutex_is_locked(&dd->dd_mutex));
+	C2_PRE(current->mm != NULL);
+
+	if (uma->nm_size > PAGE_SIZE) {
+		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EINVAL);
+		return -EINVAL;
+	}
+	C2_ALLOC_PTR_ADDB(ma, &c2_net_addb, &nlx_addb_loc);
+	if (ma == NULL)
+		return -ENOMEM;
+
+	if ((uma->nm_user_addr & PAGE_MASK) + uma->nm_size < PAGE_SIZE)
+		count = 1;
+	else
+		count = 2;
+	c2_mutex_unlock(&dd->dd_mutex);
+	down_read(&current->mm->mmap_sem);
+	rc = get_user_pages(current, current->mm,
+			    uma->nm_user_addr, count, 1, 0,
+			    ma->ma_page, NULL);
+	up_read(&current->mm->mmap_sem);
+
+	if (rc != count) {
+		if (rc == 1)
+			put_page(ma->ma_page[0]);
+		c2_free(ma);
+		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -ENOSPC);
+		c2_mutex_lock(&dd->dd_mutex);
+		return -ENOSPC;
+	}
+
+	/* note: kmap can page/sleep */
+	ma->ma_user_addr = uma->nm_user_addr;
+	ma->ma_addr[0] = kmap(ma->ma_page[0]);
+	if (ma->ma_page[1] != NULL)
+		ma->ma_addr[1] = kmap(ma->ma_page[1]);
+
+	c2_mutex_lock(&dd->dd_mutex);
+	c2_list_add(&dd->dd_mem_areas, &ma->ma_link);
+	return 0;
+}
+
+/**
+   Erase a previously recorded memory area from the list
+   in the struct nlx_dev_data.
+   @param dd device data structure tracking all resources for this instance
+   @param uma memory descriptor, copied in from user space
+ */
+static int nlx_mem_area_unmap(struct nlx_dev_data *dd,
+			      struct c2_net_lnet_mem_area *uma)
+{
+	struct nlx_mem_area *pos;
+
+	C2_PRE(c2_mutex_is_locked(&dd->dd_mutex));
+	C2_PRE(current->mm != NULL);
+
+	c2_list_for_each_entry(&dd->dd_mem_areas,
+			       pos, struct nlx_mem_area, ma_link) {
+		if (pos->ma_user_addr == uma->nm_user_addr) {
+			nlx_mem_area_put(pos);
+			return 0;
+		}
+	}
+	return -EINVAL;
+}
 
 static int nlx_dev_ioctl(struct inode *inode, struct file *file,
 			 unsigned int cmd, unsigned long arg)
 {
 	struct nlx_dev_data *dd = (struct nlx_dev_data *) file->private_data;
+	struct c2_net_lnet_mem_area uma;
         int rc = -ENOTTY;
 
 	C2_PRE(dd != NULL && dd->dd_magic == DD_MAGIC);
@@ -581,10 +698,16 @@ static int nlx_dev_ioctl(struct inode *inode, struct file *file,
 			rc = -EFAULT;
 		break;
 	case C2_LNET_PROTOMAP:
-		rc = -ENOTTY; /** @todo code C2_LNET_PROTOMAP */
+		if (copy_from_user(&uma, (void __user *) arg, sizeof uma))
+			rc = -EFAULT;
+		else
+			rc = nlx_mem_area_map(dd, &uma);
 		break;
 	case C2_LNET_PROTOUNMAP:
-		rc = -ENOTTY; /** @todo code C2_LNET_PROTOUNMAP */
+		if (copy_from_user(&uma, (void __user *) arg, sizeof uma))
+			rc = -EFAULT;
+		else
+			rc = nlx_mem_area_unmap(dd, &uma);
 		break;
 	default:
 		rc = -ENOTTY;
@@ -610,6 +733,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	dd->dd_magic = DD_MAGIC;
 	dd->dd_value = DD_INITIAL_VALUE;
 	c2_mutex_init(&dd->dd_mutex);
+	c2_list_init(&dd->dd_mem_areas);
 	file->private_data = dd;
 	printk("c2_net: opened\n");
         return 0;
@@ -618,11 +742,17 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 int nlx_dev_close(struct inode *inode, struct file *file)
 {
 	struct nlx_dev_data *dd = file->private_data;
+	struct nlx_mem_area *pos;
+	struct nlx_mem_area *next;
 
 	C2_PRE(dd != NULL && dd->dd_magic == DD_MAGIC);
 
-	/** @todo release all resources */
 	file->private_data = NULL;
+	/* user program may not unmap all areas, eg if it was killed */
+	c2_list_for_each_entry_safe(&dd->dd_mem_areas,
+				    pos, next, struct nlx_mem_area, ma_link)
+		nlx_mem_area_put(pos);
+	c2_list_fini(&dd->dd_mem_areas);
 	c2_mutex_fini(&dd->dd_mutex);
 	c2_free(dd);
 

@@ -26,14 +26,30 @@
    @{
  */
 
+#include "lib/types.h" /* uint64_t, uint32_t */
+
+/**
+   This data structure describes a memory area that is to be mapped or
+   unmapped from user space.
+ */
+struct c2_net_lnet_mem_area {
+	uint64_t nm_magic;
+	/** Size of area to map */
+	uint32_t nm_size;
+	/** User space address of start of memory area */
+	unsigned long nm_user_addr;
+};
+
 #define C2_LNET_IOC_MAGIC   'c'
 #define C2_LNET_IOC_MIN_NR  0x21
 #define C2_LNET_IOC_MAX_NR  0x3F
 
 #define C2_LNET_PROTOREAD   _IOR(C2_LNET_IOC_MAGIC, 0x21, int)
 #define C2_LNET_PROTOWRITE  _IOW(C2_LNET_IOC_MAGIC, 0x22, int)
-#define C2_LNET_PROTOMAP    _IOW(C2_LNET_IOC_MAGIC, 0x23, struct nlx_map)
-#define C2_LNET_PROTOUNMAP  _IOW(C2_LNET_IOC_MAGIC, 0x24, struct nlx_map)
+#define C2_LNET_PROTOMAP \
+		_IOW(C2_LNET_IOC_MAGIC, 0x23, struct c2_net_lnet_mem_area)
+#define C2_LNET_PROTOUNMAP \
+		_IOW(C2_LNET_IOC_MAGIC, 0x24, struct c2_net_lnet_mem_area)
 
 /**
    @}
