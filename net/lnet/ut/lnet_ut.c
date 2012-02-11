@@ -312,7 +312,8 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 			for (i = 0; i < len; ++i) {
 				nb = tm_tlist_head(&tm->ntm_q[qt]);
 				c2_clink_add(&tm->ntm_chan, &cl);
-				NLXDBGP(td,2,"Cleanup/DEL D:%p T:%p Q:%d B:%p\n",
+				NLXDBGP(td, 2,
+					"Cleanup/DEL D:%p T:%p Q:%d B:%p\n",
 					dom, tm, qt, nb);
 				c2_net_buffer_del(nb, tm);
 				ut_chan_timedwait(&cl, 10);
@@ -320,7 +321,8 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 			}
 			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
 			if (len != 0) {
-				NLXDBGP(td,0,"Cleanup D:%p T:%p Q:%d B failed\n",
+				NLXDBGP(td, 0,
+					"Cleanup D:%p T:%p Q:%d B failed\n",
 					dom, tm, qt);
 			}
 		}
@@ -334,9 +336,11 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 						    nep_tm_linkage) {
 				if (ep == tm->ntm_ep)
 					continue;
-				while(c2_atomic64_get(&ep->nep_ref.ref_cnt)>= 1){
-					NLXDBGP(td,2,"Cleanup/PUT D:%p T:%p "
-						"E:%p\n", dom, tm, ep);
+				while (c2_atomic64_get(&ep->nep_ref.ref_cnt) >=
+				       1) {
+					NLXDBGP(td, 2,
+						"Cleanup/PUT D:%p T:%p E:%p\n",
+						dom, tm, ep);
 					c2_net_end_point_put(ep);
 				}
 			}
@@ -780,9 +784,11 @@ static bool test_msg_send_loop(struct ut_data          *td,
 		goto aborted;
 	}
 
-	for (rb_num = 0; rb_num < num_recv_bufs && rb_num < UT_BUFS1; ++rb_num) {
+	for (rb_num = 0;
+	     rb_num < num_recv_bufs && rb_num < UT_BUFS1; ++rb_num) {
 		nb1 = &td->bufs1[rb_num];
-		nb1->nb_min_receive_size = max64u(send_len_first, send_len_rest);
+		nb1->nb_min_receive_size =
+			max64u(send_len_first, send_len_rest);
 		nb1->nb_max_receive_msgs = recv_max_msgs;
 		nb1->nb_qtype = C2_NET_QT_MSG_RECV;
 		zUT(c2_net_buffer_add(nb1, TM1), aborted);
@@ -813,7 +819,8 @@ static bool test_msg_send_loop(struct ut_data          *td,
 		nb1 = &td->bufs1[rb_num-1];
 
 		ut_net_buffer_sign(nb2, msg_size, seed);
-		C2_UT_ASSERT(ut_net_buffer_authenticate(nb2, msg_size, 0, seed));
+		C2_UT_ASSERT(ut_net_buffer_authenticate(nb2,
+							msg_size, 0, seed));
 		nb2->nb_qtype = C2_NET_QT_MSG_SEND;
 		nb2->nb_length = msg_size;
 		nb2->nb_ep = ep2;
@@ -993,7 +1000,7 @@ static void test_msg_body(struct ut_data *td)
 	/* TEST
 	   Send a message when there is no receive buffer
 	*/
-	NLXDBGPnl(td, 1, "TEST: send / no receive buffer - no error expected\n");
+	NLXDBGPnl(td, 1, "TEST: send/no receive buffer - no error expected\n");
 
 	c2_net_lnet_tm_set_debug(TM1, 0);
 	c2_net_lnet_tm_set_debug(TM2, 0);
