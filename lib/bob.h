@@ -22,10 +22,35 @@
 #define __COLIBRI_LIB_BOB_H__
 
 /**
-   @defgroup bob Branded objects
-
-   @{
-*/
+ * @defgroup bob Branded objects
+ *
+ * Branded object (bob) module provides support for a simple run-time type
+ * identification.
+ *
+ * A branded object is any memory structure containing magic field at a known
+ * offset. A branded object type (c2_bob_type) specifies the offset and the
+ * required magic value field, together with an optional check
+ * function. c2_bob_check() function returns true iff the memory structure given
+ * to it as a parameter has the required magic value and satisfies the optional
+ * check.
+ *
+ * For flexibility branded objects are not represented by a special
+ * data-type. Instead c2_bob_check() takes a void pointer.
+ *
+ * A couple of helper functions are provided to initialize c2_branded_type:
+ *
+ *     - c2_bob_type_xcode_init(): used in case where branded object type has an
+ *       xcode representation, @see xcode/xcode.h;
+ *
+ *     - c2_bob_type_tl_init(): used when branded object is used as a typed list
+ *       link, @see lib/tlist.h.
+ *
+ * A user is explicitly allowed to initialize c2_bob_type instance manually and
+ * to set up the optional check function (c2_bob_type::bt_check()) either before
+ * or after using these helpers.
+ *
+ * @{
+ */
 
 /* import */
 struct c2_xcode_type;
@@ -34,26 +59,64 @@ struct c2_tl_descr;
 /* export */
 struct c2_bob_type;
 
+/**
+ * Branded object type specifies how run-time identification is made.
+ */
 struct c2_bob_type {
+	/** Human-readable name used in error messages. */
 	const char *bt_name;
+	/** Offset to the magic field. */
 	int         bt_magix_offset;
+	/** Magic value. Must be non zero. */
 	uint64_t    bt_magix;
+	/**
+	 *  Optional check function. If provided, this function is called by
+	 *  c2_bob_check().
+	 */
 	bool      (*bt_check)(const void *bob);
 };
 
+/**
+ * Partially initializes a branded object type from a xcode type descriptor.
+ */
 void c2_bob_type_xcode_init(struct c2_bob_type *bt,
 			    const struct c2_xcode_type *xt,
 			    size_t magix_field, uint64_t magix);
+
+/**
+ * Partially initializes a branded object type from a typed list descriptor.
+ */
 void c2_bob_type_tlist_init(struct c2_bob_type *bt,
 			    const struct c2_tl_descr *td);
-
+/**
+ *  Initializes a branded object, by setting the magic field.
+ */
 void c2_bob_init(const struct c2_bob_type *bt, void *bob);
+
+/**
+ *  Finalizes a branded object, by re-setting the magic field to 0.
+ */
+void c2_bob_fini(const struct c2_bob_type *bt, void *bob);
+
+/**
+ * Returns true iff a branded object has the required magic value and check
+ * function, if any, returns true.
+ */
 bool c2_bob_check(const struct c2_bob_type *bt, const void *bob);
 
+/**
+ * Produces a type-safe versions of c2_bob_init(), c2_bob_fini() and
+ * c2_bob_check(), taking branded object of a given type.
+ */
 #define C2_BOB_DEFINE(scope, bob_type, type)		\
 scope void type ## _bob_init(const struct type *bob)	\
 {							\
 	c2_bob_init(bob_type, bob);			\
+}							\
+							\
+scope void type ## _bob_fini(const struct type *bob)	\
+{							\
+	c2_bob_fini(bob_type, bob);			\
 }							\
 							\
 scope bool type ## _bob_check(const struct type *bob)	\

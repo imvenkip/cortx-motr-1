@@ -24,9 +24,9 @@
 #include "lib/bob.h"
 
 /**
-   @addtogroup bob
-
-   @{
+ * @addtogroup bob
+ *
+ * @{
  */
 
 void c2_bob_type_xcode_init(struct c2_bob_type *bt,
@@ -53,11 +53,23 @@ void c2_bob_type_tlist_init(struct c2_bob_type *bt, const struct c2_tl_descr *td
 	bt->bt_magix_offset = td->td_link_magic_offset;
 }
 
+/**
+ * Returns the value of magic field.
+ *
+ * Macro is used instead of inline function so that constness of the result
+ * depends on the constness of "bob" argument.
+ */
 #define MAGIX(bt, bob) ((uint64_t *)(bob + bt->magix_offset))
 
 void c2_bob_init(const struct c2_bob_type *bt, void *bob)
 {
 	*MAGIX(bt, bob) = bt->bt_magix;
+}
+
+void c2_bob_fini(const struct c2_bob_type *bt, void *bob)
+{
+	C2_ASSERT(c2_bob_check(bt, bob));
+	*MAGIX(bt, bob) = 0;
 }
 
 bool c2_bob_check(const struct c2_bob_type *bt, const void *bob)
