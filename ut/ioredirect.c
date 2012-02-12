@@ -27,11 +27,12 @@
 #include "ut/ioredirect.h"
 #include "lib/assert.h"  /* C2_ASSERT */
 
-
-void redirect_std_stream(FILE *std_stream, const char *path, int *fd,
-			 fpos_t *pos, FILE **new_stream)
+void c2_stream_redirect(FILE *stream, const char *path,
+			struct c2_ut_redirect *redir)
 {
-	/**
+	FILE *result;
+
+	/*
 	 * This solution is based on the method described in the comp.lang.c
 	 * FAQ list, Question 12.34: "Once I've used freopen, how can I get the
 	 * original stdout (or stdin) back?"
@@ -42,28 +43,30 @@ void redirect_std_stream(FILE *std_stream, const char *path, int *fd,
 	 * It's not portable and will only work on systems which support dup(2)
 	 * and dup2(2) system calls (these are supported in Linux).
 	 */
-	fflush(std_stream);
-	fgetpos(std_stream, pos);
-	*fd = dup(fileno(std_stream));
-	C2_ASSERT(*fd != -1);
-	*new_stream = freopen(path, "a+", std_stream);
-	C2_ASSERT(new_stream != NULL);
+	redir->ur_stream = stream;
+	fflush(stream);
+	fgetpos(stream, &redir->ur_pos);
+	redir->ur_oldfd = fileno(stream);
+	redir->ur_fd = dup(redir->ur_oldfd);
+	C2_ASSERT(redir->ur_fd != -1);
+	result = freopen(path, "a+", stream);
+	C2_ASSERT(result != NULL);
 }
 
-void restore_std_stream(FILE *std_stream, int std_fd, int fd, fpos_t *pos)
+void c2_stream_restore(const struct c2_ut_redirect *redir)
 {
 	int result;
 
 	/*
-	 * see comment in redirect_std_stream() for detailed information about
-	 * how to redirect and restore standard streams
+	 * see comment in c2_stream_redirect() for detailed information
+	 * about how to redirect and restore standard streams
 	 */
-	fflush(std_stream);
-	result = dup2(fd, std_fd);
+	fflush(redir->ur_stream);
+	result = dup2(redir->ur_fd, redir->ur_oldfd);
 	C2_ASSERT(result != -1);
-	close(fd);
-	clearerr(std_stream);
-	fsetpos(std_stream, pos);
+	close(redir->ur_fd);
+	clearerr(redir->ur_stream);
+	fsetpos(redir->ur_stream, &redir->ur_pos);
 }
 
 /*

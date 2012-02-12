@@ -23,18 +23,25 @@
 
 #include <stdio.h>  /* FILE, fpos_t */
 
+struct c2_ut_redirect {
+	FILE  *ur_stream;
+	int    ur_oldfd;
+	int    ur_fd;
+	fpos_t ur_pos;
+};
+
 /**
  * Associates one of the standard streams (stdin, stdout, stderr) with a file
  * pointed by 'path' argument.
  */
-void redirect_std_stream(FILE *std_stream, const char *path, int *fd,
-			 fpos_t *pos, FILE **new_stream);
+void c2_stream_redirect(FILE *stream, const char *path,
+			struct c2_ut_redirect *redir);
 
 /**
  * Restores standard stream from file descriptor and stream position, which were
- * saved earlier by redirect_std_stream().
+ * saved earlier by c2_stream_redirect().
  */
-void restore_std_stream(FILE *std_stream, int std_fd, int fd, fpos_t *pos);
+void c2_stream_restore(const struct c2_ut_redirect *redir);
 
 #endif /* __COLIBRI_UT_IOREDIRECT_H__ */
 

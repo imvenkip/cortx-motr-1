@@ -40,7 +40,7 @@
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
 #include "lib/misc.h"		  /* C2_SET0 */
-#include "ut/ioredirect.h"        /* redirect_std_stream, restore_std_stream */
+#include "ut/ioredirect.h"
 
 #include "console/console.h"
 #include "console/console_u.h"
@@ -61,20 +61,14 @@ enum {
 	COB_DOM_SERVER_ID = 15,
 };
 
-const char *yaml_file = "/tmp/console_ut.yaml";
-const char *err_file = "/tmp/stderr";
-const char *out_file = "/tmp/stdout";
-const char *in_file = "/tmp/stdin";
+static const char *yaml_file = "/tmp/console_ut.yaml";
+static const char *err_file = "/tmp/stderr";
+static const char *out_file = "/tmp/stdout";
+static const char *in_file = "/tmp/stdin";
 
-FILE *in_fp;
-FILE *out_fp;
-FILE *err_fp;
-int in_fd;
-int out_fd;
-int err_fd;
-fpos_t in_pos;
-fpos_t out_pos;
-fpos_t err_pos;
+static struct c2_ut_redirect in_redir;
+static struct c2_ut_redirect out_redir;
+static struct c2_ut_redirect err_redir;
 
 static int cons_init(void)
 {
@@ -98,18 +92,18 @@ static int cons_fini(void)
 
 static void file_redirect_init(void)
 {
-	redirect_std_stream(stdin, in_file, &in_fd, &in_pos, &in_fp);
-	redirect_std_stream(stdout, out_file, &out_fd, &out_pos, &out_fp);
-	redirect_std_stream(stderr, err_file, &err_fd, &err_pos, &err_fp);
+	c2_stream_redirect(stdin, in_file, &in_redir);
+	c2_stream_redirect(stdout, out_file, &out_redir);
+	c2_stream_redirect(stderr, err_file, &err_redir);
 }
 
 static void file_redirect_fini(void)
 {
 	int result;
 
-	restore_std_stream(stdin, 0, in_fd, &in_pos);
-	restore_std_stream(stdout, 1, out_fd, &out_pos);
-	restore_std_stream(stderr, 2, err_fd, &err_pos);
+	c2_stream_restore(&in_redir);
+	c2_stream_restore(&out_redir);
+	c2_stream_restore(&err_redir);
 
 	result = remove(in_file);
 	C2_UT_ASSERT(result == 0);
@@ -673,71 +667,71 @@ static void console_input_test(void)
 	/* starts UT test for console main */
 	result = console_cmd("no_input", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, usage_msg);
+	result = error_mesg_match(stderr, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
-	fseek(err_fp, 0L, SEEK_SET);
+	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("no_input", "-v", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, usage_msg);
+	result = error_mesg_match(stderr, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
-	fseek(err_fp, 0L, SEEK_SET);
+	fseek(stderr, 0L, SEEK_SET);
 
-	fseek(out_fp, 0L, SEEK_SET);
+	fseek(stdout, 0L, SEEK_SET);
 	result = console_cmd("list_fops", "-l", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(out_fp, "List of FOP's:");
+	result = error_mesg_match(stdout, "List of FOP's:");
 	C2_UT_ASSERT(result == 0);
 	truncate(out_file, 0L);
-	fseek(out_fp, 0L, SEEK_SET);
+	fseek(stdout, 0L, SEEK_SET);
 
 	sprintf(buf, "%d", C2_CONS_FOP_DEVICE_OPCODE);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	C2_UT_ASSERT(result == EX_OK);
 	sprintf(buf, "%.2d, Device Failed",
 		     C2_CONS_FOP_DEVICE_OPCODE);
-	result = error_mesg_match(out_fp, buf);
+	result = error_mesg_match(stdout, buf);
 	C2_UT_ASSERT(result == 0);
 	truncate(out_file, 0L);
-	fseek(out_fp, 0L, SEEK_SET);
+	fseek(stdout, 0L, SEEK_SET);
 
 	sprintf(buf, "%d", C2_CONS_FOP_REPLY_OPCODE);
 	result = console_cmd("show_fops", "-l", "-f", buf, NULL);
 	C2_UT_ASSERT(result == EX_OK);
 	sprintf(buf, "%.2d, Console Reply",
 		     C2_CONS_FOP_REPLY_OPCODE);
-	result = error_mesg_match(out_fp, buf);
+	result = error_mesg_match(stdout, buf);
 	C2_UT_ASSERT(result == 0);
 	truncate(out_file, 0L);
-	fseek(out_fp, 0L, SEEK_SET);
+	fseek(stdout, 0L, SEEK_SET);
 
 	result = console_cmd("show_fops", "-l", "-f", 0, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, usage_msg);
+	result = error_mesg_match(stderr, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
-	fseek(err_fp, 0L, SEEK_SET);
+	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-i", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, usage_msg);
+	result = error_mesg_match(stderr, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
-	fseek(err_fp, 0L, SEEK_SET);
+	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-y", yaml_file, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(err_fp, usage_msg);
+	result = error_mesg_match(stderr, usage_msg);
 	C2_UT_ASSERT(result == 0);
 	truncate(err_file, 0L);
-	fseek(err_fp, 0L, SEEK_SET);
+	fseek(stderr, 0L, SEEK_SET);
 
 	/* last UT test for console main */
 	result = console_cmd("yaml_input", "-i", "-y", yaml_file, NULL);
 	C2_UT_ASSERT(result == EX_NOINPUT);
-	result = error_mesg_match(err_fp, "YAML Init failed");
+	result = error_mesg_match(stderr, "YAML Init failed");
 	C2_UT_ASSERT(result == 0);
 
 	file_redirect_fini();
