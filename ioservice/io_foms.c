@@ -700,8 +700,10 @@ static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
         int                      acquired_net_buffs = 0;
         struct c2_fop_cob_rw    *rwfop;
 
-        rwfop = io_rw_get(io->fcrw_gen.fo_fop);
+        if (io == NULL)
+                return false;
 
+        rwfop = io_rw_get(io->fcrw_gen.fo_fop);
         if (io->fcrw_ndesc != rwfop->crw_desc.id_nr)
                 return false;
 
@@ -759,6 +761,8 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
         C2_ASSERT(c2_stob_io_desc_invariant(stio_desc));
 
         fom_obj = stio_desc->siod_fom;
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
+
         stio    = &stio_desc->siod_stob_io;
         fop     = fom_obj->fcrw_gen.fo_fop;
         fom     = &fom_obj->fcrw_gen;
@@ -772,7 +776,7 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
                  */
                 if (stio->si_rc == 0) {
 		        if (c2_is_write_fop(fop)) {
-                                int rc = 0;
+                                int rc;
 			        /*
                                  * Make an FOL transaction record.
                                  * @todo : Need to consider FOL failure.
