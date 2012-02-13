@@ -1172,7 +1172,6 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
  */
 static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 {
-        int                             i;
         int                             colour;
         int                             acquired_net_bufs;
         int                             required_net_bufs;
@@ -1202,8 +1201,6 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 
                 nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                 C2_ASSERT(nb != NULL);
-                 for (i = 0; i < nb->nb_buffer.ov_vec.v_nr; i++)
-                         nb->nb_buffer.ov_vec.v_count[i] = 4096; // @todo
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
                 netbufs_tlink_del_fini(nb);
                 acquired_net_bufs--;
@@ -1232,7 +1229,6 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 {
         int                        rc = 0;
-        int                        i;
         struct c2_fop             *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw   *fom_obj = NULL;
         struct c2_fop_cob_rw      *rwfop;
@@ -1241,8 +1237,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         struct c2_net_buffer      *nb = NULL;
         struct c2_net_buf_desc    *net_desc;
         struct c2_net_domain      *dom;
-        uint32_t                   segs_nr;
-        uint32_t                   index;
+        uint32_t                   nbuffs_added = 0;
 
         C2_PRE(fom != NULL);
         C2_PRE(c2_is_io_fop(fom->fo_fop));
@@ -1259,27 +1254,18 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         c2_rpc_bulk_init(rbulk);
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
-	index = fom_obj->fcrw_curr_desc_index;
-        segs_nr = rwfop->crw_ivecs.cis_ivecs[index].ci_nr;
-        dom =  fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
-
-	index = fom_obj->fcrw_curr_desc_index;
-        segs_nr = rwfop->crw_ivecs.cis_ivecs[index].ci_nr;
-        dom =  fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        dom      =  fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
+        rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
 
         /* Create rpc bulk bufs list using available net buffers */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
+                uint32_t                    segs_nr;
+	        int                         current_index;
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
 
-                /*
-                 *  Trim network buffer 
-                 */
-                 for (i = 0; i < segs_nr; i++) {
-                         nb->nb_buffer.ov_vec.v_count[i] =
-                         rwfop->crw_ivecs.cis_ivecs[index].ci_iosegs[i].ci_count;
-                         printf("nb->nb_buffer.ov_vec.v_count[%d] = %d\n", i, (int)nb->nb_buffer.ov_vec.v_count[i]);
-                         printf("rwfop->crw_ivecs.cis_ivecs[index].ci_iosegs[%d].ci_count = %d\n", i, (int)rwfop->crw_ivecs.cis_ivecs[index].ci_iosegs[i].ci_count);
-                 }
+	        current_index = fom_obj->fcrw_curr_desc_index;
+                segs_nr = rwfop->crw_ivecs.cis_ivecs[current_index].ci_nr;
 
                 rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
                 if (rc != 0) {
@@ -1291,10 +1277,12 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
                         return FSO_AGAIN;
                 }
 
+               fom_obj->fcrw_curr_desc_index++;
+               nbuffs_added++;
+
         } c2_tlist_endfor;
 
-        net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
-        rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
+        C2_ASSERT(nbuffs_added == fom_obj->fcrw_batch_size);
 
         /*
          * On completion of zero-copy on all buffers rpc_bulk
@@ -1317,8 +1305,6 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
                             "io_fom_cob_rw_initiate_zero_copy", rc);
                 return FSO_AGAIN;
         }
-
-        fom_obj->fcrw_curr_desc_index += fom_obj->fcrw_batch_size;
 
         return FSO_WAIT;
 }
@@ -1722,7 +1708,6 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 {
         int                             colour = 0;
-        int                             i;
         struct c2_fop                  *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw        *fom_obj;
         struct c2_net_buffer           *nb = NULL;
@@ -1746,8 +1731,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
         c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
         c2_tlist_for (&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
-                 for (i = 0; i < nb->nb_buffer.ov_vec.v_nr; i++)
-                         nb->nb_buffer.ov_vec.v_count[i] = 4096; // @todo
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
                 netbufs_tlink_del_fini(nb);
         } c2_tlist_endfor;
