@@ -357,6 +357,9 @@ const struct c2_addb_ev var = {						\
 extern enum c2_addb_ev_level c2_addb_level_default;
 enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
 
+enum c2_addb_ev_level c2_addb_choose_default_level_console(
+	    enum c2_addb_ev_level level);
+
 /**
    Declare addb event operations vector with a given collection of formal
    parameter.

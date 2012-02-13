@@ -105,7 +105,6 @@ enum c2_addb_ev_level c2_addb_choose_default_level_console(
 	c2_addb_level_default_console = level;
 	return orig;
 }
-C2_EXPORTED(c2_addb_choose_default_level_console);
 
 void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
 		      struct c2_addb_ctx *parent)
