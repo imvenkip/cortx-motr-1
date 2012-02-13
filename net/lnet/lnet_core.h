@@ -420,6 +420,7 @@ struct nlx_core_buffer {
 	void                   *cb_kpvt; /**< Core kernel space private */
 };
 
+#ifndef C2_LNET_DRV_TEST
 /**
    Allocates and initializes the network domain's private field for use by LNet.
    @param dom The network domain pointer.
@@ -783,6 +784,7 @@ static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 				  unsigned dbg);
+#endif /* C2_LNET_DRV_TEST */
 
 /**
    @}

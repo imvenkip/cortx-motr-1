@@ -150,10 +150,6 @@ struct nlx_sample_ds1 {
    @{
 */
 
-enum {
-	C2_NET_LNET_NM_MAGIC = 0x4b4465764d6170ULL, /* KDevMap */
-};
-
 /** Initialise the C2 LNet Transport device. */
 int nlx_dev_init(void);
 /** Finalise the C2 LNet device. */

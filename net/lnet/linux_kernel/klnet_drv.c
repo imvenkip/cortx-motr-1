@@ -567,6 +567,10 @@ struct nlx_dev_data {
 	struct c2_mutex dd_mutex;
 	/** proof-of-concept value to exchange via ioctl */
 	unsigned int dd_value;
+	/** proof-of-concept shared data structure */
+	struct nlx_core_transfer_mc *dd_tm;
+	/** proof-of-concept shared data structure */
+	struct page *dd_tm_page;
 	/** list of struct nlx_mem_area, @todo should be a tlist */
 	struct c2_list dd_mem_areas;
 };
@@ -577,6 +581,7 @@ struct nlx_dev_data {
  */
 static void nlx_mem_area_put(struct nlx_mem_area *ma)
 {
+	printk("%s: unmapping area %lx\n", __func__, ma->ma_user_addr);
 	kunmap(ma->ma_addr[0]);
 	put_page(ma->ma_page[0]);
 	if (ma->ma_addr[1] != NULL) {
@@ -592,6 +597,8 @@ static void nlx_mem_area_put(struct nlx_mem_area *ma)
    Record a memory area in the list of mapped user memory areas.
    On success, a new struct nlx_mem_area object is added to the
    list of memory areas tracked in the struct nlx_dev_data.
+   If the memory area matches a nlx_core_transfer_mc, the nlx_dev_data::dd_tm
+   is also set.
    @param dd device data structure tracking all resources for this instance
    @param uma memory descriptor, copied in from user space
  */
@@ -601,10 +608,14 @@ static int nlx_mem_area_map(struct nlx_dev_data *dd,
 	int rc;
 	int count;
 	struct nlx_mem_area *ma;
+	struct nlx_core_transfer_mc *tm;
+	unsigned long offset;
 
 	C2_PRE(c2_mutex_is_locked(&dd->dd_mutex));
 	C2_PRE(current->mm != NULL);
 
+	if (uma->nm_magic != C2_NET_LNET_MEM_AREA_MAGIC)
+		return -EINVAL;
 	if (uma->nm_size > PAGE_SIZE) {
 		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EINVAL);
 		return -EINVAL;
@@ -613,11 +624,13 @@ static int nlx_mem_area_map(struct nlx_dev_data *dd,
 	if (ma == NULL)
 		return -ENOMEM;
 
-	if ((uma->nm_user_addr & PAGE_MASK) + uma->nm_size < PAGE_SIZE)
+	offset = PAGE_OFFSET(uma->nm_user_addr);
+	if (offset + uma->nm_size < PAGE_SIZE)
 		count = 1;
 	else
 		count = 2;
 	c2_mutex_unlock(&dd->dd_mutex);
+	/* note: down_read can block */
 	down_read(&current->mm->mmap_sem);
 	rc = get_user_pages(current, current->mm,
 			    uma->nm_user_addr, count, 1, 0,
@@ -636,17 +649,30 @@ static int nlx_mem_area_map(struct nlx_dev_data *dd,
 	/* note: kmap can page/sleep */
 	ma->ma_user_addr = uma->nm_user_addr;
 	ma->ma_addr[0] = kmap(ma->ma_page[0]);
-	if (ma->ma_page[1] != NULL)
+	if (ma->ma_page[1] != NULL) {
 		ma->ma_addr[1] = kmap(ma->ma_page[1]);
+		printk("%s: user page count was 2\n", __func__);
+	}
+	printk("%s: mapping area %lx\n", __func__, ma->ma_user_addr);
 
 	c2_mutex_lock(&dd->dd_mutex);
 	c2_list_add(&dd->dd_mem_areas, &ma->ma_link);
+	if (ma->ma_page[1] == NULL) {
+		tm = (struct nlx_core_transfer_mc *)
+		    ((char *) ma->ma_addr[0] + offset);
+		if (tm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC) {
+			dd->dd_tm = tm;
+			dd->dd_tm_page = ma->ma_page[0];
+			printk("%s: mapped a nlx_core_transfer_mc\n", __func__);
+		} else
+			printk("%s: mapped something else\n", __func__);
+	}
 	return 0;
 }
 
 /**
    Erase a previously recorded memory area from the list
-   in the struct nlx_dev_data.
+   in the struct nlx_dev_data.  Always clears nlx_dev_data::dd_tm on success.
    @param dd device data structure tracking all resources for this instance
    @param uma memory descriptor, copied in from user space
  */
@@ -658,10 +684,15 @@ static int nlx_mem_area_unmap(struct nlx_dev_data *dd,
 	C2_PRE(c2_mutex_is_locked(&dd->dd_mutex));
 	C2_PRE(current->mm != NULL);
 
+	if (uma->nm_magic != C2_NET_LNET_MEM_AREA_MAGIC)
+		return -EINVAL;
+
 	c2_list_for_each_entry(&dd->dd_mem_areas,
 			       pos, struct nlx_mem_area, ma_link) {
 		if (pos->ma_user_addr == uma->nm_user_addr) {
 			nlx_mem_area_put(pos);
+			dd->dd_tm = NULL;
+			dd->dd_tm_page = NULL;
 			return 0;
 		}
 	}
@@ -696,6 +727,10 @@ static int nlx_dev_ioctl(struct inode *inode, struct file *file,
 	case C2_LNET_PROTOWRITE:
 		if (get_user(dd->dd_value, (unsigned int __user *) arg))
 			rc = -EFAULT;
+		if (dd->dd_tm != NULL) {
+			dd->dd_tm->_debug_ = dd->dd_value;
+			SetPageDirty(dd->dd_tm_page);
+		}
 		break;
 	case C2_LNET_PROTOMAP:
 		if (copy_from_user(&uma, (void __user *) arg, sizeof uma))
@@ -757,7 +792,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	c2_free(dd);
 
 	module_put(THIS_MODULE);
-	printk("c2_net: opened\n");
+	printk("c2_net: closed\n");
 	return 0;
 }
 

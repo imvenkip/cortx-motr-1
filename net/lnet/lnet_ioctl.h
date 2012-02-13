@@ -28,6 +28,10 @@
 
 #include "lib/types.h" /* uint64_t, uint32_t */
 
+enum {
+	C2_NET_LNET_MEM_AREA_MAGIC = 0x4c4d656d41726561ULL, /* LMemArea */
+};
+
 /**
    This data structure describes a memory area that is to be mapped or
    unmapped from user space.
