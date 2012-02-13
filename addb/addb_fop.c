@@ -219,7 +219,9 @@ int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 
 		C2_ASSERT(body != NULL);
 		body->rc = (uint32_t)dp->ad_rc;
-		strncpy(body->msg, dp->ad_name, strlen(dp->ad_name));
+
+		strncpy(body->msg, dp->ad_name,
+			rec->ar_data.cmb_count - sizeof(body->rc));
 	}
 	return rc;
 }
@@ -306,7 +308,7 @@ int c2_addb_trace_pack(struct c2_addb_dp *dp,
 		body = (struct c2_addb_trace_body *)rec->ar_data.cmb_value;
 
 		C2_ASSERT(body != NULL);
-		strncpy(body->msg, dp->ad_name, strlen(dp->ad_name));
+		strncpy(body->msg, dp->ad_name, rec->ar_data.cmb_count);
 	}
 	return rc;
 }
