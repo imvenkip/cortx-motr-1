@@ -1245,7 +1245,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 /* It is used to create the stob specified in the fid of each fop. */
 static int bulkio_stob_create_fom_state(struct c2_fom *fom)
 {
-   	struct c2_fop_cob_rw            *rwfop;
+        struct c2_fop_cob_rw            *rwfop;
         struct c2_stob_domain           *fom_stdom;
         struct c2_fop_file_fid          *ffid;
         struct c2_fid                    fid;
@@ -1372,7 +1372,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	/* Checks if the write io bulk data is received as is. */
 	for (i = 0; i < rw->crw_desc.id_nr &&
-	   	    c2_is_write_fop(fom->fo_fop); ++i) {
+                c2_is_write_fop(fom->fo_fop); ++i) {
 		for (j = 0; j < netbufs[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(writebuf, netbufs[i]->nb_buffer.ov_buf[j],
 				    netbufs[i]->nb_buffer.ov_vec.v_count[j]);
@@ -1772,7 +1772,7 @@ void bulkio_stob_create(void)
 	C2_ALLOC_ARR(wfops, IO_FIDS_NR);
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		C2_ALLOC_PTR(wfops[i]);
- 	 	rc = c2_io_fop_init(wfops[i], &c2_fop_cob_writev_fopt);
+                rc = c2_io_fop_init(wfops[i], &c2_fop_cob_writev_fopt);
                 wfops[i]->if_fop.f_type->ft_fom_type =
                 bulkio_stob_create_fom_type;
 
@@ -2019,9 +2019,9 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 		C2_ALLOC_PTR(io_fops[i]);
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE)
- 		rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_writev_fopt);
- 	else
-		rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_readv_fopt);
+                rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_writev_fopt);
+        else
+                rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_readv_fopt);
 	iofop = io_fops[index];
 	rbulk = &iofop->if_rbulk;
 	rw = io_rw_get(&io_fops[index]->if_fop);
@@ -2039,7 +2039,7 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < IO_SEGS_NR; ++i) {
-		rc = c2_rpc_bulk_buf_databuf_add(rbuf,
+                rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 				io_buf[j].nb_buffer.ov_buf[i],
 				io_buf[j].nb_buffer.ov_vec.v_count[i],
 				io_offsets[0], &c_netdom);
