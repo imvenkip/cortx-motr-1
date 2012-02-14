@@ -108,7 +108,7 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 	return true;
 }
 
-#include "cursor.c"
+#include "xcode/cursor.c"
 
 enum xcode_op {
 	XO_ENC,

@@ -109,12 +109,12 @@ bool c2_bob_check(const struct c2_bob_type *bt, const void *bob);
  * c2_bob_check(), taking branded object of a given type.
  */
 #define C2_BOB_DEFINE(scope, bob_type, type)		\
-scope void type ## _bob_init(const struct type *bob)	\
+scope void type ## _bob_init(struct type *bob)		\
 {							\
 	c2_bob_init(bob_type, bob);			\
 }							\
 							\
-scope void type ## _bob_fini(const struct type *bob)	\
+scope void type ## _bob_fini(struct type *bob)		\
 {							\
 	c2_bob_fini(bob_type, bob);			\
 }							\
@@ -122,7 +122,10 @@ scope void type ## _bob_fini(const struct type *bob)	\
 scope bool type ## _bob_check(const struct type *bob)	\
 {							\
 	return c2_bob_check(bob_type, bob);		\
-}
+}							\
+							\
+struct __ ## type ## _semicolon_catcher
+
 
 /** @} end of bob group */
 

@@ -33,7 +33,7 @@ void c2_bob_type_xcode_init(struct c2_bob_type *bt,
 			    const struct c2_xcode_type *xt,
 			    size_t magix_field, uint64_t magix)
 {
-	struct c2_xcode_field *mf = &xt->xct_child[magix_field];
+	const struct c2_xcode_field *mf = &xt->xct_child[magix_field];
 
 	C2_PRE(magix_field < xt->xct_nr);
 	C2_PRE(xt->xct_aggr == C2_XA_RECORD);
@@ -59,7 +59,7 @@ void c2_bob_type_tlist_init(struct c2_bob_type *bt, const struct c2_tl_descr *td
  * Macro is used instead of inline function so that constness of the result
  * depends on the constness of "bob" argument.
  */
-#define MAGIX(bt, bob) ((uint64_t *)(bob + bt->magix_offset))
+#define MAGIX(bt, bob) ((uint64_t *)(bob + bt->bt_magix_offset))
 
 void c2_bob_init(const struct c2_bob_type *bt, void *bob)
 {
