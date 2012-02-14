@@ -25,6 +25,11 @@
 #include "lib/trace.h"
 #include "ioservice/io_fops.h"
 
+static char *local_addr = "127.0.0.1:12345:1";
+
+module_param(local_addr, charp, S_IRUGO);
+MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs e.g. 127.0.0.1:12345:1");
+
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
 
@@ -48,7 +53,6 @@ enum {
 
 struct c2t1fs_globals c2t1fs_globals = {
 	.g_xprt       = &c2_net_bulk_sunrpc_xprt,
-	.g_laddr      = "127.0.0.1:12345:1",
 	.g_cob_dom_id = { .id = C2T1FS_COB_DOM_ID },
 	.g_db_name    = C2T1FS_DB_NAME,
 };
@@ -58,6 +62,10 @@ int c2t1fs_init(void)
 	int rc;
 
 	C2_TRACE_START();
+
+	c2t1fs_globals.g_laddr = local_addr;
+
+	C2_TRACE("local_addr: %s\n", local_addr);
 
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
