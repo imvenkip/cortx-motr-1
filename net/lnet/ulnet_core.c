@@ -19,6 +19,12 @@
  * Original creation date: 12/14/2011
  */
 
+/**
+   @page ULNetCoreDLD LNet Transport User Space Core DLD
+
+   This is a placeholder for the Colibri LNet Transport User Space Core DLD.
+ */
+
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 {
 	/* XXX implement */
