@@ -34,7 +34,6 @@ C2_TL_DESCR_DEFINE(tm, "tm list", ,
 		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
 		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(tm, , struct c2_net_buffer);
-C2_EXPORTED(tm_tl);
 C2_EXPORTED(tm_tlist_is_empty);
 
 bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
@@ -130,7 +129,6 @@ void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 
 	return;
 }
-C2_EXPORTED(c2_net_tm_event_post);
 
 static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 {
@@ -335,7 +333,6 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return result;
 }
-C2_EXPORTED(c2_net_tm_confine);
 
 int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
 {
@@ -355,7 +352,6 @@ int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return result;
 }
-C2_EXPORTED(c2_net_buffer_event_deliver_synchronously);
 
 void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
 {
@@ -368,7 +364,6 @@ void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return;
 }
-C2_EXPORTED(c2_net_buffer_event_deliver_all);
 
 bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
 {
@@ -382,7 +377,6 @@ bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return result;
 }
-C2_EXPORTED(c2_net_buffer_event_pending);
 
 void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
 				struct c2_chan *chan)
@@ -396,7 +390,6 @@ void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return;
 }
-C2_EXPORTED(c2_net_buffer_event_notify);
 
 void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour)
 {

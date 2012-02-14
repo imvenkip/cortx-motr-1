@@ -18,5 +18,5 @@ tm_provision.c: net.h
 net.h net_xdr.c: $(OTW_U_SOURCES)
 $(OTW_U_SOURCES): net_otw_types.ff \
     $(top_builddir)/fop/rt/libc2rt.la $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -u $<
+	$(top_builddir)/fop/fop2c -uk $<
 

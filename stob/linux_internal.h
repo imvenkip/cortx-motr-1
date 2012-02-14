@@ -31,13 +31,10 @@
 
 #include <libaio.h>
 
+#include "lib/queue.h"
 #include "lib/tlist.h"
 #include "lib/thread.h"
 #include "stob/stob.h"
-
-#ifndef MAXPATHLEN
-#define MAXPATHLEN 1024
-#endif
 
 enum {
 	/** Default number of threads to create in a storage object domain. */
@@ -108,15 +105,18 @@ struct linux_domain {
 };
 
 /**
-   stob based on Linux file system
+   stob based on Linux file system and block devices
  */
 struct linux_stob {
-	struct c2_stob      sl_stob;
+	struct c2_stob		sl_stob;
 
 	/** fd from returned open(2) */
-	int                 sl_fd;
-	struct c2_tlink     sl_linkage;
-	uint64_t            sl_magix;
+	int			sl_fd;
+	/** File mode as returned by stat(2) */
+	mode_t			sl_mode;
+
+	struct c2_tlink		sl_linkage;
+	uint64_t		sl_magix;
 };
 
 static inline struct linux_stob *stob2linux(struct c2_stob *stob)

@@ -451,7 +451,7 @@ static bool service_is_registered(const char *service_name)
 	return false;
 }
 
-struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
+struct c2_rpcmachine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 					const struct c2_net_xprt *xprt,
 					const char *sname)
 {
@@ -475,13 +475,25 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 				nxprt = rpcmach->cr_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
 				if (strcmp(nxprt->nx_name, xprt->nx_name) == 0)
-					return &rpcmach->cr_tm;
+					return rpcmach;
 			} c2_tlist_endfor;
                 } c2_tlist_endfor;
         } c2_tlist_endfor;
 
         return NULL;
 
+}
+C2_EXPORTED(c2_cs_rpcmach_get);
+
+struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
+					const struct c2_net_xprt *xprt,
+					const char *sname)
+{
+	struct c2_rpcmachine *rpcmach;
+
+	rpcmach = c2_cs_rpcmach_get(cctx, xprt, sname);
+
+	return (rpcmach == NULL) ? NULL : &rpcmach->cr_tm;
 }
 
 /**
@@ -712,7 +724,7 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
    Initialises AD type stob.
  */
 static int cs_ad_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
-				struct c2_dbenv *db, struct c2_stob **bstob)
+			   struct c2_dbenv *db, struct c2_stob **bstob)
 {
 	int rc;
 
@@ -721,8 +733,11 @@ static int cs_ad_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 
 	if (rc == 0)
 		rc = c2_ad_stob_setup(stob->adstob, db, *bstob,
-				&colibri_balloc.cb_ballroom);
-
+				      &colibri_balloc.cb_ballroom,
+				      BALLOC_DEF_CONTAINER_SIZE,
+				      BALLOC_DEF_BLOCK_SHIFT,
+				      BALLOC_DEF_BLOCKS_PER_GROUP,
+				      BALLOC_DEF_RESERVED_GROUPS);
 	return rc;
 }
 
@@ -739,7 +754,7 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 					stob_path, &stob->linuxstob);
 	if  (rc == 0) {
 		sdom = stob->linuxstob;
-		rc = c2_linux_stob_setup(sdom, true);
+		rc = c2_linux_stob_setup(sdom, false);
 		if  (rc == 0)
 			rc = sdom->sd_ops->sdo_stob_find(stob->linuxstob,
 						&stob->stob_id, bstob);

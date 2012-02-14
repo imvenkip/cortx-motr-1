@@ -218,6 +218,14 @@ struct c2_rpc_item_ops {
 	   the time this method is called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item);
+
+	/**
+	   Finalise and free item.
+	   @see c2_fop_default_item_ops
+	   @see c2_fop_item_free(), can be used with fops that are not embedded
+	   in any other object.
+	 */
+	void (*rio_free)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {

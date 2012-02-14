@@ -197,18 +197,18 @@ static void low(struct c2_net_buffer_pool *bp)
 }
 
 const struct c2_test_suite buffer_pool_ut = {
-	.ts_name = "bufifer_pool_ut",
+	.ts_name = "buffer_pool_ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "buffer_pool_init		", test_init},
-		{ "buffer_pool_get_put		", test_get_put},
-		{ "buffer_pool_get_put_colour	", test_get_put_colour},
-		{ "buffer_pool_grow		", test_grow},
-		{ "buffer_pool_prune		", test_prune},
-		{ "buffer_pool_get_put_multiple	", test_get_put_multiple},
-		{ "buffer_pool_fini		", test_fini},
-		{ NULL,				   NULL }
+		{ "buffer_pool_init",              test_init },
+		{ "buffer_pool_get_put",           test_get_put },
+		{ "buffer_pool_get_put_colour",    test_get_put_colour },
+		{ "buffer_pool_grow",              test_grow },
+		{ "buffer_pool_prune",             test_prune },
+		{ "buffer_pool_get_put_multiple",  test_get_put_multiple },
+		{ "buffer_pool_fini",              test_fini },
+		{ NULL,                            NULL }
 	}
 };
 C2_EXPORTED(buffer_pool_ut);

@@ -31,6 +31,10 @@
 #include "addb/addb.h"
 #include "sm/sm.h"
 
+#ifndef MAXPATHLEN
+#define MAXPATHLEN 1024
+#endif
+
 /* import */
 struct c2_dtx;
 struct c2_chan;

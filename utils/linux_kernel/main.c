@@ -50,7 +50,7 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&c2_net_bulk_sunrpc_ut);
 	c2_ut_add(&c2_net_ksunrpc_ut);
 	c2_ut_add(&buffer_pool_ut);
-	c2_ut_run(NULL);
+	c2_ut_run();
 	c2_uts_fini();
 }
 

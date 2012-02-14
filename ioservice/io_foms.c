@@ -31,6 +31,7 @@
 #include "net/net.h"
 #include "fid/fid.h"
 #include "reqh/reqh.h"
+#include "stob/linux.h"
 
 #ifdef __KERNEL__
 #include "ioservice/linux_kernel/io_fops_k.h"
@@ -50,6 +51,7 @@ extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 extern struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 
 static int io_fom_cob_rwv_state(struct c2_fom *fom);
+static int io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 static void io_fom_cob_rwv_fini(struct c2_fom *fom);
 static size_t io_fom_locality_get(const struct c2_fom *fom);
 
@@ -60,7 +62,7 @@ static struct c2_fom_ops c2_io_fom_rwv_ops = {
 };
 
 static const struct c2_fom_type_ops c2_io_cob_rwv_type_ops = {
-	.fto_create = NULL,
+	.fto_create = io_fop_cob_rwv_fom_init,
 };
 
 static struct c2_fom_type c2_io_cob_rwv_type = {
@@ -94,10 +96,10 @@ static void io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
  * Find the corresponding fom_type and associate it with c2_fom.
  * Associate fop with fom type.
  */
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_fom			*fom;
-	struct c2_io_fom_cob_rwv	*fom_obj;
+	struct c2_io_fom_cob_rwv *fom_obj;
+	struct c2_fop		 *rep_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -107,27 +109,22 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	if (fom_obj == NULL)
 		return -ENOMEM;
 
-	fom = &fom_obj->fcrw_gen;
-	fom->fo_fop = fop;
-	c2_fom_init(fom);
 	fop->f_type->ft_fom_type.ft_ops = &c2_io_cob_rwv_type_ops;
-	fom->fo_type = &c2_io_cob_rwv_type;
-	fom->fo_ops = &c2_io_fom_rwv_ops;
-
 	if (is_read(fop))
-		fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt,
-					       NULL);
+		rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 	else
-		fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt,
-					       NULL);
+		rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 
-	if (fom->fo_rep_fop == NULL) {
+	if (rep_fop == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
 	}
 
+	c2_fom_create(&fom_obj->fcrw_gen, &c2_io_cob_rwv_type,
+			&c2_io_fom_rwv_ops, fop, rep_fop);
+
 	fom_obj->fcrw_stob = NULL;
-	*m = fom;
+	*m = &fom_obj->fcrw_gen;
 	return 0;
 }
 

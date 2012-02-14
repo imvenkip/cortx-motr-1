@@ -426,7 +426,6 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 
 	return;
 }
-C2_EXPORTED(c2_net_buffer_event_post);
 
 /** @} end of net group */
 

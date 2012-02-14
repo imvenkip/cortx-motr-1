@@ -26,7 +26,7 @@
 
 
 #ifdef __KERNEL__
-#include "net/linux_kernel/sunrpc_io_k.h"
+#include "net/bulk_emulation/sunrpc_io_k.h"
 #else
 #include <arpa/inet.h>
 #include "net/bulk_emulation/sunrpc_io_u.h"

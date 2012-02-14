@@ -36,7 +36,6 @@ C2_TL_DESCR_DEFINE(pool, "net_buffer_pool", ,
 		   struct c2_net_buffer, nb_lru, nb_magic,
 		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(pool, , struct c2_net_buffer);
-C2_EXPORTED(pool_tl);
 
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool);
 static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool);
@@ -109,7 +108,6 @@ void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	for (i = 0; i < colours; i++)
 		tm_tlist_init(&pool->nbp_colour[i]);
 }
-C2_EXPORTED(c2_net_buffer_pool_init);
 
 /**
    Adds a buffer to the pool to increase the capacity.
@@ -135,7 +133,6 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return buffers;
 }
-C2_EXPORTED(c2_net_buffer_pool_provision);
 
 /** It removes the given buffer from the pool */
 void buffer_remove(struct c2_net_buffer_pool *pool, struct c2_net_buffer *nb)
@@ -171,25 +168,21 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	c2_free(pool->nbp_colour);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
-C2_EXPORTED(c2_net_buffer_pool_fini);
 
 void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool)
 {
 	c2_mutex_lock(&pool->nbp_mutex);
 }
-C2_EXPORTED(c2_net_buffer_pool_lock);
 
 bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool *pool)
 {
 	return c2_mutex_is_locked(&pool->nbp_mutex);
 }
-C2_EXPORTED(c2_net_buffer_pool_is_locked);
 
 void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool)
 {
 	c2_mutex_unlock(&pool->nbp_mutex);
 }
-C2_EXPORTED(c2_net_buffer_pool_unlock);
 
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 					     uint32_t colour)
@@ -219,7 +212,6 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return nb;
 }
-C2_EXPORTED(c2_net_buffer_pool_get);
 
 void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 			    struct c2_net_buffer *buf, uint32_t colour)
@@ -245,7 +237,6 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 		pool->nbp_ops->nbpo_not_empty(pool);
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 }
-C2_EXPORTED(c2_net_buffer_pool_put);
 
 bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 {
@@ -293,7 +284,6 @@ bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool)
 	buffer_remove(pool, nb);
 	return true;
 }
-C2_EXPORTED(c2_net_buffer_pool_prune);
 
 /** @} end of net_buffer_pool */
 

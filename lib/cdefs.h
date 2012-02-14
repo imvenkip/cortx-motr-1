@@ -34,7 +34,6 @@
  * Unfortunately, name clashes are possible and c2_ prefix is too awkward. See
  * C2_BASSERT() checks in lib/misc.c
  */
-
 #ifndef ergo
 #define ergo(a, b) (!(a) || (b))
 #endif
@@ -46,8 +45,8 @@
 extern void __dummy_function(void);
 
 /**
-   A macro used with if-statements without `else' clause to assure proper
-   coverage analysis.
+ * A macro used with if-statements without `else' clause to assure proper
+ * coverage analysis.
  */
 #define AND_NOTHING_ELSE else __dummy_function();
 
@@ -62,13 +61,13 @@ extern void __dummy_function(void);
 })
 
 /**
-   Produces an expression having the same type as a given field in a given
-   struct or union. Suitable to be used as an argument to sizeof() or typeof().
+ * Produces an expression having the same type as a given field in a given
+ * struct or union. Suitable to be used as an argument to sizeof() or typeof().
  */
 #define C2_FIELD_VALUE(type, field) (((type *)0)->field)
 
 /**
-   True if an expression has a given type.
+ * True if an expression has a given type.
  */
 #define C2_HAS_TYPE(expr, type) __builtin_types_compatible_p(typeof(expr), type)
 

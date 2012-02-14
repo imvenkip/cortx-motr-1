@@ -14,6 +14,8 @@ AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
 AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
 AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
+AH_TEMPLATE([HAVE_STRUCT_NET], [Use struct net in sunrpc])
+AH_TEMPLATE([HAVE_CRED_IN_REQ], [Have rq_cred in rpc_rqst])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
@@ -188,6 +190,40 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 ])
 
+AC_DEFUN([COLIBRI_LINUX_STRUCT_NET],
+[
+AC_MSG_CHECKING([if kernel sunrpc uses struct net])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/sunrpc/clnt.h>
+],[
+        struct rpc_create_args a;
+
+        a.net = NULL;
+], [
+        AC_MSG_RESULT([yes])
+        AC_DEFINE([HAVE_STRUCT_NET])
+],[
+        AC_MSG_RESULT([no])
+])
+])
+
+AC_DEFUN([COLIBRI_LINUX_CRED_IN_REQ],
+[
+AC_MSG_CHECKING([if kernel sunrpc has rq_cred in rpc_rqst])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/sunrpc/clnt.h>
+],[
+        struct rpc_rqst r;
+
+        r.rq_cred = NULL;
+], [
+        AC_MSG_RESULT([yes])
+        AC_DEFINE([HAVE_CRED_IN_REQ])
+],[
+        AC_MSG_RESULT([no])
+])
+])
+
 AC_DEFUN([COLIBRI_LINUX_INIT_CONFIG], [
 rm -fr config > /dev/null 2>&1
 mkdir config
@@ -219,6 +255,14 @@ if ! test -d $SRCDIR; then
 fi
 AC_SUBST([SRCDIR])
 
+AC_MSG_CHECKING([whether target platform is 64bit one])
+AC_COMPUTE_INT(n_bits, [sizeof(long) * 8])
+if test $n_bits -lt 64; then
+	AC_MSG_RESULT([no])
+	AC_MSG_ERROR([Only 64bit platforms are supported!])
+fi
+AC_MSG_RESULT([yes])
+
 # Checks for libraries.
 OLD_LIBS=$LIBS
 AC_SEARCH_LIBS([xdr_domainname], [c nsl], [], [AC_MSG_ERROR([xdr_domainname cannot be found!])])
@@ -237,8 +281,6 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
-
-XY_CHECK_CUNIT
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -335,6 +377,8 @@ COLIBRI_LINUX_FILE_READV
 COLIBRI_LINUX_FILE_AIO_READ
 COLIBRI_LINUX_WRITE_BEGIN_END
 COLIBRI_LINUX_SENDFILE
+COLIBRI_LINUX_STRUCT_NET
+COLIBRI_LINUX_CRED_IN_REQ
 
 AC_ARG_WITH([db],
         [AC_HELP_STRING([--with-db=path], [path where db was built])])
@@ -383,45 +427,56 @@ else
 	fi
 fi
 
+#
+# Helper function to build external library.
+#
+# Input parameters:
+#     1st -- library name
+#     2nd -- directory with library sources
+#     3rd -- path to compiled library binary
+#     4th -- (optional) options for configure script
+#
+build_lib()
+{
+	NAME=$1
+	SRC=$2
+	LIBS=$3
+	CFGOPTS=$4
+	if ! test -e $LIBS; then
+		AC_MSG_RESULT([building $SRC])
+		oldcwd=$(pwd)
+		cd $SRC && ./configure $CFGOPTS && make
+		res=$?
+		cd $oldcwd
+		if ! test $res -eq 0 ; then
+			AC_MSG_ERROR([An error occured while building lib$NAME!])
+		fi
+		if ! test -e $LIBS; then
+			AC_MSG_ERROR([$LIBS not found! Build failed?])
+		fi
+	else
+		AC_MSG_RESULT([$LIBS])
+	fi
+}
+
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
 GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-if ! test -e $GALOIS_LIBS; then
-        AC_MSG_RESULT([building $GALOIS_SRC])
-	oldcwd=$(pwd)
-	cd $GALOIS_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-	if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libgalois!])
-        fi
-	if ! test -e $GALOIS_LIBS; then
-                AC_MSG_ERROR([$GALOIS_LIBS not found! Build failed?])
-        fi
-else
-	AC_MSG_RESULT([$GALOIS_LIBS])
-fi
+build_lib galois $GALOIS_SRC $GALOIS_LIBS
 
 # Check for yaml
 YAML_SRC=$SRCDIR/../yaml
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
-if ! test -e $YAML_LIBS; then
-        AC_MSG_RESULT([building $YAML_SRC])
-        oldcwd=$(pwd)
-        cd $YAML_SRC && ./configure && make
-        res=$?
-        cd $oldcwd
-        if ! test $res -eq 0 ; then
-                AC_MSG_ERROR([An error occured while building libyaml!])
-        fi
-        if ! test -e $YAML_LIBS; then
-                AC_MSG_ERROR([$YAML_LIBS not found! Build failed?])
-        fi
-else
-        AC_MSG_RESULT([$YAML_LIBS])
-fi
+build_lib yaml $YAML_SRC $YAML_LIBS
+
+# Check for CUnit
+CUNIT_SRC=$SRCDIR/../cunit
+CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/.libs/libcunit.la"
+CUNIT_HEADERS="$CUNIT_SRC/CUnit/Headers"
+AC_MSG_CHECKING([for cunit libs])
+build_lib cunit $CUNIT_SRC $CUNIT_LIBS '--with-pic --enable-curses'
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
@@ -443,6 +498,7 @@ AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
+AC_SUBST([CUNIT_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
@@ -487,11 +543,28 @@ else
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
+# Check if gcc option is supported in current gcc version.
+AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
+[AC_MSG_CHECKING([whether compiler $CC supports $1 option])
+OLD_CFLAGS="$CFLAGS"
+CFLAGS="$OLD_CFLAGS $1"
+AC_COMPILE_IFELSE([COLIBRI_LANG_PROGRAM()],
+        [AC_MSG_RESULT([yes]);
+         KCFLAGS="$KCFLAGS $1"],
+        [AC_MSG_RESULT([no]);
+	 KCFLAGS="$KCFLAGS"]
+)]
+CFLAGS="$OLD_CFLAGS")
+
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
+CFLAGS=`echo "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing" \
+             "-I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include" \
+             "-I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"`
 KCFLAGS="-Wall -Werror $KCFLAGS"
+COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
+
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
@@ -506,16 +579,13 @@ AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
-                 addb/linux_kernel/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
-                 c2t1fs/Makefile
                  capa/Makefile
                  capa/ut/Makefile
                  cfg/Makefile
                  cob/Makefile
-                 cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
                  colibri/ut/Makefile
@@ -524,32 +594,23 @@ AC_CONFIG_FILES([
                  console/ut/Makefile
                  console/st/Makefile
                  db/Makefile
-                 db/linux_kernel/Makefile
                  db/ut/Makefile
-                 dtm/linux_kernel/Makefile
                  desim/Makefile
                  desim/ut/Makefile
                  doc/Makefile
                  dtm/Makefile
                  fid/Makefile
-                 fid/linux_kernel/Makefile
                  fol/Makefile
-                 fol/linux_kernel/Makefile
                  fol/ut/Makefile
                  fop/Makefile
                  fop/fop2c
-                 fop/linux_kernel/Makefile
                  fop/rt/Makefile
                  fop/ut/Makefile
-                 galois/linux_kernel/Makefile
                  ioservice/Makefile
-                 ioservice/linux_kernel/Makefile
                  ioservice/ut/Makefile
                  layout/Makefile
-                 layout/linux_kernel/Makefile
                  layout/ut/Makefile
                  lib/Makefile
-                 lib/linux_kernel/Makefile
                  lib/user_space/Makefile
                  lib/ut/Makefile
                  m4/Makefile
@@ -561,38 +622,33 @@ AC_CONFIG_FILES([
 		 net/bulk_emulation/st/Makefile
 		 net/bulk_emulation/st/linux_kernel/Makefile
 		 net/bulk_emulation/ut/Makefile
-                 net/linux_kernel/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
-                 pool/linux_kernel/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
                  rpc/Makefile
                  rpc/ut/Makefile
                  rpc/it/Makefile
-		 rpc/linux_kernel/Makefile
 		 rpc/it/linux_kernel/Makefile
                  sm/Makefile
                  sm/ut/Makefile
-                 sm/linux_kernel/Makefile
                  sns/Makefile
-                 sns/linux_kernel/Makefile
                  sns/ut/Makefile
                  stob/Makefile
-                 stob/linux_kernel/Makefile
                  stob/ut/Makefile
                  udb/Makefile
                  udb/ut/Makefile
                  ut/Makefile
+                 ut/linux_kernel/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
-                 xcode/linux_kernel/Makefile
+                 xcode/ff2c/Makefile
                  xcode/ut/Makefile
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
@@ -613,8 +669,9 @@ echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
 echo "Galois :  \"$GALOIS_SRC\""
-echo "YAML :  \"$YAML_SRC\""
+echo "YAML   :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
+echo "CUnit  :  \"$CUNIT_SRC\""
 echo "Linux  :  \"$LINUX\""
 echo ""
 

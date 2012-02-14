@@ -698,7 +698,7 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
 		c2_timer_init(&item->ri_timer, C2_TIMER_SOFT, item->ri_deadline,
-				1, item_timer_callback, (unsigned long)item);
+				item_timer_callback, (unsigned long)item);
 		rc = c2_timer_start(&item->ri_timer);
 		if (rc != 0) {
 			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
