@@ -60,6 +60,7 @@ int c2_list_enum_add(struct c2_layout_list_enum *le, uint64_t lid,
 		     uint32_t idx, struct c2_fid *cob_id);
 
 void c2_list_enum_fini(struct c2_layout_list_enum *list_enum);
+//todo c2_list_enum_delete
 
 extern const struct c2_layout_enum_type c2_list_enum_type;
 

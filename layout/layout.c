@@ -215,17 +215,14 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		return -ENOENT;
 
 	/* Move the cursor to point to the layout type specific payload. */
-	rc = c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
 
 	/*
 	 * It is fine if any of the layout does not contain any data in
 	 * rec->lr_data[], unless it is required by the specific layout type,
 	 * which will be caught by the respective lto_decode() implementation.
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
-	 * @todo Remove the following assert and the rc assignment above.
-	 * Check if cur is NULL when rc is non-zero.
 	 */
-	C2_ASSERT(rc == 0);
 
 	rc = lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
 	C2_ASSERT(rc == 0);
@@ -278,7 +275,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	struct c2_ldb_rec     *rec;
 	struct c2_layout_type *lt;
 	int                    rc;
-	size_t num_bytes, num_bytes_copied; /* @todo */
+	size_t                 nbytes_copied;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
@@ -298,10 +295,8 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	rec->lr_lt_id     = l->l_type->lt_id;
 	rec->lr_ref_count = l->l_ref;
 
-	/* todo */
-	num_bytes = sizeof(struct c2_ldb_rec);
-	num_bytes_copied = c2_bufvec_cursor_copyto(out, rec, num_bytes);
-	C2_ASSERT(num_bytes == num_bytes_copied);
+	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
+	C2_ASSERT(nbytes_copied == sizeof *rec);
 
 	lt = schema->ls_type[rec->lr_lt_id];
 	if (lt == NULL) {
@@ -310,6 +305,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	}
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, out);
+	C2_ASSERT(rc == 0);
 
 	c2_mutex_unlock(&l->l_lock);
 

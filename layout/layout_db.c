@@ -169,7 +169,7 @@
      c2_ldb_pdclust_rec is used to store attributes like enumeration type id,
      N, K, P.
    - In case of a layout with LIST enum type, an array of ldb_list_cob_entry
-     structure with size MAX_INLINE_COB_ENTRIES is used to store a few COB
+     structure with size LDB_MAX_INLINE_COB_ENTRIES is used to store a few COB
      entries inline into the layouts table itself.
    - It is possible that some layouts do not need to store any layout type or
      layout enum type specific data in this layouts table. e.g. A layout with
@@ -349,15 +349,17 @@
  * @pre db Caller should have performed c2_dbenv_init() on db.
  */
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
-		       struct c2_dbenv *db)
+		       struct c2_dbenv *dbenv)
 {
 	int rc;
 	int i;
 
 	C2_PRE(schema != NULL);
-	C2_PRE(db != NULL);
+	C2_PRE(dbenv != NULL);
 
 	C2_LOG0("Inside c2_ldb_schema_init()");
+
+	schema->dbenv = dbenv;
 
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
 		schema->ls_type[i]      = NULL;
@@ -371,7 +373,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 
 	c2_mutex_init(&schema->ls_lock);
 
-	rc = c2_table_init(&schema->ls_layouts, db, "layouts", 0,
+	rc = c2_table_init(&schema->ls_layouts, schema->dbenv, "layouts", 0,
 			   &layouts_table_ops);
 
 	return rc;
@@ -400,6 +402,7 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 
 	c2_table_fini(&schema->ls_layouts);
 	c2_mutex_fini(&schema->ls_lock);
+	schema->dbenv = NULL;
 
 	return 0;
 }
