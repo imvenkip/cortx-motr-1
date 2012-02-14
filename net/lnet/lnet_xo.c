@@ -352,6 +352,8 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		break;
 
 	case C2_NET_QT_ACTIVE_BULK_SEND:
+		C2_ASSERT(nb->nb_length <= bufsize);
+		cbp->cb_length = nb->nb_length;
 		rc = nlx_xo__nbd_recover(nb->nb_tm, &nb->nb_desc, &cbd);
 		if (rc == 0) /* remote addr and size decoded */
 			rc = nlx_core_buf_desc_decode(ctp, cbp, &cbd);
@@ -547,8 +549,9 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 				tp, (int) need);
 			nlx_core_bevq_release(&tp->xtm_core, need);
 		}
-		NLXDBGP(tp, 1, "%p: post:%p status:%d flags:%lx\n",
-			tp, nbev.nbe_buffer, (int) nbev.nbe_status,
+		NLXDBGP(tp, 1, "%p: post:%p qt:%d status:%d flags:%lx\n",
+			tp, nbev.nbe_buffer, (int) nbev.nbe_buffer->nb_qtype,
+			(int) nbev.nbe_status,
 			(unsigned long) nbev.nbe_buffer->nb_flags);
 
 		/* Deliver the event out of the mutex.

@@ -780,6 +780,11 @@
 #undef NLX_DEBUG
 #ifdef NLX_DEBUG
 
+struct nlx_debug {
+	int _debug_;
+};
+static struct nlx_debug nlx_debug; /* global debug control */
+
 /* note Linux uses the LP64 standard */
 #ifdef __KERNEL__
 #define NLXP(fmt, ...) printk(KERN_ERR fmt, ## __VA_ARGS__)
@@ -787,11 +792,13 @@
 #define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
 #endif
 #define NLXDBG(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); stmt; } } while (0)
+#define NLXDBGnl(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) { stmt; } } while (0)
 #define NLXDBGP(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); NLXP(fmt, ## __VA_ARGS__); } } while (0)
 #define NLXDBGPnl(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP(fmt, ## __VA_ARGS__); } } while (0)
 #else
 #define NLXP(fmt, ...)
 #define NLXDBG(ptr, dbg, stmt) do { ; } while (0)
+#define NLXDBGnl(ptr, dbg, stmt) do { ; } while (0)
 #define NLXDBGP(ptr, dbg, fmt, ...) do { ; } while (0)
 #define NLXDBGPnl(ptr, dbg, fmt, ...) do { ; } while (0)
 #endif /* !NLX_DEBUG */
