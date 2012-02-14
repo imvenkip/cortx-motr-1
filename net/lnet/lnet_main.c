@@ -60,6 +60,9 @@
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
      <!-- ./linux_kernel/klnet_core.c -->
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
+     <!-- ./ulnet_core.c -->
+   - @ref LNetDRVDLD "LNet Transport Device DLD"
+     <!-- ./linux_kernel/klnet_drv.c -->
 
    <hr>
    @section LNetDLD-def Definitions
@@ -729,10 +732,13 @@
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
    - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD" <!--
-                                                             ./bev_cqueue.c -->
+     ./bev_cqueue.c -->
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
-                                                ./linux_kernel/klnet_core.c -->
-   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
+     ./linux_kernel/klnet_core.c -->
+   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD" <!--
+     ./ulnet_core.c -->
+   - @subpage LNetDRVDLD "LNet Transport Device DLD" <!--
+     ./linux_kernel/klnet_drv.c -->
 
  */
 
