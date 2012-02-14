@@ -1245,8 +1245,8 @@ static void cs_request_handlers_stop(struct c2_colibri *cctx)
 }
 
 enum COBFID_MAP_DB_OP {
-	COBFID_MAP_DB_ADDREC,
-	COBFID_MAP_DB_DELREC,
+	COBFID_MAP_DB_RECADD,
+	COBFID_MAP_DB_RECDEL,
 };
 
 static const struct c2_addb_loc cobfid_map_setup_loc = {
@@ -1262,13 +1262,11 @@ C2_ADDB_EV_DEFINE(cobfid_map_setup_func_fail, "cobfid_map_setup_func_failed",
 
 static struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s)
 {
-	struct c2_reqh          *reqh;
 	struct cs_reqh_context  *rqctx;
 
 	C2_PRE(s != NULL);
 
-	reqh = s->rs_reqh;
-	rqctx = container_of(reqh, struct cs_reqh_context, rc_reqh);
+	rqctx = container_of(s->rs_reqh, struct cs_reqh_context, rc_reqh);
 	return rqctx->rc_colibri;
 }
 
@@ -1332,13 +1330,7 @@ static int cobfid_map_setup_init(struct c2_cobfid_setup *s, const char *name)
 	C2_PRE(s != NULL);
 	C2_PRE(name != NULL);
 
-	C2_SET0(&s->cms_map);
-	C2_SET0(&s->cms_dbenv);
-	C2_SET0(&s->cms_addb);
-
-	c2_mutex_init(&s->cms_mutex);
-	c2_addb_ctx_init(&s->cms_addb, &cobfid_map_setup_addb,
-			 &c2_addb_global_ctx);
+	C2_SET0(s);
 
 	rc = c2_dbenv_init(&s->cms_dbenv, name, 0);
 	if (rc != 0) {
@@ -1354,40 +1346,44 @@ static int cobfid_map_setup_init(struct c2_cobfid_setup *s, const char *name)
 			    cobfid_map_setup_func_fail,
 			    "c2_cobfid_map_init() failed.", rc);
 		c2_dbenv_fini(&s->cms_dbenv);
+		return rc;
 	}
 
-	if (rc == 0)
-		c2_ref_init(&s->cms_refcount, 1, cobfid_map_setup_fini);
+	c2_ref_init(&s->cms_refcount, 1, cobfid_map_setup_fini);
+	c2_mutex_init(&s->cms_mutex);
+	c2_addb_ctx_init(&s->cms_addb, &cobfid_map_setup_addb,
+			 &c2_addb_global_ctx);
 	return rc;
 }
 
 static void cobfid_map_setup_fini(struct c2_ref *ref)
 {
-	struct c2_cobfid_setup *map;
+	struct c2_cobfid_setup *s;
 
 	C2_PRE(ref != NULL);
 
-	map = container_of(ref, struct c2_cobfid_setup, cms_refcount);
-	c2_dbenv_fini(&map->cms_dbenv);
-	c2_cobfid_map_fini(&map->cms_map);
-	c2_addb_ctx_fini(&map->cms_addb);
+	s = container_of(ref, struct c2_cobfid_setup, cms_refcount);
+	c2_cobfid_map_fini(&s->cms_map);
+	c2_dbenv_fini(&s->cms_dbenv);
+	c2_addb_ctx_fini(&s->cms_addb);
+	c2_mutex_fini(&s->cms_mutex);
 }
 
-static int cobfid_map_setup_adddel(struct c2_cobfid_setup *s,
-				   struct c2_fid pfid, struct c2_uint128 cfid,
-				   enum COBFID_MAP_DB_OP op)
+static int cobfid_map_setup_process(struct c2_cobfid_setup *s,
+				    struct c2_fid gfid, struct c2_uint128 cfid,
+				    enum COBFID_MAP_DB_OP op)
 {
 	int rc;
 
 	C2_PRE(s != NULL);
-	C2_PRE(op == COBFID_MAP_DB_ADDREC || op == COBFID_MAP_DB_DELREC);
+	C2_PRE(op == COBFID_MAP_DB_RECADD || op == COBFID_MAP_DB_RECDEL);
 
 	c2_mutex_lock(&s->cms_mutex);
 
-	if (op == COBFID_MAP_DB_ADDREC)
-		rc = c2_cobfid_map_add(&s->cms_map, cfid.u_hi, pfid, cfid);
+	if (op == COBFID_MAP_DB_RECADD)
+		rc = c2_cobfid_map_add(&s->cms_map, cfid.u_hi, gfid, cfid);
 	else
-		rc = c2_cobfid_map_del(&s->cms_map, cfid.u_hi, pfid);
+		rc = c2_cobfid_map_del(&s->cms_map, cfid.u_hi, gfid);
 
 	c2_mutex_unlock(&s->cms_mutex);
 
@@ -1398,18 +1394,18 @@ static int cobfid_map_setup_adddel(struct c2_cobfid_setup *s,
 	return rc;
 }
 
-int c2_cobfid_setup_addrec(struct c2_cobfid_setup *s,
-			   struct c2_fid pfid,
+int c2_cobfid_setup_recadd(struct c2_cobfid_setup *s,
+			   struct c2_fid gfid,
 			   struct c2_uint128 cfid)
 {
-	return cobfid_map_setup_adddel(s, pfid, cfid, COBFID_MAP_DB_ADDREC);
+	return cobfid_map_setup_process(s, gfid, cfid, COBFID_MAP_DB_RECADD);
 }
 
-int c2_cobfid_setup_delrec(struct c2_cobfid_setup *s,
-			   struct c2_fid pfid,
+int c2_cobfid_setup_recdel(struct c2_cobfid_setup *s,
+			   struct c2_fid gfid,
 			   struct c2_uint128 cfid)
 {
-	return cobfid_map_setup_adddel(s, pfid, cfid, COBFID_MAP_DB_DELREC);
+	return cobfid_map_setup_process(s, gfid, cfid, COBFID_MAP_DB_RECDEL);
 }
 
 /**

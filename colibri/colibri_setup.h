@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ *                  Anand Vidwansa <anand_vidwansa@xyratex.com>
  * Original creation date: 05/08/2011
  */
 
@@ -111,8 +112,8 @@
  * cob fid map which is an auxiliary database which maintains
  * mapping of a container_id and global_file_fid to its cob_fid.
  * Every Colibri data server is supposed to have only one
- * auxiliary database and it will be leveraged by SNS Repair
- * state machines to retrieve the lost data.
+ * auxiliary database and it will be leveraged by a copy machine
+ * to retrieve the lost data. A typical example would be SNS Repair.
  */
 struct c2_cobfid_setup {
 	/**
@@ -144,13 +145,14 @@ struct c2_cobfid_setup {
 /**
  * Gets a reference on struct c2_cobfid_setup. If it is NULL, a new
  * instance will be created and refcount will be initialized.
+ * @param out Out parameter which returns struct c2_cobfid_setup pointer.
  * @param service Typically invoked by any ioservice instance which is
  * about to be started OR by a request to add/delete records to/from
  * the cobfid_map table.
  * @pre service != NULL.
  */
 int c2_cobfid_setup_get(struct c2_cobfid_setup **out,
-			struct c2_reqh_service *s);
+			struct c2_reqh_service *service);
 
 /**
  * Releases the reference on struct c2_cobfid_setup. Last reference
@@ -164,21 +166,26 @@ void c2_cobfid_setup_put(struct c2_reqh_service *service);
 
 /**
  * Adds a record to c2_cobfid_map contained in c2_cobfid_setup.
- * @param pfid Fid of global file.
+ * The container id needed for adding record to c2_cobfid_map is
+ * retrieved from cfid.u_hi.
+ * A global file fid and its constituent cob fids in same IO request
+ * share the same key which stands for an abstract key in a container.
+ * @param gfid Fid of global file.
  * @param cfid Identifier of cob.
  * @pre s != NULL.
  */
-int c2_cobfid_setup_addrec(struct c2_cobfid_setup *s,
-			   struct c2_fid pfid, struct c2_uint128 cfid);
+int c2_cobfid_setup_recadd(struct c2_cobfid_setup *service,
+			   struct c2_fid gfid,
+			   struct c2_uint128 cfid);
 
 /**
  * Removes a record from c2_cobfid_map contained in c2_cobfid_setup.
- * @param pfid Fid of global file.
+ * @param gfid Fid of global file.
  * @param cfid Identifier of cob.
  * @pre s != NULL.
  */
-int c2_cobfid_setup_delrec(struct c2_cobfid_setup *s,
-			   struct c2_fid pfid, struct c2_uint128 cfid);
+int c2_cobfid_setup_recdel(struct c2_cobfid_setup *s,
+			   struct c2_fid gfid, struct c2_uint128 cfid);
 
 /**
    Defines a colibri context containing a set of network transports,

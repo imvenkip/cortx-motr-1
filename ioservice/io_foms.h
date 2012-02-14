@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -256,9 +256,7 @@ enum c2_fom_cob_create_phases {
 	 * The association of a cob and a stob being identity mapping
 	 * is temporary and is subject to change.
 	 */
-	FOPH_CC_STOB_CREATE	= FOPH_NR + 1,
-	FOPH_CC_COB_CREATE,
-	FOPH_CC_COBFID_MAP_ADD,
+	FOPH_CC_COB_CREATE = FOPH_NR + 1,
 };
 
 /**
@@ -281,8 +279,6 @@ enum c2_fom_cob_delete_phases {
 	 * @todo Will be removed when containers code is in place.
 	 * Later, only the reference held on stob will be released.
 	 */
-	FOPH_CD_STOB_DEL,
-	FOPH_CD_COBFID_MAP_DEL,
 };
 
 /** @} end of io_foms */

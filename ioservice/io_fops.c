@@ -55,15 +55,17 @@ C2_TL_DECLARE(rpcbulk, extern, struct c2_rpc_bulk_buf);
 C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
+static void   io_item_replied(struct c2_rpc_item *item);
+static void   item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
+			       uint64_t size);
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **m);
-static void io_item_replied(struct c2_rpc_item *item);
-static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
-			     uint64_t size);
+int cob_fom_init(struct c2_fop *fop, struct c2_fom **out);
+
 static void io_item_free(struct c2_rpc_item *item);
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
-static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
-static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static int  io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
+static int  io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /* ADDB context for ioservice. */
 static struct c2_addb_ctx bulkclient_addb;
@@ -130,7 +132,7 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 };
 
 const struct c2_fop_type_ops cob_fop_type_ops = {
-	.fto_fom_init	 = NULL,
+	.fto_fom_init	 = cob_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get	 = c2_xcode_fop_size_get,
 	.fto_io_coalesce = NULL,
@@ -679,6 +681,18 @@ bool is_write_rep(const struct c2_fop *fop)
 bool c2_is_io_fop_rep(const struct c2_fop *fop)
 {
 	return c2_is_read_fop_rep(fop) || is_write_rep(fop);
+}
+
+bool c2_is_cob_create_fop(const struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+	return fop->f_type == &c2_fop_cob_create_fopt;
+}
+
+bool c2_is_cob_delete_fop(const struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+	return fop->f_type == &c2_fop_cob_delete_fopt;
 }
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
