@@ -2060,7 +2060,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Memory allocation failed in cc_cob_create().", rc);
-	} 
+	}
 
 	return rc;
 }
