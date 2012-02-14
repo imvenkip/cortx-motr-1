@@ -18,6 +18,7 @@
  * Original creation date: 25-Dec-2011
  */
 
+#include "lib/bob.h"
 #include "lib/misc.h"                           /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -374,6 +375,21 @@ uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 		C2_IMPOSSIBLE("atype");
 	}
 	return tag;
+}
+
+void c2_xcode_bob_type_init(struct c2_bob_type *bt,
+			    const struct c2_xcode_type *xt,
+			    size_t magix_field, uint64_t magix)
+{
+	const struct c2_xcode_field *mf = &xt->xct_child[magix_field];
+
+	C2_PRE(magix_field < xt->xct_nr);
+	C2_PRE(xt->xct_aggr == C2_XA_RECORD);
+	C2_PRE(mf->xf_type == &C2_XT_U64);
+
+	bt->bt_name         = xt->xct_name;
+	bt->bt_magix        = magix;
+	bt->bt_magix_offset = mf->xf_offset;
 }
 
 const struct c2_xcode_type C2_XT_VOID = {

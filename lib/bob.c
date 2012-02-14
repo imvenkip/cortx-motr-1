@@ -29,21 +29,6 @@
  * @{
  */
 
-void c2_bob_type_xcode_init(struct c2_bob_type *bt,
-			    const struct c2_xcode_type *xt,
-			    size_t magix_field, uint64_t magix)
-{
-	const struct c2_xcode_field *mf = &xt->xct_child[magix_field];
-
-	C2_PRE(magix_field < xt->xct_nr);
-	C2_PRE(xt->xct_aggr == C2_XA_RECORD);
-	C2_PRE(mf->xf_type == &C2_XT_U64);
-
-	bt->bt_name         = xt->xct_name;
-	bt->bt_magix        = magix;
-	bt->bt_magix_offset = mf->xf_offset;
-}
-
 void c2_bob_type_tlist_init(struct c2_bob_type *bt, const struct c2_tl_descr *td)
 {
 	C2_PRE(td->td_link_magic != 0);

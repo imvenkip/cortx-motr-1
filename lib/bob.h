@@ -39,11 +39,12 @@
  *
  * A couple of helper functions are provided to initialize c2_branded_type:
  *
- *     - c2_bob_type_xcode_init(): used in case where branded object type has an
- *       xcode representation, @see xcode/xcode.h;
- *
  *     - c2_bob_type_tl_init(): used when branded object is used as a typed list
  *       link, @see lib/tlist.h.
+ *
+ *     - c2_xcode_bob_type_init(): used in case where branded object type has an
+ *       xcode representation, @see xcode/xcode.h. This function is defined in
+ *       xcode.h to avoid introducing dependencies.
  *
  * A user is explicitly allowed to initialize c2_bob_type instance manually and
  * to set up the optional check function (c2_bob_type::bt_check()) either before
@@ -52,8 +53,9 @@
  * @{
  */
 
+#include "lib/types.h"                  /* uint64_t */
+
 /* import */
-struct c2_xcode_type;
 struct c2_tl_descr;
 
 /* export */
@@ -75,13 +77,6 @@ struct c2_bob_type {
 	 */
 	bool      (*bt_check)(const void *bob);
 };
-
-/**
- * Partially initializes a branded object type from a xcode type descriptor.
- */
-void c2_bob_type_xcode_init(struct c2_bob_type *bt,
-			    const struct c2_xcode_type *xt,
-			    size_t magix_field, uint64_t magix);
 
 /**
  * Partially initializes a branded object type from a typed list descriptor.
