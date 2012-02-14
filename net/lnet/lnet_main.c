@@ -111,7 +111,8 @@
      };
      @endcode
      These fields are required to be set to non-zero values in receive buffers,
-     and control the reception of multiple messages into a single receive buffer.
+     and control the reception of multiple messages into a single receive
+     buffer.
 
      Additionally, the semantics of the @c nb_ep field is modified to not
      require the end point of the active transfer machine when enqueuing a
@@ -562,7 +563,8 @@
    @subsection LNetDLD-lspec-thread Threading and Concurrency Model
    The transport inherits the concurrency model of the Colibri Networking
    Module. All transport operations are protected by some lock or object state,
-   as described in the <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>.  The Core API is designed to work with this same locking model.
+   as described in the <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>.
+   The Core API is designed to work with this same locking model.
    The locking order figure is repeated here for convenience:
    @dot
    digraph {
@@ -727,9 +729,9 @@
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
    - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD" <!--
-                                                               ./bev_cqueue.c -->
+                                                             ./bev_cqueue.c -->
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
-                                                  ./linux_kernel/klnet_core.c -->
+                                                ./linux_kernel/klnet_core.c -->
    - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
 
  */
