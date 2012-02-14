@@ -333,7 +333,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 		return rc;
 	}
 	C2_POST(!LNetHandleIsInvalid(meh));
- 	NLXDBG(lctm, 2, nlx_print_core_buffer("nlx_kcore_LNetMDAttach", lcbuf));
+	NLXDBG(lctm, 2, nlx_print_core_buffer("nlx_kcore_LNetMDAttach", lcbuf));
 
 	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
@@ -421,7 +421,7 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 		NLXDBGP(lctm, 1,"LNetMDBind: %d\n", rc);
 		return rc;
 	}
- 	NLXDBG(lctm, 2, nlx_print_core_buffer("nlx_kcore_LNetPut", lcbuf));
+	NLXDBG(lctm, 2, nlx_print_core_buffer("nlx_kcore_LNetPut", lcbuf));
 	NLXDBG(lctm, 2, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
 
 	target.nid = lcbuf->cb_addr.cepa_nid;

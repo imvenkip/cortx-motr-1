@@ -976,7 +976,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	c2_time_t now = c2_time_now();
 	bool is_unlinked = false;
 
- 	C2_PRE(event != NULL);
+	C2_PRE(event != NULL);
 	if (event->type == LNET_EVENT_ACK) {
 #ifdef NLX_DEBUG
 		NLXDBG(&nlx_debug, 1,
@@ -993,7 +993,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
 	lctm = ktm->ktm_ctm;
 
-	NLXDBGP(lctm, 1, "*** %p: eq_cb: %p buf:%lx\n", lctm, event,
+	NLXDBGP(lctm, 1, "%p: eq_cb: %p buf:%lx\n", lctm, event,
 		(unsigned long) cbp->cb_buffer_id);
 	NLXDBG(lctm, 2, nlx_kprint_lnet_event("eq_cb", event));
 	NLXDBG(lctm, 3, nlx_kprint_kcore_tm("eq_cb", ktm));

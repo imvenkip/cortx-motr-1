@@ -1179,7 +1179,7 @@ static void test_buf_desc_body(struct ut_data *td)
 	C2_UT_ASSERT(tmid == s_lctm->ctm_addr.cepa_tmid);	\
 	C2_UT_ASSERT(counter == s_lctm->ctm_mb_counter - 1)
 
- 	/* TEST
+	/* TEST
 	   Passive send buffer.
 	   Ensure that match bits get properly set, and that the
 	   descriptor properly encodes buffer and end point
@@ -1250,7 +1250,7 @@ static void test_buf_desc_body(struct ut_data *td)
 	c2_mutex_unlock(&TM1->ntm_mutex);
 	C2_UT_ASSERT(rc == -EPERM);
 
- 	/* TEST
+	/* TEST
 	   Passive receive buffer.
 	   Ensure that match bits get properly set, and that the
 	   descriptor properly encodes buffer and end point
@@ -1311,7 +1311,7 @@ static void test_buf_desc_body(struct ut_data *td)
 	/* TEST
 	   Failure tests for this setup: invalid usage, wrong sizes
 	 */
- 	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(AS1 > PR2)\n");
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(AS1 > PR2)\n");
 	lcbuf1->cb_length = lcbuf2->cb_length + 1; /* > receive buffer size */
 	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
 	c2_mutex_lock(&TM1->ntm_mutex);
@@ -1449,7 +1449,7 @@ static int test_bulk_passive_send(struct ut_data *td)
 	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
- 	ut_chan_timedwait(&td->tmwait1, 10);
+	ut_chan_timedwait(&td->tmwait1, 10);
 	C2_UT_ASSERT(cb_called1 == 1);
 	C2_UT_ASSERT(cb_status1 == 0);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -1550,7 +1550,7 @@ static int test_bulk_passive_recv(struct ut_data *td)
 	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
- 	ut_chan_timedwait(&td->tmwait1, 10);
+	ut_chan_timedwait(&td->tmwait1, 10);
 	C2_UT_ASSERT(cb_called1 == 1);
 	C2_UT_ASSERT(cb_status1 == 0);
 	C2_UT_ASSERT(cb_nb1 == nb1);
