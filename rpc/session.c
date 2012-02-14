@@ -788,6 +788,7 @@ int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
 
 	return rc;
 }
+C2_EXPORTED(c2_rpc_session_destroy);
 
 void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req)
 {

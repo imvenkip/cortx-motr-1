@@ -170,8 +170,14 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 		return;
 	}
 
-	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	if (result == 0 && fom != NULL) {
+	C2_ASSERT(fop->f_type != NULL);
+	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops != NULL);
+	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
+
+	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
+
+	if (result == 0) {
+		C2_ASSERT(fom != NULL);
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
 

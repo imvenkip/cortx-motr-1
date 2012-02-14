@@ -75,8 +75,6 @@ enum stob_write_fom_phase {
 	FOPH_WRITE_STOB_IO_WAIT
 };
 
-static int stob_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
-
 /**
  * RPC item operations structures
  */
@@ -84,7 +82,6 @@ static int stob_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
  * Fop operation structures for corresponding fops.
  */
 static const struct c2_fop_type_ops default_fop_ops = {
-	.fto_fom_init = stob_io_fom_init,
         .fto_size_get = c2_xcode_fop_size_get,
 };
 
@@ -150,9 +147,9 @@ struct c2_stob_io_fom {
 	struct c2_stob_io		 sif_stio;
 };
 
-static int stob_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-static int stob_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-static int stob_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out);
 
 static int stob_create_fom_state(struct c2_fom *fom);
 static int stob_read_fom_state(struct c2_fom *fom);
@@ -247,59 +244,61 @@ static struct c2_stob *stob_object_find(const struct stob_io_fop_fid *fid,
 }
 
 /**
- * Create fom helper
+ * Fom initialization function, invoked from reqh_fop_handle.
+ * Invokes c2_fom_create()
  */
-static int stob_fom_create_helper(struct c2_fom_type *t, struct c2_fom_ops *fom_ops,
-				  struct c2_fop_type *fop_type, struct c2_fom **out)
+static int stob_io_fop_fom_create_helper(struct c2_fop *fop,
+		struct c2_fom_ops *fom_ops, struct c2_fop_type *fop_type,
+		struct c2_fom **out)
 {
-	struct c2_fom		*fom;
-	struct c2_stob_io_fom	*fom_obj;
-	C2_PRE(t != NULL);
+	struct c2_stob_io_fom *fom_obj;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(fom_ops != NULL);
+	C2_PRE(fop_type != NULL);
 	C2_PRE(out != NULL);
 
 	fom_obj= c2_alloc(sizeof *fom_obj);
 	if (fom_obj == NULL)
 		return -ENOMEM;
-	fom = &fom_obj->sif_fom;
-	fom->fo_type = t;
-
-	fom->fo_ops = fom_ops;
-	fom_obj->sif_rep_fop =
-		c2_fop_alloc(fop_type, NULL);
+	fom_obj->sif_rep_fop = c2_fop_alloc(fop_type, NULL);
 	if (fom_obj->sif_rep_fop == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
 	}
-
 	fom_obj->sif_stobj = NULL;
-	*out = fom;
+
+	c2_fom_create(&fom_obj->sif_fom, &fop->f_type->ft_fom_type, fom_ops, fop,
+			fom_obj->sif_rep_fop);
+
+	*out = &fom_obj->sif_fom;
 	return 0;
 }
 
 /**
  * Creates a fom for create fop.
  */
-static int stob_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return stob_fom_create_helper(t, &stob_create_fom_ops,
+	return stob_io_fop_fom_create_helper(fop, &stob_create_fom_ops,
 				      &c2_stob_io_create_rep_fopt, out);
 }
 
 /**
  * Creates a fom for write fop.
  */
-static int stob_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return stob_fom_create_helper(t, &stob_write_fom_ops,
+	return stob_io_fop_fom_create_helper(fop, &stob_write_fom_ops,
 				      &c2_stob_io_write_rep_fopt, out);
 }
 
 /**
  * Creates a fom for read fop.
  */
-static int stob_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return stob_fom_create_helper(t, &stob_read_fom_ops,
+	return stob_io_fop_fom_create_helper(fop, &stob_read_fom_ops,
 				      &c2_stob_io_read_rep_fopt, out);
 }
 
@@ -614,32 +613,6 @@ static int stob_write_fom_state(struct c2_fom *fom)
 }
 
 /**
- * Fom initialization function, invoked from reqh_fop_handle.
- * Invokes c2_fom_init()
- */
-static int stob_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-
-	struct c2_fom_type	*fom_type;
-	int			 result;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(m != NULL);
-
-	fom_type = stob_fom_type_map(fop->f_type->ft_rpc_item_type.rit_opcode);
-	if (fom_type == NULL)
-		return -EINVAL;
-	fop->f_type->ft_fom_type = *fom_type;
-	result = fop->f_type->ft_fom_type.ft_ops->fto_create(&(fop->f_type->ft_fom_type), m);
-	if (result == 0) {
-		(*m)->fo_fop = fop;
-		c2_fom_init(*m);
-	}
-
-	return result;
-}
-
-/**
  * Fom specific clean up function, invokes c2_fom_fini()
  */
 static void stob_io_fom_fini(struct c2_fom *fom)
@@ -658,13 +631,27 @@ void c2_stob_io_fop_fini(void);
  */
 int c2_stob_io_fop_init(void)
 {
-	int result;
+	int		    result;
+	int		    i;
+	c2_fop_type_code_t  code;
+	struct c2_fom_type *fom_type;
+	struct c2_fop_type *fop_type;
 
 	result = c2_fop_type_format_parse_nr(stob_fmts, ARRAY_SIZE(stob_fmts));
-	if (result == 0) {
+	if (result == 0)
 		result = c2_fop_type_build_nr(stob_fops, ARRAY_SIZE(stob_fops));
-                if (result == 0)
-                        c2_fop_object_init(&stob_io_fop_fid_tfmt);
+	if (result == 0) {
+		c2_fop_object_init(&stob_io_fop_fid_tfmt);
+		for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
+			fop_type = stob_fops[i];
+			if ((fop_type->ft_rpc_item_type.rit_flags &
+						C2_RPC_ITEM_TYPE_REQUEST) == 0)
+				continue;
+			code = fop_type->ft_rpc_item_type.rit_opcode;
+			fom_type = stob_fom_type_map(code);
+			C2_ASSERT(fom_type != NULL);
+			fop_type->ft_fom_type = *fom_type;
+		}
 	}
 	if (result != 0)
 		c2_stob_io_fop_fini();

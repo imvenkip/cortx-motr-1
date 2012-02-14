@@ -24,7 +24,7 @@
 #include "lib/types.h"
 
 /**
-   @defgroup trace Tracing.
+   @defgroup trace Tracing
 
    See doc/logging-and-tracing.
 

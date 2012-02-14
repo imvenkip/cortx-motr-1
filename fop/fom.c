@@ -730,6 +730,7 @@ void c2_fom_init(struct c2_fom *fom)
 	c2_clink_init(&fom->fo_clink, &fom_cb);
 	c2_list_link_init(&fom->fo_linkage);
 }
+C2_EXPORTED(c2_fom_init);
 
 void c2_fom_fini(struct c2_fom *fom)
 {
@@ -739,7 +740,22 @@ void c2_fom_fini(struct c2_fom *fom)
 	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 }
+C2_EXPORTED(c2_fom_fini);
 
+void c2_fom_create(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		const struct c2_fom_ops *ops, struct c2_fop *fop,
+		struct c2_fop *reply)
+{
+	C2_PRE(fom != NULL);
+
+	c2_fom_init(fom);
+
+	fom->fo_type	= fom_type;
+	fom->fo_ops	= ops;
+	fom->fo_fop	= fop;
+	fom->fo_rep_fop = reply;
+}
+C2_EXPORTED(c2_fom_create);
 /** @} endgroup fom */
 
 /*
