@@ -256,13 +256,13 @@ static void internal_fini()
 static void lbuf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 {
 	struct c2_ldb_rec    rec;
-	c2_bcount_t          num_bytes_copied;
+	c2_bcount_t          nbytes_copied;
 
 	rec.lr_lt_id         = lt_id;
 	rec.lr_ref_count     = 0;
 
-	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
-	C2_UT_ASSERT(num_bytes_copied == sizeof rec);
+	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
+	C2_UT_ASSERT(nbytes_copied == sizeof rec);
 }
 
 static void pdclust_lbuf_build(uint64_t lid,
@@ -271,7 +271,7 @@ static void pdclust_lbuf_build(uint64_t lid,
 			       struct c2_bufvec_cursor *dcur)
 {
 	struct c2_ldb_pdclust_rec pl_rec;
-	c2_bcount_t               num_bytes_copied;
+	c2_bcount_t               nbytes_copied;
 
 	lbuf_build(c2_pdclust_layout_type.lt_id, dcur);
 
@@ -280,9 +280,9 @@ static void pdclust_lbuf_build(uint64_t lid,
 	pl_rec.pr_attr.pa_K   = K;
 	pl_rec.pr_attr.pa_P   = pool.po_width;
 
-	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &pl_rec,
-						   sizeof pl_rec);
-	C2_UT_ASSERT(num_bytes_copied == sizeof pl_rec);
+	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &pl_rec,
+						sizeof pl_rec);
+	C2_UT_ASSERT(nbytes_copied == sizeof pl_rec);
 }
 
 static int pdclust_list_lbuf_build(uint64_t lid,
@@ -1004,7 +1004,7 @@ static void test_persistence(void)
 
 static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 {
-	c2_bcount_t                   num_bytes_copied;
+	c2_bcount_t                   nbytes_copied;
 	struct c2_ldb_rec             rec;
 	struct c2_ldb_pdclust_rec     pl_rec;
 	struct c2_layout_linear_attr  lin_rec;
@@ -1012,26 +1012,26 @@ static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 	rec.lr_lt_id         = c2_pdclust_layout_type.lt_id;
 	rec.lr_ref_count     = 0;
 
-	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
-	C2_UT_ASSERT(num_bytes_copied == sizeof rec);
+	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
+	C2_UT_ASSERT(nbytes_copied == sizeof rec);
 
 	pl_rec.pr_let_id      = c2_list_enum_type.let_id;
 	pl_rec.pr_attr.pa_N   = 4;
 	pl_rec.pr_attr.pa_K   = 1;
 	pl_rec.pr_attr.pa_P   = pool.po_width;
 
-	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &pl_rec,
-						   sizeof pl_rec);
-	C2_UT_ASSERT(num_bytes_copied == sizeof pl_rec);
+	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &pl_rec,
+						sizeof pl_rec);
+	C2_UT_ASSERT(nbytes_copied == sizeof pl_rec);
 
 
 	lin_rec.lla_nr    = 20;
 	lin_rec.lla_A     = 100;
 	lin_rec.lla_B     = 200;
 
-	num_bytes_copied = c2_bufvec_cursor_copyto(dcur, &lin_rec,
-						   sizeof lin_rec);
-	C2_UT_ASSERT(num_bytes_copied == sizeof lin_rec);
+	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &lin_rec,
+						sizeof lin_rec);
+	C2_UT_ASSERT(nbytes_copied == sizeof lin_rec);
 }
 
 static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)

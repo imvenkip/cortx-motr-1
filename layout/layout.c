@@ -278,7 +278,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	struct c2_ldb_rec     *rec;
 	struct c2_layout_type *lt;
 	int                    rc;
-	size_t                 nbytes_copied;
+	c2_bcount_t            nbytes_copied;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
