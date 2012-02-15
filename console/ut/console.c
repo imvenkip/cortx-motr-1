@@ -41,7 +41,6 @@
 #include "lib/trace.h"
 #include "lib/misc.h"		  /* C2_SET0 */
 #include "rpc/rpclib.h"           /* c2_rpc_server_start */
-#include "ut/ioredirect.h"
 #include "ut/rpc.h"               /* c2_rpc_client_init */
 
 #include "console/console.h"
