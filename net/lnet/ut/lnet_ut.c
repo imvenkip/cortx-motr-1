@@ -247,11 +247,12 @@ static void ut_cbreset(void)
 static char ut_line_buf[1024];
 #define zvUT(x,expRC,label)					\
 do {								\
-	int rc = x;						\
-	if (rc != expRC) {					\
+	int rc = (x);						\
+	int erc = (expRC);					\
+	if (rc != erc) {					\
 		snprintf(ut_line_buf, sizeof(ut_line_buf),	\
 			 "%s %d: %s: %d != %d",			\
-			 __FILE__,__LINE__, #x, rc, expRC);	\
+			 __FILE__,__LINE__, #x, rc, erc);	\
 		C2_UT_FAIL(ut_line_buf);			\
 		goto label;					\
 	}							\
@@ -1420,7 +1421,7 @@ static int test_bulk_passive_send(struct ut_data *td)
 	/* try to receive into a smaller buffer */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PS >  AR)\n");
 	C2_UT_ASSERT(pBytes > td->buf_seg_size2); /* sanity */
-	zUT(({C2_ALLOC_PTR(nb2s) == NULL;}), failed);
+	zUT((C2_ALLOC_PTR(nb2s) == NULL), failed);
 	zUT(c2_bufvec_alloc(&nb2s->nb_buffer, 1, td->buf_seg_size2), failed);
 	zUT(c2_net_buffer_register(nb2s, DOM2), failed);
 	zUT(c2_net_desc_copy(&nb1->nb_desc, &nb2s->nb_desc), failed);
@@ -1523,7 +1524,7 @@ static int test_bulk_passive_recv(struct ut_data *td)
 
 	/* try to send a larger buffer */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PR <  AS)\n");
-	zUT(({C2_ALLOC_PTR(nb2l) == NULL;}), failed);
+	zUT((C2_ALLOC_PTR(nb2l) == NULL), failed);
 	zUT(c2_bufvec_alloc(&nb2l->nb_buffer, UT_BUFSEGS1 + 1,
 			    td->buf_seg_size1), failed);
 	zUT(c2_net_buffer_register(nb2l, DOM2), failed);
