@@ -694,11 +694,14 @@ static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
         /*
-         * @todo : Changed explicit lock to DB_RDONLY.
-         * This will go away once it is fixed.
+         * @todo : cursor acquiring read/write lock explicitely.
+         *         for lookup operations it should only take read
+         *         lock.
+         *         Since lock release at time of transaction commit
+         *         no other transaction get read lock.
          */
 	return WITH_PAIR(pair, CURSOR_CALL(cursor, get, pair_key(pair),
-					   pair_rec(pair), flags|DB_RDONLY));
+					   pair_rec(pair), flags|DB_RMW));
 }
 
 int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)

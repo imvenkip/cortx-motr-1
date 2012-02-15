@@ -701,8 +701,10 @@ static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
         int                      acquired_net_buffs = 0;
         struct c2_fop_cob_rw    *rwfop;
 
-        rwfop = io_rw_get(io->fcrw_gen.fo_fop);
+        if (io == NULL)
+                return false;
 
+        rwfop = io_rw_get(io->fcrw_gen.fo_fop);
         if (io->fcrw_ndesc != rwfop->crw_desc.id_nr)
                 return false;
 
@@ -760,6 +762,8 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
         C2_ASSERT(c2_stob_io_desc_invariant(stio_desc));
 
         fom_obj = stio_desc->siod_fom;
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
+
         stio    = &stio_desc->siod_stob_io;
         fop     = fom_obj->fcrw_gen.fo_fop;
         fom     = &fom_obj->fcrw_gen;
@@ -773,7 +777,7 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
                  */
                 if (stio->si_rc == 0) {
 		        if (c2_is_write_fop(fop)) {
-                                int rc = 0;
+                                int rc;
 			        /*
                                  * Make an FOL transaction record.
                                  * @todo : Need to consider FOL failure.
@@ -1237,7 +1241,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         struct c2_net_buffer      *nb = NULL;
         struct c2_net_buf_desc    *net_desc;
         struct c2_net_domain      *dom;
-        uint32_t                   nbuffs_added = 0;
+        uint32_t                   buffers_added = 0;
 
         C2_PRE(fom != NULL);
         C2_PRE(c2_is_io_fop(fom->fo_fop));
@@ -1260,8 +1264,8 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 
         /* Create rpc bulk bufs list using available net buffers */
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
+                int                         current_index;
                 uint32_t                    segs_nr;
-	        int                         current_index;
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
 
 	        current_index = fom_obj->fcrw_curr_desc_index;
@@ -1277,12 +1281,11 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
                         return FSO_AGAIN;
                 }
 
-               fom_obj->fcrw_curr_desc_index++;
-               nbuffs_added++;
-
+                fom_obj->fcrw_curr_desc_index++;
+                buffers_added++;
         } c2_tlist_endfor;
 
-        C2_ASSERT(nbuffs_added == fom_obj->fcrw_batch_size);
+        C2_ASSERT(buffers_added == fom_obj->fcrw_batch_size);
 
         /*
          * On completion of zero-copy on all buffers rpc_bulk
@@ -1404,15 +1407,24 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
 		goto cleanup;
 
         /*
+         * @todo :
          * Internally c2_db_cursor_get() takes explicitely RW lock.
          * Need to define enum lock modes and pass to c2_db_cursor_get().
-         * Till this issue fix, I/O FOM use c2_fom_block_enter() aftre
-         * stob io launch
+         * Till this issue fix, I/O FOM use c2_fom_block_enter() before 
+         * stob io locate since it coult block.
+         * c2_fom_block_leave() should call after c2_stob_locate() returns.
+         *
+         * @note : This issue of explicitely RW lock will be addressed
+         *         in separate task. Completion of that task remove
+         *          block_enter  & block_leave.
          */
+        c2_fom_block_enter(fom);
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
 	if (rc != 0) {
 		goto cleanup_st;
 	}
+
+        c2_fom_block_leave(fom);
 
 	/*
            Since the upper layer IO block size could differ with IO block size
@@ -1533,12 +1545,6 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                  FOPH_IO_STOB_WAIT and check for STOB I/O results.
           */
         if ( fom_obj->fcrw_num_stobio_launched > 0) {
-                /*
-                 * Since db4 interface is blocking some of stobio APIs
-                 * block the thread for some db activity.
-                 * c2_fom_block_leave() should call on stobio compleion.
-                 */
-                c2_fom_block_enter(fom);
                 c2_fom_block_at(fom, &fom_obj->fcrw_wait);
 
                 /*
@@ -1619,11 +1625,9 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail, "io_fom_cob_rw_io_finish",
                             fom->fo_rc);
-                c2_fom_block_leave(fom);
 	        return FSO_AGAIN;
         }
 
-        c2_fom_block_leave(fom);
         return FSO_AGAIN;
 }
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -74,7 +74,7 @@
 	struct c2_net_xprt *xprt;
 	...
 	bp.nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10, ...);
+	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10, ...);
 	...
     @endcode
 
@@ -160,7 +160,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
 	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
    @post c2_net_buffer_pool_invariant(pool)
  */
-void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
+int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
 			    uint32_t seg_nr, c2_bcount_t seg_size,
 			    uint32_t colours, unsigned shift);

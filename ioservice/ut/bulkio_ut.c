@@ -142,7 +142,7 @@ struct c2_rpc_client_ctx c_rctx = {
 };
 
 /* Input arguments for colibri server setup. */
-char *server_args[]		= {"bulkio_ut", "-r", "-T", "linux", "-D",
+char *server_args[]		= {"bulkio_ut", "-r", "-T", "AD", "-D",
 				   s_db_file, "-S", s_stob_file, "-e",
 				   S_ENDPOINT, "-s", "ioservice"};
 
@@ -327,29 +327,29 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 	switch(fom->fo_phase) {
 	case FOPH_IO_FOM_BUFFER_ACQUIRE :
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(
+                C2_UT_ASSERT(
                 fom->fo_phase ==  FOPH_IO_FOM_BUFFER_WAIT ||
                 fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
 		break;
 	case FOPH_IO_ZERO_COPY_INIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT);
 		break;
 	case FOPH_IO_ZERO_COPY_WAIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_INIT);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_INIT);
 		break;
 	case FOPH_IO_STOB_INIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_WAIT);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_WAIT);
 		break;
 	case FOPH_IO_STOB_WAIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
 		break;
 	case FOPH_IO_BUFFER_RELEASE:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(
+                C2_UT_ASSERT(
                 fom->fo_phase == FOPH_SUCCESS ||
                 fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE);
 		break;
@@ -372,29 +372,29 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 	switch(fom->fo_phase) {
 	case FOPH_IO_FOM_BUFFER_ACQUIRE :
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(
+                C2_UT_ASSERT(
                 fom->fo_phase ==  FOPH_IO_FOM_BUFFER_WAIT ||
                 fom->fo_phase == FOPH_IO_STOB_INIT);
 		break;
 	case FOPH_IO_ZERO_COPY_INIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_WAIT);
 		break;
 	case FOPH_IO_ZERO_COPY_WAIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_BUFFER_RELEASE);
 		break;
 	case FOPH_IO_STOB_INIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_WAIT);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_STOB_WAIT);
 		break;
 	case FOPH_IO_STOB_WAIT:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
+                C2_UT_ASSERT(fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
 		break;
 	case FOPH_IO_BUFFER_RELEASE:
 		rc = c2_io_fom_cob_rw_state(fom);
- 		C2_UT_ASSERT(
+                C2_UT_ASSERT(
                 fom->fo_phase == FOPH_SUCCESS ||
                 fom->fo_phase == FOPH_IO_FOM_BUFFER_ACQUIRE);
 		break;
@@ -505,7 +505,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         fom->fo_phase =  FOPH_IO_FOM_BUFFER_ACQUIRE;
 
         rc = c2_io_fom_cob_rw_state(fom);
- 	C2_UT_ASSERT(fom->fo_rc == 0 &&
+        C2_UT_ASSERT(fom->fo_rc == 0 &&
                      rc == FSO_WAIT  &&
                      fom->fo_phase ==  FOPH_IO_FOM_BUFFER_WAIT);
 
@@ -585,7 +585,10 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                      rc == FSO_AGAIN  &&
                      fom->fo_phase == FOPH_IO_ZERO_COPY_INIT);
 
-        /* No need to cleanup here, since FOM will be  transitioned to  expected 	 * phase.*/
+        /*
+         * No need to cleanup here, since FOM will be  transitioned to
+         * expected phase.
+         */
 
         /*
          * Case 05 : Zero-copy failure
@@ -910,7 +913,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         fom->fo_phase =  FOPH_IO_FOM_BUFFER_ACQUIRE;
 
         rc = c2_io_fom_cob_rw_state(fom);
- 	C2_UT_ASSERT(fom->fo_rc == 0 && rc == FSO_WAIT  &&
+        C2_UT_ASSERT(fom->fo_rc == 0 && rc == FSO_WAIT  &&
                      fom->fo_phase ==  FOPH_IO_FOM_BUFFER_WAIT);
 
         /* Cleanup & make clean FOM for next test. */
@@ -1246,7 +1249,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 /* It is used to create the stob specified in the fid of each fop. */
 static int bulkio_stob_create_fom_state(struct c2_fom *fom)
 {
-   	struct c2_fop_cob_rw            *rwfop;
+        struct c2_fop_cob_rw            *rwfop;
         struct c2_stob_domain           *fom_stdom;
         struct c2_fop_file_fid          *ffid;
         struct c2_fid                    fid;
@@ -1373,7 +1376,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	/* Checks if the write io bulk data is received as is. */
 	for (i = 0; i < rw->crw_desc.id_nr &&
-	   	    c2_is_write_fop(fom->fo_fop); ++i) {
+                c2_is_write_fop(fom->fo_fop); ++i) {
 		for (j = 0; j < netbufs[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(writebuf, netbufs[i]->nb_buffer.ov_buf[j],
 				    netbufs[i]->nb_buffer.ov_vec.v_count[j]);
@@ -1760,7 +1763,7 @@ void bulkio_stob_create(void)
 	C2_ALLOC_ARR(wfops, IO_FIDS_NR);
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		C2_ALLOC_PTR(wfops[i]);
- 	 	rc = c2_io_fop_init(wfops[i], &c2_fop_cob_writev_fopt);
+                rc = c2_io_fop_init(wfops[i], &c2_fop_cob_writev_fopt);
                 wfops[i]->if_fop.f_type->ft_fom_type =
                 bulkio_stob_create_fom_type;
 
@@ -1958,10 +1961,10 @@ void bulkio_server_multiple_read_write(void)
 		for (i = 0; i < IO_FOPS_NR; ++i) {
 			io_fops[i]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
                         if (op == C2_IOSERVICE_WRITEV_OPCODE)
-                        	io_fops[i]->if_fop.f_type->ft_fom_type =
+                                io_fops[i]->if_fop.f_type->ft_fom_type =
 				bulkio_server_write_fom_type;
                         else
-                       		io_fops[i]->if_fop.f_type->ft_fom_type =
+                                io_fops[i]->if_fop.f_type->ft_fom_type =
 				bulkio_server_read_fom_type;
                 }
 
@@ -1992,7 +1995,7 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 	struct c2_rpc_bulk	*rbulk;
 	struct c2_io_fop	*iofop;
 	struct c2_fop_cob_rw	*rw;
-	int 			 i;
+	int                      i;
 	int			 j;
 	int			 rc;
 
@@ -2007,9 +2010,9 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 		C2_ALLOC_PTR(io_fops[i]);
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE)
- 		rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_writev_fopt);
- 	else
-		rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_readv_fopt);
+                rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_writev_fopt);
+        else
+                rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_readv_fopt);
 	iofop = io_fops[index];
 	rbulk = &iofop->if_rbulk;
 	rw = io_rw_get(&io_fops[index]->if_fop);
@@ -2027,7 +2030,7 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < IO_SEGS_NR; ++i) {
-		rc = c2_rpc_bulk_buf_databuf_add(rbuf,
+                rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 				io_buf[j].nb_buffer.ov_buf[i],
 				io_buf[j].nb_buffer.ov_vec.v_count[i],
 				io_offsets[0], &c_netdom);

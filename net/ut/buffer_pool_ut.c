@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -55,7 +55,8 @@ static void test_init(void)
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096, 10, 12);
+	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096, 10, 12);
+	C2_UT_ASSERT(rc == 0);
 	c2_net_buffer_pool_lock(&bp);
 	rc = c2_net_buffer_pool_provision(&bp, 10);
 	c2_net_buffer_pool_unlock(&bp);
