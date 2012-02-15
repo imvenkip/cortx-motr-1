@@ -565,7 +565,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	pl->pl_attr = pl_rec->pr_attr;
 
-	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
+	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
 	//return et->let_ops->leto_decode(schema, lid, cur, op, tx,
 					//&stl->ls_enum);
@@ -608,7 +608,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
+	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
 
@@ -624,9 +624,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	pl_rec->pr_let_id  = stl->ls_enum->le_type->let_id;
 	pl_rec->pr_attr    = pl->pl_attr;
 
-	rc = c2_bufvec_cursor_copyto(out, pl_rec,
-			 sizeof(struct c2_ldb_pdclust_rec));
-	C2_ASSERT(rc == sizeof(struct c2_ldb_pdclust_rec));
+	rc = c2_bufvec_cursor_copyto(out, pl_rec, sizeof *pl_rec);
+	C2_ASSERT(rc == sizeof *pl_rec);
 
 	if (!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -EPROTO;

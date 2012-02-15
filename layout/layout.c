@@ -73,12 +73,12 @@ void c2_layouts_fini(void)
 }
 
 void c2_layout_init(struct c2_layout *l,
-		    uint64_t id,
+		    uint64_t lid,
 		    const struct c2_layout_type *type,
 		    const struct c2_layout_ops *ops)
 {
 	C2_PRE(l != NULL);
-	C2_PRE(id != LID_NONE);
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
@@ -86,7 +86,7 @@ void c2_layout_init(struct c2_layout *l,
 
 	c2_mutex_init(&l->l_lock);
 
-	l->l_id     = id;
+	l->l_id     = lid;
 	l->l_type   = type;
 	l->l_ops    = ops;
 }
@@ -100,7 +100,7 @@ void c2_layout_fini(struct c2_layout *l)
 
 void c2_layout_striped_init(struct c2_layout_striped *str_l,
 			    struct c2_layout_enum *e,
-			    uint64_t id,
+			    uint64_t lid,
 			    const struct c2_layout_type *type,
 			    const struct c2_layout_ops *ops)
 {
@@ -112,7 +112,7 @@ void c2_layout_striped_init(struct c2_layout_striped *str_l,
 
 	C2_SET0(str_l);
 
-	c2_layout_init(&str_l->ls_base, id, type, ops);
+	c2_layout_init(&str_l->ls_base, lid, type, ops);
 
 	str_l->ls_enum = e;
 }
@@ -218,7 +218,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		return -ENOENT;
 
 	/* Move the cursor to point to the layout type specific payload. */
-	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+	c2_bufvec_cursor_move(cur, sizeof *rec);
 
 	/*
 	 * It is fine if any of the layout does not contain any data in

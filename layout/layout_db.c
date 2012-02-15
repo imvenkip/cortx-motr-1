@@ -556,7 +556,6 @@ uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 	/*
 	 * Iterate over all the layout types to find maximum possible recsize.
 	 */
-	/* @todo Check for (schema->ls_type[i] != NULL) */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
 		if (schema->ls_type[i] == NULL)
 			continue;
@@ -667,7 +666,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	C2_PRE(tx != NULL);
 
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof(l->l_id));
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 

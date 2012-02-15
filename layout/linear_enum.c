@@ -157,16 +157,16 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
-			lle_base);
+				lle_base);
 
 	C2_ASSERT(lin_enum->lle_attr.lla_nr != 0);
 	C2_ASSERT(lin_enum->lle_attr.lla_A != 0);
 	C2_ASSERT(lin_enum->lle_attr.lla_B != 0);
 
 	num_bytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
-			sizeof(struct c2_layout_linear_attr));
+					    sizeof *lin_enum);
 
-	C2_ASSERT(num_bytes == sizeof(struct c2_layout_linear_attr));
+	C2_ASSERT(num_bytes == sizeof *lin_enum);
 
 	return 0;
 }

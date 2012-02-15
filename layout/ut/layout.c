@@ -253,7 +253,7 @@ static void internal_fini()
 	c2_ldb_type_unregister(&schema, &c2_composite_layout_type);
 }
 
-static void lbuf_build(uint64_t lt_id, struct c2_bufvec_cursor *dcur)
+static void lbuf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 {
 	struct c2_ldb_rec    rec;
 	c2_bcount_t          num_bytes_copied;
@@ -267,7 +267,7 @@ static void lbuf_build(uint64_t lt_id, struct c2_bufvec_cursor *dcur)
 
 static void pdclust_lbuf_build(uint64_t lid,
 			       uint32_t N, uint32_t K,
-			       uint64_t let_id,
+			       uint32_t let_id,
 			       struct c2_bufvec_cursor *dcur)
 {
 	struct c2_ldb_pdclust_rec pl_rec;
@@ -578,7 +578,7 @@ static int pdclust_list_l_build(uint64_t lid,
 	return rc;
 }
 
-static void lbuf_verify(struct c2_bufvec_cursor *cur, uint64_t *lt_id)
+static void lbuf_verify(struct c2_bufvec_cursor *cur, uint32_t *lt_id)
 {
 	struct c2_ldb_rec  *rec;
 
@@ -587,13 +587,13 @@ static void lbuf_verify(struct c2_bufvec_cursor *cur, uint64_t *lt_id)
 
 	*lt_id = rec->lr_lt_id;
 
-	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+	c2_bufvec_cursor_move(cur, sizeof *rec);
 }
 
 
 static void pdclust_lbuf_verify(uint32_t N, uint32_t K,
 				struct c2_bufvec_cursor *cur,
-				uint64_t *let_id)
+				uint32_t *let_id)
 {
 	struct c2_ldb_pdclust_rec  *pl_rec;
 
@@ -601,7 +601,7 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K,
 
 	*let_id = pl_rec->pr_let_id;
 
-	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
+	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 }
 
 static int pdclust_linear_lbuf_verify(uint64_t lid,
@@ -609,8 +609,8 @@ static int pdclust_linear_lbuf_verify(uint64_t lid,
 				      uint32_t A, uint32_t B,
 				      struct c2_bufvec_cursor *cur)
 {
-	uint64_t lt_id;
-	uint64_t let_id;
+	uint32_t lt_id;
+	uint32_t let_id;
 	struct c2_layout_linear_attr *lin_attr;
 
 	lbuf_verify(cur, &lt_id);
@@ -632,8 +632,8 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 				    uint32_t nr,
 				    struct c2_bufvec_cursor *cur)
 {
-	uint64_t                        lt_id;
-	uint64_t                        let_id;
+	uint32_t                        lt_id;
+	uint32_t                        let_id;
 	uint32_t                        i;
 	struct ldb_cob_entries_header  *ldb_ce_header;
 	struct ldb_cob_entry           *ldb_ce;
@@ -1046,7 +1046,7 @@ static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 	C2_UT_ASSERT(rec->lr_lt_id == c2_pdclust_layout_type.lt_id);
 	C2_UT_ASSERT(rec->lr_ref_count == 0);
 
-	rc = c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_rec));
+	rc = c2_bufvec_cursor_move(cur, sizeof *rec);
 
 	pl_rec = c2_bufvec_cursor_addr(cur);
 	C2_UT_ASSERT(pl_rec != NULL);
@@ -1056,7 +1056,7 @@ static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_K == 1);
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_P == pool.po_width);
 
-	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
+	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
 	lin_rec = c2_bufvec_cursor_addr(cur);
 	C2_UT_ASSERT(lin_rec != NULL);

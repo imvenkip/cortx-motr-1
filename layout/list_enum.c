@@ -294,12 +294,13 @@ static uint32_t list_recsize(struct c2_layout_enum *e)
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
 
-	/* Correct the following. */
-	if (list_enum->lle_nr >= LDB_MAX_INLINE_COB_ENTRIES)
-		return sizeof(struct ldb_cob_entries_header);
+	if (list_enum->lle_nr <= LDB_MAX_INLINE_COB_ENTRIES)
+		return sizeof(struct ldb_cob_entries_header) +
+			list_enum->lle_nr * sizeof(struct ldb_cob_entry);
 	else
-		/* @todo Calculate the size required */
-		return 0;
+		return sizeof(struct ldb_cob_entries_header) +
+			LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct
+							    ldb_cob_entry);
 }
 
 /* todo Check how should the cob entry be passed to this fn. */
