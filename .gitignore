@@ -8,6 +8,7 @@ config.cache
 config.guess
 config.h
 config.h.in
+\[config.h\].in
 config.log
 config.status
 config.sub
@@ -72,4 +73,3 @@ doxygen_*tmp
 cscope.out
 tags
 TAGS*
-*_[uk].*
