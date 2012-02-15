@@ -39,163 +39,54 @@
    - @ref LNetDRVDLD-O
    - @ref LNetDRVDLD-ref
 
-
    <hr>
    @section LNetDRVDLD-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
 
-   This document is intended to be a style guide for a detail level
-   design specification, and is designed to be viewed both through a
-   text editor and in a browser after Doxygen processing.
+   The Colibri LNet Transport device provides user-space access to the kernel
+   @ref LNetDLD "Colibri LNet Transport".  The
+   @ref ULNetCoreDLD "User Space Core" implementation uses the device to
+   communicate with the @ref KLNetCoreDLD "Kernel Core".  The device
+   provides a conduit through which information flows between the user-space and
+   kernel core layers, initiated by the user-space layer.  The specific
+   operations that can be performed on the device are documented here.  Hooks
+   for unit testing the device are also discussed.
 
-   You can use this document as a template by deleting all content,
-   while retaining the sections referenced above and the overall
-   Doxygen structure of a page with one or more component modules.
-   You <b><i>must</i></b> change the Doxygen reference tags used in
-   @@page, @@section, @@subsection and @@defgroup examples when
-   copying this template, and adjust @@ref and @@subpage references in
-   the table of contents of your own document accordingly.
-
-   Please provide a table of contents for the major sections, as shown above.
-   Please use horizontal ruling exactly as shown in this template, and do not
-   introduce additional lines.
-
-   It is recommended that you retain the italicized instructions that
-   follow the formally recognized section headers, until at least the
-   DLD review phase.  You may leave the instructions in the final
-   document if you wish.
-
-   It is imperative that the document be neat when viewed textually
-   through an editor and when browsing the Doxygen output - it is
-   intended to be relevant for the entire code life-cycle.  Please
-   check your grammar and punctuation, and run the document through a
-   spelling checker.  It is also recommended that you run the source
-   document through a paragraph formatting tool to produce neater
-   text, though be careful while doing so as text formatters do not
-   understand Doxygen syntax and significant line breaks.
-
-
-   <b>Purpose of a DLD</b><br>
-   The purpose of the Detailed Level Design (DLD) specification of a
-   component is to:
-   - Refine higher level designs
-   - To be verified by inspectors and architects
-   - To guide the coding phase
-
-   <b>Location and layout of the DLD Specification</b><br>
-   The Colibri project requires Detailed Level Designs in the source
-   code itself.  This greatly aids in keeping the design documentation
-   up to date through the lifetime of the implementation code.
-
-   The main DLD specification shall primarily be located in a C file
-   in the component being designed.  The main DLD specification can be
-   quite large and is probably not of interest to a consumer of the
-   component.
-
-   It is <i>required</i> that the <b>Functional Specification</b> and
-   the <b>Detailed Functional Specification</b> be located in the
-   primary header file - this is the header file with the declaration
-   of the external interfaces that consumers of the component's API
-   would include.  In case of stand alone components, an appropriate
-   alternative header file should be chosen.
-
-   <b>Structure of the DLD</b><br>
-   The DLD specification is <b>required</b> to be sectioned in the
-   specific manner illustrated by the <tt>dld-sample.c</tt> and
-   <tt>dld-sample.h</tt> files.  This is similar in structure and
-   purpose to the sectioning found in a High Level Design.
-
-   Not all sections may be applicable to every design, but sections
-   declared to be mandatory may not be omitted.  If a mandatory
-   section does not apply, it should clearly be marked as
-   non-applicable, along with an explanation.  Additional sections or
-   sub-sectioning may be added as required.
-
-   It is probably desirable to split the Detailed Functional
-   Specifications into separate header files for each sub-module of
-   the component.  This example illustrates a component with a single
-   module.
-
-   <b>Formatting language</b><br>
-   Doxygen is the formatting tool of choice.  The Doxygen @@page
-   format is used to define a separate top-level browsable element
-   that contains the body of the DLD. The @@section, @@subsection and
-   @@subsubsection formatting commands are used to provide internal
-   structure.  The page title will be visible in the <b>Related
-   Pages</b> tab in the main browser window, as well as displayed as a
-   top-level element in the explorer side-bar.
-
-   The Functional Specification is to be located in the primary header
-   file of the component in a Doxygen @@page that is referenced as a
-   @@subpage from the table of contents of the main DLD specification.
-   This sub-page shows up as leaf element of the DLD in the explorer
-   side-bar.
-
-   Detailed functional specifications follow the Functional
-   Specification, using Doxygen @@defgroup commands for each component
-   module.
+   This design also provides a recipe for structuring each user space core
+   operation, and restructuring/refactoring the kernel core implementation, but
+   does not include the design additions and changes to those layers themselves.
 
    <hr>
    @section LNetDRVDLD-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
 
-   Previously defined terms:
-   - <b>Logical Specification</b> This explains how the component works.
-   - <b>Functional Specification</b> This is explains how to use the component.
-
-   New terms:
-   - <b>Detailed Functional Specification</b> This provides
-     documentation of ll the data structures and interfaces (internal
-     and external).
-   - <b>State model</b> This explains the life cycle of component data
-     structures.
-   - <b>Concurrency and threading model</b> This explains how the the
-     component works in a multi-threaded environment.
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>.
 
    <hr>
    @section LNetDRVDLD-req Requirements
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   They should be expressed in a list, thusly:
-   - @b R.DLD.Structured The DLD shall be decomposed into a standard
-   set of section.  Sub-sections may be used to further decompose the
-   material of a section into logically disjoint units.
-   - @b R.DLD.What The DLD shall describe the externally visible
-   data structures and interfaces of the component through a
-   functional specification section.
-   - @b R.DLD.How The DLD shall explain its inner algorithms through
-   a logical specification section.
-   - @b R.DLD.Maintainable The DLD shall be easily maintainable during
-   the lifetime of the code.
+   - @b r.c2.net.xprt.lnet.user-space The implementation must
+     accommodate the needs of the user space LNet transport.
+   - @todo fill in remaining requirements
 
    <hr>
    @section LNetDRVDLD-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
 
-   The DLD specification style guide depends on the HLD and AR
-   specifications as they identify requirements, use cases, <i>\&c.</i>.
+   - @ref LNetCore "LNet Transport Core Interface" <!-- ./lnet_core.h -->
+   - @ref KLNetCore "LNet Transport Core Kernel Private Interface" <!--
+       ./linux_kernel/lnet_core.h -->
 
    <hr>
    @section LNetDRVDLD-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
 
-   - The DLD specification requires formal sectioning to address specific
-   aspects of the design.
-   - The DLD is with the code, and the specification is designed to be
-   viewed either as text or through Doxygen.
-   - This document can be used as a template.
+   - Each c2_net_domain corresponds to a separate file descriptor.
+   - The device driver tracks all resources associated with the file descriptor.
+   - Well-defined patterns are used for sharing new resources between user
+     and kernel space, for referencing previously shared resources, and for
+     releasing shared resources.
+   - Ioctls correspond roughly to the @ref LNetCore "LNet Transport Core APIs".
+   - The device driver can clean up resources in the case that the user program
+     terminates prematurely.
 
    <hr>
    @section LNetDRVDLD-lspec Logical Specification
@@ -215,7 +106,6 @@
    - @ref LNetDRVDLD-lspec-state
    - @ref LNetDRVDLD-lspec-thread
    - @ref LNetDRVDLD-lspec-numa
-
 
    @subsection LNetDRVDLD-lspec-comps Component Overview
    <i>Mandatory.
@@ -497,7 +387,6 @@
    along the lines of the Functional Specification.  This can be deferred
    to the ST phase where additional details on the system tests are available.
 
-
    <hr>
    @section LNetDRVDLD-O Analysis
    <i>This section estimates the performance of the component, in terms of
@@ -551,12 +440,10 @@ enum {
 struct nlx_mem_area {
 	/** Opaque user space address corresponding to this memory area. */
 	unsigned long ma_user_addr;
-	/** pages for each mapped object, assume each object < PAGE_SIZE
-	    so max of 2 structs are required.
+	/** Page for the mapped object. Require each object to be < PAGE_SIZE
+	    and be aligned such that it fully fits in the page.
 	 */
-	struct page *ma_page[2];
-	/** kernel addresses corresponding to each page */
-	void *ma_addr[2];
+	struct page *ma_page;
 	/** link in the nlx_dev_data::dd_mem_area @todo should be a tlink */
 	struct c2_list_link ma_link;
 };
@@ -567,8 +454,8 @@ struct nlx_dev_data {
 	struct c2_mutex dd_mutex;
 	/** proof-of-concept value to exchange via ioctl */
 	unsigned int dd_value;
-	/** proof-of-concept shared data structure */
-	struct nlx_core_transfer_mc *dd_tm;
+	/** proof-of-concept offset into shared page */
+	unsigned int dd_tm_offset;
 	/** proof-of-concept shared data structure */
 	struct page *dd_tm_page;
 	/** list of struct nlx_mem_area, @todo should be a tlist */
@@ -582,23 +469,16 @@ struct nlx_dev_data {
 static void nlx_mem_area_put(struct nlx_mem_area *ma)
 {
 	printk("%s: unmapping area %lx\n", __func__, ma->ma_user_addr);
-	kunmap(ma->ma_addr[0]);
-	put_page(ma->ma_page[0]);
-	if (ma->ma_addr[1] != NULL) {
-		C2_ASSERT(ma->ma_page[1] != NULL);
-		kunmap(ma->ma_addr[1]);
-		put_page(ma->ma_page[1]);
-	}
+	put_page(ma->ma_page);
 	c2_list_del(&ma->ma_link);
 	c2_free(ma);
 }
 
 /**
-   Record a memory area in the list of mapped user memory areas.
-   On success, a new struct nlx_mem_area object is added to the
-   list of memory areas tracked in the struct nlx_dev_data.
-   If the memory area matches a nlx_core_transfer_mc, the nlx_dev_data::dd_tm
-   is also set.
+   Record a memory area in the list of mapped user memory areas.  On success, a
+   new struct nlx_mem_area object is added to the list of memory areas tracked
+   in the struct nlx_dev_data.  The nlx_dev_data::dd_tm_page and
+   nlx_dev_data::dd_tm_offset are also set.
    @param dd device data structure tracking all resources for this instance
    @param uma memory descriptor, copied in from user space
  */
@@ -606,17 +486,17 @@ static int nlx_mem_area_map(struct nlx_dev_data *dd,
 			    struct c2_net_lnet_mem_area *uma)
 {
 	int rc;
-	int count;
 	struct nlx_mem_area *ma;
-	struct nlx_core_transfer_mc *tm;
-	unsigned long offset;
+	unsigned int offset;
 
 	C2_PRE(c2_mutex_is_locked(&dd->dd_mutex));
 	C2_PRE(current->mm != NULL);
 
 	if (uma->nm_magic != C2_NET_LNET_MEM_AREA_MAGIC)
 		return -EINVAL;
-	if (uma->nm_size > PAGE_SIZE) {
+	offset = PAGE_OFFSET(uma->nm_user_addr);
+	if (offset + uma->nm_size > PAGE_SIZE) {
+		printk("%s: user object did not fit in 1 page\n", __func__);
 		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EINVAL);
 		return -EINVAL;
 	}
@@ -624,49 +504,28 @@ static int nlx_mem_area_map(struct nlx_dev_data *dd,
 	if (ma == NULL)
 		return -ENOMEM;
 
-	offset = PAGE_OFFSET(uma->nm_user_addr);
-	if (offset + uma->nm_size < PAGE_SIZE)
-		count = 1;
-	else
-		count = 2;
 	c2_mutex_unlock(&dd->dd_mutex);
-	/* note: down_read can block */
+	/* note: down_read and get_use_pages can block */
 	down_read(&current->mm->mmap_sem);
 	rc = get_user_pages(current, current->mm,
-			    uma->nm_user_addr, count, 1, 0,
-			    ma->ma_page, NULL);
+			    uma->nm_user_addr, 1, 1, 0, &ma->ma_page, NULL);
 	up_read(&current->mm->mmap_sem);
+	c2_mutex_lock(&dd->dd_mutex);
 
-	if (rc != count) {
-		if (rc == 1)
-			put_page(ma->ma_page[0]);
+	if (rc != 1) {
+		C2_ASSERT(rc < 0);
 		c2_free(ma);
 		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -ENOSPC);
-		c2_mutex_lock(&dd->dd_mutex);
-		return -ENOSPC;
+		return rc;
 	}
 
-	/* note: kmap can page/sleep */
+	printk("%s: mapped area %lx size %d\n",
+	       __func__, uma->nm_user_addr, uma->nm_size);
 	ma->ma_user_addr = uma->nm_user_addr;
-	ma->ma_addr[0] = kmap(ma->ma_page[0]);
-	if (ma->ma_page[1] != NULL) {
-		ma->ma_addr[1] = kmap(ma->ma_page[1]);
-		printk("%s: user page count was 2\n", __func__);
-	}
-	printk("%s: mapping area %lx\n", __func__, ma->ma_user_addr);
+	dd->dd_tm_page = ma->ma_page;
+	dd->dd_tm_offset = offset;
 
-	c2_mutex_lock(&dd->dd_mutex);
 	c2_list_add(&dd->dd_mem_areas, &ma->ma_link);
-	if (ma->ma_page[1] == NULL) {
-		tm = (struct nlx_core_transfer_mc *)
-		    ((char *) ma->ma_addr[0] + offset);
-		if (tm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC) {
-			dd->dd_tm = tm;
-			dd->dd_tm_page = ma->ma_page[0];
-			printk("%s: mapped a nlx_core_transfer_mc\n", __func__);
-		} else
-			printk("%s: mapped something else\n", __func__);
-	}
 	return 0;
 }
 
@@ -691,8 +550,8 @@ static int nlx_mem_area_unmap(struct nlx_dev_data *dd,
 			       pos, struct nlx_mem_area, ma_link) {
 		if (pos->ma_user_addr == uma->nm_user_addr) {
 			nlx_mem_area_put(pos);
-			dd->dd_tm = NULL;
 			dd->dd_tm_page = NULL;
+			dd->dd_tm_offset = 0;
 			return 0;
 		}
 	}
@@ -727,9 +586,21 @@ static int nlx_dev_ioctl(struct inode *inode, struct file *file,
 	case C2_LNET_PROTOWRITE:
 		if (get_user(dd->dd_value, (unsigned int __user *) arg))
 			rc = -EFAULT;
-		if (dd->dd_tm != NULL) {
-			dd->dd_tm->_debug_ = dd->dd_value;
-			SetPageDirty(dd->dd_tm_page);
+		if (dd->dd_tm_page != NULL) {
+			struct nlx_core_transfer_mc *tm;
+			bool mod = false;
+			char *ptr = kmap_atomic(dd->dd_tm_page, KM_USER0);
+
+			tm = (struct nlx_core_transfer_mc *)
+			    (ptr + dd->dd_tm_offset);
+			if (tm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC) {
+				tm->_debug_ = dd->dd_value;
+				SetPageDirty(dd->dd_tm_page);
+				mod = true;
+			}
+			kunmap_atomic(dd->dd_tm_page, KM_USER0);
+			printk("%s: %smodified nlx_core_transfer_mc\n",
+			       __func__, mod ? "" : "UN");
 		}
 		break;
 	case C2_LNET_PROTOMAP:
