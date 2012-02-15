@@ -103,7 +103,7 @@ struct c2_ldb_pdclust_rec {
 	 * Layout enumeration type id.
 	 * Value obtained from c2_layout_enum_type::let_id.
 	 */
-	uint64_t                     pr_let_id;
+	uint32_t                     pr_let_id;
 
 	struct c2_pdclust_attr       pr_attr;
 };

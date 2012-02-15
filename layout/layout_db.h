@@ -151,12 +151,12 @@ struct c2_ldb_rec {
 	/** Layout type id.
 	 *  Value obtained from  c2_layout_type::lt_id.
 	 */
-	uint64_t                       lr_lt_id;
+	uint32_t                       lr_lt_id;
 
 	/** Layout reference count.
 	 *  Indicating number of files using this layout.
 	 */
-	uint64_t                       lr_ref_count;
+	uint32_t                       lr_ref_count;
 
 	/** Layout type specific payload.
 	 *  Contains attributes specific to the layout type.

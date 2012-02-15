@@ -108,7 +108,7 @@ struct c2_layout {
 	    Layout reference count.
 	    Indicating how many users this layout has.
 	 */
-	uint64_t                         l_ref;
+	uint32_t                         l_ref;
 
 	/**
 	    Lock to protect a c2_layout instance and all its direct/indirect
@@ -150,7 +150,7 @@ struct c2_layout_type {
 	const char                      *lt_name;
 
 	/** Layout type id. */
-	uint64_t                         lt_id;
+	uint32_t                         lt_id;
 
 	/** Layout type operations vector. */
 	const struct c2_layout_type_ops *lt_ops;
@@ -239,7 +239,7 @@ struct c2_layout_enum_type {
 	const char                           *let_name;
 
 	/** Layout enumeration type id. */
-	uint64_t                              let_id;
+	uint32_t                              let_id;
 
 	/** Layout enumeration type operations vector. */
 	const struct c2_layout_enum_type_ops *let_ops;
