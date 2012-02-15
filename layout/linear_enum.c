@@ -33,6 +33,7 @@
 #include "lib/tlist.h"	/* struct c2_tl */
 #include "lib/vec.h"
 #include "lib/memory.h"
+#include "lib/trace.h"
 
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
@@ -108,6 +109,8 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
+	C2_LOG("In linear_decode(), cur %p \n", cur);
+
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL)
 		return -ENOMEM;
@@ -148,6 +151,8 @@ static int linear_encode(struct c2_ldb_schema *schema,
 		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
+
+	C2_LOG("In linear_encode(), l %p \n", l);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 

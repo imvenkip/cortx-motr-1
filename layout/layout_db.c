@@ -330,11 +330,11 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h"        /* C2_SET0() */
 #include "lib/vec.h"
-#include "lib/arith.h"               /* C2_LOG() */
-#include "lib/trace.h"
-
-#include "db/db_common.h"            /* c2_db_buf_init() */
+#include "lib/arith.h"
+#include "lib/trace.h"       /* C2_LOG() */
+#include "db/db_common.h"    /* c2_db_buf_init() */
 
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
@@ -357,7 +357,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(dbenv != NULL);
 
-	C2_LOG0("Inside c2_ldb_schema_init()");
+	C2_LOG("Inside c2_ldb_schema_init()\n");
 
 	schema->dbenv = dbenv;
 
@@ -387,6 +387,8 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 	int i;
 
 	C2_PRE(schema != NULL);
+
+	C2_LOG("Inside c2_ldb_schema_fini()\n");
 
 	/* Verify that all the layout types were deregistered. */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
@@ -609,7 +611,13 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		       pair->dp_rec.db_buf.b_nob);
 	pair->dp_rec.db_static = false;
 
+	C2_SET0(pair->dp_key.db_buf.b_addr);
+	C2_SET0(pair->dp_rec.db_buf.b_addr);
+
 	rc = c2_table_lookup(tx, pair);
+	printf("c2_ldb_lookup(): Result of c2_table_lookup() %d, "
+	       "lid %" PRId64 "\n", rc, lid);
+	/* todo Handle the case - record not found. */
 	if (rc != 0)
 		return rc;
 

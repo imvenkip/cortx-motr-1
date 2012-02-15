@@ -393,10 +393,10 @@ static int pdclust_list_l_verify(uint64_t lid,
 			}
 		}
 
-		C2_ASSERT(found == true);
-		C2_ASSERT(ce->cle_cob_id.f_container ==
+		C2_UT_ASSERT(found == true);
+		C2_UT_ASSERT(ce->cle_cob_id.f_container ==
 			  j * 100 + 1);
-		C2_ASSERT(ce->cle_cob_id.f_key == j + 1);
+		C2_UT_ASSERT(ce->cle_cob_id.f_key == j + 1);
 
 		if (i++ == num_inline - 1)
 			break;
@@ -448,7 +448,8 @@ static int test_decode_pdclust_list(uint64_t lid)
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = pdclust_list_lbuf_build(lid, 4, 2, 5, &cur);
+	//rc = pdclust_list_lbuf_build(lid, 4, 2, 5, &cur);
+	rc = pdclust_list_lbuf_build(lid, 4, 2, 25, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -456,7 +457,8 @@ static int test_decode_pdclust_list(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = pdclust_list_l_verify(lid, 4, 2, 5, l);
+	//rc = pdclust_list_l_verify(lid, 4, 2, 5, l);
+	rc = pdclust_list_l_verify(lid, 4, 2, 25, l);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -646,12 +648,12 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 	C2_UT_ASSERT(let_id == c2_list_enum_type.let_id);
 
 	ldb_ce_header = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(ldb_ce_header != NULL);
+	C2_UT_ASSERT(ldb_ce_header != NULL);
 	if (ldb_ce_header == NULL)
 		return -EPROTO;
 	c2_bufvec_cursor_move(cur, sizeof *ldb_ce_header);
 
-	C2_ASSERT(ldb_ce_header->llces_nr > 0);
+	C2_UT_ASSERT(ldb_ce_header->llces_nr > 0);
 
 	/*
 	num_inline = ldb_ce_header->llces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
@@ -661,11 +663,11 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 	//for (i = 0; i < num_inline; ++i) {
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
 		ldb_ce = c2_bufvec_cursor_addr(cur);
-		C2_ASSERT(ldb_ce != NULL);
-		C2_ASSERT(ldb_ce->llce_cob_index <= ldb_ce_header->llces_nr);
-		C2_ASSERT(ldb_ce->llce_cob_id.f_container ==
+		C2_UT_ASSERT(ldb_ce != NULL);
+		C2_UT_ASSERT(ldb_ce->llce_cob_index <= ldb_ce_header->llces_nr);
+		C2_UT_ASSERT(ldb_ce->llce_cob_id.f_container ==
 			  ldb_ce->llce_cob_index * 100 + 1);
-		C2_ASSERT(ldb_ce->llce_cob_id.f_key ==
+		C2_UT_ASSERT(ldb_ce->llce_cob_id.f_key ==
 			  ldb_ce->llce_cob_index + 1);
 		c2_bufvec_cursor_move(cur, sizeof *ldb_ce);
 	}
@@ -790,17 +792,13 @@ static void test_encode(void)
 	C2_UT_ASSERT(rc == 0);
 }
 
-static void test_add(void)
+static int test_add_pdclust_list(uint64_t lid)
 {
-	uint64_t                   lid;
 	c2_bcount_t                num_bytes;
 	void                      *area;
 	struct c2_pdclust_layout  *pl;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
-
-	rc = internal_init();
-	C2_UT_ASSERT(rc == 0);
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -812,7 +810,39 @@ static void test_add(void)
 	pair.dp_rec.db_buf.b_addr = area;
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
-	lid = 4444;
+	rc = pdclust_list_l_build(lid, 5, 2, 30, &pl);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+
+static int test_add_pdclust_linear(uint64_t lid)
+{
+	c2_bcount_t                num_bytes;
+	void                      *area;
+	struct c2_pdclust_layout  *pl;
+	struct c2_db_pair          pair;
+	struct c2_db_tx            tx;
+
+	num_bytes = c2_ldb_max_recsize(&schema);
+	area = c2_alloc(num_bytes);
+	C2_UT_ASSERT(area != NULL);
+
+	pair.dp_key.db_buf.b_addr = &lid;
+	pair.dp_key.db_buf.b_nob = sizeof lid;
+
+	pair.dp_rec.db_buf.b_addr = area;
+	pair.dp_rec.db_buf.b_nob = num_bytes;
+
 	rc = pdclust_linear_l_build(lid, 4, 1, 100, 200, &pl);
 	C2_UT_ASSERT(rc == 0);
 
@@ -824,6 +854,25 @@ static void test_add(void)
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+
+static void test_add(void)
+{
+	uint64_t lid;
+
+	rc = internal_init();
+	C2_UT_ASSERT(rc == 0);
+
+	lid = 4444;
+	rc = test_add_pdclust_linear(lid);
+	C2_UT_ASSERT(rc == 0);
+
+	lid = 5555;
+	rc = test_add_pdclust_list(lid);
+	C2_UT_ASSERT(rc == 0);
+
 
 	internal_fini();
 }
@@ -851,15 +900,32 @@ static void test_lookup(void)
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
 	lid = 4444;
-	//lid = 4441; @todo Non-existing lid.
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(l->l_id == lid);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
+
+	/* Non-existing lid. */
+	/*
+	lid = 4441;
+	C2_SET0(l);
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	C2_UT_ASSERT(rc == -ENOENT);
+	printf ("lid %" PRId64 "\n", l->l_id);
+	C2_UT_ASSERT(l->l_id == LID_NONE);
+	C2_UT_ASSERT(l->l_id == lid);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+	*/
 
 	internal_fini();
 }
@@ -933,7 +999,7 @@ static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 	c2_bufvec_cursor_move(cur, sizeof(struct c2_ldb_pdclust_rec));
 
 	lin_rec = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(lin_rec != NULL);
+	C2_UT_ASSERT(lin_rec != NULL);
 
 	C2_UT_ASSERT(lin_rec->lla_nr == 20);
 	C2_UT_ASSERT(lin_rec->lla_A == 100);
