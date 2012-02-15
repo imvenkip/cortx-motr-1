@@ -123,12 +123,9 @@ static int c2__bufvec_alloc(struct c2_bufvec *bufvec,
 		goto fail;
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
-		if (shift != 0) {
-		/* Currently in kernel mode c2_alloc_aligned  is not available. */
-#ifndef __KERNEL__
+		if (shift != 0)
 			bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
-#endif
-		} else	bufvec->ov_buf[i] = c2_alloc(seg_size);
+		else	bufvec->ov_buf[i] = c2_alloc(seg_size);
 		if (bufvec->ov_buf[i] == NULL)
 			goto fail;
 		bufvec->ov_vec.v_count[i] = seg_size;
@@ -149,6 +146,8 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 }
 C2_EXPORTED(c2_bufvec_alloc);
 
+/* Currently in kernel mode c2_alloc_aligned is not available. */
+#ifndef __KERNEL__
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 		            uint32_t          num_segs,
 		            c2_bcount_t       seg_size,
@@ -157,6 +156,7 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, shift);
 }
 C2_EXPORTED(c2_bufvec_alloc_aligned);
+#endif
 
 void c2_bufvec_free(struct c2_bufvec *bufvec)
 {

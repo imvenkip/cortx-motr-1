@@ -29,7 +29,8 @@ static void test_bufvec_cursor(void);
 enum {
 	NR = 255,
 	IT = 6,
-	SEGSIZE = 128
+	SEGSIZE = 128,
+	SHIFT = 12
 };
 
 static c2_bcount_t segs[NR * IT];
@@ -95,6 +96,19 @@ void test_vec(void)
 	for (i = 0; i < NR; ++i) {
 		C2_UT_ASSERT(bv.ov_vec.v_count[i] == SEGSIZE);
 		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
+	}
+	c2_bufvec_free(&bv);
+	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
+	C2_UT_ASSERT(bv.ov_buf == NULL);
+	c2_bufvec_free(&bv);    /* no-op */
+
+	C2_UT_ASSERT(c2_bufvec_alloc_aligned(&bv, NR, SEGSIZE, SHIFT) == 0);
+	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
+	for (i = 0; i < NR; ++i) {
+		uint64_t addr = (uint64_t)bv.ov_buf[i];
+		C2_UT_ASSERT(bv.ov_vec.v_count[i] == SEGSIZE);
+		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
+		C2_UT_ASSERT(((addr >> SHIFT) << SHIFT) == addr);
 	}
 	c2_bufvec_free(&bv);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
