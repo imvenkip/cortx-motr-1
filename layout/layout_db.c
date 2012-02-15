@@ -599,25 +599,31 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
 	pair->dp_table = &schema->ls_layouts;
-	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
-
-	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
-		       pair->dp_key.db_buf.b_addr,
-		       pair->dp_key.db_buf.b_nob);
-	pair->dp_key.db_static = false;
-
-	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
-		       pair->dp_rec.db_buf.b_addr,
-		       pair->dp_rec.db_buf.b_nob);
-	pair->dp_rec.db_static = false;
 
 	C2_SET0(pair->dp_key.db_buf.b_addr);
 	C2_SET0(pair->dp_rec.db_buf.b_addr);
 
+	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
+		       pair->dp_key.db_buf.b_addr,
+		       pair->dp_key.db_buf.b_nob);
+	pair->dp_key.db_static = true;
+
+	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
+		       pair->dp_rec.db_buf.b_addr,
+		       pair->dp_rec.db_buf.b_nob);
+	pair->dp_rec.db_static = true;
+
+	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
+
+	C2_ASSERT(*(uint64_t *)pair->dp_key.db_buf.b_addr == lid);
+
 	rc = c2_table_lookup(tx, pair);
 	printf("c2_ldb_lookup(): Result of c2_table_lookup() %d, "
-	       "lid %" PRId64 "\n", rc, lid);
-	/* todo Handle the case - record not found. */
+	       "lid %" PRId64 ", pair->lid %" PRId64 " pair->lid_addr %p \n",
+	       rc, lid, *(uint64_t *)pair->dp_key.db_buf.b_addr,
+	       pair->dp_key.db_buf.b_addr);
+
+	/* Following covers the case - record not found. */
 	if (rc != 0)
 		return rc;
 
@@ -627,6 +633,10 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
+	C2_ASSERT((*out)->l_id == lid);
+
+	c2_db_buf_fini(&pair->dp_rec);
+	c2_db_buf_fini(&pair->dp_key);
 
 	return rc;
 }

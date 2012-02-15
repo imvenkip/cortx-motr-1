@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -401,8 +401,6 @@ static int pdclust_list_l_verify(uint64_t lid,
 		if (i++ == num_inline - 1)
 			break;
 	} c2_tlist_endfor;
-
-	/* @todo todo Verify the list further */
 
 	return 0;
 }
@@ -877,55 +875,117 @@ static void test_add(void)
 	internal_fini();
 }
 
-static void test_lookup(void)
+static int test_lookup_pdclust_linear(uint64_t *lid)
 {
-	uint64_t                   lid;
 	c2_bcount_t                num_bytes;
 	void                      *area;
 	struct c2_layout          *l;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
 
-	rc = internal_init();
+	/* First add a layout with pdclust layout type and linear enum type. */
+	rc = test_add_pdclust_linear(*lid);
 	C2_UT_ASSERT(rc == 0);
+
+	num_bytes = c2_ldb_max_recsize(&schema) ;
+	area = c2_alloc(num_bytes);
+	C2_UT_ASSERT(area != NULL);
+
+	pair.dp_key.db_buf.b_addr = lid;
+	pair.dp_key.db_buf.b_nob = sizeof *lid;
+
+	pair.dp_rec.db_buf.b_addr = area;
+	pair.dp_rec.db_buf.b_nob = num_bytes;
+
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
+
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_lookup(&schema, *lid, &pair, &tx, &l);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
+	printf("In test_lookup_pdclust_linear(): l->l_id %" PRId64 ", *lid %"
+	       PRId64 "\n", l->l_id, *lid);
+	C2_UT_ASSERT(l->l_id == *lid);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+
+static int test_lookup_nonexisting_lid(uint64_t *lid)
+{
+	c2_bcount_t                num_bytes;
+	void                      *area;
+	struct c2_layout          *l;
+	struct c2_db_pair          pair;
+	struct c2_db_tx            tx;
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
 
-	pair.dp_key.db_buf.b_addr = &lid;
-	pair.dp_key.db_buf.b_nob = sizeof lid;
+	pair.dp_key.db_buf.b_addr = lid;
+	pair.dp_key.db_buf.b_nob = sizeof *lid;
 
 	pair.dp_rec.db_buf.b_addr = area;
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
-	lid = 4444;
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
+
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(l->l_id == lid);
-
-	rc = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Non-existing lid. */
-	/*
-	lid = 4441;
-	C2_SET0(l);
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	rc = c2_ldb_lookup(&schema, *lid, &pair, &tx, &l);
+	printf ("test_lookup_nonexisting_lid(): lid %" PRId64 "\n", l->l_id);
 	C2_UT_ASSERT(rc == -ENOENT);
-	printf ("lid %" PRId64 "\n", l->l_id);
-	C2_UT_ASSERT(l->l_id == LID_NONE);
-	C2_UT_ASSERT(l->l_id == lid);
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
-	*/
+
+	return rc;
+}
+
+
+static void test_lookup(void)
+{
+	uint64_t lid;
+	uint64_t lid1;
+
+	rc = internal_init();
+	C2_UT_ASSERT(rc == 0);
+
+	/* Lookup for a non-existing lid. */
+	lid = 9123;
+	rc = test_lookup_nonexisting_lid(&lid);
+	C2_UT_ASSERT(rc == 0);
+
+	/*
+	 * Add a layout with pdclust layout type and linear enum type, and
+	 * then perform lookup for it.
+	 */
+	lid1 = 8888;
+	rc = test_lookup_pdclust_linear(&lid1);
+	C2_UT_ASSERT(rc == 0);
+
+	/* @todo
+	 * If this test (layout-lookup) is run in an isolation, then it
+	 * succeds. But not otherwise since layout-add runs before it.
+	 * The assert C2_UT_ASSERT(rc == -ENOENT) from
+	 * test_lookup_nonexisting_lid() is hit in the later case.
+	 * It also seems to create issue for subsequent lookup.
+	 * Hence, commenting it for now.
+	 * In fact, if the sequence of test_insert() and test_lookup() from
+	 * db/ut/db.c is reversed, then similar assert
+	 * C2_UT_ASSERT(result == -ENOENT) from test_lookup() is hit.
+	 * Need to triage it further.
+	 * The issue is also reproducible if sequence of the above two
+	 * sub-tests viz. test_lookup_nonexisting_lid() and
+	 * test_lookup_pdclust_linear() is reversed.
+	 */
 
 	internal_fini();
 }
