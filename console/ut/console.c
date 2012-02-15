@@ -57,7 +57,6 @@
  */
 
 enum {
-	MAXLINE = 1025,
 	COB_DOM_CLIENT_ID  = 14,
 	COB_DOM_SERVER_ID = 15,
 };
@@ -641,22 +640,6 @@ static int console_cmd(const char *name, ...)
         return console_main(argc, (char **)argv);
 }
 
-static int error_mesg_match(FILE *fp, const char *mesg)
-{
-	char line[MAXLINE];
-
-	C2_PRE(fp != NULL);
-	C2_PRE(mesg != NULL);
-
-	fseek(fp, 0L, SEEK_SET);
-	memset(line, '\0', MAXLINE);
-	while (fgets(line, MAXLINE, fp) != NULL) {
-		if (strncmp(mesg, line, strlen(mesg)) == 0)
-			return 0;
-	}
-	return -EINVAL;
-}
-
 static void console_input_test(void)
 {
 	int   result;
@@ -666,23 +649,20 @@ static void console_input_test(void)
 	/* starts UT test for console main */
 	result = console_cmd("no_input", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(stderr, usage_msg);
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
 	truncate(err_file, 0L);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("no_input", "-v", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(stderr, usage_msg);
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
 	truncate(err_file, 0L);
 	fseek(stderr, 0L, SEEK_SET);
 
 	fseek(stdout, 0L, SEEK_SET);
 	result = console_cmd("list_fops", "-l", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(stdout, "List of FOP's:");
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stdout, "List of FOP's:"));
 	truncate(out_file, 0L);
 	fseek(stdout, 0L, SEEK_SET);
 
@@ -691,8 +671,7 @@ static void console_input_test(void)
 	C2_UT_ASSERT(result == EX_OK);
 	sprintf(buf, "%.2d, Device Failed",
 		     C2_CONS_FOP_DEVICE_OPCODE);
-	result = error_mesg_match(stdout, buf);
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stdout, buf));
 	truncate(out_file, 0L);
 	fseek(stdout, 0L, SEEK_SET);
 
@@ -701,37 +680,32 @@ static void console_input_test(void)
 	C2_UT_ASSERT(result == EX_OK);
 	sprintf(buf, "%.2d, Console Reply",
 		     C2_CONS_FOP_REPLY_OPCODE);
-	result = error_mesg_match(stdout, buf);
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stdout, buf));
 	truncate(out_file, 0L);
 	fseek(stdout, 0L, SEEK_SET);
 
 	result = console_cmd("show_fops", "-l", "-f", 0, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(stderr, usage_msg);
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
 	truncate(err_file, 0L);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-i", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(stderr, usage_msg);
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
 	truncate(err_file, 0L);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-y", yaml_file, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
-	result = error_mesg_match(stderr, usage_msg);
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
 	truncate(err_file, 0L);
 	fseek(stderr, 0L, SEEK_SET);
 
 	/* last UT test for console main */
 	result = console_cmd("yaml_input", "-i", "-y", yaml_file, NULL);
 	C2_UT_ASSERT(result == EX_NOINPUT);
-	result = error_mesg_match(stderr, "YAML Init failed");
-	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_error_mesg_match(stderr, "YAML Init failed"));
 
 	file_redirect_fini();
 }

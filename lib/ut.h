@@ -191,6 +191,14 @@ void c2_stream_redirect(FILE *stream, const char *path,
  * saved earlier by c2_stream_redirect().
  */
 void c2_stream_restore(const struct c2_ut_redirect *redir);
+
+/**
+ * Checks if a text file contains the specified string.
+ *
+ * @param fp   - a file, which is searched for a string
+ * @param mesg - a string to search for
+ */
+bool c2_error_mesg_match(FILE *fp, const char *mesg);
 #endif
 
 /** @} end of ut group. */

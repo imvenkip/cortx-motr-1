@@ -251,6 +251,26 @@ void c2_stream_restore(const struct c2_ut_redirect *redir)
 	fsetpos(redir->ur_stream, &redir->ur_pos);
 }
 
+bool c2_error_mesg_match(FILE *fp, const char *mesg)
+{
+	enum {
+		MAXLINE = 1025,
+	};
+
+	char line[MAXLINE];
+
+	C2_PRE(fp != NULL);
+	C2_PRE(mesg != NULL);
+
+	fseek(fp, 0L, SEEK_SET);
+	memset(line, '\0', MAXLINE);
+	while (fgets(line, MAXLINE, fp) != NULL) {
+		if (strncmp(mesg, line, strlen(mesg)) == 0)
+			return true;
+	}
+	return false;
+}
+
 /** @} end of ut group. */
 
 /*
