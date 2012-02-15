@@ -40,8 +40,9 @@ struct composite_schema_data {
  * Prefix for comp_layout_ext_map table.
  */
 struct layout_prefix {
-	/** Layout id for the composite layout.
-	 *  Value is same as c2_layout::l_id.
+	/**
+	 * Layout id for the composite layout.
+	 * Value is same as c2_layout::l_id.
 	 */
 	uint64_t                  lp_l_id;
 
@@ -50,7 +51,6 @@ struct layout_prefix {
 	 */
 	uint64_t                  lp_filler;
 };
-
 
 void c2_composite_init(struct c2_composite_layout *clay,
 		       uint64_t id,
@@ -99,7 +99,7 @@ static int composite_register(struct c2_ldb_schema *schema,
 /**
  * Implementation of lto_unregister for COMPOSITE layout type.
  *
- *  Deintializes table specifically required for COMPOSITE layout type.
+ * Deintializes table specifically required for COMPOSITE layout type.
  */
 static void composite_unregister(struct c2_ldb_schema *schema,
 				 const struct c2_layout_type *lt)
@@ -112,7 +112,6 @@ static void composite_unregister(struct c2_ldb_schema *schema,
 	schema->ls_type_data[lt->lt_id] = NULL;
 	@endcode
    */
-//	return 0;
 }
 
 /**
@@ -131,7 +130,6 @@ static uint32_t composite_recsize(struct c2_ldb_schema *schema,
 {
 	return 0;
 }
-
 
 
 static const struct c2_layout_ops composite_ops;

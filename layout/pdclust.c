@@ -104,7 +104,7 @@
  * "Encoding" function: returns the number that a (row, column) element of a
  * matrix with "width" columns has when elements are counted row by row. This
  * function is denoted e_{width} in the HLD.
-
+ *
  * @see m_dec()
  */
 static uint64_t m_enc(uint64_t width, uint64_t row, uint64_t column)
@@ -385,20 +385,16 @@ void c2_pdclust_fini(struct c2_layout *l)
 
 static const struct c2_layout_ops pdclust_ops;
 
-/**
- * @todo Change the prototype of c2_pdclust_build() to accept an additional
- * argument say c2_layout_enum *enum.
- */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out)
 {
-	struct c2_pdclust_layout     *pdl;
-	uint32_t B;
-	uint32_t i;
-	uint32_t P;
-	int      result;
+	struct c2_pdclust_layout *pdl;
+	uint32_t                  B;
+	uint32_t                  i;
+	uint32_t                  P;
+	int                       result;
 
 	P = pool->po_width;
 	C2_PRE(N + 2 * K <= P);
@@ -507,7 +503,6 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
 }
-
 
 /**
  * Implementation of lto_decode() for pdclust layout type.

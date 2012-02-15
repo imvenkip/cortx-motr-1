@@ -305,12 +305,11 @@ static uint32_t list_recsize(struct c2_layout_enum *e)
 
 /* todo Check how should the cob entry be passed to this fn. */
 static int ldb_cob_list_read(struct c2_ldb_schema *schema,
-		      enum c2_layout_xcode_op op,
-		      uint64_t lid, uint32_t idx,
-		      struct ldb_cob_entry *ldb_ce,
-		      struct c2_db_tx *tx)
+			     enum c2_layout_xcode_op op,
+			     uint64_t lid, uint32_t idx,
+			     struct ldb_cob_entry *ldb_ce,
+			     struct c2_db_tx *tx)
 {
-
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
 	struct ldb_cob_lists_rec  rec;
@@ -423,7 +422,6 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 		     struct ldb_cob_entry *ldb_ce,
 		     struct c2_db_tx *tx)
 {
-
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
 	struct ldb_cob_lists_rec  rec;
@@ -450,17 +448,6 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 	return 0;
 }
 
-/*
- * Insert COB entries beyond LDB_MAX_INLINE_COB_ENTRIES, to the
- * cob_lists table.
- * OR
- *
-Read the cob identifiers list beyond the index
-LDB_MAX_INLINE_COB_ENTRIES from
-c2_layout_list_enum::lle_list_of_cobs and store it into the
-buffer. If the buffer is found to be insufficient, return the
-error ENOBUFS.
-*/
 /**
  * Implementation of leto_encode() for list enumeration type.
  *

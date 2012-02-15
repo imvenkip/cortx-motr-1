@@ -394,8 +394,7 @@ static int pdclust_list_l_verify(uint64_t lid,
 		}
 
 		C2_UT_ASSERT(found == true);
-		C2_UT_ASSERT(ce->cle_cob_id.f_container ==
-			  j * 100 + 1);
+		C2_UT_ASSERT(ce->cle_cob_id.f_container == j * 100 + 1);
 		C2_UT_ASSERT(ce->cle_cob_id.f_key == j + 1);
 
 		if (i++ == num_inline - 1)

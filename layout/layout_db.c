@@ -503,7 +503,7 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 
 	schema->ls_enum[let->let_id] = NULL;
 
-	if ((let->let_ops != NULL) && let->let_ops->leto_unregister != NULL)
+	if (let->let_ops != NULL && let->let_ops->leto_unregister != NULL)
 		let->let_ops->leto_unregister(schema, let);
 
 	c2_mutex_unlock(&schema->ls_lock);

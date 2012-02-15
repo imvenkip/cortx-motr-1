@@ -96,17 +96,17 @@ struct c2_ldb_rec;
 
 
 /**
-   @defgroup LayoutDBDFS Layout DB
-   @brief Detailed functional specification for Layout DB.
-
-   Detailed functional specification provides documentation of all the data
-   structures and interfaces (internal and external).
-
-   @see @ref Layout-DB "Layout DB DLD" and its @ref Layout-DB-fspec
-   "Layout DB Functional Specification".
-
-   @{
-*/
+ * @defgroup LayoutDBDFS Layout DB
+ * @brief Detailed functional specification for Layout DB.
+ *
+ * Detailed functional specification provides documentation of all the data
+ * structures and interfaces (internal and external).
+ *
+ * @see @ref Layout-DB "Layout DB DLD" and its @ref Layout-DB-fspec
+ * "Layout DB Functional Specification".
+ *
+ * @{
+ */
 
 enum {
 	C2_LAY_TYPE_MAX        = 32,
@@ -137,8 +137,9 @@ struct c2_ldb_schema {
 	/** Layout enum type specific data. */
 	void                          *ls_enum_data[C2_LAY_ENUM_MAX];
 
-	/** Lock to protect the instance of c2_ldb_schema, including all
-	 *  its members.
+	/**
+	 * Lock to protect the instance of c2_ldb_schema, including all
+	 * its members.
 	 */
 	struct c2_mutex                ls_lock;
 };
@@ -148,21 +149,24 @@ struct c2_ldb_schema {
  * Key is uint64_t, value obtained from c2_layout::l_id.
  */
 struct c2_ldb_rec {
-	/** Layout type id.
-	 *  Value obtained from  c2_layout_type::lt_id.
+	/**
+	 * Layout type id.
+	 * Value obtained from  c2_layout_type::lt_id.
 	 */
 	uint32_t                       lr_lt_id;
 
-	/** Layout reference count.
-	 *  Indicating number of files using this layout.
+	/**
+	 * Layout reference count.
+	 * Indicating number of users for this layout.
 	 */
 	uint32_t                       lr_ref_count;
 
-	/** Layout type specific payload.
-	 *  Contains attributes specific to the layout type.
+	/**
+	 * Layout type specific payload.
+	 * Contains attributes specific to the layout type or specific to
+	 * the enumeration type.
 	 */
 	char                           lr_data[0];
-
 };
 
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,

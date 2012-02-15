@@ -23,8 +23,8 @@
 #endif
 
 /**
-   @addtogroup layout
-   @{
+ * @addtogroup layout
+ * @{
  */
 
 #include "lib/errno.h"
@@ -38,10 +38,10 @@
 #include "layout/layout.h"
 
 /**
-   Initializes layout schema, creates generic table to store layout records.
-   Registers all the layout types amd enum types by creating layout type and
-   enum type specific tables, if they do not exist already.
-*/
+ * Initializes layout schema, creates generic table to store layout records.
+ * Registers all the layout types amd enum types by creating layout type and
+ * enum type specific tables, if they do not exist already.
+ */
 int c2_layouts_init(void)
 {
    /**
@@ -161,32 +161,32 @@ void c2_layout_put(struct c2_layout *l)
 }
 
 /**
-   This method
-   @li Either continues to builds an in-memory layout object from its
-       representation 'stored in the Layout DB'
-   @li Or builds an in-memory layout object from its representation 'received
-       over the network'.
-
-   Two use cases of c2_layout_decode()
-   - Server decodes an on-disk layout record by reading it from the Layout
-     DB, into an in-memory layout structure, using c2_ldb_rec_lookup() which
-     internally calls c2_layout_decode().
-   - Client decodes a buffer received over the network, into an in-memory
-     layout structure, using c2_layout_decode().
-
-   @param op - This enum parameter indicates what is the DB operation to be
-   performed on the layout record. It could be LOOKUP if at all. If it is NONE,
-   then the layout is decoded from its representation received over the
-   network.
-
-   @pre
-   - In case c2_layout_decode() is called through c2_ldb_add(), then the
-   buffer should be containing all the data that is read from the layouts table.
-   It means it will be with size less than or equal to the one returned by
-   c2_ldb_rec_max_size().
-   - In case c2_layout_decode() is called by some other caller, then the
-   buffer should be containing all the data belonging to the specific layout.
-*/
+ * This method
+ * @li Either continues to builds an in-memory layout object from its
+ *     representation 'stored in the Layout DB'
+ * @li Or builds an in-memory layout object from its representation 'received
+ *     over the network'.
+ *
+ * Two use cases of c2_layout_decode()
+ * - Server decodes an on-disk layout record by reading it from the Layout
+ *   DB, into an in-memory layout structure, using c2_ldb_rec_lookup() which
+ *   internally calls c2_layout_decode().
+ * - Client decodes a buffer received over the network, into an in-memory
+ *   layout structure, using c2_layout_decode().
+ *
+ * @param op - This enum parameter indicates what is the DB operation to be
+ * performed on the layout record. It could be LOOKUP if at all. If it is NONE,
+ * then the layout is decoded from its representation received over the
+ * network.
+ *
+ * @pre
+ * - In case c2_layout_decode() is called through c2_ldb_add(), then the
+ *   buffer should be containing all the data that is read from the layouts
+ *   table. It means it will be with size less than or equal to the one
+ *   returned by c2_ldb_rec_max_size().
+ * - In case c2_layout_decode() is called by some other caller, then the
+ *   buffer should be containing all the data belonging to the specific layout.
+ */
 int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		     struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
@@ -244,31 +244,31 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 }
 
 /**
-   This method uses an in-memory layout object and
-   @li Either adds/updates/deletes it to/from the Layout DB
-   @li Or converts it to a buffer that can be passed on over the network.
-
-   Two use cases of c2_layout_encode()
-   - Server encodes an in-memory layout object into a buffer, so as to send
-     it to the client.
-   - Server encodes an in-memory layout object and stores it into the Layout
-     DB.
-
-   @param op - This enum parameter indicates what is the DB operation to be
-   performed on the layout record if at all and it could be one of
-   ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
-
-   @pre
-   - In case c2_layout_decode() is called through c2_ldb_add(), then the
-   buffer should be capable of ontaining all the data that is to be read from
-   the layouts table.
-   - In case c2_layout_decode() is called by some other caller, then the
-   buffer size should be capable of incorporating all data belonging to the
-   specific layout.
-
-   @post If the buffer is found to be insufficient, then the error ENOBUFS is
-   returned.
-*/
+ * This method uses an in-memory layout object and
+ * @li Either adds/updates/deletes it to/from the Layout DB
+ * @li Or converts it to a buffer that can be passed on over the network.
+ *
+ * Two use cases of c2_layout_encode()
+ * - Server encodes an in-memory layout object into a buffer, so as to send
+ *   it to the client.
+ * - Server encodes an in-memory layout object and stores it into the Layout
+ *   DB.
+ *
+ * @param op - This enum parameter indicates what is the DB operation to be
+ * performed on the layout record if at all and it could be one of
+ * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
+ *
+ * @pre
+ * - In case c2_layout_decode() is called through c2_ldb_add(), then the
+ * buffer should be capable of ontaining all the data that is to be read from
+ * the layouts table.
+ * - In case c2_layout_decode() is called by some other caller, then the
+ * buffer size should be capable of incorporating all data belonging to the
+ * specific layout.
+ *
+ * @post If the buffer is found to be insufficient, then the error ENOBUFS is
+ * returned.
+ */
 int c2_layout_encode(struct c2_ldb_schema *schema,
 		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
