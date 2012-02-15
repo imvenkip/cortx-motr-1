@@ -1180,7 +1180,7 @@ static void test_buf_desc_body(struct ut_data *td)
 	C2_UT_ASSERT(counter == s_lctm->ctm_mb_counter - 1)
 
 	/* TEST
-	   Passive send buffer.
+	   Passive send buffer descriptor.
 	   Ensure that match bits get properly set, and that the
 	   descriptor properly encodes buffer and end point
 	   data, and that the data can be properly decoded.
@@ -1251,7 +1251,7 @@ static void test_buf_desc_body(struct ut_data *td)
 	C2_UT_ASSERT(rc == -EPERM);
 
 	/* TEST
-	   Passive receive buffer.
+	   Passive receive buffer descriptor.
 	   Ensure that match bits get properly set, and that the
 	   descriptor properly encodes buffer and end point
 	   data, and that the data can be properly decoded.

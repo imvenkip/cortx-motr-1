@@ -1353,21 +1353,13 @@ int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 		     struct nlx_core_buffer *lcbuf)
 {
-	int rc;
 	/* Subtle: Cancelling the MD associated with the buffer
 	   could result in a LNet UNLINK event if the buffer operation is
 	   terminated by LNet.
 	   The unlink bit is also set in other LNet events but does not
 	   signify cancel in those cases.
 	*/
-	rc = nlx_kcore_LNetMDUnlink(lctm, lcbuf);
-	if (rc == -ENOENT) {
-		/* LNet doesn't know about this, which means that we won't
-		   be getting an event for this.
-		   Could we synthesize a failure event?
-		*/
-	}
-	return rc;
+	return nlx_kcore_LNetMDUnlink(lctm, lcbuf);
 }
 
 int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,

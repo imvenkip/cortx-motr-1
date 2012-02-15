@@ -1043,8 +1043,8 @@ static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	if (c2_atomic64_get(&ut_ktest_bulk_fake_LNetMDAttach) > 0) {
 		kcb->kb_ktm = kctm;
 		return 0;
-	} else
-		return nlx_kcore_LNetMDAttach(lctm, lcbuf, umd);
+	}
+	return nlx_kcore_LNetMDAttach(lctm, lcbuf, umd);
 }
 
 static bool ut_ktest_bulk_LNetGet_called;
