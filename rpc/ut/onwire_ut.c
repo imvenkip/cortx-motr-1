@@ -23,6 +23,7 @@
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 #include "lib/misc.h"
+#include "lib/trace.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "fop/fop_format.h"
@@ -102,6 +103,7 @@ void populate_rpc_obj(struct c2_rpc *rpc, struct c2_rpc_item *item)
 {
 
 	c2_list_add(&rpc->r_items, &item->ri_rpcobject_linkage);
+	C2_LOG("ri_rpcobject_linkage: add %p", &item->ri_rpcobject_linkage);
 
 }
 

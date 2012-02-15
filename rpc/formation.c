@@ -27,6 +27,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
+#include "lib/trace.h"
 
 #include "rpc/rpc_onwire.h"
 
@@ -384,8 +385,10 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	}
 	/* Detach all rpc items from this object */
 	c2_list_for_each_entry_safe(&rpc->r_items, item, item_next,
-			struct c2_rpc_item, ri_rpcobject_linkage)
+			struct c2_rpc_item, ri_rpcobject_linkage) {
 		c2_list_del(&item->ri_rpcobject_linkage);
+		C2_LOG("ri_rpcobject_linkage: del %p", &item->ri_rpcobject_linkage);
+	}
 
 	c2_rpcobj_fbuf_fini(fb);
 	c2_rpcobj_fini(rpc);
@@ -890,6 +893,7 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(item->ri_state != RPC_ITEM_ADDED);
 
 	/* Update size of rpc object and current count of fragments. */
+	C2_LOG("ri_rpcobject_linkage: add %p", &item->ri_rpcobject_linkage);
 	c2_list_add(&rpc->r_items, &item->ri_rpcobject_linkage);
 	*rpcobj_size += item->ri_type->rit_ops->rito_item_size(item);
 	if (item->ri_type->rit_ops->rito_get_io_fragment_count != NULL)

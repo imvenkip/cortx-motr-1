@@ -36,9 +36,9 @@
 #include "fop/fop_iterator.h"
 #include "lib/errno.h"            /* ETIMEDOUT */
 #include "net/bulk_sunrpc.h"      /* bulk transport */
-#include "colibri/init.h"         /* c2_init */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
+#include "lib/trace.h"
 #include "lib/misc.h"		  /* C2_SET0 */
 #include "rpc/rpclib.h"           /* c2_rpc_server_start */
 #include "ut/ioredirect.h"
@@ -157,7 +157,7 @@ static int cons_fini(void)
 {
 	c2_net_domain_fini(&client_net_dom);
 	/*c2_processors_fini();*/
-        c2_console_fop_fini();
+	c2_console_fop_fini();
 	return 0;
 }
 
