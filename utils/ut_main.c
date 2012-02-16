@@ -149,6 +149,7 @@ int main(int argc, char *argv[])
 	bool list_ut             = false;
 	bool with_tests          = false;
 	bool keep_sandbox        = false;
+	bool abort_cu_assert     = true;
 	char *test_list_str      = NULL;
 	char *exclude_list_str   = NULL;
 	enum c2_ut_run_mode mode = C2_UT_BASIC_MODE;
@@ -195,6 +196,11 @@ int main(int argc, char *argv[])
 						 exclude_list_str = strdup(str);
 					      })
 					),
+			    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
+					    " failure",
+					LAMBDA(void, (void) {
+							abort_cu_assert = false;
+					})),
 			    );
 	if (result != 0)
 		goto out;
@@ -228,7 +234,7 @@ int main(int argc, char *argv[])
 	if (list_ut)
 		c2_ut_list(with_tests);
 	else
-		c2_ut_run(mode, &test_list, &exclude_list);
+		c2_ut_run(mode, abort_cu_assert, &test_list, &exclude_list);
 
 	if (test_list_str != NULL)
 		free(test_list_str);

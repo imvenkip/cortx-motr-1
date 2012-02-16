@@ -129,16 +129,17 @@ enum c2_ut_run_mode {
 /**
  run tests
 
- @param mode         - CUnit interface mode
- @param test_list    - list of tests/suites to run, it can be empty, which means
-                       to run all the tests
- @param exclude_list - list of tests/suites to exclude from running, it also can
-                       be empty
+ @param mode            - CUnit interface mode
+ @param abort_cu_assert - if true, then set CUnit's assert mode to CUA_Abort
+ @param test_list       - list of tests/suites to run, it can be empty, which
+                          means to run all the tests
+ @param exclude_list    - list of tests/suites to exclude from running, it also can
+                          be empty
 
  @return NONE
  */
-void c2_ut_run(enum c2_ut_run_mode mode, struct c2_list *test_list,
-	       struct c2_list *exclude_list);
+void c2_ut_run(enum c2_ut_run_mode mode, bool abort_cu_assert,
+		struct c2_list *test_list, struct c2_list *exclude_list);
 #else
 void c2_ut_run(void);
 #endif
