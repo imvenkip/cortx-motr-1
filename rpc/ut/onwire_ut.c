@@ -103,8 +103,6 @@ void populate_rpc_obj(struct c2_rpc *rpc, struct c2_rpc_item *item)
 {
 
 	c2_list_add(&rpc->r_items, &item->ri_rpcobject_linkage);
-	C2_LOG("ri_rpcobject_linkage: add %p", &item->ri_rpcobject_linkage);
-
 }
 
 static void rpc_encdec_test(void)

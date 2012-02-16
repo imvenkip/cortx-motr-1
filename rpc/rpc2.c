@@ -620,7 +620,6 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				    struct c2_rpc_item, ri_rpcobject_linkage) {
 
 		c2_list_del(&item->ri_rpcobject_linkage);
-		C2_LOG("ri_rpcobject_linkage: del %p", &item->ri_rpcobject_linkage);
 
 		if (c2_rpc_item_is_conn_establish(item))
 			c2_rpc_fop_conn_establish_ctx_init(item, nb->nb_ep,

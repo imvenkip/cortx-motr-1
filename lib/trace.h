@@ -172,11 +172,11 @@ enum {
 /**
  * Record header structure
  *
- * @li magic number to locate the record in buffer
- * @li stack pointer - useful to distinguish between threads
- * @li global record number
- * @li timestamp
- * @li pointer to record description in the program file
+ * - magic number to locate the record in buffer
+ * - stack pointer - useful to distinguish between threads
+ * - global record number
+ * - timestamp
+ * - pointer to record description in the program file
  */
 struct c2_trace_rec_header {
 	uint64_t                     trh_magic;
@@ -263,31 +263,31 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
 #define C2_LOG0(fmt)     C2_TRACE_POINT(0, { ; }, {}, {}, fmt)
 
 #define C2_LOG1(fmt, a0)						\
-({C2_TRACE_POINT(1,							\
+({ C2_TRACE_POINT(1,							\
    { LOG_TYPEOF(a0, v0); },						\
    { LOG_OFFSETOF(v0) },						\
    { LOG_SIZEOF(a0) },							\
    fmt, a0);								\
-   LOG_CHECK(a0);})
+   LOG_CHECK(a0); })
 
 #define C2_LOG2(fmt, a0, a1)						\
-({C2_TRACE_POINT(2,							\
+({ C2_TRACE_POINT(2,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); },				\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1) }),			\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1) }),			\
    fmt, a0, a1);							\
-   LOG_CHECK(a0); LOG_CHECK(a1);})
+   LOG_CHECK(a0); LOG_CHECK(a1); })
 
 #define C2_LOG3(fmt, a0, a1, a2)					\
-({C2_TRACE_POINT(3,							\
+({ C2_TRACE_POINT(3,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2); },	\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2) }),	\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2) }),	\
    fmt, a0, a1, a2);							\
-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2);})
+   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); })
 
 #define C2_LOG4(fmt, a0, a1, a2, a3)					\
-({C2_TRACE_POINT(4,							\
+({ C2_TRACE_POINT(4,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); },						\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
@@ -295,10 +295,10 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
                LOG_SIZEOF(a3) }),					\
    fmt, a0, a1, a2, a3);						\
-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);})
+   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3); })
 
 #define C2_LOG5(fmt, a0, a1, a2, a3, a4)				\
-({C2_TRACE_POINT(5,							\
+({ C2_TRACE_POINT(5,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); },				\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
@@ -307,10 +307,10 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
                LOG_SIZEOF(a3), LOG_SIZEOF(a4) }),			\
    fmt, a0, a1, a2, a3, a4);						\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
-   LOG_CHECK(a4);})
+   LOG_CHECK(a4); })
 
 #define C2_LOG6(fmt, a0, a1, a2, a3, a4, a5)				\
-({C2_TRACE_POINT(6,							\
+({ C2_TRACE_POINT(6,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5); },	\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
@@ -319,10 +319,10 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
                LOG_SIZEOF(a3), LOG_SIZEOF(a4), LOG_SIZEOF(a5) }),	\
    fmt, a0, a1, a2, a3, a4, a5);					\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
-   LOG_CHECK(a4); LOG_CHECK(a5);})
+   LOG_CHECK(a4); LOG_CHECK(a5); })
 
 #define C2_LOG7(fmt, a0, a1, a2, a3, a4, a5, a6)			\
-({C2_TRACE_POINT(7,							\
+({ C2_TRACE_POINT(7,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
      LOG_TYPEOF(a6, v6); },						\
@@ -334,10 +334,10 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
                LOG_SIZEOF(a5), LOG_SIZEOF(a6) }),			\
    fmt, a0, a1, a2, a3, a4, a5, a6);					\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
-   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6);})
+   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); })
 
 #define C2_LOG8(fmt, a0, a1, a2, a3, a4, a5, a6, a7)			\
-({C2_TRACE_POINT(8,							\
+({ C2_TRACE_POINT(8,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
      LOG_TYPEOF(a6, v6); LOG_TYPEOF(a7, v7); },				\
@@ -349,10 +349,10 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
                LOG_SIZEOF(a6), LOG_SIZEOF(a7) }),			\
    fmt, a0, a1, a2, a3, a4, a5, a6, a7);				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
-   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7);})
+   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); })
 
 #define C2_LOG9(fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)		\
-({C2_TRACE_POINT(9,							\
+({ C2_TRACE_POINT(9,							\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
      LOG_TYPEOF(a6, v6); LOG_TYPEOF(a7, v7); LOG_TYPEOF(a8, v8); },	\
@@ -364,7 +364,7 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
                LOG_SIZEOF(a6), LOG_SIZEOF(a7), LOG_SIZEOF(a8) }),	\
    fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8);				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
-   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); LOG_CHECK(a8);})
+   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); LOG_CHECK(a8); })
 
 /** @} end of trace group */
 
