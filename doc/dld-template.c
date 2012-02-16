@@ -76,6 +76,8 @@
    text, though be careful while doing so as text formatters do not
    understand Doxygen syntax and significant line breaks.
 
+   Please link your DLD to the index of all detailed designs maintained
+   in @ref DLDIX "Detailed Designs". <!-- doc/dld-index.c -->
 
    <b>Purpose of a DLD</b><br>
    The purpose of the Detailed Level Design (DLD) specification of a
