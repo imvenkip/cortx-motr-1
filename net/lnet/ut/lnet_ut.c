@@ -1218,6 +1218,16 @@ static void test_buf_desc_body(struct ut_data *td)
 	C2_UT_ASSERT(lcbuf2->cb_length == lcbuf1->cb_length);
 	C2_UT_ASSERT(lcbuf2->cb_match_bits == lcbuf1->cb_match_bits);
 
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(corrupt)\n");
+	/* decode - everything correct, like above, but corrupt descriptor */
+	counter = CBD1->cbd_data[2]; /* save some location */
+	CBD1->cbd_data[2]++; /* modify, arbitrarily different */
+	c2_mutex_lock(&TM2->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm2, lcbuf2, CBD1);
+	c2_mutex_unlock(&TM2->ntm_mutex);
+	C2_UT_ASSERT(rc == -EINVAL);
+	CBD1->cbd_data[2] = counter; /* restore */
+
 	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor S(AR2 > PS1)\n");
 	C2_SET0(&lcbuf2->cb_addr); /* clear target areas of buf2 */
 	C2_UT_ASSERT(!nlx_core_ep_eq(&lctm1->ctm_addr, &lcbuf2->cb_addr));
@@ -1334,17 +1344,7 @@ static void test_buf_desc_body(struct ut_data *td)
 	*CBD1 = *CBD2;
 
 	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(corrupt)\n");
-	CBD2->cbd_magic++;
-	lcbuf1->cb_length = lcbuf2->cb_length; /* same size as receive buffer */
-	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
-	c2_mutex_lock(&TM1->ntm_mutex);
-	rc = nlx_core_buf_desc_decode(lctm1, lcbuf1, CBD2);
-	c2_mutex_unlock(&TM1->ntm_mutex);
-	C2_UT_ASSERT(rc == -EINVAL);
-
-	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(reserved)\n");
-	*CBD2 = *CBD1;
-	CBD2->cbd_match_bits = 0; /* tmid = 0, buffer id = 0 */
+	CBD2->cbd_match_bits++; /* invalidates checksum */
 	lcbuf1->cb_length = lcbuf2->cb_length; /* same size as receive buffer */
 	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
 	c2_mutex_lock(&TM1->ntm_mutex);

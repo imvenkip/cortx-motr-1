@@ -182,13 +182,14 @@ C2_BASSERT(sizeof(nlx_core_opaque_ptr_t) >= sizeof(void *));
 
 /**
    This structure defines the fields in an LNet transport end point address.
+   It is packed to minimize the network descriptor size.
  */
 struct nlx_core_ep_addr {
 	uint64_t cepa_nid;    /**< The LNet Network Identifier */
 	uint32_t cepa_pid;    /**< The LNet Process Identifier */
 	uint32_t cepa_portal; /**< The LNet Portal Number */
 	uint32_t cepa_tmid;   /**< The Transfer Machine Identifier */
-};
+} __attribute__((__packed__));
 
 /* Match bit related definitions */
 enum {
@@ -215,7 +216,6 @@ C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
 enum {
 	C2_NET_LNET_CORE_BUF_MAGIC = 0x436f7265427566ULL, /* CoreBuf */
 	C2_NET_LNET_CORE_TM_MAGIC  = 0x436f7265544dULL,   /* CoreTM */
-	C2_NET_LNET_CORE_NBD_MAGIC = 0x436f72654e4244ULL, /* CoreNBD */
 };
 
 /**
@@ -435,22 +435,25 @@ struct nlx_core_buffer {
    copied as-is to the external opaque form.
  */
 struct nlx_core_buf_desc {
-	/** Match bits of the passive buffer */
-	uint64_t                 cbd_match_bits;
+	union {
+		struct {
+			/** Match bits of the passive buffer */
+			uint64_t                 cbd_match_bits;
 
-	/** Passive TM's end point */
-	struct nlx_core_ep_addr  cbd_passive_ep;
+			/** Passive TM's end point */
+			struct nlx_core_ep_addr  cbd_passive_ep;
 
-	/** Passive buffer queue type (enum c2_net_queue_type) expressed
-	    here explicitly as a 32 bit number.
-	 */
-	uint32_t                 cbd_qtype;
+			/** Passive buffer queue type (enum c2_net_queue_type)
+			    expressed here explicitly as a 32 bit number.
+			*/
+			uint32_t                 cbd_qtype;
 
-	/** Passive buffer size */
-	c2_bcount_t              cbd_size;
-
-	/** Magic number */
-	uint64_t                 cbd_magic;
+			/** Passive buffer size */
+			c2_bcount_t              cbd_size;
+		};
+		uint64_t         cbd_data[5];
+	};
+	uint64_t         cbd_checksum;
 };
 
 /**

@@ -82,6 +82,9 @@ static void nlx_print_core_buffer(const char *pre,
         nlx_print_core_ep_addr("\t          cb_addr", &lcb->cb_addr);
 }
 
+static inline uint64_t nlx_core_buf_desc_checksum(const struct nlx_core_buf_desc
+						  *cbd);
+
 static void nlx_print_core_buf_desc(const char *pre,
 				    const struct nlx_core_buf_desc *cbd)
 {
@@ -89,8 +92,10 @@ static void nlx_print_core_buf_desc(const char *pre,
 	NLXP("\t match_bits: %lx\n", (unsigned long) cbd->cbd_match_bits);
 	NLXP("\t      qtype: %u\n", (unsigned) cbd->cbd_qtype);
 	NLXP("\t       size: %ld\n", (unsigned long) cbd->cbd_size);
-	NLXP("\t      magic: %lx\n", (unsigned long) cbd->cbd_magic);
+	NLXP("\t   checksum: %lx\n", (unsigned long) cbd->cbd_checksum);
 	nlx_print_core_ep_addr("\t passive_ep", &cbd->cbd_passive_ep);
+	NLXP("\t <checksum>: %lx\n", (unsigned long)
+	     nlx_core_buf_desc_checksum(cbd));
 }
 #endif
 
@@ -228,6 +233,27 @@ static inline void nlx_core_match_bits_decode(uint64_t mb,
 #define TM_EP(f) lctm->ctm_addr.cepa_ ## f
 #define B_EP(f) lcbuf->cb_addr.cepa_ ## f
 
+/**
+   Compute the checksum of the network buffer descriptor payload.
+   The computation relies on the fact that the cbd_data part of the union
+   in the network buffer descriptor covers the payload.
+   @retval checksum In little-endian order.
+ */
+static inline uint64_t nlx_core_buf_desc_checksum(const struct nlx_core_buf_desc
+						  *cbd)
+{
+	int i;
+	uint64_t checksum;
+
+	/* ensure that the checksum computation covers all the payload */
+	C2_CASSERT(sizeof *cbd ==
+		   sizeof cbd->cbd_data + sizeof cbd->cbd_checksum);
+
+	for (i = 0, checksum = 0; i < ARRAY_SIZE(cbd->cbd_data); ++i)
+		checksum ^= cbd->cbd_data[i];
+	return __cpu_to_le64(checksum);
+}
+
 void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf,
 			      struct nlx_core_buf_desc *cbd)
@@ -246,6 +272,7 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 		lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 
 	/* create the descriptor */
+	C2_SET_ARR0(cbd->cbd_data);
 	cbd->cbd_match_bits = __cpu_to_le64(lcbuf->cb_match_bits);
 
 	CBD_EP(nid)         = __cpu_to_le64(TM_EP(nid));
@@ -255,7 +282,8 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 
 	cbd->cbd_qtype      = __cpu_to_le32(lcbuf->cb_qtype);
 	cbd->cbd_size       = __cpu_to_le64(lcbuf->cb_length);
-	cbd->cbd_magic      = __cpu_to_le64(C2_NET_LNET_CORE_NBD_MAGIC);
+
+	cbd->cbd_checksum   = nlx_core_buf_desc_checksum(cbd);
 
 	NLXDBG(lctm, 1, nlx_print_core_buf_desc("encode", cbd));
 
@@ -279,8 +307,8 @@ int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
 	       lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
 
-	i64 = __le64_to_cpu(cbd->cbd_magic);
-	if (i64 != C2_NET_LNET_CORE_NBD_MAGIC)
+	i64 = nlx_core_buf_desc_checksum(cbd);
+	if (i64 != cbd->cbd_checksum)
 		return -EINVAL;
 
 	i64 = __le64_to_cpu(cbd->cbd_size);

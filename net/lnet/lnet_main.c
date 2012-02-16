@@ -777,7 +777,12 @@
 #include <asm/byteorder.h>  /* byte swapping macros */
 
 /* debug print support */
+#ifdef __KERNEL__
 #undef NLX_DEBUG
+#else
+#undef NLX_DEBUG
+#endif
+
 #ifdef NLX_DEBUG
 
 struct nlx_debug {
