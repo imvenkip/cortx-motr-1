@@ -191,23 +191,6 @@ C2_TRACE_POINT(9,							\
 int  c2_trace_init(void);
 void c2_trace_fini(void);
 
-/* Start of temporary code. */
-/*
- * Note: Following is temporary until the C2_LOG is landed into the master,
- * from the c2log branch.
- */
-#ifdef __KERNEL__
-#   define __TRACE(format, args ...) printk(format, ## args)
-#else
-#   include <stdio.h>
-#   define __TRACE(format, args ...) fprintf(stderr, format, ## args)
-#endif
-
-#define C2_LOG(format, args ...)  \
-	__TRACE("colibri: %s[%d]: " format, __FUNCTION__, __LINE__, ## args)
-
-/* End of temporary code. */
-
 /** @} end of trace group */
 
 /* __COLIBRI_LIB_TRACE_H__ */
