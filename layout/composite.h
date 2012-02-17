@@ -22,13 +22,13 @@
 #define __COLIBRI_LAYOUT_COMPOSITE_H__
 
 /**
-   @defgroup composite Composite Layout Type.
-
-   Composite layout. Composite layout is made up of multiple sub-layouts. Each
-   sub-layout needs to be read to obtain the overall layout details providing
-   all the COB identifiers.
-
-   @{
+ * @defgroup composite Composite Layout Type.
+ *
+ * Composite layout. Composite layout is made up of multiple sub-layouts. Each
+ * sub-layout needs to be read to obtain the overall layout details providing
+ * all the COB identifiers.
+ *
+ * @{
  */
 
 /* import */

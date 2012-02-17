@@ -106,7 +106,7 @@ void c2_layout_striped_init(struct c2_layout_striped *str_l,
 {
 	C2_PRE(str_l != NULL);
 	C2_PRE(e != NULL);
-	C2_PRE(id != LID_NONE);
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 

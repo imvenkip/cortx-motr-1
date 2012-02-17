@@ -23,51 +23,51 @@
 #define __COLIBRI_LAYOUT_LAYOUT_H__
 
 /**
-   @defgroup layout Layouts.
-
-   A 'layout' is an attribute of a file. It maps a file onto a set of network
-   resources. viz. component objects.
-
-   A 'layout type' specifies how a file is stored in a collection of targets.
-   It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
-
-   An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
-   the layout types need an enumeration. e.g. Layouts with types composite,
-   de-dup do not need an enumeration.
-
-   An 'enumeration type' determines how a collection of component object
-   identifiers (cob-fid) is specified. e.g. it may be specified as a list or
-   by means of some linear formula.
-
-   Layout types supported currently are:
-   - PDCLUST <BR>
-     This layout type applies parity declustering feature to the striping
-     process. Parity declustering feature is to keep the rebuild overhead low
-     by striping a file over more servers or drives than there are units in
-     the parity group.
-   - COMPOSITE <BR>
-     This layout type partitions a file or a part of the file into
-     various segments while each of those segment uses a different layout.
-
-   Enumeration types (also referred as 'enum types') supported currently are:
-   - LINEAR <BR>
-     A layout with LINEAR enumeration type uses a formula to enumerate all
-     its component object identifiers.
-   - LIST <BR>
-     A layout with LIST enumeration type uses a list to enumerate all its
-     component object identifiers.
-
-   A layout as well as a layout-id are resources (managed by the 'Colibri
-   Resource Manager').
-
-   Layout being a resource, it can be cached by clients and revoked when it is
-   changed.
-
-   Layout Id being a resource, a client can cache a range of layout ids that
-   it uses to create new layouts without contacting the server.
-
-   A layout can be assignd to a file both by server and the client.
-   @{
+ * @defgroup layout Layouts.
+ *
+ * A 'layout' is an attribute of a file. It maps a file onto a set of network
+ * resources. viz. component objects.
+ *
+ * A 'layout type' specifies how a file is stored in a collection of targets.
+ * It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
+ *
+ * An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
+ * the layout types need an enumeration. e.g. Layouts with types composite,
+ * de-dup do not need an enumeration.
+ *
+ * An 'enumeration type' determines how a collection of component object
+ * identifiers (cob-fid) is specified. e.g. it may be specified as a list or
+ * by means of some linear formula.
+ *
+ * Layout types supported currently are:
+ * - PDCLUST <BR>
+ *   This layout type applies parity declustering feature to the striping
+ *   process. Parity declustering feature is to keep the rebuild overhead low
+ *   by striping a file over more servers or drives than there are units in
+ *   the parity group.
+ * - COMPOSITE <BR>
+ *   This layout type partitions a file or a part of the file into
+ *   various segments while each of those segment uses a different layout.
+ *
+ * Enumeration types (also referred as 'enum types') supported currently are:
+ * - LINEAR <BR>
+ *   A layout with LINEAR enumeration type uses a formula to enumerate all
+ *   its component object identifiers.
+ * - LIST <BR>
+ *   A layout with LIST enumeration type uses a list to enumerate all its
+ *   component object identifiers.
+ *
+ * A layout as well as a layout-id are resources (managed by the 'Colibri
+ * Resource Manager').
+ *
+ * Layout being a resource, it can be cached by clients and revoked when it is
+ * changed.
+ *
+ * Layout Id being a resource, a client can cache a range of layout ids that
+ * it uses to create new layouts without contacting the server.
+ *
+ * A layout can be assignd to a file both by server and the client.
+ * @{
  */
 
 /* import */

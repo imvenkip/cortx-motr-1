@@ -23,43 +23,43 @@
 #define __COLIBRI_LAYOUT_PDCLUST_H__
 
 /**
-   @defgroup pdclust Parity de-clustering.
-
-   Parity de-clustered layouts. See the link below for HLD and references to the
-   literature. Parity de-clustering generalises higher RAID patterns (N+K, with
-   K > 1) for the case where an object is striped over more target objects
-   ("devices" in the traditional RAID terminology) than there are units in a
-   parity group. Due to this, parity de-clustered layouts are parametrised by
-   three numbers:
-
-   @li N---number of data units in a parity group;
-
-   @li K---number of parity units in a parity group. Data in an object striped
-   with a given K can survive a loss of up to K target objects. When a target
-   object failure is repaired, distributed spare units are used to store
-   re-constructed data. There are K spare units in each parity group, making the
-   latter consisting of N+2*K units;
-
-   @li P---number of target objects over which layout stripes data, parity and
-   spare units. A target object is divided into frames of unit size.
-
-   Layout maps source units to target frames. This mapping is defined in terms
-   of "tiles" which are groups of frames. A tile can be seen either as an L*P
-   block of frames, L rows of P columns each, each row containing frames with
-   the same offset in every target object, or as a C*(N+2*K) block of C groups,
-   N+2*K frames each. Here L and C are two additional layout parameters selected
-   so that C*(N+2*K) == L*P.
-
-   Looking at a tile as a C*(N+2*K) block, map C consecutive parity groups (each
-   containing N+2*K units) to it, then switch to L*P view and apply a certain
-   permutation (depending on tile number) to columns.
-
-   HLD explains why resulting layout mapping function possesses a number of
-   desirable properties.
-
-   @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjI0Y2pkajVraG4
-
-   @{
+ * @defgroup pdclust Parity de-clustering.
+ *
+ * Parity de-clustered layouts. See the link below for HLD and references to the
+ * literature. Parity de-clustering generalises higher RAID patterns (N+K, with
+ * K > 1) for the case where an object is striped over more target objects
+ * ("devices" in the traditional RAID terminology) than there are units in a
+ * parity group. Due to this, parity de-clustered layouts are parametrised by
+ * three numbers:
+ *
+ * @li N---number of data units in a parity group;
+ *
+ * @li K---number of parity units in a parity group. Data in an object striped
+ * with a given K can survive a loss of up to K target objects. When a target
+ * object failure is repaired, distributed spare units are used to store
+ * re-constructed data. There are K spare units in each parity group, making the
+ * latter consisting of N+2*K units;
+ *
+ * @li P---number of target objects over which layout stripes data, parity and
+ * spare units. A target object is divided into frames of unit size.
+ *
+ * Layout maps source units to target frames. This mapping is defined in terms
+ * of "tiles" which are groups of frames. A tile can be seen either as an L*P
+ * block of frames, L rows of P columns each, each row containing frames with
+ * the same offset in every target object, or as a C*(N+2*K) block of C groups,
+ * N+2*K frames each. Here L and C are two additional layout parameters selected
+ * so that C*(N+2*K) == L*P.
+ *
+ * Looking at a tile as a C*(N+2*K) block, map C consecutive parity groups (each
+ * containing N+2*K units) to it, then switch to L*P view and apply a certain
+ * permutation (depending on tile number) to columns.
+ *
+ * HLD explains why resulting layout mapping function possesses a number of
+ * desirable properties.
+ *
+ * @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjI0Y2pkajVraG4
+ *
+ * @{
  */
 
 /* import */
