@@ -135,8 +135,6 @@ static void ktest_buf_reg(void)
 	C2_UT_ASSERT(cb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC);
 	kcb1 = cb->cb_kpvt;
 	C2_UT_ASSERT(kcb1->kb_magic == C2_NET_LNET_KCORE_BUF_MAGIC);
-	C2_UT_ASSERT(kcb1->kb_min_recv_size == 0);
-	C2_UT_ASSERT(kcb1->kb_max_recv_msgs == 0);
 	C2_UT_ASSERT(LNetHandleIsInvalid(kcb1->kb_mdh));
 	C2_UT_ASSERT(kcb1->kb_kiov != NULL);
 	C2_UT_ASSERT(kcb1->kb_kiov_len == bsegs);

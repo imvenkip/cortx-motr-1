@@ -95,16 +95,6 @@ struct nlx_kcore_transfer_mc {
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
 
-	/** Minimum space remaining for re-use of the receive buffer.
-	    The value is set from c2_net_buffer::nb_min_receive_size.
-	 */
-	c2_bcount_t                   kb_min_recv_size;
-
-	/** Maximum number of messages that may be received in the buffer.
-	    The value is set from c2_net_buffer::nb_max_receive_msgs.
-	 */
-	uint32_t                      kb_max_recv_msgs;
-
 	/** Pointer to the shared memory buffer data. */
 	struct nlx_core_buffer       *kb_cb;
 
