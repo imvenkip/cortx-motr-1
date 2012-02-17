@@ -149,12 +149,17 @@ int main(int argc, char *argv[])
 	bool list_ut             = false;
 	bool with_tests          = false;
 	bool keep_sandbox        = false;
-	bool abort_cu_assert     = true;
 	char *test_list_str      = NULL;
 	char *exclude_list_str   = NULL;
-	enum c2_ut_run_mode mode = C2_UT_BASIC_MODE;
 	struct c2_list test_list;
 	struct c2_list exclude_list;
+
+	struct c2_ut_run_cfg cfg = {
+		.urc_mode              = C2_UT_BASIC_MODE,
+		.urc_abort_cu_assert   = true,
+		.urc_test_list         = &test_list,
+		.urc_exclude_list      = &exclude_list,
+	};
 
 	result = C2_GETOPTS("ut", argc, argv,
 			    C2_HELPARG('h'),
@@ -166,15 +171,15 @@ int main(int argc, char *argv[])
 					&keep_sandbox),
 			    C2_VOIDARG('i', "CUnit interactive console",
 					LAMBDA(void, (void) {
-						mode = C2_UT_ICONSOLE_MODE;
+						cfg.urc_mode = C2_UT_ICONSOLE_MODE;
 					})),
 			    C2_VOIDARG('I', "CUnit interactive ncurses-console",
 					LAMBDA(void, (void) {
-						mode = C2_UT_ICURSES_MODE;
+						cfg.urc_mode = C2_UT_ICURSES_MODE;
 					})),
 			    C2_VOIDARG('a', "automated CUnit with xml output",
 					LAMBDA(void, (void) {
-						mode = C2_UT_AUTOMATED_MODE;
+						cfg.urc_mode = C2_UT_AUTOMATED_MODE;
 					})),
 			    C2_FLAGARG('l', "list available test suites",
 					&list_ut),
@@ -199,16 +204,16 @@ int main(int argc, char *argv[])
 			    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
 					    " failure",
 					LAMBDA(void, (void) {
-							abort_cu_assert = false;
+						cfg.urc_abort_cu_assert = false;
 					})),
 			    );
 	if (result != 0)
 		goto out;
 
 	/* check conflicting options */
-	if ((mode != C2_UT_BASIC_MODE && (list_ut || test_list_str != NULL ||
-	     exclude_list_str != NULL)) || (list_ut && (test_list_str != NULL ||
-	     exclude_list_str != NULL)))
+	if ((cfg.urc_mode != C2_UT_BASIC_MODE && (list_ut ||
+	     test_list_str != NULL || exclude_list_str != NULL)) ||
+	     (list_ut && (test_list_str != NULL || exclude_list_str != NULL)))
 	{
 		fprintf(stderr, "Error: conflicting options: only one of the"
 				" -i -I -a -l -L -t -x option can be used at"
@@ -234,7 +239,7 @@ int main(int argc, char *argv[])
 	if (list_ut)
 		c2_ut_list(with_tests);
 	else
-		c2_ut_run(mode, abort_cu_assert, &test_list, &exclude_list);
+		c2_ut_run(&cfg);
 
 	if (test_list_str != NULL)
 		free(test_list_str);

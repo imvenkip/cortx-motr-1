@@ -136,15 +136,14 @@ static void ut_run_basic_mode(struct c2_list *test_list,
 	CU_basic_show_failures(CU_get_failure_list());
 }
 
-void c2_ut_run(enum c2_ut_run_mode mode, bool abort_cu_assert,
-		struct c2_list *test_list, struct c2_list *exclude_list)
+void c2_ut_run(struct c2_ut_run_cfg *c)
 {
 	CU_basic_set_mode(CU_BRM_VERBOSE);
 
-	if (abort_cu_assert)
+	if (c->urc_abort_cu_assert)
 		CU_set_assert_mode(CUA_Abort);
 
-	if (mode == C2_UT_AUTOMATED_MODE) {
+	if (c->urc_mode == C2_UT_AUTOMATED_MODE) {
 		/* run and save results to xml */
 
 		/*
@@ -162,11 +161,11 @@ void c2_ut_run(enum c2_ut_run_mode mode, bool abort_cu_assert,
 		CU_automated_run_tests();
 	} else {
 		/* run and make console output */
-		if (mode == C2_UT_BASIC_MODE) {
-			ut_run_basic_mode(test_list, exclude_list);
-		} else if (mode == C2_UT_ICONSOLE_MODE) {
+		if (c->urc_mode == C2_UT_BASIC_MODE) {
+			ut_run_basic_mode(c->urc_test_list, c->urc_exclude_list);
+		} else if (c->urc_mode == C2_UT_ICONSOLE_MODE) {
 			CU_console_run_tests();
-		} else if (mode == C2_UT_ICURSES_MODE) {
+		} else if (c->urc_mode == C2_UT_ICURSES_MODE) {
 			CU_curses_run_tests();
 		}
 	}
