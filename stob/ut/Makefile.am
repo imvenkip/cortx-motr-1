@@ -1,5 +1,3 @@
-UT_SRCDIR=@SRCDIR@/stob/ut
-
 io_u.h io_u.c: io.ff \
                   $(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -uk $<
@@ -17,8 +15,8 @@ client_SOURCES   = client.c io_fop.h
 client_LDFLAGS   = -pthread
 client_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
-EXTRA_DIST	 = io.ff
+EXTRA_DIST	 = io.ff io_fop_init.c
 
 clean-local:
-	cd $(UT_SRCDIR) ; \
+	cd @SRCDIR@/stob/ut ; \
 	rm -fr io_[uk].[hc]

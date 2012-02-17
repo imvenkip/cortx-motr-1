@@ -1,6 +1,6 @@
 SUBDIRS              = user_space
 
-libc2dir             = $(includedir)/lib
+libc2dir             = $(includedir)/colibri/lib
 libc2_HEADERS        = \
                        adt.h \
                        arith.h \
@@ -104,6 +104,7 @@ libc2_la_SOURCES     = \
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
 EXTRA_DIST             = \
                          linux_kernel/assert.h \
+                         linux_kernel/atomic64.h \
                          linux_kernel/cdefs.h \
                          linux_kernel/kthread.c \
                          linux_kernel/ktime.c \
@@ -115,5 +116,12 @@ EXTRA_DIST             = \
                          linux_kernel/semaphore.h \
                          linux_kernel/thread.h \
                          linux_kernel/timer.c \
+                         linux_kernel/time.h \
                          linux_kernel/timer.h \
+                         linux_kernel/vec.h \
+                         linux_kernel/kvec.c \
+                         linux_kernel/rwlock.c \
+                         linux_kernel/rwlock.h \
+                         linux_kernel/ut.c \
+                         linux_kernel/main.c \
                          linux_kernel/types.h

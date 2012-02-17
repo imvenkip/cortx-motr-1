@@ -37,3 +37,4 @@ ub_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/fol/ut/libfol-ut.la   \
                $(top_builddir)/sns/ut/libparity-ut.la
 
+EXTRA_DIST   = linux_kernel/main.c linux_kernel/ut.sh

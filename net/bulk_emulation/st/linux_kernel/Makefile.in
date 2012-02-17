@@ -18,10 +18,7 @@ prepare:
 	ln -fs $(link_st) .
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/$(NST_MOD) -C @LINUX_OBJ@ M=`pwd` modules_install
-
-uninstall:
-	rm -fr @LUNUX_MOD@/kernel/fs/$(NST_MOD)
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` modules_install
 
 clean distclean:
 	$(RM) $(st_src)
@@ -29,4 +26,4 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/$(NST_MOD)/linux_kernel
+	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/net/bulk_emulation/st/linux_kernel

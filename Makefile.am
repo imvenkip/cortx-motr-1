@@ -8,6 +8,7 @@ SUBDIRS_BASE = m4 doc man patches
 SUBDIRS_LIBS = \
                lib \
                addb/addb_pseudo \
+               c2t1fs \
                fol \
                db \
                fid \

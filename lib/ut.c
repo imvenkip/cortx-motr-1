@@ -163,7 +163,7 @@ void c2_ut_run(enum c2_ut_run_mode mode, struct c2_list *test_list,
 		} else if (mode == C2_UT_ICONSOLE_MODE) {
 			CU_console_run_tests();
 		} else if (mode == C2_UT_ICURSES_MODE) {
-			CU_curses_run_tests();
+			CU_console_run_tests();
 		}
 	}
 }

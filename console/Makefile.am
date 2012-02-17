@@ -1,3 +1,7 @@
+consoledir                      = $(includedir)/colibri/console
+console_HEADERS                 = console.h console_fom.h console_fop.h console_it.h \
+                                  console_mesg.h console_u.h console_yaml.h
+
 INCLUDES			= -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 console_U_SOURCES		= console_u.h console_u.c
@@ -16,6 +20,6 @@ libcolibri_console_la_SOURCES	= $(console_U_SOURCES) console.ff \
 				  console_mesg.h console_mesg.c \
 				  console.h console.c
 
-EXTRA_DIST			= console.ff
+EXTRA_DIST			= console.ff main.c
 
 MOSTLYCLEANFILES		= $(console_U_SOURCES)

@@ -1,4 +1,4 @@
-yaml2dbdir             = $(includedir)/yaml2db
+yaml2dbdir             = $(includedir)/colibri/yaml2db
 yaml2db_HEADERS        = yaml2db.h
 
 noinst_LTLIBRARIES     = libcolibri-yaml2db.la
