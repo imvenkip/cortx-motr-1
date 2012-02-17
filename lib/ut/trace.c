@@ -35,9 +35,10 @@ void test_trace(void)
 	int i;
 	int result;
 	struct c2_thread t[NR];
+	uint64_t u64;
 
 	C2_LOG("forty two: %i", 42);
-	C2_LOG("forty three: %i", 43);
+	C2_LOG("forty three and tree: %i %llu", 43, (unsigned long long)(u64 = 3));
 	for (i = 0; i < NR_INNER; ++i)
 		C2_LOG("c: %i, d: %i", i, i*i);
 
