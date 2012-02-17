@@ -34,7 +34,7 @@
  * @{
  */
 
-extern void *c2_logbuf = NULL;
+extern void *c2_logbuf;
 
 int c2_arch_trace_init(void)
 {
