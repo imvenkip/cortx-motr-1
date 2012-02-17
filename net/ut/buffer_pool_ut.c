@@ -47,7 +47,14 @@ const struct c2_net_buffer_pool_ops b_ops = {
  */
 static void test_init(void)
 {
-	int rc;
+	int         rc;
+	uint32_t    threshold = 2; 
+	uint32_t    seg_nr    = 64;
+	c2_bcount_t seg_size  = 4096;
+	uint32_t    colours   = 10;
+	unsigned    shift     = 12;
+	uint32_t    buf_nr    = 10;
+
 	c2_chan_init(&buf_chan);
 	c2_net_xprt_init(xprt);
 	C2_ALLOC_PTR(bp.nbp_ndom);
@@ -55,12 +62,13 @@ static void test_init(void)
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
-	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 2, 64, 4096, 10, 12);
+	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, threshold, seg_nr,
+				      seg_size, colours, shift);
 	C2_UT_ASSERT(rc == 0);
 	c2_net_buffer_pool_lock(&bp);
-	rc = c2_net_buffer_pool_provision(&bp, 10);
+	rc = c2_net_buffer_pool_provision(&bp, buf_nr);
 	c2_net_buffer_pool_unlock(&bp);
-	C2_UT_ASSERT(rc == 10);
+	C2_UT_ASSERT(rc == buf_nr);
 }
 
 static void test_get_put(void)
@@ -82,14 +90,17 @@ static void test_get_put_colour(void)
 {
 	struct c2_net_buffer *nb;
 	uint32_t	      free = bp.nbp_free;
+	enum {
+		COLOUR = 1,
+	};
 	c2_net_buffer_pool_lock(&bp);
 	nb = c2_net_buffer_pool_get(&bp, BUFFER_ANY_COLOUR);
 	C2_UT_ASSERT(nb != NULL);
 	C2_UT_ASSERT(--free == bp.nbp_free);
-	c2_net_buffer_pool_put(&bp, nb, 1);
+	c2_net_buffer_pool_put(&bp, nb, COLOUR);
 	C2_UT_ASSERT(++free == bp.nbp_free);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
-	nb = c2_net_buffer_pool_get(&bp, 1);
+	nb = c2_net_buffer_pool_get(&bp, COLOUR);
 	C2_UT_ASSERT(nb != NULL);
 	C2_UT_ASSERT(--free == bp.nbp_free);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));

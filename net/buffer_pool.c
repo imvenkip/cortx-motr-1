@@ -103,12 +103,13 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_colours_nr = colours;
 	pool->nbp_align	     = shift;
 
-	if(colours == 0)
+	if (colours == 0)
 		pool->nbp_colours = NULL;
-	C2_ALLOC_ARR_ADDB(pool->nbp_colours, colours, &ndom->nd_addb,
-			 &c2_pool_addb_loc);
-	if(pool->nbp_colours == NULL) {
-		return -ENOMEM;
+	else {
+		C2_ALLOC_ARR_ADDB(pool->nbp_colours, colours, &ndom->nd_addb,
+				 &c2_pool_addb_loc);
+		if(pool->nbp_colours == NULL)
+			return -ENOMEM;
 	}
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_lru);
