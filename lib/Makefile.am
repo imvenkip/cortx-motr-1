@@ -109,6 +109,7 @@ EXTRA_DIST             = \
                          linux_kernel/atomic64.h \
                          linux_kernel/cdefs.h \
                          linux_kernel/kthread.c \
+                         linux_kernel/ktrace.c \
                          linux_kernel/ktime.c \
                          linux_kernel/memory.c \
                          linux_kernel/mutex.c \
