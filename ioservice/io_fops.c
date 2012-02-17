@@ -163,6 +163,11 @@ int c2_ioservice_fop_init(void)
 				ARRAY_SIZE(ioservice_fops));
 	if (rc != 0)
 		c2_ioservice_fop_fini();
+
+#ifndef __KERNEL__
+        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+#endif
 	return rc;
 }
 C2_EXPORTED(c2_ioservice_fop_init);
@@ -583,8 +588,6 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 			    bulkclient_func_fail, "io fop init failed.", rc);
 		return rc;
 	}
-
-        iofop->if_fop.f_type->ft_fom_type = c2_io_fom_cob_rw_mopt;
 
 	/* Assign rpc item ops to rpc item. */
 	iofop->if_fop.f_item.ri_ops = &io_req_rpc_item_ops;

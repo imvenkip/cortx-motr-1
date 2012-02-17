@@ -29,7 +29,7 @@ static void test_bufvec_cursor(void);
 enum {
 	NR = 255,
 	IT = 6,
-	SEGSIZE = 128,
+	SEGSIZE = 4096,
 	SHIFT = 12
 };
 

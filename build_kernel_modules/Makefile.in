@@ -73,7 +73,7 @@ layout_HEADERS 			:= layout.h pdclust.h
 
 lib_SOURCES 			:= bitstring.c vec.c list.c queue.c refs.c    \
 				   time.c bitmap.c chan.c misc.c buf.c cond.c \
-				   thread.c tlist.c
+				   thread.c tlist.c 
 lib_HEADERS 			:= misc.h memory.h errno.h arith.h buf.h
 
 lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c  \
@@ -82,7 +82,7 @@ lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c  \
 
 lib_ut_SOURCES 			:= rwlock.c bitmap.c tlist.c chan.c list.c    \
 				   mutex.c queue.c refs.c tlist.c time.c      \
-				   vec.c zerovec.c thread.c
+				   vec.c zerovec.c thread.c memory.c
 
 net_SOURCES 			:= buf.c buffer_pool.c domain.c ep.c net.c    \
 				   tm.c connection.c net_cli.c net_utils.c    \

@@ -17,7 +17,6 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 05/07/2010
  */
-#include <stdlib.h>
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/ub.h"
@@ -28,12 +27,17 @@ struct test1 {
 	int a;
 };
 
-void test_memory()
+enum {
+	SHIFT    = 12,
+	BUF_SIZE = 4096,
+};
+void test_memory(void)
 {
-	void *ptr1;
+	void         *ptr1;
 	struct test1 *ptr2;
-	size_t allocated;
-
+	size_t        allocated;
+	uint64_t      addr;
+	int           i;
 	allocated = c2_allocated();
 	ptr1 = c2_alloc(100);
 	C2_UT_ASSERT(ptr1 != NULL);
@@ -43,7 +47,15 @@ void test_memory()
 
 	c2_free(ptr1);
 	c2_free(ptr2);
-	C2_UT_ASSERT(allocated == c2_allocated())
+	C2_UT_ASSERT(allocated == c2_allocated());
+
+	/* Checking c2_alloc_aligned for buffer sizes from 4Kb to 4Mb. */
+	for (i = BUF_SIZE; i <= BUF_SIZE * 1024; i += BUF_SIZE) {
+		ptr1 = c2_alloc_aligned(i, SHIFT);
+		addr = (uint64_t)ptr1;
+		C2_UT_ASSERT(((addr >> SHIFT) << SHIFT) == addr);
+		c2_free(ptr1);
+	}
 }
 
 enum {

@@ -142,7 +142,8 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 }
 
 /** It removes the given buffer from the pool */
-static void buffer_remove(struct c2_net_buffer_pool *pool, struct c2_net_buffer *nb)
+static void buffer_remove(struct c2_net_buffer_pool *pool,
+			  struct c2_net_buffer *nb)
 {
 	pool_tlink_del_fini(nb);
 	if (tm_tlink_is_in(nb))

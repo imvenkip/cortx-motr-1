@@ -41,6 +41,18 @@ void *c2_alloc(size_t size)
 }
 C2_EXPORTED(c2_alloc);
 
+void *c2_alloc_aligned(size_t size, unsigned shift)
+{
+	/* 
+	 * Currently it is supported for alignment of PAGE_SHIFT and
+	 * sizes from 4Kb to 4Mb.
+	 */
+	C2_ASSERT(shift == PAGE_SHIFT || shift == 0);
+	C2_ASSERT(size >= 4096 || size <= 4 * 1024 * 1024);
+	return c2_alloc(size);
+}
+C2_EXPORTED(c2_alloc_aligned);
+
 void c2_free(void *data)
 {
 	kfree(data);
