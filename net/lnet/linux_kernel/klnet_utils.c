@@ -58,13 +58,13 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 #endif
 }
 
-static const char *nlx_kcore_lnet_event_type_to_string(int et)
+static const char *nlx_kcore_lnet_event_type_to_string(lnet_event_kind_t et)
 {
 	static const char *lnet_event_s[7] = {
 		"GET", "PUT", "REPLY", "ACK", "SEND", "UNLINK", "<Unknown>"
 	};
 	const char *name;
-	C2_ASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 2);
+	C2_CASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 2);
 	if (et >= 0 && et <= LNET_EVENT_UNLINK)
 		name = lnet_event_s[et];
 	else

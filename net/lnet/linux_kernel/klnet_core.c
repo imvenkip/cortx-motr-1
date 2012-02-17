@@ -953,7 +953,7 @@ static void nlx_kcore_tms_list_add(struct nlx_kcore_transfer_mc *kctm)
 }
 
 /**
-   General callback for the LNet Event Queue.
+   Callback for the LNet Event Queue.
    It must be re-entrant, and not make any calls to the LNet API.
  */
 static void nlx_kcore_eq_cb(lnet_event_t *event)
