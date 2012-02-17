@@ -346,7 +346,7 @@
 
 /**
  * Initializes layout schema - creates the layouts table.
- * @pre db Caller should have performed c2_dbenv_init() on db.
+ * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
  */
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *dbenv)
@@ -357,7 +357,8 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(dbenv != NULL);
 
-	//C2_LOG("Inside c2_ldb_schema_init()\n");
+	C2_LOG("c2_ldb_schema_init(): schema %p, dbenv %p\n",
+	       schema, dbenv);
 
 	schema->dbenv = dbenv;
 
@@ -388,7 +389,7 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 
 	C2_PRE(schema != NULL);
 
-	//C2_LOG("Inside c2_ldb_schema_fini()\n");
+	C2_LOG("c2_ldb_schema_fini(): schema %p\n", schema);
 
 	/* Verify that all the layout types were deregistered. */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
@@ -422,6 +423,8 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 	C2_PRE(lt != NULL);
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type));
 
+	C2_LOG("c2_ldb_type_register(): schema %p, lt %p\n", schema, lt);
+
 	if (schema->ls_type[lt->lt_id] == lt)
 		return -EEXIST;
 
@@ -436,6 +439,9 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&schema->ls_lock);
 
+	C2_LOG("c2_ldb_type_register(): Returning, schema %p, rc %d\n",
+	       schema, rc);
+
 	return rc;
 }
 
@@ -448,6 +454,8 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 {
 	C2_PRE(schema != NULL);
 	C2_PRE(lt != NULL);
+
+	C2_LOG("c2_ldb_type_unregister(): schema %p, lt %p\n", schema, lt);
 
 	c2_mutex_lock(&schema->ls_lock);
 
@@ -472,6 +480,8 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 	C2_PRE(let != NULL);
 	C2_PRE(IS_IN_ARRAY(let->let_id, schema->ls_enum));
 
+	C2_LOG("c2_ldb_enum_register(): schema %p, let %p\n", schema, let);
+
 	if (schema->ls_enum[let->let_id] == let)
 		return -EEXIST;
 
@@ -486,6 +496,8 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&schema->ls_lock);
 
+	C2_LOG("c2_ldb_enum_register(): Returning, schema %p, rc %d\n",
+	       schema, rc);
 	return rc;
 }
 
@@ -498,6 +510,8 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 {
 	C2_PRE(schema != NULL);
 	C2_PRE(let != NULL);
+
+	C2_LOG("c2_ldb_enum_unregister(): schema %p, let %p\n", schema, let);
 
 	c2_mutex_lock(&schema->ls_lock);
 
@@ -597,6 +611,8 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
+	C2_LOG("c2_ldb_lookup(): lid %llu\n", (unsigned long long)lid);
+
 	pair->dp_table = &schema->ls_layouts;
 
 	C2_SET0(pair->dp_key.db_buf.b_addr);
@@ -617,10 +633,15 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_ASSERT(*(uint64_t *)pair->dp_key.db_buf.b_addr == lid);
 
 	rc = c2_table_lookup(tx, pair);
-	printf("c2_ldb_lookup(): Result of c2_table_lookup() %d, "
-	       "lid %" PRId64 ", pair->lid %" PRId64 " pair->lid_addr %p \n",
-	       rc, lid, *(uint64_t *)pair->dp_key.db_buf.b_addr,
+	C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() rc %d\n",
+	       (unsigned long long)lid, rc);
+	/*
+	C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() rc %d, "
+	       "pair->lid %llu, pair->lid_addr %p\n",
+	       (unsigned long long)lid, rc,
+	       *(unsigned long long *)pair->dp_key.db_buf.b_addr,
 	       pair->dp_key.db_buf.b_addr);
+	*/
 
 	/* Following covers the case - record not found. */
 	if (rc != 0)
@@ -634,8 +655,11 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	rc = c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
 	C2_ASSERT((*out)->l_id == lid);
 
-	c2_db_buf_fini(&pair->dp_rec);
+	C2_LOG("c2_ldb_lookup(): lid %llu, c2_layout_decode() rc %d",
+	       (unsigned long long)lid, rc);
+
 	c2_db_buf_fini(&pair->dp_key);
+	c2_db_buf_fini(&pair->dp_rec);
 
 	return rc;
 }
@@ -659,6 +683,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	struct c2_bufvec_cursor  cur;
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
+	int                      rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
@@ -670,18 +695,28 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
+	C2_LOG("c2_ldb_add(): lid %llu\n", (unsigned long long)l->l_id);
+
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, &cur);
+	rc = c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, &cur);
+	C2_LOG("c2_ldb_add(): lid %llu, c2_layout_encode() rc %d\n",
+	       (unsigned long long)l->l_id, rc);
+	if (rc != 0)
+		return rc;
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
 	recsize = lt->lt_ops->lto_recsize(schema, l);
 
-	ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair, recsize, tx);
+	rc = ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair,
+			      recsize, tx);
+	C2_ASSERT(rc == 0);
+	C2_LOG("c2_ldb_add(): lid %llu, ldb_layout_write() rc %d\n",
+	       (unsigned long long)l->l_id, rc);
 
 	return 0;
 }
@@ -706,21 +741,32 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 					&pair->dp_rec.db_buf.b_nob);
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
+	int                      rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
+	C2_LOG("c2_ldb_update(): lid %llu\n", (unsigned long long)l->l_id);
+
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx, &cur);
+	rc = c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx, &cur);
+	C2_LOG("c2_ldb_update(): lid %llu, c2_layout_encode() rc %d\n",
+	       (unsigned long long)l->l_id, rc);
+	if (rc != 0)
+		return rc;
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
 	recsize = lt->lt_ops->lto_recsize(schema, l);
 
-	ldb_layout_write(schema, C2_LXO_DB_UPDATE, l->l_id, pair, recsize, tx);
+	rc = ldb_layout_write(schema, C2_LXO_DB_UPDATE, l->l_id,
+			      pair, recsize, tx);
+	C2_ASSERT(rc == 0);
+	C2_LOG("c2_ldb_update(): lid %llu, ldb_layout_write() rc %d\n",
+	       (unsigned long long)l->l_id, rc);
 
 	return 0;
 }
@@ -745,21 +791,32 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 					&pair->dp_rec.db_buf.b_nob);
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
+	int                      rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
+	C2_LOG("c2_ldb_delete(): lid %llu\n", (unsigned long long)l->l_id);
+
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, &cur);
+	rc = c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, &cur);
+	C2_LOG("c2_ldb_delete(): lid %llu, c2_layout_encode() rc %d\n",
+	       (unsigned long long)l->l_id, rc);
+	if (rc != 0)
+		return rc;
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
 	recsize = lt->lt_ops->lto_recsize(schema, l);
 
-	ldb_layout_write(schema, C2_LXO_DB_DELETE, l->l_id, pair, recsize, tx);
+	rc = ldb_layout_write(schema, C2_LXO_DB_DELETE, l->l_id,
+			      pair, recsize, tx);
+	C2_ASSERT(rc == 0);
+	C2_LOG("c2_ldb_delete(): lid %llu, ldb_layout_write() rc %d\n",
+	       (unsigned long long)l->l_id, rc);
 
 	return 0;
 }

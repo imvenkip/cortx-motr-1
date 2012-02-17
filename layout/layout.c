@@ -27,6 +27,9 @@
  * @{
  */
 
+// todo tempo
+//#include <stdio.h>
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"
@@ -203,7 +206,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	//C2_LOG("In c2_layout_decode()\n");
+	C2_LOG("c2_layout_decode(): lid %llu\n", (unsigned long long)lid);
 
 	rec = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(rec != NULL);
@@ -287,7 +290,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
 
-	//C2_LOG("In c2_layout_encode()\n");
+	C2_LOG("In c2_layout_encode()\n");
 
 	c2_mutex_lock(&l->l_lock);
 
