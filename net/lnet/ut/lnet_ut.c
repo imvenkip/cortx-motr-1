@@ -378,7 +378,6 @@ static void ut_describe_tm(const struct c2_net_transfer_mc *tm)
 	     (void *) tp, (void *) lctm, (void *) kctm);
 	if (kctm != NULL) {
 		nlx_kprint_lnet_handle("\tEQ1", kctm->ktm_eqh);
-		nlx_kprint_lnet_handle("\tEQ2", kctm->ktm_LNetGet_eqh);
 	}
 #endif
 }

@@ -58,27 +58,33 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 #endif
 }
 
-static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
+static const char *nlx_kcore_lnet_event_type_to_string(int et)
 {
 	static const char *lnet_event_s[7] = {
 		"GET", "PUT", "REPLY", "ACK", "SEND", "UNLINK", "<Unknown>"
 	};
 	const char *name;
+	C2_ASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 2);
+	if (et >= 0 && et <= LNET_EVENT_UNLINK)
+		name = lnet_event_s[et];
+	else
+		name = lnet_event_s[6];
+	return name;
+}
+
+static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
+{
 
 	if (e == NULL) {
 		printk("%s: <null> (lnet_event_t)\n", pre);
 		return;
 	}
-	C2_ASSERT(ARRAY_SIZE(lnet_event_s) == LNET_EVENT_UNLINK + 2);
-	if (e->type >= 0 && e->type <= LNET_EVENT_UNLINK)
-		name = lnet_event_s[e->type];
-	else
-		name = lnet_event_s[6];
 	printk("%s: %p (lnet_event_t)\n", pre, e);
 	nlx_kprint_lnet_process_id("\t   target:", e->target);
 	nlx_kprint_lnet_process_id("\tinitiator:", e->target);
 	printk("\t    sender: %ld\n", (long unsigned) e->sender);
-	printk("\t      type: %d %s\n", e->type, name);
+	printk("\t      type: %d %s\n", e->type,
+	       nlx_kcore_lnet_event_type_to_string(e->type));
 	printk("\t  pt_index: %u\n", e->pt_index);
 	printk("\tmatch_bits: %lx\n", (long unsigned) e->match_bits);
 	printk("\t   rlength: %u\n", e->rlength);
@@ -99,7 +105,6 @@ static void nlx_kprint_kcore_tm(const char *pre,
 		return;
 	printk("\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
 	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
-	nlx_kprint_lnet_handle("\tLNetGet eqh", ktm->ktm_LNetGet_eqh);
 }
 #endif
 
@@ -163,13 +168,11 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
    @param options Optional flags to be set.  If not 0, only LNET_MD_OP_PUT or
    LNET_MD_OP_GET are accepted.
    @param isLNetGetOp Set to true if the lnet_md_t is to be used to create an
-   MD that will be used in an LNetGet operation. The threshold and eq_handle
-   fields are forced to appropriate values.
+   MD that will be used in an LNetGet operation. The threshold field is forced
+   to 2.
    @param umd Pointer to return structure to be filled in.  The ktm_eqh handle
    is used by default. Adjust if necessary.
    @post ergo(isLNetGetOp, umd->threshold == 2)
-   @post ergo(isLNetGetOp, LNetHandleIsEqual(umd->eq_handle,kctm-ktm_LNetGet_eqh))
-   @post ergo(!isLNetGetOp, LNetHandleIsEqual(umd->eq_handle, kctm-ktm_eqh))
  */
 static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 			       struct nlx_core_buffer *lcbuf,
@@ -200,23 +203,19 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->start = kcb->kb_kiov;
 	umd->options |= LNET_MD_KIOV;
 	umd->length = kcb->kb_kiov_len;
-	umd->threshold = threshold;
+	if (isLNetGetOp)
+		umd->threshold = 2;
+	else
+		umd->threshold = threshold;
 	if (max_size != 0) {
 		umd->max_size = max_size;
 		umd->options |= LNET_MD_MAX_SIZE;
 	}
 	umd->user_ptr = lcbuf;
-	if (isLNetGetOp) {
-		umd->eq_handle = kctm->ktm_LNetGet_eqh;
-		umd->threshold = 2;
-	} else
-		umd->eq_handle = kctm->ktm_eqh;
+	umd->eq_handle = kctm->ktm_eqh;
+
+	NLXDBG(lctm, 2, nlx_kprint_lnet_md("umd init", umd));
 	C2_POST(ergo(isLNetGetOp, umd->threshold == 2));
-	C2_POST(ergo(isLNetGetOp, LNetHandleIsEqual(umd->eq_handle,
-						    kctm->ktm_LNetGet_eqh)));
-	C2_POST(ergo(!isLNetGetOp, LNetHandleIsEqual(umd->eq_handle,
-						     kctm->ktm_eqh)));
-	NLXDBG(lctm, 1, nlx_kprint_lnet_md("umd init", umd));
 }
 
 /**
@@ -460,7 +459,6 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
    the address of the remote destination in struct nlx_core_buffer::cb_addr.
    @param umd Pointer to lnet_md_t structure for the buffer, with appropriate
    values set for the desired operation.
-   @pre LNetHandleIsEqual(umd->eq_handle, kctm->ktm_LNetGet_eqh)
    @pre umd->threshold == 2
    @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
    @note LNet event could potentially be delivered before this sub returns.
@@ -482,7 +480,6 @@ static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(lcbuf->cb_match_bits != 0);
 
-	C2_PRE(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_LNetGet_eqh));
 	C2_PRE(umd->threshold == 2);
 
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);

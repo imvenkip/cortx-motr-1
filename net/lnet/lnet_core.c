@@ -285,7 +285,7 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 
 	cbd->cbd_checksum   = nlx_core_buf_desc_checksum(cbd);
 
-	NLXDBG(lctm, 1, nlx_print_core_buf_desc("encode", cbd));
+	NLXDBG(lctm, 2, nlx_print_core_buf_desc("encode", cbd));
 
 	C2_POST(nlx_core_tm_invariant(lctm));
 	C2_POST(nlx_core_buffer_invariant(lcbuf));
@@ -299,7 +299,7 @@ int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 	uint64_t i64;
 	uint32_t i32;
 
-	NLXDBG(lctm, 1, nlx_print_core_buf_desc("decode", cbd));
+	NLXDBG(lctm, 2, nlx_print_core_buf_desc("decode", cbd));
 
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 	C2_PRE(nlx_core_tm_invariant(lctm));

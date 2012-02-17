@@ -80,15 +80,8 @@ struct nlx_kcore_transfer_mc {
 	/** This semaphore increments with each LNet event added. */
 	struct c2_semaphore              ktm_sem;
 
-	/** Handle of the LNet EQ associated with this transfer machine.
-	    Used for all but @c LNetGet() operations.
-	 */
+	/** Handle of the LNet EQ associated with this transfer machine. */
 	lnet_handle_eq_t                 ktm_eqh;
-
-	/** Handle of the LNet EQ associated with this transfer machine and
-	    used exclusively for @c LNetGet() operations.
-	 */
-	lnet_handle_eq_t                 ktm_LNetGet_eqh;
 
 	/** ADDB context for events related to this transfer machine */
 	struct c2_addb_ctx               ktm_addb;
