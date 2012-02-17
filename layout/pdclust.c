@@ -534,7 +534,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	C2_LOG("In pdclust_decode(): cur %p \n",  (void *)cur);
+	//C2_LOG("In pdclust_decode(): cur %p \n",  (void *)cur);
 
 	C2_ALLOC_PTR(pl);
 	if (pl == NULL)
@@ -607,7 +607,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
 
-	C2_LOG("In pdclust_encode()\n");
+	//C2_LOG("In pdclust_encode()\n");
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);

@@ -109,7 +109,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	C2_LOG("In linear_decode(), cur %p \n", cur);
+	//C2_LOG("In linear_decode(), cur %p \n", cur);
 
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL)
@@ -152,7 +152,7 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
 
-	C2_LOG("In linear_encode(), l %p \n", l);
+	//C2_LOG("In linear_encode(), l %p \n", l);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 

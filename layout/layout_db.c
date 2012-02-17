@@ -357,7 +357,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(dbenv != NULL);
 
-	C2_LOG("Inside c2_ldb_schema_init()\n");
+	//C2_LOG("Inside c2_ldb_schema_init()\n");
 
 	schema->dbenv = dbenv;
 
@@ -388,7 +388,7 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 
 	C2_PRE(schema != NULL);
 
-	C2_LOG("Inside c2_ldb_schema_fini()\n");
+	//C2_LOG("Inside c2_ldb_schema_fini()\n");
 
 	/* Verify that all the layout types were deregistered. */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {

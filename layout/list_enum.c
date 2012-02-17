@@ -365,7 +365,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	C2_LOG("In list_decode(), cur %p \n", cur);
+	//C2_LOG("In list_decode(), cur %p \n", cur);
 
 	rc = c2_list_enum_build(&list_enum);
 	C2_ASSERT(rc == 0);
@@ -383,11 +383,11 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
 		if (i == 0) {
-			C2_LOG("list_decode(): Start processing "
-			       "inline cob entries.\n");
+			//C2_LOG("list_decode(): Start processing "
+			       //"inline cob entries.\n");
 		} else if (i == num_inline) {
-			C2_LOG("list_decode(): Start processing "
-			       "non-inline cob entries.\n");
+			//C2_LOG("list_decode(): Start processing "
+			       //"non-inline cob entries.\n");
 		}
 
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
@@ -483,7 +483,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
 
-	C2_LOG("In list_encode(), l %p \n", l);
+	//C2_LOG("In list_encode(), l %p \n", l);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
@@ -509,12 +509,12 @@ static int list_encode(struct c2_ldb_schema *schema,
 
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
 			if (i == 0) {
-				C2_LOG("list_encode(): Start processing "
-				       "inline cob entries.\n");
+				//C2_LOG("list_encode(): Start processing "
+				//       "inline cob entries.\n");
 			}
 			if (i == num_inline) {
-				C2_LOG("list_encode(): Start processing "
-				       "non-inline cob entries.\n");
+				//C2_LOG("list_encode(): Start processing "
+				  //     "non-inline cob entries.\n");
 			}
 
 			nbytes_copied = c2_bufvec_cursor_copyto(out, &ldb_ce,
