@@ -134,7 +134,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	header->trh_descr     = td;
 	memcpy((void*)header + header_len, body, td->td_size);
 	/** @todo put memory barrier here before writing the magic */
-	header->trh_magic = C2_TRACE_MAGIC;     
+	header->trh_magic = C2_TRACE_MAGIC;
 	if (C2_TRACE_IMMEDIATE_DEBUG)
 		c2_trace_print_record(header, body);
 }
