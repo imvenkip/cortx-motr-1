@@ -72,17 +72,18 @@ layout_HEADERS 			:= layout.h pdclust.h
 
 lib_SOURCES 			:= bitstring.c vec.c list.c queue.c refs.c    \
 				   time.c bitmap.c chan.c misc.c buf.c cond.c \
-				   thread.c tlist.c bob.c
+				   thread.c tlist.c bob.c trace.c
 
-lib_HEADERS 			:= misc.h memory.h errno.h arith.h buf.h
+lib_HEADERS 			:= misc.h memory.h errno.h arith.h buf.h \
+				   trace.h
 
 lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c  \
 				   kthread.c semaphore.c processor.c kvec.c   \
-				   ut.c main.c
+				   ktrace.c ut.c main.c
 
 lib_ut_SOURCES 			:= rwlock.c bitmap.c tlist.c chan.c list.c    \
 				   mutex.c queue.c refs.c tlist.c time.c      \
-				   vec.c zerovec.c thread.c bob.c
+				   vec.c zerovec.c thread.c bob.c trace.c
 
 net_SOURCES 			:= buf.c buffer_pool.c domain.c ep.c net.c    \
 				   tm.c connection.c net_cli.c net_utils.c    \
@@ -196,7 +197,6 @@ CURRENT = $(shell uname -r)
 DEST = /lib/modules/$(CURRENT)/kernel/fs/colibri
 
 install modules_install:
-#	su -c "mkdir -p $(DEST) && cp -v kcolibri.ko $(DEST) && /sbin/depmod -a"
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` modules_install
 
 uninstall:

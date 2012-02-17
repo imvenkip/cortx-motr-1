@@ -18,7 +18,7 @@ prepare:
 	ln -fs $(link_st) .
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` modules_install
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/$(NST_MOD) -C @LINUX_OBJ@ M=`pwd` modules_install
 
 clean distclean:
 	$(RM) $(st_src)

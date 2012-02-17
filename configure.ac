@@ -409,13 +409,14 @@ LIBS=$OLD_LIBS
 # Check for CUnit
 OLD_LIBS=$LIBS
 LIBS=""
-AC_SEARCH_LIBS([CU_add_suite], [cunit], [
-        AC_CHECK_HEADERS([CUnit/CUCurses.h], [],
+AC_SEARCH_LIBS([CU_add_suite], [cunit],
+[
+        AC_CHECK_HEADERS([CUnit/Basic.h], [],
         [
-                AC_MSG_ERROR([CUnit/CUCurses.h is not found. Try build cunit with --enable-curses configure option])
+                AC_MSG_ERROR([CUnit/Basic.h is not found. Try install CUnit from $SRCDIR/../cunit or CUnit-devel rpm package])
         ],[])
 ], [
-        AC_MSG_ERROR([CU_add_suite cannot be found! Try install cunit package from $SRCDIR/../cunit or from rpm])
+        AC_MSG_ERROR([CU_add_suite cannot be found! Try install CUnit package from $SRCDIR/../cunit or from rpm])
 ], [-lncurses])
 CUNIT_LIBS=$LIBS
 LIBS=$OLD_LIBS
@@ -595,6 +596,7 @@ AC_CONFIG_FILES([
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
 		 yaml2db/st/Makefile
+		 colibri.spec
                 ])
 AC_OUTPUT
 
