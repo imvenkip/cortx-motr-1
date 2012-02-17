@@ -22,6 +22,7 @@
 
 #ifndef __KERNEL__
 # include <stdbool.h>     /* bool */
+# include <stdio.h>       /* FILE, fpos_t */
 # include <CUnit/Basic.h>
 #else
 # include "lib/types.h"
@@ -168,6 +169,36 @@ int c2_ut_db_reset(const char *db_name);
    @param file path of the file, eg __FILE__
  */
 bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file);
+#endif
+
+#ifndef __KERNEL__
+struct c2_ut_redirect {
+	FILE  *ur_stream;
+	int    ur_oldfd;
+	int    ur_fd;
+	fpos_t ur_pos;
+};
+
+/**
+ * Associates one of the standard streams (stdin, stdout, stderr) with a file
+ * pointed by 'path' argument.
+ */
+void c2_stream_redirect(FILE *stream, const char *path,
+			struct c2_ut_redirect *redir);
+
+/**
+ * Restores standard stream from file descriptor and stream position, which were
+ * saved earlier by c2_stream_redirect().
+ */
+void c2_stream_restore(const struct c2_ut_redirect *redir);
+
+/**
+ * Checks if a text file contains the specified string.
+ *
+ * @param fp   - a file, which is searched for a string
+ * @param mesg - a string to search for
+ */
+bool c2_error_mesg_match(FILE *fp, const char *mesg);
 #endif
 
 /** @} end of ut group. */

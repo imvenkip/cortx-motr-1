@@ -28,6 +28,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/types.h"
+#include "lib/trace.h"
 #include "rpc/session.h"
 #include "rpc/session_internal.h"
 #include "fop/fop.h"

@@ -25,8 +25,9 @@
 
 #include <stdlib.h>                /* system */
 #include <stdio.h>                 /* asprintf */
+#include <unistd.h>                /* dup, dup2 */
 
-#include "lib/assert.h"
+#include "lib/assert.h"            /* C2_ASSERT */
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/ut.h"
 
@@ -206,6 +207,68 @@ int c2_ut_db_reset(const char *db_name)
 	rc = system(cmd);
 	free(cmd);
 	return rc;
+}
+
+void c2_stream_redirect(FILE *stream, const char *path,
+			struct c2_ut_redirect *redir)
+{
+	FILE *result;
+
+	/*
+	 * This solution is based on the method described in the comp.lang.c
+	 * FAQ list, Question 12.34: "Once I've used freopen, how can I get the
+	 * original stdout (or stdin) back?"
+	 *
+	 * http://c-faq.com/stdio/undofreopen.html
+	 * http://c-faq.com/stdio/rd.kirby.c
+	 *
+	 * It's not portable and will only work on systems which support dup(2)
+	 * and dup2(2) system calls (these are supported in Linux).
+	 */
+	redir->ur_stream = stream;
+	fflush(stream);
+	fgetpos(stream, &redir->ur_pos);
+	redir->ur_oldfd = fileno(stream);
+	redir->ur_fd = dup(redir->ur_oldfd);
+	C2_ASSERT(redir->ur_fd != -1);
+	result = freopen(path, "a+", stream);
+	C2_ASSERT(result != NULL);
+}
+
+void c2_stream_restore(const struct c2_ut_redirect *redir)
+{
+	int result;
+
+	/*
+	 * see comment in c2_stream_redirect() for detailed information
+	 * about how to redirect and restore standard streams
+	 */
+	fflush(redir->ur_stream);
+	result = dup2(redir->ur_fd, redir->ur_oldfd);
+	C2_ASSERT(result != -1);
+	close(redir->ur_fd);
+	clearerr(redir->ur_stream);
+	fsetpos(redir->ur_stream, &redir->ur_pos);
+}
+
+bool c2_error_mesg_match(FILE *fp, const char *mesg)
+{
+	enum {
+		MAXLINE = 1025,
+	};
+
+	char line[MAXLINE];
+
+	C2_PRE(fp != NULL);
+	C2_PRE(mesg != NULL);
+
+	fseek(fp, 0L, SEEK_SET);
+	memset(line, '\0', MAXLINE);
+	while (fgets(line, MAXLINE, fp) != NULL) {
+		if (strncmp(mesg, line, strlen(mesg)) == 0)
+			return true;
+	}
+	return false;
 }
 
 /** @} end of ut group. */
