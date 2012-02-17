@@ -24,7 +24,9 @@
 #include "lib/types.h"
 #include "lib/arith.h"
 
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+#include "lib/linux_kernel/trace.h"
+#else
 #include "lib/user_space/trace.h"
 #endif
 
@@ -203,6 +205,7 @@ struct c2_trace_descr {
 };
 
 void c2_trace_allot(const struct c2_trace_descr *, const void *data);
+void c2_trace_print_record(const struct c2_trace_rec_header *, const void *buf);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging

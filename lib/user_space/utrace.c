@@ -18,10 +18,8 @@
  * Original creation date: 08/12/2010
  */
 
-#include <stdio.h>    /* getchar */
 #include <string.h>   /* memset */
 #include <errno.h>
-#include <stdio.h>
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
@@ -111,13 +109,6 @@ int c2_trace_parse(void)
 	struct c2_trace_rec_header   trh;
 	const struct c2_trace_descr *td;
 	int                          nr, n2r;
-	int                          i;
-	union {
-		uint8_t  v8;
-		uint16_t v16;
-		uint32_t v32;
-		uint64_t v64;
-	} v[C2_TRACE_ARGC_MAX];
 
 	read_count = 0;
 
@@ -147,11 +138,6 @@ int c2_trace_parse(void)
 
 		td = trh.trh_descr;
 
-		printf("%7.7lu %15.15lu %16.16lx %-20s %15s:%-3i %3.3i %3i\n\t",
-		       trh.trh_no, trh.trh_timestamp, trh.trh_sp,
-		       td->td_func, td->td_file, td->td_line, td->td_size,
-		       td->td_nr);
-
 		buf = c2_alloc(td->td_size);
 		C2_ASSERT(buf != NULL);
 
@@ -159,32 +145,7 @@ int c2_trace_parse(void)
 		C2_ASSERT(nr == td->td_size);
 		read_count += nr;
 
-		for (i = 0; i < td->td_nr; ++i) {
-			char *addr;
-
-			addr = buf + td->td_offset[i];
-			switch (td->td_sizeof[i]) {
-			case 0:
-				break;
-			case 1:
-				v[i].v8 = *(uint8_t *)addr;
-				break;
-			case 2:
-				v[i].v16 = *(uint16_t *)addr;
-				break;
-			case 4:
-				v[i].v32 = *(uint32_t *)addr;
-				break;
-			case 8:
-				v[i].v64 = *(uint64_t *)addr;
-				break;
-			default:
-				C2_IMPOSSIBLE("sizeof");
-			}
-		}
-		printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
-		       v[7], v[8]);
-		printf("\n");
+		c2_trace_print_record(&trh, buf);
 
 		if (buf)
 			c2_free(buf);

@@ -15,29 +15,34 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Andriy Tkachuk <Andriy_Tkachuk@xyratex.com>
- * Original creation date: 01/30/2012
+ * Original creation date: 02/17/2012
  */
 
-#ifndef __COLIBRI_LIB_USERSP_TRACE_H__
-#define __COLIBRI_LIB_USERSP_TRACE_H__
+#ifndef __COLIBRI_LIB_LINUX_KERNEL_TRACE_H__
+#define __COLIBRI_LIB_LINUX_KERNEL_TRACE_H__
 
-#include <stdio.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
 /**
-   @defgroup trace Tracing.
+   @defgroup trace Tracing
 
-   User-space specific declarations.
+   Kernel specific definitions.
 
  */
 
-#define C2_TRACE_IMMEDIATE_DEBUG (0)
-#define c2_printf printf
+#ifdef ENABLE_DEBUG
+#  define C2_TRACE_IMMEDIATE_DEBUG (1)
+#else
+#  define C2_TRACE_IMMEDIATE_DEBUG (0)
+#endif
 
-int  c2_trace_parse(void);
+#define c2_printf printk
 
 /** @} end of trace group */
 
-/* __COLIBRI_LIB_USERSP_TRACE_H__ */
+/* __COLIBRI_LIB_LINUX_KERNEL_TRACE_H__ */
 #endif
 
 /*

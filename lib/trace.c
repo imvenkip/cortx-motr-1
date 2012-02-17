@@ -135,7 +135,58 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	memcpy((void*)header + header_len, body, td->td_size);
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = C2_TRACE_MAGIC;     
+	if (C2_TRACE_IMMEDIATE_DEBUG)
+		c2_trace_print_record(header, body);
 }
+
+
+void
+c2_trace_print_record(const struct c2_trace_rec_header *trh, const void *buf)
+{
+	int i;
+	const struct c2_trace_descr *td = trh->trh_descr;
+	union {
+		uint8_t  v8;
+		uint16_t v16;
+		uint32_t v32;
+		uint64_t v64;
+	} v[C2_TRACE_ARGC_MAX];
+
+	c2_printf("%7.7llu %15.15llu %16.16llx %-20s %15s:%-3i %3.3i %3i\n\t",
+	       (unsigned long long)trh->trh_no,
+	       (unsigned long long)trh->trh_timestamp,
+	       (unsigned long long)trh->trh_sp,
+	       td->td_func, td->td_file, td->td_line, td->td_size,
+	       td->td_nr);
+
+	for (i = 0; i < td->td_nr; ++i) {
+		const char *addr;
+
+		addr = buf + td->td_offset[i];
+		switch (td->td_sizeof[i]) {
+		case 0:
+			break;
+		case 1:
+			v[i].v8 = *(uint8_t *)addr;
+			break;
+		case 2:
+			v[i].v16 = *(uint16_t *)addr;
+			break;
+		case 4:
+			v[i].v32 = *(uint32_t *)addr;
+			break;
+		case 8:
+			v[i].v64 = *(uint64_t *)addr;
+			break;
+		default:
+			C2_IMPOSSIBLE("sizeof");
+		}
+	}
+	c2_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
+	       v[7], v[8]);
+	c2_printf("\n");
+}
+
 
 /** @} end of trace group */
 

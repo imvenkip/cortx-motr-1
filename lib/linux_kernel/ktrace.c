@@ -34,7 +34,7 @@
  * @{
  */
 
-extern void *c2_logbuf = NULL;
+extern void *c2_logbuf;
 
 int c2_arch_trace_init(void)
 {
@@ -42,7 +42,7 @@ int c2_arch_trace_init(void)
 	if (c2_logbuf == NULL)
 		return -ENOMEM;
 
-	printk("Colibri: trace buffer address: 0x%p\n", c2_logbuf);
+	printk("Colibri trace buffer address: 0x%p\n", c2_logbuf);
 
 	return 0;
 }
