@@ -1670,6 +1670,8 @@ static void io_fops_create(enum C2_RPC_OPCODES op, int fids_nr, int fops_nr,
 	struct c2_fop_type	 *fopt;
 	struct c2_io_fop	**io_fops;
 
+        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
 	seed = 0;
 	for (i = 0; i < fids_nr; ++i)
 		io_offsets[i] = IO_SEG_START_OFFSET;
