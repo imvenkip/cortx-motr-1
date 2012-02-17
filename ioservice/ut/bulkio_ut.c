@@ -2013,6 +2013,8 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 	int			 j;
 	int			 rc;
 
+        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE)
 		C2_ALLOC_ARR(wfops, IO_FOPS_NR);
