@@ -133,6 +133,8 @@ struct c2_ut_run_cfg {
 	enum c2_ut_run_mode  urc_mode;
 	/** if true, then set CUnit's assert mode to CUA_Abort */
 	bool                 urc_abort_cu_assert;
+	/** if true, then execution time is reported for each test */
+	bool                 urc_report_exec_time;
 	/**
 	 * list of tests/suites to run, it can be empty, which means to run
 	 * all the tests

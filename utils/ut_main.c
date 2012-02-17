@@ -157,6 +157,7 @@ int main(int argc, char *argv[])
 	struct c2_ut_run_cfg cfg = {
 		.urc_mode              = C2_UT_BASIC_MODE,
 		.urc_abort_cu_assert   = true,
+		.urc_report_exec_time  = true,
 		.urc_test_list         = &test_list,
 		.urc_exclude_list      = &exclude_list,
 	};
@@ -205,6 +206,10 @@ int main(int argc, char *argv[])
 					    " failure",
 					LAMBDA(void, (void) {
 						cfg.urc_abort_cu_assert = false;
+					})),
+			    C2_VOIDARG('P', "don't report test execution time",
+					LAMBDA(void, (void) {
+						cfg.urc_report_exec_time = false;
 					})),
 			    );
 	if (result != 0)

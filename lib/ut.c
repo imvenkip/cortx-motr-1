@@ -138,7 +138,10 @@ static void ut_run_basic_mode(struct c2_list *test_list,
 
 void c2_ut_run(struct c2_ut_run_cfg *c)
 {
-	CU_basic_set_mode(CU_BRM_VERBOSE);
+	if (c->urc_report_exec_time)
+		CU_basic_set_mode(CU_BRM_VERBOSE_TIME);
+	else
+		CU_basic_set_mode(CU_BRM_VERBOSE);
 
 	if (c->urc_abort_cu_assert)
 		CU_set_assert_mode(CUA_Abort);
