@@ -48,7 +48,7 @@ const struct c2_net_buffer_pool_ops b_ops = {
 static void test_init(void)
 {
 	int         rc;
-	uint32_t    threshold = 2; 
+	uint32_t    threshold = 2;
 	uint32_t    seg_nr    = 64;
 	c2_bcount_t seg_size  = 4096;
 	uint32_t    colours   = 10;

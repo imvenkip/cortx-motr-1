@@ -43,7 +43,7 @@ C2_EXPORTED(c2_alloc);
 
 void *c2_alloc_aligned(size_t size, unsigned shift)
 {
-	/* 
+	/*
 	 * Currently it is supported for alignment of PAGE_SHIFT and
 	 * sizes from 4Kb to 4Mb.
 	 */
@@ -67,7 +67,7 @@ C2_EXPORTED(c2_allocated);
 
 /** @} end of memory group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

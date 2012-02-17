@@ -112,37 +112,37 @@ struct c2_ub_set c2_memory_ub = {
 	.us_name = "memory-ub",
 	.us_init = ub_init,
 	.us_fini = NULL,
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name  = "alloc-small",
-		  .ut_iter  = UB_ITER, 
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_small },
 
-		{ .ut_name  = "free-small", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "free-small",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_free },
 
 		{ .ut_name  = "alloc-medium",
-		  .ut_iter  = UB_ITER, 
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_medium },
 
-		{ .ut_name  = "free-medium", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "free-medium",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_free },
 
 		{ .ut_name  = "alloc-large",
-		  .ut_iter  = UB_ITER, 
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_large },
 
-		{ .ut_name  = "free-large", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "free-large",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_free },
 
 		{ .ut_name  = "alloc-huge",
-		  .ut_iter  = UB_ITER/1000, 
+		  .ut_iter  = UB_ITER/1000,
 		  .ut_round = ub_huge },
 
-		{ .ut_name  = "free-huge", 
-		  .ut_iter  = UB_ITER/1000, 
+		{ .ut_name  = "free-huge",
+		  .ut_iter  = UB_ITER/1000,
 		  .ut_round = ub_free },
 
 		{ .ut_name = NULL }
@@ -150,7 +150,7 @@ struct c2_ub_set c2_memory_ub = {
 };
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
