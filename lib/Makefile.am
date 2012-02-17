@@ -60,7 +60,6 @@ libc2_la_SOURCES     = \
                        getopts.h \
                        list.c \
                        list.h \
-                       memory.c \
                        memory.h \
                        misc.c \
                        misc.h \
@@ -85,6 +84,7 @@ libc2_la_SOURCES     = \
                        ub.h \
                        user_space/assert.h \
                        user_space/cdefs.h \
+                       user_space/memory.c \
                        user_space/mutex.h \
                        user_space/processor.c \
                        user_space/rwlock.c \
@@ -92,7 +92,7 @@ libc2_la_SOURCES     = \
                        user_space/semaphore.h \
                        user_space/thread.h \
                        user_space/timer.h \
-                       user_space/trace_parse.c \
+                       user_space/utrace.c \
                        user_space/trace.h \
                        user_space/types.h \
                        user_space/user_x86_64_atomic.h \

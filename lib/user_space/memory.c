@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "lib/arith.h"   /* min_type, c2_is_po2 */
 #include "lib/assert.h"
@@ -160,6 +161,12 @@ int c2_memory_init()
 void c2_memory_fini()
 {
 }
+
+int c2_pagesize_get()
+{
+	return getpagesize();
+}
+
 
 /** @} end of memory group */
 

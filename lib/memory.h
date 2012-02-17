@@ -70,6 +70,12 @@ void c2_free(void *data);
  */
 size_t c2_allocated(void);
 
+/**
+ * Same as system getpagesize(3).
+ * Used in the code shared between user and kernel.
+ */
+int c2_pagesize_get(void);
+
 /** @} end of memory group */
 
 #endif

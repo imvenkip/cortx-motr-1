@@ -1,5 +1,6 @@
+/* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -13,54 +14,47 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Andriy Tkachuk <Andriy_Tkachuk@xyratex.com>
+ * Original creation date: 02/16/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include <linux/slab.h>
-#include <linux/module.h>
+#include <linux/sched.h>
 
-#include "lib/cdefs.h"  /* C2_EXPORTED */
-#include "lib/memory.h"
+#include "lib/errno.h"
+#include "lib/atomic.h"
+#include "lib/arith.h" /* c2_align */
+#include "lib/trace.h"
 
 /**
-   @addtogroup memory
+ * @addtogroup trace
+ *
+ * <b>Tracing facilities kernel specific stuff</b>
+ *
+ * @{
+ */
 
-   <b>Linux kernel kmalloc based allocator.</b>
+extern void *c2_logbuf = NULL;
 
-   @{
-*/
-
-void *c2_alloc(size_t size)
+int c2_arch_trace_init(void)
 {
-	return kzalloc(size, GFP_KERNEL);
-}
-C2_EXPORTED(c2_alloc);
+	c2_logbuf = kzalloc(C2_TRACE_BUFSIZE, GFP_KERNEL);
+	if (c2_logbuf == NULL)
+		return -ENOMEM;
 
-void c2_free(void *data)
-{
-	kfree(data);
-}
-C2_EXPORTED(c2_free);
+	printk("Colibri: trace buffer address: 0x%p\n", c2_logbuf);
 
-size_t c2_allocated(void)
-{
 	return 0;
 }
-C2_EXPORTED(c2_allocated);
 
-int c2_pagesize_get(void)
+void c2_arch_trace_fini(void)
 {
-	return PAGE_SIZE;
+	kfree(c2_logbuf);
 }
 
-/** @} end of memory group */
+/** @} end of trace group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

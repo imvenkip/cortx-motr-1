@@ -80,7 +80,7 @@ lib_HEADERS 			:= misc.h memory.h errno.h arith.h buf.h \
 
 lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c  \
 				   kthread.c semaphore.c processor.c kvec.c   \
-				   ut.c main.c
+				   ktrace.c ut.c main.c
 
 lib_ut_SOURCES 			:= rwlock.c bitmap.c tlist.c chan.c list.c    \
 				   mutex.c queue.c refs.c tlist.c time.c      \

@@ -18,22 +18,11 @@
  * Original creation date: 08/12/2010
  */
 
-#ifdef __KERNEL__
-#  include <linux/slab.h>
-#  include <linux/sched.h>
-#else
-#  include <string.h>   /* memset */
-#  include <stdio.h>
-#  include <unistd.h>   /* getpagesize */
-#  include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
-#  include <sys/mman.h> /* mmap */
-#  include <sys/syscall.h>
-#  include <linux/sysctl.h>
-#endif
-
 #include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/arith.h" /* c2_align */
+#include "lib/misc.h"
+#include "lib/memory.h" /* c2_pagesize_get */
 #include "lib/trace.h"
 
 /**
@@ -56,96 +45,33 @@
  */
 
 /* single buffer for now */
-static void              *logbuf = NULL;
-static uint32_t           bufsize;
+void *c2_logbuf = NULL;
+
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
-#ifndef __KERNEL__
-static int                logfd;
-#endif
 
-enum {
-	BUFSHIFT = 10 + 12, /* 4MB log buffer */
-	BUFSIZE  = 1 << BUFSHIFT
-};
+extern int  c2_arch_trace_init(void);
+extern void c2_arch_trace_fini(void);
 
 int c2_trace_init(void)
 {
 	int psize;
 
-	C2_ASSERT(logbuf == NULL);
-#ifndef __KERNEL__
-	{
-		int name[] = { CTL_KERN, KERN_RANDOMIZE };
-		struct __sysctl_args args;
-		int val;
-		size_t val_sz = sizeof val;
-
-		memset(&args, 0, sizeof args);
-		args.name = name;
-		args.nlen = ARRAY_SIZE(name);
-		args.oldval  = &val;
-		args.oldlenp = &val_sz;
-
-		if (syscall(SYS__sysctl, &args) == -1) {
-			perror("_sysctl");
-			return -errno;
-		}
-
-		if (val != 0) {
-			fprintf(stderr, "System configuration ERROR: "
-			   "kernel.randomize_va_space should be set to 0.\n");
-			return -1;
-		}
-	}
-#endif
+	C2_ASSERT(c2_logbuf == NULL);
 
 	c2_atomic64_set(&cur, 0);
-	bufsize  = BUFSIZE;
-	bufmask  = bufsize - 1;
+	bufmask  = C2_TRACE_BUFSIZE - 1;
 
-#ifdef __KERNEL__
-	psize = PAGE_SIZE;
-#else
-	psize = getpagesize();
-#endif
-	C2_ASSERT((BUFSIZE % psize) == 0);
+	psize = c2_pagesize_get();
+	C2_ASSERT((C2_TRACE_BUFSIZE % psize) == 0);
 
-#ifndef __KERNEL__
-	errno = 0;
-	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
-	if (logfd != -1) {
-		if (ftruncate(logfd, BUFSIZE) == 0) {
-			logbuf = mmap(NULL, BUFSIZE, PROT_WRITE,
-				      MAP_SHARED, logfd, 0);
-			if (logbuf == MAP_FAILED)
-				perror("mmap");
-		}
-	} else {
-		perror("open");
-	}
-
-	return -errno;
-#else
-	logbuf = kzalloc(BUFSIZE, GFP_KERNEL);
-	if (logbuf == NULL)
-		return -ENOMEM;
-
-	printk("trace buffer address: 0x%p\n", logbuf);
-
-	return 0;
-#endif
+	return c2_arch_trace_init();
 }
 
 void c2_trace_fini(void)
 {
-#ifdef __KERNEL__
-	kfree(logbuf);
-#else
-	munmap(logbuf, bufsize);
-	close(logfd);
-#endif
-	logbuf = NULL;
+	c2_arch_trace_fini();
+	c2_logbuf = NULL;
 }
 
 
@@ -170,7 +96,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	struct c2_trace_rec_header *header;
 	register unsigned long sp asm ("sp");
 
-	C2_ASSERT(logbuf != NULL);
+	C2_ASSERT(c2_logbuf != NULL);
 	/*
 	 * Allocate space in trace buffer to store trace record header
 	 * (header_len bytes) and record payload (record_len bytes).
@@ -194,13 +120,13 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 		 * The record should not cross the buffer.
 		 */
 		if (pos_in_buf > endpos_in_buf && endpos_in_buf) {
-			memset(logbuf + pos_in_buf, 0, bufsize - pos_in_buf);
-			memset(logbuf, 0, endpos_in_buf);
+			memset(c2_logbuf + pos_in_buf, 0, C2_TRACE_BUFSIZE - pos_in_buf);
+			memset(c2_logbuf, 0, endpos_in_buf);
 		} else
 			break;
 	}
 
-	header                = logbuf + pos_in_buf;
+	header                = c2_logbuf + pos_in_buf;
 	header->trh_magic     = 0;
 	header->trh_no        = pos;
 	header->trh_sp        = sp;
@@ -208,7 +134,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	header->trh_descr     = td;
 	memcpy((void*)header + header_len, body, td->td_size);
 	/** @todo put memory barrier here before writing the magic */
-	header->trh_magic = MAGIC;     
+	header->trh_magic = C2_TRACE_MAGIC;     
 }
 
 /** @} end of trace group */

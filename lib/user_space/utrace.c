@@ -19,6 +19,14 @@
  */
 
 #include <stdio.h>    /* getchar */
+#include <string.h>   /* memset */
+#include <errno.h>
+#include <stdio.h>
+#include <unistd.h>   /* getpagesize */
+#include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
+#include <sys/mman.h> /* mmap */
+#include <sys/syscall.h>
+#include <linux/sysctl.h>
 
 #include "lib/arith.h"
 #include "lib/memory.h"
@@ -27,12 +35,62 @@
 /**
    @addtogroup trace
 
-   <b>User-space trace_parse() implementation.</b>
+   <b>User-space c2_trace_parse() implementation.</b>
 
    @{
  */
 
 static int read_count;
+static int logfd;
+
+extern void *c2_logbuf;
+
+int c2_arch_trace_init()
+{
+	int name[] = { CTL_KERN, KERN_RANDOMIZE };
+	struct __sysctl_args args;
+	int val;
+	size_t val_sz = sizeof val;
+
+	memset(&args, 0, sizeof args);
+	args.name = name;
+	args.nlen = ARRAY_SIZE(name);
+	args.oldval  = &val;
+	args.oldlenp = &val_sz;
+
+	if (syscall(SYS__sysctl, &args) == -1) {
+		perror("_sysctl");
+		return -errno;
+	}
+
+	if (val != 0) {
+		fprintf(stderr, "System configuration ERROR: "
+		   "kernel.randomize_va_space should be set to 0.\n");
+		return -EINVAL;
+	}
+
+	errno = 0;
+	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
+	if (logfd != -1) {
+		if (ftruncate(logfd, C2_TRACE_BUFSIZE) == 0) {
+			c2_logbuf = mmap(NULL, C2_TRACE_BUFSIZE, PROT_WRITE,
+				      MAP_SHARED, logfd, 0);
+			if (c2_logbuf == MAP_FAILED)
+				perror("mmap");
+		}
+	} else {
+		perror("open");
+	}
+
+	return -errno;
+}
+
+void c2_arch_trace_fini(void)
+{
+	munmap(c2_logbuf, C2_TRACE_BUFSIZE);
+	close(logfd);
+}
+
 
 static void align(unsigned align)
 {
@@ -63,7 +121,7 @@ int c2_trace_parse(void)
 
 	read_count = 0;
 
-	printf("  pos  |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
+	printf("  no   |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
 	printf("------------------------------------------------------------------------------------------\n");
 
 	while (!feof(stdin)) {
@@ -79,7 +137,7 @@ int c2_trace_parse(void)
 				return 0;
 			}
 			read_count += nr;
-		} while (trh.trh_magic != MAGIC);
+		} while (trh.trh_magic != C2_TRACE_MAGIC);
 
 		/* Now we might have complete record */
 		n2r = sizeof trh - sizeof trh.trh_magic;

@@ -166,8 +166,13 @@ void c2_trace_fini(void);
 
 /** Magic number to locate the record */
 enum {
-	MAGIC = 0xc0de1eafacc01adeULL,
+	C2_TRACE_MAGIC = 0xc0de1eafacc01adeULL,
 };
+
+enum {
+	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB log buffer */
+};
+
 
 /**
  * Record header structure
