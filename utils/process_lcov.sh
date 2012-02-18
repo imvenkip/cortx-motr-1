@@ -27,14 +27,12 @@ INDEX_FILE=""
 OUTPUT_BANNER="Module ln_cov ln_hit ln_tot fn_cov fn_hit fn_tot br_cov br_hit \
 br_tot"
 
-if [ $# -eq 0 ]
-then
+if [ $# -eq 0 ]; then
     usage
     exit 1
 fi
 
-while getopts "bcfi:l" OPTION
-do
+while getopts "bcfi:l" OPTION; do
     case "$OPTION" in
 	b)
 	    BRANCH_COV=1
@@ -58,15 +56,13 @@ do
     esac
 done
 
-if [ "x$INDEX_FILE" = "x" ]
-then
+if [ "x$INDEX_FILE" = "x" ]; then
     echo "index.html not specified"
     usage
     exit 1
 fi
 
-if [ $LINE_COV -eq 0 -a $FUNCTION_COV -eq 0 -a $BRANCH_COV -eq 0 ]
-then
+if [ $LINE_COV -eq 0 -a $FUNCTION_COV -eq 0 -a $BRANCH_COV -eq 0 ]; then
     LINE_COV=1
 fi
 
@@ -89,8 +85,7 @@ cat $INDEX_FILE | egrep "coverFile|coverPer|coverNum" | sed 's/<[/]*[^>]*>//g'| 
 $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' |\
     grep -v "^[ \t]*$" > $tempfile
 
-if [ $CSV_FORMAT -eq 1 ]
-then
+if [ $CSV_FORMAT -eq 1 ]; then
     FORMAT_STRING1="%s,"
     FORMAT_STRING2="%s,%s,%s,"
 else
