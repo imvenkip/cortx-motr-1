@@ -17,9 +17,6 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ -I@SRCDIR@/net/ksunrpc @KCFLAGS@
 prepare:
 	ln -fs $(link_st) .
 
-install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/$(NST_MOD) -C @LINUX_OBJ@ M=`pwd` modules_install
-
 clean distclean:
 	$(RM) $(st_src)
 	$(RM) Module.markers Module.symvers modules.order

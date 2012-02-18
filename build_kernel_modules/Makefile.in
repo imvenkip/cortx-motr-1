@@ -193,14 +193,12 @@ all:
 #	DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
-CURRENT = $(shell uname -r)
-DEST = /lib/modules/$(CURRENT)/kernel/fs/colibri
-
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` modules_install
 
 uninstall:
-	su -c "rm -fr $(DEST) && /sbin/depmod -a"
+	su -c "rm -fr @LINUX_MOD@/kernel/fs/colibri && rm -fr @LINUX_MOD@/kernel/fs/utils && \
+rm -fr @LINUX_MOD@/kernel/fs/rpc && rm -fr @LINUX_MOD@/kernel/fs/net && /sbin/depmod -a"
 
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in @top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
