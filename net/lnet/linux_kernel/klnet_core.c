@@ -966,6 +966,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	struct nlx_core_buffer_event *bev;
 	c2_time_t now = c2_time_now();
 	bool is_unlinked = false;
+	unsigned mlength;
 	int status;
 
 	C2_PRE(event != NULL);
@@ -997,6 +998,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		is_unlinked = true;
 	}
 	status = event->status;
+	mlength = event->mlength;
 
 	if (event->type == LNET_EVENT_SEND &&
 	    cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
@@ -1014,6 +1016,8 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 			lctm, event->md.threshold);
 		if (status == 0 && event->md.threshold != 0)
 			status = -ECANCELED;
+		else
+			mlength = kbp->kb_mlength; /* from earlier REPLY */
 	}
 	if (event->type == LNET_EVENT_UNLINK) /* see nlx_core_buf_del */
 		status = -ECANCELED;
@@ -1022,9 +1026,12 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s !unlinked Q=%d\n", lctm,
 			event, nlx_kcore_lnet_event_type_to_string(event->type),
 			cbp->cb_qtype);
-		/* we may get REPLY before SEND, so ignore such events */
+		/* We may get REPLY before SEND, so ignore such events,
+		   but save the mlength for when the SEND arrives.
+		*/
 		if (cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
 			C2_ASSERT(event->md.threshold == 1);
+			kbp->kb_mlength = mlength;
 			return;
 		}
 		/* we don't expect anything other than receive messages */
@@ -1037,7 +1044,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	bev->cbe_buffer_id = cbp->cb_buffer_id;
 	bev->cbe_time      = now;
 	bev->cbe_status    = status;
-	bev->cbe_length    = event->mlength;
+	bev->cbe_length    = mlength;
 	bev->cbe_offset    = event->offset;
 	bev->cbe_unlinked  = is_unlinked;
 	if (event->hdr_data != 0) {

@@ -122,6 +122,11 @@ struct nlx_kcore_buffer {
 	/** MD handle */
 	lnet_handle_md_t              kb_mdh;
 
+	/** The saved mlength value in the case of an out-of-order
+	    REPLY/SEND event sequence.
+	*/
+	unsigned                      kb_mlength;
+
 	/** ADDB context for events related to this buffer */
 	struct c2_addb_ctx            kb_addb;
 };

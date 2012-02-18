@@ -1445,14 +1445,14 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, 0, 0, 1);
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 1, 0);
+	ut_ktest_bulk_send_event(lcbuf1, 0, 0, 1, 0); /* size is wrong */
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_status1 == 0);
-	C2_UT_ASSERT(cb_length1 == UT_BULK_SIZE);
+	C2_UT_ASSERT(cb_length1 == UT_BULK_SIZE); /* size must match REPLY */
 	C2_UT_ASSERT(cb_offset1 == 0);
 	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
 
