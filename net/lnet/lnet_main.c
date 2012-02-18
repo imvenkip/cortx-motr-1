@@ -788,7 +788,9 @@
 struct nlx_debug {
 	int _debug_;
 };
-static struct nlx_debug nlx_debug; /* global debug control */
+static struct nlx_debug nlx_debug = {
+	._debug_ = 0,
+}; /* global debug control */
 
 /* note Linux uses the LP64 standard */
 #ifdef __KERNEL__

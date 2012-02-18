@@ -434,6 +434,18 @@ static void ut_ktest_msg_send_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
+/* Scatter ACK events in all the test suites. They should be ignored. */
+static void ut_ktest_ack_event(struct nlx_core_buffer *lcbuf)
+{
+	lnet_event_t ev;
+
+	C2_SET0(&ev);
+	ev.type          = LNET_EVENT_ACK;
+	ev.unlinked      = 1;
+	nlx_kcore_eq_cb(&ev);
+}
+
+
 /* memory duplicate only; no ref count increment */
 static lnet_kiov_t *ut_ktest_kiov_mem_dup(const lnet_kiov_t *kiov, size_t len)
 {
@@ -638,6 +650,7 @@ static void ktest_msg_body(struct ut_data *td)
 	len = 1;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -688,6 +701,7 @@ static void ktest_msg_body(struct ut_data *td)
 	len = 11;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 1, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -751,6 +765,7 @@ static void ktest_msg_body(struct ut_data *td)
 	offset += len;
 	len = 10;
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
 	count++;
 	C2_UT_ASSERT(cb_called1 == 0);
@@ -838,6 +853,7 @@ static void ktest_msg_body(struct ut_data *td)
 	offset += len;
 	len = 15;
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
 	count++;
 
@@ -903,6 +919,7 @@ static void ktest_msg_body(struct ut_data *td)
 
 	/* deliver the completion event */
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_msg_send_event(lcbuf1, UT_MSG_SIZE, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1285,6 +1302,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_bulk_unlink_event(lcbuf1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1371,6 +1389,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_bulk_unlink_event(lcbuf1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1410,6 +1429,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 0, 1);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, 0, 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1446,6 +1466,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	C2_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, 0, 0, 1);
 	ut_ktest_bulk_send_event(lcbuf1, 0, 0, 1, 0); /* size is wrong */
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1520,6 +1541,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 0, 1);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, -EIO, 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1595,6 +1617,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 1, 1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1701,6 +1724,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, -EIO, 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1736,6 +1760,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
+	ut_ktest_ack_event(lcbuf1); /* bad event */
 	ut_ktest_bulk_unlink_event(lcbuf1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
