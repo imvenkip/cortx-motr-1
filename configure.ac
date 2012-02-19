@@ -389,9 +389,9 @@ CFLAGS=""
 OLD_LIBS=$LIBS
 LIBS=""
 AC_SEARCH_LIBS([galois_create_mult_tables], [galois], [
-        AC_CHECK_HEADERS([galois.h], [],
+        AC_CHECK_HEADERS([galois/galois.h], [],
         [
-                AC_MSG_ERROR([galois.h is not found. Try install galois from $SRCDIR/../galois or from rpm])
+                AC_MSG_ERROR([galois/galois.h is not found. Try install galois from $SRCDIR/../galois or from rpm])
         ],[])
 ], [
         AC_MSG_ERROR([galois_create_mult_tables cannot be found! Try install galois package from $SRCDIR/../galois or from rpm])
@@ -504,7 +504,7 @@ CFLAGS="$OLD_CFLAGS")
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
 CFLAGS=`echo "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I. -I$SRCDIR $CFLAGS"`
-KCFLAGS="-Wall -Werror $KCFLAGS"
+KCFLAGS="-Wall -Werror $KCFLAGS -I/usr/local/include"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"

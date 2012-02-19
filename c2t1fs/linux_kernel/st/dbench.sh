@@ -22,6 +22,7 @@ echo "server address is $IPAddr:$Port"
 rmmod loop
 
 ulimit -c unlimited
+modprobe galois
 insmod build_kernel_modules/kcolibri.ko
 
 lsmod | grep -c "c2t1fs" || exit
@@ -59,6 +60,7 @@ losetup -d /dev/loop0
 umount /mnt/c2t1fs
 
 rmmod kcolibri
+rmmod galois
 
 killall lt-server
 echo ======================done=====================
