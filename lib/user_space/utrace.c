@@ -38,7 +38,6 @@
    @{
  */
 
-static int read_count;
 static int logfd;
 
 extern void *c2_logbuf;
@@ -90,15 +89,14 @@ void c2_arch_trace_fini(void)
 }
 
 
-static void align(unsigned align)
+static unsigned align(unsigned align, unsigned pos)
 {
-	int pos = read_count ? read_count - 1 : 0;
 	C2_ASSERT(c2_is_po2(align));
 	while (!feof(stdin) && (pos & (align - 1))) {
 		getchar();
 		pos++;
 	}
-	read_count = pos + 1;
+	return pos;
 }
 
 /**
@@ -108,17 +106,17 @@ int c2_trace_parse(void)
 {
 	struct c2_trace_rec_header   trh;
 	const struct c2_trace_descr *td;
-	int                          nr, n2r;
+	unsigned                     pos = 0;
+	unsigned                     nr;
+	unsigned                     n2r;
 
-	read_count = 0;
-
-	printf("  no   |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
-	printf("------------------------------------------------------------------------------------------\n");
+	printf("   no   |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
+	printf("-------------------------------------------------------------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
 
-		align(8); /* At the beginning of a record */
+		pos = align(8, pos); /* At the beginning of a record */
 
 		/* Find the complete record */
 		do {
@@ -127,14 +125,14 @@ int c2_trace_parse(void)
 				C2_ASSERT(feof(stdin));
 				return 0;
 			}
-			read_count += nr;
+			pos += nr;
 		} while (trh.trh_magic != C2_TRACE_MAGIC);
 
 		/* Now we might have complete record */
 		n2r = sizeof trh - sizeof trh.trh_magic;
 		nr = fread(&trh.trh_sp, 1, n2r, stdin);
 		C2_ASSERT(nr == n2r);
-		read_count += nr;
+		pos += nr;
 
 		td = trh.trh_descr;
 
@@ -143,13 +141,12 @@ int c2_trace_parse(void)
 
 		nr = fread(buf, 1, td->td_size, stdin);
 		C2_ASSERT(nr == td->td_size);
-		read_count += nr;
+		pos += nr;
 
 		c2_trace_print_record(&trh, buf);
 
 		if (buf)
 			c2_free(buf);
-		align(8);
 	}
 	return 0;
 }

@@ -152,7 +152,7 @@ c2_trace_print_record(const struct c2_trace_rec_header *trh, const void *buf)
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
 
-	c2_printf("%7.7llu %15.15llu %16.16llx %-20s %15s:%-3i %3.3i %3i\n\t",
+	c2_printf("%8.8llu %15.15llu %16.16llx %-20s %15s:%-3i %3.3i %3i\n\t",
 	       (unsigned long long)trh->trh_no,
 	       (unsigned long long)trh->trh_timestamp,
 	       (unsigned long long)trh->trh_sp,
