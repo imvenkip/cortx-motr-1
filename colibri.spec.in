@@ -6,10 +6,19 @@ Group: System Environment/Base
 License: Xyratex
 Source: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}
-Requires: CUnit, libyaml, libyaml-devel, galois, galois-devel, db4, db4-devel
+Requires: CUnit = 2.1-2 libyaml galois db4
+BuildRequires: CUnit = 2.1-2 libyaml-devel galois-devel db4-devel automake autoconf libtool
 
 %description
-Colibri filesystem and development libraries.
+Colibri filesystem runtime environment and servers.
+
+%package devel
+Summary:	%{name} development package
+Group:		Development/Libraries
+Requires:	%{name} = %{version} libyaml-devel galois-devel db4-devel
+
+%description devel
+Colibri filesystem development environment.
 
 %prep
 %setup  -q -n %{name}-%{version}
@@ -25,8 +34,17 @@ DESTDIR="$RPM_BUILD_ROOT" make install
 
 %files
 %defattr(-,root,root)
-%doc AUTHORS README NEWS ChangeLog COPYING INSTALL doc
-%{_includedir}/*
-%{_libdir}/libcolibri*
+%doc AUTHORS README NEWS ChangeLog COPYING INSTALL
+%{_libdir}/libcolibri*.so*
 /lib/modules/*
 /usr/sbin/*
+
+%post
+/sbin/depmod -a
+
+%files devel
+%defattr(-,root,root)
+%doc AUTHORS README NEWS ChangeLog COPYING INSTALL doc
+%{_includedir}/*
+%{_libdir}/libcolibri*.a*
+%{_libdir}/libcolibri*.la*

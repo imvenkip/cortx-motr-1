@@ -504,7 +504,11 @@ CFLAGS="$OLD_CFLAGS")
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
 CFLAGS=`echo "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I. -I$SRCDIR $CFLAGS"`
-KCFLAGS="-Wall -Werror $KCFLAGS -I/usr/local/include"
+#
+# Galois header may be in one of the following standard loctions. Kernel needs to know about.
+#
+GALOIS_INCLUDES="-I/usr/local/include -I/usr/include"
+KCFLAGS="-Wall -Werror $KCFLAGS $GALOIS_INCLUDES"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
