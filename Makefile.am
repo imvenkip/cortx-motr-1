@@ -8,6 +8,7 @@ SUBDIRS_BASE = m4 doc man patches
 SUBDIRS_LIBS = \
                lib \
                addb/addb_pseudo \
+               c2t1fs \
                fol \
                db \
                fid \
@@ -57,7 +58,7 @@ SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT) \
 etags:
 	find . -name '*.[ch]' | xargs etags
 
-EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog
+EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog colibri.spec.in colibri.spec
 ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 ACLOCAL_AMFLAGS = -I m4
 

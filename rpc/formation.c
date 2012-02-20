@@ -27,6 +27,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
+#include "lib/trace.h"
 
 #include "rpc/rpc_onwire.h"
 
@@ -384,8 +385,9 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	}
 	/* Detach all rpc items from this object */
 	c2_list_for_each_entry_safe(&rpc->r_items, item, item_next,
-			struct c2_rpc_item, ri_rpcobject_linkage)
+			struct c2_rpc_item, ri_rpcobject_linkage) {
 		c2_list_del(&item->ri_rpcobject_linkage);
+	}
 
 	c2_rpcobj_fbuf_fini(fb);
 	c2_rpcobj_fini(rpc);

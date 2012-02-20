@@ -18,8 +18,6 @@
  * Original creation date: 10/04/2010
  */
 
-#include "ut/ioredirect.h"
-
 #include "lib/ut.h"
 #include "lib/cdefs.h"         /* ARRAY_SIZE */
 #include "lib/thread.h"        /* LAMBDA */

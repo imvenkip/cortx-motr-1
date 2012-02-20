@@ -1,5 +1,3 @@
-UT_SRCDIR=@SRCDIR@/rpc/ut
-
 INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
 
 #noinst_PROGRAMS   = rclient rserver
@@ -28,6 +26,8 @@ test_u.h test_u.c : test.ff \
 
 libonwire_ut_la_SOURCES     = test_u.h test_u.c onwire_ut.c
 
+EXTRA_DIST = test.ff
+
 clean-local:
-	cd $(UT_SRCDIR) ; \
+	cd @SRCDIR@/rpc/ut ; \
 	rm -fr test_[uk].[ch]

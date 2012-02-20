@@ -22,7 +22,7 @@ EXTRA_CFLAGS 	= -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
 #	The $(dirs) list is maintained alphabetically
 
-dirs  = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid \
+dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db db/linux_kernel dtm fid \
 	fol fop galois ioservice layout lib lib/linux_kernel lib/ut net      \
 	net/bulk_emulation net/bulk_emulation/ut net/ksunrpc net/ut pool rpc \
 	sm sns stob stob/ut ut xcode xcode/ut
@@ -36,11 +36,10 @@ addb_linux_kernel_SOURCES 	:= addb_console.c
 
 #	If there's a directory 'd' in $(dirs) then the listing of files given
 #	for d_SOURCES is relative to $(CORE_SRCDIR)/d; e.g. in the following,
-#	../ioservice/ points to $(CORE_SRCDIR)/c2t1fs/../ioservice/
+#	../../ioservice/ points to $(CORE_SRCDIR)/c2t1fs/../../ioservice/
 
-c2t1fs_SOURCES 			:= main.c
-c2t1fs_HEADERS 			:= c2t1fs.h ../ioservice/io_fops_k.h	\
-				   ../stob/ut/io_k.h
+c2t1fs_linux_kernel_SOURCES	:= main.c
+c2t1fs_linux_kernel_HEADERS 	:= c2t1fs.h ../../ioservice/io_fops_k.h ../../stob/ut/io_k.h
 
 cob_SOURCES 			:= cob.c
 
@@ -73,21 +72,22 @@ layout_HEADERS 			:= layout.h pdclust.h
 
 lib_SOURCES 			:= bitstring.c vec.c list.c queue.c refs.c    \
 				   time.c bitmap.c chan.c misc.c buf.c cond.c \
-				   thread.c tlist.c bob.c
+				   thread.c tlist.c bob.c trace.c
 
-lib_HEADERS 			:= misc.h memory.h errno.h arith.h buf.h
+lib_HEADERS 			:= misc.h memory.h errno.h arith.h buf.h \
+				   trace.h
 
 lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c  \
 				   kthread.c semaphore.c processor.c kvec.c   \
-				   ut.c main.c
+				   ktrace.c ut.c main.c
 
 lib_ut_SOURCES 			:= rwlock.c bitmap.c tlist.c chan.c list.c    \
 				   mutex.c queue.c refs.c tlist.c time.c      \
-				   vec.c zerovec.c thread.c bob.c
+				   vec.c zerovec.c thread.c bob.c trace.c
 
 net_SOURCES 			:= buf.c buffer_pool.c domain.c ep.c net.c    \
 				   tm.c connection.c net_cli.c net_utils.c    \
-				    net_srv.c net_otw_types_k.c
+				   net_srv.c net_otw_types_k.c
 net_HEADERS 			:= net.h net_internal.h net_otw_types_k.h
 
 net_bulk_emulation_SOURCES 	:= ksunrpc_server.c sunrpc_io_k.c
@@ -192,6 +192,18 @@ all:
 		$(create_links)))
 #	DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
+
+CURRENT = $(shell uname -r)
+DEST = /lib/modules/$(CURRENT)/kernel/fs/colibri
+
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	su -c "rm -fr $(DEST) && /sbin/depmod -a"
+
+dist distdir:
+	cp -v dummy_init_fini.[ch] main.c Makefile.in @top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
 
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean

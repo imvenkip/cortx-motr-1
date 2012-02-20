@@ -1,4 +1,4 @@
-nrsdir                     = $(includedir)/nrs
+nrsdir                     = $(includedir)/colibri/nrs
 nrs_HEADERS                = nrs.h
 
 noinst_LTLIBRARIES         = libcolibri-nrs.la

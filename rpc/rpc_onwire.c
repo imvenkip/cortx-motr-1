@@ -21,6 +21,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/arith.h"
+#include "lib/trace.h"
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "rpc/session_internal.h"
