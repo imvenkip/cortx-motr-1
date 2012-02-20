@@ -206,8 +206,8 @@ struct c2_trace_descr {
 	const int  *td_sizeof;
 };
 
-void c2_trace_allot(const struct c2_trace_descr *, const void *data);
-void c2_trace_print_record(const struct c2_trace_rec_header *, const void *buf);
+void c2_trace_allot(const struct c2_trace_descr *td, const void *data);
+void c2_trace_print_record(const struct c2_trace_rec_header *trh, const void *buf);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging
