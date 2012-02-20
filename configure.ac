@@ -304,11 +304,6 @@ AC_ARG_ENABLE([gssrpc],
         [enable_gssrpc=no]
 )
 
-#AC_ARG_ENABLE([db-o_direct],
-#        [AC_HELP_STRING([--enable-db-o_direct], [enable db direct IO support])], [],
-#        [enable_db_o_direct=no]
-#)
-
 AC_MSG_CHECKING([for operating system])
 AC_MSG_RESULT([$host_os])
 case $host_os in
@@ -329,8 +324,8 @@ AC_ARG_WITH([linux],
 AC_MSG_RESULT([$LINUX])
 AC_SUBST([LINUX])
 
-AC_ARG_ENABLE(coverage,
-	[  --enable-coverage  Build for test coverage analysis],
+AC_ARG_ENABLE([coverage],
+	[AC_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
 	[case "${enableval}" in
 		yes) ENABLE_COVERAGE=1 ;;
 		no) ENABLE_COVERAGE=0 ;;
