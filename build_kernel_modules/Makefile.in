@@ -159,6 +159,8 @@ obj-y += $(testdirs)
 create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)) \
 		2> /dev/null)
 
+GALOIS_SRC = @GALOIS_SRC@
+
 all:
 	@echo $(kcolibri-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
@@ -175,8 +177,13 @@ all:
 		$(create_links)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),  \
 		$(create_links)))
+ifneq ($(GALOIS_SRC),)
+#	DO NOT append 'modules' target to the following $(MAKE)
+	$(MAKE) -C $(KERNEL_BUILDDIR) KBUILD_EXTRA_SYMBOLS=@GALOIS_SRC@/src/linux_kernel/Module.symvers M=`pwd`
+else
 #	DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
+endif
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` modules_install
