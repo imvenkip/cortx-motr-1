@@ -114,7 +114,12 @@ void c2_free(void *data)
 {
 	__free(data);
 }
-
+/*
+void c2_free_aligned(void *data, unsigned order)
+{
+	c2_free(data);
+}
+*/
 static size_t used0;
 
 size_t c2_allocated(void)

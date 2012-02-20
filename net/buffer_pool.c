@@ -150,7 +150,7 @@ static void buffer_remove(struct c2_net_buffer_pool *pool,
 		tm_tlist_del(nb);
 	tm_tlink_fini(nb);
 	c2_net_buffer_deregister(nb, pool->nbp_ndom);
-	c2_bufvec_free(&nb->nb_buffer);
+	c2_bufvec_free_aligned(&nb->nb_buffer);
 	c2_free(nb);
 	C2_CNT_DEC(pool->nbp_buf_nr);
 	C2_POST(c2_net_buffer_pool_invariant(pool));
@@ -266,7 +266,7 @@ static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	return true;
 clean:
 	C2_ASSERT(rc != 0);
-	c2_bufvec_free(&nb->nb_buffer);
+	c2_bufvec_free_aligned(&nb->nb_buffer);
 	c2_free(nb);
 	return false;
 }

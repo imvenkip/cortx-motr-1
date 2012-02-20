@@ -21,16 +21,13 @@
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/ub.h"
 #include "lib/ut.h"
+#include "lib/vec.h"    /* C2_SEG_SIZE & C2_SEG_SHIFT */
 #include "lib/memory.h"
 
 struct test1 {
 	int a;
 };
 
-enum {
-	SHIFT    = 12,
-	BUF_SIZE = 4096,
-};
 void test_memory(void)
 {
 	void         *ptr1;
@@ -49,13 +46,18 @@ void test_memory(void)
 	c2_free(ptr2);
 	C2_UT_ASSERT(allocated == c2_allocated());
 
-	/* Checking c2_alloc_aligned for buffer sizes from 4Kb to 4Mb. */
-	for (i = BUF_SIZE; i <= BUF_SIZE * 1024; i += BUF_SIZE) {
-		ptr1 = c2_alloc_aligned(i, SHIFT);
+	/* Checking c2_alloc_aligned for buffer sizes from 4K to 64Kb. */
+	for (i = C2_SEG_SIZE; i <= C2_SEG_SIZE * 16; i += C2_SEG_SIZE) {
+		ptr1 = c2_alloc_aligned(i, C2_SEG_SHIFT);
 		addr = (uint64_t)ptr1;
-		C2_UT_ASSERT(((addr >> SHIFT) << SHIFT) == addr);
+		C2_UT_ASSERT(((addr >> C2_SEG_SHIFT) << C2_SEG_SHIFT) == addr);
+#ifndef __KERNEL__
 		c2_free(ptr1);
+#else
+		c2_free_aligned(ptr1, get_order(i));
+#endif
 	}
+
 }
 
 enum {

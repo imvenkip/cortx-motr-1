@@ -43,13 +43,17 @@ C2_EXPORTED(c2_alloc);
 
 void *c2_alloc_aligned(size_t size, unsigned shift)
 {
+	int   order;
+	void *addr;
 	/*
-	 * Currently it is supported for alignment of PAGE_SHIFT and
-	 * sizes from 4Kb to 4Mb.
+	 * Currently it supports alignment of PAGE_SHIFT only.
 	 */
-	C2_ASSERT(shift == PAGE_SHIFT || shift == 0);
-	C2_ASSERT(size >= 4096 || size <= 4 * 1024 * 1024);
-	return c2_alloc(size);
+	C2_ASSERT(shift == PAGE_SHIFT);
+	order = get_order(size);
+	if(size == 0) addr = NULL;
+	else
+		addr = (void *)__get_free_pages(GFP_KERNEL, order);
+	return addr;
 }
 C2_EXPORTED(c2_alloc_aligned);
 
@@ -58,6 +62,12 @@ void c2_free(void *data)
 	kfree(data);
 }
 C2_EXPORTED(c2_free);
+
+void c2_free_aligned(void *addr, unsigned order)
+{
+	free_pages((unsigned long)addr, order);
+}
+C2_EXPORTED(c2_free_aligned);
 
 size_t c2_allocated(void)
 {

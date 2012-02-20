@@ -66,6 +66,14 @@ void *c2_alloc_aligned(size_t size, unsigned shift);
 void c2_free(void *data);
 
 /**
+ * Frees aligned memory block
+ * This function must be a no-op when called with NULL argument.
+ * @param data pointer to allocated block
+ *
+ */
+void c2_free_aligned(void *data, unsigned order);
+
+/**
  * Return amount of memory currently allocated.
  */
 size_t c2_allocated(void);
