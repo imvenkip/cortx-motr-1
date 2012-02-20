@@ -23,8 +23,6 @@
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
-#include <sys/syscall.h>
-#include <linux/sysctl.h>
 
 #include "lib/arith.h"
 #include "lib/memory.h"
@@ -40,26 +38,26 @@
 
 static int logfd;
 
+#define SYS_KERN_RANDVSPACE_FNAME "/proc/sys/kernel/randomize_va_space"
+
 
 int c2_arch_trace_init()
 {
-	int name[] = { CTL_KERN, KERN_RANDOMIZE };
-	struct __sysctl_args args;
-	int val;
-	size_t val_sz = sizeof val;
+	FILE *f;
+	char buf[10];
+	char *s;
 
-	memset(&args, 0, sizeof args);
-	args.name = name;
-	args.nlen = ARRAY_SIZE(name);
-	args.oldval  = &val;
-	args.oldlenp = &val_sz;
-
-	if (syscall(SYS__sysctl, &args) == -1) {
-		perror("_sysctl");
-		return -errno;
+	f = fopen(SYS_KERN_RANDVSPACE_FNAME, "r");
+	if (f == NULL) {
+		perror("fopen " SYS_KERN_RANDVSPACE_FNAME);
+		goto out;
 	}
-
-	if (val != 0) {
+	s = fgets(buf, ARRAY_SIZE(buf) - 1, f);
+	if (s == NULL) {
+		perror("read " SYS_KERN_RANDVSPACE_FNAME);
+		goto out;
+	}
+	if (s[0] != '0') {
 		fprintf(stderr, "System configuration ERROR: "
 		   "kernel.randomize_va_space should be set to 0.\n");
 		return -EINVAL;
@@ -77,6 +75,10 @@ int c2_arch_trace_init()
 	} else {
 		perror("open");
 	}
+
+out:
+	if (f != NULL)
+		fclose(f);
 
 	return -errno;
 }
