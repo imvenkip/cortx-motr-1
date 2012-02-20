@@ -424,6 +424,24 @@ GALOIS_SRC=""
 GALOIS_LIBS=$LIBS
 LIBS=$OLD_LIBS
 
+galois_locations="/usr /usr/local /opt /opt/local"
+AC_MSG_CHECKING([galois symvers])
+GALOIS_SYMVERS=""
+for p in $galois_locations; do
+        symvers="$p/share/galois/symvers/Module.symvers"
+        if test -f $symvers; then
+                GALOIS_SYMVERS=$symvers
+                break
+        fi
+done
+
+if ! test x$GALOIS_SYMVERS = "x"; then
+        AC_MSG_RESULT([$GALOIS_SYMVERS])
+        AC_SUBST([GALOIS_SYMVERS])
+else
+        AC_MSG_ERROR([Galois Module.symvers is not found in the following locations: ${galois_locations}])
+fi
+
 else
 
 GALOIS_SRC=$SRCDIR/../galois
@@ -431,6 +449,14 @@ GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
 build_lib galois $GALOIS_SRC $GALOIS_LIBS '--with-pic'
 
+AC_MSG_CHECKING([galois symvers])
+GALOIS_SYMVERS="$GALOIS_SRC/src/linux_kernel/Module.symvers"
+if test -f $GALOIS_SYMVERS; then
+        AC_MSG_RESULT([$GALOIS_SYMVERS])
+        AC_SUBST([GALOIS_SYMVERS])
+else
+        AC_MSG_ERROR([Can't find ${GALOIS_SYMVERS}! Make sure that galois is built correctly.])
+fi
 fi
 
 # Check for yaml
