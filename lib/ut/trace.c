@@ -30,11 +30,12 @@ enum {
 	NR_INNER = 100000
 };
 
+static struct c2_thread t[NR];
+
 void test_trace(void)
 {
 	int i;
 	int result;
-	struct c2_thread t[NR];
 	uint64_t u64;
 
 	C2_LOG("forty two: %i", 42);
