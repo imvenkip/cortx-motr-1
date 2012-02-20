@@ -45,7 +45,8 @@
  */
 
 /* single buffer for now */
-void *c2_logbuf = NULL;
+void      *c2_logbuf = NULL;
+uint32_t   c2_logbufsize;
 
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
@@ -60,10 +61,11 @@ int c2_trace_init(void)
 	C2_ASSERT(c2_logbuf == NULL);
 
 	c2_atomic64_set(&cur, 0);
-	bufmask  = C2_TRACE_BUFSIZE - 1;
+	c2_logbufsize = C2_TRACE_BUFSIZE;
+	bufmask = c2_logbufsize - 1;
 
 	psize = c2_pagesize_get();
-	C2_ASSERT((C2_TRACE_BUFSIZE % psize) == 0);
+	C2_ASSERT((c2_logbufsize % psize) == 0);
 
 	return c2_arch_trace_init();
 }
@@ -120,7 +122,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 		 * The record should not cross the buffer.
 		 */
 		if (pos_in_buf > endpos_in_buf && endpos_in_buf) {
-			memset(c2_logbuf + pos_in_buf, 0, C2_TRACE_BUFSIZE - pos_in_buf);
+			memset(c2_logbuf + pos_in_buf, 0, c2_logbufsize - pos_in_buf);
 			memset(c2_logbuf, 0, endpos_in_buf);
 		} else
 			break;

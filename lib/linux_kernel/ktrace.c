@@ -34,11 +34,10 @@
  * @{
  */
 
-extern void *c2_logbuf;
 
 int c2_arch_trace_init(void)
 {
-	c2_logbuf = kzalloc(C2_TRACE_BUFSIZE, GFP_KERNEL);
+	c2_logbuf = kzalloc(c2_logbufsize, GFP_KERNEL);
 	if (c2_logbuf == NULL)
 		return -ENOMEM;
 

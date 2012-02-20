@@ -40,7 +40,6 @@
 
 static int logfd;
 
-extern void *c2_logbuf;
 
 int c2_arch_trace_init()
 {
@@ -69,8 +68,8 @@ int c2_arch_trace_init()
 	errno = 0;
 	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
 	if (logfd != -1) {
-		if (ftruncate(logfd, C2_TRACE_BUFSIZE) == 0) {
-			c2_logbuf = mmap(NULL, C2_TRACE_BUFSIZE, PROT_WRITE,
+		if (ftruncate(logfd, c2_logbufsize) == 0) {
+			c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
 				      MAP_SHARED, logfd, 0);
 			if (c2_logbuf == MAP_FAILED)
 				perror("mmap");
@@ -84,7 +83,7 @@ int c2_arch_trace_init()
 
 void c2_arch_trace_fini(void)
 {
-	munmap(c2_logbuf, C2_TRACE_BUFSIZE);
+	munmap(c2_logbuf, c2_logbufsize);
 	close(logfd);
 }
 

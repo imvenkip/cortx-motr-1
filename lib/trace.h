@@ -175,6 +175,8 @@ enum {
 	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB log buffer */
 };
 
+extern void      *c2_logbuf;
+extern uint32_t   c2_logbufsize;
 
 /**
  * Record header structure
