@@ -163,6 +163,9 @@
 #define C2_LOG(...) \
 	C2_CAT(C2_LOG, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 
+#define C2_ENTRY(...) C2_LOG("> " __VA_ARGS__)
+#define C2_LEAVE(...) C2_LOG("< " __VA_ARGS__)
+
 int  c2_trace_init(void);
 void c2_trace_fini(void);
 
@@ -191,10 +194,11 @@ extern uint32_t   c2_logbufsize;  /**< The real buffer size */
 
 /** The bitmask of what should be printed immediately to console */
 extern unsigned long c2_trace_immediate_mask;
-/** The subsystem bitmask definishions */
+/** The subsystem bitmask definitions */
 enum c2_trace_subsystem {
-	C2_TRACE_SUBSYS_OTHER = (1 <<  0),
-	C2_TRACE_SUBSYS_UT    = (1 <<  1),
+	C2_TRACE_SUBSYS_OTHER  = (1 << 0),
+	C2_TRACE_SUBSYS_UT     = (1 << 1),
+	C2_TRACE_SUBSYS_MEMORY = (1 << 2)
 };
 
 /**
@@ -227,7 +231,8 @@ struct c2_trace_descr {
 };
 
 void c2_trace_allot(const struct c2_trace_descr *td, const void *data);
-void c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf);
+void c2_trace_record_print(const struct c2_trace_rec_header *trh,
+			   const void *buf);
 
 __attribute__ ((format (printf, 1, 2)))
 void c2_console_printf(const char *fmt, ...);

@@ -31,6 +31,9 @@
 #include "lib/atomic.h"
 #include "lib/memory.h"
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_MEMORY
+#include "lib/trace.h"
+
 /**
    @addtogroup memory
 
@@ -104,16 +107,19 @@ void *c2_alloc(size_t size)
 {
 	void *ret;
 
+	C2_ENTRY("%lu", size);
 	ret = __malloc(size);
 	if (ret)
 		memset(ret, 0, size);
-
+	C2_LEAVE("%lu %lx", size, (long unsigned)ret);
 	return ret;
 }
 
 void c2_free(void *data)
 {
+	C2_ENTRY("%lx", (long unsigned)data);
 	__free(data);
+	C2_LEAVE();
 }
 
 static size_t used0;

@@ -32,8 +32,8 @@ struct foo {
 };
 
 enum {
-	N  = 8,
-	NR = 512
+	N  = 6,
+	NR = 128
 };
 
 static const struct c2_tl_descr fl0 = C2_TL_DESCR("foo-s of bar",

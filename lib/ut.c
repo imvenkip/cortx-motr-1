@@ -21,6 +21,7 @@
 #include <CUnit/Automated.h>
 #include <CUnit/Console.h>
 #include <CUnit/TestDB.h>
+#include <CUnit/TestRun.h>
 
 #include <stdlib.h>                /* system */
 #include <stdio.h>                 /* asprintf */
@@ -28,6 +29,7 @@
 
 #include "lib/assert.h"            /* C2_ASSERT */
 #include "lib/thread.h"            /* LAMBDA */
+#include "lib/memory.h"            /* c2_allocated */
 #include "lib/ut.h"
 
 /**
@@ -135,8 +137,53 @@ static void ut_run_basic_mode(struct c2_list *test_list,
 	CU_basic_show_failures(CU_get_failure_list());
 }
 
+static size_t used_mem_before_suite;
+
+static void ut_suite_start_cbk(const CU_pSuite pSuite)
+{
+	used_mem_before_suite = c2_allocated();
+}
+
+static void ut_suite_stop_cbk(const CU_pSuite pSuite,
+			      const CU_pFailureRecord pFailure)
+{
+	size_t used_mem_after_suite = c2_allocated();
+	int    leaked_bytes = used_mem_after_suite - used_mem_before_suite;
+	float  leaked;
+	char   *units;
+	char   *notice = "";
+	int    sign = +1;
+
+	if (leaked_bytes < 0) {
+		leaked_bytes *= -1; /* make it positive */
+		sign = -1;
+		notice = "NOTICE: freed more memory than allocated!";
+	}
+
+	if (leaked_bytes / 1024 / 1024 ) { /* > 1 megabyte */
+		leaked = leaked_bytes / 1024.0 / 1024.0;
+		units = "MB";
+	} else if (leaked_bytes / 1024) {  /* > 1 kilobyte */
+		leaked = leaked_bytes / 1024.0;
+		units = "KB";
+	} else {
+		leaked = leaked_bytes;
+		units = "B";
+	}
+
+	printf("\n  Leaked: %.2f %s  %s", sign * leaked, units, notice);
+}
+
+static void ut_set_suite_start_stop_cbk(void)
+{
+	CU_set_suite_start_handler(ut_suite_start_cbk);
+	CU_set_suite_complete_handler(ut_suite_stop_cbk);
+}
+
 void c2_ut_run(struct c2_ut_run_cfg *c)
 {
+	ut_set_suite_start_stop_cbk();
+
 	if (c->urc_report_exec_time)
 		CU_basic_set_mode(CU_BRM_VERBOSE_TIME);
 	else

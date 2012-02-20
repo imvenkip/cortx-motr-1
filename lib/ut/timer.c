@@ -33,10 +33,10 @@
 #include <sys/syscall.h>	/* syscall */
 
 enum {
-	NR_TIMERS     = 10,	/* number of timers in tests */
-	NR_TG	      = 10,	/* number of thread groups */
-	NR_THREADS_TG = 10,	/* number of slave threads per thread group */
-	NR_TIMERS_TG  = 100,	/* number of timers per thread group */
+	NR_TIMERS     =  8,	/* number of timers in tests */
+	NR_TG	      =  8,	/* number of thread groups */
+	NR_THREADS_TG =  8,	/* number of slave threads per thread group */
+	NR_TIMERS_TG  = 50,	/* number of timers per thread group */
 };
 
 struct thread_group;
