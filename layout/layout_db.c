@@ -357,8 +357,8 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(dbenv != NULL);
 
-	C2_LOG("c2_ldb_schema_init(): schema %p, dbenv %p\n",
-	       schema, dbenv);
+	/* C2_LOG("c2_ldb_schema_init(): schema %p, dbenv %p\n",
+	       schema, dbenv); */
 
 	schema->dbenv = dbenv;
 
@@ -389,7 +389,7 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 
 	C2_PRE(schema != NULL);
 
-	C2_LOG("c2_ldb_schema_fini(): schema %p\n", schema);
+	/* C2_LOG("c2_ldb_schema_fini(): schema %p\n", schema); */
 
 	/* Verify that all the layout types were deregistered. */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
@@ -423,7 +423,7 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 	C2_PRE(lt != NULL);
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type));
 
-	C2_LOG("c2_ldb_type_register(): schema %p, lt %p\n", schema, lt);
+	/* C2_LOG("c2_ldb_type_register(): schema %p, lt %p\n", schema, lt); */
 
 	if (schema->ls_type[lt->lt_id] == lt)
 		return -EEXIST;
@@ -439,8 +439,8 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&schema->ls_lock);
 
-	C2_LOG("c2_ldb_type_register(): Returning, schema %p, rc %d\n",
-	       schema, rc);
+	/* C2_LOG("c2_ldb_type_register(): Returning, schema %p, rc %d\n",
+	       schema, rc); */
 
 	return rc;
 }
@@ -455,7 +455,7 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(lt != NULL);
 
-	C2_LOG("c2_ldb_type_unregister(): schema %p, lt %p\n", schema, lt);
+	/*C2_LOG("c2_ldb_type_unregister(): schema %p, lt %p\n", schema, lt);*/
 
 	c2_mutex_lock(&schema->ls_lock);
 
@@ -480,7 +480,7 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 	C2_PRE(let != NULL);
 	C2_PRE(IS_IN_ARRAY(let->let_id, schema->ls_enum));
 
-	C2_LOG("c2_ldb_enum_register(): schema %p, let %p\n", schema, let);
+	/*C2_LOG("c2_ldb_enum_register(): schema %p, let %p\n", schema, let);*/
 
 	if (schema->ls_enum[let->let_id] == let)
 		return -EEXIST;
@@ -496,8 +496,8 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&schema->ls_lock);
 
-	C2_LOG("c2_ldb_enum_register(): Returning, schema %p, rc %d\n",
-	       schema, rc);
+	/* C2_LOG("c2_ldb_enum_register(): Returning, schema %p, rc %d\n",
+	       schema, rc); */
 	return rc;
 }
 
@@ -511,7 +511,7 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(let != NULL);
 
-	C2_LOG("c2_ldb_enum_unregister(): schema %p, let %p\n", schema, let);
+	/* C2_LOG("c2_ldb_enum_unreg(): schema %p, let %p\n", schema, let); */
 
 	c2_mutex_lock(&schema->ls_lock);
 
@@ -714,9 +714,9 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair,
 			      recsize, tx);
-	C2_ASSERT(rc == 0);
 	C2_LOG("c2_ldb_add(): lid %llu, ldb_layout_write() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
+	C2_ASSERT(rc == 0);
 
 	return 0;
 }
@@ -768,7 +768,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	C2_LOG("c2_ldb_update(): lid %llu, ldb_layout_write() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
 
-	return 0;
+	return rc;
 }
 
 /**
@@ -844,6 +844,8 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 		     uint32_t recsize,
 		     struct c2_db_tx *tx)
 {
+	int rc;
+
 	pair->dp_table = &schema->ls_layouts;
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 
@@ -858,13 +860,17 @@ int ldb_layout_write(struct c2_ldb_schema *schema,
 	pair->dp_rec.db_static = false;
 
 	if (op == C2_LXO_DB_ADD) {
-		c2_table_insert(tx, pair);
+		rc = c2_table_insert(tx, pair);
 	} else if (op == C2_LXO_DB_UPDATE) {
-		c2_table_update(tx, pair);
+		rc = c2_table_update(tx, pair);
 	} else if (op == C2_LXO_DB_DELETE) {
-		c2_table_delete(tx, pair);
+		rc = c2_table_delete(tx, pair);
 	}
-	return 0;
+
+	C2_LOG("ldb_layout_write(): lid %llu, c2_table_*() rc %d\n",
+	       (unsigned long long)lid, rc);
+
+	return rc;
 }
 
 

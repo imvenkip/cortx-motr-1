@@ -403,7 +403,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		}
 		C2_ASSERT(ldb_ce != NULL);
 		C2_ASSERT(ldb_ce->llce_cob_index <= ldb_ce_header->llces_nr);
-		
+
 		cob_fid.f_container = ldb_ce->llce_cob_id.f_container;
 		cob_fid.f_key = ldb_ce->llce_cob_id.f_key;
 
