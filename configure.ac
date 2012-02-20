@@ -1,5 +1,5 @@
 AC_PREREQ([2.59])
-AC_INIT([colibri], [0.1], [colibri@clusterstor.com])
+AC_INIT([colibri], [0.1], [colibri@xyratex.com])
 AC_CONFIG_SRCDIR([colibri/init.c])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
