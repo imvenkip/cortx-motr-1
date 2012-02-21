@@ -861,8 +861,8 @@ enum {
 };
 
 /**
-   Represents rpc bulk equivalent of a c2_net_buffer. Contains an inline
-   net buffer, a zero vector which does all the in-memory manipulations
+   Represents rpc bulk equivalent of a c2_net_buffer. Contains a net buffer
+   pointer, a zero vector which does all the in-memory manipulations
    and a backlink to c2_rpc_bulk structure to report back the status.
  */
 struct c2_rpc_bulk_buf {
@@ -890,7 +890,7 @@ struct c2_rpc_bulk_buf {
    structure will belong to. It is primarily used to keep a check on
    thresholds like max_seg_size, max_buf_size and max_number_of_segs.
    @param nb Net buf pointer if user wants to use preallocated network
-   buffer. (nb == NULL) suggests, the net buffer should be allocated by
+   buffer. (nb == NULL) implies that the net buffer should be allocated by
    c2_rpc_bulk_buf_add().
    @param out Out parameter through which newly created c2_rpc_bulk_buf
    structure is returned back to the caller.
@@ -927,7 +927,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 
 /**
    An abstract data structure that avails bulk transport for io operations.
-   End users will register the io vectors using this structure and bulk
+   End users will register the IO vectors using this structure and bulk
    transfer apis will take care of doing the data transfer in zero-copy
    fashion.
    These APIs are primarily used by another in-memory structure c2_io_fop.
@@ -937,7 +937,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
    c2_rpc_bulk_init(rbulk);
    ..
    do {
-   	c2_rpc_bulk_buf_add(rbulk, segs_nr, seg_size, netdom, out);
+   	c2_rpc_bulk_buf_add(rbulk, segs_nr, netdom, nb, out);
 	..
 	c2_rpc_bulk_buf_databuf_add(rbulk, buf, count, index);
 	..
@@ -1016,6 +1016,19 @@ enum c2_rpc_bulk_op_type {
 	 */
 	C2_RPC_BULK_LOAD  = (1 << 1),
 };
+
+/**
+   Assigns queue type for buffers maintained in rbulk->rb_buflist from
+   argument q.
+   @param rbulk c2_rpc_bulk structure containing list of c2_rpc_bulk_buf
+   structures whose net buffers queue type has to be assigned.
+   @param q Queue type for c2_net_buffer structures.
+   @pre rbulk != NULL && !c2_tlist_is_empty(rbulk->rb_buflist) &&
+   c2_mutex_is_locked(&rbulk->rb_mutex) &&
+   q == C2_NET_QT_PASSIVE_BULK_RECV || q == C2_NET_QT_PASSIVE_BULK_SEND ||
+   q == C2_NET_QT_ACTIVE_BULK_RECV  || q == C2_NET_QT_ACTIVE_BULK_SEND.
+ */
+void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q);
 
 /**
    Stores the c2_net_buf_desc/s for net buffer/s pointed to by c2_rpc_bulk_buf
