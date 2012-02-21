@@ -512,10 +512,11 @@ AC_SEARCH_LIBS([db_env_create], [db], [
         AC_MSG_ERROR([db_env_create cannot be found! Try install db4-devel package])
 ])
 DB_LIBS=$LIBS
-
+DB_INCLUDES=""
 else
 
 DB_SRC="$SRCDIR/../db4/build_unix"
+DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
 DB_LIBS="$DB_SRC/libdb.a"
 AC_MSG_CHECKING([for db libs])
 build_lib db $DB_SRC $DB_LIBS "../dist" "--with-pic"
@@ -527,6 +528,7 @@ CFLAGS=$OLD_CFLAGS
 
 AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
+AC_SUBST([DB_INCLUDES])
 AC_SUBST([GALOIS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
@@ -601,7 +603,7 @@ else
 
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
-        -I$DB_SRC/build_unix $GALOIS_INCLUDES -I$YAML_SRC/include \
+        $DB_INCLUDES $GALOIS_INCLUDES -I$YAML_SRC/include \
         -I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"
 fi
 
