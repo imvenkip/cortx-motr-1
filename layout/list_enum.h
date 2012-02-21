@@ -45,17 +45,26 @@ struct c2_layout_list_enum {
 	/** super class */
 	struct c2_layout_enum     lle_base;
 
+	/** Layout id. */
+	uint64_t                  lle_lid;
+
 	/** Number of elements present in the enumeration */
+	/* todo check if this nr is required to be stored. */
 	uint32_t                  lle_nr;
 
 	/**
-	 * List of COB identifiers which are part of the layout this enum
-	 * is assocaited with.
+	 * Pointer to an array of COB identifiers for the component objects
+	 * which are part of 'the layout this enum is assocaited with'.
+	 * @todo In kernel any allocation over 4KB is not desired. Thus, this
+	 * this array can safely hold only upto 256 number of COB identifiers,
+	 * (c2_fid being 16 bytes in size).
+	 * This issue is to be addressed later.
 	 */
-	struct c2_tl              lle_list_of_cobs;
+	struct c2_fid            *lle_list_of_cobs;
 };
 
-int c2_list_enum_build(struct c2_layout_list_enum **out);
+int c2_list_enum_build(uint64_t lid, uint32_t nr,
+		       struct c2_layout_list_enum **out);
 int c2_list_enum_add(struct c2_layout_list_enum *le, uint64_t lid,
 		     uint32_t idx, struct c2_fid *cob_id);
 

@@ -51,14 +51,6 @@ extern const struct c2_layout_type c2_composite_layout_type;
 extern const struct c2_layout_enum_type c2_list_enum_type;
 extern const struct c2_layout_enum_type c2_linear_enum_type;
 
-/** Descriptor for the tlist of COB identifiers. */
-C2_TL_DESCR_DECLARE(cob_list, static);
-//C2_TL_DECLARE(cob_list, static, struct ldb_cob_entry);
-
-/** Descriptor for the tlist of sub-layouts. */
-C2_TL_DESCR_DECLARE(sub_lay_list, static);
-//C2_TL_DECLARE(sub_lay_list, static, struct c2_layout);
-
 static int test_init(void)
 {
 	c2_ut_db_reset(db_name);
@@ -363,10 +355,7 @@ static int pdclust_list_l_verify(uint64_t lid,
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 	struct c2_layout_list_enum   *list_enum;
-	uint32_t                      num_inline;
-	struct cob_entry             *ce;
 	int                           i;
-	int                           j;
 	bool                          found;
 
 	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
@@ -379,27 +368,12 @@ static int pdclust_list_l_verify(uint64_t lid,
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
 				 lle_base);
 
-	num_inline = list_enum->lle_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
-			LDB_MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
-
-	i = 0;
-	c2_tlist_for(&cob_list_tl, &list_enum->lle_list_of_cobs, ce) {
+	for(i = 0; i < list_enum->lle_nr; ++i) {
 		found = false;
-		/* COB entries are read in last in first out order. */
-		for (j = 0; j < list_enum->lle_nr; ++j) {
-			if (ce->cle_cob_index == j) {
-				found = true;
-				break;
-			}
-		}
-
-		C2_UT_ASSERT(found == true);
-		C2_UT_ASSERT(ce->cle_cob_id.f_container == j * 100 + 1);
-		C2_UT_ASSERT(ce->cle_cob_id.f_key == j + 1);
-
-		if (i++ == num_inline - 1)
-			break;
-	} c2_tlist_endfor;
+		C2_UT_ASSERT(list_enum->lle_list_of_cobs[i].f_container ==
+			     i * 100 + 1);
+		C2_UT_ASSERT(list_enum->lle_list_of_cobs[i].f_key == i +1);
+	}
 
 	return 0;
 }
@@ -557,7 +531,7 @@ static int pdclust_list_l_build(uint64_t lid,
 	struct c2_fid               cob_fid;
 	int                         i;
 
-	rc = c2_list_enum_build(&le);
+	rc = c2_list_enum_build(lid, nr, &le);
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(le != NULL);
