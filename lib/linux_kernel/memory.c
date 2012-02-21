@@ -45,16 +45,14 @@ C2_EXPORTED(c2_alloc);
 
 void *c2_alloc_aligned(size_t size, unsigned shift)
 {
-	void *addr;
 	/*
 	 * Currently it supports alignment of PAGE_SHIFT only.
 	 */
 	C2_PRE(shift == PAGE_SHIFT);
 	if (size == 0)
-		addr = NULL;
+		return NULL;
 	else
-		addr = alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
-	return addr;
+		return alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
 }
 C2_EXPORTED(c2_alloc_aligned);
 

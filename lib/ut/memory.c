@@ -46,7 +46,7 @@ void test_memory(void)
 	C2_UT_ASSERT(allocated == c2_allocated());
 
 	/* Checking c2_alloc_aligned for buffer sizes from 4K to 64Kb. */
-	for (i = C2_SEG_SIZE; i <= C2_SEG_SIZE * 16; i += C2_SEG_SIZE) {
+	for (i = 0; i <= C2_SEG_SIZE * 16; i += (C2_SEG_SIZE / 2)) {
 		ptr1 = c2_alloc_aligned(i, C2_SEG_SHIFT);
 		C2_UT_ASSERT(c2_addr_is_aligned(ptr1, C2_SEG_SHIFT));
 		c2_free_aligned(ptr1, (size_t)i, C2_SEG_SHIFT);
