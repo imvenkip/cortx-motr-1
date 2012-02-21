@@ -164,8 +164,8 @@ struct c2_ldb_rec {
 
 	/**
 	 * Layout type specific payload.
-	 * Contains attributes specific to the layout type or specific to
-	 * the enumeration type.
+	 * Contains attributes specific to the applicable layout type and/or
+         * applicable to the enumeration type, if applicable.
 	 */
 	char                           lr_data[0];
 };
@@ -240,7 +240,6 @@ static const struct c2_table_ops layouts_table_ops = {
 		},
 		[TO_REC] = {
 			.max_size = ~0
-			//.max_size = sizeof(struct c2_ldb_rec)
 		}
 	},
 	.key_cmp = l_key_cmp

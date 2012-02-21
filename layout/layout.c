@@ -290,6 +290,15 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(out != NULL);
 
+	/* todo Convert this to ergo */
+	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
+		return -ENOENT;
+
+	lt = schema->ls_type[l->l_type->lt_id];
+	if (lt == NULL)
+		return -ENOENT;
+
+
 	C2_LOG("In c2_layout_encode()\n");
 
 	c2_mutex_lock(&l->l_lock);
@@ -305,12 +314,6 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
 	C2_ASSERT(nbytes_copied == sizeof *rec);
-
-	lt = schema->ls_type[rec->lr_lt_id];
-	if (lt == NULL) {
-		c2_mutex_unlock(&l->l_lock);
-		return -ENOENT;
-	}
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, out);
 	C2_ASSERT(rc == 0);

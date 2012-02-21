@@ -474,7 +474,7 @@ static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)
 			continue;
 
                 e_recsize = schema->ls_enum[i]->let_ops->leto_max_recsize();
-		max_recsize = max32(max_recsize, e_recsize);
+		max_recsize = max32u(max_recsize, e_recsize);
         }
 
 	return sizeof(struct c2_ldb_pdclust_rec) + max_recsize;
