@@ -193,13 +193,13 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop);
    and populate the array of index vectors.
    @pre fop != NULL.
  */
-int io_fop_prepare(struct c2_fop *fop);
+int c2_io_fop_prepare(struct c2_fop *fop);
 
 /**
    Deallocates memory for sequence of net buf desc and sequence of index
    vector from io fop wire format.
  */
-void io_fop_destroy(struct c2_fop *fop);
+void c2_io_fop_destroy(struct c2_fop *fop);
 
 bool c2_is_read_fop(const struct c2_fop *fop);
 bool c2_is_write_fop(const struct c2_fop *fop);

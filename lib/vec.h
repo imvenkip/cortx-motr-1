@@ -256,6 +256,8 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
    Zero vector is typically allocated by upper layer by following
    the bounds of network layer (max buffer size, max segments,
    max seg size) and adds buffers/pages later as and when needed.
+   Size of z_index array is same as array of buffer addresses and
+   array of segment counts.
  */
 struct c2_0vec {
 	/** Bufvec representing extent of IO vector and array of buffers. */

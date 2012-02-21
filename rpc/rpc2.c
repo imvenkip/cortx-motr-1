@@ -1016,7 +1016,7 @@ C2_TL_DESCR_DEFINE(rpcbulk, "rpc bulk buffer list", ,
 
 C2_TL_DEFINE(rpcbulk, , struct c2_rpc_bulk_buf);
 
-static bool rpc_bulk_invariant(struct c2_rpc_bulk *rbulk)
+static bool rpc_bulk_invariant(const struct c2_rpc_bulk *rbulk)
 {
 	struct c2_rpc_bulk_buf *buf;
 
@@ -1031,13 +1031,15 @@ static bool rpc_bulk_invariant(struct c2_rpc_bulk *rbulk)
 	return true;
 }
 
-static bool rpc_bulk_buf_invariant(struct c2_rpc_bulk_buf *rbuf)
+static bool rpc_bulk_buf_invariant(const struct c2_rpc_bulk_buf *rbuf)
 {
-	return
-		!(rbuf == NULL ||
-		  rbuf->bb_magic != C2_RPC_BULK_BUF_MAGIC ||
-		  rbuf->bb_rbulk == NULL ||
-		  !rpcbulk_tlink_is_in(rbuf));
+	if (rbuf == NULL ||
+	    rbuf->bb_magic != C2_RPC_BULK_BUF_MAGIC ||
+	    rbuf->bb_rbulk == NULL ||
+	    !rpcbulk_tlink_is_in(rbuf))
+		return false;
+
+	return true;
 }
 
 static void rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
@@ -1120,13 +1122,22 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	    nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV)
 		nb->nb_length = evt->nbe_length;
 
-	rbulk->rb_rc = evt->nbe_status;
-
 	if (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
 	    nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND)
 		receiver = true;
 
 	c2_mutex_lock(&rbulk->rb_mutex);
+	/*
+	 * Change the status code of struct c2_rpc_bulk only if it is
+	 * zero so far. This will ensure that return code of first failure
+	 * from list of net buffers in struct c2_rpc_bulk will be maintained.
+	 * Buffers are canceled by io coalescing code which in turn sends
+	 * a coalesced buffer and cancels member buffers. Hence -ECANCELED
+	 * is not treated as an error here.
+	 */
+	if (rbulk->rb_rc == 0 && evt->nbe_status != -ECANCELED)
+		rbulk->rb_rc = evt->nbe_status;
+
 	rpcbulk_tlist_del(buf);
 	if (receiver) {
 		C2_ASSERT(c2_chan_has_waiters(&rbulk->rb_chan));
@@ -1257,6 +1268,23 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 	return rc;
 }
 
+void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q)
+{
+	struct c2_rpc_bulk_buf *rbuf;
+
+	C2_PRE(rbulk != NULL);
+	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
+	C2_PRE(!rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
+	C2_PRE(q == C2_NET_QT_PASSIVE_BULK_RECV ||
+	       q == C2_NET_QT_PASSIVE_BULK_SEND ||
+	       q == C2_NET_QT_ACTIVE_BULK_RECV ||
+	       q == C2_NET_QT_ACTIVE_BULK_SEND);
+
+	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
+		rbuf->bb_nbuf->nb_qtype = q;
+	} c2_tlist_endfor;
+}
+
 static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		       const struct c2_rpc_conn *conn,
 		       struct c2_net_buf_desc *descs,
@@ -1290,7 +1318,6 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 				  C2_NET_QT_PASSIVE_BULK_RECV ||
 				  nb->nb_qtype ==
 				  C2_NET_QT_PASSIVE_BULK_SEND);
-			nb->nb_ep = conn->c_rpcchan->rc_destep;
 		} else
 			C2_ASSERT(nb->nb_qtype ==
 				  C2_NET_QT_ACTIVE_BULK_RECV ||
