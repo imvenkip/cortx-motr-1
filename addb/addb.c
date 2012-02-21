@@ -312,13 +312,6 @@ static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
 	.act_name = "global"
 };
 
-struct c2_addb_ev c2_addb_trace = {
-	.ae_name = "trace",
-	.ae_id   = 0x30,
-	.ae_ops  = &C2_ADDB_TRACE,
-};
-C2_EXPORTED(c2_addb_trace);
-
 struct c2_addb_ctx c2_addb_global_ctx = {
 	.ac_type   = &c2_addb_global_ctx_type,
 	.ac_parent = NULL
@@ -368,10 +361,6 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
         va_end(varargs);
 	return 0;
 }
-<<<<<<< HEAD
-=======
-C2_EXPORTED(c2_addb_choose_store_media);
->>>>>>> bulkclient
 
 /** @} end of addb group */
 

@@ -158,7 +158,7 @@ static struct c2_rpc_client_ctx c_rctx = {
 /* Input arguments for colibri server setup. */
 static char *server_args[]	= {"bulkio_ut", "-r", "-T", "AD", "-D",
 				   S_DBFILE, "-S", S_STOBFILE, "-e",
-				   S_ENDPOINT, "-s", "ds1", "-s", "ds2"};
+				   S_ENDPOINT, "-s", "ioservice"};
 
 /* Array of services to be started by colibri server. */
 static struct c2_reqh_service_type *stypes[] = {
@@ -1784,40 +1784,21 @@ void bulkio_stob_create(void)
 	int			 rc;
 
 	op = C2_IOSERVICE_WRITEV_OPCODE;
-	C2_ALLOC_ARR(wfops, IO_FIDS_NR);
+	C2_ALLOC_ARR(bp->bp_wfops, IO_FIDS_NR);
 	for (i = 0; i < IO_FIDS_NR; ++i) {
-		C2_ALLOC_PTR(wfops[i]);
-                rc = c2_io_fop_init(wfops[i], &c2_fop_cob_writev_fopt);
-                wfops[i]->if_fop.f_type->ft_fom_type =
+		C2_ALLOC_PTR(bp->bp_wfops[i]);
+                rc = c2_io_fop_init(bp->bp_wfops[i], &c2_fop_cob_writev_fopt);
+                bp->bp_wfops[i]->if_fop.f_type->ft_fom_type =
                 bulkio_stob_create_fom_type;
 
-		rw = io_rw_get(&wfops[i]->if_fop);
-		wfops[i]->if_fop.f_type->ft_ops = &bulkio_stob_create_ops;
-		rw->crw_fid = io_fids[i];
+		rw = io_rw_get(&bp->bp_wfops[i]->if_fop);
+		bp->bp_wfops[i]->if_fop.f_type->ft_ops = &bulkio_stob_create_ops;
+		rw->crw_fid = bp->bp_fids[i];
 		targ[i].ta_index = i;
 		targ[i].ta_op = op;
 		io_fops_rpc_submit(&targ[i]);
 	}
 
-}
-
-void bulkio_test_init(void)
-{
-	int rc;
-
-	rc = c2_net_domain_init(&c_netdom, xprt);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Starts a colibri server. */
-	rc = c2_rpc_server_start(&s_rctx);
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_rpc_client_init(&c_rctx);
-	C2_UT_ASSERT(rc == 0);
-
-	io_fids_init();
-	io_buffers_allocate();
-
-	bulkio_stob_create();
 }
 
 void bulkio_server_single_read_write(void)
@@ -1827,24 +1808,24 @@ void bulkio_server_single_read_write(void)
 	struct thrd_arg     targ;
 	struct c2_bufvec   *buf;
 
-	buf = &io_buf[0].nb_buffer;
+	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
-	wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
 
-	buf = &io_buf[0].nb_buffer;
+	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
-	rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
@@ -1857,26 +1838,26 @@ void bulkio_server_read_write_state_test(void)
 	struct thrd_arg     targ;
 	struct c2_bufvec   *buf;
 
-	buf = &io_buf[0].nb_buffer;
+	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
-        wfops[0]->if_fop.f_type->ft_fom_type = bulkio_server_write_fom_type;
-	wfops[0]->if_fop.f_type->ft_ops = &bulkio_server_write_fop_ut_ops;
+        bp->bp_wfops[0]->if_fop.f_type->ft_fom_type = bulkio_server_write_fom_type;
+	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &bulkio_server_write_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
 
-	buf = &io_buf[0].nb_buffer;
+	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
-        rfops[0]->if_fop.f_type->ft_fom_type = bulkio_server_read_fom_type;
-	rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
+        bp->bp_rfops[0]->if_fop.f_type->ft_fom_type = bulkio_server_read_fom_type;
+	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
@@ -1894,66 +1875,29 @@ void bulkio_server_rw_state_transition_test(void)
 	struct thrd_arg     targ;
 	struct c2_bufvec   *buf;
 
-	buf = &io_buf[0].nb_buffer;
+	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
-        wfops[0]->if_fop.f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
-	wfops[0]->if_fop.f_type->ft_ops = &bulkio_server_write_fop_ut_ops;
+        bp->bp_wfops[0]->if_fop.f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
+	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &bulkio_server_write_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
 
-	buf = &io_buf[0].nb_buffer;
+	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(op, 1, 1, IO_SEGS_NR);
-        rfops[0]->if_fop.f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
-	rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
+        bp->bp_rfops[0]->if_fop.f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
+	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
-}
-
-void bulkio_test_client(void)
-{
-	int		     rc;
-	int		     i;
-	enum C2_RPC_OPCODES  op;
-	struct thrd_arg      targ[IO_FOPS_NR];
-	struct c2_io_fop   **io_fops;
-
-	for (op = C2_IOSERVICE_READV_OPCODE; op <= C2_IOSERVICE_WRITEV_OPCODE;
-	  ++op) {
-		/*
-		 * IO fops are deallocated by an rpc item type op on receiving
-		 * the reply fop. See io_item_free().
-		 */
-		io_fops_create(op, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
-		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
-		       sizeof(struct c2_thread));
-		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
-		for (i = 0; i < IO_FOPS_NR; ++i) {
-			io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
-                        io_fops[i]->if_fop.f_type->ft_fom_type =
-			bulkio_dummy_fom_type;
-                }
-
-		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
-			targ[i].ta_index = i;
-			targ[i].ta_op = op;
-			rc = C2_THREAD_INIT(&io_threads[i], struct thrd_arg *,
-					    NULL, &io_fops_rpc_submit,
-					    &targ[i], "io_thrd");
-			C2_UT_ASSERT(rc == 0);
-		}
-		for (i = 0; i < ARRAY_SIZE(io_threads); ++i)
-			c2_thread_join(&io_threads[i]);
-	}
 }
 
 void bulkio_server_multiple_read_write(void)
@@ -1967,7 +1911,7 @@ void bulkio_server_multiple_read_write(void)
 	struct c2_bufvec   *buf;
 
 	for (i = 0; i < IO_FOPS_NR; ++i) {
-		buf = &io_buf[i].nb_buffer;
+		buf = &bp->bp_iobuf[i]->nb_buffer;
 		for (j = 0; j < IO_SEGS_NR; ++j) {
 			memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 		}
@@ -1979,9 +1923,7 @@ void bulkio_server_multiple_read_write(void)
 		 * the reply fop. See io_item_free().
 		 */
 		io_fops_create(op, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
-		memset(&io_threads, 0, ARRAY_SIZE(io_threads) *
-		       sizeof(struct c2_thread));
-		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
+		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops : bp->bp_rfops;
 		for (i = 0; i < IO_FOPS_NR; ++i) {
 			io_fops[i]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
                         if (op == C2_IOSERVICE_WRITEV_OPCODE)
@@ -1990,9 +1932,7 @@ void bulkio_server_multiple_read_write(void)
                         else
                                 io_fops[i]->if_fop.f_type->ft_fom_type =
 				bulkio_server_read_fom_type;
-                }
 
-		for (i = 0; i < ARRAY_SIZE(io_threads); ++i) {
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
 			C2_SET0(bp->bp_threads[i]);
@@ -2003,10 +1943,9 @@ void bulkio_server_multiple_read_write(void)
 			C2_UT_ASSERT(rc == 0);
 		}
 		/* Waits till all threads finish their job. */
-		for (i = 0; i < fops_nr; ++i)
-			c2_thread_join(bp->bp_threads[i]);
 		for (i = 0; i < IO_FOPS_NR; ++i) {
-			buf = &io_buf[i].nb_buffer;
+			c2_thread_join(bp->bp_threads[i]);
+			buf = &bp->bp_iobuf[i]->nb_buffer;
 			for (j = 0; j < IO_SEGS_NR; ++j) {
 				memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 			}
@@ -2028,11 +1967,11 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 	int			 rc;
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE)
-		C2_ALLOC_ARR(wfops, IO_FOPS_NR);
+		C2_ALLOC_ARR(bp->bp_wfops, IO_FOPS_NR);
 	else
-		C2_ALLOC_ARR(rfops, IO_FOPS_NR);
+		C2_ALLOC_ARR(bp->bp_rfops, IO_FOPS_NR);
 
-	io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? wfops : rfops;
+	io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops : bp->bp_rfops;
 	for (i = 0; i < IO_FOPS_NR; ++i)
 		C2_ALLOC_PTR(io_fops[i]);
 
@@ -2044,26 +1983,26 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 	rbulk = &iofop->if_rbulk;
 	rw = io_rw_get(&io_fops[index]->if_fop);
 
-	io_offsets[0] = IO_SEG_START_OFFSET;
+	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
 	void add_buffer_bulk(int j) {
 	/*
 	 * Adds a c2_rpc_bulk_buf structure to list of such structures
 	 * in c2_rpc_bulk.
 	 */
-	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, &c_netdom, NULL, &rbuf);
+	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, &bp->bp_cnetdom, NULL, &rbuf);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(rbuf != NULL);
 
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < IO_SEGS_NR; ++i) {
                 rc = c2_rpc_bulk_buf_databuf_add(rbuf,
-				io_buf[j].nb_buffer.ov_buf[i],
-				io_buf[j].nb_buffer.ov_vec.v_count[i],
-				io_offsets[0], &c_netdom);
+				bp->bp_iobuf[j]->nb_buffer.ov_buf[i],
+				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i],
+				bp->bp_offsets[0], &bp->bp_cnetdom);
 		C2_UT_ASSERT(rc == 0);
-		io_offsets[0] +=
-			io_buf[j].nb_buffer.ov_vec.v_count[i];
+		bp->bp_offsets[0] +=
+			bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
 	}
 
 	rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
@@ -2077,7 +2016,7 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 	 * Allocates memory for array of net buf descriptors and array of
 	 * index vectors from io fop.
 	 */
-	rc = io_fop_prepare(&iofop->if_fop);
+	rc = c2_io_fop_prepare(&iofop->if_fop);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2089,10 +2028,10 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 	C2_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < IO_FIDS_NR; ++i)
-		b->bp_offsets[i] = IO_SEG_START_OFFSET;
+		bp->bp_offsets[i] = IO_SEG_START_OFFSET;
 
-	b->bp_rfops = NULL;
-	b->bp_wfops = NULL;
+	bp->bp_rfops = NULL;
+	bp->bp_wfops = NULL;
 }
 
 void bulkio_server_read_write_multiple_nb(void)
@@ -2106,27 +2045,27 @@ void bulkio_server_read_write_multiple_nb(void)
 
 	buf_nr = IO_FOPS_NR;
 	for (i = 0; i < buf_nr; ++i) {
-		buf = &io_buf[i].nb_buffer;
+		buf = &bp->bp_iobuf[i]->nb_buffer;
 		for (j = 0; j < IO_SEGS_NR; ++j) {
 			memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 		}
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	fop_create_populate(0, op, buf_nr);
-	wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
 
 	for (i = 0; i < buf_nr; ++i) {
-		buf = &io_buf[i].nb_buffer;
+		buf = &bp->bp_iobuf[i]->nb_buffer;
 		for (j = 0; j < IO_SEGS_NR; ++j) {
 			memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 		}
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	fop_create_populate(0, op, buf_nr);
-	wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	io_fops_rpc_submit(&targ);
@@ -2146,7 +2085,6 @@ static void bulkio_test(int fids_nr, int fops_nr, int segs_nr)
 	     ++op) {
 		C2_UT_ASSERT(op == C2_IOSERVICE_READV_OPCODE ||
 			     op == C2_IOSERVICE_WRITEV_OPCODE);
-
 
 		/*
 		 * IO fops are deallocated by an rpc item type op on receiving

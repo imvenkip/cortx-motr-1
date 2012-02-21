@@ -1050,7 +1050,7 @@ int c2_io_fop_prepare(struct c2_fop *fop)
 	enum c2_net_queue_type q;
 
 	C2_PRE(fop != NULL);
-	C2_PRE(is_io(fop));
+	C2_PRE(c2_is_io_fop(fop));
 
 	rbulk = c2_fop_to_rpcbulk(fop);
 	c2_mutex_lock(&rbulk->rb_mutex);
@@ -1068,7 +1068,7 @@ int c2_io_fop_prepare(struct c2_fop *fop)
 	}
 
 	io_fop_ivec_prepare(fop, rbulk);
-	q = is_read(fop) ? C2_NET_QT_PASSIVE_BULK_RECV :
+	q = c2_is_read_fop(fop) ? C2_NET_QT_PASSIVE_BULK_RECV :
 			   C2_NET_QT_PASSIVE_BULK_SEND;
 	c2_rpc_bulk_qtype(rbulk, q);
 err:
