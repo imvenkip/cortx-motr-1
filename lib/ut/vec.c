@@ -104,15 +104,14 @@ void test_vec(void)
 					      C2_SEG_SHIFT) == 0);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
 	for (i = 0; i < NR; ++i) {
-		uint64_t addr = (uint64_t)bv.ov_buf[i];
 		C2_UT_ASSERT(bv.ov_vec.v_count[i] == C2_SEG_SIZE);
 		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
-		C2_UT_ASSERT(((addr >> C2_SEG_SHIFT) << C2_SEG_SHIFT) == addr);
+		C2_UT_ASSERT(c2_addr_is_aligned(bv.ov_buf[i], C2_SEG_SHIFT));
 	}
-	c2_bufvec_free_aligned(&bv);
+	c2_bufvec_free_aligned(&bv, C2_SEG_SHIFT);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
 	C2_UT_ASSERT(bv.ov_buf == NULL);
-	c2_bufvec_free(&bv);    /* no-op */
+	c2_bufvec_free_aligned(&bv, C2_SEG_SHIFT);    /* no-op */
 
 	test_bufvec_cursor();
 }

@@ -168,6 +168,9 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    uint32_t          num_segs,
 		    c2_bcount_t       seg_size);
 
+/** It returns true when addr is aligned by value shift. */
+bool c2_addr_is_aligned(void *addr, unsigned shift);
+
 /**
    Allocates aligned memory as specified by shift value for a struct c2_bufvec.
    Currently in kernel mode it supports PAGE_SIZE alignment only.
@@ -191,7 +194,7 @@ void c2_bufvec_free(struct c2_bufvec *bufvec);
    @param bufvec Pointer to the c2_bufvec.
    @see c2_bufvec_alloc_aligned()
  */
-void c2_bufvec_free_aligned(struct c2_bufvec *bufvec);
+void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
 
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {

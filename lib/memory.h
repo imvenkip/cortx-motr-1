@@ -51,6 +51,8 @@ void *c2_alloc(size_t size);
 
 /**
    Allocates zero-filled memory, aligned on (2^shift)-byte boundary.
+   In kernel mode due to the usage of __GFP_ZERO, it can't be used from hard or
+   soft interrupt context.
  */
 void *c2_alloc_aligned(size_t size, unsigned shift);
 
@@ -71,7 +73,7 @@ void c2_free(void *data);
  * @param data pointer to allocated block
  *
  */
-void c2_free_aligned(void *data, unsigned order);
+void c2_free_aligned(void *data, size_t size, unsigned shift);
 
 /**
  * Return amount of memory currently allocated.

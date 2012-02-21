@@ -28,6 +28,7 @@
 #include "lib/arith.h"   /* min_type, c2_is_po2 */
 #include "lib/assert.h"
 #include "lib/atomic.h"
+#include "lib/vec.h"     /* c2_addr_is_aligned */
 #include "lib/memory.h"
 
 /**
@@ -114,12 +115,13 @@ void c2_free(void *data)
 {
 	__free(data);
 }
-/*
-void c2_free_aligned(void *data, unsigned order)
+
+void c2_free_aligned(void *data, size_t size, unsigned shift)
 {
+	C2_PRE(c2_addr_is_aligned(data, shift));
 	c2_free(data);
 }
-*/
+
 static size_t used0;
 
 size_t c2_allocated(void)

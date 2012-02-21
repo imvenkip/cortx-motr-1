@@ -25,6 +25,8 @@
 #include <linux/module.h>
 
 #include "lib/cdefs.h"  /* C2_EXPORTED */
+#include "lib/assert.h"  /* C2_PRE */
+#include "lib/vec.h"  /* C2_PRE */
 #include "lib/memory.h"
 
 /**
@@ -43,16 +45,15 @@ C2_EXPORTED(c2_alloc);
 
 void *c2_alloc_aligned(size_t size, unsigned shift)
 {
-	int   order;
 	void *addr;
 	/*
 	 * Currently it supports alignment of PAGE_SHIFT only.
 	 */
-	C2_ASSERT(shift == PAGE_SHIFT);
-	order = get_order(size);
-	if(size == 0) addr = NULL;
+	C2_PRE(shift == PAGE_SHIFT);
+	if (size == 0)
+		addr = NULL;
 	else
-		addr = (void *)__get_free_pages(GFP_KERNEL, order);
+		addr = alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
 	return addr;
 }
 C2_EXPORTED(c2_alloc_aligned);
@@ -63,9 +64,11 @@ void c2_free(void *data)
 }
 C2_EXPORTED(c2_free);
 
-void c2_free_aligned(void *addr, unsigned order)
+void c2_free_aligned(void *addr, size_t size, unsigned shift)
 {
-	free_pages((unsigned long)addr, order);
+	C2_PRE(shift == PAGE_SHIFT);
+	C2_PRE(c2_addr_is_aligned(addr, shift));
+	free_pages_exact(addr, size);
 }
 C2_EXPORTED(c2_free_aligned);
 

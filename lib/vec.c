@@ -125,7 +125,9 @@ static int c2__bufvec_alloc(struct c2_bufvec *bufvec,
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
 		if (shift != 0)
 			bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
-		else	bufvec->ov_buf[i] = c2_alloc(seg_size);
+		else
+			bufvec->ov_buf[i] = c2_alloc(seg_size);
+
 		if (bufvec->ov_buf[i] == NULL)
 			goto fail;
 		bufvec->ov_vec.v_count[i] = seg_size;
@@ -145,6 +147,14 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, 0);
 }
 C2_EXPORTED(c2_bufvec_alloc);
+
+
+bool c2_addr_is_aligned(void *addr, unsigned shift)
+{
+	return ((((unsigned long)addr >> shift) << shift) ==
+		  (unsigned long)addr);
+}
+C2_EXPORTED(c2_addr_is_aligned);
 
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 		            uint32_t          num_segs,
@@ -171,19 +181,15 @@ void c2_bufvec_free(struct c2_bufvec *bufvec)
 }
 C2_EXPORTED(c2_bufvec_free);
 
-void c2_bufvec_free_aligned(struct c2_bufvec *bufvec)
+void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
 {
 	if (bufvec != NULL) {
 		if (bufvec->ov_buf != NULL) {
 			uint32_t i;
 
 			for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
-#ifndef __KERNEL__
-				c2_free(bufvec->ov_buf[i]);
-#else
 				c2_free_aligned(bufvec->ov_buf[i],
-					get_order(bufvec->ov_vec.v_count[i]));
-#endif
+					bufvec->ov_vec.v_count[i], shift);
 			c2_free(bufvec->ov_buf);
 		}
 		c2_free(bufvec->ov_vec.v_count);

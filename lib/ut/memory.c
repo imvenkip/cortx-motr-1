@@ -33,7 +33,6 @@ void test_memory(void)
 	void         *ptr1;
 	struct test1 *ptr2;
 	size_t        allocated;
-	uint64_t      addr;
 	int           i;
 	allocated = c2_allocated();
 	ptr1 = c2_alloc(100);
@@ -49,13 +48,8 @@ void test_memory(void)
 	/* Checking c2_alloc_aligned for buffer sizes from 4K to 64Kb. */
 	for (i = C2_SEG_SIZE; i <= C2_SEG_SIZE * 16; i += C2_SEG_SIZE) {
 		ptr1 = c2_alloc_aligned(i, C2_SEG_SHIFT);
-		addr = (uint64_t)ptr1;
-		C2_UT_ASSERT(((addr >> C2_SEG_SHIFT) << C2_SEG_SHIFT) == addr);
-#ifndef __KERNEL__
-		c2_free(ptr1);
-#else
-		c2_free_aligned(ptr1, get_order(i));
-#endif
+		C2_UT_ASSERT(c2_addr_is_aligned(ptr1, C2_SEG_SHIFT));
+		c2_free_aligned(ptr1, (size_t)i, C2_SEG_SHIFT);
 	}
 
 }
