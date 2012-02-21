@@ -118,7 +118,11 @@ static int lcl_key_cmp(struct c2_table *table,
 		       const void *key0,
 		       const void *key1)
 {
-	return 0;
+	const struct ldb_cob_lists_key *k0 = key0;
+	const struct ldb_cob_lists_key *k1 = key1;
+
+	return C2_3WAY(k0->lclk_lid, k1->lclk_lid) ?:
+                C2_3WAY(k0->lclk_cob_index, k1->lclk_cob_index);
 }
 
 /**
@@ -474,7 +478,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	struct ldb_cob_entry           ldb_ce;
 	c2_bcount_t                    nbytes_copied;
 	int                            i;
-	int                            rc;
+	int                            rc = 0;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
@@ -497,6 +501,12 @@ static int list_encode(struct c2_ldb_schema *schema,
 		return -ENOMEM;
 
 	ldb_ce_header->llces_nr = list_enum->lle_nr;
+
+	/* todo
+	 * Handel the update case (C2_LXO_DB_UPDATE) specially as
+	 * first delete all the eixisting entries and then insert all
+	 * entries assuming they have arrived newly.
+	 */
 
 	nbytes_copied = c2_bufvec_cursor_copyto(out, ldb_ce_header,
 						sizeof *ldb_ce_header);
@@ -522,6 +532,12 @@ static int list_encode(struct c2_ldb_schema *schema,
 			C2_ASSERT(nbytes_copied == sizeof ldb_ce);
 		}
 		else {
+			/* Write non-inline cob entries to the
+			 * cob_lists table. */
+
+			C2_LOG("list_encode(): Writing to cob_lists table: "
+			       "i %u, ldb_ce.llce_cob_index %llu/n",
+			       i, (unsigned long long)ldb_ce.llce_cob_index);
 			rc = ldb_cob_list_write(schema, op, l->l_id,
 						&ldb_ce, tx);
 		}
@@ -529,7 +545,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 		i++;
 	} c2_tlist_endfor;
 
-	return 0;
+	return rc;
 }
 
 /**
