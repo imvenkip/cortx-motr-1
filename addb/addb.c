@@ -68,6 +68,10 @@ static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
 static c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
 static c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
 
+enum {
+	ADDB_CUSTOM_MSG_SIZE = 256,
+};
+
 int c2_addb_init(void)
 {
 	return 0;
@@ -153,6 +157,21 @@ void c2_addb_add(struct c2_addb_dp *dp)
 		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
 		break;
 	}
+}
+
+void c2_addb_add_custom(struct c2_addb_ctx *ctx, const struct c2_addb_loc *loc,
+			const char *fmt, ...)
+{
+	char msg[ADDB_CUSTOM_MSG_SIZE];
+	va_list args;
+
+	memset(msg, 0, sizeof msg);
+
+	va_start(args, fmt);
+	vsnprintf(msg, sizeof msg, fmt, args);
+	va_end(args);
+
+	C2_ADDB_ADD(ctx, loc, c2_addb_trace, msg);
 }
 
 static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
@@ -280,27 +299,6 @@ const struct c2_addb_ev_ops C2_ADDB_TRACE = {
 	.aeo_level   = AEL_WARN
 };
 
-/*
-const struct c2_addb_ev c2_addb_oom = {
-	.ae_name = "oom",
-	.ae_id   = C2_ADDB_EVENT_OOM,
-	.ae_ops  = &C2_ADDB_STAMP
-};
-
-const struct c2_addb_ev c2_addb_func_fail = {
-	.ae_name = "func-fail",
-	.ae_id   = C2_ADDB_EVENT_FUNC_FAIL,
-	.ae_ops  = &C2_ADDB_FUNC_CALL
-};
-
-const struct c2_addb_ev c2_addb_trace = {
-	.ae_name = "trace",
-	.ae_id   = C2_ADDB_EVENT_TRACE,
-	.ae_ops  = &C2_ADDB_TRACE,
-};
-*/
-
-
 C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, C2_ADDB_STAMP);
 
 C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_func_fail, "func-fail",		\
@@ -313,6 +311,13 @@ C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_trace, "trace", C2_ADDB_EVENT_TRACE,	\
 static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
 	.act_name = "global"
 };
+
+struct c2_addb_ev c2_addb_trace = {
+	.ae_name = "trace",
+	.ae_id   = 0x30,
+	.ae_ops  = &C2_ADDB_TRACE,
+};
+C2_EXPORTED(c2_addb_trace);
 
 struct c2_addb_ctx c2_addb_global_ctx = {
 	.ac_type   = &c2_addb_global_ctx_type,
@@ -363,6 +368,10 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
         va_end(varargs);
 	return 0;
 }
+<<<<<<< HEAD
+=======
+C2_EXPORTED(c2_addb_choose_store_media);
+>>>>>>> bulkclient
 
 /** @} end of addb group */
 

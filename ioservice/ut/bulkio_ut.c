@@ -1301,7 +1301,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	struct c2_net_buffer		**netbufs;
 	struct c2_fop_cob_rw		*rw;
 	struct c2_io_indexvec		*ivec;
-	struct c2_net_buf_desc		*desc;
 	struct c2_rpc_bulk		*rbulk;
 	struct c2_rpc_bulk_buf		*rbuf;
 	struct c2_rpc_conn		*conn;
@@ -1326,7 +1325,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 
 	for (tc = 0, i = 0; i < rw->crw_desc.id_nr; ++i) {
 		ivec = &rw->crw_ivecs.cis_ivecs[i];
-		desc = &rw->crw_desc.id_descs[i];
 
 		C2_ALLOC_PTR(netbufs[i]);
 		C2_UT_ASSERT(netbufs[i] != NULL);
@@ -2061,6 +2059,11 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 			       rw->crw_desc.id_descs);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Initialize fids and allocate buffers used for bulk transfer. */
+	io_fids_init();
+	io_buffers_allocate();
+
+	c2_addb_choose_default_level(AEL_WARN);
 }
 
 void bulkio_server_read_write_multiple_nb(void)
