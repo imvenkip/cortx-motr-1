@@ -1389,7 +1389,7 @@ int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 	struct nlx_kcore_transfer_mc *kctm;
 	bool any;
 
-	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_tm_is_locked(lctm));
 	kctm = lctm->ctm_kpvt;
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 

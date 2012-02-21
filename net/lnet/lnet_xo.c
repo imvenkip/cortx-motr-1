@@ -582,22 +582,33 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 
 static int nlx_xo_bev_deliver_sync(struct c2_net_transfer_mc *tm)
 {
-	/* XXX implement */
-	return -ENOSYS;
+	C2_PRE(nlx_tm_invariant(tm));
+	return 0;
 }
 
 static bool nlx_xo_bev_pending(struct c2_net_transfer_mc *tm)
 {
-	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
+	struct nlx_xo_transfer_mc *tp;
 
-	C2_PRE(tp != NULL);
+	C2_PRE(nlx_tm_invariant(tm));
+	tp = tm->ntm_xprt_private;
 	return nlx_core_buf_event_wait(&tp->xtm_core, 0) == 0;
 }
 
 static void nlx_xo_bev_notify(struct c2_net_transfer_mc *tm,
 			      struct c2_chan *chan)
 {
-	/* XXX implement */
+	struct nlx_xo_transfer_mc *tp;
+
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	tp = tm->ntm_xprt_private;
+
+	/* set the notification channel and awaken nlx_tm_ev_worker() */
+	tp->xtm_ev_chan = chan;
+	c2_cond_signal(&tp->xtm_ev_cond, &tm->ntm_mutex);
+
+	return;
 }
 
 static const struct c2_net_xprt_ops nlx_xo_xprt_ops = {

@@ -113,8 +113,14 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	stat_time = c2_time_now();
 
 	while (1) {
-		/* compute next timeout (XXX short if automatic or stopping) */
-		timeout = c2_time_from_now(1, 0);
+		/* compute next timeout (short if automatic or stopping) */
+		if (tm->ntm_bev_auto_deliver ||
+		    tm->ntm_state == C2_NET_TM_STOPPING)
+			timeout = c2_time_from_now(
+					      C2_NET_LNET_EVT_SHORT_WAIT_SECS, 0);
+		else
+			timeout = c2_time_from_now(
+					      C2_NET_LNET_EVT_LONG_WAIT_SECS, 0);
 		if (tm->ntm_bev_auto_deliver) {
 			rc = NLX_core_buf_event_wait(ctp, timeout);
 			/* buffer event processing */
