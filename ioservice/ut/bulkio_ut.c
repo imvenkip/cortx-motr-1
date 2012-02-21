@@ -2250,21 +2250,16 @@ static void bulkioapi_test(void)
 {
 	int			 rc;
 	char			*sbuf;
-	//char			*dbuf;
-	//uint32_t		 i;
 	int32_t			 max_segs;
 	c2_bcount_t		 max_seg_size;
 	c2_bcount_t		 max_buf_size;
-	//struct c2_clink		 clink;
 	struct c2_io_fop	 iofop;
-	//struct c2_io_fop	 iofop1;
 	struct c2_net_xprt	*xprt;
 	struct c2_rpc_bulk	*rbulk;
 	struct c2_fop_cob_rw	*rw;
 	struct c2_net_domain	 nd;
 	struct c2_rpc_bulk_buf	*rbuf;
 	struct c2_rpc_bulk_buf	*rbuf1;
-	//struct c2_net_buf_desc	 desc;
 
 	C2_SET0(&iofop);
 	C2_SET0(&nd);
@@ -2364,116 +2359,13 @@ static void bulkioapi_test(void)
 	C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs == NULL);
 	C2_UT_ASSERT(rw->crw_ivecs.cis_nr    == 0);
 
-	/*
-	 * Removes net buffers added for data transfer.
-	 * Since there is no ACTIVE side to trigger the bulk transfer,
-	 * it is safe to remove buffers manually from TM.
-	 */
-
-	c2_mutex_lock(&rbulk->rb_mutex);
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
-		c2_net_buffer_del(rbuf->bb_nbuf, &c_rctx.rcx_rpc_machine.cr_tm);
-	} c2_tlist_endfor;
-	c2_mutex_unlock(&rbulk->rb_mutex);
-
-	/* Waits till list of buffers is empty. */
-	while (1) {
-		c2_mutex_lock(&rbulk->rb_mutex);
-		if (c2_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist)) {
-			c2_mutex_unlock(&rbulk->rb_mutex);
-			break;
-		}
-		c2_mutex_unlock(&rbulk->rb_mutex);
-	}
-
-#if 0
-	rc = c2_rpc_bulk_store(rbulk, &c_rctx.rcx_connection,
-			       rw->crw_desc.id_descs);
-
-	C2_UT_ASSERT(rc == 0);
-	c2_mutex_lock(&rbulk->rb_mutex);
-	C2_UT_ASSERT(rbuf->bb_nbuf->nb_callbacks == &rpc_bulk_cb);
-	C2_UT_ASSERT(rbuf->bb_nbuf->nb_flags & C2_NET_BUF_REGISTERED);
-	C2_UT_ASSERT(rbuf->bb_nbuf->nb_flags & C2_NET_BUF_QUEUED);
-	C2_UT_ASSERT(rbulk->rb_bytes ==
-		     c2_vec_count(&rbuf->bb_nbuf->nb_buffer.ov_vec));
-	C2_UT_ASSERT(rbuf->bb_nbuf->nb_app_private == rbuf);
-
-	/* IO fop should contain the copied net buf descriptors. */
-	i = 0;
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
-		rc = memcmp(rbuf->bb_nbuf->nb_desc.nbd_data,
-			    rw->crw_desc.id_descs[i].nbd_data,
-			    rbuf->bb_nbuf->nb_desc.nbd_len);
-		C2_UT_ASSERT(rc == 0);
-		++i;
-	} c2_tlist_endfor;
-
-	c2_mutex_unlock(&rbulk->rb_mutex);
-
-	c2_mutex_lock(&rbulk->rb_mutex);
+	c2_rpc_bulk_buflist_empty(rbulk);
 	C2_UT_ASSERT(c2_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist));
-	c2_mutex_unlock(&rbulk->rb_mutex);
-
-	/* Test : c2_io_fop_destroy() */
-	C2_UT_ASSERT(rw->crw_desc.id_descs   != NULL);
-	C2_UT_ASSERT(rw->crw_ivecs.cis_ivecs != NULL);
-
-	/* Test : c2_rpc_bulk_load() */
-	rc = c2_io_fop_init(&iofop1, &c2_fop_cob_writev_fopt);
-	C2_UT_ASSERT(rc == 0);
-	rbulk = c2_fop_to_rpcbulk(&iofop1.if_fop);
-	rc = c2_rpc_bulk_buf_add(rbulk, IO_FID_SINGLE, &nd, NULL, &rbuf1);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(rbuf1 != NULL);
-
-	dbuf = c2_alloc_aligned(C2_0VEC_ALIGN, C2_0VEC_SHIFT);
-	C2_UT_ASSERT(dbuf != NULL);
-	rc = c2_rpc_bulk_buf_databuf_add(rbuf1, dbuf, C2_0VEC_ALIGN, 0, &nd);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(rbuf1->bb_nbuf != NULL);
-	C2_UT_ASSERT(rbuf1->bb_zerovec.z_bvec.ov_buf[2] == dbuf);
-	rw = io_rw_get(&iofop1.if_fop);
-
-	rbuf1->bb_nbuf->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&rbulk->rb_chan, &clink);
-
-	rc = c2_io_fop_prepare(&iofop1.if_fop);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Populates a fake net buf desc and copies it in io fop wire format. */
-	desc.nbd_len = IO_SEQ_LEN;
-	desc.nbd_data = sbuf;
-	memcpy(rw->crw_desc.id_descs, &desc, sizeof(struct c2_net_buf_desc));
-	rc = c2_rpc_bulk_load(rbulk, &c_rctx.rcx_connection,
-			      rw->crw_desc.id_descs);
-
-	C2_UT_ASSERT(rc == 0);
-
-	/* Waits till list of buffers is empty. */
-	while (1) {
-		c2_mutex_lock(&rbulk->rb_mutex);
-		if (c2_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist))
-			break;
-		c2_mutex_unlock(&rbulk->rb_mutex);
-	}
-	/*
-	 * After an invalid net buf desc is supplied, the bulk transfer
-	 * should fail with an invalid return code.
-	 */
-	C2_UT_ASSERT(c2_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist));
-	c2_mutex_unlock(&rbulk->rb_mutex);
-#endif
-
-	//c2_io_fop_destroy(&iofop1.if_fop);
 
 	/* Cleanup. */
-	//c2_free(dbuf);
 	c2_free(sbuf);
 
 	c2_io_fop_fini(&iofop);
-	//c2_io_fop_fini(&iofop1);
 	c2_net_domain_fini(&nd);
 }
 
