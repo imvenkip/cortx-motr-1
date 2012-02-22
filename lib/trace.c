@@ -18,6 +18,10 @@
  * Original creation date: 08/12/2010
  */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h> /* ENABLE_DEBUG */
+#endif
+
 #include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/arith.h" /* c2_align */
@@ -43,6 +47,12 @@
  *
  * @{
  */
+
+#ifdef ENABLE_DEBUG
+#  define C2_TRACE_IMMEDIATE_DEBUG (1)
+#else
+#  define C2_TRACE_IMMEDIATE_DEBUG (0)
+#endif
 
 /* single buffer for now */
 void      *c2_logbuf = NULL;
@@ -138,12 +148,12 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = C2_TRACE_MAGIC;
 	if (C2_TRACE_IMMEDIATE_DEBUG)
-		c2_trace_print_record(header, body);
+		c2_trace_record_print(header, body);
 }
 
 
 void
-c2_trace_print_record(const struct c2_trace_rec_header *trh, const void *buf)
+c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 {
 	int i;
 	const struct c2_trace_descr *td = trh->trh_descr;
@@ -154,7 +164,7 @@ c2_trace_print_record(const struct c2_trace_rec_header *trh, const void *buf)
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
 
-	c2_printf("%8.8llu %15.15llu %16.16llx %-20s %15s:%-3i %3.3i %3i\n\t",
+	c2_console_printf("%8.8llu %15.15llu %16.16llx %-20s %15s:%-3i %3.3i %3i\n\t",
 	       (unsigned long long)trh->trh_no,
 	       (unsigned long long)trh->trh_timestamp,
 	       (unsigned long long)trh->trh_sp,
@@ -184,9 +194,22 @@ c2_trace_print_record(const struct c2_trace_rec_header *trh, const void *buf)
 			C2_IMPOSSIBLE("sizeof");
 		}
 	}
-	c2_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
+	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
 	       v[7], v[8]);
-	c2_printf("\n");
+	c2_console_printf("\n");
+}
+
+__attribute__ ((format (printf, 1, 2)))
+int c2_console_printf(const char *fmt, ...)
+{
+	va_list ap;
+	int res;
+
+	va_start(ap, fmt);
+	res = c2_console_vprintf(fmt, ap);
+	va_end(ap);
+
+	return res;
 }
 
 

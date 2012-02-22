@@ -21,12 +21,12 @@
 #ifndef __COLIBRI_LIB_TRACE_H__
 #define __COLIBRI_LIB_TRACE_H__
 
+#include <stdarg.h>
+
 #include "lib/types.h"
 #include "lib/arith.h"
 
-#ifdef __KERNEL__
-#include "lib/linux_kernel/trace.h"
-#else
+#ifndef __KERNEL__
 #include "lib/user_space/trace.h"
 #endif
 
@@ -207,7 +207,9 @@ struct c2_trace_descr {
 };
 
 void c2_trace_allot(const struct c2_trace_descr *td, const void *data);
-void c2_trace_print_record(const struct c2_trace_rec_header *trh, const void *buf);
+void c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf);
+ int c2_console_printf(const char *fmt, ...);
+ int c2_console_vprintf(const char *fmt, va_list ap);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging

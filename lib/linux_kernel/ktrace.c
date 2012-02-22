@@ -51,6 +51,11 @@ void c2_arch_trace_fini(void)
 	kfree(c2_logbuf);
 }
 
+int c2_console_vprintf(const char *fmt, va_list args)
+{
+	return vprintk(fmt, args);
+}
+
 /** @} end of trace group */
 
 /*

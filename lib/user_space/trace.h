@@ -30,9 +30,6 @@
 
  */
 
-#define C2_TRACE_IMMEDIATE_DEBUG (0)
-#define c2_printf printf
-
 int  c2_trace_parse(void);
 
 /** @} end of trace group */

@@ -144,12 +144,17 @@ int c2_trace_parse(void)
 		C2_ASSERT(nr == td->td_size);
 		pos += nr;
 
-		c2_trace_print_record(&trh, buf);
+		c2_trace_record_print(&trh, buf);
 
 		if (buf)
 			c2_free(buf);
 	}
 	return 0;
+}
+
+int c2_console_vprintf(const char *fmt, va_list args)
+{
+	return vprintf(fmt, args);
 }
 
 /** @} end of trace group */
