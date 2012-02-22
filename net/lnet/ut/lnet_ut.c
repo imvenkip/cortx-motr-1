@@ -298,6 +298,7 @@ struct ut_data {
 #define CBD2 (&td->cbd2)
 
 typedef void (*ut_test_fw_body_t)(struct ut_data *td);
+typedef void (*ut_test_fw_prestart_cb_t)(struct ut_data *td, int which);
 
 static void ut_test_framework_dom_cleanup(struct ut_data *td,
 					  struct c2_net_domain *dom)
@@ -323,7 +324,18 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 				NLXDBGP(td,2,"Cleanup/DEL D:%p T:%p Q:%d B:%p\n",
 					dom, tm, qt, nb);
 				c2_net_buffer_del(nb, tm);
-				ut_chan_timedwait(&cl, 10);
+				if (tm->ntm_bev_auto_deliver)
+					ut_chan_timedwait(&cl, 10);
+				else {
+					int j;
+					c2_net_buffer_event_notify(tm,
+								  &tm->ntm_chan);
+					for (j = 0; j < 10; ++j) {
+				        	ut_chan_timedwait(&cl, 1);
+						c2_net_buffer_event_deliver_all
+							(tm);
+					}
+				}
 				c2_clink_del(&cl);
 			}
 			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
@@ -383,7 +395,9 @@ static void ut_describe_tm(const struct c2_net_transfer_mc *tm)
 }
 #endif /* NLX_DEBUG */
 
-static void ut_test_framework(ut_test_fw_body_t body, int dbg)
+static void ut_test_framework(ut_test_fw_body_t body,
+			      ut_test_fw_prestart_cb_t ps_cb,
+			      int dbg)
 {
 	struct ut_data *td;
 	char * const *nidstrs = NULL;
@@ -452,6 +466,8 @@ do {									\
 		}							\
 									\
 		C2_UT_ASSERT(!c2_net_tm_init(tm, dom));			\
+		if (ps_cb != NULL)                                      \
+			(*ps_cb)(td, which);                            \
 									\
 		sprintf(epstr, "%s:%d:%d:*",				\
 			nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);	\
@@ -1109,7 +1125,7 @@ static void test_msg_body(struct ut_data *td)
 
 static void test_msg(void)
 {
-	ut_test_framework(&test_msg_body, ut_verbose);
+	ut_test_framework(&test_msg_body, NULL, ut_verbose);
 }
 
 static void test_buf_desc_body(struct ut_data *td)
@@ -1380,7 +1396,7 @@ static void test_buf_desc_body(struct ut_data *td)
 
 static void test_buf_desc(void)
 {
-	ut_test_framework(&test_buf_desc_body, ut_verbose);
+	ut_test_framework(&test_buf_desc_body, NULL, ut_verbose);
 }
 
 static int test_bulk_passive_send(struct ut_data *td)
@@ -1666,10 +1682,146 @@ static void test_bulk(void)
 #ifdef NLX_DEBUG
 	nlx_debug._debug_ = 0;
 #endif
-	ut_test_framework(&test_bulk_body, ut_verbose);
+	ut_test_framework(&test_bulk_body, NULL, ut_verbose);
 #ifdef NLX_DEBUG
 	nlx_debug._debug_ = 0;
 #endif
+}
+
+/* replacement for ut_buf_cb1 for this test */
+static void test_sync_msg_recv_cb1(const struct c2_net_buffer_event *ev)
+{
+	cb_save_ep1 = true;
+	ut_buf_cb1(ev);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_status1 == 0);
+}
+
+static void test_sync_body(struct ut_data *td)
+{
+	struct c2_net_buffer *nb1      = &td->bufs1[0];
+	struct c2_net_buffer *nb2      = &td->bufs2[0];
+	struct nlx_xo_transfer_mc *tp1 = TM1->ntm_xprt_private;
+	struct c2_net_end_point *ep2 = NULL;
+	int num_msgs;
+	int initial_len;
+	int len;
+	int offset;
+	int i;
+
+	c2_net_lnet_tm_set_debug(TM1, 0);
+
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	c2_clink_add(&TM2->ntm_chan, &td->tmwait2);
+
+	/* TEST
+	   No-op calls
+	 */
+	NLXDBGPnl(td, 1, "TEST: no-op sync calls\n");
+	ut_cbreset();
+	C2_UT_ASSERT(tp1->xtm_ev_chan == NULL);
+	C2_UT_ASSERT(!c2_net_buffer_event_pending(TM1));
+	c2_net_buffer_event_deliver_all(TM1);
+	C2_UT_ASSERT(cb_called1 == 0);
+
+	/* TEST
+	   Enqueue a receive buffer. Send multiple messages from the other TM.
+	   No events delivered until fetched.
+	*/
+	NLXDBGPnl(td, 1, "TEST: sync delivery of received messages\n");
+
+	ut_cbreset();
+
+	num_msgs = 4;
+	initial_len = 256;
+	nb1->nb_length = td->buf_size1;
+	ut_net_buffer_sign(nb1, nb1->nb_length, 0);
+	nb1->nb_min_receive_size = UT_MSG_SIZE;
+	nb1->nb_max_receive_msgs = num_msgs;
+	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
+	td->buf_cb1.nbc_cb[C2_NET_QT_MSG_RECV] = test_sync_msg_recv_cb1;
+	zUT(c2_net_buffer_add(nb1, TM1), done);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	C2_UT_ASSERT(!c2_net_buffer_event_pending(TM1));
+	C2_UT_ASSERT(tp1->xtm_ev_chan == NULL);
+	c2_net_buffer_event_notify(TM1, &TM1->ntm_chan);
+	C2_UT_ASSERT(tp1->xtm_ev_chan == &TM1->ntm_chan);
+
+	/* get a TM2 end point for TM1's address */
+	zUT(c2_net_end_point_create(&ep2, TM2, TM1->ntm_ep->nep_addr), done);
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
+
+	for (i = 1; i <= num_msgs; ++i) {
+		len = initial_len * i;
+		C2_UT_ASSERT(len < td->buf_size2);
+		ut_net_buffer_sign(nb2, len, i);
+		nb2->nb_qtype = C2_NET_QT_MSG_SEND;
+		nb2->nb_length = len;
+		nb2->nb_ep = ep2;
+		zUT(c2_net_buffer_add(nb2, TM2), done);
+		C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_QUEUED);
+
+		ut_chan_timedwait(&td->tmwait2, 10);
+		C2_UT_ASSERT(cb_called2 == i);
+		C2_UT_ASSERT(cb_status2 == 0);
+		C2_UT_ASSERT(cb_nb2 == nb2);
+		C2_UT_ASSERT(cb_qt2 == C2_NET_QT_MSG_SEND);
+		C2_UT_ASSERT(!c2_net_tm_stats_get(TM2, C2_NET_QT_MSG_SEND,
+						  &td->qs, false));
+		C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+		C2_UT_ASSERT(td->qs.nqs_num_s_events == i);
+		C2_UT_ASSERT(td->qs.nqs_num_adds == i);
+		C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+	}
+
+	C2_UT_ASSERT(cb_called1 == 0);
+	C2_UT_ASSERT(ut_chan_timedwait(&td->tmwait1, 10)); /* got notification */
+	C2_UT_ASSERT(tp1->xtm_ev_chan == NULL);
+	C2_UT_ASSERT(c2_net_buffer_event_pending(TM1));
+	C2_UT_ASSERT(cb_called1 == 0);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	c2_net_buffer_event_deliver_all(TM1); /* get events */
+
+	C2_UT_ASSERT(cb_called1 == num_msgs);
+	C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+	C2_UT_ASSERT(cb_ep1 != NULL &&
+		     strcmp(TM2->ntm_ep->nep_addr, cb_ep1->nep_addr) == 0);
+	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == num_msgs);
+	for (i = 1, len = 0, offset = 0; i <= num_msgs; ++i) {
+		offset += len;
+		len = initial_len * i;
+		C2_UT_ASSERT(ut_net_buffer_authenticate(nb1, len, offset, i));
+		c2_net_end_point_put(cb_ep1);
+	}
+	cb_ep1 = NULL;
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, C2_NET_QT_MSG_RECV,
+					  &td->qs, false));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == num_msgs);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+ done:
+	c2_clink_del(&td->tmwait2);
+	c2_clink_del(&td->tmwait1);
+	if (ep2 != NULL)
+		c2_net_end_point_put(ep2);
+	return;
+}
+
+static void test_sync_prestart(struct ut_data *td, int which)
+{
+	if (which == 2)
+		return;
+	/* use synchronous event delivery in TM1 */
+	C2_UT_ASSERT(!c2_net_buffer_event_deliver_synchronously(TM1));
+}
+
+static void test_sync(void)
+{
+	ut_test_framework(&test_sync_body, &test_sync_prestart, ut_verbose);
 }
 
 const struct c2_test_suite c2_net_lnet_ut = {
@@ -1690,6 +1842,7 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_msg",           test_msg },
 		{ "net_lnet_buf_desc",      test_buf_desc },
 		{ "net_lnet_bulk",          test_bulk },
+		{ "net_lnet_sync",          test_sync },
                 { NULL, NULL }
         }
 };

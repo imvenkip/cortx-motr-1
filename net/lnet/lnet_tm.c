@@ -231,7 +231,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
  done:
 	NLXDBG(tp,2,nlx_print_core_buffer_event("bev_to_net_bev: cbev", lcbev));
 	NLXDBG(tp,2,nlx_print_net_buffer_event("bev_to_net_bev: nbev:", nbev));
-	NLXDBG(tp,1,NLXP("bev_to_net_bev: rc=%d\n", rc));
+	NLXDBG(tp,2,NLXP("bev_to_net_bev: rc=%d\n", rc));
 
 	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
 		     rc == 0 && !lcbev->cbe_unlinked));

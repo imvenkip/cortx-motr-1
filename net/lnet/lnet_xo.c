@@ -549,7 +549,7 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 				tp, (int) need);
 			nlx_core_bevq_release(&tp->xtm_core, need);
 		}
-		NLXDBGP(tp, 1, "%p: post:%p qt:%d status:%d flags:%lx\n",
+		NLXDBGP(tp, 1, "%p: event buf:%p qt:%d status:%d flags:%lx\n",
 			tp, nbev.nbe_buffer, (int) nbev.nbe_buffer->nb_qtype,
 			(int) nbev.nbe_status,
 			(unsigned long) nbev.nbe_buffer->nb_flags);

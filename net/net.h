@@ -1608,7 +1608,7 @@ bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm);
    @pre tm->ntm_bev_auto_deliver is not set.
  */
 void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
-				   struct c2_chan *chan);
+				struct c2_chan *chan);
 
 /**
    Copies a network buffer descriptor.

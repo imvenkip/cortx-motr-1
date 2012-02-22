@@ -1002,7 +1002,7 @@ static void ktest_msg(void) {
 	nlx_kcore_iv._nlx_kcore_LNetMDAttach = ut_ktest_msg_LNetMDAttach;
 	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_msg_LNetPut;
 
-	ut_test_framework(&ktest_msg_body, ut_verbose);
+	ut_test_framework(&ktest_msg_body, NULL, ut_verbose);
 
 	ut_restore_subs();
 	ut_ktest_msg_buf_event_wait_delay_chan = NULL;
@@ -1807,7 +1807,7 @@ static void ktest_bulk(void) {
 	nlx_kcore_iv._nlx_kcore_LNetGet = ut_ktest_bulk_LNetGet;
 	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_bulk_LNetPut;
 
-	ut_test_framework(&ktest_bulk_body, 1);//ut_verbose);
+	ut_test_framework(&ktest_bulk_body, NULL, ut_verbose);
 
 	ut_restore_subs();
 }
