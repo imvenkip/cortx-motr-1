@@ -609,6 +609,7 @@ AC_CONFIG_FILES([
                  fop/ut/Makefile
                  ioservice/Makefile
                  ioservice/ut/Makefile
+		 ioservice/st/Makefile
                  layout/Makefile
                  layout/ut/Makefile
                  lib/Makefile
