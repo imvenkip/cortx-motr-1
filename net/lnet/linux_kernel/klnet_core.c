@@ -967,6 +967,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	c2_time_t now = c2_time_now();
 	bool is_unlinked = false;
 	unsigned mlength;
+	unsigned offset;
 	int status;
 
 	C2_PRE(event != NULL);
@@ -998,8 +999,9 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		kbp->kb_ktm = NULL;
 		is_unlinked = true;
 	}
-	status = event->status;
+	status  = event->status;
 	mlength = event->mlength;
+	offset  = event->offset;
 
 	if (event->type == LNET_EVENT_SEND &&
 	    cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
@@ -1015,24 +1017,33 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		*/
 		NLXDBGP(lctm, 1, "\t%p: LNetGet() SEND with unlinked: thr:%d\n",
 			lctm, event->md.threshold);
-		if (status == 0 && event->md.threshold != 0)
-			status = -ECANCELED;
-		else
-			mlength = kbp->kb_mlength; /* from earlier REPLY */
+		if (status == 0) {
+			if (event->md.threshold != 0)
+				status = -ECANCELED;
+			else {  /* from earlier REPLY */
+				mlength = kbp->kb_ev_mlength;
+				offset  = kbp->kb_ev_offset;
+				status  = kbp->kb_ev_status;
+			}
+		}
 	}
-	if (event->type == LNET_EVENT_UNLINK) /* see nlx_core_buf_del */
+	if (event->type == LNET_EVENT_UNLINK) {/* see nlx_core_buf_del */
+		C2_ASSERT(is_unlinked);
 		status = -ECANCELED;
+	}
 
 	if (!is_unlinked) {
 		NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s !unlinked Q=%d\n", lctm,
 			event, nlx_kcore_lnet_event_type_to_string(event->type),
 			cbp->cb_qtype);
 		/* We may get REPLY before SEND, so ignore such events,
-		   but save the mlength for when the SEND arrives.
+		   but save the significant values for when the SEND arrives.
 		*/
 		if (cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
 			C2_ASSERT(event->md.threshold == 1);
-			kbp->kb_mlength = mlength;
+			kbp->kb_ev_mlength = mlength;
+			kbp->kb_ev_offset  = offset;
+			kbp->kb_ev_status  = status;
 			return;
 		}
 		/* we don't expect anything other than receive messages */
@@ -1046,7 +1057,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	bev->cbe_time      = now;
 	bev->cbe_status    = status;
 	bev->cbe_length    = mlength;
-	bev->cbe_offset    = event->offset;
+	bev->cbe_offset    = offset;
 	bev->cbe_unlinked  = is_unlinked;
 	if (event->hdr_data != 0) {
 		bev->cbe_sender.cepa_nid = event->initiator.nid;

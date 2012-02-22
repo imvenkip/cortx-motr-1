@@ -1487,7 +1487,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	   - REPLY failure in REPLY/SEND
 	 */
 	NLXDBGPnl(td, 1, "TEST: active receive event delivery "
-		  "(SEND failure [/REPLY])\n");
+		  "(SEND failure [/no REPLY])\n");
 
 	c2_net_lnet_tm_set_debug(TM1, 0);
 	ut_ktest_bulk_LNetGet_called = false;
@@ -1520,7 +1520,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_net_desc_free(&nb1->nb_desc);
 
 	NLXDBGPnl(td, 1, "TEST: active receive event delivery "
-		  "(SEND/REPLY failure)\n");
+		  "(SEND success/REPLY failure)\n");
 
 	c2_net_lnet_tm_set_debug(TM1, 0);
 	ut_ktest_bulk_LNetGet_called = false;
@@ -1556,7 +1556,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_net_desc_free(&nb1->nb_desc);
 
 	NLXDBGPnl(td, 1, "TEST: active receive event delivery "
-		  "(REPLY failure [/SEND])\n");
+		  "(REPLY failure/SEND success)\n");
 
 	c2_net_lnet_tm_set_debug(TM1, 0);
 	ut_ktest_bulk_LNetGet_called = false;
@@ -1576,7 +1576,8 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, -EIO, 1, 1);
+	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, -EIO, 0, 1);
+	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1597,7 +1598,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	   - UNLINK by itself.
 	 */
 	NLXDBGPnl(td, 1, "TEST: active receive event delivery "
-		  "(SEND + UNLINK [/REPLY])\n");
+		  "(SEND + UNLINK [/no REPLY])\n");
 
 	c2_net_lnet_tm_set_debug(TM1, 0);
 	ut_ktest_bulk_LNetGet_called = false;
@@ -1788,7 +1789,7 @@ static void ktest_bulk(void) {
 	nlx_kcore_iv._nlx_kcore_LNetGet = ut_ktest_bulk_LNetGet;
 	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_bulk_LNetPut;
 
-	ut_test_framework(&ktest_bulk_body, ut_verbose);
+	ut_test_framework(&ktest_bulk_body, 1);//ut_verbose);
 
 	ut_restore_subs();
 }

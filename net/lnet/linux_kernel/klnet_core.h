@@ -125,7 +125,17 @@ struct nlx_kcore_buffer {
 	/** The saved mlength value in the case of an out-of-order
 	    REPLY/SEND event sequence.
 	*/
-	unsigned                      kb_mlength;
+	unsigned                      kb_ev_mlength;
+
+	/** The saved status value in the case of an out-of-order
+	    REPLY/SEND event sequence.
+	*/
+	int                           kb_ev_status;
+
+	/** The saved offset value in the case of an out-of-order
+	    REPLY/SEND event sequence.
+	*/
+	unsigned                      kb_ev_offset;
 
 	/** ADDB context for events related to this buffer */
 	struct c2_addb_ctx            kb_addb;
