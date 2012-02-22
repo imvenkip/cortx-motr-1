@@ -229,12 +229,59 @@ static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 	return;
 }
 
+/**
+   Helper function to allocate a network buffer descriptor.
+   Since it is encoded in little endian format and its size is predefined,
+   it is simply copied to allocated memory.
+ */
+static int nlx_xo__nbd_allocate(struct c2_net_transfer_mc *tm,
+				const struct nlx_core_buf_desc *cbd,
+				struct c2_net_buf_desc *nbd)
+{
+	C2_PRE(tm != NULL);
+	C2_PRE(nbd != NULL);
+	C2_PRE(cbd != NULL);
+
+	nbd->nbd_len = sizeof *cbd;
+	C2_ALLOC_ADDB(nbd->nbd_data, nbd->nbd_len,
+		      &tm->ntm_addb, &nlx_addb_loc);
+	if (nbd->nbd_data == NULL) {
+		nbd->nbd_len = 0; /* for c2_net_desc_free() safety */
+		return -ENOMEM;
+	}
+	memcpy(nbd->nbd_data, cbd, nbd->nbd_len);
+
+	return 0;
+}
+
+/**
+   Helper function to recover the internal network buffer descriptor.
+ */
+static int nlx_xo__nbd_recover(struct c2_net_transfer_mc *tm,
+			       const struct c2_net_buf_desc *nbd,
+			       struct nlx_core_buf_desc *cbd)
+{
+	C2_PRE(tm != NULL);
+	C2_PRE(nbd != NULL);
+	C2_PRE(cbd != NULL);
+
+	if (nbd->nbd_len != sizeof *cbd) {
+		int rc = -EINVAL;
+		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+		return rc;
+	}
+	memcpy(cbd, nbd->nbd_data, nbd->nbd_len);
+
+	return 0;
+}
+
 static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 {
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 	struct nlx_core_transfer_mc *ctp;
 	struct nlx_core_buffer *cbp;
+	struct nlx_core_buf_desc cbd;
 	c2_bcount_t bufsize;
 	size_t need;
 	int rc;
@@ -260,7 +307,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	cbp->cb_max_operations = need;
 
 	bufsize = c2_vec_count(&nb->nb_buffer.ov_vec);
-	cbp->cb_length = bufsize; /* default for passive cases */
+	cbp->cb_length = bufsize; /* default for receive cases */
 
 	cbp->cb_qtype = nb->nb_qtype;
 	switch (nb->nb_qtype) {
@@ -268,33 +315,61 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		cbp->cb_min_receive_size = nb->nb_min_receive_size;
 		rc = nlx_core_buf_msg_recv(ctp, cbp);
 		break;
+
 	case C2_NET_QT_MSG_SEND:
 		C2_ASSERT(nb->nb_length <= bufsize);
 		cbp->cb_length = nb->nb_length;
 		cbp->cb_addr = *nlx_ep_to_core(nb->nb_ep); /* dest addr */
 		rc = nlx_core_buf_msg_send(ctp, cbp);
 		break;
+
 	case C2_NET_QT_PASSIVE_BULK_RECV:
-		nlx_core_buf_match_bits_set(ctp, cbp);
-		rc = nlx_core_buf_passive_recv(ctp, cbp);
+		nlx_core_buf_desc_encode(ctp, cbp, &cbd);
+		rc = nlx_xo__nbd_allocate(nb->nb_tm, &cbd, &nb->nb_desc);
+		if (rc == 0)
+			rc = nlx_core_buf_passive_recv(ctp, cbp);
+		if (rc != 0)
+			c2_net_desc_free(&nb->nb_desc);
 		break;
+
 	case C2_NET_QT_PASSIVE_BULK_SEND:
-		nlx_core_buf_match_bits_set(ctp, cbp);
-		rc = nlx_core_buf_passive_send(ctp, cbp);
+		C2_ASSERT(nb->nb_length <= bufsize);
+		cbp->cb_length = nb->nb_length;
+		nlx_core_buf_desc_encode(ctp, cbp, &cbd);
+		rc = nlx_xo__nbd_allocate(nb->nb_tm, &cbd, &nb->nb_desc);
+		if (rc == 0)
+			rc = nlx_core_buf_passive_send(ctp, cbp);
+		if (rc != 0)
+			c2_net_desc_free(&nb->nb_desc);
 		break;
+
 	case C2_NET_QT_ACTIVE_BULK_RECV:
-		rc = nlx_core_buf_active_recv(ctp, cbp);
+		rc = nlx_xo__nbd_recover(nb->nb_tm, &nb->nb_desc, &cbd);
+		if (rc == 0)
+			rc = nlx_core_buf_desc_decode(ctp, cbp, &cbd);
+		if (rc == 0) /* remote addr and size decoded */
+			rc = nlx_core_buf_active_recv(ctp, cbp);
 		break;
+
 	case C2_NET_QT_ACTIVE_BULK_SEND:
-		rc = nlx_core_buf_active_send(ctp, cbp);
+		C2_ASSERT(nb->nb_length <= bufsize);
+		cbp->cb_length = nb->nb_length;
+		rc = nlx_xo__nbd_recover(nb->nb_tm, &nb->nb_desc, &cbd);
+		if (rc == 0) /* remote addr and size decoded */
+			rc = nlx_core_buf_desc_decode(ctp, cbp, &cbd);
+		if (rc == 0)
+			rc = nlx_core_buf_active_send(ctp, cbp);
 		break;
+
 	default:
 		C2_IMPOSSIBLE("invalid queue type");
 		break;
 	}
 
-	if (rc != 0)
+	if (rc != 0) {
 		nlx_core_bevq_release(ctp, need);
+		LNET_ADDB_FUNCFAIL_ADD(nb->nb_tm->ntm_addb, rc);
+	}
 
 	return rc;
 }
@@ -474,8 +549,9 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 				tp, (int) need);
 			nlx_core_bevq_release(&tp->xtm_core, need);
 		}
-		NLXDBGP(tp, 1, "%p: post:%p status:%d flags:%lx\n",
-			tp, nbev.nbe_buffer, (int) nbev.nbe_status,
+		NLXDBGP(tp, 1, "%p: post:%p qt:%d status:%d flags:%lx\n",
+			tp, nbev.nbe_buffer, (int) nbev.nbe_buffer->nb_qtype,
+			(int) nbev.nbe_status,
 			(unsigned long) nbev.nbe_buffer->nb_flags);
 
 		/* Deliver the event out of the mutex.

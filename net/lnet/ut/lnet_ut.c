@@ -245,23 +245,27 @@ static void ut_cbreset(void)
 }
 
 static char ut_line_buf[1024];
-#define zUT(x,label)							\
-do {									\
-	int rc = x;							\
-	if (rc != 0) {							\
-		snprintf(ut_line_buf, sizeof(ut_line_buf),		\
-			 "%s %d: %s: %d",__FILE__,__LINE__, #x, rc);	\
-		C2_UT_FAIL(ut_line_buf);				\
-		goto label;						\
-	}								\
+#define zvUT(x,expRC,label)					\
+do {								\
+	int rc = (x);						\
+	int erc = (expRC);					\
+	if (rc != erc) {					\
+		snprintf(ut_line_buf, sizeof(ut_line_buf),	\
+			 "%s %d: %s: %d != %d",			\
+			 __FILE__,__LINE__, #x, rc, erc);	\
+		C2_UT_FAIL(ut_line_buf);			\
+		goto label;					\
+	}							\
 } while (0)
+#define zUT(x,label) zvUT(x,0,label)
 
 enum {
-	UT_BUFS1    = 2,
-	UT_BUFSEGS1 = 4,
-	UT_BUFS2    = 1,
-	UT_BUFSEGS2 = 2,
-	UT_MSG_SIZE = 2048,
+	UT_BUFS1     = 2,
+	UT_BUFSEGS1  = 4,
+	UT_BUFS2     = 1,
+	UT_BUFSEGS2  = 2,
+	UT_MSG_SIZE  = 2048,
+	UT_BULK_SIZE = 2 * 4096,
 };
 struct ut_data {
 	int                            _debug_;
@@ -282,12 +286,16 @@ struct ut_data {
 	c2_bcount_t                    buf_seg_size2;
 	struct c2_net_qstats           qs;
 	char * const                  *nidstrs;
+	struct nlx_core_buf_desc       cbd1;
+	struct nlx_core_buf_desc       cbd2;
 };
 
 #define DOM1 (&td->dom1)
 #define DOM2 (&td->dom2)
 #define TM1  (&td->tm1)
 #define TM2  (&td->tm2)
+#define CBD1 (&td->cbd1)
+#define CBD2 (&td->cbd2)
 
 typedef void (*ut_test_fw_body_t)(struct ut_data *td);
 
@@ -350,6 +358,35 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 	}
 }
 
+#ifdef NLX_DEBUG
+static void ut_describe_buf(const struct c2_net_buffer *nb)
+{
+	struct nlx_xo_buffer       *bp = nb->nb_xprt_private;
+	struct nlx_core_buffer  *lcbuf = &bp->xb_core;
+#ifdef __KERNEL__
+	struct nlx_kcore_buffer   *kcb = lcbuf->cb_kpvt;
+
+	NLXP("\txo:%p lcbuf:%p kcb:%p\n",
+	     (void *) bp, (void *) lcbuf, (void *) kcb);
+#endif
+}
+
+static void ut_describe_tm(const struct c2_net_transfer_mc *tm)
+{
+	struct nlx_xo_transfer_mc      *tp = tm->ntm_xprt_private;
+	struct nlx_core_transfer_mc  *lctm = &tp->xtm_core;
+#ifdef __KERNEL__
+	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
+
+	NLXP("\txo:%p lctm:%p kctm:%p\n",
+	     (void *) tp, (void *) lctm, (void *) kctm);
+	if (kctm != NULL) {
+		nlx_kprint_lnet_handle("\tEQ1", kctm->ktm_eqh);
+	}
+#endif
+}
+#endif /* NLX_DEBUG */
+
 static void ut_test_framework(ut_test_fw_body_t body, int dbg)
 {
 	struct ut_data *td;
@@ -411,10 +448,11 @@ do {									\
 			}						\
 			C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_REGISTERED); \
 			nb->nb_callbacks = &td->buf_cb ## which;	\
-			NLXDBGPnl(td, 1, "D:%p T:%p B:%p [%u,%d]=%lu\n", \
-				  dom, tm, nb, (unsigned) max_seg_size,	\
+			NLXDBGPnl(td, 2, "[%d] D:%p T:%p B:%p [%u,%d]=%lu\n", \
+				  which, dom, tm, nb, (unsigned) max_seg_size, \
 				  UT_BUFSEGS ## which,			\
 				  (unsigned long) td->buf_size ## which); \
+			NLXDBGnl(td, 2, ut_describe_buf(nb));           \
 		}							\
 									\
 		C2_UT_ASSERT(!c2_net_tm_init(tm, dom));			\
@@ -430,8 +468,9 @@ do {									\
 			C2_UT_FAIL("aborting: tm" #which " startup failed"); \
 			goto fini ## which;				\
 		}							\
-		NLXDBGPnl(td, 1, "D:%p T:%p E:%s\n", dom, tm,		\
+		NLXDBGPnl(td, 2, "[%d] D:%p T:%p E:%s\n", which, dom, tm, \
 			  tm->ntm_ep->nep_addr);			\
+		NLXDBGnl(td, 2, ut_describe_tm(tm));			\
 	}								\
 } while (0)
 
@@ -1090,6 +1129,566 @@ static void test_msg(void)
 	ut_test_framework(&test_msg_body, ut_verbose);
 }
 
+static void test_buf_desc_body(struct ut_data *td)
+{
+	struct nlx_xo_transfer_mc      *tp1 = TM1->ntm_xprt_private;
+	struct nlx_core_transfer_mc  *lctm1 = &tp1->xtm_core;
+	struct c2_net_buffer           *nb1 = &td->bufs1[0];
+	struct nlx_xo_buffer           *bp1 = nb1->nb_xprt_private;
+	struct nlx_core_buffer      *lcbuf1 = &bp1->xb_core;
+	struct nlx_xo_transfer_mc      *tp2 = TM2->ntm_xprt_private;
+	struct nlx_core_transfer_mc  *lctm2 = &tp2->xtm_core;
+	struct c2_net_buffer           *nb2 = &td->bufs2[0];
+	struct nlx_xo_buffer           *bp2 = nb2->nb_xprt_private;
+	struct nlx_core_buffer      *lcbuf2 = &bp2->xb_core;
+	uint32_t tmid;
+	uint64_t counter;
+	int rc;
+
+	/* TEST
+	   Check that match bit decode reverses encode.
+	*/
+	NLXDBGPnl(td, 1, "TEST: match bit encoding\n");
+#define TEST_MATCH_BIT_ENCODE(_t, _c)					\
+	nlx_core_match_bits_decode(nlx_core_match_bits_encode((_t),(_c)), \
+				   &tmid, &counter);			\
+	C2_UT_ASSERT(tmid == (_t));					\
+	C2_UT_ASSERT(counter == (_c))
+
+	TEST_MATCH_BIT_ENCODE(0, 0);
+	TEST_MATCH_BIT_ENCODE(C2_NET_LNET_TMID_MAX, 0);
+	TEST_MATCH_BIT_ENCODE(C2_NET_LNET_TMID_MAX, C2_NET_LNET_BUFFER_ID_MIN);
+	TEST_MATCH_BIT_ENCODE(C2_NET_LNET_TMID_MAX, C2_NET_LNET_BUFFER_ID_MAX);
+
+#undef TEST_MATCH_BIT_ENCODE
+
+
+	/* TEST
+	   Check that conversion to and from the external opaque descriptor
+	   form preserve the internal descriptor.
+	*/
+	NLXDBGPnl(td, 1, "TEST: buffer descriptor S(export, import)\n");
+	memset(CBD1, 0xf7, sizeof *CBD1); /* arbitrary pattern */
+	memset(CBD2, 0xab, sizeof *CBD2); /* different arbitrary pattern */
+	C2_UT_ASSERT(sizeof *CBD1 == sizeof *CBD2);
+	C2_UT_ASSERT(memcmp(CBD1, CBD2, sizeof *CBD1) != 0);
+
+	C2_UT_ASSERT(!nlx_xo__nbd_allocate(TM1, CBD1, &nb1->nb_desc));
+	C2_UT_ASSERT(nb1->nb_desc.nbd_len == sizeof *CBD1);
+	C2_UT_ASSERT(!nlx_xo__nbd_recover(TM1, &nb1->nb_desc, CBD2));
+	C2_UT_ASSERT(memcmp(CBD1, CBD2, sizeof *CBD1) == 0);
+
+	/* TEST
+	   Check that an invalid descriptor length will fail to convert to
+	   internal form, and will not modify the supplied internal desc.
+	*/
+	NLXDBGPnl(td, 1, "TEST: buffer descriptor F(import invalid size)\n");
+	nb1->nb_desc.nbd_len++;
+	memset(CBD1, 0x35, sizeof *CBD1); /* aribtrary pattern, not the desc */
+	memcpy(CBD2, CBD1, sizeof *CBD2); /* same pattern */
+	C2_UT_ASSERT(nlx_xo__nbd_recover(TM1, &nb1->nb_desc, CBD2) == -EINVAL);
+	C2_UT_ASSERT(memcmp(CBD1, CBD2, sizeof *CBD1) == 0); /* unchanged */
+
+	c2_net_desc_free(&nb1->nb_desc);
+
+#define VALIDATE_MATCH_BITS(mb, s_lctm)				\
+	nlx_core_match_bits_decode(mb, &tmid, &counter);	\
+	C2_UT_ASSERT(tmid == s_lctm->ctm_addr.cepa_tmid);	\
+	C2_UT_ASSERT(counter == s_lctm->ctm_mb_counter - 1)
+
+	/* TEST
+	   Passive send buffer descriptor.
+	   Ensure that match bits get properly set, and that the
+	   descriptor properly encodes buffer and end point
+	   data, and that the data can be properly decoded.
+	   Test with an exact size receive buffer and a larger one.
+	 */
+	NLXDBGPnl(td, 1, "TEST: encode buffer descriptor S(PS1)\n");
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	c2_net_lnet_tm_set_debug(TM2, 0);
+
+	C2_UT_ASSERT(lctm2->ctm_mb_counter == C2_NET_LNET_BUFFER_ID_MIN);
+	lcbuf1->cb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
+	lcbuf1->cb_length = td->buf_size1; /* Arbitrary */
+	C2_SET0(&lcbuf1->cb_addr);
+	c2_mutex_lock(&TM1->ntm_mutex);
+	nlx_core_buf_desc_encode(lctm1, lcbuf1, CBD1);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(lctm1->ctm_mb_counter == C2_NET_LNET_BUFFER_ID_MIN + 1);
+	VALIDATE_MATCH_BITS(lcbuf1->cb_match_bits, lctm1);
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor S(AR2 == PS1)\n");
+	C2_SET0(&lcbuf2->cb_addr); /* clear target areas of buf2 */
+	C2_UT_ASSERT(!nlx_core_ep_eq(&lctm1->ctm_addr, &lcbuf2->cb_addr));
+	lcbuf2->cb_match_bits = 0;
+	C2_UT_ASSERT(lcbuf2->cb_match_bits != lcbuf1->cb_match_bits);
+	/* decode - buf2 on right queue and have adequate size */
+	lcbuf2->cb_length = lcbuf1->cb_length; /* same size as send buffer */
+	lcbuf2->cb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+	c2_mutex_lock(&TM2->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm2, lcbuf2, CBD1);
+	c2_mutex_unlock(&TM2->ntm_mutex);
+	C2_UT_ASSERT(rc == 0);
+	/* buf2 target address set to TM1, and size/bits set to buf1 */
+	C2_UT_ASSERT(nlx_core_ep_eq(&lctm1->ctm_addr, &lcbuf2->cb_addr));
+	C2_UT_ASSERT(lcbuf2->cb_length == lcbuf1->cb_length);
+	C2_UT_ASSERT(lcbuf2->cb_match_bits == lcbuf1->cb_match_bits);
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(corrupt)\n");
+	/* decode - everything correct, like above, but corrupt descriptor */
+	counter = CBD1->cbd_data[2]; /* save some location */
+	CBD1->cbd_data[2]++; /* modify, arbitrarily different */
+	c2_mutex_lock(&TM2->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm2, lcbuf2, CBD1);
+	c2_mutex_unlock(&TM2->ntm_mutex);
+	C2_UT_ASSERT(rc == -EINVAL);
+	CBD1->cbd_data[2] = counter; /* restore */
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor S(AR2 > PS1)\n");
+	C2_SET0(&lcbuf2->cb_addr); /* clear target areas of buf2 */
+	C2_UT_ASSERT(!nlx_core_ep_eq(&lctm1->ctm_addr, &lcbuf2->cb_addr));
+	lcbuf2->cb_match_bits = 0;
+	C2_UT_ASSERT(lcbuf2->cb_match_bits != lcbuf1->cb_match_bits);
+	/* decode - buf2 on right queue and > send buffer size */
+	lcbuf2->cb_length = lcbuf1->cb_length + 1;
+	lcbuf2->cb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+	c2_mutex_lock(&TM2->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm2, lcbuf2, CBD1);
+	c2_mutex_unlock(&TM2->ntm_mutex);
+	C2_UT_ASSERT(rc == 0);
+	/* buf2 target address set to TM1, and size/bits set to buf1 */
+	C2_UT_ASSERT(nlx_core_ep_eq(&lctm1->ctm_addr, &lcbuf2->cb_addr));
+	C2_UT_ASSERT(lcbuf2->cb_length == lcbuf1->cb_length); /* passive size */
+	C2_UT_ASSERT(lcbuf2->cb_match_bits == lcbuf1->cb_match_bits);
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(AR2 < PS1)\n");
+	lcbuf2->cb_length = lcbuf1->cb_length - 1; /* < send buffer size */
+	lcbuf2->cb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+	c2_mutex_lock(&TM2->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm2, lcbuf2, CBD1);
+	c2_mutex_unlock(&TM2->ntm_mutex);
+	C2_UT_ASSERT(rc == -EFBIG);
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(AS2 == PS1)\n");
+	lcbuf1->cb_length = lcbuf1->cb_length; /* same size as send buffer */
+	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	c2_mutex_lock(&TM1->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm1, lcbuf1, CBD1);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(rc == -EPERM);
+
+	/* TEST
+	   Passive receive buffer descriptor.
+	   Ensure that match bits get properly set, and that the
+	   descriptor properly encodes buffer and end point
+	   data, and that the data can be properly decoded.
+	   Test with an exact size send buffer and a smaller one.
+	 */
+	C2_UT_ASSERT(td->buf_size1 >= td->buf_size2); /* sanity check */
+	NLXDBGPnl(td, 1, "TEST: encode buffer descriptor S(PR2)\n");
+
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	c2_net_lnet_tm_set_debug(TM2, 0);
+
+	C2_UT_ASSERT(lctm2->ctm_mb_counter == C2_NET_LNET_BUFFER_ID_MIN);
+	lcbuf2->cb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
+	lcbuf2->cb_length = td->buf_size2; /* Arbitrary */
+	c2_mutex_lock(&TM2->ntm_mutex);
+	nlx_core_buf_desc_encode(lctm2, lcbuf2, CBD2);
+	c2_mutex_unlock(&TM2->ntm_mutex);
+	C2_UT_ASSERT(lctm2->ctm_mb_counter == C2_NET_LNET_BUFFER_ID_MIN + 1);
+	VALIDATE_MATCH_BITS(lcbuf2->cb_match_bits, lctm2);
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor S(AS1 == PR2)\n");
+	C2_SET0(&lcbuf1->cb_addr); /* clear target areas of buf1 */
+	C2_UT_ASSERT(!nlx_core_ep_eq(&lctm2->ctm_addr, &lcbuf1->cb_addr));
+	lcbuf1->cb_match_bits = 0;
+	C2_UT_ASSERT(lcbuf1->cb_match_bits != lcbuf2->cb_match_bits);
+	/* decode - buf1 on right queue and have adequate size */
+	lcbuf1->cb_length = lcbuf2->cb_length; /* same size as receive buffer */
+	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	c2_mutex_lock(&TM1->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm1, lcbuf1, CBD2);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(rc == 0);
+	/* buf1 target address set to TM2, and size/bits set to buf2 */
+	C2_UT_ASSERT(nlx_core_ep_eq(&lctm2->ctm_addr, &lcbuf1->cb_addr));
+	C2_UT_ASSERT(lcbuf1->cb_length == lcbuf2->cb_length);
+	C2_UT_ASSERT(lcbuf1->cb_match_bits == lcbuf2->cb_match_bits);
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor S(AS1 < PR2)\n");
+	C2_SET0(&lcbuf1->cb_addr); /* clear target areas of buf1 */
+	C2_UT_ASSERT(!nlx_core_ep_eq(&lctm2->ctm_addr, &lcbuf1->cb_addr));
+	lcbuf1->cb_match_bits = 0;
+	C2_UT_ASSERT(lcbuf1->cb_match_bits != lcbuf2->cb_match_bits);
+	/* decode - buf1 on right queue and < receive buffer size */
+	lcbuf1->cb_length = lcbuf2->cb_length - 1;
+	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	c2_mutex_lock(&TM1->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm1, lcbuf1, CBD2);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(rc == 0);
+	/* buf1 target address set to TM2, and size/bits set to buf2 */
+	C2_UT_ASSERT(nlx_core_ep_eq(&lctm2->ctm_addr, &lcbuf1->cb_addr));
+	C2_UT_ASSERT(lcbuf1->cb_length == lcbuf2->cb_length - 1); /* active sz */
+	C2_UT_ASSERT(lcbuf1->cb_match_bits == lcbuf2->cb_match_bits);
+
+#undef VALIDATE_MATCH_BITS
+
+	/* TEST
+	   Failure tests for this setup: invalid usage, wrong sizes
+	 */
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(AS1 > PR2)\n");
+	lcbuf1->cb_length = lcbuf2->cb_length + 1; /* > receive buffer size */
+	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	c2_mutex_lock(&TM1->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm1, lcbuf1, CBD2);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(rc == -EFBIG);
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(AR1 == PR2)\n");
+	lcbuf1->cb_length = lcbuf2->cb_length; /* same size as receive buffer */
+	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+	c2_mutex_lock(&TM1->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm1, lcbuf1, CBD2);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(rc == -EPERM);
+
+	/* TEST
+	   Invalid descriptor cases
+	*/
+	*CBD1 = *CBD2;
+
+	NLXDBGPnl(td, 1, "TEST: decode buffer descriptor F(corrupt)\n");
+	CBD2->cbd_match_bits++; /* invalidates checksum */
+	lcbuf1->cb_length = lcbuf2->cb_length; /* same size as receive buffer */
+	lcbuf1->cb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	c2_mutex_lock(&TM1->ntm_mutex);
+	rc = nlx_core_buf_desc_decode(lctm1, lcbuf1, CBD2);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(rc == -EINVAL);
+
+	/* TEST
+	   Check that the match bit counter wraps.
+	*/
+	NLXDBGPnl(td, 1, "TEST: match bit counter wraps\n");
+	lctm1->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MAX - 1;
+	lcbuf1->cb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
+	lcbuf1->cb_length = td->buf_size1; /* Arbitrary */
+	c2_mutex_lock(&TM1->ntm_mutex);
+	nlx_core_buf_desc_encode(lctm1, lcbuf1, CBD1);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(lctm1->ctm_mb_counter == C2_NET_LNET_BUFFER_ID_MAX);
+	nlx_core_match_bits_decode(lcbuf1->cb_match_bits, &tmid, &counter);
+	C2_UT_ASSERT(tmid == lctm1->ctm_addr.cepa_tmid);
+	C2_UT_ASSERT(counter == C2_NET_LNET_BUFFER_ID_MAX - 1);
+
+	lcbuf1->cb_qtype = C2_NET_QT_PASSIVE_BULK_RECV; /* qt doesn't matter */
+	c2_mutex_lock(&TM1->ntm_mutex);
+	nlx_core_buf_desc_encode(lctm1, lcbuf1, CBD1);
+	c2_mutex_unlock(&TM1->ntm_mutex);
+	C2_UT_ASSERT(lctm1->ctm_mb_counter == C2_NET_LNET_BUFFER_ID_MIN);
+	nlx_core_match_bits_decode(lcbuf1->cb_match_bits, &tmid, &counter);
+	C2_UT_ASSERT(tmid == lctm1->ctm_addr.cepa_tmid);
+	C2_UT_ASSERT(counter == C2_NET_LNET_BUFFER_ID_MAX);
+
+	return;
+}
+
+static void test_buf_desc(void)
+{
+	ut_test_framework(&test_buf_desc_body, ut_verbose);
+}
+
+static int test_bulk_passive_send(struct ut_data *td)
+{
+	struct c2_net_buffer *nb1  = &td->bufs1[0]; /* passive */
+	struct c2_net_buffer *nb2  = &td->bufs2[0]; /* active */
+	struct c2_net_buffer *nb2s = NULL;
+	unsigned char seed = 's';
+	c2_bcount_t pBytes = UT_BULK_SIZE;
+	int rc = -1;
+
+	ut_cbreset();
+
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	c2_clink_add(&TM2->ntm_chan, &td->tmwait2);
+
+	/* stage passive send buffer */
+	C2_UT_ASSERT(td->buf_size1 >= pBytes);
+	if (td->buf_size1 < pBytes)
+		goto failed;
+	nb1->nb_length = pBytes;
+	ut_net_buffer_sign(nb1, nb1->nb_length, seed);
+	nb1->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
+	zUT(c2_net_buffer_add(nb1, TM1), failed);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	C2_UT_ASSERT(nb1->nb_desc.nbd_len != 0);
+	C2_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
+
+	zUT(c2_net_desc_copy(&nb1->nb_desc, &nb2->nb_desc), failed);
+
+	/* ensure that an active send fails */
+	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PS !~ AS)\n");
+	nb2->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	nb2->nb_length = pBytes;
+	zvUT(c2_net_buffer_add(nb2, TM2), -EPERM, failed);
+
+	/* try to receive into a smaller buffer */
+	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PS >  AR)\n");
+	C2_UT_ASSERT(pBytes > td->buf_seg_size2); /* sanity */
+	zUT((C2_ALLOC_PTR(nb2s) == NULL), failed);
+	zUT(c2_bufvec_alloc(&nb2s->nb_buffer, 1, td->buf_seg_size2), failed);
+	zUT(c2_net_buffer_register(nb2s, DOM2), failed);
+	zUT(c2_net_desc_copy(&nb1->nb_desc, &nb2s->nb_desc), failed);
+	nb2s->nb_length = td->buf_seg_size2;
+	nb2s->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+	zvUT(c2_net_buffer_add(nb2s, TM2), -EFBIG, failed);
+
+	/* success case */
+	NLXDBGPnl(td, 1, "TEST: bulk transfer S(PS ~  AR)\n");
+	nb2->nb_length = td->buf_size2;
+	nb2->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+	zUT(c2_net_buffer_add(nb2, TM2), failed);
+	C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_QUEUED);
+
+	ut_chan_timedwait(&td->tmwait2, 10);
+	C2_UT_ASSERT(cb_called2 == 1);
+	C2_UT_ASSERT(cb_status2 == 0);
+	C2_UT_ASSERT(cb_nb2 == nb2);
+	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_ACTIVE_BULK_RECV);
+	C2_UT_ASSERT(cb_length2 == pBytes);
+	C2_UT_ASSERT(ut_net_buffer_authenticate(nb2, cb_length2, 0, seed));
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM2, C2_NET_QT_ACTIVE_BULK_RECV,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+	ut_chan_timedwait(&td->tmwait1, 10);
+	C2_UT_ASSERT(cb_called1 == 1);
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_PASSIVE_BULK_SEND);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, C2_NET_QT_PASSIVE_BULK_SEND,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+	rc = 0;
+ failed:
+	c2_net_desc_free(&nb1->nb_desc);
+	c2_net_desc_free(&nb2->nb_desc);
+	if (nb2s != NULL) {
+		if (nb2s->nb_flags & C2_NET_BUF_QUEUED) {
+			NLXDBGP(td, 3, "\tcancelling nb2s\n");
+			c2_net_buffer_del(nb2s, nb2s->nb_tm);
+			ut_chan_timedwait(&td->tmwait2, 10);
+			if (nb2s->nb_flags & C2_NET_BUF_QUEUED)
+				NLXP("Unable to cancel nb2s\n");
+		}
+		if (nb2s->nb_flags & C2_NET_BUF_REGISTERED) {
+			NLXDBGP(td, 3, "\tderegistering nb2s\n");
+			c2_net_buffer_deregister(nb2s, DOM2);
+		}
+		if (nb2s->nb_buffer.ov_vec.v_nr != 0)
+			c2_bufvec_free(&nb2s->nb_buffer);
+		c2_net_desc_free(&nb2s->nb_desc);
+		c2_free(nb2s);
+	}
+	c2_clink_del(&td->tmwait1);
+	c2_clink_del(&td->tmwait2);
+	return rc;
+}
+
+static int test_bulk_passive_recv(struct ut_data *td)
+{
+	struct c2_net_buffer *nb1 = &td->bufs1[0]; /* passive */
+	struct c2_net_buffer *nb2 = &td->bufs2[0]; /* active */
+	struct c2_net_buffer *nb2l = NULL;
+	unsigned char seed = 'r';
+	c2_bcount_t aBytes = UT_BULK_SIZE;
+	int rc = -1;
+
+	ut_cbreset();
+
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+	c2_clink_add(&TM2->ntm_chan, &td->tmwait2);
+
+	/* stage passive recv buffer */
+	nb1->nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
+	nb1->nb_length = td->buf_size1;
+	zUT(c2_net_buffer_add(nb1, TM1), failed);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	C2_UT_ASSERT(nb1->nb_desc.nbd_len != 0);
+	C2_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
+
+	zUT(c2_net_desc_copy(&nb1->nb_desc, &nb2->nb_desc), failed);
+	C2_UT_ASSERT(td->buf_size2 >= aBytes);
+	if (td->buf_size2 < aBytes)
+		goto failed;
+	nb2->nb_length = aBytes;
+	ut_net_buffer_sign(nb2, nb2->nb_length, seed);
+
+	/* ensure that an active receive fails */
+	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PR !~ AR)\n");
+	nb2->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+	zvUT(c2_net_buffer_add(nb2, TM2), -EPERM, failed);
+
+	/* try to send a larger buffer */
+	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PR <  AS)\n");
+	zUT((C2_ALLOC_PTR(nb2l) == NULL), failed);
+	zUT(c2_bufvec_alloc(&nb2l->nb_buffer, UT_BUFSEGS1 + 1,
+			    td->buf_seg_size1), failed);
+	zUT(c2_net_buffer_register(nb2l, DOM2), failed);
+	zUT(c2_net_desc_copy(&nb1->nb_desc, &nb2l->nb_desc), failed);
+	nb2l->nb_length = td->buf_seg_size1 * (UT_BUFSEGS1 + 1);
+	nb2l->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	zvUT(c2_net_buffer_add(nb2l, TM2), -EFBIG, failed);
+
+	/* now try the success case */
+	NLXDBGPnl(td, 1, "TEST: bulk transfer S(PR ~  AS)\n");
+	nb2->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+	zUT(c2_net_buffer_add(nb2, TM2), failed);
+	C2_UT_ASSERT(nb2->nb_flags & C2_NET_BUF_QUEUED);
+
+	ut_chan_timedwait(&td->tmwait2, 10);
+	C2_UT_ASSERT(cb_called2 == 1);
+	C2_UT_ASSERT(cb_status2 == 0);
+	C2_UT_ASSERT(cb_nb2 == nb2);
+	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_ACTIVE_BULK_SEND);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM2, C2_NET_QT_ACTIVE_BULK_SEND,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+	ut_chan_timedwait(&td->tmwait1, 10);
+	C2_UT_ASSERT(cb_called1 == 1);
+	C2_UT_ASSERT(cb_status1 == 0);
+	C2_UT_ASSERT(cb_nb1 == nb1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_PASSIVE_BULK_RECV);
+	C2_UT_ASSERT(cb_length1 == aBytes);
+	C2_UT_ASSERT(ut_net_buffer_authenticate(nb1, cb_length1, 0, seed));
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, C2_NET_QT_PASSIVE_BULK_RECV,
+					  &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+
+	rc = 0;
+ failed:
+	c2_net_desc_free(&nb1->nb_desc);
+	c2_net_desc_free(&nb2->nb_desc);
+	if (nb2l != NULL) {
+		if (nb2l->nb_flags & C2_NET_BUF_QUEUED) {
+			NLXDBGP(td, 3, "\tcancelling nb2l\n");
+			c2_net_buffer_del(nb2l, nb2l->nb_tm);
+			ut_chan_timedwait(&td->tmwait2, 10);
+			if (nb2l->nb_flags & C2_NET_BUF_QUEUED)
+				NLXP("Unable to cancel nb2l\n");
+		}
+		if (nb2l->nb_flags & C2_NET_BUF_REGISTERED) {
+			NLXDBGP(td, 3, "\tderegistering nb2l\n");
+			c2_net_buffer_deregister(nb2l, DOM2);
+		}
+		if (nb2l->nb_buffer.ov_vec.v_nr != 0)
+			c2_bufvec_free(&nb2l->nb_buffer);
+		c2_net_desc_free(&nb2l->nb_desc);
+		c2_free(nb2l);
+	}
+	c2_clink_del(&td->tmwait1);
+	c2_clink_del(&td->tmwait2);
+	return rc;
+}
+
+static void test_bulk_body(struct ut_data *td)
+{
+	struct c2_net_buffer *nb1 = &td->bufs1[0];
+	int i;
+
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	c2_net_lnet_tm_set_debug(TM2, 0);
+
+	/* TEST
+	   Add buffers on the passive queues and then cancel them.
+	   Check that descriptors are present after enqueuing.
+	*/
+	NLXDBGPnl(td, 1, "TEST: add/del on the passive queues\n");
+	for (i = C2_NET_QT_PASSIVE_BULK_RECV;
+	     i < C2_NET_QT_PASSIVE_BULK_SEND; ++i) {
+		nb1->nb_length = td->buf_size1;
+		nb1->nb_qtype  = i;
+
+		ut_cbreset();
+		C2_SET0(&nb1->nb_desc);
+		zUT(c2_net_buffer_add(nb1, TM1), done);
+		C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+		C2_UT_ASSERT(nb1->nb_desc.nbd_len == sizeof *CBD1);
+		C2_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
+
+		c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+		c2_net_buffer_del(nb1, TM1);
+		ut_chan_timedwait(&td->tmwait1, 10);
+		c2_clink_del(&td->tmwait1);
+		C2_UT_ASSERT(cb_called1 == 1);
+		C2_UT_ASSERT(cb_nb1 == nb1);
+		C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+		C2_UT_ASSERT(cb_qt1 == i);
+		C2_UT_ASSERT(cb_status1 == -ECANCELED);
+		C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, i, &td->qs, true));
+		C2_UT_ASSERT(td->qs.nqs_num_f_events == 1);
+		C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
+		C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+		C2_UT_ASSERT(td->qs.nqs_num_dels == 1);
+
+		/* explicitly free the descriptor */
+		C2_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
+		c2_net_desc_free(&nb1->nb_desc);
+		C2_UT_ASSERT(nb1->nb_desc.nbd_data == NULL);
+		C2_UT_ASSERT(nb1->nb_desc.nbd_len == 0);
+	}
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	c2_net_lnet_tm_set_debug(TM2, 0);
+
+	/* sanity check */
+	C2_UT_ASSERT(td->buf_size1 >= UT_BULK_SIZE);
+	C2_UT_ASSERT(td->buf_size2 >= UT_BULK_SIZE);
+
+	/* TEST
+	   Test a passive send. Ensure that an active send cannot be
+	   issued for the network buffer descriptor.
+	   Also test size issues.
+	*/
+	zUT(test_bulk_passive_send(td), done);
+
+	/* TEST
+	   Test a passive receive. Ensure that an active receive cannot be
+	   issued for the network buffer descriptor.
+	   Also test size issues.
+	 */
+	zUT(test_bulk_passive_recv(td), done);
+
+ done:
+	return;
+}
+
+static void test_bulk(void)
+{
+#ifdef NLX_DEBUG
+	nlx_debug._debug_ = 0;
+#endif
+	ut_test_framework(&test_bulk_body, ut_verbose);
+#ifdef NLX_DEBUG
+	nlx_debug._debug_ = 0;
+#endif
+}
+
 const struct c2_test_suite c2_net_lnet_ut = {
         .ts_name = "net-lnet",
         .ts_init = test_lnet_init,
@@ -1101,10 +1700,13 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_ep_addr (K)",   ktest_core_ep_addr },
 		{ "net_lnet_enc_dec (K)",   ktest_enc_dec },
 		{ "net_lnet_msg (K)",       ktest_msg },
+		{ "net_lnet_bulk (K)",      ktest_bulk },
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
 		{ "net_lnet_msg",           test_msg },
+		{ "net_lnet_buf_desc",      test_buf_desc },
+		{ "net_lnet_bulk",          test_bulk },
                 { NULL, NULL }
         }
 };

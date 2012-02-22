@@ -71,9 +71,6 @@ struct nlx_kcore_transfer_mc {
 	/** Transfer machine linkage */
 	struct c2_tlink                  ktm_tm_linkage;
 
-	/** Match bit counter. Range [1,C2_NET_LNET_BUFFER_ID_MAX]. */
-	uint64_t                         ktm_mb_counter;
-
 	/**
 	   Spin lock to serialize access to the buffer event queue
 	   from the LNet callback subroutine.
@@ -83,7 +80,7 @@ struct nlx_kcore_transfer_mc {
 	/** This semaphore increments with each LNet event added. */
 	struct c2_semaphore              ktm_sem;
 
-	/** Handle of the LNet EQ associated with this transfer machine */
+	/** Handle of the LNet EQ associated with this transfer machine. */
 	lnet_handle_eq_t                 ktm_eqh;
 
 	/** ADDB context for events related to this transfer machine */
@@ -97,16 +94,6 @@ struct nlx_kcore_transfer_mc {
  */
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
-
-	/** Minimum space remaining for re-use of the receive buffer.
-	    The value is set from c2_net_buffer::nb_min_receive_size.
-	 */
-	c2_bcount_t                   kb_min_recv_size;
-
-	/** Maximum number of messages that may be received in the buffer.
-	    The value is set from c2_net_buffer::nb_max_receive_msgs.
-	 */
-	uint32_t                      kb_max_recv_msgs;
 
 	/** Pointer to the shared memory buffer data. */
 	struct nlx_core_buffer       *kb_cb;
@@ -134,6 +121,11 @@ struct nlx_kcore_buffer {
 
 	/** MD handle */
 	lnet_handle_md_t              kb_mdh;
+
+	/** The saved mlength value in the case of an out-of-order
+	    REPLY/SEND event sequence.
+	*/
+	unsigned                      kb_mlength;
 
 	/** ADDB context for events related to this buffer */
 	struct c2_addb_ctx            kb_addb;

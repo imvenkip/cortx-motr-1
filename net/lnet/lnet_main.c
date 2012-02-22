@@ -486,19 +486,25 @@
    descriptor returned to the application, to encode the identity of the
    passive buffers.
 
-   The following internal format is used:
+   The data structure will be defined by the Core API along the following lines:
    @code
-   struct nlx_xo_buf_desc {
-        uint64_t                 xbd_match_bits;
-        struct nlx_core_ep_addr  xbd_passive_ep;
-        enum c2_net_queue_type   xbd_qtype;
-        c2_bcount_t              xbd_size;
+   struct nlx_core_buf_desc {
+        uint64_t                 cbd_match_bits;
+        struct nlx_core_ep_addr  cbd_passive_ep;
+        enum c2_net_queue_type   cbd_qtype;
+        c2_bcount_t              cbd_size;
    };
    @endcode
 
-   All the fields are integer fields and the structure is of fixed length.  It
-   is encoded and decoded into its opaque over-the-wire struct c2_net_buf_desc
-   format with dedicated encoding routines.
+   The nlx_core_buf_desc_encode() and nlx_core_buf_desc_decode() subroutines
+   are provided by the Core API to generate and process the descriptor.  All
+   the descriptor fields are integers, the structure is of fixed length and all
+   values are in little-endian format.  No use is made of either the standard
+   XDR or the Colibri Xcode modules.
+
+   The transport will handle the conversion of the descriptor into its opaque
+   over the wire format by simply copying the memory area, as the descriptor is
+   inherently portable.
 
 
    @subsection LNetDLD-lspec-buf-op Buffer operations
@@ -506,17 +512,18 @@
    operation which points to the nlx_xo_buf_add() subroutine. The subroutine
    will invoke the appropriate Core API buffer initiation operations.
 
-   In passive buffer operations, the transport must first obtain suitable match
-   bits for the buffer using the nlx_core_buf_match_bits_set() subroutine.  The
-   transport is responsible for ensuring that the assigned match bits are not
-   in use currently; however this step can be ignored with relative safety as
-   the match bit space is very large and the match bit counter will only wrap
-   around after a very long while.  These match bits should also be encoded in
-   the network buffer descriptor that the transport must return.
+   In passive bulk buffer operations, the transport must first obtain suitable
+   match bits for the buffer using the nlx_core_buf_desc_encode() subroutine.
+   The transport is responsible for ensuring that the assigned match bits are
+   not in use currently; however this step can be ignored with relative safety
+   as the match bit space is very large and the match bit counter will only
+   wrap around after a very long while.  These match bits should also be
+   encoded in the network buffer descriptor that the transport must return.
 
-   In active buffer operations, the size of the active buffer should be
+   In active bulk buffer operations, the size of the active buffer should be
    validated against the size of the passive buffer as given in its network
-   buffer descriptor.
+   buffer descriptor.  The nlx_core_buf_desc_decode() subroutine should be used
+   to decode the descriptor.
 
 
    @subsection LNetDLD-lspec-state State Specification
@@ -775,10 +782,23 @@
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
 
+#include <asm/byteorder.h>  /* byte swapping macros */
 
 /* debug print support */
+#ifdef __KERNEL__
 #undef NLX_DEBUG
+#else
+#undef NLX_DEBUG
+#endif
+
 #ifdef NLX_DEBUG
+
+struct nlx_debug {
+	int _debug_;
+};
+static struct nlx_debug nlx_debug = {
+	._debug_ = 0,
+}; /* global debug control */
 
 /* note Linux uses the LP64 standard */
 #ifdef __KERNEL__
@@ -787,11 +807,13 @@
 #define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
 #endif
 #define NLXDBG(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); stmt; } } while (0)
+#define NLXDBGnl(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) { stmt; } } while (0)
 #define NLXDBGP(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); NLXP(fmt, ## __VA_ARGS__); } } while (0)
 #define NLXDBGPnl(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP(fmt, ## __VA_ARGS__); } } while (0)
 #else
 #define NLXP(fmt, ...)
 #define NLXDBG(ptr, dbg, stmt) do { ; } while (0)
+#define NLXDBGnl(ptr, dbg, stmt) do { ; } while (0)
 #define NLXDBGP(ptr, dbg, fmt, ...) do { ; } while (0)
 #define NLXDBGPnl(ptr, dbg, fmt, ...) do { ; } while (0)
 #endif /* !NLX_DEBUG */
