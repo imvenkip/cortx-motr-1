@@ -26,7 +26,6 @@
 
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/assert.h"  /* C2_PRE */
-#include "lib/vec.h"  /* C2_PRE */
 #include "lib/memory.h"
 
 /**

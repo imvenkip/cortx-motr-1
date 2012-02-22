@@ -28,7 +28,6 @@
 #include "lib/arith.h"   /* min_type, c2_is_po2 */
 #include "lib/assert.h"
 #include "lib/atomic.h"
-#include "lib/vec.h"     /* c2_addr_is_aligned */
 #include "lib/memory.h"
 
 /**

@@ -56,6 +56,14 @@ void *c2_alloc(size_t size);
  */
 void *c2_alloc_aligned(size_t size, unsigned shift);
 
+/** It returns true when addr is aligned by value shift. */
+static inline bool c2_addr_is_aligned(void *addr, unsigned shift)
+{
+	C2_CASSERT(sizeof(unsigned long) >= sizeof(void *));
+	return ((((unsigned long)addr >> shift) << shift) ==
+		  (unsigned long)addr);
+}
+
 /**
  * Frees memory block
  *

@@ -148,14 +148,6 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 }
 C2_EXPORTED(c2_bufvec_alloc);
 
-
-bool c2_addr_is_aligned(void *addr, unsigned shift)
-{
-	return ((((unsigned long)addr >> shift) << shift) ==
-		  (unsigned long)addr);
-}
-C2_EXPORTED(c2_addr_is_aligned);
-
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 		            uint32_t          num_segs,
 		            c2_bcount_t       seg_size,
