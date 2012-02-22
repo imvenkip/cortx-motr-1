@@ -126,7 +126,6 @@ int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 			    c2_time_t timeout)
 {
 	/* XXX implement */
-	C2_PRE(nlx_core_tm_is_locked(lctm));
 	return -ENOSYS;
 }
 

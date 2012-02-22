@@ -135,8 +135,10 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 				c2_cond_timedwait(&tp->xtm_ev_cond,
 						  &tm->ntm_mutex, timeout);
 			if (tp->xtm_ev_chan != NULL) {
+				c2_mutex_unlock(&tm->ntm_mutex);
 				rc = nlx_core_buf_event_wait(ctp, timeout);
-				if (rc == 0) {
+				c2_mutex_lock(&tm->ntm_mutex);
+				if (rc == 0 && tp->xtm_ev_chan != NULL) {
 					c2_chan_signal(tp->xtm_ev_chan);
 					tp->xtm_ev_chan = NULL;
 				}
