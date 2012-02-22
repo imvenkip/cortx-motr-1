@@ -65,7 +65,7 @@ struct c2_layout_list_enum {
 
 int c2_list_enum_build(uint64_t lid, uint32_t nr,
 		       struct c2_layout_list_enum **out);
-int c2_list_enum_add(struct c2_layout_list_enum *le, uint64_t lid,
+int c2_list_enum_add(struct c2_layout_list_enum *le,
 		     uint32_t idx, struct c2_fid *cob_id);
 
 void c2_list_enum_fini(struct c2_layout_list_enum *list_enum);

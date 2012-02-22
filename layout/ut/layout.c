@@ -541,7 +541,7 @@ static int pdclust_list_l_build(uint64_t lid,
 	for (i = 0; i < nr; ++i) {
 		cob_fid.f_container = i * 100 + 1;
 		cob_fid.f_key = i + 1;
-		rc = c2_list_enum_add(le, lid, i, &cob_fid);
+		rc = c2_list_enum_add(le, i, &cob_fid);
 		C2_UT_ASSERT(rc == 0);
 	}
 

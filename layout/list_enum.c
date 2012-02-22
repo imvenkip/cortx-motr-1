@@ -155,14 +155,17 @@ void c2_list_enum_fini(struct c2_layout_list_enum *list_enum)
 	c2_layout_enum_fini(&list_enum->lle_base);
 }
 
-int c2_list_enum_add(struct c2_layout_list_enum *le, uint64_t lid,
+int c2_list_enum_add(struct c2_layout_list_enum *le,
 		     uint32_t idx, struct c2_fid *cob_id)
 {
-	/* todo No need of the lid arg */
-	C2_PRE(lid == le->lle_lid);
-	// todoC2_PRE(IS_IN_ARRAY(idx, le->lle_list_of_cobs));
+	C2_PRE(idx < le->lle_nr);
+	C2_PRE(le->lle_list_of_cobs[idx].f_container == 0 &&
+	       le->lle_list_of_cobs[idx].f_key == 0);
 
-	/* @todo check that the idx does not already exist. */
+	if(idx >= le->lle_nr || le->lle_list_of_cobs[idx].f_container != 0 ||
+	   le->lle_list_of_cobs[idx].f_key != 0)
+		return -EINVAL;
+
 	le->lle_list_of_cobs[idx] = *cob_id;
 
 	return 0;
@@ -252,27 +255,32 @@ static uint32_t list_recsize(struct c2_layout_enum *e)
 static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 			     enum c2_layout_xcode_op op,
 			     uint64_t lid, uint32_t idx,
-			     struct ldb_cob_entry *ldb_ce,
+			     struct c2_fid *cob_id,
 			     struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
 	struct ldb_cob_lists_rec  rec;
 	struct c2_db_pair         pair;
+	int                       rc;
 
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 
 	key.lclk_lid       = lid;
-	key.lclk_cob_index = ldb_ce->llce_cob_index;
+	key.lclk_cob_index = idx;
 
 	c2_db_pair_setup(&pair, &lsd->lsd_cob_lists,
 			 &key, sizeof key,
 			 &rec, sizeof rec);
 
-	c2_table_lookup(tx, &pair);
+	rc = c2_table_lookup(tx, &pair);
+	C2_ASSERT(rc == 0);
+	if (rc != 0)
+		return rc;
 
 	/* todo tempo */
 	C2_ASSERT(rec.lclr_cob_id.f_container != 0);
+	*cob_id = rec.lclr_cob_id;
 
 	return 0;
 }
@@ -339,23 +347,37 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
 			ldb_ce = c2_bufvec_cursor_addr(cur);
 			c2_bufvec_cursor_move(cur, sizeof *ldb_ce);
+			cob_fid = ldb_ce->llce_cob_id;
+			C2_ASSERT(ldb_ce != NULL);
+			C2_ASSERT(ldb_ce->llce_cob_index <=
+				  ldb_ce_header->llces_nr);
+
+			rc = c2_list_enum_add(list_enum,
+					      ldb_ce->llce_cob_index,
+					      &ldb_ce->llce_cob_id);
+			C2_ASSERT(rc == 0);
+			if (rc != 0)
+				return rc;
 		} else {
-			rc = ldb_cob_list_read(schema, op, lid, i,
-						ldb_ce, tx);
-			/* todo
-			 * This is going constrain the addition of COB entries
-			 * to be in ascending order of idx. Is that fine?
+			/* todo Is it acceptable if any of the cob entry is not
+			 * found in between from the cob_list table? If yes,
+			 * following assert needs to be removed.
 			 */
+			rc = ldb_cob_list_read(schema, op, lid, i,
+					       &cob_fid, tx);
+			C2_ASSERT(rc == 0);
+			if (rc != 0)
+				return rc;
+
+			rc = c2_list_enum_add(list_enum, i, &cob_fid);
+			C2_ASSERT(rc == 0);
+			if (rc != 0)
+				return rc;
 		}
-		C2_ASSERT(ldb_ce != NULL);
-		C2_ASSERT(ldb_ce->llce_cob_index <= ldb_ce_header->llces_nr);
 
-		cob_fid.f_container = ldb_ce->llce_cob_id.f_container;
-		cob_fid.f_key = ldb_ce->llce_cob_id.f_key;
 
-		rc = c2_list_enum_add(list_enum, lid, i, &cob_fid);
-		C2_ASSERT(rc == 0);
-
+		/* todo Verify elsewhere that it is fine if order is not
+		 * followed.*/
 	}
 
 	return 0;
@@ -363,10 +385,10 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 /* todo Check how should the cob entry be passed to this fn. */
 int ldb_cob_list_write(struct c2_ldb_schema *schema,
-		     enum c2_layout_xcode_op op,
-		     uint64_t lid,
-		     struct ldb_cob_entry *ldb_ce,
-		     struct c2_db_tx *tx)
+		       enum c2_layout_xcode_op op,
+		       uint64_t lid,
+		       struct ldb_cob_entry *ldb_ce,
+		       struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
@@ -444,7 +466,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	ldb_ce_header->llces_nr = list_enum->lle_nr;
 
 	/* todo
-	 * Handel the update case (C2_LXO_DB_UPDATE) specially as
+	 * Handle the update case (C2_LXO_DB_UPDATE) specially as:
 	 * first delete all the eixisting entries and then insert all
 	 * entries assuming they have arrived newly.
 	 */
