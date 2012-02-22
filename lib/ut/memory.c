@@ -17,23 +17,23 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 05/07/2010
  */
-#include <stdlib.h>
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/ub.h"
 #include "lib/ut.h"
+#include "lib/vec.h"    /* C2_SEG_SIZE & C2_SEG_SHIFT */
 #include "lib/memory.h"
 
 struct test1 {
 	int a;
 };
 
-void test_memory()
+void test_memory(void)
 {
-	void *ptr1;
+	void         *ptr1;
 	struct test1 *ptr2;
-	size_t allocated;
-
+	size_t        allocated;
+	int           i;
 	allocated = c2_allocated();
 	ptr1 = c2_alloc(100);
 	C2_UT_ASSERT(ptr1 != NULL);
@@ -43,7 +43,15 @@ void test_memory()
 
 	c2_free(ptr1);
 	c2_free(ptr2);
-	C2_UT_ASSERT(allocated == c2_allocated())
+	C2_UT_ASSERT(allocated == c2_allocated());
+
+	/* Checking c2_alloc_aligned for buffer sizes from 4K to 64Kb. */
+	for (i = 0; i <= C2_SEG_SIZE * 16; i += C2_SEG_SIZE / 2) {
+		ptr1 = c2_alloc_aligned(i, C2_SEG_SHIFT);
+		C2_UT_ASSERT(c2_addr_is_aligned(ptr1, C2_SEG_SHIFT));
+		c2_free_aligned(ptr1, (size_t)i, C2_SEG_SHIFT);
+	}
+
 }
 
 enum {
@@ -100,37 +108,37 @@ struct c2_ub_set c2_memory_ub = {
 	.us_name = "memory-ub",
 	.us_init = ub_init,
 	.us_fini = NULL,
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name  = "alloc-small",
-		  .ut_iter  = UB_ITER, 
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_small },
 
-		{ .ut_name  = "free-small", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "free-small",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_free },
 
 		{ .ut_name  = "alloc-medium",
-		  .ut_iter  = UB_ITER, 
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_medium },
 
-		{ .ut_name  = "free-medium", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "free-medium",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_free },
 
 		{ .ut_name  = "alloc-large",
-		  .ut_iter  = UB_ITER, 
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_large },
 
-		{ .ut_name  = "free-large", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "free-large",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_free },
 
 		{ .ut_name  = "alloc-huge",
-		  .ut_iter  = UB_ITER/1000, 
+		  .ut_iter  = UB_ITER/1000,
 		  .ut_round = ub_huge },
 
-		{ .ut_name  = "free-huge", 
-		  .ut_iter  = UB_ITER/1000, 
+		{ .ut_name  = "free-huge",
+		  .ut_iter  = UB_ITER/1000,
 		  .ut_round = ub_free },
 
 		{ .ut_name = NULL }
@@ -138,7 +146,7 @@ struct c2_ub_set c2_memory_ub = {
 };
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

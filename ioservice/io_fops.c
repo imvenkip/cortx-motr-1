@@ -169,6 +169,11 @@ int c2_ioservice_fop_init(void)
 
 	if (rc != 0)
 		c2_ioservice_fop_fini();
+
+#ifndef __KERNEL__
+        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+#endif
 	return rc;
 }
 C2_EXPORTED(c2_ioservice_fop_init);
@@ -1372,6 +1377,9 @@ static void io_item_replied(struct c2_rpc_item *item)
 	rbulk = c2_fop_to_rpcbulk(fop);
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
+	
+	C2_ASSERT(ergo(item->ri_error == 0,
+		       reply->rwr_count == rbulk->rb_bytes));
 
 	C2_ASSERT(ergo(item->ri_error == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
