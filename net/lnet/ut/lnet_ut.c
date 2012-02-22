@@ -1725,10 +1725,15 @@ static void test_sync_body(struct ut_data *td)
 	C2_UT_ASSERT(cb_called1 == 0);
 
 	/* TEST
-	   Enqueue a receive buffer. Send multiple messages from the other TM.
-	   No events delivered until fetched.
+	   Test synchronous delivery of buffer events under control of the
+	   application.
+	   No events must be delivered until fetched.
+	   I use the C2_NET_QT_MSG_RECV queue for this test to make it easier
+	   to generate multiple events, but any queue would have sufficied.
+	   Note that this test is not about the content of the event (tested
+	   elsewhere) but about the control over delivery.
 	*/
-	NLXDBGPnl(td, 1, "TEST: sync delivery of received messages\n");
+	NLXDBGPnl(td, 1, "TEST: sync delivery of buffer events\n");
 
 	ut_cbreset();
 
