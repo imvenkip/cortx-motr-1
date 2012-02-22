@@ -1677,6 +1677,8 @@ static void io_fops_create(enum C2_RPC_OPCODES op, int fids_nr, int fops_nr,
 	struct c2_io_fop	**io_fops;
 
 	seed = 0;
+	for (i = 0; i < fids_nr; ++i)
+		bp->bp_offsets[i] = IO_SEG_START_OFFSET;
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE) {
 		C2_UT_ASSERT(bp->bp_wfops == NULL);
