@@ -44,7 +44,7 @@ static int logfd;
 int c2_arch_trace_init()
 {
 	FILE *f;
-	char buf[10];
+	char buf[80];
 	char *s;
 
 	f = fopen(SYS_KERN_RANDVSPACE_FNAME, "r");
@@ -63,8 +63,9 @@ int c2_arch_trace_init()
 		return -EINVAL;
 	}
 
+	sprintf(buf, "c2.trace.%d", (unsigned)getpid());
 	errno = 0;
-	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
+	logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700);
 	if (logfd != -1) {
 		if (ftruncate(logfd, c2_logbufsize) == 0) {
 			c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
