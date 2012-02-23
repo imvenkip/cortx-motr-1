@@ -21,6 +21,7 @@
 
 #include "net/lnet/lnet_main.c"
 #include "lib/arith.h" /* max64u */
+#include "lib/thread.h" /* c2_thread_self, c2_thread_handle_eq */
 #include "lib/ut.h"
 
 #include "db/db.h" /* c2_dbenv, c2_table */
@@ -1688,9 +1689,27 @@ static void test_bulk(void)
 #endif
 }
 
+static struct c2_thread_handle test_sync_ut_handle;
+
+/* replacement for ut_buf_cb2 for this test */
+static void test_sync_msg_send_cb2(const struct c2_net_buffer_event *ev)
+{
+	struct c2_thread_handle self;
+	c2_thread_self(&self);
+	/* async callback on background thread */
+	C2_UT_ASSERT(!c2_thread_handle_eq(&self, &test_sync_ut_handle));
+
+	ut_buf_cb2(ev);
+}
+
 /* replacement for ut_buf_cb1 for this test */
 static void test_sync_msg_recv_cb1(const struct c2_net_buffer_event *ev)
 {
+	struct c2_thread_handle self;
+	c2_thread_self(&self);
+	/* synchronous callback on application thread */
+	C2_UT_ASSERT(c2_thread_handle_eq(&self, &test_sync_ut_handle));
+
 	cb_save_ep1 = true;
 	ut_buf_cb1(ev);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
@@ -1728,14 +1747,20 @@ static void test_sync_body(struct ut_data *td)
 	   Test synchronous delivery of buffer events under control of the
 	   application.
 	   No events must be delivered until fetched.
-	   I use the C2_NET_QT_MSG_RECV queue for this test to make it easier
-	   to generate multiple events, but any queue would have sufficied.
+	   Normal event delivery guarantees the use of a separate thread.
+	   Synchronous event delivery guarantees the use of the application
+	   thread.
+
 	   Note that this test is not about the content of the event (tested
 	   elsewhere) but about the control over delivery.
+	   I use the C2_NET_QT_MSG_RECV queue for this test to make it easier
+	   to generate multiple events, but any queue would have sufficied.
 	*/
 	NLXDBGPnl(td, 1, "TEST: sync delivery of buffer events\n");
 
 	ut_cbreset();
+
+	c2_thread_self(&test_sync_ut_handle); /* save thread handle */
 
 	num_msgs = 4;
 	initial_len = 256;
@@ -1757,6 +1782,7 @@ static void test_sync_body(struct ut_data *td)
 	zUT(c2_net_end_point_create(&ep2, TM2, TM1->ntm_ep->nep_addr), done);
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
 
+	td->buf_cb2.nbc_cb[C2_NET_QT_MSG_SEND] = test_sync_msg_send_cb2;
 	for (i = 1; i <= num_msgs; ++i) {
 		len = initial_len * i;
 		C2_UT_ASSERT(len < td->buf_size2);
