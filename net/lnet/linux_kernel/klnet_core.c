@@ -205,7 +205,7 @@
    The transport uses the nlx_core_buf_passive_recv() or the
    nlx_core_buf_passive_send() subroutines to stage passive buffers.  Prior
    to initiating these operations, the transport should use the
-   nlx_core_buf_match_bits_set() subroutine to generate new match bits for
+   nlx_core_buf_desc_encode() subroutine to generate new match bits for
    the passive buffer.  The match bit counter will repeat over time, though
    after a very long while.  It is the transport's responsibility to ensure
    that all of the passive buffers associated with a given transfer machine
@@ -331,10 +331,12 @@
 
    A transfer machine is associated with the following LNet resources:
    - An Event Queue (EQ).  This is represented by the
-     nlx_kcore_transfer_mc::ktm_eqh handle.
+   nlx_kcore_transfer_mc::ktm_eqh handle.
 
-   The nlx_core_tm_start() subroutine creates the nlx_kcore_transfer_mc::ktm_eqh
-   handle. The nlx_core_tm_stop() subroutine releases the handle.
+   The nlx_core_tm_start() subroutine creates the event handle.  The
+   nlx_core_tm_stop() subroutine releases the handle.
+   See @ref KLNetCoreDLD-lspec-ev for more details on event processing.
+
 
    @subsection KLNetCoreDLD-lspec-buf-res LNet Buffer Resources
 
@@ -361,21 +363,39 @@
    This, coupled with the fact that the circular buffer used works optimally
    with a single producer and single consumer resulted in the decision to use
    just one LNet EQ per transfer machine (nlx_kcore_transfer_mc::ktm_eqh).
-   This EQ is created in the call to the nlx_core_tm_start() subroutine, and is
-   freed in the call to the nlx_core_tm_stop() subroutine.
 
-   LNet requires that the callback subroutine be re-entrant and
-   non-blocking. Given that the circular queue assumes a single producer and
-   single consumer, a spin lock is used to serialize access to the queue.
+   The EQ is created in the call to the nlx_core_tm_start() subroutine, and
+   is freed in the call to the nlx_core_tm_stop() subroutine.
+
+   LNet requires that the callback subroutine be re-entrant and non-blocking,
+   and not make any LNet API calls. Given that the circular queue assumes a
+   single producer and single consumer, a spin lock is used to serialize access
+   of the two EQs to the circular queue.
 
    The event callback requires that the MD @c user_ptr field be set up to the
-   kernel address of the nlx_core_buffer data structure.  The callback
-   subroutine does the following:
+   kernel address of the nlx_core_buffer data structure.  Note that if an event
+   has the @c unlinked field set then this will be the last event that LNet will
+   post for the related operation, and the @c user_ptr field will be valid, so
+   the callback can safely de-reference the field to determine the correct queue.
 
-   -# It will ignore @c LNET_EVENT_SEND events delivered as a result of
-      a @c LNetGet() call.
-   -# It will assert that an @c LNET_EVENT_ACK events is not received. This is
-      controllable in the @c LNetPut() call.
+   The callback subroutine does the following:
+
+   -# It will ignore @c LNET_EVENT_SEND events delivered as a result of a @c
+      LNetGet() call if the @c unlinked field of the event is not set. If the
+      @c unlinked field is set, the event could either be an out-of-order SEND
+      (terminating a REPLY/SEND sequence), or the piggy-backed UNLINK on an
+      in-order SEND.  The two cases are distinguished by explicitly tracking
+      the receipt of an out-of-order REPLY (in nlx_kcore_buffer::kb_ooo_reply).
+      An out-of-order SEND will be treated as though it is the terminating @c
+      LNET_EVENT_REPLY event of a SEND/REPLY sequence.
+   -# It will not create an event in the circular queue for @c LNET_EVENT_REPLY
+      events that do not have their @c unlinked field set.  They indicate an
+      out-of-sequence REPLY/SEND combination, and LNet will issue a valid SEND
+      event subsequently.  However, the receipt of such an REPLY will be
+      remembered in nlx_kcore_buffer::kb_ooo_reply, and its payload in the
+      other "ooo" fields, so that when the out-of-order SEND arrives, this data
+      can be used to generate the circular queue event.
+   -# It will ignore @c LNET_EVENT_ACK events.
    -# It obtains the nlx_kcore_transfer_mc::ktm_bevq_lock spin lock.
    -# The bev_cqueue_pnext() subroutine is then used to locate the next buffer
       event structure in the circular buffer event queue which will be used to
@@ -492,7 +512,7 @@
 
    -# Prior to invoking the nlx_core_buf_passive_recv() or the
       nlx_core_buf_passive_send() subroutines, the transport should use the
-      nlx_core_buf_match_bits_set() subroutine to assign unique match bits to
+      nlx_core_buf_desc_encode() subroutine to assign unique match bits to
       the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
@@ -535,8 +555,8 @@
       The MD is set up to unlink automatically.
       Save the MD handle in the nlx_kcore_buffer::kb_mdh field.
       Set up the fields of the @c lnet_md_t argument as follows:
-      - Set the @c eq_handle to identify the EQ associated with the transfer
-        machine (nlx_kcore_transfer_mc::ktm_eqh).
+      - Set the @c eq_handle to identify the EQ associated with
+        the transfer machine (nlx_kcore_transfer_mc::ktm_eqh).
       - Set the kernel logical address of the nlx_core_buffer in the
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
@@ -544,19 +564,28 @@
 	element of the vector must be adjusted to reflect the desired byte
 	count.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
+      - In case of an active read, which uses @c LNetGet(), set the threshold
+        value to 2 to accommodate both the SEND and the REPLY events. Otherwise
+	set it to 1.
    -# Use the @c LNetGet() subroutine to initiate the active read or the @c
-      LNetPut() subroutine to initiate the active write. The hdr_data
-      is set to 0 in the case of @c LNetPut(). No acknowledgment
-      should be requested.
+      LNetPut() subroutine to initiate the active write. The @c hdr_data is set
+      to 0 in the case of @c LNetPut(). No acknowledgment should be requested.
+      In the case of an @c LNetGet(), the field used to track out-of-order
+      REPLY events (nlx_kcore_buffer::kb_ooo_reply) should be cleared before
+      the operation is initiated.
    -# When a response to the @c LNetGet() or @c LNetPut() call completes, an @c
-      LNET_EVENT_SEND event will be delivered to the event queue and should be
-      ignored in the case of @c LNetGet().  See @ref KLNetCoreDLD-lspec-ev
-      for details.
-      @note In the case of an @c LNetPut(), the event does not indicate if the
-      recipient was able to save the data, but merely that it left the host.
+      LNET_EVENT_SEND event will be delivered to the event queue and should
+      typically be ignored in the case of @c LNetGet().
+      See @ref KLNetCoreDLD-lspec-ev for details.
    -# When the bulk data transfer for @c LNetGet() completes, an
       @c LNET_EVENT_REPLY event will be delivered to the event queue, and will
       be processed as described in @ref KLNetCoreDLD-lspec-ev.
+
+      @note LNet does not guarantee the order of the SEND and REPLY events
+      associated with the @c LNetGet() operation.  Also note that in the case
+      of an @c LNetGet() operation, the SEND event does not indicate if the
+      recipient was able to save the data, but merely that the request left the
+      host.
 
 
    @subsection KLNetCoreDLD-lspec-lnet-cancel LNet Canceling Operations
@@ -596,12 +625,22 @@
    run time. This dependency is captured by the Linux kernel module support that
    reference counts the usage of dependent modules.
 
+   - The kernel Core layer modules explicitly tracks the events received for @c
+   LNetGet() calls, in the nlx_kcore_buffer data structure associated with the
+   call.  This is because there are two events (SEND and REPLY) that are
+   returned for this operation, and LNet does not guarantee their order of
+   arrival, and the event processing logic is set up such that a circular
+   buffer event must be created only upon receipt of the last operation event.
+   Complicating the issue is that a cancellation response could be piggy-backed
+   onto an in-order SEND.  See @ref KLNetCoreDLD-lspec-ev and @ref
+   KLNetCoreDLD-lspec-active for details.
+
 
    @subsection KLNetCoreDLD-lspec-thread Threading and Concurrency Model
    -# Generally speaking, API calls within the transport address space
       are protected by the serialization of the Colibri Networking layer,
       typically the transfer machine mutex or the domain mutex.
-      The nlx_core_buf_match_bits_set() subroutine, for example, is fully
+      The nlx_core_buf_desc_encode() subroutine, for example, is fully
       protected by the transfer machine mutex held across the
       c2_net_buffer_add() subroutine call, so implicitly protects the match bit
       counter in the kernel Core's per TM private data.
@@ -615,7 +654,7 @@
       nlx_core_tm_stop() subroutines use this mutex internally for serialization
       and operation on the ::nlx_kcore_tms list threaded through the kernel
       Core's per-TM private data.
-   -# The kernel Core module registers a single callback subroutine with the
+   -# The kernel Core module registers a callback subroutine with the
       LNet EQ defined per transfer machine. LNet requires that this subroutine
       be reentrant and non-blocking.  The circular buffer event queue accessed
       from the callback requires a single producer, so the
@@ -793,12 +832,16 @@ struct nlx_kcore_interceptable_subs {
 	int (*_nlx_kcore_LNetPut)(struct nlx_core_transfer_mc *lctm,
 				  struct nlx_core_buffer *lcbuf,
 				  lnet_md_t *umd);
+	int (*_nlx_kcore_LNetGet)(struct nlx_core_transfer_mc *lctm,
+				  struct nlx_core_buffer *lcbuf,
+				  lnet_md_t *umd);
 };
 static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 #define _NLXIS(s) ._##s = s
 
 	_NLXIS(nlx_kcore_LNetMDAttach),
 	_NLXIS(nlx_kcore_LNetPut),
+	_NLXIS(nlx_kcore_LNetGet),
 
 #undef _NLXI
 };
@@ -807,6 +850,8 @@ static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 	(*nlx_kcore_iv._nlx_kcore_LNetMDAttach)(lctm, lcbuf, umd)
 #define NLX_kcore_LNetPut(lctm, lcbuf, umd)		\
 	(*nlx_kcore_iv._nlx_kcore_LNetPut)(lctm, lcbuf, umd)
+#define NLX_kcore_LNetGet(lctm, lcbuf, umd)			\
+	(*nlx_kcore_iv._nlx_kcore_LNetGet)(lctm, lcbuf, umd)
 
 /**
    KCore domain invariant.
@@ -921,6 +966,7 @@ static void nlx_kcore_tms_list_add(struct nlx_kcore_transfer_mc *kctm)
 
 /**
    Callback for the LNet Event Queue.
+   It must be re-entrant, and not make any calls to the LNet API.
  */
 static void nlx_kcore_eq_cb(lnet_event_t *event)
 {
@@ -931,12 +977,18 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	struct nlx_core_bev_link *ql;
 	struct nlx_core_buffer_event *bev;
 	c2_time_t now = c2_time_now();
+	bool is_unlinked = false;
+	unsigned mlength;
+	unsigned offset;
+	int status;
 
 	C2_PRE(event != NULL);
 	if (event->type == LNET_EVENT_ACK) {
-#ifdef NLX_DEBUG
-		nlx_kprint_lnet_event("eq_cb ACK", event);
-#endif
+		/* we do not use ACK */
+		NLXDBG(&nlx_debug, 1,
+		       nlx_kprint_lnet_event("nlx_kcore_eq_cb: filtered ACK",
+					     event));
+		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EPROTO);
 		return;
 	}
 	cbp = event->md.user_ptr;
@@ -947,32 +999,76 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
 	lctm = ktm->ktm_ctm;
 
-	NLXDBGP(lctm, 1, "%p: eq_cb: %p\n", lctm, event);
+	NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s U:%d S:%d T:%d buf:%lx\n",
+		lctm, event, nlx_kcore_lnet_event_type_to_string(event->type),
+		event->unlinked, event->status, event->md.threshold,
+		(unsigned long) cbp->cb_buffer_id);
 	NLXDBG(lctm, 2, nlx_kprint_lnet_event("eq_cb", event));
-	NLXDBG(lctm, 2, nlx_kprint_kcore_tm("eq_cb", ktm));
+	NLXDBG(lctm, 3, nlx_kprint_kcore_tm("eq_cb", ktm));
 
 	if (event->unlinked != 0) {
-		LNetInvalidateHandle(&kbp->kb_mdh);
+		LNetInvalidateHandle(&kbp->kb_mdh); /* Invalid use, but safe */
 		kbp->kb_ktm = NULL;
+		is_unlinked = true;
 	}
+	status  = event->status;
+	mlength = event->mlength;
+	offset  = event->offset;
 
-	/* SEND events are only significant for LNetPut operations */
 	if (event->type == LNET_EVENT_SEND &&
-	    cbp->cb_qtype != C2_NET_QT_MSG_SEND &&
-	    cbp->cb_qtype != C2_NET_QT_ACTIVE_BULK_SEND)
-		return;
+	    cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
+		/* An LNetGet related event, normally ignored */
+		if (!is_unlinked) {
+			NLXDBGP(lctm, 1, "\t%p: ignored LNetGet() SEND\n", lctm);
+			return;
+		}
+		/* An out-of-order SEND, or
+		   cancellation notification piggy-backed onto an in-order SEND.
+		   The only way to distinguish is from the value of the
+		   event->kb_ooo_reply field.
+		*/
+		NLXDBGP(lctm, 1,
+			"\t%p: LNetGet() SEND with unlinked: thr:%d ooo:%d\n",
+			lctm, event->md.threshold, (int) kbp->kb_ooo_reply);
+		if (status == 0) {
+			if (!kbp->kb_ooo_reply)
+				status = -ECANCELED;
+			else {  /* from earlier REPLY */
+				mlength = kbp->kb_ooo_mlength;
+				offset  = kbp->kb_ooo_offset;
+				status  = kbp->kb_ooo_status;
+			}
+		}
+	} else if (event->type == LNET_EVENT_UNLINK) {/* see nlx_core_buf_del */
+		C2_ASSERT(is_unlinked);
+		status = -ECANCELED;
+	} else if (!is_unlinked) {
+		NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s !unlinked Q=%d\n", lctm,
+			event, nlx_kcore_lnet_event_type_to_string(event->type),
+			cbp->cb_qtype);
+		/* We may get REPLY before SEND, so ignore such events,
+		   but save the significant values for when the SEND arrives.
+		*/
+		if (cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
+			kbp->kb_ooo_reply   = true;
+			kbp->kb_ooo_mlength = mlength;
+			kbp->kb_ooo_offset  = offset;
+			kbp->kb_ooo_status  = status;
+			return;
+		}
+		/* we don't expect anything other than receive messages */
+		C2_ASSERT(cbp->cb_qtype == C2_NET_QT_MSG_RECV);
+	}
 
 	spin_lock(&ktm->ktm_bevq_lock);
 	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
 	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
 	bev->cbe_buffer_id = cbp->cb_buffer_id;
-	bev->cbe_time = now;
-	if (event->type == LNET_EVENT_UNLINK) /* see nlx_core_buf_del */
-		bev->cbe_status = -ECANCELED;
-	else
-		bev->cbe_status = event->status;
-	bev->cbe_length = event->mlength;
-	bev->cbe_offset = event->offset;
+	bev->cbe_time      = now;
+	bev->cbe_status    = status;
+	bev->cbe_length    = mlength;
+	bev->cbe_offset    = offset;
+	bev->cbe_unlinked  = is_unlinked;
 	if (event->hdr_data != 0) {
 		bev->cbe_sender.cepa_nid = event->initiator.nid;
 		bev->cbe_sender.cepa_pid = event->initiator.pid;
@@ -982,7 +1078,6 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	} else
 		C2_SET0(&bev->cbe_sender);
 
-	bev->cbe_unlinked = event->unlinked != 0;
 	bev_cqueue_put(&lctm->ctm_bevq);
 	spin_unlock(&ktm->ktm_bevq_lock);
 	c2_semaphore_up(&ktm->ktm_sem);
@@ -1113,9 +1208,11 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_max_operations > 0);
 
 	nlx_kcore_umd_init(lctm, lcbuf, lcbuf->cb_max_operations,
-			   lcbuf->cb_min_receive_size, LNET_MD_OP_PUT, &umd);
+			   lcbuf->cb_min_receive_size, LNET_MD_OP_PUT,
+			   false, &umd);
 	lcbuf->cb_match_bits =
-		nlx_kcore_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
+		nlx_core_match_bits_encode(lctm->ctm_addr.cepa_tmid, 0);
+	lcbuf->cb_addr = lctm->ctm_addr;
 	rc = NLX_kcore_LNetMDAttach(lctm, lcbuf, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
@@ -1137,10 +1234,10 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(lcbuf->cb_length > 0);
 	C2_PRE(lcbuf->cb_max_operations == 1);
 
-	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, &umd);
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, false, &umd);
 	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
 	lcbuf->cb_match_bits =
-		nlx_kcore_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
+		nlx_core_match_bits_encode(lcbuf->cb_addr.cepa_tmid, 0);
 	rc = NLX_kcore_LNetPut(lctm, lcbuf, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
@@ -1151,35 +1248,127 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	C2_PRE(lcbuf->cb_match_bits > 0);
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lcbuf->cb_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, true, &umd);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
+	rc = NLX_kcore_LNetGet(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
+	return rc;
 }
 
 int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
-}
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
 
-void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
-				 struct nlx_core_buffer *lcbuf)
-{
-	/* XXX todo implement */
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	C2_PRE(lcbuf->cb_match_bits > 0);
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lcbuf->cb_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, 0, false, &umd);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
+	rc = NLX_kcore_LNetPut(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
+	return rc;
 }
 
 int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lctm->ctm_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, LNET_MD_OP_PUT, false, &umd);
+	lcbuf->cb_addr = lctm->ctm_addr;
+	rc = NLX_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	return rc;
 }
 
 int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
-	/* XXX todo implement */
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *kctm;
+	uint32_t tmid;
+	uint64_t counter;
+	lnet_md_t umd;
+	int rc;
+
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	kctm = lctm->ctm_kpvt;
+	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
+	C2_PRE(lcbuf->cb_length > 0);
+	C2_PRE(lcbuf->cb_max_operations == 1);
+
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
+	C2_PRE(tmid == lctm->ctm_addr.cepa_tmid);
+	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
+	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
+
+	nlx_kcore_umd_init(lctm, lcbuf, 1, 0, LNET_MD_OP_GET, false, &umd);
+	nlx_kcore_kiov_adjust_length(lctm, lcbuf, &umd, lcbuf->cb_length);
+	lcbuf->cb_addr = lctm->ctm_addr;
+	rc = NLX_kcore_LNetMDAttach(lctm, lcbuf, &umd);
+	if (rc != 0)
+		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
+	nlx_kcore_kiov_restore_length(lctm, lcbuf);
+	return rc;
 }
 
 int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
@@ -1357,7 +1546,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 
 	tms_tlink_init(kctm);
 	kctm->ktm_ctm = lctm;
-	kctm->ktm_mb_counter = 1;
+	lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 	spin_lock_init(&kctm->ktm_bevq_lock);
 	c2_semaphore_init(&kctm->ktm_sem, 0);
 	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &kctm->ktm_eqh);

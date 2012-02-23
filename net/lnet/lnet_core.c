@@ -66,6 +66,37 @@ static void nlx_print_net_buffer_event(const char *pre,
 		NLXP("\t\t  nb_flags: %lx\n", (unsigned long) nb->nb_flags);
 	}
 }
+
+static void nlx_print_core_buffer(const char *pre,
+				  const struct nlx_core_buffer *lcb)
+{
+	NLXP("%s: %p nlx_core_buffer\n", pre, lcb);
+	NLXP("\t            magic: %lx\n", (unsigned long) lcb->cb_magic);
+	NLXP("\t        buffer_id: %p\n", (void *) lcb->cb_buffer_id);
+	NLXP("\t            qtype: %u\n", (unsigned) lcb->cb_qtype);
+	NLXP("\t           length: %lu\n", (unsigned long) lcb->cb_length);
+	NLXP("\t min_receive_size: %lu\n",
+	     (unsigned long) lcb->cb_min_receive_size);
+	NLXP("\t   max_operations: %u\n", (unsigned) lcb->cb_max_operations);
+	NLXP("\t       match_bits: %lx\n", (unsigned long) lcb->cb_match_bits);
+        nlx_print_core_ep_addr("\t          cb_addr", &lcb->cb_addr);
+}
+
+static inline uint64_t nlx_core_buf_desc_checksum(const struct nlx_core_buf_desc
+						  *cbd);
+
+static void nlx_print_core_buf_desc(const char *pre,
+				    const struct nlx_core_buf_desc *cbd)
+{
+	NLXP("%s: %p nlx_core_buf_desc\n", pre, cbd);
+	NLXP("\t match_bits: %lx\n", (unsigned long) cbd->cbd_match_bits);
+	NLXP("\t      qtype: %u\n", (unsigned) cbd->cbd_qtype);
+	NLXP("\t       size: %ld\n", (unsigned long) cbd->cbd_size);
+	NLXP("\t   checksum: %lx\n", (unsigned long) cbd->cbd_checksum);
+	nlx_print_core_ep_addr("\t passive_ep", &cbd->cbd_passive_ep);
+	NLXP("\t <checksum>: %lx\n", (unsigned long)
+	     nlx_core_buf_desc_checksum(cbd));
+}
 #endif
 
 /**
@@ -91,7 +122,12 @@ static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
  */
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 {
-	return lctm != NULL && lctm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC;
+	if (lctm == NULL || lctm->ctm_magic != C2_NET_LNET_CORE_TM_MAGIC)
+		return false;
+	if (lctm->ctm_mb_counter < C2_NET_LNET_BUFFER_ID_MIN ||
+	    lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
+		return false;
+	return true;
 }
 
 /**
@@ -161,6 +197,155 @@ void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 	lctm->ctm_bev_needed -= release;
 	return;
 }
+
+/**
+   Helper subroutine to construct the match bit value from its components.
+   @param tmid Transfer machine identifier.
+   @param counter Buffer counter value.  The value of 0 is reserved for
+   the TM receive message queue.
+   @see nlx_core_match_bits_decode()
+ */
+static uint64_t nlx_core_match_bits_encode(uint32_t tmid, uint64_t counter)
+{
+	uint64_t mb;
+	mb = ((uint64_t) tmid << C2_NET_LNET_TMID_SHIFT) |
+		(counter & C2_NET_LNET_BUFFER_ID_MASK);
+	return mb;
+}
+
+/**
+   Helper subroutine to decode the match bits into its components.
+   @param mb Match bit field.
+   @param tmid Pointer to returned Transfer Machine id.
+   @param counter Pointer to returned buffer counter value.
+   @see nlx_core_match_bits_encode()
+ */
+static inline void nlx_core_match_bits_decode(uint64_t mb,
+					      uint32_t *tmid,
+					      uint64_t *counter)
+{
+	*tmid = (uint32_t) (mb >> C2_NET_LNET_TMID_SHIFT);
+	*counter = mb & C2_NET_LNET_BUFFER_ID_MASK;
+	return;
+}
+
+#define CBD_EP(f) cbd->cbd_passive_ep.cepa_ ## f
+#define TM_EP(f) lctm->ctm_addr.cepa_ ## f
+#define B_EP(f) lcbuf->cb_addr.cepa_ ## f
+
+/**
+   Compute the checksum of the network buffer descriptor payload.
+   The computation relies on the fact that the cbd_data part of the union
+   in the network buffer descriptor covers the payload.
+   @retval checksum In little-endian order.
+ */
+static inline uint64_t nlx_core_buf_desc_checksum(const struct nlx_core_buf_desc
+						  *cbd)
+{
+	int i;
+	uint64_t checksum;
+
+	/* ensure that the checksum computation covers all the payload */
+	C2_CASSERT(sizeof *cbd ==
+		   sizeof cbd->cbd_data + sizeof cbd->cbd_checksum);
+
+	for (i = 0, checksum = 0; i < ARRAY_SIZE(cbd->cbd_data); ++i)
+		checksum ^= cbd->cbd_data[i];
+	return __cpu_to_le64(checksum);
+}
+
+void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
+			      struct nlx_core_buffer *lcbuf,
+			      struct nlx_core_buf_desc *cbd)
+{
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+
+	/* generate match bits */
+	lcbuf->cb_match_bits =
+		nlx_core_match_bits_encode(lctm->ctm_addr.cepa_tmid,
+					   lctm->ctm_mb_counter);
+	if (++lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
+		lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
+
+	/* create the descriptor */
+	C2_SET_ARR0(cbd->cbd_data);
+	cbd->cbd_match_bits = __cpu_to_le64(lcbuf->cb_match_bits);
+
+	CBD_EP(nid)         = __cpu_to_le64(TM_EP(nid));
+	CBD_EP(pid)         = __cpu_to_le32(TM_EP(pid));
+	CBD_EP(portal)      = __cpu_to_le32(TM_EP(portal));
+	CBD_EP(tmid)        = __cpu_to_le32(TM_EP(tmid));
+
+	cbd->cbd_qtype      = __cpu_to_le32(lcbuf->cb_qtype);
+	cbd->cbd_size       = __cpu_to_le64(lcbuf->cb_length);
+
+	cbd->cbd_checksum   = nlx_core_buf_desc_checksum(cbd);
+
+	NLXDBG(lctm, 2, nlx_print_core_buf_desc("encode", cbd));
+
+	C2_POST(nlx_core_tm_invariant(lctm));
+	C2_POST(nlx_core_buffer_invariant(lcbuf));
+	return;
+}
+
+int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
+			     struct nlx_core_buffer *lcbuf,
+			     struct nlx_core_buf_desc *cbd)
+{
+	uint64_t i64;
+	uint32_t i32;
+
+	NLXDBG(lctm, 2, nlx_print_core_buf_desc("decode", cbd));
+
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+
+	i64 = nlx_core_buf_desc_checksum(cbd);
+	if (i64 != cbd->cbd_checksum)
+		return -EINVAL;
+
+	i64 = __le64_to_cpu(cbd->cbd_size);
+
+	i32 = __le32_to_cpu(cbd->cbd_qtype);
+	if (i32 == C2_NET_QT_PASSIVE_BULK_SEND) {
+		if (lcbuf->cb_qtype != C2_NET_QT_ACTIVE_BULK_RECV)
+			return -EPERM;
+		if (i64 > lcbuf->cb_length)
+			return -EFBIG;
+		lcbuf->cb_length = i64; /* passive send size used */
+	} else if (i32 == C2_NET_QT_PASSIVE_BULK_RECV) {
+		if (lcbuf->cb_qtype != C2_NET_QT_ACTIVE_BULK_SEND)
+			return -EPERM;
+		if (lcbuf->cb_length > i64)
+			return -EFBIG;
+	        /* active send size used */
+	} else
+		return -EINVAL;
+
+	B_EP(nid)    = __le64_to_cpu(CBD_EP(nid));
+	B_EP(pid)    = __le32_to_cpu(CBD_EP(pid));
+	B_EP(portal) = __le32_to_cpu(CBD_EP(portal));
+	B_EP(tmid)   = __le32_to_cpu(CBD_EP(tmid));
+
+	lcbuf->cb_match_bits = __le64_to_cpu(cbd->cbd_match_bits);
+	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &i32, &i64);
+	if (i64 < C2_NET_LNET_BUFFER_ID_MIN ||
+	    i64 > C2_NET_LNET_BUFFER_ID_MAX)
+		return -EINVAL;
+
+	return 0;
+}
+
+#undef B_EP
+#undef TM_EP
+#undef CBD_EP
 
 void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
 {

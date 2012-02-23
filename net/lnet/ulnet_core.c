@@ -101,12 +101,6 @@ int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 	return -ENOSYS;
 }
 
-void nlx_core_buf_match_bits_set(struct nlx_core_transfer_mc *lctm,
-				 struct nlx_core_buffer *lcbuf)
-{
-	/* XXX implement */
-}
-
 int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
@@ -204,6 +198,8 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
 	nlx_core_ep_addr_encode(&dp->xd_core, cepa, xep->xe_addr);
+
+	lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 
 	C2_POST(nlx_core_tm_invariant(lctm));
 	return -ENOSYS;
