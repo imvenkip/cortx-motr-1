@@ -205,7 +205,7 @@
    The transport uses the nlx_core_buf_passive_recv() or the
    nlx_core_buf_passive_send() subroutines to stage passive buffers.  Prior
    to initiating these operations, the transport should use the
-   nlx_core_buf_match_bits_set() subroutine to generate new match bits for
+   nlx_core_buf_desc_encode() subroutine to generate new match bits for
    the passive buffer.  The match bit counter will repeat over time, though
    after a very long while.  It is the transport's responsibility to ensure
    that all of the passive buffers associated with a given transfer machine
@@ -512,7 +512,7 @@
 
    -# Prior to invoking the nlx_core_buf_passive_recv() or the
       nlx_core_buf_passive_send() subroutines, the transport should use the
-      nlx_core_buf_match_bits_set() subroutine to assign unique match bits to
+      nlx_core_buf_desc_encode() subroutine to assign unique match bits to
       the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
@@ -628,7 +628,7 @@
    -# Generally speaking, API calls within the transport address space
       are protected by the serialization of the Colibri Networking layer,
       typically the transfer machine mutex or the domain mutex.
-      The nlx_core_buf_match_bits_set() subroutine, for example, is fully
+      The nlx_core_buf_desc_encode() subroutine, for example, is fully
       protected by the transfer machine mutex held across the
       c2_net_buffer_add() subroutine call, so implicitly protects the match bit
       counter in the kernel Core's per TM private data.
