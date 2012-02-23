@@ -169,10 +169,10 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
    LNET_MD_OP_GET are accepted.
    @param isLNetGetOp Set to true if the lnet_md_t is to be used to create an
    MD that will be used in an LNetGet operation. The threshold field is forced
-   to 2.
+   to 2, and the out-of-order fields of the nlx_kcore_buffer are reset.
    @param umd Pointer to return structure to be filled in.  The ktm_eqh handle
    is used by default. Adjust if necessary.
-   @post ergo(isLNetGetOp, umd->threshold == 2)
+   @post ergo(isLNetGetOp, umd->threshold == 2 && !kcb->kb_ooo_reply)
  */
 static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 			       struct nlx_core_buffer *lcbuf,
@@ -203,9 +203,13 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->start = kcb->kb_kiov;
 	umd->options |= LNET_MD_KIOV;
 	umd->length = kcb->kb_kiov_len;
-	if (isLNetGetOp)
+	if (isLNetGetOp) {
 		umd->threshold = 2;
-	else
+		kcb->kb_ooo_reply   = false;
+		kcb->kb_ooo_mlength = 0;
+		kcb->kb_ooo_status  = 0;
+		kcb->kb_ooo_offset  = 0;
+	} else
 		umd->threshold = threshold;
 	if (max_size != 0) {
 		umd->max_size = max_size;
@@ -215,7 +219,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->eq_handle = kctm->ktm_eqh;
 
 	NLXDBG(lctm, 2, nlx_kprint_lnet_md("umd init", umd));
-	C2_POST(ergo(isLNetGetOp, umd->threshold == 2));
+	C2_POST(ergo(isLNetGetOp, umd->threshold == 2 && !kcb->kb_ooo_reply));
 }
 
 /**
