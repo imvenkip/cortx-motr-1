@@ -332,7 +332,7 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 					c2_net_buffer_event_notify(tm,
 								  &tm->ntm_chan);
 					for (j = 0; j < 10; ++j) {
-				        	ut_chan_timedwait(&cl, 1);
+						ut_chan_timedwait(&cl, 1);
 						c2_net_buffer_event_deliver_all
 							(tm);
 					}
