@@ -18,10 +18,6 @@
  * Original creation date: 08/12/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h> /* ENABLE_DEBUG */
-#endif
-
 #include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/arith.h" /* c2_align */
@@ -47,12 +43,6 @@
  *
  * @{
  */
-
-#ifdef ENABLE_DEBUG
-#  define C2_TRACE_IMMEDIATE_DEBUG (1)
-#else
-#  define C2_TRACE_IMMEDIATE_DEBUG (0)
-#endif
 
 /* single buffer for now */
 void      *c2_logbuf = NULL;

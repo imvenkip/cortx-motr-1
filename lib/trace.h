@@ -23,6 +23,10 @@
 
 #include <stdarg.h>
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h> /* ENABLE_DEBUG */
+#endif
+
 #include "lib/types.h"
 #include "lib/arith.h"
 
@@ -165,6 +169,12 @@ void c2_trace_fini(void);
 /*
  * Below is the internal implementation stuff.
  */
+
+#ifdef ENABLE_DEBUG
+#  define C2_TRACE_IMMEDIATE_DEBUG (1)
+#else
+#  define C2_TRACE_IMMEDIATE_DEBUG (0)
+#endif
 
 /** Magic number to locate the record */
 enum {

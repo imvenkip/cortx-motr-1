@@ -36,6 +36,12 @@ void test_trace(void)
 	int result;
 	struct c2_thread t[NR];
 	uint64_t u64;
+#ifndef __KERNEL__
+	struct c2_ut_redirect redir;
+
+	if (C2_TRACE_IMMEDIATE_DEBUG)
+		c2_stream_redirect(stdout, "/dev/null", &redir);
+#endif
 
 	C2_LOG("forty two: %i", 42);
 	C2_LOG("forty three and tree: %i %llu", 43, (unsigned long long)(u64 = 3));
@@ -63,6 +69,11 @@ void test_trace(void)
 		'c',
 		0xfefefefefefefefeULL,
 		(char *)"foobar");
+
+#ifndef __KERNEL__
+	if (C2_TRACE_IMMEDIATE_DEBUG)
+		c2_stream_restore(&redir);
+#endif
 }
 
 enum {
