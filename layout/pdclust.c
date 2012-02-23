@@ -591,12 +591,13 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 			  const struct c2_layout *l,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
+		          struct c2_bufvec_cursor *oldrec_cur,
 		          struct c2_bufvec_cursor *out)
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 	struct c2_ldb_pdclust_rec    *pl_rec;
-	struct c2_layout_type        *lt;
+	struct c2_ldb_pdclust_rec    *pl_oldrec;
 	struct c2_layout_enum_type   *et;
 	int                           rc;
 
@@ -605,12 +606,32 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 
 	//C2_LOG("In pdclust_encode()\n");
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+
+	if (op == C2_LXO_DB_UPDATE) {
+		/*
+		 * Processing the oldrec_cur, to verify that nothing other than
+		 * l_ref is being changed for this layout and then to make it
+		 * point to the enumeration type specific payload.
+		 */
+		pl_oldrec = c2_bufvec_cursor_addr(oldrec_cur);
+		C2_ASSERT(pl_oldrec != NULL);
+
+		if (pl_oldrec->pr_let_id != stl->ls_enum->le_type->let_id)
+			return -EINVAL;
+		if (pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N ||
+		    pl_oldrec->pr_attr.pa_K != pl->pl_attr.pa_K ||
+		    pl_oldrec->pr_attr.pa_P != pl->pl_attr.pa_P)
+			return -EINVAL;
+
+		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
+	}
 
 	C2_ALLOC_PTR(pl_rec);
 	if (pl_rec == NULL)
@@ -622,13 +643,6 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	rc = c2_bufvec_cursor_copyto(out, pl_rec, sizeof *pl_rec);
 	C2_ASSERT(rc == sizeof *pl_rec);
 
-	if (!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
-		return -EPROTO;
-
-	lt = schema->ls_type[l->l_type->lt_id];
-	if (lt == NULL)
-		return -ENOENT;
-
 	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum))
 		return -EPROTO;
 
@@ -637,7 +651,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		return -ENOENT;
 
 	if (et->let_ops->leto_encode != NULL) {
-		rc = et->let_ops->leto_encode(schema, l, op, tx, out);
+		rc = et->let_ops->leto_encode(schema, l, op, tx,
+					      oldrec_cur, out);
 		C2_ASSERT(rc == 0);
 	}
 

@@ -196,6 +196,7 @@ struct c2_layout_type_ops {
 			     const struct c2_layout *l,
 			     enum c2_layout_xcode_op op,
 			     struct c2_db_tx *tx,
+			     struct c2_bufvec_cursor *oldrec_cur,
 			     struct c2_bufvec_cursor *out);
 };
 
@@ -284,6 +285,7 @@ struct c2_layout_enum_type_ops {
 				  const struct c2_layout *l,
 				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
+				  struct c2_bufvec_cursor *oldrec_cur,
 				  struct c2_bufvec_cursor *out);
 };
 
@@ -330,6 +332,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
+		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out);
 
 /** @} end group layout */

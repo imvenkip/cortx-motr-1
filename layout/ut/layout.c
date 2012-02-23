@@ -681,7 +681,7 @@ static int test_encode_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(lin_enum->lle_attr.lla_B == 20);
 
 	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
-			C2_LXO_DB_NONE, NULL, &cur);
+			C2_LXO_DB_NONE, NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -719,7 +719,7 @@ static int test_encode_pdclust_list(uint64_t lid)
 	C2_UT_ASSERT(pl->pl_base.ls_enum != NULL);
 
 	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
-			       C2_LXO_DB_NONE, NULL, &cur);
+			       C2_LXO_DB_NONE, NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -1026,6 +1026,77 @@ static int test_update_pdclust_linear(uint64_t lid)
 	return rc;
 }
 
+static int test_update_pdclust_linear_negative(uint64_t lid)
+{
+	c2_bcount_t                num_bytes;
+	void                      *area;
+	struct c2_pdclust_layout  *pl;
+	struct c2_db_pair          pair;
+	struct c2_db_tx            tx;
+	struct c2_layout           *l;
+
+	num_bytes = c2_ldb_max_recsize(&schema);
+	area = c2_alloc(num_bytes);
+	C2_UT_ASSERT(area != NULL);
+
+	pair.dp_key.db_buf.b_addr = &lid;
+	pair.dp_key.db_buf.b_nob = sizeof lid;
+
+	pair.dp_rec.db_buf.b_addr = area;
+	pair.dp_rec.db_buf.b_nob = num_bytes;
+
+	rc = pdclust_linear_l_build(lid, 6, 1, 800, 900, &pl);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Lookup the record just for verification. */
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
+	C2_UT_ASSERT(l->l_ref == 0);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+
+	pl->pl_base.ls_base.l_ref = 7654321;
+	pl->pl_attr.pa_N++;
+
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_update(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	C2_UT_ASSERT(rc == -EINVAL);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Lookup the record just for verification. */
+	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
+	C2_UT_ASSERT(l->l_ref != 7654321);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+
+
 static void test_update(void)
 {
 	uint64_t lid;
@@ -1036,6 +1107,10 @@ static void test_update(void)
 
 	lid = 9876;
 	rc = test_update_pdclust_linear(lid);
+	C2_UT_ASSERT(rc == 0);
+
+	lid = 9877;
+	rc = test_update_pdclust_linear_negative(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* todo

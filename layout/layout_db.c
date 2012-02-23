@@ -339,6 +339,10 @@
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 
+enum {
+	DEF_DB_FLAGS = 0
+};
+
 /**
  * @addtogroup LayoutDBDFS
  * @{
@@ -693,7 +697,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, &cur);
+	rc = c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, NULL, &cur);
 	C2_LOG("c2_ldb_add(): lid %llu, c2_layout_encode() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
 	if (rc != 0)
@@ -712,9 +716,33 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	return 0;
 }
 
+static int get_oldrec(struct c2_ldb_schema *schema,
+		      uint64_t lid, void *area, uint32_t num_bytes)
+{
+	struct c2_db_pair  pair;
+	struct c2_db_tx    tx;
+	int                rc;
+
+	c2_db_pair_setup(&pair, &schema->ls_layouts,
+			 &lid, sizeof lid,
+			 area, num_bytes);
+	rc = c2_db_tx_init(&tx, schema->dbenv, DEF_DB_FLAGS);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_table_lookup(&tx, &pair);
+	C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d\n",
+	       (unsigned long long)lid, rc);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_db_tx_commit(&tx);
+	C2_ASSERT(rc == 0);
+
+	return rc;
+}
+
 /**
- * Updates a layout record and its related information from the
- * relevant tables.
+ * Updates a layout record. As of now, only l_ref can be updated for an
+ * existing layout record.
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
@@ -726,6 +754,10 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx)
 {
+	struct c2_bufvec_cursor  oldrec_cur;
+	void                    *oldrec_area;
+	struct c2_bufvec         oldrec_bv;
+	c2_bcount_t              num_bytes;
 	struct c2_bufvec_cursor  cur;
 	struct c2_bufvec         bv = C2_BUFVEC_INIT_BUF(
 					&pair->dp_rec.db_buf.b_addr,
@@ -741,13 +773,36 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	C2_LOG("c2_ldb_update(): lid %llu\n", (unsigned long long)l->l_id);
 
+	/*
+	 * Get the old record from the layouts table. It is used to ensure that
+	 * nothing other than l_ref gets updated for an existing layout record.
+	 */
+	num_bytes = c2_ldb_max_recsize(schema);
+	oldrec_area = c2_alloc(num_bytes);
+	if (oldrec_area == NULL)
+		return -ENOMEM;
+
+	rc = get_oldrec(schema, l->l_id, oldrec_area, num_bytes);
+	if (rc != 0) {
+		c2_free(oldrec_area);
+		return rc;
+	}
+
+	oldrec_bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&oldrec_area,
+							 &num_bytes);
+	c2_bufvec_cursor_init(&oldrec_cur, &oldrec_bv);
+
+	/* Now, proceed to update the layout. */
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx, &cur);
+	rc = c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx,
+			      &oldrec_cur, &cur);
 	C2_LOG("c2_ldb_update(): lid %llu, c2_layout_encode() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
-	if (rc != 0)
+	if (rc != 0) {
+		c2_free(oldrec_area);
 		return rc;
+	}
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
@@ -759,6 +814,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	C2_LOG("c2_ldb_update(): lid %llu, ldb_layout_write() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
 
+	c2_free(oldrec_area);
 	return rc;
 }
 
@@ -793,7 +849,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, &cur);
+	rc = c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, NULL, &cur);
 	C2_LOG("c2_ldb_delete(): lid %llu, c2_layout_encode() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
 	if (rc != 0)

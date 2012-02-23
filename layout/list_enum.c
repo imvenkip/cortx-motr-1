@@ -432,13 +432,16 @@ static int list_encode(struct c2_ldb_schema *schema,
 		       const struct c2_layout *l,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
+		       struct c2_bufvec_cursor *oldrec_cur,
 		       struct c2_bufvec_cursor *out)
 {
 	struct c2_layout_striped      *stl;
 	struct c2_layout_list_enum    *list_enum;
 	uint32_t                       num_inline; /* No. of inline cobs */
 	struct ldb_cob_entries_header *ldb_ce_header;
+	struct ldb_cob_entries_header *ldb_ce_oldheader;
 	struct ldb_cob_entry           ldb_ce;
+	struct ldb_cob_entry          *ldb_ce_old;
 	c2_bcount_t                    nbytes_copied;
 	int                            i;
 	int                            rc = 0;
@@ -448,6 +451,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 
 	//C2_LOG("In list_encode(), l %p \n", l);
@@ -459,17 +463,41 @@ static int list_encode(struct c2_ldb_schema *schema,
 	num_inline = list_enum->lle_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
 
+	if (op == C2_LXO_DB_UPDATE) {
+		ldb_ce_oldheader = c2_bufvec_cursor_addr(oldrec_cur);
+		C2_ASSERT(ldb_ce_oldheader != NULL);
+
+		if (ldb_ce_oldheader->llces_nr != list_enum->lle_nr)
+			return -EINVAL;
+
+		c2_bufvec_cursor_move(oldrec_cur, sizeof *ldb_ce_oldheader);
+
+		for (i = 0; i < num_inline; ++i) {
+			ldb_ce_old = c2_bufvec_cursor_addr(oldrec_cur);
+
+			if (ldb_ce_old->llce_cob_index != i)
+				return -EINVAL;
+			if (ldb_ce_old->llce_cob_id.f_container !=
+			    list_enum->lle_list_of_cobs[i].f_container ||
+			    ldb_ce_old->llce_cob_id.f_key !=
+			    list_enum->lle_list_of_cobs[i].f_key)
+				return -EINVAL;
+
+			c2_bufvec_cursor_move(oldrec_cur, sizeof *ldb_ce_old);
+		}
+
+		/*
+		 * The auxiliary table viz. cob_lists is not to be modified
+		 * for an update operation. Hence, return from here.
+		 */
+		return 0;
+	}
+
 	C2_ALLOC_PTR(ldb_ce_header);
 	if (ldb_ce_header == NULL)
 		return -ENOMEM;
 
 	ldb_ce_header->llces_nr = list_enum->lle_nr;
-
-	/* todo
-	 * Handle the update case (C2_LXO_DB_UPDATE) specially as:
-	 * first delete all the eixisting entries and then insert all
-	 * entries assuming they have arrived newly.
-	 */
 
 	nbytes_copied = c2_bufvec_cursor_copyto(out, ldb_ce_header,
 						sizeof *ldb_ce_header);

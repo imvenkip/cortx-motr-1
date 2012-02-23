@@ -229,6 +229,10 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	 * which will be caught by the respective lto_decode() implementation.
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
+	/* todo Add TC to verify the fnctioning when no type specific
+	 * data is present even when expected.
+	 * todo Check if cur is NULL in that case.
+	 */
 
 	rc = lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
 	C2_ASSERT(rc == 0);
@@ -276,9 +280,11 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
+		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out)
 {
 	struct c2_ldb_rec     *rec;
+	struct c2_ldb_rec     *oldrec;
 	struct c2_layout_type *lt;
 	int                    rc;
 	c2_bcount_t            nbytes_copied;
@@ -288,7 +294,12 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
+
+	C2_LOG("In c2_layout_encode()\n");
+
+	c2_mutex_lock(&l->l_lock);
 
 	/* todo Convert this to ergo */
 	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
@@ -298,10 +309,18 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	if (lt == NULL)
 		return -ENOENT;
 
-
-	C2_LOG("In c2_layout_encode()\n");
-
-	c2_mutex_lock(&l->l_lock);
+	if (op == C2_LXO_DB_UPDATE) {
+		/*
+		 * Processing the oldrec_cur, to verify that the layout
+		 * type has not changed and then to make it point it to the
+		 * layout type specific payload.
+		 */
+		oldrec = c2_bufvec_cursor_addr(oldrec_cur);
+		C2_ASSERT(oldrec != NULL);
+		if (oldrec->lr_lt_id != l->l_type->lt_id)
+			return -EINVAL;
+		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
+	}
 
 	C2_ALLOC_PTR(rec);
 	if (rec == NULL) {
@@ -315,8 +334,8 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
 	C2_ASSERT(nbytes_copied == sizeof *rec);
 
-	rc = lt->lt_ops->lto_encode(schema, l, op, tx, out);
-	C2_ASSERT(rc == 0);
+	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
+	//todo Remove such asserts C2_ASSERT(rc == 0);
 
 	c2_mutex_unlock(&l->l_lock);
 
