@@ -561,7 +561,6 @@
  * @{
  */
 #define IOSERVICE_NAME "ioservice"
-#define TRACE_MSG_SIZE 512
 
 C2_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct c2_stob_io_desc,
                    siod_linkage,  siod_magic,
@@ -1019,7 +1018,7 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
                 return rc;
         }
 
-        fom_obj->fcrw_start_time = c2_time_now();
+        fom_obj->fcrw_fom_start_time = c2_time_now();
         fom_obj->fcrw_stob       = NULL;
 
         rwfop = io_rw_get(fop);
@@ -1036,9 +1035,6 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
         netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
         stobio_tlist_init(&fom_obj->fcrw_stio_list);
         c2_mutex_init(&fom_obj->fcrw_stio_mutex);
-
-        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
-                    "Read/ Write FOM : created.");
 
         return rc;
 }
@@ -1642,7 +1638,6 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 {
         int                                       rc = 0;
-        char                                     trace_msg[TRACE_MSG_SIZE];
         struct c2_io_fom_cob_rw                  *fom_obj;
         struct c2_io_fom_cob_rw_state_transition  st;
 
@@ -1664,22 +1659,6 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
         rc = (*st.fcrw_st_state_function)(fom);
         C2_ASSERT(rc == FSO_AGAIN || rc == FSO_WAIT);
-
-        if (rc == FSO_AGAIN) {
-                c2_time_t phase_time;
-                phase_time = c2_time_sub(c2_time_now(), fom_obj->fcrw_phase_start_time);
-                sprintf(trace_msg,
-                        "Read/ Write FOM Phase ""%s"" completed with return value %d . Time taken by this phase is %ld.%ld seconds.",
-                        st.fcrw_st_desc, fom->fo_rc, c2_time_seconds(phase_time),c2_time_nanoseconds(phase_time));
-        }
-        else
-                sprintf(trace_msg,
-                        "Read/ Write FOM Phase ""%s"" completed with return value %d .",
-                        st.fcrw_st_desc, fom->fo_rc);
-
- 
-        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                    c2_addb_trace, (const char *)trace_msg);
 
         /* Set operation status in reply fop if FOM ends.*/
         if (fom->fo_phase == FOPH_SUCCESS || fom->fo_phase == FOPH_FAILURE) {
@@ -1716,16 +1695,10 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         struct c2_io_fom_cob_rw        *fom_obj;
         struct c2_net_buffer           *nb = NULL;
         struct c2_stob_io_desc         *stio_desc = NULL;
-        c2_time_t                      fom_exec_time;
-        char                           trace_msg[TRACE_MSG_SIZE];
 
         C2_PRE(fom != NULL);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
-
-        fom_obj->fcrw_end_time = c2_time_now();
-        fom_exec_time =
-        c2_time_sub(fom_obj->fcrw_end_time, fom_obj->fcrw_start_time);
 
         colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
 
@@ -1766,9 +1739,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         c2_fom_fini(fom);
 
         c2_free(fom_obj);
-        sprintf(trace_msg, "Read/ Write FOM finished. Time took for execution %ld .", c2_time_seconds(fom_exec_time));
-        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                    c2_addb_trace, (const char *)trace_msg);
 }
 
 /**
