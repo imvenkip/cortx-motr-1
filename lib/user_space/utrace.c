@@ -38,33 +38,37 @@
 
 static int logfd;
 
-#define SYS_KERN_RANDVSPACE_FNAME "/proc/sys/kernel/randomize_va_space"
+static const char sys_kern_randvspace_fname[] = "/proc/sys/kernel/randomize_va_space";
 
 
 int c2_arch_trace_init()
 {
 	FILE *f;
 	char buf[80];
-	char *s;
+	int res;
+	int val;
 
-	f = fopen(SYS_KERN_RANDVSPACE_FNAME, "r");
+	f = fopen(sys_kern_randvspace_fname, "r");
 	if (f == NULL) {
-		perror("fopen " SYS_KERN_RANDVSPACE_FNAME);
+		fprintf(stderr, "Can not open %s: %s\n",
+			sys_kern_randvspace_fname, strerror(errno));
 		goto out;
 	}
-	s = fgets(buf, ARRAY_SIZE(buf) - 1, f);
-	if (s == NULL) {
-		perror("read " SYS_KERN_RANDVSPACE_FNAME);
+	res = fscanf(f, "%d", &val);
+	if (res != 1) {
+		fprintf(stderr, "Can not read value from %s: %s\n",
+			sys_kern_randvspace_fname,
+			feof(f) ? "got EOF" : strerror(errno));
 		goto out;
 	}
-	if (s[0] != '0') {
+	if (val != 0) {
 		fprintf(stderr, "System configuration ERROR: "
 		   "kernel.randomize_va_space should be set to 0.\n");
-		return -EINVAL;
+		errno = -EINVAL;
+		goto out;
 	}
 
 	sprintf(buf, "c2.trace.%d", (unsigned)getpid());
-	errno = 0;
 	logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700);
 	if (logfd != -1) {
 		if (ftruncate(logfd, c2_logbufsize) == 0) {
@@ -153,9 +157,9 @@ int c2_trace_parse(void)
 	return 0;
 }
 
-int c2_console_vprintf(const char *fmt, va_list args)
+void c2_console_vprintf(const char *fmt, va_list args)
 {
-	return vprintf(fmt, args);
+	vprintf(fmt, args);
 }
 
 /** @} end of trace group */

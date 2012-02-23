@@ -181,12 +181,13 @@ enum {
 	C2_TRACE_MAGIC = 0xc0de1eafacc01adeULL,
 };
 
+/** Default buffer size */
 enum {
-	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB log buffer */
+	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB */
 };
 
-extern void      *c2_logbuf;
-extern uint32_t   c2_logbufsize;
+extern void      *c2_logbuf;      /**< Trace buffer pointer */
+extern uint32_t   c2_logbufsize;  /**< The real buffer size */
 
 /**
  * Record header structure
@@ -218,8 +219,8 @@ struct c2_trace_descr {
 
 void c2_trace_allot(const struct c2_trace_descr *td, const void *data);
 void c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf);
- int c2_console_printf(const char *fmt, ...);
- int c2_console_vprintf(const char *fmt, va_list ap);
+void c2_console_printf(const char *fmt, ...);
+void c2_console_vprintf(const char *fmt, va_list ap);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging

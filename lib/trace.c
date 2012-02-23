@@ -61,6 +61,8 @@ int c2_trace_init(void)
 	C2_ASSERT(c2_logbuf == NULL);
 
 	c2_atomic64_set(&cur, 0);
+
+	C2_ASSERT(c2_is_po2(C2_TRACE_BUFSIZE));
 	c2_logbufsize = C2_TRACE_BUFSIZE;
 	bufmask = c2_logbufsize - 1;
 
@@ -190,16 +192,13 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 }
 
 __attribute__ ((format (printf, 1, 2)))
-int c2_console_printf(const char *fmt, ...)
+void c2_console_printf(const char *fmt, ...)
 {
 	va_list ap;
-	int res;
 
 	va_start(ap, fmt);
-	res = c2_console_vprintf(fmt, ap);
+	c2_console_vprintf(fmt, ap);
 	va_end(ap);
-
-	return res;
 }
 
 
