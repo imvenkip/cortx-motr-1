@@ -158,7 +158,6 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
    @param shift	    Alignment needed for network buffers.
    @pre seg_nr   <= c2_net_domain_get_max_buffer_segments(ndom) &&
 	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
-   @post c2_net_buffer_pool_invariant(pool)
  */
 int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,

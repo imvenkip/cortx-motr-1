@@ -32,6 +32,7 @@
 extern const struct c2_test_suite libc2_ut; /* test lib first */
 extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite ad_ut;
+extern const struct c2_test_suite addb_ut;
 extern const struct c2_test_suite bulkio_ut;
 extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cob_ut;

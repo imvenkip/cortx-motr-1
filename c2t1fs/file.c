@@ -948,7 +948,7 @@ retry:
 
 	C2_ASSERT(count == rw_desc->rd_count);
 
-        rc = io_fop_prepare(&iofop->if_fop);
+        rc = c2_io_fop_prepare(&iofop->if_fop);
 	if (rc != 0) {
 		C2_TRACE("io_fop_prepare() failed: rc [%d]\n", rc);
 		goto buflist_empty;

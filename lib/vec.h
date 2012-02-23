@@ -185,6 +185,14 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
  */
 void c2_bufvec_free(struct c2_bufvec *bufvec);
 
+/**
+   Frees the buffers pointed to by c2_bufvec.ov_buf and
+   the c2_bufvec.ov_vec vector, using c2_free_aligned().
+   @param bufvec Pointer to the c2_bufvec.
+   @see c2_bufvec_alloc_aligned()
+ */
+void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
+
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {
 	/** Vector cursor used to track position in the vector
@@ -256,6 +264,8 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
    Zero vector is typically allocated by upper layer by following
    the bounds of network layer (max buffer size, max segments,
    max seg size) and adds buffers/pages later as and when needed.
+   Size of z_index array is same as array of buffer addresses and
+   array of segment counts.
  */
 struct c2_0vec {
 	/** Bufvec representing extent of IO vector and array of buffers. */
@@ -268,6 +278,8 @@ enum {
 	C2_0VEC_SHIFT = 12,
 	C2_0VEC_ALIGN = (1 << C2_0VEC_SHIFT),
 	C2_0VEC_MASK = C2_0VEC_ALIGN - 1,
+	C2_SEG_SHIFT = 12,
+	C2_SEG_SIZE  = 4096,
 };
 
 /**

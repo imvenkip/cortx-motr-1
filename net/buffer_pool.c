@@ -103,10 +103,13 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_colours_nr = colours;
 	pool->nbp_align	     = shift;
 
-	C2_ALLOC_ARR_ADDB(pool->nbp_colours, colours, &ndom->nd_addb,
-			 &c2_pool_addb_loc);
-	if(pool->nbp_colours == NULL) {
-		return -ENOMEM;
+	if (colours == 0)
+		pool->nbp_colours = NULL;
+	else {
+		C2_ALLOC_ARR_ADDB(pool->nbp_colours, colours, &ndom->nd_addb,
+				 &c2_pool_addb_loc);
+		if(pool->nbp_colours == NULL)
+			return -ENOMEM;
 	}
 	c2_mutex_init(&pool->nbp_mutex);
 	pool_tlist_init(&pool->nbp_lru);
@@ -139,14 +142,15 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 }
 
 /** It removes the given buffer from the pool */
-static void buffer_remove(struct c2_net_buffer_pool *pool, struct c2_net_buffer *nb)
+static void buffer_remove(struct c2_net_buffer_pool *pool,
+			  struct c2_net_buffer *nb)
 {
 	pool_tlink_del_fini(nb);
 	if (tm_tlink_is_in(nb))
 		tm_tlist_del(nb);
 	tm_tlink_fini(nb);
 	c2_net_buffer_deregister(nb, pool->nbp_ndom);
-	c2_bufvec_free(&nb->nb_buffer);
+	c2_bufvec_free_aligned(&nb->nb_buffer, pool->nbp_align);
 	c2_free(nb);
 	C2_CNT_DEC(pool->nbp_buf_nr);
 	C2_POST(c2_net_buffer_pool_invariant(pool));
@@ -262,7 +266,7 @@ static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	return true;
 clean:
 	C2_ASSERT(rc != 0);
-	c2_bufvec_free(&nb->nb_buffer);
+	c2_bufvec_free_aligned(&nb->nb_buffer, pool->nbp_align);
 	c2_free(nb);
 	return false;
 }

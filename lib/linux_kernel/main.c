@@ -36,6 +36,7 @@ extern void test_thread(void);
 extern void test_time(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
+extern void test_memory(void);
 
 const struct c2_test_suite c2_klibc2_ut = {
 	.ts_name = "klibc2-ut",
@@ -43,6 +44,7 @@ const struct c2_test_suite c2_klibc2_ut = {
 	.ts_fini = NULL,
 	.ts_tests = {
 		{ "bitmap",    test_bitmap    },
+		{ "memory",    test_memory    },
 		{ "chan",      test_chan      },
 		{ "list",      test_list      },
 		{ "tlist",     test_tlist     },
