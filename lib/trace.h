@@ -122,8 +122,7 @@ int   c2_trace_parse(void);
 #define C2_TRACE_LEVEL_ALL          2
 
 /** Select tracing level. Set to one of C2_TRACE_LEVEL_* */
-#define C2_TRACE_LEVEL              C2_TRACE_LEVEL_ALL
-
+#define C2_TRACE_LEVEL              C2_TRACE_LEVEL_DISABLED     
 /* Enable C2_TRACE() for all trace levels except C2_TRACE_LEVEL_DISABLED */
 
 #if C2_TRACE_LEVEL > C2_TRACE_LEVEL_DISABLED

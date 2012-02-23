@@ -55,7 +55,7 @@ static void test_addb()
 
 	c2_addb_ctx_init(&addb_ut_ctx, &c2_addb_ut_ctx, &c2_addb_global_ctx);
 
-	c2_addb_choose_default_level(AEL_NONE);
+	c2_addb_choose_default_level_console(AEL_NONE);
 
 	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, c2_addb_trace, (message));
 
@@ -66,6 +66,8 @@ static void test_addb()
 	C2_UT_ASSERT(strstr(buffer, message) != NULL);
 
 	restore_std_stream(stdout, 1, fd, &pos);
+
+	c2_addb_choose_default_level_console(AEL_WARN);
 }
 
 const struct c2_test_suite addb_ut = {

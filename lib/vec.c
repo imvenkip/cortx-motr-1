@@ -148,8 +148,6 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 }
 C2_EXPORTED(c2_bufvec_alloc);
 
-#ifndef __KERNEL__
-
 int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 		            uint32_t          num_segs,
 		            c2_bcount_t       seg_size,
@@ -158,20 +156,6 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, shift);
 }
 C2_EXPORTED(c2_bufvec_alloc_aligned);
-
-#else
-
-int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
-			    uint32_t          num_segs,
-			    c2_bcount_t       seg_size,
-			    unsigned shift)
-{
-	/* Not implemented for kernel mode. c2_alloc_aligned() is
-	   not available */
-	C2_ASSERT(0);
-	return -ENOSYS;
-}
-#endif
 
 void c2_bufvec_free(struct c2_bufvec *bufvec)
 {
