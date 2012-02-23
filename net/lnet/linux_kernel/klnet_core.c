@@ -205,7 +205,7 @@
    The transport uses the nlx_core_buf_passive_recv() or the
    nlx_core_buf_passive_send() subroutines to stage passive buffers.  Prior
    to initiating these operations, the transport should use the
-   nlx_core_buf_match_bits_set() subroutine to generate new match bits for
+   nlx_core_buf_desc_encode() subroutine to generate new match bits for
    the passive buffer.  The match bit counter will repeat over time, though
    after a very long while.  It is the transport's responsibility to ensure
    that all of the passive buffers associated with a given transfer machine
@@ -384,17 +384,17 @@
       LNetGet() call if the @c unlinked field of the event is not set. If the
       @c unlinked field is set, the event could either be an out-of-order SEND
       (terminating a REPLY/SEND sequence), or the piggy-backed UNLINK on an
-      in-order SEND.  The two cases are distinguished by looking at the @c
-      threshold value of the @c lnet_md_t embedded in the event - in the former
-      case the threshold value should be 0.  An out-of-order SEND will be
-      treated as though it is the terminating @c LNET_EVENT_REPLY event of a
-      SEND/REPLY sequence.
-   -# It will ignore @c LNET_EVENT_REPLY events that do not have their @c
-      unlinked field set.  They indicate an out-of-sequence REPLY/SEND
-      combination, and LNet will issue a valid SEND event subsequently.  These
-      type of REPLY events will have the @c threshold value in their embedded
-      @c lnet_md_t set to 1, as precisely 2 events are expected for any @c
-      LNetGet() operation.
+      in-order SEND.  The two cases are distinguished by explicitly tracking
+      the receipt of an out-of-order REPLY (in nlx_kcore_buffer::kb_ooo_reply).
+      An out-of-order SEND will be treated as though it is the terminating @c
+      LNET_EVENT_REPLY event of a SEND/REPLY sequence.
+   -# It will not create an event in the circular queue for @c LNET_EVENT_REPLY
+      events that do not have their @c unlinked field set.  They indicate an
+      out-of-sequence REPLY/SEND combination, and LNet will issue a valid SEND
+      event subsequently.  However, the receipt of such an REPLY will be
+      remembered in nlx_kcore_buffer::kb_ooo_reply, and its payload in the
+      other "ooo" fields, so that when the out-of-order SEND arrives, this data
+      can be used to generate the circular queue event.
    -# It will ignore @c LNET_EVENT_ACK events.
    -# It obtains the nlx_kcore_transfer_mc::ktm_bevq_lock spin lock.
    -# The bev_cqueue_pnext() subroutine is then used to locate the next buffer
@@ -512,7 +512,7 @@
 
    -# Prior to invoking the nlx_core_buf_passive_recv() or the
       nlx_core_buf_passive_send() subroutines, the transport should use the
-      nlx_core_buf_match_bits_set() subroutine to assign unique match bits to
+      nlx_core_buf_desc_encode() subroutine to assign unique match bits to
       the passive buffer. See @ref KLNetCoreDLD-lspec-match-bits for details.
       The match bits should be encoded into the network buffer descriptor and
       independently conveyed to the remote active transport.
@@ -568,9 +568,11 @@
         value to 2 to accommodate both the SEND and the REPLY events. Otherwise
 	set it to 1.
    -# Use the @c LNetGet() subroutine to initiate the active read or the @c
-      LNetPut() subroutine to initiate the active write. The @c hdr_data
-      is set to 0 in the case of @c LNetPut(). No acknowledgment
-      should be requested.
+      LNetPut() subroutine to initiate the active write. The @c hdr_data is set
+      to 0 in the case of @c LNetPut(). No acknowledgment should be requested.
+      In the case of an @c LNetGet(), the field used to track out-of-order
+      REPLY events (nlx_kcore_buffer::kb_ooo_reply) should be cleared before
+      the operation is initiated.
    -# When a response to the @c LNetGet() or @c LNetPut() call completes, an @c
       LNET_EVENT_SEND event will be delivered to the event queue and should
       typically be ignored in the case of @c LNetGet().
@@ -623,12 +625,22 @@
    run time. This dependency is captured by the Linux kernel module support that
    reference counts the usage of dependent modules.
 
+   - The kernel Core layer modules explicitly tracks the events received for @c
+   LNetGet() calls, in the nlx_kcore_buffer data structure associated with the
+   call.  This is because there are two events (SEND and REPLY) that are
+   returned for this operation, and LNet does not guarantee their order of
+   arrival, and the event processing logic is set up such that a circular
+   buffer event must be created only upon receipt of the last operation event.
+   Complicating the issue is that a cancellation response could be piggy-backed
+   onto an in-order SEND.  See @ref KLNetCoreDLD-lspec-ev and @ref
+   KLNetCoreDLD-lspec-active for details.
+
 
    @subsection KLNetCoreDLD-lspec-thread Threading and Concurrency Model
    -# Generally speaking, API calls within the transport address space
       are protected by the serialization of the Colibri Networking layer,
       typically the transfer machine mutex or the domain mutex.
-      The nlx_core_buf_match_bits_set() subroutine, for example, is fully
+      The nlx_core_buf_desc_encode() subroutine, for example, is fully
       protected by the transfer machine mutex held across the
       c2_net_buffer_add() subroutine call, so implicitly protects the match bit
       counter in the kernel Core's per TM private data.
@@ -968,6 +980,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	c2_time_t now = c2_time_now();
 	bool is_unlinked = false;
 	unsigned mlength;
+	unsigned offset;
 	int status;
 
 	C2_PRE(event != NULL);
@@ -999,8 +1012,9 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		kbp->kb_ktm = NULL;
 		is_unlinked = true;
 	}
-	status = event->status;
+	status  = event->status;
 	mlength = event->mlength;
+	offset  = event->offset;
 
 	if (event->type == LNET_EVENT_SEND &&
 	    cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
@@ -1012,28 +1026,35 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		/* An out-of-order SEND, or
 		   cancellation notification piggy-backed onto an in-order SEND.
 		   The only way to distinguish is from the value of the
-		   event->md.threshold field.
+		   event->kb_ooo_reply field.
 		*/
-		NLXDBGP(lctm, 1, "\t%p: LNetGet() SEND with unlinked: thr:%d\n",
-			lctm, event->md.threshold);
-		if (status == 0 && event->md.threshold != 0)
-			status = -ECANCELED;
-		else
-			mlength = kbp->kb_mlength; /* from earlier REPLY */
-	}
-	if (event->type == LNET_EVENT_UNLINK) /* see nlx_core_buf_del */
+		NLXDBGP(lctm, 1,
+			"\t%p: LNetGet() SEND with unlinked: thr:%d ooo:%d\n",
+			lctm, event->md.threshold, (int) kbp->kb_ooo_reply);
+		if (status == 0) {
+			if (!kbp->kb_ooo_reply)
+				status = -ECANCELED;
+			else {  /* from earlier REPLY */
+				mlength = kbp->kb_ooo_mlength;
+				offset  = kbp->kb_ooo_offset;
+				status  = kbp->kb_ooo_status;
+			}
+		}
+	} else if (event->type == LNET_EVENT_UNLINK) {/* see nlx_core_buf_del */
+		C2_ASSERT(is_unlinked);
 		status = -ECANCELED;
-
-	if (!is_unlinked) {
+	} else if (!is_unlinked) {
 		NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s !unlinked Q=%d\n", lctm,
 			event, nlx_kcore_lnet_event_type_to_string(event->type),
 			cbp->cb_qtype);
 		/* We may get REPLY before SEND, so ignore such events,
-		   but save the mlength for when the SEND arrives.
+		   but save the significant values for when the SEND arrives.
 		*/
 		if (cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
-			C2_ASSERT(event->md.threshold == 1);
-			kbp->kb_mlength = mlength;
+			kbp->kb_ooo_reply   = true;
+			kbp->kb_ooo_mlength = mlength;
+			kbp->kb_ooo_offset  = offset;
+			kbp->kb_ooo_status  = status;
 			return;
 		}
 		/* we don't expect anything other than receive messages */
@@ -1047,7 +1068,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	bev->cbe_time      = now;
 	bev->cbe_status    = status;
 	bev->cbe_length    = mlength;
-	bev->cbe_offset    = event->offset;
+	bev->cbe_offset    = offset;
 	bev->cbe_unlinked  = is_unlinked;
 	if (event->hdr_data != 0) {
 		bev->cbe_sender.cepa_nid = event->initiator.nid;
