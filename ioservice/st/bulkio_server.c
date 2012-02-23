@@ -59,7 +59,7 @@ static struct c2_rpc_server_ctx s_rctx = {
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
 
-static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_dummy_fom_create(struct c2_fop *fop, struct c2_fom **m);
 extern void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
 extern int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
 extern void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
@@ -72,14 +72,11 @@ C2_TL_DESCR_DECLARE(rpcbulk, extern);
 
 /*
  * An alternate io fop type op vector to test bulk client functionality only.
- * Only .fto_fom_init is pointed to a UT function which tests the received
+ * Only .fto_create is pointed to a function which tests the received
  * io fop is sane and bulk io transfer is taking place properly using data
  * from io fop. Rest all ops are same as io_fop_rwv_ops.
- * !! This whole block of code should be removed after bulk IO server UT
- * code is in place!!
  */
-struct c2_fop_type_ops bulkio_fop_ut_ops = {
-	.fto_fom_init = io_fop_dummy_fom_init,
+struct c2_fop_type_ops bulkio_fop_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
@@ -87,10 +84,10 @@ struct c2_fop_type_ops bulkio_fop_ut_ops = {
 };
 
 static struct c2_fom_type_ops bulkio_fom_type_ops = {
-	.fto_create = NULL,
+	.fto_create = io_fop_dummy_fom_create,
 };
 
-static struct c2_fom_type bulkio_fom_type = {
+struct c2_fom_type bulkio_fom_type = {
 	.ft_ops = &bulkio_fom_type_ops,
 };
 
@@ -151,14 +148,14 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		C2_ASSERT(rc == 0);
 		C2_ASSERT(rbuf != NULL);
 
-		rbuf->bb_nbuf->nb_qtype = is_write(fom->fo_fop) ?
+		rbuf->bb_nbuf->nb_qtype = c2_is_write_fop(fom->fo_fop) ?
 					 C2_NET_QT_ACTIVE_BULK_RECV :
 					 C2_NET_QT_ACTIVE_BULK_SEND;
 
 		for (k = 0; k < ivec->ci_nr; ++k)
 			tc += ivec->ci_iosegs[k].ci_count;
 
-		if (is_read(fom->fo_fop)) {
+		if (c2_is_read_fop(fom->fo_fop)) {
 			for (j = 0; j < ivec->ci_nr; ++j)
 				/*
 				 * Sets a pattern in data buffer so that
@@ -185,7 +182,8 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	c2_clink_fini(&clink);
 
 	/* Checks if the write io bulk data is received as is. */
-	for (i = 0; i < rw->crw_desc.id_nr && is_write(fom->fo_fop); ++i) {
+	for (i = 0; i < rw->crw_desc.id_nr && c2_is_write_fop(fom->fo_fop);
+	   ++i) {
 		for (j = 0; j < netbufs[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bparm->bp_writebuf,
 				    netbufs[i]->nb_buffer.ov_buf[j],
@@ -194,7 +192,7 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		}
 	}
 
-	if (is_write(fom->fo_fop)) {
+	if (c2_is_write_fop(fom->fo_fop)) {
 		fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 		wrep = c2_fop_data(fop);
 		wrep->c_rep.rwr_rc = rbulk->rb_rc;
@@ -204,8 +202,6 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		rrep = c2_fop_data(fop);
 		rrep->c_rep.rwr_rc = rbulk->rb_rc;
 		rrep->c_rep.rwr_count = tc;
-		rrep->c_iobuf.ib_count = IO_SEQ_LEN;
-		C2_ALLOC_ARR(rrep->c_iobuf.ib_buf, rrep->c_iobuf.ib_count);
 	}
 	C2_ASSERT(fop != NULL);
 
@@ -237,7 +233,7 @@ static struct c2_fom_ops bulkio_fom_ops = {
 	.fo_home_locality = bulkio_fom_locality,
 };
 
-static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int io_fop_dummy_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_fom *fom;
 
@@ -246,9 +242,9 @@ static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 	fom->fo_fop = fop;
 	c2_fom_init(fom);
-	fop->f_type->ft_fom_type.ft_ops = &bulkio_fom_type_ops;
-	fom->fo_type = &bulkio_fom_type;
+	fop->f_type->ft_fom_type = bulkio_fom_type;
 	fom->fo_ops = &bulkio_fom_ops;
+        fom->fo_type = &bulkio_fom_type;
 
 	*m = fom;
 	return 0;
@@ -257,7 +253,7 @@ static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
 int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int sport)
 {
 	int			      i;
-	int			      rc;
+	int			      rc = 0;
 	char			    **server_args;
 	char			     xprt[IO_ADDR_LEN] = "bulk-sunrpc:";
 	char			     sep[IO_ADDR_LEN];
@@ -302,10 +298,10 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int sport)
 	bulkio_netep_form(saddr, sport, IO_SERVER_SVC_ID, sep);
 	strcat(server_args[9], sep);
 	strcpy(server_args[10], "-s");
-	strcpy(server_args[11], "ds1");
-	strcpy(server_args[12], "-s");
-	strcpy(server_args[13], "ds2");
-
+	strcpy(server_args[11], "ioservice");
+	/*strcpy(server_args[12], "-s");
+	strcpy(server_args[13], "ds1");
+*/
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 

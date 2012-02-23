@@ -48,7 +48,7 @@
  * This can be changed.
  */
 enum c2_addb_ev_level	c2_addb_level_default	      = AEL_NOTE;
-enum c2_addb_ev_level	c2_addb_level_default_console = AEL_NOTE;
+enum c2_addb_ev_level	c2_addb_level_default_console = AEL_WARN;
 
 /**
    ADDB record store type.

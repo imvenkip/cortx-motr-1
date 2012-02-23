@@ -24,7 +24,8 @@ C2_TL_DESCR_DECLARE(rpcbulk, extern);
 extern const struct c2_net_buffer_callbacks rpc_bulk_cb;
 extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
-struct c2_fop_type_ops bulkio_fop_ut_ops;
+struct c2_fop_type_ops bulkio_fop_ops;
+struct c2_fom_type bulkio_fom_type;
 extern bool is_read(const struct c2_fop *fop);
 
 /*
@@ -134,7 +135,7 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 				bp->bp_offsets[off_index], &bp->bp_cnetdom);
 		C2_ASSERT(rc == 0);
 
-		bp->bp_offsets[off_index] -=
+		bp->bp_offsets[off_index] +=
 			bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i];
 	}
 
@@ -156,21 +157,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 			       rw->crw_desc.id_descs);
 	C2_ASSERT(rc == 0);
 
-	/*
-	 * Temporary! Should be removed once bulk server UT code is merged
-	 * with this code. Old IO fops were based on sunrpc which had inline
-	 * data buffers, which is not the case with bulk IO.
-	 * Some deprecated members of fop can not be removed since it would
-	 * need changes to IO foms in order for build to be successful.
-	 * These will be removed in iointegration branch.
-	 */
-	rw->crw_iovec.iv_count = 1;
-	C2_ALLOC_ARR(rw->crw_iovec.iv_segs, rw->crw_iovec.iv_count);
-	C2_ASSERT(rw->crw_iovec.iv_segs != NULL);
-	rw->crw_iovec.iv_segs[0].is_offset = 0;
-	rw->crw_iovec.iv_segs[0].is_buf.ib_count = IO_SEQ_LEN;
-	C2_ALLOC_ARR(rw->crw_iovec.iv_segs[0].is_buf.ib_buf,
-		     rw->crw_iovec.iv_segs[0].is_buf.ib_count);
 }
 
 static void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
@@ -184,6 +170,8 @@ static void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 	struct c2_io_fop	**io_fops;
 
 	seed = 0;
+	for (i = 0; i < fids_nr; ++i)
+		bp->bp_offsets[i] = IO_SEG_START_OFFSET;
 	if (op == C2_IOSERVICE_WRITEV_OPCODE) {
 		C2_ASSERT(bp->bp_wfops == NULL);
 		C2_ALLOC_ARR(bp->bp_wfops, fops_nr);
@@ -203,13 +191,18 @@ static void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 		C2_ASSERT(io_fops[i] != NULL);
 		rc = c2_io_fop_init(io_fops[i], fopt);
 		C2_ASSERT(rc == 0);
-		io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ut_ops;
+		io_fops[i]->if_fop.f_type->ft_ops = &bulkio_fop_ops;
+                io_fops[i]->if_fop.f_type->ft_fom_type = bulkio_fom_type;
+
 	}
 
 	/* Populates io fops. */
 	for (i = 0; i < fops_nr; ++i) {
-		rnd = c2_rnd(fids_nr, &seed);
-		C2_ASSERT(rnd < fids_nr);
+		if (fids_nr < fops_nr) {
+			rnd = c2_rnd(fids_nr, &seed);
+			C2_UT_ASSERT(rnd < fids_nr);
+		}
+		else rnd = i;
 
 		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 			   bp->bp_rfops;
@@ -260,7 +253,7 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 	C2_ASSERT(rc == 0);
 
 	rc = c2_rpc_reply_timedwait(&clink, timeout);
-	if (is_read(&io_fops[i]->if_fop)) {
+	if (c2_is_read_fop(&io_fops[i]->if_fop)) {
 		for (j = 0; j < bp->bp_iobuf[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bp->bp_iobuf[i]->nb_buffer.ov_buf[j],
 				    bp->bp_readbuf,
@@ -444,8 +437,8 @@ void bulkio_netep_form(const char *addr, int port, int svc_id, char *out)
 	strcat(out, str);
 }
 
-int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
-			const char *saddr, int sport)
+int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int port,
+			const char *saddr)
 {
 	int			  rc;
 	char			 *cdbname;
@@ -462,7 +455,7 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 
 	C2_ALLOC_ARR(srv_addr, IO_ADDR_LEN);
 	C2_ASSERT(srv_addr != NULL);
-	bulkio_netep_form(saddr, sport, IO_SERVER_SVC_ID, srv_addr);
+	bulkio_netep_form(saddr, port, IO_SERVER_SVC_ID, srv_addr);
 
 	cctx->rcx_remote_addr = srv_addr;
 	cctx->rcx_cob_dom_id  = IO_CLIENT_COBDOM_ID;
@@ -472,7 +465,7 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 
 	C2_ALLOC_ARR(cli_addr, IO_ADDR_LEN);
 	C2_ASSERT(cli_addr != NULL);
-	bulkio_netep_form(caddr, cport, IO_CLIENT_SVC_ID, cli_addr);
+	bulkio_netep_form(caddr, port, IO_CLIENT_SVC_ID, cli_addr);
 	cctx->rcx_local_addr = cli_addr;
 	cctx->rcx_net_dom = &bp->bp_cnetdom;
 

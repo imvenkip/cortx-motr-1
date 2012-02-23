@@ -50,10 +50,11 @@
 #include "reqh/reqh_service.h"	/* c2_reqh_service */
 
 enum IO_UT_VALUES {
-	IO_FIDS_NR		= 4,
-	IO_SEGS_NR		= 128,
+	IO_FIDS_NR		= 16,
+	IO_SEGS_NR		= 16,
+	IO_SEG_SIZE		= 4096,
 	IO_SEQ_LEN		= 8,
-	IO_FOPS_NR		= 32,
+	IO_FOPS_NR		= 16,
 	IO_FID_SINGLE		= 1,
 	IO_FOP_SINGLE		= 1,
 	IO_XPRT_NR		= 1,
@@ -63,7 +64,7 @@ enum IO_UT_VALUES {
 	IO_STR_LEN		= 16,
 	IO_SEG_STEP		= 64,
 	IO_RPC_ITEM_TIMEOUT	= 300,
-	IO_SEG_START_OFFSET	= C2_0VEC_ALIGN * IO_SEGS_NR * IO_FOPS_NR,
+	IO_SEG_START_OFFSET	= IO_SEG_SIZE,
 	IO_CLIENT_COBDOM_ID	= 21,
 	IO_SERVER_COBDOM_ID	= 29,
 	IO_RPC_SESSION_SLOTS	= 8,
@@ -132,8 +133,8 @@ struct thrd_arg {
 };
 
 /* Common APIs used by bulk client as well as UT code. */
-int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
-			const char *saddr, int sport);
+int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int port,
+			const char *saddr);
 
 void bulkio_client_stop(struct c2_rpc_client_ctx *cctx);
 
