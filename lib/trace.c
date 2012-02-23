@@ -48,6 +48,8 @@
 void      *c2_logbuf = NULL;
 uint32_t   c2_logbufsize;
 
+unsigned long c2_trace_immediate_mask;
+
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
 
@@ -139,7 +141,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	memcpy((void*)header + header_len, body, td->td_size);
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = C2_TRACE_MAGIC;
-	if (C2_TRACE_IMMEDIATE_DEBUG)
+	if (C2_TRACE_IMMEDIATE_DEBUG && (td->td_subsys & c2_trace_immediate_mask))
 		c2_trace_record_print(header, body);
 }
 

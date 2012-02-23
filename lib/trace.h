@@ -189,6 +189,13 @@ enum {
 extern void      *c2_logbuf;      /**< Trace buffer pointer */
 extern uint32_t   c2_logbufsize;  /**< The real buffer size */
 
+/** The bitmask of what should be printed immediately to console */
+extern ulong      c2_trace_immediate_mask;
+/** The subsystem bitmask definishions */
+enum c2_trace_subsystem {
+	C2_TRACE_SUBSYS_UT = 0x0000000000000001ULL,
+};
+
 /**
  * Record header structure
  *
@@ -210,6 +217,7 @@ struct c2_trace_descr {
 	const char *td_fmt;
 	const char *td_func;
 	const char *td_file;
+	uint64_t    td_subsys;
 	int         td_line;
 	int         td_size;
 	int         td_nr;
@@ -252,6 +260,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
 		.td_line   = __LINE__,					\
+		.td_subsys = C2_TRACE_SUBSYSTEM,			\
 		.td_size   = sizeof(struct t_body),			\
 		.td_nr     = (NR),					\
 		.td_offset = _offset,					\
@@ -260,6 +269,10 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 	printf_check(FMT , ## __VA_ARGS__);				\
 	c2_trace_allot(&td, &(const struct t_body){ __VA_ARGS__ });	\
 })
+
+#ifndef C2_TRACE_SUBSYSTEM
+#define C2_TRACE_SUBSYSTEM (0)
+#endif
 
 enum {
 	C2_TRACE_ARGC_MAX = 9

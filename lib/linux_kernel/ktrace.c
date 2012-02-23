@@ -34,6 +34,8 @@
  * @{
  */
 
+module_param(c2_trace_immediate_mask, ulong, 0644);
+MODULE_PARM_DESC(c2_trace_immediate_mask, "The bitmask of what should be printed immediately to console");
 
 int c2_arch_trace_init(void)
 {

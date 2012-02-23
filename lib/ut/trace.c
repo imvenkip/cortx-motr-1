@@ -22,8 +22,9 @@
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/thread.h"
-#include "lib/trace.h"
 #include "lib/assert.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_UT
+#include "lib/trace.h"
 
 enum {
 	NR       = 16,
