@@ -296,7 +296,7 @@ const struct c2_addb_ev_ops C2_ADDB_TRACE = {
 	.aeo_getsize = c2_addb_trace_getsize,
 	.aeo_size    = sizeof(char *),
 	.aeo_name    = "trace",
-	.aeo_level   = AEL_WARN
+	.aeo_level   = AEL_TRACE
 };
 
 C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, C2_ADDB_STAMP);

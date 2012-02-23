@@ -32,6 +32,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "net/net.h"
+#include "net/net_internal.h"
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
@@ -578,6 +579,23 @@ C2_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
 C2_TL_DEFINE(rpcbulkbufs, static, struct c2_rpc_bulk_buf);
 
 /**
+ * @todo
+ * This is stuff function.
+ * This function will be available as pert of "netprov" task.
+ * This stuff should removed once netprov merged into master.
+ */
+static uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm)
+{
+        uint32_t colour;
+        c2_mutex_lock(&tm->ntm_mutex);
+        C2_PRE(c2_net__tm_invariant(tm));
+        colour = tm->ntm_pool_colour;
+        c2_mutex_unlock(&tm->ntm_mutex);
+        return colour;
+}
+
+
+/**
  * I/O FOM addb event location object
  */
 const struct c2_addb_loc io_fom_addb_loc = {
@@ -1056,11 +1074,12 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
  */
 static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
 {
-        int                           colour;
+        uint32_t                      colour;
         int                           acquired_net_bufs;
         int                           required_net_bufs;
-        struct c2_fop                *fop = fom->fo_fop;
+        struct c2_fop                *fop;
         struct c2_io_fom_cob_rw      *fom_obj = NULL;
+        struct c2_net_transfer_mc     tm;
 
         C2_PRE(fom != NULL);
         C2_PRE(c2_is_io_fop(fom->fo_fop));
@@ -1071,6 +1090,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
+        fop = fom->fo_fop;
         fom_obj->fcrw_phase_start_time = c2_time_now();
 
         /**
@@ -1098,7 +1118,9 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
                 C2_ASSERT(fom_obj->fcrw_bp != NULL);
         }
 
-        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        colour = c2_net_tm_colour_get(&tm);
+
         acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
         required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
@@ -1172,11 +1194,12 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
  */
 static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
 {
-        int                             colour;
+        uint32_t                        colour;
         int                             acquired_net_bufs;
         int                             required_net_bufs;
         struct c2_fop                  *fop;
         struct c2_io_fom_cob_rw        *fom_obj = NULL;
+        struct c2_net_transfer_mc       tm;
 
 
         C2_PRE(fom != NULL);
@@ -1188,8 +1211,9 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
         C2_ASSERT(fom_obj->fcrw_bp != NULL);
 
-        fop = fom->fo_fop;
-        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+        fop    = fom->fo_fop;
+        tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        colour = c2_net_tm_colour_get(&tm);
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
         acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
@@ -1690,17 +1714,19 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
  */
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 {
-        int                             colour = 0;
+        uint32_t                        colour = 0;
         struct c2_fop                  *fop = fom->fo_fop;
         struct c2_io_fom_cob_rw        *fom_obj;
         struct c2_net_buffer           *nb = NULL;
         struct c2_stob_io_desc         *stio_desc = NULL;
+        struct c2_net_transfer_mc       tm;
 
         C2_PRE(fom != NULL);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
-        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+        tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        colour = c2_net_tm_colour_get(&tm);
 
         c2_chan_fini(&fom_obj->fcrw_wait);
 

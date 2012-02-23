@@ -383,7 +383,6 @@ static void bulkio_init(void)
 	bulkio_params_init(bp);
 
 	bulkio_stob_create();
-	c2_addb_choose_default_level(AEL_NONE);
 }
 
 static void bulkio_fini(void)

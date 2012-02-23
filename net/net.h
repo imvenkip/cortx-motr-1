@@ -481,8 +481,8 @@ struct c2_net_domain {
 	/** Network magic */
 	uint64_t            nd_magic;
 
-        /** Transfer machine color counter */
-        int                 nd_colour_counter;
+        /** Transfer machine pool colour counter */
+        int                 nd_pool_colour_counter;
 };
 
 /**
@@ -929,7 +929,7 @@ struct c2_net_transfer_mc {
          * Transfer machine colour. It is used to get
          * buffer from buffer pool.
          */
-        int                         ntm_colour;
+        int                         ntm_pool_colour;
 
 	/** Transport private data */
         void                       *ntm_xprt_private;
