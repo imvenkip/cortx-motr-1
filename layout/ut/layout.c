@@ -309,11 +309,16 @@ static int pdclust_lin_lbuf_build(uint64_t lid,
 				  uint32_t N, uint32_t K,
 				  uint32_t A, uint32_t B,
 				  uint32_t nr,
-				  struct c2_bufvec_cursor *dcur)
+				  struct c2_bufvec_cursor *dcur,
+				  bool build_partial_buf)
 {
 	struct c2_layout_linear_attr   lin_rec;
 
 	pdclust_lbuf_build(lid, N, K, c2_linear_enum_type.let_id, dcur);
+
+	/* For negative test - having partial buffer. */
+	if (build_partial_buf)
+		return 0;
 
 	lin_rec.lla_nr    = nr;
 	lin_rec.lla_A     = A;
@@ -445,7 +450,7 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	struct c2_layout           *l;
 	struct c2_db_tx            *tx = NULL;
 
-	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
+	num_bytes = c2_ldb_max_recsize(&schema);
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
 
@@ -453,7 +458,7 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	c2_bufvec_cursor_init(&cur, &bv);
 	c2_bufvec_cursor_init(&cur1, &bv);
 
-	rc = pdclust_lin_lbuf_build(lid, 4, 2, 777, 888, 999, &cur);
+	rc = pdclust_lin_lbuf_build(lid, 4, 2, 777, 888, 999, &cur, false);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -467,6 +472,38 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	return rc;
 }
 
+/*
+ * This test results into an assert from linear_decode():
+ * C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+static int test_decode_pdclust_linear_negative(uint64_t lid)
+{
+	void                      *area;
+	struct c2_bufvec           bv;
+	struct c2_bufvec_cursor    cur;
+	c2_bcount_t                num_bytes;
+	struct c2_layout           *l;
+	struct c2_db_tx            *tx = NULL;
+
+	num_bytes = sizeof (struct c2_ldb_rec) +
+			sizeof (struct c2_ldb_pdclust_rec);
+	c2_ldb_max_recsize(&schema);
+	area = c2_alloc(num_bytes);
+	C2_UT_ASSERT(area != NULL);
+
+	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	rc = pdclust_lin_lbuf_build(lid, 4, 2, 777, 888, 999, &cur, true);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_bufvec_cursor_init(&cur, &bv);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
+}
+ */
+
 static void test_decode(void)
 {
 	uint64_t    lid;
@@ -475,15 +512,23 @@ static void test_decode(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Decode a layout with PDCLUST layout type and LIST enum type. */
-	lid = 0x50444C4953543031; /*PDLIST01 */
+	lid = 0x50444C4953543031; /* PDLIST01 */
 	rc = test_decode_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Decode a layout with PDCLUST layout type and LINEAR enum type. */
-	lid = 0x50444C4953543032; /*PDLIST02 */
+	lid = 0x50444C4953543032; /* PDLIST02 */
 	rc = test_decode_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
+	/*
+	 * Negative test -
+	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
+	 *
+	 * lid = 0x50444C4953543032; * PDLIST03 *
+	 * rc = test_decode_pdclust_linear_negative(lid);
+	 * C2_UT_ASSERT(rc == 0);
+	 */
 	internal_fini();
 }
 

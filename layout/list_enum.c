@@ -315,6 +315,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
@@ -334,6 +335,8 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	num_inline = ldb_ce_header->llces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : ldb_ce_header->llces_nr;
+
+	C2_ASSERT(c2_bufvec_cursor_step(cur) >= num_inline * sizeof *ldb_ce);
 
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
 		if (i == 0) {
@@ -452,6 +455,8 @@ static int list_encode(struct c2_ldb_schema *schema,
 		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
+	       !c2_bufvec_cursor_move(oldrec_cur, 0)));
 	C2_PRE(out != NULL);
 
 	//C2_LOG("In list_encode(), l %p \n", l);
@@ -471,6 +476,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 			return -EINVAL;
 
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *ldb_ce_oldheader);
+
+		C2_ASSERT(c2_bufvec_cursor_step(oldrec_cur) >=
+			  num_inline * sizeof *ldb_ce_old);
 
 		for (i = 0; i < num_inline; ++i) {
 			ldb_ce_old = c2_bufvec_cursor_addr(oldrec_cur);

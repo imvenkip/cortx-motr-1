@@ -27,9 +27,6 @@
  * @{
  */
 
-// todo tempo
-//#include <stdio.h>
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"
@@ -203,6 +200,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
@@ -229,13 +227,12 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	 * which will be caught by the respective lto_decode() implementation.
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
-	/* todo Add TC to verify the fnctioning when no type specific
+	/* todo Add TC to verify the functioning when no type specific
 	 * data is present even when expected.
 	 * todo Check if cur is NULL in that case.
 	 */
 
 	rc = lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
-	C2_ASSERT(rc == 0);
 	if (rc != 0)
 		return rc;
 
@@ -295,13 +292,17 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
+	      !c2_bufvec_cursor_move(oldrec_cur, 0)));
 	C2_PRE(out != NULL);
 
 	C2_LOG("In c2_layout_encode()\n");
 
 	c2_mutex_lock(&l->l_lock);
 
-	/* todo Convert this to ergo */
+	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
+		return -ENOENT;
+
 	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -ENOENT;
 
@@ -335,7 +336,6 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_ASSERT(nbytes_copied == sizeof *rec);
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
-	//todo Remove such asserts C2_ASSERT(rc == 0);
 
 	c2_mutex_unlock(&l->l_lock);
 

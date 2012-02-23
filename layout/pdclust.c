@@ -531,6 +531,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
@@ -607,6 +608,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
+	       !c2_bufvec_cursor_move(oldrec_cur, 0)));
 	C2_PRE(out != NULL);
 
 	//C2_LOG("In pdclust_encode()\n");

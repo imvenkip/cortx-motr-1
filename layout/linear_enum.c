@@ -106,6 +106,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
@@ -120,6 +121,11 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
 
+	/*
+	 * todo Need to ensure that lin_attr is a valid record.
+	 * Need to use lib/bob.[h|c] implementation for that.
+	 * And then get rid of the following asserts.
+	 */
 	C2_ASSERT(lin_attr->lla_nr != 0);
 	C2_ASSERT(lin_attr->lla_A != 0);
 	C2_ASSERT(lin_attr->lla_B != 0);
