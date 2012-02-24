@@ -1,4 +1,4 @@
-lnetdir                    = $(includedir)/net/lnet
+lnetdir                    = $(includedir)/colibri/net/lnet
 lnet_HEADERS               = lnet_core.h lnet.h lnet_xo.h ulnet_core.h
 
 INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include

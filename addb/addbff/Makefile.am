@@ -1,6 +1,6 @@
 # fop generated files are required by other directories
 
-addbdir                     = $(includedir)/addb
+addbdir                     = $(includedir)/colibri/addb
 
 noinst_LTLIBRARIES          = libcolibri-addbff.la
 libcolibri_addbff_la_SOURCES = addb_u.h addb_u.c
