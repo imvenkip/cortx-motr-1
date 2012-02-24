@@ -61,16 +61,14 @@ struct c2_layout_list_enum {
 	 * This issue is to be addressed later.
 	 */
 	struct c2_fid            *lle_list_of_cobs;
+
+	uint64_t                  lle_magic;
 };
 
 int c2_list_enum_build(uint64_t lid,
 		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);
-int c2_list_enum_add(struct c2_layout_list_enum *le,
-		     uint32_t idx, struct c2_fid *cob_id);
-
 void c2_list_enum_fini(struct c2_layout_list_enum *list_enum);
-//todo c2_list_enum_delete
 
 extern const struct c2_layout_enum_type c2_list_enum_type;
 

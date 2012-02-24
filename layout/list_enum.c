@@ -30,6 +30,7 @@
 #include "lib/vec.h"
 #include "lib/memory.h"
 #include "lib/trace.h"
+#include "lib/bob.h"
 #include "fid/fid.h"                /* struct c2_fid */
 #include "layout/layout_internal.h"
 #include "layout/list_enum.h"
@@ -41,8 +42,18 @@ enum {
 	 * inline into the layouts table, while rest of those are stored into
 	 * the cob_lists table.
 	 */
-	LDB_MAX_INLINE_COB_ENTRIES = 20
+	LDB_MAX_INLINE_COB_ENTRIES = 20,
+	LIST_ENUM_MAGIC            = 0x6b6f6c6176657269ULL /* "kolaveri" */
 };
+
+static const struct c2_bob_type list_enum_bob = {
+	.bt_name         = "list_enum",
+	.bt_magix_offset = offsetof(struct c2_layout_list_enum, lle_magic),
+	.bt_magix        = LIST_ENUM_MAGIC,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(static, &list_enum_bob, c2_layout_list_enum);
 
 struct ldb_cob_entry {
 	/** Index for the COB from the layout it is part of. */
@@ -118,6 +129,11 @@ static const struct c2_table_ops cob_lists_table_ops = {
 	.key_cmp = lcl_key_cmp
 };
 
+static bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum)
+{
+	/* Add more stuff. e.g. synatx, Refer to c2_locality_invariant. */
+	return c2_layout_list_enum_bob_check(list_enum);
+}
 
 static const struct c2_layout_enum_ops list_enum_ops;
 
@@ -139,6 +155,9 @@ int c2_list_enum_build(uint64_t lid,
 
 	*out = list_enum;
 
+	c2_layout_list_enum_bob_init(list_enum);
+	C2_ASSERT(c2_layout_list_enum_bob_check(list_enum));
+
 	c2_layout_enum_init(&list_enum->lle_base, &c2_list_enum_type,
 			    &list_enum_ops);
 
@@ -159,6 +178,9 @@ int c2_list_enum_build(uint64_t lid,
 void c2_list_enum_fini(struct c2_layout_list_enum *list_enum)
 {
 	c2_free(list_enum->lle_list_of_cobs);
+
+	c2_layout_list_enum_bob_fini(list_enum);
+	C2_ASSERT(!c2_layout_list_enum_bob_check(list_enum));
 
 	c2_layout_enum_fini(&list_enum->lle_base);
 }
@@ -233,6 +255,7 @@ static uint32_t list_recsize(struct c2_layout_enum *e)
 	struct c2_layout_list_enum  *list_enum;
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+	C2_ASSERT(c2_list_enum_invariant(list_enum));
 
 	if (list_enum->lle_nr <= LDB_MAX_INLINE_COB_ENTRIES)
 		return sizeof(struct ldb_cob_entries_header) +
@@ -270,8 +293,12 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 	if (rc != 0)
 		return rc;
 
-	/* todo tempo */
+	/**
+	 * @todo Should there be any validation confirming the cob id read
+	 * from the DB is sane. Following assert is a place holder/temporary.
+	 */
 	C2_ASSERT(rec.lclr_cob_id.f_container != 0);
+
 	*cob_id = rec.lclr_cob_id;
 
 	return 0;
@@ -440,6 +467,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
 				 lle_base);
+	C2_ASSERT(c2_list_enum_invariant(list_enum));
 
 	num_inline = list_enum->lle_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
