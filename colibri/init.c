@@ -48,7 +48,7 @@
 #include "colibri/init.h"
 
 #ifdef __KERNEL__
-#   include "c2t1fs/c2t1fs.h"
+#   include "c2t1fs/linux_kernel/c2t1fs.h"
 #   include "net/ksunrpc/ksunrpc.h"
 #   include "build_kernel_modules/dummy_init_fini.h"
 #endif

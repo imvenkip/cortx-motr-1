@@ -859,19 +859,16 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 	/* XXX implement */
 	return false;
 }
-C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
 
 int c2_net_lnet_ifaces_get(char * const **addrs)
 {
 	return nlx_core_nidstrs_get(addrs);
 }
-C2_EXPORTED(c2_net_lnet_ifaces_get);
 
 void c2_net_lnet_ifaces_put(char * const **addrs)
 {
 	nlx_core_nidstrs_put(addrs);
 }
-C2_EXPORTED(c2_net_lnet_ifaces_put);
 
 void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
 				      uint64_t secs)
@@ -889,7 +886,6 @@ void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
 	c2_time_set(&tp->xtm_stat_interval, secs, 0);
 	c2_mutex_unlock(&tm->ntm_mutex);
 }
-C2_EXPORTED(c2_net_lnet_tm_stat_interval_set);
 
 uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
 {
@@ -907,7 +903,6 @@ uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return ret;
 }
-C2_EXPORTED(c2_net_lnet_tm_stat_interval_get);
 
 void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
 {
@@ -935,9 +930,7 @@ void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
 	c2_mutex_unlock(&tm->ntm_mutex);
 }
 
-/**
-   @}
- */
+/** @} */ /* LNetDFS */
 
 /*
  *  Local variables:

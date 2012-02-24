@@ -163,7 +163,6 @@ void c2_sunrpc_fop_fini(void)
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
 }
-C2_EXPORTED(c2_sunrpc_fop_fini);
 
 /**
    Transport initialization subroutine called from c2_init().
@@ -184,7 +183,6 @@ int c2_sunrpc_fop_init(void)
 		c2_sunrpc_fop_fini();
 	return result;
 }
-C2_EXPORTED(c2_sunrpc_fop_init);
 
 /**
    Search the list of existing transfer machines for the one whose end point
@@ -449,7 +447,6 @@ c2_net_bulk_sunrpc_dom_get_skulker_period(struct c2_net_domain *dom)
 	C2_PRE(sunrpc_dom_invariant(dom));
 	return c2_time_seconds(dp->xd_skulker_period);
 }
-C2_EXPORTED(c2_net_bulk_sunrpc_dom_get_skulker_period);
 
 void
 c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
@@ -475,7 +472,6 @@ c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom)
 	C2_PRE(sunrpc_dom_invariant(dom));
 	return c2_time_seconds(dp->xd_ep_release_delay);
 }
-C2_EXPORTED(c2_net_bulk_sunrpc_dom_get_end_point_release_delay);
 
 static c2_bcount_t sunrpc_xo_get_max_buffer_size(
 					      const struct c2_net_domain *dom)

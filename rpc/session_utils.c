@@ -53,13 +53,11 @@ int c2_rpc_session_module_init(void)
 {
         return c2_rpc_session_fop_init();
 }
-C2_EXPORTED(c2_rpc_session_module_init);
 
 void c2_rpc_session_module_fini(void)
 {
         c2_rpc_session_fop_fini();
 }
-C2_EXPORTED(c2_rpc_session_module_fini);
 
 void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
 {

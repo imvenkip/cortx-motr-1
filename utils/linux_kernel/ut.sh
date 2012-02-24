@@ -12,7 +12,7 @@ if [ -n "$d" ]; then
     cd "$d"
 fi
 
-. c2t1fs/st/common.sh
+. c2t1fs/linux_kernel/st/common.sh
 
 MODLIST="build_kernel_modules/kcolibri.ko \
          utils/linux_kernel/kutc2.ko"

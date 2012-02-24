@@ -1,4 +1,4 @@
-smdir                     = $(includedir)/sm
+smdir                     = $(includedir)/colibri/sm
 sm_HEADERS                = sm.h
 
 noinst_LTLIBRARIES        = libcolibri-sm.la

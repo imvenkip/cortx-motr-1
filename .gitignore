@@ -3,6 +3,7 @@
 .tmp_versions
 aclocal.m4
 autom4te.cache
+colibri.spec
 compile
 config.cache
 config.guess

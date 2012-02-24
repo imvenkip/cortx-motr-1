@@ -1,4 +1,4 @@
-snsdir                          = $(includedir)/sns
+snsdir                          = $(includedir)/colibri/sns
 sns_HEADERS                     = ls_solve.h matvec.h parity_math.h \
                                   parity_ops.h repair.h sns.h
 
