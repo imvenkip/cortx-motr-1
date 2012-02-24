@@ -55,15 +55,16 @@ struct c2_layout_list_enum {
 	/**
 	 * Pointer to an array of COB identifiers for the component objects
 	 * which are part of 'the layout this enum is assocaited with'.
-	 * @todo In kernel any allocation over 4KB is not desired. Thus, this
-	 * this array can safely hold only upto 256 number of COB identifiers,
+	 * @todo In kernel any allocation over 4KB is not safe. Thus, this
+	 * array can safely hold only upto 256 number of COB identifiers,
 	 * (c2_fid being 16 bytes in size).
 	 * This issue is to be addressed later.
 	 */
 	struct c2_fid            *lle_list_of_cobs;
 };
 
-int c2_list_enum_build(uint64_t lid, uint32_t nr,
+int c2_list_enum_build(uint64_t lid,
+		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);
 int c2_list_enum_add(struct c2_layout_list_enum *le,
 		     uint32_t idx, struct c2_fid *cob_id);

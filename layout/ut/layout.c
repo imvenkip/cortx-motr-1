@@ -573,23 +573,23 @@ static int pdclust_list_l_build(uint64_t lid,
 				struct c2_pdclust_layout **pl)
 {
 	struct c2_layout_list_enum *le;
-	struct c2_fid               cob_fid;
+	struct c2_fid              *cob_list;
 	int                         i;
 
-	rc = c2_list_enum_build(lid, nr, &le);
+	C2_ALLOC_ARR(cob_list, nr);
+	C2_UT_ASSERT(cob_list != NULL);
+
+	for (i = 0; i < nr; ++i) {
+		cob_list[i].f_container = i * 100 + 1;
+		cob_list[i].f_key = i + 1;
+	}
+
+	rc = c2_list_enum_build(lid, cob_list, nr, &le);
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(le != NULL);
 	C2_UT_ASSERT(le->lle_base.le_type == &c2_list_enum_type);
 	C2_UT_ASSERT(le->lle_base.le_type->let_id == c2_list_enum_type.let_id);
-
-	for (i = 0; i < nr; ++i) {
-		cob_fid.f_container = i * 100 + 1;
-		cob_fid.f_key = i + 1;
-		rc = c2_list_enum_add(le, i, &cob_fid);
-		C2_UT_ASSERT(rc == 0);
-	}
-
 	rc = pdclust_l_build(lid, N, K, &le->lle_base, pl);
 	C2_UT_ASSERT(rc == 0);
 

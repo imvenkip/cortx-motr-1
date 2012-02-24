@@ -200,6 +200,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	/* Catch if the buffer is with insufficient size. */
 	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
@@ -229,7 +230,11 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	 */
 	/* todo Add TC to verify the functioning when no type specific
 	 * data is present even when expected.
-	 * todo Check if cur is NULL in that case.
+	 * 1) If buffer is capable of that size, then cur is not NULL in that
+	 *    case. Hence, need to verify that type data is sane. Use bob for
+	 *    this purspose.
+	 * 2) If buffer is not capable of that size, then the assert
+	 *    C2_PRE(!c2_bufvec_cursor_move(cur, 0)) catches it.
 	 */
 
 	rc = lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);

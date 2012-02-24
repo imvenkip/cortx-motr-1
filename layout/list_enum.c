@@ -121,17 +121,23 @@ static const struct c2_table_ops cob_lists_table_ops = {
 
 static const struct c2_layout_enum_ops list_enum_ops;
 
-int c2_list_enum_build(uint64_t lid, uint32_t nr,
+int c2_list_enum_build(uint64_t lid,
+		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out)
 {
 	struct c2_layout_list_enum *list_enum;
+	uint32_t                    i;
 
 	C2_PRE(lid != LID_NONE);
+	C2_PRE(cob_list != NULL);
+	C2_PRE(nr > 0);
 	C2_PRE(out != NULL);
 
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL)
 		return -ENOMEM;
+
+	*out = list_enum;
 
 	c2_layout_enum_init(&list_enum->lle_base, &c2_list_enum_type,
 			    &list_enum_ops);
@@ -143,7 +149,9 @@ int c2_list_enum_build(uint64_t lid, uint32_t nr,
 	if (list_enum == NULL)
 		return -ENOMEM;
 
-	*out = list_enum;
+	for (i = 0; i < nr; ++i) {
+		list_enum->lle_list_of_cobs[i] = cob_list[i];
+	}
 
 	return 0;
 }
@@ -153,22 +161,6 @@ void c2_list_enum_fini(struct c2_layout_list_enum *list_enum)
 	c2_free(list_enum->lle_list_of_cobs);
 
 	c2_layout_enum_fini(&list_enum->lle_base);
-}
-
-int c2_list_enum_add(struct c2_layout_list_enum *le,
-		     uint32_t idx, struct c2_fid *cob_id)
-{
-	C2_PRE(idx < le->lle_nr);
-	C2_PRE(le->lle_list_of_cobs[idx].f_container == 0 &&
-	       le->lle_list_of_cobs[idx].f_key == 0);
-
-	if(idx >= le->lle_nr || le->lle_list_of_cobs[idx].f_container != 0 ||
-	   le->lle_list_of_cobs[idx].f_key != 0)
-		return -EINVAL;
-
-	le->lle_list_of_cobs[idx] = *cob_id;
-
-	return 0;
 }
 
 /**
@@ -308,13 +300,14 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	struct ldb_cob_entries_header *ldb_ce_header;
 	struct ldb_cob_entry          *ldb_ce;
 	uint32_t                       num_inline; /* No. of inline cobs */
-	struct c2_fid                  cob_fid;
+	struct c2_fid                 *cob_list;
 	uint32_t                       i;
 	int                            rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
+	/* Catch if the buffer is with insufficient size. */
 	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
@@ -325,13 +318,9 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_ASSERT(ldb_ce_header != NULL);
 	c2_bufvec_cursor_move(cur, sizeof *ldb_ce_header);
 
-	rc = c2_list_enum_build(lid, ldb_ce_header->llces_nr, &list_enum);
-	C2_ASSERT(rc == 0);
-	if (list_enum == NULL)
+	C2_ALLOC_ARR(cob_list, ldb_ce_header->llces_nr);
+	if (cob_list == NULL)
 		return -ENOMEM;
-
-	*out = &list_enum->lle_base;
-
 
 	num_inline = ldb_ce_header->llces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : ldb_ce_header->llces_nr;
@@ -350,38 +339,25 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
 			ldb_ce = c2_bufvec_cursor_addr(cur);
 			c2_bufvec_cursor_move(cur, sizeof *ldb_ce);
-			cob_fid = ldb_ce->llce_cob_id;
 			C2_ASSERT(ldb_ce != NULL);
-			C2_ASSERT(ldb_ce->llce_cob_index <=
-				  ldb_ce_header->llces_nr);
-
-			rc = c2_list_enum_add(list_enum,
-					      ldb_ce->llce_cob_index,
-					      &ldb_ce->llce_cob_id);
-			C2_ASSERT(rc == 0);
-			if (rc != 0)
-				return rc;
+			C2_ASSERT(ldb_ce->llce_cob_index == i);
+			cob_list[i] = ldb_ce->llce_cob_id;
 		} else {
-			/* todo Is it acceptable if any of the cob entry is not
-			 * found in between from the cob_list table? If yes,
-			 * following assert needs to be removed.
-			 */
 			rc = ldb_cob_list_read(schema, op, lid, i,
-					       &cob_fid, tx);
-			C2_ASSERT(rc == 0);
-			if (rc != 0)
-				return rc;
-
-			rc = c2_list_enum_add(list_enum, i, &cob_fid);
+					       &cob_list[i], tx);
 			C2_ASSERT(rc == 0);
 			if (rc != 0)
 				return rc;
 		}
-
-
-		/* todo Verify elsewhere that it is fine if order is not
-		 * followed.*/
 	}
+
+	rc = c2_list_enum_build(lid, cob_list, ldb_ce_header->llces_nr,
+			        &list_enum);
+	C2_ASSERT(rc == 0 && list_enum != NULL);
+	if (rc != 0)
+		return rc;
+
+	*out = &list_enum->lle_base;
 
 	return 0;
 }
