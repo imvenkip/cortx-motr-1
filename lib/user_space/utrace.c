@@ -68,7 +68,7 @@ int c2_arch_trace_init()
 		goto out;
 	}
 
-	sprintf(buf, "c2.trace.%d", (unsigned)getpid());
+	sprintf(buf, "c2.trace.%u", (unsigned)getpid());
 	logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700);
 	if (logfd != -1) {
 		if (ftruncate(logfd, c2_logbufsize) == 0) {

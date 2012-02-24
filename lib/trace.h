@@ -181,7 +181,7 @@ enum {
 	C2_TRACE_MAGIC = 0xc0de1eafacc01adeULL,
 };
 
-/** Default buffer size */
+/** Default buffer size, the real buffer size is at c2_logbufsize */
 enum {
 	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB */
 };
@@ -193,7 +193,8 @@ extern uint32_t   c2_logbufsize;  /**< The real buffer size */
 extern ulong      c2_trace_immediate_mask;
 /** The subsystem bitmask definishions */
 enum c2_trace_subsystem {
-	C2_TRACE_SUBSYS_UT = 0x0000000000000001ULL,
+	C2_TRACE_SUBSYS_OTHER = 0,
+	C2_TRACE_SUBSYS_UT    = (1 << 0),
 };
 
 /**
@@ -271,7 +272,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 })
 
 #ifndef C2_TRACE_SUBSYSTEM
-#define C2_TRACE_SUBSYSTEM (0)
+#  define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_OTHER
 #endif
 
 enum {
