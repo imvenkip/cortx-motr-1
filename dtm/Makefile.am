@@ -1,4 +1,4 @@
-dtmdir                     = $(includedir)/dtm
+dtmdir                     = $(includedir)/colibri/dtm
 dtm_HEADERS                = dtm.h verno.h
 
 noinst_LTLIBRARIES         = libcolibri-dtm.la

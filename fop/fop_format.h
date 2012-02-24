@@ -214,8 +214,7 @@ struct c2_fop_type fopt ## _fopt = {					\
 		.rit_flags  = (itflags),				\
 		.rit_ops    = (itops)					\
 	}								\
-};									\
-C2_EXPORTED(fopt ## _fopt)
+};
 
 #define C2_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags)		\
         C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags,	\

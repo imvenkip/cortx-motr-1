@@ -70,7 +70,6 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	return 0;
 }
 
-C2_EXPORTED(c2_timer_init);
 
 /**
    Start a timer.
@@ -98,7 +97,6 @@ int c2_timer_start(struct c2_timer *timer)
 	add_timer(&timer->t_timer);
 	return 0;
 }
-C2_EXPORTED(c2_timer_start);
 
 /**
    Stop a timer.
@@ -110,13 +108,11 @@ int c2_timer_stop(struct c2_timer *timer)
 	timer->t_running = false;
 	return rc;
 }
-C2_EXPORTED(c2_timer_stop);
 
 bool c2_timer_is_started(const struct c2_timer *timer)
 {
 	return timer->t_running;
 }
-C2_EXPORTED(c2_timer_is_started);
 
 /**
    Destroy the timer.
@@ -128,7 +124,6 @@ int c2_timer_fini(struct c2_timer *timer)
 	timer->t_data = 0;
 	return 0;
 }
-C2_EXPORTED(c2_timer_fini);
 
 /** @} end of timer group */
 

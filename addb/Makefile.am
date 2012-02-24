@@ -3,7 +3,7 @@
 # which is only a pseudo framework of addb.
 # after fop is built, we build addb library again with full functionally.
 
-addbdir                     = $(includedir)/addb
+addbdir                     = $(includedir)/colibri/addb
 addb_HEADERS                = addb.h
 
 noinst_LTLIBRARIES          = libcolibri-addb.la

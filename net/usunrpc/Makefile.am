@@ -1,4 +1,4 @@
-usunrpcdir                         = $(includedir)/net/usunrpc
+usunrpcdir                         = $(includedir)/colibri/net/usunrpc
 usunrpc_HEADERS                    = usunrpc.h usunrpc_internal.h
 
 noinst_LTLIBRARIES                 = libcolibri-net-usunrpc.la

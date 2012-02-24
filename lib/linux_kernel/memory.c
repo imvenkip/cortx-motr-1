@@ -1,4 +1,3 @@
-#ifdef HAVE_CONFIG_H
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -17,6 +16,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 08/04/2010
  */
+
+#ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
 
@@ -51,6 +52,11 @@ size_t c2_allocated(void)
 	return 0;
 }
 C2_EXPORTED(c2_allocated);
+
+int c2_pagesize_get(void)
+{
+	return PAGE_SIZE;
+}
 
 /** @} end of memory group */
 

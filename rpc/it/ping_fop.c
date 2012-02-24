@@ -40,12 +40,8 @@
 #include "fop/fop_item_type.h"
 #include "xcode/bufvec_xcode.h"
 
-/* Init for ping reply fom */
-int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
-
 /* Ops vector for ping request. */
 const struct c2_fop_type_ops c2_fop_ping_ops = {
-	.fto_fom_init = c2_fop_ping_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = NULL,
@@ -53,15 +49,8 @@ const struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_io_coalesce = NULL,
 };
 
-/* Init for ping reply fom */
-int c2_fop_ping_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
 /* Ops vector for ping reply. */
 const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
-        .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
         .fto_op_equal = NULL,
@@ -92,11 +81,14 @@ void c2_ping_fop_fini(void)
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
 
+extern struct c2_fom_type c2_fom_ping_mopt;
+
 int c2_ping_fop_init(void)
 {
         int result;
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
         result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_mopt;
         return result;
 }
 

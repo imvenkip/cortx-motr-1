@@ -183,7 +183,6 @@ int c2_linux_stob_setup(struct c2_stob_domain *dom, bool use_directio)
 
 	return 0;
 }
-C2_EXPORTED(c2_linux_stob_setup);
 
 static bool linux_stob_invariant(const struct linux_stob *lstob)
 {
@@ -444,7 +443,6 @@ int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
 
 	return result;
 }
-C2_EXPORTED(c2_linux_stob_link);
 
 int c2_linux_stobs_init(void)
 {
@@ -452,14 +450,12 @@ int c2_linux_stobs_init(void)
 			 &c2_addb_global_ctx);
 	return linux_stob_type.st_op->sto_init(&linux_stob_type);
 }
-C2_EXPORTED(c2_linux_stobs_init);
 
 void c2_linux_stobs_fini(void)
 {
 	linux_stob_type.st_op->sto_fini(&linux_stob_type);
 	c2_addb_ctx_fini(&adieu_addb_ctx);
 }
-C2_EXPORTED(c2_linux_stobs_fini);
 
 /** @} end group stoblinux */
 
