@@ -518,6 +518,8 @@ struct c2_rpcmachine {
 	 */
         struct c2_tlink                   cr_rh_linkage;
 
+	struct c2_tl                      cr_services;
+
 	uint64_t                          cr_magic;
 };
 
