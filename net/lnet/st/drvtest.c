@@ -27,12 +27,12 @@
 #include "colibri/init.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "net/lnet/lnet_ioctl.h"
 
 #define C2_LNET_DRV_TEST
 #include "net/lnet/lnet_core.h"
+#include "net/lnet/lnet_ioctl.h"
 
-const char lnet_xprt_dev[] = "/dev/c2_lnet";
+const char lnet_xprt_dev[] = "/dev/" C2_LNET_DEV;
 
 int main(int argc, char *argv[])
 {
@@ -40,8 +40,7 @@ int main(int argc, char *argv[])
 	int rc;
 	unsigned int val;
 	struct nlx_core_transfer_mc *tm;
-	struct c2_net_lnet_mem_area ma = {
-		.nm_magic = C2_NET_LNET_MEM_AREA_MAGIC,
+	struct prototype_mem_area ma = {
 		.nm_size = sizeof *tm,
 	};
 
@@ -61,22 +60,22 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	rc = ioctl(f, C2_LNET_PROTOMAP, &ma);
+	rc = ioctl(f, PROTOMAP, &ma);
 	C2_ASSERT(rc == 0);
 	val = 0;
-	rc = ioctl(f, C2_LNET_PROTOREAD, &val);
+	rc = ioctl(f, PROTOREAD, &val);
 	C2_ASSERT(rc == 0);
 	printf("initial value is %d\n", val);
 	printf("initial _debug_ is %d\n", tm->_debug_);
 	val++;
-	rc = ioctl(f, C2_LNET_PROTOWRITE, &val);
+	rc = ioctl(f, PROTOWRITE, &val);
 	C2_ASSERT(rc == 0);
 	val = 0;
 	printf("final _debug_ is %d\n", tm->_debug_);
-	rc = ioctl(f, C2_LNET_PROTOREAD, &val);
+	rc = ioctl(f, PROTOREAD, &val);
 	C2_ASSERT(rc == 0);
 	printf("final value is %d\n", val);
-	rc = ioctl(f, C2_LNET_PROTOUNMAP, &ma);
+	rc = ioctl(f, PROTOUNMAP, &ma);
 	C2_ASSERT(rc == 0);
 
 	c2_fini();

@@ -314,14 +314,17 @@ struct nlx_core_buffer_event {
 
 	/** True if the buffer is no longer in use */
         bool                         cbe_unlinked;
+
+	/** Core kernel space private. */
+	void                        *cbe_kpvt;
 };
 
 /**
    Core domain data.  The transport layer should embed this in its private data.
  */
 struct nlx_core_domain {
-	void *cd_upvt; /**< Core user space private */
-	void *cd_kpvt; /**< Core kernel space private */
+	void    *cd_upvt; /**< Core user space private */
+	void    *cd_kpvt; /**< Core kernel space private */
 	unsigned _debug_;
 };
 
@@ -428,6 +431,7 @@ struct nlx_core_buffer {
 	void                   *cb_kpvt; /**< Core kernel space private */
 };
 
+/** @todo either formalize this ifndef added for the prototype or remove it */
 #ifndef C2_LNET_DRV_TEST
 /**
    The LNet transport's Network Buffer Descriptor format.
@@ -766,18 +770,17 @@ static void nlx_core_nidstrs_put(char * const **nidary);
    Starts a transfer machine. Internally this results in
    the creation of the LNet EQ associated with the transfer machine.
    @param tm The transfer machine pointer.
-   @param lctm The transfer machine private data to be initialized.
-   @param cepa The end point address of this transfer machine. If the
+   @param lctm The transfer machine private data to be initialized.  The
+   nlx_core_transfer_mc::ctm_addr must be set by the caller.  If the
    lcpea_tmid field value is C2_NET_LNET_TMID_INVALID then a transfer machine
-   identifier is dynamically assigned to the transfer machine and returned
-   in this structure itself.
-   @param epp The end point resulting from starting the TM is returned here.
+   identifier is dynamically assigned to the transfer machine and the
+   nlx_core_transfer_mc::ctm_addr is modified in place.
    @note There is no equivalent of the xo_tm_init() subroutine.
+   @note This function does not create a c2_net_end_point for the transfer
+   machine, because there is no equivalent object at the core layer.
  */
 static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
-			     struct nlx_core_transfer_mc *lctm,
-			     struct nlx_core_ep_addr *cepa,
-			     struct c2_net_end_point **epp);
+			     struct nlx_core_transfer_mc *lctm);
 
 /**
    Stops the transfer machine and release associated resources.  All operations
@@ -854,9 +857,7 @@ static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 				  unsigned dbg);
 #endif /* C2_LNET_DRV_TEST */
 
-/**
-   @}
- */
+/** @} */ /* LNetCore */
 
 #endif /* __COLIBRI_NET_LNET_CORE_H__ */
 

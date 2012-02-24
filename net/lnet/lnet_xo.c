@@ -76,7 +76,7 @@ struct nlx_xo_interceptable_subs {
 					c2_time_t timeout);
 	int (*_nlx_ep_create)(struct c2_net_end_point **epp,
 			      struct c2_net_transfer_mc *tm,
-			      struct nlx_core_ep_addr *cepa);
+			      const struct nlx_core_ep_addr *cepa);
 };
 static struct nlx_xo_interceptable_subs nlx_xo_iv = {
 #define _NLXIS(s) ._##s = s

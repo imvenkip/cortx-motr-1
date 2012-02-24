@@ -23,141 +23,131 @@
 
 /**
    @page LNetDRVDLD-fspec LNet Transport Device Functional Specfication
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
 
+   - @ref LNetDRVDLD-fspec-ovw
    - @ref LNetDRVDLD-fspec-ds
    - @ref LNetDRVDLD-fspec-sub
-   - @ref LNetDRVDLD-fspec-cli
-   - @ref LNetDRVDLD-fspec-usecases
-   - @ref LNetDRVDLDDFS "Detailed Functional Specification" <!-- Note link -->
+   - @ref LNetDRVDLD-fspec-ioctl
+   - @ref LNetDev "Detailed Functional Specification"
 
-   The Functional Specification section of the DLD shall be placed in a
-   separate Doxygen page, identified as a @@subpage of the main specification
-   document through the table of contents in the main document page.  The
-   purpose of this separation is to co-locate the Functional Specification in
-   the same source file as the Detailed Functional Specification.
+   @section LNetDRVDLD-fspec-ovw Overview
 
-   A table of contents should be created for the major sections in this page,
-   as illustrated above.  It should also contain references to other
-   <b>external</b> Detailed Functional Specification sections, which even
-   though may be present in the same source file, would not be visibly linked
-   in the Doxygen output.
+   The LNet Transport Device is a layer between the User LNet Core Transport and
+   the Kernel LNet Core Transport.  It provides user-space access to the LNet
+   Kernel Core Transport.  The API is presented as a set of ioctl requests that
+   are handled by the LNet Transport Device Driver.  Each ioctl request takes an
+   input parameter, which is a pointer to a shared object or a data structure
+   containing the parameters required by the LNet Kernel Core Transport.  The
+   device layer handles mapping shared data structures from user space into
+   kernel space and tracks each such shared data structure.  The device layer
+   uses APIs in the LNet Kernel Core layer to implement the ioctl request
+   functionality.  When requested, the device layer unmaps shared data
+   structures.  The device layer also cleans up shared data structures when the
+   user space releases the device prematurely.
 
    @section LNetDRVDLD-fspec-ds Data Structures
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and <i>brief</i> description of the
-   major externally visible data structures defined by this component.  No
-   details of the data structure are required here, just the salient
-   points.</i>
 
-   For example:
-<table border="0">
-<tr><td>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</td><td>
-   The @c nlx_sample_ds1 structure tracks the density of the
-   electro-magnetic field with the following:
-@code
-struct nlx_sample_ds1 {
-  ...
-  int dsd_flux_density;
-  ...
-};
-@endcode
-   The value of this field is inversely proportional to the square of the
-   number of lines of comments in the DLD.
-</td></tr></table>
-   Note the indentation above, accomplished by means of an HTML table
-   is purely for visual effect in the Doxygen output of the style guide.
-   A real DLD should not use such constructs.
+   The API uses the following data structures to represent the parameters to the
+   various ioctl requests.  Note that there is not a 1:1 correspondence
+   between these data structures and the operations in the
+   @ref LNetCore "LNet Transport Core Interface".  Several ioctl requests
+   take the same parameters and use the same data structure to pass those
+   parameters.  Some ioctl requests require only a single identifier as
+   a parameters, and thus require no special parameter data structure.  A few
+   Core interfaces require no ioctl request, because they operate directly
+   on shared data structures in user space.
 
-   Simple lists can also suffice:
-   - nlx_sample_ds1
+   - c2_lnet_dev_buf_register_params
+   - c2_lnet_dev_buf_queue_params
+   - c2_lnet_dev_buf_event_wait_params
+   - c2_lnet_dev_nid_encdec_params
+   - c2_lnet_dev_nidstrs_get_params
+   - c2_lnet_dev_bev_bless_params
 
-   The section could also describe what use it makes of data structures
-   described elsewhere.
+   The API includes several operations whose side effect is to pin or unpin
+   shared data corresponding to the following data structures defined in the
+   @ref LNetCore "LNet Transport Core Interface".
 
-   Note that data structures are defined in the
-   @ref LNetDRVDLDDFS "Detailed Functional Specification"
-   so <b>do not duplicate the definitions</b>!
-   Do not describe internal data structures here either - they can be described
-   in the @ref LNetDRVDLD-lspec "Logical Specification" if necessary.
+   - nlx_core_domain
+   - nlx_core_transfer_mc
+   - nlx_core_buffer
+   - nlx_core_buffer_event
+
+   The API tracks its references to these objects using corresponding objects
+   defined in the @ref KLNetCore "LNet Transport Core Kernel Private Interface".
+
+   - nlx_kcore_domain
+   - nlx_kcore_transfer_mc
+   - nlx_kcore_buffer
+   - nlx_kcore_buffer_event
+
+   The API accesses kernel core functionality indirectly through the operations
+   on the @c nlx_kcore_ops structure, @c nlx_kcore_domain::kd_drv_ops.
+
+   @see @ref LNetDev "Detailed Functional Specification"
 
    @section LNetDRVDLD-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
 
-   Externally visible interfaces should be enumerated and categorized by
-   function.  <b>Do not provide details.</b> They will be fully documented in
-   the @ref LNetDRVDLDDFS "Detailed Functional Specification".
-   Do not describe internal interfaces - they can be described in the
-   @ref LNetDRVDLD-lspec "Logical Specification" if necessary.
+   Subroutines are provided to initialize and finalize the device driver.
+   - nlx_dev_init()
+   - nlx_dev_fini()
 
-   @subsection LNetDRVDLD-fspec-sub-cons Constructors and Destructors
+   All other subroutines are internal to the device driver.
 
-   @subsection LNetDRVDLD-fspec-sub-acc Accessors and Invariants
+   @see @ref LNetDev "Detailed Functional Specification"
 
-   @subsection LNetDRVDLD-fspec-sub-opi Operational Interfaces
-   - nlx_sample_sub1()
+   @section LNetDRVDLD-fspec-ioctl Ioctl Requests
 
-   @section LNetDRVDLD-fspec-cli Command Usage
-   <i>Mandatory for command line programs.  Components that provide programs
-   would provide a specification of the command line invocation arguments.  In
-   addition, the format of any any structured file consumed or produced by the
-   interface must be described in this section.</i>
+   The device driver recognizes the following ioctl requests.
+   - #C2_LNET_DOM_INIT
+   - #C2_LNET_DOM_FINI
+   - #C2_LNET_MAX_BUFFER_SIZE
+   - #C2_LNET_MAX_BUFFER_SEGMENT_SIZE
+   - #C2_LNET_MAX_BUFFER_SEGMENTS
+   - #C2_LNET_BUF_REGISTER
+   - #C2_LNET_BUF_DEREGISTER
+   - #C2_LNET_BUF_MSG_RECV
+   - #C2_LNET_BUF_MSG_SEND
+   - #C2_LNET_BUF_ACTIVE_RECV
+   - #C2_LNET_BUF_ACTIVE_SEND
+   - #C2_LNET_BUF_PASSIVE_RECV
+   - #C2_LNET_BUF_PASSIVE_SEND
+   - #C2_LNET_BUF_DEL
+   - #C2_LNET_BUF_EVENT_WAIT
+   - #C2_LNET_NIDSTR_DECODE
+   - #C2_LNET_NIDSTR_ENCODE
+   - #C2_LNET_NIDSTRS_GET
+   - #C2_LNET_TM_START
+   - #C2_LNET_TM_STOP
+   - #C2_LNET_BEV_BLESS
 
-   @section LNetDRVDLD-fspec-usecases Recipes
-   <i>This section could briefly explain what sequence of interface calls or
-   what program invocation flags are required to solve specific usage
-   scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.</i>
-
-   Note the following references to the Detailed Functional Specification
-   sections at the end of these Functional Specifications, created using the
-   Doxygen @@see command:
-
-   @see @ref LNetDRVDLDDFS "Sample Detailed Functional Specification"
+   @see @ref LNetDev "Detailed Functional Specification"
  */
 
 /**
-   @defgroup LNetDRVDLDDFS LNet Transport Device
-   @ingroup net
-   @brief Detailed functional specification template.
+   @defgroup LNetDev LNet Transport Device
+   @ingroup LNetDFS
 
-   This page is part of the DLD style template.  Detailed functional
-   specifications go into a module described by the Doxygen @@defgroup command.
-   Note that you cannot use a hyphen (-) in the tag of a @@defgroup.
+   The external interfaces of the LNet transport device are obtained by
+   including the file @ref net/lnet/linux_kernel/klnet_drv.h.
 
-   Module documentation may spread across multiple source files.  Make sure
-   that the @@addtogroup Doxygen command is used in the other files to merge
-   their documentation into the main group.  When doing so, it is important to
-   ensure that the material flows logically when read through Doxygen.
-
-   You are not constrained to have only one module in the design.  If multiple
-   modules are present you may use multiple @@defgroup commands to create
-   individual documentation pages for each such module, though it is good idea
-   to use separate header files for the additional modules.  In particular, it
-   is a good idea to separate the internal detailed documentation from the
-   external documentation in this header file.  Please make sure that the DLD
-   and the modules cross-reference each other, as shown below.
+   The device appears in file system as /dev/c2lnet.
 
    @see The @ref LNetDRVDLD "LNet Transport Device and Driver DLD" its
    @ref LNetDRVDLD-fspec "Functional Specification"
-   and its @ref LNetDRVDLD-lspec-thread
 
    @{
 */
 
-/** Initialise the C2 LNet Transport device. */
+/**
+   Initialise the C2 LNet Transport device.
+   Registers the device as a miscellaneous character device.
+ */
 int nlx_dev_init(void);
 /** Finalise the C2 LNet device. */
 void nlx_dev_fini(void);
 
-/**
-   @}
-*/
+/** @} */ /* LNetDev */
 
 #endif /*  __KLNET_DRV_H__ */
 

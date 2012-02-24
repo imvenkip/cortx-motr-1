@@ -393,7 +393,9 @@
    the following pseudo-code:
    @code
    // start the transfer machine in the Core
-   rc = nlx_core_tm_start(&tm, lctm, &cepa);
+   rc = nlx_core_tm_start(&tm, lctm);
+   if (rc == 0)
+       rc = nlx_ep_create(&tmev.nte_ep, tm, &lctm->ctm_addr);
    // deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
    // the C2_NET_TM_STARTED or C2_NET_TM_FAILED states
    // Set the transfer machine's end point on success

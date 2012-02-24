@@ -21,43 +21,165 @@
 #ifndef __LNET_IOCTL_H__
 #define __LNET_IOCTL_H__
 
+#include "lib/vec.h"   /* c2_bufvec, standard types */
+
 /**
-   @addtogroup LNetDRVDLDDFS
+   @addtogroup LNetDev
    @{
  */
 
-#include "lib/types.h" /* uint64_t, uint32_t */
-
-enum {
-	C2_NET_LNET_MEM_AREA_MAGIC = 0x4c4d656d41726561ULL, /* LMemArea */
+/**
+   Parameters for the C2_LNET_BUF_REGISTER ioctl.
+   The c2_bufvec is copied into the parameters, not referenced, to simplify
+   the logic required to map the data into kernel space.
+   @see nlx_dev_ioctl_buf_register()
+ */
+struct c2_lnet_dev_buf_register_params {
+	/** The user space core private data pointer for the buffer. */
+	struct nlx_core_buffer         *dbr_lcbuf;
+	/** value to be set in the nlx_core_buffer::cb_buffer_id field. */
+	nlx_core_opaque_ptr_t           dbr_buffer_id;
+	/** Buffer vector with user address space pointers. */
+	struct c2_bufvec                dbr_bvec;
 };
+
+/**
+   Parameters to various ioctl requests that operate on a tranfer machine
+   and a buffer.  These include:
+   - C2_LNET_BUF_MSG_RECV
+   - C2_LNET_BUF_MSG_SEND
+   - C2_LNET_BUF_ACTIVE_RECV
+   - C2_LNET_BUF_ACTIVE_SEND
+   - C2_LNET_BUF_PASSIVE_RECV
+   - C2_LNET_BUF_PASSIVE_SEND
+   - C2_LNET_BUF_DEL
+
+   @see nlx_dev_ioctl_buf_msg_recv(), nlx_dev_ioctl_buf_msg_send(),
+	nlx_dev_ioctl_buf_active_recv(), nlx_dev_ioctl_buf_active_send(),
+	nlx_dev_ioctl_buf_passive_recv(), nlx_dev_ioctl_buf_passive_send(),
+	nlx_dev_ioctl_buf_del()
+ */
+struct c2_lnet_dev_buf_queue_params {
+	/** The nlx_core_transfer_mc::ctm_kpvt for the core private TM data. */
+	void                           *dbq_ktm;
+	/** The nlx_core_buffer::cb_kpvt for the core private buffer data. */
+	void                           *dbq_kb;
+};
+
+/**
+   Parameters for the C2_LNET_BUF_EVENT_WAIT ioctl.
+   @see nlx_dev_ioctl_buf_event_wait()
+ */
+struct c2_lnet_dev_buf_event_wait_params {
+	/** The nlx_core_transfer_mc::ctm_kpvt for the core private TM data. */
+	void                           *dbw_ktm;
+	/**
+	   Absolute time at which to stop waiting.  A value of 0
+	   indicates that the request should not wait.
+	 */
+	c2_time_t                       dbw_timeout;
+};
+
+/**
+   Parameters for the C2_LNET_NIDSTR_DECODE and C2_LNET_NIDSTR_ENCODE
+   ioctl requests.
+   @see nlx_dev_ioctl_nidstr_decode(), nlx_dev_ioctl_nidstr_encode()
+ */
+struct c2_lnet_dev_nid_encdec_params {
+	/** Node ID to be encoded or decoded. */
+	uint64_t                        dn_nid;
+	/** NID string value to be encoded or decoded. */
+	char                            dn_buf[C2_NET_LNET_XEP_ADDR_LEN];
+};
+
+/**
+   Parameters for the C2_LNET_NIDSTRS_GET ioctl request.
+   @see nlx_dev_ioctl_nidstrs_get()
+ */
+struct c2_lnet_dev_nidstrs_get_params {
+	/** The actual size of the buffer pointed to by dng_buf. */
+	c2_bcount_t                     dng_size;
+	/** The user space pointer to the nid strings buffer. */
+	char                           *dng_buf;
+};
+
+/**
+   Parameters for the C2_LNET_BEV_BLESS ioctl request.
+   @see nlx_dev_ioctl_bev_bless()
+ */
+struct c2_lnet_dev_bev_bless_params {
+	/** The nlx_core_transfer_mc::ctm_kpvt for the core private TM data. */
+	void                           *dbb_ktm;
+	/** The user space core private data pointer for the buffer event. */
+	struct nlx_core_buffer_event   *dbb_bev;
+};
+
+/** The name of the C2_LNET device. */
+#define C2_LNET_DEV         "c2lnet"
+
+#define C2_LNET_IOC_MAGIC   'c'
+#define C2_LNET_IOC_MIN_NR  0x21
+#define C2_LNET_IOC_MAX_NR  0x4f
+
+#define C2_LNET_DOM_INIT \
+	_IOW(C2_LNET_IOC_MAGIC, 0x21, struct nlx_core_domain *);
+#define C2_LNET_DOM_FINI                _IO(C2_LNET_IOC_MAGIC, 0x22);
+#define C2_LNET_MAX_BUFFER_SIZE         _IO(C2_LNET_IOC_MAGIC, 0x23);
+#define C2_LNET_MAX_BUFFER_SEGMENT_SIZE _IO(C2_LNET_IOC_MAGIC, 0x24);
+#define C2_LNET_MAX_BUFFER_SEGMENTS     _IO(C2_LNET_IOC_MAGIC, 0x25);
+
+#define C2_LNET_BUF_REGISTER \
+	_IOW(C2_LNET_IOC_MAGIC, 0x26, struct c2_lnet_dev_buf_register_params);
+#define C2_LNET_BUF_DEREGISTER      _IOW(C2_LNET_IOC_MAGIC, 0x27, void *);
+#define C2_LNET_BUF_MSG_RECV \
+	_IOW(C2_LNET_IOC_MAGIC, 0x28, struct c2_lnet_dev_buf_queue_params);
+#define C2_LNET_BUF_MSG_SEND \
+	_IOW(C2_LNET_IOC_MAGIC, 0x29, struct c2_lnet_dev_buf_queue_params);
+#define C2_LNET_BUF_ACTIVE_RECV \
+	_IOW(C2_LNET_IOC_MAGIC, 0x2a, struct c2_lnet_dev_buf_queue_params);
+#define C2_LNET_BUF_ACTIVE_SEND \
+	_IOW(C2_LNET_IOC_MAGIC, 0x2b, struct c2_lnet_dev_buf_queue_params);
+#define C2_LNET_BUF_PASSIVE_RECV \
+	_IOW(C2_LNET_IOC_MAGIC, 0x2c, struct c2_lnet_dev_buf_queue_params);
+#define C2_LNET_BUF_PASSIVE_SEND \
+	_IOW(C2_LNET_IOC_MAGIC, 0x2d, struct c2_lnet_dev_buf_queue_params);
+#define C2_LNET_BUF_DEL \
+	_IOW(C2_LNET_IOC_MAGIC, 0x2e, struct c2_lnet_dev_buf_queue_params);
+#define C2_LNET_BUF_EVENT_WAIT \
+	_IOW(C2_LNET_IOC_MAGIC, 0x2f, struct c2_lnet_dev_buf_event_wait_params);
+
+#define C2_LNET_NIDSTR_DECODE \
+	_IOWR(C2_LNET_IOC_MAGIC, 0x30, struct c2_lnet_dev_nid_encdec_params);
+#define C2_LNET_NIDSTR_ENCODE \
+	_IOWR(C2_LNET_IOC_MAGIC, 0x31, struct c2_lnet_dev_nid_encdec_params);
+#define C2_LNET_NIDSTRS_GET \
+	_IOW(C2_LNET_IOC_MAGIC, 0x32, struct c2_lnet_dev_nidstrs_get_params);
+
+#define C2_LNET_TM_START \
+	_IOW(C2_LNET_IOC_MAGIC, 0x33, struct nlx_core_transfer_mc *);
+#define C2_LNET_TM_STOP             _IOW(C2_LNET_IOC_MAGIC, 0x34, void *);
+
+#define C2_LNET_BEV_BLESS \
+	_IOW(C2_LNET_IOC_MAGIC, 0x35, struct c2_lnet_dev_bev_bless_params);
 
 /**
    This data structure describes a memory area that is to be mapped or
    unmapped from user space.
+   @todo this data structure is part of the prototype only, remove it
  */
-struct c2_net_lnet_mem_area {
-	uint64_t nm_magic;
+struct prototype_mem_area {
 	/** Size of area to map */
 	uint32_t nm_size;
 	/** User space address of start of memory area */
 	unsigned long nm_user_addr;
 };
 
-#define C2_LNET_IOC_MAGIC   'c'
-#define C2_LNET_IOC_MIN_NR  0x21
-#define C2_LNET_IOC_MAX_NR  0x3F
+#define PROTOREAD   _IOR(C2_LNET_IOC_MAGIC, 0x41, int)
+#define PROTOWRITE  _IOW(C2_LNET_IOC_MAGIC, 0x42, int)
+#define PROTOMAP    _IOW(C2_LNET_IOC_MAGIC, 0x43, struct prototype_mem_area)
+#define PROTOUNMAP  _IOW(C2_LNET_IOC_MAGIC, 0x44, struct prototype_mem_area)
 
-#define C2_LNET_PROTOREAD   _IOR(C2_LNET_IOC_MAGIC, 0x21, int)
-#define C2_LNET_PROTOWRITE  _IOW(C2_LNET_IOC_MAGIC, 0x22, int)
-#define C2_LNET_PROTOMAP \
-		_IOW(C2_LNET_IOC_MAGIC, 0x23, struct c2_net_lnet_mem_area)
-#define C2_LNET_PROTOUNMAP \
-		_IOW(C2_LNET_IOC_MAGIC, 0x24, struct c2_net_lnet_mem_area)
-
-/**
-   @}
- */
+/** @} */ /* LNetDev */
 
 #endif /* __LNET_IOCTL_H__ */
 

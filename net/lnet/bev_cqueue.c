@@ -620,7 +620,7 @@ static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 /**
    Adds a new element to the circular buffer queue in the consumer address
    space.
-   @note The new element must already be blessed via bev_cqueue_bless() in the
+   @note The new element must already be blessed via bev_link_bless() in the
    producer address space.  The cbl_c_self of the new element, ql, is set
    by bev_cqueue_add().
    @param q the queue
@@ -647,7 +647,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 /**
    Initialises the buffer event queue. Should be invoked in the consumer address
    space only.
-   @note both elements, ql1 and ql2 must be blessed via bev_cqueue_bless() in
+   @note both elements, ql1 and ql2 must be blessed via bev_link_bless() in
    the producer address space before they are used here.
    @param q buffer event queue to initialise
    @param ql1 the first element in the new queue

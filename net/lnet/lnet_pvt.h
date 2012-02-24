@@ -47,7 +47,7 @@ static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *cb);
 static bool nlx_ep_invariant(const struct c2_net_end_point *ep);
 static int nlx_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_transfer_mc *tm,
-			 struct nlx_core_ep_addr *cepa);
+			 const struct nlx_core_ep_addr *cepa);
 static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb);
 static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *ctm);
 

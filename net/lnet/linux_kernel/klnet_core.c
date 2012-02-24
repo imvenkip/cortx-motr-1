@@ -494,8 +494,8 @@
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
         The number of entries in the KIOV and the length field in the last
-	element of the vector must be adjusted to reflect the desired byte
-	count.
+        element of the vector must be adjusted to reflect the desired byte
+        count.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
    -# Use the @c LNetPut() subroutine to send the MD to the destination.  The
       match bits must set to the destination TM identifier in the higher order
@@ -536,7 +536,7 @@
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field, along with either
         the @c LNET_MD_OP_PUT or the @c LNET_MD_OP_GET flag according to the
-	direction of data transfer.
+        direction of data transfer.
    -# When the bulk data transfer completes, either an @c LNET_EVENT_PUT or an
       @c LNET_EVENT_GET event will be delivered to the event queue, and will be
       processed as described in @ref KLNetCoreDLD-lspec-ev.
@@ -561,8 +561,8 @@
         @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
         The number of entries in the KIOV and the length field in the last
-	element of the vector must be adjusted to reflect the desired byte
-	count.
+        element of the vector must be adjusted to reflect the desired byte
+        count.
       - Set the @c LNET_MD_KIOV flag in the @c options field.
       - In case of an active read, which uses @c LNetGet(), set the threshold
         value to 2 to accommodate both the SEND and the REPLY events. Otherwise
@@ -1093,6 +1093,7 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
 	if (kd == NULL)
 		return -ENOMEM;
 	kd->kd_magic = C2_NET_LNET_KCORE_DOM_MAGIC;
+	c2_mutex_init(&kd->kd_drv_mutex);
 	c2_addb_ctx_init(&kd->kd_addb, &nlx_core_domain_addb_ctx,
 			 &dom->nd_addb);
 	lcdom->cd_kpvt = kd;
@@ -1108,6 +1109,7 @@ void nlx_core_dom_fini(struct nlx_core_domain *lcdom)
 	kd = lcdom->cd_kpvt;
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	c2_addb_ctx_fini(&kd->kd_addb);
+	c2_mutex_fini(&kd->kd_drv_mutex);
 	c2_free(kd);
 	lcdom->cd_kpvt = NULL;
 }
@@ -1496,13 +1498,12 @@ void nlx_core_nidstrs_put(char * const **nidary)
 }
 
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
-		      struct nlx_core_transfer_mc *lctm,
-		      struct nlx_core_ep_addr *cepa,
-		      struct c2_net_end_point **epp)
+		      struct nlx_core_transfer_mc *lctm)
 {
 	struct nlx_core_buffer_event *e1;
 	struct nlx_core_buffer_event *e2;
 	struct nlx_kcore_transfer_mc *kctm;
+	struct nlx_core_ep_addr *cepa;
 	lnet_process_id_t id;
 	int rc;
 	int i;
@@ -1510,8 +1511,7 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(nlx_tm_invariant(tm));
 	C2_PRE(lctm != NULL);
-	C2_PRE(cepa == &lctm->ctm_addr);
-	C2_PRE(epp != NULL);
+	cepa = &lctm->ctm_addr;
 
 	C2_ALLOC_PTR_ADDB(kctm, &tm->ntm_addb, &nlx_addb_loc);
 	if (kctm == NULL) {
@@ -1571,12 +1571,6 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		rc = -EADDRINUSE;
 		goto fail_with_eq;
 	}
-	rc = nlx_ep_create(epp, tm, cepa);
-	if (rc != 0) {
-		c2_mutex_unlock(&nlx_kcore_mutex);
-		goto fail_with_eq;
-	}
-
 	nlx_kcore_tms_list_add(kctm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 
@@ -1716,9 +1710,7 @@ static int nlx_core_init(void)
 	return rc;
 }
 
-/**
-   @}
- */
+/** @} */ /* KLNetCore */
 
 /*
  *  Local variables:

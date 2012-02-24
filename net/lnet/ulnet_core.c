@@ -22,7 +22,7 @@
 /**
    @page ULNetCoreDLD LNet Transport User Space Core DLD
 
-   This is a placeholder for the Colibri LNet Transport User Space Core DLD.
+   @todo This page will be filled in by the (net, lnet-user, DLD) task.
  */
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
@@ -185,15 +185,12 @@ void nlx_core_nidstrs_put(char * const **nidary)
 }
 
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
-		      struct nlx_core_transfer_mc *lctm,
-		      struct nlx_core_ep_addr *cepa,
-		      struct c2_net_end_point **epp)
+		      struct nlx_core_transfer_mc *lctm)
 {
-	struct nlx_xo_domain *dp = tm->ntm_dom->nd_xprt_private;
-	struct nlx_xo_ep *xep = container_of(cepa, struct nlx_xo_ep, xe_core);
 	struct nlx_core_buffer_event *e1;
 	struct nlx_core_buffer_event *e2;
 
+	C2_PRE(lctm != NULL);
 	/* XXX: temp, really belongs in async and/or kernel code */
 	C2_ALLOC_PTR_ADDB(e1, &tm->ntm_addb, &nlx_addb_loc);
 	e1->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e1->cbe_tm_link;
@@ -203,7 +200,6 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 	bev_link_bless(&e2->cbe_tm_link);
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) == 2);
-	nlx_core_ep_addr_encode(&dp->xd_core, cepa, xep->xe_addr);
 
 	lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
 

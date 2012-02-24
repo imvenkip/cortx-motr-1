@@ -84,13 +84,19 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 
 	if (tp->xtm_processors.b_nr != 0) {
 		struct c2_thread_handle me;
+
 		c2_thread_self(&me);
 		C2_ASSERT(c2_thread_handle_eq(&me, &tp->xtm_ev_thread.t_h));
 		rc = c2_thread_confine(&tp->xtm_ev_thread, &tp->xtm_processors);
 	}
 
 	if (rc == 0)
-		rc = nlx_core_tm_start(tm, ctp, &ctp->ctm_addr, &tmev.nte_ep);
+		rc = nlx_core_tm_start(tm, ctp);
+	if (rc == 0) {
+		rc = nlx_ep_create(&tmev.nte_ep, tm, &ctp->ctm_addr);
+		if (rc != 0)
+			nlx_core_tm_stop(ctp);
+	}
 
 	/*
 	  Deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
@@ -236,9 +242,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	return rc;
 }
 
-/**
-   @}
- */
+/** @} */ /* LNetXODFS */
 
 /*
  *  Local variables:

@@ -46,7 +46,7 @@ static void nlx_ep_release(struct c2_ref *ref)
 
 static int nlx_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_transfer_mc *tm,
-			 struct nlx_core_ep_addr *cepa)
+			 const struct nlx_core_ep_addr *cepa)
 {
 	struct c2_net_end_point *ep;
 	struct nlx_xo_domain *dp;
@@ -87,9 +87,7 @@ static int nlx_ep_create(struct c2_net_end_point **epp,
 	return 0;
 }
 
-/**
-   @}
- */
+/** @} */ /* LNetXODFS */
 
 /*
  *  Local variables:

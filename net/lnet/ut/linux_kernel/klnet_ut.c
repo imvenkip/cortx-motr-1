@@ -472,7 +472,7 @@ int ut_ktest_msg_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 static struct c2_atomic64 ut_ktest_msg_ep_create_fail;
 static int ut_ktest_msg_ep_create(struct c2_net_end_point **epp,
 				  struct c2_net_transfer_mc *tm,
-				  struct nlx_core_ep_addr *cepa)
+				  const struct nlx_core_ep_addr *cepa)
 {
 	if (c2_atomic64_get(&ut_ktest_msg_ep_create_fail) > 0) {
 		c2_atomic64_inc(&ut_ktest_msg_ep_create_fail);
