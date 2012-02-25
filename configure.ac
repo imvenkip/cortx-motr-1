@@ -659,6 +659,9 @@ AC_CONFIG_FILES([
                  fop/ut/Makefile
                  ioservice/Makefile
                  ioservice/ut/Makefile
+                 mdservice/Makefile
+                 mdstore/Makefile
+                 mdstore/ut/Makefile
                  layout/Makefile
                  layout/ut/Makefile
                  lib/Makefile
@@ -679,6 +682,7 @@ AC_CONFIG_FILES([
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
+                 site/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
                  rpc/Makefile

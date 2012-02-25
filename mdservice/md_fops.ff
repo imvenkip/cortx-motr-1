@@ -1,0 +1,150 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
+ * Original creation date: 03/29/2011
+ */
+
+/**
+   @addtogroup fop
+   @{
+ */
+
+/** @file md_fop.ff
+ *
+ * <b>Colibri metatadata fop formats</b>
+ *
+ */
+
+DEF(c2_fop_fid, RECORD,
+    _(f_seq, U64),
+    _(f_oid, U64));
+
+DEF(c2_fop_str, SEQUENCE,
+    _(s_len, U32),
+    _(s_buf, BYTE));
+
+DEF(c2_fop_cob, RECORD,
+    _(b_index, U64),
+    _(b_version, U64),
+    _(b_flags, U32),
+    _(b_valid, U32),
+    _(b_mode, U32),
+    _(b_size, U64),
+    _(b_blksize, U64),
+    _(b_blocks, U64),
+    _(b_nlink, U32),
+    _(b_uid, U32),
+    _(b_gid, U32),
+    _(b_sid, U32),
+    _(b_nid, U64),
+    _(b_rdev, U32),
+    _(b_atime, U32),
+    _(b_mtime, U32),
+    _(b_ctime, U32),
+    _(b_pfid, c2_fop_fid),
+    _(b_tfid, c2_fop_fid));
+
+DEF(c2_fop_create, RECORD,
+    _(c_body,   c2_fop_cob),
+    _(c_target, c2_fop_str), /**< target for symlink case */
+    _(c_path,   c2_fop_str),
+    _(c_name,   c2_fop_str));
+
+DEF(c2_fop_create_rep, RECORD,
+    _(c_body, c2_fop_cob));
+
+DEF(c2_fop_link, RECORD,
+    _(l_body, c2_fop_cob),
+    _(l_spath, c2_fop_str),
+    _(l_tpath, c2_fop_str),
+    _(l_name, c2_fop_str));
+
+DEF(c2_fop_link_rep, RECORD,
+    _(l_body, c2_fop_cob));
+
+DEF(c2_fop_unlink, RECORD,
+    _(u_body, c2_fop_cob),
+    _(u_path, c2_fop_str),
+    _(u_name, c2_fop_str));
+
+DEF(c2_fop_unlink_rep, RECORD,
+    _(u_body, c2_fop_cob));
+
+DEF(c2_fop_rename, RECORD,
+    _(r_sbody, c2_fop_cob),
+    _(r_tbody, c2_fop_cob),
+    _(r_spath, c2_fop_str),
+    _(r_tpath, c2_fop_str),
+    _(r_sname, c2_fop_str),
+    _(r_tname, c2_fop_str));
+
+DEF(c2_fop_rename_rep, RECORD,
+    _(r_body, c2_fop_cob));
+
+DEF(c2_fop_open, RECORD,
+    _(o_path, c2_fop_str),
+    _(o_body, c2_fop_cob));
+
+DEF(c2_fop_open_rep, RECORD,
+    _(o_body, c2_fop_cob));
+
+DEF(c2_fop_close, RECORD,
+    _(c_body, c2_fop_cob),
+    _(c_path, c2_fop_str));
+
+DEF(c2_fop_close_rep, RECORD,
+    _(c_body, c2_fop_cob));
+
+DEF(c2_fop_setattr, RECORD,
+    _(s_body, c2_fop_cob),
+    _(s_path, c2_fop_str));
+
+DEF(c2_fop_setattr_rep, RECORD,
+    _(s_body, c2_fop_cob));
+
+DEF(c2_fop_getattr, RECORD,
+    _(g_body, c2_fop_cob),
+    _(g_path, c2_fop_str));
+
+DEF(c2_fop_getattr_rep, RECORD,
+    _(g_body, c2_fop_cob));
+
+DEF(c2_fop_readdir, RECORD,
+    _(r_body, c2_fop_cob),
+    _(r_path, c2_fop_str),
+    _(r_pos,  c2_fop_str));
+
+DEF(c2_fop_buf, SEQUENCE,
+    _(b_count, U32),
+    _(b_addr, BYTE));
+
+DEF(c2_fop_readdir_rep, RECORD,
+    _(r_end,  c2_fop_str),
+    _(r_body, c2_fop_cob),
+    _(r_buf,  c2_fop_buf));
+
+/** @} end of fop group */
+
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

@@ -55,7 +55,9 @@
 #endif
 
 #include "ioservice/io_fops.h"
-#include "ioservice/io_service.h"
+#include "site/site.h"
+#include "cob/cob.h"
+#include "mdservice/md_fops.h"
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
@@ -105,7 +107,9 @@ struct init_fini_call subsystem[] = {
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
 #ifndef __KERNEL__
-	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" }
+	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" },
+	{ &c2_sites_init,    &c2_sites_fini,    "sites" },
+	{ &c2_md_fop_init,   &c2_md_fop_fini,   "mdservice"}
 #endif
 };
 

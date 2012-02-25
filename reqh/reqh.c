@@ -99,7 +99,8 @@ bool c2_reqh_invariant(const struct c2_reqh *reqh)
 
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 struct c2_stob_domain *stdom, struct c2_dbenv *db,
-                struct c2_cob_domain *cdom, struct c2_fol *fol)
+                struct c2_cob_domain *cdom, struct c2_fol *fol,
+                struct c2_site *site)
 {
 	int result;
 
@@ -108,6 +109,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
 	if (result == 0) {
 		C2_ASSERT(c2_fom_domain_invariant(&reqh->rh_fom_dom));
+		reqh->rh_site = site;
                 reqh->rh_dtm = dtm;
                 reqh->rh_stdom = stdom;
                 reqh->rh_dbenv = db;

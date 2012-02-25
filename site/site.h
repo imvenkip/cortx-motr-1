@@ -14,41 +14,48 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 09/09/2010
+ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
+ * Original creation date: 02/23/2011
  */
 
-#ifndef __COLIBRI_FID_FID_H__
-#define __COLIBRI_FID_FID_H__
+#ifndef __COLIBRI_SITE_SITE_H__
+#define __COLIBRI_SITE_SITE_H__
 
 /**
-   @defgroup fid File identifier
+   @defgroup site Site
 
    @{
  */
 
-/* export */
-struct fid;
-
 /* import */
-#include "lib/types.h"
+struct c2_md_store;
+struct c2_io_store;
+struct c2_list_link;
 
-struct c2_fid {
-	uint64_t f_container;
-	uint64_t f_key;
+struct c2_site {
+        struct c2_md_store     *s_mdstore;
+        struct c2_io_store     *s_iostore;
+        struct c2_list_link     s_linkage;
 };
 
-bool c2_fid_is_set(const struct c2_fid *fid);
-bool c2_fid_is_valid(const struct c2_fid *fid);
-bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1);
-int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1);
+/**
+   Init site using metadata and data stores.
+ */
+int c2_site_init(struct c2_site *s, 
+                 struct c2_md_store *md, 
+                 struct c2_io_store *io);
 
-/** @} end of fid group */
+void c2_site_fini(struct c2_site *s);
 
-/* __COLIBRI_FID_FID_H__ */
+int c2_sites_init(void);
+void c2_sites_fini(void);
+
+/** @} endgroup site */
+
+/* __COLIBRI_SITE_SITE_H__ */
 #endif
 
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

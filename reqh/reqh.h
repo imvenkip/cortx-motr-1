@@ -56,6 +56,8 @@ enum {
         C2_REQH_MAGIC = 0x7265716873766373
 };
 
+struct c2_site;
+
 /**
    Request handler instance.
  */
@@ -75,6 +77,9 @@ struct c2_reqh {
 
 	/** Fol pointer for this request handler. */
 	struct c2_fol		*rh_fol;
+
+	/** Site on which reqh is working. */
+	struct c2_site          *rh_site;
 
 	/** Fom domain for this request handler. */
 	struct c2_fom_domain	 rh_fom_dom;
@@ -131,7 +136,8 @@ struct c2_reqh {
  */
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 struct c2_stob_domain *stdom, struct c2_dbenv *db,
-                struct c2_cob_domain *cdom, struct c2_fol *fol);
+                struct c2_cob_domain *cdom, struct c2_fol *fol,
+                struct c2_site *site);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);
 

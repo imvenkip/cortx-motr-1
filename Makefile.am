@@ -26,10 +26,13 @@ SUBDIRS_LIBS = \
                desim \
                dtm \
                ioservice \
+               mdservice \
+               mdstore \
                layout \
                mw \
                nrs \
                pool \
+               site \
                reqh \
                rpc \
                sm \
@@ -43,7 +46,7 @@ SUBDIRS_LIBS = \
 SUBDIR_IT = rpc/it
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \
 	    sns/ut desim/ut cob/ut console/ut colibri/ut net/ut \
-	    net/bulk_emulation/ut udb/ut capa/ut ioservice/ut reqh/ut rpc/ut \
+	    net/bulk_emulation/ut udb/ut capa/ut ioservice/ut mdstore/ut reqh/ut rpc/ut \
 	    sm/ut xcode/ut yaml2db/ut
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_ST = console/st net/st net/bulk_emulation/st yaml2db/st
