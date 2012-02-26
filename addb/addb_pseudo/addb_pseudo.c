@@ -55,6 +55,11 @@ int c2_addb_empty_getsize(struct c2_addb_dp *dp) { return 0; }
 int c2_addb_empty_pack(struct c2_addb_dp *dp,
 		       struct c2_addb_record *rec) { return 0; }
 
+int c2_addb_trace_getsize(struct c2_addb_dp *dp) { return 8; }
+
+int c2_addb_trace_pack(struct c2_addb_dp *dp,
+		       struct c2_addb_record *rec) { return 0; }
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

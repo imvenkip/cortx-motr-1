@@ -68,6 +68,10 @@ static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
 static c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
 static c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
 
+enum {
+	ADDB_CUSTOM_MSG_SIZE = 256,
+};
+
 int c2_addb_init(void)
 {
 	return 0;
@@ -125,7 +129,8 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	case C2_ADDB_REC_STORE_STOB:
 		C2_ASSERT(c2_addb_store_stob != NULL);
 		C2_ASSERT(c2_addb_stob_add_p != NULL);
-		c2_addb_stob_add_p(dp, c2_addb_store_stob_tx, c2_addb_store_stob);
+		c2_addb_stob_add_p(dp, c2_addb_store_stob_tx,
+				   c2_addb_store_stob);
 		break;
 	case C2_ADDB_REC_STORE_DB:
 		C2_ASSERT(c2_addb_store_table != NULL);
@@ -144,10 +149,32 @@ void c2_addb_add(struct c2_addb_dp *dp)
 }
 C2_EXPORTED(c2_addb_add);
 
+void c2_addb_add_custom(struct c2_addb_ctx *ctx, const struct c2_addb_loc *loc,
+			const char *fmt, ...)
+{
+	char msg[ADDB_CUSTOM_MSG_SIZE];
+	va_list args;
+
+	memset(msg, 0, sizeof msg);
+
+	va_start(args, fmt);
+	vsnprintf(msg, sizeof msg, fmt, args);
+	va_end(args);
+
+	C2_ADDB_ADD(ctx, loc, c2_addb_trace, msg);
+}
+
 static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
 {
 	dp->ad_name = name;
 	dp->ad_rc = rc;
+	return 0;
+}
+
+static int subst_name(struct c2_addb_dp *dp, const char *name)
+{
+	dp->ad_name = name;
+	dp->ad_rc = 0;
 	return 0;
 }
 
@@ -202,6 +229,10 @@ extern int c2_addb_empty_getsize(struct c2_addb_dp *dp);
 extern int c2_addb_empty_pack(struct c2_addb_dp *dp,
 			      struct c2_addb_record *rec);
 
+extern int c2_addb_trace_getsize(struct c2_addb_dp *dp);
+
+extern int c2_addb_trace_pack(struct c2_addb_dp *dp,
+			      struct c2_addb_record *rec);
 
 const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_name_int,
@@ -226,7 +257,7 @@ C2_EXPORTED(C2_ADDB_CALL);
 const struct c2_addb_ev_ops C2_ADDB_STAMP = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
 /*
-	XXX disabled to aviod recursion. These ops are used by events which are
+	XXX disabled to avoid recursion. These ops are used by events which are
             defined and generated in network/rpc layer.
 */
 /*	.aeo_pack    = c2_addb_empty_pack,
@@ -255,6 +286,16 @@ const struct c2_addb_ev_ops C2_ADDB_INVAL = {
 };
 C2_EXPORTED(C2_ADDB_INVAL);
 
+const struct c2_addb_ev_ops C2_ADDB_TRACE = {
+	.aeo_subst   = (c2_addb_ev_subst_t)subst_name,
+	.aeo_pack    = c2_addb_trace_pack,
+	.aeo_getsize = c2_addb_trace_getsize,
+	.aeo_size    = sizeof(char *),
+	.aeo_name    = "trace",
+	.aeo_level   = AEL_WARN
+};
+C2_EXPORTED(C2_ADDB_TRACE);
+
 struct c2_addb_ev c2_addb_oom = {
 	.ae_name = "oom",
 	.ae_id   = 0x3,
@@ -273,6 +314,13 @@ static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
 	.act_name = "global"
 };
 C2_EXPORTED(c2_addb_global_ctx_type);
+
+struct c2_addb_ev c2_addb_trace = {
+	.ae_name = "trace",
+	.ae_id   = 0x30,
+	.ae_ops  = &C2_ADDB_TRACE,
+};
+C2_EXPORTED(c2_addb_trace);
 
 struct c2_addb_ctx c2_addb_global_ctx = {
 	.ac_type   = &c2_addb_global_ctx_type,
@@ -325,9 +373,10 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
 	return 0;
 }
 C2_EXPORTED(c2_addb_choose_store_media);
+
 /** @} end of addb group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

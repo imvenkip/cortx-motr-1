@@ -31,6 +31,7 @@
 extern const struct c2_test_suite libc2_ut; /* test lib first */
 extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite ad_ut;
+extern const struct c2_test_suite addb_ut;
 extern const struct c2_test_suite bulkio_ut;
 extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cob_ut;
@@ -77,12 +78,13 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-	        c2_ut_add(&libc2_ut);
+	        /*c2_ut_add(&libc2_ut);
 		c2_ut_add(&ad_ut);
+		c2_ut_add(&addb_ut);
 		c2_ut_add(&adieu_ut);
-		c2_ut_add(&buffer_pool_ut);
+		c2_ut_add(&buffer_pool_ut);*/
 	        c2_ut_add(&bulkio_ut);
-		c2_ut_add(&capa_ut);
+		/*c2_ut_add(&capa_ut);
 		c2_ut_add(&cfm_ut);
 		c2_ut_add(&cob_ut);
 		c2_ut_add(&colibri_setup_ut);
@@ -104,7 +106,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xcode_bufvec_fop_ut);
 		c2_ut_add(&xcode_bufvec_ut);
-		c2_ut_add(&yaml2db_ut);
+		c2_ut_add(&yaml2db_ut);*/
 		c2_ut_run("c2ut.log");
 		if (!keep)
 			unit_end(UT_SANDBOX);

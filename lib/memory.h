@@ -54,6 +54,14 @@ void *c2_alloc(size_t size);
  */
 void *c2_alloc_aligned(size_t size, unsigned shift);
 
+/** It returns true when addr is aligned by value shift. */
+static inline bool c2_addr_is_aligned(void *addr, unsigned shift)
+{
+	C2_CASSERT(sizeof(unsigned long) >= sizeof(void *));
+	return ((((unsigned long)addr >> shift) << shift) ==
+		  (unsigned long)addr);
+}
+
 /**
  * Frees memory block
  *
@@ -64,6 +72,14 @@ void *c2_alloc_aligned(size_t size, unsigned shift);
  * @return none
  */
 void c2_free(void *data);
+
+/**
+ * Frees aligned memory block
+ * This function must be a no-op when called with NULL argument.
+ * @param data pointer to allocated block
+ *
+ */
+void c2_free_aligned(void *data, size_t size, unsigned shift);
 
 /**
  * Return amount of memory currently allocated.

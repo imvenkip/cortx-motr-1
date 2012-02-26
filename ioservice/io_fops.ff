@@ -106,7 +106,7 @@ DEF(c2_fop_cob_readv_rep, RECORD,
 	_(c_iobuf, c2_fop_io_buf));
 
 /**
- * Represents the extent information for an io segment. c2_ioseg typically 
+ * Represents the extent information for an io segment. c2_ioseg typically
  * represents a user space data buffer or a kernel page.
  */
 DEF(c2_ioseg, RECORD,
