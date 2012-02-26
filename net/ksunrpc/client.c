@@ -140,6 +140,9 @@ static int ksunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 	};
 
 	struct rpc_create_args args = {
+#ifdef HAVE_STRUCT_NET
+		.net		= &init_net,
+#endif
 		.protocol	= XPRT_TRANSPORT_TCP,
 		.address	= (struct sockaddr *)&ksid->ssi_sockaddr,
 		.addrsize	= ksid->ssi_addrlen,

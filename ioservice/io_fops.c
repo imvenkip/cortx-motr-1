@@ -592,6 +592,7 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 			    bulkclient_func_fail, "io fop init failed.", rc);
 	return rc;
 }
+C2_EXPORTED(c2_io_fop_init);
 
 void c2_io_fop_fini(struct c2_io_fop *iofop)
 {
@@ -610,6 +611,7 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
 	return &iofop->if_rbulk;
 }
+C2_EXPORTED(c2_fop_to_rpcbulk);
 
 /** @} end of bulkclientDFSInternal */
 
@@ -618,12 +620,14 @@ bool is_read(const struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_readv_fopt;
 }
+C2_EXPORTED(is_read);
 
 bool is_write(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_writev_fopt;
 }
+C2_EXPORTED(is_write);
 
 bool is_io(const struct c2_fop *fop)
 {
@@ -663,6 +667,7 @@ struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
 		return &wfop->c_rwv;
 	}
 }
+C2_EXPORTED(io_rw_get);
 
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 {
@@ -1070,6 +1075,7 @@ err:
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	return rc;
 }
+C2_EXPORTED(c2_io_fop_prepare);
 
 /*
  * Creates new net buffers from aggregate list and adds them to
@@ -1294,6 +1300,7 @@ cleanup:
 	c2_free(cfop);
 	return rc;
 }
+C2_EXPORTED(io_fop_coalesce);
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
 {
@@ -1339,6 +1346,7 @@ static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)
 	c2_io_fop_fini(cfop);
 	c2_free(cfop);
 }
+C2_EXPORTED(io_fop_replied);
 
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 {
@@ -1350,6 +1358,7 @@ static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 	rw = io_rw_get(fop);
 	*desc = rw->crw_desc.id_descs;
 }
+C2_EXPORTED(io_fop_desc_get);
 
 /* Dummy definition for kernel mode. */
 #ifdef __KERNEL__

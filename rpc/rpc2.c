@@ -1016,6 +1016,8 @@ C2_TL_DESCR_DEFINE(rpcbulk, "rpc bulk buffer list", ,
 		   struct c2_rpc_bulk_buf, bb_link, bb_magic,
 		   C2_RPC_BULK_BUF_MAGIC, C2_RPC_BULK_MAGIC);
 
+C2_EXPORTED(rpcbulk_tl);
+
 C2_TL_DEFINE(rpcbulk, , struct c2_rpc_bulk_buf);
 
 static bool rpc_bulk_invariant(const struct c2_rpc_bulk *rbulk)
@@ -1173,6 +1175,7 @@ void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk)
 	rbulk->rb_bytes = 0;
 	rbulk->rb_rc = 0;
 }
+C2_EXPORTED(c2_rpc_bulk_init);
 
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 {
@@ -1184,6 +1187,7 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 	c2_mutex_fini(&rbulk->rb_mutex);
 	rpcbulk_tlist_fini(&rbulk->rb_buflist);
 }
+C2_EXPORTED(c2_rpc_bulk_fini);
 
 void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 {
@@ -1235,6 +1239,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	C2_POST(rpc_bulk_invariant(rbulk));
 	return 0;
 }
+C2_EXPORTED(c2_rpc_bulk_buf_add);
 
 int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 			        void *buf,
@@ -1269,6 +1274,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 	C2_POST(rpc_bulk_invariant(rbulk));
 	return rc;
 }
+C2_EXPORTED(c2_rpc_bulk_buf_databuf_add);
 
 void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q)
 {
@@ -1409,6 +1415,7 @@ int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
 {
 	return rpc_bulk_op(rbulk, conn, to_desc, C2_RPC_BULK_STORE);
 }
+C2_EXPORTED(c2_rpc_bulk_store);
 
 int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 		     const struct c2_rpc_conn *conn,
@@ -1416,6 +1423,7 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 {
 	return rpc_bulk_op(rbulk, conn, from_desc, C2_RPC_BULK_LOAD);
 }
+C2_EXPORTED(c2_rpc_bulk_load);
 
 /*
  *  Local variables:

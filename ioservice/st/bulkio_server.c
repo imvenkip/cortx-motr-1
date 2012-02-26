@@ -19,55 +19,28 @@
  */
 
 #include "ioservice/st/bulkio_common.h"
-#include "ioservice/io_fops.c" /* To access static APIs. */
+#include "ut/cs_service.h"	/* ds1_service_type */
 
-#define S_ENDP_ADDR		  "127.0.0.1:23134:1"
-#define S_ENDPOINT		  "bulk-sunrpc:"S_ENDP_ADDR
+#ifndef __KERNEL__
+#include "ioservice/io_fops.c"  /* To access static APIs. */
+#endif
+
+#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
+
 #define S_DBFILE		  "bulkio_st.db"
 #define S_STOBFILE		  "bulkio_st_stob"
-
-/* Input arguments for colibri server setup. */
-/*
-static char *server_args[]	= {"bulkio_st", "-r", "-T", "AD", "-D",
-				   S_DBFILE, "-S", S_STOBFILE, "-e",
-				   S_ENDPOINT, "-s", "ds1", "-s", "ds2"};
-				   */
-
-/* Array of services to be started by colibri server. */
-/*
-static struct c2_reqh_service_type *stypes[] = {
-	&ds1_service_type,
-	&ds2_service_type,
-};
-*/
-
-/*
- * Colibri server rpc context. Can't use C2_RPC_SERVER_CTX_DECLARE_SIMPLE()
- * since it limits the scope of struct c2_rpc_server_ctx to the function
- * where it is declared.
- */
-/*
-static struct c2_rpc_server_ctx s_rctx = {
-	.rsx_xprts_nr		= IO_XPRT_NR,
-	.rsx_argv		= server_args,
-	.rsx_argc		= ARRAY_SIZE(server_args),
-	.rsx_service_types	= stypes,
-	.rsx_service_types_nr	= ARRAY_SIZE(stypes),
-};
-*/
 
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
 
-static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
+int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
+extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
+extern bool is_write(const struct c2_fop *fop);
+extern bool is_read(const struct c2_fop *fop);
+
 extern void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
 extern int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
 extern void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
-extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
-extern void vec_alloc(struct c2_bufvec *bvec, uint32_t segs_nr,
-		      c2_bcount_t seg_size);
-extern bool is_write(const struct c2_fop *fop);
-extern bool is_read(const struct c2_fop *fop);
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
 
 /*
@@ -118,6 +91,9 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	struct c2_fop_cob_writev_rep	*wrep;
 	struct c2_fop_cob_readv_rep	*rrep;
 
+#ifndef __KERNEL__
+	printf("bulkio fom entered.\n");
+#endif
 	conn = fom->fo_fop->f_item.ri_session->s_conn;
 	rw = io_rw_get(fom->fo_fop);
 	C2_ASSERT(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
@@ -141,8 +117,9 @@ static int bulkio_fom_state(struct c2_fom *fom)
 		C2_ALLOC_PTR(netbufs[i]);
 		C2_ASSERT(netbufs[i] != NULL);
 
-		vec_alloc(&netbufs[i]->nb_buffer, ivec->ci_nr,
-			  ivec->ci_iosegs[0].ci_count);
+		c2_bufvec_alloc_aligned(&netbufs[i]->nb_buffer, ivec->ci_nr,
+					ivec->ci_iosegs[0].ci_count,
+					C2_0VEC_SHIFT);
 
 		rc = c2_rpc_bulk_buf_add(rbulk, ivec->ci_nr,
 					 conn->c_rpcmachine->cr_tm.ntm_dom,
@@ -223,6 +200,9 @@ static int bulkio_fom_state(struct c2_fom *fom)
 	c2_rpc_bulk_fini(rbulk);
 	c2_free(rbulk);
 
+#ifndef __KERNEL__
+	printf("bulkio fom exit.\n");
+#endif
 	return rc;
 }
 
@@ -237,7 +217,7 @@ static struct c2_fom_ops bulkio_fom_ops = {
 	.fo_home_locality = bulkio_fom_locality,
 };
 
-static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
+int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_fom *fom;
 
@@ -254,10 +234,11 @@ static int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
-int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int sport)
+#ifndef __KERNEL__
+int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 {
 	int			      i;
-	int			      rc;
+	int			      rc = 0;
 	char			    **server_args;
 	char			     xprt[IO_ADDR_LEN] = "bulk-sunrpc:";
 	char			     sep[IO_ADDR_LEN];
@@ -299,7 +280,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int sport)
 	strcpy(server_args[8], "-e");
 	strcat(server_args[9], xprt);
 	memset(sep, 0, IO_ADDR_LEN);
-	bulkio_netep_form(saddr, sport, IO_SERVER_SVC_ID, sep);
+	bulkio_netep_form(saddr, port, IO_SERVER_SVC_ID, sep);
 	strcat(server_args[9], sep);
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ds1");
@@ -349,3 +330,4 @@ void bulkio_server_stop(struct c2_rpc_server_ctx *sctx)
 	c2_free(sctx->rsx_service_types);
 	c2_free(sctx);
 }
+#endif

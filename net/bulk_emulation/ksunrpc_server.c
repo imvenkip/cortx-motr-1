@@ -28,6 +28,9 @@
 #include <linux/sunrpc/stats.h>
 #include <linux/sunrpc/svc.h>
 #include <linux/sunrpc/svcsock.h>
+#ifdef HAVE_STRUCT_NET
+#include <net/net_namespace.h>
+#endif
 
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -308,9 +311,13 @@ static int ksunrpc_service_start(struct c2_service *service,
 	xs->s_serv = serv;
 
 	/* create transport/socket */
-	//rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
-	rc = svc_create_xprt(serv, "tcp", NULL, PF_INET, xid->ssi_port,
+#ifdef HAVE_STRUCT_NET
+	rc = svc_create_xprt(serv, "tcp", &init_net, PF_INET, xid->ssi_port,
 			     SVC_SOCK_DEFAULTS);
+#else
+	rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
+			     SVC_SOCK_DEFAULTS);
+#endif
 	if (rc < 0) {
 		ADDB_CALL(service, "svc_create_xprt", rc);
 		goto done;
