@@ -47,8 +47,8 @@
 /*
  * This can be changed.
  */
-enum c2_addb_ev_level c2_addb_level_default = AEL_NOTE;
-C2_EXPORTED(c2_addb_level_default);
+enum c2_addb_ev_level	c2_addb_level_default	      = AEL_NOTE;
+enum c2_addb_ev_level	c2_addb_level_default_console = AEL_WARN;
 
 /**
    ADDB record store type.
@@ -76,12 +76,10 @@ int c2_addb_init(void)
 {
 	return 0;
 }
-C2_EXPORTED(c2_addb_init);
 
 void c2_addb_fini(void)
 {
 }
-C2_EXPORTED(c2_addb_fini);
 
 /**
    Choose default addb event level, return the original level.
@@ -97,18 +95,31 @@ enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level)
 }
 C2_EXPORTED(c2_addb_choose_default_level);
 
+/**
+   Choose default addb event level for displaying output on the console,
+   return the original level.
+*/
+enum c2_addb_ev_level c2_addb_choose_default_level_console(
+	    enum c2_addb_ev_level level)
+{
+	enum c2_addb_ev_level orig = c2_addb_level_default_console;
+
+	C2_ASSERT(AEL_NONE <= level && level <= AEL_MAX);
+
+	c2_addb_level_default_console = level;
+	return orig;
+}
+
 void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
 		      struct c2_addb_ctx *parent)
 {
 	ctx->ac_type = t;
 	ctx->ac_parent = parent;
 }
-C2_EXPORTED(c2_addb_ctx_init);
 
 void c2_addb_ctx_fini(struct c2_addb_ctx *ctx)
 {
 }
-C2_EXPORTED(c2_addb_ctx_fini);
 
 /* defined in {,linux_kernel/}addb_console.c */
 void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp);
@@ -122,7 +133,7 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	lev = max_check(dp->ad_level, max_check(ev->ae_level,
 						ev->ae_ops->aeo_level));
 	/* log high priority data points to the console */
-	if (lev > AEL_NOTE)
+	if (lev > c2_addb_level_default_console)
 		c2_addb_console(lev, dp);
 
 	switch (c2_addb_store_type) {
@@ -147,7 +158,6 @@ void c2_addb_add(struct c2_addb_dp *dp)
 		break;
 	}
 }
-C2_EXPORTED(c2_addb_add);
 
 void c2_addb_add_custom(struct c2_addb_ctx *ctx, const struct c2_addb_loc *loc,
 			const char *fmt, ...)
@@ -205,7 +215,6 @@ const struct c2_addb_ev_ops C2_ADDB_SYSCALL = {
 	.aeo_name  = "syscall-failure",
 	.aeo_level = AEL_NOTE
 };
-C2_EXPORTED(C2_ADDB_SYSCALL);
 
 /** get size for data point opaque data */
 extern int c2_addb_func_fail_getsize(struct c2_addb_dp *dp);
@@ -242,7 +251,6 @@ const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
 	.aeo_name    = "function-failure",
 	.aeo_level   = AEL_NOTE
 };
-C2_EXPORTED(C2_ADDB_FUNC_CALL);
 
 const struct c2_addb_ev_ops C2_ADDB_CALL = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_int,
@@ -252,7 +260,6 @@ const struct c2_addb_ev_ops C2_ADDB_CALL = {
 	.aeo_name    = "call-failure",
 	.aeo_level   = AEL_NOTE
 };
-C2_EXPORTED(C2_ADDB_CALL);
 
 const struct c2_addb_ev_ops C2_ADDB_STAMP = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
@@ -266,7 +273,6 @@ const struct c2_addb_ev_ops C2_ADDB_STAMP = {
 	.aeo_size    = 0,
 	.aeo_name    = "."
 };
-C2_EXPORTED(C2_ADDB_STAMP);
 
 const struct c2_addb_ev_ops C2_ADDB_FLAG = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
@@ -275,7 +281,6 @@ const struct c2_addb_ev_ops C2_ADDB_FLAG = {
 	.aeo_size    = sizeof(bool),
 	.aeo_name    = "flag"
 };
-C2_EXPORTED(C2_ADDB_FLAG);
 
 const struct c2_addb_ev_ops C2_ADDB_INVAL = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_uint64_t,
@@ -284,7 +289,6 @@ const struct c2_addb_ev_ops C2_ADDB_INVAL = {
 	.aeo_size    = sizeof(uint64_t),
 	.aeo_name    = "inval"
 };
-C2_EXPORTED(C2_ADDB_INVAL);
 
 const struct c2_addb_ev_ops C2_ADDB_TRACE = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_name,
@@ -294,39 +298,24 @@ const struct c2_addb_ev_ops C2_ADDB_TRACE = {
 	.aeo_name    = "trace",
 	.aeo_level   = AEL_WARN
 };
-C2_EXPORTED(C2_ADDB_TRACE);
 
-struct c2_addb_ev c2_addb_oom = {
-	.ae_name = "oom",
-	.ae_id   = 0x3,
-	.ae_ops  = &C2_ADDB_STAMP
-};
-C2_EXPORTED(c2_addb_oom);
+C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, C2_ADDB_STAMP);
 
-struct c2_addb_ev c2_addb_func_fail = {
-	.ae_name = "func-fail",
-	.ae_id   = 0x4,
-	.ae_ops  = &C2_ADDB_FUNC_CALL
-};
-C2_EXPORTED(c2_addb_func_fail);
+C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_func_fail, "func-fail",		\
+			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+
+C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_trace, "trace", C2_ADDB_EVENT_TRACE,	\
+			 C2_ADDB_TRACE);
+
 
 static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
 	.act_name = "global"
 };
-C2_EXPORTED(c2_addb_global_ctx_type);
-
-struct c2_addb_ev c2_addb_trace = {
-	.ae_name = "trace",
-	.ae_id   = 0x30,
-	.ae_ops  = &C2_ADDB_TRACE,
-};
-C2_EXPORTED(c2_addb_trace);
 
 struct c2_addb_ctx c2_addb_global_ctx = {
 	.ac_type   = &c2_addb_global_ctx_type,
 	.ac_parent = NULL
 };
-C2_EXPORTED(c2_addb_global_ctx);
 
 int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
 {
@@ -372,7 +361,6 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
         va_end(varargs);
 	return 0;
 }
-C2_EXPORTED(c2_addb_choose_store_media);
 
 /** @} end of addb group */
 

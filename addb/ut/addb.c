@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,61 +24,50 @@
 
 #include "addb/addb.h"
 #include "lib/ut.h"
+#include "ut/ioredirect.h"
 
 struct c2_addb_ctx addb_ut_ctx;
 
 const struct c2_addb_ctx_type c2_addb_ut_ctx = {
-	        .act_name = "ADDB-UT"
+	.act_name = "ADDB-UT"
 };
 
 const struct c2_addb_loc c2_addb_ut_loc = {
-	        .al_name = "ADDB-UT"
+	.al_name = "ADDB-UT"
 };
 
-/*
-  strlen("addb: ctx: ADDB-UT/0x8ff4fa0, loc: ADDB-UT, ev: trace/trace, rc: 0"
-	 " name: A test ADDB message for C2_ADDB_TRACE event") = 116 + \0
- */
+static const char s_out_fname[] = "addb_ut_output_redirect";
 
-#define MESSAGE_LENGTH 117
+#define MESSAGE_LENGTH sizeof("addb: ctx: ADDB-UT/0x8ff4fa0, loc: ADDB-UT, ev: \
+			      trace/trace, rc: 0 name: A test ADDB message for \
+			      C2_ADDB_TRACE event")
 
-void test_addb()
+static void test_addb()
 {
-	int	 rc;
-	int	 out_fd;
-	FILE	*out_fp;
+	int	 fd;
+	FILE	*fp;
+	fpos_t	 pos;
 	char	 buffer[MESSAGE_LENGTH];
 
-	const char *message = "A test ADDB message for C2_ADDB_TRACE event";
+	const char message[] = "A test ADDB message for C2_ADDB_TRACE event";
 
-
-	/* save fd of stdout  */
-	out_fd = dup(fileno(stdout));
-	C2_UT_ASSERT(out_fd != -1);
-
-	/* redirect stdout */
-	out_fp = freopen("out_file", "a+", stdout);
-	C2_UT_ASSERT(out_fp != NULL);
+	redirect_std_stream(stdout, s_out_fname, &fd, &pos, &fp);
 
 	c2_addb_ctx_init(&addb_ut_ctx, &c2_addb_ut_ctx, &c2_addb_global_ctx);
 
-	c2_addb_choose_default_level(AEL_NONE);
+	c2_addb_choose_default_level_console(AEL_NONE);
 
 	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, c2_addb_trace, (message));
 
-	rewind(out_fp);
+	rewind(fp);
 
-	fgets(buffer, MESSAGE_LENGTH, out_fp);
+	fgets(buffer, MESSAGE_LENGTH, fp);
 
 	C2_UT_ASSERT(strstr(buffer, message) != NULL);
 
-	C2_UT_ASSERT((rc = fclose(out_fp)) == 0);
+	restore_std_stream(stdout, 1, fd, &pos);
 
-	/* restore stdout */
-	out_fd = dup2(out_fd, 1);
-	C2_UT_ASSERT(out_fd != -1);
-	stdout = fdopen(out_fd, "a+");
-	C2_UT_ASSERT(stdout != NULL);
+	c2_addb_choose_default_level_console(AEL_WARN);
 }
 
 const struct c2_test_suite addb_ut = {
@@ -86,7 +75,7 @@ const struct c2_test_suite addb_ut = {
         .ts_init  = NULL,
         .ts_fini  = NULL,
         .ts_tests = {
-                { "ADDB", test_addb},
+                { "addb", test_addb},
 		{ NULL, NULL }
         }
 };

@@ -60,6 +60,7 @@ static void bulkioapi_test(void)
 	C2_SET0(&iofop);
 	C2_SET0(&nd);
 
+	c2_addb_choose_default_level_console(AEL_ERROR);
 	xprt = &c2_net_bulk_sunrpc_xprt;
 	rc = c2_net_domain_init(&nd, xprt);
 	C2_UT_ASSERT(rc == 0);
@@ -168,6 +169,9 @@ static void bulkioapi_test(void)
 
 	c2_rpc_bulk_buflist_empty(rbulk);
 	C2_UT_ASSERT(c2_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist));
+
+	c2_bufvec_free_aligned(&nb->nb_buffer, C2_0VEC_SHIFT);
+	c2_free(nb);
 
 	/* Cleanup. */
 	c2_free_aligned(sbuf, C2_0VEC_ALIGN, C2_0VEC_SHIFT);
