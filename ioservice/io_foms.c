@@ -587,10 +587,8 @@ C2_TL_DEFINE(rpcbulkbufs, static, struct c2_rpc_bulk_buf);
 static uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm)
 {
         uint32_t colour;
-        c2_mutex_lock(&tm->ntm_mutex);
         C2_PRE(c2_net__tm_invariant(tm));
         colour = tm->ntm_pool_colour;
-        c2_mutex_unlock(&tm->ntm_mutex);
         return colour;
 }
 
@@ -1053,6 +1051,10 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
         netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
         stobio_tlist_init(&fom_obj->fcrw_stio_list);
         c2_mutex_init(&fom_obj->fcrw_stio_mutex);
+
+        c2_addb_add_custom(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                           "FOM created : type=rw, io_descs=%d.",
+                           fom_obj->fcrw_ndesc);
 
         return rc;
 }
@@ -1724,6 +1726,11 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_PRE(fom != NULL);
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+
+        
+        c2_addb_add_custom(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                           "FOM finished : type=rw, rc=%d, io_size=%lu.",
+                           fom->fo_rc, fom_obj->fcrw_bytes_transfered);
 
         tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);

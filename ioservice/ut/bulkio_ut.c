@@ -282,7 +282,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 {
         int                           rc;
         int                           i = 0;
-        int                           colour;
+        uint32_t                      colour;
         int                           acquired_net_bufs = 0;
         int                           saved_segments_count = 0;
         int                           saved_ndesc = 0;
@@ -299,11 +299,14 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         struct c2_fop_file_fid       *ffid;
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
+        struct c2_net_transfer_mc     tm;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
-        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+
+        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        colour = c2_net_tm_colour_get(&tm);
 
         /*
          * No need to test generic phases.
@@ -689,7 +692,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 {
         int                           rc;
         int                           i = 0;
-        int                           colour;
+        uint32_t                      colour;
         int                           acquired_net_bufs = 0;
         int                           saved_segments_count = 0;
         int                           saved_ndesc = 0;
@@ -706,11 +709,14 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         struct c2_fop_file_fid       *ffid;
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
+        struct c2_net_transfer_mc     tm;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
-        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+
+        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        colour = c2_net_tm_colour_get(&tm);
 
         /*
          * No need to test generic phases.
