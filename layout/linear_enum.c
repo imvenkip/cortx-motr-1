@@ -32,12 +32,25 @@
 #include "lib/errno.h"
 #include "lib/tlist.h"	/* struct c2_tl */
 #include "lib/vec.h"
+#include "lib/bob.h"
 #include "lib/memory.h"
 #include "lib/trace.h"
 
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
+enum {
+	LINEAR_ENUM_MAGIC = 0xdcbaabcddcbaabcd /* dcba abcd dcba abcd */
+};
+
+static const struct c2_bob_type linear_enum_bob = {
+	.bt_name         = "linear_enum",
+	.bt_magix_offset = offsetof(struct c2_layout_linear_enum, lla_magic),
+	.bt_magix        = LINEAR_ENUM_MAGIC,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
 
 static const struct c2_layout_enum_ops linear_enum_ops;
 
@@ -49,6 +62,9 @@ int c2_linear_enum_build(uint32_t nr, uint32_t A, uint32_t B,
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL)
 		return -ENOMEM;
+
+	c2_layout_linear_enum_bob_init(lin_enum);
+	C2_ASSERT(c2_layout_linear_enum_bob_check(lin_enum));
 
 	c2_layout_enum_init(&lin_enum->lle_base, &c2_linear_enum_type,
 			    &linear_enum_ops);
@@ -64,6 +80,9 @@ int c2_linear_enum_build(uint32_t nr, uint32_t A, uint32_t B,
 
 void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
 {
+	c2_layout_linear_enum_bob_fini(lin_enum);
+	C2_ASSERT(!c2_layout_linear_enum_bob_check(lin_enum));
+
 	c2_layout_enum_fini(&lin_enum->lle_base);
 }
 

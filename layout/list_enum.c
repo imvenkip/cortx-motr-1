@@ -43,7 +43,8 @@ enum {
 	 * the cob_lists table.
 	 */
 	LDB_MAX_INLINE_COB_ENTRIES = 20,
-	LIST_ENUM_MAGIC            = 0x6b6f6c6176657269ULL /* "kolaveri" */
+	LIST_ENUM_MAGIC            = 0x3471415401a7e21dULL
+						/* "why this kolaveri d" */
 };
 
 static const struct c2_bob_type list_enum_bob = {
@@ -164,11 +165,21 @@ int c2_list_enum_build(uint64_t lid,
 	list_enum->lle_lid = lid;
 	list_enum->lle_nr = nr;
 
+	/*
+	 * Can not assert here to verify that number of elments in the
+	 * cob_list is same as nr, since cob_list is a dynamically allocated
+	 * array.
+	 */
+
 	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
 	if (list_enum == NULL)
 		return -ENOMEM;
 
 	for (i = 0; i < nr; ++i) {
+		/** @todo Should a magic number be added to c2_fid to indicate
+		 * it is a valid cob id so as to be able to securely trust it
+		 * here?
+		 */
 		list_enum->lle_list_of_cobs[i] = cob_list[i];
 	}
 
@@ -266,7 +277,6 @@ static uint32_t list_recsize(struct c2_layout_enum *e)
 							    ldb_cob_entry);
 }
 
-/* todo Check how should the cob entry be passed to this fn. */
 static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 			     enum c2_layout_xcode_op op,
 			     uint64_t lid, uint32_t idx,

@@ -89,6 +89,7 @@
 #include "lib/memory.h"
 #include "lib/arith.h"        /* c2_rnd() */
 #include "lib/trace.h"
+#include "lib/bob.h"
 
 #include "stob/stob.h"
 #include "pool/pool.h"
@@ -99,6 +100,19 @@
 #include "layout/linear_enum.h"
 
 #include "layout/pdclust.h"
+
+enum {
+	PDCLUST_MAGIC = 0x1234abcddcba4321ULL /* 1234 abcd dcba 4321 */
+};
+
+static const struct c2_bob_type pdclust_bob = {
+	.bt_name         = "pdclust",
+	.bt_magix_offset = offsetof(struct c2_pdclust_layout, pl_magic),
+	.bt_magix        = PDCLUST_MAGIC,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(static, &pdclust_bob, c2_pdclust_layout);
 
 /**
  * "Encoding" function: returns the number that a (row, column) element of a
@@ -381,6 +395,9 @@ void c2_pdclust_fini(struct c2_layout *l)
 		}
 		c2_free(pl);
 	}
+
+	c2_pdclust_layout_bob_fini(pl);
+	C2_ASSERT(!c2_pdclust_layout_bob_check(pl));
 }
 
 static const struct c2_layout_ops pdclust_ops;
@@ -446,6 +463,10 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		*out = pdl;
 	else
 		c2_pdclust_fini(&pdl->pl_base.ls_base);
+
+	c2_pdclust_layout_bob_init(pdl);
+	C2_ASSERT(c2_pdclust_layout_bob_check(pdl));
+
 	return result;
 }
 
@@ -523,9 +544,9 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 {
 	struct c2_pdclust_layout   *pl;
 	struct c2_layout_striped   *stl;
-	struct c2_layout           *l;
 	struct c2_ldb_pdclust_rec  *pl_rec;
 	struct c2_layout_enum_type *et;
+	struct c2_layout_enum      *e;
 	int                         rc;
 
 	C2_PRE(schema != NULL);
@@ -535,17 +556,14 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	//C2_LOG("In pdclust_decode(): cur %p \n",  (void *)cur);
+	C2_LOG("pdclust_decode(): lid %llu\n", (unsigned long long)lid);
 
 	C2_ALLOC_PTR(pl);
 	if (pl == NULL)
 		return -ENOMEM;
 
 	stl = &pl->pl_base;
-	l = &stl->ls_base;
-	l->l_ops = &pdclust_ops;
-
-	*out = l;
+	*out = &stl->ls_base;
 
 	pl_rec = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(pl_rec != NULL);
@@ -563,16 +581,21 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
-	//return et->let_ops->leto_decode(schema, lid, cur, op, tx,
-					//&stl->ls_enum);
+	rc = et->let_ops->leto_decode(schema, lid, cur, op, tx, &e);
+	C2_ASSERT(rc == 0);
+	if (rc != 0) {
+		//todo free memory?
+		return rc;
+	}
 
-	rc = et->let_ops->leto_decode(schema, lid, cur, op, tx,
-					&stl->ls_enum);
-
+	/* todo c2_pdclust_build() should be invoked here instead of
+	 * invoking c2_layout_striped_init(). But how do i get the values for
+	 * pool (probably somehow referring the configuration) and seed?
+	 */
+	rc = c2_layout_striped_init(stl, e, lid, &c2_pdclust_layout_type,
+				    &pdclust_ops);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(stl->ls_enum != NULL);
-
-	/* todo Need to perform c2_layout_striped_init here. */
 
 	return rc;
 }
@@ -612,7 +635,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	       !c2_bufvec_cursor_move(oldrec_cur, 0)));
 	C2_PRE(out != NULL);
 
-	//C2_LOG("In pdclust_encode()\n");
+	C2_LOG("pdclust_encode(): %llu\n", (unsigned long long)l->l_id);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);

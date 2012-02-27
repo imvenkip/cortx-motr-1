@@ -190,6 +190,8 @@ struct c2_pdclust_layout {
 	 * Parity math information, initialized according to the layout
 	 */
 	struct c2_parity_math pl_math;
+
+	uint64_t              pl_magic;
 };
 
 /** Classification of units in a parity group. */

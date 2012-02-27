@@ -72,10 +72,10 @@ void c2_layouts_fini(void)
    */
 }
 
-void c2_layout_init(struct c2_layout *l,
-		    uint64_t lid,
-		    const struct c2_layout_type *type,
-		    const struct c2_layout_ops *ops)
+int c2_layout_init(struct c2_layout *l,
+		   uint64_t lid,
+		   const struct c2_layout_type *type,
+		   const struct c2_layout_ops *ops)
 {
 	C2_PRE(l != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -89,6 +89,8 @@ void c2_layout_init(struct c2_layout *l,
 	l->l_id     = lid;
 	l->l_type   = type;
 	l->l_ops    = ops;
+
+	return 0;
 }
 
 void c2_layout_fini(struct c2_layout *l)
@@ -98,11 +100,11 @@ void c2_layout_fini(struct c2_layout *l)
 	c2_mutex_fini(&l->l_lock);
 }
 
-void c2_layout_striped_init(struct c2_layout_striped *str_l,
-			    struct c2_layout_enum *e,
-			    uint64_t lid,
-			    const struct c2_layout_type *type,
-			    const struct c2_layout_ops *ops)
+int c2_layout_striped_init(struct c2_layout_striped *str_l,
+			   struct c2_layout_enum *e,
+			   uint64_t lid,
+			   const struct c2_layout_type *type,
+			   const struct c2_layout_ops *ops)
 {
 	C2_PRE(str_l != NULL);
 	C2_PRE(e != NULL);
@@ -115,6 +117,8 @@ void c2_layout_striped_init(struct c2_layout_striped *str_l,
 	c2_layout_init(&str_l->ls_base, lid, type, ops);
 
 	str_l->ls_enum = e;
+
+	return 0;
 }
 
 void c2_layout_striped_fini(struct c2_layout_striped *str_l)
@@ -301,7 +305,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	      !c2_bufvec_cursor_move(oldrec_cur, 0)));
 	C2_PRE(out != NULL);
 
-	C2_LOG("In c2_layout_encode()\n");
+	C2_LOG("c2_layout_encode(): %llu\n", (unsigned long long)l->l_id);
 
 	c2_mutex_lock(&l->l_lock);
 

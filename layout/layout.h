@@ -304,17 +304,17 @@ struct c2_layout_striped {
 int c2_layouts_init(void);
 void c2_layouts_fini(void);
 
-void c2_layout_init(struct c2_layout *lay,
-		    uint64_t lid,
-		    const struct c2_layout_type *type,
-		    const struct c2_layout_ops *ops);
+int c2_layout_init(struct c2_layout *lay,
+		   uint64_t lid,
+		   const struct c2_layout_type *type,
+		   const struct c2_layout_ops *ops);
 void c2_layout_fini(struct c2_layout *lay);
 
-void c2_layout_striped_init(struct c2_layout_striped *str_lay,
-			    struct c2_layout_enum *e,
-			    uint64_t lid,
-			    const struct c2_layout_type *type,
-			    const struct c2_layout_ops *ops);
+int c2_layout_striped_init(struct c2_layout_striped *str_lay,
+			   struct c2_layout_enum *e,
+			   uint64_t lid,
+			   const struct c2_layout_type *type,
+			   const struct c2_layout_ops *ops);
 void c2_layout_striped_fini(struct c2_layout_striped *strl);
 
 void c2_layout_enum_init(struct c2_layout_enum *le,
