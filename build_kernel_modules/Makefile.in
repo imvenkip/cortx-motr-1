@@ -1,9 +1,8 @@
 CORE_SRCDIR 	= @SRCDIR@
 BUILD_DIR 	= $(CORE_SRCDIR)/build_kernel_modules
-GALOISDIR 	= $(CORE_SRCDIR)/../galois
 KERNEL_BUILDDIR = @LINUX_OBJ@
 
-KBUILD_EXTRA_SYMBOLS = @LUSTRE@/Module.symvers
+KBUILD_EXTRA_SYMBOLS = @LUSTRE@/Module.symvers @GALOIS_SYMVERS@
 
 GCOV_PROFILE 	= @K_ENABLE_COVERAGE@
 
@@ -26,7 +25,7 @@ EXTRA_CFLAGS 	= -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR)                  \
 #	The $(dirs) list is maintained alphabetically
 
 dirs  = addb addb/addbff addb/linux_kernel c2t1fs/linux_kernel cob colibri   \
-	db db/linux_kernel dtm fid fol fop galois ioservice layout lib       \
+	db db/linux_kernel dtm fid fol fop ioservice layout lib              \
 	lib/linux_kernel lib/ut net net/bulk_emulation net/bulk_emulation/ut \
 	net/ksunrpc net/lnet/ut net/ut pool rpc sm sns stob stob/ut ut       \
 	xcode xcode/ut
@@ -67,9 +66,6 @@ fol_HEADERS 			:= fol.h
 
 fop_SOURCES 			:= fop.c fom.c fop_format.c fop_iterator.c \
 				   fop_base.c fop_item_type.c
-
-galois_SOURCES 			:= ../../galois/galois.c
-galois_HEADERS 			:= ../../galois/galois.h
 
 ioservice_SOURCES 		:= io_fops.c io_fops_k.c
 ioservice_HEADERS 		:= io_fops.h io_fops_k.h
@@ -172,7 +168,7 @@ obj-y += $(testdirs)
 create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)) \
 		2> /dev/null)
 
-createdirs := galois
+GALOIS_SRC = @GALOIS_SRC@
 
 all:
 	@echo $(kcolibri-y)
@@ -186,15 +182,6 @@ all:
 #		done
 #	done
 
-# XXX:
-# The galois directory in core/ is redundant. We dont require any files in it
-# but due to structure of build process it is required to be present so that
-# links can be created. The build process creates the directory during build
-# process, and removes the directory during clean. The list of such directories
-# can be maintained in variable $(createdirs).
-
-	$(foreach d, $(createdirs), $(shell  [ -d $(CORE_SRCDIR)/$(d) ] || \
-		mkdir -p $(CORE_SRCDIR)/$(d)))
 	$(foreach d, $(dirs), $(shell  [ -d $(d) ] || mkdir -p $(d)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),  \
 		$(create_links)))
@@ -218,5 +205,4 @@ clean distclean:
 	$(RM) lustre_config.h
 	$(RM) Module.markers modules.order
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
-	$(foreach d, $(createdirs), $(shell rm -rf $(CORE_SRCDIR)/$(d)))
 	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done

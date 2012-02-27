@@ -1,5 +1,5 @@
 netdir                     = $(includedir)/colibri/net
-net_HEADERS                = net.h net_otw_types_u.h xdr.h net_internal.h
+net_HEADERS                = net.h xdr.h net_internal.h
 
 SUBDIRS                    = . usunrpc bulk_emulation lnet
 
