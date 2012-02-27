@@ -59,8 +59,8 @@ int c2_arch_trace_init()
 		err(EX_IOERR, "fread(\"%s\")", sys_kern_randvspace_fname);
 
 	if (val != 0) {
-		fprintf(stderr, "System configuration ERROR: "
-		   "kernel.randomize_va_space should be set to 0.\n");
+		warnx("System configuration ERROR: "
+		      "kernel.randomize_va_space should be set to 0.");
 		errno = -EINVAL;
 		goto out;
 	}
