@@ -49,6 +49,7 @@ void      *c2_logbuf = NULL;
 uint32_t   c2_logbufsize;
 
 unsigned long c2_trace_immediate_mask;
+C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;

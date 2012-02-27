@@ -190,11 +190,11 @@ extern void      *c2_logbuf;      /**< Trace buffer pointer */
 extern uint32_t   c2_logbufsize;  /**< The real buffer size */
 
 /** The bitmask of what should be printed immediately to console */
-extern ulong      c2_trace_immediate_mask;
+extern unsigned long c2_trace_immediate_mask;
 /** The subsystem bitmask definishions */
 enum c2_trace_subsystem {
-	C2_TRACE_SUBSYS_OTHER = 0,
-	C2_TRACE_SUBSYS_UT    = (1 << 0),
+	C2_TRACE_SUBSYS_OTHER = (1 <<  0),
+	C2_TRACE_SUBSYS_UT    = (1 <<  1),
 };
 
 /**
