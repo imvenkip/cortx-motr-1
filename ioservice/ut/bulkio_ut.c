@@ -1227,6 +1227,7 @@ void bulkio_stob_create(void)
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		C2_ALLOC_PTR(bp->bp_wfops[i]);
                 rc = c2_io_fop_init(bp->bp_wfops[i], &c2_fop_cob_writev_fopt);
+		C2_UT_ASSERT(rc == 0);
                 bp->bp_wfops[i]->if_fop.f_type->ft_fom_type =
                 bulkio_stob_create_fom_type;
 
@@ -1537,8 +1538,10 @@ static void bulkio_init(void)
 	bulkio_params_init(bp);
 	
 	rc = bulkio_server_start(bp, saddr, port);
+	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_sctx != NULL);
 	rc = bulkio_client_start(bp, caddr, port, saddr);
+	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_cctx != NULL);
 
 	bulkio_stob_create();

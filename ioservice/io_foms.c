@@ -784,6 +784,7 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
                                  */
 			          rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
 						          &fom->fo_tx.tx_dbtx);
+				  fom->fo_rc = rc;
                           }
                           /* Update successfull data transfered count*/
 		          fom_obj->fcrw_bytes_transfered += stio->si_count;

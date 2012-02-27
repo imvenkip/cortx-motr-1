@@ -1516,11 +1516,9 @@ static void io_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop		*fop;
 	struct c2_io_fop	*iofop;
-	struct c2_fop_cob_rw	*rw;
 
 	fop = c2_rpc_item_to_fop(item);
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
-	rw = io_rw_get(fop);
 
 	c2_io_fop_destroy(&iofop->if_fop);
 	c2_io_fop_fini(iofop);

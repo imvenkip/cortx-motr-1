@@ -160,7 +160,7 @@ void c2_ioservice_unregister(void)
  */
 static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 {
-        bool                            found_buffer_pool = false;
+        //bool                            found_buffer_pool = false;
         int                             nbuffs = 0;
         int                             colours;
         int                             rc = 0;
@@ -185,7 +185,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                                 * No need to create buffer pool
                                 * for this domain.
                                 */
-                                found_buffer_pool = true;
+                                //found_buffer_pool = true;
                                 return rc;
                         }
                } c2_tlist_endfor; /* bufferpools */
@@ -355,11 +355,11 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
  */
 static void c2_ioservice_stop(struct c2_reqh_service *service)
 {
-        struct c2_reqh_io_service *serv_obj;
+        //struct c2_reqh_io_service *serv_obj;
 
         C2_PRE(service != NULL);
 
-        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+        //serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
         ioservice_delete_buffer_pool(service);
 
