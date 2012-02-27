@@ -18,15 +18,13 @@
  * Original creation date: 08/12/2010
  */
 
-#include <stdio.h>    /* getchar */
 #include <string.h>   /* memset */
 #include <errno.h>
+#include <err.h>
 #include <stdio.h>
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
-#include <sys/syscall.h>
-#include <linux/sysctl.h>
 
 #include "lib/arith.h"
 #include "lib/memory.h"
@@ -40,67 +38,75 @@
    @{
  */
 
-static int read_count;
 static int logfd;
 
-extern void *c2_logbuf;
+static const char sys_kern_randvspace_fname[] = "/proc/sys/kernel/randomize_va_space";
 
-int c2_arch_trace_init()
+static int randvspace_check()
 {
-	int name[] = { CTL_KERN, KERN_RANDOMIZE };
-	struct __sysctl_args args;
 	int val;
-	size_t val_sz = sizeof val;
+	FILE *f;
 
-	memset(&args, 0, sizeof args);
-	args.name = name;
-	args.nlen = ARRAY_SIZE(name);
-	args.oldval  = &val;
-	args.oldlenp = &val_sz;
-
-	if (syscall(SYS__sysctl, &args) == -1) {
-		perror("_sysctl");
-		return -errno;
+	if ((f = fopen(sys_kern_randvspace_fname, "r")) == NULL) {
+		warn("open(\"%s\")", sys_kern_randvspace_fname);
+	} else if (fscanf(f, "%d", &val) != 1) {
+		warnx("fscanf(\"%s\")", sys_kern_randvspace_fname);
+		errno = EINVAL;
+	} else if (val != 0) {
+		warnx("System configuration ERROR: "
+		      "kernel.randomize_va_space should be set to 0.");
+		errno = EINVAL;
 	}
 
-	if (val != 0) {
-		fprintf(stderr, "System configuration ERROR: "
-		   "kernel.randomize_va_space should be set to 0.\n");
-		return -EINVAL;
-	}
-
-	errno = 0;
-	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
-	if (logfd != -1) {
-		if (ftruncate(logfd, C2_TRACE_BUFSIZE) == 0) {
-			c2_logbuf = mmap(NULL, C2_TRACE_BUFSIZE, PROT_WRITE,
-				      MAP_SHARED, logfd, 0);
-			if (c2_logbuf == MAP_FAILED)
-				perror("mmap");
-		}
-	} else {
-		perror("open");
-	}
+	if (f != NULL)
+		fclose(f);
 
 	return -errno;
 }
 
+static int logbuf_map()
+{
+	char buf[80];
+
+	sprintf(buf, "c2.trace.%u", (unsigned)getpid());
+	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1)
+		warn("open(\"%s\")", buf);
+	else if ((errno = posix_fallocate(logfd, 0, c2_logbufsize)) != 0)
+		warn("fallocate(\"%s\", %u)", buf, c2_logbufsize);
+	else if ((c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
+                                   MAP_SHARED, logfd, 0)) == MAP_FAILED)
+		warn("mmap(\"%s\")", buf);
+
+	return -errno;
+}
+
+int c2_arch_trace_init()
+{
+	int res;
+
+	if ((res = randvspace_check()) != 0)
+		return res;
+	else if ((res = logbuf_map()) != 0)
+		return res;
+	else
+		return 0;
+}
+
 void c2_arch_trace_fini(void)
 {
-	munmap(c2_logbuf, C2_TRACE_BUFSIZE);
+	munmap(c2_logbuf, c2_logbufsize);
 	close(logfd);
 }
 
 
-static void align(unsigned align)
+static unsigned align(unsigned align, unsigned pos)
 {
-	int pos = read_count ? read_count - 1 : 0;
 	C2_ASSERT(c2_is_po2(align));
 	while (!feof(stdin) && (pos & (align - 1))) {
 		getchar();
 		pos++;
 	}
-	read_count = pos + 1;
+	return pos;
 }
 
 /**
@@ -110,24 +116,17 @@ int c2_trace_parse(void)
 {
 	struct c2_trace_rec_header   trh;
 	const struct c2_trace_descr *td;
-	int                          nr, n2r;
-	int                          i;
-	union {
-		uint8_t  v8;
-		uint16_t v16;
-		uint32_t v32;
-		uint64_t v64;
-	} v[C2_TRACE_ARGC_MAX];
+	unsigned                     pos = 0;
+	unsigned                     nr;
+	unsigned                     n2r;
 
-	read_count = 0;
-
-	printf("  no   |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
-	printf("------------------------------------------------------------------------------------------\n");
+	printf("   no   |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
+	printf("-------------------------------------------------------------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
 
-		align(8); /* At the beginning of a record */
+		pos = align(8, pos); /* At the beginning of a record */
 
 		/* Find the complete record */
 		do {
@@ -136,61 +135,35 @@ int c2_trace_parse(void)
 				C2_ASSERT(feof(stdin));
 				return 0;
 			}
-			read_count += nr;
+			pos += nr;
 		} while (trh.trh_magic != C2_TRACE_MAGIC);
 
 		/* Now we might have complete record */
 		n2r = sizeof trh - sizeof trh.trh_magic;
 		nr = fread(&trh.trh_sp, 1, n2r, stdin);
 		C2_ASSERT(nr == n2r);
-		read_count += nr;
+		pos += nr;
 
 		td = trh.trh_descr;
-
-		printf("%7.7lu %15.15lu %16.16lx %-20s %15s:%-3i %3.3i %3i\n\t",
-		       trh.trh_no, trh.trh_timestamp, trh.trh_sp,
-		       td->td_func, td->td_file, td->td_line, td->td_size,
-		       td->td_nr);
 
 		buf = c2_alloc(td->td_size);
 		C2_ASSERT(buf != NULL);
 
 		nr = fread(buf, 1, td->td_size, stdin);
 		C2_ASSERT(nr == td->td_size);
-		read_count += nr;
+		pos += nr;
 
-		for (i = 0; i < td->td_nr; ++i) {
-			char *addr;
-
-			addr = buf + td->td_offset[i];
-			switch (td->td_sizeof[i]) {
-			case 0:
-				break;
-			case 1:
-				v[i].v8 = *(uint8_t *)addr;
-				break;
-			case 2:
-				v[i].v16 = *(uint16_t *)addr;
-				break;
-			case 4:
-				v[i].v32 = *(uint32_t *)addr;
-				break;
-			case 8:
-				v[i].v64 = *(uint64_t *)addr;
-				break;
-			default:
-				C2_IMPOSSIBLE("sizeof");
-			}
-		}
-		printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
-		       v[7], v[8]);
-		printf("\n");
+		c2_trace_record_print(&trh, buf);
 
 		if (buf)
 			c2_free(buf);
-		align(8);
 	}
 	return 0;
+}
+
+void c2_console_vprintf(const char *fmt, va_list args)
+{
+	vprintf(fmt, args);
 }
 
 /** @} end of trace group */
