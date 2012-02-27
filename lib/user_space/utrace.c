@@ -21,7 +21,6 @@
 #include <string.h>   /* memset */
 #include <errno.h>
 #include <err.h>
-#include <sysexits.h>
 #include <stdio.h>
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
@@ -43,48 +42,54 @@ static int logfd;
 
 static const char sys_kern_randvspace_fname[] = "/proc/sys/kernel/randomize_va_space";
 
-
-int c2_arch_trace_init()
+static int randvspace_check()
 {
-	FILE *f;
-	char buf[80];
-	int res;
 	int val;
+	FILE *f;
 
-	f = fopen(sys_kern_randvspace_fname, "r");
-	if (f == NULL)
-		err(EX_OSFILE, "open(\"%s\")", sys_kern_randvspace_fname);
-
-	res = fscanf(f, "%d", &val);
-	if (res != 1)
-		err(EX_IOERR, "fread(\"%s\")", sys_kern_randvspace_fname);
-
-	if (val != 0) {
+	if ((f = fopen(sys_kern_randvspace_fname, "r")) == NULL) {
+		warn("open(\"%s\")", sys_kern_randvspace_fname);
+	} else if (fscanf(f, "%d", &val) != 1) {
+		warnx("fscanf(\"%s\")", sys_kern_randvspace_fname);
+		errno = EINVAL;
+	} else if (val != 0) {
 		warnx("System configuration ERROR: "
 		      "kernel.randomize_va_space should be set to 0.");
-		errno = -EINVAL;
-		goto out;
+		errno = EINVAL;
 	}
 
-	sprintf(buf, "c2.trace.%u", (unsigned)getpid());
-	logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700);
-	if (logfd == -1)
-		err(EX_CANTCREAT, "open(\"%s\")", buf);
-
-	errno = posix_fallocate(logfd, 0, c2_logbufsize);
-	if (errno != 0)
-		err(EX_CANTCREAT, "fallocate(\"%s\", %u)", buf, c2_logbufsize);
-
-	c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
-		      MAP_SHARED, logfd, 0);
-	if (c2_logbuf == MAP_FAILED)
-		err(EX_OSERR, "mmap(\"%s\")", buf);
-
-out:
 	if (f != NULL)
 		fclose(f);
 
 	return -errno;
+}
+
+static int logbuf_map()
+{
+	char buf[80];
+
+	sprintf(buf, "c2.trace.%u", (unsigned)getpid());
+	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1)
+		warn("open(\"%s\")", buf);
+	else if ((errno = posix_fallocate(logfd, 0, c2_logbufsize)) != 0)
+		warn("fallocate(\"%s\", %u)", buf, c2_logbufsize);
+	else if ((c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
+                                   MAP_SHARED, logfd, 0)) == MAP_FAILED)
+		warn("mmap(\"%s\")", buf);
+
+	return -errno;
+}
+
+int c2_arch_trace_init()
+{
+	int res;
+
+	if ((res = randvspace_check()) != 0)
+		return res;
+	else if ((res = logbuf_map()) != 0)
+		return res;
+	else
+		return 0;
 }
 
 void c2_arch_trace_fini(void)
