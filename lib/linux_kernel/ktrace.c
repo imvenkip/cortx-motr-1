@@ -39,6 +39,8 @@ MODULE_PARM_DESC(c2_trace_immediate_mask, "The bitmask of what should be printed
 
 int c2_arch_trace_init(void)
 {
+	C2_CASSERT(sizeof(c2_trace_immediate_mask) == 8);
+
 	c2_logbuf = kzalloc(c2_logbufsize, GFP_KERNEL);
 	if (c2_logbuf == NULL)
 		return -ENOMEM;
