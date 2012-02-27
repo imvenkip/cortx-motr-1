@@ -18,6 +18,9 @@
  * Original creation date: 02/23/2012
  */
 
+#ifndef __COLIBRI_RPC_SERVICE_H__
+#define __COLIBRI_RPC_SERVICE_H__
+
 #include "lib/atomic.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
@@ -32,6 +35,9 @@ struct c2_rpc_service_type;
 struct c2_rpc_servie_type_ops;
 struct c2_rpc_service;
 struct c2_rpc_service_ops;
+
+int  c2_rpc_service_module_init(void);
+void c2_rpc_service_module_fini(void);
 
 /** @todo XXX This is stub definition */
 struct c2_uuid {
@@ -48,29 +54,36 @@ enum c2_rpc_service_type_id {
 	C2_RPC_MD_SERVICE,
 };
 
-struct c2_rpc_service_type {
-	enum c2_rpc_service_type_id           svt_type;
+enum {
+	C2_RPC_SERVICE_TYPE_MAGIX = 0x5356435f54595045, /* "SVC_TYPE" */
+};
 
+struct c2_rpc_service_type {
+	uint32_t                              svt_type_id;
+	const char                           *svt_name;
 	const struct c2_rpc_service_type_ops *svt_ops;
 
+	uint64_t                              svt_magix;
 	struct c2_tlink                       svt_tlink;
 };
 
 struct c2_rpc_service_type_ops {
 	/** @todo XXX define parameters */
-	struct c2_rpc_service * (*rsto_alloc_and_init)(void);
+	struct c2_rpc_service * (*rsto_alloc_and_init)(
+			struct c2_rpc_service_type *service_type);
 };
 
-#define C2_RPC_SERVICE_TYPE_DEFINE(obj_name, type, ops) \
-struct c2_rpc_service_type (obj_name) = {               \
-	.svt_type = (type);                             \
-	.svt_ops  = (ops);                              \
+#define C2_RPC_SERVICE_TYPE_DEFINE(scope, obj_name, hname, type_id, ops) \
+scope struct c2_rpc_service_type (obj_name) = {                          \
+	.svt_name     = (hname),                                         \
+	.svt_type_id  = (type_id),                                          \
+	.svt_ops      = (ops),                                           \
+	.svt_magix = C2_RPC_SERVICE_TYPE_MAGIX,                          \
 }
 
 void c2_rpc_service_type_register(struct c2_rpc_service_type *service_type);
 
-struct c2_rpc_service_type *
-c2_rpc_service_type_locate(enum c2_rpc_service_type_id type_id);
+struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id);
 
 void c2_rpc_service_type_unregister(struct c2_rpc_service_type *service_type);
 
@@ -122,3 +135,8 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service);
 void c2_rpc_service_detach_conn(struct c2_rpc_service *service);
 
 void c2_rpc_service_release(struct c2_rpc_service *service);
+
+struct c2_rpc_service *
+c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type);
+
+#endif /* __COLIBRI_RPC_SERVICE_H__ */

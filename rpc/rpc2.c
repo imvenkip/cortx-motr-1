@@ -31,6 +31,7 @@
 #include "lib/trace.h"
 #include "rpc/session.h"
 #include "rpc/session_internal.h"
+#include "rpc/service.h"
 #include "fop/fop.h"
 #include "rpc/formation.h"
 #include "fid/fid.h"
@@ -309,12 +310,17 @@ int c2_rpc_core_init(void)
 	if (rc != 0)
 		return rc;
 
+	rc = c2_rpc_service_module_init();
+	if (rc != 0)
+		return rc;
+
 	return c2_rpc_session_module_init();
 }
 
 void c2_rpc_core_fini(void)
 {
 	c2_rpc_session_module_fini();
+	c2_rpc_service_module_fini();
 	c2_rpc_base_fini();
 }
 
