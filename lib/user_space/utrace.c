@@ -70,15 +70,22 @@ int c2_arch_trace_init()
 
 	sprintf(buf, "c2.trace.%u", (unsigned)getpid());
 	logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700);
-	if (logfd != -1) {
-		if (ftruncate(logfd, c2_logbufsize) == 0) {
-			c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
-				      MAP_SHARED, logfd, 0);
-			if (c2_logbuf == MAP_FAILED)
-				perror("mmap");
-		}
-	} else {
+	if (logfd == -1) {
 		perror("open");
+		goto out;
+	}
+
+	errno = posix_fallocate(logfd, 0, c2_logbufsize);
+	if (errno != 0) {
+		perror("fallocate");
+		goto out;
+	}
+
+	c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
+		      MAP_SHARED, logfd, 0);
+	if (c2_logbuf == MAP_FAILED) {
+		perror("mmap");
+		goto out;
 	}
 
 out:
