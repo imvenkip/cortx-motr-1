@@ -1,4 +1,3 @@
-/* -*- C -*- */
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -56,14 +55,6 @@ static const struct c2_bob_type list_enum_bob = {
 
 C2_BOB_DEFINE(static, &list_enum_bob, c2_layout_list_enum);
 
-struct ldb_cob_entry {
-	/** Index for the COB from the layout it is part of. */
-	uint32_t                  llce_cob_index;
-
-	/** COB identifier. */
-	struct c2_fid             llce_cob_id;
-};
-
 /**
  * Structure used to store cob entries inline into the layouts table - maximum
  * upto LDB_MAX_INLINE_COB_ENTRIES number of those.
@@ -73,7 +64,7 @@ struct ldb_cob_entries_header {
 	uint32_t                  llces_nr;
 
 	/**
-	 * Payload storing list of ldb_cob_entry, max upto
+	 * Payload storing list of cob ids (struct c2_fid), max upto
 	 * LDB_MAX_INLINE_COB_ENTRIES number of those.
 	 */
 	char                      llces_cobs[0];
@@ -178,7 +169,10 @@ int c2_list_enum_build(uint64_t lid,
 	for (i = 0; i < nr; ++i) {
 		/** @todo Should a magic number be added to c2_fid to indicate
 		 * it is a valid cob id so as to be able to securely trust it
-		 * here?
+		 * here? Probably that is a bit exepnsive considering the
+		 * the number of cobs we need to deal with.
+		 * OR could it simply be a check something like:
+		 * C2_ASSERT(con_list[i].f_container != 0); ?
 		 */
 		list_enum->lle_list_of_cobs[i] = cob_list[i];
 	}
@@ -252,7 +246,7 @@ static void list_unregister(struct c2_ldb_schema *schema,
 static uint32_t list_max_recsize(void)
 {
 	return sizeof(struct ldb_cob_entries_header) +
-		LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct ldb_cob_entry);
+		LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 }
 
 /**
@@ -270,17 +264,15 @@ static uint32_t list_recsize(struct c2_layout_enum *e)
 
 	if (list_enum->lle_nr <= LDB_MAX_INLINE_COB_ENTRIES)
 		return sizeof(struct ldb_cob_entries_header) +
-			list_enum->lle_nr * sizeof(struct ldb_cob_entry);
+			list_enum->lle_nr * sizeof(struct c2_fid);
 	else
 		return sizeof(struct ldb_cob_entries_header) +
-			LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct
-							    ldb_cob_entry);
+			LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 }
 
 static int ldb_cob_list_read(struct c2_ldb_schema *schema,
-			     enum c2_layout_xcode_op op,
-			     uint64_t lid, uint32_t idx,
-			     struct c2_fid *cob_id,
+			     enum c2_layout_xcode_op op, uint64_t lid,
+			     uint32_t idx, struct c2_fid *cob_id,
 			     struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
@@ -304,8 +296,8 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 		return rc;
 
 	/**
-	 * @todo Should there be any validation confirming the cob id read
-	 * from the DB is sane. Following assert is a place holder/temporary.
+	 * @todo What should be the validation confirming that the cob id read
+	 * from the DB is sane. Following assert is a place holder.
 	 */
 	C2_ASSERT(rec.lclr_cob_id.f_container != 0);
 
@@ -335,8 +327,8 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 {
 	struct c2_layout_list_enum    *list_enum;
 	struct ldb_cob_entries_header *ldb_ce_header;
-	struct ldb_cob_entry          *ldb_ce;
 	uint32_t                       num_inline; /* No. of inline cobs */
+	struct c2_fid                 *cob_id;
 	struct c2_fid                 *cob_list;
 	uint32_t                       i;
 	int                            rc;
@@ -345,7 +337,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	/* Catch if the buffer is with insufficient size. */
-	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ldb_ce_header);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
@@ -353,6 +345,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	ldb_ce_header = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(ldb_ce_header != NULL);
+
 	c2_bufvec_cursor_move(cur, sizeof *ldb_ce_header);
 
 	C2_ALLOC_ARR(cob_list, ldb_ce_header->llces_nr);
@@ -362,7 +355,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	num_inline = ldb_ce_header->llces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : ldb_ce_header->llces_nr;
 
-	C2_ASSERT(c2_bufvec_cursor_step(cur) >= num_inline * sizeof *ldb_ce);
+	C2_ASSERT(c2_bufvec_cursor_step(cur) >= num_inline * sizeof *cob_id);
 
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
 		if (i == 0) {
@@ -374,11 +367,10 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		}
 
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
-			ldb_ce = c2_bufvec_cursor_addr(cur);
-			c2_bufvec_cursor_move(cur, sizeof *ldb_ce);
-			C2_ASSERT(ldb_ce != NULL);
-			C2_ASSERT(ldb_ce->llce_cob_index == i);
-			cob_list[i] = ldb_ce->llce_cob_id;
+			cob_id = c2_bufvec_cursor_addr(cur);
+			c2_bufvec_cursor_move(cur, sizeof *cob_id);
+			C2_ASSERT(cob_id != NULL);
+			cob_list[i] = *cob_id;
 		} else {
 			rc = ldb_cob_list_read(schema, op, lid, i,
 					       &cob_list[i], tx);
@@ -401,9 +393,8 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 /* todo Check how should the cob entry be passed to this fn. */
 int ldb_cob_list_write(struct c2_ldb_schema *schema,
-		       enum c2_layout_xcode_op op,
-		       uint64_t lid,
-		       struct ldb_cob_entry *ldb_ce,
+		       enum c2_layout_xcode_op op, uint64_t lid,
+		       uint32_t idx, struct c2_fid *cob_id,
 		       struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
@@ -411,11 +402,13 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 	struct ldb_cob_lists_rec  rec;
 	struct c2_db_pair         pair;
 
+	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
+
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 
 	key.lclk_lid       = lid;
-	key.lclk_cob_index = ldb_ce->llce_cob_index;
-	rec.lclr_cob_id    = ldb_ce->llce_cob_id;
+	key.lclk_cob_index = idx;
+	rec.lclr_cob_id    = *cob_id;
 
 	c2_db_pair_setup(&pair, &lsd->lsd_cob_lists,
 			 &key, sizeof key,
@@ -456,8 +449,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	uint32_t                       num_inline; /* No. of inline cobs */
 	struct ldb_cob_entries_header *ldb_ce_header;
 	struct ldb_cob_entries_header *ldb_ce_oldheader;
-	struct ldb_cob_entry           ldb_ce;
-	struct ldb_cob_entry          *ldb_ce_old;
+	struct c2_fid                 *cob_id_old;
 	c2_bcount_t                    nbytes_copied;
 	int                            i;
 	int                            rc = 0;
@@ -465,14 +457,14 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
+	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-	       !c2_bufvec_cursor_move(oldrec_cur, 0)));
+	       c2_bufvec_cursor_step(olrec_cur) >= sizeof *ldb_ce_oldheader));
 	C2_PRE(out != NULL);
 
-	//C2_LOG("In list_encode(), l %p \n", l);
+	C2_LOG("list_encode(): lid %llu\n", (unsigned long long)l->l_id);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
@@ -492,20 +484,17 @@ static int list_encode(struct c2_ldb_schema *schema,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *ldb_ce_oldheader);
 
 		C2_ASSERT(c2_bufvec_cursor_step(oldrec_cur) >=
-			  num_inline * sizeof *ldb_ce_old);
+			  num_inline * sizeof *cob_id_old);
 
 		for (i = 0; i < num_inline; ++i) {
-			ldb_ce_old = c2_bufvec_cursor_addr(oldrec_cur);
-
-			if (ldb_ce_old->llce_cob_index != i)
-				return -EINVAL;
-			if (ldb_ce_old->llce_cob_id.f_container !=
+			cob_id_old = c2_bufvec_cursor_addr(oldrec_cur);
+			if (cob_id_old->f_container !=
 			    list_enum->lle_list_of_cobs[i].f_container ||
-			    ldb_ce_old->llce_cob_id.f_key !=
+			    cob_id_old->f_key !=
 			    list_enum->lle_list_of_cobs[i].f_key)
 				return -EINVAL;
-
-			c2_bufvec_cursor_move(oldrec_cur, sizeof *ldb_ce_old);
+			c2_bufvec_cursor_move(oldrec_cur,
+					sizeof list_enum->lle_list_of_cobs[i]);
 		}
 
 		/*
@@ -526,8 +515,6 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_ASSERT(nbytes_copied == sizeof *ldb_ce_header);
 
 	for(i = 0; i < list_enum->lle_nr; ++i) {
-		ldb_ce.llce_cob_index = i;
-		ldb_ce.llce_cob_id = list_enum->lle_list_of_cobs[i];
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
 			if (i == 0) {
 				C2_LOG("list_encode(): Start processing "
@@ -538,18 +525,20 @@ static int list_encode(struct c2_ldb_schema *schema,
 				       "non-inline cob entries.\n");
 			}
 
-			nbytes_copied = c2_bufvec_cursor_copyto(out, &ldb_ce,
-							sizeof ldb_ce);
-			C2_ASSERT(nbytes_copied == sizeof ldb_ce);
+			nbytes_copied = c2_bufvec_cursor_copyto(out,
+					 &list_enum->lle_list_of_cobs[i],
+					 sizeof list_enum->lle_list_of_cobs[i]);
+			C2_ASSERT(nbytes_copied ==
+				  sizeof list_enum->lle_list_of_cobs[i]);
 		}
 		else {
 			/* Write non-inline cob entries to the
 			 * cob_lists table. */
 			C2_LOG("list_encode(): Writing to cob_lists table: "
-			       "i %u, ldb_ce.llce_cob_index %llu/n",
-			       i, (unsigned long long)ldb_ce.llce_cob_index);
-			rc = ldb_cob_list_write(schema, op, l->l_id,
-						&ldb_ce, tx);
+			       "i %lu/n", (unsigned long)i);
+			rc = ldb_cob_list_write(schema, op, l->l_id, i,
+						&list_enum->lle_list_of_cobs[i],
+						tx);
 		}
 	}
 

@@ -283,7 +283,7 @@ static int pdclust_list_lbuf_build(uint64_t lid,
 
 {
 	struct ldb_cob_entries_header  ldb_ce_header;
-	struct ldb_cob_entry           ce;
+	struct c2_fid                  cob_id;
 	uint32_t                       i;
 	c2_bcount_t                    nbytes_copied;
 
@@ -295,11 +295,11 @@ static int pdclust_list_lbuf_build(uint64_t lid,
 	C2_UT_ASSERT(nbytes_copied == sizeof ldb_ce_header);
 
 	for (i = 0; i < ldb_ce_header.llces_nr; ++i) {
-		ce.llce_cob_index = i;
-		ce.llce_cob_id.f_container = i * 100 + 1;
-		ce.llce_cob_id.f_key = i + 1;
-		nbytes_copied = c2_bufvec_cursor_copyto(dcur, &ce, sizeof ce);
-		C2_UT_ASSERT(nbytes_copied == sizeof ce);
+		cob_id.f_container = i * 100 + 1;
+		cob_id.f_key = i + 1;
+		nbytes_copied = c2_bufvec_cursor_copyto(dcur, &cob_id,
+							sizeof cob_id);
+		C2_UT_ASSERT(nbytes_copied == sizeof cob_id);
 	}
 
 	return 0;
@@ -475,6 +475,7 @@ static int test_decode_pdclust_linear(uint64_t lid)
 /*
  * This test results into an assert from linear_decode():
  * C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+*/
 static int test_decode_pdclust_linear_negative(uint64_t lid)
 {
 	void                      *area;
@@ -502,6 +503,7 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 
 	return rc;
 }
+/*
  */
 
 static void test_decode(void)
@@ -525,10 +527,11 @@ static void test_decode(void)
 	 * Negative test -
 	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
 	 *
-	 * lid = 0x50444C4953543032; * PDLIST03 *
-	 * rc = test_decode_pdclust_linear_negative(lid);
-	 * C2_UT_ASSERT(rc == 0);
 	 */
+	  lid = 0x50444C4953543032; /* PDLIST03 */
+	  rc = test_decode_pdclust_linear_negative(lid);
+	  C2_UT_ASSERT(rc == 0);
+
 	internal_fini();
 }
 
@@ -602,6 +605,8 @@ static void lbuf_verify(struct c2_bufvec_cursor *cur, uint32_t *lt_id)
 {
 	struct c2_ldb_rec  *rec;
 
+	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >= sizeof *rec);
+
 	rec = c2_bufvec_cursor_addr(cur);
 	C2_UT_ASSERT(rec != NULL);
 
@@ -616,6 +621,8 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K,
 				uint32_t *let_id)
 {
 	struct c2_ldb_pdclust_rec  *pl_rec;
+
+	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
 
 	pl_rec = c2_bufvec_cursor_addr(cur);
 
@@ -656,14 +663,15 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 	uint32_t                        let_id;
 	uint32_t                        i;
 	struct ldb_cob_entries_header  *ldb_ce_header;
-	struct ldb_cob_entry           *ldb_ce;
-	//uint32_t                        num_inline; /* No. of inline cobs */
+	struct c2_fid                  *cob_id;
 
 	lbuf_verify(cur, &lt_id);
 	C2_UT_ASSERT(lt_id == c2_pdclust_layout_type.lt_id);
 
 	pdclust_lbuf_verify(N, K, cur, &let_id);
 	C2_UT_ASSERT(let_id == c2_list_enum_type.let_id);
+
+	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >= sizeof *ldb_ce_header);
 
 	ldb_ce_header = c2_bufvec_cursor_addr(cur);
 	C2_UT_ASSERT(ldb_ce_header != NULL);
@@ -672,25 +680,16 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 	c2_bufvec_cursor_move(cur, sizeof *ldb_ce_header);
 
 	C2_UT_ASSERT(ldb_ce_header->llces_nr > 0);
+	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >=
+		     ldb_ce_header->llces_nr * sizeof *cob_id);
 
-	/*
-	num_inline = ldb_ce_header->llces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
-		LDB_MAX_INLINE_COB_ENTRIES : ldb_ce_header->llces_nr;
-	*/
-
-	//for (i = 0; i < num_inline; ++i) {
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
-		ldb_ce = c2_bufvec_cursor_addr(cur);
-		C2_UT_ASSERT(ldb_ce != NULL);
-		C2_UT_ASSERT(ldb_ce->llce_cob_index <= ldb_ce_header->llces_nr);
-		C2_UT_ASSERT(ldb_ce->llce_cob_id.f_container ==
-			  ldb_ce->llce_cob_index * 100 + 1);
-		C2_UT_ASSERT(ldb_ce->llce_cob_id.f_key ==
-			  ldb_ce->llce_cob_index + 1);
-		c2_bufvec_cursor_move(cur, sizeof *ldb_ce);
+		cob_id = c2_bufvec_cursor_addr(cur);
+		C2_UT_ASSERT(cob_id != NULL);
+		C2_UT_ASSERT(cob_id->f_container == i * 100 + 1);
+		C2_UT_ASSERT(cob_id->f_key == i + 1);
+		c2_bufvec_cursor_move(cur, sizeof *cob_id);
 	}
-
-	/* todo Verify the list contents from the cob_lists table */
 
 	return rc;
 }

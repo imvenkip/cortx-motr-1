@@ -380,7 +380,7 @@ void c2_pdclust_fini(struct c2_layout *l)
 
 	if (pl != NULL) {
 		c2_layout_fini(&pl->pl_base.ls_base);
-		/* Check if this is the rt place for the following */
+		/* todo Check if this is the rt place for the following */
 		c2_free(stl->ls_enum);
 		c2_free(pl->pl_tile_cache.tc_inverse);
 		c2_free(pl->pl_tile_cache.tc_permute);
@@ -552,7 +552,8 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+	/* Catch if the buffer is with insufficient size. */
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
@@ -631,8 +632,9 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
+	/* Catch if the buffer is with insufficient size. */
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-	       !c2_bufvec_cursor_move(oldrec_cur, 0)));
+	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec));
 	C2_PRE(out != NULL);
 
 	C2_LOG("pdclust_encode(): %llu\n", (unsigned long long)l->l_id);

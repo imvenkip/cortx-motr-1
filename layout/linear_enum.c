@@ -126,7 +126,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	/* Catch if the buffer is with insufficient size. */
-	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 

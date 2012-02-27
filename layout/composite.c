@@ -159,6 +159,9 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(cur != NULL);
 	/* Catch if the buffer is with insufficient size. */
 	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+	/* todo Change the above assert to the form:
+	 * C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof ...);
+	 */
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(tx != NULL);
 

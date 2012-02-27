@@ -205,7 +205,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	/* Catch if the buffer is with insufficient size. */
-	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
@@ -302,7 +302,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-	      !c2_bufvec_cursor_move(oldrec_cur, 0)));
+	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec));
 	C2_PRE(out != NULL);
 
 	C2_LOG("c2_layout_encode(): %llu\n", (unsigned long long)l->l_id);
