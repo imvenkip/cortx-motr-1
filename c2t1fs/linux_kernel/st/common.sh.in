@@ -9,6 +9,21 @@ abort()
     exit 1
 }
 
+modload_galois()
+{
+    BASE=@GALOIS_SRC@
+    if test "x$BASE" = "x"; then
+        modprobe galois
+    else
+        insmod $BASE/src/linux_kernel/galois.ko
+    fi
+}
+
+modunload_galois()
+{
+    rmmod galois
+}
+
 modload()
 {
     for m in $MODLIST ;do
