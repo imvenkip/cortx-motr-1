@@ -210,7 +210,8 @@ gather_coverage()
                 data failed" 1
         else
             if [ -f process_lcov.sh ]; then
-                ./process_lcov.sh $cur_branch_dir/coverage-data/html/index.html \
+                ./process_lcov.sh \
+		    -i $cur_branch_dir/coverage-data/html/index.html -b -l -f \
                     > $cur_branch_dir/coverage-data/coverage-data.txt 2>&1
                 rc=$?
                 if [ $rc -ne 0 ]; then
