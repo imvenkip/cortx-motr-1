@@ -77,6 +77,8 @@ int c2_arch_trace_init()
 
 	errno = posix_fallocate(logfd, 0, c2_logbufsize);
 	if (errno != 0) {
+		fprintf(stderr, "fallocate(%s, %u) failed: %s\n",
+			buf, c2_logbufsize, strerror(errno));
 		perror("fallocate");
 		goto out;
 	}
