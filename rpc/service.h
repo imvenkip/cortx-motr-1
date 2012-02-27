@@ -68,9 +68,12 @@ struct c2_rpc_service_type {
 };
 
 struct c2_rpc_service_type_ops {
-	/** @todo XXX define parameters */
+	/** @todo XXX */
 	struct c2_rpc_service * (*rsto_alloc_and_init)(
-			struct c2_rpc_service_type *service_type);
+			struct c2_rpc_service_type *service_type,
+			const char                 *ep_addr,
+			const struct c2_uuid       *uuid
+			);
 };
 
 #define C2_RPC_SERVICE_TYPE_DEFINE(scope, obj_name, hname, type_id, ops) \
@@ -94,6 +97,11 @@ enum c2_rpc_service_state {
 	C2_RPC_SERVICE_STATE_CONN_DETACHED,
 };
 
+enum {
+	C2_RPC_SERVICE_MAGIX            = 0x7270635f737663,   /* "rpc_svc"  */
+	C2_RPC_SERVICES_LIST_HEAD_MAGIX = 0x7270637376636864, /* "rpcsvchd" */
+};
+
 struct c2_rpc_service {
 	struct c2_rpc_service_type      *svc_type;
 
@@ -102,13 +110,14 @@ struct c2_rpc_service {
 	struct c2_mutex                  svc_mutex;
 
 	/** @todo XXX embed service configuration object in c2_rpc_service */
-	char                            *svc_ep_addr;
+	const char                      *svc_ep_addr;
 	struct c2_uuid                   svc_uuid;
 	struct c2_rpc_conn              *svc_conn;
 
 	const struct c2_rpc_service_ops *svc_ops;
 
 	struct c2_tlink                  svc_tlink;
+	uint64_t                         svc_magix;
 };
 
 struct c2_rpc_service_ops {
@@ -119,6 +128,17 @@ struct c2_rpc_service_ops {
  * struct c2_rpc_service *
  * c2_confc_service_to_rpc_service(const struct c2_conf_service *confc_service);
  */
+
+struct c2_rpc_service *
+c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
+			      const char                 *ep_addr,
+			      const struct c2_uuid       *uuid);
+
+int c2_rpc__service_init(struct c2_rpc_service           *service,
+			 struct c2_rpc_service_type      *service_type,
+			 const char                      *ep_addr,
+			 const struct c2_uuid            *uuid,
+			 const struct c2_rpc_service_ops *ops);
 
 const char *
 c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service);
@@ -135,8 +155,5 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service);
 void c2_rpc_service_detach_conn(struct c2_rpc_service *service);
 
 void c2_rpc_service_release(struct c2_rpc_service *service);
-
-struct c2_rpc_service *
-c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type);
 
 #endif /* __COLIBRI_RPC_SERVICE_H__ */

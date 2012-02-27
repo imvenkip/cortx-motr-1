@@ -9,10 +9,14 @@ enum {
 
 /* Forward declaration */
 static struct c2_rpc_service *
-foo_alloc_and_init(struct c2_rpc_service_type *service_type);
+foo_alloc_and_init(struct c2_rpc_service_type *service_type,
+		   const char                 *ep_addr,
+		   const struct c2_uuid       *uuid);
 
 static struct c2_rpc_service *
-bar_alloc_and_init(struct c2_rpc_service_type *service_type);
+bar_alloc_and_init(struct c2_rpc_service_type *service_type,
+		   const char                 *ep_addr,
+		   const struct c2_uuid       *uuid);
 
 
 static const struct c2_rpc_service_type_ops foo_type_ops = {
@@ -25,7 +29,9 @@ C2_RPC_SERVICE_TYPE_DEFINE(static, foo_service_type, "foo",
 static bool foo_alloc_and_init_called;
 
 static struct c2_rpc_service *
-foo_alloc_and_init(struct c2_rpc_service_type *service_type)
+foo_alloc_and_init(struct c2_rpc_service_type *service_type,
+		   const char                 *ep_addr,
+		   const struct c2_uuid       *uuid)
 {
 	C2_UT_ASSERT(service_type == &foo_service_type);
 	foo_alloc_and_init_called = true;
@@ -42,7 +48,9 @@ C2_RPC_SERVICE_TYPE_DEFINE(static, bar_service_type, "bar",
 static bool bar_alloc_and_init_called;
 
 static struct c2_rpc_service *
-bar_alloc_and_init(struct c2_rpc_service_type *service_type)
+bar_alloc_and_init(struct c2_rpc_service_type *service_type,
+		   const char                 *ep_addr,
+		   const struct c2_uuid       *uuid)
 {
 	C2_UT_ASSERT(service_type == &bar_service_type);
 	bar_alloc_and_init_called = true;
@@ -83,11 +91,11 @@ static void alloc_test(void)
 	struct c2_rpc_service *service;
 
 	foo_alloc_and_init_called = false;
-	service = c2_rpc_service_alloc_and_init(&foo_service_type);
+	service = c2_rpc_service_alloc_and_init(&foo_service_type, NULL, NULL);
 	C2_UT_ASSERT(foo_alloc_and_init_called);
 
 	bar_alloc_and_init_called = false;
-	service = c2_rpc_service_alloc_and_init(&bar_service_type);
+	service = c2_rpc_service_alloc_and_init(&bar_service_type, NULL, NULL);
 	C2_UT_ASSERT(bar_alloc_and_init_called);
 }
 

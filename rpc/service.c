@@ -30,8 +30,13 @@ static struct c2_bob_type rpc_service_type_bob = {
 	.bt_check        = NULL,
 };
 
-/** @todo XXX add "static" as first argument */
-C2_BOB_DEFINE(, &rpc_service_type_bob, c2_rpc_service_type);
+static void c2_rpc_service_type_bob_init(struct c2_rpc_service_type *)
+				__attribute__((unused));
+
+static void c2_rpc_service_type_bob_fini(struct c2_rpc_service_type *)
+				__attribute__((unused));
+
+C2_BOB_DEFINE(static, &rpc_service_type_bob, c2_rpc_service_type);
 
 enum {
 	RPC_SERVICE_TYPES_LIST_HEAD_MAGIX = 0x5356435459504844, /* "SVCTYPHD" */
@@ -111,13 +116,78 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 	return NULL;
 }
 
+static struct c2_bob_type rpc_service_bob = {
+	.bt_name         = "rpc_service",
+	.bt_magix_offset = offsetof(struct c2_rpc_service, svc_magix),
+	.bt_magix        = C2_RPC_SERVICE_MAGIX,
+	.bt_check        = NULL,
+};
+
+/** @todo XXX make following definition static */
+C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
+
+C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
+                   struct c2_rpc_service, svc_tlink, svc_magix,
+                   C2_RPC_SERVICE_MAGIX,
+                   C2_RPC_SERVICES_LIST_HEAD_MAGIX);
+
+C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
+ 
 struct c2_rpc_service *
-c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type)
+c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
+			      const char                 *ep_addr,
+			      const struct c2_uuid       *uuid)
 {
+	struct c2_rpc_service *service;
+
 	C2_PRE(service_type != NULL &&
 	       service_type->svt_ops != NULL &&
 	       service_type->svt_ops->rsto_alloc_and_init != NULL);
 
-	return service_type->svt_ops->rsto_alloc_and_init(service_type);
+	service = service_type->svt_ops->rsto_alloc_and_init(service_type,
+					ep_addr, uuid);
+
+	C2_ASSERT(ergo(service != NULL, c2_rpc_service_bob_check(service)));
+
+	return service;
 }
 
+int c2_rpc__service_init(struct c2_rpc_service            *service,
+			 struct c2_rpc_service_type       *service_type,
+			 const char                       *ep_addr,
+			 const struct c2_uuid             *uuid,
+			 const struct c2_rpc_service_ops  *ops)
+{
+	C2_PRE(service != NULL && ep_addr != NULL);
+	C2_PRE(service_type != NULL);
+	C2_PRE(uuid != NULL && ops != NULL && ops->rso_fini_and_free != NULL);
+	C2_PRE(service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED);
+
+	service->svc_type    = service_type;
+	service->svc_ep_addr = ep_addr;
+	service->svc_uuid    = *uuid;
+	service->svc_ops     = ops;
+	service->svc_conn    = NULL;
+
+	c2_mutex_init(&service->svc_mutex);
+	c2_rpc_services_tlink_init(service);
+	c2_rpc_service_bob_init(service);
+
+	return 0;
+}
+
+const char *
+c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service)
+{
+	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+
+	return service->svc_ep_addr;
+}
+
+const struct c2_uuid *
+c2_rpc_service_get_uuid(const struct c2_rpc_service *service)
+{
+	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+
+	return &service->svc_uuid;
+}
