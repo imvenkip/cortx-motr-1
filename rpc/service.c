@@ -114,6 +114,10 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 struct c2_rpc_service *
 c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type)
 {
+	C2_PRE(service_type != NULL &&
+	       service_type->svt_ops != NULL &&
+	       service_type->svt_ops->rsto_alloc_and_init != NULL);
+
 	return service_type->svt_ops->rsto_alloc_and_init(service_type);
 }
 

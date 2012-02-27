@@ -4,6 +4,7 @@
 enum {
 	C2_RPC_SERVICE_TYPE_FOO = 1,
 	C2_RPC_SERVICE_TYPE_BAR,
+	C2_RPC_SERVICE_TYPE_NON_EXISTENT,
 };
 
 /* Forward declaration */
@@ -69,6 +70,14 @@ static void register_test(void)
 				&bar_service_type);
 }
 
+static void locate_failed_test(void)
+{
+	C2_UT_ASSERT(
+		c2_rpc_service_type_locate(C2_RPC_SERVICE_TYPE_NON_EXISTENT) ==
+			NULL
+	);
+}
+
 static void alloc_test(void)
 {
 	struct c2_rpc_service *service;
@@ -98,10 +107,11 @@ const struct c2_test_suite rpc_service_ut = {
 	.ts_init  = rpc_service_ut_init,
 	.ts_fini  = rpc_service_ut_fini,
 	.ts_tests = {
-			{ "service-type-register",   register_test   },
-			{ "service-alloc",           alloc_test      },
-			{ "service-type-unregister", unregister_test },
-			{ NULL,                      NULL            }
+			{ "service-type-register",    register_test   },
+			{ "service-type-locate-fail", locate_failed_test },
+			{ "service-alloc",            alloc_test      },
+			{ "service-type-unregister",  unregister_test },
+			{ NULL,                       NULL            }
 	}
 };
 
