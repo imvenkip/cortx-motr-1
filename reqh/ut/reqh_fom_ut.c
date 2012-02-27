@@ -436,7 +436,7 @@ void test_reqh(void)
 }
 
 const struct c2_test_suite reqh_ut = {
-	.ts_name = "reqh-ut...",
+	.ts_name = "reqh-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {

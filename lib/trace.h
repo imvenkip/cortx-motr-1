@@ -21,6 +21,12 @@
 #ifndef __COLIBRI_LIB_TRACE_H__
 #define __COLIBRI_LIB_TRACE_H__
 
+#include <stdarg.h>
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h> /* ENABLE_DEBUG */
+#endif
+
 #include "lib/types.h"
 #include "lib/arith.h"
 
@@ -164,15 +170,32 @@ void c2_trace_fini(void);
  * Below is the internal implementation stuff.
  */
 
+#ifdef ENABLE_DEBUG
+#  define C2_TRACE_IMMEDIATE_DEBUG (1)
+#else
+#  define C2_TRACE_IMMEDIATE_DEBUG (0)
+#endif
+
 /** Magic number to locate the record */
 enum {
 	C2_TRACE_MAGIC = 0xc0de1eafacc01adeULL,
 };
 
+/** Default buffer size, the real buffer size is at c2_logbufsize */
 enum {
-	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB log buffer */
+	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB */
 };
 
+extern void      *c2_logbuf;      /**< Trace buffer pointer */
+extern uint32_t   c2_logbufsize;  /**< The real buffer size */
+
+/** The bitmask of what should be printed immediately to console */
+extern unsigned long c2_trace_immediate_mask;
+/** The subsystem bitmask definishions */
+enum c2_trace_subsystem {
+	C2_TRACE_SUBSYS_OTHER = (1 <<  0),
+	C2_TRACE_SUBSYS_UT    = (1 <<  1),
+};
 
 /**
  * Record header structure
@@ -195,6 +218,7 @@ struct c2_trace_descr {
 	const char *td_fmt;
 	const char *td_func;
 	const char *td_file;
+	uint64_t    td_subsys;
 	int         td_line;
 	int         td_size;
 	int         td_nr;
@@ -202,7 +226,12 @@ struct c2_trace_descr {
 	const int  *td_sizeof;
 };
 
-void c2_trace_allot(const struct c2_trace_descr *, const void *data);
+void c2_trace_allot(const struct c2_trace_descr *td, const void *data);
+void c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf);
+
+__attribute__ ((format (printf, 1, 2)))
+void c2_console_printf(const char *fmt, ...);
+void c2_console_vprintf(const char *fmt, va_list ap);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging
@@ -234,6 +263,7 @@ void c2_trace_allot(const struct c2_trace_descr *, const void *data);
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
 		.td_line   = __LINE__,					\
+		.td_subsys = C2_TRACE_SUBSYSTEM,			\
 		.td_size   = sizeof(struct t_body),			\
 		.td_nr     = (NR),					\
 		.td_offset = _offset,					\
@@ -242,6 +272,10 @@ void c2_trace_allot(const struct c2_trace_descr *, const void *data);
 	printf_check(FMT , ## __VA_ARGS__);				\
 	c2_trace_allot(&td, &(const struct t_body){ __VA_ARGS__ });	\
 })
+
+#ifndef C2_TRACE_SUBSYSTEM
+#  define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_OTHER
+#endif
 
 enum {
 	C2_TRACE_ARGC_MAX = 9

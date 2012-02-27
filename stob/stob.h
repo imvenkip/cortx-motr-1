@@ -30,6 +30,7 @@
 #include "lib/tlist.h"
 #include "addb/addb.h"
 #include "sm/sm.h"
+#include "stob/stob_id.h"
 
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
@@ -60,7 +61,6 @@ struct c2_db_tx;
  */
 
 struct c2_stob;
-struct c2_stob_id;
 struct c2_stob_op;
 struct c2_stob_io;
 struct c2_stob_type;
@@ -165,19 +165,6 @@ enum c2_stob_state {
 	 */
 	CSS_NOENT
 };
-
-/**
-   Unique storage object identifier.
-
-   A storage object in a cluster is identified by identifier of this type.
- */
-struct c2_stob_id {
-	struct c2_uint128 si_bits;
-};
-
-bool c2_stob_id_eq (const struct c2_stob_id *id0, const struct c2_stob_id *id1);
-int  c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
-bool c2_stob_id_is_set(const struct c2_stob_id *id);
 
 /**
    In-memory representation of a storage object.

@@ -24,7 +24,9 @@ fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
 # currently, kernel UT runs as part of loading kutc2 module
+modload_galois
 modload
 modunload
+modunload_galois
 
 tail -c+$tailseek "$log" | grep ' kernel: '
