@@ -62,7 +62,7 @@ nohup.out
 test_db*
 build/
 c2ut.log-Results.xml
-c2.trace
+c2.trace.*
 *.errlog
 *.msglog
 ut-sandbox
