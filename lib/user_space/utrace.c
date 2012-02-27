@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <err.h>
 #include <sysexits.h>
+#include <stdio.h>
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */

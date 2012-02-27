@@ -194,7 +194,7 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 	c2_console_printf("\n");
 }
 
-__attribute__ ((format (printf, 1, 2)))
+
 void c2_console_printf(const char *fmt, ...)
 {
 	va_list ap;

@@ -21,8 +21,6 @@
 #ifndef __COLIBRI_LIB_USERSP_TRACE_H__
 #define __COLIBRI_LIB_USERSP_TRACE_H__
 
-#include <stdio.h>
-
 /**
    @defgroup trace Tracing.
 
