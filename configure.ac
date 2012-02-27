@@ -423,7 +423,8 @@ fi
 
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
-GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
+#GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
+GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
 if ! test -e $GALOIS_LIBS; then
         AC_MSG_RESULT([building $GALOIS_SRC])

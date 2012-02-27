@@ -63,8 +63,8 @@ fol_HEADERS 			:= fol.h
 fop_SOURCES 			:= fop.c fom.c fop_format.c fop_iterator.c      \
 				   fop_base.c fop_item_type.c
 
-galois_SOURCES 			:= ../../galois/galois.c
-galois_HEADERS 			:= ../../galois/galois.h
+galois_SOURCES 			:= ../../galois/src/galois.c
+galois_HEADERS 			:= ../../galois/include/galois/galois.h
 
 ioservice_SOURCES 		:= io_fops.c io_fops_k.c
 ioservice_HEADERS 		:= io_fops.h io_fops_k.h
@@ -114,7 +114,7 @@ rpc_HEADERS 			:= session_k.h
 sm_SOURCES 			:= sm.c
 
 sns_SOURCES 			:= ls_solve.c matvec.c parity_math.c parity_ops.c
-sns_HEADERS 			:= parity_math.h ../galois/galois.h
+sns_HEADERS 			:= parity_math.h ../../galois/include/galois/galois.h
 
 stob_SOURCES 			:= stob.c
 stob_HEADERS 			:= stob.h

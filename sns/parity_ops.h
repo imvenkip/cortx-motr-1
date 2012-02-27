@@ -21,7 +21,8 @@
 #ifndef __COLIBRI_SNS_PARITY_OPS_H__
 #define __COLIBRI_SNS_PARITY_OPS_H__
 
-#include "../galois/galois.h"
+//#include "../galois/galois.h"
+#include "../../galois/include/galois/galois.h"
 #include "lib/assert.h"
 
 #define C2_PARITY_ZERO (0)
