@@ -45,10 +45,16 @@
  */
 
 /* single buffer for now */
-void      *c2_logbuf = NULL;
-uint32_t   c2_logbufsize;
 
-unsigned long c2_trace_immediate_mask;
+/**
+ * This buffer is used for early trace records issued before real buffer is
+ * initialized by c2_trace_init().
+ */
+char       bootbuf[4096];
+void      *c2_logbuf     = bootbuf;
+uint32_t   c2_logbufsize = sizeof bootbuf;
+
+unsigned long c2_trace_immediate_mask = 0;
 C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
 static uint32_t           bufmask;
@@ -60,8 +66,6 @@ extern void c2_arch_trace_fini(void);
 int c2_trace_init(void)
 {
 	int psize;
-
-	C2_ASSERT(c2_logbuf == NULL);
 
 	c2_atomic64_set(&cur, 0);
 
@@ -106,7 +110,6 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	struct c2_trace_rec_header *header;
 	register unsigned long sp asm ("sp"); /* stack pointer */
 
-	C2_ASSERT(c2_logbuf != NULL);
 	/*
 	 * Allocate space in trace buffer to store trace record header
 	 * (header_len bytes) and record payload (record_len bytes).
