@@ -402,7 +402,7 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 		c2_free(pool);
 	}
 
-	result = c2_pdclust_build(pool, &id, N, K, &seed, &le->lle_base, play);
+	result = c2_pdclust_build(pool, id, N, K, &seed, &le->lle_base, play);
 
 	if (result != 0) {
 		c2_pool_fini(pool);

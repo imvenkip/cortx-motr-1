@@ -62,7 +62,6 @@ void c2_composite_init(struct c2_composite_layout *clay,
 
 	/**
 	   Intialize clay->cl_sub_layouts by using sub_layouts.
-	   @todo Yet, need to explore this in detail.
 	 */
 }
 
@@ -70,7 +69,6 @@ void c2_composite_fini(struct c2_composite_layout *clay)
 {
 	/**
 	   De-intialize clay->cl_sub_layouts.
-	   @todo Yet, need to explore this in detail.
 	 */
 }
 
@@ -158,9 +156,8 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	/* Check if the buffer is with insufficient size. */
-	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
-	/* todo Change the above assert to the form:
+	/* Check if the buffer is with insufficient size, using assert of the
+	 * form:
 	 * C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof ...);
 	 */
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);

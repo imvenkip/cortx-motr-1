@@ -553,7 +553,7 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 	rc = c2_pool_lookup(DEF_POOL_ID, &pool);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_pdclust_build(pool, &lid, N, K, &seed, le, pl);
+	rc = c2_pdclust_build(pool, lid, N, K, &seed, le, pl);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;

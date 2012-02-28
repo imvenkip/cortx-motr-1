@@ -87,10 +87,10 @@ int c2_layout_init(struct c2_layout *l,
 
 	c2_mutex_init(&l->l_lock);
 
-	l->l_id     = lid;
-	l->l_type   = type;
-	l->l_pid    = pool_id;
-	l->l_ops    = ops;
+	l->l_id      = lid;
+	l->l_type    = type;
+	l->l_pool_id = pool_id;
+	l->l_ops     = ops;
 
 	return 0;
 }
@@ -234,14 +234,6 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	 * which will be caught by the respective lto_decode() implementation.
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
-	/* todo Add TC to verify the functioning when no type specific
-	 * data is present even when expected.
-	 * 1) If buffer is capable of that size, then cur is not NULL in that
-	 *    case. Hence, need to verify that type data is sane. Use bob for
-	 *    this purspose.
-	 * 2) If buffer is not capable of that size, then the assert
-	 *    C2_PRE(!c2_bufvec_cursor_move(cur, 0)) catches it.
-	 */
 
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0)
@@ -249,10 +241,10 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	c2_mutex_lock(&(*out)->l_lock);
 
-	(*out)->l_id = lid;
-	(*out)->l_type = lt;
-	(*out)->l_ref = rec->lr_ref_count;
-	(*out)->l_pid = rec->lr_pid;
+	(*out)->l_id      = lid;
+	(*out)->l_type    = lt;
+	(*out)->l_ref     = rec->lr_ref_count;
+	(*out)->l_pool_id = rec->lr_pid;
 
 	c2_mutex_unlock(&(*out)->l_lock);
 
@@ -332,7 +324,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		C2_ASSERT(oldrec != NULL);
 		if (oldrec->lr_lt_id != l->l_type->lt_id)
 			return -EINVAL;
-		if (oldrec->lr_pid != l->l_pid)
+		if (oldrec->lr_pid != l->l_pool_id)
 			return -EINVAL;
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
 	}
@@ -345,7 +337,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	rec->lr_lt_id     = l->l_type->lt_id;
 	rec->lr_ref_count = l->l_ref;
-	rec->lr_pid       = l->l_pid;
+	rec->lr_pid       = l->l_pool_id;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
 	C2_ASSERT(nbytes_copied == sizeof *rec);

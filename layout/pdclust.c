@@ -402,8 +402,7 @@ void c2_pdclust_fini(struct c2_layout *l)
 
 static const struct c2_layout_ops pdclust_ops;
 
-/* why id is a pointer - todo? */
-int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
+int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out)
@@ -430,7 +429,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
 
-		c2_layout_striped_init(&pdl->pl_base, le, *id, pool->po_id,
+		c2_layout_striped_init(&pdl->pl_base, le, lid, pool->po_id,
 			       &c2_pdclust_layout_type,
 			       &pdclust_ops);
 
@@ -590,7 +589,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(pool != NULL);
 
-	rc = c2_pdclust_build(pool, &lid, pl_rec->pr_attr.pa_N,
+	rc = c2_pdclust_build(pool, lid, pl_rec->pr_attr.pa_N,
 			      pl_rec->pr_attr.pa_K, &pl_rec->pr_attr.pa_seed,
 			      e, &pl);
 	C2_ASSERT(rc == 0);

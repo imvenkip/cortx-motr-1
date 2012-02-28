@@ -214,7 +214,7 @@ int main(int argc, char **argv)
 	if (result == 0) {
 		result = c2_linear_enum_build(pool.po_width, 100, 200, &le);
 		if (result == 0) {
-			result = c2_pdclust_build(&pool, &id, N, K, &seed,
+			result = c2_pdclust_build(&pool, id, N, K, &seed,
 						  &le->lle_base,
 						  &play);
 			if (result == 0)

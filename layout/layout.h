@@ -111,8 +111,7 @@ struct c2_layout {
 	uint32_t                         l_ref;
 
 	/** Pool identifier. */
-	/* todo change pid to read pool_id */
-	uint64_t                         l_pid;
+	uint64_t                         l_pool_id;
 
 	/**
 	 * Lock to protect a c2_layout instance and all its direct/indirect

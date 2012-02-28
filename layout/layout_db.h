@@ -121,8 +121,7 @@ enum {
  */
 struct c2_ldb_schema {
 	/** Pointer to dbenv, to keep things together. */
-	/** todo change dbenv to ls_dbenv */
-	struct c2_dbenv               *dbenv;
+	struct c2_dbenv               *ls_dbenv;
 
 	/** Table for layout record entries. */
 	struct c2_table                ls_layouts;

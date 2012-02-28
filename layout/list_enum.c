@@ -208,8 +208,8 @@ static int list_register(struct c2_ldb_schema *schema,
 	if (lsd == NULL)
 		return -ENOMEM;
 
-	rc = c2_table_init(&lsd->lsd_cob_lists, schema->dbenv, "cob_lists", 0,
-			   &cob_lists_table_ops);
+	rc = c2_table_init(&lsd->lsd_cob_lists, schema->ls_dbenv,
+			   "cob_lists", 0, &cob_lists_table_ops);
 	C2_ASSERT(rc == 0);
 
 	schema->ls_type_data[et->let_id] = lsd;
@@ -391,7 +391,6 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	return 0;
 }
 
-/* todo Check how should the cob entry be passed to this fn. */
 int ldb_cob_list_write(struct c2_ldb_schema *schema,
 		       enum c2_layout_xcode_op op, uint64_t lid,
 		       uint32_t idx, struct c2_fid *cob_id,

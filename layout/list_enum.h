@@ -49,7 +49,6 @@ struct c2_layout_list_enum {
 	uint64_t                  lle_lid;
 
 	/** Number of elements present in the enumeration */
-	/* todo check if this nr is required to be stored. */
 	uint32_t                  lle_nr;
 
 	/**

@@ -364,7 +364,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 	/* C2_LOG("c2_ldb_schema_init(): schema %p, dbenv %p\n",
 	       schema, dbenv); */
 
-	schema->dbenv = dbenv;
+	schema->ls_dbenv = dbenv;
 
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
 		schema->ls_type[i]      = NULL;
@@ -378,7 +378,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 
 	c2_mutex_init(&schema->ls_lock);
 
-	rc = c2_table_init(&schema->ls_layouts, schema->dbenv, "layouts", 0,
+	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts", 0,
 			   &layouts_table_ops);
 
 	return rc;
@@ -410,7 +410,7 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 
 	c2_table_fini(&schema->ls_layouts);
 	c2_mutex_fini(&schema->ls_lock);
-	schema->dbenv = NULL;
+	schema->ls_dbenv = NULL;
 
 	return 0;
 }
@@ -726,7 +726,7 @@ static int get_oldrec(struct c2_ldb_schema *schema,
 	c2_db_pair_setup(&pair, &schema->ls_layouts,
 			 &lid, sizeof lid,
 			 area, num_bytes);
-	rc = c2_db_tx_init(&tx, schema->dbenv, DEF_DB_FLAGS);
+	rc = c2_db_tx_init(&tx, schema->ls_dbenv, DEF_DB_FLAGS);
 	C2_ASSERT(rc == 0);
 
 	rc = c2_table_lookup(&tx, &pair);
