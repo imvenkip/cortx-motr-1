@@ -18,7 +18,7 @@
  * Original creation date: 02/22/2012
  */
 
-#include "ioservice/st/bulkio_common.h"
+#include "ioservice/ut/bulkio_common.h"
 #include "lib/getopts.h"
 #include "lib/thread.h"
 #include "colibri/init.h"

@@ -21,7 +21,7 @@
 
 #include "lib/ut.h"
 #include "ioservice/st/bulkio_client.c"
-#include "ioservice/st/bulkio_server.c"
+#include "bulkio_common.c"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"
 
