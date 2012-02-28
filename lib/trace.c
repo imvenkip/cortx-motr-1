@@ -50,7 +50,7 @@
  * This buffer is used for early trace records issued before real buffer is
  * initialized by c2_trace_init().
  */
-char       bootbuf[4096];
+static char bootbuf[4096];
 void      *c2_logbuf     = bootbuf;
 uint32_t   c2_logbufsize = sizeof bootbuf;
 
