@@ -81,7 +81,6 @@ static int __init c2_bulkio_kern_st_init(void)
 	C2_ALLOC_PTR(bp);
 	C2_ASSERT(bp != NULL);
 	bulkio_params_init(bp);
-	printk(KERN_INFO "Struct bulkio_params initialized.\n");
 
 	rc = bulkio_client_start(bp, caddr, cport, saddr, sport);
 	if (rc != 0) {
@@ -96,12 +95,9 @@ static int __init c2_bulkio_kern_st_init(void)
 	 * Multiple threads send one IO fop each, to the bulk server.
 	 * This call waits until replies for all IO fops are received.
 	 */
-	printk(KERN_INFO "bulkio_test started.\n");
 	bulkio_test(bp, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
-	printk(KERN_INFO "bulkio_test finished.\n");
 
 	bulkio_client_stop(bp->bp_cctx);
-	printk(KERN_INFO "bulkio client stopped.\n");
 
 	bulkio_params_fini(bp);
 	c2_free(bp);

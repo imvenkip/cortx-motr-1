@@ -49,9 +49,6 @@ static void io_fids_init(struct bulkio_params *bp)
 		bp->bp_fids[i].f_seq = i;
 		bp->bp_fids[i].f_oid = i;
 	}
-#ifdef __KERNEL__
-	printk(KERN_ERR "IO fid initialized.\n");
-#endif
 }
 
 static void io_buffers_allocate(struct bulkio_params *bp)
@@ -60,9 +57,6 @@ static void io_buffers_allocate(struct bulkio_params *bp)
 
 	C2_ASSERT(bp != NULL);
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "io_buffers_allocate entered.\n");
-#endif
 	/* Initialized the standard buffer with a data pattern for read IO. */
 	memset(bp->bp_readbuf, 'b', C2_0VEC_ALIGN);
 	memset(bp->bp_writebuf, 'a', C2_0VEC_ALIGN);
@@ -73,10 +67,6 @@ static void io_buffers_allocate(struct bulkio_params *bp)
 		c2_bufvec_alloc_aligned(&bp->bp_iobuf[i]->nb_buffer,
 					IO_SEGS_NR, C2_0VEC_ALIGN,
 					C2_0VEC_SHIFT);
-#ifdef __KERNEL__
-	printk(KERN_ERR "io_buffers_allocate: %d bufvecs allocated, \
-			  each with %d segments.\n", IO_FOPS_NR, IO_SEGS_NR);
-#endif
 }
 
 static void io_buffers_deallocate(struct bulkio_params *bp)
@@ -104,9 +94,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	C2_ASSERT(bp != NULL);
 	C2_ASSERT(io_fops != NULL);
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "IO fop %d: io_fop_populate entered.\n", index);
-#endif
 	iofop = io_fops[index];
 	rbulk = &iofop->if_rbulk;
 
@@ -119,9 +106,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(rbuf != NULL);
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "IO fop %d: c2_rpc_bulk_buf added.\n", index);
-#endif
 
 	rw = io_rw_get(&iofop->if_fop);
 	rw->crw_fid = bp->bp_fids[off_index];
@@ -140,10 +124,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 			bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i];
 	}
 	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
-#ifdef __KERNEL__
-	printk(KERN_ERR "IO fop %d: %d data buffers added to \
-			  c2_rpc_bulk_buf.\n", index, segs_nr);
-#endif
 
 	/*
 	 * Allocates memory for array of net buf descriptors and array of
@@ -156,9 +136,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	C2_ASSERT(rw->crw_desc.id_nr ==
 		     c2_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist));
 	C2_ASSERT(rw->crw_desc.id_descs != NULL);
-#ifdef __KERNEL__
-	printk(KERN_ERR "IO fop %d: io_fop prepared.\n", index);
-#endif
 
 	/*
 	 * Stores the net buf desc/s after adding the corresponding
@@ -170,9 +147,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	C2_ASSERT(rc == 0);
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "IO fop %d: c2_rpc_bulk_store succeeded.\n", index);
-#endif
 	/*
 	 * Temporary! Should be removed once bulk server UT code is merged
 	 * with this code. Old IO fops were based on sunrpc which had inline
@@ -203,9 +177,6 @@ static void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 	struct c2_fop_type	 *fopt;
 	struct c2_io_fop	**io_fops;
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "io_fops_create entered.\n");
-#endif
 	seed = 0;
 	for (i = 0; i < fids_nr; ++i)
 		bp->bp_offsets[i] = IO_SEG_START_OFFSET;
@@ -235,9 +206,6 @@ static void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 
 	}
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "io_fops allocated.\n");
-#endif
 	/* Populates io fops. */
 	for (i = 0; i < fops_nr; ++i) {
 		if (fids_nr < fops_nr) {
@@ -274,10 +242,6 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 	struct c2_io_fop	**io_fops;
 	struct bulkio_params     *bp;
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "io_fops_rpc_submit entered.\n");
-#endif
-
 	i = t->ta_index;
 	bp = t->ta_bp;
 	io_fops = (t->ta_op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
@@ -300,15 +264,9 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 	/* Posts the rpc item and waits until reply is received. */
 	rc = c2_rpc_post(item);
 	C2_ASSERT(rc == 0);
-#ifdef __KERNEL__
-	printk(KERN_ERR "IO fop posted to rpc successfully.\n");
-#endif
 
 	rc = c2_rpc_reply_timedwait(&clink, timeout);
 	if (c2_is_read_fop(&io_fops[i]->if_fop)) {
-#ifdef __KERNEL__
-		printk(KERN_ERR "Received reply for read fop.\n");
-#endif
 		for (j = 0; j < bp->bp_iobuf[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bp->bp_iobuf[i]->nb_buffer.ov_buf[j],
 				    bp->bp_readbuf,
@@ -321,10 +279,6 @@ static void io_fops_rpc_submit(struct thrd_arg *t)
 		c2_mutex_lock(&rbulk->rb_mutex);
 		C2_ASSERT(rbulk->rb_rc == 0);
 		c2_mutex_unlock(&rbulk->rb_mutex);
-	} else {
-#ifdef __KERNEL__
-		printk(KERN_ERR "Received reply for write fop.\n");
-#endif
 	}
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
@@ -379,9 +333,6 @@ void bulkio_params_init(struct bulkio_params *bp)
 
 	C2_ASSERT(bp != NULL);
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "bulkio_params_init entered..\n");
-#endif
 	/* Initialize fids and allocate buffers used for bulk transfer. */
 	io_fids_init(bp);
 
@@ -398,10 +349,6 @@ void bulkio_params_init(struct bulkio_params *bp)
 		C2_ALLOC_PTR(bp->bp_threads[i]);
 		C2_ASSERT(bp->bp_threads[i] != NULL);
 	}
-#ifdef __KERNEL__
-	printk(KERN_ERR "bulkio_params_init: Threads and IO buffers \
-			  entered.\n");
-#endif
 
 	C2_ASSERT(bp->bp_readbuf == NULL);
 	C2_ALLOC_ARR(bp->bp_readbuf, C2_0VEC_ALIGN);
@@ -492,10 +439,6 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 	C2_ASSERT(srv_addr != NULL);
 	bulkio_netep_form(saddr, sport, IO_SERVER_SVC_ID, srv_addr);
 
-#ifdef __KERNEL__
-	printk(KERN_ERR "Formed server addr = %s\n", srv_addr);
-#endif
-
 	cctx->rcx_remote_addr = srv_addr;
 	cctx->rcx_cob_dom_id  = IO_CLIENT_COBDOM_ID;
 	cctx->rcx_nr_slots    = IO_RPC_SESSION_SLOTS;
@@ -505,9 +448,6 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 	C2_ALLOC_ARR(cli_addr, IO_ADDR_LEN);
 	C2_ASSERT(cli_addr != NULL);
 	bulkio_netep_form(caddr, cport, IO_CLIENT_SVC_ID, cli_addr);
-#ifdef __KERNEL__
-	printk(KERN_ERR "Formed client addr = %s\n", cli_addr);
-#endif
 	cctx->rcx_local_addr = cli_addr;
 	cctx->rcx_net_dom = &bp->bp_cnetdom;
 
@@ -520,10 +460,6 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 
 	rc = c2_rpc_client_init(cctx);
 	C2_ASSERT(rc == 0);
-
-#ifdef __KERNEL__
-	printk(KERN_ERR "rpc client init succeeded, rc = %d\n", rc);
-#endif
 
 	bp->bp_cctx = cctx;
 	bp->bp_saddr = srv_addr;
