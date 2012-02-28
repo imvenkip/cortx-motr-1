@@ -130,7 +130,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	//C2_LOG("In linear_decode(), cur %p \n", cur);
+	//C2_LOG("In linear_decode(), lid %llu\n", (unsigned long long)lid);
 
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL)
@@ -141,14 +141,13 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
 
-	/*
-	 * todo Need to ensure that lin_attr is a valid record.
-	 * Need to use lib/bob.[h|c] implementation for that.
-	 * And then get rid of the following asserts.
-	 */
-	C2_ASSERT(lin_attr->lla_nr != 0);
-	C2_ASSERT(lin_attr->lla_A != 0);
-	C2_ASSERT(lin_attr->lla_B != 0);
+	if (lin_attr->lla_nr == 0 || lin_attr->lla_A == 0 ||
+	    lin_attr->lla_B == 0) {
+		C2_LOG("In linear_decode(), lid %llu, Invalid value, "
+		       "nr %lu, A %lu, B %lu\n", (unsigned long long)lid,
+		       lin_attr->lla_nr, lin_attr->lla_A, lin_attr->lla_B);
+		return -EINVAL;
+	}
 
 	lin_enum->lle_attr = *lin_attr;
 

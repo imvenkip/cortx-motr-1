@@ -158,8 +158,8 @@ int c2_list_enum_build(uint64_t lid,
 
 	/*
 	 * Can not assert here to verify that number of elments in the
-	 * cob_list is same as nr, since cob_list is a dynamically allocated
-	 * array.
+	 * cob_list is same as nr, since can not find size of cob_list, it
+	 * being a dynamically allocated array.
 	 */
 
 	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
@@ -167,13 +167,8 @@ int c2_list_enum_build(uint64_t lid,
 		return -ENOMEM;
 
 	for (i = 0; i < nr; ++i) {
-		/** @todo Should a magic number be added to c2_fid to indicate
-		 * it is a valid cob id so as to be able to securely trust it
-		 * here? Probably that is a bit exepnsive considering the
-		 * the number of cobs we need to deal with.
-		 * OR could it simply be a check something like:
-		 * C2_ASSERT(con_list[i].f_container != 0); ?
-		 */
+		if (!c2_fid_is_valid(&cob_list[i]))
+			return -EINVAL;
 		list_enum->lle_list_of_cobs[i] = cob_list[i];
 	}
 
@@ -295,11 +290,8 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 	if (rc != 0)
 		return rc;
 
-	/**
-	 * @todo What should be the validation confirming that the cob id read
-	 * from the DB is sane. Following assert is a place holder.
-	 */
-	C2_ASSERT(rec.lclr_cob_id.f_container != 0);
+	if (!c2_fid_is_valid(&rec.lclr_cob_id))
+		return -EINVAL;
 
 	*cob_id = rec.lclr_cob_id;
 

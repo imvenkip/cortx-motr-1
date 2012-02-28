@@ -90,6 +90,12 @@
    - It provides support for storing composite layout maps.
    - It is required that for adding a layout type or layout enumeration type,
      central layout.h should not require modifications.
+   - It is assumed that the roblem of coruption is going to be attacked
+     generically at the lower layers (db and fop) transparently, instead of
+     adding magic numbers and check-sums in every module. Thus the input to
+     Layou DB APIs which is either a layout or a FOP buffer in most of the
+     cases is going to be tested for corruption by db or fop layer, as
+     applicable.
 
    <HR>
    @section Layout-DB-lspec Logical Specification
@@ -616,9 +622,6 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	pair->dp_table = &schema->ls_layouts;
 
-	/* todo Check why C2_SET0 only in this fn and not in ldb_layout_write*/
-	C2_SET0(pair->dp_key.db_buf.b_addr);
-	C2_SET0(pair->dp_rec.db_buf.b_addr);
 
 	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
 		       pair->dp_key.db_buf.b_addr,
@@ -632,15 +635,18 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 
-	C2_ASSERT(*(uint64_t *)pair->dp_key.db_buf.b_addr == lid);
+	C2_SET0(pair->dp_rec.db_buf.b_addr);
 
 	rc = c2_table_lookup(tx, pair);
 	C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() rc %d\n",
 	       (unsigned long long)lid, rc);
 
 	/* Following covers the case - record not found. */
-	if (rc != 0)
+	if (rc != 0) {
+		C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() rc %d\n",
+		       (unsigned long long)lid, rc);
 		return rc;
+	}
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
