@@ -19,11 +19,14 @@
  * Original creation date: 09/29/2011
  */
 
+#include "lib/ut.h"
 #include "ioservice/st/bulkio_client.c"
 #include "ioservice/st/bulkio_server.c"
+#include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"
 
 struct bulkio_params *bp;
+extern void bulkioapi_test(void);
 static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m);
 static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m);
 static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m);
@@ -1540,7 +1543,7 @@ static void bulkio_init(void)
 	rc = bulkio_server_start(bp, saddr, port);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_sctx != NULL);
-	rc = bulkio_client_start(bp, caddr, port, saddr);
+	rc = bulkio_client_start(bp, caddr, port, saddr, port);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_cctx != NULL);
 
@@ -1557,8 +1560,11 @@ static void bulkio_fini(void)
 	c2_free(bp);
 }
 
+/*
+ * Only used for user-space UT.
+ */
 const struct c2_test_suite bulkio_ut = {
-	.ts_name = "bulkio-ut",
+	.ts_name = "bulk-io-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
@@ -1579,6 +1585,7 @@ const struct c2_test_suite bulkio_ut = {
 		   bulkio_server_read_write_multiple_nb},
 		{ "bulkio_server_rw_state_transition_test",
 		   bulkio_server_rw_state_transition_test},
+		{ "bulkio_apitest",	  bulkioapi_test},
 		{ "bulkio_fini",	  bulkio_fini},
 		{ NULL, NULL }
 	}

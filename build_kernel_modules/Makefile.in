@@ -5,9 +5,10 @@ KERNEL_BUILDDIR = @LINUX_OBJ@
 
 GCOV_PROFILE 	= @K_ENABLE_COVERAGE@
 
-testdirs 	= ../net/bulk_emulation/st/linux_kernel/ 		\
-	          ../rpc/it/linux_kernel/ 				\
-		  ../utils/linux_kernel/
+testdirs 	= ../net/bulk_emulation/st/linux_kernel/\
+	          ../rpc/it/linux_kernel/\
+		  ../utils/linux_kernel/\
+		  ../ioservice/st/linux_kernel/
 
 EXTRA_CFLAGS 	= -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
@@ -22,10 +23,10 @@ EXTRA_CFLAGS 	= -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
 #	The $(dirs) list is maintained alphabetically
 
-dirs  = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel dtm fid \
-	fol fop galois ioservice layout lib lib/linux_kernel lib/ut net      \
-	net/bulk_emulation net/bulk_emulation/ut net/ksunrpc net/ut pool rpc \
-	sm sns stob stob/ut ut xcode
+dirs  = addb addb/linux_kernel c2t1fs cob colibri db db/linux_kernel\
+	dtm fid fol fop galois ioservice ioservice/ut layout lib\
+	lib/linux_kernel lib/ut net net/bulk_emulation net/bulk_emulation/ut\
+	net/ksunrpc net/ut pool rpc sm sns stob stob/ut ut xcode
 
 #	Source Listing
 
@@ -58,40 +59,40 @@ fid_HEADERS 			:= fid.h
 fol_SOURCES 			:= fol.c
 fol_HEADERS 			:= fol.h
 
-fop_SOURCES 			:= fop.c fom.c fop_format.c fop_iterator.c \
+fop_SOURCES 			:= fop.c fom.c fop_format.c fop_iterator.c\
 				   fop_base.c fop_item_type.c
 
-#galois_SOURCES 			:= ../../galois/galois.c
 galois_SOURCES 			:= ../../galois/src/galois.c
-#galois_HEADERS 			:= ../../galois/galois.h
 galois_HEADERS 			:= ../../galois/include/galois/galois.h
 
 ioservice_SOURCES 		:= io_fops.c io_fops_k.c
 ioservice_HEADERS 		:= io_fops.h io_fops_k.h
 
+ioservice_ut_SOURCES		:= bulkio_client.c
+
 layout_SOURCES 			:= layout.c pdclust.c
 layout_HEADERS 			:= layout.h pdclust.h
 
-lib_SOURCES 			:= bitstring.c vec.c list.c queue.c refs.c    \
-				   time.c bitmap.c chan.c misc.c buf.c cond.c \
+lib_SOURCES 			:= bitstring.c vec.c list.c queue.c refs.c\
+				   time.c bitmap.c chan.c misc.c buf.c cond.c\
 				   thread.c tlist.c
 lib_HEADERS 			:= misc.h memory.h errno.h arith.h buf.h
 
-lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c  \
-				   kthread.c semaphore.c processor.c kvec.c   \
+lib_linux_kernel_SOURCES 	:= memory.c mutex.c rwlock.c ktime.c timer.c\
+				   kthread.c semaphore.c processor.c kvec.c\
 				   ut.c main.c
 
-lib_ut_SOURCES 			:= rwlock.c bitmap.c tlist.c chan.c list.c    \
-				   mutex.c queue.c refs.c tlist.c time.c      \
+lib_ut_SOURCES 			:= rwlock.c bitmap.c tlist.c chan.c list.c\
+				   mutex.c queue.c refs.c tlist.c time.c\
 				   vec.c zerovec.c thread.c memory.c
 
-net_SOURCES 			:= buf.c buffer_pool.c domain.c ep.c net.c    \
-				   tm.c connection.c net_cli.c net_utils.c    \
-				    net_srv.c net_otw_types_k.c
+net_SOURCES 			:= buf.c buffer_pool.c domain.c ep.c net.c\
+				   tm.c connection.c net_cli.c net_utils.c\
+				   net_srv.c net_otw_types_k.c
 net_HEADERS 			:= net.h net_internal.h net_otw_types_k.h
 
 net_bulk_emulation_SOURCES 	:= ksunrpc_server.c sunrpc_io_k.c
-net_bulk_emulation_HEADERS 	:= sunrpc_xprt.h mem_xprt.h sunrpc_io_k.h     \
+net_bulk_emulation_HEADERS 	:= sunrpc_xprt.h mem_xprt.h sunrpc_io_k.h\
 				   ../ksunrpc/ksunrpc.h ../net_otw_types_k.h
 
 net_bulk_emulation_ut_SOURCES 	:= ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
@@ -103,17 +104,18 @@ net_ut_SOURCES 			:= bulk_if.c buffer_pool_ut.c
 
 pool_SOURCES 			:= pool.c
 
-rpc_SOURCES 			:= formation.c rpc2.c rpc_base.c session.c    \
-				   session_foms.c conn.c slot.c		      \
-				   session_utils.c session_fops.c	      \
-				   rpc_onwire.c session_k.c rpclib.c
+rpc_SOURCES 			:= formation.c rpc2.c rpc_base.c session.c\
+				   session_foms.c conn.c slot.c session_utils.c\
+				   session_fops.c rpc_onwire.c session_k.c\
+				   rpclib.c
 rpc_HEADERS 			:= session_k.h
 
 sm_SOURCES 			:= sm.c
 
-sns_SOURCES 			:= ls_solve.c matvec.c parity_math.c \
+sns_SOURCES 			:= ls_solve.c matvec.c parity_math.c\
 				   parity_ops.c
-sns_HEADERS 			:= parity_math.h ../../galois/include/galois/galois.h
+sns_HEADERS 			:= parity_math.h\
+				   ../../galois/include/galois/galois.h
 
 stob_SOURCES 			:= stob.c
 stob_HEADERS 			:= stob.h
@@ -124,7 +126,7 @@ stob_ut_HEADERS 		:= io_fop.h io_k.h
 ut_SOURCES 			:= rpc.c
 ut_HEADERS 			:= rpc.h
 
-xcode_SOURCES 			:= bufvec_xcode.c bufvec_xcode_fop.c	      \
+xcode_SOURCES 			:= bufvec_xcode.c bufvec_xcode_fop.c\
 				   bufvec_xcode_size.c
 
 #	Following lines create the list of objects required for creating

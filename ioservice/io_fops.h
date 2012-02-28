@@ -28,10 +28,6 @@
 
 /**
    @page bulkclient-fspec Functional Specification for fop bulk client.
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
 
    - @ref bulkclient-fspec-ds
    - @ref bulkclient-fspec-sub
@@ -40,20 +36,12 @@
    - @ref bulkclientDFS "Bulk IO client Detailed Functional Specification"
 
    @section bulkclient-fspec-ds Data Structures
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and <i>brief</i> description of the
-   major externally visible data structures defined by this component.  No
-   details of the data structure are required here, just the salient
-   points.</i>
 
    The io bulk client design includes data structures like
    - c2_io_fop An in-memory definition of io fop which binds the io fop
    with its network buffer.
 
    @section bulkclient-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
 
    @subsection bulkclient-fspec-sub-cons Constructors and Destructors
 
@@ -68,33 +56,43 @@
    @subsection bulkclient-fspec-sub-opi Operational Interfaces
 
    @section bulkclient-fspec-cli Command Usage
-   <i>Mandatory for command line programs.  Components that provide programs
-   would provide a specification of the command line invocation arguments.  In
-   addition, the format of any any structured file consumed or produced by the
-   interface must be described in this section.</i>
    Not Applicable.
 
    @section bulkclient-fspec-usecases Recipes
-   <i>This section could briefly explain what sequence of interface calls or
-   what program invocation flags are required to solve specific usage
-   scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.</i>
 
    Using bulk APIs on client side.
    - IO bulk client allocates memory for a c2_io_fop and invokes
    c2_io_fop_init() by providing fop type.
-   - IO bulk client client invokes c2_rpc_bulk_buf_page_add() or
-   c2_rpc_bulk_buf_usrbuf_add()  till all pages or user buffers are added
-   to c2_rpc_bulk structure and then invokes c2_rpc_post() to
-   submit the fop to rpc layer.
+   - IO bulk client invokes c2_rpc_bulk_buf_databuf_add() till all pages
+   or user buffers are added to c2_rpc_bulk structure and then invokes
    - Bulk client invokes c2_rpc_bulk_store() to store the network buffer
    memory descriptor/s to io fop wire format. The network buffer memory
    descriptor is retrieved after adding the network buffer to transfer
    machine belonging to c2_rpcmachine.
+   - Bulk client invokes c2_rpc_post() to submit the fop to rpc layer.
    - The network buffers added by bulk client to c2_rpc_bulk structure
    are removed and deallocated by network buffer completion callbacks.
    Bulk client user need not remove or deallocate these network buffers
    by itself.
+   The c2_io_fop structure can be populated and used like this.
+
+   @code
+
+   c2_io_fop_init(iofop, ftype);
+   do {
+	c2_rpc_bulk_buf_add(&iofop->if_rbulk, rbuf);
+	..
+	c2_rpc_bulk_buf_databuf_add(rbuf, buf, count, index);
+	..
+   } while (not_empty);
+   ..
+   c2_rpc_bulk_buf_store(rbuf, rpcitem, net_buf_desc);
+   ..
+   c2_rpc_post(rpc_item);
+   c2_rpc_reply_timedwait(rpc_item);
+   c2_io_fop_fini(iofop);
+
+   @endcode
 
    Using bulk APIs on server side.
    - Colibri io server program (ioservice) creates a c2_rpc_bulk structure
@@ -106,6 +104,32 @@
    These buffers are provided while invoking c2_rpc_bulk_buf_add() API.
    - Ioservice invokes c2_rpc_bulk_load() to start the zero copy of data from
    sender.
+   Since server side sends the reply fop, it does not need c2_io_fop
+   structures since it deals with request IO fops.
+   Ioservice typically works with a pre-allocated, pre-registered pool
+   of network buffers. Buffers are requested as per need from the pool
+   and passed to c2_rpc_bulk_buf_add() call as shown below.
+
+   @see c2_rpc_bulk
+   @code
+
+   c2_rpc_bulk_init(rbulk);
+   do {
+	   c2_rpc_bulk_buf_add(rbulk->rbuf, segs_nr, netdom, nb, &out);
+	   ..
+	   ..
+   } while(request_io_fop->io_buf_desc_list is not finished);
+
+   c2_clink_init(&clink, NULL);
+   c2_clink_add(&rbulk->rb_chan, &clink);
+   c2_rpc_bulk_buf_load(rbulk, conn, &request_io_fop->desc_list);
+   ..
+   c2_chan_wait(&clink);
+   ..
+   send_reply_fop();
+   c2_rpc_bulk_fini(rbulk);
+
+   @endcode
 
    @see @ref bulkclientDFS "Bulk IO client Detailed Functional Specification"
  */
@@ -137,27 +161,7 @@ enum {
    rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
    Client side implementations use this structure to represent
    io fops and the associated rpc bulk structures.
-   The c2_io_fop structures can be populated and used like this.
    @see c2_rpc_bulk().
-
-   @code
-
-   c2_io_fop_init(iofop, ftype);
-   do {
-	c2_rpc_bulk_buf_add(&iofop->if_rbulk, rbuf);
-	..
-	c2_rpc_bulk_buf_databuf_add(rbuf, buf, count, index);
-	..
-   } while (not_empty);
-   ..
-   c2_rpc_bulk_buf_store(rbuf, rpcitem, net_buf_desc);
-   ..
-   c2_clink_add(rbulk->rb_chan, clink);
-   c2_rpc_post(rpc_item);
-   c2_chan_wait(clink);
-   c2_io_fop_fini(iofop);
-
-   @endcode
  */
 struct c2_io_fop {
 	/** Inline fop for a generic IO fop. */

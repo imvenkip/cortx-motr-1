@@ -22,6 +22,21 @@
 #include "lib/getopts.h"
 #include "lib/thread.h"
 #include "colibri/init.h"
+#include <signal.h> 	/* sigaction */
+
+extern int io_fop_dummy_fom_init(struct c2_fop *fop, struct c2_fom **m);
+extern struct c2_fop_type_ops io_fop_rwv_ops;
+
+bool stop_server = false;
+
+static void bulkio_sigint_handler(int signum)
+{
+	stop_server = true;
+}
+
+static void print_stats(struct bulkio_params *bp)
+{
+}
 
 int main(int argc, char *argv[])
 {
@@ -32,6 +47,16 @@ int main(int argc, char *argv[])
 	const char		*caddr;
 	const char		*saddr;
 	struct bulkio_params	*bp;
+	struct sigaction	 bulkio_int_action = {
+		.sa_handler = bulkio_sigint_handler,
+	};
+
+	rc = sigaction(SIGINT, &bulkio_int_action, NULL);
+	if (rc != 0) {
+		fprintf(stderr, "Failed to set custom singal handler\
+				for SIGINT.\n");
+		return rc;
+	}
 
 	rc = c2_init();
 	C2_ASSERT(rc == 0);
@@ -54,7 +79,7 @@ int main(int argc, char *argv[])
 	 * Allocate and initialize struct bulkio_params first since
 	 * it contains common things needed by client and server code.
 	 */
-	c2_addb_choose_default_level(AEL_NOTE);
+	c2_addb_choose_default_level(AEL_NONE);
 	C2_ALLOC_PTR(bp);
 	C2_ASSERT(bp != NULL);
 	bulkio_params_init(bp);
@@ -70,30 +95,49 @@ int main(int argc, char *argv[])
 	}
 
 	if (client) {
-		rc = bulkio_client_start(bp, caddr, port, saddr);
+		rc = bulkio_client_start(bp, caddr, port, saddr, port);
 		if (rc != 0) {
 			fprintf(stderr, "BulkIO client startup failed\
 				with error %d\n", rc);
 			return rc;
 		}
 		C2_ASSERT(bp->bp_cctx != NULL);
+		/*
+		 * Send multiple IO fops, each with a distinct IO vector
+		 * attached with it. IO coalescing occurs if multiple IO fops
+		 * with same fid and same intent (read/write) are present
+		 * in session unbound items list at the same time.
+		 * This calls waits until replies for all IO fops are received.
+		 */
+		bulkio_test(bp, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
+
+		bulkio_client_stop(bp->bp_cctx);
 	}
 
 	/*
-	 * Send multiple IO fops, each with a distinct IO vector attached
-	 * with it. IO coalescing occurs if multiple IO fops with same fid
-	 * and same intent (read/write) are present in session unbound
-	 * items list at the same time.
-	 * This calls waits until replies for all IO fops are received.
+	 * If only server is running, client is running from somewhere else
+	 * and server should wait until client has sent all fops and
+	 * all fops are processed.
+	 * Also, if only server is running, we need a hack to redirect
+	 * fops to UT fom code instead of standard io foms since old
+	 * io foms are based on sunrpc.
 	 */
-	bulkio_test(bp, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
+	if (server && !client) {
+		//io_fop_rwv_ops.fto_fom_init = io_fop_dummy_fom_init;
+		fprintf(stderr, "Press Ctrl-C to stop bulk IO server.\n");
+		while (!stop_server) {
+			sleep(1);
+			print_stats(bp);
+		}
+	}
 
-	bulkio_client_stop(bp->bp_cctx);
-
-	bulkio_server_stop(bp->bp_sctx);
+	if (server)
+		bulkio_server_stop(bp->bp_sctx);
 
 	bulkio_params_fini(bp);
 	c2_free(bp);
+
+	c2_fini();
 
 	return rc;
 }
