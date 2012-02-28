@@ -1411,7 +1411,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
          * @todo :
          * Internally c2_db_cursor_get() takes explicitely RW lock.
          * Need to define enum lock modes and pass to c2_db_cursor_get().
-         * Till this issue fix, I/O FOM use c2_fom_block_enter() before 
+         * Till this issue fix, I/O FOM use c2_fom_block_enter() before
          * stob io locate since it coult block.
          * c2_fom_block_leave() should call after c2_stob_locate() returns.
          *
@@ -1668,17 +1668,16 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
         if (rc == FSO_AGAIN) {
                 c2_time_t phase_time;
-                phase_time = c2_time_sub(c2_time_now(), fom_obj->fcrw_phase_start_time);
-                sprintf(trace_msg,
-                        "Read/ Write FOM Phase ""%s"" completed with return value %d . Time taken by this phase is %ld.%ld seconds.",
-                        st.fcrw_st_desc, fom->fo_rc, c2_time_seconds(phase_time),c2_time_nanoseconds(phase_time));
+                phase_time = c2_time_sub(c2_time_now(),
+					 fom_obj->fcrw_phase_start_time);
+                sprintf(trace_msg, "Read/ Write FOM Phase ""%s"" completed with 			rc %d . Time taken by this phase is %ld.%ld seconds.",
+                	st.fcrw_st_desc, fom->fo_rc,
+			c2_time_seconds(phase_time),
+			c2_time_nanoseconds(phase_time));
         }
         else
-                sprintf(trace_msg,
-                        "Read/ Write FOM Phase ""%s"" completed with return value %d .",
-                        st.fcrw_st_desc, fom->fo_rc);
+                sprintf(trace_msg, "Read/ Write FOM Phase ""%s"" completed with 			return value %d .", st.fcrw_st_desc, fom->fo_rc);
 
- 
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                     c2_addb_trace, (const char *)trace_msg);
 
@@ -1767,7 +1766,7 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         c2_fom_fini(fom);
 
         c2_free(fom_obj);
-        sprintf(trace_msg, "Read/ Write FOM finished. Time took for execution %ld .", c2_time_seconds(fom_exec_time));
+        sprintf(trace_msg, "Read/ Write FOM finished. Time took for execution is		%ld .", c2_time_seconds(fom_exec_time));
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                     c2_addb_trace, (const char *)trace_msg);
 }
