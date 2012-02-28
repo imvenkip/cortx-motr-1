@@ -862,6 +862,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	machine->cr_dom = dom;
 	c2_db_tx_commit(&tx);
 	machine->cr_reqh = reqh;
+	c2_rpc_services_tlist_init(&machine->cr_services);
 	return rc;
 
 cleanup:
@@ -900,6 +901,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
 	C2_PRE(machine != NULL);
 
+	c2_rpc_services_tlist_fini(&machine->cr_services);
 	conn_list_fini(&machine->cr_incoming_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);

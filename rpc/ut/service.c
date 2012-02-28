@@ -1,6 +1,9 @@
 #include "lib/ut.h"
 #include "lib/memory.h"
+#include "lib/misc.h"
 #include "rpc/service.h"
+#include "rpc/session.h"
+#include "rpc/rpc2.h"
 
 enum {
 	C2_RPC_SERVICE_TYPE_FOO = 1,
@@ -66,6 +69,8 @@ foo_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 
 	/* service type specific initialisation */
 	foo_service->f_x = FOO_SERVICE_DEFAULT_X;
+
+	foo_service->f_service.svc_state = C2_RPC_SERVICE_STATE_INITIALISED;
 
 	return &foo_service->f_service;
 
@@ -167,6 +172,43 @@ static void alloc_test(void)
 	C2_UT_ASSERT(bar_alloc_and_init_called);
 }
 
+static void conn_attach_detach_test(void)
+{
+	struct c2_rpcmachine mock_rpcmachine;
+	struct c2_rpc_conn   mock_conn;
+
+	C2_SET0(&mock_rpcmachine);
+	C2_SET0(&mock_conn);
+
+	/* prepare mock rpcmachine */
+	c2_rpc_services_tlist_init(&mock_rpcmachine.cr_services);
+	c2_mutex_init(&mock_rpcmachine.cr_session_mutex);
+
+	/* prepare mock rpc connection */
+	mock_conn.c_state = C2_RPC_CONN_ACTIVE;
+	mock_conn.c_rpcmachine = &mock_rpcmachine;
+	c2_mutex_init(&mock_conn.c_mutex);
+
+	c2_rpc_service_attach_conn(fr_service, &mock_conn);
+	C2_UT_ASSERT(c2_rpc_service_invariant(fr_service));
+	C2_UT_ASSERT(fr_service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED);
+	C2_UT_ASSERT(fr_service->svc_conn == &mock_conn);
+	C2_UT_ASSERT(c2_rpc_services_tlist_head(&mock_rpcmachine.cr_services) ==
+				fr_service);
+
+	c2_rpc_service_detach_conn(fr_service);
+	C2_UT_ASSERT(c2_rpc_service_invariant(fr_service));
+	C2_UT_ASSERT(fr_service->svc_state ==
+			C2_RPC_SERVICE_STATE_CONN_DETACHED);
+	C2_UT_ASSERT(
+		c2_rpc_services_tlist_is_empty(&mock_rpcmachine.cr_services));
+
+	c2_mutex_fini(&mock_conn.c_mutex);
+
+	c2_mutex_fini(&mock_rpcmachine.cr_session_mutex);
+	c2_rpc_services_tlist_fini(&mock_rpcmachine.cr_services);
+}
+
 static void service_free_test(void)
 {
 	foo_service_fini_and_free_called = false;
@@ -195,6 +237,7 @@ const struct c2_test_suite rpc_service_ut = {
 			{ "service-type-register",    register_test      },
 			{ "service-type-locate-fail", locate_failed_test },
 			{ "service-alloc",            alloc_test         },
+			{ "conn-attach-detach",       conn_attach_detach_test },
 			{ "service-free",             service_free_test  },
 			{ "service-type-unregister",  unregister_test    },
 			{ NULL,                       NULL               }

@@ -22,6 +22,8 @@
 #include <errno.h>
 
 #include "rpc/service.h"
+#include "rpc/session.h"
+#include "rpc/rpc2.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/rwlock.h"
@@ -137,6 +139,41 @@ C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
 
 C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
 
+bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
+{
+	bool valid;
+
+	if (service == NULL || !c2_rpc_service_bob_check(service))
+		return false;
+
+	if (service->svc_state < C2_RPC_SERVICE_STATE_INITIALISED ||
+	    service->svc_state >= C2_RPC_SERVICE_STATE_NR)
+		return false;
+
+	valid = service->svc_type != NULL &&
+		service->svc_ep_addr != NULL &&
+		service->svc_ops != NULL;
+
+	if (!valid)
+		return false;
+
+	switch (service->svc_state) {
+	case C2_RPC_SERVICE_STATE_INITIALISED:
+	case C2_RPC_SERVICE_STATE_CONN_DETACHED:
+		return	service->svc_conn == NULL &&
+			!c2_rpc_services_tlink_is_in(service);
+
+	case C2_RPC_SERVICE_STATE_CONN_ATTACHED:
+		return  service->svc_conn != NULL &&
+			c2_rpc_services_tlink_is_in(service);
+	default:
+		return false;
+	}
+	/* Unreachable */
+	C2_ASSERT(0);
+	return false;
+}
+
 struct c2_rpc_service *
 c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 			      const char                 *ep_addr,
@@ -152,6 +189,9 @@ c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 					ep_addr, uuid);
 
 	C2_ASSERT(ergo(service != NULL, c2_rpc_service_bob_check(service)));
+	C2_ASSERT(ergo(service != NULL,
+		     c2_rpc_service_invariant(service) &&
+		     service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
 
 	return service;
 }
@@ -190,7 +230,6 @@ int c2_rpc__service_init(struct c2_rpc_service            *service,
 	service->svc_ops     = ops;
 	service->svc_conn    = NULL;
 
-	c2_mutex_init(&service->svc_mutex);
 	c2_rpc_services_tlink_init(service);
 	c2_rpc_service_bob_init(service);
 
@@ -210,7 +249,6 @@ void c2_rpc__service_fini(struct c2_rpc_service *service)
 
 	service->svc_type = NULL;
 
-	c2_mutex_fini(&service->svc_mutex);
 	c2_rpc_services_tlink_fini(service);
 	c2_rpc_service_bob_fini(service);
 }
@@ -229,4 +267,55 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service)
 	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
 
 	return &service->svc_uuid;
+}
+
+void c2_rpc_service_attach_conn(struct c2_rpc_service *service,
+				struct c2_rpc_conn    *conn)
+{
+	struct c2_rpcmachine *machine;
+
+	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(conn != NULL);
+
+	c2_mutex_lock(&conn->c_mutex);
+	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE);
+
+	machine = conn->c_rpcmachine;
+	c2_mutex_lock(&machine->cr_session_mutex);
+
+	C2_PRE(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
+
+	service->svc_conn = conn;
+	conn->c_service   = service;
+	c2_rpc_services_tlink_init_at_tail(service, &machine->cr_services);
+	service->svc_state = C2_RPC_SERVICE_STATE_CONN_ATTACHED;
+
+	c2_mutex_unlock(&machine->cr_session_mutex);
+	c2_mutex_unlock(&conn->c_mutex);
+}
+
+void c2_rpc_service_detach_conn(struct c2_rpc_service *service)
+{
+	struct c2_rpc_conn   *conn;
+	struct c2_rpcmachine *machine;
+
+	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(service->svc_conn != NULL);
+
+	conn = service->svc_conn;
+	c2_mutex_lock(&conn->c_mutex);
+	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE);
+
+	machine = conn->c_rpcmachine;
+	c2_mutex_lock(&machine->cr_session_mutex);
+
+	C2_PRE(service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED);
+
+	service->svc_conn = NULL;
+	conn->c_service   = NULL;
+	c2_rpc_services_tlist_del(service);
+	service->svc_state = C2_RPC_SERVICE_STATE_CONN_DETACHED;
+
+	c2_mutex_unlock(&machine->cr_session_mutex);
+	c2_mutex_unlock(&conn->c_mutex);
 }

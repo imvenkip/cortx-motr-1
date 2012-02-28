@@ -45,16 +45,6 @@ struct c2_uuid {
 	char u_uuid[40];
 };
 
-/**
- * @todo XXX
- * Remove this definition when c2_cfg_service_type definition is
- * available from cfg/cfg.h.
- */
-enum c2_rpc_service_type_id {
-	C2_RPC_IO_SERVICE = 1,
-	C2_RPC_MD_SERVICE,
-};
-
 enum {
 	C2_RPC_SERVICE_TYPE_MAGIX = 0x5356435f54595045, /* "SVC_TYPE" */
 };
@@ -64,8 +54,8 @@ struct c2_rpc_service_type {
 	const char                           *svt_name;
 	const struct c2_rpc_service_type_ops *svt_ops;
 
-	uint64_t                              svt_magix;
 	struct c2_tlink                       svt_tlink;
+	uint64_t                              svt_magix;
 };
 
 struct c2_rpc_service_type_ops {
@@ -96,6 +86,7 @@ enum c2_rpc_service_state {
 	C2_RPC_SERVICE_STATE_INITIALISED,
 	C2_RPC_SERVICE_STATE_CONN_ATTACHED,
 	C2_RPC_SERVICE_STATE_CONN_DETACHED,
+	C2_RPC_SERVICE_STATE_NR,
 };
 
 enum {
@@ -107,8 +98,6 @@ struct c2_rpc_service {
 	struct c2_rpc_service_type      *svc_type;
 
 	enum c2_rpc_service_state        svc_state;
-	uint64_t                         svc_nr_refs;
-	struct c2_mutex                  svc_mutex;
 
 	/** @todo XXX embed service configuration object in c2_rpc_service */
 	char                            *svc_ep_addr;
@@ -122,6 +111,7 @@ struct c2_rpc_service {
 };
 
 C2_BOB_DECLARE(extern, c2_rpc_service);
+C2_TL_DECLARE(c2_rpc_services, extern, struct c2_rpc_service);
 
 struct c2_rpc_service_ops {
 	void (*rso_fini_and_free)(struct c2_rpc_service *service);
@@ -163,4 +153,5 @@ void c2_rpc_service_detach_conn(struct c2_rpc_service *service);
 
 void c2_rpc_service_release(struct c2_rpc_service *service);
 
+bool c2_rpc_service_invariant(const struct c2_rpc_service *service);
 #endif /* __COLIBRI_RPC_SERVICE_H__ */
