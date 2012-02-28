@@ -40,28 +40,32 @@
 
 static int logfd;
 
-static const char sys_kern_randvspace_fname[] = "/proc/sys/kernel/randomize_va_space";
+static const char sys_kern_randvspace_fname[] =
+	"/proc/sys/kernel/randomize_va_space";
 
 static int randvspace_check()
 {
-	int val;
+	int   val;
+	int   result;
 	FILE *f;
 
 	if ((f = fopen(sys_kern_randvspace_fname, "r")) == NULL) {
 		warn("open(\"%s\")", sys_kern_randvspace_fname);
+		result = -errno;
 	} else if (fscanf(f, "%d", &val) != 1) {
 		warnx("fscanf(\"%s\")", sys_kern_randvspace_fname);
-		errno = EINVAL;
+		result = -EINVAL;
 	} else if (val != 0) {
 		warnx("System configuration ERROR: "
 		      "kernel.randomize_va_space should be set to 0.");
-		errno = EINVAL;
-	}
+		result = -EINVAL;
+	} else
+		result = 0;
 
 	if (f != NULL)
 		fclose(f);
 
-	return -errno;
+	return result;
 }
 
 static int logbuf_map()
@@ -82,14 +86,7 @@ static int logbuf_map()
 
 int c2_arch_trace_init()
 {
-	int res;
-
-	if ((res = randvspace_check()) != 0)
-		return res;
-	else if ((res = logbuf_map()) != 0)
-		return res;
-	else
-		return 0;
+	return randvspace_check() ?: logbuf_map();
 }
 
 void c2_arch_trace_fini(void)
@@ -120,8 +117,10 @@ int c2_trace_parse(void)
 	unsigned                     nr;
 	unsigned                     n2r;
 
-	printf("   no   |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
-	printf("-------------------------------------------------------------------------------------------\n");
+	printf("   no   |    tstamp     |   stack ptr    |"
+	       "        func        |        src        | sz|narg\n");
+	printf("------------------------------------------"
+	       "-------------------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;

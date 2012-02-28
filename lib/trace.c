@@ -97,11 +97,14 @@ static inline uint64_t rdtsc(void)
 
 void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 {
-	uint32_t header_len, record_len;
-	uint32_t pos_in_buf, endpos_in_buf;
-	uint64_t pos, endpos;
+	uint32_t header_len;
+	uint32_t record_len;
+	uint32_t pos_in_buf;
+	uint32_t endpos_in_buf;
+	uint64_t pos;
+	uint64_t endpos;
 	struct c2_trace_rec_header *header;
-	register unsigned long sp asm ("sp");
+	register unsigned long sp asm ("sp"); /* stack pointer */
 
 	C2_ASSERT(c2_logbuf != NULL);
 	/*
@@ -143,7 +146,8 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	memcpy((void*)header + header_len, body, td->td_size);
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = C2_TRACE_MAGIC;
-	if (C2_TRACE_IMMEDIATE_DEBUG && (td->td_subsys & c2_trace_immediate_mask))
+	if (C2_TRACE_IMMEDIATE_DEBUG &&
+	    (td->td_subsys & c2_trace_immediate_mask))
 		c2_trace_record_print(header, body);
 }
 
@@ -160,12 +164,13 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
 
-	c2_console_printf("%8.8llu %15.15llu %16.16llx %-20s %15s:%-3i %3.3i %3i\n\t",
-	       (unsigned long long)trh->trh_no,
-	       (unsigned long long)trh->trh_timestamp,
-	       (unsigned long long)trh->trh_sp,
-	       td->td_func, td->td_file, td->td_line, td->td_size,
-	       td->td_nr);
+	c2_console_printf("%8.8llu %15.15llu %16.16llx %-20s "
+			  "%15s:%-3i %3.3i %3i\n\t",
+			  (unsigned long long)trh->trh_no,
+			  (unsigned long long)trh->trh_timestamp,
+			  (unsigned long long)trh->trh_sp,
+			  td->td_func, td->td_file, td->td_line, td->td_size,
+			  td->td_nr);
 
 	for (i = 0; i < td->td_nr; ++i) {
 		const char *addr;
@@ -191,7 +196,7 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 		}
 	}
 	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
-	       v[7], v[8]);
+			  v[7], v[8]);
 	c2_console_printf("\n");
 }
 
