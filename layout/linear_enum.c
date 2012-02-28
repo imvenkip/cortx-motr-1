@@ -144,8 +144,11 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (lin_attr->lla_nr == 0 || lin_attr->lla_A == 0 ||
 	    lin_attr->lla_B == 0) {
 		C2_LOG("In linear_decode(), lid %llu, Invalid value, "
-		       "nr %lu, A %lu, B %lu\n", (unsigned long long)lid,
-		       lin_attr->lla_nr, lin_attr->lla_A, lin_attr->lla_B);
+		       "nr %lu, A %lu, B %lu\n",
+		       (unsigned long long)lid,
+		       (unsigned long)lin_attr->lla_nr,
+		       (unsigned long)lin_attr->lla_A,
+		       (unsigned long)lin_attr->lla_B);
 		return -EINVAL;
 	}
 

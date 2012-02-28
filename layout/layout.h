@@ -208,11 +208,6 @@ struct c2_layout_type_ops {
  *  Layout enumeration.
  */
 struct c2_layout_enum {
-	/* @todo Check need of this one.
-	 * Pointer back to c2_layout object this c2_layout_enum is part of.
-	const struct c2_layout            *le_l;
-	 */
-
 	/** Layout enumeration type. */
 	const struct c2_layout_enum_type *le_type;
 

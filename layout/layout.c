@@ -127,6 +127,12 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 {
 	C2_PRE(str_l != NULL);
 
+	/*
+	 * Memory allocated for str_l->ls_enum should be freed through
+	 * c2_layout_enum_fini() to be called by the caller.
+	 */
+	str_l->ls_enum = NULL;
+
 	c2_layout_fini(&str_l->ls_base);
 }
 

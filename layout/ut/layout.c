@@ -776,7 +776,8 @@ static int test_encode_pdclust_list(uint64_t lid)
 	rc = pdclust_list_lbuf_verify(lid, 4, 1, 25, &cur);
 
 	c2_list_enum_fini(list_enum);
-	c2_pdclust_fini(&pl->pl_base.ls_base);
+	C2_ASSERT(pl->pl_base.ls_base.l_ops != NULL);
+	pl->pl_base.ls_base.l_ops->lo_fini(&pl->pl_base.ls_base);
 
 	return rc;
 }
@@ -991,7 +992,9 @@ static int test_add_pdclust_list(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_list_enum_fini(list_enum);
-	c2_pdclust_fini(&pl->pl_base.ls_base);
+
+	C2_ASSERT(pl->pl_base.ls_base.l_ops != NULL);
+	pl->pl_base.ls_base.l_ops->lo_fini(&pl->pl_base.ls_base);
 
 	return rc;
 }

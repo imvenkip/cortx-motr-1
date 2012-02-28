@@ -368,8 +368,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 }
 
 /** Implementation of lo_fini for pdclust layout type. */
-/** @todo Need to take out c2_ from the name. */
-void c2_pdclust_fini(struct c2_layout *l)
+static void pdclust_fini(struct c2_layout *l)
 {
 	uint32_t i;
 	struct c2_pdclust_layout     *pl;
@@ -379,9 +378,7 @@ void c2_pdclust_fini(struct c2_layout *l)
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
 	if (pl != NULL) {
-		c2_layout_fini(&pl->pl_base.ls_base);
-		/* todo Check if this is the rt place for the following */
-		c2_free(stl->ls_enum);
+		c2_layout_striped_fini(&pl->pl_base);
 		c2_free(pl->pl_tile_cache.tc_inverse);
 		c2_free(pl->pl_tile_cache.tc_permute);
 		c2_free(pl->pl_tile_cache.tc_lcode);
@@ -461,8 +458,10 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 	}
 	if (result == 0)
 		*out = pdl;
-	else
-		c2_pdclust_fini(&pdl->pl_base.ls_base);
+	else {
+		C2_ASSERT(pdl->pl_base.ls_base.l_ops != NULL);
+		pdl->pl_base.ls_base.l_ops->lo_fini(&pdl->pl_base.ls_base);
+	}
 
 	c2_pdclust_layout_bob_init(pdl);
 	C2_ASSERT(c2_pdclust_layout_bob_check(pdl));
@@ -698,7 +697,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 
 
 static const struct c2_layout_ops pdclust_ops = {
-	.lo_fini        = &c2_pdclust_fini
+	.lo_fini        = &pdclust_fini
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {

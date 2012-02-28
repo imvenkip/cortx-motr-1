@@ -259,7 +259,6 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   const struct c2_pdclust_tgt_addr *tgt,
 			   struct c2_pdclust_src_addr *src);
 
-void c2_pdclust_fini(struct c2_layout *l);
 int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
