@@ -59,6 +59,7 @@ void test_time(void)
 	t3 = c2_time_add(t1, t2);
 	C2_UT_ASSERT(t3 == 1236487654321);
 
+	c2_time_set(&t2, 0, C2_TIME_ONE_BILLION/100);
 	rc = c2_nanosleep(t2, &t1);
 	C2_UT_ASSERT(rc == 0);
 
