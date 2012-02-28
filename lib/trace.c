@@ -127,7 +127,8 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 		 * The record should not cross the buffer.
 		 */
 		if (pos_in_buf > endpos_in_buf && endpos_in_buf) {
-			memset(c2_logbuf + pos_in_buf, 0, c2_logbufsize - pos_in_buf);
+			memset(c2_logbuf + pos_in_buf, 0,
+			       c2_logbufsize - pos_in_buf);
 			memset(c2_logbuf, 0, endpos_in_buf);
 		} else
 			break;
