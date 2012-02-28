@@ -100,6 +100,8 @@ void c2_rpc_service_type_unregister(struct c2_rpc_service_type *service_type)
 	c2_rwlock_write_unlock(&rpc_service_types_lock);
 
 	C2_POST(!rpc_service_types_tlink_is_in(service_type));
+	C2_POST(c2_rpc_service_type_locate(service_type->svt_type_id) ==
+			NULL);
 }
 
 struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
@@ -203,6 +205,7 @@ void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)
 	       service->svc_ops->rso_fini_and_free != NULL);
 
 	service->svc_ops->rso_fini_and_free(service);
+	/* Do not dereference @service after this point */
 }
 int c2_rpc__service_init(struct c2_rpc_service            *service,
 			 struct c2_rpc_service_type       *service_type,
@@ -236,6 +239,11 @@ int c2_rpc__service_init(struct c2_rpc_service            *service,
 	rc = 0;
 
 out:
+	/*
+ 	 * Leave in UNDEFINED state. The caller will set service->svc_state to
+ 	 * INITIALISED when it successfully initalises service-type specific
+ 	 * fields.
+ 	 */
 	C2_POST(service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED);
 	return rc;
 }
@@ -243,14 +251,18 @@ out:
 void c2_rpc__service_fini(struct c2_rpc_service *service)
 {
 	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(c2_rpc_service_invariant(service) &&
+		(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
+		 service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED));
 
-	C2_ASSERT(service->svc_ep_addr != NULL);
 	c2_free(service->svc_ep_addr);
 
 	service->svc_type = NULL;
 
 	c2_rpc_services_tlink_fini(service);
 	c2_rpc_service_bob_fini(service);
+
+	/* Caller of this routine will move service to UNDEFINED state */
 }
 
 const char *
@@ -275,7 +287,8 @@ void c2_rpc_service_attach_conn(struct c2_rpc_service *service,
 	struct c2_rpcmachine *machine;
 
 	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
-	C2_PRE(conn != NULL);
+	C2_PRE(c2_rpc_service_invariant(service) &&
+		service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE);
