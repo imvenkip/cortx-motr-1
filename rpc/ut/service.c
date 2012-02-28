@@ -75,11 +75,15 @@ out_err:
 	return NULL;
 }
 
+static bool foo_service_fini_and_free_called;
+
 static void foo_service_fini_and_free(struct c2_rpc_service *service)
 {
 	struct foo_service *foo_service;
 
 	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+
+	foo_service_fini_and_free_called = true;
 
 	foo_service = container_of(service, struct foo_service, f_service);
 
@@ -138,8 +142,9 @@ static void locate_failed_test(void)
 	);
 }
 
-static const char      foo_ep_addr[] = "127.0.0.1:12345:1";
-static struct c2_uuid  foo_uuid; /* Leave it unitialised */
+static struct c2_rpc_service *fr_service = NULL; /* fr_ for foo_rpc_ */
+static const char             foo_ep_addr[] = "127.0.0.1:12345:1";
+static struct c2_uuid         foo_uuid; /* Leave it unitialised */
 
 static void alloc_test(void)
 {
@@ -147,18 +152,27 @@ static void alloc_test(void)
 	struct foo_service    *foo_service;
 
 	foo_alloc_and_init_called = false;
-	service = c2_rpc_service_alloc_and_init(&foo_service_type, foo_ep_addr,
-						&foo_uuid);
+	fr_service = c2_rpc_service_alloc_and_init(&foo_service_type, foo_ep_addr,
+						  &foo_uuid);
 	C2_UT_ASSERT(foo_alloc_and_init_called);
+	C2_UT_ASSERT(fr_service != NULL);
 
-	foo_service = container_of(service, struct foo_service, f_service);
+	foo_service = container_of(fr_service, struct foo_service, f_service);
 	C2_UT_ASSERT(foo_service->f_x == FOO_SERVICE_DEFAULT_X);
-	C2_UT_ASSERT(strcmp(foo_ep_addr, c2_rpc_service_get_ep_addr(service))
+	C2_UT_ASSERT(strcmp(foo_ep_addr, c2_rpc_service_get_ep_addr(fr_service))
 				== 0);
 
 	bar_alloc_and_init_called = false;
 	service = c2_rpc_service_alloc_and_init(&bar_service_type, NULL, NULL);
 	C2_UT_ASSERT(bar_alloc_and_init_called);
+}
+
+static void service_free_test(void)
+{
+	foo_service_fini_and_free_called = false;
+	c2_rpc_service_fini_and_free(fr_service);
+	fr_service = NULL;
+	C2_UT_ASSERT(foo_service_fini_and_free_called);
 }
 
 static void unregister_test(void)
@@ -178,11 +192,12 @@ const struct c2_test_suite rpc_service_ut = {
 	.ts_fini  = rpc_service_ut_fini,
 	.ts_tests = {
 			/* Order of these tests matter */
-			{ "service-type-register",    register_test   },
+			{ "service-type-register",    register_test      },
 			{ "service-type-locate-fail", locate_failed_test },
-			{ "service-alloc",            alloc_test      },
-			{ "service-type-unregister",  unregister_test },
-			{ NULL,                       NULL            }
+			{ "service-alloc",            alloc_test         },
+			{ "service-free",             service_free_test  },
+			{ "service-type-unregister",  unregister_test    },
+			{ NULL,                       NULL               }
 	}
 };
 

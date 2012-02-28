@@ -137,6 +137,8 @@ c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 			      const char                 *ep_addr,
 			      const struct c2_uuid       *uuid);
 
+void c2_rpc_service_fini_and_free(struct c2_rpc_service *service);
+
 int c2_rpc__service_init(struct c2_rpc_service           *service,
 			 struct c2_rpc_service_type      *service_type,
 			 const char                      *ep_addr,

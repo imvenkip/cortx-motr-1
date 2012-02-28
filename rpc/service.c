@@ -136,7 +136,7 @@ C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
                    C2_RPC_SERVICES_LIST_HEAD_MAGIX);
 
 C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
- 
+
 struct c2_rpc_service *
 c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 			      const char                 *ep_addr,
@@ -156,6 +156,14 @@ c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 	return service;
 }
 
+void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)
+{
+	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(service->svc_ops != NULL &&
+	       service->svc_ops->rso_fini_and_free != NULL);
+
+	service->svc_ops->rso_fini_and_free(service);
+}
 int c2_rpc__service_init(struct c2_rpc_service            *service,
 			 struct c2_rpc_service_type       *service_type,
 			 const char                       *ep_addr,
