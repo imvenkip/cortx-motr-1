@@ -24,6 +24,7 @@
 #include "lib/atomic.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
+#include "lib/bob.h"
 
 /* Imports */
 struct c2_rpc_conn;
@@ -110,7 +111,7 @@ struct c2_rpc_service {
 	struct c2_mutex                  svc_mutex;
 
 	/** @todo XXX embed service configuration object in c2_rpc_service */
-	const char                      *svc_ep_addr;
+	char                            *svc_ep_addr;
 	struct c2_uuid                   svc_uuid;
 	struct c2_rpc_conn              *svc_conn;
 
@@ -119,6 +120,8 @@ struct c2_rpc_service {
 	struct c2_tlink                  svc_tlink;
 	uint64_t                         svc_magix;
 };
+
+C2_BOB_DECLARE(extern, c2_rpc_service);
 
 struct c2_rpc_service_ops {
 	void (*rso_fini_and_free)(struct c2_rpc_service *service);
@@ -139,6 +142,8 @@ int c2_rpc__service_init(struct c2_rpc_service           *service,
 			 const char                      *ep_addr,
 			 const struct c2_uuid            *uuid,
 			 const struct c2_rpc_service_ops *ops);
+
+void c2_rpc__service_fini(struct c2_rpc_service *service);
 
 const char *
 c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service);

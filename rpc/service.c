@@ -18,10 +18,14 @@
  * Original creation date: 02/23/2012
  */
 
+#include <string.h>
+#include <errno.h>
+
 #include "rpc/service.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/rwlock.h"
+#include "lib/memory.h"
 
 static struct c2_bob_type rpc_service_type_bob = {
 	.bt_name         = "rpc_service_type",
@@ -158,13 +162,22 @@ int c2_rpc__service_init(struct c2_rpc_service            *service,
 			 const struct c2_uuid             *uuid,
 			 const struct c2_rpc_service_ops  *ops)
 {
+	char *copy_of_ep_addr;
+	int   rc;
+
 	C2_PRE(service != NULL && ep_addr != NULL);
 	C2_PRE(service_type != NULL);
 	C2_PRE(uuid != NULL && ops != NULL && ops->rso_fini_and_free != NULL);
 	C2_PRE(service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED);
 
+	copy_of_ep_addr = strdup(ep_addr);
+	if (copy_of_ep_addr == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
 	service->svc_type    = service_type;
-	service->svc_ep_addr = ep_addr;
+	service->svc_ep_addr = copy_of_ep_addr;
 	service->svc_uuid    = *uuid;
 	service->svc_ops     = ops;
 	service->svc_conn    = NULL;
@@ -173,7 +186,25 @@ int c2_rpc__service_init(struct c2_rpc_service            *service,
 	c2_rpc_services_tlink_init(service);
 	c2_rpc_service_bob_init(service);
 
-	return 0;
+	rc = 0;
+
+out:
+	C2_POST(service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED);
+	return rc;
+}
+
+void c2_rpc__service_fini(struct c2_rpc_service *service)
+{
+	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+
+	C2_ASSERT(service->svc_ep_addr != NULL);
+	c2_free(service->svc_ep_addr);
+
+	service->svc_type = NULL;
+
+	c2_mutex_fini(&service->svc_mutex);
+	c2_rpc_services_tlink_fini(service);
+	c2_rpc_service_bob_fini(service);
 }
 
 const char *
