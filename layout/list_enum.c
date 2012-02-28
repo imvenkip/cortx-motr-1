@@ -336,7 +336,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	/* Catch if the buffer is with insufficient size. */
+	/* Check if the buffer is with insufficient size. */
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ldb_ce_header);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
@@ -461,7 +461,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-	       c2_bufvec_cursor_step(olrec_cur) >= sizeof *ldb_ce_oldheader));
+	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *ldb_ce_oldheader));
 	C2_PRE(out != NULL);
 
 	C2_LOG("list_encode(): lid %llu\n", (unsigned long long)l->l_id);
@@ -542,6 +542,8 @@ static int list_encode(struct c2_ldb_schema *schema,
 		}
 	}
 
+	C2_LOG("list_encode(): lid %llu, rc %d\n",
+	       (unsigned long long)l->l_id, rc);
 	return rc;
 }
 

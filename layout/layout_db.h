@@ -153,20 +153,27 @@ struct c2_ldb_schema {
 struct c2_ldb_rec {
 	/**
 	 * Layout type id.
-	 * Value obtained from  c2_layout_type::lt_id.
+	 * Value obtained from c2_layout_type::lt_id.
 	 */
 	uint32_t                       lr_lt_id;
 
 	/**
 	 * Layout reference count.
 	 * Indicating number of users for this layout.
+	 * Value obtained from c2_layout::l_ref.
 	 */
 	uint32_t                       lr_ref_count;
 
 	/**
+	 * Pool identifier.
+	 * Value obtained from c2_layout::l_pid.
+	 */
+	uint64_t                       lr_pid;
+
+	/**
 	 * Layout type specific payload.
 	 * Contains attributes specific to the applicable layout type and/or
-         * applicable to the enumeration type, if applicable.
+	 * applicable to the enumeration type, if applicable.
 	 */
 	char                           lr_data[0];
 };

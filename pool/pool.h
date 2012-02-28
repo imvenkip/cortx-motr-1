@@ -36,11 +36,16 @@ struct c2_stob_id;
 struct c2_pool;
 
 struct c2_pool {
+	/** Pool id. */
+	uint64_t po_id;
+
 	uint32_t po_width;
 };
 
-int  c2_pool_init(struct c2_pool *pool, uint32_t width);
+int  c2_pool_init(struct c2_pool *pool, uint64_t pid, uint32_t width);
 void c2_pool_fini(struct c2_pool *pool);
+
+int c2_pool_lookup(uint64_t pid, struct c2_pool **out);
 
 /**
    Allocates object id in the pool.

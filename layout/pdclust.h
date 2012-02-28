@@ -93,6 +93,9 @@ struct c2_pdclust_attr {
 	 * Number of target objects over which this layout stripes the source.
 	 */
 	uint32_t                     pa_P;
+
+	/** A datum used to seed PRNG to generate tile column permutations. */
+	struct c2_uint128            pa_seed;
 };
 
 /**
@@ -121,8 +124,6 @@ struct c2_pdclust_layout {
 	/** Parity de-clustering layout attributes. */
 	struct c2_pdclust_attr       pl_attr;
 
-	/** A datum used to seed PRNG to generate tile column permutations. */
-	struct c2_uint128            pl_seed;
 
 	/**
 	 * Number of parity groups in a tile.

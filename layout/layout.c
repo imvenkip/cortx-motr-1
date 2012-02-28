@@ -74,6 +74,7 @@ void c2_layouts_fini(void)
 
 int c2_layout_init(struct c2_layout *l,
 		   uint64_t lid,
+		   uint64_t pool_id,
 		   const struct c2_layout_type *type,
 		   const struct c2_layout_ops *ops)
 {
@@ -88,6 +89,7 @@ int c2_layout_init(struct c2_layout *l,
 
 	l->l_id     = lid;
 	l->l_type   = type;
+	l->l_pid    = pool_id;
 	l->l_ops    = ops;
 
 	return 0;
@@ -102,7 +104,7 @@ void c2_layout_fini(struct c2_layout *l)
 
 int c2_layout_striped_init(struct c2_layout_striped *str_l,
 			   struct c2_layout_enum *e,
-			   uint64_t lid,
+			   uint64_t lid, uint64_t pool_id,
 			   const struct c2_layout_type *type,
 			   const struct c2_layout_ops *ops)
 {
@@ -114,7 +116,7 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 
 	C2_SET0(str_l);
 
-	c2_layout_init(&str_l->ls_base, lid, type, ops);
+	c2_layout_init(&str_l->ls_base, lid, pool_id, type, ops);
 
 	str_l->ls_enum = e;
 
@@ -204,7 +206,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	/* Catch if the buffer is with insufficient size. */
+	/* Check if the buffer is with insufficient size. */
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
@@ -241,7 +243,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	 *    C2_PRE(!c2_bufvec_cursor_move(cur, 0)) catches it.
 	 */
 
-	rc = lt->lt_ops->lto_decode(schema, lid, cur, op, tx, out);
+	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0)
 		return rc;
 
@@ -250,6 +252,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	(*out)->l_id = lid;
 	(*out)->l_type = lt;
 	(*out)->l_ref = rec->lr_ref_count;
+	(*out)->l_pid = rec->lr_pid;
 
 	c2_mutex_unlock(&(*out)->l_lock);
 
@@ -329,6 +332,8 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		C2_ASSERT(oldrec != NULL);
 		if (oldrec->lr_lt_id != l->l_type->lt_id)
 			return -EINVAL;
+		if (oldrec->lr_pid != l->l_pid)
+			return -EINVAL;
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
 	}
 
@@ -340,6 +345,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	rec->lr_lt_id     = l->l_type->lt_id;
 	rec->lr_ref_count = l->l_ref;
+	rec->lr_pid       = l->l_pid;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
 	C2_ASSERT(nbytes_copied == sizeof *rec);
@@ -347,6 +353,9 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
 
 	c2_mutex_unlock(&l->l_lock);
+
+	C2_LOG("c2_layout_encode(): %llu, rc %d\n",
+	       (unsigned long long)l->l_id, rc);
 
 	return rc;
 }

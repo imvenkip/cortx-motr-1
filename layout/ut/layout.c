@@ -45,6 +45,13 @@ static int                   rc;
 uint64_t                     lid_seed = 1;
 uint64_t                     lid_max = 0xFFFF;
 
+/* todo convert the above to this enum. */
+enum {
+	DEF_POOL_ID = 1,
+};
+
+/* todo Incorporate build and checks for pool id and seed. */
+
 extern const struct c2_layout_type c2_pdclust_layout_type;
 extern const struct c2_layout_type c2_composite_layout_type;
 
@@ -231,7 +238,7 @@ static int internal_init()
 	c2_ldb_enum_register(&schema, &c2_list_enum_type);
 	c2_ldb_enum_register(&schema, &c2_linear_enum_type);
 
-	return c2_pool_init(&pool, P);
+	return c2_pool_init(&pool, DEF_POOL_ID, P);
 }
 
 static void internal_fini()
@@ -252,6 +259,7 @@ static void lbuf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 
 	rec.lr_lt_id         = lt_id;
 	rec.lr_ref_count     = 0;
+	rec.lr_pid           = DEF_POOL_ID;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof rec);
@@ -475,7 +483,6 @@ static int test_decode_pdclust_linear(uint64_t lid)
 /*
  * This test results into an assert from linear_decode():
  * C2_PRE(!c2_bufvec_cursor_move(cur, 0));
-*/
 static int test_decode_pdclust_linear_negative(uint64_t lid)
 {
 	void                      *area;
@@ -503,7 +510,6 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 
 	return rc;
 }
-/*
  */
 
 static void test_decode(void)
@@ -527,10 +533,10 @@ static void test_decode(void)
 	 * Negative test -
 	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
 	 *
-	 */
-	  lid = 0x50444C4953543032; /* PDLIST03 */
+	  lid = 0x50444C4953543032; * PDLIST03 *
 	  rc = test_decode_pdclust_linear_negative(lid);
 	  C2_UT_ASSERT(rc == 0);
+	 */
 
 	internal_fini();
 }
@@ -540,10 +546,14 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 			   struct c2_pdclust_layout **pl)
 {
 	struct c2_uint128   seed;
+	struct c2_pool     *pool;
 
 	c2_uint128_init(&seed, "updownupdownupdo");
 
-	rc = c2_pdclust_build(&pool, &lid, N, K, &seed, le, pl);
+	rc = c2_pool_lookup(DEF_POOL_ID, &pool);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_pdclust_build(pool, &lid, N, K, &seed, le, pl);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -1016,6 +1026,9 @@ static int test_update_pdclust_linear(uint64_t lid)
 	struct c2_db_tx            tx;
 	struct c2_layout           *l;
 
+	rc = pdclust_linear_l_build(lid, 6, 1, 800, 900, &pl);
+	C2_UT_ASSERT(rc == 0);
+
 	num_bytes = c2_ldb_max_recsize(&schema);
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
@@ -1025,9 +1038,6 @@ static int test_update_pdclust_linear(uint64_t lid)
 
 	pair.dp_rec.db_buf.b_addr = area;
 	pair.dp_rec.db_buf.b_nob = num_bytes;
-
-	rc = pdclust_linear_l_build(lid, 6, 1, 800, 900, &pl);
-	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
 	C2_UT_ASSERT(rc == 0);
@@ -1076,6 +1086,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	return rc;
 }
 
+/*
 static int test_update_pdclust_linear_negative(uint64_t lid)
 {
 	c2_bcount_t                num_bytes;
@@ -1107,7 +1118,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Lookup the record just for verification. */
+	* Lookup the record just for verification. *
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1131,7 +1142,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Lookup the record just for verification. */
+	* Lookup the record just for verification. *
 	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1145,7 +1156,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 
 	return rc;
 }
-
+*/
 
 static void test_update(void)
 {
@@ -1159,9 +1170,11 @@ static void test_update(void)
 	rc = test_update_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
+	/*
 	lid = 9877;
 	rc = test_update_pdclust_linear_negative(lid);
 	C2_UT_ASSERT(rc == 0);
+	*/
 
 	/* todo
 	lid = 5432;
@@ -1265,6 +1278,7 @@ static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 
 	rec.lr_lt_id         = c2_pdclust_layout_type.lt_id;
 	rec.lr_ref_count     = 0;
+	rec.lr_pid           = DEF_POOL_ID;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof rec);
@@ -1299,6 +1313,7 @@ static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 
 	C2_UT_ASSERT(rec->lr_lt_id == c2_pdclust_layout_type.lt_id);
 	C2_UT_ASSERT(rec->lr_ref_count == 0);
+	C2_UT_ASSERT(rec->lr_pid == DEF_POOL_ID);
 
 	rc = c2_bufvec_cursor_move(cur, sizeof *rec);
 

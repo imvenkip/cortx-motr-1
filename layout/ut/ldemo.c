@@ -38,6 +38,10 @@
    @{
 */
 
+enum {
+	DEF_POOL_ID = 10
+};
+
 enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
 				   int unit)
 {
@@ -206,7 +210,7 @@ int main(int argc, char **argv)
 	if (result != 0)
 		return result;
 
-	result = c2_pool_init(&pool, P);
+	result = c2_pool_init(&pool, DEF_POOL_ID, P);
 	if (result == 0) {
 		result = c2_linear_enum_build(pool.po_width, 100, 200, &le);
 		if (result == 0) {

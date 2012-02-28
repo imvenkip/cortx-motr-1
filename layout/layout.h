@@ -110,6 +110,10 @@ struct c2_layout {
 	 */
 	uint32_t                         l_ref;
 
+	/** Pool identifier. */
+	/* todo change pid to read pool_id */
+	uint64_t                         l_pid;
+
 	/**
 	 * Lock to protect a c2_layout instance and all its direct/indirect
 	 * members.
@@ -183,6 +187,7 @@ struct c2_layout_type_ops {
 	 * which embeds c2_layout. Sets c2_layout::l_ops.
 	 */
 	int    (*lto_decode)(struct c2_ldb_schema *schema, uint64_t lid,
+			     uint64_t pool_id,
 			     struct c2_bufvec_cursor *cur,
 			     enum c2_layout_xcode_op op,
 			     struct c2_db_tx *tx,
@@ -306,13 +311,14 @@ void c2_layouts_fini(void);
 
 int c2_layout_init(struct c2_layout *lay,
 		   uint64_t lid,
+		   uint64_t pool_id,
 		   const struct c2_layout_type *type,
 		   const struct c2_layout_ops *ops);
 void c2_layout_fini(struct c2_layout *lay);
 
 int c2_layout_striped_init(struct c2_layout_striped *str_lay,
 			   struct c2_layout_enum *e,
-			   uint64_t lid,
+			   uint64_t lid, uint64_t pool_id,
 			   const struct c2_layout_type *type,
 			   const struct c2_layout_ops *ops);
 void c2_layout_striped_fini(struct c2_layout_striped *strl);

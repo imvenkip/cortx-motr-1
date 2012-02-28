@@ -269,8 +269,8 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 
 		/* initialize PRNG */
 		rstate  =
-			hash(play->pl_seed.u_hi) ^
-			hash(play->pl_seed.u_lo + omega);
+			hash(play->pl_attr.pa_seed.u_hi) ^
+			hash(play->pl_attr.pa_seed.u_lo + omega);
 
 		/* generate permutation number in lexicographic ordering */
 		for (i = 0; i < play->pl_attr.pa_P - 1; ++i)
@@ -402,6 +402,7 @@ void c2_pdclust_fini(struct c2_layout *l)
 
 static const struct c2_layout_ops pdclust_ops;
 
+/* why id is a pointer - todo? */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
@@ -429,11 +430,11 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t *id,
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
 
-		c2_layout_striped_init(&pdl->pl_base, le, *id,
+		c2_layout_striped_init(&pdl->pl_base, le, *id, pool->po_id,
 			       &c2_pdclust_layout_type,
 			       &pdclust_ops);
 
-		pdl->pl_seed = *seed;
+		pdl->pl_attr.pa_seed = *seed;
 		pdl->pl_attr.pa_N = N;
 		pdl->pl_attr.pa_K = K;
 
@@ -537,22 +538,23 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
  * over the network.
  */
 static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
+			  uint64_t pool_id,
 			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
 		          struct c2_layout **out)
 {
 	struct c2_pdclust_layout   *pl;
-	struct c2_layout_striped   *stl;
 	struct c2_ldb_pdclust_rec  *pl_rec;
 	struct c2_layout_enum_type *et;
 	struct c2_layout_enum      *e;
+	struct c2_pool             *pool = NULL;
 	int                         rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	/* Catch if the buffer is with insufficient size. */
+	/* Check if the buffer is with insufficient size. */
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
@@ -562,9 +564,6 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_ALLOC_PTR(pl);
 	if (pl == NULL)
 		return -ENOMEM;
-
-	stl = &pl->pl_base;
-	*out = &stl->ls_base;
 
 	pl_rec = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(pl_rec != NULL);
@@ -578,8 +577,6 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (et == NULL)
 		return -ENOENT;
 
-	pl->pl_attr = pl_rec->pr_attr;
-
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
 	rc = et->let_ops->leto_decode(schema, lid, cur, op, tx, &e);
@@ -589,14 +586,18 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		return rc;
 	}
 
-	/* todo c2_pdclust_build() should be invoked here instead of
-	 * invoking c2_layout_striped_init(). But how do i get the values for
-	 * pool (probably somehow referring the configuration) and seed?
-	 */
-	rc = c2_layout_striped_init(stl, e, lid, &c2_pdclust_layout_type,
-				    &pdclust_ops);
+	rc = c2_pool_lookup(pool_id, &pool);
 	C2_ASSERT(rc == 0);
-	C2_ASSERT(stl->ls_enum != NULL);
+	C2_ASSERT(pool != NULL);
+
+	rc = c2_pdclust_build(pool, &lid, pl_rec->pr_attr.pa_N,
+			      pl_rec->pr_attr.pa_K, &pl_rec->pr_attr.pa_seed,
+			      e, &pl);
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(pl != NULL);
+	C2_ASSERT(pl->pl_base.ls_enum != NULL);
+
+	*out = &pl->pl_base.ls_base;
 
 	return rc;
 }
@@ -632,12 +633,15 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	/* Catch if the buffer is with insufficient size. */
+	/* Check if the buffer is with insufficient size. */
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec));
 	C2_PRE(out != NULL);
 
 	C2_LOG("pdclust_encode(): %llu\n", (unsigned long long)l->l_id);
+
+	C2_LOG("pdclust_encode():              "
+		"%llu\n", (unsigned long long)l->l_id);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
@@ -649,14 +653,18 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		 * point to the enumeration type specific payload.
 		 */
 		pl_oldrec = c2_bufvec_cursor_addr(oldrec_cur);
-		C2_ASSERT(pl_oldrec != NULL);
 
-		if (pl_oldrec->pr_let_id != stl->ls_enum->le_type->let_id)
-			return -EINVAL;
-		if (pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N ||
+		if (pl_oldrec->pr_let_id != stl->ls_enum->le_type->let_id ||
+		    pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N ||
 		    pl_oldrec->pr_attr.pa_K != pl->pl_attr.pa_K ||
-		    pl_oldrec->pr_attr.pa_P != pl->pl_attr.pa_P)
-			return -EINVAL;
+		    pl_oldrec->pr_attr.pa_P != pl->pl_attr.pa_P ||
+		    !c2_uint128_eq(&pl_oldrec->pr_attr.pa_seed,
+				   &pl->pl_attr.pa_seed)) {
+				C2_LOG("pdclust_encode(): %llu, Error: old rec "
+				       "values do not match new ones...\n",
+					(unsigned long long)l->l_id);
+				return -EINVAL;
+			}
 
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
@@ -681,6 +689,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	if (et->let_ops->leto_encode != NULL) {
 		rc = et->let_ops->leto_encode(schema, l, op, tx,
 					      oldrec_cur, out);
+		C2_LOG("pdclust_encode(): %llu, leto_encode() rc %d\n",
+				(unsigned long long)l->l_id, rc);
 		C2_ASSERT(rc == 0);
 	}
 

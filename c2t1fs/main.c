@@ -49,6 +49,10 @@
 #include "pool/pool.h"
 #include "lib/buf.h"
 
+enum {
+	DEF_POOL_ID = 9
+};
+
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
 /**
@@ -384,7 +388,7 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 
 	/* @todo create an object for enum. */
 
-	result = c2_pool_init(pool, N+2*K);
+	result = c2_pool_init(pool, DEF_POOL_ID, N+2*K);
 
 	if (result != 0) {
 		c2_free(pool);

@@ -53,12 +53,12 @@ struct layout_prefix {
 };
 
 void c2_composite_init(struct c2_composite_layout *clay,
-		       uint64_t id,
+		       uint64_t id, uint64_t pool_id,
 		       const struct c2_layout_type *type,
 		       const struct c2_layout_ops *ops,
 		       struct c2_tl *sub_layouts)
 {
-	c2_layout_init(&clay->cl_base, id, type, ops);
+	c2_layout_init(&clay->cl_base, id, pool_id, type, ops);
 
 	/**
 	   Intialize clay->cl_sub_layouts by using sub_layouts.
@@ -146,6 +146,7 @@ static const struct c2_layout_ops composite_ops;
  * over the network.
  */
 static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
+			    uint64_t pool_id,
 			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
@@ -157,7 +158,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	/* Catch if the buffer is with insufficient size. */
+	/* Check if the buffer is with insufficient size. */
 	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	/* todo Change the above assert to the form:
 	 * C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof ...);
