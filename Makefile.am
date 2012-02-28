@@ -64,6 +64,7 @@ ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ 
 ACLOCAL_AMFLAGS = -I m4
 
 clean-local:
+	rm -f c2.trace.*
 	if test "x@ENABLE_COVERAGE@" = "x1"; \
 	then \
 		find . -name "*.gcno" | xargs rm -f; \
