@@ -29,6 +29,11 @@
 #include "lib/rwlock.h"
 #include "lib/memory.h"
 
+/**
+   @addtogroup rpc_service
+
+   @{
+ */
 static struct c2_bob_type rpc_service_type_bob = {
 	.bt_name         = "rpc_service_type",
 	.bt_magix_offset = offsetof(struct c2_rpc_service_type, svt_magix),
@@ -332,3 +337,15 @@ void c2_rpc_service_detach_conn(struct c2_rpc_service *service)
 	c2_mutex_unlock(&machine->cr_session_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 }
+
+/** @} end of rpc_service group */
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+

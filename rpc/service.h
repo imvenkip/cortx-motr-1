@@ -21,6 +21,12 @@
 #ifndef __COLIBRI_RPC_SERVICE_H__
 #define __COLIBRI_RPC_SERVICE_H__
 
+/**
+   @defgroup rpc_service RPC service
+
+   @{
+ */
+
 #include "lib/atomic.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
@@ -178,7 +184,7 @@ enum {
  * - Yet, the user needs to ensure that no more than one thread call
  *   c2_rpc_service_detach_conn() on same service instance at the same time.
  *
- * @see c2_rpc_service_invariant() 
+ * @see c2_rpc_service_invariant()
  */
 struct c2_rpc_service {
 	struct c2_rpc_service_type      *svc_type;
@@ -259,7 +265,7 @@ void c2_rpc_service_detach_conn(struct c2_rpc_service *service);
 
 /**
  * Release service instance.
- * 
+ *
  * Instance pointed by @service will be freed at the discretion of confc
  *
  * @pre service != NULL &&
@@ -294,7 +300,7 @@ void c2_rpc_service_fini_and_free(struct c2_rpc_service *service);
  *
  * @pre service != NULL && service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED
  * @pre service_type != NULL && ep_addr != NULL && uuid != NULL && ops != NULL
- * 
+ *
  * @post service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED
  */
 int c2_rpc__service_init(struct c2_rpc_service           *service,
@@ -310,4 +316,18 @@ int c2_rpc__service_init(struct c2_rpc_service           *service,
  */
 void c2_rpc__service_fini(struct c2_rpc_service *service);
 
+/**
+   @} end of rpc_service group
+ */
 #endif /* __COLIBRI_RPC_SERVICE_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+
