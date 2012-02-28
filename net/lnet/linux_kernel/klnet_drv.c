@@ -671,7 +671,7 @@
 
    - The parameter is validated to ensure no assertions will occur.
    - The @c libcfs_nid2str() function is called to convert the string to a NID.
-   - The resulting string is copied to the the @dn_buf field.
+   - The resulting string is copied to the the @c dn_buf field.
 
    The final operations involving NID strings are the @c nlx_core_nidstrs_get()
    and @c nlx_core_nidstrs_put() operations.  The user space transport obtains
@@ -1256,7 +1256,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
    The shared transfer machine object is pinned in kernel space and its
    nlx_core_transfer_mc::ctm_kpvt field is set.
    @param kd The kernel domain object
-   @param udp User space pointer to a nlx_core_transfer_mc object
+   @param utmp User space pointer to a nlx_core_transfer_mc object
  */
 static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 				  void __user *utmp)
@@ -1283,7 +1283,7 @@ static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd,
    nlx_core_buffer_event::cbe_kpvt field is set.  The bev_link_bless()
    function is used to bless the nlx_core_buffer_event::cbe_tm_link.
    @param kd The kernel domain object
-   @param udp User space pointer to a nlx_core_buffer_event object
+   @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 				   struct c2_lnet_dev_bev_bless_params *p)

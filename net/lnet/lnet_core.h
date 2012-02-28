@@ -496,7 +496,7 @@ static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
    The subroutine allocates private data to associate with the network buffer.
    @param lcdom The domain private data to be initialized.
    @param buffer_id Value to set in the cb_buffer_id field.
-   @param bufvec Buffer vector with core address space pointers.
+   @param bvec Buffer vector with core address space pointers.
    @param lcbuf The core private data pointer for the buffer.
  */
 static int nlx_core_buf_register(struct nlx_core_domain *lcdom,

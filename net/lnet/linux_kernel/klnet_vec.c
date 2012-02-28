@@ -128,7 +128,7 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
    The page reference count is not incremented.
 
    @param kb Kcore buffer private pointer
-   @param bufvec Vector with kernel logical addresses.
+   @param bvec Vector with kernel logical addresses.
    @retval -EFBIG if the IO vector is too large.
  */
 int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
