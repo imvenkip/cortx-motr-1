@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <err.h>
 #include <stdio.h>
+#include <stdlib.h>   /* getenv, strtoul */
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
@@ -86,6 +87,18 @@ static int logbuf_map()
 
 int c2_arch_trace_init()
 {
+	const char *mask;
+
+	mask = getenv("C2_TRACE_IMMEDIATE_MASK");
+	if (mask != NULL) {
+		char *endp;
+
+		c2_trace_immediate_mask = strtoul(mask, &endp, 0);
+		if (errno != 0 || *endp != 0) {
+			warn("strtoul(\"%s\"), setting mask to 0", mask);
+			c2_trace_immediate_mask = 0;
+		}
+	}
 	return randvspace_check() ?: logbuf_map();
 }
 
