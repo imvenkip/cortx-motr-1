@@ -60,7 +60,7 @@ int c2_pagesize_get(void)
 
 /** @} end of memory group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

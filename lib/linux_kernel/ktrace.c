@@ -34,15 +34,17 @@
  * @{
  */
 
-extern void *c2_logbuf;
+module_param(c2_trace_immediate_mask, ulong, 0644);
+MODULE_PARM_DESC(c2_trace_immediate_mask,
+		 "The bitmask of what should be printed immediately to console");
 
 int c2_arch_trace_init(void)
 {
-	c2_logbuf = kzalloc(C2_TRACE_BUFSIZE, GFP_KERNEL);
+	c2_logbuf = kzalloc(c2_logbufsize, GFP_KERNEL);
 	if (c2_logbuf == NULL)
 		return -ENOMEM;
 
-	printk("Colibri: trace buffer address: 0x%p\n", c2_logbuf);
+	printk("Colibri trace buffer address: 0x%p\n", c2_logbuf);
 
 	return 0;
 }
@@ -50,6 +52,11 @@ int c2_arch_trace_init(void)
 void c2_arch_trace_fini(void)
 {
 	kfree(c2_logbuf);
+}
+
+void c2_console_vprintf(const char *fmt, va_list args)
+{
+	vprintk(fmt, args);
 }
 
 /** @} end of trace group */

@@ -27,6 +27,7 @@
    User-space specific declarations.
 
  */
+
 int  c2_trace_parse(void);
 
 /** @} end of trace group */
