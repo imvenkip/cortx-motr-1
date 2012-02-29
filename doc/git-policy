@@ -141,6 +141,30 @@ In brief:
    which touch your files or when some API, which is used by your code, was
    added or changed.
 
+ * When you are ready to merge your changes back to master use the following
+   rules:
+
+     (a) sync your local master branch with remote master
+
+           $ git checkout master
+           $ git pull --rebase
+
+     (b) if you don't have any merges in the history of your topic branch, then
+         rebase your topic branch on top of master, otherwise skip to step (c)
+
+           $ git rebase master YOUR_BRANCH
+
+     (c) merge your branch back to master
+
+           $ git checkout master
+           $ git merge --no-ff YOUR_BRANCH
+
+         it's essential to use '--no-ff' option for 'merge', because it will
+         group your changes into a separate line of history instead of doing
+         fast-forward, in which case there would be no way to single out your
+         changes
+
+
 Rationale:
 
 The normal git workflow involves the use of a lot of branches. Each line

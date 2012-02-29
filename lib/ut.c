@@ -20,8 +20,8 @@
 #include <CUnit/Basic.h>
 #include <CUnit/Automated.h>
 #include <CUnit/Console.h>
-#include <CUnit/CUCurses.h>
 #include <CUnit/TestDB.h>
+#include <CUnit/TestRun.h>
 
 #include <stdlib.h>                /* system */
 #include <stdio.h>                 /* asprintf */
@@ -29,6 +29,7 @@
 
 #include "lib/assert.h"            /* C2_ASSERT */
 #include "lib/thread.h"            /* LAMBDA */
+#include "lib/memory.h"            /* c2_allocated */
 #include "lib/ut.h"
 
 /**
@@ -136,12 +137,62 @@ static void ut_run_basic_mode(struct c2_list *test_list,
 	CU_basic_show_failures(CU_get_failure_list());
 }
 
-void c2_ut_run(enum c2_ut_run_mode mode, struct c2_list *test_list,
-	       struct c2_list *exclude_list)
-{
-	CU_basic_set_mode(CU_BRM_VERBOSE);
+static size_t used_mem_before_suite;
 
-	if (mode == C2_UT_AUTOMATED_MODE) {
+static void ut_suite_start_cbk(const CU_pSuite pSuite)
+{
+	used_mem_before_suite = c2_allocated();
+}
+
+static void ut_suite_stop_cbk(const CU_pSuite pSuite,
+			      const CU_pFailureRecord pFailure)
+{
+	size_t used_mem_after_suite = c2_allocated();
+	int    leaked_bytes = used_mem_after_suite - used_mem_before_suite;
+	float  leaked;
+	char   *units;
+	char   *notice = "";
+	int    sign = +1;
+
+	if (leaked_bytes < 0) {
+		leaked_bytes *= -1; /* make it positive */
+		sign = -1;
+		notice = "NOTICE: freed more memory than allocated!";
+	}
+
+	if (leaked_bytes / 1024 / 1024 ) { /* > 1 megabyte */
+		leaked = leaked_bytes / 1024.0 / 1024.0;
+		units = "MB";
+	} else if (leaked_bytes / 1024) {  /* > 1 kilobyte */
+		leaked = leaked_bytes / 1024.0;
+		units = "KB";
+	} else {
+		leaked = leaked_bytes;
+		units = "B";
+	}
+
+	printf("\n  Leaked: %.2f %s  %s", sign * leaked, units, notice);
+}
+
+static void ut_set_suite_start_stop_cbk(void)
+{
+	CU_set_suite_start_handler(ut_suite_start_cbk);
+	CU_set_suite_complete_handler(ut_suite_stop_cbk);
+}
+
+void c2_ut_run(struct c2_ut_run_cfg *c)
+{
+	ut_set_suite_start_stop_cbk();
+
+	if (c->urc_report_exec_time)
+		CU_basic_set_mode(CU_BRM_VERBOSE_TIME);
+	else
+		CU_basic_set_mode(CU_BRM_VERBOSE);
+
+	if (c->urc_abort_cu_assert)
+		CU_set_assert_mode(CUA_Abort);
+
+	if (c->urc_mode == C2_UT_AUTOMATED_MODE) {
 		/* run and save results to xml */
 
 		/*
@@ -159,12 +210,10 @@ void c2_ut_run(enum c2_ut_run_mode mode, struct c2_list *test_list,
 		CU_automated_run_tests();
 	} else {
 		/* run and make console output */
-		if (mode == C2_UT_BASIC_MODE) {
-			ut_run_basic_mode(test_list, exclude_list);
-		} else if (mode == C2_UT_ICONSOLE_MODE) {
+		if (c->urc_mode == C2_UT_BASIC_MODE) {
+			ut_run_basic_mode(c->urc_test_list, c->urc_exclude_list);
+		} else if (c->urc_mode == C2_UT_ICONSOLE_MODE) {
 			CU_console_run_tests();
-		} else if (mode == C2_UT_ICURSES_MODE) {
-			CU_curses_run_tests();
 		}
 	}
 }

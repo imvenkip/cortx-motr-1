@@ -1,5 +1,5 @@
 AC_PREREQ([2.59])
-AC_INIT([colibri], [0.1], [colibri@clusterstor.com])
+AC_INIT([colibri], [0.1], [colibri@xyratex.com])
 AC_CONFIG_SRCDIR([colibri/init.c])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -304,9 +304,9 @@ AC_ARG_ENABLE([gssrpc],
         [enable_gssrpc=no]
 )
 
-AC_ARG_ENABLE([db-o_direct],
-        [AC_HELP_STRING([--enable-db-o_direct], [enable db direct IO support])], [],
-        [enable_db_o_direct=no]
+AC_ARG_ENABLE([rpm],
+        [AC_HELP_STRING([--enable-rpm], [enable rpm build mode])], [],
+        [enable_rpm=no]
 )
 
 AC_MSG_CHECKING([for operating system])
@@ -329,8 +329,8 @@ AC_ARG_WITH([linux],
 AC_MSG_RESULT([$LINUX])
 AC_SUBST([LINUX])
 
-AC_ARG_ENABLE(coverage,
-	[  --enable-coverage  Build for test coverage analysis],
+AC_ARG_ENABLE([coverage],
+	[AC_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
 	[case "${enableval}" in
 		yes) ENABLE_COVERAGE=1 ;;
 		no) ENABLE_COVERAGE=0 ;;
@@ -380,122 +380,176 @@ COLIBRI_LINUX_SENDFILE
 COLIBRI_LINUX_STRUCT_NET
 COLIBRI_LINUX_CRED_IN_REQ
 
-AC_ARG_WITH([db],
-        [AC_HELP_STRING([--with-db=path], [path where db was built])])
+build_lib() {
+       NAME=$1
+       SRC=$2
+       LIBS=$3
+       CFGOPTS=$4
+       if ! test -e $LIBS; then
+               AC_MSG_RESULT([building $SRC])
+               oldcwd=$(pwd)
+               cd $SRC && ./configure $CFGOPTS && make
+               res=$?
+               cd $oldcwd
+               if ! test $res -eq 0 ; then
+                       AC_MSG_ERROR([An error occured while building lib$NAME!])
+               fi
+               if ! test -e $LIBS; then
+                       AC_MSG_ERROR([$LIBS not found! Build failed?])
+               fi
+       else
+               AC_MSG_RESULT([$LIBS])
+       fi
+}
 
 OLD_LIBS=$LIBS
 OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-AC_MSG_CHECKING([for db libs])
-if test x$with_db != x; then
-	DB_SRC="$with_db"
-        DB_LIBS="$DB_SRC/build_unix/libdb.a"
-	if ! test -e $DB_LIBS; then
-		AC_MSG_ERROR([$DB_LIBS not found! Did you build db?])
-	fi
-        AC_MSG_RESULT([$DB_LIBS])
-else
-	DB_SRC="$SRCDIR/../db4"
-        DB_LIBS="$DB_SRC/build_unix/libdb.a"
-	if ! test -e $DB_LIBS; then
-		oldcwd=$(pwd)
-		if test x$enable_db_o_direct = xyes; then
-		        o_direct_options="--enable-o_direct"
-		else
-		        o_direct_options=""
-		fi
-                AC_MSG_RESULT([building $DB_SRC])
+# Check for galois
+if test x$enable_rpm = xyes; then
 
-                # We need -fPIC to link libdb.a (static library) into so libraries, which should
-                # have position intependent code as nobody case foresee in what addresses inside
-                # calling process it will be mapped
-                AC_MSG_NOTICE([cd $DB_SRC/build_unix && ../dist/configure $o_direct_options && make])
-		cd $DB_SRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make
-		res=$?
-		cd $oldcwd
-		if ! test $res -eq 0 ; then
-			AC_MSG_ERROR([An error occured while building db!])
-		fi
-		if ! test -e $DB_LIBS; then
-			AC_MSG_ERROR([$DB_LIBS not found! Build failed?])
-	        fi
-	else
-                DB_LIBS="$DB_SRC/build_unix/libdb.a"
-                AC_MSG_RESULT([$DB_LIBS])
-	fi
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS([galois_create_mult_tables], [galois], [
+        AC_CHECK_HEADERS([galois/galois.h], [],
+        [
+                AC_MSG_ERROR([galois/galois.h is not found. Try install galois from $SRCDIR/../galois or from rpm])
+        ],[])
+], [
+        AC_MSG_ERROR([galois_create_mult_tables cannot be found! Try install galois package from $SRCDIR/../galois or from rpm])
+])
+GALOIS_SRC=""
+GALOIS_LIBS=$LIBS
+LIBS=$OLD_LIBS
+
+galois_locations="/usr /usr/local /opt /opt/local"
+AC_MSG_CHECKING([galois symvers])
+GALOIS_SYMVERS=""
+for p in $galois_locations; do
+        symvers="$p/share/galois/symvers/Module.symvers"
+        if test -f $symvers; then
+                GALOIS_SYMVERS=$symvers
+                break
+        fi
+done
+
+if ! test x$GALOIS_SYMVERS = "x"; then
+        AC_MSG_RESULT([$GALOIS_SYMVERS])
+        AC_SUBST([GALOIS_SYMVERS])
+else
+        AC_MSG_ERROR([Galois Module.symvers is not found in the following locations: ${galois_locations}])
 fi
 
-#
-# Helper function to build external library.
-#
-# Input parameters:
-#     1st -- library name
-#     2nd -- directory with library sources
-#     3rd -- path to compiled library binary
-#     4th -- (optional) options for configure script
-#
-build_lib()
-{
-	NAME=$1
-	SRC=$2
-	LIBS=$3
-	CFGOPTS=$4
-	if ! test -e $LIBS; then
-		AC_MSG_RESULT([building $SRC])
-		oldcwd=$(pwd)
-		cd $SRC && ./configure $CFGOPTS && make
-		res=$?
-		cd $oldcwd
-		if ! test $res -eq 0 ; then
-			AC_MSG_ERROR([An error occured while building lib$NAME!])
-		fi
-		if ! test -e $LIBS; then
-			AC_MSG_ERROR([$LIBS not found! Build failed?])
-		fi
-	else
-		AC_MSG_RESULT([$LIBS])
-	fi
-}
+else
 
-# Check for galois
 GALOIS_SRC=$SRCDIR/../galois
-GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
+GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-build_lib galois $GALOIS_SRC $GALOIS_LIBS
+build_lib galois $GALOIS_SRC $GALOIS_LIBS '--with-pic'
+
+AC_MSG_CHECKING([galois symvers])
+GALOIS_SYMVERS="$GALOIS_SRC/src/linux_kernel/Module.symvers"
+if test -f $GALOIS_SYMVERS; then
+        AC_MSG_RESULT([$GALOIS_SYMVERS])
+        AC_SUBST([GALOIS_SYMVERS])
+else
+        AC_MSG_ERROR([Can't find ${GALOIS_SYMVERS}! Make sure that galois is built correctly.])
+fi
+fi
 
 # Check for yaml
+if test x$enable_rpm = xyes; then
+
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS([yaml_parser_initialize], [yaml], [], [AC_MSG_ERROR([yaml_parser_initialize cannot be found! Try install yaml package from $SRCDIR/../yaml or from rpm])])
+YAML_LIBS=$LIBS
+LIBS=$OLD_LIBS
+
+else
+
 YAML_SRC=$SRCDIR/../yaml
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
-build_lib yaml $YAML_SRC $YAML_LIBS
+build_lib yaml $YAML_SRC $YAML_LIBS '--with-pic'
+
+fi
 
 # Check for CUnit
+if test x$enable_rpm = xyes; then
+
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS([CU_add_suite], [cunit],
+[
+        AC_CHECK_HEADERS([CUnit/Basic.h], [],
+        [
+                AC_MSG_ERROR([CUnit/Basic.h is not found. Try install CUnit from $SRCDIR/../cunit or CUnit-devel rpm package])
+        ],[])
+], [
+        AC_MSG_ERROR([CU_add_suite cannot be found! Try install CUnit package from $SRCDIR/../cunit or from rpm])
+], [-lncurses])
+CUNIT_LIBS=$LIBS
+LIBS=$OLD_LIBS
+
+else
+
 CUNIT_SRC=$SRCDIR/../cunit
-CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/.libs/libcunit.la"
+CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
 CUNIT_HEADERS="$CUNIT_SRC/CUnit/Headers"
 AC_MSG_CHECKING([for cunit libs])
 build_lib cunit $CUNIT_SRC $CUNIT_LIBS '--with-pic --enable-curses'
 
+fi
+
+# Check for berkley db
+if test x$enable_rpm = xyes; then
+
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS([db_env_create], [db], [
+        AC_CHECK_HEADERS([db.h], [],
+        [
+                AC_MSG_ERROR([db.h is not found. Try install db4-devel package])
+        ],[])
+], [
+        AC_MSG_ERROR([db_env_create cannot be found! Try install db4-devel package])
+])
+DB_LIBS=$LIBS
+
+else
+
+AC_MSG_CHECKING([for db libs])
+DB_SRC="$SRCDIR/../db4"
+DB_LIBS="$DB_SRC/build_unix/libdb.a"
+if ! test -e $DB_LIBS; then
+        oldcwd=$(pwd)
+        AC_MSG_RESULT([building $DB_SRC])
+        AC_MSG_NOTICE([cd $DB_SRC/build_unix && ../dist/configure && make])
+        cd $DB_SRC/build_unix && ../dist/configure CFLAGS=-fPIC && make
+        res=$?
+        cd $oldcwd
+        if ! test $res -eq 0 ; then
+                AC_MSG_ERROR([An error occured while building db!])
+        fi
+        if ! test -e $DB_LIBS; then
+                AC_MSG_ERROR([$DB_LIBS not found! Build failed?])
+        fi
+else
+        DB_LIBS="$DB_SRC/build_unix/libdb.a"
+        AC_MSG_RESULT([$DB_LIBS])
+fi
+
+fi
+
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
-# Check if o_direct patch applied
-if test x$enable_db_o_direct = xyes; then
-        AC_MSG_CHECKING([for direct I/O patch applied to db])
-        $NM_B $DB_LIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
-        rc=$?
-        if ! test $rc -eq 0; then
-                AC_MSG_RESULT([no])
-                AC_MSG_ERROR([No direct I/O patch applied to db at $DB_SRC found!])
-        else
-                AC_MSG_RESULT([yes])
-        fi
-fi
-
 AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
+AC_SUBST([GALOIS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 AC_SUBST([CUNIT_LIBS])
@@ -524,6 +578,7 @@ if test x$enable_gssrpc = xyes; then
         fi
 fi
 
+# Check for libaio
 OLD_LIBS=$LIBS
 LIBS=""
 AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found! Try install libaio-devel.])])
@@ -559,10 +614,23 @@ CFLAGS="$OLD_CFLAGS")
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
-CFLAGS=`echo "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing" \
-             "-I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include" \
-             "-I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"`
-KCFLAGS="-Wall -Werror $KCFLAGS"
+if test x$enable_rpm = xyes; then
+
+GALOIS_INCLUDES="-I/usr/local/include -I/usr/include"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I. -I$SRCDIR $CFLAGS"
+
+else
+
+GALOIS_INCLUDES="-I$GALOIS_SRC/include"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
+        -I$DB_SRC/build_unix $GALOIS_INCLUDES -I$YAML_SRC/include \
+        -I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"
+fi
+
+#
+# Galois header may be in one of the following standard loctions. Kernel needs to know about.
+#
+KCFLAGS="-Wall -Werror $KCFLAGS $GALOIS_INCLUDES"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
@@ -584,6 +652,8 @@ AC_CONFIG_FILES([
                  build_kernel_modules/Makefile
                  capa/Makefile
                  capa/ut/Makefile
+                 c2t1fs/Makefile
+                 c2t1fs/linux_kernel/st/common.sh
                  cfg/Makefile
                  cob/Makefile
                  cob/ut/Makefile
@@ -653,6 +723,7 @@ AC_CONFIG_FILES([
 		 yaml2db/Makefile
 		 yaml2db/ut/Makefile
 		 yaml2db/st/Makefile
+		 colibri.spec
                 ])
 AC_OUTPUT
 
@@ -662,16 +733,17 @@ AC_OUTPUT
 chmod +x fop/fop2c
 
 echo ""
-echo "LIBS   :  \"$LIBS\""
-echo "CFLAGS :  \"$CFLAGS\""
-echo "KCFLAGS:  \"$KCFLAGS\""
-echo "LDFLAGS:  \"$LDFLAGS\""
+echo "GALOIS_LIBS :  \"$GALOIS_LIBS\""
+echo "CUNIT_LIBS  :  \"$CUNIT_LIBS\""
+echo "YAML_LIBS   :  \"$YAML_LIBS\""
+echo "DB_LIBS     :  \"$DB_LIBS\""
+echo "AIO_LIBS    :  \"$AIO_LIBS\""
+echo ""
+echo "CFLAGS      :  \"$CFLAGS\""
+echo "KCFLAGS     :  \"$KCFLAGS\""
+echo "LDFLAGS     :  \"$LDFLAGS\""
 echo ""
 
-echo "Galois :  \"$GALOIS_SRC\""
-echo "YAML   :  \"$YAML_SRC\""
-echo "Db     :  \"$DB_SRC\""
-echo "CUnit  :  \"$CUNIT_SRC\""
 echo "Linux  :  \"$LINUX\""
 echo ""
 

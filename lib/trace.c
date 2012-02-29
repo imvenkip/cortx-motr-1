@@ -18,22 +18,11 @@
  * Original creation date: 08/12/2010
  */
 
-#ifdef __KERNEL__
-#  include <linux/slab.h>
-#  include <linux/sched.h>
-#else
-#  include <string.h>   /* memset */
-#  include <stdio.h>
-#  include <unistd.h>   /* getpagesize */
-#  include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
-#  include <sys/mman.h> /* mmap */
-#  include <sys/syscall.h>
-#  include <linux/sysctl.h>
-#endif
-
 #include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/arith.h" /* c2_align */
+#include "lib/misc.h"
+#include "lib/memory.h" /* c2_pagesize_get */
 #include "lib/trace.h"
 
 /**
@@ -56,96 +45,44 @@
  */
 
 /* single buffer for now */
-static void              *logbuf = NULL;
-static uint32_t           bufsize;
+
+/**
+ * This buffer is used for early trace records issued before real buffer is
+ * initialized by c2_trace_init().
+ */
+static char bootbuf[4096];
+void      *c2_logbuf     = bootbuf;
+uint32_t   c2_logbufsize = sizeof bootbuf;
+
+unsigned long c2_trace_immediate_mask = 0;
+C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
+
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
-#ifndef __KERNEL__
-static int                logfd;
-#endif
 
-enum {
-	BUFSHIFT = 10 + 12, /* 4MB log buffer */
-	BUFSIZE  = 1 << BUFSHIFT
-};
+extern int  c2_arch_trace_init(void);
+extern void c2_arch_trace_fini(void);
 
 int c2_trace_init(void)
 {
 	int psize;
 
-	C2_ASSERT(logbuf == NULL);
-#ifndef __KERNEL__
-	{
-		int name[] = { CTL_KERN, KERN_RANDOMIZE };
-		struct __sysctl_args args;
-		int val;
-		size_t val_sz = sizeof val;
-
-		memset(&args, 0, sizeof args);
-		args.name = name;
-		args.nlen = ARRAY_SIZE(name);
-		args.oldval  = &val;
-		args.oldlenp = &val_sz;
-
-		if (syscall(SYS__sysctl, &args) == -1) {
-			perror("_sysctl");
-			return -errno;
-		}
-
-		if (val != 0) {
-			fprintf(stderr, "System configuration ERROR: "
-			   "kernel.randomize_va_space should be set to 0.\n");
-			return -1;
-		}
-	}
-#endif
-
 	c2_atomic64_set(&cur, 0);
-	bufsize  = BUFSIZE;
-	bufmask  = bufsize - 1;
 
-#ifdef __KERNEL__
-	psize = PAGE_SIZE;
-#else
-	psize = getpagesize();
-#endif
-	C2_ASSERT((BUFSIZE % psize) == 0);
+	C2_ASSERT(c2_is_po2(C2_TRACE_BUFSIZE));
+	c2_logbufsize = C2_TRACE_BUFSIZE;
+	bufmask = c2_logbufsize - 1;
 
-#ifndef __KERNEL__
-	errno = 0;
-	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
-	if (logfd != -1) {
-		if (ftruncate(logfd, BUFSIZE) == 0) {
-			logbuf = mmap(NULL, BUFSIZE, PROT_WRITE,
-				      MAP_SHARED, logfd, 0);
-			if (logbuf == MAP_FAILED)
-				perror("mmap");
-		}
-	} else {
-		perror("open");
-	}
+	psize = c2_pagesize_get();
+	C2_ASSERT((c2_logbufsize % psize) == 0);
 
-	return -errno;
-#else
-	logbuf = kzalloc(BUFSIZE, GFP_KERNEL);
-	if (logbuf == NULL)
-		return -ENOMEM;
-
-	printk("trace buffer address: 0x%p\n", logbuf);
-
-	return 0;
-#endif
+	return c2_arch_trace_init();
 }
 
 void c2_trace_fini(void)
 {
-#ifdef __KERNEL__
-	kfree(logbuf);
-#else
-	munmap(logbuf, bufsize);
-	close(logfd);
-#endif
-	logbuf = NULL;
+	c2_arch_trace_fini();
+	c2_logbuf = NULL;
 }
 
 
@@ -164,13 +101,15 @@ static inline uint64_t rdtsc(void)
 
 void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 {
-	uint32_t header_len, record_len;
-	uint32_t pos_in_buf, endpos_in_buf;
-	uint64_t pos, endpos;
+	uint32_t header_len;
+	uint32_t record_len;
+	uint32_t pos_in_buf;
+	uint32_t endpos_in_buf;
+	uint64_t pos;
+	uint64_t endpos;
 	struct c2_trace_rec_header *header;
-	register unsigned long sp asm ("sp");
+	register unsigned long sp asm ("sp"); /* stack pointer */
 
-	C2_ASSERT(logbuf != NULL);
 	/*
 	 * Allocate space in trace buffer to store trace record header
 	 * (header_len bytes) and record payload (record_len bytes).
@@ -194,13 +133,14 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 		 * The record should not cross the buffer.
 		 */
 		if (pos_in_buf > endpos_in_buf && endpos_in_buf) {
-			memset(logbuf + pos_in_buf, 0, bufsize - pos_in_buf);
-			memset(logbuf, 0, endpos_in_buf);
+			memset(c2_logbuf + pos_in_buf, 0,
+			       c2_logbufsize - pos_in_buf);
+			memset(c2_logbuf, 0, endpos_in_buf);
 		} else
 			break;
 	}
 
-	header                = logbuf + pos_in_buf;
+	header                = c2_logbuf + pos_in_buf;
 	header->trh_magic     = 0;
 	header->trh_no        = pos;
 	header->trh_sp        = sp;
@@ -208,8 +148,71 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	header->trh_descr     = td;
 	memcpy((void*)header + header_len, body, td->td_size);
 	/** @todo put memory barrier here before writing the magic */
-	header->trh_magic = MAGIC;     
+	header->trh_magic = C2_TRACE_MAGIC;
+	if (C2_TRACE_IMMEDIATE_DEBUG &&
+	    (td->td_subsys & c2_trace_immediate_mask))
+		c2_trace_record_print(header, body);
 }
+
+
+void
+c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
+{
+	int i;
+	const struct c2_trace_descr *td = trh->trh_descr;
+	union {
+		uint8_t  v8;
+		uint16_t v16;
+		uint32_t v32;
+		uint64_t v64;
+	} v[C2_TRACE_ARGC_MAX];
+
+	c2_console_printf("%8.8llu %15.15llu %16.16llx %-20s "
+			  "%15s:%-3i %3.3i %3i\n\t",
+			  (unsigned long long)trh->trh_no,
+			  (unsigned long long)trh->trh_timestamp,
+			  (unsigned long long)trh->trh_sp,
+			  td->td_func, td->td_file, td->td_line, td->td_size,
+			  td->td_nr);
+
+	for (i = 0; i < td->td_nr; ++i) {
+		const char *addr;
+
+		addr = buf + td->td_offset[i];
+		switch (td->td_sizeof[i]) {
+		case 0:
+			break;
+		case 1:
+			v[i].v8 = *(uint8_t *)addr;
+			break;
+		case 2:
+			v[i].v16 = *(uint16_t *)addr;
+			break;
+		case 4:
+			v[i].v32 = *(uint32_t *)addr;
+			break;
+		case 8:
+			v[i].v64 = *(uint64_t *)addr;
+			break;
+		default:
+			C2_IMPOSSIBLE("sizeof");
+		}
+	}
+	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
+			  v[7], v[8]);
+	c2_console_printf("\n");
+}
+
+
+void c2_console_printf(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	c2_console_vprintf(fmt, ap);
+	va_end(ap);
+}
+
 
 /** @} end of trace group */
 

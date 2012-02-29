@@ -22,22 +22,25 @@
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/thread.h"
-#include "lib/trace.h"
 #include "lib/assert.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_UT
+#include "lib/trace.h"
 
 enum {
 	NR       = 16,
 	NR_INNER = 100000
 };
 
+static struct c2_thread t[NR];
+
 void test_trace(void)
 {
 	int i;
 	int result;
-	struct c2_thread t[NR];
+	uint64_t u64;
 
 	C2_LOG("forty two: %i", 42);
-	C2_LOG("forty three: %i", 43);
+	C2_LOG("forty three and tree: %i %llu", 43, (unsigned long long)(u64 = 3));
 	for (i = 0; i < NR_INNER; ++i)
 		C2_LOG("c: %i, d: %i", i, i*i);
 
