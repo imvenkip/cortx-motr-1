@@ -249,7 +249,7 @@ static void unregister_test(void)
 }
 
 const struct c2_test_suite rpc_service_ut = {
-	.ts_name  = "rpc-service",
+	.ts_name  = "rpc-service-ut",
 	.ts_init  = rpc_service_ut_init,
 	.ts_fini  = rpc_service_ut_fini,
 	.ts_tests = {
@@ -263,7 +263,7 @@ const struct c2_test_suite rpc_service_ut = {
 			{ NULL,                       NULL               }
 	}
 };
-
+C2_EXPORTED(rpc_service_ut);
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
