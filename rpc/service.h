@@ -116,13 +116,14 @@ scope struct c2_rpc_service_type (obj_name) = {                          \
 void c2_rpc_service_type_register(struct c2_rpc_service_type *service_type);
 
 /**
- * Locates c2_rpc_service_type instance identified by type_id.
+ * @return c2_rpc_service_type instance identified by type_id if found, NULL
+ *         otherwise.
  * @post ergo(result != NULL, result->svt_type_id == type_id)
  */
 struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id);
 
 /**
- * Unregister a service type.
+ * Unregisters a service type.
  *
  * Removes service_type from service.c:rpc_service_types list.
  * @pre rpc_service_types_tlink_is_in(service_type)
@@ -192,6 +193,7 @@ struct c2_rpc_service {
 	/** @todo XXX embed service configuration object in c2_rpc_service */
 	char                            *svc_ep_addr;
 	struct c2_uuid                   svc_uuid;
+
 	/**
  	 * Rpc connection attached to the service instance. Valid only in
  	 * C2_RPC_SERVICE_STATE_CONN_ATTACHED state.
@@ -217,7 +219,9 @@ struct c2_rpc_service_ops {
 	/**
  	 * Finalises and frees service.
  	 *
- 	 * Object pointed by service is not valid after call to this routine.
+ 	 * Object pointed by service is not valid after call returns from
+	 * this routine.
+	 *
  	 * @pre service != NULL &&
  	 * 	(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
  	 * 	 service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED)
@@ -243,7 +247,7 @@ void c2_rpc_service_attach_conn(struct c2_rpc_service *service,
 				struct c2_rpc_conn    *conn);
 
 /**
- * @return conn iff service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED
+ * @return conn if service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED,
  *         NULL otherwise.
  */
 struct c2_rpc_conn *
@@ -262,9 +266,9 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service);
 void c2_rpc_service_detach_conn(struct c2_rpc_service *service);
 
 /**
- * Release service instance.
+ * Releases service instance.
  *
- * Instance pointed by service will be freed at the discretion of confc
+ * Instance pointed by service will be freed at the discretion of confc.
  *
  * @pre service != NULL &&
  *      (service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||

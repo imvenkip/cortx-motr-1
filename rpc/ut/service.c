@@ -39,11 +39,6 @@ foo_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 
 static void foo_service_fini_and_free(struct c2_rpc_service *service);
 
-static struct c2_rpc_service *
-bar_alloc_and_init(struct c2_rpc_service_type *service_type,
-		   const char                 *ep_addr,
-		   const struct c2_uuid       *uuid);
-
 enum {
 	FOO_SERVICE_DEFAULT_X = 10,
 };
@@ -118,6 +113,11 @@ static void foo_service_fini_and_free(struct c2_rpc_service *service)
 	c2_rpc__service_fini(service);
 	c2_free(foo_service);
 }
+
+static struct c2_rpc_service *
+bar_alloc_and_init(struct c2_rpc_service_type *service_type,
+		   const char                 *ep_addr,
+		   const struct c2_uuid       *uuid);
 
 static const struct c2_rpc_service_type_ops bar_type_ops = {
 	.rsto_alloc_and_init = bar_alloc_and_init,

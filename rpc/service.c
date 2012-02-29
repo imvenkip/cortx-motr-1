@@ -27,14 +27,14 @@
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/rwlock.h"
-#include "lib/memory.h"
+#include "lib/memory.h"   /* c2_alloc() */
 
 /**
    @addtogroup rpc_service
 
    @{
  */
-static struct c2_bob_type rpc_service_type_bob = {
+static const struct c2_bob_type rpc_service_type_bob = {
 	.bt_name         = "rpc_service_type",
 	.bt_magix_offset = offsetof(struct c2_rpc_service_type, svt_magix),
 	.bt_magix        = C2_RPC_SERVICE_TYPE_MAGIX,
@@ -72,7 +72,7 @@ int c2_rpc_service_module_init(void)
 
 void c2_rpc_service_module_fini(void)
 {
-	c2_rwlock_init(&rpc_service_types_lock);
+	c2_rwlock_fini(&rpc_service_types_lock);
 	rpc_service_types_tlist_fini(&rpc_service_types);
 }
 
@@ -129,14 +129,13 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 	return NULL;
 }
 
-static struct c2_bob_type rpc_service_bob = {
+static const struct c2_bob_type rpc_service_bob = {
 	.bt_name         = "rpc_service",
 	.bt_magix_offset = offsetof(struct c2_rpc_service, svc_magix),
 	.bt_magix        = C2_RPC_SERVICE_MAGIX,
 	.bt_check        = NULL,
 };
 
-/** @todo XXX make following definition static */
 C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
 
 C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
@@ -212,6 +211,7 @@ void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)
 	service->svc_ops->rso_fini_and_free(service);
 	/* Do not dereference @service after this point */
 }
+
 int c2_rpc__service_init(struct c2_rpc_service            *service,
 			 struct c2_rpc_service_type       *service_type,
 			 const char                       *ep_addr,
