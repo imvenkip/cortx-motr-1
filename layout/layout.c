@@ -31,6 +31,8 @@
 #include "lib/memory.h"
 #include "lib/vec.h"
 #include "lib/misc.h"
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
 #include "layout/layout_db.h"
@@ -97,6 +99,7 @@ int c2_layout_init(struct c2_layout *l,
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
+	C2_ENTRY("%llu", (unsigned long long)lid);
 	C2_SET0(l);
 
 	c2_mutex_init(&l->l_lock);
@@ -109,6 +112,7 @@ int c2_layout_init(struct c2_layout *l,
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
 			 &c2_addb_global_ctx);
 
+	C2_LEAVE();
 	return 0;
 }
 

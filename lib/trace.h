@@ -198,7 +198,8 @@ extern unsigned long c2_trace_immediate_mask;
 enum c2_trace_subsystem {
 	C2_TRACE_SUBSYS_OTHER  = (1 << 0),
 	C2_TRACE_SUBSYS_UT     = (1 << 1),
-	C2_TRACE_SUBSYS_MEMORY = (1 << 2)
+	C2_TRACE_SUBSYS_MEMORY = (1 << 2),
+	C2_TRACE_SUBSYS_LAYOUT = (1 << 3)
 };
 
 /**

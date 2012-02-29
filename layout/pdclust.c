@@ -636,7 +636,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec));
 	C2_PRE(out != NULL);
 
-	C2_LOG("pdclust_encode(): %llu\n", (unsigned long long)l->l_id);
+	C2_LOG("pdclust_encode(): lid %llu\n", (unsigned long long)l->l_id);
 
 	C2_LOG("pdclust_encode():              "
 		"%llu\n", (unsigned long long)l->l_id);
