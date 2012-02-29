@@ -37,6 +37,20 @@
 #include "layout/layout_internal.h"
 #include "layout/layout.h"
 
+/** ADDB instrumentation for layout. */
+static const struct c2_addb_ctx_type layout_addb_ctx_type = {
+	.act_name = "layout"
+};
+
+const struct c2_addb_loc layout_addb_loc = {
+	.al_name = "layout"
+};
+
+/* todo remove
+C2_ADDB_EV_DEFINE(layout_func_fail, "layout_func_fail",
+		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+*/
+
 /**
  * Initializes layout schema, creates generic table to store layout records.
  * Registers all the layout types amd enum types by creating layout type and
@@ -92,6 +106,9 @@ int c2_layout_init(struct c2_layout *l,
 	l->l_pool_id = pool_id;
 	l->l_ops     = ops;
 
+	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
+			 &c2_addb_global_ctx);
+
 	return 0;
 }
 
@@ -100,6 +117,8 @@ void c2_layout_fini(struct c2_layout *l)
 	C2_PRE(layout_invariant(l));
 
 	c2_mutex_fini(&l->l_lock);
+
+	c2_addb_ctx_fini(&l->l_addb);
 }
 
 int c2_layout_striped_init(struct c2_layout_striped *str_l,
@@ -242,8 +261,12 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	 */
 
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
-	if (rc != 0)
+	if (rc != 0) {
+		/** @todo Replace the global context as appropriate. */
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "lto_encode", rc);
 		return rc;
+	}
 
 	c2_mutex_lock(&(*out)->l_lock);
 
@@ -337,9 +360,13 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	C2_ALLOC_PTR(rec);
 	if (rec == NULL) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
 		c2_mutex_unlock(&l->l_lock);
 		return -ENOMEM;
 	}
+
+	/* todo remove */
+	//C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
 
 	rec->lr_lt_id     = l->l_type->lt_id;
 	rec->lr_ref_count = l->l_ref;
@@ -349,6 +376,9 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_ASSERT(nbytes_copied == sizeof *rec);
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
+	if (rc != 0)
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_func_fail,
+			    "lto_encode", rc);
 
 	c2_mutex_unlock(&l->l_lock);
 

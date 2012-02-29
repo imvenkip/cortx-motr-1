@@ -257,7 +257,7 @@ void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
 /**
    Low-level interface posting a data-point to the addb.
 
-   Use this if type-safe interface (C2_ADDB_ADD()) is for some reason
+   Use this, if type-safe interface (C2_ADDB_ADD()) is for some reason
    inadequate.
  */
 void c2_addb_add(struct c2_addb_dp *dp);
@@ -313,7 +313,7 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 
    Event formal parameters are supplied as variadic arguments. This macro checks
    that their number and types conform to the event definition
-   (C2_ADDB_EV_DEFINE(), which it turns conforms to the event operation vector
+   (C2_ADDB_EV_DEFINE(), which in turn conforms to the event operation vector
    definition in C2_ADDB_OPS_DEFINE()).
 
    "ev" MUST be a variable name, usually introduced by C2_ADDB_EV_DEFINE().

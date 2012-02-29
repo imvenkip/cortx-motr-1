@@ -345,6 +345,13 @@
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 
+extern const struct c2_addb_loc layout_addb_loc;
+
+/* todo Feb 29
+   Look at cob.c and define event like C2_ADDB_EVENT_COB_MDEXISTS for
+   layout add, delete, update and lookup.
+*/
+
 enum {
 	DEF_DB_FLAGS = 0
 };
@@ -643,6 +650,9 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	/* Following covers the case - record not found. */
 	if (rc != 0) {
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "c2_table_lookup", rc);
+
 		C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() rc %d\n",
 		       (unsigned long long)lid, rc);
 		return rc;
@@ -723,22 +733,34 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 }
 
 static int get_oldrec(struct c2_ldb_schema *schema,
-		      uint64_t lid, void *area, uint32_t num_bytes)
+		      struct c2_layout *l, void *area, uint32_t num_bytes)
 {
 	struct c2_db_pair  pair;
 	struct c2_db_tx    tx;
 	int                rc;
 
-	c2_db_pair_setup(&pair, &schema->ls_layouts,
-			 &lid, sizeof lid,
-			 area, num_bytes);
 	rc = c2_db_tx_init(&tx, schema->ls_dbenv, DEF_DB_FLAGS);
 	C2_ASSERT(rc == 0);
 
+	c2_db_pair_setup(&pair, &schema->ls_layouts,
+			 &l->l_id, sizeof l->l_id,
+			 area, num_bytes);
+
 	rc = c2_table_lookup(&tx, &pair);
 	C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d\n",
-	       (unsigned long long)lid, rc);
+	       (unsigned long long)l->l_id, rc);
 	C2_ASSERT(rc == 0);
+
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+
+	if (rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    c2_addb_func_fail, "c2_table_lookup", rc);
+		return rc;
+		/* todo Check if need to do commit if lookup fails.
+		 * But then how to report rc in that case? */
+	}
 
 	rc = c2_db_tx_commit(&tx);
 	C2_ASSERT(rc == 0);
@@ -788,7 +810,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	if (oldrec_area == NULL)
 		return -ENOMEM;
 
-	rc = get_oldrec(schema, l->l_id, oldrec_area, num_bytes);
+	rc = get_oldrec(schema, l, oldrec_area, num_bytes);
 	if (rc != 0) {
 		c2_free(oldrec_area);
 		return rc;
@@ -876,6 +898,8 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 
 /** @} end group LayoutDBDFS */
+
+
 
 /**
  * @defgroup LayoutDBDFSInternal Layout DB Internals

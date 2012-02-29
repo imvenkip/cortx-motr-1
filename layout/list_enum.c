@@ -35,6 +35,8 @@
 #include "layout/list_enum.h"
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
 
+extern const struct c2_addb_loc layout_addb_loc;
+
 enum {
 	/**
 	 * Maximum limit on the number of COB entries those can be stored
@@ -286,9 +288,11 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 			 &rec, sizeof rec);
 
 	rc = c2_table_lookup(tx, &pair);
-	C2_ASSERT(rc == 0);
-	if (rc != 0)
+	if (rc != 0) {
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "c2_table_lookup()", rc);
 		return rc;
+	}
 
 	if (!c2_fid_is_valid(&rec.lclr_cob_id))
 		return -EINVAL;

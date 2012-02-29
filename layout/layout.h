@@ -121,6 +121,8 @@ struct c2_layout {
 
 	/** Layout operations vector. */
 	const struct c2_layout_ops      *l_ops;
+
+	struct c2_addb_ctx               l_addb;
 };
 
 struct c2_layout_ops {
