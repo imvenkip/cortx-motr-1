@@ -168,8 +168,6 @@ obj-y += $(testdirs)
 create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)) \
                 2> /dev/null)
 
-GALOIS_SRC = @GALOIS_SRC@
-
 all:
 	@echo $(kcolibri-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
@@ -191,8 +189,7 @@ all:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` \
-		modules_install
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C $(KERNEL_BUILDDIR) M=`pwd` modules_install
 
 uninstall:
 	su -c "rm -fr @LINUX_MOD@/kernel/fs/colibri && \
