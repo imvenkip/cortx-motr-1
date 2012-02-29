@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,8 @@
  * Original creation date: 02/23/2012
  */
 
-#include <string.h>
-#include <errno.h>
+#include <linux/string.h>
+#include <linux/errno.h>
 
 #include "rpc/service.h"
 #include "rpc/session.h"
@@ -226,11 +226,12 @@ int c2_rpc__service_init(struct c2_rpc_service            *service,
 	C2_PRE(uuid != NULL && ops != NULL && ops->rso_fini_and_free != NULL);
 	C2_PRE(service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED);
 
-	copy_of_ep_addr = strdup(ep_addr);
+	copy_of_ep_addr = c2_alloc(strlen(ep_addr) + 1);
 	if (copy_of_ep_addr == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
+	strcpy(copy_of_ep_addr, ep_addr);
 
 	service->svc_type    = service_type;
 	service->svc_ep_addr = copy_of_ep_addr;

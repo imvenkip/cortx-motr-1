@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -27,15 +27,11 @@
    @{
  */
 
-#include "lib/atomic.h"
 #include "lib/tlist.h"
-#include "lib/mutex.h"
 #include "lib/bob.h"
 
 /* Imports */
 struct c2_rpc_conn;
-struct c2_rpcmachine;
-struct c2_uuid;
 
 /* Exports */
 struct c2_rpc_service_type;
@@ -78,7 +74,7 @@ struct c2_rpc_service_type {
 struct c2_rpc_service_type_ops {
 	/**
  	 * Allocates and initalises c2_rpc_service instance.
- 	 * Values pointed by @ep_addr and @uuid are copied in
+ 	 * Values pointed by ep_addr and uuid are copied in
  	 * c2_rpc_service instance.
  	 *
  	 * C2_POST(ergo(result != NULL,
@@ -94,25 +90,27 @@ struct c2_rpc_service_type_ops {
 /**
  * Defines a c2_rpc_service_type instance.
  *
- * @arg obj_name Name of c2_rpc_service_type instance
- * @arg hname    Human readable name of service type
- * @arg type_id  numeric id that uniquely identifies a service-type
- * @arg ops      Pointer to c2_rpc_service_type_ops instance
+ * @param obj_name Name of c2_rpc_service_type instance
+ * @param hname    Human readable name of service type
+ * @param type_id  numeric id that uniquely identifies a service-type
+ * @param ops      Pointer to c2_rpc_service_type_ops instance
  */
 #define C2_RPC_SERVICE_TYPE_DEFINE(scope, obj_name, hname, type_id, ops) \
 scope struct c2_rpc_service_type (obj_name) = {                          \
 	.svt_name     = (hname),                                         \
-	.svt_type_id  = (type_id),                                          \
+	.svt_type_id  = (type_id),                                       \
 	.svt_ops      = (ops),                                           \
-	.svt_magix = C2_RPC_SERVICE_TYPE_MAGIX,                          \
+	.svt_magix    = C2_RPC_SERVICE_TYPE_MAGIX,                       \
 }
 
 /**
  * Registers a service type.
  *
- * Adds @service_type to service.c:rpc_service_types list.
+ * Adds service_type to service.c:rpc_service_types list.
+ *
  * @pre service_type != NULL &&
  *      c2_rpc_service_type_locate(service_type->svt_type_id) == NULL
+ *
  * @post c2_rpc_service_type_locate(service_type->svt_type_id) == service_type
  */
 void c2_rpc_service_type_register(struct c2_rpc_service_type *service_type);
@@ -126,7 +124,7 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id);
 /**
  * Unregister a service type.
  *
- * Removes @service_type from service.c:rpc_service_types list.
+ * Removes service_type from service.c:rpc_service_types list.
  * @pre rpc_service_types_tlink_is_in(service_type)
  * @post !rpc_service_types_tlink_is_in(service_type)
  */
@@ -217,7 +215,7 @@ C2_TL_DECLARE(c2_rpc_services, extern, struct c2_rpc_service);
 
 struct c2_rpc_service_ops {
 	/**
- 	 * Finalises and frees @service.
+ 	 * Finalises and frees service.
  	 *
  	 * Object pointed by service is not valid after call to this routine.
  	 * @pre service != NULL &&
@@ -233,7 +231,7 @@ const char *
 c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service);
 
 /**
- * Associates @service with @conn
+ * Associates service with conn
  *
  * @pre service != NULL &&
  *      service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED
@@ -266,7 +264,7 @@ void c2_rpc_service_detach_conn(struct c2_rpc_service *service);
 /**
  * Release service instance.
  *
- * Instance pointed by @service will be freed at the discretion of confc
+ * Instance pointed by service will be freed at the discretion of confc
  *
  * @pre service != NULL &&
  *      (service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
