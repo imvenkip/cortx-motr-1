@@ -245,11 +245,11 @@ int c2_rpc__service_init(struct c2_rpc_service            *service,
 	rc = 0;
 
 out:
-	/*
- 	 * Leave in UNDEFINED state. The caller will set service->svc_state to
- 	 * INITIALISED when it successfully initalises service-type specific
- 	 * fields.
- 	 */
+        /*
+         * Leave in UNDEFINED state. The caller will set service->svc_state to
+         * INITIALISED when it successfully initalises service-type specific
+         * fields.
+         */
 	C2_POST(service->svc_state == C2_RPC_SERVICE_STATE_UNDEFINED);
 	return rc;
 }

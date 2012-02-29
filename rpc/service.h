@@ -60,11 +60,11 @@ struct c2_rpc_service_type {
 	const char                           *svt_name;
 	const struct c2_rpc_service_type_ops *svt_ops;
 
-	/**
- 	 * Link to put c2_rpc_service_type instance in
- 	 * service.c:rpc_service_types tlist.
- 	 * tl descr: rpc_service_types_tl
- 	 */
+        /**
+           Link to put c2_rpc_service_type instance in
+           service.c:rpc_service_types tlist.
+           tl descr: rpc_service_types_tl
+        */
 	struct c2_tlink                       svt_tlink;
 
 	/** magic number. C2_RPC_SERVICE_TYPE_MAGIX */
@@ -72,14 +72,14 @@ struct c2_rpc_service_type {
 };
 
 struct c2_rpc_service_type_ops {
-	/**
- 	 * Allocates and initalises c2_rpc_service instance.
- 	 * Values pointed by ep_addr and uuid are copied in
- 	 * c2_rpc_service instance.
- 	 *
- 	 * C2_POST(ergo(result != NULL,
- 	 * 		result->svc_state == C2_RPC_SERVICE_STATE_INITIALISED))
- 	 */
+        /**
+         * Allocates and initalises c2_rpc_service instance.
+         * Values pointed by ep_addr and uuid are copied in
+         * c2_rpc_service instance.
+         *
+         * C2_POST(ergo(result != NULL,
+         *              result->svc_state == C2_RPC_SERVICE_STATE_INITIALISED))
+         */
 	struct c2_rpc_service * (*rsto_alloc_and_init)(
 			struct c2_rpc_service_type *service_type,
 			const char                 *ep_addr,
@@ -194,18 +194,18 @@ struct c2_rpc_service {
 	char                            *svc_ep_addr;
 	struct c2_uuid                   svc_uuid;
 
-	/**
- 	 * Rpc connection attached to the service instance. Valid only in
- 	 * C2_RPC_SERVICE_STATE_CONN_ATTACHED state.
- 	 */
+        /**
+         * Rpc connection attached to the service instance. Valid only in
+         * C2_RPC_SERVICE_STATE_CONN_ATTACHED state.
+         */
 	struct c2_rpc_conn              *svc_conn;
 
 	const struct c2_rpc_service_ops *svc_ops;
 
-	/**
- 	 * Link in c2_rpcmachine::cr_services list.
- 	 * tl descr: c2_rpc_services_tl
- 	 */
+        /**
+         * Link in c2_rpcmachine::cr_services list.
+         * tl descr: c2_rpc_services_tl
+         */
 	struct c2_tlink                  svc_tlink;
 
 	/** magic == C2_RPC_SERVICE_MAGIX */
@@ -216,16 +216,16 @@ C2_BOB_DECLARE(extern, c2_rpc_service);
 C2_TL_DECLARE(c2_rpc_services, extern, struct c2_rpc_service);
 
 struct c2_rpc_service_ops {
-	/**
- 	 * Finalises and frees service.
- 	 *
- 	 * Object pointed by service is not valid after call returns from
-	 * this routine.
-	 *
- 	 * @pre service != NULL &&
- 	 * 	(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
- 	 * 	 service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED)
- 	 */
+        /**
+         * Finalises and frees service.
+         *
+         * Object pointed by service is not valid after call returns from
+         * this routine.
+         *
+         * @pre service != NULL &&
+         *      (service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
+         *       service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED)
+         */
 	void (*rso_fini_and_free)(struct c2_rpc_service *service);
 };
 
