@@ -33,15 +33,17 @@ AC_SUBST([LT_RELEASE])
 
 AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
         AC_MSG_CHECKING([for symbols file])
-        if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost ; then
-                SYMVERFILE=Modules.symvers
+        if test -f $LINUX_OBJ/Module.symvers; then
+                SYMVERFILE=$LINUX_OBJ/Module.symvers
+        elif test -f $LINUX_OBJ/Modules.symvers; then
+                SYMVERFILE=$LINUX_OBJ/Modules.symvers
         else
-                SYMVERFILE=Module.symvers
-	fi
-	AC_MSG_RESULT([$LINUX/$SYMVERFILE])
+                AC_MSG_ERROR([Failed to find symbols files in $LINUX_OBJ])
+        fi
+	AC_MSG_RESULT([$SYMVERFILE])
 
         [AC_MSG_CHECKING([for symbol $1 exported])
-        grep -q -E '[[[:space:]]]$1[[[:space:]]]' $LINUX/$SYMVERFILE 2>/dev/null
+        grep -q -E '[[[:space:]]]$1[[[:space:]]]' $SYMVERFILE 2>/dev/null
         rc=$?
         if test $rc -eq 0; then
     	        AC_MSG_RESULT([yes])
@@ -319,15 +321,19 @@ case $host_os in
                 ;;
 esac
 
-AC_MSG_CHECKING([for linux sources dir])
-AC_ARG_WITH([linux],
-        [AC_HELP_STRING([--with-linux=path], [set path to linux sources])],
-        [LINUX=$with_linux],
-        [LINUX=/lib/modules/`uname -r`/build]
+AC_MSG_CHECKING([for linux objects dir])
+AC_ARG_WITH([linux-obj],
+        [AC_HELP_STRING([--with-linux-obj=path],
+                        [set path to Linux objects dir (default=/lib/modules/$(uname -r)/build])],
+        [LINUX_OBJ=$with_linux_obj],
+        [LINUX_OBJ=/lib/modules/`uname -r`/build]
 )
 
-AC_MSG_RESULT([$LINUX])
-AC_SUBST([LINUX])
+AC_MSG_RESULT([$LINUX_OBJ])
+AC_SUBST([LINUX_OBJ])
+
+LINUX_MOD=$(dirname $LINUX_OBJ)
+AC_SUBST([LINUX_MOD])
 
 AC_ARG_ENABLE([coverage],
 	[AC_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
@@ -351,19 +357,6 @@ else
 fi
 
 AC_SUBST([K_ENABLE_COVERAGE])
-
-AC_MSG_CHECKING([for linux objects dir])
-AC_ARG_WITH([linux-obj],
-        [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])],
-        [LINUX_OBJ=$with_linux_obj],
-        [LINUX_OBJ=$LINUX]
-)
-
-AC_MSG_RESULT([$LINUX_OBJ])
-AC_SUBST([LINUX_OBJ])
-
-LINUX_MOD="/lib/modules/`uname -r`"
-AC_SUBST([LINUX_MOD])
 
 # Prepare linux configuration checks facility. Should be done before
 # any *_LINUX_* checks.
@@ -771,8 +764,8 @@ echo "KCFLAGS     :  \"$KCFLAGS\""
 echo "LDFLAGS     :  \"$LDFLAGS\""
 echo ""
 
-echo "Linux  :  \"$LINUX\""
-echo "Lustre :  \"$LUSTRE\""
+echo "Linux Obj   :  \"$LINUX_OBJ\""
+echo "Lustre      :  \"$LUSTRE\""
 echo ""
 
 echo "Type 'make' to build Colibri"
