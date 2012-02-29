@@ -44,6 +44,11 @@
 #include "lib/tlist.h"
 #include "addb/addb.h"
 
+/*
+ * Fops which are embedded in other fops need to be declared as extern
+ * since their definitions are out of scope for present module. So they
+ * have to be resolved at linking time.
+ */
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
 
@@ -93,11 +98,14 @@ static struct c2_fop_type_format *ioservice_fmts[] = {
 };
 
 static struct c2_fop_type *ioservice_fops[] = {
-      &c2_fop_cob_readv_fopt,
-      &c2_fop_cob_writev_fopt,
-      &c2_fop_cob_readv_rep_fopt,
-      &c2_fop_cob_writev_rep_fopt,
+	&c2_fop_cob_readv_fopt,
+	&c2_fop_cob_writev_fopt,
+	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_cob_writev_rep_fopt,
 };
+
+C2_EXPORTED(c2_fop_cob_writev_fopt);
+C2_EXPORTED(c2_fop_cob_readv_fopt);
 
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
@@ -170,10 +178,6 @@ int c2_ioservice_fop_init(void)
 	if (rc != 0)
 		c2_ioservice_fop_fini();
 
-#ifndef __KERNEL__
-        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
-        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
-#endif
 	return rc;
 }
 C2_EXPORTED(c2_ioservice_fop_init);
@@ -201,9 +205,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
 
    This document describes the working of client side of io bulk transfer.
    This functionality is used only for io path.
@@ -223,12 +224,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
 
    - c2t1fs - Colibri client file system. It works as a kernel module.
    - Bulk transport - Event based, asynchronous message passing functionality
@@ -241,8 +236,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
 
    - R.bulkclient.rpcbulk The bulk client should use rpc bulk abstraction
    while enqueueing buffers for bulk transfer.
@@ -257,8 +250,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
 
    - r.misc.net_rpc_convert Bulk Client needs Colibri client file system to be
    using new network layer apis which include c2_net_domain and c2_net_buffer.
@@ -270,10 +261,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
 
    IO bulk client uses a generic in-memory structure representing an io fop
    and its associated network buffer.
@@ -293,13 +280,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
 
    - @ref bulkclient-lspec-comps
    - @ref bulkclient-lspec-sc1
@@ -312,10 +292,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
 
    @subsection bulkclient-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
 
    The following @@dot diagram shows the interaction of bulk client
    program with rpc layer and net layer.
@@ -337,9 +313,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
    @enddot
 
    @subsection bulkclient-lspec-sc1 Subcomponent design
-   <i>Such sections briefly describes the purpose and design of each
-   sub-component. Feel free to add multiple such sections, and any additional
-   sub-sectioning within.</i>
 
    Ioservice subsystem primarily comprises of 2 sub-components
    - IO client (comprises of IO coalescing code)
@@ -349,9 +322,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
    fop is sent instead of member io fops.
 
    @subsubsection bulkclient-lspec-ds1 Subcomponent Data Structures
-   <i>This section briefly describes the internal data structures that are
-   significant to the design of the sub-component. These should not be a part
-   of the Functional Specification.</i>
 
    The IO coalescing subsystem from ioservice primarily works on IO segments.
    IO segment is in-memory structure that represents a contiguous chunk of
@@ -360,15 +330,10 @@ C2_EXPORTED(c2_ioservice_fop_init);
    - ioseg An in-memory structure used to represent a segment of IO data.
 
    @subsubsection bulkclient-lspec-sub1 Subcomponent Subroutines
-   <i>This section briefly describes the interfaces of the sub-component that
-   are of significance to the design.</i>
 
    - ioseg_get() - Retrieves an ioseg given its index in zero vector.
 
    @subsection bulkclient-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
 
    @dot
    digraph bulk_io_client_states {
@@ -399,20 +364,12 @@ C2_EXPORTED(c2_ioservice_fop_init);
    @enddot
 
    @subsection bulkclient-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
 
    No need of explicit locking for structures like c2_io_fop and ioseg
    since they are taken care by locking at upper layers like locking at
    the c2t1fs part for dispatching IO requests.
 
    @subsection bulkclient-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
 
    The performance need not be optimized by associating the incoming thread
    to a particular processor. However, keeping in sync with the design of
@@ -423,13 +380,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref bulkclient-req section,
-   and explains briefly how the DLD meets the requirement.</i>
-
-   Note the subtle difference in that <b>I</b> tags are used instead of
-   the <b>R</b> tags of the requirements section.  The @b I of course,
-   stands for "implements":
 
    - I.bulkclient.rpcbulk The bulk client uses rpc bulk APIs to enqueue
    kernel pages to the network buffer.
@@ -442,8 +392,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
 
    All external interfaces based on c2_io_fop and c2_rpc_bulk will be
    unit tested. All unit tests will stress success and failure conditions.
@@ -474,16 +422,11 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-st System Tests
-   <i>Mandatory.
-   This section describes the system testing done, if applicable.</i>
 
    Not applicable.
 
    <hr>
    @section bulkclient-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
 
    - m denotes the number of IO fops with same fid and intent (read/write).
    - n denotes the total number of IO segments in m IO fops.
@@ -497,9 +440,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en_US">RPC Bulk Transfer Task Plan</a>
    - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>,
@@ -599,6 +539,7 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 			    bulkclient_func_fail, "io fop init failed.", rc);
 	return rc;
 }
+C2_EXPORTED(c2_io_fop_init);
 
 void c2_io_fop_fini(struct c2_io_fop *iofop)
 {
@@ -617,6 +558,7 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
 	return &iofop->if_rbulk;
 }
+C2_EXPORTED(c2_fop_to_rpcbulk);
 
 /** @} end of bulkclientDFSInternal */
 
@@ -625,12 +567,14 @@ bool c2_is_read_fop(const struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_readv_fopt;
 }
+C2_EXPORTED(c2_is_read_fop);
 
 bool c2_is_write_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_writev_fopt;
 }
+C2_EXPORTED(c2_is_write_fop);
 
 bool c2_is_io_fop(const struct c2_fop *fop)
 {
@@ -670,6 +614,7 @@ struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
 		return &wfop->c_rwv;
 	}
 }
+C2_EXPORTED(io_rw_get);
 
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 {
@@ -1080,6 +1025,7 @@ err:
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	return rc;
 }
+C2_EXPORTED(c2_io_fop_prepare);
 
 /*
  * Creates new net buffers from aggregate list and adds them to
@@ -1304,6 +1250,7 @@ cleanup:
 	c2_free(cfop);
 	return rc;
 }
+C2_EXPORTED(io_fop_coalesce);
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
 {
@@ -1349,6 +1296,7 @@ static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)
 	c2_io_fop_fini(cfop);
 	c2_free(cfop);
 }
+C2_EXPORTED(io_fop_replied);
 
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 {
@@ -1360,6 +1308,7 @@ static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 	rw = io_rw_get(fop);
 	*desc = rw->crw_desc.id_descs;
 }
+C2_EXPORTED(io_fop_desc_get);
 
 /* Rpc item ops for IO operations. */
 static void io_item_replied(struct c2_rpc_item *item)
@@ -1377,9 +1326,6 @@ static void io_item_replied(struct c2_rpc_item *item)
 	rbulk = c2_fop_to_rpcbulk(fop);
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
-	
-	C2_ASSERT(ergo(item->ri_error == 0,
-		       reply->rwr_count == rbulk->rb_bytes));
 
 	C2_ASSERT(ergo(item->ri_error == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
@@ -1516,11 +1462,9 @@ static void io_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop		*fop;
 	struct c2_io_fop	*iofop;
-	struct c2_fop_cob_rw	*rw;
 
 	fop = c2_rpc_item_to_fop(item);
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
-	rw = io_rw_get(fop);
 
 	c2_io_fop_destroy(&iofop->if_fop);
 	c2_io_fop_fini(iofop);

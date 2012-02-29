@@ -799,6 +799,7 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
                                  */
 			          rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
 						          &fom->fo_tx.tx_dbtx);
+				  fom->fo_rc = rc;
                           }
                           /* Update successfull data transfered count*/
 		          fom_obj->fcrw_bytes_transfered += stio->si_count;
@@ -1432,7 +1433,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
          * @todo :
          * Internally c2_db_cursor_get() takes explicitely RW lock.
          * Need to define enum lock modes and pass to c2_db_cursor_get().
-         * Till this issue fix, I/O FOM use c2_fom_block_enter() before 
+         * Till this issue fix, I/O FOM use c2_fom_block_enter() before
          * stob io locate since it coult block.
          * c2_fom_block_leave() should call after c2_stob_locate() returns.
          *

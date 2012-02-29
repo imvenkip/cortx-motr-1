@@ -461,7 +461,7 @@ build_lib()
 
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
-GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
+GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
 build_lib galois $GALOIS_SRC $GALOIS_LIBS
 
@@ -610,6 +610,7 @@ AC_CONFIG_FILES([
                  ioservice/Makefile
                  ioservice/ut/Makefile
 		 ioservice/st/Makefile
+		 ioservice/st/linux_kernel/Makefile
                  layout/Makefile
                  layout/ut/Makefile
                  lib/Makefile

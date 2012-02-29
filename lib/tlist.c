@@ -111,6 +111,7 @@ size_t c2_tlist_length(const struct c2_tl_descr *d, const struct c2_tl *list)
 	C2_PRE(c2_tlist_invariant(d, list));
 	return c2_list_length(&list->t_head);
 }
+C2_EXPORTED(c2_tlist_length);
 
 void c2_tlist_add(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
 {
