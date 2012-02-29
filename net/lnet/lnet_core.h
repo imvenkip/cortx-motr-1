@@ -219,6 +219,27 @@ enum {
 };
 
 /**
+ * An kernel memory location, in terms of page and offset.
+ */
+struct nlx_core_kmem_loc {
+	union {
+#ifdef __KERNEL__
+		/** Page containing the object. */
+		struct page *kl_page;
+#else
+		void        *kl_page;
+#endif
+		uint32_t     kl_data[2];
+	};
+	/** Offset of the object in the page. */
+	uint32_t     kl_offset;
+	/** A checksum of the page and offset, to detect corruption. */
+	uint32_t     kl_checksum;
+};
+C2_BASSERT(sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_page) ==
+	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_data));
+
+/**
    Buffer events are linked in the buffer queue using this structure. It is
    designed to be operated upon from either kernel or user space with a single
    producer and single consumer.

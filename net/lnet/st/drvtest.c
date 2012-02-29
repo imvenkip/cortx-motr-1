@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 	tm->_debug_ = 15;
 	ma.nm_user_addr = (unsigned long) tm;
 
-	f = open(lnet_xprt_dev, O_RDWR);
+	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
 	if (f < 0) {
 		perror(lnet_xprt_dev);
 		return 1;

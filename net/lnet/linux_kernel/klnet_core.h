@@ -56,20 +56,11 @@ struct nlx_kcore_ops;
 struct nlx_kcore_domain {
 	uint64_t                      kd_magic;
 
-	/** Kernel pointer to the shared memory domain structure. */
-	struct nlx_core_domain       *kd_cd;
-
-	/** Page pinned by driver corresponding to this object. */
-	struct page                  *kd_drv_page;
-
-	/** Offset of the object in the page. */
-	uint32_t                      kd_drv_offset;
+	/** Reference to the shared memory nlx_core_domain structure. */
+	struct nlx_core_kmem_loc      kd_cd_loc;
 
 	/** Synchronize access to driver resources for this domain. */
 	struct c2_mutex               kd_drv_mutex;
-
-	/** Tracks operations in progress while the mutex is not held. */
-	uint32_t                      kd_drv_inuse;
 
 	/** Operations object driver uses to call kernel core operations. */
 	struct nlx_kcore_ops         *kd_drv_ops;
@@ -127,20 +118,17 @@ struct nlx_kcore_ops {
 struct nlx_kcore_transfer_mc {
 	uint64_t                      ktm_magic;
 
-	/** Kernel pointer to the shared memory TM structure, when mapped. */
+	/** Kernel pointer to the shared memory TM structure, deprecated. */
 	struct nlx_core_transfer_mc  *ktm_ctm;
+
+	/** Reference to the shared memory nlx_core_transfer_mc structure. */
+	struct nlx_core_kmem_loc      ktm_ctm_loc;
 
 	/** Transfer machine linkage of all TMs. */
 	struct c2_tlink               ktm_tm_linkage;
 
 	/** Transfer machine linkage of TMs tracked by driver, per domain. */
 	struct c2_tlink               ktm_drv_linkage;
-
-	/** Page pinned by driver corresponding to this object. */
-	struct page                  *ktm_drv_page;
-
-	/** Offset of the object in the page. */
-	uint32_t                      ktm_drv_offset;
 
 	/**
 	   User space buffer events in this transfer tracked by the driver.
@@ -172,20 +160,17 @@ struct nlx_kcore_transfer_mc {
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
 
-	/** Linkage of buffers tracked by driver, per domain. */
-	struct c2_tlink               kb_drv_linkage;
-
-	/** Page pinned by driver corresponding to this object. */
-	struct page                  *kb_drv_page;
-
-	/** Offset of the object in the page. */
-	uint32_t                      kb_drv_offset;
-
-	/** Pointer to the shared memory buffer data, when mapped. */
+	/** Pointer to the shared memory buffer data, deprecated. */
 	struct nlx_core_buffer       *kb_cb;
+
+	/** Reference to the shared memory nlx_core_buffer structure. */
+	struct nlx_core_kmem_loc      kb_cb_loc;
 
 	/** Pointer to kernel core TM data. */
 	struct nlx_kcore_transfer_mc *kb_ktm;
+
+	/** Linkage of buffers tracked by driver, per domain. */
+	struct c2_tlink               kb_drv_linkage;
 
 	/** The LNet I/O vector. */
 	lnet_kiov_t                  *kb_kiov;
@@ -236,17 +221,11 @@ struct nlx_kcore_buffer {
    all of the buffer event objects blessed in the domain.
  */
 struct nlx_kcore_buffer_event {
-	/** Pointer to the shared memory buffer event data, when mapped. */
-	struct nlx_core_buffer_event *kbe_bev;
+	/** Reference to the shared memory nlx_core_buffer_event structure. */
+	struct nlx_core_kmem_loc      kbe_bev_loc;
 
 	/** Linkage of buffer events tracked by driver, per TM. */
 	struct c2_tlink               kbe_drv_linkage;
-
-	/** Page pinned by driver corresponding to this object. */
-	struct page                  *kbe_drv_page;
-
-	/** Offset of the object in the page. */
-	uint32_t                      kbe_drv_offset;
 };
 
 static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd);

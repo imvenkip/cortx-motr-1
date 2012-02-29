@@ -283,9 +283,10 @@
    Kernel Core APIs would do, but without asserting. Instead, they log an ADDB
    record and return an error status when verification fails.  The user space
    core can detect the error status and assert the user space process.  The
-   error code @c -EFAULT is used to report both verification failure and
-   failure to pin shared pages.  Specific helper functions may return additional
-   well-defined errors.
+   error code @c -EBADR is used to report verification failure.  The error
+   code @c -EFAULT is used to report invalid user addresses, such as for use
+   in pinning pages or copying in user data.  Specific helper functions may
+   return additional well-defined errors.
 
    @see @ref LNetDevInternal
 
@@ -300,8 +301,8 @@
      the @c nlx_ucore_domain object and setting the @c nlx_core_domain::cd_upvt
      field.
    - It opens the device using the @c open() system call.  The device is named
-     @c "/dev/c2lnet" and the device is opened with @c O_RDWR flag.  The
-     file descriptor is saved in the @c nlx_ucore_domain::ud_fd field.
+     @c "/dev/c2lnet" and the device is opened with @c O_RDWR|O_CLOEXEC flags.
+     The file descriptor is saved in the @c nlx_ucore_domain::ud_fd field.
    - It shares the @c nlx_core_domain object via the @c #C2_LNET_DOM_INIT
      ioctl request.  Note that a side effect of this request is that the
      @c nlx_core_domain::cd_kpvt is set.
@@ -370,7 +371,7 @@
    error paths, such as the process aborting, the file descriptor being closed
    erroneously, and so on.  It performs the following sequence.
 
-   - It verifies that the domain was previously finalized, by verifying
+   - It verifies that the domain was previously finalized by checking
      that the @c nlx_kcore_domain::kd_drv_page is NULL.
    - If the domain was not previously finalized, it completes finalization
      itself.
@@ -758,16 +759,6 @@
    @c #C2_LNET_DOM_INIT and @c #C2_LNET_DOM_FINI. The driver mutex must be
    obtained before any other Net or Kernel LNet mutex.
 
-   The @c nlx_kcore_domain::kd_drv_mutex may be released, e.g. to perform
-   an operation that may block, as long as the
-   @c nlx_kcore_domain::kd_drv_inuse is first increment.  After
-   re-obtaining the mutex, the counter must be decremented.  This ensures that
-   a page will not be unpinned while it is in use, for example.  Note that
-   the user space transport is supposed to synchronize itself so that it does
-   not attempt to de-register a buffer that is in use.  Attempting to do so
-   should result in an assertion; the use of the counter helps to ensure
-   such an assertion cannot occur in the kernel on behalf of the user process.
-
    @subsection LNetDRVDLD-lspec-numa NUMA optimizations
 
    The LNet device driver does not allocate threads.  The user space application
@@ -879,9 +870,8 @@
    - The driver layer consumes a small amount of additional memory in the form
      of additional fields in the various kernel core objects.
    - The use of stack pointers instead of pointers within kernel core
-     objects while mapping shared objects, and the use of
-     @c nlx_kcore_domain::kd_drv_inuse avoids holding the
-     @c nlx_kcore_domain::kd_drv_mutex which would otherwise reduce concurrency.
+     objects while mapping shared objects avoids the need to synchronize the
+     use of pointers within the kernel core objects themselves.
 
    <hr>
    @section LNetDRVDLD-ref References
@@ -1318,7 +1308,7 @@ static long nlx_dev_ioctl(struct file *file,
 		return rc;
 	}
 
-	if (!(file->f_flags & O_RDWR)) {
+	if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC)) {
 		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EBADF);
 		return -EBADF;
 	}
