@@ -1,4 +1,4 @@
-desimdir                      = $(includedir)/desim
+desimdir                      = $(includedir)/colibri/desim
 desim_HEADERS                 = chs.h client.h cnt.h elevator.h net.h sim.h storage.h
 
 noinst_LTLIBRARIES            = libcolibri-desim.la

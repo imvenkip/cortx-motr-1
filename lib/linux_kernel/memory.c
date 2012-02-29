@@ -53,9 +53,14 @@ size_t c2_allocated(void)
 }
 C2_EXPORTED(c2_allocated);
 
+int c2_pagesize_get(void)
+{
+	return PAGE_SIZE;
+}
+
 /** @} end of memory group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -25,7 +25,6 @@
 #include "lib/misc.h"
 #include "lib/ut.h"
 #include "cfg/cfg.h"
-#include "ut/ioredirect.h"
 #include "yaml2db/yaml2db.h"
 
 /* Constant names and paths */

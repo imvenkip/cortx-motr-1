@@ -625,6 +625,17 @@ typedef struct {;} c2_void_t;
  */
 int c2_xcode_decor_register(void);
 
+struct c2_bob_type;
+
+/**
+ * Partially initializes a branded object type from a xcode type descriptor.
+ *
+ * @see bob.h
+ */
+void c2_xcode_bob_type_init(struct c2_bob_type *bt,
+			    const struct c2_xcode_type *xt,
+			    size_t magix_field, uint64_t magix);
+
 /** @} end of xcode group */
 
 /* __COLIBRI_XCODE_XCODE_H__ */
