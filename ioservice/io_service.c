@@ -161,7 +161,6 @@ void c2_ioservice_unregister(void)
  */
 static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 {
-        //bool                            found_buffer_pool = false;
         int                             nbuffs = 0;
         int                             colours;
         int                             rc = 0;
@@ -180,15 +179,13 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                 */
                c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp)
                {
-                        if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom) {
+                        if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom)
                                /*
                                 * Found buffer pool for domain.
                                 * No need to create buffer pool
                                 * for this domain.
                                 */
-                                //found_buffer_pool = true;
                                 return rc;
-                        }
                } c2_tlist_endfor; /* bufferpools */
 
               /* Buffer pool for network domain not found create one */
@@ -203,7 +200,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 	      */
              c2_chan_init(&newbp->rios_bp_wait);
              newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-             colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
+             colours = rpcmach->cr_tm.ntm_dom->nd_pool_colour_counter;
 	     rc = c2_net_buffer_pool_init(&newbp->rios_bp,
 	                                   rpcmach->cr_tm.ntm_dom,
                                            network_buffer_pool_threshold,

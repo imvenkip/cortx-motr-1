@@ -24,7 +24,7 @@
 
 #include "lib/memory.h"
 #include "ioservice/io_fops.h"
-#include "ioservice/st/bulkio_common.h"
+#include "ioservice/ut/bulkio_common.h"
 
 /*
  * By default, this kernel module acts as a client side for bulk IO.

@@ -202,9 +202,10 @@ struct c2_io_fom_cob_rw {
         struct c2_mutex                  fcrw_stio_mutex;
         /** rpc bulk load data*/
         struct c2_rpc_bulk               fcrw_bulk;
+        /** Start time for FOM. */
+        c2_time_t                        fcrw_fom_start_time;
+        /** Start time for FOM specific phase. */
         c2_time_t                        fcrw_phase_start_time;
-        c2_time_t                        fcrw_start_time;
-        c2_time_t                        fcrw_end_time;
         /** network buffer list currently acquired by io service*/
         struct c2_tl                     fcrw_netbuf_list;
 };

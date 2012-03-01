@@ -18,7 +18,7 @@
  * Original creation date: 09/29/2011
  */
 
-#include "ioservice/st/bulkio_common.h"
+#include "ioservice/ut/bulkio_common.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "lib/tlist.h"		/* c2_tlist_length */
 #include "lib/arith.h"		/* c2_rnd */

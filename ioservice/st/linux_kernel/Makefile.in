@@ -2,7 +2,7 @@ BIOST_SRCDIR	 = @SRCDIR@/ioservice/st/linux_kernel
 BIOST_MOD       := biostk
 
 local_src	:= main.c
-st_src		:= bulkio_client.c bulkio_server.c
+st_src		:= bulkio_client.c
 link_st		:= $(st_src:%=../%)
 all_src		:= $(local_src) $(st_src)
 all_obj		:= $(all_src:.c=.o)
