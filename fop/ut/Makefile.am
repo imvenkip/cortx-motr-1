@@ -1,5 +1,3 @@
-UT_SRCDIR          = @SRCDIR@/fop/ut
-
 noinst_LTLIBRARIES = libfop-ut.la
 INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
 
@@ -23,6 +21,5 @@ libfop_ut_la_SOURCES = iterator_test_u.h iterator_test_u.c \
 EXTRA_DIST = test_format.ff iterator_test.ff
 
 clean-local:
-	cd $(UT_SRCDIR) ; \
-	rm -fr test_format_[uk].[ch]
-	rm -fr iterator_test_u.[ch]
+	cd @SRCDIR@/fop/ut ; \
+	rm -fr test_format_[uk].[ch] iterator_test_u.[ch]

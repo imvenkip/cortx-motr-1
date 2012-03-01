@@ -1,4 +1,4 @@
-fiddir                     = $(includedir)/fid
+fiddir                     = $(includedir)/colibri/fid
 fid_HEADERS                = fid.h
 
 noinst_LTLIBRARIES         = libcolibri-fid.la

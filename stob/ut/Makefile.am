@@ -1,5 +1,3 @@
-UT_SRCDIR=@SRCDIR@/stob/ut
-
 io_u.h io_u.c: io.ff \
                   $(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -uk $<
@@ -21,5 +19,5 @@ stobutil_SOURCES = stobutil.c
 stobutil_LDADD   = $(top_builddir)/colibri/libcolibri.la
 
 clean-local:
-	cd $(UT_SRCDIR) ; \
+	cd @SRCDIR@/stob/ut ; \
 	rm -fr io_[uk].[hc]

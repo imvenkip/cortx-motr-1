@@ -22,6 +22,7 @@
 
 #ifndef __KERNEL__
 # include <stdbool.h>     /* bool */
+# include <stdio.h>       /* FILE, fpos_t */
 # include <CUnit/Basic.h>
 #else
 # include "lib/types.h"
@@ -114,30 +115,39 @@ void c2_uts_fini(void);
 void c2_ut_add(const struct c2_test_suite *ts);
 
 /**
- * CUnit user interfaces
+   CUnit user interfaces
  */
 enum c2_ut_run_mode {
 	C2_UT_KERNEL_MODE,    /** A stub for kernel version of c2_ut_run() */
 	C2_UT_BASIC_MODE,     /** Basic CUnit interface with console output */
 	C2_UT_ICONSOLE_MODE,  /** Interactive CUnit console interface */
-	C2_UT_ICURSES_MODE,   /** Interactive CUnit curses interface */
 	C2_UT_AUTOMATED_MODE, /** Automated CUnit interface with xml output */
+};
+
+/**
+   Configuration parameters for c2_ut_run()
+ */
+struct c2_ut_run_cfg {
+	/** CUnit interface mode */
+	enum c2_ut_run_mode  urc_mode;
+	/** if true, then set CUnit's assert mode to CUA_Abort */
+	bool                 urc_abort_cu_assert;
+	/** if true, then execution time is reported for each test */
+	bool                 urc_report_exec_time;
+	/**
+	 * list of tests/suites to run, it can be empty, which means to run
+	 * all the tests
+	 */
+	struct c2_list       *urc_test_list;
+	/** list of tests/suites to exclude from running, it also can be empty */
+	struct c2_list       *urc_exclude_list;
 };
 
 #ifndef __KERNEL__
 /**
- run tests
-
- @param mode         - CUnit interface mode
- @param test_list    - list of tests/suites to run, it can be empty, which means
-                       to run all the tests
- @param exclude_list - list of tests/suites to exclude from running, it also can
-                       be empty
-
- @return NONE
+   run tests
  */
-void c2_ut_run(enum c2_ut_run_mode mode, struct c2_list *test_list,
-	       struct c2_list *exclude_list);
+void c2_ut_run(struct c2_ut_run_cfg *c);
 #else
 void c2_ut_run(void);
 #endif
@@ -168,6 +178,36 @@ int c2_ut_db_reset(const char *db_name);
    @param file path of the file, eg __FILE__
  */
 bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file);
+#endif
+
+#ifndef __KERNEL__
+struct c2_ut_redirect {
+	FILE  *ur_stream;
+	int    ur_oldfd;
+	int    ur_fd;
+	fpos_t ur_pos;
+};
+
+/**
+ * Associates one of the standard streams (stdin, stdout, stderr) with a file
+ * pointed by 'path' argument.
+ */
+void c2_stream_redirect(FILE *stream, const char *path,
+			struct c2_ut_redirect *redir);
+
+/**
+ * Restores standard stream from file descriptor and stream position, which were
+ * saved earlier by c2_stream_redirect().
+ */
+void c2_stream_restore(const struct c2_ut_redirect *redir);
+
+/**
+ * Checks if a text file contains the specified string.
+ *
+ * @param fp   - a file, which is searched for a string
+ * @param mesg - a string to search for
+ */
+bool c2_error_mesg_match(FILE *fp, const char *mesg);
 #endif
 
 /** @} end of ut group. */

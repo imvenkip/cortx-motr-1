@@ -1507,7 +1507,7 @@ void bulkio_server_read_write_multiple_nb(void)
 	struct thrd_arg     targ;
 	struct c2_bufvec   *buf;
 
-	buf_nr = IO_FOPS_NR;
+	buf_nr = IO_FOPS_NR / 4;
 	for (i = 0; i < buf_nr; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
 		for (j = 0; j < IO_SEGS_NR; ++j) {

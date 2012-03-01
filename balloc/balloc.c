@@ -848,7 +848,10 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 	if (size > bac->bac_ctxt->cb_sb.bsb_groupsize)
 		size = bac->bac_ctxt->cb_sb.bsb_groupsize;
 
-	/* now prepare goal request */
+	/*
+          Now prepare new goal. Extra space we get will be consumed and
+          reserved by preallocation.
+        */
 	bac->bac_goal.e_end = bac->bac_goal.e_start + size;
 
 	debugp("goal: start=%llu=(0x%08llx), size=%llu(was %llu)\n",
@@ -949,7 +952,7 @@ static int balloc_find_extent_exact(struct c2_balloc_allocation_context *bac,
 				    struct c2_ext *ex)
 {
 	c2_bcount_t	 i;
-	c2_bcount_t	 found = 0;
+	int	 	 found = 0;
 	struct c2_ext	*fragment;
 
 	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
@@ -986,6 +989,7 @@ static int balloc_find_extent_buddy(struct c2_balloc_allocation_context *bac,
 						.e_end = 0xffffffff };
 
 	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
+
 	start = grp->bgi_groupno << sb->bsb_gsbits;
 
 	for (i = 0; i < grp->bgi_fragments; i++) {
@@ -1039,6 +1043,11 @@ static int balloc_use_best_found(struct c2_balloc_allocation_context *bac)
 
 static int balloc_new_preallocation(struct c2_balloc_allocation_context *bac)
 {
+	/* XXX No Preallocation now. So, trim the result to the original length. */
+
+	bac->bac_final.e_end = bac->bac_final.e_start +
+					min_check(c2_ext_length(&bac->bac_orig),
+					          c2_ext_length(&bac->bac_final));
 	return 0;
 }
 
@@ -1617,10 +1626,11 @@ static int balloc_wild_scan_group(struct c2_balloc_allocation_context *bac,
 	int		 rc;
 	ENTER;
 
-	debugp("Wild scanning at group %llu\n",
-		(unsigned long long)grp->bgi_groupno);
-
 	free = grp->bgi_freeblocks;
+
+	debugp("Wild scanning at group %llu: freeblocks = %llu\n",
+		(unsigned long long)grp->bgi_groupno,
+		(unsigned long long)free);
 
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
@@ -1738,6 +1748,7 @@ balloc_regular_allocator(struct c2_balloc_allocation_context *bac)
 	cr = bac->bac_order2 ? 0 : 1;
 	/*
 	 * cr == 0 try to get exact allocation,
+	 * cr == 1 striped allocation. Not implemented currently.
 	 * cr == 2 try to get anything
 	 */
 repeat:
@@ -1785,12 +1796,12 @@ repeat:
 			}
 			bac->bac_scanned++;
 
-			c2_balloc_debug_dump_group_extent("AAAAAAAAAAAAAAAAAA"
-							  "AAAAAAAAA", grp);
+			c2_balloc_debug_dump_group_extent("AAAAAAAAAAAAAAAAAA",
+							  grp);
 			if (cr == 0)
 				rc = balloc_simple_scan_group(bac, grp);
 			else if (cr == 1 &&
-					len == bac->bac_ctxt->cb_sb.bsb_stripe_size)
+				len == bac->bac_ctxt->cb_sb.bsb_stripe_size)
 				rc = balloc_simple_scan_group(bac, grp);
 			else
 				rc = balloc_wild_scan_group(bac, grp);
@@ -1888,7 +1899,7 @@ int balloc_allocate_internal(struct c2_balloc *colibri,
 	       !balloc_claim_free_blocks(colibri, req->bar_len)) {
 		req->bar_len = req->bar_len >> 1;
 	}
-	if (!req->bar_len) {
+	if (req->bar_len == 0) {
 		rc = -ENOSPC;
 		goto out;
 	}
@@ -2045,7 +2056,7 @@ int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 
 	req.bar_goal  = out->e_start; /* this also plays as the goal */
 	req.bar_len   = count;
-	req.bar_flags = C2_BALLOC_HINT_DATA ;//| C2_BALLOC_HINT_TRY_GOAL;
+	req.bar_flags = 0;/*C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;*/
 
 	C2_SET0(out);
 

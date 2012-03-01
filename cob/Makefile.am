@@ -1,4 +1,4 @@
-cobdir                     = $(includedir)/cob
+cobdir                     = $(includedir)/colibri/cob
 cob_HEADERS                = cob.h
 
 noinst_LTLIBRARIES         = libcolibri-cob.la

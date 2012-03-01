@@ -136,9 +136,13 @@ int test_balloc_ut_ops()
 
 			ext[i] = tmp;
 
-			if(c2_ext_length(&ext[i]) < count) {
-				fprintf(stderr, "Allocation size mismatch for"
-					" count %5d\n", (int)count);
+			/* The result extent length should be less than
+			 * or equal to the requested length. */
+			if(c2_ext_length(&ext[i]) > count) {
+				fprintf(stderr, "Allocation size mismatch: "
+					"requested count = %5d, result = %5d\n",
+					(int)count,
+					(int)c2_ext_length(&ext[i]));
 				result = -EINVAL;
 			}
 
@@ -174,7 +178,7 @@ int test_balloc_ut_ops()
 							     &dtx.tx_dbtx);
 				if (result == 0)
 					c2_balloc_debug_dump_group_extent(
-						    "balloc", grp);
+						    "balloc ut", grp);
 				c2_balloc_release_extents(grp);
 				c2_balloc_unlock_group(grp);
 			}
@@ -240,7 +244,7 @@ int test_balloc_ut_ops()
 								&dtx.tx_dbtx);
 				if (result == 0)
 					c2_balloc_debug_dump_group_extent(
-						    "balloc", grp);
+						    "balloc ut", grp);
 				if (grp->bgi_freeblocks !=
 				    colibri_balloc.cb_sb.bsb_groupsize) {
 					printf("corrupted grp %d: %llx != %llx\n",

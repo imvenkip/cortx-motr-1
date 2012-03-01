@@ -18,7 +18,9 @@
  * Original creation date: 28-Dec-2011
  */
 
+#ifndef __KERNEL__
 #include <stdio.h>                          /* printf */
+#endif
 
 #include "lib/memory.h"
 #include "lib/vec.h"                        /* c2_bufvec */
@@ -265,6 +267,7 @@ static int xcode_init(void)
 	return 0;
 }
 
+#ifndef __KERNEL__
 __attribute__((unused)) static void it_print(const struct c2_xcode_cursor *it)
 {
 	int i;
@@ -296,6 +299,7 @@ __attribute__((unused)) static void it_print(const struct c2_xcode_cursor *it)
 	}
 	printf("\n");
 }
+#endif
 
 static void chk(struct c2_xcode_cursor *it, int depth,
 		const struct c2_xcode_type *xt,
@@ -535,6 +539,7 @@ const struct c2_test_suite xcode_ut = {
                 { NULL, NULL }
         }
 };
+C2_EXPORTED(xcode_ut);
 
 /*
  *  Local variables:

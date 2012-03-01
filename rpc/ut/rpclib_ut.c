@@ -20,20 +20,21 @@
 
 #include "lib/ut.h"
 #include "lib/memory.h"
-#include "addb/addb.h"
-#include "rpc/session.h"
-#include "rpc/it/ping_fop.h"
-#include "fop/fop.h"
 #include "lib/processor.h"
+#include "lib/trace.h"
+#include "addb/addb.h"
+#include "fop/fop.h"
 #include "reqh/reqh.h"
 
+#include "rpc/session.h"
+#include "rpc/it/ping_fop.h"
 #ifdef __KERNEL__
 #include "rpc/it/ping_fop_k.h"
 #else
 #include "rpc/it/ping_fop_u.h"
 #endif
-
 #include "rpc/rpclib.h"
+
 #include "ut/rpc.h"
 #include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"

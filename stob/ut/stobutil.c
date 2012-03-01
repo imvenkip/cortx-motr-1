@@ -368,7 +368,7 @@ static int stob_create(struct c2_stob_domain    *dom,
 		C2_ALLOC_PTR(dtx);
 		rc = dom->sd_ops->sdo_tx_make(dom, dtx);
 		if (rc != 0) {
-			C2_TRACE("Unable to create transaction context\n");
+			C2_LOG("Unable to create transaction context\n");
 			return rc;
 		}
 	}

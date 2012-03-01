@@ -252,7 +252,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	reply->rcer_rc = 0;      /* successful */
 	fom->fo_phase = FOPH_FINISH;
 
-	C2_TRACE("Conn established: conn [%p] id [%lu]\n", conn,
+	C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
 				(unsigned long)conn->c_sender_id);
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
@@ -284,7 +284,7 @@ out:
 	 * as FAILED.
 	 */
 	fom->fo_phase = FOPH_FINISH;
-	C2_TRACE("Conn establish failed: rc [%d]\n", rc);
+	C2_LOG("Conn establish failed: rc [%d]\n", rc);
 	return FSO_WAIT;
 }
 
@@ -361,7 +361,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 
 	reply->rser_rc = 0;    /* success */
 	reply->rser_session_id = session->s_session_id;
-	C2_TRACE("Session established: session [%p] id [%lu]\n", session,
+	C2_LOG("Session established: session [%p] id [%lu]\n", session,
 					(unsigned long)session->s_session_id);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_FINISH;
@@ -384,7 +384,7 @@ errout:
 	reply->rser_rc = rc;
 	reply->rser_session_id = SESSION_ID_INVALID;
 	fom->fo_phase = FOPH_FINISH;
-	C2_TRACE("Session establish failed: rc [%d]\n", rc);
+	C2_LOG("Session establish failed: rc [%d]\n", rc);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_WAIT;
 }
@@ -467,7 +467,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 errout:
 	reply->rstr_rc = rc;
 	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS: FOPH_FAILURE;
-	C2_TRACE("Session terminate %s: session [%p] rc [%d]\n",
+	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",
 			(rc == 0) ? "successful" : "failed", session, rc);
 	/*
 	 * Note: request is received on SESSION_0, which is different from
@@ -536,7 +536,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		 */
 		reply->ctr_rc = rc; /* rc can be -EBUSY */
 		fom->fo_phase = FOPH_FINISH;
-		C2_TRACE("Conn terminate successful: conn [%p]\n", conn);
+		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		return FSO_WAIT;
 	} else {
@@ -546,7 +546,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		 * set sender side conn to FAILED state.
 		 * XXX generate ADDB record here.
 		 */
-		C2_TRACE("Conn terminate failed: conn [%p]\n", conn);
+		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
 		c2_rpc_conn_fini(conn);
 		c2_free(conn);
 		fom->fo_phase = FOPH_FINISH;

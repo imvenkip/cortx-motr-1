@@ -78,7 +78,7 @@
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"    /* C2_EXPORTED */
-#include "c2t1fs/c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 
 static LIST_HEAD(loop_devices);
 static DEFINE_MUTEX(loop_devices_mutex);
