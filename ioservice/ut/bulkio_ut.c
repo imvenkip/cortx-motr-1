@@ -286,7 +286,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 {
         int                           rc;
         int                           i = 0;
-        int                           colour;
+        uint32_t                      colour;
         int                           acquired_net_bufs = 0;
         int                           saved_segments_count = 0;
         int                           saved_ndesc = 0;
@@ -303,11 +303,14 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         struct c2_fop_file_fid       *ffid;
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
+        struct c2_net_transfer_mc     tm;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
-        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+
+        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        colour = c2_net_tm_colour_get(&tm);
 
         /*
          * No need to test generic phases.
@@ -693,7 +696,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 {
         int                           rc;
         int                           i = 0;
-        int                           colour;
+        uint32_t                      colour;
         int                           acquired_net_bufs = 0;
         int                           saved_segments_count = 0;
         int                           saved_ndesc = 0;
@@ -710,11 +713,14 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         struct c2_fop_file_fid       *ffid;
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
+        struct c2_net_transfer_mc     tm;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
-        colour = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_colour;
+
+        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        colour = c2_net_tm_colour_get(&tm);
 
         /*
          * No need to test generic phases.
@@ -1559,7 +1565,6 @@ static void bulkio_init(void)
 	C2_UT_ASSERT(bp->bp_cctx != NULL);
 
 	bulkio_stob_create();
-	c2_addb_choose_default_level(AEL_NONE);
 }
 
 static void bulkio_fini(void)
@@ -1574,8 +1579,8 @@ static void bulkio_fini(void)
 /*
  * Only used for user-space UT.
  */
-const struct c2_test_suite bulkio_ut = {
-	.ts_name = "bulk-io-ut",
+const struct c2_test_suite bulkio_server_ut = {
+	.ts_name = "bulk-server-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
@@ -1596,9 +1601,8 @@ const struct c2_test_suite bulkio_ut = {
 		   bulkio_server_read_write_multiple_nb},
 		{ "bulkio_server_rw_state_transition_test",
 		   bulkio_server_rw_state_transition_test},
-		{ "bulkio_apitest",	  bulkioapi_test},
 		{ "bulkio_fini",	  bulkio_fini},
 		{ NULL, NULL }
 	}
 };
-C2_EXPORTED(bulkio_ut);
+C2_EXPORTED(bulkio_server_ut);

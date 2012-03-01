@@ -1023,10 +1023,11 @@ static bool rpc_bulk_invariant(const struct c2_rpc_bulk *rbulk)
 {
 	struct c2_rpc_bulk_buf *buf;
 
+	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
 	if (rbulk == NULL || rbulk->rb_magic != C2_RPC_BULK_MAGIC)
 		return false;
 
-	c2_tlist_for (&rpcbulk_tl, &rbulk->rb_buflist, buf) {
+	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
 		if (buf->bb_rbulk != rbulk)
 			return false;
 	} c2_tlist_endfor;
@@ -1118,7 +1119,6 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	rbulk = buf->bb_rbulk;
 
 	C2_ASSERT(rpc_bulk_buf_invariant(buf));
-	C2_ASSERT(rpc_bulk_invariant(rbulk));
 	C2_ASSERT(rpcbulk_tlink_is_in(buf));
 
 	if (nb->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
@@ -1130,6 +1130,7 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 		receiver = true;
 
 	c2_mutex_lock(&rbulk->rb_mutex);
+	C2_ASSERT(rpc_bulk_invariant(rbulk));
 	/*
 	 * Change the status code of struct c2_rpc_bulk only if it is
 	 * zero so far. This will ensure that return code of first failure
@@ -1179,7 +1180,9 @@ C2_EXPORTED(c2_rpc_bulk_init);
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 {
 	C2_PRE(rbulk != NULL);
+	c2_mutex_lock(&rbulk->rb_mutex);
 	C2_PRE(rpc_bulk_invariant(rbulk));
+	c2_mutex_unlock(&rbulk->rb_mutex);
 	C2_PRE(rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
 
 	c2_chan_fini(&rbulk->rb_chan);
@@ -1192,9 +1195,8 @@ void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 {
 	struct c2_rpc_bulk_buf *buf;
 
-	C2_PRE(rpc_bulk_invariant(rbulk));
-
 	c2_mutex_lock(&rbulk->rb_mutex);
+	C2_ASSERT(rpc_bulk_invariant(rbulk));
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
 		rpcbulk_tlist_del(buf);
 		rpc_bulk_buf_fini(buf);
@@ -1212,7 +1214,6 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	struct c2_rpc_bulk_buf *buf;
 
 	C2_PRE(rbulk != NULL);
-	C2_PRE(rpc_bulk_invariant(rbulk));
 	C2_PRE(netdom != NULL);
 	C2_PRE(out != NULL);
 
@@ -1232,10 +1233,10 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	c2_mutex_lock(&rbulk->rb_mutex);
 	buf->bb_rbulk = rbulk;
 	rpcbulk_tlist_add_tail(&rbulk->rb_buflist, buf);
+	C2_POST(rpc_bulk_invariant(rbulk));
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	*out = buf;
 	C2_POST(rpc_bulk_buf_invariant(buf));
-	C2_POST(rpc_bulk_invariant(rbulk));
 	return 0;
 }
 C2_EXPORTED(c2_rpc_bulk_buf_add);
@@ -1270,7 +1271,9 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 
 	rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
 	C2_POST(rpc_bulk_buf_invariant(rbuf));
+	c2_mutex_lock(&rbulk->rb_mutex);
 	C2_POST(rpc_bulk_invariant(rbulk));
+	c2_mutex_unlock(&rbulk->rb_mutex);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_bulk_buf_databuf_add);
@@ -1306,7 +1309,6 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	struct c2_rpcmachine		*rpcmach;
 
 	C2_PRE(rbulk != NULL);
-	C2_PRE(rpc_bulk_invariant(rbulk));
 	C2_PRE(descs != NULL);
 	C2_PRE(op == C2_RPC_BULK_STORE || op == C2_RPC_BULK_LOAD);
 
@@ -1314,6 +1316,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	tm = &rpcmach->cr_tm;
 	netdom = tm->ntm_dom;
 	c2_mutex_lock(&rbulk->rb_mutex);
+	C2_ASSERT(rpc_bulk_invariant(rbulk));
 	C2_ASSERT(!rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
 
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
@@ -1391,9 +1394,9 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		rbulk->rb_bytes += c2_vec_count(&rbuf->bb_zerovec.z_bvec.
 						ov_vec);
 	} c2_tlist_endfor;
+	C2_POST(rpc_bulk_invariant(rbulk));
 	c2_mutex_unlock(&rbulk->rb_mutex);
 
-	C2_POST(rpc_bulk_invariant(rbulk));
 	return rc;
 cleanup:
 	C2_ASSERT(rc != 0);

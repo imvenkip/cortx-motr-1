@@ -817,7 +817,6 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 	}
 
         /* @todo : removing normalisation for time. */
-/*
 	if (size <= 4 ) {
 		size = 4;
 	} else if (size <= 8) {
@@ -843,7 +842,6 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 			(unsigned long long) size, MAX_ALLOCATION_CHUNK);
 		size = MAX_ALLOCATION_CHUNK;
 	}
-*/
 
 	if (size > bac->bac_ctxt->cb_sb.bsb_groupsize)
 		size = bac->bac_ctxt->cb_sb.bsb_groupsize;

@@ -22,6 +22,7 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
 #       The $(dirs) list is maintained alphabetically
 
+<<<<<<< HEAD
 dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db \
         db/linux_kernel dtm fid fol fop ioservice ioservice/ut    \
 	layout lib lib/linux_kernel lib/ut net net/bulk_emulation \
@@ -64,8 +65,6 @@ fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c \
 
 layout_SOURCES                  := layout.c pdclust.c
 layout_HEADERS                  := layout.h pdclust.h
-
-ioservice_ut_SOURCES		:= bulkio_client.c
 
 layout_SOURCES 			:= layout.c pdclust.c
 layout_HEADERS 			:= layout.h pdclust.h
