@@ -1563,8 +1563,8 @@ static void bulkio_fini(void)
 /*
  * Only used for user-space UT.
  */
-const struct c2_test_suite bulkio_ut = {
-	.ts_name = "bulk-io-ut",
+const struct c2_test_suite bulkio_server_ut = {
+	.ts_name = "bulk-server-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
@@ -1585,9 +1585,8 @@ const struct c2_test_suite bulkio_ut = {
 		   bulkio_server_read_write_multiple_nb},
 		{ "bulkio_server_rw_state_transition_test",
 		   bulkio_server_rw_state_transition_test},
-		{ "bulkio_apitest",	  bulkioapi_test},
 		{ "bulkio_fini",	  bulkio_fini},
 		{ NULL, NULL }
 	}
 };
-C2_EXPORTED(bulkio_ut);
+C2_EXPORTED(bulkio_server_ut);
