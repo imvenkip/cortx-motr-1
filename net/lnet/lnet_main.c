@@ -150,10 +150,10 @@
      @endcode
      By default, @c ntm_bev_auto_deliver is set to @c true.  In addition
      the following subroutines are defined:
-     - c2_net_tm_buffer_event_deliver_all()
-     - c2_net_tm_buffer_event_deliver_synchronously()
-     - c2_net_tm_buffer_event_pending()
-     - c2_net_tm_buffer_event_notify()
+     - c2_net_buffer_event_deliver_all()
+     - c2_net_buffer_event_deliver_synchronously()
+     - c2_net_buffer_event_pending()
+     - c2_net_buffer_event_notify()
      .
      This results in corresponding operations being added to the
      c2_net_xprt_ops structure:

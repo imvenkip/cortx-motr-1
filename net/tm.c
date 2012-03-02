@@ -133,6 +133,7 @@ static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 	c2_mutex_fini(&tm->ntm_mutex);
 	tm->ntm_dom = NULL;
 	c2_chan_fini(&tm->ntm_chan);
+	c2_list_fini(&tm->ntm_end_points);
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		tm_tlist_fini(&tm->ntm_q[i]);
 	}
@@ -222,7 +223,6 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	dom->nd_xprt->nx_ops->xo_tm_fini(tm);
 
 	C2_ASSERT(c2_list_is_empty(&tm->ntm_end_points));
-	c2_list_fini(&tm->ntm_end_points);
 
 	c2_list_del(&tm->ntm_dom_linkage);
 	tm->ntm_state = C2_NET_TM_UNDEFINED;
