@@ -141,37 +141,23 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 
 bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
 {
-	bool valid;
+	return
+		service != NULL && c2_rpc_service_bob_check(service) &&
+		service->svc_state >= C2_RPC_SERVICE_STATE_INITIALISED &&
+		service->svc_state <  C2_RPC_SERVICE_STATE_NR &&
 
-	if (service == NULL || !c2_rpc_service_bob_check(service))
-		return false;
-
-	if (service->svc_state < C2_RPC_SERVICE_STATE_INITIALISED ||
-	    service->svc_state >= C2_RPC_SERVICE_STATE_NR)
-		return false;
-
-	valid = service->svc_type != NULL &&
+		service->svc_type != NULL &&
 		service->svc_ep_addr != NULL &&
-		service->svc_ops != NULL;
+		service->svc_ops != NULL &&
 
-	if (!valid)
-		return false;
+		ergo(service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED,
+		     service->svc_conn != NULL &&
+		     c2_rpc_services_tlink_is_in(service)) &&
 
-	switch (service->svc_state) {
-	case C2_RPC_SERVICE_STATE_INITIALISED:
-	case C2_RPC_SERVICE_STATE_CONN_DETACHED:
-		return	service->svc_conn == NULL &&
-			!c2_rpc_services_tlink_is_in(service);
-
-	case C2_RPC_SERVICE_STATE_CONN_ATTACHED:
-		return  service->svc_conn != NULL &&
-			c2_rpc_services_tlink_is_in(service);
-	default:
-		return false;
-	}
-	/* Unreachable */
-	C2_ASSERT(0);
-	return false;
+		ergo(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
+		     service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED,
+		     service->svc_conn == NULL &&
+		     !c2_rpc_services_tlink_is_in(service));
 }
 
 int c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
