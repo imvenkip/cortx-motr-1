@@ -78,16 +78,12 @@ foo_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 	*out = NULL;
 
 	C2_ALLOC_PTR(foo_service);
-	if (foo_service == NULL) {
-		rc = -ENOMEM;
-		goto out_err;
-	}
+	C2_UT_ASSERT(foo_service != NULL);
 
 	service = &foo_service->f_service;
 	rc = c2_rpc__service_init(service, &foo_service_type, ep_addr,
 				  uuid, &foo_service_ops);
-	if (rc != 0)
-		goto out_err;
+	C2_UT_ASSERT(rc == 0);
 
 	/* service type specific initialisation */
 	foo_service->f_x = FOO_SERVICE_DEFAULT_X;
@@ -95,12 +91,6 @@ foo_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 	service->svc_state = C2_RPC_SERVICE_STATE_INITIALISED;
 	*out = service;
 	return 0;
-
-out_err:
-	if (foo_service != NULL)
-		c2_free(foo_service);
-	C2_UT_ASSERT(rc != 0 && *out == NULL);
-	return rc;
 }
 
 static bool foo_service_fini_and_free_called;
@@ -209,19 +199,35 @@ static void alloc_test(void)
 
 static void conn_attach_detach_test(void)
 {
-	struct c2_rpcmachine mock_rpcmachine;
-	struct c2_rpc_conn   mock_conn;
+	struct c2_rpcmachine     mock_rpcmachine;
+	struct c2_rpc_chan       mock_rpc_chan;
+	struct c2_rpc_conn       mock_conn;
+	struct c2_net_end_point  mock_destep; /* Destination end-point */
+	char                    *copy_of_foo_ep_addr;
 
 	C2_SET0(&mock_rpcmachine);
 	C2_SET0(&mock_conn);
+	C2_SET0(&mock_rpc_chan);
+	C2_SET0(&mock_destep);
 
 	/* prepare mock rpcmachine */
 	c2_rpc_services_tlist_init(&mock_rpcmachine.cr_services);
 	c2_mutex_init(&mock_rpcmachine.cr_session_mutex);
 
+	/* prepare mock_destep */
+	copy_of_foo_ep_addr = c2_alloc(strlen(foo_ep_addr) + 1);
+	C2_UT_ASSERT(copy_of_foo_ep_addr != NULL);
+
+	strcpy(copy_of_foo_ep_addr, foo_ep_addr);
+	mock_destep.nep_addr = copy_of_foo_ep_addr;
+
+	/* prepare mock_rpc_chan */
+	mock_rpc_chan.rc_destep = &mock_destep;
+
 	/* prepare mock rpc connection */
-	mock_conn.c_state = C2_RPC_CONN_ACTIVE;
+	mock_conn.c_state      = C2_RPC_CONN_ACTIVE;
 	mock_conn.c_rpcmachine = &mock_rpcmachine;
+	mock_conn.c_rpcchan    = &mock_rpc_chan;
 	c2_mutex_init(&mock_conn.c_mutex);
 
 	c2_rpc_service_conn_attach(fr_service, &mock_conn);
@@ -242,6 +248,8 @@ static void conn_attach_detach_test(void)
 
 	c2_mutex_fini(&mock_rpcmachine.cr_session_mutex);
 	c2_rpc_services_tlist_fini(&mock_rpcmachine.cr_services);
+
+	c2_free(copy_of_foo_ep_addr);
 }
 
 static void service_free_test(void)

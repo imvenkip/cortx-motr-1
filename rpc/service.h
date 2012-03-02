@@ -237,7 +237,9 @@ c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service);
  * @pre service != NULL &&
  *      service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED
  * @pre conn != NULL &&
- *      conn->c_state == C2_RPC_CONN_ACTIVE
+ *      conn->c_state == C2_RPC_CONN_ACTIVE &&
+ *      strcmp(service->svc_ep_addr, conn->c_rpcchan->rc_destep->nep_addr) == 0
+ *
  * @post service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED
  */
 void c2_rpc_service_conn_attach(struct c2_rpc_service *service,

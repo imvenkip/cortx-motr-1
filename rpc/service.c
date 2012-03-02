@@ -175,8 +175,7 @@ int c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 	rc = service_type->svt_ops->rsto_alloc_and_init(service_type,
 							ep_addr, uuid, out);
 
-	C2_POST(ergo(rc == 0, *out != NULL &&
-		     c2_rpc_service_invariant(*out) &&
+	C2_POST(ergo(rc == 0, c2_rpc_service_invariant(*out) &&
 		     (*out)->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
 	C2_POST(ergo(rc != 0, *out == NULL));
 
@@ -185,7 +184,7 @@ int c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 
 void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)
 {
-	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(c2_rpc_service_invariant(service));
 	C2_PRE(service->svc_ops != NULL &&
 	       service->svc_ops->rso_fini_and_free != NULL);
 
@@ -237,7 +236,6 @@ out:
 
 void c2_rpc__service_fini(struct c2_rpc_service *service)
 {
-	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
 	C2_PRE(c2_rpc_service_invariant(service) &&
 	       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
 
@@ -254,7 +252,7 @@ void c2_rpc__service_fini(struct c2_rpc_service *service)
 const char *
 c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service)
 {
-	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(c2_rpc_service_invariant(service));
 
 	return service->svc_ep_addr;
 }
@@ -262,7 +260,7 @@ c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service)
 const struct c2_uuid *
 c2_rpc_service_get_uuid(const struct c2_rpc_service *service)
 {
-	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(c2_rpc_service_invariant(service));
 
 	return &service->svc_uuid;
 }
@@ -272,12 +270,17 @@ void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
 {
 	struct c2_rpcmachine *machine;
 
-	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
 	C2_PRE(c2_rpc_service_invariant(service) &&
 	       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE);
+	/*
+         * Destination address of conn must match with end-point address of
+         * service.
+	 */
+	C2_PRE(strcmp(service->svc_ep_addr,
+		      conn->c_rpcchan->rc_destep->nep_addr) == 0);
 
 	machine = conn->c_rpcmachine;
 	c2_mutex_lock(&machine->cr_session_mutex);
@@ -298,7 +301,7 @@ void c2_rpc_service_conn_detach(struct c2_rpc_service *service)
 	struct c2_rpc_conn   *conn;
 	struct c2_rpcmachine *machine;
 
-	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
+	C2_PRE(c2_rpc_service_invariant(service));
 	C2_PRE(service->svc_conn != NULL);
 
 	conn = service->svc_conn;
