@@ -11,7 +11,7 @@ abort()
 
 modload_galois()
 {
-    BASE=@GALOIS_SRC@
+    BASE=/root/Colibri-code/mgmt-ops/colibri-milestone/colibri-common/core/../galois
     if test "x$BASE" = "x"; then
         modprobe galois
     else
