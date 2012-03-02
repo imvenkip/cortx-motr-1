@@ -184,6 +184,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		if (c2_time_after_eq(now, next_stat_time)) {
 			nlx_tm_stats_report(tm);
 			last_stat_time = now;
+			next_stat_time = c2_time_add(last_stat_time,
+						     tp->xtm_stat_interval);
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
