@@ -734,7 +734,7 @@ static int cs_linux_stob_init(const char *stob_path,
 					stob_path, &stob->linuxstob);
 	if  (rc == 0) {
 		sdom = stob->linuxstob;
-		rc = c2_linux_stob_setup(sdom, false);
+		rc = c2_linux_stob_setup(sdom, true);
 		if  (rc == 0)
 			rc = sdom->sd_ops->sdo_stob_find(stob->linuxstob,
 						&stob->stob_id, bstob);
