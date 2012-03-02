@@ -218,7 +218,7 @@ static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 {
 	int result;
 
-	result = it_init(emap, tx, prefix, offset, it, C2_DB_CURSOR_RDONLY);
+	result = it_init(emap, tx, prefix, offset, it, 0);
 	if (result == 0) {
 		result = IT_DO_OPEN(it, &c2_db_cursor_get);
 		if (result != 0)

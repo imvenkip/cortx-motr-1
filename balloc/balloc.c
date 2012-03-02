@@ -888,7 +888,7 @@ int c2_balloc_load_extents(struct c2_balloc *cb,
 	if (grp->bgi_fragments == 0)
 		return 0;
 
-	result = c2_db_cursor_init(&cursor, db_ext, tx, C2_DB_CURSOR_RDONLY);
+	result = c2_db_cursor_init(&cursor, db_ext, tx, 0);
 	if (result != 0) {
 		c2_balloc_release_extents(grp);
 		return result;

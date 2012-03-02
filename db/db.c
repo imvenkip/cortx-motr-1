@@ -675,9 +675,13 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
 		      struct c2_db_tx *tx, uint32_t flags)
 {
 	cursor->c_flags = 0;
-
-	if (flags & C2_DB_CURSOR_RMW)
-		cursor->c_flags |= DB_RMW;
+   
+        if (flags & C2_DB_CURSOR_READ_COMMITTED)
+                cursor->c_flags |= DB_READ_COMMITTED;
+        else if (flags & C2_DB_CURSOR_READ_UNCOMMITTED)
+                cursor->c_flags |= DB_READ_UNCOMMITTED;
+        else if (flags & C2_DB_CURSOR_RMW)
+                cursor->c_flags |= DB_RMW;
 
 	cursor->c_table = table;
 	cursor->c_tx    = tx;

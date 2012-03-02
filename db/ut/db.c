@@ -59,6 +59,38 @@ static int db_reset(void)
         return c2_ut_db_reset(db_name);
 }
 
+static void dbut_init(const char *db_name,
+                      const char *test_table,
+                      struct c2_dbenv *db,
+                      struct c2_table *table,
+                      struct c2_db_tx *tx)
+{
+        int result;
+
+	result = c2_dbenv_init(db, db_name, 0);
+        C2_UT_ASSERT(result == 0);
+
+        result = c2_table_init(table, db, test_table, 0, &test_table_ops);
+        C2_UT_ASSERT(result == 0);
+
+        result = c2_db_tx_init(tx, db, 0);
+        C2_UT_ASSERT(result == 0);	
+}
+
+static void dbut_fini(struct c2_dbenv *db,
+                      struct c2_table *table,
+                      struct c2_db_tx *tx,
+                      int (*finish_with)(struct c2_db_tx *))
+{
+        int result;
+
+	result = finish_with(tx);
+	C2_UT_ASSERT(result == 0);
+
+	c2_table_fini(table);
+	c2_dbenv_fini(db);
+}
+
 static void test_table_create(void)
 {
 	struct c2_dbenv db;
@@ -85,14 +117,7 @@ static void test_lookup(void)
 	uint64_t          key;
 	uint64_t          rec;
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 42;
 	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
@@ -100,11 +125,7 @@ static void test_lookup(void)
 	C2_UT_ASSERT(result == -ENOENT);
 
 	c2_db_pair_fini(&cons);
-	result = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_commit);
 }
 
 static void test_insert(void)
@@ -119,18 +140,10 @@ static void test_insert(void)
 	uint64_t          rec;
 	uint64_t          rec_out;
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 42;
 	rec = 16;
-
 	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
 
 	result = c2_table_insert(&tx, &cons);
@@ -145,23 +158,11 @@ static void test_insert(void)
 
 	c2_db_pair_fini(&cons1);
 	c2_db_pair_fini(&cons);
-
-	result = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_commit);
 
 	/* and look up again */
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	c2_db_pair_setup(&cons1, &table, &key, sizeof key,
 			 &rec_out, sizeof rec_out);
@@ -170,12 +171,7 @@ static void test_insert(void)
 	C2_UT_ASSERT(rec_out == rec);
 
 	c2_db_pair_fini(&cons1);
-
-	result = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_commit);
 }
 
 static void test_delete(void)
@@ -190,14 +186,7 @@ static void test_delete(void)
 	uint64_t          rec;
 	uint64_t          rec_out;
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 43;
 	rec = 17;
@@ -224,11 +213,7 @@ static void test_delete(void)
 	c2_db_pair_fini(&cons1);
 	c2_db_pair_fini(&cons);
 
-	result = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_commit);
 }
 
 static void test_abort(void)
@@ -241,75 +226,44 @@ static void test_abort(void)
 	uint64_t          key;
 	uint64_t          rec;
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 44;
 	rec = 18;
-
 	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
 
 	result = c2_table_insert(&tx, &cons);
 	C2_UT_ASSERT(result == 0);
 
 	c2_db_pair_fini(&cons);
-	c2_db_tx_abort(&tx);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_abort);
 
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
-
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
 	result = c2_table_lookup(&tx, &cons);
 	C2_UT_ASSERT(result == -ENOENT);
 
 	c2_db_pair_fini(&cons);
-	result = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_commit);
 }
 
 static void test_waiter(void)
 {
-	struct c2_dbenv   db;
-	struct c2_db_tx   tx;
-	struct c2_table   table;
-	struct c2_db_pair cons;
-	int               result;
-	uint64_t          key;
-	uint64_t          rec;
-	int               wflag;
-
+	struct c2_dbenv        db;
+	struct c2_db_tx        tx;
+	struct c2_table        table;
+	struct c2_db_pair      cons;
+	int                    result;
+	uint64_t               key;
+	uint64_t               rec;
+	int                    wflag;
 	struct c2_db_tx_waiter wait;
 
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 45;
 	rec = 19;
-
 	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
 
 	result = c2_table_insert(&tx, &cons);
@@ -333,21 +287,11 @@ static void test_waiter(void)
 	c2_db_tx_waiter_add(&tx, &wait);
 
 	c2_db_pair_fini(&cons);
-	c2_db_tx_abort(&tx);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_abort);
 
 	C2_UT_ASSERT(wflag == 2);
 
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
-
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table, &tx);
 
 	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
 	result = c2_table_insert(&tx, &cons);
@@ -372,11 +316,7 @@ static void test_waiter(void)
 	c2_db_tx_waiter_add(&tx, &wait);
 
 	c2_db_pair_fini(&cons);
-	result = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table, &tx, &c2_db_tx_commit);
 	C2_UT_ASSERT(wflag == 3);
 }
 
@@ -420,50 +360,26 @@ static void test_cursor_flags_read_only(void)
 	int                 result;
 	uint64_t            key;
 	uint64_t            rec;
-	uint32_t            flags;
 
-        /* Insert some records */
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table1, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx1, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table1, &tx1);
 
 	key = 11;
 	rec = 16;
-
 	c2_db_pair_setup(&pair1, &table1, &key, sizeof key, &rec, sizeof rec);
 
 	result = c2_table_insert(&tx1, &pair1);
 	C2_UT_ASSERT(result == 0);
 
 	c2_db_pair_fini(&pair1);
-	result = c2_db_tx_commit(&tx1);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table1);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
 
         /* Get readonly cursor */
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table1, &tx1);
 
-	result = c2_table_init(&table1, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx1, &db, 0);
-	C2_UT_ASSERT(result == 0);
-
-	/* Initialise read only cursor */
-	flags = C2_DB_CURSOR_RDONLY;
-	result = c2_db_cursor_init(&cursor1, &table1, &tx1, flags);
+	result = c2_db_cursor_init(&cursor1, &table1, &tx1, 0);
 	C2_UT_ASSERT(result == 0);
 
 	key = 11;
-
 	c2_db_pair_setup(&pair1, &table1, &key, sizeof key, &rec, sizeof rec);
 	result = c2_db_cursor_get(&cursor1, &pair1);
 	C2_UT_ASSERT(result == 0);
@@ -476,12 +392,10 @@ static void test_cursor_flags_read_only(void)
 	result = c2_db_tx_init(&tx2, &db, DB_TXN_NOWAIT);
 	C2_UT_ASSERT(result == 0);
 
-        flags = C2_DB_CURSOR_RDONLY;
-        result = c2_db_cursor_init(&cursor2, &table2, &tx2, flags);
+        result = c2_db_cursor_init(&cursor2, &table2, &tx2, 0);
 	C2_UT_ASSERT(result == 0);
 
 	key = 11;
-
 	c2_db_pair_setup(&pair2, &table2, &key, sizeof key, &rec, sizeof rec);
 	result = c2_db_cursor_get(&cursor2, &pair2);
 	C2_UT_ASSERT(result == 0);
@@ -494,13 +408,9 @@ static void test_cursor_flags_read_only(void)
 
 	result = c2_db_tx_commit(&tx2);
 	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_commit(&tx1);
-	C2_UT_ASSERT(result == 0);
-
 	c2_table_fini(&table2);
-	c2_table_fini(&table1);
-	c2_dbenv_fini(&db);
+
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
 }
 
 /*
@@ -523,50 +433,27 @@ static void test_cursor_flags_rmw(void)
 	int                 result;
 	uint64_t            key;
 	uint64_t            rec;
-	uint32_t            flags;
 
         /* Insert some records */
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_table_init(&table1, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx1, &db, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table1, &tx1);
 
 	key = 22;
 	rec = 16;
-
 	c2_db_pair_setup(&pair1, &table1, &key, sizeof key, &rec, sizeof rec);
 
 	result = c2_table_insert(&tx1, &pair1);
 	C2_UT_ASSERT(result == 0);
 
 	c2_db_pair_fini(&pair1);
-	result = c2_db_tx_commit(&tx1);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table1);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
 
         /* Get readonly cursor */
-	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
+        dbut_init(db_name, test_table, &db, &table1, &tx1);
 
-	result = c2_table_init(&table1, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_init(&tx1, &db, 0);
-	C2_UT_ASSERT(result == 0);
-
-	/* Initialise read only cursor */
-	flags = C2_DB_CURSOR_RMW;
-	result = c2_db_cursor_init(&cursor1, &table1, &tx1, flags);
+	result = c2_db_cursor_init(&cursor1, &table1, &tx1, C2_DB_CURSOR_RMW);
 	C2_UT_ASSERT(result == 0);
 
 	key = 22;
-
 	c2_db_pair_setup(&pair1, &table1, &key, sizeof key, &rec, sizeof rec);
 
         result = c2_db_cursor_get(&cursor1, &pair1);
@@ -580,12 +467,10 @@ static void test_cursor_flags_rmw(void)
 	result = c2_db_tx_init(&tx2, &db, DB_TXN_NOWAIT);
 	C2_UT_ASSERT(result == 0);
 
-	flags = C2_DB_CURSOR_RMW;
-	result = c2_db_cursor_init(&cursor2, &table2, &tx2, flags);
+	result = c2_db_cursor_init(&cursor2, &table2, &tx2, C2_DB_CURSOR_RMW);
 	C2_UT_ASSERT(result == 0);
 
 	key = 22;
-
 	c2_db_pair_setup(&pair2, &table2, &key, sizeof key, &rec, sizeof rec);
 
 	/*
@@ -598,18 +483,14 @@ static void test_cursor_flags_rmw(void)
 	c2_db_cursor_fini(&cursor2);
 	c2_db_pair_fini(&pair2);
 
+	result = c2_db_tx_commit(&tx2);
+	C2_UT_ASSERT(result == 0);
+	c2_table_fini(&table2);
+
 	c2_db_cursor_fini(&cursor1);
 	c2_db_pair_fini(&pair1);
 
-	result = c2_db_tx_commit(&tx2);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_tx_commit(&tx1);
-	C2_UT_ASSERT(result == 0);
-
-	c2_table_fini(&table2);
-	c2_table_fini(&table1);
-	c2_dbenv_fini(&db);
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
 }
 
 const struct c2_test_suite db_cursor_ut = {

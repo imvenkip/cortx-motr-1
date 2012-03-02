@@ -382,11 +382,12 @@ struct c2_db_cursor {
 };
 
 /**
- * Cursor modes
+ * Cursor flags
  */
 enum c2_db_cursor_flags {
-        C2_DB_CURSOR_RDONLY    = 1 << 0,
-        C2_DB_CURSOR_RMW        = 1 << 1,
+        C2_DB_CURSOR_READ_UNCOMMITTED  = 1 << 0,
+        C2_DB_CURSOR_READ_COMMITTED    = 1 << 1,
+        C2_DB_CURSOR_RMW               = 1 << 2,
 };
 
 /**
