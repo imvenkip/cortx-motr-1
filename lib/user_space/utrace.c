@@ -81,6 +81,8 @@ static int logbuf_map()
 	else if ((c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
                                    MAP_SHARED, logfd, 0)) == MAP_FAILED)
 		warn("mmap(\"%s\")", buf);
+	else
+		memset(c2_logbuf, 0, c2_logbufsize);
 
 	return -errno;
 }

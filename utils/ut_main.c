@@ -176,49 +176,49 @@ int main(int argc, char *argv[])
 	result = C2_GETOPTS("ut", argc, argv,
 		    C2_HELPARG('h'),
 		    C2_VOIDARG('T', "parse trace log produced earlier",
-					LAMBDA(void, (void) {
-							exit(c2_trace_parse());
-					})),
-			    C2_FLAGARG('k', "keep the sandbox directory",
-					&keep_sandbox),
-			    C2_VOIDARG('i', "CUnit interactive console",
-					LAMBDA(void, (void) {
-						cfg.urc_mode = C2_UT_ICONSOLE_MODE;
-					})),
-			    C2_VOIDARG('a', "automated CUnit with xml output",
-					LAMBDA(void, (void) {
-						cfg.urc_mode = C2_UT_AUTOMATED_MODE;
-					})),
-			    C2_FLAGARG('l', "list available test suites",
-					&list_ut),
-			    C2_VOIDARG('L', "list available test suites with"
-					    " their tests",
-					LAMBDA(void, (void) {
-							list_ut = true;
-							with_tests = true;
-					})),
-			    C2_STRINGARG('t', "test list 'suite[:test][,suite"
-					      "[:test]]'",
-					      LAMBDA(void, (const char *str) {
-						    test_list_str = strdup(str);
-					      })
-					),
-			    C2_STRINGARG('x', "exclude list 'suite[:test][,suite"
-					      "[:test]]'",
-					      LAMBDA(void, (const char *str) {
-						 exclude_list_str = strdup(str);
-					      })
-					),
-			    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
-					    " failure",
-					LAMBDA(void, (void) {
-						cfg.urc_abort_cu_assert = false;
-					})),
-			    C2_VOIDARG('P', "don't report test execution time",
-					LAMBDA(void, (void) {
-						cfg.urc_report_exec_time = false;
-					})),
-			    );
+				LAMBDA(void, (void) {
+						exit(c2_trace_parse());
+				})),
+		    C2_FLAGARG('k', "keep the sandbox directory",
+				&keep_sandbox),
+		    C2_VOIDARG('i', "CUnit interactive console",
+				LAMBDA(void, (void) {
+					cfg.urc_mode = C2_UT_ICONSOLE_MODE;
+				})),
+		    C2_VOIDARG('a', "automated CUnit with xml output",
+				LAMBDA(void, (void) {
+					cfg.urc_mode = C2_UT_AUTOMATED_MODE;
+				})),
+		    C2_FLAGARG('l', "list available test suites",
+				&list_ut),
+		    C2_VOIDARG('L', "list available test suites with"
+				    " their tests",
+				LAMBDA(void, (void) {
+						list_ut = true;
+						with_tests = true;
+				})),
+		    C2_STRINGARG('t', "test list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					    test_list_str = strdup(str);
+				      })
+				),
+		    C2_STRINGARG('x', "exclude list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					 exclude_list_str = strdup(str);
+				      })
+				),
+		    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
+				    " failure",
+				LAMBDA(void, (void) {
+					cfg.urc_abort_cu_assert = false;
+				})),
+		    C2_VOIDARG('P', "don't report test execution time",
+				LAMBDA(void, (void) {
+					cfg.urc_report_exec_time = false;
+				})),
+		    );
 	if (result != 0)
 		goto out;
 
