@@ -98,7 +98,7 @@ void c2_rpc_service_type_register(struct c2_rpc_service_type *service_type)
 	c2_rwlock_write_unlock(&service_type_tlist_lock);
 
 	C2_POST(c2_rpc_service_type_locate(service_type->svt_type_id) ==
-			service_type);
+		service_type);
 }
 
 void c2_rpc_service_type_unregister(struct c2_rpc_service_type *service_type)
@@ -115,7 +115,7 @@ void c2_rpc_service_type_unregister(struct c2_rpc_service_type *service_type)
 
 	C2_POST(!service_type_tlink_is_in(service_type));
 	C2_POST(c2_rpc_service_type_locate(service_type->svt_type_id) ==
-			NULL);
+		NULL);
 }
 
 struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
@@ -154,8 +154,7 @@ bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
 		     service->svc_conn != NULL &&
 		     c2_rpc_services_tlink_is_in(service)) &&
 
-		ergo(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
-		     service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED,
+		ergo(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED,
 		     service->svc_conn == NULL &&
 		     !c2_rpc_services_tlink_is_in(service));
 }
@@ -240,8 +239,7 @@ void c2_rpc__service_fini(struct c2_rpc_service *service)
 {
 	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
 	C2_PRE(c2_rpc_service_invariant(service) &&
-		(service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
-		 service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED));
+	       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
 
 	c2_free(service->svc_ep_addr);
 
@@ -276,7 +274,7 @@ void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
 
 	C2_PRE(service != NULL && c2_rpc_service_bob_check(service));
 	C2_PRE(c2_rpc_service_invariant(service) &&
-		service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
+	       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED);
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE);
@@ -315,7 +313,7 @@ void c2_rpc_service_conn_detach(struct c2_rpc_service *service)
 	service->svc_conn = NULL;
 	conn->c_service   = NULL;
 	c2_rpc_services_tlist_del(service);
-	service->svc_state = C2_RPC_SERVICE_STATE_CONN_DETACHED;
+	service->svc_state = C2_RPC_SERVICE_STATE_INITIALISED;
 
 	c2_mutex_unlock(&machine->cr_session_mutex);
 	c2_mutex_unlock(&conn->c_mutex);

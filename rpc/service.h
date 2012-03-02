@@ -142,7 +142,6 @@ enum c2_rpc_service_state {
 	C2_RPC_SERVICE_STATE_UNDEFINED,
 	C2_RPC_SERVICE_STATE_INITIALISED,
 	C2_RPC_SERVICE_STATE_CONN_ATTACHED,
-	C2_RPC_SERVICE_STATE_CONN_DETACHED,
 
 	/** Not a state. Just to mark upper limit of valid state values */
 	C2_RPC_SERVICE_STATE_NR,
@@ -222,8 +221,7 @@ struct c2_rpc_service_ops {
          * this routine.
          *
          * @pre service != NULL &&
-         *      (service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
-         *       service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED)
+         *      service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED
          */
 	void (*rso_fini_and_free)(struct c2_rpc_service *service);
 };
@@ -260,7 +258,7 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service);
  *
  * @pre service != NULL &&
  *      service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED
- * @post service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED
+ * @post service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED_
  */
 void c2_rpc_service_conn_detach(struct c2_rpc_service *service);
 
@@ -270,8 +268,7 @@ void c2_rpc_service_conn_detach(struct c2_rpc_service *service);
  * Instance pointed by service will be freed at the discretion of confc.
  *
  * @pre service != NULL &&
- *      (service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED ||
- *       service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED)
+ *      service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED
  */
 void c2_rpc_service_release(struct c2_rpc_service *service);
 

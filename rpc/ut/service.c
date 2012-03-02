@@ -54,7 +54,7 @@ static const struct c2_rpc_service_type_ops foo_service_type_ops = {
 };
 
 C2_RPC_SERVICE_TYPE_DEFINE(static, foo_service_type, "foo",
-				C2_RPC_SERVICE_TYPE_FOO, &foo_service_type_ops);
+			   C2_RPC_SERVICE_TYPE_FOO, &foo_service_type_ops);
 
 static const struct c2_rpc_service_ops foo_service_ops = {
 	.rso_fini_and_free = foo_service_fini_and_free,
@@ -133,7 +133,7 @@ static const struct c2_rpc_service_type_ops bar_type_ops = {
 };
 
 C2_RPC_SERVICE_TYPE_DEFINE(static, bar_service_type, "bar",
-				C2_RPC_SERVICE_TYPE_BAR, &bar_type_ops);
+			   C2_RPC_SERVICE_TYPE_BAR, &bar_type_ops);
 
 static bool bar_alloc_and_init_called;
 
@@ -163,11 +163,11 @@ static void register_test(void)
 {
 	c2_rpc_service_type_register(&foo_service_type);
 	C2_UT_ASSERT(c2_rpc_service_type_locate(C2_RPC_SERVICE_TYPE_FOO) ==
-				&foo_service_type);
+		     &foo_service_type);
 
 	c2_rpc_service_type_register(&bar_service_type);
 	C2_UT_ASSERT(c2_rpc_service_type_locate(C2_RPC_SERVICE_TYPE_BAR) ==
-				&bar_service_type);
+		     &bar_service_type);
 }
 
 static void locate_failed_test(void)
@@ -198,7 +198,7 @@ static void alloc_test(void)
 	foo_service = container_of(fr_service, struct foo_service, f_service);
 	C2_UT_ASSERT(foo_service->f_x == FOO_SERVICE_DEFAULT_X);
 	C2_UT_ASSERT(strcmp(foo_ep_addr, c2_rpc_service_get_ep_addr(fr_service))
-				== 0);
+		     == 0);
 
 	bar_alloc_and_init_called = false;
 	rc = c2_rpc_service_alloc_and_init(&bar_service_type, NULL, NULL,
@@ -229,12 +229,12 @@ static void conn_attach_detach_test(void)
 	C2_UT_ASSERT(fr_service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED);
 	C2_UT_ASSERT(fr_service->svc_conn == &mock_conn);
 	C2_UT_ASSERT(c2_rpc_services_tlist_head(&mock_rpcmachine.cr_services) ==
-				fr_service);
+		     fr_service);
 
 	c2_rpc_service_conn_detach(fr_service);
 	C2_UT_ASSERT(c2_rpc_service_invariant(fr_service));
 	C2_UT_ASSERT(fr_service->svc_state ==
-			C2_RPC_SERVICE_STATE_CONN_DETACHED);
+		     C2_RPC_SERVICE_STATE_INITIALISED);
 	C2_UT_ASSERT(
 		c2_rpc_services_tlist_is_empty(&mock_rpcmachine.cr_services));
 
@@ -256,11 +256,11 @@ static void unregister_test(void)
 {
 	c2_rpc_service_type_unregister(&foo_service_type);
 	C2_UT_ASSERT(c2_rpc_service_type_locate(C2_RPC_SERVICE_TYPE_FOO) ==
-				NULL);
+		     NULL);
 
 	c2_rpc_service_type_unregister(&bar_service_type);
 	C2_UT_ASSERT(c2_rpc_service_type_locate(C2_RPC_SERVICE_TYPE_BAR) ==
-				NULL);
+		     NULL);
 }
 
 const struct c2_test_suite rpc_service_ut = {
