@@ -137,7 +137,7 @@ static uint64_t nlx_kcore_hdr_data_encode(struct nlx_core_transfer_mc *lctm)
 
 	C2_PRE(nlx_core_tm_invariant(lctm));
 	cepa = &lctm->ctm_addr;
-	return nlx_kcore_hdr_data_encode_raw(cepa->cepa_tmid, cepa->cepa_portal);
+	return nlx_kcore_hdr_data_encode_raw(cepa->cepa_tmid,cepa->cepa_portal);
 }
 
 
@@ -341,7 +341,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc == 0) {
-		NLXDBG(lctm, 1, nlx_kprint_lnet_handle("MDAttach", kcb->kb_mdh));
+		NLXDBG(lctm, 1, nlx_kprint_lnet_handle("MDAttach",kcb->kb_mdh));
 	} else {
 		int trc = LNetMEUnlink(meh);
 		NLXDBGP(lctm, 1, "LNetMDAttach: %d\n", rc);
@@ -389,7 +389,8 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 }
 
 /**
-   Helper subroutine to send a buffer to a remote destination using @c LNetPut().
+   Helper subroutine to send a buffer to a remote destination using
+   @c LNetPut().
    - The MD is set up to automatically unlink.
    - The MD handle is set in the struct nlx_kcore_buffer::kb_mdh field.
    - The TM's portal and TMID are encoded in the header data.

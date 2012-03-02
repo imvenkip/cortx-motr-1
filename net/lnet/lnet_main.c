@@ -150,10 +150,10 @@
      @endcode
      By default, @c ntm_bev_auto_deliver is set to @c true.  In addition
      the following subroutines are defined:
-     - c2_net_tm_buffer_event_deliver_all()
-     - c2_net_tm_buffer_event_deliver_synchronously()
-     - c2_net_tm_buffer_event_pending()
-     - c2_net_tm_buffer_event_notify()
+     - c2_net_buffer_event_deliver_all()
+     - c2_net_buffer_event_deliver_synchronously()
+     - c2_net_buffer_event_pending()
+     - c2_net_buffer_event_notify()
      .
      This results in corresponding operations being added to the
      c2_net_xprt_ops structure:
@@ -304,24 +304,24 @@
 
    The nlx_xo_bev_deliver_sync() transport operation is invoked to disable the
    automatic delivery of buffer events. The subroutine simply returns without
-   error, and the invoking c2_net_tm_buffer_event_deliver_synchronously()
+   error, and the invoking c2_net_buffer_event_deliver_synchronously()
    subroutine will then set the value of
    c2_net_transfer_mc::ntm_bev_auto_deliver value to @c false.
 
    The nlx_xo_bev_pending() transport operation is invoked from the
-   c2_net_tm_buffer_event_pending() subroutine to determine if there are pending
+   c2_net_buffer_event_pending() subroutine to determine if there are pending
    network buffer events.  It invokes the nlx_core_buf_event_wait() subroutine
    with a timeout of 0 and uses the returned status value to determine if
    events are present or not.
 
    The nlx_xo_bev_notify() transport operation is invoked from the
-   c2_net_tm_buffer_event_notify() subroutine.  It sets the
+   c2_net_buffer_event_notify() subroutine.  It sets the
    nlx_xo_transfer_mc::xtm_ev_chan value to the specified wait channel, and
    signals on the nlx_xo_transfer_mc::xtm_ev_cond condition variable to wake up
    the event processing thread.
 
    The nlx_xo_bev_deliver_all() transport operation is invoked from the
-   c2_net_tm_buffer_event_deliver_all() subroutine.  It attempts to deliver all
+   c2_net_buffer_event_deliver_all() subroutine.  It attempts to deliver all
    pending events.  The transfer machine lock is held across the call to the
    nlx_core_buf_event_get() subroutine to serialize "consumers" of the
    circualar buffer event queue, but is released during event delivery.  The

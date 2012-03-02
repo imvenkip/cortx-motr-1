@@ -71,7 +71,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		.nte_status = 0
 	};
 	c2_time_t timeout;
-	c2_time_t stat_time;
+	c2_time_t last_stat_time;
+	c2_time_t next_stat_time;
 	c2_time_t now;
 	int rc = 0;
 
@@ -110,11 +111,26 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	c2_net_tm_event_post(&tmev);
 	if (rc != 0)
 		return;
-	stat_time = c2_time_now();
+
+	c2_mutex_lock(&tm->ntm_mutex);
+	last_stat_time = c2_time_now();
+	next_stat_time = c2_time_add(last_stat_time, tp->xtm_stat_interval);
+	c2_mutex_unlock(&tm->ntm_mutex);
 
 	while (1) {
-		/* compute next timeout (XXX short if automatic or stopping) */
-		timeout = c2_time_from_now(1, 0);
+		/* Compute next timeout (short if automatic or stopping).
+		   Upper bound constrained by the next stat schedule time.
+		 */
+		if (tm->ntm_bev_auto_deliver ||
+		    tm->ntm_state == C2_NET_TM_STOPPING)
+			timeout = c2_time_from_now(
+					   C2_NET_LNET_EVT_SHORT_WAIT_SECS, 0);
+		else
+			timeout = c2_time_from_now(
+					    C2_NET_LNET_EVT_LONG_WAIT_SECS, 0);
+		if (c2_time_after(timeout, next_stat_time))
+			timeout = next_stat_time;
+
 		if (tm->ntm_bev_auto_deliver) {
 			rc = NLX_core_buf_event_wait(ctp, timeout);
 			/* buffer event processing */
@@ -129,8 +145,10 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 				c2_cond_timedwait(&tp->xtm_ev_cond,
 						  &tm->ntm_mutex, timeout);
 			if (tp->xtm_ev_chan != NULL) {
+				c2_mutex_unlock(&tm->ntm_mutex);
 				rc = nlx_core_buf_event_wait(ctp, timeout);
-				if (rc == 0) {
+				c2_mutex_lock(&tm->ntm_mutex);
+				if (rc == 0 && tp->xtm_ev_chan != NULL) {
 					c2_chan_signal(tp->xtm_ev_chan);
 					tp->xtm_ev_chan = NULL;
 				}
@@ -161,11 +179,13 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 
 		now = c2_time_now();
 		c2_mutex_lock(&tm->ntm_mutex);
-		if (c2_time_after_eq(now,
-				     c2_time_add(stat_time,
-						 tp->xtm_stat_interval))) {
+		next_stat_time = c2_time_add(last_stat_time,
+					     tp->xtm_stat_interval);
+		if (c2_time_after_eq(now, next_stat_time)) {
 			nlx_tm_stats_report(tm);
-			stat_time = now;
+			last_stat_time = now;
+			next_stat_time = c2_time_add(last_stat_time,
+						     tp->xtm_stat_interval);
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
@@ -225,7 +245,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
  done:
 	NLXDBG(tp,2,nlx_print_core_buffer_event("bev_to_net_bev: cbev", lcbev));
 	NLXDBG(tp,2,nlx_print_net_buffer_event("bev_to_net_bev: nbev:", nbev));
-	NLXDBG(tp,1,NLXP("bev_to_net_bev: rc=%d\n", rc));
+	NLXDBG(tp,2,NLXP("bev_to_net_bev: rc=%d\n", rc));
 
 	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
 		     rc == 0 && !lcbev->cbe_unlinked));

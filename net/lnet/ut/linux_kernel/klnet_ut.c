@@ -66,7 +66,7 @@ static void ktest_buf_shape(void)
 
 	/* test the segment page count computation */
 	UT_BUFVEC_ALLOC(bv1, 1);
-	base = (void *)((uint64_t)&base & PAGE_MASK); /* arbitrary, page aligned */
+	base = (void *)((uint64_t)&base & PAGE_MASK);/* arbitrary, pg aligned */
 
 #define EXP_SEG_COUNT(ptr,segsize,expcount)		\
 	bv1.ov_buf[0] = (ptr);				\
@@ -574,7 +574,8 @@ static void ktest_msg_body(struct ut_data *td)
 	/* init the UMD that will be adjusted */
 	nlx_kcore_umd_init(lctm1, lcbuf1, 1, 0, 0, false, &umd);
 	C2_UT_ASSERT(kcb1->kb_kiov == umd.start);
-	C2_UT_ASSERT(ut_ktest_kiov_count(umd.start,umd.length) == td->buf_size1);
+	C2_UT_ASSERT(ut_ktest_kiov_count(umd.start,umd.length)
+		     == td->buf_size1);
 	C2_UT_ASSERT(UT_MSG_SIZE < td->buf_size1);
 
 	/* Adjust for message size. This should not modify the kiov data. */
@@ -747,7 +748,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(cb_called1 == 0);
 	cb_save_ep1 = false;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	ut_ktest_msg_buf_event_wait_delay_chan = &TM2->ntm_chan;/* unused here */
+	ut_ktest_msg_buf_event_wait_delay_chan = &TM2->ntm_chan;/* unused */
 	c2_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 1);
 	while(c2_atomic64_get(&ut_ktest_msg_buf_event_wait_stall) == 1)
 		ut_chan_timedwait(&td->tmwait1, 1);/* wait for acknowledgment */
@@ -867,7 +868,8 @@ static void ktest_msg_body(struct ut_data *td)
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1); /* just one callback! */
 	C2_UT_ASSERT(cb_status1 == -ENOMEM);
-	C2_UT_ASSERT(c2_atomic64_get(&ut_ktest_msg_ep_create_fail) == count + 1);
+	C2_UT_ASSERT(c2_atomic64_get(&ut_ktest_msg_ep_create_fail)
+		     == count + 1);
 	C2_UT_ASSERT(cb_ep1 == NULL); /* no EP */
 	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1,C2_NET_QT_MSG_RECV,&td->qs,true));
 	C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
@@ -1002,7 +1004,7 @@ static void ktest_msg(void) {
 	nlx_kcore_iv._nlx_kcore_LNetMDAttach = ut_ktest_msg_LNetMDAttach;
 	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_msg_LNetPut;
 
-	ut_test_framework(&ktest_msg_body, ut_verbose);
+	ut_test_framework(&ktest_msg_body, NULL, ut_verbose);
 
 	ut_restore_subs();
 	ut_ktest_msg_buf_event_wait_delay_chan = NULL;
@@ -1807,7 +1809,7 @@ static void ktest_bulk(void) {
 	nlx_kcore_iv._nlx_kcore_LNetGet = ut_ktest_bulk_LNetGet;
 	nlx_kcore_iv._nlx_kcore_LNetPut = ut_ktest_bulk_LNetPut;
 
-	ut_test_framework(&ktest_bulk_body, 1);//ut_verbose);
+	ut_test_framework(&ktest_bulk_body, NULL, ut_verbose);
 
 	ut_restore_subs();
 }

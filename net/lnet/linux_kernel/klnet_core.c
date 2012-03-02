@@ -192,7 +192,7 @@
      This is described in further detail in @ref KLNetCoreDLD-lspec-bevq.
 
 
-   @subsection KLNetCoreDLD-lspec-match-bits Match Bits for Buffer Identification
+  @subsection KLNetCoreDLD-lspec-match-bits Match Bits for Buffer Identification
 
    The kernel Core module will maintain a unsigned integer counter per transfer
    machine, to generate unique match bits for passive bulk buffers associated
@@ -376,7 +376,8 @@
    kernel address of the nlx_core_buffer data structure.  Note that if an event
    has the @c unlinked field set then this will be the last event that LNet will
    post for the related operation, and the @c user_ptr field will be valid, so
-   the callback can safely de-reference the field to determine the correct queue.
+   the callback can safely de-reference the field to determine the correct
+   queue.
 
    The callback subroutine does the following:
 
@@ -1019,7 +1020,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	    cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
 		/* An LNetGet related event, normally ignored */
 		if (!is_unlinked) {
-			NLXDBGP(lctm, 1, "\t%p: ignored LNetGet() SEND\n", lctm);
+			NLXDBGP(lctm, 1, "\t%p: ignored LNetGet() SEND\n",lctm);
 			return;
 		}
 		/* An out-of-order SEND, or
