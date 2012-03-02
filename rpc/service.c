@@ -180,26 +180,28 @@ bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
 	return false;
 }
 
-struct c2_rpc_service *
-c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
-			      const char                 *ep_addr,
-			      const struct c2_uuid       *uuid)
+int c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
+				  const char                 *ep_addr,
+				  const struct c2_uuid       *uuid,
+				  struct c2_rpc_service     **out)
 {
-	struct c2_rpc_service *service;
+	int rc;
 
 	C2_PRE(service_type != NULL &&
 	       service_type->svt_ops != NULL &&
-	       service_type->svt_ops->rsto_alloc_and_init != NULL);
+	       service_type->svt_ops->rsto_alloc_and_init != NULL &&
+	       out != NULL);
 
-	service = service_type->svt_ops->rsto_alloc_and_init(service_type,
-					ep_addr, uuid);
+	*out = NULL;
+	rc = service_type->svt_ops->rsto_alloc_and_init(service_type,
+							ep_addr, uuid, out);
 
-	C2_ASSERT(ergo(service != NULL, c2_rpc_service_bob_check(service)));
-	C2_ASSERT(ergo(service != NULL,
-		     c2_rpc_service_invariant(service) &&
-		     service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
+	C2_POST(ergo(rc == 0, *out != NULL &&
+		     c2_rpc_service_invariant(*out) &&
+		     (*out)->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
+	C2_POST(ergo(rc != 0, *out == NULL));
 
-	return service;
+	return rc;
 }
 
 void c2_rpc_service_fini_and_free(struct c2_rpc_service *service)

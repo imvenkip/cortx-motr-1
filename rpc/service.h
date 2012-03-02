@@ -77,14 +77,13 @@ struct c2_rpc_service_type_ops {
          * Values pointed by ep_addr and uuid are copied in
          * c2_rpc_service instance.
          *
-         * C2_POST(ergo(result != NULL,
-         *              result->svc_state == C2_RPC_SERVICE_STATE_INITIALISED))
+	 * @post ergo(result == 0, *out != NULL &&
+	 *            (*out)->svc_state == C2_RPC_SERVICE_STATE_INITIALISED)
          */
-	struct c2_rpc_service * (*rsto_alloc_and_init)(
-			struct c2_rpc_service_type *service_type,
-			const char                 *ep_addr,
-			const struct c2_uuid       *uuid
-			);
+	int (*rsto_alloc_and_init)(struct c2_rpc_service_type *service_type,
+				   const char                 *ep_addr,
+				   const struct c2_uuid       *uuid,
+				   struct c2_rpc_service     **out);
 };
 
 /**
@@ -284,10 +283,11 @@ void c2_rpc_service_release(struct c2_rpc_service *service);
 /**
  * Wrapper over service_type->svt_ops->rsto_alloc_and_init()
  */
-struct c2_rpc_service *
+int
 c2_rpc_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 			      const char                 *ep_addr,
-			      const struct c2_uuid       *uuid);
+			      const struct c2_uuid       *uuid,
+			      struct c2_rpc_service     **out);
 
 /**
  * Wrapper over service->svc_ops->rso_fini_and_free()

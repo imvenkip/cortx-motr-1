@@ -32,10 +32,11 @@ enum {
 };
 
 /* Forward declaration */
-static struct c2_rpc_service *
+static int
 foo_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 			   const char                 *ep_addr,
-			   const struct c2_uuid       *uuid);
+			   const struct c2_uuid       *uuid,
+			   struct c2_rpc_service     **out);
 
 static void foo_service_fini_and_free(struct c2_rpc_service *service);
 
@@ -61,38 +62,45 @@ static const struct c2_rpc_service_ops foo_service_ops = {
 
 static bool foo_alloc_and_init_called;
 
-static struct c2_rpc_service *
+static int
 foo_service_alloc_and_init(struct c2_rpc_service_type *service_type,
 			   const char                 *ep_addr,
-			   const struct c2_uuid       *uuid)
+			   const struct c2_uuid       *uuid,
+			   struct c2_rpc_service     **out)
 {
-	struct foo_service *foo_service;
-	int                 rc;
+	struct c2_rpc_service *service;
+	struct foo_service    *foo_service;
+	int                    rc;
 
 	C2_UT_ASSERT(service_type == &foo_service_type);
 	foo_alloc_and_init_called = true;
 
-	C2_ALLOC_PTR(foo_service);
-	if (foo_service == NULL)
-		goto out_err;
+	*out = NULL;
 
-	rc = c2_rpc__service_init(&foo_service->f_service,
-					&foo_service_type, ep_addr,
-					uuid, &foo_service_ops);
+	C2_ALLOC_PTR(foo_service);
+	if (foo_service == NULL) {
+		rc = -ENOMEM;
+		goto out_err;
+	}
+
+	service = &foo_service->f_service;
+	rc = c2_rpc__service_init(service, &foo_service_type, ep_addr,
+				  uuid, &foo_service_ops);
 	if (rc != 0)
 		goto out_err;
 
 	/* service type specific initialisation */
 	foo_service->f_x = FOO_SERVICE_DEFAULT_X;
 
-	foo_service->f_service.svc_state = C2_RPC_SERVICE_STATE_INITIALISED;
-
-	return &foo_service->f_service;
+	service->svc_state = C2_RPC_SERVICE_STATE_INITIALISED;
+	*out = service;
+	return 0;
 
 out_err:
 	if (foo_service != NULL)
 		c2_free(foo_service);
-	return NULL;
+	C2_UT_ASSERT(rc != 0 && *out == NULL);
+	return rc;
 }
 
 static bool foo_service_fini_and_free_called;
@@ -114,10 +122,11 @@ static void foo_service_fini_and_free(struct c2_rpc_service *service)
 	c2_free(foo_service);
 }
 
-static struct c2_rpc_service *
+static int
 bar_alloc_and_init(struct c2_rpc_service_type *service_type,
 		   const char                 *ep_addr,
-		   const struct c2_uuid       *uuid);
+		   const struct c2_uuid       *uuid,
+		   struct c2_rpc_service     **out);
 
 static const struct c2_rpc_service_type_ops bar_type_ops = {
 	.rsto_alloc_and_init = bar_alloc_and_init,
@@ -128,14 +137,16 @@ C2_RPC_SERVICE_TYPE_DEFINE(static, bar_service_type, "bar",
 
 static bool bar_alloc_and_init_called;
 
-static struct c2_rpc_service *
+static int
 bar_alloc_and_init(struct c2_rpc_service_type *service_type,
 		   const char                 *ep_addr,
-		   const struct c2_uuid       *uuid)
+		   const struct c2_uuid       *uuid,
+		   struct c2_rpc_service     **out)
 {
 	C2_UT_ASSERT(service_type == &bar_service_type);
 	bar_alloc_and_init_called = true;
-	return NULL;
+	*out = NULL;
+	return -1;
 }
 
 static int rpc_service_ut_init(void)
@@ -175,10 +186,12 @@ static void alloc_test(void)
 {
 	struct c2_rpc_service *service;
 	struct foo_service    *foo_service;
+	int                    rc;
 
 	foo_alloc_and_init_called = false;
-	fr_service = c2_rpc_service_alloc_and_init(&foo_service_type, foo_ep_addr,
-						  &foo_uuid);
+	rc = c2_rpc_service_alloc_and_init(&foo_service_type, foo_ep_addr,
+					   &foo_uuid, &fr_service);
+	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(foo_alloc_and_init_called);
 	C2_UT_ASSERT(fr_service != NULL);
 
@@ -188,8 +201,10 @@ static void alloc_test(void)
 				== 0);
 
 	bar_alloc_and_init_called = false;
-	service = c2_rpc_service_alloc_and_init(&bar_service_type, NULL, NULL);
+	rc = c2_rpc_service_alloc_and_init(&bar_service_type, NULL, NULL,
+					   &service);
 	C2_UT_ASSERT(bar_alloc_and_init_called);
+	C2_UT_ASSERT(rc != 0 && service == NULL);
 }
 
 static void conn_attach_detach_test(void)
