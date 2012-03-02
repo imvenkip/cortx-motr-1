@@ -127,15 +127,16 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 
 		C2_ASSERT(c2_rpc_service_type_bob_check(service_type));
 
-		if (service_type->svt_type_id == type_id) {
-			c2_rwlock_read_unlock(&service_type_tlist_lock);
-			return service_type;
-		}
+		if (service_type->svt_type_id == type_id)
+			break;
 
 	} c2_tlist_endfor;
 
 	c2_rwlock_read_unlock(&service_type_tlist_lock);
-	return NULL;
+
+	C2_ASSERT(ergo(service_type != NULL,
+		       service_type->svt_type_id == type_id));
+	return service_type;
 }
 
 bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
