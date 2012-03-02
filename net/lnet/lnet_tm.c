@@ -71,7 +71,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		.nte_status = 0
 	};
 	c2_time_t timeout;
-	c2_time_t stat_time;
+	c2_time_t last_stat_time;
+	c2_time_t next_stat_time;
 	c2_time_t now;
 	int rc = 0;
 
@@ -110,10 +111,16 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	c2_net_tm_event_post(&tmev);
 	if (rc != 0)
 		return;
-	stat_time = c2_time_now();
+
+	c2_mutex_lock(&tm->ntm_mutex);
+	last_stat_time = c2_time_now();
+	next_stat_time = c2_time_add(last_stat_time, tp->xtm_stat_interval);
+	c2_mutex_unlock(&tm->ntm_mutex);
 
 	while (1) {
-		/* compute next timeout (short if automatic or stopping) */
+		/* Compute next timeout (short if automatic or stopping).
+		   Upper bound constrained by the next stat schedule time.
+		 */
 		if (tm->ntm_bev_auto_deliver ||
 		    tm->ntm_state == C2_NET_TM_STOPPING)
 			timeout = c2_time_from_now(
@@ -121,6 +128,9 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		else
 			timeout = c2_time_from_now(
 					    C2_NET_LNET_EVT_LONG_WAIT_SECS, 0);
+		if (c2_time_after(timeout, next_stat_time))
+			timeout = next_stat_time;
+
 		if (tm->ntm_bev_auto_deliver) {
 			rc = NLX_core_buf_event_wait(ctp, timeout);
 			/* buffer event processing */
@@ -169,11 +179,11 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 
 		now = c2_time_now();
 		c2_mutex_lock(&tm->ntm_mutex);
-		if (c2_time_after_eq(now,
-				     c2_time_add(stat_time,
-						 tp->xtm_stat_interval))) {
+		next_stat_time = c2_time_add(last_stat_time,
+					     tp->xtm_stat_interval);
+		if (c2_time_after_eq(now, next_stat_time)) {
 			nlx_tm_stats_report(tm);
-			stat_time = now;
+			last_stat_time = now;
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
