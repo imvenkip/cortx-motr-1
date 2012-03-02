@@ -224,14 +224,14 @@ static void conn_attach_detach_test(void)
 	mock_conn.c_rpcmachine = &mock_rpcmachine;
 	c2_mutex_init(&mock_conn.c_mutex);
 
-	c2_rpc_service_attach_conn(fr_service, &mock_conn);
+	c2_rpc_service_conn_attach(fr_service, &mock_conn);
 	C2_UT_ASSERT(c2_rpc_service_invariant(fr_service));
 	C2_UT_ASSERT(fr_service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED);
 	C2_UT_ASSERT(fr_service->svc_conn == &mock_conn);
 	C2_UT_ASSERT(c2_rpc_services_tlist_head(&mock_rpcmachine.cr_services) ==
 				fr_service);
 
-	c2_rpc_service_detach_conn(fr_service);
+	c2_rpc_service_conn_detach(fr_service);
 	C2_UT_ASSERT(c2_rpc_service_invariant(fr_service));
 	C2_UT_ASSERT(fr_service->svc_state ==
 			C2_RPC_SERVICE_STATE_CONN_DETACHED);

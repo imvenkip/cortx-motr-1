@@ -289,7 +289,7 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service)
 	return &service->svc_uuid;
 }
 
-void c2_rpc_service_attach_conn(struct c2_rpc_service *service,
+void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
 				struct c2_rpc_conn    *conn)
 {
 	struct c2_rpcmachine *machine;
@@ -315,7 +315,7 @@ void c2_rpc_service_attach_conn(struct c2_rpc_service *service,
 	c2_mutex_unlock(&conn->c_mutex);
 }
 
-void c2_rpc_service_detach_conn(struct c2_rpc_service *service)
+void c2_rpc_service_conn_detach(struct c2_rpc_service *service)
 {
 	struct c2_rpc_conn   *conn;
 	struct c2_rpcmachine *machine;

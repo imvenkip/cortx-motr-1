@@ -180,7 +180,7 @@ enum {
  *   is serialised by service->svc_conn->c_rpcmachine->cr_session_mutex.
  *
  * - Yet, the user needs to ensure that no more than one thread call
- *   c2_rpc_service_detach_conn() on same service instance at the same time.
+ *   c2_rpc_service_conn_detach() on same service instance at the same time.
  *
  * @see c2_rpc_service_invariant()
  */
@@ -242,7 +242,7 @@ c2_rpc_service_get_ep_addr(const struct c2_rpc_service *service);
  *      conn->c_state == C2_RPC_CONN_ACTIVE
  * @post service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED
  */
-void c2_rpc_service_attach_conn(struct c2_rpc_service *service,
+void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
 				struct c2_rpc_conn    *conn);
 
 /**
@@ -262,7 +262,7 @@ c2_rpc_service_get_uuid(const struct c2_rpc_service *service);
  *      service->svc_state == C2_RPC_SERVICE_STATE_CONN_ATTACHED
  * @post service->svc_state == C2_RPC_SERVICE_STATE_CONN_DETACHED
  */
-void c2_rpc_service_detach_conn(struct c2_rpc_service *service);
+void c2_rpc_service_conn_detach(struct c2_rpc_service *service);
 
 /**
  * Releases service instance.
