@@ -419,10 +419,18 @@ int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 			  struct c2_net_buffer_pool *bufpool,
 			  const struct c2_net_buffer_callbacks *callbacks)
 {
+	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	/** @todo Validate and attach the pool */
+	if (bufpool->nbp_ndom == tm->ntm_dom) {
+		tm->ntm_recv_pool = bufpool;
+		rc = 0;
+	} else
+		rc = -EINVAL;
+	tm->ntm_recv_pool_callbacks = callbacks;
+
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return 0;
 }

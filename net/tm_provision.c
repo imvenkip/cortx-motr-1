@@ -412,6 +412,8 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_buffer_pool *pool;
 	uint64_t need;
+	struct c2_net_buffer *nb;
+	int rc;
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
 	pool = tm->ntm_recv_pool;
@@ -422,14 +424,26 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	while (need > 0) {
 		/** @todo Provision until post conditions statisfied
 		    or pool exhausted. */
+		    nb = c2_net_buffer_pool_get(tm->ntm_recv_pool,
+					    tm->ntm_pool_colour);
+		nb->nb_flags = 0;
+		nb->nb_qtype = C2_NET_QT_MSG_RECV;
+		nb->nb_callbacks = tm->ntm_recv_pool_callbacks;
+		//nb->nb_min_receive_size = nrsegs * seg_size;
+		//nb->nb_max_receive_msgs = 1;
+		
 		/** @todo nb = c2_net_buffer_pool_get()
 		    C2_POST(nb->nb_pool == tm->ntm_recv_pool); */
 		/** @todo Use c2_net__buffer_add() */
+		   rc = c2_net_buffer_add(nb, tm);
 		/** @todo C2_ASSERT(nb->nb_callbacks ==
 		    tm->ntm_recv_pool_callbacks); */
+		C2_ASSERT(nb->nb_callbacks == tm->ntm_recv_pool_callbacks);
 		--need;
 	}
 	/** @todo Set ntm_recv_queue_deficit correctly before return. */
+
+	c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
 	return;
 }
 
@@ -457,7 +471,9 @@ void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 
 	/** @todo lock the buffer pool */
 	c2_mutex_lock(&tm->ntm_mutex);
+	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	tm_provision_recv_q(tm);
+	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	/** @todo unlock the buffer pool */
 	return;

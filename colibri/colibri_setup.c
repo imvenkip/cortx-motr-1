@@ -37,7 +37,7 @@
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
-#include "net/net.h"
+#include "net/buffer_pool.h"
 #include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -720,6 +720,85 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
 	} c2_tlist_endfor;
 }
 
+/** Assigning a unique colour to each transfer machine in a domain. */
+static void cs_tm_colour_setup(struct c2_colibri *cctx)
+{
+	struct c2_net_domain	  *ndom;
+	struct c2_net_transfer_mc *tm;
+	uint32_t		   tm_colours;
+
+	C2_PRE(cctx != NULL);
+
+        C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
+
+	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
+		tm_colours = 0;
+		c2_mutex_lock(&ndom->nd_mutex);
+		/* iterate over TM's in domain */
+		c2_list_for_each_entry(&ndom->nd_tms, tm,
+			       struct c2_net_transfer_mc, ntm_dom_linkage)
+			c2_net_tm_colour_set(tm, tm_colours++);
+		c2_mutex_unlock(&ndom->nd_mutex);
+	} c2_tlist_endfor;
+}
+
+static void low(struct c2_net_buffer_pool *bp)
+{
+	/* Buffer pool is below threshold.  */
+}
+
+static const struct c2_net_buffer_pool_ops b_ops = {
+	.nbpo_not_empty	      = c2_net_domain_buffer_pool_not_empty,
+	.nbpo_below_threshold = low,
+};
+
+/** Creating a buffer pool per net domain which will be share by TM's in it. */
+static int cs_buffer_pool_setup(struct c2_colibri *cctx)
+{
+	struct c2_net_domain *ndom;
+	int		      rc;
+	uint32_t			 segs_nr;
+	c2_bcount_t		 seg_size;
+	c2_bcount_t		 buf_size;
+
+	C2_PRE(cctx != NULL);
+      	C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
+	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
+		C2_ALLOC_PTR(ndom->nd_pool);
+		if (ndom->nd_pool == NULL)
+			return -ENOMEM;
+		ndom->nd_pool->nbp_ops = &b_ops;
+		buf_size = c2_net_domain_get_max_buffer_size(ndom);
+		segs_nr = c2_net_domain_get_max_buffer_segments(ndom);
+		seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
+		seg_size = 1 << 12;	
+		C2_ASSERT((segs_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom));
+		c2_net_buffer_pool_init(ndom->nd_pool, ndom, 2, segs_nr, seg_size,
+					c2_list_length(&ndom->nd_tms));
+		c2_net_buffer_pool_lock(ndom->nd_pool);
+		rc = c2_net_buffer_pool_provision(ndom->nd_pool, C2_RPC_TM_RECV_BUFFERS_NR);
+		c2_net_buffer_pool_unlock(ndom->nd_pool);
+		if (rc != C2_RPC_TM_RECV_BUFFERS_NR)
+			return -ENOMEM;
+		else
+			rc = 0;
+	} c2_tlist_endfor;
+
+	return rc;
+}
+
+static void cs_buffer_pool_fini(struct c2_colibri *cctx)
+{
+	struct c2_net_domain	  *ndom;
+	C2_PRE(cctx != NULL);
+
+	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
+		c2_net_buffer_pool_lock(ndom->nd_pool);
+		c2_net_buffer_pool_fini(ndom->nd_pool);
+		c2_free(ndom->nd_pool);
+	} c2_tlist_endfor;
+}
+
 /**
    Initialises AD type stob.
  */
@@ -1254,7 +1333,7 @@ static int cs_colibri_init(struct c2_colibri *cctx)
 static void cs_colibri_fini(struct c2_colibri *cctx)
 {
 	C2_PRE(cctx != NULL);
-
+	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
 	c2_tlist_fini(&ndoms_descr, &cctx->cc_ndoms);
 	c2_tlist_fini(&rctx_descr, &cctx->cc_reqh_ctxs);
@@ -1540,11 +1619,19 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 	if (rc != 0)
 		return rc;
 
+	rc = cs_buffer_pool_setup(cctx);
+	if (rc != 0)
+		return rc;
+
 	rc = cs_start_request_handlers(cctx);
 	if (rc != 0)
 		return rc;
 
 	rc = cs_rpcmachines_init(cctx);
+	if (rc != 0)
+		return rc;
+
+	cs_tm_colour_setup(cctx);
 
 	return rc;
 }

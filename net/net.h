@@ -485,6 +485,9 @@ struct c2_net_domain {
 
 	/** Network magic */
 	uint64_t            nd_magic;
+
+	/** Buffer pool per net domain shared across TM's. */
+	struct c2_net_buffer_pool  *nd_pool;
 };
 
 /**

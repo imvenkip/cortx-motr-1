@@ -337,6 +337,15 @@ enum {
 };
 
 /**
+ * Number of default receive c2_net_buffers to be used with each
+ * transfer machine.
+ */
+enum {
+	C2_RPC_TM_RECV_BUFFERS_NR = 128,
+};
+
+
+/**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
    similar to inheritance and to allow extening the set of rpc_items without

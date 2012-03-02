@@ -58,12 +58,6 @@ extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpcmachine *mach, enum c2_rpc_item_path path);
 
-/* Number of default receive c2_net_buffers to be used with
-   each transfer machine.*/
-enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 128,
-};
-
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
 	        .act_name = "rpc-machine"
@@ -392,6 +386,17 @@ static int rpc_tm_setup(struct c2_rpcmachine *machine,
 		return rc;
 	}
 
+	c2_mutex_lock(&net_dom->nd_mutex);
+	if (net_dom->nd_pool != NULL) {
+		rc = c2_net_tm_pool_attach(&machine->cr_tm, net_dom->nd_pool,
+					   &c2_rpc_rcv_buf_callbacks);
+		if (rc != 0) {
+			c2_mutex_unlock(&net_dom->nd_mutex);
+			return rc;
+		}
+	}
+	c2_mutex_unlock(&net_dom->nd_mutex);
+
 	/* Start the transfer machine so that users of this rpcmachine
 	   can send/receive messages. */
 	c2_clink_init(&tmwait, NULL);
@@ -410,10 +415,12 @@ static int rpc_tm_setup(struct c2_rpcmachine *machine,
 	c2_clink_fini(&tmwait);
 
 	/* Add buffers for receiving messages to this transfer machine. */
-	rc = recv_buffer_allocate_nr(net_dom, machine);
-	if (rc < 0) {
-		rpc_tm_cleanup(machine);
-		return rc;
+	if (net_dom->nd_pool == NULL) {
+		rc = recv_buffer_allocate_nr(net_dom, machine);
+		if (rc < 0) {
+			rpc_tm_cleanup(machine);
+			return rc;
+		}
 	}
 
 	return rc;
@@ -515,14 +522,16 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 	c2_clink_fini(&tmwait);
 
 	/* Delete all the buffers from net domain. */
-	recv_buffer_deallocate_nr(machine, false, C2_RPC_TM_RECV_BUFFERS_NR);
+	if (machine->cr_tm.ntm_dom->nd_pool == NULL) {
+		recv_buffer_deallocate_nr(machine, false,
+					  C2_RPC_TM_RECV_BUFFERS_NR);
 
+		for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
+		C2_ASSERT(machine->cr_rcv_buffers[cnt] == NULL);
+	}
+	c2_free(machine->cr_rcv_buffers);
 	/* Fini the transfer machine here and deallocate the chan. */
 	c2_net_tm_fini(&machine->cr_tm);
-	for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
-		C2_ASSERT(machine->cr_rcv_buffers[cnt] == NULL);
-
-	c2_free(machine->cr_rcv_buffers);
 }
 
 int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
