@@ -34,12 +34,7 @@
 
    @{
  */
-static const struct c2_bob_type rpc_service_type_bob = {
-	.bt_name         = "rpc_service_type",
-	.bt_magix_offset = offsetof(struct c2_rpc_service_type, svt_magix),
-	.bt_magix        = C2_RPC_SERVICE_TYPE_MAGIX,
-	.bt_check        = NULL,
-};
+static struct c2_bob_type rpc_service_type_bob;
 
 static void c2_rpc_service_type_bob_init(struct c2_rpc_service_type *)
 				__attribute__((unused));
@@ -63,8 +58,22 @@ C2_TL_DEFINE(rpc_service_types, static, struct c2_rpc_service_type);
 static struct c2_tl     rpc_service_types;
 static struct c2_rwlock rpc_service_types_lock;
 
+static struct c2_bob_type rpc_service_bob;
+
+C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
+
+C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
+                   struct c2_rpc_service, svc_tlink, svc_magix,
+                   C2_RPC_SERVICE_MAGIX,
+                   C2_RPC_SERVICES_LIST_HEAD_MAGIX);
+
+C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
+
 int c2_rpc_service_module_init(void)
 {
+	c2_bob_type_tlist_init(&rpc_service_type_bob, &rpc_service_types_tl);
+	c2_bob_type_tlist_init(&rpc_service_bob, &c2_rpc_services_tl);
+
 	rpc_service_types_tlist_init(&rpc_service_types);
 	c2_rwlock_init(&rpc_service_types_lock);
 	return 0;
@@ -128,22 +137,6 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 	c2_rwlock_read_unlock(&rpc_service_types_lock);
 	return NULL;
 }
-
-static const struct c2_bob_type rpc_service_bob = {
-	.bt_name         = "rpc_service",
-	.bt_magix_offset = offsetof(struct c2_rpc_service, svc_magix),
-	.bt_magix        = C2_RPC_SERVICE_MAGIX,
-	.bt_check        = NULL,
-};
-
-C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
-
-C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
-                   struct c2_rpc_service, svc_tlink, svc_magix,
-                   C2_RPC_SERVICE_MAGIX,
-                   C2_RPC_SERVICES_LIST_HEAD_MAGIX);
-
-C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
 
 bool c2_rpc_service_invariant(const struct c2_rpc_service *service)
 {
