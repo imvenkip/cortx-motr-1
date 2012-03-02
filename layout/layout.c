@@ -48,11 +48,6 @@ const struct c2_addb_loc layout_addb_loc = {
 	.al_name = "layout"
 };
 
-/* todo remove
-C2_ADDB_EV_DEFINE(layout_func_fail, "layout_func_fail",
-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
-*/
-
 /**
  * Initializes layout schema, creates generic table to store layout records.
  * Registers all the layout types amd enum types by creating layout type and
@@ -99,7 +94,9 @@ int c2_layout_init(struct c2_layout *l,
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
-	C2_ENTRY("%llu", (unsigned long long)lid);
+	C2_ENTRY("lid %llu, LayoutType %s", (unsigned long long)lid,
+		 type->lt_name);
+
 	C2_SET0(l);
 
 	c2_mutex_init(&l->l_lock);
@@ -112,17 +109,21 @@ int c2_layout_init(struct c2_layout *l,
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
 			 &c2_addb_global_ctx);
 
-	C2_LEAVE();
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
 	return 0;
 }
 
 void c2_layout_fini(struct c2_layout *l)
 {
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
 	C2_PRE(layout_invariant(l));
 
 	c2_mutex_fini(&l->l_lock);
 
 	c2_addb_ctx_fini(&l->l_addb);
+
+	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
 int c2_layout_striped_init(struct c2_layout_striped *str_l,
@@ -137,11 +138,16 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
+	C2_ENTRY("lid %llu, EnumType %s", (unsigned long long)lid,
+		 e->le_type->let_name);
+
 	C2_SET0(str_l);
 
 	c2_layout_init(&str_l->ls_base, lid, pool_id, type, ops);
 
 	str_l->ls_enum = e;
+
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
 
 	return 0;
 }
@@ -150,6 +156,8 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 {
 	C2_PRE(str_l != NULL);
 
+	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
+
 	/*
 	 * Memory allocated for str_l->ls_enum should be freed through
 	 * c2_layout_enum_fini() to be called by the caller.
@@ -157,22 +165,30 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 	str_l->ls_enum = NULL;
 
 	c2_layout_fini(&str_l->ls_base);
+
+	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 }
 
 void c2_layout_enum_init(struct c2_layout_enum *le,
 			 const struct c2_layout_enum_type *et,
 			 const struct c2_layout_enum_ops *ops)
 {
+	C2_ENTRY("EnumType %s", et->let_name);
+
 	C2_PRE(le != NULL);
 	C2_PRE(et != NULL);
 	C2_PRE(ops != NULL);
 
 	le->le_type = et;
 	le->le_ops  = ops;
+
+	C2_LEAVE("Enumtypename %s", et->let_name);
 }
 
 void c2_layout_enum_fini(struct c2_layout_enum *le)
 {
+	C2_ENTRY("EnumType %s", le->le_type->let_name);
+	C2_LEAVE("EnumType %s", le->le_type->let_name);
 }
 
 /** Adds a reference to the layout. */
@@ -180,9 +196,13 @@ void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(l != NULL);
 
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
 	c2_mutex_lock(&l->l_lock);
 	l->l_ref++;
 	c2_mutex_unlock(&l->l_lock);
+
+	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
 /** Releases a reference on the layout. */
@@ -190,9 +210,13 @@ void c2_layout_put(struct c2_layout *l)
 {
 	C2_PRE(l != NULL);
 
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
 	c2_mutex_lock(&l->l_lock);
 	l->l_ref--;
 	c2_mutex_unlock(&l->l_lock);
+
+	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
 /**
@@ -239,8 +263,9 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
+	C2_PRE(out != NULL && *out == NULL);
 
-	C2_LOG("c2_layout_decode(): lid %llu\n", (unsigned long long)lid);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	rec = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(rec != NULL);
@@ -266,7 +291,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0) {
-		/** @todo Replace the global context as appropriate. */
+		/* todo Replace the global context as appropriate. */
 		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "lto_encode", rc);
 		return rc;
@@ -281,6 +306,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	c2_mutex_unlock(&(*out)->l_lock);
 
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return 0;
 }
 
@@ -333,7 +359,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec));
 	C2_PRE(out != NULL);
 
-	C2_LOG("c2_layout_encode(): %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	c2_mutex_lock(&l->l_lock);
 
@@ -379,6 +405,9 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
 	C2_ASSERT(nbytes_copied == sizeof *rec);
 
+	C2_LOG("c2_layout_encode(): lid %llu, About to call lto_encode()\n",
+	       (unsigned long long)l->l_id);
+
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
 	if (rc != 0)
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_func_fail,
@@ -386,8 +415,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&l->l_lock);
 
-	C2_LOG("c2_layout_encode(): %llu, rc %d\n",
-	       (unsigned long long)l->l_id, rc);
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 
 	return rc;
 }
@@ -398,6 +426,7 @@ bool layout_invariant(const struct c2_layout *l)
 			 l->l_ops == NULL)
 		return false;
 
+	/* todo Add check to verify layout type is valid. */
 	return true;
 }
 

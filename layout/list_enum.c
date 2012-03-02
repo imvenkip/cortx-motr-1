@@ -28,8 +28,15 @@
 #include "lib/errno.h"
 #include "lib/vec.h"
 #include "lib/memory.h"
-#include "lib/trace.h"
 #include "lib/bob.h"
+
+/* todo  Check why ifdef is required */
+#ifndef C2_TRACE_SUBSYSTEM
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
+#endif
+
+#include "lib/trace.h"
+
 #include "fid/fid.h"                /* struct c2_fid */
 #include "layout/layout_internal.h"
 #include "layout/list_enum.h"
@@ -337,7 +344,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
-	//C2_LOG("In list_decode(), cur %p \n", cur);
+	/* C2_LOG("In list_decode(), cur %p \n", cur); */
 
 	ldb_ce_header = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(ldb_ce_header != NULL);
@@ -355,11 +362,11 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
 		if (i == 0) {
-			//C2_LOG("list_decode(): Start processing "
-			       //"inline cob entries.\n");
+			/* C2_LOG("list_decode(): Start processing "
+			       "inline cob entries.\n"); */
 		} else if (i == num_inline) {
-			//C2_LOG("list_decode(): Start processing "
-			       //"non-inline cob entries.\n");
+			/* C2_LOG("list_decode(): Start processing "
+			       "non-inline cob entries.\n"); */
 		}
 
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
@@ -459,7 +466,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *ldb_ce_oldheader));
 	C2_PRE(out != NULL);
 
-	C2_LOG("list_encode(): lid %llu\n", (unsigned long long)l->l_id);
+	/* C2_LOG("list_encode(): lid %llu\n", (unsigned long long)l->l_id); */
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
@@ -512,12 +519,12 @@ static int list_encode(struct c2_ldb_schema *schema,
 	for(i = 0; i < list_enum->lle_nr; ++i) {
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
 			if (i == 0) {
-				C2_LOG("list_encode(): Start processing "
-				       "inline cob entries.\n");
+				/* C2_LOG("list_encode(): Start processing "
+				       "inline cob entries.\n"); */
 			}
 			if (i == num_inline) {
-				C2_LOG("list_encode(): Start processing "
-				       "non-inline cob entries.\n");
+				/* C2_LOG("list_encode(): Start processing "
+				       "non-inline cob entries.\n"); */
 			}
 
 			nbytes_copied = c2_bufvec_cursor_copyto(out,
@@ -529,16 +536,16 @@ static int list_encode(struct c2_ldb_schema *schema,
 		else {
 			/* Write non-inline cob entries to the
 			 * cob_lists table. */
-			C2_LOG("list_encode(): Writing to cob_lists table: "
-			       "i %lu/n", (unsigned long)i);
+			/* C2_LOG("list_encode(): Writing to cob_lists table: "
+			       "i %lu\n", (unsigned long)i); */
 			rc = ldb_cob_list_write(schema, op, l->l_id, i,
 						&list_enum->lle_list_of_cobs[i],
 						tx);
 		}
 	}
 
-	C2_LOG("list_encode(): lid %llu, rc %d\n",
-	       (unsigned long long)l->l_id, rc);
+	/* C2_LOG("list_encode(): lid %llu, rc %d\n",
+	       (unsigned long long)l->l_id, rc); */
 	return rc;
 }
 

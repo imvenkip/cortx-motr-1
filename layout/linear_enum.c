@@ -34,6 +34,8 @@
 #include "lib/vec.h"
 #include "lib/bob.h"
 #include "lib/memory.h"
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
 #include "layout/layout_internal.h"
@@ -54,6 +56,7 @@ C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
 
 static const struct c2_layout_enum_ops linear_enum_ops;
 
+/* todo Make this accept attr struct instead of 3 vars. */
 int c2_linear_enum_build(uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out)
 {
@@ -119,8 +122,9 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 			 struct c2_db_tx *tx,
 			 struct c2_layout_enum **out)
 {
-	struct c2_layout_linear_enum *lin_enum;
+	struct c2_layout_linear_enum *lin_enum = NULL;
 	struct c2_layout_linear_attr *lin_attr;
+	int                           rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -132,11 +136,6 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	//C2_LOG("In linear_decode(), lid %llu\n", (unsigned long long)lid);
 
-	C2_ALLOC_PTR(lin_enum);
-	if (lin_enum == NULL)
-		return -ENOMEM;
-
-	*out = &(lin_enum->lle_base);
 
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
@@ -152,7 +151,13 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		return -EINVAL;
 	}
 
-	lin_enum->lle_attr = *lin_attr;
+	rc = c2_linear_enum_build(lin_attr->lla_nr, lin_attr->lla_A,
+				  lin_attr->lla_B, &lin_enum);
+	C2_ASSERT(rc == 0 && lin_enum != NULL);
+
+	*out = &lin_enum->lle_base;
+
+	C2_LEAVE("rc %d", rc);
 
 	return 0;
 }

@@ -21,36 +21,35 @@
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/memory.h"
-#include "lib/misc.h"        /* C2_SET0 */
+#include "lib/misc.h"           /* C2_SET0 */
 #include "lib/bitstring.h"
 #include "lib/vec.h"
-#include "lib/arith.h"       /* c2_rnd() */
-#include "lib/trace.h"       /* C2_LOG */
+#include "lib/arith.h"          /* c2_rnd() */
 
-#include "pool/pool.h"       /* c2_pool_init() */
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
+#include "lib/trace.h"          /* C2_LOG */
+
+#include "pool/pool.h"          /* c2_pool_init() */
 #include "layout/layout.h"
 #include "layout/pdclust.h"
 #include "layout/layout_db.h"
 #include "layout/list_enum.h"
-#include "layout/list_enum.c"
+#include "layout/list_enum.c"   /* struct ldb_cob_entries_header */
 #include "layout/linear_enum.h"
 
 static const char            db_name[] = "ut-layout";
 static struct c2_ldb_schema  schema;
 static struct c2_dbenv       dbenv;
-static uint64_t              dbflags = 0;
 static struct c2_pool        pool;
-static uint32_t              P = 20;
 static int                   rc;
-uint64_t                     lid_seed = 1;
-uint64_t                     lid_max = 0xFFFF;
 
-/* todo convert the above to this enum. */
 enum {
-	DEF_POOL_ID = 1,
+	DBFLAGS      = 0,
+	DEF_POOL_ID  = 1,
+	LID_SEED     = 2,
+	POOL_WIDTH   = 20,
+	LID_MAX      = 0xFFFF
 };
-
-/* todo Incorporate build and checks for pool id and seed. */
 
 extern const struct c2_layout_type c2_pdclust_layout_type;
 extern const struct c2_layout_type c2_composite_layout_type;
@@ -62,11 +61,9 @@ static int test_init(void)
 {
 	c2_ut_db_reset(db_name);
 
-	/* C2_LOG0("Inside test_init"); */
-
 	/*
-	 * Note: Need to use C2_ASSERT() as against C2_UT_ASSERT(),
-	 * specifically in test_init() and test_fini().
+	 * Note: In test_init() and test_fini(), need to use C2_ASSERT()
+	 * as against C2_UT_ASSERT().
 	 */
 
 	rc = c2_dbenv_init(&dbenv, db_name, 0);
@@ -96,7 +93,7 @@ const struct c2_layout_type test_layout_type = {
 
 static void test_type_reg_unreg(void)
 {
-	/* C2_LOG0("Inside test_type_reg_unreg"); */
+	C2_ENTRY();
 
 	/* Register a layout type. */
 	rc = c2_ldb_type_register(&schema, &test_layout_type);
@@ -124,6 +121,8 @@ static void test_type_reg_unreg(void)
 	/* Unregister it. */
 	c2_ldb_type_unregister(&schema, &test_layout_type);
 	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] == NULL);
+
+	C2_LEAVE();
 }
 
 const struct c2_layout_enum_type test_enum_type = {
@@ -134,6 +133,8 @@ const struct c2_layout_enum_type test_enum_type = {
 
 static void test_etype_reg_unreg(void)
 {
+	C2_ENTRY();
+
 	/* Register a layout enum type. */
 	rc = c2_ldb_enum_register(&schema, &test_enum_type);
 	C2_UT_ASSERT(rc == 0);
@@ -158,6 +159,8 @@ static void test_etype_reg_unreg(void)
 	/* Unregister it. */
 	c2_ldb_enum_unregister(&schema, &test_enum_type);
 	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == NULL);
+
+	C2_LEAVE();
 }
 
 static void test_schema_init_fini(void)
@@ -165,6 +168,8 @@ static void test_schema_init_fini(void)
 	const char            t_db_name[] = "t-layout";
 	struct c2_ldb_schema  t_schema;
 	struct c2_dbenv       t_dbenv;
+
+	C2_ENTRY();
 
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, 0);
 	C2_UT_ASSERT(rc == 0);
@@ -220,6 +225,8 @@ static void test_schema_init_fini(void)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_dbenv_fini(&t_dbenv);
+
+	C2_LEAVE();
 }
 
 static void test_schema_max_recsize()
@@ -238,7 +245,7 @@ static int internal_init()
 	c2_ldb_enum_register(&schema, &c2_list_enum_type);
 	c2_ldb_enum_register(&schema, &c2_linear_enum_type);
 
-	return c2_pool_init(&pool, DEF_POOL_ID, P);
+	return c2_pool_init(&pool, DEF_POOL_ID, POOL_WIDTH);
 }
 
 static void internal_fini()
@@ -355,7 +362,7 @@ static int pdclust_l_verify(uint64_t lid,
 
 	C2_UT_ASSERT(pl->pl_attr.pa_N == N);
 	C2_UT_ASSERT(pl->pl_attr.pa_K == K);
-	C2_UT_ASSERT(pl->pl_attr.pa_P == P);
+	C2_UT_ASSERT(pl->pl_attr.pa_P == POOL_WIDTH);
 
 	return 0;
 }
@@ -422,8 +429,10 @@ static int test_decode_pdclust_list(uint64_t lid)
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
 	c2_bcount_t                num_bytes;
-	struct c2_layout           *l;
+	struct c2_layout           *l = NULL;
 	struct c2_db_tx            *tx = NULL;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -445,6 +454,7 @@ static int test_decode_pdclust_list(uint64_t lid)
 	rc = pdclust_list_l_verify(lid, 4, 2, 25, l);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -455,8 +465,10 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	struct c2_bufvec_cursor    cur;
 	struct c2_bufvec_cursor    cur1;
 	c2_bcount_t                num_bytes;
-	struct c2_layout           *l;
-	struct c2_db_tx            *tx = NULL;
+	struct c2_layout          *l = NULL;
+	struct c2_db_tx           *tx = NULL;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema);
 	area = c2_alloc(num_bytes);
@@ -477,6 +489,8 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	rc = pdclust_lin_l_verify(lid, 4, 2, 777, 888, 999, l);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
+
 	return rc;
 }
 
@@ -489,8 +503,10 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
 	c2_bcount_t                num_bytes;
-	struct c2_layout           *l;
-	struct c2_db_tx            *tx = NULL;
+	struct c2_layout          *l;
+	struct c2_db_tx           *tx = NULL;
+
+	C2_ENTRY();
 
 	num_bytes = sizeof (struct c2_ldb_rec) +
 			sizeof (struct c2_ldb_pdclust_rec);
@@ -508,6 +524,7 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
 	return rc;
 }
  */
@@ -520,12 +537,12 @@ static void test_decode(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Decode a layout with PDCLUST layout type and LIST enum type. */
-	lid = 0x50444C4953543031; /* PDLIST01 */
+	lid = 1001;
 	rc = test_decode_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Decode a layout with PDCLUST layout type and LINEAR enum type. */
-	lid = 0x50444C4953543032; /* PDLIST02 */
+	lid = 1002;
 	rc = test_decode_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
@@ -533,7 +550,7 @@ static void test_decode(void)
 	 * Negative test -
 	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
 	 *
-	  lid = 0x50444C4953543032; * PDLIST03 *
+	  lid = 1003;
 	  rc = test_decode_pdclust_linear_negative(lid);
 	  C2_UT_ASSERT(rc == 0);
 	 */
@@ -564,7 +581,7 @@ static int pdclust_linear_l_build(uint64_t lid,
 				  uint32_t A, uint32_t B,
 				  struct c2_pdclust_layout **pl)
 {
-	struct c2_layout_linear_enum *le;
+	struct c2_layout_linear_enum *le = NULL;
 
 	rc = c2_linear_enum_build(pool.po_width, A, B, &le);
 	C2_UT_ASSERT(rc == 0);
@@ -586,9 +603,8 @@ static int pdclust_list_l_build(uint64_t lid,
 				struct c2_pdclust_layout **pl,
 				struct c2_layout_list_enum **le)
 {
-	//struct c2_layout_list_enum *le;
-	struct c2_fid              *cob_list;
-	int                         i;
+	struct c2_fid  *cob_list;
+	int             i;
 
 	C2_ALLOC_ARR(cob_list, nr);
 	C2_UT_ASSERT(cob_list != NULL);
@@ -706,13 +722,14 @@ static int pdclust_list_lbuf_verify(uint64_t lid,
 
 static int test_encode_pdclust_linear(uint64_t lid)
 {
-	struct c2_pdclust_layout  *pl;
-	c2_bcount_t                num_bytes;
-	void                      *area;
-	struct c2_bufvec           bv;
-	struct c2_bufvec_cursor    cur;
+	struct c2_pdclust_layout      *pl = NULL;
+	c2_bcount_t                    num_bytes;
+	void                          *area;
+	struct c2_bufvec               bv;
+	struct c2_bufvec_cursor        cur;
+	struct c2_layout_linear_enum  *lin_enum = NULL;
 
-	struct c2_layout_linear_enum *lin_enum;
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -740,17 +757,20 @@ static int test_encode_pdclust_linear(uint64_t lid)
 	c2_bufvec_cursor_init(&cur, &bv);
 	rc = pdclust_linear_lbuf_verify(lid, 4, 1, 10, 20, &cur);
 
+	C2_LEAVE();
 	return rc;
 }
 
 static int test_encode_pdclust_list(uint64_t lid)
 {
-	struct c2_pdclust_layout   *pl;
+	struct c2_pdclust_layout   *pl = NULL;
 	c2_bcount_t                 num_bytes;
 	void                       *area;
 	struct c2_bufvec            bv;
 	struct c2_bufvec_cursor     cur;
-	struct c2_layout_list_enum *list_enum;
+	struct c2_layout_list_enum *list_enum = NULL;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -779,6 +799,7 @@ static int test_encode_pdclust_list(uint64_t lid)
 	C2_ASSERT(pl->pl_base.ls_base.l_ops != NULL);
 	pl->pl_base.ls_base.l_ops->lo_fini(&pl->pl_base.ls_base);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -797,22 +818,22 @@ static void test_encode(void)
 
 	/*
 	while (lid == 0) {
-		lid = c2_rnd(lid_max, &lid_seed);
+		lid = c2_rnd(LID_MAX, &LID_SEED);
 	}
 	*/
 
 	/* Encode for 'pdclust' layout type and 'list' enumeration type. */
-	lid = 1111;
+	lid = 2001;
 	rc = test_encode_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Encode for 'pdclust' layout type and 'linear' enumeration type. */
-	lid = 2222;
+	lid = 2002;
 	rc = test_encode_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Encode for 'composite' layout type. */
-	lid = 3333;
+	lid = 2003;
 	rc = test_encode_composite(lid);
 	C2_UT_ASSERT(rc == 0);
 
@@ -823,9 +844,11 @@ static int test_lookup_nonexisting_lid(uint64_t *lid)
 {
 	c2_bcount_t                num_bytes;
 	void                      *area;
-	struct c2_layout          *l;
+	struct c2_layout          *l = NULL;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -839,7 +862,7 @@ static int test_lookup_nonexisting_lid(uint64_t *lid)
 
 	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_lookup(&schema, *lid, &pair, &tx, &l);
@@ -850,6 +873,8 @@ static int test_lookup_nonexisting_lid(uint64_t *lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
+
 	return rc;
 }
 
@@ -858,9 +883,11 @@ static int test_add_pdclust_linear(uint64_t lid)
 {
 	c2_bcount_t                num_bytes;
 	void                      *area;
-	struct c2_pdclust_layout  *pl;
+	struct c2_pdclust_layout  *pl = NULL;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema);
 	area = c2_alloc(num_bytes);
@@ -875,7 +902,7 @@ static int test_add_pdclust_linear(uint64_t lid)
 	rc = pdclust_linear_l_build(lid, 4, 1, 100, 200, &pl);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -884,6 +911,7 @@ static int test_add_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -893,9 +921,11 @@ static int test_lookup_pdclust_linear(uint64_t *lid)
 {
 	c2_bcount_t                num_bytes;
 	void                      *area;
-	struct c2_layout          *l;
+	struct c2_layout          *l = NULL;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
+
+	C2_ENTRY();
 
 	/* First add a layout with pdclust layout type and linear enum type. */
 	rc = test_add_pdclust_linear(*lid);
@@ -913,7 +943,7 @@ static int test_lookup_pdclust_linear(uint64_t *lid)
 
 	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_lookup(&schema, *lid, &pair, &tx, &l);
@@ -927,6 +957,7 @@ static int test_lookup_pdclust_linear(uint64_t *lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -939,7 +970,7 @@ static void test_lookup(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Lookup for a non-existing lid. */
-	lid = 9123;
+	lid = 3001;
 	rc = test_lookup_nonexisting_lid(&lid);
 	C2_UT_ASSERT(rc == 0);
 
@@ -947,12 +978,12 @@ static void test_lookup(void)
 	 * Add a layout with pdclust layout type and linear enum type, and
 	 * then perform lookup for it.
 	 */
-	lid = 8888;
+	lid = 3002;
 	rc = test_lookup_pdclust_linear(&lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Lookup for a non-existing lid. */
-	lid = 7777;
+	lid = 3003;
 	rc = test_lookup_nonexisting_lid(&lid);
 	C2_UT_ASSERT(rc == 0);
 
@@ -964,10 +995,12 @@ static int test_add_pdclust_list(uint64_t lid)
 {
 	c2_bcount_t                 num_bytes;
 	void                       *area;
-	struct c2_pdclust_layout   *pl;
+	struct c2_pdclust_layout   *pl = NULL;
 	struct c2_db_pair           pair;
 	struct c2_db_tx             tx;
-	struct c2_layout_list_enum *list_enum;
+	struct c2_layout_list_enum *list_enum = NULL;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -982,7 +1015,7 @@ static int test_add_pdclust_list(uint64_t lid)
 	rc = pdclust_list_l_build(lid, 5, 2, 30, &pl, &list_enum);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -996,6 +1029,7 @@ static int test_add_pdclust_list(uint64_t lid)
 	C2_ASSERT(pl->pl_base.ls_base.l_ops != NULL);
 	pl->pl_base.ls_base.l_ops->lo_fini(&pl->pl_base.ls_base);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -1006,13 +1040,11 @@ static void test_add(void)
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
 
-	/* Following is causing similar trouble for the update TC. */
-
-	lid = 5555;
+	lid = 4001;
 	rc = test_add_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
 
-	lid = 4444;
+	lid = 4002;
 	rc = test_add_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1024,10 +1056,12 @@ static int test_update_pdclust_linear(uint64_t lid)
 {
 	c2_bcount_t                num_bytes;
 	void                      *area;
-	struct c2_pdclust_layout  *pl;
+	struct c2_pdclust_layout  *pl = NULL;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
-	struct c2_layout           *l;
+	struct c2_layout          *l = NULL;
+
+	C2_ENTRY();
 
 	rc = pdclust_linear_l_build(lid, 6, 1, 800, 900, &pl);
 	C2_UT_ASSERT(rc == 0);
@@ -1042,7 +1076,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	pair.dp_rec.db_buf.b_addr = area;
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -1052,7 +1086,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Lookup the record just for verification. */
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
@@ -1065,7 +1099,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 
 	pl->pl_base.ls_base.l_ref = 1234567;
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_update(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -1075,9 +1109,10 @@ static int test_update_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Lookup the record just for verification. */
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
+	l = NULL;
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
@@ -1086,6 +1121,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -1094,11 +1130,12 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 {
 	c2_bcount_t                num_bytes;
 	void                      *area;
-	struct c2_pdclust_layout  *pl;
+	struct c2_pdclust_layout  *pl = NULL;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
-	struct c2_layout           *l;
+	struct c2_layout          *l = NULL;
 
+	C2_ENTRY();
 	num_bytes = c2_ldb_max_recsize(&schema);
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
@@ -1112,7 +1149,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = pdclust_linear_l_build(lid, 6, 1, 800, 900, &pl);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -1122,7 +1159,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	* Lookup the record just for verification. *
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
@@ -1136,7 +1173,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	pl->pl_base.ls_base.l_ref = 7654321;
 	pl->pl_attr.pa_N++;
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_update(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -1146,7 +1183,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	* Lookup the record just for verification. *
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
@@ -1157,6 +1194,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
 	return rc;
 }
 */
@@ -1168,19 +1206,18 @@ static void test_update(void)
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
 
-
-	lid = 9876;
+	lid = 5001;
 	rc = test_update_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
-	lid = 9877;
+	lid = 5002;
 	rc = test_update_pdclust_linear_negative(lid);
 	C2_UT_ASSERT(rc == 0);
 	*/
 
 	/* todo
-	lid = 5432;
+	lid = 5003;
 	rc = test_update_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
 	*/
@@ -1192,10 +1229,12 @@ static int test_delete_pdclust_linear(uint64_t lid)
 {
 	c2_bcount_t                num_bytes;
 	void                      *area;
-	struct c2_pdclust_layout  *pl;
+	struct c2_pdclust_layout  *pl = NULL;
 	struct c2_db_pair          pair;
 	struct c2_db_tx            tx;
-	struct c2_layout           *l;
+	struct c2_layout          *l = NULL;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema);
 	area = c2_alloc(num_bytes);
@@ -1210,7 +1249,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	rc = pdclust_linear_l_build(lid, 6, 1, 800, 900, &pl);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -1220,7 +1259,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Lookup the record just for verification. */
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
@@ -1231,7 +1270,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ldb_delete(&schema, &pl->pl_base.ls_base, &pair, &tx);
@@ -1241,15 +1280,17 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Lookup the record just for verification. */
-	rc = c2_db_tx_init(&tx, &dbenv, dbflags);
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
+	l = NULL;
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -1261,7 +1302,7 @@ static void test_delete(void)
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
 
-	lid = 1212;
+	lid = 6001;
 	rc = test_delete_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1294,7 +1335,6 @@ static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &pl_rec,
 						sizeof pl_rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof pl_rec);
-
 
 	lin_rec.lla_nr    = 20;
 	lin_rec.lla_A     = 100;
@@ -1338,13 +1378,15 @@ static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 	C2_UT_ASSERT(lin_rec->lla_B == 200);
 }
 
-
+/* todo Following TC should be moved to bufvec UT. */
 static void test_bufvec_copyto(void)
 {
 	void                         *area;
 	struct c2_bufvec              bv;
 	struct c2_bufvec_cursor       dcur;
 	c2_bcount_t                   num_bytes;
+
+	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -1359,6 +1401,7 @@ static void test_bufvec_copyto(void)
 
 	bufvec_copyto_verify(&dcur);
 
+	C2_LEAVE();
 }
 
 const struct c2_test_suite layout_ut = {

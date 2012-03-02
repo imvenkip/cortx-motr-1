@@ -339,7 +339,12 @@
 #include "lib/misc.h"        /* C2_SET0() */
 #include "lib/vec.h"
 #include "lib/arith.h"
+
+#include "addb/addb.h"
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"       /* C2_LOG() */
+
 #include "db/db_common.h"    /* c2_db_buf_init() */
 
 #include "layout/layout_internal.h"
@@ -347,14 +352,29 @@
 
 extern const struct c2_addb_loc layout_addb_loc;
 
-/* todo Feb 29
-   Look at cob.c and define event like C2_ADDB_EVENT_COB_MDEXISTS for
-   layout add, delete, update and lookup.
-*/
-
 enum {
 	DEF_DB_FLAGS = 0
 };
+
+C2_ADDB_EV_DEFINE(ldb_lookup_success, "layout_lookup_success",
+		  C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_lookup_fail, "layout_lookup_fail",
+		  C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, C2_ADDB_FUNC_CALL);
+
+C2_ADDB_EV_DEFINE(ldb_add_success, "layout_add_success",
+		  C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_add_fail, "layout_add_fail",
+		  C2_ADDB_EVENT_LAYOUT_ADD_FAIL, C2_ADDB_FUNC_CALL);
+
+C2_ADDB_EV_DEFINE(ldb_update_success, "layout_update_success",
+		  C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_update_fail, "layout_update_fail",
+		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_FUNC_CALL);
+
+C2_ADDB_EV_DEFINE(ldb_delete_success, "layout_delete_success",
+		  C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
+		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
 
 /**
  * @addtogroup LayoutDBDFS
@@ -618,17 +638,16 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
-	C2_PRE(out != NULL);
+	C2_PRE(out != NULL && *out == NULL);
 
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
-	C2_LOG("c2_ldb_lookup(): lid %llu\n", (unsigned long long)lid);
+	C2_ENTRY("lid %llu\n", (unsigned long long)lid);
 
 	pair->dp_table = &schema->ls_layouts;
-
 
 	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
 		       pair->dp_key.db_buf.b_addr,
@@ -645,17 +664,13 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_SET0(pair->dp_rec.db_buf.b_addr);
 
 	rc = c2_table_lookup(tx, pair);
-	C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() rc %d\n",
-	       (unsigned long long)lid, rc);
 
-	/* Following covers the case - record not found. */
 	if (rc != 0) {
 		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "c2_table_lookup", rc);
-
-		C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() rc %d\n",
-		       (unsigned long long)lid, rc);
-		return rc;
+			    ldb_lookup_fail, "c2_table_lookup", rc);
+		C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() failed, "
+		       "rc %d\n", (unsigned long long)lid, rc);
+		goto out;
 	}
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
@@ -664,14 +679,24 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
-	C2_ASSERT((*out)->l_id == lid);
-
-	C2_LOG("c2_ldb_lookup(): lid %llu, c2_layout_decode() rc %d",
-	       (unsigned long long)lid, rc);
+	if (rc != 0) {
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    ldb_lookup_fail, "c2_layout_decode", rc);
+		C2_LOG("c2_ldb_lookup(): lid %llu, c2_layout_decode() failed, "
+		       "rc %d\n", (unsigned long long)lid, rc);
+	} else
+		C2_ASSERT(*out != NULL && (*out)->l_id == lid);
 
 	c2_db_buf_fini(&pair->dp_key);
 	c2_db_buf_fini(&pair->dp_rec);
 
+out:
+	if (rc == 0) {
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    ldb_lookup_success, true);
+	}
+
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 
@@ -706,7 +731,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
-	C2_LOG("c2_ldb_add(): lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
@@ -716,20 +741,35 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	rc = c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, NULL, &cur);
 	C2_LOG("c2_ldb_add(): lid %llu, c2_layout_encode() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
-	if (rc != 0)
-		return rc;
+	if (rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_add_fail, "c2_layout_encode()", rc);
+		C2_LOG("c2_ldb_add(): lid %llu, c2_layout_encode() failed, "
+		       "rc %d\n", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 
 	lt = schema->ls_type[l->l_type->lt_id];
-
 	recsize = lt->lt_ops->lto_recsize(schema, l);
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair,
 			      recsize, tx);
-	C2_LOG("c2_ldb_add(): lid %llu, ldb_layout_write() rc %d\n",
-	       (unsigned long long)l->l_id, rc);
-	C2_ASSERT(rc == 0);
+	if (rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_add_fail, "c2_table_insert()", rc);
+		C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_insert() failed, "
+		       "rc %d\n", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 
-	return 0;
+out:
+	if (rc == 0) {
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    ldb_add_success, true);
+	}
+
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	return rc;
 }
 
 static int get_oldrec(struct c2_ldb_schema *schema,
@@ -747,23 +787,17 @@ static int get_oldrec(struct c2_ldb_schema *schema,
 			 area, num_bytes);
 
 	rc = c2_table_lookup(&tx, &pair);
-	C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d\n",
-	       (unsigned long long)l->l_id, rc);
-	C2_ASSERT(rc == 0);
 
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 
 	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    c2_addb_func_fail, "c2_table_lookup", rc);
-		return rc;
-		/* todo Check if need to do commit if lookup fails.
-		 * But then how to report rc in that case? */
+		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d\n",
+		       (unsigned long long)l->l_id, rc);
 	}
 
-	rc = c2_db_tx_commit(&tx);
-	C2_ASSERT(rc == 0);
+	/* Ignoring the return status, this being a lookup operation. */
+	c2_db_tx_commit(&tx);
 
 	return rc;
 }
@@ -799,7 +833,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
-	C2_LOG("c2_ldb_update(): lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
 
 	/*
 	 * Get the old record from the layouts table. It is used to ensure that
@@ -807,13 +841,21 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	 */
 	num_bytes = c2_ldb_max_recsize(schema);
 	oldrec_area = c2_alloc(num_bytes);
-	if (oldrec_area == NULL)
-		return -ENOMEM;
+	if (oldrec_area == NULL) {
+		rc = -ENOMEM;
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
+		C2_LOG("c2_ldb_update(): lid %llu, c2_alloc() failed, rc %d\n",
+		       (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 
 	rc = get_oldrec(schema, l, oldrec_area, num_bytes);
 	if (rc != 0) {
-		c2_free(oldrec_area);
-		return rc;
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_update_fail, "c2_table_lookup()", rc);
+		C2_LOG("c2_ldb_update(): lid %llu, get_old_rec() failed, "
+		       "rc %d\n", (unsigned long long)l->l_id, rc);
+		goto out;
 	}
 
 	oldrec_bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&oldrec_area,
@@ -825,11 +867,12 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	rc = c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx,
 			      &oldrec_cur, &cur);
-	C2_LOG("c2_ldb_update(): lid %llu, c2_layout_encode() rc %d\n",
-	       (unsigned long long)l->l_id, rc);
 	if (rc != 0) {
-		c2_free(oldrec_area);
-		return rc;
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_update_fail, "c2_layout_encode()", rc);
+		C2_LOG("c2_ldb_update(): lid %llu, c2_layout_encode() failed, "
+		       "rc %d\n", (unsigned long long)l->l_id, rc);
+		goto out;
 	}
 
 	lt = schema->ls_type[l->l_type->lt_id];
@@ -838,11 +881,24 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_UPDATE, l->l_id,
 			      pair, recsize, tx);
-	C2_ASSERT(rc == 0);
-	C2_LOG("c2_ldb_update(): lid %llu, ldb_layout_write() rc %d\n",
-	       (unsigned long long)l->l_id, rc);
+	if (rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_update_fail, "c2_table_update()", rc);
+		C2_LOG("c2_ldb_update(): lid %llu, c2_table_update() failed, "
+		       "rc %d\n", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 
-	c2_free(oldrec_area);
+out:
+	if (oldrec_area != NULL)
+		c2_free(oldrec_area);
+
+	if (rc == 0) {
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    ldb_update_success, true);
+	}
+
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 
@@ -873,15 +929,20 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
-	C2_LOG("c2_ldb_delete(): lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, NULL, &cur);
 	C2_LOG("c2_ldb_delete(): lid %llu, c2_layout_encode() rc %d\n",
 	       (unsigned long long)l->l_id, rc);
-	if (rc != 0)
-		return rc;
+	if (rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_delete_fail, "c2_layout_encode()", rc);
+		C2_LOG("c2_ldb_delete(): lid %llu, c2_layout_encode() failed, "
+		       "rc %d\n", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
@@ -889,11 +950,22 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_DELETE, l->l_id,
 			      pair, recsize, tx);
-	C2_ASSERT(rc == 0);
-	C2_LOG("c2_ldb_delete(): lid %llu, ldb_layout_write() rc %d\n",
-	       (unsigned long long)l->l_id, rc);
+	if (rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_delete_fail, "c2_table_delete()", rc);
+		C2_LOG("c2_ldb_delete(): lid %llu, c2_table_delete() failed, "
+		       "rc %d\n", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 
-	return 0;
+out:
+	if (rc == 0) {
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    ldb_delete_success, true);
+	}
+
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	return rc;
 }
 
 
