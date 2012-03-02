@@ -109,6 +109,7 @@ rpc_HEADERS                     := session_k.h
 
 rpc_ut_SOURCES                  := service.c
 
+sm_SOURCES                      := sm.c
 sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
                                    parity_ops.c
 sns_HEADERS                     := parity_math.h
