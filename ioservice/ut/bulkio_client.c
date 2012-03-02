@@ -35,8 +35,6 @@
 
 enum {
 	IO_SINGLE_BUFFER	= 1,
-	IO_RPC_SEG_NR		= 1,
-	IO_SERVER_BUF_SEG_NR	= 8,
 };
 
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
@@ -56,7 +54,7 @@ static void bulkio_buf_recv(const struct c2_net_buffer_event *ev)
 {
 }
 
-const struct c2_net_buffer_callbacks bulkio_ut_buf_cb = {
+static const struct c2_net_buffer_callbacks bulkio_ut_buf_cb = {
 	.nbc_cb = {
 		[C2_NET_QT_MSG_RECV] = bulkio_buf_recv,
 	}
@@ -68,7 +66,8 @@ struct bulkio_msg_tm {
 	const char          *bmt_addr;
 };
 
-void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt, struct c2_net_domain *nd)
+static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
+			       struct c2_net_domain *nd)
 {
 	int                        rc;
 	struct c2_clink            clink;
@@ -77,6 +76,8 @@ void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt, struct c2_net_domain *nd)
 	C2_UT_ASSERT(bmt != NULL);
 	C2_UT_ASSERT(nd != NULL);
 	C2_UT_ASSERT(bmt->bmt_addr != NULL);
+	C2_UT_ASSERT(bmt->bmt_mach.cr_tm.ntm_state != C2_NET_TM_INITIALIZED &&
+		     bmt->bmt_mach.cr_tm.ntm_state != C2_NET_TM_STARTED);
 
 	C2_SET0(&bmt->bmt_mach);
 	tm = &bmt->bmt_mach.cr_tm;
@@ -100,12 +101,15 @@ void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt, struct c2_net_domain *nd)
 	c2_clink_fini(&clink);
 }
 
-void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
+static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 {
 	int rc;
 	struct c2_clink clink;
 
 	C2_UT_ASSERT(bmt != NULL);
+	C2_UT_ASSERT(bmt->bmt_addr != NULL);
+	C2_UT_ASSERT(bmt->bmt_mach.cr_tm.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(bmt->bmt_conn.c_rpcmachine == &bmt->bmt_mach);
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&bmt->bmt_mach.cr_tm.ntm_chan, &clink);
@@ -122,7 +126,7 @@ void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 	c2_net_tm_fini(&bmt->bmt_mach.cr_tm);
 }
 
-void bulkclient_test(void)
+static void bulkclient_test(void)
 {
 	int			   rc;
 	int                        i = 0;
