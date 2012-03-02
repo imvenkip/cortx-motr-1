@@ -169,9 +169,9 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 }
 
-void c2_layout_enum_init(struct c2_layout_enum *le,
-			 const struct c2_layout_enum_type *et,
-			 const struct c2_layout_enum_ops *ops)
+int c2_layout_enum_init(struct c2_layout_enum *le,
+			const struct c2_layout_enum_type *et,
+			const struct c2_layout_enum_ops *ops)
 {
 	C2_ENTRY("EnumType %s", et->let_name);
 
@@ -183,6 +183,7 @@ void c2_layout_enum_init(struct c2_layout_enum *le,
 	le->le_ops  = ops;
 
 	C2_LEAVE("Enumtypename %s", et->let_name);
+	return 0;
 }
 
 void c2_layout_enum_fini(struct c2_layout_enum *le)
@@ -365,6 +366,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -ENOENT;
+	/* todo log msg missing */
 
 	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -ENOENT;
@@ -394,9 +396,6 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		c2_mutex_unlock(&l->l_lock);
 		return -ENOMEM;
 	}
-
-	/* todo remove */
-	//C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
 
 	rec->lr_lt_id     = l->l_type->lt_id;
 	rec->lr_ref_count = l->l_ref;

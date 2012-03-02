@@ -697,11 +697,10 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
-	struct c2_ldb_pdclust_rec    *pl_rec;
+	struct c2_ldb_pdclust_rec     pl_rec;
 	struct c2_ldb_pdclust_rec    *pl_oldrec;
 	struct c2_layout_enum_type   *et;
 	int                           rc;
-
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
@@ -757,7 +756,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		    !c2_uint128_eq(&pl_oldrec->pr_attr.pa_seed,
 				   &pl->pl_attr.pa_seed)) {
 				rc = -EINVAL;
-				C2_LOG("pdclust_encode(): %llu, New values "
+				C2_LOG("pdclust_encode(): lid %llu, New values "
 				       "do not match old ones...",
 					(unsigned long long)l->l_id);
 				goto out;
@@ -765,34 +764,36 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
-	/* todo Mar 02, avoid dynamic allocation, continue from here to
-	 * check C2_LOG, ADDB msgs etc. */
-	C2_ALLOC_PTR(pl_rec);
-	if (pl_rec == NULL)
-		return -ENOMEM;
+	pl_rec.pr_let_id  = stl->ls_enum->le_type->let_id;
+	pl_rec.pr_attr    = pl->pl_attr;
 
-	pl_rec->pr_let_id  = stl->ls_enum->le_type->let_id;
-	pl_rec->pr_attr    = pl->pl_attr;
+	rc = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
+	C2_ASSERT(rc == sizeof pl_rec);
 
-	rc = c2_bufvec_cursor_copyto(out, pl_rec, sizeof *pl_rec);
-	C2_ASSERT(rc == sizeof *pl_rec);
+	if (!IS_IN_ARRAY(pl_rec.pr_let_id, schema->ls_enum)) {
+		rc = -EPROTO;
+		C2_LOG("pdclust_encode(): lid %llu, Invalid EnumTypeId %u",
+		       (unsigned long long)l->l_id, pl_rec.pr_let_id);
+		goto out;
+	}
 
-	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum))
-		return -EPROTO;
+	et = schema->ls_enum[pl_rec.pr_let_id];
+	if (et == NULL) {
+		rc = -ENOENT;
+		C2_LOG("pdclust_encode(): lid %llu, Unregistered EnumType, EnumTypeId %u",
+		       (unsigned long long)l->l_id, pl_rec.pr_let_id);
+		goto out;
+	}
 
-	et = schema->ls_enum[pl_rec->pr_let_id];
-	if (et == NULL)
-		return -ENOENT;
-
-	if (et->let_ops->leto_encode != NULL) {
-		rc = et->let_ops->leto_encode(schema, l, op, tx,
-					      oldrec_cur, out);
-		C2_LOG("pdclust_encode(): %llu, leto_encode() rc %d\n",
-				(unsigned long long)l->l_id, rc);
-		C2_ASSERT(rc == 0);
+	rc = et->let_ops->leto_encode(schema, l, op, tx, oldrec_cur, out);
+	if (rc != 0) {
+		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
+		       "rc %d", (unsigned long long)l->l_id, rc);
+		goto out;
 	}
 
 out:
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 

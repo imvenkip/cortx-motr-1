@@ -319,9 +319,9 @@ int c2_layout_striped_init(struct c2_layout_striped *str_lay,
 			   const struct c2_layout_ops *ops);
 void c2_layout_striped_fini(struct c2_layout_striped *strl);
 
-void c2_layout_enum_init(struct c2_layout_enum *le,
-			 const struct c2_layout_enum_type *lt,
-			 const struct c2_layout_enum_ops *ops);
+int c2_layout_enum_init(struct c2_layout_enum *le,
+			const struct c2_layout_enum_type *lt,
+			const struct c2_layout_enum_ops *ops);
 void c2_layout_enum_fini(struct c2_layout_enum *le);
 
 
