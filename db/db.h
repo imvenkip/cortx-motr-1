@@ -375,9 +375,18 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair);
    (c2_db_cursor_set(), c2_db_cursor_add(), c2_db_cursor_del()).
  */
 struct c2_db_cursor {
+        uint32_t                 c_flags;
 	struct c2_table         *c_table;
 	struct c2_db_tx         *c_tx;
 	struct c2_db_cursor_impl c_i;
+};
+
+/**
+ * Cursor modes
+ */
+enum c2_db_cursor_flags {
+        C2_DB_CURSOR_RDONLY    = 1 << 0,
+        C2_DB_CURSOR_RMW        = 1 << 1,
 };
 
 /**
@@ -387,7 +396,7 @@ struct c2_db_cursor {
    cursor will be done in the context of a given transaction.
  */
 int  c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
-		       struct c2_db_tx *tx);
+		       struct c2_db_tx *tx, uint32_t flags);
 
 /**
    Release the resources associated with the cursor.
