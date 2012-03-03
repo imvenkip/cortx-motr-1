@@ -50,16 +50,16 @@ static struct c2_net_tm_callbacks bulkio_ut_tm_cb = {
 	.ntc_event_cb = bulkio_tm_cb
 };
 
-static void bulkio_buf_recv(const struct c2_net_buffer_event *ev)
-{
-}
-
-static const struct c2_net_buffer_callbacks bulkio_ut_buf_cb = {
-	.nbc_cb = {
-		[C2_NET_QT_MSG_RECV] = bulkio_buf_recv,
-	}
-};
-
+/*
+ * This structure represents message sending/receiving entity on network
+ * for either client or server. Since rpc can not be used as is,
+ * this structure just tries to start transfer machines on both ends.
+ * Since uiltimately rpc uses transfer machine rpc, message
+ * sending/receiving can be achieved easily without having to go
+ * through rpc interfaces.
+ * The c2_rpc_conn member is just a placeholder. It is needed for
+ * c2_rpc_bulk_{store/load} APIs.
+ */
 struct bulkio_msg_tm {
 	struct c2_rpcmachine bmt_mach;
 	struct c2_rpc_conn   bmt_conn;
@@ -76,10 +76,8 @@ static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
 	C2_UT_ASSERT(bmt != NULL);
 	C2_UT_ASSERT(nd != NULL);
 	C2_UT_ASSERT(bmt->bmt_addr != NULL);
-	C2_UT_ASSERT(bmt->bmt_mach.cr_tm.ntm_state != C2_NET_TM_INITIALIZED &&
-		     bmt->bmt_mach.cr_tm.ntm_state != C2_NET_TM_STARTED);
+	C2_UT_ASSERT(bmt->bmt_mach.cr_tm.ntm_state == C2_NET_TM_UNDEFINED);
 
-	C2_SET0(&bmt->bmt_mach);
 	tm = &bmt->bmt_mach.cr_tm;
 	C2_SET0(&bmt->bmt_conn);
 	bmt->bmt_conn.c_rpcmachine = &bmt->bmt_mach;
