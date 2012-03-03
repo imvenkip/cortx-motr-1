@@ -39,8 +39,8 @@ addb_linux_kernel_SOURCES       := addb_console.c
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d; e.g. in the following,
 #       ../../ioservice/ points to $(CORE_SRCDIR)/c2t1fs/../../ioservice/
 
-c2t1fs_SOURCES 			:= c2t1fs.c super.c inode.c dir.c file.c
-c2t1fs_HEADERS 			:= c2t1fs.h ../ioservice/io_fops_k.h
+c2t1fs_linux_kernel_SOURCES 	:= c2t1fs.c super.c inode.c dir.c file.c
+c2t1fs_linux_kernel_HEADERS 	:= c2t1fs.h ../ioservice/io_fops_k.h
 
 cob_SOURCES                     := cob.c
 
