@@ -494,9 +494,6 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	return rc;
 }
 
-/*
- * This test results into an assert from linear_decode():
- * C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 static int test_decode_pdclust_linear_negative(uint64_t lid)
 {
 	void                      *area;
@@ -508,8 +505,9 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 
 	C2_ENTRY();
 
+	/* todo confirm the behavior w/o adding 1 below. */
 	num_bytes = sizeof (struct c2_ldb_rec) +
-			sizeof (struct c2_ldb_pdclust_rec);
+			sizeof (struct c2_ldb_pdclust_rec) + 1;
 	c2_ldb_max_recsize(&schema);
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
@@ -522,12 +520,11 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 
 	c2_bufvec_cursor_init(&cur, &bv);
 	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
-	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == -ENOBUFS);
 
 	C2_LEAVE();
-	return rc;
+	return 0;
 }
- */
 
 static void test_decode(void)
 {
@@ -547,13 +544,12 @@ static void test_decode(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/*
-	 * Negative test -
+	 * Negative test - Insufficient buffer size.
 	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
-	 *
-	  lid = 1003;
-	  rc = test_decode_pdclust_linear_negative(lid);
-	  C2_UT_ASSERT(rc == 0);
 	 */
+	lid = 1003;
+	rc = test_decode_pdclust_linear_negative(lid);
+	C2_UT_ASSERT(rc == 0);
 
 	internal_fini();
 }
@@ -770,7 +766,7 @@ static int test_encode_pdclust_list(uint64_t lid)
 	struct c2_bufvec_cursor     cur;
 	struct c2_layout_list_enum *list_enum = NULL;
 
-	C2_ENTRY();
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
 	area = c2_alloc(num_bytes);
@@ -1125,7 +1121,6 @@ static int test_update_pdclust_linear(uint64_t lid)
 	return rc;
 }
 
-/*
 static int test_update_pdclust_linear_negative(uint64_t lid)
 {
 	c2_bcount_t                num_bytes;
@@ -1158,7 +1153,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	* Lookup the record just for verification. *
+	/* Lookup the record just for verification. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1182,9 +1177,11 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	* Lookup the record just for verification. *
+	/* Lookup the record just for verification. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
+
+	l = NULL;
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
@@ -1197,7 +1194,6 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	C2_LEAVE();
 	return rc;
 }
-*/
 
 static void test_update(void)
 {
@@ -1210,11 +1206,9 @@ static void test_update(void)
 	rc = test_update_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
-	/*
 	lid = 5002;
 	rc = test_update_pdclust_linear_negative(lid);
 	C2_UT_ASSERT(rc == 0);
-	*/
 
 	/* todo
 	lid = 5003;

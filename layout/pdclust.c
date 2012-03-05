@@ -630,16 +630,17 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum)) {
 		rc = -EPROTO;
-		C2_LOG("pdclust_decode(): lid %llu, Invalid EnumTypeId %d",
-		       (unsigned long long)lid, pl_rec->pr_let_id);
+		C2_LOG("pdclust_decode(): lid %llu, Invalid EnumTypeId %lu",
+		       (unsigned long long)lid,
+		       (unsigned long)pl_rec->pr_let_id);
 		goto out;
 	}
 
 	et = schema->ls_enum[pl_rec->pr_let_id];
 	if (et == NULL) {
 		rc = -EPROTO;
-		C2_LOG("pdclust_decode(): lid %llu, EnumType is not registered, "
-		       "EnumTypeId %d", (unsigned long long)lid,
+		C2_LOG("pdclust_decode(): lid %llu, EnumType is not "
+		       "registered, EnumTypeId %d", (unsigned long long)lid,
 		       pl_rec->pr_let_id);
 		goto out;
 	}
@@ -648,8 +649,8 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	rc = et->let_ops->leto_decode(schema, lid, cur, op, tx, &e);
 	if (rc != 0) {
-		C2_LOG("pdclust_decode(): lid %llu, leto_decode() failed, rc %d",
-		       (unsigned long long)lid, rc);
+		C2_LOG("pdclust_decode(): lid %llu, leto_decode() failed, "
+		       "rc %d", (unsigned long long)lid, rc);
 		goto out;
 	}
 
@@ -689,7 +690,7 @@ out:
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
  */
 static int pdclust_encode(struct c2_ldb_schema *schema,
-			  const struct c2_layout *l,
+			  struct c2_layout *l,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
 		          struct c2_bufvec_cursor *oldrec_cur,
@@ -712,27 +713,12 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
 
-	/* todo remove this
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec)); */
-
-	/* todo use ergo here. */
 	/* Check if the buffer is with sufficient size. */
-	/*
-	if (ergo(op == C2_LXO_DB_UPDATE,
-	          c2_bufvec_cursor_step(oldrec_cur) < sizeof *pl_oldrec)) {
+	if (!ergo(op == C2_LXO_DB_UPDATE,
+	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec)) {
 		rc = -ENOBUFS;
-		C2_LOG("pdclust_encode(): lid %llu, buffer for old record with "
-		       "insufficient size", (unsigned long long)l->l_id);
-		goto out;
-	}
-	*/
-
-	if (op == C2_LXO_DB_UPDATE &&
-	    c2_bufvec_cursor_step(oldrec_cur) < sizeof *pl_oldrec) {
-		rc = -ENOBUFS;
-		C2_LOG("pdclust_encode(): lid %llu, buffer for old record with "
-				"insufficient size", (unsigned long long)l->l_id);
+		C2_LOG("pdclust_encode(): lid %llu, buffer for old record "
+		       "with insufficient size", (unsigned long long)l->l_id);
 		goto out;
 	}
 
@@ -789,7 +775,6 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	if (rc != 0) {
 		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
-		goto out;
 	}
 
 out:

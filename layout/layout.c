@@ -159,8 +159,8 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 
 	/*
-	 * Memory allocated for str_l->ls_enum should be freed through
-	 * c2_layout_enum_fini() to be called by the caller.
+	 * Memory allocated for str_l->ls_enum  will be freed through
+	 * c2_layout_enum_fini() that is to be called by the caller.
 	 */
 	str_l->ls_enum = NULL;
 
@@ -173,11 +173,11 @@ int c2_layout_enum_init(struct c2_layout_enum *le,
 			const struct c2_layout_enum_type *et,
 			const struct c2_layout_enum_ops *ops)
 {
-	C2_ENTRY("EnumType %s", et->let_name);
-
 	C2_PRE(le != NULL);
 	C2_PRE(et != NULL);
 	C2_PRE(ops != NULL);
+
+	C2_ENTRY("EnumType %s", et->let_name);
 
 	le->le_type = et;
 	le->le_ops  = ops;
@@ -268,17 +268,34 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
-	rec = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(rec != NULL);
-	if (rec == NULL)
-		return -EPROTO;
+	/* Check if the buffer is with sufficient size. */
+	if (c2_bufvec_cursor_step(cur) < sizeof *rec) {
+		rc = -ENOBUFS;
+		C2_LOG("c2_layout_decode(): lid %llu, buffer with "
+		       "insufficient size", (unsigned long long)lid);
+		goto out;
+	}
 
-	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type))
-		return -EPROTO;
+	/* rec can not be NULL since the buffer size is already verified. */
+	rec = c2_bufvec_cursor_addr(cur);
+
+	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type)) {
+		rc = -EPROTO;
+		C2_LOG("c2_layout_decode(): lid %llu, Invalid LayoutTypeId "
+		       "%lu", (unsigned long long)lid,
+		       (unsigned long)rec->lr_lt_id);
+		goto out;
+	}
 
 	lt = schema->ls_type[rec->lr_lt_id];
-	if (lt == NULL)
-		return -ENOENT;
+	if (lt == NULL) {
+		rc = -ENOENT;
+		C2_LOG("c2_layout_decode(): lid %llu, LayoutType is not "
+		       "registeed, LayouTypeId %lu",
+		       (unsigned long long)lid,
+		       (unsigned long)rec->lr_lt_id);
+		goto out;
+	}
 
 	/* Move the cursor to point to the layout type specific payload. */
 	c2_bufvec_cursor_move(cur, sizeof *rec);
@@ -292,10 +309,13 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0) {
+		/* tod March 05 Add 4 events for c2_layout_en_decode */
 		/* todo Replace the global context as appropriate. */
 		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "lto_encode", rc);
-		return rc;
+			    c2_addb_func_fail, "lto_decode", rc);
+		C2_LOG("c2_layout_decode(): lid %llu, lto_decode() failed, "
+		       "rc %d", (unsigned long long)lid, rc);
+		goto out;
 	}
 
 	c2_mutex_lock(&(*out)->l_lock);
@@ -307,8 +327,9 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	c2_mutex_unlock(&(*out)->l_lock);
 
+out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return 0;
+	return rc;
 }
 
 /**
@@ -356,24 +377,44 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-	       c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec));
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	c2_mutex_lock(&l->l_lock);
 
+	/* todo check new buffer size - everywhere applicable. */
+
+	/* Check if the buffer is with sufficient size. */
+	if (!ergo(op == C2_LXO_DB_UPDATE,
+	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec)) {
+		rc = -ENOBUFS;
+		C2_LOG("c2_layout_encode(): lid %llu, buffer for old record "
+		       "with insufficient size", (unsigned long long)l->l_id);
+		goto out;
+	}
+
 	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
 		return -ENOENT;
 	/* todo log msg missing */
 
-	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
-		return -ENOENT;
+	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type)) {
+		rc = -EPROTO;
+		C2_LOG("c2_layout_encode(): lid %llu, Invalid LayoutTypeId "
+		       "%lu", (unsigned long long)l->l_id,
+		       (unsigned long)l->l_type->lt_id);
+		goto out;
+	}
 
 	lt = schema->ls_type[l->l_type->lt_id];
-	if (lt == NULL)
-		return -ENOENT;
+	if (lt == NULL) {
+		rc = -ENOENT;
+		C2_LOG("c2_layout_encode(): lid %llu, LayoutType is not "
+		       "registeed, LayouTypeId %lu",
+		       (unsigned long long)l->l_id,
+		       (unsigned long)l->l_type->lt_id);
+		goto out;
+	}
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
@@ -383,18 +424,22 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		 */
 		oldrec = c2_bufvec_cursor_addr(oldrec_cur);
 		C2_ASSERT(oldrec != NULL);
-		if (oldrec->lr_lt_id != l->l_type->lt_id)
-			return -EINVAL;
-		if (oldrec->lr_pid != l->l_pool_id)
-			return -EINVAL;
+		if (oldrec->lr_lt_id != l->l_type->lt_id ||
+		    oldrec->lr_pid != l->l_pool_id) {
+			rc = -EINVAL;
+			C2_LOG("c2_layout_encode(): lid %llu, New values "
+			       "do not match old ones...",
+			       (unsigned long long)l->l_id);
+			goto out;
+		}
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
 	}
 
 	C2_ALLOC_PTR(rec);
 	if (rec == NULL) {
+		rc = -ENOMEM;
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
-		c2_mutex_unlock(&l->l_lock);
-		return -ENOMEM;
+		goto out;
 	}
 
 	rec->lr_lt_id     = l->l_type->lt_id;
@@ -404,18 +449,18 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
 	C2_ASSERT(nbytes_copied == sizeof *rec);
 
-	C2_LOG("c2_layout_encode(): lid %llu, About to call lto_encode()\n",
-	       (unsigned long long)l->l_id);
-
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
-	if (rc != 0)
+	if (rc != 0) {
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_func_fail,
 			    "lto_encode", rc);
+		C2_LOG("c2_layout_encode(): lid %llu, lto_encode() failed, "
+		"rc %d", (unsigned long long)l->l_id, rc);
+	}
 
+out:
 	c2_mutex_unlock(&l->l_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
-
 	return rc;
 }
 

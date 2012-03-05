@@ -684,13 +684,12 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 			    ldb_lookup_fail, "c2_layout_decode", rc);
 		C2_LOG("c2_ldb_lookup(): lid %llu, c2_layout_decode() failed, "
 		       "rc %d\n", (unsigned long long)lid, rc);
-	} else
-		C2_ASSERT(*out != NULL && (*out)->l_id == lid);
+	}
 
+out:
 	c2_db_buf_fini(&pair->dp_key);
 	c2_db_buf_fini(&pair->dp_rec);
 
-out:
 	if (rc == 0) {
 		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
 			    ldb_lookup_success, true);
@@ -894,7 +893,7 @@ out:
 		c2_free(oldrec_area);
 
 	if (rc == 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
 			    ldb_update_success, true);
 	}
 
@@ -960,7 +959,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 out:
 	if (rc == 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
 			    ldb_delete_success, true);
 	}
 

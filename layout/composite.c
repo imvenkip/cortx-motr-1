@@ -198,7 +198,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
  */
 static int composite_encode(struct c2_ldb_schema *schema,
-			    const struct c2_layout *l,
+			    struct c2_layout *l,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
 			    struct c2_bufvec_cursor *oldrec_cur,
