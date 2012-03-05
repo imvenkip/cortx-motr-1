@@ -1053,9 +1053,8 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
         stobio_tlist_init(&fom_obj->fcrw_stio_list);
         c2_mutex_init(&fom_obj->fcrw_stio_mutex);
 
-        c2_addb_add_custom(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                           "FOM created : type=rw, io_descs=%d.",
-                           fom_obj->fcrw_ndesc);
+        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
+		    "FOM created : type=rw.");
 
         return rc;
 }
@@ -1729,9 +1728,8 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
         
-        c2_addb_add_custom(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                           "FOM finished : type=rw, rc=%d, io_size=%lu.",
-                           fom->fo_rc, fom_obj->fcrw_bytes_transfered);
+        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
+		    "FOM finished : type=rw.");
 
         tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);

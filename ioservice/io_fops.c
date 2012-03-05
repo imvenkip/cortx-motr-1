@@ -1234,9 +1234,8 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	c2_mutex_unlock(&bbulk->rb_mutex);
 
 	C2_POST(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
-	c2_addb_add_custom(&bulkclient_addb, &bulkclient_addb_loc,
-		           "%lu io fops coalesced successfully.",
-			   rpcitem_tlist_length(items_list));
+	C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc, c2_addb_trace,
+		    "io fops coalesced successfully.");
 	rpcitem_tlist_add(items_list, &bkp_fop->f_item);
 	return rc;
 cleanup:
@@ -1341,10 +1340,9 @@ static void io_item_replied(struct c2_rpc_item *item)
 	 * is inserted by io coalescing code.
 	 */
 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
-		c2_addb_add_custom(&bulkclient_addb, &bulkclient_addb_loc,
-			           "Reply received for %lu coalesced io fops.",
-				   rpcitem_tlist_length(
-					   &item->ri_compound_items));
+		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+			    c2_addb_trace,
+			    "Reply received for coalesced io fops.");
 		c2_io_fop_destroy(fop);
 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
 		rpcitem_tlist_del(ritem);
@@ -1427,10 +1425,6 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	 * include the bound item's io vector in io coalescing
 	 */
 	rpcitem_tlist_add(&head->ri_compound_items, head);
-
-	c2_addb_add_custom(&bulkclient_addb, &bulkclient_addb_loc,
-		           "%lu io fops found for coalescing.",
-			   rpcitem_tlist_length(&head->ri_compound_items));
 
 	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop, size);
 	if (rc != 0) {
