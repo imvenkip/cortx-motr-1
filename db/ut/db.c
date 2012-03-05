@@ -74,7 +74,7 @@ static void dbut_init(const char *db_name,
         C2_UT_ASSERT(result == 0);
 
         result = c2_db_tx_init(tx, db, 0);
-        C2_UT_ASSERT(result == 0);	
+        C2_UT_ASSERT(result == 0);
 }
 
 static void dbut_fini(struct c2_dbenv *db,
@@ -371,7 +371,7 @@ static void test_cursor_flags_read_only(void)
 	C2_UT_ASSERT(result == 0);
 
 	c2_db_pair_fini(&pair1);
-        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
 
         /* Get readonly cursor */
         dbut_init(db_name, test_table, &db, &table1, &tx1);
@@ -410,7 +410,7 @@ static void test_cursor_flags_read_only(void)
 	C2_UT_ASSERT(result == 0);
 	c2_table_fini(&table2);
 
-        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
 }
 
 /*
@@ -445,7 +445,7 @@ static void test_cursor_flags_rmw(void)
 	C2_UT_ASSERT(result == 0);
 
 	c2_db_pair_fini(&pair1);
-        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
 
         /* Get readonly cursor */
         dbut_init(db_name, test_table, &db, &table1, &tx1);
@@ -490,7 +490,7 @@ static void test_cursor_flags_rmw(void)
 	c2_db_cursor_fini(&cursor1);
 	c2_db_pair_fini(&pair1);
 
-        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit); 
+        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
 }
 
 const struct c2_test_suite db_cursor_ut = {
