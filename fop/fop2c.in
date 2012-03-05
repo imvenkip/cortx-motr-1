@@ -16,13 +16,12 @@ CC=${CC:-"cc"}
 CFLAGS="@CFLAGS@"
 LDFLAGS="@LDFLAGS@ -rdynamic -pthread"
 DEFINES="-DHAVE_CONFIG"
-INC="-I$topdir -I@DB_SRC@ -I@DB_SRC@/build_unix"
+INC="-I$topdir @DB_INCLUDES@"
 
 #
 # Enumerate all object files and libraries necessary for the binary linked
 # below.
 #
-#OBJS="$topdir/fop/rt/.libs/libc2rt.a @DB_SRC@/build_unix/libdb.a"
 OBJS="$topdir/fop/rt/.libs/libc2rt.a @DB_LIBS@"
 
 generate_u=0

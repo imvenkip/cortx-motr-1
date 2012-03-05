@@ -26,6 +26,7 @@
 
 #include <errno.h>
 #include <err.h>
+#include <sysexits.h>
 #include <stdlib.h>                        /* malloc, NULL */
 #include <string.h>                        /* memset */
 
@@ -37,7 +38,7 @@ static struct ff2c_term *alloc(void)
 
 	term = malloc(sizeof *term);
 	if (term == NULL)
-		err(2, "Cannot allocate term (%zu bytes)", sizeof *term);
+		err(EX_TEMPFAIL, "Cannot allocate term (%zu bytes)", sizeof *term);
 	memset(term, 0, sizeof *term);
 	return term;
 }
@@ -71,7 +72,7 @@ static void token(struct ff2c_context *ctx, struct ff2c_term *term,
 		term->fn_type = FNT_ESCAPE;
 		break;
 	default:
-		err(3, "impossible token");
+		err(EX_SOFTWARE, "impossible token");
 	}
 	term->fn_tok = *tok;
 }
