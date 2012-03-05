@@ -26,10 +26,10 @@
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
 #include "ioservice/io_fops.h"
 
-static char *local_addr = "127.0.0.1:12345:1";
+static char *local_addr = "127.0.0.1:12345:6";
 
 module_param(local_addr, charp, S_IRUGO);
-MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs e.g. 127.0.0.1:12345:1");
+MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs e.g. 127.0.0.1:12345:6");
 
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);

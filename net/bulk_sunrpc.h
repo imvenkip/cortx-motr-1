@@ -105,6 +105,9 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 */
 uint64_t
 c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
+enum {
+	C2_NET_SUNRPC_PORT = 12345,
+};
 
 /**
    @}
