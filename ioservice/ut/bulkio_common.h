@@ -145,4 +145,11 @@ void bulkio_test(struct bulkio_params *bp, int fids_nr, int fops_nr,
 extern int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec, uint32_t num_segs,
 				   c2_bcount_t seg_size, unsigned shift);
 
+void io_fops_rpc_submit(struct thrd_arg *t);
+
+void io_fops_destroy(struct bulkio_params *bp);
+
+void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
+		    int fids_nr, int fops_nr, int segs_nr);
+
 #endif /* __IOSERVICE_ST_COMMON_H__ */
