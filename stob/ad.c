@@ -96,6 +96,8 @@ C2_ADDB_ADD(&(obj)->so_addb, &ad_stob_addb_loc, c2_addb_func_fail, (name), (rc))
 struct ad_domain {
 	struct c2_stob_domain      ad_base;
 
+	char			   ad_path[MAXPATHLEN];
+
 	struct c2_dbenv           *ad_dbenv;
 	/**
 	   Extent map storing mapping from logical to physical offsets.
@@ -220,6 +222,9 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	struct c2_stob_domain *dom;
 	int                    result;
 
+	C2_ASSERT(domain_name != NULL);
+	C2_ASSERT(strlen(domain_name) < ARRAY_SIZE(adom->ad_path));
+
 	C2_ALLOC_PTR(adom);
 	if (adom != NULL) {
 		adom->ad_setup = false;
@@ -227,6 +232,8 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 		dom = &adom->ad_base;
 		dom->sd_ops = &ad_stob_domain_op;
 		c2_stob_domain_init(dom, type);
+		strcpy(adom->ad_path, domain_name);
+		dom->sd_name = adom->ad_path;
 		*out = dom;
 		result = 0;
 	} else {
@@ -237,10 +244,14 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 }
 
 int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
-	     struct c2_stob *bstore, struct ad_balloc *ballroom)
+		     struct c2_stob *bstore, struct ad_balloc *ballroom,
+		     c2_bcount_t container_size, c2_bcount_t bshift,
+		     c2_bcount_t blocks_per_group, c2_bcount_t res_groups)
 {
-	int result;
-	struct ad_domain *adom;
+	int			 result;
+	c2_bcount_t		 groupsize;
+	c2_bcount_t		 blocksize;
+	struct ad_domain	*adom;
 
 	adom = domain2ad(dom);
 
@@ -248,8 +259,15 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	C2_PRE(!adom->ad_setup);
 	C2_PRE(bstore->so_state == CSS_EXISTS);
 
+	blocksize = 1 << bshift;
+	groupsize = blocks_per_group * blocksize;
+
+	C2_PRE(groupsize > blocksize);
+	C2_PRE(container_size > groupsize);
+	C2_PRE(container_size / groupsize > res_groups);
+
 	result = ballroom->ab_ops->bo_init
-		(ballroom, dbenv, bstore->so_op->sop_block_shift(bstore));
+		(ballroom, dbenv, bshift, container_size, blocks_per_group, res_groups);
 	if (result == 0) {
 		adom->ad_dbenv    = dbenv;
 		adom->ad_bstore   = bstore;
@@ -260,7 +278,6 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	}
 	return result;
 }
-C2_EXPORTED(c2_ad_stob_setup);
 
 /**
    Searches for the object with a given identifier in the domain object list.
@@ -1277,6 +1294,14 @@ static uint32_t ad_stob_block_shift(const struct c2_stob *stob)
 	return ad_bshift(domain2ad(stob->so_domain));
 }
 
+/**
+   An implementation of c2_stob_domain_op::sdo_block_shift() method.
+ */
+static uint32_t ad_stob_domain_block_shift(struct c2_stob_domain *sd)
+{
+	return ad_bshift(domain2ad(sd));
+}
+
 static bool ad_endio(struct c2_clink *link)
 {
 	struct ad_stob_io *aio;
@@ -1308,9 +1333,10 @@ static const struct c2_stob_type_op ad_stob_type_op = {
 };
 
 static const struct c2_stob_domain_op ad_stob_domain_op = {
-	.sdo_fini      = ad_domain_fini,
-	.sdo_stob_find = ad_domain_stob_find,
-	.sdo_tx_make   = ad_domain_tx_make
+	.sdo_fini        = ad_domain_fini,
+	.sdo_stob_find   = ad_domain_stob_find,
+	.sdo_tx_make     = ad_domain_tx_make,
+	.sdo_block_shift = ad_stob_domain_block_shift
 };
 
 static const struct c2_stob_op ad_stob_op = {
@@ -1340,14 +1366,12 @@ int c2_ad_stobs_init(void)
 			 &c2_addb_global_ctx);
 	return ad_stob_type.st_op->sto_init(&ad_stob_type);
 }
-C2_EXPORTED(c2_ad_stobs_init);
 
 void c2_ad_stobs_fini(void)
 {
 	ad_stob_type.st_op->sto_fini(&ad_stob_type);
 	c2_addb_ctx_fini(&ad_stob_ctx);
 }
-C2_EXPORTED(c2_ad_stobs_fini);
 
 /** @} end group stobad */
 

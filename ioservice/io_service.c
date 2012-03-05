@@ -135,7 +135,7 @@ static void c2_io_buffer_pool_low(struct c2_net_buffer_pool *bp)
 int c2_ioservice_register(void)
 {
         c2_reqh_service_type_register(&c2_ioservice_type);
-        return 0;
+        return c2_ioservice_fop_init();
 }
 
 /**
@@ -144,6 +144,7 @@ int c2_ioservice_register(void)
 void c2_ioservice_unregister(void)
 {
         c2_reqh_service_type_unregister(&c2_ioservice_type);
+	c2_ioservice_fop_fini();
 }
 
 /**
@@ -179,14 +180,13 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
                 */
                c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp)
                {
-                        if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom) {
+                        if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom)
                                /*
                                 * Found buffer pool for domain.
                                 * No need to create buffer pool
                                 * for this domain.
                                 */
                                 return rc;
-                        }
                } c2_tlist_endfor; /* bufferpools */
 
               /* Buffer pool for network domain not found create one */
@@ -201,11 +201,15 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 	      */
              c2_chan_init(&newbp->rios_bp_wait);
              newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-             colours = rpcmach->cr_tm.ntm_dom->nd_colour_counter;
-             c2_net_buffer_pool_init(&newbp->rios_bp, rpcmach->cr_tm.ntm_dom,
-                                     network_buffer_pool_threshold,
-                                     network_buffer_pool_segment_nr,
-                                     network_buffer_pool_segment_size, colours);
+             colours = rpcmach->cr_tm.ntm_dom->nd_pool_colour_counter;
+	     rc = c2_net_buffer_pool_init(&newbp->rios_bp,
+	                                   rpcmach->cr_tm.ntm_dom,
+                                           network_buffer_pool_threshold,
+                                           network_buffer_pool_segment_nr,
+                                           network_buffer_pool_segment_size,
+				           colours, C2_0VEC_SHIFT);
+	     if (rc != 0)
+		     break;
              newbp->rios_bp.nbp_ops = &buffer_pool_ops;
 
              /* Pre-allocate network buffers */
@@ -330,11 +334,6 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
 
         C2_PRE(service != NULL);
 
-        /* Register I/O service FOPs */
-        rc = c2_ioservice_fop_init();
-        if (rc != 0)
-            return rc;
-
         rc = ioservice_create_buffer_pool(service);
 	if (rc != 0)
 		return rc;
@@ -359,8 +358,6 @@ static void c2_ioservice_stop(struct c2_reqh_service *service)
         C2_PRE(service != NULL);
 
         ioservice_delete_buffer_pool(service);
-
-        c2_ioservice_fop_fini();
 
 	c2_cobfid_setup_put(service);
 }

@@ -29,12 +29,13 @@
 #include "net/bulk_emulation/mem_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.c"
 
+/* Create buffers with different shapes but same total size.
+   Also create identical buffers for exact shape testing.
+*/
+enum { NR_BUFS = 10 };
+
 static void test_buf_copy(void)
 {
-	/* Create buffers with different shapes but same total size.
-	   Also create identical buffers for exact shape testing.
-	 */
-	enum { NR_BUFS = 10 };
 	static struct {
 		uint32_t    num_segs;
 		c2_bcount_t seg_size;
@@ -636,9 +637,13 @@ static void test_failure(void)
 
 	/* fini */
 	c2_net_buffer_deregister(&d1nb1, &dom1);
+	c2_bufvec_free(&d1nb1.nb_buffer);
 	c2_net_buffer_deregister(&d1nb2, &dom1);
+	c2_bufvec_free(&d1nb2.nb_buffer);
 	c2_net_buffer_deregister(&d2nb1, &dom2);
+	c2_bufvec_free(&d2nb1.nb_buffer);
 	c2_net_buffer_deregister(&d2nb2, &dom2);
+	c2_bufvec_free(&d2nb2.nb_buffer);
 
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);

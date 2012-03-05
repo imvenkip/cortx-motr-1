@@ -42,9 +42,18 @@
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 #include "lib/tlist.h"
+#include "addb/addb.h"
 
+/*
+ * Fops which are embedded in other fops need to be declared as extern
+ * since their definitions are out of scope for present module. So they
+ * have to be resolved at linking time.
+ */
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
+
+extern struct c2_fom_type cd_fom_type;
+extern struct c2_fom_type cc_fom_type;
 
 #include "ioservice/io_fops.ff"
 
@@ -65,7 +74,6 @@ static void io_item_free(struct c2_rpc_item *item);
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
 static int  io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
-static int  io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /* ADDB context for ioservice. */
 static struct c2_addb_ctx bulkclient_addb;
@@ -108,6 +116,9 @@ static struct c2_fop_type *ioservice_fops[] = {
 	&c2_fop_cob_op_reply_fopt,
 };
 
+C2_EXPORTED(c2_fop_cob_writev_fopt);
+C2_EXPORTED(c2_fop_cob_readv_fopt);
+
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 	.rio_sent	= NULL,
@@ -124,7 +135,6 @@ static const struct c2_rpc_item_type_ops io_item_type_ops = {
 };
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
-	.fto_fom_init    = c2_io_fom_cob_rw_init,
 	.fto_fop_replied = io_fop_replied,
 	.fto_size_get	 = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
@@ -132,7 +142,6 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 };
 
 const struct c2_fop_type_ops cob_fop_type_ops = {
-	.fto_fom_init	 = cob_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_size_get	 = c2_xcode_fop_size_get,
 	.fto_io_coalesce = NULL,
@@ -147,7 +156,6 @@ static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
 };
 
 static const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
-	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
@@ -180,6 +188,14 @@ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
 			&cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
 			C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops);
 
+static void cob_fom_type_attach(void)
+{
+#ifndef __KERNEL__
+	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
+	c2_fop_cob_delete_fopt.ft_fom_type = cd_fom_type;
+#endif
+}
+
 void c2_ioservice_fop_fini(void)
 {
 	c2_fop_type_fini_nr(ioservice_fops, ARRAY_SIZE(ioservice_fops));
@@ -199,8 +215,17 @@ int c2_ioservice_fop_init(void)
 	if (rc == 0)
 		rc = c2_fop_type_build_nr(ioservice_fops,
 				ARRAY_SIZE(ioservice_fops));
+
+#ifndef __KERNEL__
+        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+#endif
+
+	cob_fom_type_attach();
+
 	if (rc != 0)
 		c2_ioservice_fop_fini();
+
 	return rc;
 }
 C2_EXPORTED(c2_ioservice_fop_init);
@@ -228,9 +253,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
 
    This document describes the working of client side of io bulk transfer.
    This functionality is used only for io path.
@@ -250,12 +272,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
 
    - c2t1fs - Colibri client file system. It works as a kernel module.
    - Bulk transport - Event based, asynchronous message passing functionality
@@ -268,8 +284,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
 
    - R.bulkclient.rpcbulk The bulk client should use rpc bulk abstraction
    while enqueueing buffers for bulk transfer.
@@ -284,8 +298,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
 
    - r.misc.net_rpc_convert Bulk Client needs Colibri client file system to be
    using new network layer apis which include c2_net_domain and c2_net_buffer.
@@ -297,10 +309,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
 
    IO bulk client uses a generic in-memory structure representing an io fop
    and its associated network buffer.
@@ -320,13 +328,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
 
    - @ref bulkclient-lspec-comps
    - @ref bulkclient-lspec-sc1
@@ -339,10 +340,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
 
    @subsection bulkclient-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
 
    The following @@dot diagram shows the interaction of bulk client
    program with rpc layer and net layer.
@@ -364,9 +361,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
    @enddot
 
    @subsection bulkclient-lspec-sc1 Subcomponent design
-   <i>Such sections briefly describes the purpose and design of each
-   sub-component. Feel free to add multiple such sections, and any additional
-   sub-sectioning within.</i>
 
    Ioservice subsystem primarily comprises of 2 sub-components
    - IO client (comprises of IO coalescing code)
@@ -376,9 +370,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
    fop is sent instead of member io fops.
 
    @subsubsection bulkclient-lspec-ds1 Subcomponent Data Structures
-   <i>This section briefly describes the internal data structures that are
-   significant to the design of the sub-component. These should not be a part
-   of the Functional Specification.</i>
 
    The IO coalescing subsystem from ioservice primarily works on IO segments.
    IO segment is in-memory structure that represents a contiguous chunk of
@@ -387,15 +378,10 @@ C2_EXPORTED(c2_ioservice_fop_init);
    - ioseg An in-memory structure used to represent a segment of IO data.
 
    @subsubsection bulkclient-lspec-sub1 Subcomponent Subroutines
-   <i>This section briefly describes the interfaces of the sub-component that
-   are of significance to the design.</i>
 
    - ioseg_get() - Retrieves an ioseg given its index in zero vector.
 
    @subsection bulkclient-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
 
    @dot
    digraph bulk_io_client_states {
@@ -426,20 +412,12 @@ C2_EXPORTED(c2_ioservice_fop_init);
    @enddot
 
    @subsection bulkclient-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
 
    No need of explicit locking for structures like c2_io_fop and ioseg
    since they are taken care by locking at upper layers like locking at
    the c2t1fs part for dispatching IO requests.
 
    @subsection bulkclient-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
 
    The performance need not be optimized by associating the incoming thread
    to a particular processor. However, keeping in sync with the design of
@@ -450,13 +428,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref bulkclient-req section,
-   and explains briefly how the DLD meets the requirement.</i>
-
-   Note the subtle difference in that <b>I</b> tags are used instead of
-   the <b>R</b> tags of the requirements section.  The @b I of course,
-   stands for "implements":
 
    - I.bulkclient.rpcbulk The bulk client uses rpc bulk APIs to enqueue
    kernel pages to the network buffer.
@@ -469,8 +440,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
 
    All external interfaces based on c2_io_fop and c2_rpc_bulk will be
    unit tested. All unit tests will stress success and failure conditions.
@@ -501,16 +470,11 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-st System Tests
-   <i>Mandatory.
-   This section describes the system testing done, if applicable.</i>
 
    Not applicable.
 
    <hr>
    @section bulkclient-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
 
    - m denotes the number of IO fops with same fid and intent (read/write).
    - n denotes the total number of IO segments in m IO fops.
@@ -524,9 +488,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
 
    <hr>
    @section bulkclient-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en_US">RPC Bulk Transfer Task Plan</a>
    - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>,
@@ -614,20 +575,19 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 	C2_PRE(iofop != NULL);
 	C2_PRE(ftype != NULL);
 
-	iofop->if_magic = C2_IO_FOP_MAGIC;
 	rc = c2_fop_init(&iofop->if_fop, ftype, NULL);
-	if (rc != 0) {
+	if (rc == 0) {
+		iofop->if_fop.f_item.ri_ops = &io_req_rpc_item_ops;
+		iofop->if_magic = C2_IO_FOP_MAGIC;
+
+		c2_rpc_bulk_init(&iofop->if_rbulk);
+		C2_POST(io_fop_invariant(iofop));
+	} else
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "io fop init failed.", rc);
-		return rc;
-	}
-
-	/* Assign rpc item ops to rpc item. */
-	iofop->if_fop.f_item.ri_ops = &io_req_rpc_item_ops;
-	c2_rpc_bulk_init(&iofop->if_rbulk);
-	C2_POST(io_fop_invariant(iofop));
 	return rc;
 }
+C2_EXPORTED(c2_io_fop_init);
 
 void c2_io_fop_fini(struct c2_io_fop *iofop)
 {
@@ -646,6 +606,7 @@ struct c2_rpc_bulk *c2_fop_to_rpcbulk(const struct c2_fop *fop)
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
 	return &iofop->if_rbulk;
 }
+C2_EXPORTED(c2_fop_to_rpcbulk);
 
 /** @} end of bulkclientDFSInternal */
 
@@ -654,12 +615,14 @@ bool c2_is_read_fop(const struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_readv_fopt;
 }
+C2_EXPORTED(c2_is_read_fop);
 
 bool c2_is_write_fop(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	return fop->f_type == &c2_fop_cob_writev_fopt;
 }
+C2_EXPORTED(c2_is_write_fop);
 
 bool c2_is_io_fop(const struct c2_fop *fop)
 {
@@ -711,6 +674,7 @@ struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop)
 		return &wfop->c_rwv;
 	}
 }
+C2_EXPORTED(io_rw_get);
 
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 {
@@ -722,11 +686,6 @@ struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop)
 
 	if (c2_is_read_fop_rep(fop)) {
 		rfop = c2_fop_data(fop);
-		/* @todo to be removed after integrating with new c2t1fs */
-		rfop->c_iobuf.ib_count = 1;
-		C2_ALLOC_ARR(rfop->c_iobuf.ib_buf,
-			rfop->c_iobuf.ib_count);
-
 		return &rfop->c_rep;
 	} else {
 		wfop = c2_fop_data(fop);
@@ -750,6 +709,9 @@ static void ioseg_unlink_free(struct ioseg *ioseg)
 	c2_free(ioseg);
 }
 
+/**
+   Returns if given 2 fops belong to same type.
+ */
 static bool io_fop_type_equal(const struct c2_fop *fop1,
 			      const struct c2_fop *fop2)
 {
@@ -844,6 +806,19 @@ static void io_fop_segments_coalesce(const struct c2_0vec *iovec,
 	}
 }
 
+static inline struct c2_net_transfer_mc *io_fop_tm_get(
+		const struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+
+	return &fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+}
+
+static inline struct c2_net_domain *io_fop_netdom_get(const struct c2_fop *fop)
+{
+	return io_fop_tm_get(fop)->ntm_dom;
+}
+
 /*
  * Creates and populates net buffers as needed using the list of
  * coalesced io segments.
@@ -867,8 +842,7 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 	C2_PRE(seg_set != NULL);
 	C2_PRE(!iosegset_tlist_is_empty(&seg_set->iss_list));
 
-	netdom = coalesced_fop->f_item.ri_session->s_conn->
-		 c_rpcmachine->cr_tm.ntm_dom;
+	netdom = io_fop_netdom_get(coalesced_fop);
 	max_bufsize = c2_net_domain_get_max_buffer_size(netdom);
 	max_segs_nr = c2_net_domain_get_max_buffer_segments(netdom);
 	rbulk = c2_fop_to_rpcbulk(coalesced_fop);
@@ -919,10 +893,6 @@ static int io_netbufs_prepare(struct c2_fop *coalesced_fop,
 			max_bufsize);
 		C2_POST(buf->bb_zerovec.z_bvec.ov_vec.v_nr <= max_segs_nr);
 		curr_segs_nr -= segs_nr;
-		if (c2_is_read_fop(coalesced_fop))
-			buf->bb_nbuf->nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
-		else
-			buf->bb_nbuf->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	}
 	return 0;
 cleanup:
@@ -934,50 +904,43 @@ cleanup:
 /* Deallocates memory claimed by index vector/s from io fop wire format. */
 void io_fop_ivec_dealloc(struct c2_fop *fop)
 {
-	int			 cnt;
-	struct c2_rpc_bulk	*rbulk;
+	int			 i;
 	struct c2_fop_cob_rw	*rw;
 	struct c2_io_indexvec	*ivec;
-	struct c2_rpc_bulk_buf	*buf;
 
 	C2_PRE(fop != NULL);
 
 	rw = io_rw_get(fop);
 	ivec = rw->crw_ivecs.cis_ivecs;
-	rbulk = c2_fop_to_rpcbulk(fop);
-	cnt = 0;
 
-	c2_mutex_lock(&rbulk->rb_mutex);
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
-		c2_free(ivec[cnt].ci_iosegs);
-		++cnt;
-	} c2_tlist_endfor;
-	c2_mutex_unlock(&rbulk->rb_mutex);
+	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i) {
+		c2_free(ivec[i].ci_iosegs);
+		ivec[i].ci_iosegs = NULL;
+	}
 	c2_free(ivec);
+	rw->crw_ivecs.cis_ivecs = NULL;
+	rw->crw_ivecs.cis_nr = 0;
 }
 
 /* Allocates memory for index vector/s from io fop wore format. */
-static int io_fop_ivec_alloc(struct c2_fop *fop)
+static int io_fop_ivec_alloc(struct c2_fop *fop, struct c2_rpc_bulk *rbulk)
 {
-	int			 cnt;
-	struct c2_rpc_bulk	*rbulk;
+	int			 cnt = 0;
 	struct c2_fop_cob_rw	*rw;
 	struct c2_io_indexvec	*ivec;
 	struct c2_rpc_bulk_buf	*rbuf;
 
 	C2_PRE(fop != NULL);
+	C2_PRE(rbulk != NULL);
+	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
 
-	cnt = 0;
 	rbulk = c2_fop_to_rpcbulk(fop);
 	rw = io_rw_get(fop);
-	c2_mutex_lock(&rbulk->rb_mutex);
 	rw->crw_ivecs.cis_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
 	C2_ALLOC_ARR_ADDB(rw->crw_ivecs.cis_ivecs, rw->crw_ivecs.cis_nr,
 			  &bulkclient_addb, &bulkclient_addb_loc);
-	if (rw->crw_ivecs.cis_ivecs == NULL) {
-		c2_mutex_unlock(&rbulk->rb_mutex);
+	if (rw->crw_ivecs.cis_ivecs == NULL)
 		return -ENOMEM;
-	}
 
 	ivec = rw->crw_ivecs.cis_ivecs;
 	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
@@ -989,30 +952,27 @@ static int io_fop_ivec_alloc(struct c2_fop *fop)
 		ivec[cnt].ci_nr = rbuf->bb_zerovec.z_bvec.ov_vec.v_nr;
 		++cnt;
 	} c2_tlist_endfor;
-	c2_mutex_unlock(&rbulk->rb_mutex);
 	return 0;
 cleanup:
-	c2_mutex_unlock(&rbulk->rb_mutex);
 	io_fop_ivec_dealloc(fop);
 	return -ENOMEM;
 }
 
 /* Populates index vector/s from io fop wire format. */
-static void io_fop_ivec_prepare(struct c2_fop *res_fop)
+static void io_fop_ivec_prepare(struct c2_fop *res_fop,
+				struct c2_rpc_bulk *rbulk)
 {
-	int			 cnt;
+	int			 cnt = 0;
 	uint32_t		 j;
-	struct c2_rpc_bulk	*rbulk;
 	struct c2_fop_cob_rw	*rw;
 	struct c2_io_indexvec	*ivec;
 	struct c2_rpc_bulk_buf	*buf;
 
 	C2_PRE(res_fop != NULL);
+	C2_PRE(rbulk != NULL);
+	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
 
-	cnt = 0;
 	rw = io_rw_get(res_fop);
-	rbulk = c2_fop_to_rpcbulk(res_fop);
-	c2_mutex_lock(&rbulk->rb_mutex);
 	rw->crw_ivecs.cis_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
 	ivec = rw->crw_ivecs.cis_ivecs;
 
@@ -1029,7 +989,6 @@ static void io_fop_ivec_prepare(struct c2_fop *res_fop)
 		}
 		++cnt;
 	} c2_tlist_endfor;
-	c2_mutex_unlock(&rbulk->rb_mutex);
 }
 
 static void io_fop_bulkbuf_move(struct c2_fop *src, struct c2_fop *dest)
@@ -1050,6 +1009,8 @@ static void io_fop_bulkbuf_move(struct c2_fop *src, struct c2_fop *dest)
 		rpcbulk_tlist_del(rbuf);
 		rpcbulk_tlist_add(&dbulk->rb_buflist, rbuf);
 	} c2_tlist_endfor;
+	dbulk->rb_bytes = sbulk->rb_bytes;
+	dbulk->rb_rc = sbulk->rb_rc;
 	c2_mutex_unlock(&sbulk->rb_mutex);
 
 	srw = io_rw_get(src);
@@ -1058,18 +1019,17 @@ static void io_fop_bulkbuf_move(struct c2_fop *src, struct c2_fop *dest)
 	drw->crw_ivecs = srw->crw_ivecs;
 }
 
-static int io_fop_desc_alloc(struct c2_fop *fop)
+static int io_fop_desc_alloc(struct c2_fop *fop, struct c2_rpc_bulk *rbulk)
 {
-	struct c2_rpc_bulk	*rbulk;
 	struct c2_fop_cob_rw	*rw;
 
 	C2_PRE(fop != NULL);
+	C2_PRE(rbulk != NULL);
+	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
 
 	rbulk = c2_fop_to_rpcbulk(fop);
 	rw = io_rw_get(fop);
-	c2_mutex_lock(&rbulk->rb_mutex);
 	rw->crw_desc.id_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
-	c2_mutex_unlock(&rbulk->rb_mutex);
 	C2_ALLOC_ARR_ADDB(rw->crw_desc.id_descs, rw->crw_desc.id_nr,
 			  &bulkclient_addb, &bulkclient_addb_loc);
 
@@ -1085,44 +1045,59 @@ static void io_fop_desc_dealloc(struct c2_fop *fop)
 	rw = io_rw_get(fop);
 
 	c2_free(rw->crw_desc.id_descs);
+	rw->crw_desc.id_descs = NULL;
+	rw->crw_desc.id_nr = 0;
 }
 
 /*
  * Allocates memory for net buf descriptors array and index vector array
  * and populates the array of index vectors in io fop wire format.
  */
-int io_fop_prepare(struct c2_fop *fop)
+int c2_io_fop_prepare(struct c2_fop *fop)
 {
-	int rc;
+	int		       rc;
+	struct c2_rpc_bulk    *rbulk;
+	enum c2_net_queue_type q;
 
 	C2_PRE(fop != NULL);
+	C2_PRE(c2_is_io_fop(fop));
 
-	rc = io_fop_desc_alloc(fop);
-	if (rc != 0)
-		return -ENOMEM;
-
-	rc = io_fop_ivec_alloc(fop);
+	rbulk = c2_fop_to_rpcbulk(fop);
+	c2_mutex_lock(&rbulk->rb_mutex);
+	rc = io_fop_desc_alloc(fop, rbulk);
 	if (rc != 0) {
-		io_fop_desc_dealloc(fop);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto err;
 	}
 
-	io_fop_ivec_prepare(fop);
+	rc = io_fop_ivec_alloc(fop, rbulk);
+	if (rc != 0) {
+		io_fop_desc_dealloc(fop);
+		rc = -ENOMEM;
+		goto err;
+	}
 
+	io_fop_ivec_prepare(fop, rbulk);
+	q = c2_is_read_fop(fop) ? C2_NET_QT_PASSIVE_BULK_RECV :
+			   C2_NET_QT_PASSIVE_BULK_SEND;
+	c2_rpc_bulk_qtype(rbulk, q);
+err:
+	c2_mutex_unlock(&rbulk->rb_mutex);
 	return rc;
 }
+C2_EXPORTED(c2_io_fop_prepare);
 
 /*
  * Creates new net buffers from aggregate list and adds them to
- * associated c2_rpc_bulk object. Also calls io_fop_prepare() to
+ * associated c2_rpc_bulk object. Also calls c2_io_fop_prepare() to
  * allocate memory for net buf desc sequence and index vector
  * sequence in io fop wire format.
  */
 static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 				    struct io_seg_set *aggr_set)
 {
-	int			 rc;
-	struct c2_rpc_bulk	*rbulk;
+	int			rc;
+	struct c2_rpc_bulk     *rbulk;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(aggr_set != NULL);
@@ -1137,9 +1112,10 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
 		return rc;
 	}
 
-	rc = io_fop_prepare(fop);
+	rc = c2_io_fop_prepare(fop);
 	if (rc != 0)
 		c2_rpc_bulk_buflist_empty(rbulk);
+
 	return rc;
 }
 
@@ -1147,12 +1123,20 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
  * Deallocates memory for sequence of net buf desc and sequence of index
  * vectors from io fop wire format.
  */
-void io_fop_destroy(struct c2_fop *fop)
+void c2_io_fop_destroy(struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
 	io_fop_desc_dealloc(fop);
 	io_fop_ivec_dealloc(fop);
+}
+
+static inline size_t io_fop_size_get(struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+
+	return fop->f_type->ft_ops->fto_size_get != NULL ?
+		fop->f_type->ft_ops->fto_size_get(fop) : 0;
 }
 
 /**
@@ -1189,13 +1173,6 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	C2_PRE(res_fop != NULL);
 	C2_PRE(c2_is_io_fop(res_fop));
 
-	/*
-	 * Compound list is populated by an rpc item type op, namely
-	 * item_io_coalesce().
-	 */
-	items_list = &res_fop->f_item.ri_compound_items;
-	C2_PRE(!rpcitem_tlist_is_empty(items_list));
-
 	C2_ALLOC_PTR_ADDB(cfop, &bulkclient_addb, &bulkclient_addb_loc);
 	if (cfop == NULL)
 		return -ENOMEM;
@@ -1205,7 +1182,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 		c2_free(cfop);
 		return rc;
 	}
-	tm = &res_fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+	tm = io_fop_tm_get(res_fop);
 	bkp_fop = &cfop->if_fop;
 	aggr_set.iss_magic = IO_SEGMENT_SET_MAGIC;
 	iosegset_tlist_init(&aggr_set.iss_list);
@@ -1215,6 +1192,9 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	 * pass it to a coalescing routine and get result back
 	 * in another list.
 	 */
+	items_list = &res_fop->f_item.ri_compound_items;
+	C2_ASSERT(!rpcitem_tlist_is_empty(items_list));
+
 	c2_tlist_for(&rpcitem_tl, items_list, item) {
 		fop = c2_rpc_item_to_fop(item);
 		rbulk = c2_fop_to_rpcbulk(fop);
@@ -1255,7 +1235,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 			    bulkclient_func_fail,
 			    "c2_rpc_bulk_store() failed for coalesced io fop.",
 			    rc);
-		io_fop_destroy(res_fop);
+		c2_io_fop_destroy(res_fop);
 		goto cleanup;
 	}
 
@@ -1263,8 +1243,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	 * Checks if current size of res_fop fits into the size
 	 * provided as input.
 	 */
-	if (res_fop->f_type->ft_ops->fto_size_get &&
-	    res_fop->f_type->ft_ops->fto_size_get(res_fop) > size) {
+	if (io_fop_size_get(res_fop) > size) {
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "Size of coalesced fop"
 			    "exceeded remaining space in send net buffer.",
@@ -1274,7 +1253,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 			c2_net_buffer_del(rbuf->bb_nbuf, tm);
 		} c2_tlist_endfor;
 		c2_mutex_unlock(&rbulk->rb_mutex);
-		io_fop_destroy(res_fop);
+		c2_io_fop_destroy(res_fop);
 		goto cleanup;
 	}
 
@@ -1315,7 +1294,9 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	c2_mutex_unlock(&bbulk->rb_mutex);
 
 	C2_POST(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
-	rpcitem_tlist_add(&res_fop->f_item.ri_compound_items, &bkp_fop->f_item);
+	C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc, c2_addb_trace,
+		    "io fops coalesced successfully.");
+	rpcitem_tlist_add(items_list, &bkp_fop->f_item);
 	return rc;
 cleanup:
 	C2_ASSERT(rc != 0);
@@ -1328,6 +1309,7 @@ cleanup:
 	c2_free(cfop);
 	return rc;
 }
+C2_EXPORTED(io_fop_coalesce);
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
 {
@@ -1345,13 +1327,15 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 	ffid1 = io_fop_fid_get(fop1);
 	ffid2 = io_fop_fid_get(fop2);
 
-	return (ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid);
+	return ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid;
 }
 
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)
 {
-	struct c2_io_fop   *cfop;
-	struct c2_rpc_bulk *rbulk;
+	struct c2_io_fop     *cfop;
+	struct c2_rpc_bulk   *rbulk;
+	struct c2_fop_cob_rw *srw;
+	struct c2_fop_cob_rw *drw;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(bkpfop != NULL);
@@ -1362,11 +1346,16 @@ static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop)
 	c2_mutex_lock(&rbulk->rb_mutex);
 	C2_ASSERT(rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
 	c2_mutex_unlock(&rbulk->rb_mutex);
-	io_fop_bulkbuf_move(bkpfop, fop);
+
+	srw = io_rw_get(bkpfop);
+	drw = io_rw_get(fop);
+	drw->crw_desc = srw->crw_desc;
+	drw->crw_ivecs = srw->crw_ivecs;
 	cfop = container_of(bkpfop, struct c2_io_fop, if_fop);
 	c2_io_fop_fini(cfop);
 	c2_free(cfop);
 }
+C2_EXPORTED(io_fop_replied);
 
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 {
@@ -1378,21 +1367,7 @@ static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc)
 	rw = io_rw_get(fop);
 	*desc = rw->crw_desc.id_descs;
 }
-
-/* Dummy definition for kernel mode. */
-#ifdef __KERNEL__
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	        return 0;
-}
-#else
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
-#endif
-
-static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
+C2_EXPORTED(io_fop_desc_get);
 
 /* Rpc item ops for IO operations. */
 static void io_item_replied(struct c2_rpc_item *item)
@@ -1411,11 +1386,13 @@ static void io_item_replied(struct c2_rpc_item *item)
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
 
-	if (item->ri_error != 0 || reply->rwr_count != rbulk->rb_bytes) {
+	C2_ASSERT(ergo(item->ri_error == 0,
+		       reply->rwr_count == rbulk->rb_bytes));
+
+	if (item->ri_error != 0 || reply->rwr_count != rbulk->rb_bytes)
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "io fop failed.",
 			    item->ri_error);
-	}
 
 	/*
 	 * Restores the contents of master coalesced fop from the first
@@ -1423,7 +1400,10 @@ static void io_item_replied(struct c2_rpc_item *item)
 	 * is inserted by io coalescing code.
 	 */
 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
-		io_fop_destroy(fop);
+		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+			    c2_addb_trace,
+			    "Reply received for coalesced io fops.");
+		c2_io_fop_destroy(fop);
 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
 		rpcitem_tlist_del(ritem);
 		bkpfop = c2_rpc_item_to_fop(ritem);
@@ -1525,9 +1505,6 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			if (item != item_next)
 				c2_list_del(&item->ri_unbound_link);
 		} c2_tlist_endfor;
-		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail, "io_fop_coalesce succeeded.",
-			    rc);
 	}
 }
 
@@ -1543,7 +1520,7 @@ static void io_item_free(struct c2_rpc_item *item)
 	fop = c2_rpc_item_to_fop(item);
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
 
-	io_fop_destroy(&iofop->if_fop);
+	c2_io_fop_destroy(&iofop->if_fop);
 	c2_io_fop_fini(iofop);
 	c2_free(iofop);
 }

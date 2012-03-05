@@ -1,0 +1,32 @@
+BIOST_SRCDIR	 = @SRCDIR@/ioservice/st/linux_kernel
+BIOST_MOD       := biostk
+
+local_src	:= main.c
+st_src		:= bulkio_client.c
+link_st		:= $(st_src:%=../%)
+all_src		:= $(local_src) $(st_src)
+all_obj		:= $(all_src:.c=.o)
+
+obj-m		:= $(BIOST_MOD).o
+$(BIOST_MOD)-y  := $(all_obj)
+
+dist_src	:= Makefile.in $(local_src)
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	ln -fs $(link_st) .
+
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/$(BIOST_MOD) -C @LINUX_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	rm -fr @LINUX_MOD@/kernel/fs/$(BIOST_MOD)
+
+clean distclean:
+	$(RM) $(st_src)
+	$(RM) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+distdir:
+	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/$(BIOST_MOD)/linux_kernel

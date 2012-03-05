@@ -23,8 +23,6 @@
 #include <config.h>
 #endif
 
-#include <errno.h>
-
 #include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/memory.h"
@@ -32,7 +30,6 @@
 #include "rpc/rpc2.h"
 #include "net/net.h"
 #include "fop/fop.h"
-#include "reqh/reqh.h"
 
 #include "rpc/rpclib.h"
 

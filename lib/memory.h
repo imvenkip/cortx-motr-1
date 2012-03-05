@@ -51,8 +51,18 @@ void *c2_alloc(size_t size);
 
 /**
    Allocates zero-filled memory, aligned on (2^shift)-byte boundary.
+   In kernel mode due to the usage of __GFP_ZERO, it can't be used from hard or
+   soft interrupt context.
  */
 void *c2_alloc_aligned(size_t size, unsigned shift);
+
+/** It returns true when addr is aligned by value shift. */
+static inline bool c2_addr_is_aligned(void *addr, unsigned shift)
+{
+	C2_CASSERT(sizeof(unsigned long) >= sizeof(void *));
+	return ((((unsigned long)addr >> shift) << shift) ==
+		  (unsigned long)addr);
+}
 
 /**
  * Frees memory block
@@ -66,9 +76,23 @@ void *c2_alloc_aligned(size_t size, unsigned shift);
 void c2_free(void *data);
 
 /**
+ * Frees aligned memory block
+ * This function must be a no-op when called with NULL argument.
+ * @param data pointer to allocated block
+ *
+ */
+void c2_free_aligned(void *data, size_t size, unsigned shift);
+
+/**
  * Return amount of memory currently allocated.
  */
 size_t c2_allocated(void);
+
+/**
+ * Same as system getpagesize(3).
+ * Used in the code shared between user and kernel.
+ */
+int c2_pagesize_get(void);
 
 /** @} end of memory group */
 

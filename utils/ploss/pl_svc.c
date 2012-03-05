@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sysexits.h>
 #include <rpc/pmap_clnt.h>
 #include <string.h>
 #include <memory.h>
@@ -94,7 +95,7 @@ plprog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 	}
 	if (!svc_freeargs (transp, (xdrproc_t) _xdr_argument, (caddr_t) &argument)) {
 		fprintf (stderr, "%s", "unable to free arguments");
-		exit (1);
+		exit(EX_SOFTWARE);
 	}
 	if (!plprog_1_freeresult (transp, _xdr_result, (caddr_t) &result))
 		fprintf (stderr, "%s", "unable to free results");
@@ -108,7 +109,7 @@ static void usage(const char *prog)
                         "-p threads: How many threads will be started to handle the ping requests.\n"
                         "\tThe default thread # is 4.\n",
                 prog);
-        exit(1);
+        exit(EX_USAGE);
 }
 
 int
@@ -125,7 +126,7 @@ main (int argc, char **argv)
                         threads = strtol(argv[1], &endptr, 10);
                         if (*endptr) {
                                 fprintf(stderr, "invalid parameter for thread #\n");
-                                exit(1);
+                                exit(EX_USAGE);
                         }
                         if (threads > 256)
                                 threads = 256;
@@ -142,25 +143,25 @@ main (int argc, char **argv)
 	transp = svcudp_create(RPC_ANYSOCK);
 	if (transp == NULL) {
 		fprintf (stderr, "%s", "cannot create udp service.");
-		exit(1);
+		exit(EX_OSERR);
 	}
 	if (!svc_register(transp, PLPROG, PLVER, plprog_1, IPPROTO_UDP)) {
 		fprintf (stderr, "%s", "unable to register (PLPROG, PLVER, udp).");
-		exit(1);
+		exit(EX_OSERR);
 	}
 
 	transp = svctcp_create(RPC_ANYSOCK, 0, 0);
 	if (transp == NULL) {
 		fprintf (stderr, "%s", "cannot create tcp service.");
-		exit(1);
+		exit(EX_OSERR);
 	}
 	if (!svc_register(transp, PLPROG, PLVER, plprog_1, IPPROTO_TCP)) {
 		fprintf (stderr, "%s", "unable to register (PLPROG, PLVER, tcp).");
-		exit(1);
+		exit(EX_OSERR);
 	}
 
 	svc_run ();
 	fprintf (stderr, "%s", "svc_run returned");
-	exit (1);
+	exit (EX_SOFTWARE);
 	/* NOTREACHED */
 }

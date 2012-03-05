@@ -23,8 +23,10 @@
 #include <config.h>
 #endif
 
+#ifndef __KERNEL__
 #include <errno.h> /* errno */
 #include <stdio.h> /* fopen(), fclose() */
+#endif
 
 #include "lib/cdefs.h"
 #include "lib/types.h"
@@ -33,13 +35,16 @@
 #include "rpc/rpc2.h"
 #include "net/net.h"
 #include "fop/fop.h"
+#include "rpc/rpclib.h"
+
+#ifndef __KERNEL__
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
+#endif
 
-#include "rpc/rpclib.h"
 
-
+#ifndef __KERNEL__
 int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 {
 	int  i;
@@ -97,6 +102,7 @@ void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 
 	return;
 }
+#endif
 
 int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 {
@@ -137,7 +143,6 @@ rpcmach_fini:
 	C2_ASSERT(rc != 0);
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_start);
 
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s)
@@ -158,10 +163,11 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	 */
 	C2_PRE(ri_ops != NULL);
 
-	item             = &fop->f_item;
-	item->ri_ops     = ri_ops;
-	item->ri_session = session;
-	item->ri_prio    = C2_RPC_ITEM_PRIO_MAX;
+	item              = &fop->f_item;
+	item->ri_ops      = ri_ops;
+	item->ri_session  = session;
+	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_deadline = 0;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);
@@ -198,7 +204,6 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_client_stop);
 
 /*
  *  Local variables:

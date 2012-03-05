@@ -27,6 +27,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
+#include "lib/trace.h"
 
 #include "rpc/rpc_onwire.h"
 
@@ -361,6 +362,8 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	   access to rpc object. */
 	c2_mutex_lock(&frm_sm->fs_lock);
 	if (ev->nbe_status == 0) {
+		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+			    c2_addb_trace, "Rpc sent on wire.");
 		frm_item_rpc_stats_set(rpc);
 		frm_item_state_set(rpc, RPC_ITEM_SENT);
 	} else {
@@ -371,8 +374,9 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	}
 	/* Detach all rpc items from this object */
 	c2_list_for_each_entry_safe(&rpc->r_items, item, item_next,
-			struct c2_rpc_item, ri_rpcobject_linkage)
+			struct c2_rpc_item, ri_rpcobject_linkage) {
 		c2_list_del(&item->ri_rpcobject_linkage);
+	}
 
 	c2_rpcobj_fbuf_fini(fb);
 	c2_rpcobj_fini(rpc);
@@ -491,7 +495,7 @@ static void item_deadline_handle(struct c2_rpc_frm_sm *frm_sm,
 /* Callback function for deadline expiry of an rpc item. */
 void frm_item_deadline(struct c2_rpc_item *item)
 {
-	struct c2_rpc_frm_sm	*frm_sm;
+	struct c2_rpc_frm_sm *frm_sm;
 
 	C2_PRE(item != NULL);
 
@@ -596,6 +600,9 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 	if (c2_list_link_is_in(&item->ri_unformed_linkage))
 		c2_list_del(&item->ri_unformed_linkage);
 
+	C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
+		    "Item removed from formation module.");
+
 	if (item->ri_group == NULL)
 		return;
 
@@ -615,7 +622,8 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 }
 
 /* Update formation state machine data on addition of an rpc item. */
-static void frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
+static void frm_item_add(struct c2_rpc_frm_sm *frm_sm,
+			 struct c2_rpc_item *item)
 {
 	int				 rc;
 	bool				 item_inserted = false;
@@ -643,7 +651,7 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
 		c2_timer_init(&item->ri_timer, C2_TIMER_SOFT, item->ri_deadline,
-				1, item_timer_callback, (unsigned long)item);
+				item_timer_callback, (unsigned long)item);
 		rc = c2_timer_start(&item->ri_timer);
 		if (rc != 0) {
 			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
@@ -656,6 +664,14 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 		if (item->ri_group == NULL)
 			++frm_sm->fs_urgent_nogrp_items_nr;
 	}
+
+	/*
+	 * ADDB message is logged for both - bound and unbound items,
+	 * although unbound items are not really added to formation
+	 * state machine.
+	 */
+	C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
+		    "Item added to formation module.");
 
 	/* If item is unbound or unsolicited, don't add it to list
 	   of formation state machine. */
@@ -1082,6 +1098,8 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 	}
 
 	c2_list_add(&frm_sm->fs_rpcs, &rpcobj->r_linkage);
+	C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
+		    "Rpc formed.");
 
 	/* Send the prepared rpc on wire to destination. */
 	frm_send_onwire(frm_sm);
@@ -1124,8 +1142,8 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 	c2_list_for_each_entry_safe(&frm_sm->fs_rpcs, rpc_obj,
 			rpc_obj_next, struct c2_rpc, r_linkage) {
 		if (frm_sm->fs_sender_side &&
-				frm_sm->fs_curr_rpcs_in_flight >=
-				frm_sm->fs_max_rpcs_in_flight) {
+		    frm_sm->fs_curr_rpcs_in_flight >=
+		    frm_sm->fs_max_rpcs_in_flight) {
 			rc = -EBUSY;
 			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
@@ -1165,12 +1183,13 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		}
 
 		C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
-		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
-			    &frm_addb_loc, formation_func_fail,
-			    "Rpc sent on wire.", 0);
-		if (frm_sm->fs_sender_side)
+		if (frm_sm->fs_sender_side) {
 			frm_sm->fs_curr_rpcs_in_flight++;
+			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+				    c2_addb_trace, "Rpc dispatched.");
+		}
 		c2_list_del(&rpc_obj->r_linkage);
+
 	}
 }
 
@@ -1184,6 +1203,8 @@ void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm)
 	if (frm_sm->fs_sender_side) {
 		if (frm_sm->fs_curr_rpcs_in_flight > 0) {
 			frm_sm->fs_curr_rpcs_in_flight--;
+			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+				    c2_addb_trace, "Rpc received from wire.");
 		}
 	}
 

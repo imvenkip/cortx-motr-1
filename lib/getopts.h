@@ -84,7 +84,13 @@ enum c2_getopts_opt_type {
 	   encountered, the flag is set to false. No call-back is invoked. The
 	   user is expected to inspect the flag after c2_getopts() returns.
 	 */
-	GOT_FLAG
+	GOT_FLAG,
+	/** An option without an argument.
+
+	    When this option encountered, program usage is printed to STDERR and
+	    program terminates immediately with exit(3).
+	 */
+	GOT_HELP
 };
 
 /**
@@ -204,6 +210,16 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
 	.go_opt  = (ch),			\
 	.go_desc = (desc),			\
 	.go_u    = { .got_flag = (ptr) }	\
+}
+
+/**
+   Defines a GOT_HELP option.
+ */
+#define C2_HELPARG(ch) {			\
+	.go_type = GOT_HELP,			\
+	.go_opt  = (ch),			\
+	.go_desc = "display this help and exit",\
+	.go_u    = { .got_void = NULL }		\
 }
 
 

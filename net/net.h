@@ -481,8 +481,8 @@ struct c2_net_domain {
 	/** Network magic */
 	uint64_t            nd_magic;
 
-        /** Transfer machine color counter */
-        int                 nd_colour_counter;
+        /** Transfer machine pool colour counter */
+        int                 nd_pool_colour_counter;
 };
 
 /**
@@ -929,7 +929,7 @@ struct c2_net_transfer_mc {
          * Transfer machine colour. It is used to get
          * buffer from buffer pool.
          */
-        int                         ntm_colour;
+        int                         ntm_pool_colour;
 
 	/** Transport private data */
         void                       *ntm_xprt_private;
@@ -1340,6 +1340,7 @@ struct c2_net_buffer {
 	   There is only one linkage for all of the queues, as a buffer
 	   can only be used for one type of operation at a time.
 
+	   It is also used for linkage into c2_net_buffer_pool::nbp_colour[].
 	   The application should not modify this field.
 	 */
 	struct c2_tlink		   nb_tm_linkage;

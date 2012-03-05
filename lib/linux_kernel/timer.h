@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Huang Hua <hua_huang@xyratex.com>
+ *                  Maxim Medved <Max_Medved@xyratex.com>
  * Original creation date: 03/04/2011
  */
 
@@ -37,32 +38,19 @@ struct c2_timer {
 	enum c2_timer_type t_type;
 
 	/**
-	   The interval to trigger the timer callback.
+	   The expiration time for timer.
 	 */
-	c2_time_t t_interval;
-
-	/**
-	   the repeat count for this timer.
-
-	   Initial value of 0XFFFFFFFFFFFFFFFF means the timer will be triggered
-	   infinitely before wrapping.
-	 */
-	uint64_t       t_repeat;
-
-	/**
-	   the left count for this timer.
-
-	   This value will be decreased everytime a timeout happens.
-	   If this value reaches zero, time is stopped/unarmed.
-	   The initial value of @t_left is equal to @t_repeat.
-	 */
-	uint64_t       t_left;
-
+	c2_time_t t_expire;
 
 	/**
 	   Timer triggers this callback.
 	 */
 	c2_timer_callback_t t_callback;
+
+	/**
+	   Is timer running now?
+	 */
+	bool t_running;
 
 	/**
 	   User data.

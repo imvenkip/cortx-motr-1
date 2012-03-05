@@ -96,17 +96,10 @@ DEF(c2_fop_cob_rw_reply, RECORD,
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
 	/** Common read/write reply. */
-	_(c_rep, c2_fop_cob_rw_reply),
-	/**
-	 * At the moment, due to some constraints put up by kxdr wrapper
-	 * around sunrpc, we can't have an IO vector here. It has to be
-	 * a SEQUENCE of bytes. Eventually, this will be replaced by
-	 * an IO vector or rather a net buffer descriptor.
-	 */
-	_(c_iobuf, c2_fop_io_buf));
+	_(c_rep, c2_fop_cob_rw_reply));
 
 /**
- * Represents the extent information for an io segment. c2_ioseg typically 
+ * Represents the extent information for an io segment. c2_ioseg typically
  * represents a user space data buffer or a kernel page.
  */
 DEF(c2_ioseg, RECORD,
@@ -145,24 +138,23 @@ DEF(c2_io_descs, SEQUENCE,
  * Common structure for read and write request fops.
  */
 DEF(c2_fop_cob_rw, RECORD,
+
 	/** File identifier of read/write request. */
+
 	_(crw_fid, c2_fop_file_fid),
-	/**
-	 * Net buf descriptors representing the c2_net_buffer containing
-	 * the IO buffers.
-	 */
+
+	/** Net buf descriptors representing the c2_net_buffer containing
+	    the IO buffers. */
+
 	_(crw_desc, c2_io_descs),
-	/**
-	 * Index vectors representing the extent information for the
-	 * IO request.
-	 */
+
+	/** Index vectors representing the extent information for the
+	    IO request. */
+
 	_(crw_ivecs, c2_io_indexvec_seq),
-	/**
-	 * @todo c2_fop_io_vec is only kept for successful build. It is
-	 * not needed anymore and should be removed by bulk server task.
-	 */
-	_(crw_iovec, c2_fop_io_vec),
+
 	/** Miscellaneous flags. */
+
 	_(crw_flags, U64));
 
 /**

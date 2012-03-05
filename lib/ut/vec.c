@@ -21,6 +21,7 @@
 #include "lib/ut.h"
 #include "lib/cdefs.h"     /* ARRAY_SIZE */
 #include "lib/vec.h"
+#include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/assert.h"
 
@@ -29,7 +30,6 @@ static void test_bufvec_cursor(void);
 enum {
 	NR = 255,
 	IT = 6,
-	SEGSIZE = 128
 };
 
 static c2_bcount_t segs[NR * IT];
@@ -90,16 +90,29 @@ void test_vec(void)
 	c2_vec_cursor_move(&c, sum0);
 	C2_UT_ASSERT(c2_vec_cursor_move(&c, 0));
 
-	C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, SEGSIZE) == 0);
+	C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, C2_SEG_SIZE) == 0);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
 	for (i = 0; i < NR; ++i) {
-		C2_UT_ASSERT(bv.ov_vec.v_count[i] == SEGSIZE);
+		C2_UT_ASSERT(bv.ov_vec.v_count[i] == C2_SEG_SIZE);
 		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
 	}
 	c2_bufvec_free(&bv);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
 	C2_UT_ASSERT(bv.ov_buf == NULL);
 	c2_bufvec_free(&bv);    /* no-op */
+
+	C2_UT_ASSERT(c2_bufvec_alloc_aligned(&bv, NR, C2_SEG_SIZE,
+					      C2_SEG_SHIFT) == 0);
+	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
+	for (i = 0; i < NR; ++i) {
+		C2_UT_ASSERT(bv.ov_vec.v_count[i] == C2_SEG_SIZE);
+		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
+		C2_UT_ASSERT(c2_addr_is_aligned(bv.ov_buf[i], C2_SEG_SHIFT));
+	}
+	c2_bufvec_free_aligned(&bv, C2_SEG_SHIFT);
+	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
+	C2_UT_ASSERT(bv.ov_buf == NULL);
+	c2_bufvec_free_aligned(&bv, C2_SEG_SHIFT);    /* no-op */
 
 	test_bufvec_cursor();
 }

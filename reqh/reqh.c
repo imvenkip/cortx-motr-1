@@ -126,7 +126,6 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 
 	return result;
 }
-C2_EXPORTED(c2_reqh_init);
 
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
@@ -136,7 +135,6 @@ void c2_reqh_fini(struct c2_reqh *reqh)
         c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
 	c2_mutex_fini(&reqh->rh_lock);
 }
-C2_EXPORTED(c2_reqh_fini);
 
 void c2_reqhs_fini(void)
 {
@@ -144,7 +142,6 @@ void c2_reqhs_fini(void)
 	c2_reqh_service_types_fini();
 	c2_reqh_fop_fini();
 }
-C2_EXPORTED(c2_reqhs_fini);
 
 int c2_reqhs_init(void)
 {
@@ -153,7 +150,6 @@ int c2_reqhs_init(void)
 	c2_reqh_service_types_init();
 	return c2_reqh_fop_init();
 }
-C2_EXPORTED(c2_reqhs_init);
 
 void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 {
@@ -175,8 +171,14 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 		return;
 	}
 
-	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	if (result == 0 && fom != NULL) {
+	C2_ASSERT(fop->f_type != NULL);
+	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops != NULL);
+	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
+
+	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
+	if (result == 0) {
+		C2_ASSERT(fom != NULL);
+
                 /**
                  * To access service specific data,
                  * FOM needs pointer to service instance.
@@ -186,22 +188,16 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
                         service_name = fom->fo_ops->fo_service_name(fom);
                         fom->fo_service = get_reqh_service(service_name, reqh);
                 }
-
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
 
 		loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
 		C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 		fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-		if (result != 0) {
-			fom->fo_phase = FOPH_FAILURE;
-			fom->fo_rc = result;
-		}
 		c2_fom_queue(fom);
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
 }
-C2_EXPORTED(c2_reqh_fop_handle);
 
 bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 {

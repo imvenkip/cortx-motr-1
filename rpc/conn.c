@@ -628,7 +628,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_conn_create);
 
 static int session_zero_attach(struct c2_rpc_conn *conn)
 {

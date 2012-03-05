@@ -36,6 +36,8 @@
 #include "reqh_fops.ff"
 #include "rpc/rpc_base.h"
 #include "rpc/rpc_opcodes.h"
+#include "xcode/bufvec_xcode.h"
+
 
 /**
    @addtogroup reqh
@@ -43,7 +45,7 @@
  */
 
 static struct c2_fop_type_ops reqh_err_fop_ops = {
-	.fto_fom_init = NULL,
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_execute = NULL,
 };
 
@@ -59,7 +61,6 @@ void c2_reqh_fop_fini(void)
 {
 	c2_fop_type_fini_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
 }
-C2_EXPORTED(c2_reqh_fop_fini);
 
 int c2_reqh_fop_init(void)
 {
@@ -69,7 +70,6 @@ int c2_reqh_fop_init(void)
 		c2_reqh_fop_fini();
 	return result;
 }
-C2_EXPORTED(c2_reqh_fop_init);
 
 /** @} endgroup reqh */
 

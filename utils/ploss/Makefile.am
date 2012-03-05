@@ -1,4 +1,4 @@
-bin_PROGRAMS            = ploss_server ploss_client
+sbin_PROGRAMS           = ploss_server ploss_client
 
 ploss_server_SOURCES    = pl_svc.c pl_server.c pl_xdr.c helper.c helper.h pl.h
 ploss_server_CFLAGS     = -D_REENTRANT

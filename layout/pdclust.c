@@ -300,7 +300,6 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	/* and translate back from tile to target address. */
 	tgt->ta_frame = m_enc(L, omega, r);
 }
-C2_EXPORTED(c2_pdclust_layout_map);
 
 void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   const struct c2_pdclust_tgt_addr *tgt,
@@ -338,7 +337,6 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	m_dec(N + 2*K, m_enc(P, r, t), &j, &src->sa_unit);
 	src->sa_group = m_enc(C, omega, j);
 }
-C2_EXPORTED(c2_pdclust_layout_inv);
 
 static bool pdclust_equal(const struct c2_layout *l0,
 			  const struct c2_layout *l1)
@@ -383,10 +381,10 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 		c2_free(pdl);
 	}
 }
-C2_EXPORTED(c2_pdclust_fini);
 
 int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
-		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     uint32_t N, uint32_t K, uint64_t unitsize,
+		     const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out)
 {
 	struct c2_pdclust_layout *pdl;
@@ -415,9 +413,10 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		pdl->pl_layout.l_ops     = &pdlclust_ops;
 		pdl->pl_layout.l_id      = *id;
 
-		pdl->pl_seed = *seed;
-		pdl->pl_N = N;
-		pdl->pl_K = K;
+		pdl->pl_seed      = *seed;
+		pdl->pl_N         = N;
+		pdl->pl_K         = K;
+		pdl->pl_unit_size = unitsize;
 
 		pdl->pl_pool = pool;
 		/* select minimal possible B (least common multiple of P and
@@ -445,7 +444,6 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		c2_pdclust_fini(pdl);
 	return result;
 }
-C2_EXPORTED(c2_pdclust_build);
 
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
@@ -458,7 +456,6 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 	else
 		return PUT_SPARE;
 }
-C2_EXPORTED(c2_pdclust_unit_classify);
 
 const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_name  = "pdclust",

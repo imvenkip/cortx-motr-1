@@ -44,7 +44,6 @@ size_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 	len += ITEM_ONWIRE_HEADER_SIZE;
 	return len;
 }
-C2_EXPORTED(c2_fop_item_type_default_onwire_size);
 
 int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 			      struct c2_rpc_item *item,
@@ -64,7 +63,6 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
 	return rc;
 }
-C2_EXPORTED(c2_fop_item_type_default_encode);
 
 int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_rpc_item **item,
@@ -90,7 +88,6 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 
 	return rc;
 }
-C2_EXPORTED(c2_fop_item_type_default_decode);
 
 /** Default rpc item type ops for fop item types */
 const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {

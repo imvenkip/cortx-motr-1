@@ -195,7 +195,7 @@ struct c2_addb_ev_ops {
 /**
    Global wide Event ID.
 
-   To aviod event ID conflict, all event ID should be defined here.
+   To avoid event ID conflict, all event ID should be defined here.
 */
 enum c2_addb_event_id {
 	C2_ADDB_EVENT_USUNRPC_REQ           = 0x1ULL,
@@ -207,6 +207,8 @@ enum c2_addb_event_id {
 
 	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
 	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
+
+	C2_ADDB_EVENT_TRACE		    = 0x30ULL
 };
 
 /**
@@ -296,14 +298,28 @@ void c2_addb_fini(void);
                     );
    @endcode
  */
-#define C2_ADDB_EV_DEFINE(var, name, id, ops, ...)			\
+
+#define __C2_ADDB_EV_DEFINE(var, name, id, ops)				\
 const struct c2_addb_ev var = {						\
 	.ae_name  = (name),						\
 	.ae_id    = (id),						\
 	.ae_ops   = &(ops)						\
-};									\
+};
+
+#define C2_ADDB_EV_DEFINE(var, name, id, ops)				\
+	__C2_ADDB_EV_DEFINE(var, name, id, ops)				\
 									\
-typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
+	typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
+
+
+#define C2_ADDB_EV_DEFINE_PUBLIC(var, name, id, ops)	\
+	__C2_ADDB_EV_DEFINE(var, name, id, ops)
+
+#define C2_ADDB_EV_DECLARE(var, ops)					\
+	extern const struct c2_addb_ev var;				\
+									\
+	typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
+
 
 /**
    Type-safe addb posting interface.
@@ -341,6 +357,9 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 extern enum c2_addb_ev_level c2_addb_level_default;
 enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
 
+enum c2_addb_ev_level c2_addb_choose_default_level_console(
+	    enum c2_addb_ev_level level);
+
 /**
    Declare addb event operations vector with a given collection of formal
    parameter.
@@ -356,9 +375,9 @@ __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
 
 /** A call to an external system component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
-/** A call to an given function failed. */
+/** A call to a given function failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_FUNC_CALL, const char *fname, int rc);
-/** A call to an C2 component failed. */
+/** A call to a C2 component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_CALL, int rc);
 /** An invalid value was supplied. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_INVAL, uint64_t val);
@@ -366,16 +385,20 @@ C2_ADDB_OPS_DEFINE(C2_ADDB_INVAL, uint64_t val);
 C2_ADDB_OPS_DEFINE(C2_ADDB_STAMP);
 /** Record a Boolean condition. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
+/** Record a trace event. */
+C2_ADDB_OPS_DEFINE(C2_ADDB_TRACE, const char *message);
+
+/** Events which are used throughout Colibri */
 
 /** Report this event when memory allocation fails. */
-extern struct c2_addb_ev c2_addb_oom;
-typedef int __c2_addb_oom_typecheck_t(struct c2_addb_dp *dp);
+C2_ADDB_EV_DECLARE(c2_addb_oom, C2_ADDB_STAMP);
 
 /** Report this event when function call fails that doesn't fit into a more
     specific event. */
-extern struct c2_addb_ev c2_addb_func_fail;
-typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp,
-					    const char *name, int rc);
+C2_ADDB_EV_DECLARE(c2_addb_func_fail, C2_ADDB_FUNC_CALL);
+
+/** Report this event when a trace message has to be put into addb */
+C2_ADDB_EV_DECLARE(c2_addb_trace, C2_ADDB_TRACE);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */
@@ -387,7 +410,6 @@ extern struct c2_fop_type_format c2_mem_buf_tfmt;
 extern struct c2_fop_type_format c2_addb_record_header_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
 extern struct c2_fop_type_format c2_addb_reply_tfmt;
-
 
 /** @} end of addb group */
 

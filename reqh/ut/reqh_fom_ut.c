@@ -66,6 +66,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"
+#include "balloc/balloc.h"
 
 /**
    @addtogroup reqh
@@ -116,7 +117,8 @@ static struct reqh_ut_balloc *getballoc(struct ad_balloc *ballroom)
 }
 
 static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
-                            uint32_t bshift)
+			       uint32_t bshift, c2_bindex_t container_size,
+			       c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
@@ -204,7 +206,10 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom);
+	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,
+			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCK_SHIFT,
+			      BALLOC_DEF_BLOCKS_PER_GROUP,
+			      BALLOC_DEF_RESERVED_GROUPS);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_stob_put(*bstore);
@@ -431,7 +436,7 @@ void test_reqh(void)
 }
 
 const struct c2_test_suite reqh_ut = {
-	.ts_name = "reqh-ut...",
+	.ts_name = "reqh-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {

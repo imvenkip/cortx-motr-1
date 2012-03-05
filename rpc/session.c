@@ -528,7 +528,6 @@ int c2_rpc_session_create(struct c2_rpc_session *session,
 
 	return rc;
 }
-C2_EXPORTED(c2_rpc_session_create);
 
 /**
    Moves session to FAILED state and take it out of conn->c_sessions list.

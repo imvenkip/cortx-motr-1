@@ -42,11 +42,12 @@
 #include "stob/ad.h"
 #include "fol/fol.h"
 #include "reqh/reqh.h"
+#include "lib/timer.h"
 
 #include "colibri/init.h"
 
 #ifdef __KERNEL__
-#   include "c2t1fs/c2t1fs.h"
+#   include "c2t1fs/linux_kernel/c2t1fs.h"
 #   include "net/ksunrpc/ksunrpc.h"
 #   include "build_kernel_modules/dummy_init_fini.h"
 #endif
@@ -74,6 +75,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
 	{ &c2_uts_init,      &c2_uts_fini,     "ut" },
 	{ &c2_threads_init,  &c2_threads_fini, "thread" },
+	{ &c2_timers_init,   &c2_timers_fini,  "timer" },
 	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
 	{ &c2_db_init,       &c2_db_fini,      "db" },
 	/* fol must be initialised before fops, because fop type registration
@@ -87,16 +89,18 @@ struct init_fini_call subsystem[] = {
 	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
 	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
 #ifndef __KERNEL__
-	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
+	{ &usunrpc_init,          &usunrpc_fini,          "user/sunrpc"},
 #else
-	{ &c2_ksunrpc_init,  &c2_ksunrpc_fini,     "ksunrpc"},
-	{ &c2t1fs_init_module, &c2t1fs_cleanup_module, "c2t1fs" },
+	{ &c2_ksunrpc_init,       &c2_ksunrpc_fini,       "ksunrpc"},
+	{ &c2t1fs_init,           &c2t1fs_fini,           "c2t1fs" },
 #endif
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
+#ifndef __KERNEL__
 	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" }
+#endif
 };
 
 static void fini_nr(int i)

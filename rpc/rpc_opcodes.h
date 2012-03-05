@@ -29,6 +29,9 @@
    @{
  */
 
+#ifndef __RPC_CORE_OPCODES_H__
+#define __RPC_CORE_OPCODES_H__
+
 enum C2_RPC_OPCODES {
 
 	C2_ADDB_REPLY_OPCODE = 1,
@@ -112,6 +115,8 @@ enum C2_RPC_OPCODES {
 	C2_IOSERVICE_COB_OP_REPLY_OPCODE = 53,
 };
 /** @} endgroup rpc_layer_core */
+
+#endif /* __RPC_CORE_OPCODES_H__ */
 
 /*
  *  Local variables:
