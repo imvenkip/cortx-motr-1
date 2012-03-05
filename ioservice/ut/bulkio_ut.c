@@ -20,8 +20,7 @@
  */
 
 #include "lib/ut.h"
-#include "ioservice/st/bulkio_client.c"
-#include "bulkio_common.c"
+#include "bulkio_common.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"
 
@@ -1251,7 +1250,6 @@ void bulkio_stob_create(void)
 		io_fops_rpc_submit(&targ[i]);
 	}
 	io_fops_destroy(bp);
-
 }
 
 void bulkio_server_single_read_write(void)
