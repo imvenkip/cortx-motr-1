@@ -80,11 +80,11 @@ static void dbut_init(const char *db_name,
 static void dbut_fini(struct c2_dbenv *db,
                       struct c2_table *table,
                       struct c2_db_tx *tx,
-                      int (*finish_with)(struct c2_db_tx *))
+                      int (*tx_end)(struct c2_db_tx *))
 {
         int result;
 
-	result = finish_with(tx);
+	result = tx_end(tx);
 	C2_UT_ASSERT(result == 0);
 
 	c2_table_fini(table);
