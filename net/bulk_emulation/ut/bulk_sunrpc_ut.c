@@ -25,8 +25,7 @@
 
 #include "net/bulk_emulation/sunrpc_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.h"
-#define EP_SERVICE(x) "127.0.0.1:12345:"#x
-#define EP "127.0.0.1:12345"
+#include "net/bulk_sunrpc.h"  /* C2_NET_SUNRPC_PORT */
 
 static void ut_sleep_secs(int secs)
 {
@@ -164,7 +163,7 @@ static void test_sunrpc_ep(void)
 
 	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
 		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
-	addr = EP;
+	addr = EP_SERVICE();
 	C2_UT_ASSERT(c2_net_end_point_create(&ep1, &d1tm1, addr) == -EINVAL);
 	addr = EP_SERVICE(4294967295);
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &d1tm1, addr));

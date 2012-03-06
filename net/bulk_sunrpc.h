@@ -105,9 +105,11 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 */
 uint64_t
 c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
-enum {
-	C2_NET_SUNRPC_PORT = 12345,
-};
+
+#define C2_NET_SUNRPC_PORT  12345
+#define str(x) #x
+#define SUNRPC_XPRT_ADDR(port, service) "127.0.0.1:"str(port)":"str(service)
+#define EP_SERVICE(sid) SUNRPC_XPRT_ADDR(C2_NET_SUNRPC_PORT, sid)
 
 /**
    @}
