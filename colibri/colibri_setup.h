@@ -248,9 +248,9 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 
    @todo Use generic mechanism to generate stob ids
  */
-extern int c2_cs_storage_init(const char *stob_type, const char *stob_path,
-			      struct c2_cs_reqh_stobs *stob,
-			      struct c2_dbenv *db);
+int c2_cs_storage_init(const char *stob_type, const char *stob_path,
+		       struct c2_cs_reqh_stobs *stob,
+		       struct c2_dbenv *db);
 
 /**
    Finalises storage for a request handler in a colibri context.
@@ -262,7 +262,7 @@ extern int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 
    @pre stob != NULL
  */
-extern void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
+void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
 
 /** @} endgroup colibri_setup */
 

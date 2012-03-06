@@ -298,15 +298,13 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 
 	*out = NULL;
 
-	if (stob_type == AD_STOB_TYPE) {
-		rc = c2_dbenv_init(&dbenv, db_path, 0);
-		if (rc != 0) {
-			fprintf(stderr, "Failed to init dbenv\n");
-			return rc;
-		}
-		dbenvp = &dbenv;
-		fini_db = true;
+	rc = c2_dbenv_init(&dbenv, db_path, 0);
+	if (rc != 0) {
+		fprintf(stderr, "Failed to init dbenv\n");
+		return rc;
 	}
+	dbenvp = &dbenv;
+	fini_db = true;
 
 	str_stob_type = (stob_type == AD_STOB_TYPE) ? "AD" : "Linux";
 
