@@ -363,6 +363,8 @@ static void bulkclient_test(void)
 
 	bulkio_msg_tm_fini(ctm);
 	bulkio_msg_tm_fini(stm);
+	c2_free(ctm);
+	c2_free(stm);
 
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
 		rc = memcmp(nbufs[i]->nb_buffer.ov_buf[IO_SINGLE_BUFFER - 1],
@@ -372,6 +374,7 @@ static void bulkclient_test(void)
 		c2_free(nbufs[i]);
 	}
 	c2_free(nbufs);
+	c2_free(sbulk);
 
 	c2_io_fop_destroy(&iofop.if_fop);
 	C2_UT_ASSERT(rw->crw_desc.id_descs   == NULL);
