@@ -572,7 +572,7 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 	if (et == NULL) {
-		C2_LOG("pdclust_recsize(): lid %llu, EnumType is not registered, "
+		C2_LOG("pdclust_recsize(): lid %llu, Unregistered EnumType, "
 		       "EnumTypeId %d", (unsigned long long)l->l_id,
 		       stl->ls_enum->le_type->let_id);
 		return -ENOENT;
@@ -766,8 +766,9 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	et = schema->ls_enum[pl_rec.pr_let_id];
 	if (et == NULL) {
 		rc = -ENOENT;
-		C2_LOG("pdclust_encode(): lid %llu, Unregistered EnumType, EnumTypeId %u",
-		       (unsigned long long)l->l_id, pl_rec.pr_let_id);
+		C2_LOG("pdclust_encode(): lid %llu, Unregistered EnumType, "
+		       "EnumTypeId %u", (unsigned long long)l->l_id,
+		       pl_rec.pr_let_id);
 		goto out;
 	}
 

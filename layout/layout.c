@@ -48,6 +48,16 @@ const struct c2_addb_loc layout_addb_loc = {
 	.al_name = "layout"
 };
 
+C2_ADDB_EV_DEFINE(layout_decode_success, "layout_decode_success",
+		  C2_ADDB_EVENT_LAYOUT_DECODE_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(layout_decode_fail, "layout_decode_fail",
+		  C2_ADDB_EVENT_LAYOUT_DECODE_FAIL, C2_ADDB_FUNC_CALL);
+
+C2_ADDB_EV_DEFINE(layout_encode_success, "layout_encode_success",
+		  C2_ADDB_EVENT_LAYOUT_ENCODE_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
+		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_FUNC_CALL);
+
 /**
  * Initializes layout schema, creates generic table to store layout records.
  * Registers all the layout types amd enum types by creating layout type and
@@ -260,8 +270,6 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	/* Check if the buffer is with insufficient size. */
-	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
@@ -271,6 +279,11 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(cur) < sizeof *rec) {
 		rc = -ENOBUFS;
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+				    layout_decode_fail, "buffer insufficient",
+				    -ENOBUFS);
+
 		C2_LOG("c2_layout_decode(): lid %llu, buffer with "
 		       "insufficient size", (unsigned long long)lid);
 		goto out;
@@ -281,6 +294,11 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type)) {
 		rc = -EPROTO;
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+				    layout_decode_fail, "Invalid LayouTypeId",
+				    -EPROTO);
+
 		C2_LOG("c2_layout_decode(): lid %llu, Invalid LayoutTypeId "
 		       "%lu", (unsigned long long)lid,
 		       (unsigned long)rec->lr_lt_id);
@@ -290,9 +308,14 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	lt = schema->ls_type[rec->lr_lt_id];
 	if (lt == NULL) {
 		rc = -ENOENT;
-		C2_LOG("c2_layout_decode(): lid %llu, LayoutType is not "
-		       "registeed, LayouTypeId %lu",
-		       (unsigned long long)lid,
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+				    layout_decode_fail,
+				    "Unregistered LayouType",
+				    -EPROTO);
+
+		C2_LOG("c2_layout_decode(): lid %llu, Unregistered LayoutType,"
+	               " LayouTypeId %lu", (unsigned long long)lid,
 		       (unsigned long)rec->lr_lt_id);
 		goto out;
 	}
@@ -309,10 +332,10 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0) {
-		/* tod March 05 Add 4 events for c2_layout_en_decode */
-		/* todo Replace the global context as appropriate. */
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "lto_decode", rc);
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+				    layout_decode_fail, "lto_decode", rc);
+
 		C2_LOG("c2_layout_decode(): lid %llu, lto_decode() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
 		goto out;
@@ -328,6 +351,10 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	c2_mutex_unlock(&(*out)->l_lock);
 
 out:
+	if (op == C2_LXO_DB_NONE && rc == 0)
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    layout_decode_success, true);
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -389,17 +416,23 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	if (!ergo(op == C2_LXO_DB_UPDATE,
 	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec)) {
 		rc = -ENOBUFS;
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+				    layout_encode_fail, "buffer insufficient",
+				    -ENOBUFS);
+
 		C2_LOG("c2_layout_encode(): lid %llu, buffer for old record "
 		       "with insufficient size", (unsigned long long)l->l_id);
 		goto out;
 	}
 
-	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type))
-		return -ENOENT;
-	/* todo log msg missing */
-
 	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type)) {
 		rc = -EPROTO;
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+				    layout_encode_fail, "Invalid LayoutTypeId",
+				    -EPROTO);
+
 		C2_LOG("c2_layout_encode(): lid %llu, Invalid LayoutTypeId "
 		       "%lu", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id);
@@ -409,9 +442,14 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	lt = schema->ls_type[l->l_type->lt_id];
 	if (lt == NULL) {
 		rc = -ENOENT;
-		C2_LOG("c2_layout_encode(): lid %llu, LayoutType is not "
-		       "registeed, LayouTypeId %lu",
-		       (unsigned long long)l->l_id,
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+				    layout_encode_fail,
+				    "Unregistered LayoutType",
+				    -EPROTO);
+
+		C2_LOG("c2_layout_encode(): lid %llu, Unregistered LayoutType,"
+		       " LayouTypeId %lu", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id);
 		goto out;
 	}
@@ -451,14 +489,20 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
 	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_func_fail,
-			    "lto_encode", rc);
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+				    layout_encode_fail, "lto_encode", rc);
+
 		C2_LOG("c2_layout_encode(): lid %llu, lto_encode() failed, "
 		"rc %d", (unsigned long long)l->l_id, rc);
 	}
 
 out:
 	c2_mutex_unlock(&l->l_lock);
+
+	if (op == C2_LXO_DB_NONE && rc == 0)
+		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			    layout_encode_success, true);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;

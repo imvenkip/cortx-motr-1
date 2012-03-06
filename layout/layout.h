@@ -210,9 +210,6 @@ struct c2_layout_type_ops {
  *  Layout enumeration.
  */
 struct c2_layout_enum {
-	/** Back-pointer to the layout object this enum is associated with. */
-	const struct c2_layout           *le_layout;
-
 	/** Layout enumeration type. */
 	const struct c2_layout_enum_type *le_type;
 
