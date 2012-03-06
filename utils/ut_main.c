@@ -72,7 +72,6 @@ void add_uts(void)
 	c2_ut_add(&libc2_ut);
 	c2_ut_add(&ad_ut);
 	c2_ut_add(&adieu_ut);
-	c2_ut_add(&addb_ut);
 	c2_ut_add(&balloc_ut);
 	c2_ut_add(&buffer_pool_ut);
         c2_ut_add(&bulkio_server_ut);
@@ -81,7 +80,6 @@ void add_uts(void)
 	c2_ut_add(&cfm_ut);
 	c2_ut_add(&cob_ut);
 	c2_ut_add(&colibri_setup_ut);
-	c2_ut_add(&console_ut);
 	c2_ut_add(&db_ut);
 	c2_ut_add(&emap_ut);
 	c2_ut_add(&fit_ut);
@@ -101,6 +99,9 @@ void add_uts(void)
 	c2_ut_add(&xcode_bufvec_ut);
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&xcode_ff2c_ut);
+	/* These tests have redirection of messages. */
+	c2_ut_add(&addb_ut);
+	c2_ut_add(&console_ut);
 	c2_ut_add(&yaml2db_ut);
 }
 
