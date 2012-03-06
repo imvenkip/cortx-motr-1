@@ -57,7 +57,7 @@ static void init_once(void *foo)
 
 	inode_init_once(&ci->ci_inode);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 int c2t1fs_inode_cache_init(void)
@@ -72,7 +72,7 @@ int c2t1fs_inode_cache_init(void)
 	if (c2t1fs_inode_cachep == NULL)
 		rc = -ENOMEM;
 
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -80,27 +80,24 @@ void c2t1fs_inode_cache_fini(void)
 {
 	C2_ENTRY();
 
-	if (c2t1fs_inode_cachep == NULL) {
-		C2_LEAVE("0");
-		return;
+	if (c2t1fs_inode_cachep != NULL) {
+		kmem_cache_destroy(c2t1fs_inode_cachep);
+		c2t1fs_inode_cachep = NULL;
 	}
 
-	kmem_cache_destroy(c2t1fs_inode_cachep);
-	c2t1fs_inode_cachep = NULL;
-
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 {
-	C2_ENTRY();
+	C2_ENTRY("ci: %p", ci);
 
 	C2_SET0(&ci->ci_fid);
 	ci->ci_layout = NULL;
 
 	dir_ents_tlist_init(&ci->ci_dir_ents);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
@@ -108,7 +105,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	struct c2_pdclust_layout *pd_layout;
 	struct c2t1fs_dir_ent    *de;
 
-	C2_ENTRY();
+	C2_ENTRY("ci: %p", ci);
 
 	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
@@ -127,7 +124,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 		c2_pdclust_fini(pd_layout);
 	}
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 /**
@@ -137,17 +134,17 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode *ci;
 
-	C2_ENTRY();
+	C2_ENTRY("sb: %p", sb);
 
 	ci = kmem_cache_alloc(c2t1fs_inode_cachep, GFP_KERNEL);
 	if (ci == NULL) {
-		C2_LEAVE("NULL");
+		C2_LEAVE("inode: %p", NULL);
 		return NULL;
 	}
 
 	c2t1fs_inode_init(ci);
 
-	C2_LEAVE("&ci->ci_inode");
+	C2_LEAVE("inode: %p", &ci->ci_inode);
 	return &ci->ci_inode;
 }
 
@@ -157,23 +154,24 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 void c2t1fs_destroy_inode(struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
-	C2_ENTRY();
+
+	C2_ENTRY("inode: %p", inode);
 
 	ci = C2T1FS_I(inode);
-	C2_LOG("fid [%lu:%lu]\n", (unsigned long)ci->ci_fid.f_container,
-				    (unsigned long)ci->ci_fid.f_key);
+	C2_LOG("fid [%lu:%lu]", (unsigned long)ci->ci_fid.f_container,
+				(unsigned long)ci->ci_fid.f_key);
 
 	c2t1fs_inode_fini(ci);
 	kmem_cache_free(c2t1fs_inode_cachep, ci);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 struct inode *c2t1fs_root_iget(struct super_block *sb)
 {
 	struct inode *inode;
 
-	C2_ENTRY();
+	C2_ENTRY("sb: %p", sb);
 
 	/*
 	 * Currently it is assumed, that fid of root of file-system is
@@ -184,7 +182,7 @@ struct inode *c2t1fs_root_iget(struct super_block *sb)
 	 */
 	inode = c2t1fs_iget(sb, &c2t1fs_root_fid);
 
-	C2_LEAVE("inode");
+	C2_LEAVE("root_inode: %p", inode);
 	return inode;
 }
 
@@ -207,7 +205,7 @@ static int c2t1fs_inode_test(struct inode *inode, void *opaque)
 
 	ci = C2T1FS_I(inode);
 
-	C2_LOG("inode(%p) [%lu:%lu] opaque [%lu:%lu]\n", inode,
+	C2_LOG("inode(%p) [%lu:%lu] opaque [%lu:%lu]", inode,
 				(unsigned long)ci->ci_fid.f_container,
 				(unsigned long)ci->ci_fid.f_key,
 				(unsigned long)fid->f_container,
@@ -215,7 +213,7 @@ static int c2t1fs_inode_test(struct inode *inode, void *opaque)
 
 	rc = c2_fid_eq(&ci->ci_fid, fid);
 
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -225,7 +223,7 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 	struct c2_fid       *fid = opaque;
 
 	C2_ENTRY();
-	C2_LOG("inode(%p) [%lu:%lu]\n", inode,
+	C2_LOG("inode(%p) [%lu:%lu]", inode,
 			(unsigned long)fid->f_container,
 			(unsigned long)fid->f_key);
 
@@ -233,7 +231,7 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 	ci->ci_fid   = *fid;
 	inode->i_ino = fid->f_key;
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -257,7 +255,7 @@ static int c2t1fs_inode_refresh(struct inode *inode)
 	inode->i_gid   = 0;
 	inode->i_nlink = 1;
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -289,7 +287,7 @@ static int c2t1fs_inode_read(struct inode *inode)
 	}
 
 out:
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -299,7 +297,7 @@ out:
 static unsigned long fid_hash(const struct c2_fid *fid)
 {
 	C2_ENTRY();
-	C2_LEAVE("%lu", (unsigned long) fid->f_key);
+	C2_LEAVE("hash: %lu", (unsigned long) fid->f_key);
 	return fid->f_key;
 }
 
@@ -324,7 +322,7 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
 	if (inode != NULL) {
 		if ((inode->i_state & I_NEW) == 0) {
 			/* Not a new inode. No need to read it again */
-			C2_LEAVE("inode");
+			C2_LEAVE("inode: %p", inode);
 			return inode;
 		}
 		err = c2t1fs_inode_read(inode);
@@ -332,10 +330,12 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid)
 			goto out_err;
 		unlock_new_inode(inode);
 	}
+	C2_LEAVE("inode: %p", inode);
 	return inode;
 
 out_err:
 	iget_failed(inode);
+	C2_LEAVE("ERR: %p", ERR_PTR(-EIO));
 	return ERR_PTR(-EIO);
 }
 
@@ -351,7 +351,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 
 	C2_ENTRY();
 
-	C2_LOG("fid[%lu:%lu]: N: %d K: %d P: %d\n",
+	C2_LOG("fid[%lu:%lu]: N: %d K: %d P: %d",
 			(unsigned long)ci->ci_fid.f_container,
 			(unsigned long)ci->ci_fid.f_key,
 			N, K, P);
@@ -376,7 +376,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 
 	ci->ci_layout = &pd_layout->pl_layout;
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 
 out_fini:
@@ -386,8 +386,8 @@ out_free:
 	c2_free(pool);
 
 out:
+	C2_LEAVE("rc: %d", rc);
 	C2_ASSERT(rc != 0);
-	C2_LEAVE("%d", rc);
 	return rc;
 }
 
