@@ -32,6 +32,7 @@
 
 #include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
 #include "net/net.h"		/* C2_NET_QT_PASSIVE_BULK_SEND */
+#include "net/bulk_sunrpc.h"
 
 enum {
 	IO_SINGLE_BUFFER	= 1,
@@ -144,8 +145,8 @@ static void bulkclient_test(void)
 	struct c2_rpc_bulk_buf	  *rbuf;
 	struct c2_rpc_bulk_buf	  *rbuf1;
 	struct c2_rpc_bulk_buf	  *rbuf2;
-	const char		  *caddr = "127.0.0.1:12345:11";
-	const char		  *saddr = "127.0.0.1:12345:12";
+	const char		  *caddr = EP_SERVICE(7);
+	const char		  *saddr = EP_SERVICE(8);
 	struct c2_io_indexvec	  *ivec;
 	enum c2_net_queue_type	   q;
 	struct bulkio_msg_tm      *ctm;
