@@ -75,6 +75,7 @@ The meaning of language constructs is explained in the following example:
  */
 
 #include <err.h>
+#include <sysexits.h>
 #include <unistd.h>                           /* getopt, close, open */
 #include <sys/mman.h>                         /* mmap, munmap */
 #include <sys/types.h>
@@ -120,13 +121,13 @@ int main(int argc, char **argv)
 	path = argv[optind];
 	fd = open(path, O_RDONLY);
 	if (fd == -1)
-		err(1, "cannot open \"%s\"", path);
+		err(EX_NOINPUT, "cannot open \"%s\"", path);
 	result = fstat(fd, &buf);
 	if (result == -1)
-		err(1, "cannot fstat \"%s\"", path);
+		err(EX_UNAVAILABLE, "cannot fstat \"%s\"", path);
 	addr = mmap(NULL, buf.st_size, PROT_READ, MAP_SHARED, fd, 0);
 	if (addr == MAP_FAILED)
-		err(1, "cannot mmap \"%s\"", path);
+		err(EX_OSERR, "cannot mmap \"%s\"", path);
 
 	scratch = fmt("%s", path);
 	len = strlen(scratch);
@@ -150,11 +151,11 @@ int main(int argc, char **argv)
 
 	c = fopen(out_c, "w");
 	if (c == NULL)
-		err(1, "cannot open \"%s\" for writing", out_c);
+		err(EX_CANTCREAT, "cannot open \"%s\" for writing", out_c);
 
 	h = fopen(out_h, "w");
 	if (h == NULL)
-		err(1, "cannot open \"%s\" for writing", out_h);
+		err(EX_CANTCREAT, "cannot open \"%s\" for writing", out_h);
 
 	memset(&ctx, 0, sizeof ctx);
 	memset(&ff, 0, sizeof ff);
@@ -162,7 +163,7 @@ int main(int argc, char **argv)
 	ff2c_context_init(&ctx, addr, buf.st_size);
 	result = ff2c_parse(&ctx, &t);
 	if (result != 0)
-		err(2, "cannot parse");
+		err(EX_DATAERR, "cannot parse");
 
 	ff2c_sem_init(&ff, t);
 

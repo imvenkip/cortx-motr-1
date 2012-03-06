@@ -21,7 +21,9 @@
 #include <string.h>   /* memset */
 #include <errno.h>
 #include <err.h>
+#include <sysexits.h>
 #include <stdio.h>
+#include <stdlib.h>   /* getenv, strtoul */
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
@@ -40,28 +42,32 @@
 
 static int logfd;
 
-static const char sys_kern_randvspace_fname[] = "/proc/sys/kernel/randomize_va_space";
+static const char sys_kern_randvspace_fname[] =
+	"/proc/sys/kernel/randomize_va_space";
 
 static int randvspace_check()
 {
-	int val;
+	int   val;
+	int   result;
 	FILE *f;
 
 	if ((f = fopen(sys_kern_randvspace_fname, "r")) == NULL) {
 		warn("open(\"%s\")", sys_kern_randvspace_fname);
+		result = -errno;
 	} else if (fscanf(f, "%d", &val) != 1) {
 		warnx("fscanf(\"%s\")", sys_kern_randvspace_fname);
-		errno = EINVAL;
+		result = -EINVAL;
 	} else if (val != 0) {
 		warnx("System configuration ERROR: "
 		      "kernel.randomize_va_space should be set to 0.");
-		errno = EINVAL;
-	}
+		result = -EINVAL;
+	} else
+		result = 0;
 
 	if (f != NULL)
 		fclose(f);
 
-	return -errno;
+	return result;
 }
 
 static int logbuf_map()
@@ -76,20 +82,27 @@ static int logbuf_map()
 	else if ((c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
                                    MAP_SHARED, logfd, 0)) == MAP_FAILED)
 		warn("mmap(\"%s\")", buf);
+	else
+		memset(c2_logbuf, 0, c2_logbufsize);
 
 	return -errno;
 }
 
 int c2_arch_trace_init()
 {
-	int res;
+	const char *mask;
 
-	if ((res = randvspace_check()) != 0)
-		return res;
-	else if ((res = logbuf_map()) != 0)
-		return res;
-	else
-		return 0;
+	mask = getenv("C2_TRACE_IMMEDIATE_MASK");
+	if (mask != NULL) {
+		char *endp;
+
+		c2_trace_immediate_mask = strtoul(mask, &endp, 0);
+		if (errno != 0 || *endp != 0) {
+			warn("strtoul(\"%s\"), setting mask to 0", mask);
+			c2_trace_immediate_mask = 0;
+		}
+	}
+	return randvspace_check() ?: logbuf_map();
 }
 
 void c2_arch_trace_fini(void)
@@ -111,6 +124,8 @@ static unsigned align(unsigned align, unsigned pos)
 
 /**
  * Parse log buffer supplied at stdin.
+ *
+ * Returns sysexits.h error codes.
  */
 int c2_trace_parse(void)
 {
@@ -120,8 +135,10 @@ int c2_trace_parse(void)
 	unsigned                     nr;
 	unsigned                     n2r;
 
-	printf("   no   |    tstamp     |   stack ptr    |        func        |        src        | sz|narg\n");
-	printf("-------------------------------------------------------------------------------------------\n");
+	printf("   no   |    tstamp     |   stack ptr    |"
+	       "        func        |        src        | sz|narg\n");
+	printf("------------------------------------------"
+	       "-------------------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
@@ -133,7 +150,7 @@ int c2_trace_parse(void)
 			nr = fread(&trh.trh_magic, 1, sizeof trh.trh_magic, stdin);
 			if (nr != sizeof trh.trh_magic) {
 				C2_ASSERT(feof(stdin));
-				return 0;
+				return EX_OK;
 			}
 			pos += nr;
 		} while (trh.trh_magic != C2_TRACE_MAGIC);
@@ -158,7 +175,7 @@ int c2_trace_parse(void)
 		if (buf)
 			c2_free(buf);
 	}
-	return 0;
+	return EX_OK;
 }
 
 void c2_console_vprintf(const char *fmt, va_list args)

@@ -121,6 +121,10 @@ scope bool type ## _bob_check(const struct type *bob)	\
 							\
 struct __ ## type ## _semicolon_catcher
 
+#define C2_BOB_DECLARE(scope, type)		        \
+scope void type ## _bob_init(struct type *bob);		\
+scope void type ## _bob_fini(struct type *bob);		\
+scope bool type ## _bob_check(const struct type *bob)
 
 /** @} end of bob group */
 

@@ -59,6 +59,7 @@ extern const struct c2_test_suite cfm_ut;
 extern const struct c2_test_suite yaml2db_ut;
 extern const struct c2_test_suite buffer_pool_ut;
 extern const struct c2_test_suite balloc_ut;
+extern const struct c2_test_suite rpc_service_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -87,6 +88,7 @@ void add_uts(void)
 	c2_ut_add(&reqh_ut);
 	c2_ut_add(&rpclib_ut);
 	c2_ut_add(&rpc_onwire_ut);
+	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
 	c2_ut_add(&stobio_ut);
 	c2_ut_add(&udb_ut);
@@ -162,52 +164,56 @@ int main(int argc, char *argv[])
 		.urc_exclude_list      = &exclude_list,
 	};
 
+	result = unit_start(UT_SANDBOX);
+	if (result != 0)
+		return result;
+
 	result = C2_GETOPTS("ut", argc, argv,
-			    C2_HELPARG('h'),
-			    C2_VOIDARG('T', "parse trace log produced earlier",
-					LAMBDA(void, (void) {
-							exit(c2_trace_parse());
-					})),
-			    C2_FLAGARG('k', "keep the sandbox directory",
-					&keep_sandbox),
-			    C2_VOIDARG('i', "CUnit interactive console",
-					LAMBDA(void, (void) {
-						cfg.urc_mode = C2_UT_ICONSOLE_MODE;
-					})),
-			    C2_VOIDARG('a', "automated CUnit with xml output",
-					LAMBDA(void, (void) {
-						cfg.urc_mode = C2_UT_AUTOMATED_MODE;
-					})),
-			    C2_FLAGARG('l', "list available test suites",
-					&list_ut),
-			    C2_VOIDARG('L', "list available test suites with"
-					    " their tests",
-					LAMBDA(void, (void) {
-							list_ut = true;
-							with_tests = true;
-					})),
-			    C2_STRINGARG('t', "test list 'suite[:test][,suite"
-					      "[:test]]'",
-					      LAMBDA(void, (const char *str) {
-						    test_list_str = strdup(str);
-					      })
-					),
-			    C2_STRINGARG('x', "exclude list 'suite[:test][,suite"
-					      "[:test]]'",
-					      LAMBDA(void, (const char *str) {
-						 exclude_list_str = strdup(str);
-					      })
-					),
-			    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
-					    " failure",
-					LAMBDA(void, (void) {
-						cfg.urc_abort_cu_assert = false;
-					})),
-			    C2_VOIDARG('P', "don't report test execution time",
-					LAMBDA(void, (void) {
-						cfg.urc_report_exec_time = false;
-					})),
-			    );
+		    C2_HELPARG('h'),
+		    C2_VOIDARG('T', "parse trace log produced earlier",
+				LAMBDA(void, (void) {
+						exit(c2_trace_parse());
+				})),
+		    C2_FLAGARG('k', "keep the sandbox directory",
+				&keep_sandbox),
+		    C2_VOIDARG('i', "CUnit interactive console",
+				LAMBDA(void, (void) {
+					cfg.urc_mode = C2_UT_ICONSOLE_MODE;
+				})),
+		    C2_VOIDARG('a', "automated CUnit with xml output",
+				LAMBDA(void, (void) {
+					cfg.urc_mode = C2_UT_AUTOMATED_MODE;
+				})),
+		    C2_FLAGARG('l', "list available test suites",
+				&list_ut),
+		    C2_VOIDARG('L', "list available test suites with"
+				    " their tests",
+				LAMBDA(void, (void) {
+						list_ut = true;
+						with_tests = true;
+				})),
+		    C2_STRINGARG('t', "test list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					    test_list_str = strdup(str);
+				      })
+				),
+		    C2_STRINGARG('x', "exclude list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					 exclude_list_str = strdup(str);
+				      })
+				),
+		    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
+				    " failure",
+				LAMBDA(void, (void) {
+					cfg.urc_abort_cu_assert = false;
+				})),
+		    C2_VOIDARG('P', "don't report test execution time",
+				LAMBDA(void, (void) {
+					cfg.urc_report_exec_time = false;
+				})),
+		    );
 	if (result != 0)
 		goto out;
 
@@ -222,10 +228,6 @@ int main(int argc, char *argv[])
 		result = EXIT_FAILURE;
 		goto out;
 	}
-
-	result = unit_start(UT_SANDBOX);
-	if (result != 0)
-		return result;
 
 	c2_list_init(&test_list);
 	c2_list_init(&exclude_list);

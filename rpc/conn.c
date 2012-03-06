@@ -250,6 +250,7 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 	}
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_cob = NULL;
+	conn->c_service = NULL;
 	c2_list_init(&conn->c_sessions);
 	conn->c_nr_sessions = 0;
 	c2_cond_init(&conn->c_state_changed);
@@ -683,6 +684,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	int                               rc;
 
 	C2_PRE(conn != NULL);
+	C2_PRE(conn->c_service == NULL);
 
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
 	if (fop == NULL) {
