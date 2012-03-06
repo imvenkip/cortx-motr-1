@@ -25,6 +25,7 @@
 #include "lib/misc.h"         /* C2_SET0()                 */
 #include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free() */
 #include "c2t1fs.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
 
 /* Super block */
@@ -106,12 +107,12 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 {
 	int rc;
 
-	C2_LOG("flags: 0x%x, devname: %s, data: %s\n", flags, devname,
+	C2_ENTRY("flags: 0x%x, devname: %s, data: %s", flags, devname,
 					       (char *)data);
 
 	rc = get_sb_nodev(fstype, flags, data, c2t1fs_fill_super, mnt);
 
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -151,7 +152,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	   information on following line */
 	csb->csb_nr_containers   = csb->csb_pool_width + 1;
 
-	C2_LOG("P = %d, N = %d, K = %d unit_size %d\n",
+	C2_LOG("P = %d, N = %d, K = %d unit_size %d",
 			csb->csb_pool_width, csb->csb_nr_data_units,
 			csb->csb_nr_parity_units, csb->csb_unit_size);
 
@@ -202,7 +203,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		goto out_map_fini;
 	}
 
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return 0;
 
 out_map_fini:
@@ -221,7 +222,7 @@ out:
 	sb->s_fs_info = NULL;
 
 	C2_ASSERT(rc != 0);
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -235,7 +236,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	C2_ENTRY();
 
 	csb = C2T1FS_SB(sb);
-	C2_LOG("csb = %p\n", csb);
+	C2_LOG("csb = %p", csb);
 	/*
 	 * If c2t1fs_fill_super() fails then deactivate_locked_super() calls
 	 * c2t1fs_fs_type->kill_sb(). In that case, csb == NULL.
@@ -250,7 +251,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	}
 	kill_anon_super(sb);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
@@ -266,7 +267,7 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
 	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -281,7 +282,7 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 	csb->csb_next_key = 0;
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 enum c2t1fs_mntopts {
@@ -316,7 +317,7 @@ static void c2t1fs_mnt_opts_init(struct c2t1fs_mnt_opts *mntopts)
 
 	C2_SET0(mntopts);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
@@ -350,7 +351,7 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts)
 
 	C2_SET0(mntopts);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
@@ -359,7 +360,7 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 
 	if (mnt_opts->mo_nr_ios_ep == 0) {
 		C2_LOG("ERROR:"
-			 "Must specify at least one io-service endpoint\n");
+			 "Must specify at least one io-service endpoint");
 		goto invalid;
 	}
 
@@ -369,7 +370,7 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 	 */
 	if ((mnt_opts->mo_unit_size & (PAGE_CACHE_SIZE - 1)) != 0) {
 		C2_LOG("ERROR:"
-			 "Unit size must be multiple of PAGE_CACHE_SIZE\n");
+			 "Unit size must be multiple of PAGE_CACHE_SIZE");
 		goto invalid;
 	}
 
@@ -380,16 +381,16 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 	 */
 	if (mnt_opts->mo_nr_ios_ep > MAX_NR_EP_PER_SERVICE_TYPE ||
 	    mnt_opts->mo_nr_mds_ep > MAX_NR_EP_PER_SERVICE_TYPE) {
-		C2_LOG("ERROR: number of endpoints must be less than %d\n",
+		C2_LOG("ERROR: number of endpoints must be less than %d",
 				MAX_NR_EP_PER_SERVICE_TYPE);
 		goto invalid;
 	}
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 
 invalid:
-	C2_LEAVE(-EINVAL);
+	C2_LEAVE("rc: %d", -EINVAL);
 	return -EINVAL;
 }
 
@@ -417,7 +418,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 
 	C2_ENTRY();
 
-	C2_LOG("options: %p\n", options);
+	C2_LOG("options: %p", options);
 
 	if (options == NULL) {
 		rc = -EINVAL;
@@ -429,7 +430,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 		rc = -ENOMEM;
 
 	while ((op = strsep(&options, ",")) != NULL) {
-		C2_LOG("Processing \"%s\"\n", op);
+		C2_LOG("Processing \"%s\"", op);
 
 		if (*op == '\0')
 			continue;
@@ -443,7 +444,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			C2_LOG("ioservice: %s\n", value);
+			C2_LOG("ioservice: %s", value);
 			mnt_opts->mo_ios_ep_addr[mnt_opts->mo_nr_ios_ep++] =
 						value;
 			break;
@@ -460,7 +461,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			C2_LOG("mdservice: %s\n", value);
+			C2_LOG("mdservice: %s", value);
 			mnt_opts->mo_mds_ep_addr[mnt_opts->mo_nr_mds_ep++] =
 						value;
 			break;
@@ -471,7 +472,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			C2_LOG("mgservice: %s\n", value);
+			C2_LOG("mgservice: %s", value);
 			mnt_opts->mo_mgs_ep_addr = value;
 			break;
 
@@ -481,7 +482,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 				rc = -ENOMEM;
 				goto out;
 			}
-			C2_LOG("profile: %s\n", value);
+			C2_LOG("profile: %s", value);
 			mnt_opts->mo_profile = value;
 			break;
 
@@ -489,7 +490,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			C2_LOG("pool_width = %lu\n", nr);
+			C2_LOG("pool_width = %lu", nr);
 			mnt_opts->mo_pool_width = nr;
 			break;
 
@@ -497,7 +498,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			C2_LOG("nr_data_units = %lu\n", nr);
+			C2_LOG("nr_data_units = %lu", nr);
 			mnt_opts->mo_nr_data_units = nr;
 			break;
 
@@ -505,7 +506,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			C2_LOG("nr_parity_units = %lu\n", nr);
+			C2_LOG("nr_parity_units = %lu", nr);
 			mnt_opts->mo_nr_parity_units = nr;
 			break;
 
@@ -513,15 +514,15 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 			rc = process_numeric_option(args, &nr);
 			if (rc != 0)
 				goto out;
-			C2_LOG("unit_size = %lu\n", nr);
+			C2_LOG("unit_size = %lu", nr);
 			mnt_opts->mo_unit_size = nr;
 			break;
 
 		default:
-			C2_LOG("Unrecognized option: %s\n", op);
+			C2_LOG("Unrecognized option: %s", op);
 			C2_LOG("Supported options: mgs,mds,ios,profile,"
 			      "pool_width,nr_data_units,nr_parity_units,"
-			      "unit_size\n");
+			      "unit_size");
 			rc = -EINVAL;
 			goto out;
 		}
@@ -530,7 +531,7 @@ static int c2t1fs_mnt_opts_parse(char                   *options,
 
 out:
 	/* if rc != 0, mnt_opts will be finalised from c2t1fs_sb_fini() */
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -550,7 +551,7 @@ static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 
 	svc_ctx_tlink_init(ctx);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
@@ -560,7 +561,7 @@ static void c2t1fs_service_context_fini(struct c2t1fs_service_context *ctx)
 	svc_ctx_tlink_fini(ctx);
 	ctx->sc_magic = 0;
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_config_fetch(struct c2t1fs_sb *csb)
@@ -569,7 +570,7 @@ static int c2t1fs_config_fetch(struct c2t1fs_sb *csb)
 
 	/* XXX fetch configuration here */
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -593,7 +594,7 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 		}
 	} c2_tlist_endfor;
 out:
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -610,11 +611,11 @@ static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 		char                          *ep_addr;
 		int                            i;
 
-		C2_LOG("n = %d type = %d\n", n, type);
+		C2_LOG("n = %d type = %d", n, type);
 
 		for (i = 0; i < n; i++) {
 			ep_addr = ep_arr[i];
-			C2_LOG("i = %d ep_addr = %s\n", i, ep_addr);
+			C2_LOG("i = %d ep_addr = %s", i, ep_addr);
 
 			C2_ALLOC_PTR(ctx);
 			if (ctx == NULL)
@@ -641,12 +642,12 @@ static int c2t1fs_service_contexts_populate(struct c2t1fs_sb *csb)
 	if (rc != 0)
 		goto discard_all;
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 
 discard_all:
 	c2t1fs_service_contexts_discard(csb);
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -659,14 +660,14 @@ static void c2t1fs_service_contexts_discard(struct c2t1fs_sb *csb)
 	c2_tlist_for(&svc_ctx_tl, &csb->csb_service_contexts, ctx) {
 
 		svc_ctx_tlist_del(ctx);
-		C2_LOG("discard: %s\n", ctx->sc_addr);
+		C2_LOG("discard: %s", ctx->sc_addr);
 
 		c2t1fs_service_context_fini(ctx);
 		c2_free(ctx);
 
 	} c2_tlist_endfor;
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
@@ -702,9 +703,9 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 		goto conn_term;
 
 	ctx->sc_csb->csb_nr_active_contexts++;
-	C2_LOG("Connected to [%s] active_ctx %d\n", ctx->sc_addr,
+	C2_LOG("Connected to [%s] active_ctx %d", ctx->sc_addr,
 				ctx->sc_csb->csb_nr_active_contexts);
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 
 conn_term:
@@ -712,7 +713,7 @@ conn_term:
 	c2_rpc_conn_fini(conn);
 out:
 	C2_ASSERT(rc != 0);
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -729,9 +730,9 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 	c2_rpc_conn_fini(&ctx->sc_conn);
 
 	ctx->sc_csb->csb_nr_active_contexts--;
-	C2_LOG("Disconnected from [%s] active_ctx %d\n", ctx->sc_addr,
+	C2_LOG("Disconnected from [%s] active_ctx %d", ctx->sc_addr,
 				ctx->sc_csb->csb_nr_active_contexts);
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
@@ -749,7 +750,7 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 
 	} c2_tlist_endfor;
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int
@@ -760,7 +761,7 @@ c2t1fs_container_location_map_init(struct c2t1fs_container_location_map *map,
 
 	C2_SET0(map);
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -768,7 +769,7 @@ static void
 c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map)
 {
 	C2_ENTRY();
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
@@ -794,7 +795,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 	if (nr_data_containers % nr_ios != 0)
 		nr_cont_per_svc++;
 
-	C2_LOG("nr_cont_per_svc = %d\n", nr_cont_per_svc);
+	C2_LOG("nr_cont_per_svc = %d", nr_cont_per_svc);
 
 	map = &csb->csb_cl_map;
 	cur = 1;
@@ -807,14 +808,14 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 			/* Currently assuming only one MGS, which will serve
 			   container 0 */
 			map->clm_map[0] = ctx;
-			C2_LOG("container_id [0] at %s\n", ctx->sc_addr);
+			C2_LOG("container_id [0] at %s", ctx->sc_addr);
 			break;
 
 		case C2T1FS_ST_IOS:
 			for (i = 0; i < nr_cont_per_svc &&
 				    cur <= nr_data_containers; i++, cur++) {
 				map->clm_map[cur] = ctx;
-				C2_LOG("container_id [%d] at %s\n", cur,
+				C2_LOG("container_id [%d] at %s", cur,
 						ctx->sc_addr);
 			}
 			break;
@@ -828,7 +829,7 @@ static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb)
 
 	} c2_tlist_endfor;
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -845,7 +846,7 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 	ctx = csb->csb_cl_map.clm_map[container_id];
 	C2_ASSERT(ctx != NULL);
 
-	C2_LEAVE();
+	C2_LEAVE("session: %p", &ctx->sc_session);
 	return &ctx->sc_session;
 }
 
@@ -855,7 +856,7 @@ void c2t1fs_fs_lock(struct c2t1fs_sb *csb)
 
 	c2_mutex_lock(&csb->csb_mutex);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
@@ -864,7 +865,7 @@ void c2t1fs_fs_unlock(struct c2t1fs_sb *csb)
 
 	c2_mutex_unlock(&csb->csb_mutex);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 bool c2t1fs_fs_is_locked(const struct c2t1fs_sb *csb)

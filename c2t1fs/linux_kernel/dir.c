@@ -100,7 +100,7 @@ static int c2t1fs_create(struct inode     *dir,
 	/* new_inode() will call c2t1fs_alloc_inode() using super_operations */
 	inode = new_inode(sb);
 	if (inode == NULL) {
-		C2_LEAVE(-ENOMEM);
+		C2_LEAVE("rc: %d", -ENOMEM);
 		return -ENOMEM;
 	}
 
@@ -140,14 +140,14 @@ static int c2t1fs_create(struct inode     *dir,
 	c2t1fs_fs_unlock(csb);
 
 	d_instantiate(dentry, inode);
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 out:
 	inode_dec_link_count(inode);
 	c2t1fs_fs_unlock(csb);
 	iput(inode);
 
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -165,7 +165,7 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 
 	dir_ents_tlink_init(de);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de)
@@ -175,7 +175,7 @@ void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de)
 	dir_ents_tlink_fini(de);
 	de->de_magic = 0;
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_dir_ent_add(struct inode        *dir,
@@ -187,7 +187,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	struct c2t1fs_dir_ent *de;
 	int                    rc;
 
-	C2_LOG("name=\"%s\" namelen=%d\n", name, namelen);
+	C2_ENTRY("name=\"%s\" namelen=%d", name, namelen);
 
 	C2_ASSERT(c2t1fs_inode_is_root(dir));
 
@@ -212,14 +212,14 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	c2t1fs_dir_ent_init(de, name, namelen, fid);
 	dir_ents_tlist_add_tail(&ci->ci_dir_ents, de);
 
-	C2_LOG("Added name: %s[%lu:%lu]\n", (char *)de->de_name,
-					    (unsigned long)fid->f_container,
-					    (unsigned long)fid->f_key);
+	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
+					  (unsigned long)fid->f_container,
+					  (unsigned long)fid->f_key);
 	
 	mark_inode_dirty(dir);
 	rc = 0;
 out:
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -232,11 +232,11 @@ static bool name_eq(const unsigned char *name, const char *buf, int len)
 	if (len <= C2T1FS_MAX_NAME_LEN && buf[len] != '\0') {
 		rc = false;
 	} else {
-		C2_LOG("buf: \"%s\" name: \"%s\" len: %d\n", buf, name, len);
+		C2_LOG("buf: \"%s\" name: \"%s\" len: %d", buf, name, len);
 		rc = (memcmp(name, buf, len) == 0);
 	}
 
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -252,7 +252,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	C2_ASSERT(name != NULL && dir != NULL);
 
-	C2_LOG("Name: \"%s\"\n", name);
+	C2_LOG("Name: \"%s\"", name);
 
 	ci  = C2T1FS_I(dir);
 	csb = C2T1FS_SB(dir->i_sb);
@@ -261,15 +261,13 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
 
-		if (name_eq(name, de->de_name, namelen)) {
-			C2_LEAVE("de");
-			return de;
-		}
+		if (name_eq(name, de->de_name, namelen))
+			break;
 
 	} c2_tlist_endfor;
 
-	C2_LEAVE("NULL");
-	return NULL;
+	C2_LEAVE("de: %p", de);
+	return de;
 }
 
 static struct dentry *c2t1fs_lookup(struct inode     *dir,
@@ -283,11 +281,11 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 	C2_ENTRY();
 
 	if (dentry->d_name.len > C2T1FS_MAX_NAME_LEN) {
-		C2_LEAVE(-ENAMETOOLONG);
+		C2_LEAVE("ERR_PTR: %p", ERR_PTR(-ENAMETOOLONG));
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
-	C2_LOG("Name: \"%s\"\n", dentry->d_name.name);
+	C2_LOG("Name: \"%s\"", dentry->d_name.name);
 
 	csb = C2T1FS_SB(dir->i_sb);
 
@@ -298,7 +296,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 		inode = c2t1fs_iget(dir->i_sb, &de->de_fid);
 		if (IS_ERR(inode)) {
 			c2t1fs_fs_unlock(csb);
-			C2_LEAVE("ERR_CAST(inode)");
+			C2_LEAVE("ERROR: %p", ERR_CAST(inode));
 			return ERR_CAST(inode);
 		}
 	}
@@ -336,19 +334,19 @@ static int c2t1fs_readdir(struct file *f,
 	switch (i) {
 	case 0:
 		ino = dir->i_ino;
-		C2_LOG("i = %d ino = %lu\n", i, (unsigned long)ino);
+		C2_LOG("i = %d ino = %lu", i, (unsigned long)ino);
 		if (filldir(buf, ".", 1, i, ino, DT_DIR) < 0)
 			break;
-		C2_LOG("filled: \".\"\n");
+		C2_LOG("filled: \".\"");
 		f->f_pos++;
 		i++;
 		/* Fallthrough */
 	case 1:
 		ino = parent_ino(dentry);
-		C2_LOG("i = %d ino = %lu\n", i, (unsigned long)ino);
+		C2_LOG("i = %d ino = %lu", i, (unsigned long)ino);
 		if (filldir(buf, "..", 2, i, 4, DT_DIR) < 0)
 			break;
-		C2_LOG("filled: \"..\"\n");
+		C2_LOG("filled: \"..\"");
 		f->f_pos++;
 		i++;
 		/* Fallthrough */
@@ -368,21 +366,21 @@ static int c2t1fs_readdir(struct file *f,
 			name    = de->de_name;
 			namelen = strlen(name);
 
-			C2_LOG("off %lu ino %lu\n", (unsigned long)f->f_pos,
+			C2_LOG("off %lu ino %lu", (unsigned long)f->f_pos,
 					(unsigned long)i + 1);
 
 			rc = filldir(buf, name, namelen, f->f_pos,
 					++i, DT_REG);
 			if (rc < 0)
 				goto out;
-			C2_LOG("filled: \"%s\"\n", name);
+			C2_LOG("filled: \"%s\"", name);
 
 			f->f_pos++;
 		} c2_tlist_endfor;
 	}
 out:
 	c2t1fs_fs_unlock(csb);
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -390,12 +388,12 @@ static int c2t1fs_dir_ent_remove(struct inode *dir, struct c2t1fs_dir_ent *de)
 {
 	C2_ENTRY();
 
-	C2_LOG("Name: %s\n", (char *)de->de_name);
+	C2_LOG("Name: %s", (char *)de->de_name);
 	dir_ents_tlist_del(de);
 	c2t1fs_dir_ent_fini(de);
 	c2_free(de);
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
 
@@ -410,7 +408,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	C2_ENTRY();
 
-	C2_LOG("Name: \"%s\"\n", dentry->d_name.name);
+	C2_LOG("Name: \"%s\"", dentry->d_name.name);
 
 	inode = dentry->d_inode;
 	csb   = C2T1FS_SB(inode->i_sb);
@@ -434,7 +432,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 out:
 	c2t1fs_fs_unlock(csb);
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -455,9 +453,8 @@ struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
 	fid.f_container = index;
 	fid.f_key       = gob_fid->f_key;
 
-	C2_LOG("Out: [%lu:%lu]\n", (unsigned long)fid.f_container,
-				     (unsigned long)fid.f_key);
-	C2_LEAVE("0");
+	C2_LEAVE("fid: [%lu:%lu]", (unsigned long)fid.f_container,
+				   (unsigned long)fid.f_key);
 	return fid;
 }
 
@@ -474,7 +471,7 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 
 	gob_fid = ci->ci_fid;
 
-	C2_LOG("Create component objects for [%lu:%lu]\n",
+	C2_LOG("Create component objects for [%lu:%lu]",
 				(unsigned long)gob_fid.f_container,
 				(unsigned long)gob_fid.f_key);
 
@@ -487,7 +484,7 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 		cob_fid = c2t1fs_cob_fid(&gob_fid, i);
 		rc      = c2t1fs_cob_create(csb, &cob_fid);
 		if (rc != 0) {
-			C2_LOG("Failed: create [%lu:%lu]\n",
+			C2_LOG("Failed: create [%lu:%lu]",
 				(unsigned long)cob_fid.f_container,
 				(unsigned long)cob_fid.f_key);
 			goto out;
@@ -495,7 +492,7 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 
 	}
 out:
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -509,10 +506,10 @@ static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
 	session = c2t1fs_container_id_to_session(csb, cob_fid->f_container);
 	C2_ASSERT(session != NULL);
 
-	C2_LOG("Send cob_create [%lu:%lu] to session %lu\n",
+	C2_LOG("Send cob_create [%lu:%lu] to session %lu",
 				(unsigned long)cob_fid->f_container,
 				(unsigned long)cob_fid->f_key,
 				(unsigned long)session->s_session_id);
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 }
