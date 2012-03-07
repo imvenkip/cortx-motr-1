@@ -530,6 +530,12 @@ struct c2_rpcmachine {
 	 */
         struct c2_tlink                   cr_rh_linkage;
 
+	/**
+	    List of c2_rpc_service instances placed using svc_tlink.
+	    tl_descr: c2_rpc_services_tl
+	 */
+	struct c2_tl                      cr_services;
+
 	uint64_t                          cr_magic;
 };
 

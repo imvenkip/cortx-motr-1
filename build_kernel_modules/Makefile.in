@@ -24,7 +24,7 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db \
         db/linux_kernel dtm fid fol fop ioservice ioservice/ut    \
 	layout lib lib/linux_kernel lib/ut net net/bulk_emulation \
-        net/bulk_emulation/ut net/ksunrpc net/ut pool rpc         \
+        net/bulk_emulation/ut net/ksunrpc net/ut pool rpc rpc/ut  \
         sm sns stob stob/ut ut xcode xcode/ut
 
 #       Source Listing
@@ -106,14 +106,15 @@ net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 
 pool_SOURCES                    := pool.c
 
-rpc_SOURCES                     := formation.c rpc2.c rpc_base.c session.c    \
-                                   session_foms.c conn.c slot.c               \
-                                   session_utils.c session_fops.c             \
+rpc_SOURCES                     := formation.c rpc2.c rpc_base.c service.c    \
+                                   session.c session_foms.c conn.c slot.c     \
+                                   session_utils.c session_fops.c	      \
                                    rpc_onwire.c session_k.c rpclib.c
 rpc_HEADERS                     := session_k.h
 
-sm_SOURCES                      := sm.c
+rpc_ut_SOURCES                  := service.c
 
+sm_SOURCES                      := sm.c
 sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
                                    parity_ops.c
 sns_HEADERS                     := parity_math.h

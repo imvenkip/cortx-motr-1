@@ -141,7 +141,7 @@ fi
 # I/O sizes are multiple of stripe size
 
 # stripe size is in K
-for strip_size_multiplyer in 4 #8 12 16 20 24 28 32 
+for strip_size_multiplyer in 4 8 # 12 16 20 24 28 32 
 do
     # Small I/Os KBs
     for ((io_size_multiplyer=1; io_size_multiplyer<=8; io_size_multiplyer++))
