@@ -2020,13 +2020,10 @@ static int cc_fom_state(struct c2_fom *fom)
 		return rc;
 	}
 
-	switch (fom->fo_phase) {
-	case FOPH_CC_COB_CREATE:
+	if (fom->fo_phase == FOPH_CC_COB_CREATE)
 		rc = cc_fom_cob_create(fom);
-		break;
-	default:
+	else
 		C2_IMPOSSIBLE("Invalid phase for cob create fom.");
-	};
 
 	return rc;
 }
@@ -2245,13 +2242,10 @@ static int cd_fom_state(struct c2_fom *fom)
 		return rc;
 	}
 
-	switch (fom->fo_phase) {
-	case FOPH_CD_COB_DEL:
+	if (fom->fo_phase == FOPH_CD_COB_DEL)
 		rc = cd_fom_cob_delete(fom);
-		break;
-	default:
+	else
 		C2_IMPOSSIBLE("Invalid phase for cob delete fom.");
-	};
 
 	return rc;
 }
