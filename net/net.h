@@ -1627,6 +1627,12 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
  */
 void c2_net_desc_free(struct c2_net_buf_desc *desc);
 
+/** Descriptor for the tlist of buffers. */
+C2_TL_DESCR_DECLARE(pool, extern);
+C2_TL_DESCR_DECLARE(tm, extern);
+C2_TL_DECLARE(pool, extern, struct c2_net_buffer);
+C2_TL_DECLARE(tm, extern, struct c2_net_buffer);
+
 /** @} end of networking group
 
 
@@ -1905,11 +1911,6 @@ enum {
 	NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
 };
 
-/** Descriptor for the tlist of buffers. */
-C2_TL_DESCR_DECLARE(pool, extern);
-C2_TL_DESCR_DECLARE(tm, extern);
-C2_TL_DECLARE(pool, extern, struct c2_net_buffer);
-C2_TL_DECLARE(tm, extern, struct c2_net_buffer);
 /** @} end of deprecated net group */
 
 #endif
