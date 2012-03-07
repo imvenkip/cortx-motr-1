@@ -65,7 +65,8 @@ void c2_composite_init(struct c2_composite_layout *clay,
 	 */
 }
 
-void c2_composite_fini(struct c2_composite_layout *clay)
+/** Implementation of lo_fini for composite layout type. */
+void composite_fini(struct c2_layout *lay)
 {
 	/**
 	   De-intialize clay->cl_sub_layouts.
@@ -221,11 +222,6 @@ static int composite_encode(struct c2_ldb_schema *schema,
 	}
 
 	return 0;
-}
-
-/** Implementation of lo_fini for composite layout type. */
-static void composite_fini(struct c2_layout *lay)
-{
 }
 
 static const struct c2_layout_ops composite_ops = {

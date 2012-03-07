@@ -58,39 +58,22 @@ C2_ADDB_EV_DEFINE(layout_encode_success, "layout_encode_success",
 C2_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
 		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_FUNC_CALL);
 
-/**
- * Initializes layout schema, creates generic table to store layout records.
- * Registers all the layout types amd enum types by creating layout type and
- * enum type specific tables, if they do not exist already.
- */
 int c2_layouts_init(void)
 {
-   /**
-	@code
-	Invoke c2_ldb_schema_init().
-
-	Register pdclust layout type, using c2_ldb_type_register().
-	Register composite layout type, using c2_ldb_type_register().
-
-	Register list enumeration type, using c2_ldb_enum_register().
-	Register linear enumeration type, using c2_ldb_enum_register().
-	@endcode
-   */
+	/* todo Should this fn be used to perform the following:
+	 * c2_ldb_schema_init(schema, dbenv);
+	 * Register pdclust and composite layout types.
+	 * Register list and linear enum types.
+	 *
+	 * If yes, how to obtain schema and dbenv parameter?
+	 * And if yes, c2_layouts_fini() should do the opposite of
+	 * c2_layouts_init().
+	 */
 	return 0;
 }
 
-/** Unregisters all the layout types amd enum types. */
 void c2_layouts_fini(void)
 {
-   /**
-	@code
-	Unregister pdclust layout type, using c2_ldb_type_unregister().
-	Unregister composite layout type, using c2_ldb_type_unregister().
-
-	Unregister list enumeration type, using c2_ldb_enum_unregister().
-	Unregister linear enumeration type, using c2_ldb_enum_unregister().
-	@endcode
-   */
 }
 
 int c2_layout_init(struct c2_layout *l,
@@ -104,7 +87,7 @@ int c2_layout_init(struct c2_layout *l,
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
-	C2_ENTRY("lid %llu, LayoutType %s", (unsigned long long)lid,
+	C2_ENTRY("lid %llu, Layout_type %s", (unsigned long long)lid,
 		 type->lt_name);
 
 	C2_SET0(l);
@@ -118,7 +101,8 @@ int c2_layout_init(struct c2_layout *l,
 
 	/*
 	 * todo Replace the global context as appropriate - here and at all
-	 * the other places applicable.
+	 * the other places applicable. Global context c2_addb_global_ctx is
+	 * currently used as a placeholder.
 	 */
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
 			 &c2_addb_global_ctx);
@@ -129,9 +113,9 @@ int c2_layout_init(struct c2_layout *l,
 
 void c2_layout_fini(struct c2_layout *l)
 {
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
 	C2_PRE(layout_invariant(l));
+
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	c2_mutex_fini(&l->l_lock);
 
@@ -152,7 +136,7 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
-	C2_ENTRY("lid %llu, EnumType %s", (unsigned long long)lid,
+	C2_ENTRY("lid %llu, Enum_type %s", (unsigned long long)lid,
 		 e->le_type->let_name);
 
 	C2_SET0(str_l);
@@ -173,7 +157,7 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 
 	/*
-	 * Memory allocated for str_l->ls_enum  will be freed through
+	 * Memory allocated for str_l->ls_enum will be freed through
 	 * c2_layout_enum_fini() that is to be called by the caller.
 	 */
 	str_l->ls_enum = NULL;
@@ -192,7 +176,7 @@ int c2_layout_enum_init(struct c2_layout_enum *le, uint64_t lid,
 	C2_PRE(et != NULL);
 	C2_PRE(ops != NULL);
 
-	C2_ENTRY("EnumType %s", et->let_name);
+	C2_ENTRY("Enum_type %s", et->let_name);
 
 	le->le_lid  = lid;
 	le->le_type = et;
@@ -204,8 +188,8 @@ int c2_layout_enum_init(struct c2_layout_enum *le, uint64_t lid,
 
 void c2_layout_enum_fini(struct c2_layout_enum *le)
 {
-	C2_ENTRY("EnumType %s", le->le_type->let_name);
-	C2_LEAVE("EnumType %s", le->le_type->let_name);
+	C2_ENTRY("Enum_type %s", le->le_type->let_name);
+	C2_LEAVE("Enum_type %s", le->le_type->let_name);
 }
 
 /** Adds a reference to the layout. */
@@ -305,7 +289,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 				    layout_decode_fail, "Invalid LayouTypeId",
 				    -EPROTO);
 
-		C2_LOG("c2_layout_decode(): lid %llu, Invalid LayoutTypeId "
+		C2_LOG("c2_layout_decode(): lid %llu, Invalid Layout_type_id "
 		       "%lu", (unsigned long long)lid,
 		       (unsigned long)rec->lr_lt_id);
 		goto out;
@@ -320,7 +304,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 				    "Unregistered LayouType",
 				    -EPROTO);
 
-		C2_LOG("c2_layout_decode(): lid %llu, Unregistered LayoutType,"
+		C2_LOG("c2_layout_decode(): lid %llu, Unregistered Layout_type,"
 	               " LayouTypeId %lu", (unsigned long long)lid,
 		       (unsigned long)rec->lr_lt_id);
 		goto out;
@@ -442,10 +426,10 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		rc = -EPROTO;
 		if (op == C2_LXO_DB_NONE)
 			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
-				    layout_encode_fail, "Invalid LayoutTypeId",
-				    -EPROTO);
+				    layout_encode_fail,
+				    "Invalid Layout_type_id", -EPROTO);
 
-		C2_LOG("c2_layout_encode(): lid %llu, Invalid LayoutTypeId "
+		C2_LOG("c2_layout_encode(): lid %llu, Invalid Layout_type_id "
 		       "%lu", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id);
 		goto out;
@@ -457,10 +441,9 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		if (op == C2_LXO_DB_NONE)
 			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
 				    layout_encode_fail,
-				    "Unregistered LayoutType",
-				    -EPROTO);
+				    "Unregistered Layout_type", -EPROTO);
 
-		C2_LOG("c2_layout_encode(): lid %llu, Unregistered LayoutType,"
+		C2_LOG("c2_layout_encode(): lid %llu, Unregistered Layout_type,"
 		       " LayouTypeId %lu", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id);
 		goto out;

@@ -21,11 +21,6 @@
 /**
  * @addtogroup linear_enum
  *
- * Notes:
- * - Layout enumeration type specific register/unregister methods are not
- *   required for "linear" enumeration type, since the layout schema does not
- *   contain any separate tables specifically for "linear" enumeration type.
- *
  * @{
  */
 
@@ -124,6 +119,24 @@ void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum, uint64_t lid)
 	c2_layout_enum_fini(&lin_enum->lle_base);
 
 	C2_LEAVE();
+}
+
+/**
+ * Implementation of leto_register for LINEAR enumeration type.
+ * No table is required specifically for LINEAR enum type.
+ */
+static int linear_register(struct c2_ldb_schema *schema,
+			   const struct c2_layout_enum_type *et)
+{
+	return 0;
+}
+
+/**
+ * Implementation of leto_unregister for LINEAR enumeration type.
+ */
+static void linear_unregister(struct c2_ldb_schema *schema,
+			      const struct c2_layout_enum_type *et)
+{
 }
 
 /**
@@ -339,8 +352,8 @@ static const struct c2_layout_enum_ops linear_enum_ops = {
 };
 
 static const struct c2_layout_enum_type_ops linear_type_ops = {
-	.leto_register       = NULL,
-	.leto_unregister     = NULL,
+	.leto_register       = linear_register,
+	.leto_unregister     = linear_unregister,
 	.leto_max_recsize    = linear_max_recsize,
 	.leto_recsize        = linear_recsize,
 	.leto_decode         = linear_decode,

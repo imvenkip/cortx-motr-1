@@ -85,10 +85,30 @@ static int test_fini(void)
 	return 0;
 }
 
+static int test_register(struct c2_ldb_schema *schema,
+			 const struct c2_layout_type *lt)
+{
+	return 0;
+}
+
+static void test_unregister(struct c2_ldb_schema *schema,
+			   const struct c2_layout_type *lt)
+{
+}
+
+static const struct c2_layout_type_ops test_layout_type_ops = {
+	.lto_register    = test_register,
+	.lto_unregister  = test_unregister,
+	.lto_max_recsize = NULL,
+	.lto_recsize     = NULL,
+	.lto_decode      = NULL,
+	.lto_encode      = NULL
+};
+
 const struct c2_layout_type test_layout_type = {
 	.lt_name     = "test",
 	.lt_id       = 2,
-	.lt_ops      = NULL
+	.lt_ops      = &test_layout_type_ops
 };
 
 static void test_type_reg_unreg(void)
@@ -125,10 +145,31 @@ static void test_type_reg_unreg(void)
 	C2_LEAVE();
 }
 
+static int test_enum_register(struct c2_ldb_schema *schema,
+			      const struct c2_layout_enum_type *et)
+{
+	return 0;
+}
+
+static void test_enum_unregister(struct c2_ldb_schema *schema,
+			    const struct c2_layout_enum_type *et)
+{
+}
+
+
+static const struct c2_layout_enum_type_ops test_enum_ops = {
+	.leto_register       = test_enum_register,
+	.leto_unregister     = test_enum_unregister,
+	.leto_max_recsize    = NULL,
+	.leto_recsize        = NULL,
+	.leto_decode         = NULL,
+	.leto_encode         = NULL
+};
+
 const struct c2_layout_enum_type test_enum_type = {
 	.let_name    = "test",
 	.let_id      = 2,
-	.let_ops     = NULL
+	.let_ops     = &test_enum_ops
 };
 
 static void test_etype_reg_unreg(void)

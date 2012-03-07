@@ -49,7 +49,7 @@ enum {
 	LDB_MAX_INLINE_COB_ENTRIES = 20,
 	LIST_ENUM_MAGIC            = 0x3471415401a7e21dULL,
 						/* "why this kolaveri d" */
-	DB_FLAG                    = 0,
+	DEF_DB_FLAGS               = 0,
 	LIST_NR_NONE               = 0
 };
 
@@ -252,7 +252,7 @@ static int list_register(struct c2_ldb_schema *schema,
 	}
 
 	rc = c2_table_init(&lsd->lsd_cob_lists, schema->ls_dbenv,
-			   "cob_lists", DB_FLAG, &cob_lists_table_ops);
+			   "cob_lists", DEF_DB_FLAGS, &cob_lists_table_ops);
 	if (rc != 0) {
 		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "c2_table_init()", rc);

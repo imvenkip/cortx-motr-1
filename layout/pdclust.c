@@ -78,10 +78,6 @@
    Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
    conversions.
 
-   Note: Layout type specific register/unregister methods are not required for
-   "pdclust" layout type, since the layout schema does not contain any separate
-   tables specifically for "pdclust" layout type.
-
    @{
  */
 
@@ -414,6 +410,26 @@ static void pdclust_fini(struct c2_layout *l)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
+
+/**
+ * Implementation of lto_register for PDCLUST layout type.
+ *
+ * No table is required specifically for PDCLUST layout type.
+ */
+static int pdclust_register(struct c2_ldb_schema *schema,
+			    const struct c2_layout_type *lt)
+{
+	return 0;
+}
+
+/**
+ * Implementation of lto_unregister for PDCLUST layout type.
+ */
+static void pdclust_unregister(struct c2_ldb_schema *schema,
+			       const struct c2_layout_type *lt)
+{
+}
+
 static const struct c2_layout_ops pdclust_ops;
 
 int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
@@ -564,7 +580,7 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
 	if (!IS_IN_ARRAY(stl->ls_enum->le_type->let_id, schema->ls_enum)) {
-		C2_LOG("pdclust_recsize(): lid %llu, Invalid EnumTypeId %d",
+		C2_LOG("pdclust_recsize(): lid %llu, Invalid Enum_type_id %d",
 		       (unsigned long long)l->l_id,
 		       stl->ls_enum->le_type->let_id);
 		return -EPROTO;
@@ -572,8 +588,8 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 	if (et == NULL) {
-		C2_LOG("pdclust_recsize(): lid %llu, Unregistered EnumType, "
-		       "EnumTypeId %d", (unsigned long long)l->l_id,
+		C2_LOG("pdclust_recsize(): lid %llu, Unregistered Enum_type, "
+		       "Enum_type_id %d", (unsigned long long)l->l_id,
 		       stl->ls_enum->le_type->let_id);
 		return -ENOENT;
 	}
@@ -630,7 +646,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum)) {
 		rc = -EPROTO;
-		C2_LOG("pdclust_decode(): lid %llu, Invalid EnumTypeId %lu",
+		C2_LOG("pdclust_decode(): lid %llu, Invalid Enum_type_id %lu",
 		       (unsigned long long)lid,
 		       (unsigned long)pl_rec->pr_let_id);
 		goto out;
@@ -639,8 +655,8 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	et = schema->ls_enum[pl_rec->pr_let_id];
 	if (et == NULL) {
 		rc = -EPROTO;
-		C2_LOG("pdclust_decode(): lid %llu, EnumType is not "
-		       "registered, EnumTypeId %d", (unsigned long long)lid,
+		C2_LOG("pdclust_decode(): lid %llu, Enum_type is not "
+		       "registered, Enum_type_id %d", (unsigned long long)lid,
 		       pl_rec->pr_let_id);
 		goto out;
 	}
@@ -775,7 +791,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 
 	if (!IS_IN_ARRAY(pl_rec.pr_let_id, schema->ls_enum)) {
 		rc = -EPROTO;
-		C2_LOG("pdclust_encode(): lid %llu, Invalid EnumTypeId %u",
+		C2_LOG("pdclust_encode(): lid %llu, Invalid Enum_type_id %u",
 		       (unsigned long long)l->l_id, pl_rec.pr_let_id);
 		goto out;
 	}
@@ -783,8 +799,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	et = schema->ls_enum[pl_rec.pr_let_id];
 	if (et == NULL) {
 		rc = -ENOENT;
-		C2_LOG("pdclust_encode(): lid %llu, Unregistered EnumType, "
-		       "EnumTypeId %u", (unsigned long long)l->l_id,
+		C2_LOG("pdclust_encode(): lid %llu, Unregistered Enum_type, "
+		       "Enum_type_id %u", (unsigned long long)l->l_id,
 		       pl_rec.pr_let_id);
 		goto out;
 	}
@@ -806,8 +822,8 @@ static const struct c2_layout_ops pdclust_ops = {
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
-	.lto_register    = NULL,
-	.lto_unregister  = NULL,
+	.lto_register    = pdclust_register,
+	.lto_unregister  = pdclust_unregister,
 	.lto_max_recsize = pdclust_max_recsize,
 	.lto_recsize     = pdclust_recsize,
 	.lto_decode      = pdclust_decode,
