@@ -449,7 +449,6 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 	    pdl->pl_tile_cache.tc_permute == NULL ||
 	    pdl->pl_tile_cache.tc_inverse == NULL) {
 		rc = -ENOMEM;
-		/* todo Replace the global context as appropriate. */
 		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc, c2_addb_oom);
 		goto out;
 	}
@@ -486,7 +485,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 			rc = -ENOMEM;
 			C2_ADDB_ADD(&pdl->pl_base.ls_base.l_addb,
 				    &layout_addb_loc, c2_addb_oom);
-			goto out; //todo break;
+			goto out;
 		}
 	}
 
@@ -674,6 +673,8 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	}
 
 	*out = &pl->pl_base.ls_base;
+	C2_POST(c2_pdclust_layout_invariant(pl));
+
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -702,6 +703,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	struct c2_ldb_pdclust_rec     pl_rec;
 	struct c2_ldb_pdclust_rec    *pl_oldrec;
 	struct c2_layout_enum_type   *et;
+	c2_bcount_t                   nbytes;
 	int                           rc;
 
 	C2_PRE(schema != NULL);
@@ -768,8 +770,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	pl_rec.pr_let_id  = stl->ls_enum->le_type->let_id;
 	pl_rec.pr_attr    = pl->pl_attr;
 
-	rc = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
-	C2_ASSERT(rc == sizeof pl_rec);
+	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
+	C2_ASSERT(nbytes == sizeof pl_rec);
 
 	if (!IS_IN_ARRAY(pl_rec.pr_let_id, schema->ls_enum)) {
 		rc = -EPROTO;

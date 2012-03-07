@@ -496,7 +496,6 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
 	C2_PRE(l != NULL);
 
-	/* todo check if the get...() is to be used here and at other places*/
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 
 	key.lclk_lid       = l->l_id;
@@ -549,7 +548,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	struct ldb_cob_entries_header  ldb_ce_header;
 	struct ldb_cob_entries_header *ldb_ce_oldheader;
 	struct c2_fid                 *cob_id_old;
-	c2_bcount_t                    nbytes_copied;
+	c2_bcount_t                    nbytes;
 	int                            i;
 	int                            rc = 0;
 
@@ -611,11 +610,8 @@ static int list_encode(struct c2_ldb_schema *schema,
 
 		for (i = 0; i < num_inline; ++i) {
 			cob_id_old = c2_bufvec_cursor_addr(oldrec_cur);
-			/* todo This should be hidden by an abstraction. */
-			if (cob_id_old->f_container !=
-			    list_enum->lle_list_of_cobs[i].f_container ||
-			    cob_id_old->f_key !=
-			    list_enum->lle_list_of_cobs[i].f_key) {
+			if (!c2_fid_eq(cob_id_old,
+			    &list_enum->lle_list_of_cobs[i])) {
 				rc = -EINVAL;
 				C2_LOG("list_encode(): lid %llu, New values "
 				       "do not match old ones...",
@@ -630,9 +626,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 
 	ldb_ce_header.llces_nr = list_enum->lle_nr;
 
-	nbytes_copied = c2_bufvec_cursor_copyto(out, &ldb_ce_header,
-						sizeof ldb_ce_header);
-	C2_ASSERT(nbytes_copied == sizeof ldb_ce_header);
+	nbytes = c2_bufvec_cursor_copyto(out, &ldb_ce_header,
+					 sizeof ldb_ce_header);
+	C2_ASSERT(nbytes == sizeof ldb_ce_header);
 
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(out) < num_inline *
@@ -650,10 +646,10 @@ static int list_encode(struct c2_ldb_schema *schema,
 				       "accepting inline cob entries.",
 				       (unsigned long long)l->l_id);
 
-			nbytes_copied = c2_bufvec_cursor_copyto(out,
-					 &list_enum->lle_list_of_cobs[i],
-					 sizeof list_enum->lle_list_of_cobs[i]);
-			C2_ASSERT(nbytes_copied ==
+			nbytes = c2_bufvec_cursor_copyto(out,
+					&list_enum->lle_list_of_cobs[i],
+					sizeof list_enum->lle_list_of_cobs[i]);
+			C2_ASSERT(nbytes ==
 				  sizeof list_enum->lle_list_of_cobs[i]);
 		}
 		else {

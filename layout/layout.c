@@ -116,6 +116,10 @@ int c2_layout_init(struct c2_layout *l,
 	l->l_pool_id = pool_id;
 	l->l_ops     = ops;
 
+	/*
+	 * todo Replace the global context as appropriate - here and at all
+	 * the other places applicable.
+	 */
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
 			 &c2_addb_global_ctx);
 
@@ -397,7 +401,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	struct c2_ldb_rec      rec;
 	struct c2_ldb_rec     *oldrec;
 	struct c2_layout_type *lt;
-	c2_bcount_t            nbytes_copied;
+	c2_bcount_t            nbytes;
 	int                    rc;
 
 	C2_PRE(schema != NULL);
@@ -485,8 +489,8 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	rec.lr_ref_count = l->l_ref;
 	rec.lr_pid       = l->l_pool_id;
 
-	nbytes_copied = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
-	C2_ASSERT(nbytes_copied == sizeof rec);
+	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
+	C2_ASSERT(nbytes == sizeof rec);
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
 	if (rc != 0) {

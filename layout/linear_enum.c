@@ -71,7 +71,6 @@ bool c2_linear_enum_invariant(const struct c2_layout_linear_enum *lin_enum,
 
 static const struct c2_layout_enum_ops linear_enum_ops;
 
-/* todo Make this accept attr struct instead of 3 vars. */
 int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out)
 {
@@ -192,7 +191,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
 
-	/* todo It does not seem right to assert id lin_attr->lla_A == 0 or
+	/* It does not seem right to assert if lin_attr->lla_A == 0 or
 	 * if lin_attr->lla_B == 0.
 	 */
 	if (lin_attr->lla_nr == LINEAR_NR_NONE) {
@@ -234,7 +233,7 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *old_attr;
-	c2_bcount_t                   num_bytes;
+	c2_bcount_t                   nbytes;
 	int                           rc = 0;
 
 	C2_PRE(schema != NULL);
@@ -285,9 +284,9 @@ static int linear_encode(struct c2_ldb_schema *schema,
 		}
 	}
 
-	num_bytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
-					    sizeof lin_enum->lle_attr);
-	C2_ASSERT(num_bytes == sizeof lin_enum->lle_attr);
+	nbytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
+					 sizeof lin_enum->lle_attr);
+	C2_ASSERT(nbytes == sizeof lin_enum->lle_attr);
 
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
