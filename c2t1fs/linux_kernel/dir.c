@@ -440,13 +440,12 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	csb   = C2T1FS_SB(inode->i_sb);
 	ci    = C2T1FS_I(inode);
 
+	c2t1fs_fs_lock(csb);
 	rc = c2t1fs_delete_component_objects(ci);
 	if (rc != 0) {
 		C2_LOG("Cob_delete fop failed.\n");
-		return rc;
+		goto out;
 	}
-
-	c2t1fs_fs_lock(csb);
 
 	de = c2t1fs_dir_ent_find(dir, dentry->d_name.name, dentry->d_name.len);
 	if (de == NULL) {
@@ -520,9 +519,10 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 
 	gob_fid = ci->ci_fid;
 
-	C2_LOG("Create component objects for [%lu:%lu]",
-				(unsigned long)gob_fid.f_container,
-				(unsigned long)gob_fid.f_key);
+	C2_LOG("Component object %s for [%lu:%lu]",
+		func == c2t1fs_cob_create? "create" : "delete",
+		(unsigned long)gob_fid.f_container,
+		(unsigned long)gob_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 	pool_width = csb->csb_pool_width;
@@ -533,7 +533,8 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 		cob_fid = c2t1fs_cob_fid(&gob_fid, i);
 		rc      = func(csb, &cob_fid, &gob_fid);
 		if (rc != 0) {
-			C2_LOG("Failed: create [%lu:%lu]",
+			C2_LOG("Failed: cob %s : [%lu:%lu]",
+				func == c2t1fs_cob_create? "create" : "delete",
 				(unsigned long)cob_fid.f_container,
 				(unsigned long)cob_fid.f_key);
 			goto out;
@@ -594,10 +595,11 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 		return rc;
 	}
 
-	C2_LOG("Send cob_create [%lu:%lu] to session %lu\n",
-				(unsigned long)cob_fid->f_container,
-				(unsigned long)cob_fid->f_key,
-				(unsigned long)session->s_session_id);
+	C2_LOG("Send %s [%lu:%lu] to session %lu\n",
+		cobcreate ? "cob_create" : "cob_delete",
+		(unsigned long)cob_fid->f_container,
+		(unsigned long)cob_fid->f_key,
+		(unsigned long)session->s_session_id);
 
 	rc = c2_rpc_client_call(fop, session, fop->f_item.ri_ops,
 				C2T1FS_RPC_TIMEOUT);
@@ -609,7 +611,8 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	rc = reply->cor_rc;
 
 	c2t1fs_cob_fop_fini(fop);
-	c2_fop_free(fop);
+
+	/* Fop is deallocated by rpc layer using default rpc item ops. */
 
 err:
 	C2_LEAVE("%d", rc);
