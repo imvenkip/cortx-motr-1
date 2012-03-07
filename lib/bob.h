@@ -126,6 +126,24 @@ scope void type ## _bob_init(struct type *bob);		\
 scope void type ## _bob_fini(struct type *bob);		\
 scope bool type ## _bob_check(const struct type *bob)
 
+/**
+ * A safer version of container_of().
+ *
+ * Given a pointer (ptr) returns an ambient object of given type of which ptr is
+ * a field. Ambient object has bob type "bt".
+ */
+#define bob_of(ptr, type, field, bt)			\
+({							\
+	void *__ptr = (ptr);				\
+	type *__amb;					\
+							\
+	C2_ASSERT(__ptr != NULL);			\
+	__amb = container_of(__ptr, type, field);	\
+	C2_ASSERT(__amb != NULL);			\
+	C2_ASSERT(c2_bob_check(bt, __amb));		\
+	__amb;						\
+})
+
 /** @} end of bob group */
 
 /* __COLIBRI_LIB_BOB_H__ */
