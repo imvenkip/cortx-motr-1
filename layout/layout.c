@@ -392,11 +392,11 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out)
 {
-	struct c2_ldb_rec     *rec;
+	struct c2_ldb_rec      rec;
 	struct c2_ldb_rec     *oldrec;
 	struct c2_layout_type *lt;
-	int                    rc;
 	c2_bcount_t            nbytes_copied;
+	int                    rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
@@ -410,9 +410,15 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	c2_mutex_lock(&l->l_lock);
 
-	/* todo check new buffer size - everywhere applicable. */
-
 	/* Check if the buffer is with sufficient size. */
+	if (c2_bufvec_cursor_step(out) < sizeof rec) {
+		rc = -ENOBUFS;
+		C2_LOG("c2_layout_encode(): lid %llu, buffer with insufficient"
+		       " size", (unsigned long long)l->l_id);
+		goto out;
+	}
+
+	/* Check if the buffer for old record is with sufficient size. */
 	if (!ergo(op == C2_LXO_DB_UPDATE,
 	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec)) {
 		rc = -ENOBUFS;
@@ -473,19 +479,12 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
 	}
 
-	C2_ALLOC_PTR(rec);
-	if (rec == NULL) {
-		rc = -ENOMEM;
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
-		goto out;
-	}
+	rec.lr_lt_id     = l->l_type->lt_id;
+	rec.lr_ref_count = l->l_ref;
+	rec.lr_pid       = l->l_pool_id;
 
-	rec->lr_lt_id     = l->l_type->lt_id;
-	rec->lr_ref_count = l->l_ref;
-	rec->lr_pid       = l->l_pool_id;
-
-	nbytes_copied = c2_bufvec_cursor_copyto(out, rec, sizeof *rec);
-	C2_ASSERT(nbytes_copied == sizeof *rec);
+	nbytes_copied = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
+	C2_ASSERT(nbytes_copied == sizeof rec);
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
 	if (rc != 0) {
@@ -510,12 +509,14 @@ out:
 
 bool layout_invariant(const struct c2_layout *l)
 {
-	if (l == NULL || l->l_id == LID_NONE || l->l_type == NULL ||
-			 l->l_ops == NULL)
-		return false;
+	return (l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
+		l->l_ops != NULL);
+}
 
-	/* todo Add check to verify layout type is valid. */
-	return true;
+bool striped_layout_invariant(const struct c2_layout_striped *stl)
+{
+	return (stl != NULL && stl->ls_enum != NULL &&
+		layout_invariant(&stl->ls_base));
 }
 
 

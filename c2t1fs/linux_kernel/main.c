@@ -395,7 +395,7 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 		return result;
 	}
 
-	result = c2_linear_enum_build(pool->po_width, 100, 200, &le);
+	result = c2_linear_enum_build(id, pool->po_width, 100, 200, &le);
 
 	if (result != 0) {
 		c2_pool_fini(pool);

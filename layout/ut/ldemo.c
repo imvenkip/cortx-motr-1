@@ -212,7 +212,7 @@ int main(int argc, char **argv)
 
 	result = c2_pool_init(&pool, DEF_POOL_ID, P);
 	if (result == 0) {
-		result = c2_linear_enum_build(pool.po_width, 100, 200, &le);
+		result = c2_linear_enum_build(id, pool.po_width, 100, 200, &le);
 		if (result == 0) {
 			result = c2_pdclust_build(&pool, id, N, K, &seed,
 						  &le->lle_base,

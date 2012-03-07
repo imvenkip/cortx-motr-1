@@ -579,7 +579,7 @@ static int pdclust_linear_l_build(uint64_t lid,
 {
 	struct c2_layout_linear_enum *le = NULL;
 
-	rc = c2_linear_enum_build(pool.po_width, A, B, &le);
+	rc = c2_linear_enum_build(lid, pool.po_width, A, B, &le);
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(le != NULL);
@@ -1166,7 +1166,11 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	pl->pl_base.ls_base.l_ref = 7654321;
-	pl->pl_attr.pa_N++;
+	/*
+	 * Changing values of pl_atrr::N, K, P will be caught by the
+	 * c2_pdclust_layout_invariant() itself.
+	 */
+	pl->pl_attr.pa_seed.u_hi++;
 
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);

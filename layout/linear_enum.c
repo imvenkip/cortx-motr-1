@@ -59,7 +59,7 @@ C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
 static const struct c2_layout_enum_ops linear_enum_ops;
 
 /* todo Make this accept attr struct instead of 3 vars. */
-int c2_linear_enum_build(uint32_t nr, uint32_t A, uint32_t B,
+int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out)
 {
 	struct c2_layout_linear_enum *lin_enum;
@@ -82,8 +82,14 @@ int c2_linear_enum_build(uint32_t nr, uint32_t A, uint32_t B,
 	c2_layout_linear_enum_bob_init(lin_enum);
 	C2_ASSERT(c2_layout_linear_enum_bob_check(lin_enum));
 
-	c2_layout_enum_init(&lin_enum->lle_base, &c2_linear_enum_type,
-			    &linear_enum_ops);
+	rc = c2_layout_enum_init(&lin_enum->lle_base, &c2_linear_enum_type,
+				 &linear_enum_ops);
+	if (rc != 0) {
+		C2_LOG("c2_linear_enum_build(): lid %llu, "
+		       "c2_layout_enum_init() failed, rc %d",
+		       (unsigned long long)lid, rc);
+		goto out;
+	}
 
 	lin_enum->lle_attr.lla_nr = nr;
 	lin_enum->lle_attr.lla_A  = A;
@@ -141,7 +147,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 {
 	struct c2_layout_linear_enum *lin_enum = NULL;
 	struct c2_layout_linear_attr *lin_attr;
-	int                           rc = 0;
+	int                           rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -155,7 +161,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(cur) < sizeof *lin_attr) {
 		rc = -ENOBUFS;
-		C2_LOG("list_decode(): lid %llu, buffer with insufficient "
+		C2_LOG("linear_decode(): lid %llu, buffer with insufficient "
 		       "size", (unsigned long long)lid);
 		goto out;
 	}
@@ -175,10 +181,10 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		goto out;
 	}
 
-	rc = c2_linear_enum_build(lin_attr->lla_nr, lin_attr->lla_A,
+	rc = c2_linear_enum_build(lid, lin_attr->lla_nr, lin_attr->lla_A,
 				  lin_attr->lla_B, &lin_enum);
 	if (rc != 0) {
-		C2_LOG("list_decode(): lid %llu, c2_linear_enum_build() "
+		C2_LOG("linear_decode(): lid %llu, c2_linear_enum_build() "
 		       "failed, rc %d", (unsigned long long)lid, rc);
 		goto out;
 	}
@@ -204,6 +210,7 @@ static int linear_encode(struct c2_ldb_schema *schema,
 {
 	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
+	struct c2_layout_linear_attr *old_attr;
 	c2_bcount_t                   num_bytes;
 	int                           rc = 0;
 
@@ -212,35 +219,59 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
 
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(out)
-	    < sizeof(struct c2_layout_linear_attr)) {
+	    < sizeof lin_enum->lle_attr) {
 		rc = -ENOBUFS;
 		C2_LOG("linear_encode(): lid %llu, buffer with insufficient "
 		       "size", (unsigned long long)l->l_id);
 		goto out;
 	}
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
+	/* Check if the buffer for old record is with sufficient size. */
+	if (!ergo(op == C2_LXO_DB_UPDATE,
+	    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr)) {
+		rc = -ENOBUFS;
+		C2_LOG("linear_encode(): lid %llu, buffer for old record with"
+		       " insufficient size", (unsigned long long)l->l_id);
+		goto out;
+	}
 
+	stl = container_of(l, struct c2_layout_striped, ls_base);
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
 				lle_base);
 
+	/* todo Replace following by invariant that is yet to be added. */
 	C2_ASSERT(lin_enum->lle_attr.lla_nr != 0);
 	C2_ASSERT(lin_enum->lle_attr.lla_A != 0);
 	C2_ASSERT(lin_enum->lle_attr.lla_B != 0);
+
+	if (op == C2_LXO_DB_UPDATE) {
+		old_attr = c2_bufvec_cursor_addr(oldrec_cur);
+
+		if (old_attr->lla_nr != lin_enum->lle_attr.lla_nr ||
+		    old_attr->lla_A != lin_enum->lle_attr.lla_A ||
+		    old_attr->lla_B != lin_enum->lle_attr.lla_B) {
+			rc = -EINVAL;
+			C2_LOG("linear_encode(): lid %llu, New values "
+			       "do not match old ones...",
+			       (unsigned long long)l->l_id);
+			goto out;
+		}
+	}
 
 	num_bytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
 					    sizeof lin_enum->lle_attr);
 	C2_ASSERT(num_bytes == sizeof lin_enum->lle_attr);
 
 out:
-	C2_LEAVE("rc %d", rc);
-	return 0;
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	return rc;
 }
 
 /**

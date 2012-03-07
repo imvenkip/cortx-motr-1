@@ -30,11 +30,7 @@
 #include "lib/memory.h"
 #include "lib/bob.h"
 
-/* todo  Check why ifdef is required */
-#ifndef C2_TRACE_SUBSYSTEM
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
-#endif
-
 #include "lib/trace.h"
 
 #include "fid/fid.h"                /* struct c2_fid */
@@ -202,13 +198,11 @@ int c2_list_enum_build(uint64_t lid,
 	}
 
 	c2_layout_list_enum_bob_init(list_enum);
-	/* todo Move following to invariant. */
-	C2_ASSERT(c2_layout_list_enum_bob_check(list_enum));
 
 	*out = list_enum;
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return 0;
+	return rc;
 }
 
 void c2_list_enum_fini(struct c2_layout_list_enum *list_enum)
@@ -335,9 +329,7 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 	struct c2_db_pair         pair;
 	int                       rc;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(op == C2_LXO_DB_LOOKUP);
-	/* todo C2_PRE */
 
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 
@@ -474,7 +466,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	*out = &list_enum->lle_base;
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return 0;
+	return rc;
 }
 
 int ldb_cob_list_write(struct c2_ldb_schema *schema,
@@ -541,7 +533,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	struct c2_layout_striped      *stl;
 	struct c2_layout_list_enum    *list_enum;
 	uint32_t                       num_inline; /* No. of inline cobs */
-	struct ldb_cob_entries_header *ldb_ce_header;
+	struct ldb_cob_entries_header  ldb_ce_header;
 	struct ldb_cob_entries_header *ldb_ce_oldheader;
 	struct c2_fid                 *cob_id_old;
 	c2_bcount_t                    nbytes_copied;
@@ -556,7 +548,17 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 
+	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
+
 	/* Check if the buffer is with sufficient size. */
+	if (c2_bufvec_cursor_step(out) < sizeof ldb_ce_header) {
+		rc = -ENOBUFS;
+		C2_LOG("listt_encode(): lid %llu, buffer with insufficient "
+		       "size", (unsigned long long)l->l_id);
+		goto out;
+	}
+
+	/* Check if the buffer for old record is with sufficient size. */
 	if (!ergo(op == C2_LXO_DB_UPDATE, c2_bufvec_cursor_step(oldrec_cur) >=
 					  sizeof *ldb_ce_oldheader)) {
 		rc = -ENOBUFS;
@@ -564,8 +566,6 @@ static int list_encode(struct c2_ldb_schema *schema,
 		       "insufficient size", (unsigned long long)l->l_id);
 		goto out;
 	}
-
-	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
@@ -613,27 +613,22 @@ static int list_encode(struct c2_ldb_schema *schema,
 					sizeof list_enum->lle_list_of_cobs[i]);
 		}
 
-		/*
-		 * The auxiliary table viz. cob_lists is not to be modified
-		 * for an update operation. Hence, return from here.
-		 */
-		return 0;
 	}
 
-	C2_ALLOC_PTR(ldb_ce_header);
-	if (ldb_ce_header == NULL) {
-		rc = -ENOMEM;
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
-		C2_LOG("list_decode(): lid %llu, C2_ALLOC_ARR() failed, "
-		       "rc %d\n", (unsigned long long)l->l_id, rc);
+	ldb_ce_header.llces_nr = list_enum->lle_nr;
+
+	nbytes_copied = c2_bufvec_cursor_copyto(out, &ldb_ce_header,
+						sizeof ldb_ce_header);
+	C2_ASSERT(nbytes_copied == sizeof ldb_ce_header);
+
+	/* Check if the buffer is with sufficient size. */
+	if (c2_bufvec_cursor_step(out) < num_inline *
+	    sizeof list_enum->lle_list_of_cobs[i]) {
+		rc = -ENOBUFS;
+		C2_LOG("listt_encode(): lid %llu, buffer with insufficient "
+		       "size", (unsigned long long)l->l_id);
 		goto out;
 	}
-
-	ldb_ce_header->llces_nr = list_enum->lle_nr;
-
-	nbytes_copied = c2_bufvec_cursor_copyto(out, ldb_ce_header,
-						sizeof *ldb_ce_header);
-	C2_ASSERT(nbytes_copied == sizeof *ldb_ce_header);
 
 	for(i = 0; i < list_enum->lle_nr; ++i) {
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
@@ -649,13 +644,28 @@ static int list_encode(struct c2_ldb_schema *schema,
 				  sizeof list_enum->lle_list_of_cobs[i]);
 		}
 		else {
-			/* Write non-inline cob entries to the cob_lists
-			 * table. */
+			/*
+			 * Write non-inline cob entries to the cob_lists
+			 * table.
+			 */
+			if (i == num_inline) {
+				if (op == C2_LXO_DB_UPDATE) {
+					/*
+					 * The auxiliary table viz. cob_lists
+					 * is not to be modified for an update
+					 * operation. Hence, need to return
+					 * from here.
+					 */
+					rc = 0;
+					goto out;
+				} else {
+					C2_LOG("list_encode(): lid %llu, "
+					       "Start writing to the "
+					       "cob_lists table.",
+					       (unsigned long long)l->l_id);
+				}
 
-			if (i == num_inline)
-				C2_LOG("list_encode(): lid %llu, Start "
-				       "writing to the cob_lists table.",
-				       (unsigned long long)l->l_id);
+			}
 
 			rc = ldb_cob_list_write(schema, op, l, i,
 						&list_enum->lle_list_of_cobs[i],
@@ -669,8 +679,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 		}
 	}
 out:
-	C2_LEAVE("list_encode(): lid %llu, rc %d\n",
-		 (unsigned long long)l->l_id, rc);
+	C2_LEAVE("lid %llu, rc %d\n", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 

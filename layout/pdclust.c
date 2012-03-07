@@ -195,6 +195,8 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
+bool striped_layout_invariant(const struct c2_layout_striped *stl);
+
 static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 {
 	uint32_t                 i;
@@ -204,7 +206,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 	if (!c2_pdclust_layout_bob_check(play))
 		return false;
 
-	if (!layout_invariant(&play->pl_base.ls_base))
+	if (!striped_layout_invariant(&play->pl_base))
 		return false;
 
 	P = play->pl_attr.pa_P;
@@ -511,8 +513,7 @@ out:
 		pdclust_fini(&pdl->pl_base.ls_base);
 	}
 
-
-	C2_ENTRY("lid %llu, rc %d", (unsigned long long)lid, rc);
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 
@@ -704,7 +705,13 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	int                           rc;
 
 	C2_PRE(schema != NULL);
-	C2_PRE(layout_invariant(l));
+
+	/*
+	 * layout_invariant() is part of c2_pdclust_layout_invariant(),
+	 * to be invoked little later below.
+	 */
+	C2_PRE(l != NULL);
+
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
@@ -714,6 +721,14 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
 
 	/* Check if the buffer is with sufficient size. */
+	if (c2_bufvec_cursor_step(out) < sizeof pl_rec) {
+		rc = -ENOBUFS;
+		C2_LOG("pdclust_encode(): lid %llu, buffer with insufficient "
+		       "size", (unsigned long long)l->l_id);
+		goto out;
+	}
+
+	/* Check if the buffer for old record is with sufficient size. */
 	if (!ergo(op == C2_LXO_DB_UPDATE,
 	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec)) {
 		rc = -ENOBUFS;
@@ -725,7 +740,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
-	/* todo call pdclust invariant? */
+	C2_ASSERT(c2_pdclust_layout_invariant(pl));
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
