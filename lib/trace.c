@@ -169,7 +169,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 		c2_trace_record_print(header, body);
 }
 
-static char *trace_subsys_bmap_str(uint64_t subsys, char *buf)
+static char *subsys_str(uint64_t subsys, char *buf)
 {
 	int i;
 	char *s = buf;
@@ -202,7 +202,7 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 			  (unsigned long long)trh->trh_no,
 			  (unsigned long long)trh->trh_timestamp,
 			  (unsigned) (trh->trh_sp & 0xfffff),
-			  trace_subsys_bmap_str(td->td_subsys, subsys_map_str),
+			  subsys_str(td->td_subsys, subsys_map_str),
 			  td->td_func, td->td_file, td->td_line);
 
 	for (i = 0; i < td->td_nr; ++i) {
