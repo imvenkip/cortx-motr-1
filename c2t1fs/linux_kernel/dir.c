@@ -647,15 +647,17 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 				(unsigned long)cob_fid->f_key);
 
 		cc->cc_cobname.ib_count = strlen((char*)cc->cc_cobname.ib_buf);
-		cc->cc_gobfid.f_seq = gob_fid->f_container;
-		cc->cc_gobfid.f_oid = gob_fid->f_key;
-		cc->cc_cobindex     = cob_fid->f_container;
+		cc->cc_common.c_gobfid.f_seq = gob_fid->f_container;
+		cc->cc_common.c_gobfid.f_oid = gob_fid->f_key;
+		cc->cc_common.c_cobfid.f_seq = cob_fid->f_container;
+		cc->cc_common.c_cobfid.f_oid = cob_fid->f_key;
 	} else {
 		cd = c2_fop_data(fop);
 		
-		cd->cd_gobfid.f_seq = gob_fid->f_container;
-		cd->cd_gobfid.f_oid = gob_fid->f_key;
-		cd->cd_container    = cob_fid->f_container;
+		cd->cd_common.c_gobfid.f_seq = gob_fid->f_container;
+		cd->cd_common.c_gobfid.f_oid = gob_fid->f_key;
+		cd->cd_common.c_cobfid.f_seq = cob_fid->f_container;
+		cd->cd_common.c_cobfid.f_oid = cob_fid->f_key;
 	}
 
 	C2_LEAVE("%d", 0);

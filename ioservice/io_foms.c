@@ -2002,8 +2002,8 @@ static void cc_fom_populate(struct c2_fom *fom)
 	f = c2_fop_data(fom->fo_fop);
 	C2_ASSERT(f != NULL);
 
-	io_fom_cob_rw_fid_wire2mem(&f->cc_gobfid, &cc->fcc_cc.cc_pfid);
-	cc->fcc_cc.cc_cfid.f_container = f->cc_cobindex;
+	io_fom_cob_rw_fid_wire2mem(&f->cc_common.c_gobfid, &cc->fcc_cc.cc_pfid);
+	cc->fcc_cc.cc_cfid.f_container = f->cc_common.c_cobfid.f_seq;
 	cc->fcc_cc.cc_cfid.f_key = cc->fcc_cc.cc_pfid.f_key;
 }
 
@@ -2225,11 +2225,11 @@ static void cd_fom_populate(struct c2_fom *fom)
 	cd = cd_fom_get(fom);
 	f = c2_fop_data(fom->fo_fop);
 
-	cd->fcd_cc.cc_pfid.f_container = f->cd_gobfid.f_seq;
-	cd->fcd_cc.cc_pfid.f_key = f->cd_gobfid.f_oid;
+	cd->fcd_cc.cc_pfid.f_container = f->cd_common.c_gobfid.f_seq;
+	cd->fcd_cc.cc_pfid.f_key = f->cd_common.c_gobfid.f_oid;
 
-	cd->fcd_stobid.si_bits.u_hi = f->cd_container;
-	cd->fcd_stobid.si_bits.u_lo = f->cd_gobfid.f_oid;
+	cd->fcd_stobid.si_bits.u_hi = f->cd_common.c_cobfid.f_seq;
+	cd->fcd_stobid.si_bits.u_lo = f->cd_common.c_cobfid.f_oid;
 }
 
 static int cd_fom_state(struct c2_fom *fom)
