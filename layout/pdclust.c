@@ -579,7 +579,7 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 		return -ENOENT;
 	}
 
-	e_recsize = et->let_ops->leto_recsize(stl->ls_enum);
+	e_recsize = et->let_ops->leto_recsize(stl->ls_enum, l->l_id);
 
 	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
 }

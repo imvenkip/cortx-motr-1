@@ -213,6 +213,9 @@ struct c2_layout_enum {
 	/** Layout enumeration type. */
 	const struct c2_layout_enum_type *le_type;
 
+	/** Layout id for the layout this enum is associated with. */
+	uint64_t                          le_lid;
+
 	const struct c2_layout_enum_ops  *le_ops;
 };
 
@@ -265,7 +268,7 @@ struct c2_layout_enum_type_ops {
 	 * Returns applicable record size for the layouts table, for the
 	 * specified layout.
 	 */
-	uint32_t   (*leto_recsize)(struct c2_layout_enum *e);
+	uint32_t   (*leto_recsize)(struct c2_layout_enum *e, uint64_t lid);
 
 	/**
 	 * Continues building the in-memory layout object, either from
@@ -319,7 +322,7 @@ int c2_layout_striped_init(struct c2_layout_striped *str_lay,
 			   const struct c2_layout_ops *ops);
 void c2_layout_striped_fini(struct c2_layout_striped *strl);
 
-int c2_layout_enum_init(struct c2_layout_enum *le,
+int c2_layout_enum_init(struct c2_layout_enum *le, uint64_t lid,
 			const struct c2_layout_enum_type *lt,
 			const struct c2_layout_enum_ops *ops);
 void c2_layout_enum_fini(struct c2_layout_enum *le);

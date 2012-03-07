@@ -44,7 +44,8 @@
 extern const struct c2_addb_loc layout_addb_loc;
 
 enum {
-	LINEAR_ENUM_MAGIC = 0xdcbaabcddcbaabcd /* dcba abcd dcba abcd */
+	LINEAR_ENUM_MAGIC = 0xdcbaabcddcbaabcd, /* dcba abcd dcba abcd */
+	LINEAR_NR_NONE    = 0
 };
 
 static const struct c2_bob_type linear_enum_bob = {
@@ -55,6 +56,18 @@ static const struct c2_bob_type linear_enum_bob = {
 };
 
 C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
+
+extern bool layout_enum_invariant(const struct c2_layout_enum *le,
+				  uint64_t lid);
+
+bool c2_linear_enum_invariant(const struct c2_layout_linear_enum *lin_enum,
+			      uint64_t lid)
+{
+	return lin_enum != NULL &&
+		lin_enum->lle_attr.lla_nr != LINEAR_NR_NONE &&
+		c2_layout_linear_enum_bob_check(lin_enum) &&
+		layout_enum_invariant(&lin_enum->lle_base, lid);
+}
 
 static const struct c2_layout_enum_ops linear_enum_ops;
 
@@ -80,10 +93,9 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 	}
 
 	c2_layout_linear_enum_bob_init(lin_enum);
-	C2_ASSERT(c2_layout_linear_enum_bob_check(lin_enum));
 
-	rc = c2_layout_enum_init(&lin_enum->lle_base, &c2_linear_enum_type,
-				 &linear_enum_ops);
+	rc = c2_layout_enum_init(&lin_enum->lle_base, lid,
+				 &c2_linear_enum_type, &linear_enum_ops);
 	if (rc != 0) {
 		C2_LOG("c2_linear_enum_build(): lid %llu, "
 		       "c2_layout_enum_init() failed, rc %d",
@@ -96,19 +108,22 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 	lin_enum->lle_attr.lla_B  = B;
 
 	*out = lin_enum;
+	C2_POST(c2_linear_enum_invariant(lin_enum, lid));
 
 out:
 	C2_LEAVE("rc %d", rc);
 	return rc;
 }
 
-void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum)
+void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum, uint64_t lid)
 {
 	C2_ENTRY();
-	c2_layout_linear_enum_bob_fini(lin_enum);
-	C2_ASSERT(!c2_layout_linear_enum_bob_check(lin_enum));
 
+	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
+
+	c2_layout_linear_enum_bob_fini(lin_enum);
 	c2_layout_enum_fini(&lin_enum->lle_base);
+
 	C2_LEAVE();
 }
 
@@ -129,8 +144,16 @@ static uint32_t linear_max_recsize(void)
  * Returns record size for the part of the layouts table record, required to
  * store LINEAR enum details for the specified layout.
  */
-static uint32_t linear_recsize(struct c2_layout_enum *e)
+static uint32_t linear_recsize(struct c2_layout_enum *e, uint64_t lid)
 {
+	struct c2_layout_linear_enum  *lin_enum;
+
+	C2_PRE(e != NULL);
+
+	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
+
+	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
+
 	return sizeof(struct c2_layout_linear_attr);
 }
 
@@ -169,15 +192,14 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
 
-	if (lin_attr->lla_nr == 0 || lin_attr->lla_A == 0 ||
-	    lin_attr->lla_B == 0) {
+	/* todo It does not seem right to assert id lin_attr->lla_A == 0 or
+	 * if lin_attr->lla_B == 0.
+	 */
+	if (lin_attr->lla_nr == LINEAR_NR_NONE) {
 		rc = -EINVAL;
-		C2_LOG("In linear_decode(), lid %llu, Invalid value, "
-		       "nr %lu, A %lu, B %lu\n",
+		C2_LOG("linear_decode(), lid %llu, Invalid value, nr %lu",
 		       (unsigned long long)lid,
-		       (unsigned long)lin_attr->lla_nr,
-		       (unsigned long)lin_attr->lla_A,
-		       (unsigned long)lin_attr->lla_B);
+		       (unsigned long)lin_attr->lla_nr);
 		goto out;
 	}
 
@@ -190,6 +212,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	}
 
 	*out = &lin_enum->lle_base;
+	C2_POST(c2_linear_enum_invariant(lin_enum, lid));
 
 out:
 	C2_LEAVE("rc %d", rc);
@@ -246,10 +269,7 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
 				lle_base);
 
-	/* todo Replace following by invariant that is yet to be added. */
-	C2_ASSERT(lin_enum->lle_attr.lla_nr != 0);
-	C2_ASSERT(lin_enum->lle_attr.lla_A != 0);
-	C2_ASSERT(lin_enum->lle_attr.lla_B != 0);
+	C2_ASSERT(c2_linear_enum_invariant(lin_enum, l->l_id));
 
 	if (op == C2_LXO_DB_UPDATE) {
 		old_attr = c2_bufvec_cursor_addr(oldrec_cur);

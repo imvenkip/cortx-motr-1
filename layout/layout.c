@@ -179,16 +179,18 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 }
 
-int c2_layout_enum_init(struct c2_layout_enum *le,
+int c2_layout_enum_init(struct c2_layout_enum *le, uint64_t lid,
 			const struct c2_layout_enum_type *et,
 			const struct c2_layout_enum_ops *ops)
 {
 	C2_PRE(le != NULL);
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(et != NULL);
 	C2_PRE(ops != NULL);
 
 	C2_ENTRY("EnumType %s", et->let_name);
 
+	le->le_lid  = lid;
 	le->le_type = et;
 	le->le_ops  = ops;
 
@@ -509,15 +511,21 @@ out:
 
 bool layout_invariant(const struct c2_layout *l)
 {
-	return (l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
-		l->l_ops != NULL);
+	return l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
+		l->l_ops != NULL;
 }
 
 bool striped_layout_invariant(const struct c2_layout_striped *stl)
 {
-	return (stl != NULL && stl->ls_enum != NULL &&
-		layout_invariant(&stl->ls_base));
+	return stl != NULL && stl->ls_enum != NULL &&
+		layout_invariant(&stl->ls_base);
 }
+
+bool layout_enum_invariant(const struct c2_layout_enum *le, uint64_t lid)
+{
+	return (le != NULL && le->le_lid == lid && le->le_ops != NULL);
+}
+
 
 
 /** @} end group layout */

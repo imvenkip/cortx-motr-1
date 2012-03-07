@@ -45,9 +45,6 @@ struct c2_layout_list_enum {
 	/** super class */
 	struct c2_layout_enum     lle_base;
 
-	/** Layout id. */
-	uint64_t                  lle_lid;
-
 	/** Number of elements present in the enumeration */
 	uint32_t                  lle_nr;
 
@@ -64,10 +61,13 @@ struct c2_layout_list_enum {
 	uint64_t                  lle_magic;
 };
 
+bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
+			    uint64_t lid);
+
 int c2_list_enum_build(uint64_t lid,
 		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);
-void c2_list_enum_fini(struct c2_layout_list_enum *list_enum);
+void c2_list_enum_fini(struct c2_layout_list_enum *list_enum, uint64_t lid);
 
 extern const struct c2_layout_enum_type c2_list_enum_type;
 
