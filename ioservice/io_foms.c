@@ -2040,15 +2040,15 @@ static int cc_fom_cob_create(struct c2_fom *fom)
 
 	rc = cc_stob_create(fom, cc);
 	if (rc != 0)
-		goto err;
+		goto out;
 
 	rc = cc_cob_create(fom, cc);
 	if (rc != 0)
-		goto err;
+		goto out;
 
 	rc = cc_cobfid_map_add(fom, cc);
 
-err:
+out:
 	/* Populate reply fop to send reply to the caller. */
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
@@ -2262,15 +2262,15 @@ static int cd_fom_cob_delete(struct c2_fom *fom)
 
 	rc = cd_cob_delete(fom, cd);
 	if (rc != 0)
-		goto err;
+		goto out;
 
 	rc = cd_stob_delete(fom, cd);
 	if (rc != 0)
-		goto err;
+		goto out;
 
 	rc = cd_cobfid_map_delete(fom, cd);
 
-err:
+out:
 	/* Populate reply fop to send reply to the caller. */
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;

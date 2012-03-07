@@ -270,11 +270,8 @@ struct c2_fom_cob_create {
  */
 enum c2_fom_cob_create_phases {
 	/**
-	 * @todo When containers code will be in place, the stobs will not be
-	 * created on the fly but will be located during cob_create
-	 * request.
-	 * The association of a cob and a stob being identity mapping
-	 * is temporary and is subject to change.
+	 * Internally creates a stob, a cob and adds a record to
+	 * auxiliary database.
 	 */
 	FOPH_CC_COB_CREATE = FOPH_NR + 1,
 };
@@ -294,11 +291,11 @@ struct c2_fom_cob_delete {
  * Phases of c2_fom_cob_delete state machine.
  */
 enum c2_fom_cob_delete_phases {
-	FOPH_CD_COB_DEL = FOPH_NR + 1,
 	/**
-	 * @todo Will be removed when containers code is in place.
-	 * Later, only the reference held on stob will be released.
+	 * Internally deletes the cob, stob and removes the corresponding
+	 * record from auxiliary database.
 	 */
+	FOPH_CD_COB_DEL = FOPH_NR + 1,
 };
 
 /** @} end of io_foms */
