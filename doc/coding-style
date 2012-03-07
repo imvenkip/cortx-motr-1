@@ -252,3 +252,10 @@ try to adhere to some higher level idioms.
       after the code restructuring, the variable remains
       un-initialized in a conditional branch or in a loop that might
       execute 0 times, the initializer suppresses compiler warning).
+
+    * continuation line starts one column after the last unclosed
+      opening parenthesis.
+      For example:
+	C2_ASSERT(ergo(service != NULL,
+		       c2_rpc_service_invariant(service) &&
+		       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));

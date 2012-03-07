@@ -20,8 +20,7 @@
  */
 
 #include "lib/ut.h"
-#include "ioservice/st/bulkio_client.c"
-#include "bulkio_common.c"
+#include "bulkio_common.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"
 
@@ -1251,7 +1250,6 @@ void bulkio_stob_create(void)
 		io_fops_rpc_submit(&targ[i]);
 	}
 	io_fops_destroy(bp);
-
 }
 
 void bulkio_server_single_read_write(void)
@@ -1397,13 +1395,8 @@ void bulkio_server_multiple_read_write(void)
 							       bp->bp_rfops;
 		for (i = 0; i < IO_FOPS_NR; ++i) {
 			io_fops[i]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
-                        if (op == C2_IOSERVICE_WRITEV_OPCODE)
-                                io_fops[i]->if_fop.f_type->ft_fom_type =
-				bulkio_server_write_fom_type;
-                        else
-                                io_fops[i]->if_fop.f_type->ft_fom_type =
-				bulkio_server_read_fom_type;
-
+                        io_fops[i]->if_fop.f_type->ft_fom_type =
+			c2_io_fom_cob_rw_mopt;
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
 			targ[i].ta_bp = bp;

@@ -35,7 +35,6 @@
 #include "lib/time.h"
 #include "lib/misc.h"
 
-#include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
 #include "net/net.h"
@@ -72,37 +71,14 @@ enum {
 };
 
 extern const struct c2_tl_descr c2_rstypes_descr;
-extern struct c2_tl c2_rstypes;
-extern struct c2_mutex c2_rstypes_mutex;
+extern struct c2_tl		c2_rstypes;
+extern struct c2_mutex		c2_rstypes_mutex;
 
 extern const struct c2_tl_descr c2_rh_sl_descr;
 extern const struct c2_tl_descr c2_rh_rpml_descr;
 
 /** Name of cobfid_map table which stores the auxiliary database records. */
 static const char cobfid_map_name[] = "cobfid_map";
-
-/**
-   Internal structure which encapsulates stob type and
-   stob domain references for linux and ad stobs respectively.
- */
-struct cs_reqh_stobs {
-	/**
-	   Type of storage domain to be initialise (e.g. Linux or AD)
-	 */
-	const char            *stype;
-	/**
-	   Backend storage object id
-	 */
-	struct c2_stob_id      stob_id;
-	/**
-	   Linux storage domain type.
-	 */
-	struct c2_stob_domain *linuxstob;
-	/**
-	   Allocation data storage domain type.
-	 */
-	struct c2_stob_domain *adstob;
-};
 
 /**
    Represents state of a request handler context.
@@ -188,7 +164,7 @@ struct cs_reqh_context {
 	int                          rc_state;
 
 	/** Storage domain for a request handler */
-	struct cs_reqh_stobs         rc_stob;
+	struct c2_cs_reqh_stobs         rc_stob;
 
 	/** Database used by the request handler */
 	struct c2_dbenv              rc_db;
@@ -238,11 +214,11 @@ static const struct c2_tl_descr rctx_descr = C2_TL_DESCR("reqh contexts",
                                                          CS_REQH_CTX_MAGIC);
 
 static const struct c2_tl_descr ndoms_descr = C2_TL_DESCR("network domains",
-                                                   struct c2_net_domain,
-                                                   nd_app_linkage,
-                                                   nd_magic,
-                                                   C2_NET_MAGIC,
-                                                   CS_NET_DOMS_MAGIC);
+							  struct c2_net_domain,
+							  nd_app_linkage,
+							  nd_magic,
+							  C2_NET_MAGIC,
+							  CS_NET_DOMS_MAGIC);
 
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 							const char *xprt);
@@ -262,7 +238,8 @@ static void cobfid_map_setup_fini(struct c2_ref *ref);
 
  */
 static struct c2_net_xprt *cs_xprt_lookup(const char *xprt_name,
-		struct c2_net_xprt **xprts, int xprts_nr)
+					  struct c2_net_xprt **xprts,
+					  int xprts_nr)
 {
         int   i;
 
@@ -348,7 +325,8 @@ static void cs_services_list(FILE *out)
    @pre cctx != NULL && xprt != NULL && ep != NULL
  */
 static bool cs_endpoint_is_duplicate(struct c2_colibri *cctx,
-				const struct c2_net_xprt *xprt, const char *ep)
+				     const struct c2_net_xprt *xprt,
+				     const char *ep)
 {
 	int                      cnt;
 	int                      idx;
@@ -387,7 +365,7 @@ static bool cs_endpoint_is_duplicate(struct c2_colibri *cctx,
 	-EADDRINUSE If endpoint is already in use
 */
 static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
-							const char *xprt_name)
+				const char *xprt_name)
 {
 	int                 rc;
 	struct c2_net_xprt *xprt;
@@ -434,7 +412,8 @@ static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, const char *ep)
    Checks if specified service has already a duplicate entry in given request
    handler context.
  */
-static bool service_is_duplicate(const struct c2_colibri *cctx, const char *sname)
+static bool service_is_duplicate(const struct c2_colibri *cctx,
+				 const char *sname)
 {
 	int                     idx;
 	int                     cnt;
@@ -612,7 +591,7 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
    @see c2_cs_init()
  */
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-							const char *xprt_name)
+						  const char *xprt_name)
 {
 	struct c2_net_domain *ndom = NULL;
 
@@ -643,7 +622,7 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
    @pre cctx != NULL && xprt_name != NULL && ep != NULL && reqh != NULL
  */
 static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
-				const char *ep, struct c2_reqh *reqh)
+			      const char *ep, struct c2_reqh *reqh)
 {
 	struct c2_rpcmachine         *rpcmach;
 	struct c2_net_domain         *ndom;
@@ -744,7 +723,7 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
 /**
    Initialises AD type stob.
  */
-static int cs_ad_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
+static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
 			   struct c2_dbenv *db, struct c2_stob **bstob)
 {
 	int rc;
@@ -765,8 +744,9 @@ static int cs_ad_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 /**
    Initialises linux type stob.
  */
-static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
-							struct c2_stob **bstob)
+static int cs_linux_stob_init(const char *stob_path,
+			      struct c2_cs_reqh_stobs *stob,
+			      struct c2_stob **bstob)
 {
 	int                    rc;
 	struct c2_stob_domain *sdom;
@@ -784,25 +764,8 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_reqh_stobs *stob,
 	return rc;
 }
 
-/**
-   Initialises storage including database environment and stob domain of given
-   type (e.g. linux or ad). There is a stob domain and a database environment
-   created per request handler context.
-
-   @param stob_type Type of stob to be initialised (e.g. linux or ad)
-   @param stob_path Path at which storage object should be created
-   @param stob Pre allocated struct reqh_stob_domain object encapsulates
-               c2_stob_domain references for linux and ad stob types
-   @param db Pre allocated struct c2_dbenv instance to be initialised
-
-   @see struct reqh_stob_domain
-
-   @pre stob_type != NULL && stob_path != NULL && stob != NULL && db != NULL
-
-   @todo Use generic mechanism to generate stob ids
- */
-int cs_storage_init(const char *stob_type, const char *stob_path,
-                    struct cs_reqh_stobs *stob, struct c2_dbenv *db)
+int c2_cs_storage_init(const char *stob_type, const char *stob_path,
+		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
 {
 	int                      rc;
 	int                      slen;
@@ -858,17 +821,7 @@ cleanup:
 	return rc;
 }
 
-/**
-   Finalises storage for a request handler in a colibri context.
-
-   @param stob Generic stob encapsulating c2_stob_domain references for linux
-          and ad stobs to be finalised
-
-   @see struct reqh_stob_domain
-
-   @pre stob != NULL
- */
-void cs_storage_fini(struct cs_reqh_stobs *stob)
+void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
@@ -1118,7 +1071,7 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 static int cs_start_request_handler(struct cs_reqh_context *rctx)
 {
 	int                      rc;
-	struct cs_reqh_stobs    *rstob;
+	struct c2_cs_reqh_stobs *rstob;
 	struct c2_stob_domain   *sdom;
 
 	if (rctx->rc_dbpath != NULL)
@@ -1127,7 +1080,7 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 	if (rc != 0)
 		goto out;
 
-	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
+	rc = c2_cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
 				&rctx->rc_stob, &rctx->rc_db);
 	if (rc != 0)
 		goto cleanup_db;
@@ -1161,7 +1114,7 @@ cleanup_fol:
 cleanup_cob:
 	c2_cob_domain_fini(&rctx->rc_cdom);
 cleanup_stob:
-	cs_storage_fini(&rctx->rc_stob);
+	c2_cs_storage_fini(&rctx->rc_stob);
 cleanup_db:
 	c2_dbenv_fini(&rctx->rc_db);
 out:
@@ -1234,7 +1187,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
 	c2_cob_domain_fini(&rctx->rc_cdom);
-	cs_storage_fini(&rctx->rc_stob);
+	c2_cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
 }
 
@@ -1757,7 +1710,7 @@ int c2_cs_start(struct c2_colibri *cctx)
 }
 
 int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
-						int xprts_nr, FILE *out)
+	       int xprts_nr, FILE *out)
 {
         int rc;
 

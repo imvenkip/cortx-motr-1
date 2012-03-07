@@ -24,12 +24,14 @@
 #include "c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
+#include "net/bulk_sunrpc.h"
 #include "ioservice/io_fops.h"
 
-static char *local_addr = "127.0.0.1:12345:1";
+static char *local_addr = EP_SERVICE(6);
 
 module_param(local_addr, charp, S_IRUGO);
-MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs e.g. 127.0.0.1:12345:1");
+MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs "
+		 "e.g. 127.0.0.1:12345:6");
 
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
@@ -66,7 +68,7 @@ int c2t1fs_init(void)
 
 	c2t1fs_globals.g_laddr = local_addr;
 
-	C2_LOG("local_addr: %s\n", local_addr);
+	C2_LOG("local_addr: %s", local_addr);
 
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
@@ -88,7 +90,7 @@ int c2t1fs_init(void)
 	if (rc != 0)
 		goto rpc_fini;
 
-	C2_LEAVE("0");
+	C2_LEAVE("rc: 0");
 	return 0;
 
 rpc_fini:
@@ -101,7 +103,7 @@ icache_fini:
 	c2t1fs_inode_cache_fini();
 
 out:
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
@@ -117,7 +119,7 @@ void c2t1fs_fini(void)
 	c2t1fs_inode_cache_fini();
 	c2_ioservice_fop_fini();
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_net_init(void)
@@ -139,7 +141,7 @@ static int c2t1fs_net_init(void)
 	if (rc != 0)
 		c2_net_xprt_fini(xprt);
 out:
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -150,7 +152,7 @@ static void c2t1fs_net_fini(void)
 	c2_net_domain_fini(&c2t1fs_globals.g_ndom);
 	c2_net_xprt_fini(c2t1fs_globals.g_xprt);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }
 
 static int c2t1fs_rpc_init(void)
@@ -188,7 +190,7 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto cob_dom_fini;
 
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return 0;
 
 cob_dom_fini:
@@ -198,7 +200,7 @@ dbenv_fini:
 	c2_dbenv_fini(dbenv);
 
 out:
-	C2_LEAVE("%d", rc);
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -210,5 +212,5 @@ static void c2t1fs_rpc_fini(void)
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
 
-	C2_LEAVE("0");
+	C2_LEAVE();
 }

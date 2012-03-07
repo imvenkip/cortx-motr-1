@@ -1,3 +1,23 @@
+/*
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Amit Jambure <amit_jambure@xyratex.com>
+ *                  Manish Honap <manish_honap@xyratex.com>
+ * Original creation date: 02/21/2012
+ */
+
 #include <stdio.h>
 
 #include "colibri/init.h"
@@ -11,6 +31,7 @@
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "dtm/dtm.h"
+#include "colibri/colibri_setup.h"
 
 enum {
 	/** maximum number of characters in value of one command line option */
@@ -62,11 +83,11 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 					const char             *db_path,
 					struct c2_stob_domain **out);
 
-static void stob_domain_fini(struct c2_stob_domain *stob_domain);
-
 static int stob_create(struct c2_stob_domain    *dom,
 		       const struct c2_stob_id  *stob_id,
 		       struct c2_stob          **out);
+
+static void stob_domain_fini(struct c2_stob_domain *stob_domain);
 
 int main(int argc, char *argv[])
 {
@@ -89,7 +110,7 @@ int main(int argc, char *argv[])
 
 	rc = c2_init();
 	if (rc != 0) {
-		fprintf(stderr, "Colibri initailisation failed\n");
+		fprintf(stderr, "Colibri initialisation failed\n");
 		return rc;
 	}
 
@@ -195,7 +216,7 @@ static bool cmd_line_args_are_valid(const struct cmd_line_args *clargs)
 			break;
 	}
 
-	/* if stob type is "Ad" then is db path entered ? */
+	/* if stob type is "AD" then is db path entered ? */
 	if (clargs->cla_stob_type == AD_STOB_TYPE &&
 		string_is_empty(clargs->cla_db_path)) {
 		fprintf(stderr, "Error: db path is must if stob type is "
@@ -250,47 +271,9 @@ static void usage(void)
 
 }
 
-/**
-   XXX IMPORTANT: This structure definition is copied from
-       colibri/colibri_setup.c
-
-   It is assumed that, stobutil.c has very short lifetime. Hence it is
-   better to copy the structure definition than to modify colibri_setup.c
-   for stobutil.
-
-   Internal structure which encapsulates stob type and
-   stob domain references for linux and ad stobs respectively.
- */
-struct cs_reqh_stobs {
-        /**
-           Type of storage domain to be initialise (e.g. Linux or AD)
-         */
-        const char            *stype;
-        /**
-           Backend storage object id
-         */
-        struct c2_stob_id      stob_id;
-        /**
-           Linux storage domain type.
-         */
-        struct c2_stob_domain *linuxstob;
-        /**
-           Allocation data storage domain type.
-         */
-        struct c2_stob_domain *adstob;
-};
-
-/*
- * Defined in colibri/colibri_setup.c
- */
-int cs_storage_init(const char *stob_type, const char *stob_path,
-                    struct cs_reqh_stobs *stob, struct c2_dbenv *db);
-
-void cs_storage_fini(struct cs_reqh_stobs *stob);
-
-static struct cs_reqh_stobs reqh_stobs;
-static struct c2_dbenv      dbenv;
-bool                        fini_db = false;
+static struct c2_cs_reqh_stobs	reqh_stobs;
+static struct c2_dbenv		dbenv;
+bool				fini_db = false;
 
 static int stob_domain_locate_or_create(enum stob_type          stob_type,
 					const char             *dom_path,
@@ -305,43 +288,33 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 	/*
 	 * XXX It is important to note that, mechanism to create stob domain
 	 * in this routine MUST be same as that of provided by
-	 * colibri_setup.c:cs_storage_init(). Otherwise, ioservice will not
+	 * colibri_setup.c:c2_cs_storage_init(). Otherwise, ioservice will not
 	 * be able to access the stob-domain.
 	 * Rather than re-implementating same thing, better to call very
-	 * cs_storage_init() here. We need to prepare input as required
-	 * by cs_storage_init().
+	 * c2_cs_storage_init() here. We need to prepare input as required
+	 * by c2_cs_storage_init().
 	 */
 	C2_ASSERT(stob_type == AD_STOB_TYPE || stob_type == LINUX_STOB_TYPE);
 
 	*out = NULL;
 
-	if (stob_type == AD_STOB_TYPE) {
-		rc = c2_dbenv_init(&dbenv, db_path, 0);
-		if (rc != 0) {
-			fprintf(stderr, "Failed to init dbenv\n");
-			return rc;
-		}
-		dbenvp = &dbenv;
-		fini_db = true;
+	rc = c2_dbenv_init(&dbenv, db_path, 0);
+	if (rc != 0) {
+		fprintf(stderr, "Failed to init dbenv\n");
+		return rc;
 	}
+	dbenvp = &dbenv;
+	fini_db = true;
 
 	str_stob_type = (stob_type == AD_STOB_TYPE) ? "AD" : "Linux";
 
-	rc = cs_storage_init(str_stob_type, dom_path, &reqh_stobs, dbenvp);
+	rc = c2_cs_storage_init(str_stob_type, dom_path, &reqh_stobs, dbenvp);
 
 	if (rc == 0)
 		*out = (stob_type == AD_STOB_TYPE) ? reqh_stobs.adstob
 						   : reqh_stobs.linuxstob;
 
 	return rc;
-}
-
-static void stob_domain_fini(struct c2_stob_domain *stob_domain)
-{
-	cs_storage_fini(&reqh_stobs);
-
-	if (fini_db)
-		c2_dbenv_fini(&dbenv);
 }
 
 static int stob_create(struct c2_stob_domain    *dom,
@@ -368,7 +341,8 @@ static int stob_create(struct c2_stob_domain    *dom,
 		C2_ALLOC_PTR(dtx);
 		rc = dom->sd_ops->sdo_tx_make(dom, dtx);
 		if (rc != 0) {
-			C2_LOG("Unable to create transaction context\n");
+			fprintf(stderr,
+				"Unable to create transaction context\n");
 			return rc;
 		}
 	}
@@ -398,4 +372,12 @@ static int stob_create(struct c2_stob_domain    *dom,
 		c2_free(dtx);
 
 	return rc;
+}
+
+static void stob_domain_fini(struct c2_stob_domain *stob_domain)
+{
+	c2_cs_storage_fini(&reqh_stobs);
+
+	if (fini_db)
+		c2_dbenv_fini(&dbenv);
 }
