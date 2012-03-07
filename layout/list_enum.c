@@ -697,17 +697,17 @@ out:
  * Returns number of objects in the enumeration.
  * Argument fid is ignored here for LIST enumeration type.
  */
-static uint32_t list_nr(const struct c2_layout_enum *le)
+static uint32_t list_nr(const struct c2_layout_enum *le, uint64_t lid)
 {
-   /**
-	@code
-	c2_layout_list_enum::lle_list_of_cobs has list of COB Ids in it.
-	Provide count of entries stored in
-	c2_layout_list_enum::lle_list_of_cobs. (Probably c2_tlist_length() can
-	be used for this purpose.)
-	@endcode
-   */
-	return 0;
+	struct c2_layout_list_enum *list_enum;
+
+	C2_PRE(le != NULL);
+	C2_PRE(lid != LID_NONE);
+
+	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
+	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
+
+	return list_enum->lle_nr;
 }
 
 /**
@@ -715,16 +715,25 @@ static uint32_t list_nr(const struct c2_layout_enum *le)
  * Returns idx-th object from the enumeration.
  * Argument fid is ignored here for LIST enumeration type.
  */
-static void list_get(const struct c2_layout_enum *le,
-		     uint32_t idx,
-		     const struct c2_fid *gfid,
+static void list_get(const struct c2_layout_enum *le, uint64_t lid,
+		     uint32_t idx, const struct c2_fid *gfid,
 		     struct c2_fid *out)
 {
-   /**
-	@code
-	Provide idx-th object from c2_layout_list_enum::lle_list_of_cobs.
-	@endcode
-   */
+	struct c2_layout_list_enum *list_enum;
+
+	C2_PRE(le != NULL);
+	C2_PRE(lid != LID_NONE);
+	/* gfid is ignored for this list enumeration type. */
+	C2_PRE(out != NULL);
+
+	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
+	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
+
+	C2_ASSERT(idx < list_enum->lle_nr);
+
+	C2_ASSERT(c2_fid_is_valid(&list_enum->lle_list_of_cobs[idx]));
+
+	*out = list_enum->lle_list_of_cobs[idx];
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {

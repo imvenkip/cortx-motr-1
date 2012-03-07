@@ -25,7 +25,7 @@
  */
 
 #include "lib/errno.h"
-#include "lib/tlist.h"	/* struct c2_tl */
+#include "lib/tlist.h"	            /* struct c2_tl */
 #include "lib/vec.h"
 #include "lib/bob.h"
 #include "lib/memory.h"
@@ -33,6 +33,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "fid/fid.h"                /* struct c2_fid */
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
@@ -310,39 +311,47 @@ out:
  * Implementation of leo_nr for LINEAR enumeration.
  * Rerurns number of objects in the enumeration.
  */
-static uint32_t linear_nr(const struct c2_layout_enum *le)
+static uint32_t linear_nr(const struct c2_layout_enum *le, uint64_t lid)
 {
-   /**
-	@code
-	struct c2_layout_linear_enum *lin;
+	struct c2_layout_linear_enum *lin_enum;
 
-	lin = container_of(le, struct c2_layout_linear_enum, lle_base);
-	return lin->lle_attr.lla_nr;
-	@endcode
-   */
-	return 0;
+	C2_PRE(le != NULL);
+	C2_PRE(lid != LID_NONE);
+
+	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
+	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
+
+	return lin_enum->lle_attr.lla_nr;
 }
+
+extern enum layout_internal layout_internal_copy;
 
 /**
  * Implementation of leo_get for LINEAR enumeration.
  * Rerurns idx-th object from the enumeration.
  */
-static void linear_get(const struct c2_layout_enum *le,
-		       uint32_t idx,
-		       const struct c2_fid *gfid,
+static void linear_get(const struct c2_layout_enum *le, uint64_t lid,
+		       uint32_t idx, const struct c2_fid *gfid,
 		       struct c2_fid *out)
 {
-   /**
-	@code
-	struct c2_layout_linear_enum *lin;
+	struct c2_layout_linear_enum *lin_enum;
 
-	lin = container_of(le, struct c2_layout_linear_enum, lle_base);
+	C2_PRE(le != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(gfid != NULL);
+	C2_PRE(out != NULL);
 
+	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
+	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
+
+	C2_ASSERT(idx < lin_enum->lle_attr.lla_nr);
+
+	/* todo Should following be abstracted out by some interface? */
 	out->f_key = gfid->f_key;
-	out->f_container = lin->lle_attr.lla_A + idx * lin->lle_attr.lla_B;
+	out->f_container = lin_enum->lle_attr.lla_A +
+			   idx * lin_enum->lle_attr.lla_B;
 
-	@endcode
-   */
+	C2_ASSERT(c2_fid_is_valid(out));
 }
 
 

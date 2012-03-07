@@ -35,7 +35,7 @@ struct c2_ldb_schema;
 struct c2_db_tx;
 enum c2_layout_xcode_op;
 
-enum {
+enum layout_internal{
 	LID_NONE = 0
 };
 

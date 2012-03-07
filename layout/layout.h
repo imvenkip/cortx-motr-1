@@ -221,15 +221,14 @@ struct c2_layout_enum {
 
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
-	uint32_t    (*leo_nr)(const struct c2_layout_enum *e);
+	uint32_t    (*leo_nr)(const struct c2_layout_enum *e, uint64_t lid);
 
 	/**
 	 * Returns idx-th object in the enumeration.
 	 * @pre idx < e->l_enum_ops->leo_nr(e)
 	 */
-	void    (*leo_get)(const struct c2_layout_enum *e,
-			   uint32_t idx,
-			   const struct c2_fid *gfid,
+	void    (*leo_get)(const struct c2_layout_enum *e, uint64_t lid,
+			   uint32_t idx, const struct c2_fid *gfid,
 			   struct c2_fid *out);
 };
 
