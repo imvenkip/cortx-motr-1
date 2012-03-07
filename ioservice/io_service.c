@@ -330,6 +330,7 @@ static void c2_ioservice_fini(struct c2_reqh_service *service)
 static int c2_ioservice_start(struct c2_reqh_service *service)
 {
         int			rc = 0;
+	struct c2_colibri      *cc;
 	struct c2_cobfid_setup *s;
 
         C2_PRE(service != NULL);
@@ -338,7 +339,9 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
 	if (rc != 0)
 		return rc;
 
-	rc = c2_cobfid_setup_get(&s, service);
+	cc = reqh_svc_colibri_locate(service);
+	C2_ASSERT(cc != NULL);
+	rc = c2_cobfid_setup_get(&s, cc);
 	C2_POST(ergo(rc == 0, s != NULL));
 
         return rc;
@@ -355,11 +358,15 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
  */
 static void c2_ioservice_stop(struct c2_reqh_service *service)
 {
+	struct c2_colibri *cc;
+
         C2_PRE(service != NULL);
 
         ioservice_delete_buffer_pool(service);
 
-	c2_cobfid_setup_put(service);
+	cc = reqh_svc_colibri_locate(service);
+	C2_ASSERT(cc != NULL);
+	c2_cobfid_setup_put(cc);
 }
 
 /** @} endgroup io_service */

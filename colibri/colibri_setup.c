@@ -1273,49 +1273,46 @@ static const struct c2_addb_ctx_type cobfid_map_setup_addb = {
 C2_ADDB_EV_DEFINE(cobfid_map_setup_func_fail, "cobfid_map_setup_func_failed",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-static struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s)
+struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s)
 {
-	struct cs_reqh_context  *rqctx;
+	struct cs_reqh_context *rqctx;
+	struct c2_colibri      *cc;
 
 	C2_PRE(s != NULL);
 
+	c2_mutex_lock(&s->rs_mutex);
 	rqctx = container_of(s->rs_reqh, struct cs_reqh_context, rc_reqh);
-	return rqctx->rc_colibri;
+	cc = rqctx->rc_colibri;
+	c2_mutex_unlock(&s->rs_mutex);
+	return cc;
 }
 
 /**
  * c2_cobfid_setup is initialized by the very first ioservice that
  * runs on a Colirbi data server. It is refcounted.
  */
-int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_reqh_service *s)
+int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_colibri *cc)
 {
-	int		   rc;
-	struct c2_colibri *cc;
+	int rc;
 
-	C2_PRE(s != NULL);
+	C2_PRE(out != NULL);
+	C2_PRE(cc != NULL);
+	C2_PRE(c2_mutex_is_locked(&cc->cc_mutex));
 
-	cc = reqh_svc_colibri_locate(s);
-	C2_ASSERT(cc != NULL);
-
-	c2_mutex_lock(&cc->cc_mutex);
 	if (cc->cc_map == NULL) {
 		C2_ALLOC_PTR(cc->cc_map);
-		if (cc->cc_map == NULL) {
-			c2_mutex_unlock(&cc->cc_mutex);
+		if (cc->cc_map == NULL)
 			return -ENOMEM;
-		}
 
 		rc = cobfid_map_setup_init(cc->cc_map, cobfid_map_name);
 		if (rc != 0) {
 			c2_free(cc->cc_map);
-			c2_mutex_unlock(&cc->cc_mutex);
 			return rc;
 		}
 	} else
 		c2_ref_get(&cc->cc_map->cms_refcount);
 
 	*out = cc->cc_map;
-	c2_mutex_unlock(&cc->cc_mutex);
 	return rc;
 }
 
@@ -1323,17 +1320,12 @@ int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_reqh_service *s)
  * Releases reference on c2_cobfid_setup structure. Last reference put
  * will finalize the structure.
  */
-void c2_cobfid_setup_put(struct c2_reqh_service *s)
+void c2_cobfid_setup_put(struct c2_colibri *cc)
 {
-	struct c2_colibri *cc;
+	C2_PRE(cc != NULL);
+	C2_PRE(c2_mutex_is_locked(&cc->cc_mutex));
 
-	C2_PRE(s != NULL);
-
-	cc = reqh_svc_colibri_locate(s);
-	C2_ASSERT(cc != NULL);
-	c2_mutex_lock(&cc->cc_mutex);
 	c2_ref_put(&cc->cc_map->cms_refcount);
-	c2_mutex_unlock(&cc->cc_mutex);
 }
 
 static int cobfid_map_setup_init(struct c2_cobfid_setup *s, const char *name)

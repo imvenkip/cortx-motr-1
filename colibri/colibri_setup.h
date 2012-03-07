@@ -107,6 +107,8 @@
    @{
  */
 
+struct c2_colibri;
+
 /**
  * Represents the infrastructure to host and maintain a
  * cob fid map which is an auxiliary database which maintains
@@ -146,23 +148,21 @@ struct c2_cobfid_setup {
  * Gets a reference on struct c2_cobfid_setup. If it is NULL, a new
  * instance will be created and refcount will be initialized.
  * @param out Out parameter which returns struct c2_cobfid_setup pointer.
- * @param service Typically invoked by any ioservice instance which is
- * about to be started OR by a request to add/delete records to/from
- * the cobfid_map table.
+ * @param cc The c2_colibri instance which hosts the c2_cobfid_setup
+ * structure.
  * @pre service != NULL.
  */
 int c2_cobfid_setup_get(struct c2_cobfid_setup **out,
-			struct c2_reqh_service *service);
+			struct c2_colibri *cc);
 
 /**
  * Releases the reference on struct c2_cobfid_setup. Last reference
  * will finalize the c2_cobfid_setup structure.
- * @param service Typically invoked by any ioservice instance which is
- * about to be stopped OR by a request which has invoked
- * c2_cobfid_setup_get() earlier.
- * @pre service != NULL.
+ * @param cc The c2_colibri instance which hosts c2_cobfid_setup
+ * structure.
+ * @pre cc != NULL && c2_mutex_is_locked(cc).
  */
-void c2_cobfid_setup_put(struct c2_reqh_service *service);
+void c2_cobfid_setup_put(struct c2_colibri *cc);
 
 /**
  * Adds a record to c2_cobfid_map contained in c2_cobfid_setup.
@@ -186,6 +186,14 @@ int c2_cobfid_setup_recadd(struct c2_cobfid_setup *service,
  */
 int c2_cobfid_setup_recdel(struct c2_cobfid_setup *s,
 			   struct c2_fid gfid, struct c2_uint128 cfid);
+
+/**
+ * Locates and returns instance of struct c2_colibri given a
+ * request handler service.
+ * @param s Instance of request handler service.
+ * @pre s != NULL.
+ */
+struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s);
 
 /**
    Defines a colibri context containing a set of network transports,

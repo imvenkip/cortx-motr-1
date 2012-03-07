@@ -2148,6 +2148,7 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 {
 	int			rc;
 	struct c2_uint128	cob_fid;
+	struct c2_colibri      *cctx;
 	struct c2_cobfid_setup *s = NULL;
 
 	C2_PRE(fom != NULL);
@@ -2155,7 +2156,11 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	C2_PRE(cc->fcc_stob != NULL);
 	C2_PRE(cc->fcc_cc.cc_cob != NULL);
 
-	rc = c2_cobfid_setup_get(&s, fom->fo_service);
+	cctx = reqh_svc_colibri_locate(fom->fo_service);
+	C2_ASSERT(cctx != NULL);
+	c2_mutex_lock(&cctx->cc_mutex);
+	rc = c2_cobfid_setup_get(&s, cctx);
+	c2_mutex_unlock(&cctx->cc_mutex);
 	C2_ASSERT(rc == 0 && s != NULL);
 
 	cob_fid.u_hi = cc->fcc_cc.cc_cfid.f_container;
@@ -2166,7 +2171,9 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail, "cobfid_map_add() failed.", rc);
 
-	c2_cobfid_setup_put(fom->fo_service);
+	c2_mutex_lock(&cctx->cc_mutex);
+	c2_cobfid_setup_put(cctx);
+	c2_mutex_unlock(&cctx->cc_mutex);
 	return rc;
 }
 
@@ -2344,12 +2351,17 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 {
 	int			  rc;
 	struct c2_uint128	  cob_fid;
+	struct c2_colibri        *cctx;
 	struct c2_cobfid_setup	 *s;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	rc = c2_cobfid_setup_get(&s, fom->fo_service);
+	cctx = reqh_svc_colibri_locate(fom->fo_service);
+	C2_ASSERT(cctx != NULL);
+	c2_mutex_lock(&cctx->cc_mutex);
+	rc = c2_cobfid_setup_get(&s, cctx);
+	c2_mutex_unlock(&cctx->cc_mutex);
 	C2_ASSERT(rc == 0 && s != NULL);
 
 	cob_fid.u_hi = cd->fcd_cc.cc_cfid.f_container;
@@ -2361,7 +2373,9 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 			    cd_fom_func_fail,
 			    "c2_cobfid_setup_delrec() failed.", rc);
 
-	c2_cobfid_setup_put(fom->fo_service);
+	c2_mutex_lock(&cctx->cc_mutex);
+	c2_cobfid_setup_put(cctx);
+	c2_mutex_unlock(&cctx->cc_mutex);
 	return rc;
 }
 

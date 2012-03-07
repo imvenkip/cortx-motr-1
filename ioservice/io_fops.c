@@ -101,9 +101,6 @@ static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_io_descs_tfmt,
 	&c2_io_indexvec_seq_tfmt,
 	&c2_fop_cob_rw_tfmt,
-	&c2_fop_cob_create_tfmt,
-	&c2_fop_cob_delete_tfmt,
-	&c2_fop_cob_op_reply_tfmt,
 };
 
 static struct c2_fop_type *ioservice_fops[] = {
