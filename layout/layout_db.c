@@ -738,7 +738,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)lid);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	pair->dp_table = &schema->ls_layouts;
 
@@ -822,7 +822,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 				&pair->dp_rec.db_buf.b_nob);
@@ -894,7 +894,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	/*
 	 * Get the old record from the layouts table. It is used to ensure that
@@ -988,7 +988,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 

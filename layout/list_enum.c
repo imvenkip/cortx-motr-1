@@ -561,7 +561,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(out) < sizeof ldb_ce_header) {
@@ -689,7 +689,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 		}
 	}
 out:
-	C2_LEAVE("lid %llu, rc %d\n", (unsigned long long)l->l_id, rc);
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 

@@ -84,8 +84,8 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 		rc = -ENOMEM;
 		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 		            c2_addb_oom);
-		C2_LOG("c2_linear_enum_build(): C2_ALLOC_PTR() failed, "
-		       "rc %d\n", rc);
+		C2_LOG("c2_linear_enum_build(): C2_ALLOC_PTR() failed, "rc %d",
+		       rc);
 		goto out;
 	}
 
@@ -194,7 +194,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)lid);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(cur) < sizeof *lin_attr) {
@@ -260,7 +260,7 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(out)

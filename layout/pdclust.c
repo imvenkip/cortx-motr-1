@@ -583,17 +583,17 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
 	if (!IS_IN_ARRAY(stl->ls_enum->le_type->let_id, schema->ls_enum)) {
-		C2_LOG("pdclust_recsize(): lid %llu, Invalid Enum_type_id %d",
+		C2_LOG("pdclust_recsize(): lid %llu, Invalid Enum_type_id %lu",
 		       (unsigned long long)l->l_id,
-		       stl->ls_enum->le_type->let_id);
+		       (unsigned long)stl->ls_enum->le_type->let_id);
 		return -EPROTO;
 	}
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 	if (et == NULL) {
 		C2_LOG("pdclust_recsize(): lid %llu, Unregistered Enum_type, "
-		       "Enum_type_id %d", (unsigned long long)l->l_id,
-		       stl->ls_enum->le_type->let_id);
+		       "Enum_type_id %lu", (unsigned long long)l->l_id,
+		       (unsigned long)stl->ls_enum->le_type->let_id);
 		return -ENOENT;
 	}
 
@@ -634,7 +634,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 
-	C2_ENTRY("lid %llu\n", (unsigned long long)lid);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(cur) < sizeof *pl_rec) {
@@ -659,8 +659,8 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (et == NULL) {
 		rc = -EPROTO;
 		C2_LOG("pdclust_decode(): lid %llu, Enum_type is not "
-		       "registered, Enum_type_id %d", (unsigned long long)lid,
-		       pl_rec->pr_let_id);
+		       "registered, Enum_type_id %lu", (unsigned long long)lid,
+		       (unsigned long)pl_rec->pr_let_id);
 		goto out;
 	}
 
