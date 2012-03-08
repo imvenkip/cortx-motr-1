@@ -1326,10 +1326,10 @@ static void io_item_replied(struct c2_rpc_item *item)
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
 
-	C2_ASSERT(ergo(item->ri_error == 0,
+	C2_ASSERT(ergo(reply->ri_error == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 
-	if (item->ri_error != 0 || reply->rwr_count != rbulk->rb_bytes)
+	if (reply->ri_error != 0 || reply->rwr_count != rbulk->rb_bytes)
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "io fop failed.",
 			    item->ri_error);
