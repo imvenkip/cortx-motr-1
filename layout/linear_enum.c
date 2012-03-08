@@ -34,11 +34,13 @@
 #include "lib/trace.h"
 
 #include "fid/fid.h"                /* struct c2_fid */
-#include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
+extern int LID_NONE;
 extern const struct c2_addb_loc layout_addb_loc;
-
+extern bool layout_invariant(const struct c2_layout *l);
+extern bool layout_enum_invariant(const struct c2_layout_enum *le,
+				  uint64_t lid);
 enum {
 	LINEAR_ENUM_MAGIC = 0xdcbaabcddcbaabcd, /* dcba abcd dcba abcd */
 	LINEAR_NR_NONE    = 0
@@ -53,8 +55,6 @@ static const struct c2_bob_type linear_enum_bob = {
 
 C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
 
-extern bool layout_enum_invariant(const struct c2_layout_enum *le,
-				  uint64_t lid);
 
 bool c2_linear_enum_invariant(const struct c2_layout_linear_enum *lin_enum,
 			      uint64_t lid)
@@ -323,8 +323,6 @@ static uint32_t linear_nr(const struct c2_layout_enum *le, uint64_t lid)
 
 	return lin_enum->lle_attr.lla_nr;
 }
-
-extern enum layout_internal layout_internal_copy;
 
 /**
  * Implementation of leo_get for LINEAR enumeration.

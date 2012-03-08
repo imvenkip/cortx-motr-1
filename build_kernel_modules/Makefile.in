@@ -67,8 +67,8 @@ ioservice_HEADERS               := io_fops.h io_fops_k.h
 
 layout_SOURCES 			:= layout.c pdclust.c composite.c list_enum.c \
 				   linear_enum.c
-layout_HEADERS 			:= layout.h layout_internal.h pdclust.h \
-				   composite.h list_enum.h linear_enum.h
+layout_HEADERS 			:= layout.h pdclust.h composite.h list_enum.h \
+				   linear_enum.h
 
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
                                    time.c bitmap.c chan.c misc.c buf.c cond.c \

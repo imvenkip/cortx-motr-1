@@ -340,21 +340,21 @@
 #include "lib/vec.h"
 #include "lib/arith.h"
 
-#include "addb/addb.h"
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"       /* C2_LOG() */
 
 #include "db/db_common.h"    /* c2_db_buf_init() */
-
-#include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 
+extern int LID_NONE;
 extern const struct c2_addb_loc layout_addb_loc;
+extern bool layout_invariant(const struct c2_layout *l);
 
 enum {
-	DEF_DB_FLAGS = 0
+	ENUM_DEF_DB_FLAGS = 0
 };
+
+int DEFAULT_DB_FLAG = ENUM_DEF_DB_FLAGS;
 
 C2_ADDB_EV_DEFINE(ldb_lookup_success, "layout_lookup_success",
 		  C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS, C2_ADDB_FLAG);
@@ -375,6 +375,97 @@ C2_ADDB_EV_DEFINE(ldb_delete_success, "layout_delete_success",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
+
+/**
+ * @defgroup LayoutDBDFSInternal Layout DB Internals
+ * @brief Detailed functional specification of the internals of the
+ * Layout-DB module.
+ *
+ * This section covers the data structures and sub-routines used internally.
+ *
+ * @see @ref Layout-DB "Layout-DB DLD"
+ * and @ref Layout-DB-lspec "Layout-DB Logical Specification".
+ *
+ * @{
+ */
+
+/**
+ * Write layout record to layouts table.
+ *
+ * @param op - This enum parameter indicates what is the DB operation to be
+ * performed on the layout record which could be one of ADD/UPDATE/DELETE.
+ */
+int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
+		     uint64_t lid, struct c2_db_pair *pair, uint32_t recsize,
+		     struct c2_db_tx *tx)
+{
+	int rc;
+
+	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
+	       op == C2_LXO_DB_DELETE);
+	C2_PRE(recsize >= sizeof(struct c2_ldb_rec));
+
+	pair->dp_table = &schema->ls_layouts;
+	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
+
+	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
+		       pair->dp_key.db_buf.b_addr,
+		       pair->dp_key.db_buf.b_nob);
+	pair->dp_key.db_static = false;
+
+	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
+		       pair->dp_rec.db_buf.b_addr,
+		       pair->dp_rec.db_buf.b_nob);
+	pair->dp_rec.db_static = false;
+
+	/*
+	 * ADDB messages regarding the failure cases, are added into the
+	 * the respective callers.
+	 */
+	if (op == C2_LXO_DB_ADD) {
+		rc = c2_table_insert(tx, pair);
+	} else if (op == C2_LXO_DB_UPDATE) {
+		rc = c2_table_update(tx, pair);
+	} else if (op == C2_LXO_DB_DELETE) {
+		rc = c2_table_delete(tx, pair);
+	}
+
+	return rc;
+}
+
+static int get_oldrec(struct c2_ldb_schema *schema,
+		      struct c2_layout *l, void *area, uint32_t num_bytes)
+{
+	struct c2_db_pair  pair;
+	struct c2_db_tx    tx;
+	int                rc;
+
+	rc = c2_db_tx_init(&tx, schema->ls_dbenv, DEFAULT_DB_FLAG);
+	C2_ASSERT(rc == 0);
+
+	c2_db_pair_setup(&pair, &schema->ls_layouts,
+			 &l->l_id, sizeof l->l_id,
+			 area, num_bytes);
+
+	rc = c2_table_lookup(&tx, &pair);
+
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+
+	if (rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_update_fail, "c2_table_lookup()", rc);
+		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d",
+		       (unsigned long long)l->l_id, rc);
+	}
+
+	/* Ignoring the return status, this being a lookup operation. */
+	c2_db_tx_commit(&tx);
+
+	return rc;
+}
+
+/** @} end group LayoutDBDFSInternal */
 
 /**
  * @addtogroup LayoutDBDFS
@@ -411,7 +502,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 	c2_mutex_init(&schema->ls_lock);
 
 	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts",
-			   DEF_DB_FLAGS, &layouts_table_ops);
+			   DEFAULT_DB_FLAG, &layouts_table_ops);
 
 	C2_LEAVE();
 	return rc;
@@ -771,38 +862,6 @@ out:
 	return rc;
 }
 
-static int get_oldrec(struct c2_ldb_schema *schema,
-		      struct c2_layout *l, void *area, uint32_t num_bytes)
-{
-	struct c2_db_pair  pair;
-	struct c2_db_tx    tx;
-	int                rc;
-
-	rc = c2_db_tx_init(&tx, schema->ls_dbenv, DEF_DB_FLAGS);
-	C2_ASSERT(rc == 0);
-
-	c2_db_pair_setup(&pair, &schema->ls_layouts,
-			 &l->l_id, sizeof l->l_id,
-			 area, num_bytes);
-
-	rc = c2_table_lookup(&tx, &pair);
-
-	c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
-
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_update_fail, "c2_table_lookup()", rc);
-		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d",
-		       (unsigned long long)l->l_id, rc);
-	}
-
-	/* Ignoring the return status, this being a lookup operation. */
-	c2_db_tx_commit(&tx);
-
-	return rc;
-}
-
 /**
  * Updates a layout record. As of now, only l_ref can be updated for an
  * existing layout record.
@@ -970,60 +1029,6 @@ out:
 
 /** @} end group LayoutDBDFS */
 
-
-
-/**
- * @defgroup LayoutDBDFSInternal Layout DB Internals
- * @brief Detailed functional specification of the internals of the
- * Layout-DB module.
- *
- * This section covers the data structures and sub-routines used internally.
- *
- * @see @ref Layout-DB "Layout-DB DLD"
- * and @ref Layout-DB-lspec "Layout-DB Logical Specification".
- *
- * @{
- */
-
-int ldb_layout_write(struct c2_ldb_schema *schema,
-		     enum c2_layout_xcode_op op,
-		     uint64_t lid,
-		     struct c2_db_pair *pair,
-		     uint32_t recsize,
-		     struct c2_db_tx *tx)
-{
-	int rc;
-
-	pair->dp_table = &schema->ls_layouts;
-	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
-
-	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
-		       pair->dp_key.db_buf.b_addr,
-		       pair->dp_key.db_buf.b_nob);
-	pair->dp_key.db_static = false;
-
-	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
-		       pair->dp_rec.db_buf.b_addr,
-		       pair->dp_rec.db_buf.b_nob);
-	pair->dp_rec.db_static = false;
-
-	/*
-	 * ADDB messages regarding the failure cases, are added into the
-	 * the respective callers.
-	 */
-	if (op == C2_LXO_DB_ADD) {
-		rc = c2_table_insert(tx, pair);
-	} else if (op == C2_LXO_DB_UPDATE) {
-		rc = c2_table_update(tx, pair);
-	} else if (op == C2_LXO_DB_DELETE) {
-		rc = c2_table_delete(tx, pair);
-	}
-
-	return rc;
-}
-
-
-/** @} end group LayoutDBDFSInternal */
 
 
 /*

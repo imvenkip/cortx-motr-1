@@ -36,8 +36,13 @@
 #include "lib/trace.h"
 
 #include "layout/layout_db.h"
-#include "layout/layout_internal.h"
 #include "layout/layout.h"
+
+enum layout_internal {
+	ENUM_LID_NONE = 0
+};
+
+int LID_NONE = ENUM_LID_NONE;
 
 /** ADDB instrumentation for layout. */
 static const struct c2_addb_ctx_type layout_addb_ctx_type = {
@@ -57,6 +62,23 @@ C2_ADDB_EV_DEFINE(layout_encode_success, "layout_encode_success",
 		  C2_ADDB_EVENT_LAYOUT_ENCODE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
 		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_FUNC_CALL);
+
+bool layout_invariant(const struct c2_layout *l)
+{
+	return l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
+		l->l_ops != NULL;
+}
+
+bool striped_layout_invariant(const struct c2_layout_striped *stl)
+{
+	return stl != NULL && stl->ls_enum != NULL &&
+		layout_invariant(&stl->ls_base);
+}
+
+bool layout_enum_invariant(const struct c2_layout_enum *le, uint64_t lid)
+{
+	return (le != NULL && le->le_lid == lid && le->le_ops != NULL);
+}
 
 int c2_layouts_init(void)
 {
@@ -494,23 +516,6 @@ out:
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
-}
-
-bool layout_invariant(const struct c2_layout *l)
-{
-	return l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
-		l->l_ops != NULL;
-}
-
-bool striped_layout_invariant(const struct c2_layout_striped *stl)
-{
-	return stl != NULL && stl->ls_enum != NULL &&
-		layout_invariant(&stl->ls_base);
-}
-
-bool layout_enum_invariant(const struct c2_layout_enum *le, uint64_t lid)
-{
-	return (le != NULL && le->le_lid == lid && le->le_ops != NULL);
 }
 
 

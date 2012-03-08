@@ -93,12 +93,12 @@
 #include "pool/pool.h"
 #include "fid/fid.h"                /* struct c2_fid */
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
-#include "layout/layout_internal.h"
 #include "layout/list_enum.h"
 #include "layout/linear_enum.h"
 
 #include "layout/pdclust.h"
 
+extern int LID_NONE;
 extern const struct c2_addb_loc layout_addb_loc;
 
 enum {
