@@ -38,8 +38,9 @@
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
 
 extern int LID_NONE;
-extern const struct c2_addb_loc layout_addb_loc;
 extern bool layout_invariant(const struct c2_layout *l);
+extern const struct c2_addb_loc layout_addb_loc;
+extern struct c2_addb_ctx layout_global_ctx;
 extern int DEFAULT_DB_FLAG;
 
 enum {
@@ -161,7 +162,7 @@ int c2_list_enum_build(uint64_t lid,
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc, c2_addb_oom);
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
 		C2_LOG("c2_list_enum_build(): lid %llu, C2_ALLOC_PTR() "
 		       "failed, rc %d", (unsigned long long)lid, rc);
 		goto out;
@@ -185,7 +186,7 @@ int c2_list_enum_build(uint64_t lid,
 	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc, c2_addb_oom);
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
 		C2_LOG("c2_list_enum_build(): lid %llu, C2_ALLOC_ARR() "
 		       "failed, rc %d", (unsigned long long)lid, rc);
 		goto out;
@@ -194,7 +195,7 @@ int c2_list_enum_build(uint64_t lid,
 	for (i = 0; i < nr; ++i) {
 		if (!c2_fid_is_valid(&cob_list[i])) {
 			rc = -EINVAL;
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    c2_addb_func_fail, "c2_fid_is_valid()",
 				    -EINVAL);
 			C2_LOG("c2_list_enum_build(): lid %llu, Invalid cob id",
@@ -247,7 +248,7 @@ static int list_register(struct c2_ldb_schema *schema,
 	C2_ALLOC_PTR(lsd);
 	if (lsd == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc, c2_addb_oom);
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
 		C2_LOG("list_register(): C2_ALLOC_PTR() failed, rc %d", rc);
 		goto out;
 	}
@@ -255,7 +256,7 @@ static int list_register(struct c2_ldb_schema *schema,
 	rc = c2_table_init(&lsd->lsd_cob_lists, schema->ls_dbenv,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "c2_table_init()", rc);
 		C2_LOG("list_register(): c2_table_init() failed, rc %d", rc);
 		c2_free(lsd);
@@ -352,7 +353,7 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 
 	rc = c2_table_lookup(tx, &pair);
 	if (rc != 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "c2_table_lookup()", rc);
 		C2_LOG("ldb_cob_list_read(): lid %llu, idx %lu, "
 		       "c2_table_lookup() failed, "
@@ -362,7 +363,7 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 	}
 
 	if (!c2_fid_is_valid(&rec.lclr_cob_id)) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "c2_fid_is_valid()", -EINVAL);
 		C2_LOG("ldb_cob_list_read(): lid %llu, idx %lu, "
 		       "c2_fid_is_valid() failed",
@@ -424,7 +425,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_ALLOC_ARR(cob_list, ldb_ce_header->llces_nr);
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc, c2_addb_oom);
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
 		C2_LOG("list_decode(): lid %llu, C2_ALLOC_ARR() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
 		goto out;

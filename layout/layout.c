@@ -53,6 +53,11 @@ const struct c2_addb_loc layout_addb_loc = {
 	.al_name = "layout"
 };
 
+struct c2_addb_ctx layout_global_ctx = {
+	.ac_type   = &layout_addb_ctx_type,
+	.ac_parent = NULL /* todo What should this parent be set to? */
+};
+
 C2_ADDB_EV_DEFINE(layout_decode_success, "layout_decode_success",
 		  C2_ADDB_EVENT_LAYOUT_DECODE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_decode_fail, "layout_decode_fail",
@@ -121,13 +126,8 @@ int c2_layout_init(struct c2_layout *l,
 	l->l_pool_id = pool_id;
 	l->l_ops     = ops;
 
-	/*
-	 * todo Replace the global context as appropriate - here and at all
-	 * the other places applicable. Global context c2_addb_global_ctx is
-	 * currently used as a placeholder.
-	 */
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
-			 &c2_addb_global_ctx);
+			 &layout_global_ctx);
 
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 	return 0;
@@ -292,7 +292,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (c2_bufvec_cursor_step(cur) < sizeof *rec) {
 		rc = -ENOBUFS;
 		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    layout_decode_fail, "buffer insufficient",
 				    -ENOBUFS);
 
@@ -307,7 +307,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type)) {
 		rc = -EPROTO;
 		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    layout_decode_fail, "Invalid LayouTypeId",
 				    -EPROTO);
 
@@ -321,7 +321,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	if (lt == NULL) {
 		rc = -ENOENT;
 		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    layout_decode_fail,
 				    "Unregistered LayouType",
 				    -EPROTO);
@@ -345,7 +345,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0) {
 		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    layout_decode_fail, "lto_decode", rc);
 
 		C2_LOG("c2_layout_decode(): lid %llu, lto_decode() failed, "
@@ -364,7 +364,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 out:
 	if (op == C2_LXO_DB_NONE && rc == 0)
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    layout_decode_success, true);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -435,7 +435,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec)) {
 		rc = -ENOBUFS;
 		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    layout_encode_fail, "buffer insufficient",
 				    -ENOBUFS);
 
@@ -447,7 +447,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type)) {
 		rc = -EPROTO;
 		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    layout_encode_fail,
 				    "Invalid Layout_type_id", -EPROTO);
 
@@ -461,7 +461,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	if (lt == NULL) {
 		rc = -ENOENT;
 		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 				    layout_encode_fail,
 				    "Unregistered Layout_type", -EPROTO);
 
@@ -511,7 +511,7 @@ out:
 	c2_mutex_unlock(&l->l_lock);
 
 	if (op == C2_LXO_DB_NONE && rc == 0)
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    layout_encode_success, true);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);

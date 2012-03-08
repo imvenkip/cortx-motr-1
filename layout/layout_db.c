@@ -347,8 +347,9 @@
 #include "layout/layout_db.h"
 
 extern int LID_NONE;
-extern const struct c2_addb_loc layout_addb_loc;
 extern bool layout_invariant(const struct c2_layout *l);
+extern const struct c2_addb_loc layout_addb_loc;
+extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
 	ENUM_DEF_DB_FLAGS = 0
@@ -572,7 +573,7 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 	/* Allocate type specific schema data. */
 	rc = lt->lt_ops->lto_register(schema, lt);
 	if (rc != 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "lto_register", rc);
 		C2_LOG("c2_ldb_type_register(): Layout_type_id %lu, "
 		       "lto_register() failed, rc %d",
@@ -642,7 +643,7 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 	/* Allocate enum type specific schema data. */
 	rc = let->let_ops->leto_register(schema, let);
 	if (rc != 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "leto_register", rc);
 		C2_LOG("c2_ldb_enum_register(): Enum_type_id %lu, "
 		       "leto_register() failed, rc %d",
@@ -757,7 +758,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    ldb_lookup_fail, "c2_table_lookup", rc);
 		C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_lookup() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
@@ -771,7 +772,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	rc = c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
 	if (rc != 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    ldb_lookup_fail, "c2_layout_decode", rc);
 		C2_LOG("c2_ldb_lookup(): lid %llu, c2_layout_decode() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
@@ -782,7 +783,7 @@ out:
 	c2_db_buf_fini(&pair->dp_rec);
 
 	if (rc == 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    ldb_lookup_success, true);
 	}
 
@@ -854,7 +855,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 out:
 	if (rc == 0) {
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc,
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    ldb_add_success, true);
 	}
 

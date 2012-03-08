@@ -100,6 +100,7 @@
 
 extern int LID_NONE;
 extern const struct c2_addb_loc layout_addb_loc;
+extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
 	PDCLUST_MAGIC = 0x1234abcddcba4321ULL /* 1234 abcd dcba 4321 */
@@ -465,7 +466,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 	    pdl->pl_tile_cache.tc_permute == NULL ||
 	    pdl->pl_tile_cache.tc_inverse == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&c2_addb_global_ctx, &layout_addb_loc, c2_addb_oom);
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
 		goto out;
 	}
 
