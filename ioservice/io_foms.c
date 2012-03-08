@@ -1816,7 +1816,7 @@ static const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom)
 
 /* Forward Declarations. */
 static int    cob_fom_create(struct c2_fop *fop, struct c2_fom **out);
-static int    cc_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static int    cc_fom_create(struct c2_fom **out);
 static void   cc_fom_fini(struct c2_fom *fom);
 static void   cc_fom_populate(struct c2_fom *fom);
 static int    cc_fom_state(struct c2_fom *fom);
@@ -1828,7 +1828,7 @@ static int    cc_cobfid_map_add(struct c2_fom *fom,
 
 static void   cd_fom_fini(struct c2_fom *fom);
 static int    cd_fom_state(struct c2_fom *fom);
-static int    cd_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static int    cd_fom_create(struct c2_fom **out);
 static void   cd_fom_populate(struct c2_fom *fom);
 static int    cd_fom_cob_delete(struct c2_fom *fom);
 static int    cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_delete *cd);
@@ -1915,7 +1915,7 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 	mtype = &fop->f_type->ft_fom_type;
 	*mtype = cob_create ? cc_fom_type : cd_fom_type;
 
-	rc = cob_create ? cc_fom_create(fop, out) : cd_fom_create(fop, out);
+	rc = cob_create ? cc_fom_create(out) : cd_fom_create(out);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fop->f_addb, &cc_fom_addb_loc, cc_fom_func_fail,
 			    "Failed to create cob_create fom.", rc);
@@ -1946,11 +1946,10 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 	return rc;
 }
 
-static int cc_fom_create(struct c2_fop *fop, struct c2_fom **out)
+static int cc_fom_create(struct c2_fom **out)
 {
 	struct c2_fom_cob_create *cc;
 
-	C2_PRE(fop != NULL);
 	C2_PRE(out != NULL);
 
 	C2_ALLOC_PTR(cc);
@@ -2174,11 +2173,10 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	return rc;
 }
 
-static int cd_fom_create(struct c2_fop *fop, struct c2_fom **out)
+static int cd_fom_create(struct c2_fom **out)
 {
 	struct c2_fom_cob_delete *cd;
 
-	C2_PRE(fop != NULL);
 	C2_PRE(out != NULL);
 
 	C2_ALLOC_PTR(cd);

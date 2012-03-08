@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,6 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Amit Jambure <amit_jambure@xyratex.com>
+ * Revision       : Anand Vidwansa <anand_vidwansa@xyratex.com>
  * Original creation date: 10/14/2011
  */
 
@@ -26,6 +27,8 @@
 #include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
 #include "ioservice/io_fops_k.h" /* c2_fop_cob_create */
 #include "rpc/rpclib.h"          /* c2_rpc_client_call */
+
+extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;
 
 static int c2t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -47,10 +50,6 @@ static int c2t1fs_readdir(struct file *f,
 
 static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry);
 
-static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci);
-
-static int c2t1fs_delete_component_objects(struct c2t1fs_inode *ci);
-
 static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 				       int (*func)(struct c2t1fs_sb *csb,
 					           const struct c2_fid *cfid,
@@ -59,7 +58,7 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 			 const struct c2_fid *cob_fid,
 			 const struct c2_fid *gob_fid,
-			 struct c2_fop_type *ftype);
+			 struct c2_fop_type  *ftype);
 
 static int c2t1fs_cob_create(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid,
@@ -155,7 +154,7 @@ static int c2t1fs_create(struct inode     *dir,
 	if (rc != 0)
 		goto out;
 
-	rc = c2t1fs_create_component_objects(ci);
+	rc = c2t1fs_component_objects_op(ci, c2t1fs_cob_create);
 	if (rc != 0)
 		goto out;
 
@@ -441,7 +440,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	ci    = C2T1FS_I(inode);
 
 	c2t1fs_fs_lock(csb);
-	rc = c2t1fs_delete_component_objects(ci);
+	rc = c2t1fs_component_objects_op(ci, c2t1fs_cob_delete);
 	if (rc != 0) {
 		C2_LOG("Cob_delete fop failed.\n");
 		goto out;
@@ -488,16 +487,6 @@ struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
 	C2_LEAVE("fid: [%lu:%lu]", (unsigned long)fid.f_container,
 				   (unsigned long)fid.f_key);
 	return fid;
-}
-
-static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
-{
-	return c2t1fs_component_objects_op(ci, c2t1fs_cob_create);
-}
-
-static int c2t1fs_delete_component_objects(struct c2t1fs_inode *ci)
-{
-	return c2t1fs_component_objects_op(ci, c2t1fs_cob_delete);
 }
 
 static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
@@ -562,7 +551,7 @@ static int c2t1fs_cob_delete(struct c2t1fs_sb *csb,
 static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 			 const struct c2_fid *cob_fid,
 			 const struct c2_fid *gob_fid,
-			 struct c2_fop_type *ftype)
+			 struct c2_fop_type  *ftype)
 {
 	int                         rc;
 	bool                        cobcreate;
@@ -584,15 +573,16 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		C2_LOG("Memory allocation for struct c2_fop_cob_create failed");
-		goto err;
+		goto out;
 	}
 
+	C2_ASSERT(c2_is_cob_create_delete_fop(fop));
 	cobcreate = ftype == &c2_fop_cob_create_fopt ? true : false;
 
 	rc = c2t1fs_cob_fop_populate(fop, cob_fid, gob_fid);
 	if (rc != 0) {
 		c2_fop_free(fop);
-		return rc;
+		goto out;
 	}
 
 	C2_LOG("Send %s [%lu:%lu] to session %lu\n",
@@ -601,12 +591,18 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 		(unsigned long)cob_fid->f_key,
 		(unsigned long)session->s_session_id);
 
-	rc = c2_rpc_client_call(fop, session, fop->f_item.ri_ops,
+	rc = c2_rpc_client_call(fop, session, &cob_req_rpc_item_ops,
 				C2T1FS_RPC_TIMEOUT);
 	
 	if (rc != 0)
-		goto err;
+		goto out;
 
+	/*
+	 * The reply fop received event is a generic event which does not
+	 * distinguish between types of rpc item/fop. Custom c2_rpc_item_ops
+	 * vector can be used if type specific things need to be done for
+	 * given fop type only.
+	 */
 	reply = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
 	rc = reply->cor_rc;
 
@@ -614,7 +610,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 
 	/* Fop is deallocated by rpc layer using default rpc item ops. */
 
-err:
+out:
 	C2_LEAVE("%d", rc);
 	return rc;
 }
@@ -624,7 +620,7 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 				   const struct c2_fid *gob_fid)
 {
 	struct c2_fop_cob_create *cc;
-	struct c2_fop_cob_delete *cd;
+	struct c2_fop_cob_common *common;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
@@ -632,6 +628,15 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 	C2_PRE(gob_fid != NULL);
 
 	C2_ENTRY();
+
+	common = c2_cobfop_common_get(fop);
+	C2_ASSERT(common != NULL);
+
+	common->c_gobfid.f_seq = gob_fid->f_container;
+	common->c_gobfid.f_oid = gob_fid->f_key;
+	common->c_cobfid.f_seq = cob_fid->f_container;
+	common->c_cobfid.f_oid = cob_fid->f_key;
+
 	if (fop->f_type == &c2_fop_cob_create_fopt) {
 		cc = c2_fop_data(fop);
 		C2_ALLOC_ARR(cc->cc_cobname.ib_buf,
@@ -647,17 +652,6 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 				(unsigned long)cob_fid->f_key);
 
 		cc->cc_cobname.ib_count = strlen((char*)cc->cc_cobname.ib_buf);
-		cc->cc_common.c_gobfid.f_seq = gob_fid->f_container;
-		cc->cc_common.c_gobfid.f_oid = gob_fid->f_key;
-		cc->cc_common.c_cobfid.f_seq = cob_fid->f_container;
-		cc->cc_common.c_cobfid.f_oid = cob_fid->f_key;
-	} else {
-		cd = c2_fop_data(fop);
-		
-		cd->cd_common.c_gobfid.f_seq = gob_fid->f_container;
-		cd->cd_common.c_gobfid.f_oid = gob_fid->f_key;
-		cd->cd_common.c_cobfid.f_seq = cob_fid->f_container;
-		cd->cd_common.c_cobfid.f_oid = cob_fid->f_key;
 	}
 
 	C2_LEAVE("%d", 0);

@@ -210,7 +210,8 @@ bool c2_is_write_fop(const struct c2_fop *fop);
 bool c2_is_io_fop(const struct c2_fop *fop);
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
-
+bool c2_is_cob_create_delete_fop(const struct c2_fop *fop);
+struct c2_fop_cob_common *c2_cobfop_common_get(struct c2_fop *fop);
 
 /**
    @} bulkclientDFS end group
