@@ -44,7 +44,7 @@ extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
-	LINEAR_ENUM_MAGIC = 0xdcbaabcddcbaabcd, /* dcba abcd dcba abcd */
+	LINEAR_ENUM_MAGIC = 0x4C494E2D454E554DULL, /* LIN-ENUM */
 	LINEAR_NR_NONE    = 0
 };
 

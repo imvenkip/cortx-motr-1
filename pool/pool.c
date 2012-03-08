@@ -33,16 +33,21 @@
  */
 
 enum {
-	MAX_POOL_ID = 10
+	POOL_ID_NONE = 0,
+	MAX_POOL_ID  = 10
 };
 
 /**
  * @note Temporarily storing the pool structures in this array.
- * One of the LayoutSchema function, viz. pdclust_decode() requires an
- * interface returning c2_pool object, give pool id. In the long run, such an
- * interface will be provided by configuration schema.
+ * See pool.h for note related to c2_pool_lookup().
  */
 static struct c2_pool *pool_list[MAX_POOL_ID + 1];
+
+bool c2_pool_id_is_valid(uint64_t *pool_id)
+{
+	return *pool_id != POOL_ID_NONE && *pool_id <= MAX_POOL_ID;
+}
+
 
 int c2_pool_init(struct c2_pool *pool, uint64_t pid, uint32_t width)
 {

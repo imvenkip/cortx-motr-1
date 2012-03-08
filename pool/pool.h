@@ -42,9 +42,15 @@ struct c2_pool {
 	uint32_t po_width;
 };
 
+bool c2_pool_id_is_valid(uint64_t *pool_id);
 int  c2_pool_init(struct c2_pool *pool, uint64_t pid, uint32_t width);
 void c2_pool_fini(struct c2_pool *pool);
 
+/**
+ * @note One of the LayoutSchema function, viz. pdclust_decode() requires an
+ * interface returning c2_pool object, given a pool id. In the long run, such
+ * an interface will be provided by configuration schema, over-riding this one.
+ */
 int c2_pool_lookup(uint64_t pid, struct c2_pool **out);
 
 /**

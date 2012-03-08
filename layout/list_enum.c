@@ -50,8 +50,7 @@ enum {
 	 * the cob_lists table.
 	 */
 	LDB_MAX_INLINE_COB_ENTRIES = 20,
-	LIST_ENUM_MAGIC            = 0x3471415401a7e21dULL,
-						/* "why this kolaveri d" */
+	LIST_ENUM_MAGIC            = 0x4C495354454E554DULL, /* LISTENUM */
 	LIST_NR_NONE               = 0
 };
 

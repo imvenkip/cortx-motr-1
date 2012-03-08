@@ -90,7 +90,7 @@
 #include "lib/trace.h"
 
 #include "stob/stob.h"
-#include "pool/pool.h"
+#include "pool/pool.h"              /* c2_pool_lookup() */
 #include "fid/fid.h"                /* struct c2_fid */
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
 #include "layout/list_enum.h"
@@ -103,7 +103,7 @@ extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
-	PDCLUST_MAGIC = 0x1234abcddcba4321ULL /* 1234 abcd dcba 4321 */
+	PDCLUST_MAGIC = 0x5044434C5553544CULL /* PDCLUSTL */
 };
 
 static const struct c2_bob_type pdclust_bob = {
@@ -382,35 +382,37 @@ static void pdclust_fini(struct c2_layout *l)
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 
+	C2_PRE(l != NULL);
+
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
-	if (pl != NULL) {
-		c2_layout_striped_fini(&pl->pl_base);
-		if (pl->pl_tile_cache.tc_inverse != NULL)
-			c2_free(pl->pl_tile_cache.tc_inverse);
-		if (pl->pl_tile_cache.tc_permute != NULL)
-			c2_free(pl->pl_tile_cache.tc_permute);
-		if (pl->pl_tile_cache.tc_lcode != NULL)
-			c2_free(pl->pl_tile_cache.tc_lcode);
-		if (pl->pl_tgt != NULL) {
-			for (i = 0; i < pl->pl_attr.pa_P; ++i) {
-				if (c2_stob_id_is_set(&pl->pl_tgt[i]))
-					c2_pool_put(pl->pl_pool,
-						    &pl->pl_tgt[i]);
-			}
-			c2_free(pl->pl_tgt);
+	C2_ASSERT(c2_pdclust_layout_invariant(pl));
+
+	c2_layout_striped_fini(&pl->pl_base);
+
+	if (pl->pl_tile_cache.tc_inverse != NULL)
+		c2_free(pl->pl_tile_cache.tc_inverse);
+	if (pl->pl_tile_cache.tc_permute != NULL)
+		c2_free(pl->pl_tile_cache.tc_permute);
+	if (pl->pl_tile_cache.tc_lcode != NULL)
+		c2_free(pl->pl_tile_cache.tc_lcode);
+	if (pl->pl_tgt != NULL) {
+		for (i = 0; i < pl->pl_attr.pa_P; ++i) {
+			if (c2_stob_id_is_set(&pl->pl_tgt[i]))
+				c2_pool_put(pl->pl_pool,
+					    &pl->pl_tgt[i]);
 		}
-		c2_free(pl);
+		c2_free(pl->pl_tgt);
 	}
+	c2_free(pl);
 
 	c2_pdclust_layout_bob_fini(pl);
 
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
-
 
 /**
  * Implementation of lto_register for PDCLUST layout type.
