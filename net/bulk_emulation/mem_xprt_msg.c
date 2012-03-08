@@ -198,7 +198,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		*/
 
 		/* get the first available receive buffer */
-		c2_tlist_for(&tm_tl, &dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
+		c2_tlist_for(&c2_net_tm_tl, &dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
 			      dest_nb) {
 			if ((dest_nb->nb_flags &
 			     (C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)) == 0) {

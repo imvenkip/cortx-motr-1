@@ -28,7 +28,7 @@ static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
 {
 	int i;
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i)
-		if (!tm_tlist_is_empty(&tm->ntm_q[i]))
+		if (!c2_net_tm_tlist_is_empty(&tm->ntm_q[i]))
 			return false;
 	return true;
 }
@@ -70,7 +70,7 @@ static int nlx_tm_timeout_buffers(struct c2_net_transfer_mc *tm, c2_time_t now)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
 	for (i = 0, qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
-		c2_tlist_for(&tm_tl, &tm->ntm_q[qt], nb) {
+		c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
 			/* nb_timeout set to C2_TIME_NEVER if disabled */
 			if (c2_time_after(nb->nb_timeout, now))
 				continue;

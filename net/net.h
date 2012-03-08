@@ -1627,11 +1627,18 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
  */
 void c2_net_desc_free(struct c2_net_buf_desc *desc);
 
+enum {
+	/* Hex ASCII value of "nb_lru" */
+	NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
+	/* Hex ASCII value of "nb_head" */
+	NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
+};
+
 /** Descriptor for the tlist of buffers. */
-C2_TL_DESCR_DECLARE(pool, extern);
-C2_TL_DESCR_DECLARE(tm, extern);
-C2_TL_DECLARE(pool, extern, struct c2_net_buffer);
-C2_TL_DECLARE(tm, extern, struct c2_net_buffer);
+C2_TL_DESCR_DECLARE(c2_net_pool, extern);
+C2_TL_DESCR_DECLARE(c2_net_tm, extern);
+C2_TL_DECLARE(c2_net_pool, extern, struct c2_net_buffer);
+C2_TL_DECLARE(c2_net_tm, extern, struct c2_net_buffer);
 
 /** @} end of networking group
 
@@ -1901,15 +1908,6 @@ void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
 
 extern struct c2_net_xprt c2_net_usunrpc_xprt;
 extern struct c2_net_xprt c2_net_ksunrpc_xprt;
-
-enum {
-	/* Hex ASCII value of "nb_lru" */
-	NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
-	/* Hex ASCII value of "nb_tm_linkage" */
-	NET_BUFFER_TM_LINK_MAGIC = 0x6e625f746d5f6c,
-	/* Hex ASCII value of "nb_head" */
-	NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
-};
 
 /** @} end of deprecated net group */
 

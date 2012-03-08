@@ -124,7 +124,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		 */
 
 		/* locate the passive buffer */
-		c2_tlist_for(&tm_tl, &passive_tm->ntm_q[md->md_qt], inb) {
+		c2_tlist_for(&c2_net_tm_tl, &passive_tm->ntm_q[md->md_qt], inb){
 			if(!mem_desc_equal(&inb->nb_desc, &nb->nb_desc))
 				continue;
 			if ((inb->nb_flags & C2_NET_BUF_CANCELLED) == 0)

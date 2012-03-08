@@ -317,10 +317,10 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 			       struct c2_net_transfer_mc, ntm_dom_linkage) {
 		/* iterate over buffers in each queue */
 		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
-			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
+			len = c2_tlist_length(&c2_net_tm_tl, &tm->ntm_q[qt]);
 			/* best effort; can't say if this will always work */
 			for (i = 0; i < len; ++i) {
-				nb = tm_tlist_head(&tm->ntm_q[qt]);
+				nb = c2_net_tm_tlist_head(&tm->ntm_q[qt]);
 				c2_clink_add(&tm->ntm_chan, &cl);
 				NLXDBGP(td, 2,
 					"Cleanup/DEL D:%p T:%p Q:%d B:%p\n",
@@ -340,7 +340,7 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 				}
 				c2_clink_del(&cl);
 			}
-			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
+			len = c2_tlist_length(&c2_net_tm_tl, &tm->ntm_q[qt]);
 			if (len != 0) {
 				NLXDBGP(td, 0,
 					"Cleanup D:%p T:%p Q:%d B failed\n",
