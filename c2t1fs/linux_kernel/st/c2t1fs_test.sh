@@ -167,7 +167,7 @@ mount_c2t1fs()
         return 0
 }
 
-nmount_c2t1fs()
+umount_c2t1fs()
 {
         c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
 
@@ -280,7 +280,6 @@ io_combinations()
                         umount_c2t1fs
                         return 1
                 fi
-                sleep 4
 
                 # Multiple I/Os
                 echo "Test : I/O for stripe_size = $strip_size, io_size = $io_size, Number of I/Os = 2."
@@ -290,7 +289,6 @@ io_combinations()
                         umount_c2t1fs
                         return 1
                 fi
-                sleep 4
             done
 
             one_mb=`expr 1024 '*' 1024`
@@ -310,8 +308,6 @@ io_combinations()
                         return 1
                 fi
 
-                sleep 4
-
                 # Multiple I/Os
                 echo "Test : I/O for stripe_size = $strip_size, io_size = $io_size, Number of I/Os = 2."
                 bulkio_test $io_size 2 &>> $COLIBRI_TEST_LOGFILE
@@ -320,8 +316,6 @@ io_combinations()
                         umount_c2t1fs
                         return 1
                 fi
-
-                sleep 4
 
             done
 
