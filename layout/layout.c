@@ -111,7 +111,7 @@ int c2_layout_init(struct c2_layout *l,
 {
 	C2_PRE(l != NULL);
 	C2_PRE(lid != LID_NONE);
-	C2_PRE(c2_pool_id_is_valid(&pool_id));
+	C2_PRE(c2_pool_id_is_valid(pool_id));
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
@@ -154,7 +154,7 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 {
 	C2_PRE(str_l != NULL);
 	C2_PRE(e != NULL);
-	C2_PRE(c2_pool_id_is_valid(&pool_id));
+	C2_PRE(c2_pool_id_is_valid(pool_id));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
@@ -336,7 +336,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		goto out;
 	}
 
-	if (!c2_pool_id_is_valid(rec->lr_pid) {
+	if (!c2_pool_id_is_valid(rec->lr_pid)) {
 		rc = -EINVAL;
 		if (op == C2_LXO_DB_NONE)
 			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
@@ -494,7 +494,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	if (!c2_pool_id_is_valid(l->l_pool_id) {
+	if (!c2_pool_id_is_valid(l->l_pool_id)) {
 		rc = -EINVAL;
 		if (op == C2_LXO_DB_NONE)
 			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
@@ -502,7 +502,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 				    -EINVAL);
 
 		C2_LOG("c2_layout_encode(): lid %llu, Invalid pool id,"
-	               " Pool_id %lu", (unsigned long long)lid,
+	               " Pool_id %lu", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_pool_id);
 		goto out;
 	}

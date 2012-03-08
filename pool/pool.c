@@ -43,9 +43,9 @@ enum {
  */
 static struct c2_pool *pool_list[MAX_POOL_ID + 1];
 
-bool c2_pool_id_is_valid(uint64_t *pool_id)
+bool c2_pool_id_is_valid(uint64_t pool_id)
 {
-	return *pool_id != POOL_ID_NONE && *pool_id <= MAX_POOL_ID;
+	return pool_id != POOL_ID_NONE && pool_id <= MAX_POOL_ID;
 }
 
 

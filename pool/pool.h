@@ -42,7 +42,7 @@ struct c2_pool {
 	uint32_t po_width;
 };
 
-bool c2_pool_id_is_valid(uint64_t *pool_id);
+bool c2_pool_id_is_valid(uint64_t pool_id);
 int  c2_pool_init(struct c2_pool *pool, uint64_t pid, uint32_t width);
 void c2_pool_fini(struct c2_pool *pool);
 
