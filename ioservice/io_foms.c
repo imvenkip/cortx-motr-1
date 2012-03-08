@@ -811,10 +811,13 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
         }
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         fom_obj->fcrw_num_stobio_launched--;
-        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
-        if (fom_obj->fcrw_num_stobio_launched == 0)
+        if (fom_obj->fcrw_num_stobio_launched == 0) {
+                c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
                 c2_chan_signal(&fom_obj->fcrw_wait);
+                return true;
+        }
+        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
         return true;
 };
@@ -1727,7 +1730,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
-        
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
 		    "FOM finished : type=rw.");
 
