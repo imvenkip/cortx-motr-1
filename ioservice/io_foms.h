@@ -250,8 +250,6 @@ struct c2_fom_cob_common {
 	struct c2_fid		 cc_pfid;
 	/** Fid of component object. */
 	struct c2_fid		 cc_cfid;
-	/** In-memory representation of component object. */
-	struct c2_cob		*cc_cob;
 };
 
 /**

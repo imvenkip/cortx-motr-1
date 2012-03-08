@@ -2128,9 +2128,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	 * The flag CA_NSKEY_FREE takes care of deallocating memory for
 	 * nskey during cob finalization.
 	 */
-	if (rc == 0)
-		cc->fcc_cc.cc_cob = cob;
-	else if (rc == -ENOMEM) {
+	if (rc == -ENOMEM) {
 		c2_free(nskey->cnk_name.b_data);
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
@@ -2150,7 +2148,6 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 	C2_PRE(cc->fcc_stob != NULL);
-	C2_PRE(cc->fcc_cc.cc_cob != NULL);
 
 	cctx = reqh_svc_colibri_locate(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
