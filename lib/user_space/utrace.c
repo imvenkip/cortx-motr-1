@@ -21,6 +21,7 @@
 #include <string.h>   /* memset */
 #include <errno.h>
 #include <err.h>
+#include <sysexits.h>
 #include <stdio.h>
 #include <stdlib.h>   /* getenv, strtoul */
 #include <unistd.h>   /* getpagesize */
@@ -81,6 +82,8 @@ static int logbuf_map()
 	else if ((c2_logbuf = mmap(NULL, c2_logbufsize, PROT_WRITE,
                                    MAP_SHARED, logfd, 0)) == MAP_FAILED)
 		warn("mmap(\"%s\")", buf);
+	else
+		memset(c2_logbuf, 0, c2_logbufsize);
 
 	return -errno;
 }
@@ -121,6 +124,8 @@ static unsigned align(unsigned align, unsigned pos)
 
 /**
  * Parse log buffer supplied at stdin.
+ *
+ * Returns sysexits.h error codes.
  */
 int c2_trace_parse(void)
 {
@@ -130,10 +135,10 @@ int c2_trace_parse(void)
 	unsigned                     nr;
 	unsigned                     n2r;
 
-	printf("   no   |    tstamp     |   stack ptr    |"
-	       "        func        |        src        | sz|narg\n");
-	printf("------------------------------------------"
-	       "-------------------------------------------------\n");
+	printf("   no   |    tstamp     |stack|       subsys     |"
+	       "        func        |        src        \n");
+	printf("--------------------------------------------------"
+	       "----------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;
@@ -145,7 +150,7 @@ int c2_trace_parse(void)
 			nr = fread(&trh.trh_magic, 1, sizeof trh.trh_magic, stdin);
 			if (nr != sizeof trh.trh_magic) {
 				C2_ASSERT(feof(stdin));
-				return 0;
+				return EX_OK;
 			}
 			pos += nr;
 		} while (trh.trh_magic != C2_TRACE_MAGIC);
@@ -170,7 +175,7 @@ int c2_trace_parse(void)
 		if (buf)
 			c2_free(buf);
 	}
-	return 0;
+	return EX_OK;
 }
 
 void c2_console_vprintf(const char *fmt, va_list args)
