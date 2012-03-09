@@ -570,7 +570,59 @@ static void test_tm_initfini(void)
 		.ntm_callbacks = &cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
+	static char *n1t0 = "10.72.49.14@o2ib0:12345:31:0";
+	static char *n1t1 = "10.72.49.14@o2ib0:12345:31:1";
+	static char *n1ts = "10.72.49.14@o2ib0:12345:31:*";
+	static char *n2t0 = "192.168.96.128@tcp1:12345:31:0";
+	static char *n2t1 = "192.168.96.128@tcp1:12345:31:1";
+	static char *n2ts = "192.168.96.128@tcp1:12345:31:*";
 
+	/* TEST
+	   Network name comparsion.
+	*/
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n1t0) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n1t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n1ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n1t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n1ts) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n1ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n2t0) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n2t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n2ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n2t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n2ts) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n2ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n2t0) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n2t0) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n2t0) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n1t0) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n1t1) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n1ts) > 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n2t1) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n2t1) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n2t1) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n1t0) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n1t1) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n1ts) > 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n2ts) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n2ts) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n2ts) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n1t0) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n1t1) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n1ts) > 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, "foo") == -1);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp("foo", n1ts) == -1);
+
+	/* TEST
+	   Domain setup.
+	*/
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
