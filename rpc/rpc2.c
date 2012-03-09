@@ -499,13 +499,14 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 	int		cnt;
 	int		rc;
 	struct c2_clink	tmwait;
+	struct c2_net_transfer_mc *tm = &machine->cr_tm;
 
 	C2_PRE(machine != NULL);
 
 	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&machine->cr_tm.ntm_chan, &tmwait);
+	c2_clink_add(&tm->ntm_chan, &tmwait);
 
-	rc = c2_net_tm_stop(&machine->cr_tm, false);
+	rc = c2_net_tm_stop(tm, false);
 	if (rc < 0) {
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
@@ -514,7 +515,6 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 			    "c2_net_tm_stop", 0);
 		return;
 	}
-
 	/* Wait for transfer machine to stop. */
 	while (machine->cr_tm.ntm_state != C2_NET_TM_STOPPED)
 		c2_chan_wait(&tmwait);
@@ -528,10 +528,11 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 
 		for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
 		C2_ASSERT(machine->cr_rcv_buffers[cnt] == NULL);
-	}
+	} else c2_tm_recv_pool_buffers_put(tm);
+
 	c2_free(machine->cr_rcv_buffers);
 	/* Fini the transfer machine here and deallocate the chan. */
-	c2_net_tm_fini(&machine->cr_tm);
+	c2_net_tm_fini(tm);
 }
 
 int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
@@ -651,6 +652,10 @@ last:
 	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
 	if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED)
 		rc = c2_net_buffer_add(nb, nb->nb_tm);
+	else if(nb->nb_tm->ntm_state == C2_NET_TM_STOPPED ||
+		nb->nb_tm->ntm_state == C2_NET_TM_STOPPING ||
+		nb->nb_tm->ntm_state == C2_NET_TM_FAILED)
+			c2_tm_recv_pool_buffer_put(nb);
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,

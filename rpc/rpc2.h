@@ -341,7 +341,7 @@ enum {
  * transfer machine.
  */
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 128,
+	C2_RPC_TM_RECV_BUFFERS_NR = 16,
 };
 
 

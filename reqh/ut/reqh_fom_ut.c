@@ -236,7 +236,10 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain, &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-        /* Init the rpcmachine */
+	rc = c2_buffer_pool_setup(net_dom);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Init the rpcmachine */
         rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
 				SERVER_ENDPOINT_ADDR, &reqh);
         C2_UT_ASSERT(rc == 0);
@@ -250,11 +253,14 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 }
 
 /* Fini the server */
-static void server_fini(struct c2_stob_domain *bdom,
-		struct c2_stob *reqh_addb_stob)
+static void server_fini(struct c2_net_domain *net_dom,
+			struct c2_stob_domain *bdom,
+			struct c2_stob *reqh_addb_stob)
 {
         /* Fini the rpcmachine */
         c2_rpcmachine_fini(&srv_rpc_mach);
+
+	c2_buffer_pool_cleanup(net_dom);
 
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);
@@ -352,6 +358,7 @@ void test_reqh(void)
 	const char             *path;
 	struct c2_net_xprt     *xprt = &c2_net_bulk_sunrpc_xprt;
 	struct c2_net_domain   net_dom = { };
+	struct c2_net_domain   srv_net_dom = { };
 	struct c2_dbenv        client_dbenv;
 	struct c2_cob_domain   client_cob_dom;
 	struct c2_stob_domain  *bdom;
@@ -410,8 +417,10 @@ void test_reqh(void)
 
 	result = c2_net_domain_init(&net_dom, xprt);
 	C2_UT_ASSERT(result == 0);
+	result = c2_net_domain_init(&srv_net_dom, xprt);
+	C2_UT_ASSERT(result == 0);
 
-	server_init(path, SERVER_DB_NAME, &net_dom, &backid, &bdom, &bstore,
+	server_init(path, SERVER_DB_NAME, &srv_net_dom, &backid, &bdom, &bstore,
 			&reqh_addb_stob, &reqh_addb_stob_id);
 
 	result = c2_rpc_client_init(&cctx);
@@ -425,9 +434,10 @@ void test_reqh(void)
 	result = c2_rpc_client_fini(&cctx);
 	C2_UT_ASSERT(result == 0);
 
-	server_fini(bdom, reqh_addb_stob);
+	server_fini(&srv_net_dom, bdom, reqh_addb_stob);
 
 	c2_net_domain_fini(&net_dom);
+	c2_net_domain_fini(&srv_net_dom);
 	c2_net_xprt_fini(xprt);
 	c2_stob_io_fop_fini();
 

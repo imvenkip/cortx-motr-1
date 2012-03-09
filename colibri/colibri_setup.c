@@ -771,11 +771,13 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		buf_size = c2_net_domain_get_max_buffer_size(ndom);
 		segs_nr = c2_net_domain_get_max_buffer_segments(ndom);
 		seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
-		seg_size = 1 << 12;	
+		seg_size = 1 << 12;
 		C2_ASSERT((segs_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom));
-		c2_net_buffer_pool_init(ndom->nd_pool, ndom, 2, segs_nr, seg_size,
-					c2_list_length(&ndom->nd_tms));
+		c2_net_buffer_pool_init(ndom->nd_pool, ndom, 2, segs_nr, seg_size, 64);
+		/* @todo Number of TM's need to be assumed or taken from user. */
+		//		c2_list_length(&ndom->nd_tms));
 		c2_net_buffer_pool_lock(ndom->nd_pool);
+		/* @todo Number of buffers in the pool to be assumed or taken from user. */
 		rc = c2_net_buffer_pool_provision(ndom->nd_pool, C2_RPC_TM_RECV_BUFFERS_NR);
 		c2_net_buffer_pool_unlock(ndom->nd_pool);
 		if (rc != C2_RPC_TM_RECV_BUFFERS_NR)

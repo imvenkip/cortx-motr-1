@@ -144,6 +144,8 @@ static void test_rpclib(void)
 	rc = send_fop(&cctx.rcx_session);
 	C2_UT_ASSERT(rc == 0);
 
+	sleep(1);
+
 	rc = c2_rpc_client_fini(&cctx);
 	C2_UT_ASSERT(rc == 0);
 

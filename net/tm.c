@@ -168,7 +168,8 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	tm->ntm_bev_auto_deliver = true;
 	tm->ntm_recv_pool = NULL;
 	tm->ntm_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
-	c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
+	//c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
+	c2_atomic64_set(&tm->ntm_recv_queue_deficit, C2_NET_TM_RECV_QUEUE_DEF_LEN);
 	tm->ntm_pool_colour = C2_NET_BUFFER_POOL_ANY_COLOR;
 
 	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);
