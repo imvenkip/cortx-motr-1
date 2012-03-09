@@ -1820,7 +1820,6 @@ static int    cc_fom_create(struct c2_fom **out);
 static void   cc_fom_fini(struct c2_fom *fom);
 static void   cc_fom_populate(struct c2_fom *fom);
 static int    cc_fom_state(struct c2_fom *fom);
-static int    cc_fom_cob_create(struct c2_fom *fom);
 static int    cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc);
 static int    cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc);
 static int    cc_cobfid_map_add(struct c2_fom *fom,
@@ -1830,7 +1829,6 @@ static void   cd_fom_fini(struct c2_fom *fom);
 static int    cd_fom_state(struct c2_fom *fom);
 static int    cd_fom_create(struct c2_fom **out);
 static void   cd_fom_populate(struct c2_fom *fom);
-static int    cd_fom_cob_delete(struct c2_fom *fom);
 static int    cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_delete *cd);
 static int    cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_delete *cd);
 static int    cd_cobfid_map_delete(struct c2_fom *fom,
@@ -2008,7 +2006,9 @@ static void cc_fom_populate(struct c2_fom *fom)
 
 static int cc_fom_state(struct c2_fom *fom)
 {
-	int rc;
+	int                         rc;
+	struct c2_fom_cob_create   *cc;
+	struct c2_fop_cob_op_reply *reply;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
@@ -2019,36 +2019,22 @@ static int cc_fom_state(struct c2_fom *fom)
 		return rc;
 	}
 
-	if (fom->fo_phase == FOPH_CC_COB_CREATE)
-		rc = cc_fom_cob_create(fom);
-	else
+	if (fom->fo_phase == FOPH_CC_COB_CREATE) {
+		cc = cc_fom_get(fom);
+
+		rc = cc_stob_create(fom, cc);
+		if (rc != 0)
+			goto out;
+
+		rc = cc_cob_create(fom, cc);
+		if (rc != 0)
+			goto out;
+
+		rc = cc_cobfid_map_add(fom, cc);
+	} else
 		C2_IMPOSSIBLE("Invalid phase for cob create fom.");
 
-	return rc;
-}
-
-static int cc_fom_cob_create(struct c2_fom *fom)
-{
-	int			    rc;
-	struct c2_fop_cob_op_reply *reply;
-	struct c2_fom_cob_create   *cc;
-
-	C2_PRE(fom != NULL);
-
-	cc = cc_fom_get(fom);
-
-	rc = cc_stob_create(fom, cc);
-	if (rc != 0)
-		goto out;
-
-	rc = cc_cob_create(fom, cc);
-	if (rc != 0)
-		goto out;
-
-	rc = cc_cobfid_map_add(fom, cc);
-
 out:
-	/* Populate reply fop to send reply to the caller. */
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
@@ -2123,7 +2109,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 			   &fom->fo_tx.tx_dbtx);
 
 	/*
-	 * For rest of all errors, cob code takes putting reference on cob
+	 * For rest of all errors, cob code puts reference on cob
 	 * which in turn finalizes the in-memory cob object.
 	 * The flag CA_NSKEY_FREE takes care of deallocating memory for
 	 * nskey during cob finalization.
@@ -2226,7 +2212,9 @@ static void cd_fom_populate(struct c2_fom *fom)
 
 static int cd_fom_state(struct c2_fom *fom)
 {
-	int rc;
+	int                         rc;
+	struct c2_fom_cob_delete   *cd;
+	struct c2_fop_cob_op_reply *reply;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
@@ -2237,36 +2225,22 @@ static int cd_fom_state(struct c2_fom *fom)
 		return rc;
 	}
 
-	if (fom->fo_phase == FOPH_CD_COB_DEL)
-		rc = cd_fom_cob_delete(fom);
-	else
+	if (fom->fo_phase == FOPH_CD_COB_DEL) {
+		cd = cd_fom_get(fom);
+
+		rc = cd_cob_delete(fom, cd);
+		if (rc != 0)
+			goto out;
+
+		rc = cd_stob_delete(fom, cd);
+		if (rc != 0)
+			goto out;
+
+		rc = cd_cobfid_map_delete(fom, cd);
+	} else
 		C2_IMPOSSIBLE("Invalid phase for cob delete fom.");
 
-	return rc;
-}
-
-static int cd_fom_cob_delete(struct c2_fom *fom)
-{
-	int			    rc;
-	struct c2_fom_cob_delete   *cd;
-	struct c2_fop_cob_op_reply *reply;
-
-	C2_PRE(fom != NULL);
-
-	cd = cd_fom_get(fom);
-
-	rc = cd_cob_delete(fom, cd);
-	if (rc != 0)
-		goto out;
-
-	rc = cd_stob_delete(fom, cd);
-	if (rc != 0)
-		goto out;
-
-	rc = cd_cobfid_map_delete(fom, cd);
-
 out:
-	/* Populate reply fop to send reply to the caller. */
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
