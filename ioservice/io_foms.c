@@ -1296,6 +1296,14 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 	        current_index = fom_obj->fcrw_curr_desc_index;
                 segs_nr = rwfop->crw_ivecs.cis_ivecs[current_index].ci_nr;
 
+                /*
+                 * @todo : Since passing only number of segmnts, supports full
+                 *         stripe I/Os. Should set exact count for last segment
+                 *         of network buffer. Also need to reset last segment
+                 *         count to original since buffers are reused by other
+                 *         I/O requests.
+                 */
+
                 rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
                 if (rc != 0) {
                         fom->fo_rc = rc;
