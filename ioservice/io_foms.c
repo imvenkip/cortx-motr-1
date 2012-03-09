@@ -1900,7 +1900,6 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 	int			  rc;
 	bool			  cob_create;
 	struct c2_fom		 *fom;
-	struct c2_fom_type       *mtype;
 	struct c2_fom_cob_create *cc;
 	struct c2_fom_cob_delete *cd;
 
@@ -1910,8 +1909,6 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 	C2_PRE(c2_is_cob_create_fop(fop) || c2_is_cob_delete_fop(fop));
 
 	cob_create = c2_is_cob_create_fop(fop);
-	mtype = &fop->f_type->ft_fom_type;
-	*mtype = cob_create ? cc_fom_type : cd_fom_type;
 
 	rc = cob_create ? cc_fom_create(out) : cd_fom_create(out);
 	if (rc != 0) {
@@ -1922,6 +1919,8 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 	fom = *out;
 	C2_ASSERT(fom != NULL);
 
+	fom->fo_fop  = fop;
+	fom->fo_type = &fop->f_type->ft_fom_type;
 	if (cob_create) {
 		cc = cc_fom_get(fom);
 		cc_fom_populate(fom);
@@ -1930,16 +1929,13 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 		cd_fom_populate(fom);
 	}
 
+	c2_fom_init(fom);
 	fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_op_reply_fopt, NULL);
 	if (fom->fo_rep_fop == NULL) {
 		C2_ADDB_ADD(&fop->f_addb, &cc_fom_addb_loc, c2_addb_oom);
 		cob_create ? c2_free(cc) : c2_free(cd);
 		return -ENOMEM;
 	}
-
-	c2_fom_init(fom);
-	fom->fo_fop  = fop;
-	fom->fo_type = &fop->f_type->ft_fom_type;
 
 	return rc;
 }
@@ -1999,9 +1995,10 @@ static void cc_fom_populate(struct c2_fom *fom)
 	f = c2_fop_data(fom->fo_fop);
 	C2_ASSERT(f != NULL);
 
-	io_fom_cob_rw_fid_wire2mem(&f->cc_common.c_gobfid, &cc->fcc_cc.cc_pfid);
-	cc->fcc_cc.cc_cfid.f_container = f->cc_common.c_cobfid.f_seq;
-	cc->fcc_cc.cc_cfid.f_key = cc->fcc_cc.cc_pfid.f_key;
+	io_fom_cob_rw_fid_wire2mem(&f->cc_common.c_gobfid,
+				   &cc->fcc_cc.cc_gfid);
+	io_fom_cob_rw_fid_wire2mem(&f->cc_common.c_cobfid,
+				   &cc->fcc_cc.cc_cfid);
 }
 
 static int cc_fom_state(struct c2_fom *fom)
@@ -2145,7 +2142,7 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	cob_fid.u_hi = cc->fcc_cc.cc_cfid.f_container;
 	cob_fid.u_lo = cc->fcc_cc.cc_cfid.f_key;
 
-	rc = c2_cobfid_setup_recadd(s, cc->fcc_cc.cc_pfid, cob_fid);
+	rc = c2_cobfid_setup_recadd(s, cc->fcc_cc.cc_gfid, cob_fid);
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail, "cobfid_map_add() failed.", rc);
@@ -2203,8 +2200,10 @@ static void cd_fom_populate(struct c2_fom *fom)
 	cd = cd_fom_get(fom);
 	f = c2_fop_data(fom->fo_fop);
 
-	cd->fcd_cc.cc_pfid.f_container = f->cd_common.c_gobfid.f_seq;
-	cd->fcd_cc.cc_pfid.f_key = f->cd_common.c_gobfid.f_oid;
+	io_fom_cob_rw_fid_wire2mem(&f->cd_common.c_gobfid,
+				   &cd->fcd_cc.cc_gfid);
+	io_fom_cob_rw_fid_wire2mem(&f->cd_common.c_cobfid,
+				   &cd->fcd_cc.cc_cfid);
 
 	cd->fcd_stobid.si_bits.u_hi = f->cd_common.c_cobfid.f_seq;
 	cd->fcd_stobid.si_bits.u_lo = f->cd_common.c_cobfid.f_oid;
@@ -2330,7 +2329,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 	cob_fid.u_hi = cd->fcd_cc.cc_cfid.f_container;
 	cob_fid.u_lo = cd->fcd_cc.cc_cfid.f_key;
 
-	rc = c2_cobfid_setup_recdel(s, cd->fcd_cc.cc_pfid, cob_fid);
+	rc = c2_cobfid_setup_recdel(s, cd->fcd_cc.cc_gfid, cob_fid);
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,

@@ -1246,7 +1246,7 @@ struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s)
  */
 int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_colibri *cc)
 {
-	int rc;
+	int rc = 0;
 
 	C2_PRE(out != NULL);
 	C2_PRE(cc != NULL);

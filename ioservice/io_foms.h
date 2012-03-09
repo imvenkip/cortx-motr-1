@@ -247,7 +247,7 @@ struct c2_fom_cob_common {
 	/** Generic fom object. */
 	struct c2_fom		 cc_fom;
 	/** Fid of global file. */
-	struct c2_fid		 cc_pfid;
+	struct c2_fid		 cc_gfid;
 	/** Fid of component object. */
 	struct c2_fid		 cc_cfid;
 };
