@@ -31,6 +31,7 @@
       - @ref LNetDRVDLD-lspec-comps
       - @ref LNetDRVDLD-lspec-dev
       - @ref LNetDRVDLD-lspec-ioctl
+      - @ref LNetDRVDLD-lspec-mem
       - @ref LNetDRVDLD-lspec-dominit
       - @ref LNetDRVDLD-lspec-domfini
       - @ref LNetDRVDLD-lspec-reg
@@ -52,24 +53,42 @@
    <hr>
    @section LNetDRVDLD-ovw Overview
 
-   The Colibri LNet Transport device provides user-space access to the kernel
+   The Colibri LNet Transport device provides user space access to the kernel
    @ref LNetDLD "Colibri LNet Transport".  The
    @ref ULNetCoreDLD "User Space Core" implementation uses the device to
    communicate with the @ref KLNetCoreDLD "Kernel Core".  The device
-   provides a conduit through which information flows between the user-space and
-   kernel core layers, initiated by the user-space layer.  The specific
+   provides a conduit through which information flows between the user space and
+   kernel core layers, initiated by the user space layer.  The specific
    operations that can be performed on the device are documented here.  Hooks
    for unit testing the device are also discussed.
-
-   This design also provides a recipe and requirements for structuring each user
-   space core operation and restructuring/refactoring the kernel core
-   implementation, but it does not include the complete design additions and
-   changes to those layers themselves.
 
    <hr>
    @section LNetDRVDLD-def Definitions
 
    Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>.
+
+   - @b reference A reference to an object is stored in terms of a memory
+     page and offset, rather than as a simple address pointer.
+   - @b pin Keep a page of user memory from being paged out of physical memory
+     and cause it to be paged in if it was previously paged out.  Pinned user
+     pages, like pages of kernel memory, are tracked by kernel @c page objects.
+     Pinning a page does not assign it a kernel logical address; that requires
+     subsequently mapping the page.  A pinned page remained pinned until it is
+     explicitly unpinned.  Pinning may involve the use of shared, reference
+     counted objects, but one should not depend on this for correctness.
+   - @b map Assign a kernel logical address to a page of memory.  Given a @c
+     page object (implying that if the page is user memory, it must have been
+     pinned previously).  A mapped page remains mapped until explicitly
+     unmapped.  Both kernel and pinned user pages can be mapped.  Mapping may
+     involve the use of shared, reference counted objects and addresses, but one
+     should not depend on this for correctness.  Each time a page is mapped, it
+     may be assigned a different logical address.
+   - @b unmap Remove the association of a kernel logical address from a page.
+     After a page is unmapped, it has no logical address until it is explicitly
+     remapped.
+   - @b unpin Allow a previously pinned page to move freely, i.e. an unpinned
+     page can be swapped out of phyisical memory.  Any struct @c page pointers
+     to the previously pinned page are no longer valid after a page is unpinned.
 
    <hr>
    @section LNetDRVDLD-req Requirements
@@ -81,7 +100,7 @@
      in use.
    - @b r.c2.net.xprt.lnet.dev.resource-tracking The implementation must
      track all shared resources and ensure they are released properly, even
-     after a user-space error.
+     after a user space error.
    - @b r.c2.net.xprt.lnet.dev.safe-sharing The implementation must ensure
      that references to shared object are valid.
    - @b r.c2.net.xprt.lnet.dev.assert-free The implementation must ensure
@@ -109,12 +128,13 @@
        cross page boundaries.  This applies only to shared core objects such as
        @c nlx_core_transfer_mc, not to buffer pages.  Since object allocation
        is actually done in the LNet XO layer (except for the
-       @c nlx_core_buffer_event), this appears to require that an allocation
-       wrapper function be added to the Core Interface, implemented separately
-       in the kernel and user transports, because the kernel transport has no
-       such limitation and the @c c2_alloc_aligned() API, which could be used to
-       satisfy this requirement, requires page aligned data or greater in kernel
-       space.
+       @c nlx_core_buffer_event), this requires that an allocation wrapper
+       function, @c nlx_core_mem_alloc(), be added to the Core Interface,
+       implemented separately in the kernel and user transports, because the
+       kernel transport has no such limitation and the @c c2_alloc_aligned()
+       API, which could be used to satisfy this requirement, requires page
+       aligned data or greater in kernel space.  A corresponding
+       @c nlx_core_mem_free() is required to free the allocated memory.
 
    - @ref ULNetCore "LNet Transport Core User Private Interface" <!--
        ../ulnet_core.c --> <br>
@@ -122,8 +142,8 @@
      exist:
      - The user space transport must call the ioctl requests specified in this
        DLD in the manner prescribed in the @ref LNetDRVDLD-lspec below.
-     - The user space transport must implement the new object allocator required
-       by the Core Interface.
+     - The user space transport must implement the new @c nlx_core_mem_alloc()
+       and @c nlx_core_mem_free() required by the Core Interface.
 
    - @ref KLNetCore "LNet Transport Core Kernel Private Interface" <!--
        ./lnet_core.h --> <br>
@@ -135,20 +155,26 @@
        @c ::c2_net_addb context.  The parent of an ADDB context must be in the
        same address space, so kernel core objects cannot depend on c2_net layer
        objects as parents, because such objects can be in user space.
+     - The kernel core objects with back pointers to the corresponding
+       core objects must be changed to remove these pointers and replace them
+       with use of @c nlx_core_kmem_loc objects.  More details of this
+       dependency are discussed in @ref LNetDRVDLD-lspec-mem.
      - The @c bev_cqueue_pnext() and @c bev_cqueue_put() should be modified or
-       wrapped such that they can @c kmap() and @c kunmap() the
-       @c nlx_core_buffer_event object (preferably, the atomic form of these
-       functions can be used).  This may also require storing a page
-       pointer and offset in the @c nlx_core_bev_link.
-     - Many of the Core APIs implemented in the kernel must be refactored
-       such that the portion that can be shared between the kernel-only
-       transport and the kernel driver is moved into a new API.  The Core
-       API is should be changed to perform pre-checks, call the new shared API
-       and complete post-shared operations.  The user transport tasks described
-       in the @ref LNetDRVDLD-lspec can be used as a guide for how to refactor
-       the Kernel Core implementation.  In addition, the operations on the
-       @c nlx_kcore_ops structure should guide the signatures of the
-       refactored, shared operations.
+       wrapped such that they can map and unmacp the
+       @c nlx_core_buffer_event object (atomic mapping must be used, because
+       these functions are called from the LNet callback).  This also
+       requires use of @c nlx_core_kmem_loc references in the
+       @c nlx_core_bev_link.
+     - Many of the Core APIs implemented in the kernel must be refactored such
+       that the portion that can be shared between the kernel-only transport and
+       the kernel driver is moved into a new API.  The Kernel Core API
+       implementation is changed to perform pre-checks, call the new shared API
+       and complete post-shared operations.  The User Space Core tasks
+       described in the
+       @ref ULNetCoreDLD-lspec "User Space Core Logical Specification" can be
+       used as a guide for how to refactor the Kernel Core implementation.  In
+       addition, the operations on the @c nlx_kcore_ops structure guide the
+       signatures of the refactored, shared operations.
      - The @c nlx_kcore_umd_init() function should be changed to set the
        MD @c user_ptr to the @c nlx_kcore_buffer, not the @c nlx_core_buffer.
        This allows the shared buffer to be mapped and unmapped as needed, rather
@@ -158,8 +184,8 @@
        before they are referenced should be refactored into new invariant-style
        functions so the driver can perform the checks and return an error
        without causing an kernel assertion.
-     - The kernel transport must implement the new object allocator required
-       by the Core Interface.
+     - The kernel core must implement the new @c nlx_core_mem_alloc()
+       and @c nlx_core_mem_free() required by the Core Interface.
 
    <hr>
    @section LNetDRVDLD-highlights Design Highlights
@@ -167,7 +193,7 @@
    - The device provides ioctl-based access to the Kernel LNet Core Interface.
    - Ioctl requests correspond roughly to the
      @ref LNetCore "LNet Transport Core APIs".
-   - Each user-space @c c2_net_domain corresponds to opening a separate
+   - Each user space @c c2_net_domain corresponds to opening a separate
      file descriptor.
    - The device driver tracks all resources associated with the file descriptor.
    - Well-defined patterns are used for sharing new resources between user
@@ -182,6 +208,7 @@
    - @ref LNetDRVDLD-lspec-comps
    - @ref LNetDRVDLD-lspec-dev
    - @ref LNetDRVDLD-lspec-ioctl
+   - @ref LNetDRVDLD-lspec-mem
    - @ref LNetDRVDLD-lspec-dominit
    - @ref LNetDRVDLD-lspec-domfini
    - @ref LNetDRVDLD-lspec-reg
@@ -264,20 +291,6 @@
      follows the typical 0 for success, -errno for failure, except as
      specified for certain helper functions.
 
-   Some ioctl requests have the side effect of pinning user pages in memory.
-   However, the mapping of pages (i.e. @c kmap() or @c kmap_atomic() functions)
-   is performed only while the pages are to be used, and then unmapped as soon
-   as possible.  The number of mappings available to @c kmap() is documented as
-   being limited.  Except as noted, @c kmap_atomic() is used in atomic blocks to
-   map the page associated with an object.  Each time a shared object is mapped,
-   its invariants are re-checked to ensure the page still contains the shared
-   object.  Note that each shared core object is required to fit within a
-   single page.  The user space transport must ensure this requirement is met
-   when it allocates core objects.  Note that the pages of the @c c2_bufvec
-   segments are not part of the shared @c nlx_core_buffer; they are referenced
-   by the associated @c nlx_kcore_buffer object and are never mapped by the
-   driver or kernel core layers.
-
    The helper functions verify that the requested operation will not cause an
    assertion in the kernel core.  This is done by performing the same checks the
    Kernel Core APIs would do, but without asserting. Instead, they log an ADDB
@@ -290,24 +303,43 @@
 
    @see @ref LNetDevInternal
 
+   @subsection LNetDRVDLD-lspec-mem Shared Memory Management Strategy
+
+   Some ioctl requests have the side effect of pinning user pages in memory.
+   However, the mapping of pages (i.e. @c kmap() or @c kmap_atomic() functions)
+   is performed only while the pages are to be used, and then unmapped as soon
+   as possible.  The number of mappings available to @c kmap() is documented as
+   being limited.  Except as noted, @c kmap_atomic() is used in atomic blocks to
+   map the page associated with an object.  Each time a shared object is mapped,
+   its invariants are re-checked to ensure the page still contains the shared
+   object.  Each shared core object is required to fit within a single page to
+   simplify mapping and sharing.  The user space transport must ensure this
+   requirement is met when it allocates core objects.  Note that the pages of
+   the @c c2_bufvec segments are not part of the shared @c nlx_core_buffer; they
+   are referenced by the associated @c nlx_kcore_buffer object and are never
+   mapped by the driver or kernel core layers.
+
+   The @c nlx_core_kmem_loc structure stores the page and offset of an object.
+   This structure is used in place of pointers within structures used in kernel
+   address space to reference shared (pinned) user space objects.  Kernel core
+   structures @c nlx_kcore_domain, @c nlx_kcore_transfer_mc, @c nlx_kcore_buffer
+   and @c nlx_kcore_buffer_event refer to shared objects, and use fields such as
+   nlx_kcore_domain::kd_cd_loc to store these references.  Structures such as
+   @c nlx_core_bev_link, @c nlx_core_bev_cqueue, while contained in shared
+   objects also use @c nlx_core_kmem_loc, because these structures in turn need
+   to reference yet other shared objects.  When the shared object is needed, it
+   is mapped (e.g. @c kmap_atomic() returns a pointer to the mapped page, and
+   the code adds the corresponding offset to obtain a pointer to the object
+   itself), used, and unmapped.  The kernel pointer to the shared object is only
+   used on the stack, never stored in a shared place.  This allow for
+   unsynchronized, concurrent access to shared objects, just as if they were
+   always mapped.
+
    @subsection LNetDRVDLD-lspec-dominit Domain Initialization
 
    The LNet Transport Device Driver is first accessed during domain
-   initialization.  In this case, the following sequence of tasks
-   is performed by the user space transport.
-
-   - It allocates a @c nlx_core_domain object.
-   - It performs upper layer initialization of this object, including allocating
-     the @c nlx_ucore_domain object and setting the @c nlx_core_domain::cd_upvt
-     field.
-   - It opens the device using the @c open() system call.  The device is named
-     @c "/dev/c2lnet" and the device is opened with @c O_RDWR|O_CLOEXEC flags.
-     The file descriptor is saved in the @c nlx_ucore_domain::ud_fd field.
-   - It shares the @c nlx_core_domain object via the @c #C2_LNET_DOM_INIT
-     ioctl request.  Note that a side effect of this request is that the
-     @c nlx_core_domain::cd_kpvt is set.
-   - It completes user space initialization of the @c nlx_core_domain object and
-     the @c nlx_ucore_domain object.
+   initialization.  The @ref ULNetCoreDLD-lspec-dominit "user space transport"
+   opens the device and performs an initial @c #C2_LNET_DOM_INIT ioctl request.
 
    In the kernel, the @c open() and @c ioctl() system calls are handled by
    the @c nlx_dev_open() and @c nlx_dev_ioctl() subroutines, respectively.
@@ -315,8 +347,8 @@
    The @c nlx_dev_open() performs the following sequence.
    - It increases the reference count on the module to ensure it will not be
      unloaded while user space references exist.
-   - It allocates and initializes a @c nlx_kcore_domain object, using a
-     refactored @c nlx_core_dom_init() function, and assigns the object to the
+   - It allocates a @c nlx_kcore_domain object, initializes it using
+     @c nlx_kcore_dom_init() and assigns the object to the
      @c file->private_data field.
    - It logs an ADDB record recording the occurrence of the open operation.
 
@@ -325,34 +357,30 @@
    @c nlx_dev_ioctl_dom_init() to complete kernel domain initialization.
    The following tasks are performed.
    - The @c nlx_kcore_domain::kd_drv_mutex() is locked.
-   - The @c nlx_kcore_domain is verified to ensure the domain is not already
-     initialized.
+   - The @c nlx_kcore_domain is verified to ensure the core domain is not
+     already initialized.
    - The @c nlx_core_domain object is pinned in kernel memory.
-   - The @c nlx_core_domain is validated to ensure no assertions will occur.
-   - Information required to map the pinned object is saved in the
-     @c nlx_kcore_domain object.
-   - The @c nlx_core_domain::cd_kpvt field is set.
+   - Information required to map the @c nlx_core_domain is saved in the
+     @c nlx_kcore_domain::kd_cd_loc.
+   - The @c nlx_core_domain is mapped and validated to ensure no assertions
+     will occur.
+   - The @c nlx_core_domain is initialized using nlx_kcore_ops::ko_dom_init().
+   - The @c nlx_core_domain is unmapped (it remains pinned).
    - The @c nlx_kcore_domain::kd_drv_mutex() is unlocked.
 
    @subsection LNetDRVDLD-lspec-domfini Domain Finalization
 
-   During domain finalization, the user space transport will perform
-   the following steps.
-
-   - It completes any pre-checks and pre-finalization of the @c nlx_ucore_domain
-     and @c nlx_core_domain objects.
-   - It performs the @c #C2_LNET_DOM_FINI ioctl request to request that the
-     kernel finalize its private data and release resources.
-   - It calls @c close() to release the file descriptor.
-   - It completes any post-finalization steps, such as freeing its
-     @c nlx_ucore_domain object.
+   During normal domain finalization, the "user space core" performs a
+   @c #C2_LNET_DOM_FINI ioctl request and closes its file descriptor.
+   It is also possible that the user space closes the file descriptor without
+   first finalizing the domain or other associated resources, such as in the
+   case that the user space process fails.
 
    In the kernel, the @c ioctl() and @c close() system calls are handled by
    the @c nlx_dev_ioctl() and @c nlx_dev_close() subroutines, respectively.
    Technically, @c nlx_dev_close() is called once by the kernel when the last
    reference to the file is closed (e.g. if the file descriptor had been
-   duplicated or the process forked children and they inherited the open
-   file descriptor).
+   duplicated).
 
    The @c nlx_dev_ioctl() is described generally
    @ref LNetDRVDLD-lspec-ioctl "above".  It uses the helper function
@@ -361,9 +389,9 @@
    - The @c nlx_kcore_domain::kd_drv_mutex() is locked.
    - It verifies that the domain was not previously finalized and can
      be finalized without assertions.
-   - It calls the @c nlx_core_dom_fini() function to finalize the domain.
-   - It unpins the shared @c nlx_core_domain object, resetting the corresponding
-     fields of the @c nlx_kcore_domain object.
+   - It calls @c nlx_kcore_ops::ko_dom_fini() to finalize the domain.
+   - It unpins the shared @c nlx_core_domain object, resetting the
+     the @c nlx_kcore_domain::kd_cd_loc.
    - The @c nlx_kcore_domain::kd_drv_mutex() is unlocked.
 
    The @c nlx_dev_close() API is called when the last reference to the file goes
@@ -372,7 +400,7 @@
    erroneously, and so on.  It performs the following sequence.
 
    - It verifies that the domain was previously finalized by checking
-     that the @c nlx_kcore_domain::kd_drv_page is NULL.
+     that the @c nlx_kcore_domain::kd_cd_loc::kl_page is NULL.
    - If the domain was not previously finalized, it completes finalization
      itself.
      - Any running transfer machines must be stopped, their pending
@@ -388,6 +416,8 @@
        @c nlx_dev_ioctl_dom_fini() above.
      - The improper finalization is logged with ADDB.
    - It resets (to NULL) the @c file->private_data.
+   - It calls @c nlx_kcore_dom_fini() to finalize the @c nlx_kcore_domain
+     object.
    - It frees the @c nlx_kcore_domain object.
    - It decrements the reference count on the module.
    - It logs an ADDB record recording the occurrence of the close operation.
@@ -413,53 +443,32 @@
    - @c nlx_core_get_max_buffer_segment_size()
    - @c nlx_core_get_max_buffer_segments()
 
-   The user space transport completes the following tasks to perform
-   buffer registration.
-
-   - It performs upper layer initialization of the @c nlx_core_buffer object.
-     This includes allocating and initializing the user space private object and
-     setting the @c nlx_core_buffer::cb_upvt field.
-   - It declares a @c c2_lnet_dev_buf_register_params object, setting
-     the dbr_lcbuf and dbr_buffer_id from the corresponding
-     @c nlx_core_buf_register() parameters.
-   - It copies the data referenced by the bvec parameter to the dbr_bvec
-     field.
-   - It performs a @c #C2_LNET_BUF_REGISTER ioctl request to share the buffer
-     with the kernel and complete the kernel part of buffer registration.
-   - It completes any user-space initialization of the @c nlx_core_buffer and
-     user space private objects.
-
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_buf_register() to complete kernel buffer registration.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
-   - The @c c2_bufvec::ov_buf is copied in, temporarily (to avoid issues of the
-     list crossing page boundaries that might occur by mapping the pages
-     directly), and the corresponding field of the @c
-     c2_lnet_dev_buf_register_params::dbr_bvec is updated to refer to this copy.
+   - The @c c2_bufvec::ov_buf and @c c2_bufvec::ov_vec::v_count are copied in,
+     temporarily (to avoid issues of either list crossing page boundaries that
+     might occur by mapping the pages directly), and the corresponding fields
+     of the @c c2_lnet_dev_buf_register_params::dbr_bvec is updated to refer
+     to the copies.
    - The @c nlx_core_buffer, @c c2_lnet_dev_buf_register_params::dbr_lcbuf,
      is pinned in kernel memory.
-   - The @c nlx_core_buffer is checked to ensure it is not already associated
+   - Information required to map the @c nlx_core_buffer is saved in the
+     @c nlx_kcore_buffer::kb_cb_loc.
+   - The @c nlx_core_buffer is mapped and validated to ensure no assertions
+     will occur.  It is also checked to ensure it is not already associated
      with a @c nlx_kcore_buffer object.
-   - A refactored @c nlx_core_buf_register() is used to allocate and initialize
-     the @c nlx_kcore_buffer object.
-   - Information required to map the pinned object is saved in the
-     @c nlx_kcore_buffer object.
-   - An API similar to @c bufvec_seg_kla_to_kiov() is used to pin the pages
-     of the buffer segments and initialize the @c nlx_kcore_buffer::kb_kiov.
+   - @c nlx_kcore_ops::ko_buf_register() is used to initialize
+     the @c nlx_core_buffer and @c nlx_kcore_buffer objects.
+   - @c nlx_kcore_buffer_uva_to_kiov() is used to pin the
+     pages of the buffer segments and initialize the
+     @c nlx_kcore_buffer::kb_kiov.
+   - The @c nlx_core_buffer is unmapped (it remains pinned).
    - The @c nlx_kcore_buffer is added to the @c nlx_kcore_domain::kd_drv_buffers
      list.
-
-   The user space transport completes the following tasks to perform
-   buffer de-registration.
-
-   - It completes pre-checks of the @c nlx_core_buffer object.
-   - It performs a @c #C2_LNET_BUF_DEREGISTER ioctl request, causing
-     the kernel to complete the kernel part of buffer de-registration.
-   - It completes any user-space de-registration of the @c nlx_core_buffer and
-     user space private objects.
-   - It frees the user space private object and resets the
-     @c nlx_core_buffer::cb_upvt to NULL.
+   - Memory allocated for the temporary copies in the
+     @c c2_lnet_dev_buf_register_params::dbr_bvec are freed.
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_buf_deregister() to complete kernel buffer de-registration.
@@ -468,36 +477,32 @@
    - The pages associated with the buffer, referenced by
      @c nlx_kcore_buffer::kb_kiov, are unpinned.
    - The buffer is removed from the @c nlx_kcore_domain::kd_drv_buffers list.
-   - A refactored @c nlx_core_buf_deregister() is used to de-register
+   - The @c nlx_core_buffer is mapped.
+   - @c nlx_kcore_ops::ko_buf_deregister() is used to de-register
      the buffer and free the corresponding @c nlx_kcore_buffer object.
-   - The @c nlx_core_buffer is unpinned.
+   - The @c nlx_core_buffer is unmapped and unpinned.
 
    @subsection LNetDRVDLD-lspec-bev Managing the Buffer Event Queue
 
    The @c nlx_core_new_blessed_bev() helper allocates and blesses buffer event
    objects.  In user space, blessing the object requires interacting with the
-   kernel.  After the object is blessed by the kernel, the user space transport
-   can add it to the buffer event queue directly, without further kernel
-   interaction.  The following steps are taken by the user space transport.
-
-   - It allocates a new @c nlx_core_buffer_event object.
-   - It declares a @c c2_lnet_dev_bev_bless_params object and sets its fields.
-   - It performs a @c #C2_LNET_BEV_BLESS ioctl request to share the
-     @c nlx_core_buffer_event object with the kernel and complete the kernel
-     part of blessing the object.
+   kernel by way of the @c #C2_LNET_BEV_BLESS ioctl request.
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_bev_bless() to complete blessing the buffer event object.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
    - The @c nlx_core_buffer_event is pinned in kernel memory.
-   - The @c nlx_core_buffer_event is checked to ensure it is not already
-     associated with a @c nlx_kcore_buffer_event object.
    - A @c nlx_kcore_buffer_event object is allocated and initialized.
    - Information required to map the pinned object is saved in the
      @c nlx_kcore_buffer_event object.
+   - The @c nlx_core_buffer_event is mapped, validated to ensure no assertions
+     will occur, and checked to ensure it is not already associated with a
+     @c nlx_kcore_buffer_event object.
    - The @c bev_link_bless() function is called to bless the object.
-   - The object is added to the @c nlx_kcore_transfer_mc::ktm_drv_bevs list.
+   - The @c nlx_core_buffer_event is unmapped (it remains pinned).
+   - The @c nlx_kcore_buffer_event object is added to the
+     @c nlx_kcore_transfer_mc::ktm_drv_bevs list.
 
    Buffer event objects are never removed from the buffer event queue until
    the transfer machine is stopped.
@@ -506,51 +511,31 @@
 
    @subsection LNetDRVDLD-lspec-tmstart Starting a Transfer Machine
 
-   The user space transport completes the following tasks to start a
-   transfer machine.  Recall that there is no core API corresponding to the
-   @c nlx_xo_tm_init() function.
-
-   - It performs upper layer initialization of the @c nlx_core_transfer_mc
-     object.  This includes allocating and initializing the user space private
-     object and setting the @c nlx_core_transfer_mc::ctm_upvt field.
-   - It performs a @c #C2_LNET_TM_START ioctl request to share the
-     @c nlx_core_transfer_mc object with the kernel and complete the kernel
-     part of starting the transfer machine.
-   - It allocates and initializes two @c nlx_core_buffer_event objects, using
-     the user space @c nlx_core_new_blessed_bev() helper.
-   - It completes the user-space initialization of the @c nlx_core_buffer and
-     user space private objects.  This including initializing the buffer event
-     circular queue using the @c bev_cqueue_init() function.
+   While starting a transfer machine, the user space transport performs a
+   @c #C2_LNET_TM_START ioctl request.
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_tm_start() to complete starting the transfer machine.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
    - The @c nlx_core_transfer_mc object is pinned in kernel memory.
-   - The @c nlx_core_transfer_mc is checked to ensure it is not already
-     associated with a @c nlx_kcore_transfer_mc object.
+   - A @c nlx_kcore_transfer_mc is allocated.
+   - Information required to map the pinned object is saved in the
+     @c nlx_kcore_transfer_mc object.
    - The @c nlx_core_transfer_mc is mapped using @c kmap()
      because the core operation cannot be guaranteed to be atomic.
-   - A refactored @c nlx_core_tm_start() is used to allocate and initialize
-     the @c nlx_kcore_transfer_mc object.
-   - Information required to later remap the pinned object is saved in the
-     @c nlx_kcore_transfer_mc object.
-   - The @c nlx_core_transfer_mc is unmapped.
+   - The @c nlx_core_transfer_mc is checked to ensure it is not already
+     associated with a @c nlx_kcore_transfer_mc object and that it will
+     not cause assertions.
+   -  @c nlx_kcore_ops::ko_tm_start() is used to complete the kernel TM start.
+   - The @c nlx_core_transfer_mc is unmapped (it remains pinned).
    - The @c nlx_kcore_transfer_mc is added to the
      @c nlx_kcore_domain::kd_drv_tms list.
 
    @subsection LNetDRVDLD-lspec-tmstop Stopping a Transfer Machine
 
-   The user space transport completes the following tasks to stop a
-   transfer machine.  Recall that there is no core API corresponding to the
-   @c nlx_xo_tm_fini() function.
-
-   - It completes pre-checks of the @c nlx_core_transfer_mc object.
-   - It performs a @c #C2_LNET_TM_STOP ioctl request, causing
-     the kernel to complete the kernel part of stopping the transfer machine.
-   - It frees the buffer event queue using the @c bev_cqueue_fini() function.
-   - It frees the user space private object and resets the
-     @c nlx_core_transfer_mc::ctm_upvt to NULL.
+   While stopping a transfer machine, the user space transport performs a
+   @c #C2_LNET_TM_STOP ioctl request.
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_tm_stop() to complete stopping the transfer machine.
@@ -561,8 +546,9 @@
    - The buffer event objects on the @c nlx_kcore_transfer_mc::ktm_drv_bevs list
      are unpinned and their corresponding @c nlx_kcore_buffer_event objects
      freed.
-   - A refactored @c nlx_core_tm_stop() is used to stop the transfer machine.
-   - The @c nlx_core_transfer_mc is unpinned.
+   - The @c nlx_core_transfer_mc is mapped.
+   - @c nlx_kcore_ops::ko_tm_stop() is used to stop the transfer machine.
+   - The @c nlx_core_transfer_mc is unmapped and unpinned.
 
    @subsection LNetDRVDLD-lspec-buf Transfer Machine Buffer Queue Operations
 
@@ -582,13 +568,6 @@
    - @c #C2_LNET_BUF_PASSIVE_SEND
    - @c #C2_LNET_BUF_DEL
 
-   In each case, the user space transport performs the following steps.
-   - Validates the parameters.
-   - Declares a @c c2_lnet_dev_buf_queue_params object and sets the two fields.
-     In this case, both fields are set to the kernel private pointers of
-     the shared object.
-   - Performs the appropriate ioctl request from the list above.
-
    The ioctl requests are handled by the following helper functions,
    respectively.
    - @c nlx_dev_ioctl_buf_msg_recv()
@@ -604,50 +583,36 @@
    - The @c nlx_core_transfer_mc and @c nlx_core_buffer are mapped using
      @c kmap() because the core operations cannot be guaranteed to be atomic.
    - The corresponding kernel core operation is called.
-     - @c nlx_core_buf_msg_recv()
-     - @c nlx_core_buf_msg_send()
-     - @c nlx_core_buf_active_recv()
-     - @c nlx_core_buf_active_send()
-     - @c nlx_core_buf_passive_recv()
-     - @c nlx_core_buf_passive_send()
-     - @c nlx_core_buf_del()
+     - @c nlx_kcore_ops::ko_buf_msg_recv()
+     - @c nlx_kcore_ops::ko_buf_msg_send()
+     - @c nlx_kcore_ops::ko_buf_active_recv()
+     - @c nlx_kcore_ops::ko_buf_active_send()
+     - @c nlx_kcore_ops::ko_buf_passive_recv()
+     - @c nlx_kcore_ops::ko_buf_passive_send()
+     - @c nlx_kcore_ops::ko_buf_del()
    - The @c nlx_core_transfer_mc and @c nlx_core_buffer are unmapped.
 
    @subsection LNetDRVDLD-lspec-event Waiting for Buffer Events
 
-   The user space transport completes the following tasks to wait for
-   buffer events.
-   - It declares a @c c2_lnet_dev_buf_event_wait_params and sets the fields.
-   - It performs a @c #C2_LNET_BUF_EVENT_WAIT ioctl request to wait for
-     the kernel to generate additional buffer events.
+   To wait for buffer events, the user space transport performs a
+   @c #C2_LNET_BUF_EVENT_WAIT ioctl request.
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_buf_event_wait() to perform the wait operation.
    The following tasks are performed.
 
    - The parameters are validated to ensure no assertions will occur.
-   - The @c nlx_core_transfer_mc is mapped using @c kmap()
-     because the core operation will likely block.
-   - The @c nlx_core_buf_event_wait() function is called.
-   - The @c nlx_core_transfer_mc is unmapped.
+   - The @c nlx_kcore_ops::ko_buf_event_wait() function is called.
+
+   Because of the timing, there is no guarantee that a buffer event will still
+   be available when the ioctl request returns successfully.  The user space
+   transport can verify that an event is available, and loop if not.
 
    @subsection LNetDRVDLD-lspec-nids Node Identifier Support
 
-   Operations involving NID strings require ioctl requests to access
-   kernel-only functions.
-
-   Most of the refactored @c nlx_core_ep_addr_decode() and
-   @c nlx_core_ep_addr_encode() functions can be implemented directly
-   in user space.  However, converting a NID to a string or visa versa
-   requires access to functions which exists only in the kernel.
-
-   To convert a NID string to a NID, the user space transport performs the
-   following tasks.
-   - It declares a @c c2_lnet_dev_nid_encdec_params and sets the @c dn_buf to
-     the string to be decoded.
-   - It calls the @c #C2_LNET_NIDSTR_DECODE ioctl request to cause the kernel
-     to decode the string.  On successful return, the @c dn_nid field will be
-     set to the corresponding NID.
+   The user space transport uses the @c #C2_LNET_NIDSTR_DECODE and
+   @c #C2_LNET_NIDSTR_ENCODE requests to decode and encode NID strings,
+   respectively.
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_nidstr_decode() to decode the string.
@@ -658,14 +623,6 @@
    - In the case the result is LNET_NID_ANY, -EINVAL is returned,
      otherwise the @c dn_nid field is set.
 
-   To convert a NID into a NID string, the user space transport performs the
-   following tasks.
-   - It declares a @c c2_lnet_dev_nid_encdec_params and sets the @c dn_nid to
-     the value to be converted.
-   - It calls the @c #C2_LNET_NIDSTR_ENCODE ioctl request to cause the kernel
-     to encode the string.  On successful return, the @c dn_buf field will be
-     set to the corresponding NID string.
-
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_nidstr_encode() to decode the string.
    The following tasks are performed.
@@ -674,32 +631,8 @@
    - The @c libcfs_nid2str() function is called to convert the string to a NID.
    - The resulting string is copied to the the @c dn_buf field.
 
-   The final operations involving NID strings are the @c nlx_core_nidstrs_get()
-   and @c nlx_core_nidstrs_put() operations.  The user space transport obtains
-   the strings from the kernel using the @c #C2_LNET_NIDSTRS_GET ioctl request.
-   This ioctl request returns a copy of the strings, rather than sharing a
-   reference to them.  As such, there is no ioctl request to "put" the strings.
-   To get the list of strings, the user space transport performs the following
-   tasks.
-
-   - It allocates buffer where the NID strings are to be stored.
-   - It declares a @c c2_lnet_dev_nidstrs_get_params object and sets the fields
-     based on the allocated buffer and its size.
-   - It performs a @c #C2_LNET_NIDSTRS_GET ioctl request to populate the buffer
-     with the NID strings, which returns the number of NID strings (not 0) on
-     success.
-   - If the ioctl request returns -EFBIG, the buffer should be freed, a
-     larger buffer allocated, and the ioctl request re-attempted.
-   - It allocates a @c char** array corresponding to the number of NID strings
-     (plus 1 for the required terminating NULL pointer).
-   - It populates this array by iterating over the now-populated buffer, adding
-     a pointer to each nul-terminated NID string, until the number of
-     strings returned by the ioctl request have been populated.
-
-   When the user space transport does this is beyond the scope of this
-   specification.  Currently, the kernel implementation caches the NID strings
-   once; the user space transport might assume this behavior, but may need to
-   change in the future if the kernel implementation changes.
+   The user space transport uses the @c #C2_LNET_NIDSTRS_GET to obtain the
+   list of NID strings for the local LNet interfaces.
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_nidstrs_get() to decode the string.
@@ -748,22 +681,25 @@
    per domain, the @c nlx_kcore_domain::kd_drv_mutex.  This mutex must be
    held while manipulating the resource lists, @c nlx_kcore_domain::kd_drv_tms,
    @c nlx_kcore_domain::kd_drv_buffers and
-   @c nlx_kcore_transfer_mc::ktm_drv_bevs.  The mutex must also be held
-   while a shared object is temporarily mapped and its corresponding core
-   pointer is manipulated, for example, the @c nlx_kcore_transfer_mc::ktm_ctm
-   pointer.  This is to ensure that two threads will not attempt to set
-   this pointer differently across calls to the Kernel Core APIs.  The mutex
-   does not need to be held while mapping a page atomically, if a private
-   pointer (e.g. on the stack) is used to refer to the object.  The mutex may
-   also be used to serialize driver ioctl requests, such as in the case of
-   @c #C2_LNET_DOM_INIT and @c #C2_LNET_DOM_FINI. The driver mutex must be
-   obtained before any other Net or Kernel LNet mutex.
+   @c nlx_kcore_transfer_mc::ktm_drv_bevs.
+
+   The mutex may also be used to serialize driver ioctl requests, such as in
+   the case of @c #C2_LNET_DOM_INIT and @c #C2_LNET_DOM_FINI.
+
+   The driver mutex must be obtained before any other Net or Kernel Core mutex.
+
+   Mapping of @c nlx_core_kmem_loc object references can be performed without
+   synchronization, because the @c nlx_core_kmem_loc never changes after an
+   object is pinned, and the mapped pointer is specified to never be stored
+   in a shared location, i.e. only on the stack.  The functions that unpin
+   shared objects have invariants and pre-conditions to ensure that the objects
+   are no longer in use and can be unpinned without causing a mapping failure.
 
    @subsection LNetDRVDLD-lspec-numa NUMA optimizations
 
    The LNet device driver does not allocate threads.  The user space application
    can control thread processor affiliation by confining the threads it uses
-   to access the device driver via system calls.
+   to access the device driver.
 
    <hr>
    @section LNetDRVDLD-conformance Conformance
@@ -796,10 +732,16 @@
    code with kernel unit tests.  The following strategy will be used:
    - When the LNet unit test suite is initialized in the kernel, it creates
      a /proc/c2_lnet_ut file, registering read and write file operations.
+   - The kernel UT waits (e.g. on a condition variable with a timeout) for
+     the user space program to synchronize.  It may time out and fail the UT
+     if the user space program does not synchronize quickly enough, e.g. after
+     a few seconds.
    - A user space program is started concurrently with the kernel unit tests.
    - The user space program waits for the /proc/c2_lnet_ut to appear.
    - The user space program writes a message to the /proc/c2_lnet_ut to
      synchronize with the kernel unit test.
+   - The write system call operation registered for /proc/c2_lnet_ut signals
+     the condition variable that the kernel UT is waiting on.
    - The user space program loops.
      - The user space program reads the /proc/c2_lnet_ut for instructions.
      - Each instruction tells the user space program which test to perform;
@@ -808,6 +750,11 @@
      - The user space program writes the test result back.
    - When the LNet unit test suite is finalized in the kernel, the
      /proc/c2_lnet_ut file is removed.
+
+   While ioctl requests on the /dec/c2lnet device could be used for such
+   coordination, this would result in unit test code being mixed into the
+   production code.  The use of a /proc file for coordinating unit tests
+   ensures this is not the case.
 
    To enable unit testing of the device layer without requiring full kernel
    core behavior, the device layer accesses kernel core operations indirectly
@@ -1378,6 +1325,17 @@ static long nlx_dev_ioctl(struct file *file,
 		nlx_dev_ioctl_tm_start(NULL, NULL);
 		nlx_dev_ioctl_tm_stop(NULL, NULL);
 		nlx_dev_ioctl_bev_bless(NULL, NULL);
+
+		nlx_core_nidstr_decode(NULL, NULL, NULL);
+		nlx_core_nidstr_encode(NULL, 0, NULL);
+		nlx_core_kmem_loc_set(NULL, NULL, 0);
+		nlx_core_mem_alloc(0);
+		nlx_core_mem_free(NULL);
+		nlx_kcore_dom_init(NULL);
+		nlx_kcore_dom_fini(NULL);
+		nlx_kcore_buffer_uva_to_kiov(NULL, NULL);
+		bev_link_map(NULL);
+		bev_link_unmap(NULL);
 		/* end of temporary code */
 		rc = -ENOTTY;
 		break;

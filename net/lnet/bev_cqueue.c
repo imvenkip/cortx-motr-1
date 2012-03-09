@@ -188,22 +188,27 @@
    struct nlx_core_bev_link {
             // Self pointer in the transport address space.
             nlx_core_opaque_ptr_t cbl_c_self;
-            // Self pointer in the kernel address space.
-            nlx_core_opaque_ptr_t cbl_p_self;
             // Pointer to the next element in the consumer address space.
             nlx_core_opaque_ptr_t cbl_c_next;
-            // Pointer to the next element in the producer address space.
-            nlx_core_opaque_ptr_t cbl_p_next;
+            // Self reference in the producer.
+            struct nlx_core_kmem_loc cbl_p_self_loc;
+            // Reference to the next element in the producer.
+            struct nlx_core_kmem_loc cbl_p_next_loc;
    };
    @endcode
    The data structure maintains separate "opaque" pointer fields for the
    producer and consumer address spaces.  Elements in the queue are linked
    through both flavors of their @c next field.  The initialization of this data
-   structure will be described in @ref cqueueDLD-lspec-qalloc.  The opaque
-   pointer type is derived from ::c2_atomic64.
+   structure is described in @ref cqueueDLD-lspec-qalloc.  The opaque
+   pointer type is derived from ::c2_atomic64.  In the case of the producer,
+   the @c nlx_core_kmem_loc structure is used instead of a pointer.  This
+   allows the buffer event object itself to be mapped and unmapped temporarily,
+   rather than requiring all buffer events to be mapped in the kernel at all
+   times (since this could exhaust the kernel page map table in the case of
+   a user space consumer).
 
    When the producer performs a bev_cqueue_put() call, internally, this call
-   uses nlx_core_bev_link::cbl_p_next to refer to the next element.
+   uses nlx_core_bev_link::cbl_p_next_loc to refer to the next element.
    Similarly, when the consumer performs a bev_cqueue_get() call, internally,
    this call uses nlx_core_bev_link::cbl_c_next.  Note that only
    allocation, discussed below, modifies any of these pointers.  Steady-state
@@ -221,21 +226,29 @@
    performed in producer space is actually implemented as
 
    @code
-       pq->cbcq_producer->cbl_c_self != pq->cbcq_consumer
+       struct nlx_core_bev_link *p = bev_link_map(&pq->cbcq_producer_loc);
+       p->cbl_c_self != pq->cbcq_consumer;
+       bev_link_unmap(&pq->cbcq_producer_loc);
    @endcode
 
    Here, the @c pq pointer itself is the pointer to the shared
-   nlx_core_bev_cqueue object in the producer address space.  This pointer is
-   made known to the producer when the queue is created (e.g. when the transport
-   allocates the queue, it passes the transport space pointer to the object to
-   the producer which maps that memory into the producer address space).  Note
-   that this check is safe in producer space because only the producer changes
-   the value of the @c producer pointer and the @c pq pointer is never changed
-   after the queue object is allocated.  The equivalent safe call in consumer
-   space would be:
+   nlx_core_bev_cqueue object in the producer address space and is assumed in
+   this example to have been pinned and mapped (see @ref LNetDRVDLD-def)
+   previously.  This pointer is made known to the producer when the queue is
+   created (e.g. when the transport allocates the queue, it passes the
+   transport space pointer to the object to the producer which maps that memory
+   into the producer address space).  Note that this check is safe in producer
+   space because only the producer changes the value of the @c producer
+   and the @c pq object is never changed after the queue object is allocated.
+   Also note the use of bev_link_map() and bev_link_unmap() in this example,
+   because the link object must be mapped in the producer space before its
+   fields can be referenced.
+
+   The equivalent safe call in consumer space would be:
 
    @code
-       cq->cbcq_consumer->cbl_p_self != cq->cbcq_producer
+       !nlx_core_kmem_loc_eq(&cq->cbcq_consumer->cbl_p_self_loc,
+                             &cq->cbcq_producer_loc)
    @endcode
 
    In this case, the @c cq pointer refers to the same queue object in shared
@@ -298,7 +311,7 @@
    -# Set <tt> consumer->next = newnode        </tt>
    -# set <tt>       consumer = newnode        </tt>
 
-   Steps 2-4 are performed in bev_cqueue_add().  Because several pointers need
+   Steps 2-4 are performed in bev_cqueue_add().  Because several fields need
    to be updated, simple atomic operations are insufficient.  Thus, the
    transport layer must synchronize calls to bev_cqueue_add() and
    bev_cqueue_get(), because both calls affect the consumer.  Given that
@@ -344,15 +357,15 @@
    Once allocated, initialization includes the transport layer setting the
    nlx_core_bev_link::cbl_c_self pointer to point at the node and having
    the kernel core layer "bless" the node by setting the
-   nlx_core_bev_link::cbl_p_self link.  After the self pointers are set,
-   the next pointers can be set by using these self pointers.  Since allocation
+   nlx_core_bev_link::cbl_p_self_loc field.  After the self pointers are set,
+   the next fields can be set by using these self fields.  Since allocation
    occurs in the transport address space, the allocation logic uses the
    nlx_core_bev_link::cbl_c_next pointers of the existing nodes for
-   navigation, and sets both the @c cbl_c_next and
-   nlx_core_bev_link::cbl_p_next pointers.  The @c cbl_p_next pointer
-   is set by using the @c cbl_c_next->cbl_p_self value, which is treated
+   navigation, and sets both the @c nlx_core_bev_link::cbl_c_next and
+   nlx_core_bev_link::cbl_p_next_loc fields.  The @c cbl_p_next_loc field
+   is set by using the @c cbl_c_next->cbl_p_self_loc value, which is treated
    opaquely by the transport layer.  So, steps 2 and 3 update both pairs of
-   pointers.  Allocation has no affect on the @c producer pointer itself, only
+   pointers.  Allocation has no affect on the @c producer reference itself, only
    the @c consumer pointer.
 
    The resultant 3 element queue looks like this:
@@ -487,7 +500,8 @@
    - @ref cqueueDLD-fspec-ds
    - @ref cqueueDLD-fspec-sub
    - @ref cqueueDLD-fspec-usecases
-   - @ref bevcqueue "Detailed Functional Specification" <!-- below -->
+   - @ref bevcqueue "Detailed Functional Specification" <!--
+                                      below and ./linux_kernel/kbev_queue.c -->
 
    @section cqueueDLD-fspec-ds Data Structures
 
@@ -734,51 +748,6 @@ static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 	C2_ASSERT(link->cbl_c_next != 0);
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) link->cbl_c_next;
 	return (struct nlx_core_bev_link *) (q->cbcq_consumer);
-}
-
-/**
-   Determines the next element in the queue that can be used by the producer.
-   @note This operation is to be used only by the producer.
-   @param q the queue
-   @returns a pointer to the next available element in the producer context
-   @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
- */
-static struct nlx_core_bev_link* bev_cqueue_pnext(
-				      const struct nlx_core_bev_cqueue *q)
-{
-	struct nlx_core_bev_link* p;
-
-	C2_PRE(bev_cqueue_invariant(q));
-	p = (struct nlx_core_bev_link*) q->cbcq_producer;
-	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
-	return p;
-}
-
-/**
-   Puts (produces) an element so it can be consumed.  The caller must first
-   call bev_cqueue_pnext() to ensure such an element exists.
-   @param q the queue
-   @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
- */
-static void bev_cqueue_put(struct nlx_core_bev_cqueue *q)
-{
-	struct nlx_core_bev_link* p;
-
-	C2_PRE(bev_cqueue_invariant(q));
-	p = (struct nlx_core_bev_link*) q->cbcq_producer;
-	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
-	q->cbcq_producer = p->cbl_p_next;
-}
-
-/**
-   Blesses the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
-   the producer self value.
-   @param ql the link to bless, the caller must have already mapped the element
-   into the producer address space.
- */
-static void bev_link_bless(struct nlx_core_bev_link *ql)
-{
-	ql->cbl_p_self = (nlx_core_opaque_ptr_t) ql;
 }
 
 /**

@@ -173,6 +173,23 @@ fail:
 }
 
 /**
+   This subroutine sets up the LNet kernel I/O vector in the kcore buffer from
+   a bufvec containing userspace virtual addresses.
+
+   The pages referenced by the bvec->ov_buf are pinned in kernel memory.
+
+   @param kb Kcore buffer private pointer
+   @param bvec Vector with userspace virtual addresses.
+   @retval -EFBIG if the IO vector is too large.
+ */
+int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
+				 const struct c2_bufvec *bvec)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
+/**
    Helper subroutine to determine the number of kiov vector elements are
    required to match a specified byte length.
    @param kiov Pointer to the KIOV vector.

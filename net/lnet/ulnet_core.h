@@ -26,8 +26,6 @@
    @defgroup ULNetCore LNet Transport Core Userspace Private Interface
    @ingroup LNetCore
 
-   @todo This section will be filled in by the (net, lnet-user, DLD) task.
-
    @{
  */
 
@@ -61,9 +59,7 @@ struct nlx_ucore_buffer {
 	struct c2_addb_ctx              ub_addb;
 };
 
-/**
-   @}
- */
+/** @} */ /* ULNetCore */
 
 #endif /* __COLIBRI_NET_ULNET_CORE_H__ */
 

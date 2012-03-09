@@ -27,7 +27,7 @@
    - @ref LNetDLD-req
    - @ref LNetDLD-depends
    - @ref LNetDLD-highlights
-   - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet_core.h" -->
+   - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet.h" -->
       - @ref LNetDFS "LNet Transport"                  <!-- net/lnet/lnet.h -->
       - @ref LNetXODFS "XO Interface"                  <!-- ./lnet_xo.h -->
    - @ref LNetDLD-lspec
@@ -831,6 +831,7 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/lnet_addb.c"
 #include "net/lnet/lnet_core.c"
 #ifdef __KERNEL__
+#include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
 #else
 #include "net/lnet/ulnet_core.c"

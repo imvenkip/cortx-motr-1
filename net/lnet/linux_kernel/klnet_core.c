@@ -28,10 +28,9 @@
    - @ref KLNetCoreDLD-depends
    - @ref KLNetCoreDLD-highlights
    - @subpage LNetCoreDLD-fspec "Functional Specification" <!--
-                                                             ./klnet_core.h -->
+                                                             ../lnet_core.h -->
         - @ref LNetCore "LNet Transport Core Interface" <!-- ../lnet_core.h -->
         - @ref KLNetCore "Core Kernel Interface"        <!-- ./klnet_core.h -->
-        - @ref ULNetCore "Core User Space Interface"   <!-- ../ulnet_core.h -->
    - @ref KLNetCoreDLD-lspec
       - @ref KLNetCoreDLD-lspec-comps
       - @ref KLNetCoreDLD-lspec-userspace
@@ -968,6 +967,9 @@ static void nlx_kcore_tms_list_add(struct nlx_kcore_transfer_mc *kctm)
 /**
    Callback for the LNet Event Queue.
    It must be re-entrant, and not make any calls to the LNet API.
+   It must not perform non-atomic operations, such as locking a mutex.
+   An atomic spin lock is used to synchronize access to the
+   nlx_core_transfer_mc::nlx_core_bev_cqueue.
  */
 static void nlx_kcore_eq_cb(lnet_event_t *event)
 {
@@ -1082,6 +1084,49 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	bev_cqueue_put(&lctm->ctm_bevq);
 	spin_unlock(&ktm->ktm_bevq_lock);
 	c2_semaphore_up(&ktm->ktm_sem);
+}
+
+/**
+   Set a memory location reference, including checksum.
+   @pre off < PAGE_SIZE && ergo(pg == NULL, off == 0)
+   @param loc Location to set.
+   @param pg Pointer to page object.
+   @param off Offset within the page.
+ */
+static void nlx_core_kmem_loc_set(struct nlx_core_kmem_loc *loc,
+				  struct page *pg, uint32_t off)
+{
+	/** @todo implement */
+}
+
+void *nlx_core_mem_alloc(size_t size)
+{
+	/** @todo implement */
+	return NULL;
+}
+
+void nlx_core_mem_free(void *data)
+{
+	/** @todo implement */
+}
+
+/**
+   Initializes the kernel core domain private data object.
+   @param kd kernel core private data pointer for the domain to be initialized.
+ */
+static int nlx_kcore_dom_init(struct nlx_kcore_domain *kd)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
+/**
+   Finalizes the kernel core domain private data object.
+   @param kd kernel core private data pointer for the domain to be finalized.
+ */
+static void nlx_kcore_dom_fini(struct nlx_kcore_domain *kd)
+{
+	/** @todo implement */
 }
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
@@ -1479,6 +1524,22 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 		fmt = "%s:%u:%u:*";
 	snprintf(buf, C2_NET_LNET_XEP_ADDR_LEN, fmt,
 		 cp, cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
+}
+
+int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,
+			   const char *nidstr,
+			   uint64_t *nid)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
+int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,
+			   uint64_t nid,
+			   char nidstr[C2_NET_LNET_XEP_ADDR_LEN])
+{
+	/** @todo implement */
+	return -ENOSYS;
 }
 
 int nlx_core_nidstrs_get(char * const **nidary)

@@ -148,18 +148,8 @@
 
    @see @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
    @see @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
+   @see @ref LNetDRVDLD "LNet Transport Device DLD"
 
- */
-
-/**
-   @defgroup LNetCore LNet Transport Core Interface
-   @ingroup LNetDFS
-
-   The internal, address space agnostic I/O API used by the LNet transport.
-
-   @see @ref LNetCoreDLD-fspec "LNet Transport Core Functional Specification"
-
-   @{
  */
 
 #include "net/lnet/lnet.h"
@@ -173,6 +163,18 @@ struct nlx_core_domain;
 struct nlx_core_ep_addr;
 struct nlx_core_transfer_mc;
 struct nlx_core_buf_desc;
+struct page;
+
+/**
+   @defgroup LNetCore LNet Transport Core Interface
+   @ingroup LNetDFS
+
+   The internal, address space agnostic I/O API used by the LNet transport.
+
+   @see @ref LNetCoreDLD-fspec "LNet Transport Core Functional Specification"
+
+   @{
+ */
 
 /**
    Opaque type wide enough to represent an address in any address space.
@@ -223,20 +225,19 @@ enum {
  */
 struct nlx_core_kmem_loc {
 	union {
-#ifdef __KERNEL__
-		/** Page containing the object. */
-		struct page *kl_page;
-#else
-		void        *kl_page;
-#endif
-		uint32_t     kl_data[2];
+		struct {
+			/** Page containing the object. */
+			struct page *kl_page;
+			/** Offset of the object in the page. */
+			uint32_t     kl_offset;
+		} __attribute__((__packed__));
+		uint32_t     kl_data[3];
 	};
-	/** Offset of the object in the page. */
-	uint32_t     kl_offset;
 	/** A checksum of the page and offset, to detect corruption. */
 	uint32_t     kl_checksum;
 };
-C2_BASSERT(sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_page) ==
+C2_BASSERT(sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_page) +
+	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_offset) ==
 	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_data));
 
 /**
@@ -251,19 +252,35 @@ struct nlx_core_bev_link {
 	nlx_core_opaque_ptr_t cbl_c_self;
 
 	/**
-	   Self pointer in the producer (kernel) address space.
-	 */
-	nlx_core_opaque_ptr_t cbl_p_self;
-
-	/**
 	   Pointer to the next element in the consumer address space.
 	 */
 	nlx_core_opaque_ptr_t cbl_c_next;
 
 	/**
+	   Self pointer in the producer (kernel) address space.
+	   @todo deprecated
+	 */
+	nlx_core_opaque_ptr_t cbl_p_self;
+
+	/**
 	   Pointer to the next element in the producer address space.
+	   @todo deprecated
 	 */
 	nlx_core_opaque_ptr_t cbl_p_next;
+
+	/**
+	   Self reference in the producer (kernel).
+	   The producer reference is kept in the form of a nlx_core_kmem_loc
+	   so that queue elements do not all need to be mapped.
+	 */
+	struct nlx_core_kmem_loc cbl_p_self_loc;
+
+	/**
+	   Reference to the next element in the producer.
+	   The next reference is kept in the form of a nlx_core_kmem_loc so
+	   that queue elements do not all need to be mapped.
+	 */
+	struct nlx_core_kmem_loc cbl_p_next_loc;
 };
 
 /**
@@ -277,18 +294,26 @@ struct nlx_core_bev_cqueue {
 	size_t                 cbcq_nr;
 
 	/**
-	   The producer adds links to this anchor.
-	   The producer pointer value is in the address space of the
-	   producer (kernel).
-	 */
-	nlx_core_opaque_ptr_t cbcq_producer;
-
-	/**
 	   The consumer removes elements from this anchor.
 	   The consumer pointer value is in the address space of the
 	   consumer (transport).
 	 */
 	nlx_core_opaque_ptr_t cbcq_consumer;
+
+	/**
+	   The producer adds links to this anchor.
+	   The producer pointer value is in the address space of the
+	   producer (kernel).
+	   @todo deprecated
+	 */
+	nlx_core_opaque_ptr_t cbcq_producer;
+
+	/**
+	   The producer adds links to this anchor.
+	   The producer reference is kept in the form of a nlx_core_kmem_loc
+	   so that queue elements do not all need to be mapped.
+	 */
+	struct nlx_core_kmem_loc cbcq_producer_loc;
 };
 
 enum {
@@ -872,6 +897,20 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
  */
 static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer_event **bevp);
+
+/**
+   Allocate zero-filled memory, like c2_alloc().
+   In user space, this memory is allocated such that it will not
+   cross page boundaries using c2_alloc_aligned().
+   @param size Memory size.
+   @pre size <= PAGE_SIZE
+ */
+static void *nlx_core_mem_alloc(size_t size);
+
+/**
+   Frees memory allocated by nlx_core_mem_alloc().
+ */
+static void nlx_core_mem_free(void *data);
 
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
