@@ -273,9 +273,10 @@ static void __session_fini(struct c2_rpc_session *session)
 	int                 i;
         c2_time_t           t;
 
-/*
- * Should remove before merging to master 
- */
+        /*
+         * @todo
+         * This sleep should remove after rpc issues resolved. 
+         */
         c2_nanosleep(c2_time_set(&t, 0, 1000), NULL);
 
 	if (session->s_slot_table != NULL) {
