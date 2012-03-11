@@ -133,6 +133,7 @@ void test_bob(void)
 	test_tlink_init();
 	test_tlink_fini();
 	test_check();
+	test_bob_of();
 }
 C2_EXPORTED(test_bob);
 
