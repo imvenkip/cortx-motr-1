@@ -384,7 +384,10 @@ static void test_cursor_flags_read_only(void)
 	result = c2_db_cursor_get(&cursor1, &pair1);
 	C2_UT_ASSERT(result == 0);
 
-        /* Initialise read only cursor one same table and in same trasaction */
+        /*
+         * Now initialise read only cursor on same table and in same trasaction
+         * where table already having read-only cursor.
+         */
 	result = c2_table_init(&table2, &db, test_table, 0, &test_table_ops);
 	C2_UT_ASSERT(result == 0);
 
@@ -458,7 +461,10 @@ static void test_cursor_flags_rmw(void)
         result = c2_db_cursor_get(&cursor1, &pair1);
 	C2_UT_ASSERT(result == 0);
 
-        /* Initialise read only cursor one same table and in same trasaction */
+        /*
+         * Now initialise read/modify/write cursor on same table and
+         * in same trasaction where table already having read-only cursor.
+         */
 	result = c2_table_init(&table2, &db, test_table, 0, &test_table_ops);
 	C2_UT_ASSERT(result == 0);
 
