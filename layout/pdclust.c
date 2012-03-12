@@ -200,6 +200,9 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 	uint32_t                 P;
 	const struct tile_cache *tc;
 
+	if (play == NULL)
+		return false;
+
 	if (!c2_pdclust_layout_bob_check(play))
 		return false;
 

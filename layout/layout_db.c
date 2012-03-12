@@ -39,7 +39,6 @@
    - @ref Layout-DB-O
    - @ref Layout-DB-ref
 
-
    <HR>
    @section Layout-DB-ovw Overview
    This document contains the detail level design for the Layout DB Module.
@@ -336,14 +335,14 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/misc.h"        /* C2_SET0() */
+#include "lib/misc.h"          /* C2_SET0() */
 #include "lib/vec.h"
 #include "lib/arith.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
-#include "lib/trace.h"       /* C2_LOG() */
+#include "lib/trace.h"         /* C2_LOG() */
 
-#include "db/db_common.h"    /* c2_db_buf_init() */
+#include "db/db_common.h"      /* c2_db_buf_init() */
 #include "layout/layout_db.h"
 
 extern int LID_NONE;
@@ -352,26 +351,22 @@ extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
-	ENUM_DEF_DB_FLAGS = 0
+	DEF_DB_FLAGS = 0
 };
-
-int DEFAULT_DB_FLAG = ENUM_DEF_DB_FLAGS;
+int DEFAULT_DB_FLAG = DEF_DB_FLAGS;
 
 C2_ADDB_EV_DEFINE(ldb_lookup_success, "layout_lookup_success",
 		  C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(ldb_lookup_fail, "layout_lookup_fail",
 		  C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, C2_ADDB_FUNC_CALL);
-
 C2_ADDB_EV_DEFINE(ldb_add_success, "layout_add_success",
 		  C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(ldb_add_fail, "layout_add_fail",
 		  C2_ADDB_EVENT_LAYOUT_ADD_FAIL, C2_ADDB_FUNC_CALL);
-
 C2_ADDB_EV_DEFINE(ldb_update_success, "layout_update_success",
 		  C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(ldb_update_fail, "layout_update_fail",
 		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_FUNC_CALL);
-
 C2_ADDB_EV_DEFINE(ldb_delete_success, "layout_delete_success",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
@@ -391,7 +386,7 @@ C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
  */
 
 /**
- * Write layout record to layouts table.
+ * Write layout record to the layouts table.
  *
  * @param op - This enum parameter indicates what is the DB operation to be
  * performed on the layout record which could be one of ADD/UPDATE/DELETE.
@@ -402,9 +397,16 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
 {
 	int rc;
 
+	C2_PRE(schema != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE);
+	C2_PRE(pair != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
+	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 	C2_PRE(recsize >= sizeof(struct c2_ldb_rec));
+	C2_PRE(tx != NULL);
 
 	pair->dp_table = &schema->ls_layouts;
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
@@ -420,8 +422,9 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
 	pair->dp_rec.db_static = false;
 
 	/*
-	 * ADDB messages regarding the failure cases, are added into the
-	 * the respective callers.
+	 * ADDB messages covering the failure of c2_table_insert(),
+	 * c2_table_update() and c2_table_delete(), are added into the
+	 * the respective callers of this routine.
 	 */
 	if (op == C2_LXO_DB_ADD) {
 		rc = c2_table_insert(tx, pair);
@@ -435,18 +438,33 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
 }
 
 static int get_oldrec(struct c2_ldb_schema *schema,
-		      struct c2_layout *l, void *area, uint32_t num_bytes)
+		      struct c2_layout *l, void *area, uint32_t nbytes)
 {
 	struct c2_db_pair  pair;
 	struct c2_db_tx    tx;
 	int                rc;
 
+	C2_PRE(schema != NULL);
+	C2_PRE(l != NULL);
+	C2_PRE(area != NULL);
+	C2_PRE(nbytes >= sizeof(struct c2_ldb_rec));
+
+	/*
+	 * The only caller of this routine is c2_ldb_update(). Hence, the
+	 * ADDB messages are added using ldb_update_fail event.
+	 */
 	rc = c2_db_tx_init(&tx, schema->ls_dbenv, DEFAULT_DB_FLAG);
-	C2_ASSERT(rc == 0);
+	if(rc != 0) {
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_update_fail, "c2_db_tx_init()", rc);
+		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d",
+		       (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 
 	c2_db_pair_setup(&pair, &schema->ls_layouts,
 			 &l->l_id, sizeof l->l_id,
-			 area, num_bytes);
+			 area, nbytes);
 
 	rc = c2_table_lookup(&tx, &pair);
 
@@ -456,13 +474,14 @@ static int get_oldrec(struct c2_ldb_schema *schema,
 	if (rc != 0) {
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
 			    ldb_update_fail, "c2_table_lookup()", rc);
-		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d",
-		       (unsigned long long)l->l_id, rc);
+		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() failed, "
+		       "rc %d", (unsigned long long)l->l_id, rc);
 	}
 
 	/* Ignoring the return status, this being a lookup operation. */
 	c2_db_tx_commit(&tx);
 
+out:
 	return rc;
 }
 
@@ -504,8 +523,16 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 
 	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts",
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
+	if (rc != 0) {
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "c2_table_init", rc);
+		C2_LOG("c2_ldb_schema_init(): c2_table_init() failed, rc %d",
+		       rc);
+		schema->ls_dbenv = NULL;
+		c2_mutex_fini(&schema->ls_lock);
+	}
 
-	C2_LEAVE();
+	C2_LEAVE("rc %d", rc);
 	return rc;
 }
 
@@ -523,14 +550,28 @@ int c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 
 	/* Verify that all the layout types were deregistered. */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
-		if (schema->ls_type[i] != NULL)
+		if (schema->ls_type[i] != NULL) {
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+				    c2_addb_func_fail,
+				    "Layout type still registered", -EPROTO);
+			C2_LOG("c2_ldb_schema_fini(): Layout type with "
+			       "Layout_type_id %lu is still registered",
+			       (unsigned long)schema->ls_type[i]->lt_id);
 			return -EPROTO;
+		}
 	}
 
 	/* Verify that all the enum types were deregistered. */
 	for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
-		if (schema->ls_enum[i] != NULL)
+		if (schema->ls_enum[i] != NULL) {
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+				    c2_addb_func_fail,
+				    "Enum type still registered", -EPROTO);
+			C2_LOG("c2_ldb_schema_fini(): Enum type with "
+			       "Enum_type_id %lu is still registered",
+			       (unsigned long)schema->ls_enum[i]->let_id);
 			return -EPROTO;
+		}
 	}
 
 	c2_table_fini(&schema->ls_layouts);
@@ -564,11 +605,10 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 	}
 
 	C2_ASSERT(schema->ls_type[lt->lt_id] == NULL);
+	C2_ASSERT(lt->lt_ops != NULL);
 
 	c2_mutex_lock(&schema->ls_lock);
 	schema->ls_type[lt->lt_id] = (struct c2_layout_type *)lt;
-
-	C2_ASSERT(lt->lt_ops != NULL);
 
 	/* Allocate type specific schema data. */
 	rc = lt->lt_ops->lto_register(schema, lt);
@@ -634,11 +674,10 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 	}
 
 	C2_ASSERT(schema->ls_enum[let->let_id] == NULL);
+	C2_ASSERT(let->let_ops != NULL);
 
 	c2_mutex_lock(&schema->ls_lock);
 	schema->ls_enum[let->let_id] = (struct c2_layout_enum_type *)let;
-
-	C2_ASSERT(let->let_ops != NULL);
 
 	/* Allocate enum type specific schema data. */
 	rc = let->let_ops->leto_register(schema, let);
@@ -704,7 +743,6 @@ uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 		max_recsize = max32u(max_recsize, recsize);
 	}
 
-
 	return sizeof(struct c2_ldb_rec) + max_recsize;
 }
 
@@ -753,8 +791,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	pair->dp_rec.db_static = true;
 
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
-
-	C2_SET0(pair->dp_rec.db_buf.b_addr);
+	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
@@ -766,8 +803,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	}
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-				&pair->dp_rec.db_buf.b_nob);
-
+						   &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_decode(schema, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
@@ -824,14 +860,13 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
-	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-				&pair->dp_rec.db_buf.b_nob);
+	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
+	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+						   &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_encode(schema, l, C2_LXO_DB_ADD, tx, NULL, &cur);
-	C2_LOG("c2_ldb_add(): lid %llu, c2_layout_encode() rc %d",
-	       (unsigned long long)l->l_id, rc);
 	if (rc != 0) {
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
 			    ldb_add_fail, "c2_layout_encode()", rc);
@@ -864,8 +899,8 @@ out:
 }
 
 /**
- * Updates a layout record. As of now, only l_ref can be updated for an
- * existing layout record.
+ * Updates a layout record. Only l_ref can be updated for an existing layout
+ * record.
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
@@ -877,14 +912,11 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx)
 {
-	struct c2_bufvec_cursor  oldrec_cur;
 	void                    *oldrec_area;
 	struct c2_bufvec         oldrec_bv;
-	c2_bcount_t              num_bytes;
+	struct c2_bufvec_cursor  oldrec_cur;
+	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
-	struct c2_bufvec         bv = C2_BUFVEC_INIT_BUF(
-					&pair->dp_rec.db_buf.b_addr,
-					&pair->dp_rec.db_buf.b_nob);
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
 	int                      rc;
@@ -894,14 +926,19 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
+	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
+	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
+
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	/*
 	 * Get the old record from the layouts table. It is used to ensure that
 	 * nothing other than l_ref gets updated for an existing layout record.
 	 */
-	num_bytes = c2_ldb_max_recsize(schema);
-	oldrec_area = c2_alloc(num_bytes);
+	recsize = c2_ldb_max_recsize(schema);
+	oldrec_area = c2_alloc(recsize);
 	if (oldrec_area == NULL) {
 		rc = -ENOMEM;
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc, c2_addb_oom);
@@ -910,7 +947,9 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	rc = get_oldrec(schema, l, oldrec_area, num_bytes);
+	memset(oldrec_area, 0, recsize);
+
+	rc = get_oldrec(schema, l, oldrec_area, recsize);
 	if (rc != 0) {
 		C2_LOG("c2_ldb_update(): lid %llu, get_oldrec() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
@@ -918,10 +957,14 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	}
 
 	oldrec_bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&oldrec_area,
-							 &num_bytes);
+						(c2_bcount_t *)&recsize);
 	c2_bufvec_cursor_init(&oldrec_cur, &oldrec_bv);
 
 	/* Now, proceed to update the layout. */
+	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
+
+	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+						   &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_encode(schema, l, C2_LXO_DB_UPDATE, tx,
@@ -934,6 +977,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
+	/* todo lt is not verified here. Should be verified thr l invariant. */
 	lt = schema->ls_type[l->l_type->lt_id];
 
 	recsize = lt->lt_ops->lto_recsize(schema, l);
@@ -975,10 +1019,8 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx)
 {
+	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
-	struct c2_bufvec         bv = C2_BUFVEC_INIT_BUF(
-					&pair->dp_rec.db_buf.b_addr,
-					&pair->dp_rec.db_buf.b_nob);
 	uint32_t                 recsize;
 	struct c2_layout_type   *lt;
 	int                      rc;
@@ -988,13 +1030,20 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
 
+	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
+	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
+
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
+	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
+
+	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+						   &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_encode(schema, l, C2_LXO_DB_DELETE, tx, NULL, &cur);
-	C2_LOG("c2_ldb_delete(): lid %llu, c2_layout_encode() rc %d",
-	       (unsigned long long)l->l_id, rc);
 	if (rc != 0) {
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
 			    ldb_delete_fail, "c2_layout_encode()", rc);
@@ -1029,8 +1078,6 @@ out:
 
 
 /** @} end group LayoutDBDFS */
-
-
 
 /*
  *  Local variables:

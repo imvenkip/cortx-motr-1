@@ -400,11 +400,15 @@ out:
  * - Server encodes an in-memory layout object and stores it into the Layout
  *   DB.
  *
- * @param op - This enum parameter indicates what is the DB operation to be
+ * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all and it could be one of
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
  *
- * @pre
+ * @param oldrec_cur Cursor pointing to a buffer to be used to read the
+ * exisiting layout record from the layouts table. Applicable only in case of
+ * layou update operation. In other cases, it is expected to be NULL.
+ *
+ * @param out Cursor poining to a buffer. Regarding the size of the buufer:
  * - In case c2_layout_decode() is called through c2_ldb_add(), then the
  * buffer should be capable of ontaining all the data that is to be read from
  * the layouts table.
