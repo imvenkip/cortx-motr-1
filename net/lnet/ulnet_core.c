@@ -263,9 +263,9 @@
 
    @subsection ULNetCoreDLD-lspec-tmstart Starting a Transfer Machine
 
-   The user space core completes the following tasks to start a
-   transfer machine.  Recall that there is no core API corresponding to the
-   @c nlx_xo_tm_init() function.
+   The user space core @c nlx_core_tm_start() subroutine completes the following
+   tasks to start a transfer machine.  Recall that there is no core API
+   corresponding to the @c nlx_xo_tm_init() function.
 
    - It performs upper layer initialization of the @c nlx_core_transfer_mc
      object.  This includes allocating and initializing the
@@ -284,9 +284,9 @@
 
    @subsection ULNetCoreDLD-lspec-tmstop Stopping a Transfer Machine
 
-   The user space core completes the following tasks to stop a
-   transfer machine.  Recall that there is no core API corresponding to the
-   @c nlx_xo_tm_fini() function.
+   The user space core @c nlx_core_tm_stop() subroutine completes the following
+   tasks to stop a transfer machine.  Recall that there is no core API
+   corresponding to the @c nlx_xo_tm_fini() function.
 
    - It completes pre-checks of the @c nlx_core_transfer_mc object.
    - It performs a @c #C2_LNET_TM_STOP ioctl request, causing
@@ -299,11 +299,20 @@
 
    @subsection ULNetCoreDLD-lspec-buf Transfer Machine Buffer Queue Operations
 
-   Several LNet transport core interfaces operate on buffers and transfer
-   machine queues.  In all user space core cases, the shared objects,
-   @c nlx_core_buffer and @c nlx_core_transfer_mc, must have been previously
-   shared with the kernel, through use of the @c #C2_LNET_BUF_REGISTER and
-   @c #C2_LNET_TM_START ioctl requests, respectively.
+   Several LNet transport core subroutines,
+
+   - @c nlx_core_buf_msg_recv()
+   - @c nlx_core_buf_msg_send()
+   - @c nlx_core_buf_active_recv()
+   - @c nlx_core_buf_active_send()
+   - @c nlx_core_buf_passive_recv()
+   - @c nlx_core_buf_passive_send()
+   - @c nlx_core_buf_del()
+
+   operate on buffers and transfer machine queues.  In all user space core
+   cases, the shared objects, @c nlx_core_buffer and @c nlx_core_transfer_mc,
+   must have been previously shared with the kernel, through use of the @c
+   #C2_LNET_BUF_REGISTER and @c #C2_LNET_TM_START ioctl requests, respectively.
 
    The ioctl requests available to the user space core for managing
    buffers and transfer machine buffer queues are as follows.
@@ -326,7 +335,9 @@
 
    @subsection ULNetCoreDLD-lspec-event Waiting for Buffer Events
 
-   The user space core completes the following tasks to wait for buffer events.
+   The user space core nlx_core_buf_event_wait() subroutine completes the
+   following tasks to wait for buffer events.
+
    - It declares a @c c2_lnet_dev_buf_event_wait_params and sets the fields.
    - It performs a @c #C2_LNET_BUF_EVENT_WAIT ioctl request to wait for
      the kernel to generate additional buffer events.
@@ -408,7 +419,8 @@
    The user space threading and concurrency model works in conjunction
    with the kernel core model.  No additional behavior is added in user space.
 
-   @see KLNetCoreDLD-lspec-thread "Kernel Core Threading and Concurrency Model"
+   @see
+   @ref KLNetCoreDLD-lspec-thread "Kernel Core Threading and Concurrency Model"
 
    @subsection ULNetCoreDLD-lspec-numa NUMA optimizations
 
@@ -442,7 +454,14 @@
    <hr>
    @section ULNetCoreDLD-O Analysis
 
-   In general, the User Core layer simply routes parameters too and from
+   The overall design of the LNet transport already addresses the need to
+   minimize data copying between the kernel and user space, and the need to
+   minimize context switching.  This is accomplished by use of shared memory and
+   a circular buffer event queue maintained in shared memory.  For more
+   information, refer to the
+   <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD</a>.
+
+   In general, the User Core layer simply routes parameters to and from
    the Kernel Core via the LNet driver.  The complexity of this routing
    is analyzed in @ref LNetDRVDLD-O "LNet Driver Analysis".
 
@@ -454,9 +473,9 @@
    <hr>
    @section ULNetCoreDLD-ref References
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
-   - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
+   - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
      ./linux_kernel/klnet_core.c -->
-   - @subpage LNetDRVDLD "LNet Transport Device DLD" <!--
+   - @ref LNetDRVDLD "LNet Transport Device DLD" <!--
      ./linux_kernel/klnet_drv.c -->
  */
 

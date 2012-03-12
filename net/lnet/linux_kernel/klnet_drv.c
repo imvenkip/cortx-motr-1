@@ -76,13 +76,12 @@
      subsequently mapping the page.  A pinned page remained pinned until it is
      explicitly unpinned.  Pinning may involve the use of shared, reference
      counted objects, but one should not depend on this for correctness.
-   - @b map Assign a kernel logical address to a page of memory.  Given a @c
-     page object (implying that if the page is user memory, it must have been
-     pinned previously).  A mapped page remains mapped until explicitly
-     unmapped.  Both kernel and pinned user pages can be mapped.  Mapping may
-     involve the use of shared, reference counted objects and addresses, but one
-     should not depend on this for correctness.  Each time a page is mapped, it
-     may be assigned a different logical address.
+   - @b map Assign a kernel logical address to a page of memory.  A mapped page
+     remains mapped until explicitly unmapped.  Both kernel and pinned user
+     pages can be mapped.  Mapping may involve the use of shared, reference
+     counted objects and addresses, but one should not depend on this for
+     correctness.  Each time a page is mapped, it may be assigned a different
+     logical address.
    - @b unmap Remove the association of a kernel logical address from a page.
      After a page is unmapped, it has no logical address until it is explicitly
      remapped.
@@ -309,31 +308,32 @@
    However, the mapping of pages (i.e. @c kmap() or @c kmap_atomic() functions)
    is performed only while the pages are to be used, and then unmapped as soon
    as possible.  The number of mappings available to @c kmap() is documented as
-   being limited.  Except as noted, @c kmap_atomic() is used in atomic blocks to
-   map the page associated with an object.  Each time a shared object is mapped,
-   its invariants are re-checked to ensure the page still contains the shared
-   object.  Each shared core object is required to fit within a single page to
-   simplify mapping and sharing.  The user space transport must ensure this
-   requirement is met when it allocates core objects.  Note that the pages of
-   the @c c2_bufvec segments are not part of the shared @c nlx_core_buffer; they
-   are referenced by the associated @c nlx_kcore_buffer object and are never
-   mapped by the driver or kernel core layers.
+   being limited.  Except as noted, @c kmap_atomic() is used in blocks of code
+   that will not sleep to map the page associated with an object.  Each time a
+   shared object is mapped, its invariants are re-checked to ensure the page
+   still contains the shared object.  Each shared core object is required to fit
+   within a single page to simplify mapping and sharing.  The user space
+   transport must ensure this requirement is met when it allocates core objects.
+   Note that the pages of the @c c2_bufvec segments are not part of the shared
+   @c nlx_core_buffer; they are referenced by the associated @c nlx_kcore_buffer
+   object and are never mapped by the driver or kernel core layers.
 
    The @c nlx_core_kmem_loc structure stores the page and offset of an object.
-   This structure is used in place of pointers within structures used in kernel
-   address space to reference shared (pinned) user space objects.  Kernel core
-   structures @c nlx_kcore_domain, @c nlx_kcore_transfer_mc, @c nlx_kcore_buffer
-   and @c nlx_kcore_buffer_event refer to shared objects, and use fields such as
-   nlx_kcore_domain::kd_cd_loc to store these references.  Structures such as
-   @c nlx_core_bev_link, @c nlx_core_bev_cqueue, while contained in shared
-   objects also use @c nlx_core_kmem_loc, because these structures in turn need
-   to reference yet other shared objects.  When the shared object is needed, it
-   is mapped (e.g. @c kmap_atomic() returns a pointer to the mapped page, and
-   the code adds the corresponding offset to obtain a pointer to the object
-   itself), used, and unmapped.  The kernel pointer to the shared object is only
-   used on the stack, never stored in a shared place.  This allow for
-   unsynchronized, concurrent access to shared objects, just as if they were
-   always mapped.
+   It also stores a checksum to detect inadvertent corruption of the address
+   or offset.  This structure is used in place of pointers within structures
+   used in kernel address space to reference shared (pinned) user space objects.
+   Kernel core structures @c nlx_kcore_domain, @c nlx_kcore_transfer_mc,
+   @c nlx_kcore_buffer and @c nlx_kcore_buffer_event refer to shared objects,
+   and use fields such as nlx_kcore_domain::kd_cd_loc to store these references.
+   Structures such as @c nlx_core_bev_link, @c nlx_core_bev_cqueue, while
+   contained in shared objects also use @c nlx_core_kmem_loc, because these
+   structures in turn need to reference yet other shared objects.  When the
+   shared object is needed, it is mapped (e.g. @c kmap_atomic() returns a
+   pointer to the mapped page, and the code adds the corresponding offset to
+   obtain a pointer to the object itself), used, and unmapped.  The kernel
+   pointer to the shared object is only used on the stack, never stored in a
+   shared place.  This allow for unsynchronized, concurrent access to shared
+   objects, just as if they were always mapped.
 
    @subsection LNetDRVDLD-lspec-dominit Domain Initialization
 
@@ -523,7 +523,7 @@
    - Information required to map the pinned object is saved in the
      @c nlx_kcore_transfer_mc object.
    - The @c nlx_core_transfer_mc is mapped using @c kmap()
-     because the core operation cannot be guaranteed to be atomic.
+     because the core operation may sleep.
    - The @c nlx_core_transfer_mc is checked to ensure it is not already
      associated with a @c nlx_kcore_transfer_mc object and that it will
      not cause assertions.
@@ -581,7 +581,7 @@
    These helper functions each perform similar tasks.
    - The parameters are validated to ensure no assertions will occur.
    - The @c nlx_core_transfer_mc and @c nlx_core_buffer are mapped using
-     @c kmap() because the core operations cannot be guaranteed to be atomic.
+     @c kmap() because the core operations may sleep.
    - The corresponding kernel core operation is called.
      - @c nlx_kcore_ops::ko_buf_msg_recv()
      - @c nlx_kcore_ops::ko_buf_msg_send()
