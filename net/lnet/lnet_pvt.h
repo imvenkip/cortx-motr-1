@@ -110,6 +110,8 @@ static inline bool nlx_core_kmem_loc_is_empty(
 
 /**
    Compare memory location objects for equality.
+   These objects cannot be compared atomically.  The caller must ensure
+   that appropriate synchronization is used if the objects can change.
  */
 static inline bool nlx_core_kmem_loc_eq(const struct nlx_core_kmem_loc *a,
 					const struct nlx_core_kmem_loc *b)
@@ -117,8 +119,8 @@ static inline bool nlx_core_kmem_loc_eq(const struct nlx_core_kmem_loc *a,
 	if (a == NULL || b == NULL)
 		return a == b;
 	return a->kl_page == b->kl_page &&
-		a->kl_offset == a->kl_offset &&
-		a->kl_checksum == a->kl_checksum;
+		a->kl_offset == b->kl_offset &&
+		a->kl_checksum == b->kl_checksum;
 }
 
 /**

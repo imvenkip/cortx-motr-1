@@ -288,10 +288,11 @@ struct nlx_core_bev_link {
    with a single producer and single consumer.
  */
 struct nlx_core_bev_cqueue {
-	/**
-	   Number of elements currently in the queue.
-	 */
+	/** Number of elements currently in the queue. */
 	size_t                 cbcq_nr;
+
+	/** Number of elements in the queue that can be consumed. */
+	struct c2_atomic64     cbcq_count;
 
 	/**
 	   The consumer removes elements from this anchor.
