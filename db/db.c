@@ -702,32 +702,33 @@ static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
 	return WITH_PAIR(pair, CURSOR_CALL(cursor, get, pair_key(pair),
-					   pair_rec(pair), flags));
+					   pair_rec(pair),
+                                           cursor->c_flags | flags));
 }
 
 int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	return cursor_get(cursor, pair, cursor->c_flags | DB_SET_RANGE);
+	return cursor_get(cursor, pair, DB_SET_RANGE);
 }
 
 int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	return cursor_get(cursor, pair, cursor->c_flags | DB_NEXT);
+	return cursor_get(cursor, pair, DB_NEXT);
 }
 
 int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	return cursor_get(cursor, pair, cursor->c_flags | DB_PREV);
+	return cursor_get(cursor, pair, DB_PREV);
 }
 
 int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	return cursor_get(cursor, pair, cursor->c_flags | DB_FIRST);
+	return cursor_get(cursor, pair, DB_FIRST);
 }
 
 int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	return cursor_get(cursor, pair, cursor->c_flags | DB_LAST);
+	return cursor_get(cursor, pair, DB_LAST);
 }
 
 int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)

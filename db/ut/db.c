@@ -447,7 +447,6 @@ static void test_cursor_flags_rmw(void)
 	c2_db_pair_fini(&pair1);
         dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
 
-        /* Get readonly cursor */
         dbut_init(db_name, test_table, &db, &table1, &tx1);
 
 	result = c2_db_cursor_init(&cursor1, &table1, &tx1, C2_DB_CURSOR_RMW);
