@@ -485,6 +485,39 @@ out:
 	return rc;
 }
 
+/**
+ * @note These checks should not be moved to invariant which is checked
+ * before locking schema object. The risk is that a layout type may be
+ * unregistered by the time schema->ls_type[lt_id] is accessed.
+ */
+int layout_type_verify(const struct c2_ldb_schema *schema, uint32_t lt_id)
+{
+	int rc = 0;
+
+	C2_PRE(schema != 0);
+
+	if (!IS_IN_ARRAY(lt_id, schema->ls_type)) {
+		rc = -EPROTO;
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "Invalid layout type id",
+			    -EPROTO);
+		C2_LOG("layout_type_verify(): Invalid Layout_type_id "
+		       "%lu", (unsigned long)lt_id);
+		goto out;
+	}
+
+	if (schema->ls_type[lt_id] == NULL) {
+		rc = -ENOENT;
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "Unregistered Layout type",
+			    -EPROTO);
+		C2_LOG("layout_type_verify(): Unregistered Layout type,"
+	               " Layout_type_id %lu", (unsigned long)lt_id);
+	}
+out:
+	return rc;
+}
+
 /** @} end group LayoutDBDFSInternal */
 
 /**
@@ -778,6 +811,8 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
+	c2_mutex_lock(&schema->ls_lock);
+
 	pair->dp_table = &schema->ls_layouts;
 
 	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
@@ -823,6 +858,8 @@ out:
 			    ldb_lookup_success, true);
 	}
 
+	c2_mutex_unlock(&schema->ls_lock);
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -860,6 +897,8 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
+	c2_mutex_lock(&schema->ls_lock);
+
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
@@ -875,6 +914,14 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
+	rc = layout_type_verify(schema, l->l_type->lt_id);
+	if (rc != 0) {
+		C2_LOG("c2_ldb_add(): lid %llu, Unqualified Layout_type_id "
+		       "%lu, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)l->l_type->lt_id, rc);
+		goto out;
+	}
+
 	lt = schema->ls_type[l->l_type->lt_id];
 	recsize = lt->lt_ops->lto_recsize(schema, l);
 
@@ -883,7 +930,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	if (rc != 0) {
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
 			    ldb_add_fail, "c2_table_insert()", rc);
-		C2_LOG("c2_ldb_lookup(): lid %llu, c2_table_insert() failed, "
+		C2_LOG("c2_ldb_add(): lid %llu, c2_table_insert() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
 		goto out;
 	}
@@ -893,6 +940,8 @@ out:
 		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    ldb_add_success, true);
 	}
+
+	c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -932,6 +981,8 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
+	c2_mutex_lock(&schema->ls_lock);
 
 	/*
 	 * Get the old record from the layouts table. It is used to ensure that
@@ -1001,6 +1052,8 @@ out:
 			    ldb_update_success, true);
 	}
 
+	c2_mutex_unlock(&schema->ls_lock);
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
@@ -1037,6 +1090,8 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
+	c2_mutex_lock(&schema->ls_lock);
+
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
@@ -1071,6 +1126,8 @@ out:
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
 			    ldb_delete_success, true);
 	}
+
+	c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;

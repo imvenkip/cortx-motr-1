@@ -39,6 +39,9 @@
 #include "layout/layout_db.h"
 #include "layout/layout.h"
 
+extern int layout_type_verify(const struct c2_ldb_schema *schema,
+			      uint32_t lt_id);
+
 enum layout_internal {
 	ENUM_LID_NONE = 0
 };
@@ -308,33 +311,16 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/* rec can not be NULL since the buffer size is already verified. */
 	rec = c2_bufvec_cursor_addr(cur);
 
-	if (!IS_IN_ARRAY(rec->lr_lt_id, schema->ls_type)) {
-		rc = -EPROTO;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_decode_fail,
-				    "Invalid layout type id", -EPROTO);
-
-		C2_LOG("c2_layout_decode(): lid %llu, Invalid Layout_type_id "
-		       "%lu", (unsigned long long)lid,
-		       (unsigned long)rec->lr_lt_id);
+	rc = layout_type_verify(schema, rec->lr_lt_id);
+	if (rc != 0) {
+		C2_LOG("c2_layout_decode(): lid %llu, Unqualified "
+		       "Layout_type_id %lu, rc %d",
+		       (unsigned long long)lid, (unsigned long)rec->lr_lt_id,
+		       rc);
 		goto out;
 	}
 
 	lt = schema->ls_type[rec->lr_lt_id];
-	if (lt == NULL) {
-		rc = -ENOENT;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_decode_fail,
-				    "Unregistered Layout type",
-				    -EPROTO);
-
-		C2_LOG("c2_layout_decode(): lid %llu, Unregistered Layout type,"
-	               " Layou_type_id %lu", (unsigned long long)lid,
-		       (unsigned long)rec->lr_lt_id);
-		goto out;
-	}
 
 	if (!c2_pool_id_is_valid(rec->lr_pid)) {
 		rc = -EINVAL;
@@ -471,32 +457,17 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	if(!IS_IN_ARRAY(l->l_type->lt_id, schema->ls_type)) {
-		rc = -EPROTO;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_encode_fail,
-				    "Invalid Layout_type_id", -EPROTO);
-
-		C2_LOG("c2_layout_encode(): lid %llu, Invalid Layout_type_id "
-		       "%lu", (unsigned long long)l->l_id,
-		       (unsigned long)l->l_type->lt_id);
+	rc = layout_type_verify(schema, l->l_type->lt_id);
+	if (rc != 0) {
+		C2_LOG("c2_layout_encode(): lid %llu, Unqualified "
+		       "Layout_type_id %lu, rc %d",
+		       (unsigned long long)l->l_id,
+		       (unsigned long)l->l_type->lt_id,
+		       rc);
 		goto out;
 	}
 
 	lt = schema->ls_type[l->l_type->lt_id];
-	if (lt == NULL) {
-		rc = -ENOENT;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_encode_fail,
-				    "Unregistered Layout_type", -EPROTO);
-
-		C2_LOG("c2_layout_encode(): lid %llu, Unregistered layout type,"
-		       " Layout_type_id %lu", (unsigned long long)l->l_id,
-		       (unsigned long)l->l_type->lt_id);
-		goto out;
-	}
 
 	if (!c2_pool_id_is_valid(l->l_pool_id)) {
 		rc = -EINVAL;
