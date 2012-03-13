@@ -159,21 +159,6 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	}
 }
 
-void c2_addb_add_custom(struct c2_addb_ctx *ctx, const struct c2_addb_loc *loc,
-			const char *fmt, ...)
-{
-	char msg[ADDB_CUSTOM_MSG_SIZE];
-	va_list args;
-
-	memset(msg, 0, sizeof msg);
-
-	va_start(args, fmt);
-	vsnprintf(msg, sizeof msg, fmt, args);
-	va_end(args);
-
-	C2_ADDB_ADD(ctx, loc, c2_addb_trace, msg);
-}
-
 static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
 {
 	dp->ad_name = name;
@@ -296,7 +281,7 @@ const struct c2_addb_ev_ops C2_ADDB_TRACE = {
 	.aeo_getsize = c2_addb_trace_getsize,
 	.aeo_size    = sizeof(char *),
 	.aeo_name    = "trace",
-	.aeo_level   = AEL_WARN
+	.aeo_level   = AEL_TRACE
 };
 
 C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, C2_ADDB_STAMP);

@@ -24,7 +24,6 @@
 
 #include "addb/addb.h"
 #include "lib/ut.h"
-#include "ut/ioredirect.h"
 
 struct c2_addb_ctx addb_ut_ctx;
 
@@ -44,14 +43,11 @@ static const char s_out_fname[] = "addb_ut_output_redirect";
 
 static void test_addb()
 {
-	int	 fd;
-	FILE	*fp;
-	fpos_t	 pos;
-	char	 buffer[MESSAGE_LENGTH];
-
+	char     buffer[MESSAGE_LENGTH];
+	struct c2_ut_redirect   addb_ut_redirect;
 	const char message[] = "A test ADDB message for C2_ADDB_TRACE event";
 
-	redirect_std_stream(stdout, s_out_fname, &fd, &pos, &fp);
+	c2_stream_redirect(stdout, s_out_fname, &addb_ut_redirect);
 
 	c2_addb_ctx_init(&addb_ut_ctx, &c2_addb_ut_ctx, &c2_addb_global_ctx);
 
@@ -59,13 +55,13 @@ static void test_addb()
 
 	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, c2_addb_trace, (message));
 
-	rewind(fp);
+	rewind(stdout);
 
-	fgets(buffer, MESSAGE_LENGTH, fp);
+	fgets(buffer, MESSAGE_LENGTH, stdout);
 
 	C2_UT_ASSERT(strstr(buffer, message) != NULL);
 
-	restore_std_stream(stdout, 1, fd, &pos);
+	c2_stream_restore(&addb_ut_redirect);
 
 	c2_addb_choose_default_level_console(AEL_WARN);
 }

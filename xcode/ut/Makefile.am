@@ -11,6 +11,8 @@ test_u.h test_u.c : test.ff \
 	$(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -u $<
 
+EXTRA_DIST = test.ff
+
 clean-local:
-	cd $(xcodeutdir) ; \
+	cd @SRCDIR@/xcode/ut ; \
 	rm -fr test_[uk].[ch]

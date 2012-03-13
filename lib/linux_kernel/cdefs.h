@@ -27,6 +27,8 @@
 
 #define C2_EXPORTED(s) EXPORT_SYMBOL(s)
 
+#define CHAR_BIT (8)
+
 /* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_ */
 #endif
 

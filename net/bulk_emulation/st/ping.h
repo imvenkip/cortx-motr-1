@@ -62,7 +62,8 @@ struct ping_ctx {
 };
 
 enum {
-	PING_PORT1 = 31416,
+	//PING_PORT1 = 12345,
+	PING_PORT1 = C2_NET_SUNRPC_PORT,
 	PING_PORT2 = 27183,
 	PART3_SERVER_ID = 141421,
 };

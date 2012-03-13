@@ -27,6 +27,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
+#include "lib/trace.h"
 
 #include "rpc/rpc_onwire.h"
 
@@ -361,8 +362,8 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	   access to rpc object. */
 	c2_mutex_lock(&frm_sm->fs_lock);
 	if (ev->nbe_status == 0) {
-		c2_addb_add_custom(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
-				   "Rpc sent on wire.");
+		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+			    c2_addb_trace, "Rpc sent on wire.");
 		frm_item_rpc_stats_set(rpc);
 		frm_item_state_set(rpc, RPC_ITEM_SENT);
 	} else {
@@ -373,8 +374,9 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	}
 	/* Detach all rpc items from this object */
 	c2_list_for_each_entry_safe(&rpc->r_items, item, item_next,
-			struct c2_rpc_item, ri_rpcobject_linkage)
+			struct c2_rpc_item, ri_rpcobject_linkage) {
 		c2_list_del(&item->ri_rpcobject_linkage);
+	}
 
 	c2_rpcobj_fbuf_fini(fb);
 	c2_rpcobj_fini(rpc);
@@ -1096,8 +1098,8 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 	}
 
 	c2_list_add(&frm_sm->fs_rpcs, &rpcobj->r_linkage);
-	c2_addb_add_custom(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
-			   "Rpc formed. Size = %lu", rpcobj_size);
+	C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
+		    "Rpc formed.");
 
 	/* Send the prepared rpc on wire to destination. */
 	frm_send_onwire(frm_sm);
@@ -1183,11 +1185,8 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
 		if (frm_sm->fs_sender_side) {
 			frm_sm->fs_curr_rpcs_in_flight++;
-			c2_addb_add_custom(&frm_sm->fs_rpc_form_addb,
-					   &frm_addb_loc,
-					   "Rpc dispatched. Current rpcs "
-					   "in flight = %lu.",
-					   frm_sm->fs_curr_rpcs_in_flight);
+			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+				    c2_addb_trace, "Rpc dispatched.");
 		}
 		c2_list_del(&rpc_obj->r_linkage);
 
@@ -1204,11 +1203,8 @@ void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm)
 	if (frm_sm->fs_sender_side) {
 		if (frm_sm->fs_curr_rpcs_in_flight > 0) {
 			frm_sm->fs_curr_rpcs_in_flight--;
-			c2_addb_add_custom(&frm_sm->fs_rpc_form_addb,
-					   &frm_addb_loc,
-					   "Rpc received from wire. "
-					   "Current rpcs in flight = %lu.",
-					   frm_sm->fs_curr_rpcs_in_flight);
+			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+				    c2_addb_trace, "Rpc received from wire.");
 		}
 	}
 

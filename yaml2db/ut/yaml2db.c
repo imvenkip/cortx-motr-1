@@ -25,7 +25,6 @@
 #include "lib/misc.h"
 #include "lib/ut.h"
 #include "cfg/cfg.h"
-#include "ut/ioredirect.h"
 #include "yaml2db/yaml2db.h"
 
 /* Constant names and paths */
@@ -186,13 +185,11 @@ static int generate_conf_file(const char *c_name, int rec_nr,
  */
 static void mandatory_fields_absent(void)
 {
-	int	 rc;
-        FILE    *fp;
-	fpos_t   pos;
-        int      fd;
-        char     str[STR_SIZE_NR];
+	int                   rc;
+        char                  str[STR_SIZE_NR];
+	struct c2_ut_redirect redir;
 
-	redirect_std_stream(stderr, f_err_fname, &fd, &pos, &fp);
+	c2_stream_redirect(stderr, f_err_fname, &redir);
 
 	/* Do not skip optional fields.
 	   Skip mandatory fields and expect error */
@@ -218,11 +215,11 @@ static void mandatory_fields_absent(void)
 	rc = c2_yaml2db_conf_load(&yctx, &dev_section, dev_str);
 	C2_UT_ASSERT(rc == -EINVAL);
 
-	rewind(fp);
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) != NULL);
+	rewind(stderr);
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
 	C2_UT_ASSERT(strstr(str, "Error: Mandatory key not present") != NULL);
 
-	restore_std_stream(stderr, 2, fd, &pos);
+	c2_stream_restore(&redir);
 
 	c2_yaml2db_fini(&yctx);
 }
@@ -369,13 +366,11 @@ static int generate_dirty_conf_file(const char *c_name,
    by the code */
 static void scanner_error_detect(void)
 {
-	int	 rc;
-	FILE	*fp;
-	fpos_t   pos;
-	int	 fd;
-	char	 str[STR_SIZE_NR];
+	int                   rc;
+	char	              str[STR_SIZE_NR];
+	struct c2_ut_redirect redir;
 
-	redirect_std_stream(stderr, s_err_fname, &fd, &pos, &fp);
+	c2_stream_redirect(stderr, s_err_fname, &redir);
 
 	rc = generate_dirty_conf_file(s_name, SCANNER_ERROR);
 	C2_UT_ASSERT(rc == 0);
@@ -393,11 +388,11 @@ static void scanner_error_detect(void)
 	rc = c2_yaml2db_doc_load(&yctx);
 	C2_UT_ASSERT(rc != 0);
 
-	rewind(fp);
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) != NULL);
+	rewind(stderr);
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
 	C2_UT_ASSERT(strstr(str, "Scanner error") != NULL);
 
-	restore_std_stream(stderr, 2, fd, &pos);
+	c2_stream_restore(&redir);
 
 	c2_yaml2db_fini(&yctx);
 }
@@ -406,13 +401,11 @@ static void scanner_error_detect(void)
    by the code */
 static void parser_error_detect(void)
 {
-	int	 rc;
-	FILE	*fp;
-	fpos_t   pos;
-	int	 fd;
-	char	 str[STR_SIZE_NR];
+	int                   rc;
+	char	              str[STR_SIZE_NR];
+	struct c2_ut_redirect redir;
 
-	redirect_std_stream(stderr, p_err_fname, &fd, &pos, &fp);
+	c2_stream_redirect(stderr, p_err_fname, &redir);
 
 	rc = generate_dirty_conf_file(p_name, PARSER_ERROR);
 	C2_UT_ASSERT(rc == 0);
@@ -430,11 +423,11 @@ static void parser_error_detect(void)
 	rc = c2_yaml2db_doc_load(&yctx);
 	C2_UT_ASSERT(rc != 0);
 
-	rewind(fp);
-	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, fp) != NULL);
+	rewind(stderr);
+	C2_UT_ASSERT(fgets(str, STR_SIZE_NR, stderr) != NULL);
 	C2_UT_ASSERT(strstr(str, "Parser error") != NULL);
 
-	restore_std_stream(stderr, 2, fd, &pos);
+	c2_stream_restore(&redir);
 
 	c2_yaml2db_fini(&yctx);
 }

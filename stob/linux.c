@@ -322,7 +322,7 @@ static void linux_stob_fini(struct c2_stob *stob)
  */
 static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
-	char                 pathname[64];
+	char                 pathname[MAXPATHLEN];
 	int                  result;
 	struct stat          statbuf;
 

@@ -1,4 +1,4 @@
-foldir                     = $(includedir)/fol
+foldir                     = $(includedir)/colibri/fol
 fol_HEADERS                = fol.h lsn.h
 
 noinst_LTLIBRARIES         = libcolibri-fol.la

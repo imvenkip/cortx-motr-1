@@ -1,4 +1,3 @@
-rpcpingdir	     = $(includedir)/rpc/it
 INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include
 
 ping_fop_u.h ping_fop_u.c ping_fop_k.h ping_fop_k.c: ping_fop.ff \
@@ -14,8 +13,10 @@ rpcping_SOURCES     = ping_fop_u.h ping_fop_u.c ping_fop.h ping_fop.c \
 rpcping_LDADD       = $(top_builddir)/colibri/libcolibri.la \
 		      $(top_builddir)/ut/libcolibri-ut.la
 
-EXTRA_DIST          = ping_fop.ff
+EXTRA_DIST          = ping_fop.ff linux_kernel/rpc_ping.h \
+                      linux_kernel/rpcping_kernel.c \
+                      linux_kernel/rpcload.sh
 
 clean-local:
-	cd $(rpcpingdir) ; \
+	cd @SRCDIR@/rpc/it ; \
 	rm -fr ping_fop_[uk].[ch]

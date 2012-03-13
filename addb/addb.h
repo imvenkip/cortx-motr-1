@@ -373,16 +373,6 @@ extern const struct c2_addb_ev_ops ops;					\
 typedef int								\
 __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
 
-/**
- * Adds a custom made message to addb string. This interface can be used
- * to print custom numerals, strings to addb message.
- * @note This interface works with c2_addb_trace event type only.
- * @param fmt Formatted string representing custom made message.
- * @pre sizeof fmt < ADDB_CUSTOM_MSG_SIZE.
- */
-void c2_addb_add_custom(struct c2_addb_ctx *ctx, const struct c2_addb_loc *loc,
-			const char *fmt, ...);
-
 /** A call to an external system component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
 /** A call to a given function failed. */

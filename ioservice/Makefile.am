@@ -1,5 +1,5 @@
-ioservicedir			= @SRCDIR@/ioservice
-ioservice_HEADERS		= io_foms.h io_fops.h
+ioservicedir			= $(includedir)/colibri/ioservice
+ioservice_HEADERS		= io_foms.h io_fops.h io_fops_u.h io_fops_k.h cobfid_map.h
 
 io_fops_u.h io_fops_u.c: io_fops.ff \
                   $(top_builddir)/fop/rt/libc2rt.la \
@@ -17,5 +17,5 @@ INCLUDES			= -I. -I$(top_srcdir) -I$(top_srcdir)/include
 EXTRA_DIST			= io_fops.ff
 
 clean-local:
-	cd $(ioservicedir); \
+	cd @SRCDIR@/ioservice ; \
 	rm -rf io_fops_u*.[ch];

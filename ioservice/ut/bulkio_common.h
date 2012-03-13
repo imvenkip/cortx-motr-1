@@ -21,16 +21,14 @@
 #ifndef __IOSERVICE_ST_COMMON_H__
 #define __IOSERVICE_ST_COMMON_H__
 
-#include "lib/ut.h"
 #include "lib/list.h"
 #include "colibri/init.h"
 #include "lib/memory.h"
-#include "lib/cdefs.h"
 #include "lib/misc.h"
 #include "ioservice/io_fops.h"	/* c2_io_fop */
 
 #ifdef __KERNEL__
-#include "ioservice/linux_kernel/io_fops_k.h"
+#include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif
@@ -38,16 +36,9 @@
 #include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
 #include "rpc/rpc_opcodes.h"	/* enum C2_RPC_OPCODES */
 #include "rpc/rpclib.h"		/* c2_rpc_ctx */
-#include "reqh/reqh.h"		/* c2_reqh */
-#include "net/net.h"		/* C2_NET_QT_PASSIVE_BULK_SEND */
 #include "ut/rpc.h"		/* c2_rpc_client_init, c2_rpc_server_init */
-#include "ut/cs_service.h"	/* ds1_service_type */
-#include "fop/fop.h"
-#include "fop/fop_base.h"
 #include "lib/thread.h"		/* C2_THREAD_INIT */
-#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "lib/misc.h"		/* C2_SET_ARR0 */
-#include "reqh/reqh_service.h"	/* c2_reqh_service */
 
 enum IO_UT_VALUES {
 	IO_FIDS_NR		= 16,
@@ -70,8 +61,8 @@ enum IO_UT_VALUES {
 	IO_RPC_SESSION_SLOTS	= 8,
 	IO_RPC_MAX_IN_FLIGHT	= 32,
 	IO_RPC_CONN_TIMEOUT	= 60,
-	IO_SERVER_ARGC		= 14,
-	IO_SERVER_SERVICE_NR	= 2,
+	IO_SERVER_ARGC		= 12,
+	IO_SERVER_SERVICE_NR	= 1,
 };
 
 #define IO_CLIENT_DBNAME	"bulk_c_db"
@@ -133,12 +124,12 @@ struct thrd_arg {
 };
 
 /* Common APIs used by bulk client as well as UT code. */
-int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int port,
-			const char *saddr);
+int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
+			const char *saddr, int sport);
 
 void bulkio_client_stop(struct c2_rpc_client_ctx *cctx);
 
-int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int sport);
+int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port);
 
 void bulkio_server_stop(struct c2_rpc_server_ctx *sctx);
 
@@ -150,5 +141,15 @@ void bulkio_params_fini(struct bulkio_params *bp);
 
 void bulkio_test(struct bulkio_params *bp, int fids_nr, int fops_nr,
 		 int segs_nr);
+
+extern int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec, uint32_t num_segs,
+				   c2_bcount_t seg_size, unsigned shift);
+
+void io_fops_rpc_submit(struct thrd_arg *t);
+
+void io_fops_destroy(struct bulkio_params *bp);
+
+void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
+		    int fids_nr, int fops_nr, int segs_nr);
 
 #endif /* __IOSERVICE_ST_COMMON_H__ */

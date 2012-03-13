@@ -45,7 +45,7 @@ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \
 	    net/bulk_emulation/ut udb/ut capa/ut ioservice/ut reqh/ut rpc/ut \
 	    sm/ut xcode/ut yaml2db/ut
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_ST = console/st net/st net/bulk_emulation/st yaml2db/st ioservice/st
+SUBDIR_ST = console/st net/st net/bulk_emulation/st yaml2db/st
 
 SUBDIR_UB =
 
@@ -58,7 +58,7 @@ SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT) \
 etags:
 	find . -name '*.[ch]' | xargs etags
 
-EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog
+EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog colibri.spec.in colibri.spec
 ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 ACLOCAL_AMFLAGS = -I m4
 

@@ -16,12 +16,6 @@ prepare: ping_fop_k.h ping_fop_k.c
 ping_fop_k.h ping_fop_k.c: $(PINGDIR)/ping_fop.ff
 	$(FOPDIR)/fop2c -ku $(PINGDIR)/ping_fop.ff
 
-install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/rpcit -C @LINUX_OBJ@ M=`pwd` modules_install
-
-uninstall:
-	rm -fr @LINUX_MOD@/kernel/fs/rpcit
-
 clean distclean:
 	$(RM) ping_fop_[ku].[ch]
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order

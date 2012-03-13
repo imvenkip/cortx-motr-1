@@ -24,11 +24,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "lib/arith.h"   /* min_type, c2_is_po2 */
 #include "lib/assert.h"
 #include "lib/atomic.h"
 #include "lib/memory.h"
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_MEMORY
+#include "lib/trace.h"
 
 /**
    @addtogroup memory
@@ -53,10 +57,7 @@ static struct c2_atomic64 allocated;
 #include <malloc.h>
 static size_t __allocated(void)
 {
-	struct mallinfo mi;
-
-	mi = mallinfo();
-	return mi.uordblks;
+	return mallinfo().uordblks;
 }
 #define __free free
 #define __malloc malloc
@@ -103,16 +104,19 @@ void *c2_alloc(size_t size)
 {
 	void *ret;
 
+	C2_ENTRY("%lu", size);
 	ret = __malloc(size);
 	if (ret)
 		memset(ret, 0, size);
-
+	C2_LEAVE("%lu %lx", size, (long unsigned)ret);
 	return ret;
 }
 
 void c2_free(void *data)
 {
+	C2_ENTRY("%lx", (long unsigned)data);
 	__free(data);
+	C2_LEAVE();
 }
 
 void c2_free_aligned(void *data, size_t size, unsigned shift)
@@ -166,6 +170,12 @@ int c2_memory_init()
 void c2_memory_fini()
 {
 }
+
+int c2_pagesize_get()
+{
+	return getpagesize();
+}
+
 
 /** @} end of memory group */
 

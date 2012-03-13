@@ -530,6 +530,12 @@ struct c2_rpcmachine {
 	 */
         struct c2_tlink                   cr_rh_linkage;
 
+	/**
+	    List of c2_rpc_service instances placed using svc_tlink.
+	    tl_descr: c2_rpc_services_tl
+	 */
+	struct c2_tl                      cr_services;
+
 	uint64_t                          cr_magic;
 };
 
@@ -890,7 +896,7 @@ struct c2_rpc_bulk_buf {
    structure will belong to. It is primarily used to keep a check on
    thresholds like max_seg_size, max_buf_size and max_number_of_segs.
    @param nb Net buf pointer if user wants to use preallocated network
-   buffer. (nb == NULL) implies that the net buffer should be allocated by
+   buffer. (nb == NULL) implies that net buffer should be allocated by
    c2_rpc_bulk_buf_add().
    @param out Out parameter through which newly created c2_rpc_bulk_buf
    structure is returned back to the caller.
@@ -932,25 +938,6 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
    fashion.
    These APIs are primarily used by another in-memory structure c2_io_fop.
    @see c2_io_fop.
-   The c2_rpc_bulk structure can be used like this.
-   @code
-   c2_rpc_bulk_init(rbulk);
-   ..
-   do {
-   	c2_rpc_bulk_buf_add(rbulk, segs_nr, netdom, nb, out);
-	..
-	c2_rpc_bulk_buf_databuf_add(rbulk, buf, count, index);
-	..
-	..
-   } while (not_empty);
-   c2_rpc_bulk_store(rbulk, conn, desc);
-   ..
-   c2_clink_add(rbulk->rb_chan, clink);
-   c2_rpc_post(rpc_item);
-   c2_chan_wait(clink);
-   c2_rpc_bulk_fini(rbulk);
-   @endcode
-
    @note Passive entities engaging in bulk transfer do not block for
    c2_rpc_bulk callback. Only active entities are blocked since they
    can not proceed until bulk transfer is complete.
