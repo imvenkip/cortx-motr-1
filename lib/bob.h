@@ -37,7 +37,7 @@
  * For flexibility branded objects are not represented by a special
  * data-type. Instead c2_bob_check() takes a void pointer.
  *
- * A couple of helper functions are provided to initialize c2_branded_type:
+ * A couple of helper functions are provided to initialize c2_bob_type:
  *
  *     - c2_bob_type_tl_init(): used when branded object is used as a typed list
  *       link, @see lib/tlist.h.
@@ -139,7 +139,6 @@ scope bool type ## _bob_check(const struct type *bob)
 							\
 	C2_ASSERT(__ptr != NULL);			\
 	__amb = container_of(__ptr, type, field);	\
-	C2_ASSERT(__amb != NULL);			\
 	C2_ASSERT(c2_bob_check(bt, __amb));		\
 	__amb;						\
 })
