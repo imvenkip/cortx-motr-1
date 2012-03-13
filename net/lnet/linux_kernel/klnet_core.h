@@ -369,7 +369,7 @@ struct nlx_kcore_ops {
 				   struct nlx_kcore_buffer *kb);
 
 	/**
-	   Performs kernel core tasks relating to cancelling a buffer operation.
+	   Performs kernel core tasks relating to canceling a buffer operation.
 	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.

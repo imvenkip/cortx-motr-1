@@ -23,7 +23,7 @@
 #define __COLIBRI_NET_ULNET_CORE_H__
 
 /**
-   @defgroup ULNetCore LNet Transport Core Userspace Private Interface
+   @defgroup ULNetCore LNet Transport Core User Space Private Interface
    @ingroup LNetCore
 
    @{

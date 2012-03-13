@@ -186,7 +186,7 @@
    (the transport) address space.  The @c producer pointer refers to the element
    in the producer's (the kernel) address space.
 
-   A queue link element (the @c next pointer in the preceeding discussion) is
+   A queue link element (the @c next pointer in the preceding discussion) is
    represented by the nlx_core_bev_link data structure:
    @code
    struct nlx_core_bev_link {
@@ -402,7 +402,7 @@
    While the @c producer is a compound object, with a single producer, no
    locking is required to access it.  The @c producer cannot safely be accessed
    by the consumer, since they can be in different address spaces, so an atomic
-   @c count of consumable elements is used as a surrugate for comparing the
+   @c count of consumable elements is used as a surrogate for comparing the
    @c consumer and @c producer.  Multiple producers and/or consumers must
    synchronize externally.
 

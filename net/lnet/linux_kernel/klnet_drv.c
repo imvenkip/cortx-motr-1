@@ -86,7 +86,7 @@
      After a page is unmapped, it has no logical address until it is explicitly
      remapped.
    - @b unpin Allow a previously pinned page to move freely, i.e. an unpinned
-     page can be swapped out of phyisical memory.  Any struct @c page pointers
+     page can be swapped out of physical memory.  Any struct @c page pointers
      to the previously pinned page are no longer valid after a page is unpinned.
 
    <hr>
@@ -159,7 +159,7 @@
        with use of @c nlx_core_kmem_loc objects.  More details of this
        dependency are discussed in @ref LNetDRVDLD-lspec-mem.
      - The @c bev_cqueue_pnext() and @c bev_cqueue_put() should be modified or
-       wrapped such that they can map and unmacp the
+       wrapped such that they can map and unmap the
        @c nlx_core_buffer_event object (atomic mapping must be used, because
        these functions are called from the LNet callback).  This also
        requires use of @c nlx_core_kmem_loc references in the
@@ -654,7 +654,7 @@
    The LNet device driver does not introduce its own state model but operates
    within the frameworks defined by the Colibri Networking Module and the Kernel
    device driver interface.  In general, resources are pinned and allocated when
-   an object is first shared with the kernel by the the user space process and
+   an object is first shared with the kernel by the user space process and
    are freed and unpinned when the user space requests.  To ensure there is no
    resource leakage, remaining resources are freed when the @c nlx_dev_close()
    API is called.
@@ -837,6 +837,9 @@ C2_BASSERT(sizeof(struct nlx_xo_domain) < PAGE_SIZE);
 C2_BASSERT(sizeof(struct nlx_xo_transfer_mc) < PAGE_SIZE);
 C2_BASSERT(sizeof(struct nlx_xo_buffer) < PAGE_SIZE);
 C2_BASSERT(sizeof(struct nlx_core_buffer_event) < PAGE_SIZE);
+
+/* LNET_NIDSTR_SIZE is only defined in the kernel */
+C2_BASSERT(C2_NET_LNET_NIDSTR_SIZE == LNET_NIDSTR_SIZE);
 
 /**
    @defgroup LNetDevInternal LNet Transport Device Internals

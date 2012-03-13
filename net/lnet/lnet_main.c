@@ -282,7 +282,7 @@
    @subsection LNetDLD-lspec-tm-stop Transfer Machine Termination
    Termination of a transfer machine is requested through the c2_net_tm_stop()
    subroutine, which results in a call to nlx_xo_tm_stop(). The latter ensures
-   that the transfer machine's thread wakes up by signalling on the
+   that the transfer machine's thread wakes up by signaling on the
    nlx_xo_transfer_mc::xtm_ev_cond condition variable.
 
    When terminating a transfer machine the application has a choice of draining
@@ -328,11 +328,11 @@
    c2_net_tm_buffer_event_deliver_all() subroutine.  It attempts to deliver all
    pending events.  The transfer machine lock is held across the call to the
    nlx_core_buf_event_get() subroutine to serialize "consumers" of the
-   circualar buffer event queue, but is released during event delivery.  The
+   circular buffer event queue, but is released during event delivery.  The
    c2_net_transfer_mc::ntm_callback_counter field is incremented across the
    call to prevent premature termination when operating outside of the
    protection of the transfer machine mutex.  This is illustrated in the
-   following pseduo-code for nlx_xo_bev_deliver_all():
+   following pseudo-code for nlx_xo_bev_deliver_all():
    @code
    int rc;
    bool delivered_events = false;
@@ -458,7 +458,7 @@
      automatic buffer event delivery mode is set, or on the
      nlx_xo_transfer_mc::xtm_ev_cond condition variable otherwise. In the
      latter case, it may also block in the nlx_core_buf_event_wait() subroutine
-     if the condition variable is signalled by the nlx_xo_bev_notify()
+     if the condition variable is signaled by the nlx_xo_bev_notify()
      subroutine.
    - The transfer machine mutex is obtained across the call to dequeue buffer
      events to serialize with the "other" consumer of the buffer event queue,

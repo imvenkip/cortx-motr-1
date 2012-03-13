@@ -23,7 +23,7 @@
 #define __COLIBRI_NET_LNET_CORE_H__
 
 /**
-   @page LNetCoreDLD-fspec LNet Transport Core Functional Specfication
+   @page LNetCoreDLD-fspec LNet Transport Core Functional Specification
 
    - @ref LNetCoreDLD-fspec-ovw
    - @ref LNetCoreDLD-fspec-ds
@@ -239,6 +239,11 @@ struct nlx_core_kmem_loc {
 C2_BASSERT(sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_page) +
 	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_offset) ==
 	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_data));
+
+enum {
+	/** Maximum size of an LNET NID string, same as LNET_NIDSTR_SIZE */
+	C2_NET_LNET_NIDSTR_SIZE = 32,
+};
 
 /**
    Buffer events are linked in the buffer queue using this structure. It is

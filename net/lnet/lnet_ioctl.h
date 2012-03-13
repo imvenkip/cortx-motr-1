@@ -44,7 +44,7 @@ struct c2_lnet_dev_buf_register_params {
 };
 
 /**
-   Parameters to various ioctl requests that operate on a tranfer machine
+   Parameters to various ioctl requests that operate on a transfer machine
    and a buffer.  These include:
    - C2_LNET_BUF_MSG_RECV
    - C2_LNET_BUF_MSG_SEND
@@ -89,7 +89,7 @@ struct c2_lnet_dev_nid_encdec_params {
 	/** Node ID to be encoded or decoded. */
 	uint64_t                        dn_nid;
 	/** NID string value to be encoded or decoded. */
-	char                            dn_buf[C2_NET_LNET_XEP_ADDR_LEN];
+	char                            dn_buf[C2_NET_LNET_NIDSTR_SIZE];
 };
 
 /**

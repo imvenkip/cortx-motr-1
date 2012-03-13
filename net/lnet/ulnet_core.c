@@ -27,9 +27,9 @@
    - @ref ULNetCoreDLD-req
    - @ref ULNetCoreDLD-depends
    - @ref ULNetCoreDLD-highlights
-   - @ref LNetCoreDLD-fspec "Functional Specification"   <!-- ./lnet_core.h -->
-        - @ref LNetCore "LNet Transport Core Interface"  <!-- ./lnet_core.h -->
-        - @ref ULNetCore "Core Userspace Interface"     <!-- ./ulnet_core.h -->
+   - @ref LNetCoreDLD-fspec "Functional Specification"    <!-- ./lnet_core.h -->
+        - @ref LNetCore "LNet Transport Core Interface"   <!-- ./lnet_core.h -->
+        - @ref ULNetCore "Core User Space Interface"     <!-- ./ulnet_core.h -->
 	- @ref LNetDev "LNet Transport Device" <!-- linux_kernel/klnet_drv.h -->
    - @ref ULNetCoreDLD-lspec
       - @ref ULNetCoreDLD-lspec-comps
@@ -434,7 +434,7 @@
    - @b i.c2.net.xprt.lnet.ioctl The @ref LNetDRVDLD-lspec covers how
      each LNet Core operation in user space is implemented using the
      driver ioctl requests.
-   - @b i.c2.net.xprt.lnet.aligned-objects THe @ref ULNetCoreDLD-lspec-malloc
+   - @b i.c2.net.xprt.lnet.aligned-objects The @ref ULNetCoreDLD-lspec-malloc
      section discusses how shared objects can be allocated as required.
 
    <hr>
@@ -645,7 +645,7 @@ int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,
 
 int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,
 			   uint64_t nid,
-			   char nidstr[C2_NET_LNET_XEP_ADDR_LEN])
+			   char nidstr[C2_NET_LNET_NIDSTR_SIZE])
 {
 	/** @todo XXX implement */
 	return -ENOSYS;

@@ -22,7 +22,7 @@
 #define __KLNET_DRV_H__
 
 /**
-   @page LNetDRVDLD-fspec LNet Transport Device Functional Specfication
+   @page LNetDRVDLD-fspec LNet Transport Device Functional Specification
 
    - @ref LNetDRVDLD-fspec-ovw
    - @ref LNetDRVDLD-fspec-ds

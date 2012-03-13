@@ -142,7 +142,7 @@ static int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,
  */
 static int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,
 				  uint64_t nid,
-				  char nidstr[C2_NET_LNET_XEP_ADDR_LEN]);
+				  char nidstr[C2_NET_LNET_NIDSTR_SIZE]);
 
 /** @} */ /* LNetCore */
 
