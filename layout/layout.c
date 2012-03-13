@@ -295,6 +295,11 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
+	if (op == C2_LXO_DB_NONE)
+		c2_mutex_lock(&schema->ls_lock);
+	else
+		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
+
 	/* Check if the buffer is with sufficient size. */
 	if (c2_bufvec_cursor_step(cur) < sizeof *rec) {
 		rc = -ENOBUFS;
@@ -364,9 +369,13 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	(*out)->l_pool_id = rec->lr_pid;
 
 	c2_mutex_unlock(&(*out)->l_lock);
+
 	C2_POST(layout_invariant(*out));
 
 out:
+	if (op == C2_LXO_DB_NONE)
+		c2_mutex_unlock(&schema->ls_lock);
+
 	if (op == C2_LXO_DB_NONE && rc == 0)
 		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    layout_decode_success, true);
@@ -427,6 +436,11 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
+	if (op == C2_LXO_DB_NONE)
+		c2_mutex_lock(&schema->ls_lock);
+	else
+		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
 
 	c2_mutex_lock(&l->l_lock);
 
@@ -520,6 +534,9 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 out:
 	c2_mutex_unlock(&l->l_lock);
+
+	if (op == C2_LXO_DB_NONE)
+		c2_mutex_unlock(&schema->ls_lock);
 
 	if (op == C2_LXO_DB_NONE && rc == 0)
 		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,

@@ -101,6 +101,8 @@
 extern int LID_NONE;
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
+extern int enum_type_verify(const struct c2_ldb_schema *schema,
+			    uint32_t let_id);
 
 enum {
 	PDCLUST_MAGIC = 0x5044434C5553544CULL /* PDCLUSTL */
@@ -578,6 +580,7 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 	struct c2_layout_enum_type   *et;
+	int                           rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(l!= NULL);
@@ -585,20 +588,18 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
-	if (!IS_IN_ARRAY(stl->ls_enum->le_type->let_id, schema->ls_enum)) {
-		C2_LOG("pdclust_recsize(): lid %llu, Invalid Enum_type_id %lu",
-		       (unsigned long long)l->l_id,
-		       (unsigned long)stl->ls_enum->le_type->let_id);
-		return -EPROTO;
+	/* todo Critical. The return type should be changed to int.
+	 * This function can not return error.
+	 */
+	rc = enum_type_verify(schema, stl->ls_enum->le_type->let_id);
+	if (rc != 0) {
+		C2_LOG("pdclust_recsize(): lid %llu, Unqualified "
+		       "Enum_type_id %lu, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)stl->ls_enum->le_type->let_id, rc);
+		return rc;
 	}
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
-	if (et == NULL) {
-		C2_LOG("pdclust_recsize(): lid %llu, Unregistered Enum_type, "
-		       "Enum_type_id %lu", (unsigned long long)l->l_id,
-		       (unsigned long)stl->ls_enum->le_type->let_id);
-		return -ENOENT;
-	}
 
 	e_recsize = et->let_ops->leto_recsize(stl->ls_enum, l->l_id);
 
@@ -650,22 +651,15 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/* pl_rec can not be NULL since the buffer size is already verified. */
 	pl_rec = c2_bufvec_cursor_addr(cur);
 
-	if (!IS_IN_ARRAY(pl_rec->pr_let_id, schema->ls_enum)) {
-		rc = -EPROTO;
-		C2_LOG("pdclust_decode(): lid %llu, Invalid Enum_type_id %lu",
-		       (unsigned long long)lid,
-		       (unsigned long)pl_rec->pr_let_id);
+	rc = enum_type_verify(schema, pl_rec->pr_let_id);
+	if (rc != 0) {
+		C2_LOG("pdclust_decode(): lid %llu, Unqualified "
+		       "Enum_type_id %lu, rc %d", (unsigned long long)lid,
+		       (unsigned long)pl_rec->pr_let_id, rc);
 		goto out;
 	}
 
 	et = schema->ls_enum[pl_rec->pr_let_id];
-	if (et == NULL) {
-		rc = -EPROTO;
-		C2_LOG("pdclust_decode(): lid %llu, Enum_type is not "
-		       "registered, Enum_type_id %lu", (unsigned long long)lid,
-		       (unsigned long)pl_rec->pr_let_id);
-		goto out;
-	}
 
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
@@ -795,21 +789,15 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
 
-	if (!IS_IN_ARRAY(pl_rec.pr_let_id, schema->ls_enum)) {
-		rc = -EPROTO;
-		C2_LOG("pdclust_encode(): lid %llu, Invalid Enum_type_id %u",
-		       (unsigned long long)l->l_id, pl_rec.pr_let_id);
+	rc = enum_type_verify(schema, pl_rec.pr_let_id);
+	if (rc != 0) {
+		C2_LOG("pdclust_encode(): lid %llu, Unqualified "
+		       "Enum_type_id %lu, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)pl_rec.pr_let_id, rc);
 		goto out;
 	}
 
 	et = schema->ls_enum[pl_rec.pr_let_id];
-	if (et == NULL) {
-		rc = -ENOENT;
-		C2_LOG("pdclust_encode(): lid %llu, Unregistered Enum_type, "
-		       "Enum_type_id %u", (unsigned long long)l->l_id,
-		       pl_rec.pr_let_id);
-		goto out;
-	}
 
 	rc = et->let_ops->leto_encode(schema, l, op, tx, oldrec_cur, out);
 	if (rc != 0) {

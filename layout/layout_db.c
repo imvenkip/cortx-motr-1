@@ -249,13 +249,25 @@
    @subsection Layout-DB-lspec-state State Specification
 
    @subsection Layout-DB-lspec-thread Threading and Concurrency Model
-   DB5 internally provides synchrnization against various table entries.
-   Hence layout schema need not do much in that regard.
-
-   Various arrays in struct c2_ldb_schema are protected by using
-   c2_ldb_schema::ls_lock.
-
-   The in-memory c2_layout object is protected using c2_layout::l_lock.
+   - DB5 internally provides synchrnization against various table entries.
+     Hence layout schema does not need to do much in that regard.
+   - Various arrays in struct c2_ldb_schema (viz. ls_type[], ls_enum[],
+     ls_type_data[] and ls_enum_data[]) are protected by using
+     c2_ldb_schema::ls_lock.
+   - c2_ldb_schema::ls_lock is acquired during operations like registering/
+     unregistering a layout/enum type.
+   - It is also acquired during the operations
+     c2_ldb_[lookup|add|update|delete](). This is to ensure that the relavant
+     layout|enum type does not get unregistered while any of those operations
+     is taking place.
+   - Besides that, it is acquired during c2_layout_[encode|decode](), if and
+     only if op is C2_LXO_DB_NONE so as to handle the case of
+     c2_layout_[encode|decode]() being called directly by the user.
+   - The in-memory c2_layout object is protected using c2_layout::l_lock.
+   - c2_layout::l_lock is acquired during c2_layout_[get|put|decode (later part
+     of decode to be specific)|encode]() operations. This is to ensure that
+     only one of these oparaions take place on the layout, at any point in
+     time.
 
    @subsection Layout-DB-lspec-numa NUMA optimizations
 
@@ -335,12 +347,12 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/misc.h"          /* C2_SET0() */
+#include "lib/misc.h"          /* memset() */
 #include "lib/vec.h"
 #include "lib/arith.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
-#include "lib/trace.h"         /* C2_LOG() */
+#include "lib/trace.h"
 
 #include "db/db_common.h"      /* c2_db_buf_init() */
 #include "layout/layout_db.h"
@@ -518,6 +530,35 @@ out:
 	return rc;
 }
 
+int enum_type_verify(const struct c2_ldb_schema *schema, uint32_t let_id)
+{
+	int rc = 0;
+
+	C2_PRE(schema != 0);
+
+	if (!IS_IN_ARRAY(let_id, schema->ls_enum)) {
+		rc = -EPROTO;
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "Invalid enum type id",
+			    -EPROTO);
+		C2_LOG("enum_type_verify(): Invalid Enum_type_id "
+		       "%lu", (unsigned long)let_id);
+		goto out;
+	}
+
+	if (schema->ls_enum[let_id] == NULL) {
+		rc = -ENOENT;
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+			    c2_addb_func_fail, "Unregistered Enum type",
+			    -EPROTO);
+		C2_LOG("layout_type_verify(): Unregistered Enum type, "
+	               "Enum_type_id %lu", (unsigned long)let_id);
+	}
+out:
+	return rc;
+}
+
+
 /** @} end group LayoutDBDFSInternal */
 
 /**
@@ -630,17 +671,19 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("Layout_type_id %lu", (unsigned long)lt->lt_id);
 
+	c2_mutex_lock(&schema->ls_lock);
+
 	if (schema->ls_type[lt->lt_id] == lt) {
 		C2_LOG("c2_ldb_type_register(): Layout type is already"
 		       "registered, Layout_type_id %lu",
 			(unsigned long)lt->lt_id);
-		return -EEXIST;
+		rc = -EEXIST;
+		goto out;
 	}
 
 	C2_ASSERT(schema->ls_type[lt->lt_id] == NULL);
 	C2_ASSERT(lt->lt_ops != NULL);
 
-	c2_mutex_lock(&schema->ls_lock);
 	schema->ls_type[lt->lt_id] = (struct c2_layout_type *)lt;
 
 	/* Allocate type specific schema data. */
@@ -653,10 +696,10 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 		       (unsigned long)lt->lt_id, rc);
 	}
 
+out:
 	c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("Layout_type_id %lu, rc %d", (unsigned long)lt->lt_id, rc);
-
 	return rc;
 }
 
@@ -691,7 +734,7 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 			 const struct c2_layout_enum_type *let)
 {
-	int rc = 0;
+	int rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(let != NULL);
@@ -699,17 +742,19 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)let->let_id);
 
+	c2_mutex_lock(&schema->ls_lock);
+
 	if (schema->ls_enum[let->let_id] == let) {
 		C2_LOG("c2_ldb_enum_register(): Enum type is already"
 		       "registered, Enum_type_id %lu",
 			(unsigned long)let->let_id);
-		return -EEXIST;
+		rc = -EEXIST;
+		goto out;
 	}
 
 	C2_ASSERT(schema->ls_enum[let->let_id] == NULL);
 	C2_ASSERT(let->let_ops != NULL);
 
-	c2_mutex_lock(&schema->ls_lock);
 	schema->ls_enum[let->let_id] = (struct c2_layout_enum_type *)let;
 
 	/* Allocate enum type specific schema data. */
@@ -722,6 +767,7 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 		       (unsigned long)let->let_id, rc);
 	}
 
+out:
 	c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)let->let_id, rc);
@@ -1008,7 +1054,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	}
 
 	oldrec_bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&oldrec_area,
-						(c2_bcount_t *)&recsize);
+						       (c2_bcount_t *)&recsize);
 	c2_bufvec_cursor_init(&oldrec_cur, &oldrec_bv);
 
 	/* Now, proceed to update the layout. */
@@ -1028,7 +1074,14 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	/* todo lt is not verified here. Should be verified thr l invariant. */
+	rc = layout_type_verify(schema, l->l_type->lt_id);
+	if (rc != 0) {
+		C2_LOG("c2_ldb_update(): lid %llu, Unqualified Layout_type_id "
+		       "%lu, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)l->l_type->lt_id, rc);
+		goto out;
+	}
+
 	lt = schema->ls_type[l->l_type->lt_id];
 
 	recsize = lt->lt_ops->lto_recsize(schema, l);
@@ -1104,6 +1157,14 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 			    ldb_delete_fail, "c2_layout_encode()", rc);
 		C2_LOG("c2_ldb_delete(): lid %llu, c2_layout_encode() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
+
+	rc = layout_type_verify(schema, l->l_type->lt_id);
+	if (rc != 0) {
+		C2_LOG("c2_ldb_delete(): lid %llu, Unqualified Layout_type_id "
+		       "%lu, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)l->l_type->lt_id, rc);
 		goto out;
 	}
 
