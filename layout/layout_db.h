@@ -22,67 +22,67 @@
 #define __COLIBRI_LAYOUT_LAYOUT_DB_H__
 
 /**
-   @page Layout-DB-fspec Layout DB Functional Specification
-   Layout DB Module is used by the Layout module to make persistent records for
-   the layout entries created and used.
-
-   This section describes the data structures exposed and the external
-   interfaces of the Layout DB module and it briefly identifies the users of
-   these interfaces so as to explain how to use this module.
-
-   - @ref Layout-DB-fspec-ds
-   - @ref Layout-DB-fspec-sub
-   - @ref Layout-DB-fspec-usecases
-   - @ref LayoutDBDFS "Detailed Functional Specification"
-
-   @section Layout-DB-fspec-ds Data Structures
-   - struct c2_ldb_schema
-   - struct c2_ldb_rec
-
-   @section Layout-DB-fspec-sub Subroutines
-   - int c2_ldb_schema_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
-   - void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
-   - void c2_ldb_type_register(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
-   - void c2_ldb_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
-   - void c2_ldb_enum_register(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
-   - void c2_ldb_enum_unregister(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
-   - void ** c2_ldb_type_data(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
-   - void ** c2_ldb_enum_data(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
-   - int c2_ldb_lookup(struct c2_ldb_schema *schema, uint64_t lid, struct c2_db_pair *pair, struct c2_db_tx *tx, struct c2_layout **out)
-   - int c2_ldb_add(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
-   - int c2_ldb_update(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
-   - int c2_ldb_delete(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
-
-   @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
-
-   @section Layout-DB-fspec-usecases Recipes
-   A file layout is used by the client to perform IO against that file. A
-   Layout for a file contains COB identifiers for all the COBs associated with
-   that file. These COB identifiers are stored by the layout either in the
-   form of a list or as a linear formula.
-
-   Example use case of reading a file:
-   - Reading a file involves reading basic file attributes from the basic file
-     attributes table).
-   - The layout id is obtained from the basic file attributes.
-   - A query is sent to the Layout module to obtain layout for this layout id.
-   - Layout module checks if the layout record is cached and if not, it reads
-     the layout record from the layout DB. Examples are:
-      - If the layout record is with the LINEAR enumeration, then the
-        linear formula is obtained from the DB, required parameters are
-	substituted into the formula and thus the list of COB identifiers is
-	obtained to operate upon.
-      - If the layout record is with the LIST enumeration, then the
-        the list of COB identifiers is obtained from the layout DB itself.
-      - If the layout record is of the COMPOSITE layout type, it means it
-        constitutes of multiple sub-layouts. In this case, the sub-layouts are
-        read from the layout DB. Those sub-layout records in turn could be of
-        other layout types and with either LINEAR or LIST enumeration.
-        The sub-layout records are then read accordingly until the time the
-        final list of all the COB identifiers is obtained.
-
-   @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
-*/
+ * @page Layout-DB-fspec Layout DB Functional Specification
+ * Layout DB Module is used by the Layout module to make persistent records for
+ * the layout entries created and used.
+ *
+ * This section describes the data structures exposed and the external
+ * interfaces of the Layout DB module and it briefly identifies the users of
+ * these interfaces so as to explain how to use this module.
+ *
+ * - @ref Layout-DB-fspec-ds
+ * - @ref Layout-DB-fspec-sub
+ * - @ref Layout-DB-fspec-usecases
+ * - @ref LayoutDBDFS "Detailed Functional Specification"
+ *
+ * @section Layout-DB-fspec-ds Data Structures
+ * - struct c2_ldb_schema
+ * - struct c2_ldb_rec
+ *
+ * @section Layout-DB-fspec-sub Subroutines
+ * - int c2_ldb_schema_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
+ * - void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
+ * - void c2_ldb_type_register(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+ * - void c2_ldb_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+ * - void c2_ldb_enum_register(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+ * - void c2_ldb_enum_unregister(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+ * - void ** c2_ldb_type_data(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+ * - void ** c2_ldb_enum_data(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+ * - int c2_ldb_lookup(struct c2_ldb_schema *schema, uint64_t lid, struct c2_db_pair *pair, struct c2_db_tx *tx, struct c2_layout **out)
+ * - int c2_ldb_add(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_ldb_update(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_ldb_delete(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ *
+ * @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
+ *
+ * @section Layout-DB-fspec-usecases Recipes
+ * A file layout is used by the client to perform IO against that file. A
+ * Layout for a file contains COB identifiers for all the COBs associated with
+ * that file. These COB identifiers are stored by the layout either in the
+ * form of a list or as a linear formula.
+ *
+ * Example use case of reading a file:
+ * - Reading a file involves reading basic file attributes from the basic file
+ *   attributes table).
+ * - The layout id is obtained from the basic file attributes.
+ * - A query is sent to the Layout module to obtain layout for this layout id.
+ * - Layout module checks if the layout record is cached and if not, it reads
+ *   the layout record from the layout DB. Examples are:
+ *    - If the layout record is with the LINEAR enumeration, then the
+ *      linear formula is obtained from the DB, required parameters are
+ *      substituted into the formula and thus the list of COB identifiers is
+ *      obtained to operate upon.
+ *    - If the layout record is with the LIST enumeration, then the
+ *      the list of COB identifiers is obtained from the layout DB itself.
+ *    - If the layout record is of the COMPOSITE layout type, it means it
+ *      constitutes of multiple sub-layouts. In this case, the sub-layouts are
+ *      read from the layout DB. Those sub-layout records in turn could be of
+ *      other layout types and with either LINEAR or LIST enumeration.
+ *      The sub-layout records are then read accordingly until the time the
+ *      final list of all the COB identifiers is obtained.
+ *
+ *  @see @ref LayoutDBDFS "Layout DB Detailed Functional Specification"
+ */
 
 /* import */
 #include "lib/arith.h"	/* struct C2_3WAY() */

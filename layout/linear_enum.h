@@ -28,7 +28,7 @@
  * used to enumerate all the component object identifiers.
  *
  * @{
-*/
+ */
 
 /* import */
 #include "layout/layout.h"
