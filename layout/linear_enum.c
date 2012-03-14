@@ -108,6 +108,11 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 	C2_POST(c2_linear_enum_invariant(lin_enum, lid));
 
 out:
+	if (rc != 0 && lin_enum != NULL) {
+		c2_layout_enum_fini(&lin_enum->lle_base);
+		c2_free(lin_enum);
+	}
+
 	C2_LEAVE("rc %d", rc);
 	return rc;
 }
@@ -120,6 +125,8 @@ void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum, uint64_t lid)
 
 	c2_layout_linear_enum_bob_fini(lin_enum);
 	c2_layout_enum_fini(&lin_enum->lle_base);
+
+	c2_free(lin_enum);
 
 	C2_LEAVE();
 }

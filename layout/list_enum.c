@@ -209,13 +209,11 @@ int c2_list_enum_build(uint64_t lid,
 	C2_POST(c2_list_enum_invariant(list_enum, lid));
 
 out:
-	if (rc != 0) {
-		if (list_enum != NULL) {
-			if (list_enum->lle_list_of_cobs != NULL)
-				c2_free(list_enum->lle_list_of_cobs);
-			c2_layout_enum_fini(&list_enum->lle_base);
-			c2_free(list_enum);
-		}
+	if (rc != 0 && list_enum != NULL) {
+		if (list_enum->lle_list_of_cobs != NULL)
+			c2_free(list_enum->lle_list_of_cobs);
+		c2_layout_enum_fini(&list_enum->lle_base);
+		c2_free(list_enum);
 	}
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -270,13 +268,15 @@ static int list_register(struct c2_ldb_schema *schema,
 		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "c2_table_init()", rc);
 		C2_LOG("list_register(): c2_table_init() failed, rc %d", rc);
-		c2_free(lsd);
 		goto out;
 	}
 
 	schema->ls_type_data[et->let_id] = lsd;
 
 out:
+	if (rc != 0)
+		c2_free(lsd);
+
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
 	return rc;
 }
@@ -301,6 +301,8 @@ static void list_unregister(struct c2_ldb_schema *schema,
 	c2_table_fini(&lsd->lsd_cob_lists);
 
 	schema->ls_type_data[et->let_id] = NULL;
+
+	c2_free(lsd);
 
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)et->let_id);
 }

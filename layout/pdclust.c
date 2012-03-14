@@ -415,12 +415,11 @@ static void pdclust_fini(struct c2_layout *l)
 
 	c2_free(pl);
 
-	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
+	C2_LEAVE();
 }
 
 /**
  * Implementation of lto_register for PDCLUST layout type.
- *
  * No table is required specifically for PDCLUST layout type.
  */
 static int pdclust_register(struct c2_ldb_schema *schema,
