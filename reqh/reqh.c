@@ -221,6 +221,7 @@ struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
 
        return service;
 }
+C2_EXPORTED(c2_reqh_service_get);
 
 /** @} endgroup reqh */
 

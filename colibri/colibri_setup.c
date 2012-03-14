@@ -1261,6 +1261,7 @@ struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 	return reqh;
 
 }
+C2_EXPORTED(c2_cs_reqh_get);
 
 struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s)
 {
