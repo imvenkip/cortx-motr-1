@@ -1297,7 +1297,7 @@ static struct inode *c2t1fs_iget(struct super_block *sb, ino_t hash)
 static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry,
                                     struct nameidata *nd)
 {
-	struct inode *inode = NULL;
+	struct inode *inode;
 	unsigned long ino;
 
 	lock_kernel();
