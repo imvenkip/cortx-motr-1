@@ -56,33 +56,6 @@ DEF(c2_fop_file_fid, RECORD,
 	_(f_oid, U64));
 
 /**
- * c2_fop_io_buf is a buffer with a count specifying its length.
- */
-DEF(c2_fop_io_buf, SEQUENCE,
-	/** Number of bytes in the buffer. */
-	_(ib_count, U64),
-	/** Starting address of buffer. */
-	_(ib_buf, BYTE));
-
-/**
- * c2_fop_io_seg is a record containing details of an IO operation.
- */
-DEF(c2_fop_io_seg, RECORD,
-	/** Offset within component object.*/
-	_(is_offset, U64),
-	/** Data buffer attached with IO segment. */
-	_(is_buf, c2_fop_io_buf));
-
-/**
- * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
- */
-DEF(c2_fop_io_vec, SEQUENCE,
-	/** Number of IO segments. */
-	_(iv_count, U32),
-	/** Array of IO segments. */
-	_(iv_segs, c2_fop_io_seg));
-
-/**
  * A common sub structure to be referred by read and write reply fops.
  */
 DEF(c2_fop_cob_rw_reply, RECORD,

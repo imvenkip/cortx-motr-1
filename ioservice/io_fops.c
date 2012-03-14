@@ -86,9 +86,6 @@ C2_ADDB_EV_DEFINE(bulkclient_func_fail, "bulkclient func failed.",
 
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
-	&c2_fop_io_buf_tfmt,
-	&c2_fop_io_seg_tfmt,
-	&c2_fop_io_vec_tfmt,
 	&c2_fop_cob_rw_reply_tfmt,
 	&c2_ioseg_tfmt,
 	&c2_io_indexvec_tfmt,
