@@ -384,7 +384,7 @@
 
    - It verifies that the domain is ready to be finalized.  That is, it
      checks that the resource lists @c nlx_kcore_domain::kd_drv_tms and
-     @c kd_drv_buffers are empty.
+     @c nlx_kcore_domain::kd_drv_buffers are empty.
    - If the domain is not ready to be finalized, it releases the remaining
      domain resources itself.
      - Any running transfer machines must be stopped, their pending

@@ -200,7 +200,7 @@
      resources (unless there is duplicate file descriptor, in which case the
      kernel will delay finalization until the final duplicate is closed;
      this is unlikely because the file descriptor is not exposed and the file
-     is opened using O_CLOEXEC).
+     is opened using @c O_CLOEXEC).
    - It completes any post-finalization steps, such as freeing its
      @c nlx_ucore_domain object.
 
