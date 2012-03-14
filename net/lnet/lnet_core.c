@@ -162,8 +162,12 @@ static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *lcb)
 
 static uint32_t nlx_core_kmem_loc_checksum(const struct nlx_core_kmem_loc *loc)
 {
-	/** @todo implement */
-	return 0;
+	int i;
+	uint32_t ret;
+
+	for (i = 0, ret = 0; i < ARRAY_SIZE(loc->kl_data); ++i)
+		ret ^= loc->kl_data[i];
+	return ret;
 }
 
 int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)

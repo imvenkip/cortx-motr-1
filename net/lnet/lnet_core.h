@@ -909,19 +909,37 @@ static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
    In user space, this memory is allocated such that it will not
    cross page boundaries using c2_alloc_aligned().
    @param size Memory size.
+   @param shift Alignment, ignored in kernel space.
    @pre size <= PAGE_SIZE
  */
-static void *nlx_core_mem_alloc(size_t size);
+static void *nlx_core_mem_alloc(size_t size, unsigned shift);
 
 /**
    Frees memory allocated by nlx_core_mem_alloc().
  */
-static void nlx_core_mem_free(void *data);
+static void nlx_core_mem_free(void *data, unsigned shift);
 
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 				  unsigned dbg);
 #endif /* C2_LNET_DRV_TEST */
+
+/**
+   Round up a number n to the next power of 2, min 1<<3, works for n <= 1<<8.
+   If n is a power of 2, returns n.
+   Requires a constant input, allowing compile-time computation.
+ */
+#define NLX_PO2_SHIFT(n)                                                \
+	(((n) <= 8) ? 3 : ((n) <= 16) ? 4 : ((n) <= 32) ? 5 :           \
+	 ((n) <= 64) ? 6 : ((n) <= 128) ? 7 : ((n) <= 256) ? 8 :        \
+	 ((n) / 0))
+#define NLX_ALLOC_PTR(ptr) \
+	((ptr) = nlx_core_mem_alloc(sizeof ((ptr)[0]),                  \
+				    NLX_PO2_SHIFT(sizeof ((ptr)[0]))))
+#define NLX_ALLOC_PTR_ADDB(ptr, ctx, loc) \
+	if (NLX_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
+#define NLX_FREE_PTR(ptr) \
+	nlx_core_mem_free((ptr), NLX_PO2_SHIFT(sizeof ((ptr)[0])))
 
 /** @} */ /* LNetCore */
 

@@ -482,15 +482,15 @@
      ./linux_kernel/klnet_drv.c -->
  */
 
-void *nlx_core_mem_alloc(size_t size)
+void *nlx_core_mem_alloc(size_t size, unsigned shift)
 {
-	/** @todo implement */
-	return NULL;
+	return c2_alloc_aligned(size, shift);
 }
 
-void nlx_core_mem_free(void *data)
+void nlx_core_mem_free(void *data, unsigned shift)
 {
-	/** @todo implement */
+	/** @todo merge master, use c2_free_aligned */
+	c2_free(data);
 }
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
@@ -673,10 +673,10 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 
 	C2_PRE(lctm != NULL);
 	/** @todo XXX: temp, really belongs in async and/or kernel code */
-	e1 = nlx_core_mem_alloc(sizeof *e1);
+	NLX_ALLOC_PTR_ADDB(e1, &tm->ntm_addb, &nlx_addb_loc);
 	e1->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e1->cbe_tm_link;
 	/* ioctl call: bev_link_bless(&e1->cbe_tm_link); */
-	e2 = nlx_core_mem_alloc(sizeof *e2);
+	NLX_ALLOC_PTR_ADDB(e2, &tm->ntm_addb, &nlx_addb_loc);
 	e2->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e2->cbe_tm_link;
 	/* ioctl call: bev_link_bless(&e2->cbe_tm_link); */
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
@@ -695,7 +695,7 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	if (ql != NULL) {
 		bev = container_of(ql, struct nlx_core_buffer_event,
 				   cbe_tm_link);
-		nlx_core_mem_free(bev);
+		NLX_FREE_PTR(bev);
 	}
 }
 

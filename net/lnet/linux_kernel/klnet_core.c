@@ -1097,18 +1097,22 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 static void nlx_core_kmem_loc_set(struct nlx_core_kmem_loc *loc,
 				  struct page *pg, uint32_t off)
 {
-	/** @todo implement */
+	C2_PRE(off < PAGE_SIZE && ergo(pg == NULL, off == 0));
+	C2_PRE(loc != NULL);
+
+	loc->kl_page = pg;
+	loc->kl_offset = off;
+	loc->kl_checksum = nlx_core_kmem_loc_checksum(loc);
 }
 
-void *nlx_core_mem_alloc(size_t size)
+void *nlx_core_mem_alloc(size_t size, unsigned shift)
 {
-	/** @todo implement */
-	return NULL;
+	return c2_alloc(size);
 }
 
-void nlx_core_mem_free(void *data)
+void nlx_core_mem_free(void *data, unsigned shift)
 {
-	/** @todo implement */
+	c2_free(data);
 }
 
 /**
