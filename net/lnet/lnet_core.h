@@ -23,7 +23,7 @@
 #define __COLIBRI_NET_LNET_CORE_H__
 
 /**
-   @page LNetCoreDLD-fspec LNet Transport Core Functional Specfication
+   @page LNetCoreDLD-fspec LNet Transport Core Functional Specification
 
    - @ref LNetCoreDLD-fspec-ovw
    - @ref LNetCoreDLD-fspec-ds
@@ -148,18 +148,8 @@
 
    @see @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
    @see @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
+   @see @ref LNetDRVDLD "LNet Transport Device DLD"
 
- */
-
-/**
-   @defgroup LNetCore LNet Transport Core Interface
-   @ingroup LNetDFS
-
-   The internal, address space agnostic I/O API used by the LNet transport.
-
-   @see @ref LNetCoreDLD-fspec "LNet Transport Core Functional Specification"
-
-   @{
  */
 
 #include "net/lnet/lnet.h"
@@ -173,6 +163,18 @@ struct nlx_core_domain;
 struct nlx_core_ep_addr;
 struct nlx_core_transfer_mc;
 struct nlx_core_buf_desc;
+struct page;
+
+/**
+   @defgroup LNetCore LNet Transport Core Interface
+   @ingroup LNetDFS
+
+   The internal, address space agnostic I/O API used by the LNet transport.
+
+   @see @ref LNetCoreDLD-fspec "LNet Transport Core Functional Specification"
+
+   @{
+ */
 
 /**
    Opaque type wide enough to represent an address in any address space.
@@ -219,6 +221,31 @@ enum {
 };
 
 /**
+ * An kernel memory location, in terms of page and offset.
+ */
+struct nlx_core_kmem_loc {
+	union {
+		struct {
+			/** Page containing the object. */
+			struct page *kl_page;
+			/** Offset of the object in the page. */
+			uint32_t     kl_offset;
+		} __attribute__((__packed__));
+		uint32_t     kl_data[3];
+	};
+	/** A checksum of the page and offset, to detect corruption. */
+	uint32_t     kl_checksum;
+};
+C2_BASSERT(sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_page) +
+	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_offset) ==
+	   sizeof(((struct nlx_core_kmem_loc*) NULL)->kl_data));
+
+enum {
+	/** Maximum size of an LNET NID string, same as LNET_NIDSTR_SIZE */
+	C2_NET_LNET_NIDSTR_SIZE = 32,
+};
+
+/**
    Buffer events are linked in the buffer queue using this structure. It is
    designed to be operated upon from either kernel or user space with a single
    producer and single consumer.
@@ -230,19 +257,35 @@ struct nlx_core_bev_link {
 	nlx_core_opaque_ptr_t cbl_c_self;
 
 	/**
-	   Self pointer in the producer (kernel) address space.
-	 */
-	nlx_core_opaque_ptr_t cbl_p_self;
-
-	/**
 	   Pointer to the next element in the consumer address space.
 	 */
 	nlx_core_opaque_ptr_t cbl_c_next;
 
 	/**
+	   Self pointer in the producer (kernel) address space.
+	   @todo deprecated
+	 */
+	nlx_core_opaque_ptr_t cbl_p_self;
+
+	/**
 	   Pointer to the next element in the producer address space.
+	   @todo deprecated
 	 */
 	nlx_core_opaque_ptr_t cbl_p_next;
+
+	/**
+	   Self reference in the producer (kernel).
+	   The producer reference is kept in the form of a nlx_core_kmem_loc
+	   so that queue elements do not all need to be mapped.
+	 */
+	struct nlx_core_kmem_loc cbl_p_self_loc;
+
+	/**
+	   Reference to the next element in the producer.
+	   The next reference is kept in the form of a nlx_core_kmem_loc so
+	   that queue elements do not all need to be mapped.
+	 */
+	struct nlx_core_kmem_loc cbl_p_next_loc;
 };
 
 /**
@@ -250,17 +293,11 @@ struct nlx_core_bev_link {
    with a single producer and single consumer.
  */
 struct nlx_core_bev_cqueue {
-	/**
-	   Number of elements currently in the queue.
-	 */
+	/** Number of elements currently in the queue. */
 	size_t                 cbcq_nr;
 
-	/**
-	   The producer adds links to this anchor.
-	   The producer pointer value is in the address space of the
-	   producer (kernel).
-	 */
-	nlx_core_opaque_ptr_t cbcq_producer;
+	/** Number of elements in the queue that can be consumed. */
+	struct c2_atomic64     cbcq_count;
 
 	/**
 	   The consumer removes elements from this anchor.
@@ -268,6 +305,21 @@ struct nlx_core_bev_cqueue {
 	   consumer (transport).
 	 */
 	nlx_core_opaque_ptr_t cbcq_consumer;
+
+	/**
+	   The producer adds links to this anchor.
+	   The producer pointer value is in the address space of the
+	   producer (kernel).
+	   @todo deprecated
+	 */
+	nlx_core_opaque_ptr_t cbcq_producer;
+
+	/**
+	   The producer adds links to this anchor.
+	   The producer reference is kept in the form of a nlx_core_kmem_loc
+	   so that queue elements do not all need to be mapped.
+	 */
+	struct nlx_core_kmem_loc cbcq_producer_loc;
 };
 
 enum {
@@ -314,14 +366,17 @@ struct nlx_core_buffer_event {
 
 	/** True if the buffer is no longer in use */
         bool                         cbe_unlinked;
+
+	/** Core kernel space private. */
+	void                        *cbe_kpvt;
 };
 
 /**
    Core domain data.  The transport layer should embed this in its private data.
  */
 struct nlx_core_domain {
-	void *cd_upvt; /**< Core user space private */
-	void *cd_kpvt; /**< Core kernel space private */
+	void    *cd_upvt; /**< Core user space private */
+	void    *cd_kpvt; /**< Core kernel space private */
 	unsigned _debug_;
 };
 
@@ -428,6 +483,8 @@ struct nlx_core_buffer {
 	void                   *cb_kpvt; /**< Core kernel space private */
 };
 
+/** @todo either formalize this ifndef added for the prototype or remove it */
+#ifndef C2_LNET_DRV_TEST
 /**
    The LNet transport's Network Buffer Descriptor format.
    The external form is the opaque c2_net_buf_desc.
@@ -491,7 +548,7 @@ static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
    The subroutine allocates private data to associate with the network buffer.
    @param lcdom The domain private data to be initialized.
    @param buffer_id Value to set in the cb_buffer_id field.
-   @param bufvec Buffer vector with core address space pointers.
+   @param bvec Buffer vector with core address space pointers.
    @param lcbuf The core private data pointer for the buffer.
  */
 static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
@@ -765,18 +822,17 @@ static void nlx_core_nidstrs_put(char * const **nidary);
    Starts a transfer machine. Internally this results in
    the creation of the LNet EQ associated with the transfer machine.
    @param tm The transfer machine pointer.
-   @param lctm The transfer machine private data to be initialized.
-   @param cepa The end point address of this transfer machine. If the
+   @param lctm The transfer machine private data to be initialized.  The
+   nlx_core_transfer_mc::ctm_addr must be set by the caller.  If the
    lcpea_tmid field value is C2_NET_LNET_TMID_INVALID then a transfer machine
-   identifier is dynamically assigned to the transfer machine and returned
-   in this structure itself.
-   @param epp The end point resulting from starting the TM is returned here.
+   identifier is dynamically assigned to the transfer machine and the
+   nlx_core_transfer_mc::ctm_addr is modified in place.
    @note There is no equivalent of the xo_tm_init() subroutine.
+   @note This function does not create a c2_net_end_point for the transfer
+   machine, because there is no equivalent object at the core layer.
  */
 static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
-			     struct nlx_core_transfer_mc *lctm,
-			     struct nlx_core_ep_addr *cepa,
-			     struct c2_net_end_point **epp);
+			     struct nlx_core_transfer_mc *lctm);
 
 /**
    Stops the transfer machine and release associated resources.  All operations
@@ -848,13 +904,26 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
 static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer_event **bevp);
 
+/**
+   Allocate zero-filled memory, like c2_alloc().
+   In user space, this memory is allocated such that it will not
+   cross page boundaries using c2_alloc_aligned().
+   @param size Memory size.
+   @pre size <= PAGE_SIZE
+ */
+static void *nlx_core_mem_alloc(size_t size);
+
+/**
+   Frees memory allocated by nlx_core_mem_alloc().
+ */
+static void nlx_core_mem_free(void *data);
+
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 				  unsigned dbg);
+#endif /* C2_LNET_DRV_TEST */
 
-/**
-   @}
- */
+/** @} */ /* LNetCore */
 
 #endif /* __COLIBRI_NET_LNET_CORE_H__ */
 

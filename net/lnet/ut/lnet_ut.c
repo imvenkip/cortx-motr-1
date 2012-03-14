@@ -357,10 +357,11 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 						    nep_tm_linkage) {
 				if (ep == tm->ntm_ep)
 					continue;
-				while(c2_atomic64_get(&ep->nep_ref.ref_cnt) >=
-				      1){
-					NLXDBGP(td,2,"Cleanup/PUT D:%p T:%p "
-						"E:%p\n", dom, tm, ep);
+				while (c2_atomic64_get(&ep->nep_ref.ref_cnt) >=
+				       1) {
+					NLXDBGP(td, 2,
+						"Cleanup/PUT D:%p T:%p E:%p\n",
+						dom, tm, ep);
 					c2_net_end_point_put(ep);
 				}
 			}
@@ -546,13 +547,23 @@ do {								\
 
 static int test_lnet_init(void)
 {
+	int rc;
+
+	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
+#ifdef __KERNEL__
+	if (rc == 0)
+		rc = ktest_lnet_init();
+#endif
 	ut_save_subs();
-	return c2_net_xprt_init(&c2_net_lnet_xprt);
+	return rc;
 }
 
 static int test_lnet_fini(void)
 {
 	ut_restore_subs();
+#ifdef __KERNEL__
+	ktest_lnet_fini();
+#endif
 	c2_net_xprt_fini(&c2_net_lnet_xprt);
 	return 0;
 }

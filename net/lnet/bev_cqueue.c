@@ -103,12 +103,14 @@
    @subsection cqueueDLD-lspec-q Logic of the Circular Queue
 
    The circular queue is a FIFO queue.  The implementation maintains pointers
-   for the consumer and producer, and operations for accessing these pointers
-   and for moving them around the circular queue elements.  The application
-   manages the memory containing the queue itself, and adds new elements to the
-   queue when the size of the queue needs to grow.  In this discussion of the
-   logic, the pointers are named @c consumer, @c producer and @c next for
-   brevity.
+   for the consumer and producer, a count of the number of elements that can
+   currently be consumed, The total number of elements in the queue (both those
+   that are consumable and those that are not currently consumable) and
+   operations for accessing the pointers and for moving them around the circular
+   queue elements.  The application manages the memory containing the queue
+   itself, and adds new elements to the queue when the size of the queue needs
+   to grow.  In this discussion of the logic, the pointers are named
+   @c consumer, @c producer and @c next for brevity.
 
    @dot
    digraph {
@@ -166,11 +168,13 @@
    next available element and populate it with the data to be produced.  Once
    the element contains the data, the producer then calls bev_cqueue_put()
    to make that element available to the consumer.  This call also moves the
-   @c producer pointer to the next element.
+   @c producer pointer to the next element and increments the @c count of
+   consumable elements.
 
    The consumer uses bev_cqueue_get() to get the next available element
    containing data in FIFO order.  Consuming an element causes @c consumer to
-   be pointed at the next element in the queue.  After this call returns, the
+   be pointed at the next element in the queue and decrementing the @c count of
+   consumable elements.  After this call returns, the
    consumer "owns" the element returned, element "y" in the diagram.  The
    consumer owns this element until it calls bev_cqueue_get() again, at which
    time ownership reverts to the queue and can be reused by the producer.
@@ -182,64 +186,51 @@
    (the transport) address space.  The @c producer pointer refers to the element
    in the producer's (the kernel) address space.
 
-   A queue link element (the @c next pointer in the preceeding discussion) is
+   A queue link element (the @c next pointer in the preceding discussion) is
    represented by the nlx_core_bev_link data structure:
    @code
    struct nlx_core_bev_link {
             // Self pointer in the transport address space.
             nlx_core_opaque_ptr_t cbl_c_self;
-            // Self pointer in the kernel address space.
-            nlx_core_opaque_ptr_t cbl_p_self;
             // Pointer to the next element in the consumer address space.
             nlx_core_opaque_ptr_t cbl_c_next;
-            // Pointer to the next element in the producer address space.
-            nlx_core_opaque_ptr_t cbl_p_next;
+            // Self reference in the producer.
+            struct nlx_core_kmem_loc cbl_p_self_loc;
+            // Reference to the next element in the producer.
+            struct nlx_core_kmem_loc cbl_p_next_loc;
    };
    @endcode
    The data structure maintains separate "opaque" pointer fields for the
    producer and consumer address spaces.  Elements in the queue are linked
    through both flavors of their @c next field.  The initialization of this data
-   structure will be described in @ref cqueueDLD-lspec-qalloc.  The opaque
-   pointer type is derived from ::c2_atomic64.
+   structure is described in @ref cqueueDLD-lspec-qalloc.  The opaque
+   pointer type is derived from ::uint64_t.  In the case of the producer,
+   the @c nlx_core_kmem_loc structure is used instead of a pointer.  This
+   allows the buffer event object itself to be mapped and unmapped temporarily,
+   rather than requiring all buffer events to be mapped in the kernel at all
+   times (since this could exhaust the kernel page map table in the case of
+   a user space consumer).
 
    When the producer performs a bev_cqueue_put() call, internally, this call
-   uses nlx_core_bev_link::cbl_p_next to refer to the next element.
-   Similarly, when the consumer performs a bev_cqueue_get() call, internally,
-   this call uses nlx_core_bev_link::cbl_c_next.  Note that only
-   allocation, discussed below, modifies any of these pointers.  Steady-state
-   operations on the queue only modify the @c consumer and @c producer pointers.
+   uses nlx_core_bev_link::cbl_p_next_loc to refer to the next element (and
+   increment the @c count of consumable elements).  Similarly, when the consumer
+   performs a bev_cqueue_get() call, internally this subroutine uses
+   nlx_core_bev_link::cbl_c_next (and decrements the @c count of consumable
+   elements).  Note that only allocation, discussed below,
+   modifies any of these pointers.  Steady-state operations on the queue only
+   modify the @c consumer and @c producer pointers.
 
-   The data structure also contains "self" pointers for each address
-   space. These pointers permit comparison against the queue head's @c
-   consumer and @c producer pointer values from the producer and consumer
-   address spaces respectively. For example, the abstract check
+   Because the @c producer "pointer" is implemented as a nlx_core_kmem_loc,
+   it cannot be accessed atomically.  So, a comparison like
 
    @code
        q->producer != q->consumer
    @endcode
 
-   performed in producer space is actually implemented as
-
-   @code
-       pq->cbcq_producer->cbl_c_self != pq->cbcq_consumer
-   @endcode
-
-   Here, the @c pq pointer itself is the pointer to the shared
-   nlx_core_bev_cqueue object in the producer address space.  This pointer is
-   made known to the producer when the queue is created (e.g. when the transport
-   allocates the queue, it passes the transport space pointer to the object to
-   the producer which maps that memory into the producer address space).  Note
-   that this check is safe in producer space because only the producer changes
-   the value of the @c producer pointer and the @c pq pointer is never changed
-   after the queue object is allocated.  The equivalent safe call in consumer
-   space would be:
-
-   @code
-       cq->cbcq_consumer->cbl_p_self != cq->cbcq_producer
-   @endcode
-
-   In this case, the @c cq pointer refers to the same queue object in shared
-   memory, but this pointer is in the consumer's address space.
+   cannot be implemented in general, without synchronization.  However, by
+   keeping an atomic @c count of consumable elements, subroutines such as
+   @c bev_cqueue_is_empty() can be implemented by testing the @c count rather
+   than comparing pointers.
 
    @subsection cqueueDLD-lspec-qalloc Circular Queue Allocation
 
@@ -298,7 +289,7 @@
    -# Set <tt> consumer->next = newnode        </tt>
    -# set <tt>       consumer = newnode        </tt>
 
-   Steps 2-4 are performed in bev_cqueue_add().  Because several pointers need
+   Steps 2-4 are performed in bev_cqueue_add().  Because several fields need
    to be updated, simple atomic operations are insufficient.  Thus, the
    transport layer must synchronize calls to bev_cqueue_add() and
    bev_cqueue_get(), because both calls affect the consumer.  Given that
@@ -344,15 +335,15 @@
    Once allocated, initialization includes the transport layer setting the
    nlx_core_bev_link::cbl_c_self pointer to point at the node and having
    the kernel core layer "bless" the node by setting the
-   nlx_core_bev_link::cbl_p_self link.  After the self pointers are set,
-   the next pointers can be set by using these self pointers.  Since allocation
+   nlx_core_bev_link::cbl_p_self_loc field.  After the self pointers are set,
+   the next fields can be set by using these self fields.  Since allocation
    occurs in the transport address space, the allocation logic uses the
    nlx_core_bev_link::cbl_c_next pointers of the existing nodes for
-   navigation, and sets both the @c cbl_c_next and
-   nlx_core_bev_link::cbl_p_next pointers.  The @c cbl_p_next pointer
-   is set by using the @c cbl_c_next->cbl_p_self value, which is treated
+   navigation, and sets both the @c nlx_core_bev_link::cbl_c_next and
+   nlx_core_bev_link::cbl_p_next_loc fields.  The @c cbl_p_next_loc field
+   is set by using the @c cbl_c_next->cbl_p_self_loc value, which is treated
    opaquely by the transport layer.  So, steps 2 and 3 update both pairs of
-   pointers.  Allocation has no affect on the @c producer pointer itself, only
+   pointers.  Allocation has no affect on the @c producer reference itself, only
    the @c consumer pointer.
 
    The resultant 3 element queue looks like this:
@@ -389,31 +380,31 @@
 
    The circular queue can be in one of 3 states:
    - empty: This is the initial state and the queue returns to this state
-   whenever @code consumer->next == producer @endcode
+   whenever the count of consumable elements return to zero.
    - full: The queue contains elements and has no room for more. In this state,
    the producer should not attempt to put any more elements into the queue.
-   This state can be expressed as @code producer == consumer @endcode
+   Recall that the consumer "owns" the element that it just consumed, so
+   the queue is full when the count of consumable elements is one less than
+   the size of the queue. This state can be expressed as
+   @code count == (total_number - 1) @endcode
    - partial: In this state, the queue contains elements to be consumed and
    still has room for additional element production. This can be expressed as
-   @code consumer->next != producer && consumer != producer @endcode
+   @code count > 0 && count < (total_number - 1) @endcode
 
-   As discussed @ref cqueueDLD-lspec-xlink "above", implementing these
-   comparisons requires the use of the appropriate opaque pointers in the
-   nlx_core_bev_link data structure.  The implementation of tests for these
-   states varies depending on if the producer or the consumer is making the
-   test.  Note also that there is no direct way for the producer to detect the
-   empty state, because the @c consumer pointer is meaningful only in the
-   consumer (transport) space.
+   Recall that the @c count is stored as a @c c2_atomic64, so it must
+   be access using @c c2_atomic64_get(), requiring the use of a temporary
+   variable in the case of testing if the queue is in the partial state.
 
    @subsection cqueueDLD-lspec-thread Threading and Concurrency Model
 
-   A single producer and consumer are supported.  Atomic variables,
-   @c consumer and @c producer, represent the range of elements in the queue
-   containing data.  Because these pointers are atomic, no locking is needed
-   to access them by a single producer and consumer.  Furthermore, because these
-   pointers are used only for simple set or get operations, not compound
-   operations (e.g. increment or compare and set) a simple scalar data type can
-   be used.  Multiple producers and/or consumers must synchronize externally.
+   A single producer and consumer are supported.  The variables @c consumer and
+   @c producer represent the range of elements in the queue containing data.
+   While the @c producer is a compound object, with a single producer, no
+   locking is required to access it.  The @c producer cannot safely be accessed
+   by the consumer, since they can be in different address spaces, so an atomic
+   @c count of consumable elements is used as a surrogate for comparing the
+   @c consumer and @c producer.  Multiple producers and/or consumers must
+   synchronize externally.
 
    The transport layer acts both as the consumer and the allocator, and both
    operations use and modify the @c consumer variable and related pointers.  As
@@ -487,7 +478,8 @@
    - @ref cqueueDLD-fspec-ds
    - @ref cqueueDLD-fspec-sub
    - @ref cqueueDLD-fspec-usecases
-   - @ref bevcqueue "Detailed Functional Specification" <!-- below -->
+   - @ref bevcqueue "Detailed Functional Specification" <!--
+                                      below and ./linux_kernel/kbev_queue.c -->
 
    @section cqueueDLD-fspec-ds Data Structures
 
@@ -504,7 +496,7 @@
 
    @section cqueueDLD-fspec-usecases Recipes
 
-   The nlx_core_bev_cqueue provides atomic access to the producer and
+   The nlx_core_bev_cqueue provides access to the producer and
    consumer elements in the circular queue.
 
    In addition, semaphores or other synchronization mechanisms can be used to
@@ -620,7 +612,7 @@ static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 /**
    Adds a new element to the circular buffer queue in the consumer address
    space.
-   @note The new element must already be blessed via bev_cqueue_bless() in the
+   @note The new element must already be blessed via bev_link_bless() in the
    producer address space.  The cbl_c_self of the new element, ql, is set
    by bev_cqueue_add().
    @param q the queue
@@ -647,7 +639,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 /**
    Initialises the buffer event queue. Should be invoked in the consumer address
    space only.
-   @note both elements, ql1 and ql2 must be blessed via bev_cqueue_bless() in
+   @note both elements, ql1 and ql2 must be blessed via bev_link_bless() in
    the producer address space before they are used here.
    @param q buffer event queue to initialise
    @param ql1 the first element in the new queue
@@ -670,6 +662,7 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 	q->cbcq_nr++;
 
 	bev_cqueue_add(q, ql2);
+	c2_atomic64_set(&q->cbcq_count, 0);
 	C2_POST(bev_cqueue_invariant(q));
 }
 
@@ -734,51 +727,6 @@ static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 	C2_ASSERT(link->cbl_c_next != 0);
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) link->cbl_c_next;
 	return (struct nlx_core_bev_link *) (q->cbcq_consumer);
-}
-
-/**
-   Determines the next element in the queue that can be used by the producer.
-   @note This operation is to be used only by the producer.
-   @param q the queue
-   @returns a pointer to the next available element in the producer context
-   @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
- */
-static struct nlx_core_bev_link* bev_cqueue_pnext(
-				      const struct nlx_core_bev_cqueue *q)
-{
-	struct nlx_core_bev_link* p;
-
-	C2_PRE(bev_cqueue_invariant(q));
-	p = (struct nlx_core_bev_link*) q->cbcq_producer;
-	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
-	return p;
-}
-
-/**
-   Puts (produces) an element so it can be consumed.  The caller must first
-   call bev_cqueue_pnext() to ensure such an element exists.
-   @param q the queue
-   @pre q->cbcq_producer->cbl_c_self != q->cbcq_consumer
- */
-static void bev_cqueue_put(struct nlx_core_bev_cqueue *q)
-{
-	struct nlx_core_bev_link* p;
-
-	C2_PRE(bev_cqueue_invariant(q));
-	p = (struct nlx_core_bev_link*) q->cbcq_producer;
-	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
-	q->cbcq_producer = p->cbl_p_next;
-}
-
-/**
-   Blesses the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
-   the producer self value.
-   @param ql the link to bless, the caller must have already mapped the element
-   into the producer address space.
- */
-static void bev_link_bless(struct nlx_core_bev_link *ql)
-{
-	ql->cbl_p_self = (nlx_core_opaque_ptr_t) ql;
 }
 
 /**

@@ -128,7 +128,7 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
    The page reference count is not incremented.
 
    @param kb Kcore buffer private pointer
-   @param bufvec Vector with kernel logical addresses.
+   @param bvec Vector with kernel logical addresses.
    @retval -EFBIG if the IO vector is too large.
  */
 int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
@@ -170,6 +170,23 @@ fail:
 	C2_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(kb->kb_addb, rc);
 	return rc;
+}
+
+/**
+   This subroutine sets up the LNet kernel I/O vector in the kcore buffer from
+   a bufvec containing userspace virtual addresses.
+
+   The pages referenced by the bvec->ov_buf are pinned in kernel memory.
+
+   @param kb Kcore buffer private pointer
+   @param bvec Vector with userspace virtual addresses.
+   @retval -EFBIG if the IO vector is too large.
+ */
+int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
+				 const struct c2_bufvec *bvec)
+{
+	/** @todo implement */
+	return -ENOSYS;
 }
 
 /**

@@ -27,7 +27,7 @@
    - @ref LNetDLD-req
    - @ref LNetDLD-depends
    - @ref LNetDLD-highlights
-   - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet_core.h" -->
+   - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet.h" -->
       - @ref LNetDFS "LNet Transport"                  <!-- net/lnet/lnet.h -->
       - @ref LNetXODFS "XO Interface"                  <!-- ./lnet_xo.h -->
    - @ref LNetDLD-lspec
@@ -60,6 +60,9 @@
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
      <!-- ./linux_kernel/klnet_core.c -->
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
+     <!-- ./ulnet_core.c -->
+   - @ref LNetDRVDLD "LNet Transport Device DLD"
+     <!-- ./linux_kernel/klnet_drv.c -->
 
    <hr>
    @section LNetDLD-def Definitions
@@ -111,7 +114,8 @@
      };
      @endcode
      These fields are required to be set to non-zero values in receive buffers,
-     and control the reception of multiple messages into a single receive buffer.
+     and control the reception of multiple messages into a single receive
+     buffer.
 
      Additionally, the semantics of the @c nb_ep field is modified to not
      require the end point of the active transfer machine when enqueuing a
@@ -278,7 +282,7 @@
    @subsection LNetDLD-lspec-tm-stop Transfer Machine Termination
    Termination of a transfer machine is requested through the c2_net_tm_stop()
    subroutine, which results in a call to nlx_xo_tm_stop(). The latter ensures
-   that the transfer machine's thread wakes up by signalling on the
+   that the transfer machine's thread wakes up by signaling on the
    nlx_xo_transfer_mc::xtm_ev_cond condition variable.
 
    When terminating a transfer machine the application has a choice of draining
@@ -324,11 +328,11 @@
    c2_net_buffer_event_deliver_all() subroutine.  It attempts to deliver all
    pending events.  The transfer machine lock is held across the call to the
    nlx_core_buf_event_get() subroutine to serialize "consumers" of the
-   circualar buffer event queue, but is released during event delivery.  The
+   circular buffer event queue, but is released during event delivery.  The
    c2_net_transfer_mc::ntm_callback_counter field is incremented across the
    call to prevent premature termination when operating outside of the
    protection of the transfer machine mutex.  This is illustrated in the
-   following pseduo-code for nlx_xo_bev_deliver_all():
+   following pseudo-code for nlx_xo_bev_deliver_all():
    @code
    int rc;
    bool delivered_events = false;
@@ -389,7 +393,9 @@
    the following pseudo-code:
    @code
    // start the transfer machine in the Core
-   rc = nlx_core_tm_start(&tm, lctm, &cepa);
+   rc = nlx_core_tm_start(&tm, lctm);
+   if (rc == 0)
+       rc = nlx_ep_create(&tmev.nte_ep, tm, &lctm->ctm_addr);
    // deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
    // the C2_NET_TM_STARTED or C2_NET_TM_FAILED states
    // Set the transfer machine's end point on success
@@ -452,7 +458,7 @@
      automatic buffer event delivery mode is set, or on the
      nlx_xo_transfer_mc::xtm_ev_cond condition variable otherwise. In the
      latter case, it may also block in the nlx_core_buf_event_wait() subroutine
-     if the condition variable is signalled by the nlx_xo_bev_notify()
+     if the condition variable is signaled by the nlx_xo_bev_notify()
      subroutine.
    - The transfer machine mutex is obtained across the call to dequeue buffer
      events to serialize with the "other" consumer of the buffer event queue,
@@ -569,7 +575,8 @@
    @subsection LNetDLD-lspec-thread Threading and Concurrency Model
    The transport inherits the concurrency model of the Colibri Networking
    Module. All transport operations are protected by some lock or object state,
-   as described in the <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>.  The Core API is designed to work with this same locking model.
+   as described in the <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>.
+   The Core API is designed to work with this same locking model.
    The locking order figure is repeated here for convenience:
    @dot
    digraph {
@@ -734,10 +741,13 @@
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
    - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD" <!--
-                                                               ./bev_cqueue.c -->
+     ./bev_cqueue.c -->
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
-                                                  ./linux_kernel/klnet_core.c -->
-   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
+     ./linux_kernel/klnet_core.c -->
+   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD" <!--
+     ./ulnet_core.c -->
+   - @subpage LNetDRVDLD "LNet Transport Device DLD" <!--
+     ./linux_kernel/klnet_drv.c -->
 
  */
 
@@ -821,6 +831,7 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/lnet_addb.c"
 #include "net/lnet/lnet_core.c"
 #ifdef __KERNEL__
+#include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
 #else
 #include "net/lnet/ulnet_core.c"

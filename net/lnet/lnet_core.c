@@ -19,6 +19,11 @@
  * Original creation date: 11/16/2011
  */
 
+/**
+   @addtogroup LNetCore
+   @{
+ */
+
 #ifdef NLX_DEBUG
 static void nlx_print_core_ep_addr(const char *pre,
 				   const struct nlx_core_ep_addr *cepa)
@@ -99,11 +104,6 @@ static void nlx_print_core_buf_desc(const char *pre,
 }
 #endif
 
-/**
-   @addtogroup LNetCore
-   @{
- */
-
 static const struct c2_addb_ctx_type nlx_core_domain_addb_ctx = {
 	.act_name = "net-lnet-core-domain"
 };
@@ -158,6 +158,12 @@ static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *lcb)
 {
 	return lcb != NULL && lcb->cb_magic == C2_NET_LNET_CORE_BUF_MAGIC &&
 		lcb->cb_buffer_id != 0;
+}
+
+static uint32_t nlx_core_kmem_loc_checksum(const struct nlx_core_kmem_loc *loc)
+{
+	/** @todo implement */
+	return 0;
 }
 
 int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
@@ -357,10 +363,7 @@ void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm, unsigned dbg)
 	lctm->_debug_ = dbg;
 }
 
-
-/**
-   @}
- */
+/** @} */ /* LNetCore */
 
 /*
  *  Local variables:
