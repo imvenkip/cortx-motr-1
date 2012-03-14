@@ -338,7 +338,7 @@
    @subsection LNetDRVDLD-lspec-dominit Domain Initialization
 
    The LNet Transport Device Driver is first accessed during domain
-   initialization.  The @ref ULNetCoreDLD-lspec-dominit "user space transport"
+   initialization.  The @ref ULNetCoreDLD-lspec-dominit "user space core"
    opens the device and performs an initial @c #C2_LNET_DOM_INIT ioctl request.
 
    In the kernel, the @c open() and @c ioctl() system calls are handled by
@@ -370,51 +370,36 @@
 
    @subsection LNetDRVDLD-lspec-domfini Domain Finalization
 
-   During normal domain finalization, the "user space core" performs a
-   @c #C2_LNET_DOM_FINI ioctl request and closes its file descriptor.
-   It is also possible that the user space closes the file descriptor without
-   first finalizing the domain or other associated resources, such as in the
-   case that the user space process fails.
+   During normal domain finalization, the @ref ULNetCoreDLD-lspec-domfini
+   "user space core" closes its file descriptor after the upper layers have
+   already cleaned up other resources (buffers and transfer machines).
+   It is also possible that the user space process closes the file descriptor
+   without first finalizing the associated domain resources, such as in
+   the case that the user space process fails.
 
-   In the kernel, the @c ioctl() and @c close() system calls are handled by
-   the @c nlx_dev_ioctl() and @c nlx_dev_close() subroutines, respectively.
-   Technically, @c nlx_dev_close() is called once by the kernel when the last
-   reference to the file is closed (e.g. if the file descriptor had been
-   duplicated).
+   In the kernel the @c close() system call is handled by the @c nlx_dev_close()
+   subroutine.  Technically, @c nlx_dev_close() is called once by the kernel
+   when the last reference to the file is closed (e.g. if the file descriptor
+   had been duplicated).  The subroutine performs the following sequence.
 
-   The @c nlx_dev_ioctl() is described generally
-   @ref LNetDRVDLD-lspec-ioctl "above".  It uses the helper function
-   @c nlx_dev_ioctl_dom_fini() to complete kernel domain finalization.
-   The following tasks are performed.
-   - The @c nlx_kcore_domain::kd_drv_mutex() is locked.
-   - It verifies that the domain was not previously finalized and can
-     be finalized without assertions.
-   - It calls @c nlx_kcore_ops::ko_dom_fini() to finalize the domain.
-   - It unpins the shared @c nlx_core_domain object, resetting the
-     the @c nlx_kcore_domain::kd_cd_loc.
-   - The @c nlx_kcore_domain::kd_drv_mutex() is unlocked.
-
-   The @c nlx_dev_close() API is called when the last reference to the file goes
-   away.  This is either via orderly finalization as described above, or various
-   error paths, such as the process aborting, the file descriptor being closed
-   erroneously, and so on.  It performs the following sequence.
-
-   - It verifies that the domain was previously finalized by checking
-     that the @c nlx_kcore_domain::kd_cd_loc::kl_page is NULL.
-   - If the domain was not previously finalized, it completes finalization
-     itself.
+   - It verifies that the domain is ready to be finalized.  That is, it
+     checks that the resource lists @c nlx_kcore_domain::kd_drv_tms and
+     @c kd_drv_buffers are empty.
+   - If the domain is not ready to be finalized, it releases the remaining
+     domain resources itself.
      - Any running transfer machines must be stopped, their pending
        operations aborted.
      - Shared @c nlx_core_transfer_mc objects must be unpinned.
-     - Each corresponding @c nlx_kcore_transfer_mc object is freed.
+     - Shared @c nlx_core_buffer_event objects must be unpinned.
+     - Each corresponding @c nlx_kcore_buffer_event object is freed.
+     - Each @c nlx_kcore_transfer_mc object is freed.
      - All registered buffers must be deregistered.
      - Shared @c nlx_core_buffer objects must be unpinned.
      - Each corresponding @c nlx_kcore_buffer object is freed.
-     - Shared @c nlx_core_buffer_event objects must be unpinned.
-     - Each corresponding @c nlx_kcore_buffer_event object is freed.
-     - Finalize the @c nlx_kcore_domain object, as described for the
-       @c nlx_dev_ioctl_dom_fini() above.
      - The improper finalization is logged with ADDB.
+   - It calls @c nlx_kcore_ops::ko_dom_fini() to finalize the core domain.
+   - It unpins the shared @c nlx_core_domain object, resetting the
+       the @c nlx_kcore_domain::kd_cd_loc.
    - It resets (to NULL) the @c file->private_data.
    - It calls @c nlx_kcore_dom_fini() to finalize the @c nlx_kcore_domain
      object.
@@ -684,7 +669,7 @@
    @c nlx_kcore_transfer_mc::ktm_drv_bevs.
 
    The mutex may also be used to serialize driver ioctl requests, such as in
-   the case of @c #C2_LNET_DOM_INIT and @c #C2_LNET_DOM_FINI.
+   the case of @c #C2_LNET_DOM_INIT.
 
    The driver mutex must be obtained before any other Net or Kernel Core mutex.
 
@@ -997,19 +982,6 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd, void __user *udp)
 }
 
 /**
-   Completes the kernel finalization of the kernel and shared core domain
-   objects.  This function detects premature finalization returns an error
-   for this case, avoiding assertions in the kernel core API.
-   @param kd The kernel domain object
-   @retval -ENOTEMPTY Domain is not ready to be finalized, some resources
-   have not been finalized properly by the caller.
- */
-static int nlx_dev_ioctl_dom_fini(struct nlx_kcore_domain *kd)
-{
-	return -ENOSYS;
-}
-
-/**
    Gets the maximum buffer size.
    @post ret < INT_MAX
    @param kd The kernel domain object
@@ -1308,7 +1280,6 @@ static long nlx_dev_ioctl(struct file *file,
 	default:
 		/** @todo temporary code so this file will compile */
 		nlx_dev_ioctl_dom_init(NULL, NULL);
-		nlx_dev_ioctl_dom_fini(NULL);
 		nlx_dev_ioctl_max_buffer_size(NULL);
 		nlx_dev_ioctl_max_buffer_segment_size(NULL);
 		nlx_dev_ioctl_max_buffer_segments(NULL);
@@ -1385,8 +1356,8 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
    This operation is called once when the file is being released.  There is a
    1:1 correspondence between struct file objects and nlx_kcore_domain objects,
    so this operation will release all kernel resources for the domain.  That can
-   be expensive if the user process failed to successfully call
-   nlx_core_dom_fini() before closing the file.  This operation will not
+   be expensive if the user process failed to release all transfer machines
+   and buffers before closing the file.  This operation will not
    assert in that case, but will clean up and log the error via ADDB.
 
    @param inode Device inode object

@@ -100,7 +100,6 @@
 
    The device driver recognizes the following ioctl requests.
    - #C2_LNET_DOM_INIT
-   - #C2_LNET_DOM_FINI
    - #C2_LNET_MAX_BUFFER_SIZE
    - #C2_LNET_MAX_BUFFER_SEGMENT_SIZE
    - #C2_LNET_MAX_BUFFER_SEGMENTS

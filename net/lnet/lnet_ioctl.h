@@ -123,7 +123,6 @@ struct c2_lnet_dev_bev_bless_params {
 
 #define C2_LNET_DOM_INIT \
 	_IOW(C2_LNET_IOC_MAGIC, 0x21, struct nlx_core_domain *);
-#define C2_LNET_DOM_FINI                _IO(C2_LNET_IOC_MAGIC, 0x22);
 #define C2_LNET_MAX_BUFFER_SIZE         _IO(C2_LNET_IOC_MAGIC, 0x23);
 #define C2_LNET_MAX_BUFFER_SEGMENT_SIZE _IO(C2_LNET_IOC_MAGIC, 0x24);
 #define C2_LNET_MAX_BUFFER_SEGMENTS     _IO(C2_LNET_IOC_MAGIC, 0x25);

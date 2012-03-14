@@ -195,9 +195,12 @@
 
    - It completes pre-checks of the @c nlx_ucore_domain
      and @c nlx_core_domain objects.
-   - It performs the @c #C2_LNET_DOM_FINI ioctl request to cause the
-     kernel to finalize its private data and release resources.
-   - It calls @c close() to release the file descriptor.
+   - It calls @c close() to release the file descriptor.  This will typically
+     cause the kernel to immediately finalize its private data and release
+     resources (unless there is duplicate file descriptor, in which case the
+     kernel will delay finalization until the final duplicate is closed;
+     this is unlikely because the file descriptor is not exposed and the file
+     is opened using O_CLOEXEC).
    - It completes any post-finalization steps, such as freeing its
      @c nlx_ucore_domain object.
 
