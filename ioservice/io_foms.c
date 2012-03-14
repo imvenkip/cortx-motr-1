@@ -2065,7 +2065,6 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	rc = c2_stob_create(stob, &fom->fo_tx);
 	if (rc != 0) {
 		c2_stob_put(stob);
-		fom->fo_phase = FOPH_FAILURE;
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Stob creation failed in cc_stob_create().", rc);
@@ -2116,7 +2115,9 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Memory allocation failed in cc_cob_create().", rc);
-	}
+	} else
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    c2_addb_trace, "Cob created successfully.");
 
 	return rc;
 }
@@ -2146,6 +2147,9 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail, "cobfid_map_add() failed.", rc);
+	else
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    c2_addb_trace, "Record added to cobfid_map.");
 
 	c2_mutex_lock(&cctx->cc_mutex);
 	c2_cobfid_setup_put(cctx);
@@ -2272,7 +2276,10 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_delete *cd)
 	rc = c2_cob_delete(cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
-			    cd_fom_func_fail, "c2_cob_locate() failed.", rc);
+			    cd_fom_func_fail, "c2_cob_delete() failed.", rc);
+	else
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    c2_addb_trace, "Cob deleted successfully.");
 
 	return rc;
 }
@@ -2304,6 +2311,8 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_delete *cd)
 	C2_ASSERT(stob->so_ref.a_value == CD_FOM_STOBIO_LAST_REFS);
 	c2_stob_put(stob);
 	c2_stob_put(stob);
+	C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			c2_addb_trace, "Stob deleted successfully.");
 
 	return rc;
 }
@@ -2334,6 +2343,10 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
 			    "c2_cobfid_setup_delrec() failed.", rc);
+	else
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+				c2_addb_trace,
+				"Record removed from cobfid_map.");
 
 	c2_mutex_lock(&cctx->cc_mutex);
 	c2_cobfid_setup_put(cctx);
@@ -2352,4 +2365,3 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
  *  scroll-step: 1
  *  End:
  */
-
