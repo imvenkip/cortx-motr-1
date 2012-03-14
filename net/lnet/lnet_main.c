@@ -830,9 +830,12 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/bev_cqueue.c"
 #include "net/lnet/lnet_addb.c"
 #include "net/lnet/lnet_core.c"
+#include "net/lnet/lnet_ioctl.h"
 #ifdef __KERNEL__
+#include "net/lnet/linux_kernel/klnet_drv.h"
 #include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
+#include "net/lnet/linux_kernel/klnet_drv.c"
 #else
 #include "net/lnet/ulnet_core.c"
 #endif

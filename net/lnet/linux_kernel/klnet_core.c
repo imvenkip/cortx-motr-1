@@ -783,7 +783,6 @@
 /* include local files */
 #include "net/lnet/linux_kernel/klnet_vec.c"
 #include "net/lnet/linux_kernel/klnet_utils.c"
-#include "net/lnet/linux_kernel/klnet_drv.c"
 
 /**
    @addtogroup KLNetCore
@@ -813,6 +812,21 @@ C2_TL_DESCR_DEFINE(tms, "nlx tms", static, struct nlx_kcore_transfer_mc,
 		   ktm_tm_linkage, ktm_magic, C2_NET_LNET_KCORE_TM_MAGIC,
 		   C2_NET_LNET_KCORE_TMS_MAGIC);
 C2_TL_DEFINE(tms, static, struct nlx_kcore_transfer_mc);
+
+C2_TL_DESCR_DEFINE(drv_tms, "drv tms", static, struct nlx_kcore_transfer_mc,
+		   ktm_drv_linkage, ktm_magic, C2_NET_LNET_KCORE_TM_MAGIC,
+		   C2_NET_LNET_DEV_TMS_MAGIC);
+C2_TL_DEFINE(drv_tms, static, struct nlx_kcore_transfer_mc);
+
+C2_TL_DESCR_DEFINE(drv_bufs, "drv bufs", static, struct nlx_kcore_buffer,
+		   kb_drv_linkage, kb_magic, C2_NET_LNET_KCORE_BUF_MAGIC,
+		   C2_NET_LNET_DEV_BUFS_MAGIC);
+C2_TL_DEFINE(drv_bufs, static, struct nlx_kcore_transfer_mc);
+
+C2_TL_DESCR_DEFINE(drv_bevs, "drv bevs", static, struct nlx_kcore_buffer_event,
+		   kbe_drv_linkage, kbe_magic, C2_NET_LNET_KCORE_BEV_MAGIC,
+		   C2_NET_LNET_DEV_BEVS_MAGIC);
+C2_TL_DEFINE(drv_bevs, static, struct nlx_kcore_transfer_mc);
 
 /* assert the equivalence of LNet and Colibri data types */
 C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
@@ -860,6 +874,8 @@ static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
 {
 	if (kd == NULL || kd->kd_magic != C2_NET_LNET_KCORE_DOM_MAGIC)
+		return false;
+	if (!nlx_core_kmem_loc_invariant(&kd->kd_cd_loc))
 		return false;
 	return true;
 }
@@ -1115,53 +1131,47 @@ void nlx_core_mem_free(void *data, unsigned shift)
 	c2_free(data);
 }
 
-/**
-   Initializes the kernel core domain private data object.
-   @param kd kernel core private data pointer for the domain to be initialized.
- */
-static int nlx_kcore_dom_init(struct nlx_kcore_domain *kd)
+static int nlx_kcore_core_dom_init(struct nlx_kcore_domain *kd,
+				   struct nlx_core_domain *cd)
 {
-	/** @todo implement */
-	return -ENOSYS;
-}
-
-/**
-   Finalizes the kernel core domain private data object.
-   @param kd kernel core private data pointer for the domain to be finalized.
- */
-static void nlx_kcore_dom_fini(struct nlx_kcore_domain *kd)
-{
-	/** @todo implement */
-}
-
-int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
-{
-	struct nlx_kcore_domain *kd;
-
-	C2_PRE(dom != NULL && lcdom != NULL);
-	C2_ALLOC_PTR_ADDB(kd, &dom->nd_addb, &nlx_addb_loc);
-	if (kd == NULL)
-		return -ENOMEM;
-	kd->kd_magic = C2_NET_LNET_KCORE_DOM_MAGIC;
-	c2_mutex_init(&kd->kd_drv_mutex);
-	c2_addb_ctx_init(&kd->kd_addb, &nlx_core_domain_addb_ctx,
-			 &dom->nd_addb);
-	lcdom->cd_kpvt = kd;
-	C2_POST(nlx_kcore_domain_invariant(kd));
+	C2_PRE(kd != NULL && cd != NULL);
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	cd->cd_kpvt = kd;
 	return 0;
 }
 
-void nlx_core_dom_fini(struct nlx_core_domain *lcdom)
+int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
+{
+	struct nlx_kcore_domain *kd;
+	int rc;
+
+	C2_PRE(dom != NULL && cd != NULL);
+	C2_ALLOC_PTR_ADDB(kd, &dom->nd_addb, &nlx_addb_loc);
+	if (kd == NULL)
+		return -ENOMEM;
+	rc = nlx_kcore_dom_init(kd);
+	if (rc == 0)
+		rc = nlx_kcore_core_dom_init(kd, cd);
+	return rc;
+}
+
+static void nlx_kcore_core_dom_fini(struct nlx_kcore_domain *kd,
+				    struct nlx_core_domain *cd)
+{
+	C2_PRE(cd != NULL && cd->cd_kpvt == kd);
+	cd->cd_kpvt = NULL;
+}
+
+void nlx_core_dom_fini(struct nlx_core_domain *cd)
 {
 	struct nlx_kcore_domain *kd;
 
-	C2_PRE(lcdom != NULL);
-	kd = lcdom->cd_kpvt;
+	C2_PRE(cd != NULL);
+	kd = cd->cd_kpvt;
 	C2_PRE(nlx_kcore_domain_invariant(kd));
-	c2_addb_ctx_fini(&kd->kd_addb);
-	c2_mutex_fini(&kd->kd_drv_mutex);
+	nlx_kcore_core_dom_fini(kd, cd);
+	nlx_kcore_dom_fini(kd);
 	c2_free(kd);
-	lcdom->cd_kpvt = NULL;
 }
 
 c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
@@ -1181,6 +1191,15 @@ c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
 int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
 {
 	return LNET_MAX_IOV;
+}
+
+static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
+				  nlx_core_opaque_ptr_t buffer_id,
+				  struct nlx_core_buffer *cb,
+				  struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
 }
 
 int nlx_core_buf_register(struct nlx_core_domain *lcdom,
@@ -1224,6 +1243,13 @@ int nlx_core_buf_register(struct nlx_core_domain *lcdom,
 	return rc;
 }
 
+static void nlx_kcore_buf_deregister(struct nlx_kcore_domain *kd,
+				     struct nlx_core_buffer *cb,
+				     struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+}
+
 void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 			     struct nlx_core_buffer *lcbuf)
 {
@@ -1242,6 +1268,16 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 	lcbuf->cb_kpvt = NULL;
 	lcbuf->cb_magic = 0;
 	return;
+}
+
+static int nlx_kcore_buf_msg_recv(struct nlx_kcore_domain *kd,
+				  struct nlx_core_transfer_mc *ctm,
+				  struct nlx_kcore_transfer_mc *ktm,
+				  struct nlx_core_buffer *cb,
+				  struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
 }
 
 int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
@@ -1272,6 +1308,16 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	return rc;
 }
 
+static int nlx_kcore_buf_msg_send(struct nlx_kcore_domain *kd,
+				  struct nlx_core_transfer_mc *ctm,
+				  struct nlx_kcore_transfer_mc *ktm,
+				  struct nlx_core_buffer *cb,
+				  struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
 int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
@@ -1296,6 +1342,16 @@ int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
 	nlx_kcore_kiov_restore_length(lctm, lcbuf);
 	return rc;
+}
+
+static int nlx_kcore_buf_active_recv(struct nlx_kcore_domain *kd,
+				     struct nlx_core_transfer_mc *ctm,
+				     struct nlx_kcore_transfer_mc *ktm,
+				     struct nlx_core_buffer *cb,
+				     struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
 }
 
 int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
@@ -1330,6 +1386,16 @@ int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
 	return rc;
 }
 
+static int nlx_kcore_buf_active_send(struct nlx_kcore_domain *kd,
+				     struct nlx_core_transfer_mc *ctm,
+				     struct nlx_kcore_transfer_mc *ktm,
+				     struct nlx_core_buffer *cb,
+				     struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
 int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
@@ -1362,6 +1428,16 @@ int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
 	return rc;
 }
 
+static int nlx_kcore_buf_passive_recv(struct nlx_kcore_domain *kd,
+				      struct nlx_core_transfer_mc *ctm,
+				      struct nlx_kcore_transfer_mc *ktm,
+				      struct nlx_core_buffer *cb,
+				      struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
 int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
@@ -1390,6 +1466,16 @@ int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
 	return rc;
+}
+
+static int nlx_kcore_buf_passive_send(struct nlx_kcore_domain *kd,
+				      struct nlx_core_transfer_mc *ctm,
+				      struct nlx_kcore_transfer_mc *ktm,
+				      struct nlx_core_buffer *cb,
+				      struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
 }
 
 int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
@@ -1424,6 +1510,16 @@ int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
 	return rc;
 }
 
+static int nlx_kcore_buf_del(struct nlx_kcore_domain *kd,
+			     struct nlx_core_transfer_mc *ctm,
+			     struct nlx_kcore_transfer_mc *ktm,
+			     struct nlx_core_buffer *cb,
+			     struct nlx_kcore_buffer *kb)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
 int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 		     struct nlx_core_buffer *lcbuf)
 {
@@ -1434,6 +1530,14 @@ int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 	   signify cancel in those cases.
 	*/
 	return nlx_kcore_LNetMDUnlink(lctm, lcbuf);
+}
+
+static int nlx_kcore_buf_event_wait(struct nlx_kcore_domain *kd,
+				    struct nlx_kcore_transfer_mc *ktm,
+				    c2_time_t timeout)
+{
+	/** @todo implement */
+	return -ENOSYS;
 }
 
 int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
@@ -1563,6 +1667,14 @@ void nlx_core_nidstrs_put(char * const **nidary)
 	*nidary = NULL;
 }
 
+static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
+			      struct nlx_core_transfer_mc *ctm,
+			      struct nlx_kcore_transfer_mc *ktm)
+{
+	/** @todo implement */
+	return -ENOSYS;
+}
+
 int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm)
 {
@@ -1674,6 +1786,13 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	}
 }
 
+static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
+			      struct nlx_core_transfer_mc *ctm,
+			      struct nlx_kcore_transfer_mc *ktm)
+{
+	/** @todo implement */
+}
+
 void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
 {
 	struct nlx_kcore_transfer_mc *kctm;
@@ -1774,6 +1893,58 @@ static int nlx_core_init(void)
 		nlx_core_fini();
 
 	return rc;
+}
+
+/** @todo make static */
+struct nlx_kcore_ops nlx_kcore_def_ops = {
+	.ko_dom_init = nlx_kcore_core_dom_init,
+	.ko_dom_fini = nlx_kcore_core_dom_fini,
+	.ko_buf_register = nlx_kcore_buf_register,
+	.ko_buf_deregister = nlx_kcore_buf_deregister,
+	.ko_tm_start = nlx_kcore_tm_start,
+	.ko_tm_stop = nlx_kcore_tm_stop,
+	.ko_buf_msg_recv = nlx_kcore_buf_msg_recv,
+	.ko_buf_msg_send = nlx_kcore_buf_msg_send,
+	.ko_buf_active_recv = nlx_kcore_buf_active_recv,
+	.ko_buf_active_send = nlx_kcore_buf_active_send,
+	.ko_buf_passive_recv = nlx_kcore_buf_passive_recv,
+	.ko_buf_passive_send = nlx_kcore_buf_passive_send,
+	.ko_buf_del = nlx_kcore_buf_del,
+	.ko_buf_event_wait = nlx_kcore_buf_event_wait,
+};
+
+/**
+   Initializes the kernel core domain private data object.
+   @param kd kernel core private data pointer for the domain to be initialized.
+ */
+static int nlx_kcore_dom_init(struct nlx_kcore_domain *kd)
+{
+	C2_PRE(kd != NULL);
+	kd->kd_magic = C2_NET_LNET_KCORE_DOM_MAGIC;
+	nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
+	c2_mutex_init(&kd->kd_drv_mutex);
+	kd->kd_drv_ops = &nlx_kcore_def_ops;
+	drv_tms_tlist_init(&kd->kd_drv_tms);
+	drv_bufs_tlist_init(&kd->kd_drv_bufs);
+	c2_addb_ctx_init(&kd->kd_addb, &nlx_core_domain_addb_ctx, &c2_net_addb);
+	C2_POST(nlx_kcore_domain_invariant(kd));
+	return 0;
+}
+
+/**
+   Finalizes the kernel core domain private data object.
+   @param kd kernel core private data pointer for the domain to be finalized.
+ */
+static void nlx_kcore_dom_fini(struct nlx_kcore_domain *kd)
+{
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	C2_PRE(nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
+
+	c2_addb_ctx_fini(&kd->kd_addb);
+	drv_bufs_tlist_fini(&kd->kd_drv_bufs);
+	drv_tms_tlist_fini(&kd->kd_drv_tms);
+	kd->kd_drv_ops = NULL;
+	c2_mutex_fini(&kd->kd_drv_mutex);
 }
 
 /** @} */ /* KLNetCore */

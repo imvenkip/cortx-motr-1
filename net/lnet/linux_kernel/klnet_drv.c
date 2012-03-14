@@ -384,7 +384,7 @@
 
    - It verifies that the domain is ready to be finalized.  That is, it
      checks that the resource lists @c nlx_kcore_domain::kd_drv_tms and
-     @c nlx_kcore_domain::kd_drv_buffers are empty.
+     @c nlx_kcore_domain::kd_drv_bufs are empty.
    - If the domain is not ready to be finalized, it releases the remaining
      domain resources itself.
      - Any running transfer machines must be stopped, their pending
@@ -450,7 +450,7 @@
      pages of the buffer segments and initialize the
      @c nlx_kcore_buffer::kb_kiov.
    - The @c nlx_core_buffer is unmapped (it remains pinned).
-   - The @c nlx_kcore_buffer is added to the @c nlx_kcore_domain::kd_drv_buffers
+   - The @c nlx_kcore_buffer is added to the @c nlx_kcore_domain::kd_drv_bufs
      list.
    - Memory allocated for the temporary copies in the
      @c c2_lnet_dev_buf_register_params::dbr_bvec are freed.
@@ -461,7 +461,7 @@
    - The parameters are validated to ensure no assertions will occur.
    - The pages associated with the buffer, referenced by
      @c nlx_kcore_buffer::kb_kiov, are unpinned.
-   - The buffer is removed from the @c nlx_kcore_domain::kd_drv_buffers list.
+   - The buffer is removed from the @c nlx_kcore_domain::kd_drv_bufs list.
    - The @c nlx_core_buffer is mapped.
    - @c nlx_kcore_ops::ko_buf_deregister() is used to de-register
      the buffer and free the corresponding @c nlx_kcore_buffer object.
@@ -647,7 +647,7 @@
    The resources managed by the driver are tracked by the following lists:
    - @c nlx_kcore_domain::kd_drv_page (a single item)
    - @c nlx_kcore_domain::kd_drv_tms
-   - @c nlx_kcore_domain::kd_drv_buffers
+   - @c nlx_kcore_domain::kd_drv_bufs
    - @c nlx_kcore_transfer_mc::ktm_drv_bevs
 
    @subsection LNetDRVDLD-lspec-thread Threading and Concurrency Model
@@ -665,8 +665,7 @@
    Synchronization of device driver resources is controlled by a single mutex
    per domain, the @c nlx_kcore_domain::kd_drv_mutex.  This mutex must be
    held while manipulating the resource lists, @c nlx_kcore_domain::kd_drv_tms,
-   @c nlx_kcore_domain::kd_drv_buffers and
-   @c nlx_kcore_transfer_mc::ktm_drv_bevs.
+   @c nlx_kcore_domain::kd_drv_bufs and @c nlx_kcore_transfer_mc::ktm_drv_bevs.
 
    The mutex may also be used to serialize driver ioctl requests, such as in
    the case of @c #C2_LNET_DOM_INIT.
@@ -814,9 +813,6 @@
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
    - @ref KLNetCoreDLD "LNet Transport Kernel Space Core DLD"
  */
-
-#include "net/lnet/lnet_ioctl.h"
-#include "klnet_drv.h"
 
 C2_BASSERT(sizeof(struct nlx_xo_domain) < PAGE_SIZE);
 C2_BASSERT(sizeof(struct nlx_xo_transfer_mc) < PAGE_SIZE);
