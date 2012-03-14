@@ -1282,7 +1282,7 @@ struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s)
  */
 int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_colibri *cc)
 {
-	int rc;
+	int rc = 0;
 
 	C2_PRE(out != NULL);
 	C2_PRE(cc != NULL);
@@ -1361,6 +1361,7 @@ static void cobfid_map_setup_fini(struct c2_ref *ref)
 	c2_dbenv_fini(&s->cms_dbenv);
 	c2_addb_ctx_fini(&s->cms_addb);
 	c2_mutex_fini(&s->cms_mutex);
+	c2_free(s);
 }
 
 static int cobfid_map_setup_process(struct c2_cobfid_setup *s,
