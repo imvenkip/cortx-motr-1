@@ -31,9 +31,9 @@
 
 /* import */
 #include "db/db.h"      /* struct c2_table */
-#include "fid/fid.h"    /* struct c2_fid */
-
 #include "layout/layout.h"
+
+struct c2_fid;
 
 /* export */
 struct c2_layout_list_enum;

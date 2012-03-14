@@ -20,82 +20,80 @@
  */
 
 /**
-   @addtogroup pdclust
-
-   <b>Implementation overview.</b>
-
-   Parity de-clustering layout mapping function requires some amount of code
-   dealing with permutations, random sequences generations and conversions
-   between matrices of different shapes.
-
-   First, as explained in the HLD, an efficient way to generate permutations
-   uniformly scattered across the set of all permutations of a given set is
-   necessary. To this end permute_column() uses a sequence of pseudo-random
-   numbers obtained from a PRNG (c2_rnd()). Few comments are in order:
-
-   @li to seed a PRNG, layout seed and tile number are hashed by a
-   multiplicative cache (hash());
-
-   @li system PRNG cannot be used, because reproducible sequences are
-   needed. c2_rnd() is a very simple linear congruential generator straight from
-   TAOCP. It takes care to return higher, more random, bits of result;
-
-   @li layout behavior is quite sensitive to the PRNG properties. For example,
-   if c2_rnd() is changed to return lower bits (result % max), resulting
-   distribution of spare and parity units is not uniform even for large number
-   of units. Experiments with different PRNG's are indicated.
-
-   Once permutation's Lehmer code is generated, it has to be applied to the set
-   of columns. permute() function applies a permutation, simultaneously building
-   an inverse permutation.
-
-   Finally, layout mapping function is defined in terms of conversions between
-   matrices of different shapes. Let's call a matrix having M columns and an
-   arbitrary (probably infinite) number of rows an M-matrix. An element of an
-   M-matrix has (row, column) coordinates. Coordinate pairs can be ordered and
-   enumerated in the "row first" lexicographical order:
-
-           (0, 0) < (0, 1) < ... < (0, M - 1) < (1, 0) < ...
-
-   Function m_enc() returns the number a (row, column) element of an M-matrix
-   has in this ordering. Conversely, function m_dec() returns coordinates of the
-   element having a given number in the ordering. With the help of these two
-   function an M-matrix can be re-arranged into an N-matrix in such a way the
-   element position in the ordering remains invariant.
-
-   Layout mapping function c2_pdclust_layout_map() performs these
-   re-arrangements in the following places:
-
-   @li to convert a parity group number to a (tile number, group in tile)
-   pair. This is a conversion of 1-matrix to C-matrix;
-
-   @li to convert a tile from C*(N + 2*K) to L*P form. This is a conversion of
-   (N + 2*K)-matrix to P-matrix;
-
-   @li to convert a (tile number, frame in tile) pair to a target frame
-   number. This is a conversion of L-matrix to 1-matrix.
-
-   Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
-   conversions.
-
-   @{
+ * @addtogroup pdclust
+ *
+ * <b>Implementation overview.</b>
+ *
+ * Parity de-clustering layout mapping function requires some amount of code
+ * dealing with permutations, random sequences generations and conversions
+ * between matrices of different shapes.
+ *
+ * First, as explained in the HLD, an efficient way to generate permutations
+ * uniformly scattered across the set of all permutations of a given set is
+ * necessary. To this end permute_column() uses a sequence of pseudo-random
+ * numbers obtained from a PRNG (c2_rnd()). Few comments are in order:
+ *
+ * @li to seed a PRNG, layout seed and tile number are hashed by a
+ * multiplicative cache (hash());
+ *
+ * @li system PRNG cannot be used, because reproducible sequences are
+ * needed. c2_rnd() is a very simple linear congruential generator straight from
+ * TAOCP. It takes care to return higher, more random, bits of result;
+ *
+ * @li layout behavior is quite sensitive to the PRNG properties. For example,
+ * if c2_rnd() is changed to return lower bits (result % max), resulting
+ * distribution of spare and parity units is not uniform even for large number
+ * of units. Experiments with different PRNG's are indicated.
+ *
+ * Once permutation's Lehmer code is generated, it has to be applied to the set
+ * of columns. permute() function applies a permutation, simultaneously building
+ * an inverse permutation.
+ *
+ * Finally, layout mapping function is defined in terms of conversions between
+ * matrices of different shapes. Let's call a matrix having M columns and an
+ * arbitrary (probably infinite) number of rows an M-matrix. An element of an
+ * M-matrix has (row, column) coordinates. Coordinate pairs can be ordered and
+ * enumerated in the "row first" lexicographical order:
+ *
+ *         (0, 0) < (0, 1) < ... < (0, M - 1) < (1, 0) < ...
+ *
+ * Function m_enc() returns the number a (row, column) element of an M-matrix
+ * has in this ordering. Conversely, function m_dec() returns coordinates of the
+ * element having a given number in the ordering. With the help of these two
+ * function an M-matrix can be re-arranged into an N-matrix in such a way the
+ * element position in the ordering remains invariant.
+ *
+ * Layout mapping function c2_pdclust_layout_map() performs these
+ * re-arrangements in the following places:
+ *
+ * @li to convert a parity group number to a (tile number, group in tile)
+ * pair. This is a conversion of 1-matrix to C-matrix;
+ *
+ * @li to convert a tile from C*(N + 2*K) to L*P form. This is a conversion of
+ * (N + 2*K)-matrix to P-matrix;
+ *
+ * @li to convert a (tile number, frame in tile) pair to a target frame
+ * number. This is a conversion of L-matrix to 1-matrix.
+ *
+ * Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
+ *  conversions.
+ *
+ * @{
  */
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/arith.h"        /* c2_rnd() */
+#include "lib/arith.h"            /* c2_rnd() */
 #include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "stob/stob.h"
-#include "pool/pool.h"              /* c2_pool_lookup() */
-#include "fid/fid.h"                /* struct c2_fid */
-#include "layout/layout_db.h"       /* struct c2_ldb_schema */
-#include "layout/list_enum.h"
-#include "layout/linear_enum.h"
+#include "stob/stob.h"            /* c2_stob_id_is_set() */
+#include "pool/pool.h"            /* c2_pool_lookup() */
+#include "fid/fid.h"              /* struct c2_fid */
 
+#include "layout/layout_db.h"     /* struct c2_ldb_schema */
 #include "layout/pdclust.h"
 
 extern int LID_NONE;
@@ -383,7 +381,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 /** Implementation of lo_fini for pdclust layout type. */
 static void pdclust_fini(struct c2_layout *l)
 {
-	uint32_t i;
+	uint32_t                      i;
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 
@@ -396,7 +394,7 @@ static void pdclust_fini(struct c2_layout *l)
 
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
 
-	c2_layout_striped_fini(&pl->pl_base);
+	c2_pdclust_layout_bob_fini(pl);
 
 	if (pl->pl_tile_cache.tc_inverse != NULL)
 		c2_free(pl->pl_tile_cache.tc_inverse);
@@ -412,9 +410,10 @@ static void pdclust_fini(struct c2_layout *l)
 		}
 		c2_free(pl->pl_tgt);
 	}
-	c2_free(pl);
 
-	c2_pdclust_layout_bob_fini(pl);
+	c2_layout_striped_fini(&pl->pl_base);
+
+	c2_free(pl);
 
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
@@ -477,10 +476,8 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		goto out;
 	}
 
-	rc = c2_layout_striped_init(&pdl->pl_base, le, lid,
-				    pool->po_id,
-				    &c2_pdclust_layout_type,
-				    &pdclust_ops);
+	rc = c2_layout_striped_init(&pdl->pl_base, le, lid, pool->po_id,
+				    &c2_pdclust_layout_type, &pdclust_ops);
 	if (rc != 0) {
 		C2_LOG("c2_pdclust_build: lid %llu, c2_layout_striped_init() "
 		       "failed, rc %d", (unsigned long long)lid, rc);
@@ -528,9 +525,9 @@ out:
 	}
 	else {
 		/*
-		 * Calling pdclust_fini() here instead of using
+		 * Calling pdclust_fini() here specifically and not
 		 * pdl->pl_base.ls_base.l_ops->lo_fini(). This is to cover the
-		 * case if pdl->pl_base.ls_base.l_ops is not set due to some
+		 * case - if pdl->pl_base.ls_base.l_ops is not set due to some
 		 * internal failure.
 		 */
 		pdclust_fini(&pdl->pl_base.ls_base);
@@ -588,8 +585,11 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
 
-	/* todo Critical. The return type should be changed to int.
-	 * This function can not return error.
+	C2_ASSERT(c2_pdclust_layout_invariant(pl));
+
+	/* todo Critical. The return type should be changed to int
+	 * for lto_recsize().
+	 * As of now, this function can not return error.
 	 */
 	rc = enum_type_verify(schema, stl->ls_enum->le_type->let_id);
 	if (rc != 0) {
@@ -783,21 +783,21 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
+	rc = enum_type_verify(schema, stl->ls_enum->le_type->let_id);
+	if (rc != 0) {
+		C2_LOG("pdclust_encode(): lid %llu, Unqualified "
+		       "Enum_type_id %lu, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)stl->ls_enum->le_type->let_id, rc);
+		goto out;
+	}
+
+	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
+
 	pl_rec.pr_let_id  = stl->ls_enum->le_type->let_id;
 	pl_rec.pr_attr    = pl->pl_attr;
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
-
-	rc = enum_type_verify(schema, pl_rec.pr_let_id);
-	if (rc != 0) {
-		C2_LOG("pdclust_encode(): lid %llu, Unqualified "
-		       "Enum_type_id %lu, rc %d", (unsigned long long)l->l_id,
-		       (unsigned long)pl_rec.pr_let_id, rc);
-		goto out;
-	}
-
-	et = schema->ls_enum[pl_rec.pr_let_id];
 
 	rc = et->let_ops->leto_encode(schema, l, op, tx, oldrec_cur, out);
 	if (rc != 0) {

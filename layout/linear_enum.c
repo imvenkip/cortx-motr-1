@@ -33,7 +33,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "fid/fid.h"                /* struct c2_fid */
+#include "fid/fid.h"                /* c2_fid_set(), c2_fid_is_valid() */
 #include "layout/linear_enum.h"
 
 extern int LID_NONE;
@@ -346,10 +346,9 @@ static void linear_get(const struct c2_layout_enum *le, uint64_t lid,
 
 	C2_ASSERT(idx < lin_enum->lle_attr.lla_nr);
 
-	/* todo Should following be abstracted out by some interface? */
-	out->f_key = gfid->f_key;
-	out->f_container = lin_enum->lle_attr.lla_A +
-			   idx * lin_enum->lle_attr.lla_B;
+	c2_fid_set(out,
+		   lin_enum->lle_attr.lla_A + idx * lin_enum->lle_attr.lla_B,
+		   gfid->f_key);
 
 	C2_ASSERT(c2_fid_is_valid(out));
 }

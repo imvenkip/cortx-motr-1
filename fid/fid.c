@@ -25,6 +25,7 @@
 #endif
 
 #include "lib/cdefs.h"         /* C2_EXPORTED */
+#include "lib/assert.h"        /* C2_PRE() */
 #include "fid/fid.h"
 
 /**
@@ -42,6 +43,14 @@ bool c2_fid_is_valid(const struct c2_fid *fid)
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
 {
 	return memcmp(fid0, fid1, sizeof *fid0) == 0;
+}
+
+void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key)
+{
+	C2_PRE(fid != NULL);
+
+	fid->f_container = container;
+	fid->f_key = key;
 }
 
 /** @} end of fid group */

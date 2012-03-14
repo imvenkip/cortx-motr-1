@@ -978,7 +978,6 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 			    ldb_add_fail, "c2_table_insert()", rc);
 		C2_LOG("c2_ldb_add(): lid %llu, c2_table_insert() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
-		goto out;
 	}
 
 out:
@@ -1093,7 +1092,6 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 			    ldb_update_fail, "c2_table_update()", rc);
 		C2_LOG("c2_ldb_update(): lid %llu, c2_table_update() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
-		goto out;
 	}
 
 out:
@@ -1179,7 +1177,6 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 			    ldb_delete_fail, "c2_table_delete()", rc);
 		C2_LOG("c2_ldb_delete(): lid %llu, c2_table_delete() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
-		goto out;
 	}
 
 out:

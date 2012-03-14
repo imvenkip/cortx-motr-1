@@ -33,9 +33,8 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "fid/fid.h"                /* struct c2_fid */
-#include "layout/list_enum.h"
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
+#include "layout/list_enum.h"
 
 extern int LID_NONE;
 extern bool layout_invariant(const struct c2_layout *l);
@@ -69,18 +68,18 @@ C2_BOB_DEFINE(static, &list_enum_bob, c2_layout_list_enum);
  */
 struct ldb_cob_entries_header {
 	/** Total number of COB Ids for the specific layout. */
-	uint32_t                  llces_nr;
+	uint32_t         llces_nr;
 
 	/**
 	 * Payload storing list of cob ids (struct c2_fid), max upto
 	 * LDB_MAX_INLINE_COB_ENTRIES number of those.
 	 */
-	char                      llces_cobs[0];
+	char             llces_cobs[0];
 };
 
 struct list_schema_data {
 	/** Table to store COB lists for all the layouts with LIST enum type. */
-	struct c2_table           lsd_cob_lists;
+	struct c2_table  lsd_cob_lists;
 };
 
 /**
@@ -88,15 +87,15 @@ struct list_schema_data {
  */
 struct ldb_cob_lists_key {
 	/** Layout id, value obtained from c2_layout::l_id. */
-	uint64_t                  lclk_lid;
+	uint64_t         lclk_lid;
 
 	/** Index for the COB from the layout it is part of. */
-	uint32_t                  lclk_cob_index;
+	uint32_t         lclk_cob_index;
 };
 
 struct ldb_cob_lists_rec {
 	/** COB identifier. */
-	struct c2_fid             lclr_cob_id;
+	struct c2_fid    lclr_cob_id;
 };
 
 /**
@@ -104,8 +103,7 @@ struct ldb_cob_lists_rec {
  * This is a 3WAY comparison.
  */
 static int lcl_key_cmp(struct c2_table *table,
-		       const void *key0,
-		       const void *key1)
+		       const void *key0, const void *key1)
 {
 	const struct ldb_cob_lists_key *k0 = key0;
 	const struct ldb_cob_lists_key *k1 = key1;
@@ -211,6 +209,15 @@ int c2_list_enum_build(uint64_t lid,
 	C2_POST(c2_list_enum_invariant(list_enum, lid));
 
 out:
+	if (rc != 0) {
+		if (list_enum != NULL) {
+			if (list_enum->lle_list_of_cobs != NULL)
+				c2_free(list_enum->lle_list_of_cobs);
+			c2_layout_enum_fini(&list_enum->lle_base);
+			c2_free(list_enum);
+		}
+	}
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -221,9 +228,12 @@ void c2_list_enum_fini(struct c2_layout_list_enum *list_enum, uint64_t lid)
 
 	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
 
-	c2_free(list_enum->lle_list_of_cobs);
 	c2_layout_list_enum_bob_fini(list_enum);
+
+	c2_free(list_enum->lle_list_of_cobs);
+
 	c2_layout_enum_fini(&list_enum->lle_base);
+	c2_free(list_enum);
 
 	C2_LEAVE();
 }
@@ -241,8 +251,10 @@ static int list_register(struct c2_ldb_schema *schema,
 
 	C2_PRE(schema != NULL);
 	C2_PRE(et != NULL);
+	C2_PRE(IS_IN_ARRAY(et->let_id, schema->ls_enum));
+	C2_PRE(schema->ls_type_data[et->let_id] == NULL);
 
-	C2_ENTRY();
+	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
 
 	C2_ALLOC_PTR(lsd);
 	if (lsd == NULL) {
@@ -265,7 +277,7 @@ static int list_register(struct c2_ldb_schema *schema,
 	schema->ls_type_data[et->let_id] = lsd;
 
 out:
-	C2_LEAVE("rc %d", rc);
+	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
 	return rc;
 }
 
@@ -282,7 +294,7 @@ static void list_unregister(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(et != NULL);
 
-	C2_ENTRY();
+	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
 
 	lsd = schema->ls_type_data[et->let_id];
 
@@ -290,7 +302,7 @@ static void list_unregister(struct c2_ldb_schema *schema,
 
 	schema->ls_type_data[et->let_id] = NULL;
 
-	C2_LEAVE();
+	C2_LEAVE("Enum_type_id %lu", (unsigned long)et->let_id);
 }
 
 /**
@@ -355,9 +367,8 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
 			    c2_addb_func_fail, "c2_table_lookup()", rc);
 		C2_LOG("ldb_cob_list_read(): lid %llu, idx %lu, "
-		       "c2_table_lookup() failed, "
-		       "rc %d", (unsigned long long)lid,
-		       (unsigned long)idx, rc);
+		       "c2_table_lookup() failed, rc %d",
+		       (unsigned long long)lid, (unsigned long)idx, rc);
 		return rc;
 	}
 
@@ -373,7 +384,6 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 	*cob_id = rec.lclr_cob_id;
 	return 0;
 }
-
 
 /**
  * Implementation of leto_decode() for list enumeration type.
@@ -479,6 +489,8 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_POST(c2_list_enum_invariant(list_enum, lid));
 
 out:
+	if (cob_list != NULL)
+		c2_free(cob_list);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -494,18 +506,21 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 	struct c2_db_pair         pair;
 	int                       rc;
 
+	C2_PRE(schema != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
 	C2_PRE(l != NULL);
+	C2_PRE(cob_id != NULL);
+	C2_PRE(tx != NULL);
 
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
+	C2_ASSERT(lsd != NULL);
 
 	key.lclk_lid       = l->l_id;
 	key.lclk_cob_index = idx;
 	rec.lclr_cob_id    = *cob_id;
 
 	c2_db_pair_setup(&pair, &lsd->lsd_cob_lists,
-			 &key, sizeof key,
-			 &rec, sizeof rec);
+			 &key, sizeof key, &rec, sizeof rec);
 
 	if (op == C2_LXO_DB_ADD) {
 		rc = c2_table_insert(tx, &pair);
@@ -622,7 +637,6 @@ static int list_encode(struct c2_ldb_schema *schema,
 			c2_bufvec_cursor_move(oldrec_cur,
 					sizeof list_enum->lle_list_of_cobs[i]);
 		}
-
 	}
 
 	ldb_ce_header.llces_nr = list_enum->lle_nr;
@@ -632,12 +646,15 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_ASSERT(nbytes == sizeof ldb_ce_header);
 
 	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(out) < num_inline *
-	    sizeof list_enum->lle_list_of_cobs[i]) {
-		rc = -ENOBUFS;
-		C2_LOG("listt_encode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)l->l_id);
-		goto out;
+	if ((op == C2_LXO_DB_NONE && c2_bufvec_cursor_step(out) <
+	     list_enum->lle_nr * sizeof list_enum->lle_list_of_cobs[i]) ||
+	     (op != C2_LXO_DB_NONE && c2_bufvec_cursor_step(out) <
+	     num_inline * sizeof list_enum->lle_list_of_cobs[i])) {
+			rc = -ENOBUFS;
+			C2_LOG("list_encode(): lid %llu, buffer with "
+			       "insufficient size",
+			       (unsigned long long)l->l_id);
+			goto out;
 	}
 
 	for(i = 0; i < list_enum->lle_nr; ++i) {
@@ -653,29 +670,25 @@ static int list_encode(struct c2_ldb_schema *schema,
 			C2_ASSERT(nbytes ==
 				  sizeof list_enum->lle_list_of_cobs[i]);
 		}
-		else {
+		else if (op == C2_LXO_DB_UPDATE) {
+			/*
+			 * The auxiliary table viz. cob_lists is not to be
+			 * modified for an update operation. Hence, need to
+			 * return from here.
+			 */
+			rc = 0;
+			goto out;
+		} else {
 			/*
 			 * Write non-inline cob entries to the cob_lists
 			 * table.
 			 */
-			if (i == num_inline) {
-				if (op == C2_LXO_DB_UPDATE) {
-					/*
-					 * The auxiliary table viz. cob_lists
-					 * is not to be modified for an update
-					 * operation. Hence, need to return
-					 * from here.
-					 */
-					rc = 0;
-					goto out;
-				} else {
-					C2_LOG("list_encode(): lid %llu, "
-					       "Start writing to the "
-					       "cob_lists table.",
-					       (unsigned long long)l->l_id);
-				}
-
-			}
+			C2_ASSERT(op == C2_LXO_DB_ADD ||
+				  op == C2_LXO_DB_DELETE);
+			if (i == num_inline)
+				C2_LOG("list_encode(): lid %llu, Start writing"
+				       " to the cob_lists table.",
+				       (unsigned long long)l->l_id);
 
 			rc = ldb_cob_list_write(schema, op, l, i,
 						&list_enum->lle_list_of_cobs[i],
@@ -724,7 +737,7 @@ static void list_get(const struct c2_layout_enum *le, uint64_t lid,
 
 	C2_PRE(le != NULL);
 	C2_PRE(lid != LID_NONE);
-	/* gfid is ignored for this list enumeration type. */
+	/* gfid is ignored for the list enumeration type. */
 	C2_PRE(out != NULL);
 
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
