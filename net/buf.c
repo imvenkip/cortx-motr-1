@@ -81,7 +81,7 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 		return false;
 
 	/* EXPENSIVE: on the right TM list */
-	if (!tm_tlist_contains(&buf->nb_tm->ntm_q[buf->nb_qtype], buf))
+	if (!c2_net_tm_tlist_contains(&buf->nb_tm->ntm_q[buf->nb_qtype], buf))
 		return false;
 	return true;
 }
@@ -230,7 +230,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	/* Optimistically add it to the queue's list before calling the xprt.
 	   Post will unlink on completion, or del on cancel.
 	 */
-	tm_tlink_init_at_tail(buf, ql);
+	c2_net_tm_tlink_init_at_tail(buf, ql);
 	buf->nb_flags |= C2_NET_BUF_QUEUED;
 	buf->nb_add_time = c2_time_now(); /* record time added */
 
@@ -238,7 +238,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	buf->nb_tm = tm;
 	rc = dom->nd_xprt->nx_ops->xo_buf_add(buf);
 	if (rc != 0) {
-		tm_tlink_del_fini(buf);
+		c2_net_tm_tlink_del_fini(buf);
 		buf->nb_flags &= ~C2_NET_BUF_QUEUED;
 		goto m_err_exit;
 	}
@@ -352,7 +352,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
 
 	if (!(buf->nb_flags & C2_NET_BUF_RETAIN)) {
-		tm_tlist_del(buf);
+		c2_net_tm_tlist_del(buf);
 		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
 				   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
 		buf->nb_timeout = C2_TIME_NEVER;

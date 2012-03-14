@@ -846,8 +846,14 @@ void c2_net_lnet_fini(void)
 
 int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 {
-	/* XXX implement */
-	return false;
+	const char *cp1;
+	const char *cp2;
+
+	cp1 = strchr(addr1, ':');
+	cp2 = strchr(addr2, ':');
+	if (cp1 == NULL || cp2 == NULL)
+		return -1;
+	return strncmp(addr1, addr2, min32(cp1 - addr1, cp2 - addr2));
 }
 
 int c2_net_lnet_ifaces_get(char * const **addrs)

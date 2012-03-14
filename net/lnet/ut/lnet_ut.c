@@ -317,10 +317,10 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 			       struct c2_net_transfer_mc, ntm_dom_linkage) {
 		/* iterate over buffers in each queue */
 		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
-			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
+			len = c2_tlist_length(&c2_net_tm_tl, &tm->ntm_q[qt]);
 			/* best effort; can't say if this will always work */
 			for (i = 0; i < len; ++i) {
-				nb = tm_tlist_head(&tm->ntm_q[qt]);
+				nb = c2_net_tm_tlist_head(&tm->ntm_q[qt]);
 				c2_clink_add(&tm->ntm_chan, &cl);
 				NLXDBGP(td, 2,
 					"Cleanup/DEL D:%p T:%p Q:%d B:%p\n",
@@ -340,7 +340,7 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 				}
 				c2_clink_del(&cl);
 			}
-			len = c2_tlist_length(&tm_tl, &tm->ntm_q[qt]);
+			len = c2_tlist_length(&c2_net_tm_tl, &tm->ntm_q[qt]);
 			if (len != 0) {
 				NLXDBGP(td, 0,
 					"Cleanup D:%p T:%p Q:%d B failed\n",
@@ -570,7 +570,59 @@ static void test_tm_initfini(void)
 		.ntm_callbacks = &cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
+	static char *n1t0 = "10.72.49.14@o2ib0:12345:31:0";
+	static char *n1t1 = "10.72.49.14@o2ib0:12345:31:1";
+	static char *n1ts = "10.72.49.14@o2ib0:12345:31:*";
+	static char *n2t0 = "192.168.96.128@tcp1:12345:31:0";
+	static char *n2t1 = "192.168.96.128@tcp1:12345:31:1";
+	static char *n2ts = "192.168.96.128@tcp1:12345:31:*";
 
+	/* TEST
+	   Network name comparsion.
+	*/
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n1t0) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n1t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n1ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n1t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n1ts) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n1ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n2t0) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n2t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n2ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n2t1) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n2ts) == 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n2ts) == 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n2t0) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n2t0) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n2t0) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n1t0) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n1t1) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t0, n1ts) > 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n2t1) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n2t1) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n2t1) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n1t0) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n1t1) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2t1, n1ts) > 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t0, n2ts) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1t1, n2ts) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, n2ts) < 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n1t0) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n1t1) > 0);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n2ts, n1ts) > 0);
+
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp(n1ts, "foo") == -1);
+	C2_UT_ASSERT(c2_net_lnet_ep_addr_net_cmp("foo", n1ts) == -1);
+
+	/* TEST
+	   Domain setup.
+	*/
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
@@ -1858,6 +1910,211 @@ static void test_sync(void)
 	ut_test_framework(&test_sync_body, &test_sync_prestart, ut_verbose);
 }
 
+
+/* replacement for ut_buf_cb1 used in this test */
+static void test_timeout_msg_recv_cb1(const struct c2_net_buffer_event *ev)
+{
+	ut_buf_cb1(ev);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_status1 == -ETIMEDOUT);
+}
+
+/* intercepted sub */
+static c2_time_t test_timeout_tm_get_buffer_timeout_tick(const struct
+							 c2_net_transfer_mc *tm)
+{
+	c2_time_t tick;
+	c2_time_set(&tick, 1, 0);
+	return tick >> 1; /* 500ms */
+}
+
+/* intercepted sub */
+static struct c2_atomic64 test_timeout_ttb_called;
+static struct c2_atomic64 test_timeout_ttb_retval; /* non zero */
+static int test_timeout_tm_timeout_buffers(struct c2_net_transfer_mc *tm,
+					   c2_time_t now)
+{
+	int rc;
+	c2_atomic64_inc(&test_timeout_ttb_called);
+	rc = nlx_tm_timeout_buffers(tm, now);
+	if (rc)
+		c2_atomic64_set(&test_timeout_ttb_retval, rc);
+	return rc;
+}
+
+static void test_timeout_body(struct ut_data *td)
+{
+	struct c2_net_buffer *nb1 = &td->bufs1[0];
+	int qts[3] = {
+		C2_NET_QT_MSG_RECV,
+		C2_NET_QT_PASSIVE_BULK_RECV,
+		C2_NET_QT_PASSIVE_BULK_SEND
+	};
+	int qt;
+	int i;
+	c2_time_t abs_timeout;
+	c2_time_t rel_timeout;
+	uint64_t timeout_secs = 1;
+
+	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
+
+	/* TEST
+	   Enqueue non-active buffers one at a time on different queues,
+	   and let them timeout.
+	   Cannot test with active buffers.
+	*/
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	nb1->nb_length = td->buf_size1;
+	c2_time_set(&rel_timeout, timeout_secs, 0);
+	for (i = 0; i < ARRAY_SIZE(qts); ++i) {
+		qt = qts[i];
+		NLXDBGPnl(td, 1, "TEST: buffer single timeout: %d\n", (int) qt);
+		ut_cbreset();
+		c2_atomic64_set(&test_timeout_ttb_called, 0);
+		if (qt == C2_NET_QT_MSG_RECV) {
+			nb1->nb_min_receive_size = UT_MSG_SIZE;
+			nb1->nb_max_receive_msgs = 1;
+		} else {
+			nb1->nb_min_receive_size = 0;
+			nb1->nb_max_receive_msgs = 0;
+		}
+		nb1->nb_qtype = qt;
+		abs_timeout = c2_time_from_now(timeout_secs, 0);
+		C2_UT_ASSERT(nb1->nb_timeout == C2_TIME_NEVER);
+		nb1->nb_timeout = abs_timeout;
+		zUT(c2_net_buffer_add(nb1, TM1), done);
+		C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+		ut_chan_timedwait(&td->tmwait1, 2 * timeout_secs);
+		C2_UT_ASSERT(c2_atomic64_get(&test_timeout_ttb_called) >=
+					     2 * timeout_secs); /* 0.5s tick */
+		C2_UT_ASSERT(c2_atomic64_get(&test_timeout_ttb_retval) == 1);
+		C2_UT_ASSERT(cb_called1 == 1);
+		C2_UT_ASSERT(cb_status1 == -ETIMEDOUT);
+		C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_QUEUED));
+		C2_UT_ASSERT(nb1->nb_timeout == C2_TIME_NEVER);
+		C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, qt, &td->qs, true));
+		C2_UT_ASSERT(td->qs.nqs_num_f_events == 1);
+		C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
+		C2_UT_ASSERT(td->qs.nqs_num_adds == 1);
+		C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+		C2_UT_ASSERT(td->qs.nqs_time_in_queue >= rel_timeout);
+
+		if (qt != C2_NET_QT_MSG_RECV)
+			c2_net_desc_free(&nb1->nb_desc);
+	}
+
+	/* TEST
+	   Enqueue multiple non-active buffers on a single queue and let
+	   them timeout at the same time.
+	   Cannot test with active buffers.
+	*/
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	qt = C2_NET_QT_MSG_RECV;
+	NLXDBGPnl(td, 1, "TEST: buffer multiple timeout\n");
+	td->buf_cb1.nbc_cb[qt] = test_timeout_msg_recv_cb1;
+	abs_timeout = c2_time_from_now(timeout_secs, 0);
+	ut_cbreset();
+	c2_atomic64_set(&test_timeout_ttb_called, 0);
+	for (i = 0; i < UT_BUFS1; ++i) {
+		nb1 = &td->bufs1[i];
+		nb1->nb_qtype = qt;
+		nb1->nb_min_receive_size = UT_MSG_SIZE;
+		nb1->nb_max_receive_msgs = 1;
+		C2_UT_ASSERT(nb1->nb_timeout == C2_TIME_NEVER);
+		nb1->nb_timeout = abs_timeout;
+		zUT(c2_net_buffer_add(nb1, TM1), done);
+		C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	}
+
+	i = 0;
+	while (cb_called1 != UT_BUFS1 && i <= UT_BUFS1) {
+		ut_chan_timedwait(&td->tmwait1, 2 * timeout_secs);
+		++i;
+	}
+	C2_UT_ASSERT(cb_called1 == UT_BUFS1);
+	C2_UT_ASSERT(c2_atomic64_get(&test_timeout_ttb_called) >=
+				     2 * timeout_secs); /* 0.5s tick */
+	C2_UT_ASSERT(c2_atomic64_get(&test_timeout_ttb_retval) == UT_BUFS1);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, qt, &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == UT_BUFS1);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == UT_BUFS1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+	C2_UT_ASSERT(td->qs.nqs_time_in_queue >= UT_BUFS1 * rel_timeout);
+
+	for (i = 0; i < UT_BUFS1; ++i) {
+		nb1 = &td->bufs1[i];
+		C2_UT_ASSERT(nb1->nb_timeout == C2_TIME_NEVER);
+	}
+
+	/* TEST
+	   Enqueue multiple non-active buffers onto a single queue.
+	   Set a timeout only on one buffer.
+	   Cannot test with active buffers.
+	*/
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	qt = C2_NET_QT_MSG_RECV;
+	NLXDBGPnl(td, 1, "TEST: buffer mixed timeout\n");
+	td->buf_cb1.nbc_cb[qt] = test_timeout_msg_recv_cb1;
+	abs_timeout = c2_time_from_now(timeout_secs, 0);
+	ut_cbreset();
+	c2_atomic64_set(&test_timeout_ttb_called, 0);
+	for (i = 0; i < UT_BUFS1; ++i) {
+		nb1 = &td->bufs1[i];
+		nb1->nb_qtype = qt;
+		nb1->nb_min_receive_size = UT_MSG_SIZE;
+		nb1->nb_max_receive_msgs = 1;
+		C2_UT_ASSERT(nb1->nb_timeout == C2_TIME_NEVER);
+		if (i == 0)
+			nb1->nb_timeout = abs_timeout;
+		zUT(c2_net_buffer_add(nb1, TM1), done);
+		C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+	}
+
+	i = 0;
+	while (cb_called1 != 1 && i <= UT_BUFS1) {
+		ut_chan_timedwait(&td->tmwait1, 2 * timeout_secs);
+		++i;
+	}
+	C2_UT_ASSERT(cb_called1 == 1);
+	C2_UT_ASSERT(c2_atomic64_get(&test_timeout_ttb_called) >=
+				     2 * timeout_secs); /* 0.5s tick */
+	C2_UT_ASSERT(c2_atomic64_get(&test_timeout_ttb_retval) == 1);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(TM1, qt, &td->qs, true));
+	C2_UT_ASSERT(td->qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(td->qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(td->qs.nqs_num_adds == UT_BUFS1);
+	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
+	C2_UT_ASSERT(td->qs.nqs_time_in_queue >= rel_timeout);
+
+	/* restore the callback sub and then cancel the other buffer */
+	td->buf_cb1.nbc_cb[qt] = ut_buf_cb1;
+	c2_net_buffer_del(nb1, TM1);
+	ut_chan_timedwait(&td->tmwait1, 3);
+	C2_UT_ASSERT(cb_called1 == 2);
+	C2_UT_ASSERT(cb_status1 == -ECANCELED);
+
+ done:
+	c2_clink_del(&td->tmwait1);
+}
+
+static void test_timeout(void)
+{
+	ut_save_subs();
+
+	nlx_xo_iv._nlx_tm_get_buffer_timeout_tick =
+		test_timeout_tm_get_buffer_timeout_tick;
+	nlx_xo_iv._nlx_tm_timeout_buffers =
+		test_timeout_tm_timeout_buffers;
+	c2_atomic64_set(&test_timeout_ttb_called, 0);
+	c2_atomic64_set(&test_timeout_ttb_retval, 0);
+
+	ut_test_framework(&test_timeout_body, NULL, ut_verbose);
+
+	ut_restore_subs();
+}
+
 const struct c2_test_suite c2_net_lnet_ut = {
         .ts_name = "net-lnet",
         .ts_init = test_lnet_init,
@@ -1877,6 +2134,7 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_buf_desc",      test_buf_desc },
 		{ "net_lnet_bulk",          test_bulk },
 		{ "net_lnet_sync",          test_sync },
+		{ "net_lnet_timeout",       test_timeout },
                 { NULL, NULL }
         }
 };

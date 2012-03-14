@@ -67,6 +67,10 @@ static int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 				      struct nlx_core_buffer_event *lcbev,
 				      struct c2_net_buffer_event *nbev);
 
+static c2_time_t nlx_tm_get_buffer_timeout_tick(const struct
+						c2_net_transfer_mc *tm);
+static int nlx_tm_timeout_buffers(struct c2_net_transfer_mc *tm, c2_time_t now);
+
 #endif /* __COLIBRI_NET_LNET_PVT_H__ */
 
 /*

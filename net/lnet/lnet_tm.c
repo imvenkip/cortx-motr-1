@@ -28,7 +28,7 @@ static inline bool all_tm_queues_are_empty(struct c2_net_transfer_mc *tm)
 {
 	int i;
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i)
-		if (!tm_tlist_is_empty(&tm->ntm_q[i]))
+		if (!c2_net_tm_tlist_is_empty(&tm->ntm_q[i]))
 			return false;
 	return true;
 }
@@ -54,6 +54,47 @@ static void nlx_tm_stats_report(struct c2_net_transfer_mc *tm)
 }
 
 /**
+   Cancel buffer operations if they have timed out.
+   @param tm The transfer machine concerned.
+   @param now The current time.
+   @pre c2_mutex_is_locked(&tm->ntm_mutex);
+   @retval The number of buffers timed out.
+ */
+static int nlx_tm_timeout_buffers(struct c2_net_transfer_mc *tm, c2_time_t now)
+{
+	int qt;
+	struct c2_net_buffer *nb;
+	int i;
+
+	C2_PRE(tm != NULL && nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+
+	for (i = 0, qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
+		c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
+			/* nb_timeout set to C2_TIME_NEVER if disabled */
+			if (c2_time_after(nb->nb_timeout, now))
+				continue;
+			nb->nb_flags |= C2_NET_BUF_TIMED_OUT;
+			nlx_xo_buf_del(nb); /* cancel if possible; !dequeued */
+			++i;
+		} c2_tlist_endfor;
+	}
+	return i;
+}
+
+/**
+   Subroutine to return the buffer timeout period for a transfer machine.
+   The subroutine exists only for unit test control.
+   It is only called once in the lifetime of a transfer machine.
+ */
+static c2_time_t nlx_tm_get_buffer_timeout_tick(const struct
+						c2_net_transfer_mc *tm)
+{
+	c2_time_t tick;
+	return c2_time_set(&tick, C2_NET_LNET_BUF_TIMEOUT_TICK_SECS, 0);
+}
+
+/**
    The entry point of the LNet transport event processing thread.
    It is spawned when the transfer machine starts.  It completes
    the start-up process and then loops, handling asynchronous buffer event
@@ -73,6 +114,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	c2_time_t timeout;
 	c2_time_t last_stat_time;
 	c2_time_t next_stat_time;
+	c2_time_t next_buffer_timeout;
+	c2_time_t buffer_timeout_tick;
 	c2_time_t now;
 	int rc = 0;
 
@@ -113,9 +156,13 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		return;
 
 	c2_mutex_lock(&tm->ntm_mutex);
-	last_stat_time = c2_time_now();
+	now = c2_time_now();
+	last_stat_time = now;
 	next_stat_time = c2_time_add(last_stat_time, tp->xtm_stat_interval);
 	c2_mutex_unlock(&tm->ntm_mutex);
+
+	buffer_timeout_tick = NLX_tm_get_buffer_timeout_tick(tm);
+	next_buffer_timeout = c2_time_add(now, buffer_timeout_tick);
 
 	while (1) {
 		/* Compute next timeout (short if automatic or stopping).
@@ -130,6 +177,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 					    C2_NET_LNET_EVT_LONG_WAIT_SECS, 0);
 		if (c2_time_after(timeout, next_stat_time))
 			timeout = next_stat_time;
+		if (c2_time_after(timeout, next_buffer_timeout))
+			timeout = next_buffer_timeout;
 
 		if (tm->ntm_bev_auto_deliver) {
 			rc = NLX_core_buf_event_wait(ctp, timeout);
@@ -156,7 +205,23 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 			c2_mutex_unlock(&tm->ntm_mutex);
 		}
 
-		/* XXX do buffer operation timeout processing periodically */
+		/* periodically record statistics and time out buffers */
+		now = c2_time_now();
+		c2_mutex_lock(&tm->ntm_mutex);
+		next_stat_time = c2_time_add(last_stat_time,
+					     tp->xtm_stat_interval);
+		if (c2_time_after_eq(now, next_stat_time)) {
+			nlx_tm_stats_report(tm);
+			last_stat_time = now;
+			next_stat_time = c2_time_add(last_stat_time,
+						     tp->xtm_stat_interval);
+		}
+		if (c2_time_after_eq(now, next_buffer_timeout)) {
+			NLX_tm_timeout_buffers(tm, now);
+			next_buffer_timeout = c2_time_add(now,
+							  buffer_timeout_tick);
+		}
+		c2_mutex_unlock(&tm->ntm_mutex);
 
 		/* termination processing */
 		if (tm->ntm_state == C2_NET_TM_STOPPING) {
@@ -176,18 +241,6 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 				break;
 			}
 		}
-
-		now = c2_time_now();
-		c2_mutex_lock(&tm->ntm_mutex);
-		next_stat_time = c2_time_add(last_stat_time,
-					     tp->xtm_stat_interval);
-		if (c2_time_after_eq(now, next_stat_time)) {
-			nlx_tm_stats_report(tm);
-			last_stat_time = now;
-			next_stat_time = c2_time_add(last_stat_time,
-						     tp->xtm_stat_interval);
-		}
-		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 }
 
@@ -225,8 +278,12 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	nbev->nbe_buffer = nb;
 	nbev->nbe_status = lcbev->cbe_status;
 	nbev->nbe_time   = lcbev->cbe_time;
-	if (nbev->nbe_status != 0)
+	if (nbev->nbe_status != 0) {
+		if (nbev->nbe_status == -ECANCELED &&
+		    nb->nb_flags & C2_NET_BUF_TIMED_OUT)
+			nbev->nbe_status = -ETIMEDOUT;
 		goto done; /* this is not an error from this sub */
+	}
 	if (nb->nb_qtype == C2_NET_QT_MSG_RECV) {
 		rc = NLX_ep_create(&nbev->nbe_ep, tm, &lcbev->cbe_sender);
 		if (rc != 0) {

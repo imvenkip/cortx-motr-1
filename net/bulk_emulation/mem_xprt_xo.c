@@ -686,7 +686,7 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 
 	/* walk through the queues and cancel every buffer */
 	for (qt = 0; qt < C2_NET_QT_NR; ++qt) {
-		c2_tlist_for(&tm_tl, &tm->ntm_q[qt], nb) {
+		c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
 			mem_xo_buf_del(nb);
 			/* bump the del stat count */
 			tm->ntm_qstats[qt].nqs_num_dels += 1;
