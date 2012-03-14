@@ -37,6 +37,7 @@ extern const struct c2_test_suite bulkio_server_ut;
 extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cob_ut;
+extern const struct c2_test_suite cobfom_ut;
 extern const struct c2_test_suite console_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite emap_ut;
@@ -80,6 +81,7 @@ void add_uts(void)
 	c2_ut_add(&capa_ut);
 	c2_ut_add(&cfm_ut);
 	c2_ut_add(&cob_ut);
+	c2_ut_add(&cobfom_ut);
 	c2_ut_add(&colibri_setup_ut);
 	c2_ut_add(&db_ut);
 	c2_ut_add(&emap_ut);

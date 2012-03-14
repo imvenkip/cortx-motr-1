@@ -194,7 +194,7 @@ int c2_cobfid_setup_recdel(struct c2_cobfid_setup *s,
  * @param s Instance of request handler service.
  * @pre s != NULL.
  */
-struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s);
+struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s);
 
 /**
    Defines a colibri context containing a set of network transports,
@@ -365,6 +365,17 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
    @pre stob != NULL
  */
 void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
+
+/**
+   Find a request handler service within a given Colibir instance.
+
+   @param cctx Pointer to Colibri context
+   @param service_name Name of the service
+
+   @pre cctx != NULL && service_name != NULL
+ */
+struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
+			       const char *service_name);
 
 /** @} endgroup colibri_setup */
 

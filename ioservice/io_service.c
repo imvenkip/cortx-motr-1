@@ -339,7 +339,7 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
 	if (rc != 0)
 		return rc;
 
-	cc = reqh_svc_colibri_locate(service);
+	cc = c2_cs_ctx_get(service);
 	C2_ASSERT(cc != NULL);
 	rc = c2_cobfid_setup_get(&s, cc);
 	C2_POST(ergo(rc == 0, s != NULL));
@@ -364,7 +364,7 @@ static void c2_ioservice_stop(struct c2_reqh_service *service)
 
         ioservice_delete_buffer_pool(service);
 
-	cc = reqh_svc_colibri_locate(service);
+	cc = c2_cs_ctx_get(service);
 	C2_ASSERT(cc != NULL);
 	c2_cobfid_setup_put(cc);
 }

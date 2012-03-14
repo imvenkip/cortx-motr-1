@@ -1226,7 +1226,43 @@ static const struct c2_addb_ctx_type cobfid_map_setup_addb = {
 C2_ADDB_EV_DEFINE(cobfid_map_setup_func_fail, "cobfid_map_setup_func_failed",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s)
+/**
+   Find a request handler service within a given Colibir instance.
+
+   @param cctx Pointer to Colibri context
+   @param service_name Name of the service
+
+   @pre cctx != NULL && service_name != NULL
+ */
+struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
+			       const char *service_name)
+{
+	int                      idx;
+	struct cs_reqh_context  *rctx;
+	struct c2_reqh		*reqh = NULL;
+
+	C2_PRE(cctx != NULL);
+	C2_PRE(service_name != NULL);
+
+	c2_mutex_lock(&cctx->cc_mutex);
+        c2_tlist_for(&rctx_descr, &cctx->cc_reqh_ctxs, rctx) {
+		C2_ASSERT(cs_reqh_context_invariant(rctx));
+
+		for (idx = 0; idx < rctx->rc_snr; ++idx) {
+			if (strcmp(rctx->rc_services[idx],
+				   service_name) == 0) {
+				reqh = &rctx->rc_reqh;
+				break;
+			}
+		}
+	} c2_tlist_endfor;
+	c2_mutex_unlock(&cctx->cc_mutex);
+
+	return reqh;
+
+}
+
+struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s)
 {
 	struct cs_reqh_context *rqctx;
 	struct c2_colibri      *cc;
