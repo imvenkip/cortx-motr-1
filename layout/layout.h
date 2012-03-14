@@ -230,6 +230,8 @@ struct c2_layout_enum_ops {
 	void     (*leo_get)(const struct c2_layout_enum *e, uint64_t lid,
 			    uint32_t idx, const struct c2_fid *gfid,
 			    struct c2_fid *out);
+
+	void     (*leo_fini)(struct c2_layout_enum *e, uint64_t lid);
 };
 
 /**

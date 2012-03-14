@@ -381,13 +381,13 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 /** Implementation of lo_fini for pdclust layout type. */
 static void pdclust_fini(struct c2_layout *l)
 {
-	uint32_t                      i;
-	struct c2_pdclust_layout     *pl;
-	struct c2_layout_striped     *stl;
+	uint32_t                    i;
+	struct c2_pdclust_layout   *pl;
+	struct c2_layout_striped   *stl;
 
 	C2_PRE(l != NULL);
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	C2_ENTRY("DESTROY, lid %llu", (unsigned long long)l->l_id);
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
@@ -458,7 +458,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 	P = pool->po_width;
 	C2_PRE(N + 2 * K <= P);
 
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	C2_ENTRY("BUILD, lid %llu", (unsigned long long)lid);
 
 	C2_ALLOC_PTR(pdl);
 	C2_ALLOC_ARR(pdl->pl_tgt, P);

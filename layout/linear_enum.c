@@ -77,7 +77,7 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 
 	C2_PRE(out != NULL && *out == NULL);
 
-	C2_ENTRY();
+	C2_ENTRY("BUILD");
 
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL) {
@@ -117,14 +117,23 @@ out:
 	return rc;
 }
 
-void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum, uint64_t lid)
+/**
+ * Implementation of leo_fini for LINEAR enumeration type.
+ */
+static void linear_fini(struct c2_layout_enum *e, uint64_t lid)
 {
-	C2_ENTRY();
+	struct c2_layout_linear_enum  *lin_enum;
+
+	C2_PRE(e != NULL);
+
+	C2_ENTRY("DESTROY");
+
+	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
 
 	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
 
 	c2_layout_linear_enum_bob_fini(lin_enum);
-	c2_layout_enum_fini(&lin_enum->lle_base);
+	c2_layout_enum_fini(e);
 
 	c2_free(lin_enum);
 
@@ -363,7 +372,8 @@ static void linear_get(const struct c2_layout_enum *le, uint64_t lid,
 
 static const struct c2_layout_enum_ops linear_enum_ops = {
 	.leo_nr         = linear_nr,
-	.leo_get        = linear_get
+	.leo_get        = linear_get,
+	.leo_fini       = linear_fini
 };
 
 static const struct c2_layout_enum_type_ops linear_type_ops = {

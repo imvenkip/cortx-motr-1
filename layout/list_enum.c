@@ -154,7 +154,7 @@ int c2_list_enum_build(uint64_t lid,
 	C2_PRE(nr != LIST_NR_NONE);
 	C2_PRE(out != NULL && *out == NULL);
 
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	C2_ENTRY("BUILD, lid %llu", (unsigned long long)lid);
 
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
@@ -220,17 +220,25 @@ out:
 	return rc;
 }
 
-void c2_list_enum_fini(struct c2_layout_list_enum *list_enum, uint64_t lid)
+/**
+ * Implementation of leo_fini for LIST enumeration type.
+ */
+void list_fini(struct c2_layout_enum *e, uint64_t lid)
 {
-	C2_ENTRY();
+	struct c2_layout_list_enum  *list_enum;
+
+	C2_PRE(e != NULL);
+
+	C2_ENTRY("DESTROY");
+
+	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
 
 	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
 
 	c2_layout_list_enum_bob_fini(list_enum);
-
 	c2_free(list_enum->lle_list_of_cobs);
-
 	c2_layout_enum_fini(&list_enum->lle_base);
+
 	c2_free(list_enum);
 
 	C2_LEAVE();
@@ -753,8 +761,9 @@ static void list_get(const struct c2_layout_enum *le, uint64_t lid,
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {
-	.leo_nr              = list_nr,
-	.leo_get             = list_get
+	.leo_nr       = list_nr,
+	.leo_get      = list_get,
+	.leo_fini     = list_fini
 };
 
 static const struct c2_layout_enum_type_ops list_type_ops = {

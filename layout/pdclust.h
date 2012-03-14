@@ -124,7 +124,6 @@ struct c2_pdclust_layout {
 	/** Parity de-clustering layout attributes. */
 	struct c2_pdclust_attr       pl_attr;
 
-
 	/**
 	 * Number of parity groups in a tile.
 	 * @see c2_pdclust_layout::pl_L
