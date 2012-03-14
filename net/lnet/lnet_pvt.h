@@ -149,7 +149,6 @@ static int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,
 				  char nidstr[C2_NET_LNET_NIDSTR_SIZE]);
 
 /** @} */ /* LNetCore */
->>>>>>> xlnet_drv
 
 #endif /* __COLIBRI_NET_LNET_PVT_H__ */
 
