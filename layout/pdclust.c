@@ -570,8 +570,8 @@ static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)
 }
 
 /** Implementation of lto_recsize() for pdclust layout type. */
-static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
-				struct c2_layout *l)
+static int pdclust_recsize(struct c2_ldb_schema *schema,
+			   struct c2_layout *l, uint32_t *recsize)
 {
 	uint32_t                      e_recsize;
 	struct c2_pdclust_layout     *pl;
@@ -587,10 +587,6 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
 
-	/* todo Critical. The return type should be changed to int
-	 * for lto_recsize().
-	 * As of now, this function can not return error.
-	 */
 	rc = enum_type_verify(schema, stl->ls_enum->le_type->let_id);
 	if (rc != 0) {
 		C2_LOG("pdclust_recsize(): lid %llu, Unqualified "
@@ -603,7 +599,9 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	e_recsize = et->let_ops->leto_recsize(stl->ls_enum, l->l_id);
 
-	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
+	*recsize = sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
+
+	return 0;
 }
 
 /**

@@ -962,6 +962,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {
+		/* ADDB message is logged through layout_type_verify(). */
 		C2_LOG("c2_ldb_add(): lid %llu, Unqualified Layout_type_id "
 		       "%lu, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id, rc);
@@ -969,7 +970,15 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	}
 
 	lt = schema->ls_type[l->l_type->lt_id];
-	recsize = lt->lt_ops->lto_recsize(schema, l);
+
+	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
+	if (rc != 0) {
+		/* ADDB message is logged through enum_type_verify(). */
+		C2_LOG("c2_ldb_add(): lid %llu, lto_recsize() failed, "
+		       "rc %d", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
+	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair,
 			      recsize, tx);
@@ -1075,6 +1084,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {
+		/* ADDB message is logged through layout_type_verify(). */
 		C2_LOG("c2_ldb_update(): lid %llu, Unqualified Layout_type_id "
 		       "%lu, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id, rc);
@@ -1083,7 +1093,14 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	recsize = lt->lt_ops->lto_recsize(schema, l);
+	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
+	if (rc != 0) {
+		/* ADDB message is logged through enum_type_verify(). */
+		C2_LOG("c2_ldb_update(): lid %llu, lto_recsize() failed, "
+		       "rc %d", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
+	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_UPDATE, l->l_id,
 			      pair, recsize, tx);
@@ -1160,6 +1177,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {
+		/* ADDB message is logged through layout_type_verify(). */
 		C2_LOG("c2_ldb_delete(): lid %llu, Unqualified Layout_type_id "
 		       "%lu, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id, rc);
@@ -1168,7 +1186,14 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	recsize = lt->lt_ops->lto_recsize(schema, l);
+	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
+	if (rc != 0) {
+		/* ADDB message is logged through enum_type_verify(). */
+		C2_LOG("c2_ldb_delete(): lid %llu, lto_recsize() failed, "
+		       "rc %d", (unsigned long long)l->l_id, rc);
+		goto out;
+	}
+	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_DELETE, l->l_id,
 			      pair, recsize, tx);

@@ -90,12 +90,13 @@ bool layout_enum_invariant(const struct c2_layout_enum *le, uint64_t lid)
 
 int c2_layouts_init(void)
 {
-	/* todo Should this fn be used to perform the following:
+	/* todo Should this fn c2_layouts_init() be used to perform the
+	 * following:
 	 * c2_ldb_schema_init(schema, dbenv);
 	 * Register pdclust and composite layout types.
 	 * Register list and linear enum types.
 	 *
-	 * If yes, how to obtain schema and dbenv parameter?
+	 * If yes, how to obtain values of schema and dbenv parameters?
 	 * And if yes, c2_layouts_fini() should do the opposite of
 	 * c2_layouts_init().
 	 */
