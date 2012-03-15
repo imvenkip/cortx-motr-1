@@ -33,7 +33,7 @@ enum {
 	CLIENT_RPC_SESSION_SLOTS  = 1,
 	CLIENT_RPC_CONN_TIMEOUT   = 200,
 	CLIENT_MAX_RPCS_IN_FLIGHT = 8,
-	COB_NAME_STRLEN           = 20,
+	COB_NAME_STRLEN           = 16,
 	COB_FID_CONTAINER_ID      = 1234,
 	COB_FID_KEY_ID            = 5678,
 	GOB_FID_CONTAINER_ID      = 1000,
@@ -181,7 +181,7 @@ static void cobfops_populate(uint64_t index)
 	cc = c2_fop_data(fop);
 	C2_ALLOC_ARR(cc->cc_cobname.ib_buf, (2 * COB_NAME_STRLEN) + 2);
 	C2_UT_ASSERT(cc->cc_cobname.ib_buf != NULL);
-	sprintf((char*)cc->cc_cobname.ib_buf, "%20lu:%20lu",
+	sprintf((char*)cc->cc_cobname.ib_buf, "%16lx:%16lx",
 			(unsigned long)cc->cc_common.c_cobfid.f_seq,
 			(unsigned long)cc->cc_common.c_cobfid.f_oid);
 	cc->cc_cobname.ib_count = strlen((char*)cc->cc_cobname.ib_buf);

@@ -143,6 +143,12 @@ struct c2_cobfid_setup {
 	 * ioservice running on this node is stopped.
 	 */
 	struct c2_ref		 cms_refcount;
+
+	/**
+	 * Back link to struct c2_colibri. This is used while finalizing
+	 * c2_cobfid_setup where the c2_colibri::cc_map pointer is made NULL.
+	 */
+	struct c2_colibri       *cms_colibri;
 };
 
 /**
@@ -194,7 +200,7 @@ int c2_cobfid_setup_recdel(struct c2_cobfid_setup *s,
  * @param s Instance of request handler service.
  * @pre s != NULL.
  */
-struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s);
+struct c2_colibri *c2_reqh_svc_colibri_locate(struct c2_reqh_service *s);
 
 /**
    Defines a colibri context containing a set of network transports,

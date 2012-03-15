@@ -2094,6 +2094,11 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 
 	c2_cob_nskey_make(&nskey, cc->fcc_cc.cc_cfid.f_container,
 			  cc->fcc_cc.cc_cfid.f_key, fop->cc_cobname.ib_buf);
+	if (nskey == NULL) {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    c2_addb_oom);
+		return -ENOMEM;
+	}
 
 	nsrec.cnr_stobid = cc->fcc_stob->so_id;
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
@@ -2115,9 +2120,17 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Memory allocation failed in cc_cob_create().", rc);
-	} else
+	} else {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Cob created successfully.");
+		/**
+		 * Since c2_cob_locate() does not cache in-memory cobs,
+		 * c2_cob_locate() allocates a new c2_cob structure
+		 * by default. Hence releasing reference of cob here which
+		 * otherwise would cause a memory leak.
+		 */
+		c2_cob_put(cob);
+	}
 
 	return rc;
 }
@@ -2133,7 +2146,7 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	C2_PRE(cc != NULL);
 	C2_PRE(cc->fcc_stob != NULL);
 
-	cctx = reqh_svc_colibri_locate(fom->fo_service);
+	cctx = c2_reqh_svc_colibri_locate(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
 	c2_mutex_lock(&cctx->cc_mutex);
 	rc = c2_cobfid_setup_get(&s, cctx);
@@ -2328,7 +2341,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	cctx = reqh_svc_colibri_locate(fom->fo_service);
+	cctx = c2_reqh_svc_colibri_locate(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
 	c2_mutex_lock(&cctx->cc_mutex);
 	rc = c2_cobfid_setup_get(&s, cctx);

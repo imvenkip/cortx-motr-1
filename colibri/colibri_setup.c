@@ -223,7 +223,7 @@ static const struct c2_tl_descr ndoms_descr = C2_TL_DESCR("network domains",
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 							const char *xprt);
 
-static int cobfid_map_setup_init(struct c2_cobfid_setup *s, const char *name);
+static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name);
 
 static void cobfid_map_setup_fini(struct c2_ref *ref);
 
@@ -1226,7 +1226,7 @@ static const struct c2_addb_ctx_type cobfid_map_setup_addb = {
 C2_ADDB_EV_DEFINE(cobfid_map_setup_func_fail, "cobfid_map_setup_func_failed",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-struct c2_colibri *reqh_svc_colibri_locate(struct c2_reqh_service *s)
+struct c2_colibri *c2_reqh_svc_colibri_locate(struct c2_reqh_service *s)
 {
 	struct cs_reqh_context *rqctx;
 	struct c2_colibri      *cc;
@@ -1257,7 +1257,7 @@ int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_colibri *cc)
 		if (cc->cc_map == NULL)
 			return -ENOMEM;
 
-		rc = cobfid_map_setup_init(cc->cc_map, cobfid_map_name);
+		rc = cobfid_map_setup_init(cc, cobfid_map_name);
 		if (rc != 0) {
 			c2_free(cc->cc_map);
 			return rc;
@@ -1281,14 +1281,16 @@ void c2_cobfid_setup_put(struct c2_colibri *cc)
 	c2_ref_put(&cc->cc_map->cms_refcount);
 }
 
-static int cobfid_map_setup_init(struct c2_cobfid_setup *s, const char *name)
+static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name)
 {
 	int rc;
+	struct c2_cobfid_setup *s;
 
-	C2_PRE(s != NULL);
+	C2_PRE(cc != NULL);
+	C2_PRE(cc->cc_map != NULL);
 	C2_PRE(name != NULL);
 
-	C2_SET0(s);
+	s = cc->cc_map;
 
 	rc = c2_dbenv_init(&s->cms_dbenv, name, 0);
 	if (rc != 0) {
@@ -1311,21 +1313,25 @@ static int cobfid_map_setup_init(struct c2_cobfid_setup *s, const char *name)
 	c2_mutex_init(&s->cms_mutex);
 	c2_addb_ctx_init(&s->cms_addb, &cobfid_map_setup_addb,
 			 &c2_addb_global_ctx);
+	s->cms_colibri = cc;
 	return rc;
 }
 
 static void cobfid_map_setup_fini(struct c2_ref *ref)
 {
+	struct c2_colibri      *cc;
 	struct c2_cobfid_setup *s;
 
 	C2_PRE(ref != NULL);
 
 	s = container_of(ref, struct c2_cobfid_setup, cms_refcount);
+	cc = s->cms_colibri;
 	c2_cobfid_map_fini(&s->cms_map);
 	c2_dbenv_fini(&s->cms_dbenv);
 	c2_addb_ctx_fini(&s->cms_addb);
 	c2_mutex_fini(&s->cms_mutex);
 	c2_free(s);
+	cc->cc_map = NULL;
 }
 
 static int cobfid_map_setup_process(struct c2_cobfid_setup *s,
