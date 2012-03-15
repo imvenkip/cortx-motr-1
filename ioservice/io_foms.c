@@ -2146,7 +2146,7 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	C2_PRE(cc != NULL);
 	C2_PRE(cc->fcc_stob != NULL);
 
-	cctx = c2_reqh_svc_colibri_locate(fom->fo_service);
+	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
 	c2_mutex_lock(&cctx->cc_mutex);
 	rc = c2_cobfid_setup_get(&s, cctx);
@@ -2341,7 +2341,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	cctx = c2_reqh_svc_colibri_locate(fom->fo_service);
+	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
 	c2_mutex_lock(&cctx->cc_mutex);
 	rc = c2_cobfid_setup_get(&s, cctx);

@@ -19,10 +19,36 @@
  * Original creation date: 09/29/2011
  */
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include "lib/processor.h"
 #include "lib/ut.h"
 #include "bulkio_common.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"
+
+enum cob_ids {
+	COB_TEST_ID = 1
+};
+
+enum cob_fom_type {
+	COB_CREATE = 1,
+	COB_DELETE = 2
+};
+
+enum cob_env_type {
+	TEST_ENV_COB = 1,
+	TEST_ENV_STOB = 2
+};
+
+static char test_cobname[] = "cobfom_testcob";
+
+/* Forward declarations */
+static struct c2_fom *cd_fom_alloc();
+static void cd_fom_dealloc(struct c2_fom *fom);
+static void bulkio_init();
+static void bulkio_fini();
 
 struct bulkio_params *bp;
 extern void bulkioapi_test(void);
@@ -81,6 +107,851 @@ static struct c2_fom_type bulkio_server_read_fom_type = {
 static struct c2_fom_type bulkio_stob_create_fom_type = {
 	.ft_ops = &bulkio_stob_create_fom_type_ops,
 };
+
+/*
+ *****************
+ * Common functions
+ ******************
+ */
+
+static void cob_test_init()
+{
+	bulkio_init();
+}
+
+static void cob_test_fini()
+{
+	bulkio_fini();
+}
+
+/*
+ * Create COB FOMs - create or delete
+ */
+static int fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
+{
+	int rc = -1;
+
+	switch (fomtype) {
+	case COB_CREATE:
+		rc = cc_fom_create(fom);
+		break;
+	case COB_DELETE:
+		rc = cd_fom_create(fom);
+		break;
+	default:
+		C2_IMPOSSIBLE("Invalid COB-FOM type");
+		break;
+	}
+
+	if (rc == 0) {
+		struct c2_fom *base_fom = *fom;
+		struct c2_reqh *reqh;
+
+		c2_fom_init(base_fom);	
+		reqh = c2_cs_reqh_get(&bp->bp_sctx->rsx_colibri_ctx,
+				      "ioservice");
+		C2_UT_ASSERT(reqh != NULL);
+
+		base_fom->fo_service = c2_reqh_service_get("ioservice", reqh);
+		C2_UT_ASSERT(base_fom->fo_service != NULL);
+
+		base_fom->fo_loc = &reqh->rh_fom_dom.fd_localities[0];
+		c2_atomic64_inc(&base_fom->fo_loc->fl_dom->fd_foms_nr);
+
+		base_fom->fo_fol = reqh->rh_fol;
+		base_fom->fo_loc->fl_dom->fd_reqh = reqh;
+	}
+	return rc;
+}
+
+/*
+ * Delete COB FOMs - create or delete
+ */
+static void fom_fini(struct c2_fom *fom, enum cob_fom_type fomtype)
+{
+	fom->fo_phase = FOPH_FINISH;
+
+	switch (fomtype) {
+	case COB_CREATE:
+		cc_fom_fini(fom);
+		break;
+	case COB_DELETE:
+		cd_fom_fini(fom);
+		break;
+	default:
+		C2_IMPOSSIBLE("Invalid COB-FOM type");
+		break;
+	}
+	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);	
+}
+
+/*
+ * Allocate desired FOP and populate test-data in it.
+ */
+static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
+{
+	struct c2_fop_cob_create *cf;
+	struct c2_fop_cob_delete *df;
+	struct c2_fop		 *base_fop;
+
+	switch (fomtype) {
+	case COB_CREATE:
+		base_fop = c2_fop_alloc(&c2_fop_cob_create_fopt, NULL);
+		if (base_fop != NULL) {
+			cf = c2_fop_data(base_fop);
+			cf->cc_common.c_gobfid.f_seq = COB_TEST_ID;
+			cf->cc_common.c_gobfid.f_oid = COB_TEST_ID;
+			cf->cc_common.c_cobfid.f_seq = COB_TEST_ID;
+			cf->cc_common.c_cobfid.f_oid = COB_TEST_ID;
+			cf->cc_cobname.ib_count = strlen(test_cobname);
+			cf->cc_cobname.ib_buf = test_cobname;
+			fom->fo_fop = base_fop;
+			fom->fo_type = &base_fop->f_type->ft_fom_type;
+		}
+		break;
+	case COB_DELETE:
+		base_fop = c2_fop_alloc(&c2_fop_cob_delete_fopt, NULL);
+		if (base_fop != NULL) {
+			df = c2_fop_data(base_fop);
+			df->cd_common.c_gobfid.f_seq = COB_TEST_ID;
+			df->cd_common.c_gobfid.f_oid = COB_TEST_ID;
+			df->cd_common.c_cobfid.f_seq = COB_TEST_ID;
+			df->cd_common.c_cobfid.f_oid = COB_TEST_ID;
+			fom->fo_fop = base_fop;
+			fom->fo_type = &base_fop->f_type->ft_fom_type;
+		}
+		break;
+	default:
+		C2_IMPOSSIBLE("Invalid COB-FOM type");
+		break;
+	}
+}
+
+/*
+ * Accept a COB FOM (create/delete). Delete FOP within FOM.
+ */
+static void fop_dealloc(struct c2_fom *fom, enum cob_fom_type fomtype)
+{
+	struct c2_fop_cob_create *cf;
+	struct c2_fop_cob_delete *df;
+	struct c2_fop		 *base_fop;
+
+	base_fop = fom->fo_fop;
+
+	switch (fomtype) {
+	case COB_CREATE:
+		cf = c2_fop_data(base_fop);
+		c2_free(cf);
+		break;
+	case COB_DELETE:
+		df = c2_fop_data(base_fop);
+		c2_free(df);
+		break;
+	default:
+		C2_IMPOSSIBLE("Invalid COB-FOM type");
+		break;
+	}
+}
+
+/*
+ * A generic COB-FOM-delete verification function. Check memory usage.
+ */
+static void fom_fini_test(enum cob_fom_type fomtype)
+{
+	size_t	       tot_mem;
+	size_t	       base_mem;
+	size_t	       obj_mem;
+	int	       rc = -1;
+	struct c2_fom *fom;
+
+	/*
+	 * 1. Calculate FOM object size 
+	 * 2. Allocate FOM object of interest
+	 * 3. Calculate current memory usage before and after object allocation
+	 *    and de-allocation.
+	 */
+	switch (fomtype) {
+	case COB_CREATE:
+		obj_mem = sizeof (struct c2_fom_cob_create);
+		break;
+	case COB_DELETE:
+		obj_mem = sizeof (struct c2_fom_cob_delete);
+		break;
+	default:
+		C2_IMPOSSIBLE("Invalid COB-FOM type");
+		break;
+	}
+
+	base_mem = c2_allocated();
+	fom_create(&fom, fomtype);
+	if (rc == 0) {
+		/* Ensure - memory usage goes up */
+		tot_mem = c2_allocated();
+		C2_UT_ASSERT(tot_mem == (obj_mem+base_mem));
+
+		/* Ensure - after fom_fini() memory usage drops */
+		fom_fini(fom, fomtype);
+		tot_mem = c2_allocated();
+		C2_UT_ASSERT(tot_mem == base_mem);
+	}
+}
+
+/*
+ * A generic COB-FOM test function that validates the sub-class FOM object.
+ */
+static void fom_get_test(enum cob_fom_type fomtype)
+{
+	int			  rc = -1;
+	struct c2_fom		 *fom;
+	struct c2_fom_cob_create *cc;
+	struct c2_fom_cob_delete *cd;
+
+	rc = fom_create(&fom, fomtype);
+	if (rc == 0) {
+		switch (fomtype) {
+		case COB_CREATE:
+			cc = cc_fom_get(fom);
+			C2_UT_ASSERT(cc != NULL);
+			C2_UT_ASSERT(&cc->fcc_cc.cc_fom == fom);
+			break;
+		case COB_DELETE:
+			cd = cd_fom_get(fom);
+			C2_UT_ASSERT(cd != NULL);
+			C2_UT_ASSERT(&cd->fcd_cc.cc_fom == fom);
+			break;
+		default:
+			C2_IMPOSSIBLE("Invalid COB-FOM type");
+			break;
+		}
+		fom_fini(fom, fomtype);
+	}
+}
+
+/*
+ * A generic test to verify COM-FOM create functions.
+ */
+static void fom_create_test(enum cob_fom_type fomtype)
+{
+	struct c2_fom *fom;
+	int	       rc;
+
+	rc = fom_create(&fom, fomtype);
+	C2_UT_ASSERT(rc == 0 || rc == -ENOMEM);
+	C2_UT_ASSERT(ergo(rc == 0, fom != NULL));
+	if (rc == 0)
+		fom_fini(fom, fomtype);
+}
+
+/*
+ * Verify cobfid map in the database.
+ */
+static void cobfid_map_verify(bool map_exists)
+{
+	int			   rec_nr = 0;
+	int			   rc;
+	bool			   found = false;
+	uint64_t		  *cid_out = NULL;
+	struct c2_cobfid_map_iter  cfm_iter;
+	struct c2_cobfid_map	   cfm_map;
+	struct c2_fid		  *fid_out = NULL;
+	struct c2_uint128	  *cob_fid_out = NULL;
+
+	rc = c2_cobfid_map_enum(&cfm_map, &cfm_iter);
+	C2_UT_ASSERT(rc == 0);
+	while ((rc = c2_cobfid_map_iter_next(&cfm_iter,
+					     &cid_out[rec_nr],
+					     &fid_out[rec_nr],
+					     &cob_fid_out[rec_nr])) == 0) {
+		if (cob_fid_out[rec_nr].u_hi == COB_TEST_ID) {
+			found = true;
+			break;
+		}
+		rec_nr++;
+	}
+	C2_UT_ASSERT(found == map_exists);
+}
+
+/*
+ *****************
+ * COB create-FOM test functions
+ ******************
+ */
+/*
+ * Delete COB-create FOM.
+ */
+static void cc_fom_dealloc(struct c2_fom *fom)
+{
+	fom->fo_phase = FOPH_FINISH;
+	fop_dealloc(fom, COB_CREATE);
+	cc_fom_fini(fom);
+}
+
+/*
+ * Create COB-create FOM and populate it with testdata.
+ */
+static struct c2_fom *cc_fom_alloc()
+{
+	struct c2_fom *fom = NULL;
+	int	       rc;
+
+	rc = fom_create(&fom, COB_CREATE);
+
+	if (rc == 0) {
+		fop_alloc(fom, COB_CREATE);
+		C2_UT_ASSERT(fom->fo_fop != NULL);
+		cc_fom_populate(fom);
+		fom->fo_phase = FOPH_CC_COB_CREATE;
+	}
+	return fom;
+}
+
+/*
+ * Test function for cc_fom_create().
+ */
+static void cc_fom_create_test()
+{
+	fom_create_test(COB_CREATE);
+}
+
+/*
+ * Test function for cc_fom_fini().
+ */
+static void cc_fom_fini_test()
+{
+	fom_fini_test(COB_CREATE);
+}
+
+/*
+ * Test function for cc_fom_get().
+ */
+static void cc_fom_get_test()
+{
+	fom_get_test(COB_CREATE);
+}
+
+/*
+ * Test function for cc_stob_create().
+ */
+static void cc_stob_create_test()
+{
+	struct c2_fom_cob_create *cc;
+	struct c2_fom		 *fom;
+	int			  rc;
+
+	fom = cc_fom_alloc();
+	if (fom != NULL) {
+		cc = cc_fom_get(fom);
+
+		rc = cc_stob_create(fom, cc);
+		C2_UT_ASSERT(fom->fo_phase == FOPH_CC_COB_CREATE);
+
+		C2_UT_ASSERT(rc == 0);
+
+		C2_UT_ASSERT(cc->fcc_stob != NULL);
+		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
+		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		/*
+	 	 * To do - Perform stat on the path.
+	 	 */
+		c2_stob_put(cc->fcc_stob);
+		cc_fom_dealloc(fom);
+	}
+}
+
+/*
+ * Test function to check COB record in the database.
+ */
+static void cob_create_verify(struct c2_cob **cob_out, struct c2_fom *fom)
+{
+	int			  rc;
+	struct c2_db_tx		  tx;
+	struct c2_cob_domain	 *cobdom;
+	struct c2_cob		 *cob = *cob_out;
+	struct c2_cob_nskey	 *nskey;
+	struct c2_dbenv		 *dbenv;
+
+	cobdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
+	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+
+	c2_cob_nskey_make(&nskey, COB_TEST_ID, COB_TEST_ID, test_cobname);
+
+	C2_SET0(&tx);
+	rc = c2_db_tx_init(&tx, dbenv, 0);
+	C2_UT_ASSERT(rc == 0);
+	rc = c2_cob_lookup(cobdom, nskey, CA_NSKEY_FREE, &cob, &tx);
+	c2_db_tx_commit(&tx);
+
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(cob != NULL);
+	C2_UT_ASSERT(cob->co_valid & CA_NSREC);
+}
+
+/*
+ * Test function for cc_cob_create().
+ */
+static void cc_cob_create_test()
+{
+	struct c2_fom_cob_create *cc;
+	struct c2_fom		 *fom;
+	struct c2_cob		 *cob = NULL;
+	struct c2_dbenv		 *dbenv;
+	int			  rc;
+
+	fom = cc_fom_alloc();
+	if (fom != NULL) {
+		cc = cc_fom_get(fom);
+
+		/*
+		 * Create STOB first.
+		 */
+		rc = cc_stob_create(fom, cc);
+		C2_UT_ASSERT(rc == 0);
+
+		/*
+		 * Set the FOM phase and set transaction context
+		 * Test-case 1: Test successful creation of COB
+		 */
+		fom->fo_phase = FOPH_CC_COB_CREATE;
+		dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+		rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
+		rc = cc_cob_create(fom, cc);
+		C2_UT_ASSERT(fom->fo_phase == FOPH_CC_COB_CREATE);
+		c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
+
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(cc->fcc_stob != NULL);
+		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
+		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+
+		/*
+		 * Test-case 1 - Verify COB creation
+		 */
+		cob_create_verify(&cob, fom);
+
+		/*
+		 * Test-case 2 - Test failure case. Try to create the
+		 * same COB.
+		 */
+		rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
+		rc = cc_cob_create(fom, cc);
+		C2_UT_ASSERT(rc != 0);
+
+		/*
+		 * Start cleanup by deleting the COB
+		 */
+		c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
+		rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
+		rc = c2_cob_delete(cob, &fom->fo_tx.tx_dbtx);
+		c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
+		C2_UT_ASSERT(rc == 0);
+
+		c2_stob_put(cc->fcc_stob);
+		cc_fom_dealloc(fom);
+	}
+}
+
+/*
+ * Test function for cc_cobfid_map_add_test().
+ */
+static void cc_cobfid_map_add_test()
+{
+	struct c2_fom_cob_create *cc;
+	struct c2_fom_cob_delete *cd;
+	struct c2_dbenv		 *dbenv;
+	struct c2_fom		 *cfom;
+	struct c2_fom		 *dfom;
+	int			  rc;
+
+	cfom = cc_fom_alloc();
+	if (cfom != NULL) {
+		cc = cc_fom_get(cfom);
+		rc = cc_stob_create(cfom, cc);
+		C2_UT_ASSERT(cfom->fo_phase != FOPH_FAILURE);
+
+		cfom->fo_phase = FOPH_CC_COB_CREATE;
+		dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+		rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
+		rc = cc_cob_create(cfom, cc);
+		C2_UT_ASSERT(rc == 0);
+
+		rc = cc_cobfid_map_add(cfom, cc);
+		C2_UT_ASSERT(rc == 0);
+		c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
+
+		C2_UT_ASSERT(rc == 0);
+		cobfid_map_verify(true);
+
+		/*
+		 * Now create delete fom. Use FOM functions to delete cob-data.
+		 */
+		dfom = cd_fom_alloc();
+		C2_UT_ASSERT(dfom != NULL);
+		cd = cd_fom_get(dfom);
+		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
+
+		rc = cd_cob_delete(dfom, cd);
+		C2_UT_ASSERT(rc == 0);
+		rc = cd_stob_delete(dfom, cd);
+		C2_UT_ASSERT(rc == 0);
+		rc = cd_cobfid_map_delete(dfom, cd);
+		C2_UT_ASSERT(rc == 0);
+		c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
+
+		cc_fom_dealloc(cfom);
+		cd_fom_dealloc(dfom);
+	}
+}
+
+/*
+ * Test function for cc_fom_state().
+ */
+static void cc_fom_state_test()
+{
+	struct c2_fom_cob_create *cc;
+	struct c2_fom_cob_delete *cd;
+	struct c2_fom		 *cfom;
+	struct c2_fom		 *dfom;
+	struct c2_cob		 *cob = NULL;
+	int			  rc;
+
+	cfom = cc_fom_alloc();
+	if (cfom != NULL) {
+		rc = cc_fom_state(cfom);
+		C2_UT_ASSERT(rc == FSO_AGAIN);
+		C2_UT_ASSERT(cfom->fo_phase == FOPH_SUCCESS);
+
+		cc = cc_fom_get(cfom);
+		C2_UT_ASSERT(cc->fcc_stob != NULL);
+		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
+		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		cob_create_verify(&cob, cfom);
+		cobfid_map_verify(cfom);
+
+		/*
+		 * Now create delete fom. Use FOM functions to delete cob-data.
+		 */
+		dfom = cd_fom_alloc();
+		C2_UT_ASSERT(dfom != NULL);
+		cd = cd_fom_get(dfom);
+
+		rc = cd_cob_delete(dfom, cd);
+		cc_fom_dealloc(cfom);
+		cd_fom_dealloc(dfom);
+	}
+}
+
+/*
+ * Test function for cc_fom_populate().
+ */
+static void cc_fom_populate_test()
+{
+	struct c2_fom_cob_create *cc;
+	struct c2_fom		 *fom;
+
+	fom = cc_fom_alloc();
+	if (fom != NULL) {
+		cc = cc_fom_get(fom);
+		C2_UT_ASSERT(cc->fcc_cc.cc_cfid.f_container == COB_TEST_ID);
+		C2_UT_ASSERT(cc->fcc_cc.cc_cfid.f_key == COB_TEST_ID);
+		cc_fom_dealloc(fom);
+	}
+}
+
+/*
+ *****************
+ * COB delete-FOM test functions
+ ******************
+ */
+
+/*
+ * Delete COB-delete FOM object.
+ */
+static void cd_fom_dealloc(struct c2_fom *fom)
+{
+	fom->fo_phase = FOPH_FINISH;
+	fop_dealloc(fom, COB_DELETE);
+	cd_fom_fini(fom);
+}
+
+/*
+ * Create COB-delete FOM and populate it with testdata.
+ */
+static struct c2_fom *cd_fom_alloc()
+{
+	int	       rc;
+	struct c2_fom *fom = NULL;
+
+	rc = fom_create(&fom, COB_DELETE);
+
+	if (rc == 0) {
+		fop_alloc(fom, COB_DELETE);
+		C2_UT_ASSERT(fom->fo_fop != NULL);
+		cd_fom_populate(fom);
+	}
+	return fom;
+}
+
+/*
+ * Test function for cd_fom_create().
+ */
+static void cd_fom_create_test()
+{
+	fom_create_test(COB_DELETE);
+}
+
+/*
+ * Test function for cd_fom_fini().
+ */
+static void cd_fom_fini_test()
+{
+	fom_fini_test(COB_DELETE);
+}
+
+/*
+ * Test function for cd_fom_get().
+ */
+static void cd_fom_get_test()
+{
+	fom_get_test(COB_DELETE);
+}
+
+/*
+ * Test function for cd_fom_populate().
+ */
+static void cd_fom_populate_test()
+{
+	struct c2_fom_cob_delete *cd;
+	struct c2_fom		 *fom;
+
+	fom = cd_fom_alloc();
+	if (fom != NULL) {
+		cd = cd_fom_get(fom);
+		C2_UT_ASSERT(cd->fcd_cc.cc_cfid.f_container == COB_TEST_ID);
+		C2_UT_ASSERT(cd->fcd_cc.cc_cfid.f_key == COB_TEST_ID);
+		C2_UT_ASSERT(cd->fcd_stobid.si_bits.u_hi == COB_TEST_ID);
+		C2_UT_ASSERT(cd->fcd_stobid.si_bits.u_lo == COB_TEST_ID);
+		cd_fom_dealloc(fom);
+	}
+}
+
+/*
+ * Before testing COB-delete FOM functions, create COB testdata.
+ */
+static struct c2_fom *cob_testdata_create()
+{
+	struct c2_fom *fom;
+	int	       rc;
+
+	/*
+	 * Create cob-create FOM.
+	 * Crate COB and related meta-data.
+	 */
+	fom = cc_fom_alloc();
+	C2_UT_ASSERT(fom != NULL);
+	rc = cc_fom_state(fom);
+	C2_UT_ASSERT(rc == FSO_AGAIN);
+	C2_UT_ASSERT(fom->fo_phase == FOPH_SUCCESS);
+
+	return fom;
+}
+
+/*
+ * Delete COB testdata. In this case we delete COB-create FOM.
+ */
+static void cob_testdata_cleanup(struct c2_fom *fom)
+{
+	cc_fom_dealloc(fom);
+}
+
+/*
+ * Test function for cd_cob_delete()
+ */
+static void cd_cob_delete_test()
+{
+	struct c2_fom_cob_delete *cd;
+	struct c2_fom		 *cfom;
+	struct c2_fom		 *dfom;
+	int			  rc;
+
+	cfom = cob_testdata_create();
+
+	/* Test COB delete after COB has been created */
+	dfom = cd_fom_alloc();
+	if (dfom != NULL) {
+		cd = cd_fom_get(dfom);
+		rc = cd_cob_delete(dfom, cd);
+		C2_UT_ASSERT(dfom->fo_phase == FOPH_FAILURE ||
+			     dfom->fo_phase == FOPH_CD_COB_DEL);
+
+		if (dfom->fo_phase == FOPH_CD_COB_DEL) {
+			C2_UT_ASSERT(rc == 0);
+		}
+		cd_fom_dealloc(dfom);
+	}
+	cob_testdata_cleanup(cfom);
+}
+
+/*
+ * Test function for cd_stob_delete()
+ */
+static void cd_stob_delete_test()
+{
+	struct c2_fom_cob_delete *cd;
+	struct c2_fom		 *cfom;
+	struct c2_fom		 *dfom;
+	int			  rc;
+
+	cfom = cob_testdata_create();
+
+	/* Test stob delete after COB has been created */
+	dfom = cd_fom_alloc();
+	if (dfom != NULL) {
+		cd = cd_fom_get(dfom);
+		rc = cd_stob_delete(dfom, cd);
+		C2_UT_ASSERT(dfom->fo_phase == FOPH_FAILURE ||
+			     dfom->fo_phase == FOPH_CD_COB_DEL);
+
+		if (dfom->fo_phase == FOPH_CD_COB_DEL) {
+			C2_UT_ASSERT(rc == 0);
+		}
+		cd_fom_dealloc(dfom);
+	}
+	cob_testdata_cleanup(cfom);
+}
+
+/*
+ * Test function for cd_cobfid_map_delete()
+ */
+static void cd_cobfid_map_delete_test()
+{
+	struct c2_fom_cob_delete *cd;
+	struct c2_fom		 *cfom;
+	struct c2_fom		 *dfom;
+	int			  rc;
+
+	cfom = cob_testdata_create();
+
+	/* Test if COB-map got deleted */
+	dfom = cd_fom_alloc();
+	if (dfom != NULL) {
+		cd = cd_fom_get(dfom);
+		rc = cd_cobfid_map_delete(dfom, cd);
+		C2_UT_ASSERT(dfom->fo_phase == FOPH_FAILURE ||
+			     dfom->fo_phase == FOPH_CD_COB_DEL);
+
+		if (dfom->fo_phase == FOPH_CD_COB_DEL) {
+			C2_UT_ASSERT(rc == 0);
+			cobfid_map_verify(false);
+		}
+		cd_fom_dealloc(dfom);
+	}
+	cob_testdata_cleanup(cfom);
+}
+
+/*
+ * Test function for cd_fom_state()
+ */
+static void cd_fom_state_test()
+{
+	struct c2_fom		 *cfom;
+	struct c2_fom		 *dfom;
+	int			  rc;
+
+	cfom = cob_testdata_create();
+
+	/* Test if COB-map got deleted */
+	dfom = cd_fom_alloc();
+	if (dfom != NULL) {
+		rc = cd_fom_state(dfom);
+		C2_UT_ASSERT(dfom->fo_phase == FOPH_FAILURE ||
+			     dfom->fo_phase == FOPH_SUCCESS);
+
+		if (dfom->fo_phase == FOPH_SUCCESS) {
+			C2_UT_ASSERT(rc == 0);
+			cobfid_map_verify(false);
+		}
+		cd_fom_dealloc(dfom);
+	}
+	cob_testdata_cleanup(cfom);
+}
+
+/*
+ *****************
+ * CUnit interfaces for testing COB-FOM functions
+ ******************
+ */
+
+static void cob_create_api_test(void)
+{
+	cob_test_init();
+
+	/* Test for cc_fom_create() */
+	cc_fom_create_test();
+
+	/* Test for cc_fom_fini() */
+	cc_fom_fini_test();
+
+	/* Test for cc_fom_fini() */
+	cc_fom_get_test();
+
+	/* Test cc_fom_populate() */
+	cc_fom_populate_test();
+
+	/* Test cc_stob_create() */
+	cc_stob_create_test();
+
+	/* Test cc_cob_create() */
+	cc_cob_create_test();
+
+	/* Test cc_cobfid_map_add() */
+	cc_cobfid_map_add_test();
+
+	/* Test for cc_fom_state() */
+	cc_fom_state_test();
+
+	cob_test_fini();
+}
+
+static void cob_delete_api_test(void)
+{
+	cob_test_init();
+
+	/* Test for cd_fom_create() */
+	cd_fom_create_test();
+
+	/* Test for cd_fom_fini() */
+	cd_fom_fini_test();
+
+	/* Test for cd_fom_fini() */
+	cd_fom_get_test();
+
+	/* Test cd_fom_populate() */
+	cd_fom_populate_test();
+
+	/* Test cd_stob_delete() */
+	cd_stob_delete_test();
+
+	/* Test cd_cob_delete() */
+	cd_cob_delete_test();
+
+	/* Test cd_cobfid_map_delete() */
+	cd_cobfid_map_delete_test();
+
+	/* Test for cd_fom_state() */
+	cd_fom_state_test();
+
+	cob_test_fini();
+}
+
+/***************
+ * IO FOMs testing functions below
+ ***************
+ */
 
 /*
  * Intercepting FOM to test I/O FOM functions for different phases.
@@ -1599,3 +2470,21 @@ const struct c2_test_suite bulkio_server_ut = {
 	}
 };
 C2_EXPORTED(bulkio_server_ut);
+
+/*
+ * Why is this here?
+ * We need to test static function. To do that we need to include .c file.
+ * Since this is tightly integrated with IO FOMs, putting this and related
+ * functions in a separate file results in linking error.
+ *
+ */
+const struct c2_test_suite cobfom_ut = {
+	.ts_name = "cobfom_ut",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{ "COB Create FOM API test   ", cob_create_api_test},
+		{ "COB Delete FOM API test   ", cob_delete_api_test},
+		{ NULL, NULL }
+	}
+};

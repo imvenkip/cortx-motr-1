@@ -294,6 +294,8 @@ int c2_reqhs_init(void);
 */
 void c2_reqhs_fini(void);
 
+struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
+                                            const struct c2_reqh *reqh);
 /** @} endgroup reqh */
 
 /* __COLIBRI_REQH_REQH_H__ */
