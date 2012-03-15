@@ -645,7 +645,8 @@ void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 	/** @todo XXX implement */
 }
 
-int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
+int nlx_core_tm_start(struct nlx_core_domain *cd,
+		      struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm)
 {
 	struct nlx_core_buffer_event *e1;
@@ -679,7 +680,8 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	}
 }
 
-void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
+void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
+		      struct nlx_core_transfer_mc *lctm)
 {
 	/** @todo XXX: temp, really belongs in async code */
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);

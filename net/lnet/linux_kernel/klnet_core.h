@@ -128,7 +128,6 @@ struct nlx_kcore_transfer_mc {
 	struct c2_addb_ctx            ktm_addb;
 };
 
-
 /**
    Kernel buffer private data.
    This structure is pointed to by nlx_core_buffer::cb_kpvt.

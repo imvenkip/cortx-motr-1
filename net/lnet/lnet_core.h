@@ -823,6 +823,7 @@ static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
 /**
    Starts a transfer machine. Internally this results in
    the creation of the LNet EQ associated with the transfer machine.
+   @param lcdom The domain private data.
    @param tm The transfer machine pointer.
    @param lctm The transfer machine private data to be initialized.  The
    nlx_core_transfer_mc::ctm_addr must be set by the caller.  If the
@@ -833,16 +834,19 @@ static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
    @note This function does not create a c2_net_end_point for the transfer
    machine, because there is no equivalent object at the core layer.
  */
-static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
+static int nlx_core_tm_start(struct nlx_core_domain *lcdom,
+			     struct c2_net_transfer_mc *tm,
 			     struct nlx_core_transfer_mc *lctm);
 
 /**
    Stops the transfer machine and release associated resources.  All operations
    must be finalized prior to this call.
+   @param lcdom The domain private data.
    @param lctm The transfer machine private data.
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
-static void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm);
+static void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
+			     struct nlx_core_transfer_mc *lctm);
 
 /**
    Compare two struct nlx_core_ep_addr objects.

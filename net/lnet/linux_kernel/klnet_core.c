@@ -1646,45 +1646,90 @@ void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 	return nlx_kcore_nidstrs_put(nidary);
 }
 
+static int nlx_kcore_new_blessed_bev(struct nlx_core_buffer_event **bevp)
+{
+	struct nlx_core_buffer_event *bev;
+
+	C2_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
+	if (bev == NULL) {
+		*bevp = NULL;
+		return -ENOMEM;
+	}
+	bev_link_bless(&bev->cbe_tm_link);
+	*bevp = bev;
+	return 0;
+}
+
+int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
+			     struct nlx_core_buffer_event **bevp)
+{
+	return nlx_kcore_new_blessed_bev(bevp);
+}
+
+static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
+{
+	struct nlx_core_buffer_event *bev;
+	if (ql != NULL) {
+		bev = container_of(ql, struct nlx_core_buffer_event,
+				   cbe_tm_link);
+		c2_free(bev);
+	}
+}
+
+static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
+			      struct nlx_core_transfer_mc *ctm,
+			      struct nlx_kcore_transfer_mc *ktm)
+{
+	int rc;
+
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	C2_PRE(nlx_core_tm_invariant(ctm));
+	C2_PRE(nlx_kcore_tm_invariant(ktm));
+	C2_PRE(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
+
+	rc = LNetEQFree(ktm->ktm_eqh);
+	C2_ASSERT(rc == 0);
+	c2_semaphore_fini(&ktm->ktm_sem);
+
+	c2_mutex_lock(&nlx_kcore_mutex);
+	tms_tlist_del(ktm);
+	c2_mutex_unlock(&nlx_kcore_mutex);
+	c2_addb_ctx_fini(&ktm->ktm_addb);
+	ktm->ktm_magic = 0;
+	ctm->ctm_kpvt = NULL;
+}
+
+void nlx_core_tm_stop(struct nlx_core_domain *cd,
+		      struct nlx_core_transfer_mc *ctm)
+{
+	struct nlx_kcore_domain *kd;
+	struct nlx_kcore_transfer_mc *ktm;
+
+	C2_PRE(cd != NULL);
+	kd = cd->cd_kpvt;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	C2_PRE(nlx_core_tm_invariant(ctm));
+	ktm = ctm->ctm_kpvt;
+	nlx_kcore_tm_stop(kd, ctm, ktm);
+	bev_cqueue_fini(&ctm->ctm_bevq, nlx_core_bev_free_cb);
+	c2_free(ktm);
+}
+
 static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
 			      struct nlx_core_transfer_mc *ctm,
 			      struct nlx_kcore_transfer_mc *ktm)
 {
-	/** @todo implement */
-	return -ENOSYS;
-}
-
-int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
-		      struct nlx_core_transfer_mc *lctm)
-{
-	struct nlx_core_buffer_event *e1;
-	struct nlx_core_buffer_event *e2;
-	struct nlx_kcore_transfer_mc *kctm;
 	struct nlx_core_ep_addr *cepa;
 	lnet_process_id_t id;
 	int rc;
 	int i;
 
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	C2_PRE(nlx_tm_invariant(tm));
-	C2_PRE(lctm != NULL);
-	cepa = &lctm->ctm_addr;
-
-	C2_ALLOC_PTR_ADDB(kctm, &tm->ntm_addb, &nlx_addb_loc);
-	if (kctm == NULL) {
-		rc = -ENOMEM;
-		goto fail_kctm;
-	}
-	nlx_core_new_blessed_bev(lctm, &e1);
-	nlx_core_new_blessed_bev(lctm, &e2);
-	if (e1 == NULL || e2 == NULL) {
-		rc = -ENOMEM;
-		goto fail;
-	}
+	C2_PRE(kd != NULL && ctm != NULL && ktm != NULL);
+	cepa = &ctm->ctm_addr;
 
 	/*
-	  cepa_nid/cepa_pid must match a local NID/PID.
-	  cepa_portal must be in range.  cepa_tmid is checked below.
+	 * cepa_nid/cepa_pid must match a local NID/PID.
+	 * cepa_portal must be in range.  cepa_tmid is checked below.
 	 */
 	if (cepa->cepa_portal == LNET_RESERVED_PORTAL ||
 	    cepa->cepa_portal >= C2_NET_LNET_MAX_PORTALS) {
@@ -1702,12 +1747,14 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		goto fail;
 	}
 
-	tms_tlink_init(kctm);
-	kctm->ktm_ctm = lctm;
-	lctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
-	spin_lock_init(&kctm->ktm_bevq_lock);
-	c2_semaphore_init(&kctm->ktm_sem, 0);
-	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &kctm->ktm_eqh);
+	tms_tlink_init(ktm);
+	drv_tms_tlink_init(ktm);
+	drv_bevs_tlist_init(&ktm->ktm_drv_bevs);
+	ktm->ktm_ctm = ctm; /** @todo deprecated */
+	ctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
+	spin_lock_init(&ktm->ktm_bevq_lock);
+	c2_semaphore_init(&ktm->ktm_sem, 0);
+	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &ktm->ktm_eqh);
 	if (rc < 0)
 		goto fail;
 
@@ -1728,86 +1775,71 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 		rc = -EADDRINUSE;
 		goto fail_with_eq;
 	}
-	nlx_kcore_tms_list_add(kctm);
+	nlx_kcore_tms_list_add(ktm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 
-	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
-	C2_ASSERT(bev_cqueue_size(&lctm->ctm_bevq) ==
-		  C2_NET_LNET_BEVQ_MIN_SIZE);
-	C2_ASSERT(bev_cqueue_is_empty(&lctm->ctm_bevq));
-	c2_addb_ctx_init(&kctm->ktm_addb, &nlx_core_tm_addb_ctx, &tm->ntm_addb);
-	lctm->ctm_upvt = NULL;
-	lctm->ctm_kpvt = kctm;
-	lctm->ctm_user_space_xo = false;
-	lctm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
-	C2_POST(nlx_kcore_tm_invariant(kctm));
+	c2_addb_ctx_init(&ktm->ktm_addb, &nlx_core_tm_addb_ctx, &kd->kd_addb);
+	ctm->ctm_kpvt = ktm;
+	ctm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
+	C2_POST(nlx_kcore_tm_invariant(ktm));
 	return 0;
+
 fail_with_eq:
-	i = LNetEQFree(kctm->ktm_eqh);
+	i = LNetEQFree(ktm->ktm_eqh);
 	C2_ASSERT(i == 0);
 fail:
-	c2_free(e1);
-	c2_free(e2);
-fail_kctm:
-	c2_free(kctm);
 	C2_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	return rc;
 }
 
-static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
+int nlx_core_tm_start(struct nlx_core_domain *cd,
+		      struct c2_net_transfer_mc *tm,
+		      struct nlx_core_transfer_mc *ctm)
 {
-	struct nlx_core_buffer_event *bev;
-	if (ql != NULL) {
-		bev = container_of(ql, struct nlx_core_buffer_event,
-				   cbe_tm_link);
-		c2_free(bev);
-	}
-}
-
-static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
-			      struct nlx_core_transfer_mc *ctm,
-			      struct nlx_kcore_transfer_mc *ktm)
-{
-	/** @todo implement */
-}
-
-void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
-{
-	struct nlx_kcore_transfer_mc *kctm;
+	struct nlx_kcore_domain *kd;
+	struct nlx_core_buffer_event *e1;
+	struct nlx_core_buffer_event *e2;
+	struct nlx_kcore_transfer_mc *ktm;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(lctm));
-	kctm = lctm->ctm_kpvt;
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(cd != NULL);
+	kd = cd->cd_kpvt;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
 
-	rc = LNetEQFree(kctm->ktm_eqh);
-	C2_ASSERT(rc == 0);
-	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
-	c2_semaphore_fini(&kctm->ktm_sem);
-
-	c2_mutex_lock(&nlx_kcore_mutex);
-	tms_tlist_del(kctm);
-	c2_mutex_unlock(&nlx_kcore_mutex);
-	c2_addb_ctx_fini(&kctm->ktm_addb);
-	lctm->ctm_kpvt = NULL;
-	c2_free(kctm);
-}
-
-int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm, /* not used */
-			     struct nlx_core_buffer_event **bevp)
-{
-	struct nlx_core_buffer_event *bev;
-
-	/* cannot use lctm->ctm_kpvt->ktm_addb here, may not be set yet */
-	C2_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
-	if (bev == NULL) {
-		*bevp = NULL;
-		return -ENOMEM;
+	C2_ALLOC_PTR_ADDB(ktm, &tm->ntm_addb, &nlx_addb_loc);
+	if (ktm == NULL) {
+		rc = -ENOMEM;
+		goto fail_ktm;
 	}
-	bev_link_bless(&bev->cbe_tm_link);
-	*bevp = bev;
+
+	rc = nlx_kcore_tm_start(kd, ctm, ktm);
+	if (rc != 0)
+		goto fail_ktm;
+
+	ctm->ctm_upvt = NULL;
+	ctm->ctm_user_space_xo = false;
+
+	nlx_kcore_new_blessed_bev(&e1);
+	nlx_kcore_new_blessed_bev(&e2);
+	if (e1 == NULL || e2 == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+
+	bev_cqueue_init(&ctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
+	C2_ASSERT(bev_cqueue_is_empty(&ctm->ctm_bevq));
 	return 0;
+
+fail:
+	nlx_kcore_tm_stop(kd, ctm, ktm);
+fail_ktm:
+	c2_free(ktm);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
+	return rc;
 }
 
 static void nlx_core_fini(void)
