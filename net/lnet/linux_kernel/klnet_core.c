@@ -1194,76 +1194,87 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 				  struct nlx_core_buffer *cb,
 				  struct nlx_kcore_buffer *kb)
 {
-	/** @todo implement */
-	return -ENOSYS;
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	kb->kb_magic         = C2_NET_LNET_KCORE_BUF_MAGIC;
+	kb->kb_cb            = cb; /** @todo deprecated */
+	nlx_core_kmem_loc_set(&kb->kb_cb_loc, NULL, 0);
+	kb->kb_ktm           = NULL;
+	kb->kb_kiov          = NULL;
+	kb->kb_kiov_len      = 0;
+	kb->kb_kiov_orig_len = 0;
+	LNetInvalidateHandle(&kb->kb_mdh);
+	kb->kb_ooo_reply     = false;
+	kb->kb_ooo_mlength   = 0;
+	kb->kb_ooo_status    = 0;
+	kb->kb_ooo_offset    = 0;
+	c2_addb_ctx_init(&kb->kb_addb, &nlx_core_buffer_addb_ctx, &kd->kd_addb);
+
+	cb->cb_kpvt          = kb;
+	cb->cb_buffer_id     = buffer_id;
+	cb->cb_magic         = C2_NET_LNET_CORE_BUF_MAGIC;
+
+	C2_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
+	return 0;
 }
 
-int nlx_core_buf_register(struct nlx_core_domain *lcdom,
+static void nlx_kcore_buf_deregister(struct nlx_core_buffer *cb,
+				     struct nlx_kcore_buffer *kb)
+{
+	C2_PRE(nlx_kcore_buffer_invariant(kb));
+	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
+	kb->kb_magic = 0;
+	kb->kb_cb = NULL;
+	c2_addb_ctx_fini(&kb->kb_addb);
+	c2_free(kb->kb_kiov);
+	cb->cb_buffer_id = 0;
+	cb->cb_kpvt = NULL;
+	cb->cb_magic = 0;
+}
+
+int nlx_core_buf_register(struct nlx_core_domain *cd,
 			  nlx_core_opaque_ptr_t buffer_id,
 			  const struct c2_bufvec *bvec,
-			  struct nlx_core_buffer *lcbuf)
+			  struct nlx_core_buffer *cb)
 {
 	int rc;
 	struct nlx_kcore_buffer *kb;
 	struct nlx_kcore_domain *kd;
 
-	C2_PRE(lcbuf != NULL && lcbuf->cb_kpvt == NULL);
-	C2_PRE(lcdom != NULL);
-	kd = lcdom->cd_kpvt;
-	C2_PRE(nlx_kcore_domain_invariant(kd));
+	C2_PRE(cb != NULL && cb->cb_kpvt == NULL);
+	C2_PRE(cd != NULL);
+	kd = cd->cd_kpvt;
 	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
 	if (kb == NULL)
 		return -ENOMEM;
-	LNetInvalidateHandle(&kb->kb_mdh);
-	kb->kb_magic        = C2_NET_LNET_KCORE_BUF_MAGIC;
-	c2_addb_ctx_init(&kb->kb_addb, &nlx_core_buffer_addb_ctx, &kd->kd_addb);
-	kb->kb_cb           = lcbuf;
-	lcbuf->cb_kpvt      = kb;
-	lcbuf->cb_buffer_id = buffer_id;
-	lcbuf->cb_magic     = C2_NET_LNET_CORE_BUF_MAGIC;
-
+	rc = nlx_kcore_buf_register(kd, buffer_id, cb, kb);
+	if (rc != 0) {
+		c2_free(kb);
+		return rc;
+	}
 	rc = nlx_kcore_buffer_kla_to_kiov(kb, bvec);
 	if (rc != 0)
 		goto fail_free_kb;
 	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
-	C2_POST(nlx_kcore_buffer_invariant(lcbuf->cb_kpvt));
+	C2_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
 	return 0;
 
  fail_free_kb:
 	C2_ASSERT(rc != 0);
-	kb->kb_magic = 0;
-	lcbuf->cb_magic = 0;
-	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
-	c2_addb_ctx_fini(&kb->kb_addb);
+	nlx_kcore_buf_deregister(cb, kb);
 	c2_free(kb);
+	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	return rc;
 }
 
-static void nlx_kcore_buf_deregister(struct nlx_kcore_domain *kd,
-				     struct nlx_core_buffer *cb,
-				     struct nlx_kcore_buffer *kb)
-{
-	/** @todo implement */
-}
-
-void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
-			     struct nlx_core_buffer *lcbuf)
+void nlx_core_buf_deregister(struct nlx_core_domain *cd,
+			     struct nlx_core_buffer *cb)
 {
 	struct nlx_kcore_buffer *kb;
 
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	kb = lcbuf->cb_kpvt;
-	C2_PRE(nlx_kcore_buffer_invariant(kb));
-	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
-	kb->kb_magic = 0;
-	kb->kb_cb = 0;
-	c2_addb_ctx_fini(&kb->kb_addb);
-	c2_free(kb->kb_kiov);
+	C2_PRE(nlx_core_buffer_invariant(cb));
+	kb = cb->cb_kpvt;
+	nlx_kcore_buf_deregister(cb, kb);
 	c2_free(kb);
-	lcbuf->cb_buffer_id = 0;
-	lcbuf->cb_kpvt = NULL;
-	lcbuf->cb_magic = 0;
-	return;
 }
 
 static int nlx_kcore_buf_msg_recv(struct nlx_kcore_domain *kd,

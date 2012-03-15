@@ -248,12 +248,10 @@ struct nlx_kcore_ops {
 
 	/**
 	   Performs common kernel core tasks related to de-registering a buffer.
-	   @param kd Kernel core private domain pointer.
 	   @param cb The core private data pointer for the buffer.
 	   @param kb Kernel core private buffer pointer.
 	 */
-	void (*ko_buf_deregister)(struct nlx_kcore_domain *kd,
-				  struct nlx_core_buffer *cb,
+	void (*ko_buf_deregister)(struct nlx_core_buffer *cb,
 				  struct nlx_kcore_buffer *kb);
 
 	/**

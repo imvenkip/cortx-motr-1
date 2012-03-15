@@ -474,7 +474,8 @@
    - The buffer is removed from the @c nlx_kcore_domain::kd_drv_bufs list.
    - The @c nlx_core_buffer is mapped.
    - @c nlx_kcore_ops::ko_buf_deregister() is used to de-register
-     the buffer and free the corresponding @c nlx_kcore_buffer object.
+     the buffer.
+   - The @c nlx_kcore_buffer object is freed.
    - The @c nlx_core_buffer is unmapped and unpinned.
 
    @subsection LNetDRVDLD-lspec-bev Managing the Buffer Event Queue
