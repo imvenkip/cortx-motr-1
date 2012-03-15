@@ -1176,21 +1176,17 @@ void nlx_core_dom_fini(struct nlx_core_domain *cd)
 
 c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
 {
-	return LNET_MAX_PAYLOAD;
+	return nlx_kcore_get_max_buffer_size();
 }
 
 c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
 {
-	/* PAGE_SIZE limit applies only when LNET_MD_KIOV has been set in
-	 * lnet_md_t::options. There's no such limit in MD fragment size when
-	 * LNET_MD_IOVEC is set.  DLD calls for only LNET_MD_KIOV to be used.
-	 */
-	return PAGE_SIZE;
+	return nlx_kcore_get_max_buffer_segment_size();
 }
 
 int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
 {
-	return LNET_MAX_IOV;
+	return nlx_kcore_get_max_buffer_segments();
 }
 
 static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,

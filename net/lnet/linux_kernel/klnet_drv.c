@@ -335,6 +335,16 @@
    shared place.  This allow for unsynchronized, concurrent access to shared
    objects, just as if they were always mapped.
 
+   The core data structures include kernel private pointers, such as
+   @c nlx_core_transfer_mc::ctm_kpvt.  These opaque (to the user space) values
+   are used as parameters to ioctl requests.  These pointers cannot be used
+   directly, since it is possible they could be inadvertently corrupted.  To
+   address that, when such pointers are passed to ioctl requests, they are first
+   validated using @c virt_addr_valid() to ensure they can be dereferenced in
+   the kernel and then further validated using the appropriate invariant,
+   @c nlx_kcore_tm_invariant() in the case above.  If either validation fails,
+   an error is returned, as discussed in @ref LNetDRVDLD-lspec-ioctl.
+
    @subsection LNetDRVDLD-lspec-dominit Domain Initialization
 
    The LNet Transport Device Driver is first accessed during domain
@@ -364,7 +374,7 @@
      @c nlx_kcore_domain::kd_cd_loc.
    - The @c nlx_core_domain is mapped and validated to ensure no assertions
      will occur.
-   - The @c nlx_core_domain is initialized using nlx_kcore_ops::ko_dom_init().
+   - The @c nlx_core_domain is initialized by @c nlx_kcore_ops::ko_dom_init().
    - The @c nlx_core_domain is unmapped (it remains pinned).
    - The @c nlx_kcore_domain::kd_drv_mutex() is unlocked.
 
@@ -424,9 +434,9 @@
    These helper functions simply return the values of the kernel implementation
    of following core functions, respectively.  As such, the corresponding ioctl
    requests return a positive number on success, not 0.
-   - @c nlx_core_get_max_buffer_size()
-   - @c nlx_core_get_max_buffer_segment_size()
-   - @c nlx_core_get_max_buffer_segments()
+   - @c nlx_kcore_get_max_buffer_size()
+   - @c nlx_kcore_get_max_buffer_segment_size()
+   - @c nlx_kcore_get_max_buffer_segments()
 
    The @c nlx_dev_ioctl() uses the helper function
    @c nlx_dev_ioctl_buf_register() to complete kernel buffer registration.
