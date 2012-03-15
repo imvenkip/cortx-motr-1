@@ -66,10 +66,8 @@ struct c2_layout_linear_enum {
 
 bool c2_linear_enum_invariant(const struct c2_layout_linear_enum *lin_enum,
 			      uint64_t lid);
-
 int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out);
-void c2_linear_enum_fini(struct c2_layout_linear_enum *lin_enum, uint64_t lid);
 
 extern const struct c2_layout_enum_type c2_linear_enum_type;
 

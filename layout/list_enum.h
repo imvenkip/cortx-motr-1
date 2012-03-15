@@ -63,11 +63,8 @@ struct c2_layout_list_enum {
 
 bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
 			    uint64_t lid);
-
-int c2_list_enum_build(uint64_t lid,
-		       struct c2_fid *cob_list, uint32_t nr,
+int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);
-void c2_list_enum_fini(struct c2_layout_list_enum *list_enum, uint64_t lid);
 
 extern const struct c2_layout_enum_type c2_list_enum_type;
 

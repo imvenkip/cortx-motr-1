@@ -136,7 +136,7 @@ static void test_type_reg_unreg(void)
 	 * it.
 	 */
 	rc = c2_ldb_type_register(&schema, &test_layout_type);
-	C2_UT_ASSERT(rc != 0);
+	C2_UT_ASSERT(rc == -EEXIST);
 
 	/* Unregister it. */
 	c2_ldb_type_unregister(&schema, &test_layout_type);
@@ -172,6 +172,7 @@ const struct c2_layout_enum_type test_enum_type = {
 	.let_ops     = &test_enum_ops
 };
 
+
 static void test_etype_reg_unreg(void)
 {
 	C2_ENTRY();
@@ -195,7 +196,7 @@ static void test_etype_reg_unreg(void)
 	 * it.
 	 */
 	rc = c2_ldb_enum_register(&schema, &test_enum_type);
-	C2_UT_ASSERT(rc != 0);
+	C2_UT_ASSERT(rc == -EEXIST);
 
 	/* Unregister it. */
 	c2_ldb_enum_unregister(&schema, &test_enum_type);
@@ -277,8 +278,10 @@ static void test_schema_max_recsize()
 static int internal_init()
 {
 	/*
-	 * @todo Do not care if any of the layout type or enum type is already
-	 * registered. But what about unregistering those.
+	 * @todo Keep track if the a layout type or enum type is already
+	 * registered or is registered by this test suite. If the later,
+	 * then internal_fini() should unregister it, not otherwise. This is
+	 * to avoid having any side-effect of running this test suite.
 	 */
 	c2_ldb_type_register(&schema, &c2_pdclust_layout_type);
 	c2_ldb_type_register(&schema, &c2_composite_layout_type);
@@ -384,7 +387,6 @@ static int pdclust_lin_lbuf_build(uint64_t lid,
 	return 0;
 }
 
-
 static int l_verify(uint64_t lid, struct c2_layout *l)
 {
 	C2_UT_ASSERT(l->l_id == lid);
@@ -409,8 +411,7 @@ static int pdclust_l_verify(uint64_t lid,
 
 static int pdclust_list_l_verify(uint64_t lid,
 				 uint32_t N, uint32_t K,
-				 uint32_t nr,
-				 struct c2_layout *l)
+				 uint32_t nr, struct c2_layout *l)
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
@@ -463,18 +464,11 @@ static int pdclust_lin_l_verify(uint64_t lid,
 	return 0;
 }
 
-static void layout_and_enum_destroy(struct c2_layout *l, uint64_t lid)
+static void layout_destroy(struct c2_layout *l, uint64_t lid)
 {
-	struct c2_layout_striped *stl;
-
 	C2_UT_ASSERT(l != NULL);
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-
-	C2_UT_ASSERT(stl->ls_enum != NULL);
-
-	stl->ls_enum->le_ops->leo_fini(stl->ls_enum, lid);
-
+	/* enum object is destroyed internally by lo_fini(). */
 	l->l_ops->lo_fini(l);
 }
 
@@ -509,7 +503,7 @@ static int test_decode_pdclust_list(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_free(area);
-	layout_and_enum_destroy(l, lid);
+	layout_destroy(l, lid);
 
 	C2_LEAVE();
 	return rc;
@@ -520,11 +514,13 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	void                      *area;
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
-	struct c2_bufvec_cursor    cur1;
 	c2_bcount_t                num_bytes;
 	struct c2_layout          *l = NULL;
 	struct c2_db_tx           *tx = NULL;
 
+	/* todo There seems to be about 5KB of mem leak internal to this
+	 * test. Figure out and fix it.
+	 */
 	C2_ENTRY();
 
 	num_bytes = c2_ldb_max_recsize(&schema);
@@ -533,7 +529,6 @@ static int test_decode_pdclust_linear(uint64_t lid)
 
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
-	c2_bufvec_cursor_init(&cur1, &bv);
 
 	rc = pdclust_lin_lbuf_build(lid, 4, 2, 777, 888, 999, &cur, false);
 	C2_UT_ASSERT(rc == 0);
@@ -546,7 +541,7 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_free(area);
-	layout_and_enum_destroy(l, lid);
+	layout_destroy(l, lid);
 
 	C2_LEAVE();
 	return rc;
@@ -558,7 +553,7 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
 	c2_bcount_t                num_bytes;
-	struct c2_layout          *l;
+	struct c2_layout          *l = NULL;
 	struct c2_db_tx           *tx = NULL;
 
 	C2_ENTRY();
@@ -581,7 +576,7 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 	C2_UT_ASSERT(rc == -ENOBUFS);
 
 	c2_free(area);
-	/* layout_and_enum_destroy(l, lid) is not to be performed here since
+	/* layout_destroy(l, lid) is not to be performed here since
 	 * decode did not complete successfully. */
 
 	C2_LEAVE();
@@ -819,7 +814,7 @@ static int test_encode_pdclust_linear(uint64_t lid)
 	c2_bufvec_cursor_init(&cur, &bv);
 	rc = pdclust_linear_lbuf_verify(lid, 4, 1, 10, 20, &cur);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -860,7 +855,7 @@ static int test_encode_pdclust_list(uint64_t lid)
 	//rc = pdclust_list_lbuf_verify(lid, 4, 1, 5, &cur);
 	rc = pdclust_list_lbuf_verify(lid, 4, 1, 25, &cur);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -977,7 +972,7 @@ static int test_add_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -1092,7 +1087,7 @@ static int test_add_pdclust_list(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -1179,7 +1174,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	l = NULL;
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
@@ -1190,7 +1185,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -1262,7 +1257,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	l = NULL;
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
@@ -1273,7 +1268,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -1296,7 +1291,7 @@ static void test_update(void)
 	rc = test_update_pdclust_linear_negative(lid);
 	C2_UT_ASSERT(rc == 0);
 
-	/* todo
+	/* todo Test update for linear enum type./
 	lid = 5003;
 	rc = test_update_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
@@ -1364,8 +1359,6 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	// todo check mem leak in this fn
-	// layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
 	l = NULL;
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == -ENOENT);
@@ -1373,13 +1366,12 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_and_enum_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
 	return rc;
 }
-
 
 static void test_delete(void)
 {
@@ -1426,13 +1418,11 @@ static int pdclust_lin_l_enum_op_verify(uint64_t lid,
 	return 0;
 }
 
-
 static int test_enum_ops_pdclust_linear(uint64_t lid)
 {
 	void                      *area;
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
-	struct c2_bufvec_cursor    cur1;
 	c2_bcount_t                num_bytes;
 	struct c2_layout          *l = NULL;
 	struct c2_db_tx           *tx = NULL;
@@ -1445,7 +1435,6 @@ static int test_enum_ops_pdclust_linear(uint64_t lid)
 
 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
 	c2_bufvec_cursor_init(&cur, &bv);
-	c2_bufvec_cursor_init(&cur1, &bv);
 
 	rc = pdclust_lin_lbuf_build(lid, 4, 2, 777, 888, 999, &cur, false);
 	C2_UT_ASSERT(rc == 0);
@@ -1458,7 +1447,7 @@ static int test_enum_ops_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_free(area);
-	layout_and_enum_destroy(l, lid);
+	layout_destroy(l, lid);
 
 	C2_LEAVE();
 	return rc;
@@ -1530,7 +1519,7 @@ static int test_enum_ops_pdclust_list(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_free(area);
-	layout_and_enum_destroy(l, lid);
+	layout_destroy(l, lid);
 
 	C2_LEAVE();
 	return rc;
@@ -1560,7 +1549,6 @@ static void test_enum_operations(void)
 
 	internal_fini();
 }
-
 
 static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 {
@@ -1654,6 +1642,7 @@ static void test_bufvec_copyto(void)
 
 	C2_LEAVE();
 }
+
 
 const struct c2_test_suite layout_ut = {
 	.ts_name  = "layout-ut",

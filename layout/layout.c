@@ -178,6 +178,10 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 	return 0;
 }
 
+/**
+ * @post The enum object which is part of striped layout object, is finalized
+ *       as well.
+ */
 void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 {
 	C2_PRE(striped_layout_invariant(str_l));
@@ -186,13 +190,8 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 
 	c2_layout_fini(&str_l->ls_base);
 
-	/*
-	 * Memory allocated for str_l->ls_enum will be freed through
-	 * c2_layout_enum_fini(). User that creates an enum object using enum
-	 * type specific init method, is expected to invoke enum type specific
-	 * fini method.
-	 */
-	str_l->ls_enum = NULL;
+	str_l->ls_enum->le_ops->leo_fini(str_l->ls_enum,
+					 str_l->ls_base.l_id);
 
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 }
@@ -319,6 +318,11 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	rc = layout_type_verify(schema, rec->lr_lt_id);
 	if (rc != 0) {
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+				    layout_decode_fail,
+				    "Unqualified Layout_type_id", rc);
+
 		C2_LOG("c2_layout_decode(): lid %llu, Unqualified "
 		       "Layout_type_id %lu, rc %d",
 		       (unsigned long long)lid, (unsigned long)rec->lr_lt_id,
@@ -474,6 +478,11 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {
+		if (op == C2_LXO_DB_NONE)
+			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
+				    layout_encode_fail,
+				    "Unqualified Layout_type_id", rc);
+
 		C2_LOG("c2_layout_encode(): lid %llu, Unqualified "
 		       "Layout_type_id %lu, rc %d",
 		       (unsigned long long)l->l_id,

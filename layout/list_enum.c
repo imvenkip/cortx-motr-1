@@ -141,8 +141,13 @@ bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
 
 static const struct c2_layout_enum_ops list_enum_ops;
 
-int c2_list_enum_build(uint64_t lid,
-		       struct c2_fid *cob_list, uint32_t nr,
+/**
+ * Build list enumeration object.
+ * @note Enum object need not be finalized explicitly by the user. It is
+ * finalized internally through the layout finalization routine to be invoked
+ * as l->l_ops->lo_fini().
+ */
+int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out)
 {
 	struct c2_layout_list_enum *list_enum;
@@ -222,6 +227,7 @@ out:
 
 /**
  * Implementation of leo_fini for LIST enumeration type.
+ * Invoked internally by l->l_ops->lo_fini().
  */
 void list_fini(struct c2_layout_enum *e, uint64_t lid)
 {

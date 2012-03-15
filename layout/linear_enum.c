@@ -69,6 +69,12 @@ bool c2_linear_enum_invariant(const struct c2_layout_linear_enum *lin_enum,
 
 static const struct c2_layout_enum_ops linear_enum_ops;
 
+/**
+ * Build linear enumeration object.
+ * @note Enum object need not be finalized explicitly by the user. It is
+ * finalized internally through the layout finalization routine to be invoked
+ * as l->l_ops->lo_fini().
+ */
 int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out)
 {
@@ -119,6 +125,7 @@ out:
 
 /**
  * Implementation of leo_fini for LINEAR enumeration type.
+ * Invoked internally by l->l_ops->lo_fini().
  */
 static void linear_fini(struct c2_layout_enum *e, uint64_t lid)
 {

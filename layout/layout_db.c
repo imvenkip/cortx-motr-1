@@ -519,9 +519,6 @@ int layout_type_verify(const struct c2_ldb_schema *schema, uint32_t lt_id)
 
 	if (!IS_IN_ARRAY(lt_id, schema->ls_type)) {
 		rc = -EPROTO;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "Invalid layout type id",
-			    -EPROTO);
 		C2_LOG("layout_type_verify(): Invalid Layout_type_id "
 		       "%lu", (unsigned long)lt_id);
 		goto out;
@@ -529,9 +526,6 @@ int layout_type_verify(const struct c2_ldb_schema *schema, uint32_t lt_id)
 
 	if (schema->ls_type[lt_id] == NULL) {
 		rc = -ENOENT;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "Unregistered Layout type",
-			    -EPROTO);
 		C2_LOG("layout_type_verify(): Unregistered Layout type,"
 	               " Layout_type_id %lu", (unsigned long)lt_id);
 	}
@@ -547,9 +541,6 @@ int enum_type_verify(const struct c2_ldb_schema *schema, uint32_t let_id)
 
 	if (!IS_IN_ARRAY(let_id, schema->ls_enum)) {
 		rc = -EPROTO;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "Invalid enum type id",
-			    -EPROTO);
 		C2_LOG("enum_type_verify(): Invalid Enum_type_id "
 		       "%lu", (unsigned long)let_id);
 		goto out;
@@ -557,9 +548,6 @@ int enum_type_verify(const struct c2_ldb_schema *schema, uint32_t let_id)
 
 	if (schema->ls_enum[let_id] == NULL) {
 		rc = -ENOENT;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "Unregistered Enum type",
-			    -EPROTO);
 		C2_LOG("layout_type_verify(): Unregistered Enum type, "
 	               "Enum_type_id %lu", (unsigned long)let_id);
 	}
@@ -971,7 +959,8 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {
-		/* ADDB message is logged through layout_type_verify(). */
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_add_fail, "Unqualified Layout_type_id", rc);
 		C2_LOG("c2_ldb_add(): lid %llu, Unqualified Layout_type_id "
 		       "%lu, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id, rc);
@@ -982,7 +971,8 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 
 	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
 	if (rc != 0) {
-		/* ADDB message is logged through enum_type_verify(). */
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_add_fail, "lto_recsize()", rc);
 		C2_LOG("c2_ldb_add(): lid %llu, lto_recsize() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
 		goto out;
@@ -1093,7 +1083,8 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {
-		/* ADDB message is logged through layout_type_verify(). */
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_update_fail, "Unqualified Layout_type_id", rc);
 		C2_LOG("c2_ldb_update(): lid %llu, Unqualified Layout_type_id "
 		       "%lu, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id, rc);
@@ -1104,7 +1095,8 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
 	if (rc != 0) {
-		/* ADDB message is logged through enum_type_verify(). */
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_update_fail, "lto_recsize()", rc);
 		C2_LOG("c2_ldb_update(): lid %llu, lto_recsize() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
 		goto out;
@@ -1186,7 +1178,8 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {
-		/* ADDB message is logged through layout_type_verify(). */
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_delete_fail, "Unqualified Layout_type_id", rc);
 		C2_LOG("c2_ldb_delete(): lid %llu, Unqualified Layout_type_id "
 		       "%lu, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_type->lt_id, rc);
@@ -1197,7 +1190,8 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 
 	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
 	if (rc != 0) {
-		/* ADDB message is logged through enum_type_verify(). */
+		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
+			    ldb_delete_fail, "lto_recsize()", rc);
 		C2_LOG("c2_ldb_delete(): lid %llu, lto_recsize() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
 		goto out;
