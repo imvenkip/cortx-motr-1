@@ -77,7 +77,7 @@
  *    - If the layout record is of the COMPOSITE layout type, it means it
  *      constitutes of multiple sub-layouts. In this case, the sub-layouts are
  *      read from the layout DB. Those sub-layout records in turn could be of
- *      other layout types and with either LINEAR or LIST enumeration.
+ *      other layout types and with LINEAR or LIST enumeration for example.
  *      The sub-layout records are then read accordingly until the time the
  *      final list of all the COB identifiers is obtained.
  *
@@ -86,7 +86,6 @@
 
 /* import */
 #include "lib/arith.h"	/* struct C2_3WAY() */
-#include "fid/fid.h"	/* struct c2_fid */
 #include "db/db.h"	/* struct c2_table */
 
 #include "layout/layout.h"
@@ -120,7 +119,7 @@ enum {
  * parameters.
  */
 struct c2_ldb_schema {
-	/** Pointer to dbenv, to keep things together. */
+	/** Pointer to dbenv; to keep things together. */
 	struct c2_dbenv               *ls_dbenv;
 
 	/** Table for layout record entries. */
@@ -157,8 +156,7 @@ struct c2_ldb_rec {
 	uint32_t                       lr_lt_id;
 
 	/**
-	 * Layout reference count.
-	 * Indicating number of users for this layout.
+	 * Layout reference count, indicating number of users for this layout.
 	 * Value obtained from c2_layout::l_ref.
 	 */
 	uint32_t                       lr_ref_count;
@@ -217,43 +215,6 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  struct c2_db_tx *tx);
 
 /** @} end group LayoutDBDFS */
-
-/**
- * @addtogroup LayoutDBDFSInternal
- * @{
- */
-
-/**
- * Compare layouts table keys.
- * This is a 3WAY comparison.
- */
-static int l_key_cmp(struct c2_table *table,
-		     const void *key0, const void *key1)
-{
-	const uint64_t *lid0 = key0;
-	const uint64_t *lid1 = key1;
-
-	return C2_3WAY(*lid0, *lid1);;
-}
-
-
-/**
- * table_ops for layouts table.
- */
-static const struct c2_table_ops layouts_table_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = sizeof(struct c2_uint128)
-		},
-		[TO_REC] = {
-			.max_size = ~0
-		}
-	},
-	.key_cmp = l_key_cmp
-};
-
-
-/** @} end group LayoutDBDFSInternal */
 
 #endif /*  __COLIBRI_LAYOUT_LAYOUT_DB_H__ */
 

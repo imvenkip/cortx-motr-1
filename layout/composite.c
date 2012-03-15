@@ -23,8 +23,7 @@
  * @{
  */
 
-#include "lib/memory.h"
-#include "lib/vec.h"
+#include "lib/memory.h"             /* C2_ALLOC_PTR() */
 
 #include "layout/layout_db.h"       /* struct c2_ldb_rec */
 #include "layout/composite.h"
@@ -46,8 +45,9 @@ struct layout_prefix {
 	 */
 	uint64_t                  lp_l_id;
 
-	/** Filler since prefix is a 128 bit field.
-	 *  Currently un-used.
+	/**
+	 * Filler since prefix is a 128 bit field.
+	 * Currently un-used.
 	 */
 	uint64_t                  lp_filler;
 };
@@ -60,17 +60,13 @@ void c2_composite_init(struct c2_composite_layout *clay,
 {
 	c2_layout_init(&clay->cl_base, id, pool_id, type, ops);
 
-	/**
-	   Intialize clay->cl_sub_layouts by using sub_layouts.
-	 */
+	/* Intialize clay->cl_sub_layouts by using sub_layouts. */
 }
 
 /** Implementation of lo_fini for composite layout type. */
 void composite_fini(struct c2_layout *lay)
 {
-	/**
-	   De-intialize clay->cl_sub_layouts.
-	 */
+	/* De-intialize clay->cl_sub_layouts. */
 }
 
 /**
@@ -81,7 +77,7 @@ void composite_fini(struct c2_layout *lay)
 static int composite_register(struct c2_ldb_schema *schema,
 			      const struct c2_layout_type *lt)
 {
-   /**
+	/*
 	@code
 	struct composite_schema_data *csd;
 
@@ -91,7 +87,7 @@ static int composite_register(struct c2_ldb_schema *schema,
 
 	schema->ls_type_data[lt->lt_id] = csd;
 	@endcode
-   */
+	*/
 	return 0;
 }
 
@@ -103,14 +99,14 @@ static int composite_register(struct c2_ldb_schema *schema,
 static void composite_unregister(struct c2_ldb_schema *schema,
 				 const struct c2_layout_type *lt)
 {
-   /**
+	/*
 	@code
 	Deinitialize schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
 	table.
 
 	schema->ls_type_data[lt->lt_id] = NULL;
 	@endcode
-   */
+	*/
 }
 
 /**
@@ -171,7 +167,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	*out = l;
 
-   /**
+	/*
 	@code
 	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the segments from the comp_layout_ext_map table,
@@ -183,7 +179,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		cur and store it in cl->cl_sub_layouts.
 	}
 	@endcode
-   */
+	*/
 	return 0;
 }
 
@@ -206,14 +202,14 @@ static int composite_encode(struct c2_ldb_schema *schema,
 			    struct c2_bufvec_cursor *out)
 {
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
-			       (op == C2_LXO_DB_DELETE)) {
-		/**
+            (op == C2_LXO_DB_DELETE)) {
+		/*
 		Form records for the cob_lists table by using data from the
 		c2_layout object l and depending on the value of op,
 		insert/update/delete those records to/from the cob_lists table.
 		 */
 	} else {
-		/**
+		/*
 		Store composite layout type specific fields like information
 		about the sub-layouts, into the buffer by referring it from
 		c2_layout object l. If the buffer is found to be insufficient,

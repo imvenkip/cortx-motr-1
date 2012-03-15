@@ -334,7 +334,7 @@
  *
  * @test 12) Covering all the negative test cases.
  *
- * @test 12) Covering all the error cases. This will be done after error
+ * @test 13) Covering all the error cases. This will be done after error
  *           injection framework is ready that is being worked upon.
  *
  * <HR>
@@ -356,14 +356,13 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/misc.h"          /* memset() */
-#include "lib/vec.h"
-#include "lib/arith.h"
+#include "lib/misc.h"    /* memset() */
+#include "lib/vec.h"     /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "db/db_common.h"      /* c2_db_buf_init() */
+#include "db/db_common.h" /* c2_db_buf_init() */
 #include "layout/layout_db.h"
 
 extern int LID_NONE;
@@ -405,6 +404,34 @@ C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
  *
  * @{
  */
+
+/**
+ * Compare layouts table keys.
+ * This is a 3WAY comparison.
+ */
+static int l_key_cmp(struct c2_table *table,
+		     const void *key0, const void *key1)
+{
+	const uint64_t *lid0 = key0;
+	const uint64_t *lid1 = key1;
+
+	return C2_3WAY(*lid0, *lid1);;
+}
+
+/**
+ * table_ops for layouts table.
+ */
+static const struct c2_table_ops layouts_table_ops = {
+	.to = {
+		[TO_KEY] = {
+			.max_size = sizeof(struct c2_uint128)
+		},
+		[TO_REC] = {
+			.max_size = ~0
+		}
+	},
+	.key_cmp = l_key_cmp
+};
 
 /**
  * Write layout record to the layouts table.
@@ -458,6 +485,9 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
 	return rc;
 }
 
+/**
+ * Read existing record from the layouts table into the provided area.
+ */
 static int get_oldrec(struct c2_ldb_schema *schema,
 		      struct c2_layout *l, void *area, uint32_t nbytes)
 {
@@ -489,7 +519,6 @@ static int get_oldrec(struct c2_ldb_schema *schema,
 
 	rc = c2_table_lookup(&tx, &pair);
 
-	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 
 	if (rc != 0) {

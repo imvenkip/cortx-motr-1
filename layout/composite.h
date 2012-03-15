@@ -32,8 +32,7 @@
  */
 
 /* import */
-#include "db/extmap.h"	/* struct c2_emap */
-
+#include "db/extmap.h"	    /* struct c2_emap */
 #include "layout/layout.h"
 
 /* export */
@@ -43,10 +42,10 @@ struct c2_composite_layout;
  * Extension of generic c2_layout for a composite layout.
  */
 struct c2_composite_layout {
-	/** super class */
+	/** Super class. */
 	struct c2_layout          cl_base;
 
-	/** List of sub-layouts owned by this composite layout */
+	/** List of sub-layouts owned by this composite layout. */
 	struct c2_tl              cl_sub_layouts;
 };
 

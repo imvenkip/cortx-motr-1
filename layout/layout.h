@@ -71,7 +71,6 @@
  */
 
 /* import */
-#include "lib/cdefs.h"
 #include "lib/types.h"    /* uint64_t */
 #include "lib/tlist.h"    /* struct c2_tl */
 #include "lib/mutex.h"    /* struct c2_mutex */
@@ -104,10 +103,7 @@ struct c2_layout {
 	/** Layout type. */
 	const struct c2_layout_type     *l_type;
 
-	/**
-	 * Layout reference count.
-	 * Indicating how many users this layout has.
-	 */
+	/* Layout reference count, indicating how many users this layout has. */
 	uint32_t                         l_ref;
 
 	/** Pool identifier. */
@@ -140,13 +136,13 @@ enum c2_layout_xcode_op {
 	C2_LXO_DB_LOOKUP,
 	C2_LXO_DB_ADD,
 	C2_LXO_DB_UPDATE,
-	C2_LXO_DB_DELETE,
+	C2_LXO_DB_DELETE
 };
 
 /**
  * Structure specific to per layout type.
- * There is an instance of c2_layout_type for each one of layout types. e.g.
- * for PDCLUST and COMPOSITE layout types.
+ * There is an instance of c2_layout_type for each one of the layout types.
+ * e.g. for PDCLUST and COMPOSITE layout types.
  */
 struct c2_layout_type {
 	/** Layout type name. */
@@ -185,7 +181,7 @@ struct c2_layout_type_ops {
 	 * Continues building the in-memory layout object either from the
 	 * buffer or from the DB.
 	 * Allocates an instance of some layout-type specific data-type
-	 * which embeds c2_layout. Sets c2_layout::l_ops.
+	 * which embeds c2_layout. Internally, sets c2_layout::l_ops.
 	 */
 	int    (*lto_decode)(struct c2_ldb_schema *schema, uint64_t lid,
 			     uint64_t pool_id,
@@ -274,6 +270,8 @@ struct c2_layout_enum_type_ops {
 	/**
 	 * Continues building the in-memory layout object, either from
 	 * the buffer or from the DB.
+	 * Allocates an instance of some enum-type specific data-type
+	 * which embeds c2_layout_enum. Internally, sets c2_layout_enum::le_ops.
 	 */
 	int        (*leto_decode)(struct c2_ldb_schema *schema,
 				  uint64_t lid,
@@ -295,10 +293,10 @@ struct c2_layout_enum_type_ops {
 };
 
 /**
-    Layout using enumeration.
-*/
+ *  Layout using enumeration.
+ */
 struct c2_layout_striped {
-	/** super class */
+	/** Super class. */
 	struct c2_layout           ls_base;
 
 	/** Layout enumeration. */

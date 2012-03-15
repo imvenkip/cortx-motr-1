@@ -28,9 +28,7 @@
  */
 
 #include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/vec.h"
-#include "lib/misc.h"
+#include "lib/vec.h"   /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -83,7 +81,7 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl)
 		layout_invariant(&stl->ls_base);
 }
 
-bool layout_enum_invariant(const struct c2_layout_enum *le, uint64_t lid)
+bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid)
 {
 	return le != NULL && le->le_lid == lid && le->le_ops != NULL;
 }
@@ -122,16 +120,15 @@ int c2_layout_init(struct c2_layout *l,
 	C2_ENTRY("lid %llu, Layout_type_id %lu", (unsigned long long)lid,
 		 (unsigned long)type->lt_id);
 
-	C2_SET0(l);
+	l->l_id      = lid;
+	l->l_type    = type;
+	l->l_ref     = 0;
+	l->l_pool_id = pool_id;
+	l->l_ops     = ops;
 
 	c2_mutex_init(&l->l_lock);
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
 			 &layout_global_ctx);
-
-	l->l_id      = lid;
-	l->l_type    = type;
-	l->l_pool_id = pool_id;
-	l->l_ops     = ops;
 
 	C2_POST(layout_invariant(l));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
@@ -165,8 +162,6 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 
 	C2_ENTRY("lid %llu, Enum_type %s", (unsigned long long)lid,
 		 e->le_type->let_name);
-
-	C2_SET0(str_l);
 
 	c2_layout_init(&str_l->ls_base, lid, pool_id, type, ops);
 
@@ -207,8 +202,8 @@ int c2_layout_enum_init(struct c2_layout_enum *le, uint64_t lid,
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
 
-	le->le_lid  = lid;
 	le->le_type = et;
+	le->le_lid  = lid;
 	le->le_ops  = ops;
 
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)et->let_id);
@@ -251,14 +246,14 @@ void c2_layout_put(struct c2_layout *l)
 
 /**
  * This method
- * @li Either continues to builds an in-memory layout object from its
+ * @li Either continues to build an in-memory layout object from its
  *     representation 'stored in the Layout DB'
  * @li Or builds an in-memory layout object from its representation 'received
  *     over the network'.
  *
  * Two use cases of c2_layout_decode()
  * - Server decodes an on-disk layout record by reading it from the Layout
- *   DB, into an in-memory layout structure, using c2_ldb_rec_lookup() which
+ *   DB, into an in-memory layout structure, using c2_ldb_lookup() which
  *   internally calls c2_layout_decode().
  * - Client decodes a buffer received over the network, into an in-memory
  *   layout structure, using c2_layout_decode().
@@ -270,11 +265,14 @@ void c2_layout_put(struct c2_layout *l)
  *
  * @pre
  * - In case c2_layout_decode() is called through c2_ldb_add(), then the
- *   buffer should be containing all the data that is read from the layouts
- *   table. It means it will be with size less than or equal to the one
+ *   buffer should be containing all the data that is read specifically from
+ *   the layouts table. It means its size will be at the most the size
  *   returned by c2_ldb_rec_max_size().
  * - In case c2_layout_decode() is called by some other caller, then the
  *   buffer should be containing all the data belonging to the specific layout.
+ *   It may include data that spans over tables other than layouts as well. It
+ *   means its size may even be more than the one returned by
+ *   c2_ldb_rec_max_size().
  *
  * @post Layout object is built internally (along with enumeration object being
  * built if applicable). Hence, user needs to finalize the layout object when
@@ -301,7 +299,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	if (op == C2_LXO_DB_NONE)
 		c2_mutex_lock(&schema->ls_lock);
-	else
+	else /* It is locked by c2_ldb_lookup(). */
 		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
 
 	/* Check if the buffer is with sufficient size. */
@@ -413,15 +411,22 @@ out:
  * layou update operation. In other cases, it is expected to be NULL.
  *
  * @param out Cursor poining to a buffer. Regarding the size of the buufer:
- * - In case c2_layout_decode() is called through c2_ldb_add(), then the
- * buffer should be capable of ontaining all the data that is to be read from
- * the layouts table.
+ * - In case c2_layout_decode() is called through c2_ldb_add()|c2_ldb_update()|
+ *   c2_ldb_delete(), then the buffer should be capable of containing the data
+ *   that is to be written specifically to the layouts table. It means its size
+ *   will be at the most the size returned by c2_ldb_rec_max_size().
  * - In case c2_layout_decode() is called by some other caller, then the
- * buffer size should be capable of incorporating all data belonging to the
- * specific layout.
+ *   buffer size should be capable of incorporating all the data belonging to
+ *   the specific layout. It means its size may even be more than the one
+ *   returned by c2_ldb_rec_max_size().
  *
- * @post If the buffer is found to be insufficient, then the error ENOBUFS is
- * returned.
+ * @post
+ * - If op is is either for ADD|UPDATE|DELETE, respective DB operation is
+ *   continued.
+ * - If op is NONE, the buffer contains the serialized representation of the
+ *   whole layout.
+ * - If the buffer size is found to be insufficient, then the error ENOBUFS is
+ *   returned.
  */
 int c2_layout_encode(struct c2_ldb_schema *schema,
 		     struct c2_layout *l,
@@ -448,7 +453,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	if (op == C2_LXO_DB_NONE)
 		c2_mutex_lock(&schema->ls_lock);
-	else
+	else /* It is locked by c2_ldb_[add|delete|update](), as applicable. */
 		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
 
 	c2_mutex_lock(&l->l_lock);
@@ -522,7 +527,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		    oldrec->lr_pid != l->l_pool_id) {
 			rc = -EINVAL;
 			C2_LOG("c2_layout_encode(): lid %llu, New values "
-			       "do not match old ones...",
+			       "do not match the old ones",
 			       (unsigned long long)l->l_id);
 			goto out;
 		}
@@ -543,7 +548,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 				    layout_encode_fail, "lto_encode", rc);
 
 		C2_LOG("c2_layout_encode(): lid %llu, lto_encode() failed, "
-		"rc %d", (unsigned long long)l->l_id, rc);
+		       "rc %d", (unsigned long long)l->l_id, rc);
 	}
 
 out:

@@ -42,10 +42,10 @@ struct c2_layout_list_enum;
  * Extension of generic c2_layout_enum for a list enumeration type.
  */
 struct c2_layout_list_enum {
-	/** super class */
+	/** Super class. */
 	struct c2_layout_enum     lle_base;
 
-	/** Number of elements present in the enumeration */
+	/** Number of elements present in the enumeration. */
 	uint32_t                  lle_nr;
 
 	/**

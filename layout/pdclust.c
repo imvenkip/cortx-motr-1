@@ -82,18 +82,16 @@
  */
 
 #include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/arith.h"            /* c2_rnd() */
+#include "lib/memory.h"       /* C2_ALLOC_PTR(), C2_ALLOC_ARR(), c2_free() */
+#include "lib/arith.h"        /* c2_rnd() */
 #include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "stob/stob.h"            /* c2_stob_id_is_set() */
-#include "pool/pool.h"            /* c2_pool_lookup() */
-#include "fid/fid.h"              /* struct c2_fid */
-
-#include "layout/layout_db.h"     /* struct c2_ldb_schema */
+#include "stob/stob.h"        /* c2_stob_id_is_set() */
+#include "pool/pool.h"        /* c2_pool_lookup() */
+#include "layout/layout_db.h"
 #include "layout/pdclust.h"
 
 extern int LID_NONE;
@@ -285,7 +283,8 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 
 		/* generate permutation number in lexicographic ordering */
 		for (i = 0; i < play->pl_attr.pa_P - 1; ++i)
-			tc->tc_lcode[i] = c2_rnd(play->pl_attr.pa_P - i, &rstate);
+			tc->tc_lcode[i] = c2_rnd(play->pl_attr.pa_P - i,
+						 &rstate);
 
 		/* apply the permutation */
 		permute(play->pl_attr.pa_P, tc->tc_lcode,
@@ -438,6 +437,11 @@ static void pdclust_unregister(struct c2_ldb_schema *schema,
 
 static const struct c2_layout_ops pdclust_ops;
 
+/**
+ * @post A pdclust type of layout object is created. It needs to be
+ * finalized by the user, once done with the usage. It can be finalized
+ * using l->l_ops->lo_fini().
+ */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
@@ -488,10 +492,8 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 	pdl->pl_attr.pa_K = K;
 
 	pdl->pl_pool = pool;
-	/*
-	 * select minimal possible B (least common multiple of P and
-	 * N+2*K
-	 */
+
+	/* select minimal possible B (least common multiple of P and N+2*K) */
 	B = P*(N+2*K)/c2_gcd64(N+2*K, P);
 	pdl->pl_attr.pa_P = P;
 	pdl->pl_C = B/(N+2*K);
@@ -523,12 +525,6 @@ out:
 		C2_POST(c2_pdclust_layout_invariant(pdl));
 	}
 	else {
-		/*
-		 * Calling pdclust_fini() here specifically and not
-		 * pdl->pl_base.ls_base.l_ops->lo_fini(). This is to cover the
-		 * case - if pdl->pl_base.ls_base.l_ops is not set due to some
-		 * internal failure.
-		 */
 		pdclust_fini(&pdl->pl_base.ls_base);
 	}
 
@@ -689,6 +685,11 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_POST(c2_pdclust_layout_invariant(pl));
 
 out:
+	if (rc != 0 && e != NULL) {
+		C2_ASSERT(pl == NULL);
+		e->le_ops->leo_fini(e, lid);
+	}
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -773,7 +774,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 				   &pl->pl_attr.pa_seed)) {
 				rc = -EINVAL;
 				C2_LOG("pdclust_encode(): lid %llu, New values "
-				       "do not match old ones...",
+				       "do not match the old ones",
 					(unsigned long long)l->l_id);
 				goto out;
 			}

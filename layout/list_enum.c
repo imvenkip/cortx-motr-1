@@ -33,6 +33,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "fid/fid.h"
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
 #include "layout/list_enum.h"
 
@@ -127,8 +128,7 @@ static const struct c2_table_ops cob_lists_table_ops = {
 	.key_cmp = lcl_key_cmp
 };
 
-extern bool layout_enum_invariant(const struct c2_layout_enum *le,
-				  uint64_t lid);
+extern bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 
 bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
 			    uint64_t lid)
@@ -136,7 +136,7 @@ bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
 	return list_enum != NULL && list_enum->lle_nr != LIST_NR_NONE &&
 		list_enum->lle_list_of_cobs != NULL &&
 		c2_layout_list_enum_bob_check(list_enum) &&
-		layout_enum_invariant(&list_enum->lle_base, lid);
+		enum_invariant(&list_enum->lle_base, lid);
 }
 
 static const struct c2_layout_enum_ops list_enum_ops;
@@ -179,11 +179,6 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 	}
 
 	list_enum->lle_nr = nr;
-	/*
-	 * Can not assert here to verify that number of elments in the
-	 * cob_list is same as nr, since can not find size of cob_list, it
-	 * being a dynamically allocated array.
-	 */
 
 	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
 	if (list_enum == NULL) {
@@ -231,7 +226,7 @@ out:
  */
 void list_fini(struct c2_layout_enum *e, uint64_t lid)
 {
-	struct c2_layout_list_enum  *list_enum;
+	struct c2_layout_list_enum *list_enum;
 
 	C2_PRE(e != NULL);
 
@@ -244,7 +239,6 @@ void list_fini(struct c2_layout_enum *e, uint64_t lid)
 	c2_layout_list_enum_bob_fini(list_enum);
 	c2_free(list_enum->lle_list_of_cobs);
 	c2_layout_enum_fini(&list_enum->lle_base);
-
 	c2_free(list_enum);
 
 	C2_LEAVE();
@@ -337,11 +331,11 @@ static uint32_t list_max_recsize(void)
  * Implementation of leto_recsize() for list enumeration type.
  *
  * Returns record size for the part of the layouts table record required to
- * store LIST enum details, for the specified layout.
+ * store LIST enum details, for the specified enumeration object.
  */
 static uint32_t list_recsize(struct c2_layout_enum *e, uint64_t lid)
 {
-	struct c2_layout_list_enum  *list_enum;
+	struct c2_layout_list_enum *list_enum;
 
 	C2_PRE(e != NULL);
 
@@ -366,7 +360,7 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 	struct ldb_cob_lists_key  key;
 	struct ldb_cob_lists_rec  rec;
 	struct c2_db_pair         pair;
-	int                       rc;
+	int                       rc = 0;
 
 	C2_PRE(op == C2_LXO_DB_LOOKUP);
 
@@ -397,8 +391,10 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 		return -EINVAL;
 	}
 
+	c2_db_pair_fini(&pair);
+
 	*cob_id = rec.lclr_cob_id;
-	return 0;
+	return rc;
 }
 
 /**
@@ -460,11 +456,14 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 			LDB_MAX_INLINE_COB_ENTRIES : ldb_ce_header->llces_nr;
 
 	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(cur) < num_inline * sizeof *cob_id) {
-		rc = -ENOBUFS;
-		C2_LOG("list_decode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)lid);
-		goto out;
+	if ((op == C2_LXO_DB_NONE && c2_bufvec_cursor_step(cur) <
+	     ldb_ce_header->llces_nr * sizeof *cob_id) ||
+	    (op == C2_LXO_DB_LOOKUP && c2_bufvec_cursor_step(cur) <
+	     num_inline * sizeof *cob_id)) {
+			rc = -ENOBUFS;
+			C2_LOG("list_decode(): lid %llu, buffer with "
+			       "insufficient size", (unsigned long long)lid);
+			goto out;
 	}
 
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
@@ -507,6 +506,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 out:
 	if (cob_list != NULL)
 		c2_free(cob_list);
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -551,6 +551,8 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 				    c2_addb_func_fail, "c2_table_delete()", rc);
 		}
 	}
+
+	c2_db_pair_fini(&pair);
 
 	return rc;
 }
@@ -625,7 +627,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 		if (ldb_ce_oldheader->llces_nr != list_enum->lle_nr) {
 			rc = -EINVAL;
 			C2_LOG("list_encode(): lid %llu, New values "
-			       "do not match old ones...",
+			       "do not match the old ones",
 			       (unsigned long long)l->l_id);
 			goto out;
 		}
@@ -646,7 +648,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 			    &list_enum->lle_list_of_cobs[i])) {
 				rc = -EINVAL;
 				C2_LOG("list_encode(): lid %llu, New values "
-				       "do not match old ones...",
+				       "do not match the old ones",
 				       (unsigned long long)l->l_id);
 				goto out;
 			}
@@ -664,7 +666,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	/* Check if the buffer is with sufficient size. */
 	if ((op == C2_LXO_DB_NONE && c2_bufvec_cursor_step(out) <
 	     list_enum->lle_nr * sizeof list_enum->lle_list_of_cobs[i]) ||
-	     (op != C2_LXO_DB_NONE && c2_bufvec_cursor_step(out) <
+	    (op != C2_LXO_DB_NONE && c2_bufvec_cursor_step(out) <
 	     num_inline * sizeof list_enum->lle_list_of_cobs[i])) {
 			rc = -ENOBUFS;
 			C2_LOG("list_encode(): lid %llu, buffer with "
@@ -676,7 +678,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	for(i = 0; i < list_enum->lle_nr; ++i) {
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
 			if (i == 0)
-				C2_LOG("list_decode(): lid %llu, Start "
+				C2_LOG("list_encode(): lid %llu, Start "
 				       "accepting inline cob entries.",
 				       (unsigned long long)l->l_id);
 

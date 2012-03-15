@@ -79,16 +79,18 @@ struct c2_pdclust_tgt_addr;
 /**
  * Attributes specific to PDCLUST layout type.
  * These attributes are part of c2_pdclust_layout which is in-memory layout
- * object and are stored in the Layout DB as well through c2_ldb_pdclust_rec.
+ * object and are stored in the Layout DB as well, through c2_ldb_pdclust_rec.
  */
 struct c2_pdclust_attr {
 	/** Number of data units in a parity group. */
 	uint32_t                     pa_N;
+
 	/**
 	 * Number of parity units in a parity group. This is also the number of
 	 * spare units in a group.
 	 */
 	uint32_t                     pa_K;
+
 	/**
 	 * Number of target objects over which this layout stripes the source.
 	 */
@@ -118,7 +120,7 @@ struct c2_ldb_pdclust_rec {
  * @todo concurrency control
  */
 struct c2_pdclust_layout {
-	/** super class */
+	/** Super class */
 	struct c2_layout_striped     pl_base;
 
 	/** Parity de-clustering layout attributes. */
@@ -129,6 +131,7 @@ struct c2_pdclust_layout {
 	 * @see c2_pdclust_layout::pl_L
 	 */
 	uint32_t                     pl_C;
+
 	/**
 	 * Number of "frame rows" in a tile. L * P == C * (N + 2 * K).
 	 * @see c2_pdclust_layout::pl_L
@@ -189,9 +192,9 @@ struct c2_pdclust_layout {
 	/**
 	 * Parity math information, initialized according to the layout
 	 */
-	struct c2_parity_math pl_math;
+	struct c2_parity_math        pl_math;
 
-	uint64_t              pl_magic;
+	uint64_t                     pl_magic;
 };
 
 /** Classification of units in a parity group. */
@@ -208,7 +211,6 @@ enum c2_pdclust_unit_type {
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
 			 int unit);
-
 
 /**
  * Source unit address.
