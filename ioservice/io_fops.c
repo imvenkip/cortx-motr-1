@@ -33,15 +33,15 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/vec.h"	/* c2_0vec */
+#include "lib/memory.h"
+#include "lib/tlist.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "rpc/rpc_base.h"
 #include "rpc/rpc_opcodes.h"
-#include "lib/vec.h"	/* c2_0vec */
-#include "lib/memory.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
-#include "lib/tlist.h"
 #include "addb/addb.h"
 
 /*
@@ -1326,7 +1326,7 @@ static void io_item_replied(struct c2_rpc_item *item)
 	C2_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 
-	if (reply->rwr_rc != 0 || reply->rwr_count != rbulk->rb_bytes)
+	if (reply->rwr_rc != 0)
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "io fop failed.",
 			    item->ri_error);
