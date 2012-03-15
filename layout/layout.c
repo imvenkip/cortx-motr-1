@@ -275,6 +275,10 @@ void c2_layout_put(struct c2_layout *l)
  *   returned by c2_ldb_rec_max_size().
  * - In case c2_layout_decode() is called by some other caller, then the
  *   buffer should be containing all the data belonging to the specific layout.
+ *
+ * @post Layout object is built internally (along with enumeration object being
+ * built if applicable). Hence, user needs to finalize the layout object when
+ * done with the use. It can be accomplished by performing l->l_ops->lo_fini(l).
  */
 int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		     struct c2_bufvec_cursor *cur,

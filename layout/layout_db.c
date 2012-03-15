@@ -830,6 +830,10 @@ uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
  * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
  * while deciding the size of the buffer.
+ *
+ * @post Layout object is built internally (along with enumeration object being
+ * built if applicable). Hence, user needs to finalize the layout object when
+ * done with the use. It can be accomplished by performing l->l_ops->lo_fini(l).
  */
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t lid,
