@@ -37,7 +37,7 @@
  * For flexibility branded objects are not represented by a special
  * data-type. Instead c2_bob_check() takes a void pointer.
  *
- * A couple of helper functions are provided to initialize c2_branded_type:
+ * A couple of helper functions are provided to initialize c2_bob_type:
  *
  *     - c2_bob_type_tl_init(): used when branded object is used as a typed list
  *       link, @see lib/tlist.h.
@@ -125,6 +125,23 @@ struct __ ## type ## _semicolon_catcher
 scope void type ## _bob_init(struct type *bob);		\
 scope void type ## _bob_fini(struct type *bob);		\
 scope bool type ## _bob_check(const struct type *bob)
+
+/**
+ * A safer version of container_of().
+ *
+ * Given a pointer (ptr) returns an ambient object of given type of which ptr is
+ * a field. Ambient object has bob type "bt".
+ */
+#define bob_of(ptr, type, field, bt)			\
+({							\
+	void *__ptr = (ptr);				\
+	type *__amb;					\
+							\
+	C2_ASSERT(__ptr != NULL);			\
+	__amb = container_of(__ptr, type, field);	\
+	C2_ASSERT(c2_bob_check(bt, __amb));		\
+	__amb;						\
+})
 
 /** @} end of bob group */
 

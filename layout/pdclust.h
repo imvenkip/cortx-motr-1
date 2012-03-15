@@ -96,6 +96,9 @@ struct c2_pdclust_attr {
 	 */
 	uint32_t                     pa_P;
 
+	/** Stripe unit size. Specified in number of bytes. */
+	uint64_t                     pa_unit_size;
+
 	/** A datum used to seed PRNG to generate tile column permutations. */
 	struct c2_uint128            pa_seed;
 };
@@ -138,6 +141,7 @@ struct c2_pdclust_layout {
 	 */
 	uint32_t                     pl_L;
 
+
 	/** Storage pool this layout is for. */
 	struct c2_pool              *pl_pool;
 
@@ -165,6 +169,7 @@ struct c2_pdclust_layout {
 		 * duplicates.
 		 */
 		uint32_t *tc_permute;
+
 		/**
 		 * Inverse column permutation.
 		 *
@@ -209,7 +214,7 @@ enum c2_pdclust_unit_type {
  * Returns type of the given unit according to layout information.
  */
 enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit);
 
 /**
@@ -247,8 +252,8 @@ struct c2_pdclust_tgt_addr {
  * to target frames. It is used by client IO code to build IO requests and to
  * direct them to the target objects.
  */
-void c2_pdclust_layout_map(struct c2_pdclust_layout *play, 
-			   const struct c2_pdclust_src_addr *src, 
+void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
+			   const struct c2_pdclust_src_addr *src,
 			   struct c2_pdclust_tgt_addr *tgt);
 /**
  * Reverse layout mapping function.
@@ -256,12 +261,13 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
  * This function is a right inverse of layout mapping function. It is used by
  * SNS repair and other server side mechanisms.
  */
-void c2_pdclust_layout_inv(struct c2_pdclust_layout *play, 
+void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   const struct c2_pdclust_tgt_addr *tgt,
 			   struct c2_pdclust_src_addr *src);
 
 int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
-		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     uint32_t N, uint32_t K, uint64_t unitsize,
+		     const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out);
 

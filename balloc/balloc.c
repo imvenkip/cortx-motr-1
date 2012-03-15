@@ -816,6 +816,7 @@ balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 		return;
 	}
 
+        /* @todo : removing normalisation for time. */
 	if (size <= 4 ) {
 		size = 4;
 	} else if (size <= 8) {

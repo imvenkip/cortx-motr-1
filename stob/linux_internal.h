@@ -137,6 +137,7 @@ uint32_t linux_stob_block_shift (const struct c2_stob *stob);
 void     linux_domain_io_fini   (struct c2_stob_domain *dom);
 int      linux_domain_io_init   (struct c2_stob_domain *dom);
 
+uint32_t linux_stob_domain_block_shift(struct c2_stob_domain *sdomain);
 extern struct c2_addb_ctx adieu_addb_ctx;
 
 /** @} end group stoblinux */

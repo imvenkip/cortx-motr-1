@@ -36,7 +36,6 @@ struct c2_rpc_item;
 struct c2_rpc;
 struct c2_fop;
 struct c2_bufvec_cursor;
-struct c2_rpc_frm_item_coalesced;
 struct c2_net_buf_desc;
 
 /* Export */
@@ -47,39 +46,22 @@ struct c2_rpc_item_type;
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
-	   Restore original IO vector of rpc item.
-	 */
-	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
-			struct c2_fop *bkpfop);
-	/**
 	   Find out the size of rpc item.
 	 */
 	size_t (*rito_item_size)(const struct c2_rpc_item *item);
 
 	/**
-	   Find out if given rpc items belong to same type or not.
-	 */
-	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
-			c2_rpc_item *item2);
-	/**
-	   Find out if given rpc items refer to same c2_fid struct or not.
-	 */
-	bool (*rito_fid_equal)(struct c2_rpc_item *item1,
-			       struct c2_rpc_item *item2);
-	/**
 	  Return true iff item1 and item2 are equal.
 	 */
 	bool (*rito_eq)(const struct c2_rpc_item *i1,
 			const struct c2_rpc_item *i2);
-	/**
-	   Find out the count of fragmented buffers.
-	 */
-	uint64_t (*rito_get_io_fragment_count)(struct c2_rpc_item *item);
+
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	int (*rito_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
-			struct c2_rpc_item *item);
+	void (*rito_io_coalesce)(struct c2_rpc_item *head,
+				 struct c2_list *list, uint64_t size);
+
 	/**
 	   Serialise @item on provided xdr stream @xdrs
 	 */
@@ -97,11 +79,6 @@ struct c2_rpc_item_type_ops {
 	 */
 	void (*rito_io_desc_get)(struct c2_rpc_item *item,
 				 struct c2_net_buf_desc *desc);
-	/**
-	   Store the c2_net_buf_desc into io fop from its net buffer.
-	 */
-	int (*rito_io_desc_store)(struct c2_rpc_item *item,
-				  struct c2_net_buf_desc *desc);
 };
 
 /**

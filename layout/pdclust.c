@@ -443,7 +443,8 @@ static const struct c2_layout_ops pdclust_ops;
  * using l->l_ops->lo_fini().
  */
 int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
-		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     uint32_t N, uint32_t K, uint64_t unitsize,
+		     const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out)
 {
@@ -490,6 +491,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 	pdl->pl_attr.pa_seed = *seed;
 	pdl->pl_attr.pa_N = N;
 	pdl->pl_attr.pa_K = K;
+	pdl->pl_attr.pa_unit_size = unitsize;
 
 	pdl->pl_pool = pool;
 
@@ -672,8 +674,11 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		goto out;
 	}
 
-	rc = c2_pdclust_build(pool, lid, pl_rec->pr_attr.pa_N,
-			      pl_rec->pr_attr.pa_K, &pl_rec->pr_attr.pa_seed,
+	rc = c2_pdclust_build(pool, lid,
+			      pl_rec->pr_attr.pa_N,
+			      pl_rec->pr_attr.pa_K,
+			      pl_rec->pr_attr.pa_unit_size,
+			      &pl_rec->pr_attr.pa_seed,
 			      e, &pl);
 	if (rc != 0) {
 		C2_LOG("pdclust_decode(): lid %llu, c2_pdclust_build() failed, "

@@ -627,12 +627,12 @@ AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
+		 addb/ut/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
                  capa/Makefile
                  capa/ut/Makefile
-                 c2t1fs/Makefile
                  c2t1fs/linux_kernel/st/common.sh
                  cfg/Makefile
                  cob/Makefile

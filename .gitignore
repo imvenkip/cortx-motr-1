@@ -8,6 +8,7 @@ config.cache
 config.guess
 config.h
 config.h.in
+\[config.h\].in
 config.log
 config.status
 config.sub
@@ -46,6 +47,7 @@ missing
 *.gcda
 *.gcno
 *.gcov
+*.swp
 *~
 doc/html/
 .#*
@@ -70,3 +72,4 @@ gmon.out
 doxygen_*tmp
 cscope.out
 tags
+TAGS*

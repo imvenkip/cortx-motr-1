@@ -751,8 +751,7 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 	char                    *objpath;
         struct c2_stob          *bstore;
 
-	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL &&
-								db != NULL);
+	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
 	stob->stype = stob_type;
 

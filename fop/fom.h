@@ -308,6 +308,8 @@ struct c2_fom {
 	struct c2_fol		*fo_fol;
 	/** Transaction object to be used by this fom */
 	struct c2_dtx		 fo_tx;
+        /** Pointer to service instance. */
+        struct c2_reqh_service   *fo_service;
 	/**
 	    FOM linkage in the locality runq list or wait list
 	    Every access to the FOM via this linkage is
@@ -438,6 +440,11 @@ struct c2_fom_ops {
 	    array.
 	 */
 	size_t  (*fo_home_locality) (const struct c2_fom *fom);
+
+        /**
+         * Get service name which executes this fom.
+         */
+        const char *(*fo_service_name) (struct c2_fom *fom);
 };
 
 /** Handler thread. */

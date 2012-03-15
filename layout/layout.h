@@ -75,6 +75,9 @@
 #include "lib/tlist.h"    /* struct c2_tl */
 #include "lib/mutex.h"    /* struct c2_mutex */
 
+#include "addb/addb.h"
+
+struct c2_addb_ctx;
 struct c2_bufvec_cursor;
 struct c2_fid;
 struct c2_db_tx;

@@ -169,12 +169,12 @@ int main(int argc, char **argv)
 	int      R;
 	int      I;
 	int      result;
+	uint64_t unitsize = 4096;
 	struct c2_pdclust_layout     *play;
 	struct c2_pool                pool;
 	uint64_t                      id;
 	struct c2_uint128             seed;
 	struct c2_layout_linear_enum *le;
-
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -214,8 +214,8 @@ int main(int argc, char **argv)
 	if (result == 0) {
 		result = c2_linear_enum_build(id, pool.po_width, 100, 200, &le);
 		if (result == 0) {
-			result = c2_pdclust_build(&pool, id, N, K, &seed,
-						  &le->lle_base,
+			result = c2_pdclust_build(&pool, id, N, K, unitsize,
+						  &seed, &le->lle_base,
 						  &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);

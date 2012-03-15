@@ -726,6 +726,7 @@ void c2_fom_init(struct c2_fom *fom)
 
 	fom->fo_phase = FOPH_INIT;
 	fom->fo_rep_fop = NULL;
+        fom->fo_rc = 0;
 
 	c2_clink_init(&fom->fo_clink, &fom_cb);
 	c2_list_link_init(&fom->fo_linkage);

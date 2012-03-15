@@ -4,9 +4,9 @@ KERNEL_BUILDDIR = @LINUX_OBJ@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
-testdirs        = ../net/bulk_emulation/st/linux_kernel/                \
-                  ../rpc/it/linux_kernel/                               \
-                  ../utils/linux_kernel/
+testdirs 	= ../net/bulk_emulation/st/linux_kernel/\
+	          ../rpc/it/linux_kernel/\
+		  ../utils/linux_kernel/
 
 EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
@@ -22,8 +22,8 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 #       The $(dirs) list is maintained alphabetically
 
 dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db \
-        db/linux_kernel dtm fid fol fop ioservice layout lib      \
-        lib/linux_kernel lib/ut net net/bulk_emulation            \
+        db/linux_kernel dtm fid fol fop ioservice ioservice/ut    \
+	layout lib lib/linux_kernel lib/ut net net/bulk_emulation \
         net/bulk_emulation/ut net/ksunrpc net/ut pool rpc rpc/ut  \
         sm sns stob stob/ut ut xcode xcode/ut
 
@@ -38,9 +38,8 @@ addb_linux_kernel_SOURCES       := addb_console.c
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d; e.g. in the following,
 #       ../../ioservice/ points to $(CORE_SRCDIR)/c2t1fs/../../ioservice/
 
-c2t1fs_linux_kernel_SOURCES     := main.c
-c2t1fs_linux_kernel_HEADERS     := c2t1fs.h ../../ioservice/io_fops_k.h \
-                                   ../../stob/ut/io_k.h
+c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
+c2t1fs_linux_kernel_HEADERS     := c2t1fs.h
 
 cob_SOURCES                     := cob.c
 
@@ -62,6 +61,9 @@ fol_HEADERS                     := fol.h
 fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c \
                                    fop_base.c fop_item_type.c
 
+layout_SOURCES                  := layout.c pdclust.c
+layout_HEADERS                  := layout.h pdclust.h
+
 ioservice_SOURCES               := io_fops.c io_fops_k.c
 ioservice_HEADERS               := io_fops.h io_fops_k.h
 
@@ -70,10 +72,13 @@ layout_SOURCES 			:= layout.c pdclust.c composite.c list_enum.c \
 layout_HEADERS 			:= layout.h pdclust.h composite.h list_enum.h \
 				   linear_enum.h
 
+ioservice_ut_SOURCES		:= bulkio_client.c
+
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
                                    time.c bitmap.c chan.c misc.c buf.c cond.c \
                                    thread.c tlist.c bob.c trace.c
-lib_HEADERS                     := misc.h memory.h errno.h arith.h buf.h \
+
+lib_HEADERS                     := misc.h memory.h errno.h arith.h buf.h      \
                                    trace.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
@@ -82,7 +87,8 @@ lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
                                    mutex.c queue.c refs.c tlist.c time.c      \
-                                   vec.c zerovec.c thread.c bob.c trace.c
+                                   vec.c zerovec.c thread.c bob.c trace.c     \
+				   memory.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
                                    tm.c connection.c net_cli.c net_utils.c    \
