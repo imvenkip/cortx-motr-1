@@ -307,7 +307,7 @@ static void ktest_core_ep_addr(void)
 	int rc;
 	int i;
 
-	C2_UT_ASSERT(!nlx_core_nidstrs_get(&nidstrs));
+	C2_UT_ASSERT(!nlx_core_nidstrs_get(&dom.xd_core, &nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL);
 	for (i = 0; nidstrs[i] != NULL; ++i) {
 		char *network;
@@ -332,7 +332,7 @@ static void ktest_core_ep_addr(void)
 			C2_UT_ASSERT(strcmp(buf, epstr[i]) == 0);
 		}
 	}
-	nlx_core_nidstrs_put(&nidstrs);
+	nlx_core_nidstrs_put(&dom.xd_core, &nidstrs);
 	C2_UT_ASSERT(nidstrs == NULL);
 
 	for (i = 0; i < ARRAY_SIZE(failepstr); ++i) {
@@ -987,7 +987,7 @@ static void ktest_msg_body(struct ut_data *td)
 	{       /* create a destination end point */
 		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
 		sprintf(epstr, "%s:%d:%d:1024",
-			td->nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
+			td->nidstrs1[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
 		zUT(c2_net_end_point_create(&ut_ktest_msg_LNetPut_ep,
 					    TM1, epstr), done);
 	}
@@ -1038,7 +1038,7 @@ static void ktest_msg_body(struct ut_data *td)
 	{       /* create a destination end point */
 		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
 		sprintf(epstr, "%s:%d:%d:1024",
-			td->nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
+			td->nidstrs1[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
 		zUT(c2_net_end_point_create(&ut_ktest_msg_LNetPut_ep,
 					    TM1, epstr), done);
 	}

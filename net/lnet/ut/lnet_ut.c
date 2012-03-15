@@ -286,7 +286,8 @@ struct ut_data {
 	size_t                         buf_size2;
 	c2_bcount_t                    buf_seg_size2;
 	struct c2_net_qstats           qs;
-	char * const                  *nidstrs;
+	char * const                  *nidstrs1;
+	char * const                  *nidstrs2;
 	struct nlx_core_buf_desc       cbd1;
 	struct nlx_core_buf_desc       cbd2;
 };
@@ -405,7 +406,6 @@ static void ut_test_framework(ut_test_fw_body_t body,
 			      int dbg)
 {
 	struct ut_data *td;
-	char * const *nidstrs = NULL;
 	int i;
 	int rc;
 
@@ -428,14 +428,14 @@ static void ut_test_framework(ut_test_fw_body_t body,
 		td->buf_cb2.nbc_cb[i] = ut_buf_cb2;
 	}
 
-	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
-	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
-
 #define SETUP_DOM(which)						\
 do {									\
         struct c2_net_domain *dom = &td->dom ## which;			\
 	struct c2_net_transfer_mc *tm = &td->tm ## which;		\
+	char * const **nidstrs = &td->nidstrs ## which;			\
         C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));	\
+	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(dom, nidstrs));		\
+	C2_UT_ASSERT(*nidstrs != NULL && **nidstrs != NULL);		\
 	{								\
 		char epstr[C2_NET_LNET_XEP_ADDR_LEN];			\
 		c2_bcount_t max_seg_size;				\
@@ -475,7 +475,7 @@ do {									\
 			(*ps_cb)(td, which);                            \
 									\
 		sprintf(epstr, "%s:%d:%d:*",				\
-			nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);	\
+			**nidstrs, STARTSTOP_PID, STARTSTOP_PORTAL);	\
 		c2_clink_add(&tm->ntm_chan, &td->tmwait ## which);	\
 		C2_UT_ASSERT(!c2_net_tm_start(tm, epstr));		\
 		c2_chan_wait(&td->tmwait ## which);			\
@@ -511,13 +511,15 @@ do {								\
 		c2_net_buffer_deregister(nb, dom);		\
 		c2_bufvec_free(&nb->nb_buffer);			\
 	}							\
+	if (td->nidstrs ## which != NULL)			\
+		c2_net_lnet_ifaces_put(dom, &td->nidstrs ## which);	\
+	C2_UT_ASSERT(td->nidstrs ## which == NULL);		\
 	c2_net_domain_fini(dom);				\
 } while (0)
 
 	SETUP_DOM(1);
 	SETUP_DOM(2);
 
-	td->nidstrs = nidstrs;
 	(*body)(td);
 
 	ut_test_framework_dom_cleanup(td, DOM2);
@@ -526,9 +528,6 @@ do {								\
 	TEARDOWN_DOM(2);
 	TEARDOWN_DOM(1);
 
-	if (nidstrs != NULL)
-		c2_net_lnet_ifaces_put(&nidstrs);
-	C2_UT_ASSERT(nidstrs == NULL);
 	c2_clink_fini(&td->tmwait1);
 	c2_clink_fini(&td->tmwait2);
 	c2_free(td);
@@ -723,13 +722,13 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));
-	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(&nidstrs));
+	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(dom, &nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
 	sprintf(epstr, "%s:%d:%d:101",
 		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
 	sprintf(dyn_epstr, "%s:%d:%d:*",
 		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
-	c2_net_lnet_ifaces_put(&nidstrs);
+	c2_net_lnet_ifaces_put(dom, &nidstrs);
 	C2_UT_ASSERT(nidstrs == NULL);
 	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
 	c2_net_lnet_tm_stat_interval_set(tm, STARTSTOP_STAT_SECS);
@@ -1152,7 +1151,7 @@ static void test_msg_body(struct ut_data *td)
 	{       /* create a destination end point */
 		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
 		sprintf(epstr, "%s:%d:%d:1024",
-			td->nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
+			td->nidstrs2[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
 		zUT(c2_net_end_point_create(&ep2, TM2, epstr), aborted);
 	}
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);

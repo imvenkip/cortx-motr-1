@@ -870,14 +870,22 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 	return strncmp(addr1, addr2, min32(cp1 - addr1, cp2 - addr2));
 }
 
-int c2_net_lnet_ifaces_get(char * const **addrs)
+int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs)
 {
-	return nlx_core_nidstrs_get(addrs);
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	return nlx_core_nidstrs_get(&dp->xd_core, addrs);
 }
 
-void c2_net_lnet_ifaces_put(char * const **addrs)
+void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs)
 {
-	nlx_core_nidstrs_put(addrs);
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	nlx_core_nidstrs_put(&dp->xd_core, addrs);
 }
 
 void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,

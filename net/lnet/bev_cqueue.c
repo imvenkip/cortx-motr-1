@@ -606,6 +606,8 @@ static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 		return false;
 	if (q->cbcq_nr < C2_NET_LNET_BEVQ_MIN_SIZE)
 		return false;
+	if (c2_atomic64_get(&q->cbcq_count) >= q->cbcq_nr)
+		return false;
 	return true;
 }
 
@@ -691,17 +693,11 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q,
 
 /**
    Tests if the buffer event queue is empty.
-   @note This operation is to be used only by the consumer.  The data structures
-   do not provide a pointer to the consumer element from the producer's
-   perspective.
  */
 static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q)
 {
-	struct nlx_core_bev_link *consumer;
 	C2_PRE(bev_cqueue_invariant(q));
-
-	consumer = ((struct nlx_core_bev_link *) (q->cbcq_consumer));
-	return consumer->cbl_p_next == q->cbcq_producer;
+	return c2_atomic64_get(&q->cbcq_count) == 0;
 }
 
 /**
@@ -721,11 +717,13 @@ static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q)
 static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 {
 	struct nlx_core_bev_link *link;
+
 	if (bev_cqueue_is_empty(q)) /* also checks invariant */
 		return NULL;
 	link = (struct nlx_core_bev_link *) q->cbcq_consumer;
 	C2_ASSERT(link->cbl_c_next != 0);
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) link->cbl_c_next;
+	c2_atomic64_dec(&q->cbcq_count);
 	return (struct nlx_core_bev_link *) (q->cbcq_consumer);
 }
 

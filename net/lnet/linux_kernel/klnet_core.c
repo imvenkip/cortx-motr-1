@@ -1539,33 +1539,33 @@ int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
 	return nlx_kcore_LNetMDUnlink(lctm, lcbuf);
 }
 
-static int nlx_kcore_buf_event_wait(struct nlx_kcore_domain *kd,
+static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 				    struct nlx_kcore_transfer_mc *ktm,
 				    c2_time_t timeout)
 {
-	/** @todo implement */
-	return -ENOSYS;
-}
-
-int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
-			    c2_time_t timeout)
-{
-	struct nlx_kcore_transfer_mc *kctm;
 	bool any;
 
-	C2_PRE(nlx_core_tm_invariant(lctm));
-	kctm = lctm->ctm_kpvt;
-	C2_PRE(nlx_kcore_tm_invariant(kctm));
+	C2_PRE(nlx_core_tm_invariant(ctm));
+	C2_PRE(nlx_kcore_tm_invariant(ktm));
 
 	do {
-		any = c2_semaphore_timeddown(&kctm->ktm_sem, timeout);
+		any = c2_semaphore_timeddown(&ktm->ktm_sem, timeout);
 		if (!any)
 			break;
-		while (c2_semaphore_trydown(&kctm->ktm_sem))
+		while (c2_semaphore_trydown(&ktm->ktm_sem))
 			; /* exhaust the semaphore */
-	} while (bev_cqueue_is_empty(&lctm->ctm_bevq)); /* loop if empty */
+	} while (bev_cqueue_is_empty(&ctm->ctm_bevq)); /* loop if empty */
 
 	return any ? 0 : -ETIMEDOUT;
+}
+
+int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *ctm, c2_time_t timeout)
+{
+	struct nlx_kcore_transfer_mc *ktm;
+
+	C2_PRE(nlx_core_tm_invariant(ctm));
+	ktm = ctm->ctm_kpvt;
+	return nlx_kcore_buf_event_wait(ctm, ktm, timeout);
 }
 
 bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
@@ -1589,76 +1589,38 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	return false;
 }
 
-int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom, /* not used */
-			    const char *ep_addr,
-			    struct nlx_core_ep_addr *cepa)
+static int nlx_kcore_nidstr_decode(const char *nidstr, uint64_t *nid)
 {
-	char nidstr[LNET_NIDSTR_SIZE];
-	char *cp = strchr(ep_addr, ':');
-	char *endp;
-	size_t n;
-
-	if (cp == NULL)
+	*nid = libcfs_str2nid(nidstr);
+	if (*nid == LNET_NID_ANY)
 		return -EINVAL;
-	n = cp - ep_addr;
-	if (n == 0 || n >= sizeof nidstr)
-		return -EINVAL;
-	strncpy(nidstr, ep_addr, n);
-	nidstr[n] = 0;
-	cepa->cepa_nid = libcfs_str2nid(nidstr);
-	if (cepa->cepa_nid == LNET_NID_ANY)
-		return -EINVAL;
-	++cp;
-	cepa->cepa_pid = simple_strtoul(cp, &endp, 10);
-	if (*endp != ':')
-		return -EINVAL;
-	cp = endp + 1;
-	cepa->cepa_portal = simple_strtoul(cp, &endp, 10);
-	if (*endp != ':')
-		return -EINVAL;
-	cp = endp + 1;
-	if (strcmp(cp, "*") == 0) {
-		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
-	} else {
-		cepa->cepa_tmid = simple_strtoul(cp, &endp, 10);
-		if (*endp != 0 || cepa->cepa_tmid > C2_NET_LNET_TMID_MAX)
-			return -EINVAL;
-	}
 	return 0;
 }
 
-void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
-			     const struct nlx_core_ep_addr *cepa,
-			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
+int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom, /* not used */
+			   const char *nidstr, uint64_t *nid)
 {
-	const char *cp = libcfs_nid2str(cepa->cepa_nid);
-	const char *fmt;
-
-	if (cepa->cepa_tmid != C2_NET_LNET_TMID_INVALID)
-		fmt = "%s:%u:%u:%u";
-	else
-		fmt = "%s:%u:%u:*";
-	snprintf(buf, C2_NET_LNET_XEP_ADDR_LEN, fmt,
-		 cp, cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
+	return nlx_kcore_nidstr_decode(nidstr, nid);
 }
 
-int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,
-			   const char *nidstr,
-			   uint64_t *nid)
+static int nlx_kcore_nidstr_encode(uint64_t nid,
+				   char nidstr[C2_NET_LNET_NIDSTR_SIZE])
 {
-	/** @todo implement */
-	return -ENOSYS;
+	const char *cp = libcfs_nid2str(nid);
+
+	C2_ASSERT(cp != NULL && *cp != 0);
+	strncpy(nidstr, cp, C2_NET_LNET_NIDSTR_SIZE - 1);
+	nidstr[C2_NET_LNET_NIDSTR_SIZE - 1] = 0;
+	return 0;
 }
 
-int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,
-			   uint64_t nid,
-			   char nidstr[C2_NET_LNET_NIDSTR_SIZE])
+int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom, /* not used */
+			   uint64_t nid, char nidstr[C2_NET_LNET_NIDSTR_SIZE])
 {
-	/** @todo implement */
-	return -ENOSYS;
+	return nlx_kcore_nidstr_encode(nid, nidstr);
 }
 
-int nlx_core_nidstrs_get(char * const **nidary)
+static int nlx_kcore_nidstrs_get(char * const **nidary)
 {
 	C2_PRE(nlx_kcore_lni_nidstrs != NULL);
 	*nidary = nlx_kcore_lni_nidstrs;
@@ -1666,12 +1628,22 @@ int nlx_core_nidstrs_get(char * const **nidary)
 	return 0;
 }
 
-void nlx_core_nidstrs_put(char * const **nidary)
+int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
+{
+	return nlx_kcore_nidstrs_get(nidary);
+}
+
+void nlx_kcore_nidstrs_put(char * const **nidary)
 {
 	C2_PRE(*nidary == nlx_kcore_lni_nidstrs);
 	C2_PRE(c2_atomic64_get(&nlx_kcore_lni_refcount) > 0);
 	c2_atomic64_dec(&nlx_kcore_lni_refcount);
 	*nidary = NULL;
+}
+
+void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
+{
+	return nlx_kcore_nidstrs_put(nidary);
 }
 
 static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,

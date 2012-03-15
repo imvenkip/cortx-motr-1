@@ -388,11 +388,11 @@ struct nlx_kcore_ops {
 
 	/**
 	   Performs common kernel core tasks to wait for buffer events.
-	   @param kd kernel domain for this transfer machine
+	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param timeout Absolute time at which to stop waiting.
 	 */
-	int (*ko_buf_event_wait)(struct nlx_kcore_domain *kd,
+	int (*ko_buf_event_wait)(struct nlx_core_transfer_mc *ctm,
 				 struct nlx_kcore_transfer_mc *ktm,
 				 c2_time_t timeout);
 };

@@ -600,10 +600,6 @@
    - The parameters are validated to ensure no assertions will occur.
    - The @c nlx_kcore_ops::ko_buf_event_wait() function is called.
 
-   Because of the timing, there is no guarantee that a buffer event will still
-   be available when the ioctl request returns successfully.  The user space
-   transport can verify that an event is available, and loop if not.
-
    @subsection LNetDRVDLD-lspec-nids Node Identifier Support
 
    The user space transport uses the @c #C2_LNET_NIDSTR_DECODE and

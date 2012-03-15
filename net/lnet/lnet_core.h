@@ -811,12 +811,14 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
    The returned array must be released using nlx_core_nidstrs_put().
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
-static int nlx_core_nidstrs_get(char * const **nidary);
+static int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,
+				char * const **nidary);
 
 /**
    Releases the string array returned by nlx_core_nidstrs_get().
  */
-static void nlx_core_nidstrs_put(char * const **nidary);
+static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
+				 char * const **nidary);
 
 /**
    Starts a transfer machine. Internally this results in
@@ -925,14 +927,14 @@ static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 #endif /* C2_LNET_DRV_TEST */
 
 /**
-   Round up a number n to the next power of 2, min 1<<3, works for n <= 1<<8.
+   Round up a number n to the next power of 2, min 1<<3, works for n <= 1<<9.
    If n is a power of 2, returns n.
    Requires a constant input, allowing compile-time computation.
  */
 #define NLX_PO2_SHIFT(n)                                                \
 	(((n) <= 8) ? 3 : ((n) <= 16) ? 4 : ((n) <= 32) ? 5 :           \
 	 ((n) <= 64) ? 6 : ((n) <= 128) ? 7 : ((n) <= 256) ? 8 :        \
-	 ((n) / 0))
+	 ((n) <= 512) ? 9 : ((n) / 0))
 #define NLX_ALLOC_PTR(ptr) \
 	((ptr) = nlx_core_mem_alloc(sizeof ((ptr)[0]),                  \
 				    NLX_PO2_SHIFT(sizeof ((ptr)[0]))))

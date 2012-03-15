@@ -74,6 +74,7 @@ static void bev_cqueue_put(struct nlx_core_bev_cqueue *q)
 	p = (struct nlx_core_bev_link*) q->cbcq_producer;
 	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
 	q->cbcq_producer = p->cbl_p_next;
+	c2_atomic64_inc(&q->cbcq_count);
 }
 
 /**

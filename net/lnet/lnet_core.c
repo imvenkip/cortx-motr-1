@@ -357,6 +357,73 @@ int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 #undef TM_EP
 #undef CBD_EP
 
+#ifdef __KERNEL__
+#define strtoul simple_strtoul
+#endif
+
+int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
+			    const char *ep_addr,
+			    struct nlx_core_ep_addr *cepa)
+{
+	char nidstr[C2_NET_LNET_NIDSTR_SIZE];
+	char *cp = strchr(ep_addr, ':');
+	char *endp;
+	size_t n;
+	int rc;
+
+	if (cp == NULL)
+		return -EINVAL;
+	n = cp - ep_addr;
+	if (n == 0 || n >= sizeof nidstr)
+		return -EINVAL;
+	strncpy(nidstr, ep_addr, n);
+	nidstr[n] = 0;
+	rc = nlx_core_nidstr_decode(lcdom, nidstr, &cepa->cepa_nid);
+	if (rc != 0)
+		return rc;
+	++cp;
+	cepa->cepa_pid = strtoul(cp, &endp, 10);
+	if (*endp != ':')
+		return -EINVAL;
+	cp = endp + 1;
+	cepa->cepa_portal = strtoul(cp, &endp, 10);
+	if (*endp != ':')
+		return -EINVAL;
+	cp = endp + 1;
+	if (strcmp(cp, "*") == 0) {
+		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
+	} else {
+		cepa->cepa_tmid = strtoul(cp, &endp, 10);
+		if (*endp != 0 || cepa->cepa_tmid > C2_NET_LNET_TMID_MAX)
+			return -EINVAL;
+	}
+	return 0;
+}
+
+#ifdef __KERNEL__
+#undef strtoul
+#endif
+
+void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
+			     const struct nlx_core_ep_addr *cepa,
+			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
+{
+	const char *fmt;
+	int rc;
+	int n;
+
+	rc = nlx_core_nidstr_encode(lcdom, cepa->cepa_nid, buf);
+	C2_ASSERT(rc == 0);
+	n = strlen(buf);
+
+	if (cepa->cepa_tmid != C2_NET_LNET_TMID_INVALID)
+		fmt = ":%u:%u:%u";
+	else
+		fmt = ":%u:%u:*";
+	snprintf(buf + n, C2_NET_LNET_XEP_ADDR_LEN, fmt,
+		 cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
+}
+
 void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
 {
 	lcdom->_debug_ = dbg;

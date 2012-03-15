@@ -344,8 +344,6 @@
    - It declares a @c c2_lnet_dev_buf_event_wait_params and sets the fields.
    - It performs a @c #C2_LNET_BUF_EVENT_WAIT ioctl request to wait for
      the kernel to generate additional buffer events.
-   - Loop in the case that a timeout did not occur but the buffer event queue
-     was already empty again after the ioctl request returns.
 
    @see @ref LNetDRVDLD-lspec-event "Corresponding device layer behavior"
 
@@ -620,24 +618,6 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	return false;
 }
 
-int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
-			    const char *ep_addr,
-			    struct nlx_core_ep_addr *cepa)
-{
-	/** @todo XXX implement */
-	uint64_t nid;
-	(void) nlx_core_nidstr_decode(lcdom, ep_addr, &nid);
-	return -ENOSYS;
-}
-
-void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
-			     const struct nlx_core_ep_addr *cepa,
-			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
-{
-	/** @todo XXX implement */
-	(void) nlx_core_nidstr_encode(lcdom, 0, buf);
-}
-
 int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,
 			   const char *nidstr,
 			   uint64_t *nid)
@@ -654,13 +634,13 @@ int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,
 	return -ENOSYS;
 }
 
-int nlx_core_nidstrs_get(char * const **nidary)
+int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-void nlx_core_nidstrs_put(char * const **nidary)
+void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 {
 	/** @todo XXX implement */
 }

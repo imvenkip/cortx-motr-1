@@ -116,14 +116,15 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
 /**
    Gets a list of strings corresponding to the local LNET network interfaces.
    The returned array must be released using c2_net_lnet_ifaces_put().
+   @param dom Pointer to the domain.
    @param addrs A NULL-terminated (like argv) array of NID strings is returned.
  */
-int c2_net_lnet_ifaces_get(char * const **addrs);
+int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs);
 
 /**
    Releases the string array returned by c2_net_lnet_ifaces_get().
  */
-void c2_net_lnet_ifaces_put(char * const **addrs);
+void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs);
 
 /**
    Sets the transfer machine statistics reporting interval.
