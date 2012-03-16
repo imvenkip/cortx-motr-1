@@ -258,7 +258,7 @@ void c2_layout_put(struct c2_layout *l)
  * - Client decodes a buffer received over the network, into an in-memory
  *   layout structure, using c2_layout_decode().
  *
- * @param op - This enum parameter indicates what is the DB operation to be
+ * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record. It could be LOOKUP if at all. If it is NONE,
  * then the layout is decoded from its representation received over the
  * network.

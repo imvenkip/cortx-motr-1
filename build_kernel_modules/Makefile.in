@@ -67,9 +67,9 @@ layout_HEADERS                  := layout.h pdclust.h
 ioservice_SOURCES               := io_fops.c io_fops_k.c
 ioservice_HEADERS               := io_fops.h io_fops_k.h
 
-layout_SOURCES 			:= layout.c pdclust.c composite.c list_enum.c \
+layout_SOURCES			:= layout.c pdclust.c composite.c list_enum.c \
 				   linear_enum.c
-layout_HEADERS 			:= layout.h pdclust.h composite.h list_enum.h \
+layout_HEADERS			:= layout.h pdclust.h composite.h list_enum.h \
 				   linear_enum.h
 
 ioservice_ut_SOURCES		:= bulkio_client.c

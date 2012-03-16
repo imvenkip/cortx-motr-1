@@ -436,7 +436,7 @@ static const struct c2_table_ops layouts_table_ops = {
 /**
  * Write layout record to the layouts table.
  *
- * @param op - This enum parameter indicates what is the DB operation to be
+ * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record which could be one of ADD/UPDATE/DELETE.
  */
 int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,

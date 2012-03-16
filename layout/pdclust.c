@@ -607,7 +607,7 @@ static int pdclust_recsize(struct c2_ldb_schema *schema,
  * Continues to build the in-memory layout object from its representation
  * either 'stored in the Layout DB' or 'received over the network'.
  *
- * @param op - This enum parameter indicates what, if a DB operation is to be
+ * @param op This enum parameter indicates what, if a DB operation is to be
  * performed on the layout record and it could be LOOKUP if at all.
  * If it is NONE, then the layout is decoded from its representation received
  * over the network.
@@ -706,7 +706,7 @@ out:
  * @li Either adds/updates/deletes it to/from the Layout DB
  * @li Or converts it to a buffer that can be passed on over the network.
  *
- * @param op - This enum parameter indicates what is the DB operation to be
+ * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all and it could be one of
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
  */

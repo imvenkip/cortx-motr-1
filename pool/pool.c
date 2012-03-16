@@ -38,7 +38,8 @@ enum {
 };
 
 /**
- * @note Temporarily storing the pool structures in this array.
+ * @todo Temporarily storing the pool structures in this array since not
+ * not many pool objects are expected to be instantiated.
  * See pool.h for note related to c2_pool_lookup().
  */
 static struct c2_pool *pool_list[MAX_POOL_ID + 1];

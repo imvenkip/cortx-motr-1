@@ -404,7 +404,7 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
  * the c2_layout_list_enum object. Then reads further cob identifiers either
  * from the DB or from the buffer, as applicable.
  *
- * @param op - This enum parameter indicates what if a DB operation is to be
+ * @param op This enum parameter indicates what if a DB operation is to be
  * performed on the layout record and it could be LOOKUP if at all.
  * If it is NONE, then the layout is decoded from its representation received
  * over the network.
@@ -564,7 +564,7 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
  * Layout DB' or 'converts it to a buffer that can be passed on over the
  * network'.
 
- * @param op - This enum parameter indicates what is the DB operation to be
+ * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all and it could be one of
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is converted into the
  * buffer.
@@ -637,7 +637,8 @@ static int list_encode(struct c2_ldb_schema *schema,
 		if(c2_bufvec_cursor_step(oldrec_cur) <
 			  num_inline * sizeof *cob_id_old) {
 			rc = -ENOBUFS;
-			C2_LOG("list_encode(): lid %llu, buffer for old record "			       "with insufficient size",
+			C2_LOG("list_encode(): lid %llu, buffer for old "
+			       "record with insufficient size",
 			       (unsigned long long)l->l_id);
 			goto out;
 		}
