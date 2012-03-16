@@ -1751,13 +1751,8 @@ void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 	return nlx_kcore_nidstrs_put(nidary);
 }
 
-/**
-   Kernel subroutine to allocate a new buffer event structure initialized
-   with the producer space self pointer set.
-   @param bevp Buffer event return pointer.
-   @note bev_cqueue_bless() has been invoked on success.
- */
-static int nlx_kcore_new_blessed_bev(struct nlx_core_buffer_event **bevp)
+int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
+			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
 
@@ -1766,15 +1761,9 @@ static int nlx_kcore_new_blessed_bev(struct nlx_core_buffer_event **bevp)
 		*bevp = NULL;
 		return -ENOMEM;
 	}
-	bev_link_bless(&bev->cbe_tm_link);
+	bev_link_bless(&bev->cbe_tm_link, virt_to_page(&bev->cbe_tm_link));
 	*bevp = bev;
 	return 0;
-}
-
-int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
-			     struct nlx_core_buffer_event **bevp)
-{
-	return nlx_kcore_new_blessed_bev(bevp);
 }
 
 static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
@@ -1955,8 +1944,8 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
 			      PAGE_OFFSET((unsigned long) ctm));
 
-	nlx_kcore_new_blessed_bev(&e1);
-	nlx_kcore_new_blessed_bev(&e2);
+	nlx_core_new_blessed_bev(ctm, &e1);
+	nlx_core_new_blessed_bev(ctm, &e2);
 	if (e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
 		goto fail;

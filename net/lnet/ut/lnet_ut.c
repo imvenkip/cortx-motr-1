@@ -491,30 +491,30 @@ do {									\
 	}								\
 } while (0)
 
-#define TEARDOWN_DOM(which)					\
-do {								\
-        struct c2_net_domain *dom = &td->dom ## which;		\
-	struct c2_net_transfer_mc *tm = &td->tm ## which;	\
-	c2_clink_add(&tm->ntm_chan, &td->tmwait ## which);	\
-	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));		\
-	c2_chan_wait(&td->tmwait ## which);			\
-	c2_clink_del(&td->tmwait ## which);			\
-	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);	\
- fini ## which:							\
-	c2_net_tm_fini(tm);					\
- dereg ## which:						\
-	for (i = 0; i < UT_BUFS ## which; ++i) {		\
-		struct c2_net_buffer      *nb;			\
-		nb = &td->bufs ## which [i];			\
-		if (nb->nb_buffer.ov_vec.v_nr == 0)		\
-			continue;				\
-		c2_net_buffer_deregister(nb, dom);		\
-		c2_bufvec_free(&nb->nb_buffer);			\
-	}							\
-	if (td->nidstrs ## which != NULL)			\
+#define TEARDOWN_DOM(which)						\
+do {									\
+        struct c2_net_domain *dom = &td->dom ## which;			\
+	struct c2_net_transfer_mc *tm = &td->tm ## which;		\
+	c2_clink_add(&tm->ntm_chan, &td->tmwait ## which);		\
+	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));			\
+	c2_chan_wait(&td->tmwait ## which);				\
+	c2_clink_del(&td->tmwait ## which);				\
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);		\
+ fini ## which:								\
+	c2_net_tm_fini(tm);						\
+ dereg ## which:							\
+	for (i = 0; i < UT_BUFS ## which; ++i) {			\
+		struct c2_net_buffer      *nb;				\
+		nb = &td->bufs ## which [i];				\
+		if (nb->nb_buffer.ov_vec.v_nr == 0)			\
+			continue;					\
+		c2_net_buffer_deregister(nb, dom);			\
+		c2_bufvec_free(&nb->nb_buffer);				\
+	}								\
+	if (td->nidstrs ## which != NULL)				\
 		c2_net_lnet_ifaces_put(dom, &td->nidstrs ## which);	\
-	C2_UT_ASSERT(td->nidstrs ## which == NULL);		\
-	c2_net_domain_fini(dom);				\
+	C2_UT_ASSERT(td->nidstrs ## which == NULL);			\
+	c2_net_domain_fini(dom);					\
 } while (0)
 
 	SETUP_DOM(1);

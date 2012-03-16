@@ -73,13 +73,14 @@ static void bev_cqueue_put(struct nlx_core_bev_cqueue *q,
 /**
    Blesses the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
    the producer self value.
-   @param ql the link to bless, the caller must have already mapped the element
+   @param ql The link to bless, the caller must have already mapped the element
    into the producer address space.
+   @param pg The page object corresponding to the link object.
  */
-static void bev_link_bless(struct nlx_core_bev_link *ql)
+static void bev_link_bless(struct nlx_core_bev_link *ql, struct page *pg)
 {
-	nlx_core_kmem_loc_set(&ql->cbl_p_self_loc, virt_to_page(ql),
-			      PAGE_OFFSET((unsigned long) ql));
+	nlx_core_kmem_loc_set(&ql->cbl_p_self_loc,
+			      pg, PAGE_OFFSET((unsigned long) ql));
 }
 
 /** @} */ /* bevcqueue */
