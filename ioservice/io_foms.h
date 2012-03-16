@@ -258,7 +258,7 @@ struct c2_fom_cob_common {
  */
 struct c2_fom_cob_create {
 	/** Stob Identifier. */
-	struct c2_stob		*fcc_stob;
+	struct c2_stob_id        fcc_stob_id;
 	/** Common part of cob operation foms. */
 	struct c2_fom_cob_common fcc_cc;
 };

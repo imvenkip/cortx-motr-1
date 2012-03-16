@@ -1842,7 +1842,7 @@ static inline struct c2_fom_cob_delete *cd_fom_get(struct c2_fom *fom);
 enum {
 	CC_COB_VERSION_INIT	= 0,
 	CC_COB_HARDLINK_NR	= 1,
-	CD_FOM_STOBIO_LAST_REFS = 2,
+	CD_FOM_STOBIO_LAST_REFS = 1,
 };
 
 static const struct c2_addb_loc cc_fom_addb_loc = {
@@ -2063,14 +2063,14 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	C2_ASSERT(stob != NULL);
 
 	rc = c2_stob_create(stob, &fom->fo_tx);
-	if (rc != 0) {
-		c2_stob_put(stob);
+	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Stob creation failed in cc_stob_create().", rc);
-	} else
-		cc->fcc_stob = stob;
+	else
+		cc->fcc_stob_id = stob->so_id;
 
+	c2_stob_put(stob);
 	return rc;
 }
 
@@ -2086,7 +2086,6 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
-	C2_PRE(cc->fcc_stob != NULL);
 
 	cdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
 	C2_ASSERT(cdom != NULL);
@@ -2100,7 +2099,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 		return -ENOMEM;
 	}
 
-	nsrec.cnr_stobid = cc->fcc_stob->so_id;
+	nsrec.cnr_stobid = cc->fcc_stob_id;
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
 	fabrec.cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
@@ -2144,7 +2143,6 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
-	C2_PRE(cc->fcc_stob != NULL);
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
@@ -2317,15 +2315,10 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_delete *cd)
 	}
 	C2_ASSERT(stob != NULL);
 
-	/*
-	 * The refcount on stob was already 1 (as a result of stob creation)
-	 * and the c2_stob_find() above bumped up the reference to 2.
-	 */
 	C2_ASSERT(stob->so_ref.a_value == CD_FOM_STOBIO_LAST_REFS);
 	c2_stob_put(stob);
-	c2_stob_put(stob);
 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			c2_addb_trace, "Stob deleted successfully.");
+		    c2_addb_trace, "Stob deleted successfully.");
 
 	return rc;
 }

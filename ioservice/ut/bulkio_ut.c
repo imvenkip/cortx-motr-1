@@ -447,13 +447,13 @@ static void cc_stob_create_test()
 
 		C2_UT_ASSERT(rc == 0);
 
-		C2_UT_ASSERT(cc->fcc_stob != NULL);
+		/*C2_UT_ASSERT(cc->fcc_stob != NULL);
 		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
-		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);*/
 		/*
 	 	 * To do - Perform stat on the path.
 	 	 */
-		c2_stob_put(cc->fcc_stob);
+		//c2_stob_put(cc->fcc_stob);
 		cc_fom_dealloc(fom);
 	}
 }
@@ -520,9 +520,10 @@ static void cc_cob_create_test()
 		c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 		C2_UT_ASSERT(rc == 0);
-		C2_UT_ASSERT(cc->fcc_stob != NULL);
+		/*C2_UT_ASSERT(cc->fcc_stob != NULL);
 		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
 		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		*/
 
 		/*
 		 * Test-case 1 - Verify COB creation
@@ -548,7 +549,7 @@ static void cc_cob_create_test()
 		c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 		C2_UT_ASSERT(rc == 0);
 
-		c2_stob_put(cc->fcc_stob);
+		//c2_stob_put(cc->fcc_stob);
 		cc_fom_dealloc(fom);
 	}
 }
@@ -612,7 +613,7 @@ static void cc_cobfid_map_add_test()
  */
 static void cc_fom_state_test()
 {
-	struct c2_fom_cob_create *cc;
+	//struct c2_fom_cob_create *cc;
 	struct c2_fom_cob_delete *cd;
 	struct c2_fom		 *cfom;
 	struct c2_fom		 *dfom;
@@ -625,10 +626,11 @@ static void cc_fom_state_test()
 		C2_UT_ASSERT(rc == FSO_AGAIN);
 		C2_UT_ASSERT(cfom->fo_phase == FOPH_SUCCESS);
 
-		cc = cc_fom_get(cfom);
-		C2_UT_ASSERT(cc->fcc_stob != NULL);
+		//cc = cc_fom_get(cfom);
+		/*C2_UT_ASSERT(cc->fcc_stob != NULL);
 		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
 		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		*/
 		cob_create_verify(&cob, cfom);
 		cobfid_map_verify(cfom);
 
