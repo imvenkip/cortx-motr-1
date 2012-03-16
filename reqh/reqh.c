@@ -206,20 +206,22 @@ bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 }
 
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
-                                            const struct c2_reqh *reqh)
+                                            struct c2_reqh *reqh)
 {
-        struct c2_reqh_service *service = NULL;
+	struct c2_reqh_service *service = NULL;
 
-        C2_PRE(reqh != NULL);
-        C2_PRE(service_name != NULL);
+	C2_PRE(reqh != NULL);
+	C2_PRE(service_name != NULL);
 
-        c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
-               C2_ASSERT(service != NULL);
-               if (strcmp(service->rs_type->rst_name, service_name) == 0)
-                       break;
-       } c2_tlist_endfor;
+	c2_mutex_lock(&reqh->rh_lock);
+	c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
+		C2_ASSERT(service != NULL);
+		if (strcmp(service->rs_type->rst_name, service_name) == 0)
+			break;
+	} c2_tlist_endfor;
+	c2_mutex_unlock(&reqh->rh_lock);
 
-       return service;
+	return service;
 }
 C2_EXPORTED(c2_reqh_service_get);
 

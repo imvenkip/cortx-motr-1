@@ -77,7 +77,10 @@ extern struct c2_mutex		c2_rstypes_mutex;
 extern const struct c2_tl_descr c2_rh_sl_descr;
 extern const struct c2_tl_descr c2_rh_rpml_descr;
 
-/** Name of cobfid_map table which stores the auxiliary database records. */
+/*
+ * Name of cobfid_map table which stores the auxiliary database records.
+ * This symbol has to be exposed to UTs and possibly other modules in future.
+ */
 static const char cobfid_map_name[] = "cobfid_map";
 
 /**
@@ -1233,6 +1236,8 @@ C2_ADDB_EV_DEFINE(cobfid_map_setup_func_fail, "cobfid_map_setup_func_failed",
    @param service_name Name of the service
 
    @pre cctx != NULL && service_name != NULL
+
+   @retval  NULL of reqh instnace.
  */
 struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 			       const char *service_name)

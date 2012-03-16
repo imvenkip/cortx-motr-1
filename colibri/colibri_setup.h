@@ -373,6 +373,8 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
    @param service_name Name of the service
 
    @pre cctx != NULL && service_name != NULL
+
+   @retval  NULL of reqh instnace.
  */
 struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 			       const char *service_name);
