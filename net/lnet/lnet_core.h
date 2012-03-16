@@ -262,18 +262,6 @@ struct nlx_core_bev_link {
 	nlx_core_opaque_ptr_t cbl_c_next;
 
 	/**
-	   Self pointer in the producer (kernel) address space.
-	   @todo deprecated
-	 */
-	nlx_core_opaque_ptr_t cbl_p_self;
-
-	/**
-	   Pointer to the next element in the producer address space.
-	   @todo deprecated
-	 */
-	nlx_core_opaque_ptr_t cbl_p_next;
-
-	/**
 	   Self reference in the producer (kernel).
 	   The producer reference is kept in the form of a nlx_core_kmem_loc
 	   so that queue elements do not all need to be mapped.
@@ -305,14 +293,6 @@ struct nlx_core_bev_cqueue {
 	   consumer (transport).
 	 */
 	nlx_core_opaque_ptr_t cbcq_consumer;
-
-	/**
-	   The producer adds links to this anchor.
-	   The producer pointer value is in the address space of the
-	   producer (kernel).
-	   @todo deprecated
-	 */
-	nlx_core_opaque_ptr_t cbcq_producer;
 
 	/**
 	   The producer adds links to this anchor.

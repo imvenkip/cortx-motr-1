@@ -187,7 +187,6 @@ int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 		rc = nlx_core_new_blessed_bev(lctm, &bev); /* {u,k} specific */
 		if (rc != 0)
 			break;
-		C2_ASSERT(bev->cbe_tm_link.cbl_p_self != 0); /* is blessed */
 		bev_cqueue_add(&lctm->ctm_bevq, &bev->cbe_tm_link);
 		--num_to_alloc;
 	}

@@ -1266,8 +1266,6 @@ static long nlx_dev_ioctl(struct file *file,
 		nlx_kcore_dom_init(NULL);
 		nlx_kcore_dom_fini(NULL);
 		nlx_kcore_buffer_uva_to_kiov(NULL, NULL);
-		bev_link_map(NULL);
-		bev_link_unmap(NULL);
 		/* end of temporary code */
 		rc = -ENOTTY;
 		break;

@@ -205,7 +205,6 @@ struct nlx_kcore_buffer_event {
    The operations listed here implement the common code shared by both
    the core API implemented in the kernel and the core API support provided
    by the LNet transport driver.
-   @todo add additional operations to this structure as needed
  */
 struct nlx_kcore_ops {
 	/**

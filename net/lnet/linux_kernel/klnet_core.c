@@ -776,7 +776,6 @@
  */
 
 #include "lib/mutex.h"
-#include "net/lnet/linux_kernel/klnet_core.h"
 
 #include <lnet/lnet.h> /* LNet API, LNET_NIDSTR_SIZE */
 
@@ -1000,6 +999,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	struct nlx_core_buffer_event *bev;
 	c2_time_t now = c2_time_now();
 	bool is_unlinked = false;
+	nlx_core_opaque_ptr_t buffer_id;
 	unsigned mlength;
 	unsigned offset;
 	int status;
@@ -1013,6 +1013,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EPROTO);
 		return;
 	}
+	/** @todo map cbp here */
 	cbp = event->md.user_ptr;
 	C2_ASSERT(nlx_core_buffer_invariant(cbp));
 	kbp = cbp->cb_kpvt;
@@ -1081,11 +1082,13 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		/* we don't expect anything other than receive messages */
 		C2_ASSERT(cbp->cb_qtype == C2_NET_QT_MSG_RECV);
 	}
+	buffer_id = cbp->cb_buffer_id;
+	/** @todo unmap cbp here */
 
 	spin_lock(&ktm->ktm_bevq_lock);
 	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
 	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
-	bev->cbe_buffer_id = cbp->cb_buffer_id;
+	bev->cbe_buffer_id = buffer_id;
 	bev->cbe_time      = now;
 	bev->cbe_status    = status;
 	bev->cbe_length    = mlength;
@@ -1100,7 +1103,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	} else
 		C2_SET0(&bev->cbe_sender);
 
-	bev_cqueue_put(&lctm->ctm_bevq);
+	bev_cqueue_put(&lctm->ctm_bevq, ql);
 	spin_unlock(&ktm->ktm_bevq_lock);
 	c2_semaphore_up(&ktm->ktm_sem);
 done:

@@ -833,6 +833,7 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/lnet_ioctl.h"
 #ifdef __KERNEL__
 #include "net/lnet/linux_kernel/klnet_drv.h"
+#include "net/lnet/linux_kernel/klnet_core.h"
 #include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
 #include "net/lnet/linux_kernel/klnet_drv.c"
