@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -33,7 +33,7 @@ enum {
 	CLIENT_RPC_SESSION_SLOTS  = 1,
 	CLIENT_RPC_CONN_TIMEOUT   = 200,
 	CLIENT_MAX_RPCS_IN_FLIGHT = 8,
-	COB_NAME_STRLEN           = 20,
+	COB_NAME_STRLEN           = 16,
 	COB_FID_CONTAINER_ID      = 1234,
 	COB_FID_KEY_ID            = 5678,
 	GOB_FID_CONTAINER_ID      = 1000,
@@ -42,11 +42,11 @@ enum {
 	COB_FOP_NR                = 10,
 };
 
-#define SERVER_EP_ADDR    "127.0.0.1:12345:123"
-#define CLIENT_EP_ADDR    "127.0.0.1:12345:124"
-#define SERVER_ENDP       "bulk-sunrpc:"SERVER_EP_ADDR
-#define SERVER_LOGFILE    "cobfoms_ut.log"
-#define CLIENT_DBNAME     "cobfops_ut.db"
+#define SERVER_EP_ADDR       "127.0.0.1:12345:123"
+#define CLIENT_EP_ADDR       "127.0.0.1:12345:124"
+#define SERVER_ENDP          "bulk-sunrpc:"SERVER_EP_ADDR
+const char *SERVER_LOGFILE = "cobfoms_ut.log";
+const char *CLIENT_DBNAME  = "cobfops_ut.db";
 
 struct cobfoms_ut {
 	struct c2_rpc_server_ctx      cu_sctx;
@@ -69,6 +69,7 @@ struct cobfoms_ut {
 struct cobthread_arg {
 	struct c2_fop_type *ca_ftype;
 	int                 ca_index;
+	int                 ca_rc;
 };
 
 /* Static instance of struct cobfoms_ut used by all test cases. */
@@ -76,7 +77,7 @@ static struct cobfoms_ut *cut;
 
 static char *server_args[] = {
 	"cobfoms_ut", "-r", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
-	"cobfoms_ut_stob", "-e", SERVER_ENDP, "-s", "ioservice", 
+	"cobfoms_ut_stob", "-e", SERVER_ENDP, "-s", "ioservice",
 };
 
 static void cobfoms_utinit(void)
@@ -127,7 +128,6 @@ static void cobfoms_utinit(void)
 	C2_UT_ASSERT(rc == 0);
 
 	cut->cu_gobindex = 0;
-	//c2_addb_choose_default_level_console(AEL_NONE);
 }
 
 static void cobfoms_utfini(void)
@@ -140,7 +140,7 @@ static void cobfoms_utfini(void)
 	C2_UT_ASSERT(rc == 0);
 
 	c2_rpc_server_stop(&cut->cu_sctx);
-	
+
 	c2_net_domain_fini(&cut->cu_nd);
 	c2_net_xprt_fini(cut->cu_xprt);
 
@@ -181,13 +181,13 @@ static void cobfops_populate(uint64_t index)
 	cc = c2_fop_data(fop);
 	C2_ALLOC_ARR(cc->cc_cobname.ib_buf, (2 * COB_NAME_STRLEN) + 2);
 	C2_UT_ASSERT(cc->cc_cobname.ib_buf != NULL);
-	sprintf((char*)cc->cc_cobname.ib_buf, "%20lu:%20lu",
+	sprintf((char*)cc->cc_cobname.ib_buf, "%16lx:%16lx",
 			(unsigned long)cc->cc_common.c_cobfid.f_seq,
 			(unsigned long)cc->cc_common.c_cobfid.f_oid);
 	cc->cc_cobname.ib_count = strlen((char*)cc->cc_cobname.ib_buf);
 }
 
-static void cobfops_create()
+static void cobfops_create(void)
 {
 	uint64_t i;
 
@@ -213,12 +213,30 @@ static void cobfops_create()
 	}
 }
 
-static void cobfops_destroy()
+static void cobfops_destroy(struct c2_fop_type *ftype1,
+			    struct c2_fop_type *ftype2)
 {
+	uint64_t i;
+
 	C2_UT_ASSERT(cut != NULL);
 	C2_UT_ASSERT(cut->cu_createfops != NULL);
 	C2_UT_ASSERT(cut->cu_deletefops != NULL);
+	C2_UT_ASSERT(ftype1 == NULL || ftype1 == &c2_fop_cob_create_fopt);
+	C2_UT_ASSERT(ftype2 == NULL || ftype2 == &c2_fop_cob_delete_fopt);
 
+	if (ftype1 == NULL) {
+		struct c2_fop_cob_create *fcc;
+		for (i = 0; i < cut->cu_cobfop_nr; ++i) {
+			fcc = c2_fop_data(cut->cu_createfops[i]);
+			c2_free(fcc->cc_cobname.ib_buf);
+			c2_fop_free(cut->cu_createfops[i]);
+		}
+	}
+
+	if (ftype2 == NULL) {
+		for (i = 0; i < cut->cu_cobfop_nr; ++i)
+			c2_fop_free(cut->cu_deletefops[i]);
+	}
 	c2_free(cut->cu_createfops);
 	c2_free(cut->cu_deletefops);
 	cut->cu_createfops = NULL;
@@ -274,61 +292,29 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 				CLIENT_RPC_CONN_TIMEOUT);
 	C2_UT_ASSERT(rc == 0);
 	rfop = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
-	C2_UT_ASSERT(rfop->cor_rc == 0);
+	C2_UT_ASSERT(rfop->cor_rc == arg->ca_rc);
 }
 
-static void cobfoms_single(void)
+static void cobfoms_fops_dispatch(struct c2_fop_type *ftype, int expected_rc)
 {
-	int                  i;
-	int                  rc;
-	struct cobthread_arg arg;
-	struct c2_fop_type  *ftype;
-
-	C2_SET0(&arg);
-	cut->cu_cobfop_nr = COB_FOP_SINGLE;
-	cut->cu_thread_nr =  2 * COB_FOP_SINGLE;
-	cobfops_threads_init();
-	cobfops_create();
-	ftype = &c2_fop_cob_create_fopt;
-	
-	for (i = 0; i <= COB_FOP_SINGLE; ++i) {
-		arg.ca_ftype = ftype;
-		arg.ca_index = COB_FOP_SINGLE - 1;
-
-		rc = C2_THREAD_INIT(cut->cu_threads[i],
-				    struct cobthread_arg *,
-				    NULL, &cobfops_send_wait, &arg,
-				    "cob_create");
-		C2_UT_ASSERT(rc == 0);
-
-		c2_thread_join(cut->cu_threads[i]);
-
-		C2_SET0(cut->cu_threads[i]);
-		ftype = &c2_fop_cob_delete_fopt;
-	}
-
-	/* Individual Fops are deallocated internally by rpc code. */
-	cobfops_destroy();
-	cobfops_threads_fini();
-}
-
-static void cobfoms_multiple_internal(int nr, struct c2_fop_type *ftype)
-{
-	int                   i;
 	int                   rc;
+	uint64_t              i;
 	struct cobthread_arg *arg;
 
-	C2_UT_ASSERT(nr > 0);
 	C2_UT_ASSERT(ftype != NULL);
 	C2_UT_ASSERT(cut != NULL);
-	C2_UT_ASSERT(cut->cu_threads != NULL);
+	C2_UT_ASSERT(cut->cu_createfops != NULL);
+	C2_UT_ASSERT(cut->cu_cobfop_nr > 0);
+	C2_UT_ASSERT(cut->cu_deletefops != NULL);
+	C2_UT_ASSERT(cut->cu_thread_nr > 0);
 
-	C2_ALLOC_ARR(arg, nr);
+	C2_ALLOC_ARR(arg, cut->cu_cobfop_nr);
 	C2_UT_ASSERT(arg != NULL);
 
-	for (i = 0; i < nr; ++i) {
+	for (i = 0; i < cut->cu_cobfop_nr; ++i) {
 		arg[i].ca_ftype = ftype;
 		arg[i].ca_index = i;
+		arg[i].ca_rc = expected_rc;
 		C2_SET0(cut->cu_threads[i]);
 		rc = C2_THREAD_INIT(cut->cu_threads[i], struct cobthread_arg *,
 				    NULL, &cobfops_send_wait, &arg[i],
@@ -337,41 +323,99 @@ static void cobfoms_multiple_internal(int nr, struct c2_fop_type *ftype)
 		C2_UT_ASSERT(rc == 0);
 	}
 
-	for (i = 0; i < nr; ++i)
+	for (i = 0; i < cut->cu_cobfop_nr; ++i)
 		c2_thread_join(cut->cu_threads[i]);
 
 	c2_free(arg);
 }
 
-static void cobfoms_multiple(void)
+static void cobfoms_fop_thread_init(uint64_t fop_nr, uint64_t thread_nr)
 {
-	cut->cu_cobfop_nr = COB_FOP_NR;
+	C2_UT_ASSERT(fop_nr > 0 && thread_nr > 0);
+	C2_UT_ASSERT(cut != NULL);
+
+	cut->cu_cobfop_nr = fop_nr;
 	cobfops_create();
-
-	cut->cu_thread_nr = COB_FOP_NR;
+	cut->cu_thread_nr = thread_nr;
 	cobfops_threads_init();
-
-	/*
-	 * Sends multiple cob_create fops to same ioservice instance
-	 * so as to stress the fom code with multiple simultaneous requests.
-	 */
-	cobfoms_multiple_internal(COB_FOP_NR, &c2_fop_cob_create_fopt);
-
-	/* Change fop type and send cob_delete fops. */
-	cobfoms_multiple_internal(COB_FOP_NR, &c2_fop_cob_delete_fopt);
-	cobfops_threads_fini();
-	cobfops_destroy();
 }
 
+static void cobfoms_fop_thread_fini(struct c2_fop_type *ftype1,
+				    struct c2_fop_type *ftype2)
+{
+	cobfops_destroy(ftype1, ftype2);
+	cobfops_threads_fini();
+}
+
+static void cobfoms_send_internal(struct c2_fop_type *ftype1,
+				  struct c2_fop_type *ftype2,
+				  int rc1, int rc2,
+				  uint64_t nr)
+{
+	cobfoms_fop_thread_init(nr, nr);
+
+	if (ftype1 != NULL)
+		cobfoms_fops_dispatch(ftype1, rc1);
+	if (ftype2 != NULL)
+		cobfoms_fops_dispatch(ftype2, rc2);
+
+	cobfoms_fop_thread_fini(ftype1, ftype2);
+}
+
+static void cobfoms_single(void)
+{
+	cobfoms_send_internal(&c2_fop_cob_create_fopt, &c2_fop_cob_delete_fopt,
+			      0, 0, COB_FOP_SINGLE);
+}
+
+/*
+ * Sends multiple cob_create fops to same ioservice instance
+ * so as to stress the fom code with multiple simultaneous requests.
+ */
+static void cobfoms_multiple(void)
+{
+	cobfoms_send_internal(&c2_fop_cob_create_fopt, &c2_fop_cob_delete_fopt,
+			      0, 0, COB_FOP_NR);
+}
+
+static void cobfoms_preexisting_cob(void)
+{
+	cobfoms_send_internal(&c2_fop_cob_create_fopt, NULL, 0, 0,
+			      COB_FOP_SINGLE);
+
+	/*
+	 * Hack the value of cobfoms_ut::cu_gobindex to send cob_create
+	 * fop and subsequence cob_delete fop with same fid.
+	 */
+	--cut->cu_gobindex;
+	cobfoms_send_internal(&c2_fop_cob_create_fopt, NULL, -EEXIST, 0,
+			      COB_FOP_SINGLE);
+
+	--cut->cu_gobindex;
+
+	/* Cleanup. */
+	cobfoms_send_internal(NULL, &c2_fop_cob_delete_fopt, 0, 0,
+			      COB_FOP_SINGLE);
+	cut->cu_gobindex++;
+	cut->cu_gobindex++;
+}
+
+static void cobfoms_del_nonexist_cob(void)
+{
+	cobfoms_send_internal(NULL, &c2_fop_cob_delete_fopt, 0, -ENOENT,
+			      COB_FOP_SINGLE);
+}
 const struct c2_test_suite cobfoms_ut = {
 	.ts_name  = "cob-foms-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,
 	.ts_tests = {
-		{ "cobfoms_utinit",         cobfoms_utinit},
-		{ "cobfoms_single_fop",     cobfoms_single},
-		{ "cobfoms_multiple_fops",  cobfoms_multiple},
-		{ "cobfoms_utfini",         cobfoms_utfini},
+		{ "cobfoms_utinit",                 cobfoms_utinit},
+		{ "cobfoms_single_fop",             cobfoms_single},
+		{ "cobfoms_multiple_fops",          cobfoms_multiple},
+		{ "cobfoms_preexisting_cob_create", cobfoms_preexisting_cob},
+		{ "cobfoms_delete_nonexistent_cob", cobfoms_del_nonexist_cob},
+		{ "cobfoms_utfini",                 cobfoms_utfini},
 		{ NULL, NULL }
 	}
 };

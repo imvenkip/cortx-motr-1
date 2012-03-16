@@ -467,13 +467,13 @@ static void cc_stob_create_test()
 
 		C2_UT_ASSERT(rc == 0);
 
-		C2_UT_ASSERT(cc->fcc_stob != NULL);
+		/*C2_UT_ASSERT(cc->fcc_stob != NULL);
 		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
-		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);*/
 		/*
 	 	 * To do - Perform stat on the path.
 	 	 */
-		c2_stob_put(cc->fcc_stob);
+		//c2_stob_put(cc->fcc_stob);
 		cc_fom_dealloc(fom);
 	}
 }
@@ -532,7 +532,6 @@ static void cc_cob_create_test()
 		 * Set the FOM phase and set transaction context
 		 * Test-case 1: Test successful creation of COB
 		 */
-		fom->fo_phase = FOPH_CC_COB_CREATE;
 		dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
 		rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 		C2_UT_ASSERT(rc == 0);
@@ -542,14 +541,16 @@ static void cc_cob_create_test()
 		C2_UT_ASSERT(fom->fo_phase == FOPH_CC_COB_CREATE);
 		C2_UT_ASSERT(rc == 0);
 
-		C2_UT_ASSERT(cc->fcc_stob != NULL);
-		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
-		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		C2_UT_ASSERT(cc->fcc_stob_id.si_bits.u_hi == COB_TEST_ID);
+		C2_UT_ASSERT(cc->fcc_stob_id.si_bits.u_lo == COB_TEST_ID);
 
 		/*
 		 * Test-case 1 - Verify COB creation
 		 */
+		rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
 		cob_verify(fom, true);
+		c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 		/*
 		 * Test-case 2 - Test failure case. Try to create the
@@ -571,7 +572,7 @@ static void cc_cob_create_test()
 		C2_UT_ASSERT(rc == 0);
 		test_cob = NULL;
 
-		c2_stob_put(cc->fcc_stob);
+		//c2_stob_put(cc->fcc_stob);
 		cc_fom_dealloc(fom);
 	}
 }
@@ -598,7 +599,6 @@ static void cc_cobfid_map_add_test()
 		 * Set the FOM phase and set transaction context
 		 * Test-case 1: Test successful creation of COB
 		 */
-		cfom->fo_phase = FOPH_CC_COB_CREATE;
 		dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
 		rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 		C2_UT_ASSERT(rc == 0);
@@ -612,7 +612,10 @@ static void cc_cobfid_map_add_test()
 		/*
 		 * Test-case 1 - Verify COB creation
 		 */
+		rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
 		cobfid_map_verify(cfom, true);
+		c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
 		/*
 		 * Test-case 2 - Try to create the same cobfid-mapping.
@@ -630,7 +633,6 @@ static void cc_cobfid_map_add_test()
 		 */
 		dfom = cd_fom_alloc();
 		C2_UT_ASSERT(dfom != NULL);
-		dfom->fo_phase = FOPH_CD_COB_DEL;
 
 		cd = cd_fom_get(dfom);
 		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
@@ -661,7 +663,6 @@ static void cc_fom_state_test()
 
 	cfom = cc_fom_alloc();
 	if (cfom != NULL) {
-		cfom->fo_phase = FOPH_CC_COB_CREATE;
 		dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
 		rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 		C2_UT_ASSERT(rc == 0);
@@ -672,9 +673,8 @@ static void cc_fom_state_test()
 		C2_UT_ASSERT(cfom->fo_phase == FOPH_SUCCESS);
 
 		cc = cc_fom_get(cfom);
-		C2_UT_ASSERT(cc->fcc_stob != NULL);
-		C2_UT_ASSERT(cc->fcc_stob->so_state == CSS_EXISTS);
-		C2_UT_ASSERT(cc->fcc_stob->so_ref.a_value == 1);
+		C2_UT_ASSERT(cc->fcc_stob_id.si_bits.u_hi == COB_TEST_ID);
+		C2_UT_ASSERT(cc->fcc_stob_id.si_bits.u_lo == COB_TEST_ID);
 
 		rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 		C2_UT_ASSERT(rc == 0);
@@ -688,7 +688,6 @@ static void cc_fom_state_test()
 		dfom = cd_fom_alloc();
 		C2_UT_ASSERT(dfom != NULL);
 
-		dfom->fo_phase = FOPH_CD_COB_DEL;
 		cd = cd_fom_get(dfom);
 
 		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
@@ -896,10 +895,14 @@ static void cd_cob_delete_test()
 
 		C2_UT_ASSERT(dfom->fo_phase == FOPH_CD_COB_DEL);
 		C2_UT_ASSERT(rc == 0);
+
 		/*
 		 * Make sure that there no entry in the database.
 		 */
+		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
 		cob_verify(cfom, false);
+		c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 		/*
 		 * Test-case 2: Delete cob again. The test should fail.
@@ -960,7 +963,10 @@ static void cd_cobfid_map_delete_test()
 		/*
 		 * Make sure that there are no records in the database.
 		 */
+		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
 		cobfid_map_verify(dfom, false);
+		c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 		/*
 		 * Test-case 2: Delete mapping again. The test should fail.
@@ -1017,8 +1023,12 @@ static void cd_fom_state_test()
 		/*
 		 * Make sure that there are no records in the database.
 		 */
+		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+		C2_UT_ASSERT(rc == 0);
 		cob_verify(dfom, false);
 		cobfid_map_verify(dfom, false);
+		c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
+
 		cd_fom_dealloc(dfom);
 	}
 	cob_testdata_cleanup(cfom);

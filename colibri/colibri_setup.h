@@ -143,6 +143,12 @@ struct c2_cobfid_setup {
 	 * ioservice running on this node is stopped.
 	 */
 	struct c2_ref		 cms_refcount;
+
+	/**
+	 * Back link to struct c2_colibri. This is used while finalizing
+	 * c2_cobfid_setup where the c2_colibri::cc_map pointer is made NULL.
+	 */
+	struct c2_colibri       *cms_colibri;
 };
 
 /**
