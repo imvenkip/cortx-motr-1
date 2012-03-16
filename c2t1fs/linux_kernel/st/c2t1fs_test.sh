@@ -86,7 +86,7 @@ bulkio_test()
         c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
         colibri_module_path=$COLIBRI_CORE_ROOT/build_kernel_modules
         io_service=$COLIBRI_IOSERVICE_ENDPOINT
-        local_input=$CILIBRI_C2T1FS_TEST_DIR/file1.data
+        local_input=$COLIBRI_C2T1FS_TEST_DIR/file1.data
         local_output=$COLIBRI_C2T1FS_TEST_DIR/file2.data
         c2t1fs_file=$c2t1fs_mount_dir/file.data
 
