@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * 		    Madhavrao Vemuri<madhav_vemuri@xyratex.com>
  * Original creation date: 12/21/2011
  */
 
@@ -399,6 +400,19 @@ c2_net_domain_buffer_pool_not_empty(pool) {
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 
+/* @todo These dummy api's needs to be removed once transport provides values
+	 for nb_min_receive_size and nb_max_receive_msgs.
+ */
+int c2_xprt_buffer_min_recv_size(struct c2_net_domain *ndom)
+{
+	return 1<<12;
+}
+
+int c2_xprt_buffer_max_recv_msgs(struct c2_net_domain *ndom)
+{
+	return 1;
+}
+
 /*
    Private provisioning routine that assumes all locking is obtained
    in the correct order prior to invocation.
@@ -411,56 +425,62 @@ c2_net_domain_buffer_pool_not_empty(pool) {
 static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_buffer_pool *pool;
-	uint64_t need;
-	struct c2_net_buffer *nb;
-	int rc;
-	c2_bcount_t		 seg_size;
+	uint64_t		   need;
+	struct c2_net_buffer	  *nb;
+	int			   rc;
+
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
 	pool = tm->ntm_recv_pool;
 	if (tm->ntm_state != C2_NET_TM_STARTED || pool == NULL)
 		return; /* provisioning not required */
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
-	seg_size = c2_net_domain_get_max_buffer_segment_size(tm->ntm_dom);
 	need = c2_atomic64_get(&tm->ntm_recv_queue_deficit);
 	while (need > 0) {
-		/** @todo Provision until post conditions statisfied
-		    or pool exhausted. */
-		    nb = c2_net_buffer_pool_get(tm->ntm_recv_pool,
+		nb = c2_net_buffer_pool_get(tm->ntm_recv_pool,
 					    tm->ntm_pool_colour);
-		nb->nb_qtype = C2_NET_QT_MSG_RECV;
-		nb->nb_callbacks = tm->ntm_recv_pool_callbacks;
-		nb->nb_min_receive_size = seg_size;
-		nb->nb_max_receive_msgs = 1;
+		if (nb != NULL) {
+			nb->nb_qtype		= C2_NET_QT_MSG_RECV;
+			nb->nb_callbacks	= tm->ntm_recv_pool_callbacks;
+			nb->nb_min_receive_size =
+				c2_xprt_buffer_min_recv_size(tm->ntm_dom);
+			nb->nb_max_receive_msgs =
+				c2_xprt_buffer_max_recv_msgs(tm->ntm_dom);
 
-		/** @todo nb = c2_net_buffer_pool_get()
-		    C2_POST(nb->nb_pool == tm->ntm_recv_pool); */
-		/** @todo Use c2_net__buffer_add() */
-	c2_mutex_unlock(&tm->ntm_mutex);
-		   rc = c2_net_buffer_add(nb, tm);
-	c2_mutex_lock(&tm->ntm_mutex);
-		/** @todo C2_ASSERT(nb->nb_callbacks ==
-		    tm->ntm_recv_pool_callbacks); */
-		C2_ASSERT(nb->nb_callbacks == tm->ntm_recv_pool_callbacks);
-		--need;
+			C2_POST(nb->nb_pool == tm->ntm_recv_pool);
+			rc = c2_net__buffer_add(nb, tm);
+			if (rc != 0)
+				break;
+			C2_ASSERT(nb->nb_callbacks ==
+				  tm->ntm_recv_pool_callbacks);
+			--need;
+		} else
+			break;
+
 	}
-	/** @todo Set ntm_recv_queue_deficit correctly before return. */
-
-	c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
+	c2_atomic64_set(&tm->ntm_recv_queue_deficit, need);
 	return;
 }
 
 void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool)
 {
-	/** @todo Domain wide re-provisioning
-	    Assert pool is locked.
-	    Grab domain lock.
-	    Walk over TM list skipping those with zero deficit.
-	    For each TM found, holding the TM lock:
-	    - skip if ntm_recv_pool does not match or not in STARTED state
-	    - provision with tm_provision_recv_q()
-	    - release TM lock
-	*/
+	struct c2_net_domain	  *dom;
+	struct c2_net_transfer_mc *tm;
+	C2_ASSERT(c2_net_buffer_pool_is_locked(pool));
+	dom = pool->nbp_ndom;
+	c2_mutex_lock(&dom->nd_mutex);
+	c2_list_for_each_entry(&dom->nd_tms, tm,
+			struct c2_net_transfer_mc, ntm_dom_linkage) {
+		if (c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0)
+          		continue; /* skip if no deficit */
+		c2_mutex_lock(&tm->ntm_mutex);
+		if (tm->ntm_state     == C2_NET_TM_STARTED &&
+		    tm->ntm_recv_pool == pool &&
+		    c2_atomic64_get(&tm->ntm_recv_queue_deficit) > 0)
+			tm_provision_recv_q(tm);
+		c2_mutex_unlock(&tm->ntm_mutex);
+	}
+	c2_mutex_unlock(&dom->nd_mutex);
 	return;
 }
 C2_EXPORTED(c2_net_domain_buffer_pool_not_empty);
@@ -472,50 +492,43 @@ void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	C2_PRE(tm->ntm_recv_pool != NULL);
 	C2_PRE(!c2_net_buffer_pool_is_locked(tm->ntm_recv_pool));
 
-	/** @todo lock the buffer pool */
 	c2_mutex_lock(&tm->ntm_mutex);
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	tm_provision_recv_q(tm);
 	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
 	c2_mutex_unlock(&tm->ntm_mutex);
-	/** @todo unlock the buffer pool */
 	return;
 }
 
-void c2_tm_recv_pool_buffer_put(struct c2_net_buffer *nb)
+void c2_net_tm_recv_pool_buffer_put(struct c2_net_buffer *nb)
 {
-		struct c2_net_transfer_mc *tm;
-		tm = nb->nb_tm;
-		C2_PRE(tm != NULL);
-		C2_PRE(tm->ntm_recv_pool != NULL);
-		C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+	struct c2_net_transfer_mc *tm;
+	tm = nb->nb_tm;
+	C2_PRE(tm != NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL);
+	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 
-//		C2_ASSERT((nb->nb_flags & (C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
-//				       C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT)) != 0);
-
-		c2_net_buffer_pool_lock(tm->ntm_recv_pool);
-		c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
-				       tm->ntm_pool_colour);
-		c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
+	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
+	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
+			       tm->ntm_pool_colour);
+	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
 }
 
-void c2_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm)
+void c2_net_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm)
 {
-	size_t tm_buf_nr;
-	struct c2_net_domain		*net_dom;
+	struct c2_net_domain *net_dom;
+	struct c2_net_buffer *nb;
 	struct c2_tl	     *ql;
-	struct c2_net_buffer	*nb;
 
 	C2_PRE(tm != NULL);
+	C2_PRE(tm->ntm_dom != NULL);
 
 	net_dom = tm->ntm_dom;
 	ql = &tm->ntm_q[C2_NET_QT_MSG_RECV];
-	tm_buf_nr = tm_tlist_length(ql);
 
-	while(!tm_tlist_is_empty(ql)) {
-		nb = tm_tlist_head(ql);
-		c2_tm_recv_pool_buffer_put(nb);
-	}
+	c2_tlist_for(&tm_tl, ql, nb) {
+		c2_net_tm_recv_pool_buffer_put(nb);
+	} c2_tlist_endfor;
 }
 
 /*

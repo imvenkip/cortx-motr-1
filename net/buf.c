@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -323,20 +323,21 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
 
 void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 {
-	struct c2_net_buffer *buf = NULL;
-	struct c2_net_end_point *ep;
-	bool check_ep;
-	enum c2_net_queue_type qtype = C2_NET_QT_NR;
+	struct c2_net_buffer	  *buf = NULL;
+	struct c2_net_end_point	  *ep;
+	bool			   check_ep;
+	bool			   retain;
+	enum c2_net_queue_type	   qtype = C2_NET_QT_NR;
 	struct c2_net_transfer_mc *tm;
-	struct c2_net_qstats *q;
-	c2_time_t tdiff;
-	c2_net_buffer_cb_proc_t cb;
-	c2_bcount_t len = 0;
+	struct c2_net_qstats	  *q;
+	c2_time_t		   tdiff;
+	c2_net_buffer_cb_proc_t	   cb;
+	c2_bcount_t		   len = 0;
 	struct c2_net_buffer_pool *pool = NULL;
 
 	C2_PRE(c2_net__buffer_event_invariant(ev));
 	buf = ev->nbe_buffer;
-	tm = buf->nb_tm;
+	tm  = buf->nb_tm;
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 
 	/* pre-callback, in mutex:
@@ -353,8 +354,11 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
 				   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
 		buf->nb_timeout = C2_TIME_NEVER;
-	} else
+		retain = false;
+	} else {
 		buf->nb_flags &= ~C2_NET_BUF_RETAIN;
+		retain = true;
+	}
 
 	qtype = buf->nb_qtype;
 	q = &tm->ntm_qstats[qtype];
@@ -386,9 +390,8 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 		if (!(buf->nb_flags & C2_NET_BUF_QUEUED) &&
 		    tm->ntm_state == C2_NET_TM_STARTED &&
 		    tm->ntm_recv_pool != NULL &&
-		    buf->nb_pool == tm->ntm_recv_pool) {
+		    buf->nb_pool == tm->ntm_recv_pool)
 			pool = tm->ntm_recv_pool;
-		}
 		break;
 	case C2_NET_QT_MSG_SEND:
 		/* must put() ep to match get in buffer_add() */
@@ -406,7 +409,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	tm->ntm_callback_counter++;
 	c2_mutex_unlock(&tm->ntm_mutex);
 
-	if (pool != NULL)
+	if (pool != NULL && retain)
 		c2_net__tm_provision_recv_q(tm);
 
 	cb(ev);

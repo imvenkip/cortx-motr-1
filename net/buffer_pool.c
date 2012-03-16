@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -209,12 +209,6 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	if (pool->nbp_free < pool->nbp_threshold)
 		pool->nbp_ops->nbpo_below_threshold(pool);
 	nb->nb_pool = pool;
-	//nb->nb_flags = 0;
-	//nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	//nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	//nb->nb_min_receive_size = nrsegs * seg_size;
-	//nb->nb_max_receive_msgs = 1;
-
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return nb;
 }

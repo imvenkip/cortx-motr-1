@@ -528,7 +528,7 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 
 		for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
 		C2_ASSERT(machine->cr_rcv_buffers[cnt] == NULL);
-	} else c2_tm_recv_pool_buffers_put(tm);
+	} else c2_net_tm_recv_pool_buffers_put(tm);
 
 	c2_free(machine->cr_rcv_buffers);
 	/* Fini the transfer machine here and deallocate the chan. */
@@ -650,12 +650,13 @@ last:
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_ep = NULL;
 	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED)
+	if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED &&
+	  !(nb->nb_flags & C2_NET_BUF_RETAIN))
 		rc = c2_net_buffer_add(nb, nb->nb_tm);
 	else if(nb->nb_tm->ntm_state == C2_NET_TM_STOPPED ||
 		nb->nb_tm->ntm_state == C2_NET_TM_STOPPING ||
 		nb->nb_tm->ntm_state == C2_NET_TM_FAILED)
-			c2_tm_recv_pool_buffer_put(nb);
+			c2_net_tm_recv_pool_buffer_put(nb);
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -168,8 +168,8 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	tm->ntm_bev_auto_deliver = true;
 	tm->ntm_recv_pool = NULL;
 	tm->ntm_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
-	//c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
-	c2_atomic64_set(&tm->ntm_recv_queue_deficit, C2_NET_TM_RECV_QUEUE_DEF_LEN);
+	c2_atomic64_set(&tm->ntm_recv_queue_deficit,
+			 C2_NET_TM_RECV_QUEUE_DEF_LEN);
 	tm->ntm_pool_colour = C2_NET_BUFFER_POOL_ANY_COLOR;
 
 	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);
@@ -424,28 +424,29 @@ int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
-	/** @todo Validate and attach the pool */
 	if (bufpool->nbp_ndom == tm->ntm_dom) {
-		tm->ntm_recv_pool = bufpool;
+		tm->ntm_recv_pool	    = bufpool;
+		tm->ntm_recv_pool_callbacks = callbacks;
 		rc = 0;
 	} else
 		rc = -EINVAL;
-	tm->ntm_recv_pool_callbacks = callbacks;
-
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return 0;
+	return rc;
 }
 C2_EXPORTED(c2_net_tm_pool_attach);
 
 void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
 {
 	struct c2_net_buffer_pool *pool = NULL;
+	uint32_t		   deficit;
+
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
 	       tm->ntm_state == C2_NET_TM_STARTING ||
 	       tm->ntm_state == C2_NET_TM_STARTED);
-	tm->ntm_recv_queue_min_length = len;
+	deficit = len - tm->ntm_recv_queue_min_length;
+	c2_atomic64_set(&tm->ntm_recv_queue_deficit, deficit);
 	if (tm->ntm_recv_pool != NULL && tm->ntm_state == C2_NET_TM_STARTED) {
 		pool = tm->ntm_recv_pool;
 		tm->ntm_callback_counter++;
@@ -454,6 +455,7 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
 	if (pool != NULL) {
 		c2_net__tm_provision_recv_q(tm);
 		c2_mutex_lock(&tm->ntm_mutex);
+		tm->ntm_recv_queue_min_length += deficit;
 		tm->ntm_callback_counter--;
 		c2_chan_broadcast(&tm->ntm_chan);
 		c2_mutex_unlock(&tm->ntm_mutex);

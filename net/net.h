@@ -1203,8 +1203,8 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
  */
 void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
 
-void c2_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm);
-void c2_tm_recv_pool_buffer_put(struct c2_net_buffer *nb);
+void c2_net_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm);
+void c2_net_tm_recv_pool_buffer_put(struct c2_net_buffer *nb);
 
 /**
    Buffer completion events are described by this data structure.

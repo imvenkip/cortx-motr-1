@@ -736,8 +736,10 @@ static void cs_tm_colour_setup(struct c2_colibri *cctx)
 		c2_mutex_lock(&ndom->nd_mutex);
 		/* iterate over TM's in domain */
 		c2_list_for_each_entry(&ndom->nd_tms, tm,
-			       struct c2_net_transfer_mc, ntm_dom_linkage)
+					struct c2_net_transfer_mc,
+					ntm_dom_linkage)
 			c2_net_tm_colour_set(tm, tm_colours++);
+
 		c2_mutex_unlock(&ndom->nd_mutex);
 	} c2_tlist_endfor;
 }
@@ -757,28 +759,34 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 {
 	struct c2_net_domain *ndom;
 	int		      rc;
-	uint32_t			 segs_nr;
-	c2_bcount_t		 seg_size;
-	c2_bcount_t		 buf_size;
+	uint32_t	      segs_nr;
+	c2_bcount_t	      seg_size;
+	c2_bcount_t	      buf_size;
 
 	C2_PRE(cctx != NULL);
-      	C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
+	C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
 		C2_ALLOC_PTR(ndom->nd_pool);
 		if (ndom->nd_pool == NULL)
 			return -ENOMEM;
 		ndom->nd_pool->nbp_ops = &b_ops;
 		buf_size = c2_net_domain_get_max_buffer_size(ndom);
-		segs_nr = c2_net_domain_get_max_buffer_segments(ndom);
+		segs_nr  = c2_net_domain_get_max_buffer_segments(ndom);
 		seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
+		/* @todo verify seg size and buf size are same now */
 		seg_size = 1 << 12;
-		C2_ASSERT((segs_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom));
-		c2_net_buffer_pool_init(ndom->nd_pool, ndom, 2, segs_nr, seg_size, 64);
-		/* @todo Number of TM's need to be assumed or taken from user. */
-		//		c2_list_length(&ndom->nd_tms));
+		C2_ASSERT((segs_nr * seg_size) <=
+			   c2_net_domain_get_max_buffer_size(ndom));
+		c2_net_buffer_pool_init(ndom->nd_pool, ndom, 2, segs_nr,
+					seg_size, 64);
+		/* @todo Number of TM's need to be assumed or taken from user.
+		   c2_list_length(&ndom->nd_tms));
+		 */
 		c2_net_buffer_pool_lock(ndom->nd_pool);
-		/* @todo Number of buffers in the pool to be assumed or taken from user. */
-		rc = c2_net_buffer_pool_provision(ndom->nd_pool, C2_RPC_TM_RECV_BUFFERS_NR);
+		/* @todo Number of buffers in the pool to be assumed or taken
+		    from user. */
+		rc = c2_net_buffer_pool_provision(ndom->nd_pool,
+						  C2_RPC_TM_RECV_BUFFERS_NR);
 		c2_net_buffer_pool_unlock(ndom->nd_pool);
 		if (rc != C2_RPC_TM_RECV_BUFFERS_NR)
 			return -ENOMEM;
@@ -791,7 +799,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 
 static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 {
-	struct c2_net_domain	  *ndom;
+	struct c2_net_domain *ndom;
 	C2_PRE(cctx != NULL);
 
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {

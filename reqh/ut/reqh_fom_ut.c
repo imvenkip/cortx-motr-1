@@ -236,7 +236,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain, &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_buffer_pool_setup(net_dom);
+	rc = c2_net_buffer_pool_setup(net_dom);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Init the rpcmachine */
@@ -260,7 +260,7 @@ static void server_fini(struct c2_net_domain *net_dom,
         /* Fini the rpcmachine */
         c2_rpcmachine_fini(&srv_rpc_mach);
 
-	c2_buffer_pool_cleanup(net_dom);
+	c2_net_buffer_pool_cleanup(net_dom);
 
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);
