@@ -1,12 +1,6 @@
 #!/bin/sh
 
-if [ $# -lt "1" ]
-then
-	echo "Usage : $0 <colibri_core_path>"
-        exit 1
-fi
-
-COLIBRI_CORE_ROOT=$1
+COLIBRI_CORE_ROOT=`dirname $0`/../../..
 COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
 COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
 COLIBRI_NET_DOMAIN=bulk-sunrpc
