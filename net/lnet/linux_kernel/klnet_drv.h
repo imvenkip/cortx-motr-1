@@ -57,6 +57,7 @@
    Core interfaces require no ioctl request, because they operate directly
    on shared data structures in user space.
 
+   - c2_lnet_dev_dom_init_params
    - c2_lnet_dev_buf_register_params
    - c2_lnet_dev_buf_queue_params
    - c2_lnet_dev_buf_event_wait_params
@@ -100,9 +101,6 @@
 
    The device driver recognizes the following ioctl requests.
    - #C2_LNET_DOM_INIT
-   - #C2_LNET_MAX_BUFFER_SIZE
-   - #C2_LNET_MAX_BUFFER_SEGMENT_SIZE
-   - #C2_LNET_MAX_BUFFER_SEGMENTS
    - #C2_LNET_BUF_REGISTER
    - #C2_LNET_BUF_DEREGISTER
    - #C2_LNET_BUF_MSG_RECV

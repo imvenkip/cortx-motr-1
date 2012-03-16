@@ -387,25 +387,6 @@ static int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
 static bool nlx_kcore_kiov_invariant(const lnet_kiov_t *k, size_t len);
 
-static inline c2_bcount_t nlx_kcore_get_max_buffer_size(void)
-{
-	return LNET_MAX_PAYLOAD;
-}
-
-static inline c2_bcount_t nlx_kcore_get_max_buffer_segment_size(void)
-{
-	/* PAGE_SIZE limit applies only when LNET_MD_KIOV has been set in
-	 * lnet_md_t::options. There's no such limit in MD fragment size when
-	 * LNET_MD_IOVEC is set.  DLD calls for only LNET_MD_KIOV to be used.
-	 */
-	return PAGE_SIZE;
-}
-
-static inline int32_t nlx_kcore_get_max_buffer_segments(void)
-{
-	return LNET_MAX_IOV;
-}
-
 #ifdef PAGE_OFFSET
 #undef PAGE_OFFSET
 #endif

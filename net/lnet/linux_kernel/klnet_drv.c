@@ -375,6 +375,8 @@
    - The @c nlx_core_domain is mapped and validated to ensure no assertions
      will occur.
    - The @c nlx_core_domain is initialized by @c nlx_kcore_ops::ko_dom_init().
+   - The output parameters of the ioctl request, the three buffer size maximum
+     values, are set in the provided @c c2_lnet_dev_dom_init_params object.
    - The @c nlx_core_domain is unmapped (it remains pinned).
    - The @c nlx_kcore_domain::kd_drv_mutex() is unlocked.
 
@@ -417,28 +419,12 @@
    - It decrements the reference count on the module.
    - It logs an ADDB record recording the occurrence of the close operation.
 
-   @subsection LNetDRVDLD-lspec-reg Buffer Registration and De-registration
+   @subsection LNetDRVDLD-lspec-reg Buffer Registration and Deregistration
 
-   The following ioctl requests are available for use by the user space
-   transport to obtain kernel parameters controlling buffer size.
-   - @c #C2_LNET_MAX_BUFFER_SIZE
-   - @c #C2_LNET_MAX_BUFFER_SEGMENT_SIZE
-   - @c #C2_LNET_MAX_BUFFER_SEGMENTS
+   While registering a buffer, the user space core performs a
+   @c #C2_LNET_BUF_REGISTER ioctl request.
 
-   These ioctl requests are handled by the following helper functions,
-   respectively.
-   - @c nlx_dev_ioctl_max_buffer_size()
-   - @c nlx_dev_ioctl_max_buffer_segment_size()
-   - @c nlx_dev_ioctl_max_buffer_segments()
-
-   These helper functions simply return the values of the kernel implementation
-   of following core functions, respectively.  As such, the corresponding ioctl
-   requests return a positive number on success, not 0.
-   - @c nlx_kcore_get_max_buffer_size()
-   - @c nlx_kcore_get_max_buffer_segment_size()
-   - @c nlx_kcore_get_max_buffer_segments()
-
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_buf_register() to complete kernel buffer registration.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
@@ -465,15 +451,18 @@
    - Memory allocated for the temporary copies in the
      @c c2_lnet_dev_buf_register_params::dbr_bvec are freed.
 
-   The @c nlx_dev_ioctl() uses the helper function
-   @c nlx_dev_ioctl_buf_deregister() to complete kernel buffer de-registration.
+   While deregistering a buffer, the user space core performs a
+   @c #C2_LNET_BUF_DEREGISTER ioctl request.
+
+   The @c nlx_dev_ioctl() subroutine uses the helper function
+   @c nlx_dev_ioctl_buf_deregister() to complete kernel buffer deregistration.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
    - The pages associated with the buffer, referenced by
      @c nlx_kcore_buffer::kb_kiov, are unpinned.
    - The buffer is removed from the @c nlx_kcore_domain::kd_drv_bufs list.
    - The @c nlx_core_buffer is mapped.
-   - @c nlx_kcore_ops::ko_buf_deregister() is used to de-register
+   - @c nlx_kcore_ops::ko_buf_deregister() is used to deregister
      the buffer.
    - The @c nlx_kcore_buffer object is freed.
    - The @c nlx_core_buffer is unmapped and unpinned.
@@ -484,7 +473,7 @@
    objects.  In user space, blessing the object requires interacting with the
    kernel by way of the @c #C2_LNET_BEV_BLESS ioctl request.
 
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_bev_bless() to complete blessing the buffer event object.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
@@ -507,10 +496,10 @@
 
    @subsection LNetDRVDLD-lspec-tmstart Starting a Transfer Machine
 
-   While starting a transfer machine, the user space transport performs a
+   While starting a transfer machine, the user space core performs a
    @c #C2_LNET_TM_START ioctl request.
 
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_tm_start() to complete starting the transfer machine.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
@@ -530,10 +519,10 @@
 
    @subsection LNetDRVDLD-lspec-tmstop Stopping a Transfer Machine
 
-   While stopping a transfer machine, the user space transport performs a
+   While stopping a transfer machine, the user space core performs a
    @c #C2_LNET_TM_STOP ioctl request.
 
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_tm_stop() to complete stopping the transfer machine.
    The following tasks are performed.
    - The parameters are validated to ensure no assertions will occur.
@@ -554,7 +543,7 @@
    through use of the @c #C2_LNET_BUF_REGISTER and @c #C2_LNET_TM_START ioctl
    requests, respectively.
 
-   The ioctl requests available to the user space transport for managing
+   The ioctl requests available to the user space core for managing
    buffers and transfer machine buffer queues are as follows.
    - @c #C2_LNET_BUF_MSG_RECV
    - @c #C2_LNET_BUF_MSG_SEND
@@ -590,10 +579,10 @@
 
    @subsection LNetDRVDLD-lspec-event Waiting for Buffer Events
 
-   To wait for buffer events, the user space transport performs a
+   To wait for buffer events, the user space core performs a
    @c #C2_LNET_BUF_EVENT_WAIT ioctl request.
 
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_buf_event_wait() to perform the wait operation.
    The following tasks are performed.
 
@@ -602,11 +591,11 @@
 
    @subsection LNetDRVDLD-lspec-nids Node Identifier Support
 
-   The user space transport uses the @c #C2_LNET_NIDSTR_DECODE and
+   The user space core uses the @c #C2_LNET_NIDSTR_DECODE and
    @c #C2_LNET_NIDSTR_ENCODE requests to decode and encode NID strings,
    respectively.
 
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_nidstr_decode() to decode the string.
    The following tasks are performed.
 
@@ -615,18 +604,18 @@
    - In the case the result is LNET_NID_ANY, -EINVAL is returned,
      otherwise the @c dn_nid field is set.
 
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_nidstr_encode() to decode the string.
    The following tasks are performed.
 
    - The parameter is validated to ensure no assertions will occur.
    - The @c libcfs_nid2str() function is called to convert the string to a NID.
-   - The resulting string is copied to the the @c dn_buf field.
+   - The resulting string is copied to the @c dn_buf field.
 
-   The user space transport uses the @c #C2_LNET_NIDSTRS_GET to obtain the
+   The user space core uses the @c #C2_LNET_NIDSTRS_GET to obtain the
    list of NID strings for the local LNet interfaces.
 
-   The @c nlx_dev_ioctl() uses the helper function
+   The @c nlx_dev_ioctl() subroutine uses the helper function
    @c nlx_dev_ioctl_nidstrs_get() to decode the string.
    The following tasks are performed.
 
@@ -977,42 +966,12 @@ static int mock_mem_area_unmap(struct prototype_dev_data *dd,
    objects.  The user domain object is mapped into kernel space and its
    nlx_core_domain::cd_kpvt field is set.
    @param kd The kernel domain object
-   @param udp User space pointer to a nlx_core_domain object
+   @param p Ioctl request parameters.  The buffer size maxium fields are
+   set on success.
  */
-static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd, void __user *udp)
-{
-	return -ENOSYS;
-}
+static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
+				  struct c2_lnet_dev_dom_init_params *p)
 
-/**
-   Gets the maximum buffer size.
-   @post ret < INT_MAX
-   @param kd The kernel domain object
-   @return the maximum buffer size, a positive number, on success
- */
-static int nlx_dev_ioctl_max_buffer_size(struct nlx_kcore_domain *kd)
-{
-	return -ENOSYS;
-}
-
-/**
-   Gets the maximum buffer segment size.
-   @post ret < INT_MAX
-   @param kd The kernel domain object
-   @return the maximum buffer segment size, a positive number, on success
- */
-static int nlx_dev_ioctl_max_buffer_segment_size(struct nlx_kcore_domain *kd)
-{
-	return -ENOSYS;
-}
-
-/**
-   Gets the maximum buffer segment size.
-   @post ret < INT_MAX
-   @param kd The kernel domain object
-   @return the maximum number of buffer segments, a positive number, on success
- */
-static int nlx_dev_ioctl_max_buffer_segments(struct nlx_kcore_domain *kd)
 {
 	return -ENOSYS;
 }
@@ -1283,9 +1242,6 @@ static long nlx_dev_ioctl(struct file *file,
 	default:
 		/** @todo temporary code so this file will compile */
 		nlx_dev_ioctl_dom_init(NULL, NULL);
-		nlx_dev_ioctl_max_buffer_size(NULL);
-		nlx_dev_ioctl_max_buffer_segment_size(NULL);
-		nlx_dev_ioctl_max_buffer_segments(NULL);
 		nlx_dev_ioctl_buf_register(NULL, NULL);
 		nlx_dev_ioctl_buf_deregister(NULL, NULL);
 		nlx_dev_ioctl_buf_msg_recv(NULL, NULL);
@@ -1305,7 +1261,6 @@ static long nlx_dev_ioctl(struct file *file,
 
 		nlx_core_nidstr_decode(NULL, NULL, NULL);
 		nlx_core_nidstr_encode(NULL, 0, NULL);
-		nlx_core_kmem_loc_set(NULL, NULL, 0);
 		nlx_core_mem_alloc(0, 1);
 		nlx_core_mem_free(NULL, 1);
 		nlx_kcore_dom_init(NULL);

@@ -512,46 +512,35 @@ static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
 
 /**
    Maps a page that should point to a nlx_core_transfer_mc.
-   For kernel pages, does not attempt to kmap() the page, since this could
-   cause an OOPS for slab-allocated pages.  For user page, uses kmap_atomic()
-   and consumes the KM_USER0 slot.
+   Uses kmap_atomic() and consumes the KM_USER0 slot.
    @pre nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL
    @post nlx_core_tm_invariant(ret)
    @param loc location reference for the object
  */
-static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map(
+static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map_atomic(
 						 struct nlx_core_kmem_loc *loc)
 {
 	char *ptr;
 	struct nlx_core_transfer_mc *ret;
 
 	C2_PRE(nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL);
-	if (PageHighMem(loc->kl_page))
-		ptr = kmap_atomic(loc->kl_page, KM_USER0);
-	else
-		ptr = page_address(loc->kl_page);
-	ptr += loc->kl_offset;
-	ret = (struct nlx_core_transfer_mc *) ptr;
+	ptr = kmap_atomic(loc->kl_page, KM_USER0);
+	ret = (struct nlx_core_transfer_mc *) (ptr + loc->kl_offset);
 	C2_POST(nlx_core_tm_invariant(ret));
 	return ret;
 }
 
 /**
    Unmaps a page that should contain a nlx_core_transfer_mc.
-   For kernel pages, does not attempt to kunmap() the page, since this could
-   cause an OOPS for slab-allocated pages.  For user page, uses kunmap_atomic()
-   and consumes the KM_USER0 slot.
-   @pre nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL
+   Uses kunmap_atomic() on the KM_USER0 slot.
+   @pre nlx_core_kmem_loc_invariant(loc)
    @param loc location reference for the object
    @param ctm Pointer to corresponding kcore TM private data.
  */
-static void nlx_kcore_core_tm_unmap(struct nlx_core_kmem_loc *loc,
-				    struct nlx_core_transfer_mc *ctm)
+static void nlx_kcore_core_tm_unmap_atomic(struct nlx_core_transfer_mc *ctm)
 {
-	C2_PRE(nlx_core_tm_invariant(ctm) && loc->kl_page != NULL);
-	if (PageHighMem(loc->kl_page))
-		kunmap_atomic((void *)(((unsigned long) ctm) & PAGE_MASK),
-			      KM_USER0);
+	C2_PRE(nlx_core_tm_invariant(ctm));
+	kunmap_atomic(ctm, KM_USER0);
 }
 
 /** @} */ /* KLNetCore */

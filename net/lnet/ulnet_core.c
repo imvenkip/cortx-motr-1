@@ -180,11 +180,14 @@
    - It opens the device using the @c open() system call.  The device is named
      @c "/dev/c2lnet" and the device is opened with @c O_RDWR|O_CLOEXEC flags.
      The file descriptor is saved in the @c nlx_ucore_domain::ud_fd field.
+   - It declares a @c c2_lnet_dev_dom_init_params object, setting
+     the @c c2_lnet_dev_dom_init_params::ddi_cd field.
    - It shares the @c nlx_core_domain object via the @c #C2_LNET_DOM_INIT
      ioctl request.  Note that a side effect of this request is that the
      @c nlx_core_domain::cd_kpvt is set.
-   - It completes user space initialization of the @c nlx_core_domain object and
-     the @c nlx_ucore_domain object.
+   - It completes user space initialization of the @c nlx_core_domain object
+     and the @c nlx_ucore_domain object, including caching the three buffer
+     maximum size values returned in the @c c2_lnet_dev_dom_init_params.
 
    @see @ref LNetDRVDLD-lspec-dominit "Corresponding device layer behavior"
 
@@ -208,15 +211,10 @@
 
    @subsection ULNetCoreDLD-lspec-reg Buffer Registration and De-registration
 
-   The following ioctl requests are available for use by the user space
-   core to obtain kernel parameters controlling buffer size.
-   - @c #C2_LNET_MAX_BUFFER_SIZE
-   - @c #C2_LNET_MAX_BUFFER_SEGMENT_SIZE
-   - @c #C2_LNET_MAX_BUFFER_SEGMENTS
-
-   The user space core performs these ioctl requests to obtain the
-   corresponding values.  The value (when positive) is the return value of the
-   ioctl request.
+   The user space core implementations of @c nlx_core_get_max_buffer_size(),
+   @c nlx_core_get_max_buffer_segment_size() and
+   @c nlx_core_get_max_buffer_segments() each return the corresponding
+   value cached in the @c nlx_ucore_domain object.
 
    The user space core completes the following tasks to perform
    buffer registration.
