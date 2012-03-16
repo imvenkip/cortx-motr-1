@@ -372,12 +372,18 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	}
 
 	layout_id = 0x4A494E4E49455349; /* "jinniesi" */
-	c2_uint128_init(&seed,      "upjumpandpumpim,");
+	c2_uint128_init(&seed, "upjumpandpumpim,");
 
 	rc = c2_pool_init(pool, DEF_POOL_ID, P);
 	if (rc != 0)
 		goto out_free;
 
+	/**
+	 * @todo A dummy enumeration object is being created here so that the
+	 * compilation goes through. c2t1fs  code is not using enumeration
+	 * at this point. Once, layout DB code is ready, another task will
+	 * take care of using enumeration in c2t1fs code.
+	 */
 	rc = c2_linear_enum_build(layout_id, pool->po_width, 100, 200, &le);
 	if (rc != 0)
 		goto out_free;

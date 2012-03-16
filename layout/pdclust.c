@@ -507,8 +507,8 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		rc = c2_pool_alloc(pool, &pdl->pl_tgt[i]);
 		if (rc != 0) {
 			rc = -ENOMEM;
-			C2_ADDB_ADD(&pdl->pl_base.ls_base.l_addb,
-				    &layout_addb_loc, c2_addb_oom);
+			C2_LOG("c2_pdclust_build: lid %llu, c2_pool_alloc() "
+			       "failed, rc %d", (unsigned long long)lid, rc);
 			goto out;
 		}
 	}
