@@ -372,7 +372,7 @@
    of the two EQs to the circular queue.
 
    The event callback requires that the MD @c user_ptr field be set up to the
-   kernel address of the nlx_core_buffer data structure.  Note that if an event
+   address of the nlx_kcore_buffer data structure.  Note that if an event
    has the @c unlinked field set then this will be the last event that LNet will
    post for the related operation, and the @c user_ptr field will be valid, so
    the callback can safely de-reference the field to determine the correct
@@ -467,8 +467,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_core_buffer in the
-        @c user_ptr field.
+      - Set the address of the nlx_kcore_buffer in the @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c threshold value to the nlx_kcore_buffer::kb_max_recv_msgs
         value.
@@ -490,8 +489,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_core_buffer in the
-        @c user_ptr field.
+      - Set the address of the nlx_kcore_buffer in the @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
         The number of entries in the KIOV and the length field in the last
         element of the vector must be adjusted to reflect the desired byte
@@ -531,8 +529,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with the transfer
         machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_core_buffer in the
-        @c user_ptr field.
+      - Set the address of the nlx_kcore_buffer in the @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
       - Set the @c LNET_MD_KIOV flag in the @c options field, along with either
         the @c LNET_MD_OP_PUT or the @c LNET_MD_OP_GET flag according to the
@@ -557,8 +554,7 @@
       Set up the fields of the @c lnet_md_t argument as follows:
       - Set the @c eq_handle to identify the EQ associated with
         the transfer machine (nlx_kcore_transfer_mc::ktm_eqh).
-      - Set the kernel logical address of the nlx_core_buffer in the
-        @c user_ptr field.
+      - Set the address of the nlx_kcore_buffer in the @c user_ptr field.
       - Pass in the KIOV from the nlx_kcore_buffer::kb_kiov.
         The number of entries in the KIOV and the length field in the last
         element of the vector must be adjusted to reflect the desired byte
@@ -991,7 +987,6 @@ static void nlx_kcore_tms_list_add(struct nlx_kcore_transfer_mc *kctm)
  */
 static void nlx_kcore_eq_cb(lnet_event_t *event)
 {
-	struct nlx_core_buffer *cbp;
 	struct nlx_kcore_buffer *kbp;
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_core_transfer_mc *lctm;
@@ -999,7 +994,6 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	struct nlx_core_buffer_event *bev;
 	c2_time_t now = c2_time_now();
 	bool is_unlinked = false;
-	nlx_core_opaque_ptr_t buffer_id;
 	unsigned mlength;
 	unsigned offset;
 	int status;
@@ -1013,10 +1007,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EPROTO);
 		return;
 	}
-	/** @todo map cbp here */
-	cbp = event->md.user_ptr;
-	C2_ASSERT(nlx_core_buffer_invariant(cbp));
-	kbp = cbp->cb_kpvt;
+	kbp = event->md.user_ptr;
 	C2_ASSERT(nlx_kcore_buffer_invariant(kbp));
 	ktm = kbp->kb_ktm;
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
@@ -1025,7 +1016,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s U:%d S:%d T:%d buf:%lx\n",
 		lctm, event, nlx_kcore_lnet_event_type_to_string(event->type),
 		event->unlinked, event->status, event->md.threshold,
-		(unsigned long) cbp->cb_buffer_id);
+		(unsigned long) kbp->kb_buffer_id);
 	NLXDBG(lctm, 2, nlx_kprint_lnet_event("eq_cb", event));
 	NLXDBG(lctm, 3, nlx_kprint_kcore_tm("eq_cb", ktm));
 
@@ -1039,7 +1030,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	offset  = event->offset;
 
 	if (event->type == LNET_EVENT_SEND &&
-	    cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
+	    kbp->kb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
 		/* An LNetGet related event, normally ignored */
 		if (!is_unlinked) {
 			NLXDBGP(lctm, 1, "\t%p: ignored LNetGet() SEND\n",lctm);
@@ -1068,11 +1059,11 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	} else if (!is_unlinked) {
 		NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s !unlinked Q=%d\n", lctm,
 			event, nlx_kcore_lnet_event_type_to_string(event->type),
-			cbp->cb_qtype);
+			kbp->kb_qtype);
 		/* We may get REPLY before SEND, so ignore such events,
 		   but save the significant values for when the SEND arrives.
 		 */
-		if (cbp->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
+		if (kbp->kb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
 			kbp->kb_ooo_reply   = true;
 			kbp->kb_ooo_mlength = mlength;
 			kbp->kb_ooo_offset  = offset;
@@ -1080,15 +1071,13 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 			goto done;
 		}
 		/* we don't expect anything other than receive messages */
-		C2_ASSERT(cbp->cb_qtype == C2_NET_QT_MSG_RECV);
+		C2_ASSERT(kbp->kb_qtype == C2_NET_QT_MSG_RECV);
 	}
-	buffer_id = cbp->cb_buffer_id;
-	/** @todo unmap cbp here */
 
 	spin_lock(&ktm->ktm_bevq_lock);
 	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
 	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
-	bev->cbe_buffer_id = buffer_id;
+	bev->cbe_buffer_id = kbp->kb_buffer_id;
 	bev->cbe_time      = now;
 	bev->cbe_status    = status;
 	bev->cbe_length    = mlength;
@@ -1229,6 +1218,7 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 	kb->kb_magic         = C2_NET_LNET_KCORE_BUF_MAGIC;
 	nlx_core_kmem_loc_set(&kb->kb_cb_loc, NULL, 0);
 	kb->kb_ktm           = NULL;
+	kb->kb_buffer_id     = buffer_id;
 	kb->kb_kiov          = NULL;
 	kb->kb_kiov_len      = 0;
 	kb->kb_kiov_orig_len = 0;
@@ -1387,7 +1377,7 @@ static int nlx_kcore_buf_msg_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(cb->cb_max_operations == 1);
 
 	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, 0, false, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, cb, kb, &umd, cb->cb_length);
+	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
 	cb->cb_match_bits =
 		nlx_core_match_bits_encode(cb->cb_addr.cepa_tmid, 0);
 	rc = NLX_kcore_LNetPut(ctm, ktm, cb, kb, &umd);
@@ -1444,7 +1434,7 @@ static int nlx_kcore_buf_active_recv(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
 	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, 0, true, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, cb, kb, &umd, cb->cb_length);
+	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
 	rc = NLX_kcore_LNetGet(ctm, ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
@@ -1499,7 +1489,7 @@ static int nlx_kcore_buf_active_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
 	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, 0, false, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, cb, kb, &umd, cb->cb_length);
+	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
 	rc = NLX_kcore_LNetPut(ctm, ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
@@ -1606,7 +1596,7 @@ static int nlx_kcore_buf_passive_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
 	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, LNET_MD_OP_GET, false, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, cb, kb, &umd, cb->cb_length);
+	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
 	cb->cb_addr = ktm->ktm_addr;
 	rc = NLX_kcore_LNetMDAttach(ctm, ktm, cb, kb, &umd);
 	if (rc != 0)

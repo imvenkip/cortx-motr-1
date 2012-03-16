@@ -142,6 +142,19 @@ struct nlx_kcore_buffer {
 	/** Linkage of buffers tracked by driver, per domain. */
 	struct c2_tlink               kb_drv_linkage;
 
+	/**
+	   The address of the c2_net_buffer structure in the transport address
+	   space. The value is set by the nlx_kcore_buffer_register()
+	   subroutine.
+	 */
+	nlx_core_opaque_ptr_t         kb_buffer_id;
+
+	/**
+	   The buffer queue type - copied from nlx_core_buffer::cb_qtype
+	   when a buffer operation is initiated.
+	 */
+        enum c2_net_queue_type        kb_qtype;
+
 	/** The LNet I/O vector. */
 	lnet_kiov_t                  *kb_kiov;
 

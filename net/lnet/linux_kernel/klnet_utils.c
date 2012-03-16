@@ -202,6 +202,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->start = kcb->kb_kiov;
 	umd->options |= LNET_MD_KIOV;
 	umd->length = kcb->kb_kiov_len;
+	kcb->kb_qtype = lcbuf->cb_qtype;
 	if (isLNetGetOp) {
 		umd->threshold = 2;
 		kcb->kb_ooo_reply   = false;
@@ -214,7 +215,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 		umd->max_size = max_size;
 		umd->options |= LNET_MD_MAX_SIZE;
 	}
-	umd->user_ptr = lcbuf;
+	umd->user_ptr = kcb;
 	umd->eq_handle = kctm->ktm_eqh;
 
 	NLXDBG(lctm, 2, nlx_kprint_lnet_md("umd init", umd));
@@ -227,7 +228,6 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
    This is needed for SEND and active buffer operations.
    Restore the kiov with nlx_kcore_kiov_restore_length().
    @param lctm Pointer to kcore TM private data.
-   @param lcbuf Pointer to core buffer private data with match bits set.
    @param kcb Pointer to kcore buffer private data with match bits set.
    @param umd Pointer to the UMD.
    @param bytes The byte count desired.
@@ -237,7 +237,6 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
    @post nlx_kcore_kiov_invariant(umd->start, umd->length)
  */
 static void nlx_kcore_kiov_adjust_length(struct nlx_core_transfer_mc *lctm,
-					 struct nlx_core_buffer *lcbuf,
 					 struct nlx_kcore_buffer *kcb,
 					 lnet_md_t *umd,
 					 c2_bcount_t bytes)
@@ -249,14 +248,13 @@ static void nlx_kcore_kiov_adjust_length(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(umd->options & LNET_MD_KIOV);
 	C2_PRE(umd->length > 0);
 	C2_PRE(nlx_core_tm_invariant(lctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(umd->start == kcb->kb_kiov);
 
 	num = nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd->start,
 						   umd->length, bytes, &last);
-	NLXDBGP(lctm, 2, "%p: buf:%p size:%ld vec:%lu/%lu loff:%u\n",
-		lctm, lcbuf, (unsigned long) bytes,
+	NLXDBGP(lctm, 2, "%p: kbuf:%p size:%ld vec:%lu/%lu loff:%u\n",
+		lctm, kcb, (unsigned long) bytes,
 		(unsigned long) num, (unsigned long) umd->length, last);
 	kcb->kb_kiov_adj_idx = num - 1;
 	C2_POST(kcb->kb_kiov_adj_idx >= 0);

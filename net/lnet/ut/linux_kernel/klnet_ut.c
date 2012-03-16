@@ -400,7 +400,7 @@ static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT(umd->max_size == UT_MSG_SIZE);
 
 	C2_UT_ASSERT(umd->options & LNET_MD_OP_PUT);
-	C2_UT_ASSERT(umd->user_ptr == lcbuf);
+	C2_UT_ASSERT(umd->user_ptr == kcb);
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
 
 	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
@@ -436,7 +436,7 @@ static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT(umd->length == len);
 	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
 	C2_UT_ASSERT(umd->threshold == 1);
-	C2_UT_ASSERT(umd->user_ptr == lcbuf);
+	C2_UT_ASSERT(umd->user_ptr == kcb);
 	C2_UT_ASSERT(umd->max_size == 0);
 	C2_UT_ASSERT(!(umd->options & (LNET_MD_OP_PUT | LNET_MD_OP_GET)));
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
@@ -480,7 +480,7 @@ static int ut_ktest_msg_ep_create(struct c2_net_end_point **epp,
 	return nlx_ep_create(epp, tm, cepa);
 }
 
-static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
+static void ut_ktest_msg_put_event(struct nlx_kcore_buffer *kcb,
 				   unsigned mlength,
 				   unsigned offset,
 				   int status,
@@ -490,7 +490,7 @@ static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr   = lcbuf;
+	ev.md.user_ptr   = kcb;
 	ev.type          = LNET_EVENT_PUT;
 	ev.mlength       = mlength;
 	ev.rlength       = mlength;
@@ -504,14 +504,14 @@ static void ut_ktest_msg_put_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
-static void ut_ktest_msg_send_event(struct nlx_core_buffer *lcbuf,
+static void ut_ktest_msg_send_event(struct nlx_kcore_buffer *kcb,
 				    unsigned mlength,
 				    int status)
 {
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr   = lcbuf;
+	ev.md.user_ptr   = kcb;
 	ev.type          = LNET_EVENT_SEND;
 	ev.mlength       = mlength;
 	ev.rlength       = mlength;
@@ -523,7 +523,7 @@ static void ut_ktest_msg_send_event(struct nlx_core_buffer *lcbuf,
 }
 
 /* Scatter ACK events in all the test suites. They should be ignored. */
-static void ut_ktest_ack_event(struct nlx_core_buffer *lcbuf)
+static void ut_ktest_ack_event(struct nlx_kcore_buffer *kcb)
 {
 	lnet_event_t ev;
 
@@ -615,7 +615,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(umd.start == kcb1->kb_kiov);
 	C2_UT_ASSERT(umd.length == kcb1->kb_kiov_len);
 	C2_UT_ASSERT(umd.options & LNET_MD_KIOV);
-	C2_UT_ASSERT(umd.user_ptr == lcbuf1);
+	C2_UT_ASSERT(umd.user_ptr == kcb1);
 	C2_UT_ASSERT(LNetHandleIsEqual(umd.eq_handle, kctm1->ktm_eqh));
 
 	/* TEST
@@ -671,8 +671,7 @@ static void ktest_msg_body(struct ut_data *td)
 		size_t size;
 		lnet_kiov_t *k = kcb1->kb_kiov;
 		size = kcb1->kb_kiov_len;
-		nlx_kcore_kiov_adjust_length(lctm1, lcbuf1, kcb1,
-					     &umd, UT_MSG_SIZE);
+		nlx_kcore_kiov_adjust_length(lctm1, kcb1, &umd, UT_MSG_SIZE);
 		C2_UT_ASSERT(kcb1->kb_kiov == k);
 		C2_UT_ASSERT(kcb1->kb_kiov_len == size);
 	}
@@ -740,8 +739,8 @@ static void ktest_msg_body(struct ut_data *td)
 	len = 1;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -764,7 +763,7 @@ static void ktest_msg_body(struct ut_data *td)
 	len = 10; /* arbitrary */
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -791,8 +790,8 @@ static void ktest_msg_body(struct ut_data *td)
 	len = 11;
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 1, &addr);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 1, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -848,22 +847,22 @@ static void ktest_msg_body(struct ut_data *td)
 	offset = 0;
 	len = 5;
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	count++;
 	C2_UT_ASSERT(cb_called1 == 0);
 
 	offset += len;
 	len = 10;
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	count++;
 	C2_UT_ASSERT(cb_called1 == 0);
 
 	offset += len;
 	len = 15;
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 1, &addr);
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 1, &addr);
 	count++;
 	C2_UT_ASSERT(cb_called1 == 0);
 
@@ -913,7 +912,7 @@ static void ktest_msg_body(struct ut_data *td)
 	len = 5;
 	C2_UT_ASSERT(bevs_left-- > 0);
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_nb1 == nb1);
@@ -943,14 +942,14 @@ static void ktest_msg_body(struct ut_data *td)
 	offset += len;
 	len = 15;
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 0, &addr);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 0, &addr);
 	count++;
 
 	offset += len;
 	len = 5;
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_msg_put_event(lcbuf1, len, offset, 0, 1, &addr);
+	ut_ktest_msg_put_event(kcb1, len, offset, 0, 1, &addr);
 	count++;
 
 	c2_chan_wait(&td->tmwait1);
@@ -1010,8 +1009,8 @@ static void ktest_msg_body(struct ut_data *td)
 
 	/* deliver the completion event */
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_msg_send_event(lcbuf1, UT_MSG_SIZE, 0);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_msg_send_event(kcb1, UT_MSG_SIZE, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1061,7 +1060,7 @@ static void ktest_msg_body(struct ut_data *td)
 
 	/* deliver the completion event */
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
-	ut_ktest_msg_send_event(lcbuf1, UT_MSG_SIZE, -1);
+	ut_ktest_msg_send_event(kcb1, UT_MSG_SIZE, -1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1138,7 +1137,7 @@ static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 		C2_UT_ASSERT(umd->length == len);
 	}
 
-	C2_UT_ASSERT(umd->user_ptr == lcbuf);
+	C2_UT_ASSERT(umd->user_ptr == kcb);
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
 
 	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
@@ -1175,7 +1174,7 @@ static int ut_ktest_bulk_LNetGet(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT(umd->length == len);
 	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
 	C2_UT_ASSERT(umd->threshold == 2); /* note */
-	C2_UT_ASSERT(umd->user_ptr == lcbuf);
+	C2_UT_ASSERT(umd->user_ptr == kcb);
 	C2_UT_ASSERT(umd->max_size == 0);
 	C2_UT_ASSERT(!(umd->options & (LNET_MD_OP_PUT | LNET_MD_OP_GET)));
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
@@ -1207,7 +1206,7 @@ static int ut_ktest_bulk_LNetPut(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT(umd->length == len);
 	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
 	C2_UT_ASSERT(umd->threshold == 1);
-	C2_UT_ASSERT(umd->user_ptr == lcbuf);
+	C2_UT_ASSERT(umd->user_ptr == kcb);
 	C2_UT_ASSERT(umd->max_size == 0);
 	C2_UT_ASSERT(!(umd->options & (LNET_MD_OP_PUT | LNET_MD_OP_GET)));
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
@@ -1217,14 +1216,14 @@ static int ut_ktest_bulk_LNetPut(struct nlx_core_transfer_mc *lctm,
 	return 0;
 }
 
-static void ut_ktest_bulk_put_event(struct nlx_core_buffer *lcbuf,
+static void ut_ktest_bulk_put_event(struct nlx_kcore_buffer *kcb,
 				    unsigned mlength,
 				    int status)
 {
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr   = lcbuf;
+	ev.md.user_ptr   = kcb;
 	ev.type          = LNET_EVENT_PUT;
 	ev.mlength       = mlength;
 	ev.rlength       = mlength;
@@ -1233,14 +1232,14 @@ static void ut_ktest_bulk_put_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
-static void ut_ktest_bulk_get_event(struct nlx_core_buffer *lcbuf,
+static void ut_ktest_bulk_get_event(struct nlx_kcore_buffer *kcb,
 				    unsigned mlength,
 				    int status)
 {
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr   = lcbuf;
+	ev.md.user_ptr   = kcb;
 	ev.type          = LNET_EVENT_GET;
 	ev.mlength       = mlength;
 	ev.rlength       = mlength;
@@ -1250,7 +1249,7 @@ static void ut_ktest_bulk_get_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
-static void ut_ktest_bulk_send_event(struct nlx_core_buffer *lcbuf,
+static void ut_ktest_bulk_send_event(struct nlx_kcore_buffer *kcb,
 				     unsigned mlength,
 				     int status,
 				     int unlinked,
@@ -1259,7 +1258,7 @@ static void ut_ktest_bulk_send_event(struct nlx_core_buffer *lcbuf,
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr   = lcbuf;
+	ev.md.user_ptr   = kcb;
 	ev.type          = LNET_EVENT_SEND;
 	ev.mlength       = mlength;
 	ev.rlength       = mlength;
@@ -1269,7 +1268,7 @@ static void ut_ktest_bulk_send_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
-static void ut_ktest_bulk_reply_event(struct nlx_core_buffer *lcbuf,
+static void ut_ktest_bulk_reply_event(struct nlx_kcore_buffer *kcb,
 				      unsigned mlength,
 				      int status,
 				      int unlinked,
@@ -1278,7 +1277,7 @@ static void ut_ktest_bulk_reply_event(struct nlx_core_buffer *lcbuf,
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr   = lcbuf;
+	ev.md.user_ptr   = kcb;
 	ev.type          = LNET_EVENT_REPLY;
 	ev.mlength       = mlength;
 	ev.rlength       = mlength;
@@ -1288,12 +1287,12 @@ static void ut_ktest_bulk_reply_event(struct nlx_core_buffer *lcbuf,
 	nlx_kcore_eq_cb(&ev);
 }
 
-static void ut_ktest_bulk_unlink_event(struct nlx_core_buffer *lcbuf)
+static void ut_ktest_bulk_unlink_event(struct nlx_kcore_buffer *kcb)
 {
 	lnet_event_t ev;
 
 	C2_SET0(&ev);
-	ev.md.user_ptr   = lcbuf;
+	ev.md.user_ptr   = kcb;
 	ev.type          = LNET_EVENT_UNLINK;
 	ev.unlinked      = 1;
 	nlx_kcore_eq_cb(&ev);
@@ -1351,7 +1350,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_bulk_put_event(lcbuf1, UT_BULK_SIZE - 1, 0);
+	ut_ktest_bulk_put_event(kcb1, UT_BULK_SIZE - 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1394,8 +1393,8 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_bulk_unlink_event(lcbuf1);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_bulk_unlink_event(kcb1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1439,7 +1438,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_bulk_get_event(lcbuf1, UT_BULK_SIZE, 0);
+	ut_ktest_bulk_get_event(kcb1, UT_BULK_SIZE, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1481,8 +1480,8 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_bulk_unlink_event(lcbuf1);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_bulk_unlink_event(kcb1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1521,9 +1520,9 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 0, 1);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, 0, 1, 0);
+	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 0, 1);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, 0, 1, 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1559,13 +1558,13 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
-	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, 0, 0, 1);
+	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, 0, 0, 1);
 	C2_UT_ASSERT(kcb1->kb_ooo_reply);
 	C2_UT_ASSERT(kcb1->kb_ooo_status == 0);
 	C2_UT_ASSERT(kcb1->kb_ooo_mlength == UT_BULK_SIZE);
 	C2_UT_ASSERT(kcb1->kb_ooo_offset == 0);
-	ut_ktest_bulk_send_event(lcbuf1, 0, 0, 1, 0); /* size is wrong */
-	ut_ktest_ack_event(lcbuf1); /* bad event */
+	ut_ktest_bulk_send_event(kcb1, 0, 0, 1, 0); /* size is wrong */
+	ut_ktest_ack_event(kcb1); /* bad event */
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1607,7 +1606,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, -EIO, 1, 1);
+	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, -EIO, 1, 1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1641,9 +1640,9 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 0, 1);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, -EIO, 1, 0);
+	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 0, 1);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, -EIO, 1, 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
@@ -1679,12 +1678,12 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
-	ut_ktest_bulk_reply_event(lcbuf1, UT_BULK_SIZE, -EIO, 0, 1);
+	ut_ktest_bulk_reply_event(kcb1, UT_BULK_SIZE, -EIO, 0, 1);
 	C2_UT_ASSERT(kcb1->kb_ooo_reply);
 	C2_UT_ASSERT(kcb1->kb_ooo_status == -EIO);
 	C2_UT_ASSERT(kcb1->kb_ooo_mlength == UT_BULK_SIZE);
 	C2_UT_ASSERT(kcb1->kb_ooo_offset == 0);
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 1, 0);
+	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1724,8 +1723,8 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 1, 1);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 1, 1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1759,7 +1758,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
 	C2_UT_ASSERT(!kcb1->kb_ooo_reply);
-	ut_ktest_bulk_unlink_event(lcbuf1);
+	ut_ktest_bulk_unlink_event(kcb1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1799,7 +1798,7 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, 0, 1, 0);
+	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, 0, 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1834,8 +1833,8 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_bulk_send_event(lcbuf1, UT_BULK_SIZE, -EIO, 1, 0);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_bulk_send_event(kcb1, UT_BULK_SIZE, -EIO, 1, 0);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
@@ -1870,8 +1869,8 @@ static void ktest_bulk_body(struct ut_data *td)
 
 	c2_clink_add(&TM1->ntm_chan, &td->tmwait1);
 	C2_UT_ASSERT(bevs_left-- > 0);
-	ut_ktest_ack_event(lcbuf1); /* bad event */
-	ut_ktest_bulk_unlink_event(lcbuf1);
+	ut_ktest_ack_event(kcb1); /* bad event */
+	ut_ktest_bulk_unlink_event(kcb1);
 	c2_chan_wait(&td->tmwait1);
 	c2_clink_del(&td->tmwait1);
 	C2_UT_ASSERT(cb_called1 == 1);
