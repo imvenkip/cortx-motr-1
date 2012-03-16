@@ -26,6 +26,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/trace.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -257,7 +258,7 @@ static int set_gen_err_reply(struct c2_fom *fom)
  */
 static int fom_failure(struct c2_fom *fom)
 {
-
+	C2_LOG("fom %p, rc %d, fop %p", fom, fom->fo_rc, fom->fo_rep_fop);
 	if (fom->fo_rc != 0 && fom->fo_rep_fop == NULL)
 		set_gen_err_reply(fom);
 
@@ -281,6 +282,7 @@ static int fom_txn_commit(struct c2_fom *fom)
 	int rc;
 
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	C2_LOG("fom %p, db_tx_commit-rc %d", fom, rc);
 
 	if (rc != 0) {
 		fom->fo_rc = rc;
