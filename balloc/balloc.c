@@ -901,6 +901,7 @@ int c2_balloc_load_extents(struct c2_balloc *cb,
 			 &start.e_end, sizeof start.e_end);
 	result = c2_db_cursor_get(&cursor, &pair);
 	if ( result != 0) {
+		c2_db_cursor_fini(&cursor);
 		c2_balloc_release_extents(grp);
 		return result;
 	}
