@@ -503,9 +503,11 @@ void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 void c2_net_tm_recv_pool_buffer_put(struct c2_net_buffer *nb)
 {
 	struct c2_net_transfer_mc *tm;
+	C2_PRE(nb != NULL);
 	tm = nb->nb_tm;
 	C2_PRE(tm != NULL);
-	C2_PRE(tm->ntm_recv_pool != NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
+	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
 	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
@@ -522,6 +524,7 @@ void c2_net_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm)
 
 	C2_PRE(tm != NULL);
 	C2_PRE(tm->ntm_dom != NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL);
 
 	net_dom = tm->ntm_dom;
 	ql = &tm->ntm_q[C2_NET_QT_MSG_RECV];
