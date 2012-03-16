@@ -346,20 +346,19 @@ static void ktest_enc_dec(void)
 {
 	uint32_t tmid;
 	uint32_t portal;
-	struct nlx_core_transfer_mc lctm;
+	struct nlx_kcore_transfer_mc ktm = {
+		.ktm_magic = C2_NET_LNET_KCORE_TM_MAGIC, /* fake */
+	};
 
 	/* TEST
 	   Check that hdr data decode reverses encode.
-	*/
-	C2_SET0(&lctm);
-	lctm.ctm_magic = C2_NET_LNET_CORE_TM_MAGIC; /* fake */
-	lctm.ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
-	C2_UT_ASSERT(nlx_core_tm_invariant(&lctm)); /* to make this pass */
+	 */
+	C2_UT_ASSERT(nlx_kcore_tm_invariant(&ktm)); /* to make this pass */
 
 #define TEST_HDR_DATA_ENCODE(_p, _t)					\
-	lctm.ctm_addr.cepa_tmid = (_t);					\
-	lctm.ctm_addr.cepa_portal = (_p);				\
-	nlx_kcore_hdr_data_decode(nlx_kcore_hdr_data_encode(&lctm),	\
+	ktm.ktm_addr.cepa_tmid = (_t);					\
+	ktm.ktm_addr.cepa_portal = (_p);				\
+	nlx_kcore_hdr_data_decode(nlx_kcore_hdr_data_encode(&ktm),	\
 				  &portal, &tmid);			\
 	C2_UT_ASSERT(portal == (_p));					\
 	C2_UT_ASSERT(tmid == (_t))
@@ -379,11 +378,11 @@ enum {
 };
 static bool ut_ktest_msg_LNetMDAttach_called;
 static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
+				     struct nlx_kcore_transfer_mc *kctm,
 				     struct nlx_core_buffer *lcbuf,
+				     struct nlx_kcore_buffer *kcb,
 				     lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
 	uint32_t tmid;
 	uint64_t counter;
 
@@ -416,12 +415,12 @@ static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 static bool ut_ktest_msg_LNetPut_called;
 static struct c2_net_end_point *ut_ktest_msg_LNetPut_ep;
 static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
+				struct nlx_kcore_transfer_mc *kctm,
 				struct nlx_core_buffer *lcbuf,
+				struct nlx_kcore_buffer *kcb,
 				lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
-	struct nlx_core_ep_addr      *cepa;
+	struct nlx_core_ep_addr *cepa;
 	size_t len;
 	unsigned last;
 
@@ -612,7 +611,7 @@ static void ktest_msg_body(struct ut_data *td)
 	nb1->nb_max_receive_msgs = 1;
 	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
 
-	nlx_kcore_umd_init(lctm1, lcbuf1, 1, 1, 0, false, &umd);
+	nlx_kcore_umd_init(lctm1, kctm1, lcbuf1, kcb1, 1, 1, 0, false, &umd);
 	C2_UT_ASSERT(umd.start == kcb1->kb_kiov);
 	C2_UT_ASSERT(umd.length == kcb1->kb_kiov_len);
 	C2_UT_ASSERT(umd.options & LNET_MD_KIOV);
@@ -661,7 +660,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(ut_ktest_kiov_eq(kcb1->kb_kiov, kdup, kcb1->kb_kiov_len));
 
 	/* init the UMD that will be adjusted */
-	nlx_kcore_umd_init(lctm1, lcbuf1, 1, 0, 0, false, &umd);
+	nlx_kcore_umd_init(lctm1, kctm1, lcbuf1, kcb1, 1, 0, 0, false, &umd);
 	C2_UT_ASSERT(kcb1->kb_kiov == umd.start);
 	C2_UT_ASSERT(ut_ktest_kiov_count(umd.start,umd.length)
 		     == td->buf_size1);
@@ -672,7 +671,8 @@ static void ktest_msg_body(struct ut_data *td)
 		size_t size;
 		lnet_kiov_t *k = kcb1->kb_kiov;
 		size = kcb1->kb_kiov_len;
-		nlx_kcore_kiov_adjust_length(lctm1, lcbuf1, &umd, UT_MSG_SIZE);
+		nlx_kcore_kiov_adjust_length(lctm1, lcbuf1, kcb1,
+					     &umd, UT_MSG_SIZE);
 		C2_UT_ASSERT(kcb1->kb_kiov == k);
 		C2_UT_ASSERT(kcb1->kb_kiov_len == size);
 	}
@@ -688,7 +688,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(kcb1->kb_kiov_orig_len == kdup[umd.length - 1].kiov_len);
 
 	/* validate restoration */
-	nlx_kcore_kiov_restore_length(lctm1, lcbuf1);
+	nlx_kcore_kiov_restore_length(lctm1, kcb1);
 	C2_UT_ASSERT(ut_ktest_kiov_eq(kcb1->kb_kiov, kdup, kcb1->kb_kiov_len));
 	C2_UT_ASSERT(ut_ktest_kiov_count(kcb1->kb_kiov, kcb1->kb_kiov_len)
 		     == td->buf_size1);
@@ -1102,11 +1102,11 @@ static void ktest_msg(void) {
 static struct c2_atomic64 ut_ktest_bulk_fake_LNetMDAttach;
 static bool ut_ktest_bulk_LNetMDAttach_called;
 static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
+				      struct nlx_kcore_transfer_mc *kctm,
 				      struct nlx_core_buffer *lcbuf,
+				      struct nlx_kcore_buffer *kcb,
 				      lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
 	uint32_t tmid;
 	uint64_t counter;
 
@@ -1150,16 +1150,16 @@ static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 		kcb->kb_ktm = kctm;
 		return 0;
 	}
-	return nlx_kcore_LNetMDAttach(lctm, lcbuf, umd);
+	return nlx_kcore_LNetMDAttach(lctm, kctm, lcbuf, kcb, umd);
 }
 
 static bool ut_ktest_bulk_LNetGet_called;
 static int ut_ktest_bulk_LNetGet(struct nlx_core_transfer_mc *lctm,
+				 struct nlx_kcore_transfer_mc *kctm,
 				 struct nlx_core_buffer *lcbuf,
+				 struct nlx_kcore_buffer *kcb,
 				 lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
 	size_t len;
 	unsigned last;
 
@@ -1187,11 +1187,11 @@ static int ut_ktest_bulk_LNetGet(struct nlx_core_transfer_mc *lctm,
 
 static bool ut_ktest_bulk_LNetPut_called;
 static int ut_ktest_bulk_LNetPut(struct nlx_core_transfer_mc *lctm,
+				 struct nlx_kcore_transfer_mc *kctm,
 				 struct nlx_core_buffer *lcbuf,
+				 struct nlx_kcore_buffer *kcb,
 				 lnet_md_t *umd)
 {
-	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
-	struct nlx_kcore_buffer       *kcb = lcbuf->cb_kpvt;
 	size_t len;
 	unsigned last;
 

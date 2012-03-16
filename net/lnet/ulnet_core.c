@@ -355,7 +355,7 @@
    Most of the @c nlx_core_ep_addr_decode() and
    @c nlx_core_ep_addr_encode() functions can be implemented common
    in user and kernel space code.  However, converting a NID to a string or
-   visa versa requires access to functions which exists only in the kernel.
+   vice versa requires access to functions which exists only in the kernel.
    The @c nlx_core_nidstr_decode() and @c nlx_core_nidstr_encode() functions
    provide separate user and kernel implementations of this conversion code.
 
@@ -536,7 +536,8 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 	/** @todo XXX implement */
 }
 
-int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
+			  struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX temp: just to compile in user space */
@@ -546,42 +547,48 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	return -ENOSYS;
 }
 
-int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_msg_send(struct nlx_core_domain *cd,
+			  struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_active_recv(struct nlx_core_domain *cd,
+			     struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_active_send(struct nlx_core_domain *cd,
+			     struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,
+			      struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_passive_send(struct nlx_core_domain *cd,
+			      struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_del(struct nlx_core_domain *cd,
+		     struct nlx_core_transfer_mc *lctm,
 		     struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
@@ -593,29 +600,6 @@ int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
-}
-
-bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
-			    struct nlx_core_buffer_event *lcbe)
-{
-	struct nlx_core_bev_link *link;
-	struct nlx_core_buffer_event *bev;
-
-	C2_PRE(lctm != NULL);
-	C2_PRE(lcbe != NULL);
-
-	/** @todo XXX temp code to cause APIs to be used */
-	if (!bev_cqueue_is_empty(&lctm->ctm_bevq)) {
-		link = bev_cqueue_get(&lctm->ctm_bevq);
-		if (link != NULL) {
-			bev = container_of(link, struct nlx_core_buffer_event,
-					   cbe_tm_link);
-			*lcbe = *bev;
-			C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
-			return true;
-		}
-	}
-	return false;
 }
 
 int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,

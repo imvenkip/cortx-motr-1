@@ -208,6 +208,27 @@ void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 	return;
 }
 
+bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
+			    struct nlx_core_buffer_event *lcbe)
+{
+	struct nlx_core_bev_link *link;
+	struct nlx_core_buffer_event *bev;
+
+	C2_PRE(lctm != NULL && lcbe != NULL);
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+
+	link = bev_cqueue_get(&lctm->ctm_bevq);
+	if (link != NULL) {
+		bev = container_of(link, struct nlx_core_buffer_event,
+				   cbe_tm_link);
+		*lcbe = *bev;
+		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
+		/* Event structures released when network buffer unlinked */
+		return true;
+	}
+	return false;
+}
+
 /**
    Helper subroutine to construct the match bit value from its components.
    @param tmid Transfer machine identifier.

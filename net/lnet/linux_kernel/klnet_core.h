@@ -92,11 +92,6 @@ struct nlx_kcore_domain {
 struct nlx_kcore_transfer_mc {
 	uint64_t                      ktm_magic;
 
-	/** Kernel pointer to the shared memory TM structure.
-	    @todo deprecated
-	 */
-	struct nlx_core_transfer_mc  *ktm_ctm;
-
 	/** Reference to the shared memory nlx_core_transfer_mc structure. */
 	struct nlx_core_kmem_loc      ktm_ctm_loc;
 
@@ -111,6 +106,9 @@ struct nlx_kcore_transfer_mc {
 	   This list links through nlx_kcore_buffer_event::kbe_drv_linkage.
 	 */
 	struct c2_tl                  ktm_drv_bevs;
+
+	/** The transfer machine address. */
+	struct nlx_core_ep_addr       ktm_addr;
 
 	/**
 	   Spin lock to serialize access to the buffer event queue
@@ -135,11 +133,6 @@ struct nlx_kcore_transfer_mc {
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
 
-	/** Pointer to the shared memory buffer data.
-	    @todo deprecated
-	 */
-	struct nlx_core_buffer       *kb_cb;
-
 	/** Reference to the shared memory nlx_core_buffer structure. */
 	struct nlx_core_kmem_loc      kb_cb_loc;
 
@@ -158,13 +151,13 @@ struct nlx_kcore_buffer {
 	/** The length of a kiov vector element is adjusted at runtime to
 	    reflect the actual buffer data length under consideration.
 	    This field keeps track of the element index adjusted.
-	*/
+	 */
 	size_t                        kb_kiov_adj_idx;
 
 	/** The kiov is adjusted at runtime to reflect the actual buffer
 	    data length under consideration.
 	    This field keeps track of original length.
-	*/
+	 */
 	unsigned                      kb_kiov_orig_len;
 
 	/** MD handle */
@@ -175,17 +168,17 @@ struct nlx_kcore_buffer {
 
 	/** The saved mlength value in the case of an out-of-order
 	    REPLY/SEND event sequence.
-	*/
+	 */
 	unsigned                      kb_ooo_mlength;
 
 	/** The saved status value in the case of an out-of-order
 	    REPLY/SEND event sequence.
-	*/
+	 */
 	int                           kb_ooo_status;
 
 	/** The saved offset value in the case of an out-of-order
 	    REPLY/SEND event sequence.
-	*/
+	 */
 	unsigned                      kb_ooo_offset;
 
 	/** ADDB context for events related to this buffer */
@@ -284,14 +277,12 @@ struct nlx_kcore_ops {
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the message receive queue.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param cb The buffer private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_msg_recv)(struct nlx_kcore_domain *kd,
-			       struct nlx_core_transfer_mc *ctm,
+	int (*ko_buf_msg_recv)(struct nlx_core_transfer_mc *ctm,
 			       struct nlx_kcore_transfer_mc *ktm,
 			       struct nlx_core_buffer *cb,
 			       struct nlx_kcore_buffer *kb);
@@ -299,14 +290,12 @@ struct nlx_kcore_ops {
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the message send queue.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param cb The buffer private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_msg_send)(struct nlx_kcore_domain *kd,
-			       struct nlx_core_transfer_mc *ctm,
+	int (*ko_buf_msg_send)(struct nlx_core_transfer_mc *ctm,
 			       struct nlx_kcore_transfer_mc *ktm,
 			       struct nlx_core_buffer *cb,
 			       struct nlx_kcore_buffer *kb);
@@ -314,14 +303,12 @@ struct nlx_kcore_ops {
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk active receive queue.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param cb The buffer private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_active_recv)(struct nlx_kcore_domain *kd,
-				  struct nlx_core_transfer_mc *ctm,
+	int (*ko_buf_active_recv)(struct nlx_core_transfer_mc *ctm,
 				  struct nlx_kcore_transfer_mc *ktm,
 				  struct nlx_core_buffer *cb,
 				  struct nlx_kcore_buffer *kb);
@@ -329,14 +316,12 @@ struct nlx_kcore_ops {
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk active send queue.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param cb The buffer private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_active_send)(struct nlx_kcore_domain *kd,
-				  struct nlx_core_transfer_mc *ctm,
+	int (*ko_buf_active_send)(struct nlx_core_transfer_mc *ctm,
 				  struct nlx_kcore_transfer_mc *ktm,
 				  struct nlx_core_buffer *cb,
 				  struct nlx_kcore_buffer *kb);
@@ -344,14 +329,12 @@ struct nlx_kcore_ops {
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk passive receive queue.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param cb The buffer private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_passive_recv)(struct nlx_kcore_domain *kd,
-				   struct nlx_core_transfer_mc *ctm,
+	int (*ko_buf_passive_recv)(struct nlx_core_transfer_mc *ctm,
 				   struct nlx_kcore_transfer_mc *ktm,
 				   struct nlx_core_buffer *cb,
 				   struct nlx_kcore_buffer *kb);
@@ -359,30 +342,24 @@ struct nlx_kcore_ops {
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk passive send queue.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param cb The buffer private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_passive_send)(struct nlx_kcore_domain *kd,
-				   struct nlx_core_transfer_mc *ctm,
+	int (*ko_buf_passive_send)(struct nlx_core_transfer_mc *ctm,
 				   struct nlx_kcore_transfer_mc *ktm,
 				   struct nlx_core_buffer *cb,
 				   struct nlx_kcore_buffer *kb);
 
 	/**
 	   Performs kernel core tasks relating to canceling a buffer operation.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
-	   @param cb The buffer private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_del)(struct nlx_kcore_domain *kd,
-			  struct nlx_core_transfer_mc *ctm,
+	int (*ko_buf_del)(struct nlx_core_transfer_mc *ctm,
 			  struct nlx_kcore_transfer_mc *ktm,
-			  struct nlx_core_buffer *cb,
 			  struct nlx_kcore_buffer *kb);
 
 	/**
