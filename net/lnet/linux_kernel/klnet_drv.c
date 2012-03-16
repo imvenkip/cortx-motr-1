@@ -158,11 +158,10 @@
        core objects must be changed to remove these pointers and replace them
        with use of @c nlx_core_kmem_loc objects.  More details of this
        dependency are discussed in @ref LNetDRVDLD-lspec-mem.
-     - The @c bev_cqueue_pnext() and @c bev_cqueue_put() should be modified or
-       wrapped such that they can map and unmap the
-       @c nlx_core_buffer_event object (atomic mapping must be used, because
-       these functions are called from the LNet callback).  This also
-       requires use of @c nlx_core_kmem_loc references in the
+     - The @c bev_cqueue_pnext() and @c bev_cqueue_put() are modified such that
+       they map and unmap the @c nlx_core_buffer_event object (atomic mapping
+       must be used, because these functions are called from the LNet callback).
+       This also requires use of @c nlx_core_kmem_loc references in the
        @c nlx_core_bev_link.
      - Many of the Core APIs implemented in the kernel must be refactored such
        that the portion that can be shared between the kernel-only transport and
@@ -174,11 +173,13 @@
        used as a guide for how to refactor the Kernel Core implementation.  In
        addition, the operations on the @c nlx_kcore_ops structure guide the
        signatures of the refactored, shared operations.
-     - The @c nlx_kcore_umd_init() function should be changed to set the
+     - The @c nlx_kcore_umd_init() function is changed to set the
        MD @c user_ptr to the @c nlx_kcore_buffer, not the @c nlx_core_buffer.
-       This allows the shared buffer to be mapped and unmapped as needed, rather
-       that keeping it mapped for long periods.  All other uses of the MD
-       @c user_ptr field must be changed accordingly.
+       @c kb_buffer_id and @c kb_qtype fields are added to the
+       @c nlx_kcore_buffer and are set during @c nlx_kcore_buf_register() and
+       @c nlx_kcore_umd_init() respectively.  This allows the lnet event
+       callback to execute without using the @c nlx_core_buffer.
+       All other uses of the MD @c user_ptr field must be changed accordingly.
      - Various blocks of @c C2_PRE() assertions used to validate shared objects
        before they are referenced should be refactored into new invariant-style
        functions so the driver can perform the checks and return an error
