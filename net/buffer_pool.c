@@ -197,11 +197,11 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	struct c2_net_buffer *nb;
 
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
-	C2_PRE(colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
+	C2_PRE(colour == C2_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
 
 	if (pool->nbp_free <= 0)
 		return NULL;
-	if (colour != BUFFER_ANY_COLOUR &&
+	if (colour != C2_BUFFER_ANY_COLOUR &&
 	    !c2_net_tm_tlist_is_empty(&pool->nbp_colours[colour]))
 		nb = c2_net_tm_tlist_head(&pool->nbp_colours[colour]);
 	else
@@ -223,14 +223,14 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 {
 	C2_PRE(buf != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
-	C2_PRE(colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
+	C2_PRE(colour == C2_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
 	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);
 	C2_PRE(pool->nbp_ndom == buf->nb_dom);
 
 	C2_ASSERT(buf->nb_magic == C2_NET_BUFFER_LINK_MAGIC);
 	C2_ASSERT(!c2_net_pool_tlink_is_in(buf));
-	if (colour != BUFFER_ANY_COLOUR) {
+	if (colour != C2_BUFFER_ANY_COLOUR) {
 		C2_ASSERT(!c2_net_tm_tlink_is_in(buf));
 		c2_net_tm_tlist_add(&pool->nbp_colours[colour], buf);
 	}
@@ -262,7 +262,7 @@ static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool)
 	c2_net_tm_tlink_init(nb);
 
 	C2_CNT_INC(pool->nbp_buf_nr);
-	c2_net_buffer_pool_put(pool, nb, BUFFER_ANY_COLOUR);
+	c2_net_buffer_pool_put(pool, nb, C2_BUFFER_ANY_COLOUR);
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 	return true;
 clean:

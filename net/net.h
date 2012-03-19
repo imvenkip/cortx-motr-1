@@ -429,7 +429,7 @@ struct c2_net_stats {
 };
 
 /** @}
- @addtogroup net Networking.
+ @addtogroup net
  @{
  */
 
@@ -1664,10 +1664,10 @@ C2_TL_DESCR_DECLARE(c2_net_tm, extern);
 C2_TL_DECLARE(c2_net_pool, extern, struct c2_net_buffer);
 C2_TL_DECLARE(c2_net_tm, extern, struct c2_net_buffer);
 
-/** @} end of networking group
+/** @} */ /* end of networking group */
 
-
-   @addtogroup netDep Networking (Deprecated Interfaces)
+/**
+   @addtogroup netDep
    @{
  */
 void c2_net_domain_stats_init(struct c2_net_domain *dom);
@@ -1829,7 +1829,7 @@ struct c2_net_conn_ops {
 
    Allocates resources and connects transport connection to some logical
    connection.  Logical connection is used to send rpc in the context of one or
-   more sessions.  (@ref rpc-cli-session)
+   more sessions.
 
    @param nid - service identifier
 
@@ -1933,7 +1933,7 @@ void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
 extern struct c2_net_xprt c2_net_usunrpc_xprt;
 extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
-/** @} end of deprecated net group */
+/** @} */ /* end of deprecated net group */
 
 #endif
 

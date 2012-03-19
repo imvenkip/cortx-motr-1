@@ -25,7 +25,7 @@
 #include "net/net_internal.h"
 
 /**
-   @addtogroup net Networking.
+   @addtogroup net
    @{
  */
 C2_TL_DESCR_DEFINE(c2_net_tm, "tm list", ,
