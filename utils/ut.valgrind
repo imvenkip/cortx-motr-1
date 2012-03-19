@@ -4,12 +4,12 @@ valgrind \
     --tool=memcheck \
     --trace-children=yes --track-fds=yes \
     --leak-check=full --track-origins=yes \
-    ./utils/.libs/lt-ut -t cobfom_ut
+    ./utils/.libs/lt-ut
 
-#valgrind --tool=cachegrind              ./utils/.libs/lt-ut
-#valgrind --tool=callgrind               ./utils/.libs/lt-ut
-#valgrind --tool=hellgrind               ./utils/.libs/lt-ut
+valgrind --tool=cachegrind              ./utils/.libs/lt-ut
+valgrind --tool=callgrind               ./utils/.libs/lt-ut
+valgrind --tool=hellgrind               ./utils/.libs/lt-ut
 #valgrind --tool=drd --free-is-write=yes ./utils/.libs/lt-ut
-#valgrind --tool=massif                  ./utils/.libs/lt-ut
+valgrind --tool=massif                  ./utils/.libs/lt-ut
 #valgrind --tool=ptrcheck                ./utils/.libs/lt-ut
 
