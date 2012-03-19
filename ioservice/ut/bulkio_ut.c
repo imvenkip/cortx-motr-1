@@ -265,27 +265,13 @@ static void fom_fini_test(enum cob_fom_type fomtype)
 {
 	size_t	       tot_mem;
 	size_t	       base_mem;
-	size_t	       obj_mem;
 	struct c2_fom *fom;
 
 	/*
-	 * 1. Calculate FOM object size 
-	 * 2. Allocate FOM object of interest
-	 * 3. Calculate current memory usage before and after object allocation
+	 * 1. Allocate FOM object of interest
+	 * 2. Calculate memory usage before and after object allocation
 	 *    and de-allocation.
 	 */
-	switch (fomtype) {
-	case COB_CREATE:
-		obj_mem = sizeof (struct c2_fom_cob_create);
-		break;
-	case COB_DELETE:
-		obj_mem = sizeof (struct c2_fom_cob_delete);
-		break;
-	default:
-		C2_IMPOSSIBLE("Invalid COB-FOM type");
-		break;
-	}
-
 	base_mem = c2_allocated();
 	fom_create(&fom, fomtype);
 
@@ -583,7 +569,6 @@ static void cc_cob_create_test()
 static void cc_cobfid_map_add_test()
 {
 	struct c2_fom_cob_create *cc;
-	struct c2_fom_cob_delete *cd;
 	struct c2_dbenv		 *dbenv;
 	struct c2_fom		 *cfom;
 	struct c2_fom		 *dfom;
@@ -634,7 +619,6 @@ static void cc_cobfid_map_add_test()
 		dfom = cd_fom_alloc();
 		C2_UT_ASSERT(dfom != NULL);
 
-		cd = cd_fom_get(dfom);
 		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 		C2_UT_ASSERT(rc == 0);
 
@@ -655,7 +639,6 @@ static void cc_cobfid_map_add_test()
 static void cc_fom_state_test()
 {
 	struct c2_fom_cob_create *cc;
-	struct c2_fom_cob_delete *cd;
 	struct c2_fom		 *cfom;
 	struct c2_fom		 *dfom;
 	struct c2_dbenv		 *dbenv;
@@ -687,8 +670,6 @@ static void cc_fom_state_test()
 		 */
 		dfom = cd_fom_alloc();
 		C2_UT_ASSERT(dfom != NULL);
-
-		cd = cd_fom_get(dfom);
 
 		rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 		C2_UT_ASSERT(rc == 0);
