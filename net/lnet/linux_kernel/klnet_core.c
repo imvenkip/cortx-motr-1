@@ -1626,7 +1626,7 @@ int nlx_core_buf_del(struct nlx_core_domain *cd, /* not used */
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
 
- 	C2_PRE(nlx_core_tm_invariant(ctm));
+	C2_PRE(nlx_core_tm_invariant(ctm));
 	ktm = ctm->ctm_kpvt;
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	kb = cb->cb_kpvt;
