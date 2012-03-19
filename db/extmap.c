@@ -195,7 +195,7 @@ static bool it_prefix_ok(const struct c2_emap_cursor *it)
 
 static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
 		   const struct c2_uint128 *prefix, c2_bindex_t offset,
-		   struct c2_emap_cursor *it)
+		   struct c2_emap_cursor *it, uint32_t flags)
 {
 	c2_db_pair_setup(&it->ec_pair, &emap->em_mapping,
 			 &it->ec_key, sizeof it->ec_key,
@@ -203,7 +203,7 @@ static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
 	it->ec_map           = emap;
-	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx);
+	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx, flags);
 }
 
 static void emap_close(struct c2_emap_cursor *it)
@@ -218,7 +218,7 @@ static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 {
 	int result;
 
-	result = it_init(emap, tx, prefix, offset, it);
+	result = it_init(emap, tx, prefix, offset, it, 0);
 	if (result == 0) {
 		result = IT_DO_OPEN(it, &c2_db_cursor_get);
 		if (result != 0)
@@ -523,7 +523,7 @@ int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
 	struct c2_emap_cursor it;
 	int                   result;
 
-	result = it_init(emap, tx, prefix, 0, &it);
+	result = it_init(emap, tx, prefix, 0, &it, C2_DB_CURSOR_RMW);
 	if (result == 0) {
 		it.ec_seg.ee_pre         = *prefix;
 		it.ec_seg.ee_ext.e_start = 0;

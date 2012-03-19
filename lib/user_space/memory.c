@@ -57,10 +57,7 @@ static struct c2_atomic64 allocated;
 #include <malloc.h>
 static size_t __allocated(void)
 {
-	struct mallinfo mi;
-
-	mi = mallinfo();
-	return mi.uordblks;
+	return mallinfo().uordblks;
 }
 #define __free free
 #define __malloc malloc
@@ -120,6 +117,12 @@ void c2_free(void *data)
 	C2_ENTRY("%lx", (long unsigned)data);
 	__free(data);
 	C2_LEAVE();
+}
+
+void c2_free_aligned(void *data, size_t size, unsigned shift)
+{
+	C2_PRE(c2_addr_is_aligned(data, shift));
+	c2_free(data);
 }
 
 static size_t used0;

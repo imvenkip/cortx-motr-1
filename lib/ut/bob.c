@@ -113,6 +113,18 @@ static void test_check(void)
 
 }
 
+static void test_bob_of(void)
+{
+	void *p;
+	int   i;
+
+	foo_bob_init(&F);
+	for (i = -1; i < ARRAY_SIZE(F.f_x) + 3; ++i) {
+		p = &F.f_x[i];
+		C2_UT_ASSERT(bob_of(p, struct foo, f_x[i], &foo_bob) == &F);
+	}
+}
+
 void test_bob(void)
 {
 	test_tlist_init();
@@ -121,6 +133,7 @@ void test_bob(void)
 	test_tlink_init();
 	test_tlink_fini();
 	test_check();
+	test_bob_of();
 }
 C2_EXPORTED(test_bob);
 

@@ -30,7 +30,7 @@
  */
 C2_TL_DESCR_DEFINE(c2_net_tm, "tm list", ,
 		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
-		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(c2_net_tm, , struct c2_net_buffer);
 C2_EXPORTED(c2_net_tm_tlist_is_empty);
 
@@ -161,6 +161,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 		c2_net_tm_tlist_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
+        tm->ntm_pool_colour = dom->nd_pool_colour_counter++;
 	tm->ntm_xprt_private = NULL;
 	tm->ntm_bev_auto_deliver = true;
 	c2_addb_ctx_init(&tm->ntm_addb, &c2_net_tm_addb_ctx, &dom->nd_addb);

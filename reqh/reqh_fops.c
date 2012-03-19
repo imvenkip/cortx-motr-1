@@ -36,6 +36,8 @@
 #include "reqh_fops.ff"
 #include "rpc/rpc_base.h"
 #include "rpc/rpc_opcodes.h"
+#include "xcode/bufvec_xcode.h"
+
 
 /**
    @addtogroup reqh
@@ -43,6 +45,7 @@
  */
 
 static struct c2_fop_type_ops reqh_err_fop_ops = {
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_execute = NULL,
 };
 

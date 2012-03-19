@@ -44,7 +44,7 @@ struct c2_fop;
    The rpc items cache is grouped into several lists, either in the list
    of unbound items in some slot or list of ready items on a slot.
    Each list contains rpc items destined for given endpoint.
-   These lists are sorted by deadlines. So the items with least deadline 
+   These lists are sorted by deadlines. So the items with least deadline
    will be at the HEAD of list.
    Refer to the HLD of RPC Formation -
    https://docs.google.com/a/xyratex.com/Doc?docid=0AXXBPOl-5oGtZGRzMzZ2NXdfMGQ0ZjNweGdz&hl=en
@@ -186,9 +186,6 @@ struct c2_rpc_frm_sm {
 	/** List of structures containing data for each group linked
 	    through c2_rpc_frm_group::frg_linkage. */
 	struct c2_list			 fs_groups;
-	/** List of coalesced rpc items linked through
-	    c2_rpc_frm_item_coalesced::ic_linkage. */
-	struct c2_list			 fs_coalesced_items;
 	/** List of formed RPC objects kept with formation linked
 	    through c2_rpc::r_linkage. */
 	struct c2_list			 fs_rpcs;
@@ -258,27 +255,6 @@ struct c2_rpc {
 void c2_rpcobj_init(struct c2_rpc *rpc);
 
 void c2_rpcobj_fini(struct c2_rpc *rpc);
-
-/**
-   Connects resultant rpc item with its coalesced constituent rpc items.
-   When a reply is received for a coalesced rpc item, it will find out
-   the requesting coalesced rpc item and using this data structure,
-   it will find out the constituent rpc items and invoke their
-   completion callbacks accordingly.
- */
-struct c2_rpc_frm_item_coalesced {
-	/** Linkage to list of coalesced items anchored at
-	    c2_rpc_formation::fs_coalesced_items. */
-	struct c2_list_link		 ic_linkage;
-	/** Resultant coalesced rpc item */
-	struct c2_rpc_item		*ic_resultant_item;
-	/** List of constituent rpc items for this coalesced item linked
-	    through c2_rpc_item::ri_coalesced_linkage. */
-	struct c2_list			 ic_member_list;
-	/** Fop used to backup the original IO vector of resultant item
-	    which is replaced during coalescing. */
-	struct c2_fop			*ic_bkpfop;
-};
 
 /**
    This structure represents the summary data for a given rpc group

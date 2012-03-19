@@ -29,6 +29,7 @@
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
 #include "lib/tlist.h"
+#include "lib/misc.h"		    /* C2_SET0 */
 
 #include "stob/ad.h"
 
@@ -1145,6 +1146,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	todo = c2_vec_count(&io->si_user.ov_vec);
 	back = &aio->ai_back;
+        C2_SET0(&head);
 	wext = &head;
 	wext->we_next = NULL;
 	while (1) {
@@ -1292,6 +1294,14 @@ static uint32_t ad_stob_block_shift(const struct c2_stob *stob)
 	return ad_bshift(domain2ad(stob->so_domain));
 }
 
+/**
+   An implementation of c2_stob_domain_op::sdo_block_shift() method.
+ */
+static uint32_t ad_stob_domain_block_shift(struct c2_stob_domain *sd)
+{
+	return ad_bshift(domain2ad(sd));
+}
+
 static bool ad_endio(struct c2_clink *link)
 {
 	struct ad_stob_io *aio;
@@ -1323,9 +1333,10 @@ static const struct c2_stob_type_op ad_stob_type_op = {
 };
 
 static const struct c2_stob_domain_op ad_stob_domain_op = {
-	.sdo_fini      = ad_domain_fini,
-	.sdo_stob_find = ad_domain_stob_find,
-	.sdo_tx_make   = ad_domain_tx_make
+	.sdo_fini        = ad_domain_fini,
+	.sdo_stob_find   = ad_domain_stob_find,
+	.sdo_tx_make     = ad_domain_tx_make,
+	.sdo_block_shift = ad_stob_domain_block_shift
 };
 
 static const struct c2_stob_op ad_stob_op = {

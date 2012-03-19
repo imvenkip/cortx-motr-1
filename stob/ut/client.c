@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <stdio.h>     /* feof, fscanf, ... */
 #include <err.h>
+#include <sysexits.h>
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/cdefs.h"
@@ -215,13 +216,13 @@ int main(int argc, char **argv)
 			if (feof(stdin))
 				return EXIT_SUCCESS;
 			else
-				err(EXIT_FAILURE, "failed to read line from STDIN");
+				err(EX_NOINPUT, "failed to read line from STDIN");
 		}
 
 		n = sscanf(line, "%c %lu %lu\n", &cmd, (unsigned long *)&fid.f_seq,
 			  (unsigned long *)&fid.f_oid);
 		if (n != 3)
-			err(1, "wrong conversion: %zd", n);
+			err(EX_DATAERR, "wrong conversion: %zd", n);
 
 		free(line);
 
@@ -239,7 +240,7 @@ int main(int argc, char **argv)
 			got_quit = 1;
 			break;
 		default:
-			err(1, "Unknown command '%c'", cmd);
+			err(EX_DATAERR, "Unknown command '%c'", cmd);
 		}
 
 		if (got_quit)

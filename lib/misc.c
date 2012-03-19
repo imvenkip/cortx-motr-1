@@ -69,6 +69,7 @@ uint64_t c2_rnd(uint64_t max, uint64_t *prev)
         /*Take value from higher 48 bits */
         return (result >> 16) * max / ((~0UL) >> 16);
 }
+C2_EXPORTED(c2_rnd);
 
 uint64_t c2_gcd64(uint64_t p, uint64_t q)
 {

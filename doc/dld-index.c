@@ -16,6 +16,10 @@ Detailed designs, ordered alphabetically:
            <!-- rpc/slot.h -->
 - @subpage snsrepair "SNS repair detailed level design"
            <!-- sns/repair.h -->
+- @subpage io_bulk_client "IO bulk transfer Detailed Level Design"
+           <!-- ioservice/io_fops.c -->
+- @subpage DLD-bulk-server "DLD of Bulk Server"
+           <!-- ioservice/io_foms.c -->
 
 Detailed designs should use the <i>@subpage DLD "Colibri DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

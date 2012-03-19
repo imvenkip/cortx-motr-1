@@ -456,7 +456,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		return rc;
 	}
 
-	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx);
+	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_db_cursor_init", rc);
@@ -467,7 +467,8 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	/* Store the last key, to check if there is overrun during iterating
 	   the table */
 	c2_db_pair_setup(&db_pair, &cfm->cfm_table, &last_key,
-			 sizeof(struct cobfid_map_key), NULL, 0);
+			 sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
 
 	rc = c2_db_cursor_last(&db_cursor, &db_pair);
 	if (rc != 0) {

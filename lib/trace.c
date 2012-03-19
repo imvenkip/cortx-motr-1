@@ -18,6 +18,14 @@
  * Original creation date: 08/12/2010
  */
 
+#ifdef __KERNEL__
+#include "lib/cdefs.h" /* CHAR_BIT */
+#include <linux/ctype.h> /* tolower */
+#else
+#include <limits.h> /* CHAR_BIT */
+#include <ctype.h> /* tolower */
+#endif
+
 #include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/arith.h" /* c2_align */
@@ -59,6 +67,13 @@ C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
+
+#undef C2_TRACE_SUBSYS
+#define C2_TRACE_SUBSYS(name, value) [value] = #name,
+/** The array of subsystem names */
+static const char *trace_subsys_str[] = {
+	C2_TRACE_SUBSYSTEMS
+};
 
 extern int  c2_arch_trace_init(void);
 extern void c2_arch_trace_fini(void);
@@ -154,6 +169,20 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 		c2_trace_record_print(header, body);
 }
 
+static char *subsys_str(uint64_t subsys, char *buf)
+{
+	int i;
+	char *s = buf;
+
+	*s++ = '<';
+	for (i = 0; subsys != 0; i++, subsys >>= 1)
+		*s++ = (subsys & 1) ? trace_subsys_str[i][0] :
+		              tolower(trace_subsys_str[i][0]);
+	*s++ = '>';
+	*s = '\0';
+
+	return buf;
+}
 
 void
 c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
@@ -166,14 +195,15 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 		uint32_t v32;
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
+	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT +3];
 
-	c2_console_printf("%8.8llu %15.15llu %16.16llx %-20s "
-			  "%15s:%-3i %3.3i %3i\n\t",
+	c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-20s "
+			  "%15s:%-3i\n\t",
 			  (unsigned long long)trh->trh_no,
 			  (unsigned long long)trh->trh_timestamp,
-			  (unsigned long long)trh->trh_sp,
-			  td->td_func, td->td_file, td->td_line, td->td_size,
-			  td->td_nr);
+			  (unsigned) (trh->trh_sp & 0xfffff),
+			  subsys_str(td->td_subsys, subsys_map_str),
+			  td->td_func, td->td_file, td->td_line);
 
 	for (i = 0; i < td->td_nr; ++i) {
 		const char *addr;

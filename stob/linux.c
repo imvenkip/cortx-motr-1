@@ -322,7 +322,7 @@ static void linux_stob_fini(struct c2_stob *stob)
  */
 static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
-	char                 pathname[64];
+	char                 pathname[MAXPATHLEN];
 	int                  result;
 	struct stat          statbuf;
 
@@ -382,9 +382,10 @@ static const struct c2_stob_type_op linux_stob_type_op = {
 };
 
 static const struct c2_stob_domain_op linux_stob_domain_op = {
-	.sdo_fini      = linux_domain_fini,
-	.sdo_stob_find = linux_domain_stob_find,
-	.sdo_tx_make   = linux_domain_tx_make
+	.sdo_fini        = linux_domain_fini,
+	.sdo_stob_find   = linux_domain_stob_find,
+	.sdo_tx_make     = linux_domain_tx_make,
+	.sdo_block_shift = linux_stob_domain_block_shift
 };
 
 static const struct c2_stob_op linux_stob_op = {

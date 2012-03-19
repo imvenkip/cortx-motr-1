@@ -25,6 +25,7 @@
  */
 
 #include <err.h>
+#include <sysexits.h>
 #include <stdio.h>                        /* asprintf */
 #include <stdarg.h>
 #include <assert.h>
@@ -40,7 +41,7 @@ static void *alloc(size_t nr)
 
 	data = malloc(nr);
 	if (data == NULL)
-		err(1, "cannot allocate %zu bytes.", nr);
+		err(EX_TEMPFAIL, "cannot allocate %zu bytes.", nr);
 	memset(data, 0, nr);
 	return data;
 }
@@ -53,7 +54,7 @@ char *fmt(const char *format, ...)
 
 	va_start(args, format);
 	if (vasprintf(&out, format, args) == -1)
-		err(1, "cannot allocate string.");
+		err(EX_TEMPFAIL, "cannot allocate string.");
 	va_end(args);
 	return out;
 }
