@@ -1736,7 +1736,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
-        
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
 		    "FOM finished : type=rw.");
 

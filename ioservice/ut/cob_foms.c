@@ -445,7 +445,7 @@ static int fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 		struct c2_fom *base_fom = *fom;
 		struct c2_reqh *reqh;
 
-		c2_fom_init(base_fom);	
+		c2_fom_init(base_fom);
 		reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx,
 				      "ioservice");
 		C2_UT_ASSERT(reqh != NULL);
@@ -658,7 +658,7 @@ static void cobfid_map_verify(struct c2_fom *fom, bool map_exists)
 	C2_SET0(&cfm_iter);
 	rc = cofid_ctx_get(fom, &cobfid_ctx);
 	C2_UT_ASSERT(rc == 0 && cobfid_ctx != NULL);
-	
+
 	cfm_map = &cobfid_ctx->cms_map;
 	rc = c2_cobfid_map_enum(cfm_map, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
