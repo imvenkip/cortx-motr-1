@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -1213,7 +1213,7 @@ void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
 void c2_net_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm);
 
 /**
-   Put back the number of buffer into buffer pool.
+   Put the buffer back into buffer pool.
    @param nb network buffer pointer which was taken from pool.
    @pre
    (nb->nb_tm != NULL) &&

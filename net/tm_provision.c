@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- * 		    Madhavrao Vemuri<madhav_vemuri@xyratex.com>
+ *		    Madhavrao Vemuri <madhav_vemuri@xyratex.com>
  * Original creation date: 12/21/2011
  */
 
@@ -472,7 +472,7 @@ void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool)
 	c2_list_for_each_entry(&dom->nd_tms, tm,
 			struct c2_net_transfer_mc, ntm_dom_linkage) {
 		if (c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0)
-          		continue; /* skip if no deficit */
+			continue; /* skip if no deficit */
 		c2_mutex_lock(&tm->ntm_mutex);
 		if (tm->ntm_state     == C2_NET_TM_STARTED &&
 		    tm->ntm_recv_pool == pool &&
