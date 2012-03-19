@@ -26,28 +26,8 @@
 #include "lib/ut.h"
 #include "bulkio_common.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
-#include "ioservice/io_foms.c"
+#include "ioservice/io_foms.c"	/* To access static APIs. */
 
-enum cob_ids {
-	COB_TEST_ID = 1
-};
-
-enum cob_fom_type {
-	COB_CREATE = 1,
-	COB_DELETE = 2
-};
-
-enum cob_env_type {
-	TEST_ENV_COB = 1,
-	TEST_ENV_STOB = 2
-};
-
-static char test_cobname[] = "cobfom_testcob";
-static struct c2_cob *test_cob = NULL;
-
-/* Forward declarations */
-static struct c2_fom *cd_fom_alloc();
-static void cd_fom_dealloc(struct c2_fom *fom);
 static void bulkio_init();
 static void bulkio_fini();
 
@@ -115,6 +95,7 @@ static struct c2_fom_type bulkio_stob_create_fom_type = {
  ******************
  */
 
+#if 0
 static void cob_test_init()
 {
 	bulkio_init();
@@ -1087,6 +1068,7 @@ static void cob_delete_api_test(void)
  * IO FOMs testing functions below
  ***************
  */
+#endif
 
 /*
  * Intercepting FOM to test I/O FOM functions for different phases.
@@ -2605,21 +2587,3 @@ const struct c2_test_suite bulkio_server_ut = {
 	}
 };
 C2_EXPORTED(bulkio_server_ut);
-
-/*
- * Why is this here?
- * We need to test static function. To do that we need to include .c file.
- * Since this is tightly integrated with IO FOMs, putting this and related
- * functions in a separate file results in linking error.
- *
- */
-const struct c2_test_suite cobfom_ut = {
-	.ts_name = "cobfom_ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{ "COB Create FOM API test   ", cob_create_api_test},
-		{ "COB Delete FOM API test   ", cob_delete_api_test},
-		{ NULL, NULL }
-	}
-};

@@ -616,7 +616,7 @@ int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **out);
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom);
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
-static const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
+const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io);
 
 static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *);
@@ -840,8 +840,8 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
  * @pre in != NULL
  * @pre out != NULL
  */
-static void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
-                                       struct c2_stob_id *out)
+void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
+                                struct c2_stob_id *out)
 {
         C2_PRE(in != NULL);
         C2_PRE(out != NULL);
@@ -859,8 +859,8 @@ static void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
  * @pre in != NULL
  * @pre out != NULL
  */
-static void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
-                                       struct c2_fid *out)
+void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
+                                struct c2_fid *out)
 {
         C2_PRE(in != NULL);
         C2_PRE(out != NULL);
@@ -1806,7 +1806,7 @@ static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom)
  * @pre fom != NULL
  * @pre fom->fo_fop != NULL
  */
-static const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom)
+const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom)
 {
         C2_PRE(fom != NULL);
         C2_PRE(fom->fo_fop != NULL);
@@ -1814,6 +1814,7 @@ static const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom)
         return IOSERVICE_NAME;
 }
 
+#if 0
 /* Forward Declarations. */
 static int    cob_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int    cc_fom_create(struct c2_fom **out);
@@ -2359,6 +2360,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 	c2_mutex_unlock(&cctx->cc_mutex);
 	return rc;
 }
+#endif
 
 /** @} end of io_foms */
 
