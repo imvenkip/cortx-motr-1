@@ -749,6 +749,8 @@ static void cc_stob_create_test()
 		C2_UT_ASSERT(fom->fo_phase == FOPH_CC_COB_CREATE);
 
 		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(cc->fcc_stob_id.si_bits.u_hi == COB_TEST_ID);
+		C2_UT_ASSERT(cc->fcc_stob_id.si_bits.u_lo == COB_TEST_ID);
 
 		cc_fom_dealloc(fom);
 	}
