@@ -44,7 +44,7 @@
  */
 
 FOPDEP("net/net_otw_types.ff");
-FOPDEP("addb/addb.ff");
+FOPDEP("addb/addbff/addb.ff");
 
 /**
  * @section IO FOP Definitions

@@ -12,4 +12,4 @@ libcolibri_addb_la_SOURCES  = addb.c addb.h addb_console.c \
 
 INCLUDES                    = -I. -I$(top_srcdir)/include
 
-EXTRA_DIST                  = addb.ff linux_kernel/addb_console.c
+EXTRA_DIST                  = linux_kernel/addb_console.c

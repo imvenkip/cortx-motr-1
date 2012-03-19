@@ -7,7 +7,9 @@ libcolibri_addbff_la_SOURCES = addb_u.h addb_u.c
 
 INCLUDES                    = -I. -I.. -I$(top_srcdir)/include
 
-addb_u.h addb_u.c: ../addb.ff \
+EXTRA_DIST                  = addb.ff
+
+addb_u.h addb_u.c: addb.ff \
                    $(top_builddir)/fop/rt/libc2rt.la $(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -uk $<
 

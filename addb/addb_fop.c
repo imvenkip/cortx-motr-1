@@ -42,7 +42,7 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #endif
 
 #include "fop/fop_format_def.h"
-#include "addb/addb.ff"
+#include "addb/addbff/addb.ff"
 #include "rpc/rpc_opcodes.h"
 
 static struct c2_fop_type_ops addb_ops = {
