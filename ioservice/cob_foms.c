@@ -292,8 +292,11 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Stob creation failed in cc_stob_create().", rc);
-	else
+	else {
 		cc->fcc_stob_id = stob->so_id;
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    c2_addb_trace, "Stob created successfully.");
+	}
 
 	c2_stob_put(stob);
 	return rc;
