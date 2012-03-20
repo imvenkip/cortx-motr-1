@@ -192,7 +192,7 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 
 bool striped_layout_invariant(const struct c2_layout_striped *stl);
 
-static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
+bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 {
 	uint32_t                 i;
 	uint32_t                 P;
@@ -832,6 +832,7 @@ const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_id          = 0,
 	.lt_ops         = &pdclust_type_ops
 };
+
 
 /** @} end group pdclust */
 

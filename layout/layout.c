@@ -175,7 +175,7 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 
 /**
  * @post The enum object which is part of striped layout object, is finalized
- *       as well.
+ * as well.
  */
 void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 {
