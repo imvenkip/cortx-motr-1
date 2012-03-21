@@ -460,10 +460,10 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 			break;
 
 	}
-	
+
 	c2_atomic64_set(&tm->ntm_recv_queue_deficit, need);
 	recvq_len = tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
-	C2_POST((recvq_len >= tm->ntm_recv_queue_min_length && 
+	C2_POST((recvq_len >= tm->ntm_recv_queue_min_length &&
 		c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0) ||
 		recvq_len + c2_atomic64_get(&tm->ntm_recv_queue_deficit) ==
 		tm->ntm_recv_queue_min_length);
