@@ -654,7 +654,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
    @param ql1 the first element in the new queue
    @param ql2 the second element in the new queue
    @pre q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL
-   @post bev_cqueue_invariant(q)
+   @post bev_cqueue_invariant(q) && q->cbcq_count == 0
  */
 static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,

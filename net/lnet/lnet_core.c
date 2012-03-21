@@ -440,7 +440,7 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 		fmt = ":%u:%u:%u";
 	else
 		fmt = ":%u:%u:*";
-	snprintf(buf + n, C2_NET_LNET_XEP_ADDR_LEN, fmt,
+	snprintf(buf + n, C2_NET_LNET_XEP_ADDR_LEN - n, fmt,
 		 cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
 }
 

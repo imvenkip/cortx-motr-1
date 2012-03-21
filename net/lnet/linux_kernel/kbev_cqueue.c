@@ -53,7 +53,7 @@ static struct nlx_core_bev_link *bev_cqueue_pnext(
 /**
    Puts (produces) an element so it can be consumed.  The caller must first
    call bev_cqueue_pnext() to ensure such an element exists.  The page
-   containing the element to be unmapped using @c kunmap_atomic().
+   containing the element is unmapped using @c kunmap_atomic().
    @param q the queue
    @param p current element, previously obtained using bev_cqueue_pnext()
    @pre bev_cqueue_invariant(q) && p->cbl_c_self != q->cbcq_consumer
