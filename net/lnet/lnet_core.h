@@ -262,18 +262,6 @@ struct nlx_core_bev_link {
 	nlx_core_opaque_ptr_t cbl_c_next;
 
 	/**
-	   Self pointer in the producer (kernel) address space.
-	   @todo deprecated
-	 */
-	nlx_core_opaque_ptr_t cbl_p_self;
-
-	/**
-	   Pointer to the next element in the producer address space.
-	   @todo deprecated
-	 */
-	nlx_core_opaque_ptr_t cbl_p_next;
-
-	/**
 	   Self reference in the producer (kernel).
 	   The producer reference is kept in the form of a nlx_core_kmem_loc
 	   so that queue elements do not all need to be mapped.
@@ -305,14 +293,6 @@ struct nlx_core_bev_cqueue {
 	   consumer (transport).
 	 */
 	nlx_core_opaque_ptr_t cbcq_consumer;
-
-	/**
-	   The producer adds links to this anchor.
-	   The producer pointer value is in the address space of the
-	   producer (kernel).
-	   @todo deprecated
-	 */
-	nlx_core_opaque_ptr_t cbcq_producer;
 
 	/**
 	   The producer adds links to this anchor.
@@ -387,7 +367,7 @@ struct nlx_core_domain {
 struct nlx_core_transfer_mc {
 	uint64_t                   ctm_magic;
 
-	/** The transfer machine address */
+	/** The transfer machine address. */
 	struct nlx_core_ep_addr    ctm_addr;
 
 	/** Boolean indicating if the transport is running in user space. */
@@ -575,6 +555,7 @@ static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
    The invoker should provision sufficient buffer event structures prior to
    the call, using the nlx_core_bevq_provision() subroutine.
 
+   @param lcdom The domain private data.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre lcbuf->cb_length is valid
@@ -582,7 +563,8 @@ static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
    @pre lcbuf->cb_max_operations > 0
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_msg_recv(struct nlx_core_domain *lcdom,
+				 struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
 
 /**
@@ -595,6 +577,7 @@ static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
    The invoker should provision sufficient buffer event structures prior to
    the call, using the nlx_core_bevq_provision() subroutine.
 
+   @param lcdom The domain private data.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre lcbuf->cb_length is valid
@@ -602,7 +585,8 @@ static int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_msg_send(struct nlx_core_domain *lcdom,
+				 struct nlx_core_transfer_mc *lctm,
 				 struct nlx_core_buffer *lcbuf);
 
 /**
@@ -619,6 +603,7 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
    The invoker should provision sufficient buffer event structures prior to
    the call, using the nlx_core_bevq_provision() subroutine.
 
+   @param lcdom The domain private data.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -628,7 +613,8 @@ static int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_active_recv(struct nlx_core_domain *lcdom,
+				    struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer *lcbuf);
 
 /**
@@ -642,6 +628,7 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
    The invoker should provision sufficient buffer event structures prior to
    the call, using the nlx_core_bevq_provision() subroutine.
 
+   @param lcdom The domain private data.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -651,7 +638,8 @@ static int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_active_send(struct nlx_core_domain *lcdom,
+				    struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer *lcbuf);
 
 /**
@@ -717,6 +705,7 @@ static int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
    The invoker should provision sufficient buffer event structures prior to
    the call, using the nlx_core_bevq_provision() subroutine.
 
+   @param lcdom The domain private data.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -725,7 +714,8 @@ static int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_passive_recv(struct nlx_core_domain *lcdom,
+				     struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
 
 /**
@@ -741,6 +731,7 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
    The invoker should provision sufficient buffer event structures prior to
    the call, using the nlx_core_bevq_provision() subroutine.
 
+   @param lcdom The private data pointer for the domain.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
@@ -749,16 +740,19 @@ static int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_passive_send(struct nlx_core_domain *lcdom,
+				     struct nlx_core_transfer_mc *lctm,
 				     struct nlx_core_buffer *lcbuf);
 
 /**
    Cancels a buffer operation if possible.
+   @param lcdom The domain private data.
    @param lctm  Transfer machine private data.
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
  */
-static int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_del(struct nlx_core_domain *lcdom,
+			    struct nlx_core_transfer_mc *lctm,
 			    struct nlx_core_buffer *lcbuf);
 
 /**
@@ -811,16 +805,19 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
    The returned array must be released using nlx_core_nidstrs_put().
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
-static int nlx_core_nidstrs_get(char * const **nidary);
+static int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,
+				char * const **nidary);
 
 /**
    Releases the string array returned by nlx_core_nidstrs_get().
  */
-static void nlx_core_nidstrs_put(char * const **nidary);
+static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
+				 char * const **nidary);
 
 /**
    Starts a transfer machine. Internally this results in
    the creation of the LNet EQ associated with the transfer machine.
+   @param lcdom The domain private data.
    @param tm The transfer machine pointer.
    @param lctm The transfer machine private data to be initialized.  The
    nlx_core_transfer_mc::ctm_addr must be set by the caller.  If the
@@ -831,16 +828,19 @@ static void nlx_core_nidstrs_put(char * const **nidary);
    @note This function does not create a c2_net_end_point for the transfer
    machine, because there is no equivalent object at the core layer.
  */
-static int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
+static int nlx_core_tm_start(struct nlx_core_domain *lcdom,
+			     struct c2_net_transfer_mc *tm,
 			     struct nlx_core_transfer_mc *lctm);
 
 /**
    Stops the transfer machine and release associated resources.  All operations
    must be finalized prior to this call.
+   @param lcdom The domain private data.
    @param lctm The transfer machine private data.
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
-static void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm);
+static void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
+			     struct nlx_core_transfer_mc *lctm);
 
 /**
    Compare two struct nlx_core_ep_addr objects.
@@ -909,19 +909,37 @@ static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
    In user space, this memory is allocated such that it will not
    cross page boundaries using c2_alloc_aligned().
    @param size Memory size.
+   @param shift Alignment, ignored in kernel space.
    @pre size <= PAGE_SIZE
  */
-static void *nlx_core_mem_alloc(size_t size);
+static void *nlx_core_mem_alloc(size_t size, unsigned shift);
 
 /**
    Frees memory allocated by nlx_core_mem_alloc().
  */
-static void nlx_core_mem_free(void *data);
+static void nlx_core_mem_free(void *data, unsigned shift);
 
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 				  unsigned dbg);
 #endif /* C2_LNET_DRV_TEST */
+
+/**
+   Round up a number n to the next power of 2, min 1<<3, works for n <= 1<<9.
+   If n is a power of 2, returns n.
+   Requires a constant input, allowing compile-time computation.
+ */
+#define NLX_PO2_SHIFT(n)                                                \
+	(((n) <= 8) ? 3 : ((n) <= 16) ? 4 : ((n) <= 32) ? 5 :           \
+	 ((n) <= 64) ? 6 : ((n) <= 128) ? 7 : ((n) <= 256) ? 8 :        \
+	 ((n) <= 512) ? 9 : ((n) / 0))
+#define NLX_ALLOC_PTR(ptr) \
+	((ptr) = nlx_core_mem_alloc(sizeof ((ptr)[0]),                  \
+				    NLX_PO2_SHIFT(sizeof ((ptr)[0]))))
+#define NLX_ALLOC_PTR_ADDB(ptr, ctx, loc) \
+	if (NLX_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
+#define NLX_FREE_PTR(ptr) \
+	nlx_core_mem_free((ptr), NLX_PO2_SHIFT(sizeof ((ptr)[0])))
 
 /** @} */ /* LNetCore */
 

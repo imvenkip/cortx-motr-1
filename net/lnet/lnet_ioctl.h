@@ -29,6 +29,23 @@
  */
 
 /**
+   Parameters for the C2_LNET_DOM_INIT ioctl.
+   The c2_bufvec is copied into the parameters, not referenced, to simplify
+   the logic required to map the data into kernel space.
+   @see nlx_dev_ioctl_buf_register()
+ */
+struct c2_lnet_dev_dom_init_params {
+	/** The user space core private data pointer for the domain. */
+	struct nlx_core_domain         *ddi_cd;
+	/** Returned maximum buffer size (counting all segments). */
+	c2_bcount_t                     ddi_max_buffer_size;
+	/** Returned maximum size of a buffer segment. */
+	c2_bcount_t                     ddi_max_buffer_segment_size;
+	/** Returned maximum number of buffer segments. */
+	int32_t                         ddi_max_buffer_segments;
+};
+
+/**
    Parameters for the C2_LNET_BUF_REGISTER ioctl.
    The c2_bufvec is copied into the parameters, not referenced, to simplify
    the logic required to map the data into kernel space.
@@ -122,10 +139,7 @@ struct c2_lnet_dev_bev_bless_params {
 #define C2_LNET_IOC_MAX_NR  0x4f
 
 #define C2_LNET_DOM_INIT \
-	_IOW(C2_LNET_IOC_MAGIC, 0x21, struct nlx_core_domain *);
-#define C2_LNET_MAX_BUFFER_SIZE         _IO(C2_LNET_IOC_MAGIC, 0x23);
-#define C2_LNET_MAX_BUFFER_SEGMENT_SIZE _IO(C2_LNET_IOC_MAGIC, 0x24);
-#define C2_LNET_MAX_BUFFER_SEGMENTS     _IO(C2_LNET_IOC_MAGIC, 0x25);
+	_IOWR(C2_LNET_IOC_MAGIC, 0x21, struct c2_lnet_dev_dom_init_params);
 
 #define C2_LNET_BUF_REGISTER \
 	_IOW(C2_LNET_IOC_MAGIC, 0x26, struct c2_lnet_dev_buf_register_params);

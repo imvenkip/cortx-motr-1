@@ -162,8 +162,12 @@ static bool nlx_core_buffer_invariant(const struct nlx_core_buffer *lcb)
 
 static uint32_t nlx_core_kmem_loc_checksum(const struct nlx_core_kmem_loc *loc)
 {
-	/** @todo implement */
-	return 0;
+	int i;
+	uint32_t ret;
+
+	for (i = 0, ret = 0; i < ARRAY_SIZE(loc->kl_data); ++i)
+		ret ^= loc->kl_data[i];
+	return ret;
 }
 
 int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
@@ -183,7 +187,6 @@ int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 		rc = nlx_core_new_blessed_bev(lctm, &bev); /* {u,k} specific */
 		if (rc != 0)
 			break;
-		C2_ASSERT(bev->cbe_tm_link.cbl_p_self != 0); /* is blessed */
 		bev_cqueue_add(&lctm->ctm_bevq, &bev->cbe_tm_link);
 		--num_to_alloc;
 	}
@@ -202,6 +205,27 @@ void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 
 	lctm->ctm_bev_needed -= release;
 	return;
+}
+
+bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
+			    struct nlx_core_buffer_event *lcbe)
+{
+	struct nlx_core_bev_link *link;
+	struct nlx_core_buffer_event *bev;
+
+	C2_PRE(lctm != NULL && lcbe != NULL);
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+
+	link = bev_cqueue_get(&lctm->ctm_bevq);
+	if (link != NULL) {
+		bev = container_of(link, struct nlx_core_buffer_event,
+				   cbe_tm_link);
+		*lcbe = *bev;
+		C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
+		/* Event structures released when network buffer unlinked */
+		return true;
+	}
+	return false;
 }
 
 /**
@@ -352,6 +376,73 @@ int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 #undef B_EP
 #undef TM_EP
 #undef CBD_EP
+
+#ifdef __KERNEL__
+#define strtoul simple_strtoul
+#endif
+
+int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
+			    const char *ep_addr,
+			    struct nlx_core_ep_addr *cepa)
+{
+	char nidstr[C2_NET_LNET_NIDSTR_SIZE];
+	char *cp = strchr(ep_addr, ':');
+	char *endp;
+	size_t n;
+	int rc;
+
+	if (cp == NULL)
+		return -EINVAL;
+	n = cp - ep_addr;
+	if (n == 0 || n >= sizeof nidstr)
+		return -EINVAL;
+	strncpy(nidstr, ep_addr, n);
+	nidstr[n] = 0;
+	rc = nlx_core_nidstr_decode(lcdom, nidstr, &cepa->cepa_nid);
+	if (rc != 0)
+		return rc;
+	++cp;
+	cepa->cepa_pid = strtoul(cp, &endp, 10);
+	if (*endp != ':')
+		return -EINVAL;
+	cp = endp + 1;
+	cepa->cepa_portal = strtoul(cp, &endp, 10);
+	if (*endp != ':')
+		return -EINVAL;
+	cp = endp + 1;
+	if (strcmp(cp, "*") == 0) {
+		cepa->cepa_tmid = C2_NET_LNET_TMID_INVALID;
+	} else {
+		cepa->cepa_tmid = strtoul(cp, &endp, 10);
+		if (*endp != 0 || cepa->cepa_tmid > C2_NET_LNET_TMID_MAX)
+			return -EINVAL;
+	}
+	return 0;
+}
+
+#ifdef __KERNEL__
+#undef strtoul
+#endif
+
+void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
+			     const struct nlx_core_ep_addr *cepa,
+			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
+{
+	const char *fmt;
+	int rc;
+	int n;
+
+	rc = nlx_core_nidstr_encode(lcdom, cepa->cepa_nid, buf);
+	C2_ASSERT(rc == 0);
+	n = strlen(buf);
+
+	if (cepa->cepa_tmid != C2_NET_LNET_TMID_INVALID)
+		fmt = ":%u:%u:%u";
+	else
+		fmt = ":%u:%u:*";
+	snprintf(buf + n, C2_NET_LNET_XEP_ADDR_LEN - n, fmt,
+		 cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
+}
 
 void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
 {

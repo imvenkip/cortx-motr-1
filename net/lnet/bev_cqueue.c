@@ -551,7 +551,7 @@
        ql = bev_cqueue_pnext(&myqueue);
        el = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
        ... ; // initialize the element
-       bev_cqueue_put(&myqueue);
+       bev_cqueue_put(&myqueue, ql);
        ... ; // notify blocked consumer that data is available
    }
    @endcode
@@ -602,9 +602,13 @@
  */
 static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 {
-	if (q == NULL || q->cbcq_consumer == 0 || q->cbcq_producer == 0)
+	if (q == NULL || q->cbcq_consumer == 0)
 		return false;
 	if (q->cbcq_nr < C2_NET_LNET_BEVQ_MIN_SIZE)
+		return false;
+	if (c2_atomic64_get(&q->cbcq_count) >= q->cbcq_nr)
+		return false;
+	if (nlx_core_kmem_loc_is_empty(&q->cbcq_producer_loc))
 		return false;
 	return true;
 }
@@ -617,19 +621,24 @@ static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
    by bev_cqueue_add().
    @param q the queue
    @param ql the element to add
+   @pre q->cbcq_nr > 0 && q->cbcq_consumer != NULL &&
+   nlx_core_kmem_loc_invariant(&ql->cbl_p_self_loc) &&
+   !nlx_core_kmem_loc_is_empty(&ql->cbl_p_self_loc)
  */
 static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 			   struct nlx_core_bev_link *ql)
 {
 	struct nlx_core_bev_link *consumer =
 	    (struct nlx_core_bev_link *) (q->cbcq_consumer);
-	C2_PRE(q->cbcq_nr > 0 && consumer != NULL && ql->cbl_p_self != 0);
+	C2_PRE(q->cbcq_nr > 0 && consumer != NULL);
+	C2_PRE(nlx_core_kmem_loc_invariant(&ql->cbl_p_self_loc));
+	C2_PRE(!nlx_core_kmem_loc_is_empty(&ql->cbl_p_self_loc));
 	ql->cbl_c_self = (nlx_core_opaque_ptr_t) ql;
 
 	ql->cbl_c_next = consumer->cbl_c_next;
-	ql->cbl_p_next = consumer->cbl_p_next;
+	ql->cbl_p_next_loc = consumer->cbl_p_next_loc;
 	consumer->cbl_c_next = (nlx_core_opaque_ptr_t) ql;
-	consumer->cbl_p_next = ql->cbl_p_self;
+	consumer->cbl_p_next_loc = ql->cbl_p_self_loc;
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) ql;
 	q->cbcq_nr++;
 
@@ -645,7 +654,7 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
    @param ql1 the first element in the new queue
    @param ql2 the second element in the new queue
    @pre q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL
-   @post bev_cqueue_invariant(q)
+   @post bev_cqueue_invariant(q) && q->cbcq_count == 0
  */
 static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql1,
@@ -653,12 +662,13 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 {
 	C2_PRE(q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL);
 	/* special case: add first element to the circular queue */
-	C2_ASSERT(ql1->cbl_p_self != 0);
+	C2_PRE(nlx_core_kmem_loc_invariant(&ql1->cbl_p_self_loc));
+	C2_PRE(!nlx_core_kmem_loc_is_empty(&ql1->cbl_p_self_loc));
 	ql1->cbl_c_self = (nlx_core_opaque_ptr_t) ql1;
 	ql1->cbl_c_next = (nlx_core_opaque_ptr_t) ql1;
-	ql1->cbl_p_next = ql1->cbl_p_self;
+	ql1->cbl_p_next_loc = ql1->cbl_p_self_loc;
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) ql1;
-	q->cbcq_producer = ql1->cbl_p_self;
+	q->cbcq_producer_loc = ql1->cbl_p_self_loc;
 	q->cbcq_nr++;
 
 	bev_cqueue_add(q, ql2);
@@ -685,23 +695,16 @@ static void bev_cqueue_fini(struct nlx_core_bev_cqueue *q,
 		free_cb(ql);
 	}
 
-	q->cbcq_producer = 0;
 	q->cbcq_consumer = 0;
 }
 
 /**
    Tests if the buffer event queue is empty.
-   @note This operation is to be used only by the consumer.  The data structures
-   do not provide a pointer to the consumer element from the producer's
-   perspective.
  */
 static bool bev_cqueue_is_empty(const struct nlx_core_bev_cqueue *q)
 {
-	struct nlx_core_bev_link *consumer;
 	C2_PRE(bev_cqueue_invariant(q));
-
-	consumer = ((struct nlx_core_bev_link *) (q->cbcq_consumer));
-	return consumer->cbl_p_next == q->cbcq_producer;
+	return c2_atomic64_get(&q->cbcq_count) == 0;
 }
 
 /**
@@ -721,11 +724,13 @@ static size_t bev_cqueue_size(const struct nlx_core_bev_cqueue *q)
 static struct nlx_core_bev_link *bev_cqueue_get(struct nlx_core_bev_cqueue *q)
 {
 	struct nlx_core_bev_link *link;
+
 	if (bev_cqueue_is_empty(q)) /* also checks invariant */
 		return NULL;
 	link = (struct nlx_core_bev_link *) q->cbcq_consumer;
 	C2_ASSERT(link->cbl_c_next != 0);
 	q->cbcq_consumer = (nlx_core_opaque_ptr_t) link->cbl_c_next;
+	c2_atomic64_dec(&q->cbcq_count);
 	return (struct nlx_core_bev_link *) (q->cbcq_consumer);
 }
 

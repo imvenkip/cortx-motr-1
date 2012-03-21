@@ -106,6 +106,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_core_transfer_mc *ctp;
+	struct nlx_xo_domain *dp;
 	struct c2_net_tm_event tmev = {
 		.nte_type   = C2_NET_TEV_STATE_CHANGE,
 		.nte_tm     = tm,
@@ -123,6 +124,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	C2_PRE(nlx_tm_invariant(tm));
 	tp = tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
+	dp = tm->ntm_dom->nd_xprt_private;
 
 	nlx_core_tm_set_debug(ctp, tp->_debug_);
 
@@ -135,11 +137,11 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	}
 
 	if (rc == 0)
-		rc = nlx_core_tm_start(tm, ctp);
+		rc = nlx_core_tm_start(&dp->xd_core, tm, ctp);
 	if (rc == 0) {
 		rc = nlx_ep_create(&tmev.nte_ep, tm, &ctp->ctm_addr);
 		if (rc != 0)
-			nlx_core_tm_stop(ctp);
+			nlx_core_tm_stop(&dp->xd_core, ctp);
 	}
 
 	/*
@@ -235,7 +237,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 			c2_mutex_lock(&tm->ntm_mutex);
 			if (all_tm_queues_are_empty(tm) &&
 			    tm->ntm_callback_counter == 0) {
-				nlx_core_tm_stop(ctp);
+				nlx_core_tm_stop(&dp->xd_core, ctp);
 				nlx_tm_stats_report(tm);
 				must_stop = true;
 			}
