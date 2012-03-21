@@ -39,6 +39,7 @@
 #include "fop/fop_item_type.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
+#include "net/buffer_pool.h"
 
 /* Forward declarations. */
 static int recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
@@ -528,7 +529,7 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 
 		for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
 		C2_ASSERT(machine->cr_rcv_buffers[cnt] == NULL);
-	} else c2_net_tm_recv_pool_buffers_put(tm);
+	} else c2_rpc_recv_pool_buffers_put(tm); /* @todo may not be needed. */ 
 
 	c2_free(machine->cr_rcv_buffers);
 	/* Fini the transfer machine here and deallocate the chan. */
@@ -656,7 +657,7 @@ last:
 	else if(nb->nb_tm->ntm_state == C2_NET_TM_STOPPED ||
 		nb->nb_tm->ntm_state == C2_NET_TM_STOPPING ||
 		nb->nb_tm->ntm_state == C2_NET_TM_FAILED)
-			c2_net_tm_recv_pool_buffer_put(nb);
+			c2_rpc_recv_pool_buffer_put(nb);
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
@@ -830,6 +831,40 @@ static void recv_buffer_deallocate_nr(struct c2_rpcmachine *machine,
 		recv_buffer_deallocate(nb, machine, tm_active);
 		machine->cr_rcv_buffers[cnt] = NULL;
 	}
+}
+
+void c2_rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
+{
+	struct c2_net_transfer_mc *tm;
+	C2_PRE(nb != NULL);
+	tm = nb->nb_tm;
+	C2_PRE(tm != NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
+	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
+	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+
+	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
+	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
+			       tm->ntm_pool_colour);
+	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
+}
+
+void c2_rpc_recv_pool_buffers_put(struct c2_net_transfer_mc *tm)
+{
+	struct c2_net_domain *net_dom;
+	struct c2_net_buffer *nb;
+	struct c2_tl	     *ql;
+
+	C2_PRE(tm != NULL);
+	C2_PRE(tm->ntm_dom != NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL);
+
+	net_dom = tm->ntm_dom;
+	ql = &tm->ntm_q[C2_NET_QT_MSG_RECV];
+
+	c2_tlist_for(&tm_tl, ql, nb) {
+		c2_rpc_recv_pool_buffer_put(nb);
+	} c2_tlist_endfor;
 }
 
 int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,

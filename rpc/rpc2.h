@@ -994,6 +994,27 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item);
 
 /** @} endgroup of rpc_bulk */
 
+/**
+   Put back the number of buffers in the TM receive queue into buffer pool.
+   @param tm Pointer to the initialized transfer machine.
+   @pre
+   (tm->ntm_dom != NULL) &&
+   (tm->ntm_recv_pool != NULL)
+ */
+void c2_rpc_recv_pool_buffers_put(struct c2_net_transfer_mc *tm);
+
+/**
+   Put the buffer back into buffer pool.
+   @param nb network buffer pointer which was taken from pool.
+   @pre
+   (nb->nb_tm != NULL) &&
+   (nb->nb_tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL) &&
+   (nb->nb_tm->ntm_recv_pool == nb->nb_pool) &&
+   (!(nb->nb_flags & C2_NET_BUF_QUEUED))
+ */
+void c2_rpc_recv_pool_buffer_put(struct c2_net_buffer *nb);
+
+
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */
 #endif

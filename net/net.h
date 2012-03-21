@@ -1204,26 +1204,6 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
 void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
 
 /**
-   Put back the number of buffers in each TM receive queue into buffer pool.
-   @param tm Pointer to the initialized transfer machine.
-   @pre
-   (tm->ntm_dom != NULL) &&
-   (tm->ntm_recv_pool != NULL)
- */
-void c2_net_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm);
-
-/**
-   Put the buffer back into buffer pool.
-   @param nb network buffer pointer which was taken from pool.
-   @pre
-   (nb->nb_tm != NULL) &&
-   (nb->nb_tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL) &&
-   (nb->nb_tm->ntm_recv_pool == nb->nb_pool) &&
-   (!(nb->nb_flags & C2_NET_BUF_QUEUED))
- */
-void c2_net_tm_recv_pool_buffer_put(struct c2_net_buffer *nb);
-
-/**
    Buffer completion events are described by this data structure.
  */
 struct c2_net_buffer_event {

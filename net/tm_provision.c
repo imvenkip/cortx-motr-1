@@ -428,6 +428,7 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	uint64_t		   need;
 	struct c2_net_buffer	  *nb;
 	int			   rc;
+	uint64_t		   recvq_len;
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
@@ -435,7 +436,8 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	if (tm->ntm_state != C2_NET_TM_STARTED || pool == NULL)
 		return; /* provisioning not required */
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
-	need = c2_atomic64_get(&tm->ntm_recv_queue_deficit);
+	recvq_len = tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
+	need = tm->ntm_recv_queue_min_length - recvq_len;
 	while (need > 0) {
 		nb = c2_net_buffer_pool_get(tm->ntm_recv_pool,
 					    tm->ntm_pool_colour);
@@ -458,7 +460,13 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 			break;
 
 	}
+	
 	c2_atomic64_set(&tm->ntm_recv_queue_deficit, need);
+	recvq_len = tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
+	C2_POST((recvq_len >= tm->ntm_recv_queue_min_length && 
+		c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0) ||
+		recvq_len + c2_atomic64_get(&tm->ntm_recv_queue_deficit) ==
+		tm->ntm_recv_queue_min_length);
 	return;
 }
 
@@ -492,46 +500,12 @@ void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	C2_PRE(tm->ntm_recv_pool != NULL);
 	C2_PRE(!c2_net_buffer_pool_is_locked(tm->ntm_recv_pool));
 
+	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_mutex_lock(&tm->ntm_mutex);
-	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	tm_provision_recv_q(tm);
-	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return;
-}
-
-void c2_net_tm_recv_pool_buffer_put(struct c2_net_buffer *nb)
-{
-	struct c2_net_transfer_mc *tm;
-	C2_PRE(nb != NULL);
-	tm = nb->nb_tm;
-	C2_PRE(tm != NULL);
-	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
-	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
-	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
-
-	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
-	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
-			       tm->ntm_pool_colour);
 	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
-}
-
-void c2_net_tm_recv_pool_buffers_put(struct c2_net_transfer_mc *tm)
-{
-	struct c2_net_domain *net_dom;
-	struct c2_net_buffer *nb;
-	struct c2_tl	     *ql;
-
-	C2_PRE(tm != NULL);
-	C2_PRE(tm->ntm_dom != NULL);
-	C2_PRE(tm->ntm_recv_pool != NULL);
-
-	net_dom = tm->ntm_dom;
-	ql = &tm->ntm_q[C2_NET_QT_MSG_RECV];
-
-	c2_tlist_for(&tm_tl, ql, nb) {
-		c2_net_tm_recv_pool_buffer_put(nb);
-	} c2_tlist_endfor;
+	return;
 }
 
 /*
