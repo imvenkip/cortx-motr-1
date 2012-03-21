@@ -27,6 +27,7 @@
 #include "lib/memory.h"
 #include "lib/processor.h"
 #include "lib/trace.h"
+#include "lib/finject.h"
 #include "addb/addb.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -64,6 +65,90 @@ enum {
 
 extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
+struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+struct c2_net_domain  client_net_dom = { };
+struct c2_dbenv       client_dbenv;
+struct c2_cob_domain  client_cob_dom;
+
+struct c2_rpc_client_ctx cctx = {
+	.rcx_net_dom            = &client_net_dom,
+	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
+	.rcx_db_name            = CLIENT_DB_NAME,
+	.rcx_dbenv              = &client_dbenv,
+	.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
+	.rcx_cob_dom            = &client_cob_dom,
+	.rcx_nr_slots           = SESSION_SLOTS,
+	.rcx_timeout_s          = CONNECT_TIMEOUT,
+	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+};
+
+char *server_argv[] = {
+	"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
+	"-s", "ds1", "-s", "ds2"
+};
+
+struct c2_rpc_server_ctx sctx = {
+	.rsx_xprts            = &xprt,
+	.rsx_xprts_nr         = 1,
+	.rsx_argv             = server_argv,
+	.rsx_argc             = ARRAY_SIZE(server_argv),
+	.rsx_service_types    = cs_default_stypes,
+	.rsx_service_types_nr = 2,
+	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
+};
+
+#ifdef ENABLE_FAULT_INJECTION
+static void test_c2_rpc_server_start(void)
+{
+	c2_fi_enable_once("c2_reqh_service_type_register", "fake_error");
+	C2_UT_ASSERT(c2_rpc_server_start(&sctx) != 0);
+
+	c2_fi_enable_once("c2_cs_init", "fake_error");
+	C2_UT_ASSERT(c2_rpc_server_start(&sctx) != 0);
+
+	c2_fi_enable_once("c2_cs_setup_env", "fake_error");
+	C2_UT_ASSERT(c2_rpc_server_start(&sctx) != 0);
+}
+
+static void test_c2_rpc_client_start(void)
+{
+	int rc;
+
+	rc = c2_rpc_server_start(&sctx);
+	C2_UT_ASSERT(rc == 0);
+	if (rc != 0)
+		return;
+
+	c2_fi_enable_once("c2_rpc_machine_init", "fake_error");
+	C2_UT_ASSERT(c2_rpc_client_init(&cctx) != 0);
+
+	c2_fi_enable_once("c2_net_end_point_create", "fake_error");
+	C2_UT_ASSERT(c2_rpc_client_init(&cctx) != 0);
+
+	c2_fi_enable_once("c2_rpc_conn_create", "fake_error");
+	C2_UT_ASSERT(c2_rpc_client_init(&cctx) != 0);
+
+	c2_fi_enable_once("c2_rpc_conn_establish", "fake_error");
+	C2_UT_ASSERT(c2_rpc_client_init(&cctx) != 0);
+
+	c2_fi_enable_once("c2_rpc_session_establish", "fake_error");
+	C2_UT_ASSERT(c2_rpc_client_init(&cctx) != 0);
+
+	c2_rpc_server_stop(&sctx);
+}
+
+static void test_rpclib_error_paths(void)
+{
+	test_c2_rpc_server_start();
+	test_c2_rpc_client_start();
+}
+#else
+static void test_rpclib_error_paths(void)
+{
+}
+#endif
 
 static int send_fop(struct c2_rpc_session *session)
 {
@@ -98,48 +183,11 @@ out:
 static void test_rpclib(void)
 {
 	int rc;
-	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
-	struct c2_net_domain  client_net_dom = { };
-	struct c2_dbenv       client_dbenv;
-	struct c2_cob_domain  client_cob_dom;
-
-	char *server_argv[] = {
-		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-		"-s", "ds1", "-s", "ds2"
-	};
-
-	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, server_argv,
-				  SERVER_LOG_FILE_NAME);
-
-	struct c2_rpc_client_ctx cctx = {
-		.rcx_net_dom            = &client_net_dom,
-		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
-		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-		.rcx_db_name            = CLIENT_DB_NAME,
-		.rcx_dbenv              = &client_dbenv,
-		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-		.rcx_cob_dom            = &client_cob_dom,
-		.rcx_nr_slots           = SESSION_SLOTS,
-		.rcx_timeout_s          = CONNECT_TIMEOUT,
-		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
-	};
-
-	/*
-	 * There is no need to initialize xprt explicitly if client and server
-	 * run withing a single process, because in this case transport is
-	 * initialized by c2_rpc_server_start().
-	 */
-
-	rc = c2_net_domain_init(&client_net_dom, xprt);
-	C2_UT_ASSERT(rc == 0);
-	if (rc != 0)
-		goto out;
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);
 	if (rc != 0)
-		goto net_dom_fini;
+		return;
 
 	rc = c2_rpc_client_init(&cctx);
 	C2_UT_ASSERT(rc == 0);
@@ -154,22 +202,29 @@ static void test_rpclib(void)
 
 server_fini:
 	c2_rpc_server_stop(&sctx);
-net_dom_fini:
-	c2_net_domain_fini(&client_net_dom);
-out:
 	return;
 }
 
 static int test_rpclib_init(void)
 {
+	int rc;
+
 	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
 	/*c2_addb_choose_default_level(AEL_WARN);*/
 
-	return 0;
+	rc = c2_net_xprt_init(xprt);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_net_domain_init(&client_net_dom, xprt);
+	C2_ASSERT(rc == 0);
+
+	return rc;
 }
 
 static int test_rpclib_fini(void)
 {
+	c2_net_domain_fini(&client_net_dom);
+	c2_net_xprt_fini(xprt);
 	return 0;
 }
 
@@ -179,6 +234,7 @@ const struct c2_test_suite rpclib_ut = {
 	.ts_fini = test_rpclib_fini,
 	.ts_tests = {
 		{ "rpclib", test_rpclib },
+		{ "rpclib_error_paths", test_rpclib_error_paths },
 		{ NULL, NULL }
 	}
 };

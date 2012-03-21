@@ -18,12 +18,15 @@
  * Original creation date: 04/04/2011
  */
 
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 #include "lib/assert.h"
+#include "lib/errno.h"
 #include "lib/cdefs.h"
+#include "lib/finject.h"
 #include "net/net_internal.h"
 
 /** @}
@@ -60,6 +63,9 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
 
 	C2_PRE(tm != NULL && tm->ntm_state == C2_NET_TM_STARTED);
 	C2_PRE(epp != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
 
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
