@@ -1151,9 +1151,19 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 	C2_ALLOC_PTR_ADDB(kd, &dom->nd_addb, &nlx_addb_loc);
 	if (kd == NULL)
 		return -ENOMEM;
-	rc = nlx_kcore_dom_init(kd);
-	if (rc == 0)
-		rc = nlx_kcore_core_dom_init(kd, cd);
+	rc = nlx_kcore_kcore_dom_init(kd);
+	if (rc != 0)
+		goto fail_free_kd;
+	rc = nlx_kcore_core_dom_init(kd, cd);
+	if (rc != 0)
+		goto fail_dom_inited;
+	return rc;
+fail_dom_inited:
+	nlx_kcore_kcore_dom_fini(kd);
+fail_free_kd:
+	c2_free(kd);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
 	return rc;
 }
 
@@ -1178,7 +1188,7 @@ void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	kd = cd->cd_kpvt;
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	nlx_kcore_core_dom_fini(kd, cd);
-	nlx_kcore_dom_fini(kd);
+	nlx_kcore_kcore_dom_fini(kd);
 	c2_free(kd);
 }
 
@@ -1271,21 +1281,20 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	if (kb == NULL)
 		return -ENOMEM;
 	rc = nlx_kcore_buf_register(kd, buffer_id, cb, kb);
-	if (rc != 0) {
-		c2_free(kb);
-		return rc;
-	}
-	rc = nlx_kcore_buffer_kla_to_kiov(kb, bvec);
 	if (rc != 0)
 		goto fail_free_kb;
+	rc = nlx_kcore_buffer_kla_to_kiov(kb, bvec);
+	if (rc != 0)
+		goto fail_buf_registered;
 	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
 	C2_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
 	return 0;
 
- fail_free_kb:
-	C2_ASSERT(rc != 0);
+fail_buf_registered:
 	nlx_kcore_buf_deregister(cb, kb);
+fail_free_kb:
 	c2_free(kb);
+	C2_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	return rc;
 }
@@ -1748,7 +1757,7 @@ void nlx_kcore_nidstrs_put(char * const **nidary)
 
 void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 {
-	return nlx_kcore_nidstrs_put(nidary);
+	nlx_kcore_nidstrs_put(nidary);
 }
 
 int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
@@ -2050,7 +2059,7 @@ struct nlx_kcore_ops nlx_kcore_def_ops = {
    Initializes the kernel core domain private data object.
    @param kd kernel core private data pointer for the domain to be initialized.
  */
-static int nlx_kcore_dom_init(struct nlx_kcore_domain *kd)
+static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd)
 {
 	C2_PRE(kd != NULL);
 	kd->kd_magic = C2_NET_LNET_KCORE_DOM_MAGIC;
@@ -2068,7 +2077,7 @@ static int nlx_kcore_dom_init(struct nlx_kcore_domain *kd)
    Finalizes the kernel core domain private data object.
    @param kd kernel core private data pointer for the domain to be finalized.
  */
-static void nlx_kcore_dom_fini(struct nlx_kcore_domain *kd)
+static void nlx_kcore_kcore_dom_fini(struct nlx_kcore_domain *kd)
 {
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	C2_PRE(nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));

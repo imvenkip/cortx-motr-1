@@ -359,7 +359,7 @@
    - It increases the reference count on the module to ensure it will not be
      unloaded while user space references exist.
    - It allocates a @c nlx_kcore_domain object, initializes it using
-     @c nlx_kcore_dom_init() and assigns the object to the
+     @c nlx_kcore_kcore_dom_init() and assigns the object to the
      @c file->private_data field.
    - It logs an ADDB record recording the occurrence of the open operation.
 
@@ -414,7 +414,7 @@
    - It unpins the shared @c nlx_core_domain object, resetting the
        the @c nlx_kcore_domain::kd_cd_loc.
    - It resets (to NULL) the @c file->private_data.
-   - It calls @c nlx_kcore_dom_fini() to finalize the @c nlx_kcore_domain
+   - It calls @c nlx_kcore_kcore_dom_fini() to finalize the @c nlx_kcore_domain
      object.
    - It frees the @c nlx_kcore_domain object.
    - It decrements the reference count on the module.
@@ -1264,8 +1264,8 @@ static long nlx_dev_ioctl(struct file *file,
 		nlx_core_nidstr_encode(NULL, 0, NULL);
 		nlx_core_mem_alloc(0, 1);
 		nlx_core_mem_free(NULL, 1);
-		nlx_kcore_dom_init(NULL);
-		nlx_kcore_dom_fini(NULL);
+		nlx_kcore_kcore_dom_init(NULL);
+		nlx_kcore_kcore_dom_fini(NULL);
 		nlx_kcore_buffer_uva_to_kiov(NULL, NULL);
 		/* end of temporary code */
 		rc = -ENOTTY;

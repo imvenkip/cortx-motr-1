@@ -391,8 +391,8 @@ static void nlx_core_kmem_loc_set(struct nlx_core_kmem_loc *loc,
 static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd);
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
 static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm);
-static int nlx_kcore_dom_init(struct nlx_kcore_domain *kd);
-static void nlx_kcore_dom_fini(struct nlx_kcore_domain *kd);
+static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd);
+static void nlx_kcore_kcore_dom_fini(struct nlx_kcore_domain *kd);
 static int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
 static int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
