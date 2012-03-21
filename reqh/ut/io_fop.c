@@ -47,12 +47,12 @@
 #include "fop/fop_format_def.h"
 
 #ifdef __KERNEL__
-#include "stob/io_fop_k.h"
+#include "io_fop_k.h"
 #else
-#include "stob/io_fop_u.h"
+#include "io_fop_u.h"
 #endif
 
-#include "stob/io_fop.ff"
+#include "io_fop.ff"
 
 /**
    @defgroup stobio
