@@ -287,6 +287,7 @@ static int nlx_xo__nbd_recover(struct c2_net_transfer_mc *tm,
 
 static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 {
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 	struct nlx_core_transfer_mc *ctp;
@@ -300,6 +301,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	C2_PRE(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
 	C2_PRE(nb->nb_offset == 0); /* do not support an offset during add */
 	C2_PRE((nb->nb_flags & C2_NET_BUF_RETAIN) == 0);
+	dp = nb->nb_dom->nd_xprt_private;
 	tp = nb->nb_tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
@@ -323,21 +325,21 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
 		cbp->cb_min_receive_size = nb->nb_min_receive_size;
-		rc = nlx_core_buf_msg_recv(ctp, cbp);
+		rc = nlx_core_buf_msg_recv(&dp->xd_core, ctp, cbp);
 		break;
 
 	case C2_NET_QT_MSG_SEND:
 		C2_ASSERT(nb->nb_length <= bufsize);
 		cbp->cb_length = nb->nb_length;
 		cbp->cb_addr = *nlx_ep_to_core(nb->nb_ep); /* dest addr */
-		rc = nlx_core_buf_msg_send(ctp, cbp);
+		rc = nlx_core_buf_msg_send(&dp->xd_core, ctp, cbp);
 		break;
 
 	case C2_NET_QT_PASSIVE_BULK_RECV:
 		nlx_core_buf_desc_encode(ctp, cbp, &cbd);
 		rc = nlx_xo__nbd_allocate(nb->nb_tm, &cbd, &nb->nb_desc);
 		if (rc == 0)
-			rc = nlx_core_buf_passive_recv(ctp, cbp);
+			rc = nlx_core_buf_passive_recv(&dp->xd_core, ctp, cbp);
 		if (rc != 0)
 			c2_net_desc_free(&nb->nb_desc);
 		break;
@@ -348,7 +350,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		nlx_core_buf_desc_encode(ctp, cbp, &cbd);
 		rc = nlx_xo__nbd_allocate(nb->nb_tm, &cbd, &nb->nb_desc);
 		if (rc == 0)
-			rc = nlx_core_buf_passive_send(ctp, cbp);
+			rc = nlx_core_buf_passive_send(&dp->xd_core, ctp, cbp);
 		if (rc != 0)
 			c2_net_desc_free(&nb->nb_desc);
 		break;
@@ -358,7 +360,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		if (rc == 0)
 			rc = nlx_core_buf_desc_decode(ctp, cbp, &cbd);
 		if (rc == 0) /* remote addr and size decoded */
-			rc = nlx_core_buf_active_recv(ctp, cbp);
+			rc = nlx_core_buf_active_recv(&dp->xd_core, ctp, cbp);
 		break;
 
 	case C2_NET_QT_ACTIVE_BULK_SEND:
@@ -368,7 +370,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 		if (rc == 0) /* remote addr and size decoded */
 			rc = nlx_core_buf_desc_decode(ctp, cbp, &cbd);
 		if (rc == 0)
-			rc = nlx_core_buf_active_send(ctp, cbp);
+			rc = nlx_core_buf_active_send(&dp->xd_core, ctp, cbp);
 		break;
 
 	default:
@@ -386,12 +388,14 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 
 static void nlx_xo_buf_del(struct c2_net_buffer *nb)
 {
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
 	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
+	dp = nb->nb_dom->nd_xprt_private;
 	tp = nb->nb_tm->ntm_xprt_private;
-	nlx_core_buf_del(&tp->xtm_core, &bp->xb_core);
+	nlx_core_buf_del(&dp->xd_core, &tp->xtm_core, &bp->xb_core);
 }
 
 static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)

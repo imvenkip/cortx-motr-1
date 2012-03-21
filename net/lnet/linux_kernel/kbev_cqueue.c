@@ -24,67 +24,63 @@
  */
 
 /**
-   Atomically map the buffer event link corresponding to the
-   given memory reference.
- */
-static inline struct nlx_core_bev_link* bev_link_map(
-						 struct nlx_core_kmem_loc *loc)
-{
-	/** @todo implement */
-	return NULL;
-}
-
-/**
-   Unmap the buffer event link corresponding to the given memory reference.
- */
-static inline void bev_link_unmap(struct nlx_core_kmem_loc *loc)
-{
-	/** @todo implement */
-}
-
-/**
    Determines the next element in the queue that can be used by the producer.
+   This operation causes the page containing the next element to be mapped
+   using @c kmap_atomic().  The KM_USER1 slot is consumed.
    @note This operation is to be used only by the producer.
    @param q the queue
    @returns a pointer to the next available element in the producer context
-   @pre p->cbl_c_self != q->cbcq_consumer
+   @pre bev_cqueue_invariant(q)
+   @post p->cbl_c_self != q->cbcq_consumer
  */
-static struct nlx_core_bev_link* bev_cqueue_pnext(
-				      const struct nlx_core_bev_cqueue *q)
+static struct nlx_core_bev_link *bev_cqueue_pnext(
+					   const struct nlx_core_bev_cqueue *q)
 {
-	struct nlx_core_bev_link* p;
+	struct nlx_core_bev_link *p;
+	const struct nlx_core_kmem_loc *loc;
+	char *ptr;
 
 	C2_PRE(bev_cqueue_invariant(q));
-	p = (struct nlx_core_bev_link*) q->cbcq_producer;
-	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
+	loc = &q->cbcq_producer_loc;
+	C2_PRE(nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL);
+	ptr = kmap_atomic(loc->kl_page, KM_USER1);
+	p = (struct nlx_core_bev_link *) (ptr + loc->kl_offset);
+	C2_POST(nlx_core_kmem_loc_invariant(&p->cbl_p_self_loc));
+	C2_POST(p->cbl_c_self != q->cbcq_consumer);
 	return p;
 }
 
 /**
    Puts (produces) an element so it can be consumed.  The caller must first
-   call bev_cqueue_pnext() to ensure such an element exists.
+   call bev_cqueue_pnext() to ensure such an element exists.  The page
+   containing the element is unmapped using @c kunmap_atomic().
    @param q the queue
-   @pre p->cbl_c_self != q->cbcq_consumer
+   @param p current element, previously obtained using bev_cqueue_pnext()
+   @pre bev_cqueue_invariant(q) && p->cbl_c_self != q->cbcq_consumer
  */
-static void bev_cqueue_put(struct nlx_core_bev_cqueue *q)
+static void bev_cqueue_put(struct nlx_core_bev_cqueue *q,
+			   struct nlx_core_bev_link *p)
 {
-	struct nlx_core_bev_link* p;
 
 	C2_PRE(bev_cqueue_invariant(q));
-	p = (struct nlx_core_bev_link*) q->cbcq_producer;
 	C2_PRE(p->cbl_c_self != q->cbcq_consumer);
-	q->cbcq_producer = p->cbl_p_next;
+	C2_PRE(nlx_core_kmem_loc_eq(&q->cbcq_producer_loc, &p->cbl_p_self_loc));
+	q->cbcq_producer_loc = p->cbl_p_next_loc;
+	kunmap_atomic(p, KM_USER1);
+	c2_atomic64_inc(&q->cbcq_count);
 }
 
 /**
    Blesses the nlx_core_bev_link of a nlx_core_bev_cqueue element, assigning
    the producer self value.
-   @param ql the link to bless, the caller must have already mapped the element
+   @param ql The link to bless, the caller must have already mapped the element
    into the producer address space.
+   @param pg The page object corresponding to the link object.
  */
-static void bev_link_bless(struct nlx_core_bev_link *ql)
+static void bev_link_bless(struct nlx_core_bev_link *ql, struct page *pg)
 {
-	ql->cbl_p_self = (nlx_core_opaque_ptr_t) ql;
+	nlx_core_kmem_loc_set(&ql->cbl_p_self_loc,
+			      pg, PAGE_OFFSET((unsigned long) ql));
 }
 
 /** @} */ /* bevcqueue */

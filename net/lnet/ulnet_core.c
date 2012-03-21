@@ -180,11 +180,14 @@
    - It opens the device using the @c open() system call.  The device is named
      @c "/dev/c2lnet" and the device is opened with @c O_RDWR|O_CLOEXEC flags.
      The file descriptor is saved in the @c nlx_ucore_domain::ud_fd field.
+   - It declares a @c c2_lnet_dev_dom_init_params object, setting
+     the @c c2_lnet_dev_dom_init_params::ddi_cd field.
    - It shares the @c nlx_core_domain object via the @c #C2_LNET_DOM_INIT
      ioctl request.  Note that a side effect of this request is that the
      @c nlx_core_domain::cd_kpvt is set.
-   - It completes user space initialization of the @c nlx_core_domain object and
-     the @c nlx_ucore_domain object.
+   - It completes user space initialization of the @c nlx_core_domain object
+     and the @c nlx_ucore_domain object, including caching the three buffer
+     maximum size values returned in the @c c2_lnet_dev_dom_init_params.
 
    @see @ref LNetDRVDLD-lspec-dominit "Corresponding device layer behavior"
 
@@ -208,15 +211,10 @@
 
    @subsection ULNetCoreDLD-lspec-reg Buffer Registration and De-registration
 
-   The following ioctl requests are available for use by the user space
-   core to obtain kernel parameters controlling buffer size.
-   - @c #C2_LNET_MAX_BUFFER_SIZE
-   - @c #C2_LNET_MAX_BUFFER_SEGMENT_SIZE
-   - @c #C2_LNET_MAX_BUFFER_SEGMENTS
-
-   The user space core performs these ioctl requests to obtain the
-   corresponding values.  The value (when positive) is the return value of the
-   ioctl request.
+   The user space core implementations of @c nlx_core_get_max_buffer_size(),
+   @c nlx_core_get_max_buffer_segment_size() and
+   @c nlx_core_get_max_buffer_segments() each return the corresponding
+   value cached in the @c nlx_ucore_domain object.
 
    The user space core completes the following tasks to perform
    buffer registration.
@@ -344,8 +342,6 @@
    - It declares a @c c2_lnet_dev_buf_event_wait_params and sets the fields.
    - It performs a @c #C2_LNET_BUF_EVENT_WAIT ioctl request to wait for
      the kernel to generate additional buffer events.
-   - Loop in the case that a timeout did not occur but the buffer event queue
-     was already empty again after the ioctl request returns.
 
    @see @ref LNetDRVDLD-lspec-event "Corresponding device layer behavior"
 
@@ -357,7 +353,7 @@
    Most of the @c nlx_core_ep_addr_decode() and
    @c nlx_core_ep_addr_encode() functions can be implemented common
    in user and kernel space code.  However, converting a NID to a string or
-   visa versa requires access to functions which exists only in the kernel.
+   vice versa requires access to functions which exists only in the kernel.
    The @c nlx_core_nidstr_decode() and @c nlx_core_nidstr_encode() functions
    provide separate user and kernel implementations of this conversion code.
 
@@ -482,15 +478,15 @@
      ./linux_kernel/klnet_drv.c -->
  */
 
-void *nlx_core_mem_alloc(size_t size)
+void *nlx_core_mem_alloc(size_t size, unsigned shift)
 {
-	/** @todo implement */
-	return NULL;
+	return c2_alloc_aligned(size, shift);
 }
 
-void nlx_core_mem_free(void *data)
+void nlx_core_mem_free(void *data, unsigned shift)
 {
-	/** @todo implement */
+	/** @todo merge master, use c2_free_aligned */
+	c2_free(data);
 }
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
@@ -538,7 +534,8 @@ void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
 	/** @todo XXX implement */
 }
 
-int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
+			  struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX temp: just to compile in user space */
@@ -548,42 +545,48 @@ int nlx_core_buf_msg_recv(struct nlx_core_transfer_mc *lctm,
 	return -ENOSYS;
 }
 
-int nlx_core_buf_msg_send(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_msg_send(struct nlx_core_domain *cd,
+			  struct nlx_core_transfer_mc *lctm,
 			  struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_active_recv(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_active_recv(struct nlx_core_domain *cd,
+			     struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_active_send(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_active_send(struct nlx_core_domain *cd,
+			     struct nlx_core_transfer_mc *lctm,
 			     struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_passive_recv(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,
+			      struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_passive_send(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_passive_send(struct nlx_core_domain *cd,
+			      struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-int nlx_core_buf_del(struct nlx_core_transfer_mc *lctm,
+int nlx_core_buf_del(struct nlx_core_domain *cd,
+		     struct nlx_core_transfer_mc *lctm,
 		     struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX implement */
@@ -595,47 +598,6 @@ int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
-}
-
-bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
-			    struct nlx_core_buffer_event *lcbe)
-{
-	struct nlx_core_bev_link *link;
-	struct nlx_core_buffer_event *bev;
-
-	C2_PRE(lctm != NULL);
-	C2_PRE(lcbe != NULL);
-
-	/** @todo XXX temp code to cause APIs to be used */
-	if (!bev_cqueue_is_empty(&lctm->ctm_bevq)) {
-		link = bev_cqueue_get(&lctm->ctm_bevq);
-		if (link != NULL) {
-			bev = container_of(link, struct nlx_core_buffer_event,
-					   cbe_tm_link);
-			*lcbe = *bev;
-			C2_SET0(&lcbe->cbe_tm_link); /* copy is not in queue */
-			return true;
-		}
-	}
-	return false;
-}
-
-int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
-			    const char *ep_addr,
-			    struct nlx_core_ep_addr *cepa)
-{
-	/** @todo XXX implement */
-	uint64_t nid;
-	(void) nlx_core_nidstr_decode(lcdom, ep_addr, &nid);
-	return -ENOSYS;
-}
-
-void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
-			     const struct nlx_core_ep_addr *cepa,
-			     char buf[C2_NET_LNET_XEP_ADDR_LEN])
-{
-	/** @todo XXX implement */
-	(void) nlx_core_nidstr_encode(lcdom, 0, buf);
 }
 
 int nlx_core_nidstr_decode(struct nlx_core_domain *lcdom,
@@ -654,18 +616,19 @@ int nlx_core_nidstr_encode(struct nlx_core_domain *lcdom,
 	return -ENOSYS;
 }
 
-int nlx_core_nidstrs_get(char * const **nidary)
+int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom, char * const **nidary)
 {
 	/** @todo XXX implement */
 	return -ENOSYS;
 }
 
-void nlx_core_nidstrs_put(char * const **nidary)
+void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 {
 	/** @todo XXX implement */
 }
 
-int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
+int nlx_core_tm_start(struct nlx_core_domain *cd,
+		      struct c2_net_transfer_mc *tm,
 		      struct nlx_core_transfer_mc *lctm)
 {
 	struct nlx_core_buffer_event *e1;
@@ -673,10 +636,10 @@ int nlx_core_tm_start(struct c2_net_transfer_mc *tm,
 
 	C2_PRE(lctm != NULL);
 	/** @todo XXX: temp, really belongs in async and/or kernel code */
-	e1 = nlx_core_mem_alloc(sizeof *e1);
+	NLX_ALLOC_PTR_ADDB(e1, &tm->ntm_addb, &nlx_addb_loc);
 	e1->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e1->cbe_tm_link;
 	/* ioctl call: bev_link_bless(&e1->cbe_tm_link); */
-	e2 = nlx_core_mem_alloc(sizeof *e2);
+	NLX_ALLOC_PTR_ADDB(e2, &tm->ntm_addb, &nlx_addb_loc);
 	e2->cbe_tm_link.cbl_c_self = (nlx_core_opaque_ptr_t) &e2->cbe_tm_link;
 	/* ioctl call: bev_link_bless(&e2->cbe_tm_link); */
 	bev_cqueue_init(&lctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
@@ -695,11 +658,12 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	if (ql != NULL) {
 		bev = container_of(ql, struct nlx_core_buffer_event,
 				   cbe_tm_link);
-		nlx_core_mem_free(bev);
+		NLX_FREE_PTR(bev);
 	}
 }
 
-void nlx_core_tm_stop(struct nlx_core_transfer_mc *lctm)
+void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
+		      struct nlx_core_transfer_mc *lctm)
 {
 	/** @todo XXX: temp, really belongs in async code */
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
