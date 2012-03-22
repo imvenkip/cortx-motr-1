@@ -18,6 +18,7 @@ SUBDIRS_LIBS = \
                fop \
                addb \
                balloc \
+               c2t1fs/linux_kernel \
                capa \
                cfg \
                cob \

@@ -1,6 +1,6 @@
 SUBDIRS      = ploss
 
-noinst_PROGRAMS = ut ub
+bin_PROGRAMS = ut ub
 
 libstob_ut   = $(top_builddir)/stob/ut/libstob-ut.la
 
