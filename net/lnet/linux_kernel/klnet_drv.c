@@ -1263,7 +1263,7 @@ static long nlx_dev_ioctl(struct file *file,
 		nlx_core_nidstr_decode(NULL, NULL, NULL);
 		nlx_core_nidstr_encode(NULL, 0, NULL);
 		nlx_core_mem_alloc(0, 1);
-		nlx_core_mem_free(NULL, 1);
+		nlx_core_mem_free(NULL, 0, 1);
 		nlx_kcore_kcore_dom_init(NULL);
 		nlx_kcore_kcore_dom_fini(NULL);
 		nlx_kcore_buffer_uva_to_kiov(NULL, NULL);

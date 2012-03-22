@@ -1122,7 +1122,7 @@ void *nlx_core_mem_alloc(size_t size, unsigned shift)
 	return c2_alloc(size);
 }
 
-void nlx_core_mem_free(void *data, unsigned shift)
+void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 {
 	c2_free(data);
 }
@@ -1765,7 +1765,7 @@ int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
 {
 	struct nlx_core_buffer_event *bev;
 
-	C2_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
@@ -1773,16 +1773,6 @@ int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
 	bev_link_bless(&bev->cbe_tm_link, virt_to_page(&bev->cbe_tm_link));
 	*bevp = bev;
 	return 0;
-}
-
-static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
-{
-	struct nlx_core_buffer_event *bev;
-	if (ql != NULL) {
-		bev = container_of(ql, struct nlx_core_buffer_event,
-				   cbe_tm_link);
-		c2_free(bev);
-	}
 }
 
 /**

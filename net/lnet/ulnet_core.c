@@ -483,10 +483,9 @@ void *nlx_core_mem_alloc(size_t size, unsigned shift)
 	return c2_alloc_aligned(size, shift);
 }
 
-void nlx_core_mem_free(void *data, unsigned shift)
+void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 {
-	/** @todo merge master, use c2_free_aligned */
-	c2_free(data);
+	c2_free_aligned(data, size, shift);
 }
 
 int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
@@ -649,17 +648,6 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 
 	C2_POST(nlx_core_tm_invariant(lctm));
 	return -ENOSYS;
-}
-
-/** @todo XXX duplicate code, see klnet_core.c, refactor during ulnet task */
-static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
-{
-	struct nlx_core_buffer_event *bev;
-	if (ql != NULL) {
-		bev = container_of(ql, struct nlx_core_buffer_event,
-				   cbe_tm_link);
-		NLX_FREE_PTR(bev);
-	}
 }
 
 void nlx_core_tm_stop(struct nlx_core_domain *lcdom,

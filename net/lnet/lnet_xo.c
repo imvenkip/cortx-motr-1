@@ -109,7 +109,7 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 
 	C2_PRE(dom->nd_xprt_private == NULL);
 	C2_PRE(xprt == &c2_net_lnet_xprt);
-	C2_ALLOC_PTR_ADDB(dp, &dom->nd_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR_ADDB(dp, &dom->nd_addb, &nlx_addb_loc);
 	if (dp == NULL)
 		return -ENOMEM;
 	dom->nd_xprt_private = dp;
@@ -117,7 +117,7 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 
 	rc = nlx_core_dom_init(dom, &dp->xd_core);
 	if (rc != 0) {
-		c2_free(dp);
+		NLX_FREE_PTR(dp);
 		dom->nd_xprt_private = NULL;
 	}
 	nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
@@ -131,7 +131,7 @@ static void nlx_xo_dom_fini(struct c2_net_domain *dom)
 
 	C2_PRE(nlx_dom_invariant(dom));
 	nlx_core_dom_fini(&dp->xd_core);
-	c2_free(dp);
+	NLX_FREE_PTR(dp);
 	dom->nd_xprt_private = NULL;
 }
 
@@ -210,7 +210,7 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	C2_PRE(nlx_xo_buffer_bufvec_invariant(nb));
 
 	dp = nb->nb_dom->nd_xprt_private;
-	C2_ALLOC_PTR_ADDB(bp, &nb->nb_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR_ADDB(bp, &nb->nb_addb, &nlx_addb_loc);
 	if (bp == NULL)
 		return -ENOMEM;
 	nb->nb_xprt_private = bp;
@@ -219,7 +219,7 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	rc = nlx_core_buf_register(&dp->xd_core, (nlx_core_opaque_ptr_t)nb,
 				   &nb->nb_buffer, &bp->xb_core);
 	if (rc != 0) {
-		c2_free(bp);
+		NLX_FREE_PTR(bp);
 		nb->nb_xprt_private = NULL;
 	}
 	C2_POST(ergo(rc == 0, nlx_buffer_invariant(nb)));
@@ -407,7 +407,7 @@ static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)
 	C2_PRE(tm->ntm_xprt_private == NULL);
 
 	dp = tm->ntm_dom->nd_xprt_private;
-	C2_ALLOC_PTR_ADDB(tp, &tm->ntm_addb, &nlx_addb_loc);
+	NLX_ALLOC_PTR_ADDB(tp, &tm->ntm_addb, &nlx_addb_loc);
 	if (tp == NULL)
 		return -ENOMEM;
 	tm->ntm_xprt_private = tp;
@@ -437,7 +437,7 @@ static void nlx_xo_tm_fini(struct c2_net_transfer_mc *tm)
 		c2_bitmap_fini(&tp->xtm_processors);
 	c2_cond_fini(&tp->xtm_ev_cond);
 	tm->ntm_xprt_private = NULL;
-	c2_free(tp);
+	NLX_FREE_PTR(tp);
 }
 
 static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)

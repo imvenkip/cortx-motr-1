@@ -897,7 +897,9 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
    In the user space transport this must be initialized at least with the
    core device driver file descriptor.
    In kernel space this is not used.
-   @param bevp Buffer event return pointer.
+   @param bevp Buffer event return pointer.  The memory must be allocated with
+   the NLX_ALLOC_PTR() macro or variant.  It will be freed with the
+   NLX_FREE_PTR() macro from the nlx_core_bev_free_cb() subroutine.
    @post bev_cqueue_bless(&bevp->cbe_tm_link) has been invoked.
    @see bev_cqueue_bless()
  */
@@ -917,7 +919,7 @@ static void *nlx_core_mem_alloc(size_t size, unsigned shift);
 /**
    Frees memory allocated by nlx_core_mem_alloc().
  */
-static void nlx_core_mem_free(void *data, unsigned shift);
+static void nlx_core_mem_free(void *data, size_t size, unsigned shift);
 
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
@@ -939,7 +941,8 @@ static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 #define NLX_ALLOC_PTR_ADDB(ptr, ctx, loc) \
 	if (NLX_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
 #define NLX_FREE_PTR(ptr) \
-	nlx_core_mem_free((ptr), NLX_PO2_SHIFT(sizeof ((ptr)[0])))
+	nlx_core_mem_free((ptr), sizeof ((ptr)[0]), \
+                          NLX_PO2_SHIFT(sizeof ((ptr)[0])))
 
 /** @} */ /* LNetCore */
 
