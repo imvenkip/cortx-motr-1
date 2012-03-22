@@ -27,7 +27,8 @@
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "fid/fid.h"                /* c2_fid */
-#include "ioservice/io_foms.h"      /* c2_fom_cob_create, c2_fom_cob_delete */
+#include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
+#include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
 #include "reqh/reqh.h"              /* c2_fom_state_generic() */
 #include "colibri/colibri_setup.h"  /* c2_cs_ctx_get(), c2_cobfid_setup_get() */

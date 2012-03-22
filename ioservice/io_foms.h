@@ -263,62 +263,6 @@ void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
 void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
                                 struct c2_stob_id *out);
 
-/**
- * Common part of cob create and cob delete foms.
- */
-struct c2_fom_cob_common {
-	/** Generic fom object. */
-	struct c2_fom		 cc_fom;
-	/** Fid of global file. */
-	struct c2_fid		 cc_gfid;
-	/** Fid of component object. */
-	struct c2_fid		 cc_cfid;
-};
-
-/**
- * Fom context object for "cob create" request. Cob create fop is sent to
- * data servers on creation of a global file.
- */
-struct c2_fom_cob_create {
-	/** Stob Identifier. */
-	struct c2_stob_id        fcc_stob_id;
-	/** Common part of cob operation foms. */
-	struct c2_fom_cob_common fcc_cc;
-};
-
-/**
- * Phases of c2_fom_cob_create state machine.
- */
-enum c2_fom_cob_create_phases {
-	/**
-	 * Internally creates a stob, a cob and adds a record to
-	 * auxiliary database.
-	 */
-	FOPH_CC_COB_CREATE = FOPH_NR + 1,
-};
-
-/**
- * Fom context object for "cob delete" request. Cob delete fop is sent
- * to data servers on deletion of a global file.
- */
-struct c2_fom_cob_delete {
-	/** Stob identifier. */
-	struct c2_stob_id	 fcd_stobid;
-	/** Common part of cob operation foms. */
-	struct c2_fom_cob_common fcd_cc;
-};
-
-/**
- * Phases of c2_fom_cob_delete state machine.
- */
-enum c2_fom_cob_delete_phases {
-	/**
-	 * Internally deletes the cob, stob and removes the corresponding
-	 * record from auxiliary database.
-	 */
-	FOPH_CD_COB_DEL = FOPH_NR + 1,
-};
-
 /** @} end of io_foms */
 
 #endif /* __COLIBRI_IOSERVICE_IO_FOMS_H__ */

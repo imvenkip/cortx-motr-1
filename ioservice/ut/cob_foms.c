@@ -61,11 +61,11 @@ enum {
 	TEST_ENV_STOB             = 2,
 };
 
-#define SERVER_EP_ADDR       "127.0.0.1:12345:123"
-#define CLIENT_EP_ADDR       "127.0.0.1:12345:124"
-#define SERVER_ENDP          "bulk-sunrpc:"SERVER_EP_ADDR
-const char *SERVER_LOGFILE = "cobfoms_ut.log";
-const char *CLIENT_DBNAME  = "cobfops_ut.db";
+#define SERVER_EP_ADDR              "127.0.0.1:12345:123"
+#define CLIENT_EP_ADDR              "127.0.0.1:12345:124"
+#define SERVER_ENDP                 "bulk-sunrpc:"SERVER_EP_ADDR
+static const char *SERVER_LOGFILE = "cobfoms_ut.log";
+static const char *CLIENT_DBNAME  = "cobfops_ut.db";
 
 struct cobfoms_ut {
 	struct c2_rpc_server_ctx      cu_sctx;
@@ -427,7 +427,7 @@ static void cobfoms_del_nonexist_cob(void)
  */
 static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 {
-	struct c2_fom  *base_fom = *fom;
+	struct c2_fom  *base_fom;
 	struct c2_reqh *reqh;
 	int		rc;
 
@@ -445,6 +445,7 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 
 	C2_UT_ASSERT(rc == 0);
 
+	base_fom = *fom;
 	c2_fom_init(base_fom);
 	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
 	C2_UT_ASSERT(reqh != NULL);
@@ -774,10 +775,8 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(test_cob != NULL);
 		C2_UT_ASSERT(test_cob->co_valid & CA_NSREC);
-	} else {
-		C2_UT_ASSERT(rc != 0);
-		C2_UT_ASSERT(rc == EEXIST);
-	}
+	} else
+		C2_UT_ASSERT(rc == -ENOENT);
 }
 
 /*
