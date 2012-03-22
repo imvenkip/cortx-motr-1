@@ -965,6 +965,15 @@ struct c2_net_transfer_mc {
 	   The value is initialized to @c ~0.
 	 */
 	uint32_t                    ntm_pool_colour;
+
+	/**
+	   Minimum remaining size in a receive buffer to allow reuse
+	   for multiple messages.
+	 */
+	c2_bcount_t		    ntm_recv_queue_min_recv_size;
+	
+	/** Maximum number of messages that may be received in the buffer. */
+	uint32_t		    ntm_recv_queue_max_recv_msgs;
 };
 
 /**
@@ -1168,13 +1177,22 @@ uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
    @param bufpool Pointer to a network buffer pool.
    @param callbacks Pointer to the callbacks to be set in the provisioned
    network buffer.
-   @pre tm->ntm_state == C2_NET_TM_INITIALIZED
+   @param min_recv_size Minimum remaining size in a receive buffer to allow
+   reuse for multiple messages.
+   @param max_recv_msgs Maximum number of messages that may be received in the
+   buffer.
+   @pre 
+   	(tm != NULL && tm->ntm_state == C2_NET_TM_INITIALIZED &&
+	bufpool != NULL && callbacks != NULL &&
+	callbacks->nbc_cb[C2_NET_QT_MSG_RECV] != NULL &&
+	min_recv_size > 0 && max_recv_msgs > 0)
    @see c2_net_tm_colour_set(), c2_net_domain_buffer_pool_not_empty(),
         c2_net_tm_pool_length_set()
  */
 int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 			  struct c2_net_buffer_pool *bufpool,
-			  const struct c2_net_buffer_callbacks *callbacks);
+			  const struct c2_net_buffer_callbacks *callbacks,
+			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs);
 
 /**
    Set the minimum number of network buffers that should be present on the

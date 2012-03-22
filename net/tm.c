@@ -281,6 +281,9 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
 	if (result < 0)
 		tm->ntm_state = oldstate;
+	else
+		c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
+
 	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
 
@@ -417,15 +420,23 @@ C2_EXPORTED(c2_net_tm_colour_get);
 
 int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 			  struct c2_net_buffer_pool *bufpool,
-			  const struct c2_net_buffer_callbacks *callbacks)
+			  const struct c2_net_buffer_callbacks *callbacks,
+			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs)
 {
 	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_PRE(bufpool != NULL);
+	C2_PRE(callbacks != NULL &&
+	       callbacks->nbc_cb[C2_NET_QT_MSG_RECV] != NULL);
+	C2_PRE(min_recv_size > 0);
+	C2_PRE(max_recv_msgs > 0);
 	if (bufpool->nbp_ndom == tm->ntm_dom) {
-		tm->ntm_recv_pool	    = bufpool;
-		tm->ntm_recv_pool_callbacks = callbacks;
+		tm->ntm_recv_pool		 = bufpool;
+		tm->ntm_recv_pool_callbacks	 = callbacks;
+		tm->ntm_recv_queue_min_recv_size = min_recv_size;
+		tm->ntm_recv_queue_max_recv_msgs = max_recv_msgs;
 		rc = 0;
 	} else
 		rc = -EINVAL;
@@ -447,13 +458,13 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
 		tm->ntm_recv_queue_min_length = len;
 	if (tm->ntm_recv_pool != NULL && tm->ntm_state == C2_NET_TM_STARTED) {
 		pool = tm->ntm_recv_pool;
-		tm->ntm_callback_counter++;
+		C2_CNT_INC(tm->ntm_callback_counter);
 	}
 	c2_mutex_unlock(&tm->ntm_mutex);
 	if (pool != NULL) {
 		c2_net__tm_provision_recv_q(tm);
 		c2_mutex_lock(&tm->ntm_mutex);
-		tm->ntm_callback_counter--;
+		C2_CNT_DEC(tm->ntm_callback_counter);
 		c2_chan_broadcast(&tm->ntm_chan);
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}

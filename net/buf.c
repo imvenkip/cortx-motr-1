@@ -389,8 +389,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 		}
 		if (!(buf->nb_flags & C2_NET_BUF_QUEUED) &&
 		    tm->ntm_state == C2_NET_TM_STARTED &&
-		    tm->ntm_recv_pool != NULL &&
-		    buf->nb_pool == tm->ntm_recv_pool)
+		    tm->ntm_recv_pool != NULL)
 			pool = tm->ntm_recv_pool;
 		break;
 	case C2_NET_QT_MSG_SEND:
@@ -409,7 +408,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	tm->ntm_callback_counter++;
 	c2_mutex_unlock(&tm->ntm_mutex);
 
-	if (pool != NULL && retain)
+	if (pool != NULL && !retain)
 		c2_net__tm_provision_recv_q(tm);
 
 	cb(ev);

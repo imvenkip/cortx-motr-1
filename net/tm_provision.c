@@ -400,19 +400,6 @@ c2_net_domain_buffer_pool_not_empty(pool) {
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 
-/* @todo These dummy api's needs to be removed once transport provides values
-	 for nb_min_receive_size and nb_max_receive_msgs.
- */
-int c2_xprt_buffer_min_recv_size(struct c2_net_domain *ndom)
-{
-	return 1<<12;
-}
-
-int c2_xprt_buffer_max_recv_msgs(struct c2_net_domain *ndom)
-{
-	return 1;
-}
-
 /*
    Private provisioning routine that assumes all locking is obtained
    in the correct order prior to invocation.
@@ -425,10 +412,11 @@ int c2_xprt_buffer_max_recv_msgs(struct c2_net_domain *ndom)
 static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_buffer_pool *pool;
-	uint64_t		   need;
+	int64_t			   need;
 	struct c2_net_buffer	  *nb;
 	int			   rc;
-	uint64_t		   recvq_len;
+	uint64_t		   recv_q_len;
+	uint64_t		   deficit;
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
@@ -436,37 +424,29 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	if (tm->ntm_state != C2_NET_TM_STARTED || pool == NULL)
 		return; /* provisioning not required */
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
-	recvq_len = tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
-	need = tm->ntm_recv_queue_min_length - recvq_len;
+	recv_q_len = tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
+	need = tm->ntm_recv_queue_min_length - recv_q_len;
 	while (need > 0) {
 		nb = c2_net_buffer_pool_get(tm->ntm_recv_pool,
 					    tm->ntm_pool_colour);
-		if (nb != NULL) {
-			nb->nb_qtype		= C2_NET_QT_MSG_RECV;
-			nb->nb_callbacks	= tm->ntm_recv_pool_callbacks;
-			nb->nb_min_receive_size =
-				c2_xprt_buffer_min_recv_size(tm->ntm_dom);
-			nb->nb_max_receive_msgs =
-				c2_xprt_buffer_max_recv_msgs(tm->ntm_dom);
-
-			C2_POST(nb->nb_pool == tm->ntm_recv_pool);
-			rc = c2_net__buffer_add(nb, tm);
-			if (rc != 0)
-				break;
-			C2_ASSERT(nb->nb_callbacks ==
-				  tm->ntm_recv_pool_callbacks);
-			--need;
-		} else
+		if (nb == NULL)
 			break;
+		nb->nb_qtype		= C2_NET_QT_MSG_RECV;
+		nb->nb_callbacks	= tm->ntm_recv_pool_callbacks;
+		nb->nb_min_receive_size = tm->ntm_recv_queue_min_recv_size;
+		nb->nb_max_receive_msgs = tm->ntm_recv_queue_max_recv_msgs;
 
+		C2_POST(nb->nb_pool == tm->ntm_recv_pool);
+		rc = c2_net__buffer_add(nb, tm);
+		if (rc != 0)
+			break;
+		C2_CNT_DEC(need);
+		C2_CNT_INC(recv_q_len);
 	}
-
-	c2_atomic64_set(&tm->ntm_recv_queue_deficit, need);
-	recvq_len = tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
-	C2_POST((recvq_len >= tm->ntm_recv_queue_min_length &&
-		c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0) ||
-		recvq_len + c2_atomic64_get(&tm->ntm_recv_queue_deficit) ==
-		tm->ntm_recv_queue_min_length);
+	deficit = need < 0 ? 0 : need;
+	c2_atomic64_set(&tm->ntm_recv_queue_deficit, deficit);
+	C2_POST((recv_q_len >= tm->ntm_recv_queue_min_length && deficit == 0) ||
+		 recv_q_len + deficit == tm->ntm_recv_queue_min_length);
 	return;
 }
 

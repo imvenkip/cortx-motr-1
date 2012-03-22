@@ -359,6 +359,20 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	return 0;
 }
 
+/*
+ * @todo These dummy api's needs to be removed once transport provides values
+ * for nb_min_receive_size and nb_max_receive_msgs.
+ */
+int c2_xprt_buffer_min_recv_size(struct c2_net_domain *ndom)
+{
+	return 1<<12;
+}
+
+int c2_xprt_buffer_max_recv_msgs(struct c2_net_domain *ndom)
+{
+	return 1;
+}
+
 static int rpc_tm_setup(struct c2_rpcmachine *machine,
 			struct c2_net_domain *net_dom, const char *ep_addr)
 {
@@ -390,7 +404,9 @@ static int rpc_tm_setup(struct c2_rpcmachine *machine,
 	c2_mutex_lock(&net_dom->nd_mutex);
 	if (net_dom->nd_pool != NULL) {
 		rc = c2_net_tm_pool_attach(&machine->cr_tm, net_dom->nd_pool,
-					   &c2_rpc_rcv_buf_callbacks);
+					   &c2_rpc_rcv_buf_callbacks,
+					   c2_xprt_buffer_min_recv_size(net_dom),
+					   c2_xprt_buffer_max_recv_msgs(net_dom));
 		if (rc != 0) {
 			c2_mutex_unlock(&net_dom->nd_mutex);
 			return rc;
