@@ -119,7 +119,7 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 		goto out;
 	}
 
-	c2_fom_create(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
 	*m = fom;
 	rc = 0;
 
