@@ -816,12 +816,12 @@ C2_TL_DEFINE(drv_tms, static, struct nlx_kcore_transfer_mc);
 C2_TL_DESCR_DEFINE(drv_bufs, "drv bufs", static, struct nlx_kcore_buffer,
 		   kb_drv_linkage, kb_magic, C2_NET_LNET_KCORE_BUF_MAGIC,
 		   C2_NET_LNET_DEV_BUFS_MAGIC);
-C2_TL_DEFINE(drv_bufs, static, struct nlx_kcore_transfer_mc);
+C2_TL_DEFINE(drv_bufs, static, struct nlx_kcore_buffer);
 
 C2_TL_DESCR_DEFINE(drv_bevs, "drv bevs", static, struct nlx_kcore_buffer_event,
 		   kbe_drv_linkage, kbe_magic, C2_NET_LNET_KCORE_BEV_MAGIC,
 		   C2_NET_LNET_DEV_BEVS_MAGIC);
-C2_TL_DEFINE(drv_bevs, static, struct nlx_kcore_transfer_mc);
+C2_TL_DEFINE(drv_bevs, static, struct nlx_kcore_buffer_event);
 
 /* assert the equivalence of LNet and Colibri data types */
 C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
@@ -2034,8 +2034,7 @@ static int nlx_core_init(void)
 	return rc;
 }
 
-/** @todo make static */
-struct nlx_kcore_ops nlx_kcore_def_ops = {
+static struct nlx_kcore_ops nlx_kcore_def_ops = {
 	.ko_dom_init = nlx_kcore_core_dom_init,
 	.ko_dom_fini = nlx_kcore_core_dom_fini,
 	.ko_buf_register = nlx_kcore_buf_register,

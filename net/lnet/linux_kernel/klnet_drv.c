@@ -406,6 +406,7 @@
      - Shared @c nlx_core_buffer_event objects must be unpinned.
      - Each corresponding @c nlx_kcore_buffer_event object is freed.
      - Each @c nlx_kcore_transfer_mc object is freed.
+     - All pinned buffer data pages must be unpinned.
      - All registered buffers must be deregistered.
      - Shared @c nlx_core_buffer objects must be unpinned.
      - Each corresponding @c nlx_kcore_buffer object is freed.
@@ -823,6 +824,19 @@ static C2_ADDB_EV_DEFINE(nlx_addb_dev_open,  "nlx_dev_open",
 			 C2_ADDB_EVENT_NET_LNET_OPEN,  C2_ADDB_STAMP);
 static C2_ADDB_EV_DEFINE(nlx_addb_dev_close, "nlx_dev_close",
 			 C2_ADDB_EVENT_NET_LNET_CLOSE, C2_ADDB_STAMP);
+static C2_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
+			 C2_ADDB_EVENT_NET_LNET_CLEANUP, C2_ADDB_FLAG);
+
+/**
+   @defgroup LNetDevInternal LNet Transport Device Internals
+   @ingroup LNetDev
+   @brief Detailed functional specification of the internals of the
+   LNet Transport Device
+
+   @see @ref LNetDRVDLD "LNet Transport Device DLD" and @ref LNetDRVDLD-lspec
+
+   @{
+ */
 
 #define WRITABLE_USER_PAGE_GET(uaddr, pg)				\
 	get_user_pages(current, current->mm, (unsigned long) (uaddr),	\
@@ -835,17 +849,6 @@ static C2_ADDB_EV_DEFINE(nlx_addb_dev_close, "nlx_dev_close",
 	SetPageDirty(__pg);			\
 	put_page(__pg);				\
 })
-
-/**
-   @defgroup LNetDevInternal LNet Transport Device Internals
-   @ingroup LNetDev
-   @brief Detailed functional specification of the internals of the
-   LNet Transport Device
-
-   @see @ref LNetDRVDLD "LNet Transport Device DLD" and @ref LNetDRVDLD-lspec
-
-   @{
- */
 
 /**
    Completes the kernel initialization of the kernel and shared core domain
@@ -908,6 +911,18 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 }
 
 /**
+   Unpins the pages referenced in a nlx_kcore_buffer::kb_kiov.
+   @param kb The kernel buffer object
+ */
+static void nlx_dev_buf_pages_unpin(const struct nlx_kcore_buffer *kb)
+{
+	size_t i;
+
+	for (i = 0; i < kb->kb_kiov_len; ++i)
+		WRITABLE_USER_PAGE_PUT(kb->kb_kiov[i].kiov_page);
+}
+
+/**
    Deregisters a shared memory buffer from the kernel domain.
    @param kd The kernel domain object
    @param kb The kernel buffer object
@@ -916,10 +931,15 @@ static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
 					struct nlx_kcore_buffer *kb)
 {
 	struct nlx_core_buffer *cb;
-	/** @todo temp code */
+
+	drv_bufs_tlist_del(kb);
+	nlx_dev_buf_pages_unpin(kb);
 	cb = nlx_kcore_core_buffer_map(kb);
+	kd->kd_drv_ops->ko_buf_deregister(cb, kb);
 	nlx_kcore_core_buffer_unmap(kb);
-	return -ENOSYS;
+	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
+	c2_free(kb);
+	return 0;
 }
 
 /**
@@ -1139,10 +1159,10 @@ static long nlx_dev_ioctl(struct file *file,
 	case C2_LNET_DOM_INIT:
 		rc = nlx_dev_ioctl_dom_init(kd, &p.dip);
 		break;
+	case C2_LNET_BUF_DEREGISTER:
 	default:
 		/** @todo temporary code so this file will compile */
 		nlx_dev_ioctl_buf_register(NULL, NULL);
-		nlx_dev_ioctl_buf_deregister(NULL, NULL);
 		nlx_dev_ioctl_buf_msg_recv(NULL, NULL);
 		nlx_dev_ioctl_buf_msg_send(NULL, NULL);
 		nlx_dev_ioctl_buf_active_recv(NULL, NULL);
@@ -1242,6 +1262,7 @@ static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 
 	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
+		drv_bevs_tlist_del(kbev);
 		c2_free(kbev);
 	} c2_tlist_endfor;
 
@@ -1270,6 +1291,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	struct nlx_core_domain *cd;
 	struct nlx_kcore_transfer_mc *ktm;
 	struct nlx_kcore_buffer *kb;
+	bool cleanup = false;
 
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	file->private_data = NULL;
@@ -1277,14 +1299,17 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	/* user program may not unmap all areas, eg if it was killed */
 	c2_tlist_for(&drv_tms_tl, &kd->kd_drv_tms, ktm) {
 		nlx_dev_tm_cleanup(kd, ktm);
+		drv_tms_tlist_del(ktm);
 		c2_free(ktm);
+		cleanup = true;
 	} c2_tlist_endfor;
 	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
-		/** @todo code this */
-		c2_free(kb);
+		nlx_dev_ioctl_buf_deregister(kd, kb);
+		cleanup = true;
 	} c2_tlist_endfor;
 
-	/** @todo ADDB improper finalization */
+	if (cleanup)
+		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_cleanup, cleanup);
 
 	/* user program may not successfully perform C2_NET_DOM_INIT ioctl */
 	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)) {
