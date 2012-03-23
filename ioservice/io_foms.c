@@ -802,7 +802,7 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
 				  fom->fo_rc = rc;
                           }
                           /* Update successfull data transfered count*/
-		          fom_obj->fcrw_bytes_transfered += stio->si_count;
+		          fom_obj->fcrw_count += stio->si_count;
                 } else {
                         fom->fo_rc = stio->si_rc;
                         fom->fo_phase = FOPH_FAILURE;
@@ -1047,7 +1047,7 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
         fom_obj->fcrw_curr_desc_index     = 0;
         fom_obj->fcrw_curr_ivec_index     = 0;
         fom_obj->fcrw_batch_size          = 0;
-        fom_obj->fcrw_bytes_transfered    = 0;
+        fom_obj->fcrw_count               = 0;
         fom_obj->fcrw_num_stobio_launched = 0;
         fom_obj->fcrw_bp                  = NULL;
 
@@ -1708,7 +1708,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
                 rwrep->rwr_rc = fom->fo_rc;
-                rwrep->rwr_count = fom_obj->fcrw_bytes_transfered;
+                rwrep->rwr_count = fom_obj->fcrw_count;
                 return rc;
         }
 
