@@ -187,7 +187,7 @@ struct c2_io_fom_cob_rw {
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
         /** Number of bytes successfully transferred. */
-        int                              fcrw_count;
+        c2_bcount_t                      fcrw_count;
         /** Number of STOB I/O launched */
         int                              fcrw_num_stobio_launched;
         /** Pointer to buffer pool refered by FOM */
