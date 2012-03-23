@@ -1764,7 +1764,8 @@ void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 	nlx_kcore_nidstrs_put(nidary);
 }
 
-int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
+int nlx_core_new_blessed_bev(struct nlx_core_domain *cd, /* not used */
+			     struct nlx_core_transfer_mc *ctm, /* not used */
 			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
@@ -1947,8 +1948,8 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
 			      PAGE_OFFSET((unsigned long) ctm));
 
-	nlx_core_new_blessed_bev(ctm, &e1);
-	nlx_core_new_blessed_bev(ctm, &e2);
+	nlx_core_new_blessed_bev(cd, ctm, &e1);
+	nlx_core_new_blessed_bev(cd, ctm, &e2);
 	if (e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
 		goto fail;

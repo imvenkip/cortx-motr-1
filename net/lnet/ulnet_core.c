@@ -706,7 +706,7 @@ int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
 			  struct nlx_core_buffer *lcbuf)
 {
 	/** @todo XXX temp: just to compile in user space */
-	nlx_core_bevq_provision(lctm, lcbuf->cb_max_operations);
+	nlx_core_bevq_provision(cd, lctm, lcbuf->cb_max_operations);
 	nlx_core_bevq_release(lctm, lcbuf->cb_max_operations);
 
 	return -ENOSYS;
@@ -825,10 +825,43 @@ void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
 	bev_cqueue_fini(&lctm->ctm_bevq, nlx_core_bev_free_cb);
 }
 
-int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
+int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
+			     struct nlx_core_transfer_mc *ctm,
 			     struct nlx_core_buffer_event **bevp)
 {
-	return -ENOSYS;
+	struct nlx_core_buffer_event *bev;
+	struct c2_lnet_dev_bev_bless_params bp;
+	struct nlx_ucore_domain *ud;
+	int rc;
+
+	C2_PRE(cd != NULL);
+	C2_PRE(nlx_core_tm_invariant(ctm));
+	C2_PRE(ctm->ctm_kpvt != NULL);
+	ud = cd->cd_upvt;
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+
+	NLX_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
+	if (bev == NULL) {
+		*bevp = NULL;
+		return -ENOMEM;
+	}
+	C2_SET0(&bp);
+	bp.dbb_ktm = ctm->ctm_kpvt;
+	bp.dbb_bev = bev;
+	if (ioctl(ud->ud_fd, C2_LNET_BEV_BLESS,  &bp) < 0) {
+		C2_POST(errno != 0);
+		rc = -errno;
+		goto fail_bless;
+	}
+	C2_POST(bev->cbe_kpvt != NULL);
+	*bevp = bev;
+	return 0;
+
+ fail_bless:
+	NLX_FREE_PTR(bev);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
+	return rc;
 }
 
 static void nlx_core_fini(void)

@@ -180,7 +180,8 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	}
 }
 
-int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
+int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
+			    struct nlx_core_transfer_mc *lctm, size_t need)
 {
 	size_t have;
 	int num_to_alloc;
@@ -194,7 +195,7 @@ int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 	num_to_alloc = lctm->ctm_bev_needed + need - have;
 	while (num_to_alloc > 0) {
 		struct nlx_core_buffer_event *bev;
-		rc = nlx_core_new_blessed_bev(lctm, &bev); /* {u,k} specific */
+		rc = nlx_core_new_blessed_bev(lcdom, lctm, &bev);/* {uk} vary */
 		if (rc != 0)
 			break;
 		bev_cqueue_add(&lctm->ctm_bevq, &bev->cbe_tm_link);

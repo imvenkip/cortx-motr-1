@@ -867,11 +867,13 @@ static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
 
    The invoker must lock the transfer machine prior to this call.
 
+   @param lcdom LNet core domain pointer.
    @param lctm Pointer to LNet core TM data structure.
    @param need Number of additional buffer entries required.
    @see nlx_core_new_blessed_bev(), nlx_core_bevq_release()
  */
-static int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
+				   struct nlx_core_transfer_mc *lctm,
 				   size_t need);
 
 /**
@@ -893,6 +895,7 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
    Subroutine to allocate a new buffer event structure initialized
    with the producer space self pointer set.
    This subroutine is defined separately for the kernel and user space.
+   @param lcdom LNet core domain pointer.
    @param lctm LNet core transfer machine pointer.
    In the user space transport this must be initialized at least with the
    core device driver file descriptor.
@@ -903,7 +906,8 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
    @post bev_cqueue_bless(&bevp->cbe_tm_link) has been invoked.
    @see bev_cqueue_bless()
  */
-static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_new_blessed_bev(struct nlx_core_domain *lcdom,
+				    struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer_event **bevp);
 
 /**

@@ -290,6 +290,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
+	struct nlx_core_domain *cd;
 	struct nlx_core_transfer_mc *ctp;
 	struct nlx_core_buffer *cbp;
 	struct nlx_core_buf_desc cbd;
@@ -303,6 +304,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	C2_PRE((nb->nb_flags & C2_NET_BUF_RETAIN) == 0);
 	dp = nb->nb_dom->nd_xprt_private;
 	tp = nb->nb_tm->ntm_xprt_private;
+	cd = &dp->xd_core;
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
 
@@ -311,7 +313,7 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	   Release is done in nlx_xo_bev_deliver_all().
 	*/
 	need = nb->nb_qtype == C2_NET_QT_MSG_RECV ? nb->nb_max_receive_msgs : 1;
-	rc = nlx_core_bevq_provision(ctp, need);
+	rc = nlx_core_bevq_provision(cd, ctp, need);
 	if (rc != 0) {
 		LNET_ADDB_FUNCFAIL_ADD(nb->nb_addb, rc);
 		return rc;
