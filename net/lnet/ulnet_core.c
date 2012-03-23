@@ -27,7 +27,8 @@
    - @ref ULNetCoreDLD-req
    - @ref ULNetCoreDLD-depends
    - @ref ULNetCoreDLD-highlights
-   - @ref LNetCoreDLD-fspec "Functional Specification"    <!-- ./lnet_core.h -->
+   - @subpage LNetCoreDLD-fspec "Functional Specification"    <!--
+                                                               ./lnet_core.h -->
         - @ref LNetCore "LNet Transport Core Interface"   <!-- ./lnet_core.h -->
         - @ref ULNetCore "Core User Space Interface"     <!-- ./ulnet_core.h -->
 	- @ref LNetDev "LNet Transport Device" <!-- linux_kernel/klnet_drv.h -->
@@ -63,7 +64,9 @@
    <hr>
    @section ULNetCoreDLD-def Definitions
 
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>.
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>.
 
    <hr>
    @section ULNetCoreDLD-req Requirements
@@ -132,7 +135,9 @@
    The Core layer in user space has no sub-components but interfaces with
    the kernel core layer via the device driver layer.
 
-   @see <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>,
+   @see <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>,
    specifically the Design Highlights component diagram.
    @see @ref KLNetCoreDLD-lspec-userspace
    "Kernel Support for User Space Transports".
@@ -458,7 +463,8 @@
    minimize context switching.  This is accomplished by use of shared memory and
    a circular buffer event queue maintained in shared memory.  For more
    information, refer to the
-   <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD</a>.
+   <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD</a>.
 
    In general, the User Core layer simply routes parameters to and from
    the Kernel Core via the LNet driver.  The complexity of this routing
@@ -471,12 +477,28 @@
 
    <hr>
    @section ULNetCoreDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
      ./linux_kernel/klnet_core.c -->
    - @ref LNetDRVDLD "LNet Transport Device DLD" <!--
      ./linux_kernel/klnet_drv.c -->
  */
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+
+/**
+   @addtogroup ULNetCore
+
+   @{
+*/
+
+/** The name of the core device */
+static const char *nlx_ucore_dev_name = "/dev/c2lnet";
 
 void *nlx_core_mem_alloc(size_t size, unsigned shift)
 {
@@ -488,49 +510,195 @@ void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 	c2_free_aligned(data, size, shift);
 }
 
-int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *lcdom)
+/**
+   Invariant for the nlx_ucore_domain structure.
+ */
+static bool nlx_ucore_domain_invariant(const struct nlx_ucore_domain *ud)
 {
-	/** @todo XXX implement */
-	return -ENOSYS;
+	if (ud == NULL || ud->ud_magic != C2_NET_LNET_UCORE_DOM_MAGIC)
+		return false;
+	if (ud->ud_fd < 0) /* note: 0 is a valid fd */
+		return false;
+	if (ud->ud_max_buffer_size == 0 ||
+	    ud->ud_max_buffer_segment_size == 0 ||
+	    ud->ud_max_buffer_segments == 0)
+		return false;
+	return true;
 }
 
-void nlx_core_dom_fini(struct nlx_core_domain *lcdom)
+int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 {
-	/** @todo XXX implement */
-}
+	struct nlx_ucore_domain *ud;
+	struct c2_lnet_dev_dom_init_params ip;
+	int rc;
 
-c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom)
-{
-	/** @todo XXX implement */
+	C2_PRE(dom != NULL && cd != NULL);
+	C2_PRE(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
+	C2_ALLOC_PTR_ADDB(ud, &dom->nd_addb, &nlx_addb_loc);
+	if (ud == NULL)
+		return -ENOMEM;
+
+	ud->ud_fd = open(nlx_ucore_dev_name, O_RDWR|O_CLOEXEC);
+	if (ud->ud_fd == -1) {
+		C2_POST(errno != 0);
+		goto fail_open;
+	}
+
+	C2_SET0(&ip);
+	ip.ddi_cd = cd;
+	if (ioctl(ud->ud_fd, C2_LNET_DOM_INIT, &ip) < 0) {
+		C2_POST(errno != 0);
+		rc = -errno;
+		goto fail_dom_init;
+	}
+	C2_POST(cd->cd_kpvt != NULL);
+
+#define NLX_IP_SET(f) ud->ud_##f = ip.ddi_##f
+	NLX_IP_SET(max_buffer_size);
+	NLX_IP_SET(max_buffer_segment_size);
+	NLX_IP_SET(max_buffer_segments);
+#undef NLX_IP_SET
+
+	c2_addb_ctx_init(&ud->ud_addb, &nlx_core_domain_addb_ctx, &c2_net_addb);
+	ud->ud_magic = C2_NET_LNET_UCORE_DOM_MAGIC;
+	C2_POST(nlx_ucore_domain_invariant(ud));
+	cd->cd_upvt = ud;
 	return 0;
+
+ fail_dom_init:
+	close(ud->ud_fd);
+ fail_open:
+	c2_free(ud);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
+	C2_POST(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
+	return rc;
 }
 
-c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *lcdom)
+void nlx_core_dom_fini(struct nlx_core_domain *cd)
 {
-	/** @todo XXX implement */
-	return 0;
+	struct nlx_ucore_domain *ud;
+
+	C2_PRE(cd != NULL);
+	ud = cd->cd_upvt;
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+	close(ud->ud_fd);
+	c2_addb_ctx_fini(&ud->ud_addb);
+	ud->ud_magic = 0;
+	c2_free(ud);
+	cd->cd_upvt = NULL;
+	cd->cd_kpvt = NULL;
+	return;
 }
 
-int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom)
+c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *cd)
 {
-	/** @todo XXX implement */
-	return 0;
+	struct nlx_ucore_domain *ud;
+
+	C2_PRE(cd != NULL);
+	ud = cd->cd_upvt;
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+	return ud->ud_max_buffer_size;
 }
 
-int nlx_core_buf_register(struct nlx_core_domain *lcdom,
+c2_bcount_t nlx_core_get_max_buffer_segment_size(struct nlx_core_domain *cd)
+{
+	struct nlx_ucore_domain *ud;
+
+	C2_PRE(cd != NULL);
+	ud = cd->cd_upvt;
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+	return ud->ud_max_buffer_segment_size;
+}
+
+int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *cd)
+{
+	struct nlx_ucore_domain *ud;
+
+	C2_PRE(cd != NULL);
+	ud = cd->cd_upvt;
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+	return ud->ud_max_buffer_segments;
+}
+
+/**
+   The nlx_ucore_buffer invariant.
+ */
+static bool nlx_ucore_buffer_invariant(const struct nlx_ucore_buffer *ub)
+{
+	if (ub == NULL || ub->ub_magic != C2_NET_LNET_UCORE_BUF_MAGIC)
+		return false;
+	return true;
+}
+
+int nlx_core_buf_register(struct nlx_core_domain *cd,
 			  nlx_core_opaque_ptr_t buffer_id,
 			  const struct c2_bufvec *bvec,
-			  struct nlx_core_buffer *lcbuf)
+			  struct nlx_core_buffer *cb)
 {
-	/** @todo XXX implement */
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	return -ENOSYS;
+	int rc;
+	struct nlx_ucore_buffer *ub;
+	struct nlx_ucore_domain *ud;
+	struct c2_lnet_dev_buf_register_params rp;
+
+	C2_PRE(cb != NULL);
+	C2_PRE(cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
+	C2_PRE(cd != NULL);
+	ud = cd->cd_upvt;
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+
+	C2_ALLOC_PTR_ADDB(ub, &ud->ud_addb, &nlx_addb_loc);
+	if (ud == NULL)
+		return -ENOMEM;
+
+	C2_SET0(&rp);
+	rp.dbr_lcbuf     = cb;
+	rp.dbr_buffer_id = buffer_id;
+	rp.dbr_bvec      = *bvec;
+	if (ioctl(ud->ud_fd, C2_LNET_BUF_REGISTER, &rp) < 0) {
+		C2_POST(errno != 0);
+		rc = -errno;
+		goto fail_register;
+	}
+	C2_POST(cb->cb_kpvt != NULL);
+
+	c2_addb_ctx_init(&ub->ub_addb, &nlx_core_domain_addb_ctx, &c2_net_addb);
+	ub->ub_magic = C2_NET_LNET_UCORE_BUF_MAGIC;
+	C2_POST(nlx_ucore_buffer_invariant(ub));
+	cb->cb_upvt = ub;
+	return 0;
+
+ fail_register:
+	c2_free(ub);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
+	return rc;
 }
 
-void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
-			     struct nlx_core_buffer *lcbuf)
+void nlx_core_buf_deregister(struct nlx_core_domain *cd,
+			     struct nlx_core_buffer *cb)
 {
-	/** @todo XXX implement */
+	struct nlx_ucore_buffer *ub;
+	struct nlx_ucore_domain *ud;
+
+	C2_PRE(cd != NULL);
+	ud = cd->cd_upvt;
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+
+	C2_PRE(cb != NULL);
+	ub = cb->cb_upvt;
+	C2_PRE(nlx_ucore_buffer_invariant(ub));
+
+	C2_PRE(cb->cb_kpvt != NULL);
+	ioctl(ud->ud_fd, C2_LNET_BUF_DEREGISTER, cb->cb_kpvt);
+
+	c2_addb_ctx_fini(&ub->ub_addb);
+	ub->ub_magic = 0;
+	c2_free(ub);
+
+	cb->cb_kpvt = NULL;
+	cb->cb_upvt = NULL;
+	return;
 }
 
 int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
@@ -671,6 +839,8 @@ static int nlx_core_init(void)
 {
 	return 0;
 }
+
+/** @} */ /* ULNetCore */
 
 /*
  *  Local variables:

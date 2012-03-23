@@ -838,6 +838,7 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/linux_kernel/klnet_core.c"
 #include "net/lnet/linux_kernel/klnet_drv.c"
 #else
+#include "net/lnet/ulnet_core.h"
 #include "net/lnet/ulnet_core.c"
 #endif
 #include "net/lnet/lnet_xo.c"
