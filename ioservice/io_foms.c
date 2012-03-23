@@ -137,7 +137,7 @@
    mechanism from transport layer to copy data from source to destination.
    It also use STOB I/O interface to complete the I/O operation.
 
-   Bulk I/O Service implements I/O FOMs to process I/O FOP @ref io_foms.
+   Bulk I/O Service implements I/O FOMs to process I/O FOPs @ref io_foms.
 
    - Bulk read FOM process FOP of type c2_fop_cob_readv
    - Bulk write FOM process FOP of type c2_fop_cob_writev
