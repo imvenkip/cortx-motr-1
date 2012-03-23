@@ -358,8 +358,10 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
    @param kctm Pointer to kcore TM private data.
    @param kcb Pointer to kcore buffer private data with kb_mdh set.
    @pre kcb->kb_mdh set (may or may not be valid by the time the call is made).
-   @pre kcb->kb_ktm == kctm
    @note LNet event could potentially be delivered before this sub returns.
+   There is always an inherent race condition between the invocation of this
+   subroutine and ongoing activity.  No assumptions can be made about the value
+   of ephemeral fields in related buffer data structures.
  */
 static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 				  struct nlx_kcore_transfer_mc *kctm,
@@ -370,7 +372,6 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
-	C2_PRE(kcb->kb_ktm == kctm);
 	rc = LNetMDUnlink(kcb->kb_mdh);
 	NLXDBG(lctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
 	if (rc != 0)
