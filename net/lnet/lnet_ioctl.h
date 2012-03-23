@@ -30,9 +30,7 @@
 
 /**
    Parameters for the C2_LNET_DOM_INIT ioctl.
-   The c2_bufvec is copied into the parameters, not referenced, to simplify
-   the logic required to map the data into kernel space.
-   @see nlx_dev_ioctl_buf_register()
+   @see nlx_dev_ioctl_dom_init()
  */
 struct c2_lnet_dev_dom_init_params {
 	/** The user space core private data pointer for the domain. */
@@ -174,23 +172,6 @@ struct c2_lnet_dev_bev_bless_params {
 
 #define C2_LNET_BEV_BLESS \
 	_IOW(C2_LNET_IOC_MAGIC, 0x35, struct c2_lnet_dev_bev_bless_params)
-
-/**
-   This data structure describes a memory area that is to be mapped or
-   unmapped from user space.
-   @todo this data structure is part of the prototype only, remove it
- */
-struct prototype_mem_area {
-	/** Size of area to map */
-	uint32_t nm_size;
-	/** User space address of start of memory area */
-	unsigned long nm_user_addr;
-};
-
-#define PROTOREAD   _IOR(C2_LNET_IOC_MAGIC, 0x41, int)
-#define PROTOWRITE  _IOW(C2_LNET_IOC_MAGIC, 0x42, int)
-#define PROTOMAP    _IOW(C2_LNET_IOC_MAGIC, 0x43, struct prototype_mem_area)
-#define PROTOUNMAP  _IOW(C2_LNET_IOC_MAGIC, 0x44, struct prototype_mem_area)
 
 /** @} */ /* LNetDev */
 

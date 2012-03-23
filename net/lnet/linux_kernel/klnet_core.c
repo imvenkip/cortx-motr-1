@@ -871,12 +871,17 @@ static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 
 /**
    KCore domain invariant.
+   @note Unlike other kernel core object invariants, the reference to the
+   nlx_core_domain is allowed to be NULL, because initialization of the
+   nlx_kcore_domain in the driver is split between the open and C2_LNET_DOM_INIT
+   ioctl request.
  */
 static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
 {
 	if (kd == NULL || kd->kd_magic != C2_NET_LNET_KCORE_DOM_MAGIC)
 		return false;
-	if (!nlx_core_kmem_loc_invariant(&kd->kd_cd_loc))
+	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc) &&
+	    !nlx_core_kmem_loc_invariant(&kd->kd_cd_loc))
 		return false;
 	return true;
 }
@@ -1011,7 +1016,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	C2_ASSERT(nlx_kcore_buffer_invariant(kbp));
 	ktm = kbp->kb_ktm;
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
-	lctm = nlx_kcore_core_tm_map_atomic(&ktm->ktm_ctm_loc);
+	lctm = nlx_kcore_core_tm_map_atomic(ktm);
 
 	NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s U:%d S:%d T:%d buf:%lx\n",
 		lctm, event, nlx_kcore_lnet_event_type_to_string(event->type),
@@ -1154,6 +1159,8 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 	rc = nlx_kcore_kcore_dom_init(kd);
 	if (rc != 0)
 		goto fail_free_kd;
+	nlx_core_kmem_loc_set(&kd->kd_cd_loc, virt_to_page(cd),
+			      PAGE_OFFSET((unsigned long) cd));
 	rc = nlx_kcore_core_dom_init(kd, cd);
 	if (rc != 0)
 		goto fail_dom_inited;
@@ -1226,7 +1233,6 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 {
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	kb->kb_magic         = C2_NET_LNET_KCORE_BUF_MAGIC;
-	nlx_core_kmem_loc_set(&kb->kb_cb_loc, NULL, 0);
 	kb->kb_ktm           = NULL;
 	kb->kb_buffer_id     = buffer_id;
 	kb->kb_kiov          = NULL;
@@ -1243,7 +1249,7 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 	cb->cb_buffer_id     = buffer_id;
 	cb->cb_magic         = C2_NET_LNET_CORE_BUF_MAGIC;
 
-	C2_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
+	C2_POST(nlx_kcore_buffer_invariant(kb));
 	return 0;
 }
 
@@ -1280,6 +1286,8 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
 	if (kb == NULL)
 		return -ENOMEM;
+	nlx_core_kmem_loc_set(&kb->kb_cb_loc, virt_to_page(cb),
+			      PAGE_OFFSET((unsigned long) cb));
 	rc = nlx_kcore_buf_register(kd, buffer_id, cb, kb);
 	if (rc != 0)
 		goto fail_free_kb;
@@ -1944,15 +1952,14 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 		goto fail_ktm;
 	}
 
+	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
+			      PAGE_OFFSET((unsigned long) ctm));
 	rc = nlx_kcore_tm_start(kd, ctm, ktm);
 	if (rc != 0)
 		goto fail_ktm;
 
 	ctm->ctm_upvt = NULL;
 	ctm->ctm_user_space_xo = false;
-	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
-			      PAGE_OFFSET((unsigned long) ctm));
-
 	nlx_core_new_blessed_bev(ctm, &e1);
 	nlx_core_new_blessed_bev(ctm, &e2);
 	if (e1 == NULL || e2 == NULL) {
