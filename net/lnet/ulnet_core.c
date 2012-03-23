@@ -651,17 +651,6 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	return -ENOSYS;
 }
 
-/** @todo XXX duplicate code, see klnet_core.c, refactor during ulnet task */
-static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
-{
-	struct nlx_core_buffer_event *bev;
-	if (ql != NULL) {
-		bev = container_of(ql, struct nlx_core_buffer_event,
-				   cbe_tm_link);
-		NLX_FREE_PTR(bev);
-	}
-}
-
 void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
 		      struct nlx_core_transfer_mc *lctm)
 {

@@ -1160,8 +1160,6 @@ static long nlx_dev_ioctl(struct file *file,
 
 		nlx_core_nidstr_decode(NULL, NULL, NULL);
 		nlx_core_nidstr_encode(NULL, 0, NULL);
-		nlx_core_mem_alloc(0, 1);
-		nlx_core_mem_free(NULL, 1);
 		nlx_kcore_buffer_uva_to_kiov(NULL, NULL);
 		/* end of temporary code */
 		rc = -ENOTTY;
@@ -1232,7 +1230,7 @@ static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 	 * LNetMDUnlink() fails. That can happen if the operation completes
 	 * simultaneously with the execution of this loop.  Such failures are
 	 * OK in this context.
-	 */
+	*/
 	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
 		if (kb->kb_ktm == ktm)
 			nlx_kcore_LNetMDUnlink(ctm, ktm, kb);

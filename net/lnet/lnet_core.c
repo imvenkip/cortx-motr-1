@@ -170,6 +170,16 @@ static uint32_t nlx_core_kmem_loc_checksum(const struct nlx_core_kmem_loc *loc)
 	return ret;
 }
 
+static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
+{
+	struct nlx_core_buffer_event *bev;
+	if (ql != NULL) {
+		bev = container_of(ql, struct nlx_core_buffer_event,
+				   cbe_tm_link);
+		NLX_FREE_PTR(bev);
+	}
+}
+
 int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm, size_t need)
 {
 	size_t have;

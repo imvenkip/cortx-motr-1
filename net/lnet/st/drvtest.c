@@ -44,8 +44,7 @@ void *nlx_core_mem_alloc(size_t size, unsigned shift)
 /** @todo hack */
 void nlx_core_mem_free(void *data, unsigned shift)
 {
-	/** @todo merge master, use c2_free_aligned */
-	c2_free(data);
+	c2_free_aligned(data, 1<<shift, shift);
 }
 
 /** @todo hack */
