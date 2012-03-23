@@ -64,7 +64,9 @@
 
    <hr>
    @section KLNetCoreDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
 
    <hr>
    @section KLNetCoreDLD-req Requirements
@@ -760,7 +762,9 @@
 
    <hr>
    @section KLNetCoreDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
    - The LNet API.
 
  */
