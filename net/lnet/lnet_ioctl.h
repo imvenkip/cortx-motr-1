@@ -139,41 +139,41 @@ struct c2_lnet_dev_bev_bless_params {
 #define C2_LNET_IOC_MAX_NR  0x4f
 
 #define C2_LNET_DOM_INIT \
-	_IOWR(C2_LNET_IOC_MAGIC, 0x21, struct c2_lnet_dev_dom_init_params);
+	_IOWR(C2_LNET_IOC_MAGIC, 0x21, struct c2_lnet_dev_dom_init_params)
 
 #define C2_LNET_BUF_REGISTER \
-	_IOW(C2_LNET_IOC_MAGIC, 0x26, struct c2_lnet_dev_buf_register_params);
-#define C2_LNET_BUF_DEREGISTER      _IOW(C2_LNET_IOC_MAGIC, 0x27, void *);
+	_IOW(C2_LNET_IOC_MAGIC, 0x26, struct c2_lnet_dev_buf_register_params)
+#define C2_LNET_BUF_DEREGISTER      _IOW(C2_LNET_IOC_MAGIC, 0x27, void *)
 #define C2_LNET_BUF_MSG_RECV \
-	_IOW(C2_LNET_IOC_MAGIC, 0x28, struct c2_lnet_dev_buf_queue_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x28, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_MSG_SEND \
-	_IOW(C2_LNET_IOC_MAGIC, 0x29, struct c2_lnet_dev_buf_queue_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x29, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_ACTIVE_RECV \
-	_IOW(C2_LNET_IOC_MAGIC, 0x2a, struct c2_lnet_dev_buf_queue_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x2a, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_ACTIVE_SEND \
-	_IOW(C2_LNET_IOC_MAGIC, 0x2b, struct c2_lnet_dev_buf_queue_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x2b, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_PASSIVE_RECV \
-	_IOW(C2_LNET_IOC_MAGIC, 0x2c, struct c2_lnet_dev_buf_queue_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x2c, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_PASSIVE_SEND \
-	_IOW(C2_LNET_IOC_MAGIC, 0x2d, struct c2_lnet_dev_buf_queue_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x2d, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_DEL \
-	_IOW(C2_LNET_IOC_MAGIC, 0x2e, struct c2_lnet_dev_buf_queue_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x2e, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_EVENT_WAIT \
-	_IOW(C2_LNET_IOC_MAGIC, 0x2f, struct c2_lnet_dev_buf_event_wait_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x2f, struct c2_lnet_dev_buf_event_wait_params)
 
 #define C2_LNET_NIDSTR_DECODE \
-	_IOWR(C2_LNET_IOC_MAGIC, 0x30, struct c2_lnet_dev_nid_encdec_params);
+	_IOWR(C2_LNET_IOC_MAGIC, 0x30, struct c2_lnet_dev_nid_encdec_params)
 #define C2_LNET_NIDSTR_ENCODE \
-	_IOWR(C2_LNET_IOC_MAGIC, 0x31, struct c2_lnet_dev_nid_encdec_params);
+	_IOWR(C2_LNET_IOC_MAGIC, 0x31, struct c2_lnet_dev_nid_encdec_params)
 #define C2_LNET_NIDSTRS_GET \
-	_IOW(C2_LNET_IOC_MAGIC, 0x32, struct c2_lnet_dev_nidstrs_get_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x32, struct c2_lnet_dev_nidstrs_get_params)
 
 #define C2_LNET_TM_START \
-	_IOW(C2_LNET_IOC_MAGIC, 0x33, struct nlx_core_transfer_mc *);
-#define C2_LNET_TM_STOP             _IOW(C2_LNET_IOC_MAGIC, 0x34, void *);
+	_IOW(C2_LNET_IOC_MAGIC, 0x33, struct nlx_core_transfer_mc *)
+#define C2_LNET_TM_STOP             _IOW(C2_LNET_IOC_MAGIC, 0x34, void *)
 
 #define C2_LNET_BEV_BLESS \
-	_IOW(C2_LNET_IOC_MAGIC, 0x35, struct c2_lnet_dev_bev_bless_params);
+	_IOW(C2_LNET_IOC_MAGIC, 0x35, struct c2_lnet_dev_bev_bless_params)
 
 /**
    This data structure describes a memory area that is to be mapped or
