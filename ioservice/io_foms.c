@@ -1144,13 +1144,14 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
             if (nb == NULL && acquired_net_bufs == 0) {
                     struct c2_rios_buffer_pool   *bpdesc = NULL;
                     /*
-                     * Network buffer not available. Atleast one
+                     * Network buffer not available. At least one
                      * buffer need for zero-copy. Registers FOM clink
                      * with buffer pool wait channel to get buffer
                      * pool non-empty signal.
                      */
                     bpdesc = container_of(fom_obj->fcrw_bp,
                                         struct c2_rios_buffer_pool, rios_bp);
+                    c2_fom_locality_lock(fom);
                     c2_fom_block_at(fom, &bpdesc->rios_bp_wait);
 
                     fom->fo_phase = FOPH_IO_FOM_BUFFER_WAIT;
@@ -1324,6 +1325,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
          * On completion of zero-copy on all buffers rpc_bulk
          * sends signal on channel rbulk->rb_chan.
          */
+        c2_fom_locality_lock(fom);
         c2_fom_block_at(fom, &rbulk->rb_chan);
 
         /*
@@ -1578,6 +1580,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
                  FOPH_IO_STOB_WAIT and check for STOB I/O results.
           */
         if ( fom_obj->fcrw_num_stobio_launched > 0) {
+                c2_fom_locality_lock(fom);
                 c2_fom_block_at(fom, &fom_obj->fcrw_wait);
 
                 /*

@@ -453,10 +453,12 @@ static int stob_read_fom_state(struct c2_fom *fom)
                         stio->si_flags  = 0;
 
                         c2_fom_block_enter(fom);
+                        c2_fom_locality_lock(fom);
                         c2_fom_block_at(fom, &stio->si_wait);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                c2_fom_locality_unlock(fom);
                                 fom->fo_rc = result;
                                 fom->fo_phase = FOPH_FAILURE;
                         } else {
@@ -561,10 +563,12 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         stio->si_flags  = 0;
 
                         c2_fom_block_enter(fom);
+                        c2_fom_locality_lock(fom);
                         c2_fom_block_at(fom, &stio->si_wait);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                c2_fom_locality_unlock(fom);
                                 fom->fo_rc = result;
                                 fom->fo_phase = FOPH_FAILURE;
                         } else {

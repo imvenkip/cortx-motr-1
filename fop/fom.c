@@ -267,9 +267,21 @@ static void fom_wait(struct c2_fom *fom)
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 {
 	C2_PRE(!c2_clink_is_armed(&fom->fo_clink));
+	C2_PRE(c2_mutex_is_locked(&fom->fo_loc->fl_lock));
 
-	c2_mutex_lock(&fom->fo_loc->fl_lock);
 	c2_clink_add(chan, &fom->fo_clink);
+}
+
+void c2_fom_locality_lock(struct c2_fom *fom)
+{
+	C2_PRE(!c2_mutex_is_locked(&fom->fo_loc->fl_lock));
+	c2_mutex_lock(&fom->fo_loc->fl_lock);
+}
+
+void c2_fom_locality_unlock(struct c2_fom *fom)
+{
+	C2_PRE(c2_mutex_is_locked(&fom->fo_loc->fl_lock));
+	c2_mutex_unlock(&fom->fo_loc->fl_lock);
 }
 
 /**

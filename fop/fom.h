@@ -482,15 +482,32 @@ void c2_fom_block_leave(struct c2_fom *fom);
 /**
    Registers fom with the channel provided by the caller on which
    the fom would wait for signal after completing a blocking operation.
-   This function returns with c2_fom_locality::fl_lock held.
    Fom resumes its execution once the chan is signalled.
 
    @param fom, A fom executing a blocking operation
    @param chan, waiting channel registered with the fom during its
 		blocking operation
    @pre !c2_clink_is_armed(&fom->fo_clink)
+   @pre c2_mutex_is_locked(&fom->fo_loc->fl_lock)
+   @post c2_mutex_is_locked(&fom->fo_loc->fl_lock)
  */
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
+
+/**
+   Take the c2_fom_locality::fl_lock.
+
+   @param fom, A fom object
+   @pre !c2_mutex_is_locked(&fom->fo_loc->fl_lock)
+ */
+void c2_fom_locality_lock(struct c2_fom *fom);
+
+/**
+   Take the c2_fom_locality::fl_lock.
+
+   @param fom, A fom object
+   @pre c2_mutex_is_locked(&fom->fo_loc->fl_lock)
+ */
+void c2_fom_locality_unlock(struct c2_fom *fom);
 
 /** @} end of fom group */
 
