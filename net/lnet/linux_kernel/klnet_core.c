@@ -1764,13 +1764,17 @@ void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 	nlx_kcore_nidstrs_put(nidary);
 }
 
-int nlx_core_new_blessed_bev(struct nlx_core_domain *cd, /* not used */
-			     struct nlx_core_transfer_mc *ctm, /* not used */
+int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
+			     struct nlx_core_transfer_mc *ctm,
 			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
+	struct nlx_kcore_transfer_mc *ktm;
 
-	NLX_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
+	ktm = ctm->ctm_kpvt;
+	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
+
+	NLX_ALLOC_PTR_ADDB(bev, &ktm->ktm_addb, &nlx_addb_loc);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
@@ -1952,16 +1956,19 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	nlx_core_new_blessed_bev(cd, ctm, &e2);
 	if (e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
-		goto fail;
+		goto fail_blessed_bev;
 	}
 
 	bev_cqueue_init(&ctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_is_empty(&ctm->ctm_bevq));
 	return 0;
 
-fail:
+ fail_blessed_bev:
+	C2_ASSERT(e2 == NULL);
+	if (e1 != NULL)
+		nlx_core_bev_free_cb(&e1->cbe_tm_link);
 	nlx_kcore_tm_stop(kd, ctm, ktm);
-fail_ktm:
+ fail_ktm:
 	c2_free(ktm);
 	C2_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
