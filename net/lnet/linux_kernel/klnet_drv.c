@@ -1077,22 +1077,87 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
    @param utmp User space pointer to a nlx_core_transfer_mc object
  */
 static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
-				  void __user *utmp)
+				  unsigned long utmp)
 {
-	return -ENOSYS;
+	struct page *pg;
+	struct nlx_core_transfer_mc *ctm;
+	struct nlx_kcore_transfer_mc *ktm;
+	int rc;
+
+	C2_ALLOC_PTR_ADDB(ktm, &kd->kd_addb, &nlx_addb_loc);
+	if (ktm == NULL)
+		return -ENOMEM;
+
+	down_read(&current->mm->mmap_sem);
+	rc = WRITABLE_USER_PAGE_GET(utmp, pg);
+	up_read(&current->mm->mmap_sem);
+	if (rc < 0)
+		goto fail_page;
+	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, PAGE_OFFSET(utmp));
+	ctm = nlx_kcore_core_tm_map(ktm);
+	if (!nlx_core_tm_invariant(ctm) || ctm->ctm_kpvt != NULL) {
+		rc = -EBADR;
+		goto fail_ctm;
+	}
+	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, ktm);
+	if (rc < 0)
+		goto fail_ctm;
+	nlx_kcore_core_tm_unmap(ktm);
+	drv_tms_tlist_add(&kd->kd_drv_tms, ktm);
+	return 0;
+
+fail_ctm:
+	nlx_kcore_core_tm_unmap(ktm);
+	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
+fail_page:
+	c2_free(ktm);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	return rc;
+}
+
+/**
+   Helper for nlx_dev_close() and nlx_dev_ioctl_tm_stop() to clean up kernel
+   resources assocated with an individual transfer machine.
+   @param kd The kernel domain object
+   @param ktm The kernel transfer machine object, removed from the
+   kd->kd_drv_tms and freed upon return.
+ */
+static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
+			       struct nlx_kcore_transfer_mc *ktm)
+{
+	struct nlx_kcore_buffer_event *kbev;
+	struct nlx_core_transfer_mc *ctm;
+
+	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
+		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
+		drv_bevs_tlist_del(kbev);
+		c2_free(kbev);
+	} c2_tlist_endfor;
+
+	ctm = nlx_kcore_core_tm_map(ktm);
+	kd->kd_drv_ops->ko_tm_stop(kd, ctm, ktm);
+	nlx_kcore_core_tm_unmap(ktm);
+	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
+	drv_tms_tlist_del(ktm);
+	c2_free(ktm);
 }
 
 /**
    Complete the kernel portion of the TM stop logic.
-   @param kd The kernel domain object
-   @param ktm The kernel transfer machine object
-   @retval -ENOTEMPTY The user space transport has not correctly cleaned up all
-   of the required resources before stopping the transfer machine.
+   @param kd The kernel domain object.
+   @param arg Ioctl request parameter for the kernel transfer machine object.
  */
-static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd,
-				 struct nlx_kcore_transfer_mc *ktm)
+static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd, unsigned long arg)
 {
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *ktm =
+		    (struct nlx_kcore_transfer_mc *) arg;
+
+	/* protect against user space passing invalid ptr */
+	if (!nlx_kcore_tm_invariant(ktm))
+		return -EBADR;
+	nlx_dev_tm_cleanup(kd, ktm);
+	return 0;
 }
 
 /**
@@ -1159,6 +1224,12 @@ static long nlx_dev_ioctl(struct file *file,
 	case C2_LNET_DOM_INIT:
 		rc = nlx_dev_ioctl_dom_init(kd, &p.dip);
 		break;
+	case C2_LNET_TM_START:
+		rc = nlx_dev_ioctl_tm_start(kd, arg);
+		break;
+	case C2_LNET_TM_STOP:
+		rc = nlx_dev_ioctl_tm_stop(kd, arg);
+		break;
 	case C2_LNET_BUF_DEREGISTER:
 	default:
 		/** @todo temporary code so this file will compile */
@@ -1174,8 +1245,6 @@ static long nlx_dev_ioctl(struct file *file,
 		nlx_dev_ioctl_nidstr_decode(NULL, NULL);
 		nlx_dev_ioctl_nidstr_encode(NULL, NULL);
 		nlx_dev_ioctl_nidstrs_get(NULL, NULL);
-		nlx_dev_ioctl_tm_start(NULL, NULL);
-		nlx_dev_ioctl_tm_stop(NULL, NULL);
 		nlx_dev_ioctl_bev_bless(NULL, NULL);
 
 		nlx_core_nidstr_decode(NULL, NULL, NULL);
@@ -1233,53 +1302,6 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 }
 
 /**
-   Helper for nlx_dev_close() to clean up all kernel resources assocated with
-   an individual transfer machine.
-   @note the caller must still call c2_free() on ktm itself
-   @param ktm The kernel transfer machine object
- */
-static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
-			       struct nlx_kcore_transfer_mc *ktm)
-{
-	struct nlx_core_transfer_mc *ctm;
-	struct nlx_kcore_buffer *kb;
-	struct nlx_kcore_buffer_event *kbev;
-
-	/*
-	 * Wait until no more buffers are associated with this TM and the event
-	 * callback is no longer using the ktm. Only holds spinlock for
-	 * extremely short periods to avoid seriously blocking event callback.
-	 * Depends on:
-	 * 1. Called only from nlx_dev_close(), so there can be no other
-	 *    threads down-ing ktm_sem or adding new buffers to queues.
-	 * 2. kb_ktm is set to NULL in the spinlock and before ktm_sem is up'd.
-	 * 3. The final reference to the ktm in nlx_kcore_eq_cb() is to unlock
-	 *    the spinlock, after up-ing ktm_sem.
-	 * 4. LNet events involving unlink are not dropped.
-	 */
-	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
-		spin_lock(&ktm->ktm_bevq_lock);
-		while (kb->kb_ktm == ktm) {
-			spin_unlock(&ktm->ktm_bevq_lock);
-			c2_semaphore_down(&ktm->ktm_sem);
-			spin_lock(&ktm->ktm_bevq_lock);
-		}
-		spin_unlock(&ktm->ktm_bevq_lock);
-	} c2_tlist_endfor;
-
-	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
-		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
-		drv_bevs_tlist_del(kbev);
-		c2_free(kbev);
-	} c2_tlist_endfor;
-
-	ctm = nlx_kcore_core_tm_map(ktm);
-	nlx_kcore_tm_stop(kd, ctm, ktm);
-	nlx_kcore_core_tm_unmap(ktm);
-	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
-}
-
-/**
    Releases all resources for the given struct file.
 
    This operation is called once when the file is being released.  There is a
@@ -1326,9 +1348,32 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 		}
 	} c2_tlist_endfor;
 	c2_tlist_for(&drv_tms_tl, &kd->kd_drv_tms, ktm) {
+		/*
+		 * Wait until no more buffers are associated with this TM and
+		 * the event callback is no longer using the ktm.  Must be in
+		 * the ktm-based loop because it needs to synchronize use of the
+		 * kb_ktm with the LNet event callback using the spinlock. Only
+		 * holds spinlock for extremely short periods to avoid seriously
+		 * blocking event callback.  Depends on:
+		 * 1. There can be no other threads down-ing ktm_sem or adding
+		 *    new buffers to queues while in nlx_dev_close().
+		 * 2. kb_ktm is set to NULL in the spinlock and before ktm_sem
+		 *    is up'd.
+		 * 3. The final reference to the ktm in nlx_kcore_eq_cb() is to
+		 *    unlock the spinlock, after up-ing ktm_sem.
+		 * 4. LNet events involving unlink are not dropped.
+		 */
+		c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+			spin_lock(&ktm->ktm_bevq_lock);
+			while (kb->kb_ktm == ktm) {
+				spin_unlock(&ktm->ktm_bevq_lock);
+				c2_semaphore_down(&ktm->ktm_sem);
+				spin_lock(&ktm->ktm_bevq_lock);
+			}
+			spin_unlock(&ktm->ktm_bevq_lock);
+		} c2_tlist_endfor;
+
 		nlx_dev_tm_cleanup(kd, ktm);
-		drv_tms_tlist_del(ktm);
-		c2_free(ktm);
 		cleanup = true;
 	} c2_tlist_endfor;
 	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
