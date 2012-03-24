@@ -1027,7 +1027,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 
 	if (event->unlinked != 0) {
 		LNetInvalidateHandle(&kbp->kb_mdh); /* Invalid use, but safe */
-		kbp->kb_ktm = NULL;
+		/* kbp->kb_ktm = NULL set below */
 		is_unlinked = true;
 	}
 	status  = event->status;
@@ -1097,6 +1097,9 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	} else
 		C2_SET0(&bev->cbe_sender);
 
+	/* Reset in spinlock to synchronize with driver nlx_dev_tm_cleanup() */
+	if (is_unlinked)
+		kbp->kb_ktm = NULL;
 	bev_cqueue_put(&lctm->ctm_bevq, ql);
 	spin_unlock(&ktm->ktm_bevq_lock);
 	c2_semaphore_up(&ktm->ktm_sem);

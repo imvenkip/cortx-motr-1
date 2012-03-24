@@ -1241,24 +1241,31 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 			       struct nlx_kcore_transfer_mc *ktm)
 {
-	struct nlx_core_transfer_mc *ctm = nlx_kcore_core_tm_map(ktm);
+	struct nlx_core_transfer_mc *ctm;
 	struct nlx_kcore_buffer *kb;
 	struct nlx_kcore_buffer_event *kbev;
 
 	/*
-	 * Cancel pending operations.  nlx_kcore_LNetMDUnlink() only fails when
-	 * LNetMDUnlink() fails. That can happen if the operation completes
-	 * simultaneously with the execution of this loop.  Such failures are
-	 * OK in this context.
-	*/
-	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
-		if (kb->kb_ktm == ktm)
-			nlx_kcore_LNetMDUnlink(ctm, ktm, kb);
-	} c2_tlist_endfor;
-
-	/** @todo complete coding this: wait for queues to empty (how?),
-	    aka wait for all possible events to be queued in the bevq.
+	 * Wait until no more buffers are associated with this TM and the event
+	 * callback is no longer using the ktm. Only holds spinlock for
+	 * extremely short periods to avoid seriously blocking event callback.
+	 * Depends on:
+	 * 1. Called only from nlx_dev_close(), so there can be no other
+	 *    threads down-ing ktm_sem or adding new buffers to queues.
+	 * 2. kb_ktm is set to NULL in the spinlock and before ktm_sem is up'd.
+	 * 3. The final reference to the ktm in nlx_kcore_eq_cb() is to up
+	 *    the semaphore.
+	 * 4. LNet events involving unlink are not dropped.
 	 */
+	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+		spin_lock(&ktm->ktm_bevq_lock);
+		while (kb->kb_ktm == ktm) {
+			spin_unlock(&ktm->ktm_bevq_lock);
+			c2_semaphore_down(&ktm->ktm_sem);
+			spin_lock(&ktm->ktm_bevq_lock);
+		}
+		spin_unlock(&ktm->ktm_bevq_lock);
+	} c2_tlist_endfor;
 
 	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
@@ -1266,6 +1273,7 @@ static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 		c2_free(kbev);
 	} c2_tlist_endfor;
 
+	ctm = nlx_kcore_core_tm_map(ktm);
 	nlx_kcore_tm_stop(kd, ctm, ktm);
 	nlx_kcore_core_tm_unmap(ktm);
 	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
@@ -1290,13 +1298,33 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	    (struct nlx_kcore_domain *) file->private_data;
 	struct nlx_core_domain *cd;
 	struct nlx_kcore_transfer_mc *ktm;
+	struct nlx_core_transfer_mc *ctm;
 	struct nlx_kcore_buffer *kb;
 	bool cleanup = false;
 
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	file->private_data = NULL;
 
-	/* user program may not unmap all areas, eg if it was killed */
+	/*
+	 * user program may not unmap all areas, eg if it was killed.
+	 * 1. Cancel all outstanding buffer operations.
+	 * 2. Clean up (stop, et al) all running TMs, this can take a while.
+	 * 3. De-register all buffers.
+	 */
+	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+		ktm = kb->kb_ktm;
+		if (ktm != NULL) {
+			/*
+			 * Only LNetMDUnlink() causes nlx_kcore_LNetMDUnlink()
+			 * failure.  That can happen if the operation completes
+			 * concurrently with the execution of this loop.
+			 * Such failures are OK in this context.
+			 */
+			ctm = nlx_kcore_core_tm_map(ktm);
+			nlx_kcore_LNetMDUnlink(ctm, ktm, kb);
+			nlx_kcore_core_tm_unmap(ktm);
+		}
+	} c2_tlist_endfor;
 	c2_tlist_for(&drv_tms_tl, &kd->kd_drv_tms, ktm) {
 		nlx_dev_tm_cleanup(kd, ktm);
 		drv_tms_tlist_del(ktm);
