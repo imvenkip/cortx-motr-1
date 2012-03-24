@@ -1253,8 +1253,8 @@ static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 	 * 1. Called only from nlx_dev_close(), so there can be no other
 	 *    threads down-ing ktm_sem or adding new buffers to queues.
 	 * 2. kb_ktm is set to NULL in the spinlock and before ktm_sem is up'd.
-	 * 3. The final reference to the ktm in nlx_kcore_eq_cb() is to up
-	 *    the semaphore.
+	 * 3. The final reference to the ktm in nlx_kcore_eq_cb() is to unlock
+	 *    the spinlock, after up-ing ktm_sem.
 	 * 4. LNet events involving unlink are not dropped.
 	 */
 	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
@@ -1345,6 +1345,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 		kd->kd_drv_ops->ko_dom_fini(kd, cd);
 		nlx_kcore_core_domain_unmap(kd);
 		WRITABLE_USER_PAGE_PUT(kd->kd_cd_loc.kl_page);
+		nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
 	}
 
 	NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_close);

@@ -1101,8 +1101,8 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	if (is_unlinked)
 		kbp->kb_ktm = NULL;
 	bev_cqueue_put(&lctm->ctm_bevq, ql);
-	spin_unlock(&ktm->ktm_bevq_lock);
 	c2_semaphore_up(&ktm->ktm_sem);
+	spin_unlock(&ktm->ktm_bevq_lock);
 done:
 	nlx_kcore_core_tm_unmap_atomic(lctm);
 }
@@ -1198,6 +1198,7 @@ void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	kd = cd->cd_kpvt;
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	nlx_kcore_core_dom_fini(kd, cd);
+	nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
 	nlx_kcore_kcore_dom_fini(kd);
 	c2_free(kd);
 }
