@@ -119,7 +119,7 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 		goto out;
 	}
 
-	c2_fom_create(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
 	*m = fom;
 	rc = 0;
 
@@ -466,7 +466,6 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	/* fall through */
 errout:
 	reply->rstr_rc = rc;
-	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS: FOPH_FAILURE;
 	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",
 			(rc == 0) ? "successful" : "failed", session, rc);
 	/*

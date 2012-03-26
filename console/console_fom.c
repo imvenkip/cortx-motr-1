@@ -84,8 +84,8 @@ static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 		return -ENOMEM;
 	}
 
-	c2_fom_create(fom, &fop->f_type->ft_fom_type, &c2_cons_fom_device_ops,
-			fop, rep_fop);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, &c2_cons_fom_device_ops,
+		    fop, rep_fop);
 
         *m = fom;
         return 0;
