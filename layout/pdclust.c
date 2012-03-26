@@ -395,6 +395,8 @@ static void pdclust_fini(struct c2_layout *l)
 
 	c2_pdclust_layout_bob_fini(pl);
 
+	c2_parity_math_fini(&pl->pl_math);
+
 	if (pl->pl_tile_cache.tc_inverse != NULL)
 		c2_free(pl->pl_tile_cache.tc_inverse);
 	if (pl->pl_tile_cache.tc_permute != NULL)
