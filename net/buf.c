@@ -405,7 +405,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	}
 
 	cb = buf->nb_callbacks->nbc_cb[qtype];
-	tm->ntm_callback_counter++;
+	C2_CNT_INC(tm->ntm_callback_counter);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	if (pool != NULL && !retain)
@@ -422,7 +422,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	   signal waiters
 	 */
 	c2_mutex_lock(&tm->ntm_mutex);
-	tm->ntm_callback_counter--;
+	C2_CNT_DEC(tm->ntm_callback_counter);
 	c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
 

@@ -86,7 +86,9 @@
    @code
 int      c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
                                struct c2_net_buffer_pool *bufpool,
-                               const struct c2_net_buffer_callbacks *callbacks);
+                               const struct c2_net_buffer_callbacks *callbacks,
+			       c2_bcount_t min_recv_size,
+			       uint32_t max_recv_msgs);
 int      c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
 void     c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
 void     c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour);
