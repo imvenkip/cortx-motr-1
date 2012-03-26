@@ -957,7 +957,7 @@ static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
 	struct nlx_kcore_buffer *kb = (struct nlx_kcore_buffer *) arg;
 
 	/* protect against user space passing invalid ptr */
-	if (!nlx_kcore_buffer_invariant(kb))
+	if (!virt_addr_valid(kb) || !nlx_kcore_buffer_invariant(kb))
 		return -EBADR;
 	nlx_dev_buf_deregister(kd, kb);
 	return 0;
@@ -1175,7 +1175,7 @@ static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd, unsigned long arg)
 		    (struct nlx_kcore_transfer_mc *) arg;
 
 	/* protect against user space passing invalid ptr */
-	if (!nlx_kcore_tm_invariant(ktm))
+	if (!virt_addr_valid(ktm) || !nlx_kcore_tm_invariant(ktm))
 		return -EBADR;
 	nlx_dev_tm_cleanup(kd, ktm);
 	return 0;
