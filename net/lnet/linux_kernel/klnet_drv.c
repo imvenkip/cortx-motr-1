@@ -677,6 +677,11 @@
    shared objects have invariants and pre-conditions to ensure that the objects
    are no longer in use and can be unpinned without causing a mapping failure.
 
+   Cleanup of kernel resources for user domains synchronizes with the Kernel
+   Core LNet EQ callback by use of the nlx_kcore_transfer_mc::ktm_bevq_lock
+   and the nlx_kcore_transfer_mc::ktm_sem, as discussed in
+   @ref KLNetCoreDLD-lspec-thread.
+
    @subsection LNetDRVDLD-lspec-numa NUMA optimizations
 
    The LNet device driver does not allocate threads.  The user space application

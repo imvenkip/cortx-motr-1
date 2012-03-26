@@ -678,6 +678,20 @@
       messages in a single receive buffer, as it implicitly serializes the
       delivery of the events associated with any given receive buffer, thus the
       last event which unlinks the buffer is guaranteed to be delivered last.
+   -# The Colibri LNet transport driver releases all kernel resources
+      associated with a user space domain when the device is released (the final
+      close).  It must not release buffer event objects or transfer machines
+      while the LNet EQ callback requires them.  The Kernel Core LNet EQ
+      callback, nlx_kcore_eq_cb(), resets the association between a buffer and
+      a transfer machine and increments the nlx_kcore_transfer_mc::ktm_sem
+      semaphore while holding the nlx_kcore_transfer_mc::ktm_bevq_lock, and the
+      callback never refers to either object after releasing the lock.  The
+      driver layer holds this lock as well while verifying that a buffer is not
+      associated with a transfer machine, and, outside the lock, decrements the
+      semaphore to wait for buffers to be unlinked by LNet (the device is being
+      released, so no other thread will be decrementing the semaphore).  This
+      assures the buffer event objects and the transfer machine will remain
+      until the final LNet event is delivered.
    -# LNet properly handles the race condition between the automatic unlink
       of the MD and a call to @c LNetMDUnlink().
 
