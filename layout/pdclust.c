@@ -633,16 +633,9 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(cur) < sizeof *pl_rec) {
-		rc = -ENOBUFS;
-		C2_LOG("pdclust_decode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)lid);
-		goto out;
-	}
 
 	/* pl_rec can not be NULL since the buffer size is already verified. */
 	pl_rec = c2_bufvec_cursor_addr(cur);
@@ -739,25 +732,11 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
+	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof pl_rec);
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
+		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec));
 
 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(out) < sizeof pl_rec) {
-		rc = -ENOBUFS;
-		C2_LOG("pdclust_encode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)l->l_id);
-		goto out;
-	}
-
-	/* Check if the buffer for old record is with sufficient size. */
-	if (!ergo(op == C2_LXO_DB_UPDATE,
-	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec)) {
-		rc = -ENOBUFS;
-		C2_LOG("pdclust_encode(): lid %llu, buffer for old record "
-		       "with insufficient size", (unsigned long long)l->l_id);
-		goto out;
-	}
 
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));

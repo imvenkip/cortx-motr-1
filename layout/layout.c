@@ -291,6 +291,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
@@ -298,19 +299,6 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		c2_mutex_lock(&schema->ls_lock);
 	else /* It is locked by c2_ldb_lookup(). */
 		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(cur) < sizeof *rec) {
-		rc = -ENOBUFS;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_decode_fail, "buffer insufficient",
-				    -ENOBUFS);
-
-		C2_LOG("c2_layout_decode(): lid %llu, buffer with "
-		       "insufficient size", (unsigned long long)lid);
-		goto out;
-	}
 
 	/* rec can not be NULL since the buffer size is already verified. */
 	rec = c2_bufvec_cursor_addr(cur);
@@ -422,8 +410,6 @@ out:
  *   continued.
  * - If op is NONE, the buffer contains the serialized representation of the
  *   whole layout.
- * - If the buffer size is found to be insufficient, then the error ENOBUFS is
- *   returned.
  */
 int c2_layout_encode(struct c2_ldb_schema *schema,
 		     struct c2_layout *l,
@@ -445,6 +431,9 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
+	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
+	            c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -454,33 +443,6 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
 
 	c2_mutex_lock(&l->l_lock);
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(out) < sizeof rec) {
-		rc = -ENOBUFS;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_encode_fail, "buffer insufficient",
-				    -ENOBUFS);
-
-		C2_LOG("c2_layout_encode(): lid %llu, buffer with insufficient"
-		       " size", (unsigned long long)l->l_id);
-		goto out;
-	}
-
-	/* Check if the buffer for old record is with sufficient size. */
-	if (!ergo(op == C2_LXO_DB_UPDATE,
-	          c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec)) {
-		rc = -ENOBUFS;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_encode_fail, "buffer insufficient",
-				    -ENOBUFS);
-
-		C2_LOG("c2_layout_encode(): lid %llu, buffer for old record "
-		       "with insufficient size", (unsigned long long)l->l_id);
-		goto out;
-	}
 
 	rc = layout_type_verify(schema, l->l_type->lt_id);
 	if (rc != 0) {

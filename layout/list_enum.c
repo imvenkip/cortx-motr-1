@@ -427,16 +427,9 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(cur != NULL);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ldb_ce_header);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(cur) < sizeof *ldb_ce_header) {
-		rc = -ENOBUFS;
-		C2_LOG("list_decode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)lid);
-		goto out;
-	}
 
 	ldb_ce_header = c2_bufvec_cursor_addr(cur);
 
@@ -454,16 +447,12 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	num_inline = ldb_ce_header->llces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : ldb_ce_header->llces_nr;
 
-	/* Check if the buffer is with sufficient size. */
-	if ((op == C2_LXO_DB_NONE && c2_bufvec_cursor_step(cur) <
-	     ldb_ce_header->llces_nr * sizeof *cob_id) ||
-	    (op == C2_LXO_DB_LOOKUP && c2_bufvec_cursor_step(cur) <
-	     num_inline * sizeof *cob_id)) {
-			rc = -ENOBUFS;
-			C2_LOG("list_decode(): lid %llu, buffer with "
-			       "insufficient size", (unsigned long long)lid);
-			goto out;
-	}
+	C2_ASSERT(ergo(op == C2_LXO_DB_NONE,
+		       c2_bufvec_cursor_step(cur) >=
+				ldb_ce_header->llces_nr * sizeof *cob_id));
+	C2_ASSERT(ergo(op == C2_LXO_DB_LOOKUP,
+		       c2_bufvec_cursor_step(cur) >=
+				num_inline * sizeof *cob_id));
 
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
 		if (i < num_inline || op == C2_LXO_DB_NONE) {
@@ -592,25 +581,12 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
+	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ldb_ce_header);
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
+		    c2_bufvec_cursor_step(oldrec_cur) >=
+				sizeof *ldb_ce_oldheader));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(out) < sizeof ldb_ce_header) {
-		rc = -ENOBUFS;
-		C2_LOG("listt_encode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)l->l_id);
-		goto out;
-	}
-
-	/* Check if the buffer for old record is with sufficient size. */
-	if (!ergo(op == C2_LXO_DB_UPDATE, c2_bufvec_cursor_step(oldrec_cur) >=
-					  sizeof *ldb_ce_oldheader)) {
-		rc = -ENOBUFS;
-		C2_LOG("list_encode(): lid %llu, buffer for old record with "
-		       "insufficient size", (unsigned long long)l->l_id);
-		goto out;
-	}
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
@@ -633,14 +609,8 @@ static int list_encode(struct c2_ldb_schema *schema,
 
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *ldb_ce_oldheader);
 
-		if(c2_bufvec_cursor_step(oldrec_cur) <
-			  num_inline * sizeof *cob_id_old) {
-			rc = -ENOBUFS;
-			C2_LOG("list_encode(): lid %llu, buffer for old "
-			       "record with insufficient size",
-			       (unsigned long long)l->l_id);
-			goto out;
-		}
+		C2_ASSERT(c2_bufvec_cursor_step(oldrec_cur) >=
+			  num_inline * sizeof *cob_id_old);
 
 		for (i = 0; i < num_inline; ++i) {
 			cob_id_old = c2_bufvec_cursor_addr(oldrec_cur);
@@ -663,17 +633,15 @@ static int list_encode(struct c2_ldb_schema *schema,
 					 sizeof ldb_ce_header);
 	C2_ASSERT(nbytes == sizeof ldb_ce_header);
 
-	/* Check if the buffer is with sufficient size. */
-	if ((op == C2_LXO_DB_NONE && c2_bufvec_cursor_step(out) <
-	     list_enum->lle_nr * sizeof list_enum->lle_list_of_cobs[i]) ||
-	    (op != C2_LXO_DB_NONE && c2_bufvec_cursor_step(out) <
-	     num_inline * sizeof list_enum->lle_list_of_cobs[i])) {
-			rc = -ENOBUFS;
-			C2_LOG("list_encode(): lid %llu, buffer with "
-			       "insufficient size",
-			       (unsigned long long)l->l_id);
-			goto out;
-	}
+	C2_ASSERT(ergo(op == C2_LXO_DB_NONE,
+		       c2_bufvec_cursor_step(out) >=
+				list_enum->lle_nr *
+				sizeof list_enum->lle_list_of_cobs[i]));
+
+	C2_ASSERT(ergo(op == C2_LXO_DB_LOOKUP,
+		       c2_bufvec_cursor_step(out) >=
+				num_inline *
+				sizeof list_enum->lle_list_of_cobs[i]));
 
 	for(i = 0; i < list_enum->lle_nr; ++i) {
 		if (i < num_inline || op == C2_LXO_DB_NONE) {

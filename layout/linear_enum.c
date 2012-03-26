@@ -207,16 +207,9 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(cur) < sizeof *lin_attr) {
-		rc = -ENOBUFS;
-		C2_LOG("linear_decode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)lid);
-		goto out;
-	}
 
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
@@ -270,25 +263,11 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
+	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);
+	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
+		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
-	/* Check if the buffer is with sufficient size. */
-	if (c2_bufvec_cursor_step(out) < sizeof lin_enum->lle_attr) {
-		rc = -ENOBUFS;
-		C2_LOG("linear_encode(): lid %llu, buffer with insufficient "
-		       "size", (unsigned long long)l->l_id);
-		goto out;
-	}
-
-	/* Check if the buffer for old record is with sufficient size. */
-	if (!ergo(op == C2_LXO_DB_UPDATE,
-	    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr)) {
-		rc = -ENOBUFS;
-		C2_LOG("linear_encode(): lid %llu, buffer for old record with"
-		       " insufficient size", (unsigned long long)l->l_id);
-		goto out;
-	}
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,

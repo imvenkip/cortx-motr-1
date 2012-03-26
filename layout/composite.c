@@ -211,8 +211,7 @@ static int composite_encode(struct c2_ldb_schema *schema,
 		/*
 		Store composite layout type specific fields like information
 		about the sub-layouts, into the buffer by referring it from
-		c2_layout object l. If the buffer is found to be insufficient,
-		return the error ENOBUFS.
+		c2_layout object l.
 		 */
 	}
 

@@ -357,7 +357,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"    /* memset() */
-#include "lib/vec.h"     /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
+#include "lib/vec.h"     /* C2_BUFVEC_INIT_BUF() */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
