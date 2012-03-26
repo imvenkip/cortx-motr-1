@@ -209,8 +209,7 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 
 out:
 	if (rc != 0 && list_enum != NULL) {
-		if (list_enum->lle_list_of_cobs != NULL)
-			c2_free(list_enum->lle_list_of_cobs);
+		c2_free(list_enum->lle_list_of_cobs);
 		c2_layout_enum_fini(&list_enum->lle_base);
 		c2_free(list_enum);
 	}
@@ -492,8 +491,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_POST(c2_list_enum_invariant(list_enum, lid));
 
 out:
-	if (cob_list != NULL)
-		c2_free(cob_list);
+	c2_free(cob_list);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;

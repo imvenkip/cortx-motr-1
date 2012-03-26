@@ -396,12 +396,9 @@ static void pdclust_fini(struct c2_layout *l)
 
 	c2_parity_math_fini(&pl->pl_math);
 
-	if (pl->pl_tile_cache.tc_inverse != NULL)
-		c2_free(pl->pl_tile_cache.tc_inverse);
-	if (pl->pl_tile_cache.tc_permute != NULL)
-		c2_free(pl->pl_tile_cache.tc_permute);
-	if (pl->pl_tile_cache.tc_lcode != NULL)
-		c2_free(pl->pl_tile_cache.tc_lcode);
+	c2_free(pl->pl_tile_cache.tc_inverse);
+	c2_free(pl->pl_tile_cache.tc_permute);
+	c2_free(pl->pl_tile_cache.tc_lcode);
 	if (pl->pl_tgt != NULL) {
 		for (i = 0; i < pl->pl_attr.pa_P; ++i) {
 			if (c2_stob_id_is_set(&pl->pl_tgt[i]))

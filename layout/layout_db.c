@@ -483,11 +483,10 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
 /**
  * Read existing record from the layouts table into the provided area.
  */
-static int get_oldrec(struct c2_ldb_schema *schema,
-		      struct c2_layout *l, void *area, uint32_t nbytes)
+static int rec_get(struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+		   struct c2_layout *l, void *area, uint32_t nbytes)
 {
 	struct c2_db_pair  pair;
-	struct c2_db_tx    tx;
 	int                rc;
 
 	C2_PRE(schema != NULL);
@@ -495,38 +494,15 @@ static int get_oldrec(struct c2_ldb_schema *schema,
 	C2_PRE(area != NULL);
 	C2_PRE(nbytes >= sizeof(struct c2_ldb_rec));
 
-	/*
-	 * The only caller of this routine is c2_ldb_update(). Hence, the
-	 * ADDB messages are added using ldb_update_fail event.
-	 */
-	rc = c2_db_tx_init(&tx, schema->ls_dbenv, DEFAULT_DB_FLAG);
-	if(rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_update_fail, "c2_db_tx_init()", rc);
-		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() rc %d",
-		       (unsigned long long)l->l_id, rc);
-		goto out;
-	}
-
 	c2_db_pair_setup(&pair, &schema->ls_layouts,
 			 &l->l_id, sizeof l->l_id,
 			 area, nbytes);
 
-	rc = c2_table_lookup(&tx, &pair);
+	rc = c2_table_lookup(tx, &pair);
+	C2_ASSERT(rc == 0);
 
 	c2_db_pair_fini(&pair);
 
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_update_fail, "c2_table_lookup()", rc);
-		C2_LOG("get_oldrec(): lid %llu, c2_table_lookup() failed, "
-		       "rc %d", (unsigned long long)l->l_id, rc);
-	}
-
-	/* Ignoring the return status, this being a lookup operation. */
-	c2_db_tx_commit(&tx);
-
-out:
 	return rc;
 }
 
@@ -550,8 +526,8 @@ int layout_type_verify(const struct c2_ldb_schema *schema, uint32_t lt_id)
 
 	if (schema->ls_type[lt_id] == NULL) {
 		rc = -ENOENT;
-		C2_LOG("layout_type_verify(): Unregistered Layout type,"
-	               " Layout_type_id %lu", (unsigned long)lt_id);
+		C2_LOG("layout_type_verify(): Unknown layout type, "
+	               "Layout_type_id %lu", (unsigned long)lt_id);
 	}
 out:
 	return rc;
@@ -572,7 +548,7 @@ int enum_type_verify(const struct c2_ldb_schema *schema, uint32_t let_id)
 
 	if (schema->ls_enum[let_id] == NULL) {
 		rc = -ENOENT;
-		C2_LOG("layout_type_verify(): Unregistered Enum type, "
+		C2_LOG("layout_type_verify(): Unknown enum type, "
 	               "Enum_type_id %lu", (unsigned long)let_id);
 	}
 out:
@@ -594,25 +570,16 @@ out:
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *dbenv)
 {
-	int      rc;
-	uint32_t i;
+	int rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(dbenv != NULL);
 
 	C2_ENTRY();
 
+	C2_SET0(schema);
+
 	schema->ls_dbenv = dbenv;
-
-	for (i = 0; i < ARRAY_SIZE(schema->ls_type); ++i) {
-		schema->ls_type[i]      = NULL;
-		schema->ls_type_data[i] = NULL;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(schema->ls_enum); ++i) {
-		schema->ls_enum[i]      = NULL;
-		schema->ls_enum_data[i] = NULL;
-	}
 
 	c2_mutex_init(&schema->ls_lock);
 
@@ -1066,8 +1033,9 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	c2_mutex_lock(&schema->ls_lock);
 
 	/*
-	 * Get the old record from the layouts table. It is used to ensure that
-	 * nothing other than l_ref gets updated for an existing layout record.
+	 * Get the existing record from the layouts table. It is used to ensure
+	 * that nothing other than l_ref gets updated for an existing layout
+	 * record.
 	 */
 	recsize = c2_ldb_max_recsize(schema);
 	oldrec_area = c2_alloc(recsize);
@@ -1081,9 +1049,9 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 	memset(oldrec_area, 0, recsize);
 
-	rc = get_oldrec(schema, l, oldrec_area, recsize);
+	rc = rec_get(schema, tx, l, oldrec_area, recsize);
 	if (rc != 0) {
-		C2_LOG("c2_ldb_update(): lid %llu, get_oldrec() failed, "
+		C2_LOG("c2_ldb_update(): lid %llu, rec_get() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
 		goto out;
 	}
@@ -1141,8 +1109,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	}
 
 out:
-	if (oldrec_area != NULL)
-		c2_free(oldrec_area);
+	c2_free(oldrec_area);
 
 	if (rc == 0) {
 		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
