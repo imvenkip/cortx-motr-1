@@ -930,10 +930,10 @@ static void nlx_dev_buf_pages_unpin(const struct nlx_kcore_buffer *kb)
 /**
    Deregisters a shared memory buffer from the kernel domain.
    @param kd The kernel domain object
-   @param kb The kernel buffer object
+   @param kb The kernel buffer object, freed upon return
  */
-static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
-					struct nlx_kcore_buffer *kb)
+static void nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
+				   struct nlx_kcore_buffer *kb)
 {
 	struct nlx_core_buffer *cb;
 
@@ -944,6 +944,22 @@ static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
 	nlx_kcore_core_buffer_unmap(kb);
 	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
 	c2_free(kb);
+}
+
+/**
+   Deregisters a shared memory buffer from the kernel domain.
+   @param kd The kernel domain object
+   @param arg Ioctl request parameter for the kernel buffer object.
+ */
+static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
+					unsigned long arg)
+{
+	struct nlx_kcore_buffer *kb = (struct nlx_kcore_buffer *) arg;
+
+	/* protect against user space passing invalid ptr */
+	if (!nlx_kcore_buffer_invariant(kb))
+		return -EBADR;
+	nlx_dev_buf_deregister(kd, kb);
 	return 0;
 }
 
@@ -1123,7 +1139,7 @@ fail_page:
 
 /**
    Helper for nlx_dev_close() and nlx_dev_ioctl_tm_stop() to clean up kernel
-   resources assocated with an individual transfer machine.
+   resources associated with an individual transfer machine.
    @param kd The kernel domain object
    @param ktm The kernel transfer machine object, removed from the
    kd->kd_drv_tms and freed upon return.
@@ -1236,6 +1252,8 @@ static long nlx_dev_ioctl(struct file *file,
 		rc = nlx_dev_ioctl_tm_stop(kd, arg);
 		break;
 	case C2_LNET_BUF_DEREGISTER:
+		rc = nlx_dev_ioctl_buf_deregister(kd, arg);
+		break;
 	default:
 		/** @todo temporary code so this file will compile */
 		nlx_dev_ioctl_buf_register(NULL, NULL);
@@ -1382,7 +1400,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 		cleanup = true;
 	} c2_tlist_endfor;
 	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
-		nlx_dev_ioctl_buf_deregister(kd, kb);
+		nlx_dev_buf_deregister(kd, kb);
 		cleanup = true;
 	} c2_tlist_endfor;
 
