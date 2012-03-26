@@ -168,7 +168,7 @@
  * @endverbatim
  *
  * layout_type_specific_data field is used to store layout type or layout enum
- * type specific data. Structure of this field varies accordingly. e.g.
+ * type specific data. Structure of this field varies accordingly. For example:
  * - In case of a layout with PDCLUST layout type, the structure
  *   c2_ldb_pdclust_rec is used to store attributes like enumeration type id,
  *   N, K, P.
@@ -176,8 +176,8 @@
  *   structure with size LDB_MAX_INLINE_COB_ENTRIES is used to store a few COB
  *   entries inline into the layouts table itself.
  * - It is possible that some layouts do not need to store any layout type or
- *   layout enum type specific data in this layouts table. e.g. A layout with
- *   COMPOSITE layout type.
+ *   layout enum type specific data in this layouts table. For example, a
+ *   layout with COMPOSITE layout type.
  *
  * @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
  * @verbatim
@@ -363,17 +363,12 @@
 #include "lib/trace.h"
 
 #include "db/db_common.h" /* c2_db_buf_init() */
+#include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 
-extern int LID_NONE;
 extern bool layout_invariant(const struct c2_layout *l);
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
-
-enum {
-	DEF_DB_FLAGS = 0
-};
-int DEFAULT_DB_FLAG = DEF_DB_FLAGS;
 
 C2_ADDB_EV_DEFINE(ldb_lookup_success, "layout_lookup_success",
 		  C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS, C2_ADDB_FLAG);
@@ -599,7 +594,7 @@ out:
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *dbenv)
 {
-	int rc;
+	int      rc;
 	uint32_t i;
 
 	C2_PRE(schema != NULL);
@@ -831,9 +826,9 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
  */
 uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 {
-	uint32_t   i;
-	uint32_t   recsize;
-	uint32_t   max_recsize = 0;
+	uint32_t i;
+	uint32_t recsize;
+	uint32_t max_recsize = 0;
 
 	C2_PRE(schema != NULL);
 
@@ -870,9 +865,9 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  struct c2_db_tx *tx,
 		  struct c2_layout **out)
 {
-	int                      rc;
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  cur;
+	int                     rc;
+	struct c2_bufvec        bv;
+	struct c2_bufvec_cursor cur;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);

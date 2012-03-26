@@ -33,17 +33,13 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "pool/pool.h"         /* c2_pool_id_is_valid() */
+#include "pool/pool.h" /* c2_pool_id_is_valid() */
+#include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 #include "layout/layout.h"
 
 extern int layout_type_verify(const struct c2_ldb_schema *schema,
 			      uint32_t lt_id);
-
-enum layout_internal {
-	ENUM_LID_NONE = 0
-};
-int LID_NONE = ENUM_LID_NONE;
 
 /** ADDB instrumentation for layout. */
 static const struct c2_addb_ctx_type layout_addb_ctx_type = {
@@ -75,15 +71,16 @@ bool layout_invariant(const struct c2_layout *l)
 		l->l_ops != NULL;
 }
 
-bool striped_layout_invariant(const struct c2_layout_striped *stl)
-{
-	return stl != NULL && stl->ls_enum != NULL &&
-		layout_invariant(&stl->ls_base);
-}
-
 bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid)
 {
 	return le != NULL && le->le_lid == lid && le->le_ops != NULL;
+}
+
+bool striped_layout_invariant(const struct c2_layout_striped *stl,
+			      uint64_t lid)
+{
+	return stl != NULL && enum_invariant(stl->ls_enum, lid) &&
+		layout_invariant(&stl->ls_base);
 }
 
 int c2_layouts_init(void)
@@ -167,7 +164,7 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
 
 	str_l->ls_enum = e;
 
-	C2_POST(striped_layout_invariant(str_l));
+	C2_POST(striped_layout_invariant(str_l, lid));
 
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 	return 0;
@@ -179,7 +176,7 @@ int c2_layout_striped_init(struct c2_layout_striped *str_l,
  */
 void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 {
-	C2_PRE(striped_layout_invariant(str_l));
+	C2_PRE(striped_layout_invariant(str_l, str_l->ls_base.l_id));
 
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 
@@ -246,10 +243,10 @@ void c2_layout_put(struct c2_layout *l)
 
 /**
  * This method
- * @li Either continues to build an in-memory layout object from its
- *     representation 'stored in the Layout DB'
- * @li Or builds an in-memory layout object from its representation 'received
- *     over the network'.
+ * - Either continues to build an in-memory layout object from its
+ *   representation 'stored in the Layout DB'
+ * - Or builds an in-memory layout object from its representation 'received
+ *   over the network'.
  *
  * Two use cases of c2_layout_decode()
  * - Server decodes an on-disk layout record by reading it from the Layout
@@ -393,8 +390,8 @@ out:
 
 /**
  * This method uses an in-memory layout object and
- * @li Either adds/updates/deletes it to/from the Layout DB
- * @li Or converts it to a buffer that can be passed on over the network.
+ * - Either adds/updates/deletes it to/from the Layout DB
+ * - Or converts it to a buffer that can be passed on over the network.
  *
  * Two use cases of c2_layout_encode()
  * - Server encodes an in-memory layout object into a buffer, so as to send

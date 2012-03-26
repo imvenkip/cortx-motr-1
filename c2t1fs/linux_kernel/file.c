@@ -61,10 +61,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
 static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 {
-	struct c2_layout_striped *str_layout;
-
-	str_layout = container_of(l, struct c2_layout_striped, ls_base);
-	return container_of(str_layout, struct c2_pdclust_layout, pl_base);
+	return container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 }
 
 const struct file_operations c2t1fs_reg_file_operations = {

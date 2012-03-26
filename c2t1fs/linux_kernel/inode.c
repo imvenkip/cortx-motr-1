@@ -108,7 +108,6 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
 	struct c2_pdclust_layout *pd_layout;
-	struct c2_layout_striped *str_layout;
 	struct c2t1fs_dir_ent    *de;
 
 	C2_ENTRY("ci: %p", ci);
@@ -122,10 +121,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	str_layout = container_of(ci->ci_layout, struct c2_layout_striped,
-				  ls_base);
-	pd_layout = container_of(str_layout, struct c2_pdclust_layout,
-				 pl_base);
+	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
+				 pl_base.ls_base);
 	if (pd_layout != NULL) {
 		c2_pool_fini(pd_layout->pl_pool);
 		c2_free(pd_layout->pl_pool);
@@ -375,9 +372,11 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
 	/**
-	 * @todo A pool will be created per file system and not per inode.
-	 * The current change is only to make the compilation go through.
-	 * This will be taken care of through the task TASKID (TBD).
+	 * @todo A pool shall be created per file system, at mount time and not
+	 * per inode.
+	 * The current change related to LayoutDB code is only to make the
+	 * compilation go through. The fix for pool initialization will be made
+	 * soon, through LogD 857.
 	 */
 
 	rc = c2_pool_init(pool, DEF_POOL_ID, P);
@@ -386,7 +385,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 
 	/**
 	 * @todo A dummy enumeration object is being created here so that the
-	 * compilation goes through. c2t1fs  code is not using enumeration
+	 * compilation goes through. c2t1fs code is not using enumeration
 	 * at this point but will be using it eventually.
 	 * This will be taken care of through the task TASKID (TBD).
 	 */

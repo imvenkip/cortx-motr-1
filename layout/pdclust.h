@@ -32,16 +32,16 @@
  * parity group. Due to this, parity de-clustered layouts are parametrised by
  * three numbers:
  *
- * @li N---number of data units in a parity group;
+ * - N---number of data units in a parity group;
  *
- * @li K---number of parity units in a parity group. Data in an object striped
- * with a given K can survive a loss of up to K target objects. When a target
- * object failure is repaired, distributed spare units are used to store
- * re-constructed data. There are K spare units in each parity group, making the
- * latter consisting of N+2*K units;
+ * - K---number of parity units in a parity group. Data in an object striped
+ *   with a given K can survive a loss of up to K target objects. When a target
+ *   object failure is repaired, distributed spare units are used to store
+ *   re-constructed data. There are K spare units in each parity group, making
+ *   the latter consisting of N+2*K units;
  *
- * @li P---number of target objects over which layout stripes data, parity and
- * spare units. A target object is divided into frames of unit size.
+ * - P---number of target objects over which layout stripes data, parity and
+ *   spare units. A target object is divided into frames of unit size.
  *
  * Layout maps source units to target frames. This mapping is defined in terms
  * of "tiles" which are groups of frames. A tile can be seen either as an L*P

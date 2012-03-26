@@ -212,6 +212,10 @@ int main(int argc, char **argv)
 
 	result = c2_pool_init(&pool, DEF_POOL_ID, P);
 	if (result == 0) {
+		/**
+		 * Creating a dummy linear enum object here so as to supply it
+		 * to c2_pdclust_build(), though it is not used here.
+		 */
 		result = c2_linear_enum_build(id, pool.po_width, 100, 200, &le);
 		if (result == 0) {
 			result = c2_pdclust_build(&pool, id, N, K, unitsize,

@@ -34,14 +34,13 @@
 #include "lib/trace.h"
 
 #include "fid/fid.h"
+#include "layout/layout_internal.h"
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
 #include "layout/list_enum.h"
 
-extern int LID_NONE;
 extern bool layout_invariant(const struct c2_layout *l);
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
-extern int DEFAULT_DB_FLAG;
 
 enum {
 	/**
@@ -297,7 +296,7 @@ out:
 static void list_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_enum_type *et)
 {
-	struct list_schema_data  *lsd;
+	struct list_schema_data *lsd;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(et != NULL);
@@ -770,24 +769,24 @@ static void list_get(const struct c2_layout_enum *le, uint64_t lid,
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {
-	.leo_nr       = list_nr,
-	.leo_get      = list_get,
-	.leo_fini     = list_fini
+	.leo_nr           = list_nr,
+	.leo_get          = list_get,
+	.leo_fini         = list_fini
 };
 
 static const struct c2_layout_enum_type_ops list_type_ops = {
-	.leto_register       = list_register,
-	.leto_unregister     = list_unregister,
-	.leto_max_recsize    = list_max_recsize,
-	.leto_recsize        = list_recsize,
-	.leto_decode         = list_decode,
-	.leto_encode         = list_encode,
+	.leto_register    = list_register,
+	.leto_unregister  = list_unregister,
+	.leto_max_recsize = list_max_recsize,
+	.leto_recsize     = list_recsize,
+	.leto_decode      = list_decode,
+	.leto_encode      = list_encode,
 };
 
 const struct c2_layout_enum_type c2_list_enum_type = {
-	.let_name            = "list",
-	.let_id              = 0,
-	.let_ops             = &list_type_ops
+	.let_name         = "list",
+	.let_id           = 0,
+	.let_ops          = &list_type_ops
 };
 
 

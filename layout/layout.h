@@ -32,12 +32,12 @@
  * It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
  *
  * An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
- * the layout types need an enumeration. e.g. Layouts with types composite,
- * de-dup do not need an enumeration.
+ * the layout types need an enumeration. For example, layouts with types
+ * composite, de-dup do not need an enumeration.
  *
  * An 'enumeration type' determines how a collection of component object
- * identifiers (cob-fid) is specified. e.g. it may be specified as a list or
- * by means of some linear formula.
+ * identifiers (cob-fid) is specified. For example, it may be specified as a
+ * list or by means of some linear formula.
  *
  * Layout types supported currently are:
  * - PDCLUST <BR>
@@ -143,9 +143,9 @@ enum c2_layout_xcode_op {
 };
 
 /**
- * Structure specific to per layout type.
+ * Structure specific to a layout type.
  * There is an instance of c2_layout_type for each one of the layout types.
- * e.g. for PDCLUST and COMPOSITE layout types.
+ * For example, for PDCLUST and COMPOSITE layout types.
  */
 struct c2_layout_type {
 	/** Layout type name. */
@@ -161,7 +161,7 @@ struct c2_layout_type {
 struct c2_layout_type_ops {
 	/**
 	 * Allocates layout type specific schema data.
-	 * e.g. comp_layout_ext_map table.
+	 * For example, comp_layout_ext_map table.
 	 */
 	int        (*lto_register)(struct c2_ldb_schema *schema,
 				   const struct c2_layout_type *lt);
@@ -234,9 +234,9 @@ struct c2_layout_enum_ops {
 };
 
 /**
- * Structure specific to per layout enumeration type.
+ * Structure specific to a layout enumeration type.
  * There is an instance of c2_layout_enum_type for each one of enumeration
- * types. e.g. for LINEAR and LIST enumeration types.
+ * types. For example, for LINEAR and LIST enumeration types.
  */
 struct c2_layout_enum_type {
 	/** Layout enumeration type name. */
@@ -252,7 +252,7 @@ struct c2_layout_enum_type {
 struct c2_layout_enum_type_ops {
 	/**
 	 * Allocates enumeration type specific schema data.
-	 * e.g. cob_lists table.
+	 * For example, cob_lists table.
 	 */
 	int        (*leto_register)(struct c2_ldb_schema *schema,
 				    const struct c2_layout_enum_type *et);
@@ -303,7 +303,7 @@ struct c2_layout_striped {
 	struct c2_layout           ls_base;
 
 	/** Layout enumeration. */
-	struct c2_layout_enum      *ls_enum;
+	struct c2_layout_enum     *ls_enum;
 };
 
 

@@ -33,17 +33,17 @@
  * necessary. To this end permute_column() uses a sequence of pseudo-random
  * numbers obtained from a PRNG (c2_rnd()). Few comments are in order:
  *
- * @li to seed a PRNG, layout seed and tile number are hashed by a
- * multiplicative cache (hash());
+ * - to seed a PRNG, layout seed and tile number are hashed by a
+ *   multiplicative cache (hash());
  *
- * @li system PRNG cannot be used, because reproducible sequences are
- * needed. c2_rnd() is a very simple linear congruential generator straight from
- * TAOCP. It takes care to return higher, more random, bits of result;
+ * - system PRNG cannot be used, because reproducible sequences are needed.
+ *   c2_rnd() is a very simple linear congruential generator straight from
+ *   TAOCP. It takes care to return higher, more random, bits of result;
  *
- * @li layout behavior is quite sensitive to the PRNG properties. For example,
- * if c2_rnd() is changed to return lower bits (result % max), resulting
- * distribution of spare and parity units is not uniform even for large number
- * of units. Experiments with different PRNG's are indicated.
+ * - layout behavior is quite sensitive to the PRNG properties. For example,
+ *   if c2_rnd() is changed to return lower bits (result % max), resulting
+ *   distribution of spare and parity units is not uniform even for large number
+ *   of units. Experiments with different PRNG's are indicated.
  *
  * Once permutation's Lehmer code is generated, it has to be applied to the set
  * of columns. permute() function applies a permutation, simultaneously building
@@ -66,14 +66,14 @@
  * Layout mapping function c2_pdclust_layout_map() performs these
  * re-arrangements in the following places:
  *
- * @li to convert a parity group number to a (tile number, group in tile)
- * pair. This is a conversion of 1-matrix to C-matrix;
+ * - to convert a parity group number to a (tile number, group in tile)
+ *   pair. This is a conversion of 1-matrix to C-matrix;
  *
- * @li to convert a tile from C*(N + 2*K) to L*P form. This is a conversion of
- * (N + 2*K)-matrix to P-matrix;
+ * - to convert a tile from C*(N + 2*K) to L*P form. This is a conversion of
+ *   (N + 2*K)-matrix to P-matrix;
  *
- * @li to convert a (tile number, frame in tile) pair to a target frame
- * number. This is a conversion of L-matrix to 1-matrix.
+ * - to convert a (tile number, frame in tile) pair to a target frame
+ *   number. This is a conversion of L-matrix to 1-matrix.
  *
  * Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
  *  conversions.
@@ -91,10 +91,10 @@
 
 #include "stob/stob.h"        /* c2_stob_id_is_set() */
 #include "pool/pool.h"        /* c2_pool_lookup() */
+#include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 #include "layout/pdclust.h"
 
-extern int LID_NONE;
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 extern int enum_type_verify(const struct c2_ldb_schema *schema,
@@ -190,7 +190,7 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
-bool striped_layout_invariant(const struct c2_layout_striped *stl);
+bool striped_layout_invariant(const struct c2_layout_striped *stl, uint64_t lid);
 
 bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 {
@@ -204,7 +204,8 @@ bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 	if (!c2_pdclust_layout_bob_check(play))
 		return false;
 
-	if (!striped_layout_invariant(&play->pl_base))
+	if (!striped_layout_invariant(&play->pl_base,
+				      play->pl_base.ls_base.l_id))
 		return false;
 
 	P = play->pl_attr.pa_P;
@@ -382,14 +383,12 @@ static void pdclust_fini(struct c2_layout *l)
 {
 	uint32_t                    i;
 	struct c2_pdclust_layout   *pl;
-	struct c2_layout_striped   *stl;
 
 	C2_PRE(l != NULL);
 
 	C2_ENTRY("DESTROY, lid %llu", (unsigned long long)l->l_id);
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
+	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
 
@@ -581,10 +580,10 @@ static int pdclust_recsize(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(l!= NULL);
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
-
+	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
+
+	stl = container_of(l, struct c2_layout_striped, ls_base);
 
 	rc = enum_type_verify(schema, stl->ls_enum->le_type->let_id);
 	if (rc != 0) {
@@ -705,8 +704,8 @@ out:
  * Implementation of lto_encode() for pdclust layout type.
  *
  * Continues to use the in-memory layout object and
- * @li Either adds/updates/deletes it to/from the Layout DB
- * @li Or converts it to a buffer that can be passed on over the network.
+ * - Either adds/updates/deletes it to/from the Layout DB
+ * - Or converts it to a buffer that can be passed on over the network.
  *
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all and it could be one of
@@ -760,10 +759,10 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-	pl = container_of(stl, struct c2_pdclust_layout, pl_base);
-
+	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
+
+	stl = container_of(l, struct c2_layout_striped, ls_base);
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*

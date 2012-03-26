@@ -46,8 +46,7 @@ To summarise:
 
     * braces around single statement blocks can be optionally omitted;
 
-    * Comments should be with C style. In a multi-line comment, * at the
-      starting of every new line.
+    * Comment formatting follows Linux kernel style.
 
     * continuation line starts one column after the last unclosed
       opening parenthesis:

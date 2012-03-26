@@ -34,9 +34,9 @@
 #include "lib/trace.h"
 
 #include "fid/fid.h"    /* c2_fid_set(), c2_fid_is_valid() */
+#include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
-extern int LID_NONE;
 extern bool layout_invariant(const struct c2_layout *l);
 extern bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 extern const struct c2_addb_loc layout_addb_loc;
@@ -128,7 +128,7 @@ out:
  */
 static void linear_fini(struct c2_layout_enum *e, uint64_t lid)
 {
-	struct c2_layout_linear_enum  *lin_enum;
+	struct c2_layout_linear_enum *lin_enum;
 
 	C2_PRE(e != NULL);
 
@@ -365,24 +365,24 @@ static void linear_get(const struct c2_layout_enum *le, uint64_t lid,
 
 
 static const struct c2_layout_enum_ops linear_enum_ops = {
-	.leo_nr         = linear_nr,
-	.leo_get        = linear_get,
-	.leo_fini       = linear_fini
+	.leo_nr           = linear_nr,
+	.leo_get          = linear_get,
+	.leo_fini         = linear_fini
 };
 
 static const struct c2_layout_enum_type_ops linear_type_ops = {
-	.leto_register       = linear_register,
-	.leto_unregister     = linear_unregister,
-	.leto_max_recsize    = linear_max_recsize,
-	.leto_recsize        = linear_recsize,
-	.leto_decode         = linear_decode,
-	.leto_encode         = linear_encode
+	.leto_register    = linear_register,
+	.leto_unregister  = linear_unregister,
+	.leto_max_recsize = linear_max_recsize,
+	.leto_recsize     = linear_recsize,
+	.leto_decode      = linear_decode,
+	.leto_encode      = linear_encode
 };
 
 const struct c2_layout_enum_type c2_linear_enum_type = {
-	.let_name       = "linear",
-	.let_id         = 1,
-	.let_ops        = &linear_type_ops
+	.let_name         = "linear",
+	.let_id           = 1,
+	.let_ops          = &linear_type_ops
 };
 
 /** @} end group linear_enum */
