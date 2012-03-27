@@ -565,14 +565,13 @@ static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)
 }
 
 /** Implementation of lto_recsize() for pdclust layout type. */
-static int pdclust_recsize(struct c2_ldb_schema *schema,
-			   struct c2_layout *l, uint32_t *recsize)
+static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
+				struct c2_layout *l)
 {
 	uint32_t                      e_recsize;
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_striped     *stl;
 	struct c2_layout_enum_type   *et;
-	int                           rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(l!= NULL);
@@ -582,21 +581,13 @@ static int pdclust_recsize(struct c2_ldb_schema *schema,
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
-	rc = enum_type_verify(schema, stl->ls_enum->le_type->let_id);
-	if (rc != 0) {
-		C2_LOG("pdclust_recsize(): lid %llu, Unqualified "
-		       "Enum_type_id %lu, rc %d", (unsigned long long)l->l_id,
-		       (unsigned long)stl->ls_enum->le_type->let_id, rc);
-		return rc;
-	}
+	C2_ASSERT(enum_type_verify(schema, stl->ls_enum->le_type->let_id) == 0);
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 
 	e_recsize = et->let_ops->leto_recsize(stl->ls_enum, l->l_id);
 
-	*recsize = sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
-
-	return 0;
+	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
 }
 
 /**

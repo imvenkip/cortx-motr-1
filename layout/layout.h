@@ -177,8 +177,8 @@ struct c2_layout_type_ops {
 	 * Returns applicable record size for the layouts table, for the
 	 * specified layout.
 	 */
-	int        (*lto_recsize)(struct c2_ldb_schema *schema,
-				  struct c2_layout *l, uint32_t *recsize);
+	uint32_t   (*lto_recsize)(struct c2_ldb_schema *schema,
+				  struct c2_layout *l);
 
 	/**
 	 * Continues building the in-memory layout object either from the

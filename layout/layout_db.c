@@ -548,7 +548,7 @@ int enum_type_verify(const struct c2_ldb_schema *schema, uint32_t let_id)
 
 	if (schema->ls_enum[let_id] == NULL) {
 		rc = -ENOENT;
-		C2_LOG("layout_type_verify(): Unknown enum type, "
+		C2_LOG("enum_type_verify(): Unknown enum type, "
 	               "Enum_type_id %lu", (unsigned long)let_id);
 	}
 out:
@@ -952,26 +952,11 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	rc = layout_type_verify(schema, l->l_type->lt_id);
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_add_fail, "Unqualified Layout_type_id", rc);
-		C2_LOG("c2_ldb_add(): lid %llu, Unqualified Layout_type_id "
-		       "%lu, rc %d", (unsigned long long)l->l_id,
-		       (unsigned long)l->l_type->lt_id, rc);
-		goto out;
-	}
+	C2_ASSERT(layout_type_verify(schema, l->l_type->lt_id) == 0);
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_add_fail, "lto_recsize()", rc);
-		C2_LOG("c2_ldb_add(): lid %llu, lto_recsize() failed, "
-		       "rc %d", (unsigned long long)l->l_id, rc);
-		goto out;
-	}
+	recsize = lt->lt_ops->lto_recsize(schema, l);
 	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair,
@@ -1077,26 +1062,11 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	rc = layout_type_verify(schema, l->l_type->lt_id);
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_update_fail, "Unqualified Layout_type_id", rc);
-		C2_LOG("c2_ldb_update(): lid %llu, Unqualified Layout_type_id "
-		       "%lu, rc %d", (unsigned long long)l->l_id,
-		       (unsigned long)l->l_type->lt_id, rc);
-		goto out;
-	}
+	C2_ASSERT(layout_type_verify(schema, l->l_type->lt_id) == 0);
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_update_fail, "lto_recsize()", rc);
-		C2_LOG("c2_ldb_update(): lid %llu, lto_recsize() failed, "
-		       "rc %d", (unsigned long long)l->l_id, rc);
-		goto out;
-	}
+	recsize = lt->lt_ops->lto_recsize(schema, l);
 	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_UPDATE, l->l_id,
@@ -1171,26 +1141,11 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	rc = layout_type_verify(schema, l->l_type->lt_id);
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_delete_fail, "Unqualified Layout_type_id", rc);
-		C2_LOG("c2_ldb_delete(): lid %llu, Unqualified Layout_type_id "
-		       "%lu, rc %d", (unsigned long long)l->l_id,
-		       (unsigned long)l->l_type->lt_id, rc);
-		goto out;
-	}
+	C2_ASSERT(layout_type_verify(schema, l->l_type->lt_id) == 0);
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	rc = lt->lt_ops->lto_recsize(schema, l, &recsize);
-	if (rc != 0) {
-		C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-			    ldb_delete_fail, "lto_recsize()", rc);
-		C2_LOG("c2_ldb_delete(): lid %llu, lto_recsize() failed, "
-		       "rc %d", (unsigned long long)l->l_id, rc);
-		goto out;
-	}
+	recsize = lt->lt_ops->lto_recsize(schema, l);
 	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_DELETE, l->l_id,

@@ -119,8 +119,8 @@ static uint32_t composite_max_recsize(struct c2_ldb_schema *schema)
 /**
  * Implementation of lto_recsize() for COMPOSITE layout type.
  */
-static int composite_recsize(struct c2_ldb_schema *schema,
-			     struct c2_layout *l, uint32_t *recsize)
+static uint32_t composite_recsize(struct c2_ldb_schema *schema,
+				  struct c2_layout *l)
 {
 	return 0;
 }
