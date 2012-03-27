@@ -1645,6 +1645,8 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
                 c2_stob_io_fini(stio);
 
                 stobio_tlist_del(stio_desc);
+
+		c2_free(stio_desc);
         } c2_tlist_endfor;
         c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 

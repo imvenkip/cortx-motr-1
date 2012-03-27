@@ -1437,8 +1437,7 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 
 	io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 						       bp->bp_rfops;
-	for (i = 0; i < IO_FOPS_NR; ++i)
-		C2_ALLOC_PTR(io_fops[i]);
+	C2_ALLOC_PTR(io_fops[index]);
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE)
                 rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_writev_fopt);
@@ -1451,28 +1450,29 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
 	void add_buffer_bulk(int j) {
-	/*
-	 * Adds a c2_rpc_bulk_buf structure to list of such structures
-	 * in c2_rpc_bulk.
-	 */
-	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, &bp->bp_cnetdom, NULL,
-				&rbuf);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(rbuf != NULL);
-
-	/* Adds io buffers to c2_rpc_bulk_buf structure. */
-	for (i = 0; i < IO_SEGS_NR; ++i) {
-                rc = c2_rpc_bulk_buf_databuf_add(rbuf,
-				bp->bp_iobuf[j]->nb_buffer.ov_buf[i],
-				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i],
-				bp->bp_offsets[0], &bp->bp_cnetdom);
+		/*
+		 * Adds a c2_rpc_bulk_buf structure to list of such structures
+		 * in c2_rpc_bulk.
+		 */
+		rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, &bp->bp_cnetdom,
+					 NULL, &rbuf);
 		C2_UT_ASSERT(rc == 0);
-		bp->bp_offsets[0] +=
-			bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
-	}
+		C2_UT_ASSERT(rbuf != NULL);
 
-	rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
-		C2_NET_QT_PASSIVE_BULK_SEND : C2_NET_QT_PASSIVE_BULK_RECV;
+		/* Adds io buffers to c2_rpc_bulk_buf structure. */
+		for (i = 0; i < IO_SEGS_NR; ++i) {
+			rc = c2_rpc_bulk_buf_databuf_add(rbuf,
+				 bp->bp_iobuf[j]->nb_buffer.ov_buf[i],
+				 bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i],
+				 bp->bp_offsets[0], &bp->bp_cnetdom);
+			C2_UT_ASSERT(rc == 0);
+			bp->bp_offsets[0] +=
+				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
+		}
+
+		rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
+			C2_NET_QT_PASSIVE_BULK_SEND :
+			C2_NET_QT_PASSIVE_BULK_RECV;
 	}
 
 	for (j = 0; j < buf_nr; ++j)
