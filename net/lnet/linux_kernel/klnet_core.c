@@ -1549,6 +1549,7 @@ static int nlx_kcore_buf_passive_recv(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(cb->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_PRE(cb->cb_length > 0);
 	C2_PRE(cb->cb_max_operations == 1);
+	C2_PRE(cb->cb_match_bits > 0);
 
 	nlx_core_match_bits_decode(cb->cb_match_bits, &tmid, &counter);
 	C2_PRE(tmid == ktm->ktm_addr.cepa_tmid);
@@ -1602,6 +1603,7 @@ static int nlx_kcore_buf_passive_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(cb->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
 	C2_PRE(cb->cb_length > 0);
 	C2_PRE(cb->cb_max_operations == 1);
+	C2_PRE(cb->cb_match_bits > 0);
 
 	nlx_core_match_bits_decode(cb->cb_match_bits, &tmid, &counter);
 	C2_PRE(tmid == ktm->ktm_addr.cepa_tmid);
@@ -1679,7 +1681,9 @@ static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 	return any ? 0 : -ETIMEDOUT;
 }
 
-int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *ctm, c2_time_t timeout)
+int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
+			    struct nlx_core_transfer_mc *ctm,
+			    c2_time_t timeout)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 

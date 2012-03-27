@@ -72,7 +72,8 @@ static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
    const so that the UTs can modify it.
  */
 struct nlx_xo_interceptable_subs {
-	int (*_nlx_core_buf_event_wait)(struct nlx_core_transfer_mc *lctm,
+	int (*_nlx_core_buf_event_wait)(struct nlx_core_domain *lcdom,
+					struct nlx_core_transfer_mc *lctm,
 					c2_time_t timeout);
 	int (*_nlx_ep_create)(struct c2_net_end_point **epp,
 			      struct c2_net_transfer_mc *tm,
@@ -93,8 +94,8 @@ static struct nlx_xo_interceptable_subs nlx_xo_iv = {
 #undef _NLXI
 };
 
-#define NLX_core_buf_event_wait(lctm, timeout) \
-	(*nlx_xo_iv._nlx_core_buf_event_wait)(lctm, timeout)
+#define NLX_core_buf_event_wait(lcdom, lctm, timeout)		\
+	(*nlx_xo_iv._nlx_core_buf_event_wait)(lcdom, lctm, timeout)
 #define NLX_ep_create(epp, tm, cepa) \
 	(*nlx_xo_iv._nlx_ep_create)(epp, tm, cepa)
 #define NLX_tm_get_buffer_timeout_tick(tm) \
@@ -604,11 +605,14 @@ static int nlx_xo_bev_deliver_sync(struct c2_net_transfer_mc *tm)
 
 static bool nlx_xo_bev_pending(struct c2_net_transfer_mc *tm)
 {
+	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
 
 	C2_PRE(nlx_tm_invariant(tm));
 	tp = tm->ntm_xprt_private;
-	return nlx_core_buf_event_wait(&tp->xtm_core, 0) == 0;
+	C2_PRE(nlx_dom_invariant(tm->ntm_dom));
+	dp = tm->ntm_dom->nd_xprt_private;
+	return nlx_core_buf_event_wait(&dp->xd_core, &tp->xtm_core, 0) == 0;
 }
 
 static void nlx_xo_bev_notify(struct c2_net_transfer_mc *tm,

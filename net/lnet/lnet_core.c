@@ -378,7 +378,8 @@ int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 	lcbuf->cb_match_bits = __le64_to_cpu(cbd->cbd_match_bits);
 	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &i32, &i64);
 	if (i64 < C2_NET_LNET_BUFFER_ID_MIN ||
-	    i64 > C2_NET_LNET_BUFFER_ID_MAX)
+	    i64 > C2_NET_LNET_BUFFER_ID_MAX ||
+	    i32 != B_EP(tmid))
 		return -EINVAL;
 
 	return 0;

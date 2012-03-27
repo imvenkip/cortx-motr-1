@@ -757,13 +757,15 @@ static int nlx_core_buf_del(struct nlx_core_domain *lcdom,
 
 /**
    Waits for buffer events, or the timeout.
+   @param lcdom Domain pointer.
    @param lctm Transfer machine private data.
    @param timeout Absolute time at which to stop waiting.  A value of 0
    indicates that the subroutine should not wait.
    @retval 0 Events present.
    @retval -ETIMEDOUT Timed out before events arrived.
  */
-static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_event_wait(struct nlx_core_domain *lcdom,
+				   struct nlx_core_transfer_mc *lctm,
 				   c2_time_t timeout);
 
 /**
