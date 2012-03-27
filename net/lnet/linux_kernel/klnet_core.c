@@ -27,10 +27,9 @@
    - @ref KLNetCoreDLD-req
    - @ref KLNetCoreDLD-depends
    - @ref KLNetCoreDLD-highlights
-   - @subpage LNetCoreDLD-fspec "Functional Specification" <!--
-                                                             ../lnet_core.h -->
-        - @ref LNetCore "LNet Transport Core Interface" <!-- ../lnet_core.h -->
-        - @ref KLNetCore "Core Kernel Interface"        <!-- ./klnet_core.h -->
+   - Functional Specification
+        - @ref LNetCoreDLD-fspec "LNet Transport Core API"<!-- ./lnet_core.h -->
+        - @ref KLNetCore "Core Kernel Interface"         <!-- ./klnet_core.h -->
    - @ref KLNetCoreDLD-lspec
       - @ref KLNetCoreDLD-lspec-comps
       - @ref KLNetCoreDLD-lspec-userspace

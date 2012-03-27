@@ -23,12 +23,12 @@
 #define __COLIBRI_NET_LNET_CORE_H__
 
 /**
-   @page LNetCoreDLD-fspec LNet Transport Core Functional Specification
+   @page LNetCoreDLD-fspec LNet Transport Core API
 
    - @ref LNetCoreDLD-fspec-ovw
    - @ref LNetCoreDLD-fspec-ds
    - @ref LNetCoreDLD-fspec-subs
-   - @ref LNetCore "LNet Transport Core Interface"
+   - @ref LNetCore "LNet Transport Core Interfaces"
 
    @section LNetCoreDLD-fspec-ovw API Overview
    The LNet Transport Core presents an address space agnostic API to the LNet
@@ -99,7 +99,10 @@
    API data structure must be eventually finalized.
 
    @section LNetCoreDLD-fspec-subs Subroutines
-   The API subroutines are categorized as follows:
+
+   The API subroutines are described in
+   @ref LNetCore "LNet Transport Core Interfaces".
+   The subroutines are categorized as follows:
 
    - Initialization, finalization, cancellation and query subroutines:
      - nlx_core_buf_deregister()
@@ -166,12 +169,13 @@ struct nlx_core_buf_desc;
 struct page;
 
 /**
-   @defgroup LNetCore LNet Transport Core Interface
+   @defgroup LNetCore LNet Transport Core Interfaces
    @ingroup LNetDFS
 
    The internal, address space agnostic I/O API used by the LNet transport.
-
-   @see @ref LNetCoreDLD-fspec "LNet Transport Core Functional Specification"
+   See @ref LNetCoreDLD-fspec "LNet Transport Core API" for organizational
+   details and @ref LNetDLD "LNet Transport DLD" for details of the
+   Colibri Network transport for LNet.
 
    @{
  */

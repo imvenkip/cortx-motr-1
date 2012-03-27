@@ -27,9 +27,8 @@
    - @ref ULNetCoreDLD-req
    - @ref ULNetCoreDLD-depends
    - @ref ULNetCoreDLD-highlights
-   - @subpage LNetCoreDLD-fspec "Functional Specification"    <!--
-                                                               ./lnet_core.h -->
-        - @ref LNetCore "LNet Transport Core Interface"   <!-- ./lnet_core.h -->
+   - Functional Specification
+        - @ref LNetCoreDLD-fspec "LNet Transport Core API"<!-- ./lnet_core.h -->
         - @ref ULNetCore "Core User Space Interface"     <!-- ./ulnet_core.h -->
 	- @ref LNetDev "LNet Transport Device" <!-- linux_kernel/klnet_drv.h -->
    - @ref ULNetCoreDLD-lspec
