@@ -440,7 +440,6 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 		break;
 	default:
 		C2_IMPOSSIBLE("Invalid COB-FOM type");
-		break;
 	}
 
 	C2_UT_ASSERT(rc == 0);
@@ -476,7 +475,6 @@ static void fom_fini(struct c2_fom *fom, enum cob_fom_type fomtype)
 		break;
 	default:
 		C2_IMPOSSIBLE("Invalid COB-FOM type");
-		break;
 	}
 }
 
@@ -663,7 +661,7 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 	C2_UT_ASSERT(ergo(!map_exists, rc != 0));
 
 	if (cob_fid_out.u_hi == COB_TEST_ID && cob_fid_out.u_lo == COB_TEST_ID)
-			found = true;
+		found = true;
 
 	C2_UT_ASSERT(found == map_exists);
 }

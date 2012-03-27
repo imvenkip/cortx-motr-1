@@ -581,8 +581,8 @@ static int cd_cobfid_map_delete(struct c2_fom *fom,
 			    "c2_cobfid_setup_delrec() failed.", rc);
 	else
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-				c2_addb_trace,
-				"Record removed from cobfid_map.");
+			    c2_addb_trace,
+			    "Record removed from cobfid_map.");
 
 	c2_mutex_lock(&cctx->cc_mutex);
 	c2_cobfid_setup_put(cctx);
