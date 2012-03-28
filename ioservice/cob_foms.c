@@ -125,7 +125,9 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
 	int			  rc;
 	bool			  cob_create;
+	struct c2_fop            *rfop;
 	struct c2_fom		 *fom;
+	const struct c2_fom_ops  *fom_ops;
 	struct c2_fom_cob_create *cc;
 	struct c2_fom_cob_delete *cd;
 
@@ -136,7 +138,14 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 
 	cob_create = c2_is_cob_create_fop(fop);
 
-	rc = cob_create ? cc_fom_create(out) : cd_fom_create(out);
+	if (cob_create) {
+		rc = cc_fom_create(out);
+		cc = cc_fom_get(*out);
+	} else {
+		rc = cd_fom_create(out);
+		cd = cd_fom_get(*out);
+	}
+	//rc = cob_create ? cc_fom_create(out) : cd_fom_create(out);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fop->f_addb, &cc_fom_addb_loc, cc_fom_func_fail,
 			    "Failed to create cob_create fom.", rc);
@@ -145,24 +154,20 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 	fom = *out;
 	C2_ASSERT(fom != NULL);
 
-	fom->fo_fop  = fop;
-	fom->fo_type = &fop->f_type->ft_fom_type;
-	if (cob_create) {
-		cc = cc_fom_get(fom);
-		cc_fom_populate(fom);
-	} else {
-		cd = cd_fom_get(fom);
-		cd_fom_populate(fom);
-	}
+	//fom->fo_fop  = fop;
+	//fom->fo_type = &fop->f_type->ft_fom_type;
 
-	c2_fom_init(fom);
-	fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_op_reply_fopt, NULL);
-	if (fom->fo_rep_fop == NULL) {
+	//c2_fom_init(fom);
+	fom_ops = cob_create ? &cc_fom_ops : &cd_fom_ops;
+	rfop = c2_fop_alloc(&c2_fop_cob_op_reply_fopt, NULL);
+	if (rfop == NULL) {
 		C2_ADDB_ADD(&fop->f_addb, &cc_fom_addb_loc, c2_addb_oom);
 		cob_create ? c2_free(cc) : c2_free(cd);
 		return -ENOMEM;
 	}
 
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop);
+	cob_create ? cc_fom_populate(fom) : cd_fom_populate(fom);
 	return rc;
 }
 
@@ -176,7 +181,7 @@ static int cc_fom_create(struct c2_fom **out)
 	if (cc == NULL)
 		return -ENOMEM;
 
-	cc->fcc_cc.cc_fom.fo_ops  = &cc_fom_ops;
+	//cc->fcc_cc.cc_fom.fo_ops  = &cc_fom_ops;
 	*out = &cc->fcc_cc.cc_fom;
 	return 0;
 }
@@ -321,7 +326,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_create *cc)
 	fop = c2_fop_data(fom->fo_fop);
 
 	c2_cob_nskey_make(&nskey, cc->fcc_cc.cc_cfid.f_container,
-			  cc->fcc_cc.cc_cfid.f_key, fop->cc_cobname.ib_buf);
+			  cc->fcc_cc.cc_cfid.f_key, fop->cc_cobname.cn_name);
 	if (nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);
@@ -408,7 +413,7 @@ static int cd_fom_create(struct c2_fom **out)
 	if (cd == NULL)
 		return -ENOMEM;
 
-	cd->fcd_cc.cc_fom.fo_ops = &cd_fom_ops;
+	//cd->fcd_cc.cc_fom.fo_ops = &cd_fom_ops;
 	*out = &cd->fcd_cc.cc_fom;
 	return 0;
 }

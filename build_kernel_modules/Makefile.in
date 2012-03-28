@@ -25,7 +25,7 @@ dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db \
         db/linux_kernel dtm fid fol fop ioservice ioservice/ut    \
 	layout lib lib/linux_kernel lib/ut net net/bulk_emulation \
         net/bulk_emulation/ut net/ksunrpc net/ut pool rpc rpc/ut  \
-        sm sns stob stob/ut ut xcode xcode/ut
+        sm sns stob ut xcode xcode/ut
 
 #       Source Listing
 
@@ -119,11 +119,8 @@ sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
                                    parity_ops.c
 sns_HEADERS                     := parity_math.h
 
-stob_SOURCES                    := stob.c
-stob_HEADERS                    := stob.h
-
-stob_ut_SOURCES                 := io_fop_init.c io_k.c
-stob_ut_HEADERS                 := io_fop.h io_k.h
+stob_SOURCES                    := stob.c stob_id.c
+stob_HEADERS                    := stob.h stob_id.h
 
 ut_SOURCES                      := rpc.c
 ut_HEADERS                      := rpc.h

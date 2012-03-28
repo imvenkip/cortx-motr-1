@@ -47,12 +47,12 @@
 #include "fop/fop_format_def.h"
 
 #ifdef __KERNEL__
-#include "stob/io_fop_k.h"
+#include "io_fop_k.h"
 #else
-#include "stob/io_fop_u.h"
+#include "io_fop_u.h"
 #endif
 
-#include "stob/io_fop.ff"
+#include "io_fop.ff"
 
 /**
    @defgroup stobio
@@ -245,7 +245,7 @@ static struct c2_stob *stob_object_find(const struct stob_io_fop_fid *fid,
 
 /**
  * Fom initialization function, invoked from reqh_fop_handle.
- * Invokes c2_fom_create()
+ * Invokes c2_fom_init()
  */
 static int stob_io_fop_fom_create_helper(struct c2_fop *fop,
 		struct c2_fom_ops *fom_ops, struct c2_fop_type *fop_type,
@@ -268,8 +268,8 @@ static int stob_io_fop_fom_create_helper(struct c2_fop *fop,
 	}
 	fom_obj->sif_stobj = NULL;
 
-	c2_fom_create(&fom_obj->sif_fom, &fop->f_type->ft_fom_type, fom_ops, fop,
-			fom_obj->sif_rep_fop);
+	c2_fom_init(&fom_obj->sif_fom, &fop->f_type->ft_fom_type, fom_ops, fop,
+		    fom_obj->sif_rep_fop);
 
 	*out = &fom_obj->sif_fom;
 	return 0;

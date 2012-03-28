@@ -57,10 +57,7 @@ static struct c2_atomic64 allocated;
 #include <malloc.h>
 static size_t __allocated(void)
 {
-	struct mallinfo mi;
-
-	mi = mallinfo();
-	return mi.uordblks;
+	return mallinfo().uordblks;
 }
 #define __free free
 #define __malloc malloc

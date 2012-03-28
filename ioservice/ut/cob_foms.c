@@ -195,12 +195,12 @@ static void cobfops_populate(uint64_t index)
 	cut->cu_gobindex++;
 
 	cc = c2_fop_data(fop);
-	C2_ALLOC_ARR(cc->cc_cobname.ib_buf, (2 * COB_NAME_STRLEN) + 2);
-	C2_UT_ASSERT(cc->cc_cobname.ib_buf != NULL);
-	sprintf((char*)cc->cc_cobname.ib_buf, "%16lx:%16lx",
+	C2_ALLOC_ARR(cc->cc_cobname.cn_name, (2 * COB_NAME_STRLEN) + 2);
+	C2_UT_ASSERT(cc->cc_cobname.cn_name != NULL);
+	sprintf((char*)cc->cc_cobname.cn_name, "%16lx:%16lx",
 			(unsigned long)cc->cc_common.c_cobfid.f_seq,
 			(unsigned long)cc->cc_common.c_cobfid.f_oid);
-	cc->cc_cobname.ib_count = strlen((char*)cc->cc_cobname.ib_buf);
+	cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name);
 }
 
 static void cobfops_create(void)
@@ -244,7 +244,7 @@ static void cobfops_destroy(struct c2_fop_type *ftype1,
 		struct c2_fop_cob_create *fcc;
 		for (i = 0; i < cut->cu_cobfop_nr; ++i) {
 			fcc = c2_fop_data(cut->cu_createfops[i]);
-			c2_free(fcc->cc_cobname.ib_buf);
+			c2_free(fcc->cc_cobname.cn_name);
 			c2_fop_free(cut->cu_createfops[i]);
 		}
 	}
@@ -446,7 +446,10 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 	C2_UT_ASSERT(rc == 0);
 
 	base_fom = *fom;
-	c2_fom_init(base_fom);
+	c2_fom_init(base_fom,
+		    fomtype == COB_CREATE ? &cc_fom_type : &cd_fom_type,
+		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
+		    NULL, NULL);
 	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
 	C2_UT_ASSERT(reqh != NULL);
 
@@ -498,8 +501,8 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 			cf->cc_common.c_gobfid.f_oid = COB_TEST_ID;
 			cf->cc_common.c_cobfid.f_seq = COB_TEST_ID;
 			cf->cc_common.c_cobfid.f_oid = COB_TEST_ID;
-			cf->cc_cobname.ib_count = strlen(test_cobname);
-			cf->cc_cobname.ib_buf = test_cobname;
+			cf->cc_cobname.cn_count = strlen(test_cobname);
+			cf->cc_cobname.cn_name = test_cobname;
 			fom->fo_fop = base_fop;
 			fom->fo_type = &base_fop->f_type->ft_fom_type;
 		}

@@ -169,6 +169,30 @@
 int  c2_trace_init(void);
 void c2_trace_fini(void);
 
+/**
+ * The subsystems definitions.
+ * @note: Such kind of definition (via defines) allow to keep enum
+ *        and string array in sync.
+ */
+#define C2_TRACE_SUBSYSTEMS		\
+  C2_TRACE_SUBSYS(OTHER,	0)	\
+  C2_TRACE_SUBSYS(UT,		1)	\
+  C2_TRACE_SUBSYS(MEMORY,	2)      \
+  C2_TRACE_SUBSYS(C2T1FS,	3)
+
+#define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
+/** The subsystem bitmask definitions */
+enum c2_trace_subsystem {
+	C2_TRACE_SUBSYSTEMS
+};
+
+/**
+ * The subsystems bitmask of what should be printed immediately
+ * to the console.
+ */
+extern unsigned long c2_trace_immediate_mask;
+
+
 /*
  * Below is the internal implementation stuff.
  */
@@ -191,16 +215,6 @@ enum {
 
 extern void      *c2_logbuf;      /**< Trace buffer pointer */
 extern uint32_t   c2_logbufsize;  /**< The real buffer size */
-
-/** The bitmask of what should be printed immediately to console */
-extern unsigned long c2_trace_immediate_mask;
-/** The subsystem bitmask definitions */
-enum c2_trace_subsystem {
-	C2_TRACE_SUBSYS_OTHER  = (1 << 0),
-	C2_TRACE_SUBSYS_UT     = (1 << 1),
-	C2_TRACE_SUBSYS_MEMORY = (1 << 2),
-	C2_TRACE_SUBSYS_C2T1FS = (1 << 3)
-};
 
 /**
  * Record header structure

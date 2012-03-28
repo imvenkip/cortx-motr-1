@@ -889,7 +889,7 @@ int c2_balloc_load_extents(struct c2_balloc *cb,
 	if (grp->bgi_fragments == 0)
 		return 0;
 
-	result = c2_db_cursor_init(&cursor, db_ext, tx);
+	result = c2_db_cursor_init(&cursor, db_ext, tx, 0);
 	if (result != 0) {
 		c2_balloc_release_extents(grp);
 		return result;
@@ -2043,8 +2043,8 @@ static bool balloc_query(struct c2_balloc *colibri, struct c2_ext *ex)
  * @param count count of bytes. count will be first aligned to block boundry.
  * @param out result is stored there. space is still in bytes.
  */
-int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
-		    c2_bcount_t count, struct c2_ext *out)
+static int balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+			c2_bcount_t count, struct c2_ext *out)
 {
 	struct c2_balloc		*colibri = b2c2(ballroom);
 	struct c2_balloc_allocate_req	 req;
@@ -2073,8 +2073,8 @@ int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
  * free spaces to container.
  * @param ext the space to be freed. This space must align to block boundry.
  */
-int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
-		   struct c2_ext *ext)
+static int balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+		       struct c2_ext *ext)
 {
 	struct c2_balloc		*colibri = b2c2(ballroom);
 	struct c2_balloc_free_req	 req;
@@ -2087,9 +2087,9 @@ int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return rc;
 }
 
-int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
-		   uint32_t bshift, c2_bcount_t container_size,
-		   c2_bcount_t blocks_per_group, c2_bcount_t res_groups)
+static int balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+		       uint32_t bshift, c2_bcount_t container_size,
+		       c2_bcount_t blocks_per_group, c2_bcount_t res_groups)
 {
 	struct c2_balloc	*colibri;
 	int			 rc;
@@ -2104,7 +2104,7 @@ int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	return rc;
 }
 
-void c2_balloc_fini(struct ad_balloc *ballroom)
+static void balloc_fini(struct ad_balloc *ballroom)
 {
 	struct c2_balloc	*colibri = b2c2(ballroom);
 	struct c2_db_tx		 fini_tx;
@@ -2124,10 +2124,10 @@ void c2_balloc_fini(struct ad_balloc *ballroom)
 }
 
 static const struct ad_balloc_ops c2_balloc_ops = {
-	.bo_init  = c2_balloc_init,
-	.bo_fini  = c2_balloc_fini,
-	.bo_alloc = c2_balloc_alloc,
-	.bo_free  = c2_balloc_free,
+	.bo_init  = balloc_init,
+	.bo_fini  = balloc_fini,
+	.bo_alloc = balloc_alloc,
+	.bo_free  = balloc_free,
 };
 
 struct c2_balloc colibri_balloc = {

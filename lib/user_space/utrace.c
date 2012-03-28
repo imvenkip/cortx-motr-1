@@ -135,10 +135,10 @@ int c2_trace_parse(void)
 	unsigned                     nr;
 	unsigned                     n2r;
 
-	printf("   no   |    tstamp     |   stack ptr    |"
-	       "        func        |        src        | sz|narg\n");
-	printf("------------------------------------------"
-	       "-------------------------------------------------\n");
+	printf("   no   |    tstamp     |stack|       subsys     |"
+	       "        func        |        src        \n");
+	printf("--------------------------------------------------"
+	       "----------------------------------------\n");
 
 	while (!feof(stdin)) {
 		char *buf = NULL;

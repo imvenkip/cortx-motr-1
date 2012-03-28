@@ -56,33 +56,6 @@ DEF(c2_fop_file_fid, RECORD,
 	_(f_oid, U64));
 
 /**
- * c2_fop_io_buf is a buffer with a count specifying its length.
- */
-DEF(c2_fop_io_buf, SEQUENCE,
-	/** Number of bytes in the buffer. */
-	_(ib_count, U64),
-	/** Starting address of buffer. */
-	_(ib_buf, BYTE));
-
-/**
- * c2_fop_io_seg is a record containing details of an IO operation.
- */
-DEF(c2_fop_io_seg, RECORD,
-	/** Offset within component object.*/
-	_(is_offset, U64),
-	/** Data buffer attached with IO segment. */
-	_(is_buf, c2_fop_io_buf));
-
-/**
- * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
- */
-DEF(c2_fop_io_vec, SEQUENCE,
-	/** Number of IO segments. */
-	_(iv_count, U32),
-	/** Array of IO segments. */
-	_(iv_segs, c2_fop_io_seg));
-
-/**
  * A common sub structure to be referred by read and write reply fops.
  */
 DEF(c2_fop_cob_rw_reply, RECORD,
@@ -215,14 +188,21 @@ DEF(c2_fop_cob_common, RECORD,
 	_(c_cobfid, c2_fop_file_fid));
 
 /**
+ * Represents name of a cob being created.
+ */
+DEF(c2_fop_cob_name, SEQUENCE,
+        _(cn_count, U32),
+        _(cn_name,  BYTE));
+
+/**
  * On-wire representation of "cob create" request.
  * Cob create fops are sent to data servers when a new global file
  * is created.
  */
 DEF(c2_fop_cob_create, RECORD,
-	_(cc_common, c2_fop_cob_common),
+	_(cc_common,  c2_fop_cob_common),
 	/** Name of global file. */
-	_(cc_cobname,	c2_fop_io_buf));
+	_(cc_cobname, c2_fop_cob_name));
 
 /**
  * On-wire representation of "cob delete" request.

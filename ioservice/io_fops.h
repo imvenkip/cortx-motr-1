@@ -240,9 +240,6 @@ extern struct c2_fop_type_format c2_fop_cob_readv_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_file_fid_tfmt;
-extern struct c2_fop_type_format c2_fop_io_buf_tfmt;
-extern struct c2_fop_type_format c2_fop_io_seg_tfmt;
-extern struct c2_fop_type_format c2_fop_io_vec_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_rw_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_rw_reply_tfmt;
 

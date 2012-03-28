@@ -72,8 +72,6 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid);
 
-static void c2t1fs_cob_fop_fini(struct c2_fop *fop);
-
 const struct file_operations c2t1fs_dir_file_operations = {
 	.read    = generic_read_dir,    /* provided by linux kernel */
 	.readdir = c2t1fs_readdir,
@@ -440,15 +438,15 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	ci    = C2T1FS_I(inode);
 
 	c2t1fs_fs_lock(csb);
-	rc = c2t1fs_component_objects_op(ci, c2t1fs_cob_delete);
-	if (rc != 0) {
-		C2_LOG("Cob_delete fop failed.\n");
-		goto out;
-	}
-
 	de = c2t1fs_dir_ent_find(dir, dentry->d_name.name, dentry->d_name.len);
 	if (de == NULL) {
 		rc = -ENOENT;
+		goto out;
+	}
+
+	rc = c2t1fs_component_objects_op(ci, c2t1fs_cob_delete);
+	if (rc != 0) {
+		C2_LOG("Cob_delete fop failed.\n");
 		goto out;
 	}
 
@@ -577,7 +575,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	}
 
 	C2_ASSERT(c2_is_cob_create_delete_fop(fop));
-	cobcreate = ftype == &c2_fop_cob_create_fopt ? true : false;
+	cobcreate = c2_is_cob_create_fop(fop);
 
 	rc = c2t1fs_cob_fop_populate(fop, cob_fid, gob_fid);
 	if (rc != 0) {
@@ -606,9 +604,10 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	reply = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
 	rc = reply->cor_rc;
 
-	c2t1fs_cob_fop_fini(fop);
-
-	/* Fop is deallocated by rpc layer using default rpc item ops. */
+	/*
+	 * Fop is deallocated by rpc layer using
+	 * cob_req_rpc_item_ops->rio_free() rpc item ops.
+	 */
 
 out:
 	C2_LEAVE("%d", rc);
@@ -637,36 +636,23 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 	common->c_cobfid.f_seq = cob_fid->f_container;
 	common->c_cobfid.f_oid = cob_fid->f_key;
 
-	if (fop->f_type == &c2_fop_cob_create_fopt) {
+	if (c2_is_cob_create_fop(fop)) {
 		cc = c2_fop_data(fop);
-		C2_ALLOC_ARR(cc->cc_cobname.ib_buf,
-			     (2 * C2T1FS_COB_ID_STRLEN) + 1);
-		if (cc->cc_cobname.ib_buf == NULL) {
+		C2_ALLOC_ARR(cc->cc_cobname.cn_name,
+			     (2 * C2T1FS_COB_ID_STRLEN) + 2);
+		if (cc->cc_cobname.cn_name == NULL) {
 			C2_LOG("Memory allocation failed for cob_name.");
 			C2_LEAVE("%d", -ENOMEM);
 			return -ENOMEM;
 		}
 
-		sprintf((char*)cc->cc_cobname.ib_buf, "%20lu:%20lu",
-				(unsigned long)cob_fid->f_container,
-				(unsigned long)cob_fid->f_key);
+		sprintf((char*)cc->cc_cobname.cn_name, "%16lx:%16lx",
+			(unsigned long)cob_fid->f_container,
+			(unsigned long)cob_fid->f_key);
 
-		cc->cc_cobname.ib_count = strlen((char*)cc->cc_cobname.ib_buf);
+		cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name);
 	}
 
 	C2_LEAVE("%d", 0);
 	return 0;
-}
-
-static void c2t1fs_cob_fop_fini(struct c2_fop *fop)
-{
-	struct c2_fop_cob_create *cc;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(fop->f_type != NULL);
-
-	if (fop->f_type == &c2_fop_cob_create_fopt) {
-		cc = c2_fop_data(fop);
-		c2_free(cc->cc_cobname.ib_buf);
-	}
 }

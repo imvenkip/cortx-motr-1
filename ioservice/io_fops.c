@@ -33,15 +33,15 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/vec.h"	/* c2_0vec */
+#include "lib/memory.h"
+#include "lib/tlist.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "rpc/rpc_base.h"
 #include "rpc/rpc_opcodes.h"
-#include "lib/vec.h"	/* c2_0vec */
-#include "lib/memory.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
-#include "lib/tlist.h"
 #include "addb/addb.h"
 
 /*
@@ -93,9 +93,6 @@ C2_ADDB_EV_DEFINE(bulkclient_func_fail, "bulkclient func failed.",
 
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
-	&c2_fop_io_buf_tfmt,
-	&c2_fop_io_seg_tfmt,
-	&c2_fop_io_vec_tfmt,
 	&c2_fop_cob_rw_reply_tfmt,
 	&c2_ioseg_tfmt,
 	&c2_io_indexvec_tfmt,
@@ -103,6 +100,7 @@ static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_io_indexvec_seq_tfmt,
 	&c2_fop_cob_rw_tfmt,
 	&c2_fop_cob_common_tfmt,
+	&c2_fop_cob_name_tfmt,
 };
 
 static struct c2_fop_type *ioservice_fops[] = {
@@ -1410,7 +1408,7 @@ static void cob_rpcitem_free(struct c2_rpc_item *item)
 	if (c2_is_cob_create_fop(fop)) {
 		struct c2_fop_cob_create *cc;
 		cc = c2_fop_data(fop);
-		c2_free(cc->cc_cobname.ib_buf);
+		c2_free(cc->cc_cobname.cn_name);
 	}
 	c2_fop_free(fop);
 }
@@ -1432,10 +1430,10 @@ static void io_item_replied(struct c2_rpc_item *item)
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
 
-	C2_ASSERT(ergo(item->ri_error == 0,
+	C2_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 
-	if (item->ri_error != 0 || reply->rwr_count != rbulk->rb_bytes)
+	if (reply->rwr_rc != 0)
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "io fop failed.",
 			    item->ri_error);

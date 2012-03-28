@@ -186,9 +186,9 @@ struct c2_fom_domain_ops {
  */
 enum c2_fom_state {
 	/**
-	   Fom is in FOS_RUNNING state when its state transition function is being
-	   executed by a locality handler thread.
-	   The fom is not on any queue in this state.
+	   Fom is in FOS_RUNNING state when its state transition function is
+	   being executed by a locality handler thread.  The fom is not on any
+	   queue in this state.
 	 */
 	FOS_RUNNING,
 	/**
@@ -196,9 +196,9 @@ enum c2_fom_state {
 	*/
 	FOS_READY,
 	/**
-	    Fom is in FOS_WAITING state when some event must happen before the next
-	    state transition would become possible.
-	    The fom is on a locality wait list in this state.
+	    Fom is in FOS_WAITING state when some event must happen before the
+	    next state transition would become possible.  The fom is on a
+	    locality wait list in this state.
 	 */
 	FOS_WAITING,
 };
@@ -231,11 +231,13 @@ enum c2_fom_phase {
 	FOPH_TXN_CONTEXT_WAIT,      /*< waiting for log space. */
 	FOPH_SUCCESS,		    /*< fom execution completed succesfully. */
 	FOPH_TXN_COMMIT,	    /*< commit local transaction context. */
-	FOPH_TXN_COMMIT_WAIT,	    /*< waiting to commit local transaction context. */
+	FOPH_TXN_COMMIT_WAIT,	    /*< waiting to commit local transaction
+				      context. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
 	FOPH_FAILURE,                /*< fom execution failed. */
 	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
-	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction context. */
+	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction
+				      context. */
 	FOPH_QUEUE_REPLY,           /*< queuing fop reply.  */
 	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_FINISH,		    /*< terminal state. */
@@ -335,17 +337,23 @@ struct c2_fom {
 void c2_fom_queue(struct c2_fom *fom);
 
 /**
-   Initialises fom allocated by the caller.
-   Invoked from c2_fom_type_ops::fto_create implementation for
-   corresponding fom.
-   Fom starts in FOPH_INIT phase and FOS_READY state to begin its
-   execution.
+   Initialises fom allocated by caller.
 
-   @param fom, A fom to be initialised
+   Invoked from c2_fom_type_ops::fto_create implementation for corresponding
+   fom.
+
+   Fom starts in FOPH_INIT phase and FOS_RUNNING state to begin its execution.
+
+   @param fom A fom to be initialized
+   @param fom_type Fom type
+   @param ops Fom operations structure
+   @param fop Request fop object
+   @param reply Reply fop object
    @pre fom != NULL
  */
-void c2_fom_init(struct c2_fom *fom);
-
+void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		 const struct c2_fom_ops *ops, struct c2_fop *fop,
+		 struct c2_fop *reply);
 /**
    Finalises a fom after it completes its execution,
    i.e success or failure.
@@ -365,21 +373,6 @@ void c2_fom_fini(struct c2_fom *fom);
    mutex held.
  */
 bool c2_fom_invariant(const struct c2_fom *fom);
-
-/**
-   Initialises fom allocated by caller.
-   Invokes c2_fom_init().
-   @see c2_fom_init()
-   @param fom A fom to be initialized
-   @param fom_type Fom type
-   @param ops Fom operations structure
-   @param fop Request fop object
-   @param reply Reply fop object
-   @pre fom != NULL
- */
-void c2_fom_create(struct c2_fom *fom, struct c2_fom_type *fom_type,
-		const struct c2_fom_ops *ops, struct c2_fop *fop,
-		struct c2_fop *reply);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {

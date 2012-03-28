@@ -105,27 +105,6 @@ void c2_stob_fini(struct c2_stob *obj)
 
 C2_BASSERT(sizeof(struct c2_uint128) == sizeof(struct c2_stob_id));
 
-bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
-{
-	return c2_uint128_eq(&id0->si_bits, &id1->si_bits);
-}
-
-int c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
-{
-	return c2_uint128_cmp(&id0->si_bits, &id1->si_bits);
-}
-
-bool c2_stob_id_is_set(const struct c2_stob_id *id)
-{
-	static const struct c2_stob_id zero = {
-		.si_bits = {
-			.u_hi = 0,
-			.u_lo = 0
-		}
-	};
-	return !c2_stob_id_eq(id, &zero);
-}
-
 int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int result;

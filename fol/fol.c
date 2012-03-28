@@ -190,7 +190,7 @@ static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 	pair = &rec->fr_pair;
 	c2_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
-	return c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx);
+	return c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx, 0);
 }
 
 /**

@@ -820,10 +820,13 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
         }
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         fom_obj->fcrw_num_stobio_launched--;
-        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
-        if (fom_obj->fcrw_num_stobio_launched == 0)
+        if (fom_obj->fcrw_num_stobio_launched == 0) {
+                c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
                 c2_chan_signal(&fom_obj->fcrw_wait);
+                return true;
+        }
+        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
         return true;
 };
@@ -1026,14 +1029,11 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
 
         fom  = &fom_obj->fcrw_gen;
         *out = fom;
-        c2_fom_init(fom);
-
-        fom->fo_type    = &fop->f_type->ft_fom_type;
-        fom->fo_ops     = &c2_io_fom_cob_rw_ops;
-        fom->fo_fop     = fop;
-	fom->fo_rep_fop = c2_is_read_fop(fop) ?
-			     c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL) :
-			     c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
+        c2_fom_init(fom, &fop->f_type->ft_fom_type,
+		    &c2_io_fom_cob_rw_ops, fop,
+		    c2_is_read_fop(fop) ?
+		    c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL) :
+		    c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL));
 
         if (fom->fo_rep_fop == NULL) {
                 c2_fom_fini(fom);
@@ -1301,6 +1301,14 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
 
 	        current_index = fom_obj->fcrw_curr_desc_index;
                 segs_nr = rwfop->crw_ivecs.cis_ivecs[current_index].ci_nr;
+
+                /*
+                 * @todo : Since passing only number of segmnts, supports full
+                 *         stripe I/Os. Should set exact count for last segment
+                 *         of network buffer. Also need to reset last segment
+                 *         count to original since buffers are reused by other
+                 *         I/O requests.
+                 */
 
                 rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
                 if (rc != 0) {

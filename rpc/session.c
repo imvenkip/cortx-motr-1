@@ -271,6 +271,13 @@ static void __session_fini(struct c2_rpc_session *session)
 {
 	struct c2_rpc_slot *slot;
 	int                 i;
+        c2_time_t           t;
+
+        /*
+         * @todo
+         * This sleep should remove after rpc issues resolved. 
+         */
+        c2_nanosleep(c2_time_set(&t, 0, 1000), NULL);
 
 	if (session->s_slot_table != NULL) {
 		for (i = 0; i < session->s_nr_slots; i++) {
