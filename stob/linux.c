@@ -272,7 +272,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
  */
 static int linux_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
 {
-	return -ENOSYS;
+	return 0;
 }
 
 /**
