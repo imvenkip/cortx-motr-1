@@ -50,11 +50,13 @@
 
    <hr>
    @section LNetDLD-ovw Overview
-   This document describes the Colibri Network transport for LNet. The
+   This document describes the Colibri network transport for LNet. The
    transport is composed of multiple layers.  The document describes the
    layering and then focuses mainly on the transport operations layer.
 
    The design of the other layers can be found here:
+   - @subpage LNetCoreDLD-fspec "LNet Transport Core API"
+     <!-- ./lnet_core.h -->
    - @ref LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"
      <!-- ./bev_cqueue.c -->
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
@@ -644,7 +646,7 @@
 
    - @b i.c2.net.xprt.lnet.end-point-address Mapping of LNet end point
    address is handled in the Core API as described in the @ref
-   LNetCoreDLD-fspec "LNet Transport Core Functional Specification".
+   LNetCoreDLD-fspec "LNet Transport Core API".
 
    - @b i.c2.net.xprt.lnet.multiple-messages-in-buffer Fields are provided
    in the c2_net_buffer to support multiple message delivery, and the event
@@ -838,6 +840,7 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/linux_kernel/klnet_core.c"
 #include "net/lnet/linux_kernel/klnet_drv.c"
 #else
+#include "net/lnet/ulnet_core.h"
 #include "net/lnet/ulnet_core.c"
 #endif
 #include "net/lnet/lnet_xo.c"

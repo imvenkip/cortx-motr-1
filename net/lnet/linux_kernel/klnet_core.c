@@ -27,10 +27,9 @@
    - @ref KLNetCoreDLD-req
    - @ref KLNetCoreDLD-depends
    - @ref KLNetCoreDLD-highlights
-   - @subpage LNetCoreDLD-fspec "Functional Specification" <!--
-                                                             ../lnet_core.h -->
-        - @ref LNetCore "LNet Transport Core Interface" <!-- ../lnet_core.h -->
-        - @ref KLNetCore "Core Kernel Interface"        <!-- ./klnet_core.h -->
+   - Functional Specification
+        - @ref LNetCoreDLD-fspec "LNet Transport Core API"<!-- ./lnet_core.h -->
+        - @ref KLNetCore "Core Kernel Interface"         <!-- ./klnet_core.h -->
    - @ref KLNetCoreDLD-lspec
       - @ref KLNetCoreDLD-lspec-comps
       - @ref KLNetCoreDLD-lspec-userspace
@@ -64,7 +63,9 @@
 
    <hr>
    @section KLNetCoreDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
 
    <hr>
    @section KLNetCoreDLD-req Requirements
@@ -760,7 +761,9 @@
 
    <hr>
    @section KLNetCoreDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
    - The LNet API.
 
  */
@@ -1122,7 +1125,7 @@ void *nlx_core_mem_alloc(size_t size, unsigned shift)
 	return c2_alloc(size);
 }
 
-void nlx_core_mem_free(void *data, unsigned shift)
+void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 {
 	c2_free(data);
 }
@@ -1545,6 +1548,7 @@ static int nlx_kcore_buf_passive_recv(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(cb->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_PRE(cb->cb_length > 0);
 	C2_PRE(cb->cb_max_operations == 1);
+	C2_PRE(cb->cb_match_bits > 0);
 
 	nlx_core_match_bits_decode(cb->cb_match_bits, &tmid, &counter);
 	C2_PRE(tmid == ktm->ktm_addr.cepa_tmid);
@@ -1598,6 +1602,7 @@ static int nlx_kcore_buf_passive_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(cb->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
 	C2_PRE(cb->cb_length > 0);
 	C2_PRE(cb->cb_max_operations == 1);
+	C2_PRE(cb->cb_match_bits > 0);
 
 	nlx_core_match_bits_decode(cb->cb_match_bits, &tmid, &counter);
 	C2_PRE(tmid == ktm->ktm_addr.cepa_tmid);
@@ -1675,7 +1680,9 @@ static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 	return any ? 0 : -ETIMEDOUT;
 }
 
-int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *ctm, c2_time_t timeout)
+int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
+			    struct nlx_core_transfer_mc *ctm,
+			    c2_time_t timeout)
 {
 	struct nlx_kcore_transfer_mc *ktm;
 
@@ -1760,12 +1767,17 @@ void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom, char * const **nidary)
 	nlx_kcore_nidstrs_put(nidary);
 }
 
-int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
+int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
+			     struct nlx_core_transfer_mc *ctm,
 			     struct nlx_core_buffer_event **bevp)
 {
 	struct nlx_core_buffer_event *bev;
+	struct nlx_kcore_transfer_mc *ktm;
 
-	C2_ALLOC_PTR_ADDB(bev, &c2_net_addb, &nlx_addb_loc);
+	ktm = ctm->ctm_kpvt;
+	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
+
+	NLX_ALLOC_PTR_ADDB(bev, &ktm->ktm_addb, &nlx_addb_loc);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return -ENOMEM;
@@ -1773,16 +1785,6 @@ int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *ctm, /* not used */
 	bev_link_bless(&bev->cbe_tm_link, virt_to_page(&bev->cbe_tm_link));
 	*bevp = bev;
 	return 0;
-}
-
-static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
-{
-	struct nlx_core_buffer_event *bev;
-	if (ql != NULL) {
-		bev = container_of(ql, struct nlx_core_buffer_event,
-				   cbe_tm_link);
-		c2_free(bev);
-	}
 }
 
 /**
@@ -1953,20 +1955,23 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
 			      PAGE_OFFSET((unsigned long) ctm));
 
-	nlx_core_new_blessed_bev(ctm, &e1);
-	nlx_core_new_blessed_bev(ctm, &e2);
+	nlx_core_new_blessed_bev(cd, ctm, &e1);
+	nlx_core_new_blessed_bev(cd, ctm, &e2);
 	if (e1 == NULL || e2 == NULL) {
 		rc = -ENOMEM;
-		goto fail;
+		goto fail_blessed_bev;
 	}
 
 	bev_cqueue_init(&ctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_is_empty(&ctm->ctm_bevq));
 	return 0;
 
-fail:
+ fail_blessed_bev:
+	C2_ASSERT(e2 == NULL);
+	if (e1 != NULL)
+		nlx_core_bev_free_cb(&e1->cbe_tm_link);
 	nlx_kcore_tm_stop(kd, ctm, ktm);
-fail_ktm:
+ fail_ktm:
 	c2_free(ktm);
 	C2_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);

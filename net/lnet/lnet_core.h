@@ -23,12 +23,12 @@
 #define __COLIBRI_NET_LNET_CORE_H__
 
 /**
-   @page LNetCoreDLD-fspec LNet Transport Core Functional Specification
+   @page LNetCoreDLD-fspec LNet Transport Core API
 
    - @ref LNetCoreDLD-fspec-ovw
    - @ref LNetCoreDLD-fspec-ds
    - @ref LNetCoreDLD-fspec-subs
-   - @ref LNetCore "LNet Transport Core Interface"
+   - @ref LNetCore "LNet Transport Core Interfaces"
 
    @section LNetCoreDLD-fspec-ovw API Overview
    The LNet Transport Core presents an address space agnostic API to the LNet
@@ -99,7 +99,10 @@
    API data structure must be eventually finalized.
 
    @section LNetCoreDLD-fspec-subs Subroutines
-   The API subroutines are categorized as follows:
+
+   The API subroutines are described in
+   @ref LNetCore "LNet Transport Core Interfaces".
+   The subroutines are categorized as follows:
 
    - Initialization, finalization, cancellation and query subroutines:
      - nlx_core_buf_deregister()
@@ -166,12 +169,13 @@ struct nlx_core_buf_desc;
 struct page;
 
 /**
-   @defgroup LNetCore LNet Transport Core Interface
+   @defgroup LNetCore LNet Transport Core Interfaces
    @ingroup LNetDFS
 
    The internal, address space agnostic I/O API used by the LNet transport.
-
-   @see @ref LNetCoreDLD-fspec "LNet Transport Core Functional Specification"
+   See @ref LNetCoreDLD-fspec "LNet Transport Core API" for organizational
+   details and @ref LNetDLD "LNet Transport DLD" for details of the
+   Colibri Network transport for LNet.
 
    @{
  */
@@ -757,13 +761,15 @@ static int nlx_core_buf_del(struct nlx_core_domain *lcdom,
 
 /**
    Waits for buffer events, or the timeout.
+   @param lcdom Domain pointer.
    @param lctm Transfer machine private data.
    @param timeout Absolute time at which to stop waiting.  A value of 0
    indicates that the subroutine should not wait.
    @retval 0 Events present.
    @retval -ETIMEDOUT Timed out before events arrived.
  */
-static int nlx_core_buf_event_wait(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_buf_event_wait(struct nlx_core_domain *lcdom,
+				   struct nlx_core_transfer_mc *lctm,
 				   c2_time_t timeout);
 
 /**
@@ -867,11 +873,13 @@ static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
 
    The invoker must lock the transfer machine prior to this call.
 
+   @param lcdom LNet core domain pointer.
    @param lctm Pointer to LNet core TM data structure.
    @param need Number of additional buffer entries required.
    @see nlx_core_new_blessed_bev(), nlx_core_bevq_release()
  */
-static int nlx_core_bevq_provision(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
+				   struct nlx_core_transfer_mc *lctm,
 				   size_t need);
 
 /**
@@ -893,15 +901,19 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
    Subroutine to allocate a new buffer event structure initialized
    with the producer space self pointer set.
    This subroutine is defined separately for the kernel and user space.
+   @param lcdom LNet core domain pointer.
    @param lctm LNet core transfer machine pointer.
    In the user space transport this must be initialized at least with the
    core device driver file descriptor.
    In kernel space this is not used.
-   @param bevp Buffer event return pointer.
+   @param bevp Buffer event return pointer.  The memory must be allocated with
+   the NLX_ALLOC_PTR() macro or variant.  It will be freed with the
+   NLX_FREE_PTR() macro from the nlx_core_bev_free_cb() subroutine.
    @post bev_cqueue_bless(&bevp->cbe_tm_link) has been invoked.
    @see bev_cqueue_bless()
  */
-static int nlx_core_new_blessed_bev(struct nlx_core_transfer_mc *lctm,
+static int nlx_core_new_blessed_bev(struct nlx_core_domain *lcdom,
+				    struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer_event **bevp);
 
 /**
@@ -917,7 +929,7 @@ static void *nlx_core_mem_alloc(size_t size, unsigned shift);
 /**
    Frees memory allocated by nlx_core_mem_alloc().
  */
-static void nlx_core_mem_free(void *data, unsigned shift);
+static void nlx_core_mem_free(void *data, size_t size, unsigned shift);
 
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
@@ -939,7 +951,8 @@ static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 #define NLX_ALLOC_PTR_ADDB(ptr, ctx, loc) \
 	if (NLX_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
 #define NLX_FREE_PTR(ptr) \
-	nlx_core_mem_free((ptr), NLX_PO2_SHIFT(sizeof ((ptr)[0])))
+	nlx_core_mem_free((ptr), sizeof ((ptr)[0]), \
+                          NLX_PO2_SHIFT(sizeof ((ptr)[0])))
 
 /** @} */ /* LNetCore */
 

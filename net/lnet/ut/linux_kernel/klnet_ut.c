@@ -452,7 +452,8 @@ static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
 
 static struct c2_atomic64 ut_ktest_msg_buf_event_wait_stall;
 static struct c2_chan *ut_ktest_msg_buf_event_wait_delay_chan;
-int ut_ktest_msg_buf_event_wait(struct nlx_core_transfer_mc *lctm,
+int ut_ktest_msg_buf_event_wait(struct nlx_core_domain *lcdom,
+				struct nlx_core_transfer_mc *lctm,
 				c2_time_t timeout)
 {
 	if (c2_atomic64_get(&ut_ktest_msg_buf_event_wait_stall) > 0) {
@@ -465,7 +466,7 @@ int ut_ktest_msg_buf_event_wait(struct nlx_core_transfer_mc *lctm,
 		c2_clink_del(&cl);
 		return -ETIMEDOUT;
 	}
-	return nlx_core_buf_event_wait(lctm, timeout);
+	return nlx_core_buf_event_wait(lcdom, lctm, timeout);
 }
 
 static struct c2_atomic64 ut_ktest_msg_ep_create_fail;

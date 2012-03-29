@@ -107,6 +107,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	struct nlx_xo_transfer_mc *tp;
 	struct nlx_core_transfer_mc *ctp;
 	struct nlx_xo_domain *dp;
+	struct nlx_core_domain *cd;
 	struct c2_net_tm_event tmev = {
 		.nte_type   = C2_NET_TEV_STATE_CHANGE,
 		.nte_tm     = tm,
@@ -125,6 +126,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	tp = tm->ntm_xprt_private;
 	ctp = &tp->xtm_core;
 	dp = tm->ntm_dom->nd_xprt_private;
+	cd = &dp->xd_core;
 
 	nlx_core_tm_set_debug(ctp, tp->_debug_);
 
@@ -137,11 +139,11 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 	}
 
 	if (rc == 0)
-		rc = nlx_core_tm_start(&dp->xd_core, tm, ctp);
+		rc = nlx_core_tm_start(cd, tm, ctp);
 	if (rc == 0) {
 		rc = nlx_ep_create(&tmev.nte_ep, tm, &ctp->ctm_addr);
 		if (rc != 0)
-			nlx_core_tm_stop(&dp->xd_core, ctp);
+			nlx_core_tm_stop(cd, ctp);
 	}
 
 	/*
@@ -189,7 +191,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 			timeout = next_buffer_timeout;
 
 		if (tm->ntm_bev_auto_deliver) {
-			rc = NLX_core_buf_event_wait(ctp, timeout);
+			rc = NLX_core_buf_event_wait(cd, ctp, timeout);
 			/* buffer event processing */
 			if (rc == 0) { /* did not time out - events pending */
 				c2_mutex_lock(&tm->ntm_mutex);
@@ -203,7 +205,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 						  &tm->ntm_mutex, timeout);
 			if (tp->xtm_ev_chan != NULL) {
 				c2_mutex_unlock(&tm->ntm_mutex);
-				rc = nlx_core_buf_event_wait(ctp, timeout);
+				rc = nlx_core_buf_event_wait(cd, ctp, timeout);
 				c2_mutex_lock(&tm->ntm_mutex);
 				if (rc == 0 && tp->xtm_ev_chan != NULL) {
 					c2_chan_signal(tp->xtm_ev_chan);
@@ -237,7 +239,7 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 			c2_mutex_lock(&tm->ntm_mutex);
 			if (all_tm_queues_are_empty(tm) &&
 			    tm->ntm_callback_counter == 0) {
-				nlx_core_tm_stop(&dp->xd_core, ctp);
+				nlx_core_tm_stop(cd, ctp);
 				nlx_tm_stats_report(tm);
 				must_stop = true;
 			}

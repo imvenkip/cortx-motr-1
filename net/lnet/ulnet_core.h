@@ -29,17 +29,30 @@
    @{
  */
 
+enum {
+	C2_NET_LNET_UCORE_DOM_MAGIC = 0x55436f7265446f6dULL, /* UCoreDom */
+	C2_NET_LNET_UCORE_TM_MAGIC  = 0x55436f7265544dULL,   /* UCoreTM */
+	C2_NET_LNET_UCORE_BUF_MAGIC = 0x55436f7265427566ULL, /* UCoreBuf */
+};
+
 /**
    Userspace domain private data.
    This structure is pointed to by nlx_core_domain::cd_upvt.
  */
 struct nlx_ucore_domain {
+	uint64_t                        ud_magic;
 	/** Cached maximum buffer size (counting all segments). */
 	c2_bcount_t                     ud_max_buffer_size;
 	/** Cached maximum size of a buffer segment. */
 	c2_bcount_t                     ud_max_buffer_segment_size;
 	/** Cached maximum number of buffer segments. */
 	int32_t                         ud_max_buffer_segments;
+	/** Cached NID strings.  If LNet were to support dynamically configured
+	    NIDs, then this simple caching would have to be re-addressed.
+	 */
+        char                          **ud_nidstrs;
+	/** Number of references to the NID strings */
+	struct c2_atomic64              ud_nidstrs_refcount;
 	/** File descriptor to the kernel device. */
 	int                             ud_fd;
 	/** ADDB context for events related to this domain. */
@@ -51,6 +64,7 @@ struct nlx_ucore_domain {
    This structure is pointed to by nlx_core_transfer_mc::ctm_upvt.
  */
 struct nlx_ucore_transfer_mc {
+	uint64_t                        utm_magic;
 	/** ADDB context for events related to this transfer machine. */
 	struct c2_addb_ctx              utm_addb;
 };
@@ -60,6 +74,7 @@ struct nlx_ucore_transfer_mc {
    This structure is pointed to by nlx_core_buffer::cb_upvt.
  */
 struct nlx_ucore_buffer {
+	uint64_t                        ub_magic;
 	/** ADDB context for events related to this buffer. */
 	struct c2_addb_ctx              ub_addb;
 };

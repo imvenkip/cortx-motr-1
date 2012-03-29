@@ -169,7 +169,7 @@ struct c2_lnet_dev_bev_bless_params {
 	_IOW(C2_LNET_IOC_MAGIC, 0x32, struct c2_lnet_dev_nidstrs_get_params)
 
 #define C2_LNET_TM_START \
-	_IOW(C2_LNET_IOC_MAGIC, 0x33, struct nlx_core_transfer_mc *);
+	_IOW(C2_LNET_IOC_MAGIC, 0x33, struct nlx_core_transfer_mc *)
 #define C2_LNET_TM_STOP             _IOW(C2_LNET_IOC_MAGIC, 0x34, void *)
 
 #define C2_LNET_BEV_BLESS \
