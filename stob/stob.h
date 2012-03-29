@@ -357,6 +357,22 @@ void c2_stob_get(struct c2_stob *obj);
 void c2_stob_put(struct c2_stob *obj);
 
 /**
+ * A helper function to create a new stob, if one doesn't exists.
+ *
+ * Looks for the stob with a given identifier in a given domain
+ * (c2_stob_find()), if necessary, fetches stob meta-data (c2_stob_locate()) or
+ * creates the stob (c2_stob_create()).
+ *
+ * All operations are performed in the context of a caller-supplied transaction.
+ *
+ * If object existed of was created successfully, it is stored in "out".
+ */
+int c2_stob_create_helper(struct c2_stob_domain    *dom,
+			  struct c2_dtx            *dtx,
+			  const struct c2_stob_id  *stob_id,
+			  struct c2_stob          **out);
+
+/**
    @name adieu
 
    Asynchronous Direct Io Extensible User interface (adieu) for storage objects.
