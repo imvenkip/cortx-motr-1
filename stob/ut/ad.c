@@ -88,27 +88,27 @@ static uint32_t block_shift;
 static uint32_t buf_size;
 
 struct mock_balloc {
-	c2_bindex_t      mb_next;
-	struct ad_balloc mb_ballroom;
+	c2_bindex_t         mb_next;
+	struct c2_ad_balloc mb_ballroom;
 };
 
-static struct mock_balloc *b2mock(struct ad_balloc *ballroom)
+static struct mock_balloc *b2mock(struct c2_ad_balloc *ballroom)
 {
 	return container_of(ballroom, struct mock_balloc, mb_ballroom);
 }
 
-static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+static int mock_balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 			    uint32_t bshift, c2_bindex_t container_size,
 			    c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
 	return 0;
 }
 
-static void mock_balloc_fini(struct ad_balloc *ballroom)
+static void mock_balloc_fini(struct c2_ad_balloc *ballroom)
 {
 }
 
-static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *dtx,
+static int mock_balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *dtx,
 			     c2_bcount_t count, struct c2_ext *out)
 {
 	struct mock_balloc *mb = b2mock(ballroom);
@@ -124,7 +124,7 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 	return 0;
 }
 
-static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *dtx,
+static int mock_balloc_free(struct c2_ad_balloc *ballroom, struct c2_dtx *dtx,
 			    struct c2_ext *ext)
 {
 	/* printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
@@ -132,7 +132,7 @@ static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 	return 0;
 }
 
-static const struct ad_balloc_ops mock_balloc_ops = {
+static const struct c2_ad_balloc_ops mock_balloc_ops = {
 	.bo_init  = mock_balloc_init,
 	.bo_fini  = mock_balloc_fini,
 	.bo_alloc = mock_balloc_alloc,
@@ -163,8 +163,7 @@ static int test_ad_init(void)
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(result == 0);
 
-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
-							  "./__s", &dom_back);
+	result = c2_stob_domain_locate(&c2_linux_stob_type, "./__s", &dom_back);
 	C2_ASSERT(result == 0);
 
 	result = c2_stob_find(dom_back, &id_back, &obj_back);
@@ -175,8 +174,7 @@ static int test_ad_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj_back->so_state == CSS_EXISTS);
 
-	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "",
-						       &dom_fore);
+	result = c2_stob_domain_locate(&c2_ad_stob_type, "", &dom_fore);
 	C2_ASSERT(result == 0);
 
 	result = c2_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,

@@ -311,8 +311,8 @@ static int stobio_init(struct stobio_test *test)
 	int result;
 	struct linux_stob *lstob;
 
-	result = linux_stob_type.st_op->
-		sto_domain_locate(&linux_stob_type, "./__s", &test->st_dom);
+	result = c2_stob_domain_locate(&c2_linux_stob_type,
+				       "./__s", &test->st_dom);
 	C2_UT_ASSERT(result == 0);
 
 	result = c2_linux_stob_setup(test->st_dom, test->st_directio);

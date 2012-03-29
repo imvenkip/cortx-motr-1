@@ -93,6 +93,11 @@ struct c2_stob_type_op {
 int  c2_stob_type_init(struct c2_stob_type *kind);
 void c2_stob_type_fini(struct c2_stob_type *kind);
 
+#define C2_STOB_TYPE_OP(type, op, ...) (type)->st_op->op((type) , ## __VA_ARGS__)
+
+int c2_stob_domain_locate(struct c2_stob_type *type,
+			  const char *domain_name,
+			  struct c2_stob_domain **dom);
 /**
    stob domain
 

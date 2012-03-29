@@ -66,6 +66,12 @@ void c2_stob_type_fini(struct c2_stob_type *kind)
 	dom_tlist_fini(&kind->st_domains);
 }
 
+int c2_stob_domain_locate(struct c2_stob_type *type, const char *domain_name,
+			  struct c2_stob_domain **dom)
+{
+	return C2_STOB_TYPE_OP(type, sto_domain_locate, domain_name, dom);
+}
+
 void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 {
 	c2_rwlock_init(&dom->sd_guard);

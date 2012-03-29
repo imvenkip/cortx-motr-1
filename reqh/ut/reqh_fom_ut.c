@@ -106,17 +106,17 @@ static struct c2_reqh  reqh;
  * These are used while performing a stob operation.
  */
 struct reqh_ut_balloc {
-	struct c2_mutex  rb_lock;
-	c2_bindex_t      rb_next;
-	struct ad_balloc rb_ballroom;
+	struct c2_mutex     rb_lock;
+	c2_bindex_t         rb_next;
+	struct c2_ad_balloc rb_ballroom;
 };
 
-static struct reqh_ut_balloc *getballoc(struct ad_balloc *ballroom)
+static struct reqh_ut_balloc *getballoc(struct c2_ad_balloc *ballroom)
 {
 	return container_of(ballroom, struct reqh_ut_balloc, rb_ballroom);
 }
 
-static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+static int reqh_ut_balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 			       uint32_t bshift, c2_bindex_t container_size,
 			       c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
@@ -126,14 +126,14 @@ static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	return 0;
 }
 
-static void reqh_ut_balloc_fini(struct ad_balloc *ballroom)
+static void reqh_ut_balloc_fini(struct c2_ad_balloc *ballroom)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
 	c2_mutex_fini(&rb->rb_lock);
 }
 
-static int reqh_ut_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
 	struct reqh_ut_balloc	*rb = getballoc(ballroom);
@@ -146,13 +146,13 @@ static int reqh_ut_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return 0;
 }
 
-static int reqh_ut_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_free(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
                             struct c2_ext *ext)
 {
 	return 0;
 }
 
-static const struct ad_balloc_ops reqh_ut_balloc_ops = {
+static const struct c2_ad_balloc_ops reqh_ut_balloc_ops = {
 	.bo_init  = reqh_ut_balloc_init,
 	.bo_fini  = reqh_ut_balloc_fini,
 	.bo_alloc = reqh_ut_balloc_alloc,
@@ -188,8 +188,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	 * Locate and create (if necessary) the backing store object.
 	 */
 
-	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
-							  stob_path, bdom);
+	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path, bdom);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_stob_find(*bdom, backid, bstore);
@@ -203,7 +202,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
+	rc = c2_stob_domain_locate(&c2_ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,

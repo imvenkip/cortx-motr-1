@@ -41,7 +41,7 @@
    An object created by ad_domain_stob_find() is kept in a per-domain in-memory
    list, until last reference to it is released and ad_stob_fini() is called.
 
-   @todo this code is identical to one in linux_stob_type and must be factored
+   @todo this code is identical to one in c2_linux_stob_type and must be factored
    out.
 
    <b>AD extent map.</b>
@@ -116,7 +116,7 @@ struct ad_domain {
 	struct c2_stob            *ad_bstore;
 	/** List of all existing c2_stob's. */
 	struct c2_tl               ad_object;
-	struct ad_balloc          *ad_ballroom;
+	struct c2_ad_balloc       *ad_ballroom;
 
 };
 
@@ -244,7 +244,7 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 }
 
 int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
-		     struct c2_stob *bstore, struct ad_balloc *ballroom,
+		     struct c2_stob *bstore, struct c2_ad_balloc *ballroom,
 		     c2_bcount_t container_size, c2_bcount_t bshift,
 		     c2_bcount_t blocks_per_group, c2_bcount_t res_groups)
 {
@@ -462,7 +462,7 @@ static int ad_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
    a sequence of matching logical and physical extents;
 
    @li for a write, a sequence of allocated extents, returned by the block
-   allocator (ad_balloc), specifies where newly written data should go.
+   allocator (c2_ad_balloc), specifies where newly written data should go.
 
    Note that intervals of these sequences belong to different name-spaces (user
    address-space, AD object name-space, underlying object name-space), but they
@@ -527,8 +527,8 @@ static bool ad_endio(struct c2_clink *link);
    Helper function to allocate a given number of blocks in the underlying
    storage object.
  */
-static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
-		     c2_bcount_t count, struct c2_ext *out)
+static int c2_ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
+			c2_bcount_t count, struct c2_ext *out)
 {
 	C2_PRE(adom->ad_setup);
 	return adom->ad_ballroom->ab_ops->bo_alloc(adom->ad_ballroom,
@@ -1152,7 +1152,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	while (1) {
 		c2_bcount_t got;
 
-		result = ad_balloc(adom, io->si_tx, todo, &wext->we_ext);
+		result = c2_ad_balloc(adom, io->si_tx, todo, &wext->we_ext);
 		if (result != 0)
 			break;
 		got = c2_ext_length(&wext->we_ext);
@@ -1215,7 +1215,7 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 	bool                  wentout = false;
 
 	C2_PRE(adom->ad_setup);
-	C2_PRE(io->si_obj->so_domain->sd_type == &ad_stob_type);
+	C2_PRE(io->si_obj->so_domain->sd_type == &c2_ad_stob_type);
 	C2_PRE(io->si_stob.iv_vec.v_nr > 0);
 	C2_PRE(c2_vec_count(&io->si_user.ov_vec) > 0);
 
@@ -1350,7 +1350,7 @@ static const struct c2_stob_op ad_stob_op = {
 	.sop_block_shift  = ad_stob_block_shift
 };
 
-struct c2_stob_type ad_stob_type = {
+struct c2_stob_type c2_ad_stob_type = {
 	.st_op    = &ad_stob_type_op,
 	.st_name  = "adstob",
 	.st_magic = 0x3129A830
@@ -1364,12 +1364,12 @@ int c2_ad_stobs_init(void)
 {
 	c2_addb_ctx_init(&ad_stob_ctx, &ad_stob_ctx_type,
 			 &c2_addb_global_ctx);
-	return ad_stob_type.st_op->sto_init(&ad_stob_type);
+	return C2_STOB_TYPE_OP(&c2_ad_stob_type, sto_init);
 }
 
 void c2_ad_stobs_fini(void)
 {
-	ad_stob_type.st_op->sto_fini(&ad_stob_type);
+	C2_STOB_TYPE_OP(&c2_ad_stob_type, sto_fini);
 	c2_addb_ctx_fini(&ad_stob_ctx);
 }
 

@@ -29,7 +29,7 @@
    @{
  */
 
-extern struct c2_stob_type linux_stob_type;
+extern struct c2_stob_type c2_linux_stob_type;
 
 int  c2_linux_stobs_init(void);
 void c2_linux_stobs_fini(void);
@@ -45,7 +45,7 @@ int c2_linux_stob_link(struct c2_stob_domain *dom, struct c2_stob *obj,
 /* __COLIBRI_STOB_LINUX_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
