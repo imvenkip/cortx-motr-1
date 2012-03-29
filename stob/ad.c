@@ -364,7 +364,7 @@ static int ad_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
 
 	adom = domain2ad(dom);
 	C2_PRE(adom->ad_setup);
-	return c2_db_tx_init(&tx->tx_dbtx, adom->ad_dbenv, 0);
+	return c2_dtx_open(tx, adom->ad_dbenv);
 }
 
 /**
