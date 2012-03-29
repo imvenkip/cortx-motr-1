@@ -192,7 +192,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 							  stob_path, bdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, backid, bstore);
+	rc = c2_stob_find(*bdom, backid, bstore);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*bstore)->so_state == CSS_UNKNOWN);
 
@@ -215,7 +215,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	c2_stob_put(*bstore);
 
 	/* Create or open a stob into which to store the record. */
-	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
+	rc = c2_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_UNKNOWN);
 

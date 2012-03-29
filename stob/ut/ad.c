@@ -167,7 +167,7 @@ static int test_ad_init(void)
 							  "./__s", &dom_back);
 	C2_ASSERT(result == 0);
 
-	result = dom_back->sd_ops->sdo_stob_find(dom_back, &id_back, &obj_back);
+	result = c2_stob_find(dom_back, &id_back, &obj_back);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj_back->so_state == CSS_UNKNOWN);
 
@@ -188,10 +188,11 @@ static int test_ad_init(void)
 
 	c2_stob_put(obj_back);
 
-	result = dom_fore->sd_ops->sdo_stob_find(dom_fore, &id_fore, &obj_fore);
+	result = c2_stob_find(dom_fore, &id_fore, &obj_fore);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj_fore->so_state == CSS_UNKNOWN);
 
+	c2_dtx_init(&tx);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	C2_ASSERT(result == 0);
 
@@ -231,11 +232,9 @@ static int test_ad_init(void)
 
 static int test_ad_fini(void)
 {
-	int result;
 	int i;
 
-	result = c2_db_tx_commit(&tx.tx_dbtx);
-	C2_ASSERT(result == 0);
+	c2_dtx_done(&tx);
 
 	c2_stob_put(obj_fore);
 	dom_fore->sd_ops->sdo_fini(dom_fore);

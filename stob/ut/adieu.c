@@ -89,7 +89,7 @@ static int test_adieu_init(void)
 							  "./__s", &dom);
 	C2_ASSERT(result == 0);
 
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
+	result = c2_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
@@ -97,14 +97,14 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == -ENOENT);
 	C2_ASSERT(obj->so_state == CSS_NOENT);
 
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj1);
+	result = c2_stob_find(dom, &id, &obj1);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj == obj1);
 
 	c2_stob_put(obj);
 	c2_stob_put(obj1);
 
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
+	result = c2_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
@@ -113,7 +113,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 	c2_stob_put(obj);
 
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
+	result = c2_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
@@ -227,7 +227,7 @@ static void test_read(int i)
 }
 
 /**
-   Adieu unit-test. 
+   Adieu unit-test.
  */
 static void test_adieu(void)
 {
@@ -292,7 +292,7 @@ struct c2_ub_set c2_adieu_ub = {
 	.us_name = "adieu-ub",
 	.us_init = (void *)test_adieu_init,
 	.us_fini = (void *)test_adieu_fini,
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name = "write-prime",
 		  .ut_iter = 1,
 		  .ut_round = ub_write },
@@ -311,7 +311,7 @@ struct c2_ub_set c2_adieu_ub = {
 
 /** @} end group stob */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
