@@ -982,6 +982,13 @@ static void io_fop_desc_dealloc(struct c2_fop *fop)
 
 	rw = io_rw_get(fop);
 
+	/*
+	 * These descriptors are allocated by c2_rpc_bulk_store()
+	 * code during adding them as part of on-wire representation
+	 * of io fop. They should not be deallocated by rpc code
+	 * since it will unnecessarily pollute rpc layer code
+	 * with io details.
+	 */
 	for (i = 0; i < rw->crw_desc.id_nr; ++i)
 		c2_net_desc_free(&rw->crw_desc.id_descs[i]);
 
