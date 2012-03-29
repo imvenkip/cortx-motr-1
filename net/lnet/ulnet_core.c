@@ -650,7 +650,8 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 		goto fail_open;
 	}
 
-	if (ioctl(ud->ud_fd, C2_LNET_DOM_INIT, &ip) < 0) {
+	rc = ioctl(ud->ud_fd, C2_LNET_DOM_INIT, &ip);
+	if (rc < 0) {
 		rc = NLX_UCORE_ERRNO_TO_RC();
 		goto fail_dom_init;
 	}
@@ -765,7 +766,8 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	cb->cb_upvt = ub;
 
 	rp.dbr_bvec = *bvec;
-	if (ioctl(ud->ud_fd, C2_LNET_BUF_REGISTER, &rp) < 0) {
+	rc = ioctl(ud->ud_fd, C2_LNET_BUF_REGISTER, &rp);
+	if (rc < 0) {
 		rc = NLX_UCORE_ERRNO_TO_RC();
 		cb->cb_upvt = NULL;
 		c2_addb_ctx_fini(&ub->ub_addb);
@@ -832,7 +834,8 @@ void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 								\
 	dbqp.dbq_ktm = ctm->ctm_kpvt;				\
 	dbqp.dbq_kb  = cb->cb_kpvt;				\
-	if (ioctl(ud->ud_fd, op, &dbqp) < 0) {			\
+	rc = ioctl(ud->ud_fd, op, &dbqp);			\
+	if (rc < 0) {						\
 		rc = NLX_UCORE_ERRNO_TO_RC();			\
 		LNET_ADDB_FUNCFAIL_ADD(ub->ub_addb, rc);	\
 	}
@@ -972,7 +975,8 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 
 	bewp.dbw_ktm = ctm->ctm_kpvt;
 	bewp.dbw_timeout = timeout;
-	if (ioctl(ud->ud_fd, C2_LNET_BUF_EVENT_WAIT, &bewp) < 0) {
+	rc = ioctl(ud->ud_fd, C2_LNET_BUF_EVENT_WAIT, &bewp);
+	if (rc < 0) {
 		rc = NLX_UCORE_ERRNO_TO_RC();
 		if (rc != -ETIMEDOUT) /* valid return value */
 			LNET_ADDB_FUNCFAIL_ADD(utm->utm_addb, rc);
@@ -997,7 +1001,8 @@ int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
 	dnep.dn_buf[ARRAY_SIZE(dnep.dn_buf) - 1] = '\0';
 	dnep.dn_nid = 0;
 
-	if (ioctl(ud->ud_fd, C2_LNET_NIDSTR_DECODE, &dnep) < 0) {
+	rc = ioctl(ud->ud_fd, C2_LNET_NIDSTR_DECODE, &dnep);
+	if (rc < 0) {
 		rc = NLX_UCORE_ERRNO_TO_RC();
 		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
 		return rc;
@@ -1022,7 +1027,8 @@ int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
 	dnep.dn_nid = nid;
 	dnep.dn_buf[0] = '\0';
 
-	if (ioctl(ud->ud_fd, C2_LNET_NIDSTR_ENCODE, &dnep) < 0) {
+	rc = ioctl(ud->ud_fd, C2_LNET_NIDSTR_ENCODE, &dnep);
+	if (rc < 0) {
 		rc = NLX_UCORE_ERRNO_TO_RC();
 		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
 		return rc;
@@ -1047,7 +1053,6 @@ int nlx_core_nidstrs_get(struct nlx_core_domain *cd, char * const **nidary)
 	C2_PRE(nlx_ucore_domain_invariant(ud));
 
 	c2_atomic64_inc(&ud->ud_nidstrs_refcount);
-
 	*nidary = ud->ud_nidstrs;
 	return 0;
 }
@@ -1119,7 +1124,8 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	C2_POST(nlx_ucore_tm_invariant(utm));
 	ctm->ctm_upvt = utm;
 
-	if (ioctl(ud->ud_fd, C2_LNET_TM_START, ctm) < 0) {
+	rc = ioctl(ud->ud_fd, C2_LNET_TM_START, ctm);
+	if (rc < 0) {
 		rc = NLX_UCORE_ERRNO_TO_RC();
 		goto fail_start;
 	}
@@ -1202,7 +1208,8 @@ int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 
 	bp.dbb_ktm = ctm->ctm_kpvt;
 	bp.dbb_bev = bev;
-	if (ioctl(ud->ud_fd, C2_LNET_BEV_BLESS, &bp) < 0) {
+	rc = ioctl(ud->ud_fd, C2_LNET_BEV_BLESS, &bp);
+	if (rc < 0) {
 		rc = NLX_UCORE_ERRNO_TO_RC();
 		NLX_FREE_PTR(bev);
 		LNET_ADDB_FUNCFAIL_ADD(utm->utm_addb, rc);
@@ -1224,7 +1231,7 @@ static int nlx_core_init(void)
 	return 0;
 }
 
-#undef NLX_UCORE_SET_ERRNO
+#undef NLX_UCORE_ERRNO_TO_RC
 
 /** @} */ /* ULNetCore */
 
