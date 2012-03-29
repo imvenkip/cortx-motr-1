@@ -1153,6 +1153,8 @@ void nlx_core_mem_free(void *data, unsigned shift)
    Initializes the core private data given a previously initialized
    kernel core private data object.
    @see nlx_kcore_kcore_dom_init()
+   @pre nlx_kcore_domain_invariant(kd) &&
+   !nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)
    @param kd Kernel core private data pointer.
    @param cd Core private data pointer.
  */
@@ -2073,7 +2075,11 @@ static struct nlx_kcore_ops nlx_kcore_def_ops = {
 
 /**
    Initializes the kernel core domain private data object.
+   The nlx_kcore_domain::kd_cd_loc is empty on return, denoting the initial
+   state of the domain.  The caller must set this field before calling
+   nlx_kcore_core_dom_init().
    @see nlx_kcore_core_dom_init()
+   @post nlx_kcore_domain_invariant(kd)
    @param kd kernel core private data pointer for the domain to be initialized.
  */
 static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd)

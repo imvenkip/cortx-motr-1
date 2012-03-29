@@ -643,10 +643,19 @@
    API is called.
 
    The resources managed by the driver are tracked by the following lists:
-   - @c nlx_kcore_domain::kd_drv_page (a single item)
+   - @c nlx_kcore_domain::kd_cd_loc (a single item)
    - @c nlx_kcore_domain::kd_drv_tms
    - @c nlx_kcore_domain::kd_drv_bufs
    - @c nlx_kcore_transfer_mc::ktm_drv_bevs
+
+   Each @c nlx_kcore_domain object has 2 valid states which can be determined
+   by inspecting the @c nlx_kcore_domain::kd_cd_loc field:
+   - @c nlx_core_kmem_loc_is_empty(&kd_cd_loc): The device is newly opened
+   and the @c #C2_LNET_DOM_INIT ioctl request has not yet been performed.
+   - @c nlx_core_kmem_loc_invariant(&kd_cd_loc): The @c #C2_LNET_DOM_INIT
+   ioctl request has been performed, associating it with a @c nlx_core_domain
+   object.  In this state, the @c nlx_kcore_domain is ready for use and remains
+   in this state until finalized.
 
    @subsection LNetDRVDLD-lspec-thread Threading and Concurrency Model
 
