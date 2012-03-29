@@ -1437,8 +1437,7 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 
 	io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 						       bp->bp_rfops;
-	for (i = 0; i < IO_FOPS_NR; ++i)
-		C2_ALLOC_PTR(io_fops[i]);
+	C2_ALLOC_PTR(io_fops[index]);
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE)
                 rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_writev_fopt);

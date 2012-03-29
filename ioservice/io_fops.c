@@ -975,11 +975,15 @@ static int io_fop_desc_alloc(struct c2_fop *fop, struct c2_rpc_bulk *rbulk)
 
 static void io_fop_desc_dealloc(struct c2_fop *fop)
 {
+	uint32_t                 i;
 	struct c2_fop_cob_rw	*rw;
 
 	C2_PRE(fop != NULL);
 
 	rw = io_rw_get(fop);
+
+	for (i = 0; i < rw->crw_desc.id_nr; ++i)
+		c2_net_desc_free(&rw->crw_desc.id_descs[i]);
 
 	c2_free(rw->crw_desc.id_descs);
 	rw->crw_desc.id_descs = NULL;
@@ -1356,7 +1360,6 @@ static void io_item_replied(struct c2_rpc_item *item)
 	 * a list from parent coalesced item.
 	 */
 	c2_tlist_for(&rpcitem_tl, &item->ri_compound_items, ritem) {
-		rpcitem_tlist_del(ritem);
 		fop = c2_rpc_item_to_fop(ritem);
 		rbulk = c2_fop_to_rpcbulk(fop);
 		c2_mutex_lock(&rbulk->rb_mutex);
@@ -1445,21 +1448,36 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	}
 }
 
+static void io_item_free_internal(struct c2_rpc_item *item)
+{
+	struct c2_fop    *fop;
+	struct c2_io_fop *iofop;
+
+	C2_PRE(item != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	iofop = container_of(fop, struct c2_io_fop, if_fop);
+	c2_io_fop_destroy(&iofop->if_fop);
+	c2_io_fop_fini(iofop);
+	c2_free(iofop);
+}
+
 /*
  * From bulk client side, IO REQUEST fops are typically bundled in
  * struct c2_io_fop. So c2_io_fop is deallocated from here.
  */
 static void io_item_free(struct c2_rpc_item *item)
 {
-	struct c2_fop		*fop;
-	struct c2_io_fop	*iofop;
+	struct c2_rpc_item *ri;
 
-	fop = c2_rpc_item_to_fop(item);
-	iofop = container_of(fop, struct c2_io_fop, if_fop);
+	C2_PRE(item != NULL);
 
-	c2_io_fop_destroy(&iofop->if_fop);
-	c2_io_fop_fini(iofop);
-	c2_free(iofop);
+	c2_tlist_for (&rpcitem_tl, &item->ri_compound_items, ri) {
+		rpcitem_tlist_del(ri);
+		io_item_free_internal(ri);
+	} c2_tlist_endfor;
+
+	io_item_free_internal(item);
 }
 
 /*
