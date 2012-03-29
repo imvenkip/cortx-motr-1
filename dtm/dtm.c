@@ -18,60 +18,42 @@
  * Original creation date: 04/01/2010
  */
 
-#ifndef __COLIBRI_DTM_DTM_H__
-#define __COLIBRI_DTM_DTM_H__
-
-#include "db/db.h"
-
 /**
-   @defgroup dtm Distributed transaction manager
-   @{
-*/
+ * @addtogroup dtm Distributed transaction manager
+ * @{
+ */
 
-/* export */
-struct c2_dtm;
-struct c2_dtx;
-struct c2_epoch_id;
-struct c2_update_id;
+#include "lib/misc.h"              /* C2_SET0 */
+#include "dtm/dtm.h"
 
-struct c2_dtm {};
+void c2_dtx_init(struct c2_dtx *tx)
+{
+	C2_SET0(tx);
+	tx->tx_state = C2_DTX_INIT;
+}
 
-enum c2_dtx_state {
-	C2_DTX_INIT = 1,
-	C2_DTX_OPEN,
-	C2_DTX_DONE,
-	C2_DTX_COMMIT,
-	C2_DTX_STABLE
-};
+int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env)
+{
+	int result;
 
-struct c2_dtx {
-	/**
-	   @todo placeholder for now.
-	 */
-	enum c2_dtx_state tx_state;
-	struct c2_db_tx   tx_dbtx;
-};
+	C2_PRE(tx->tx_state == C2_DTX_INIT);
 
-struct c2_update_id {
-	uint32_t ui_node;
-	uint64_t ui_update;
-};
+	result = c2_db_tx_init(&tx->tx_dbtx, env, 0);
+	if (result == 0)
+		tx->tx_state = C2_DTX_OPEN;
+	return result;
+}
 
-enum c2_update_state {
-	C2_US_INVALID,
-	C2_US_VOLATILE,
-	C2_US_PERSISTENT,
-	C2_US_NR
-};
+void c2_dtx_done(struct c2_dtx *tx)
+{
+	C2_PRE(tx->tx_state == C2_DTX_INIT || tx->tx_state == C2_DTX_OPEN);
 
-void c2_dtx_init(struct c2_dtx *tx);
-int  c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env);
-void c2_dtx_done(struct c2_dtx *tx);
+	if (tx->tx_state == C2_DTX_OPEN)
+		c2_db_tx_commit(&tx->tx_dbtx);
+	tx->tx_state = C2_DTX_DONE;
+}
 
 /** @} end of dtm group */
-
-/* __COLIBRI_DTM_DTM_H__ */
-#endif
 
 /*
  *  Local variables:
