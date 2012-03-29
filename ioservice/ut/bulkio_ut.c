@@ -92,6 +92,7 @@ static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
 {
 	struct c2_io_fom_cob_rw   *fom_obj = NULL;
+
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         c2_stob_put(fom_obj->fcrw_stob);
 	c2_fom_fini(fom);
@@ -1099,7 +1100,6 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         struct c2_fid                    fid;
         struct c2_stob_id                stobid;
         int				 rc;
-	struct c2_fop			*fop;
 	struct c2_fop_cob_writev_rep	*wrep;
 
         struct c2_io_fom_cob_rw  *fom_obj;
@@ -1119,12 +1119,11 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         rc = c2_stob_create(fom_obj->fcrw_stob, &fom->fo_tx);
         C2_UT_ASSERT(rc == 0);
 
-	fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
-	wrep = c2_fop_data(fop);
+	wrep = c2_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
 	wrep->c_rep.rwr_count = rwfop->crw_ivecs.cis_nr;
-	fop->f_item.ri_group = NULL;
-	rc = c2_rpc_reply_post(&fom->fo_fop->f_item, &fop->f_item);
+	fom->fo_rep_fop->f_item.ri_group = NULL;
+	rc = c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 	C2_UT_ASSERT(rc == 0);
 	fom->fo_phase = FOPH_FINISH;
 	return rc;
@@ -1162,7 +1161,7 @@ static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	 rc = c2_io_fom_cob_rw_create(fop, &fom);
+	rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
 	fop->f_type->ft_fom_type = bulkio_stob_create_fom_type;
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
@@ -1449,7 +1448,8 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
-	void add_buffer_bulk(int j) {
+	void add_buffer_bulk(int j)
+	{
 		/*
 		 * Adds a c2_rpc_bulk_buf structure to list of such structures
 		 * in c2_rpc_bulk.
