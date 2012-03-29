@@ -141,7 +141,7 @@ struct c2_stob_domain_op {
 	   place.
 	 */
 	int (*sdo_tx_make)(struct c2_stob_domain *dom, struct c2_dtx *tx);
-	
+
 	uint32_t (*sdo_block_shift)(struct c2_stob_domain *stob_domain);
 };
 
