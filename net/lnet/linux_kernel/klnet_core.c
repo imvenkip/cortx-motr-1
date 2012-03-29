@@ -1152,6 +1152,7 @@ void nlx_core_mem_free(void *data, unsigned shift)
 /**
    Initializes the core private data given a previously initialized
    kernel core private data object.
+   @see nlx_kcore_kcore_dom_init()
    @param kd Kernel core private data pointer.
    @param cd Core private data pointer.
  */
@@ -1160,6 +1161,7 @@ static int nlx_kcore_core_dom_init(struct nlx_kcore_domain *kd,
 {
 	C2_PRE(kd != NULL && cd != NULL);
 	C2_PRE(nlx_kcore_domain_invariant(kd));
+	C2_PRE(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
 	cd->cd_kpvt = kd;
 	return 0;
 }
@@ -1177,7 +1179,7 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 	if (rc != 0)
 		goto fail_free_kd;
 	nlx_core_kmem_loc_set(&kd->kd_cd_loc, virt_to_page(cd),
-			      PAGE_OFFSET((unsigned long) cd));
+			      NLX_PAGE_OFFSET((unsigned long) cd));
 	rc = nlx_kcore_core_dom_init(kd, cd);
 	if (rc != 0)
 		goto fail_dom_inited;
@@ -1305,7 +1307,7 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	if (kb == NULL)
 		return -ENOMEM;
 	nlx_core_kmem_loc_set(&kb->kb_cb_loc, virt_to_page(cb),
-			      PAGE_OFFSET((unsigned long) cb));
+			      NLX_PAGE_OFFSET((unsigned long) cb));
 	rc = nlx_kcore_buf_register(kd, buffer_id, cb, kb);
 	if (rc != 0)
 		goto fail_free_kb;
@@ -1961,7 +1963,7 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	}
 
 	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
-			      PAGE_OFFSET((unsigned long) ctm));
+			      NLX_PAGE_OFFSET((unsigned long) ctm));
 	rc = nlx_kcore_tm_start(kd, ctm, ktm);
 	if (rc != 0)
 		goto fail_ktm;
@@ -2071,6 +2073,7 @@ static struct nlx_kcore_ops nlx_kcore_def_ops = {
 
 /**
    Initializes the kernel core domain private data object.
+   @see nlx_kcore_core_dom_init()
    @param kd kernel core private data pointer for the domain to be initialized.
  */
 static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd)

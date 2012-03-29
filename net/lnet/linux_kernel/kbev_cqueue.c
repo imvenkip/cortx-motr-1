@@ -80,7 +80,7 @@ static void bev_cqueue_put(struct nlx_core_bev_cqueue *q,
 static void bev_link_bless(struct nlx_core_bev_link *ql, struct page *pg)
 {
 	nlx_core_kmem_loc_set(&ql->cbl_p_self_loc,
-			      pg, PAGE_OFFSET((unsigned long) ql));
+			      pg, NLX_PAGE_OFFSET((unsigned long) ql));
 }
 
 /** @} */ /* bevcqueue */

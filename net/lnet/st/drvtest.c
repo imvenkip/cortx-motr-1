@@ -88,15 +88,15 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
+	C2_ASSERT(rc == 0);
 	printf("max values are: bufsize=%ld segsize=%ld segs=%d\n",
 	       p.ddi_max_buffer_size,
 	       p.ddi_max_buffer_segment_size, p.ddi_max_buffer_segments);
 
-	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
-	C2_ASSERT(rc == 0);
 	close(f);
 	NLX_FREE_PTR(tm);
-	NLX_FREE_PTR(tm);
+	NLX_FREE_PTR(dom);
 
 	c2_fini();
 	return 0;

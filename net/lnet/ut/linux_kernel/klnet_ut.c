@@ -355,7 +355,7 @@ static void ktest_enc_dec(void)
 	   Check that hdr data decode reverses encode.
 	 */
 	nlx_core_kmem_loc_set(&ktm.ktm_ctm_loc, virt_to_page(&ctm),
-			      PAGE_OFFSET((unsigned long) &ctm));
+			      NLX_PAGE_OFFSET((unsigned long) &ctm));
 	C2_UT_ASSERT(nlx_kcore_tm_invariant(&ktm)); /* to make this pass */
 
 #define TEST_HDR_DATA_ENCODE(_p, _t)					\

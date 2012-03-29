@@ -851,7 +851,8 @@ static C2_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
 #define WRITABLE_USER_PAGE_PUT(pg)		\
 ({						\
 	struct page *__pg = (pg);		\
-	SetPageDirty(__pg);			\
+	if (!PageReserved(__pg))		\
+		SetPageDirty(__pg);		\
 	put_page(__pg);				\
 })
 
@@ -885,7 +886,7 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 	if (rc >= 0) {
 		C2_ASSERT(rc == 1);
 		nlx_core_kmem_loc_set(&kd->kd_cd_loc, pg,
-				      PAGE_OFFSET((unsigned long) p->ddi_cd));
+				   NLX_PAGE_OFFSET((unsigned long) p->ddi_cd));
 		cd = nlx_kcore_core_domain_map(kd);
 		rc = kd->kd_drv_ops->ko_dom_init(kd, cd);
 		if (rc == 0) {
@@ -895,6 +896,8 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 			    nlx_core_get_max_buffer_segment_size(cd);
 			p->ddi_max_buffer_segments =
 			    nlx_core_get_max_buffer_segments(cd);
+			C2_ASSERT(nlx_kcore_domain_invariant(kd));
+			C2_ASSERT(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
 		}
 		nlx_kcore_core_domain_unmap(kd);
 	}
@@ -932,11 +935,13 @@ static void nlx_dev_buf_pages_unpin(const struct nlx_kcore_buffer *kb)
    @param kd The kernel domain object
    @param kb The kernel buffer object, freed upon return
  */
-static void nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
-				   struct nlx_kcore_buffer *kb)
+static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
+				  struct nlx_kcore_buffer *kb)
 {
 	struct nlx_core_buffer *cb;
 
+	if (!nlx_kcore_buffer_invariant(kb))
+		return -EBADR;
 	drv_bufs_tlist_del(kb);
 	nlx_dev_buf_pages_unpin(kb);
 	cb = nlx_kcore_core_buffer_map(kb);
@@ -944,6 +949,7 @@ static void nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 	nlx_kcore_core_buffer_unmap(kb);
 	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
 	c2_free(kb);
+	return 0;
 }
 
 /**
@@ -957,10 +963,9 @@ static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
 	struct nlx_kcore_buffer *kb = (struct nlx_kcore_buffer *) arg;
 
 	/* protect against user space passing invalid ptr */
-	if (!virt_addr_valid(kb) || !nlx_kcore_buffer_invariant(kb))
+	if (!virt_addr_valid(kb))
 		return -EBADR;
-	nlx_dev_buf_deregister(kd, kb);
-	return 0;
+	return nlx_dev_buf_deregister(kd, kb);
 }
 
 /**
@@ -1114,7 +1119,7 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	up_read(&current->mm->mmap_sem);
 	if (rc < 0)
 		goto fail_page;
-	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, PAGE_OFFSET(utmp));
+	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, NLX_PAGE_OFFSET(utmp));
 	ctm = nlx_kcore_core_tm_map(ktm);
 	if (!nlx_core_tm_invariant(ctm) || ctm->ctm_kpvt != NULL) {
 		rc = -EBADR;
@@ -1144,12 +1149,14 @@ fail_page:
    @param ktm The kernel transfer machine object, removed from the
    kd->kd_drv_tms and freed upon return.
  */
-static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
-			       struct nlx_kcore_transfer_mc *ktm)
+static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
+			      struct nlx_kcore_transfer_mc *ktm)
 {
 	struct nlx_kcore_buffer_event *kbev;
 	struct nlx_core_transfer_mc *ctm;
 
+	if (!nlx_kcore_tm_invariant(ktm))
+		return -EBADR;
 	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
 		drv_bevs_tlist_del(kbev);
@@ -1162,6 +1169,7 @@ static void nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
 	drv_tms_tlist_del(ktm);
 	c2_free(ktm);
+	return 0;
 }
 
 /**
@@ -1175,10 +1183,9 @@ static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd, unsigned long arg)
 		    (struct nlx_kcore_transfer_mc *) arg;
 
 	/* protect against user space passing invalid ptr */
-	if (!virt_addr_valid(ktm) || !nlx_kcore_tm_invariant(ktm))
+	if (!virt_addr_valid(ktm))
 		return -EBADR;
-	nlx_dev_tm_cleanup(kd, ktm);
-	return 0;
+	return nlx_dev_tm_cleanup(kd, ktm);
 }
 
 /**
@@ -1321,7 +1328,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 		file->private_data = kd;
 		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_open);
 	}
-        return 0;
+        return rc;
 }
 
 /**
@@ -1346,6 +1353,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	struct nlx_core_transfer_mc *ctm;
 	struct nlx_kcore_buffer *kb;
 	bool cleanup = false;
+	int rc;
 
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	file->private_data = NULL;
@@ -1396,11 +1404,13 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 			spin_unlock(&ktm->ktm_bevq_lock);
 		} c2_tlist_endfor;
 
-		nlx_dev_tm_cleanup(kd, ktm);
+		rc = nlx_dev_tm_cleanup(kd, ktm);
+		C2_ASSERT(rc == 0);
 		cleanup = true;
 	} c2_tlist_endfor;
 	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
-		nlx_dev_buf_deregister(kd, kb);
+		rc = nlx_dev_buf_deregister(kd, kb);
+		C2_ASSERT(rc == 0);
 		cleanup = true;
 	} c2_tlist_endfor;
 
