@@ -27,6 +27,7 @@
  * @{
  */
 
+#include "lib/misc.h"  /* strlen() */
 #include "lib/errno.h"
 #include "lib/vec.h"   /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 
@@ -64,6 +65,23 @@ C2_ADDB_EV_DEFINE(layout_encode_success, "layout_encode_success",
 		  C2_ADDB_EVENT_LAYOUT_ENCODE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
 		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_FUNC_CALL);
+
+C2_ADDB_EV_DEFINE(ldb_lookup_success, "layout_lookup_success",
+		  C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_lookup_fail, "layout_lookup_fail",
+		  C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, C2_ADDB_FUNC_CALL);
+C2_ADDB_EV_DEFINE(ldb_add_success, "layout_add_success",
+		  C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_add_fail, "layout_add_fail",
+		  C2_ADDB_EVENT_LAYOUT_ADD_FAIL, C2_ADDB_FUNC_CALL);
+C2_ADDB_EV_DEFINE(ldb_update_success, "layout_update_success",
+		  C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_update_fail, "layout_update_fail",
+		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_FUNC_CALL);
+C2_ADDB_EV_DEFINE(ldb_delete_success, "layout_delete_success",
+		  C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
+		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
 
 bool layout_invariant(const struct c2_layout *l)
 {
@@ -242,6 +260,158 @@ void c2_layout_put(struct c2_layout *l)
 }
 
 /**
+ * This method performs the following operations:
+ * 1) For a success case, adds an ADDB message indicating suceessful
+ *    termination of the API.
+ * 2) For a failure case, adds an ADDB message indicating failure along with
+ *    a short error message string and the error code.
+ */
+static void layout_addb_add(struct c2_addb_ctx *ctx,
+			    enum c2_addb_event_id ev_id,
+			    const char *err_msg,
+			    int rc)
+{
+	switch (ev_id) {
+	case C2_ADDB_EVENT_FUNC_FAIL:
+		C2_ASSERT(strlen(err_msg) > 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, c2_addb_func_fail,
+			    err_msg, rc);
+		break;
+	case C2_ADDB_EVENT_OOM:
+		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, c2_addb_oom);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_DECODE_SUCCESS:
+		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_decode_success, true);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_DECODE_FAIL:
+		C2_ASSERT(strlen(err_msg) > 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_decode_fail,
+			    err_msg, rc);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_ENCODE_SUCCESS:
+		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_encode_success, true);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL:
+		C2_ASSERT(strlen(err_msg) > 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_encode_fail,
+			    err_msg, rc);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS:
+		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_lookup_success, true);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL:
+		C2_ASSERT(strlen(err_msg) > 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_lookup_fail,
+			    err_msg, rc);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS:
+		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_add_success, true);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_ADD_FAIL:
+		C2_ASSERT(strlen(err_msg) > 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_add_fail,
+			    err_msg, rc);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS:
+		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_update_success, true);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL:
+		C2_ASSERT(strlen(err_msg) > 0); //todo remove such asserts
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_update_fail,
+			    err_msg, rc);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS:
+		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_delete_success,
+			    true);
+		break;
+	case C2_ADDB_EVENT_LAYOUT_DELETE_FAIL:
+		C2_ASSERT(strlen(err_msg) > 0);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_delete_fail,
+			    err_msg, rc);
+		break;
+	default:
+		C2_ASSERT(0);
+	}
+}
+
+char            log_msg[512];
+struct c2_mutex log_msg_lock; /* todo Make use of this lock. */
+
+/**
+ * This method performs the following operations:
+ * 1) If value of the flag if_addb_msg is true, then Invokes layout_addb_add()
+ *    to add an ADDB message.
+ * 2) If value of the flag if_trace_msg is true and if it is a suceess case
+ *    (indicated by rc != 0), then it adds a C2_LOG message (trace message),
+ *    indicating failure, along with a short error message string and the
+ *    error code.
+ * 3) Note: For a suceesss case (indicated by rc == 0), C2_LEAVE() (trace
+ *    message) invoked through the API itself, anyway indicates successful
+ *    termination of the API without any error.
+ *
+ * @param if_addb_msg Indicates if ADDB message is to be printed.
+ * @param if_trace_msg Indicates if C2_LOG message is to be printed.
+ * @param if_lid Indicates if LID is applicable for the C2_LOG message.
+ */
+void layout_log(const char *fn_name,
+		const char *err_msg,
+		bool if_addb_msg,
+		bool if_trace_msg,
+		enum c2_addb_event_id ev_id,
+		struct c2_addb_ctx *ctx,
+		bool if_lid,
+		uint64_t lid,
+		int rc)
+{
+	uint32_t n;
+
+	C2_PRE(ergo(rc == 0, strlen(err_msg) == 0 &&
+			     !if_trace_msg &&
+			     (ev_id == layout_decode_success.ae_id ||
+			      ev_id == layout_encode_success.ae_id ||
+			      ev_id == ldb_lookup_success.ae_id ||
+			      ev_id == ldb_add_success.ae_id ||
+			      ev_id == ldb_update_success.ae_id ||
+			      ev_id == ldb_delete_success.ae_id)));
+	C2_PRE(ergo(rc != 0, strlen(err_msg) > 0 &&
+			     (ev_id == layout_decode_fail.ae_id ||
+			      ev_id == layout_encode_fail.ae_id ||
+			      ev_id == ldb_lookup_fail.ae_id ||
+			      ev_id == ldb_add_fail.ae_id ||
+			      ev_id == ldb_update_fail.ae_id ||
+			      ev_id == ldb_delete_fail.ae_id ||
+			      ev_id == c2_addb_func_fail.ae_id ||
+			      ev_id == c2_addb_oom.ae_id)));
+
+
+	/* ADDB message logging. */
+	if (if_addb_msg)
+		layout_addb_add(ctx, ev_id, err_msg, rc);
+
+	/* Trace message logging. */
+	if (if_trace_msg) {
+		if (if_lid)
+			n = sprintf(log_msg, "%s(): lid %llu, %s, rc %d",
+				    (const char *)fn_name,
+				    (unsigned long long)lid,
+				    (const char *)err_msg, rc);
+		else
+			n = sprintf(log_msg, "%s(): Error: %s, rc %d",
+				    (const char *)fn_name,
+				    (const char *)err_msg, rc);
+		C2_ASSERT (n < ARRAY_SIZE(log_msg));
+		C2_LOG(log_msg);
+	}
+}
+
+/**
  * This method
  * - Either continues to build an in-memory layout object from its
  *   representation 'stored in the Layout DB'
@@ -303,34 +473,10 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/* rec can not be NULL since the buffer size is already verified. */
 	rec = c2_bufvec_cursor_addr(cur);
 
-	rc = layout_type_verify(schema, rec->lr_lt_id);
-	if (rc != 0) {
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_decode_fail,
-				    "Unqualified Layout_type_id", rc);
-
-		C2_LOG("c2_layout_decode(): lid %llu, Unqualified "
-		       "Layout_type_id %lu, rc %d",
-		       (unsigned long long)lid, (unsigned long)rec->lr_lt_id,
-		       rc);
-		goto out;
-	}
+	C2_ASSERT(layout_type_verify(schema, rec->lr_lt_id) == 0);
 
 	lt = schema->ls_type[rec->lr_lt_id];
-
-	if (!c2_pool_id_is_valid(rec->lr_pid)) {
-		rc = -EINVAL;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_decode_fail, "Invalid pool id",
-				    -EINVAL);
-
-		C2_LOG("c2_layout_decode(): lid %llu, Invalid pool id,"
-	               " Pool_id %lu", (unsigned long long)lid,
-		       (unsigned long)rec->lr_pid);
-		goto out;
-	}
+	C2_ASSERT(c2_pool_id_is_valid(rec->lr_pid));
 
 	/* Move the cursor to point to the layout type specific payload. */
 	c2_bufvec_cursor_move(cur, sizeof *rec);
@@ -344,12 +490,10 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0) {
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_decode_fail, "lto_decode", rc);
-
-		C2_LOG("c2_layout_decode(): lid %llu, lto_decode() failed, "
-		       "rc %d", (unsigned long long)lid, rc);
+		layout_log("c2_layout_decode", "lto_decode() failed",
+			   op == C2_LXO_DB_NONE, PRINT_TRACE_MSG,
+			   layout_decode_fail.ae_id,
+			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 		goto out;
 	}
 
@@ -364,13 +508,14 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	C2_POST(layout_invariant(*out));
 
+	layout_log("c2_layout_decode", "",
+		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
+		   layout_decode_success.ae_id,
+		   &layout_global_ctx, LID_APPLICABLE, lid, rc);
+
 out:
 	if (op == C2_LXO_DB_NONE)
 		c2_mutex_unlock(&schema->ls_lock);
-
-	if (op == C2_LXO_DB_NONE && rc == 0)
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    layout_decode_success, true);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -444,35 +589,11 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	c2_mutex_lock(&l->l_lock);
 
-	rc = layout_type_verify(schema, l->l_type->lt_id);
-	if (rc != 0) {
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_encode_fail,
-				    "Unqualified Layout_type_id", rc);
-
-		C2_LOG("c2_layout_encode(): lid %llu, Unqualified "
-		       "Layout_type_id %lu, rc %d",
-		       (unsigned long long)l->l_id,
-		       (unsigned long)l->l_type->lt_id,
-		       rc);
-		goto out;
-	}
+	C2_ASSERT(layout_type_verify(schema, l->l_type->lt_id) == 0);
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
-	if (!c2_pool_id_is_valid(l->l_pool_id)) {
-		rc = -EINVAL;
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    layout_encode_fail, "Invalid pool id",
-				    -EINVAL);
-
-		C2_LOG("c2_layout_encode(): lid %llu, Invalid pool id,"
-	               " Pool_id %lu", (unsigned long long)l->l_id,
-		       (unsigned long)l->l_pool_id);
-		goto out;
-	}
+	C2_ASSERT(c2_pool_id_is_valid(l->l_pool_id));
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
@@ -502,23 +623,23 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	rc = lt->lt_ops->lto_encode(schema, l, op, tx, oldrec_cur, out);
 	if (rc != 0) {
-		if (op == C2_LXO_DB_NONE)
-			C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-				    layout_encode_fail, "lto_encode", rc);
-
-		C2_LOG("c2_layout_encode(): lid %llu, lto_encode() failed, "
-		       "rc %d", (unsigned long long)l->l_id, rc);
+		layout_log("c2_layout_encode", "lto_encode() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   layout_decode_fail.ae_id,
+			   &l->l_addb, LID_APPLICABLE, l->l_id, rc);
+		goto out;
 	}
+
+	layout_log("c2_layout_encode", "",
+		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
+		   layout_decode_success.ae_id,
+		   &l->l_addb, LID_APPLICABLE, l->l_id, rc);
 
 out:
 	c2_mutex_unlock(&l->l_lock);
 
 	if (op == C2_LXO_DB_NONE)
 		c2_mutex_unlock(&schema->ls_lock);
-
-	if (op == C2_LXO_DB_NONE && rc == 0)
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    layout_encode_success, true);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;

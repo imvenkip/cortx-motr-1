@@ -177,7 +177,7 @@ struct c2_ldb_rec {
 
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *db);
-int c2_ldb_schema_fini(struct c2_ldb_schema *schema);
+void c2_ldb_schema_fini(struct c2_ldb_schema *schema);
 
 int c2_ldb_type_register(struct c2_ldb_schema *schema,
 			 const struct c2_layout_type *lt);

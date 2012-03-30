@@ -26,10 +26,29 @@
  * @{
  */
 
+enum c2_addb_event_id;
+struct c2_addb_ev;
+struct c2_addb_ctx;
+struct c2_addb_loc;
+
 enum {
-	LID_NONE        = 0,
-	DEFAULT_DB_FLAG = 0
+	LID_NONE        = 0, /* Invalid layout id. */
+	DEFAULT_DB_FLAG = 0,
+	PRINT_ADDB_MSG  = 1,
+	PRINT_TRACE_MSG = 1,
+	LID_APPLICABLE  = 1
 };
+
+void layout_log(const char *fn_name,
+		const char *err_msg,
+		bool if_addb_msg, /* If ADDB message is to be printed. */
+		bool if_trace_msg, /* If C2_LOG message is to be printed. */
+		enum c2_addb_event_id ev_id,
+		struct c2_addb_ctx *ctx,
+		bool if_lid, /* If LID is applicable for the log message. */
+		uint64_t lid,
+		int rc);
+
 
 /** @} end group layout */
 

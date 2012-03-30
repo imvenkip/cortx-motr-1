@@ -163,17 +163,20 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
-		C2_LOG("c2_list_enum_build(): lid %llu, C2_ALLOC_PTR() "
-		       "failed, rc %d", (unsigned long long)lid, rc);
+		layout_log("c2_list_enum_build", "C2_ALLOC_PTR() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_oom.ae_id,
+			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 		goto out;
 	}
 
 	rc = c2_layout_enum_init(&list_enum->lle_base, lid,
 				 &c2_list_enum_type, &list_enum_ops);
 	if (rc != 0) {
-		C2_LOG("c2_list_enum_build(): lid %llu, c2_layout_enum_init() "
-		       "failed, rc %d", (unsigned long long)lid, rc);
+		layout_log("c2_list_enum_build", "c2_layout_enum_init() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_func_fail.ae_id,
+			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 		goto out;
 	}
 
@@ -182,23 +185,15 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
-		C2_LOG("c2_list_enum_build(): lid %llu, C2_ALLOC_ARR() "
-		       "failed, rc %d", (unsigned long long)lid, rc);
+		layout_log("c2_list_enum_build", "C2_ALLOC_ARR() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_oom.ae_id,
+			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 		goto out;
 	}
 
 	for (i = 0; i < nr; ++i) {
-		if (!c2_fid_is_valid(&cob_list[i])) {
-			rc = -EINVAL;
-			C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-				    c2_addb_func_fail, "c2_fid_is_valid()",
-				    -EINVAL);
-			C2_LOG("c2_list_enum_build(): lid %llu, Invalid cob id",
-			       (unsigned long long)lid);
-			goto out;
-
-		}
+		C2_ASSERT(c2_fid_is_valid(&cob_list[i]));
 		list_enum->lle_list_of_cobs[i] = cob_list[i];
 	}
 
@@ -263,17 +258,20 @@ static int list_register(struct c2_ldb_schema *schema,
 	C2_ALLOC_PTR(lsd);
 	if (lsd == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
-		C2_LOG("list_register(): C2_ALLOC_PTR() failed, rc %d", rc);
+		layout_log("list_register", "C2_ALLOC_PTR() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_oom.ae_id,
+			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
 		goto out;
 	}
 
 	rc = c2_table_init(&lsd->lsd_cob_lists, schema->ls_dbenv,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "c2_table_init()", rc);
-		C2_LOG("list_register(): c2_table_init() failed, rc %d", rc);
+		layout_log("list_register", "c2_table_init() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_func_fail.ae_id,
+			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
 		goto out;
 	}
 
@@ -372,26 +370,19 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 
 	rc = c2_table_lookup(tx, &pair);
 	if (rc != 0) {
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "c2_table_lookup()", rc);
-		C2_LOG("ldb_cob_list_read(): lid %llu, idx %lu, "
-		       "c2_table_lookup() failed, rc %d",
-		       (unsigned long long)lid, (unsigned long)idx, rc);
-		return rc;
+		layout_log("ldb_cob_list_read", "c2_table_lookup() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_func_fail.ae_id,
+			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
+		goto out;
 	}
 
-	if (!c2_fid_is_valid(&rec.lclr_cob_id)) {
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-			    c2_addb_func_fail, "c2_fid_is_valid()", -EINVAL);
-		C2_LOG("ldb_cob_list_read(): lid %llu, idx %lu, "
-		       "c2_fid_is_valid() failed",
-		       (unsigned long long)lid, (unsigned long)idx);
-		return -EINVAL;
-	}
-
-	c2_db_pair_fini(&pair);
+	C2_ASSERT(c2_fid_is_valid(&rec.lclr_cob_id));
 
 	*cob_id = rec.lclr_cob_id;
+
+out:
+	c2_db_pair_fini(&pair);
 	return rc;
 }
 
@@ -437,9 +428,10 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_ALLOC_ARR(cob_list, ldb_ce_header->llces_nr);
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
-		C2_LOG("list_decode(): lid %llu, C2_ALLOC_ARR() failed, "
-		       "rc %d", (unsigned long long)lid, rc);
+		layout_log("list_decode", "C2_ALLOC_ARR() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_oom.ae_id,
+			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 		goto out;
 	}
 
@@ -482,8 +474,10 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	rc = c2_list_enum_build(lid, cob_list, ldb_ce_header->llces_nr,
 			        &list_enum);
 	if (rc != 0) {
-		C2_LOG("list_decode(): lid %llu, c2_list_enum_build() failed, "
-		       "rc %d", (unsigned long long)lid, rc);
+		layout_log("list_decode", "c2_list_enum_build() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_func_fail.ae_id,
+			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 		goto out;
 	}
 
@@ -497,6 +491,7 @@ out:
 	return rc;
 }
 
+/* todo this fn should accept lid instead of l ? */
 int ldb_cob_list_write(struct c2_ldb_schema *schema,
 		       enum c2_layout_xcode_op op, struct c2_layout *l,
 		       uint32_t idx, struct c2_fid *cob_id,
@@ -527,19 +522,26 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 	if (op == C2_LXO_DB_ADD) {
 		rc = c2_table_insert(tx, &pair);
 		if (rc != 0) {
-			C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-				    c2_addb_func_fail, "c2_table_insert()", rc);
+			layout_log("ldb_cob_list_write",
+				   "c2_table_insert() failed",
+				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+				   c2_addb_func_fail.ae_id,
+				   &layout_global_ctx,
+				   LID_APPLICABLE, l->l_id, rc);
 		}
 	} else if (op == C2_LXO_DB_DELETE) {
 		rc = c2_table_delete(tx, &pair);
 		if (rc != 0) {
-			C2_ADDB_ADD(&l->l_addb, &layout_addb_loc,
-				    c2_addb_func_fail, "c2_table_delete()", rc);
+			layout_log("ldb_cob_list_write",
+				   "c2_table_delete() failed",
+				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+				   c2_addb_func_fail.ae_id,
+				   &layout_global_ctx,
+				   LID_APPLICABLE, l->l_id, rc);
 		}
 	}
 
 	c2_db_pair_fini(&pair);
-
 	return rc;
 }
 
@@ -597,13 +599,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	if (op == C2_LXO_DB_UPDATE) {
 		ldb_ce_oldheader = c2_bufvec_cursor_addr(oldrec_cur);
 
-		if (ldb_ce_oldheader->llces_nr != list_enum->lle_nr) {
-			rc = -EINVAL;
-			C2_LOG("list_encode(): lid %llu, New values "
-			       "do not match the old ones",
-			       (unsigned long long)l->l_id);
-			goto out;
-		}
+		C2_ASSERT(ldb_ce_oldheader->llces_nr == list_enum->lle_nr);
 
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *ldb_ce_oldheader);
 
@@ -612,14 +608,10 @@ static int list_encode(struct c2_ldb_schema *schema,
 
 		for (i = 0; i < num_inline; ++i) {
 			cob_id_old = c2_bufvec_cursor_addr(oldrec_cur);
-			if (!c2_fid_eq(cob_id_old,
-			    &list_enum->lle_list_of_cobs[i])) {
-				rc = -EINVAL;
-				C2_LOG("list_encode(): lid %llu, New values "
-				       "do not match the old ones",
-				       (unsigned long long)l->l_id);
-				goto out;
-			}
+
+			C2_ASSERT(c2_fid_eq(cob_id_old,
+					    &list_enum->lle_list_of_cobs[i]));
+
 			c2_bufvec_cursor_move(oldrec_cur,
 					sizeof list_enum->lle_list_of_cobs[i]);
 		}

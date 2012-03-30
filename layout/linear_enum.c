@@ -87,8 +87,7 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc,
-		            c2_addb_oom);
+		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
 		C2_LOG("c2_linear_enum_build(): C2_ALLOC_PTR() failed, rc %d",
 		       rc);
 		goto out;

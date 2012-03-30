@@ -41,6 +41,7 @@ static struct c2_ldb_schema  schema;
 static struct c2_dbenv       dbenv;
 static struct c2_pool        pool;
 static int                   rc;
+enum c2_addb_ev_level        orig_addb_level;
 
 enum {
 	DBFLAGS                  = 0,
@@ -65,6 +66,7 @@ extern const struct c2_layout_enum_type c2_linear_enum_type;
 
 static int test_init(void)
 {
+
 	c2_ut_db_reset(db_name);
 
 	/*
@@ -78,13 +80,16 @@ static int test_init(void)
 	rc = c2_ldb_schema_init(&schema, &dbenv);
 	C2_ASSERT(rc == 0);
 
+	orig_addb_level = c2_addb_choose_default_level_console(AEL_NONE);
+
 	return rc;
 }
 
 static int test_fini(void)
 {
-	rc = c2_ldb_schema_fini(&schema);
-	C2_ASSERT(rc == 0);
+	c2_addb_choose_default_level_console(orig_addb_level);
+
+	c2_ldb_schema_fini(&schema);
 
 	c2_dbenv_fini(&dbenv);
 
@@ -226,9 +231,11 @@ static void test_schema_init_fini(void)
 	rc = c2_ldb_schema_init(&t_schema, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Should be able finalize it. */
-	rc = c2_ldb_schema_fini(&t_schema);
-	C2_UT_ASSERT(rc == 0);
+	/*
+	 * Should be able finalize it.
+	 * c2_ldb_schema_fini() asserts internally, if any of the layout type
+	 * or enum type is still registered. */
+	c2_ldb_schema_fini(&t_schema);
 
 	/* Should be able to initialize it again. */
 	rc = c2_ldb_schema_init(&t_schema, &t_dbenv);
@@ -247,30 +254,20 @@ static void test_schema_init_fini(void)
 		     &test_enum_type);
 
 	/*
-	 * Should not be able to finalize it since a layout type and an enum
-	 * type are still registered.
+	 * Should not be able to finalize at this point.
+	 * Can not invoke c2_ldb_schema_fini() here since it asserts.
 	 */
-	rc = c2_ldb_schema_fini(&t_schema);
-	C2_UT_ASSERT(rc != 0);
 
 	/* Unregister the layout type. */
 	c2_ldb_type_unregister(&t_schema, &test_layout_type);
 	C2_UT_ASSERT(t_schema.ls_type[test_layout_type.lt_id] == NULL);
-
-	/*
-	 * Still, should not be able to finalize it since an enum type is still
-	 * registered.
-	 */
-	rc = c2_ldb_schema_fini(&t_schema);
-	C2_UT_ASSERT(rc != 0);
 
 	/* Unregister the enum type. */
 	c2_ldb_enum_unregister(&t_schema, &test_enum_type);
 	C2_UT_ASSERT(t_schema.ls_enum[test_enum_type.let_id] == NULL);
 
 	/* Should now be able to finalize it. */
-	rc = c2_ldb_schema_fini(&t_schema);
-	C2_UT_ASSERT(rc == 0);
+	c2_ldb_schema_fini(&t_schema);
 
 	c2_dbenv_fini(&t_dbenv);
 
