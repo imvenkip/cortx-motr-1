@@ -37,8 +37,6 @@
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
 
-extern bool layout_invariant(const struct c2_layout *l);
-extern bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
@@ -203,7 +201,7 @@ static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
@@ -242,6 +240,7 @@ out:
  * Reads linear enumeration type specific attributes from the
  * c2_layout_linear_enum object into the buffer.
  */
+/* todo checkif this fn should accept enum instead of layout */
 static int linear_encode(struct c2_ldb_schema *schema,
 			 struct c2_layout *l,
 			 enum c2_layout_xcode_op op,
@@ -258,8 +257,8 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
-	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);

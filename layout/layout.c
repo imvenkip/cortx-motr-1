@@ -198,10 +198,10 @@ void c2_layout_striped_fini(struct c2_layout_striped *str_l)
 
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 
-	c2_layout_fini(&str_l->ls_base);
-
 	str_l->ls_enum->le_ops->leo_fini(str_l->ls_enum,
 					 str_l->ls_base.l_id);
+
+	c2_layout_fini(&str_l->ls_base);
 
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 }
@@ -458,14 +458,14 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
-	if (op == C2_LXO_DB_NONE)
+	if (op == C2_LXO_BUFFER_OP)
 		c2_mutex_lock(&schema->ls_lock);
 	else /* It is locked by c2_ldb_lookup(). */
 		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
@@ -491,7 +491,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	rc = lt->lt_ops->lto_decode(schema, lid, rec->lr_pid, cur, op, tx, out);
 	if (rc != 0) {
 		layout_log("c2_layout_decode", "lto_decode() failed",
-			   op == C2_LXO_DB_NONE, PRINT_TRACE_MSG,
+			   op == C2_LXO_BUFFER_OP, PRINT_TRACE_MSG,
 			   layout_decode_fail.ae_id,
 			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 		goto out;
@@ -514,7 +514,7 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 		   &layout_global_ctx, LID_APPLICABLE, lid, rc);
 
 out:
-	if (op == C2_LXO_DB_NONE)
+	if (op == C2_LXO_BUFFER_OP)
 		c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -540,12 +540,12 @@ out:
  * exisiting layout record from the layouts table. Applicable only in case of
  * layou update operation. In other cases, it is expected to be NULL.
  *
- * @param out Cursor poining to a buffer. Regarding the size of the buufer:
- * - In case c2_layout_decode() is called through c2_ldb_add()|c2_ldb_update()|
+ * @param out Cursor poining to a buffer. Regarding the size of the buffer:
+ * - In case c2_layout_encode() is called through c2_ldb_add()|c2_ldb_update()|
  *   c2_ldb_delete(), then the buffer should be capable of containing the data
  *   that is to be written specifically to the layouts table. It means its size
  *   will be at the most the size returned by c2_ldb_rec_max_size().
- * - In case c2_layout_decode() is called by some other caller, then the
+ * - In case c2_layout_encode() is called by some other caller, then the
  *   buffer size should be capable of incorporating all the data belonging to
  *   the specific layout. It means its size may even be more than the one
  *   returned by c2_ldb_rec_max_size().
@@ -572,8 +572,8 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
-	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
@@ -582,7 +582,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
-	if (op == C2_LXO_DB_NONE)
+	if (op == C2_LXO_BUFFER_OP)
 		c2_mutex_lock(&schema->ls_lock);
 	else /* It is locked by c2_ldb_[add|delete|update](), as applicable. */
 		C2_ASSERT(c2_mutex_is_locked(&schema->ls_lock));
@@ -638,7 +638,7 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 out:
 	c2_mutex_unlock(&l->l_lock);
 
-	if (op == C2_LXO_DB_NONE)
+	if (op == C2_LXO_BUFFER_OP)
 		c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);

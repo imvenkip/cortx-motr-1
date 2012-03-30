@@ -26,6 +26,9 @@
  * @{
  */
 
+struct c2_layout;
+struct c2_layout_enum;
+struct c2_layout_striped;
 enum c2_addb_event_id;
 struct c2_addb_ev;
 struct c2_addb_ctx;
@@ -38,6 +41,11 @@ enum {
 	PRINT_TRACE_MSG = 1,
 	LID_APPLICABLE  = 1
 };
+
+bool layout_invariant(const struct c2_layout *l);
+bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
+bool striped_layout_invariant(const struct c2_layout_striped *stl,
+			      uint64_t lid);
 
 void layout_log(const char *fn_name,
 		const char *err_msg,

@@ -59,7 +59,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
-static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
+static struct c2_pdclust_layout *layout_to_pd_layout(struct c2_layout *l)
 {
 	return container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 }

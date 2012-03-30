@@ -156,7 +156,7 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	 * form:
 	 * C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof ...);
 	 */
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(tx != NULL);
 
 	C2_ALLOC_PTR(cl);

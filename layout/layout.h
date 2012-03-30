@@ -30,6 +30,8 @@
  *
  * A 'layout type' specifies how a file is stored in a collection of targets.
  * It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
+ * For example, PDCLUST, RAID1, RAID5 are some types of layout, while
+ * COMPOSITE being another special layout type.
  *
  * An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
  * the layout types need an enumeration. For example, layouts with types
@@ -130,16 +132,17 @@ struct c2_layout_ops {
 };
 
 /**
- * Layout DB operation on a layout record, performed through either
- * c2_layout_decode or c2_layout_encode routines.
- * C2_LXO_DB_NONE indicates that encode/decode has to operate on a buffer.
+ * Operation on a layout record, performed through either c2_layout_decode()
+ * or c2_layout_encode() routines.
+ * C2_LXO_BUFFER_OP indicates that c2_layout_decode()/c2_layout_encode() has
+ * to operate upon a buffer.
  */
 enum c2_layout_xcode_op {
-	C2_LXO_DB_NONE,
-	C2_LXO_DB_LOOKUP,
-	C2_LXO_DB_ADD,
-	C2_LXO_DB_UPDATE,
-	C2_LXO_DB_DELETE
+	C2_LXO_BUFFER_OP, /* Operate on a buffer. */
+	C2_LXO_DB_LOOKUP, /* Lookup for layout from the DB. */
+	C2_LXO_DB_ADD,    /* Add layout to the DB. */
+	C2_LXO_DB_UPDATE, /* Update layout in the DB. */
+	C2_LXO_DB_DELETE  /* Delete layout from the DB. */
 };
 
 /**

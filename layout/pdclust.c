@@ -190,8 +190,6 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
-bool striped_layout_invariant(const struct c2_layout_striped *stl, uint64_t lid);
-
 bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 {
 	uint32_t                 i;
@@ -618,7 +616,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
@@ -716,8 +714,8 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 	C2_PRE(l != NULL);
 
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
-	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof pl_rec);

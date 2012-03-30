@@ -260,7 +260,7 @@
  *   layout|enum type does not get unregistered while any of those operations
  *   is taking place.
  * - Besides that, it is acquired during c2_layout_[encode|decode](), if and
- *   only if op is C2_LXO_DB_NONE so as to handle the case of
+ *   only if op is C2_LXO_BUFFER_OP so as to handle the case of
  *   c2_layout_[encode|decode]() being called directly by the user.
  * - The in-memory c2_layout object is protected using c2_layout::l_lock.
  * - c2_layout::l_lock is acquired during c2_layout_[get|put|decode (later part
@@ -366,7 +366,6 @@
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 
-extern bool layout_invariant(const struct c2_layout *l);
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
@@ -809,6 +808,8 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	int                     rc;
 	struct c2_bufvec        bv;
 	struct c2_bufvec_cursor cur;
+	//struct c2_db_buf        key_buf = pair->dp_key;
+	//struct c2_db_buf        rec_buf = pair->dp_rec;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -836,6 +837,10 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		       pair->dp_rec.db_buf.b_addr,
 		       pair->dp_rec.db_buf.b_nob);
 	pair->dp_rec.db_static = true;
+
+	/* todo c2_db_pair_setup(pair, &schema->ls_layouts,
+			 &key_buf, key_buf.db_buf.b_nob,
+			 &rec_buf, rec_buf.db_buf.b_nob);  */
 
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);

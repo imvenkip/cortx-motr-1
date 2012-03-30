@@ -531,7 +531,7 @@ static int test_decode_pdclust_list(uint64_t lid, bool only_inline_cob_entries)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_layout_verify(LIST_ENUM_ID, lid,
@@ -572,7 +572,7 @@ static int test_decode_pdclust_linear(uint64_t lid)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_layout_verify(LINEAR_ENUM_ID, lid,
@@ -620,7 +620,7 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 
 	* Rewind the cursor. *
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
 	C2_UT_ASSERT(rc == -ENOBUFS);
 	* This results into an assert now. *
 
@@ -867,7 +867,7 @@ static int test_encode_pdclust_linear(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
-			       C2_LXO_DB_NONE, NULL, NULL, &cur);
+			       C2_LXO_BUFFER_OP, NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -915,7 +915,7 @@ static int test_encode_pdclust_list(uint64_t lid, bool only_inline_cob_entries)
 	C2_UT_ASSERT(rc == 0);
 
 	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
-			       C2_LXO_DB_NONE, NULL, NULL, &cur);
+			       C2_LXO_BUFFER_OP, NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1559,7 +1559,7 @@ static int test_enum_ops_pdclust_linear(uint64_t lid)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_enum_op_verify(LINEAR_ENUM_ID, lid,
@@ -1600,7 +1600,7 @@ static int test_enum_ops_pdclust_list(uint64_t lid)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_DB_NONE, tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_enum_op_verify(LIST_ENUM_ID, lid,

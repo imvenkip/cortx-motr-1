@@ -109,13 +109,13 @@ struct c2_ldb_rec;
  */
 
 enum {
-	C2_LAY_TYPE_MAX        = 32,
-	C2_LAY_ENUM_MAX        = 32,
+	C2_LAYOUT_TYPE_MAX      = 32,
+	C2_LAYOUT_ENUM_TYPE_MAX = 32,
 };
 
 /**
  * In-memory data structure for the layout schema.
- * It includes pointer to the layouts table and various related
+ * It includes a pointer to the layouts table and various related
  * parameters.
  */
 struct c2_ldb_schema {
@@ -126,16 +126,16 @@ struct c2_ldb_schema {
 	struct c2_table                ls_layouts;
 
 	/** Layout types array. */
-	struct c2_layout_type         *ls_type[C2_LAY_TYPE_MAX];
+	struct c2_layout_type         *ls_type[C2_LAYOUT_TYPE_MAX];
 
 	/** Enumeration types array. */
-	struct c2_layout_enum_type    *ls_enum[C2_LAY_ENUM_MAX];
+	struct c2_layout_enum_type    *ls_enum[C2_LAYOUT_ENUM_TYPE_MAX];
 
 	/** Layout type specific data. */
-	void                          *ls_type_data[C2_LAY_TYPE_MAX];
+	void                          *ls_type_data[C2_LAYOUT_TYPE_MAX];
 
 	/** Layout enum type specific data. */
-	void                          *ls_enum_data[C2_LAY_ENUM_MAX];
+	void                          *ls_enum_data[C2_LAYOUT_ENUM_TYPE_MAX];
 
 	/**
 	 * Lock to protect the instance of c2_ldb_schema, including all

@@ -38,7 +38,6 @@
 #include "layout/layout_db.h"       /* struct c2_ldb_schema */
 #include "layout/list_enum.h"
 
-extern bool layout_invariant(const struct c2_layout *l);
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
@@ -126,8 +125,6 @@ static const struct c2_table_ops cob_lists_table_ops = {
 	},
 	.key_cmp = lcl_key_cmp
 };
-
-extern bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 
 bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
 			    uint64_t lid)
@@ -415,7 +412,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_DB_NONE);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ldb_ce_header);
 
@@ -438,7 +435,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	num_inline = ldb_ce_header->llces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : ldb_ce_header->llces_nr;
 
-	C2_ASSERT(ergo(op == C2_LXO_DB_NONE,
+	C2_ASSERT(ergo(op == C2_LXO_BUFFER_OP,
 		       c2_bufvec_cursor_step(cur) >=
 				ldb_ce_header->llces_nr * sizeof *cob_id));
 	C2_ASSERT(ergo(op == C2_LXO_DB_LOOKUP,
@@ -446,7 +443,7 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 				num_inline * sizeof *cob_id));
 
 	for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
-		if (i < num_inline || op == C2_LXO_DB_NONE) {
+		if (i < num_inline || op == C2_LXO_BUFFER_OP) {
 			if (i == 0)
 				C2_LOG("list_decode(): Start reading "
 				       "inline cob entries.");
@@ -577,8 +574,8 @@ static int list_encode(struct c2_ldb_schema *schema,
 	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_DB_NONE);
-	C2_PRE(ergo(op != C2_LXO_DB_NONE, tx != NULL));
+	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ldb_ce_header);
@@ -623,7 +620,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 					 sizeof ldb_ce_header);
 	C2_ASSERT(nbytes == sizeof ldb_ce_header);
 
-	C2_ASSERT(ergo(op == C2_LXO_DB_NONE,
+	C2_ASSERT(ergo(op == C2_LXO_BUFFER_OP,
 		       c2_bufvec_cursor_step(out) >=
 				list_enum->lle_nr *
 				sizeof list_enum->lle_list_of_cobs[i]));
@@ -634,7 +631,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 				sizeof list_enum->lle_list_of_cobs[i]));
 
 	for(i = 0; i < list_enum->lle_nr; ++i) {
-		if (i < num_inline || op == C2_LXO_DB_NONE) {
+		if (i < num_inline || op == C2_LXO_BUFFER_OP) {
 			if (i == 0)
 				C2_LOG("list_encode(): lid %llu, Start "
 				       "accepting inline cob entries.",
