@@ -22,29 +22,6 @@
 #define __COLIBRI_IOSERVICE_COB_FOMS_H__
 
 /**
- * Common part of cob create and cob delete foms.
- */
-struct c2_fom_cob_common {
-	/** Generic fom object. */
-	struct c2_fom		 cc_fom;
-	/** Fid of global file. */
-	struct c2_fid		 cc_gfid;
-	/** Fid of component object. */
-	struct c2_fid		 cc_cfid;
-};
-
-/**
- * Fom context object for "cob create" request. Cob create fop is sent to
- * data servers on creation of a global file.
- */
-struct c2_fom_cob_create {
-	/** Stob Identifier. */
-	struct c2_stob_id        fcc_stob_id;
-	/** Common part of cob operation foms. */
-	struct c2_fom_cob_common fcc_cc;
-};
-
-/**
  * Phases of c2_fom_cob_create state machine.
  */
 enum c2_fom_cob_create_phases {
@@ -56,14 +33,18 @@ enum c2_fom_cob_create_phases {
 };
 
 /**
- * Fom context object for "cob delete" request. Cob delete fop is sent
- * to data servers on deletion of a global file.
+ * Fom context object for "cob create" and "cob delete" fops.
+ * Same structure is used for both type of fops.
  */
-struct c2_fom_cob_delete {
+struct c2_fom_cob_op {
 	/** Stob identifier. */
-	struct c2_stob_id	 fcd_stobid;
-	/** Common part of cob operation foms. */
-	struct c2_fom_cob_common fcd_cc;
+	struct c2_stob_id        fco_stobid;
+	/** Generic fom object. */
+	struct c2_fom		 fco_fom;
+	/** Fid of global file. */
+	struct c2_fid		 fco_gfid;
+	/** Fid of component object. */
+	struct c2_fid		 fco_cfid;
 };
 
 /**

@@ -15,7 +15,6 @@ COLIBRI_SERVICE_NAME=ioservice
 COLIBRI_STOB_DOMAIN=linux
 COLIBRI_DB_PATH=$COLIBRI_C2T1FS_TEST_DIR/db
 COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
-COLIBRI_STOB_UTIL=$COLIBRI_CORE_ROOT/stob/ut/stobutil
 COLIBRI_MODULE=$COLIBRI_CORE_ROOT/build_kernel_modules/kcolibri.ko
 COLIBRI_GALOIS_MODULE=$COLIBRI_CORE_ROOT/../galois/src/linux_kernel/kgalois.ko
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%d-%m-%Y_%T"`.log
@@ -31,10 +30,8 @@ create_stobs()
         fi
 
         pool_width=$1
-        stobutilpath=$COLIBRI_STOB_UTIL
         stob_domain=$COLIBRI_STOB_DOMAIN
         db_path=$COLIBRI_DB_PATH
-        stob_path=$COLIBRI_STOB_PATH
         stobid_lo=$GLOBAL_FID_LO
 
         echo "Cleaning up test directory ..."
@@ -81,10 +78,6 @@ colibri_service()
         esac
         return $?
 }
-
-
-
-
 
 bulkio_test()
 {
@@ -158,8 +151,8 @@ bulkio_test()
         if [ $? -ne "0" ]
         then
                 echo "Failed to write data on c2t1fs file."
-                umount $c2t1fs_mount_dir
-                rmmod $colibri_module.ko
+		umount $c2t1fs_mount_dir
+		rmmod $colibri_module.ko
                 return 1
         fi
         echo "Successfully written data of specified size and count to c2t1fs file."
@@ -186,6 +179,8 @@ bulkio_test()
         fi
         echo "Successfully test $io_counts I/O of size $io_size ."
 
+	rm -f $c2t1fs_file
+
         echo "Unmounting file system ..."
         umount $c2t1fs_mount_dir &>/dev/null
 
@@ -194,6 +189,12 @@ bulkio_test()
 
         echo "Removing colibro module..."
         rmmod kcolibri.ko &>/dev/null
+
+	# Removes the stob files created in stob domain since
+	# there is no support for c2_stob_delete() and after unmounting
+	# the client file system, from next mount, fids are generated
+	# from same baseline which results in failure of cob_create fops.
+	rm -rf $COLIBRI_STOB_PATH/o/*
 
         return 0
 }
@@ -217,10 +218,10 @@ io_combinations()
         # I/O sizes are multiple of stripe size
 
         # stripe size is in K
-#for strip_size_multiplyer in 4 12 20 28
-#do
+	for strip_size_multiplyer in 4 12 20 28
+	do
             # Small I/Os KBs
-            for ((io_size_multiplyer=1; io_size_multiplyer<=1; io_size_multiplyer++))
+            for ((io_size_multiplyer=1; io_size_multiplyer<=8; io_size_multiplyer++))
             do
                 strip_size=`expr 4 '*' 1024`
                 io_size=`expr $io_size_multiplyer '*' $strip_size`
@@ -234,18 +235,17 @@ io_combinations()
                 fi
 
                 # Multiple I/Os
-#echo "Test : I/O for stripe_size = $strip_size, io_size = $io_size, Number of I/Os = 2."
-#bulkio_test $strip_size $io_size 2 $pool_width $data_units $parity_units &>> $COLIBRI_TEST_LOGFILE
-#if [ $? -ne "0" ]
-#then
-#return 1
-#fi
-            done
+		echo "Test : I/O for stripe_size = $strip_size, io_size = $io_size, Number of I/Os = 2."
+		bulkio_test $strip_size $io_size 2 $pool_width $data_units $parity_units &>> $COLIBRI_TEST_LOGFILE
+		if [ $? -ne "0" ]
+		then
+			return 1
+		fi
+	    done
 
             one_mb=`expr 1024 '*' 1024`
             size_multiplyer=256
             # Large I/Os MBs
-	    : '
             for ((io_size_multiplyer=1; io_size_multiplyer<=8; io_size_multiplyer++))
             do
                 #Making I/O size in MBs by multiplying with size_multiplyer
@@ -269,11 +269,9 @@ io_combinations()
                         return 1
                 fi
 
-
             done
-	    '
 
-#done
+	done
         echo "Test log available at $COLIBRI_TEST_LOGFILE."
         return 0
 }
