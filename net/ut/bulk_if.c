@@ -79,7 +79,7 @@ static void ut_dom_fini(struct c2_net_domain *dom)
 
 /* params */
 enum {
-	UT_MAX_BUF_SIZE = 4096,
+	UT_MAX_BUF_SIZE = 8192,
 	UT_MAX_BUF_SEGMENT_SIZE = 2048,
 	UT_MAX_BUF_SEGMENTS = 4,
 };
@@ -216,6 +216,7 @@ static bool ut_buf_del_called = false;
 static void ut_buf_del(struct c2_net_buffer *nb)
 {
 	int rc;
+	C2_SET0(&ut_del_thread);
 	C2_UT_ASSERT(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
 	ut_buf_del_called = true;
 	if (!(nb->nb_flags & C2_NET_BUF_IN_USE))
@@ -1159,6 +1160,8 @@ static void test_net_bulk_if(void)
 	c2_net_domain_fini(dom);
 	C2_UT_ASSERT(ut_dom_fini_called);
 }
+
+#include "tm_provision_ut.c"
 
 const struct c2_test_suite c2_net_bulk_if_ut = {
         .ts_name = "net-bulk-if",
