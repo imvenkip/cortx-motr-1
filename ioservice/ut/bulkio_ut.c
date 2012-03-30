@@ -1112,12 +1112,17 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         io_fom_cob_rw_fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
-        rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
+	c2_dtx_init(&fom->fo_tx);
+	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);
         C2_UT_ASSERT(rc == 0);
-        C2_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_UNKNOWN);
 
-        rc = c2_stob_create(fom_obj->fcrw_stob, &fom->fo_tx);
+	rc = c2_stob_create_helper(fom_stdom, &fom->fo_tx, &stobid,
+				  &fom_obj->fcrw_stob);
         C2_UT_ASSERT(rc == 0);
+        C2_UT_ASSERT(fom_obj->fcrw_stob != NULL);
+        C2_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_EXISTS);
+
+	c2_dtx_done(&fom->fo_tx);
 
 	wrep = c2_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
