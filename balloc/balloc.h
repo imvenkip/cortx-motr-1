@@ -21,8 +21,7 @@
 #ifndef __COLIBRI_BALLOC_BALLOC_H__
 #define __COLIBRI_BALLOC_BALLOC_H__
 
-#include <db.h>
-
+#include "db/db.h"
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
