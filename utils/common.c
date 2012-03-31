@@ -66,7 +66,6 @@ int unit_start(const char *sandbox)
 			if (result != 0)
 				result = -errno;
 		}
-		result = c2_fi_init();
 	}
 	return result;
 }
@@ -75,7 +74,6 @@ void unit_end(const char *sandbox, bool keep_sandbox)
 {
 	int rc;
 
-	c2_fi_fini();
 	c2_fini();
 
 	rc = chdir("..");

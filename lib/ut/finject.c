@@ -44,18 +44,12 @@ typedef bool (*target_func_t)(void);
 
 static bool target_func_delayed_registration(void)
 {
-	if (C2_FI_ENABLED(test_tag))
-		return true;
-	else
-		return false;
+	return C2_FI_ENABLED(test_tag);
 }
 
 static bool target_func_fpoint_types(void)
 {
-	if (C2_FI_ENABLED(test_tag))
-		return true;
-	else
-		return false;
+	return C2_FI_ENABLED(test_tag);
 }
 
 struct state_data {

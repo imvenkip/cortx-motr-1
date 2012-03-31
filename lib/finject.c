@@ -30,53 +30,94 @@
 #include "lib/mutex.h"     /* c2_mutex */
 #include "lib/misc.h"      /* <linux/string.h> <string.h> for strcmp */
 #include "lib/assert.h"    /* C2_ASSERT */
+#include "lib/tlist.h"
 #include "lib/finject.h"
+#include "lib/finject_internal.h"
 
-
-/**
- * Set of attributes, which uniquely identifies each fault point.
- * @see c2_fi_fault_point
- */
-struct c2_fi_fpoint_id {
-	/** Name of a function, where FP is declared */
-	const char  *fpi_func;
-	/** Tag - short descriptive name of fault point */
-	const char  *fpi_tag;
-};
-
-struct c2_fi_fpoint_state;
-typedef bool (*fp_state_func_t)(struct c2_fi_fpoint_state *fps);
-
-/**
- * Holds information about state of a fault point.
- */
-struct c2_fi_fpoint_state {
-	/** FP identifier */
-	struct c2_fi_fpoint_id    fps_id;
-	/**
-	 * State function, which implements a particular "triggering algorithm"
-	 * for each FP type
-	 */
-	fp_state_func_t           fps_trigger_func;
-	/**
-	 * Input parameters for "triggering algorithm", which control it's
-	 * behavior
-	 */
-	struct c2_fi_fpoint_data  fps_data;
-	/** Back reference to the corresponding c2_fi_fault_point structure */
-	struct c2_fi_fault_point  *fps_fp;
-	/* Mutex, used to keep "state" structure in consistent state */
-	struct c2_mutex           fps_mutex;
-};
 
 enum {
 	FI_STATES_ARRAY_SIZE = 64 * 1024,
 };
 
-static struct c2_fi_fpoint_state fi_states[FI_STATES_ARRAY_SIZE];
-static uint32_t                  fi_states_free_idx;
-struct c2_mutex                  fi_states_mutex;
+struct c2_fi_fpoint_state fi_states[FI_STATES_ARRAY_SIZE];
+uint32_t                  fi_states_free_idx;
+struct c2_mutex           fi_states_mutex;
 
+struct fi_dynamic_id {
+	struct c2_tlink  fdi_tlink;
+	uint64_t         fdi_magic;
+	char            *fdi_str;
+};
+
+enum {
+	DYNID_LINK_MAGIC = 0x666964796e69646c,
+	DYNID_HEAD_MAGIC = 0x666964796e696468,
+};
+
+C2_TL_DESCR_DEFINE(fi_dynamic_ids, "finject_dynamic_id", static,
+		   struct fi_dynamic_id, fdi_tlink, fdi_magic,
+		   DYNID_LINK_MAGIC, DYNID_HEAD_MAGIC);
+C2_TL_DEFINE(fi_dynamic_ids, static, struct fi_dynamic_id);
+
+/**
+ * A storage for fault point ID strings, which are allocated dynamically in
+ * runtime.
+ *
+ * Almost always ID string is a C string-literal with a
+ * static storage duration. But in some rare cases ID strings need to be
+ * allocated dynamically (for example when enabling FP via debugfs). To prevent
+ * memleaks in such cases, all dynamically allocated ID strings are stored in
+ * this linked list, using c2_fi_add_dyn_id(), which is cleaned in
+ * fi_states_fini().
+ */
+static struct c2_tl fi_dynamic_ids;
+
+
+const struct c2_fi_fpoint_state *c2_fi_states_get(void)
+{
+	return fi_states;
+}
+C2_EXPORTED(c2_fi_states_get);
+
+uint32_t c2_fi_states_get_free_idx(void)
+{
+	return fi_states_free_idx;
+}
+C2_EXPORTED(c2_fi_states_get_free_idx);
+
+int c2_fi_add_dyn_id(char *str)
+{
+	struct fi_dynamic_id *fdi;
+
+	C2_ALLOC_PTR(fdi);
+	if (fdi == NULL)
+		return -ENOMEM;
+
+	c2_tlink_init(&fi_dynamic_ids_tl, &fdi->fdi_tlink);
+	fdi->fdi_str = str;
+	c2_tlist_add(&fi_dynamic_ids_tl, &fi_dynamic_ids, &fdi->fdi_tlink);
+
+	return 0;
+}
+C2_EXPORTED(c2_fi_add_dyn_id);
+
+static void fi_dynamic_ids_fini(void)
+{
+	struct fi_dynamic_id *entry;
+
+	c2_tlist_for(&fi_dynamic_ids_tl, &fi_dynamic_ids, entry) {
+		c2_tlist_del(&fi_dynamic_ids_tl, entry);
+		c2_free(entry->fdi_str);
+		c2_free(entry);
+	} c2_tlist_endfor;
+
+	c2_tlist_fini(&fi_dynamic_ids_tl, &fi_dynamic_ids);
+}
+
+void fi_states_init(void)
+{
+	c2_tlist_init(&fi_dynamic_ids_tl, &fi_dynamic_ids);
+}
 
 void fi_states_fini(void)
 {
@@ -84,15 +125,8 @@ void fi_states_fini(void)
 
 	for (i = 0; i < fi_states_free_idx; ++i)
 		c2_mutex_fini(&fi_states[i].fps_mutex);
-}
 
-static inline bool fi_state_enabled(const struct c2_fi_fpoint_state *state)
-{
-	/*
-	 * If fps_trigger_func is not set, then FP state is considered to be
-	 * "disabled"
-	 */
-	return state->fps_trigger_func != NULL;
+	fi_dynamic_ids_fini();
 }
 
 /**
@@ -298,7 +332,18 @@ void c2_fi_register(struct c2_fi_fault_point *fp)
 
 bool c2_fi_enabled(struct c2_fi_fpoint_state *fps)
 {
-	return fi_state_enabled(fps) ? fps->fps_trigger_func(fps) : false;
+	bool enabled;
+
+	enabled = fi_state_enabled(fps) ? fps->fps_trigger_func(fps) : false;
+	if (enabled) {
+		fps->fps_total_trigger_cnt++;
+		fps->fps_data.fpd_trigger_cnt++;
+	}
+	if (fi_state_enabled(fps))
+		fps->fps_data.fpd_hit_cnt++;
+	fps->fps_total_hit_cnt++;
+
+	return enabled;
 }
 
 void c2_fi_enable_generic(const char *fp_func, const char *fp_tag,
@@ -320,6 +365,7 @@ void c2_fi_enable_generic(const char *fp_func, const char *fp_tag,
 
 	c2_mutex_unlock(&fi_states_mutex);
 }
+C2_EXPORTED(c2_fi_enable_generic);
 
 void c2_fi_disable(const char *fp_func, const char *fp_tag)
 {
@@ -334,6 +380,7 @@ void c2_fi_disable(const char *fp_func, const char *fp_tag)
 
 	fi_disable_state(state);
 }
+C2_EXPORTED(c2_fi_disable);
 
 #endif /* ENABLE_FAULT_INJECTION */
 

@@ -158,6 +158,16 @@ struct c2_fi_fpoint_data {
 		 */
 		uint32_t          fpd_p;
 	} u;
+	/**
+	 * Counter of how many times (since last enable) fault point was
+	 * checked/hit
+	 */
+	uint32_t                  fpd_hit_cnt;
+	/**
+	 * Counter of how many times (since last enable) fault point was
+	 * triggered
+	 */
+	uint32_t                  fpd_trigger_cnt;
 };
 
 #ifdef ENABLE_FAULT_INJECTION

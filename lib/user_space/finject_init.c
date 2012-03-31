@@ -31,9 +31,8 @@
 #include "lib/mutex.h"     /* c2_mutex */
 #include "lib/time.h"      /* c2_time_now */
 #include "lib/finject.h"
+#include "lib/finject_internal.h"
 
-
-extern struct c2_mutex fi_states_mutex;
 
 int c2_fi_init(void)
 {
@@ -47,6 +46,8 @@ int c2_fi_init(void)
 	 */
 	random_seed = c2_time_now() ^ getpid();
 	srandom(random_seed);
+
+	fi_states_init();
 
 	return 0;
 }
