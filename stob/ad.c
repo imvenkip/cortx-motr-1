@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <string.h>                 /* memset */
 
+#include "db/extmap.h"
 #include "dtm/dtm.h"                /* c2_dtx */
 #include "lib/thread.h"             /* LAMBDA */
 #include "lib/memory.h"
@@ -208,6 +209,8 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 	c2_free(adom);
 }
 
+static const char prefix[] = "ad.";
+
 /**
    Implementation of c2_stob_type_op::sto_domain_locate().
 
@@ -223,7 +226,8 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	int                    result;
 
 	C2_ASSERT(domain_name != NULL);
-	C2_ASSERT(strlen(domain_name) < ARRAY_SIZE(adom->ad_path));
+	C2_ASSERT(strlen(domain_name) <
+		  ARRAY_SIZE(adom->ad_path) - ARRAY_SIZE(prefix));
 
 	C2_ALLOC_PTR(adom);
 	if (adom != NULL) {
@@ -232,8 +236,8 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 		dom = &adom->ad_base;
 		dom->sd_ops = &ad_stob_domain_op;
 		c2_stob_domain_init(dom, type);
-		strcpy(adom->ad_path, domain_name);
-		dom->sd_name = adom->ad_path;
+		sprintf(adom->ad_path, "%s%s", prefix, domain_name);
+		dom->sd_name = adom->ad_path + ARRAY_SIZE(prefix) - 1;
 		*out = dom;
 		result = 0;
 	} else {
@@ -266,15 +270,16 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	C2_PRE(container_size > groupsize);
 	C2_PRE(container_size / groupsize > res_groups);
 
-	result = ballroom->ab_ops->bo_init
-		(ballroom, dbenv, bshift, container_size, blocks_per_group, res_groups);
+	result = ballroom->ab_ops->bo_init(ballroom, dbenv, bshift,
+					   container_size, blocks_per_group,
+					   res_groups);
 	if (result == 0) {
 		adom->ad_dbenv    = dbenv;
 		adom->ad_bstore   = bstore;
 		adom->ad_ballroom = ballroom;
 		adom->ad_setup    = true;
 		c2_stob_get(adom->ad_bstore);
-		result = c2_emap_init(&adom->ad_adata, dbenv, "ad");
+		result = c2_emap_init(&adom->ad_adata, dbenv, adom->ad_path);
 	}
 	return result;
 }
@@ -754,9 +759,9 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		 * iteration could become expensive when extents map is
 		 * fragmented and target extents are far from each other.
 		 *
-		 * Iteration is used for now, because extents map is fragmented
-		 * or IO locality of reference is weak, performance will be bad
-		 * anyway.
+		 * Iteration is used for now, because when extents map is
+		 * fragmented or IO locality of reference is weak, performance
+		 * will be bad anyway.
 		 *
 		 * Note: the code relies on the target extents being in
 		 * increasing offset order in dst.
