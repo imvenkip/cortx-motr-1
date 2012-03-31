@@ -39,9 +39,10 @@
    @{
  */
 
-#include "db/extmap.h"
 #include "stob/stob.h"
 
+
+struct c2_ext;
 struct c2_dbenv;
 struct c2_dtx;
 
