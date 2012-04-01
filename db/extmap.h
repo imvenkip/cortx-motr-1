@@ -35,12 +35,12 @@
    denoted as ([A, B), V).
 
    An extent map is a collection of segments whose extents are non-empty and
-   form a partition of the name-space. 
+   form a partition of the name-space.
 
    That is, an extent map is something like
 
    @f[
-           ([0, e_0), v_0), ([e_0, e_1), v_1), \ldots, 
+           ([0, e_0), v_0), ([e_0, e_1), v_1), \ldots,
 	   ([e_n, C2\_BINDEX\_MAX + 1), v_n)
    @f]
 
@@ -49,16 +49,16 @@
 
    Possible applications of extent map include:
 
-   @li allocation data for a data object. In this case an extent in the
-   name-space is interpreted as an extent in the logical offset space of data
-   object. A value associated with the extent is a starting block of a physical
-   extent allocated to the logical extent. In addition to allocated extents, a
-   map might contain "holes" and "not-allocated" extents, tagged with special
-   otherwise impossible values;
+     - allocation data for a data object. In this case an extent in the
+       name-space is interpreted as an extent in the logical offset space of
+       data object. A value associated with the extent is a starting block of a
+       physical extent allocated to the logical extent. In addition to allocated
+       extents, a map might contain "holes" and "not-allocated" extents, tagged
+       with special otherwise impossible values;
 
-   @li various resource identifier distribution maps: file identifiers,
-   container identifiers, layout identifiers, recording state of resource
-   name-spaces: allocated to a certain node, free, etc.
+     - various resource identifier distribution maps: file identifiers,
+       container identifiers, layout identifiers, recording state of resource
+       name-spaces: allocated to a certain node, free, etc.
 
    Extent map interface is based on a notion of map cursor (c2_emap_cursor): an
    object recording a position within a map (i.e., a segment reached by the
@@ -70,15 +70,15 @@
 
    An extent map can be modified by the following functions:
 
-   @li c2_emap_split(): split a segment into a collection of segments with given
-   lengths and values, provided that their total length is the same as the
-   length of the original segment;
+     - c2_emap_split(): split a segment into a collection of segments with given
+       lengths and values, provided that their total length is the same as the
+       length of the original segment;
 
-   @li c2_emap_merge(): merge part of a segment into the next segment. The
-   current segment is shrunk (or deleted if it would become empty) and the next
-   segment is expanded downward;
+     - c2_emap_merge(): merge part of a segment into the next segment. The
+       current segment is shrunk (or deleted if it would become empty) and the
+       next segment is expanded downward;
 
-   @li c2_emap_paste() handles more complicated cases.
+     - c2_emap_paste() handles more complicated cases.
 
    It's easy to see that these operations preserve extent map invariant that
    extents are non-empty and form the name-space partition.
@@ -114,13 +114,13 @@ struct c2_indexvec;
 struct c2_emap_seg;
 struct c2_emap_cursor;
 
-/** 
+/**
     Create maps collection.
 
     @param db - data-base environment used for persistency and transactional
     support.
  */
-int  c2_emap_init(struct c2_emap *emap, 
+int  c2_emap_init(struct c2_emap *emap,
 		  struct c2_dbenv *db, const char *mapname);
 
 /** Release the resources associated with the collection. */
@@ -135,7 +135,7 @@ void c2_emap_fini(struct c2_emap *emap);
 	   ([0, C2\_BINDEX\_MAX + 1), val)
    @f]
  */
-int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx, 
+int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
 		       const struct c2_uint128 *prefix, uint64_t val);
 
 /**
@@ -144,7 +144,7 @@ int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
    @pre the map must be in initial state: consists of a single extent, covering
    the whole name-space.
  */
-int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx, 
+int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
 		       const struct c2_uint128 *prefix);
 
 /** Extent map segment. */
@@ -166,7 +166,7 @@ bool c2_emap_ext_is_first(const struct c2_ext *ext);
 /** Returns an extent at the current cursor position. */
 struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor *iterator);
 
-/** 
+/**
     Initialises extent map cursor to point to the segment containing given
     offset in a map with a given prefix in a given collection.
 
@@ -183,7 +183,7 @@ struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor *iterator);
     requested one.
  */
 int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
-		   const struct c2_uint128 *prefix, c2_bindex_t offset, 
+		   const struct c2_uint128 *prefix, c2_bindex_t offset,
 		   struct c2_emap_cursor *it);
 
 /**
@@ -247,9 +247,9 @@ int c2_emap_split(struct c2_emap_cursor *iterator, struct c2_indexvec *vec);
  */
 int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		  void (*del)(struct c2_emap_seg *),
-		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *, 
+		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *,
 				   uint64_t),
-		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *, 
+		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *,
 				    uint64_t));
 
 /**
@@ -271,7 +271,7 @@ void c2_emap_close(struct c2_emap_cursor *iterator);
 
 #include "db/extmap_internal.h"
 
-/** 
+/**
     Extent map caret.
 
     A caret is an iterator with finer granularity than a cursor. A caret is a
@@ -300,7 +300,7 @@ c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car);
 /* __COLIBRI_DB_EXTMAP_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
