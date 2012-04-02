@@ -165,7 +165,7 @@ struct c2_ldb_rec {
 	 * Pool identifier.
 	 * Value obtained from c2_layout::l_pid.
 	 */
-	uint64_t                       lr_pid;
+	uint64_t                       lr_pool_id;
 
 	/**
 	 * Layout type specific payload.

@@ -313,7 +313,7 @@ static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 
 	rec.lr_lt_id         = lt_id;
 	rec.lr_ref_count     = 0;
-	rec.lr_pid           = DEF_POOL_ID;
+	rec.lr_pool_id       = DEF_POOL_ID;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof rec);
@@ -1649,7 +1649,7 @@ static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 
 	rec.lr_lt_id         = c2_pdclust_layout_type.lt_id;
 	rec.lr_ref_count     = 0;
-	rec.lr_pid           = DEF_POOL_ID;
+	rec.lr_pool_id       = DEF_POOL_ID;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof rec);
@@ -1683,7 +1683,7 @@ static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 
 	C2_UT_ASSERT(rec->lr_lt_id == c2_pdclust_layout_type.lt_id);
 	C2_UT_ASSERT(rec->lr_ref_count == 0);
-	C2_UT_ASSERT(rec->lr_pid == DEF_POOL_ID);
+	C2_UT_ASSERT(rec->lr_pool_id == DEF_POOL_ID);
 
 	rc = c2_bufvec_cursor_move(cur, sizeof *rec);
 

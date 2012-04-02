@@ -259,7 +259,8 @@
  *   c2_ldb_[lookup|add|update|delete](). This is to ensure that the relavant
  *   layout|enum type does not get unregistered while any of those operations
  *   is taking place.
- * - Besides that, it is acquired during c2_layout_[encode|decode](), if and
+ * - (todo Change this comment along with change to relevant locking protocol.)
+ *   Besides that, it is acquired during c2_layout_[encode|decode](), if and
  *   only if op is C2_LXO_BUFFER_OP so as to handle the case of
  *   c2_layout_[encode|decode]() being called directly by the user.
  * - The in-memory c2_layout object is protected using c2_layout::l_lock.
@@ -497,56 +498,6 @@ static int rec_get(struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 	return rc;
 }
 
-/**
- * @note These checks should not be moved to invariant which is checked
- * before locking schema object. The risk is that a layout type may be
- * unregistered by the time schema->ls_type[lt_id] is accessed.
- */
-int layout_type_verify(const struct c2_ldb_schema *schema, uint32_t lt_id)
-{
-	int rc = 0;
-
-	C2_PRE(schema != 0);
-
-	if (!IS_IN_ARRAY(lt_id, schema->ls_type)) {
-		rc = -EPROTO;
-		C2_LOG("layout_type_verify(): Invalid Layout_type_id "
-		       "%lu", (unsigned long)lt_id);
-		goto out;
-	}
-
-	if (schema->ls_type[lt_id] == NULL) {
-		rc = -ENOENT;
-		C2_LOG("layout_type_verify(): Unknown layout type, "
-	               "Layout_type_id %lu", (unsigned long)lt_id);
-	}
-out:
-	return rc;
-}
-
-int enum_type_verify(const struct c2_ldb_schema *schema, uint32_t let_id)
-{
-	int rc = 0;
-
-	C2_PRE(schema != 0);
-
-	if (!IS_IN_ARRAY(let_id, schema->ls_enum)) {
-		rc = -EPROTO;
-		C2_LOG("enum_type_verify(): Invalid Enum_type_id "
-		       "%lu", (unsigned long)let_id);
-		goto out;
-	}
-
-	if (schema->ls_enum[let_id] == NULL) {
-		rc = -ENOENT;
-		C2_LOG("enum_type_verify(): Unknown enum type, "
-	               "Enum_type_id %lu", (unsigned long)let_id);
-	}
-out:
-	return rc;
-}
-
-
 /** @} end group LayoutDBDFSInternal */
 
 /**
@@ -630,7 +581,7 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 	C2_PRE(lt != NULL);
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_type));
 
-	C2_ENTRY("Layout_type_id %lu", (unsigned long)lt->lt_id);
+	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
 
 	c2_mutex_lock(&schema->ls_lock);
 
@@ -660,7 +611,7 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 out:
 	c2_mutex_unlock(&schema->ls_lock);
 
-	C2_LEAVE("Layout_type_id %lu, rc %d", (unsigned long)lt->lt_id, rc);
+	C2_LEAVE("Layout-type-id %lu, rc %d", (unsigned long)lt->lt_id, rc);
 	return rc;
 }
 
@@ -675,7 +626,7 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 	C2_PRE(lt != NULL);
 	C2_PRE(schema->ls_type[lt->lt_id] == lt);
 
-	C2_ENTRY("Layout_type_id %lu", (unsigned long)lt->lt_id);
+	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
 
 	c2_mutex_lock(&schema->ls_lock);
 
@@ -685,7 +636,7 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&schema->ls_lock);
 
-	C2_LEAVE("Layout_type_id %lu", (unsigned long)lt->lt_id);
+	C2_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
 }
 
 /**
@@ -932,7 +883,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(layout_type_verify(schema, l->l_type->lt_id) == 0);
+	C2_ASSERT(layout_type_verify(l->l_type->lt_id, schema) == 0);
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
@@ -1045,7 +996,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(layout_type_verify(schema, l->l_type->lt_id) == 0);
+	C2_ASSERT(layout_type_verify(l->l_type->lt_id, schema) == 0);
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
@@ -1125,7 +1076,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(layout_type_verify(schema, l->l_type->lt_id) == 0);
+	C2_ASSERT(layout_type_verify(l->l_type->lt_id, schema) == 0);
 
 	lt = schema->ls_type[l->l_type->lt_id];
 

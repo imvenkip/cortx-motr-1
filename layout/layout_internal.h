@@ -29,6 +29,7 @@
 struct c2_layout;
 struct c2_layout_enum;
 struct c2_layout_striped;
+struct c2_ldb_schema;
 enum c2_addb_event_id;
 struct c2_addb_ev;
 struct c2_addb_ctx;
@@ -46,6 +47,9 @@ bool layout_invariant(const struct c2_layout *l);
 bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 bool striped_layout_invariant(const struct c2_layout_striped *stl,
 			      uint64_t lid);
+
+int layout_type_verify(uint32_t lt_id, const struct c2_ldb_schema *schema);
+int enum_type_verify(uint32_t let_id, const struct c2_ldb_schema *schema);
 
 void layout_log(const char *fn_name,
 		const char *err_msg,

@@ -82,23 +82,21 @@
  */
 
 #include "lib/errno.h"
-#include "lib/memory.h"       /* C2_ALLOC_PTR(), C2_ALLOC_ARR(), c2_free() */
-#include "lib/arith.h"        /* c2_rnd() */
+#include "lib/memory.h" /* C2_ALLOC_PTR(), C2_ALLOC_ARR(), c2_free() */
+#include "lib/arith.h"  /* c2_rnd() */
 #include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "stob/stob.h"        /* c2_stob_id_is_set() */
-#include "pool/pool.h"        /* c2_pool_lookup() */
+#include "stob/stob.h"  /* c2_stob_id_is_set() */
+#include "pool/pool.h"  /* c2_pool_lookup() */
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 #include "layout/pdclust.h"
 
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
-extern int enum_type_verify(const struct c2_ldb_schema *schema,
-			    uint32_t let_id);
 
 enum {
 	PDCLUST_MAGIC = 0x5044434C5553544CULL /* PDCLUSTL */
@@ -579,7 +577,7 @@ static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
-	C2_ASSERT(enum_type_verify(schema, stl->ls_enum->le_type->let_id) == 0);
+	C2_ASSERT(enum_type_verify(stl->ls_enum->le_type->let_id, schema) == 0);
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 
@@ -626,13 +624,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/* pl_rec can not be NULL since the buffer size is already verified. */
 	pl_rec = c2_bufvec_cursor_addr(cur);
 
-	rc = enum_type_verify(schema, pl_rec->pr_let_id);
-	if (rc != 0) {
-		C2_LOG("pdclust_decode(): lid %llu, Unqualified "
-		       "Enum_type_id %lu, rc %d", (unsigned long long)lid,
-		       (unsigned long)pl_rec->pr_let_id, rc);
-		goto out;
-	}
+	C2_ASSERT(enum_type_verify(pl_rec->pr_let_id, schema) == 0);
 
 	et = schema->ls_enum[pl_rec->pr_let_id];
 
@@ -752,13 +744,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
-	rc = enum_type_verify(schema, stl->ls_enum->le_type->let_id);
-	if (rc != 0) {
-		C2_LOG("pdclust_encode(): lid %llu, Unqualified "
-		       "Enum_type_id %lu, rc %d", (unsigned long long)l->l_id,
-		       (unsigned long)stl->ls_enum->le_type->let_id, rc);
-		goto out;
-	}
+	C2_ASSERT(enum_type_verify(stl->ls_enum->le_type->let_id, schema) == 0);
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 
