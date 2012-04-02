@@ -767,9 +767,6 @@ static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
 
 static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
 {
-        struct c2_fop            *fop = NULL;
-        struct c2_fom            *fom = NULL;
-        struct c2_stob_io        *stio;
         struct c2_io_fom_cob_rw  *fom_obj;
         struct c2_stob_io_desc   *stio_desc;
 
@@ -779,45 +776,14 @@ static bool io_fom_cob_rw_stobio_complete_cb(struct c2_clink *clink)
         fom_obj = stio_desc->siod_fom;
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
-        stio    = &stio_desc->siod_stob_io;
-        fop     = fom_obj->fcrw_gen.fo_fop;
-        fom     = &fom_obj->fcrw_gen;
-
-        /* Update transfered data count till no error in FOM execution. */
-        if (fom->fo_rc == 0) {
-
-                /*
-                 * If stob I/O failed, declared FOM as failed and assign
-                 * STOB I/O error code to FOM return code.
-                 */
-                if (stio->si_rc == 0) {
-		        if (c2_is_write_fop(fop)) {
-                                int rc;
-			        /*
-                                 * Make an FOL transaction record.
-                                 * @todo : Need to consider FOL failure.
-                                 */
-			          rc = c2_fop_fol_rec_add(fop, fom->fo_fol,
-						          &fom->fo_tx.tx_dbtx);
-				  fom->fo_rc = rc;
-                          }
-                          /* Update successfull data transfered count*/
-		          fom_obj->fcrw_count += stio->si_count;
-                } else {
-                        fom->fo_rc = stio->si_rc;
-                        fom->fo_phase = FOPH_FAILURE;
-                }
-
-        }
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
-        fom_obj->fcrw_num_stobio_launched--;
 
-        if (fom_obj->fcrw_num_stobio_launched == 0) {
+        if (--fom_obj->fcrw_num_stobio_launched == 0) {
                 c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
                 c2_chan_signal(&fom_obj->fcrw_wait);
-                return true;
+        } else {
+                c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
         }
-        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
         return true;
 };
@@ -1633,11 +1599,17 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
         /*
          * Empty the list as all STOB I/O completed here.
          */
-        c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         c2_tlist_for (&stobio_tl, &fom_obj->fcrw_stio_list, stio_desc) {
                 struct c2_stob_io *stio;
 
                 stio = &stio_desc->siod_stob_io;
+
+                if (stio->si_rc != 0) {
+                        fom->fo_rc = stio->si_rc;
+                        fom->fo_phase = FOPH_FAILURE;
+                } else {
+                        fom_obj->fcrw_count += stio->si_count;
+                }
 
                 c2_free(stio->si_user.ov_vec.v_count);
                 c2_free(stio->si_user.ov_buf);
@@ -1652,7 +1624,6 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
 
                 stobio_tlist_del(stio_desc);
         } c2_tlist_endfor;
-        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
         c2_stob_put(fom_obj->fcrw_stob);
 
@@ -1663,6 +1634,12 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
                             fom->fo_rc);
 	        return FSO_AGAIN;
         }
+
+        /*
+         * Make an FOL transaction record.
+         */
+        fom->fo_rc = c2_fop_fol_rec_add(fom_obj->fcrw_gen.fo_fop, fom->fo_fol,
+                                        &fom->fo_tx.tx_dbtx);
 
         return FSO_AGAIN;
 }
@@ -1760,7 +1737,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         netbufs_tlist_fini(&fom_obj->fcrw_netbuf_list);
 
         C2_ASSERT(c2_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
-        c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         c2_tlist_for (&stobio_tl, &fom_obj->fcrw_stio_list, stio_desc) {
                 struct c2_stob_io *stio;
 
@@ -1776,7 +1752,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 
                 stobio_tlist_del(stio_desc);
         } c2_tlist_endfor;
-        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
         stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 
         c2_mutex_fini(&fom_obj->fcrw_stio_mutex);
