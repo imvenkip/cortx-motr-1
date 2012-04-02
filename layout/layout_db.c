@@ -900,7 +900,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(layout_type_verify(l->l_type->lt_id, schema) == 0);
+	C2_ASSERT(is_layout_type_valid(l->l_type->lt_id, schema));
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
@@ -1012,7 +1012,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(layout_type_verify(l->l_type->lt_id, schema) == 0);
+	C2_ASSERT(is_layout_type_valid(l->l_type->lt_id, schema));
 
 	lt = schema->ls_type[l->l_type->lt_id];
 
@@ -1092,7 +1092,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(layout_type_verify(l->l_type->lt_id, schema) == 0);
+	C2_ASSERT(is_layout_type_valid(l->l_type->lt_id, schema));
 
 	lt = schema->ls_type[l->l_type->lt_id];
 

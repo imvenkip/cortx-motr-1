@@ -577,7 +577,7 @@ static c2_bcount_t pdclust_recsize(struct c2_ldb_schema *schema,
 
 	stl = container_of(l, struct c2_layout_striped, ls_base);
 
-	C2_ASSERT(enum_type_verify(stl->ls_enum->le_type->let_id, schema) == 0);
+	C2_ASSERT(is_enum_type_valid(stl->ls_enum->le_type->let_id, schema));
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 
@@ -624,7 +624,7 @@ static int pdclust_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	/* pl_rec can not be NULL since the buffer size is already verified. */
 	pl_rec = c2_bufvec_cursor_addr(cur);
 
-	C2_ASSERT(enum_type_verify(pl_rec->pr_let_id, schema) == 0);
+	C2_ASSERT(is_enum_type_valid(pl_rec->pr_let_id, schema));
 
 	et = schema->ls_enum[pl_rec->pr_let_id];
 
@@ -744,7 +744,7 @@ static int pdclust_encode(struct c2_ldb_schema *schema,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
-	C2_ASSERT(enum_type_verify(stl->ls_enum->le_type->let_id, schema) == 0);
+	C2_ASSERT(is_enum_type_valid(stl->ls_enum->le_type->let_id, schema));
 
 	et = schema->ls_enum[stl->ls_enum->le_type->let_id];
 

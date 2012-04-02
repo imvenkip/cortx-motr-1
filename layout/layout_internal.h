@@ -36,11 +36,12 @@ struct c2_addb_ctx;
 struct c2_addb_loc;
 
 enum {
-	LID_NONE        = 0, /* Invalid layout id. */
-	DEFAULT_DB_FLAG = 0,
-	PRINT_ADDB_MSG  = 1,
-	PRINT_TRACE_MSG = 1,
-	LID_APPLICABLE  = 1
+	LID_NONE          = 0, /* Invalid layout id. */
+	DEFAULT_DB_FLAG   = 0,
+	DEFAULT_REF_COUNT = 1, /* While creating a layout. */
+	PRINT_ADDB_MSG    = 1,
+	PRINT_TRACE_MSG   = 1,
+	LID_APPLICABLE    = 1
 };
 
 bool layout_invariant(const struct c2_layout *l);
@@ -48,8 +49,8 @@ bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 bool striped_layout_invariant(const struct c2_layout_striped *stl,
 			      uint64_t lid);
 
-int layout_type_verify(uint32_t lt_id, const struct c2_ldb_schema *schema);
-int enum_type_verify(uint32_t let_id, const struct c2_ldb_schema *schema);
+bool is_layout_type_valid(uint32_t lt_id, const struct c2_ldb_schema *schema);
+bool is_enum_type_valid(uint32_t let_id, const struct c2_ldb_schema *schema);
 
 void layout_log(const char *fn_name,
 		const char *err_msg,

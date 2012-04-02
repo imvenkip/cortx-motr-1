@@ -21,19 +21,20 @@
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/memory.h"
-#include "lib/misc.h"           /* C2_SET0 */
+#include "lib/misc.h"               /* C2_SET0 */
 #include "lib/bitstring.h"
 #include "lib/vec.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
-#include "lib/trace.h"          /* C2_LOG */
+#include "lib/trace.h"              /* C2_LOG */
 
-#include "pool/pool.h"          /* c2_pool_init() */
+#include "pool/pool.h"              /* c2_pool_init() */
+#include "layout/layout_internal.h" /* DEFAULT_REF_COUNT */
 #include "layout/layout.h"
 #include "layout/pdclust.h"
 #include "layout/layout_db.h"
 #include "layout/list_enum.h"
-#include "layout/list_enum.c"   /* struct ldb_cob_entries_header */
+#include "layout/list_enum.c"       /* struct ldb_cob_entries_header */
 #include "layout/linear_enum.h"
 
 static const char            db_name[] = "ut-layout";
@@ -312,7 +313,7 @@ static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 	c2_bcount_t          nbytes_copied;
 
 	rec.lr_lt_id         = lt_id;
-	rec.lr_ref_count     = 0;
+	rec.lr_ref_count     = DEFAULT_REF_COUNT;
 	rec.lr_pool_id       = DEF_POOL_ID;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
@@ -403,7 +404,7 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 static int l_verify(uint64_t lid, struct c2_layout *l)
 {
 	C2_UT_ASSERT(l->l_id == lid);
-	C2_UT_ASSERT(l->l_ref == 0);
+	C2_UT_ASSERT(l->l_ref >= DEFAULT_REF_COUNT);
 	C2_UT_ASSERT(l->l_ops != NULL);
 
 	return 0;
@@ -1229,7 +1230,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
-	C2_UT_ASSERT(l->l_ref == 0);
+	C2_UT_ASSERT(l->l_ref == DEFAULT_REF_COUNT);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
@@ -1313,7 +1314,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
-	C2_UT_ASSERT(l->l_ref == 0);
+	C2_UT_ASSERT(l->l_ref == DEFAULT_REF_COUNT);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
@@ -1427,7 +1428,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
-	C2_UT_ASSERT(l->l_ref == 0);
+	C2_UT_ASSERT(l->l_ref == DEFAULT_REF_COUNT);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);

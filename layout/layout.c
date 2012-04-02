@@ -83,7 +83,7 @@ C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
 bool layout_invariant(const struct c2_layout *l)
 {
 	return l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
-		l->l_ref >= 0 && // todo make it 1 eventually
+		l->l_ref >= DEFAULT_REF_COUNT &&
 		c2_pool_id_is_valid(l->l_pool_id) &&
 		l->l_ops != NULL;
 }
@@ -101,48 +101,57 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl,
 }
 
 /**
- * @note These checks layout_type_verify() and enum_type_verify() are not
- * moved to invariants purposely. They require aditional schema object pointer.
- * It requires passing schema object pointer to multiple init functions like
+ * @note The check is_layout_type_valid() is purposely not moved to
+ * layout_invariant(). It requires an aditional schema object pointer,
+ * requiring it to be passed to multiple init functions like
  * layout_invariant(), striped_layout_invariant(),
  * c2_pdclust_layout_invariant() and alike.
  */
-int layout_type_verify(uint32_t lt_id, const struct c2_ldb_schema *schema)
+bool is_layout_type_valid(uint32_t lt_id, const struct c2_ldb_schema *schema)
 {
 	C2_PRE(schema != 0);
 
 	if (!IS_IN_ARRAY(lt_id, schema->ls_type)) {
-		C2_LOG("layout_type_verify(): Invalid layout-type-id "
+		C2_LOG("is_layout_type_valid(): Invalid layout-type-id "
 		       "%lu", (unsigned long)lt_id);
-		return -EPROTO;
+		return false;
 	}
 
 	if (schema->ls_type[lt_id] == NULL) {
-		C2_LOG("layout_type_verify(): Unknown layout type, "
+		C2_LOG("is_layout_type_valid(): Unknown layout type, "
 	               "layout-type-id %lu", (unsigned long)lt_id);
-		return -ENOENT;
+		return false;
 	}
 
-	return 0;
+	return true;
 }
 
-int enum_type_verify(uint32_t let_id, const struct c2_ldb_schema *schema)
+bool is_enum_type_valid(uint32_t let_id, const struct c2_ldb_schema *schema)
 {
 	C2_PRE(schema != 0);
 
 	if (!IS_IN_ARRAY(let_id, schema->ls_enum)) {
-		C2_LOG("enum_type_verify(): Invalid enum-type-id "
+		C2_LOG("is_enum_type_valid(): Invalid enum-type-id "
 		       "%lu", (unsigned long)let_id);
-		return -EPROTO;
+		return false;
 	}
 
 	if (schema->ls_enum[let_id] == NULL) {
-		C2_LOG("enum_type_verify(): Unknown enum type, "
+		C2_LOG("is_enum_type_valid(): Unknown enum type, "
 	               "enum-type-id %lu", (unsigned long)let_id);
-		return -ENOENT;
+		return false;
 	}
 
-	return 0;
+	return true;
+}
+
+int ldb_rec_invariant(const struct c2_ldb_rec *rec,
+		      struct c2_ldb_schema *schema)
+{
+	return rec != NULL &&
+		is_layout_type_valid(rec->lr_lt_id, schema) &&
+		rec->lr_ref_count >= DEFAULT_REF_COUNT &&
+		c2_pool_id_is_valid(rec->lr_pool_id);
 }
 
 int c2_layouts_init(void)
@@ -181,7 +190,7 @@ int c2_layout_init(struct c2_layout *l,
 
 	l->l_id      = lid;
 	l->l_type    = type;
-	l->l_ref     = 0;
+	l->l_ref     = DEFAULT_REF_COUNT;
 	l->l_pool_id = pool_id;
 	l->l_ops     = ops;
 
@@ -280,10 +289,15 @@ void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(layout_invariant(l));
 
+	/*
+	 * The DEFAULT_REF_COUNT being 1, ensures that the layout can not
+	 * be freed concurrently.
+	 */
+
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	c2_mutex_lock(&l->l_lock);
-	l->l_ref++;
+	C2_CNT_INC(l->l_ref);
 	c2_mutex_unlock(&l->l_lock);
 
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
@@ -297,7 +311,7 @@ void c2_layout_put(struct c2_layout *l)
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	c2_mutex_lock(&l->l_lock);
-	l->l_ref--;
+	C2_CNT_DEC(l->l_ref);
 	c2_mutex_unlock(&l->l_lock);
 
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
@@ -516,11 +530,9 @@ int c2_layout_decode(struct c2_ldb_schema *schema, uint64_t lid,
 
 	/* rec can not be NULL since the buffer size is already verified. */
 	rec = c2_bufvec_cursor_addr(cur);
-
-	C2_ASSERT(layout_type_verify(rec->lr_lt_id, schema) == 0);
+	C2_ASSERT(ldb_rec_invariant(rec, schema));
 
 	lt = schema->ls_type[rec->lr_lt_id];
-	C2_ASSERT(c2_pool_id_is_valid(rec->lr_pool_id));
 
 	/* Move the cursor to point to the layout type specific payload. */
 	c2_bufvec_cursor_move(cur, sizeof *rec);
@@ -634,11 +646,13 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 
 	c2_mutex_lock(&l->l_lock);
 
-	C2_ASSERT(layout_type_verify(l->l_type->lt_id, schema) == 0);
+	rec.lr_lt_id     = l->l_type->lt_id;
+	rec.lr_ref_count = l->l_ref;
+	rec.lr_pool_id   = l->l_pool_id;
+
+	C2_ASSERT(ldb_rec_invariant(&rec, schema));
 
 	lt = schema->ls_type[l->l_type->lt_id];
-
-	C2_ASSERT(c2_pool_id_is_valid(l->l_pool_id)); // todo move to invariant
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
@@ -659,9 +673,6 @@ int c2_layout_encode(struct c2_ldb_schema *schema,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
 	}
 
-	rec.lr_lt_id     = l->l_type->lt_id;
-	rec.lr_ref_count = l->l_ref;
-	rec.lr_pool_id   = l->l_pool_id;
 
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
