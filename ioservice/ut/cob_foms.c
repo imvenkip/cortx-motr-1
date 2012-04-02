@@ -477,40 +477,35 @@ static void fom_fini(struct c2_fom *fom, enum cob_fom_type fomtype)
 static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 {
 	struct c2_fop_cob_create *cf;
-	struct c2_fop_cob_delete *df;
+	struct c2_fop_cob_common *c;
 	struct c2_fop		 *base_fop;
 
 	switch (fomtype) {
 	case COB_CREATE:
 		base_fop = c2_fop_alloc(&c2_fop_cob_create_fopt, NULL);
+		C2_UT_ASSERT(base_fop != NULL);
 		if (base_fop != NULL) {
 			cf = c2_fop_data(base_fop);
-			cf->cc_common.c_gobfid.f_seq = COB_TEST_ID;
-			cf->cc_common.c_gobfid.f_oid = COB_TEST_ID;
-			cf->cc_common.c_cobfid.f_seq = COB_TEST_ID;
-			cf->cc_common.c_cobfid.f_oid = COB_TEST_ID;
 			cf->cc_cobname.cn_count = strlen(test_cobname);
 			cf->cc_cobname.cn_name = test_cobname;
-			fom->fo_fop = base_fop;
-			fom->fo_type = &base_fop->f_type->ft_fom_type;
 		}
 		break;
 	case COB_DELETE:
 		base_fop = c2_fop_alloc(&c2_fop_cob_delete_fopt, NULL);
-		if (base_fop != NULL) {
-			df = c2_fop_data(base_fop);
-			df->cd_common.c_gobfid.f_seq = COB_TEST_ID;
-			df->cd_common.c_gobfid.f_oid = COB_TEST_ID;
-			df->cd_common.c_cobfid.f_seq = COB_TEST_ID;
-			df->cd_common.c_cobfid.f_oid = COB_TEST_ID;
-			fom->fo_fop = base_fop;
-			fom->fo_type = &base_fop->f_type->ft_fom_type;
-		}
+		C2_UT_ASSERT(base_fop != NULL);
 		break;
 	default:
 		C2_IMPOSSIBLE("Invalid COB-FOM type");
 		break;
 	}
+	c = c2_cobfop_common_get(base_fop);
+	c->c_gobfid.f_seq = COB_TEST_ID;
+	c->c_gobfid.f_oid = COB_TEST_ID;
+	c->c_cobfid.f_seq = COB_TEST_ID;
+	c->c_cobfid.f_oid = COB_TEST_ID;
+	fom->fo_fop = base_fop;
+	fom->fo_type = &base_fop->f_type->ft_fom_type;
+
 	fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_op_reply_fopt, NULL);
 	C2_UT_ASSERT(fom->fo_rep_fop != NULL);
 }
@@ -520,28 +515,8 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
  */
 static void fop_dealloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 {
-	struct c2_fop_cob_create   *cf;
-	struct c2_fop_cob_delete   *df;
-	struct c2_fop_cob_op_reply *rf;
-	struct c2_fop		   *base_fop;
-
-	base_fop = fom->fo_fop;
-
-	switch (fomtype) {
-	case COB_CREATE:
-		cf = c2_fop_data(base_fop);
-		c2_free(cf);
-		break;
-	case COB_DELETE:
-		df = c2_fop_data(base_fop);
-		c2_free(df);
-		break;
-	default:
-		C2_IMPOSSIBLE("Invalid COB-FOM type");
-		break;
-	}
-	rf = c2_fop_data(fom->fo_rep_fop);
-	c2_free(rf);
+	c2_fop_free(fom->fo_fop);
+	c2_fop_free(fom->fo_rep_fop);
 }
 
 /*
@@ -598,8 +573,8 @@ static void fom_create_test(enum cob_fom_type fomtype)
 	fom_fini(fom, fomtype);
 }
 
-static int cofid_ctx_get(struct c2_fom *fom,
-			 struct c2_cobfid_setup **cobfid_ctx)
+static int cobfid_ctx_get(struct c2_fom *fom,
+			  struct c2_cobfid_setup **cobfid_ctx)
 {
 	struct c2_colibri *cctx;
 	int		   rc;
@@ -611,6 +586,17 @@ static int cofid_ctx_get(struct c2_fom *fom,
 	c2_mutex_unlock(&cctx->cc_mutex);
 
 	return rc;
+}
+
+static void cobfid_ctx_put(struct c2_fom *fom)
+{
+	struct c2_colibri *cctx;
+
+	cctx = c2_cs_ctx_get(fom->fo_service);
+	C2_ASSERT(cctx != NULL);
+	c2_mutex_lock(&cctx->cc_mutex);
+	c2_cobfid_setup_put(cctx);
+	c2_mutex_unlock(&cctx->cc_mutex);
 }
 
 /*
@@ -628,7 +614,8 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 	struct c2_cobfid_setup	  *cobfid_ctx = NULL;
 
 	C2_SET0(&cfm_iter);
-	rc = cofid_ctx_get(fom, &cobfid_ctx);
+	C2_SET0(&cob_fid_out);
+	rc = cobfid_ctx_get(fom, &cobfid_ctx);
 	C2_UT_ASSERT(rc == 0 && cobfid_ctx != NULL);
 
 	cfm_map = &cobfid_ctx->cms_map;
@@ -637,6 +624,7 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &cid_out,
 				     &fid_out, &cob_fid_out);
+	c2_cobfid_map_iter_fini(&cfm_iter);
 	C2_UT_ASSERT(ergo(map_exists, rc == 0));
 	C2_UT_ASSERT(ergo(!map_exists, rc != 0));
 
@@ -644,6 +632,8 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 		found = true;
 
 	C2_UT_ASSERT(found == map_exists);
+
+	cobfid_ctx_put(fom);
 }
 
 /*
@@ -746,15 +736,16 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	C2_SET0(&tx);
 	rc = c2_db_tx_init(&tx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_cob_lookup(cobdom, nskey, CA_NSKEY_FREE, &test_cob, &tx);
+	rc = c2_cob_lookup(cobdom, nskey, 0, &test_cob, &tx);
 	c2_db_tx_commit(&tx);
 
-	if(exists) {
+	if (exists) {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(test_cob != NULL);
 		C2_UT_ASSERT(test_cob->co_valid & CA_NSREC);
 	} else
 		C2_UT_ASSERT(rc == -ENOENT);
+	c2_free(nskey);
 }
 
 /*
