@@ -732,19 +732,6 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	c2_free(dom->fd_localities);
 }
 
-void c2_fom_init(struct c2_fom *fom)
-{
-	C2_PRE(fom != NULL);
-
-	fom->fo_phase = C2_FOPH_INIT;
-	fom->fo_rep_fop = NULL;
-        fom->fo_rc = 0;
-
-	c2_clink_init(&fom->fo_clink, &fom_cb);
-	c2_list_link_init(&fom->fo_linkage);
-}
-C2_EXPORTED(c2_fom_init);
-
 void c2_fom_fini(struct c2_fom *fom)
 {
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
@@ -753,22 +740,25 @@ void c2_fom_fini(struct c2_fom *fom)
 	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 }
-C2_EXPORTED(c2_fom_fini);
 
-void c2_fom_create(struct c2_fom *fom, struct c2_fom_type *fom_type,
-		const struct c2_fom_ops *ops, struct c2_fop *fop,
-		struct c2_fop *reply)
+void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		 const struct c2_fom_ops *ops, struct c2_fop *fop,
+		 struct c2_fop *reply)
 {
 	C2_PRE(fom != NULL);
 
-	c2_fom_init(fom);
-
+	fom->fo_phase   = C2_FOPH_INIT;
+	fom->fo_state   = C2_FOS_RUNNING;
+        fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
 	fom->fo_rep_fop = reply;
+
+	c2_clink_init(&fom->fo_clink, &fom_cb);
+	c2_list_link_init(&fom->fo_linkage);
 }
-C2_EXPORTED(c2_fom_create);
+
 /** @} endgroup fom */
 
 /*

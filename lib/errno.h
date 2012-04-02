@@ -30,7 +30,7 @@
 /* __COLIBRI_LIB_ERRNO_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

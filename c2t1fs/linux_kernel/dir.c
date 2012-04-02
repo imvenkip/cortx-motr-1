@@ -215,7 +215,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
 					  (unsigned long)fid->f_container,
 					  (unsigned long)fid->f_key);
-	
+
 	mark_inode_dirty(dir);
 	rc = 0;
 out:

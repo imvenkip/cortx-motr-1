@@ -83,10 +83,6 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 					const char             *db_path,
 					struct c2_stob_domain **out);
 
-static int stob_create(struct c2_stob_domain    *dom,
-		       const struct c2_stob_id  *stob_id,
-		       struct c2_stob          **out);
-
 static void stob_domain_fini(struct c2_stob_domain *stob_domain);
 
 int main(int argc, char *argv[])
@@ -94,6 +90,7 @@ int main(int argc, char *argv[])
 	struct c2_stob_domain *stob_domain;
 	struct c2_stob        *stob;
 	struct cmd_line_args   clargs;
+	struct c2_dtx          tx;
 	int                    rc;
 
 	rc = cmd_line_args_process(&clargs, argc, argv);
@@ -121,9 +118,16 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		goto out;
 
-	rc = stob_create(stob_domain, &clargs.cla_stob_id, &stob);
+	c2_dtx_init(&tx);
+	rc = stob_domain->sd_ops->sdo_tx_make(stob_domain, &tx);
+	if (rc != 0)
+		goto out;
+
+	rc = c2_stob_create_helper(stob_domain, &tx, &clargs.cla_stob_id, &stob);
 	if (stob != NULL)
 		c2_stob_put(stob);
+
+	c2_dtx_done(&tx);
 
 	stob_domain_fini(stob_domain);
 
@@ -317,62 +321,6 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 	return rc;
 }
 
-static int stob_create(struct c2_stob_domain    *dom,
-		       const struct c2_stob_id  *stob_id,
-		       struct c2_stob          **out)
-{
-	struct c2_stob *stob;
-	struct c2_dtx  *dtx;
-	int             rc;
-
-	*out = NULL;
-
-	rc = c2_stob_find(dom, stob_id, &stob);
-	if (rc != 0)
-		return rc;
-	/*
-	 * Here, stob != NULL and c2_stob_find() has taken
-	 * reference on stob.
-	 * Must call c2_stob_put() on stob, after this point.
-	 */
-
-	dtx  = NULL;
-	if (dom->sd_type == &ad_stob_type) {
-		C2_ALLOC_PTR(dtx);
-		rc = dom->sd_ops->sdo_tx_make(dom, dtx);
-		if (rc != 0) {
-			fprintf(stderr,
-				"Unable to create transaction context\n");
-			return rc;
-		}
-	}
-
-	rc = c2_stob_locate(stob, dtx); /* dtx == NULL of linux stob type
-					   and != NULL for ad stob type */
-	if (rc == 0) {
-		fprintf(stderr, "Stob already exists\n");
-		*out = stob;
-		return -EEXIST;
-	}
-
-	rc = c2_stob_create(stob, dtx);
-	if (rc == 0) {
-		fprintf(stderr, "Stob created successfuly\n");
-		if (dtx != NULL)
-			rc = c2_db_tx_commit(&dtx->tx_dbtx);
-		*out = stob;
-	} else {
-		fprintf(stderr, "Stob creation failed [%d]\n", rc);
-		if (dtx != NULL)
-			rc = c2_db_tx_abort(&dtx->tx_dbtx);
-		c2_stob_put(stob);
-	}
-
-	if (dtx != NULL)
-		c2_free(dtx);
-
-	return rc;
-}
 
 static void stob_domain_fini(struct c2_stob_domain *stob_domain)
 {

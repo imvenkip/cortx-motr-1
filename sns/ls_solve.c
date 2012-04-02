@@ -79,7 +79,7 @@ static void triangularize(struct c2_matrix *m, struct c2_vector *v)
 		/* move row with max first elem to the top of matrix */
 		max_row = find_max_row_index_for_col(m, col);
 		c2_matrix_swap_row(m, current_row, max_row);
-		c2_vector_swap_row(v, current_row, max_row);		
+		c2_vector_swap_row(v, current_row, max_row);
 
 		/* divide row to eliminate first element of the row */
 		divisor = *c2_matrix_elem_get(m, col, current_row);
@@ -113,7 +113,7 @@ static void substitute(struct c2_matrix *m, struct c2_vector *v, struct c2_vecto
 			c2_parity_elem_t *em_prev = c2_matrix_elem_get(m, col + pos, row);
 			rhs = c2_parity_sub(rhs, c2_parity_mul(*er_prev, *em_prev));
 		}
-		
+
 		*er = c2_parity_div(rhs, *em);
 	}
 }

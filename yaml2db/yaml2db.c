@@ -586,7 +586,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
                 return rc;
         }
 
-	rc = c2_db_cursor_init(&db_cursor, &table, &tx);
+	rc = c2_db_cursor_init(&db_cursor, &table, &tx, 0);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
                                 yaml2db_func_fail, "c2_db_cursor_init", rc);

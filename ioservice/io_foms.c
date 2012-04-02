@@ -988,14 +988,11 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
 
         fom  = &fom_obj->fcrw_gen;
         *out = fom;
-        c2_fom_init(fom);
-
-        fom->fo_type    = &fop->f_type->ft_fom_type;
-        fom->fo_ops     = &c2_io_fom_cob_rw_ops;
-        fom->fo_fop     = fop;
-	fom->fo_rep_fop = c2_is_read_fop(fop) ?
-			     c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL) :
-			     c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
+        c2_fom_init(fom, &fop->f_type->ft_fom_type,
+		    &c2_io_fom_cob_rw_ops, fop,
+		    c2_is_read_fop(fop) ?
+		    c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL) :
+		    c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL));
 
         if (fom->fo_rep_fop == NULL) {
                 c2_fom_fini(fom);
@@ -1625,6 +1622,8 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
                 c2_stob_io_fini(stio);
 
                 stobio_tlist_del(stio_desc);
+
+		c2_free(stio_desc);
         } c2_tlist_endfor;
 
         c2_stob_put(fom_obj->fcrw_stob);
@@ -1755,6 +1754,9 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
                 c2_stob_io_fini(stio);
 
                 stobio_tlist_del(stio_desc);
+
+		c2_free(stio_desc);
+
         } c2_tlist_endfor;
         stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 

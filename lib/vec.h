@@ -116,7 +116,7 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur);
 
 /** Vector of extents in a linear name-space */
 struct c2_indexvec {
-	/* Number of buffers and their sizes. */
+	/** Number of extents and their sizes. */
 	struct c2_vec  iv_vec;
 	/** Array of starting extent indices. */
 	c2_bindex_t   *iv_index;
@@ -124,7 +124,7 @@ struct c2_indexvec {
 
 /** Vector of memory buffers */
 struct c2_bufvec {
-	/* Number of buffers and their sizes. */
+	/** Number of buffers and their sizes. */
 	struct c2_vec  ov_vec;
 	/** Array of buffer addresses. */
 	void         **ov_buf;

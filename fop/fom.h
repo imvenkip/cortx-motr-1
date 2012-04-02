@@ -186,19 +186,20 @@ struct c2_fom_domain_ops {
  */
 enum c2_fom_state {
 	/**
-	   Fom is in C2_FOS_RUNNING state when its state transition function is being
-	   executed by a locality handler thread.
-	   The fom is not on any queue in this state.
+	   Fom is in C2_FOS_RUNNING state when its state transition function is
+	   being executed by a locality handler thread.  The fom is not on any
+	   queue in this state.
 	 */
 	C2_FOS_RUNNING,
 	/**
-	    Fom is in C2_FOS_READY state when it is on locality runq for execution.
+	   Fom is in C2_FOS_READY state when it is on locality runq for
+	   execution.
 	*/
 	C2_FOS_READY,
 	/**
-	    Fom is in C2_FOS_WAITING state when some event must happen before the next
-	    state transition would become possible.
-	    The fom is on a locality wait list in this state.
+	   Fom is in C2_FOS_WAITING state when some event must happen before
+	   the next state transition would become possible.  The fom is on a
+	   locality wait list in this state.
 	 */
 	C2_FOS_WAITING,
 };
@@ -213,14 +214,14 @@ enum c2_fom_state {
    @see c2_fom_state_generic()
  */
 enum c2_fom_phase {
-	C2_FOPH_INIT,               /*< fom has been initialised. */
-	C2_FOPH_AUTHENTICATE,       /*< authentication loop is in progress. */
-	C2_FOPH_AUTHENTICATE_WAIT,  /*< waiting for key cache miss. */
-	C2_FOPH_RESOURCE_LOCAL,     /*< local resource reservation loop is in
-				        progress. */
-	C2_FOPH_RESOURCE_LOCAL_WAIT,  /*< waiting for a local resource. */
-	C2_FOPH_RESOURCE_DISTRIBUTED, /*< distributed resource reservation
-	                                  loop is in progress. */
+	C2_FOPH_INIT,                /*< fom has been initialised. */
+	C2_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
+	C2_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
+	C2_FOPH_RESOURCE_LOCAL,      /*< local resource reservation loop is in
+	                                 progress. */
+	C2_FOPH_RESOURCE_LOCAL_WAIT, /*< waiting for a local resource. */
+	C2_FOPH_RESOURCE_DISTRIBUTED,/*< distributed resource reservation loop
+	                                 is in progress. */
 	C2_FOPH_RESOURCE_DISTRIBUTED_WAIT, /*< waiting for a distributed
 	                                       resource. */
 	C2_FOPH_OBJECT_CHECK,       /*< object checking loop is in progress. */
@@ -229,21 +230,21 @@ enum c2_fom_phase {
 	C2_FOPH_AUTHORISATION_WAIT, /*< waiting for userdb cache miss. */
 	C2_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
 	C2_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
-	C2_FOPH_SUCCESS,	    /*< fom execution completed succesfully. */
-	C2_FOPH_TXN_COMMIT,	    /*< commit local transaction context. */
-	C2_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local
-	                                transaction context. */
-	C2_FOPH_TIMEOUT,	    /*< fom timed out. */
-	C2_FOPH_FAILURE,	    /*< fom execution failed. */
-	C2_FOPH_TXN_ABORT,	    /*< abort local transaction context. */
-	C2_FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local
-	                                transaction context. */
-	C2_FOPH_QUEUE_REPLY,	    /*< queuing fop reply.  */
+	C2_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
+	C2_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
+	C2_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
+	                                context. */
+	C2_FOPH_TIMEOUT,            /*< fom timed out. */
+	C2_FOPH_FAILURE,            /*< fom execution failed. */
+	C2_FOPH_TXN_ABORT,          /*< abort local transaction context. */
+	C2_FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction
+	                                context. */
+	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
 	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
-	C2_FOPH_FINISH,		    /*< terminal state. */
-	C2_FOPH_NR	            /*< number of standard phases. fom type
-				        specific phases have numbers larger than
-				        this. */
+	C2_FOPH_FINISH,	            /*< terminal state. */
+	C2_FOPH_NR                  /*< number of standard phases. fom type
+	                                specific phases have numbers larger than
+	                                this. */
 };
 
 /**
@@ -337,17 +338,24 @@ struct c2_fom {
 void c2_fom_queue(struct c2_fom *fom);
 
 /**
-   Initialises fom allocated by the caller.
-   Invoked from c2_fom_type_ops::fto_create implementation for
-   corresponding fom.
-   Fom starts in C2_FOPH_INIT phase and C2_FOS_READY state to begin its
+   Initialises fom allocated by caller.
+
+   Invoked from c2_fom_type_ops::fto_create implementation for corresponding
+   fom.
+
+   Fom starts in C2_FOPH_INIT phase and C2_FOS_RUNNING state to begin its
    execution.
 
-   @param fom, A fom to be initialised
+   @param fom A fom to be initialized
+   @param fom_type Fom type
+   @param ops Fom operations structure
+   @param fop Request fop object
+   @param reply Reply fop object
    @pre fom != NULL
  */
-void c2_fom_init(struct c2_fom *fom);
-
+void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
+		 const struct c2_fom_ops *ops, struct c2_fop *fop,
+		 struct c2_fop *reply);
 /**
    Finalises a fom after it completes its execution,
    i.e success or failure.
@@ -367,21 +375,6 @@ void c2_fom_fini(struct c2_fom *fom);
    mutex held.
  */
 bool c2_fom_invariant(const struct c2_fom *fom);
-
-/**
-   Initialises fom allocated by caller.
-   Invokes c2_fom_init().
-   @see c2_fom_init()
-   @param fom A fom to be initialized
-   @param fom_type Fom type
-   @param ops Fom operations structure
-   @param fop Request fop object
-   @param reply Reply fop object
-   @pre fom != NULL
- */
-void c2_fom_create(struct c2_fom *fom, struct c2_fom_type *fom_type,
-		const struct c2_fom_ops *ops, struct c2_fop *fop,
-		struct c2_fop *reply);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {

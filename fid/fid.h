@@ -46,7 +46,7 @@ bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1);
 /* __COLIBRI_FID_FID_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

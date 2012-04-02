@@ -98,7 +98,7 @@ void test_mutex(void)
 }
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

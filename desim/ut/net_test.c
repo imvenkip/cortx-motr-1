@@ -118,7 +118,7 @@ static void workload_fini(void)
 	net_srv_fini(&srv);
 	net_fini(&net);
 	elevator_fini(&el);
-	chs_dev_fini(&disc);	
+	chs_dev_fini(&disc);
 	chs_conf_fini(&ST31000640SS);
 }
 #endif
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 	unsigned clients = atoi(argv[1]);
 	unsigned threads = atoi(argv[2]);
 	unsigned long long filesize;
-	
+
 	int result;
 
 	result = c2_init();
@@ -142,7 +142,7 @@ int main(int argc, char **argv)
 		sim_run(&s);
 		/* workload_fini(); */
 		cnt_dump_all();
-		sim_log(&s, SLL_WARN, "%5i %5i %10.2f\n", clients, threads, 
+		sim_log(&s, SLL_WARN, "%5i %5i %10.2f\n", clients, threads,
 			1000.0 * filesize * clients / s.ss_bolt);
 		sim_fini(&s);
 		c2_fini();
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

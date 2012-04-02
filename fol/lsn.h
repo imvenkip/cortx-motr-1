@@ -74,7 +74,7 @@ int      c2_lsn_cmp     (c2_lsn_t lsn0, c2_lsn_t lsn1);
 /* __COLIBRI_FOL_LSN_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

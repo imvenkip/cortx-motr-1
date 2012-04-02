@@ -722,7 +722,7 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 	nskey = c2_alloc(sizeof (*nskey) + 20);
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	rc = c2_db_cursor_init(&cursor, &dom->cd_namespace, &tx);
+	rc = c2_db_cursor_init(&cursor, &dom->cd_namespace, &tx, 0);
 	if (rc != 0) {
 		printf("ns_traverse: error during cursor init %d\n", rc);
 		return;
@@ -759,7 +759,7 @@ void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 	int			rc;
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	rc = c2_db_cursor_init(&cursor, &dom->cd_fileattr_basic, &tx);
+	rc = c2_db_cursor_init(&cursor, &dom->cd_fileattr_basic, &tx, 0);
 	if (rc != 0) {
 		printf("fb_traverse: error during cursor init %d\n", rc);
 		return;
