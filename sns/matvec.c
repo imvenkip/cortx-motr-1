@@ -103,13 +103,13 @@ void c2_matrix_print(const struct c2_matrix *mat)
 	C2_PRE(mat);
 
 	DBG("-----> mat %p\n", mat);
-        
+
 	for (y = 0; y < mat->m_height; ++y) {
                 for (x = 0; x < mat->m_width; ++x)
 			DBG("%6d ", *c2_matrix_elem_get(mat, x, y));
 		DBG("\n");
 	}
-        
+
 	DBG("\n");
 }
 
@@ -170,42 +170,42 @@ void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
 			    c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t x;	
+	uint32_t x;
 	C2_PRE(m);
 
 	for (x = 0; x < m->m_width; ++x) {
 		c2_parity_elem_t *e0 = c2_matrix_elem_get(m, x, row0);
 		c2_parity_elem_t *e1 = c2_matrix_elem_get(m, x, row1);
 		*e0 = f(f0(*e0, c0), f1(*e1, c1));
-	}	
+	}
 }
 
 void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 			     c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
 			     c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t x;	
+	uint32_t x;
 	C2_PRE(m);
 
 	for (x = 0; x < m->m_width; ++x) {
 		c2_parity_elem_t *e0 = c2_matrix_elem_get(m, x, row0);
 		c2_parity_elem_t *e1 = c2_matrix_elem_get(m, x, row1);
 		*e0 = f(f0(*e0, c0), *e1);
-	}	
+	}
 }
 
 void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 			     c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
 			     c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t x;	
+	uint32_t x;
 	C2_PRE(m);
 
 	for (x = 0; x < m->m_width; ++x) {
 		c2_parity_elem_t *e0 = c2_matrix_elem_get(m, x, row0);
 		c2_parity_elem_t *e1 = c2_matrix_elem_get(m, x, row1);
 		*e0 = f(*e0, f1(*e1, c1));
-	}	
+	}
 }
 
 void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0, uint32_t col1,
@@ -307,10 +307,10 @@ void c2_matrix_get_submatrix(struct c2_matrix *mat, struct c2_matrix *submat,
 {
 	uint32_t x;
 	uint32_t y;
-        
+
 	C2_PRE(mat->m_width >= (submat->m_width + x_off)
                && mat->m_height >= (submat->m_height + y_off));
-	
+
 	for (y = 0; y < submat->m_height; ++y) {
 		for (x = 0; x < submat->m_width; ++x) {
 			*c2_matrix_elem_get(submat, x, y) =

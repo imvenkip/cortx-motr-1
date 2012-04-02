@@ -89,7 +89,7 @@ static void udb_test(void)
 	C2_UT_ASSERT(ret == 0);
 
 /* uncomment when realization ready */
-#if 0 
+#if 0
 	/* check that mapping does not exist */
 	C2_SET0(&testcred);
 	ret = c2_udb_e2i(&ctx, &external, &testcred);

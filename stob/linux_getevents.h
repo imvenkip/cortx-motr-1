@@ -85,7 +85,7 @@ io_syscall5(int, raw_io_getevents, io_getevents, io_context_t, ctx, long, min_nr
 /* __COLIBRI_STOB_LINUX_GETEVENTS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

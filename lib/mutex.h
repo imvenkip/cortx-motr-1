@@ -86,7 +86,7 @@ bool c2_mutex_is_not_locked(const struct c2_mutex *mutex);
 /* __COLIBRI_LIB_MUTEX_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

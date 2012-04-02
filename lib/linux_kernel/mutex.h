@@ -39,7 +39,7 @@ struct c2_mutex {
 /* __COLIBRI_LIB_LINUX_KERNEL_MUTEX_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
