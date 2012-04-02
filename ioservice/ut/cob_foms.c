@@ -882,7 +882,7 @@ static void cc_cobfid_map_add_test()
 	C2_UT_ASSERT(rc == 0);
 
 	rc = cd_fom_state(dfom);
-	C2_UT_ASSERT(rc == FSO_AGAIN);
+	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
 	C2_UT_ASSERT(dfom->fo_phase == FOPH_SUCCESS);
 
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
@@ -911,7 +911,7 @@ static void cc_fom_state_test()
 	rc = cc_fom_state(cfom);
 	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
-	C2_UT_ASSERT(rc == FSO_AGAIN);
+	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
 	C2_UT_ASSERT(cfom->fo_phase == FOPH_SUCCESS);
 
 	cc = cob_fom_get(cfom);
@@ -934,7 +934,7 @@ static void cc_fom_state_test()
 	C2_UT_ASSERT(rc == 0);
 
 	rc = cd_fom_state(dfom);
-	C2_UT_ASSERT(rc == FSO_AGAIN);
+	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
 	C2_UT_ASSERT(dfom->fo_phase == FOPH_SUCCESS);
 
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
@@ -1060,7 +1060,7 @@ static struct c2_fom *cob_testdata_create()
 	rc = cc_fom_state(fom);
 	c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
-	C2_UT_ASSERT(rc == FSO_AGAIN);
+	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
 	C2_UT_ASSERT(fom->fo_phase == FOPH_SUCCESS);
 
 	return fom;
@@ -1257,7 +1257,7 @@ static void cd_fom_state_test()
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	C2_UT_ASSERT(dfom->fo_phase == FOPH_SUCCESS);
-	C2_UT_ASSERT(rc == FSO_AGAIN);
+	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
 
 	/*
 	 * Make sure that there are no records in the database.

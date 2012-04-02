@@ -320,7 +320,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 			rfop = c2_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);
 			if (rfop == NULL) {
 				fom->fo_phase = FOPH_FINISH;
-				return FSO_WAIT;
+				return C2_FSO_WAIT;
 			}
 			ds1_reqfop = c2_fop_data(fom->fo_fop);
 			ds1_repfop = c2_fop_data(rfop);
@@ -328,13 +328,13 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;
 			fom->fo_phase = FOPH_SUCCESS;
-			rc = FSO_AGAIN;
+			rc = C2_FSO_AGAIN;
 			break;
 		case C2_CS_DS2_REQ_OPCODE:
 			rfop = c2_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
 			if (rfop == NULL) {
 				fom->fo_phase = FOPH_FINISH;
-				return FSO_WAIT;
+				return C2_FSO_WAIT;
 			}
 			ds2_reqfop = c2_fop_data(fom->fo_fop);
 			ds2_repfop = c2_fop_data(rfop);
@@ -342,7 +342,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;
 			fom->fo_phase = FOPH_SUCCESS;
-			rc = FSO_AGAIN;
+			rc = C2_FSO_AGAIN;
 			break;
 		default:
 			 C2_ASSERT("Invalid fop" == 0);

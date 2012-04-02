@@ -256,7 +256,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 				(unsigned long)conn->c_sender_id);
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	return FSO_WAIT;
+	return C2_FSO_WAIT;
 
 out_fini:
 	C2_ASSERT(conn != NULL && rc != 0);
@@ -285,7 +285,7 @@ out:
 	 */
 	fom->fo_phase = FOPH_FINISH;
 	C2_LOG("Conn establish failed: rc [%d]\n", rc);
-	return FSO_WAIT;
+	return C2_FSO_WAIT;
 }
 
 /*
@@ -365,7 +365,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 					(unsigned long)session->s_session_id);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_FINISH;
-	return FSO_WAIT;
+	return C2_FSO_WAIT;
 
 out_fini:
 	C2_ASSERT(session != NULL &&
@@ -386,7 +386,7 @@ errout:
 	fom->fo_phase = FOPH_FINISH;
 	C2_LOG("Session establish failed: rc [%d]\n", rc);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	return FSO_WAIT;
+	return C2_FSO_WAIT;
 }
 
 /*
@@ -475,7 +475,7 @@ errout:
 	fom->fo_phase = FOPH_FINISH;
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
-	return FSO_WAIT;
+	return C2_FSO_WAIT;
 }
 
 /*
@@ -537,7 +537,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		fom->fo_phase = FOPH_FINISH;
 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-		return FSO_WAIT;
+		return C2_FSO_WAIT;
 	} else {
 		/*
 		 * conn has been moved to FAILED state. fini() and free() it.
@@ -549,7 +549,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		c2_rpc_conn_fini(conn);
 		c2_free(conn);
 		fom->fo_phase = FOPH_FINISH;
-		return FSO_WAIT;
+		return C2_FSO_WAIT;
 	}
 }
 

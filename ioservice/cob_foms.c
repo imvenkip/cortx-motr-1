@@ -234,7 +234,7 @@ out:
 
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS : FOPH_FAILURE;
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
@@ -412,7 +412,7 @@ out:
 
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS : FOPH_FAILURE;
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
