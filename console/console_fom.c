@@ -115,7 +115,7 @@ static int cons_fom_state(struct c2_fom *fom)
 
 	/* Reply item */
 	reply_item = &rfop->f_item;
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
         return c2_rpc_reply_post(req_item, reply_item);
 }
 
