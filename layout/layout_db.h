@@ -194,7 +194,7 @@ void **c2_ldb_type_data(struct c2_ldb_schema *schema,
 void **c2_ldb_enum_data(struct c2_ldb_schema *schema,
 			const struct c2_layout_enum_type *et);
 
-uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema);
+c2_bcount_t c2_ldb_max_recsize(struct c2_ldb_schema *schema);
 
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t id,

@@ -111,7 +111,7 @@ static void composite_unregister(struct c2_ldb_schema *schema,
 /**
  * Implementation of lto_max_recsize() for COMPOSITE layout type.
  */
-static uint32_t composite_max_recsize(struct c2_ldb_schema *schema)
+static c2_bcount_t composite_max_recsize(struct c2_ldb_schema *schema)
 {
 	return 0;
 }
@@ -119,8 +119,8 @@ static uint32_t composite_max_recsize(struct c2_ldb_schema *schema)
 /**
  * Implementation of lto_recsize() for COMPOSITE layout type.
  */
-static uint32_t composite_recsize(struct c2_ldb_schema *schema,
-				  struct c2_layout *l)
+static c2_bcount_t composite_recsize(struct c2_ldb_schema *schema,
+				     struct c2_layout *l)
 {
 	return 0;
 }

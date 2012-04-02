@@ -427,8 +427,8 @@ static const struct c2_table_ops layouts_table_ops = {
  * performed on the layout record which could be one of ADD/UPDATE/DELETE.
  */
 int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
-		     uint64_t lid, struct c2_db_pair *pair, uint32_t recsize,
-		     struct c2_db_tx *tx)
+		     uint64_t lid, struct c2_db_pair *pair,
+		     c2_bcount_t recsize, struct c2_db_tx *tx)
 {
 	int rc;
 
@@ -440,7 +440,8 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
-	C2_PRE(recsize >= sizeof(struct c2_ldb_rec));
+	C2_PRE(recsize >= sizeof(struct c2_ldb_rec) &&
+	       recsize <= c2_ldb_max_recsize(schema));
 	C2_PRE(tx != NULL);
 
 	pair->dp_table = &schema->ls_layouts;
@@ -448,11 +449,13 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
 
 	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
 		       pair->dp_key.db_buf.b_addr,
+		       //recsize);
 		       pair->dp_key.db_buf.b_nob);
 	pair->dp_key.db_static = false;
 
 	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
 		       pair->dp_rec.db_buf.b_addr,
+		       //recsize);
 		       pair->dp_rec.db_buf.b_nob);
 	pair->dp_rec.db_static = false;
 
@@ -476,7 +479,7 @@ int ldb_layout_write(struct c2_ldb_schema *schema, enum c2_layout_xcode_op op,
  * Read existing record from the layouts table into the provided area.
  */
 static int rec_get(struct c2_ldb_schema *schema, struct c2_db_tx *tx,
-		   struct c2_layout *l, void *area, uint32_t nbytes)
+		   struct c2_layout *l, void *area, c2_bcount_t max_recsize)
 {
 	struct c2_db_pair  pair;
 	int                rc;
@@ -484,11 +487,16 @@ static int rec_get(struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 	C2_PRE(schema != NULL);
 	C2_PRE(l != NULL);
 	C2_PRE(area != NULL);
-	C2_PRE(nbytes >= sizeof(struct c2_ldb_rec));
+	C2_PRE(max_recsize >= sizeof(struct c2_ldb_rec) &&
+	       max_recsize <= c2_ldb_max_recsize(schema));
+
+	/* todo remove this
+	 * The max_recsize is never expected to be that large. But still. */
+	C2_ASSERT(max_recsize <= UINT32_MAX);
 
 	c2_db_pair_setup(&pair, &schema->ls_layouts,
 			 &l->l_id, sizeof l->l_id,
-			 area, nbytes);
+			 area, (uint32_t)max_recsize);
 
 	rc = c2_table_lookup(tx, &pair);
 	C2_ASSERT(rc != -ENOENT);
@@ -715,11 +723,11 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
  * Returns max possible size for a record in the layouts table (without
  * considering the data in the tables other than layouts).
  */
-uint32_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
+c2_bcount_t c2_ldb_max_recsize(struct c2_ldb_schema *schema)
 {
-	uint32_t i;
-	uint32_t recsize;
-	uint32_t max_recsize = 0;
+	uint32_t    i;
+	c2_bcount_t recsize;
+	c2_bcount_t max_recsize = 0;
 
 	C2_PRE(schema != NULL);
 
@@ -759,6 +767,8 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	int                     rc;
 	struct c2_bufvec        bv;
 	struct c2_bufvec_cursor cur;
+	//c2_bcount_t             max_recsize;
+	//c2_bcount_t             recsize;
 	//struct c2_db_buf        key_buf = pair->dp_key;
 	//struct c2_db_buf        rec_buf = pair->dp_rec;
 
@@ -777,15 +787,22 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	c2_mutex_lock(&schema->ls_lock);
 
+	//max_recsize = c2_ldb_max_recsize(schema);
+
+	//recsize = pair->dp_key.db_buf.b_nob <= max_recsize ?
+	//	  pair->dp_key.db_buf.b_nob : max_recsize;
+
 	pair->dp_table = &schema->ls_layouts;
 
 	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
 		       pair->dp_key.db_buf.b_addr,
+		       //recsize);
 		       pair->dp_key.db_buf.b_nob);
 	pair->dp_key.db_static = true;
 
 	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
 		       pair->dp_rec.db_buf.b_addr,
+		       //recsize);
 		       pair->dp_rec.db_buf.b_nob);
 	pair->dp_rec.db_static = true;
 
@@ -850,7 +867,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 {
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
-	uint32_t                 recsize;
+	c2_bcount_t              recsize;
 	struct c2_layout_type   *lt;
 	int                      rc;
 
@@ -888,7 +905,8 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	lt = schema->ls_type[l->l_type->lt_id];
 
 	recsize = lt->lt_ops->lto_recsize(schema, l);
-	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
+	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec) &&
+		  recsize <= c2_ldb_max_recsize(schema));
 
 	rc = ldb_layout_write(schema, C2_LXO_DB_ADD, l->l_id, pair,
 			      recsize, tx);
@@ -930,7 +948,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	struct c2_bufvec_cursor  oldrec_cur;
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
-	uint32_t                 recsize;
+	c2_bcount_t              recsize;
 	struct c2_layout_type   *lt;
 	int                      rc;
 
@@ -964,8 +982,6 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	memset(oldrec_area, 0, recsize);
-
 	rc = rec_get(schema, tx, l, oldrec_area, recsize);
 	if (rc != 0) {
 		layout_log("c2_ldb_update", "c2_table_lookup() failed",
@@ -976,7 +992,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	}
 
 	oldrec_bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&oldrec_area,
-						       (c2_bcount_t *)&recsize);
+							 &recsize);
 	c2_bufvec_cursor_init(&oldrec_cur, &oldrec_bv);
 
 	/* Now, proceed to update the layout. */
@@ -1043,7 +1059,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 {
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
-	uint32_t                 recsize;
+	c2_bcount_t              recsize;
 	struct c2_layout_type   *lt;
 	int                      rc;
 

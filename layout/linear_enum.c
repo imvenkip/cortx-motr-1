@@ -167,7 +167,7 @@ static void linear_unregister(struct c2_ldb_schema *schema,
  * Returns maximum record size for the part of the layouts table record,
  * required to store LINEAR enum details.
  */
-static uint32_t linear_max_recsize(void)
+static c2_bcount_t linear_max_recsize(void)
 {
 	return sizeof(struct c2_layout_linear_attr);
 }
@@ -178,7 +178,7 @@ static uint32_t linear_max_recsize(void)
  * Returns record size for the part of the layouts table record, required to
  * store LINEAR enum details for the specified enumeration object.
  */
-static uint32_t linear_recsize(struct c2_layout_enum *e, uint64_t lid)
+static c2_bcount_t linear_recsize(struct c2_layout_enum *e, uint64_t lid)
 {
 	return sizeof(struct c2_layout_linear_attr);
 }

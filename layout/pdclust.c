@@ -377,8 +377,8 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 /** Implementation of lo_fini for pdclust layout type. */
 static void pdclust_fini(struct c2_layout *l)
 {
-	uint32_t                    i;
-	struct c2_pdclust_layout   *pl;
+	uint32_t                  i;
+	struct c2_pdclust_layout *pl;
 
 	C2_PRE(l != NULL);
 
@@ -541,11 +541,11 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 }
 
 /** Implementation of lto_max_recsize() for pdclust layout type. */
-static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)
+static c2_bcount_t pdclust_max_recsize(struct c2_ldb_schema *schema)
 {
-	int        i;
-	uint32_t   e_recsize;
-	uint32_t   max_recsize = 0;
+	uint32_t    i;
+	c2_bcount_t e_recsize;
+	c2_bcount_t max_recsize = 0;
 
 	C2_PRE(schema != NULL);
 
@@ -554,20 +554,20 @@ static uint32_t pdclust_max_recsize(struct c2_ldb_schema *schema)
 		if (schema->ls_enum[i] == NULL)
 			continue;
                 e_recsize = schema->ls_enum[i]->let_ops->leto_max_recsize();
-		max_recsize = max32u(max_recsize, e_recsize);
+		max_recsize = max64u(max_recsize, e_recsize);
         }
 
 	return sizeof(struct c2_ldb_pdclust_rec) + max_recsize;
 }
 
 /** Implementation of lto_recsize() for pdclust layout type. */
-static uint32_t pdclust_recsize(struct c2_ldb_schema *schema,
-				struct c2_layout *l)
+static c2_bcount_t pdclust_recsize(struct c2_ldb_schema *schema,
+				   struct c2_layout *l)
 {
-	uint32_t                      e_recsize;
-	struct c2_pdclust_layout     *pl;
-	struct c2_layout_striped     *stl;
-	struct c2_layout_enum_type   *et;
+	c2_bcount_t                 e_recsize;
+	struct c2_pdclust_layout   *pl;
+	struct c2_layout_striped   *stl;
+	struct c2_layout_enum_type *et;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(l!= NULL);

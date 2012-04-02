@@ -84,7 +84,7 @@ bool layout_invariant(const struct c2_layout *l)
 {
 	return l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
 		l->l_ref >= 0 && // todo make it 1 eventually
-		c2_pool_id_is_valid(l->l_pool_id) && 
+		c2_pool_id_is_valid(l->l_pool_id) &&
 		l->l_ops != NULL;
 }
 

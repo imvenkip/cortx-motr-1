@@ -314,7 +314,7 @@ static void list_unregister(struct c2_ldb_schema *schema,
  * Returns maximum record size for the part of the layouts table record,
  * required to store LIST enum details.
  */
-static uint32_t list_max_recsize(void)
+static c2_bcount_t list_max_recsize(void)
 {
 	return sizeof(struct ldb_cob_entries_header) +
 		LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
@@ -326,7 +326,7 @@ static uint32_t list_max_recsize(void)
  * Returns record size for the part of the layouts table record required to
  * store LIST enum details, for the specified enumeration object.
  */
-static uint32_t list_recsize(struct c2_layout_enum *e, uint64_t lid)
+static c2_bcount_t list_recsize(struct c2_layout_enum *e, uint64_t lid)
 {
 	struct c2_layout_list_enum *list_enum;
 
@@ -568,7 +568,7 @@ static int list_encode(struct c2_ldb_schema *schema,
 	struct ldb_cob_entries_header *ldb_ce_oldheader;
 	struct c2_fid                 *cob_id_old;
 	c2_bcount_t                    nbytes;
-	int                            i;
+	uint32_t                       i;
 	int                            rc = 0;
 
 	C2_PRE(schema != NULL);
