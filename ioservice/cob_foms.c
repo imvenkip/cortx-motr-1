@@ -208,12 +208,12 @@ static int cc_fom_state(struct c2_fom *fom)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < FOPH_NR) {
+	if (fom->fo_phase < C2_FOPH_NR) {
 		rc = c2_fom_state_generic(fom);
 		return rc;
 	}
 
-	if (fom->fo_phase == FOPH_CC_COB_CREATE) {
+	if (fom->fo_phase == C2_FOPH_CC_COB_CREATE) {
 		cc = cob_fom_get(fom);
 
 		rc = cc_stob_create(fom, cc);
@@ -233,7 +233,7 @@ out:
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS : FOPH_FAILURE;
+	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 	return C2_FSO_AGAIN;
 }
 
@@ -386,12 +386,12 @@ static int cd_fom_state(struct c2_fom *fom)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < FOPH_NR) {
+	if (fom->fo_phase < C2_FOPH_NR) {
 		rc = c2_fom_state_generic(fom);
 		return rc;
 	}
 
-	if (fom->fo_phase == FOPH_CD_COB_DEL) {
+	if (fom->fo_phase == C2_FOPH_CD_COB_DEL) {
 		cd = cob_fom_get(fom);
 
 		rc = cd_cob_delete(fom, cd);
@@ -411,7 +411,7 @@ out:
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS : FOPH_FAILURE;
+	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 	return C2_FSO_AGAIN;
 }
 

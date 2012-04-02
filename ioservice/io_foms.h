@@ -217,13 +217,13 @@ struct c2_io_fom_cob_rw {
  * complete FOM and reqh infrastructure is in place.
  */
 enum c2_io_fom_cob_rw_phases {
-        FOPH_IO_FOM_BUFFER_ACQUIRE = FOPH_NR + 1,
-        FOPH_IO_FOM_BUFFER_WAIT,
-        FOPH_IO_STOB_INIT,
-        FOPH_IO_STOB_WAIT,
-        FOPH_IO_ZERO_COPY_INIT,
-        FOPH_IO_ZERO_COPY_WAIT,
-        FOPH_IO_BUFFER_RELEASE,
+        C2_FOPH_IO_FOM_BUFFER_ACQUIRE = C2_FOPH_NR + 1,
+        C2_FOPH_IO_FOM_BUFFER_WAIT,
+        C2_FOPH_IO_STOB_INIT,
+        C2_FOPH_IO_STOB_WAIT,
+        C2_FOPH_IO_ZERO_COPY_INIT,
+        C2_FOPH_IO_ZERO_COPY_WAIT,
+        C2_FOPH_IO_BUFFER_RELEASE,
 };
 
 /**

@@ -311,7 +311,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 	       fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS2_REQ_OPCODE);
 
-	if (fom->fo_phase < FOPH_NR) {
+	if (fom->fo_phase < C2_FOPH_NR) {
 		rc = c2_fom_state_generic(fom);
 	} else {
 		opcode = fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
@@ -319,7 +319,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 		case C2_CS_DS1_REQ_OPCODE:
 			rfop = c2_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);
 			if (rfop == NULL) {
-				fom->fo_phase = FOPH_FINISH;
+				fom->fo_phase = C2_FOPH_FINISH;
 				return C2_FSO_WAIT;
 			}
 			ds1_reqfop = c2_fop_data(fom->fo_fop);
@@ -327,13 +327,13 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 			ds1_repfop->csr_rc = ds1_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;
-			fom->fo_phase = FOPH_SUCCESS;
+			fom->fo_phase = C2_FOPH_SUCCESS;
 			rc = C2_FSO_AGAIN;
 			break;
 		case C2_CS_DS2_REQ_OPCODE:
 			rfop = c2_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
 			if (rfop == NULL) {
-				fom->fo_phase = FOPH_FINISH;
+				fom->fo_phase = C2_FOPH_FINISH;
 				return C2_FSO_WAIT;
 			}
 			ds2_reqfop = c2_fop_data(fom->fo_fop);
@@ -341,7 +341,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 			ds2_repfop->csr_rc = ds2_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;
-			fom->fo_phase = FOPH_SUCCESS;
+			fom->fo_phase = C2_FOPH_SUCCESS;
 			rc = C2_FSO_AGAIN;
 			break;
 		default:

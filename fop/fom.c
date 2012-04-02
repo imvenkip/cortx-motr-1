@@ -224,8 +224,8 @@ void c2_fom_queue(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	C2_PRE(fom->fo_phase == FOPH_INIT ||
-		fom->fo_phase == FOPH_FAILURE);
+	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
+		fom->fo_phase == C2_FOPH_FAILURE);
 
 	loc = fom->fo_loc;
 	c2_atomic64_inc(&loc->fl_dom->fd_foms_nr);
@@ -317,7 +317,7 @@ static void fom_exec(struct c2_fom *fom)
 	} while (rc == C2_FSO_AGAIN);
 
 	C2_ASSERT(rc == C2_FSO_WAIT);
-	if (fom->fo_phase == FOPH_FINISH) {
+	if (fom->fo_phase == C2_FOPH_FINISH) {
 		fom->fo_ops->fo_fini(fom);
 	} else {
 		C2_ASSERT(c2_mutex_is_locked(&loc->fl_lock));
@@ -722,7 +722,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 
 void c2_fom_fini(struct c2_fom *fom)
 {
-	C2_PRE(fom->fo_phase == FOPH_FINISH);
+	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
 
 	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
 	c2_clink_fini(&fom->fo_clink);
@@ -736,7 +736,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_phase   = FOPH_INIT;
+	fom->fo_phase   = C2_FOPH_INIT;
 	fom->fo_state   = C2_FOS_RUNNING;
         fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;

@@ -250,7 +250,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	reply->rcer_sender_id = conn->c_sender_id;
 	reply->rcer_rc = 0;      /* successful */
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
 
 	C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
 				(unsigned long)conn->c_sender_id);
@@ -283,7 +283,7 @@ out:
 	 * In this case, sender will time-out and mark sender side conn
 	 * as FAILED.
 	 */
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
 	C2_LOG("Conn establish failed: rc [%d]\n", rc);
 	return C2_FSO_WAIT;
 }
@@ -364,7 +364,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	C2_LOG("Session established: session [%p] id [%lu]\n", session,
 					(unsigned long)session->s_session_id);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
 	return C2_FSO_WAIT;
 
 out_fini:
@@ -383,7 +383,7 @@ errout:
 
 	reply->rser_rc = rc;
 	reply->rser_session_id = SESSION_ID_INVALID;
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
 	C2_LOG("Session establish failed: rc [%d]\n", rc);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return C2_FSO_WAIT;
@@ -472,7 +472,7 @@ errout:
 	 * Note: request is received on SESSION_0, which is different from
 	 * current session being terminated. Reply will also go on SESSION_0.
 	 */
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
 	return C2_FSO_WAIT;
@@ -534,7 +534,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		 * callback of &fop_rep->f_item item.
 		 */
 		reply->ctr_rc = rc; /* rc can be -EBUSY */
-		fom->fo_phase = FOPH_FINISH;
+		fom->fo_phase = C2_FOPH_FINISH;
 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		return C2_FSO_WAIT;
@@ -548,7 +548,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
 		c2_rpc_conn_fini(conn);
 		c2_free(conn);
-		fom->fo_phase = FOPH_FINISH;
+		fom->fo_phase = C2_FOPH_FINISH;
 		return C2_FSO_WAIT;
 	}
 }
