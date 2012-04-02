@@ -387,7 +387,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
 
 		result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, &fom->fo_tx.tx_dbtx);
 		C2_ASSERT(result == 0);
-		result = FSO_AGAIN;
+		result = C2_FSO_AGAIN;
 	}
 
 	if (fom->fo_phase == FOPH_FINISH && fom->fo_rc == 0)
@@ -463,7 +463,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
                                 fom->fo_phase = FOPH_FAILURE;
                         } else {
                                 fom->fo_phase = FOPH_READ_STOB_IO_WAIT;
-                                result = FSO_WAIT;
+                                result = C2_FSO_WAIT;
                         }
                 } else if (fom->fo_phase == FOPH_READ_STOB_IO_WAIT) {
                         fom->fo_rc = stio->si_rc;
@@ -489,7 +489,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
                         C2_ASSERT(result == 0);
-                        result = FSO_AGAIN;
+                        result = C2_FSO_AGAIN;
                 }
 
         }
@@ -573,7 +573,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
                                 fom->fo_phase = FOPH_FAILURE;
                         } else {
                                 fom->fo_phase = FOPH_WRITE_STOB_IO_WAIT;
-                                result = FSO_WAIT;
+                                result = C2_FSO_WAIT;
                         }
                 } else if (fom->fo_phase == FOPH_WRITE_STOB_IO_WAIT) {
                         c2_fom_block_leave(fom);
@@ -599,7 +599,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
                         C2_ASSERT(result == 0);
-                        result = FSO_AGAIN;
+                        result = C2_FSO_AGAIN;
                 }
         }
 

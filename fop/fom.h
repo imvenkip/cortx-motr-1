@@ -173,7 +173,7 @@ struct c2_fom_domain {
 /** Operations vector attached to a domain. */
 struct c2_fom_domain_ops {
 	/**
-	    Returns true if waiting (FOS_WAITING) fom timed out and should be
+	    Returns true if waiting (C2_FOS_WAITING) fom timed out and should be
 	    moved into FOPH_TIMEOUT phase.
 	    @todo fom timeout implementation.
 	*/
@@ -186,21 +186,21 @@ struct c2_fom_domain_ops {
  */
 enum c2_fom_state {
 	/**
-	   Fom is in FOS_RUNNING state when its state transition function is being
+	   Fom is in C2_FOS_RUNNING state when its state transition function is being
 	   executed by a locality handler thread.
 	   The fom is not on any queue in this state.
 	 */
-	FOS_RUNNING,
+	C2_FOS_RUNNING,
 	/**
-	    Fom is in FOS_READY state when it is on locality runq for execution.
+	    Fom is in C2_FOS_READY state when it is on locality runq for execution.
 	*/
-	FOS_READY,
+	C2_FOS_READY,
 	/**
-	    Fom is in FOS_WAITING state when some event must happen before the next
+	    Fom is in C2_FOS_WAITING state when some event must happen before the next
 	    state transition would become possible.
 	    The fom is on a locality wait list in this state.
 	 */
-	FOS_WAITING,
+	C2_FOS_WAITING,
 };
 
 /**
@@ -338,7 +338,7 @@ void c2_fom_queue(struct c2_fom *fom);
    Initialises fom allocated by the caller.
    Invoked from c2_fom_type_ops::fto_create implementation for
    corresponding fom.
-   Fom starts in FOPH_INIT phase and FOS_READY state to begin its
+   Fom starts in FOPH_INIT phase and C2_FOS_READY state to begin its
    execution.
 
    @param fom, A fom to be initialised
@@ -398,21 +398,21 @@ enum c2_fom_state_outcome {
 	    function registeres the fom's clink with the channel where this
 	    event will be signalled.
 
-	    When FSO_WAIT is returned, the fom is put on locality wait-list.
+	    When C2_FSO_WAIT is returned, the fom is put on locality wait-list.
 
 	    @see c2_fom_block_at().
 	 */
-	FSO_WAIT,
+	C2_FSO_WAIT,
 	/**
 	   State transition completed and another state transition is
 	   immediately possible.
 
-	   When FSO_AGAIN is returned, either the next state transition is
+	   When C2_FSO_AGAIN is returned, either the next state transition is
 	   immediately executed (by the same or by a different handler thread)
 	   or the fom is placed in the run-queue, depending on the scheduling
 	   constraints.
 	 */
-	FSO_AGAIN,
+	C2_FSO_AGAIN,
 };
 
 /** Fom type operation vector. */

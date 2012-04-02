@@ -72,7 +72,7 @@ struct fom_phase_ops {
 	   Perfoms actions corresponding to a particular standard fom
 	   phase, as defined.
 
-	   @retval returns FSO_AGAIN, this transitions fom to its next phase
+	   @retval returns C2_FSO_AGAIN, this transitions fom to its next phase
 
 	   @see c2_fom_state_generic()
 	 */
@@ -102,11 +102,11 @@ struct fom_phase_ops {
  *
  * @see c2_fom_state_generic()
  *
- * @retval FSO_AGAIN, to execute next fom phase
+ * @retval C2_FSO_AGAIN, to execute next fom phase
  */
 static int fom_phase_init(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -115,7 +115,7 @@ static int fom_phase_init(struct c2_fom *fom)
  */
 static int fom_authen(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -124,7 +124,7 @@ static int fom_authen(struct c2_fom *fom)
  */
 static int fom_authen_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -133,7 +133,7 @@ static int fom_authen_wait(struct c2_fom *fom)
  */
 static int fom_loc_resource(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -142,7 +142,7 @@ static int fom_loc_resource(struct c2_fom *fom)
  */
 static int fom_loc_resource_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -150,7 +150,7 @@ static int fom_loc_resource_wait(struct c2_fom *fom)
  */
 static int fom_dist_resource(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -159,7 +159,7 @@ static int fom_dist_resource(struct c2_fom *fom)
  */
 static int fom_dist_resource_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -168,7 +168,7 @@ static int fom_dist_resource_wait(struct c2_fom *fom)
  */
 static int fom_obj_check(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -177,7 +177,7 @@ static int fom_obj_check(struct c2_fom *fom)
  */
 static int fom_obj_check_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -187,7 +187,7 @@ static int fom_obj_check_wait(struct c2_fom *fom)
  */
 static int fom_auth(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -196,7 +196,7 @@ static int fom_auth(struct c2_fom *fom)
  */
 static int fom_auth_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -215,7 +215,7 @@ static int create_loc_ctx(struct c2_fom *fom)
 	if (rc != 0)
 		fom->fo_rc = rc;
 
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -224,7 +224,7 @@ static int create_loc_ctx(struct c2_fom *fom)
  */
 static int create_loc_ctx_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -262,7 +262,7 @@ static int fom_failure(struct c2_fom *fom)
 	if (fom->fo_rc != 0 && fom->fo_rep_fop == NULL)
 		set_gen_err_reply(fom);
 
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -270,7 +270,7 @@ static int fom_failure(struct c2_fom *fom)
  */
 static int fom_success(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -289,7 +289,7 @@ static int fom_txn_commit(struct c2_fom *fom)
 		set_gen_err_reply(fom);
 	}
 
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -298,7 +298,7 @@ static int fom_txn_commit(struct c2_fom *fom)
  */
 static int fom_txn_commit_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -328,7 +328,7 @@ static int fom_txn_abort(struct c2_fom *fom)
 			fom->fo_rc = rc;
 	}
 
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -337,7 +337,7 @@ static int fom_txn_abort(struct c2_fom *fom)
  */
 static int fom_txn_abort_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -361,7 +361,7 @@ static int fom_queue_reply(struct c2_fom *fom)
         item = c2_fop_to_rpc_item(fom->fo_rep_fop);
         c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -370,12 +370,12 @@ static int fom_queue_reply(struct c2_fom *fom)
  */
 static int fom_queue_reply_wait(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 static int fom_timeout(struct c2_fom *fom)
 {
-	return FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -491,7 +491,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	rc = fpo_phase->fpo_action(fom);
 
-	if (rc == FSO_AGAIN) {
+	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && fom->fo_phase < FOPH_FAILURE) {
 			fom->fo_phase = FOPH_FAILURE;
 			REQH_GEN_ADDB_ADD(c2_reqh_addb_ctx,
@@ -501,7 +501,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 	}
 
 	if (fom->fo_phase == FOPH_FINISH)
-		rc = FSO_WAIT;
+		rc = C2_FSO_WAIT;
 
 	return rc;
 }
