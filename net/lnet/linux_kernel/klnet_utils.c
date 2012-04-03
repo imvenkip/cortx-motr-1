@@ -508,7 +508,8 @@ static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
 /**
    Maps a page that should point to a nlx_core_domain.
    Uses kmap() because this subroutine can be used on contexts that will block.
-   @pre nlx_kcore_domain_invariant(kd)
+   @pre nlx_kcore_domain_invariant(kd) &&
+   !nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)
    @param kd kernel private object containing location reference to be mapped
    @returns core object, never NULL
  */
@@ -521,6 +522,7 @@ static struct nlx_core_domain *nlx_kcore_core_domain_map(
 
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	loc = &kd->kd_cd_loc;
+	C2_PRE(!nlx_core_kmem_loc_is_empty(loc));
 	ptr = kmap(loc->kl_page);
 	ret = (struct nlx_core_domain *) (ptr + loc->kl_offset);
 	C2_POST(ret != NULL);

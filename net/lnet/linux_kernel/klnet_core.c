@@ -1183,10 +1183,10 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 	nlx_core_kmem_loc_set(&kd->kd_cd_loc, virt_to_page(cd),
 			      NLX_PAGE_OFFSET((unsigned long) cd));
 	rc = nlx_kcore_core_dom_init(kd, cd);
-	if (rc != 0)
-		goto fail_dom_inited;
-	return rc;
-fail_dom_inited:
+	if (rc == 0)
+		return 0;
+
+	/* failed */
 	nlx_kcore_kcore_dom_fini(kd);
 fail_free_kd:
 	c2_free(kd);

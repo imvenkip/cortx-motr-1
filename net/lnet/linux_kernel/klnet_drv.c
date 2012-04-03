@@ -356,8 +356,6 @@
    the @c nlx_dev_open() and @c nlx_dev_ioctl() subroutines, respectively.
 
    The @c nlx_dev_open() performs the following sequence.
-   - It increases the reference count on the module to ensure it will not be
-     unloaded while user space references exist.
    - It allocates a @c nlx_kcore_domain object, initializes it using
      @c nlx_kcore_kcore_dom_init() and assigns the object to the
      @c file->private_data field.
@@ -418,7 +416,6 @@
    - It calls @c nlx_kcore_kcore_dom_fini() to finalize the @c nlx_kcore_domain
      object.
    - It frees the @c nlx_kcore_domain object.
-   - It decrements the reference count on the module.
    - It logs an ADDB record recording the occurrence of the close operation.
 
    @subsection LNetDRVDLD-lspec-reg Buffer Registration and Deregistration
@@ -909,6 +906,7 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 			C2_ASSERT(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
 		}
 		nlx_kcore_core_domain_unmap(kd);
+		cd = NULL;
 	}
 	if (rc < 0)
 		LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
@@ -1317,21 +1315,14 @@ done:
 static int nlx_dev_open(struct inode *inode, struct file *file)
 {
 	struct nlx_kcore_domain *kd;
-	int cnt = try_module_get(THIS_MODULE);
 	int rc;
 
-	if (cnt == 0) {
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -ENODEV);
-		return -ENODEV;
-	}
-
 	C2_ALLOC_PTR_ADDB(kd, &c2_net_addb, &nlx_addb_loc);
-	if (kd == NULL) {
-		module_put(THIS_MODULE);
+	if (kd == NULL)
 		return -ENOMEM;
-	}
 	rc = nlx_kcore_kcore_dom_init(kd);
 	if (rc != 0) {
+		c2_free(kd);
 		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
 	} else {
 		file->private_data = kd;
@@ -1431,6 +1422,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 		cd = nlx_kcore_core_domain_map(kd);
 		kd->kd_drv_ops->ko_dom_fini(kd, cd);
 		nlx_kcore_core_domain_unmap(kd);
+		cd = NULL;
 		WRITABLE_USER_PAGE_PUT(kd->kd_cd_loc.kl_page);
 		nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
 	}
@@ -1438,12 +1430,12 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_close);
 	nlx_kcore_kcore_dom_fini(kd);
 	c2_free(kd);
-	module_put(THIS_MODULE);
 	return 0;
 }
 
 /** File operations for the c2lnet device. */
 static const struct file_operations nlx_dev_file_ops = {
+	.owner          = THIS_MODULE,
         .unlocked_ioctl = nlx_dev_ioctl,
         .open           = nlx_dev_open,
         .release        = nlx_dev_close
