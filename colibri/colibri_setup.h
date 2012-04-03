@@ -146,7 +146,7 @@ struct c2_cobfid_setup {
 
 	/**
 	 * Back link to struct c2_colibri. This is used while finalizing
-	 * c2_cobfid_setup where the c2_colibri::cc_map pointer is made NULL.
+	 * c2_cobfid_setup where the c2_colibri::cc_setup pointer is made NULL.
 	 */
 	struct c2_colibri       *cms_colibri;
 };
@@ -254,7 +254,7 @@ struct c2_colibri {
 	 * per data server.
 	 * @see struct c2_cobfid_setup.
 	 */
-	struct c2_cobfid_setup	 *cc_map;
+	struct c2_cobfid_setup	 *cc_setup;
 };
 
 /**

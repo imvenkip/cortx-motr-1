@@ -1294,20 +1294,20 @@ int c2_cobfid_setup_get(struct c2_cobfid_setup **out, struct c2_colibri *cc)
 	C2_PRE(cc != NULL);
 	C2_PRE(c2_mutex_is_locked(&cc->cc_mutex));
 
-	if (cc->cc_map == NULL) {
-		C2_ALLOC_PTR(cc->cc_map);
-		if (cc->cc_map == NULL)
+	if (cc->cc_setup == NULL) {
+		C2_ALLOC_PTR(cc->cc_setup);
+		if (cc->cc_setup == NULL)
 			return -ENOMEM;
 
 		rc = cobfid_map_setup_init(cc, cobfid_map_name);
 		if (rc != 0) {
-			c2_free(cc->cc_map);
+			c2_free(cc->cc_setup);
 			return rc;
 		}
 	} else
-		c2_ref_get(&cc->cc_map->cms_refcount);
+		c2_ref_get(&cc->cc_setup->cms_refcount);
 
-	*out = cc->cc_map;
+	*out = cc->cc_setup;
 	return rc;
 }
 
@@ -1320,7 +1320,7 @@ void c2_cobfid_setup_put(struct c2_colibri *cc)
 	C2_PRE(cc != NULL);
 	C2_PRE(c2_mutex_is_locked(&cc->cc_mutex));
 
-	c2_ref_put(&cc->cc_map->cms_refcount);
+	c2_ref_put(&cc->cc_setup->cms_refcount);
 }
 
 static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name)
@@ -1329,10 +1329,10 @@ static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name)
 	struct c2_cobfid_setup *s;
 
 	C2_PRE(cc != NULL);
-	C2_PRE(cc->cc_map != NULL);
+	C2_PRE(cc->cc_setup != NULL);
 	C2_PRE(name != NULL);
 
-	s = cc->cc_map;
+	s = cc->cc_setup;
 
 	rc = c2_dbenv_init(&s->cms_dbenv, name, 0);
 	if (rc != 0) {
@@ -1373,7 +1373,7 @@ static void cobfid_map_setup_fini(struct c2_ref *ref)
 	c2_addb_ctx_fini(&s->cms_addb);
 	c2_mutex_fini(&s->cms_mutex);
 	c2_free(s);
-	cc->cc_map = NULL;
+	cc->cc_setup = NULL;
 }
 
 static int cobfid_map_setup_process(struct c2_cobfid_setup *s,

@@ -650,7 +650,8 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 			(unsigned long)cob_fid->f_container,
 			(unsigned long)cob_fid->f_key);
 
-		cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name);
+		cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name)
+					  + 1;
 	}
 
 	C2_LEAVE("%d", 0);

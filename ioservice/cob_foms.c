@@ -311,7 +311,8 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	 * The flag CA_NSKEY_FREE takes care of deallocating memory for
 	 * nskey during cob finalization.
 	 */
-	if (rc == 0) {
+	switch (rc) {
+	case 0:
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Cob created successfully.");
 		/**
@@ -322,14 +323,19 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 		 * otherwise would cause a memory leak.
 		 */
 		c2_cob_put(cob);
-	} else if (rc == -ENOMEM) {
+		break;
+
+	case -ENOMEM:
 		c2_free(nskey->cnk_name.b_data);
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
 			    "Memory allocation failed in cc_cob_create().", rc);
-	} else
+		break;
+
+	default:
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail, "Cob creation failed", rc);
+	}
 
 	return rc;
 }

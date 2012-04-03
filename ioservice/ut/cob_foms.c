@@ -38,6 +38,8 @@ static struct c2_cob *test_cob = NULL;
 
 static struct c2_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct c2_fom *fom);
+static int cobfid_setup_get(struct c2_cobfid_setup **s, struct c2_colibri *cc);
+static void cobfid_setup_put(struct c2_colibri *cc);
 
 enum cob_fom_type {
 	COB_CREATE = 1,
@@ -59,6 +61,8 @@ enum {
 	COB_TEST_ID               = 1,
 	TEST_ENV_COB              = 1,
 	TEST_ENV_STOB             = 2,
+	COBFID_SETUP_REFCOUNT     = 1,
+	COBFID_SETUP_REFCOUNT_NR  = 10,
 };
 
 #define SERVER_EP_ADDR              "127.0.0.1:12345:123"
@@ -200,7 +204,7 @@ static void cobfops_populate(uint64_t index)
 	sprintf((char*)cc->cc_cobname.cn_name, "%16lx:%16lx",
 			(unsigned long)cc->cc_common.c_cobfid.f_seq,
 			(unsigned long)cc->cc_common.c_cobfid.f_oid);
-	cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name);
+	cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name) + 1;
 }
 
 static void cobfops_create(void)
@@ -577,15 +581,10 @@ static int cobfid_ctx_get(struct c2_fom *fom,
 			  struct c2_cobfid_setup **cobfid_ctx)
 {
 	struct c2_colibri *cctx;
-	int		   rc;
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
-	c2_mutex_lock(&cctx->cc_mutex);
-	rc = c2_cobfid_setup_get(cobfid_ctx, cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
-
-	return rc;
+	return cobfid_setup_get(cobfid_ctx, cctx);
 }
 
 static void cobfid_ctx_put(struct c2_fom *fom)
@@ -594,9 +593,16 @@ static void cobfid_ctx_put(struct c2_fom *fom)
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
-	c2_mutex_lock(&cctx->cc_mutex);
-	c2_cobfid_setup_put(cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
+	cobfid_setup_put(cctx);
+}
+
+static void cobfid_setup_put(struct c2_colibri *cc)
+{
+	C2_PRE(cc != NULL);
+
+	c2_mutex_lock(&cc->cc_mutex);
+	c2_cobfid_setup_put(cc);
+	c2_mutex_unlock(&cc->cc_mutex);
 }
 
 /*
@@ -1264,6 +1270,17 @@ static void cd_fom_state_test()
 
 	cd_fom_dealloc(dfom);
 	cob_testdata_cleanup(cfom);
+}
+
+static int cobfid_setup_get(struct c2_cobfid_setup **s, struct c2_colibri *cc)
+{
+	int rc;
+
+	c2_mutex_lock(&cc->cc_mutex);
+	rc = c2_cobfid_setup_get(s, cc);
+	c2_mutex_unlock(&cc->cc_mutex);
+
+	return rc;
 }
 
 static void cob_create_api_test(void)
