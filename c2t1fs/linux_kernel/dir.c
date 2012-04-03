@@ -121,10 +121,10 @@ static int c2t1fs_create(struct inode     *dir,
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
-	rc = c2t1fs_inode_layout_init(ci, csb->csb_nr_data_units,
-					  csb->csb_nr_parity_units,
-					  csb->csb_pool_width,
-					  csb->csb_unit_size);
+	rc = c2t1fs_inode_layout_init(ci, &csb->csb_pool,
+					   csb->csb_nr_data_units,
+					   csb->csb_nr_parity_units,
+					   csb->csb_unit_size);
 	if (rc != 0)
 		goto out;
 

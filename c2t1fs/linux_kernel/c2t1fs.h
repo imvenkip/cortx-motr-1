@@ -29,6 +29,7 @@
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
 #include "rpc/rpc2.h"
+#include "pool/pool.h"  /* c2_pool */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -318,6 +319,8 @@ struct c2t1fs_sb {
 	/** Number of target objects, over which file-contents are striped */
 	uint32_t                      csb_pool_width;
 
+	struct c2_pool                csb_pool;
+
 	/** Number of data units per parity group. N */
 	uint32_t                      csb_nr_data_units;
 
@@ -428,8 +431,10 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void          c2t1fs_destroy_inode(struct inode *inode);
 
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-			     uint32_t N, uint32_t K, uint32_t P,
-			     uint64_t unit_size);
+			     struct c2_pool      *pool,
+			     uint32_t             N,
+			     uint32_t             K,
+			     uint64_t             unit_size);
 
 struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index);
 

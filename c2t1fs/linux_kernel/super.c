@@ -27,12 +27,15 @@
 #include "c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+#include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
 
 /* Super block */
 
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
+
+static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
 
 /* Mount options */
 
@@ -41,8 +44,6 @@ static void c2t1fs_mnt_opts_fini(struct c2t1fs_mnt_opts *mntopts);
 static int  c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts);
 static int  c2t1fs_mnt_opts_parse(char                   *options,
 				  struct c2t1fs_mnt_opts *mnt_opts);
-
-static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
 
 /* service contexts */
 
@@ -169,9 +170,13 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	rc = c2t1fs_connect_to_all_services(csb);
+	rc = c2_pool_init(&csb->csb_pool, csb->csb_pool_width);
 	if (rc != 0)
 		goto out_fini;
+
+	rc = c2t1fs_connect_to_all_services(csb);
+	if (rc != 0)
+		goto pool_fini;
 
 	rc = c2t1fs_container_location_map_init(&csb->csb_cl_map,
 						csb->csb_nr_containers);
@@ -212,6 +217,9 @@ out_map_fini:
 disconnect_all:
 	c2t1fs_disconnect_from_all_services(csb);
 
+pool_fini:
+	c2_pool_fini(&csb->csb_pool);
+
 out_fini:
 	c2t1fs_sb_fini(csb);
 
@@ -246,6 +254,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);
+		c2_pool_fini(&csb->csb_pool);
 		c2t1fs_sb_fini(csb);
 		c2_free(csb);
 	}
