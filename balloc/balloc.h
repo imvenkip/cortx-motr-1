@@ -250,8 +250,6 @@ enum {
 /**
    Allocates struct c2_balloc instance and initialises struct ad_balloc_ops
    vector. One balloc instance is allocated and initialised per storage domain.
-   This should be invoked before using struct c2_balloc, wherever required,
-   e.g. AD stob type.
 
    @see struct ad_balloc_ops
    @pre out != NULL

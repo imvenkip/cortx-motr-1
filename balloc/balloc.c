@@ -2141,10 +2141,9 @@ int c2_balloc_locate(struct c2_balloc **out)
         C2_PRE(out != NULL);
 
 	C2_ALLOC_PTR(cb);
-
 	if (cb != NULL) {
                 cb->cb_ballroom.ab_ops = &balloc_ops;
-                *out = cb; 
+                *out = cb;
                 result = 0;
 	} else
                 result = -ENOMEM;
