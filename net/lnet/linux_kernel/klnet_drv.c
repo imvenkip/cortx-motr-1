@@ -65,7 +65,9 @@
    <hr>
    @section LNetDRVDLD-def Definitions
 
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>.
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>.
 
    - @b reference A reference to an object is stored in terms of a memory
      page and offset, rather than as a simple address pointer.
@@ -230,7 +232,9 @@
    module.  It uses a subset of the kernel space transport core interface
    to implement this interaction.
 
-   @see <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>,
+   @see <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>,
    specifically the Design Highlights component diagram.
 
    For reference, the relationship between the various components of the LNet
@@ -815,9 +819,13 @@
 
    <hr>
    @section LNetDRVDLD-ref References
-   - <a href="http://lwn.net/Kernel/LDD3/">Linux Device Drivers, Third Edition By Jonathan Corbet, Alessandro Rubini, Greg Kroah-Hartman, 2005</a>
-   - <a href="http://lwn.net/Articles/119652/">The new way of ioctl(), Jonathan Corbet, 2005</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   - <a href="http://lwn.net/Kernel/LDD3/">Linux Device Drivers, Third Edition
+By Jonathan Corbet, Alessandro Rubini, Greg Kroah-Hartman, 2005</a>
+   - <a href="http://lwn.net/Articles/119652/">
+The new way of ioctl(), Jonathan Corbet, 2005</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
    - @ref LNetDLD "LNet Transport DLD"
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
    - @ref KLNetCoreDLD "LNet Transport Kernel Space Core DLD"
@@ -906,7 +914,6 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 			C2_ASSERT(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
 		}
 		nlx_kcore_core_domain_unmap(kd);
-		cd = NULL;
 	}
 	if (rc < 0)
 		LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
@@ -1422,7 +1429,6 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 		cd = nlx_kcore_core_domain_map(kd);
 		kd->kd_drv_ops->ko_dom_fini(kd, cd);
 		nlx_kcore_core_domain_unmap(kd);
-		cd = NULL;
 		WRITABLE_USER_PAGE_PUT(kd->kd_cd_loc.kl_page);
 		nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
 	}
