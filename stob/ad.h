@@ -27,26 +27,28 @@
    <b>Storage object type based on Allocation Data (AD) stored in a
    data-base.</b>
 
-   AD storage object type (ad_stob_type) manages collections of storage objects
-   with in an underlying storage object. The underlying storage object is
-   specified per-domain by a call to c2_ad_stob_setup() function.
+   AD storage object type (c2_ad_stob_type) manages collections of storage
+   objects with in an underlying storage object. The underlying storage object
+   is specified per-domain by a call to c2_ad_stob_setup() function.
 
-   ad_stob_type uses data-base (also specified as a parameter to c2_ad_stob_setup()) to
-   store extent map (c2_emap) which keeps track of mapping between logical
-   offsets in AD stobs and physical offsets within underlying stob.
+   c2_ad_stob_type uses data-base (also specified as a parameter to
+   c2_ad_stob_setup()) to store extent map (c2_emap) which keeps track of
+   mapping between logical offsets in AD stobs and physical offsets within
+   underlying stob.
 
    @{
  */
 
-#include "db/extmap.h"
 #include "stob/stob.h"
 
+
+struct c2_ext;
 struct c2_dbenv;
 struct c2_dtx;
 
-extern struct c2_stob_type ad_stob_type;
+extern struct c2_stob_type c2_ad_stob_type;
 
-struct ad_balloc_ops;
+struct c2_ad_balloc_ops;
 
 /**
    Simple block allocator interface used by ad code to manage "free space" in
@@ -54,11 +56,11 @@ struct ad_balloc_ops;
 
    @see mock_balloc
  */
-struct ad_balloc {
-	const struct ad_balloc_ops *ab_ops;
+struct c2_ad_balloc {
+	const struct c2_ad_balloc_ops *ab_ops;
 };
 
-struct ad_balloc_ops {
+struct c2_ad_balloc_ops {
 	/** Initializes this balloc instance, creating its persistent state, if
 	    necessary.
 
@@ -68,17 +70,17 @@ struct ad_balloc_ops {
 	    @param  blocks_per_group # of blocks per group
 	    @param res_groups # of reserved groups
 	 */
-	int  (*bo_init)(struct ad_balloc *ballroom, struct c2_dbenv *db,
+	int  (*bo_init)(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 			uint32_t bshift, c2_bcount_t container_size,
 			c2_bcount_t blocks_per_group, c2_bcount_t res_groups);
-	void (*bo_fini)(struct ad_balloc *ballroom);
+	void (*bo_fini)(struct c2_ad_balloc *ballroom);
 	/** Allocates count of blocks. On success, allocated extent, also
 	    measured in blocks, is returned in out parameter. */
-	int  (*bo_alloc)(struct ad_balloc *ballroom, struct c2_dtx *dtx,
+	int  (*bo_alloc)(struct c2_ad_balloc *ballroom, struct c2_dtx *dtx,
 			 c2_bcount_t count, struct c2_ext *out);
 	/** Free space (possibly a sub-extent of an extent allocated
 	    earlier). */
-	int  (*bo_free)(struct ad_balloc *ballroom, struct c2_dtx *dtx,
+	int  (*bo_free)(struct c2_ad_balloc *ballroom, struct c2_dtx *dtx,
 			struct c2_ext *ext);
 };
 
@@ -94,7 +96,7 @@ struct ad_balloc_ops {
    @param ballroom - a byte allocator.
  */
 int  c2_ad_stob_setup(struct c2_stob_domain *adom, struct c2_dbenv *dbenv,
-		      struct c2_stob *bstore, struct ad_balloc *ballroom,
+		      struct c2_stob *bstore, struct c2_ad_balloc *ballroom,
 		      c2_bindex_t container_size, c2_bcount_t bshift,
 		      c2_bcount_t blocks_per_group, c2_bcount_t res_groups);
 

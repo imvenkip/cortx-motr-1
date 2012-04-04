@@ -32,7 +32,7 @@ static const struct c2_persistent_sm_ops;
  */
 int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 {
-	c2_persistent_sm_register(&pm->pm_mach, dtm, 
+	c2_persistent_sm_register(&pm->pm_mach, dtm,
 				  &poolmach_persistent_sm_ops);
 }
 
@@ -75,7 +75,7 @@ static const struct c2_persistent_sm_ops poolmach_persistent_sm_ops = {
 	.pso_recover = poolmach_recover
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -254,7 +254,7 @@ static int cs_ds_req_fop_fom_create(struct c2_fop *fop,
         if (fom == NULL)
                 return -ENOMEM;
 
-	c2_fom_create(fom, &fop->f_type->ft_fom_type, ops, fop, NULL);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, NULL);
 
         *out = fom;
         return 0;

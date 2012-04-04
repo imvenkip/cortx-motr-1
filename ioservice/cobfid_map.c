@@ -456,7 +456,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		return rc;
 	}
 
-	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx);
+	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_db_cursor_init", rc);

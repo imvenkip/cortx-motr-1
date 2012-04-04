@@ -47,7 +47,7 @@ void test_refs(void)
 
 	free_done = 0;
 	c2_ref_init(&t->ref, 1, test_destructor);
-	
+
 	c2_ref_get(&t->ref);
 	c2_ref_put(&t->ref);
 	c2_ref_put(&t->ref);

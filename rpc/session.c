@@ -275,7 +275,7 @@ static void __session_fini(struct c2_rpc_session *session)
 
         /*
          * @todo
-         * This sleep should remove after rpc issues resolved. 
+         * This sleep should remove after rpc issues resolved.
          */
         c2_nanosleep(c2_time_set(&t, 0, 1000), NULL);
 

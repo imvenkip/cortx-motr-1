@@ -332,7 +332,7 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 }
 
 int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
-		      struct c2_db_tx *tx)
+		      struct c2_db_tx *tx, uint32_t flags)
 {
 	C2_SET0(cursor);
 	return 0;

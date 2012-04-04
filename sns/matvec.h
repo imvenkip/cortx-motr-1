@@ -210,7 +210,7 @@ void c2_matrix_vec_multiply(struct c2_matrix *m, struct c2_vector *v, struct c2_
 /**
  * Returns submatrix of matrix 'mat' into 'submat', where 'x', 'y' - offsets
  * Uses 'submat' dimensions
- * @pre c2_matrix_init(mat) has been called 
+ * @pre c2_matrix_init(mat) has been called
  * @pre c2_matrix_init(submat) has been called
  */
 void c2_matrix_get_submatrix(struct c2_matrix *mat,

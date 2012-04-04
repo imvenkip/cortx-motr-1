@@ -92,6 +92,7 @@ static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
 {
 	struct c2_io_fom_cob_rw   *fom_obj = NULL;
+
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         c2_stob_put(fom_obj->fcrw_stob);
 	c2_fom_fini(fom);
@@ -1099,7 +1100,6 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         struct c2_fid                    fid;
         struct c2_stob_id                stobid;
         int				 rc;
-	struct c2_fop			*fop;
 	struct c2_fop_cob_writev_rep	*wrep;
 
         struct c2_io_fom_cob_rw  *fom_obj;
@@ -1112,19 +1112,23 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         io_fom_cob_rw_fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
-        rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
-        C2_UT_ASSERT(rc == 0);
-        C2_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_UNKNOWN);
-
-        rc = c2_stob_create(fom_obj->fcrw_stob, &fom->fo_tx);
+	c2_dtx_init(&fom->fo_tx);
+	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);
         C2_UT_ASSERT(rc == 0);
 
-	fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
-	wrep = c2_fop_data(fop);
+	rc = c2_stob_create_helper(fom_stdom, &fom->fo_tx, &stobid,
+				  &fom_obj->fcrw_stob);
+        C2_UT_ASSERT(rc == 0);
+        C2_UT_ASSERT(fom_obj->fcrw_stob != NULL);
+        C2_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_EXISTS);
+
+	c2_dtx_done(&fom->fo_tx);
+
+	wrep = c2_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
 	wrep->c_rep.rwr_count = rwfop->crw_ivecs.cis_nr;
-	fop->f_item.ri_group = NULL;
-	rc = c2_rpc_reply_post(&fom->fo_fop->f_item, &fop->f_item);
+	fom->fo_rep_fop->f_item.ri_group = NULL;
+	rc = c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 	C2_UT_ASSERT(rc == 0);
 	fom->fo_phase = FOPH_FINISH;
 	return rc;
@@ -1162,7 +1166,7 @@ static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	 rc = c2_io_fom_cob_rw_create(fop, &fom);
+	rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
 	fop->f_type->ft_fom_type = bulkio_stob_create_fom_type;
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
@@ -1437,8 +1441,7 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 
 	io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 						       bp->bp_rfops;
-	for (i = 0; i < IO_FOPS_NR; ++i)
-		C2_ALLOC_PTR(io_fops[i]);
+	C2_ALLOC_PTR(io_fops[index]);
 
 	if (op == C2_IOSERVICE_WRITEV_OPCODE)
                 rc = c2_io_fop_init(io_fops[index], &c2_fop_cob_writev_fopt);
@@ -1450,29 +1453,31 @@ void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
 
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
-	void add_buffer_bulk(int j) {
-	/*
-	 * Adds a c2_rpc_bulk_buf structure to list of such structures
-	 * in c2_rpc_bulk.
-	 */
-	rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, &bp->bp_cnetdom, NULL,
-				&rbuf);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(rbuf != NULL);
-
-	/* Adds io buffers to c2_rpc_bulk_buf structure. */
-	for (i = 0; i < IO_SEGS_NR; ++i) {
-                rc = c2_rpc_bulk_buf_databuf_add(rbuf,
-				bp->bp_iobuf[j]->nb_buffer.ov_buf[i],
-				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i],
-				bp->bp_offsets[0], &bp->bp_cnetdom);
+	void add_buffer_bulk(int j)
+	{
+		/*
+		 * Adds a c2_rpc_bulk_buf structure to list of such structures
+		 * in c2_rpc_bulk.
+		 */
+		rc = c2_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, &bp->bp_cnetdom,
+					 NULL, &rbuf);
 		C2_UT_ASSERT(rc == 0);
-		bp->bp_offsets[0] +=
-			bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
-	}
+		C2_UT_ASSERT(rbuf != NULL);
 
-	rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
-		C2_NET_QT_PASSIVE_BULK_SEND : C2_NET_QT_PASSIVE_BULK_RECV;
+		/* Adds io buffers to c2_rpc_bulk_buf structure. */
+		for (i = 0; i < IO_SEGS_NR; ++i) {
+			rc = c2_rpc_bulk_buf_databuf_add(rbuf,
+				 bp->bp_iobuf[j]->nb_buffer.ov_buf[i],
+				 bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i],
+				 bp->bp_offsets[0], &bp->bp_cnetdom);
+			C2_UT_ASSERT(rc == 0);
+			bp->bp_offsets[0] +=
+				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
+		}
+
+		rbuf->bb_nbuf->nb_qtype = (op == C2_IOSERVICE_WRITEV_OPCODE) ?
+			C2_NET_QT_PASSIVE_BULK_SEND :
+			C2_NET_QT_PASSIVE_BULK_RECV;
 	}
 
 	for (j = 0; j < buf_nr; ++j)

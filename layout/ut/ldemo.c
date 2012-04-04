@@ -116,9 +116,9 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 			int d;
 
 			d = classify(play, map[frame][obj].sa_unit);
-			printf("%c%2i, %1i%c ", 
+			printf("%c%2i, %1i%c ",
 			       brace[d][0],
-			       (int)map[frame][obj].sa_group, 
+			       (int)map[frame][obj].sa_group,
 			       (int)map[frame][obj].sa_unit,
 			       brace[d][1]);
 		}
@@ -274,7 +274,7 @@ int main(int argc, char **argv)
 
 /** @} end of layout group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

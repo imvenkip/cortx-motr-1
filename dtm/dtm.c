@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,22 +15,45 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original creation date: 04/01/2010
  */
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
-#define __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
+/**
+ * @addtogroup dtm Distributed transaction manager
+ * @{
+ */
 
-#include <linux/stddef.h> /* offsetof, NULL */
-#include <linux/kernel.h> /* container_of, ARRAY_SIZE */
-#include <linux/module.h> /* EXPORT_SYMBOL */
+#include "lib/misc.h"              /* C2_SET0 */
+#include "dtm/dtm.h"
 
-#define C2_EXPORTED(s) EXPORT_SYMBOL(s)
+void c2_dtx_init(struct c2_dtx *tx)
+{
+	C2_SET0(tx);
+	tx->tx_state = C2_DTX_INIT;
+}
 
-#define CHAR_BIT (8)
+int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env)
+{
+	int result;
 
-/* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_ */
-#endif
+	C2_PRE(tx->tx_state == C2_DTX_INIT);
+
+	result = c2_db_tx_init(&tx->tx_dbtx, env, 0);
+	if (result == 0)
+		tx->tx_state = C2_DTX_OPEN;
+	return result;
+}
+
+void c2_dtx_done(struct c2_dtx *tx)
+{
+	C2_PRE(tx->tx_state == C2_DTX_INIT || tx->tx_state == C2_DTX_OPEN);
+
+	if (tx->tx_state == C2_DTX_OPEN)
+		c2_db_tx_commit(&tx->tx_dbtx);
+	tx->tx_state = C2_DTX_DONE;
+}
+
+/** @} end of dtm group */
 
 /*
  *  Local variables:

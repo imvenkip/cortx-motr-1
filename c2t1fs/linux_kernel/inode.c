@@ -22,16 +22,11 @@
 
 #include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
 #include "layout/linear_enum.h" /* c2_linear_enum_build() */
-#include "pool/pool.h"       /* c2_pool_init(), c2_pool_fini()        */
 #include "lib/misc.h"        /* C2_SET0()                             */
 #include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
 #include "c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"       /* C2_LOG and C2_ENTRY */
-
-enum {
-	DEF_POOL_ID = 9
-};
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
@@ -123,11 +118,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
 				 pl_base.ls_base);
-	if (pd_layout != NULL) {
-		c2_pool_fini(pd_layout->pl_pool);
-		c2_free(pd_layout->pl_pool);
-		ci->ci_layout->l_ops->lo_fini(ci->ci_layout, NULL);
-	}
+	ci->ci_layout->l_ops->lo_fini(ci->ci_layout, NULL);
 
 	C2_LEAVE();
 }
@@ -345,44 +336,28 @@ out_err:
 }
 
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-				uint32_t N, uint32_t K, uint32_t P,
-				uint64_t unit_size)
+			     struct c2_pool      *pool,
+			     uint32_t             N,
+			     uint32_t             K,
+			     uint64_t             unit_size)
 {
 	struct c2_pdclust_layout     *pd_layout = NULL;
 	uint64_t                      layout_id;
 	struct c2_uint128             seed;
-	struct c2_pool               *pool;
 	struct c2_layout_domain       domain;
 	struct c2_layout_linear_enum *le = NULL;
 	int                           rc;
 
 	C2_ENTRY();
+	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
 
 	C2_LOG("fid[%lu:%lu]: N: %d K: %d P: %d",
 			(unsigned long)ci->ci_fid.f_container,
 			(unsigned long)ci->ci_fid.f_key,
-			N, K, P);
-
-	C2_ALLOC_PTR(pool);
-	if (pool == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
+			N, K, pool->po_width);
 
 	layout_id = 0x4A494E4E49455349; /* "jinniesi" */
 	c2_uint128_init(&seed, "upjumpandpumpim,");
-
-	/**
-	 * @todo A pool shall be created per file system, at mount time and not
-	 * per inode.
-	 * The current change related to LayoutDB code is only to make the
-	 * compilation go through. The fix for pool initialization will be
-	 * made soon, into master, through LogD 857.
-	 */
-
-	rc = c2_pool_init(pool, DEF_POOL_ID, P);
-	if (rc != 0)
-		goto out_free;
 
 	/**
 	 * @todo A dummy enumeration object is being created here so that the
@@ -393,28 +368,15 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	 */
 	rc = c2_linear_enum_build(layout_id, pool->po_width, 100, 200, &le);
 	if (rc != 0)
-		goto out_free;
+		return rc;
 
 	rc = c2_pdclust_build(pool, layout_id, N, K, unit_size,
 			      &seed, &le->lle_base,
 			      &domain, &pd_layout);
-	if (rc != 0)
-		goto out_fini;
 
-	ci->ci_layout = &pd_layout->pl_base.ls_base;
+	ci->ci_layout = rc == 0 ? &pd_layout->pl_base.ls_base : NULL;
 
-	C2_LEAVE("rc: 0");
-	return 0;
-
-out_fini:
-	c2_pool_fini(pool);
-
-out_free:
-	c2_free(pool);
-
-out:
 	C2_LEAVE("rc: %d", rc);
-	C2_ASSERT(rc != 0);
 	return rc;
 }
 

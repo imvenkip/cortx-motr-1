@@ -35,7 +35,7 @@ void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob)
 
 /** @} end of buf group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

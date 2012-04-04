@@ -150,7 +150,7 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
  *	  Usage:
  *	  c2console :	{ -l FOP list | -f FOP opcode }
  *			[-s server (e.g. 127.0.0.1:1024:1) ]
- *			[-c client (e.g. 127.0.0.1:1025:1) ] 
+ *			[-c client (e.g. 127.0.0.1:1025:1) ]
  *			[-t timeout] [[-i] [-y yaml file path]] [-v]
  *
  * @return 0 success, -errno failure.

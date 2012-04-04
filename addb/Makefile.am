@@ -4,7 +4,7 @@
 # after fop is built, we build addb library again with full functionally.
 
 addbdir                     = $(includedir)/colibri/addb
-addb_HEADERS                = addb.h addb_u.h addb_k.h 
+addb_HEADERS                = addb.h addb_u.h addb_k.h
 
 noinst_LTLIBRARIES          = libcolibri-addb.la
 libcolibri_addb_la_SOURCES  = addb_u.h addb_u.c addb.c addb.h addb_console.c \

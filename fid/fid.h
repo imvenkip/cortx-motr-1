@@ -48,7 +48,7 @@ void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key);
 /* __COLIBRI_FID_FID_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -672,8 +672,16 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 }
 
 int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
-		      struct c2_db_tx *tx)
+		      struct c2_db_tx *tx, uint32_t flags)
 {
+	cursor->c_flags = 0;
+        if (flags & C2_DB_CURSOR_READ_COMMITTED)
+                cursor->c_flags |= DB_READ_COMMITTED;
+        else if (flags & C2_DB_CURSOR_READ_UNCOMMITTED)
+                cursor->c_flags |= DB_READ_UNCOMMITTED;
+        else if (flags & C2_DB_CURSOR_RMW)
+                cursor->c_flags |= DB_RMW;
+
 	cursor->c_table = table;
 	cursor->c_tx    = tx;
 	return TABLE_CALL(table, cursor, tx->dt_i.dt_txn,
@@ -693,15 +701,9 @@ void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
-        /*
-         * @todo : cursor acquiring read/write lock explicitely.
-         *         for lookup operations it should only take read
-         *         lock.
-         *         Since lock release at time of transaction commit
-         *         no other transaction get read lock.
-         */
 	return WITH_PAIR(pair, CURSOR_CALL(cursor, get, pair_key(pair),
-					   pair_rec(pair), flags|DB_RMW));
+					   pair_rec(pair),
+                                           cursor->c_flags | flags));
 }
 
 int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)

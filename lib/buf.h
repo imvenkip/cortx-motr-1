@@ -42,7 +42,7 @@ void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob);
 /* __COLIBRI_BUF_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

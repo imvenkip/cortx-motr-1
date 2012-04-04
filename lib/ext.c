@@ -38,8 +38,8 @@ bool c2_ext_is_in(const struct c2_ext *ext, c2_bindex_t index)
 
 bool c2_ext_is_partof(const struct c2_ext *super, const struct c2_ext *sub)
 {
-	return 
-		c2_ext_is_in(super, sub->e_start) && 
+	return
+		c2_ext_is_in(super, sub->e_start) &&
 		sub->e_end <= super->e_end;
 }
 
@@ -63,7 +63,7 @@ void c2_ext_intersection(const struct c2_ext *e0, const struct c2_ext *e1,
 
 /** @} end of ext group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

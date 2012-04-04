@@ -58,7 +58,7 @@ int  c2_consensus_acceptor_init(struct c2_consensus_acceptor **acceptor,
 void c2_consensus_acceptor_fini(struct c2_consensus_acceptor *acceptor);
 
 int  c2_consensus_init(struct c2_consensus **cons,
-		       struct c2_consensus_proposer *prop, 
+		       struct c2_consensus_proposer *prop,
 		       const struct c2_buf *val);
 void c2_consensus_fini(struct c2_consensus *cons);
 
@@ -72,7 +72,7 @@ struct c2_buf *c2_consensus_value(const struct c2_consensus *cons);
 /* __COLIBRI_MW_CONSENSUS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

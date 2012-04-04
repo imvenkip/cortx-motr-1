@@ -121,10 +121,10 @@ static int c2t1fs_create(struct inode     *dir,
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
-	rc = c2t1fs_inode_layout_init(ci, csb->csb_nr_data_units,
-					  csb->csb_nr_parity_units,
-					  csb->csb_pool_width,
-					  csb->csb_unit_size);
+	rc = c2t1fs_inode_layout_init(ci, &csb->csb_pool,
+					   csb->csb_nr_data_units,
+					   csb->csb_nr_parity_units,
+					   csb->csb_unit_size);
 	if (rc != 0)
 		goto out;
 
@@ -215,7 +215,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
 					  (unsigned long)fid->f_container,
 					  (unsigned long)fid->f_key);
-	
+
 	mark_inode_dirty(dir);
 	rc = 0;
 out:
@@ -476,7 +476,7 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 				(unsigned long)gob_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
-	pool_width = csb->csb_pool_width;
+	pool_width = csb->csb_pool.po_width;
 	C2_ASSERT(pool_width >= 1);
 
 	for (i = 1; i <= pool_width; i++) { /* i = 1 is intentional */

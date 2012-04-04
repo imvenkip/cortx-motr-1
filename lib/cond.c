@@ -26,7 +26,7 @@
    @addtogroup cond
 
    Very simple implementation of condition variables on top of waiting
-   channels. 
+   channels.
 
    Self-explanatory.
 

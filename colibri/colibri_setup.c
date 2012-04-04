@@ -707,8 +707,7 @@ static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
 {
 	int rc;
 
-	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type,
-				stob_path, &stob->adstob);
+	rc = c2_stob_domain_locate(&c2_ad_stob_type, stob_path, &stob->adstob);
 
 	if (rc == 0)
 		rc = c2_ad_stob_setup(stob->adstob, db, *bstob,
@@ -730,14 +729,13 @@ static int cs_linux_stob_init(const char *stob_path,
 	int                    rc;
 	struct c2_stob_domain *sdom;
 
-	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
-					stob_path, &stob->linuxstob);
+	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path,
+				   &stob->linuxstob);
 	if  (rc == 0) {
 		sdom = stob->linuxstob;
 		rc = c2_linux_stob_setup(sdom, false);
 		if  (rc == 0)
-			rc = sdom->sd_ops->sdo_stob_find(stob->linuxstob,
-						&stob->stob_id, bstob);
+			rc = c2_stob_find(sdom, &stob->stob_id, bstob);
 	}
 
 	return rc;
@@ -750,6 +748,7 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 	int                      slen;
 	char                    *objpath;
         struct c2_stob          *bstore;
+	static const char        objdir[] = "/o";
 
 	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
@@ -758,15 +757,14 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 	/*
 	   XXX Need generic mechanism to generate stob ids
 	 */
-        stob->stob_id.si_bits.u_hi = 0x0;
-        stob->stob_id.si_bits.u_lo = 0xdf11e;
-
+        stob->stob_id.si_bits = (struct c2_uint128){ .u_hi = 0x0,
+						     .u_lo = 0xdf11e };
 	slen = strlen(stob_path);
-	C2_ALLOC_ARR(objpath, slen + sizeof("/o"));
+	C2_ALLOC_ARR(objpath, slen + ARRAY_SIZE(objdir));
 	if (objpath == NULL)
 		return -ENOMEM;
 
-	sprintf(objpath, "%s%s", stob_path, "/o");
+	sprintf(objpath, "%s%s", stob_path, objdir);
 
 	rc = mkdir(stob_path, 0700);
         if (rc != 0 && errno != EEXIST)
