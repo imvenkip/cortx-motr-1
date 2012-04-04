@@ -360,8 +360,6 @@ of Colibri LNet Transport</a>,
    the @c nlx_dev_open() and @c nlx_dev_ioctl() subroutines, respectively.
 
    The @c nlx_dev_open() performs the following sequence.
-   - It increases the reference count on the module to ensure it will not be
-     unloaded while user space references exist.
    - It allocates a @c nlx_kcore_domain object, initializes it using
      @c nlx_kcore_kcore_dom_init() and assigns the object to the
      @c file->private_data field.
@@ -410,6 +408,7 @@ of Colibri LNet Transport</a>,
      - Shared @c nlx_core_buffer_event objects must be unpinned.
      - Each corresponding @c nlx_kcore_buffer_event object is freed.
      - Each @c nlx_kcore_transfer_mc object is freed.
+     - All pinned buffer data pages must be unpinned.
      - All registered buffers must be deregistered.
      - Shared @c nlx_core_buffer objects must be unpinned.
      - Each corresponding @c nlx_kcore_buffer object is freed.
@@ -421,7 +420,6 @@ of Colibri LNet Transport</a>,
    - It calls @c nlx_kcore_kcore_dom_fini() to finalize the @c nlx_kcore_domain
      object.
    - It frees the @c nlx_kcore_domain object.
-   - It decrements the reference count on the module.
    - It logs an ADDB record recording the occurrence of the close operation.
 
    @subsection LNetDRVDLD-lspec-reg Buffer Registration and Deregistration
@@ -646,10 +644,19 @@ of Colibri LNet Transport</a>,
    API is called.
 
    The resources managed by the driver are tracked by the following lists:
-   - @c nlx_kcore_domain::kd_drv_page (a single item)
+   - @c nlx_kcore_domain::kd_cd_loc (a single item)
    - @c nlx_kcore_domain::kd_drv_tms
    - @c nlx_kcore_domain::kd_drv_bufs
    - @c nlx_kcore_transfer_mc::ktm_drv_bevs
+
+   Each @c nlx_kcore_domain object has 2 valid states which can be determined
+   by inspecting the @c nlx_kcore_domain::kd_cd_loc field:
+   - @c nlx_core_kmem_loc_is_empty(&kd_cd_loc): The device is newly opened
+   and the @c #C2_LNET_DOM_INIT ioctl request has not yet been performed.
+   - @c nlx_core_kmem_loc_invariant(&kd_cd_loc): The @c #C2_LNET_DOM_INIT
+   ioctl request has been performed, associating it with a @c nlx_core_domain
+   object.  In this state, the @c nlx_kcore_domain is ready for use and remains
+   in this state until finalized.
 
    @subsection LNetDRVDLD-lspec-thread Threading and Concurrency Model
 
@@ -679,6 +686,11 @@ of Colibri LNet Transport</a>,
    in a shared location, i.e. only on the stack.  The functions that unpin
    shared objects have invariants and pre-conditions to ensure that the objects
    are no longer in use and can be unpinned without causing a mapping failure.
+
+   Cleanup of kernel resources for user domains synchronizes with the Kernel
+   Core LNet EQ callback by use of the nlx_kcore_transfer_mc::ktm_bevq_lock
+   and the nlx_kcore_transfer_mc::ktm_sem, as discussed in
+   @ref KLNetCoreDLD-lspec-thread.
 
    @subsection LNetDRVDLD-lspec-numa NUMA optimizations
 
@@ -828,6 +840,13 @@ C2_BASSERT(sizeof(struct nlx_core_buffer_event) < PAGE_SIZE);
 /* LNET_NIDSTR_SIZE is only defined in the kernel */
 C2_BASSERT(C2_NET_LNET_NIDSTR_SIZE == LNET_NIDSTR_SIZE);
 
+static C2_ADDB_EV_DEFINE(nlx_addb_dev_open,  "nlx_dev_open",
+			 C2_ADDB_EVENT_NET_LNET_OPEN,  C2_ADDB_STAMP);
+static C2_ADDB_EV_DEFINE(nlx_addb_dev_close, "nlx_dev_close",
+			 C2_ADDB_EVENT_NET_LNET_CLOSE, C2_ADDB_STAMP);
+static C2_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
+			 C2_ADDB_EVENT_NET_LNET_CLEANUP, C2_ADDB_FLAG);
+
 /**
    @defgroup LNetDevInternal LNet Transport Device Internals
    @ingroup LNetDev
@@ -839,151 +858,68 @@ C2_BASSERT(C2_NET_LNET_NIDSTR_SIZE == LNET_NIDSTR_SIZE);
    @{
  */
 
-enum {
-	DD_MAGIC = 0x64645f6d61676963ULL, /* dd_magic */
-	DD_INITIAL_VALUE = 41,
-};
+#define WRITABLE_USER_PAGE_GET(uaddr, pg)				\
+	get_user_pages(current, current->mm, (unsigned long) (uaddr),	\
+		       1, 1, 0, &(pg), NULL)
 
-/**
-   Track each pinned memory region in the prototype.
-   @todo Replace uses of this object with lists rooted on nlx_kcore_domain
- */
-struct mock_mem_area {
-	/** Opaque user space address corresponding to this memory area. */
-	unsigned long ma_user_addr;
-	/** Page for the pinned object. Require each object to be < PAGE_SIZE
-	    and be aligned such that it fully fits in the page.
-	 */
-	struct page *ma_page;
-	/** link in the prototype_dev_data::dd_mem_area */
-	struct c2_list_link ma_link;
-};
-
-/**
-   Private data for each nlx file
-   @todo Replace uses of this object with nlx_kcore_domain
- */
-struct prototype_dev_data {
-	uint64_t dd_magic;
-	struct c2_mutex dd_mutex;
-	/** proof-of-concept value to exchange via ioctl */
-	unsigned int dd_value;
-	/** proof-of-concept offset into shared page */
-	unsigned int dd_tm_offset;
-	/** proof-of-concept shared data structure */
-	struct page *dd_tm_page;
-	/** list of struct mock_mem_area */
-	struct c2_list dd_mem_areas;
-};
-
-/**
-   Release (unpin, unlink and free) a memory area.
-   @todo Remove this function, it is only part of the prototype
-   @param ma the memory area to release
- */
-static void mock_mem_area_put(struct mock_mem_area *ma)
-{
-	printk("%s: unmapping area %lx\n", __func__, ma->ma_user_addr);
-	put_page(ma->ma_page);
-	c2_list_del(&ma->ma_link);
-	c2_free(ma);
-}
-
-/**
-   Record a memory area in the list of mapped user memory areas.  On success, a
-   new struct mock_mem_area object is added to the list of memory areas tracked
-   in the struct prototype_dev_data.  The prototype_dev_data::dd_tm_page and
-   prototype_dev_data::dd_tm_offset are also set.
-   @todo Remove this function, it is only part of the prototype
-   @param dd device data structure tracking all resources for this instance
-   @param uma memory descriptor, copied in from user space
- */
-static int mock_mem_area_map(struct prototype_dev_data *dd,
-			     struct prototype_mem_area *uma)
-{
-	int rc;
-	struct mock_mem_area *ma;
-	unsigned int offset;
-
-	C2_PRE(c2_mutex_is_locked(&dd->dd_mutex));
-	C2_PRE(current->mm != NULL);
-
-	offset = PAGE_OFFSET(uma->nm_user_addr);
-	if (offset + uma->nm_size > PAGE_SIZE) {
-		printk("%s: user object did not fit in 1 page\n", __func__);
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EINVAL);
-		return -EINVAL;
-	}
-	C2_ALLOC_PTR_ADDB(ma, &c2_net_addb, &nlx_addb_loc);
-	if (ma == NULL)
-		return -ENOMEM;
-
-	c2_mutex_unlock(&dd->dd_mutex);
-	/* note: down_read and get_use_pages can block */
-	down_read(&current->mm->mmap_sem);
-	rc = get_user_pages(current, current->mm,
-			    uma->nm_user_addr, 1, 1, 0, &ma->ma_page, NULL);
-	up_read(&current->mm->mmap_sem);
-	c2_mutex_lock(&dd->dd_mutex);
-
-	if (rc != 1) {
-		C2_ASSERT(rc < 0);
-		c2_free(ma);
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -ENOSPC);
-		return rc;
-	}
-
-	printk("%s: mapped area %lx size %d\n",
-	       __func__, uma->nm_user_addr, uma->nm_size);
-	ma->ma_user_addr = uma->nm_user_addr;
-	dd->dd_tm_page = ma->ma_page;
-	dd->dd_tm_offset = offset;
-
-	c2_list_add(&dd->dd_mem_areas, &ma->ma_link);
-	return 0;
-}
-
-/**
-   Erase a previously recorded memory area from the list
-   in the struct prototype_dev_data.  Always clears prototype_dev_data::dd_tm
-   on success.
-   @todo Remove this function, it is only part of the prototype
-   @param dd device data structure tracking all resources for this instance
-   @param uma memory descriptor, copied in from user space
- */
-static int mock_mem_area_unmap(struct prototype_dev_data *dd,
-			      struct prototype_mem_area *uma)
-{
-	struct mock_mem_area *pos;
-
-	C2_PRE(c2_mutex_is_locked(&dd->dd_mutex));
-	C2_PRE(current->mm != NULL);
-
-	c2_list_for_each_entry(&dd->dd_mem_areas,
-			       pos, struct mock_mem_area, ma_link) {
-		if (pos->ma_user_addr == uma->nm_user_addr) {
-			mock_mem_area_put(pos);
-			dd->dd_tm_page = NULL;
-			dd->dd_tm_offset = 0;
-			return 0;
-		}
-	}
-	return -EINVAL;
-}
+/** Put a writable user page after calling SetPageDirty(). */
+#define WRITABLE_USER_PAGE_PUT(pg)		\
+({						\
+	struct page *__pg = (pg);		\
+	if (!PageReserved(__pg))		\
+		SetPageDirty(__pg);		\
+	put_page(__pg);				\
+})
 
 /**
    Completes the kernel initialization of the kernel and shared core domain
    objects.  The user domain object is mapped into kernel space and its
    nlx_core_domain::cd_kpvt field is set.
    @param kd The kernel domain object
-   @param p Ioctl request parameters.  The buffer size maxium fields are
+   @param p Ioctl request parameters.  The buffer size maximum fields are
    set on success.
  */
 static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 				  struct c2_lnet_dev_dom_init_params *p)
 
 {
-	return -ENOSYS;
+	struct page *pg;
+	struct nlx_core_domain *cd;
+	int rc;
+
+	c2_mutex_lock(&kd->kd_drv_mutex);
+	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)) {
+		c2_mutex_unlock(&kd->kd_drv_mutex);
+		return -EBADR;
+	}
+
+	/* note: these calls can block */
+	down_read(&current->mm->mmap_sem);
+	rc = WRITABLE_USER_PAGE_GET(p->ddi_cd, pg);
+	up_read(&current->mm->mmap_sem);
+
+	if (rc >= 0) {
+		C2_ASSERT(rc == 1);
+		nlx_core_kmem_loc_set(&kd->kd_cd_loc, pg,
+				   NLX_PAGE_OFFSET((unsigned long) p->ddi_cd));
+		cd = nlx_kcore_core_domain_map(kd);
+		rc = kd->kd_drv_ops->ko_dom_init(kd, cd);
+		if (rc == 0) {
+			p->ddi_max_buffer_size =
+			    nlx_core_get_max_buffer_size(cd);
+			p->ddi_max_buffer_segment_size =
+			    nlx_core_get_max_buffer_segment_size(cd);
+			p->ddi_max_buffer_segments =
+			    nlx_core_get_max_buffer_segments(cd);
+			C2_ASSERT(nlx_kcore_domain_invariant(kd));
+			C2_ASSERT(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
+		}
+		nlx_kcore_core_domain_unmap(kd);
+	}
+	if (rc < 0)
+		LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	c2_mutex_unlock(&kd->kd_drv_mutex);
+	return rc;
 }
 
 /**
@@ -998,14 +934,53 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 }
 
 /**
-   Deregisters a shared memory buffer from the kernel domain.
-   @param kd The kernel domain object
+   Unpins the pages referenced in a nlx_kcore_buffer::kb_kiov.
    @param kb The kernel buffer object
  */
-static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
-					struct nlx_kcore_buffer *kb)
+static void nlx_dev_buf_pages_unpin(const struct nlx_kcore_buffer *kb)
 {
-	return -ENOSYS;
+	size_t i;
+
+	for (i = 0; i < kb->kb_kiov_len; ++i)
+		WRITABLE_USER_PAGE_PUT(kb->kb_kiov[i].kiov_page);
+}
+
+/**
+   Deregisters a shared memory buffer from the kernel domain.
+   @param kd The kernel domain object
+   @param kb The kernel buffer object, freed upon return
+ */
+static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
+				  struct nlx_kcore_buffer *kb)
+{
+	struct nlx_core_buffer *cb;
+
+	if (!nlx_kcore_buffer_invariant(kb))
+		return -EBADR;
+	drv_bufs_tlist_del(kb);
+	nlx_dev_buf_pages_unpin(kb);
+	cb = nlx_kcore_core_buffer_map(kb);
+	kd->kd_drv_ops->ko_buf_deregister(cb, kb);
+	nlx_kcore_core_buffer_unmap(kb);
+	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
+	c2_free(kb);
+	return 0;
+}
+
+/**
+   Deregisters a shared memory buffer from the kernel domain.
+   @param kd The kernel domain object
+   @param arg Ioctl request parameter for the kernel buffer object.
+ */
+static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
+					unsigned long arg)
+{
+	struct nlx_kcore_buffer *kb = (struct nlx_kcore_buffer *) arg;
+
+	/* protect against user space passing invalid ptr */
+	if (!virt_addr_valid(kb))
+		return -EBADR;
+	return nlx_dev_buf_deregister(kd, kb);
 }
 
 /**
@@ -1143,22 +1118,89 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
    @param utmp User space pointer to a nlx_core_transfer_mc object
  */
 static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
-				  void __user *utmp)
+				  unsigned long utmp)
 {
-	return -ENOSYS;
+	struct page *pg;
+	struct nlx_core_transfer_mc *ctm;
+	struct nlx_kcore_transfer_mc *ktm;
+	int rc;
+
+	C2_ALLOC_PTR_ADDB(ktm, &kd->kd_addb, &nlx_addb_loc);
+	if (ktm == NULL)
+		return -ENOMEM;
+
+	down_read(&current->mm->mmap_sem);
+	rc = WRITABLE_USER_PAGE_GET(utmp, pg);
+	up_read(&current->mm->mmap_sem);
+	if (rc < 0)
+		goto fail_page;
+	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, NLX_PAGE_OFFSET(utmp));
+	ctm = nlx_kcore_core_tm_map(ktm);
+	if (!nlx_core_tm_invariant(ctm) || ctm->ctm_kpvt != NULL) {
+		rc = -EBADR;
+		goto fail_ctm;
+	}
+	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, ktm);
+	if (rc < 0)
+		goto fail_ctm;
+	nlx_kcore_core_tm_unmap(ktm);
+	drv_tms_tlist_add(&kd->kd_drv_tms, ktm);
+	return 0;
+
+fail_ctm:
+	nlx_kcore_core_tm_unmap(ktm);
+	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
+fail_page:
+	c2_free(ktm);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	return rc;
+}
+
+/**
+   Helper for nlx_dev_close() and nlx_dev_ioctl_tm_stop() to clean up kernel
+   resources associated with an individual transfer machine.
+   @param kd The kernel domain object
+   @param ktm The kernel transfer machine object, removed from the
+   kd->kd_drv_tms and freed upon return.
+ */
+static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
+			      struct nlx_kcore_transfer_mc *ktm)
+{
+	struct nlx_kcore_buffer_event *kbev;
+	struct nlx_core_transfer_mc *ctm;
+
+	if (!nlx_kcore_tm_invariant(ktm))
+		return -EBADR;
+	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
+		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
+		drv_bevs_tlist_del(kbev);
+		c2_free(kbev);
+	} c2_tlist_endfor;
+
+	ctm = nlx_kcore_core_tm_map(ktm);
+	kd->kd_drv_ops->ko_tm_stop(kd, ctm, ktm);
+	nlx_kcore_core_tm_unmap(ktm);
+	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
+	drv_tms_tlist_del(ktm);
+	c2_free(ktm);
+	return 0;
 }
 
 /**
    Complete the kernel portion of the TM stop logic.
-   @param kd The kernel domain object
-   @param ktm The kernel transfer machine object
-   @retval -ENOTEMPTY The user space transport has not correctly cleaned up all
-   of the required resources before stopping the transfer machine.
+   @param kd The kernel domain object.
+   @param arg Ioctl request parameter for the kernel transfer machine object.
  */
-static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd,
-				 struct nlx_kcore_transfer_mc *ktm)
+static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd, unsigned long arg)
 {
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *ktm =
+		    (struct nlx_kcore_transfer_mc *) arg;
+
+	/* protect against user space passing invalid ptr */
+	if (!virt_addr_valid(ktm))
+		return -EBADR;
+	return nlx_dev_tm_cleanup(kd, ktm);
 }
 
 /**
@@ -1187,73 +1229,56 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 static long nlx_dev_ioctl(struct file *file,
 			  unsigned int cmd, unsigned long arg)
 {
-	struct prototype_dev_data *dd =
-	    (struct prototype_dev_data *) file->private_data;
-	struct prototype_mem_area uma;
-        int rc = -ENOTTY;
+	struct nlx_kcore_domain *kd =
+	    (struct nlx_kcore_domain *) file->private_data;
+	union {
+		struct c2_lnet_dev_dom_init_params       dip;
+		struct c2_lnet_dev_buf_register_params   brp;
+		struct c2_lnet_dev_buf_queue_params      bqp;
+		struct c2_lnet_dev_buf_event_wait_params bep;
+		struct c2_lnet_dev_nid_encdec_params     nep;
+		struct c2_lnet_dev_nidstrs_get_params    ngp;
+		struct c2_lnet_dev_bev_bless_params      bbp;
+	} p;
+	unsigned sz = _IOC_SIZE(cmd);
+        int rc;
 
-	/* This will test nlx_kcore_domain_invariant in the real code */
-	C2_PRE(dd != NULL && dd->dd_magic == DD_MAGIC);
+	C2_PRE(nlx_kcore_domain_invariant(kd));
 
         if (_IOC_TYPE(cmd) != C2_LNET_IOC_MAGIC ||
             _IOC_NR(cmd) < C2_LNET_IOC_MIN_NR  ||
-            _IOC_NR(cmd) > C2_LNET_IOC_MAX_NR) {
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
-		return rc;
+            _IOC_NR(cmd) > C2_LNET_IOC_MAX_NR ||
+	    sz > sizeof p) {
+		rc = -ENOTTY;
+		goto done;
+	} else if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC)) {
+		rc = -EBADF;
+		goto done;
 	}
 
-	if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC)) {
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EBADF);
-		return -EBADF;
-	}
-
-	/** @todo check capable(CAP_SYS_ADMIN)? */
-
-	rc = 0;
-	c2_mutex_lock(&dd->dd_mutex);
-	switch (cmd) {
-	case PROTOREAD:
-		if (put_user(dd->dd_value, (unsigned int __user *) arg))
+	if ((_IOC_DIR(cmd) & _IOC_WRITE) && sz > sizeof arg) {
+		if (copy_from_user(&p, (void __user *) arg, sz)) {
 			rc = -EFAULT;
-		break;
-	case PROTOWRITE:
-		if (get_user(dd->dd_value, (unsigned int __user *) arg))
-			rc = -EFAULT;
-		/* real code will call a function at this point */
-		if (dd->dd_tm_page != NULL) {
-			struct nlx_core_transfer_mc *tm;
-			bool mod = false;
-			char *ptr = kmap_atomic(dd->dd_tm_page, KM_USER0);
-
-			tm = (struct nlx_core_transfer_mc *)
-			    (ptr + dd->dd_tm_offset);
-			if (tm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC) {
-				tm->_debug_ = dd->dd_value;
-				SetPageDirty(dd->dd_tm_page);
-				mod = true;
-			}
-			kunmap_atomic(dd->dd_tm_page, KM_USER0);
-			printk("%s: %smodified nlx_core_transfer_mc\n",
-			       __func__, mod ? "" : "UN");
+			goto done;
 		}
+	}
+
+	switch (cmd) {
+	case C2_LNET_DOM_INIT:
+		rc = nlx_dev_ioctl_dom_init(kd, &p.dip);
 		break;
-	case PROTOMAP:
-		if (copy_from_user(&uma, (void __user *) arg, sizeof uma))
-			rc = -EFAULT;
-		else
-			rc = mock_mem_area_map(dd, &uma);
+	case C2_LNET_TM_START:
+		rc = nlx_dev_ioctl_tm_start(kd, arg);
 		break;
-	case PROTOUNMAP:
-		if (copy_from_user(&uma, (void __user *) arg, sizeof uma))
-			rc = -EFAULT;
-		else
-			rc = mock_mem_area_unmap(dd, &uma);
+	case C2_LNET_TM_STOP:
+		rc = nlx_dev_ioctl_tm_stop(kd, arg);
+		break;
+	case C2_LNET_BUF_DEREGISTER:
+		rc = nlx_dev_ioctl_buf_deregister(kd, arg);
 		break;
 	default:
 		/** @todo temporary code so this file will compile */
-		nlx_dev_ioctl_dom_init(NULL, NULL);
 		nlx_dev_ioctl_buf_register(NULL, NULL);
-		nlx_dev_ioctl_buf_deregister(NULL, NULL);
 		nlx_dev_ioctl_buf_msg_recv(NULL, NULL);
 		nlx_dev_ioctl_buf_msg_send(NULL, NULL);
 		nlx_dev_ioctl_buf_active_recv(NULL, NULL);
@@ -1265,20 +1290,24 @@ static long nlx_dev_ioctl(struct file *file,
 		nlx_dev_ioctl_nidstr_decode(NULL, NULL);
 		nlx_dev_ioctl_nidstr_encode(NULL, NULL);
 		nlx_dev_ioctl_nidstrs_get(NULL, NULL);
-		nlx_dev_ioctl_tm_start(NULL, NULL);
-		nlx_dev_ioctl_tm_stop(NULL, NULL);
 		nlx_dev_ioctl_bev_bless(NULL, NULL);
 
 		nlx_core_nidstr_decode(NULL, NULL, NULL);
 		nlx_core_nidstr_encode(NULL, 0, NULL);
-		nlx_kcore_kcore_dom_init(NULL);
-		nlx_kcore_kcore_dom_fini(NULL);
 		nlx_kcore_buffer_uva_to_kiov(NULL, NULL);
 		/* end of temporary code */
 		rc = -ENOTTY;
 		break;
 	}
-	c2_mutex_unlock(&dd->dd_mutex);
+
+	if (rc >= 0 && (_IOC_DIR(cmd) & _IOC_READ) && sz > sizeof arg) {
+		if (copy_to_user((void __user *) arg, &p, sz))
+			rc = -EFAULT;
+	}
+
+done:
+	if (rc < 0)
+		LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
 	return rc;
 }
 
@@ -1293,25 +1322,21 @@ static long nlx_dev_ioctl(struct file *file,
  */
 static int nlx_dev_open(struct inode *inode, struct file *file)
 {
-	int cnt = try_module_get(THIS_MODULE);
-	struct prototype_dev_data *dd;
+	struct nlx_kcore_domain *kd;
+	int rc;
 
-	if (cnt == 0) {
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -ENODEV);
-		return -ENODEV;
-	}
-
-	C2_ALLOC_PTR_ADDB(dd, &c2_net_addb, &nlx_addb_loc);
-	if (dd == NULL)
+	C2_ALLOC_PTR_ADDB(kd, &c2_net_addb, &nlx_addb_loc);
+	if (kd == NULL)
 		return -ENOMEM;
-	dd->dd_magic = DD_MAGIC;
-	dd->dd_value = DD_INITIAL_VALUE;
-	c2_mutex_init(&dd->dd_mutex);
-	c2_list_init(&dd->dd_mem_areas);
-	/* real implementation will assign a nlx_kcore_domain object here */
-	file->private_data = dd;
-	printk("Colibri c2lnet: opened\n");
-        return 0;
+	rc = nlx_kcore_kcore_dom_init(kd);
+	if (rc != 0) {
+		c2_free(kd);
+		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
+	} else {
+		file->private_data = kd;
+		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_open);
+	}
+        return rc;
 }
 
 /**
@@ -1329,28 +1354,95 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
  */
 int nlx_dev_close(struct inode *inode, struct file *file)
 {
-	struct prototype_dev_data *dd = file->private_data;
-	struct mock_mem_area *pos;
-	struct mock_mem_area *next;
+	struct nlx_kcore_domain *kd =
+	    (struct nlx_kcore_domain *) file->private_data;
+	struct nlx_core_domain *cd;
+	struct nlx_kcore_transfer_mc *ktm;
+	struct nlx_core_transfer_mc *ctm;
+	struct nlx_kcore_buffer *kb;
+	bool cleanup = false;
+	int rc;
 
-	C2_PRE(dd != NULL && dd->dd_magic == DD_MAGIC);
-
+	C2_PRE(nlx_kcore_domain_invariant(kd));
 	file->private_data = NULL;
-	/* user program may not unmap all areas, eg if it was killed */
-	c2_list_for_each_entry_safe(&dd->dd_mem_areas,
-				    pos, next, struct mock_mem_area, ma_link)
-		mock_mem_area_put(pos);
-	c2_list_fini(&dd->dd_mem_areas);
-	c2_mutex_fini(&dd->dd_mutex);
-	c2_free(dd);
 
-	module_put(THIS_MODULE);
-	printk("Colibri c2lnet: closed\n");
+	/*
+	 * user program may not unmap all areas, eg if it was killed.
+	 * 1. Cancel all outstanding buffer operations.
+	 * 2. Clean up (stop, et al) all running TMs, this can take a while.
+	 * 3. De-register all buffers.
+	 */
+	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+		ktm = kb->kb_ktm;
+		if (ktm != NULL) {
+			/*
+			 * Only LNetMDUnlink() causes nlx_kcore_LNetMDUnlink()
+			 * failure.  That can happen if the operation completes
+			 * concurrently with the execution of this loop.
+			 * Such failures are OK in this context.
+			 */
+			ctm = nlx_kcore_core_tm_map(ktm);
+			nlx_kcore_LNetMDUnlink(ctm, ktm, kb);
+			nlx_kcore_core_tm_unmap(ktm);
+		}
+	} c2_tlist_endfor;
+	c2_tlist_for(&drv_tms_tl, &kd->kd_drv_tms, ktm) {
+		/*
+		 * Wait until no more buffers are associated with this TM and
+		 * the event callback is no longer using the ktm.  Must be in
+		 * the ktm-based loop because it needs to synchronize use of the
+		 * kb_ktm with the LNet event callback using the spinlock. Only
+		 * holds spinlock for extremely short periods to avoid seriously
+		 * blocking event callback.  Depends on:
+		 * 1. There can be no other threads down-ing ktm_sem or adding
+		 *    new buffers to queues while in nlx_dev_close().
+		 * 2. kb_ktm is set to NULL in the spinlock and before ktm_sem
+		 *    is up'd.
+		 * 3. The final reference to the ktm in nlx_kcore_eq_cb() is to
+		 *    unlock the spinlock, after up-ing ktm_sem.
+		 * 4. LNet events involving unlink are not dropped.
+		 */
+		c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+			spin_lock(&ktm->ktm_bevq_lock);
+			while (kb->kb_ktm == ktm) {
+				spin_unlock(&ktm->ktm_bevq_lock);
+				c2_semaphore_down(&ktm->ktm_sem);
+				spin_lock(&ktm->ktm_bevq_lock);
+			}
+			spin_unlock(&ktm->ktm_bevq_lock);
+		} c2_tlist_endfor;
+
+		rc = nlx_dev_tm_cleanup(kd, ktm);
+		C2_ASSERT(rc == 0);
+		cleanup = true;
+	} c2_tlist_endfor;
+	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+		rc = nlx_dev_buf_deregister(kd, kb);
+		C2_ASSERT(rc == 0);
+		cleanup = true;
+	} c2_tlist_endfor;
+
+	if (cleanup)
+		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_cleanup, cleanup);
+
+	/* user program may not successfully perform C2_NET_DOM_INIT ioctl */
+	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)) {
+		cd = nlx_kcore_core_domain_map(kd);
+		kd->kd_drv_ops->ko_dom_fini(kd, cd);
+		nlx_kcore_core_domain_unmap(kd);
+		WRITABLE_USER_PAGE_PUT(kd->kd_cd_loc.kl_page);
+		nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
+	}
+
+	NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_close);
+	nlx_kcore_kcore_dom_fini(kd);
+	c2_free(kd);
 	return 0;
 }
 
 /** File operations for the c2lnet device. */
 static const struct file_operations nlx_dev_file_ops = {
+	.owner          = THIS_MODULE,
         .unlocked_ioctl = nlx_dev_ioctl,
         .open           = nlx_dev_open,
         .release        = nlx_dev_close

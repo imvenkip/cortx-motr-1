@@ -357,7 +357,6 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
    @param lctm Pointer to core TM private data.
    @param kctm Pointer to kcore TM private data.
    @param kcb Pointer to kcore buffer private data with kb_mdh set.
-   @pre kcb->kb_mdh set (may or may not be valid by the time the call is made).
    @note LNet event could potentially be delivered before this sub returns.
    There is always an inherent race condition between the invocation of this
    subroutine and ongoing activity.  No assumptions can be made about the value
@@ -510,19 +509,125 @@ static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
 }
 
 /**
-   Maps a page that should point to a nlx_core_transfer_mc.
-   Uses kmap_atomic() and consumes the KM_USER0 slot.
-   @pre nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL
-   @post nlx_core_tm_invariant(ret)
-   @param loc location reference for the object
+   Maps a page that should point to a nlx_core_domain.
+   Uses kmap() because this subroutine can be used on contexts that will block.
+   @pre nlx_kcore_domain_invariant(kd) &&
+   !nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)
+   @param kd kernel private object containing location reference to be mapped
+   @returns core object, never NULL
  */
-static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map_atomic(
-						 struct nlx_core_kmem_loc *loc)
+static struct nlx_core_domain *nlx_kcore_core_domain_map(
+						   struct nlx_kcore_domain *kd)
 {
 	char *ptr;
+	struct nlx_core_kmem_loc *loc;
+	struct nlx_core_domain *ret;
+
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	loc = &kd->kd_cd_loc;
+	C2_PRE(!nlx_core_kmem_loc_is_empty(loc));
+	ptr = kmap(loc->kl_page);
+	ret = (struct nlx_core_domain *) (ptr + loc->kl_offset);
+	C2_POST(ret != NULL);
+	return ret;
+}
+
+/**
+   Unmaps the page that contains a nlx_core_domain using kunmap().
+   @pre nlx_kcore_domain_invariant(kd)
+   @param kd Pointer to kcore domain private data.
+ */
+static void nlx_kcore_core_domain_unmap(struct nlx_kcore_domain *kd)
+{
+	C2_PRE(nlx_kcore_domain_invariant(kd));
+	kunmap(kd->kd_cd_loc.kl_page);
+}
+
+/**
+   Maps a page that should point to a nlx_core_buffer.
+   Uses kmap() because this subroutine can be used on contexts that will block.
+   @pre nlx_kcore_buffer_invariant(kb)
+   @post nlx_core_buffer_invariant(ret)
+   @param kb Pointer to kcore buffer private data.
+   @returns core object, never NULL
+ */
+static struct nlx_core_buffer *nlx_kcore_core_buffer_map(
+						   struct nlx_kcore_buffer *kb)
+{
+	char *ptr;
+	struct nlx_core_kmem_loc *loc;
+	struct nlx_core_buffer *ret;
+
+	C2_PRE(nlx_kcore_buffer_invariant(kb));
+	loc = &kb->kb_cb_loc;
+	ptr = kmap(loc->kl_page);
+	ret = (struct nlx_core_buffer *) (ptr + loc->kl_offset);
+	C2_POST(nlx_core_buffer_invariant(ret));
+	return ret;
+}
+
+/**
+   Unmaps the page that contains a nlx_core_buffer using kunmap().
+   @pre nlx_kcore_buffer_invariant(kb)
+   @param kb Pointer to kcore buffer private data.
+ */
+static void nlx_kcore_core_buffer_unmap(struct nlx_kcore_buffer *kb)
+{
+	C2_PRE(nlx_kcore_buffer_invariant(kb));
+	kunmap(kb->kb_cb_loc.kl_page);
+}
+
+/**
+   Maps a page that should point to a nlx_core_transfer_mc.
+   Uses kmap() because this subroutine can be used on contexts that will block.
+   @pre nlx_kcore_tm_invariant(ktm)
+   @post nlx_core_tm_invariant(ret)
+   @param ktm Pointer to kcore transfer machine private data.
+   @returns core object, never NULL
+ */
+static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map(
+					     struct nlx_kcore_transfer_mc *ktm)
+{
+	char *ptr;
+	struct nlx_core_kmem_loc *loc;
 	struct nlx_core_transfer_mc *ret;
 
-	C2_PRE(nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL);
+	C2_PRE(nlx_kcore_tm_invariant(ktm));
+	loc = &ktm->ktm_ctm_loc;
+	ptr = kmap(loc->kl_page);
+	ret = (struct nlx_core_transfer_mc *) (ptr + loc->kl_offset);
+	C2_POST(nlx_core_tm_invariant(ret));
+	return ret;
+}
+
+/**
+   Unmaps the page that contains a nlx_core_transfer_mc using kunmap().
+   @pre nlx_kcore_tm_invariant(ktm)
+   @param ktm Pointer to kcore transfer machine private data.
+ */
+static void nlx_kcore_core_tm_unmap(struct nlx_kcore_transfer_mc *ktm)
+{
+	C2_PRE(nlx_kcore_tm_invariant(ktm));
+	kunmap(ktm->ktm_ctm_loc.kl_page);
+}
+
+/**
+   Maps a page that should point to a nlx_core_transfer_mc.
+   Uses kmap_atomic() and consumes the KM_USER0 slot.
+   @pre nlx_kcore_tm_invariant(ktm)
+   @post nlx_core_tm_invariant(ret)
+   @param ktm Pointer to kcore transfer machine private data.
+   @returns core object, never NULL
+ */
+static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map_atomic(
+					     struct nlx_kcore_transfer_mc *ktm)
+{
+	char *ptr;
+	struct nlx_core_kmem_loc *loc;
+	struct nlx_core_transfer_mc *ret;
+
+	C2_PRE(nlx_kcore_tm_invariant(ktm));
+	loc = &ktm->ktm_ctm_loc;
 	ptr = kmap_atomic(loc->kl_page, KM_USER0);
 	ret = (struct nlx_core_transfer_mc *) (ptr + loc->kl_offset);
 	C2_POST(nlx_core_tm_invariant(ret));
@@ -530,11 +635,13 @@ static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map_atomic(
 }
 
 /**
-   Unmaps a page that should contain a nlx_core_transfer_mc.
+   Unmaps the page that contains a nlx_core_transfer_mc.
    Uses kunmap_atomic() on the KM_USER0 slot.
-   @pre nlx_core_kmem_loc_invariant(loc)
-   @param loc location reference for the object
-   @param ctm Pointer to corresponding kcore TM private data.
+   @note this signature differs from nlx_kcore_core_tm_unmap() due to the
+   differing requirements of kunmap() vs kunmap_atomic(); the former requires
+   a struct page while the latter requires a mapped address.
+   @pre nlx_core_tm_invariant(ctm)
+   @param ctm Pointer to corresponding core TM private data.
  */
 static void nlx_kcore_core_tm_unmap_atomic(struct nlx_core_transfer_mc *ctm)
 {

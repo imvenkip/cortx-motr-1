@@ -399,10 +399,7 @@ static int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
 					const struct c2_bufvec *bvec);
 static bool nlx_kcore_kiov_invariant(const lnet_kiov_t *k, size_t len);
 
-#ifdef PAGE_OFFSET
-#undef PAGE_OFFSET
-#endif
-#define PAGE_OFFSET(addr) ((addr) & ~PAGE_MASK)
+#define NLX_PAGE_OFFSET(addr) ((addr) & ~PAGE_MASK)
 
 /** @} */ /* KLNetCore */
 

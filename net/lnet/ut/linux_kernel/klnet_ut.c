@@ -346,6 +346,7 @@ static void ktest_enc_dec(void)
 {
 	uint32_t tmid;
 	uint32_t portal;
+	struct nlx_core_transfer_mc ctm;
 	struct nlx_kcore_transfer_mc ktm = {
 		.ktm_magic = C2_NET_LNET_KCORE_TM_MAGIC, /* fake */
 	};
@@ -353,6 +354,8 @@ static void ktest_enc_dec(void)
 	/* TEST
 	   Check that hdr data decode reverses encode.
 	 */
+	nlx_core_kmem_loc_set(&ktm.ktm_ctm_loc, virt_to_page(&ctm),
+			      NLX_PAGE_OFFSET((unsigned long) &ctm));
 	C2_UT_ASSERT(nlx_kcore_tm_invariant(&ktm)); /* to make this pass */
 
 #define TEST_HDR_DATA_ENCODE(_p, _t)					\

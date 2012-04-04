@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -31,8 +31,7 @@ MODULE_LICENSE("GPL");
 int init_module(void)
 {
         printk("Colibri init\n");
-	c2_init();
-        return 0;
+	return c2_init();
 }
 
 void cleanup_module(void)

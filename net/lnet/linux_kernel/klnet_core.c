@@ -679,6 +679,20 @@ HLD of Colibri LNet Transport</a>
       messages in a single receive buffer, as it implicitly serializes the
       delivery of the events associated with any given receive buffer, thus the
       last event which unlinks the buffer is guaranteed to be delivered last.
+   -# The Colibri LNet transport driver releases all kernel resources
+      associated with a user space domain when the device is released (the final
+      close).  It must not release buffer event objects or transfer machines
+      while the LNet EQ callback requires them.  The Kernel Core LNet EQ
+      callback, nlx_kcore_eq_cb(), resets the association between a buffer and
+      a transfer machine and increments the nlx_kcore_transfer_mc::ktm_sem
+      semaphore while holding the nlx_kcore_transfer_mc::ktm_bevq_lock, and the
+      callback never refers to either object after releasing the lock.  The
+      driver layer holds this lock as well while verifying that a buffer is not
+      associated with a transfer machine, and, outside the lock, decrements the
+      semaphore to wait for buffers to be unlinked by LNet (the device is being
+      released, so no other thread will be decrementing the semaphore).  This
+      assures the buffer event objects and the transfer machine will remain
+      until the final LNet event is delivered.
    -# LNet properly handles the race condition between the automatic unlink
       of the MD and a call to @c LNetMDUnlink().
 
@@ -819,12 +833,12 @@ C2_TL_DEFINE(drv_tms, static, struct nlx_kcore_transfer_mc);
 C2_TL_DESCR_DEFINE(drv_bufs, "drv bufs", static, struct nlx_kcore_buffer,
 		   kb_drv_linkage, kb_magic, C2_NET_LNET_KCORE_BUF_MAGIC,
 		   C2_NET_LNET_DEV_BUFS_MAGIC);
-C2_TL_DEFINE(drv_bufs, static, struct nlx_kcore_transfer_mc);
+C2_TL_DEFINE(drv_bufs, static, struct nlx_kcore_buffer);
 
 C2_TL_DESCR_DEFINE(drv_bevs, "drv bevs", static, struct nlx_kcore_buffer_event,
 		   kbe_drv_linkage, kbe_magic, C2_NET_LNET_KCORE_BEV_MAGIC,
 		   C2_NET_LNET_DEV_BEVS_MAGIC);
-C2_TL_DEFINE(drv_bevs, static, struct nlx_kcore_transfer_mc);
+C2_TL_DEFINE(drv_bevs, static, struct nlx_kcore_buffer_event);
 
 /* assert the equivalence of LNet and Colibri data types */
 C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
@@ -874,12 +888,17 @@ static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 
 /**
    KCore domain invariant.
+   @note Unlike other kernel core object invariants, the reference to the
+   nlx_core_domain is allowed to be NULL, because initialization of the
+   nlx_kcore_domain in the driver is split between the open and C2_LNET_DOM_INIT
+   ioctl request.
  */
 static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
 {
 	if (kd == NULL || kd->kd_magic != C2_NET_LNET_KCORE_DOM_MAGIC)
 		return false;
-	if (!nlx_core_kmem_loc_invariant(&kd->kd_cd_loc))
+	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc) &&
+	    !nlx_core_kmem_loc_invariant(&kd->kd_cd_loc))
 		return false;
 	return true;
 }
@@ -1007,14 +1026,17 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		NLXDBG(&nlx_debug, 1,
 		       nlx_kprint_lnet_event("nlx_kcore_eq_cb: filtered ACK",
 					     event));
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EPROTO);
+		/* Cannot do
+		  LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EPROTO);
+		  because that can allocate memory, block, etc.
+		*/
 		return;
 	}
 	kbp = event->md.user_ptr;
 	C2_ASSERT(nlx_kcore_buffer_invariant(kbp));
 	ktm = kbp->kb_ktm;
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
-	lctm = nlx_kcore_core_tm_map_atomic(&ktm->ktm_ctm_loc);
+	lctm = nlx_kcore_core_tm_map_atomic(ktm);
 
 	NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s U:%d S:%d T:%d buf:%lx\n",
 		lctm, event, nlx_kcore_lnet_event_type_to_string(event->type),
@@ -1025,7 +1047,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 
 	if (event->unlinked != 0) {
 		LNetInvalidateHandle(&kbp->kb_mdh); /* Invalid use, but safe */
-		kbp->kb_ktm = NULL;
+		/* kbp->kb_ktm = NULL set below */
 		is_unlinked = true;
 	}
 	status  = event->status;
@@ -1095,9 +1117,12 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	} else
 		C2_SET0(&bev->cbe_sender);
 
+	/* Reset in spinlock to synchronize with driver nlx_dev_tm_cleanup() */
+	if (is_unlinked)
+		kbp->kb_ktm = NULL;
 	bev_cqueue_put(&lctm->ctm_bevq, ql);
-	spin_unlock(&ktm->ktm_bevq_lock);
 	c2_semaphore_up(&ktm->ktm_sem);
+	spin_unlock(&ktm->ktm_bevq_lock);
 done:
 	nlx_kcore_core_tm_unmap_atomic(lctm);
 }
@@ -1133,6 +1158,9 @@ void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 /**
    Initializes the core private data given a previously initialized
    kernel core private data object.
+   @see nlx_kcore_kcore_dom_init()
+   @pre nlx_kcore_domain_invariant(kd) &&
+   !nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)
    @param kd Kernel core private data pointer.
    @param cd Core private data pointer.
  */
@@ -1141,6 +1169,7 @@ static int nlx_kcore_core_dom_init(struct nlx_kcore_domain *kd,
 {
 	C2_PRE(kd != NULL && cd != NULL);
 	C2_PRE(nlx_kcore_domain_invariant(kd));
+	C2_PRE(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
 	cd->cd_kpvt = kd;
 	return 0;
 }
@@ -1157,11 +1186,13 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 	rc = nlx_kcore_kcore_dom_init(kd);
 	if (rc != 0)
 		goto fail_free_kd;
+	nlx_core_kmem_loc_set(&kd->kd_cd_loc, virt_to_page(cd),
+			      NLX_PAGE_OFFSET((unsigned long) cd));
 	rc = nlx_kcore_core_dom_init(kd, cd);
-	if (rc != 0)
-		goto fail_dom_inited;
-	return rc;
-fail_dom_inited:
+	if (rc == 0)
+		return 0;
+
+	/* failed */
 	nlx_kcore_kcore_dom_fini(kd);
 fail_free_kd:
 	c2_free(kd);
@@ -1191,6 +1222,7 @@ void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	kd = cd->cd_kpvt;
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	nlx_kcore_core_dom_fini(kd, cd);
+	nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
 	nlx_kcore_kcore_dom_fini(kd);
 	c2_free(kd);
 }
@@ -1229,7 +1261,6 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 {
 	C2_PRE(nlx_kcore_domain_invariant(kd));
 	kb->kb_magic         = C2_NET_LNET_KCORE_BUF_MAGIC;
-	nlx_core_kmem_loc_set(&kb->kb_cb_loc, NULL, 0);
 	kb->kb_ktm           = NULL;
 	kb->kb_buffer_id     = buffer_id;
 	kb->kb_kiov          = NULL;
@@ -1246,7 +1277,7 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 	cb->cb_buffer_id     = buffer_id;
 	cb->cb_magic         = C2_NET_LNET_CORE_BUF_MAGIC;
 
-	C2_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
+	C2_POST(nlx_kcore_buffer_invariant(kb));
 	return 0;
 }
 
@@ -1283,6 +1314,8 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
 	if (kb == NULL)
 		return -ENOMEM;
+	nlx_core_kmem_loc_set(&kb->kb_cb_loc, virt_to_page(cb),
+			      NLX_PAGE_OFFSET((unsigned long) cb));
 	rc = nlx_kcore_buf_register(kd, buffer_id, cb, kb);
 	if (rc != 0)
 		goto fail_free_kb;
@@ -1946,15 +1979,14 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 		goto fail_ktm;
 	}
 
+	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
+			      NLX_PAGE_OFFSET((unsigned long) ctm));
 	rc = nlx_kcore_tm_start(kd, ctm, ktm);
 	if (rc != 0)
 		goto fail_ktm;
 
 	ctm->ctm_upvt = NULL;
 	ctm->ctm_user_space_xo = false;
-	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, virt_to_page(ctm),
-			      PAGE_OFFSET((unsigned long) ctm));
-
 	nlx_core_new_blessed_bev(cd, ctm, &e1);
 	nlx_core_new_blessed_bev(cd, ctm, &e2);
 	if (e1 == NULL || e2 == NULL) {
@@ -2042,8 +2074,7 @@ static int nlx_core_init(void)
 	return rc;
 }
 
-/** @todo make static */
-struct nlx_kcore_ops nlx_kcore_def_ops = {
+static struct nlx_kcore_ops nlx_kcore_def_ops = {
 	.ko_dom_init = nlx_kcore_core_dom_init,
 	.ko_dom_fini = nlx_kcore_core_dom_fini,
 	.ko_buf_register = nlx_kcore_buf_register,
@@ -2062,6 +2093,11 @@ struct nlx_kcore_ops nlx_kcore_def_ops = {
 
 /**
    Initializes the kernel core domain private data object.
+   The nlx_kcore_domain::kd_cd_loc is empty on return, denoting the initial
+   state of the domain.  The caller must set this field before calling
+   nlx_kcore_core_dom_init().
+   @see nlx_kcore_core_dom_init()
+   @post nlx_kcore_domain_invariant(kd)
    @param kd kernel core private data pointer for the domain to be initialized.
  */
 static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd)

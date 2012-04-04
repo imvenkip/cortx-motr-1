@@ -30,6 +30,9 @@
 #define LNET_ADDB_FUNCFAIL_ADD(ctx, rc)					\
 	C2_ADDB_ADD(&(ctx), &nlx_addb_loc, nlx_func_fail, __func__, (rc))
 
+#define NLX_ADDB_ADD(ctx, ev, ...)					\
+	C2_ADDB_ADD(&(ctx), &nlx_addb_loc, ev , ## __VA_ARGS__)
+
 #define LNET_ADDB_STAT_ADD(ctx, ...)					\
 ({									\
 	struct nlx_addb_dp __dp = {					\
@@ -96,7 +99,7 @@ static uint32_t nlx_core_kmem_loc_checksum(const struct nlx_core_kmem_loc *loc);
 static inline bool nlx_core_kmem_loc_invariant(
 					   const struct nlx_core_kmem_loc *loc)
 {
-	return loc != NULL &&
+	return loc != NULL && loc->kl_page != NULL &&
 		loc->kl_checksum == nlx_core_kmem_loc_checksum(loc);
 }
 

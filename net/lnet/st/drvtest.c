@@ -27,6 +27,7 @@
 #include "colibri/init.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/misc.h" /* C2_SET0 */
 
 #define C2_LNET_DRV_TEST
 #include "net/lnet/lnet_core.h"
@@ -34,25 +35,52 @@
 
 const char lnet_xprt_dev[] = "/dev/" C2_LNET_DEV;
 
+/** @todo hack */
+void *nlx_core_mem_alloc(size_t size, unsigned shift)
+{
+	return c2_alloc_aligned(size, shift);
+}
+
+/** @todo hack */
+void nlx_core_mem_free(void *data, size_t size, unsigned shift)
+{
+	c2_free_aligned(data, size, shift);
+}
+
+/** @todo hack */
+void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
+{
+	lcdom->_debug_ = dbg;
+}
+
+/** @todo hack */
+void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm, unsigned dbg)
+{
+	lctm->_debug_ = dbg;
+}
+
 int main(int argc, char *argv[])
 {
 	int f;
 	int rc;
-	unsigned int val;
+	struct nlx_core_domain *dom;
 	struct nlx_core_transfer_mc *tm;
-	struct prototype_mem_area ma = {
-		.nm_size = sizeof *tm,
-	};
+	struct c2_lnet_dev_dom_init_params p;
 
 	rc = c2_init();
 	C2_ASSERT(rc == 0);
 
-	C2_ALLOC_PTR(tm);
+	C2_SET0(&p);
+	NLX_ALLOC_PTR(dom);
+	C2_ASSERT(dom != NULL);
+	NLX_ALLOC_PTR(tm);
 	C2_ASSERT(tm != NULL);
 	tm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
 	tm->ctm_user_space_xo = true;
 	tm->_debug_ = 15;
-	ma.nm_user_addr = (unsigned long) tm;
+	nlx_core_tm_set_debug(tm, 0);
+	p.ddi_cd = dom;
+	nlx_core_dom_set_debug(dom, 0);
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
 	if (f < 0) {
@@ -60,23 +88,15 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	rc = ioctl(f, PROTOMAP, &ma);
+	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
 	C2_ASSERT(rc == 0);
-	val = 0;
-	rc = ioctl(f, PROTOREAD, &val);
-	C2_ASSERT(rc == 0);
-	printf("initial value is %d\n", val);
-	printf("initial _debug_ is %d\n", tm->_debug_);
-	val++;
-	rc = ioctl(f, PROTOWRITE, &val);
-	C2_ASSERT(rc == 0);
-	val = 0;
-	printf("final _debug_ is %d\n", tm->_debug_);
-	rc = ioctl(f, PROTOREAD, &val);
-	C2_ASSERT(rc == 0);
-	printf("final value is %d\n", val);
-	rc = ioctl(f, PROTOUNMAP, &ma);
-	C2_ASSERT(rc == 0);
+	printf("max values are: bufsize=%ld segsize=%ld segs=%d\n",
+	       p.ddi_max_buffer_size,
+	       p.ddi_max_buffer_segment_size, p.ddi_max_buffer_segments);
+
+	close(f);
+	NLX_FREE_PTR(tm);
+	NLX_FREE_PTR(dom);
 
 	c2_fini();
 	return 0;

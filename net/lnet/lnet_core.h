@@ -915,6 +915,7 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
 static int nlx_core_new_blessed_bev(struct nlx_core_domain *lcdom,
 				    struct nlx_core_transfer_mc *lctm,
 				    struct nlx_core_buffer_event **bevp);
+#endif /* C2_LNET_DRV_TEST */
 
 /**
    Allocate zero-filled memory, like c2_alloc().
@@ -934,7 +935,6 @@ static void nlx_core_mem_free(void *data, size_t size, unsigned shift);
 static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
 static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 				  unsigned dbg);
-#endif /* C2_LNET_DRV_TEST */
 
 /**
    Round up a number n to the next power of 2, min 1<<3, works for n <= 1<<9.
