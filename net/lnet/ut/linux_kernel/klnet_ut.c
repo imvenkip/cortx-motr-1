@@ -25,48 +25,52 @@
  * file.
  */
 
+#include "net/lnet/ut/lnet_ut.h"
+
 enum {
-	UT_PROC_WRITE_SIZE = 128, /**< max size of data to write to proc file */
-
-	UT_TEST_NONE = 0,	  /**< no test requested, user program idles */
-	UT_TEST_MOCK = 1,	  /**< a mock test */
-
-	UT_USER_READY = 1,	  /**< user program ready to start testing */
-	UT_USER_DONE = 2,	  /**< user program done testing */
+	UT_PROC_WRITE_SIZE = 8,   /**< max size of data to write to proc file */
+	UT_SYNC_DELAY_SEC = 5,    /**< delay for user program to sync */
 };
 
 #define UT_PROC_NAME "c2_lnet_ut"
 static struct proc_dir_entry *proc_lnet_ut;
 
-/** identifier of test to run in user/kernel space */
-static struct c2_atomic64 ktest_id;
+static struct c2_mutex ktest_mutex;
+static struct c2_cond ktest_cond;
+static struct c2_semaphore ktest_sem;
+static int ktest_id;
+static bool ktest_user_failed;
+static bool ktest_done;
 
 static int read_lnet_ut(char *page, char **start, off_t off,
 			int count, int *eof, void *data)
 {
-	int ret;
+	c2_semaphore_down(&ktest_sem);
 
 	/* page[PAGE_SIZE] and simpleminded proc file */
-	ret = sprintf(page, "%lld\n", c2_atomic64_get(&ktest_id));
-	*eof = 1;
-	return ret;
+	c2_mutex_lock(&ktest_mutex);
+	if (ktest_user_failed)
+		*page = UT_TEST_DONE;
+	else
+		*page = ktest_id;
+	/* main thread will wait for user to read 1 DONE value */
+	if (*page == UT_TEST_DONE) {
+		ktest_done = true;
+		*eof = 1;
+		c2_cond_signal(&ktest_cond, &ktest_mutex);
+	}
+	c2_mutex_unlock(&ktest_mutex);
+	return 1;
 }
 
 /**
-   Simple-minded prototype for synchronizing a user space program used to drive
-   tests in the kernel lnet UT.  A real mechanism must include real tests and
-   time out if the user space program stops responding or never starts.  Time
-   outs are needed to allow the kernel module to unload cleanly even if there
-   are defects in the user space program.  In this prototype, only the ability
-   to synchronize is included.  The kernel UT does not do anything with
-   ktest_id at present, so it needs no timeout.
+   Synchronize with user space program, updates ktest_id and signals main UT
+   thread about each transition.
  */
 static int write_lnet_ut(struct file *file, const char __user *buffer,
 			 unsigned long count, void *data)
 {
 	char buf[UT_PROC_WRITE_SIZE];
-	char *endp;
-	long i;
 
 	if (count >= UT_PROC_WRITE_SIZE) {
 		printk("%s: writing wrong size %ld to proc file, max %d\n",
@@ -75,42 +79,64 @@ static int write_lnet_ut(struct file *file, const char __user *buffer,
 	}
 	if (copy_from_user(buf, buffer, count))
 		return -EFAULT;
-	buf[count] = 0;
-	printk("%s: user wrote to file count=%ld: %s\n", __func__, count, buf);
-	i = simple_strtol(buf, &endp, 10);
-	if (*endp > ' ') {
-		printk("%s: expected a numeric value\n", __func__);
-		return -EINVAL;
-	}
-	switch (i) {
+	c2_mutex_lock(&ktest_mutex);
+	switch (*buf) {
 	case UT_USER_READY:
-		c2_atomic64_set(&ktest_id, UT_TEST_MOCK);
+		if (ktest_id != UT_TEST_NONE) {
+			ktest_user_failed = true;
+			count = -EINVAL;
+		} else
+			ktest_id = UT_TEST_DONE; /** @todo UT_TEST_DEV */
 		break;
-	case UT_USER_DONE:
-		c2_atomic64_set(&ktest_id, UT_TEST_NONE);
+	case UT_USER_SUCCESS:
+		/* test passed */
+		if (ktest_id == UT_TEST_NONE) {
+			ktest_user_failed = true;
+			count = -EINVAL;
+		} else if (ktest_id == UT_TEST_MAX)
+			ktest_id = UT_TEST_DONE;
+		else
+			++ktest_id;
+		break;
+	case UT_USER_FAIL:
+		/* test failed */
+		if (ktest_id == UT_TEST_NONE)
+			count = -EINVAL;
+		ktest_user_failed = true;
 		break;
 	default:
-		printk("%s: unknown user test state: %ld\n", __func__, i);
-		return -EINVAL;
+		printk("%s: unknown user test state: %02x\n", __func__, *buf);
+		count = -EINVAL;
 	}
+	c2_cond_signal(&ktest_cond, &ktest_mutex);
+	c2_mutex_unlock(&ktest_mutex);
 	return count;
 }
 
 static int ktest_lnet_init(void)
 {
-	c2_atomic64_set(&ktest_id, UT_TEST_NONE);
 	proc_lnet_ut = create_proc_entry(UT_PROC_NAME, 0644, NULL);
-	if (proc_lnet_ut != NULL) {
-		proc_lnet_ut->read_proc  = read_lnet_ut;
-		proc_lnet_ut->write_proc = write_lnet_ut;
-	}
+	if (proc_lnet_ut == NULL)
+		return -ENOENT;
+
+	c2_mutex_init(&ktest_mutex);
+	c2_cond_init(&ktest_cond);
+	c2_semaphore_init(&ktest_sem, 0);
+	ktest_id = UT_TEST_NONE;
+	ktest_user_failed = false;
+	proc_lnet_ut->read_proc  = read_lnet_ut;
+	proc_lnet_ut->write_proc = write_lnet_ut;
 	return 0;
 }
 
 static void ktest_lnet_fini(void)
 {
-	if (proc_lnet_ut != NULL)
-		remove_proc_entry(UT_PROC_NAME, NULL);
+	C2_ASSERT(proc_lnet_ut != NULL);
+	remove_proc_entry(UT_PROC_NAME, NULL);
+	c2_semaphore_fini(&ktest_sem);
+	c2_cond_fini(&ktest_cond);
+	c2_mutex_fini(&ktest_mutex);
+	proc_lnet_ut = NULL;
 }
 
 static bool ut_bufvec_alloc(struct c2_bufvec *bv, size_t n)
@@ -1084,7 +1110,8 @@ static void ktest_msg_body(struct ut_data *td)
 	c2_net_lnet_tm_set_debug(TM1, 0);
 }
 
-static void ktest_msg(void) {
+static void ktest_msg(void)
+{
 	ut_save_subs();
 
 	/* intercept these before the TM starts */
@@ -1892,7 +1919,8 @@ static void ktest_bulk_body(struct ut_data *td)
 	return;
 }
 
-static void ktest_bulk(void) {
+static void ktest_bulk(void)
+{
 	ut_save_subs();
 
 	/* intercept these before the TM starts */
@@ -1908,6 +1936,38 @@ static void ktest_bulk(void) {
 
 #undef UT_BUFVEC_FREE
 #undef UT_BUFVEC_ALLOC
+
+static void ktest_dev(void)
+{
+	bool ok;
+	c2_time_t to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);
+
+	/* initial handshake */
+	c2_mutex_lock(&ktest_mutex);
+	if (ktest_id == UT_TEST_NONE)
+		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);
+	else
+		ok = true;
+	C2_UT_ASSERT(!ktest_user_failed);
+	c2_mutex_unlock(&ktest_mutex);
+
+	C2_UT_ASSERT(ok);
+	if (!ok)
+		return;
+
+	/** @todo insert logic for the actual UT here */
+
+	/* final handshake before proc file is deregistered */
+	c2_semaphore_up(&ktest_sem);
+	to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);
+	c2_mutex_lock(&ktest_mutex);
+	while (ktest_id != UT_TEST_DONE && !ktest_user_failed && ok)
+		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);
+	c2_mutex_unlock(&ktest_mutex);
+	C2_UT_ASSERT(ok);
+	C2_UT_ASSERT(!ktest_user_failed);
+	C2_UT_ASSERT(ktest_id == UT_TEST_DONE);
+}
 
 /*
  *  Local variables:

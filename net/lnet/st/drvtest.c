@@ -29,7 +29,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 
-#define C2_LNET_DRV_TEST
+#define NLX_SCOPE
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_ioctl.h"
 
@@ -45,18 +45,6 @@ void *nlx_core_mem_alloc(size_t size, unsigned shift)
 void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 {
 	c2_free_aligned(data, size, shift);
-}
-
-/** @todo hack */
-void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
-{
-	lcdom->_debug_ = dbg;
-}
-
-/** @todo hack */
-void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm, unsigned dbg)
-{
-	lctm->_debug_ = dbg;
 }
 
 int main(int argc, char *argv[])
@@ -78,9 +66,7 @@ int main(int argc, char *argv[])
 	tm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
 	tm->ctm_user_space_xo = true;
 	tm->_debug_ = 15;
-	nlx_core_tm_set_debug(tm, 0);
 	p.ddi_cd = dom;
-	nlx_core_dom_set_debug(dom, 0);
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
 	if (f < 0) {

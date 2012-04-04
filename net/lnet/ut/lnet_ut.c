@@ -2145,6 +2145,9 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_bulk",          test_bulk },
 		{ "net_lnet_sync",          test_sync },
 		{ "net_lnet_timeout",       test_timeout },
+#ifdef __KERNEL__
+		{ "net_lnet_device",        ktest_dev },
+#endif
                 { NULL, NULL }
         }
 };

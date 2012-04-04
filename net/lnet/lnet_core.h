@@ -180,6 +180,10 @@ struct page;
    @{
  */
 
+#ifndef NLX_SCOPE
+#define NLX_SCOPE static
+#endif
+
 /**
    Opaque type wide enough to represent an address in any address space.
  */
@@ -467,8 +471,6 @@ struct nlx_core_buffer {
 	void                   *cb_kpvt; /**< Core kernel space private */
 };
 
-/** @todo either formalize this ifndef added for the prototype or remove it */
-#ifndef C2_LNET_DRV_TEST
 /**
    The LNet transport's Network Buffer Descriptor format.
    The external form is the opaque c2_net_buf_desc.
@@ -502,29 +504,31 @@ struct nlx_core_buf_desc {
    @param dom The network domain pointer.
    @param lcdom The private data pointer for the domain to be initialized.
  */
-static int nlx_core_dom_init(struct c2_net_domain *dom,
-			     struct nlx_core_domain *lcdom);
+NLX_SCOPE int nlx_core_dom_init(struct c2_net_domain *dom,
+				struct nlx_core_domain *lcdom);
 
 /**
    Releases LNet transport resources related to the domain.
  */
-static void nlx_core_dom_fini(struct nlx_core_domain *lcdom);
+NLX_SCOPE void nlx_core_dom_fini(struct nlx_core_domain *lcdom);
 
 /**
    Gets the maximum buffer size (counting all segments).
  */
-static c2_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *lcdom);
+NLX_SCOPE c2_bcount_t nlx_core_get_max_buffer_size(
+						struct nlx_core_domain *lcdom);
 
 /**
    Gets the maximum size of a buffer segment.
  */
-static c2_bcount_t nlx_core_get_max_buffer_segment_size(struct
-							nlx_core_domain *lcdom);
+NLX_SCOPE c2_bcount_t nlx_core_get_max_buffer_segment_size(
+						struct nlx_core_domain *lcdom);
 
 /**
    Gets the maximum number of buffer segments.
  */
-static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
+NLX_SCOPE int32_t nlx_core_get_max_buffer_segments(
+						struct nlx_core_domain *lcdom);
 
 /**
    Registers a network buffer.  In user space this results in the buffer memory
@@ -535,18 +539,18 @@ static int32_t nlx_core_get_max_buffer_segments(struct nlx_core_domain *lcdom);
    @param bvec Buffer vector with core address space pointers.
    @param lcbuf The core private data pointer for the buffer.
  */
-static int nlx_core_buf_register(struct nlx_core_domain *lcdom,
-				 nlx_core_opaque_ptr_t buffer_id,
-				 const struct c2_bufvec *bvec,
-				 struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_register(struct nlx_core_domain *lcdom,
+				    nlx_core_opaque_ptr_t buffer_id,
+				    const struct c2_bufvec *bvec,
+				    struct nlx_core_buffer *lcbuf);
 
 /**
    Deregisters the buffer.
    @param lcdom The domain private data.
    @param lcbuf The buffer private data.
  */
-static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
-				    struct nlx_core_buffer *lcbuf);
+NLX_SCOPE void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
+				       struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueues a buffer for message reception. Multiple messages may be received
@@ -567,9 +571,9 @@ static void nlx_core_buf_deregister(struct nlx_core_domain *lcdom,
    @pre lcbuf->cb_max_operations > 0
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_msg_recv(struct nlx_core_domain *lcdom,
-				 struct nlx_core_transfer_mc *lctm,
-				 struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_msg_recv(struct nlx_core_domain *lcdom,
+				    struct nlx_core_transfer_mc *lctm,
+				    struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueues a buffer for message transmission.
@@ -589,9 +593,9 @@ static int nlx_core_buf_msg_recv(struct nlx_core_domain *lcdom,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_msg_send(struct nlx_core_domain *lcdom,
-				 struct nlx_core_transfer_mc *lctm,
-				 struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_msg_send(struct nlx_core_domain *lcdom,
+				    struct nlx_core_transfer_mc *lctm,
+				    struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueues a buffer for active bulk receive.
@@ -617,9 +621,9 @@ static int nlx_core_buf_msg_send(struct nlx_core_domain *lcdom,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_active_recv(struct nlx_core_domain *lcdom,
-				    struct nlx_core_transfer_mc *lctm,
-				    struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_active_recv(struct nlx_core_domain *lcdom,
+				       struct nlx_core_transfer_mc *lctm,
+				       struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueues a buffer for active bulk send.
@@ -642,9 +646,9 @@ static int nlx_core_buf_active_recv(struct nlx_core_domain *lcdom,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_active_send(struct nlx_core_domain *lcdom,
-				    struct nlx_core_transfer_mc *lctm,
-				    struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_active_send(struct nlx_core_domain *lcdom,
+				       struct nlx_core_transfer_mc *lctm,
+				       struct nlx_core_buffer *lcbuf);
 
 /**
    This subroutine generates new match bits for the given buffer's
@@ -663,9 +667,9 @@ static int nlx_core_buf_active_send(struct nlx_core_domain *lcdom,
    passive bulk queues.
    @see nlx_core_buf_desc_decode()
  */
-static void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
-				     struct nlx_core_buffer *lcbuf,
-				     struct nlx_core_buf_desc *cbd);
+NLX_SCOPE void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
+					struct nlx_core_buffer *lcbuf,
+					struct nlx_core_buf_desc *cbd);
 
 /**
    This subroutine decodes the buffer descriptor and copies the values into the
@@ -691,9 +695,9 @@ static void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
    active bulk queues.
    @see nlx_core_buf_desc_encode()
  */
-static int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
-				    struct nlx_core_buffer *lcbuf,
-				    struct nlx_core_buf_desc *cbd);
+NLX_SCOPE int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
+				       struct nlx_core_buffer *lcbuf,
+				       struct nlx_core_buf_desc *cbd);
 
 /**
    Enqueues a buffer for passive bulk receive.
@@ -718,9 +722,9 @@ static int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_passive_recv(struct nlx_core_domain *lcdom,
-				     struct nlx_core_transfer_mc *lctm,
-				     struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_passive_recv(struct nlx_core_domain *lcdom,
+					struct nlx_core_transfer_mc *lctm,
+					struct nlx_core_buffer *lcbuf);
 
 /**
    Enqueues a buffer for passive bulk send.
@@ -744,9 +748,9 @@ static int nlx_core_buf_passive_recv(struct nlx_core_domain *lcdom,
    @pre lcbuf->cb_max_operations == 1
    @see nlx_core_bevq_provision()
  */
-static int nlx_core_buf_passive_send(struct nlx_core_domain *lcdom,
-				     struct nlx_core_transfer_mc *lctm,
-				     struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_passive_send(struct nlx_core_domain *lcdom,
+					struct nlx_core_transfer_mc *lctm,
+					struct nlx_core_buffer *lcbuf);
 
 /**
    Cancels a buffer operation if possible.
@@ -755,9 +759,9 @@ static int nlx_core_buf_passive_send(struct nlx_core_domain *lcdom,
    @param lcbuf Buffer private data.
    @pre The buffer is queued on the specified transfer machine.
  */
-static int nlx_core_buf_del(struct nlx_core_domain *lcdom,
-			    struct nlx_core_transfer_mc *lctm,
-			    struct nlx_core_buffer *lcbuf);
+NLX_SCOPE int nlx_core_buf_del(struct nlx_core_domain *lcdom,
+			       struct nlx_core_transfer_mc *lctm,
+			       struct nlx_core_buffer *lcbuf);
 
 /**
    Waits for buffer events, or the timeout.
@@ -768,9 +772,9 @@ static int nlx_core_buf_del(struct nlx_core_domain *lcdom,
    @retval 0 Events present.
    @retval -ETIMEDOUT Timed out before events arrived.
  */
-static int nlx_core_buf_event_wait(struct nlx_core_domain *lcdom,
-				   struct nlx_core_transfer_mc *lctm,
-				   c2_time_t timeout);
+NLX_SCOPE int nlx_core_buf_event_wait(struct nlx_core_domain *lcdom,
+				      struct nlx_core_transfer_mc *lctm,
+				      c2_time_t timeout);
 
 /**
    Fetches the next event from the circular buffer event queue.
@@ -785,40 +789,40 @@ static int nlx_core_buf_event_wait(struct nlx_core_domain *lcdom,
    @retval false No events on the queue.
    @see nlx_core_bevq_provision()
  */
-static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
-				   struct nlx_core_buffer_event *lcbe);
+NLX_SCOPE bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
+				      struct nlx_core_buffer_event *lcbe);
 
 /**
    Parses an end point address string and convert to internal form.
    A "*" value for the transfer machine identifier results in a value of
    C2_NET_LNET_TMID_INVALID being set.
  */
-static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
-				   const char *ep_addr,
-				   struct nlx_core_ep_addr *cepa);
+NLX_SCOPE int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
+				      const char *ep_addr,
+				      struct nlx_core_ep_addr *cepa);
 
 /**
    Constructs the external address string from its internal form.
    A value of C2_NET_LNET_TMID_INVALID for the cepa_tmid field results in
    a "*" being set for that field.
  */
-static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
-				    const struct nlx_core_ep_addr *cepa,
-				    char buf[C2_NET_LNET_XEP_ADDR_LEN]);
+NLX_SCOPE void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
+				       const struct nlx_core_ep_addr *cepa,
+				       char buf[C2_NET_LNET_XEP_ADDR_LEN]);
 
 /**
    Gets a list of strings corresponding to the local LNET network interfaces.
    The returned array must be released using nlx_core_nidstrs_put().
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
-static int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,
-				char * const **nidary);
+NLX_SCOPE int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,
+				   char * const **nidary);
 
 /**
    Releases the string array returned by nlx_core_nidstrs_get().
  */
-static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
-				 char * const **nidary);
+NLX_SCOPE void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
+				    char * const **nidary);
 
 /**
    Starts a transfer machine. Internally this results in
@@ -834,9 +838,9 @@ static void nlx_core_nidstrs_put(struct nlx_core_domain *lcdom,
    @note This function does not create a c2_net_end_point for the transfer
    machine, because there is no equivalent object at the core layer.
  */
-static int nlx_core_tm_start(struct nlx_core_domain *lcdom,
-			     struct c2_net_transfer_mc *tm,
-			     struct nlx_core_transfer_mc *lctm);
+NLX_SCOPE int nlx_core_tm_start(struct nlx_core_domain *lcdom,
+				struct c2_net_transfer_mc *tm,
+				struct nlx_core_transfer_mc *lctm);
 
 /**
    Stops the transfer machine and release associated resources.  All operations
@@ -845,8 +849,8 @@ static int nlx_core_tm_start(struct nlx_core_domain *lcdom,
    @param lctm The transfer machine private data.
    @note There is no equivalent of the xo_tm_fini() subroutine.
  */
-static void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
-			     struct nlx_core_transfer_mc *lctm);
+NLX_SCOPE void nlx_core_tm_stop(struct nlx_core_domain *lcdom,
+				struct nlx_core_transfer_mc *lctm);
 
 /**
    Compare two struct nlx_core_ep_addr objects.
@@ -878,9 +882,9 @@ static inline bool nlx_core_ep_eq(const struct nlx_core_ep_addr *cep1,
    @param need Number of additional buffer entries required.
    @see nlx_core_new_blessed_bev(), nlx_core_bevq_release()
  */
-static int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
-				   struct nlx_core_transfer_mc *lctm,
-				   size_t need);
+NLX_SCOPE int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
+				      struct nlx_core_transfer_mc *lctm,
+				      size_t need);
 
 /**
    Subroutine to reduce the needed capacity of the buffer event queue.
@@ -894,8 +898,8 @@ static int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
    @param release Number of buffer entries released.
    @see nlx_core_bevq_provision()
  */
-static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
-				  size_t release);
+NLX_SCOPE void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
+				     size_t release);
 
 /**
    Subroutine to allocate a new buffer event structure initialized
@@ -912,10 +916,9 @@ static void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
    @post bev_cqueue_bless(&bevp->cbe_tm_link) has been invoked.
    @see bev_cqueue_bless()
  */
-static int nlx_core_new_blessed_bev(struct nlx_core_domain *lcdom,
-				    struct nlx_core_transfer_mc *lctm,
-				    struct nlx_core_buffer_event **bevp);
-#endif /* C2_LNET_DRV_TEST */
+NLX_SCOPE int nlx_core_new_blessed_bev(struct nlx_core_domain *lcdom,
+				       struct nlx_core_transfer_mc *lctm,
+				       struct nlx_core_buffer_event **bevp);
 
 /**
    Allocate zero-filled memory, like c2_alloc().
@@ -925,16 +928,17 @@ static int nlx_core_new_blessed_bev(struct nlx_core_domain *lcdom,
    @param shift Alignment, ignored in kernel space.
    @pre size <= PAGE_SIZE
  */
-static void *nlx_core_mem_alloc(size_t size, unsigned shift);
+NLX_SCOPE void *nlx_core_mem_alloc(size_t size, unsigned shift);
 
 /**
    Frees memory allocated by nlx_core_mem_alloc().
  */
-static void nlx_core_mem_free(void *data, size_t size, unsigned shift);
+NLX_SCOPE void nlx_core_mem_free(void *data, size_t size, unsigned shift);
 
-static void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg);
-static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
-				  unsigned dbg);
+NLX_SCOPE void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom,
+				      unsigned dbg);
+NLX_SCOPE void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
+				     unsigned dbg);
 
 /**
    Round up a number n to the next power of 2, min 1<<3, works for n <= 1<<9.
