@@ -598,7 +598,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
 	/*
          * To test this case there is a need to invalidate stobio descriptor,
-         * since io_fom_cob_rw_io_finish() removes the stobio descriptor
+         * since io_finish() removes the stobio descriptor
          * from list.
          * There is only one stobio descriptor.
          * Before returning error this phase will do following phases :
@@ -911,7 +911,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          */
         /*
          * To test this case there is a need to invalidate stobio descriptor,
-         * since io_fom_cob_rw_io_finish() remove stobio descriptor
+         * since io_finish() remove stobio descriptor
          * from list.
          * There is only one stobio descriptor.
          * Before returning error this phase will do following phases :
