@@ -247,7 +247,7 @@ static int list_register(struct c2_ldb_schema *schema,
 
 	C2_PRE(schema != NULL);
 	C2_PRE(et != NULL);
-	C2_PRE(IS_IN_ARRAY(et->let_id, schema->ls_enum));
+	C2_PRE(IS_IN_ARRAY(et->let_id, schema->ls_domain->ld_enum));
 	C2_PRE(schema->ls_type_data[et->let_id] == NULL);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
@@ -344,10 +344,9 @@ static c2_bcount_t list_recsize(struct c2_layout_enum *e, uint64_t lid)
 			LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 }
 
-static int ldb_cob_list_read(struct c2_ldb_schema *schema,
-			     enum c2_layout_xcode_op op, uint64_t lid,
+static int ldb_cob_list_read(enum c2_layout_xcode_op op, uint64_t lid,
 			     uint32_t idx, struct c2_fid *cob_id,
-			     struct c2_db_tx *tx)
+			     struct c2_ldb_schema *schema, struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
@@ -356,6 +355,7 @@ static int ldb_cob_list_read(struct c2_ldb_schema *schema,
 	int                       rc = 0;
 
 	C2_PRE(op == C2_LXO_DB_LOOKUP);
+	C2_PRE(schema != NULL);
 
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 
@@ -395,10 +395,10 @@ out:
  * If it is NONE, then the layout is decoded from its representation received
  * over the network.
  */
-static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
+static int list_decode(uint64_t lid,
 		       struct c2_bufvec_cursor *cur,
 		       enum c2_layout_xcode_op op,
-		       struct c2_db_tx *tx,
+		       struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 		       struct c2_layout_enum **out)
 {
 	struct c2_layout_list_enum    *list_enum = NULL;
@@ -409,12 +409,11 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 	uint32_t                       i;
 	int                            rc;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ldb_ce_header);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, schema != NULL && tx != NULL));
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
@@ -456,9 +455,9 @@ static int list_decode(struct c2_ldb_schema *schema, uint64_t lid,
 			if (i == num_inline)
 				C2_LOG("list_decode(): Start reading from "
 				       "cob_lists table.");
-
-			rc = ldb_cob_list_read(schema, op, lid, i,
-					       &cob_list[i], tx);
+			C2_ASSERT(op == C2_LXO_BUFFER_OP);
+			rc = ldb_cob_list_read(op, lid, i, &cob_list[i],
+					       schema, tx);
 			if (rc != 0) {
 				C2_LOG("list_decode(): lid %llu, "
 				       "ldb_cob_list_read() failed, rc %d",
@@ -489,10 +488,9 @@ out:
 }
 
 /* todo this fn should accept lid instead of l ? */
-int ldb_cob_list_write(struct c2_ldb_schema *schema,
-		       enum c2_layout_xcode_op op, struct c2_layout *l,
+int ldb_cob_list_write(enum c2_layout_xcode_op op, struct c2_layout *l,
 		       uint32_t idx, struct c2_fid *cob_id,
-		       struct c2_db_tx *tx)
+		       struct c2_ldb_schema *schema, struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
@@ -500,10 +498,10 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
 	struct c2_db_pair         pair;
 	int                       rc;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
 	C2_PRE(l != NULL);
 	C2_PRE(cob_id != NULL);
+	C2_PRE(schema != NULL);
 	C2_PRE(tx != NULL);
 
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
@@ -554,10 +552,9 @@ int ldb_cob_list_write(struct c2_ldb_schema *schema,
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is converted into the
  * buffer.
  */
-static int list_encode(struct c2_ldb_schema *schema,
-		       struct c2_layout *l,
+static int list_encode(struct c2_layout *l,
 		       enum c2_layout_xcode_op op,
-		       struct c2_db_tx *tx,
+		       struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *oldrec_cur,
 		       struct c2_bufvec_cursor *out)
 {
@@ -571,11 +568,10 @@ static int list_encode(struct c2_ldb_schema *schema,
 	uint32_t                       i;
 	int                            rc = 0;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ldb_ce_header);
@@ -663,9 +659,9 @@ static int list_encode(struct c2_ldb_schema *schema,
 				       " to the cob_lists table.",
 				       (unsigned long long)l->l_id);
 
-			rc = ldb_cob_list_write(schema, op, l, i,
+			rc = ldb_cob_list_write(op, l, i,
 						&list_enum->lle_list_of_cobs[i],
-						tx);
+						schema, tx);
 			if (rc != 0) {
 				C2_LOG("list_encode(): lid %llu, "
 				       "ldb_cob_list_write() failed, rc %d",

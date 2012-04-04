@@ -269,6 +269,7 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		     uint32_t N, uint32_t K, uint64_t unitsize,
 		     const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
+		     struct c2_layout_domain *dom,
 		     struct c2_pdclust_layout **out);
 
 extern const struct c2_layout_type c2_pdclust_layout_type;

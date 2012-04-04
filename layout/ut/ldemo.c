@@ -30,6 +30,7 @@
 
 #include "pool/pool.h"
 #include "layout/layout.h"
+#include "layout/layout_db.h"
 #include "layout/pdclust.h"
 #include "layout/linear_enum.h" /* c2_linear_enum_build() */
 
@@ -161,6 +162,40 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	}
 }
 
+/*
+ * Creates dummy schema, domain, registers pdclust layout type and linear
+ * enum type and creates dummy enum object.
+ * These objects are called as dummy since they are not used by this ldemo
+ * test.
+ */
+static int dummy_create(struct c2_layout_domain *domain,
+			struct c2_dbenv *dbenv,
+			struct c2_ldb_schema *schema,
+			uint64_t lid, uint32_t pool_width,
+			struct c2_layout_linear_enum **lin_enum)
+{
+	int rc;
+
+	rc = c2_layout_domain_init(domain);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_dbenv_init(dbenv, "ldemo-db", 0);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_ldb_schema_init(schema, domain, dbenv);
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(schema->ls_domain == domain);
+
+	c2_ldb_type_register(schema, &c2_pdclust_layout_type);
+	c2_ldb_enum_register(schema, &c2_linear_enum_type);
+
+	rc = c2_linear_enum_build(lid, pool_width, 100, 200, lin_enum);
+	C2_ASSERT(rc == 0);
+
+
+	return rc;
+}
+
 int main(int argc, char **argv)
 {
 	uint32_t N;
@@ -170,11 +205,14 @@ int main(int argc, char **argv)
 	int      I;
 	int      result;
 	uint64_t unitsize = 4096;
-	struct c2_pdclust_layout     *play;
-	struct c2_pool                pool;
-	uint64_t                      id;
-	struct c2_uint128             seed;
-	struct c2_layout_linear_enum *le;
+	struct c2_pdclust_layout      *play = NULL;
+	struct c2_pool                 pool;
+	uint64_t                       id;
+	struct c2_uint128              seed;
+	struct c2_layout_domain        domain;
+	struct c2_dbenv                dbenv;
+	struct c2_ldb_schema           schema;
+	struct c2_layout_linear_enum  *le = NULL;
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -213,18 +251,20 @@ int main(int argc, char **argv)
 	result = c2_pool_init(&pool, DEF_POOL_ID, P);
 	if (result == 0) {
 		/**
-		 * Creating a dummy linear enum object here so as to supply it
-		 * to c2_pdclust_build(), though it is not used here.
+		 * Creating a dummy domain object here so as to supply it
+		 * to c2_pdclust_build(), though it is not used in this test.
 		 */
-		result = c2_linear_enum_build(id, pool.po_width, 100, 200, &le);
+		result = dummy_create(&domain, &dbenv, &schema,
+				      id, pool.po_width, &le);
 		if (result == 0) {
 			result = c2_pdclust_build(&pool, id, N, K, unitsize,
 						  &seed, &le->lle_base,
-						  &play);
+						  &domain, &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);
 			c2_pool_fini(&pool);
 		}
+
 	}
 
 	c2_fini();

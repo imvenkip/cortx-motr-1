@@ -126,7 +126,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	if (pd_layout != NULL) {
 		c2_pool_fini(pd_layout->pl_pool);
 		c2_free(pd_layout->pl_pool);
-		ci->ci_layout->l_ops->lo_fini(ci->ci_layout);
+		ci->ci_layout->l_ops->lo_fini(ci->ci_layout, NULL);
 	}
 
 	C2_LEAVE();
@@ -352,6 +352,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	uint64_t                      layout_id;
 	struct c2_uint128             seed;
 	struct c2_pool               *pool;
+	struct c2_layout_domain       domain;
 	struct c2_layout_linear_enum *le = NULL;
 	int                           rc;
 
@@ -375,8 +376,8 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	 * @todo A pool shall be created per file system, at mount time and not
 	 * per inode.
 	 * The current change related to LayoutDB code is only to make the
-	 * compilation go through. The fix for pool initialization will be made
-	 * soon, through LogD 857.
+	 * compilation go through. The fix for pool initialization will be
+	 * made soon, into master, through LogD 857.
 	 */
 
 	rc = c2_pool_init(pool, DEF_POOL_ID, P);
@@ -387,14 +388,16 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	 * @todo A dummy enumeration object is being created here so that the
 	 * compilation goes through. c2t1fs code is not using enumeration
 	 * at this point but will be using it eventually.
-	 * This will be taken care of through the task TASKID (TBD).
+	 * This will be taken care of through the component task
+	 * "c2t1fs.LayoutDB".
 	 */
 	rc = c2_linear_enum_build(layout_id, pool->po_width, 100, 200, &le);
 	if (rc != 0)
 		goto out_free;
 
 	rc = c2_pdclust_build(pool, layout_id, N, K, unit_size,
-			      &seed, &le->lle_base, &pd_layout);
+			      &seed, &le->lle_base,
+			      &domain, &pd_layout);
 	if (rc != 0)
 		goto out_fini;
 

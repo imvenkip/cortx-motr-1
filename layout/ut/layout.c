@@ -37,12 +37,13 @@
 #include "layout/list_enum.c"       /* struct ldb_cob_entries_header */
 #include "layout/linear_enum.h"
 
-static const char            db_name[] = "ut-layout";
-static struct c2_ldb_schema  schema;
-static struct c2_dbenv       dbenv;
-static struct c2_pool        pool;
-static int                   rc;
-enum c2_addb_ev_level        orig_addb_level;
+static const char              db_name[] = "ut-layout";
+static struct c2_layout_domain domain;
+static struct c2_ldb_schema    schema;
+static struct c2_dbenv         dbenv;
+static struct c2_pool          pool;
+static int                     rc;
+enum c2_addb_ev_level          orig_addb_level;
 
 enum {
 	DBFLAGS                  = 0,
@@ -60,7 +61,6 @@ enum {
 };
 
 extern const struct c2_layout_type c2_pdclust_layout_type;
-extern const struct c2_layout_type c2_composite_layout_type;
 
 extern const struct c2_layout_enum_type c2_list_enum_type;
 extern const struct c2_layout_enum_type c2_linear_enum_type;
@@ -78,8 +78,12 @@ static int test_init(void)
 	rc = c2_dbenv_init(&dbenv, db_name, DBFLAGS);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_ldb_schema_init(&schema, &dbenv);
+	rc = c2_layout_domain_init(&domain);
 	C2_ASSERT(rc == 0);
+
+	rc = c2_ldb_schema_init(&schema, &domain, &dbenv);
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(schema.ls_domain == &domain);
 
 	orig_addb_level = c2_addb_choose_default_level_console(AEL_NONE);
 
@@ -91,6 +95,8 @@ static int test_fini(void)
 	c2_addb_choose_default_level_console(orig_addb_level);
 
 	c2_ldb_schema_fini(&schema);
+
+	c2_layout_domain_fini(&domain);
 
 	c2_dbenv_fini(&dbenv);
 
@@ -130,17 +136,17 @@ static void test_type_reg_unreg(void)
 	/* Register a layout type. */
 	rc = c2_ldb_type_register(&schema, &test_layout_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] ==
+	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] ==
 		     &test_layout_type);
 
 	/* Should be able to unregister it. */
 	c2_ldb_type_unregister(&schema, &test_layout_type);
-	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] == NULL);
+	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] == NULL);
 
 	/* Should be able to register it again. */
 	c2_ldb_type_register(&schema, &test_layout_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] ==
+	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] ==
 		     &test_layout_type);
 
 	/*
@@ -152,38 +158,36 @@ static void test_type_reg_unreg(void)
 
 	/* Unregister it. */
 	c2_ldb_type_unregister(&schema, &test_layout_type);
-	C2_UT_ASSERT(schema.ls_type[test_layout_type.lt_id] == NULL);
+	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] == NULL);
 
 	C2_LEAVE();
 }
 
 static int t_enum_register(struct c2_ldb_schema *schema,
-			      const struct c2_layout_enum_type *et)
+			   const struct c2_layout_enum_type *et)
 {
 	return 0;
 }
 
 static void t_enum_unregister(struct c2_ldb_schema *schema,
-			    const struct c2_layout_enum_type *et)
+			      const struct c2_layout_enum_type *et)
 {
 }
 
-
 static const struct c2_layout_enum_type_ops test_enum_ops = {
-	.leto_register       = t_enum_register,
-	.leto_unregister     = t_enum_unregister,
-	.leto_max_recsize    = NULL,
-	.leto_recsize        = NULL,
-	.leto_decode         = NULL,
-	.leto_encode         = NULL
+	.leto_register    = t_enum_register,
+	.leto_unregister  = t_enum_unregister,
+	.leto_max_recsize = NULL,
+	.leto_recsize     = NULL,
+	.leto_decode      = NULL,
+	.leto_encode      = NULL
 };
 
 const struct c2_layout_enum_type test_enum_type = {
-	.let_name    = "test",
-	.let_id      = 2,
-	.let_ops     = &test_enum_ops
+	.let_name = "test",
+	.let_id   = 2,
+	.let_ops  = &test_enum_ops
 };
-
 
 static void test_etype_reg_unreg(void)
 {
@@ -192,16 +196,17 @@ static void test_etype_reg_unreg(void)
 	/* Register a layout enum type. */
 	rc = c2_ldb_enum_register(&schema, &test_enum_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == &test_enum_type);
+	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] ==
+		     &test_enum_type);
 
 	/* Should be able to unregister it. */
 	c2_ldb_enum_unregister(&schema, &test_enum_type);
-	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == NULL);
+	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == NULL);
 
 	/* Should be able to register it again. */
 	c2_ldb_enum_register(&schema, &test_enum_type);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == &test_enum_type);
+	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == &test_enum_type);
 
 	/*
 	 * Should not be able to register it again without first unregistering
@@ -212,16 +217,17 @@ static void test_etype_reg_unreg(void)
 
 	/* Unregister it. */
 	c2_ldb_enum_unregister(&schema, &test_enum_type);
-	C2_UT_ASSERT(schema.ls_enum[test_enum_type.let_id] == NULL);
+	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == NULL);
 
 	C2_LEAVE();
 }
 
 static void test_schema_init_fini(void)
 {
-	const char            t_db_name[] = "t-layout";
-	struct c2_ldb_schema  t_schema;
-	struct c2_dbenv       t_dbenv;
+	const char              t_db_name[] = "t-layout";
+	struct c2_layout_domain t_domain;
+	struct c2_ldb_schema    t_schema;
+	struct c2_dbenv         t_dbenv;
 
 	C2_ENTRY();
 
@@ -229,43 +235,42 @@ static void test_schema_init_fini(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Initialize the schema. */
-	rc = c2_ldb_schema_init(&t_schema, &t_dbenv);
+	rc = c2_ldb_schema_init(&t_schema, &t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
-	/*
-	 * Should be able finalize it.
-	 * c2_ldb_schema_fini() asserts internally, if any of the layout type
-	 * or enum type is still registered. */
+	/* Should be able finalize it. */
 	c2_ldb_schema_fini(&t_schema);
 
 	/* Should be able to initialize it again. */
-	rc = c2_ldb_schema_init(&t_schema, &t_dbenv);
+	rc = c2_ldb_schema_init(&t_schema, &t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Register a layout type. */
+	/* Register a layout type. *
 	c2_ldb_type_register(&t_schema, &test_layout_type);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(t_schema.ls_type[test_layout_type.lt_id] ==
 		     &test_layout_type);
 
-	/* Register a layout enum type. */
+	* Register a layout enum type. *
 	c2_ldb_enum_register(&t_schema, &test_enum_type);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(t_schema.ls_enum[test_enum_type.let_id] ==
 		     &test_enum_type);
 
-	/*
+	 * todo
 	 * Should not be able to finalize at this point.
-	 * Can not invoke c2_ldb_schema_fini() here since it asserts.
-	 */
+	 * c2_ldb_schema_fini() asserts internally, if any of the layout type
+	 * or enum type is still registered.
+	 *
 
-	/* Unregister the layout type. */
+	* Unregister the layout type. *
 	c2_ldb_type_unregister(&t_schema, &test_layout_type);
 	C2_UT_ASSERT(t_schema.ls_type[test_layout_type.lt_id] == NULL);
 
-	/* Unregister the enum type. */
+	* Unregister the enum type. *
 	c2_ldb_enum_unregister(&t_schema, &test_enum_type);
 	C2_UT_ASSERT(t_schema.ls_enum[test_enum_type.let_id] == NULL);
+	*/
 
 	/* Should now be able to finalize it. */
 	c2_ldb_schema_fini(&t_schema);
@@ -281,19 +286,23 @@ static void test_schema_max_recsize()
 
 static int internal_init()
 {
+	int rc;
+
 	/*
-	 * @todo Keep track if the a layout type or enum type is already
+	 * @todo Keep track if any layout type or enum type is already
 	 * registered or is registered by this test suite. If the later,
 	 * then internal_fini() should unregister it, not otherwise. This is
 	 * to avoid having any side-effect of running this test suite.
 	 */
 	c2_ldb_type_register(&schema, &c2_pdclust_layout_type);
-	c2_ldb_type_register(&schema, &c2_composite_layout_type);
 
 	c2_ldb_enum_register(&schema, &c2_list_enum_type);
 	c2_ldb_enum_register(&schema, &c2_linear_enum_type);
 
-	return c2_pool_init(&pool, DEF_POOL_ID, POOL_WIDTH);
+	rc = c2_pool_init(&pool, DEF_POOL_ID, POOL_WIDTH);
+	C2_UT_ASSERT(rc == 0);
+
+	return rc;
 }
 
 static void internal_fini()
@@ -304,7 +313,6 @@ static void internal_fini()
 	c2_ldb_enum_unregister(&schema, &c2_linear_enum_type);
 
 	c2_ldb_type_unregister(&schema, &c2_pdclust_layout_type);
-	c2_ldb_type_unregister(&schema, &c2_composite_layout_type);
 }
 
 static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
@@ -321,9 +329,9 @@ static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 }
 
 static void pdclust_buf_build(uint64_t lid,
-			       uint32_t N, uint32_t K,
-			       uint64_t unitsize, struct c2_uint128 *seed,
-			       uint32_t let_id, struct c2_bufvec_cursor *dcur)
+			      uint32_t N, uint32_t K,
+			      uint64_t unitsize, struct c2_uint128 *seed,
+			      uint32_t let_id, struct c2_bufvec_cursor *dcur)
 {
 	struct c2_ldb_pdclust_rec pl_rec;
 	c2_bcount_t               nbytes_copied;
@@ -478,7 +486,7 @@ static void layout_destroy(struct c2_layout *l, uint64_t lid)
 	C2_UT_ASSERT(l != NULL);
 
 	/* enum object is destroyed internally by lo_fini(). */
-	l->l_ops->lo_fini(l);
+	l->l_ops->lo_fini(l, &domain);
 }
 
 static void allocate_area(void **area,
@@ -493,7 +501,7 @@ static void allocate_area(void **area,
 	if (specified_bytes > 0)
 		*num_bytes = specified_bytes;
 	else
-		*num_bytes = c2_ldb_max_recsize(&schema) + additional_bytes;
+		*num_bytes = c2_ldb_max_recsize(&domain) + additional_bytes;
 
 	*area = c2_alloc(*num_bytes);
 	C2_UT_ASSERT(*area != NULL);
@@ -506,7 +514,6 @@ static int test_decode_pdclust_list(uint64_t lid, bool only_inline_cob_entries)
 	struct c2_bufvec          bv;
 	struct c2_bufvec_cursor   cur;
 	struct c2_layout         *l = NULL;
-	struct c2_db_tx          *tx = NULL;
 	uint32_t                  nr;
 	struct c2_uint128         seed;
 
@@ -532,7 +539,8 @@ static int test_decode_pdclust_list(uint64_t lid, bool only_inline_cob_entries)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
+	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP,
+			      NULL, NULL, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_layout_verify(LIST_ENUM_ID, lid,
@@ -554,7 +562,6 @@ static int test_decode_pdclust_linear(uint64_t lid)
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
 	struct c2_layout          *l = NULL;
-	struct c2_db_tx           *tx = NULL;
 	struct c2_uint128          seed;
 
 	C2_ENTRY();
@@ -573,7 +580,8 @@ static int test_decode_pdclust_linear(uint64_t lid)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
+	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP,
+			      NULL, NULL, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_layout_verify(LINEAR_ENUM_ID, lid,
@@ -597,7 +605,6 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 	struct c2_bufvec_cursor    cur;
 	c2_bcount_t                specified_bytes;
 	struct c2_layout          *l = NULL;
-	struct c2_db_tx           *tx = NULL;
 	struct c2_uint128          seed;
 
 	C2_ENTRY();
@@ -621,7 +628,8 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 
 	* Rewind the cursor. *
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
+	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP,
+			      NULL, &l);
 	C2_UT_ASSERT(rc == -ENOBUFS);
 	* This results into an assert now. *
 
@@ -678,12 +686,13 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 			   struct c2_layout_enum *le,
 			   struct c2_pdclust_layout **pl)
 {
-	struct c2_pool     *pool;
+	struct c2_pool *pool;
 
 	rc = c2_pool_lookup(DEF_POOL_ID, &pool);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_pdclust_build(pool, lid, N, K, unitsize, seed, le, pl);
+	rc = c2_pdclust_build(pool, lid, N, K, unitsize, seed,
+			      le, &domain, pl);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -867,8 +876,8 @@ static int test_encode_pdclust_linear(uint64_t lid)
 				  &pl, NULL, &le);
 	C2_UT_ASSERT(rc == 0);
 
-	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
-			       C2_LXO_BUFFER_OP, NULL, NULL, &cur);
+	rc  = c2_layout_encode(&domain, &pl->pl_base.ls_base, C2_LXO_BUFFER_OP,
+			       NULL, NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -915,8 +924,8 @@ static int test_encode_pdclust_list(uint64_t lid, bool only_inline_cob_entries)
 				  &pl, &le, NULL);
 	C2_UT_ASSERT(rc == 0);
 
-	rc  = c2_layout_encode(&schema, &pl->pl_base.ls_base,
-			       C2_LXO_BUFFER_OP, NULL, NULL, &cur);
+	rc  = c2_layout_encode(&domain, &pl->pl_base.ls_base, C2_LXO_BUFFER_OP,
+			       NULL, NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -962,7 +971,7 @@ static void test_encode(void)
 }
 
 /* todo See if it can be merged into other lookup wrapper. */
-static int test_lookup_nonexisting_lid(uint64_t *lid)
+static int test_lookup_nonexisting_lid(uint64_t lid)
 {
 	c2_bcount_t                num_bytes;
 	void                      *area = NULL;
@@ -975,20 +984,20 @@ static int test_lookup_nonexisting_lid(uint64_t *lid)
 	allocate_area(&area, ADDITIONAL_BYTES_DEFAULT, SPECIFIED_BYTES_NONE,
 		      &num_bytes);
 
-	pair.dp_key.db_buf.b_addr = lid;
-	pair.dp_key.db_buf.b_nob = sizeof *lid;
+	pair.dp_key.db_buf.b_addr = &lid;
+	pair.dp_key.db_buf.b_nob = sizeof lid;
 
 	pair.dp_rec.db_buf.b_addr = area;
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
-	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
 
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ldb_lookup(&schema, *lid, &pair, &tx, &l);
+	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_LOG("test_lookup_nonexisting_lid(): lid %lld\n",
-	       (unsigned long long)*lid);
+	       (unsigned long long)lid);
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1046,7 +1055,8 @@ static int test_add_pdclust_linear(uint64_t lid)
 	return rc;
 }
 
-static int test_lookup_pdclust_linear(uint64_t *lid)
+/* todo lid shud not be by ref */
+static int test_lookup_pdclust_linear(uint64_t lid)
 {
 	c2_bcount_t         num_bytes;
 	void               *area = NULL;
@@ -1057,34 +1067,36 @@ static int test_lookup_pdclust_linear(uint64_t *lid)
 	C2_ENTRY();
 
 	/* First add a layout with pdclust layout type and linear enum type. */
-	rc = test_add_pdclust_linear(*lid);
+	rc = test_add_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	allocate_area(&area, ADDITIONAL_BYTES_NONE, SPECIFIED_BYTES_NONE,
 		      &num_bytes);
 
-	pair.dp_key.db_buf.b_addr = lid;
-	pair.dp_key.db_buf.b_nob = sizeof *lid;
+	pair.dp_key.db_buf.b_addr = &lid;
+	pair.dp_key.db_buf.b_nob = sizeof lid;
 
 	pair.dp_rec.db_buf.b_addr = area;
 	pair.dp_rec.db_buf.b_nob = num_bytes;
 
-	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
 
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ldb_lookup(&schema, *lid, &pair, &tx, &l);
+	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == *lid);
+	C2_UT_ASSERT(*(uint64_t *)pair.dp_key.db_buf.b_addr == lid);
 
-	C2_LOG("test_lookup_pdclust_linear(): l->l_id %lld, *lid %lld\n",
-	       (unsigned long long)l->l_id, (unsigned long long)*lid);
-	C2_UT_ASSERT(l->l_id == *lid);
+	/*todo check if following log msg is req'd */
+	C2_LOG("test_lookup_pdclust_linear(): l->l_id %lld, lid %lld\n",
+	       (unsigned long long)l->l_id, (unsigned long long)lid);
+	C2_UT_ASSERT(l->l_id == lid);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	layout_destroy(l, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -1100,7 +1112,7 @@ static void test_lookup(void)
 
 	/* Lookup for a non-existing lid. */
 	lid = 3001;
-	rc = test_lookup_nonexisting_lid(&lid);
+	rc = test_lookup_nonexisting_lid(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -1108,12 +1120,12 @@ static void test_lookup(void)
 	 * then perform lookup for it.
 	 */
 	lid = 3002;
-	rc = test_lookup_pdclust_linear(&lid);
+	rc = test_lookup_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Lookup for a non-existing lid. */
 	lid = 3003;
-	rc = test_lookup_nonexisting_lid(&lid);
+	rc = test_lookup_nonexisting_lid(lid);
 	C2_UT_ASSERT(rc == 0);
 
 	internal_fini();
@@ -1223,6 +1235,9 @@ static int test_update_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	layout_destroy(&pl->pl_base.ls_base, lid);
+	l = NULL;
+
 	/* Lookup the record just for verification. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
@@ -1235,23 +1250,23 @@ static int test_update_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	pl->pl_base.ls_base.l_ref = 1234567;
+	l->l_ref = 1234567;
 
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ldb_update(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	rc = c2_ldb_update(&schema, l, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	layout_destroy(l, lid);
+	l = NULL;
+
 	/* Lookup the record just for verification. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
-
-	layout_destroy(&pl->pl_base.ls_base, lid);
-	l = NULL;
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
@@ -1307,6 +1322,9 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	layout_destroy(&pl->pl_base.ls_base, lid);
+	l = NULL;
+
 	/* Lookup the record just for verification. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
@@ -1329,7 +1347,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ldb_update(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	rc = c2_ldb_update(&schema, l, &pair, &tx);
 	C2_UT_ASSERT(rc == -EINVAL);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1339,7 +1357,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(l, lid);
 	l = NULL;
 
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
@@ -1350,13 +1368,12 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_destroy(&pl->pl_base.ls_base, lid);
+	layout_destroy(l, lid);
 	c2_free(area);
 
 	C2_LEAVE();
 	return rc;
 }
-
 
 static void test_update(void)
 {
@@ -1365,7 +1382,7 @@ static void test_update(void)
 	rc = internal_init();
 	C2_UT_ASSERT(rc == 0);
 
-	/* todo Test update for linear enum type./
+	/* TBD todo Test update for linear enum type.
 	lid = 5001;
 	rc = test_update_pdclust_list(lid);
 	C2_UT_ASSERT(rc == 0);
@@ -1421,6 +1438,8 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	layout_destroy(&pl->pl_base.ls_base, lid);
+
 	/* Lookup the record just for verification. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
@@ -1436,24 +1455,25 @@ static int test_delete_pdclust_linear(uint64_t lid)
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ldb_delete(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	rc = c2_ldb_delete(&schema, l, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
+	layout_destroy(l, lid);
+	l = NULL;
+
 	/* Lookup the record just for verification. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	l = NULL;
 	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
 
 	C2_LEAVE();
@@ -1540,7 +1560,6 @@ static int test_enum_ops_pdclust_linear(uint64_t lid)
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
 	struct c2_layout          *l = NULL;
-	struct c2_db_tx           *tx = NULL;
 	struct c2_uint128          seed;
 
 	C2_ENTRY();
@@ -1560,7 +1579,8 @@ static int test_enum_ops_pdclust_linear(uint64_t lid)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
+	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP,
+			      NULL, NULL, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_enum_op_verify(LINEAR_ENUM_ID, lid,
@@ -1582,7 +1602,6 @@ static int test_enum_ops_pdclust_list(uint64_t lid)
 	struct c2_bufvec           bv;
 	struct c2_bufvec_cursor    cur;
 	struct c2_layout          *l = NULL;
-	struct c2_db_tx           *tx = NULL;
 	struct c2_uint128          seed;
 
 	C2_ENTRY();
@@ -1601,7 +1620,8 @@ static int test_enum_ops_pdclust_list(uint64_t lid)
 
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP, tx, &l);
+	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP,
+			      NULL, NULL, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = pdclust_enum_op_verify(LIST_ENUM_ID, lid,
@@ -1716,7 +1736,7 @@ static void test_bufvec_copyto(void)
 
 	C2_ENTRY();
 
-	num_bytes = c2_ldb_max_recsize(&schema) + 1024;
+	num_bytes = c2_ldb_max_recsize(&domain) + 1024;
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
 

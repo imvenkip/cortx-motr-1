@@ -188,23 +188,22 @@ static c2_bcount_t linear_recsize(struct c2_layout_enum *e, uint64_t lid)
  * Reads linear enumeration type specific attributes from the buffer into
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
-static int linear_decode(struct c2_ldb_schema *schema, uint64_t lid,
+static int linear_decode(uint64_t lid,
 			 struct c2_bufvec_cursor *cur,
 			 enum c2_layout_xcode_op op,
-			 struct c2_db_tx *tx,
+			 struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 			 struct c2_layout_enum **out)
 {
 	struct c2_layout_linear_enum *lin_enum = NULL;
 	struct c2_layout_linear_attr *lin_attr;
 	int                           rc;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
-	C2_PRE(out != NULL && *out == NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, schema != NULL && tx != NULL));
+	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
@@ -241,10 +240,9 @@ out:
  * c2_layout_linear_enum object into the buffer.
  */
 /* todo checkif this fn should accept enum instead of layout */
-static int linear_encode(struct c2_ldb_schema *schema,
-			 struct c2_layout *l,
+static int linear_encode(struct c2_layout *l,
 			 enum c2_layout_xcode_op op,
-			 struct c2_db_tx *tx,
+			 struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *oldrec_cur,
 			 struct c2_bufvec_cursor *out)
 {
@@ -254,11 +252,10 @@ static int linear_encode(struct c2_ldb_schema *schema,
 	c2_bcount_t                   nbytes;
 	int                           rc = 0;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);

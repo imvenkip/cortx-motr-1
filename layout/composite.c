@@ -51,21 +51,21 @@ struct layout_prefix {
 	uint64_t                  lp_filler;
 };
 
-void c2_composite_init(struct c2_composite_layout *clay,
-		       uint64_t id, uint64_t pool_id,
-		       const struct c2_layout_type *type,
-		       const struct c2_layout_ops *ops,
-		       struct c2_tl *sub_layouts)
+/*
+ * @post A composite type of layout object is created. It needs to be
+ * finalized by the user, once done with the usage. It can be finalized
+ * using l->l_ops->lo_fini().
+ */
+void c2_composite_build(uint64_t pool_id, uint64_t lid,
+			struct c2_tl *sub_layouts,
+			struct c2_ldb_schema *schema,
+			struct c2_composite_layout **out)
 {
-	c2_layout_init(&clay->cl_base, id, pool_id, type, ops);
-
-	/* Intialize clay->cl_sub_layouts by using sub_layouts. */
 }
 
 /** Implementation of lo_fini for composite layout type. */
-void composite_fini(struct c2_layout *lay)
+static void composite_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 {
-	/* De-intialize clay->cl_sub_layouts. */
 }
 
 /**
@@ -111,7 +111,7 @@ static void composite_unregister(struct c2_ldb_schema *schema,
 /**
  * Implementation of lto_max_recsize() for COMPOSITE layout type.
  */
-static c2_bcount_t composite_max_recsize(struct c2_ldb_schema *schema)
+static c2_bcount_t composite_max_recsize(struct c2_layout_domain *dom)
 {
 	return 0;
 }
@@ -119,7 +119,7 @@ static c2_bcount_t composite_max_recsize(struct c2_ldb_schema *schema)
 /**
  * Implementation of lto_recsize() for COMPOSITE layout type.
  */
-static c2_bcount_t composite_recsize(struct c2_ldb_schema *schema,
+static c2_bcount_t composite_recsize(struct c2_layout_domain *dom,
 				     struct c2_layout *l)
 {
 	return 0;
@@ -139,11 +139,11 @@ static const struct c2_layout_ops composite_ops;
  * If it is NONE, then the layout is decoded from its representation received
  * over the network.
  */
-static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
-			    uint64_t pool_id,
+static int composite_decode(struct c2_layout_domain *dom,
+			    uint64_t lid, uint64_t pool_id,
 			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
-			    struct c2_db_tx *tx,
+			    struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 			    struct c2_layout **out)
 {
 	struct c2_composite_layout   *cl;
@@ -193,10 +193,10 @@ static int composite_decode(struct c2_ldb_schema *schema, uint64_t lid,
  * performed on the layout record if at all and it could be one of
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
  */
-static int composite_encode(struct c2_ldb_schema *schema,
+static int composite_encode(struct c2_layout_domain *dom,
 			    struct c2_layout *l,
 			    enum c2_layout_xcode_op op,
-			    struct c2_db_tx *tx,
+			    struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 			    struct c2_bufvec_cursor *oldrec_cur,
 			    struct c2_bufvec_cursor *out)
 {
