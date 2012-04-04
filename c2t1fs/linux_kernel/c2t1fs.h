@@ -316,9 +316,6 @@ struct c2t1fs_sb {
 	/** Total number of containers. */
 	uint32_t                      csb_nr_containers;
 
-	/** Number of target objects, over which file-contents are striped */
-	uint32_t                      csb_pool_width;
-
 	struct c2_pool                csb_pool;
 
 	/** Number of data units per parity group. N */

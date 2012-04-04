@@ -476,7 +476,7 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 				(unsigned long)gob_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
-	pool_width = csb->csb_pool_width;
+	pool_width = csb->csb_pool.po_width;
 	C2_ASSERT(pool_width >= 1);
 
 	for (i = 1; i <= pool_width; i++) { /* i = 1 is intentional */

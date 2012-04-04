@@ -122,6 +122,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	struct c2t1fs_mnt_opts *mntopts;
 	struct c2t1fs_sb       *csb;
 	struct inode           *root_inode;
+	uint32_t                pool_width;
 	int                     rc;
 
 	C2_ENTRY();
@@ -141,25 +142,25 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	csb->csb_pool_width      = mntopts->mo_pool_width ?:
-					C2T1FS_DEFAULT_POOL_WIDTH;
 	csb->csb_nr_data_units   = mntopts->mo_nr_data_units ?:
 					C2T1FS_DEFAULT_NR_DATA_UNITS;
 	csb->csb_nr_parity_units = mntopts->mo_nr_parity_units ?:
 					C2T1FS_DEFAULT_NR_PARITY_UNITS;
 	csb->csb_unit_size       = mntopts->mo_unit_size ?:
 					C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
+	pool_width               = mntopts->mo_pool_width ?:
+					C2T1FS_DEFAULT_POOL_WIDTH;
 	/* See "Containers and component objects" section in c2t1fs.h for more
 	   information on following line */
-	csb->csb_nr_containers   = csb->csb_pool_width + 1;
+	csb->csb_nr_containers   = pool_width + 1;
 
 	C2_LOG("P = %d, N = %d, K = %d unit_size %d",
-			csb->csb_pool_width, csb->csb_nr_data_units,
+			pool_width, csb->csb_nr_data_units,
 			csb->csb_nr_parity_units, csb->csb_unit_size);
 
 	/* P >= N + 2 * K ??*/
-	if (csb->csb_pool_width < csb->csb_nr_data_units +
-				2 * csb->csb_nr_parity_units ||
+	if (pool_width <
+	    csb->csb_nr_data_units + 2 * csb->csb_nr_parity_units ||
 		csb->csb_nr_containers > C2T1FS_MAX_NR_CONTAINERS) {
 
 		rc = -EINVAL;
@@ -170,7 +171,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	rc = c2_pool_init(&csb->csb_pool, csb->csb_pool_width);
+	rc = c2_pool_init(&csb->csb_pool, pool_width);
 	if (rc != 0)
 		goto out_fini;
 
