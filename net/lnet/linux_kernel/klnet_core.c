@@ -1023,7 +1023,10 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		NLXDBG(&nlx_debug, 1,
 		       nlx_kprint_lnet_event("nlx_kcore_eq_cb: filtered ACK",
 					     event));
-		LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EPROTO);
+		/* Cannot do
+		  LNET_ADDB_FUNCFAIL_ADD(c2_net_addb, -EPROTO);
+		  because that can allocate memory, block, etc.
+		*/
 		return;
 	}
 	kbp = event->md.user_ptr;
