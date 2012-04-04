@@ -405,6 +405,7 @@ void bulkio_params_fini(struct bulkio_params *bp)
 	c2_net_domain_fini(&bp->bp_cnetdom);
 	C2_ASSERT(bp->bp_iobuf != NULL);
 	io_buffers_deallocate(bp);
+
 	for (i = 0; i < IO_FOPS_NR; ++i) {
 		c2_free(bp->bp_iobuf[i]);
 		c2_free(bp->bp_threads[i]);

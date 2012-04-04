@@ -201,7 +201,7 @@ static void stobio_write(struct stobio_test *test)
 	struct c2_clink    clink;
 
 	c2_stob_io_init(&io);
-	
+
 	stobio_write_prepare(test, &io);
 
 	c2_clink_init(&clink, NULL);
@@ -294,7 +294,7 @@ static int stobio_storage_init(void)
 	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	result = mkdir("./__s/o", 0700);
-	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));	
+	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	return result;
 }
@@ -311,15 +311,14 @@ static int stobio_init(struct stobio_test *test)
 	int result;
 	struct linux_stob *lstob;
 
-	result = linux_stob_type.st_op->
-		sto_domain_locate(&linux_stob_type, "./__s", &test->st_dom);
+	result = c2_stob_domain_locate(&c2_linux_stob_type,
+				       "./__s", &test->st_dom);
 	C2_UT_ASSERT(result == 0);
 
 	result = c2_linux_stob_setup(test->st_dom, test->st_directio);
 	C2_UT_ASSERT(result == 0);
 
-	result = test->st_dom->sd_ops->
-		sdo_stob_find(test->st_dom, &test->st_id, &test->st_obj);
+	result = c2_stob_find(test->st_dom, &test->st_id, &test->st_obj);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(test->st_obj->so_state == CSS_UNKNOWN);
 
@@ -426,7 +425,7 @@ void test_stobio(void)
 	for (i = 0; i < TEST_NR; ++i) {
 		result = C2_THREAD_INIT
 			(&thread[i], int, NULL,
-			 LAMBDA(void, (int x) 
+			 LAMBDA(void, (int x)
 				{ overlapped_rw_test(&test[x], x*100); } ), i,
 			 "overlap_test%d", i);
 		C2_UT_ASSERT(result == 0);

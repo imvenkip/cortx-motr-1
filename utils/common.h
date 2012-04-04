@@ -27,7 +27,7 @@ void unit_end(const char *sandbox, bool keep_sandbox);
 /* __COLIBRI_UTILS_COMMON_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

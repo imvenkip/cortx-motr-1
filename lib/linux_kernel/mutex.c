@@ -73,7 +73,7 @@ bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
 
 /** @} end of mutex group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

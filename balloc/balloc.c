@@ -2043,7 +2043,7 @@ static bool balloc_query(struct c2_balloc *colibri, struct c2_ext *ex)
  * @param count count of bytes. count will be first aligned to block boundry.
  * @param out result is stored there. space is still in bytes.
  */
-static int balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 			c2_bcount_t count, struct c2_ext *out)
 {
 	struct c2_balloc		*colibri = b2c2(ballroom);
@@ -2073,7 +2073,7 @@ static int balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
  * free spaces to container.
  * @param ext the space to be freed. This space must align to block boundry.
  */
-static int balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int balloc_free(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
 		       struct c2_ext *ext)
 {
 	struct c2_balloc		*colibri = b2c2(ballroom);
@@ -2087,7 +2087,7 @@ static int balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return rc;
 }
 
-static int balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+static int balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 		       uint32_t bshift, c2_bcount_t container_size,
 		       c2_bcount_t blocks_per_group, c2_bcount_t res_groups)
 {
@@ -2104,7 +2104,7 @@ static int balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	return rc;
 }
 
-static void balloc_fini(struct ad_balloc *ballroom)
+static void balloc_fini(struct c2_ad_balloc *ballroom)
 {
 	struct c2_balloc	*colibri = b2c2(ballroom);
 	struct c2_db_tx		 fini_tx;
@@ -2123,7 +2123,7 @@ static void balloc_fini(struct ad_balloc *ballroom)
 	LEAVE;
 }
 
-static const struct ad_balloc_ops c2_balloc_ops = {
+static const struct c2_ad_balloc_ops c2_balloc_ops = {
 	.bo_init  = balloc_init,
 	.bo_fini  = balloc_fini,
 	.bo_alloc = balloc_alloc,

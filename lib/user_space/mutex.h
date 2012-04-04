@@ -26,7 +26,7 @@
 #include "lib/cdefs.h"
 
 /**
-   @addtogroup mutex 
+   @addtogroup mutex
 
    <b>User space mutex.</b>
    @{
@@ -43,7 +43,7 @@ struct c2_mutex {
 /* __COLIBRI_LIB_USER_SPACE_MUTEX_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

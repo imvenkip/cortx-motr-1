@@ -21,8 +21,8 @@
 #ifndef __COLIBRI_BALLOC_BALLOC_H__
 #define __COLIBRI_BALLOC_BALLOC_H__
 
-#include <db.h>
-
+#include "db/db.h"
+#include "lib/ext.h"
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
@@ -137,12 +137,12 @@ struct c2_balloc {
 	struct c2_table  cb_db_group_desc;   /*< db for group desc */
 	struct c2_balloc_group_info *cb_group_info; /*< array of group info */
 
-	struct c2_ext    cb_last;
+	struct c2_ext       cb_last;
 
-	struct ad_balloc cb_ballroom;
+	struct c2_ad_balloc cb_ballroom;
 };
 
-static inline struct c2_balloc *b2c2(struct ad_balloc *ballroom)
+static inline struct c2_balloc *b2c2(struct c2_ad_balloc *ballroom)
 {
 	return container_of(ballroom, struct c2_balloc, cb_ballroom);
 }

@@ -82,7 +82,7 @@ const struct c2_test_suite fop_ut = {
 
 /** @} end of fop group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

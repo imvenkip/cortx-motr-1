@@ -50,7 +50,7 @@ db_SOURCES                      := db_common.c
 db_linux_kernel_SOURCES         := db.c
 db_linux_kernel_HEADERS         := db_impl.h
 
-dtm_SOURCES                     := verno.c
+dtm_SOURCES                     := verno.c dtm.c
 
 fid_SOURCES                     := fid.c
 fid_HEADERS                     := fid.h
