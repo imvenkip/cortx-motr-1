@@ -77,7 +77,7 @@ void c2_service_id_fini(struct c2_service_id *id)
 
 /** @} end of net group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

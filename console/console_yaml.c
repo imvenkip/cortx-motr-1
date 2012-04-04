@@ -136,6 +136,7 @@ int c2_cons_yaml_init(const char *file_path)
 	root_node = yaml_document_get_root_node(&yaml_info.cyi_document);
         if (root_node == NULL) {
                 yaml_document_delete(&yaml_info.cyi_document);
+		yaml_parser_delete(&yaml_info.cyi_parser);
 		fclose(yaml_info.cyi_file);
                 fprintf(stderr, "document get root node failed\n");
 		goto error;
@@ -153,7 +154,10 @@ error:
 void c2_cons_yaml_fini(void)
 {
 	yaml_support = false;
-	yaml_parser_delete(&yaml_info.cyi_parser);
+	if (&yaml_info.cyi_document != NULL)
+		yaml_document_delete(&yaml_info.cyi_document);
+	if (&yaml_info.cyi_parser != NULL)
+		yaml_parser_delete(&yaml_info.cyi_parser);
 	fclose(yaml_info.cyi_file);
 }
 

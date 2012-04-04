@@ -66,7 +66,7 @@ void c2_rwlock_read_unlock(struct c2_rwlock *lock);
 /* __COLIBRI_LIB_RWLOCK_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

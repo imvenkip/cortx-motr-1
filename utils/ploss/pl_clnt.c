@@ -29,7 +29,7 @@
 /* Default timeout can be changed using clnt_control() */
 static struct timeval TIMEOUT = { 25, 0 };
 
-enum clnt_stat 
+enum clnt_stat
 ping_1(struct c2_pl_ping *argp, struct c2_pl_ping_res *clnt_res, CLIENT *clnt)
 {
 	return (clnt_call(clnt, PING,
@@ -38,7 +38,7 @@ ping_1(struct c2_pl_ping *argp, struct c2_pl_ping_res *clnt_res, CLIENT *clnt)
 		TIMEOUT));
 }
 
-enum clnt_stat 
+enum clnt_stat
 setconfig_1(struct c2_pl_config *argp, struct c2_pl_config_res *clnt_res, CLIENT *clnt)
 {
 	return (clnt_call(clnt, SETCONFIG,
@@ -47,7 +47,7 @@ setconfig_1(struct c2_pl_config *argp, struct c2_pl_config_res *clnt_res, CLIENT
 		TIMEOUT));
 }
 
-enum clnt_stat 
+enum clnt_stat
 getconfig_1(struct c2_pl_config *argp, struct c2_pl_config_res *clnt_res, CLIENT *clnt)
 {
 	return (clnt_call(clnt, GETCONFIG,

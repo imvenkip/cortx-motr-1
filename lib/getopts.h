@@ -49,8 +49,8 @@
    Types of options supported by c2_getopts().
  */
 enum c2_getopts_opt_type {
-	/** 
-	    An option without an argument. 
+	/**
+	    An option without an argument.
 
 	    When this option is encountered, its call-back
 	    c2_getopts_opt::go_u::got_void() is executed for its side-effects.
@@ -228,7 +228,7 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
 /* __COLIBRI_LIB_GETOPTS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

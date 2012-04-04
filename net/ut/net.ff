@@ -22,7 +22,7 @@
 DEF(c2_nettest, RECORD,
     _(siq_rc, U32));
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

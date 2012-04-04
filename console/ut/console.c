@@ -610,6 +610,7 @@ static int console_cmd(const char *name, ...)
         va_list      list;
         va_list      clist;
         int          argc = 0;
+	int	     result;
         const char **argv;
         const char **argp;
         const char  *arg;
@@ -637,7 +638,11 @@ static int console_cmd(const char *name, ...)
         } while (arg);
         va_end(list);
 
-        return console_main(argc, (char **)argv);
+        result = console_main(argc, (char **)argv);
+
+	/* free memory allocated for argv */
+	c2_free(argv);
+	return result;
 }
 
 static void console_input_test(void)

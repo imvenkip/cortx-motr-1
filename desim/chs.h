@@ -97,7 +97,7 @@ void chs_dev_fini(struct chs_dev *dev);
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

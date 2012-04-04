@@ -24,7 +24,7 @@
 #endif
 
 #include "lib/arith.h"
-#include "lib/misc.h" 
+#include "lib/misc.h"
 #include "cfg/cfg.h"
 
 /**
