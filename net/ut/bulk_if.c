@@ -32,6 +32,7 @@
 
 static struct c2_net_domain utdom;
 static struct c2_net_transfer_mc ut_tm;
+static struct c2_net_transfer_mc *ut_evt_tm = &ut_tm;
 
 static void make_desc(struct c2_net_buf_desc *desc);
 
@@ -259,7 +260,7 @@ static void ut_post_tm_started_ev_thread(struct c2_net_end_point *ep)
 {
 	struct c2_net_tm_event ev = {
 		.nte_type = C2_NET_TEV_STATE_CHANGE,
-		.nte_tm = &ut_tm,
+		.nte_tm = ut_evt_tm,
 		.nte_ep = ep,
 		.nte_status = 0,
 		.nte_next_state = C2_NET_TM_STARTED
@@ -270,11 +271,12 @@ static void ut_post_tm_started_ev_thread(struct c2_net_end_point *ep)
 	/* post state change event */
 	c2_net_tm_event_post(&ev);
 }
+
 static void ut_post_state_change_ev_thread(int n)
 {
 	struct c2_net_tm_event ev = {
 		.nte_type = C2_NET_TEV_STATE_CHANGE,
-		.nte_tm = &ut_tm,
+		.nte_tm = ut_evt_tm,
 		.nte_status = 0,
 		.nte_next_state = (enum c2_net_tm_state) n
 	};
@@ -294,6 +296,7 @@ static int ut_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_start_called = true;
+	ut_evt_tm = tm;
 
 	/* create the end point (indirectly via the transport ops vector) */
 	xprt = tm->ntm_dom->nd_xprt;
@@ -316,8 +319,10 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
 	int rc;
 
+	C2_SET0(&ut_tm_thread);
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_stop_called = true;
+	ut_evt_tm = tm;
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
 			    &ut_post_state_change_ev_thread, C2_NET_TM_STOPPED,
 			    "state_change%d", C2_NET_TM_STOPPED);
