@@ -64,13 +64,6 @@
    Bulk I/O Service will be implemented as read FOM and write FOM. Since
    request handler processes FOM, each FOM needs to define its operations:
 
-   Bulk I/O FOP type Operations :
-   @verbatim
-
-   c2_io_fom_cob_rw_init()      Request handler uses this interface to
-                                initiate I/O FOM.
-   @endverbatim
-
    Bulk I/O FOM type operations:
 
    @verbatim

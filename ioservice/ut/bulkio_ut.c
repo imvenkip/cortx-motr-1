@@ -592,7 +592,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
 	/*
          * To test this case there is a need to invalidate stobio descriptor,
-         * since io_fom_cob_rw_io_finish() removes the stobio descriptor
+         * since io_finish() removes the stobio descriptor
          * from list.
          * There is only one stobio descriptor.
          * Before returning error this phase will do following phases :
@@ -617,8 +617,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
          */
         stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
         ffid = &rwfop->crw_fid;
-        io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-        io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+        fid_wire2mem(ffid, &fid);
+        fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
         rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
@@ -905,7 +905,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          */
         /*
          * To test this case there is a need to invalidate stobio descriptor,
-         * since io_fom_cob_rw_io_finish() remove stobio descriptor
+         * since io_finish() remove stobio descriptor
          * from list.
          * There is only one stobio descriptor.
          * Before returning error this phase will do following phases :
@@ -931,8 +931,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          */
         stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
         ffid = &rwfop->crw_fid;
-        io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-        io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+        fid_wire2mem(ffid, &fid);
+        fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
         rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
@@ -1108,8 +1108,8 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
 
 	C2_UT_ASSERT(rwfop->crw_desc.id_nr == rwfop->crw_ivecs.cis_nr);
         ffid = &rwfop->crw_fid;
-        io_fom_cob_rw_fid_wire2mem(ffid, &fid);
-        io_fom_cob_rw_fid2stob_map(&fid, &stobid);
+        fid_wire2mem(ffid, &fid);
+        fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
 	c2_dtx_init(&fom->fo_tx);
