@@ -436,7 +436,9 @@ int ldb_layout_write(enum c2_layout_xcode_op op, uint64_t lid,
 		     struct c2_db_pair *pair, c2_bcount_t recsize,
 		     struct c2_ldb_schema *schema, struct c2_db_tx *tx)
 {
-	int rc;
+	int   rc;
+	void *key_buf = pair->dp_key.db_buf.b_addr;
+	void *rec_buf = pair->dp_rec.db_buf.b_addr;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
@@ -445,25 +447,15 @@ int ldb_layout_write(enum c2_layout_xcode_op op, uint64_t lid,
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
 	C2_PRE(recsize >= sizeof(struct c2_ldb_rec) &&
 	       recsize <= c2_ldb_max_recsize(schema->ls_domain));
 	C2_PRE(tx != NULL);
 
-	pair->dp_table = &schema->ls_layouts;
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 
-	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
-		       pair->dp_key.db_buf.b_addr,
-		       //recsize);
-		       pair->dp_key.db_buf.b_nob);
-	pair->dp_key.db_static = false;
-
-	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
-		       pair->dp_rec.db_buf.b_addr,
-		       //recsize);
-		       pair->dp_rec.db_buf.b_nob);
-	pair->dp_rec.db_static = false;
+	c2_db_pair_setup(pair, &schema->ls_layouts,
+			 key_buf, sizeof lid, rec_buf, recsize);
 
 	/*
 	 * ADDB messages covering the failure of c2_table_insert(),
@@ -477,6 +469,8 @@ int ldb_layout_write(enum c2_layout_xcode_op op, uint64_t lid,
 	} else if (op == C2_LXO_DB_DELETE) {
 		rc = c2_table_delete(tx, pair);
 	}
+
+	c2_db_pair_fini(pair);
 
 	return rc;
 }
@@ -779,6 +773,28 @@ c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom)
 }
 
 /**
+ * Returns actual size for a record in the layouts table (without
+ * considering the data in the tables other than layouts).
+ */
+c2_bcount_t c2_ldb_recsize(struct c2_ldb_schema *schema, struct c2_layout *l)
+{
+	c2_bcount_t            recsize;
+	struct c2_layout_type *lt;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(layout_invariant(l));
+
+	lt = schema->ls_domain->ld_type[l->l_type->lt_id];
+
+	recsize = sizeof(struct c2_ldb_rec) +
+		  lt->lt_ops->lto_recsize(schema->ls_domain, l);
+
+	C2_POST(recsize <= c2_ldb_max_recsize(schema->ls_domain));
+
+	return recsize;
+}
+
+/**
  * Looks up a persistent layout record with the specified layout_id, and
  * its related information from the relevant tables.
  *
@@ -797,54 +813,38 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  struct c2_db_tx *tx,
 		  struct c2_layout **out)
 {
-	int                     rc;
-	struct c2_bufvec        bv;
-	struct c2_bufvec_cursor cur;
-	//c2_bcount_t             max_recsize;
-	//c2_bcount_t             recsize;
-	//todo struct c2_db_buf        key_buf = pair->dp_key;
-	//struct c2_db_buf        rec_buf = pair->dp_rec;
+	int                      rc;
+	struct c2_bufvec         bv;
+	struct c2_bufvec_cursor  cur;
+	c2_bcount_t              max_recsize;
+	c2_bcount_t              recsize;
+	void                    *key_buf = pair->dp_key.db_buf.b_addr;
+	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(pair != NULL);
-	C2_PRE(tx != NULL);
-	C2_PRE(out != NULL && *out == NULL);
-
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
+	C2_PRE(tx != NULL);
+	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	c2_mutex_lock(&schema->ls_lock);
 
-	//max_recsize = c2_ldb_max_recsize(schema->ls_domain);
+	max_recsize = c2_ldb_max_recsize(schema->ls_domain);
 
-	//recsize = pair->dp_key.db_buf.b_nob <= max_recsize ?
-	//	  pair->dp_key.db_buf.b_nob : max_recsize;
-
-	pair->dp_table = &schema->ls_layouts;
-
-	c2_db_buf_init(&pair->dp_key, DBT_COPYOUT,
-		       pair->dp_key.db_buf.b_addr,
-		       //recsize);
-		       pair->dp_key.db_buf.b_nob);
-	pair->dp_key.db_static = true;
-
-	c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT,
-		       pair->dp_rec.db_buf.b_addr,
-		       //recsize);
-		       pair->dp_rec.db_buf.b_nob);
-	pair->dp_rec.db_static = true;
-
-	/* todo c2_db_pair_setup(pair, &schema->ls_layouts,
-			 &key_buf, key_buf.db_buf.b_nob,
-			 &rec_buf, rec_buf.db_buf.b_nob);  */
+	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
+		  pair->dp_rec.db_buf.b_nob : max_recsize;
 
 	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
+
+	c2_db_pair_setup(pair, &schema->ls_layouts,
+			 key_buf, sizeof lid, rec_buf, recsize);
 
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
@@ -856,7 +856,8 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	}
 
 	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						   &pair->dp_rec.db_buf.b_nob);
+						   &recsize);
+
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_decode(schema->ls_domain, lid, &cur, C2_LXO_DB_LOOKUP,
@@ -875,9 +876,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		   &(*out)->l_addb, LID_APPLICABLE, lid, rc);
 
 out:
-	c2_db_buf_fini(&pair->dp_key);
-	c2_db_buf_fini(&pair->dp_rec);
-
+	c2_db_pair_fini(pair);
 	c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -902,7 +901,6 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              recsize;
-	struct c2_layout_type   *lt;
 	int                      rc;
 
 	C2_PRE(schema != NULL);
@@ -935,14 +933,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(is_layout_type_valid(l->l_type->lt_id, schema->ls_domain));
-
-	lt = schema->ls_domain->ld_type[l->l_type->lt_id];
-
-	recsize = lt->lt_ops->lto_recsize(schema->ls_domain, l);
-	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec) &&
-		  recsize <= c2_ldb_max_recsize(schema->ls_domain));
-
+	recsize = c2_ldb_recsize(schema, l);
 	rc = ldb_layout_write(C2_LXO_DB_ADD, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {
@@ -984,7 +975,6 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              recsize;
-	struct c2_layout_type   *lt;
 	int                      rc;
 
 	C2_PRE(schema != NULL);
@@ -1002,9 +992,9 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	c2_mutex_lock(&schema->ls_lock);
 
 	/*
-	 * Get the existing record from the layouts table. It is used to ensure
-	 * that nothing other than l_ref gets updated for an existing layout
-	 * record.
+	 * Get the existing record from the layouts table. It is used to
+	 * ensure that nothing other than l_ref gets updated for an existing
+	 * layout record.
 	 */
 	recsize = c2_ldb_max_recsize(schema->ls_domain);
 	oldrec_area = c2_alloc(recsize);
@@ -1048,13 +1038,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(is_layout_type_valid(l->l_type->lt_id, schema->ls_domain));
-
-	lt = schema->ls_domain->ld_type[l->l_type->lt_id];
-
-	recsize = lt->lt_ops->lto_recsize(schema->ls_domain, l);
-	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
-
+	recsize = c2_ldb_recsize(schema, l);
 	rc = ldb_layout_write(C2_LXO_DB_UPDATE, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {
@@ -1072,7 +1056,6 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 
 out:
 	c2_free(oldrec_area);
-
 	c2_mutex_unlock(&schema->ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
@@ -1096,7 +1079,6 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              recsize;
-	struct c2_layout_type   *lt;
 	int                      rc;
 
 	C2_PRE(schema != NULL);
@@ -1129,13 +1111,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	C2_ASSERT(is_layout_type_valid(l->l_type->lt_id, schema->ls_domain));
-
-	lt = schema->ls_domain->ld_type[l->l_type->lt_id];
-
-	recsize = lt->lt_ops->lto_recsize(schema->ls_domain, l);
-	C2_ASSERT(recsize >= sizeof(struct c2_ldb_rec));
-
+	recsize = c2_ldb_recsize(schema, l);
 	rc = ldb_layout_write(C2_LXO_DB_DELETE, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {
