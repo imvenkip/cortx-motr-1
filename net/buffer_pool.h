@@ -189,6 +189,9 @@ void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool);
 /** Check whether buffer pool is locked or not. */
 bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool *pool);
 
+/** Returns true when buffer pool is not locked. */
+bool c2_net_buffer_pool_is_not_locked(const struct c2_net_buffer_pool *pool);
+
 /** Releases the lock on buffer pool. */
 void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
 

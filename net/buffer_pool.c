@@ -179,6 +179,11 @@ bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool *pool)
 	return c2_mutex_is_locked(&pool->nbp_mutex);
 }
 
+bool c2_net_buffer_pool_is_not_locked(const struct c2_net_buffer_pool *pool)
+{
+	return c2_mutex_is_not_locked(&pool->nbp_mutex);
+}
+
 void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool)
 {
 	c2_mutex_unlock(&pool->nbp_mutex);

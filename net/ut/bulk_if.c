@@ -255,7 +255,7 @@ static void ut_tm_fini(struct c2_net_transfer_mc *tm)
 	return;
 }
 
-struct c2_thread ut_tm_thread;
+static struct c2_thread ut_tm_thread;
 static void ut_post_tm_started_ev_thread(struct c2_net_end_point *ep)
 {
 	struct c2_net_tm_event ev = {
@@ -307,6 +307,7 @@ static int ut_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	/* create bg thread to post start state change event.
 	   cannot do it here: we are in tm lock, post would assert.
 	 */
+	C2_SET0(&ut_tm_thread);
 	rc = C2_THREAD_INIT(&ut_tm_thread, struct c2_net_end_point *, NULL,
 			    &ut_post_tm_started_ev_thread, ep,
 			    "state_change%d", C2_NET_TM_STARTED);
@@ -319,10 +320,10 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
 	int rc;
 
-	C2_SET0(&ut_tm_thread);
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_stop_called = true;
 	ut_evt_tm = tm;
+	C2_SET0(&ut_tm_thread);
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
 			    &ut_post_state_change_ev_thread, C2_NET_TM_STOPPED,
 			    "state_change%d", C2_NET_TM_STOPPED);
@@ -391,8 +392,8 @@ static struct c2_net_xprt_ops ut_xprt_ops = {
 	.xo_tm_fini                     = ut_tm_fini,
 	.xo_tm_start                    = ut_tm_start,
 	.xo_tm_stop                     = ut_tm_stop,
-	// define at runtime .xo_tm_confine
-	// define at runtime .xo_bev_deliver_sync
+	/* define at runtime .xo_tm_confine       */
+	/* define at runtime .xo_bev_deliver_sync */
         .xo_bev_deliver_all             = ut_bev_deliver_all,
 	.xo_bev_pending                 = ut_bev_pending,
 	.xo_bev_notify                  = ut_bev_notify

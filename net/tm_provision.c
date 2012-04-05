@@ -480,7 +480,7 @@ void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(tm->ntm_callback_counter > 0);
 	C2_PRE(tm->ntm_recv_pool != NULL);
-	C2_PRE(!c2_net_buffer_pool_is_locked(tm->ntm_recv_pool));
+	C2_PRE(c2_net_buffer_pool_is_not_locked(tm->ntm_recv_pool));
 
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_mutex_lock(&tm->ntm_mutex);
