@@ -25,7 +25,7 @@
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "lib/arith.h"      /* min_type() */
 #include "layout/pdclust.h" /* PUT_* */
-#include "c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"      /* C2_LOG and C2_ENTRY */

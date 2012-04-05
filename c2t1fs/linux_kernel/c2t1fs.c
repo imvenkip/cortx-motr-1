@@ -21,7 +21,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
-#include "c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
 #include "net/bulk_sunrpc.h"
