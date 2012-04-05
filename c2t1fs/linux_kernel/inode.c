@@ -23,7 +23,7 @@
 #include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
 #include "lib/misc.h"        /* C2_SET0()                             */
 #include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
-#include "c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"       /* C2_LOG and C2_ENTRY */
 

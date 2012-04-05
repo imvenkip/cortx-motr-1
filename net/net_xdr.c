@@ -22,8 +22,8 @@
 #include <rpc/xdr.h>
 
 #include <lib/cdefs.h>
-#include "net.h"
-#include "xdr.h"
+#include "net/net.h"
+#include "net/xdr.h"
 
 /**
    @addtogroup netDep Networking (Deprecated Interfaces)
