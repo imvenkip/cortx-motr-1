@@ -28,7 +28,7 @@
 
 #include "lib/cdefs.h"
 #include "fop/fop.h"
-#include "ksunrpc.h"
+#include "net/ksunrpc/ksunrpc.h"
 
 /**
    @addtogroup ksunrpc
