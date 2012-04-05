@@ -27,8 +27,8 @@
  * @{
  */
 
-#include "lib/misc.h"  /* strlen() */
 #include "lib/errno.h"
+#include "lib/misc.h"  /* strlen() */
 #include "lib/vec.h"   /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
@@ -426,10 +426,6 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	C2_LEAVE();
 }
 
-/* todo Introduce c2_layout_types_register() and
- * c2_layout_enum_types_register()
- */
-
 int c2_layout_init(struct c2_layout *l,
 		   uint64_t lid,
 		   uint64_t pool_id,
@@ -441,6 +437,7 @@ int c2_layout_init(struct c2_layout *l,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_pool_id_is_valid(pool_id));
 	C2_PRE(type != NULL);
+	C2_PRE(is_layout_type_valid(type->lt_id, dom));
 	C2_PRE(ops != NULL);
 	C2_PRE(dom != NULL);
 
@@ -454,8 +451,6 @@ int c2_layout_init(struct c2_layout *l,
 
 	layout_type_get(type, dom);
 	l->l_type    = type;
-
-	/* todo verify layout type here, now that the schema ptr is available*/
 
 	c2_mutex_init(&l->l_lock);
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
@@ -737,7 +732,7 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 	int                    rc;
 
 	C2_PRE(dom != NULL);
-	C2_PRE(layout_invariant(l)); // todo Shud add dom to l_invariant()
+	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));

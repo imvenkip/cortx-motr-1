@@ -239,20 +239,18 @@ out:
  * Reads linear enumeration type specific attributes from the
  * c2_layout_linear_enum object into the buffer.
  */
-/* todo checkif this fn should accept enum instead of layout */
-static int linear_encode(struct c2_layout *l,
+static int linear_encode(const struct c2_layout_enum *le, uint64_t lid,
 			 enum c2_layout_xcode_op op,
 			 struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *oldrec_cur,
 			 struct c2_bufvec_cursor *out)
 {
-	struct c2_layout_striped     *stl;
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *old_attr;
 	c2_bcount_t                   nbytes;
 	int                           rc = 0;
 
-	C2_PRE(layout_invariant(l));
+	C2_PRE(enum_invariant(le, lid));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));
@@ -262,13 +260,11 @@ static int linear_encode(struct c2_layout *l,
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr));
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-	lin_enum = container_of(stl->ls_enum, struct c2_layout_linear_enum,
-				lle_base);
+	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
 
-	C2_ASSERT(c2_linear_enum_invariant(lin_enum, l->l_id));
+	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
 
 	if (op == C2_LXO_DB_UPDATE) {
 		old_attr = c2_bufvec_cursor_addr(oldrec_cur);
@@ -279,7 +275,7 @@ static int linear_encode(struct c2_layout *l,
 			rc = -EINVAL;
 			C2_LOG("linear_encode(): lid %llu, New values "
 			       "do not match the old ones",
-			       (unsigned long long)l->l_id);
+			       (unsigned long long)lid);
 			goto out;
 		}
 	}
@@ -289,7 +285,7 @@ static int linear_encode(struct c2_layout *l,
 	C2_ASSERT(nbytes == sizeof lin_enum->lle_attr);
 
 out:
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 

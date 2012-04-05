@@ -321,7 +321,8 @@ struct c2_layout_enum_type_ops {
 	 * Continues storing layout representation either in the buffer
 	 * or in the DB.
 	 */
-	int         (*leto_encode)(struct c2_layout *l,
+	int         (*leto_encode)(const struct c2_layout_enum *le,
+				   uint64_t lid,
 				   enum c2_layout_xcode_op op,
 				   struct c2_ldb_schema *schema,
 				   struct c2_db_tx *tx,

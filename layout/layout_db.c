@@ -575,6 +575,21 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 	C2_LEAVE();
 }
 
+extern const struct c2_layout_type c2_pdclust_layout_type;
+extern const struct c2_layout_enum_type c2_list_enum_type;
+extern const struct c2_layout_enum_type c2_linear_enum_type;
+/**
+ * Registers all the available layout types and enum types.
+ */
+void c2_ldb_register(struct c2_ldb_schema *schema)
+{
+	// todo return status
+	c2_ldb_type_register(schema, &c2_pdclust_layout_type);
+
+	c2_ldb_enum_register(schema, &c2_list_enum_type);
+	c2_ldb_enum_register(schema, &c2_linear_enum_type);
+}
+
 /**
  * Registers a new layout type with the layout types maintained by
  * c2_layout_domain::ld_type[] and initializes type layout specific tables,

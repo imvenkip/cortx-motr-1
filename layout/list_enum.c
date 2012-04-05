@@ -487,8 +487,7 @@ out:
 	return rc;
 }
 
-/* todo this fn should accept lid instead of l ? */
-int ldb_cob_list_write(enum c2_layout_xcode_op op, struct c2_layout *l,
+int ldb_cob_list_write(enum c2_layout_xcode_op op, uint64_t lid,
 		       uint32_t idx, struct c2_fid *cob_id,
 		       struct c2_ldb_schema *schema, struct c2_db_tx *tx)
 {
@@ -499,7 +498,6 @@ int ldb_cob_list_write(enum c2_layout_xcode_op op, struct c2_layout *l,
 	int                       rc;
 
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
-	C2_PRE(l != NULL);
 	C2_PRE(cob_id != NULL);
 	C2_PRE(schema != NULL);
 	C2_PRE(tx != NULL);
@@ -507,7 +505,7 @@ int ldb_cob_list_write(enum c2_layout_xcode_op op, struct c2_layout *l,
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
-	key.lclk_lid       = l->l_id;
+	key.lclk_lid       = lid;
 	key.lclk_cob_index = idx;
 	rec.lclr_cob_id    = *cob_id;
 
@@ -522,7 +520,7 @@ int ldb_cob_list_write(enum c2_layout_xcode_op op, struct c2_layout *l,
 				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 				   c2_addb_func_fail.ae_id,
 				   &layout_global_ctx,
-				   LID_APPLICABLE, l->l_id, rc);
+				   LID_APPLICABLE, lid, rc);
 		}
 	} else if (op == C2_LXO_DB_DELETE) {
 		rc = c2_table_delete(tx, &pair);
@@ -532,7 +530,7 @@ int ldb_cob_list_write(enum c2_layout_xcode_op op, struct c2_layout *l,
 				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 				   c2_addb_func_fail.ae_id,
 				   &layout_global_ctx,
-				   LID_APPLICABLE, l->l_id, rc);
+				   LID_APPLICABLE, lid, rc);
 		}
 	}
 
@@ -552,13 +550,12 @@ int ldb_cob_list_write(enum c2_layout_xcode_op op, struct c2_layout *l,
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is converted into the
  * buffer.
  */
-static int list_encode(struct c2_layout *l,
+static int list_encode(const struct c2_layout_enum *le, uint64_t lid,
 		       enum c2_layout_xcode_op op,
 		       struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *oldrec_cur,
 		       struct c2_bufvec_cursor *out)
 {
-	struct c2_layout_striped      *stl;
 	struct c2_layout_list_enum    *list_enum;
 	uint32_t                       num_inline; /* No. of inline cobs */
 	struct ldb_cob_entries_header  ldb_ce_header;
@@ -568,7 +565,7 @@ static int list_encode(struct c2_layout *l,
 	uint32_t                       i;
 	int                            rc = 0;
 
-	C2_PRE(layout_invariant(l));
+	C2_PRE(enum_invariant(le, lid));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));
@@ -579,12 +576,10 @@ static int list_encode(struct c2_layout *l,
 		    c2_bufvec_cursor_step(oldrec_cur) >=
 				sizeof *ldb_ce_oldheader));
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-	list_enum = container_of(stl->ls_enum, struct c2_layout_list_enum,
-				 lle_base);
-	C2_ASSERT(c2_list_enum_invariant(list_enum, l->l_id));
+	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
+	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
 
 	num_inline = list_enum->lle_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 			LDB_MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
@@ -631,7 +626,7 @@ static int list_encode(struct c2_layout *l,
 			if (i == 0)
 				C2_LOG("list_encode(): lid %llu, Start "
 				       "accepting inline cob entries.",
-				       (unsigned long long)l->l_id);
+				       (unsigned long long)lid);
 
 			nbytes = c2_bufvec_cursor_copyto(out,
 					&list_enum->lle_list_of_cobs[i],
@@ -657,21 +652,21 @@ static int list_encode(struct c2_layout *l,
 			if (i == num_inline)
 				C2_LOG("list_encode(): lid %llu, Start writing"
 				       " to the cob_lists table.",
-				       (unsigned long long)l->l_id);
+				       (unsigned long long)lid);
 
-			rc = ldb_cob_list_write(op, l, i,
+			rc = ldb_cob_list_write(op, lid, i,
 						&list_enum->lle_list_of_cobs[i],
 						schema, tx);
 			if (rc != 0) {
 				C2_LOG("list_encode(): lid %llu, "
 				       "ldb_cob_list_write() failed, rc %d",
-				       (unsigned long long)l->l_id, rc);
+				       (unsigned long long)lid, rc);
 				goto out;
 			}
 		}
 	}
 out:
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 

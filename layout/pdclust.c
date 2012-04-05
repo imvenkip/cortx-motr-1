@@ -758,7 +758,8 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
 
-	rc = et->let_ops->leto_encode(l, op, schema, tx, oldrec_cur, out);
+	rc = et->let_ops->leto_encode(stl->ls_enum, l->l_id,
+				      op, schema, tx, oldrec_cur, out);
 	if (rc != 0) {
 		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
