@@ -97,7 +97,8 @@ net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
 net_ksunrpc_HEADERS             := ksunrpc.h
 
-net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c tm_provision_ut.c
+net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c 
+net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
 

@@ -22,10 +22,10 @@
 
 static int max_recv_msgs = 1;
 enum {
-	POOL_COLOURS   = 5;
-	POOL_THRESHOLD = 2;
-	POOL_BUF_NR    = 8;
-	MIN_RECV_SIZE  = 1 << 12;
+	POOL_COLOURS   = 5,
+	POOL_THRESHOLD = 2,
+	POOL_BUF_NR    = 8,
+	MIN_RECV_SIZE  = 1 << 12,
 };
 static int ut_tm_prov_event_cb_calls = 0;
 void ut_tm_prov_event_cb(const struct c2_net_tm_event *ev)
