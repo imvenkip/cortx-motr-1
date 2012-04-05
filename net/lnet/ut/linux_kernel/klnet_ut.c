@@ -86,7 +86,7 @@ static int write_lnet_ut(struct file *file, const char __user *buffer,
 			ktest_user_failed = true;
 			count = -EINVAL;
 		} else
-			ktest_id = UT_TEST_DONE; /** @todo UT_TEST_DEV */
+			ktest_id = UT_TEST_DEV;
 		break;
 	case UT_USER_SUCCESS:
 		/* test passed */
@@ -1937,10 +1937,59 @@ static void ktest_bulk(void)
 #undef UT_BUFVEC_FREE
 #undef UT_BUFVEC_ALLOC
 
+int ut_dev_opens;
+
+static int ut_dev_open(struct inode *inode, struct file *file)
+{
+	struct nlx_kcore_domain *kd;
+	int rc;
+
+	rc = nlx_dev_open(inode, file);
+	C2_UT_ASSERT(rc == 0 || rc == -EPERM);
+	if (rc == 0) {
+		ut_dev_opens++;
+		kd = file->private_data;
+		C2_UT_ASSERT(nlx_kcore_domain_invariant(kd));
+		if (nlx_kcore_domain_invariant(kd))
+			C2_UT_ASSERT(nlx_core_kmem_loc_is_empty(
+							      &kd->kd_cd_loc));
+	}
+	return rc;
+}
+
+int ut_dev_close(struct inode *inode, struct file *file)
+{
+	int rc;
+
+	rc = nlx_dev_close(inode, file);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(file->private_data == NULL);
+	return rc;
+}
+
+#define WAIT_FOR_USER_HELPER(id)					\
+({									\
+	C2_UT_ASSERT(ktest_id == (id));					\
+	c2_semaphore_up(&ktest_sem);					\
+	to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);			\
+	c2_mutex_lock(&ktest_mutex);					\
+	while (ktest_id == (id) && !ktest_user_failed && ok)		\
+		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);	\
+	c2_mutex_unlock(&ktest_mutex);					\
+	C2_UT_ASSERT(ok);						\
+	C2_UT_ASSERT(!ktest_user_failed);				\
+	if (!ok)							\
+		goto restore_fops;					\
+})
+
 static void ktest_dev(void)
 {
 	bool ok;
 	c2_time_t to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);
+
+	ut_dev_opens = 0;
+	nlx_dev_file_ops.release = ut_dev_close;
+	nlx_dev_file_ops.open    = ut_dev_open;
 
 	/* initial handshake */
 	c2_mutex_lock(&ktest_mutex);
@@ -1953,21 +2002,34 @@ static void ktest_dev(void)
 
 	C2_UT_ASSERT(ok);
 	if (!ok)
-		return;
+		goto restore_fops;
 
-	/** @todo insert logic for the actual UT here */
+	/** UT_TEST_DEV: just wait for user program to verify device */
+	WAIT_FOR_USER_HELPER(UT_TEST_DEV);
+
+	/** UT_TEST_OPEN: wait for user program to open/close */
+	C2_UT_ASSERT(ut_dev_opens == 0);
+	WAIT_FOR_USER_HELPER(UT_TEST_OPEN);
+	C2_UT_ASSERT(ut_dev_opens == 1);
+
+	/** @todo insert logic for the remaining UT here */
 
 	/* final handshake before proc file is deregistered */
 	c2_semaphore_up(&ktest_sem);
 	to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);
 	c2_mutex_lock(&ktest_mutex);
-	while (ktest_id != UT_TEST_DONE && !ktest_user_failed && ok)
+	while (!ktest_done && !ktest_user_failed && ok)
 		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);
 	c2_mutex_unlock(&ktest_mutex);
 	C2_UT_ASSERT(ok);
 	C2_UT_ASSERT(!ktest_user_failed);
-	C2_UT_ASSERT(ktest_id == UT_TEST_DONE);
+	C2_UT_ASSERT(ktest_done);
+restore_fops:
+	nlx_dev_file_ops.open    = nlx_dev_open;
+	nlx_dev_file_ops.release = nlx_dev_close;
 }
+
+#undef WAIT_FOR_USER_HELPER
 
 /*
  *  Local variables:

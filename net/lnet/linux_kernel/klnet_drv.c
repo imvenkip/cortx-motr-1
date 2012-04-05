@@ -1325,6 +1325,9 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	struct nlx_kcore_domain *kd;
 	int rc;
 
+        if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
 	C2_ALLOC_PTR_ADDB(kd, &c2_net_addb, &nlx_addb_loc);
 	if (kd == NULL)
 		return -ENOMEM;
@@ -1440,8 +1443,8 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
-/** File operations for the c2lnet device. */
-static const struct file_operations nlx_dev_file_ops = {
+/** File operations for the c2lnet device, UT can override. */
+static struct file_operations nlx_dev_file_ops = {
 	.owner          = THIS_MODULE,
         .unlocked_ioctl = nlx_dev_ioctl,
         .open           = nlx_dev_open,

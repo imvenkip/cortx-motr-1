@@ -29,8 +29,8 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 
-#define NLX_SCOPE
-#include "net/lnet/lnet_core.h"
+#include "net/net.h"
+#include "net/lnet/lnet_core_types.h"
 #include "net/lnet/lnet_ioctl.h"
 #include "net/lnet/ut/lnet_ut.h"
 
@@ -40,16 +40,30 @@ const char lnet_ut_proc[]  = "/proc/c2_lnet_ut";
 enum {
 	MAX_PROC_TRIES = 120,
 	PROC_DELAY_SEC = 2,
+	FAIL_UID_GID = 99,
 };
 
-/** @todo hack */
-void *nlx_core_mem_alloc(size_t size, unsigned shift)
+/**
+   Round up a number n to the next power of 2, min 1<<3, works for n <= 1<<9.
+   If n is a power of 2, returns n.
+   Requires a constant input, allowing compile-time computation.
+ */
+#define LUT_PO2_SHIFT(n)                                                \
+	(((n) <= 8) ? 3 : ((n) <= 16) ? 4 : ((n) <= 32) ? 5 :           \
+	 ((n) <= 64) ? 6 : ((n) <= 128) ? 7 : ((n) <= 256) ? 8 :        \
+	 ((n) <= 512) ? 9 : ((n) / 0))
+#define LUT_ALLOC_PTR(ptr) \
+	((ptr) = lut_mem_alloc(sizeof ((ptr)[0]),			\
+			       LUT_PO2_SHIFT(sizeof ((ptr)[0]))))
+#define LUT_FREE_PTR(ptr) \
+	lut_mem_free((ptr), sizeof ((ptr)[0]), LUT_PO2_SHIFT(sizeof ((ptr)[0])))
+
+static void *lut_mem_alloc(size_t size, unsigned shift)
 {
 	return c2_alloc_aligned(size, shift);
 }
 
-/** @todo hack */
-void nlx_core_mem_free(void *data, size_t size, unsigned shift)
+static void lut_mem_free(void *data, size_t size, unsigned shift)
 {
 	c2_free_aligned(data, size, shift);
 }
@@ -62,9 +76,9 @@ int test_dev_exists()
 	if (rc == 0) {
 		if (!S_ISCHR(st.st_mode))
 			rc = -1;
-		if (st.st_uid != 0 || st.st_gid != 0)
+		if (st.st_uid != 0)
 			rc = -1;
-		if ((st.st_mode & ALLPERMS) != (S_IRUSR|S_IWUSR))
+		if ((st.st_mode & S_IRWXO) != 0)
 			rc = -1;
 	}
 	return rc;
@@ -76,9 +90,11 @@ int test_dev_open_close()
 	struct nlx_core_domain *dom;
 	int f;
 	int rc;
+	int uid = getuid();
+	int gid = getgid();
 
 	C2_SET0(&p);
-	NLX_ALLOC_PTR(dom);
+	LUT_ALLOC_PTR(dom);
 	C2_ASSERT(dom != NULL);
 	p.ddi_cd = dom;
 
@@ -97,7 +113,22 @@ int test_dev_open_close()
 	}
 
 	close(f);
-	NLX_FREE_PTR(dom);
+	LUT_FREE_PTR(dom);
+
+	/* non-privileged user fails */
+	rc = setegid(FAIL_UID_GID);
+	C2_ASSERT(rc == 0);
+	rc = seteuid(FAIL_UID_GID);
+	C2_ASSERT(rc == 0);
+	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
+	if (f >= 0) {
+		close(f);
+		rc = -1;
+	}
+	uid = seteuid(uid);
+	C2_ASSERT(uid == 0);
+	gid = setegid(gid);
+	C2_ASSERT(gid == 0);
 	return rc;
 }
 
@@ -105,12 +136,12 @@ int test_tm()
 {
 	struct nlx_core_transfer_mc *tm;
 
-	NLX_ALLOC_PTR(tm);
+	LUT_ALLOC_PTR(tm);
 	C2_ASSERT(tm != NULL);
 	tm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
 	tm->ctm_user_space_xo = true;
 	tm->_debug_ = 15;
-	NLX_FREE_PTR(tm);
+	LUT_FREE_PTR(tm);
 	return 0;
 }
 

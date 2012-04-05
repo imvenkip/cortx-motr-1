@@ -18,12 +18,15 @@
  * Original creation date: 04/3/2012
  */
 
+#ifndef __COLIBRI_LNET_UT_H__
+#define __COLIBRI_LNET_UT_H__
+
 enum {
 	UT_TEST_NONE = 0,	  /**< no test requested, user program idles */
 	UT_TEST_DEV  = 1,	  /**< device registered */
 	UT_TEST_OPEN = 2,	  /**< open/close */
 	UT_TEST_TM   = 3,	  /**< TM start/stop */
-	UT_TEST_MAX  = 3,	  /**< final test ID */
+	UT_TEST_MAX  = 2,	  /**< final implemented test ID */
 
 	UT_TEST_DONE = 127,	  /**< done testing, no user response */
 
@@ -31,6 +34,8 @@ enum {
 	UT_USER_SUCCESS = 'y',	  /**< current test succeeded in user space */
 	UT_USER_FAIL = 'n',	  /**< current test failed in user space */
 };
+
+#endif /* __COLIBRI_LNET_UT_H__ */
 
 /*
  *  Local variables:
