@@ -638,18 +638,23 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 
 	if (c2_is_cob_create_fop(fop)) {
 		cc = c2_fop_data(fop);
-		C2_ALLOC_ARR(cc->cc_cobname.cn_name,
-			     (2 * C2T1FS_COB_ID_STRLEN) + 2);
+		C2_ALLOC_ARR(cc->cc_cobname.cn_name, C2T1FS_COB_ID_STRLEN);
 		if (cc->cc_cobname.cn_name == NULL) {
 			C2_LOG("Memory allocation failed for cob_name.");
 			C2_LEAVE("%d", -ENOMEM);
 			return -ENOMEM;
 		}
 
-		sprintf((char*)cc->cc_cobname.cn_name, "%16lx:%16lx",
-			(unsigned long)cob_fid->f_container,
-			(unsigned long)cob_fid->f_key);
+		snprintf((char*)cc->cc_cobname.cn_name, C2T1FS_COB_ID_STRLEN,
+			 "%16lx:%16lx",
+			 (unsigned long)cob_fid->f_container,
+			 (unsigned long)cob_fid->f_key);
 
+		/*
+		 * 1 is added to string length so that standard string
+		 * library calls which depend on NULL char at end of string
+		 * don't fail.
+		 */
 		cc->cc_cobname.cn_count = strlen((char*)cc->cc_cobname.cn_name)
 					  + 1;
 	}
