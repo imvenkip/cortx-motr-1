@@ -9,19 +9,16 @@ fi
 echo 8 > /proc/sys/kernel/printk
 export C2_TRACE_IMMEDIATE_MASK=1
 
-COLIBRI_CORE_ROOT=`dirname $0`/../../..
-COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
-COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
+. `dirname $0`/c2t1fs_common.sh
+
 COLIBRI_NET_DOMAIN=bulk-sunrpc
-COLIBRI_IOSERVICE_ENDPOINT="172.16.220.153:23124:1"
 COLIBRI_SERVICE_NAME=ioservice
 COLIBRI_STOB_DOMAIN=linux
 COLIBRI_DB_PATH=$COLIBRI_C2T1FS_TEST_DIR/db
 COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
 COLIBRI_STOB_UTIL=$COLIBRI_CORE_ROOT/stob/ut/stobutil
-COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%d-%m-%Y_%T"`.log
 GLOBAL_FID_LO=3         #Global fid = <0,3>
-POOL_WIDTH=3
+
 
 create_stobs()
 {
