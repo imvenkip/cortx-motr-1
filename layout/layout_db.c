@@ -250,24 +250,14 @@
  * @subsection Layout-DB-lspec-thread Threading and Concurrency Model
  * - DB5 internally provides synchrnization against various table entries.
  *   Hence layout schema does not need to do much in that regard.
- * - Various arrays in struct c2_ldb_schema (viz. ls_type[], ls_enum[],
- *   ls_type_data[] and ls_enum_data[]) are protected by using
+ * - Various arrays in struct c2_layout_domain (viz. ld_type[], ld_enum[]),
+ *   holding registered layout types and enum types, are protected by using
+ *   c2_layout_domain::ld_lock, specifically, during registration and
+ *   unregistration routines for various layout types and enum types.
+ * - Various tables those are part of layout DB, directly or indirectly
+ *   pointed by struct c2_ldb_schema, are protected by using
  *   c2_ldb_schema::ls_lock.
- * - c2_ldb_schema::ls_lock is acquired during operations like registering/
- *   unregistering a layout/enum type.
- * - It is also acquired during the operations
- *   c2_ldb_[lookup|add|update|delete](). This is to ensure that the relavant
- *   layout|enum type does not get unregistered while any of those operations
- *   is taking place.
- * - (todo Change this comment along with change to relevant locking protocol.)
- *   Besides that, it is acquired during c2_layout_[encode|decode](), if and
- *   only if op is C2_LXO_BUFFER_OP so as to handle the case of
- *   c2_layout_[encode|decode]() being called directly by the user.
  * - The in-memory c2_layout object is protected using c2_layout::l_lock.
- * - c2_layout::l_lock is acquired during c2_layout_[get|put|decode (later part
- *   of decode to be specific)|encode]() operations. This is to ensure that
- *   only one of these oparaions take place on the layout, at any point in
- *   time.
  *
  * @subsection Layout-DB-lspec-numa NUMA optimizations
  *
