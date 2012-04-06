@@ -1400,7 +1400,6 @@ static int io_launch(struct c2_fom *fom)
 		goto cleanup;
 
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
-	c2_fom_block_leave(fom);
 	if (rc != 0) {
 		goto cleanup_st;
 	}
