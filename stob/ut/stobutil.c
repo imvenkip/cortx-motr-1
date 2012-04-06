@@ -315,8 +315,8 @@ static int stob_domain_locate_or_create(enum stob_type          stob_type,
 	rc = c2_cs_storage_init(str_stob_type, dom_path, &reqh_stobs, dbenvp);
 
 	if (rc == 0)
-		*out = (stob_type == AD_STOB_TYPE) ? reqh_stobs.adstob
-						   : reqh_stobs.linuxstob;
+		*out = (stob_type == AD_STOB_TYPE) ? reqh_stobs.rs_adsdom
+						   : reqh_stobs.rs_linuxsdom;
 
 	return rc;
 }

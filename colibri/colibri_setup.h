@@ -157,19 +157,19 @@ struct c2_cs_reqh_stobs {
 	/**
 	   Type of storage domain to be initialise (e.g. Linux or AD)
 	 */
-	const char            *stype;
+	const char            *rs_stype;
 	/**
 	   Backend storage object id
 	 */
-	struct c2_stob_id      stob_id;
+	struct c2_stob_id      rs_stobid;
 	/**
 	   Linux storage domain type.
 	 */
-	struct c2_stob_domain *linuxstob;
+	struct c2_stob_domain *rs_linuxsdom;
 	/**
 	   Allocation data storage domain type.
 	 */
-	struct c2_stob_domain *adstob;
+	struct c2_stob_domain *rs_adsdom;
 };
 
 /**

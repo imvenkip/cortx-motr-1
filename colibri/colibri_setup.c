@@ -160,7 +160,7 @@ struct cs_reqh_context {
 	int                          rc_state;
 
 	/** Storage domain for a request handler */
-	struct c2_cs_reqh_stobs         rc_stob;
+	struct c2_cs_reqh_stobs      rc_stob;
 
 	/** Database used by the request handler */
 	struct c2_dbenv              rc_db;
@@ -703,14 +703,33 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
    Initialises AD type stob.
  */
 static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
-			   struct c2_dbenv *db, struct c2_stob **bstob)
+                                                             struct c2_dbenv *db)
 {
-	int rc;
+	int             rc;
+        struct c2_stob *bstob;
 
-	rc = c2_stob_domain_locate(&c2_ad_stob_type, stob_path, &stob->adstob);
+	C2_PRE(stob != NULL && stob->rs_linuxsdom != NULL);
+
+        stob->rs_stobid.si_bits = (struct c2_uint128){ .u_hi = 0x0,
+                                                       .u_lo = 0xadf11e };
+	
+	rc = c2_stob_find(stob->rs_linuxsdom, &stob->rs_stobid, &bstob);
+
+	if (rc == 0) {
+		rc = c2_stob_create(bstob, NULL);
+		if (rc != 0)
+			return rc;
+	}
+
+	C2_ASSERT(bstob->so_state == CSS_EXISTS);
+
+	if (bstob != NULL)
+		c2_stob_put(bstob);
+
+	rc = c2_stob_domain_locate(&c2_ad_stob_type, stob_path, &stob->rs_adsdom);
 
 	if (rc == 0)
-		rc = c2_ad_stob_setup(stob->adstob, db, *bstob,
+		rc = c2_ad_stob_setup(stob->rs_adsdom, db, bstob,
 				      &colibri_balloc.cb_ballroom,
 				      BALLOC_DEF_CONTAINER_SIZE,
 				      BALLOC_DEF_BLOCK_SHIFT,
@@ -723,19 +742,16 @@ static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
    Initialises linux type stob.
  */
 static int cs_linux_stob_init(const char *stob_path,
-			      struct c2_cs_reqh_stobs *stob,
-			      struct c2_stob **bstob)
+			      struct c2_cs_reqh_stobs *stob)
 {
 	int                    rc;
 	struct c2_stob_domain *sdom;
 
 	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path,
-				   &stob->linuxstob);
+				   &stob->rs_linuxsdom);
 	if  (rc == 0) {
-		sdom = stob->linuxstob;
+		sdom = stob->rs_linuxsdom;
 		rc = c2_linux_stob_setup(sdom, false);
-		if  (rc == 0)
-			rc = c2_stob_find(sdom, &stob->stob_id, bstob);
 	}
 
 	return rc;
@@ -747,18 +763,12 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 	int                      rc;
 	int                      slen;
 	char                    *objpath;
-        struct c2_stob          *bstore;
 	static const char        objdir[] = "/o";
 
 	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
-	stob->stype = stob_type;
+	stob->rs_stype = stob_type;
 
-	/*
-	   XXX Need generic mechanism to generate stob ids
-	 */
-        stob->stob_id.si_bits = (struct c2_uint128){ .u_hi = 0x0,
-						     .u_lo = 0xdf11e };
 	slen = strlen(stob_path);
 	C2_ALLOC_ARR(objpath, slen + ARRAY_SIZE(objdir));
 	if (objpath == NULL)
@@ -774,25 +784,14 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
         if (rc != 0 && errno != EEXIST)
 		goto cleanup;
 
-	rc = cs_linux_stob_init(stob_path, stob, &bstore);
-	if (rc != 0)
-		goto cleanup;
-
-	rc = c2_stob_create(bstore, NULL);
+	rc = cs_linux_stob_init(stob_path, stob);
 	if (rc != 0)
 		goto cleanup;
 
 	if (strcasecmp(stob_type, cs_stobs[AD_STOB]) == 0)
-		rc = cs_ad_stob_init(stob_path, stob, db, &bstore);
-
-	if (rc != 0)
-		goto cleanup;
-
-	C2_ASSERT(bstore->so_state == CSS_EXISTS);
+		rc = cs_ad_stob_init(stob_path, stob, db);
 
 cleanup:
-	if (bstore != NULL)
-		c2_stob_put(bstore);
 	c2_free(objpath);
 
 	return rc;
@@ -802,10 +801,10 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
-	if (stob->linuxstob != NULL) {
-		if (stob->adstob != NULL)
-			stob->adstob->sd_ops->sdo_fini(stob->adstob);
-		stob->linuxstob->sd_ops->sdo_fini(stob->linuxstob);
+	if (stob->rs_linuxsdom != NULL) {
+		if (stob->rs_adsdom != NULL)
+			stob->rs_adsdom->sd_ops->sdo_fini(stob->rs_adsdom);
+		stob->rs_linuxsdom->sd_ops->sdo_fini(stob->rs_linuxsdom);
 	}
 }
 
@@ -1067,10 +1066,10 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 		goto cleanup_cob;
 
 	rstob = &rctx->rc_stob;
-	if (strcasecmp(rstob->stype, cs_stobs[AD_STOB]) == 0)
-		sdom = rstob->adstob;
+	if (strcasecmp(rstob->rs_stype, cs_stobs[AD_STOB]) == 0)
+		sdom = rstob->rs_adsdom;
 	else
-		sdom = rstob->linuxstob;
+		sdom = rstob->rs_linuxsdom;
 
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
 					&rctx->rc_cdom, &rctx->rc_fol);
