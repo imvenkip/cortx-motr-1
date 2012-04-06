@@ -213,7 +213,8 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(tm1->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
 	C2_UT_ASSERT(tm1->ntm_recv_queue_min_recv_size == MIN_RECV_SIZE);
 	C2_UT_ASSERT(tm1->ntm_recv_queue_max_recv_msgs == max_recv_msgs);
-	C2_UT_ASSERT(tm1->ntm_recv_queue_min_length == C2_NET_TM_RECV_QUEUE_DEF_LEN);
+	C2_UT_ASSERT(tm1->ntm_recv_queue_min_length ==
+		     C2_NET_TM_RECV_QUEUE_DEF_LEN);
 
 	/* TM start */
 	c2_clink_init(&tmwait, NULL);
@@ -249,8 +250,9 @@ static void test_net_tm_prov(void)
 	c2_thread_fini(&ut_tm_thread);
 
 	/*
-	 * Check for provisioning when minimum buffers in the receive queue of
-	 * tm is changed. Re-provisioning happens synchronously with this call.
+	 * Check for provisioning when minimum buffers in the receive queue
+	 * of tm is changed. Also re-provisioning happens synchronously with
+	 * this call.
 	 */
 	c2_net_tm_pool_length_set(tm1, 4);
 	C2_UT_ASSERT(tm1->ntm_recv_queue_min_length == 4);
@@ -361,21 +363,22 @@ static void test_net_tm_prov(void)
 		     tm1->ntm_recv_queue_min_length + 1);
 
 	/*
-	 * When TM stop is called it returns buffers in TM receive queue to the pool
-	 * in ut_prov_msg_recv_cb. As pool is empty, adding buffers to it will trigger
-	 * c2_net_buffer_pool_not_empty cb which does the domain wide re-provisioning
-	 * based on deficit value.
+	 * When TM stop is called it returns buffers in TM receive queue to
+	 * the pool in ut_prov_msg_recv_cb. As pool is empty, adding buffers
+	 * to it will trigger c2_net_buffer_pool_not_empty cb which does the
+	 * domain wide re-provisioning based on deficit value.
 	 *
-	 * To test use case "return a buffer to the pool and trigger re-provisioning",
-	 * do the following.
+	 * To test use case "return a buffer to the pool and trigger
+	 * re-provisioning", do the following.
 	 * - Create some deficit in TM2.
 	 * - Stop the TM1
-	 *   As a result of this buffers used in TM1 will be returned to the empty pool
-	 *   and will be used to provision TM2.
+	 *   As a result of this buffers used in TM1 will be returned to
+	 *   the empty pool and will be used to provision TM2.
 	 *
-	 * It also tests use case "buffer colour correctness during auto provisioning".
-	 * - As buffers in TM1 having colour1 will be returned to the empty pool
-	 *   and are later provisioned to TM2.
+	 * It also tests use case "buffer colour correctness during auto
+	 * provisioning".
+	 * - As buffers in TM1 having colour1 will be returned to the empty
+	 *   pool and are later provisioned to TM2.
 	 */
 	pool_not_empty_called = false;
 	/* Check buffer pool is empty. */
@@ -407,8 +410,7 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(rc == 0);
 	c2_chan_wait(&tmwait);
 	/* Check whether all buffers are returned to the pool. */
-	C2_UT_ASSERT(pool_prov->nbp_free ==
-		     pool_prov->nbp_buf_nr);
+	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr);
 	c2_clink_del(&tmwait);
 	c2_thread_join(&ut_tm_thread); /* cleanup thread */
 	c2_thread_fini(&ut_tm_thread);
