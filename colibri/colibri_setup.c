@@ -705,37 +705,38 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
 static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
                                                              struct c2_dbenv *db)
 {
-	int             rc;
-        struct c2_stob *bstob;
+        int             rc;
+	struct c2_dtx  *tx;
 
-	C2_PRE(stob != NULL && stob->rs_linuxsdom != NULL);
+        C2_PRE(stob != NULL && stob->rs_ldom != NULL);
 
-        stob->rs_stobid.si_bits = (struct c2_uint128){ .u_hi = 0x0,
-                                                       .u_lo = 0xadf11e };
-	
-	rc = c2_stob_find(stob->rs_linuxsdom, &stob->rs_stobid, &bstob);
+        tx = &stob->rs_tx;
+        stob->rs_id_back.si_bits = (struct c2_uint128){ .u_hi = 0x0,
+                                                        .u_lo = 0xadf11e };
 
-	if (rc == 0) {
-		rc = c2_stob_create(bstob, NULL);
-		if (rc != 0)
-			return rc;
-	}
-
-	C2_ASSERT(bstob->so_state == CSS_EXISTS);
-
-	if (bstob != NULL)
-		c2_stob_put(bstob);
-
-	rc = c2_stob_domain_locate(&c2_ad_stob_type, stob_path, &stob->rs_adsdom);
-
+        rc = c2_stob_domain_locate(&c2_ad_stob_type, stob_path, &stob->rs_adom);
 	if (rc == 0)
-		rc = c2_ad_stob_setup(stob->rs_adsdom, db, bstob,
-				      &colibri_balloc.cb_ballroom,
-				      BALLOC_DEF_CONTAINER_SIZE,
-				      BALLOC_DEF_BLOCK_SHIFT,
-				      BALLOC_DEF_BLOCKS_PER_GROUP,
-				      BALLOC_DEF_RESERVED_GROUPS);
-	return rc;
+             rc = c2_stob_find(stob->rs_ldom, &stob->rs_id_back,
+                                              &stob->rs_stob_back);
+        if (rc == 0) {
+             c2_dtx_init(tx);
+             rc = c2_dtx_open(tx, db);
+        }
+        if (rc == 0) {
+             rc = c2_stob_locate(stob->rs_stob_back, tx);
+             if (rc == -ENOENT)
+                       rc = c2_stob_create(stob->rs_stob_back, tx);
+        }
+        if (rc == 0)
+             rc = c2_ad_stob_setup(stob->rs_adom, db,
+                                   stob->rs_stob_back,
+                                   &colibri_balloc.cb_ballroom,
+                                   BALLOC_DEF_CONTAINER_SIZE,
+                                   BALLOC_DEF_BLOCK_SHIFT,
+                                   BALLOC_DEF_BLOCKS_PER_GROUP,
+                                   BALLOC_DEF_RESERVED_GROUPS);
+
+       return rc;
 }
 
 /**
@@ -748,14 +749,37 @@ static int cs_linux_stob_init(const char *stob_path,
 	struct c2_stob_domain *sdom;
 
 	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path,
-				   &stob->rs_linuxsdom);
-	if  (rc == 0) {
-		sdom = stob->rs_linuxsdom;
-		rc = c2_linux_stob_setup(sdom, false);
+				   &stob->rs_ldom);
+	if (rc == 0) {
+	     sdom = stob->rs_ldom;
+	     rc = c2_linux_stob_setup(sdom, false);
 	}
 
 	return rc;
 }
+
+void cs_ad_stob_fini(struct c2_cs_reqh_stobs *stob)
+{
+	C2_PRE(stob != NULL);
+
+        if (stob->rs_adom != NULL) {
+             if (stob->rs_stob_back != NULL &&
+                 stob->rs_stob_back->so_state == CSS_EXISTS) {
+                 c2_dtx_done(&stob->rs_tx);
+                 c2_stob_put(stob->rs_stob_back);
+             }
+             stob->rs_adom->sd_ops->sdo_fini(stob->rs_adom);
+        }
+}
+
+void cs_linux_stob_fini(struct c2_cs_reqh_stobs *stob)
+{
+	C2_PRE(stob != NULL);
+
+	if (stob->rs_ldom != NULL)
+                stob->rs_ldom->sd_ops->sdo_fini(stob->rs_ldom);
+}
+
 
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
@@ -778,20 +802,20 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 
 	rc = mkdir(stob_path, 0700);
         if (rc != 0 && errno != EEXIST)
-		goto cleanup;
+		goto out;
 
         rc = mkdir(objpath, 0700);
         if (rc != 0 && errno != EEXIST)
-		goto cleanup;
+		goto out;
 
 	rc = cs_linux_stob_init(stob_path, stob);
 	if (rc != 0)
-		goto cleanup;
+		goto out;
 
 	if (strcasecmp(stob_type, cs_stobs[AD_STOB]) == 0)
 		rc = cs_ad_stob_init(stob_path, stob, db);
 
-cleanup:
+out:
 	c2_free(objpath);
 
 	return rc;
@@ -801,11 +825,8 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
-	if (stob->rs_linuxsdom != NULL) {
-		if (stob->rs_adsdom != NULL)
-			stob->rs_adsdom->sd_ops->sdo_fini(stob->rs_adsdom);
-		stob->rs_linuxsdom->sd_ops->sdo_fini(stob->rs_linuxsdom);
-	}
+        cs_ad_stob_fini(stob);
+        cs_linux_stob_fini(stob);
 }
 
 /**
@@ -1067,9 +1088,9 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 
 	rstob = &rctx->rc_stob;
 	if (strcasecmp(rstob->rs_stype, cs_stobs[AD_STOB]) == 0)
-		sdom = rstob->rs_adsdom;
+		sdom = rstob->rs_adom;
 	else
-		sdom = rstob->rs_linuxsdom;
+		sdom = rstob->rs_ldom;
 
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
 					&rctx->rc_cdom, &rctx->rc_fol);
@@ -1112,7 +1133,7 @@ static int cs_start_request_handlers(struct c2_colibri *cctx)
 		rc = cs_start_request_handler(rctx);
 		if (rc != 0) {
 			fprintf(ofd,
-				"COLIBRI: Failed to start request handler\n");
+				"COLIBRI: Failed to start request handler, rc=%d\n", rc);
 			return rc;
 		}
 	} c2_tlist_endfor;
@@ -1481,19 +1502,21 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 		return rc;
 	}
 
-	rc = reqh_ctxs_are_valid(cctx);
-	if (rc != 0)
-		return rc;
+	if (rc == 0) {
+		rc = reqh_ctxs_are_valid(cctx);
+		if (rc != 0)
+		     return rc;
 
-	rc = cs_net_domains_init(cctx);
-	if (rc != 0)
-		return rc;
+		rc = cs_net_domains_init(cctx);
+		if (rc != 0)
+                     return rc;
 
-	rc = cs_start_request_handlers(cctx);
-	if (rc != 0)
-		return rc;
+		rc = cs_start_request_handlers(cctx);
+		if (rc != 0)
+                     return rc;
 
-	rc = cs_rpcmachines_init(cctx);
+		rc = cs_rpcmachines_init(cctx);
+	}
 
 	return rc;
 }

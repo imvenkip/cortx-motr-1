@@ -23,6 +23,7 @@
 
 #include "lib/tlist.h"
 #include "stob/stob.h"
+#include "dtm/dtm.h"
 
 /**
    @defgroup colibri_setup Configures user space colibri environment
@@ -159,17 +160,22 @@ struct c2_cs_reqh_stobs {
 	 */
 	const char            *rs_stype;
 	/**
-	   Backend storage object id
-	 */
-	struct c2_stob_id      rs_stobid;
-	/**
 	   Linux storage domain type.
 	 */
-	struct c2_stob_domain *rs_linuxsdom;
+	struct c2_stob_domain *rs_ldom;
 	/**
 	   Allocation data storage domain type.
 	 */
-	struct c2_stob_domain *rs_adsdom;
+	struct c2_stob_domain *rs_adom;
+	/**
+           Front end storage object id, i.e. ad
+         */
+	struct c2_stob_id      rs_id_back;
+	/**
+           Front end storage object
+         */
+	struct c2_stob        *rs_stob_back;
+	struct c2_dtx          rs_tx;
 };
 
 /**
