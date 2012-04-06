@@ -223,7 +223,6 @@ void list_fini(struct c2_layout_enum *e, uint64_t lid)
 	C2_ENTRY("DESTROY");
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
-
 	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
 
 	c2_layout_list_enum_bob_fini(list_enum);
@@ -333,7 +332,6 @@ static c2_bcount_t list_recsize(struct c2_layout_enum *e, uint64_t lid)
 	C2_PRE(e != NULL);
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
-
 	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
 
 	if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)

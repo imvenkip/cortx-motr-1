@@ -626,7 +626,6 @@ static int test_decode_pdclust_linear_negative(uint64_t lid)
 	rc = c2_layout_decode(&schema, lid, &cur, C2_LXO_BUFFER_OP,
 			      NULL, &l);
 	C2_UT_ASSERT(rc == -ENOBUFS);
-	* This results into an assert now. *
 
 	c2_free(area);
 	 * layout_destroy(l, lid) is not to be performed here since
@@ -665,7 +664,7 @@ static void test_decode(void)
 	/*
 	 * Negative test - Insufficient buffer size.
 	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
-	 * Can not test this since it results into an assert now.
+	 * This test results into an assertion.
 	 */
 	/*
 	lid = 1004;
@@ -1252,6 +1251,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 	return rc;
 }
 
+/*
 static int test_update_pdclust_linear_negative(uint64_t lid)
 {
 	c2_bcount_t                   num_bytes;
@@ -1289,7 +1289,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	layout_destroy(&pl->pl_base.ls_base, lid);
 	l = NULL;
 
-	/* Lookup the record just for verification. */
+	* Lookup the record just for verification. *
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1303,10 +1303,10 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	pl->pl_base.ls_base.l_ref = 7654321;
-	/*
+	*
 	 * Changing values of pl_atrr::N, K, P will be caught by the
 	 * c2_pdclust_layout_invariant() itself.
-	 */
+	 *
 	pl->pl_attr.pa_seed.u_hi++;
 
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
@@ -1320,7 +1320,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Lookup the record just for verification. */
+	* Lookup the record just for verification. *
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1340,6 +1340,7 @@ static int test_update_pdclust_linear_negative(uint64_t lid)
 	C2_LEAVE();
 	return rc;
 }
+*/
 
 static void test_update(void)
 {
@@ -1358,9 +1359,12 @@ static void test_update(void)
 	rc = test_update_pdclust_linear(lid);
 	C2_UT_ASSERT(rc == 0);
 
+	/*
 	lid = 5003;
 	rc = test_update_pdclust_linear_negative(lid);
 	C2_UT_ASSERT(rc == 0);
+	This test results into an assert.
+	*/
 
 	internal_fini();
 }

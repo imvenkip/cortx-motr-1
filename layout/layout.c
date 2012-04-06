@@ -102,10 +102,11 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl,
 
 /**
  * @note The check is_layout_type_valid() is purposely not moved to
- * layout_invariant(). It requires an aditional schema object pointer,
- * requiring it to be passed to multiple init functions like
+ * layout_invariant(). It requires an aditional domain object pointer,
+ * requiring it to be passed to multiple invariants like
  * layout_invariant(), striped_layout_invariant(),
- * c2_pdclust_layout_invariant() and alike.
+ * c2_pdclust_layout_invariant(), to all the init functions, and also to all
+ * the numerous callers of those invariants and init routines.
  */
 bool is_layout_type_valid(uint32_t lt_id, const struct c2_layout_domain *dom)
 {
@@ -117,7 +118,8 @@ bool is_layout_type_valid(uint32_t lt_id, const struct c2_layout_domain *dom)
 		return false;
 	}
 
-	if (dom->ld_type[lt_id] == NULL) {
+	if (dom->ld_type[lt_id] == NULL ||
+		dom->ld_type_ref_count[lt_id] < DEFAULT_REF_COUNT) {
 		C2_LOG("is_layout_type_valid(): Unknown layout type, "
 	               "layout-type-id %lu", (unsigned long)lt_id);
 		return false;
@@ -136,7 +138,8 @@ bool is_enum_type_valid(uint32_t let_id, const struct c2_layout_domain *dom)
 		return false;
 	}
 
-	if (dom->ld_enum[let_id] == NULL) {
+	if (dom->ld_enum[let_id] == NULL ||
+		dom->ld_enum_ref_count[let_id] < DEFAULT_REF_COUNT) {
 		C2_LOG("is_enum_type_valid(): Unknown enum type, "
 	               "enum-type-id %lu", (unsigned long)let_id);
 		return false;
@@ -426,6 +429,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	C2_LEAVE();
 }
 
+/* todo Do not expose this function. */
 int c2_layout_init(struct c2_layout *l,
 		   uint64_t lid,
 		   uint64_t pool_id,
@@ -532,6 +536,7 @@ int c2_layout_enum_init(struct c2_layout_enum *le, uint64_t lid,
 {
 	C2_PRE(le != NULL);
 	C2_PRE(lid != LID_NONE);
+	//todo C2_PRE(is_enum_type_valid(et->let_id, dom);
 	C2_PRE(et != NULL);
 	C2_PRE(ops != NULL);
 

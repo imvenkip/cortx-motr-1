@@ -386,7 +386,6 @@ static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 	C2_ENTRY("DESTROY, lid %llu", (unsigned long long)l->l_id);
 
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
 
 	c2_pdclust_layout_bob_fini(pl);
@@ -570,7 +569,6 @@ static c2_bcount_t pdclust_recsize(struct c2_layout_domain *dom,
 {
 	c2_bcount_t                 e_recsize;
 	struct c2_pdclust_layout   *pl;
-	struct c2_layout_striped   *stl;
 	struct c2_layout_enum_type *et;
 
 	C2_PRE(dom != NULL);
@@ -579,13 +577,10 @@ static c2_bcount_t pdclust_recsize(struct c2_layout_domain *dom,
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
+	et = dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
+	C2_ASSERT(is_enum_type_valid(et->let_id, dom));
 
-	C2_ASSERT(is_enum_type_valid(stl->ls_enum->le_type->let_id, dom));
-
-	et = dom->ld_enum[stl->ls_enum->le_type->let_id];
-
-	e_recsize = et->let_ops->leto_recsize(stl->ls_enum, l->l_id);
+	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum, l->l_id);
 
 	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
 }
@@ -628,9 +623,8 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 	/* pl_rec can not be NULL since the buffer size is already verified. */
 	pl_rec = c2_bufvec_cursor_addr(cur);
 
-	C2_ASSERT(is_enum_type_valid(pl_rec->pr_let_id, dom));
-
 	et = dom->ld_enum[pl_rec->pr_let_id];
+	C2_ASSERT(is_enum_type_valid(et->let_id, dom));
 
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
@@ -694,7 +688,6 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 		          struct c2_bufvec_cursor *out)
 {
 	struct c2_pdclust_layout     *pl;
-	struct c2_layout_striped     *stl;
 	struct c2_ldb_pdclust_rec     pl_rec;
 	struct c2_ldb_pdclust_rec    *pl_oldrec;
 	struct c2_layout_enum_type   *et;
@@ -723,8 +716,6 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
-
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
 		 * Processing the oldrec_cur, to verify that nothing other than
@@ -733,39 +724,32 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 		 */
 		pl_oldrec = c2_bufvec_cursor_addr(oldrec_cur);
 
-		if (pl_oldrec->pr_let_id != stl->ls_enum->le_type->let_id ||
-		    pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N ||
-		    pl_oldrec->pr_attr.pa_K != pl->pl_attr.pa_K ||
-		    pl_oldrec->pr_attr.pa_P != pl->pl_attr.pa_P ||
-		    !c2_uint128_eq(&pl_oldrec->pr_attr.pa_seed,
-				   &pl->pl_attr.pa_seed)) {
-				rc = -EINVAL;
-				C2_LOG("pdclust_encode(): lid %llu, New values "
-				       "do not match the old ones",
-					(unsigned long long)l->l_id);
-				goto out;
-			}
+		C2_ASSERT(pl_oldrec->pr_let_id ==
+			  pl->pl_base.ls_enum->le_type->let_id &&
+			  pl_oldrec->pr_attr.pa_N == pl->pl_attr.pa_N &&
+			  pl_oldrec->pr_attr.pa_K == pl->pl_attr.pa_K &&
+			  pl_oldrec->pr_attr.pa_P == pl->pl_attr.pa_P &&
+			  c2_uint128_eq(&pl_oldrec->pr_attr.pa_seed,
+					&pl->pl_attr.pa_seed));
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
-	C2_ASSERT(is_enum_type_valid(stl->ls_enum->le_type->let_id, dom));
+	et = dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
+	C2_ASSERT(is_enum_type_valid(et->let_id, dom));
 
-	et = dom->ld_enum[stl->ls_enum->le_type->let_id];
-
-	pl_rec.pr_let_id  = stl->ls_enum->le_type->let_id;
+	pl_rec.pr_let_id  = pl->pl_base.ls_enum->le_type->let_id;
 	pl_rec.pr_attr    = pl->pl_attr;
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
 
-	rc = et->let_ops->leto_encode(stl->ls_enum, l->l_id,
+	rc = et->let_ops->leto_encode(pl->pl_base.ls_enum, l->l_id,
 				      op, schema, tx, oldrec_cur, out);
 	if (rc != 0) {
 		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
 	}
 
-out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }

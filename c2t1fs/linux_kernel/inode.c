@@ -118,6 +118,11 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
 				 pl_base.ls_base);
+	/*
+	 * todo NULL will be replaced by c2_layout_domain pointer.
+	 * This will be taken care of through the component task
+	 * "c2t1fs.LayoutDB".
+	 */
 	ci->ci_layout->l_ops->lo_fini(ci->ci_layout, NULL);
 
 	C2_LEAVE();

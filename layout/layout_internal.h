@@ -39,11 +39,21 @@ struct c2_addb_ctx;
 struct c2_addb_loc;
 
 enum {
-	LID_NONE          = 0, /* Invalid layout id. */
+	/** Invalid layout id. */
+	LID_NONE          = 0,
+
 	DEFAULT_DB_FLAG   = 0,
-	DEFAULT_REF_COUNT = 1, /* While creating a layout. */
+
+	/**
+	 * Reference coount assigned to layout, during its initialization and
+	 * assigned to layout type and enum type, during their registration.
+	 */
+	DEFAULT_REF_COUNT = 1,
+
 	PRINT_ADDB_MSG    = 1,
 	PRINT_TRACE_MSG   = 1,
+
+	/** If lid is applicable to ADDB or TRACE message. */
 	LID_APPLICABLE    = 1
 };
 

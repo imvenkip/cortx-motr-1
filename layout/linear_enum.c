@@ -132,7 +132,6 @@ static void linear_fini(struct c2_layout_enum *e, uint64_t lid)
 	C2_ENTRY("DESTROY");
 
 	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
-
 	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
 
 	c2_layout_linear_enum_bob_fini(lin_enum);
@@ -263,28 +262,20 @@ static int linear_encode(const struct c2_layout_enum *le, uint64_t lid,
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
-
 	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
 
 	if (op == C2_LXO_DB_UPDATE) {
 		old_attr = c2_bufvec_cursor_addr(oldrec_cur);
 
-		if (old_attr->lla_nr != lin_enum->lle_attr.lla_nr ||
-		    old_attr->lla_A != lin_enum->lle_attr.lla_A ||
-		    old_attr->lla_B != lin_enum->lle_attr.lla_B) {
-			rc = -EINVAL;
-			C2_LOG("linear_encode(): lid %llu, New values "
-			       "do not match the old ones",
-			       (unsigned long long)lid);
-			goto out;
-		}
+		C2_ASSERT(old_attr->lla_nr == lin_enum->lle_attr.lla_nr &&
+			  old_attr->lla_A == lin_enum->lle_attr.lla_A &&
+			  old_attr->lla_B == lin_enum->lle_attr.lla_B);
 	}
 
 	nbytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
 					 sizeof lin_enum->lle_attr);
 	C2_ASSERT(nbytes == sizeof lin_enum->lle_attr);
 
-out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }

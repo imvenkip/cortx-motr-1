@@ -710,8 +710,9 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 		(struct c2_layout_enum_type *)let;
 
 	/* Get the first reference on this enum type. */
-	C2_ASSERT(schema->ls_domain->ld_enum_ref_count[let->let_id] == 0);
 	C2_CNT_INC(schema->ls_domain->ld_enum_ref_count[let->let_id]);
+	C2_ASSERT(schema->ls_domain->ld_enum_ref_count[let->let_id] ==
+		  DEFAULT_REF_COUNT);
 
 	/* Allocate enum type specific schema data. */
 	c2_mutex_lock(&schema->ls_lock);
@@ -752,7 +753,8 @@ void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
 	c2_mutex_unlock(&schema->ls_lock);
 
 	/* Release the last reference on this enum type. */
-	C2_ASSERT(schema->ls_domain->ld_enum_ref_count[let->let_id] == 1);
+	C2_ASSERT(schema->ls_domain->ld_enum_ref_count[let->let_id] ==
+		  DEFAULT_REF_COUNT);
 	C2_CNT_DEC(schema->ls_domain->ld_enum_ref_count[let->let_id]);
 
 	schema->ls_domain->ld_enum[let->let_id] = NULL;
@@ -800,6 +802,7 @@ c2_bcount_t c2_ldb_recsize(struct c2_ldb_schema *schema, struct c2_layout *l)
 	C2_PRE(layout_invariant(l));
 
 	lt = schema->ls_domain->ld_type[l->l_type->lt_id];
+	C2_ASSERT(is_layout_type_valid(lt->lt_id, schema->ls_domain));
 
 	recsize = sizeof(struct c2_ldb_rec) +
 		  lt->lt_ops->lto_recsize(schema->ls_domain, l);
