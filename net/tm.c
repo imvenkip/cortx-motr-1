@@ -454,7 +454,7 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
 	       tm->ntm_state == C2_NET_TM_STARTING ||
 	       tm->ntm_state == C2_NET_TM_STARTED);
-	if (len > tm->ntm_recv_queue_min_length)
+	if (len > C2_NET_TM_RECV_QUEUE_DEF_LEN)
 		tm->ntm_recv_queue_min_length = len;
 	if (tm->ntm_recv_pool != NULL && tm->ntm_state == C2_NET_TM_STARTED) {
 		pool = tm->ntm_recv_pool;

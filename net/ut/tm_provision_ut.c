@@ -18,6 +18,12 @@
  * Original creation date: 19/3/2012
  */
 
+/*
+ * This file is depends on bulk_if.c and is included in it, so that bulk
+ * interface dummy transport is reused to test auto provisioning of receive
+ * message queue.
+ */
+
 #include "net/buffer_pool.h"
 
 static int max_recv_msgs = 1;
@@ -53,6 +59,9 @@ static void ut_prov_msg_recv_cb(const struct c2_net_buffer_event *ev)
 
 	if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED &&
 	  !(nb->nb_flags & C2_NET_BUF_RETAIN)) {
+		if (nb->nb_pool->nbp_free > 0)
+			C2_UT_ASSERT(c2_atomic64_get(
+				&tm->ntm_recv_queue_deficit) == 0);
 		rc = c2_net_buffer_add(nb, tm);
 		C2_UT_ASSERT(rc == 0);
 	} else if (nb->nb_tm->ntm_state == C2_NET_TM_STOPPED ||
@@ -76,31 +85,21 @@ struct c2_net_buffer_callbacks ut_buf_prov_cb = {
 	},
 };
 
-int c2_ut_xprt_buffer_min_recv_size(struct c2_net_domain *ndom)
-{
-	return MIN_RECV_SIZE;
-}
-
-int c2_ut_xprt_buffer_max_recv_msgs(struct c2_net_domain *ndom)
-{
-	return max_recv_msgs;
-}
-
-static void low(struct c2_net_buffer_pool *bp)
+static void ut_pool_low(struct c2_net_buffer_pool *bp)
 {
 	/* Buffer pool is below threshold.  */
 }
 
 static bool pool_not_empty_called = false;
-static void not_empty(struct c2_net_buffer_pool *bp)
+static void ut_pool_not_empty(struct c2_net_buffer_pool *bp)
 {
 	c2_net_domain_buffer_pool_not_empty(bp);
 	pool_not_empty_called = true;
 }
 
 static const struct c2_net_buffer_pool_ops b_ops = {
-	.nbpo_not_empty	      = not_empty,
-	.nbpo_below_threshold = low,
+	.nbpo_not_empty	      = ut_pool_not_empty,
+	.nbpo_below_threshold = ut_pool_low,
 };
 
 static bool ut_tm_prov_stop_called = false;
@@ -121,7 +120,6 @@ static int ut_tm_prov_stop(struct c2_net_transfer_mc *tm, bool cancel)
 		c2_clink_add(&tm->ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, tm);
 		C2_UT_ASSERT(ut_buf_del_called);
-
 		/* wait on channel for post (and consume UT thread) */
 		c2_chan_wait(&tmwait);
 		c2_clink_del(&tmwait);
@@ -150,9 +148,10 @@ static struct c2_net_domain ut_prov_dom;
 static void test_net_tm_prov(void)
 {
 	int rc;
-	struct c2_net_transfer_mc *tm  = &ut_prov_tm1;
-	struct c2_net_transfer_mc *tm1 = &ut_prov_tm2;
+	struct c2_net_transfer_mc *tm1  = &ut_prov_tm1;
+	struct c2_net_transfer_mc *tm2 = &ut_prov_tm2;
 	struct c2_net_domain	  *dom = &ut_prov_dom;
+	struct c2_net_buffer	  *nb;
 	c2_bcount_t		   buf_size;
 	c2_bcount_t		   buf_seg_size;
 	uint32_t		   buf_segs;
@@ -161,6 +160,7 @@ static void test_net_tm_prov(void)
 	uint32_t		   buf_nr;
 	struct c2_clink		   tmwait;
 	static uint32_t		   tm_colours = 0;
+	struct c2_net_buffer_pool *pool_prov;
 
 	ut_xprt_ops.xo_tm_stop = ut_tm_prov_stop;
 	pool_colours	       = POOL_COLOURS;
@@ -176,9 +176,9 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(dom->nd_xprt_private == &ut_xprt_pvt);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 
-	C2_ALLOC_PTR(dom->nd_pool);
-	C2_UT_ASSERT(dom->nd_pool != NULL);
-	dom->nd_pool->nbp_ops = &b_ops;
+	C2_ALLOC_PTR(pool_prov);
+	C2_UT_ASSERT(pool_prov != NULL);
+	pool_prov->nbp_ops = &b_ops;
 
 	/* get max buffer size */
 	buf_size = c2_net_domain_get_max_buffer_size(dom);
@@ -193,119 +193,40 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(buf_segs == UT_MAX_BUF_SEGMENTS);
 
 	/* allocate buffers for testing */
-	c2_net_buffer_pool_init(dom->nd_pool, dom, pool_threshold, buf_segs,
+	c2_net_buffer_pool_init(pool_prov, dom, pool_threshold, buf_segs,
 				buf_seg_size, pool_colours);
-	c2_net_buffer_pool_lock(dom->nd_pool);
-	rc = c2_net_buffer_pool_provision(dom->nd_pool, buf_nr);
-	c2_net_buffer_pool_unlock(dom->nd_pool);
+	c2_net_buffer_pool_lock(pool_prov);
+	rc = c2_net_buffer_pool_provision(pool_prov, buf_nr);
+	c2_net_buffer_pool_unlock(pool_prov);
 	C2_UT_ASSERT(rc == buf_nr);
 
 	/* TM init with callbacks */
-	rc = c2_net_tm_init(tm, dom);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_tm_init_called);
-	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
-	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
-
-	/* API Tests */
-	c2_net_tm_colour_set(tm, ++tm_colours);
-	C2_UT_ASSERT(c2_net_tm_colour_get(tm) == tm_colours);
-
-	rc = c2_net_tm_pool_attach(tm, dom->nd_pool, &ut_buf_prov_cb,
-				   c2_ut_xprt_buffer_min_recv_size(dom),
-				   c2_ut_xprt_buffer_max_recv_msgs(dom));
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(tm->ntm_recv_pool == dom->nd_pool);
-	C2_UT_ASSERT(tm->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
-	C2_UT_ASSERT(tm->ntm_recv_queue_min_recv_size == MIN_RECV_SIZE);
-	C2_UT_ASSERT(tm->ntm_recv_queue_max_recv_msgs == max_recv_msgs);
-
-	/* TM start */
-	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&tm->ntm_chan, &tmwait);
-	ut_end_point_create_called = false;
-	C2_UT_ASSERT(tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
-	rc = c2_net_tm_start(tm, "addr1");
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_tm_start_called);
-	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTING ||
-		     tm->ntm_state == C2_NET_TM_STARTED);
-
-	/* wait on channel until TM state changed to started */
-	c2_chan_wait(&tmwait);
-	c2_clink_del(&tmwait);
-	C2_UT_ASSERT(ut_tm_prov_event_cb_calls == 1);
-	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
-	C2_UT_ASSERT(ut_end_point_create_called);
-	C2_UT_ASSERT(tm->ntm_ep != NULL);
-	C2_UT_ASSERT(c2_atomic64_get(&tm->ntm_ep->nep_ref.ref_cnt) == 1);
-	/*
-	 * When TM starts initial provisioning happens.
-	 * Check for initial provisioning.
-	 */
-	C2_UT_ASSERT(tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]) != 0);
-	C2_UT_ASSERT(tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]) ==
-		     tm->ntm_recv_queue_min_length);
-	C2_UT_ASSERT(tm->ntm_recv_pool->nbp_free ==
-		     tm->ntm_recv_pool->nbp_buf_nr -
-		     tm->ntm_recv_queue_min_length);
-	/* clean up; real xprt would handle this itself */
-	c2_thread_join(&ut_tm_thread);
-	c2_thread_fini(&ut_tm_thread);
-
-	/* Check for provisioning when length of the tm is changed. */
-	c2_net_tm_pool_length_set(tm, 4);
-	C2_UT_ASSERT(tm->ntm_recv_queue_min_length == 4);
-	C2_UT_ASSERT(tm->ntm_recv_pool->nbp_free ==
-		     tm->ntm_recv_pool->nbp_buf_nr -
-		     tm->ntm_recv_queue_min_length);
-
-	/* Check for deficit when required buffers are more than that of pool. */
-	c2_net_tm_pool_length_set(tm, 10);
-	C2_UT_ASSERT(tm->ntm_recv_queue_min_length == 10);
-	C2_UT_ASSERT(tm->ntm_recv_pool->nbp_free == 0);
-	C2_UT_ASSERT(c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 2);
-
-	/* Check for provisioning when pool is replenished. */
-	pool_not_empty_called = false;
-	c2_net_buffer_pool_lock(dom->nd_pool);
-	rc = c2_net_buffer_pool_provision(dom->nd_pool, 2);
-	c2_net_buffer_pool_unlock(dom->nd_pool);
-	C2_UT_ASSERT(rc == 2);
-	C2_UT_ASSERT(pool_not_empty_called);
-	C2_UT_ASSERT(c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0);
-	C2_UT_ASSERT(tm->ntm_recv_queue_min_length == 10);
-	C2_UT_ASSERT(tm->ntm_recv_pool->nbp_free ==
-		     tm->ntm_recv_pool->nbp_buf_nr -
-		     tm->ntm_recv_queue_min_length);
-
-	/* Check provsioning API when there is no deficit. */
-	C2_UT_ASSERT(c2_mutex_is_not_locked(&tm->ntm_mutex));
-	C2_UT_ASSERT(c2_net_buffer_pool_is_not_locked(tm->ntm_recv_pool));
-	C2_CNT_INC(tm->ntm_callback_counter);
-	c2_net__tm_provision_recv_q(tm);
-	C2_CNT_DEC(tm->ntm_callback_counter);
-
 	rc = c2_net_tm_init(tm1, dom);
 	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_init_called);
+	C2_UT_ASSERT(tm1->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm1->ntm_dom_linkage));
 
+	/* API Tests */
 	c2_net_tm_colour_set(tm1, ++tm_colours);
+	C2_UT_ASSERT(tm_colours < POOL_COLOURS);
 	C2_UT_ASSERT(c2_net_tm_colour_get(tm1) == tm_colours);
-	max_recv_msgs = 2;
-	rc = c2_net_tm_pool_attach(tm1, dom->nd_pool, &ut_buf_prov_cb,
-				   c2_ut_xprt_buffer_min_recv_size(dom),
-				   c2_ut_xprt_buffer_max_recv_msgs(dom));
-	C2_UT_ASSERT(tm1->ntm_recv_pool == dom->nd_pool);
+
+	rc = c2_net_tm_pool_attach(tm1, pool_prov, &ut_buf_prov_cb,
+				   MIN_RECV_SIZE, max_recv_msgs);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(tm1->ntm_recv_pool == pool_prov);
 	C2_UT_ASSERT(tm1->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
 	C2_UT_ASSERT(tm1->ntm_recv_queue_min_recv_size == MIN_RECV_SIZE);
 	C2_UT_ASSERT(tm1->ntm_recv_queue_max_recv_msgs == max_recv_msgs);
+	C2_UT_ASSERT(tm1->ntm_recv_queue_min_length == C2_NET_TM_RECV_QUEUE_DEF_LEN);
 
-	/* TM1 start */
+	/* TM start */
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm1->ntm_chan, &tmwait);
 	ut_end_point_create_called = false;
 	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
-	rc = c2_net_tm_start(tm1, "addr2");
+	rc = c2_net_tm_start(tm1, "addr1");
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_tm_start_called);
 	C2_UT_ASSERT(tm1->ntm_state == C2_NET_TM_STARTING ||
@@ -314,11 +235,86 @@ static void test_net_tm_prov(void)
 	/* wait on channel until TM state changed to started */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(ut_tm_prov_event_cb_calls == 1);
 	C2_UT_ASSERT(tm1->ntm_state == C2_NET_TM_STARTED);
 	C2_UT_ASSERT(ut_end_point_create_called);
-	/* No buffers to initially provision TM1. */
-	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
+	C2_UT_ASSERT(tm1->ntm_ep != NULL);
+	C2_UT_ASSERT(c2_atomic64_get(&tm1->ntm_ep->nep_ref.ref_cnt) == 1);
+	/*
+	 * When TM starts initial provisioning happens before the channel is
+	 * notified of the state change.
+	 * Check for initial provisioning.
+	 */
+	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) != 0);
+	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) ==
+		     tm1->ntm_recv_queue_min_length);
+	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr -
+		     tm1->ntm_recv_queue_min_length);
+	/* clean up; real xprt would handle this itself */
+	c2_thread_join(&ut_tm_thread);
+	c2_thread_fini(&ut_tm_thread);
+
+	/*
+	 * Check for provisioning when minimum length of the receive queue of
+	 * tm is changed.
+	 */
+	c2_net_tm_pool_length_set(tm1, 4);
+	C2_UT_ASSERT(tm1->ntm_recv_queue_min_length == 4);
+	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr -
+		     tm1->ntm_recv_queue_min_length);
+
+	/* Check for deficit when required buffers are more than that of pool.*/
+	c2_net_tm_pool_length_set(tm1, 10);
+	C2_UT_ASSERT(tm1->ntm_recv_queue_min_length == 10);
+	C2_UT_ASSERT(pool_prov->nbp_free == 0);
 	C2_UT_ASSERT(c2_atomic64_get(&tm1->ntm_recv_queue_deficit) == 2);
+
+	/* Check for provisioning when pool is replenished. */
+	pool_not_empty_called = false;
+	c2_net_buffer_pool_lock(pool_prov);
+	rc = c2_net_buffer_pool_provision(pool_prov, 2);
+	c2_net_buffer_pool_unlock(pool_prov);
+	C2_UT_ASSERT(rc == 2);
+	C2_UT_ASSERT(pool_not_empty_called);
+	C2_UT_ASSERT(c2_atomic64_get(&tm1->ntm_recv_queue_deficit) == 0);
+	C2_UT_ASSERT(tm1->ntm_recv_queue_min_length == 10);
+	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr -
+		     tm1->ntm_recv_queue_min_length);
+
+	/* Initialize another TM iwith different colour. */
+	rc = c2_net_tm_init(tm2, dom);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_net_tm_colour_set(tm2, ++tm_colours);
+	C2_UT_ASSERT(tm_colours < POOL_COLOURS);
+	C2_UT_ASSERT(c2_net_tm_colour_get(tm2) == tm_colours);
+	max_recv_msgs = 2;
+	rc = c2_net_tm_pool_attach(tm2, pool_prov, &ut_buf_prov_cb,
+				   MIN_RECV_SIZE, max_recv_msgs);
+	C2_UT_ASSERT(tm2->ntm_recv_pool == pool_prov);
+	C2_UT_ASSERT(tm2->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
+	C2_UT_ASSERT(tm2->ntm_recv_queue_min_recv_size == MIN_RECV_SIZE);
+	C2_UT_ASSERT(tm2->ntm_recv_queue_max_recv_msgs == max_recv_msgs);
+
+	/* TM1 start */
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&tm2->ntm_chan, &tmwait);
+	ut_end_point_create_called = false;
+	C2_UT_ASSERT(tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
+	rc = c2_net_tm_start(tm2, "addr2");
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_start_called);
+	C2_UT_ASSERT(tm2->ntm_state == C2_NET_TM_STARTING ||
+		     tm2->ntm_state == C2_NET_TM_STARTED);
+
+	/* wait on channel until TM state changed to started */
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(tm2->ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(ut_end_point_create_called);
+	/* No buffers to initially provision TM1. */
+	C2_UT_ASSERT(tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
+	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) == 2);
 
 	/* clean up; real xprt would handle this itself */
 	c2_thread_join(&ut_tm_thread);
@@ -326,52 +322,99 @@ static void test_net_tm_prov(void)
 
 	/* Check for domain wide provisioning when pool is replenished. */
 	pool_not_empty_called = false;
-	c2_net_buffer_pool_lock(dom->nd_pool);
-	rc = c2_net_buffer_pool_provision(dom->nd_pool, 3);
-	c2_net_buffer_pool_unlock(dom->nd_pool);
+	c2_net_buffer_pool_lock(pool_prov);
+	rc = c2_net_buffer_pool_provision(pool_prov, 3);
+	c2_net_buffer_pool_unlock(pool_prov);
 	C2_UT_ASSERT(rc == 3);
 	C2_UT_ASSERT(pool_not_empty_called);
-	C2_UT_ASSERT(c2_atomic64_get(&tm->ntm_recv_queue_deficit) == 0);
 	C2_UT_ASSERT(c2_atomic64_get(&tm1->ntm_recv_queue_deficit) == 0);
+	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) == 0);
+	C2_UT_ASSERT(tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) ==
+		     tm2->ntm_recv_queue_min_length);
+	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr -
+		     tm1->ntm_recv_queue_min_length -
+		     tm2->ntm_recv_queue_min_length);
+
+	/*
+	 * Check that when a buffer is dequeued from receive message queue,
+	 * re-provision of the queue happens before the callback is called in
+	 * which either buffers are re-provisioned or returned to the pool.
+	 */
+	ut_buf_del_called = false;
+	C2_UT_ASSERT(pool_prov->nbp_free == 1);
+	nb = tm_tlist_head(&tm1->ntm_q[C2_NET_QT_MSG_RECV]);
+	c2_clink_add(&tm1->ntm_chan, &tmwait);
+	c2_net_buffer_del(nb, tm1);
+	C2_UT_ASSERT(ut_buf_del_called);
+	/* wait on channel for post (and consume UT thread) */
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	rc = c2_thread_join(&ut_del_thread);
+	C2_UT_ASSERT(rc == 0);
+	/* Pool is empty. */
+	C2_UT_ASSERT(pool_prov->nbp_free == 0);
 	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) ==
-		     tm1->ntm_recv_queue_min_length);
-	C2_UT_ASSERT(tm1->ntm_recv_pool->nbp_free ==
-		     tm1->ntm_recv_pool->nbp_buf_nr -
-		     tm->ntm_recv_queue_min_length -
-		     tm1->ntm_recv_queue_min_length);
+		     tm1->ntm_recv_queue_min_length + 1);
+
+	/*
+	 * When TM stop is called it returns buffers in TM receive queue to the pool
+	 * in ut_prov_msg_recv_cb. As pool is empty, adding buffers to it will trigger
+	 * c2_net_buffer_pool_not_empty cb which does the domain wide re-provisioning
+	 * based on deficit value.
+	 *
+	 * To test use case "return a buffer to the pool and trigger re-provisioning",
+	 * do the following.
+	 * - Create some deficit in TM2.
+	 * - Stop the TM1
+	 *   As a result of this buffers used in TM1 will be returned to the empty pool
+	 *   and will be used to provision TM2.
+	 *
+	 * It also tests use case "buffer colour correctness during auto provisioning".
+	 * - As buffers in TM1 having colour1 will be returned to the empty pool
+	 *   and are later provisioned to TM2.
+	 */
+	pool_not_empty_called = false;
+	/* Check buffer pool is empty. */
+	C2_UT_ASSERT(pool_prov->nbp_free == 0);
+	/* Create deficit of 10 buffers in TM2. */
+	c2_net_tm_pool_length_set(tm2, 12);
+	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) == 10);
 
 	/* TM stop and fini */
-	c2_clink_add(&tm->ntm_chan, &tmwait);
-	rc = c2_net_tm_stop(tm, false);
-	C2_UT_ASSERT(rc == 0);
-	c2_chan_wait(&tmwait);
-	/* Check whether all buffers are returned to the pool. */
-	C2_UT_ASSERT(tm->ntm_recv_pool->nbp_free ==
-		     tm->ntm_recv_pool->nbp_buf_nr -
-		     tm1->ntm_recv_queue_min_length);
-	c2_clink_del(&tmwait);
-	c2_thread_join(&ut_tm_thread); /* cleanup thread */
-	c2_thread_fini(&ut_tm_thread);
-	c2_net_tm_fini(tm);
-
-	/* TM1 stop and fini */
 	c2_clink_add(&tm1->ntm_chan, &tmwait);
 	rc = c2_net_tm_stop(tm1, false);
 	C2_UT_ASSERT(rc == 0);
 	c2_chan_wait(&tmwait);
 	/* Check whether all buffers are returned to the pool. */
-	C2_UT_ASSERT(tm1->ntm_recv_pool->nbp_free ==
-		     tm1->ntm_recv_pool->nbp_buf_nr);
+	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr -
+		     tm2->ntm_recv_queue_min_length);
 	c2_clink_del(&tmwait);
 	c2_thread_join(&ut_tm_thread); /* cleanup thread */
 	c2_thread_fini(&ut_tm_thread);
 	c2_net_tm_fini(tm1);
+	C2_UT_ASSERT(pool_not_empty_called);
+	C2_UT_ASSERT(pool_prov->nbp_free == 1);
+	/* TM2 is provisioned with buffers of TM1 returned to the pool. */
+	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) == 0);
+
+	/* TM2 stop and fini */
+	c2_clink_add(&tm2->ntm_chan, &tmwait);
+	rc = c2_net_tm_stop(tm2, false);
+	C2_UT_ASSERT(rc == 0);
+	c2_chan_wait(&tmwait);
+	/* Check whether all buffers are returned to the pool. */
+	C2_UT_ASSERT(pool_prov->nbp_free ==
+		     pool_prov->nbp_buf_nr);
+	c2_clink_del(&tmwait);
+	c2_thread_join(&ut_tm_thread); /* cleanup thread */
+	c2_thread_fini(&ut_tm_thread);
+	c2_net_tm_fini(tm2);
 
 	c2_clink_fini(&tmwait);
 	/* Finalize the buffer pool. */
-	c2_net_buffer_pool_lock(dom->nd_pool);
-	c2_net_buffer_pool_fini(dom->nd_pool);
-	c2_free(dom->nd_pool);
+	c2_net_buffer_pool_lock(pool_prov);
+	c2_net_buffer_pool_fini(pool_prov);
+	c2_free(pool_prov);
 
 	/* fini the domain */
 	ut_dom_fini_called = false;

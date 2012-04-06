@@ -123,24 +123,24 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 	c2_bcount_t buf_size;
 
 	C2_PRE(ndom != NULL);
-	C2_ALLOC_PTR(ndom->nd_pool);
-	if (ndom->nd_pool == NULL)
+	C2_ALLOC_PTR(ndom->nd_app_pool);
+	if (ndom->nd_app_pool == NULL)
 		return -ENOMEM;
-	ndom->nd_pool->nbp_ops = &b_ops;
+	ndom->nd_app_pool->nbp_ops = &b_ops;
 	buf_size = c2_net_domain_get_max_buffer_size(ndom);
 	segs_nr = c2_net_domain_get_max_buffer_segments(ndom);
 	seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
 	seg_size = 1 << 12;
 	C2_ASSERT((segs_nr * seg_size) <=
 		   c2_net_domain_get_max_buffer_size(ndom));
-	c2_net_buffer_pool_init(ndom->nd_pool, ndom, 2, segs_nr, seg_size, 64);
+	c2_net_buffer_pool_init(ndom->nd_app_pool, ndom, 2, segs_nr, seg_size, 64);
 	/* @todo assummed or based on number of TM's
 		c2_list_length(&ndom->nd_tms));
 	 */
-	c2_net_buffer_pool_lock(ndom->nd_pool);
-	rc = c2_net_buffer_pool_provision(ndom->nd_pool,
+	c2_net_buffer_pool_lock(ndom->nd_app_pool);
+	rc = c2_net_buffer_pool_provision(ndom->nd_app_pool,
 					  C2_RPC_TM_RECV_BUFFERS_NR);
-	c2_net_buffer_pool_unlock(ndom->nd_pool);
+	c2_net_buffer_pool_unlock(ndom->nd_app_pool);
 	if (rc != C2_RPC_TM_RECV_BUFFERS_NR)
 		rc = -ENOMEM;
 	else
@@ -152,10 +152,10 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 void c2_net_buffer_pool_cleanup(struct c2_net_domain *ndom)
 {
 	C2_PRE(ndom != NULL);
-	C2_PRE(ndom->nd_pool != NULL);
-	c2_net_buffer_pool_lock(ndom->nd_pool);
-	c2_net_buffer_pool_fini(ndom->nd_pool);
-	c2_free(ndom->nd_pool);
+	C2_PRE(ndom->nd_app_pool != NULL);
+	c2_net_buffer_pool_lock(ndom->nd_app_pool);
+	c2_net_buffer_pool_fini(ndom->nd_app_pool);
+	c2_free(ndom->nd_app_pool);
 }
 
 int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)

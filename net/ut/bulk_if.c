@@ -1167,7 +1167,7 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_dom_fini_called);
 }
 
-#include "tm_provision_ut.c"
+#include "net/ut/tm_provision_ut.c"
 
 const struct c2_test_suite c2_net_bulk_if_ut = {
         .ts_name = "net-bulk-if",

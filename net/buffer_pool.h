@@ -28,6 +28,7 @@
 
 /**
    @defgroup net_buffer_pool Network Buffer Pool
+   @ingroup net
 
    @brief Network buffer pool allocates and manages a pool of network buffers.
 	  Users request a buffer from the pool and after its usage is over
@@ -128,6 +129,9 @@
 	c2_net_buffer_pool_fini(&bp);
 	c2_net_buffer_pool_unlock(&bp);
     @endcode
+    
+    @see Also see c2_net_tm_pool_attach() and @ref NetRQProvDLD
+    "Auo-Provisioning of Receive Message Queue Buffers".
    @{
   */
 

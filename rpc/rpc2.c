@@ -402,8 +402,8 @@ static int rpc_tm_setup(struct c2_rpcmachine *machine,
 	}
 
 	c2_mutex_lock(&net_dom->nd_mutex);
-	if (net_dom->nd_pool != NULL) {
-		rc = c2_net_tm_pool_attach(&machine->cr_tm, net_dom->nd_pool,
+	if (net_dom->nd_app_pool != NULL) {
+		rc = c2_net_tm_pool_attach(&machine->cr_tm, net_dom->nd_app_pool,
 					   &c2_rpc_rcv_buf_callbacks,
 					   c2_xprt_buffer_min_recv_size(net_dom),
 					   c2_xprt_buffer_max_recv_msgs(net_dom));
@@ -432,7 +432,7 @@ static int rpc_tm_setup(struct c2_rpcmachine *machine,
 	c2_clink_fini(&tmwait);
 
 	/* Add buffers for receiving messages to this transfer machine. */
-	if (net_dom->nd_pool == NULL) {
+	if (net_dom->nd_app_pool == NULL) {
 		rc = recv_buffer_allocate_nr(net_dom, machine);
 		if (rc < 0) {
 			rpc_tm_cleanup(machine);
@@ -539,7 +539,7 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 	c2_clink_fini(&tmwait);
 
 	/* Delete all the buffers from net domain. */
-	if (machine->cr_tm.ntm_dom->nd_pool == NULL) {
+	if (machine->cr_tm.ntm_dom->nd_app_pool == NULL) {
 		recv_buffer_deallocate_nr(machine, false,
 					  C2_RPC_TM_RECV_BUFFERS_NR);
 
