@@ -25,7 +25,6 @@
 #include "lib/trace.h"
 #include "lib/thread.h"    /* LAMBDA */
 #include "lib/getopts.h"
-#include "lib/memory.h"
 #include "utils/common.h"
 
 /* sort test suites in alphabetic order */
@@ -111,52 +110,6 @@ void add_uts(void)
 	c2_ut_add(&addb_ut);
 	c2_ut_add(&console_ut);
 	c2_ut_add(&yaml2db_ut);
-}
-
-int parse_test_list(char *str, struct c2_list *list)
-{
-	char *token;
-	char *subtoken;
-	char *saveptr = NULL;
-	struct c2_test_suite_entry *ts_entry;
-
-	while (true) {
-		token = strtok_r(str, ",", &saveptr);
-		if (token == NULL)
-			break;
-
-		subtoken = strchr(token, ':');
-		if (subtoken != NULL)
-			*subtoken++ = '\0';
-
-		C2_ALLOC_PTR(ts_entry);
-		if (ts_entry == NULL)
-			return -ENOMEM;
-
-		ts_entry->tse_suite_name = token;
-		/* subtoken can be NULL if no test was specified */
-		ts_entry->tse_test_name = subtoken;
-
-		c2_list_link_init(&ts_entry->tse_linkage);
-		c2_list_add_tail(list, &ts_entry->tse_linkage);
-
-		/* str should be NULL for subsequent strtok_r(3) calls */
-		str = NULL;
-	}
-
-	return 0;
-}
-
-void free_test_list(struct c2_list *list)
-{
-	struct c2_test_suite_entry *entry;
-	struct c2_test_suite_entry *n;
-	c2_list_for_each_entry_safe(list, entry, n,
-			struct c2_test_suite_entry, tse_linkage)
-	{
-		c2_list_del(&entry->tse_linkage);
-		c2_free(entry);
-	}
 }
 
 int main(int argc, char *argv[])

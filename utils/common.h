@@ -24,6 +24,9 @@
 int  unit_start(const char *sandbox);
 void unit_end(const char *sandbox, bool keep_sandbox);
 
+int  parse_test_list(char *str, struct c2_list *list);
+void free_test_list(struct c2_list *list);
+
 /* __COLIBRI_UTILS_COMMON_H__ */
 #endif
 
