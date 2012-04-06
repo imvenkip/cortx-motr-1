@@ -32,13 +32,13 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb_k.h"
+# include "addb/addb_k.h"
 # define c2_addb_handler NULL
 #else
 
 int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
-# include "addb_u.h"
+# include "addb/addb_u.h"
 #endif
 
 #include "fop/fop_format_def.h"

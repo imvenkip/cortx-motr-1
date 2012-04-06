@@ -11,7 +11,7 @@ COLIBRI_DB_PATH=$COLIBRI_C2T1FS_TEST_DIR/db
 COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
 COLIBRI_STOB_UTIL=$COLIBRI_CORE_ROOT/stob/ut/stobutil
 COLIBRI_MODULE=$COLIBRI_CORE_ROOT/build_kernel_modules/kcolibri.ko
-COLIBRI_GALOIS_MODULE=$COLIBRI_CORE_ROOT/../galois/src/linux_kernel/kgalois.ko
+COLIBRI_GALOIS_MODULE=$COLIBRI_CORE_ROOT/../galois/src/linux_kernel/galois.ko
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%d-%m-%Y_%T"`.log
 GLOBAL_FID_LO=3         #Global fid = <0,3>
 POOL_WIDTH=3

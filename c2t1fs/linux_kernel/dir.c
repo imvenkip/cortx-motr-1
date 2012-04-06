@@ -19,7 +19,7 @@
 
 #include "lib/misc.h"      /* C2_SET0() */
 #include "lib/memory.h"    /* C2_ALLOC_PTR() */
-#include "c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"     /* C2_LOG and C2_ENTRY */
 
@@ -121,10 +121,10 @@ static int c2t1fs_create(struct inode     *dir,
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
-	rc = c2t1fs_inode_layout_init(ci, csb->csb_nr_data_units,
-					  csb->csb_nr_parity_units,
-					  csb->csb_pool_width,
-					  csb->csb_unit_size);
+	rc = c2t1fs_inode_layout_init(ci, &csb->csb_pool,
+					   csb->csb_nr_data_units,
+					   csb->csb_nr_parity_units,
+					   csb->csb_unit_size);
 	if (rc != 0)
 		goto out;
 
@@ -476,7 +476,7 @@ static int c2t1fs_create_component_objects(struct c2t1fs_inode *ci)
 				(unsigned long)gob_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
-	pool_width = csb->csb_pool_width;
+	pool_width = csb->csb_pool.po_width;
 	C2_ASSERT(pool_width >= 1);
 
 	for (i = 1; i <= pool_width; i++) { /* i = 1 is intentional */

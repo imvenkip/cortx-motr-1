@@ -44,7 +44,7 @@
 #include "ioservice/io_service.h"
 
 #ifdef __KERNEL__
-#include "ioservice/linux_kernel/io_fops_k.h"
+#include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif
@@ -1403,19 +1403,6 @@ static int io_launch(struct c2_fom *fom)
 	if (rc != 0)
 		goto cleanup;
 
-        /*
-         * @todo :
-         * Internally c2_db_cursor_get() takes explicitely RW lock.
-         * Need to define enum lock modes and pass to c2_db_cursor_get().
-         * Till this issue fix, I/O FOM use c2_fom_block_enter() before
-         * stob io locate since it coult block.
-         * c2_fom_block_leave() should call after c2_stob_locate() returns.
-         *
-         * @note : This issue of explicitely RW lock will be addressed
-         *         in separate task. Completion of that task remove
-         *          block_enter  & block_leave.
-         */
-        c2_fom_block_enter(fom);
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
         c2_fom_block_leave(fom);
 	if (rc != 0) {
