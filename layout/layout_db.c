@@ -379,6 +379,10 @@ extern const struct c2_addb_ev ldb_update_fail;
 extern const struct c2_addb_ev ldb_delete_success;
 extern const struct c2_addb_ev ldb_delete_fail;
 
+extern const struct c2_layout_type c2_pdclust_layout_type;
+extern const struct c2_layout_enum_type c2_list_enum_type;
+extern const struct c2_layout_enum_type c2_linear_enum_type;
+
 /**
  * @defgroup LayoutDBDFSInternal Layout DB Internals
  * @brief Detailed functional specification of the internals of the
@@ -575,19 +579,32 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 	C2_LEAVE();
 }
 
-extern const struct c2_layout_type c2_pdclust_layout_type;
-extern const struct c2_layout_enum_type c2_list_enum_type;
-extern const struct c2_layout_enum_type c2_linear_enum_type;
 /**
  * Registers all the available layout types and enum types.
  */
-void c2_ldb_register(struct c2_ldb_schema *schema)
+int c2_ldb_register(struct c2_ldb_schema *schema)
 {
-	// todo return status
-	c2_ldb_type_register(schema, &c2_pdclust_layout_type);
+	int rc;
 
-	c2_ldb_enum_register(schema, &c2_list_enum_type);
-	c2_ldb_enum_register(schema, &c2_linear_enum_type);
+	rc = c2_ldb_type_register(schema, &c2_pdclust_layout_type);
+	if (rc != 0 && rc != -EEXIST)
+		return rc;
+
+	rc = c2_ldb_enum_register(schema, &c2_list_enum_type);
+	if (rc != 0 && rc != -EEXIST)
+		return rc;
+
+	rc = c2_ldb_enum_register(schema, &c2_linear_enum_type);
+
+	return rc;
+}
+
+void c2_ldb_unregister(struct c2_ldb_schema *schema)
+{
+	c2_ldb_enum_unregister(schema, &c2_list_enum_type);
+	c2_ldb_enum_unregister(schema, &c2_linear_enum_type);
+
+	c2_ldb_type_unregister(schema, &c2_pdclust_layout_type);
 }
 
 /**
@@ -1151,7 +1168,6 @@ out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
-
 
 /** @} end group LayoutDBDFS */
 

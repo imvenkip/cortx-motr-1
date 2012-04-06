@@ -453,9 +453,9 @@ struct c2_mutex log_msg_lock; /* todo Make use of this lock. */
  *    message) invoked through the API itself, anyway indicates successful
  *    termination of the API without any error.
  *
- * @param if_addb_msg Indicates if ADDB message is to be printed.
- * @param if_trace_msg Indicates if C2_LOG message is to be printed.
- * @param if_lid Indicates if LID is applicable for the C2_LOG message.
+ * @param addb_msg Indicates if ADDB message is to be printed.
+ * @param trace_msg Indicates if C2_LOG message is to be printed.
+ * @param lid_applicable Indicates if LID is applicable for the C2_LOG message.
  */
 void layout_log(const char *fn_name,
 		const char *err_msg,
@@ -463,7 +463,7 @@ void layout_log(const char *fn_name,
 		bool trace_msg,
 		enum c2_addb_event_id ev_id,
 		struct c2_addb_ctx *ctx,
-		bool if_lid,
+		bool lid_applicable,
 		uint64_t lid,
 		int rc)
 {
@@ -486,14 +486,13 @@ void layout_log(const char *fn_name,
 			      ev_id == c2_addb_func_fail.ae_id ||
 			      ev_id == c2_addb_oom.ae_id)));
 
-
 	/* ADDB message logging. */
 	if (addb_msg)
 		layout_addb_add(ctx, ev_id, err_msg, rc);
 
 	/* Trace message logging. */
 	if (trace_msg) {
-		if (if_lid)
+		if (lid_applicable)
 			n = sprintf(log_msg, "%s(): lid %llu, %s, rc %d",
 				    (const char *)fn_name,
 				    (unsigned long long)lid,
