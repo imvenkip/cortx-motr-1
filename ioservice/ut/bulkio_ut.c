@@ -124,11 +124,9 @@ struct c2_net_buffer_pool * ut_get_buffer_pool(struct c2_fom *fom)
 }
 
 /* This function is used to bypass request handler while testing.*/
-static void ut_fom_wait_dummy(struct c2_fom *fom)
+static void wait_dummy(struct c2_fom *fom)
 {
         struct c2_fom_locality *loc;
-
-        C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
         loc = fom->fo_loc;
 
@@ -139,7 +137,7 @@ static void ut_fom_wait_dummy(struct c2_fom *fom)
 }
 
 /* This function is used to bypass request handler while testing.*/
-static bool ut_fom_cb_dummy(struct c2_clink *clink)
+static bool cb_dummy(struct c2_clink *clink)
 {
         struct c2_fom_locality  *loc;
         struct c2_fom           *fom;
@@ -157,6 +155,26 @@ static bool ut_fom_cb_dummy(struct c2_clink *clink)
 
         return true;
 }
+
+/** AST callback */
+static void cb_dummy2(struct c2_fom_callback *cb)
+{
+        struct c2_fom_locality  *loc;
+        struct c2_fom           *fom;
+        struct c2_io_fom_cob_rw  *fom_obj;
+
+        C2_PRE(cb != NULL);
+
+        fom = cb->fc_fom;
+        fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        --fom_obj->fcrw_num_stobio_launched;
+        loc = fom->fo_loc;
+        C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_linkage));
+        c2_list_del(&fom->fo_linkage);
+        C2_CNT_DEC(loc->fl_wail_nr);
+}
+
+
 
 /*
  * - This is positive test case to test c2_io_fom_cob_rw_state(fom).
@@ -473,8 +491,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
          * To bypass request handler need to change FOM callback
          * function which wakeup FOM from wait.
          */
-        fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
-        ut_fom_wait_dummy(fom);
+        fom->fo_clink.cl_cb = &cb_dummy;
+        wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
@@ -486,8 +504,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         /*
          * Cleanup & make clean FOM for next test.
          */
-
-        while(fom->fo_loc->fl_wail_nr > 0) {
+        while (fom->fo_loc->fl_wail_nr > 0) {
                 sleep(1);
         }
         c2_clink_del(&fom->fo_clink);
@@ -555,8 +572,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
          * To bypass request handler need to change FOM callback
          * function which wakeup FOM from wait.
          */
-        fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
-        ut_fom_wait_dummy(fom);
+        fom_obj->fcrw_fc_bottom = &cb_dummy2;
+        wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_STOB_INIT;
 
@@ -567,11 +584,11 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         /*
          * Cleanup & make clean FOM for next test.
          */
-
-        while(fom->fo_loc->fl_wail_nr > 0) {
+        while (fom->fo_loc->fl_wail_nr > 0) {
+                c2_sm_group_unlock(&fom->fo_loc->fl_group);
                 sleep(1);
+                c2_sm_group_lock(&fom->fo_loc->fl_group);
         }
-        c2_clink_del(&fom->fo_clink);
 
         /*
          * Case 11 : STOB I/O failure from wait state.
@@ -858,8 +875,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          * To bypass request handler need to change FOM callback
          * function which wakeup FOM from wait.
          */
-        fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
-        ut_fom_wait_dummy(fom);
+        fom_obj->fcrw_fc_bottom = &cb_dummy2;
+        wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_STOB_INIT;
 
@@ -871,11 +888,11 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         /*
          * Cleanup & restore FOM for next test.
          */
-
-        while(fom->fo_loc->fl_wail_nr > 0) {
+        while (fom->fo_loc->fl_wail_nr > 0) {
+                c2_sm_group_unlock(&fom->fo_loc->fl_group);
                 sleep(1);
+                c2_sm_group_lock(&fom->fo_loc->fl_group);
         }
-        c2_clink_del(&fom->fo_clink);
 
         /*
          * Case 07 : STOB I/O failure
@@ -971,8 +988,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          * To bypass request handler need to change FOM callback
          * function which wakeup FOM from wait.
          */
-        fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
-        ut_fom_wait_dummy(fom);
+        fom->fo_clink.cl_cb = &cb_dummy;
+        wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
@@ -984,8 +1001,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         /*
          * Cleanup & restore FOM for next test.
          */
-
-        while(fom->fo_loc->fl_wail_nr > 0) {
+        while (fom->fo_loc->fl_wail_nr > 0) {
                 sleep(1);
         }
         c2_clink_del(&fom->fo_clink);
@@ -1318,9 +1334,9 @@ void bulkio_server_rw_state_transition_test(void)
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
         bp->bp_wfops[0]->if_fop.f_type->ft_fom_type =
-	ut_io_fom_cob_rw_type_mopt;
+		ut_io_fom_cob_rw_type_mopt;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
-	&bulkio_server_write_fop_ut_ops;
+		&bulkio_server_write_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
@@ -1333,8 +1349,9 @@ void bulkio_server_rw_state_transition_test(void)
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
         bp->bp_rfops[0]->if_fop.f_type->ft_fom_type =
-	ut_io_fom_cob_rw_type_mopt;
-	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
+		ut_io_fom_cob_rw_type_mopt;
+	bp->bp_rfops[0]->if_fop.f_type->ft_ops =
+		&bulkio_server_read_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;

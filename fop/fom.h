@@ -82,7 +82,7 @@ struct c2_fom_ops;
  * Lock ordering:
  *
  * - no lock ordering is needed here as access to all the locality members
- *   is protected by a common locality lock, c2_fom_locality::fl_lock.
+ *   is protected by a common locality lock, c2_fom_locality::fl_group.s_lock.
  *   All the operations on locality members are performed independently using
  *   simple locking and unlocking semantics.
  *
@@ -103,8 +103,7 @@ struct c2_fom_locality {
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 
-	/** Internal fom state lock */
-	struct c2_mutex		     fl_lock;
+	struct c2_sm_group	     fl_group;
 
 	/** Helper lock for fom API protection */
 	struct c2_mutex		     fl_lock2;
@@ -144,7 +143,7 @@ struct c2_fom_locality {
 /**
  * Iterates over c2_fom_locality members and checks if
  * they are intialised and consistent.
- * This function must be invoked with c2_fom_locality::fl_lock
+ * This function must be invoked with c2_fom_locality::fl_group.s_lock
  * mutex held.
  */
 bool c2_locality_invariant(const struct c2_fom_locality *loc);
@@ -289,7 +288,7 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
 struct c2_fom {
 	/**
 	 * State a fom can be in at any given instance throughout its
-	 * life cycle.This feild is protected by c2_fom_locality:fl_lock
+	 * life cycle.This feild is protected by c2_fom_locality:fl_group.s_lock
 	 * mutex, except in reqh handler thread, when a fom is dequeued
 	 * from locality runq list for execution.
 	 *
@@ -319,7 +318,7 @@ struct c2_fom {
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is
-	 *  protected by the c2_fom_locality::fl_lock mutex.
+	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
 	struct c2_list_link	 fo_linkage;
 
@@ -374,7 +373,7 @@ void c2_fom_fini(struct c2_fom *fom);
  * Iterates over c2_fom members and check if they are consistent,
  * and also checks if the fom resides on correct list (i.e runq or
  * wait list) of the locality at any given instance.
- * This function must be invoked with c2_fom_locality::fl_lock
+ * This function must be invoked with c2_fom_locality::fl_group.s_lock
  * mutex held.
  */
 bool c2_fom_invariant(const struct c2_fom *fom);
@@ -486,10 +485,79 @@ void c2_fom_block_leave(struct c2_fom *fom);
  * @param chan, waiting channel registered with the fom during its
  *              blocking operation
  * @pre !c2_clink_is_armed(&fom->fo_clink)
- * @pre c2_mutex_is_locked(&fom->fo_loc->fl_lock)
- * @post c2_mutex_is_locked(&fom->fo_loc->fl_lock)
+ * @pre c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock)
+ * @post c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock)
  */
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
+
+/**
+ * Dequeues fom from the locality waiting queue and enqueues it into
+ * locality runq list changing the state to C2_FOS_READY.
+ *
+ * @pre fom->fo_state == C2_FOS_WAITING
+ * @param fom Ready to be executed fom, is put on locality runq
+ */
+void c2_fom_ready(struct c2_fom *fom);
+
+/**
+ * Fom callback states
+ */
+enum c2_fc_state {
+	C2_FCS_INIT,
+	C2_FCS_TOP_DONE,	/**< AST top-half done */
+	C2_FCS_DONE,		/**< AST bottom-half done */
+};
+
+/**
+ * Represents a call-back to be executed when some event of fom's interest
+ * happens.
+ */
+struct c2_fom_callback {
+	/**
+	 * This clink is registered with the channel where the event will be
+	 * announced.
+	 */
+	struct c2_clink   fc_clink;
+
+	/**
+	 * AST to execute the call-back.
+	 */
+	struct c2_sm_ast  fc_ast;
+
+	enum c2_fc_state  fc_state;
+
+	struct c2_fom    *fc_fom;
+	/**
+	 * Optional filter function executed from the clink call-back
+	 * to filter out some events. This is top half of call-back.
+	 * It can be executed concurrently with fom state transition function.
+	 */
+	bool (*fc_top)(struct c2_fom_callback *cb);
+	/**
+	 * The bottom half of call-back. Never executed concurrently with the
+	 * fom state transition function.
+	 */
+	void (*fc_bottom)(struct c2_fom_callback *cb);
+};
+
+/**
+ * Registers AST callback with the channel and a fom executing a blocking
+ * operation. Both, the channel and the callback are provided by user.
+ * Callback will be called with locality lock held.
+ *
+ * @param fom, A fom executing a blocking operation
+ * @param chan, waiting channel registered with the fom during its
+ *              blocking operation
+ * @param cb, AST callback
+ *            @see sm/sm.h
+ * @pre fom->so_state == C2_FOS_RUNNING
+ */
+void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
+                         struct c2_fom_callback *cb);
+
+void c2_fom_callback_fini(struct c2_fom_callback *cb);
+
+void c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
 /** @} end of fom group */
 

@@ -763,30 +763,28 @@ static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
  * list for completed STOB I/O. After completion of all STOB I/O it
  * sends signal to FOM so that it can again put into run queue.
  *
- * @param clink clink for completed STOB I/O entry
+ * @param cb fom callback for completed STOB I/O entry
  */
-
-static bool stobio_complete_cb(struct c2_clink *clink)
+static void stobio_complete_cb(struct c2_fom_callback *cb)
 {
+        struct c2_fom            *fom = cb->fc_fom;
         struct c2_io_fom_cob_rw  *fom_obj;
         struct c2_stob_io_desc   *stio_desc;
 
-        stio_desc = container_of(clink, struct c2_stob_io_desc, siod_clink);
+        C2_PRE(c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock));
+
+        stio_desc = container_of(cb, struct c2_stob_io_desc, siod_fcb);
         C2_ASSERT(c2_stob_io_desc_invariant(stio_desc));
 
-        fom_obj = stio_desc->siod_fom;
+        fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
-        c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
+        C2_PRE(fom->fo_state == C2_FOS_WAITING);
 
-        if (--fom_obj->fcrw_num_stobio_launched == 0) {
-                c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
-                c2_chan_signal(&fom_obj->fcrw_wait);
-        } else {
-                c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
+        C2_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
+        if (fom_obj->fcrw_num_stobio_launched == 0) {
+                c2_fom_ready(fom);
         }
-
-        return true;
 };
 
 /**
@@ -1015,10 +1013,8 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
         fom_obj->fcrw_num_stobio_launched = 0;
         fom_obj->fcrw_bp                  = NULL;
 
-        c2_chan_init(&fom_obj->fcrw_wait);
         netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
         stobio_tlist_init(&fom_obj->fcrw_stio_list);
-        c2_mutex_init(&fom_obj->fcrw_stio_mutex);
 
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
 		    "FOM created : type=rw.");
@@ -1404,7 +1400,7 @@ static int io_launch(struct c2_fom *fom)
 		goto cleanup;
 
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
-        c2_fom_block_leave(fom);
+	c2_fom_block_leave(fom);
 	if (rc != 0) {
 		goto cleanup_st;
 	}
@@ -1418,7 +1414,6 @@ static int io_launch(struct c2_fom *fom)
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
         C2_ASSERT(c2_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
 
-        c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
         c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_indexvec     *mem_ivec;
                 struct c2_stob_io_desc *stio_desc;
@@ -1434,9 +1429,6 @@ static int io_launch(struct c2_fom *fom)
                 }
 
                 stio_desc->siod_magic = C2_STOB_IO_DESC_LINK_MAGIC;
-                c2_clink_init(&stio_desc->siod_clink,
-                              &stobio_complete_cb);
-                stio_desc->siod_fom = fom_obj;
 
 	        stio = &stio_desc->siod_stob_io;
 	        c2_stob_io_init(stio);
@@ -1490,10 +1482,17 @@ static int io_launch(struct c2_fom *fom)
                 else
                         stio->si_opcode = SIO_READ;
 
-                c2_clink_add(&stio->si_wait, &stio_desc->siod_clink);
+                if (fom_obj->fcrw_fc_bottom != NULL)
+                        stio_desc->siod_fcb.fc_bottom = fom_obj->fcrw_fc_bottom;
+                else
+                        stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
+
+                c2_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
+
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
                 if (rc != 0) {
+                        c2_fom_callback_cancel(&stio_desc->siod_fcb);
                         /*
                          * Since this stob io not added into list
                          * yet, free it here.
@@ -1501,47 +1500,22 @@ static int io_launch(struct c2_fom *fom)
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                                     c2_addb_func_fail,
                                     "io_launch", rc);
-                        c2_clink_del(&stio_desc->siod_clink);
                         c2_stob_io_fini(stio);
                         c2_free(stio_desc);
                         break;
                 }
 
-                fom_obj->fcrw_num_stobio_launched++;
+                C2_CNT_INC(fom_obj->fcrw_num_stobio_launched);
+
                 stobio_tlink_init(stio_desc);
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, stio_desc);
 
         } c2_tlist_endfor;
 
-        /*
-           1. Add FOM clink to wait channel only if atleast one STOB I/O
-              launched.
-           2. Unlock STOB I/O mutex only after FOM clink added to waiting
-              channel.
-           3. I/O FOM behavior in different scenarios:
-              a. No I/O launched - will not wait switch to C2_FOPH_IO_STOB_WAIT
-                 and declare fOM as failure.
-              b. STOB I/O launched less than batch size - will set errorcode
-                 to FOM and switch to C2_FOPH_IO_STOB_WAIT. Will discard results
-                 of launched I/O.
-              c. STOB I/O launched equal to batch size - will switch to
-                 C2_FOPH_IO_STOB_WAIT and check for STOB I/O results.
-          */
-        if ( fom_obj->fcrw_num_stobio_launched > 0) {
-                c2_fom_block_at(fom, &fom_obj->fcrw_wait);
-
-                /*
-                 * If I/O launched less that batch size call-back will
-                 * ignore STOB I/O results.
-                 */
-	        fom->fo_rc = rc;
-
-                c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
-
-	        return C2_FSO_WAIT;
+        if (fom_obj->fcrw_num_stobio_launched > 0) {
+                fom->fo_rc = rc;
+                return C2_FSO_WAIT;
         }
-
-        c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
 cleanup_st:
         c2_stob_put(fom_obj->fcrw_stob);
@@ -1598,14 +1572,11 @@ static int io_finish(struct c2_fom *fom)
                 c2_free(stio->si_stob.iv_vec.v_count);
                 c2_free(stio->si_stob.iv_index);
 
-                c2_clink_del(&stio_desc->siod_clink);
-                c2_clink_fini(&stio_desc->siod_clink);
-
                 c2_stob_io_fini(stio);
 
                 stobio_tlist_del(stio_desc);
-
-		c2_free(stio_desc);
+                c2_fom_callback_fini(&stio_desc->siod_fcb);
+                c2_free(stio_desc);
         } c2_tlist_endfor;
 
         c2_stob_put(fom_obj->fcrw_stob);
@@ -1711,8 +1682,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);
 
-        c2_chan_fini(&fom_obj->fcrw_wait);
-
         C2_ASSERT(fom_obj->fcrw_bp != NULL);
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
         c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
@@ -1743,8 +1712,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 
         } c2_tlist_endfor;
         stobio_tlist_fini(&fom_obj->fcrw_stio_list);
-
-        c2_mutex_fini(&fom_obj->fcrw_stio_mutex);
 
         c2_fom_fini(fom);
 
