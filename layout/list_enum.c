@@ -167,10 +167,10 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 		goto out;
 	}
 
-	rc = c2_layout_enum_init(&list_enum->lle_base, lid,
-				 &c2_list_enum_type, &list_enum_ops);
+	rc = enum_init(&list_enum->lle_base, lid,
+		       &c2_list_enum_type, &list_enum_ops);
 	if (rc != 0) {
-		layout_log("c2_list_enum_build", "c2_layout_enum_init() failed",
+		layout_log("c2_list_enum_build", "enum_init() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_func_fail.ae_id,
 			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
@@ -202,7 +202,7 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 out:
 	if (rc != 0 && list_enum != NULL) {
 		c2_free(list_enum->lle_list_of_cobs);
-		c2_layout_enum_fini(&list_enum->lle_base);
+		enum_fini(&list_enum->lle_base);
 		c2_free(list_enum);
 	}
 
@@ -227,7 +227,7 @@ void list_fini(struct c2_layout_enum *e, uint64_t lid)
 
 	c2_layout_list_enum_bob_fini(list_enum);
 	c2_free(list_enum->lle_list_of_cobs);
-	c2_layout_enum_fini(&list_enum->lle_base);
+	enum_fini(&list_enum->lle_base);
 	c2_free(list_enum);
 
 	C2_LEAVE();

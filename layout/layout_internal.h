@@ -28,8 +28,10 @@
 
 struct c2_layout_domain;
 struct c2_layout;
+struct c2_layout_ops;
 struct c2_layout_type;
 struct c2_layout_enum;
+struct c2_layout_enum_ops;
 struct c2_layout_enum_type;
 struct c2_layout_striped;
 struct c2_ldb_schema;
@@ -65,15 +67,36 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl,
 bool is_layout_type_valid(uint32_t lt_id, const struct c2_layout_domain *dom);
 bool is_enum_type_valid(uint32_t let_id, const struct c2_layout_domain *dom);
 
+int layout_init(struct c2_layout *l,
+		uint64_t lid, uint64_t pool_id,
+		const struct c2_layout_type *type,
+		const struct c2_layout_ops *ops,
+		struct c2_layout_domain *dom);
+void layout_fini(struct c2_layout *l, struct c2_layout_domain *dom);
+
+int striped_init(struct c2_layout_striped *str_l,
+		 struct c2_layout_enum *e,
+		 uint64_t lid, uint64_t pool_id,
+		 const struct c2_layout_type *type,
+		 const struct c2_layout_ops *ops,
+		 struct c2_layout_domain *dom);
+void striped_fini(struct c2_layout_striped *str_l,
+		  struct c2_layout_domain *dom);
+
+int enum_init(struct c2_layout_enum *le, uint64_t lid,
+	      const struct c2_layout_enum_type *et,
+	      const struct c2_layout_enum_ops *ops);
+void enum_fini(struct c2_layout_enum *le);
+
 void layout_type_get(const struct c2_layout_type *lt,
 		     struct c2_layout_domain *dom);
 void layout_type_put(const struct c2_layout_type *lt,
 		     struct c2_layout_domain *dom);
 
-void layout_enum_get(const struct c2_layout_enum_type *let,
-		     struct c2_layout_domain *dom);
-void layout_enum_put(const struct c2_layout_enum_type *let,
-		     struct c2_layout_domain *dom);
+void enum_type_get(const struct c2_layout_enum_type *let,
+		   struct c2_layout_domain *dom);
+void enum_type_put(const struct c2_layout_enum_type *let,
+		   struct c2_layout_domain *dom);
 
 void layout_log(const char *fn_name,
 		const char *err_msg,

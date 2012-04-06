@@ -348,29 +348,6 @@ void c2_layouts_fini(void);
 int c2_layout_domain_init(struct c2_layout_domain *dom);
 void c2_layout_domain_fini(struct c2_layout_domain *dom);
 
-int c2_layout_init(struct c2_layout *lay,
-		   uint64_t lid,
-		   uint64_t pool_id,
-		   const struct c2_layout_type *type,
-		   const struct c2_layout_ops *ops,
-		   struct c2_layout_domain *dom);
-void c2_layout_fini(struct c2_layout *lay, struct c2_layout_domain *dom);
-
-int c2_layout_striped_init(struct c2_layout_striped *str_lay,
-			   struct c2_layout_enum *e,
-			   uint64_t lid, uint64_t pool_id,
-			   const struct c2_layout_type *type,
-			   const struct c2_layout_ops *ops,
-			   struct c2_layout_domain *dom);
-void c2_layout_striped_fini(struct c2_layout_striped *strl,
-			    struct c2_layout_domain *dom);
-
-int c2_layout_enum_init(struct c2_layout_enum *le, uint64_t lid,
-			const struct c2_layout_enum_type *lt,
-			const struct c2_layout_enum_ops *ops);
-void c2_layout_enum_fini(struct c2_layout_enum *le);
-
-
 int c2_layout_decode(struct c2_layout_domain *dom,
 		     uint64_t lid, struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,

@@ -404,7 +404,7 @@ static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 		c2_free(pl->pl_tgt);
 	}
 
-	c2_layout_striped_fini(&pl->pl_base, dom);
+	striped_fini(&pl->pl_base, dom);
 
 	c2_free(pl);
 
@@ -476,11 +476,10 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		goto out;
 	}
 
-	rc = c2_layout_striped_init(&pdl->pl_base, le, lid, pool->po_id,
-				    &c2_pdclust_layout_type, &pdclust_ops,
-				    dom);
+	rc = striped_init(&pdl->pl_base, le, lid, pool->po_id,
+				 &c2_pdclust_layout_type, &pdclust_ops, dom);
 	if (rc != 0) {
-		C2_LOG("c2_pdclust_build: lid %llu, c2_layout_striped_init() "
+		C2_LOG("c2_pdclust_build: lid %llu, striped_init() "
 		       "failed, rc %d", (unsigned long long)lid, rc);
 		goto out;
 	}
