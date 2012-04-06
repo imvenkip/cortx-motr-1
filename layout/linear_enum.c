@@ -42,7 +42,6 @@ extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
 	LINEAR_ENUM_MAGIC = 0x4C494E2D454E554DULL, /* LIN-ENUM */
-	LINEAR_NR_NONE    = 0
 };
 
 static const struct c2_bob_type linear_enum_bob = {
@@ -58,7 +57,7 @@ bool c2_linear_enum_invariant(const struct c2_layout_linear_enum *lin_enum,
 			      uint64_t lid)
 {
 	return lin_enum != NULL &&
-		lin_enum->lle_attr.lla_nr != LINEAR_NR_NONE &&
+		lin_enum->lle_attr.lla_nr != NR_NONE &&
 		lin_enum->lle_attr.lla_B != 0 &&
 		c2_layout_linear_enum_bob_check(lin_enum) &&
 		enum_invariant(&lin_enum->lle_base, lid);
@@ -72,12 +71,17 @@ static const struct c2_layout_enum_ops linear_enum_ops;
  * finalized internally through the layout finalization routine to be invoked
  * as l->l_ops->lo_fini().
  */
-int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
+int c2_linear_enum_build(struct c2_layout_domain *dom,
+			 uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out)
 {
 	struct c2_layout_linear_enum *lin_enum;
 	int                           rc = 0;
 
+	C2_PRE(dom != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(nr != NR_NONE);
+	C2_PRE(B != 0);
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("BUILD");
@@ -94,7 +98,7 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 
 	c2_layout_linear_enum_bob_init(lin_enum);
 
-	rc = enum_init(&lin_enum->lle_base, lid,
+	rc = enum_init(dom, &lin_enum->lle_base, lid,
 		       &c2_linear_enum_type, &linear_enum_ops);
 	if (rc != 0) {
 		C2_LOG("c2_linear_enum_build(): lid %llu, enum_init() failed, "
@@ -111,7 +115,7 @@ int c2_linear_enum_build(uint64_t lid, uint32_t nr, uint32_t A, uint32_t B,
 
 out:
 	if (rc != 0 && lin_enum != NULL) {
-		enum_fini(&lin_enum->lle_base);
+		enum_fini(dom, &lin_enum->lle_base);
 		c2_free(lin_enum);
 	}
 
@@ -123,7 +127,8 @@ out:
  * Implementation of leo_fini for LINEAR enumeration type.
  * Invoked internally by l->l_ops->lo_fini().
  */
-static void linear_fini(struct c2_layout_enum *e, uint64_t lid)
+static void linear_fini(struct c2_layout_domain *dom,
+			struct c2_layout_enum *e, uint64_t lid)
 {
 	struct c2_layout_linear_enum *lin_enum;
 
@@ -135,7 +140,7 @@ static void linear_fini(struct c2_layout_enum *e, uint64_t lid)
 	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
 
 	c2_layout_linear_enum_bob_fini(lin_enum);
-	enum_fini(e);
+	enum_fini(dom, e);
 
 	c2_free(lin_enum);
 
@@ -187,7 +192,8 @@ static c2_bcount_t linear_recsize(struct c2_layout_enum *e, uint64_t lid)
  * Reads linear enumeration type specific attributes from the buffer into
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
-static int linear_decode(uint64_t lid,
+static int linear_decode(struct c2_layout_domain *dom,
+			 uint64_t lid,
 			 struct c2_bufvec_cursor *cur,
 			 enum c2_layout_xcode_op op,
 			 struct c2_ldb_schema *schema, struct c2_db_tx *tx,
@@ -209,7 +215,7 @@ static int linear_decode(uint64_t lid,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
 
-	if (lin_attr->lla_nr == LINEAR_NR_NONE) {
+	if (lin_attr->lla_nr == NR_NONE) {
 		rc = -EINVAL;
 		C2_LOG("linear_decode(), lid %llu, Invalid value, nr %lu",
 		       (unsigned long long)lid,
@@ -217,7 +223,7 @@ static int linear_decode(uint64_t lid,
 		goto out;
 	}
 
-	rc = c2_linear_enum_build(lid, lin_attr->lla_nr, lin_attr->lla_A,
+	rc = c2_linear_enum_build(dom, lid, lin_attr->lla_nr, lin_attr->lla_A,
 				  lin_attr->lla_B, &lin_enum);
 	if (rc != 0) {
 		C2_LOG("linear_decode(): lid %llu, c2_linear_enum_build() "
@@ -238,7 +244,8 @@ out:
  * Reads linear enumeration type specific attributes from the
  * c2_layout_linear_enum object into the buffer.
  */
-static int linear_encode(const struct c2_layout_enum *le, uint64_t lid,
+static int linear_encode(struct c2_layout_domain *dom,
+			 const struct c2_layout_enum *le, uint64_t lid,
 			 enum c2_layout_xcode_op op,
 			 struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *oldrec_cur,

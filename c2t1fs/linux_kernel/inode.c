@@ -371,13 +371,13 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	 * This will be taken care of through the component task
 	 * "c2t1fs.LayoutDB".
 	 */
-	rc = c2_linear_enum_build(layout_id, pool->po_width, 100, 200, &le);
+	rc = c2_linear_enum_build(&domain, layout_id, pool->po_width,
+				  100, 200, &le);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_pdclust_build(pool, layout_id, N, K, unit_size,
-			      &seed, &le->lle_base,
-			      &domain, &pd_layout);
+	rc = c2_pdclust_build(&domain, pool, layout_id, N, K, unit_size,
+			      &seed, &le->lle_base, &pd_layout);
 
 	ci->ci_layout = rc == 0 ? &pd_layout->pl_base.ls_base : NULL;
 

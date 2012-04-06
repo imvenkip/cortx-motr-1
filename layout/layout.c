@@ -100,6 +100,15 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl,
 		layout_invariant(&stl->ls_base);
 }
 
+static int layout_rec_invariant(const struct c2_ldb_rec *rec,
+				struct c2_layout_domain *dom)
+{
+	return rec != NULL &&
+		is_layout_type_valid(rec->lr_lt_id, dom) &&
+		rec->lr_ref_count >= DEFAULT_REF_COUNT &&
+		c2_pool_id_is_valid(rec->lr_pool_id);
+}
+
 /**
  * @note The check is_layout_type_valid() is purposely not moved to
  * layout_invariant(). It requires an aditional domain object pointer,
@@ -149,11 +158,11 @@ bool is_enum_type_valid(uint32_t let_id, const struct c2_layout_domain *dom)
 }
 
 /** Adds a reference to the layout type. */
-void layout_type_get(const struct c2_layout_type *lt,
-		     struct c2_layout_domain *dom)
+static void layout_type_get(struct c2_layout_domain *dom,
+			    const struct c2_layout_type *lt)
 {
-	C2_PRE(lt != NULL);
 	C2_PRE(dom != NULL);
+	C2_PRE(lt != NULL);
 
 	/*
 	 * The DEFAULT_REF_COUNT while a layout type is registered, being 1,
@@ -168,11 +177,11 @@ void layout_type_get(const struct c2_layout_type *lt,
 }
 
 /** Releases a reference on the layout type. */
-void layout_type_put(const struct c2_layout_type *lt,
-		     struct c2_layout_domain *dom)
+static void layout_type_put(struct c2_layout_domain *dom,
+			    const struct c2_layout_type *lt)
 {
-	C2_PRE(lt != NULL);
 	C2_PRE(dom != NULL);
+	C2_PRE(lt != NULL);
 
 	c2_mutex_lock(&dom->ld_lock);
 
@@ -181,12 +190,12 @@ void layout_type_put(const struct c2_layout_type *lt,
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
-/** Adds a reference to the enum type. */
-void enum_type_get(const struct c2_layout_enum_type *let,
-		   struct c2_layout_domain *dom)
+/** Adds a reference on the enum type. */
+static void enum_type_get(struct c2_layout_domain *dom,
+			  const struct c2_layout_enum_type *let)
 {
-	C2_PRE(let != NULL);
 	C2_PRE(dom != NULL);
+	C2_PRE(let != NULL);
 
 	/*
 	 * The DEFAULT_REF_COUNT while a layout type is registered, being 1,
@@ -200,12 +209,12 @@ void enum_type_get(const struct c2_layout_enum_type *let,
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
-/** Releases a reference on the layout type. */
-void layout_enum_put(const struct c2_layout_enum_type *let,
-		     struct c2_layout_domain *dom)
+/** Releases a reference on the enum type. */
+static void enum_type_put(struct c2_layout_domain *dom,
+			  const struct c2_layout_enum_type *let)
 {
-	C2_PRE(let != NULL);
 	C2_PRE(dom != NULL);
+	C2_PRE(let != NULL);
 
 	c2_mutex_lock(&dom->ld_lock);
 
@@ -213,6 +222,139 @@ void layout_enum_put(const struct c2_layout_enum_type *let,
 
 	c2_mutex_unlock(&dom->ld_lock);
 }
+
+int layout_init(struct c2_layout_domain *dom,
+		struct c2_layout *l,
+		uint64_t lid, uint64_t pool_id,
+		const struct c2_layout_type *type,
+		const struct c2_layout_ops *ops)
+{
+	C2_PRE(dom != NULL);
+	C2_PRE(l != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(c2_pool_id_is_valid(pool_id));
+	C2_PRE(type != NULL);
+	C2_PRE(is_layout_type_valid(type->lt_id, dom));
+	C2_PRE(ops != NULL);
+
+	C2_ENTRY("lid %llu, layout-type-id %lu", (unsigned long long)lid,
+		 (unsigned long)type->lt_id);
+
+	l->l_id      = lid;
+	l->l_ref     = DEFAULT_REF_COUNT;
+	l->l_pool_id = pool_id;
+	l->l_ops     = ops;
+
+	layout_type_get(dom, type);
+	l->l_type    = type;
+
+	c2_mutex_init(&l->l_lock);
+	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
+			 &layout_global_ctx);
+
+	C2_POST(layout_invariant(l));
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
+	return 0;
+}
+
+void layout_fini(struct c2_layout_domain *dom, struct c2_layout *l)
+{
+	C2_PRE(dom != NULL);
+	C2_PRE(layout_invariant(l));
+
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
+	c2_addb_ctx_fini(&l->l_addb);
+	c2_mutex_fini(&l->l_lock);
+
+	layout_type_put(dom, l->l_type);
+	l->l_type    = NULL;
+
+	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
+}
+
+int striped_init(struct c2_layout_domain *dom,
+		 struct c2_layout_striped *str_l,
+		 struct c2_layout_enum *e,
+		 uint64_t lid, uint64_t pool_id,
+		 const struct c2_layout_type *type,
+		 const struct c2_layout_ops *ops)
+
+{
+	C2_PRE(dom != NULL);
+	C2_PRE(str_l != NULL);
+	C2_PRE(e != NULL);
+	C2_PRE(c2_pool_id_is_valid(pool_id));
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(type != NULL);
+	C2_PRE(ops != NULL);
+
+	C2_ENTRY("lid %llu, enum-type-id %lu", (unsigned long long)lid,
+		 (unsigned long)e->le_type->let_id);
+
+	layout_init(dom, &str_l->ls_base, lid, pool_id, type, ops);
+
+	str_l->ls_enum = e;
+
+	C2_POST(striped_layout_invariant(str_l, lid));
+
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
+	return 0;
+}
+
+/**
+ * @post The enum object which is part of striped layout object, is finalized
+ * as well.
+ */
+void striped_fini(struct c2_layout_domain *dom,
+		  struct c2_layout_striped *str_l)
+{
+	C2_PRE(dom != NULL);
+	C2_PRE(striped_layout_invariant(str_l, str_l->ls_base.l_id));
+
+	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
+
+	str_l->ls_enum->le_ops->leo_fini(dom, str_l->ls_enum,
+					 str_l->ls_base.l_id);
+
+	layout_fini(dom, &str_l->ls_base);
+
+	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
+}
+
+int enum_init(struct c2_layout_domain *dom,
+	      struct c2_layout_enum *le, uint64_t lid,
+	      const struct c2_layout_enum_type *et,
+	      const struct c2_layout_enum_ops *ops)
+{
+	C2_PRE(le != NULL);
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(is_enum_type_valid(et->let_id, dom));
+	C2_PRE(et != NULL);
+	C2_PRE(ops != NULL);
+
+	C2_ENTRY("Enum-type-id %lu", (unsigned long)et->let_id);
+
+	le->le_lid  = lid;
+	le->le_ops  = ops;
+
+	le->le_type = et;
+	enum_type_get(dom, le->le_type);
+
+	C2_LEAVE("Enum-type-id %lu", (unsigned long)et->let_id);
+	return 0;
+}
+
+void enum_fini(struct c2_layout_domain *dom, struct c2_layout_enum *le)
+{
+	C2_ENTRY("Enum-type-id %lu", (unsigned long)le->le_type->let_id);
+
+	enum_type_put(dom, le->le_type);
+	le->le_type = NULL;
+
+	C2_LEAVE();
+}
+
 
 /**
  * This method performs the following operations:
@@ -233,7 +375,7 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
 			    err_msg, rc);
 		break;
 	case C2_ADDB_EVENT_OOM:
-		C2_ASSERT(strlen(err_msg) == 0);
+		C2_ASSERT(strlen(err_msg) > 0);
 		C2_ADDB_ADD(ctx, &layout_addb_loc, c2_addb_oom);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_DECODE_SUCCESS:
@@ -317,8 +459,8 @@ struct c2_mutex log_msg_lock; /* todo Make use of this lock. */
  */
 void layout_log(const char *fn_name,
 		const char *err_msg,
-		bool if_addb_msg,
-		bool if_trace_msg,
+		bool addb_msg,
+		bool trace_msg,
 		enum c2_addb_event_id ev_id,
 		struct c2_addb_ctx *ctx,
 		bool if_lid,
@@ -327,8 +469,7 @@ void layout_log(const char *fn_name,
 {
 	uint32_t n;
 
-	C2_PRE(ergo(rc == 0, strlen(err_msg) == 0 &&
-			     !if_trace_msg &&
+	C2_PRE(ergo(rc == 0, strlen(err_msg) == 0 && !trace_msg &&
 			     (ev_id == layout_decode_success.ae_id ||
 			      ev_id == layout_encode_success.ae_id ||
 			      ev_id == ldb_lookup_success.ae_id ||
@@ -347,11 +488,11 @@ void layout_log(const char *fn_name,
 
 
 	/* ADDB message logging. */
-	if (if_addb_msg)
+	if (addb_msg)
 		layout_addb_add(ctx, ev_id, err_msg, rc);
 
 	/* Trace message logging. */
-	if (if_trace_msg) {
+	if (trace_msg) {
 		if (if_lid)
 			n = sprintf(log_msg, "%s(): lid %llu, %s, rc %d",
 				    (const char *)fn_name,
@@ -364,148 +505,6 @@ void layout_log(const char *fn_name,
 		C2_ASSERT (n < ARRAY_SIZE(log_msg));
 		C2_LOG(log_msg);
 	}
-}
-
-
-/* Move the following to layout_db.c */
-int layout_rec_invariant(const struct c2_ldb_rec *rec,
-			 struct c2_layout_domain *dom)
-{
-	return rec != NULL &&
-		is_layout_type_valid(rec->lr_lt_id, dom) &&
-		rec->lr_ref_count >= DEFAULT_REF_COUNT &&
-		c2_pool_id_is_valid(rec->lr_pool_id);
-}
-
-int layout_init(struct c2_layout *l,
-		uint64_t lid, uint64_t pool_id,
-		const struct c2_layout_type *type,
-		const struct c2_layout_ops *ops,
-		struct c2_layout_domain *dom)
-{
-	C2_PRE(l != NULL);
-	C2_PRE(lid != LID_NONE);
-	C2_PRE(c2_pool_id_is_valid(pool_id));
-	C2_PRE(type != NULL);
-	C2_PRE(is_layout_type_valid(type->lt_id, dom));
-	C2_PRE(ops != NULL);
-	C2_PRE(dom != NULL);
-
-	C2_ENTRY("lid %llu, layout-type-id %lu", (unsigned long long)lid,
-		 (unsigned long)type->lt_id);
-
-	l->l_id      = lid;
-	l->l_ref     = DEFAULT_REF_COUNT;
-	l->l_pool_id = pool_id;
-	l->l_ops     = ops;
-
-	layout_type_get(type, dom);
-	l->l_type    = type;
-
-	c2_mutex_init(&l->l_lock);
-	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
-			 &layout_global_ctx);
-
-	C2_POST(layout_invariant(l));
-	C2_LEAVE("lid %llu", (unsigned long long)lid);
-	return 0;
-}
-
-void layout_fini(struct c2_layout *l, struct c2_layout_domain *dom)
-{
-	C2_PRE(layout_invariant(l));
-	C2_PRE(dom != NULL);
-
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
-	c2_addb_ctx_fini(&l->l_addb);
-	c2_mutex_fini(&l->l_lock);
-
-	layout_type_put(l->l_type, dom);
-	l->l_type    = NULL;
-
-	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
-}
-
-int striped_init(struct c2_layout_striped *str_l,
-		 struct c2_layout_enum *e,
-		 uint64_t lid, uint64_t pool_id,
-		 const struct c2_layout_type *type,
-		 const struct c2_layout_ops *ops,
-		 struct c2_layout_domain *dom)
-
-{
-	C2_PRE(str_l != NULL);
-	C2_PRE(e != NULL);
-	C2_PRE(c2_pool_id_is_valid(pool_id));
-	C2_PRE(lid != LID_NONE);
-	C2_PRE(type != NULL);
-	C2_PRE(ops != NULL);
-	C2_PRE(dom != NULL);
-
-	C2_ENTRY("lid %llu, enum-type-id %lu", (unsigned long long)lid,
-		 (unsigned long)e->le_type->let_id);
-
-	layout_init(&str_l->ls_base, lid, pool_id, type, ops, dom);
-
-	str_l->ls_enum = e;
-
-	C2_POST(striped_layout_invariant(str_l, lid));
-
-	C2_LEAVE("lid %llu", (unsigned long long)lid);
-	return 0;
-}
-
-/**
- * @post The enum object which is part of striped layout object, is finalized
- * as well.
- */
-void striped_fini(struct c2_layout_striped *str_l,
-		  struct c2_layout_domain *dom)
-{
-	C2_PRE(striped_layout_invariant(str_l, str_l->ls_base.l_id));
-	C2_PRE(dom != NULL);
-
-	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
-
-	str_l->ls_enum->le_ops->leo_fini(str_l->ls_enum,
-					 str_l->ls_base.l_id);
-
-	layout_fini(&str_l->ls_base, dom);
-
-	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
-}
-
-int enum_init(struct c2_layout_enum *le, uint64_t lid,
-	      const struct c2_layout_enum_type *et,
-	      const struct c2_layout_enum_ops *ops)
-{
-	C2_PRE(le != NULL);
-	C2_PRE(lid != LID_NONE);
-	//todo C2_PRE(is_enum_type_valid(et->let_id, dom);
-	C2_PRE(et != NULL);
-	C2_PRE(ops != NULL);
-
-	C2_ENTRY("Enum-type-id %lu", (unsigned long)et->let_id);
-
-	le->le_lid  = lid;
-	le->le_ops  = ops;
-
-	le->le_type = et;
-	//todo enum_type_get(type, dom);
-
-	C2_LEAVE("Enum-type-id %lu", (unsigned long)et->let_id);
-	return 0;
-}
-
-void enum_fini(struct c2_layout_enum *le)
-{
-	C2_ENTRY("Enum-type-id %lu", (unsigned long)le->le_type->let_id);
-
-	// todo enum_type_put(le->le_type, dom);
-	le->le_type = NULL;
-
-	C2_LEAVE();
 }
 
 int c2_layouts_init(void)
@@ -799,7 +798,6 @@ out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
-
 
 /** @} end group layout */
 

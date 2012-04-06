@@ -43,10 +43,10 @@ struct c2_layout_list_enum;
  */
 struct c2_layout_list_enum {
 	/** Super class. */
-	struct c2_layout_enum     lle_base;
+	struct c2_layout_enum   lle_base;
 
 	/** Number of elements present in the enumeration. */
-	uint32_t                  lle_nr;
+	uint32_t                lle_nr;
 
 	/**
 	 * Pointer to an array of COB identifiers for the component objects
@@ -56,14 +56,15 @@ struct c2_layout_list_enum {
 	 * (c2_fid being 16 bytes in size).
 	 * This issue is to be addressed later.
 	 */
-	struct c2_fid            *lle_list_of_cobs;
+	struct c2_fid          *lle_list_of_cobs;
 
-	uint64_t                  lle_magic;
+	uint64_t                lle_magic;
 };
 
 bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
 			    uint64_t lid);
-int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
+int c2_list_enum_build(struct c2_layout_domain *dom,
+		       uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);
 
 extern const struct c2_layout_enum_type c2_list_enum_type;

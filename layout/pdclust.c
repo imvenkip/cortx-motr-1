@@ -404,7 +404,7 @@ static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 		c2_free(pl->pl_tgt);
 	}
 
-	striped_fini(&pl->pl_base, dom);
+	striped_fini(dom, &pl->pl_base);
 
 	c2_free(pl);
 
@@ -436,11 +436,11 @@ static const struct c2_layout_ops pdclust_ops;
  * finalized by the user, once done with the usage. It can be finalized
  * using l->l_ops->lo_fini().
  */
-int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
+int c2_pdclust_build(struct c2_layout_domain *dom,
+		     struct c2_pool *pool, uint64_t lid,
 		     uint32_t N, uint32_t K, uint64_t unitsize,
 		     const struct c2_uint128 *seed,
 		     struct c2_layout_enum *le,
-		     struct c2_layout_domain *dom,
 		     struct c2_pdclust_layout **out)
 {
 	struct c2_pdclust_layout *pdl;
@@ -449,11 +449,11 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 	uint32_t                  P;
 	int                       rc;
 
+	C2_PRE(dom != NULL);
 	C2_PRE(pool != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(seed != NULL);
 	C2_PRE(le != NULL);
-	C2_PRE(dom != NULL);
 	C2_PRE(out != NULL && *out == NULL);
 
 	P = pool->po_width;
@@ -476,8 +476,8 @@ int c2_pdclust_build(struct c2_pool *pool, uint64_t lid,
 		goto out;
 	}
 
-	rc = striped_init(&pdl->pl_base, le, lid, pool->po_id,
-				 &c2_pdclust_layout_type, &pdclust_ops, dom);
+	rc = striped_init(dom, &pdl->pl_base, le, lid, pool->po_id,
+			  &c2_pdclust_layout_type, &pdclust_ops);
 	if (rc != 0) {
 		C2_LOG("c2_pdclust_build: lid %llu, striped_init() "
 		       "failed, rc %d", (unsigned long long)lid, rc);
@@ -627,7 +627,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
-	rc = et->let_ops->leto_decode(lid, cur, op, schema, tx, &e);
+	rc = et->let_ops->leto_decode(dom, lid, cur, op, schema, tx, &e);
 	if (rc != 0) {
 		C2_LOG("pdclust_decode(): lid %llu, leto_decode() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
@@ -643,12 +643,12 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	rc = c2_pdclust_build(pool, lid,
+	rc = c2_pdclust_build(dom, pool, lid,
 			      pl_rec->pr_attr.pa_N,
 			      pl_rec->pr_attr.pa_K,
 			      pl_rec->pr_attr.pa_unit_size,
 			      &pl_rec->pr_attr.pa_seed,
-			      e, dom, &pl);
+			      e, &pl);
 	if (rc != 0) {
 		C2_LOG("pdclust_decode(): lid %llu, c2_pdclust_build() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
@@ -661,7 +661,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 out:
 	if (rc != 0 && e != NULL) {
 		C2_ASSERT(pl == NULL);
-		e->le_ops->leo_fini(e, lid);
+		e->le_ops->leo_fini(dom, e, lid);
 	}
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -742,7 +742,7 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
 
-	rc = et->let_ops->leto_encode(pl->pl_base.ls_enum, l->l_id,
+	rc = et->let_ops->leto_encode(dom, pl->pl_base.ls_enum, l->l_id,
 				      op, schema, tx, oldrec_cur, out);
 	if (rc != 0) {
 		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "

@@ -264,7 +264,8 @@ struct c2_layout_enum_ops {
 			    uint32_t idx, const struct c2_fid *gfid,
 			    struct c2_fid *out);
 
-	void     (*leo_fini)(struct c2_layout_enum *e, uint64_t lid);
+	void     (*leo_fini)(struct c2_layout_domain *dom,
+			     struct c2_layout_enum *e, uint64_t lid);
 };
 
 /**
@@ -310,7 +311,8 @@ struct c2_layout_enum_type_ops {
 	 * Allocates an instance of some enum-type specific data-type
 	 * which embeds c2_layout_enum. Internally, sets c2_layout_enum::le_ops.
 	 */
-	int         (*leto_decode)(uint64_t lid,
+	int         (*leto_decode)(struct c2_layout_domain *dom,
+				   uint64_t lid,
 				   struct c2_bufvec_cursor *cur,
 				   enum c2_layout_xcode_op op,
 				   struct c2_ldb_schema *schema,
@@ -321,7 +323,8 @@ struct c2_layout_enum_type_ops {
 	 * Continues storing layout representation either in the buffer
 	 * or in the DB.
 	 */
-	int         (*leto_encode)(const struct c2_layout_enum *le,
+	int         (*leto_encode)(struct c2_layout_domain *dom,
+				   const struct c2_layout_enum *le,
 				   uint64_t lid,
 				   enum c2_layout_xcode_op op,
 				   struct c2_ldb_schema *schema,

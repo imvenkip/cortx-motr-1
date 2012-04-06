@@ -685,8 +685,7 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 	rc = c2_pool_lookup(DEF_POOL_ID, &pool);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_pdclust_build(pool, lid, N, K, unitsize, seed,
-			      le, &domain, pl);
+	rc = c2_pdclust_build(&domain, pool, lid, N, K, unitsize, seed, le, pl);
 	C2_UT_ASSERT(rc == 0);
 
 	return rc;
@@ -719,7 +718,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 		for (i = 0; i < nr; ++i)
 			c2_fid_set(&cob_list[i], i * 100 + 1, i + 1);
 
-		rc = c2_list_enum_build(lid, cob_list, nr, list_e);
+		rc = c2_list_enum_build(&domain, lid, cob_list, nr, list_e);
 		C2_UT_ASSERT(rc == 0);
 
 		C2_UT_ASSERT(list_e != NULL);
@@ -732,7 +731,8 @@ static int pdclust_layout_build(uint32_t enum_id,
 		C2_UT_ASSERT(B != B_NONE && list_e == NULL);
 		C2_UT_ASSERT(lin_e != NULL && *lin_e == NULL);
 
-		rc = c2_linear_enum_build(lid, pool.po_width, A, B, lin_e);
+		rc = c2_linear_enum_build(&domain, lid, pool.po_width,
+					  A, B, lin_e);
 		C2_UT_ASSERT(rc == 0);
 
 		C2_UT_ASSERT(*lin_e != NULL);

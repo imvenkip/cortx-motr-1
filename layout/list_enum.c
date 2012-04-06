@@ -49,7 +49,6 @@ enum {
 	 */
 	LDB_MAX_INLINE_COB_ENTRIES = 20,
 	LIST_ENUM_MAGIC            = 0x4C495354454E554DULL, /* LISTENUM */
-	LIST_NR_NONE               = 0
 };
 
 static const struct c2_bob_type list_enum_bob = {
@@ -129,7 +128,7 @@ static const struct c2_table_ops cob_lists_table_ops = {
 bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum,
 			    uint64_t lid)
 {
-	return list_enum != NULL && list_enum->lle_nr != LIST_NR_NONE &&
+	return list_enum != NULL && list_enum->lle_nr != NR_NONE &&
 		list_enum->lle_list_of_cobs != NULL &&
 		c2_layout_list_enum_bob_check(list_enum) &&
 		enum_invariant(&list_enum->lle_base, lid);
@@ -143,16 +142,18 @@ static const struct c2_layout_enum_ops list_enum_ops;
  * finalized internally through the layout finalization routine to be invoked
  * as l->l_ops->lo_fini().
  */
-int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
+int c2_list_enum_build(struct c2_layout_domain *dom,
+		       uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out)
 {
 	struct c2_layout_list_enum *list_enum;
 	uint32_t                    i;
 	int                         rc;
 
+	C2_PRE(dom != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cob_list != NULL);
-	C2_PRE(nr != LIST_NR_NONE);
+	C2_PRE(nr != NR_NONE);
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("BUILD, lid %llu", (unsigned long long)lid);
@@ -167,7 +168,7 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 		goto out;
 	}
 
-	rc = enum_init(&list_enum->lle_base, lid,
+	rc = enum_init(dom, &list_enum->lle_base, lid,
 		       &c2_list_enum_type, &list_enum_ops);
 	if (rc != 0) {
 		layout_log("c2_list_enum_build", "enum_init() failed",
@@ -202,7 +203,7 @@ int c2_list_enum_build(uint64_t lid, struct c2_fid *cob_list, uint32_t nr,
 out:
 	if (rc != 0 && list_enum != NULL) {
 		c2_free(list_enum->lle_list_of_cobs);
-		enum_fini(&list_enum->lle_base);
+		enum_fini(dom, &list_enum->lle_base);
 		c2_free(list_enum);
 	}
 
@@ -214,7 +215,8 @@ out:
  * Implementation of leo_fini for LIST enumeration type.
  * Invoked internally by l->l_ops->lo_fini().
  */
-void list_fini(struct c2_layout_enum *e, uint64_t lid)
+void list_fini(struct c2_layout_domain *dom,
+	       struct c2_layout_enum *e, uint64_t lid)
 {
 	struct c2_layout_list_enum *list_enum;
 
@@ -227,7 +229,7 @@ void list_fini(struct c2_layout_enum *e, uint64_t lid)
 
 	c2_layout_list_enum_bob_fini(list_enum);
 	c2_free(list_enum->lle_list_of_cobs);
-	enum_fini(&list_enum->lle_base);
+	enum_fini(dom, &list_enum->lle_base);
 	c2_free(list_enum);
 
 	C2_LEAVE();
@@ -393,7 +395,8 @@ out:
  * If it is NONE, then the layout is decoded from its representation received
  * over the network.
  */
-static int list_decode(uint64_t lid,
+static int list_decode(struct c2_layout_domain *dom,
+		       uint64_t lid,
 		       struct c2_bufvec_cursor *cur,
 		       enum c2_layout_xcode_op op,
 		       struct c2_ldb_schema *schema, struct c2_db_tx *tx,
@@ -407,6 +410,7 @@ static int list_decode(uint64_t lid,
 	uint32_t                       i;
 	int                            rc;
 
+	C2_PRE(dom != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ldb_ce_header);
@@ -465,7 +469,7 @@ static int list_decode(uint64_t lid,
 		}
 	}
 
-	rc = c2_list_enum_build(lid, cob_list, ldb_ce_header->llces_nr,
+	rc = c2_list_enum_build(dom, lid, cob_list, ldb_ce_header->llces_nr,
 			        &list_enum);
 	if (rc != 0) {
 		layout_log("list_decode", "c2_list_enum_build() failed",
@@ -548,7 +552,8 @@ int ldb_cob_list_write(enum c2_layout_xcode_op op, uint64_t lid,
  * ADD/UPDATE/DELETE. If it is NONE, then the layout is converted into the
  * buffer.
  */
-static int list_encode(const struct c2_layout_enum *le, uint64_t lid,
+static int list_encode(struct c2_layout_domain *dom,
+		       const struct c2_layout_enum *le, uint64_t lid,
 		       enum c2_layout_xcode_op op,
 		       struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *oldrec_cur,
@@ -563,6 +568,7 @@ static int list_encode(const struct c2_layout_enum *le, uint64_t lid,
 	uint32_t                       i;
 	int                            rc = 0;
 
+	C2_PRE(dom != NULL);
 	C2_PRE(enum_invariant(le, lid));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);

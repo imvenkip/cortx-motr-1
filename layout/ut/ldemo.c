@@ -189,7 +189,7 @@ static int dummy_create(struct c2_layout_domain *domain,
 	c2_ldb_type_register(schema, &c2_pdclust_layout_type);
 	c2_ldb_enum_register(schema, &c2_linear_enum_type);
 
-	rc = c2_linear_enum_build(lid, pool_width, 100, 200, lin_enum);
+	rc = c2_linear_enum_build(domain, lid, pool_width, 100, 200, lin_enum);
 	C2_ASSERT(rc == 0);
 
 
@@ -257,9 +257,9 @@ int main(int argc, char **argv)
 		result = dummy_create(&domain, &dbenv, &schema,
 				      id, pool.po_width, &le);
 		if (result == 0) {
-			result = c2_pdclust_build(&pool, id, N, K, unitsize,
-						  &seed, &le->lle_base,
-						  &domain, &play);
+			result = c2_pdclust_build(&domain, &pool, id, N, K,
+						  unitsize, &seed,
+						  &le->lle_base, &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);
 			c2_pool_fini(&pool);
