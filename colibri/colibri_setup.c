@@ -727,43 +727,83 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
    Initialises AD type stob.
  */
 static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
-			   struct c2_dbenv *db, struct c2_stob **bstob)
+                                                            struct c2_dbenv *db)
 {
-	int rc;
+        int             rc;
+	struct c2_dtx  *tx;
 
-	rc = c2_stob_domain_locate(&c2_ad_stob_type, stob_path, &stob->adstob);
+        C2_PRE(stob != NULL && stob->rs_ldom != NULL);
 
+        tx = &stob->rs_tx;
+        stob->rs_id_back.si_bits = (struct c2_uint128){ .u_hi = 0x0,
+                                                        .u_lo = 0xadf11e };
+
+        rc = c2_stob_domain_locate(&c2_ad_stob_type, stob_path, &stob->rs_adom);
 	if (rc == 0)
-		rc = c2_ad_stob_setup(stob->adstob, db, *bstob,
-				      &colibri_balloc.cb_ballroom,
-				      BALLOC_DEF_CONTAINER_SIZE,
-				      BALLOC_DEF_BLOCK_SHIFT,
-				      BALLOC_DEF_BLOCKS_PER_GROUP,
-				      BALLOC_DEF_RESERVED_GROUPS);
-	return rc;
+             rc = c2_stob_find(stob->rs_ldom, &stob->rs_id_back,
+                                              &stob->rs_stob_back);
+        if (rc == 0) {
+             c2_dtx_init(tx);
+             rc = c2_dtx_open(tx, db);
+        }
+        if (rc == 0) {
+             rc = c2_stob_locate(stob->rs_stob_back, tx);
+             if (rc == -ENOENT)
+                       rc = c2_stob_create(stob->rs_stob_back, tx);
+        }
+        if (rc == 0)
+             rc = c2_ad_stob_setup(stob->rs_adom, db,
+                                   stob->rs_stob_back,
+                                   &colibri_balloc.cb_ballroom,
+                                   BALLOC_DEF_CONTAINER_SIZE,
+                                   BALLOC_DEF_BLOCK_SHIFT,
+                                   BALLOC_DEF_BLOCKS_PER_GROUP,
+                                   BALLOC_DEF_RESERVED_GROUPS);
+
+       return rc;
 }
 
 /**
    Initialises linux type stob.
  */
 static int cs_linux_stob_init(const char *stob_path,
-			      struct c2_cs_reqh_stobs *stob,
-			      struct c2_stob **bstob)
+			      struct c2_cs_reqh_stobs *stob)
 {
 	int                    rc;
 	struct c2_stob_domain *sdom;
 
 	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path,
-				   &stob->linuxstob);
-	if  (rc == 0) {
-		sdom = stob->linuxstob;
-		rc = c2_linux_stob_setup(sdom, false);
-		if  (rc == 0)
-			rc = c2_stob_find(sdom, &stob->stob_id, bstob);
+				   &stob->rs_ldom);
+	if (rc == 0) {
+	     sdom = stob->rs_ldom;
+	     rc = c2_linux_stob_setup(sdom, false);
 	}
 
 	return rc;
 }
+
+void cs_ad_stob_fini(struct c2_cs_reqh_stobs *stob)
+{
+	C2_PRE(stob != NULL);
+
+        if (stob->rs_adom != NULL) {
+             if (stob->rs_stob_back != NULL &&
+                 stob->rs_stob_back->so_state == CSS_EXISTS) {
+                 c2_dtx_done(&stob->rs_tx);
+                 c2_stob_put(stob->rs_stob_back);
+             }
+             stob->rs_adom->sd_ops->sdo_fini(stob->rs_adom);
+        }
+}
+
+void cs_linux_stob_fini(struct c2_cs_reqh_stobs *stob)
+{
+	C2_PRE(stob != NULL);
+
+	if (stob->rs_ldom != NULL)
+                stob->rs_ldom->sd_ops->sdo_fini(stob->rs_ldom);
+}
+
 
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
@@ -771,18 +811,12 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 	int                      rc;
 	int                      slen;
 	char                    *objpath;
-        struct c2_stob          *bstore;
 	static const char        objdir[] = "/o";
 
 	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
-	stob->stype = stob_type;
+	stob->rs_stype = stob_type;
 
-	/*
-	   XXX Need generic mechanism to generate stob ids
-	 */
-        stob->stob_id.si_bits = (struct c2_uint128){ .u_hi = 0x0,
-						     .u_lo = 0xdf11e };
 	slen = strlen(stob_path);
 	C2_ALLOC_ARR(objpath, slen + ARRAY_SIZE(objdir));
 	if (objpath == NULL)
@@ -792,31 +826,20 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 
 	rc = mkdir(stob_path, 0700);
         if (rc != 0 && errno != EEXIST)
-		goto cleanup;
+		goto out;
 
         rc = mkdir(objpath, 0700);
         if (rc != 0 && errno != EEXIST)
-		goto cleanup;
+		goto out;
 
-	rc = cs_linux_stob_init(stob_path, stob, &bstore);
+	rc = cs_linux_stob_init(stob_path, stob);
 	if (rc != 0)
-		goto cleanup;
-
-	rc = c2_stob_create(bstore, NULL);
-	if (rc != 0)
-		goto cleanup;
+		goto out;
 
 	if (strcasecmp(stob_type, cs_stobs[AD_STOB]) == 0)
-		rc = cs_ad_stob_init(stob_path, stob, db, &bstore);
+		rc = cs_ad_stob_init(stob_path, stob, db);
 
-	if (rc != 0)
-		goto cleanup;
-
-	C2_ASSERT(bstore->so_state == CSS_EXISTS);
-
-cleanup:
-	if (bstore != NULL)
-		c2_stob_put(bstore);
+out:
 	c2_free(objpath);
 
 	return rc;
@@ -826,11 +849,8 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
-	if (stob->linuxstob != NULL) {
-		if (stob->adstob != NULL)
-			stob->adstob->sd_ops->sdo_fini(stob->adstob);
-		stob->linuxstob->sd_ops->sdo_fini(stob->linuxstob);
-	}
+        cs_ad_stob_fini(stob);
+        cs_linux_stob_fini(stob);
 }
 
 /**
@@ -1097,10 +1117,10 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 		goto cleanup_cob;
 
 	rstob = &rctx->rc_stob;
-	if (strcasecmp(rstob->stype, cs_stobs[AD_STOB]) == 0)
-		sdom = rstob->adstob;
+	if (strcasecmp(rstob->rs_stype, cs_stobs[AD_STOB]) == 0)
+		sdom = rstob->rs_adom;
 	else
-		sdom = rstob->linuxstob;
+		sdom = rstob->rs_ldom;
 
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
 					&rctx->rc_cdom, &rctx->rc_fol);
@@ -1144,7 +1164,7 @@ static int cs_start_request_handlers(struct c2_colibri *cctx)
 		rc = cs_start_request_handler(rctx);
 		if (rc != 0) {
 			fprintf(ofd,
-				"COLIBRI: Failed to start request handler\n");
+				"COLIBRI: Failed to start request handler, rc=%d\n", rc);
 			return rc;
 		}
 	} c2_tlist_endfor;
@@ -1719,23 +1739,25 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 	rc = cs_parse_args(cctx, argc, argv);
 	if (rc < 0) {
 		cs_usage(cctx->cc_outfile);
-		goto err;
+		goto out;
 	}
 
-	rc = reqh_ctxs_are_valid(cctx);
-	if (rc != 0)
-		goto err;
+	if (rc == 0) {
+		rc = reqh_ctxs_are_valid(cctx);
+		if (rc != 0)
+		     goto out;
 
-	rc = cs_net_domains_init(cctx);
-	if (rc != 0)
-		goto err;
+		rc = cs_net_domains_init(cctx);
+		if (rc != 0)
+                     goto out;
 
-	rc = cs_start_request_handlers(cctx);
-	if (rc != 0)
-		goto err;
+		rc = cs_start_request_handlers(cctx);
+		if (rc != 0)
+                     goto out;
 
-	rc = cs_rpcmachines_init(cctx);
-err:
+		rc = cs_rpcmachines_init(cctx);
+	}
+out:
 	c2_mutex_unlock(&cctx->cc_mutex);
 	return rc;
 }

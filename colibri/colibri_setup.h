@@ -27,6 +27,7 @@
 #include "reqh/reqh_service.h"
 #include "ioservice/cobfid_map.h"
 #include "stob/stob.h"
+#include "dtm/dtm.h"
 
 /**
    @defgroup colibri_setup Configures user space colibri environment
@@ -265,19 +266,24 @@ struct c2_cs_reqh_stobs {
 	/**
 	   Type of storage domain to be initialise (e.g. Linux or AD)
 	 */
-	const char            *stype;
-	/**
-	   Backend storage object id
-	 */
-	struct c2_stob_id      stob_id;
+	const char            *rs_stype;
 	/**
 	   Linux storage domain type.
 	 */
-	struct c2_stob_domain *linuxstob;
+	struct c2_stob_domain *rs_ldom;
 	/**
 	   Allocation data storage domain type.
 	 */
-	struct c2_stob_domain *adstob;
+	struct c2_stob_domain *rs_adom;
+	/**
+           Front end storage object id, i.e. ad
+         */
+	struct c2_stob_id      rs_id_back;
+	/**
+           Front end storage object
+         */
+	struct c2_stob        *rs_stob_back;
+	struct c2_dtx          rs_tx;
 };
 
 /**
