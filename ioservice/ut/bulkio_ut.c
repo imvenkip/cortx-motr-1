@@ -14,15 +14,21 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- *		    Madhavrao Vemuri <madhav_vemuri@xyratec.com>
+ * Original author: Madhavrao Vemuri <madhav_vemuri@xyratec.com>
  * Original creation date: 09/29/2011
  */
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include "lib/processor.h"
 #include "lib/ut.h"
 #include "bulkio_common.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
-#include "ioservice/io_foms.c"
+#include "ioservice/io_foms.c"	/* To access static APIs. */
+
+static void bulkio_init();
+static void bulkio_fini();
 
 struct bulkio_params *bp;
 extern void bulkioapi_test(void);

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -145,6 +145,8 @@
 #include "net/net.h"
 #include "fop/fom.h"
 
+struct c2_fid;
+struct c2_fop_file_fid;
 struct c2_io_fom_cob_rw;
 
 enum {
@@ -240,6 +242,26 @@ struct c2_io_fom_cob_rw_state_transition {
         const char *fcrw_st_desc;
 };
 
+/**
+ * Returns string representing ioservice name given a fom.
+ */
+const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
+
+/**
+ * Function to map the on-wire FOP format to in-core FOP format.
+ * @param in Input on-wire fid fop format.
+ * @param out Output in-core fid fop format.
+ */
+void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
+                                struct c2_fid *out);
+
+/**
+ * Maps given fid to corresponding stob id.
+ * @param in Input in-core fid.
+ * @param out Output stob id.
+ */
+void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
+                                struct c2_stob_id *out);
 
 /** @} end of io_foms */
 
