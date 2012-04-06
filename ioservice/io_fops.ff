@@ -177,6 +177,50 @@ DEF(c2_test_io_addb, RECORD,
 	_(if_st, U64),
 	_(if_addb, c2_addb_record));
 
+DEF(c2_fop_cob_common, RECORD,
+	/**
+	 * Fid of global file.
+	 */
+	_(c_gobfid, c2_fop_file_fid),
+	/**
+	 * Fid of component object.
+	 */
+	_(c_cobfid, c2_fop_file_fid));
+
+/**
+ * Represents name of a cob being created.
+ */
+DEF(c2_fop_cob_name, SEQUENCE,
+        _(cn_count, U32),
+        _(cn_name,  BYTE));
+
+/**
+ * On-wire representation of "cob create" request.
+ * Cob create fops are sent to data servers when a new global file
+ * is created.
+ */
+DEF(c2_fop_cob_create, RECORD,
+	_(cc_common,  c2_fop_cob_common),
+	/** Name of global file. */
+	_(cc_cobname, c2_fop_cob_name));
+
+/**
+ * On-wire representation of "cob delete" request.
+ * Cob delete fops are sent to data servers when a global file
+ * is deleted.
+ * Cob is located based on stob-id. Currently, cob-id is same
+ * as stob-id.
+ */
+DEF(c2_fop_cob_delete, RECORD,
+	_(cd_common, c2_fop_cob_common));
+
+/**
+ * On-wire representation of reply for both "cob create" and "cob delete"
+ * requests.
+ */
+DEF(c2_fop_cob_op_reply, RECORD,
+	_(cor_rc, U32));
+
 /** @} end of FOP_data_ops */
 
 /*

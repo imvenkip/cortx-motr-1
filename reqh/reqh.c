@@ -88,8 +88,6 @@ C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 extern int c2_reqh_fop_init(void);
 extern void c2_reqh_fop_fini(void);
-static struct c2_reqh_service *get_reqh_service(const char *service_name,
-                                               const struct c2_reqh *reqh);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
@@ -186,7 +184,8 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
                 if (fom->fo_ops->fo_service_name != NULL) {
                         const char *service_name = NULL;
                         service_name = fom->fo_ops->fo_service_name(fom);
-                        fom->fo_service = get_reqh_service(service_name, reqh);
+                        fom->fo_service = c2_reqh_service_get(service_name,
+							      reqh);
                 }
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
@@ -206,22 +205,25 @@ bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 	return c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) == 0;
 }
 
-static struct c2_reqh_service *get_reqh_service(const char *service_name,
-                                               const struct c2_reqh *reqh)
+struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
+                                            struct c2_reqh *reqh)
 {
-        struct c2_reqh_service        *service = NULL;
+	struct c2_reqh_service *service = NULL;
 
-        C2_PRE(reqh != NULL);
-        C2_PRE(service_name != NULL);
+	C2_PRE(reqh != NULL);
+	C2_PRE(service_name != NULL);
 
-        c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
-               C2_ASSERT(service != NULL);
-               if (strcmp(service->rs_type->rst_name, service_name) == 0)
-                       break;
-       } c2_tlist_endfor;
+	c2_mutex_lock(&reqh->rh_lock);
+	c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
+		C2_ASSERT(service != NULL);
+		if (strcmp(service->rs_type->rst_name, service_name) == 0)
+			break;
+	} c2_tlist_endfor;
+	c2_mutex_unlock(&reqh->rh_lock);
 
-       return service;
+	return service;
 }
+C2_EXPORTED(c2_reqh_service_get);
 
 /** @} endgroup reqh */
 

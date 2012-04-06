@@ -294,6 +294,17 @@ int c2_reqhs_init(void);
 */
 void c2_reqhs_fini(void);
 
+/**
+   Find a service instance for a given service-name within a give
+   request handler instance.
+
+   @param service_name Name of the service of interest
+   @param reqh Request handler instance
+
+   @retval serive instance pointer or NULL.
+ */
+struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
+                                            struct c2_reqh *reqh);
 /** @} endgroup reqh */
 
 /* __COLIBRI_REQH_REQH_H__ */
