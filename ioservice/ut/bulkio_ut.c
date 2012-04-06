@@ -131,9 +131,11 @@ static void ut_fom_wait_dummy(struct c2_fom *fom)
         C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
         loc = fom->fo_loc;
-        C2_ASSERT(c2_mutex_is_locked(&loc->fl_lock));
+
+        c2_mutex_lock(&loc->fl_lock2);
         c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
         C2_CNT_INC(loc->fl_wail_nr);
+        c2_mutex_unlock(&loc->fl_lock2);
 }
 
 /* This function is used to bypass request handler while testing.*/
@@ -146,11 +148,13 @@ static bool ut_fom_cb_dummy(struct c2_clink *clink)
 
         fom = container_of(clink, struct c2_fom, fo_clink);
         loc = fom->fo_loc;
-        c2_mutex_lock(&loc->fl_lock);
+
+        c2_mutex_lock(&loc->fl_lock2);
         C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_linkage));
         c2_list_del(&fom->fo_linkage);
         C2_CNT_DEC(loc->fl_wail_nr);
-        c2_mutex_unlock(&loc->fl_lock);
+        c2_mutex_unlock(&loc->fl_lock2);
+
         return true;
 }
 
@@ -353,7 +357,6 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
         /* Cleanup & make clean FOM for next test. */
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
         rc = 0;
         fom->fo_rc = 0;
 
@@ -374,7 +377,6 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
         /* Cleanup & rstore FOM for next test. */
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
         rc = 0;
         fom->fo_rc = 0;
 
@@ -472,6 +474,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
          * function which wakeup FOM from wait.
          */
         fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
+        ut_fom_wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
@@ -482,20 +485,12 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
         /*
          * Cleanup & make clean FOM for next test.
-         * Since this fom will not go actual wait queue,
-         * need to unlock locality.
          */
-        ut_fom_wait_dummy(fom);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
 
-        c2_mutex_lock(&fom->fo_loc->fl_lock);
         while(fom->fo_loc->fl_wail_nr > 0) {
-                c2_mutex_unlock(&fom->fo_loc->fl_lock);
                 sleep(1);
-                c2_mutex_lock(&fom->fo_loc->fl_lock);
         }
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
 
         /*
          * Case 07 : Zero-copy failure
@@ -561,6 +556,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
          * function which wakeup FOM from wait.
          */
         fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
+        ut_fom_wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_STOB_INIT;
 
@@ -570,20 +566,13 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
         /*
          * Cleanup & make clean FOM for next test.
-         * Since this FOM	 will not go actual wait queue,
-         * need to unlock locality.
          */
-        ut_fom_wait_dummy(fom);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
 
-        c2_mutex_lock(&fom->fo_loc->fl_lock);
         while(fom->fo_loc->fl_wail_nr > 0) {
-                c2_mutex_unlock(&fom->fo_loc->fl_lock);
                 sleep(1);
-                c2_mutex_lock(&fom->fo_loc->fl_lock);
         }
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
+
         /*
          * Case 11 : STOB I/O failure from wait state.
          *         Input phase          : C2_FOPH_IO_STOB_WAIT
@@ -623,8 +612,6 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 
         rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
         C2_UT_ASSERT(rc == 0);
-
-        c2_fom_block_enter(fom);
 
         rc = 0;
         fom->fo_rc = 0;
@@ -763,7 +750,6 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 
         /* Cleanup & make clean FOM for next test. */
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
         rc = 0;
         fom->fo_rc = 0;
 
@@ -784,7 +770,6 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 
         /* Cleanup & make clean FOM for next test. */
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
         rc = 0;
         fom->fo_rc = 0;
 
@@ -874,6 +859,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          * function which wakeup FOM from wait.
          */
         fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
+        ut_fom_wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_STOB_INIT;
 
@@ -884,20 +870,13 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 
         /*
          * Cleanup & restore FOM for next test.
-         * Since this fom will not go the actual wait queue,
-         * need to unlock locality.
          */
-        ut_fom_wait_dummy(fom);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
 
-        c2_mutex_lock(&fom->fo_loc->fl_lock);
         while(fom->fo_loc->fl_wail_nr > 0) {
-                c2_mutex_unlock(&fom->fo_loc->fl_lock);
                 sleep(1);
-                c2_mutex_lock(&fom->fo_loc->fl_lock);
         }
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
+
         /*
          * Case 07 : STOB I/O failure
          *         Input phase          : C2_FOPH_IO_STOB_WAIT
@@ -937,8 +916,6 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 
         rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
         C2_UT_ASSERT(rc == 0);
-
-        c2_fom_block_enter(fom);
 
         rc = 0;
         fom->fo_rc = 0;
@@ -995,6 +972,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          * function which wakeup FOM from wait.
          */
         fom->fo_clink.cl_cb = &ut_fom_cb_dummy;
+        ut_fom_wait_dummy(fom);
 
         fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
@@ -1005,20 +983,12 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 
         /*
          * Cleanup & restore FOM for next test.
-         * Since this FOM will not go actual wait queue,
-         * need to unlock locality.
          */
-        ut_fom_wait_dummy(fom);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
 
-        c2_mutex_lock(&fom->fo_loc->fl_lock);
         while(fom->fo_loc->fl_wail_nr > 0) {
-                c2_mutex_unlock(&fom->fo_loc->fl_lock);
                 sleep(1);
-                c2_mutex_lock(&fom->fo_loc->fl_lock);
         }
         c2_clink_del(&fom->fo_clink);
-        c2_mutex_unlock(&fom->fo_loc->fl_lock);
 
         /*
          * Case 11 : Zero-copy failure

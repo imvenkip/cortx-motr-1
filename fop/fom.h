@@ -103,8 +103,11 @@ struct c2_fom_locality {
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 
-	/** Common lock used to protect locality fields */
+	/** Internal fom state lock */
 	struct c2_mutex		     fl_lock;
+
+	/** Helper lock for fom API protection */
+	struct c2_mutex		     fl_lock2;
 
 	/**
 	 *  Re-scheduling channel that idle threads of locality wait on for new
@@ -487,22 +490,6 @@ void c2_fom_block_leave(struct c2_fom *fom);
  * @post c2_mutex_is_locked(&fom->fo_loc->fl_lock)
  */
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
-
-/**
- * Take the c2_fom_locality::fl_lock.
- *
- * @param fom, A fom object
- * @pre !c2_mutex_is_locked(&fom->fo_loc->fl_lock)
- */
-void c2_fom_locality_lock(struct c2_fom *fom);
-
-/**
- * Take the c2_fom_locality::fl_lock.
- *
- * @param fom, A fom object
- * @pre c2_mutex_is_locked(&fom->fo_loc->fl_lock)
- */
-void c2_fom_locality_unlock(struct c2_fom *fom);
 
 /** @} end of fom group */
 

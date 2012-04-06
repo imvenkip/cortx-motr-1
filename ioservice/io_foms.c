@@ -1115,7 +1115,6 @@ static int acquire_net_buffer(struct c2_fom *fom)
                      */
                     bpdesc = container_of(fom_obj->fcrw_bp,
                                         struct c2_rios_buffer_pool, rios_bp);
-                    c2_fom_locality_lock(fom);
                     c2_fom_block_at(fom, &bpdesc->rios_bp_wait);
 
                     fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_WAIT;
@@ -1289,7 +1288,6 @@ static int initiate_zero_copy(struct c2_fom *fom)
          * On completion of zero-copy on all buffers rpc_bulk
          * sends signal on channel rbulk->rb_chan.
          */
-        c2_fom_locality_lock(fom);
         c2_fom_block_at(fom, &rbulk->rb_chan);
 
         /*
@@ -1419,11 +1417,10 @@ static int io_launch(struct c2_fom *fom)
          */
         c2_fom_block_enter(fom);
 	rc = c2_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
+        c2_fom_block_leave(fom);
 	if (rc != 0) {
 		goto cleanup_st;
 	}
-
-        c2_fom_block_leave(fom);
 
 	/*
            Since the upper layer IO block size could differ with IO block size
@@ -1544,7 +1541,6 @@ static int io_launch(struct c2_fom *fom)
                  C2_FOPH_IO_STOB_WAIT and check for STOB I/O results.
           */
         if ( fom_obj->fcrw_num_stobio_launched > 0) {
-                c2_fom_locality_lock(fom);
                 c2_fom_block_at(fom, &fom_obj->fcrw_wait);
 
                 /*
@@ -1638,8 +1634,10 @@ static int io_finish(struct c2_fom *fom)
         /*
          * Make an FOL transaction record.
          */
+        c2_fom_block_enter(fom);
         fom->fo_rc = c2_fop_fol_rec_add(fom_obj->fcrw_gen.fo_fop, fom->fo_fol,
                                         &fom->fo_tx.tx_dbtx);
+        c2_fom_block_leave(fom);
 
         return C2_FSO_AGAIN;
 }
