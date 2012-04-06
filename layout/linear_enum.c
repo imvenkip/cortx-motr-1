@@ -89,10 +89,10 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL) {
 		rc = -ENOMEM;
-		/*todo Use layout_log instead */
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
-		C2_LOG("c2_linear_enum_build(): C2_ALLOC_PTR() failed, rc %d",
-		       rc);
+		layout_log("c2_linear_enum_build", "C2_ALLOC_PTR() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_oom.ae_id,
+			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
 		goto out;
 	}
 

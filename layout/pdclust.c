@@ -472,14 +472,17 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	    pdl->pl_tile_cache.tc_permute == NULL ||
 	    pdl->pl_tile_cache.tc_inverse == NULL) {
 		rc = -ENOMEM;
-		C2_ADDB_ADD(&layout_global_ctx, &layout_addb_loc, c2_addb_oom);
+		layout_log("c2_pdclust_build", "C2_ALLOC() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_oom.ae_id, &layout_global_ctx,
+			   LID_APPLICABLE, lid, rc);
 		goto out;
 	}
 
 	rc = striped_init(dom, &pdl->pl_base, le, lid, pool->po_id,
 			  &c2_pdclust_layout_type, &pdclust_ops);
 	if (rc != 0) {
-		C2_LOG("c2_pdclust_build: lid %llu, striped_init() "
+		C2_LOG("c2_pdclust_build(): lid %llu, striped_init() "
 		       "failed, rc %d", (unsigned long long)lid, rc);
 		goto out;
 	}
