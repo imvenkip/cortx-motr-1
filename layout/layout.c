@@ -438,9 +438,6 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
 	}
 }
 
-char            log_msg[512];
-struct c2_mutex log_msg_lock; /* todo Make use of this lock. */
-
 /**
  * This method performs the following operations:
  * 1) If value of the flag if_addb_msg is true, then Invokes layout_addb_add()
@@ -467,8 +464,6 @@ void layout_log(const char *fn_name,
 		uint64_t lid,
 		int rc)
 {
-	uint32_t n;
-
 	C2_PRE(ergo(rc == 0, strlen(err_msg) == 0 && !trace_msg &&
 			     (ev_id == layout_decode_success.ae_id ||
 			      ev_id == layout_encode_success.ae_id ||
@@ -493,16 +488,14 @@ void layout_log(const char *fn_name,
 	/* Trace message logging. */
 	if (trace_msg) {
 		if (lid_applicable)
-			n = sprintf(log_msg, "%s(): lid %llu, %s, rc %d",
+			C2_LOG("%s(): lid %llu, %s, rc %d",
 				    (const char *)fn_name,
 				    (unsigned long long)lid,
 				    (const char *)err_msg, rc);
 		else
-			n = sprintf(log_msg, "%s(): Error: %s, rc %d",
+			C2_LOG("%s(): Error: %s, rc %d",
 				    (const char *)fn_name,
 				    (const char *)err_msg, rc);
-		C2_ASSERT (n < ARRAY_SIZE(log_msg));
-		C2_LOG(log_msg);
 	}
 }
 
