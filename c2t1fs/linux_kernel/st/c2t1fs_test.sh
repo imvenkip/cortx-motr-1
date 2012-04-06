@@ -223,7 +223,7 @@ io_combinations()
             # Small I/Os KBs
             for ((io_size_multiplyer=1; io_size_multiplyer<=8; io_size_multiplyer++))
             do
-                strip_size=`expr 4 '*' 1024`
+                strip_size=`expr $strip_size_multiplyer '*' 1024`
                 io_size=`expr $io_size_multiplyer '*' $strip_size`
                 # I/O size in K
                 io_size=`expr $io_size / 1024`K
