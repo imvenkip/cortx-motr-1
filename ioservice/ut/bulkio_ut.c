@@ -130,10 +130,10 @@ static void wait_dummy(struct c2_fom *fom)
 
         loc = fom->fo_loc;
 
-        c2_mutex_lock(&loc->fl_lock2);
+        c2_mutex_lock(&loc->fl_lock);
         c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
         C2_CNT_INC(loc->fl_wail_nr);
-        c2_mutex_unlock(&loc->fl_lock2);
+        c2_mutex_unlock(&loc->fl_lock);
 }
 
 /* This function is used to bypass request handler while testing.*/
@@ -147,11 +147,11 @@ static bool cb_dummy(struct c2_clink *clink)
         fom = container_of(clink, struct c2_fom, fo_clink);
         loc = fom->fo_loc;
 
-        c2_mutex_lock(&loc->fl_lock2);
+        c2_mutex_lock(&loc->fl_lock);
         C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_linkage));
         c2_list_del(&fom->fo_linkage);
         C2_CNT_DEC(loc->fl_wail_nr);
-        c2_mutex_unlock(&loc->fl_lock2);
+        c2_mutex_unlock(&loc->fl_lock);
 
         return true;
 }

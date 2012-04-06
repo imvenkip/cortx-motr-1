@@ -105,8 +105,8 @@ struct c2_fom_locality {
 
 	struct c2_sm_group	     fl_group;
 
-	/** Helper lock for fom API protection */
-	struct c2_mutex		     fl_lock2;
+	/** Private lock for API protection */
+	struct c2_mutex		     fl_lock;
 
 	/**
 	 *  Re-scheduling channel that idle threads of locality wait on for new
