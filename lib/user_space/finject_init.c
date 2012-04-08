@@ -26,6 +26,7 @@
 #ifdef ENABLE_FAULT_INJECTION
 
 #include <stdlib.h>        /* random */
+#include <stdio.h>         /* printf */
 #include <unistd.h>        /* getpid */
 
 #include "lib/mutex.h"     /* c2_mutex */
@@ -72,6 +73,31 @@ uint32_t fi_random(void)
 	return (double)random() / RAND_MAX * FI_RAND_PROB_SCALE;
 }
 
+void c2_fi_print_info(void)
+{
+	int i;
+
+	const struct c2_fi_fpoint_state *state;
+	struct c2_fi_fpoint_state_info   si;
+
+	printf("%s", c2_fi_states_headline[0]);
+	printf("%s", c2_fi_states_headline[1]);
+
+	for (i = 0; i < c2_fi_states_get_free_idx(); ++i) {
+
+		state = &c2_fi_states_get()[i];
+		c2_fi_states_get_state_info(state, &si);
+
+		printf(c2_fi_states_print_format,
+			si.si_idx, si.si_enb, si.si_total_hit_cnt,
+			si.si_total_trigger_cnt, si.si_hit_cnt,
+			si.si_trigger_cnt, si.si_type, si.si_data, si.si_module,
+			si.si_file, si.si_line_num, si.si_func, si.si_tag);
+	}
+
+	return;
+}
+
 #else /* ENABLE_FAULT_INJECTION */
 
 int c2_fi_init(void)
@@ -81,6 +107,12 @@ int c2_fi_init(void)
 
 void c2_fi_fini(void)
 {
+}
+
+void c2_fi_print_info(void)
+{
+	fprintf(stderr, "Fault injection is not available, because it was"
+			" disabled during build\n");
 }
 
 #endif /* ENABLE_FAULT_INJECTION */

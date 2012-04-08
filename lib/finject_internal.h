@@ -21,6 +21,8 @@
 #ifndef __COLIBRI_LIB_FINJECT_INTERNAL_H__
 #define __COLIBRI_LIB_FINJECT_INTERNAL_H__
 
+#include "lib/mutex.h"     /* c2_mutex */
+
 /**
  * Set of attributes, which uniquely identifies each fault point.
  * @see c2_fi_fault_point
@@ -61,11 +63,25 @@ struct c2_fi_fpoint_state {
 	uint32_t                  fps_total_trigger_cnt;
 };
 
+struct c2_fi_fpoint_state_info {
+	uint32_t    si_idx;
+	char        si_enb;
+	uint32_t    si_total_hit_cnt;
+	uint32_t    si_total_trigger_cnt;
+	uint32_t    si_hit_cnt;
+	uint32_t    si_trigger_cnt;
+	const char *si_type;
+	char        si_data[64];
+	const char *si_module;
+	const char *si_file;
+	const char *si_func;
+	const char *si_tag;
+	uint32_t    si_line_num;
+};
 
 #ifdef ENABLE_FAULT_INJECTION
 
-extern struct c2_mutex           fi_states_mutex;
-
+extern struct c2_mutex  fi_states_mutex;
 
 static inline bool fi_state_enabled(const struct c2_fi_fpoint_state *state)
 {
@@ -96,12 +112,31 @@ const struct c2_fi_fpoint_state *c2_fi_states_get(void);
 uint32_t c2_fi_states_get_free_idx(void);
 
 /**
+ * Fills c2_fi_fpoint_state_info structure.
+ */
+void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
+				 struct c2_fi_fpoint_state_info *si);
+
+extern const char  *c2_fi_states_headline[];
+extern const char   c2_fi_states_print_format[];
+
+/**
  * Add a dynamically allocated fault point ID string to persistent storage,
  * which will be cleaned during c2_fi_fini() execution.
  *
  * This function aimed to be used together with c2_fi_enable_xxx() functions.
  */
 int c2_fi_add_dyn_id(char *str);
+
+/**
+ * Returns the name of fault point type
+ */
+const char *c2_fi_fpoint_type_name(enum c2_fi_fpoint_type type);
+
+/**
+ * Converts a string into fault point type
+ */
+enum c2_fi_fpoint_type c2_fi_fpoint_type_from_str(const char *type_name);
 
 void fi_states_init(void);
 void fi_states_fini(void);

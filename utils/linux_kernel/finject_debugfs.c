@@ -35,6 +35,7 @@
 
 #include "lib/mutex.h"       /* c2_mutex */
 #include "lib/time.h"        /* c2_time_now */
+#include "lib/misc.h"        /* C2_SET_ARR0 */
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
 
@@ -155,119 +156,34 @@ static void fi_stat_stop(struct seq_file *seq, void *v)
 	kfree(v);
 }
 
-/**
- * Extracts a "colibri core" file name from a full-path file name.
- *
- * For example, given the following full-path file name:
- *
- *     /data/colibri/core/build_kernel_modules/lib/ut/finject.c
- *
- * The "colibri core" file name is:
- *
- *     build_kernel_modules/lib/ut/finject.c
- */
-static inline const char *core_file_name(const char *fname)
-{
-	static const char core[] = "core/";
-	const char *cfn;
-
-	cfn = strstr(fname, core);
-	if (cfn == NULL)
-		return NULL;
-
-	return cfn + strlen(core);
-}
-
-static const char *fi_type_names[C2_FI_TYPES_NR] = {
-	[C2_FI_ALWAYS]     = "always",
-	[C2_FI_ONESHOT]    = "oneshot",
-	[C2_FI_RANDOM]     = "random",
-	[C2_FI_OFF_N_ON_M] = "off_n_on_m",
-	[C2_FI_FUNC]       = "user_func",
-};
-
-static inline const char *fi_type_name(enum c2_fi_fpoint_type type)
-{
-	C2_PRE(IS_IN_ARRAY(type, fi_type_names));
-	return fi_type_names[type];
-}
-
 static int fi_stat_show(struct seq_file *seq, void *v)
 {
-	const struct c2_fi_fault_point  *fp;
 	const struct c2_fi_fpoint_state *state;
-
-	u32         *idx;
-	char        enb               = 'n';
-	uint32_t    total_hit_cnt     = 0;
-	uint32_t    total_trigger_cnt = 0;
-	uint32_t    hit_cnt           = 0;
-	uint32_t    trigger_cnt       = 0;
-	const char  *type             = "";
-	char        data[64]          = { 0 };
-	const char  *module           = "";
-	const char  *file             = "";
-	const char  *func;
-	const char  *tag;
-	uint32_t    line_num          = 0;
+	struct c2_fi_fpoint_state_info   si;
+	u32                             *idx;
 
 	/* print header */
 	if (SEQ_START_TOKEN == v) {
-		/* keep these long strings on a single line for easier editing */
-		seq_puts(seq, " Idx | Enb |TotHits|TotTrig|Hits|Trig|   Type   |   Data   | Module |              File name                 | Line |             Func name             |   Tag\n");
-		seq_puts(seq, "-----+-----+-------+-------+----+----+----------+----------+--------+----------------------------------------+------+-----------------------------------+----------\n");
+		seq_puts(seq, c2_fi_states_headline[0]);
+		seq_puts(seq, c2_fi_states_headline[1]);
 		return 0;
 	}
-
-	idx = v;
-	state = &c2_fi_states_get()[*idx];
 
 	/* skip disabled states */
 	/* TODO: add an option to control this in runtime through debugfs */
 	/*if (!fi_state_enabled(state))
 		return SEQ_SKIP;*/
 
-	func = state->fps_id.fpi_func;
-	tag = state->fps_id.fpi_tag;
-	total_hit_cnt = state->fps_total_hit_cnt;
-	total_trigger_cnt = state->fps_total_trigger_cnt;
-	fp = state->fps_fp;
+	idx = v;
+	state = &c2_fi_states_get()[*idx];
+	c2_fi_states_get_state_info(state, &si);
 
-	/*
-	 * fp can be NULL if fault point was enabled but had not been registered
-	 * yet
-	 */
-	if (fp != NULL) {
-		module = fp->fp_module;
-		file = core_file_name(fp->fp_file);
-		line_num = fp->fp_line_num;
-	}
-
-	if (fi_state_enabled(state)) {
-		enb = 'y';
-		type = fi_type_name(state->fps_data.fpd_type);
-		switch (state->fps_data.fpd_type) {
-		case C2_FI_OFF_N_ON_M:
-			snprintf(data, sizeof data, "n=%u,m=%u",
-					state->fps_data.u.s1.fpd_n,
-					state->fps_data.u.s1.fpd_m);
-			break;
-		case C2_FI_RANDOM:
-			snprintf(data, sizeof data, "p=%u",
-					state->fps_data.u.fpd_p);
-			break;
-		default:
-			break; /* leave data string empty */
-		}
-		hit_cnt = state->fps_data.fpd_hit_cnt;
-		trigger_cnt = state->fps_data.fpd_trigger_cnt;
-	}
-
-	seq_printf(seq, " %-3u    %c   %-7u %-7u %-4u %-4u %-10s %-10s %-8s"
-				" %-40s  %-4u  %-35s  %s\n",
-			*idx, enb, total_hit_cnt, total_trigger_cnt, hit_cnt,
-			trigger_cnt, type, data, module, file, line_num, func,
-			tag);
+	seq_printf(seq, c2_fi_states_print_format,
+			si.si_idx, si.si_enb, si.si_total_hit_cnt,
+			si.si_total_trigger_cnt, si.si_hit_cnt,
+			si.si_trigger_cnt, si.si_type, si.si_data,
+			si.si_module, si.si_file, si.si_line_num,
+			si.si_func, si.si_tag);
 
 	return 0;
 }

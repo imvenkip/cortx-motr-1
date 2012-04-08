@@ -46,6 +46,12 @@ int c2_fi_init(void);
  */
 void c2_fi_fini(void);
 
+/**
+ * Prints to stdout information about current state of fault points formatted as
+ * table.
+ */
+void c2_fi_print_info(void);
+
 struct c2_fi_fpoint_state;
 
 /**
@@ -94,6 +100,8 @@ enum c2_fi_fpoint_type {
 	 * to determine if FP should trigger or not
 	 */
 	C2_FI_FUNC,
+	/* Not valid FP type (used by internal API) */
+	C2_FI_INVALID_TYPE,
 	/** Number of fault point types */
 	/* this should be the last  */
 	C2_FI_TYPES_NR
