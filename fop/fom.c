@@ -799,13 +799,11 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	C2_PRE(is_locked(cb->fc_fom));
 	C2_PRE(cb->fc_state >= C2_FCS_TOP_DONE);
 
-	if (cb->fc_state != C2_FCS_TOP_DONE)
-		return;
-
-	cb->fc_bottom(cb);
-
-	cb->fc_state = C2_FCS_DONE;
-	c2_clink_del(&cb->fc_clink);
+	if (cb->fc_state == C2_FCS_TOP_DONE) {
+		cb->fc_bottom(cb);
+		cb->fc_state = C2_FCS_DONE;
+		c2_clink_del(&cb->fc_clink);
+	}
 }
 
 void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
@@ -830,13 +828,11 @@ void c2_fom_callback_cancel(struct c2_fom_callback *cb)
 {
 	C2_PRE(cb->fc_state >= C2_FCS_INIT);
 
-	if (cb->fc_state != C2_FCS_INIT)
-		return;
-
-	cb->fc_state = C2_FCS_DONE;
-
-	c2_clink_del(&cb->fc_clink);
-	c2_clink_fini(&cb->fc_clink);
+	if (cb->fc_state == C2_FCS_INIT) {
+		cb->fc_state = C2_FCS_DONE;
+		c2_clink_del(&cb->fc_clink);
+		c2_clink_fini(&cb->fc_clink);
+	}
 }
 
 /** @} endgroup fom */
