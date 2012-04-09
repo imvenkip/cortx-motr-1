@@ -39,7 +39,7 @@ enum {
 
 /**
  * @todo Temporarily storing the pool structures in this array since not
- * not many pool objects are expected to be instantiated.
+ * many pool objects are expected to be instantiated.
  * See pool.h for note related to c2_pool_lookup().
  */
 static struct c2_pool *pool_list[MAX_POOL_ID + 1];
@@ -71,9 +71,9 @@ void c2_pool_fini(struct c2_pool *pool)
 }
 
 /**
+ * Provides c2_pool object with specified pool id.
  * @note This interface is temporary and will be over-ridden by the interface
  * to be provided by configuration catching.
- * Provide c2_pool object with specified pool id.
  */
 int c2_pool_lookup(uint64_t pid, struct c2_pool **out)
 {

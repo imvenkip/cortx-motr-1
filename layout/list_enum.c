@@ -352,7 +352,7 @@ static int ldb_cob_list_read(enum c2_layout_xcode_op op, uint64_t lid,
 	struct ldb_cob_lists_key  key;
 	struct ldb_cob_lists_rec  rec;
 	struct c2_db_pair         pair;
-	int                       rc = 0;
+	int                       rc;
 
 	C2_PRE(op == C2_LXO_DB_LOOKUP);
 	C2_PRE(schema != NULL);

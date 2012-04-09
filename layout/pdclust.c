@@ -487,12 +487,12 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	pdl->pl_attr.pa_seed = *seed;
-	pdl->pl_attr.pa_N = N;
-	pdl->pl_attr.pa_K = K;
+	pdl->pl_attr.pa_seed      = *seed;
+	pdl->pl_attr.pa_N         = N;
+	pdl->pl_attr.pa_K         = K;
 	pdl->pl_attr.pa_unit_size = unitsize;
 
-	pdl->pl_pool = pool;
+	pdl->pl_pool              = pool;
 
 	/* select minimal possible B (least common multiple of P and N+2*K) */
 	B = P*(N+2*K)/c2_gcd64(N+2*K, P);

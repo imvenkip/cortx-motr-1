@@ -254,7 +254,6 @@ static int linear_encode(struct c2_layout_domain *dom,
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *old_attr;
 	c2_bcount_t                   nbytes;
-	int                           rc = 0;
 
 	C2_PRE(enum_invariant(le, lid));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
@@ -283,8 +282,8 @@ static int linear_encode(struct c2_layout_domain *dom,
 					 sizeof lin_enum->lle_attr);
 	C2_ASSERT(nbytes == sizeof lin_enum->lle_attr);
 
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return rc;
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
+	return 0;
 }
 
 /**
