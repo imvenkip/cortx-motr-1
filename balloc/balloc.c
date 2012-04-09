@@ -2101,6 +2101,13 @@ static int balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 	rc = balloc_init_internal(colibri, db, bshift, container_size,
 				     blocks_per_group, res_groups);
 
+	/*
+         * Free the memory allocated for colibri in
+         * c2_balloc_locate() on initialisation failure.
+         */
+	if (rc != 0)
+             c2_free(colibri);
+
 	LEAVE;
 	return rc;
 }
@@ -2150,7 +2157,6 @@ int c2_balloc_locate(struct c2_balloc **out)
 
 	return result;
 }
-
 
 /*
  *  Local variables:
