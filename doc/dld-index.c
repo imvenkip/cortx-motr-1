@@ -10,6 +10,8 @@ Detailed designs, ordered alphabetically:
            <!-- cfg/cfg.h -->
 - @subpage LNetDLD "LNet Transport DLD"
            <!-- net/lnet/lnet_main.c -->
+- @subpage net-test "Colibri Network Benchmark"
+           <!-- net/test/main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"
            <!-- rpc/rpc2.h -->
 - @subpage rpc-slot "RPC Slot"
