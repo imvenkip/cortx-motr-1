@@ -210,13 +210,13 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
 	fop
 	 |
-	 v                fom->fo_state = C2_FOS_READY
+	 v                fom->fo_state = FOS_READY
      c2_reqh_fop_handle()-------------->FOM
-					 | fom->fo_state = C2_FOS_RUNNING
+					 | fom->fo_state = FOS_RUNNING
 					 v
 				     FOPH_INIT
 					 |
-			failed		 v         fom->fo_state = C2_FOS_WAITING
+			failed		 v         fom->fo_state = FOS_WAITING
 		     +<-----------FOPH_AUTHETICATE------------->+
 		     |			 |           FOPH_AUTHENTICATE_WAIT
 		     |			 v<---------------------+
@@ -252,7 +252,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
    @endverbatim
 
    If a generic phase handler function fails while executing a fom, then it
-   just sets the c2_fom::fo_rc to the result of the operation and returns C2_FSO_WAIT.
+   just sets the c2_fom::fo_rc to the result of the operation and returns FSO_WAIT.
    c2_fom_state_generic() then sets the c2_fom::fo_phase to FOPH_FAILED, logs an
    ADDB event, and returns, later the fom eecution proceeds as mentioned in above
    diagram.
@@ -265,8 +265,8 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
    @param fom, fom under execution
 
-   @retval C2_FSO_AGAIN, if fom operation is successful, transition to next phase,
-	C2_FSO_WAIT, if fom execution blocks and fom goes into corresponding wait
+   @retval FSO_AGAIN, if fom operation is successful, transition to next phase,
+	FSO_WAIT, if fom execution blocks and fom goes into corresponding wait
 		phase, or if fom execution is complete, i.e success or failure
 
    @todo standard fom phases implementation, depends on the support routines for
