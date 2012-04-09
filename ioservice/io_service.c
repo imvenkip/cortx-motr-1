@@ -31,6 +31,7 @@
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
 #include "ioservice/io_service.h"
+#include "colibri/colibri_setup.h"
 
 /** Required for accessing rpcmachine list */
 C2_TL_DESCR_DEFINE(rpcmachines, "rpc machines associated with reqh", static,
@@ -328,9 +329,22 @@ static void c2_ioservice_fini(struct c2_reqh_service *service)
  */
 static int c2_ioservice_start(struct c2_reqh_service *service)
 {
+        int			rc = 0;
+	struct c2_colibri      *cc;
+	struct c2_cobfid_setup *s;
+
         C2_PRE(service != NULL);
 
-        return ioservice_create_buffer_pool(service);
+        rc = ioservice_create_buffer_pool(service);
+	if (rc != 0)
+		return rc;
+
+	cc = c2_cs_ctx_get(service);
+	C2_ASSERT(cc != NULL);
+	rc = c2_cobfid_setup_get(&s, cc);
+	C2_POST(ergo(rc == 0, s != NULL));
+
+        return rc;
 }
 
 /**
@@ -344,9 +358,15 @@ static int c2_ioservice_start(struct c2_reqh_service *service)
  */
 static void c2_ioservice_stop(struct c2_reqh_service *service)
 {
+	struct c2_colibri *cc;
+
         C2_PRE(service != NULL);
 
         ioservice_delete_buffer_pool(service);
+
+	cc = c2_cs_ctx_get(service);
+	C2_ASSERT(cc != NULL);
+	c2_cobfid_setup_put(cc);
 }
 
 /** @} endgroup io_service */

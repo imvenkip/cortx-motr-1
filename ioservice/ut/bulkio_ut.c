@@ -14,15 +14,21 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- *		    Madhavrao Vemuri <madhav_vemuri@xyratec.com>
+ * Original author: Madhavrao Vemuri <madhav_vemuri@xyratec.com>
  * Original creation date: 09/29/2011
  */
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include "lib/processor.h"
 #include "lib/ut.h"
 #include "bulkio_common.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
-#include "ioservice/io_foms.c"
+#include "ioservice/io_foms.c"	/* To access static APIs. */
+
+static void bulkio_init();
+static void bulkio_fini();
 
 struct bulkio_params *bp;
 extern void bulkioapi_test(void);
@@ -623,8 +629,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
          */
         stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
         ffid = &rwfop->crw_fid;
-        fid_wire2mem(ffid, &fid);
-        fid2stob_map(&fid, &stobid);
+        io_fom_cob_rw_fid_wire2mem(ffid, &fid);
+        io_fom_cob_rw_fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
         rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
@@ -927,8 +933,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          */
         stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
         ffid = &rwfop->crw_fid;
-        fid_wire2mem(ffid, &fid);
-        fid2stob_map(&fid, &stobid);
+        io_fom_cob_rw_fid_wire2mem(ffid, &fid);
+        io_fom_cob_rw_fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
         rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
@@ -1094,8 +1100,8 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
 
 	C2_UT_ASSERT(rwfop->crw_desc.id_nr == rwfop->crw_ivecs.cis_nr);
         ffid = &rwfop->crw_fid;
-        fid_wire2mem(ffid, &fid);
-        fid2stob_map(&fid, &stobid);
+        io_fom_cob_rw_fid_wire2mem(ffid, &fid);
+        io_fom_cob_rw_fid2stob_map(&fid, &stobid);
         fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 
 	c2_dtx_init(&fom->fo_tx);
