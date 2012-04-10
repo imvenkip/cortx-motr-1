@@ -360,7 +360,7 @@ static void verify_map(int mapid)
 	char			buf[BUF_SZ],
 				result[BUF_SZ],
 				*expect,
-				*map_file,
+				*map_file = NULL,
 				filename[PATH_MAX];
 	int			rc;
 	FILE 			*fp;
@@ -389,7 +389,7 @@ static void verify_map(int mapid)
 			c2_processors_online(&map);
 			break;
 		default:
-			C2_UT_ASSERT(1);
+			C2_UT_ASSERT(0);
 			break;
 	};
 

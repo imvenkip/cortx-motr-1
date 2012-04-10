@@ -413,7 +413,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
         c2_bcount_t                      count;
         c2_bcount_t                      offset;
         uint32_t                         bshift;
-        int                              result;
+        int                              result = 0;
 
         C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 			C2_STOB_IO_READ_REQ_OPCODE);
@@ -524,7 +524,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
         c2_bcount_t                      count;
         c2_bindex_t                      offset;
         uint32_t                         bshift;
-        int                              result;
+        int                              result = 0;
 
         C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 			C2_STOB_IO_WRITE_REQ_OPCODE);

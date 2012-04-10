@@ -288,6 +288,7 @@ static int processor_set_map_type(enum map map_type)
 		/*
 		 * Not reachable. Earlier switch statment checks this.
 		 */
+		pbitmap = 0;
 		break;
 	}
 
