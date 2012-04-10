@@ -2121,21 +2121,36 @@ static void balloc_fini(struct c2_ad_balloc *ballroom)
 			c2_db_tx_abort(&fini_tx);
 	}
 
+	c2_free(colibri);
+
 	LEAVE;
 }
 
-static const struct c2_ad_balloc_ops c2_balloc_ops = {
-	.bo_init  = balloc_init,
-	.bo_fini  = balloc_fini,
-	.bo_alloc = balloc_alloc,
-	.bo_free  = balloc_free,
+static const struct ad_balloc_ops balloc_ops = {
+        .bo_init  = balloc_init,
+        .bo_fini  = balloc_fini,
+        .bo_alloc = balloc_alloc,
+        .bo_free  = balloc_free,
 };
 
-struct c2_balloc colibri_balloc = {
-	.cb_ballroom = {
-		.ab_ops = &c2_balloc_ops
-	}
-};
+int c2_balloc_locate(struct c2_balloc **out)
+{
+	struct c2_balloc *cb;
+	int               result;
+
+        C2_PRE(out != NULL);
+
+	C2_ALLOC_PTR(cb);
+
+	if (cb != NULL) {
+        	cb->cb_ballroom.ab_ops = &balloc_ops;
+		*out = cb;
+		result = 0;
+	} else
+		result = -ENOMEM;
+
+	return result;
+}
 
 
 /*

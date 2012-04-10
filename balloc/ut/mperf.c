@@ -35,7 +35,6 @@
 #include "lib/ut.h"
 #include "balloc/balloc.h"
 
-extern	struct c2_balloc colibri_balloc;
 const int MAX = 1000 * 1000;
 const int DEF = 1000 * 1;
 const int THREAD_COUNT = 10;
@@ -52,7 +51,7 @@ unsigned long timesub(struct timeval *begin, struct timeval *end) {
 	return interval;
 }
 
-void alloc_free(struct c2_balloc *cb)
+void alloc_free(struct c2_balloc *colibri_balloc)
 {
 	struct c2_dtx         dtx;
 	struct c2_ext         *ext;
@@ -75,12 +74,12 @@ void alloc_free(struct c2_balloc *cb)
 	for (i = 0; i < loops && result == 0; i++ ) {
 
 repeat:
-		result = c2_db_tx_init(&dtx.tx_dbtx, cb->cb_dbenv, 0);
+		result = c2_db_tx_init(&dtx.tx_dbtx, colibri_balloc->cb_dbenv, 0);
 		C2_ASSERT(result == 0);
 		tmp.e_start = tmp.e_end;
 		gettimeofday(&alloc_begin, NULL);
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(
-			    &colibri_balloc.cb_ballroom, &dtx, count, &ext[i]);
+		result = colibri_balloc->cb_ballroom.ab_ops->bo_alloc(
+			    &colibri_balloc->cb_ballroom, &dtx, count, &ext[i]);
 		gettimeofday(&alloc_end, NULL);
 		alloc_usec += timesub(&alloc_begin, &alloc_end);
 		tmp = ext[i];
@@ -128,13 +127,13 @@ repeat:
 	for (i = alloc - 1; i >= 0 && result == 0; i-- ) {
 
 repeat_free:
-		result = c2_db_tx_init(&dtx.tx_dbtx, cb->cb_dbenv, 0);
+		result = c2_db_tx_init(&dtx.tx_dbtx, colibri_balloc->cb_dbenv, 0);
 		C2_ASSERT(result == 0);
 
 		gettimeofday(&free_begin, NULL);
 		if (ext[i].e_start != 0)
-			result = colibri_balloc.cb_ballroom.ab_ops->bo_free(
-				    &colibri_balloc.cb_ballroom, &dtx, &ext[i]);
+			result = colibri_balloc->cb_ballroom.ab_ops->bo_free(
+				    &colibri_balloc->cb_ballroom, &dtx, &ext[i]);
 		gettimeofday(&free_end, NULL);
 		free_usec += timesub(&free_begin, &free_end);
 		if (result == 0 )
@@ -164,6 +163,7 @@ repeat_free:
 
 int main(int argc, char **argv)
 {
+	struct c2_balloc     *colibri_balloc;
 	const char           *db_name;
 	struct c2_dbenv       db;
 	int		      i = 0;
@@ -198,15 +198,18 @@ int main(int argc, char **argv)
 	threads = c2_alloc(num_threads * sizeof (struct c2_thread));
 	C2_ASSERT(threads != NULL);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+	result = c2_balloc_locate(&colibri_balloc);
+	C2_ASSERT(result == 0);
+
+	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	C2_ASSERT(result == 0);
 	for (i = 0; i < num_threads; i++) {
 		result = C2_THREAD_INIT(&threads[i], struct c2_balloc*, NULL,
-					&alloc_free, &colibri_balloc,
+					&alloc_free, colibri_balloc,
 					"alloc_free%d", i);
 		C2_ASSERT(result == 0);
 	}
@@ -217,7 +220,7 @@ int main(int argc, char **argv)
 #ifdef BALLOC_DEBUG
 	printf("all threads exited\n");
 #endif
-	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
+	colibri_balloc->cb_ballroom.ab_ops->bo_fini(&colibri_balloc->cb_ballroom);
 	c2_dbenv_fini(&db);
 
 #ifdef BALLOC_DEBUG

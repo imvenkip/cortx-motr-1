@@ -41,7 +41,6 @@
 #include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
-#include "balloc/balloc.h"
 #include "colibri/colibri_setup.h"
 
 /**
@@ -206,8 +205,6 @@ static const char *cs_stobs[] = {
 	[LINUX_STOB] = "Linux",
 	[AD_STOB]    = "AD"
 };
-
-extern struct c2_balloc colibri_balloc;
 
 static const struct c2_tl_descr rctx_descr = C2_TL_DESCR("reqh contexts",
                                                          struct cs_reqh_context,
@@ -729,8 +726,9 @@ static void cs_rpcmachines_fini(struct c2_reqh *reqh)
 static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
                                                              struct c2_dbenv *db)
 {
-        int             rc;
-	struct c2_dtx  *tx;
+        int               rc;
+	struct c2_dtx    *tx;
+	struct c2_balloc *cb;
 
         C2_PRE(stob != NULL && stob->rs_ldom != NULL);
 
@@ -751,14 +749,17 @@ static int cs_ad_stob_init(const char *stob_path, struct c2_cs_reqh_stobs *stob,
              if (rc == -ENOENT)
                        rc = c2_stob_create(stob->rs_stob_back, tx);
         }
-        if (rc == 0)
-             rc = c2_ad_stob_setup(stob->rs_adom, db,
-                                   stob->rs_stob_back,
-                                   &colibri_balloc.cb_ballroom,
-                                   BALLOC_DEF_CONTAINER_SIZE,
-                                   BALLOC_DEF_BLOCK_SHIFT,
-                                   BALLOC_DEF_BLOCKS_PER_GROUP,
-                                   BALLOC_DEF_RESERVED_GROUPS);
+        if (rc == 0) {
+             rc = c2_balloc_locate(&cb);
+             if (rc == 0)
+                  rc = c2_ad_stob_setup(stob->rs_adom, db,
+                                        stob->rs_stob_back,
+                                        &cb->cb_ballroom,
+                                        BALLOC_DEF_CONTAINER_SIZE,
+                                        BALLOC_DEF_BLOCK_SHIFT,
+                                        BALLOC_DEF_BLOCKS_PER_GROUP,
+                                        BALLOC_DEF_RESERVED_GROUPS);
+	}
 
        return rc;
 }
@@ -1102,7 +1103,7 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 		goto out;
 
 	rc = c2_cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
-				&rctx->rc_stob, &rctx->rc_db);
+                                     &rctx->rc_stob, &rctx->rc_db);
 	if (rc != 0)
 		goto cleanup_db;
 

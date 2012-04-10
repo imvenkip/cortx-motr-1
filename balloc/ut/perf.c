@@ -35,7 +35,6 @@
 #include "lib/ut.h"
 #include "balloc/balloc.h"
 
-extern	struct c2_balloc colibri_balloc;
 const int MAX = 1000 * 1000;
 const int DEF = 1000 * 1;
 
@@ -52,6 +51,7 @@ unsigned long timesub(struct timeval *begin, struct timeval *end) {
 
 int main(int argc, char **argv)
 {
+	struct c2_balloc     *colibri_balloc;
 	const char           *db_name = NULL;
 	struct c2_dbenv       db;
 	struct c2_dtx         dtx;
@@ -106,8 +106,10 @@ int main(int argc, char **argv)
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(result == 0);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+	c2_balloc_locate(&colibri_balloc);
+
+	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
@@ -127,8 +129,8 @@ int main(int argc, char **argv)
 			tmp.e_start = 0;
 
 		gettimeofday(&alloc_begin, NULL);
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(
-			    &colibri_balloc.cb_ballroom, &dtx, target, &tmp);
+		result = colibri_balloc->cb_ballroom.ab_ops->bo_alloc(
+			    &colibri_balloc->cb_ballroom, &dtx, target, &tmp);
 		gettimeofday(&alloc_end, NULL);
 		alloc_usec += timesub(&alloc_begin, &alloc_end);
 		ext[i] = tmp;
@@ -169,8 +171,8 @@ int main(int argc, char **argv)
 
 		gettimeofday(&free_begin, NULL);
 		if (ext[i].e_start !=
-		    0) result = colibri_balloc.cb_ballroom.ab_ops->bo_free(
-				&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
+		    0) result = colibri_balloc->cb_ballroom.ab_ops->bo_free(
+				&colibri_balloc->cb_ballroom, &dtx, &ext[i]);
 		gettimeofday(&free_end, NULL);
 		free_usec += timesub(&free_begin, &free_end);
 		if (verbose)
@@ -189,7 +191,7 @@ int main(int argc, char **argv)
 	}
 
 
-	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
+	colibri_balloc->cb_ballroom.ab_ops->bo_fini(&colibri_balloc->cb_ballroom);
 	c2_dbenv_fini(&db);
 	printf("==================\nPerf: free/sec = %lu\n",
 	       (unsigned long)loops * 1000000 / free_usec);

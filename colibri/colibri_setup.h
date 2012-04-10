@@ -363,8 +363,7 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
    @todo Use generic mechanism to generate stob ids
  */
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
-		       struct c2_cs_reqh_stobs *stob,
-		       struct c2_dbenv *db);
+		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db);
 
 /**
    Finalises storage for a request handler in a colibri context.
