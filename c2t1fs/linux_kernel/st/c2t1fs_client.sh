@@ -110,14 +110,22 @@ bulkio_test()
         fi
         echo "Successfully test $io_counts I/O of size $io_size ."
 
+        rm -f $c2t1fs_file
+
         echo "Unmounting file system ..."
         umount $c2t1fs_mount_dir &>/dev/null
 
         echo "Cleaning up test directory..."
         rm -rf $c2t1fs_mount_dir &>/dev/null
 
-        echo "Removing colibro module..."
+        echo "Removing colibri module..."
         rmmod kcolibri.ko &>/dev/null
+
+        # Removes the stob files created in stob domain since
+        # there is no support for c2_stob_delete() and after unmounting
+        # the client file system, from next mount, fids are generated
+        # from same baseline which results in failure of cob_create fops.
+        rm -rf $COLIBRI_STOB_PATH/o/*
 
         return 0
 }
