@@ -1,77 +1,14 @@
 #!/bin/sh
 
-COLIBRI_CORE_ROOT=`dirname $0`/../../..
-COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
-COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
-COLIBRI_NET_DOMAIN=bulk-sunrpc
-COLIBRI_IOSERVICE_ENDPOINT="127.0.0.1:23124:1"
-COLIBRI_SERVICE_NAME=ioservice
-COLIBRI_STOB_DOMAIN=linux
-COLIBRI_DB_PATH=$COLIBRI_C2T1FS_TEST_DIR/db
-COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
-COLIBRI_MODULE=$COLIBRI_CORE_ROOT/build_kernel_modules/kcolibri.ko
-COLIBRI_GALOIS_MODULE=$COLIBRI_CORE_ROOT/../galois/src/linux_kernel/galois.ko
-COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%d-%m-%Y_%T"`.log
-GLOBAL_FID_LO=3         #Global fid = <0,3>
-POOL_WIDTH=3
+if [ $# -lt "0" ]
+then
+	echo "Usage : $0"
+        exit 1
+fi
 
-create_stobs()
-{
-        if [ "$#" -lt 1 ]
-        then
-                echo "Usage :$0 pool_width"
-                return 1
-        fi
+echo 8 > /proc/sys/kernel/printk
 
-        pool_width=$1
-        stob_domain=$COLIBRI_STOB_DOMAIN
-        db_path=$COLIBRI_DB_PATH
-        stobid_lo=$GLOBAL_FID_LO
-
-        echo "Cleaning up test directory ..."
-        rm -rf $COLIBRI_C2T1FS_TEST_DIR  &> /dev/null
-
-        echo "Creating test directory ..."
-        mkdir $COLIBRI_C2T1FS_TEST_DIR &> /dev/null
-
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to create test directory."
-                return 1
-        fi
-
-        return 0
-}
-
-colibri_service()
-{
-        prog=$COLIBRI_CORE_ROOT/colibri/colibri_setup
-        exec=$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup
-        prog_args="-r -T $COLIBRI_STOB_DOMAIN -D $COLIBRI_DB_PATH -S $COLIBRI_STOB_PATH -e $COLIBRI_NET_DOMAIN:$COLIBRI_IOSERVICE_ENDPOINT -s $COLIBRI_SERVICE_NAME"
-
-        . /etc/rc.d/init.d/functions
-
-        start() {
-                $prog $prog_args &
-        }
-
-        stop() {
-                killproc $exec
-        }
-
-        case "$1" in
-            start)
-                $1
-                ;;
-            stop)
-                $1
-                ;;
-            *)
-                echo $"Usage: $0 {start|stop}"
-                return 2
-        esac
-        return $?
-}
+. `dirname $0`/c2t1fs_common.sh
 
 bulkio_test()
 {
@@ -103,7 +40,7 @@ bulkio_test()
         fi
 
         echo "Inserting $colibri_module module..."
-        insmod $colibri_module_path/$colibri_module.ko
+        insmod $colibri_module_path/$colibri_module.ko c2_trace_immediate_mask=0x01 local_addr=$COLIBRI_C2T1FS_ENDPOINT
         if [ $? -ne "0" ]
         then
                 echo "Failed to insert module $colibri_module_path/$colibri_module.ko"
@@ -145,8 +82,8 @@ bulkio_test()
         if [ $? -ne "0" ]
         then
                 echo "Failed to write data on c2t1fs file."
-		umount $c2t1fs_mount_dir
-		rmmod $colibri_module.ko
+                umount $c2t1fs_mount_dir
+                rmmod $colibri_module.ko
                 return 1
         fi
         echo "Successfully written data of specified size and count to c2t1fs file."
@@ -173,8 +110,6 @@ bulkio_test()
         fi
         echo "Successfully test $io_counts I/O of size $io_size ."
 
-	rm -f $c2t1fs_file
-
         echo "Unmounting file system ..."
         umount $c2t1fs_mount_dir &>/dev/null
 
@@ -183,12 +118,6 @@ bulkio_test()
 
         echo "Removing colibro module..."
         rmmod kcolibri.ko &>/dev/null
-
-	# Removes the stob files created in stob domain since
-	# there is no support for c2_stob_delete() and after unmounting
-	# the client file system, from next mount, fids are generated
-	# from same baseline which results in failure of cob_create fops.
-	rm -rf $COLIBRI_STOB_PATH/o/*
 
         return 0
 }
@@ -212,8 +141,8 @@ io_combinations()
         # I/O sizes are multiple of stripe size
 
         # stripe size is in K
-	for strip_size_multiplyer in 4 12 20 28
-	do
+        for strip_size_multiplyer in 4 12 20 28
+        do
             # Small I/Os KBs
             for ((io_size_multiplyer=1; io_size_multiplyer<=8; io_size_multiplyer++))
             do
@@ -229,13 +158,13 @@ io_combinations()
                 fi
 
                 # Multiple I/Os
-		echo "Test : I/O for stripe_size = $strip_size, io_size = $io_size, Number of I/Os = 2."
-		bulkio_test $strip_size $io_size 2 $pool_width $data_units $parity_units &>> $COLIBRI_TEST_LOGFILE
-		if [ $? -ne "0" ]
-		then
-			return 1
-		fi
-	    done
+                echo "Test : I/O for stripe_size = $strip_size, io_size = $io_size, Number of I/Os = 2."
+                bulkio_test $strip_size $io_size 2 $pool_width $data_units $parity_units &>> $COLIBRI_TEST_LOGFILE
+                if [ $? -ne "0" ]
+                then
+                        return 1
+                fi
+            done
 
             one_mb=`expr 1024 '*' 1024`
             size_multiplyer=256
@@ -263,43 +192,23 @@ io_combinations()
                         return 1
                 fi
 
+
             done
 
-	done
+        done
         echo "Test log available at $COLIBRI_TEST_LOGFILE."
         return 0
 }
 
 main()
 {
-        create_stobs $POOL_WIDTH
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to create stobs."
-        fi
-        colibri_service start
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to start Colibri Service."
-                return 1
-        fi
-        echo "Colibri service started."
-
-        sleep 5 #Give time to start service properly.
+	mkdir $COLIBRI_C2T1FS_TEST_DIR
 
         io_combinations $POOL_WIDTH 1 1
         if [ $? -ne "0" ]
         then
                 echo "Failed : IO failed.."
         fi
-
-        colibri_service stop
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to stop Colibri Service."
-                return 1
-        fi
-        echo "Colibri service stopped."
         return 0
 }
 
