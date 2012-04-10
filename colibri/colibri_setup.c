@@ -35,6 +35,7 @@
 #include "lib/time.h"
 #include "lib/misc.h"
 
+#include "balloc/balloc.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
 #include "net/net.h"
