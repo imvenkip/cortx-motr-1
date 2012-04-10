@@ -16,7 +16,6 @@ COLIBRI_SERVICE_NAME=ioservice
 COLIBRI_STOB_DOMAIN=linux
 COLIBRI_DB_PATH=$COLIBRI_C2T1FS_TEST_DIR/db
 COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
-COLIBRI_STOB_UTIL=$COLIBRI_CORE_ROOT/stob/ut/stobutil
 GLOBAL_FID_LO=3         #Global fid = <0,3>
 
 
@@ -29,10 +28,8 @@ create_stobs()
         fi
 
         pool_width=$1
-        stobutilpath=$COLIBRI_STOB_UTIL
         stob_domain=$COLIBRI_STOB_DOMAIN
         db_path=$COLIBRI_DB_PATH
-        stob_path=$COLIBRI_STOB_PATH
         stobid_lo=$GLOBAL_FID_LO
 
         echo "Cleaning up test directory ..."
@@ -46,22 +43,6 @@ create_stobs()
                 echo "Failed to create test directory."
                 return 1
         fi
-
-        echo "Setting up stobs for I/O ..."
-        for ((  stobid_hi = 1 ;  stobid_hi <= $pool_width;  stobid_hi++  ))
-        do
-
-                stobid=$stobid_hi:$stobid_lo
-                $stobutilpath -c -t $stob_domain -d $db_path -p $stob_path -s $stobid
-                if [ $? -ne "0" ]
-                then
-                        echo "Stob $stobid creation failed."
-                        return 1
-                else
-                        echo "Stob $stobid created."
-                fi
-
-        done
 
         return 0
 }
