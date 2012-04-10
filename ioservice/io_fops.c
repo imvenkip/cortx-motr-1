@@ -36,7 +36,6 @@
 #include "lib/vec.h"	/* c2_0vec */
 #include "lib/memory.h"
 #include "lib/tlist.h"
-#include "lib/trace.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "rpc/rpc_base.h"
@@ -1442,8 +1441,6 @@ static void io_item_replied(struct c2_rpc_item *item)
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
 
-	C2_LOG("rc %d, count %d, bytes %d", reply->rwr_rc,
-		(int)reply->rwr_count, (int)rbulk->rb_bytes);
 	C2_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 

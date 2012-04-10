@@ -282,7 +282,6 @@ static int fom_txn_commit(struct c2_fom *fom)
 	int rc;
 
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
-	C2_LOG("fom %p, db_tx_commit-rc %d", fom, rc);
 
 	if (rc != 0) {
 		fom->fo_rc = rc;

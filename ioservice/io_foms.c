@@ -1597,7 +1597,7 @@ static int io_finish(struct c2_fom *fom)
         }
 
         /*
-         * Make an FOL transaction record.
+         * Make a FOL transaction record.
          */
         c2_fom_block_enter(fom);
         fom->fo_rc = c2_fop_fol_rec_add(fom_obj->fcrw_gen.fo_fop, fom->fo_fol,
