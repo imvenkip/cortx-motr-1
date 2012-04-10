@@ -83,7 +83,7 @@ enum {
 };
 
 /**
- * An kernel memory location, in terms of page and offset.
+ * A kernel memory location, in terms of page and offset.
  */
 struct nlx_core_kmem_loc {
 	union {
@@ -353,7 +353,7 @@ struct nlx_core_buf_desc {
 	uint64_t         cbd_checksum;
 };
 
-/** @} */
+/** @} */ /* LNetCore */
 
 #endif /* __COLIBRI_NET_LNET_CORE_TYPES_H__ */
 
