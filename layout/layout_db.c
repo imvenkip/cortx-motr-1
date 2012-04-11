@@ -438,15 +438,15 @@ int ldb_layout_write(enum c2_layout_xcode_op op, uint64_t lid,
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE);
 	C2_PRE(pair != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
+	C2_PRE(key_buf != NULL);
+	C2_PRE(rec_buf != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
-	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
 	C2_PRE(recsize >= sizeof(struct c2_ldb_rec) &&
 	       recsize <= c2_ldb_max_recsize(schema->ls_domain));
 	C2_PRE(tx != NULL);
 
-	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
+	*(uint64_t *)key_buf = lid;
 
 	c2_db_pair_setup(pair, &schema->ls_layouts,
 			 key_buf, sizeof lid, rec_buf, recsize);
@@ -835,9 +835,9 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	C2_PRE(schema_invariant(schema));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(pair != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
+	C2_PRE(key_buf != NULL);
+	C2_PRE(rec_buf != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
-	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_ldb_rec));
 	C2_PRE(tx != NULL);
 	C2_PRE(out != NULL && *out == NULL);
@@ -851,8 +851,8 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
 		  pair->dp_rec.db_buf.b_nob : max_recsize;
 
-	*(uint64_t *)pair->dp_key.db_buf.b_addr = lid;
-	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
+	*(uint64_t *)key_buf = lid;
+	memset(rec_buf, 0, pair->dp_rec.db_buf.b_nob);
 
 	c2_db_pair_setup(pair, &schema->ls_layouts,
 			 key_buf, sizeof lid, rec_buf, recsize);
@@ -866,8 +866,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						   &recsize);
+	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
