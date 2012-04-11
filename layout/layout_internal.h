@@ -42,24 +42,31 @@ struct c2_addb_loc;
 
 enum {
 	/** Invalid layout id. */
-	LID_NONE          = 0,
+	LID_NONE                   = 0,
 
-	DEFAULT_DB_FLAG   = 0,
+	DEFAULT_DB_FLAG            = 0,
 
 	/**
 	 * Reference coount assigned to layout, during its initialization and
 	 * assigned to layout type and enum type, during their registration.
 	 */
-	DEFAULT_REF_COUNT = 1,
+	DEFAULT_REF_COUNT          = 1,
 
-	PRINT_ADDB_MSG    = 1,
-	PRINT_TRACE_MSG   = 1,
+	PRINT_ADDB_MSG             = 1,
+	PRINT_TRACE_MSG            = 1,
 
 	/** If lid is applicable to ADDB or TRACE message. */
-	LID_APPLICABLE    = 1,
+	LID_APPLICABLE             = 1,
 
 	/** Invalid number of elements, for enumeration objects. */
-	NR_NONE           = 0
+	NR_NONE                    = 0,
+
+	/**
+	 * Maximum limit on the number of COB entries those can be stored
+	 * inline into the layouts table, while rest of those are stored into
+	 * the cob_lists table.
+	 */
+	LDB_MAX_INLINE_COB_ENTRIES = 20
 };
 
 bool layout_invariant(const struct c2_layout *l);

@@ -790,7 +790,7 @@ c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom)
 			continue;
 
 		recsize = dom->ld_type[i]->lt_ops->lto_max_recsize(dom);
-		max_recsize = max32u(max_recsize, recsize);
+		max_recsize = max64u(max_recsize, recsize);
 	}
 
 	return sizeof(struct c2_ldb_rec) + max_recsize;

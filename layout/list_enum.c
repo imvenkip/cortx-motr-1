@@ -42,12 +42,6 @@ extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
-	/**
-	 * Maximum limit on the number of COB entries those can be stored
-	 * inline into the layouts table, while rest of those are stored into
-	 * the cob_lists table.
-	 */
-	LDB_MAX_INLINE_COB_ENTRIES = 20,
 	LIST_ENUM_MAGIC            = 0x4C495354454E554DULL, /* LISTENUM */
 };
 
@@ -457,7 +451,7 @@ static int list_decode(struct c2_layout_domain *dom,
 			if (i == num_inline)
 				C2_LOG("list_decode(): Start reading from "
 				       "cob_lists table.");
-			C2_ASSERT(op == C2_LXO_BUFFER_OP);
+			C2_ASSERT(op == C2_LXO_DB_LOOKUP);
 			rc = ldb_cob_list_read(op, lid, i, &cob_list[i],
 					       schema, tx);
 			if (rc != 0) {

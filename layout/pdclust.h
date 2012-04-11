@@ -71,6 +71,7 @@ struct c2_stob_id;
 
 /* export */
 struct c2_pdclust_attr;
+struct c2_ldb_pdclust_rec;
 struct c2_pdclust_layout;
 enum c2_pdclust_unit_type;
 struct c2_pdclust_src_addr;
