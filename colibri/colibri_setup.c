@@ -448,14 +448,14 @@ static bool service_is_registered(const char *service_name)
 	return false;
 }
 
-struct c2_rpcmachine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
-					const struct c2_net_xprt *xprt,
-					const char *sname)
+struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
+					 const struct c2_net_xprt *xprt,
+					 const char *sname)
 {
 	struct c2_reqh            *reqh;
 	struct cs_reqh_context    *rctx;
 	struct c2_reqh_service    *service;
-	struct c2_rpcmachine      *rpcmach;
+	struct c2_rpc_machine     *rpcmach;
 	struct c2_net_xprt        *nxprt;
 
         C2_PRE(cctx != NULL);
@@ -468,9 +468,9 @@ struct c2_rpcmachine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
                 c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
 			if (strcmp(service->rs_type->rst_name, sname) != 0)
 				continue;
-			c2_tlist_for(&c2_rh_rpml_descr, &reqh->rh_rpcmachines,
+			c2_tlist_for(&c2_rh_rpml_descr, &reqh->rh_rpc_machines,
 								rpcmach) {
-				nxprt = rpcmach->cr_tm.ntm_dom->nd_xprt;
+				nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
 				if (strcmp(nxprt->nx_name, xprt->nx_name) == 0)
 					return rpcmach;
@@ -487,11 +487,11 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 					const struct c2_net_xprt *xprt,
 					const char *sname)
 {
-	struct c2_rpcmachine *rpcmach;
+	struct c2_rpc_machine *rpcmach;
 
 	rpcmach = c2_cs_rpcmach_get(cctx, xprt, sname);
 
-	return (rpcmach == NULL) ? NULL : &rpcmach->cr_tm;
+	return (rpcmach == NULL) ? NULL : &rpcmach->rm_tm;
 }
 
 /**
@@ -610,7 +610,7 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 
 /**
    Initialises rpc machine for the given endpoint address.
-   Once the new rpcmachine is created it is added to list of rpc machines
+   Once the new rpc_machine is created it is added to list of rpc machines
    in given request handler.
    Request handler should be initialised before invoking this function.
 
@@ -618,14 +618,14 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
    @param xprt_name Network transport
    @param ep Network endpoint address
    @param reqh Request handler to which the newly created
-		rpcmachine belongs
+		rpc_machine belongs
 
    @pre cctx != NULL && xprt_name != NULL && ep != NULL && reqh != NULL
  */
-static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
-			      const char *ep, struct c2_reqh *reqh)
+static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
+			       const char *ep, struct c2_reqh *reqh)
 {
-	struct c2_rpcmachine         *rpcmach;
+	struct c2_rpc_machine        *rpcmach;
 	struct c2_net_domain         *ndom;
 	struct c2_net_xprt           *xprt;
 	int                           rc;
@@ -647,14 +647,14 @@ static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (rpcmach == NULL)
 		return -ENOMEM;
 
-	rc = c2_rpcmachine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh);
+	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh);
 	if (rc != 0) {
 		c2_free(rpcmach);
 		return rc;
 	}
 
 	c2_tlink_init(&c2_rh_rpml_descr, rpcmach);
-	c2_tlist_add_tail(&c2_rh_rpml_descr, &reqh->rh_rpcmachines, rpcmach);
+	c2_tlist_add_tail(&c2_rh_rpml_descr, &reqh->rh_rpc_machines, rpcmach);
 
 	return rc;
 }
@@ -664,7 +664,7 @@ static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
 
    @param cctx Colibri context
  */
-static int cs_rpcmachines_init(struct c2_colibri *cctx)
+static int cs_rpc_machines_init(struct c2_colibri *cctx)
 {
 	int                      idx;
 	int                      rc;
@@ -681,10 +681,10 @@ static int cs_rpcmachines_init(struct c2_colibri *cctx)
 		C2_ASSERT(cs_reqh_context_invariant(rctx));
 
 		for (idx = 0; idx < rctx->rc_enr; ++idx) {
-			rc = cs_rpcmachine_init(cctx,
-						rctx->rc_eps[idx].xprt,
-						rctx->rc_eps[idx].endpoint,
-						&rctx->rc_reqh);
+			rc = cs_rpc_machine_init(cctx,
+						 rctx->rc_eps[idx].xprt,
+						 rctx->rc_eps[idx].endpoint,
+						 &rctx->rc_reqh);
 			if (rc != 0) {
 				fprintf(ofd,
 					"COLIBRI: Invalid endpoint: %s:%s\n",
@@ -706,15 +706,15 @@ static int cs_rpcmachines_init(struct c2_colibri *cctx)
 
    @pre reqh != NULL
  */
-static void cs_rpcmachines_fini(struct c2_reqh *reqh)
+static void cs_rpc_machines_fini(struct c2_reqh *reqh)
 {
-	struct c2_rpcmachine *rpcmach;
+	struct c2_rpc_machine *rpcmach;
 
 	C2_PRE(reqh != NULL);
 
-	c2_tlist_for(&c2_rh_rpml_descr, &reqh->rh_rpcmachines, rpcmach) {
+	c2_tlist_for(&c2_rh_rpml_descr, &reqh->rh_rpc_machines, rpcmach) {
 		C2_ASSERT(rpcmach != NULL);
-		c2_rpcmachine_fini(rpcmach);
+		c2_rpc_machine_fini(rpcmach);
 		c2_tlist_del(&c2_rh_rpml_descr, rpcmach);
 		c2_tlink_fini(&c2_rh_rpml_descr, rpcmach);
 		c2_free(rpcmach);
@@ -1206,7 +1206,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	}
 
 	cs_services_fini(reqh);
-	cs_rpcmachines_fini(reqh);
+	cs_rpc_machines_fini(reqh);
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
 	c2_cob_domain_fini(&rctx->rc_cdom);
@@ -1757,7 +1757,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 		if (rc != 0)
                      goto out;
 
-		rc = cs_rpcmachines_init(cctx);
+		rc = cs_rpc_machines_init(cctx);
 	}
 out:
 	c2_mutex_unlock(&cctx->cc_mutex);

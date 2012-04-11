@@ -51,9 +51,9 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 extern void item_exit_stats_set(struct c2_rpc_item *item,
 				enum c2_rpc_item_path path);
 
-extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
-				struct c2_rpcmachine *mach,
-		                const enum c2_rpc_item_path path);
+extern void rpcobj_exit_stats_set(const struct c2_rpc         *rpcobj,
+				  struct c2_rpc_machine       *mach,
+		                  const enum c2_rpc_item_path  path);
 
 extern void send_buffer_deallocate(struct c2_net_buffer *nb,
 				   struct c2_net_domain *net_dom);
@@ -88,7 +88,7 @@ static void frm_item_rpc_stats_set(struct c2_rpc *rpc)
 	first_item = c2_list_entry((c2_list_first(&rpc->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
 	rpcobj_exit_stats_set(rpc,
-			first_item->ri_session->s_conn->c_rpcmachine,
+			first_item->ri_session->s_conn->c_rpc_machine,
 			C2_RPC_PATH_OUTGOING);
 
 	c2_list_for_each_entry(&rpc->r_items, item,
@@ -193,7 +193,7 @@ static bool frm_sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 
 	/* The transfer machine associated with this formation state machine
 	   should have been started already. */
-	if (chan->rc_rpcmachine->cr_tm.ntm_state != C2_NET_TM_STARTED)
+	if (chan->rc_rpc_machine->rm_tm.ntm_state != C2_NET_TM_STARTED)
 		return false;
 
 	/* Number of rpcs in flight should always be less than max limit. */
@@ -249,7 +249,7 @@ void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight)
 	C2_PRE(frm_sm != NULL);
 
 	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
-	netdom = chan->rc_rpcmachine->cr_tm.ntm_dom;
+	netdom = chan->rc_rpc_machine->rm_tm.ntm_dom;
         c2_addb_ctx_init(&frm_sm->fs_rpc_form_addb,
 			&frm_addb_ctx_type, &c2_addb_global_ctx);
 	frm_sm->fs_sender_side = false;
@@ -278,7 +278,7 @@ void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight)
 void frm_item_ready(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot		*slot;
-	struct c2_rpcmachine		*rpcmachine;
+	struct c2_rpc_machine		*rpc_machine;
 	struct c2_rpc_frm_sm		*frm_sm;
 
 	C2_PRE(item != NULL);
@@ -289,16 +289,16 @@ void frm_item_ready(struct c2_rpc_item *item)
 	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 	c2_list_add(&slot->sl_ready_list, &item->ri_slot_refs[0].sr_ready_link);
 
-	/* Add the slot to list of ready slots in rpcmachine. */
-	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
-	C2_ASSERT(rpcmachine != NULL);
-	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
+	/* Add the slot to list of ready slots in rpc_machine. */
+	rpc_machine = slot->sl_session->s_conn->c_rpc_machine;
+	C2_ASSERT(rpc_machine != NULL);
+	c2_mutex_lock(&rpc_machine->rm_ready_slots_mutex);
 
-	/* Add the slot to ready list of slots in rpcmachine, if
+	/* Add the slot to ready list of slots in rpc_machine, if
 	   it is not in that list already. */
 	if (!c2_list_link_is_in(&slot->sl_link))
-		c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
-	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+		c2_list_add(&rpc_machine->rm_ready_slots, &slot->sl_link);
+	c2_mutex_unlock(&rpc_machine->rm_ready_slots_mutex);
 
 	frm_sm = item_to_frm_sm(item);
 	sm_updating_state(frm_sm, item);
@@ -307,19 +307,19 @@ void frm_item_ready(struct c2_rpc_item *item)
 /* Callback function for slot becoming idle. */
 void frm_slot_idle(struct c2_rpc_slot *slot)
 {
-	struct c2_rpcmachine *rpcmachine;
+	struct c2_rpc_machine *rpc_machine;
 
 	C2_PRE(slot != NULL);
 	C2_PRE(slot->sl_session != NULL);
 	C2_PRE(slot->sl_in_flight == 0);
 
-	/* Add the slot to list of ready slots in its rpcmachine. */
-	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
-	C2_ASSERT(rpcmachine != NULL);
-	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
+	/* Add the slot to list of ready slots in its rpc_machine. */
+	rpc_machine = slot->sl_session->s_conn->c_rpc_machine;
+	C2_ASSERT(rpc_machine != NULL);
+	c2_mutex_lock(&rpc_machine->rm_ready_slots_mutex);
 	C2_ASSERT(!c2_list_link_is_in(&slot->sl_link));
-	c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
-	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+	c2_list_add(&rpc_machine->rm_ready_slots, &slot->sl_link);
+	c2_mutex_unlock(&rpc_machine->rm_ready_slots_mutex);
 }
 
 /* Callback function for addition of unbounded/unsolicited item. */
@@ -836,7 +836,7 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	item->ri_state = RPC_ITEM_ADDED;
 
 	/* Remove item from slot->ready_items list AND if slot->ready_items
-	   list is empty, remove slot from rpcmachine->ready_slots list.*/
+	   list is empty, remove slot from rpc_machine->ready_slots list.*/
 	slot = item->ri_slot_refs[0].sr_slot;
 	C2_ASSERT(slot != NULL);
 	c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
@@ -880,7 +880,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_list			  *list;
 	struct c2_rpc_item		  *item;
 	struct c2_rpc_item		  *item_next;
-	struct c2_rpcmachine		  *rpcmachine;
+	struct c2_rpc_machine		  *rpc_machine;
 	struct c2_rpc_session		  *session;
 	const struct c2_rpc_item_type_ops *rit_ops;
 
@@ -903,7 +903,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size, rit_ops->rito_item_size(
 						item));
-			rpcmachine = item->ri_session->s_conn->c_rpcmachine;
+			rpc_machine = item->ri_session->s_conn->c_rpc_machine;
 
 			/* If size threshold is not reached or other formation
 			   policies are met, add item to rpc object. */
@@ -912,12 +912,12 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				c2_mutex_lock(&session->s_mutex);
 				io_coalesce(item, frm_sm, rpc_size);
 				c2_mutex_unlock(&session->s_mutex);
-				c2_mutex_lock(&rpcmachine->
-					      cr_ready_slots_mutex);
+				c2_mutex_lock(&rpc_machine->
+					      rm_ready_slots_mutex);
 				frm_add_to_rpc(frm_sm, rpcobj, item,
 					       rpcobj_size);
-				c2_mutex_unlock(&rpcmachine->
-						cr_ready_slots_mutex);
+				c2_mutex_unlock(&rpc_machine->
+						rm_ready_slots_mutex);
 			} else
 				break;
 		}
@@ -955,7 +955,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_rpc_slot		  *slot;
 	struct c2_rpc_slot		  *slot_next;
 	struct c2_rpc_chan		  *chan;
-	struct c2_rpcmachine		  *rpcmachine;
+	struct c2_rpc_machine		  *rpc_machine;
 	struct c2_rpc_session		  *session;
 	const struct c2_rpc_item_type_ops *rit_ops;
 
@@ -968,13 +968,13 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	   any unbound items in session->free list. */
 	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
 	C2_ASSERT(chan != NULL);
-	rpcmachine = chan->rc_rpcmachine;
-	C2_ASSERT(rpcmachine != NULL);
-	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
+	rpc_machine = chan->rc_rpc_machine;
+	C2_ASSERT(rpc_machine != NULL);
+	c2_mutex_lock(&rpc_machine->rm_ready_slots_mutex);
 
-	/* Iterate ready slots list from rpcmachine and try to find an
+	/* Iterate ready slots list from rpc_machine and try to find an
 	   item for each ready slot. */
-	c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
+	c2_list_for_each_entry_safe(&rpc_machine->rm_ready_slots, slot,
 			slot_next, struct c2_rpc_slot, sl_link) {
 		if (!c2_list_is_empty(&slot->sl_ready_list) ||
 		    (slot->sl_session->s_conn->c_rpcchan != chan))
@@ -1013,7 +1013,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		if (sz_policy_violated)
 			break;
 	}
-	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+	c2_mutex_unlock(&rpc_machine->rm_ready_slots_mutex);
 	rpc_size = *rpcobj_size;
 	C2_POST(!frm_size_is_violated(frm_sm, rpc_size, 0));
 }
@@ -1150,7 +1150,7 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 					"max in flight reached", rc);
 			break;
 		}
-		tm = &chan->rc_rpcmachine->cr_tm;
+		tm = &chan->rc_rpc_machine->rm_tm;
 		dom = tm->ntm_dom;
 		rpc_size = rpc_size_get(rpc_obj);
 		fb = &rpc_obj->r_fbuf;

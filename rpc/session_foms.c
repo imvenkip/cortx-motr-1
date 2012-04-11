@@ -187,7 +187,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	 */
 	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
 	C2_ASSERT(ctx != NULL && ctx->cec_sender_ep != NULL &&
-				 ctx->cec_rpcmachine != NULL);
+				 ctx->cec_rpc_machine != NULL);
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL) {
@@ -196,7 +196,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	}
 
 	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep,
-				  ctx->cec_rpcmachine,
+				  ctx->cec_rpc_machine,
 				  &item->ri_slot_refs[0].sr_uuid);
 	/* we won't need ctx->cec_sender_ep after this point */
 	c2_net_end_point_put(ctx->cec_sender_ep);

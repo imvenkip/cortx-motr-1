@@ -68,7 +68,7 @@
    - Bulk client invokes c2_rpc_bulk_store() to store the network buffer
    memory descriptor/s to io fop wire format. The network buffer memory
    descriptor is retrieved after adding the network buffer to transfer
-   machine belonging to c2_rpcmachine.
+   machine belonging to c2_rpc_machine.
    - Bulk client invokes c2_rpc_post() to submit the fop to rpc layer.
    - The network buffers added by bulk client to c2_rpc_bulk structure
    are removed and deallocated by network buffer completion callbacks.
