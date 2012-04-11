@@ -83,8 +83,8 @@ static void byte_set(const struct c2_fop_field_type *ftype,
 						  *(char *)data);
 	} else {
 		printf("%s(%s) = ", name, ftype->fft_name);
-		scanf("\r%c", &value);
-		*(char *)data = value;
+		if (scanf("\r%c", &value) != EOF)
+			*(char *)data = value;
 	}
 }
 
@@ -113,8 +113,8 @@ static void u32_set(const struct c2_fop_field_type *ftype,
 						  *(uint32_t *)data);
 	} else {
 		printf("%s(%s) = ", name, ftype->fft_name);
-		scanf("%u", &value);
-		*(uint32_t *)data = value;
+		if (scanf("%u", &value) != EOF)
+			*(uint32_t *)data = value;
 	}
 }
 
@@ -142,8 +142,8 @@ static void u64_set(const struct c2_fop_field_type *ftype,
 						   *(uint64_t *)data);
 	} else {
 		printf("%s(%s) = ", name, ftype->fft_name);
-		scanf("%lu", &value);
-		*(uint64_t *)data = value;
+		if (scanf("%lu", &value) != EOF)
+			*(uint64_t *)data = value;
 	}
 }
 
@@ -247,7 +247,8 @@ static void byte_pointer_process(const struct c2_fop_field *child, void *data,
 		} else {
 			printf("%s(%s) = ", child->ff_name,
 					    child->ff_type->fft_name);
-			scanf("%s", buf->cons_buf);
+			if (scanf("%s", buf->cons_buf) == EOF)
+				return;
 		}
 	}
 	--depth;

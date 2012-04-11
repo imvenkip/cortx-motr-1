@@ -282,6 +282,7 @@ static void ub_init3(int i)
 
 static uint32_t get_num_from_file(const char *file)
 {
+	int      rc;
 	uint32_t num = 0;
 	FILE	 *fp;
 
@@ -289,7 +290,8 @@ static uint32_t get_num_from_file(const char *file)
 	if (fp == NULL) {
 		return num;
 	}
-	fscanf(fp, "%u", &num);
+	rc = fscanf(fp, "%u", &num);
+	C2_UT_ASSERT(rc != EOF);
 	fclose(fp);
 
 	return num;
@@ -362,6 +364,7 @@ static void verify_map(int mapid)
 				*expect,
 				*map_file = NULL,
 				filename[PATH_MAX];
+	char                    *fgets_rc;
 	int			rc;
 	FILE 			*fp;
 	struct c2_bitmap	map;
@@ -398,7 +401,8 @@ static void verify_map(int mapid)
 
 	sprintf(filename, "%s/%s", processor_info_dirp, map_file);
 	fp = fopen(filename, "r");
-	fgets(result, BUF_SZ-1, fp);
+	fgets_rc = fgets(result, BUF_SZ-1, fp);
+	C2_UT_ASSERT(fgets_rc != NULL);
 	fclose(fp);
 
 	rc = strncmp(result, expect, strlen(expect));
@@ -550,10 +554,12 @@ static void write_num_to_file(const char *file, uint32_t num)
 
 static void populate_cpu_summary(struct psummary *sum)
 {
+	int     rc;
 	char	filename[PATH_MAX];
 
 	sprintf(filename, "mkdir -p %s/cpu", processor_info_dirp);
-	system(filename);
+	rc = system(filename);
+	C2_UT_ASSERT(rc != -1);
 
 	if (sum->kmaxstr) {
 		sprintf(filename, "%s/"MAX_PROCESSOR_FILE, processor_info_dirp);
@@ -584,6 +590,7 @@ static void populate_cpus(struct pinfo cpus[], uint32_t sz)
 	char	filename[PATH_MAX];
 	FILE 	*fp;
 	uint32_t i;
+	int      rc;
 
 	for (i=0; i < sz; i++) {
 		if (cpus[i].numaid == C2_PROCESSORS_INVALID_ID) {
@@ -591,16 +598,20 @@ static void populate_cpus(struct pinfo cpus[], uint32_t sz)
 		}
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/topology",
 				  processor_info_dirp, i);
-		system(filename);
+		rc = system(filename);
+		C2_UT_ASSERT(rc != -1);
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/cache/index0",
 				  processor_info_dirp, i);
-		system(filename);
+		rc = system(filename);
+		C2_UT_ASSERT(rc != -1);
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/cache/index1",
 				  processor_info_dirp, i);
-		system(filename);
+		rc = system(filename);
+		C2_UT_ASSERT(rc != -1);
 		sprintf(filename, "mkdir -p %s/cpu/cpu%u/cache/index2",
 				  processor_info_dirp, i);
-		system(filename);
+		rc = system(filename);
+		C2_UT_ASSERT(rc != -1);
 
 		sprintf(filename, "%s/"NUMA_FILE1, processor_info_dirp, i,
 						   cpus[i].numaid);
@@ -677,18 +688,22 @@ static void populate_test_dataset1(void)
 static void clean_test_dataset(void)
 {
 	char	cmd[PATH_MAX];
+	int     rc;
 
 	sprintf(cmd, "rm -rf %s", processor_info_dirp);
-	system(cmd);
+	rc = system(cmd);
+	C2_UT_ASSERT(rc != -1);
 
 }
 
 static void populate_test_dataset2(void)
 {
 	char	cmd[PATH_MAX];
+	int     rc;
 
 	sprintf(cmd, "mkdir -p %s/cpu", processor_info_dirp);
-	system(cmd);
+	rc = system(cmd);
+	C2_UT_ASSERT(rc != -1);
 
 }
 

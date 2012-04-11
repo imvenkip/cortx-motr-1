@@ -655,20 +655,23 @@ static void console_input_test(void)
 	result = console_cmd("no_input", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
 	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
-	truncate(err_file, 0L);
+	result = truncate(err_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("no_input", "-v", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
 	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
-	truncate(err_file, 0L);
+	result = truncate(err_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	fseek(stdout, 0L, SEEK_SET);
 	result = console_cmd("list_fops", "-l", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
 	C2_UT_ASSERT(c2_error_mesg_match(stdout, "List of FOP's:"));
-	truncate(out_file, 0L);
+	result = truncate(out_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stdout, 0L, SEEK_SET);
 
 	sprintf(buf, "%d", C2_CONS_FOP_DEVICE_OPCODE);
@@ -677,7 +680,8 @@ static void console_input_test(void)
 	sprintf(buf, "%.2d, Device Failed",
 		     C2_CONS_FOP_DEVICE_OPCODE);
 	C2_UT_ASSERT(c2_error_mesg_match(stdout, buf));
-	truncate(out_file, 0L);
+	result = truncate(out_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stdout, 0L, SEEK_SET);
 
 	sprintf(buf, "%d", C2_CONS_FOP_REPLY_OPCODE);
@@ -686,25 +690,29 @@ static void console_input_test(void)
 	sprintf(buf, "%.2d, Console Reply",
 		     C2_CONS_FOP_REPLY_OPCODE);
 	C2_UT_ASSERT(c2_error_mesg_match(stdout, buf));
-	truncate(out_file, 0L);
+	result = truncate(out_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stdout, 0L, SEEK_SET);
 
 	result = console_cmd("show_fops", "-l", "-f", 0, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
 	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
-	truncate(err_file, 0L);
+	result = truncate(err_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-i", NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
 	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
-	truncate(err_file, 0L);
+	result = truncate(err_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	result = console_cmd("yaml_input", "-y", yaml_file, NULL);
 	C2_UT_ASSERT(result == EX_USAGE);
 	C2_UT_ASSERT(c2_error_mesg_match(stderr, usage_msg));
-	truncate(err_file, 0L);
+	result = truncate(err_file, 0L);
+	C2_UT_ASSERT(result == 0);
 	fseek(stderr, 0L, SEEK_SET);
 
 	/* last UT test for console main */

@@ -669,7 +669,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 static int cs_rpc_machines_init(struct c2_colibri *cctx)
 {
 	int                      idx;
-	int                      rc;
+	int                      rc = 0;
 	FILE                    *ofd;
 	struct  cs_reqh_context *rctx;
 
@@ -974,7 +974,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
 	int                     idx;
-	int                     rc;
+	int                     rc = 0;
 	int                     xprts_nr;
 	struct c2_net_xprt    **xprts;
 	struct c2_net_xprt     *xprt;
@@ -1059,7 +1059,7 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
  */
 static int cs_start_request_handler(struct cs_reqh_context *rctx)
 {
-	int                      rc;
+	int                      rc = 0;
 	struct c2_cs_reqh_stobs *rstob;
 	struct c2_stob_domain   *sdom;
 
@@ -1116,7 +1116,7 @@ out:
  */
 static int cs_start_request_handlers(struct c2_colibri *cctx)
 {
-	int                     rc;
+	int                     rc = 0;
 	struct cs_reqh_context *rctx;
 	FILE                   *ofd;
 
@@ -1503,7 +1503,7 @@ static void cs_help(FILE *out)
 
 static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 {
-	int                     rc;
+	int                     rc = 0;
 	int                     idx;
 	FILE                   *ofd;
 	struct cs_reqh_context *rctx;
@@ -1699,7 +1699,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 
 int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 {
-	int   rc;
+	int   rc = 0;
 
 	C2_PRE(cctx != NULL);
 
