@@ -175,7 +175,8 @@ struct c2_net_buffer * pool_colour_buffer_add(struct c2_net_transfer_mc *tm)
 	return nb;
 }
 
-void provision_buffer_validate_colour(struct c2_net_buffer *nb, struct c2_net_transfer_mc *tm)
+void provision_buffer_validate_colour(struct c2_net_buffer *nb,
+				      struct c2_net_transfer_mc *tm)
 {
 	c2_net_tm_pool_length_set(tm, tm->ntm_recv_queue_min_length + 1);
 	C2_UT_ASSERT(nb == tm_tlist_tail(&tm->ntm_q[C2_NET_QT_MSG_RECV]));
