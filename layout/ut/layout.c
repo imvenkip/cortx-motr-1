@@ -214,23 +214,6 @@ static void test_type_reg_unreg(void)
 	c2_ldb_type_unregister(&schema, &test_layout_type);
 	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] == NULL);
 
-	/* Should be able to register it again after unregistering it. */
-	c2_ldb_type_register(&schema, &test_layout_type);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] ==
-		     &test_layout_type);
-
-	/*
-	 * Should not be able to register it again while it is still
-	 * registered.
-	 */
-	rc = c2_ldb_type_register(&schema, &test_layout_type);
-	C2_UT_ASSERT(rc == -EEXIST);
-
-	/* Unregister it. */
-	c2_ldb_type_unregister(&schema, &test_layout_type);
-	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] == NULL);
-
 	C2_LEAVE();
 }
 
@@ -274,22 +257,6 @@ static void test_etype_reg_unreg(void)
 	c2_ldb_enum_unregister(&schema, &test_enum_type);
 	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == NULL);
 
-	/* Should be able to register it again after unregistering it. */
-	c2_ldb_enum_register(&schema, &test_enum_type);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == &test_enum_type);
-
-	/*
-	 * Should not be able to register it again while it is still
-	 * registered.
-	 */
-	rc = c2_ldb_enum_register(&schema, &test_enum_type);
-	C2_UT_ASSERT(rc == -EEXIST);
-
-	/* Unregister it. */
-	c2_ldb_enum_unregister(&schema, &test_enum_type);
-	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == NULL);
-
 	C2_LEAVE();
 }
 
@@ -322,12 +289,6 @@ static void test_ldb_reg_unreg(void)
 		     &c2_linear_enum_type);
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] ==
 		     &c2_pdclust_layout_type);
-
-	/*
-	 * Should not be able to register all the available layout types
-	 * and enum types again while they are still registered. */
-	rc = c2_ldb_register(&t_schema);
-	C2_UT_ASSERT(rc == -EEXIST);
 
 	/* Unregister all the registered layout and enum types. */
 	c2_ldb_unregister(&t_schema);

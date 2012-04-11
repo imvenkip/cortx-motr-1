@@ -577,15 +577,14 @@ int c2_ldb_register(struct c2_ldb_schema *schema)
 	int rc;
 
 	rc = c2_ldb_type_register(schema, &c2_pdclust_layout_type);
-	if (rc != 0 && rc != -EEXIST)
+	if (rc != 0)
 		return rc;
 
 	rc = c2_ldb_enum_register(schema, &c2_list_enum_type);
-	if (rc != 0 && rc != -EEXIST)
+	if (rc != 0)
 		return rc;
 
 	rc = c2_ldb_enum_register(schema, &c2_linear_enum_type);
-
 	return rc;
 }
 
@@ -605,7 +604,7 @@ void c2_ldb_unregister(struct c2_ldb_schema *schema)
 int c2_ldb_type_register(struct c2_ldb_schema *schema,
 			 const struct c2_layout_type *lt)
 {
-	int rc = 0;
+	int rc;
 
 	C2_PRE(schema_invariant(schema));
 	C2_PRE(lt != NULL);
@@ -614,16 +613,6 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
 
 	c2_mutex_lock(&schema->ls_domain->ld_lock);
-
-	if (schema->ls_domain->ld_type[lt->lt_id] == lt) {
-		rc = -EEXIST;
-		layout_log("c2_ldb_type_register",
-			   "Layout type already registered",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
-			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
-		goto out;
-	}
 
 	C2_ASSERT(schema->ls_domain->ld_type[lt->lt_id] == NULL);
 	C2_ASSERT(lt->lt_ops != NULL);
@@ -645,7 +634,6 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&schema->ls_lock);
 
-out:
 	c2_mutex_unlock(&schema->ls_domain->ld_lock);
 
 	C2_LEAVE("Layout-type-id %lu, rc %d", (unsigned long)lt->lt_id, rc);
@@ -700,16 +688,6 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 
 	c2_mutex_lock(&schema->ls_domain->ld_lock);
 
-	if (schema->ls_domain->ld_enum[let->let_id] == let) {
-		rc = -EEXIST;
-		layout_log("c2_ldb_enum_register",
-			   "Enum type already registered",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
-			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
-		goto out;
-	}
-
 	C2_ASSERT(schema->ls_domain->ld_enum[let->let_id] == NULL);
 	C2_ASSERT(let->let_ops != NULL);
 
@@ -732,7 +710,6 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 
 	c2_mutex_unlock(&schema->ls_lock);
 
-out:
 	c2_mutex_unlock(&schema->ls_domain->ld_lock);
 
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)let->let_id, rc);
