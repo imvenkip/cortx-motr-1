@@ -13,9 +13,9 @@ echo 8 > /proc/sys/kernel/printk
 
 main()
 {
-	mkdir $COLIBRI_C2T1FS_TEST_DIR
+        prepare_test_dir || return $?
 
-	load_kernel_module
+        load_kernel_module
 
         io_combinations $POOL_WIDTH 1 1
         if [ $? -ne "0" ]
