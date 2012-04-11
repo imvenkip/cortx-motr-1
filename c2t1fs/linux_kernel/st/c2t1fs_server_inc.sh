@@ -5,33 +5,6 @@ COLIBRI_DB_PATH=$COLIBRI_C2T1FS_TEST_DIR/db
 COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
 
 
-create_stobs()
-{
-        if [ "$#" -lt 1 ]
-        then
-                echo "Usage :$0 pool_width"
-                return 1
-        fi
-
-        pool_width=$1
-        stob_domain=$COLIBRI_STOB_DOMAIN
-        db_path=$COLIBRI_DB_PATH
-
-        echo "Cleaning up test directory ..."
-        rm -rf $COLIBRI_C2T1FS_TEST_DIR  &> /dev/null
-
-        echo "Creating test directory ..."
-        mkdir $COLIBRI_C2T1FS_TEST_DIR &> /dev/null
-
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to create test directory."
-                return 1
-        fi
-
-        return 0
-}
-
 colibri_service()
 {
         prog=$COLIBRI_CORE_ROOT/colibri/colibri_setup
@@ -50,11 +23,7 @@ colibri_service()
 
         case "$1" in
             start)
-		create_stobs $POOL_WIDTH
-		if [ $? -ne "0" ]
-		then
-			echo "Failed to create stobs."
-		fi
+		prepare_testdir || return $?
                 $1
 		echo "Colibri service started."
                 ;;
