@@ -243,7 +243,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
-        srv_tm = &srv_rpc_mach.cr_tm;
+        srv_tm = &srv_rpc_mach.rm_tm;
 	C2_UT_ASSERT(srv_tm != NULL);
 
 	return rc;

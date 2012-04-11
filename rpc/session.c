@@ -1206,7 +1206,7 @@ out:
 
 /**
    For all slots belonging to @session,
-     if slot is in c2_rpc_machine::cr_ready_slots list,
+     if slot is in c2_rpc_machine::rm_ready_slots list,
      then remove it from the list.
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
@@ -1218,10 +1218,10 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 	machine = session->s_conn->c_rpc_machine;
 
 	/*
-	 * XXX lock and unlock of cr_ready_slots_mutex is commented, until
+	 * XXX lock and unlock of rm_ready_slots_mutex is commented, until
 	 * formation adds a fix for correct lock ordering.
 	 */
-	c2_mutex_lock(&machine->cr_ready_slots_mutex);
+	c2_mutex_lock(&machine->rm_ready_slots_mutex);
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
@@ -1232,7 +1232,7 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 			c2_list_del(&slot->sl_link);
 	}
 
-	c2_mutex_unlock(&machine->cr_ready_slots_mutex);
+	c2_mutex_unlock(&machine->rm_ready_slots_mutex);
 }
 
 /** @} end of session group */

@@ -804,7 +804,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	int                     i;
 
 #define SESSION_TO_NDOM(session) \
-	(session)->s_conn->c_rpc_machine->cr_tm.ntm_dom
+	(session)->s_conn->c_rpc_machine->rm_tm.ntm_dom
 
 	int add_rpc_buffer(void)
 	{

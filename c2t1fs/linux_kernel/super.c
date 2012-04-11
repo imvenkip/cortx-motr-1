@@ -692,7 +692,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	C2_ENTRY();
 
 	rpc_mach = &c2t1fs_globals.g_rpc_machine;
-	tm       = &rpc_mach->cr_tm;
+	tm       = &rpc_mach->rm_tm;
 
 	/* Create target end-point */
 	rc = c2_net_end_point_create(&ep, tm, ctx->sc_addr);

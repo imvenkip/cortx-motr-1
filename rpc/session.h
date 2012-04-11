@@ -354,9 +354,9 @@ enum c2_rpc_conn_flags {
    sender id to locate rpc connection object.
 
    c2_rpc_machine maintains two lists of c2_rpc_conn
-   - cr_outgoing_conns: list of c2_rpc_conn objects for which this node is
+   - rm_outgoing_conns: list of c2_rpc_conn objects for which this node is
      sender
-   - cr_incoming_conns: list of c2_rpc_conn object for which this node is
+   - rm_incoming_conns: list of c2_rpc_conn object for which this node is
      receiver
 
    Instance of c2_rpc_conn stores a list of all sessions currently active with
@@ -429,7 +429,7 @@ enum c2_rpc_conn_flags {
     - slot->sl_mutex
     - session->s_mutex
     - conn->c_mutex
-    - rpc_machine->cr_session_mutex, rpc_machine->cr_ready_slots_mutex (As of
+    - rpc_machine->rm_session_mutex, rpc_machine->rm_ready_slots_mutex (As of
       now, there is no case where these two mutex are held together. If such
       need arises then ordering of these two mutex should be decided.)
 
@@ -511,8 +511,8 @@ struct c2_rpc_conn {
 	struct c2_rpc_machine    *c_rpc_machine;
 
 	/** list_link to put c2_rpc_conn in either
-	    c2_rpc_machine::cr_incoming_conns or
-	    c2_rpc_machine::cr_outgoing_conns
+	    c2_rpc_machine::rm_incoming_conns or
+	    c2_rpc_machine::rm_outgoing_conns
 	 */
 	struct c2_list_link       c_link;
 
@@ -753,7 +753,7 @@ enum c2_rpc_session_state {
     - slot->sl_mutex
     - session->s_mutex
     - conn->c_mutex
-    - rpc_machine->cr_session_mutex, rpc_machine->cr_ready_slots_mutex (As of
+    - rpc_machine->rm_session_mutex, rpc_machine->rm_ready_slots_mutex (As of
       now, there is no case where these two mutex are held together. If such
       need arises then ordering of these two mutex should be decided.)
 
@@ -1132,13 +1132,13 @@ uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot);
   Slots are allocated at the time of session initialisation and freed at the
   time of session finalisation.
   c2_rpc_slot::sl_mutex protects all fields of slot except sl_link.
-  sl_link is protected by c2_rpc_machine::cr_ready_slots_mutex.
+  sl_link is protected by c2_rpc_machine::rm_ready_slots_mutex.
 
   Locking order:
     - slot->sl_mutex
     - session->s_mutex
     - conn->c_mutex
-    - rpc_machine->cr_session_mutex, rpc_machine->cr_ready_slots_mutex (As of
+    - rpc_machine->rm_session_mutex, rpc_machine->rm_ready_slots_mutex (As of
       now, there is no case where these two mutex are held together. If such
       need arises then ordering of these two mutex should be decided.)
  */
@@ -1152,7 +1152,7 @@ struct c2_rpc_slot {
 	/** Cob representing this slot in persistent state */
 	struct c2_cob                *sl_cob;
 
-	/** list anchor to put in c2_rpc_machine::cr_ready_slots */
+	/** list anchor to put in c2_rpc_machine::rm_ready_slots */
 	struct c2_list_link           sl_link;
 
 	/** Current version number of slot */

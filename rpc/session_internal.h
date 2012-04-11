@@ -274,7 +274,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
    @pre conn->c_state == C2_RPC_CONN_INITIALISED
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE &&
 			   conn->c_sender_id != SENDER_ID_INVALID &&
-			   c2_list_contains(&machine->cr_incoming_conns,
+			   c2_list_contains(&machine->rm_incoming_conns,
 					    &conn->c_link)
    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE)
@@ -512,7 +512,7 @@ bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot);
 
 /**
    For all slots belonging to @session,
-     if slot is in c2_rpc_machine::cr_ready_slots list,
+     if slot is in c2_rpc_machine::rm_ready_slots list,
      then remove it from the list.
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session);

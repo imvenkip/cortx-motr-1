@@ -77,9 +77,9 @@ static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
 	C2_UT_ASSERT(bmt != NULL);
 	C2_UT_ASSERT(nd != NULL);
 	C2_UT_ASSERT(bmt->bmt_addr != NULL);
-	C2_UT_ASSERT(bmt->bmt_mach.cr_tm.ntm_state == C2_NET_TM_UNDEFINED);
+	C2_UT_ASSERT(bmt->bmt_mach.rm_tm.ntm_state == C2_NET_TM_UNDEFINED);
 
-	tm = &bmt->bmt_mach.cr_tm;
+	tm = &bmt->bmt_mach.rm_tm;
 	C2_SET0(&bmt->bmt_conn);
 	bmt->bmt_conn.c_rpc_machine = &bmt->bmt_mach;
 
@@ -107,22 +107,22 @@ static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 
 	C2_UT_ASSERT(bmt != NULL);
 	C2_UT_ASSERT(bmt->bmt_addr != NULL);
-	C2_UT_ASSERT(bmt->bmt_mach.cr_tm.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(bmt->bmt_mach.rm_tm.ntm_state == C2_NET_TM_STARTED);
 	C2_UT_ASSERT(bmt->bmt_conn.c_rpc_machine == &bmt->bmt_mach);
 
 	c2_clink_init(&clink, NULL);
-	c2_clink_add(&bmt->bmt_mach.cr_tm.ntm_chan, &clink);
+	c2_clink_add(&bmt->bmt_mach.rm_tm.ntm_chan, &clink);
 
-	rc = c2_net_tm_stop(&bmt->bmt_mach.cr_tm, false);
+	rc = c2_net_tm_stop(&bmt->bmt_mach.rm_tm, false);
 	C2_UT_ASSERT(rc == 0);
 
-	while(bmt->bmt_mach.cr_tm.ntm_state != C2_NET_TM_STOPPED)
+	while(bmt->bmt_mach.rm_tm.ntm_state != C2_NET_TM_STOPPED)
 		c2_chan_wait(&clink);
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	c2_net_tm_fini(&bmt->bmt_mach.cr_tm);
+	c2_net_tm_fini(&bmt->bmt_mach.rm_tm);
 }
 
 static void bulkclient_test(void)

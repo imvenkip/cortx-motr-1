@@ -114,7 +114,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		return rc;
 
-	tm = &cctx->rcx_rpc_machine.cr_tm;
+	tm = &cctx->rcx_rpc_machine.rm_tm;
 
 	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm, cctx->rcx_remote_addr);
 	if (rc != 0)

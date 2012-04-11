@@ -170,8 +170,8 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	case C2_RPC_CONN_ACTIVE:
 	case C2_RPC_CONN_TERMINATING:
 		conn_list = sender_end ?
-				&conn->c_rpc_machine->cr_outgoing_conns :
-				&conn->c_rpc_machine->cr_incoming_conns;
+				&conn->c_rpc_machine->rm_outgoing_conns :
+				&conn->c_rpc_machine->rm_incoming_conns;
 		ret = c2_list_contains(conn_list, &conn->c_link) &&
 			conn->c_rc == 0;
 		if (!ret)
@@ -441,12 +441,12 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 	conn->c_state = C2_RPC_CONN_FAILED;
 	conn->c_rc = error;
 	/*
-	 * Remove conn from conn->c_rpc_machine->cr_outgoing_conns or
-	 * conn->c_rpc_machine->cr_incoming_conns list
+	 * Remove conn from conn->c_rpc_machine->rm_outgoing_conns or
+	 * conn->c_rpc_machine->rm_incoming_conns list
 	 */
-	c2_mutex_lock(&conn->c_rpc_machine->cr_session_mutex);
+	c2_mutex_lock(&conn->c_rpc_machine->rm_session_mutex);
 	c2_list_del(&conn->c_link);
-	c2_mutex_unlock(&conn->c_rpc_machine->cr_session_mutex);
+	c2_mutex_unlock(&conn->c_rpc_machine->rm_session_mutex);
 
 	session0 = c2_rpc_conn_session0(conn);
 	c2_rpc_session_del_slots_from_ready_list(session0);
@@ -488,9 +488,9 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 
 	conn->c_state = C2_RPC_CONN_CONNECTING;
 
-	c2_mutex_lock(&machine->cr_session_mutex);
-	c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
-	c2_mutex_unlock(&machine->cr_session_mutex);
+	c2_mutex_lock(&machine->rm_session_mutex);
+	c2_list_add(&machine->rm_outgoing_conns, &conn->c_link);
+	c2_mutex_unlock(&machine->rm_session_mutex);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
@@ -782,10 +782,10 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATING);
 
-	/* Remove conn from rpc_machine::cr_outgoing_conns list */
-	c2_mutex_lock(&conn->c_rpc_machine->cr_session_mutex);
+	/* Remove conn from rpc_machine::rm_outgoing_conns list */
+	c2_mutex_lock(&conn->c_rpc_machine->rm_session_mutex);
 	c2_list_del(&conn->c_link);
-	c2_mutex_unlock(&conn->c_rpc_machine->cr_session_mutex);
+	c2_mutex_unlock(&conn->c_rpc_machine->rm_session_mutex);
 
 	if (rc != 0) {
 		conn->c_state = C2_RPC_CONN_FAILED;
@@ -992,7 +992,7 @@ static int conn_persistent_state_attach(struct c2_rpc_conn *conn,
 	C2_PRE(conn != NULL && c2_rpc_conn_invariant(conn) &&
 			conn->c_state == C2_RPC_CONN_INITIALISED);
 
-	dom = conn->c_rpc_machine->cr_dom;
+	dom = conn->c_rpc_machine->rm_dom;
 	rc = conn_persistent_state_create(dom, sender_id,
 					  &conn_cob, &session0_cob, &slot0_cob,
 					  tx);
@@ -1029,9 +1029,9 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 			c2_rpc_conn_is_rcv(conn));
 
 	machine = conn->c_rpc_machine;
-	C2_ASSERT(machine != NULL && machine->cr_dom != NULL);
+	C2_ASSERT(machine != NULL && machine->rm_dom != NULL);
 
-	rc = c2_db_tx_init(&tx, machine->cr_dom->cd_dbenv, 0);
+	rc = c2_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
 	if (rc != 0)
 		goto out;
 
@@ -1053,9 +1053,9 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 
 	conn->c_sender_id = sender_id;
 	conn->c_state = C2_RPC_CONN_ACTIVE;
-	c2_mutex_lock(&machine->cr_session_mutex);
-	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
-	c2_mutex_unlock(&machine->cr_session_mutex);
+	c2_mutex_lock(&machine->rm_session_mutex);
+	c2_list_add(&machine->rm_incoming_conns, &conn->c_link);
+	c2_mutex_unlock(&machine->rm_session_mutex);
 	/* Fall through */
 out:
 	conn->c_state = (rc == 0) ? C2_RPC_CONN_ACTIVE : C2_RPC_CONN_FAILED;
@@ -1139,9 +1139,9 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATING);
 
-	c2_mutex_lock(&conn->c_rpc_machine->cr_session_mutex);
+	c2_mutex_lock(&conn->c_rpc_machine->rm_session_mutex);
 	c2_list_del(&conn->c_link);
-	c2_mutex_unlock(&conn->c_rpc_machine->cr_session_mutex);
+	c2_mutex_unlock(&conn->c_rpc_machine->rm_session_mutex);
 
 	conn->c_state = C2_RPC_CONN_TERMINATED;
 	conn->c_sender_id = SENDER_ID_INVALID;
@@ -1175,7 +1175,7 @@ int c2_rpc_machine_conn_list_print(struct c2_rpc_machine *machine, int dir)
 	struct c2_list     *list;
 	struct c2_rpc_conn *conn;
 
-	list = dir ? &machine->cr_incoming_conns : &machine->cr_outgoing_conns;
+	list = dir ? &machine->rm_incoming_conns : &machine->rm_outgoing_conns;
 
 	c2_list_for_each_entry(list, conn, struct c2_rpc_conn, c_link) {
 		printf("CONN: %p id %llu state %x\n", conn,

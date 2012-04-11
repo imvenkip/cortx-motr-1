@@ -488,32 +488,32 @@ struct c2_rpc_chan {
  */
 struct c2_rpc_machine {
 	/** Mutex protecting list of c2_rpc_chan structures. */
-	struct c2_mutex			  cr_chan_mutex;
+	struct c2_mutex			  rm_chan_mutex;
 	/** List of c2_rpc_chan structures. */
-	struct c2_list			  cr_chans;
+	struct c2_list			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	  cr_tm;
+	struct c2_net_transfer_mc	  rm_tm;
 	/** Pool of receive buffers associated with this transfer machine. */
-	struct c2_net_buffer		**cr_rcv_buffers;
+	struct c2_net_buffer		**rm_rcv_buffers;
 	/** Cob domain in which cobs related to session will be stored */
-	struct c2_cob_domain		 *cr_dom;
+	struct c2_cob_domain		 *rm_dom;
 	/** List of rpc connections
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list			  cr_incoming_conns;
-	struct c2_list			  cr_outgoing_conns;
+	struct c2_list			  rm_incoming_conns;
+	struct c2_list			  rm_outgoing_conns;
 	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
-	struct c2_mutex			  cr_session_mutex;
+	struct c2_mutex			  rm_session_mutex;
 	/** Mutex to protect list of ready slots. */
-	struct c2_mutex			  cr_ready_slots_mutex;
+	struct c2_mutex			  rm_ready_slots_mutex;
 	/** list of ready slots. */
-	struct c2_list			  cr_ready_slots;
+	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
-	struct c2_addb_ctx		  cr_rpc_machine_addb;
+	struct c2_addb_ctx		  rm_rpc_machine_addb;
 	/** Statistics for both incoming and outgoing paths */
-	struct c2_rpc_stats		  cr_rpc_stats[C2_RPC_PATH_NR];
+	struct c2_rpc_stats		  rm_rpc_stats[C2_RPC_PATH_NR];
 	/** Mutex to protect stats */
-	struct c2_mutex			  cr_stats_mutex;
+	struct c2_mutex			  rm_stats_mutex;
 	/**
 	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
@@ -522,21 +522,21 @@ struct c2_rpc_machine {
 		method to be invoked for futher processing,
 		e.g. c2_reqh_fop_handle(), in case of reqh.
 	*/
-	struct c2_reqh                   *cr_reqh;
+	struct c2_reqh                   *rm_reqh;
 
         /**
 	    Linkage into request handler's list of rpc machines.
 	    c2_reqh::rh_rpc_machines
 	 */
-        struct c2_tlink                   cr_rh_linkage;
+        struct c2_tlink                   rm_rh_linkage;
 
 	/**
 	    List of c2_rpc_service instances placed using svc_tlink.
 	    tl_descr: c2_rpc_services_tl
 	 */
-	struct c2_tl                      cr_services;
+	struct c2_tl                      rm_services;
 
-	uint64_t                          cr_magic;
+	uint64_t                          rm_magic;
 };
 
 /**

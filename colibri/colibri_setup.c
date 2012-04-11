@@ -472,7 +472,7 @@ struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 				continue;
 			c2_tlist_for(&c2_rh_rpml_descr, &reqh->rh_rpc_machines,
 								rpcmach) {
-				nxprt = rpcmach->cr_tm.ntm_dom->nd_xprt;
+				nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
 				if (strcmp(nxprt->nx_name, xprt->nx_name) == 0)
 					return rpcmach;
@@ -493,7 +493,7 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 
 	rpcmach = c2_cs_rpcmach_get(cctx, xprt, sname);
 
-	return (rpcmach == NULL) ? NULL : &rpcmach->cr_tm;
+	return (rpcmach == NULL) ? NULL : &rpcmach->rm_tm;
 }
 
 /**

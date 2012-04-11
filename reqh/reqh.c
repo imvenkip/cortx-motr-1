@@ -73,8 +73,8 @@ const struct c2_tl_descr c2_rh_sl_descr = C2_TL_DESCR("reqh service",
  */
 const struct c2_tl_descr c2_rh_rpml_descr = C2_TL_DESCR("rpc machines",
                                                       struct c2_rpc_machine,
-                                                      cr_rh_linkage,
-                                                      cr_magic,
+                                                      rm_rh_linkage,
+                                                      rm_magic,
                                                       C2_REQH_MAGIC,
                                                       C2_RPC_MAGIC);
 

@@ -35,7 +35,7 @@
 
 /** Required for accessing rpc_machine list */
 C2_TL_DESCR_DEFINE(rpc_machines, "rpc machines associated with reqh", static,
-                   struct c2_rpc_machine, cr_rh_linkage, cr_magic,
+                   struct c2_rpc_machine, rm_rh_linkage, rm_magic,
                    C2_REQH_MAGIC, C2_RPC_MAGIC);
 C2_TL_DEFINE(rpc_machines, static, struct c2_rpc_machine);
 
@@ -179,7 +179,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		 */
 		c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp) {
 
-                        if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom)
+                        if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom)
 				/*
 				 * Found buffer pool for domain.
 				 * No need to create buffer pool
@@ -193,16 +193,16 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		if (newbp == NULL)
 			return -ENOMEM;
 
-		newbp->rios_ndom = rpcmach->cr_tm.ntm_dom;
+		newbp->rios_ndom = rpcmach->rm_tm.ntm_dom;
 		/*
 		 * Initialize channel for sending availability of buffers
 		 * with buffer pool to I/O FOMs.
 		 */
 		c2_chan_init(&newbp->rios_bp_wait);
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-		colours = rpcmach->cr_tm.ntm_dom->nd_pool_colour_counter;
+		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
-					     rpcmach->cr_tm.ntm_dom,
+					     rpcmach->rm_tm.ntm_dom,
 					     network_buffer_pool_threshold,
 					     network_buffer_pool_segment_nr,
 					     network_buffer_pool_segment_size,

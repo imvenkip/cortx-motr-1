@@ -231,7 +231,7 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 
 	C2_ASSERT(rpcmach != NULL);
 
-	reqh = rpcmach->cr_reqh;
+	reqh = rpcmach->rm_reqh;
 	C2_ASSERT(reqh != NULL);
 
 	fop = c2_rpc_item_to_fop(item);

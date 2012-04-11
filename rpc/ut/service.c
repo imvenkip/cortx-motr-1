@@ -211,8 +211,8 @@ static void conn_attach_detach_test(void)
 	C2_SET0(&mock_destep);
 
 	/* prepare mock rpc_machine */
-	c2_rpc_services_tlist_init(&mock_rpc_machine.cr_services);
-	c2_mutex_init(&mock_rpc_machine.cr_session_mutex);
+	c2_rpc_services_tlist_init(&mock_rpc_machine.rm_services);
+	c2_mutex_init(&mock_rpc_machine.rm_session_mutex);
 
 	/* prepare mock_destep */
 	copy_of_foo_ep_addr = c2_alloc(strlen(foo_ep_addr) + 1);
@@ -236,7 +236,7 @@ static void conn_attach_detach_test(void)
 		     C2_RPC_SERVICE_STATE_CONN_ATTACHED);
 	C2_UT_ASSERT(fr_service->svc_conn == &mock_conn);
 	C2_UT_ASSERT(
-		c2_rpc_services_tlist_head(&mock_rpc_machine.cr_services) ==
+		c2_rpc_services_tlist_head(&mock_rpc_machine.rm_services) ==
 		     fr_service);
 
 	c2_rpc_service_conn_detach(fr_service);
@@ -244,12 +244,12 @@ static void conn_attach_detach_test(void)
 	C2_UT_ASSERT(fr_service->svc_state ==
 		     C2_RPC_SERVICE_STATE_INITIALISED);
 	C2_UT_ASSERT(
-		c2_rpc_services_tlist_is_empty(&mock_rpc_machine.cr_services));
+		c2_rpc_services_tlist_is_empty(&mock_rpc_machine.rm_services));
 
 	c2_mutex_fini(&mock_conn.c_mutex);
 
-	c2_mutex_fini(&mock_rpc_machine.cr_session_mutex);
-	c2_rpc_services_tlist_fini(&mock_rpc_machine.cr_services);
+	c2_mutex_fini(&mock_rpc_machine.rm_session_mutex);
+	c2_rpc_services_tlist_fini(&mock_rpc_machine.rm_services);
 
 	c2_free(copy_of_foo_ep_addr);
 }

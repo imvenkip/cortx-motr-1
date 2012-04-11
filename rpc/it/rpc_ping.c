@@ -263,10 +263,10 @@ static void print_stats(struct c2_rpc_machine *rpc_mach)
 	printf("stats:\n");
 
 	printf("        in:\n");
-	print_rpc_stats(&rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING]);
+	print_rpc_stats(&rpc_mach->rm_rpc_stats[C2_RPC_PATH_INCOMING]);
 
 	printf("        out:\n");
-	print_rpc_stats(&rpc_mach->cr_rpc_stats[C2_RPC_PATH_OUTGOING]);
+	print_rpc_stats(&rpc_mach->rm_rpc_stats[C2_RPC_PATH_OUTGOING]);
 }
 
 /* Create a ping fop and post it to rpc layer */

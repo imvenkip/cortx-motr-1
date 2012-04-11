@@ -91,7 +91,7 @@ struct c2_reqh {
 	    There is one rpc machine per request handler
 	    end point.
 
-	    @see c2_rpc_machine::cr_rh_linkage
+	    @see c2_rpc_machine::rm_rh_linkage
 	 */
         struct c2_tl             rh_rpc_machines;
 
