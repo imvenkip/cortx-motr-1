@@ -106,6 +106,7 @@ enum {
 
 /**
  * Layout domain.
+ * There is one instance of layout domain object per Colibri.
  */
 struct c2_layout_domain {
 	/** Layout types array. */
@@ -216,7 +217,9 @@ struct c2_layout_type_ops {
 	 * Continues building the in-memory layout object either from the
 	 * buffer or from the DB.
 	 * Allocates an instance of some layout-type specific data-type
-	 * which embeds c2_layout. Internally, sets c2_layout::l_ops.
+	 * which embeds c2_layout and stores the resultant c2_layout object
+	 * in the parameter out.
+	 * Internally, sets c2_layout::l_ops.
 	 */
 	int         (*lto_decode)(struct c2_layout_domain *dom,
 				  uint64_t lid, uint64_t pool_id,
@@ -228,7 +231,7 @@ struct c2_layout_type_ops {
 
 	/**
 	 * Continues storing the layout representation either in the buffer
-	 * or in the DB.
+	 * provided by the caller or in the DB.
 	 */
 	int         (*lto_encode)(struct c2_layout_domain *dom,
 				  struct c2_layout *l,
@@ -309,7 +312,9 @@ struct c2_layout_enum_type_ops {
 	 * Continues building the in-memory layout object, either from
 	 * the buffer or from the DB.
 	 * Allocates an instance of some enum-type specific data-type
-	 * which embeds c2_layout_enum. Internally, sets c2_layout_enum::le_ops.
+	 * which embeds c2_layout_enum and stores the resultant
+	 * c2_layout_enum object in the parameter out.
+	 * Internally, sets c2_layout_enum::le_ops.
 	 */
 	int         (*leto_decode)(struct c2_layout_domain *dom,
 				   uint64_t lid,
@@ -321,7 +326,7 @@ struct c2_layout_enum_type_ops {
 
 	/**
 	 * Continues storing layout representation either in the buffer
-	 * or in the DB.
+	 * provided by the caller or in the DB.
 	 */
 	int         (*leto_encode)(struct c2_layout_domain *dom,
 				   const struct c2_layout_enum *le,

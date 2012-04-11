@@ -110,6 +110,7 @@ struct c2_ldb_rec;
  * In-memory data structure for the layout schema.
  * It includes a pointer to the layouts table and various related
  * parameters.
+ * There is one instance of layout domain object per Colibri.
  */
 struct c2_ldb_schema {
 	/** Pointer to domain; to keep things together. */

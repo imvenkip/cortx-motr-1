@@ -223,6 +223,7 @@ static void enum_type_put(struct c2_layout_domain *dom,
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
+/** Intializes a layout, adds a reference on the respective layout type. */
 int layout_init(struct c2_layout_domain *dom,
 		struct c2_layout *l,
 		uint64_t lid, uint64_t pool_id,
@@ -257,6 +258,7 @@ int layout_init(struct c2_layout_domain *dom,
 	return 0;
 }
 
+/** Finalizes a layout, releases a reference on the respective layout type. */
 void layout_fini(struct c2_layout_domain *dom, struct c2_layout *l)
 {
 	C2_PRE(dom != NULL);
@@ -442,7 +444,7 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
  * This method performs the following operations:
  * 1) If value of the flag if_addb_msg is true, then Invokes layout_addb_add()
  *    to add an ADDB message.
- * 2) If value of the flag if_trace_msg is true and if it is a suceess case
+ * 2) If value of the flag if_trace_msg is true and if it is a failure case
  *    (indicated by rc != 0), then it adds a C2_LOG message (trace message),
  *    indicating failure, along with a short error message string and the
  *    error code.
@@ -599,9 +601,9 @@ void c2_layout_put(struct c2_layout *l)
  *   layout structure, using c2_layout_decode().
  *
  * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record. It could be LOOKUP if at all. If it is NONE,
- * then the layout is decoded from its representation received over the
- * network.
+ * performed on the layout record. It could be LOOKUP if at all a DB operation.
+ * If it is BUFFER_NONE, then the layout is decoded from its representation
+ * received over the network.
  *
  * @pre
  * - In case c2_layout_decode() is called through c2_ldb_add(), then the
@@ -612,7 +614,8 @@ void c2_layout_put(struct c2_layout *l)
  *   buffer should be containing all the data belonging to the specific layout.
  *   It may include data that spans over tables other than layouts as well. It
  *   means its size may even be more than the one returned by
- *   c2_ldb_rec_max_size().
+ *   c2_ldb_rec_max_size(). For example, in case of LIST enumeration type, the
+ *   the buffer needs to contain the data that goes to cob_lists table.
  *
  * @post Layout object is built internally (along with enumeration object being
  * built if applicable). Hence, user needs to finalize the layout object when
@@ -695,8 +698,9 @@ out:
  *   DB.
  *
  * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record if at all and it could be one of
- * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
+ * performed on the layout record if at all a DB operation which could be
+ * one of ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored
+ * in the buffer provided by the caller.
  *
  * @param oldrec_cur Cursor pointing to a buffer to be used to read the
  * exisiting layout record from the layouts table. Applicable only in case of
@@ -704,13 +708,16 @@ out:
  *
  * @param out Cursor poining to a buffer. Regarding the size of the buffer:
  * - In case c2_layout_encode() is called through c2_ldb_add()|c2_ldb_update()|
- *   c2_ldb_delete(), then the buffer should be capable of containing the data
- *   that is to be written specifically to the layouts table. It means its size
- *   will be at the most the size returned by c2_ldb_rec_max_size().
+ *   c2_ldb_delete(), then the buffer size should be large enough to contain
+ *   the data that is to be written specifically to the layouts table.
+ *   It means its size will be at the most the size returned by
+ *   c2_ldb_rec_max_size().
  * - In case c2_layout_encode() is called by some other caller, then the
- *   buffer size should be capable of incorporating all the data belonging to
+ *   buffer size should be large enough to contain all the data belonging to
  *   the specific layout. It means its size may even be more than the one
- *   returned by c2_ldb_rec_max_size().
+ *   returned by c2_ldb_rec_max_size(). For example, in case of LIST
+ *   enumeration type, some data goes into table other than layouts, viz.
+ *   cob_lists table.
  *
  * @post
  * - If op is is either for ADD|UPDATE|DELETE, respective DB operation is
