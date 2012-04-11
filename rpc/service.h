@@ -162,7 +162,7 @@ enum {
  * E.g., "ioservice" is a service type. It might have multiple instances
  * running on different nodes or sharing nodes. Each service is uniquely
  * identified by UUID, which is a part of system configuration. A client
- * maintains a list of known services associated with c2_rpcmachine.
+ * maintains a list of known services associated with c2_rpc_machine.
  * Multiple services (of the same or different types) might run on the same
  * endpoint.
  *
@@ -176,7 +176,7 @@ enum {
  *   before releasing the service instance.
  *
  * - Access to service instance in C2_RPC_SERVICE_STATE_CONN_ATTACHED state
- *   is serialised by service->svc_conn->c_rpcmachine->cr_session_mutex.
+ *   is serialised by service->svc_conn->c_rpc_machine->cr_session_mutex.
  *
  * - Yet, the user needs to ensure that no more than one thread call
  *   c2_rpc_service_conn_detach() on same service instance at the same time.
@@ -201,7 +201,7 @@ struct c2_rpc_service {
 	const struct c2_rpc_service_ops *svc_ops;
 
         /**
-         * Link in c2_rpcmachine::cr_services list.
+         * Link in c2_rpc_machine::cr_services list.
          * tl descr: c2_rpc_services_tl
          */
 	struct c2_tlink                  svc_tlink;

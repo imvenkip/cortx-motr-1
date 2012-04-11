@@ -57,11 +57,11 @@ c2_rpc_slot and c2_rpc_slot_ref are internal to rpc layer and not visible to
 users outside rpc layer.
 
 Session module uses following types of objects defined by rpc-core:
-- rpc machine @see c2_rpcmachine
+- rpc machine @see c2_rpc_machine
 - rpc item @see c2_rpc_item.
 
 <B> Relationships among objects: </B>
-rpcmachine has two lists of rpc connections.
+rpc_machine has two lists of rpc connections.
 - Outgoing connections: Contains c2_rpc_conn objects for which this node is
 sender.
 - Incoming connections: Contains c2_rpc_conn objects for which this node is
@@ -249,7 +249,7 @@ back to sender.
 
 /* Imports */
 struct c2_rpc_item;
-struct c2_rpcmachine;
+struct c2_rpc_machine;
 struct c2_rpc_chan;
 struct c2_net_end_point;
 struct c2_rpc_service;
@@ -353,7 +353,7 @@ enum c2_rpc_conn_flags {
    UUID being larger in size compared to SenderID, it is efficient to use
    sender id to locate rpc connection object.
 
-   c2_rpcmachine maintains two lists of c2_rpc_conn
+   c2_rpc_machine maintains two lists of c2_rpc_conn
    - cr_outgoing_conns: list of c2_rpc_conn objects for which this node is
      sender
    - cr_incoming_conns: list of c2_rpc_conn object for which this node is
@@ -429,7 +429,7 @@ enum c2_rpc_conn_flags {
     - slot->sl_mutex
     - session->s_mutex
     - conn->c_mutex
-    - rpcmachine->cr_session_mutex, rpcmachine->cr_ready_slots_mutex (As of
+    - rpc_machine->cr_session_mutex, rpc_machine->cr_ready_slots_mutex (As of
       now, there is no case where these two mutex are held together. If such
       need arises then ordering of these two mutex should be decided.)
 
@@ -442,7 +442,7 @@ enum c2_rpc_conn_flags {
   C2_ALLOC_PTR(conn);
 
   // INITIALISE CONN
-  rc = c2_rpc_conn_init(conn, tgt_end_point, rpcmachine);
+  rc = c2_rpc_conn_init(conn, tgt_end_point, rpc_machine);
   C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED));
 
   // ESTABLISH RPC CONNECTION
@@ -507,12 +507,12 @@ struct c2_rpc_conn {
 	/** @see c2_rpc_conn_flags for list of flags */
 	uint64_t                  c_flags;
 
-	/** rpcmachine with which this conn is associated */
-	struct c2_rpcmachine     *c_rpcmachine;
+	/** rpc_machine with which this conn is associated */
+	struct c2_rpc_machine    *c_rpc_machine;
 
 	/** list_link to put c2_rpc_conn in either
-	    c2_rpcmachine::cr_incoming_conns or
-	    c2_rpcmachine::cr_outgoing_conns
+	    c2_rpc_machine::cr_incoming_conns or
+	    c2_rpc_machine::cr_outgoing_conns
 	 */
 	struct c2_list_link       c_link;
 
@@ -561,7 +561,7 @@ struct c2_rpc_conn {
  */
 int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 		     struct c2_net_end_point *ep,
-		     struct c2_rpcmachine    *machine,
+		     struct c2_rpc_machine   *machine,
 		     uint64_t max_rpcs_in_flight);
 
 /**
@@ -595,7 +595,7 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
  */
 int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 		       struct c2_net_end_point *ep,
-		       struct c2_rpcmachine    *rpc_machine,
+		       struct c2_rpc_machine   *rpc_machine,
 		       uint64_t			max_rpcs_in_flight,
 		       uint32_t			timeout_sec);
 
@@ -753,7 +753,7 @@ enum c2_rpc_session_state {
     - slot->sl_mutex
     - session->s_mutex
     - conn->c_mutex
-    - rpcmachine->cr_session_mutex, rpcmachine->cr_ready_slots_mutex (As of
+    - rpc_machine->cr_session_mutex, rpc_machine->cr_ready_slots_mutex (As of
       now, there is no case where these two mutex are held together. If such
       need arises then ordering of these two mutex should be decided.)
 
@@ -1132,13 +1132,13 @@ uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot);
   Slots are allocated at the time of session initialisation and freed at the
   time of session finalisation.
   c2_rpc_slot::sl_mutex protects all fields of slot except sl_link.
-  sl_link is protected by c2_rpcmachine::cr_ready_slots_mutex.
+  sl_link is protected by c2_rpc_machine::cr_ready_slots_mutex.
 
   Locking order:
     - slot->sl_mutex
     - session->s_mutex
     - conn->c_mutex
-    - rpcmachine->cr_session_mutex, rpcmachine->cr_ready_slots_mutex (As of
+    - rpc_machine->cr_session_mutex, rpc_machine->cr_ready_slots_mutex (As of
       now, there is no case where these two mutex are held together. If such
       need arises then ordering of these two mutex should be decided.)
  */
@@ -1152,7 +1152,7 @@ struct c2_rpc_slot {
 	/** Cob representing this slot in persistent state */
 	struct c2_cob                *sl_cob;
 
-	/** list anchor to put in c2_rpcmachine::cr_ready_slots */
+	/** list anchor to put in c2_rpc_machine::cr_ready_slots */
 	struct c2_list_link           sl_link;
 
 	/** Current version number of slot */

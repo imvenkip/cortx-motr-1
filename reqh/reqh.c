@@ -72,7 +72,7 @@ const struct c2_tl_descr c2_rh_sl_descr = C2_TL_DESCR("reqh service",
    Tlist descriptor for rpc machines.
  */
 const struct c2_tl_descr c2_rh_rpml_descr = C2_TL_DESCR("rpc machines",
-                                                      struct c2_rpcmachine,
+                                                      struct c2_rpc_machine,
                                                       cr_rh_linkage,
                                                       cr_magic,
                                                       C2_REQH_MAGIC,
@@ -116,7 +116,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 		reqh->rh_shutdown = false;
                 reqh->rh_fom_dom.fd_reqh = reqh;
                 c2_tlist_init(&c2_rh_sl_descr, &reqh->rh_services);
-                c2_tlist_init(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
+                c2_tlist_init(&c2_rh_rpml_descr, &reqh->rh_rpc_machines);
 		c2_mutex_init(&reqh->rh_lock);
 
 	} else
@@ -130,7 +130,7 @@ void c2_reqh_fini(struct c2_reqh *reqh)
         C2_PRE(reqh != NULL);
         c2_fom_domain_fini(&reqh->rh_fom_dom);
         c2_tlist_fini(&c2_rh_sl_descr, &reqh->rh_services);
-        c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
+        c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpc_machines);
 	c2_mutex_fini(&reqh->rh_lock);
 }
 

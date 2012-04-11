@@ -62,9 +62,9 @@ static struct c2_net_tm_callbacks bulkio_ut_tm_cb = {
  * c2_rpc_bulk_{store/load} APIs.
  */
 struct bulkio_msg_tm {
-	struct c2_rpcmachine bmt_mach;
-	struct c2_rpc_conn   bmt_conn;
-	const char          *bmt_addr;
+	struct c2_rpc_machine bmt_mach;
+	struct c2_rpc_conn    bmt_conn;
+	const char           *bmt_addr;
 };
 
 static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
@@ -81,7 +81,7 @@ static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
 
 	tm = &bmt->bmt_mach.cr_tm;
 	C2_SET0(&bmt->bmt_conn);
-	bmt->bmt_conn.c_rpcmachine = &bmt->bmt_mach;
+	bmt->bmt_conn.c_rpc_machine = &bmt->bmt_mach;
 
 	tm->ntm_state = C2_NET_TM_UNDEFINED;
 	tm->ntm_callbacks = &bulkio_ut_tm_cb;
@@ -108,7 +108,7 @@ static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 	C2_UT_ASSERT(bmt != NULL);
 	C2_UT_ASSERT(bmt->bmt_addr != NULL);
 	C2_UT_ASSERT(bmt->bmt_mach.cr_tm.ntm_state == C2_NET_TM_STARTED);
-	C2_UT_ASSERT(bmt->bmt_conn.c_rpcmachine == &bmt->bmt_mach);
+	C2_UT_ASSERT(bmt->bmt_conn.c_rpc_machine == &bmt->bmt_mach);
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&bmt->bmt_mach.cr_tm.ntm_chan, &clink);

@@ -257,8 +257,8 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 #endif
 }
 
-/* Get stats from rpcmachine and print them */
-static void print_stats(struct c2_rpcmachine *rpc_mach)
+/* Get stats from rpc_machine and print them */
+static void print_stats(struct c2_rpc_machine *rpc_mach)
 {
 	printf("stats:\n");
 
@@ -342,7 +342,7 @@ static int client_fini(struct c2_rpc_client_ctx *cctx)
 	if (verbose)
 		print_stats(&cctx->rcx_rpc_machine);
 
-	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	c2_cob_domain_fini(cctx->rcx_cob_dom);
 	c2_dbenv_fini(cctx->rcx_dbenv);
 
@@ -507,7 +507,7 @@ static int run_server(void)
 	quit_dialog();
 
 	if (verbose) {
-		struct c2_rpcmachine *rpcmach;
+		struct c2_rpc_machine *rpcmach;
 
 		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds1");
 		if (rpcmach != NULL) {

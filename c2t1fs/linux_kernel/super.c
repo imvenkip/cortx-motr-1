@@ -682,7 +682,7 @@ static void c2t1fs_service_contexts_discard(struct c2t1fs_sb *csb)
 
 static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 {
-	struct c2_rpcmachine      *rpc_mach;
+	struct c2_rpc_machine     *rpc_mach;
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_end_point   *ep;
 	struct c2_rpc_conn        *conn;
@@ -691,7 +691,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 
 	C2_ENTRY();
 
-	rpc_mach = &c2t1fs_globals.g_rpcmachine;
+	rpc_mach = &c2t1fs_globals.g_rpc_machine;
 	tm       = &rpc_mach->cr_tm;
 
 	/* Create target end-point */

@@ -328,11 +328,11 @@ int c2_cs_start(struct c2_colibri *cs_colibri);
    Returns server side rpc machine in a colibri context for given service
    and network transport.
 
-   @retval Returns c2_rpcmachine if found, else returns NULL
+   @retval Returns c2_rpc_machine if found, else returns NULL
  */
-struct c2_rpcmachine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
-					const struct c2_net_xprt *xprt,
-					const char *sname);
+struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
+					 const struct c2_net_xprt *xprt,
+					 const char *sname);
 
 /**
    Returns server side transfer machine in a colibri context for given service

@@ -39,7 +39,7 @@
    //...
    int ret;
    int i;
-   struct c2_rpcmachine mach;
+   struct c2_rpc_machine mach;
    uint64_t session_id;
    struct c2_update_stream *update_stream;
    struct c2_rpc_item item[] = {DUMMY_INITIALIZER, DUMMY_INITIALIZER, ...};
@@ -58,7 +58,7 @@
    // and executed as a part of c2_init().
 
    // create rpc machine.
-   ret = c2_rpcmachine_init(&mach, cob_domain, net_domain, ep_addr);
+   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr);
    // create/get update stream used for interaction between endpoints
    ret = c2_rpc_update_stream_get(&mach, &srvid,
 	C2_UPDATE_STREAM_SHARED_SLOT, &us_ops, &update_stream);
@@ -176,7 +176,7 @@ struct c2_rpc_conn;
 struct c2_fop_type;
 struct c2_fop_io_vec;
 struct c2_rpc_group;
-struct c2_rpcmachine;
+struct c2_rpc_machine;
 struct c2_update_stream;
 struct c2_update_stream_ops;
 struct c2_rpc_frm_item_coalesced;
@@ -258,13 +258,13 @@ enum c2_update_stream_state {
    @li Signal about events (state transitions, etc.) happened in sessions layer.
  */
 struct c2_update_stream {
-	/* linkage to c2_rpcmachine::c2_rpc_processing::crp_us_list */
+	/* linkage to c2_rpc_machine::c2_rpc_processing::crp_us_list */
 	struct c2_list_link		   us_linkage;
 
 	uint64_t			   us_session_id;
 	uint64_t		           us_slot_id;
 	const struct c2_update_stream_ops *us_ops;
-	struct c2_rpcmachine		  *us_mach;
+	struct c2_rpc_machine		  *us_mach;
 	enum c2_update_stream_state        us_state;
         struct c2_mutex			   us_guard;
 };
@@ -400,7 +400,7 @@ enum c2_rpc_item_path {
 };
 
 /**
-  Statistical data maintained for each item in the rpcmachine.
+  Statistical data maintained for each item in the rpc_machine.
   It is upto the higher level layers to retrieve and process this data
  */
 struct c2_rpc_stats {
@@ -444,7 +444,7 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
 struct c2_rpc_group {
-	struct c2_rpcmachine	*rg_mach;
+	struct c2_rpc_machine	*rg_mach;
 	/** List of rpc items linked through c2_rpc_item:ri_group_linkage. */
 	struct c2_list		 rg_items;
 	/** expected number of items in the group */
@@ -458,7 +458,7 @@ struct c2_rpc_group {
 
 /**
    Struct c2_rpc_chan provides information about a target network endpoint.
-   An rpc machine (struct c2_rpcmachine) contains list of c2_rpc_chan structures
+   An rpc machine (struct c2_rpc_machine) contains list of c2_rpc_chan structures
    targeting different net endpoints.
    Rationale A physical node can have multiple endpoints associated with it.
    And multiple services can share endpoints for transport.
@@ -470,7 +470,7 @@ struct c2_rpc_group {
    it is working with.
  */
 struct c2_rpc_chan {
-	/** Linkage to the list maintained by c2_rpcmachine.*/
+	/** Linkage to the list maintained by c2_rpc_machine.*/
 	struct c2_list_link		  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
@@ -478,15 +478,15 @@ struct c2_rpc_chan {
 	struct c2_rpc_frm_sm		  rc_frmsm;
 	/** Destination end point to which rpcs will be sent. */
 	struct c2_net_end_point		 *rc_destep;
-	/** The rpcmachine, this chan structure is associated with.*/
-	struct c2_rpcmachine		 *rc_rpcmachine;
+	/** The rpc_machine, this chan structure is associated with.*/
+	struct c2_rpc_machine		 *rc_rpc_machine;
 };
 
 /**
    RPC machine is an instance of RPC item (FOP/ADDB) processing context.
    Several such contexts might be existing simultaneously.
  */
-struct c2_rpcmachine {
+struct c2_rpc_machine {
 	/** Mutex protecting list of c2_rpc_chan structures. */
 	struct c2_mutex			  cr_chan_mutex;
 	/** List of c2_rpc_chan structures. */
@@ -508,14 +508,14 @@ struct c2_rpcmachine {
 	struct c2_mutex			  cr_ready_slots_mutex;
 	/** list of ready slots. */
 	struct c2_list			  cr_ready_slots;
-	/** ADDB context for this rpcmachine */
+	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  cr_rpc_machine_addb;
 	/** Statistics for both incoming and outgoing paths */
 	struct c2_rpc_stats		  cr_rpc_stats[C2_RPC_PATH_NR];
 	/** Mutex to protect stats */
 	struct c2_mutex			  cr_stats_mutex;
 	/**
-	    Request handler this rpcmachine belongs to.
+	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
 		request handler (or any other handler for future use)
 		with the rpc machine and a ops vector specifying a
@@ -526,7 +526,7 @@ struct c2_rpcmachine {
 
         /**
 	    Linkage into request handler's list of rpc machines.
-	    c2_reqh::rh_rpcmachines
+	    c2_reqh::rh_rpc_machines
 	 */
         struct c2_tlink                   cr_rh_linkage;
 
@@ -554,23 +554,23 @@ void c2_rpc_core_fini(void);
    module, a formation module, sending/receiving logic and statistics
    components are associated.
 
-   @param machine Input rpcmachine object.
+   @param machine Input rpc_machine object.
    @param dom cob domain that contains cobs representing slots
-   @param net_dom Network domain, this rpcmachine is associated with.
+   @param net_dom Network domain, this rpc_machine is associated with.
    @param ep_addr Source end point address to associate with the transfer mc.
    @pre c2_rpc_core_init().
  */
-int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom,
-			struct c2_net_domain	*net_dom,
-			const char		*ep_addr,
-			struct c2_reqh          *reqh);
+int  c2_rpc_machine_init(struct c2_rpc_machine	*machine,
+			 struct c2_cob_domain	*dom,
+			 struct c2_net_domain	*net_dom,
+			 const char		*ep_addr,
+			 struct c2_reqh         *reqh);
 
 /**
-   Destruct rpcmachine
-   @param machine rpcmachine operation applied to.
+   Destruct rpc_machine
+   @param machine rpc_machine operation applied to.
  */
-void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
+void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 
 /**
   Posts an unbound item to the rpc layer.
@@ -623,26 +623,26 @@ int c2_rpc_reply_post(struct c2_rpc_item *request,
 /**
    Generate group used to treat rpc items as a group.
 
-   @param machine rpcmachine operation applied to.
+   @param machine rpc_machine operation applied to.
    @param group returned from the function
 
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0 success
    @return -ENOMEM failure
  */
-int c2_rpc_group_open(struct c2_rpcmachine *machine,
-		      struct c2_rpc_group **group);
+int c2_rpc_group_open(struct c2_rpc_machine  *machine,
+		      struct c2_rpc_group   **group);
 
 /**
    Tell RPC layer core that group is closed
    and it can be processed by RPC core processing
 
-   @param machine rpcmachine operation applied to.
+   @param machine rpc_machine operation applied to.
    @param group return value from the function
 
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0  success
    @return <0 failure
  */
@@ -660,7 +660,7 @@ int c2_rpc_group_close(struct c2_rpc_group *group);
    @param deadline maximum processing time of this item
 
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0  success
    @return <0 failure
  */
@@ -675,7 +675,7 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
 
    @param The clink on which caller is waiting for item reply.
    @param timeout time to wait for item being sent
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
    invoking this function
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
@@ -688,7 +688,7 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout);
    @param group used treat rpc items as a group.
    @param timeout time to wait for item being sent
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
  */
@@ -696,18 +696,18 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
 
 /**
    Retrurns update stream associated with given service id.
-   @param machine rpcmachine operation applied to.
+   @param machine rpc_machine operation applied to.
    @param session_id session id for which update stream is being retrieved.
    @param flag specifies features of update stream, @see c2_update_stream_flags
    @param ops operations associated with the update stream
    @param out update associated with given session
 
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
    invoking this function
    @return 0  success
    @return <0 failure
  */
-int c2_rpc_update_stream_get(struct c2_rpcmachine *machine,
+int c2_rpc_update_stream_get(struct c2_rpc_machine *machine,
 			     struct c2_service_id *srvid,
 			     enum c2_update_stream_flags flag,
 			     const struct c2_update_stream_ops *ops,
@@ -716,33 +716,33 @@ int c2_rpc_update_stream_get(struct c2_rpcmachine *machine,
 /**
    Releases given update stream.
    @param us update stream to be released
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
 
 */
 void c2_rpc_update_stream_put(struct c2_update_stream *us);
 
 /**
    @name stat_ifs STATISTICS IFs
-   Iterfaces, returning different properties of rpcmachine.
+   Iterfaces, returning different properties of rpc_machine.
    @{
  */
 
 /**
    Returns average time spent in the cache for one RPC-item
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
-   @param machine rpcmachine operation applied to.
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
+   @param machine rpc_machine operation applied to.
    @param path Incoming or outgoing path of rpc item.
  */
-c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
+c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
 			       const enum c2_rpc_item_path path);
 
 /**
    Returns transmission speed in bytes per second.
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
-   @param machine rpcmachine operation applied to.
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
+   @param machine rpc_machine operation applied to.
    @param path Incoming or outgoing path of rpc item.
  */
-size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
+size_t c2_rpc_bytes_per_sec(struct c2_rpc_machine *machine,
 			    const enum c2_rpc_item_path path);
 
 /** @} end name stat_ifs */

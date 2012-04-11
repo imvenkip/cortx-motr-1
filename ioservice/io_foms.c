@@ -1118,7 +1118,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
 
                 /* Get network buffer pool for network domain */
                 fop_ndom
-                = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+                = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm.ntm_dom;
                 c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools,
                              bpdesc) {
                         if (bpdesc->rios_ndom == fop_ndom) {
@@ -1129,7 +1129,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
                 C2_ASSERT(fom_obj->fcrw_bp != NULL);
         }
 
-        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        tm = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);
 
         acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
@@ -1223,7 +1223,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
         C2_ASSERT(fom_obj->fcrw_bp != NULL);
 
         fop    = fom->fo_fop;
-        tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        tm     = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
@@ -1289,7 +1289,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
         c2_rpc_bulk_init(rbulk);
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
-        dom      =  fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        dom = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm.ntm_dom;
         net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
         rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
 
@@ -1734,7 +1734,7 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
 		    "FOM finished : type=rw.");
 
-        tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        tm     = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);
 
         c2_chan_fini(&fom_obj->fcrw_wait);

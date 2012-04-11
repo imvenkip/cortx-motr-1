@@ -759,8 +759,8 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	slot_balance(slot);
 }
 
-static int associate_session_and_slot(struct c2_rpc_item   *item,
-				      struct c2_rpcmachine *machine)
+static int associate_session_and_slot(struct c2_rpc_item    *item,
+				      struct c2_rpc_machine *machine)
 {
 	struct c2_list         *conn_list;
 	struct c2_rpc_conn     *conn;
@@ -818,8 +818,8 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 	return 0;
 }
 
-int c2_rpc_item_received(struct c2_rpc_item   *item,
-			 struct c2_rpcmachine *machine)
+int c2_rpc_item_received(struct c2_rpc_item    *item,
+			 struct c2_rpc_machine *machine)
 {
 	struct c2_rpc_item *req;
 	struct c2_rpc_slot *slot;

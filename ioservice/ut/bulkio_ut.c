@@ -118,7 +118,7 @@ struct c2_net_buffer_pool * ut_get_buffer_pool(struct c2_fom *fom)
 
         /* Get network buffer pool for network domain */
         fop_ndom
-        = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm.ntm_dom;
         c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools,
                      bpdesc) {
                 if (bpdesc->rios_ndom == fop_ndom) {
@@ -315,7 +315,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
 
-        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        tm = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);
 
         /*
@@ -450,7 +450,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
          */
         saved_segments_count =
         rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_desc_index].ci_nr;
-        netdom = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        netdom = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm.ntm_dom;
         rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_desc_index].ci_nr =
         c2_net_domain_get_max_buffer_segments(netdom)+1;
 
@@ -725,7 +725,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
 
-        tm = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+        tm = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm;
         colour = c2_net_tm_colour_get(&tm);
 
         /*
@@ -973,7 +973,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
          */
         saved_segments_count =
         rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_desc_index].ci_nr;
-        netdom = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm.ntm_dom;
+        netdom = fop->f_item.ri_session->s_conn->c_rpc_machine->cr_tm.ntm_dom;
         rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_desc_index].ci_nr =
         c2_net_domain_get_max_buffer_segments(netdom)+1;
 
