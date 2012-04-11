@@ -552,8 +552,8 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 }
 
 /**
- * De-initializes the layout schema.
- * @pre All the layout types and enum types should be deregistered.
+ * Finalizes the layout schema.
+ * @pre All the layout types and enum types should be unregistered.
  */
 void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
@@ -642,7 +642,7 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
 
 /**
  * Unregisters a layout type from the layout types maintained by
- * c2_layout_domain::ld_type[] and deinitializes type layout specific tables,
+ * c2_layout_domain::ld_type[] and finalizes type layout specific tables,
  * if applicable.
  */
 void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
@@ -718,7 +718,7 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
 
 /**
  * Unregisters an enumeration type from the enumeration types
- * maintained by c2_layout_domain::ld_enum[] and deinitializes enum type
+ * maintained by c2_layout_domain::ld_enum[] and finalizes enum type
  * specific tables, if applicable.
  */
 void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,

@@ -529,8 +529,8 @@ int c2_layout_domain_init(struct c2_layout_domain *dom)
 }
 
 /**
- * De-initializes the layout domain.
- * @pre All the layout types and enum types should be deregistered.
+ * Finalizes the layout domain.
+ * @pre All the layout types and enum types should be unregistered.
  */
 void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
@@ -540,11 +540,11 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 
 	C2_ENTRY();
 
-	/* Verify that all the layout types were deregistered. */
+	/* Verify that all the layout types were unregistered. */
 	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i)
 		C2_ASSERT(dom->ld_type[i] == NULL);
 
-	/* Verify that all the enum types were deregistered. */
+	/* Verify that all the enum types were unregistered. */
 	for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i)
 		C2_ASSERT(dom->ld_enum[i] == NULL);
 

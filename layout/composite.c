@@ -93,14 +93,14 @@ static int composite_register(struct c2_ldb_schema *schema,
 /**
  * Implementation of lto_unregister for COMPOSITE layout type.
  *
- * Deintializes table specifically required for COMPOSITE layout type.
+ * Finalizes table specifically required for COMPOSITE layout type.
  */
 static void composite_unregister(struct c2_ldb_schema *schema,
 				 const struct c2_layout_type *lt)
 {
 	/*
 	@code
-	Deinitialize schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
+	Finalize schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
 	table.
 
 	schema->ls_type_data[lt->lt_id] = NULL;

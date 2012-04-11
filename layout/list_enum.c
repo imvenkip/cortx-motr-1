@@ -280,7 +280,7 @@ out:
 /**
  * Implementation of leto_unregister for LIST enumeration type.
  *
- * De-initializes table specifically required for LIST enum type.
+ * Finalizes table specifically required for LIST enum type.
  */
 static void list_unregister(struct c2_ldb_schema *schema,
 			    const struct c2_layout_enum_type *et)
