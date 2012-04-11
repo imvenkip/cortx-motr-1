@@ -33,11 +33,11 @@
 #include "ioservice/io_service.h"
 #include "colibri/colibri_setup.h"
 
-/** Required for accessing rpcmachine list */
-C2_TL_DESCR_DEFINE(rpcmachines, "rpc machines associated with reqh", static,
-                   struct c2_rpcmachine, cr_rh_linkage, cr_magic,
+/** Required for accessing rpc_machine list */
+C2_TL_DESCR_DEFINE(rpc_machines, "rpc machines associated with reqh", static,
+                   struct c2_rpc_machine, rm_rh_linkage, rm_magic,
                    C2_REQH_MAGIC, C2_RPC_MAGIC);
-C2_TL_DEFINE(rpcmachines, static, struct c2_rpcmachine);
+C2_TL_DEFINE(rpc_machines, static, struct c2_rpc_machine);
 
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
@@ -149,7 +149,7 @@ void c2_ioservice_unregister(void)
 
 /**
  * Create & initialize instance of buffer pool per domain.
- * 1. This function scans rpcmachines from request handler
+ * 1. This function scans rpc_machines from request handler
  *    and creates buffer pool instance for each network domain.
  *    It also create color map for transfer machines for
  *    respective domain.
@@ -165,21 +165,21 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
         int                         nbuffs = 0;
         int                         colours;
         int                         rc     = 0;
-        struct c2_rpcmachine       *rpcmach;
+        struct c2_rpc_machine      *rpcmach;
         struct c2_reqh_io_service  *serv_obj;
         struct c2_rios_buffer_pool *bp;
         struct c2_rios_buffer_pool *newbp;
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&rpcmachines_tl,
-		     &service->rs_reqh->rh_rpcmachines, rpcmach) {
+        c2_tlist_for(&rpc_machines_tl,
+		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		/*
-		 * Check buffer pool for network domain of rpcmachine
+		 * Check buffer pool for network domain of rpc_machine
 		 */
 		c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp) {
 
-                        if (bp->rios_ndom == rpcmach->cr_tm.ntm_dom)
+                        if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom)
 				/*
 				 * Found buffer pool for domain.
 				 * No need to create buffer pool
@@ -193,16 +193,16 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		if (newbp == NULL)
 			return -ENOMEM;
 
-		newbp->rios_ndom = rpcmach->cr_tm.ntm_dom;
+		newbp->rios_ndom = rpcmach->rm_tm.ntm_dom;
 		/*
 		 * Initialize channel for sending availability of buffers
 		 * with buffer pool to I/O FOMs.
 		 */
 		c2_chan_init(&newbp->rios_bp_wait);
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-		colours = rpcmach->cr_tm.ntm_dom->nd_pool_colour_counter;
+		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
-					     rpcmach->cr_tm.ntm_dom,
+					     rpcmach->rm_tm.ntm_dom,
 					     network_buffer_pool_threshold,
 					     network_buffer_pool_segment_nr,
 					     network_buffer_pool_segment_size,
@@ -225,7 +225,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		bufferpools_tlink_init(newbp);
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
-        } c2_tlist_endfor; /* rpcmachines */
+        } c2_tlist_endfor; /* rpc_machines */
 
         return rc;
 }

@@ -34,10 +34,9 @@
 #include "lib/ut.h"
 #include "balloc/balloc.h"
 
-extern	struct c2_balloc colibri_balloc;
-
 int main(int argc, char **argv)
 {
+	struct c2_balloc     *colibri_balloc;
 	const char           *db_name;
 	struct c2_dbenv       db;
 	struct c2_dtx         dtx;
@@ -63,21 +62,24 @@ int main(int argc, char **argv)
 	result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 	C2_ASSERT(result == 0);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+	result = c2_balloc_locate(&colibri_balloc);
+	C2_ASSERT(result == 0);
+
+	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	if (result == 0) {
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_free(
-			    &colibri_balloc.cb_ballroom, &dtx, &ext);
+		result = colibri_balloc->cb_ballroom.ab_ops->bo_free(
+			    &colibri_balloc->cb_ballroom, &dtx, &ext);
 		printf("rc = %d: freed [%08llx,%08llx)\n", result,
 			(unsigned long long)ext.e_start,
 			(unsigned long long)ext.e_end);
 	}
 	result = c2_db_tx_commit(&dtx.tx_dbtx);
 	C2_ASSERT(result == 0);
-	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
+	colibri_balloc->cb_ballroom.ab_ops->bo_fini(&colibri_balloc->cb_ballroom);
 
 	c2_dbenv_fini(&db);
 	printf("done\n");

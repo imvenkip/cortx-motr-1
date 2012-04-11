@@ -838,7 +838,7 @@ static inline struct c2_net_transfer_mc *io_fop_tm_get(
 {
 	C2_PRE(fop != NULL);
 
-	return &fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
 }
 
 static inline struct c2_net_domain *io_fop_netdom_get(const struct c2_fop *fop)

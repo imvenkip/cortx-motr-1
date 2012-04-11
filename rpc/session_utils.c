@@ -218,20 +218,20 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 	struct c2_fop                        *fop;
 	struct c2_reqh                       *reqh;
         struct c2_rpc_fop_conn_establish_ctx *ctx;
-	struct c2_rpcmachine                 *rpcmach;
+	struct c2_rpc_machine                *rpcmach;
 
 	 if (c2_rpc_item_is_conn_establish(item)) {
 
 		ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
 					cec_fop.f_item);
 		C2_ASSERT(ctx != NULL);
-		rpcmach = ctx->cec_rpcmachine;
+		rpcmach = ctx->cec_rpc_machine;
 	} else
-		rpcmach = item->ri_session->s_conn->c_rpcmachine;
+		rpcmach = item->ri_session->s_conn->c_rpc_machine;
 
 	C2_ASSERT(rpcmach != NULL);
 
-	reqh = rpcmach->cr_reqh;
+	reqh = rpcmach->rm_reqh;
 	C2_ASSERT(reqh != NULL);
 
 	fop = c2_rpc_item_to_fop(item);

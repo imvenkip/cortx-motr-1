@@ -92,7 +92,7 @@ enum {
 static struct c2_stob_domain   *sdom;
 static struct c2_cob_domain    srv_cob_domain;
 static struct c2_cob_domain_id srv_cob_dom_id;
-static struct c2_rpcmachine    srv_rpc_mach;
+static struct c2_rpc_machine   srv_rpc_mach;
 static struct c2_dbenv         srv_db;
 static struct c2_fol           srv_fol;
 
@@ -232,17 +232,18 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
-	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain, &srv_fol);
+	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain,
+			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-        /* Init the rpcmachine */
-        rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
-				SERVER_ENDPOINT_ADDR, &reqh);
+        /* Init the rpc_machine */
+        rc = c2_rpc_machine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
+				 SERVER_ENDPOINT_ADDR, &reqh);
         C2_UT_ASSERT(rc == 0);
 
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
-        srv_tm = &srv_rpc_mach.cr_tm;
+        srv_tm = &srv_rpc_mach.rm_tm;
 	C2_UT_ASSERT(srv_tm != NULL);
 
 	return rc;
@@ -252,8 +253,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 static void server_fini(struct c2_stob_domain *bdom,
 		struct c2_stob *reqh_addb_stob)
 {
-        /* Fini the rpcmachine */
-        c2_rpcmachine_fini(&srv_rpc_mach);
+        /* Fini the rpc_machine */
+        c2_rpc_machine_fini(&srv_rpc_mach);
 
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);

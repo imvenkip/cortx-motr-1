@@ -328,11 +328,11 @@ int c2_cs_start(struct c2_colibri *cs_colibri);
    Returns server side rpc machine in a colibri context for given service
    and network transport.
 
-   @retval Returns c2_rpcmachine if found, else returns NULL
+   @retval Returns c2_rpc_machine if found, else returns NULL
  */
-struct c2_rpcmachine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
-					const struct c2_net_xprt *xprt,
-					const char *sname);
+struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
+					 const struct c2_net_xprt *xprt,
+					 const char *sname);
 
 /**
    Returns server side transfer machine in a colibri context for given service
@@ -363,8 +363,7 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
    @todo Use generic mechanism to generate stob ids
  */
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
-		       struct c2_cs_reqh_stobs *stob,
-		       struct c2_dbenv *db);
+		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db);
 
 /**
    Finalises storage for a request handler in a colibri context.

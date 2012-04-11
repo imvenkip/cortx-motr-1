@@ -228,7 +228,7 @@ int c2_rpc_session_fop_init(void)
 
 void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 					struct c2_net_end_point *ep,
-					struct c2_rpcmachine    *machine)
+					struct c2_rpc_machine   *machine)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
@@ -240,7 +240,7 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 
 	c2_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
-	ctx->cec_rpcmachine = machine;
+	ctx->cec_rpc_machine = machine;
 }
 
 /** @} End of rpc_session group */
