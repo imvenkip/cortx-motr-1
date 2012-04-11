@@ -248,7 +248,7 @@
  * @subsection Layout-DB-lspec-state State Specification
  *
  * @subsection Layout-DB-lspec-thread Threading and Concurrency Model
- * - DB5 internally provides synchrnization against various table entries.
+ * - DB5 internally provides synchronization against various table entries.
  *   Hence layout schema does not need to do much in that regard.
  * - Various arrays in struct c2_layout_domain (viz. ld_type[], ld_enum[]),
  *   holding registered layout types and enum types, are protected by using
@@ -545,6 +545,9 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		c2_mutex_fini(&schema->ls_lock);
 	}
 
+	/* Store pointer to schema in the domain object. */
+	dom->ld_schema = schema;
+
 	C2_POST(schema_invariant(schema));
 
 	C2_LEAVE("rc %d", rc);
@@ -561,6 +564,8 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 
 	C2_ENTRY();
 
+	schema->ls_domain->ld_schema = NULL;
+
 	c2_table_fini(&schema->ls_layouts);
 	c2_mutex_fini(&schema->ls_lock);
 	schema->ls_dbenv = NULL;
@@ -572,28 +577,31 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 /**
  * Registers all the available layout types and enum types.
  */
-int c2_ldb_register(struct c2_ldb_schema *schema)
+int c2_ldb_register(struct c2_layout_domain *dom)
 {
 	int rc;
 
-	rc = c2_ldb_type_register(schema, &c2_pdclust_layout_type);
+	C2_PRE(dom != NULL);
+	C2_PRE(dom->ld_schema != NULL);
+
+	rc = c2_ldb_type_register(dom, &c2_pdclust_layout_type);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_ldb_enum_register(schema, &c2_list_enum_type);
+	rc = c2_ldb_enum_register(dom, &c2_list_enum_type);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_ldb_enum_register(schema, &c2_linear_enum_type);
+	rc = c2_ldb_enum_register(dom, &c2_linear_enum_type);
 	return rc;
 }
 
-void c2_ldb_unregister(struct c2_ldb_schema *schema)
+void c2_ldb_unregister(struct c2_layout_domain *dom)
 {
-	c2_ldb_enum_unregister(schema, &c2_list_enum_type);
-	c2_ldb_enum_unregister(schema, &c2_linear_enum_type);
+	c2_ldb_enum_unregister(dom, &c2_list_enum_type);
+	c2_ldb_enum_unregister(dom, &c2_linear_enum_type);
 
-	c2_ldb_type_unregister(schema, &c2_pdclust_layout_type);
+	c2_ldb_type_unregister(dom, &c2_pdclust_layout_type);
 }
 
 /**
@@ -601,40 +609,41 @@ void c2_ldb_unregister(struct c2_ldb_schema *schema)
  * c2_layout_domain::ld_type[] and initializes type layout specific tables,
  * if applicable.
  */
-int c2_ldb_type_register(struct c2_ldb_schema *schema,
+int c2_ldb_type_register(struct c2_layout_domain *dom,
 			 const struct c2_layout_type *lt)
 {
 	int rc;
 
-	C2_PRE(schema_invariant(schema));
+	C2_PRE(dom != NULL);
+	C2_PRE(dom->ld_schema != NULL);
 	C2_PRE(lt != NULL);
-	C2_PRE(IS_IN_ARRAY(lt->lt_id, schema->ls_domain->ld_type));
+	C2_PRE(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
 
 	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
 
-	c2_mutex_lock(&schema->ls_domain->ld_lock);
+	c2_mutex_lock(&dom->ld_lock);
 
-	C2_ASSERT(schema->ls_domain->ld_type[lt->lt_id] == NULL);
+	C2_ASSERT(dom->ld_type[lt->lt_id] == NULL);
 	C2_ASSERT(lt->lt_ops != NULL);
 
-	schema->ls_domain->ld_type[lt->lt_id] = (struct c2_layout_type *)lt;
+	dom->ld_type[lt->lt_id] = (struct c2_layout_type *)lt;
 
 	/* Get the first reference on this layout type. */
-	C2_ASSERT(schema->ls_domain->ld_type_ref_count[lt->lt_id] == 0);
-	C2_CNT_INC(schema->ls_domain->ld_type_ref_count[lt->lt_id]);
+	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 0);
+	C2_CNT_INC(dom->ld_type_ref_count[lt->lt_id]);
 
 	/* Allocate type specific schema data. */
-	c2_mutex_lock(&schema->ls_lock);
-	rc = lt->lt_ops->lto_register(schema, lt);
+	c2_mutex_lock(&dom->ld_schema->ls_lock);
+	rc = lt->lt_ops->lto_register(dom->ld_schema, lt);
 	if (rc != 0)
 		layout_log("c2_ldb_type_register", "lto_register() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_func_fail.ae_id,
 			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
 
-	c2_mutex_unlock(&schema->ls_lock);
+	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
-	c2_mutex_unlock(&schema->ls_domain->ld_lock);
+	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Layout-type-id %lu, rc %d", (unsigned long)lt->lt_id, rc);
 	return rc;
@@ -645,27 +654,28 @@ int c2_ldb_type_register(struct c2_ldb_schema *schema,
  * c2_layout_domain::ld_type[] and finalizes type layout specific tables,
  * if applicable.
  */
-void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
+void c2_ldb_type_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt)
 {
-	C2_PRE(schema_invariant(schema));
+	C2_PRE(dom != NULL);
+	C2_PRE(dom->ld_schema != NULL);
 	C2_PRE(lt != NULL);
-	C2_PRE(schema->ls_domain->ld_type[lt->lt_id] == lt);
+	C2_PRE(dom->ld_type[lt->lt_id] == lt);
 
 	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
 
-	c2_mutex_lock(&schema->ls_domain->ld_lock);
+	c2_mutex_lock(&dom->ld_lock);
 
-	c2_mutex_lock(&schema->ls_lock);
-	lt->lt_ops->lto_unregister(schema, lt);
-	c2_mutex_unlock(&schema->ls_lock);
+	c2_mutex_lock(&dom->ld_schema->ls_lock);
+	lt->lt_ops->lto_unregister(dom->ld_schema, lt);
+	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
 	/* Release the last reference on this layout type. */
-	C2_ASSERT(schema->ls_domain->ld_type_ref_count[lt->lt_id] == 1);
-	C2_CNT_DEC(schema->ls_domain->ld_type_ref_count[lt->lt_id]);
+	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 1);
+	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
 
-	schema->ls_domain->ld_type[lt->lt_id] = NULL;
-	c2_mutex_unlock(&schema->ls_domain->ld_lock);
+	dom->ld_type[lt->lt_id] = NULL;
+	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
 }
@@ -675,42 +685,41 @@ void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
  * maintained by c2_layout_domain::ld_enum[] and initializes enum type specific
  * tables, if applicable.
  */
-int c2_ldb_enum_register(struct c2_ldb_schema *schema,
+int c2_ldb_enum_register(struct c2_layout_domain *dom,
 			 const struct c2_layout_enum_type *let)
 {
 	int rc;
 
-	C2_PRE(schema_invariant(schema));
+	C2_PRE(dom != NULL);
+	C2_PRE(dom->ld_schema != NULL);
 	C2_PRE(let != NULL);
-	C2_PRE(IS_IN_ARRAY(let->let_id, schema->ls_domain->ld_enum));
+	C2_PRE(IS_IN_ARRAY(let->let_id, dom->ld_enum));
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)let->let_id);
 
-	c2_mutex_lock(&schema->ls_domain->ld_lock);
+	c2_mutex_lock(&dom->ld_lock);
 
-	C2_ASSERT(schema->ls_domain->ld_enum[let->let_id] == NULL);
+	C2_ASSERT(dom->ld_enum[let->let_id] == NULL);
 	C2_ASSERT(let->let_ops != NULL);
 
-	schema->ls_domain->ld_enum[let->let_id] =
-		(struct c2_layout_enum_type *)let;
+	dom->ld_enum[let->let_id] = (struct c2_layout_enum_type *)let;
 
 	/* Get the first reference on this enum type. */
-	C2_CNT_INC(schema->ls_domain->ld_enum_ref_count[let->let_id]);
-	C2_ASSERT(schema->ls_domain->ld_enum_ref_count[let->let_id] ==
-		  DEFAULT_REF_COUNT);
+	C2_CNT_INC(dom->ld_enum_ref_count[let->let_id]);
+	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
 
 	/* Allocate enum type specific schema data. */
-	c2_mutex_lock(&schema->ls_lock);
-	rc = let->let_ops->leto_register(schema, let);
+	c2_mutex_lock(&dom->ld_schema->ls_lock);
+	rc = let->let_ops->leto_register(dom->ld_schema, let);
 	if (rc != 0)
 		layout_log("c2_ldb_enum_register", "leto_register() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_func_fail.ae_id,
 			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
 
-	c2_mutex_unlock(&schema->ls_lock);
+	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
-	c2_mutex_unlock(&schema->ls_domain->ld_lock);
+	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)let->let_id, rc);
 	return rc;
@@ -721,28 +730,28 @@ int c2_ldb_enum_register(struct c2_ldb_schema *schema,
  * maintained by c2_layout_domain::ld_enum[] and finalizes enum type
  * specific tables, if applicable.
  */
-void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
+void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_enum_type *let)
 {
-	C2_PRE(schema_invariant(schema));
+	C2_PRE(dom != NULL);
+	C2_PRE(dom->ld_schema != NULL);
 	C2_PRE(let != NULL);
-	C2_PRE(schema->ls_domain->ld_enum[let->let_id] == let);
+	C2_PRE(dom->ld_enum[let->let_id] == let);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)let->let_id);
 
-	c2_mutex_lock(&schema->ls_domain->ld_lock);
+	c2_mutex_lock(&dom->ld_lock);
 
-	c2_mutex_lock(&schema->ls_lock);
-	let->let_ops->leto_unregister(schema, let);
-	c2_mutex_unlock(&schema->ls_lock);
+	c2_mutex_lock(&dom->ld_schema->ls_lock);
+	let->let_ops->leto_unregister(dom->ld_schema, let);
+	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
 	/* Release the last reference on this enum type. */
-	C2_ASSERT(schema->ls_domain->ld_enum_ref_count[let->let_id] ==
-		  DEFAULT_REF_COUNT);
-	C2_CNT_DEC(schema->ls_domain->ld_enum_ref_count[let->let_id]);
+	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
+	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
 
-	schema->ls_domain->ld_enum[let->let_id] = NULL;
-	c2_mutex_unlock(&schema->ls_domain->ld_lock);
+	dom->ld_enum[let->let_id] = NULL;
+	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
@@ -823,7 +832,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 	void                    *key_buf = pair->dp_key.db_buf.b_addr;
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
 
-	C2_PRE(schema != NULL);
+	C2_PRE(schema_invariant(schema));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
@@ -905,7 +914,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(schema != NULL);
+	C2_PRE(schema_invariant(schema));
 	C2_PRE(layout_invariant(l));
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
@@ -979,7 +988,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(schema != NULL);
+	C2_PRE(schema_invariant(schema));
 	C2_PRE(layout_invariant(l));
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
@@ -1083,7 +1092,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(schema != NULL);
+	C2_PRE(schema_invariant(schema));
 	C2_PRE(layout_invariant(l));
 	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);

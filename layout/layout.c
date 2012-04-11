@@ -80,6 +80,11 @@ C2_ADDB_EV_DEFINE(ldb_delete_success, "layout_delete_success",
 C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
 
+bool domain_invariant(const struct c2_layout_domain *dom)
+{
+	return dom != NULL && dom->ld_schema != NULL;
+}
+
 bool layout_invariant(const struct c2_layout *l)
 {
 	return l != NULL && l->l_id != LID_NONE && l->l_type != NULL &&
@@ -121,6 +126,8 @@ bool is_layout_type_valid(uint32_t lt_id, const struct c2_layout_domain *dom)
 {
 	C2_PRE(dom != 0);
 
+	C2_PRE(domain_invariant(dom));
+
 	if (!IS_IN_ARRAY(lt_id, dom->ld_type)) {
 		C2_LOG("is_layout_type_valid(): Invalid layout-type-id "
 		       "%lu", (unsigned long)lt_id);
@@ -139,7 +146,7 @@ bool is_layout_type_valid(uint32_t lt_id, const struct c2_layout_domain *dom)
 
 bool is_enum_type_valid(uint32_t let_id, const struct c2_layout_domain *dom)
 {
-	C2_PRE(dom != 0);
+	C2_PRE(domain_invariant(dom));
 
 	if (!IS_IN_ARRAY(let_id, dom->ld_enum)) {
 		C2_LOG("is_enum_type_valid(): Invalid enum-type-id "
@@ -161,7 +168,7 @@ bool is_enum_type_valid(uint32_t let_id, const struct c2_layout_domain *dom)
 static void layout_type_get(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt)
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 
 	/*
@@ -180,7 +187,7 @@ static void layout_type_get(struct c2_layout_domain *dom,
 static void layout_type_put(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt)
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 
 	c2_mutex_lock(&dom->ld_lock);
@@ -194,7 +201,7 @@ static void layout_type_put(struct c2_layout_domain *dom,
 static void enum_type_get(struct c2_layout_domain *dom,
 			  const struct c2_layout_enum_type *let)
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 
 	/*
@@ -213,7 +220,7 @@ static void enum_type_get(struct c2_layout_domain *dom,
 static void enum_type_put(struct c2_layout_domain *dom,
 			  const struct c2_layout_enum_type *let)
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 
 	c2_mutex_lock(&dom->ld_lock);
@@ -230,7 +237,7 @@ int layout_init(struct c2_layout_domain *dom,
 		const struct c2_layout_type *type,
 		const struct c2_layout_ops *ops)
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(l != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_pool_id_is_valid(pool_id));
@@ -261,7 +268,7 @@ int layout_init(struct c2_layout_domain *dom,
 /** Finalizes a layout, releases a reference on the respective layout type. */
 void layout_fini(struct c2_layout_domain *dom, struct c2_layout *l)
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(layout_invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
@@ -283,7 +290,7 @@ int striped_init(struct c2_layout_domain *dom,
 		 const struct c2_layout_ops *ops)
 
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(str_l != NULL);
 	C2_PRE(e != NULL);
 	C2_PRE(c2_pool_id_is_valid(pool_id));
@@ -311,7 +318,7 @@ int striped_init(struct c2_layout_domain *dom,
 void striped_fini(struct c2_layout_domain *dom,
 		  struct c2_layout_striped *str_l)
 {
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(striped_layout_invariant(str_l, str_l->ls_base.l_id));
 
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
@@ -329,6 +336,7 @@ int enum_init(struct c2_layout_domain *dom,
 	      const struct c2_layout_enum_type *et,
 	      const struct c2_layout_enum_ops *ops)
 {
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(le != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(is_enum_type_valid(et->let_id, dom));
@@ -349,6 +357,8 @@ int enum_init(struct c2_layout_domain *dom,
 
 void enum_fini(struct c2_layout_domain *dom, struct c2_layout_enum *le)
 {
+	C2_PRE(domain_invariant(dom));
+
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)le->le_type->let_id);
 
 	enum_type_put(dom, le->le_type);
@@ -524,6 +534,13 @@ int c2_layout_domain_init(struct c2_layout_domain *dom)
 
 	c2_mutex_init(&dom->ld_lock);
 
+	/*
+	 * Can not invoke invariant here since the dom->ld_schema pointer is
+	 * not yet set. It will be set once the c2_ldb_schema object associated
+	 * with this domain object is initialized.
+	 */
+	C2_POST(dom->ld_schema == NULL);
+
 	C2_LEAVE();
 	return 0;
 }
@@ -536,7 +553,18 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
 	uint32_t i;
 
+	/*
+	 * Can not invoke invariant here since the dom->ld_schema pointer is
+	 * expected to be set to NULL during finalization of the c2_ldb_schema
+	 * object associated with this domain.
+	 */
 	C2_PRE(dom != NULL);
+
+	/*
+	 * Verify that the schema object associated with this domain has been
+	 * finalized prior to this routine being invoked.
+	 */
+	C2_PRE(dom->ld_schema == NULL);
 
 	C2_ENTRY();
 
@@ -631,7 +659,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	struct c2_ldb_rec     *rec;
 	int                    rc;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
@@ -738,7 +766,7 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 	c2_bcount_t            nbytes;
 	int                    rc;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);

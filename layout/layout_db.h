@@ -171,17 +171,17 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *db);
 void c2_ldb_schema_fini(struct c2_ldb_schema *schema);
 
-int c2_ldb_register(struct c2_ldb_schema *schema);
-void c2_ldb_unregister(struct c2_ldb_schema *schema);
+int c2_ldb_register(struct c2_layout_domain *dom);
+void c2_ldb_unregister(struct c2_layout_domain *dom);
 
-int c2_ldb_type_register(struct c2_ldb_schema *schema,
+int c2_ldb_type_register(struct c2_layout_domain *dom,
 			 const struct c2_layout_type *lt);
-void c2_ldb_type_unregister(struct c2_ldb_schema *schema,
+void c2_ldb_type_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt);
 
-int c2_ldb_enum_register(struct c2_ldb_schema *schema,
+int c2_ldb_enum_register(struct c2_layout_domain *dom,
 			 const struct c2_layout_enum_type *et);
-void c2_ldb_enum_unregister(struct c2_ldb_schema *schema,
+void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_enum_type *et);
 
 c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom);

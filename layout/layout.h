@@ -68,7 +68,32 @@
  * Layout Id being a resource, a client can cache a range of layout ids that
  * it uses to create new layouts without contacting the server.
  *
- * A layout can be assignd to a file both by server and the client.
+ * A layout can be assigned to a file both by server and the client.
+ *
+ * The sequence of operation related to domain, schema
+ * intialization/finalization, layout type and enum type registration and
+ * unregistration is as follows:
+ * - Initialize c2_layout_domain object.
+ * - Initialize c2_ldb_schema object.
+ * - Register layout types and enum types using c2_ldb_register().
+ * - Perform various required operations including usage of c2_layout_encode(),
+ *   c2_layout_decode(), c2_ldb_lookup(), c2_ldb_add(), c2_ldb_update(),
+ *   c2_ldb_delete(), leo_nr(), leo_get().
+ * - Unregister layout types and enum types using c2_ldb_unregister.
+ * - Finalize c2_ldb_schema object.
+ * - Finalize c2_layout_domain object.
+ *
+ * Regarding client/server separation for usage of various operations:
+ * - c2_layout_encode(), c2_layout_decode() and layout creation routines for
+ *   example c2_pdclust_build() require only the domain pointer and these
+ *   operations can be performed by both the client and the server.
+ * - Various enumeration operations like pointed by leo_get() and leo_nr()
+ *   can be perfomed by both the client and the server.
+ * - Registration/unregistration of layout and enum types can be performed
+ *   only by the server.
+ * - DB operations like c2_ldb_lookup(), c2_ldb_add(), c2_ldb_update(),
+ *   c2_ldb_delete() can be performed only by the server.
+ *
  * @{
  */
 
@@ -121,6 +146,12 @@ struct c2_layout_domain {
 	/** Reference count on enum types. */
 	uint32_t                    ld_enum_ref_count[C2_LAYOUT_ENUM_TYPE_MAX];
 
+	/**
+	 * Pointer to schema object.
+	 * This pointer is set for a c2_layout_domain object, when the
+	 * c2_ldb_schema object associated with that domain object is set.
+	 */
+	struct c2_ldb_schema       *ld_schema;
 	/**
 	 * Lock to protect the instance of c2_layout_domain, including all
 	 * its members.
