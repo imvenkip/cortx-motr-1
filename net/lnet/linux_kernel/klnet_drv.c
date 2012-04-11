@@ -772,9 +772,6 @@ of Colibri LNet Transport</a>,
    @test A nlx_core_domain can be initialized and finalized, testing common
          code paths and the strategy of pinning and unpinning pages.
 
-   @test A nlx_core_domain can be initialized and then the device is closed,
-         and cleanup occurs.
-
    @test A nlx_core_domain is initialized, and several nlx_core_transfer_mc
          objects can be started and then stopped, the domain finalized and the
          device is closed.  No cleanup is necessary.

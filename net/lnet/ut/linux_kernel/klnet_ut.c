@@ -2012,6 +2012,18 @@ static void ktest_dev(void)
 	WAIT_FOR_USER_HELPER(UT_TEST_OPEN);
 	C2_UT_ASSERT(ut_dev_opens == 1);
 
+	/** UT_TEST_RDWR: wait for user program to try read/write */
+	WAIT_FOR_USER_HELPER(UT_TEST_RDWR);
+	C2_UT_ASSERT(ut_dev_opens == 2);
+
+	/** UT_TEST_RDWR: wait for user program to try invalid ioctls */
+	WAIT_FOR_USER_HELPER(UT_TEST_BADIOCTL);
+	C2_UT_ASSERT(ut_dev_opens == 3);
+
+	/** UT_TEST_DOMINIT: wait for user program dominit/fini */
+	WAIT_FOR_USER_HELPER(UT_TEST_DOMINIT);
+	C2_UT_ASSERT(ut_dev_opens == 4);
+
 	/** @todo insert logic for the remaining UT here */
 
 	/* final handshake before proc file is deregistered */

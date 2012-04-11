@@ -22,13 +22,19 @@
 #define __COLIBRI_LNET_UT_H__
 
 enum {
-	UT_TEST_NONE = 0,	  /**< no test requested, user program idles */
-	UT_TEST_DEV  = 1,	  /**< device registered */
-	UT_TEST_OPEN = 2,	  /**< open/close */
-	UT_TEST_TM   = 3,	  /**< TM start/stop */
-	UT_TEST_MAX  = 2,	  /**< final implemented test ID */
+	UT_TEST_NONE       =   0, /**< no test requested, user program idles */
+	UT_TEST_DEV        =   1, /**< device registered */
+	UT_TEST_OPEN       =   2, /**< open/close */
+	UT_TEST_RDWR       =   3, /**< read/write */
+	UT_TEST_BADIOCTL   =   4, /**< invalid ioctl */
+	UT_TEST_DOMINIT    =   5, /**< open/dominit/close */
+	UT_TEST_TMS        =   6, /**< multi-TM start/stop and no cleanup */
+	UT_TEST_DUPTM      =   7, /**< duplicate TM start */
+	UT_TEST_BADCORETM  =   8, /**< corrupt core TM */
+	UT_TEST_TMCLEANUP  =   9, /**< multi-TM start with cleanup */
+	UT_TEST_MAX        =   5, /**< final implemented test ID */
 
-	UT_TEST_DONE = 127,	  /**< done testing, no user response */
+	UT_TEST_DONE       = 127, /**< done testing, no user response */
 
 	UT_USER_READY = 'r',	  /**< user program is ready */
 	UT_USER_SUCCESS = 'y',	  /**< current test succeeded in user space */

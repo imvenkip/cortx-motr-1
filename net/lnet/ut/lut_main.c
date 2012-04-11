@@ -84,36 +84,19 @@ int test_dev_exists()
 	return rc;
 }
 
-int test_dev_open_close()
+int test_open_close()
 {
-	struct c2_lnet_dev_dom_init_params p;
-	struct nlx_core_domain *dom;
 	int f;
 	int rc;
 	int uid = getuid();
 	int gid = getgid();
-
-	C2_SET0(&p);
-	LUT_ALLOC_PTR(dom);
-	C2_ASSERT(dom != NULL);
-	p.ddi_cd = dom;
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
 	if (f < 0) {
 		perror(lnet_xprt_dev);
 		return 1;
 	}
-
-	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
-	if (rc == 0) {
-		printf("max values are: bufsize=%ld segsize=%ld segs=%d\n",
-		       p.ddi_max_buffer_size,
-		       p.ddi_max_buffer_segment_size,
-		       p.ddi_max_buffer_segments);
-	}
-
 	close(f);
-	LUT_FREE_PTR(dom);
 
 	/* non-privileged user fails */
 	rc = setegid(FAIL_UID_GID);
@@ -129,6 +112,101 @@ int test_dev_open_close()
 	C2_ASSERT(uid == 0);
 	gid = setegid(gid);
 	C2_ASSERT(gid == 0);
+	return rc;
+}
+
+int test_read_write()
+{
+	int f;
+	int rc;
+	bool failed = false;
+	char buf[1];
+
+	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
+	if (f < 0) {
+		perror(lnet_xprt_dev);
+		return 1;
+	}
+
+	rc = read(f, buf, sizeof buf);
+	if (rc >= 0 || errno != EINVAL)
+		failed = true;
+	rc = write(f, buf, sizeof buf);
+	if (rc >= 0 || errno != EINVAL)
+		failed = true;
+	close(f);
+	return failed ? 1 : 0;
+}
+
+#define UT_LNET_INVALID \
+	_IOWR(C2_LNET_IOC_MAGIC, (C2_LNET_IOC_MAX_NR + 1), \
+	      struct c2_lnet_dev_dom_init_params)
+
+int test_invalid_ioctls()
+{
+	struct c2_lnet_dev_dom_init_params p;
+	int f;
+	int rc;
+	bool failed = false;
+
+	C2_SET0(&p);
+
+	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
+	if (f < 0) {
+		perror(lnet_xprt_dev);
+		return 1;
+	}
+
+	/* unsupported ioctl, detected and failed */
+	rc = ioctl(f, UT_LNET_INVALID, &p);
+	if (rc >= 0 || errno != ENOTTY)
+		failed = true;
+
+	/* dom_init, but NULL arg, detected and failed */
+	rc = ioctl(f, C2_LNET_DOM_INIT, NULL);
+	if (rc >= 0 || errno != EFAULT)
+		failed = true;
+
+	/* dom_init, but NULL payload, detected and failed */
+	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
+	if (rc >= 0 || errno != EFAULT)
+		failed = true;
+
+	close(f);
+	return failed ? 1 : 0;
+}
+
+int test_dom_init()
+{
+	struct c2_lnet_dev_dom_init_params p;
+	struct nlx_core_domain *dom;
+	int f;
+	int rc;
+
+	C2_SET0(&p);
+	LUT_ALLOC_PTR(dom);
+	C2_ASSERT(dom != NULL);
+	p.ddi_cd = dom;
+
+	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
+	if (f < 0) {
+		perror(lnet_xprt_dev);
+		return 1;
+	}
+
+	rc = ioctl(f, C2_LNET_DOM_INIT, &p);
+	if (rc == 0) {
+		if (p.ddi_max_buffer_size < 2 ||
+		    !c2_is_po2(p.ddi_max_buffer_size) ||
+		    p.ddi_max_buffer_segment_size < 2 ||
+		    !c2_is_po2(p.ddi_max_buffer_segment_size) ||
+		    p.ddi_max_buffer_segments < 2 ||
+		    !c2_is_po2(p.ddi_max_buffer_segments))
+			rc = 1;
+	}
+
+	close(f);
+	LUT_FREE_PTR(dom);
 	return rc;
 }
 
@@ -189,9 +267,18 @@ int main(int argc, char *argv[])
 			rc = test_dev_exists();
 			break;
 		case UT_TEST_OPEN:
-			rc = test_dev_open_close();
+			rc = test_open_close();
 			break;
-		case UT_TEST_TM:
+		case UT_TEST_RDWR:
+			rc = test_read_write();
+			break;
+		case UT_TEST_BADIOCTL:
+			rc = test_invalid_ioctls();
+			break;
+		case UT_TEST_DOMINIT:
+			rc = test_dom_init();
+			break;
+		case UT_TEST_TMS:
 			rc = test_tm();
 			break;
 		case UT_TEST_DONE:
