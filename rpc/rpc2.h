@@ -487,6 +487,7 @@ struct c2_rpc_chan {
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpc_machine {
+	struct c2_mutex                   rm_mutex;
 	/** Mutex protecting list of c2_rpc_chan structures. */
 	struct c2_mutex			  rm_chan_mutex;
 	/** List of c2_rpc_chan structures. */
@@ -571,6 +572,9 @@ int  c2_rpc_machine_init(struct c2_rpc_machine	*machine,
    @param machine rpc_machine operation applied to.
  */
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
+
+void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
+void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
 
 /**
   Posts an unbound item to the rpc layer.

@@ -908,6 +908,24 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 }
 C2_EXPORTED(c2_rpc_machine_fini);
 
+void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
+{
+	C2_ENTRY();
+
+	c2_mutex_lock(&machine->rm_mutex);
+
+	C2_LEAVE();
+}
+
+void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
+{
+	C2_ENTRY();
+
+	c2_mutex_unlock(&machine->rm_mutex);
+
+	C2_LEAVE();
+}
+
 /** simple vector of update stream operations */
 void us_timeout(struct c2_update_stream *us)
 {
