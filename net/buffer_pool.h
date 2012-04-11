@@ -201,7 +201,7 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
 
 /**
    Gets a buffer from the pool.
-   If the colour is specified (i.e non zero) and the corrsponding coloured
+   If the colour is specified (i.e non zero) and the corresponding coloured
    list is not empty then the buffer is taken from the head of this list.
    Otherwise the buffer is taken from the head of the per buffer pool list.
    @pre c2_net_buffer_pool_is_locked(pool)

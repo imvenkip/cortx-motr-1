@@ -120,8 +120,6 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 				 uint32_t buf_nr)
 {
 	int buffers = 0;
-
-	C2_PRE(pool != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 
 	while (buf_nr--) {
