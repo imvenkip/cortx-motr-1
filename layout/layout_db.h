@@ -166,6 +166,9 @@ struct c2_ldb_rec {
 	char                           lr_data[0];
 };
 
+int c2_layout_domain_init(struct c2_layout_domain *dom);
+void c2_layout_domain_fini(struct c2_layout_domain *dom);
+
 int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_layout_domain *domain,
 		       struct c2_dbenv *db);

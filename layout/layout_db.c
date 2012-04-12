@@ -511,6 +511,69 @@ static int rec_get(struct c2_layout *l, void *area,
  */
 
 /**
+ * Initializes layout domain - Initializes arrays to hold the objects for
+ * layout types and enum types.
+ */
+int c2_layout_domain_init(struct c2_layout_domain *dom)
+{
+	C2_PRE(dom != NULL);
+
+	C2_ENTRY();
+
+	C2_SET0(dom);
+
+	c2_mutex_init(&dom->ld_lock);
+
+	/*
+	 * Can not invoke invariant here since the dom->ld_schema pointer is
+	 * not yet set. It will be set once the c2_ldb_schema object associated
+	 * with this domain object is initialized.
+	 */
+	C2_POST(dom->ld_schema == NULL);
+
+	C2_LEAVE();
+	return 0;
+}
+
+/**
+ * Finalizes the layout domain.
+ * @pre All the layout types and enum types should be unregistered.
+ */
+void c2_layout_domain_fini(struct c2_layout_domain *dom)
+{
+	uint32_t i;
+
+	/*
+	 * Can not invoke invariant here since the dom->ld_schema pointer is
+	 * expected to be set to NULL during finalization of the c2_ldb_schema
+	 * object associated with this domain.
+	 */
+	C2_PRE(dom != NULL);
+
+	/*
+	 * Verify that the schema object associated with this domain has been
+	 * finalized prior to this routine being invoked.
+	 */
+	C2_PRE(dom->ld_schema == NULL);
+
+	C2_ENTRY();
+
+	/* Verify that all the layout types were unregistered. */
+	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i)
+		C2_ASSERT(dom->ld_type[i] == NULL);
+
+	/* Verify that all the enum types were unregistered. */
+	for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i)
+		C2_ASSERT(dom->ld_enum[i] == NULL);
+
+	c2_mutex_fini(&dom->ld_lock);
+
+	C2_LEAVE();
+}
+
+
+
+/**
  * Initializes layout schema - creates the layouts table.
  * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
  */
