@@ -160,6 +160,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	struct c2_fop                        *fop;
 	struct c2_fop                        *fop_rep;
 	struct c2_rpc_item                   *item;
+	struct c2_rpc_machine                *machine;
 	struct c2_rpc_session                *session0;
 	struct c2_rpc_conn                   *conn;
 	struct c2_rpc_slot                   *slot;
@@ -214,21 +215,24 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	 * Add the item explicitly to the slot0. This makes the slot
 	 * symmetric to corresponding sender side slot.
 	 */
-	c2_mutex_lock(&conn->c_mutex);
+	machine = conn->c_rpc_machine;
+
+	//c2_mutex_lock(&conn->c_mutex);
+	c2_rpc_machine_lock(machine);
 	session0 = c2_rpc_conn_session0(conn);
-	c2_mutex_unlock(&conn->c_mutex);
+	//c2_mutex_unlock(&conn->c_mutex);
 
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];
 	C2_ASSERT(slot != NULL);
 
-	c2_mutex_lock(&slot->sl_mutex);
-	c2_mutex_lock(&session0->s_mutex);
+	//c2_mutex_lock(&slot->sl_mutex);
+	//c2_mutex_lock(&session0->s_mutex);
 
 	c2_rpc_slot_item_add_internal(slot, item);
 
-	c2_mutex_unlock(&session0->s_mutex);
-	c2_mutex_unlock(&slot->sl_mutex);
+	//c2_mutex_unlock(&session0->s_mutex);
+	//c2_mutex_unlock(&slot->sl_mutex);
 
 	/*
 	 * IMPORTANT
@@ -248,6 +252,10 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+
+	c2_rpc_machine_unlock(machine);
+
 	reply->rcer_sender_id = conn->c_sender_id;
 	reply->rcer_rc = 0;      /* successful */
 	fom->fo_phase = FOPH_FINISH;
@@ -523,9 +531,25 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
+
 	rc = c2_rpc_rcv_conn_terminate(conn);
 
-	if (conn->c_state != C2_RPC_CONN_FAILED) {
+	if (conn->c_state == C2_RPC_CONN_FAILED) {
+
+		/*
+		 * conn has been moved to FAILED state. fini() and free() it.
+		 * Cannot send reply back to sender. Sender will time-out and
+		 * set sender side conn to FAILED state.
+		 * XXX generate ADDB record here.
+		 */
+		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
+		c2_rpc_conn_fini(conn);
+		c2_free(conn);
+		fom->fo_phase = FOPH_FINISH;
+		return FSO_WAIT;
+
+	} else {
+
 		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
 			  conn->c_state == C2_RPC_CONN_TERMINATING);
 		/*
@@ -538,18 +562,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		return FSO_WAIT;
-	} else {
-		/*
-		 * conn has been moved to FAILED state. fini() and free() it.
-		 * Cannot send reply back to sender. Sender will time-out and
-		 * set sender side conn to FAILED state.
-		 * XXX generate ADDB record here.
-		 */
-		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
-		c2_rpc_conn_fini(conn);
-		c2_free(conn);
-		fom->fo_phase = FOPH_FINISH;
-		return FSO_WAIT;
+
 	}
 }
 
