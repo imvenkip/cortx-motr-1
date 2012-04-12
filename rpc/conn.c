@@ -367,6 +367,19 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 }
 C2_EXPORTED(c2_rpc_conn_timedwait);
 
+void c2_rpc_conn_add_session(struct c2_rpc_conn    *conn,
+			     struct c2_rpc_session *session)
+{
+	c2_list_add(&conn->c_sessions, &session->s_link);
+	conn->c_nr_sessions++;
+}
+
+void c2_rpc_conn_remove_session(struct c2_rpc_session *session)
+{
+	c2_list_del(&session->s_link);
+	session->s_conn->c_nr_sessions--;
+}
+
 struct c2_rpc_session *
 c2_rpc_session_search(const struct c2_rpc_conn *conn,
 		      uint64_t                  session_id)

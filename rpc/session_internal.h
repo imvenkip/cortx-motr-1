@@ -517,6 +517,10 @@ bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot);
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session);
 
+void c2_rpc_conn_add_session(struct c2_rpc_conn    *conn,
+                             struct c2_rpc_session *session);
+void c2_rpc_conn_remove_session(struct c2_rpc_session *session);
+
 /** @}  End of rpc_session group */
 #endif
 
