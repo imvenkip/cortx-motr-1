@@ -109,7 +109,7 @@ struct c2_fom_locality {
 	/**
 	 *  Re-scheduling channel that idle threads of locality wait on for new
 	 *  work.
-	 * 
+	 *
 	 *  @see http://www.tom-yam.or.jp/2238/src/slp.c.html#line2142 for
 	 *  the explanation of the name.
 	 */
