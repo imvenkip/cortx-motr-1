@@ -27,8 +27,8 @@
 #include "lib/memory.h"
 #include "net/net.h"
 #include "net/bulk_mem.h"
-#include "net/bulk_sunrpc.h"
-#include "net/bulk_emulation/st/ping.h"
+#include "net/lnet/lnet.h"
+#include "net/lnet/st/ping.h"
 
 #define DEF_RESPONSE "active pong"
 #define DEF_SEND "passive ping"
@@ -796,8 +796,10 @@ int ping_init(struct ping_ctx *ctx)
 {
 	int                i;
 	int                rc;
-	char               addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
+	char               addr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_clink    tmwait;
+
+	ctx->pc_ident = NULL;
 
 	c2_list_init(&ctx->pc_work_queue);
 
@@ -805,21 +807,6 @@ int ping_init(struct ping_ctx *ctx)
 	if (rc != 0) {
 		PING_ERR("domain init failed: %d\n", rc);
 		goto fail;
-	}
-
-	if (ctx->pc_sunrpc_ep_delay >= 0 &&
-	    ctx->pc_dom.nd_xprt == &c2_net_bulk_sunrpc_xprt) {
-		ctx->pc_ops->pf("%s: setting EP release delay to %ds\n",
-				ctx->pc_ident, ctx->pc_sunrpc_ep_delay);
-		c2_net_bulk_sunrpc_dom_set_end_point_release_delay
-			(&ctx->pc_dom, ctx->pc_sunrpc_ep_delay);
-	}
-
-	if (ctx->pc_sunrpc_skulker_period > 0) {
-		ctx->pc_ops->pf("%s: setting skulker period to %ds\n",
-				ctx->pc_ident, ctx->pc_sunrpc_skulker_period);
-		c2_net_bulk_sunrpc_dom_set_skulker_period
-			(&ctx->pc_dom, ctx->pc_sunrpc_skulker_period);
 	}
 
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
@@ -843,11 +830,12 @@ int ping_init(struct ping_ctx *ctx)
 		ctx->pc_nbs[i].nb_callbacks = ctx->pc_buf_callbacks;
 	}
 
-	if (ctx->pc_id != 0)
-		sprintf(addr, "%s:%u:%u", ctx->pc_hostname, ctx->pc_port,
-			ctx->pc_id);
+	if (ctx->pc_tmid >= 0)
+		snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:%u", ctx->pc_network,
+			 ctx->pc_pid, ctx->pc_portal, ctx->pc_tmid);
 	else
-		sprintf(addr, "%s:%u", ctx->pc_hostname, ctx->pc_port);
+		snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:*", ctx->pc_network,
+			 ctx->pc_pid, ctx->pc_portal);
 
 	rc = c2_net_tm_init(&ctx->pc_tm, &ctx->pc_dom);
 	if (rc != 0) {
@@ -885,6 +873,7 @@ void ping_fini(struct ping_ctx *ctx)
 	struct c2_list_link *link;
 	struct ping_work_item *wi;
 
+	C2_ASSERT(ctx->pc_ident == NULL);
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
 		if (ctx->pc_tm.ntm_state != C2_NET_TM_FAILED) {
 			struct c2_clink tmwait;
@@ -933,14 +922,10 @@ void ping_server(struct ping_ctx *ctx)
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
 	ctx->pc_buf_callbacks = &sbuf_cb;
-	if (ctx->pc_hostname == NULL)
-		ctx->pc_hostname = "127.0.0.1";
-	if (ctx->pc_port == 0)
-		ctx->pc_port = PING_PORT1;
-	ctx->pc_ident = "Server";
 	C2_ASSERT(ctx->pc_nr_bufs >= 20);
 	rc = ping_init(ctx);
 	C2_ASSERT(rc == 0);
+	ctx->pc_ident = "Server";
 
 	c2_mutex_lock(&ctx->pc_mutex);
 	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
@@ -1003,6 +988,7 @@ void ping_server(struct ping_ctx *ctx)
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 
+	ctx->pc_ident = NULL;
 	ping_fini(ctx);
 	server_stop = false;
 }
@@ -1034,6 +1020,8 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 	struct ping_work_item *wi;
 	int recv_done = 0;
 	int retries = SEND_RETRIES;
+
+	C2_ASSERT(ctx->pc_ident != NULL);
 
 	if (data == NULL)
 		data = "ping";
@@ -1116,6 +1104,8 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 	struct ping_work_item *wi;
 	int recv_done = 0;
 	int retries = SEND_RETRIES;
+
+	C2_ASSERT(ctx->pc_ident != NULL);
 
 	ctx->pc_ops->pf("%s: starting passive recv sequence\n", ctx->pc_ident);
 	/* queue our passive receive buffer */
@@ -1203,6 +1193,8 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 	int send_done = 0;
 	int retries = SEND_RETRIES;
 
+	C2_ASSERT(ctx->pc_ident != NULL);
+
 	if (data == NULL)
 		data = "passive ping";
 	ctx->pc_ops->pf("%s: starting passive send sequence\n", ctx->pc_ident);
@@ -1284,37 +1276,44 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 {
 	int rc;
-	char addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
+	char addr[C2_NET_LNET_XEP_ADDR_LEN];
+	const char *fmt = "Client %s";
+	char *ident;
 
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
 	ctx->pc_buf_callbacks = &cbuf_cb;
-	if (ctx->pc_hostname == NULL)
-		ctx->pc_hostname = "127.0.0.1";
-	if (ctx->pc_rhostname == NULL)
-		ctx->pc_rhostname = "127.0.0.1";
-	if (ctx->pc_port == 0)
-		ctx->pc_port = PING_PORT2;
-	if (ctx->pc_rport == 0)
-		ctx->pc_rport = PING_PORT1;
-	if (ctx->pc_ident == NULL)
-		ctx->pc_ident = "Client";
+	ctx->pc_ident = NULL;
 	rc = ping_init(ctx);
 	if (rc != 0)
 		return rc;
 
-	/* need end point for the server */
-	if (ctx->pc_rid != 0)
-		sprintf(addr, "%s:%u:%u", ctx->pc_rhostname, ctx->pc_rport,
-			ctx->pc_rid);
-	else
-		sprintf(addr, "%s:%u", ctx->pc_rhostname, ctx->pc_rport);
+	/* create end point address for the server */
+	snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:%u", ctx->pc_rnetwork,
+		 ctx->pc_rpid, ctx->pc_rportal, ctx->pc_rtmid);
+
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_tm, addr);
+	if (rc != 0)
+		ping_fini(ctx);
+
+	/* client's can have dynamically assigned TMIDs so use the EP addr */
+	C2_ALLOC_ARR(ident, strlen(ctx->pc_tm.ntm_ep->nep_addr) + strlen(fmt)
+		     + 1);
+	if (ident == NULL) {
+		rc = -ENOMEM;
+		ping_client_fini(ctx, *server_ep);
+	}
+	sprintf(ident, fmt, ctx->pc_tm.ntm_ep->nep_addr);
+	ctx->pc_ident = ident;
 	return rc;
 }
 
 int ping_client_fini(struct ping_ctx *ctx, struct c2_net_end_point *server_ep)
 {
 	int rc = c2_net_end_point_put(server_ep);
+	if (ctx->pc_ident != NULL) {
+		c2_free((void *)ctx->pc_ident);
+		ctx->pc_ident = NULL;
+	}
 	ping_fini(ctx);
 	return rc;
 }

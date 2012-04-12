@@ -18,8 +18,8 @@
  *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
  * Original creation date: 04/12/2011
  */
-#ifndef __COLIBRI_NET_BULK_MEM_PING_H__
-#define __COLIBRI_NET_BULK_MEM_PING_H__
+#ifndef __COLIBRI_NET_LNET_PING_H__
+#define __COLIBRI_NET_LNET_PING_H__
 
 struct ping_ctx;
 struct ping_ops {
@@ -35,13 +35,15 @@ struct ping_ctx {
 	const struct ping_ops		     *pc_ops;
 	struct c2_net_xprt		     *pc_xprt;
 	struct c2_net_domain		      pc_dom;
-	const char		             *pc_hostname; /* dotted decimal */
-	short				      pc_port;
-	uint32_t			      pc_id;
+	const char		             *pc_network; /* "addr@interface" */
+	uint32_t                              pc_pid;
+	uint32_t			      pc_portal;
+	int32_t			              pc_tmid; /* initialized to < 0 */
+	const char			     *pc_rnetwork;
+	uint32_t                              pc_rpid;
+	uint32_t			      pc_rportal;
+	int32_t			              pc_rtmid;
 	int32_t				      pc_status;
-	const char			     *pc_rhostname; /* dotted decimal */
-	short				      pc_rport;
-	uint32_t			      pc_rid;
 	uint32_t		              pc_nr_bufs;
 	uint32_t		              pc_segments;
 	uint32_t		              pc_seg_size;
@@ -55,17 +57,15 @@ struct ping_ctx {
 	struct c2_list			      pc_work_queue;
 	const char		             *pc_ident;
 	const char		             *pc_compare_buf;
-	int                                   pc_sunrpc_ep_delay;
 	int                                   pc_passive_bulk_timeout;
 	int                                   pc_server_bulk_delay;
-	int                                   pc_sunrpc_skulker_period;
 };
 
 enum {
-	//PING_PORT1 = 12345,
-	PING_PORT1 = C2_NET_SUNRPC_PORT,
-	PING_PORT2 = 27183,
-	PART3_SERVER_ID = 141421,
+	PING_CLIENT_PORTAL = 39,
+	PING_CLIENT_TMID = -1, /* dynamic */
+	PING_SERVER_PORTAL = 39,
+	PING_SERVER_TMID = 12,
 };
 
 /* Debug printf macro */
@@ -90,7 +90,7 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 			     struct c2_net_end_point *server_ep,
 			     const char *data);
 
-#endif /* __COLIBRI_NET_BULK_MEM_PING_H__ */
+#endif /* __COLIBRI_NET_LNET_PING_H__ */
 
 /*
  *  Local variables:

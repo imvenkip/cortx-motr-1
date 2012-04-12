@@ -1,9 +1,9 @@
 INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
-noinst_PROGRAMS      = bulkping
+noinst_PROGRAMS      = lnetping
 
-bulkping_SOURCES     = main.c ping.c ping.h
-bulkping_LDADD       = $(top_builddir)/colibri/libcolibri.la \
+lnetping_SOURCES     = main.c ping.c ping.h
+lnetping_LDADD       = $(top_builddir)/colibri/libcolibri.la \
                        $(top_builddir)/ut/libcolibri-ut.la
 
 EXTRA_DIST           = linux_kernel/main.c \

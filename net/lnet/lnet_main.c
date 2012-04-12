@@ -839,6 +839,10 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
 #include "net/lnet/linux_kernel/klnet_drv.c"
+/* LUSTRE_SRV_LNET_PID is not available in user space, so assert that the
+ * C2 equivalent is valid.
+ */
+C2_BASSERT(C2_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
 #else
 #include "net/lnet/ulnet_core.h"
 #include "net/lnet/ulnet_core.c"

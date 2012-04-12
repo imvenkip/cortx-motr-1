@@ -26,13 +26,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <sys/socket.h>
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-#include <arpa/inet.h>
-#include <netdb.h>
-
 #include "colibri/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -41,10 +34,8 @@
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
 #include "net/net.h"
-#include "net/bulk_mem.h"
-#include "net/bulk_sunrpc.h"
-#include "ut/net.h" /* canon_host */
-#include "ping.h"
+#include "net/lnet/lnet.h"
+#include "net/lnet/st/ping.h"
 
 enum {
 	DEF_BUFS = 20,
@@ -58,9 +49,6 @@ enum {
 	PING_SERVER_SEGMENTS = 4,
 	PING_SERVER_SEGMENT_SIZE = 16384,
 
-	MEM_CLIENT_BASE_PORT = PING_PORT2,
-	SUNRPC_CLIENT_BASE_PORT = PING_PORT1,
-
 	ONE_MILLION = 1000000ULL,
 	SEC_PER_HR = 60 * 60,
 	SEC_PER_MIN = 60,
@@ -68,23 +56,11 @@ enum {
 
 struct ping_xprt {
 	struct c2_net_xprt *px_xprt;
-	bool                px_dual_only;
-	bool                px_3part_addr;
-	short               px_client_port;
 };
 
-struct ping_xprt xprts[2] = {
+struct ping_xprt xprts[1] = {
 	{
-		.px_xprt = &c2_net_bulk_mem_xprt,
-		.px_dual_only = true,
-		.px_3part_addr = false,
-		.px_client_port = MEM_CLIENT_BASE_PORT,
-	},
-	{
-		.px_xprt = &c2_net_bulk_sunrpc_xprt,
-		.px_dual_only = false,
-		.px_3part_addr = true,
-		.px_client_port = SUNRPC_CLIENT_BASE_PORT,
+		.px_xprt = &c2_net_lnet_xprt,
 	}
 };
 
@@ -137,8 +113,10 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	const char *lfmt =
 "%5s %6lu %6lu %6lu %6lu %13s %14lu %13lu\n";
 	const char *hfmt =
-"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes   Max Buffer Sz\n"
-"----- ------ ------ ------ ------ ------------- --------------- -------------\n";
+"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
+" Max Buffer Sz\n"
+"----- ------ ------ ------ ------ ------------- ---------------"
+" -------------\n";
 
 	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
 		return;
@@ -184,16 +162,19 @@ struct ping_ops quiet_ops = {
 struct client_params {
 	struct ping_xprt *xprt;
 	bool verbose;
-	int base_port;
 	int loops;
 	int nr_bufs;
 	int client_id;
 	int passive_size;
-	const char *local_host;
-	const char *remote_host;
-	int sunrpc_ep_delay;
 	int passive_bulk_timeout;
-	int sunrpc_skulker_period;
+	const char *client_network;
+	uint32_t    client_pid;
+	uint32_t    client_portal;
+	int32_t	    client_tmid;
+	const char *server_network;
+	uint32_t    server_pid;
+	uint32_t    server_portal;
+	int32_t	    server_tmid;
 };
 
 void client(struct client_params *params)
@@ -201,37 +182,29 @@ void client(struct client_params *params)
 	int			 i;
 	int			 rc;
 	struct c2_net_end_point *server_ep;
-	char                     ident[24];
 	char			*bp = NULL;
 	struct ping_ctx		 cctx = {
 		.pc_xprt = params->xprt->px_xprt,
-		.pc_hostname = params->local_host,
-		.pc_rhostname = params->remote_host,
-		.pc_rport = PING_PORT1,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
 		.pc_passive_size = params->passive_size,
-		.pc_ident = ident,
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		},
-		.pc_sunrpc_ep_delay = params->sunrpc_ep_delay,
 		.pc_passive_bulk_timeout = params->passive_bulk_timeout,
-		.pc_sunrpc_skulker_period = params->sunrpc_skulker_period,
+
+		.pc_network = params->client_network,
+		.pc_pid     = params->client_pid,
+		.pc_portal  = params->client_portal,
+		.pc_tmid    = params->client_tmid,
+
+		.pc_rnetwork = params->server_network,
+		.pc_rpid     = params->server_pid,
+		.pc_rportal  = params->server_portal,
+		.pc_rtmid    = params->server_tmid,
 	};
 
-	if (params->xprt->px_3part_addr) {
-		cctx.pc_port = params->base_port;
-		cctx.pc_id   = params->client_id;
-		sprintf(ident, "Client %d:%d", cctx.pc_port, cctx.pc_id);
-		cctx.pc_rid  = PART3_SERVER_ID;
-	} else {
-		cctx.pc_port = params->base_port + params->client_id;
-		cctx.pc_id   = 0;
-		cctx.pc_rid  = 0;
-		sprintf(ident, "Client %d", cctx.pc_port);
-	}
 	if (params->verbose)
 		cctx.pc_ops = &verbose_ops;
 	else
@@ -250,7 +223,7 @@ void client(struct client_params *params)
 	}
 
 	for (i = 1; i <= params->loops; ++i) {
-		cctx.pc_ops->pf("%s: Loop %d\n", ident, i);
+		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
 		rc = ping_client_msg_send_recv(&cctx, server_ep, bp);
 		C2_ASSERT(rc == 0);
 		rc = ping_client_passive_recv(&cctx, server_ep);
@@ -275,24 +248,21 @@ int main(int argc, char *argv[])
 	bool			 client_only = false;
 	bool			 server_only = false;
 	bool			 verbose = false;
-	const char              *local_name = "localhost";
-	const char              *remote_name = "localhost";
-	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
+	const char		*xprt_name = c2_net_lnet_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
-	int			 base_port = 0;
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 	int			 passive_size = 0;
-	int                      sunrpc_ep_delay = -1;
 	int                      passive_bulk_timeout = 0;
 	int                      active_bulk_delay = 0;
-	int                      sunrpc_skulker_period = 0;
-
+	const char              *client_network = NULL;
+        int32_t                  client_portal = -1;
+	int32_t                  client_tmid = -1;
+	const char              *server_network = NULL;
+        int32_t                  server_portal = -1;
+	int32_t                  server_tmid = -1;
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
-	/* hostname buffers big enough for 255.255.255.255 */
-	char                     local_hostbuf[16];
-	char                     remote_hostbuf[16];
 
 	rc = c2_init();
 	C2_ASSERT(rc == 0);
@@ -300,31 +270,28 @@ int main(int argc, char *argv[])
 	rc = C2_GETOPTS("bulkping", argc, argv,
 			C2_FLAGARG('s', "run server only", &server_only),
 			C2_FLAGARG('c', "run client only", &client_only),
-			C2_STRINGARG('h', "hostname to listen on",
-				     LAMBDA(void, (const char *str) {
-						     local_name = str; })),
-			C2_STRINGARG('r', "name of remote server host",
-				     LAMBDA(void, (const char *str) {
-						     remote_name = str; })),
-			C2_FORMATARG('p', "base client port", "%i", &base_port),
 			C2_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
 			C2_FORMATARG('d', "passive data size", "%i",
 				     &passive_size),
 			C2_FORMATARG('n', "number of client threads", "%i",
 				     &nr_clients),
-			C2_STRINGARG('t', "transport-name or \"list\" to "
-				     "list supported transports.",
-				     LAMBDA(void, (const char *str) {
-						     xprt_name = str; })),
-			C2_FORMATARG('E', "sunrpc endpoint release delay",
-				     "%i", &sunrpc_ep_delay),
-			C2_FORMATARG('P', "sunrpc passive bulk timeout",
-				     "%i", &passive_bulk_timeout),
 			C2_FORMATARG('D', "server active bulk delay",
 				     "%i", &active_bulk_delay),
-			C2_FORMATARG('S', "sunrpc skulker period",
-				     "%i", &sunrpc_skulker_period),
+			C2_STRINGARG('i', "client network interface (ip@intf)",
+				     LAMBDA(void, (const char *str) {
+						     client_network = str; })),
+			C2_FORMATARG('p', "client portal (optional)",
+				     "%i", &client_portal),
+			C2_FORMATARG('t', "client TMID (optional)",
+				     "%i", &client_tmid),
+			C2_STRINGARG('I', "server network interface (ip@intf)",
+				     LAMBDA(void, (const char *str) {
+						     server_network = str; })),
+			C2_FORMATARG('P', "server portal (optional)",
+				     "%i", &server_portal),
+			C2_FORMATARG('T', "server TMID (optional)",
+				     "%i", &server_tmid),
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -338,12 +305,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Unknown transport-name.\n");
 		list_xprt_names(stderr, &xprts[0]);
 		return rc;
-	}
-	if (xprt->px_dual_only && (client_only || server_only)) {
-		fprintf(stderr,
-			"Transport %s does not support client or server only\n",
-			xprt_name);
-		return 1;
 	}
 	if (nr_clients > MAX_CLIENT_THREADS) {
 		fprintf(stderr, "Max of %d client threads supported\n",
@@ -363,16 +324,28 @@ int main(int argc, char *argv[])
 	}
 	if (client_only && server_only)
 		client_only = server_only = false;
-	if (base_port == 0) {
-		/* be nice and pick the non-server port by default */
-		base_port = xprt->px_client_port;
-		if (client_only && base_port == PING_PORT1)
-			base_port = PING_PORT2;
+	if (server_network == NULL) {
+		fprintf(stderr, "Server LNet interface address missing ("
+			"e.g. 10.1.2.3@tcp0, 1.2.3.4@o2ib1)\n");
+		return 1;
 	}
-	if (canon_host(local_name, local_hostbuf, sizeof(local_hostbuf)) != 0)
+	if (!server_only && client_network == NULL) {
+		fprintf(stderr, "Client LNet interface address missing ("
+			"e.g. 10.1.2.3@tcp0, 1.2.3.4@o2ib1)\n");
 		return 1;
-	if (canon_host(remote_name, remote_hostbuf, sizeof(remote_hostbuf)) != 0)
-		return 1;
+	}
+	if (server_portal < 0)
+		server_portal = PING_SERVER_PORTAL;
+	if (client_portal < 0)
+		client_portal = PING_CLIENT_PORTAL;
+	if (server_tmid < 0)
+		server_tmid = PING_SERVER_TMID;
+	if (client_tmid < 0)
+		client_tmid = PING_CLIENT_TMID;
+	if (!server_only && nr_clients > 1 && client_tmid >= 0) {
+		fprintf(stderr, "Client TMID ignored; using dynamic TMIDs\n");
+		client_tmid = -1;
+	}
 
 	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
 	c2_mutex_init(&qstats_mutex);
@@ -385,20 +358,16 @@ int main(int argc, char *argv[])
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
-		sctx.pc_hostname = local_hostbuf;
 		sctx.pc_xprt = xprt->px_xprt;
-		sctx.pc_port = PING_PORT1;
-		if (xprt->px_3part_addr)
-			sctx.pc_id = PART3_SERVER_ID;
-		else
-			sctx.pc_id = 0;
 		sctx.pc_nr_bufs = nr_bufs;
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
-		sctx.pc_sunrpc_ep_delay = sunrpc_ep_delay;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
-		sctx.pc_sunrpc_skulker_period = sunrpc_skulker_period;
+		sctx.pc_network = server_network;
+		sctx.pc_pid = C2_NET_LNET_PID;
+		sctx.pc_portal = server_portal;
+		sctx.pc_tmid = server_tmid;
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 				    &ping_server, &sctx, "ping_server");
@@ -426,18 +395,23 @@ int main(int argc, char *argv[])
 
 		/* start all the client threads */
 		for (i = 0; i < nr_clients; ++i) {
-			params[i].xprt = xprt;
-			params[i].verbose = verbose;
-			params[i].base_port = base_port;
-			params[i].loops = loops;
-			params[i].nr_bufs = nr_bufs;
+#define CPARAM_SET(f) params[i].f = f
+			CPARAM_SET(xprt);
+			CPARAM_SET(verbose);
+			CPARAM_SET(loops);
+			CPARAM_SET(nr_bufs);
+			CPARAM_SET(passive_size);
+			CPARAM_SET(passive_bulk_timeout);
+			CPARAM_SET(client_network);
+			CPARAM_SET(client_portal);
+			CPARAM_SET(client_tmid);
+			CPARAM_SET(server_network);
+			CPARAM_SET(server_portal);
+			CPARAM_SET(server_tmid);
+#undef CPARAM_SET
 			params[i].client_id = i + 1;
-			params[i].passive_size = passive_size;
-			params[i].local_host = local_hostbuf;
-			params[i].remote_host = remote_hostbuf;
-			params[i].sunrpc_ep_delay = sunrpc_ep_delay;
-			params[i].passive_bulk_timeout = passive_bulk_timeout;
-			params[i].sunrpc_skulker_period = sunrpc_skulker_period;
+			params[i].client_pid = C2_NET_LNET_PID;
+			params[i].server_pid = C2_NET_LNET_PID;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,
@@ -450,12 +424,8 @@ int main(int argc, char *argv[])
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
 			if (verbose) {
-				if (xprt->px_3part_addr)
-					printf("Client %d:%d: joined\n",
-					       base_port, params[i].client_id);
-				else
-					printf("Client %d: joined\n",
-					       base_port + params[i].client_id);
+				printf("Client %d: joined\n",
+				       params[i].client_id);
 			}
 		}
 		c2_free(client_thread);

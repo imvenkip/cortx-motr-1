@@ -10,11 +10,11 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "net/net.h"
-#include "net/bulk_sunrpc.h"
-#include "net/bulk_emulation/st/ping.h"
+#include "net/lnet/lnet.h"
+#include "net/lnet/st/ping.h"
 
 /**
-   @addtogroup net_st Networking System Test
+   @addtogroup LNetDFS LNet Transport System Test
 
   @{
  */
@@ -46,17 +46,9 @@ MODULE_PARM_DESC(nr_bufs, "total number of network buffers to allocate");
 uint passive_size = 0;
 module_param(passive_size, uint, S_IRUGO);
 MODULE_PARM_DESC(passive_size, "size to offer for passive recv message");
-int sunrpc_ep_delay = -1;
-module_param(sunrpc_ep_delay, int, S_IRUGO);
-MODULE_PARM_DESC(sunrpc_ep_delay,
-	"Control how long unused end points are cached before release");
 int active_bulk_delay = 0;
 module_param(active_bulk_delay, int, S_IRUGO);
 MODULE_PARM_DESC(active_bulk_delay, "Delay before sending active receive");
-uint sunrpc_skulker_period = 0;
-module_param(sunrpc_skulker_period, uint, S_IRUGO);
-MODULE_PARM_DESC(sunrpc_skulker_period,
-		 "Control the period of the skulker thread clock");
 
 int quiet_printk(const char *fmt, ...)
 {
@@ -103,9 +95,11 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	const char *lfmt =
 "%5s %6llu %6llu %6llu %6llu %13s %14llu %13llu\n";
 	const char *hfmt1 =
-"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes   Max Buffer Sz\n";
+"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
+" Max Buffer Sz\n";
 	const char *hfmt2 =
-"----- ------ ------ ------ ------ ------------- --------------- -------------\n";
+"----- ------ ------ ------ ------ ------------- ---------------"
+" -------------\n";
 
 	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
 		return;
@@ -177,7 +171,7 @@ static int __init c2_netst_init_k(void)
 	/* set up sys fs entries? */
 
 	/* init main context */
-	rc = c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
+	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 	C2_ASSERT(rc == 0);
 	c2_mutex_init(&qstats_mutex);
 
@@ -189,7 +183,7 @@ static int __init c2_netst_init_k(void)
 	else
 	    sctx.pc_ops = &quiet_ops;
 	sctx.pc_hostname = hostaddr;
-	sctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
+	sctx.pc_xprt = &c2_net_lnet_xprt;
 	sctx.pc_port = PING_PORT1;
 	sctx.pc_id = PART3_SERVER_ID;
 
@@ -197,9 +191,7 @@ static int __init c2_netst_init_k(void)
 	sctx.pc_segments = PING_SERVER_SEGMENTS;
 	sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 	sctx.pc_passive_size = passive_size;
-	sctx.pc_sunrpc_ep_delay = sunrpc_ep_delay;
 	sctx.pc_server_bulk_delay = active_bulk_delay;
-	sctx.pc_sunrpc_skulker_period = sunrpc_skulker_period;
 
 	/* spawn server */
 	C2_SET0(&server_thread);
