@@ -155,7 +155,7 @@ struct c2_net_buffer * pool_colour_buffer_add(struct c2_net_transfer_mc *tm)
 	ut_buf_del_called = false;
 	prov_free = pool_prov->nbp_free;
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm->ntm_pool_colour]) == 0);
+		&pool_prov->nbp_colours[tm->ntm_pool_colour]) == 0);
 	nb = tm_tlist_head(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait);
@@ -171,7 +171,7 @@ struct c2_net_buffer * pool_colour_buffer_add(struct c2_net_transfer_mc *tm)
 	C2_UT_ASSERT(tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]) ==
 		     tm->ntm_recv_queue_min_length);
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm->ntm_pool_colour]) == 1);
+		&pool_prov->nbp_colours[tm->ntm_pool_colour]) == 1);
 	c2_clink_fini(&tmwait);
 	return nb;
 }
@@ -182,7 +182,7 @@ void provision_buffer_validate_colour(struct c2_net_buffer *nb,
 	c2_net_tm_pool_length_set(tm, tm->ntm_recv_queue_min_length + 1);
 	C2_UT_ASSERT(nb == tm_tlist_tail(&tm->ntm_q[C2_NET_QT_MSG_RECV]));
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm->ntm_pool_colour]) == 0);
+		&pool_prov->nbp_colours[tm->ntm_pool_colour]) == 0);
 }
 
 /* TM stop and fini */
@@ -227,6 +227,7 @@ static void test_net_tm_prov(void)
 	static uint32_t		   tm_colours = 0;
 	struct c2_net_buffer	  *nb_tm1;
 	struct c2_net_buffer	  *nb_tm2;
+	uint32_t		   shift = 0;
 
 	ut_xprt_ops.xo_tm_stop = ut_tm_prov_stop;
 
@@ -257,7 +258,7 @@ static void test_net_tm_prov(void)
 
 	/* allocate buffers for testing */
 	c2_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD, buf_segs,
-				buf_seg_size, POOL_COLOURS);
+				buf_seg_size, POOL_COLOURS, shift);
 	c2_net_buffer_pool_lock(pool_prov);
 	rc = c2_net_buffer_pool_provision(pool_prov, POOL_BUF_NR);
 	c2_net_buffer_pool_unlock(pool_prov);
@@ -430,19 +431,19 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(rc == 2);
 
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm1->ntm_pool_colour]) == 0);
+		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 0);
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm2->ntm_pool_colour]) == 0);
+		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 0);
 	/*
 	 * Adds a colured buffer into the pool and checks for it's presence in
 	 * corresponding coloured list of the pool.
 	 */
 	nb_tm1 = pool_colour_buffer_add(tm1);
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm1->ntm_pool_colour]) == 1);
+		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 	nb_tm2 = pool_colour_buffer_add(tm2);
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm2->ntm_pool_colour]) == 1);
+		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 1);
 
 	/* Add some uncoloured buffers. */
 	c2_net_buffer_pool_lock(pool_prov);
@@ -458,16 +459,16 @@ static void test_net_tm_prov(void)
 	provision_buffer_validate_colour(nb_tm2, tm2);
 
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm1->ntm_pool_colour]) == 0);
+		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 0);
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm2->ntm_pool_colour]) == 0);
+		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 0);
 
 	nb_tm1 = pool_colour_buffer_add(tm1);
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm1->ntm_pool_colour]) == 1);
+		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 	nb_tm2 = pool_colour_buffer_add(tm2);
 	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colour[tm1->ntm_pool_colour]) == 1);
+		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 
 	provision_buffer_validate_colour(nb_tm2, tm2);
 	provision_buffer_validate_colour(nb_tm1, tm1);

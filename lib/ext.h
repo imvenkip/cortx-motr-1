@@ -59,7 +59,7 @@ c2_bindex_t c2_ext_cap(const struct c2_ext *ext2, c2_bindex_t val);
 /* __COLIBRI_LIB_EXT_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

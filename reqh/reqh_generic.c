@@ -207,7 +207,7 @@ static int fom_auth_wait(struct c2_fom *fom)
 static int create_loc_ctx(struct c2_fom *fom)
 {
 	int		rc;
-	struct c2_reqh *reqh; 
+	struct c2_reqh *reqh;
 
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);

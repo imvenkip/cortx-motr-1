@@ -252,6 +252,7 @@ struct c2_rpc_item;
 struct c2_rpcmachine;
 struct c2_rpc_chan;
 struct c2_net_end_point;
+struct c2_rpc_service;
 
 /* Exports */
 struct c2_rpc_session;
@@ -524,6 +525,8 @@ struct c2_rpc_conn {
 	 */
 	struct c2_list            c_sessions;
 
+	struct c2_rpc_service    *c_service;
+
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
 	int32_t                   c_rc;
 
@@ -603,7 +606,8 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
    c2_rpc_conn_terminate_reply_received() is called when reply to
    CONN_TERMINATE is received.
 
-   @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
+   @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0 &&
+	 conn->c_service == NULL) ||
 		conn->c_state == C2_RPC_CONN_TERMINATING
    @post ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED)
  */

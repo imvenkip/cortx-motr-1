@@ -4,8 +4,8 @@ KERNEL_BUILDDIR = @LINUX_OBJ@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
-testdirs        = ../net/bulk_emulation/st/linux_kernel/                \
-                  ../rpc/it/linux_kernel/                               \
+testdirs        = ../net/bulk_emulation/st/linux_kernel/        \
+                  ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
 EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
@@ -21,13 +21,44 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
 #       The $(dirs) list is maintained alphabetically
 
-dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db \
-        db/linux_kernel dtm fid fol fop ioservice layout lib      \
-        lib/linux_kernel lib/ut net net/bulk_emulation            \
-        net/bulk_emulation/ut net/ksunrpc net/ut pool rpc         \
-        sm sns stob stob/ut ut xcode xcode/ut
+dirs  = addb                                                                  \
+        addb/linux_kernel                                                     \
+        c2t1fs/linux_kernel                                                   \
+        cob                                                                   \
+        colibri                                                               \
+        db                                                                    \
+        db/linux_kernel                                                       \
+        dtm                                                                   \
+        fid                                                                   \
+        fol                                                                   \
+        fop                                                                   \
+        ioservice                                                             \
+        ioservice/ut                                                          \
+        layout                                                                \
+        lib                                                                   \
+        lib/linux_kernel                                                      \
+        lib/ut                                                                \
+        net                                                                   \
+        net/bulk_emulation                                                    \
+        net/bulk_emulation/ut                                                 \
+        net/ksunrpc                                                           \
+        net/ut                                                                \
+        pool                                                                  \
+        rpc                                                                   \
+        rpc/ut                                                                \
+        sm                                                                    \
+        sns                                                                   \
+        stob                                                                  \
+        ut                                                                    \
+        xcode                                                                 \
+        xcode/ut
 
 #       Source Listing
+
+#       NOTE: Currently due to the way `.ff' files are processed, a `*_k.c' file
+#       searches for its corresponding `*_k.h' in the same directory; So only
+#       headers that need to be included in following listing are those of
+#       type `*_k.h'; rest of the headers will be assumed relative to `core/'
 
 addb_SOURCES                    := addb.c addb_fop.c addb_k.c
 addb_HEADERS                    := addb_k.h
@@ -35,12 +66,9 @@ addb_HEADERS                    := addb_k.h
 addb_linux_kernel_SOURCES       := addb_console.c
 
 #       If there's a directory 'd' in $(dirs) then the listing of files given
-#       for d_SOURCES is relative to $(CORE_SRCDIR)/d; e.g. in the following,
-#       ../../ioservice/ points to $(CORE_SRCDIR)/c2t1fs/../../ioservice/
+#       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
 
-c2t1fs_linux_kernel_SOURCES     := main.c
-c2t1fs_linux_kernel_HEADERS     := c2t1fs.h ../../ioservice/io_fops_k.h \
-                                   ../../stob/ut/io_k.h
+c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
 
 cob_SOURCES                     := cob.c
 
@@ -49,31 +77,26 @@ colibri_SOURCES                 := init.c
 db_SOURCES                      := db_common.c
 
 db_linux_kernel_SOURCES         := db.c
-db_linux_kernel_HEADERS         := db_impl.h
 
-dtm_SOURCES                     := verno.c
+dtm_SOURCES                     := verno.c dtm.c
 
 fid_SOURCES                     := fid.c
-fid_HEADERS                     := fid.h
 
 fol_SOURCES                     := fol.c
-fol_HEADERS                     := fol.h
 
-fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c \
+fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c    \
                                    fop_base.c fop_item_type.c
 
 ioservice_SOURCES               := io_fops.c io_fops_k.c
-ioservice_HEADERS               := io_fops.h io_fops_k.h
+ioservice_HEADERS               := io_fops_k.h
+
+ioservice_ut_SOURCES            := bulkio_client.c
 
 layout_SOURCES                  := layout.c pdclust.c
-layout_HEADERS                  := layout.h pdclust.h
 
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
                                    time.c bitmap.c chan.c misc.c buf.c cond.c \
                                    thread.c tlist.c bob.c trace.c
-
-lib_HEADERS                     := misc.h memory.h errno.h arith.h buf.h \
-                                   trace.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
                                    kthread.c semaphore.c processor.c kvec.c   \
@@ -81,52 +104,45 @@ lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
                                    mutex.c queue.c refs.c tlist.c time.c      \
-                                   vec.c zerovec.c thread.c bob.c trace.c
+                                   vec.c zerovec.c thread.c bob.c trace.c     \
+                                   memory.c
 
-net_SOURCES 			:= buf.c buffer_pool.c domain.c ep.c net.c    \
-				   tm.c connection.c net_cli.c net_utils.c    \
-				    net_srv.c tm_provision.c net_otw_types_k.c
-net_HEADERS 			:= net.h net_internal.h net_otw_types_k.h
+net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
+                                   tm.c connection.c net_cli.c net_utils.c    \
+                                   net_srv.c net_otw_types_k.c tm_provision.c
+net_HEADERS                     := net_otw_types_k.h
 
 net_bulk_emulation_SOURCES      := ksunrpc_server.c sunrpc_io_k.c
-net_bulk_emulation_HEADERS      := sunrpc_xprt.h mem_xprt.h sunrpc_io_k.h     \
-                                   ../ksunrpc/ksunrpc.h ../net_otw_types_k.h
+net_bulk_emulation_HEADERS      := sunrpc_io_k.h
 
 net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
 net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
-net_ksunrpc_HEADERS             := ksunrpc.h
 
-net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c 
+net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
 
-rpc_SOURCES                     := formation.c rpc2.c rpc_base.c session.c    \
-                                   session_foms.c conn.c slot.c               \
+rpc_SOURCES                     := formation.c rpc2.c rpc_base.c service.c    \
+                                   session.c session_foms.c conn.c slot.c     \
                                    session_utils.c session_fops.c             \
                                    rpc_onwire.c session_k.c rpclib.c
 rpc_HEADERS                     := session_k.h
+
+rpc_ut_SOURCES                  := service.c
 
 sm_SOURCES                      := sm.c
 
 sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
                                    parity_ops.c
-sns_HEADERS                     := parity_math.h
 
-stob_SOURCES                    := stob.c
-stob_HEADERS                    := stob.h
-
-stob_ut_SOURCES                 := io_fop_init.c io_k.c
-stob_ut_HEADERS                 := io_fop.h io_k.h
+stob_SOURCES                    := stob.c stob_id.c
 
 ut_SOURCES                      := rpc.c
-ut_HEADERS                      := rpc.h
 
 xcode_SOURCES                   := bufvec_xcode.c bufvec_xcode_fop.c          \
                                    bufvec_xcode_size.c xcode.c
-
-xcode_HEADERS                   := xcode.h
 
 xcode_ut_SOURCES                := xcode.c
 
@@ -146,8 +162,8 @@ xcode_ut_SOURCES                := xcode.c
 #               extracts all but the directory-part of each file name in names
 #       e.g. $(notdir src/foo.c hacks) Produces the result 'foo.c hacks'
 
-kcolibri_objects = $(foreach d, $(dirs), $(foreach f,                     \
-                        $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,  \
+kcolibri_objects = $(foreach d, $(dirs), $(foreach f,                         \
+                        $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,      \
                                 $(subst .c,.o, $(notdir $(f))))))
 
 obj-m += kcolibri.o
@@ -159,10 +175,8 @@ kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
 
 obj-y += $(testdirs)
 
-create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f)) \
+create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f))     \
                 2> /dev/null)
-
-GALOIS_SRC = @GALOIS_SRC@
 
 all:
 	@echo $(kcolibri-y)
@@ -176,23 +190,22 @@ all:
 #       done
 
 	$(foreach d, $(dirs), $(shell  [ -d $(d) ] || mkdir -p $(d)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),  \
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),      \
 		$(create_links)))
-	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),  \
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
 		$(create_links)))
 #       DO NOT append 'modules' target to the following $(MAKE)
-	$(MAKE) -C $(KERNEL_BUILDDIR) KBUILD_EXTRA_SYMBOLS=@GALOIS_SYMVERS@ \
+	$(MAKE) -C $(KERNEL_BUILDDIR) KBUILD_EXTRA_SYMBOLS=@GALOIS_SYMVERS@   \
 		M=`pwd`
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @LINUX_OBJ@ M=`pwd` \
-		modules_install
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C $(KERNEL_BUILDDIR) M=`pwd` modules_install
 
 uninstall:
-	su -c "rm -fr @LINUX_MOD@/kernel/fs/colibri && \
-		rm -fr @LINUX_MOD@/kernel/fs/utils && \
-		rm -fr @LINUX_MOD@/kernel/fs/rpc && \
-		rm -fr @LINUX_MOD@/kernel/fs/net && /sbin/depmod -a"
+	su -c "$(RM) -r @LINUX_MOD@/kernel/fs/colibri && \
+	       $(RM) -r @LINUX_MOD@/kernel/fs/utils && \
+	       $(RM) -r @LINUX_MOD@/kernel/fs/rpc && \
+	       $(RM) -r @LINUX_MOD@/kernel/fs/net && /sbin/depmod -a"
 
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in \

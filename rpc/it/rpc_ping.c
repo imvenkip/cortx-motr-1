@@ -31,6 +31,7 @@
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
 #include "lib/processor.h"
+#include "lib/trace.h"
 #include "net/net.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpc2.h"

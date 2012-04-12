@@ -482,6 +482,14 @@ static void ut_buffer_event_callback(const struct c2_net_buffer_event *ev,
 			len = ev->nbe_buffer->nb_length;
 		}
 	}
+	if (qt == C2_NET_QT_MSG_RECV || qt == C2_NET_QT_MSG_SEND) {
+		C2_UT_ASSERT(ev->nbe_buffer->nb_desc.nbd_len == 0);
+	} else if (ev->nbe_status == 0 &&
+		   !(ev->nbe_buffer->nb_flags & C2_NET_BUF_QUEUED)) {
+		C2_UT_ASSERT(ev->nbe_buffer->nb_desc.nbd_len > 0);
+		c2_net_desc_free(&ev->nbe_buffer->nb_desc);
+	}
+
 	total_bytes[qt] += len;
 	max_bytes[qt] = max64u(ev->nbe_buffer->nb_length,max_bytes[qt]);
 }
@@ -889,6 +897,7 @@ static void test_net_bulk_if(void)
 	c2_clink_add(&tm->ntm_chan, &tmwait);
 	c2_net_buffer_del(nb, tm);
 	C2_UT_ASSERT(ut_buf_del_called);
+	c2_net_desc_free(&nb->nb_desc);
 	num_dels[nb->nb_qtype]++;
 
 	/* wait on channel for post (and consume UT thread) */

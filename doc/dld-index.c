@@ -18,6 +18,10 @@ Detailed designs, ordered alphabetically:
            <!-- sns/repair.h -->
 - @subpage NetRQProvDLD "Auto-Provisioning of Receive Message Queue Buffers DLD"
 	   <!-- net/tm_provision.c -->
+- @subpage io_bulk_client "IO bulk transfer Detailed Level Design"
+           <!-- ioservice/io_fops.c -->
+- @subpage DLD-bulk-server "DLD of Bulk Server"
+           <!-- ioservice/io_foms.c -->
 
 Detailed designs should use the <i>@subpage DLD "Colibri DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

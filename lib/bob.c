@@ -59,7 +59,9 @@ void c2_bob_fini(const struct c2_bob_type *bt, void *bob)
 
 bool c2_bob_check(const struct c2_bob_type *bt, const void *bob)
 {
-	return *MAGIX(bt, bob) == bt->bt_magix &&
+	return
+		bob != NULL &&
+		*MAGIX(bt, bob) == bt->bt_magix &&
 		ergo(bt->bt_check != NULL, bt->bt_check(bob));
 }
 

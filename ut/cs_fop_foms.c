@@ -58,16 +58,12 @@ const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
 static const struct c2_fop_type_ops cs_ds1_req_fop_type_ops = {
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
-        .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
 
 static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
-        .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
 
@@ -75,16 +71,12 @@ static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
 static const struct c2_fop_type_ops cs_ds2_req_fop_type_ops = {
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
-        .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
 
 static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
         .fto_fop_replied = NULL,
         .fto_size_get = c2_xcode_fop_size_get,
-        .fto_op_equal = NULL,
-        .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };
 
@@ -262,7 +254,7 @@ static int cs_ds_req_fop_fom_create(struct c2_fop *fop,
         if (fom == NULL)
                 return -ENOMEM;
 
-	c2_fom_create(fom, &fop->f_type->ft_fom_type, ops, fop, NULL);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, NULL);
 
         *out = fom;
         return 0;

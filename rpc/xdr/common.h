@@ -20,11 +20,11 @@
 #ifndef __COLIBRI_XDR_COMMON_H__
 #define __COLIBRI_XDR_COMMON_H__
 
-/** 
- the xdr functions 
+/**
+ the xdr functions
 
  each function is converted one type from network to local representations.
- function must return true iif conversion successuly 
+ function must return true iif conversion successuly
 */
 
 

@@ -41,7 +41,7 @@ struct tb_cfg {
 	uint32_t  tc_fail_count;
 
 	uint32_t  tc_block_size;
-	
+
 	uint8_t **tc_data;
 	uint8_t **tc_parity;
 	uint8_t  *tc_fail;
@@ -68,17 +68,17 @@ void tb_cfg_init(struct tb_cfg *cfg,
 	cfg->tc_parity_count	= parity_count;
 	cfg->tc_fail_count	= data_count + parity_count;
 	cfg->tc_block_size      = block_size;
-	
+
 
 	/* allocate and prepare data */
 	cfg->tc_data = c2_alloc(data_count * sizeof(uint8_t*));
-	C2_ASSERT(cfg->tc_data != NULL);	
+	C2_ASSERT(cfg->tc_data != NULL);
 
 	for (i = 0; i < data_count; ++i) {
 		cfg->tc_data[i] = c2_alloc(block_size * sizeof(uint8_t));
 		C2_ASSERT(cfg->tc_data[i] != NULL);
 
-		for (j = 0; j < block_size; ++j) 
+		for (j = 0; j < block_size; ++j)
 			cfg->tc_data[i][j] = (uint8_t)rand();
 	}
 
@@ -148,9 +148,9 @@ void tb_thread(struct tb_cfg *cfg)
 
 	c2_buf_init(&fail_buf, cfg->tc_fail, fail_count);
 	c2_parity_math_calculate(&math, data_buf, parity_buf);
-	
+
 	c2_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
-	
+
 	c2_parity_math_fini(&math);
 	c2_free(data_buf);
 	c2_free(parity_buf);
@@ -268,7 +268,7 @@ struct c2_ub_set c2_parity_math_mt_ub = {
                 { .ut_name  = "l 30/08/ 1M",
                   .ut_iter  = UB_ITER,
                   .ut_round = ub_large_1048576 },
-		
+
 		{ .ut_name = NULL}
 	}
 };

@@ -63,12 +63,13 @@ uint64_t c2_rnd(uint64_t max, uint64_t *prev)
         uint64_t result;
         /* Uses the same algorithm as GNU libc */
         result = *prev = *prev * 0x5DEECE66DULL + 0xB;
-	
+
 	/* PRNG generates 48-bit values only */
 	C2_ASSERT((max >> 48) == 0);
         /*Take value from higher 48 bits */
         return (result >> 16) * max / ((~0UL) >> 16);
 }
+C2_EXPORTED(c2_rnd);
 
 uint64_t c2_gcd64(uint64_t p, uint64_t q)
 {

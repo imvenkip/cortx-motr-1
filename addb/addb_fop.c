@@ -32,13 +32,13 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb_k.h"
+# include "addb/addb_k.h"
 # define c2_addb_handler NULL
 #else
 
 int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
-# include "addb_u.h"
+# include "addb/addb_u.h"
 #endif
 
 #include "fop/fop_format_def.h"
@@ -89,6 +89,14 @@ struct c2_addb_flag_body {
 */
 struct c2_addb_inval_body {
 	uint64_t invalid;
+};
+
+/**
+    ADDB record body for trace message.
+
+*/
+struct c2_addb_trace_body {
+	char     msg[0];
 };
 
 #ifndef __KERNEL__
@@ -190,6 +198,10 @@ int c2_addb_empty_getsize(struct c2_addb_dp *dp)
 	return 0;
 }
 
+int c2_addb_trace_getsize(struct c2_addb_dp *dp)
+{
+	return c2_align(strlen(dp->ad_name) + 1, 8);
+}
 
 /** packing func fail addb record */
 int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
@@ -207,7 +219,9 @@ int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 
 		C2_ASSERT(body != NULL);
 		body->rc = (uint32_t)dp->ad_rc;
-		strcpy(body->msg, dp->ad_name);
+
+		strncpy(body->msg, dp->ad_name,
+			rec->ar_data.cmb_count - sizeof(body->rc));
 	}
 	return rc;
 }
@@ -278,6 +292,25 @@ int c2_addb_empty_pack(struct c2_addb_dp *dp,
 	C2_ASSERT(rec->ar_data.cmb_count = 0);
 
 	return c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+}
+
+int c2_addb_trace_pack(struct c2_addb_dp *dp,
+		       struct c2_addb_record *rec)
+{
+	struct c2_addb_record_header	*header = &rec->ar_header;
+	struct c2_addb_trace_body	*body;
+	int				 rc;
+
+	C2_ASSERT(c2_addb_trace_getsize(dp) == rec->ar_data.cmb_count);
+
+	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+		body = (struct c2_addb_trace_body *)rec->ar_data.cmb_value;
+
+		C2_ASSERT(body != NULL);
+		strncpy(body->msg, dp->ad_name, rec->ar_data.cmb_count);
+	}
+	return rc;
 }
 
 extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;

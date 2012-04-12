@@ -57,7 +57,7 @@ void c2_ub_run(uint32_t rounds);
 /* __COLIBRI_LIB_UB_H_ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

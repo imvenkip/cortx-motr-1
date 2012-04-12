@@ -121,6 +121,7 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 	uint32_t    segs_nr;
 	c2_bcount_t seg_size;
 	c2_bcount_t buf_size;
+	uint32_t    shift = 0;
 
 	C2_PRE(ndom != NULL);
 	C2_ALLOC_PTR(ndom->nd_app_pool);
@@ -133,7 +134,8 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 	seg_size = 1 << 12;
 	C2_ASSERT((segs_nr * seg_size) <=
 		   c2_net_domain_get_max_buffer_size(ndom));
-	c2_net_buffer_pool_init(ndom->nd_app_pool, ndom, 2, segs_nr, seg_size, 64);
+	c2_net_buffer_pool_init(ndom->nd_app_pool, ndom, 2, segs_nr, seg_size, 64,
+				shift);
 	/* @todo assummed or based on number of TM's
 		c2_list_length(&ndom->nd_tms));
 	 */
@@ -230,10 +232,11 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	 */
 	C2_PRE(ri_ops != NULL);
 
-	item             = &fop->f_item;
-	item->ri_ops     = ri_ops;
-	item->ri_session = session;
-	item->ri_prio    = C2_RPC_ITEM_PRIO_MAX;
+	item              = &fop->f_item;
+	item->ri_ops      = ri_ops;
+	item->ri_session  = session;
+	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_deadline = 0;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);

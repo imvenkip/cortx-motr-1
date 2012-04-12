@@ -69,6 +69,7 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	dom->nd_xprt_private = NULL;
 	dom->nd_xprt = xprt;
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, &c2_net_addb);
+        dom->nd_pool_colour_counter = 0;
 
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {

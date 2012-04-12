@@ -8,7 +8,7 @@ SUBDIRS_BASE = m4 doc man patches
 SUBDIRS_LIBS = \
                lib \
                addb/addb_pseudo \
-               c2t1fs \
+	       addb/ut \
                fol \
                db \
                fid \
@@ -18,6 +18,7 @@ SUBDIRS_LIBS = \
                fop \
                addb \
                balloc \
+               c2t1fs/linux_kernel \
                capa \
                cfg \
                cob \

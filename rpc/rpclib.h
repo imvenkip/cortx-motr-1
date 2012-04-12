@@ -37,6 +37,7 @@
 
 
 #ifndef __KERNEL__
+struct c2_reqh;
 struct c2_reqh_service_type;
 
 /**

@@ -459,7 +459,9 @@ static void usunrpc_scheduler(struct c2_service *service)
 		   accepted connections are also destroyed.  svc_destroy() on
 		   primary transport does not do this, unfortunately.  The
 		   shutdown() on the remaining sockets causes the transports to
-		   be cleaned up when svc_getreqset() is called. */
+		   be cleaned up when svc_getreqset() is called.  svc_exit()
+		   cleans up remaining interal sunrpc svc resources.
+		 */
 		listen_local = svc_fdset;
 		for (i = 0; i < FD_SETSIZE; ++i) {
 			if (FD_ISSET(i, &listen_local)) {
@@ -472,6 +474,7 @@ static void usunrpc_scheduler(struct c2_service *service)
 		if (shut_any)
 			svc_getreqset(&listen_local);
 		c2_rwlock_write_unlock(&xservice->s_guard);
+		svc_exit();
 	}
 }
 

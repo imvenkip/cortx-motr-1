@@ -104,7 +104,7 @@ struct c2_emap_cursor {
 /* __COLIBRI_DB_EXTMAP_INTERNAL_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

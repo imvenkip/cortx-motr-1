@@ -32,10 +32,14 @@
 extern const struct c2_test_suite libc2_ut; /* test lib first */
 extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite ad_ut;
+extern const struct c2_test_suite addb_ut;
+extern const struct c2_test_suite bulkio_server_ut;
+extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
 extern const struct c2_test_suite db_ut;
+extern const struct c2_test_suite db_cursor_ut;
 extern const struct c2_test_suite emap_ut;
 extern const struct c2_test_suite fit_ut;
 extern const struct c2_test_suite fol_ut;
@@ -59,7 +63,9 @@ extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite cfm_ut;
 extern const struct c2_test_suite yaml2db_ut;
 extern const struct c2_test_suite buffer_pool_ut;
+extern const struct c2_test_suite addb_ut;
 extern const struct c2_test_suite balloc_ut;
+extern const struct c2_test_suite rpc_service_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -71,12 +77,14 @@ void add_uts(void)
 	c2_ut_add(&adieu_ut);
 	c2_ut_add(&balloc_ut);
 	c2_ut_add(&buffer_pool_ut);
+        c2_ut_add(&bulkio_server_ut);
+        c2_ut_add(&bulkio_client_ut);
 	c2_ut_add(&capa_ut);
 	c2_ut_add(&cfm_ut);
 	c2_ut_add(&cob_ut);
 	c2_ut_add(&colibri_setup_ut);
-	c2_ut_add(&console_ut);
 	c2_ut_add(&db_ut);
+	c2_ut_add(&db_cursor_ut);
 	c2_ut_add(&emap_ut);
 	c2_ut_add(&fit_ut);
 	c2_ut_add(&fol_ut);
@@ -89,6 +97,7 @@ void add_uts(void)
 	c2_ut_add(&reqh_ut);
 	c2_ut_add(&rpclib_ut);
 	c2_ut_add(&rpc_onwire_ut);
+	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
 	c2_ut_add(&stobio_ut);
 	c2_ut_add(&udb_ut);
@@ -96,6 +105,9 @@ void add_uts(void)
 	c2_ut_add(&xcode_bufvec_ut);
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&xcode_ff2c_ut);
+	/* These tests have redirection of messages. */
+	c2_ut_add(&addb_ut);
+	c2_ut_add(&console_ut);
 	c2_ut_add(&yaml2db_ut);
 }
 
@@ -171,49 +183,49 @@ int main(int argc, char *argv[])
 	result = C2_GETOPTS("ut", argc, argv,
 		    C2_HELPARG('h'),
 		    C2_VOIDARG('T', "parse trace log produced earlier",
-					LAMBDA(void, (void) {
-							exit(c2_trace_parse());
-					})),
-			    C2_FLAGARG('k', "keep the sandbox directory",
-					&keep_sandbox),
-			    C2_VOIDARG('i', "CUnit interactive console",
-					LAMBDA(void, (void) {
-						cfg.urc_mode = C2_UT_ICONSOLE_MODE;
-					})),
-			    C2_VOIDARG('a', "automated CUnit with xml output",
-					LAMBDA(void, (void) {
-						cfg.urc_mode = C2_UT_AUTOMATED_MODE;
-					})),
-			    C2_FLAGARG('l', "list available test suites",
-					&list_ut),
-			    C2_VOIDARG('L', "list available test suites with"
-					    " their tests",
-					LAMBDA(void, (void) {
-							list_ut = true;
-							with_tests = true;
-					})),
-			    C2_STRINGARG('t', "test list 'suite[:test][,suite"
-					      "[:test]]'",
-					      LAMBDA(void, (const char *str) {
-						    test_list_str = strdup(str);
-					      })
-					),
-			    C2_STRINGARG('x', "exclude list 'suite[:test][,suite"
-					      "[:test]]'",
-					      LAMBDA(void, (const char *str) {
-						 exclude_list_str = strdup(str);
-					      })
-					),
-			    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
-					    " failure",
-					LAMBDA(void, (void) {
-						cfg.urc_abort_cu_assert = false;
-					})),
-			    C2_VOIDARG('P', "don't report test execution time",
-					LAMBDA(void, (void) {
-						cfg.urc_report_exec_time = false;
-					})),
-			    );
+				LAMBDA(void, (void) {
+						exit(c2_trace_parse());
+				})),
+		    C2_FLAGARG('k', "keep the sandbox directory",
+				&keep_sandbox),
+		    C2_VOIDARG('i', "CUnit interactive console",
+				LAMBDA(void, (void) {
+					cfg.urc_mode = C2_UT_ICONSOLE_MODE;
+				})),
+		    C2_VOIDARG('a', "automated CUnit with xml output",
+				LAMBDA(void, (void) {
+					cfg.urc_mode = C2_UT_AUTOMATED_MODE;
+				})),
+		    C2_FLAGARG('l', "list available test suites",
+				&list_ut),
+		    C2_VOIDARG('L', "list available test suites with"
+				    " their tests",
+				LAMBDA(void, (void) {
+						list_ut = true;
+						with_tests = true;
+				})),
+		    C2_STRINGARG('t', "test list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					    test_list_str = strdup(str);
+				      })
+				),
+		    C2_STRINGARG('x', "exclude list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					 exclude_list_str = strdup(str);
+				      })
+				),
+		    C2_VOIDARG('A', "don't abort program on CU_ASSERT"
+				    " failure",
+				LAMBDA(void, (void) {
+					cfg.urc_abort_cu_assert = false;
+				})),
+		    C2_VOIDARG('P', "don't report test execution time",
+				LAMBDA(void, (void) {
+					cfg.urc_report_exec_time = false;
+				})),
+		    );
 	if (result != 0)
 		goto out;
 

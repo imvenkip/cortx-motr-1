@@ -171,18 +171,18 @@ static bool it_prefix_ok(const struct c2_emap_cursor *it)
 	return c2_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
 }
 
-#define IT_DO_OPEN(it, func)						\
-({									\
-	int __result;							\
-	struct c2_emap_cursor *__it = (it);				\
-									\
-	__result = ((*(func))(&__it->ec_cursor, &__it->ec_pair));	\
-	if (__result == 0) {						\
-		it_open(__it);						\
-		if (!it_prefix_ok(__it))				\
-			__result = -ESRCH;				\
-	}								\
-	__result;							\
+#define IT_DO_OPEN(it, func)					\
+({								\
+	int __result;						\
+	struct c2_emap_cursor *__it = (it);			\
+								\
+	__result = (*(func))(&__it->ec_cursor, &__it->ec_pair);	\
+	if (__result == 0) {					\
+		it_open(__it);					\
+		if (!it_prefix_ok(__it))			\
+			__result = -ESRCH;			\
+	}							\
+	__result;						\
 })
 
 #define IT_DO_PACK(it, func)				\
@@ -190,12 +190,12 @@ static bool it_prefix_ok(const struct c2_emap_cursor *it)
 	struct c2_emap_cursor *__it = (it);		\
 							\
 	it_pack(__it);					\
-	((*(func))(&__it->ec_cursor, &__it->ec_pair));	\
+	(*(func))(&__it->ec_cursor, &__it->ec_pair);	\
 })
 
 static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
 		   const struct c2_uint128 *prefix, c2_bindex_t offset,
-		   struct c2_emap_cursor *it)
+		   struct c2_emap_cursor *it, uint32_t flags)
 {
 	c2_db_pair_setup(&it->ec_pair, &emap->em_mapping,
 			 &it->ec_key, sizeof it->ec_key,
@@ -203,7 +203,7 @@ static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
 	it->ec_map           = emap;
-	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx);
+	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx, flags);
 }
 
 static void emap_close(struct c2_emap_cursor *it)
@@ -218,7 +218,7 @@ static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 {
 	int result;
 
-	result = it_init(emap, tx, prefix, offset, it);
+	result = it_init(emap, tx, prefix, offset, it, 0);
 	if (result == 0) {
 		result = IT_DO_OPEN(it, &c2_db_cursor_get);
 		if (result != 0)
@@ -482,7 +482,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	 * latter.
 	 *
 	 * The solution is to insert the new extent as the last step, but the
-	 * more important morale of this melancholy story is
+	 * more important moral of this melancholy story is
 	 *
 	 *         Thou shalt wit thine abstraction levels.
 	 *
@@ -523,7 +523,7 @@ int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
 	struct c2_emap_cursor it;
 	int                   result;
 
-	result = it_init(emap, tx, prefix, 0, &it);
+	result = it_init(emap, tx, prefix, 0, &it, C2_DB_CURSOR_RMW);
 	if (result == 0) {
 		it.ec_seg.ee_pre         = *prefix;
 		it.ec_seg.ee_ext.e_start = 0;

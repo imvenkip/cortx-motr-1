@@ -1,5 +1,6 @@
 rpcdir			= $(includedir)/colibri/rpc
-rpc_HEADERS		= session.h session_fops.h session_foms.h session_internal.h rpc_opcodes.h
+rpc_HEADERS		= session.h session_fops.h session_foms.h session_internal.h rpc_opcodes.h \
+			  service.h
 
 session_u.h session_u.c session_k.h session_k.c: session.ff \
 				$(top_builddir)/fop/rt/libc2rt.la \
@@ -16,7 +17,8 @@ libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
 				rpc_base.c rpc_base.h \
 				formation.h formation.c \
 				rpc_onwire.c rpc_onwire.h \
-				rpclib.c rpclib.h rpc_opcodes.h
+				rpclib.c rpclib.h rpc_opcodes.h \
+				service.c
 
 
 INCLUDES		= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include

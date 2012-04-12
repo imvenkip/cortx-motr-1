@@ -100,7 +100,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	buf->nb_xprt_private = NULL;
 	buf->nb_timeout = C2_TIME_NEVER;
 
-	buf->nb_magic = NET_BUFFER_LINK_MAGIC;
+	buf->nb_magic = C2_NET_BUFFER_LINK_MAGIC;
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
 	 */
@@ -133,6 +133,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	c2_list_del(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 	buf->nb_magic = 0;
+        buf->nb_dom = NULL;
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;

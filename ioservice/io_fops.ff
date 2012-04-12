@@ -43,6 +43,9 @@
  *
  */
 
+FOPDEP("net/net_otw_types.ff");
+FOPDEP("addb/addb.ff");
+
 /**
  * @section IO FOP Definitions
  */
@@ -51,33 +54,6 @@ DEF(c2_fop_file_fid, RECORD,
 	_(f_seq, U64),
 	/** Object Index for given fid. */
 	_(f_oid, U64));
-
-/**
- * c2_fop_io_buf is a buffer with a count specifying its length.
- */
-DEF(c2_fop_io_buf, SEQUENCE,
-	/** Number of bytes in the buffer. */
-	_(ib_count, U64),
-	/** Starting address of buffer. */
-	_(ib_buf, BYTE));
-
-/**
- * c2_fop_io_seg is a record containing details of an IO operation.
- */
-DEF(c2_fop_io_seg, RECORD,
-	/** Offset within component object.*/
-	_(is_offset, U64),
-	/** Data buffer attached with IO segment. */
-	_(is_buf, c2_fop_io_buf));
-
-/**
- * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
- */
-DEF(c2_fop_io_vec, SEQUENCE,
-	/** Number of IO segments. */
-	_(iv_count, U32),
-	/** Array of IO segments. */
-	_(iv_segs, c2_fop_io_seg));
 
 /**
  * A common sub structure to be referred by read and write reply fops.
@@ -93,22 +69,65 @@ DEF(c2_fop_cob_rw_reply, RECORD,
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
 	/** Common read/write reply. */
-	_(c_rep, c2_fop_cob_rw_reply),
-	/** At the moment, due to some constraints put up by kxdr wrapper
-	   around sunrpc, we can't have an IO vector here. It has to be
-	   a SEQUENCE of bytes. Eventually, this will be replaced by
-	   an IO vector or rather a net buffer descriptor. */
-	_(c_iobuf, c2_fop_io_buf));
+	_(c_rep, c2_fop_cob_rw_reply));
+
+/**
+ * Represents the extent information for an io segment. c2_ioseg typically
+ * represents a user space data buffer or a kernel page.
+ */
+DEF(c2_ioseg, RECORD,
+	_(ci_index, U64),
+	_(ci_count, U64));
+
+/**
+ * Represents an index vector with {index, count}  tuples for a target
+ * device (typically a cob).
+ */
+DEF(c2_io_indexvec, SEQUENCE,
+	_(ci_nr, U32),
+	_(ci_iosegs, c2_ioseg));
+
+/**
+ * Represents sequence of index vector, one per network buffer.
+ * As a result of io coalescing, there could be multiple network
+ * buffers associated with an io fop. Hence a SEQUENCE of c2_io_indexvec
+ * is needed, one per network buffer.
+ */
+DEF(c2_io_indexvec_seq, SEQUENCE,
+	_(cis_nr, U32),
+	_(cis_ivecs, c2_io_indexvec));
+
+/**
+ * Sequence of net buf desc that can be accommodated in single io fop.
+ * As a result of io coalescing, there could be multiple network
+ * buffers associated with an io fop. Hence a SEQUENCE of c2_net_buf_desc
+ * is needed.
+ */
+DEF(c2_io_descs, SEQUENCE,
+	_(id_nr, U32),
+	_(id_descs, c2_net_buf_desc));
 
 /**
  * Common structure for read and write request fops.
  */
 DEF(c2_fop_cob_rw, RECORD,
+
 	/** File identifier of read/write request. */
+
 	_(crw_fid, c2_fop_file_fid),
-	/** IO vector containing read/write data. */
-	_(crw_iovec, c2_fop_io_vec),
+
+	/** Net buf descriptors representing the c2_net_buffer containing
+	    the IO buffers. */
+
+	_(crw_desc, c2_io_descs),
+
+	/** Index vectors representing the extent information for the
+	    IO request. */
+
+	_(crw_ivecs, c2_io_indexvec_seq),
+
 	/** Miscellaneous flags. */
+
 	_(crw_flags, U64));
 
 /**
@@ -146,6 +165,17 @@ DEF(c2_fop_cob_writev_rep, RECORD,
 DEF(c2_fop_cob_writev, RECORD,
 	/** Common definition of read/write fops. */
 	_(c_rwv, c2_fop_cob_rw));
+
+/**
+ * Fops referring other remote fops (not present in this file).
+ */
+DEF(c2_test_ios_fop, RECORD,
+	_(if_st, U64),
+	_(if_nbd, c2_net_buf_desc));
+
+DEF(c2_test_io_addb, RECORD,
+	_(if_st, U64),
+	_(if_addb, c2_addb_record));
 
 /** @} end of FOP_data_ops */
 

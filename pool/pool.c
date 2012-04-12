@@ -67,7 +67,7 @@ void c2_pools_fini(void)
 
 /** @} end group pool */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

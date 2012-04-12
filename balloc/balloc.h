@@ -21,8 +21,8 @@
 #ifndef __COLIBRI_BALLOC_BALLOC_H__
 #define __COLIBRI_BALLOC_BALLOC_H__
 
-#include <db.h>
-
+#include "db/db.h"
+#include "lib/ext.h"
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
@@ -137,12 +137,12 @@ struct c2_balloc {
 	struct c2_table  cb_db_group_desc;   /*< db for group desc */
 	struct c2_balloc_group_info *cb_group_info; /*< array of group info */
 
-	struct c2_ext    cb_last;
+	struct c2_ext       cb_last;
 
-	struct ad_balloc cb_ballroom;
+	struct c2_ad_balloc cb_ballroom;
 };
 
-static inline struct c2_balloc *b2c2(struct ad_balloc *ballroom)
+static inline struct c2_balloc *b2c2(struct c2_ad_balloc *ballroom)
 {
 	return container_of(ballroom, struct c2_balloc, cb_ballroom);
 }
@@ -247,25 +247,25 @@ enum {
 	BALLOC_DEF_RESERVED_GROUPS	= 2
 };
 
-extern struct c2_balloc colibri_balloc;
+struct c2_balloc colibri_balloc;
 
 /* Interfaces for UT */
-extern void c2_balloc_debug_dump_sb(const char *tag,
-				    struct c2_balloc_super_block *sb);
-extern void c2_balloc_debug_dump_group_extent(const char *tag,
-					      struct c2_balloc_group_info *grp);
-
-extern int c2_balloc_release_extents(struct c2_balloc_group_info *grp);
-extern int c2_balloc_load_extents(struct c2_balloc *cb,
-				  struct c2_balloc_group_info *grp,
-				  struct c2_db_tx *tx);
-extern struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
-						       c2_bindex_t groupno);
-extern void c2_balloc_debug_dump_group(const char *tag,
+void c2_balloc_debug_dump_sb(const char *tag,
+			     struct c2_balloc_super_block *sb);
+void c2_balloc_debug_dump_group_extent(const char *tag,
 				       struct c2_balloc_group_info *grp);
-extern void c2_balloc_lock_group(struct c2_balloc_group_info *grp);
-extern int c2_balloc_trylock_group(struct c2_balloc_group_info *grp);
-extern void c2_balloc_unlock_group(struct c2_balloc_group_info *grp);
+
+int c2_balloc_release_extents(struct c2_balloc_group_info *grp);
+int c2_balloc_load_extents(struct c2_balloc *cb,
+			   struct c2_balloc_group_info *grp,
+			   struct c2_db_tx *tx);
+struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
+						c2_bindex_t groupno);
+void c2_balloc_debug_dump_group(const char *tag,
+				struct c2_balloc_group_info *grp);
+void c2_balloc_lock_group(struct c2_balloc_group_info *grp);
+int c2_balloc_trylock_group(struct c2_balloc_group_info *grp);
+void c2_balloc_unlock_group(struct c2_balloc_group_info *grp);
 
 /** @} end of balloc */
 

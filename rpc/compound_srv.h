@@ -49,7 +49,7 @@ struct c2_compound_ops {
 	/**
 	 operation handler function.
 	 handler must allocate reply buffer itself.
-	
+
 	 @param arg argument supplied from network packet
 	 @param ret pointer to reply
 	 @param retsize size of reply

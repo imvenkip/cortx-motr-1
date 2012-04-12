@@ -30,6 +30,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/trace.h"
 #include "net/net.h"
 
 #ifdef __KERNEL__
@@ -118,7 +119,7 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 		goto out;
 	}
 
-	c2_fom_create(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
 	*m = fom;
 	rc = 0;
 
@@ -251,6 +252,9 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	reply->rcer_rc = 0;      /* successful */
 	fom->fo_phase = FOPH_FINISH;
 
+	C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
+				(unsigned long)conn->c_sender_id);
+
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_WAIT;
 
@@ -280,6 +284,7 @@ out:
 	 * as FAILED.
 	 */
 	fom->fo_phase = FOPH_FINISH;
+	C2_LOG("Conn establish failed: rc [%d]\n", rc);
 	return FSO_WAIT;
 }
 
@@ -356,6 +361,8 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 
 	reply->rser_rc = 0;    /* success */
 	reply->rser_session_id = session->s_session_id;
+	C2_LOG("Session established: session [%p] id [%lu]\n", session,
+					(unsigned long)session->s_session_id);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_FINISH;
 	return FSO_WAIT;
@@ -377,6 +384,7 @@ errout:
 	reply->rser_rc = rc;
 	reply->rser_session_id = SESSION_ID_INVALID;
 	fom->fo_phase = FOPH_FINISH;
+	C2_LOG("Session establish failed: rc [%d]\n", rc);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_WAIT;
 }
@@ -458,7 +466,8 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	/* fall through */
 errout:
 	reply->rstr_rc = rc;
-	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS: FOPH_FAILURE;
+	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",
+			(rc == 0) ? "successful" : "failed", session, rc);
 	/*
 	 * Note: request is received on SESSION_0, which is different from
 	 * current session being terminated. Reply will also go on SESSION_0.
@@ -526,6 +535,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		 */
 		reply->ctr_rc = rc; /* rc can be -EBUSY */
 		fom->fo_phase = FOPH_FINISH;
+		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		return FSO_WAIT;
 	} else {
@@ -535,6 +545,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		 * set sender side conn to FAILED state.
 		 * XXX generate ADDB record here.
 		 */
+		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
 		c2_rpc_conn_fini(conn);
 		c2_free(conn);
 		fom->fo_phase = FOPH_FINISH;

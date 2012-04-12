@@ -17,7 +17,7 @@
  * Original creation date: 10/19/2010
  */
 
-#ifndef __COLIBRI_SNS_PARITY_MATH_H__ 
+#ifndef __COLIBRI_SNS_PARITY_MATH_H__
 #define __COLIBRI_SNS_PARITY_MATH_H__
 
 #include "lib/adt.h"
@@ -26,11 +26,11 @@
 
 /**
    @defgroup parity_math Parity Math Component
-   
+
    A parity math component is a part of Colibri core and serving several purposes:
    @li Provide algorithms for calculation of SNS parity units (checksums) for given data units;
    @li Provide algorithms for quick update of parity units in case of minor data changes;
-   @li Provide algorithms for SNS repair (recovery) in case of failure.   
+   @li Provide algorithms for SNS repair (recovery) in case of failure.
    @{
 */
 

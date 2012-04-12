@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <err.h>
+#include <sysexits.h>
 
 #include <execinfo.h>
 
@@ -231,7 +232,7 @@ static void sim_thread_resume(struct sim_thread *thread)
 	sim_current = thread;
 	rc = swapcontext(&sim_idle_ctx, &thread->st_ctx);
 	if (rc != 0)
-		err(1, "resume: swapcontext");
+		err(EX_UNAVAILABLE, "resume: swapcontext");
 }
 
 /**
@@ -246,7 +247,7 @@ static void sim_thread_suspend(struct sim_thread *thread)
 	sim_current = NULL;
 	rc = swapcontext(&thread->st_ctx, &sim_idle_ctx);
 	if (rc != 0)
-		err(1, "suspend: swapcontext");
+		err(EX_UNAVAILABLE, "suspend: swapcontext");
 	sim_thread_fix(thread);
 }
 
@@ -315,7 +316,7 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
 
 	rc = getcontext(&thread->st_ctx);
 	if (rc != 0)
-		err(1, "getcontext");
+		err(EX_UNAVAILABLE, "getcontext");
 	thread->st_sim                   = state;
 	thread->st_ctx.uc_link           = &sim_idle_ctx;
 	thread->st_ctx.uc_stack.ss_sp    = thread->st_stack = valloc(stacksize);
@@ -323,7 +324,7 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
 	thread->st_ctx.uc_stack.ss_flags = 0;
 	thr_tlink_init(thread);
 	if (thread->st_stack == NULL)
-		err(1, "malloc(%d) of a stack", stacksize);
+		err(EX_TEMPFAIL, "malloc(%d) of a stack", stacksize);
 	makecontext(&thread->st_ctx, (void (*)())sim_trampoline,
 		    8,
 		    sim_encode0(func),   sim_encode1(func),
@@ -520,7 +521,7 @@ void sim_name_vaset(char **name, const char *format, va_list valist)
 		free(*name);
 
 	if (vasprintf(name, format, valist) == -1)
-		err(1, "vasprintf");
+		err(EX_SOFTWARE, "vasprintf");
 }
 
 enum sim_log_level sim_log_level = SLL_INFO;

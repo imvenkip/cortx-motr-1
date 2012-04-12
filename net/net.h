@@ -491,6 +491,9 @@ struct c2_net_domain {
 	   by network layer.
 	 */
 	struct c2_net_buffer_pool  *nd_app_pool;
+
+	/** Transfer machine pool colour counter */
+        int                 nd_pool_colour_counter;
 };
 
 /**
@@ -1474,12 +1477,16 @@ struct c2_net_buffer {
 	   There is only one linkage for all of the queues, as a buffer
 	   can only be used for one type of operation at a time.
 
+	   It is also used for linkage into c2_net_buffer_pool::nbp_colour[].
 	   The application should not modify this field.
 	 */
 	struct c2_tlink		   nb_tm_linkage;
 
 	/** Linkage into a network buffer pool. */
 	struct c2_tlink		   nb_lru;
+
+        /* This link is used by I/O service */
+        struct c2_tlink            nb_ioservice_linkage;
 
 	/** Magic for network buffer list. */
 	uint64_t		   nb_magic;
@@ -1498,6 +1505,17 @@ struct c2_net_buffer {
 	   The application should not modify this field.
 	 */
         void                      *nb_xprt_private;
+
+	/**
+	   Application specific private data associated with the buffer.
+	   It is populated and used by the end user.
+	   It is end user's responsibility to use this field to allocate
+	   or deallocate any memory regions stored in this field.
+
+	   It is neither verified by net code nor do the net layer
+	   invariants touch it.
+	 */
+	void			  *nb_app_private;
 
 	/**
 	   Buffer state is tracked with bitmap flags from
@@ -2039,11 +2057,11 @@ extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
 enum {
 	/* Hex ASCII value of "nb_lru" */
-	NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
+	C2_NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
 	/* Hex ASCII value of "nb_tm_linkage" */
 	NET_BUFFER_TM_LINK_MAGIC = 0x6e625f746d5f6c,
 	/* Hex ASCII value of "nb_head" */
-	NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
+	C2_NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
 };
 
 /** Descriptor for the tlist of buffers. */

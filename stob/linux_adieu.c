@@ -229,7 +229,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 	bool                  eosrc;
 	bool                  eodst;
 
-	C2_PRE(io->si_obj->so_domain->sd_type == &linux_stob_type);
+	C2_PRE(io->si_obj->so_domain->sd_type == &c2_linux_stob_type);
 
 	/* prefix fragments execution mode is not yet supported */
 	C2_ASSERT((io->si_flags & SIF_PREFIX) == 0);
@@ -352,6 +352,17 @@ uint32_t linux_stob_block_shift(const struct c2_stob *stob)
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(stob->so_domain);
+	return LINUX_DOM_BSHIFT(ldom);
+}
+
+/**
+   An implementation of c2_stob_domain_op::sdo_block_shift() method.
+ */
+uint32_t linux_stob_domain_block_shift(struct c2_stob_domain *sdomain)
+{
+	struct linux_domain *ldom;
+
+	ldom  = domain2linux(sdomain);
 	return LINUX_DOM_BSHIFT(ldom);
 }
 

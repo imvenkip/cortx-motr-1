@@ -32,7 +32,7 @@
  */
 C2_TL_DESCR_DEFINE(tm, "tm list", ,
 		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
-		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(tm, , struct c2_net_buffer);
 C2_EXPORTED(tm_tlist_is_empty);
 
@@ -145,8 +145,8 @@ static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 {
-	int result;
-	int i;
+	int               result;
+	int               i;
 
 	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(tm != NULL);
@@ -164,6 +164,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 		tm_tlist_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
+        tm->ntm_pool_colour = dom->nd_pool_colour_counter++;
 	tm->ntm_xprt_private = NULL;
 	tm->ntm_bev_auto_deliver = true;
 	tm->ntm_recv_pool = NULL;

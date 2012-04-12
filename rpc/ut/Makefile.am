@@ -14,7 +14,8 @@ noinst_LTLIBRARIES = librpclib-ut.la libonwire-ut.la
 #rserver_LDFLAGS   = -pthread
 #rserver_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
-librpclib_ut_la_SOURCES = rpclib_ut.c ../it/ping_fop.c ../it/ping_fop_u.c ../it/ping_fom.c
+librpclib_ut_la_SOURCES = rpclib_ut.c ../it/ping_fop.c ../it/ping_fop_u.c ../it/ping_fom.c \
+				service.c
 
 librpclib_ut_la_LIBADD = $(top_builddir)/colibri/libcolibri.la
 

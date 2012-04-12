@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,8 @@
  * Original creation date: 04/01/2010
  */
 
-#ifndef __COLIBRI_DTM_H__
-#define __COLIBRI_DTM_H__
+#ifndef __COLIBRI_DTM_DTM_H__
+#define __COLIBRI_DTM_DTM_H__
 
 #include "db/db.h"
 
@@ -36,11 +36,20 @@ struct c2_update_id;
 
 struct c2_dtm {};
 
+enum c2_dtx_state {
+	C2_DTX_INIT = 1,
+	C2_DTX_OPEN,
+	C2_DTX_DONE,
+	C2_DTX_COMMIT,
+	C2_DTX_STABLE
+};
+
 struct c2_dtx {
 	/**
 	   @todo placeholder for now.
 	 */
-	struct c2_db_tx tx_dbtx;
+	enum c2_dtx_state tx_state;
+	struct c2_db_tx   tx_dbtx;
 };
 
 struct c2_update_id {
@@ -55,12 +64,16 @@ enum c2_update_state {
 	C2_US_NR
 };
 
+void c2_dtx_init(struct c2_dtx *tx);
+int  c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env);
+void c2_dtx_done(struct c2_dtx *tx);
+
 /** @} end of dtm group */
 
-/* __COLIBRI_DTM_H__ */
+/* __COLIBRI_DTM_DTM_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
