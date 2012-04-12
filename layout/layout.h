@@ -160,27 +160,27 @@ struct c2_layout_domain {
  */
 struct c2_layout {
 	/** Layout id. */
-	uint64_t                         l_id;
+	uint64_t                     l_id;
 
 	/** Layout type. */
-	const struct c2_layout_type     *l_type;
+	const struct c2_layout_type *l_type;
 
 	/* Layout reference count, indicating how many users this layout has. */
-	uint32_t                         l_ref;
+	uint32_t                     l_ref;
 
 	/** Pool identifier. */
-	uint64_t                         l_pool_id;
+	uint64_t                     l_pool_id;
 
 	/**
 	 * Lock to protect a c2_layout instance and all its direct/indirect
 	 * members.
 	 */
-	struct c2_mutex                  l_lock;
+	struct c2_mutex              l_lock;
 
 	/** Layout operations vector. */
-	const struct c2_layout_ops      *l_ops;
+	const struct c2_layout_ops  *l_ops;
 
-	struct c2_addb_ctx               l_addb;
+	struct c2_addb_ctx           l_addb;
 };
 
 struct c2_layout_ops {
@@ -370,10 +370,10 @@ struct c2_layout_enum_type_ops {
  */
 struct c2_layout_striped {
 	/** Super class. */
-	struct c2_layout           ls_base;
+	struct c2_layout       ls_base;
 
 	/** Layout enumeration. */
-	struct c2_layout_enum     *ls_enum;
+	struct c2_layout_enum *ls_enum;
 };
 
 

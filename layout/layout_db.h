@@ -147,26 +147,26 @@ struct c2_layout_rec {
 	 * Layout type id.
 	 * Value obtained from c2_layout_type::lt_id.
 	 */
-	uint32_t                       lr_lt_id;
+	uint32_t  lr_lt_id;
 
 	/**
 	 * Layout reference count, indicating number of users for this layout.
 	 * Value obtained from c2_layout::l_ref.
 	 */
-	uint32_t                       lr_ref_count;
+	uint32_t  lr_ref_count;
 
 	/**
 	 * Pool identifier.
 	 * Value obtained from c2_layout::l_pid.
 	 */
-	uint64_t                       lr_pool_id;
+	uint64_t  lr_pool_id;
 
 	/**
 	 * Layout type specific payload.
 	 * Contains attributes specific to the applicable layout type and/or
 	 * applicable to the enumeration type, if applicable.
 	 */
-	char                           lr_data[0];
+	char      lr_data[0];
 };
 
 int c2_layout_domain_init(struct c2_layout_domain *dom);

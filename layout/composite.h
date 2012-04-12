@@ -43,10 +43,10 @@ struct c2_composite_layout;
  */
 struct c2_composite_layout {
 	/** Super class. */
-	struct c2_layout          cl_base;
+	struct c2_layout  cl_base;
 
 	/** List of sub-layouts owned by this composite layout. */
-	struct c2_tl              cl_sub_layouts;
+	struct c2_tl      cl_sub_layouts;
 };
 
 void c2_composite_build(uint64_t pool_id, uint64_t lid,

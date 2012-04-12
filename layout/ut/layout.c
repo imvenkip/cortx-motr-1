@@ -616,7 +616,7 @@ static int test_decode_pdclust_linear(uint64_t lid)
 
 static void test_decode(void)
 {
-	uint64_t    lid;
+	uint64_t lid;
 
 	/*
 	 * Decode a layout with PDCLUST layout type and LIST enum type,
@@ -1312,9 +1312,9 @@ static void pair_reset(struct c2_db_pair *pair, uint64_t *lid,
 		       void *area, c2_bcount_t num_bytes)
 {
 	pair->dp_key.db_buf.b_addr = lid;
-	pair->dp_key.db_buf.b_nob = sizeof *lid;
+	pair->dp_key.db_buf.b_nob  = sizeof *lid;
 	pair->dp_rec.db_buf.b_addr = area;
-	pair->dp_rec.db_buf.b_nob = num_bytes;
+	pair->dp_rec.db_buf.b_nob  = num_bytes;
 }
 
 /* todo see if it can be merged into other similar wrapper for list */

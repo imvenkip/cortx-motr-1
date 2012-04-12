@@ -85,24 +85,24 @@ struct c2_pdclust_tgt_addr;
  */
 struct c2_pdclust_attr {
 	/** Number of data units in a parity group. */
-	uint32_t                     pa_N;
+	uint32_t           pa_N;
 
 	/**
 	 * Number of parity units in a parity group. This is also the number of
 	 * spare units in a group.
 	 */
-	uint32_t                     pa_K;
+	uint32_t           pa_K;
 
 	/**
 	 * Number of target objects over which this layout stripes the source.
 	 */
-	uint32_t                     pa_P;
+	uint32_t           pa_P;
 
 	/** Stripe unit size. Specified in number of bytes. */
-	uint64_t                     pa_unit_size;
+	uint64_t           pa_unit_size;
 
 	/** A datum used to seed PRNG to generate tile column permutations. */
-	struct c2_uint128            pa_seed;
+	struct c2_uint128  pa_seed;
 };
 
 /**
@@ -113,9 +113,9 @@ struct c2_layout_pdclust_rec {
 	 * Layout enumeration type id.
 	 * Value obtained from c2_layout_enum_type::let_id.
 	 */
-	uint32_t                     pr_let_id;
+	uint32_t                pr_let_id;
 
-	struct c2_pdclust_attr       pr_attr;
+	struct c2_pdclust_attr  pr_attr;
 };
 
 /**
