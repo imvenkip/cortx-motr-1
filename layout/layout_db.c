@@ -421,6 +421,59 @@ static int schema_invariant(const struct c2_ldb_schema *schema)
 }
 
 /**
+ * Maximum possible size for a record in the layouts table (without
+ * considering the data in the tables other than layouts) is maintained in
+ * c2_ldb_schema::ls_max_recsize.
+ * This function updates c2_ldb_schema::ls_max_recsize.
+ */
+static void max_recsize_update(struct c2_layout_domain *dom)
+{
+	uint32_t    i;
+	c2_bcount_t recsize;
+	c2_bcount_t max_recsize = 0;
+
+	C2_PRE(domain_invariant(dom));
+
+	/*
+	 * Iterate over all the layout types to find maximum possible recsize.
+	 */
+	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i) {
+		if (dom->ld_type[i] == NULL)
+			continue;
+
+		recsize = dom->ld_type[i]->lt_ops->lto_max_recsize(dom);
+		max_recsize = max64u(max_recsize, recsize);
+	}
+
+	dom->ld_schema->ls_max_recsize =  sizeof(struct c2_ldb_rec) +
+					  max_recsize;
+}
+
+/**
+ * Returns actual size for a record in the layouts table (without
+ * considering the data in the tables other than layouts).
+ */
+static c2_bcount_t recsize_get(struct c2_layout_domain *dom,
+			       struct c2_layout *l)
+{
+	c2_bcount_t            recsize;
+	struct c2_layout_type *lt;
+
+	C2_PRE(domain_invariant(dom));
+	C2_PRE(layout_invariant(l));
+
+	lt = dom->ld_type[l->l_type->lt_id];
+	C2_ASSERT(is_layout_type_valid(lt->lt_id, dom));
+
+	recsize = sizeof(struct c2_ldb_rec) +
+		  lt->lt_ops->lto_recsize(dom, l);
+
+	C2_POST(recsize <= c2_layout_max_recsize(dom));
+
+	return recsize;
+}
+
+/**
  * Write layout record to the layouts table.
  *
  * @param op This enum parameter indicates what is the DB operation to be
@@ -443,7 +496,7 @@ int ldb_layout_write(enum c2_layout_xcode_op op, uint64_t lid,
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
 	C2_PRE(recsize >= sizeof(struct c2_ldb_rec) &&
-	       recsize <= c2_ldb_max_recsize(schema->ls_domain));
+	       recsize <= c2_layout_max_recsize(schema->ls_domain));
 	C2_PRE(tx != NULL);
 
 	*(uint64_t *)key_buf = lid;
@@ -483,7 +536,7 @@ static int rec_get(struct c2_layout *l, void *area,
 	C2_PRE(l != NULL);
 	C2_PRE(area != NULL);
 
-	max_recsize = c2_ldb_max_recsize(schema->ls_domain);
+	max_recsize = c2_layout_max_recsize(schema->ls_domain);
 
 	/*
 	 * The max_recsize is never expected to be that large. But still,
@@ -640,32 +693,32 @@ void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 /**
  * Registers all the available layout types and enum types.
  */
-int c2_ldb_register(struct c2_layout_domain *dom)
+int c2_layout_register(struct c2_layout_domain *dom)
 {
 	int rc;
 
 	C2_PRE(domain_invariant(dom));
 
-	rc = c2_ldb_type_register(dom, &c2_pdclust_layout_type);
+	rc = c2_layout_type_register(dom, &c2_pdclust_layout_type);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_ldb_enum_register(dom, &c2_list_enum_type);
+	rc = c2_layout_enum_type_register(dom, &c2_list_enum_type);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_ldb_enum_register(dom, &c2_linear_enum_type);
+	rc = c2_layout_enum_type_register(dom, &c2_linear_enum_type);
 	return rc;
 }
 
-void c2_ldb_unregister(struct c2_layout_domain *dom)
+void c2_layout_unregister(struct c2_layout_domain *dom)
 {
 	C2_PRE(domain_invariant(dom));
 
-	c2_ldb_enum_unregister(dom, &c2_list_enum_type);
-	c2_ldb_enum_unregister(dom, &c2_linear_enum_type);
+	c2_layout_enum_type_unregister(dom, &c2_list_enum_type);
+	c2_layout_enum_type_unregister(dom, &c2_linear_enum_type);
 
-	c2_ldb_type_unregister(dom, &c2_pdclust_layout_type);
+	c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 }
 
 /**
@@ -673,7 +726,7 @@ void c2_ldb_unregister(struct c2_layout_domain *dom)
  * c2_layout_domain::ld_type[] and initializes type layout specific tables,
  * if applicable.
  */
-int c2_ldb_type_register(struct c2_layout_domain *dom,
+int c2_layout_type_register(struct c2_layout_domain *dom,
 			 const struct c2_layout_type *lt)
 {
 	int rc;
@@ -697,12 +750,15 @@ int c2_ldb_type_register(struct c2_layout_domain *dom,
 
 	/* Allocate type specific schema data. */
 	c2_mutex_lock(&dom->ld_schema->ls_lock);
+
 	rc = lt->lt_ops->lto_register(dom->ld_schema, lt);
 	if (rc != 0)
-		layout_log("c2_ldb_type_register", "lto_register() failed",
+		layout_log("c2_layout_type_register", "lto_register() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_func_fail.ae_id,
 			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
+
+	max_recsize_update(dom);
 
 	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
@@ -717,7 +773,7 @@ int c2_ldb_type_register(struct c2_layout_domain *dom,
  * c2_layout_domain::ld_type[] and finalizes type layout specific tables,
  * if applicable.
  */
-void c2_ldb_type_unregister(struct c2_layout_domain *dom,
+void c2_layout_type_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt)
 {
 	C2_PRE(domain_invariant(dom));
@@ -729,7 +785,10 @@ void c2_ldb_type_unregister(struct c2_layout_domain *dom,
 	c2_mutex_lock(&dom->ld_lock);
 
 	c2_mutex_lock(&dom->ld_schema->ls_lock);
+
 	lt->lt_ops->lto_unregister(dom->ld_schema, lt);
+	max_recsize_update(dom);
+
 	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
 	/* Release the last reference on this layout type. */
@@ -747,8 +806,8 @@ void c2_ldb_type_unregister(struct c2_layout_domain *dom,
  * maintained by c2_layout_domain::ld_enum[] and initializes enum type specific
  * tables, if applicable.
  */
-int c2_ldb_enum_register(struct c2_layout_domain *dom,
-			 const struct c2_layout_enum_type *let)
+int c2_layout_enum_type_register(struct c2_layout_domain *dom,
+				 const struct c2_layout_enum_type *let)
 {
 	int rc;
 
@@ -771,12 +830,16 @@ int c2_ldb_enum_register(struct c2_layout_domain *dom,
 
 	/* Allocate enum type specific schema data. */
 	c2_mutex_lock(&dom->ld_schema->ls_lock);
+
 	rc = let->let_ops->leto_register(dom->ld_schema, let);
 	if (rc != 0)
-		layout_log("c2_ldb_enum_register", "leto_register() failed",
+		layout_log("c2_layout_enum_type_register",
+			   "leto_register() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_func_fail.ae_id,
 			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
+
+	max_recsize_update(dom);
 
 	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
@@ -791,8 +854,8 @@ int c2_ldb_enum_register(struct c2_layout_domain *dom,
  * maintained by c2_layout_domain::ld_enum[] and finalizes enum type
  * specific tables, if applicable.
  */
-void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
-			    const struct c2_layout_enum_type *let)
+void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
+				    const struct c2_layout_enum_type *let)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
@@ -803,7 +866,10 @@ void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
 	c2_mutex_lock(&dom->ld_lock);
 
 	c2_mutex_lock(&dom->ld_schema->ls_lock);
+
 	let->let_ops->leto_unregister(dom->ld_schema, let);
+	max_recsize_update(dom);
+
 	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
 	/* Release the last reference on this enum type. */
@@ -817,62 +883,17 @@ void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
 }
 
 /**
- * Returns max possible size for a record in the layouts table (without
- * considering the data in the tables other than layouts).
- */
-c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom)
-{
-	uint32_t    i;
-	c2_bcount_t recsize;
-	c2_bcount_t max_recsize = 0;
-
-	C2_PRE(domain_invariant(dom));
-
-	/*
-	 * Iterate over all the layout types to find maximum possible recsize.
-	 */
-	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i) {
-		if (dom->ld_type[i] == NULL)
-			continue;
-
-		recsize = dom->ld_type[i]->lt_ops->lto_max_recsize(dom);
-		max_recsize = max64u(max_recsize, recsize);
-	}
-
-	return sizeof(struct c2_ldb_rec) + max_recsize;
-}
-
-/**
- * Returns actual size for a record in the layouts table (without
- * considering the data in the tables other than layouts).
- */
-c2_bcount_t c2_ldb_recsize(struct c2_layout_domain *dom, struct c2_layout *l)
-{
-	c2_bcount_t            recsize;
-	struct c2_layout_type *lt;
-
-	C2_PRE(domain_invariant(dom));
-	C2_PRE(layout_invariant(l));
-
-	lt = dom->ld_type[l->l_type->lt_id];
-	C2_ASSERT(is_layout_type_valid(lt->lt_id, dom));
-
-	recsize = sizeof(struct c2_ldb_rec) +
-		  lt->lt_ops->lto_recsize(dom, l);
-
-	C2_POST(recsize <= c2_ldb_max_recsize(dom));
-
-	return recsize;
-}
-
-/**
  * Looks up a persistent layout record with the specified layout_id, and
  * its related information from the relevant tables.
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
- * while deciding the size of the buffer.
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * read specifically from the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
  *
  * @post Layout object is built internally (along with enumeration object being
  * built if applicable). Hence, user needs to finalize the layout object when
@@ -906,7 +927,7 @@ int c2_ldb_lookup(struct c2_ldb_schema *schema,
 
 	c2_mutex_lock(&schema->ls_lock);
 
-	max_recsize = c2_ldb_max_recsize(schema->ls_domain);
+	max_recsize = c2_layout_max_recsize(schema->ls_domain);
 
 	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
 		  pair->dp_rec.db_buf.b_nob : max_recsize;
@@ -960,8 +981,12 @@ out:
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
- * while deciding the size of the buffer.
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * written specifically to the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
  */
 int c2_ldb_add(struct c2_ldb_schema *schema,
 	       struct c2_layout *l,
@@ -1003,7 +1028,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	recsize = c2_ldb_recsize(schema->ls_domain, l);
+	recsize = recsize_get(schema->ls_domain, l);
 	rc = ldb_layout_write(C2_LXO_DB_ADD, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {
@@ -1031,8 +1056,12 @@ out:
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
- * while deciding the size of the buffer.
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * written specifically to the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
  */
 int c2_ldb_update(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
@@ -1066,7 +1095,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 	 * ensure that nothing other than l_ref gets updated for an existing
 	 * layout record.
 	 */
-	recsize = c2_ldb_max_recsize(schema->ls_domain);
+	recsize = c2_layout_max_recsize(schema->ls_domain);
 	oldrec_area = c2_alloc(recsize);
 	if (oldrec_area == NULL) {
 		rc = -ENOMEM;
@@ -1108,7 +1137,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	recsize = c2_ldb_recsize(schema->ls_domain, l);
+	recsize = recsize_get(schema->ls_domain, l);
 	rc = ldb_layout_write(C2_LXO_DB_UPDATE, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {
@@ -1133,13 +1162,17 @@ out:
 }
 
 /**
- * Deletes a layout record with given layout id and its related information from
- * the relevant tables.
+ * Deletes a layout record with given layout id and its related information
+ * from the relevant tables.
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller. The caller may take help of c2_ldb_max_recsize()
- * while deciding the size of the buffer.
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * written specifically to the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
  */
 int c2_ldb_delete(struct c2_ldb_schema *schema,
 		  struct c2_layout *l,
@@ -1181,7 +1214,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	recsize = c2_ldb_recsize(schema->ls_domain, l);
+	recsize = recsize_get(schema->ls_domain, l);
 	rc = ldb_layout_write(C2_LXO_DB_DELETE, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {

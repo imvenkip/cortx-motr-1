@@ -96,7 +96,7 @@ static int test_init(void)
 	 */
 	orig_addb_level = c2_addb_choose_default_level_console(AEL_WARN);
 
-	rc = c2_ldb_register(&domain);
+	rc = c2_layout_register(&domain);
 	C2_ASSERT(rc == 0 || rc == -EEXIST);
 
 	rc = c2_pool_init(&pool, DEFAULT_POOL_ID, POOL_WIDTH);
@@ -109,7 +109,7 @@ static int test_fini(void)
 {
 	c2_pool_fini(&pool);
 
-	c2_ldb_unregister(&domain);
+	c2_layout_unregister(&domain);
 
 	/* Restore the original addb level. */
 	c2_addb_choose_default_level_console(orig_addb_level);
@@ -185,10 +185,15 @@ static void t_unregister(struct c2_ldb_schema *schema,
 {
 }
 
+static c2_bcount_t t_max_recsize(struct c2_layout_domain *dom)
+{
+	return 0;
+}
+
 static const struct c2_layout_type_ops test_layout_type_ops = {
 	.lto_register    = t_register,
 	.lto_unregister  = t_unregister,
-	.lto_max_recsize = NULL,
+	.lto_max_recsize = t_max_recsize,
 	.lto_recsize     = NULL,
 	.lto_decode      = NULL,
 	.lto_encode      = NULL
@@ -205,13 +210,13 @@ static void test_type_reg_unreg(void)
 	C2_ENTRY();
 
 	/* Register a layout type. */
-	rc = c2_ldb_type_register(&domain, &test_layout_type);
+	rc = c2_layout_type_register(&domain, &test_layout_type);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] ==
 		     &test_layout_type);
 
 	/* Unregister it. */
-	c2_ldb_type_unregister(&domain, &test_layout_type);
+	c2_layout_type_unregister(&domain, &test_layout_type);
 	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] == NULL);
 
 	C2_LEAVE();
@@ -228,10 +233,15 @@ static void t_enum_unregister(struct c2_ldb_schema *schema,
 {
 }
 
+static c2_bcount_t t_enum_max_recsize()
+{
+	return 0;
+}
+
 static const struct c2_layout_enum_type_ops test_enum_ops = {
 	.leto_register    = t_enum_register,
 	.leto_unregister  = t_enum_unregister,
-	.leto_max_recsize = NULL,
+	.leto_max_recsize = t_enum_max_recsize,
 	.leto_recsize     = NULL,
 	.leto_decode      = NULL,
 	.leto_encode      = NULL
@@ -248,13 +258,13 @@ static void test_etype_reg_unreg(void)
 	C2_ENTRY();
 
 	/* Register a layout enum type. */
-	rc = c2_ldb_enum_register(&domain, &test_enum_type);
+	rc = c2_layout_enum_type_register(&domain, &test_enum_type);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] ==
 		     &test_enum_type);
 
 	/* Unregister it. */
-	c2_ldb_enum_unregister(&domain, &test_enum_type);
+	c2_layout_enum_type_unregister(&domain, &test_enum_type);
 	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == NULL);
 
 	C2_LEAVE();
@@ -281,7 +291,7 @@ static void test_ldb_reg_unreg(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Register all the available layout types and enum types. */
-	rc = c2_ldb_register(&t_domain);
+	rc = c2_layout_register(&t_domain);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
 		     &c2_list_enum_type);
@@ -291,7 +301,7 @@ static void test_ldb_reg_unreg(void)
 		     &c2_pdclust_layout_type);
 
 	/* Unregister all the registered layout and enum types. */
-	c2_ldb_unregister(&t_domain);
+	c2_layout_unregister(&t_domain);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
@@ -300,7 +310,7 @@ static void test_ldb_reg_unreg(void)
 	 * Should be able to register all the available layout types and enum
 	 * types, again after unregistering them.
 	 */
-	rc = c2_ldb_register(&t_domain);
+	rc = c2_layout_register(&t_domain);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
 		     &c2_list_enum_type);
@@ -310,7 +320,7 @@ static void test_ldb_reg_unreg(void)
 		     &c2_pdclust_layout_type);
 
 	/* Unregister all the registered layout and enum types. */
-	c2_ldb_unregister(&t_domain);
+	c2_layout_unregister(&t_domain);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
@@ -338,7 +348,7 @@ static void test_max_recsize()
 		   sizeof(struct c2_ldb_pdclust_rec) +
 		   max64u(list_size, sizeof(struct c2_layout_linear_attr));
 
-	C2_UT_ASSERT(max_size == c2_ldb_max_recsize(&domain));
+	C2_UT_ASSERT(max_size == c2_layout_max_recsize(&domain));
 }
 
 static void test_recsize()
@@ -517,7 +527,7 @@ static void allocate_area(void **area,
 {
 	C2_UT_ASSERT(area != NULL && *area == NULL);
 
-	*num_bytes = c2_ldb_max_recsize(&domain) + additional_bytes;
+	*num_bytes = c2_layout_max_recsize(&domain) + additional_bytes;
 
 	*area = c2_alloc(*num_bytes);
 	C2_UT_ASSERT(*area != NULL);
@@ -1901,7 +1911,7 @@ static void test_bufvec_copyto(void)
 
 	C2_ENTRY();
 
-	num_bytes = c2_ldb_max_recsize(&domain) + 1024;
+	num_bytes = c2_layout_max_recsize(&domain) + 1024;
 	area = c2_alloc(num_bytes);
 	C2_UT_ASSERT(area != NULL);
 

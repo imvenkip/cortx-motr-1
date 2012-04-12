@@ -42,10 +42,10 @@
  * @section Layout-DB-fspec-sub Subroutines
  * - int c2_ldb_schema_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
  * - void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
- * - void c2_ldb_type_register(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
- * - void c2_ldb_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
- * - void c2_ldb_enum_register(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
- * - void c2_ldb_enum_unregister(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+ * - void c2_layout_type_register(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+ * - void c2_layout_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
+ * - void c2_layout_enum_type_register(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
+ * - void c2_layout_enum_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
  * - int c2_ldb_lookup(struct c2_ldb_schema *schema, uint64_t lid, struct c2_db_pair *pair, struct c2_db_tx *tx, struct c2_layout **out)
  * - int c2_ldb_add(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
  * - int c2_ldb_update(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
@@ -128,6 +128,9 @@ struct c2_ldb_schema {
 	/** Layout enum type specific data. */
 	void                    *ls_enum_data[C2_LAYOUT_ENUM_TYPE_MAX];
 
+	/** Maximum possible size for a record in the layouts table. */
+	c2_bcount_t              ls_max_recsize;
+
 	/**
 	 * Lock to protect the instance of c2_ldb_schema, including all
 	 * its members.
@@ -174,21 +177,18 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
 		       struct c2_dbenv *db);
 void c2_ldb_schema_fini(struct c2_ldb_schema *schema);
 
-int c2_ldb_register(struct c2_layout_domain *dom);
-void c2_ldb_unregister(struct c2_layout_domain *dom);
+int c2_layout_register(struct c2_layout_domain *dom);
+void c2_layout_unregister(struct c2_layout_domain *dom);
 
-int c2_ldb_type_register(struct c2_layout_domain *dom,
-			 const struct c2_layout_type *lt);
-void c2_ldb_type_unregister(struct c2_layout_domain *dom,
+int c2_layout_type_register(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt);
+void c2_layout_type_unregister(struct c2_layout_domain *dom,
+			       const struct c2_layout_type *lt);
 
-int c2_ldb_enum_register(struct c2_layout_domain *dom,
-			 const struct c2_layout_enum_type *et);
-void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
-			    const struct c2_layout_enum_type *et);
-
-c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom);
-c2_bcount_t c2_ldb_recsize(struct c2_layout_domain *dom, struct c2_layout *l);
+int c2_layout_enum_type_register(struct c2_layout_domain *dom,
+				 const struct c2_layout_enum_type *et);
+void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
+				    const struct c2_layout_enum_type *et);
 
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t id,

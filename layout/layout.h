@@ -83,16 +83,11 @@
  * - Finalize c2_ldb_schema object.
  * - Finalize c2_layout_domain object.
  *
- * Regarding client/server separation for usage of various operations:
- * - c2_layout_encode(), c2_layout_decode() and layout creation routines for
- *   example c2_pdclust_build() require only the domain pointer and these
- *   operations can be performed by both the client and the server.
- * - Various enumeration operations like pointed by leo_get() and leo_nr()
- *   can be perfomed by both the client and the server.
- * - Registration/unregistration of layout and enum types can be performed
- *   only by the server.
- * - DB operations like c2_ldb_lookup(), c2_ldb_add(), c2_ldb_update(),
- *   c2_ldb_delete() can be performed only by the server.
+ * Regarding client/server access to various APIs from layout and layout-DB
+ * modules:
+ * - The APIs exported through layout.h are available both to the client and
+ *   the server.
+ * - the APIs exported through layout_db.h are available only to the server.
  *
  * @{
  */
@@ -152,6 +147,7 @@ struct c2_layout_domain {
 	 * c2_ldb_schema object associated with that domain object is set.
 	 */
 	struct c2_ldb_schema       *ld_schema;
+
 	/**
 	 * Lock to protect the instance of c2_layout_domain, including all
 	 * its members.
@@ -395,6 +391,8 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 		     struct c2_ldb_schema *schema, struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out);
+
+c2_bcount_t c2_layout_max_recsize(struct c2_layout_domain *dom);
 
 /** @} end group layout */
 

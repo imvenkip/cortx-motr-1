@@ -567,22 +567,23 @@ void c2_layout_put(struct c2_layout *l)
  * - Client decodes a buffer received over the network, into an in-memory
  *   layout structure, using c2_layout_decode().
  *
+ * @param cur Cursor pointing to a buffer containing serialized representation
+ * of the buffer. Regarding the size of the buffer:
+ * - In case c2_layout_decode() is called through c2_ldb_add(), then the
+ *   buffer should be containing all the data that is read specifically from
+ *   the layouts table. It means its size needs to be at the most the size
+ *   returned by c2_layout_max_recsize().
+ * - In case c2_layout_decode() is called by some other caller, then the
+ *   buffer should be containing all the data belonging to the specific layout.
+ *   It may include data that spans over tables other than layouts as well. It
+ *   means its size may need to be even more than the one returned by
+ *   c2_layout_max_recsize(). For example, in case of LIST enumeration type,
+ *   the buffer needs to contain the data that goes to cob_lists table.
+ *
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record. It could be LOOKUP if at all a DB operation.
  * If it is BUFFER_NONE, then the layout is decoded from its representation
  * received over the network.
- *
- * @pre
- * - In case c2_layout_decode() is called through c2_ldb_add(), then the
- *   buffer should be containing all the data that is read specifically from
- *   the layouts table. It means its size will be at the most the size
- *   returned by c2_ldb_rec_max_size().
- * - In case c2_layout_decode() is called by some other caller, then the
- *   buffer should be containing all the data belonging to the specific layout.
- *   It may include data that spans over tables other than layouts as well. It
- *   means its size may even be more than the one returned by
- *   c2_ldb_rec_max_size(). For example, in case of LIST enumeration type, the
- *   the buffer needs to contain the data that goes to cob_lists table.
  *
  * @post Layout object is built internally (along with enumeration object being
  * built if applicable). Hence, user needs to finalize the layout object when
@@ -677,12 +678,12 @@ out:
  * - In case c2_layout_encode() is called through c2_ldb_add()|c2_ldb_update()|
  *   c2_ldb_delete(), then the buffer size should be large enough to contain
  *   the data that is to be written specifically to the layouts table.
- *   It means its size will be at the most the size returned by
- *   c2_ldb_rec_max_size().
+ *   It means it needs to be at the most the size returned by
+ *   c2_layout_max_recsize().
  * - In case c2_layout_encode() is called by some other caller, then the
  *   buffer size should be large enough to contain all the data belonging to
- *   the specific layout. It means its size may even be more than the one
- *   returned by c2_ldb_rec_max_size(). For example, in case of LIST
+ *   the specific layout. It means the size required may even be more than
+ *   the one returned by c2_layout_max_recsize(). For example, in case of LIST
  *   enumeration type, some data goes into table other than layouts, viz.
  *   cob_lists table.
  *
@@ -763,6 +764,19 @@ out:
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
+}
+
+
+/**
+ * Returns maximum possible size for a record in the layouts table (without
+ * considering the data in the tables other than layouts), from what is
+ * maintained in the c2_layout_schema object.
+ */
+c2_bcount_t c2_layout_max_recsize(struct c2_layout_domain *dom)
+{
+	C2_PRE(domain_invariant(dom));
+
+	return dom->ld_schema->ls_max_recsize;
 }
 
 /** @} end group layout */

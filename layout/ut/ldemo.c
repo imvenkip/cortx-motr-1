@@ -186,8 +186,8 @@ static int dummy_create(struct c2_layout_domain *domain,
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(schema->ls_domain == domain);
 
-	c2_ldb_type_register(domain, &c2_pdclust_layout_type);
-	c2_ldb_enum_register(domain, &c2_linear_enum_type);
+	c2_layout_type_register(domain, &c2_pdclust_layout_type);
+	c2_layout_enum_type_register(domain, &c2_linear_enum_type);
 
 	rc = c2_linear_enum_build(domain, lid, pool_width, 100, 200, lin_enum);
 	C2_ASSERT(rc == 0);
