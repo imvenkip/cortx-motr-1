@@ -912,6 +912,7 @@ void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY();
 
+	C2_PRE(machine != NULL);
 	c2_mutex_lock(&machine->rm_mutex);
 
 	C2_LEAVE();
@@ -921,9 +922,16 @@ void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY();
 
+	C2_PRE(machine != NULL);
 	c2_mutex_unlock(&machine->rm_mutex);
 
 	C2_LEAVE();
+}
+
+bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
+{
+	C2_PRE(machine != NULL);
+	return c2_mutex_is_locked(&machine->rm_mutex);
 }
 
 /** simple vector of update stream operations */

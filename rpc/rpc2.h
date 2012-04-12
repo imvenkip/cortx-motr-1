@@ -575,6 +575,7 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
+bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
 
 /**
   Posts an unbound item to the rpc layer.

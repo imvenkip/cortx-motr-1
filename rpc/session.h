@@ -542,8 +542,6 @@ struct c2_rpc_conn {
 	    is broadcast
 	 */
 	struct c2_cond            c_state_changed;
-
-	struct c2_mutex           c_mutex;
 };
 
 /**
@@ -918,9 +916,6 @@ struct c2_rpc_session {
 	 */
 	int32_t                   s_rc;
 
-	/** lock protecting this session and slot table */
-	struct c2_mutex           s_mutex;
-
 	/** A condition variable on which broadcast is sent whenever state of
 	    session is changed. Associated with s_mutex
 	 */
@@ -1193,8 +1188,6 @@ struct c2_rpc_slot {
 	struct c2_list                sl_ready_list;
 
 	const struct c2_rpc_slot_ops *sl_ops;
-
-	struct c2_mutex               sl_mutex;
 };
 
 /** @} end of session group */
