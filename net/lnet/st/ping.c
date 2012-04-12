@@ -1287,15 +1287,16 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 	if (rc != 0)
 		return rc;
 
-	/* create end point address for the server */
+	/* need end point for the server */
 	snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:%u", ctx->pc_rnetwork,
 		 ctx->pc_rpid, ctx->pc_rportal, ctx->pc_rtmid);
-
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_tm, addr);
 	if (rc != 0)
 		ping_fini(ctx);
 
-	/* client's can have dynamically assigned TMIDs so use the EP addr */
+	/* clients can have dynamically assigned TMIDs so use the EP addr
+	   in the ident.
+	 */
 	C2_ALLOC_ARR(ident, strlen(ctx->pc_tm.ntm_ep->nep_addr) + strlen(fmt)
 		     + 1);
 	if (ident == NULL) {
