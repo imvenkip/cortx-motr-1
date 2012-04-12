@@ -244,7 +244,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
         c2_list_for_each_entry(&rpc_obj->r_items, item,
 				struct c2_rpc_item, ri_rpcobject_linkage) {
 		item_type = item->ri_type;
-		C2_LOG("opcode %d", item_type->rit_opcode);
 		C2_ASSERT(item_type->rit_ops != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
@@ -310,7 +309,6 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 		rc = c2_bufvec_uint32(&cur, &opcode, C2_BUFVEC_DECODE);
 		if (rc != 0)
 			return -EFAULT;
-		C2_LOG("opcode %d", opcode);
 		item_type = c2_rpc_item_type_lookup(opcode);
 		C2_ASSERT(item_type != NULL);
 		C2_ASSERT(item_type->rit_ops != NULL);

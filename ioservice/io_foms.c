@@ -28,8 +28,6 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
-#include "lib/tlist.h"
-#include "lib/assert.h"
 #include "addb/addb.h"
 #include "net/net.h"
 #include "net/net_internal.h"
