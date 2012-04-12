@@ -308,9 +308,7 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
  * c2_fom_block_at()) with the channel where the completion event
  * will be signalled.
  * If the state method returns C2_FSO_WAIT, and fom has not yet
- * finished its execution, then it is put on the locality wait
- * list with c2_fom_locality::fl_group.s_lock mutex already held by
- * c2_fom_block_at().
+ * finished its execution, then it is put on the locality wait list.
  *
  * @see c2_fom_state_outcome
  * @see c2_fom_block_at()
@@ -355,8 +353,6 @@ static void fom_exec(struct c2_fom *fom)
  *
  * @param loc Locality assigned for fom execution
  *
- * @pre c2_mutex_is_locked(&loc->fl_group.s_lock)
- *
  * @retval c2_fom if succeeds
  *	else returns NULL
  */
@@ -381,8 +377,8 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 /**
  * Locality handler thread.
  * Handler thread waits on re-scheduling channel for specific time.
- * Thread is then woken up either by fom enqueue operation in a locality runq list,
- * or if thread times out waiting on the channel.
+ * Thread is then woken up either by fom enqueue operation in a locality runq
+ * list, or if thread times out waiting on the channel.
  * When woken up, thread dequeue's a fom from the locality runq list and starts
  * executing it. If number of idle threads are higher than threshold value, they
  * are terminated.

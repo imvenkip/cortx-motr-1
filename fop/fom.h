@@ -103,9 +103,21 @@ struct c2_fom_locality {
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 
+	/** State Machine (SM) group for AST callbacks */
 	struct c2_sm_group	     fl_group;
 
-	/** Private lock for API protection */
+	/** 
+	 *  Private lock for API protection
+	 *
+	 *  Some operations should be performed in parallel with fom state
+	 *  transitions (performed with common fl_group.s_lock held) while
+	 *  still requiring atomicity protection. For example, decrementing
+	 *  of fl_lo_idle_threads_nr in block_leave() or c2_fom_queue()
+	 *  are protected with this lock.
+	 *
+	 *  This lock is private data, i.e. it is not intended for direct
+	 *  usage by fom users.
+	 */
 	struct c2_mutex		     fl_lock;
 
 	/**
