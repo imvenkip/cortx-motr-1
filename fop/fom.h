@@ -106,7 +106,7 @@ struct c2_fom_locality {
 	/** State Machine (SM) group for AST callbacks */
 	struct c2_sm_group	     fl_group;
 
-	/** 
+	/**
 	 *  Private lock for API protection
 	 *
 	 *  Some operations should be performed in parallel with fom state
