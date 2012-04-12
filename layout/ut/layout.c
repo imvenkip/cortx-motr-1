@@ -34,7 +34,7 @@
 #include "layout/pdclust.h"
 #include "layout/layout_db.h"
 #include "layout/list_enum.h"
-#include "layout/list_enum.c" /* struct ldb_cob_entries_header */
+#include "layout/list_enum.c" /* struct cob_entries_header */
 #include "layout/linear_enum.h"
 
 static const char              db_name[] = "ut-layout";
@@ -270,7 +270,7 @@ static void test_etype_reg_unreg(void)
 	C2_LEAVE();
 }
 
-static void test_ldb_reg_unreg(void)
+static void test_reg_unreg(void)
 {
 	const char              t_db_name[] = "t-layout";
 	struct c2_layout_domain t_domain;
@@ -341,7 +341,7 @@ static void test_max_recsize()
 	c2_bcount_t max_size;
 	c2_bcount_t list_size;
 
-	list_size = sizeof(struct ldb_cob_entries_header) +
+	list_size = sizeof(struct cob_entries_header) +
 		    LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 
 	max_size = sizeof(struct c2_layout_rec) +
@@ -397,12 +397,12 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 				    uint32_t A, uint32_t B,/* For linear enum */
 				    struct c2_bufvec_cursor *dcur)
 {
-	uint32_t                       let_id;
-	c2_bcount_t                    nbytes_copied;
-	struct ldb_cob_entries_header  ldb_ce_header;
-	struct c2_fid                  cob_id;
-	uint32_t                       i;
-	struct c2_layout_linear_attr   lin_rec;
+	uint32_t                     let_id;
+	c2_bcount_t                  nbytes_copied;
+	struct cob_entries_header    ce_header;
+	struct c2_fid                cob_id;
+	uint32_t                     i;
+	struct c2_layout_linear_attr lin_rec;
 
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 	C2_UT_ASSERT(dcur != NULL);
@@ -419,12 +419,12 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 	pdclust_buf_build(lid, N, K, unitsize, seed, let_id, dcur);
 
 	if (enum_id == LIST_ENUM_ID) {
-		ldb_ce_header.llces_nr = nr;
-		nbytes_copied = c2_bufvec_cursor_copyto(dcur, &ldb_ce_header,
-							sizeof ldb_ce_header);
-		C2_UT_ASSERT(nbytes_copied == sizeof ldb_ce_header);
+		ce_header.ces_nr = nr;
+		nbytes_copied = c2_bufvec_cursor_copyto(dcur, &ce_header,
+							sizeof ce_header);
+		C2_UT_ASSERT(nbytes_copied == sizeof ce_header);
 
-		for (i = 0; i < ldb_ce_header.llces_nr; ++i) {
+		for (i = 0; i < ce_header.ces_nr; ++i) {
 			c2_fid_set(&cob_id, i * 100 + 1, i + 1);
 			nbytes_copied = c2_bufvec_cursor_copyto(dcur, &cob_id,
 								sizeof cob_id);
@@ -756,13 +756,13 @@ static int pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 				     uint32_t A, uint32_t B, /* For lin enum */
 				     struct c2_bufvec_cursor *cur)
 {
-	uint32_t                       lt_id;
-	uint32_t                       let_id;
-	uint32_t                       i;
-	struct ldb_cob_entries_header *ldb_ce_header;
-	struct c2_fid                 *cob_id;
-	struct c2_fid                  cob_id1;
-	struct c2_layout_linear_attr  *lin_attr;
+	uint32_t                      lt_id;
+	uint32_t                      let_id;
+	uint32_t                      i;
+	struct cob_entries_header    *ce_header;
+	struct c2_fid                *cob_id;
+	struct c2_fid                 cob_id1;
+	struct c2_layout_linear_attr *lin_attr;
 
 	C2_UT_ASSERT(cur != NULL);
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -777,17 +777,17 @@ static int pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 		C2_UT_ASSERT(let_id == c2_list_enum_type.let_id);
 
 		C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >=
-			     sizeof *ldb_ce_header);
+			     sizeof *ce_header);
 
-		ldb_ce_header = c2_bufvec_cursor_addr(cur);
-		C2_UT_ASSERT(ldb_ce_header != NULL);
-		c2_bufvec_cursor_move(cur, sizeof *ldb_ce_header);
+		ce_header = c2_bufvec_cursor_addr(cur);
+		C2_UT_ASSERT(ce_header != NULL);
+		c2_bufvec_cursor_move(cur, sizeof *ce_header);
 
-		C2_UT_ASSERT(ldb_ce_header->llces_nr > 0);
+		C2_UT_ASSERT(ce_header->ces_nr > 0);
 		C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >=
-			     ldb_ce_header->llces_nr * sizeof *cob_id);
+			     ce_header->ces_nr * sizeof *cob_id);
 
-		for (i = 0; i < ldb_ce_header->llces_nr; ++i) {
+		for (i = 0; i < ce_header->ces_nr; ++i) {
 			cob_id = c2_bufvec_cursor_addr(cur);
 			C2_UT_ASSERT(cob_id != NULL);
 
@@ -967,13 +967,13 @@ static void pdclust_layout_buf_compare(struct c2_bufvec_cursor *cur1,
 				       struct c2_bufvec_cursor *cur2,
 				       uint32_t enum_id)
 {
-	struct ldb_cob_entries_header *ldb_ce_header1;
-	struct ldb_cob_entries_header *ldb_ce_header2;
-	struct c2_fid                 *cob_id1;
-	struct c2_fid                 *cob_id2;
-	uint32_t                       i;
-	struct c2_layout_linear_attr  *lin_attr1;
-	struct c2_layout_linear_attr  *lin_attr2;
+	struct cob_entries_header    *ce_header1;
+	struct cob_entries_header    *ce_header2;
+	struct c2_fid                *cob_id1;
+	struct c2_fid                *cob_id2;
+	uint32_t                      i;
+	struct c2_layout_linear_attr *lin_attr1;
+	struct c2_layout_linear_attr *lin_attr2;
 
 	C2_UT_ASSERT(cur1 != NULL);
 	C2_UT_ASSERT(cur2 != NULL);
@@ -985,25 +985,25 @@ static void pdclust_layout_buf_compare(struct c2_bufvec_cursor *cur1,
 
 	if (enum_id == LIST_ENUM_ID) {
 		C2_UT_ASSERT(c2_bufvec_cursor_step(cur1) >=
-			     sizeof *ldb_ce_header1);
+			     sizeof *ce_header1);
 		C2_UT_ASSERT(c2_bufvec_cursor_step(cur2) >=
-			     sizeof *ldb_ce_header2);
+			     sizeof *ce_header2);
 
-		ldb_ce_header1 = c2_bufvec_cursor_addr(cur1);
-		ldb_ce_header2 = c2_bufvec_cursor_addr(cur2);
+		ce_header1 = c2_bufvec_cursor_addr(cur1);
+		ce_header2 = c2_bufvec_cursor_addr(cur2);
 
-		c2_bufvec_cursor_move(cur1, sizeof *ldb_ce_header1);
-		c2_bufvec_cursor_move(cur2, sizeof *ldb_ce_header2);
+		c2_bufvec_cursor_move(cur1, sizeof *ce_header1);
+		c2_bufvec_cursor_move(cur2, sizeof *ce_header2);
 
-		C2_UT_ASSERT(ldb_ce_header1->llces_nr ==
-			     ldb_ce_header2->llces_nr);
+		C2_UT_ASSERT(ce_header1->ces_nr ==
+			     ce_header2->ces_nr);
 
 		C2_UT_ASSERT(c2_bufvec_cursor_step(cur1) >=
-			     ldb_ce_header1->llces_nr * sizeof *cob_id1);
+			     ce_header1->ces_nr * sizeof *cob_id1);
 		C2_UT_ASSERT(c2_bufvec_cursor_step(cur2) >=
-			     ldb_ce_header2->llces_nr * sizeof *cob_id2);
+			     ce_header2->ces_nr * sizeof *cob_id2);
 
-		for (i = 0; i < ldb_ce_header1->llces_nr; ++i) {
+		for (i = 0; i < ce_header1->ces_nr; ++i) {
 			cob_id1 = c2_bufvec_cursor_addr(cur1);
 			cob_id2 = c2_bufvec_cursor_addr(cur2);
 
@@ -1940,7 +1940,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-schema-init-fini", test_schema_init_fini },
 		{ "layout-type-register-unregister", test_type_reg_unreg },
 		{ "layout-etype-register-unregister", test_etype_reg_unreg },
-		{ "layout-ldb-register-unregister", test_ldb_reg_unreg },
+		{ "layout-register-unregister", test_reg_unreg },
 		{ "layout-max-recsize", test_max_recsize },
 		{ "layout-recsize", test_recsize },
 		{ "layout-decode", test_decode },

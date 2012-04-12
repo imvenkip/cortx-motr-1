@@ -172,7 +172,7 @@
  * - In case of a layout with PDCLUST layout type, the structure
  *   c2_layout_pdclust_rec is used to store attributes like enumeration type
  *   id, N, K, P.
- * - In case of a layout with LIST enum type, an array of ldb_list_cob_entry
+ * - In case of a layout with LIST enum type, an array of c2_fid
  *   structure with size LDB_MAX_INLINE_COB_ENTRIES is used to store a few COB
  *   entries inline into the layouts table itself.
  * - It is possible that some layouts do not need to store any layout type or
@@ -196,7 +196,8 @@
  * layout_id is a foreign key referring record, in the layouts table.
  *
  * cob_index for the first entry in this table will be continuation of the
- * llce_cob_index from the array of ldb_list_cob_entry stored in layouts table.
+ * index from the array of c2_fid structures stored inline in the layouts
+ * table.
  *
  * @subsection Layout-DB-lspec-schema-comp_layout_ext_map Table comp_layout_ext_map
  *
