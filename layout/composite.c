@@ -26,7 +26,6 @@
 #include "lib/memory.h"             /* C2_ALLOC_PTR() */
 
 #include "layout/layout_internal.h"
-#include "layout/layout_db.h"       /* struct c2_ldb_rec */
 #include "layout/composite.h"
 
 struct composite_schema_data {
@@ -58,7 +57,7 @@ struct layout_prefix {
  */
 void c2_composite_build(uint64_t pool_id, uint64_t lid,
 			struct c2_tl *sub_layouts,
-			struct c2_ldb_schema *schema,
+			struct c2_layout_schema *schema,
 			struct c2_composite_layout **out)
 {
 }
@@ -73,7 +72,7 @@ static void composite_fini(struct c2_layout *l, struct c2_layout_domain *dom)
  *
  * Intializes table specifically required for COMPOSITE layout type.
  */
-static int composite_register(struct c2_ldb_schema *schema,
+static int composite_register(struct c2_layout_schema *schema,
 			      const struct c2_layout_type *lt)
 {
 	/*
@@ -95,7 +94,7 @@ static int composite_register(struct c2_ldb_schema *schema,
  *
  * Finalizes table specifically required for COMPOSITE layout type.
  */
-static void composite_unregister(struct c2_ldb_schema *schema,
+static void composite_unregister(struct c2_layout_schema *schema,
 				 const struct c2_layout_type *lt)
 {
 	/*
@@ -143,7 +142,8 @@ static int composite_decode(struct c2_layout_domain *dom,
 			    uint64_t lid, uint64_t pool_id,
 			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
-			    struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+			    struct c2_layout_schema *schema,
+			    struct c2_db_tx *tx,
 			    struct c2_layout **out)
 {
 	struct c2_composite_layout   *cl;
@@ -196,7 +196,8 @@ static int composite_decode(struct c2_layout_domain *dom,
 static int composite_encode(struct c2_layout_domain *dom,
 			    struct c2_layout *l,
 			    enum c2_layout_xcode_op op,
-			    struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+			    struct c2_layout_schema *schema,
+			    struct c2_db_tx *tx,
 			    struct c2_bufvec_cursor *oldrec_cur,
 			    struct c2_bufvec_cursor *out)
 {

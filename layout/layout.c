@@ -63,21 +63,21 @@ C2_ADDB_EV_DEFINE(layout_encode_success, "layout_encode_success",
 C2_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
 		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_FUNC_CALL);
 
-C2_ADDB_EV_DEFINE(ldb_lookup_success, "layout_lookup_success",
+C2_ADDB_EV_DEFINE(layout_lookup_success, "layout_lookup_success",
 		  C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS, C2_ADDB_FLAG);
-C2_ADDB_EV_DEFINE(ldb_lookup_fail, "layout_lookup_fail",
+C2_ADDB_EV_DEFINE(layout_lookup_fail, "layout_lookup_fail",
 		  C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(ldb_add_success, "layout_add_success",
+C2_ADDB_EV_DEFINE(layout_add_success, "layout_add_success",
 		  C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS, C2_ADDB_FLAG);
-C2_ADDB_EV_DEFINE(ldb_add_fail, "layout_add_fail",
+C2_ADDB_EV_DEFINE(layout_add_fail, "layout_add_fail",
 		  C2_ADDB_EVENT_LAYOUT_ADD_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(ldb_update_success, "layout_update_success",
+C2_ADDB_EV_DEFINE(layout_update_success, "layout_update_success",
 		  C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS, C2_ADDB_FLAG);
-C2_ADDB_EV_DEFINE(ldb_update_fail, "layout_update_fail",
+C2_ADDB_EV_DEFINE(layout_update_fail, "layout_update_fail",
 		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(ldb_delete_success, "layout_delete_success",
+C2_ADDB_EV_DEFINE(layout_delete_success, "layout_delete_success",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS, C2_ADDB_FLAG);
-C2_ADDB_EV_DEFINE(ldb_delete_fail, "layout_delete_fail",
+C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
 
 bool domain_invariant(const struct c2_layout_domain *dom)
@@ -105,7 +105,7 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl,
 		layout_invariant(&stl->ls_base);
 }
 
-static int layout_rec_invariant(const struct c2_ldb_rec *rec,
+static int layout_rec_invariant(const struct c2_layout_rec *rec,
 				struct c2_layout_domain *dom)
 {
 	return rec != NULL &&
@@ -410,39 +410,39 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
 		break;
 	case C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS:
 		C2_ASSERT(strlen(err_msg) == 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_lookup_success, true);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_lookup_success, true);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL:
 		C2_ASSERT(strlen(err_msg) > 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_lookup_fail,
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_lookup_fail,
 			    err_msg, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS:
 		C2_ASSERT(strlen(err_msg) == 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_add_success, true);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_add_success, true);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_ADD_FAIL:
 		C2_ASSERT(strlen(err_msg) > 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_add_fail,
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_add_fail,
 			    err_msg, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS:
 		C2_ASSERT(strlen(err_msg) == 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_update_success, true);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_update_success, true);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL:
 		C2_ASSERT(strlen(err_msg) > 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_update_fail,
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_update_fail,
 			    err_msg, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS:
 		C2_ASSERT(strlen(err_msg) == 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_delete_success,
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_success,
 			    true);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_DELETE_FAIL:
 		C2_ASSERT(strlen(err_msg) > 0);
-		C2_ADDB_ADD(ctx, &layout_addb_loc, ldb_delete_fail,
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_fail,
 			    err_msg, rc);
 		break;
 	default:
@@ -479,17 +479,17 @@ void layout_log(const char *fn_name,
 	C2_PRE(ergo(rc == 0, strlen(err_msg) == 0 && !trace_msg &&
 			     (ev_id == layout_decode_success.ae_id ||
 			      ev_id == layout_encode_success.ae_id ||
-			      ev_id == ldb_lookup_success.ae_id ||
-			      ev_id == ldb_add_success.ae_id ||
-			      ev_id == ldb_update_success.ae_id ||
-			      ev_id == ldb_delete_success.ae_id)));
+			      ev_id == layout_lookup_success.ae_id ||
+			      ev_id == layout_add_success.ae_id ||
+			      ev_id == layout_update_success.ae_id ||
+			      ev_id == layout_delete_success.ae_id)));
 	C2_PRE(ergo(rc != 0, strlen(err_msg) > 0 &&
 			     (ev_id == layout_decode_fail.ae_id ||
 			      ev_id == layout_encode_fail.ae_id ||
-			      ev_id == ldb_lookup_fail.ae_id ||
-			      ev_id == ldb_add_fail.ae_id ||
-			      ev_id == ldb_update_fail.ae_id ||
-			      ev_id == ldb_delete_fail.ae_id ||
+			      ev_id == layout_lookup_fail.ae_id ||
+			      ev_id == layout_add_fail.ae_id ||
+			      ev_id == layout_update_fail.ae_id ||
+			      ev_id == layout_delete_fail.ae_id ||
 			      ev_id == c2_addb_func_fail.ae_id ||
 			      ev_id == c2_addb_oom.ae_id)));
 
@@ -562,14 +562,14 @@ void c2_layout_put(struct c2_layout *l)
  *
  * Two use cases of c2_layout_decode()
  * - Server decodes an on-disk layout record by reading it from the Layout
- *   DB, into an in-memory layout structure, using c2_ldb_lookup() which
+ *   DB, into an in-memory layout structure, using c2_layout_lookup() which
  *   internally calls c2_layout_decode().
  * - Client decodes a buffer received over the network, into an in-memory
  *   layout structure, using c2_layout_decode().
  *
  * @param cur Cursor pointing to a buffer containing serialized representation
  * of the buffer. Regarding the size of the buffer:
- * - In case c2_layout_decode() is called through c2_ldb_add(), then the
+ * - In case c2_layout_decode() is called through c2_layout_add(), then the
  *   buffer should be containing all the data that is read specifically from
  *   the layouts table. It means its size needs to be at the most the size
  *   returned by c2_layout_max_recsize().
@@ -592,11 +592,12 @@ void c2_layout_put(struct c2_layout *l)
 int c2_layout_decode(struct c2_layout_domain *dom,
 		     uint64_t lid, struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
-		     struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+		     struct c2_layout_schema *schema,
+		     struct c2_db_tx *tx,
 		     struct c2_layout **out)
 {
 	struct c2_layout_type *lt;
-	struct c2_ldb_rec     *rec;
+	struct c2_layout_rec  *rec;
 	int                    rc;
 
 	C2_PRE(domain_invariant(dom));
@@ -675,11 +676,11 @@ out:
  * layou update operation. In other cases, it is expected to be NULL.
  *
  * @param out Cursor poining to a buffer. Regarding the size of the buffer:
- * - In case c2_layout_encode() is called through c2_ldb_add()|c2_ldb_update()|
- *   c2_ldb_delete(), then the buffer size should be large enough to contain
- *   the data that is to be written specifically to the layouts table.
- *   It means it needs to be at the most the size returned by
- *   c2_layout_max_recsize().
+ * - In case c2_layout_encode() is called through c2_layout_add()|
+ *   c2_layout_update()|c2_layout_delete(), then the buffer size should be
+ *   large enough to contain the data that is to be written specifically to
+ *   the layouts table. It means it needs to be at the most the size returned
+ *   by c2_layout_max_recsize().
  * - In case c2_layout_encode() is called by some other caller, then the
  *   buffer size should be large enough to contain all the data belonging to
  *   the specific layout. It means the size required may even be more than
@@ -696,12 +697,13 @@ out:
 int c2_layout_encode(struct c2_layout_domain *dom,
 		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
-		     struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+		     struct c2_layout_schema *schema,
+		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out)
 {
-	struct c2_ldb_rec      rec;
-	struct c2_ldb_rec     *oldrec;
+	struct c2_layout_rec   rec;
+	struct c2_layout_rec  *oldrec;
 	struct c2_layout_type *lt;
 	c2_bcount_t            nbytes;
 	int                    rc;

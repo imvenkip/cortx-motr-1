@@ -71,7 +71,7 @@ struct c2_stob_id;
 
 /* export */
 struct c2_pdclust_attr;
-struct c2_ldb_pdclust_rec;
+struct c2_layout_pdclust_rec;
 struct c2_pdclust_layout;
 enum c2_pdclust_unit_type;
 struct c2_pdclust_src_addr;
@@ -80,7 +80,8 @@ struct c2_pdclust_tgt_addr;
 /**
  * Attributes specific to PDCLUST layout type.
  * These attributes are part of c2_pdclust_layout which is in-memory layout
- * object and are stored in the Layout DB as well, through c2_ldb_pdclust_rec.
+ * object and are stored in the Layout DB as well, through
+ * c2_layout_pdclust_rec.
  */
 struct c2_pdclust_attr {
 	/** Number of data units in a parity group. */
@@ -107,7 +108,7 @@ struct c2_pdclust_attr {
 /**
  * Pdclust layout type specific part of record for the layouts table.
  */
-struct c2_ldb_pdclust_rec {
+struct c2_layout_pdclust_rec {
 	/**
 	 * Layout enumeration type id.
 	 * Value obtained from c2_layout_enum_type::let_id.

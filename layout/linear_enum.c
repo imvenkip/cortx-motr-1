@@ -151,7 +151,7 @@ static void linear_fini(struct c2_layout_domain *dom,
  * Implementation of leto_register for LINEAR enumeration type.
  * No table is required specifically for LINEAR enum type.
  */
-static int linear_register(struct c2_ldb_schema *schema,
+static int linear_register(struct c2_layout_schema *schema,
 			   const struct c2_layout_enum_type *et)
 {
 	return 0;
@@ -160,7 +160,7 @@ static int linear_register(struct c2_ldb_schema *schema,
 /**
  * Implementation of leto_unregister for LINEAR enumeration type.
  */
-static void linear_unregister(struct c2_ldb_schema *schema,
+static void linear_unregister(struct c2_layout_schema *schema,
 			      const struct c2_layout_enum_type *et)
 {
 }
@@ -196,7 +196,8 @@ static int linear_decode(struct c2_layout_domain *dom,
 			 uint64_t lid,
 			 struct c2_bufvec_cursor *cur,
 			 enum c2_layout_xcode_op op,
-			 struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+			 struct c2_layout_schema *schema,
+			 struct c2_db_tx *tx,
 			 struct c2_layout_enum **out)
 {
 	struct c2_layout_linear_enum *lin_enum = NULL;
@@ -247,7 +248,8 @@ out:
 static int linear_encode(struct c2_layout_domain *dom,
 			 const struct c2_layout_enum *le, uint64_t lid,
 			 enum c2_layout_xcode_op op,
-			 struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+			 struct c2_layout_schema *schema,
+			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *oldrec_cur,
 			 struct c2_bufvec_cursor *out)
 {

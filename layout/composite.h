@@ -51,7 +51,7 @@ struct c2_composite_layout {
 
 void c2_composite_build(uint64_t pool_id, uint64_t lid,
 			struct c2_tl *sub_layouts,
-			struct c2_ldb_schema *schema,
+			struct c2_layout_schema *schema,
 			struct c2_composite_layout **out);
 
 extern const struct c2_layout_type c2_composite_layout_type;

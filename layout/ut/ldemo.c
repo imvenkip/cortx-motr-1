@@ -170,7 +170,7 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
  */
 static int dummy_create(struct c2_layout_domain *domain,
 			struct c2_dbenv *dbenv,
-			struct c2_ldb_schema *schema,
+			struct c2_layout_schema *schema,
 			uint64_t lid, uint32_t pool_width,
 			struct c2_layout_linear_enum **lin_enum)
 {
@@ -182,7 +182,7 @@ static int dummy_create(struct c2_layout_domain *domain,
 	rc = c2_dbenv_init(dbenv, "ldemo-db", 0);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_ldb_schema_init(schema, domain, dbenv);
+	rc = c2_layout_schema_init(schema, domain, dbenv);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(schema->ls_domain == domain);
 
@@ -211,7 +211,7 @@ int main(int argc, char **argv)
 	struct c2_uint128              seed;
 	struct c2_layout_domain        domain;
 	struct c2_dbenv                dbenv;
-	struct c2_ldb_schema           schema;
+	struct c2_layout_schema        schema;
 	struct c2_layout_linear_enum  *le = NULL;
 	if (argc != 6) {
 		printf(

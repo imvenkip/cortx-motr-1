@@ -34,7 +34,7 @@ struct c2_layout_enum;
 struct c2_layout_enum_ops;
 struct c2_layout_enum_type;
 struct c2_layout_striped;
-struct c2_ldb_schema;
+struct c2_layout_schema;
 enum c2_addb_event_id;
 struct c2_addb_ev;
 struct c2_addb_ctx;

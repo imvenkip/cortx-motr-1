@@ -39,7 +39,7 @@
 
 static const char              db_name[] = "ut-layout";
 static struct c2_layout_domain domain;
-static struct c2_ldb_schema    schema;
+static struct c2_layout_schema schema;
 static struct c2_dbenv         dbenv;
 static struct c2_pool          pool;
 static int                     rc;
@@ -82,7 +82,7 @@ static int test_init(void)
 	rc = c2_dbenv_init(&dbenv, db_name, DBFLAGS);
 	C2_ASSERT(rc == 0);
 
-	rc = c2_ldb_schema_init(&schema, &domain, &dbenv);
+	rc = c2_layout_schema_init(&schema, &domain, &dbenv);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(schema.ls_domain == &domain);
 
@@ -114,7 +114,7 @@ static int test_fini(void)
 	/* Restore the original addb level. */
 	c2_addb_choose_default_level_console(orig_addb_level);
 
-	c2_ldb_schema_fini(&schema);
+	c2_layout_schema_fini(&schema);
 
 	c2_dbenv_fini(&dbenv);
 
@@ -139,7 +139,7 @@ static void test_schema_init_fini(void)
 {
 	const char              t_db_name[] = "t-layout";
 	struct c2_layout_domain t_domain;
-	struct c2_ldb_schema    t_schema;
+	struct c2_layout_schema t_schema;
 	struct c2_dbenv         t_dbenv;
 
 	C2_ENTRY();
@@ -152,18 +152,18 @@ static void test_schema_init_fini(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Initialize the schema. */
-	rc = c2_ldb_schema_init(&t_schema, &t_domain, &t_dbenv);
+	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Finalize the schema. */
-	c2_ldb_schema_fini(&t_schema);
+	c2_layout_schema_fini(&t_schema);
 
 	/* Should be able to initialize the schema again. */
-	rc = c2_ldb_schema_init(&t_schema, &t_domain, &t_dbenv);
+	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Finalize the schema. */
-	c2_ldb_schema_fini(&t_schema);
+	c2_layout_schema_fini(&t_schema);
 
 	c2_dbenv_fini(&t_dbenv);
 
@@ -174,13 +174,13 @@ static void test_schema_init_fini(void)
 }
 
 
-static int t_register(struct c2_ldb_schema *schema,
+static int t_register(struct c2_layout_schema *schema,
 		      const struct c2_layout_type *lt)
 {
 	return 0;
 }
 
-static void t_unregister(struct c2_ldb_schema *schema,
+static void t_unregister(struct c2_layout_schema *schema,
 			 const struct c2_layout_type *lt)
 {
 }
@@ -222,13 +222,13 @@ static void test_type_reg_unreg(void)
 	C2_LEAVE();
 }
 
-static int t_enum_register(struct c2_ldb_schema *schema,
+static int t_enum_register(struct c2_layout_schema *schema,
 			   const struct c2_layout_enum_type *et)
 {
 	return 0;
 }
 
-static void t_enum_unregister(struct c2_ldb_schema *schema,
+static void t_enum_unregister(struct c2_layout_schema *schema,
 			      const struct c2_layout_enum_type *et)
 {
 }
@@ -274,7 +274,7 @@ static void test_ldb_reg_unreg(void)
 {
 	const char              t_db_name[] = "t-layout";
 	struct c2_layout_domain t_domain;
-	struct c2_ldb_schema    t_schema;
+	struct c2_layout_schema t_schema;
 	struct c2_dbenv         t_dbenv;
 
 	C2_ENTRY();
@@ -287,7 +287,7 @@ static void test_ldb_reg_unreg(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Initialize the schema. */
-	rc = c2_ldb_schema_init(&t_schema, &t_domain, &t_dbenv);
+	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Register all the available layout types and enum types. */
@@ -326,7 +326,7 @@ static void test_ldb_reg_unreg(void)
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
 
 	/* Finalize the schema. */
-	c2_ldb_schema_fini(&t_schema);
+	c2_layout_schema_fini(&t_schema);
 
 	c2_dbenv_fini(&t_dbenv);
 
@@ -344,8 +344,8 @@ static void test_max_recsize()
 	list_size = sizeof(struct ldb_cob_entries_header) +
 		    LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 
-	max_size = sizeof(struct c2_ldb_rec) +
-		   sizeof(struct c2_ldb_pdclust_rec) +
+	max_size = sizeof(struct c2_layout_rec) +
+		   sizeof(struct c2_layout_pdclust_rec) +
 		   max64u(list_size, sizeof(struct c2_layout_linear_attr));
 
 	C2_UT_ASSERT(max_size == c2_layout_max_recsize(&domain));
@@ -358,8 +358,8 @@ static void test_recsize()
 
 static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 {
-	struct c2_ldb_rec rec;
-	c2_bcount_t       nbytes_copied;
+	struct c2_layout_rec rec;
+	c2_bcount_t          nbytes_copied;
 
 	rec.lr_lt_id     = lt_id;
 	rec.lr_ref_count = DEFAULT_REF_COUNT;
@@ -374,8 +374,8 @@ static void pdclust_buf_build(uint64_t lid,
 			      uint64_t unitsize, struct c2_uint128 *seed,
 			      uint32_t let_id, struct c2_bufvec_cursor *dcur)
 {
-	struct c2_ldb_pdclust_rec pl_rec;
-	c2_bcount_t               nbytes_copied;
+	struct c2_layout_pdclust_rec pl_rec;
+	c2_bcount_t                  nbytes_copied;
 
 	buf_build(c2_pdclust_layout_type.lt_id, dcur);
 
@@ -713,7 +713,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 
 static void lbuf_verify(struct c2_bufvec_cursor *cur, uint32_t *lt_id)
 {
-	struct c2_ldb_rec *rec;
+	struct c2_layout_rec *rec;
 
 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 
@@ -733,7 +733,7 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K, uint64_t unitsize,
 				struct c2_bufvec_cursor *cur,
 				uint32_t *let_id)
 {
-	struct c2_ldb_pdclust_rec  *pl_rec;
+	struct c2_layout_pdclust_rec *pl_rec;
 
 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
 
@@ -922,8 +922,8 @@ static void test_encode(void)
 static void lbuf_compare(struct c2_bufvec_cursor *cur1,
 			 struct c2_bufvec_cursor *cur2)
 {
-	struct c2_ldb_rec *rec1;
-	struct c2_ldb_rec *rec2;
+	struct c2_layout_rec *rec1;
+	struct c2_layout_rec *rec2;
 
 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur1) >= sizeof *rec2);
 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur2) >= sizeof *rec2);
@@ -942,8 +942,8 @@ static void lbuf_compare(struct c2_bufvec_cursor *cur1,
 static void pdclust_lbuf_compare(struct c2_bufvec_cursor *cur1,
 				 struct c2_bufvec_cursor *cur2)
 {
-	struct c2_ldb_pdclust_rec *pl_rec1;
-	struct c2_ldb_pdclust_rec *pl_rec2;
+	struct c2_layout_pdclust_rec *pl_rec1;
+	struct c2_layout_pdclust_rec *pl_rec2;
 
 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur1) >= sizeof *pl_rec1);
 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur2) >= sizeof *pl_rec2);
@@ -1358,7 +1358,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	rc = c2_layout_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1376,7 +1376,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_reset(&pair, &lid, area, num_bytes);
 
-		rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+		rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(l->l_id == lid);
 
@@ -1413,7 +1413,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_reset(&pair, &lid, area, num_bytes);
 
-		rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+		rc = c2_layout_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
 		C2_UT_ASSERT(rc == -EEXIST);
 
 		rc = c2_db_tx_commit(&tx);
@@ -1455,7 +1455,7 @@ static int test_lookup_pdclust_linear(uint64_t lid, bool test_existing)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
 
 	if (test_existing) {
 		C2_UT_ASSERT(rc == 0);
@@ -1539,7 +1539,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	rc = c2_layout_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1553,7 +1553,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(l->l_ref == DEFAULT_REF_COUNT);
 
@@ -1567,7 +1567,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_update(&schema, l, &pair, &tx);
+	rc = c2_layout_update(&schema, l, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1582,7 +1582,7 @@ static int test_update_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(l->l_ref == 1234567);
 
@@ -1638,7 +1638,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	rc = c2_layout_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1652,7 +1652,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(l->l_ref == DEFAULT_REF_COUNT);
 
@@ -1664,7 +1664,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_delete(&schema, l, &pair, &tx);
+	rc = c2_layout_delete(&schema, l, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1679,7 +1679,7 @@ static int test_delete_pdclust_linear(uint64_t lid)
 
 	pair_reset(&pair, &lid, area, num_bytes);
 
-	rc = c2_ldb_lookup(&schema, lid, &pair, &tx, &l);
+	rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	rc = c2_db_tx_commit(&tx);
@@ -1839,8 +1839,8 @@ static void test_enum_operations(void)
 static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 {
 	c2_bcount_t                  nbytes_copied;
-	struct c2_ldb_rec            rec;
-	struct c2_ldb_pdclust_rec    pl_rec;
+	struct c2_layout_rec         rec;
+	struct c2_layout_pdclust_rec pl_rec;
 	struct c2_layout_linear_attr lin_rec;
 
 	rec.lr_lt_id     = c2_pdclust_layout_type.lt_id;
@@ -1870,8 +1870,8 @@ static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
 
 static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
 {
-	struct c2_ldb_rec            *rec;
-	struct c2_ldb_pdclust_rec    *pl_rec;
+	struct c2_layout_rec         *rec;
+	struct c2_layout_pdclust_rec *pl_rec;
 	struct c2_layout_linear_attr *lin_rec;
 
 	rec = c2_bufvec_cursor_addr(cur);

@@ -415,7 +415,7 @@ static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
  * Implementation of lto_register for PDCLUST layout type.
  * No table is required specifically for PDCLUST layout type.
  */
-static int pdclust_register(struct c2_ldb_schema *schema,
+static int pdclust_register(struct c2_layout_schema *schema,
 			    const struct c2_layout_type *lt)
 {
 	return 0;
@@ -424,7 +424,7 @@ static int pdclust_register(struct c2_ldb_schema *schema,
 /**
  * Implementation of lto_unregister for PDCLUST layout type.
  */
-static void pdclust_unregister(struct c2_ldb_schema *schema,
+static void pdclust_unregister(struct c2_layout_schema *schema,
 			       const struct c2_layout_type *lt)
 {
 }
@@ -562,7 +562,7 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 		max_recsize = max64u(max_recsize, e_recsize);
         }
 
-	return sizeof(struct c2_ldb_pdclust_rec) + max_recsize;
+	return sizeof(struct c2_layout_pdclust_rec) + max_recsize;
 }
 
 /** Implementation of lto_recsize() for pdclust layout type. */
@@ -584,7 +584,7 @@ static c2_bcount_t pdclust_recsize(struct c2_layout_domain *dom,
 
 	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum, l->l_id);
 
-	return sizeof(struct c2_ldb_pdclust_rec) + e_recsize;
+	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
 }
 
 /**
@@ -602,15 +602,16 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 			  uint64_t lid, uint64_t pool_id,
 			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
-			  struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+			  struct c2_layout_schema *schema,
+			  struct c2_db_tx *tx,
 		          struct c2_layout **out)
 {
-	struct c2_pdclust_layout   *pl = NULL;
-	struct c2_ldb_pdclust_rec  *pl_rec;
-	struct c2_layout_enum_type *et;
-	struct c2_layout_enum      *e = NULL;
-	struct c2_pool             *pool = NULL;
-	int                         rc;
+	struct c2_pdclust_layout     *pl = NULL;
+	struct c2_layout_pdclust_rec *pl_rec;
+	struct c2_layout_enum_type   *et;
+	struct c2_layout_enum        *e = NULL;
+	struct c2_pool               *pool = NULL;
+	int                           rc;
 
 	C2_PRE(dom != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -685,13 +686,14 @@ out:
 static int pdclust_encode(struct c2_layout_domain *dom,
 			  struct c2_layout *l,
 			  enum c2_layout_xcode_op op,
-			  struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+			  struct c2_layout_schema *schema,
+			  struct c2_db_tx *tx,
 		          struct c2_bufvec_cursor *oldrec_cur,
 		          struct c2_bufvec_cursor *out)
 {
 	struct c2_pdclust_layout     *pl;
-	struct c2_ldb_pdclust_rec     pl_rec;
-	struct c2_ldb_pdclust_rec    *pl_oldrec;
+	struct c2_layout_pdclust_rec  pl_rec;
+	struct c2_layout_pdclust_rec *pl_oldrec;
 	struct c2_layout_enum_type   *et;
 	c2_bcount_t                   nbytes;
 	int                           rc;

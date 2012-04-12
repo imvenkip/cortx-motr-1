@@ -35,7 +35,7 @@
 
 #include "fid/fid.h"
 #include "layout/layout_internal.h"
-#include "layout/layout_db.h"       /* struct c2_ldb_schema */
+#include "layout/layout_db.h"       /* struct c2_layout_schema */
 #include "layout/list_enum.h"
 
 extern const struct c2_addb_loc layout_addb_loc;
@@ -234,7 +234,7 @@ void list_fini(struct c2_layout_domain *dom,
  *
  * Initializes table specifically required for LIST enum type.
  */
-static int list_register(struct c2_ldb_schema *schema,
+static int list_register(struct c2_layout_schema *schema,
 			 const struct c2_layout_enum_type *et)
 {
 	struct list_schema_data  *lsd;
@@ -282,7 +282,7 @@ out:
  *
  * Finalizes table specifically required for LIST enum type.
  */
-static void list_unregister(struct c2_ldb_schema *schema,
+static void list_unregister(struct c2_layout_schema *schema,
 			    const struct c2_layout_enum_type *et)
 {
 	struct list_schema_data *lsd;
@@ -340,7 +340,8 @@ static c2_bcount_t list_recsize(struct c2_layout_enum *e, uint64_t lid)
 
 static int ldb_cob_list_read(enum c2_layout_xcode_op op, uint64_t lid,
 			     uint32_t idx, struct c2_fid *cob_id,
-			     struct c2_ldb_schema *schema, struct c2_db_tx *tx)
+			     struct c2_layout_schema *schema,
+			     struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
@@ -393,7 +394,8 @@ static int list_decode(struct c2_layout_domain *dom,
 		       uint64_t lid,
 		       struct c2_bufvec_cursor *cur,
 		       enum c2_layout_xcode_op op,
-		       struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+		       struct c2_layout_schema *schema,
+		       struct c2_db_tx *tx,
 		       struct c2_layout_enum **out)
 {
 	struct c2_layout_list_enum    *list_enum = NULL;
@@ -485,7 +487,8 @@ out:
 
 int ldb_cob_list_write(enum c2_layout_xcode_op op, uint64_t lid,
 		       uint32_t idx, struct c2_fid *cob_id,
-		       struct c2_ldb_schema *schema, struct c2_db_tx *tx)
+		       struct c2_layout_schema *schema,
+		       struct c2_db_tx *tx)
 {
 	struct list_schema_data  *lsd;
 	struct ldb_cob_lists_key  key;
@@ -549,7 +552,8 @@ int ldb_cob_list_write(enum c2_layout_xcode_op op, uint64_t lid,
 static int list_encode(struct c2_layout_domain *dom,
 		       const struct c2_layout_enum *le, uint64_t lid,
 		       enum c2_layout_xcode_op op,
-		       struct c2_ldb_schema *schema, struct c2_db_tx *tx,
+		       struct c2_layout_schema *schema,
+		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *oldrec_cur,
 		       struct c2_bufvec_cursor *out)
 {

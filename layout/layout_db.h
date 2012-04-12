@@ -36,20 +36,20 @@
  * - @ref LayoutDBDFS "Detailed Functional Specification"
  *
  * @section Layout-DB-fspec-ds Data Structures
- * - struct c2_ldb_schema
- * - struct c2_ldb_rec
+ * - struct c2_layout_schema
+ * - struct c2_layout_rec
  *
  * @section Layout-DB-fspec-sub Subroutines
- * - int c2_ldb_schema_init(struct c2_ldb_schema *schema, struct c2_dbenv *db)
- * - void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
- * - void c2_layout_type_register(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
- * - void c2_layout_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_type *lt)
- * - void c2_layout_enum_type_register(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
- * - void c2_layout_enum_type_unregister(struct c2_ldb_schema *schema, const struct c2_layout_enum_type *et)
- * - int c2_ldb_lookup(struct c2_ldb_schema *schema, uint64_t lid, struct c2_db_pair *pair, struct c2_db_tx *tx, struct c2_layout **out)
- * - int c2_ldb_add(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
- * - int c2_ldb_update(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
- * - int c2_ldb_delete(struct c2_ldb_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_layout_schema_init(struct c2_layout_schema *schema, struct c2_dbenv *db)
+ * - void c2_layout_schema_fini(struct c2_layout_schema *schema)
+ * - void c2_layout_type_register(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
+ * - void c2_layout_type_unregister(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
+ * - void c2_layout_enum_type_register(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
+ * - void c2_layout_enum_type_unregister(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
+ * - int c2_layout_lookup(struct c2_layout_schema *schema, uint64_t lid, struct c2_db_pair *pair, struct c2_db_tx *tx, struct c2_layout **out)
+ * - int c2_layout_add(struct c2_layout_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_layout_update(struct c2_layout_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_layout_delete(struct c2_layout_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
  *
  * @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
  *
@@ -89,8 +89,8 @@
 #include "layout/layout.h"
 
 /* export */
-struct c2_ldb_schema;
-struct c2_ldb_rec;
+struct c2_layout_schema;
+struct c2_layout_rec;
 
 
 /**
@@ -112,7 +112,7 @@ struct c2_ldb_rec;
  * parameters.
  * There is one instance of layout domain object per Colibri.
  */
-struct c2_ldb_schema {
+struct c2_layout_schema {
 	/** Pointer to domain; to keep things together. */
 	struct c2_layout_domain *ls_domain;
 
@@ -132,7 +132,7 @@ struct c2_ldb_schema {
 	c2_bcount_t              ls_max_recsize;
 
 	/**
-	 * Lock to protect the instance of c2_ldb_schema, including all
+	 * Lock to protect the instance of c2_layout_schema, including all
 	 * its members.
 	 */
 	struct c2_mutex          ls_lock;
@@ -142,7 +142,7 @@ struct c2_ldb_schema {
  * layouts table.
  * Key is uint64_t, value obtained from c2_layout::l_id.
  */
-struct c2_ldb_rec {
+struct c2_layout_rec {
 	/**
 	 * Layout type id.
 	 * Value obtained from c2_layout_type::lt_id.
@@ -172,10 +172,10 @@ struct c2_ldb_rec {
 int c2_layout_domain_init(struct c2_layout_domain *dom);
 void c2_layout_domain_fini(struct c2_layout_domain *dom);
 
-int c2_ldb_schema_init(struct c2_ldb_schema *schema,
-		       struct c2_layout_domain *domain,
-		       struct c2_dbenv *db);
-void c2_ldb_schema_fini(struct c2_ldb_schema *schema);
+int c2_layout_schema_init(struct c2_layout_schema *schema,
+			  struct c2_layout_domain *domain,
+			  struct c2_dbenv *db);
+void c2_layout_schema_fini(struct c2_layout_schema *schema);
 
 int c2_layout_register(struct c2_layout_domain *dom);
 void c2_layout_unregister(struct c2_layout_domain *dom);
@@ -190,23 +190,23 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    const struct c2_layout_enum_type *et);
 
-int c2_ldb_lookup(struct c2_ldb_schema *schema,
-		  uint64_t id,
-		  struct c2_db_pair *pair,
-		  struct c2_db_tx *tx,
-		  struct c2_layout **out);
-int c2_ldb_add(struct c2_ldb_schema *schema,
-	       struct c2_layout *l,
-	       struct c2_db_pair *pair,
-	       struct c2_db_tx *tx);
-int c2_ldb_update(struct c2_ldb_schema *schema,
+int c2_layout_lookup(struct c2_layout_schema *schema,
+		     uint64_t id,
+		     struct c2_db_pair *pair,
+		     struct c2_db_tx *tx,
+		     struct c2_layout **out);
+int c2_layout_add(struct c2_layout_schema *schema,
 		  struct c2_layout *l,
 		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx);
-int c2_ldb_delete(struct c2_ldb_schema *schema,
-		  struct c2_layout *l,
-		  struct c2_db_pair *pair,
-		  struct c2_db_tx *tx);
+int c2_layout_update(struct c2_layout_schema *schema,
+		     struct c2_layout *l,
+		     struct c2_db_pair *pair,
+		     struct c2_db_tx *tx);
+int c2_layout_delete(struct c2_layout_schema *schema,
+		     struct c2_layout *l,
+		     struct c2_db_pair *pair,
+		     struct c2_db_tx *tx);
 
 /** @} end group LayoutDBDFS */
 
