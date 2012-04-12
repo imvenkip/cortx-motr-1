@@ -63,7 +63,7 @@ struct ping_ctx {
 
 enum {
 	PING_CLIENT_PORTAL = 39,
-	PING_CLIENT_TMID = -1, /* dynamic */
+	PING_CLIENT_DYNAMIC_TMID = -1,
 	PING_SERVER_PORTAL = 39,
 	PING_SERVER_TMID = 12,
 };

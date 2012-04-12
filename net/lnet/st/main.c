@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
 	int                      active_bulk_delay = 0;
 	const char              *client_network = NULL;
         int32_t                  client_portal = -1;
-	int32_t                  client_tmid = -1;
+	int32_t                  client_tmid = PING_CLIENT_DYNAMIC_TMID;
 	const char              *server_network = NULL;
         int32_t                  server_portal = -1;
 	int32_t                  server_tmid = -1;
@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
 						     client_network = str; })),
 			C2_FORMATARG('p', "client portal (optional)",
 				     "%i", &client_portal),
-			C2_FORMATARG('t', "client TMID (optional)",
+			C2_FORMATARG('t', "client base TMID (optional)",
 				     "%i", &client_tmid),
 			C2_STRINGARG('I', "server network interface (ip@intf)",
 				     LAMBDA(void, (const char *str) {
@@ -341,11 +341,7 @@ int main(int argc, char *argv[])
 	if (server_tmid < 0)
 		server_tmid = PING_SERVER_TMID;
 	if (client_tmid < 0)
-		client_tmid = PING_CLIENT_TMID;
-	if (!server_only && nr_clients > 1 && client_tmid >= 0) {
-		fprintf(stderr, "Client TMID ignored; using dynamic TMIDs\n");
-		client_tmid = -1;
-	}
+		client_tmid = PING_CLIENT_DYNAMIC_TMID;
 
 	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
 	c2_mutex_init(&qstats_mutex);
@@ -390,11 +386,14 @@ int main(int argc, char *argv[])
 		int		      i;
 		struct c2_thread     *client_thread;
 		struct client_params *params;
+		int32_t               client_base_tmid = client_tmid;
 		C2_ALLOC_ARR(client_thread, nr_clients);
 		C2_ALLOC_ARR(params, nr_clients);
 
 		/* start all the client threads */
 		for (i = 0; i < nr_clients; ++i) {
+			if (client_base_tmid != PING_CLIENT_DYNAMIC_TMID)
+				client_tmid = client_base_tmid + i;
 #define CPARAM_SET(f) params[i].f = f
 			CPARAM_SET(xprt);
 			CPARAM_SET(verbose);
