@@ -299,6 +299,37 @@ static void __session_fini(struct c2_rpc_session *session)
 	c2_list_fini(&session->s_unbound_items);
 }
 
+int slot_table_alloc_and_init(struct c2_rpc_session *session)
+{
+	struct c2_rpc_slot *slot;
+	int                 i;
+
+	C2_ALLOC_ARR(session->s_slot_table, session->nr_slots);
+	if (session->s_slot_table == NULL)
+		return -ENOMEM;
+
+	slot_ops = c2_rpc_conn_is_snd(session->s_conn) ? &snd_slot_ops
+					               : &rcv_slot_ops;
+
+	for (i = 0; i < session->s_nr_slots; i++) {
+		C2_ALLOC_PTR(slot);
+		if (slot == NULL)
+			return -ENOMEM;
+
+		rc = c2_rpc_slot_init(slot, slot_ops);
+		if (rc != 0) {
+			c2_free(slot);
+			return rc;
+		}
+
+		slot->sl_session = session;
+		slot->sl_slot_id = i;
+
+		session->s_slot_table[i] = slot;
+	}
+	return 0;
+}
+
 int c2_rpc_session_init(struct c2_rpc_session *session,
 			struct c2_rpc_conn    *conn,
 			uint32_t               nr_slots)
@@ -311,53 +342,27 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
 
 	C2_SET0(session);
+
+	session->s_session_id          = SESSION_ID_INVALID;
+	session->s_conn                = conn;
+	session->s_nr_slots            = nr_slots;
+	session->s_slot_table_capacity = nr_slots;
+	session->s_cob                 = NULL;
+
 	c2_list_link_init(&session->s_link);
-	session->s_session_id = SESSION_ID_INVALID;
-	session->s_conn = conn;
+	c2_list_init(&session->s_unbound_items);
+
 	c2_cond_init(&session->s_state_changed);
 	c2_mutex_init(&session->s_mutex);
-	session->s_nr_slots = nr_slots;
-	session->s_slot_table_capacity = nr_slots;
-	c2_list_init(&session->s_unbound_items);
-	session->s_cob = NULL;
 
-	C2_ALLOC_ARR(session->s_slot_table, nr_slots);
-	if (session->s_slot_table == NULL) {
-		rc = -ENOMEM;
-		goto out_err;
-	}
-
-	if (c2_rpc_conn_is_snd(conn)) {
-		slot_ops = &snd_slot_ops;
+	rc = slot_table_alloc_and_init(session);
+	if (rc == 0) {
+		session->s_state = C2_RPC_SESSION_INITIALISED;
+		C2_ASSERT(c2_rpc_session_invariant(session));
 	} else {
-		C2_ASSERT(c2_rpc_conn_is_rcv(conn));
-		slot_ops = &rcv_slot_ops;
+		__session_fini(session);
 	}
-	for (i = 0; i < nr_slots; i++) {
-		C2_ALLOC_PTR(slot);
-		if (slot == NULL) {
-			rc = -ENOMEM;
-			goto out_err;
-		}
 
-		rc = c2_rpc_slot_init(slot, slot_ops);
-		if (rc != 0) {
-			c2_free(slot);
-			goto out_err;
-		}
-
-		slot->sl_session = session;
-		slot->sl_slot_id = i;
-
-		session->s_slot_table[i] = slot;
-	}
-	session->s_state = C2_RPC_SESSION_INITIALISED;
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	return 0;
-
-out_err:
-	C2_ASSERT(rc != 0);
-	__session_fini(session);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_init);
