@@ -560,7 +560,7 @@ int c2_ldb_schema_init(struct c2_ldb_schema *schema,
  */
 void c2_ldb_schema_fini(struct c2_ldb_schema *schema)
 {
-	C2_PRE(schema != NULL);
+	C2_PRE(schema_invariant(schema));
 
 	C2_ENTRY();
 
@@ -581,8 +581,7 @@ int c2_ldb_register(struct c2_layout_domain *dom)
 {
 	int rc;
 
-	C2_PRE(dom != NULL);
-	C2_PRE(dom->ld_schema != NULL);
+	C2_PRE(domain_invariant(dom));
 
 	rc = c2_ldb_type_register(dom, &c2_pdclust_layout_type);
 	if (rc != 0)
@@ -598,6 +597,8 @@ int c2_ldb_register(struct c2_layout_domain *dom)
 
 void c2_ldb_unregister(struct c2_layout_domain *dom)
 {
+	C2_PRE(domain_invariant(dom));
+
 	c2_ldb_enum_unregister(dom, &c2_list_enum_type);
 	c2_ldb_enum_unregister(dom, &c2_linear_enum_type);
 
@@ -614,8 +615,7 @@ int c2_ldb_type_register(struct c2_layout_domain *dom,
 {
 	int rc;
 
-	C2_PRE(dom != NULL);
-	C2_PRE(dom->ld_schema != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
 
@@ -657,8 +657,7 @@ int c2_ldb_type_register(struct c2_layout_domain *dom,
 void c2_ldb_type_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt)
 {
-	C2_PRE(dom != NULL);
-	C2_PRE(dom->ld_schema != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 	C2_PRE(dom->ld_type[lt->lt_id] == lt);
 
@@ -690,8 +689,7 @@ int c2_ldb_enum_register(struct c2_layout_domain *dom,
 {
 	int rc;
 
-	C2_PRE(dom != NULL);
-	C2_PRE(dom->ld_schema != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 	C2_PRE(IS_IN_ARRAY(let->let_id, dom->ld_enum));
 
@@ -733,8 +731,7 @@ int c2_ldb_enum_register(struct c2_layout_domain *dom,
 void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_enum_type *let)
 {
-	C2_PRE(dom != NULL);
-	C2_PRE(dom->ld_schema != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 	C2_PRE(dom->ld_enum[let->let_id] == let);
 
@@ -766,7 +763,7 @@ c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom)
 	c2_bcount_t recsize;
 	c2_bcount_t max_recsize = 0;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 
 	/*
 	 * Iterate over all the layout types to find maximum possible recsize.
@@ -786,21 +783,21 @@ c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom)
  * Returns actual size for a record in the layouts table (without
  * considering the data in the tables other than layouts).
  */
-c2_bcount_t c2_ldb_recsize(struct c2_ldb_schema *schema, struct c2_layout *l)
+c2_bcount_t c2_ldb_recsize(struct c2_layout_domain *dom, struct c2_layout *l)
 {
 	c2_bcount_t            recsize;
 	struct c2_layout_type *lt;
 
-	C2_PRE(schema != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(layout_invariant(l));
 
-	lt = schema->ls_domain->ld_type[l->l_type->lt_id];
-	C2_ASSERT(is_layout_type_valid(lt->lt_id, schema->ls_domain));
+	lt = dom->ld_type[l->l_type->lt_id];
+	C2_ASSERT(is_layout_type_valid(lt->lt_id, dom));
 
 	recsize = sizeof(struct c2_ldb_rec) +
-		  lt->lt_ops->lto_recsize(schema->ls_domain, l);
+		  lt->lt_ops->lto_recsize(dom, l);
 
-	C2_POST(recsize <= c2_ldb_max_recsize(schema->ls_domain));
+	C2_POST(recsize <= c2_ldb_max_recsize(dom));
 
 	return recsize;
 }
@@ -943,7 +940,7 @@ int c2_ldb_add(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	recsize = c2_ldb_recsize(schema, l);
+	recsize = c2_ldb_recsize(schema->ls_domain, l);
 	rc = ldb_layout_write(C2_LXO_DB_ADD, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {
@@ -1048,7 +1045,7 @@ int c2_ldb_update(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	recsize = c2_ldb_recsize(schema, l);
+	recsize = c2_ldb_recsize(schema->ls_domain, l);
 	rc = ldb_layout_write(C2_LXO_DB_UPDATE, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {
@@ -1121,7 +1118,7 @@ int c2_ldb_delete(struct c2_ldb_schema *schema,
 		goto out;
 	}
 
-	recsize = c2_ldb_recsize(schema, l);
+	recsize = c2_ldb_recsize(schema->ls_domain, l);
 	rc = ldb_layout_write(C2_LXO_DB_DELETE, l->l_id, pair, recsize,
 			      schema, tx);
 	if (rc != 0) {

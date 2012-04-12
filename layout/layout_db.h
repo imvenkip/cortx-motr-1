@@ -185,7 +185,7 @@ void c2_ldb_enum_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_enum_type *et);
 
 c2_bcount_t c2_ldb_max_recsize(struct c2_layout_domain *dom);
-c2_bcount_t c2_ldb_recsize(struct c2_ldb_schema *schema, struct c2_layout *l);
+c2_bcount_t c2_ldb_recsize(struct c2_layout_domain *dom, struct c2_layout *l);
 
 int c2_ldb_lookup(struct c2_ldb_schema *schema,
 		  uint64_t id,

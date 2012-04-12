@@ -69,6 +69,7 @@ enum {
 	LDB_MAX_INLINE_COB_ENTRIES = 20
 };
 
+bool domain_invariant(const struct c2_layout_domain *dom);
 bool layout_invariant(const struct c2_layout *l);
 bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 bool striped_layout_invariant(const struct c2_layout_striped *stl,
