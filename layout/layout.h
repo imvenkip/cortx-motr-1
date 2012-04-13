@@ -380,6 +380,9 @@ struct c2_layout_striped {
 int c2_layouts_init(void);
 void c2_layouts_fini(void);
 
+void c2_layout_get(struct c2_layout *l);
+void c2_layout_put(struct c2_layout *l);
+
 int c2_layout_decode(struct c2_layout_domain *dom,
 		     uint64_t lid, struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
