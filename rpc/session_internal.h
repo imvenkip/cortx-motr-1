@@ -78,6 +78,11 @@ struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn *conn);
 
 void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn);
 
+int c2_rpc_session_init_locked(struct c2_rpc_session *session,
+			       struct c2_rpc_conn    *conn,
+			       uint32_t               nr_slots);
+void c2_rpc_session_fini_locked(struct c2_rpc_session *session);
+
 /**
    Generates UUID
  */

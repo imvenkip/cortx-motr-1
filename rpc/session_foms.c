@@ -226,10 +226,8 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 			/* conn establish failed */
 			c2_rpc_conn_fini_locked(conn);
 		}
-	} else {
-		/* conn init failed */
-		c2_free(conn);
 	}
+
 	c2_rpc_machine_unlock(machine);
 
 	if (rc == 0) {
@@ -242,6 +240,8 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 
 	} else {
+		C2_ASSERT(conn != NULL);
+		c2_free(conn);
 		/* No reply is sent if conn establish failed. See [4] */
 		c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
 		c2_free(ctx);
@@ -317,6 +317,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	struct c2_fop                           *fop_rep;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_conn                      *conn;
+	struct c2_rpc_machine                   *machine;
 	uint32_t                                 slot_cnt;
 	int                                      rc;
 
@@ -336,13 +337,13 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 
 	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
 		rc = -EINVAL;
-		goto errout;
+		goto out;
 	}
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL) {
 		rc = -ENOMEM;
-		goto errout;
+		goto out;
 	}
 
 	item = &fop->f_item;
@@ -351,38 +352,30 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
 
-	rc = c2_rpc_session_init(session, conn, slot_cnt);
-	if (rc != 0)
-		goto out_free;
+	machine = conn->c_rpc_machine;
 
-	rc = c2_rpc_rcv_session_establish(session);
-	if (rc != 0)
-		goto out_fini;
+	c2_rpc_machine_lock(machine);
 
-	reply->rser_rc         = 0;    /* success */
-	reply->rser_session_id = session->s_session_id;
-	C2_LOG("Session established: session [%p] id [%lu]\n", session,
-					(unsigned long)session->s_session_id);
+	rc = c2_rpc_session_init_locked(session, conn, slot_cnt);
+	if (rc == 0) {
+		rc = c2_rpc_rcv_session_establish(session);
+		if (rc == 0)
+			reply->rser_session_id = session->s_session_id;
+		else
+			c2_rpc_session_fini_locked(session);
+	}
+
+	c2_rpc_machine_unlock(machine);
+out:
+	if (rc != 0) {
+		reply->rser_session_id = SESSION_ID_INVALID;
+		if (session != NULL)
+			c2_free(session);
+	}
+
+	reply->rser_rc = rc;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_FINISH;
-	return FSO_WAIT;
-
-out_fini:
-	c2_rpc_session_fini(session);
-
-out_free:
-	C2_ASSERT(session != NULL);
-	c2_free(session);
-	session = NULL;
-
-errout:
-	C2_ASSERT(rc != 0);
-
-	reply->rser_rc         = rc;
-	reply->rser_session_id = SESSION_ID_INVALID;
-	fom->fo_phase          = FOPH_FINISH;
-	C2_LOG("Session establish failed: rc [%d]\n", rc);
-	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_WAIT;
 }
 
@@ -498,6 +491,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	struct c2_fop                        *fop;
 	struct c2_fop                        *fop_rep;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_machine                *machine;
 	int                                   rc;
 
 	C2_PRE(fom != NULL);
@@ -519,6 +513,10 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
 
+	machine = conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+
 	rc = c2_rpc_rcv_conn_terminate(conn);
 
 	if (conn->c_state == C2_RPC_CONN_FAILED) {
@@ -530,7 +528,10 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		 * XXX generate ADDB record here.
 		 */
 		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
-		c2_rpc_conn_fini(conn);
+		c2_rpc_conn_fini_locked(conn);
+
+		c2_rpc_machine_unlock(machine);
+
 		c2_free(conn);
 		fom->fo_phase = FOPH_FINISH;
 		return FSO_WAIT;
@@ -539,6 +540,9 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
 			  conn->c_state == C2_RPC_CONN_TERMINATING);
+
+		c2_rpc_machine_unlock(machine);
+
 		/*
 		 * In memory state of conn is not cleaned up, at this point.
 		 * conn will be finalised and freed in the ->rio_sent()

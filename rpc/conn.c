@@ -1113,7 +1113,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	machine = conn->c_rpc_machine;
 	C2_ASSERT(machine != NULL);
 
-	c2_rpc_machine_lock(machine);
+	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
@@ -1148,7 +1148,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	/* In-core state will be cleaned up by
 	   c2_rpc_conn_terminate_reply_sent() */
-	c2_rpc_machine_unlock(machine);
+	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 	return rc;
 }
 

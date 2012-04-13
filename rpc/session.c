@@ -300,18 +300,14 @@ int slot_table_alloc_and_init(struct c2_rpc_session *session)
 	return 0;
 }
 
-int c2_rpc_session_init(struct c2_rpc_session *session,
-			struct c2_rpc_conn    *conn,
-			uint32_t               nr_slots)
+int c2_rpc_session_init_locked(struct c2_rpc_session *session,
+			       struct c2_rpc_conn    *conn,
+			       uint32_t               nr_slots)
 {
-	struct c2_rpc_machine *machine;
-	int                    rc;
+	int rc;
 
 	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
-
-	machine = conn->c_rpc_machine;
-
-	c2_rpc_machine_lock(machine);
+	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	C2_SET0(session);
 
@@ -330,26 +326,30 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 	if (rc == 0) {
 		session->s_state = C2_RPC_SESSION_INITIALISED;
 		C2_ASSERT(c2_rpc_session_invariant(session));
+		c2_rpc_conn_add_session(conn, session);
 	} else {
 		__session_fini(session);
 	}
 
-	c2_rpc_conn_add_session(conn, session);
+	return rc;
+}
 
-	c2_rpc_machine_unlock(machine);
+int c2_rpc_session_init(struct c2_rpc_session *session,
+			struct c2_rpc_conn    *conn,
+			uint32_t               nr_slots)
+{
+	int rc;
+
+	c2_rpc_machine_lock(conn->c_rpc_machine);
+	rc = c2_rpc_session_init_locked(session, conn, nr_slots);
+	c2_rpc_machine_unlock(conn->c_rpc_machine);
 
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_init);
 
-void c2_rpc_session_fini(struct c2_rpc_session *session)
+void c2_rpc_session_fini_locked(struct c2_rpc_session *session)
 {
-	struct c2_rpc_machine *machine;
-
-	machine = session->s_conn->c_rpc_machine;
-
-	c2_rpc_machine_lock(machine);
-
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_PRE(session->s_state == C2_RPC_SESSION_TERMINATED ||
 	       session->s_state == C2_RPC_SESSION_INITIALISED ||
@@ -358,7 +358,16 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	c2_rpc_conn_remove_session(session);
 	__session_fini(session);
 	session->s_session_id = SESSION_ID_INVALID;
+}
 
+void c2_rpc_session_fini(struct c2_rpc_session *session)
+{
+	struct c2_rpc_machine *machine;
+
+	machine = session->s_conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+	c2_rpc_session_fini_locked(session);
 	c2_rpc_machine_unlock(machine);
 }
 C2_EXPORTED(c2_rpc_session_fini);
