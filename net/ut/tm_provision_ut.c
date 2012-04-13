@@ -440,11 +440,11 @@ static void test_net_tm_prov(void)
 	 * corresponding coloured list of the pool.
 	 */
 	nb_tm1 = pool_colour_buffer_add(tm1);
-	C2_UT_ASSERT(tm_tlist_length(
-		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 	nb_tm2 = pool_colour_buffer_add(tm2);
 	C2_UT_ASSERT(tm_tlist_length(
 		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 1);
+	C2_UT_ASSERT(tm_tlist_length(
+		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 
 	/* Add some uncoloured buffers. */
 	c2_net_buffer_pool_lock(pool_prov);
@@ -465,9 +465,9 @@ static void test_net_tm_prov(void)
 		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 0);
 
 	nb_tm1 = pool_colour_buffer_add(tm1);
+	nb_tm2 = pool_colour_buffer_add(tm2);
 	C2_UT_ASSERT(tm_tlist_length(
 		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
-	nb_tm2 = pool_colour_buffer_add(tm2);
 	C2_UT_ASSERT(tm_tlist_length(
 		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 
