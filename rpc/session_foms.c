@@ -365,9 +365,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	if (rc != 0)
 		goto out_fini;
 
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
-
-	reply->rser_rc = 0;    /* success */
+	reply->rser_rc         = 0;    /* success */
 	reply->rser_session_id = session->s_session_id;
 	C2_LOG("Session established: session [%p] id [%lu]\n", session,
 					(unsigned long)session->s_session_id);
@@ -376,9 +374,6 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	return FSO_WAIT;
 
 out_fini:
-	C2_ASSERT(session != NULL &&
-		  c2_rpc_session_invariant(session) &&
-		  session->s_state == C2_RPC_SESSION_FAILED);
 	c2_rpc_session_fini(session);
 
 out_free:
@@ -389,9 +384,9 @@ out_free:
 errout:
 	C2_ASSERT(rc != 0);
 
-	reply->rser_rc = rc;
+	reply->rser_rc         = rc;
 	reply->rser_session_id = SESSION_ID_INVALID;
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase          = FOPH_FINISH;
 	C2_LOG("Session establish failed: rc [%d]\n", rc);
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_WAIT;
@@ -421,6 +416,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	struct c2_rpc_fop_session_terminate     *request;
 	struct c2_rpc_item                      *item;
 	struct c2_rpc_session                   *session;
+	struct c2_rpc_machine                   *machine;
 	struct c2_rpc_conn                      *conn;
 	uint64_t                                 session_id;
 	int                                      rc;
@@ -434,9 +430,6 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	reply = c2_fop_data(fom->fo_rep_fop);
 	C2_ASSERT(reply != NULL);
 
-	/*
-	 * Copy the same sender and session id to reply fop
-	 */
 	reply->rstr_sender_id = request->rst_sender_id;
 	reply->rstr_session_id = session_id = request->rst_session_id;
 
@@ -446,33 +439,33 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
 
-	c2_mutex_lock(&conn->c_mutex);
+	machine = conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 
 	session = c2_rpc_session_search(conn, session_id);
-	if (session == NULL) {
+
+	c2_rpc_machine_unlock(machine);
+
+	if (session != NULL) {
+		rc = c2_rpc_rcv_session_terminate(session);
+		if (rc != -EPROTO) {
+			C2_ASSERT(ergo(rc != 0,
+				session->s_state == C2_RPC_SESSION_FAILED));
+			C2_ASSERT(ergo(rc == 0,
+			       session->s_state == C2_RPC_SESSION_TERMINATED));
+
+			c2_rpc_session_fini(session);
+			c2_free(session);
+		}
+	} else { /* session == NULL */
 		rc = -ENOENT;
-		c2_mutex_unlock(&conn->c_mutex);
-		goto errout;
 	}
-	c2_mutex_unlock(&conn->c_mutex);
 
-	rc = c2_rpc_rcv_session_terminate(session);
-	if (rc == -EPROTO) {
-		/*
-		 * session could not be terminated because session is not in
-		 * IDLE state.
-		 */
-		goto errout;
-	}
-	C2_ASSERT(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
-	C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATED));
 
-	c2_rpc_session_fini(session);
-	c2_free(session);
-	/* fall through */
-errout:
 	reply->rstr_rc = rc;
 	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",
 			(rc == 0) ? "successful" : "failed", session, rc);
