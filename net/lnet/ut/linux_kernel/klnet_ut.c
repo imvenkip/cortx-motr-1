@@ -1942,6 +1942,8 @@ int ut_dev_closes;
 int ut_dev_cleanups;
 int ut_dev_dom_inits;
 int ut_dev_dom_finis;
+int ut_dev_tm_starts;
+int ut_dev_tm_stops;
 
 static int ut_kcore_core_dom_init(struct nlx_kcore_domain *kd,
 				  struct nlx_core_domain *cd)
@@ -1965,13 +1967,55 @@ static void ut_kcore_core_dom_fini(struct nlx_kcore_domain *kd,
 	ut_dev_dom_finis++;
 }
 
+static int ut_kcore_tm_start(struct nlx_kcore_domain *kd,
+			     struct nlx_core_transfer_mc *ctm,
+			     struct nlx_kcore_transfer_mc *ktm)
+{
+	if (kd == NULL || ctm == NULL || ktm == NULL)
+		return 1;
+
+	/* Init just enough of ktm for driver UT (eg no use of ktm_addr).
+	   KCore UT already tested nlx_kcore_tm_start().
+	 */
+	drv_tms_tlink_init(ktm);
+	drv_bevs_tlist_init(&ktm->ktm_drv_bevs);
+	ctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
+	spin_lock_init(&ktm->ktm_bevq_lock);
+	c2_semaphore_init(&ktm->ktm_sem, 0);
+	c2_addb_ctx_init(&ktm->ktm_addb, &nlx_core_tm_addb_ctx, &kd->kd_addb);
+	ctm->ctm_kpvt = ktm;
+	ctm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
+	C2_UT_ASSERT(nlx_kcore_tm_invariant(ktm));
+	C2_UT_ASSERT(nlx_core_tm_invariant(ctm));
+	ut_dev_tm_starts++;
+	return 0;
+}
+
+static void ut_kcore_tm_stop(struct nlx_kcore_domain *kd,
+			     struct nlx_core_transfer_mc *ctm,
+			     struct nlx_kcore_transfer_mc *ktm)
+{
+	C2_UT_ASSERT(nlx_kcore_domain_invariant(kd));
+	C2_UT_ASSERT(nlx_core_tm_invariant(ctm));
+	C2_UT_ASSERT(nlx_kcore_tm_invariant(ktm));
+	C2_UT_ASSERT(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
+
+	c2_semaphore_fini(&ktm->ktm_sem);
+	c2_addb_ctx_fini(&ktm->ktm_addb);
+	drv_bevs_tlist_fini(&ktm->ktm_drv_bevs);
+	drv_tms_tlink_fini(ktm);
+	ktm->ktm_magic = 0;
+	ctm->ctm_kpvt = NULL;
+	ut_dev_tm_stops++;
+}
+
 static struct nlx_kcore_ops ut_kcore_ops = {
 	.ko_dom_init = ut_kcore_core_dom_init,
 	.ko_dom_fini = ut_kcore_core_dom_fini,
 	.ko_buf_register = nlx_kcore_buf_register,
 	.ko_buf_deregister = nlx_kcore_buf_deregister,
-	.ko_tm_start = nlx_kcore_tm_start,
-	.ko_tm_stop = nlx_kcore_tm_stop,
+	.ko_tm_start = ut_kcore_tm_start,
+	.ko_tm_stop = ut_kcore_tm_stop,
 	.ko_buf_msg_recv = nlx_kcore_buf_msg_recv,
 	.ko_buf_msg_send = nlx_kcore_buf_msg_send,
 	.ko_buf_active_recv = nlx_kcore_buf_active_recv,
@@ -2097,11 +2141,25 @@ static void ktest_dev(void)
 	C2_UT_ASSERT(ut_dev_cleanups == 0);
 
 	/* UT_TEST_TMS */
-	/* UT_TEST_DUPTM */
-	/* UT_TEST_BADCORETM */
-	/* UT_TEST_TMCLEANUP */
+	USER_HELPER_WAIT(UT_TEST_TMS);
+	C2_UT_ASSERT(ut_dev_opens == 5);
+	C2_UT_ASSERT(ut_dev_dom_inits == 2);
+	C2_UT_ASSERT(ut_dev_dom_finis == ut_dev_dom_inits);
+	C2_UT_ASSERT(ut_dev_cleanups == 0);
+	C2_UT_ASSERT(ut_dev_tm_starts == MULTI_TM_NR);
+	C2_UT_ASSERT(ut_dev_tm_starts == ut_dev_tm_stops);
 
-	/** @todo insert logic for the remaining UT here */
+	/* UT_TEST_DUPTM */
+	USER_HELPER_WAIT(UT_TEST_DUPTM);
+	C2_UT_ASSERT(ut_dev_opens == 6);
+	C2_UT_ASSERT(ut_dev_dom_inits == 3);
+	C2_UT_ASSERT(ut_dev_dom_finis == ut_dev_dom_inits);
+	C2_UT_ASSERT(ut_dev_cleanups == 0);
+	C2_UT_ASSERT(ut_dev_tm_starts == MULTI_TM_NR + 1);
+	C2_UT_ASSERT(ut_dev_tm_starts == ut_dev_tm_stops);
+
+	/* UT_TEST_TMCLEANUP */
+	/* UT_TEST_BADCORETM */
 
 	/* final handshake before proc file is deregistered */
 	C2_UT_ASSERT(ut_dev_opens == ut_dev_closes);

@@ -777,13 +777,8 @@ of Colibri LNet Transport</a>,
          device is closed.  No cleanup is necessary.
 
    @test A nlx_core_domain is initialized, and the same nlx_core_transfer_mc
-         object is started twice, the error is detected.  The
-         device is closed and cleanup occurs.
-
-   @test A nlx_core_domain and a nlx_core_transfer_mc are initialized,
-         then the nlx_core_transfer_mc is corrupted and subsequently
-         used for another request.  The ioctl handler detects the corrupt
-         object.
+         object is started twice, the error is detected.  The remaining transfer
+	 machine is stopped.  The device is closed.  No cleanup is necessary.
 
    @test A nlx_core_domain, and several nlx_core_transfer_mc objects can
          be registered, then the device is closed, and cleanup occurs.
@@ -1125,6 +1120,7 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	C2_ALLOC_PTR_ADDB(ktm, &kd->kd_addb, &nlx_addb_loc);
 	if (ktm == NULL)
 		return -ENOMEM;
+	ktm->ktm_magic = C2_NET_LNET_KCORE_TM_MAGIC;
 
 	down_read(&current->mm->mmap_sem);
 	rc = WRITABLE_USER_PAGE_GET(utmp, pg);
@@ -1133,7 +1129,8 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 		goto fail_page;
 	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, NLX_PAGE_OFFSET(utmp));
 	ctm = nlx_kcore_core_tm_map(ktm);
-	if (!nlx_core_tm_invariant(ctm) || ctm->ctm_kpvt != NULL) {
+	if (ctm->ctm_magic != 0 || ctm->ctm_mb_counter != 0 ||
+	    ctm->ctm_kpvt != NULL) {
 		rc = -EBADR;
 		goto fail_ctm;
 	}
@@ -1175,11 +1172,11 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 		c2_free(kbev);
 	} c2_tlist_endfor;
 
+	drv_tms_tlist_del(ktm);
 	ctm = nlx_kcore_core_tm_map(ktm);
 	kd->kd_drv_ops->ko_tm_stop(kd, ctm, ktm);
 	nlx_kcore_core_tm_unmap(ktm);
 	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
-	drv_tms_tlist_del(ktm);
 	c2_free(ktm);
 	return 0;
 }

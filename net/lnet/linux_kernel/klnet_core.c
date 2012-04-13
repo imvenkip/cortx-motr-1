@@ -1834,7 +1834,6 @@ static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
 	int rc;
 
 	C2_PRE(nlx_kcore_domain_invariant(kd));
-	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
 
@@ -1846,8 +1845,12 @@ static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
 	tms_tlist_del(ktm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 	c2_addb_ctx_fini(&ktm->ktm_addb);
+	drv_bevs_tlist_fini(&ktm->ktm_drv_bevs);
+	drv_tms_tlink_fini(ktm);
 	ktm->ktm_magic = 0;
-	ctm->ctm_kpvt = NULL;
+	/* allow kernel cleanup even if core is invalid */
+	if (nlx_core_tm_invariant(ctm))
+		ctm->ctm_kpvt = NULL;
 }
 
 void nlx_core_tm_stop(struct nlx_core_domain *cd,
