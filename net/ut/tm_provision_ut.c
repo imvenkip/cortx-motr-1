@@ -382,7 +382,8 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(ut_end_point_create_called);
 	/* No buffers to initially provision TM1. */
 	C2_UT_ASSERT(tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
-	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) == 2);
+	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) ==
+				      C2_NET_TM_RECV_QUEUE_DEF_LEN);
 
 	/* clean up; real xprt would handle this itself */
 	c2_thread_join(&ut_tm_thread);

@@ -743,6 +743,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	c2_bcount_t	      buf_size;
 	uint32_t	      shift = 0;
 
+	return 0;
 	C2_PRE(cctx != NULL);
 	C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
@@ -780,6 +781,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 {
 	struct c2_net_domain *ndom;
+	return;
 	C2_PRE(cctx != NULL);
 
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {

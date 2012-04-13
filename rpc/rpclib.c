@@ -122,7 +122,8 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 	c2_bcount_t seg_size;
 	c2_bcount_t buf_size;
 	uint32_t    shift = 0;
-
+	
+	return 0;
 	C2_PRE(ndom != NULL);
 	C2_ALLOC_PTR(ndom->nd_app_pool);
 	if (ndom->nd_app_pool == NULL)
@@ -153,6 +154,7 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 
 void c2_net_buffer_pool_cleanup(struct c2_net_domain *ndom)
 {
+	return;
 	C2_PRE(ndom != NULL);
 	C2_PRE(ndom->nd_app_pool != NULL);
 	c2_net_buffer_pool_lock(ndom->nd_app_pool);

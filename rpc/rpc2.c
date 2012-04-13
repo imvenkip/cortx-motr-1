@@ -665,13 +665,14 @@ last:
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_ep = NULL;
 	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED &&
-	  !(nb->nb_flags & C2_NET_BUF_RETAIN))
-		rc = c2_net_buffer_add(nb, nb->nb_tm);
-	else if(nb->nb_tm->ntm_state == C2_NET_TM_STOPPED ||
-		nb->nb_tm->ntm_state == C2_NET_TM_STOPPING ||
-		nb->nb_tm->ntm_state == C2_NET_TM_FAILED)
+	
+	if ((nb->nb_pool != NULL) && !(nb->nb_flags & C2_NET_BUF_QUEUED))
 			c2_rpc_recv_pool_buffer_put(nb);
+	else {
+		if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED &&
+		  !(nb->nb_flags & C2_NET_BUF_RETAIN))
+			rc = c2_net_buffer_add(nb, nb->nb_tm);
+	}
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
