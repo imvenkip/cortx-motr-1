@@ -211,7 +211,7 @@ int test_dom_init(void)
 	return rc;
 }
 
-int test_tms(void)
+int test_tms(bool force_cleanup)
 {
 	struct c2_lnet_dev_dom_init_params pd;
 	struct nlx_core_domain *dom;
@@ -253,11 +253,12 @@ int test_tms(void)
 		}
 	}
 
-	for (i = 0; i < MULTI_TM_NR; ++i) {
-		rc = ioctl(f, C2_LNET_TM_STOP, tm[i]->ctm_kpvt);
-		if (rc != 0)
-			break;
-	}
+	if (!force_cleanup)
+		for (i = 0; i < MULTI_TM_NR; ++i) {
+			rc = ioctl(f, C2_LNET_TM_STOP, tm[i]->ctm_kpvt);
+			if (rc != 0)
+				break;
+		}
  out:
 	for (i = 0; i < MULTI_TM_NR; ++i)
 		LUT_FREE_PTR(tm[i]);
@@ -373,16 +374,13 @@ int main(int argc, char *argv[])
 			rc = test_dom_init();
 			break;
 		case UT_TEST_TMS:
-			rc = test_tms();
+			rc = test_tms(false);
 			break;
 		case UT_TEST_DUPTM:
 			rc = test_duptm();
 			break;
 		case UT_TEST_TMCLEANUP:
-			rc = 1;
-			break;
-		case UT_TEST_BADCORETM:
-			rc = 1;
+			rc = test_tms(true);
 			break;
 		case UT_TEST_DONE:
 			goto done;

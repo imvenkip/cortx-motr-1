@@ -31,8 +31,7 @@ enum {
 	UT_TEST_TMS        =   6, /**< multi-TM start/stop and no cleanup */
 	UT_TEST_DUPTM      =   7, /**< duplicate TM start */
 	UT_TEST_TMCLEANUP  =   8, /**< multi-TM start with cleanup */
-	UT_TEST_BADCORETM  =   9, /**< corrupt core TM */
-	UT_TEST_MAX        =   7, /**< final implemented test ID */
+	UT_TEST_MAX        =   8, /**< final implemented test ID */
 
 	UT_TEST_DONE       = 127, /**< done testing, no user response */
 
