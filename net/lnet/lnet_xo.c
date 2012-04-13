@@ -666,6 +666,7 @@ struct c2_net_xprt c2_net_lnet_xprt = {
 	.nx_name = "lnet",
 	.nx_ops  = &nlx_xo_xprt_ops
 };
+C2_EXPORTED(c2_net_lnet_xprt);
 
 /**
    @}

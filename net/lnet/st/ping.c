@@ -799,8 +799,6 @@ int ping_init(struct ping_ctx *ctx)
 	char               addr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_clink    tmwait;
 
-	ctx->pc_ident = NULL;
-
 	c2_list_init(&ctx->pc_work_queue);
 
 	rc = c2_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
@@ -873,7 +871,6 @@ void ping_fini(struct ping_ctx *ctx)
 	struct c2_list_link *link;
 	struct ping_work_item *wi;
 
-	C2_ASSERT(ctx->pc_ident == NULL);
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
 		if (ctx->pc_tm.ntm_state != C2_NET_TM_FAILED) {
 			struct c2_clink tmwait;
@@ -923,9 +920,10 @@ void ping_server(struct ping_ctx *ctx)
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
 	ctx->pc_buf_callbacks = &sbuf_cb;
 	C2_ASSERT(ctx->pc_nr_bufs >= 20);
+	ctx->pc_ident = "Server";
 	rc = ping_init(ctx);
 	C2_ASSERT(rc == 0);
-	ctx->pc_ident = "Server";
+	ctx->pc_ops->pf("Server end point: %s\n", ctx->pc_tm.ntm_ep->nep_addr);
 
 	c2_mutex_lock(&ctx->pc_mutex);
 	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
@@ -1280,32 +1278,37 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 	const char *fmt = "Client %s";
 	char *ident;
 
+	C2_ALLOC_ARR(ident, ARRAY_SIZE(addr) + strlen(fmt) + 1);
+	if (ident == NULL)
+		return -ENOMEM;
+	sprintf(ident, fmt, "starting"); /* temporary */
+	ctx->pc_ident = ident;
+
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
 	ctx->pc_buf_callbacks = &cbuf_cb;
-	ctx->pc_ident = NULL;
 	rc = ping_init(ctx);
-	if (rc != 0)
+	if (rc != 0) {
+		c2_free(ident);
+		ctx->pc_ident = NULL;
 		return rc;
+	}
 
 	/* need end point for the server */
 	snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:%u", ctx->pc_rnetwork,
 		 ctx->pc_rpid, ctx->pc_rportal, ctx->pc_rtmid);
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_tm, addr);
-	if (rc != 0)
+	if (rc != 0) {
 		ping_fini(ctx);
+		c2_free(ident);
+		ctx->pc_ident = NULL;
+		return rc;
+	}
 
 	/* clients can have dynamically assigned TMIDs so use the EP addr
 	   in the ident.
 	 */
-	C2_ALLOC_ARR(ident, strlen(ctx->pc_tm.ntm_ep->nep_addr) + strlen(fmt)
-		     + 1);
-	if (ident == NULL) {
-		rc = -ENOMEM;
-		ping_client_fini(ctx, *server_ep);
-	}
 	sprintf(ident, fmt, ctx->pc_tm.ntm_ep->nep_addr);
-	ctx->pc_ident = ident;
-	return rc;
+	return 0;
 }
 
 int ping_client_fini(struct ping_ctx *ctx, struct c2_net_end_point *server_ep)

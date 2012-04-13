@@ -6,7 +6,8 @@ KBUILD_EXTRA_SYMBOLS = @LUSTRE@/Module.symvers @GALOIS_SYMVERS@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
-testdirs 	= ../net/bulk_emulation/st/linux_kernel/\
+testdirs        = ../net/bulk_emulation/st/linux_kernel/\
+	          ../net/lnet/st/linux_kernel/\
 	          ../rpc/it/linux_kernel/\
 		  ../utils/linux_kernel/
 
