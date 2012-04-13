@@ -76,6 +76,8 @@ struct c2_rpc_session *c2_rpc_session_search(const struct c2_rpc_conn *conn,
  */
 struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn *conn);
 
+void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn);
+
 /**
    Generates UUID
  */

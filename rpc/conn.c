@@ -286,10 +286,9 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	int rc;
 
 	C2_ASSERT(conn != NULL && machine != NULL && ep != NULL);
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	C2_SET0(conn);
-
-	c2_rpc_machine_lock(machine);
 
 	conn->c_flags = RCF_RECV_END;
 	conn->c_uuid = *uuid;
@@ -303,21 +302,14 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	C2_POST(ergo(rc == 0, c2_rpc_conn_invariant(conn) &&
 			      conn->c_state == C2_RPC_CONN_INITIALISED &&
 			      c2_rpc_conn_is_rcv(conn)));
-
-	c2_rpc_machine_unlock(machine);
+	C2_POST(c2_rpc_machine_is_locked(machine));
 
 	return rc;
 }
 
-void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
+void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn)
 {
-	struct c2_rpc_machine *machine;
-
-	C2_PRE(conn != NULL && conn->c_rpc_machine != NULL);
-
-	machine = conn->c_rpc_machine;
-
-	c2_rpc_machine_lock(machine);
+	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_PRE(conn->c_state == C2_RPC_CONN_TERMINATED ||
@@ -328,8 +320,15 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	session_zero_detach(conn);
 	__conn_fini(conn);
 	C2_SET0(conn);
+}
 
-	c2_rpc_machine_unlock(machine);
+void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
+{
+	C2_PRE(conn != NULL);
+
+	c2_rpc_machine_lock(conn->c_rpc_machine);
+	c2_rpc_conn_fini_locked(conn);
+	c2_rpc_machine_unlock(conn->c_rpc_machine);
 }
 C2_EXPORTED(c2_rpc_conn_fini);
 
@@ -1055,9 +1054,8 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	C2_PRE(conn != NULL);
 
 	machine = conn->c_rpc_machine;
-	C2_ASSERT(machine != NULL && machine->rm_dom != NULL);
-
-	c2_rpc_machine_lock(machine);
+	C2_PRE(machine != NULL && machine->rm_dom != NULL);
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -1080,7 +1078,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 		conn_failed(conn, rc);
 	}
 
-	c2_rpc_machine_unlock(machine);
+	C2_POST(c2_rpc_machine_is_locked(machine));
 	return rc;
 }
 
@@ -1172,7 +1170,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
-	c2_rpc_conn_fini(conn);
+	c2_rpc_conn_fini_locked(conn);
 	c2_free(conn);
 
 	C2_POST(c2_rpc_machine_is_locked(machine));

@@ -169,14 +169,12 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
-	/* Request fop */
-	fop = fom->fo_fop;
+	fop     = fom->fo_fop;
 	request = c2_fop_data(fop);
 	C2_ASSERT(request != NULL);
 
-	/* reply fop */
 	fop_rep = fom->fo_rep_fop;
-	reply = c2_fop_data(fop_rep);
+	reply   = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
 	item = &fop->f_item;
@@ -191,110 +189,106 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 				 ctx->cec_rpc_machine != NULL);
 
 	C2_ALLOC_PTR(conn);
-	if (conn == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
+	if (conn == NULL)
+		/* no reply if conn establish failed.
+		   See [4] at end of this functio. */
+		return -ENOMEM;
 
-	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep,
-				  ctx->cec_rpc_machine,
+	machine = ctx->cec_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+
+	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
 				  &item->ri_slot_refs[0].sr_uuid);
 	/* we won't need ctx->cec_sender_ep after this point */
 	c2_net_end_point_put(ctx->cec_sender_ep);
-	if (rc != 0)
-		goto out_free;
+	if (rc == 0) {
+		rc = c2_rpc_rcv_conn_establish(conn);
+		if (rc == 0) {
+			/* See [1] at the end of function */
+			session0         = c2_rpc_conn_session0(conn);
+			item->ri_session = session0;
 
-	rc = c2_rpc_rcv_conn_establish(conn);
-	if (rc != 0) {
-		C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED);
-		goto out_fini;
+			slot             = session0->s_slot_table[0];
+			C2_ASSERT(slot != NULL);
+
+			c2_rpc_slot_item_add_internal(slot, item);
+
+			/* See [2] at the end of function */
+			item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+
+			/* See [3] */
+			item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
+
+			C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+			C2_ASSERT(c2_rpc_conn_invariant(conn));
+		} else {
+			/* conn establish failed */
+			c2_rpc_conn_fini_locked(conn);
+		}
+	} else {
+		/* conn init failed */
+		c2_free(conn);
 	}
-
-	/*
-	 * As CONN_ESTABLISH request is directly submitted for execution.
-	 * Add the item explicitly to the slot0. This makes the slot
-	 * symmetric to corresponding sender side slot.
-	 */
-	machine = conn->c_rpc_machine;
-
-	//c2_mutex_lock(&conn->c_mutex);
-	c2_rpc_machine_lock(machine);
-	session0 = c2_rpc_conn_session0(conn);
-	//c2_mutex_unlock(&conn->c_mutex);
-
-	item->ri_session = session0;
-	slot = session0->s_slot_table[0];
-	C2_ASSERT(slot != NULL);
-
-	//c2_mutex_lock(&slot->sl_mutex);
-	//c2_mutex_lock(&session0->s_mutex);
-
-	c2_rpc_slot_item_add_internal(slot, item);
-
-	//c2_mutex_unlock(&session0->s_mutex);
-	//c2_mutex_unlock(&slot->sl_mutex);
-
-	/*
-	 * IMPORTANT
-	 * Following line is required. Request item has SENDER_ID_INVALID.
-	 * slot_item_add_internal() overwrites it with conn->c_sender_id.
-	 * But we want reply to have sender_id SENDER_ID_INVALID.
-	 * c2_rpc_reply_post() simply copies sender id from req item to
-	 * reply item as it is. So set sender id of request item
-	 * to SENDER_ID_INVALID
-	 */
-	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
-
-	/*
-	 * CONN_ESTABLISH item is directly submitted for execution. Update
-	 * rpc-layer stats on INCOMING path here.
-	 */
-	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
-
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
-	C2_ASSERT(c2_rpc_conn_invariant(conn));
-
 	c2_rpc_machine_unlock(machine);
 
-	reply->rcer_sender_id = conn->c_sender_id;
-	reply->rcer_rc = 0;      /* successful */
-	fom->fo_phase = FOPH_FINISH;
+	if (rc == 0) {
+		reply->rcer_sender_id = conn->c_sender_id;
+		reply->rcer_rc        = 0;
 
-	C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
+		C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
 				(unsigned long)conn->c_sender_id);
 
-	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	return FSO_WAIT;
+		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 
-out_fini:
-	C2_ASSERT(conn != NULL && rc != 0);
-	c2_rpc_conn_fini(conn);
+	} else {
+		/* No reply is sent if conn establish failed. See [4] */
+		c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
+		c2_free(ctx);
+		C2_LOG("Conn establish failed: rc [%d]\n", rc);
+	}
 
-out_free:
-	C2_ASSERT(conn != NULL);
-	c2_free(conn);
-
-out:
-	c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
-	c2_free(ctx);
-
-	/*
-	 * IMPORTANT: No reply is sent if conn establishing is failed.
-	 *
-	 * ACTIVE session is required to send reply. In case of, successful
-	 * conn establish operation, there is ACTIVE SESSION_0 and slot 0
-	 * (in the newly established ACTIVE conn) to send reply.
-	 *
-	 * But there is no SESSION_0 (in fact here is no conn object) if
-	 * conn establish operation is failed. Hence reply cannot be sent.
-	 *
-	 * In this case, sender will time-out and mark sender side conn
-	 * as FAILED.
-	 */
 	fom->fo_phase = FOPH_FINISH;
-	C2_LOG("Conn establish failed: rc [%d]\n", rc);
 	return FSO_WAIT;
 }
+/*
+ * [1]
+ * As CONN_ESTABLISH request is directly submitted for execution.
+ * Add the item explicitly to the slot0. This makes the slot
+ * symmetric to corresponding sender side slot.
+ */
+
+/* [2]
+ * IMPORTANT
+ * @code
+ *     item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+ * @endcode
+ * Request item has SENDER_ID_INVALID.
+ * slot_item_add_internal() overwrites it with conn->c_sender_id.
+ * But we want reply to have sender_id SENDER_ID_INVALID.
+ * c2_rpc_reply_post() simply copies sender id from req item to
+ * reply item as it is. So set sender id of request item
+ * to SENDER_ID_INVALID
+ */
+
+/* [3]
+ * CONN_ESTABLISH item is directly submitted for execution. Update
+ * rpc-layer stats on INCOMING path here.
+ */
+
+/* [4]
+ * IMPORTANT: No reply is sent if conn establishing is failed.
+ *
+ * ACTIVE session is required to send reply. In case of, successful
+ * conn establish operation, there is ACTIVE SESSION_0 and slot 0
+ * (in the newly established ACTIVE conn) to send reply.
+ *
+ * But there is no SESSION_0 (in fact here is no conn object) if
+ * conn establish operation is failed. Hence reply cannot be sent.
+ *
+ * In this case, sender will time-out and mark sender side conn
+ * as FAILED.
+ */
 
 /*
  * FOM session create
