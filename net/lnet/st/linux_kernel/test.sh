@@ -7,6 +7,31 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+usage() {
+    echo "Usage: $0 {-s | -c | -s -c} "
+    echo "   [-b #Bufs] [-l #Loops] [-n #Threads]"
+    echo "   [-d PassiveSize] [-D ActiveDelay] [-q]"
+    echo "   [-i ClientNetwork] [-p ClientPortal] [-t ClientTMID]"
+    echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID]"
+    echo "Flags:"
+    echo "-D\tServer active bulk delay"
+    echo "-I\tServer network interface (ip@intf)"
+    echo "-P\tServer portal"
+    echo "-T\tServer TMID"
+    echo "-b\tNumber of buffers"
+    echo "-c\tRun client only"
+    echo "-d\tPassive data size"
+    echo "-i\tClient network interface (ip@intf)"
+    echo "-l\tLoops to run"
+    echo "-n\tNumber of client threads"
+    echo "-p\tClient portal"
+    echo "-q\tNot verbose"
+    echo "-s\tRun server only"
+    echo "-t\tClient base TMID - default is dynamic"
+    echo "By default the client and server are configued to use the first LNet"
+    echo "network interface returned by lctl."
+}
+
 d="`git rev-parse --show-cdup`"
 if [ -n "$d" ]; then
     cd "$d"
@@ -30,6 +55,86 @@ if [ -z "$NID" ] ; then
     exit 1
 fi
 
+Pverbose=verbose
+Pserver_only=
+Pclient_only=
+Pnr_bufs=
+Ploops=
+Ppassive_size="passive_size=30720"
+Ppassive_bulk_timeout=
+Pactive_bulk_delay=
+Pnr_clients=
+Pclient_network="client_network=$NID"
+Pclient_portal=
+Pclient_tmid=
+Pserver_network="server_network=$NID"
+Pserver_portal=
+Pserver_tmid=
+
+while [ $# -gt 0 ]; do
+    FLAG=$1; shift
+    has_sarg=0
+    has_narg=0
+    case $FLAG in
+	(-c) Pclient_only="client_only";;
+	(-s) Pserver_only="server_only";;
+	(-q) Pverbose="" ;;
+	(-D|-P|-T|-b|-d|-l|-n|-p|-t) has_narg=1;;
+	(-I|-i) has_sarg=1;;
+	(*) usage; exit 1;;
+    esac
+    if [ $has_sarg -eq 0 -a $has_narg -eq 0 ]; then
+	continue;
+    fi
+    if [ $# -eq 0 ] ; then
+	echo "$FLAG needs an argument"
+	exit 1;
+    fi
+    if [ $has_narg -eq 1 ] ; then
+	case $1 in
+	    ([0-9]*) ;;
+	    (*) echo "$FLAG needs a numeric argument"
+	        exit 1
+		;;
+	esac
+    fi
+    case $FLAG in
+	(-D) Pactive_bulk_delay="active_bulk_delay $1";;
+	(-I) Pserver_network="server_network=$1";;
+	(-P) Pserver_portal="server_portal=$1";;
+	(-T) Pserver_tmid="server_tmid=$1";;
+	(-b) Pnr_bufs="nr_bufs=$1";;
+	(-d) Ppassive_size="passive_size=$1";;
+	(-i) Pclient_network="client_network=$1";;
+	(-l) Ploops="loops=$1";;
+	(-n) Pnr_clients="nr_clients=$1";;
+	(-p) Pclient_portal="client_portal=$1";;
+	(-t) Pclient_tmid="client_tmid=$1";;
+    esac
+    shift
+done
+
+if [ -z "$Pserver_only" -a -z "$Pclient_only" ] ; then
+    echo "Error: Specify if server, client or both roles to be run locally"
+    usage
+    exit 1
+fi
+
+# Server parameters
+SPARM="$Pserver_only $Pserver_network $Pserver_portal $Pserver_tmid \
+$Pactive_bulk_delay"
+
+# Client parameters
+CPARM="$Pclient_only $Pclient_network $Pclient_portal $Pclient_tmid \
+$Pnr_clients $Ploops $Ppassive_size"
+
+# Other parameters
+OPARM="$Pverbose $Pnr_bufs"
+
+echo $OPARM
+echo $SPARM
+echo $CPARM
+
 . c2t1fs/linux_kernel/st/common.sh
 
 MODLIST="build_kernel_modules/kcolibri.ko"
@@ -40,22 +145,35 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-# Server parameters
-SPARM="server_only server_network=$NID"
-
-# Client parameters
-CPARM="client_only client_network=$NID loops=2"
-
-modload_galois
-modload
+modload_galois || exit $?
+modload || (modunload_galois; exit 1)
 
 # insert ST module separately to pass parameters
 STMOD=klnetst
-insmod net/lnet/st/linux_kernel/$STMOD.ko verbose passive_size=30720 $SPARM $CPARM
+unload_all() {
+    echo "Aborted! Unloading kernel modules..."
+    rmmod $STMOD
+    modunload
+    modunload_galois
+}
+trap unload_all EXIT
 
-rmmod $STMOD
+insmod net/lnet/st/linux_kernel/$STMOD.ko $OPARM $SPARM $CPARM
+if [ $? -eq 0 ] ; then
+    if [ -z "$Pclient_only" ] ; then
+	msg="Enter EOF to stop the server"
+	echo $msg
+	while read LINE ; do
+	    echo $msg
+	done
+    fi
+    rmmod $STMOD
+fi
+
 modunload
 modunload_galois
+
+trap "" EXIT
 
 sleep 1
 tail -c+$tailseek "$log" | grep ' kernel: '

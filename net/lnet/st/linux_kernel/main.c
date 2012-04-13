@@ -126,7 +126,7 @@ static int verbose_printk(const char *fmt, ...)
 
 static struct c2_mutex qstats_mutex;
 
-static void print_qstats(struct ping_ctx *ctx, bool reset)
+static void print_qstats(struct c2_nlx_ping_ctx *ctx, bool reset)
 {
 	int i;
 	int rc;
@@ -178,17 +178,17 @@ static void print_qstats(struct ping_ctx *ctx, bool reset)
 	c2_mutex_unlock(&qstats_mutex);
 }
 
-static struct ping_ops verbose_ops = {
+static struct c2_nlx_ping_ops verbose_ops = {
 	.pf  = verbose_printk,
 	.pqs = print_qstats
 };
 
-static struct ping_ops quiet_ops = {
+static struct c2_nlx_ping_ops quiet_ops = {
 	.pf  = quiet_printk,
 	.pqs = print_qstats
 };
 
-static struct ping_ctx sctx = {
+static struct c2_nlx_ping_ctx sctx = {
 	.pc_tm = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
@@ -217,7 +217,7 @@ static void client(struct client_params *params)
 	int			 rc;
 	struct c2_net_end_point *server_ep;
 	char			*bp = NULL;
-	struct ping_ctx		 cctx = {
+	struct c2_nlx_ping_ctx		 cctx = {
 		.pc_xprt = &c2_net_lnet_xprt,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
@@ -245,7 +245,7 @@ static void client(struct client_params *params)
 		cctx.pc_ops = &quiet_ops;
 	c2_mutex_init(&cctx.pc_mutex);
 	c2_cond_init(&cctx.pc_cond);
-	rc = ping_client_init(&cctx, &server_ep);
+	rc = c2_nlx_ping_client_init(&cctx, &server_ep);
 	if (rc != 0)
 		goto fail;
 
@@ -258,17 +258,17 @@ static void client(struct client_params *params)
 
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
-		rc = ping_client_msg_send_recv(&cctx, server_ep, bp);
+		rc = c2_nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
 		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_recv(&cctx, server_ep);
+		rc = c2_nlx_ping_client_passive_recv(&cctx, server_ep);
 		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_send(&cctx, server_ep, bp);
+		rc = c2_nlx_ping_client_passive_send(&cctx, server_ep, bp);
 		C2_ASSERT(rc == 0);
 	}
 
 	if (params->verbose)
 		print_qstats(&cctx, false);
-	rc = ping_client_fini(&cctx, server_ep);
+	rc = c2_nlx_ping_client_fini(&cctx, server_ep);
 	c2_free(bp);
 	C2_ASSERT(rc == 0);
 fail:
@@ -351,8 +351,9 @@ static int __init c2_netst_init_k(void)
 
 		/* spawn server */
 		C2_SET0(&server_thread);
-		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
-				    &ping_server, &sctx, "ping_server");
+		rc = C2_THREAD_INIT(&server_thread, struct c2_nlx_ping_ctx *,
+				    NULL, &c2_nlx_ping_server, &sctx,
+				    "ping_server");
 		C2_ASSERT(rc == 0);
 		printk(KERN_INFO "Colibri LNet System Test"
 		       " Server Initialized\n");
@@ -420,7 +421,7 @@ static void __exit c2_netst_fini_k(void)
 		if (sctx.pc_ops->pqs != NULL)
 			(*sctx.pc_ops->pqs)(&sctx, false);
 
-		ping_server_should_stop(&sctx);
+		c2_nlx_ping_server_should_stop(&sctx);
 		c2_thread_join(&server_thread);
 		c2_cond_fini(&sctx.pc_cond);
 		c2_mutex_fini(&sctx.pc_mutex);

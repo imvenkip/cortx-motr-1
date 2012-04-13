@@ -21,18 +21,18 @@
 #ifndef __COLIBRI_NET_LNET_PING_H__
 #define __COLIBRI_NET_LNET_PING_H__
 
-struct ping_ctx;
-struct ping_ops {
+struct c2_nlx_ping_ctx;
+struct c2_nlx_ping_ops {
 	int (*pf)(const char *format, ...)
 		__attribute__ ((format (printf, 1, 2)));
-	void (*pqs)(struct ping_ctx *ctx, bool reset);
+	void (*pqs)(struct c2_nlx_ping_ctx *ctx, bool reset);
 };
 
 /**
    Context for a ping client or server.
  */
-struct ping_ctx {
-	const struct ping_ops		     *pc_ops;
+struct c2_nlx_ping_ctx {
+	const struct c2_nlx_ping_ops	     *pc_ops;
 	struct c2_net_xprt		     *pc_xprt;
 	struct c2_net_domain		      pc_dom;
 	const char		             *pc_network; /* "addr@interface" */
@@ -77,18 +77,20 @@ enum {
 #define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)
 #endif
 
-void ping_server(struct ping_ctx *ctx);
-void ping_server_should_stop(struct ping_ctx *ctx);
-int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep);
-int ping_client_fini(struct ping_ctx *ctx, struct c2_net_end_point *server_ep);
-int ping_client_msg_send_recv(struct ping_ctx *ctx,
-			      struct c2_net_end_point *server_ep,
-			      const char *data);
-int ping_client_passive_recv(struct ping_ctx *ctx,
-			     struct c2_net_end_point *server_ep);
-int ping_client_passive_send(struct ping_ctx *ctx,
-			     struct c2_net_end_point *server_ep,
-			     const char *data);
+void c2_nlx_ping_server(struct c2_nlx_ping_ctx *ctx);
+void c2_nlx_ping_server_should_stop(struct c2_nlx_ping_ctx *ctx);
+int c2_nlx_ping_client_init(struct c2_nlx_ping_ctx *ctx,
+			    struct c2_net_end_point **server_ep);
+int c2_nlx_ping_client_fini(struct c2_nlx_ping_ctx *ctx,
+			    struct c2_net_end_point *server_ep);
+int c2_nlx_ping_client_msg_send_recv(struct c2_nlx_ping_ctx *ctx,
+				     struct c2_net_end_point *server_ep,
+				     const char *data);
+int c2_nlx_ping_client_passive_recv(struct c2_nlx_ping_ctx *ctx,
+				    struct c2_net_end_point *server_ep);
+int c2_nlx_ping_client_passive_send(struct c2_nlx_ping_ctx *ctx,
+				    struct c2_net_end_point *server_ep,
+				    const char *data);
 
 #endif /* __COLIBRI_NET_LNET_PING_H__ */
 

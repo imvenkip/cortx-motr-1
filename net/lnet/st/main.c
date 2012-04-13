@@ -58,19 +58,19 @@ struct ping_xprt {
 	struct c2_net_xprt *px_xprt;
 };
 
-struct ping_xprt xprts[1] = {
+static struct ping_xprt xprts[1] = {
 	{
 		.px_xprt = &c2_net_lnet_xprt,
 	}
 };
 
-struct ping_ctx sctx = {
+static struct c2_nlx_ping_ctx sctx = {
 	.pc_tm = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
 };
 
-int lookup_xprt(const char *xprt_name, struct ping_xprt **xprt)
+static int lookup_xprt(const char *xprt_name, struct ping_xprt **xprt)
 {
 	int i;
 
@@ -82,7 +82,7 @@ int lookup_xprt(const char *xprt_name, struct ping_xprt **xprt)
 	return -ENOENT;
 }
 
-void list_xprt_names(FILE *s, struct ping_xprt *def)
+static void list_xprt_names(FILE *s, struct ping_xprt *def)
 {
 	int i;
 
@@ -92,9 +92,9 @@ void list_xprt_names(FILE *s, struct ping_xprt *def)
 			(&xprts[i] == def) ? " [default]" : "");
 }
 
-struct c2_mutex qstats_mutex;
+static struct c2_mutex qstats_mutex;
 
-void print_qstats(struct ping_ctx *ctx, bool reset)
+static void print_qstats(struct c2_nlx_ping_ctx *ctx, bool reset)
 {
 	int i;
 	int rc;
@@ -144,17 +144,17 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	c2_mutex_unlock(&qstats_mutex);
 }
 
-int quiet_printf(const char *fmt, ...)
+static int quiet_printf(const char *fmt, ...)
 {
 	return 0;
 }
 
-struct ping_ops verbose_ops = {
+static struct c2_nlx_ping_ops verbose_ops = {
 	.pf  = printf,
 	.pqs = print_qstats
 };
 
-struct ping_ops quiet_ops = {
+static struct c2_nlx_ping_ops quiet_ops = {
 	.pf  = quiet_printf,
 	.pqs = print_qstats
 };
@@ -177,13 +177,13 @@ struct client_params {
 	int32_t	    server_tmid;
 };
 
-void client(struct client_params *params)
+static void client(struct client_params *params)
 {
 	int			 i;
 	int			 rc;
 	struct c2_net_end_point *server_ep;
 	char			*bp = NULL;
-	struct ping_ctx		 cctx = {
+	struct c2_nlx_ping_ctx		 cctx = {
 		.pc_xprt = params->xprt->px_xprt,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
@@ -211,7 +211,7 @@ void client(struct client_params *params)
 		cctx.pc_ops = &quiet_ops;
 	c2_mutex_init(&cctx.pc_mutex);
 	c2_cond_init(&cctx.pc_cond);
-	rc = ping_client_init(&cctx, &server_ep);
+	rc = c2_nlx_ping_client_init(&cctx, &server_ep);
 	if (rc != 0)
 		goto fail;
 
@@ -224,17 +224,17 @@ void client(struct client_params *params)
 
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
-		rc = ping_client_msg_send_recv(&cctx, server_ep, bp);
+		rc = c2_nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
 		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_recv(&cctx, server_ep);
+		rc = c2_nlx_ping_client_passive_recv(&cctx, server_ep);
 		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_send(&cctx, server_ep, bp);
+		rc = c2_nlx_ping_client_passive_send(&cctx, server_ep, bp);
 		C2_ASSERT(rc == 0);
 	}
 
 	if (params->verbose)
 		print_qstats(&cctx, false);
-	rc = ping_client_fini(&cctx, server_ep);
+	rc = c2_nlx_ping_client_fini(&cctx, server_ep);
 	c2_free(bp);
 	C2_ASSERT(rc == 0);
 fail:
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
 	rc = c2_init();
 	C2_ASSERT(rc == 0);
 
-	rc = C2_GETOPTS("bulkping", argc, argv,
+	rc = C2_GETOPTS("lnetping", argc, argv,
 			C2_FLAGARG('s', "run server only", &server_only),
 			C2_FLAGARG('c', "run client only", &client_only),
 			C2_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
@@ -365,8 +365,9 @@ int main(int argc, char *argv[])
 		sctx.pc_portal = server_portal;
 		sctx.pc_tmid = server_tmid;
 		C2_SET0(&server_thread);
-		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
-				    &ping_server, &sctx, "ping_server");
+		rc = C2_THREAD_INIT(&server_thread, struct c2_nlx_ping_ctx *,
+				    NULL, &c2_nlx_ping_server, &sctx,
+				    "ping_server");
 		C2_ASSERT(rc == 0);
 	}
 
@@ -434,7 +435,7 @@ int main(int argc, char *argv[])
 	if (!client_only) {
 		if (verbose)
 			print_qstats(&sctx, false);
-		ping_server_should_stop(&sctx);
+		c2_nlx_ping_server_should_stop(&sctx);
 		c2_thread_join(&server_thread);
 		c2_cond_fini(&sctx.pc_cond);
 		c2_mutex_fini(&sctx.pc_mutex);
