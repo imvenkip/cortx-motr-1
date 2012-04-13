@@ -434,9 +434,6 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 
 	session = c2_rpc_session_search(conn, session_id);
-
-	c2_rpc_machine_unlock(machine);
-
 	if (session != NULL) {
 		rc = c2_rpc_rcv_session_terminate(session);
 		if (rc != -EPROTO) {
@@ -445,13 +442,14 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 			C2_ASSERT(ergo(rc == 0,
 			       session->s_state == C2_RPC_SESSION_TERMINATED));
 
-			c2_rpc_session_fini(session);
+			c2_rpc_session_fini_locked(session);
 			c2_free(session);
 		}
 	} else { /* session == NULL */
 		rc = -ENOENT;
 	}
 
+	c2_rpc_machine_unlock(machine);
 
 	reply->rstr_rc = rc;
 	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",

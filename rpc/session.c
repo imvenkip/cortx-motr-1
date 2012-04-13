@@ -1071,7 +1071,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	conn    = session->s_conn;
 	machine = conn->c_rpc_machine;
 
-	c2_rpc_machine_lock(machine);
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
@@ -1084,7 +1084,6 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		/*
 		 * XXX Generate ADDB record here.
 		 */
-		c2_rpc_machine_unlock(machine);
 		return -EPROTO;
 	}
 
@@ -1106,8 +1105,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		session_failed(session, rc);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
-
-	c2_rpc_machine_unlock(machine);
+	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	return rc;
 }
