@@ -179,6 +179,7 @@ struct client_params {
 	uint32_t    server_pid;
 	uint32_t    server_portal;
 	int32_t	    server_tmid;
+	int         debug;
 };
 
 static void client(struct client_params *params)
@@ -208,6 +209,9 @@ static void client(struct client_params *params)
 		.pc_rpid     = params->server_pid,
 		.pc_rportal  = params->server_portal,
 		.pc_rtmid    = params->server_tmid,
+
+		.pc_dom_debug = params->debug,
+		.pc_tm_debug  = params->debug,
 	};
 
 	if (params->verbose)
@@ -267,6 +271,8 @@ int main(int argc, char *argv[])
 	const char              *server_network = NULL;
         int32_t                  server_portal = -1;
 	int32_t                  server_tmid = -1;
+	int                      client_debug = 0;
+	int                      server_debug = 0;
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
 
@@ -302,6 +308,10 @@ int main(int argc, char *argv[])
 				     "%i", &msg_timeout),
 			C2_FORMATARG('O', "bulk timeout in seconds",
 				     "%i", &bulk_timeout),
+			C2_FORMATARG('x', "client debug",
+				     "%i", &client_debug),
+			C2_FORMATARG('X', "server debug",
+				     "%i", &server_debug),
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -376,11 +386,22 @@ int main(int argc, char *argv[])
 		sctx.pc_pid = C2_NET_LNET_PID;
 		sctx.pc_portal = server_portal;
 		sctx.pc_tmid = server_tmid;
+		sctx.pc_dom_debug = server_debug;
+		sctx.pc_tm_debug = server_debug;
+
+		c2_mutex_lock(&sctx.pc_mutex);
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct c2_nlx_ping_ctx *,
 				    NULL, &c2_nlx_ping_server, &sctx,
 				    "ping_server");
 		C2_ASSERT(rc == 0);
+		while (!sctx.pc_ready)
+			c2_cond_wait(&sctx.pc_cond, &sctx.pc_mutex);
+		sctx.pc_ready = false;
+		c2_cond_signal(&sctx.pc_cond, &sctx.pc_mutex);
+		c2_mutex_unlock(&sctx.pc_mutex);
+
+		printf("Colibri LNet System Test Server Initialized\n");
 	}
 
 	if (server_only) {
@@ -425,6 +446,7 @@ int main(int argc, char *argv[])
 			params[i].client_id = i + 1;
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;
+			params[i].debug = client_debug;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,
@@ -432,6 +454,8 @@ int main(int argc, char *argv[])
 					    "client_%d", params[i].client_id);
 			C2_ASSERT(rc == 0);
 		}
+		printf("Colibri LNet System Test %d Client(s) Initialized\n",
+		       nr_clients);
 
 		/* ...and wait for them */
 		for (i = 0; i < nr_clients; ++i) {

@@ -60,6 +60,9 @@ struct c2_nlx_ping_ctx {
 	int                                   pc_bulk_timeout;
 	int                                   pc_msg_timeout;
 	int                                   pc_server_bulk_delay;
+	int                                   pc_dom_debug;
+	int                                   pc_tm_debug;
+	bool                                  pc_ready;
 };
 
 enum {

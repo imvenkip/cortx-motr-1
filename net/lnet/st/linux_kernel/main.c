@@ -107,6 +107,14 @@ static int server_tmid = -1;
 module_param(server_tmid, int, S_IRUGO);
 MODULE_PARM_DESC(server_tmid, "server TMID (optional)");
 
+static int server_debug = 0;
+module_param(server_debug, int, S_IRUGO);
+MODULE_PARM_DESC(server_debug, "server debug (optional)");
+
+static int client_debug = 0;
+module_param(client_debug, int, S_IRUGO);
+MODULE_PARM_DESC(client_debug, "client debug (optional)");
+
 static int quiet_printk(const char *fmt, ...)
 {
 	return 0;
@@ -217,6 +225,7 @@ struct client_params {
 	uint32_t    server_pid;
 	uint32_t    server_portal;
 	int32_t	    server_tmid;
+	int         debug;
 };
 
 static void client(struct client_params *params)
@@ -246,6 +255,8 @@ static void client(struct client_params *params)
 		.pc_rpid     = params->server_pid,
 		.pc_rportal  = params->server_portal,
 		.pc_rtmid    = params->server_tmid,
+		.pc_dom_debug = params->debug,
+		.pc_tm_debug  = params->debug,
 	};
 
 	if (params->verbose)
@@ -359,13 +370,22 @@ static int __init c2_netst_init_k(void)
 		sctx.pc_pid = C2_NET_LNET_PID;
 		sctx.pc_portal = server_portal;
 		sctx.pc_tmid = server_tmid;
+		sctx.pc_dom_debug = server_debug;
+		sctx.pc_tm_debug = server_debug;
 
 		/* spawn server */
+		c2_mutex_lock(&sctx.pc_mutex);
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct c2_nlx_ping_ctx *,
 				    NULL, &c2_nlx_ping_server, &sctx,
 				    "ping_server");
 		C2_ASSERT(rc == 0);
+		while (!sctx.pc_ready)
+			c2_cond_wait(&sctx.pc_cond, &sctx.pc_mutex);
+		sctx.pc_ready = false;
+		c2_cond_signal(&sctx.pc_cond, &sctx.pc_mutex);
+		c2_mutex_unlock(&sctx.pc_mutex);
+
 		printk(KERN_INFO "Colibri LNet System Test"
 		       " Server Initialized\n");
 	}
@@ -400,6 +420,7 @@ static int __init c2_netst_init_k(void)
 			params[i].client_id = i + 1;
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;
+			params[i].debug = client_debug;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,

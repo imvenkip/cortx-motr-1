@@ -809,6 +809,9 @@ static int ping_init(struct c2_nlx_ping_ctx *ctx)
 		goto fail;
 	}
 
+	if (ctx->pc_dom_debug > 0)
+		c2_net_lnet_dom_set_debug(&ctx->pc_dom, ctx->pc_dom_debug);
+
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
 			   &ctx->pc_nbs);
 	if (rc != 0) {
@@ -842,6 +845,9 @@ static int ping_init(struct c2_nlx_ping_ctx *ctx)
 		PING_ERR("transfer machine init failed: %d\n", rc);
 		goto fail;
 	}
+
+	if (ctx->pc_tm_debug > 0)
+		c2_net_lnet_tm_set_debug(&ctx->pc_tm, ctx->pc_tm_debug);
 
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
@@ -966,6 +972,12 @@ void c2_nlx_ping_server(struct c2_nlx_ping_ctx *ctx)
 		c2_bitmap_set(&ctx->pc_nbbm, i, true);
 		C2_ASSERT(rc == 0);
 	}
+
+	/* startup synchronization handshake */
+	ctx->pc_ready = true;
+	c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+	while(ctx->pc_ready)
+		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 
 	while (!server_stop) {
 		struct c2_list_link *link;

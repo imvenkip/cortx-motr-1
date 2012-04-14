@@ -8,17 +8,19 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 usage() {
-    echo "Usage: $0 {-s | -c | -s -c} "
+    echo "Usage: $0 {-s | -c | -s -c}"
     echo "   [-b #Bufs] [-l #Loops] [-n #Threads] [-o MessageTimeout]"
     echo "   [-O PassiveTimeout] [-d PassiveSize] [-D ActiveDelay] [-q]"
     echo "   [-i ClientNetwork] [-p ClientPortal] [-t ClientTMID]"
     echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID]"
+    echo "   [-x ClientDebug] [-X ServerDebug]"
     echo "Flags:"
     echo "-D\tServer active bulk delay"
     echo "-I\tServer network interface (ip@intf)"
     echo "-O\tBulk timeout in seconds"
     echo "-P\tServer portal"
     echo "-T\tServer TMID"
+    echo "-X\tServer debug"
     echo "-b\tNumber of buffers"
     echo "-c\tRun client only"
     echo "-d\tPassive data size"
@@ -30,6 +32,7 @@ usage() {
     echo "-q\tNot verbose"
     echo "-s\tRun server only"
     echo "-t\tClient base TMID - default is dynamic"
+    echo "-x\tClient debug"
     echo "By default the client and server are configued to use the first LNet"
     echo "network interface returned by lctl."
 }
@@ -70,9 +73,11 @@ Pnr_clients=
 Pclient_network="client_network=$NID"
 Pclient_portal=
 Pclient_tmid=
+Pclient_debug=
 Pserver_network="server_network=$NID"
 Pserver_portal=
 Pserver_tmid=
+Pserver_debug=
 
 while [ $# -gt 0 ]; do
     FLAG=$1; shift
@@ -82,7 +87,7 @@ while [ $# -gt 0 ]; do
 	(-c) Pclient_only="client_only";;
 	(-s) Pserver_only="server_only";;
 	(-q) Pverbose="" ;;
-	(-D|-O|-P|-T|-b|-d|-l|-n|-o|-p|-t) has_narg=1;;
+	(-D|-O|-P|-T|-X|-b|-d|-l|-n|-o|-p|-t|-x) has_narg=1;;
 	(-I|-i) has_sarg=1;;
 	(*) usage; exit 1;;
     esac
@@ -107,6 +112,7 @@ while [ $# -gt 0 ]; do
 	(-O) Pbulk_timeout="bulk_timeout=$1";;
 	(-P) Pserver_portal="server_portal=$1";;
 	(-T) Pserver_tmid="server_tmid=$1";;
+	(-x) Pserver_debug="server_debug=$1";;
 	(-b) Pnr_bufs="nr_bufs=$1";;
 	(-d) Ppassive_size="passive_size=$1";;
 	(-i) Pclient_network="client_network=$1";;
@@ -115,6 +121,7 @@ while [ $# -gt 0 ]; do
 	(-o) Pmsg_timeout="msg_timeout=$1";;
 	(-p) Pclient_portal="client_portal=$1";;
 	(-t) Pclient_tmid="client_tmid=$1";;
+	(-x) Pclient_debug="client_debug=$1";;
     esac
     shift
 done
@@ -127,11 +134,11 @@ fi
 
 # Server parameters
 SPARM="$Pserver_only $Pserver_network $Pserver_portal $Pserver_tmid \
-$Pactive_bulk_delay"
+$Pactive_bulk_delay $Pserver_debug"
 
 # Client parameters
 CPARM="$Pclient_only $Pclient_network $Pclient_portal $Pclient_tmid \
-$Pnr_clients $Ploops $Ppassive_size"
+$Pnr_clients $Ploops $Ppassive_size $Pclient_debug"
 
 # Other parameters
 OPARM="$Pverbose $Pnr_bufs $Pmsg_timeout $Pbulk_timeout"
