@@ -912,6 +912,32 @@ static void ping_fini(struct c2_nlx_ping_ctx *ctx)
 	c2_list_fini(&ctx->pc_work_queue);
 }
 
+static void set_msg_timeout(struct c2_nlx_ping_ctx *ctx,
+			    struct c2_net_buffer *nb)
+{
+	if (ctx->pc_msg_timeout > 0) {
+		ctx->pc_ops->pf("%s: setting msg nb_timeout to %ds\n",
+				ctx->pc_ident, ctx->pc_msg_timeout);
+		nb->nb_timeout =
+			ping_c2_time_after_secs(ctx->pc_msg_timeout);
+	} else {
+		nb->nb_timeout = C2_TIME_NEVER;
+	}
+}
+
+static void set_bulk_timeout(struct c2_nlx_ping_ctx *ctx,
+			     struct c2_net_buffer *nb)
+{
+	if (ctx->pc_bulk_timeout > 0) {
+		ctx->pc_ops->pf("%s: setting bulk nb_timeout to %ds\n",
+				ctx->pc_ident, ctx->pc_bulk_timeout);
+		nb->nb_timeout =
+			ping_c2_time_after_secs(ctx->pc_bulk_timeout);
+	} else {
+		nb->nb_timeout = C2_TIME_NEVER;
+	}
+}
+
 void c2_nlx_ping_server(struct c2_nlx_ping_ctx *ctx)
 {
 	int i;
@@ -950,9 +976,13 @@ void c2_nlx_ping_server(struct c2_nlx_ping_ctx *ctx)
 					   pwi_link);
 			switch (wi->pwi_type) {
 			case C2_NET_QT_MSG_SEND:
+				set_msg_timeout(ctx, wi->pwi_nb);
+				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
+				C2_ASSERT(rc == 0);
+				break;
 			case C2_NET_QT_ACTIVE_BULK_SEND:
 			case C2_NET_QT_ACTIVE_BULK_RECV:
-				wi->pwi_nb->nb_timeout = C2_TIME_NEVER;
+				set_bulk_timeout(ctx, wi->pwi_nb);
 				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 				break;
@@ -1043,7 +1073,7 @@ int c2_nlx_ping_client_msg_send_recv(struct c2_nlx_ping_ctx *ctx,
 	nb->nb_qtype = C2_NET_QT_MSG_SEND;
 	nb->nb_ep = server_ep;
 	C2_ASSERT(rc == 0);
-	nb->nb_timeout = C2_TIME_NEVER;
+	set_msg_timeout(ctx, nb);
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
@@ -1076,6 +1106,7 @@ int c2_nlx_ping_client_msg_send_recv(struct c2_nlx_ping_ctx *ctx,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				c2_nanosleep(delay, NULL);
+				set_msg_timeout(ctx, nb);
 				rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
@@ -1109,14 +1140,7 @@ int c2_nlx_ping_client_passive_recv(struct c2_nlx_ping_ctx *ctx,
 	C2_ASSERT(nb != NULL);
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	nb->nb_ep = server_ep;
-	if (ctx->pc_passive_bulk_timeout > 0) {
-		ctx->pc_ops->pf("%s: setting nb_timeout to %ds\n",
-				ctx->pc_ident, ctx->pc_passive_bulk_timeout);
-		nb->nb_timeout =
-			ping_c2_time_after_secs(ctx->pc_passive_bulk_timeout);
-	} else {
-		nb->nb_timeout = C2_TIME_NEVER;
-	}
+	set_bulk_timeout(ctx, nb);
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 	rc = c2_net_desc_copy(&nb->nb_desc, &nbd);
@@ -1161,6 +1185,7 @@ int c2_nlx_ping_client_passive_recv(struct c2_nlx_ping_ctx *ctx,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				c2_nanosleep(delay, NULL);
+				set_msg_timeout(ctx, nb);
 				rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
@@ -1199,14 +1224,7 @@ int c2_nlx_ping_client_passive_send(struct c2_nlx_ping_ctx *ctx,
 	rc = encode_msg(nb, data);
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	nb->nb_ep = server_ep;
-	if (ctx->pc_passive_bulk_timeout > 0) {
-		ctx->pc_ops->pf("%s: setting nb_timeout to %ds\n",
-				ctx->pc_ident, ctx->pc_passive_bulk_timeout);
-		nb->nb_timeout =
-			ping_c2_time_after_secs(ctx->pc_passive_bulk_timeout);
-	} else {
-		nb->nb_timeout = C2_TIME_NEVER;
-	}
+	set_bulk_timeout(ctx, nb);
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 	rc = c2_net_desc_copy(&nb->nb_desc, &nbd);
@@ -1251,6 +1269,7 @@ int c2_nlx_ping_client_passive_send(struct c2_nlx_ping_ctx *ctx,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
 				c2_nanosleep(delay, NULL);
+				set_msg_timeout(ctx, nb);
 				rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {

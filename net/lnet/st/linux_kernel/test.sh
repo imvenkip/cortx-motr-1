@@ -9,13 +9,14 @@ fi
 
 usage() {
     echo "Usage: $0 {-s | -c | -s -c} "
-    echo "   [-b #Bufs] [-l #Loops] [-n #Threads]"
-    echo "   [-d PassiveSize] [-D ActiveDelay] [-q]"
+    echo "   [-b #Bufs] [-l #Loops] [-n #Threads] [-o MessageTimeout]"
+    echo "   [-O PassiveTimeout] [-d PassiveSize] [-D ActiveDelay] [-q]"
     echo "   [-i ClientNetwork] [-p ClientPortal] [-t ClientTMID]"
     echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID]"
     echo "Flags:"
     echo "-D\tServer active bulk delay"
     echo "-I\tServer network interface (ip@intf)"
+    echo "-O\tBulk timeout in seconds"
     echo "-P\tServer portal"
     echo "-T\tServer TMID"
     echo "-b\tNumber of buffers"
@@ -24,6 +25,7 @@ usage() {
     echo "-i\tClient network interface (ip@intf)"
     echo "-l\tLoops to run"
     echo "-n\tNumber of client threads"
+    echo "-o\tMessage send timeout in seconds"
     echo "-p\tClient portal"
     echo "-q\tNot verbose"
     echo "-s\tRun server only"
@@ -61,7 +63,8 @@ Pclient_only=
 Pnr_bufs=
 Ploops=
 Ppassive_size="passive_size=30720"
-Ppassive_bulk_timeout=
+Pbulk_timeout="bulk_timeout=20"
+Pmsg_timeout="msg_timeout=5"
 Pactive_bulk_delay=
 Pnr_clients=
 Pclient_network="client_network=$NID"
@@ -79,7 +82,7 @@ while [ $# -gt 0 ]; do
 	(-c) Pclient_only="client_only";;
 	(-s) Pserver_only="server_only";;
 	(-q) Pverbose="" ;;
-	(-D|-P|-T|-b|-d|-l|-n|-p|-t) has_narg=1;;
+	(-D|-O|-P|-T|-b|-d|-l|-n|-o|-p|-t) has_narg=1;;
 	(-I|-i) has_sarg=1;;
 	(*) usage; exit 1;;
     esac
@@ -101,6 +104,7 @@ while [ $# -gt 0 ]; do
     case $FLAG in
 	(-D) Pactive_bulk_delay="active_bulk_delay $1";;
 	(-I) Pserver_network="server_network=$1";;
+	(-O) Pbulk_timeout="bulk_timeout=$1";;
 	(-P) Pserver_portal="server_portal=$1";;
 	(-T) Pserver_tmid="server_tmid=$1";;
 	(-b) Pnr_bufs="nr_bufs=$1";;
@@ -108,6 +112,7 @@ while [ $# -gt 0 ]; do
 	(-i) Pclient_network="client_network=$1";;
 	(-l) Ploops="loops=$1";;
 	(-n) Pnr_clients="nr_clients=$1";;
+	(-o) Pmsg_timeout="msg_timeout=$1";;
 	(-p) Pclient_portal="client_portal=$1";;
 	(-t) Pclient_tmid="client_tmid=$1";;
     esac
@@ -129,7 +134,7 @@ CPARM="$Pclient_only $Pclient_network $Pclient_portal $Pclient_tmid \
 $Pnr_clients $Ploops $Ppassive_size"
 
 # Other parameters
-OPARM="$Pverbose $Pnr_bufs"
+OPARM="$Pverbose $Pnr_bufs $Pmsg_timeout $Pbulk_timeout"
 
 echo $OPARM
 echo $SPARM

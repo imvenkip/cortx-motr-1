@@ -43,6 +43,9 @@ enum {
 	MAX_CLIENT_THREADS = 4196,
 	DEF_LOOPS = 1,
 
+	DEF_MSG_TIMEOUT = 5,
+	DEF_BULK_TIMEOUT = 10,
+
 	PING_CLIENT_SEGMENTS = 8,
 	PING_CLIENT_SEGMENT_SIZE = 8192,
 
@@ -166,7 +169,8 @@ struct client_params {
 	int nr_bufs;
 	int client_id;
 	int passive_size;
-	int passive_bulk_timeout;
+	int bulk_timeout;
+	int msg_timeout;
 	const char *client_network;
 	uint32_t    client_pid;
 	uint32_t    client_portal;
@@ -192,7 +196,8 @@ static void client(struct client_params *params)
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		},
-		.pc_passive_bulk_timeout = params->passive_bulk_timeout,
+		.pc_bulk_timeout = params->bulk_timeout,
+		.pc_msg_timeout = params->msg_timeout,
 
 		.pc_network = params->client_network,
 		.pc_pid     = params->client_pid,
@@ -253,7 +258,8 @@ int main(int argc, char *argv[])
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 	int			 passive_size = 0;
-	int                      passive_bulk_timeout = 0;
+	int                      bulk_timeout = DEF_BULK_TIMEOUT;
+	int                      msg_timeout = DEF_MSG_TIMEOUT;
 	int                      active_bulk_delay = 0;
 	const char              *client_network = NULL;
         int32_t                  client_portal = -1;
@@ -292,6 +298,10 @@ int main(int argc, char *argv[])
 				     "%i", &server_portal),
 			C2_FORMATARG('T', "server TMID (optional)",
 				     "%i", &server_tmid),
+			C2_FORMATARG('o', "message timeout in seconds",
+				     "%i", &msg_timeout),
+			C2_FORMATARG('O', "bulk timeout in seconds",
+				     "%i", &bulk_timeout),
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -359,6 +369,8 @@ int main(int argc, char *argv[])
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
+		sctx.pc_bulk_timeout = bulk_timeout;
+		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
 		sctx.pc_network = server_network;
 		sctx.pc_pid = C2_NET_LNET_PID;
@@ -401,7 +413,8 @@ int main(int argc, char *argv[])
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
 			CPARAM_SET(passive_size);
-			CPARAM_SET(passive_bulk_timeout);
+			CPARAM_SET(msg_timeout);
+			CPARAM_SET(bulk_timeout);
 			CPARAM_SET(client_network);
 			CPARAM_SET(client_portal);
 			CPARAM_SET(client_tmid);

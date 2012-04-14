@@ -25,6 +25,9 @@ enum {
 	MAX_CLIENT_THREADS = 32,
 	DEF_LOOPS = 1,
 
+	DEF_MSG_TIMEOUT = 5,
+	DEF_BULK_TIMEOUT = 10,
+
 	/* cannot allocate too many buffers in the kernel */
 	PING_CLIENT_SEGMENTS = 8,
 	PING_CLIENT_SEGMENT_SIZE = 4096,
@@ -72,9 +75,13 @@ static int loops = DEF_LOOPS;
 module_param(loops, int, S_IRUGO);
 MODULE_PARM_DESC(loops, "loops to run");
 
-static int passive_bulk_timeout = 0;
-module_param(passive_bulk_timeout, int, S_IRUGO);
-MODULE_PARM_DESC(passive_bulk_timeout, "passive bulk timeout");
+static int bulk_timeout = DEF_BULK_TIMEOUT;
+module_param(bulk_timeout, int, S_IRUGO);
+MODULE_PARM_DESC(passive_bulk_timeout, "bulk timeout");
+
+static int msg_timeout = DEF_MSG_TIMEOUT;
+module_param(msg_timeout, int, S_IRUGO);
+MODULE_PARM_DESC(msg_timeout, "message timeout");
 
 static char *client_network = NULL;
 module_param(client_network, charp, S_IRUGO);
@@ -200,7 +207,8 @@ struct client_params {
 	int nr_bufs;
 	int client_id;
 	int passive_size;
-	int passive_bulk_timeout;
+	int bulk_timeout;
+	int msg_timeout;
 	const char *client_network;
 	uint32_t    client_pid;
 	uint32_t    client_portal;
@@ -226,7 +234,8 @@ static void client(struct client_params *params)
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		},
-		.pc_passive_bulk_timeout = params->passive_bulk_timeout,
+		.pc_bulk_timeout = params->bulk_timeout,
+		.pc_msg_timeout = params->msg_timeout,
 
 		.pc_network = params->client_network,
 		.pc_pid     = params->client_pid,
@@ -343,6 +352,8 @@ static int __init c2_netst_init_k(void)
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
+		sctx.pc_msg_timeout = msg_timeout;
+		sctx.pc_bulk_timeout = bulk_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
 		sctx.pc_network = server_network;
 		sctx.pc_pid = C2_NET_LNET_PID;
@@ -377,7 +388,8 @@ static int __init c2_netst_init_k(void)
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
 			CPARAM_SET(passive_size);
-			CPARAM_SET(passive_bulk_timeout);
+			CPARAM_SET(bulk_timeout);
+			CPARAM_SET(msg_timeout);
 			CPARAM_SET(client_network);
 			CPARAM_SET(client_portal);
 			CPARAM_SET(client_tmid);

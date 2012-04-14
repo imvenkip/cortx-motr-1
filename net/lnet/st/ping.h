@@ -57,7 +57,8 @@ struct c2_nlx_ping_ctx {
 	struct c2_list			      pc_work_queue;
 	const char		             *pc_ident;
 	const char		             *pc_compare_buf;
-	int                                   pc_passive_bulk_timeout;
+	int                                   pc_bulk_timeout;
+	int                                   pc_msg_timeout;
 	int                                   pc_server_bulk_delay;
 };
 
