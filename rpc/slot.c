@@ -857,6 +857,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 
 			c2_rpc_machine_unlock(machine);
 
+			/* XXX THINK AGAIN */
 			item->ri_ops->rio_replied(item);
 
 			c2_rpc_machine_lock(machine);
