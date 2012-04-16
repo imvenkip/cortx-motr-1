@@ -44,7 +44,7 @@
    Next, the service start method is invoked, it should properly initialise the
    internal state of the service, e.g. service fops. &tc.
 
-   Request handler creates an rpcmachine for each specified end point per
+   Request handler creates an rpc_machine for each specified end point per
    network domain. There could be multiple rpc machines running within a single
    request handler, resulting in the associated services being reachable through
    all of these end points.

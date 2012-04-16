@@ -41,7 +41,7 @@
 #include "lib/misc.h"		/* C2_SET_ARR0 */
 
 enum IO_UT_VALUES {
-	IO_FIDS_NR		= 16,
+	IO_FIDS_NR		= 2,
 	IO_SEGS_NR		= 16,
 	IO_SEG_SIZE		= 4096,
 	IO_SEQ_LEN		= 8,

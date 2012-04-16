@@ -900,7 +900,8 @@ int c2_balloc_load_extents(struct c2_balloc *cb,
 			 &start.e_start, sizeof start.e_start,
 			 &start.e_end, sizeof start.e_end);
 	result = c2_db_cursor_get(&cursor, &pair);
-	if ( result != 0) {
+	if (result != 0) {
+		c2_db_cursor_fini(&cursor);
 		c2_balloc_release_extents(grp);
 		return result;
 	}
@@ -2100,6 +2101,13 @@ static int balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 	rc = balloc_init_internal(colibri, db, bshift, container_size,
 				     blocks_per_group, res_groups);
 
+	/*
+         * Free the memory allocated for colibri in
+         * c2_balloc_locate() on initialisation failure.
+         */
+	if (rc != 0)
+             c2_free(colibri);
+
 	LEAVE;
 	return rc;
 }
@@ -2120,22 +2128,35 @@ static void balloc_fini(struct c2_ad_balloc *ballroom)
 			c2_db_tx_abort(&fini_tx);
 	}
 
+	c2_free(colibri);
+
 	LEAVE;
 }
 
-static const struct c2_ad_balloc_ops c2_balloc_ops = {
+static const struct c2_ad_balloc_ops balloc_ops = {
 	.bo_init  = balloc_init,
 	.bo_fini  = balloc_fini,
 	.bo_alloc = balloc_alloc,
 	.bo_free  = balloc_free,
 };
 
-struct c2_balloc colibri_balloc = {
-	.cb_ballroom = {
-		.ab_ops = &c2_balloc_ops
-	}
-};
+int c2_balloc_locate(struct c2_balloc **out)
+{
+	struct c2_balloc *cb;
+	int               result;
 
+        C2_PRE(out != NULL);
+
+	C2_ALLOC_PTR(cb);
+	if (cb != NULL) {
+                cb->cb_ballroom.ab_ops = &balloc_ops;
+                *out = cb;
+                result = 0;
+	} else
+                result = -ENOMEM;
+
+	return result;
+}
 
 /*
  *  Local variables:
