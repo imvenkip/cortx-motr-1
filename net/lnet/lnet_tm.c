@@ -64,11 +64,14 @@ static int nlx_tm_timeout_buffers(struct c2_net_transfer_mc *tm, c2_time_t now)
 {
 	int qt;
 	struct c2_net_buffer *nb;
+	struct nlx_xo_transfer_mc *tp;
 	int i;
 
 	C2_PRE(tm != NULL && nlx_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
+	tp = tm->ntm_xprt_private;
+	NLXDBGP(tp, 2, "%p: nlx_tm_timeout_buffers\n", tp);
 	for (i = 0, qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
 		c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
 			/* nb_timeout set to C2_TIME_NEVER if disabled */
@@ -173,6 +176,8 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 
 	buffer_timeout_tick = NLX_tm_get_buffer_timeout_tick(tm);
 	next_buffer_timeout = c2_time_add(now, buffer_timeout_tick);
+
+	NLXDBGP(tp, 1, "%p: tm_worker_thread started\n", tp);
 
 	while (1) {
 		/* Compute next timeout (short if automatic or stopping).

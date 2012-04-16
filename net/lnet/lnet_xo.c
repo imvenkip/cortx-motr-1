@@ -309,6 +309,8 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	ctp = &tp->xtm_core;
 	cbp = &bp->xb_core;
 
+	NLXDBGP(tp, 1, "%p: nlx_xo_buf_add(%p, %d)\n", tp, nb, nb->nb_qtype);
+
 	/* Provision the required number of internal buffer event structures for
 	   the maximum expected completion notifications.
 	   Release is done in nlx_xo_bev_deliver_all().
@@ -398,6 +400,8 @@ static void nlx_xo_buf_del(struct c2_net_buffer *nb)
 	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
 	dp = nb->nb_dom->nd_xprt_private;
 	tp = nb->nb_tm->ntm_xprt_private;
+	NLXDBGP(tp, 1, "%p: nlx_xo_buf_del(%p, %lX)\n", tp, nb,
+		(unsigned long) nb->nb_flags);
 	nlx_core_buf_del(&dp->xd_core, &tp->xtm_core, &bp->xb_core);
 }
 
