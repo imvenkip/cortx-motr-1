@@ -488,6 +488,8 @@ struct c2_rpc_chan {
  */
 struct c2_rpc_machine {
 	struct c2_mutex                   rm_mutex;
+	uint32_t                          rm_activity_counter;
+	struct c2_cond                    rm_state_changed;
 	/** Mutex protecting list of c2_rpc_chan structures. */
 	struct c2_mutex			  rm_chan_mutex;
 	/** List of c2_rpc_chan structures. */

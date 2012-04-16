@@ -838,6 +838,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	}
 #endif
 
+	machine->rm_activity_counter = 0;
 	c2_mutex_init(&machine->rm_chan_mutex);
 	c2_list_init(&machine->rm_chans);
 	rc = rpc_tm_setup(machine, net_dom, ep_addr);
@@ -850,6 +851,8 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	c2_mutex_init(&machine->rm_session_mutex);
 	c2_list_init(&machine->rm_ready_slots);
 	c2_mutex_init(&machine->rm_ready_slots_mutex);
+	c2_cond_init(&machine->rm_state_changed);
+	c2_mutex_init(&machine->rm_mutex);
 	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 	C2_SET_ARR0(machine->rm_rpc_stats);

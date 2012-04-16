@@ -243,6 +243,18 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	ctx->cec_rpc_machine = machine;
 }
 
+bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(fop_types); i++) {
+		if (item->ri_type->rit_opcode ==
+		    fop_types[i]->ft_rpc_item_type.rit_opcode)
+			return true;
+	}
+	return false;
+}
+
 /** @} End of rpc_session group */
 /*
  *  Local variables:

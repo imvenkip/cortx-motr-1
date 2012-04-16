@@ -63,6 +63,12 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc);
 
+static struct c2_rpc_machine *
+slot_get_rpc_machine(const struct c2_rpc_slot *slot)
+{
+	return slot->sl_session->s_conn->c_rpc_machine;
+}
+
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item1 = NULL;  /* init to NULL, required */
@@ -156,7 +162,6 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 
 	c2_list_init(&slot->sl_item_list);
 	c2_list_init(&slot->sl_ready_list);
-	c2_mutex_init(&slot->sl_mutex);
 
 	/*
 	 * Add a dummy item with very low verno in item_list
@@ -292,7 +297,7 @@ static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
 {
 	struct c2_rpc_item *item;
 
-	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
+	C2_PRE(slot != NULL);
 	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
 
@@ -328,9 +333,8 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 	struct c2_rpc_item  *item;
 	struct c2_list_link *link;
 
-	C2_PRE(slot != NULL);
-	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 	C2_PRE(c2_rpc_slot_invariant(slot));
+	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
 	while (slot->sl_in_flight < slot->sl_max_in_flight) {
 		/* Is slot->item_list is empty? */
@@ -383,14 +387,16 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 {
 	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_session  *session;
+	struct c2_rpc_machine  *machine;
 
-	C2_PRE(slot != NULL && item != NULL && slot->sl_session != NULL);
-	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
-	C2_PRE(c2_mutex_is_locked(&slot->sl_session->s_mutex));
-	C2_PRE(slot->sl_session == item->ri_session);
+	C2_PRE(item != NULL);
 	C2_PRE(c2_rpc_slot_invariant(slot));
+	C2_PRE(slot->sl_session == item->ri_session);
+	C2_PRE(slot->sl_session != NULL);
 
 	session = slot->sl_session;
+	machine = session->s_conn->c_rpc_machine;
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	sref                = &item->ri_slot_refs[0];
 	item->ri_stage      = RPC_ITEM_STAGE_FUTURE;
@@ -426,9 +432,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
 	if (session != NULL) {
-		/*
-		 * we're already under the cover of session->s_mutex
-		 */
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
 			/*
@@ -438,7 +441,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 			 */
 			session->s_state = C2_RPC_SESSION_BUSY;
 			c2_cond_broadcast(&session->s_state_changed,
-					  &session->s_mutex);
+					  &machine->rm_mutex);
 		}
 	}
 
@@ -448,9 +451,8 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 				   struct c2_rpc_item *item)
 {
-	C2_PRE(slot != NULL && item != NULL);
-	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
-	C2_PRE(c2_mutex_is_locked(&slot->sl_session->s_mutex));
+	C2_PRE(c2_rpc_slot_invariant(slot) && item != NULL);
+	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 	C2_PRE(slot->sl_session == item->ri_session);
 
 	__slot_item_add(slot, item,
@@ -491,10 +493,9 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 	int                 redoable;
 	int                 rc = 0;   /* init to 0, required */
 
-	C2_ASSERT(slot != NULL && item != NULL);
-	C2_ASSERT(c2_mutex_is_locked(&slot->sl_mutex));
-	C2_ASSERT(c2_mutex_is_locked(&slot->sl_session->s_mutex));
+	C2_ASSERT(item != NULL);
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
+	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
 	redoable = c2_verno_is_redoable(&slot->sl_verno,
 					&item->ri_slot_refs[0].sr_verno,
@@ -517,7 +518,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 		 * For now, assert this condition for testing purpose.
 		 */
 		C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
-				&item->ri_slot_refs[0].sr_verno) == 0);
+				       &item->ri_slot_refs[0].sr_verno) == 0);
 
 		switch (req->ri_stage) {
 		case RPC_ITEM_STAGE_PAST_VOLATILE:
@@ -554,9 +555,13 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 	struct c2_rpc_item     *req;
 	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_session  *session;
+	struct c2_rpc_machine  *machine;
 
 	C2_PRE(slot != NULL && reply != NULL && req_out != NULL);
-	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
+
+	machine = slot_get_rpc_machine(slot);
+	C2_PRE(c2_rpc_machine_is_locked(machine));
+	C2_ASSERT(c2_rpc_slot_invariant(slot));
 
 	*req_out = NULL;
 
@@ -579,10 +584,10 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 	 * For now, assert this condition for testing purpose.
 	 */
 	C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
-			&reply->ri_slot_refs[0].sr_verno) == 0);
+			       &reply->ri_slot_refs[0].sr_verno) == 0);
 
 	if (c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
-		&slot->sl_last_sent->ri_slot_refs[0].sr_verno) > 0) {
+			 &slot->sl_last_sent->ri_slot_refs[0].sr_verno) > 0) {
 		/*
 		 * Received a reply to an item that wasn't sent. This is
 		 * possible if the receiver failed and forget about some
@@ -594,7 +599,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		;
 	} else if (req->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED ||
-			req->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE) {
+		   req->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE) {
 		/*
 		 * Got a reply to an item for which the reply was already
 		 * received in the past. Compare with the original reply.
@@ -610,61 +615,27 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		session = slot->sl_session;
 		C2_ASSERT(session != NULL);
 
-		c2_mutex_lock(&session->s_mutex);
 		C2_ASSERT(c2_rpc_session_invariant(session));
 		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
 		C2_ASSERT(session->s_nr_active_items > 0);
 
 		req->ri_stage = RPC_ITEM_STAGE_PAST_VOLATILE;
 		req->ri_reply = reply;
-		*req_out = req;
+		*req_out      = req;
 		slot->sl_in_flight--;
 
 		session->s_nr_active_items--;
-		/*
-		 * Setting of req->ri_stage to PAST_VOLATILE and reducing
-		 * session->s_nr_active_items must be in same critical
-		 * region protected by session->s_mutex.
-		 */
 		if (session->s_nr_active_items == 0 &&
-			c2_list_is_empty(&session->s_unbound_items)) {
+		    c2_list_is_empty(&session->s_unbound_items)) {
+
 			session->s_state = C2_RPC_SESSION_IDLE;
-			/*
-			 * ->s_state_change is broadcast after slot_balance()
-			 * call in this function.
-			 * Cannot broadcast on session->s_state_changed here.
-			 * Doing so introduces a race condition:
-			 *
-			 * - User thread might be waiting for session to be
-			 *   IDLE, so that it can call
-			 *   c2_rpc_session_terminate().
-			 * - current thread broadcasts on s_state_changed
-			 * - the user thread will come out of wait, and issue
-			 *   c2_rpc_session_terminate(), which removes all
-			 *   slots of the IDLE session, from ready_slots list.
-			 * - current thread continues execution and calls
-			 *   slot_balance(), which will trigger
-			 *   slot->sl_ops->so_slot_idle() event, resulting in
-			 *   slot placed again on ready_slots list.
-			 *   A TERMINATING session must not have any of its
-			 *   slots on ready_slots list.
-			 * - session invariant catches this, in
-			 *   c2_rpc_session_terminate_reply_received()
-			 */
+			c2_cond_broadcast(&session->s_state_changed,
+					  &machine->rm_mutex);
+
 		}
 		C2_ASSERT(c2_rpc_session_invariant(session));
-		c2_mutex_unlock(&session->s_mutex);
 
 		slot_balance(slot);
-
-		c2_mutex_lock(&session->s_mutex);
-		C2_ASSERT(c2_rpc_session_invariant(session));
-
-		if (session->s_state == C2_RPC_SESSION_IDLE) {
-			c2_cond_broadcast(&session->s_state_changed,
-					&session->s_mutex);
-		}
-		c2_mutex_unlock(&session->s_mutex);
 
 		/*
 		 * On receiver, ->so_reply_consume(req, reply) will hand over
@@ -672,26 +643,6 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * see: rcv_reply_consume(), snd_reply_consume()
 		 */
 		slot->sl_ops->so_reply_consume(req, reply);
-		/*
-		 * XXX On receiver, there is a potential race, from this point
-		 * to slot mutex unlock in c2_rpc_reply_post().
-		 * - Context switch happens at this point. slot->sl_mutex is
-		 *   yet to be unlocked.
-		 * - @reply reaches back to sender. This might make sender side
-		 *   session IDLE.
-		 * - sender sends SESSION_TERMINATE.
-		 * - SESSION_TERMINATE fop gets submitted to reqh and completes
-		 *    its execution. As part of session termination it frees all
-		 *    session and slot objects.
-		 * - execution of this thread resumes from this point.
-		 * - control returns to c2_rpc_reply_post() which tries to
-		 *   unlock the mutex, but the mutex is embeded in slot and
-		 *   slot is already freed during session termination. BOOM!!!
-		 * - Holding session mutex across c2_rpc_slot_reply_received()
-		 *   might sound obvious solution, but formation tries to
-		 *   aquire same session mutex while processing reply item,
-		 *   leading to self deadlock.
-		 */
 	}
 }
 
@@ -701,7 +652,8 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	struct c2_rpc_item     *item;
 	struct c2_list_link    *link;
 
-	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
+	C2_PRE(c2_rpc_slot_invariant(slot));
+	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
 	/*
 	 * From last persistent item to end of slot->item_list,
@@ -740,7 +692,8 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	struct c2_rpc_item     *item;
 	struct c2_rpc_slot_ref *sref;
 
-	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
+	C2_PRE(c2_rpc_slot_invariant(slot));
+	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 	C2_PRE(c2_verno_cmp(&slot->sl_verno, &last_seen) >= 0);
 
 	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
@@ -759,61 +712,67 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	slot_balance(slot);
 }
 
-static int associate_session_and_slot(struct c2_rpc_item    *item,
-				      struct c2_rpc_machine *machine)
+static struct c2_rpc_conn *
+find_conn(const struct c2_rpc_machine *machine,
+	  const struct c2_rpc_item    *item)
 {
-	struct c2_list         *conn_list;
-	struct c2_rpc_conn     *conn;
-	struct c2_rpc_session  *session;
-	struct c2_rpc_slot     *slot;
-	struct c2_rpc_slot_ref *sref;
-	bool                    found;
-	bool                    use_uuid;
-
-	sref = &item->ri_slot_refs[0];
-	if (sref->sr_session_id > SESSION_ID_MAX)
-		return -EINVAL;
+	const struct c2_list         *conn_list;
+	const struct c2_rpc_slot_ref *sref;
+	struct c2_rpc_conn           *conn;
+	bool                          use_uuid;
 
 	conn_list = c2_rpc_item_is_request(item) ?
 			&machine->rm_incoming_conns :
 			&machine->rm_outgoing_conns;
 
+	sref = &item->ri_slot_refs[0];
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
 
-	c2_mutex_lock(&machine->rm_session_mutex);
-	found = false;
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
 
-		found = use_uuid ?
-		   c2_rpc_sender_uuid_cmp(&conn->c_uuid, &sref->sr_uuid) == 0 :
-		   conn->c_sender_id == sref->sr_sender_id;
-		if (found)
-			break;
+		if (use_uuid) {
 
+			if (c2_rpc_sender_uuid_cmp(&conn->c_uuid,
+						   &sref->sr_uuid) == 0)
+				return conn;
+
+		} else {
+
+			if (conn->c_sender_id == sref->sr_sender_id)
+				return conn;
+		}
 	}
-	c2_mutex_unlock(&machine->rm_session_mutex);
-	if (!found)
+	return NULL;
+}
+static int associate_session_and_slot(struct c2_rpc_item    *item,
+				      struct c2_rpc_machine *machine)
+{
+	struct c2_rpc_conn     *conn;
+	struct c2_rpc_session  *session;
+	struct c2_rpc_slot     *slot;
+	struct c2_rpc_slot_ref *sref;
+
+	C2_PRE(c2_rpc_machine_is_locked(machine));
+
+	sref = &item->ri_slot_refs[0];
+	if (sref->sr_session_id > SESSION_ID_MAX)
+		return -EINVAL;
+
+	conn = find_conn(machine, item);
+	if (conn == NULL)
 		return -ENOENT;
 
-	c2_mutex_lock(&conn->c_mutex);
 	session = c2_rpc_session_search(conn, sref->sr_session_id);
-	c2_mutex_unlock(&conn->c_mutex);
-	if (session == NULL)
+	if (session == NULL || sref->sr_slot_id >= session->s_nr_slots)
 		return -ENOENT;
 
-	c2_mutex_lock(&session->s_mutex);
-	if (sref->sr_slot_id >= session->s_nr_slots) {
-		c2_mutex_unlock(&session->s_mutex);
-		return -ENOENT;
-	}
 	slot = session->s_slot_table[sref->sr_slot_id];
 	/* XXX Check generation of slot */
 	C2_ASSERT(slot != NULL);
-	sref->sr_slot = slot;
+	sref->sr_slot    = slot;
 	item->ri_session = session;
 	C2_POST(item->ri_session != NULL &&
 		item->ri_slot_refs[0].sr_slot != NULL);
-	c2_mutex_unlock(&session->s_mutex);
 
 	return 0;
 }
@@ -826,6 +785,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 	int                 rc;
 
 	C2_ASSERT(item != NULL && machine != NULL);
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	rc = associate_session_and_slot(item, machine);
 	if (rc != 0) {
@@ -852,17 +812,11 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 
 	slot = item->ri_slot_refs[0].sr_slot;
 	if (c2_rpc_item_is_request(item)) {
-		c2_mutex_lock(&slot->sl_mutex);
-		c2_mutex_lock(&slot->sl_session->s_mutex);
 
 		c2_rpc_slot_item_apply(slot, item);
 
-		c2_mutex_unlock(&slot->sl_session->s_mutex);
-		c2_mutex_unlock(&slot->sl_mutex);
 	} else {
-		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_reply_received(slot, item, &req);
-		c2_mutex_unlock(&slot->sl_mutex);
 
 		/*
 		 * In case the reply is duplicate/unwanted then
@@ -885,25 +839,35 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc)
 {
-	bool broadcast = true;
+	struct c2_rpc_machine *machine;
 
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
-	if (c2_rpc_item_is_conn_terminate(item))
-		broadcast = false;
+	machine = slot_get_rpc_machine(item->ri_slot_refs[0].sr_slot);
 
-	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-		item->ri_ops->rio_replied(item);
+	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL) {
+		if (c2_rpc_item_is_control_msg(item)) {
 
-	/*
-	 * If item is of type conn terminate reply,
-	 * then req and item (including any of its associated
-	 * rpc layer structures e.g. session, frm_sm etc.)
-	 * should not be accessed from this point onwards.
-	 */
-	if (broadcast)
-		c2_chan_broadcast(&item->ri_chan);
+			item->ri_ops->rio_replied(item);
+
+		} else {
+
+			machine->rm_activity_counter++;
+
+			c2_rpc_machine_unlock(machine);
+
+			item->ri_ops->rio_replied(item);
+
+			c2_rpc_machine_lock(machine);
+			C2_ASSERT(machine->rm_activity_counter > 0);
+
+			machine->rm_activity_counter--;
+			if (machine->rm_activity_counter == 0)
+				c2_cond_broadcast(&machine->rm_state_changed,
+						  &machine->rm_mutex);
+		}
+	}
 }
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
@@ -976,7 +940,5 @@ void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
 #endif
 bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)
 {
-	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
-
 	return slot->sl_in_flight < slot->sl_max_in_flight;
 }

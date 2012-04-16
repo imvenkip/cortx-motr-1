@@ -528,6 +528,8 @@ void c2_rpc_conn_add_session(struct c2_rpc_conn    *conn,
                              struct c2_rpc_session *session);
 void c2_rpc_conn_remove_session(struct c2_rpc_session *session);
 
+bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
+
 /** @}  End of rpc_session group */
 #endif
 
