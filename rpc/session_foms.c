@@ -332,9 +332,9 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
-	reply->rser_sender_id = request->rse_sender_id;
 	slot_cnt = request->rse_slot_cnt;
 
+	session = NULL;
 	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
 		rc = -EINVAL;
 		goto out;
@@ -367,13 +367,15 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 
 	c2_rpc_machine_unlock(machine);
 out:
+	reply->rser_sender_id = request->rse_sender_id;
+	reply->rser_rc        = rc;
+
 	if (rc != 0) {
 		reply->rser_session_id = SESSION_ID_INVALID;
 		if (session != NULL)
 			c2_free(session);
 	}
 
-	reply->rser_rc = rc;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_FINISH;
 	return FSO_WAIT;
