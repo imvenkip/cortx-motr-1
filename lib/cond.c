@@ -26,7 +26,7 @@
    @addtogroup cond
 
    Very simple implementation of condition variables on top of waiting
-   channels. 
+   channels.
 
    Self-explanatory.
 
@@ -87,6 +87,7 @@ bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
 
 	return retval;
 }
+C2_EXPORTED(c2_cond_timedwait);
 
 void c2_cond_signal(struct c2_cond *cond, struct c2_mutex *mutex)
 {
