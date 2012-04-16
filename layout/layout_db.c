@@ -541,7 +541,7 @@ static int rec_get(struct c2_layout *l, void *area,
 
 	/*
 	 * The max_recsize is never expected to be that large. But still,
-	 * since it is being typcasted to uint32_t.
+	 * since it is being typcasted here to uint32_t.
 	 */
 	C2_ASSERT(max_recsize <= UINT32_MAX);
 
@@ -550,7 +550,6 @@ static int rec_get(struct c2_layout *l, void *area,
 			 area, (uint32_t)max_recsize);
 
 	rc = c2_table_lookup(tx, &pair);
-	C2_ASSERT(rc != -ENOENT);
 
 	c2_db_pair_fini(&pair);
 
