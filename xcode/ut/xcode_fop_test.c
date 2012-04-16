@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -35,7 +35,7 @@
 #include "lib/vec.h"
 #include "rpc/rpc_opcodes.h"
 
-/** Random test values */
+/** Random test values. */
 enum {
 	ARR_COUNT_1 = 10,
 	ARR_COUNT_2 = 11,
@@ -54,13 +54,7 @@ static char *fop_test_buf = "test fop encode/decode";
 
 extern struct c2_fop_type_format c2_fop_test_tfmt;
 
-int test_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	return 0;
-}
-
 struct c2_fop_type_ops test_ops = {
-        .fto_execute = test_handler,
 };
 
 C2_FOP_TYPE_DECLARE(c2_fop_test, "test", &test_ops, C2_XCODE_UT_OPCODE, 0);
@@ -112,7 +106,7 @@ static void fop_verify( struct c2_fop *fop)
 	}
 }
 
-/** Clean up allocated fop structures */
+/** Clean up allocated fop structures. */
 static void fop_free(struct c2_fop *fop)
 {
 	struct c2_fop_test	*ccf1;
@@ -138,17 +132,20 @@ static void fop_free(struct c2_fop *fop)
 /** Test function to check generic fop encode decode */
 static void test_fop_encdec(void)
 {
-	int				 rc;
-	struct c2_bufvec_cursor		 cur;
-	void				*cur_addr;
-	int				 i;
-	int				 j;
-	struct c2_fop			*f1, *fd1;
-	struct c2_net_buffer		*nb;
-	struct c2_fop_test		*ccf1;
-	size_t				 fop_size;
-	size_t				 act_fop_size;
+	int			 rc;
+	struct c2_bufvec_cursor	 cur;
+	void			*cur_addr;
+	int			 i;
+	int			 j;
+	struct c2_fop		*f1;
+	struct c2_fop		*fd1;
+	struct c2_net_buffer	*nb;
+	struct c2_fop_test	*ccf1;
+	size_t			 fop_size;
+	size_t			 act_fop_size;
+	size_t			 allocated;
 
+	allocated = c2_allocated();
 	rc = c2_fop_type_format_parse(&c2_test_buf_tfmt);
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_fop_type_format_parse(&c2_test_key_tfmt);
@@ -162,7 +159,7 @@ static void test_fop_encdec(void)
 	rc = c2_fop_type_build(&c2_fop_test_fopt);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Allocate a fop and populate its fields with test values */
+	/* Allocate a fop and populate its fields with test values. */
 	f1 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
 	C2_UT_ASSERT(f1 != NULL);
 
@@ -209,49 +206,55 @@ static void test_fop_encdec(void)
 
 	/* Manually calculate the size of the fop based on the .ff file.
 	  For the current "test_fop" defined in fop.ff, we can calculate
-	  the size of the fop using the formula given below */
+	  the size of the fop using the formula given below. */
 	act_fop_size = 24 + ARR_COUNT_1 * (8 + ARR_COUNT_2 * 88);
 
-	/*Check the size of the fop using the interfaces*/
+	/*Check the size of the fop using the interfaces. */
 	fop_size = c2_xcode_fop_size_get(f1);
 	C2_UT_ASSERT(fop_size == act_fop_size);
 
-	/* Allocate a netbuf and a bufvec, check alignments*/
+	/* Allocate a netbuf and a bufvec, check alignments. */
 	C2_ALLOC_PTR(nb);
         c2_bufvec_alloc(&nb->nb_buffer, NO_OF_BUFFERS, BUFVEC_SEG_SIZE);
         c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
         cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
-	/* Encode the fop into the bufvec */
+	/* Encode the fop into the bufvec. */
 	rc = c2_xcode_bufvec_fop(&cur, f1, C2_BUFVEC_ENCODE);
 	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
 	/* Allocate a fop for decode. The payload from the bufvec will be
-	   decoded into this fop */
+	   decoded into this fop. */
 	fd1 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
 	C2_UT_ASSERT(fd1 != NULL);
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
-	/* Decode the payload from bufvec into the fop */
+	/* Decode the payload from bufvec into the fop. */
 	rc = c2_xcode_bufvec_fop(&cur, fd1, C2_BUFVEC_DECODE);
 	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
-	/* Verify the fop data */
+	/* Verify the fop data. */
 	fop_verify(fd1);
 
-	/* Clean up all the allocations */
+	/* Clean up and free all the allocated memory. */
 	c2_bufvec_free(&nb->nb_buffer);
 	c2_free(nb);
 	fop_free(f1);
 	fop_free(fd1);
+	c2_fop_type_format_fini(&c2_test_buf_tfmt);
+	c2_fop_type_format_fini(&c2_test_key_tfmt);
+	c2_fop_type_format_fini(&c2_pair_tfmt);
+	c2_fop_type_format_fini(&c2_desc_arr_tfmt);
+	c2_fop_type_format_fini(&c2_fop_test_arr_tfmt);
 	c2_fop_type_fini(&c2_fop_test_fopt);
+	C2_UT_ASSERT(allocated == c2_allocated());
 }
 
 const struct c2_test_suite xcode_bufvec_fop_ut = {
