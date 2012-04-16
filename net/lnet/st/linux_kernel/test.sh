@@ -112,7 +112,7 @@ while [ $# -gt 0 ]; do
 	(-O) Pbulk_timeout="bulk_timeout=$1";;
 	(-P) Pserver_portal="server_portal=$1";;
 	(-T) Pserver_tmid="server_tmid=$1";;
-	(-x) Pserver_debug="server_debug=$1";;
+	(-X) Pserver_debug="server_debug=$1";;
 	(-b) Pnr_bufs="nr_bufs=$1";;
 	(-d) Ppassive_size="passive_size=$1";;
 	(-i) Pclient_network="client_network=$1";;
@@ -157,9 +157,6 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-modload_galois || exit $?
-modload || (modunload_galois; exit 1)
-
 # insert ST module separately to pass parameters
 STMOD=klnetst
 unload_all() {
@@ -169,6 +166,9 @@ unload_all() {
     modunload_galois
 }
 trap unload_all EXIT
+
+modload_galois || exit $?
+modload || exit $?
 
 insmod net/lnet/st/linux_kernel/$STMOD.ko $OPARM $SPARM $CPARM
 if [ $? -eq 0 ] ; then
