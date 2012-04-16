@@ -279,14 +279,17 @@ static void client(struct client_params *params)
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
 		rc = c2_nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
-		C2_ASSERT(rc == 0);
+		if (rc != 0)
+			break;
 		rc = c2_nlx_ping_client_passive_recv(&cctx, server_ep);
-		C2_ASSERT(rc == 0);
+		if (rc != 0)
+			break;
 		rc = c2_nlx_ping_client_passive_send(&cctx, server_ep, bp);
-		C2_ASSERT(rc == 0);
+		if (rc != 0)
+			break;
 	}
 
-	if (params->verbose)
+	if (rc == 0 && params->verbose)
 		print_qstats(&cctx, false);
 	rc = c2_nlx_ping_client_fini(&cctx, server_ep);
 	c2_free(bp);

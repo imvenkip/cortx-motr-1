@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,12 +17,14 @@
  * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
  *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
  * Original creation date: 04/12/2011
+ * Adapted for LNet: 04/11/2012
  */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
 
 #include "lib/assert.h"
+#include "lib/cond.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "net/net.h"
@@ -976,7 +978,7 @@ void c2_nlx_ping_server(struct c2_nlx_ping_ctx *ctx)
 	/* startup synchronization handshake */
 	ctx->pc_ready = true;
 	c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
-	while(ctx->pc_ready)
+	while (ctx->pc_ready)
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 
 	while (!server_stop) {
@@ -1062,6 +1064,7 @@ int c2_nlx_ping_client_msg_send_recv(struct c2_nlx_ping_ctx *ctx,
 	struct ping_work_item *wi;
 	int recv_done = 0;
 	int retries = SEND_RETRIES;
+	c2_time_t session_timeout = C2_TIME_NEVER;
 
 	if (data == NULL)
 		data = "ping";
@@ -1123,12 +1126,24 @@ int c2_nlx_ping_client_msg_send_recv(struct c2_nlx_ping_ctx *ctx,
 				C2_ASSERT(rc == 0);
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
 				recv_done++;
+				if (ctx->pc_msg_timeout > 0)
+					session_timeout =
+						ping_c2_time_after_secs(
+							   ctx->pc_msg_timeout);
 			}
 			c2_free(wi);
 		}
 		if (recv_done == 2)
 			break;
-		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+		if (session_timeout == C2_TIME_NEVER)
+			c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+		else if (!c2_cond_timedwait(&ctx->pc_cond, &ctx->pc_mutex,
+					    session_timeout)) {
+			ctx->pc_ops->pf("%s: Receive TIMED OUT\n",
+					ctx->pc_ident);
+			rc = -ETIMEDOUT;
+			break;
+		}
 	}
 
 	c2_mutex_unlock(&ctx->pc_mutex);
@@ -1343,11 +1358,11 @@ int c2_nlx_ping_client_fini(struct c2_nlx_ping_ctx *ctx,
 			    struct c2_net_end_point *server_ep)
 {
 	int rc = c2_net_end_point_put(server_ep);
+	ping_fini(ctx);
 	if (ctx->pc_ident != NULL) {
 		c2_free((void *)ctx->pc_ident);
 		ctx->pc_ident = NULL;
 	}
-	ping_fini(ctx);
 	return rc;
 }
 
