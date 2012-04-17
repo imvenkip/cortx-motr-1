@@ -319,8 +319,8 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(lcbuf->cb_match_bits != 0);
 
-	id.nid = lcbuf->cb_addr.cepa_nid;
-	id.pid = lcbuf->cb_addr.cepa_pid;
+	id.nid = LNET_NID_ANY;
+	id.pid = LNET_PID_ANY;
 	rc = LNetMEAttach(lcbuf->cb_addr.cepa_portal, id,
 			  lcbuf->cb_match_bits, 0,
 			  LNET_UNLINK, LNET_INS_AFTER, &meh);
