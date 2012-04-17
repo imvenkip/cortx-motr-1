@@ -39,29 +39,6 @@
   @{
  */
 
-enum {
-	DEF_BUFS = 20,
-	DEF_CLIENT_THREADS = 1,
-	MAX_CLIENT_THREADS = 32,
-	DEF_LOOPS = 1,
-
-	DEF_MSG_TIMEOUT = 5,
-	DEF_BULK_TIMEOUT = 10,
-
-	/* cannot allocate too many buffers in the kernel */
-	PING_CLIENT_SEGMENTS = 8,
-	PING_CLIENT_SEGMENT_SIZE = 4096,
-	PING_SERVER_SEGMENTS = 8,
-	PING_SERVER_SEGMENT_SIZE = 4096,
-	/* leave some room for overhead */
-	MAX_PASSIVE_SIZE =
-		PING_SERVER_SEGMENTS * PING_SERVER_SEGMENT_SIZE - 1024,
-
-	ONE_MILLION = 1000000ULL,
-	SEC_PER_HR = 60 * 60,
-	SEC_PER_MIN = 60,
-};
-
 /* Module parameters */
 static bool verbose = false;
 module_param(verbose, bool, S_IRUGO);
@@ -75,7 +52,7 @@ static bool server_only = false;
 module_param(server_only, bool, S_IRUGO);
 MODULE_PARM_DESC(verbose, "run server only");
 
-static uint nr_bufs = DEF_BUFS;
+static uint nr_bufs = PING_DEF_BUFS;
 module_param(nr_bufs, uint, S_IRUGO);
 MODULE_PARM_DESC(nr_bufs, "total number of network buffers to allocate");
 
@@ -87,19 +64,19 @@ static int active_bulk_delay = 0;
 module_param(active_bulk_delay, int, S_IRUGO);
 MODULE_PARM_DESC(active_bulk_delay, "Delay before sending active receive");
 
-static int nr_clients = DEF_CLIENT_THREADS;
+static int nr_clients = PING_DEF_CLIENT_THREADS;
 module_param(nr_clients, int, S_IRUGO);
 MODULE_PARM_DESC(nr_clients, "number of client threads");
 
-static int loops = DEF_LOOPS;
+static int loops = PING_DEF_LOOPS;
 module_param(loops, int, S_IRUGO);
 MODULE_PARM_DESC(loops, "loops to run");
 
-static int bulk_timeout = DEF_BULK_TIMEOUT;
+static int bulk_timeout = PING_DEF_BULK_TIMEOUT;
 module_param(bulk_timeout, int, S_IRUGO);
 MODULE_PARM_DESC(passive_bulk_timeout, "bulk timeout");
 
-static int msg_timeout = DEF_MSG_TIMEOUT;
+static int msg_timeout = PING_DEF_MSG_TIMEOUT;
 module_param(msg_timeout, int, S_IRUGO);
 MODULE_PARM_DESC(msg_timeout, "message timeout");
 
@@ -229,119 +206,29 @@ static struct nlx_ping_ctx sctx = {
 	}
 };
 
-struct client_params {
-	bool verbose;
-	int loops;
-	int nr_bufs;
-	int client_id;
-	int passive_size;
-	int bulk_timeout;
-	int msg_timeout;
-	const char *client_network;
-	uint32_t    client_pid;
-	uint32_t    client_portal;
-	int32_t	    client_tmid;
-	const char *server_network;
-	uint32_t    server_pid;
-	uint32_t    server_portal;
-	int32_t	    server_tmid;
-	int         debug;
-};
-
-static void client(struct client_params *params)
-{
-	int			 i;
-	int			 rc;
-	struct c2_net_end_point *server_ep;
-	char			*bp = NULL;
-	struct nlx_ping_ctx		 cctx = {
-		.pc_xprt = &c2_net_lnet_xprt,
-		.pc_nr_bufs = params->nr_bufs,
-		.pc_segments = PING_CLIENT_SEGMENTS,
-		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
-		.pc_passive_size = params->passive_size,
-		.pc_tm = {
-			.ntm_state     = C2_NET_TM_UNDEFINED
-		},
-		.pc_bulk_timeout = params->bulk_timeout,
-		.pc_msg_timeout = params->msg_timeout,
-
-		.pc_network = params->client_network,
-		.pc_pid     = params->client_pid,
-		.pc_portal  = params->client_portal,
-		.pc_tmid    = params->client_tmid,
-
-		.pc_rnetwork = params->server_network,
-		.pc_rpid     = params->server_pid,
-		.pc_rportal  = params->server_portal,
-		.pc_rtmid    = params->server_tmid,
-		.pc_dom_debug = params->debug,
-		.pc_tm_debug  = params->debug,
-	};
-
-	if (params->verbose)
-		cctx.pc_ops = &verbose_ops;
-	else
-		cctx.pc_ops = &quiet_ops;
-	c2_mutex_init(&cctx.pc_mutex);
-	c2_cond_init(&cctx.pc_cond);
-	rc = nlx_ping_client_init(&cctx, &server_ep);
-	if (rc != 0)
-		goto fail;
-
-	if (params->passive_size != 0) {
-		bp = c2_alloc(params->passive_size);
-		C2_ASSERT(bp != NULL);
-		for (i = 0; i < params->passive_size - 1; ++i)
-			bp[i] = "abcdefghi"[i % 9];
-	}
-
-	for (i = 1; i <= params->loops; ++i) {
-		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
-		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
-		if (rc != 0)
-			break;
-		rc = nlx_ping_client_passive_recv(&cctx, server_ep);
-		if (rc != 0)
-			break;
-		rc = nlx_ping_client_passive_send(&cctx, server_ep, bp);
-		if (rc != 0)
-			break;
-	}
-
-	if (rc == 0 && params->verbose)
-		print_qstats(&cctx, false);
-	rc = nlx_ping_client_fini(&cctx, server_ep);
-	c2_free(bp);
-	C2_ASSERT(rc == 0);
-fail:
-	c2_cond_fini(&cctx.pc_cond);
-	c2_mutex_fini(&cctx.pc_mutex);
-}
-
 static struct c2_thread server_thread;
-static struct c2_thread     *client_thread;
-static struct client_params *params;
+static struct c2_thread *client_thread;
+static struct nlx_ping_client_params *params;
 
 static int __init c2_netst_init_k(void)
 {
 	int rc;
 
 	/* parse module options */
-	if (nr_bufs < DEF_BUFS) {
+	if (nr_bufs < PING_MIN_BUFS) {
 		printk(KERN_WARNING "Minimum of %d buffers required\n",
-		       DEF_BUFS);
+		       PING_MIN_BUFS);
 		return -EINVAL;
 	}
-	if (passive_size < 0 || passive_size > MAX_PASSIVE_SIZE) {
+	if (passive_size < 0 || passive_size > PING_MAX_PASSIVE_SIZE) {
 		/* need to leave room for encoding overhead */
 		printk(KERN_WARNING "Max supported passive data size: %d\n",
-		       MAX_PASSIVE_SIZE);
+		       PING_MAX_PASSIVE_SIZE);
 		return -EINVAL;
 	}
-	if (nr_clients > MAX_CLIENT_THREADS) {
+	if (nr_clients > PING_MAX_CLIENT_THREADS) {
 		printk(KERN_WARNING "Max of %d client threads supported\n",
-			MAX_CLIENT_THREADS);
+			PING_MAX_CLIENT_THREADS);
 		return -EINVAL;
 	}
 	if (client_only && server_only)
@@ -380,34 +267,18 @@ static int __init c2_netst_init_k(void)
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
-		sctx.pc_xprt = &c2_net_lnet_xprt;
 
 		sctx.pc_nr_bufs = nr_bufs;
-		sctx.pc_segments = PING_SERVER_SEGMENTS;
-		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
 		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_bulk_timeout = bulk_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
 		sctx.pc_network = server_network;
-		sctx.pc_pid = C2_NET_LNET_PID;
 		sctx.pc_portal = server_portal;
 		sctx.pc_tmid = server_tmid;
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
-
-		/* spawn server */
-		c2_mutex_lock(&sctx.pc_mutex);
-		C2_SET0(&server_thread);
-		rc = C2_THREAD_INIT(&server_thread, struct nlx_ping_ctx *,
-				    NULL, &nlx_ping_server, &sctx,
-				    "ping_server");
-		C2_ASSERT(rc == 0);
-		while (!sctx.pc_ready)
-			c2_cond_wait(&sctx.pc_cond, &sctx.pc_mutex);
-		sctx.pc_ready = false;
-		c2_cond_signal(&sctx.pc_cond, &sctx.pc_mutex);
-		c2_mutex_unlock(&sctx.pc_mutex);
+		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		printk(KERN_INFO "Colibri LNet System Test"
 		       " Server Initialized\n");
@@ -427,7 +298,6 @@ static int __init c2_netst_init_k(void)
 			if (client_base_tmid != PING_CLIENT_DYNAMIC_TMID)
 				client_tmid = client_base_tmid + i;
 #define CPARAM_SET(f) params[i].f = f
-			CPARAM_SET(verbose);
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
 			CPARAM_SET(passive_size);
@@ -444,10 +314,14 @@ static int __init c2_netst_init_k(void)
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;
 			params[i].debug = client_debug;
+			if (verbose)
+				params[i].ops = &verbose_ops;
+			else
+				params[i].ops = &quiet_ops;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
-					    struct client_params *,
-					    NULL, &client, &params[i],
+					    struct nlx_ping_client_params *,
+					    NULL, &nlx_ping_client, &params[i],
 					    "client_%d", params[i].client_id);
 			C2_ASSERT(rc == 0);
 		}

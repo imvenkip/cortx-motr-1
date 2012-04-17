@@ -27,6 +27,7 @@
 #include "lib/cond.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h" /* C2_SET0 */
 #include "net/net.h"
 #include "net/lnet/lnet.h"
 #include "net/lnet/st/ping.h"
@@ -946,7 +947,7 @@ static void set_bulk_timeout(struct nlx_ping_ctx *ctx,
 	}
 }
 
-void nlx_ping_server(struct nlx_ping_ctx *ctx)
+static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 {
 	int i;
 	int rc;
@@ -1045,6 +1046,28 @@ void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx)
 	c2_mutex_unlock(&ctx->pc_mutex);
 }
 
+void nlx_ping_server_spawn(struct c2_thread *server_thread,
+			   struct nlx_ping_ctx *sctx)
+{
+	int rc;
+
+	sctx->pc_xprt = &c2_net_lnet_xprt;
+	sctx->pc_segments = PING_SERVER_SEGMENTS;
+	sctx->pc_seg_size = PING_SERVER_SEGMENT_SIZE;
+	sctx->pc_pid = C2_NET_LNET_PID;
+
+	c2_mutex_lock(&sctx->pc_mutex);
+	C2_SET0(server_thread);
+	rc = C2_THREAD_INIT(server_thread, struct nlx_ping_ctx *,
+			    NULL, &nlx_ping_server, sctx, "ping_server");
+	C2_ASSERT(rc == 0);
+	while (!sctx->pc_ready)
+		c2_cond_wait(&sctx->pc_cond, &sctx->pc_mutex);
+	sctx->pc_ready = false;
+	c2_cond_signal(&sctx->pc_cond, &sctx->pc_mutex);
+	c2_mutex_unlock(&sctx->pc_mutex);
+}
+
 /**
    Test an RPC-like exchange, sending data in a message to the server and
    getting back a response.
@@ -1054,9 +1077,9 @@ void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx)
    @retval 0 successful test
    @retval -errno failed to send to server
  */
-int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
-				  struct c2_net_end_point *server_ep,
-				  const char *data)
+static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
+					 struct c2_net_end_point *server_ep,
+					 const char *data)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -1150,8 +1173,8 @@ int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
 	return rc;
 }
 
-int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
-				 struct c2_net_end_point *server_ep)
+static int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
+					struct c2_net_end_point *server_ep)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -1229,9 +1252,9 @@ int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
 	return rc;
 }
 
-int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
-				 struct c2_net_end_point *server_ep,
-				 const char *data)
+static int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
+					struct c2_net_end_point *server_ep,
+					const char *data)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -1313,7 +1336,7 @@ int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
 	return rc;
 }
 
-int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
+static int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
 			 struct c2_net_end_point **server_ep)
 {
 	int rc;
@@ -1354,7 +1377,7 @@ int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
 	return 0;
 }
 
-int nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
+static int nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
 			 struct c2_net_end_point *server_ep)
 {
 	int rc = c2_net_end_point_put(server_ep);
@@ -1364,6 +1387,74 @@ int nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
 		ctx->pc_ident = NULL;
 	}
 	return rc;
+}
+
+void nlx_ping_client(struct nlx_ping_client_params *params)
+{
+	int			 i;
+	int			 rc;
+	struct c2_net_end_point *server_ep;
+	char			*bp = NULL;
+	struct nlx_ping_ctx		 cctx = {
+		.pc_xprt = &c2_net_lnet_xprt,
+		.pc_ops  = params->ops,
+		.pc_nr_bufs = params->nr_bufs,
+		.pc_segments = PING_CLIENT_SEGMENTS,
+		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
+		.pc_passive_size = params->passive_size,
+		.pc_tm = {
+			.ntm_state     = C2_NET_TM_UNDEFINED
+		},
+		.pc_bulk_timeout = params->bulk_timeout,
+		.pc_msg_timeout = params->msg_timeout,
+
+		.pc_network = params->client_network,
+		.pc_pid     = params->client_pid,
+		.pc_portal  = params->client_portal,
+		.pc_tmid    = params->client_tmid,
+
+		.pc_rnetwork = params->server_network,
+		.pc_rpid     = params->server_pid,
+		.pc_rportal  = params->server_portal,
+		.pc_rtmid    = params->server_tmid,
+		.pc_dom_debug = params->debug,
+		.pc_tm_debug  = params->debug,
+	};
+
+	c2_mutex_init(&cctx.pc_mutex);
+	c2_cond_init(&cctx.pc_cond);
+	rc = nlx_ping_client_init(&cctx, &server_ep);
+	if (rc != 0)
+		goto fail;
+
+	if (params->passive_size != 0) {
+		bp = c2_alloc(params->passive_size);
+		C2_ASSERT(bp != NULL);
+		for (i = 0; i < params->passive_size - 1; ++i)
+			bp[i] = "abcdefghi"[i % 9];
+	}
+
+	for (i = 1; i <= params->loops; ++i) {
+		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
+		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
+		if (rc != 0)
+			break;
+		rc = nlx_ping_client_passive_recv(&cctx, server_ep);
+		if (rc != 0)
+			break;
+		rc = nlx_ping_client_passive_send(&cctx, server_ep, bp);
+		if (rc != 0)
+			break;
+	}
+
+	if (rc == 0 && params->verbose)
+		cctx.pc_ops->pqs(&cctx, false);
+	rc = nlx_ping_client_fini(&cctx, server_ep);
+	c2_free(bp);
+	C2_ASSERT(rc == 0);
+fail:
+	c2_cond_fini(&cctx.pc_cond);
+	c2_mutex_fini(&cctx.pc_mutex);
 }
 
 /*

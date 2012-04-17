@@ -66,11 +66,52 @@ struct nlx_ping_ctx {
 	bool                                  pc_ready;
 };
 
+struct nlx_ping_client_params {
+	const struct nlx_ping_ops *ops;
+	bool verbose;
+	int loops;
+	unsigned int nr_bufs;
+	int client_id;
+	int passive_size;
+	int bulk_timeout;
+	int msg_timeout;
+	const char *client_network;
+	uint32_t    client_pid;
+	uint32_t    client_portal;
+	int32_t	    client_tmid;
+	const char *server_network;
+	uint32_t    server_pid;
+	uint32_t    server_portal;
+	int32_t	    server_tmid;
+	int         debug;
+};
+
 enum {
 	PING_CLIENT_PORTAL = 39,
 	PING_CLIENT_DYNAMIC_TMID = -1,
 	PING_SERVER_PORTAL = 39,
 	PING_SERVER_TMID = 12,
+
+	PING_DEF_BUFS = 20,
+	PING_MIN_BUFS = 8,
+	PING_DEF_CLIENT_THREADS = 1,
+	PING_MAX_CLIENT_THREADS = 32,
+	PING_DEF_LOOPS = 1,
+
+	PING_DEF_MSG_TIMEOUT = 5,
+	PING_DEF_BULK_TIMEOUT = 10,
+
+	PING_CLIENT_SEGMENTS = 8,
+	PING_CLIENT_SEGMENT_SIZE = 4096,
+	PING_SERVER_SEGMENTS = 8,
+	PING_SERVER_SEGMENT_SIZE = 4096,
+	/* leave some room for overhead */
+	PING_MAX_PASSIVE_SIZE =
+		PING_SERVER_SEGMENTS * PING_SERVER_SEGMENT_SIZE - 1024,
+
+	ONE_MILLION = 1000000ULL,
+	SEC_PER_HR = 60 * 60,
+	SEC_PER_MIN = 60,
 };
 
 /* Debug printf macro */
@@ -82,20 +123,10 @@ enum {
 #define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)
 #endif
 
-void nlx_ping_server(struct nlx_ping_ctx *ctx);
+void nlx_ping_server_spawn(struct c2_thread *server_thread,
+			   struct nlx_ping_ctx *sctx);
 void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx);
-int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
-			 struct c2_net_end_point **server_ep);
-int nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
-			 struct c2_net_end_point *server_ep);
-int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
-				  struct c2_net_end_point *server_ep,
-				  const char *data);
-int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
-				 struct c2_net_end_point *server_ep);
-int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
-				 struct c2_net_end_point *server_ep,
-				 const char *data);
+void nlx_ping_client(struct nlx_ping_client_params *params);
 
 #endif /* __COLIBRI_NET_LNET_PING_H__ */
 

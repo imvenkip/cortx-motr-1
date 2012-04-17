@@ -32,69 +32,16 @@
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/memory.h"
-#include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
 #include "net/lnet/st/ping.h"
-
-enum {
-	DEF_BUFS = 20,
-	DEF_CLIENT_THREADS = 1,
-	MAX_CLIENT_THREADS = 4196,
-	DEF_LOOPS = 1,
-
-	DEF_MSG_TIMEOUT = 5,
-	DEF_BULK_TIMEOUT = 10,
-
-	PING_CLIENT_SEGMENTS = 8,
-	PING_CLIENT_SEGMENT_SIZE = 8192,
-
-	PING_SERVER_SEGMENTS = 4,
-	PING_SERVER_SEGMENT_SIZE = 16384,
-
-	ONE_MILLION = 1000000ULL,
-	SEC_PER_HR = 60 * 60,
-	SEC_PER_MIN = 60,
-};
-
-struct ping_xprt {
-	struct c2_net_xprt *px_xprt;
-};
-
-static struct ping_xprt xprts[1] = {
-	{
-		.px_xprt = &c2_net_lnet_xprt,
-	}
-};
 
 static struct nlx_ping_ctx sctx = {
 	.pc_tm = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
 };
-
-static int lookup_xprt(const char *xprt_name, struct ping_xprt **xprt)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(xprts); ++i)
-		if (strcmp(xprt_name, xprts[i].px_xprt->nx_name) == 0) {
-			*xprt = &xprts[i];
-			return 0;
-		}
-	return -ENOENT;
-}
-
-static void list_xprt_names(FILE *s, struct ping_xprt *def)
-{
-	int i;
-
-	fprintf(s, "Supported transports:\n");
-	for (i = 0; ARRAY_SIZE(xprts); ++i)
-		fprintf(s, "    %s%s\n", xprts[i].px_xprt->nx_name,
-			(&xprts[i] == def) ? " [default]" : "");
-}
 
 static struct c2_mutex qstats_mutex;
 
@@ -163,111 +110,18 @@ static struct nlx_ping_ops quiet_ops = {
 	.pqs = print_qstats
 };
 
-struct client_params {
-	struct ping_xprt *xprt;
-	bool verbose;
-	int loops;
-	int nr_bufs;
-	int client_id;
-	int passive_size;
-	int bulk_timeout;
-	int msg_timeout;
-	const char *client_network;
-	uint32_t    client_pid;
-	uint32_t    client_portal;
-	int32_t	    client_tmid;
-	const char *server_network;
-	uint32_t    server_pid;
-	uint32_t    server_portal;
-	int32_t	    server_tmid;
-	int         debug;
-};
-
-static void client(struct client_params *params)
-{
-	int			 i;
-	int			 rc;
-	struct c2_net_end_point *server_ep;
-	char			*bp = NULL;
-	struct nlx_ping_ctx		 cctx = {
-		.pc_xprt = params->xprt->px_xprt,
-		.pc_nr_bufs = params->nr_bufs,
-		.pc_segments = PING_CLIENT_SEGMENTS,
-		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
-		.pc_passive_size = params->passive_size,
-		.pc_tm = {
-			.ntm_state     = C2_NET_TM_UNDEFINED
-		},
-		.pc_bulk_timeout = params->bulk_timeout,
-		.pc_msg_timeout = params->msg_timeout,
-
-		.pc_network = params->client_network,
-		.pc_pid     = params->client_pid,
-		.pc_portal  = params->client_portal,
-		.pc_tmid    = params->client_tmid,
-
-		.pc_rnetwork = params->server_network,
-		.pc_rpid     = params->server_pid,
-		.pc_rportal  = params->server_portal,
-		.pc_rtmid    = params->server_tmid,
-
-		.pc_dom_debug = params->debug,
-		.pc_tm_debug  = params->debug,
-	};
-
-	if (params->verbose)
-		cctx.pc_ops = &verbose_ops;
-	else
-		cctx.pc_ops = &quiet_ops;
-	c2_mutex_init(&cctx.pc_mutex);
-	c2_cond_init(&cctx.pc_cond);
-	rc = nlx_ping_client_init(&cctx, &server_ep);
-	if (rc != 0)
-		goto fail;
-
-	if (params->passive_size != 0) {
-		bp = c2_alloc(params->passive_size);
-		C2_ASSERT(bp != NULL);
-		for (i = 0; i < params->passive_size - 1; ++i)
-			bp[i] = "abcdefghi"[i % 9];
-	}
-
-	for (i = 1; i <= params->loops; ++i) {
-		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
-		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
-		if (rc != 0)
-			break;
-		rc = nlx_ping_client_passive_recv(&cctx, server_ep);
-		if (rc != 0)
-			break;
-		rc = nlx_ping_client_passive_send(&cctx, server_ep, bp);
-		if (rc != 0)
-			break;
-	}
-
-	if (rc == 0 && params->verbose)
-		print_qstats(&cctx, false);
-	rc = nlx_ping_client_fini(&cctx, server_ep);
-	c2_free(bp);
-	C2_ASSERT(rc == 0);
-fail:
-	c2_cond_fini(&cctx.pc_cond);
-	c2_mutex_fini(&cctx.pc_mutex);
-}
-
 int main(int argc, char *argv[])
 {
 	int			 rc;
 	bool			 client_only = false;
 	bool			 server_only = false;
 	bool			 verbose = false;
-	const char		*xprt_name = c2_net_lnet_xprt.nx_name;
-	int			 loops = DEF_LOOPS;
-	int			 nr_clients = DEF_CLIENT_THREADS;
-	int			 nr_bufs = DEF_BUFS;
+	int			 loops = PING_DEF_LOOPS;
+	int			 nr_clients = PING_DEF_CLIENT_THREADS;
+	int			 nr_bufs = PING_DEF_BUFS;
 	int			 passive_size = 0;
-	int                      bulk_timeout = DEF_BULK_TIMEOUT;
-	int                      msg_timeout = DEF_MSG_TIMEOUT;
+	int                      bulk_timeout = PING_DEF_BULK_TIMEOUT;
+	int                      msg_timeout = PING_DEF_MSG_TIMEOUT;
 	int                      active_bulk_delay = 0;
 	const char              *client_network = NULL;
         int32_t                  client_portal = -1;
@@ -277,7 +131,6 @@ int main(int argc, char *argv[])
 	int32_t                  server_tmid = -1;
 	int                      client_debug = 0;
 	int                      server_debug = 0;
-	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
 
 	rc = c2_init();
@@ -320,23 +173,14 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
-	if (strcmp(xprt_name, "list") == 0) {
-		list_xprt_names(stdout, &xprts[0]);
-		return 0;
-	}
-	rc = lookup_xprt(xprt_name, &xprt);
-	if (rc != 0) {
-		fprintf(stderr, "Unknown transport-name.\n");
-		list_xprt_names(stderr, &xprts[0]);
-		return rc;
-	}
-	if (nr_clients > MAX_CLIENT_THREADS) {
+	if (nr_clients > PING_MAX_CLIENT_THREADS) {
 		fprintf(stderr, "Max of %d client threads supported\n",
-			MAX_CLIENT_THREADS);
+			PING_MAX_CLIENT_THREADS);
 		return 1;
 	}
-	if (nr_bufs < DEF_BUFS) {
-		fprintf(stderr, "Minimum of %d buffers required\n", DEF_BUFS);
+	if (nr_bufs < PING_MIN_BUFS) {
+		fprintf(stderr, "Minimum of %d buffers required\n",
+			PING_MIN_BUFS);
 		return 1;
 	}
 	if (passive_size < 0 || passive_size >
@@ -367,7 +211,7 @@ int main(int argc, char *argv[])
 	if (client_tmid < 0)
 		client_tmid = PING_CLIENT_DYNAMIC_TMID;
 
-	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
+	C2_ASSERT(c2_net_xprt_init(&c2_net_lnet_xprt));
 	c2_mutex_init(&qstats_mutex);
 
 	if (!client_only) {
@@ -378,7 +222,6 @@ int main(int argc, char *argv[])
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
-		sctx.pc_xprt = xprt->px_xprt;
 		sctx.pc_nr_bufs = nr_bufs;
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
@@ -392,18 +235,7 @@ int main(int argc, char *argv[])
 		sctx.pc_tmid = server_tmid;
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
-
-		c2_mutex_lock(&sctx.pc_mutex);
-		C2_SET0(&server_thread);
-		rc = C2_THREAD_INIT(&server_thread, struct nlx_ping_ctx *,
-				    NULL, &nlx_ping_server, &sctx,
-				    "ping_server");
-		C2_ASSERT(rc == 0);
-		while (!sctx.pc_ready)
-			c2_cond_wait(&sctx.pc_cond, &sctx.pc_mutex);
-		sctx.pc_ready = false;
-		c2_cond_signal(&sctx.pc_cond, &sctx.pc_mutex);
-		c2_mutex_unlock(&sctx.pc_mutex);
+		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		printf("Colibri LNet System Test Server Initialized\n");
 	}
@@ -423,7 +255,7 @@ int main(int argc, char *argv[])
 	} else {
 		int		      i;
 		struct c2_thread     *client_thread;
-		struct client_params *params;
+		struct nlx_ping_client_params *params;
 		int32_t               client_base_tmid = client_tmid;
 		C2_ALLOC_ARR(client_thread, nr_clients);
 		C2_ALLOC_ARR(params, nr_clients);
@@ -433,8 +265,6 @@ int main(int argc, char *argv[])
 			if (client_base_tmid != PING_CLIENT_DYNAMIC_TMID)
 				client_tmid = client_base_tmid + i;
 #define CPARAM_SET(f) params[i].f = f
-			CPARAM_SET(xprt);
-			CPARAM_SET(verbose);
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
 			CPARAM_SET(passive_size);
@@ -451,10 +281,14 @@ int main(int argc, char *argv[])
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;
 			params[i].debug = client_debug;
+			if (verbose)
+				params[i].ops = &verbose_ops;
+			else
+				params[i].ops = &quiet_ops;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
-					    struct client_params *,
-					    NULL, &client, &params[i],
+					    struct nlx_ping_client_params *,
+					    NULL, &nlx_ping_client, &params[i],
 					    "client_%d", params[i].client_id);
 			C2_ASSERT(rc == 0);
 		}
@@ -482,7 +316,7 @@ int main(int argc, char *argv[])
 		c2_mutex_fini(&sctx.pc_mutex);
 	}
 
-	c2_net_xprt_fini(xprt->px_xprt);
+	c2_net_xprt_fini(&c2_net_lnet_xprt);
 	c2_mutex_fini(&qstats_mutex);
 	c2_fini();
 
