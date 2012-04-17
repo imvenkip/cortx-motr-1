@@ -218,6 +218,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	machine = session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
+
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
 		  session->s_state == C2_RPC_SESSION_BUSY);
