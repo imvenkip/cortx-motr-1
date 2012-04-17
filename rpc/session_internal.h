@@ -530,6 +530,8 @@ void c2_rpc_conn_remove_session(struct c2_rpc_session *session);
 
 bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
 
+bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
+
 /** @}  End of rpc_session group */
 #endif
 

@@ -188,6 +188,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	case C2_RPC_SESSION_TERMINATING:
 		return session->s_nr_active_items == 0 &&
 		       c2_list_is_empty(&session->s_unbound_items) &&
+		       session->s_activity_counter == 0 &&
 		       session->s_session_id <= SESSION_ID_MAX;
 
 	case C2_RPC_SESSION_BUSY:
@@ -205,6 +206,12 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	C2_ASSERT(0);
 }
 
+bool c2_rpc_session_is_idle(const struct c2_rpc_session *session)
+{
+	return session->s_nr_active_items == 0 &&
+	       session->s_activity_counter == 0 &&
+	       c2_list_is_empty(&session->s_unbound_items);
+}
 
 static int nr_active_items_count(const struct c2_rpc_session *session)
 {

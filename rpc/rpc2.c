@@ -847,7 +847,6 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_list_fini(&machine->rm_incoming_conns);
 	c2_list_fini(&machine->rm_outgoing_conns);
 	c2_list_fini(&machine->rm_ready_slots);
-	c2_cond_fini(&machine->rm_state_changed);
 	c2_mutex_fini(&machine->rm_mutex);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
 	c2_addb_ctx_fini(&machine->rm_rpc_machine_addb);
@@ -867,7 +866,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	C2_PRE(ep_addr != NULL);
 	C2_PRE(net_dom != NULL);
 
-	machine->rm_activity_counter = 0;
 	machine->rm_dom              = dom;
 	machine->rm_reqh             = reqh;
 
@@ -875,7 +873,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
 	c2_list_init(&machine->rm_ready_slots);
-	c2_cond_init(&machine->rm_state_changed);
 	c2_mutex_init(&machine->rm_mutex);
 	c2_rpc_services_tlist_init(&machine->rm_services);
 	C2_SET_ARR0(machine->rm_rpc_stats);
@@ -930,10 +927,6 @@ static void conn_list_fini(struct c2_list *list)
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
-
-	c2_rpc_machine_lock(machine);
-	while (machine->rm_activity_counter > 0)
-		c2_cond_wait(&machine->rm_state_changed, &machine->rm_mutex);
 
 	conn_list_fini(&machine->rm_incoming_conns);
 	rpc_tm_cleanup(machine);

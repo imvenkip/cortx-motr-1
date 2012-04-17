@@ -625,8 +625,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		slot->sl_in_flight--;
 
 		session->s_nr_active_items--;
-		if (session->s_nr_active_items == 0 &&
-		    c2_list_is_empty(&session->s_unbound_items)) {
+		if (c2_rpc_session_is_idle(session)) {
 
 			session->s_state = C2_RPC_SESSION_IDLE;
 			c2_cond_broadcast(&session->s_state_changed,
@@ -840,11 +839,13 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc)
 {
 	struct c2_rpc_machine *machine;
+	struct c2_rpc_session *session;
 
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
-	machine = slot_get_rpc_machine(item->ri_slot_refs[0].sr_slot);
+	session = item->ri_slot_refs[0].sr_slot->sl_session;
+	machine = session->s_conn->c_rpc_machine;
 
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL) {
 		if (c2_rpc_item_is_control_msg(item)) {
@@ -853,20 +854,36 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 
 		} else {
 
-			machine->rm_activity_counter++;
+			C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
+				  session->s_state == C2_RPC_SESSION_BUSY);
 
+			session->s_activity_counter++;
+
+			if (session->s_state == C2_RPC_SESSION_IDLE) {
+
+				session->s_state = C2_RPC_SESSION_BUSY;
+				c2_cond_broadcast(&session->s_state_changed,
+						  &machine->rm_mutex);
+
+			}
 			c2_rpc_machine_unlock(machine);
 
-			/* XXX THINK AGAIN */
+			/*
+			 * @TODO XXX ->replied() callback should be triggered
+			 * iff item is in WAITING_FOR_REPLY state.
+			 */
 			item->ri_ops->rio_replied(item);
 
 			c2_rpc_machine_lock(machine);
-			C2_ASSERT(machine->rm_activity_counter > 0);
 
-			machine->rm_activity_counter--;
-			if (machine->rm_activity_counter == 0)
-				c2_cond_broadcast(&machine->rm_state_changed,
+			session->s_activity_counter--;
+			if (c2_rpc_session_is_idle(session)) {
+
+				session->s_state = C2_RPC_SESSION_IDLE;
+				c2_cond_broadcast(&session->s_state_changed,
 						  &machine->rm_mutex);
+
+			}
 		}
 	}
 }
