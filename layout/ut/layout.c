@@ -527,6 +527,8 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_layout        *l = NULL;
 	struct c2_uint128        seed;
 	uint32_t                 nr;
+	uint32_t                 A;
+	uint32_t                 B;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -544,13 +546,18 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 
 	if (enum_id == LIST_ENUM_ID) {
 		nr = only_inline_test ? 5 : 125;
-		rc = pdclust_layout_buf_build(LIST_ENUM_ID, lid,
-					      50, 4, 4096, &seed,
-					      nr, A_NONE, B_NONE, &cur);
-	} else
-		rc = pdclust_layout_buf_build(LINEAR_ENUM_ID, lid,
-					      60, 6, 4096, &seed,
-					      1500, 777, 888, &cur);
+		A = A_NONE;
+		B = B_NONE;
+	} else {
+		nr = 1500;
+		A = 777;
+		B = 888;
+	}
+
+	rc = pdclust_layout_buf_build(enum_id, lid,
+				      60, 6, 4096, &seed,
+				      nr, A, B, &cur);
+
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -562,14 +569,9 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Verify the layout object built by c2_layout_decode(). */
-	if (enum_id == LIST_ENUM_ID)
-		rc = pdclust_layout_verify(LIST_ENUM_ID, lid,
-					   50, 4, 4096, &seed,
-					   nr, A_NONE, B_NONE, l);
-	else
-		rc = pdclust_layout_verify(LINEAR_ENUM_ID, lid,
-					   60, 6, 4096, &seed,
-					   1500, 777, 888, l);
+	rc = pdclust_layout_verify(enum_id, lid,
+				   60, 6, 4096, &seed,
+				   nr, A, B, l);
 	C2_UT_ASSERT(rc == 0);
 
 	layout_destroy(l, lid);
@@ -585,7 +587,7 @@ static void test_decode(void)
 	uint64_t lid;
 
 	/*
-	 * Decode a layout object with PDCLUST layout type and LIST enum type,
+	 * Decode a layout object with PDCLUST layout type, LIST enum type
 	 * with inline entries only.
 	 */
 	lid = 1001;
@@ -632,8 +634,8 @@ static int pdclust_layout_build(uint32_t enum_id,
 				uint32_t nr,
 				uint32_t A, uint32_t B, /* For linear enum.*/
 				struct c2_pdclust_layout **pl,
-				struct c2_layout_list_enum **list_e,
-				struct c2_layout_linear_enum **lin_e)
+				struct c2_layout_list_enum **list_enum,
+				struct c2_layout_linear_enum **lin_enum)
 {
 	struct c2_fid         *cob_list;
 	int                    i;
@@ -642,9 +644,8 @@ static int pdclust_layout_build(uint32_t enum_id,
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 
 	if (enum_id == LIST_ENUM_ID) {
-		C2_UT_ASSERT(A == A_NONE && B == B_NONE &&
-			     lin_e == NULL);
-		C2_UT_ASSERT(list_e != NULL && *list_e == NULL);
+		C2_UT_ASSERT(A == A_NONE && B == B_NONE && lin_enum == NULL);
+		C2_UT_ASSERT(list_enum != NULL && *list_enum == NULL);
 
 		C2_ALLOC_ARR(cob_list, nr);
 		C2_UT_ASSERT(cob_list != NULL);
@@ -652,29 +653,30 @@ static int pdclust_layout_build(uint32_t enum_id,
 		for (i = 0; i < nr; ++i)
 			c2_fid_set(&cob_list[i], i * 100 + 1, i + 1);
 
-		rc = c2_list_enum_build(&domain, lid, cob_list, nr, list_e);
+		rc = c2_list_enum_build(&domain, lid, cob_list, nr, list_enum);
 		C2_UT_ASSERT(rc == 0);
 
-		C2_UT_ASSERT(list_e != NULL);
-		C2_UT_ASSERT((*list_e)->lle_base.le_type == &c2_list_enum_type);
-		C2_UT_ASSERT((*list_e)->lle_base.le_type->let_id ==
-				c2_list_enum_type.let_id);
-		e = &(*list_e)->lle_base;
+		C2_UT_ASSERT(list_enum != NULL);
+		C2_UT_ASSERT((*list_enum)->lle_base.le_type ==
+			     &c2_list_enum_type);
+		C2_UT_ASSERT((*list_enum)->lle_base.le_type->let_id ==
+			     c2_list_enum_type.let_id);
+		e = &(*list_enum)->lle_base;
 		c2_free(cob_list);
 	} else { /* LINEAR_ENUM_ID */
-		C2_UT_ASSERT(B != B_NONE && list_e == NULL);
-		C2_UT_ASSERT(lin_e != NULL && *lin_e == NULL);
+		C2_UT_ASSERT(B != B_NONE && list_enum == NULL);
+		C2_UT_ASSERT(lin_enum != NULL && *lin_enum == NULL);
 
 		rc = c2_linear_enum_build(&domain, lid, pool.po_width,
-					  A, B, lin_e);
+					  A, B, lin_enum);
 		C2_UT_ASSERT(rc == 0);
 
-		C2_UT_ASSERT(*lin_e != NULL);
-		C2_UT_ASSERT((*lin_e)->lle_base.le_type ==
+		C2_UT_ASSERT(*lin_enum != NULL);
+		C2_UT_ASSERT((*lin_enum)->lle_base.le_type ==
 			     &c2_linear_enum_type);
-		C2_UT_ASSERT((*lin_e)->lle_base.le_type->let_id ==
+		C2_UT_ASSERT((*lin_enum)->lle_base.le_type->let_id ==
 			      c2_linear_enum_type.let_id);
-		e = &(*lin_e)->lle_base;
+		e = &(*lin_enum)->lle_base;
 	}
 
 	rc = pdclust_l_build(lid, N, K, unitsize, seed, e, pl);
@@ -1013,7 +1015,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 					      nr, A_NONE, B_NONE, &cur1);
 	} else
 		rc = pdclust_layout_buf_build(LINEAR_ENUM_ID, lid,
-					      60, 6, 4096, &seed,
+					      50, 4, 4096, &seed,
 					      1510, 777, 888, &cur1);
 	C2_UT_ASSERT(rc == 0);
 
@@ -2084,8 +2086,8 @@ static void test_delete(void)
 
 }
 
-static int pdclust_enum_op_verify(uint32_t enum_id, uint64_t lid,
-				  uint32_t nr, struct c2_layout *l)
+static void pdclust_enum_op_verify(uint32_t enum_id, uint64_t lid,
+				   uint32_t nr, struct c2_layout *l)
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_list_enum   *list_enum;
@@ -2140,8 +2142,6 @@ static int pdclust_enum_op_verify(uint32_t enum_id, uint64_t lid,
 					       &fid_from_layout));
 		}
 	}
-
-	return 0;
 }
 
 static int test_enum_ops_pdclust(uint32_t enum_id, uint64_t lid,
@@ -2188,8 +2188,7 @@ static int test_enum_ops_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Verify enum operations. */
-	rc = pdclust_enum_op_verify(enum_id, lid, nr, &pl->pl_base.ls_base);
-	C2_UT_ASSERT(rc == 0);
+	pdclust_enum_op_verify(enum_id, lid, nr, &pl->pl_base.ls_base);
 
 	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
@@ -2332,18 +2331,18 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-type-register-unregister", test_type_reg_unreg },
 		{ "layout-etype-register-unregister", test_etype_reg_unreg },
 		{ "layout-register-unregister", test_reg_unreg },
-		{ "layout-max-recsize", test_max_recsize },
+		{ "layout-decode", test_decode },
 		{ "layout-encode", test_encode },
 		{ "layout-decode-encode", test_decode_encode },
 		{ "layout-encode-decode", test_encode_decode },
+		{ "layout-max-recsize", test_max_recsize },
 		{ "layout-recsize", test_recsize },
-		{ "layout-decode", test_decode },
 		{ "layout-ref-get-put", test_ref_get_put },
+		{ "layout-enum-ops", test_enum_operations },
                 { "layout-lookup", test_lookup },
                 { "layout-add", test_add },
                 { "layout-update", test_update },
                 { "layout-delete", test_delete },
-		{ "layout-enum-ops", test_enum_operations },
                 { "layout-buf-copyto", test_bufvec_copyto },
 		{ NULL, NULL }
 	}
