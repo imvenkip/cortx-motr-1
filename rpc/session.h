@@ -542,9 +542,6 @@ struct c2_rpc_conn {
 	    is broadcast
 	 */
 	struct c2_cond            c_state_changed;
-
-	/** DEPRECATED: DONT USE */
-	struct c2_mutex           c_mutex;
 };
 
 /**
@@ -924,9 +921,6 @@ struct c2_rpc_session {
 	    session is changed. Associated with s_mutex
 	 */
 	struct c2_cond            s_state_changed;
-
-	/** DEPRECATED: DONT USE */
-	struct c2_mutex           s_mutex;
 };
 
 /**
@@ -1195,9 +1189,6 @@ struct c2_rpc_slot {
 	struct c2_list                sl_ready_list;
 
 	const struct c2_rpc_slot_ops *sl_ops;
-
-	/** DEPRECATED: DONT USE */
-	struct c2_mutex               sl_mutex;
 };
 
 /** @} end of session group */

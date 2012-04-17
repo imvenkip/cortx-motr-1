@@ -488,8 +488,6 @@ struct c2_rpc_chan {
  */
 struct c2_rpc_machine {
 	struct c2_mutex                   rm_mutex;
-	/** Mutex protecting list of c2_rpc_chan structures. */
-	struct c2_mutex			  rm_chan_mutex;
 	/** List of c2_rpc_chan structures. */
 	struct c2_list			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
@@ -503,18 +501,12 @@ struct c2_rpc_machine {
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list			  rm_incoming_conns;
 	struct c2_list			  rm_outgoing_conns;
-	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
-	struct c2_mutex			  rm_session_mutex;
-	/** Mutex to protect list of ready slots. */
-	struct c2_mutex			  rm_ready_slots_mutex;
 	/** list of ready slots. */
 	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_rpc_machine_addb;
 	/** Statistics for both incoming and outgoing paths */
 	struct c2_rpc_stats		  rm_rpc_stats[C2_RPC_PATH_NR];
-	/** Mutex to protect stats */
-	struct c2_mutex			  rm_stats_mutex;
 	/**
 	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
