@@ -1,4 +1,24 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ * Adapted for LNet: 04/11/2012
+ */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -141,7 +161,7 @@ static int verbose_printk(const char *fmt, ...)
 
 static struct c2_mutex qstats_mutex;
 
-static void print_qstats(struct c2_nlx_ping_ctx *ctx, bool reset)
+static void print_qstats(struct nlx_ping_ctx *ctx, bool reset)
 {
 	int i;
 	int rc;
@@ -193,17 +213,17 @@ static void print_qstats(struct c2_nlx_ping_ctx *ctx, bool reset)
 	c2_mutex_unlock(&qstats_mutex);
 }
 
-static struct c2_nlx_ping_ops verbose_ops = {
+static struct nlx_ping_ops verbose_ops = {
 	.pf  = verbose_printk,
 	.pqs = print_qstats
 };
 
-static struct c2_nlx_ping_ops quiet_ops = {
+static struct nlx_ping_ops quiet_ops = {
 	.pf  = quiet_printk,
 	.pqs = print_qstats
 };
 
-static struct c2_nlx_ping_ctx sctx = {
+static struct nlx_ping_ctx sctx = {
 	.pc_tm = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
@@ -234,7 +254,7 @@ static void client(struct client_params *params)
 	int			 rc;
 	struct c2_net_end_point *server_ep;
 	char			*bp = NULL;
-	struct c2_nlx_ping_ctx		 cctx = {
+	struct nlx_ping_ctx		 cctx = {
 		.pc_xprt = &c2_net_lnet_xprt,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
@@ -265,7 +285,7 @@ static void client(struct client_params *params)
 		cctx.pc_ops = &quiet_ops;
 	c2_mutex_init(&cctx.pc_mutex);
 	c2_cond_init(&cctx.pc_cond);
-	rc = c2_nlx_ping_client_init(&cctx, &server_ep);
+	rc = nlx_ping_client_init(&cctx, &server_ep);
 	if (rc != 0)
 		goto fail;
 
@@ -278,20 +298,20 @@ static void client(struct client_params *params)
 
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", cctx.pc_ident, i);
-		rc = c2_nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
+		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
 		if (rc != 0)
 			break;
-		rc = c2_nlx_ping_client_passive_recv(&cctx, server_ep);
+		rc = nlx_ping_client_passive_recv(&cctx, server_ep);
 		if (rc != 0)
 			break;
-		rc = c2_nlx_ping_client_passive_send(&cctx, server_ep, bp);
+		rc = nlx_ping_client_passive_send(&cctx, server_ep, bp);
 		if (rc != 0)
 			break;
 	}
 
 	if (rc == 0 && params->verbose)
 		print_qstats(&cctx, false);
-	rc = c2_nlx_ping_client_fini(&cctx, server_ep);
+	rc = nlx_ping_client_fini(&cctx, server_ep);
 	c2_free(bp);
 	C2_ASSERT(rc == 0);
 fail:
@@ -379,8 +399,8 @@ static int __init c2_netst_init_k(void)
 		/* spawn server */
 		c2_mutex_lock(&sctx.pc_mutex);
 		C2_SET0(&server_thread);
-		rc = C2_THREAD_INIT(&server_thread, struct c2_nlx_ping_ctx *,
-				    NULL, &c2_nlx_ping_server, &sctx,
+		rc = C2_THREAD_INIT(&server_thread, struct nlx_ping_ctx *,
+				    NULL, &nlx_ping_server, &sctx,
 				    "ping_server");
 		C2_ASSERT(rc == 0);
 		while (!sctx.pc_ready)
@@ -457,7 +477,7 @@ static void __exit c2_netst_fini_k(void)
 		if (sctx.pc_ops->pqs != NULL)
 			(*sctx.pc_ops->pqs)(&sctx, false);
 
-		c2_nlx_ping_server_should_stop(&sctx);
+		nlx_ping_server_should_stop(&sctx);
 		c2_thread_join(&server_thread);
 		c2_cond_fini(&sctx.pc_cond);
 		c2_mutex_fini(&sctx.pc_mutex);

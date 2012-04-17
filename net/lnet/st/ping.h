@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,22 +17,23 @@
  * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
  *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
  * Original creation date: 04/12/2011
+ * Adapted for LNet: 04/11/2012
  */
 #ifndef __COLIBRI_NET_LNET_PING_H__
 #define __COLIBRI_NET_LNET_PING_H__
 
-struct c2_nlx_ping_ctx;
-struct c2_nlx_ping_ops {
+struct nlx_ping_ctx;
+struct nlx_ping_ops {
 	int (*pf)(const char *format, ...)
 		__attribute__ ((format (printf, 1, 2)));
-	void (*pqs)(struct c2_nlx_ping_ctx *ctx, bool reset);
+	void (*pqs)(struct nlx_ping_ctx *ctx, bool reset);
 };
 
 /**
    Context for a ping client or server.
  */
-struct c2_nlx_ping_ctx {
-	const struct c2_nlx_ping_ops	     *pc_ops;
+struct nlx_ping_ctx {
+	const struct nlx_ping_ops	     *pc_ops;
 	struct c2_net_xprt		     *pc_xprt;
 	struct c2_net_domain		      pc_dom;
 	const char		             *pc_network; /* "addr@interface" */
@@ -81,20 +82,20 @@ enum {
 #define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)
 #endif
 
-void c2_nlx_ping_server(struct c2_nlx_ping_ctx *ctx);
-void c2_nlx_ping_server_should_stop(struct c2_nlx_ping_ctx *ctx);
-int c2_nlx_ping_client_init(struct c2_nlx_ping_ctx *ctx,
-			    struct c2_net_end_point **server_ep);
-int c2_nlx_ping_client_fini(struct c2_nlx_ping_ctx *ctx,
-			    struct c2_net_end_point *server_ep);
-int c2_nlx_ping_client_msg_send_recv(struct c2_nlx_ping_ctx *ctx,
-				     struct c2_net_end_point *server_ep,
-				     const char *data);
-int c2_nlx_ping_client_passive_recv(struct c2_nlx_ping_ctx *ctx,
-				    struct c2_net_end_point *server_ep);
-int c2_nlx_ping_client_passive_send(struct c2_nlx_ping_ctx *ctx,
-				    struct c2_net_end_point *server_ep,
-				    const char *data);
+void nlx_ping_server(struct nlx_ping_ctx *ctx);
+void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx);
+int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
+			 struct c2_net_end_point **server_ep);
+int nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
+			 struct c2_net_end_point *server_ep);
+int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
+				  struct c2_net_end_point *server_ep,
+				  const char *data);
+int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
+				 struct c2_net_end_point *server_ep);
+int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
+				 struct c2_net_end_point *server_ep,
+				 const char *data);
 
 #endif /* __COLIBRI_NET_LNET_PING_H__ */
 
