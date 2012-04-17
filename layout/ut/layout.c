@@ -177,7 +177,6 @@ static void test_schema_init_fini(void)
 	C2_LEAVE();
 }
 
-
 static int t_register(struct c2_layout_schema *schema,
 		      const struct c2_layout_type *lt)
 {
@@ -428,37 +427,35 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 }
 
 
-static int l_verify(uint64_t lid, struct c2_layout *l)
+static void l_verify(uint64_t lid, struct c2_layout *l)
 {
 	C2_UT_ASSERT(l->l_id == lid);
 	C2_UT_ASSERT(l->l_ref >= DEFAULT_REF_COUNT);
 	C2_UT_ASSERT(l->l_ops != NULL);
-
-	return 0;
 }
 
-static int pdclust_l_verify(uint64_t lid,
-			    uint32_t N, uint32_t K,
-			    uint64_t unitsize, struct c2_uint128 *seed,
-			    struct c2_pdclust_layout *pl)
+static void pdclust_l_verify(uint64_t lid,
+			     uint32_t N, uint32_t K,
+			     uint64_t unitsize, struct c2_uint128 *seed,
+			     struct c2_pdclust_layout *pl)
 {
+	/* Verify Generic part of the layout object. */
 	l_verify(lid, &pl->pl_base.ls_base);
 
+	/* Verify PDCLUST layout type specific part of the layout object. */
 	C2_UT_ASSERT(pl->pl_attr.pa_N == N);
 	C2_UT_ASSERT(pl->pl_attr.pa_K == K);
 	C2_UT_ASSERT(pl->pl_attr.pa_P == POOL_WIDTH);
 	C2_UT_ASSERT(pl->pl_attr.pa_unit_size == unitsize);
 	C2_UT_ASSERT(c2_uint128_eq(&pl->pl_attr.pa_seed, seed));
-
-	return 0;
 }
 
-static int pdclust_layout_verify(uint32_t enum_id, uint64_t lid,
-				 uint32_t N, uint32_t K,
-				 uint64_t unitsize, struct c2_uint128 *seed,
-				 uint32_t nr,
-				 uint32_t A, uint32_t B, /* For lin enum */
-				 struct c2_layout *l)
+static void pdclust_layout_verify(uint32_t enum_id, uint64_t lid,
+				  uint32_t N, uint32_t K,
+				  uint64_t unitsize, struct c2_uint128 *seed,
+				  uint32_t nr,
+				  uint32_t A, uint32_t B, /* For lin enum */
+				  struct c2_layout *l)
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_list_enum   *list_enum;
@@ -474,8 +471,13 @@ static int pdclust_layout_verify(uint32_t enum_id, uint64_t lid,
 
 	C2_UT_ASSERT(pl->pl_base.ls_enum != NULL);
 
+	/*
+	 * Verify generic and PDCLUST layout type specific part of the
+	 * layout object.
+	 */
 	pdclust_l_verify(lid, N, K, unitsize, seed, pl);
 
+	/* Verify enum type specific part of the layout object. */
 	if (enum_id == LIST_ENUM_ID) {
 		C2_UT_ASSERT(A == A_NONE && B == B_NONE);
 		list_enum = container_of(pl->pl_base.ls_enum,
@@ -493,8 +495,6 @@ static int pdclust_layout_verify(uint32_t enum_id, uint64_t lid,
 		C2_UT_ASSERT(lin_enum->lle_attr.lla_A == A);
 		C2_UT_ASSERT(lin_enum->lle_attr.lla_B == B);
 	}
-
-	return 0;
 }
 
 static void layout_destroy(struct c2_layout *l, uint64_t lid)
@@ -569,10 +569,9 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Verify the layout object built by c2_layout_decode(). */
-	rc = pdclust_layout_verify(enum_id, lid,
-				   60, 6, 4096, &seed,
-				   nr, A, B, l);
-	C2_UT_ASSERT(rc == 0);
+	pdclust_layout_verify(enum_id, lid,
+			      60, 6, 4096, &seed,
+			      nr, A, B, l);
 
 	layout_destroy(l, lid);
 	c2_free(area);
@@ -685,7 +684,6 @@ static int pdclust_layout_build(uint32_t enum_id,
 	return rc;
 }
 
-
 static void lbuf_verify(struct c2_bufvec_cursor *cur, uint32_t *lt_id)
 {
 	struct c2_layout_rec *rec;
@@ -724,12 +722,13 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K, uint64_t unitsize,
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 }
 
-static int pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
-				     uint32_t N, uint32_t K,
-				     uint64_t unitsize, struct c2_uint128 *seed,
-				     uint32_t nr,
-				     uint32_t A, uint32_t B, /* For lin enum */
-				     struct c2_bufvec_cursor *cur)
+static void pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
+				      uint32_t N, uint32_t K,
+				      uint64_t unitsize,
+				      struct c2_uint128 *seed,
+				      uint32_t nr,
+				      uint32_t A, uint32_t B, /* For lin enum*/
+				      struct c2_bufvec_cursor *cur)
 {
 	uint32_t                      lt_id;
 	uint32_t                      let_id;
@@ -742,11 +741,14 @@ static int pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(cur != NULL);
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 
+	/* Verify generic part of the layout buffer. */
 	lbuf_verify(cur, &lt_id);
 	C2_UT_ASSERT(lt_id == c2_pdclust_layout_type.lt_id);
 
+	/* Verify PDCLUST layout type specific part of the layout buffer. */
 	pdclust_lbuf_verify(N, K, unitsize, seed, cur, &let_id);
 
+	/* Verify enum type specific part of the layout buffer. */
 	if (enum_id == LIST_ENUM_ID) {
 		C2_UT_ASSERT(let_id == c2_list_enum_type.let_id);
 
@@ -779,8 +781,6 @@ static int pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 		C2_UT_ASSERT(lin_attr->lla_A == A);
 		C2_UT_ASSERT(lin_attr->lla_B == B);
 	}
-
-	return rc;
 }
 
 static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
@@ -834,13 +834,13 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 
 	/* Verify the layout buffer produced by c2_layout_encode(). */
 	if (enum_id == LIST_ENUM_ID)
-		rc = pdclust_layout_buf_verify(LIST_ENUM_ID, lid,
-					       4, 1, 4096, &seed,
-					       nr, A_NONE, B_NONE, &cur);
+		pdclust_layout_buf_verify(LIST_ENUM_ID, lid,
+					  4, 1, 4096, &seed,
+					  nr, A_NONE, B_NONE, &cur);
 	else
-		rc = pdclust_layout_buf_verify(LINEAR_ENUM_ID, lid,
-					       4, 1, 4096, &seed,
-					       pool.po_width, 10, 20, &cur);
+		pdclust_layout_buf_verify(LINEAR_ENUM_ID, lid,
+					  4, 1, 4096, &seed,
+					  pool.po_width, 10, 20, &cur);
 
 	layout_destroy(&pl->pl_base.ls_base, lid);
 	c2_free(area);
@@ -1309,10 +1309,13 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
 
+	/*
+	 * Calcualte the recsize by considering the sizes of the internal
+	 * data structures.
+	 */
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 
-	C2_UT_ASSERT(pl->pl_base.ls_enum != NULL);
-
+	/* Account for the enum type specific recsize. */
 	if (enum_id == LIST_ENUM_ID) {
 		list_enum = container_of(pl->pl_base.ls_enum,
 					 struct c2_layout_list_enum, lle_base);
@@ -1326,6 +1329,10 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 	} else
 		recsize = sizeof(struct c2_layout_linear_attr);
 
+	/*
+	 * Account for the recsize for the generic part of the layout object
+	 * and for the PDCLUST layout type specific part of it.
+	 */
 	recsize = sizeof(struct c2_layout_rec) +
 		  sizeof(struct c2_layout_pdclust_rec) + recsize;
 
