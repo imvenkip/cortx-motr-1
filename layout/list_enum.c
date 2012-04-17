@@ -413,9 +413,10 @@ static int list_decode(struct c2_layout_domain *dom,
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, schema != NULL && tx != NULL));
 
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
 	ce_header = c2_bufvec_cursor_addr(cur);
+
+	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
+		 (unsigned long)ce_header->ces_nr);
 
 	c2_bufvec_cursor_move(cur, sizeof *ce_header);
 
@@ -578,10 +579,11 @@ static int list_encode(struct c2_layout_domain *dom,
 		    c2_bufvec_cursor_step(oldrec_cur) >=
 				sizeof *ce_oldheader));
 
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
 	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
+
+	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
+		 (unsigned long)list_enum->lle_nr);
 
 	num_inline = list_enum->lle_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
 		     LDB_MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
