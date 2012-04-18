@@ -131,7 +131,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	ok = sender_end != recv_end &&
 	     conn->c_rpc_machine != NULL &&
 	     c2_list_invariant(&conn->c_sessions) &&
-	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions + 1 &&
+	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions &&
 	     c2_is_po2(conn->c_state);
 
 	if (!ok)
@@ -169,7 +169,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	case C2_RPC_CONN_INITIALISED:
 	case C2_RPC_CONN_CONNECTING:
 		return conn->c_sender_id == SENDER_ID_INVALID &&
-			conn->c_nr_sessions == 0;
+			conn->c_nr_sessions == 1;
 
 	case C2_RPC_CONN_ACTIVE:
 		return conn->c_sender_id != SENDER_ID_INVALID &&
@@ -177,11 +177,11 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			c2_rpc_session_invariant(c2_rpc_conn_session0(conn));
 
 	case C2_RPC_CONN_TERMINATING:
-		return conn->c_nr_sessions == 0 &&
+		return conn->c_nr_sessions == 1 &&
 			conn->c_sender_id != SENDER_ID_INVALID;
 
 	case C2_RPC_CONN_TERMINATED:
-		return	conn->c_nr_sessions == 0 &&
+		return	conn->c_nr_sessions == 1 &&
 			conn->c_cob == NULL &&
 			conn->c_rc == 0;
 
@@ -324,11 +324,16 @@ void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn)
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
-	C2_PRE(conn != NULL);
+	struct c2_rpc_machine *machine;
 
-	c2_rpc_machine_lock(conn->c_rpc_machine);
+	C2_PRE(conn != NULL && conn->c_rpc_machine != NULL);
+
+	machine = conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
 	c2_rpc_conn_fini_locked(conn);
-	c2_rpc_machine_unlock(conn->c_rpc_machine);
+	/* Don't look in conn after this point */
+	c2_rpc_machine_unlock(machine);
 }
 C2_EXPORTED(c2_rpc_conn_fini);
 
@@ -664,13 +669,15 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	struct c2_rpc_session *session;
 	int                    rc;
 
+	enum {NR_SLOTS = 1};
+
 	C2_ASSERT(conn != NULL);
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL)
 		return -ENOMEM;
 
-	rc = c2_rpc_session_init(session, conn, 1);   /* 1 => number of slots */
+	rc = c2_rpc_session_init_locked(session, conn, NR_SLOTS);
 	if (rc != 0) {
 		c2_free(session);
 		return rc;
@@ -679,7 +686,6 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	session->s_session_id = SESSION_ID_0;
 	session->s_state = C2_RPC_SESSION_IDLE;
 
-	c2_list_add(&conn->c_sessions, &session->s_link);
 	slot = session->s_slot_table[0];
 	C2_ASSERT(slot != NULL &&
 		  slot->sl_ops != NULL &&
@@ -693,14 +699,14 @@ static void session_zero_detach(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session;
 
-	C2_PRE(conn != NULL);
+	C2_PRE(conn != NULL && conn->c_rpc_machine != NULL);
+	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	session = c2_rpc_conn_session0(conn);
 	session->s_state = C2_RPC_SESSION_TERMINATED;
-	c2_list_del(&session->s_link);
 
 	c2_rpc_session_del_slots_from_ready_list(session);
-	c2_rpc_session_fini(session);
+	c2_rpc_session_fini_locked(session);
 	c2_free(session);
 }
 
@@ -761,7 +767,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE &&
-		  conn->c_nr_sessions == 0);
+		  conn->c_nr_sessions == 1);
 
 	fop_ct = c2_fop_data(fop);
 	C2_ASSERT(fop_ct != NULL);
@@ -1119,8 +1125,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_is_rcv(conn));
 
-	if (conn->c_nr_sessions > 0) {
-		c2_rpc_machine_unlock(machine);
+	if (conn->c_nr_sessions > 1) {
 		return -EBUSY;
 	}
 

@@ -437,6 +437,11 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
+
+		/*
+		 * c2_rpc_rcv_session_terminate() may drop machine->rm_mutex
+		 * to wait for session to move to IDLE state
+		 */
 		rc = c2_rpc_rcv_session_terminate(session);
 		if (rc != -EPROTO) {
 			C2_ASSERT(ergo(rc != 0,

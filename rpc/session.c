@@ -137,7 +137,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	ok = session != NULL &&
 	     c2_is_po2(session->s_state) &&
 	     session->s_conn != NULL &&
-	     session->s_nr_slots >= 0 &&
+	     session->s_nr_slots > 0 &&
 	     nr_active_items_count(session) == session->s_nr_active_items &&
 	     c2_list_contains(&session->s_conn->c_sessions,
 			      &session->s_link) &&
@@ -161,7 +161,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		case C2_RPC_SESSION_TERMINATED:
 		case C2_RPC_SESSION_FAILED:
 
-			/* A slot cannot be on read slots list if session is
+			/* A slot cannot be on ready slots list if session is
 			   in one of above states */
 			if (c2_list_link_is_in(&slot->sl_link))
 				return false;
@@ -193,7 +193,8 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 
 	case C2_RPC_SESSION_BUSY:
 		return (session->s_nr_active_items > 0 ||
-		       !c2_list_is_empty(&session->s_unbound_items)) &&
+		       !c2_list_is_empty(&session->s_unbound_items) ||
+			session->s_activity_counter > 0) &&
 		       session->s_session_id <= SESSION_ID_MAX;
 
 	case C2_RPC_SESSION_FAILED:
@@ -332,8 +333,8 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 	rc = slot_table_alloc_and_init(session);
 	if (rc == 0) {
 		session->s_state = C2_RPC_SESSION_INITIALISED;
-		C2_ASSERT(c2_rpc_session_invariant(session));
 		c2_rpc_conn_add_session(conn, session);
+		C2_ASSERT(c2_rpc_session_invariant(session));
 	} else {
 		__session_fini(session);
 	}
@@ -961,8 +962,7 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 	C2_PRE(session != NULL);
 
 	machine = session->s_conn->c_rpc_machine;
-	c2_rpc_machine_lock(machine);
-
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_INITIALISED);
 
@@ -983,7 +983,6 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 	}
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	c2_rpc_machine_unlock(machine);
 	return rc;
 }
 
@@ -1081,6 +1080,10 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
+
+	while (session->s_state != C2_RPC_SESSION_IDLE)
+		c2_cond_wait(&session->s_state_changed,
+			     &machine->rm_mutex);
 
 	if (session->s_state != C2_RPC_SESSION_IDLE) {
 		/*

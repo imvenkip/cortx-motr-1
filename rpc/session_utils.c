@@ -74,6 +74,8 @@ int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
 	return C2_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
+int c2_rpc_post_locked(struct c2_rpc_item *item);
+
 /**
    Initialises rpc item and posts it to rpc-layer
  */
@@ -83,13 +85,13 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 {
 	struct c2_rpc_item *item;
 
-	item = &fop->f_item;
-	item->ri_session = session;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item              = &fop->f_item;
+	item->ri_session  = session;
+	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_ops = ops;
+	item->ri_ops      = ops;
 
-	return c2_rpc_post(item);
+	return c2_rpc_post_locked(item);
 }
 
 static struct c2_uint128 stob_id_alloc(void)

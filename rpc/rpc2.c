@@ -196,10 +196,9 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_item_fini);
 
-int c2_rpc_post(struct c2_rpc_item *item)
+int c2_rpc_post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;
-	struct c2_rpc_machine *machine;
 
 	C2_ASSERT(item != NULL && item->ri_type != NULL);
 
@@ -213,24 +212,34 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	C2_ASSERT(item->ri_ops != NULL && item->ri_ops->rio_free != NULL);
 
 	session = item->ri_session;
-	C2_ASSERT(session != NULL);
-
-	machine = session->s_conn->c_rpc_machine;
-
-	c2_rpc_machine_lock(machine);
-
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
 		  session->s_state == C2_RPC_SESSION_BUSY);
+
+	C2_ASSERT(c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
 
 	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	frm_ubitem_added(item);
 
+	return 0;
+}
+
+int c2_rpc_post(struct c2_rpc_item *item)
+{
+	struct c2_rpc_machine *machine;
+	int                    rc;
+
+	C2_PRE(item->ri_session != NULL);
+
+	machine = item->ri_session->s_conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+	rc = c2_rpc_post_locked(item);
 	c2_rpc_machine_unlock(machine);
 
-	return 0;
+	return rc;
 }
 C2_EXPORTED(c2_rpc_post);
 
@@ -394,7 +403,6 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 	C2_PRE(machine != NULL);
 	C2_PRE(net_dom != NULL);
 	C2_PRE(ep_addr != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	/* Allocate space for pointers of recv net buffers. */
 	C2_ALLOC_ARR(machine->rm_rcv_buffers, C2_RPC_TM_RECV_BUFFERS_NR);
@@ -513,7 +521,7 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	int		rc;
 	struct c2_clink	tmwait;
 
-	C2_PRE(machine != NULL && c2_rpc_machine_is_locked(machine));
+	C2_PRE(machine != NULL);
 
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&machine->rm_tm.ntm_chan, &tmwait);
@@ -848,8 +856,10 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_list_fini(&machine->rm_incoming_conns);
 	c2_list_fini(&machine->rm_outgoing_conns);
 	c2_list_fini(&machine->rm_ready_slots);
-	c2_mutex_fini(&machine->rm_mutex);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
+
+	c2_mutex_fini(&machine->rm_mutex);
+
 	c2_addb_ctx_fini(&machine->rm_rpc_machine_addb);
 }
 
@@ -870,13 +880,16 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	machine->rm_dom              = dom;
 	machine->rm_reqh             = reqh;
 
+	C2_SET_ARR0(machine->rm_rpc_stats);
+
 	c2_list_init(&machine->rm_chans);
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
 	c2_list_init(&machine->rm_ready_slots);
-	c2_mutex_init(&machine->rm_mutex);
 	c2_rpc_services_tlist_init(&machine->rm_services);
-	C2_SET_ARR0(machine->rm_rpc_stats);
+
+	c2_mutex_init(&machine->rm_mutex);
+
 	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 
@@ -921,7 +934,6 @@ static void conn_list_fini(struct c2_list *list)
                         c_link) {
 
                 c2_rpc_conn_terminate_reply_sent(conn);
-
         }
 }
 
@@ -929,10 +941,14 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
 
+	c2_rpc_machine_lock(machine);
+
+	C2_PRE(c2_list_is_empty(&machine->rm_outgoing_conns));
 	conn_list_fini(&machine->rm_incoming_conns);
-	rpc_tm_cleanup(machine);
 
 	c2_rpc_machine_unlock(machine);
+
+	rpc_tm_cleanup(machine);
 
 	__rpc_machine_fini(machine);
 }

@@ -359,6 +359,7 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	struct c2_rpc_item		*item_next;
 	struct c2_rpc_frm_sm		*frm_sm;
 	struct c2_rpc_machine           *machine;
+	struct c2_rpc_session           *session;
 
 	C2_PRE(ev != NULL &&
 	       ev->nbe_buffer != NULL &&
@@ -372,7 +373,7 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	C2_PRE(frm_sm != NULL);
 
 	rpc = container_of(fb, struct c2_rpc, r_fbuf);
-	machine = rpc->r_session->s_conn->c_rpc_machine;
+	machine = frm_sm_to_rpc_machine(frm_sm);
 
 	c2_rpc_machine_lock(machine);
 
@@ -396,7 +397,19 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 
 	c2_list_for_each_entry_safe(&rpc->r_items, item, item_next,
 			struct c2_rpc_item, ri_rpcobject_linkage) {
+
 		c2_list_del(&item->ri_rpcobject_linkage);
+		session = item->ri_session;
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
+		C2_ASSERT(session->s_activity_counter > 0);
+
+		session->s_activity_counter--;
+
+		if (c2_rpc_session_is_idle(session)) {
+			session->s_state = C2_RPC_SESSION_IDLE;
+			c2_cond_broadcast(&session->s_state_changed,
+					  &machine->rm_mutex);
+		}
 	}
 
 	c2_rpcobj_fbuf_fini(fb);
@@ -896,11 +909,15 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_list		  *list;
 	struct c2_rpc_item	  *item;
 	struct c2_rpc_item	  *item_next;
+	struct c2_rpc_machine     *machine;
+	struct c2_rpc_session     *session;
 
 	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
 	C2_PRE(rpcobj_size != NULL);
 	C2_PRE(rpcobj != NULL);
+
+	machine = frm_sm_to_rpc_machine(frm_sm);
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	/* Iterate over the priority bands and add items arranged in
 	   increasing order of deadlines till rpc is optimal.
@@ -923,6 +940,14 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 
 			io_coalesce(item, frm_sm, rpc_size);
 			frm_add_to_rpc(frm_sm, rpcobj, item, rpcobj_size);
+
+			session = item->ri_session;
+			session->s_activity_counter++;
+			if (session->s_state == C2_RPC_SESSION_IDLE) {
+				session->s_state = C2_RPC_SESSION_BUSY;
+				c2_cond_broadcast(&session->s_state_changed,
+						  &machine->rm_mutex);
+			}
 		}
 	}
 
@@ -1004,6 +1029,13 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			io_coalesce(item, frm_sm, rpc_size);
 			frm_add_to_rpc(frm_sm, rpcobj, item,
 				       rpcobj_size);
+
+			session->s_activity_counter++;
+			if (session->s_state == C2_RPC_SESSION_IDLE) {
+				session->s_state = C2_RPC_SESSION_BUSY;
+				c2_cond_broadcast(&session->s_state_changed,
+						  &rpc_machine->rm_mutex);
+			}
 		}
 	}
 
@@ -1111,9 +1143,12 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 	struct c2_rpc_frm_buffer	*fb;
 	struct c2_net_transfer_mc	*tm;
 	struct c2_rpc_chan		*chan;
+	struct c2_rpc_machine           *machine;
 
 	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+
+	machine = frm_sm_to_rpc_machine(frm_sm);
+	C2_PRE(machine != NULL && c2_rpc_machine_is_locked(machine));
 
 	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
 
