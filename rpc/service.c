@@ -277,7 +277,7 @@ void c2_rpc_service_conn_attach(struct c2_rpc_service *service,
 
 	c2_rpc_machine_lock(machine);
 
-	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	/* C2_ASSERT(c2_rpc_conn_invariant(conn)); */
 	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE);
 	/*
          * Destination address of conn must match with end-point address of
