@@ -2268,100 +2268,6 @@ static void test_delete(void)
 	C2_UT_ASSERT(rc == 0);
 }
 
-static void bufvec_copyto_use(struct c2_bufvec_cursor *dcur)
-{
-	c2_bcount_t                  nbytes_copied;
-	struct c2_layout_rec         rec;
-	struct c2_layout_pdclust_rec pl_rec;
-	struct c2_layout_linear_attr lin_rec;
-
-	rec.lr_lt_id     = c2_pdclust_layout_type.lt_id;
-	rec.lr_ref_count = 0;
-	rec.lr_pool_id   = DEFAULT_POOL_ID;
-
-	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
-	C2_UT_ASSERT(nbytes_copied == sizeof rec);
-
-	pl_rec.pr_let_id    = c2_list_enum_type.let_id;
-	pl_rec.pr_attr.pa_N = 4;
-	pl_rec.pr_attr.pa_K = 1;
-	pl_rec.pr_attr.pa_P = POOL_WIDTH;
-
-	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &pl_rec,
-						sizeof pl_rec);
-	C2_UT_ASSERT(nbytes_copied == sizeof pl_rec);
-
-	lin_rec.lla_nr = 20;
-	lin_rec.lla_A  = 100;
-	lin_rec.lla_B  = 200;
-
-	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &lin_rec,
-						sizeof lin_rec);
-	C2_UT_ASSERT(nbytes_copied == sizeof lin_rec);
-}
-
-static void bufvec_copyto_verify(struct c2_bufvec_cursor *cur)
-{
-	struct c2_layout_rec         *rec;
-	struct c2_layout_pdclust_rec *pl_rec;
-	struct c2_layout_linear_attr *lin_rec;
-
-	rec = c2_bufvec_cursor_addr(cur);
-	C2_UT_ASSERT(rec != NULL);
-
-	C2_UT_ASSERT(rec->lr_lt_id == c2_pdclust_layout_type.lt_id);
-	C2_UT_ASSERT(rec->lr_ref_count == 0);
-	C2_UT_ASSERT(rec->lr_pool_id == DEFAULT_POOL_ID);
-
-	rc = c2_bufvec_cursor_move(cur, sizeof *rec);
-
-	pl_rec = c2_bufvec_cursor_addr(cur);
-	C2_UT_ASSERT(pl_rec != NULL);
-
-	C2_UT_ASSERT(pl_rec->pr_let_id == c2_list_enum_type.let_id);
-	C2_UT_ASSERT(pl_rec->pr_attr.pa_N == 4);
-	C2_UT_ASSERT(pl_rec->pr_attr.pa_K == 1);
-	C2_UT_ASSERT(pl_rec->pr_attr.pa_P == POOL_WIDTH);
-
-	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
-
-	lin_rec = c2_bufvec_cursor_addr(cur);
-	C2_UT_ASSERT(lin_rec != NULL);
-
-	C2_UT_ASSERT(lin_rec->lla_nr == 20);
-	C2_UT_ASSERT(lin_rec->lla_A == 100);
-	C2_UT_ASSERT(lin_rec->lla_B == 200);
-}
-
-/* todo Following TC should be moved to bufvec UT. */
-static void test_bufvec_copyto(void)
-{
-	void                    *area;
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  dcur;
-	c2_bcount_t              num_bytes;
-
-	C2_ENTRY();
-
-	num_bytes = c2_layout_max_recsize(&domain) + 1024;
-	area = c2_alloc(num_bytes);
-	C2_UT_ASSERT(area != NULL);
-
-	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
-	c2_bufvec_cursor_init(&dcur, &bv);
-
-	bufvec_copyto_use(&dcur);
-
-	/* Rewind the cursor. */
-	c2_bufvec_cursor_init(&dcur, &bv);
-
-	bufvec_copyto_verify(&dcur);
-
-	c2_free(area);
-
-	C2_LEAVE();
-}
-
 const struct c2_test_suite layout_ut = {
 	.ts_name  = "layout-ut",
 	.ts_init  = test_init,
@@ -2384,7 +2290,6 @@ const struct c2_test_suite layout_ut = {
                 { "layout-add", test_add },
                 { "layout-update", test_update },
                 { "layout-delete", test_delete },
-                { "layout-buf-copyto", test_bufvec_copyto },
 		{ NULL, NULL }
 	}
 };
