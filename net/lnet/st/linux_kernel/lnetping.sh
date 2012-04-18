@@ -15,24 +15,24 @@ usage() {
     echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID]"
     echo "   [-x ClientDebug] [-X ServerDebug]"
     echo "Flags:"
-    echo "-D\tServer active bulk delay"
-    echo "-I\tServer network interface (ip@intf)"
-    echo "-O\tBulk timeout in seconds"
-    echo "-P\tServer portal"
-    echo "-T\tServer TMID"
-    echo "-X\tServer debug"
-    echo "-b\tNumber of buffers"
-    echo "-c\tRun client only"
-    echo "-d\tPassive data size"
-    echo "-i\tClient network interface (ip@intf)"
-    echo "-l\tLoops to run"
-    echo "-n\tNumber of client threads"
-    echo "-o\tMessage send timeout in seconds"
-    echo "-p\tClient portal"
-    echo "-q\tNot verbose"
-    echo "-s\tRun server only"
-    echo "-t\tClient base TMID - default is dynamic"
-    echo "-x\tClient debug"
+    echo "-D  Server active bulk delay"
+    echo "-I  Server network interface (ip@intf)"
+    echo "-O  Bulk timeout in seconds"
+    echo "-P  Server portal"
+    echo "-T  Server TMID"
+    echo "-X  Server debug"
+    echo "-b  Number of buffers"
+    echo "-c  Run client only"
+    echo "-d  Passive data size"
+    echo "-i  Client network interface (ip@intf)"
+    echo "-l  Loops to run"
+    echo "-n  Number of client threads"
+    echo "-o  Message send timeout in seconds"
+    echo "-p  Client portal"
+    echo "-q  Not verbose"
+    echo "-s  Run server only"
+    echo "-t  Client base TMID - default is dynamic"
+    echo "-x  Client debug"
     echo "By default the client and server are configued to use the first LNet"
     echo "network interface returned by lctl."
 }
@@ -60,6 +60,9 @@ if [ -z "$NID" ] ; then
     exit 1
 fi
 
+server_nid=$NID
+client_nid=$NID
+
 Pverbose=verbose
 Pserver_only=
 Pclient_only=
@@ -70,11 +73,11 @@ Pbulk_timeout="bulk_timeout=20"
 Pmsg_timeout="msg_timeout=5"
 Pactive_bulk_delay=
 Pnr_clients=
-Pclient_network="client_network=$NID"
+Pclient_network="client_network=$client_nid"
 Pclient_portal=
 Pclient_tmid=
 Pclient_debug=
-Pserver_network="server_network=$NID"
+Pserver_network="server_network=$server_nid"
 Pserver_portal=
 Pserver_tmid=
 Pserver_debug=
@@ -89,33 +92,34 @@ while [ $# -gt 0 ]; do
 	(-q) Pverbose="" ;;
 	(-D|-O|-P|-T|-X|-b|-d|-l|-n|-o|-p|-t|-x) has_narg=1;;
 	(-I|-i) has_sarg=1;;
-	(*) usage; exit 1;;
+	(-h|--help) usage; exit 0;;
+	(*) echo "Error: Unknown argument $FLAG"; echo "Use -h for help"; exit 1;;
     esac
     if [ $has_sarg -eq 0 -a $has_narg -eq 0 ]; then
 	continue;
     fi
     if [ $# -eq 0 ] ; then
-	echo "$FLAG needs an argument"
+	echo "Error: $FLAG needs an argument"
 	exit 1;
     fi
     if [ $has_narg -eq 1 ] ; then
 	case $1 in
 	    ([0-9]*) ;;
-	    (*) echo "$FLAG needs a numeric argument"
+	    (*) echo "Error: $FLAG needs a numeric argument"
 	        exit 1
 		;;
 	esac
     fi
     case $FLAG in
 	(-D) Pactive_bulk_delay="active_bulk_delay $1";;
-	(-I) Pserver_network="server_network=$1";;
+	(-I) Pserver_network="server_network=$1"; server_nid=$1;;
 	(-O) Pbulk_timeout="bulk_timeout=$1";;
 	(-P) Pserver_portal="server_portal=$1";;
 	(-T) Pserver_tmid="server_tmid=$1";;
 	(-X) Pserver_debug="server_debug=$1";;
 	(-b) Pnr_bufs="nr_bufs=$1";;
 	(-d) Ppassive_size="passive_size=$1";;
-	(-i) Pclient_network="client_network=$1";;
+	(-i) Pclient_network="client_network=$1"; client_nid=$1;;
 	(-l) Ploops="loops=$1";;
 	(-n) Pnr_clients="nr_clients=$1";;
 	(-o) Pmsg_timeout="msg_timeout=$1";;
@@ -128,7 +132,6 @@ done
 
 if [ -z "$Pserver_only" -a -z "$Pclient_only" ] ; then
     echo "Error: Specify if server, client or both roles to be run locally"
-    usage
     exit 1
 fi
 
@@ -145,7 +148,13 @@ OPARM="$Pverbose $Pnr_bufs $Pmsg_timeout $Pbulk_timeout"
 
 echo $OPARM
 echo $SPARM
-echo $CPARM
+if [ -n "$Pclient_only" ]; then
+    echo $CPARM
+    if [ $server_nid = $client_nid ]; then
+	echo "Error: Standalone client requires a remote server network"
+	exit 1
+    fi
+fi
 
 . c2t1fs/linux_kernel/st/common.sh
 
@@ -189,3 +198,5 @@ trap "" EXIT
 
 sleep 1
 tail -c+$tailseek "$log" | grep ' kernel: '
+
+exit 0

@@ -953,18 +953,20 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	int rc;
 	struct c2_net_buffer *nb;
 	struct c2_clink tmwait;
+	int num_recv_bufs = max32u(ctx->pc_nr_bufs / 4, 2);
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
 	ctx->pc_buf_callbacks = &sbuf_cb;
 
 	ctx->pc_ident = "Server";
-	C2_ASSERT(ctx->pc_nr_bufs >= 5);
+	C2_ASSERT(ctx->pc_nr_bufs > 2);
+	C2_ASSERT(num_recv_bufs >= 2);
 	rc = ping_init(ctx);
 	C2_ASSERT(rc == 0);
 	ctx->pc_ops->pf("Server end point: %s\n", ctx->pc_tm.ntm_ep->nep_addr);
 
 	c2_mutex_lock(&ctx->pc_mutex);
-	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
+	for (i = 0; i < num_recv_bufs; ++i) {
 		nb = &ctx->pc_nbs[i];
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
 		nb->nb_timeout = C2_TIME_NEVER;
@@ -1014,7 +1016,7 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	/* dequeue recv buffers */
 	c2_clink_init(&tmwait, NULL);
 
-	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
+	for (i = 0; i < num_recv_bufs; ++i) {
 		nb = &ctx->pc_nbs[i];
 		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, &ctx->pc_tm);
@@ -1395,7 +1397,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	int			 rc;
 	struct c2_net_end_point *server_ep;
 	char			*bp = NULL;
-	struct nlx_ping_ctx		 cctx = {
+	struct nlx_ping_ctx	 cctx = {
 		.pc_xprt = &c2_net_lnet_xprt,
 		.pc_ops  = params->ops,
 		.pc_nr_bufs = params->nr_bufs,
