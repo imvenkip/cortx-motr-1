@@ -472,8 +472,11 @@ struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 								rpcmach) {
 				nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
-				if (strcmp(nxprt->nx_name, xprt->nx_name) == 0)
+				if (strcmp(nxprt->nx_name, xprt->nx_name) ==
+				    0) {
+					c2_mutex_unlock(&cctx->cc_mutex);
 					return rpcmach;
+				}
 			} c2_tlist_endfor;
                 } c2_tlist_endfor;
         } c2_tlist_endfor;
