@@ -567,8 +567,17 @@ struct c2_fom_callback {
 void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
                          struct c2_fom_callback *cb);
 
+/**
+ * Optional call just to make sure that the callback can be freed.
+ * The actual fini is performed in the AST callback after calling
+ * the bottom half routine.
+ */
 void c2_fom_callback_fini(struct c2_fom_callback *cb);
 
+/**
+ * If something went wrong we can try to cancel the callback with this routine.
+ * @note the callback can not be cancelled if the top half was called already.
+ */
 void c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
 /** @} end of fom group */
