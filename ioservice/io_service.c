@@ -54,7 +54,7 @@ static const int network_buffer_pool_segment_nr   = 128;
 static const int network_buffer_pool_threshold    = 8;
 static const int network_buffer_pool_initial_size = 32;
 
-static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
+static int c2_ioservice_locate(struct c2_reqh_service_type *stype,
                                      struct c2_reqh_service **service);
 static void c2_ioservice_fini(struct c2_reqh_service *service);
 
@@ -68,7 +68,7 @@ static void c2_io_buffer_pool_low(struct c2_net_buffer_pool *bp);
  * I/O Service type operations.
  */
 static const struct c2_reqh_service_type_ops c2_ioservice_type_ops = {
-        .rsto_service_alloc_and_init = c2_ioservice_alloc_and_init
+        .rsto_service_locate = c2_ioservice_locate
 };
 
 /**
@@ -273,7 +273,7 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
  *
  * @pre stype != NULL && service != NULL
  */
-static int c2_ioservice_alloc_and_init(struct c2_reqh_service_type *stype,
+static int c2_ioservice_locate(struct c2_reqh_service_type *stype,
                                        struct c2_reqh_service **service)
 {
         int                        rc = 0;

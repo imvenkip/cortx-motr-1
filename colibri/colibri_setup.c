@@ -861,7 +861,7 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob)
    appropriate request handler.
 
    @param service_name Name of service to be initialised
-   @param reqh Request handler this service is registered with
+   @param reqh Request handler this service is to be registered with
 
    @pre service_name != NULL && reqh != NULL
 
@@ -876,48 +876,17 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
 	C2_PRE(service_name != NULL && reqh != NULL);
 
         stype = c2_reqh_service_type_find(service_name);
-        if (stype == NULL) {
-                rc = -EINVAL;
-                goto out;
-        }
+        if (stype == NULL)
+                return -EINVAL;
 
-	rc = stype->rst_ops->rsto_service_alloc_and_init(stype, &service);
-	if (rc != 0)
-		goto out;
-
-	C2_ASSERT(c2_reqh_service_invariant(service));
-
-	rc = c2_reqh_service_init(service, reqh);
-	if (rc != 0) {
-		service->rs_phase = C2_RSPH_FAILED;
-		goto cleanup3;
+	rc = c2_reqh_service_locate(stype, &service);
+	if (rc == 0) {
+		c2_reqh_service_init(service, reqh);
+		rc = c2_reqh_service_start(service);
+		if (rc != 0)
+			c2_reqh_service_fini(service);
 	}
 
-	C2_ASSERT(c2_reqh_service_invariant(service));
-
-	service->rs_phase = C2_RSPH_STARTING;
-	rc = service->rs_ops->rso_start(service);
-	if (rc != 0) {
-		service->rs_phase = C2_RSPH_FAILED;
-		goto cleanup2;
-	}
-
-	rc = c2_reqh_service_start(service);
-	if (rc != 0) {
-		service->rs_phase = C2_RSPH_FAILED;
-		goto cleanup1;
-	}
-
-	C2_POST(c2_reqh_service_invariant(service));
-	goto out;
-
-cleanup1:
-	service->rs_ops->rso_stop(service);
-cleanup2:
-	c2_reqh_service_fini(service);
-cleanup3:
-	service->rs_ops->rso_fini(service);
-out:
 	return rc;
 }
 
@@ -967,13 +936,8 @@ static void cs_service_fini(struct c2_reqh_service *service)
 {
 	C2_PRE(service != NULL);
 
-	service->rs_phase = C2_RSPH_STOPPING;
-	service->rs_ops->rso_stop(service);
 	c2_reqh_service_stop(service);
-	C2_ASSERT(service->rs_phase == C2_RSPH_STOPPED &&
-			service->rs_state == C2_RSS_STOPPED);
 	c2_reqh_service_fini(service);
-	service->rs_ops->rso_fini(service);
 }
 
 /**
