@@ -169,42 +169,6 @@ void c2_fom_ready(struct c2_fom *fom)
 	fom_ready(fom);
 }
 
-/**
- * Call back function to remove fom from the locality wait
- * list and to put it back on the locality runq list for further
- * execution.
- *
- * This function returns true, meaning that the event is "consumed", because
- * nobody is supposed to be waiting on fom->fo_clink.
- *
- * @param clink Fom linkage into waiting channel registered
- *		during a blocking operation
- *
- * @pre clink != NULL
- */
-static bool fom_cb(struct c2_clink *clink)
-{
-	struct c2_fom_locality	*loc;
-	struct c2_fom		*fom;
-
-	C2_PRE(clink != NULL);
-
-	fom = container_of(clink, struct c2_fom, fo_clink);
-	loc = fom->fo_loc;
-
-	c2_mutex_lock(&loc->fl_group.s_lock);
-	C2_ASSERT(c2_fom_invariant(fom));
-	C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
-	C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_linkage));
-	c2_list_del(&fom->fo_linkage);
-	C2_CNT_DEC(loc->fl_wail_nr);
-	c2_mutex_unlock(&loc->fl_group.s_lock);
-
-	fom_ready(fom);
-
-	return true;
-}
-
 void c2_fom_block_enter(struct c2_fom *fom)
 {
 	int			rc;
@@ -289,14 +253,6 @@ static void fom_wait(struct c2_fom *fom)
 	C2_CNT_INC(loc->fl_wail_nr);
 }
 
-void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
-{
-	C2_PRE(!c2_clink_is_armed(&fom->fo_clink));
-	C2_PRE(is_locked(fom));
-
-	c2_clink_add(chan, &fom->fo_clink);
-}
-
 /**
  * Invokes fom state transition method, which transitions fom
  * through various phases of its execution without blocking.
@@ -304,14 +260,16 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
  * indicating fom has either completed its execution or is
  * going to block on an operation.
  * If a fom needs to block on an operation, the state transition
- * function should register the fom's clink (by calling
- * c2_fom_block_at()) with the channel where the completion event
- * will be signalled.
+ * function should register the AST callback (by calling
+ * c2_fom_callback_arm() or c2_fom_wake_on()) with the channel
+ * where the completion event will be signalled. The callback
+ * should wake up the fom with c2_fom_ready().
  * If the state method returns C2_FSO_WAIT, and fom has not yet
  * finished its execution, then it is put on the locality wait list.
  *
  * @see c2_fom_state_outcome
- * @see c2_fom_block_at()
+ * @see c2_fom_wake_on()
+ * @see c2_fom_callback_arm()
  *
  * @param fom A fom under execution
  * @pre fom->fo_state == C2_FOS_RUNNING
@@ -324,13 +282,6 @@ static void fom_exec(struct c2_fom *fom)
 	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
 	loc = fom->fo_loc;
-	/*
-	 * If fom just came out of a wait state, we need to delete the
-	 * fom->fo_clink from the waiting channel list, as it was added
-	 * into it by c2_fom_block_at().
-	 */
-	if (c2_clink_is_armed(&fom->fo_clink))
-		c2_clink_del(&fom->fo_clink);
 
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
@@ -748,7 +699,6 @@ void c2_fom_fini(struct c2_fom *fom)
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
 
 	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
-	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 }
 C2_EXPORTED(c2_fom_fini);
@@ -767,7 +717,6 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 	fom->fo_fop	= fop;
 	fom->fo_rep_fop = reply;
 
-	c2_clink_init(&fom->fo_clink, &fom_cb);
 	c2_list_link_init(&fom->fo_linkage);
 }
 C2_EXPORTED(c2_fom_init);
@@ -806,6 +755,8 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
                          struct c2_fom_callback *cb)
 {
+	C2_PRE(cb->fc_bottom != NULL);
+
 	cb->fc_fom = fom;
 
 	c2_clink_init(&cb->fc_clink, &fom_clink_cb);
@@ -813,6 +764,20 @@ void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
 	c2_clink_add(chan, &cb->fc_clink);
 
 	cb->fc_state = C2_FCS_INIT;
+}
+
+static void fom_ready_cb(struct c2_fom_callback *cb)
+{
+	c2_fom_ready(cb->fc_fom);
+}
+
+void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
+                    struct c2_fom_callback *cb)
+{
+	if (cb == NULL)
+		cb = &fom->fo_cb;
+	cb->fc_bottom = fom_ready_cb;
+	c2_fom_callback_arm(fom, chan, cb);
 }
 
 void c2_fom_callback_fini(struct c2_fom_callback *cb)

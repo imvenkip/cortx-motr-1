@@ -452,10 +452,11 @@ static int stob_read_fom_state(struct c2_fom *fom)
                         stio->si_opcode = SIO_READ;
                         stio->si_flags  = 0;
 
-                        c2_fom_block_at(fom, &stio->si_wait);
+                        c2_fom_wait_on(fom, &stio->si_wait, NULL);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                c2_fom_callback_cancel(&fom->fo_cb);
                                 fom->fo_rc = result;
                                 fom->fo_phase = C2_FOPH_FAILURE;
                         } else {
@@ -559,10 +560,11 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         stio->si_opcode = SIO_WRITE;
                         stio->si_flags  = 0;
 
-                        c2_fom_block_at(fom, &stio->si_wait);
+                        c2_fom_wait_on(fom, &stio->si_wait, NULL);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                c2_fom_callback_cancel(&fom->fo_cb);
                                 fom->fo_rc = result;
                                 fom->fo_phase = C2_FOPH_FAILURE;
                         } else {

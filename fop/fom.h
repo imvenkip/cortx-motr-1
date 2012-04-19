@@ -289,6 +289,47 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom);
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
 
 /**
+ * Fom callback states
+ */
+enum c2_fc_state {
+	C2_FCS_INIT,
+	C2_FCS_TOP_DONE,	/**< AST top-half done */
+	C2_FCS_DONE,		/**< AST bottom-half done */
+};
+
+/**
+ * Represents a call-back to be executed when some event of fom's interest
+ * happens.
+ */
+struct c2_fom_callback {
+	/**
+	 * This clink is registered with the channel where the event will be
+	 * announced.
+	 */
+	struct c2_clink   fc_clink;
+
+	/**
+	 * AST to execute the call-back.
+	 */
+	struct c2_sm_ast  fc_ast;
+
+	enum c2_fc_state  fc_state;
+
+	struct c2_fom    *fc_fom;
+	/**
+	 * Optional filter function executed from the clink call-back
+	 * to filter out some events. This is top half of call-back.
+	 * It can be executed concurrently with fom state transition function.
+	 */
+	bool (*fc_top)(struct c2_fom_callback *cb);
+	/**
+	 * The bottom half of call-back. Never executed concurrently with the
+	 * fom state transition function.
+	 */
+	void (*fc_bottom)(struct c2_fom_callback *cb);
+};
+
+/**
  * Fop state machine.
  *
  * Once the fom is initialised, fom invariant,
@@ -313,8 +354,8 @@ struct c2_fom {
 	struct c2_fom_locality	*fo_loc;
 	struct c2_fom_type	*fo_type;
 	const struct c2_fom_ops	*fo_ops;
-	/** FOM clink to wait upon a particular channel for an event */
-	struct c2_clink		 fo_clink;
+	/** AST callback to wake up the FOM */
+	struct c2_fom_callback	 fo_cb;
 	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx	*fo_fop_ctx;
 	/** Request fop object, this fom belongs to */
@@ -408,8 +449,6 @@ enum c2_fom_state_outcome {
 	 *  event will be signalled.
 	 *
 	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list.
-	 *
-	 *  @see c2_fom_block_at().
 	 */
 	C2_FSO_WAIT,
 	/**
@@ -489,20 +528,6 @@ void c2_fom_block_enter(struct c2_fom *fom);
 void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
- * Registers fom with the channel provided by the caller on which
- * the fom would wait for signal after completing a blocking operation.
- * Fom resumes its execution once the chan is signalled.
- *
- * @param fom, A fom executing a blocking operation
- * @param chan, waiting channel registered with the fom during its
- *              blocking operation
- * @pre !c2_clink_is_armed(&fom->fo_clink)
- * @pre c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock)
- * @post c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock)
- */
-void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
-
-/**
  * Dequeues fom from the locality waiting queue and enqueues it into
  * locality runq list changing the state to C2_FOS_READY.
  *
@@ -512,60 +537,33 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
 void c2_fom_ready(struct c2_fom *fom);
 
 /**
- * Fom callback states
- */
-enum c2_fc_state {
-	C2_FCS_INIT,
-	C2_FCS_TOP_DONE,	/**< AST top-half done */
-	C2_FCS_DONE,		/**< AST bottom-half done */
-};
-
-/**
- * Represents a call-back to be executed when some event of fom's interest
- * happens.
- */
-struct c2_fom_callback {
-	/**
-	 * This clink is registered with the channel where the event will be
-	 * announced.
-	 */
-	struct c2_clink   fc_clink;
-
-	/**
-	 * AST to execute the call-back.
-	 */
-	struct c2_sm_ast  fc_ast;
-
-	enum c2_fc_state  fc_state;
-
-	struct c2_fom    *fc_fom;
-	/**
-	 * Optional filter function executed from the clink call-back
-	 * to filter out some events. This is top half of call-back.
-	 * It can be executed concurrently with fom state transition function.
-	 */
-	bool (*fc_top)(struct c2_fom_callback *cb);
-	/**
-	 * The bottom half of call-back. Never executed concurrently with the
-	 * fom state transition function.
-	 */
-	void (*fc_bottom)(struct c2_fom_callback *cb);
-};
-
-/**
  * Registers AST callback with the channel and a fom executing a blocking
- * operation. Both, the channel and the callback are provided by user.
+ * operation. Both, the channel and the callback (with initialized fc_bottom)
+ * are provided by user.
  * Callback will be called with locality lock held.
  *
  * @param fom, A fom executing a blocking operation
  * @param chan, waiting channel registered with the fom during its
  *              blocking operation
- * @param cb, AST callback
+ * @param cb, AST callback with initialized fc_bottom
  *            @see sm/sm.h
- * @pre fom->so_state == C2_FOS_RUNNING
  */
 void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
                          struct c2_fom_callback *cb);
+
+/**
+ * The same as c2_fom_callback_arm(), but fc_bottom is initialized
+ * automatically with internal static routine which just wakes up the fom.
+ * Convenient when there is no need for custom fc_bottom.
+ *
+ * @param fom, A fom executing a blocking operation
+ * @param chan, waiting channel registered with the fom during its
+ *              blocking operation
+ * @param cb, AST callback, if NULL - fom->fo_cb is used
+ *            @see sm/sm.h
+  */
+void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
+                    struct c2_fom_callback *cb);
 
 /**
  * Optional call just to make sure that the callback can be freed.
@@ -575,8 +573,8 @@ void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
 void c2_fom_callback_fini(struct c2_fom_callback *cb);
 
 /**
- * If something went wrong we can try to cancel the callback with this routine.
- * @note the callback can not be cancelled if the top half was called already.
+ * If something went wrong the callback should be canceled with this routine.
+ * @note the callback may not be canceled if the top half was called already.
  */
 void c2_fom_callback_cancel(struct c2_fom_callback *cb);
 

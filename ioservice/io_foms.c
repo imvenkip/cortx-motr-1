@@ -1117,7 +1117,7 @@ static int acquire_net_buffer(struct c2_fom *fom)
                      */
                     bpdesc = container_of(fom_obj->fcrw_bp,
                                         struct c2_rios_buffer_pool, rios_bp);
-                    c2_fom_block_at(fom, &bpdesc->rios_bp_wait);
+                    c2_fom_wait_on(fom, &bpdesc->rios_bp_wait, NULL);
 
                     fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_WAIT;
                     c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
@@ -1290,14 +1290,15 @@ static int initiate_zero_copy(struct c2_fom *fom)
          * On completion of zero-copy on all buffers rpc_bulk
          * sends signal on channel rbulk->rb_chan.
          */
-        c2_fom_block_at(fom, &rbulk->rb_chan);
+        c2_fom_wait_on(fom, &rbulk->rb_chan, NULL);
 
         /*
          * This function deletes c2_rpc_bulk_buf object one
          * by one as zero copy completes on respective buffer.
          */
         rc = c2_rpc_bulk_load(rbulk, rpc_item->ri_session->s_conn, net_desc);
-        if (rc != 0){
+        if (rc != 0) {
+                c2_fom_callback_cancel(&fom->fo_cb);
                 c2_rpc_bulk_buflist_empty(rbulk);
                 c2_rpc_bulk_fini(rbulk);
                 fom->fo_rc = rc;
@@ -1487,11 +1488,7 @@ static int io_launch(struct c2_fom *fom)
                 else
                         stio->si_opcode = SIO_READ;
 
-                if (fom_obj->fcrw_fc_bottom != NULL)
-                        stio_desc->siod_fcb.fc_bottom = fom_obj->fcrw_fc_bottom;
-                else
-                        stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
-
+                stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
                 c2_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
 
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
