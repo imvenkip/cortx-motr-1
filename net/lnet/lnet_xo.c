@@ -429,7 +429,7 @@ static void nlx_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_dom->nd_mutex));
 	C2_PRE(nlx_tm_invariant(tm));
 	C2_PRE(tm->ntm_callback_counter == 0);
 

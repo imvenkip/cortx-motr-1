@@ -136,6 +136,19 @@
    @{
 */
 
+#define WRITABLE_USER_PAGE_GET(uaddr, pg)				\
+	get_user_pages(current, current->mm, (unsigned long) (uaddr),	\
+		       1, 1, 0, &(pg), NULL)
+
+/** Put a writable user page after calling SetPageDirty(). */
+#define WRITABLE_USER_PAGE_PUT(pg)		\
+({						\
+	struct page *__pg = (pg);		\
+	if (!PageReserved(__pg))		\
+		SetPageDirty(__pg);		\
+	put_page(__pg);				\
+})
+
 /**
    Initialise the C2 LNet Transport device.
    Registers the device as a miscellaneous character device.

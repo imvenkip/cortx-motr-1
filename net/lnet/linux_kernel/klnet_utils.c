@@ -160,7 +160,6 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
 /**
    Helper subroutine to fill in the common fields of the lnet_md_t associated
    with a network buffer.
-   @param lctm Pointer to core TM private data.
    @param kctm Pointer to kcore TM private data.
    @param lcbuf Pointer to core buffer private data with match bits set.
    @param kcb Pointer to kcore buffer private data with match bits set.
@@ -176,8 +175,7 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
    is used by default. Adjust if necessary.
    @post ergo(isLNetGetOp, umd->threshold == 2 && !kcb->kb_ooo_reply)
  */
-static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
-			       struct nlx_kcore_transfer_mc *kctm,
+static void nlx_kcore_umd_init(struct nlx_kcore_transfer_mc *kctm,
 			       struct nlx_core_buffer *lcbuf,
 			       struct nlx_kcore_buffer *kcb,
 			       int threshold,
@@ -186,7 +184,6 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 			       bool isLNetGetOp,
 			       lnet_md_t *umd)
 {
-	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
@@ -218,7 +215,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
 	umd->user_ptr = kcb;
 	umd->eq_handle = kctm->ktm_eqh;
 
-	NLXDBG(lctm, 2, nlx_kprint_lnet_md("umd init", umd));
+	NLXDBG(kctm, 2, nlx_kprint_lnet_md("umd init", umd));
 	C2_POST(ergo(isLNetGetOp, umd->threshold == 2 && !kcb->kb_ooo_reply));
 }
 
@@ -227,7 +224,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
    to match a specified byte length.
    This is needed for SEND and active buffer operations.
    Restore the kiov with nlx_kcore_kiov_restore_length().
-   @param lctm Pointer to kcore TM private data.
+   @param ktm Pointer to kcore TM private data.
    @param kcb Pointer to kcore buffer private data with match bits set.
    @param umd Pointer to the UMD.
    @param bytes The byte count desired.
@@ -236,7 +233,7 @@ static void nlx_kcore_umd_init(struct nlx_core_transfer_mc *lctm,
    @post kcb->kb_kiov_adj_idx < kcb->kb_kiov_len
    @post nlx_kcore_kiov_invariant(umd->start, umd->length)
  */
-static void nlx_kcore_kiov_adjust_length(struct nlx_core_transfer_mc *lctm,
+static void nlx_kcore_kiov_adjust_length(struct nlx_kcore_transfer_mc *ktm,
 					 struct nlx_kcore_buffer *kcb,
 					 lnet_md_t *umd,
 					 c2_bcount_t bytes)
@@ -247,14 +244,14 @@ static void nlx_kcore_kiov_adjust_length(struct nlx_core_transfer_mc *lctm,
 	C2_PRE(umd->start != NULL);
 	C2_PRE(umd->options & LNET_MD_KIOV);
 	C2_PRE(umd->length > 0);
-	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(umd->start == kcb->kb_kiov);
 
 	num = nlx_kcore_num_kiov_entries_for_bytes((lnet_kiov_t *) umd->start,
 						   umd->length, bytes, &last);
-	NLXDBGP(lctm, 2, "%p: kbuf:%p size:%ld vec:%lu/%lu loff:%u\n",
-		lctm, kcb, (unsigned long) bytes,
+	NLXDBGP(ktm, 2, "%p: kbuf:%p size:%ld vec:%lu/%lu loff:%u\n",
+		ktm, kcb, (unsigned long) bytes,
 		(unsigned long) num, (unsigned long) umd->length, last);
 	kcb->kb_kiov_adj_idx = num - 1;
 	C2_POST(kcb->kb_kiov_adj_idx >= 0);
@@ -268,17 +265,14 @@ static void nlx_kcore_kiov_adjust_length(struct nlx_core_transfer_mc *lctm,
 
 /**
    Helper subroutine to restore the original length of the buffer's kiov.
-   @param lctm Pointer to kcore TM private data.
    @param kcb Pointer to kcore buffer private data with match bits set.
    @see nlx_kcore_kiov_adjust_length()
    @pre kcb->kb_kiov_adj_idx >= 0
    @pre kcb->kb_kiov_adj_idx < kcb->kb_kiov_len
    @post nlx_kcore_kiov_invariant(kcb->kb_kiov, kcb->kb_kiov_len)
 */
-static void nlx_kcore_kiov_restore_length(struct nlx_core_transfer_mc *lctm,
-					  struct nlx_kcore_buffer *kcb)
+static void nlx_kcore_kiov_restore_length(struct nlx_kcore_buffer *kcb)
 {
-	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	C2_PRE(kcb->kb_kiov_adj_idx >= 0);
 	C2_PRE(kcb->kb_kiov_adj_idx < kcb->kb_kiov_len);
@@ -294,7 +288,6 @@ static void nlx_kcore_kiov_restore_length(struct nlx_core_transfer_mc *lctm,
    - The ME and MD are set up to automatically unlink.
    - The MD handle is set in the struct nlx_kcore_buffer::kb_mdh field.
    - Sets the kb_ktm field in the KCore buffer private data.
-   @param lctm Pointer to core TM private data.
    @param kctm Pointer to kcore TM private data.
    @param lcbuf Pointer to core buffer private data with match bits set in
    the cb_match_bits field, and the network address in cb_addr.
@@ -303,8 +296,7 @@ static void nlx_kcore_kiov_restore_length(struct nlx_core_transfer_mc *lctm,
    values set for the desired operation.
    @note LNet event could potentially be delivered before this sub returns.
  */
-static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
-				  struct nlx_kcore_transfer_mc *kctm,
+static int nlx_kcore_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 				  struct nlx_core_buffer *lcbuf,
 				  struct nlx_kcore_buffer *kcb,
 				  lnet_md_t *umd)
@@ -313,7 +305,6 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	lnet_process_id_t id;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
@@ -325,20 +316,20 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 			  lcbuf->cb_match_bits, 0,
 			  LNET_UNLINK, LNET_INS_AFTER, &meh);
 	if (rc != 0) {
-		NLXDBGP(lctm, 1,"LNetMEAttach: %d\n", rc);
+		NLXDBGP(kctm, 1,"LNetMEAttach: %d\n", rc);
 		return rc;
 	}
 	C2_POST(!LNetHandleIsInvalid(meh));
-	NLXDBG(lctm, 2, nlx_print_core_buffer("nlx_kcore_LNetMDAttach", lcbuf));
+	NLXDBG(kctm, 2, nlx_print_core_buffer("nlx_kcore_LNetMDAttach", lcbuf));
 
 	kcb->kb_ktm = kctm; /* loopback can deliver in the LNetPut call */
 	rc = LNetMDAttach(meh, *umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc == 0) {
-		NLXDBG(lctm, 1, nlx_kprint_lnet_handle("MDAttach",kcb->kb_mdh));
+		NLXDBG(kctm, 1, nlx_kprint_lnet_handle("MDAttach",kcb->kb_mdh));
 	} else {
 		int trc = LNetMEUnlink(meh);
-		NLXDBGP(lctm, 1, "LNetMDAttach: %d\n", rc);
-		NLXDBGP(lctm, 1, "LNetMEUnlink: %d\n", trc);
+		NLXDBGP(kctm, 1, "LNetMDAttach: %d\n", rc);
+		NLXDBGP(kctm, 1, "LNetMEUnlink: %d\n", trc);
 		C2_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
@@ -354,7 +345,6 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 
 /**
    Helper subroutine to unlink an MD.
-   @param lctm Pointer to core TM private data.
    @param kctm Pointer to kcore TM private data.
    @param kcb Pointer to kcore buffer private data with kb_mdh set.
    @note LNet event could potentially be delivered before this sub returns.
@@ -362,17 +352,15 @@ static int nlx_kcore_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
    subroutine and ongoing activity.  No assumptions can be made about the value
    of ephemeral fields in related buffer data structures.
  */
-static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
-				  struct nlx_kcore_transfer_mc *kctm,
+static int nlx_kcore_LNetMDUnlink(struct nlx_kcore_transfer_mc *kctm,
 				  struct nlx_kcore_buffer *kcb)
 {
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
 	rc = LNetMDUnlink(kcb->kb_mdh);
-	NLXDBG(lctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
+	NLXDBG(kctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(kctm->ktm_addb, rc);
 	return rc;
@@ -385,7 +373,6 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
    - The MD handle is set in the struct nlx_kcore_buffer::kb_mdh field.
    - The TM's portal and TMID are encoded in the header data.
    - Sets the kb_ktm field in the KCore buffer private data.
-   @param lctm Pointer to core TM private data.
    @param kctm Pointer to kcore TM private data.
    @param lcbuf Pointer to core buffer private data with match bits set, and
    the address of the remote destination in struct nlx_core_buffer::cb_addr.
@@ -395,8 +382,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_core_transfer_mc *lctm,
    @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
    @note LNet event could potentially be delivered before this sub returns.
  */
-static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
-			     struct nlx_kcore_transfer_mc *kctm,
+static int nlx_kcore_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 			     struct nlx_core_buffer *lcbuf,
 			     struct nlx_kcore_buffer *kcb,
 			     lnet_md_t *umd)
@@ -404,7 +390,6 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 	lnet_process_id_t target;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
@@ -412,11 +397,11 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc != 0) {
-		NLXDBGP(lctm, 1,"LNetMDBind: %d\n", rc);
+		NLXDBGP(kctm, 1,"LNetMDBind: %d\n", rc);
 		return rc;
 	}
-	NLXDBG(lctm, 2, nlx_print_core_buffer("nlx_kcore_LNetPut", lcbuf));
-	NLXDBG(lctm, 2, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
+	NLXDBG(kctm, 2, nlx_print_core_buffer("nlx_kcore_LNetPut", lcbuf));
+	NLXDBG(kctm, 2, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
 
 	target.nid = lcbuf->cb_addr.cepa_nid;
 	target.pid = lcbuf->cb_addr.cepa_pid;
@@ -427,8 +412,8 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
 		     nlx_kcore_hdr_data_encode(kctm));
 	if (rc != 0) {
 		int trc = LNetMDUnlink(kcb->kb_mdh);
-		NLXDBGP(lctm, 1, "LNetPut: %d\n", rc);
-		NLXDBGP(lctm, 1, "LNetMDUnlink: %d\n", trc);
+		NLXDBGP(kctm, 1, "LNetPut: %d\n", rc);
+		NLXDBGP(kctm, 1, "LNetMDUnlink: %d\n", trc);
 		C2_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
@@ -449,7 +434,6 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
    - The MD handle is set in the struct nlx_kcore_buffer::kb_mdh field.
    - The TM's portal and TMID are encoded in the header data.
    - Sets the kb_ktm field in the KCore buffer private data.
-   @param lctm Pointer to core TM private data.
    @param kctm Pointer to kcore TM private data.
    @param lcbuf Pointer to kcore buffer private data with match bits set, and
    the address of the remote destination in struct nlx_core_buffer::cb_addr.
@@ -460,8 +444,7 @@ static int nlx_kcore_LNetPut(struct nlx_core_transfer_mc *lctm,
    @see nlx_kcore_hdr_data_encode(), nlx_kcore_hdr_data_decode()
    @note LNet event could potentially be delivered before this sub returns.
  */
-static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
-			     struct nlx_kcore_transfer_mc *kctm,
+static int nlx_kcore_LNetGet(struct nlx_kcore_transfer_mc *kctm,
 			     struct nlx_core_buffer *lcbuf,
 			     struct nlx_kcore_buffer *kcb,
 			     lnet_md_t *umd)
@@ -469,7 +452,6 @@ static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
 	lnet_process_id_t target;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(lctm));
 	C2_PRE(nlx_kcore_tm_invariant(kctm));
 	C2_PRE(nlx_core_buffer_invariant(lcbuf));
 	C2_PRE(nlx_kcore_buffer_invariant(kcb));
@@ -479,11 +461,11 @@ static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
 
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc != 0) {
-		NLXDBGP(lctm, 1,"LNetMDBind: %d\n", rc);
+		NLXDBGP(kctm, 1,"LNetMDBind: %d\n", rc);
 		return rc;
 	}
-	NLXDBG(lctm, 2, nlx_print_core_buffer("nlx_kcore_LNetGet", lcbuf));
-	NLXDBG(lctm, 2, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
+	NLXDBG(kctm, 2, nlx_print_core_buffer("nlx_kcore_LNetGet", lcbuf));
+	NLXDBG(kctm, 2, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
 
 	target.nid = lcbuf->cb_addr.cepa_nid;
 	target.pid = lcbuf->cb_addr.cepa_pid;
@@ -493,8 +475,8 @@ static int nlx_kcore_LNetGet(struct nlx_core_transfer_mc *lctm,
 		     lcbuf->cb_match_bits, 0);
 	if (rc != 0) {
 		int trc = LNetMDUnlink(kcb->kb_mdh);
-		NLXDBGP(lctm, 1, "LNetGet: %d\n", rc);
-		NLXDBGP(lctm, 1, "LNetMDUnlink: %d\n", trc);
+		NLXDBGP(kctm, 1, "LNetGet: %d\n", rc);
+		NLXDBGP(kctm, 1, "LNetMDUnlink: %d\n", trc);
 		C2_ASSERT(trc == 0);
 		LNetInvalidateHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
@@ -575,6 +557,40 @@ static void nlx_kcore_core_buffer_unmap(struct nlx_kcore_buffer *kb)
 {
 	C2_PRE(nlx_core_kmem_loc_invariant(&kb->kb_cb_loc));
 	kunmap(kb->kb_cb_loc.kl_page);
+}
+
+/**
+   Maps a page that should point to a nlx_core_buffer_event.
+   Uses kmap() because this subroutine can be used on contexts that will block.
+   @pre nlx_kcore_buffer_event_invariant(kbe)
+   @post ret != NULL
+   @param kbe Pointer to kcore buffer event private data.
+   @returns core object, never NULL
+ */
+static struct nlx_core_buffer_event *nlx_kcore_core_bev_map(
+					    struct nlx_kcore_buffer_event *kbe)
+{
+	char *ptr;
+	struct nlx_core_kmem_loc *loc;
+	struct nlx_core_buffer_event *ret;
+
+	C2_PRE(nlx_kcore_buffer_event_invariant(kbe));
+	loc = &kbe->kbe_bev_loc;
+	ptr = kmap(loc->kl_page);
+	ret = (struct nlx_core_buffer_event *) (ptr + loc->kl_offset);
+	C2_POST(ret != NULL);
+	return ret;
+}
+
+/**
+   Unmaps the page that contains a nlx_core_buffer_event using kunmap().
+   @pre nlx_core_kmem_loc_invariant(&kbe->kbe_bev_loc)
+   @param kbe Pointer to kcore buffer event private data.
+ */
+static void nlx_kcore_core_bev_unmap(struct nlx_kcore_buffer_event *kbe)
+{
+	C2_PRE(nlx_core_kmem_loc_invariant(&kbe->kbe_bev_loc));
+	kunmap(kbe->kbe_bev_loc.kl_page);
 }
 
 /**

@@ -405,8 +405,7 @@ enum {
 	UT_KMSG_OPS  = 4,
 };
 static bool ut_ktest_msg_LNetMDAttach_called;
-static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
-				     struct nlx_kcore_transfer_mc *kctm,
+static int ut_ktest_msg_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 				     struct nlx_core_buffer *lcbuf,
 				     struct nlx_kcore_buffer *kcb,
 				     lnet_md_t *umd)
@@ -415,8 +414,8 @@ static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	uint64_t counter;
 
 	ut_ktest_msg_LNetMDAttach_called = true;
-	NLXDBG(lctm, 1, printk("intercepted LNetMDAttach\n"));
-	NLXDBG(lctm, 1, nlx_kprint_lnet_md("ktest_msg", umd));
+	NLXDBG(kctm, 1, printk("intercepted LNetMDAttach\n"));
+	NLXDBG(kctm, 1, nlx_kprint_lnet_md("ktest_msg", umd));
 
 	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
 	C2_UT_ASSERT(umd->start == kcb->kb_kiov);
@@ -432,7 +431,7 @@ static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
 
 	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
-	C2_UT_ASSERT(tmid == lctm->ctm_addr.cepa_tmid);
+	C2_UT_ASSERT(tmid == kctm->ktm_addr.cepa_tmid);
 	C2_UT_ASSERT(counter == 0);
 
 	kcb->kb_ktm = kctm;
@@ -442,8 +441,7 @@ static int ut_ktest_msg_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 
 static bool ut_ktest_msg_LNetPut_called;
 static struct c2_net_end_point *ut_ktest_msg_LNetPut_ep;
-static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
-				struct nlx_kcore_transfer_mc *kctm,
+static int ut_ktest_msg_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 				struct nlx_core_buffer *lcbuf,
 				struct nlx_kcore_buffer *kcb,
 				lnet_md_t *umd)
@@ -453,8 +451,8 @@ static int ut_ktest_msg_LNetPut(struct nlx_core_transfer_mc *lctm,
 	unsigned last;
 
 	ut_ktest_msg_LNetPut_called = true;
-	NLXDBG(lctm, 1, printk("intercepted LNetPut\n"));
-	NLXDBG(lctm, 1, nlx_kprint_lnet_md("ktest_msg", umd));
+	NLXDBG(kctm, 1, printk("intercepted LNetPut\n"));
+	NLXDBG(kctm, 1, nlx_kprint_lnet_md("ktest_msg", umd));
 
 	C2_UT_ASSERT((lnet_kiov_t *) umd->start == kcb->kb_kiov);
 	len = nlx_kcore_num_kiov_entries_for_bytes(kcb->kb_kiov,
@@ -640,7 +638,7 @@ static void ktest_msg_body(struct ut_data *td)
 	nb1->nb_max_receive_msgs = 1;
 	nb1->nb_qtype = C2_NET_QT_MSG_RECV;
 
-	nlx_kcore_umd_init(lctm1, kctm1, lcbuf1, kcb1, 1, 1, 0, false, &umd);
+	nlx_kcore_umd_init(kctm1, lcbuf1, kcb1, 1, 1, 0, false, &umd);
 	C2_UT_ASSERT(umd.start == kcb1->kb_kiov);
 	C2_UT_ASSERT(umd.length == kcb1->kb_kiov_len);
 	C2_UT_ASSERT(umd.options & LNET_MD_KIOV);
@@ -689,7 +687,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(ut_ktest_kiov_eq(kcb1->kb_kiov, kdup, kcb1->kb_kiov_len));
 
 	/* init the UMD that will be adjusted */
-	nlx_kcore_umd_init(lctm1, kctm1, lcbuf1, kcb1, 1, 0, 0, false, &umd);
+	nlx_kcore_umd_init(kctm1, lcbuf1, kcb1, 1, 0, 0, false, &umd);
 	C2_UT_ASSERT(kcb1->kb_kiov == umd.start);
 	C2_UT_ASSERT(ut_ktest_kiov_count(umd.start,umd.length)
 		     == td->buf_size1);
@@ -700,7 +698,7 @@ static void ktest_msg_body(struct ut_data *td)
 		size_t size;
 		lnet_kiov_t *k = kcb1->kb_kiov;
 		size = kcb1->kb_kiov_len;
-		nlx_kcore_kiov_adjust_length(lctm1, kcb1, &umd, UT_MSG_SIZE);
+		nlx_kcore_kiov_adjust_length(kctm1, kcb1, &umd, UT_MSG_SIZE);
 		C2_UT_ASSERT(kcb1->kb_kiov == k);
 		C2_UT_ASSERT(kcb1->kb_kiov_len == size);
 	}
@@ -716,7 +714,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(kcb1->kb_kiov_orig_len == kdup[umd.length - 1].kiov_len);
 
 	/* validate restoration */
-	nlx_kcore_kiov_restore_length(lctm1, kcb1);
+	nlx_kcore_kiov_restore_length(kcb1);
 	C2_UT_ASSERT(ut_ktest_kiov_eq(kcb1->kb_kiov, kdup, kcb1->kb_kiov_len));
 	C2_UT_ASSERT(ut_ktest_kiov_count(kcb1->kb_kiov, kcb1->kb_kiov_len)
 		     == td->buf_size1);
@@ -1130,8 +1128,7 @@ static void ktest_msg(void)
 
 static struct c2_atomic64 ut_ktest_bulk_fake_LNetMDAttach;
 static bool ut_ktest_bulk_LNetMDAttach_called;
-static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
-				      struct nlx_kcore_transfer_mc *kctm,
+static int ut_ktest_bulk_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 				      struct nlx_core_buffer *lcbuf,
 				      struct nlx_kcore_buffer *kcb,
 				      lnet_md_t *umd)
@@ -1140,8 +1137,8 @@ static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	uint64_t counter;
 
 	ut_ktest_bulk_LNetMDAttach_called = true;
-	NLXDBG(lctm, 1, printk("intercepted LNetMDAttach (bulk)\n"));
-	NLXDBG(lctm, 2, nlx_kprint_lnet_md("ktest_bulk", umd));
+	NLXDBG(kctm, 1, printk("intercepted LNetMDAttach (bulk)\n"));
+	NLXDBG(kctm, 2, nlx_kprint_lnet_md("ktest_bulk", umd));
 
 	C2_UT_ASSERT(umd->options & LNET_MD_KIOV);
 	C2_UT_ASSERT(umd->start == kcb->kb_kiov);
@@ -1171,7 +1168,7 @@ static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 	C2_UT_ASSERT(LNetHandleIsEqual(umd->eq_handle, kctm->ktm_eqh));
 
 	nlx_core_match_bits_decode(lcbuf->cb_match_bits, &tmid, &counter);
-	C2_UT_ASSERT(tmid == lctm->ctm_addr.cepa_tmid);
+	C2_UT_ASSERT(tmid == kctm->ktm_addr.cepa_tmid);
 	C2_UT_ASSERT(counter >= C2_NET_LNET_BUFFER_ID_MIN);
 	C2_UT_ASSERT(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
@@ -1179,12 +1176,11 @@ static int ut_ktest_bulk_LNetMDAttach(struct nlx_core_transfer_mc *lctm,
 		kcb->kb_ktm = kctm;
 		return 0;
 	}
-	return nlx_kcore_LNetMDAttach(lctm, kctm, lcbuf, kcb, umd);
+	return nlx_kcore_LNetMDAttach(kctm, lcbuf, kcb, umd);
 }
 
 static bool ut_ktest_bulk_LNetGet_called;
-static int ut_ktest_bulk_LNetGet(struct nlx_core_transfer_mc *lctm,
-				 struct nlx_kcore_transfer_mc *kctm,
+static int ut_ktest_bulk_LNetGet(struct nlx_kcore_transfer_mc *kctm,
 				 struct nlx_core_buffer *lcbuf,
 				 struct nlx_kcore_buffer *kcb,
 				 lnet_md_t *umd)
@@ -1193,8 +1189,8 @@ static int ut_ktest_bulk_LNetGet(struct nlx_core_transfer_mc *lctm,
 	unsigned last;
 
 	ut_ktest_bulk_LNetGet_called = true;
-	NLXDBG(lctm, 1, printk("intercepted LNetGet (bulk)\n"));
-	NLXDBG(lctm, 2, nlx_kprint_lnet_md("ktest_bulk", umd));
+	NLXDBG(kctm, 1, printk("intercepted LNetGet (bulk)\n"));
+	NLXDBG(kctm, 2, nlx_kprint_lnet_md("ktest_bulk", umd));
 
 	C2_UT_ASSERT((lnet_kiov_t *) umd->start == kcb->kb_kiov);
 	len = nlx_kcore_num_kiov_entries_for_bytes(kcb->kb_kiov,
@@ -1215,8 +1211,7 @@ static int ut_ktest_bulk_LNetGet(struct nlx_core_transfer_mc *lctm,
 }
 
 static bool ut_ktest_bulk_LNetPut_called;
-static int ut_ktest_bulk_LNetPut(struct nlx_core_transfer_mc *lctm,
-				 struct nlx_kcore_transfer_mc *kctm,
+static int ut_ktest_bulk_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 				 struct nlx_core_buffer *lcbuf,
 				 struct nlx_kcore_buffer *kcb,
 				 lnet_md_t *umd)
@@ -1225,8 +1220,8 @@ static int ut_ktest_bulk_LNetPut(struct nlx_core_transfer_mc *lctm,
 	unsigned last;
 
 	ut_ktest_bulk_LNetPut_called = true;
-	NLXDBG(lctm, 1, printk("intercepted LNetPut (bulk)\n"));
-	NLXDBG(lctm, 2, nlx_kprint_lnet_md("ktest_bulk", umd));
+	NLXDBG(kctm, 1, printk("intercepted LNetPut (bulk)\n"));
+	NLXDBG(kctm, 2, nlx_kprint_lnet_md("ktest_bulk", umd));
 
 	C2_UT_ASSERT((lnet_kiov_t *) umd->start == kcb->kb_kiov);
 	len = nlx_kcore_num_kiov_entries_for_bytes(kcb->kb_kiov,
@@ -1990,11 +1985,9 @@ static int ut_kcore_tm_start(struct nlx_kcore_domain *kd,
 	return 0;
 }
 
-static void ut_kcore_tm_stop(struct nlx_kcore_domain *kd,
-			     struct nlx_core_transfer_mc *ctm,
+static void ut_kcore_tm_stop(struct nlx_core_transfer_mc *ctm,
 			     struct nlx_kcore_transfer_mc *ktm)
 {
-	C2_UT_ASSERT(nlx_kcore_domain_invariant(kd));
 	C2_UT_ASSERT(nlx_kcore_tm_invariant(ktm));
 	C2_UT_ASSERT(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
 

@@ -1,11 +1,15 @@
-lut_helperdir       = $(includedir)/colibri/net/lnet/ut
+lut_helperdir         = $(includedir)/colibri/net/lnet/ut
+noinst_LTLIBRARIES    = liblnet-ut.la
 
-INCLUDES            = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES              = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
-noinst_PROGRAMS     = lut_helper
+liblnet_ut_la_SOURCES = lnet_ut.c
+liblnet_ut_la_LIBADD  = $(top_builddir)/colibri/libcolibri.la
 
-lut_helper_SOURCES  = lut_main.c
-lut_helper_HEADERS  = lnet_drv_ut.h
-lut_helper_LDADD    = $(top_builddir)/colibri/libcolibri.la
+noinst_PROGRAMS       = lut_helper
 
-EXTRA_DIST          = lnet_ut.c linux_kernel/klnet_ut.c
+lut_helper_SOURCES    = lut_main.c
+lut_helper_HEADERS    = lnet_drv_ut.h
+lut_helper_LDADD      = $(top_builddir)/colibri/libcolibri.la
+
+EXTRA_DIST            = linux_kernel/klnet_ut.c

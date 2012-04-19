@@ -582,6 +582,7 @@ static unsigned nlx_ucore_nidstrs_thunk = 128;
    @param ud Ucore domain. Only the fd and addb fields are required to
    be set, as this subroutine could be used during domain initialization
    to cache the NID strings.
+   @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
 static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 {

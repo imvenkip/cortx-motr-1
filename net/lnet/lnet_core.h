@@ -465,6 +465,9 @@ static bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
    Parses an end point address string and convert to internal form.
    A "*" value for the transfer machine identifier results in a value of
    C2_NET_LNET_TMID_INVALID being set.
+   @param lcdom Domain pointer.
+   @param ep_addr The LNet end point address to decode.
+   @param cepa On success, the parsed values are stored here.
  */
 static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 				   const char *ep_addr,
@@ -474,6 +477,9 @@ static int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
    Constructs the external address string from its internal form.
    A value of C2_NET_LNET_TMID_INVALID for the cepa_tmid field results in
    a "*" being set for that field.
+   @param lcdom Domain pointer.
+   @param cepa The end point address parameters to encode.
+   @param buf The string address is stored in this buffer.
  */
 static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 				    const struct nlx_core_ep_addr *cepa,
@@ -482,6 +488,7 @@ static void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 /**
    Gets a list of strings corresponding to the local LNET network interfaces.
    The returned array must be released using nlx_core_nidstrs_put().
+   @param lcdom Domain pointer.
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
  */
 static int nlx_core_nidstrs_get(struct nlx_core_domain *lcdom,

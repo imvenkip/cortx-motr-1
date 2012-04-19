@@ -124,6 +124,8 @@ struct nlx_kcore_transfer_mc {
 
 	/** ADDB context for events related to this transfer machine. */
 	struct c2_addb_ctx            ktm_addb;
+
+	unsigned                   _debug_;
 };
 
 /**
@@ -214,6 +216,18 @@ struct nlx_kcore_buffer_event {
 };
 
 /**
+   Performs a kernel core tranfer machine buffer queue send or receive
+   operation (message, active, or passive).
+   @param ktm The kernel transfer machine private data.
+   @param cb The buffer private data.
+   @param kb The kernel buffer private data.
+ */
+typedef int (*nlx_kcore_queue_op_t)(struct nlx_kcore_transfer_mc *ktm,
+				    struct nlx_core_buffer *cb,
+				    struct nlx_kcore_buffer *kb);
+
+
+/**
    Kernel core operations.
    The operations listed here implement the common code shared by both
    the core API implemented in the kernel and the core API support provided
@@ -278,100 +292,54 @@ struct nlx_kcore_ops {
 	/**
 	   Performs kernel core tasks relating to stopping a transfer machine.
 	   Kernel resources are released.
-	   @param kd kernel domain for this transfer machine
 	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	 */
-	void (*ko_tm_stop)(struct nlx_kcore_domain *kd,
-			   struct nlx_core_transfer_mc *ctm,
+	void (*ko_tm_stop)(struct nlx_core_transfer_mc *ctm,
 			   struct nlx_kcore_transfer_mc *ktm);
 
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the message receive queue.
-	   @param ctm The transfer machine private data.
-	   @param ktm The kernel transfer machine private data.
-	   @param cb The buffer private data.
-	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_msg_recv)(struct nlx_core_transfer_mc *ctm,
-			       struct nlx_kcore_transfer_mc *ktm,
-			       struct nlx_core_buffer *cb,
-			       struct nlx_kcore_buffer *kb);
+	nlx_kcore_queue_op_t ko_buf_msg_recv;
 
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the message send queue.
-	   @param ctm The transfer machine private data.
-	   @param ktm The kernel transfer machine private data.
-	   @param cb The buffer private data.
-	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_msg_send)(struct nlx_core_transfer_mc *ctm,
-			       struct nlx_kcore_transfer_mc *ktm,
-			       struct nlx_core_buffer *cb,
-			       struct nlx_kcore_buffer *kb);
+	nlx_kcore_queue_op_t ko_buf_msg_send;
 
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk active receive queue.
-	   @param ctm The transfer machine private data.
-	   @param ktm The kernel transfer machine private data.
-	   @param cb The buffer private data.
-	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_active_recv)(struct nlx_core_transfer_mc *ctm,
-				  struct nlx_kcore_transfer_mc *ktm,
-				  struct nlx_core_buffer *cb,
-				  struct nlx_kcore_buffer *kb);
+	nlx_kcore_queue_op_t ko_buf_active_recv;
 
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk active send queue.
-	   @param ctm The transfer machine private data.
-	   @param ktm The kernel transfer machine private data.
-	   @param cb The buffer private data.
-	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_active_send)(struct nlx_core_transfer_mc *ctm,
-				  struct nlx_kcore_transfer_mc *ktm,
-				  struct nlx_core_buffer *cb,
-				  struct nlx_kcore_buffer *kb);
+	nlx_kcore_queue_op_t ko_buf_active_send;
 
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk passive receive queue.
-	   @param ctm The transfer machine private data.
-	   @param ktm The kernel transfer machine private data.
-	   @param cb The buffer private data.
-	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_passive_recv)(struct nlx_core_transfer_mc *ctm,
-				   struct nlx_kcore_transfer_mc *ktm,
-				   struct nlx_core_buffer *cb,
-				   struct nlx_kcore_buffer *kb);
+	nlx_kcore_queue_op_t ko_buf_passive_recv;
 
 	/**
 	   Performs kernel core tasks relating to adding a buffer to
 	   the bulk passive send queue.
-	   @param ctm The transfer machine private data.
-	   @param ktm The kernel transfer machine private data.
-	   @param cb The buffer private data.
-	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_passive_send)(struct nlx_core_transfer_mc *ctm,
-				   struct nlx_kcore_transfer_mc *ktm,
-				   struct nlx_core_buffer *cb,
-				   struct nlx_kcore_buffer *kb);
+	nlx_kcore_queue_op_t ko_buf_passive_send;
 
 	/**
 	   Performs kernel core tasks relating to canceling a buffer operation.
-	   @param ctm The transfer machine private data.
 	   @param ktm The kernel transfer machine private data.
 	   @param kb The kernel buffer private data.
 	 */
-	int (*ko_buf_del)(struct nlx_core_transfer_mc *ctm,
-			  struct nlx_kcore_transfer_mc *ktm,
+	int (*ko_buf_del)(struct nlx_kcore_transfer_mc *ktm,
 			  struct nlx_kcore_buffer *kb);
 
 	/**
@@ -390,6 +358,8 @@ static void nlx_core_kmem_loc_set(struct nlx_core_kmem_loc *loc,
 
 static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd);
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb);
+static bool nlx_kcore_buffer_event_invariant(
+				     const struct nlx_kcore_buffer_event *kbe);
 static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm);
 static int nlx_kcore_kcore_dom_init(struct nlx_kcore_domain *kd);
 static void nlx_kcore_kcore_dom_fini(struct nlx_kcore_domain *kd);

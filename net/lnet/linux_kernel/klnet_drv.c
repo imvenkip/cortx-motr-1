@@ -624,11 +624,15 @@ of Colibri LNet Transport</a>,
 
    - The parameters are validated to ensure no assertions will occur.
    - The @c nlx_core_nidstrs_get() API is called to get the list of NID strings.
-   - The user space buffer is temporarily pinned and mapped.
+   - The buffer size required to store the strings is computed (sum of the
+     string lengths of the NID strings, plus trailing nuls, plus one).
+   - A temporary buffer of the required size is allocated.
    - The NID strings are copied consecutively into the buffer.  Each NID string
      is nul terminated and an extra nul is written after the final NID string.
+   - The contents of the buffer is copied to the user space buffer.
    - The @c nlx_core_nidstrs_put() API is called to release the list of NID
      strings.
+   - The temporary buffer is freed.
    - The number of NID strings is returned on success; @c nlx_dev_ioctl()
      returns this positive number instead of the typical 0 for success.
    - The value -EFBIG is returned if the buffer is not big enough.
@@ -850,24 +854,11 @@ static C2_ADDB_EV_DEFINE(nlx_addb_dev_cleanup, "nlx_dev_cleanup",
    @{
  */
 
-#define WRITABLE_USER_PAGE_GET(uaddr, pg)				\
-	get_user_pages(current, current->mm, (unsigned long) (uaddr),	\
-		       1, 1, 0, &(pg), NULL)
-
-/** Put a writable user page after calling SetPageDirty(). */
-#define WRITABLE_USER_PAGE_PUT(pg)		\
-({						\
-	struct page *__pg = (pg);		\
-	if (!PageReserved(__pg))		\
-		SetPageDirty(__pg);		\
-	put_page(__pg);				\
-})
-
 /**
    Completes the kernel initialization of the kernel and shared core domain
    objects.  The user domain object is mapped into kernel space and its
    nlx_core_domain::cd_kpvt field is set.
-   @param kd The kernel domain object
+   @param kd The kernel domain object.
    @param p Ioctl request parameters.  The buffer size maximum fields are
    set on success.
  */
@@ -877,6 +868,7 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 {
 	struct page *pg;
 	struct nlx_core_domain *cd;
+	uint32_t off = NLX_PAGE_OFFSET((unsigned long) p->ddi_cd);
 	int rc;
 
 	c2_mutex_lock(&kd->kd_drv_mutex);
@@ -884,6 +876,8 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 		c2_mutex_unlock(&kd->kd_drv_mutex);
 		return -EBADR;
 	}
+	if (off + sizeof *cd > PAGE_SIZE)
+		return -EBADR;
 
 	/* note: these calls can block */
 	down_read(&current->mm->mmap_sem);
@@ -892,8 +886,7 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 
 	if (rc >= 0) {
 		C2_ASSERT(rc == 1);
-		nlx_core_kmem_loc_set(&kd->kd_cd_loc, pg,
-				   NLX_PAGE_OFFSET((unsigned long) p->ddi_cd));
+		nlx_core_kmem_loc_set(&kd->kd_cd_loc, pg, off);
 		cd = nlx_kcore_core_domain_map(kd);
 		rc = kd->kd_drv_ops->ko_dom_init(kd, cd);
 		if (rc == 0) {
@@ -916,18 +909,107 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 
 /**
    Registers a shared memory buffer with the kernel domain.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
+   @param kd The kernel domain object.
+   @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 				      struct c2_lnet_dev_buf_register_params *p)
 {
-	return -ENOSYS;
+	struct page *pg;
+	struct nlx_core_buffer *cb;
+	struct nlx_kcore_buffer *kb;
+	uint32_t off = NLX_PAGE_OFFSET((unsigned long) p->dbr_lcbuf);
+	c2_bcount_t sz;
+	void **buf;
+	c2_bcount_t *count;
+	int n = p->dbr_bvec.ov_vec.v_nr;
+	int rc;
+
+	if (off + sizeof *cb > PAGE_SIZE)
+		return -EBADR;
+	if (p->dbr_buffer_id == 0)
+		return -EBADR;
+	C2_ALLOC_ARR_ADDB(buf, n, &kd->kd_addb, &nlx_addb_loc);
+	if (buf == NULL)
+		return -ENOMEM;
+	C2_ALLOC_ARR_ADDB(count, n, &kd->kd_addb, &nlx_addb_loc);
+	if (count == NULL) {
+		rc = -ENOMEM;
+		goto fail_count;
+	}
+
+	sz = n * sizeof *buf;
+	if (copy_from_user(buf, (void __user *) p->dbr_bvec.ov_buf, sz)) {
+		rc = -EFAULT;
+		goto fail_copy;
+	}
+	sz = n * sizeof *count;
+	if (copy_from_user(count,
+			   (void __user *) p->dbr_bvec.ov_vec.v_count, sz)) {
+		rc = -EFAULT;
+		goto fail_copy;
+	}
+
+	C2_ALLOC_PTR_ADDB(kb, &kd->kd_addb, &nlx_addb_loc);
+	if (kb == NULL) {
+		rc = -ENOMEM;
+		goto fail_copy;
+	}
+	kb->kb_magic = C2_NET_LNET_KCORE_BUF_MAGIC;
+
+	down_read(&current->mm->mmap_sem);
+	rc = WRITABLE_USER_PAGE_GET(p->dbr_lcbuf, pg);
+	up_read(&current->mm->mmap_sem);
+	if (rc < 0)
+		goto fail_page;
+	nlx_core_kmem_loc_set(&kb->kb_cb_loc, pg, off);
+	cb = nlx_kcore_core_buffer_map(kb);
+	if (cb->cb_magic != 0 || cb->cb_buffer_id != 0 || cb->cb_kpvt != NULL) {
+		rc = -EBADR;
+		goto fail_cb;
+	}
+	rc = kd->kd_drv_ops->ko_buf_register(kd, p->dbr_buffer_id, cb, kb);
+	if (rc != 0)
+		goto fail_cb;
+
+	p->dbr_bvec.ov_buf = buf;
+	p->dbr_bvec.ov_vec.v_count = count;
+	rc = nlx_kcore_buffer_uva_to_kiov(kb, &p->dbr_bvec);
+	p->dbr_bvec.ov_buf = NULL;
+	p->dbr_bvec.ov_vec.v_count = NULL;
+	if (rc != 0)
+		goto fail_kiov;
+
+	C2_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
+	C2_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
+	nlx_kcore_core_buffer_unmap(kb);
+	c2_mutex_lock(&kd->kd_drv_mutex);
+	drv_bufs_tlist_add(&kd->kd_drv_bufs, kb);
+	c2_mutex_unlock(&kd->kd_drv_mutex);
+	c2_free(count);
+	c2_free(buf);
+	return 0;
+
+fail_kiov:
+	kd->kd_drv_ops->ko_buf_deregister(cb, kb);
+fail_cb:
+	nlx_kcore_core_buffer_unmap(kb);
+	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
+fail_page:
+	kb->kb_magic = 0;
+	c2_free(kb);
+fail_copy:
+	c2_free(count);
+fail_count:
+	c2_free(buf);
+	C2_ASSERT(rc < 0);
+	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	return rc;
 }
 
 /**
    Unpins the pages referenced in a nlx_kcore_buffer::kb_kiov.
-   @param kb The kernel buffer object
+   @param kb The kernel buffer object.
  */
 static void nlx_dev_buf_pages_unpin(const struct nlx_kcore_buffer *kb)
 {
@@ -939,8 +1021,8 @@ static void nlx_dev_buf_pages_unpin(const struct nlx_kcore_buffer *kb)
 
 /**
    Deregisters a shared memory buffer from the kernel domain.
-   @param kd The kernel domain object
-   @param kb The kernel buffer object, freed upon return
+   @param kd The kernel domain object.
+   @param kb The kernel buffer object, freed upon return.
  */
 static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 				  struct nlx_kcore_buffer *kb)
@@ -949,7 +1031,9 @@ static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 
 	if (!nlx_kcore_buffer_invariant(kb))
 		return -EBADR;
+	c2_mutex_lock(&kd->kd_drv_mutex);
 	drv_bufs_tlist_del(kb);
+	c2_mutex_unlock(&kd->kd_drv_mutex);
 	nlx_dev_buf_pages_unpin(kb);
 	cb = nlx_kcore_core_buffer_map(kb);
 	kd->kd_drv_ops->ko_buf_deregister(cb, kb);
@@ -961,7 +1045,7 @@ static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 
 /**
    Deregisters a shared memory buffer from the kernel domain.
-   @param kd The kernel domain object
+   @param kd The kernel domain object.
    @param arg Ioctl request parameter for the kernel buffer object.
  */
 static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
@@ -976,115 +1060,101 @@ static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
 }
 
 /**
-   Enqueues a buffer for message reception.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
+   Enqueues a buffer on the appropriate transfer machine queue.
+   @param p Ioctl request parameters.
+   @param op Buffer queue operation to perform.
  */
-static int nlx_dev_ioctl_buf_msg_recv(struct nlx_kcore_domain *kd,
-				      struct c2_lnet_dev_buf_queue_params *p)
+static int nlx_dev_ioctl_buf_queue_op(
+				  const struct c2_lnet_dev_buf_queue_params *p,
+				  nlx_kcore_queue_op_t op)
 {
-	return -ENOSYS;
-}
+	struct nlx_kcore_transfer_mc *ktm = p->dbq_ktm;
+	struct nlx_kcore_buffer *kb = p->dbq_kb;
+	struct nlx_core_buffer *cb;
+	int rc;
 
-/**
-   Enqueues a buffer for message transmission.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
- */
-static int nlx_dev_ioctl_buf_msg_send(struct nlx_kcore_domain *kd,
-				      struct c2_lnet_dev_buf_queue_params *p)
-{
-	return -ENOSYS;
-}
+	C2_PRE(op != NULL);
+	if (!virt_addr_valid(ktm) || !virt_addr_valid(kb))
+		return -EBADR;
+	if (!nlx_kcore_tm_invariant(ktm))
+		return -EBADR;
+	if (!nlx_kcore_buffer_invariant(kb))
+		return -EBADR;
+	cb = nlx_kcore_core_buffer_map(kb);
+	if (!nlx_core_buffer_invariant(cb))
+		rc = -EBADR;
+	else
+		rc = op(ktm, cb, kb);
+	nlx_kcore_core_buffer_unmap(kb);
 
-/**
-   Enqueues a buffer for active bulk receive.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
- */
-static int nlx_dev_ioctl_buf_active_recv(struct nlx_kcore_domain *kd,
-					 struct c2_lnet_dev_buf_queue_params *p)
-{
-	return -ENOSYS;
-}
-
-/**
-   Enqueues a buffer for active bulk send.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
- */
-static int nlx_dev_ioctl_buf_active_send(struct nlx_kcore_domain *kd,
-					 struct c2_lnet_dev_buf_queue_params *p)
-{
-	return -ENOSYS;
-}
-
-/**
-   Enqueues a buffer for passive bulk receive.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
- */
-static int nlx_dev_ioctl_buf_passive_recv(struct nlx_kcore_domain *kd,
-					 struct c2_lnet_dev_buf_queue_params *p)
-{
-	return -ENOSYS;
-}
-
-/**
-   Enqueues a buffer for passive bulk send.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
- */
-static int nlx_dev_ioctl_buf_passive_send(struct nlx_kcore_domain *kd,
-					 struct c2_lnet_dev_buf_queue_params *p)
-{
-	return -ENOSYS;
+	return rc;
 }
 
 /**
    Cancels a buffer operation if possible.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
+   @param kd The kernel domain object.
+   @param p Ioctl request parameters.
  */
-static int nlx_dev_ioctl_buf_del(struct nlx_kcore_domain *kd,
-				 struct c2_lnet_dev_buf_queue_params *p)
+static int nlx_dev_ioctl_buf_del(const struct nlx_kcore_domain *kd,
+				 const struct c2_lnet_dev_buf_queue_params *p)
 {
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *ktm = p->dbq_ktm;
+	struct nlx_kcore_buffer *kb = p->dbq_kb;
+
+	if (!virt_addr_valid(ktm) || !virt_addr_valid(kb))
+		return -EBADR;
+	if (!nlx_kcore_tm_invariant(ktm))
+		return -EBADR;
+	if (!nlx_kcore_buffer_invariant(kb))
+		return -EBADR;
+	return kd->kd_drv_ops->ko_buf_del(ktm, kb);
 }
 
 /**
    Waits for buffer events, or the timeout.
-   @param kd The kernel domain object
-   @param p Ioctl request parameters
+   @param kd The kernel domain object.
+   @param p Ioctl request parameters.
  */
-static int nlx_dev_ioctl_buf_event_wait(struct nlx_kcore_domain *kd,
-				    struct c2_lnet_dev_buf_event_wait_params *p)
+static int nlx_dev_ioctl_buf_event_wait(const struct nlx_kcore_domain *kd,
+			     const struct c2_lnet_dev_buf_event_wait_params *p)
 {
-	return -ENOSYS;
+	struct nlx_kcore_transfer_mc *ktm = p->dbw_ktm;
+	struct nlx_core_transfer_mc *ctm;
+	int rc;
+
+	if (!virt_addr_valid(ktm))
+		return -EBADR;
+	if (!nlx_kcore_tm_invariant(ktm))
+		return -EBADR;
+	ctm = nlx_kcore_core_tm_map(ktm);
+	if (!nlx_core_tm_invariant(ctm))
+		rc = -EBADR;
+	else
+		rc = kd->kd_drv_ops->ko_buf_event_wait(ctm, ktm,
+						       p->dbw_timeout);
+	nlx_kcore_core_tm_unmap(ktm);
+
+	return rc;
 }
 
 /**
    Decodes a NID string into a NID.
-   @param kd The kernel domain object
    @param p Ioctl request parameters. The c2_lnet_dev_nid_encdec_params::dn_nid
    field is set on success.
  */
-static int nlx_dev_ioctl_nidstr_decode(struct nlx_kcore_domain *kd,
-				       struct c2_lnet_dev_nid_encdec_params *p)
+static int nlx_dev_ioctl_nidstr_decode(struct c2_lnet_dev_nid_encdec_params *p)
 {
-	return -ENOSYS;
+	return nlx_kcore_nidstr_decode(p->dn_buf, &p->dn_nid);
 }
 
 /**
    Encodes a NID into a NID string.
-   @param kd The kernel domain object
    @param p Ioctl request parameters. The c2_lnet_dev_nid_encdec_params::dn_buf
    field is set on success.
  */
-static int nlx_dev_ioctl_nidstr_encode(struct nlx_kcore_domain *kd,
-				       struct c2_lnet_dev_nid_encdec_params *p)
+static int nlx_dev_ioctl_nidstr_encode(struct c2_lnet_dev_nid_encdec_params *p)
 {
-	return -ENOSYS;
+	return nlx_kcore_nidstr_encode(p->dn_nid, p->dn_buf);
 }
 
 /**
@@ -1092,22 +1162,52 @@ static int nlx_dev_ioctl_nidstr_encode(struct nlx_kcore_domain *kd,
    The NID strings are encoded consecutively in user space buffer denoted by
    the c2_lnet_dev_nidstrs_get_params::dng_buf field as a sequence nul
    terminated strings, with an final nul (string) terminating the list.
-   @param kd The kernel domain object
+   @param kd The kernel domain object.
    @param p Ioctl request parameters.
    @retval -EFBIG if the strings do not fit in the provided buffer.
  */
 static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 				     struct c2_lnet_dev_nidstrs_get_params *p)
 {
-	return -ENOSYS;
+	char * const *nidstrs;
+	int rc = nlx_kcore_nidstrs_get(&nidstrs);
+	char *buf;
+	c2_bcount_t sz;
+	int i;
+
+	if (rc != 0)
+		return rc;
+	for (i = 0, sz = 1; nidstrs[i] != NULL; ++i)
+		sz += strlen(nidstrs[i]) + 1;
+	if (sz > p->dng_size) {
+		nlx_kcore_nidstrs_put(&nidstrs);
+		return -EFBIG;
+	}
+	C2_ALLOC_ADDB(buf, sz, &kd->kd_addb, &nlx_addb_loc);
+	if (buf == NULL) {
+		nlx_kcore_nidstrs_put(&nidstrs);
+		return -ENOMEM;
+	}
+	for (i = 0, sz = 0; nidstrs[i] != NULL; ++i) {
+		strcpy(&buf[sz], nidstrs[i]);
+		sz += strlen(nidstrs[i]) + 1;
+	}
+	nlx_kcore_nidstrs_put(&nidstrs);
+	if (copy_to_user((void __user *) p->dng_buf, buf, sz))
+		rc = -EFAULT;
+	else
+		rc = i;
+	c2_free(buf);
+
+	return rc;
 }
 
 /**
    Completes the kernel portion of the TM start logic.
    The shared transfer machine object is pinned in kernel space and its
    nlx_core_transfer_mc::ctm_kpvt field is set.
-   @param kd The kernel domain object
-   @param utmp User space pointer to a nlx_core_transfer_mc object
+   @param kd The kernel domain object.
+   @param utmp User space pointer to a nlx_core_transfer_mc object.
  */
 static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 				  unsigned long utmp)
@@ -1115,8 +1215,11 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	struct page *pg;
 	struct nlx_core_transfer_mc *ctm;
 	struct nlx_kcore_transfer_mc *ktm;
+	uint32_t off = NLX_PAGE_OFFSET(utmp);
 	int rc;
 
+	if (off + sizeof *ctm > PAGE_SIZE)
+		return -EBADR;
 	C2_ALLOC_PTR_ADDB(ktm, &kd->kd_addb, &nlx_addb_loc);
 	if (ktm == NULL)
 		return -ENOMEM;
@@ -1127,7 +1230,7 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	up_read(&current->mm->mmap_sem);
 	if (rc < 0)
 		goto fail_page;
-	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, NLX_PAGE_OFFSET(utmp));
+	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, off);
 	ctm = nlx_kcore_core_tm_map(ktm);
 	if (ctm->ctm_magic != 0 || ctm->ctm_mb_counter != 0 ||
 	    ctm->ctm_kpvt != NULL) {
@@ -1135,10 +1238,12 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 		goto fail_ctm;
 	}
 	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, ktm);
-	if (rc < 0)
+	if (rc != 0)
 		goto fail_ctm;
 	nlx_kcore_core_tm_unmap(ktm);
+	c2_mutex_lock(&kd->kd_drv_mutex);
 	drv_tms_tlist_add(&kd->kd_drv_tms, ktm);
+	c2_mutex_unlock(&kd->kd_drv_mutex);
 	return 0;
 
 fail_ctm:
@@ -1155,7 +1260,7 @@ fail_page:
 /**
    Helper for nlx_dev_close() and nlx_dev_ioctl_tm_stop() to clean up kernel
    resources associated with an individual transfer machine.
-   @param kd The kernel domain object
+   @param kd The kernel domain object.
    @param ktm The kernel transfer machine object, removed from the
    kd->kd_drv_tms and freed upon return.
  */
@@ -1169,13 +1274,17 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 		return -EBADR;
 	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
+		c2_mutex_lock(&kd->kd_drv_mutex);
 		drv_bevs_tlist_del(kbev);
+		c2_mutex_unlock(&kd->kd_drv_mutex);
 		c2_free(kbev);
 	} c2_tlist_endfor;
-
+	c2_mutex_lock(&kd->kd_drv_mutex);
 	drv_tms_tlist_del(ktm);
+	c2_mutex_unlock(&kd->kd_drv_mutex);
+
 	ctm = nlx_kcore_core_tm_map(ktm);
-	kd->kd_drv_ops->ko_tm_stop(kd, ctm, ktm);
+	kd->kd_drv_ops->ko_tm_stop(ctm, ktm);
 	nlx_kcore_core_tm_unmap(ktm);
 	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
 	c2_free(ktm);
@@ -1203,13 +1312,59 @@ static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd, unsigned long arg)
    The shared buffer event object is pinned in kernel space and its
    nlx_core_buffer_event::cbe_kpvt field is set.  The bev_link_bless()
    function is used to bless the nlx_core_buffer_event::cbe_tm_link.
-   @param kd The kernel domain object
+   @param kd The kernel domain object.
    @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 				   struct c2_lnet_dev_bev_bless_params *p)
 {
-	return -ENOSYS;
+	struct page *pg;
+	struct nlx_kcore_transfer_mc *ktm = p->dbb_ktm;
+	struct nlx_kcore_buffer_event *kbe;
+	struct nlx_core_buffer_event *cbe;
+	uint32_t off = NLX_PAGE_OFFSET((unsigned long) p->dbb_bev);
+	int rc;
+
+	if (!virt_addr_valid(ktm))
+		return -EBADR;
+	if (!nlx_kcore_tm_invariant(ktm))
+		return -EBADR;
+	if (off + sizeof *cbe > PAGE_SIZE)
+		return -EBADR;
+
+	C2_ALLOC_PTR_ADDB(kbe, &kd->kd_addb, &nlx_addb_loc);
+	if (kbe == NULL)
+		return -ENOMEM;
+	kbe->kbe_magic = C2_NET_LNET_KCORE_BEV_MAGIC;
+
+	down_read(&current->mm->mmap_sem);
+	rc = WRITABLE_USER_PAGE_GET(p->dbb_bev, pg);
+	up_read(&current->mm->mmap_sem);
+	if (rc < 0)
+		goto fail_page;
+	nlx_core_kmem_loc_set(&kbe->kbe_bev_loc, pg, off);
+	cbe = nlx_kcore_core_bev_map(kbe);
+	if (cbe->cbe_kpvt != NULL ||
+	    !nlx_core_kmem_loc_is_empty(&cbe->cbe_tm_link.cbl_p_self_loc)) {
+		rc = -EBADR;
+		goto fail_cbe;
+	}
+	bev_link_bless(&cbe->cbe_tm_link, pg);
+	nlx_kcore_core_bev_unmap(kbe);
+	c2_mutex_lock(&kd->kd_drv_mutex);
+	drv_bevs_tlist_add(&ktm->ktm_drv_bevs, kbe);
+	c2_mutex_unlock(&kd->kd_drv_mutex);
+	return 0;
+
+fail_cbe:
+	nlx_kcore_core_bev_unmap(kbe);
+	WRITABLE_USER_PAGE_PUT(kbe->kbe_bev_loc.kl_page);
+fail_page:
+	kbe->kbe_magic = 0;
+	c2_free(kbe);
+	C2_ASSERT(rc != 0);
+	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
+	return rc;
 }
 
 /**
@@ -1265,29 +1420,55 @@ static long nlx_dev_ioctl(struct file *file,
 	case C2_LNET_TM_STOP:
 		rc = nlx_dev_ioctl_tm_stop(kd, arg);
 		break;
+	case C2_LNET_BUF_REGISTER:
+		rc = nlx_dev_ioctl_buf_register(kd, &p.brp);
+		break;
 	case C2_LNET_BUF_DEREGISTER:
 		rc = nlx_dev_ioctl_buf_deregister(kd, arg);
 		break;
+	case C2_LNET_BUF_MSG_RECV:
+		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
+					      kd->kd_drv_ops->ko_buf_msg_recv);
+		break;
+	case C2_LNET_BUF_MSG_SEND:
+		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
+					      kd->kd_drv_ops->ko_buf_msg_send);
+		break;
+	case C2_LNET_BUF_ACTIVE_RECV:
+		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
+					   kd->kd_drv_ops->ko_buf_active_recv);
+		break;
+	case C2_LNET_BUF_ACTIVE_SEND:
+		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
+					   kd->kd_drv_ops->ko_buf_active_send);
+		break;
+	case C2_LNET_BUF_PASSIVE_RECV:
+		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
+					  kd->kd_drv_ops->ko_buf_passive_recv);
+		break;
+	case C2_LNET_BUF_PASSIVE_SEND:
+		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
+					  kd->kd_drv_ops->ko_buf_passive_send);
+		break;
+	case C2_LNET_BUF_DEL:
+		rc = nlx_dev_ioctl_buf_del(kd, &p.bqp);
+		break;
+	case C2_LNET_BUF_EVENT_WAIT:
+		rc = nlx_dev_ioctl_buf_event_wait(kd, &p.bep);
+		break;
+	case C2_LNET_BEV_BLESS:
+		rc = nlx_dev_ioctl_bev_bless(kd, &p.bbp);
+		break;
+	case C2_LNET_NIDSTR_DECODE:
+		rc = nlx_dev_ioctl_nidstr_decode(&p.nep);
+		break;
+	case C2_LNET_NIDSTR_ENCODE:
+		rc = nlx_dev_ioctl_nidstr_encode(&p.nep);
+		break;
+	case C2_LNET_NIDSTRS_GET:
+		rc = nlx_dev_ioctl_nidstrs_get(kd, &p.ngp);
+		break;
 	default:
-		/** @todo temporary code so this file will compile */
-		nlx_dev_ioctl_buf_register(NULL, NULL);
-		nlx_dev_ioctl_buf_msg_recv(NULL, NULL);
-		nlx_dev_ioctl_buf_msg_send(NULL, NULL);
-		nlx_dev_ioctl_buf_active_recv(NULL, NULL);
-		nlx_dev_ioctl_buf_active_send(NULL, NULL);
-		nlx_dev_ioctl_buf_passive_recv(NULL, NULL);
-		nlx_dev_ioctl_buf_passive_send(NULL, NULL);
-		nlx_dev_ioctl_buf_del(NULL, NULL);
-		nlx_dev_ioctl_buf_event_wait(NULL, NULL);
-		nlx_dev_ioctl_nidstr_decode(NULL, NULL);
-		nlx_dev_ioctl_nidstr_encode(NULL, NULL);
-		nlx_dev_ioctl_nidstrs_get(NULL, NULL);
-		nlx_dev_ioctl_bev_bless(NULL, NULL);
-
-		nlx_core_nidstr_decode(NULL, NULL, NULL);
-		nlx_core_nidstr_encode(NULL, 0, NULL);
-		nlx_kcore_buffer_uva_to_kiov(NULL, NULL);
-		/* end of temporary code */
 		rc = -ENOTTY;
 		break;
 	}
@@ -1346,8 +1527,8 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
    and buffers before closing the file.  This operation will not
    assert in that case, but will clean up and log the error via ADDB.
 
-   @param inode Device inode object
-   @param file File object being released
+   @param inode Device inode object.
+   @param file File object being released.
  */
 int nlx_dev_close(struct inode *inode, struct file *file)
 {
@@ -1355,7 +1536,6 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	    (struct nlx_kcore_domain *) file->private_data;
 	struct nlx_core_domain *cd;
 	struct nlx_kcore_transfer_mc *ktm;
-	struct nlx_core_transfer_mc *ctm;
 	struct nlx_kcore_buffer *kb;
 	bool cleanup = false;
 	int rc;
@@ -1378,9 +1558,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 			 * concurrently with the execution of this loop.
 			 * Such failures are OK in this context.
 			 */
-			ctm = nlx_kcore_core_tm_map(ktm);
-			nlx_kcore_LNetMDUnlink(ctm, ktm, kb);
-			nlx_kcore_core_tm_unmap(ktm);
+			nlx_kcore_LNetMDUnlink(ktm, kb);
 		}
 	} c2_tlist_endfor;
 	c2_tlist_for(&drv_tms_tl, &kd->kd_drv_tms, ktm) {

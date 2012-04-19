@@ -113,8 +113,6 @@ static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
 		kiov[pnum].kiov_len    = len;
 		kiov[pnum].kiov_offset = offset;
 
-		/** @todo kmap(seg_addr) with kunmap on deregister? */
-
 		seg_addr += len;
 		seg_len  -= len;
 	}
@@ -173,20 +171,123 @@ fail:
 }
 
 /**
+   Fill in a kiov array with pages from a segment of a c2_bufvec containing
+   user space addresses.
+
+   The pages are pinned (but not mapped).
+
+   @param kb Kcore buffer private pointer.
+   @param bvec Colibri buffer vector pointer.
+   @param n    Segment number in the vector.
+   @param kiov Pointer to array of lnet_kiov_t structures.
+   @retval Number of lnet_kiov_t elements added, or -errno on failure.
+ */
+static int bufvec_seg_uva_to_kiov(struct nlx_kcore_buffer *kb,
+				  const struct c2_bufvec *bvec,
+				  unsigned n,
+				  lnet_kiov_t *kiov)
+{
+	unsigned num_pages  = bufvec_seg_page_count(bvec, n);
+	c2_bcount_t seg_len = bvec->ov_vec.v_count[n];
+	uint64_t seg_addr   = (uint64_t) bvec->ov_buf[n];
+	int pnum;
+	int rc;
+
+	for (pnum = 0; pnum < num_pages; ++pnum) {
+		uint64_t offset = NLX_PAGE_OFFSET(seg_addr);
+		uint64_t len    = PAGE_SIZE - offset;
+		struct page *pg;
+
+		if (len > seg_len)
+			len = seg_len;
+
+		down_read(&current->mm->mmap_sem);
+		rc = WRITABLE_USER_PAGE_GET(seg_addr, pg);
+		up_read(&current->mm->mmap_sem);
+		if (rc < 0)
+			goto fail_page;
+		C2_ASSERT(rc == 1);
+
+		kiov[pnum].kiov_page   = pg;
+		kiov[pnum].kiov_len    = len;
+		kiov[pnum].kiov_offset = offset;
+
+		seg_addr += len;
+		seg_len  -= len;
+	}
+	return num_pages;
+fail_page:
+	while (pnum > 0)
+		WRITABLE_USER_PAGE_PUT(kiov[--pnum].kiov_page);
+	C2_ASSERT(rc < 0);
+	LNET_ADDB_FUNCFAIL_ADD(kb->kb_addb, rc);
+	return rc;
+}
+
+/**
    This subroutine sets up the LNet kernel I/O vector in the kcore buffer from
    a bufvec containing userspace virtual addresses.
 
    The pages referenced by the bvec->ov_buf are pinned in kernel memory.
 
-   @param kb Kcore buffer private pointer
+   @param kb Kcore buffer private pointer.
    @param bvec Vector with userspace virtual addresses.
    @retval -EFBIG if the IO vector is too large.
  */
 int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
 				 const struct c2_bufvec *bvec)
 {
-	/** @todo implement */
-	return -ENOSYS;
+	unsigned i;
+	unsigned num_pages;
+	unsigned knum;
+	int rc;
+
+	C2_PRE(nlx_kcore_buffer_invariant(kb));
+	C2_PRE(kb->kb_kiov == NULL && kb->kb_kiov_len == 0);
+
+	/* compute the number of pages required */
+	num_pages = 0;
+	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
+		num_pages += bufvec_seg_page_count(bvec, i);
+	if (num_pages == 0) {
+		rc = -EBADR;
+		goto fail;
+	} else if (num_pages > LNET_MAX_IOV) {
+		rc = -EFBIG;
+		goto fail;
+	}
+
+	/* allocate and fill in the kiov */
+	C2_ALLOC_ARR_ADDB(kb->kb_kiov, num_pages, &kb->kb_addb, &nlx_addb_loc);
+	if (kb->kb_kiov == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+	kb->kb_kiov_len = num_pages;
+	knum = 0;
+	for (i = 0; i < bvec->ov_vec.v_nr; ++i) {
+		rc = bufvec_seg_uva_to_kiov(kb, bvec, i, &kb->kb_kiov[knum]);
+		if (rc < 0)
+			goto fail_pages;
+		knum += rc;
+	}
+	C2_POST(knum == num_pages);
+	if (!nlx_kcore_kiov_invariant(kb->kb_kiov, kb->kb_kiov_len)) {
+		rc = -EBADR;
+		goto fail_pages;
+	}
+	return 0;
+
+fail_pages:
+	while (knum > 0)
+		WRITABLE_USER_PAGE_PUT(kb->kb_kiov[--knum].kiov_page);
+	c2_free(kb->kb_kiov);
+	kb->kb_kiov = NULL;
+	kb->kb_kiov_len = 0;
+fail:
+	C2_ASSERT(rc < 0);
+	LNET_ADDB_FUNCFAIL_ADD(kb->kb_addb, rc);
+	return rc;
 }
 
 /**
@@ -229,10 +330,7 @@ static size_t nlx_kcore_num_kiov_entries_for_bytes(const lnet_kiov_t *kiov,
 	return i;
 }
 
-
-/**
-   @}
- */
+/** @} */ /* KLNetCore */
 
 /*
  *  Local variables:

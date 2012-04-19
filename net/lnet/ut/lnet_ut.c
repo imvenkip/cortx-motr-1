@@ -153,7 +153,7 @@ enum {
 	STARTSTOP_DOM_NR = 3,
 	STARTSTOP_PID = 12345,	/* same as LUSTRE_SRV_LNET_PID */
 	STARTSTOP_PORTAL = 30,
-	STARTSTOP_STAT_SECS = 5,
+	STARTSTOP_STAT_SECS = 3,
 	STARTSTOP_STAT_PER_PERIOD = 1,
 	STARTSTOP_STAT_BUF_NR = 4,
 };
@@ -550,13 +550,25 @@ static int test_lnet_init(void)
 
 	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 #ifdef __KERNEL__
-	if (rc == 0) {
-		rc = ktest_lnet_init();
+	if (rc != 0)
+		return rc;
+	rc = ktest_lnet_init();
+#else
+	{
+		struct stat st;
+
+		/* fail entire suite if LNet device is not present */
+		rc = stat("/dev/" C2_LNET_DEV, &st);
+
 		if (rc != 0)
-			c2_net_xprt_fini(&c2_net_lnet_xprt);
+			rc = -errno;
+		else if (!S_ISCHR(st.st_mode))
+			rc = -ENODEV;
 	}
 #endif
-	if (rc == 0)
+	if (rc != 0)
+		c2_net_xprt_fini(&c2_net_lnet_xprt);
+	else
 		ut_save_subs();
 	return rc;
 }
@@ -656,6 +668,7 @@ static void test_tm_initfini(void)
 
 static struct c2_table mock_table;
 static struct c2_dbenv mock_dbenv;
+static struct c2_semaphore mock_sem;
 static int lnet_stat_ev_count;
 
 int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
@@ -688,6 +701,7 @@ int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 		c2_free(rec.ar_data.cmb_value);
 
 		lnet_stat_ev_count++;
+		c2_semaphore_up(&mock_sem);
 	}
 	return 0;
 }
@@ -710,7 +724,6 @@ static void test_tm_startstop(void)
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
-	c2_time_t sleeptime;
 	int rc;
 	int i;
 
@@ -721,6 +734,7 @@ static void test_tm_startstop(void)
 	ecb_reset();
 
 	/* mock addb db store */
+	c2_semaphore_init(&mock_sem, 0);
 	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_DB,
 					mock_db_add, &mock_table, &mock_dbenv);
 	C2_UT_ASSERT(rc == 0);
@@ -754,6 +768,7 @@ static void test_tm_startstop(void)
 		c2_free(tm);
 		c2_free(dom);
 		rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+		c2_semaphore_fini(&mock_sem);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_FAIL("aborting test case, endpoint in-use?");
 		return;
@@ -763,8 +778,7 @@ static void test_tm_startstop(void)
 	/* also test periodic statistics */
 	C2_UT_ASSERT(lnet_stat_ev_count == 0);
 	tm->ntm_qstats[C2_NET_QT_MSG_RECV] = fake_stats;
-	c2_time_set(&sleeptime, STARTSTOP_STAT_SECS + 2, 0);
-	C2_UT_ASSERT(c2_nanosleep(sleeptime, NULL) == 0);
+	c2_semaphore_down(&mock_sem);
 	C2_UT_ASSERT(lnet_stat_ev_count == STARTSTOP_STAT_PER_PERIOD);
 	ecb_reset();
 	c2_clink_add(&tm->ntm_chan, &tmwait1);
@@ -841,6 +855,7 @@ static void test_tm_startstop(void)
 	c2_free(tm);
 	c2_free(dom);
 	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+	c2_semaphore_fini(&mock_sem);
 	C2_UT_ASSERT(rc == 0);
 }
 

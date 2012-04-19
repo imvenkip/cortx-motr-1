@@ -853,18 +853,15 @@ C2_BASSERT(sizeof(__u64) == sizeof(uint64_t));
    const so that the UTs can modify it.
  */
 struct nlx_kcore_interceptable_subs {
-	int (*_nlx_kcore_LNetMDAttach)(struct nlx_core_transfer_mc *lctm,
-				       struct nlx_kcore_transfer_mc *kctm,
+	int (*_nlx_kcore_LNetMDAttach)(struct nlx_kcore_transfer_mc *kctm,
 				       struct nlx_core_buffer *lcbuf,
 				       struct nlx_kcore_buffer *kcb,
 				       lnet_md_t *umd);
-	int (*_nlx_kcore_LNetPut)(struct nlx_core_transfer_mc *lctm,
-				  struct nlx_kcore_transfer_mc *kctm,
+	int (*_nlx_kcore_LNetPut)(struct nlx_kcore_transfer_mc *kctm,
 				  struct nlx_core_buffer *lcbuf,
 				  struct nlx_kcore_buffer *kcb,
 				  lnet_md_t *umd);
-	int (*_nlx_kcore_LNetGet)(struct nlx_core_transfer_mc *lctm,
-				  struct nlx_kcore_transfer_mc *kctm,
+	int (*_nlx_kcore_LNetGet)(struct nlx_kcore_transfer_mc *kctm,
 				  struct nlx_core_buffer *lcbuf,
 				  struct nlx_kcore_buffer *kcb,
 				  lnet_md_t *umd);
@@ -879,12 +876,12 @@ static struct nlx_kcore_interceptable_subs nlx_kcore_iv = {
 #undef _NLXI
 };
 
-#define NLX_kcore_LNetMDAttach(lctm, ktm, lcbuf, kb, umd)	\
-	(*nlx_kcore_iv._nlx_kcore_LNetMDAttach)(lctm, ktm, lcbuf, kb, umd)
-#define NLX_kcore_LNetPut(lctm, ktm, lcbuf, kb, umd)		\
-	(*nlx_kcore_iv._nlx_kcore_LNetPut)(lctm, ktm, lcbuf, kb, umd)
-#define NLX_kcore_LNetGet(lctm, ktm, lcbuf, kb, umd)		\
-	(*nlx_kcore_iv._nlx_kcore_LNetGet)(lctm, ktm, lcbuf, kb, umd)
+#define NLX_kcore_LNetMDAttach(ktm, lcbuf, kb, umd)	\
+	(*nlx_kcore_iv._nlx_kcore_LNetMDAttach)(ktm, lcbuf, kb, umd)
+#define NLX_kcore_LNetPut(ktm, lcbuf, kb, umd)		\
+	(*nlx_kcore_iv._nlx_kcore_LNetPut)(ktm, lcbuf, kb, umd)
+#define NLX_kcore_LNetGet(ktm, lcbuf, kb, umd)		\
+	(*nlx_kcore_iv._nlx_kcore_LNetGet)(ktm, lcbuf, kb, umd)
 
 /**
    KCore domain invariant.
@@ -912,6 +909,19 @@ static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 	if (kcb == NULL || kcb->kb_magic != C2_NET_LNET_KCORE_BUF_MAGIC)
 		return false;
 	if (!nlx_core_kmem_loc_invariant(&kcb->kb_cb_loc))
+		return false;
+	return true;
+}
+
+/**
+   KCore buffer event invariant.
+ */
+static bool nlx_kcore_buffer_event_invariant(
+				      const struct nlx_kcore_buffer_event *kbe)
+{
+	if (kbe == NULL || kbe->kbe_magic != C2_NET_LNET_KCORE_BEV_MAGIC)
+		return false;
+	if (!nlx_core_kmem_loc_invariant(&kbe->kbe_bev_loc))
 		return false;
 	return true;
 }
@@ -953,7 +963,7 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
 /**
    Find an unused tmid.
    @note The nlx_kcore_mutex must be locked by the caller
-   @param cepa The NID, PID and Portal are used to filter the ::nlx_kcore_tms
+   @param cepa The NID, PID and Portal are used to filter the ::nlx_kcore_tms.
    @return The largest available tmid, or -EADDRNOTAVAIL if none exists.
  */
 static int nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
@@ -1038,12 +1048,12 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	C2_ASSERT(nlx_kcore_tm_invariant(ktm));
 	lctm = nlx_kcore_core_tm_map_atomic(ktm);
 
-	NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s U:%d S:%d T:%d buf:%lx\n",
-		lctm, event, nlx_kcore_lnet_event_type_to_string(event->type),
+	NLXDBGP(ktm, 1, "\t%p: eq_cb: %p %s U:%d S:%d T:%d buf:%lx\n",
+		ktm, event, nlx_kcore_lnet_event_type_to_string(event->type),
 		event->unlinked, event->status, event->md.threshold,
 		(unsigned long) kbp->kb_buffer_id);
-	NLXDBG(lctm, 2, nlx_kprint_lnet_event("eq_cb", event));
-	NLXDBG(lctm, 3, nlx_kprint_kcore_tm("eq_cb", ktm));
+	NLXDBG(ktm, 2, nlx_kprint_lnet_event("eq_cb", event));
+	NLXDBG(ktm, 3, nlx_kprint_kcore_tm("eq_cb", ktm));
 
 	if (event->unlinked != 0) {
 		LNetInvalidateHandle(&kbp->kb_mdh); /* Invalid use, but safe */
@@ -1058,7 +1068,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	    kbp->kb_qtype == C2_NET_QT_ACTIVE_BULK_RECV) {
 		/* An LNetGet related event, normally ignored */
 		if (!is_unlinked) {
-			NLXDBGP(lctm, 1, "\t%p: ignored LNetGet() SEND\n",lctm);
+			NLXDBGP(ktm, 1, "\t%p: ignored LNetGet() SEND\n", ktm);
 			goto done;
 		}
 		/* An out-of-order SEND, or
@@ -1066,9 +1076,9 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		   The only way to distinguish is from the value of the
 		   event->kb_ooo_reply field.
 		 */
-		NLXDBGP(lctm, 1,
+		NLXDBGP(ktm, 1,
 			"\t%p: LNetGet() SEND with unlinked: thr:%d ooo:%d\n",
-			lctm, event->md.threshold, (int) kbp->kb_ooo_reply);
+			ktm, event->md.threshold, (int) kbp->kb_ooo_reply);
 		if (status == 0) {
 			if (!kbp->kb_ooo_reply)
 				status = -ECANCELED;
@@ -1082,7 +1092,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		C2_ASSERT(is_unlinked);
 		status = -ECANCELED;
 	} else if (!is_unlinked) {
-		NLXDBGP(lctm, 1, "\t%p: eq_cb: %p %s !unlinked Q=%d\n", lctm,
+		NLXDBGP(ktm, 1, "\t%p: eq_cb: %p %s !unlinked Q=%d\n", ktm,
 			event, nlx_kcore_lnet_event_type_to_string(event->type),
 			kbp->kb_qtype);
 		/* We may get REPLY before SEND, so ignore such events,
@@ -1349,20 +1359,17 @@ void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 /**
    Performs kernel core tasks relating to adding a buffer to
    the message receive queue.
-   @param ctm The transfer machine private data.
    @param ktm The kernel transfer machine private data.
    @param cb The buffer private data.
    @param kb The kernel buffer private data.
  */
-static int nlx_kcore_buf_msg_recv(struct nlx_core_transfer_mc *ctm,
-				  struct nlx_kcore_transfer_mc *ktm,
+static int nlx_kcore_buf_msg_recv(struct nlx_kcore_transfer_mc *ktm,
 				  struct nlx_core_buffer *cb,
 				  struct nlx_kcore_buffer *kb)
 {
 	lnet_md_t umd;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
@@ -1371,13 +1378,13 @@ static int nlx_kcore_buf_msg_recv(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(cb->cb_min_receive_size <= cb->cb_length);
 	C2_PRE(cb->cb_max_operations > 0);
 
-	nlx_kcore_umd_init(ctm, ktm, cb, kb, cb->cb_max_operations,
+	nlx_kcore_umd_init(ktm, cb, kb, cb->cb_max_operations,
 			   cb->cb_min_receive_size, LNET_MD_OP_PUT,
 			   false, &umd);
 	cb->cb_match_bits =
 		nlx_core_match_bits_encode(ktm->ktm_addr.cepa_tmid, 0);
 	cb->cb_addr = ktm->ktm_addr;
-	rc = NLX_kcore_LNetMDAttach(ctm, ktm, cb, kb, &umd);
+	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
 	return rc;
@@ -1394,26 +1401,23 @@ int nlx_core_buf_msg_recv(struct nlx_core_domain *cd, /* not used */
 	ktm = ctm->ctm_kpvt;
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	kb = cb->cb_kpvt;
-	return nlx_kcore_buf_msg_recv(ctm, ktm, cb, kb);
+	return nlx_kcore_buf_msg_recv(ktm, cb, kb);
 }
 
 /**
    Performs kernel core tasks relating to adding a buffer to
    the message receive queue.
-   @param ctm The transfer machine private data.
    @param ktm The kernel transfer machine private data.
    @param cb The buffer private data.
    @param kb The kernel buffer private data.
  */
-static int nlx_kcore_buf_msg_send(struct nlx_core_transfer_mc *ctm,
-				  struct nlx_kcore_transfer_mc *ktm,
+static int nlx_kcore_buf_msg_send(struct nlx_kcore_transfer_mc *ktm,
 				  struct nlx_core_buffer *cb,
 				  struct nlx_kcore_buffer *kb)
 {
 	lnet_md_t umd;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
@@ -1421,14 +1425,14 @@ static int nlx_kcore_buf_msg_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(cb->cb_length > 0);
 	C2_PRE(cb->cb_max_operations == 1);
 
-	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, 0, false, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
+	nlx_kcore_umd_init(ktm, cb, kb, 1, 0, 0, false, &umd);
+	nlx_kcore_kiov_adjust_length(ktm, kb, &umd, cb->cb_length);
 	cb->cb_match_bits =
 		nlx_core_match_bits_encode(cb->cb_addr.cepa_tmid, 0);
-	rc = NLX_kcore_LNetPut(ctm, ktm, cb, kb, &umd);
+	rc = NLX_kcore_LNetPut(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
-	nlx_kcore_kiov_restore_length(ctm, kb);
+	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
 
@@ -1443,19 +1447,17 @@ int nlx_core_buf_msg_send(struct nlx_core_domain *cd, /* not used */
 	ktm = ctm->ctm_kpvt;
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	kb = cb->cb_kpvt;
-	return nlx_kcore_buf_msg_send(ctm, ktm, cb, kb);
+	return nlx_kcore_buf_msg_send(ktm, cb, kb);
 }
 
 /**
    Performs kernel core tasks relating to adding a buffer to
    the bulk active receive queue.
-   @param ctm The transfer machine private data.
    @param ktm The kernel transfer machine private data.
    @param cb The buffer private data.
    @param kb The kernel buffer private data.
  */
-static int nlx_kcore_buf_active_recv(struct nlx_core_transfer_mc *ctm,
-				     struct nlx_kcore_transfer_mc *ktm,
+static int nlx_kcore_buf_active_recv(struct nlx_kcore_transfer_mc *ktm,
 				     struct nlx_core_buffer *cb,
 				     struct nlx_kcore_buffer *kb)
 {
@@ -1464,7 +1466,6 @@ static int nlx_kcore_buf_active_recv(struct nlx_core_transfer_mc *ctm,
 	lnet_md_t umd;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
@@ -1478,12 +1479,12 @@ static int nlx_kcore_buf_active_recv(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
 	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
-	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, 0, true, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
-	rc = NLX_kcore_LNetGet(ctm, ktm, cb, kb, &umd);
+	nlx_kcore_umd_init(ktm, cb, kb, 1, 0, 0, true, &umd);
+	nlx_kcore_kiov_adjust_length(ktm, kb, &umd, cb->cb_length);
+	rc = NLX_kcore_LNetGet(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
-	nlx_kcore_kiov_restore_length(ctm, kb);
+	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
 
@@ -1498,19 +1499,17 @@ int nlx_core_buf_active_recv(struct nlx_core_domain *cd, /* not used */
 	ktm = ctm->ctm_kpvt;
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	kb = cb->cb_kpvt;
-	return nlx_kcore_buf_active_recv(ctm, ktm, cb, kb);
+	return nlx_kcore_buf_active_recv(ktm, cb, kb);
 }
 
 /**
    Performs kernel core tasks relating to adding a buffer to
    the bulk active send queue.
-   @param ctm The transfer machine private data.
    @param ktm The kernel transfer machine private data.
    @param cb The buffer private data.
    @param kb The kernel buffer private data.
  */
-static int nlx_kcore_buf_active_send(struct nlx_core_transfer_mc *ctm,
-				     struct nlx_kcore_transfer_mc *ktm,
+static int nlx_kcore_buf_active_send(struct nlx_kcore_transfer_mc *ktm,
 				     struct nlx_core_buffer *cb,
 				     struct nlx_kcore_buffer *kb)
 {
@@ -1519,7 +1518,6 @@ static int nlx_kcore_buf_active_send(struct nlx_core_transfer_mc *ctm,
 	lnet_md_t umd;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
@@ -1533,12 +1531,12 @@ static int nlx_kcore_buf_active_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
 	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
-	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, 0, false, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
-	rc = NLX_kcore_LNetPut(ctm, ktm, cb, kb, &umd);
+	nlx_kcore_umd_init(ktm, cb, kb, 1, 0, 0, false, &umd);
+	nlx_kcore_kiov_adjust_length(ktm, kb, &umd, cb->cb_length);
+	rc = NLX_kcore_LNetPut(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
-	nlx_kcore_kiov_restore_length(ctm, kb);
+	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
 
@@ -1553,19 +1551,17 @@ int nlx_core_buf_active_send(struct nlx_core_domain *cd, /* not used */
 	ktm = ctm->ctm_kpvt;
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	kb = cb->cb_kpvt;
-	return nlx_kcore_buf_active_send(ctm, ktm, cb, kb);
+	return nlx_kcore_buf_active_send(ktm, cb, kb);
 }
 
 /**
    Performs kernel core tasks relating to adding a buffer to
    the bulk passive receive queue.
-   @param ctm The transfer machine private data.
    @param ktm The kernel transfer machine private data.
    @param cb The buffer private data.
    @param kb The kernel buffer private data.
  */
-static int nlx_kcore_buf_passive_recv(struct nlx_core_transfer_mc *ctm,
-				      struct nlx_kcore_transfer_mc *ktm,
+static int nlx_kcore_buf_passive_recv(struct nlx_kcore_transfer_mc *ktm,
 				      struct nlx_core_buffer *cb,
 				      struct nlx_kcore_buffer *kb)
 {
@@ -1574,7 +1570,6 @@ static int nlx_kcore_buf_passive_recv(struct nlx_core_transfer_mc *ctm,
 	lnet_md_t umd;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
@@ -1588,9 +1583,9 @@ static int nlx_kcore_buf_passive_recv(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
 	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
-	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, LNET_MD_OP_PUT, false, &umd);
+	nlx_kcore_umd_init(ktm, cb, kb, 1, 0, LNET_MD_OP_PUT, false, &umd);
 	cb->cb_addr = ktm->ktm_addr;
-	rc = NLX_kcore_LNetMDAttach(ctm, ktm, cb, kb, &umd);
+	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
 	return rc;
@@ -1607,19 +1602,17 @@ int nlx_core_buf_passive_recv(struct nlx_core_domain *cd, /* not used */
 	ktm = ctm->ctm_kpvt;
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	kb = cb->cb_kpvt;
-	return nlx_kcore_buf_passive_recv(ctm, ktm, cb, kb);
+	return nlx_kcore_buf_passive_recv(ktm, cb, kb);
 }
 
 /**
    Performs kernel core tasks relating to adding a buffer to
    the bulk passive send queue.
-   @param ctm The transfer machine private data.
    @param ktm The kernel transfer machine private data.
    @param cb The buffer private data.
    @param kb The kernel buffer private data.
  */
-static int nlx_kcore_buf_passive_send(struct nlx_core_transfer_mc *ctm,
-				      struct nlx_kcore_transfer_mc *ktm,
+static int nlx_kcore_buf_passive_send(struct nlx_kcore_transfer_mc *ktm,
 				      struct nlx_core_buffer *cb,
 				      struct nlx_kcore_buffer *kb)
 {
@@ -1628,7 +1621,6 @@ static int nlx_kcore_buf_passive_send(struct nlx_core_transfer_mc *ctm,
 	lnet_md_t umd;
 	int rc;
 
-	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
@@ -1642,13 +1634,13 @@ static int nlx_kcore_buf_passive_send(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(counter >= C2_NET_LNET_BUFFER_ID_MIN);
 	C2_PRE(counter <= C2_NET_LNET_BUFFER_ID_MAX);
 
-	nlx_kcore_umd_init(ctm, ktm, cb, kb, 1, 0, LNET_MD_OP_GET, false, &umd);
-	nlx_kcore_kiov_adjust_length(ctm, kb, &umd, cb->cb_length);
+	nlx_kcore_umd_init(ktm, cb, kb, 1, 0, LNET_MD_OP_GET, false, &umd);
+	nlx_kcore_kiov_adjust_length(ktm, kb, &umd, cb->cb_length);
 	cb->cb_addr = ktm->ktm_addr;
-	rc = NLX_kcore_LNetMDAttach(ctm, ktm, cb, kb, &umd);
+	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL_ADD(ktm->ktm_addb, rc);
-	nlx_kcore_kiov_restore_length(ctm, kb);
+	nlx_kcore_kiov_restore_length(kb);
 	return rc;
 }
 
@@ -1663,7 +1655,7 @@ int nlx_core_buf_passive_send(struct nlx_core_domain *cd, /* not used */
 	ktm = ctm->ctm_kpvt;
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	kb = cb->cb_kpvt;
-	return nlx_kcore_buf_passive_send(ctm, ktm, cb, kb);
+	return nlx_kcore_buf_passive_send(ktm, cb, kb);
 }
 
 int nlx_core_buf_del(struct nlx_core_domain *cd, /* not used */
@@ -1684,7 +1676,7 @@ int nlx_core_buf_del(struct nlx_core_domain *cd, /* not used */
 	   The unlink bit is also set in other LNet events but does not
 	   signify cancel in those cases.
 	 */
-	return nlx_kcore_LNetMDUnlink(ctm, ktm, kb);
+	return nlx_kcore_LNetMDUnlink(ktm, kb);
 }
 
 /**
@@ -1728,7 +1720,7 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
    Decodes a NID string into a NID.
    @param nidstr the string to be decoded.
    @param nid On success, the resulting NID is returned here.
-   @retval -EINVAL the NID string could not be decoded
+   @retval -EINVAL the NID string could not be decoded.
  */
 static int nlx_kcore_nidstr_decode(const char *nidstr, uint64_t *nid)
 {
@@ -1823,17 +1815,14 @@ int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 /**
    Performs kernel core tasks relating to stopping a transfer machine.
    Kernel resources are released.
-   @param kd kernel domain for this transfer machine
    @param ctm The transfer machine private data.
    @param ktm The kernel transfer machine private data.
  */
-static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
-			      struct nlx_core_transfer_mc *ctm,
+static void nlx_kcore_tm_stop(struct nlx_core_transfer_mc *ctm,
 			      struct nlx_kcore_transfer_mc *ktm)
 {
 	int rc;
 
-	C2_PRE(nlx_kcore_domain_invariant(kd));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 	C2_PRE(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
 
@@ -1856,15 +1845,11 @@ static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
 void nlx_core_tm_stop(struct nlx_core_domain *cd,
 		      struct nlx_core_transfer_mc *ctm)
 {
-	struct nlx_kcore_domain *kd;
 	struct nlx_kcore_transfer_mc *ktm;
 
-	C2_PRE(cd != NULL);
-	kd = cd->cd_kpvt;
-	C2_PRE(nlx_kcore_domain_invariant(kd));
 	C2_PRE(nlx_core_tm_invariant(ctm));
 	ktm = ctm->ctm_kpvt;
-	nlx_kcore_tm_stop(kd, ctm, ktm);
+	nlx_kcore_tm_stop(ctm, ktm);
 	bev_cqueue_fini(&ctm->ctm_bevq, nlx_core_bev_free_cb);
 	c2_free(ktm);
 }
@@ -1879,8 +1864,7 @@ void nlx_core_tm_stop(struct nlx_core_domain *cd,
    lcpea_tmid field value is C2_NET_LNET_TMID_INVALID then a transfer
    machine identifier is dynamically assigned to the transfer machine
    and the nlx_core_transfer_mc::ctm_addr is modified in place.
-   @param ktm The kernel transfer machine private data to be
-   initialized.
+   @param ktm The kernel transfer machine private data to be initialized.
  */
 static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
 			      struct nlx_core_transfer_mc *ctm,
@@ -1942,6 +1926,7 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
 		goto fail_with_eq;
 	}
 	ktm->ktm_addr = *cepa;
+	ktm->_debug_ = ctm->_debug_;
 	nlx_kcore_tms_list_add(ktm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 
@@ -2005,7 +1990,7 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	C2_ASSERT(e2 == NULL);
 	if (e1 != NULL)
 		nlx_core_bev_free_cb(&e1->cbe_tm_link);
-	nlx_kcore_tm_stop(kd, ctm, ktm);
+	nlx_kcore_tm_stop(ctm, ktm);
  fail_ktm:
 	c2_free(ktm);
 	C2_ASSERT(rc != 0);
