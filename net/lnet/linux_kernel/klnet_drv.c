@@ -1277,6 +1277,7 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 		c2_mutex_lock(&kd->kd_drv_mutex);
 		drv_bevs_tlist_del(kbev);
 		c2_mutex_unlock(&kd->kd_drv_mutex);
+		drv_bevs_tlink_fini(kbev);
 		c2_free(kbev);
 	} c2_tlist_endfor;
 	c2_mutex_lock(&kd->kd_drv_mutex);
@@ -1335,7 +1336,7 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 	C2_ALLOC_PTR_ADDB(kbe, &kd->kd_addb, &nlx_addb_loc);
 	if (kbe == NULL)
 		return -ENOMEM;
-	kbe->kbe_magic = C2_NET_LNET_KCORE_BEV_MAGIC;
+	drv_bevs_tlink_init(kbe);
 
 	down_read(&current->mm->mmap_sem);
 	rc = WRITABLE_USER_PAGE_GET(p->dbb_bev, pg);
@@ -1350,6 +1351,7 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 		goto fail_cbe;
 	}
 	bev_link_bless(&cbe->cbe_tm_link, pg);
+	cbe->cbe_kpvt = kbe;
 	nlx_kcore_core_bev_unmap(kbe);
 	c2_mutex_lock(&kd->kd_drv_mutex);
 	drv_bevs_tlist_add(&ktm->ktm_drv_bevs, kbe);
@@ -1360,6 +1362,7 @@ fail_cbe:
 	nlx_kcore_core_bev_unmap(kbe);
 	WRITABLE_USER_PAGE_PUT(kbe->kbe_bev_loc.kl_page);
 fail_page:
+	drv_bevs_tlink_fini(kbe);
 	kbe->kbe_magic = 0;
 	c2_free(kbe);
 	C2_ASSERT(rc != 0);
