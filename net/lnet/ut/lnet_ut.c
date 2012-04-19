@@ -550,10 +550,14 @@ static int test_lnet_init(void)
 
 	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 #ifdef __KERNEL__
-	if (rc == 0)
+	if (rc == 0) {
 		rc = ktest_lnet_init();
+		if (rc != 0)
+			c2_net_xprt_fini(&c2_net_lnet_xprt);
+	}
 #endif
-	ut_save_subs();
+	if (rc == 0)
+		ut_save_subs();
 	return rc;
 }
 
@@ -759,7 +763,7 @@ static void test_tm_startstop(void)
 	/* also test periodic statistics */
 	C2_UT_ASSERT(lnet_stat_ev_count == 0);
 	tm->ntm_qstats[C2_NET_QT_MSG_RECV] = fake_stats;
-	c2_time_set(&sleeptime, STARTSTOP_STAT_SECS + 1, 0);
+	c2_time_set(&sleeptime, STARTSTOP_STAT_SECS + 2, 0);
 	C2_UT_ASSERT(c2_nanosleep(sleeptime, NULL) == 0);
 	C2_UT_ASSERT(lnet_stat_ev_count == STARTSTOP_STAT_PER_PERIOD);
 	ecb_reset();
@@ -2137,6 +2141,7 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_enc_dec (K)",   ktest_enc_dec },
 		{ "net_lnet_msg (K)",       ktest_msg },
 		{ "net_lnet_bulk (K)",      ktest_bulk },
+		{ "net_lnet_device",        ktest_dev },
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
@@ -2145,9 +2150,6 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_bulk",          test_bulk },
 		{ "net_lnet_sync",          test_sync },
 		{ "net_lnet_timeout",       test_timeout },
-#ifdef __KERNEL__
-		{ "net_lnet_device",        ktest_dev },
-#endif
                 { NULL, NULL }
         }
 };

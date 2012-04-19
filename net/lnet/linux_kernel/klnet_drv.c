@@ -1145,6 +1145,7 @@ fail_ctm:
 	nlx_kcore_core_tm_unmap(ktm);
 	WRITABLE_USER_PAGE_PUT(ktm->ktm_ctm_loc.kl_page);
 fail_page:
+	ktm->ktm_magic = 0;
 	c2_free(ktm);
 	C2_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL_ADD(kd->kd_addb, rc);
@@ -1245,9 +1246,6 @@ static long nlx_dev_ioctl(struct file *file,
 	    sz > sizeof p) {
 		rc = -ENOTTY;
 		goto done;
-	} else if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC)) {
-		rc = -EBADF;
-		goto done;
 	}
 
 	if ((_IOC_DIR(cmd) & _IOC_WRITE) && sz > sizeof arg) {
@@ -1321,6 +1319,8 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 
         if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
+	else if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC))
+		return -EACCES;
 
 	C2_ALLOC_PTR_ADDB(kd, &c2_net_addb, &nlx_addb_loc);
 	if (kd == NULL)

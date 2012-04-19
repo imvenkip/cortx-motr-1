@@ -32,10 +32,10 @@
 #include "net/net.h"
 #include "net/lnet/lnet_core_types.h"
 #include "net/lnet/lnet_ioctl.h"
-#include "net/lnet/ut/lnet_ut.h"
+#include "net/lnet/ut/lnet_drv_ut.h"
 
 const char lnet_xprt_dev[] = "/dev/" C2_LNET_DEV;
-const char lnet_ut_proc[]  = "/proc/c2_lnet_ut";
+const char lnet_ut_proc[]  = "/proc/" UT_PROC_NAME;
 
 enum {
 	MAX_PROC_TRIES = 120,

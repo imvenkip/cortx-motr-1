@@ -25,14 +25,13 @@
  * file.
  */
 
-#include "net/lnet/ut/lnet_ut.h"
+#include "net/lnet/ut/lnet_drv_ut.h"
 
 enum {
 	UT_PROC_WRITE_SIZE = 8,   /**< max size of data to write to proc file */
 	UT_SYNC_DELAY_SEC = 5,    /**< delay for user program to sync */
 };
 
-#define UT_PROC_NAME "c2_lnet_ut"
 static struct proc_dir_entry *proc_lnet_ut;
 
 static struct c2_mutex ktest_mutex;
@@ -1937,13 +1936,13 @@ static void ktest_bulk(void)
 #undef UT_BUFVEC_FREE
 #undef UT_BUFVEC_ALLOC
 
-int ut_dev_opens;
-int ut_dev_closes;
-int ut_dev_cleanups;
-int ut_dev_dom_inits;
-int ut_dev_dom_finis;
-int ut_dev_tm_starts;
-int ut_dev_tm_stops;
+static int ut_dev_opens;
+static int ut_dev_closes;
+static int ut_dev_cleanups;
+static int ut_dev_dom_inits;
+static int ut_dev_dom_finis;
+static int ut_dev_tm_starts;
+static int ut_dev_tm_stops;
 
 static int ut_kcore_core_dom_init(struct nlx_kcore_domain *kd,
 				  struct nlx_core_domain *cd)
@@ -2103,7 +2102,7 @@ static void ktest_dev(void)
 	nlx_dev_file_ops.release = ut_dev_close;
 	nlx_dev_file_ops.open    = ut_dev_open;
 
-	/* initial handshake */
+	/* initial handshake with the user program */
 	c2_mutex_lock(&ktest_mutex);
 	if (ktest_id == UT_TEST_NONE)
 		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);
