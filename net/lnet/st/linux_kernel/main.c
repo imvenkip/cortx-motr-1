@@ -34,9 +34,8 @@
 #include "net/lnet/st/ping.h"
 
 /**
-   @addtogroup LNetDFS LNet Transport System Test
-
-  @{
+   @addtogroup LNetDFS
+   @{
  */
 
 /* Module parameters */
@@ -365,10 +364,9 @@ module_exit(c2_netst_fini_k)
 
 MODULE_AUTHOR("Xyratex");
 MODULE_DESCRIPTION("Colibri Kernel Messaging System Test");
-/* GPL license required as long as kernel sunrpc is used */
 MODULE_LICENSE("proprietary");
 
-/** @} end of group net */
+/** @} */ /* LNetDFS */
 
 /*
  *  Local variables:
