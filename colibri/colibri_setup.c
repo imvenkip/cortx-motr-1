@@ -69,6 +69,11 @@ enum {
 	WAIT_FOR_REQH_SHUTDOWN = 1000000,
 };
 
+C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffers pools in the colibri", ,
+                   struct c2_cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
+                   C2_CS_BUFFER_POOL_MAGIC, C2_CS_BUFFER_POOL_HEAD);
+C2_TL_DEFINE(cs_buffer_pools, , struct c2_cs_buffer_pool);
+
 extern const struct c2_tl_descr c2_rstypes_descr;
 extern struct c2_tl		c2_rstypes;
 extern struct c2_mutex		c2_rstypes_mutex;
@@ -215,6 +220,7 @@ static const struct c2_tl_descr ndoms_descr = C2_TL_DESCR("network domains",
 
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 						  const char *xprt);
+
 /**
    Looks up an xprt by the name.
 
@@ -587,6 +593,20 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 	return NULL;
 }
 
+static struct c2_net_buffer_pool *cs_buffer_pool_get(struct c2_colibri *cctx,
+						     struct c2_net_domain *ndom)
+{
+	struct c2_net_buffer_pool  *buffer_pool;
+	struct c2_cs_buffer_pool   *cs_bp;
+	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {
+		buffer_pool = &cs_bp->cs_buffer_pool;
+		if (buffer_pool != NULL && buffer_pool->nbp_ndom == ndom)
+			return buffer_pool;
+	} c2_tlist_endfor;
+	return NULL;
+}
+
+
 /**
    Initialises rpc machine for the given endpoint address.
    Once the new rpcmachine is created it is added to list of rpc machines
@@ -625,12 +645,13 @@ static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (rpcmach == NULL)
 		return -ENOMEM;
 
+	rpcmach->cr_buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = c2_rpcmachine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh);
 	if (rc != 0) {
 		c2_free(rpcmach);
 		return rc;
 	}
-
+	
 	c2_tlink_init(&c2_rh_rpml_descr, rpcmach);
 	c2_tlist_add_tail(&c2_rh_rpml_descr, &reqh->rh_rpcmachines, rpcmach);
 
@@ -742,15 +763,17 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	c2_bcount_t	      seg_size;
 	c2_bcount_t	      buf_size;
 	uint32_t	      shift = 0;
+	struct c2_net_buffer_pool *buffer_pool;
+	struct c2_cs_buffer_pool *cs_bp;
 
-	return 0;
 	C2_PRE(cctx != NULL);
 	C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
-		C2_ALLOC_PTR(ndom->nd_app_pool);
-		if (ndom->nd_app_pool == NULL)
+		C2_ALLOC_PTR(cs_bp);
+		if (cs_bp == NULL)
 			return -ENOMEM;
-		ndom->nd_app_pool->nbp_ops = &b_ops;
+		buffer_pool = &cs_bp->cs_buffer_pool;
+		buffer_pool->nbp_ops = &b_ops;
 		buf_size = c2_net_domain_get_max_buffer_size(ndom);
 		segs_nr  = c2_net_domain_get_max_buffer_segments(ndom);
 		seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
@@ -758,21 +781,24 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		seg_size = 1 << 12;
 		C2_ASSERT((segs_nr * seg_size) <=
 			   c2_net_domain_get_max_buffer_size(ndom));
-		c2_net_buffer_pool_init(ndom->nd_app_pool, ndom, 2, segs_nr,
+		c2_net_buffer_pool_init(buffer_pool, ndom, 2, segs_nr,
 					seg_size, 64, shift);
 		/* @todo Number of TM's need to be assumed or taken from user.
 		   c2_list_length(&ndom->nd_tms));
 		 */
-		c2_net_buffer_pool_lock(ndom->nd_app_pool);
+		c2_net_buffer_pool_lock(buffer_pool);
 		/* @todo Number of buffers in the pool to be assumed or taken
 		    from user. */
-		rc = c2_net_buffer_pool_provision(ndom->nd_app_pool,
+		rc = c2_net_buffer_pool_provision(buffer_pool,
 						  C2_RPC_TM_RECV_BUFFERS_NR);
-		c2_net_buffer_pool_unlock(ndom->nd_app_pool);
+		c2_net_buffer_pool_unlock(buffer_pool);
 		if (rc != C2_RPC_TM_RECV_BUFFERS_NR)
 			return -ENOMEM;
 		else
 			rc = 0;
+		
+		cs_buffer_pools_tlink_init(cs_bp);
+		cs_buffer_pools_tlist_add(&cctx->cc_buffer_pools, cs_bp);
 	} c2_tlist_endfor;
 
 	return rc;
@@ -780,14 +806,16 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 
 static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 {
-	struct c2_net_domain *ndom;
-	return;
+	struct c2_cs_buffer_pool  *cs_bp;
+	struct c2_net_buffer_pool  *buffer_pool;
 	C2_PRE(cctx != NULL);
 
-	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
-		c2_net_buffer_pool_lock(ndom->nd_app_pool);
-		c2_net_buffer_pool_fini(ndom->nd_app_pool);
-		c2_free(ndom->nd_app_pool);
+	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {
+		buffer_pool = &cs_bp->cs_buffer_pool;
+		c2_net_buffer_pool_lock(buffer_pool);
+		c2_net_buffer_pool_fini(buffer_pool);
+		c2_free(buffer_pool);
+                cs_buffer_pools_tlink_del_fini(cs_bp);
 	} c2_tlist_endfor;
 }
 
@@ -1282,6 +1310,7 @@ static int cs_colibri_init(struct c2_colibri *cctx)
 
 	c2_tlist_init(&ndoms_descr, &cctx->cc_ndoms);
 	c2_tlist_init(&rctx_descr, &cctx->cc_reqh_ctxs);
+        cs_buffer_pools_tlist_init(&cctx->cc_buffer_pools);
 
 	return 0;
 }
@@ -1296,10 +1325,12 @@ static int cs_colibri_init(struct c2_colibri *cctx)
 static void cs_colibri_fini(struct c2_colibri *cctx)
 {
 	C2_PRE(cctx != NULL);
-	cs_buffer_pool_fini(cctx);
+       // if (!cs_buffer_pools_tlist_is_empty(&cctx->cc_buffer_pools))
+		cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
 	c2_tlist_fini(&ndoms_descr, &cctx->cc_ndoms);
 	c2_tlist_fini(&rctx_descr, &cctx->cc_reqh_ctxs);
+        cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
 }
 
 /**

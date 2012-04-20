@@ -346,6 +346,8 @@ static int client_fini(struct c2_rpc_client_ctx *cctx)
 	c2_cob_domain_fini(cctx->rcx_cob_dom);
 	c2_dbenv_fini(cctx->rcx_dbenv);
 
+	c2_net_buffer_pool_cleanup(cctx->rcx_net_dom);
+
 	return rc;
 }
 

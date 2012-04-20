@@ -347,7 +347,8 @@ enum {
  * transfer machine.
  */
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 32,
+	C2_RPC_TM_RECV_BUFFERS_NR     = 32,
+	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 4,
 };
 
 
@@ -546,6 +547,7 @@ struct c2_rpcmachine {
 	struct c2_tl                      cr_services;
 
 	uint64_t                          cr_magic;
+	struct c2_net_buffer_pool	 *cr_buffer_pool;
 };
 
 /**

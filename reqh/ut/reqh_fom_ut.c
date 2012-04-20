@@ -238,6 +238,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	rc = c2_net_buffer_pool_setup(net_dom);
 	C2_UT_ASSERT(rc == 0);
 
+	srv_rpc_mach.cr_buffer_pool = net_dom->nd_app_pool;
+
 	/* Init the rpcmachine */
         rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
 				SERVER_ENDPOINT_ADDR, &reqh);

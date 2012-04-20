@@ -164,6 +164,7 @@ struct c2_rpc_client_ctx {
 	struct c2_net_end_point *rcx_remote_ep;
 	struct c2_rpc_conn      rcx_connection;
 	struct c2_rpc_session   rcx_session;
+	struct c2_net_buffer_pool *rcx_buffer_pool;
 };
 
 /**

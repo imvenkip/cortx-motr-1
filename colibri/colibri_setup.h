@@ -23,6 +23,7 @@
 
 #include "lib/tlist.h"
 #include "stob/stob.h"
+#include "net/buffer_pool.h"
 
 /**
    @defgroup colibri_setup Configures user space colibri environment
@@ -147,6 +148,26 @@ struct c2_colibri {
 	   @see c2_cs_init()
 	 */
 	FILE                      *cc_outfile;
+
+	/** Buffer pools per net domain. */
+        struct c2_tl		   cc_buffer_pools;
+};
+
+/**
+ * Data structure represents list of buffer pool per network domain.
+ */
+struct c2_cs_buffer_pool {
+        /** Pointer to Network buffer pool. */
+        struct c2_net_buffer_pool    cs_buffer_pool;
+        /** Linkage into netowrk buffer pool list */
+        struct c2_tlink              cs_bp_linkage;
+        /** Magic */
+        uint64_t                     cs_bp_magic;
+};
+
+enum {
+        C2_CS_BUFFER_POOL_MAGIC = 0x62756666657273,   /* buffers */
+        C2_CS_BUFFER_POOL_HEAD = 0x42554646455253,  /* BUFFERS */
 };
 
 /**

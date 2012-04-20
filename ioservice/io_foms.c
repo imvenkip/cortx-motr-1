@@ -1040,7 +1040,6 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
 
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
 		    "FOM created : type=rw.");
-
         return rc;
 }
 

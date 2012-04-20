@@ -123,7 +123,6 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 	c2_bcount_t buf_size;
 	uint32_t    shift = 0;
 	
-	return 0;
 	C2_PRE(ndom != NULL);
 	C2_ALLOC_PTR(ndom->nd_app_pool);
 	if (ndom->nd_app_pool == NULL)
@@ -154,7 +153,6 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 
 void c2_net_buffer_pool_cleanup(struct c2_net_domain *ndom)
 {
-	return;
 	C2_PRE(ndom != NULL);
 	C2_PRE(ndom->nd_app_pool != NULL);
 	c2_net_buffer_pool_lock(ndom->nd_app_pool);
@@ -173,13 +171,15 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	rc = c2_net_buffer_pool_setup(ndom);
 	if (rc != 0)
 		goto pool_fini;
+	
+	cctx->rcx_rpc_machine.cr_buffer_pool =  ndom->nd_app_pool;
 
 	rc = c2_rpcmachine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
 				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL);
 	if (rc != 0)
 		return rc;
 
-	tm = &cctx->rcx_rpc_machine.cr_tm;
+	tm				     = &cctx->rcx_rpc_machine.cr_tm;
 
 	c2_net_tm_colour_set(tm, tm_colours++);
 
@@ -262,7 +262,7 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 	struct c2_net_domain      *ndom;
-		ndom = cctx->rcx_net_dom;
+	ndom = cctx->rcx_net_dom;
 
 	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
 	if (rc != 0)

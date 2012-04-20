@@ -197,7 +197,8 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto cob_dom_fini;
 	
-	tm = &rpcmachine->cr_tm;
+	rpcmachine->cr_buffer_pool =  ndom->nd_app_pool;
+	tm			   = &rpcmachine->cr_tm;
 	
 	c2_net_tm_colour_set(tm, tm_colours++);
 

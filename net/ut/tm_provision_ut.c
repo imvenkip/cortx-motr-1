@@ -31,7 +31,7 @@ struct c2_net_buffer_pool *pool_prov;
 enum {
 	POOL_COLOURS   = 5,
 	POOL_THRESHOLD = 2,
-	POOL_BUF_NR    = 8,
+	POOL_BUF_NR    = C2_NET_TM_RECV_QUEUE_DEF_LEN * 4,
 	MIN_RECV_SIZE  = 1 << 12,
 };
 
