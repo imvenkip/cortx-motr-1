@@ -1143,7 +1143,21 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 			c2_list_del(&slot->sl_link);
 	}
 }
+#ifndef __KERNEL__
+/* for debugging  */
+void c2_rpc_session_items_print(struct c2_rpc_session *session,
+				bool                   only_active)
+{
+	struct c2_rpc_slot *slot;
+	int                 i;
 
+	for (i = 0; i < session->s_nr_slots; i++) {
+
+		slot = session->s_slot_table[i];
+		c2_rpc_slot_item_list_print(slot, only_active);
+	}
+}
+#endif
 /** @} end of session group */
 
 /*

@@ -941,7 +941,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
    Just for debugging purpose.
  */
 #ifndef __KERNEL__
-void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
+void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active)
 {
 	struct c2_rpc_item *item;
 	char                str_stage[][20] = {
@@ -955,9 +955,17 @@ void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
 	c2_list_for_each_entry(&slot->sl_item_list, item,
 				struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
-		printf("item %p xid %lu state %s\n", item,
-				item->ri_slot_refs[0].sr_xid,
-				str_stage[item->ri_stage]);
+
+		if (ergo(only_active,
+			 item->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS ||
+			 item->ri_stage == RPC_ITEM_STAGE_FUTURE)) {
+
+			printf("item %p <%u, %lu>  state %s\n", item,
+					slot->sl_slot_id,
+					item->ri_slot_refs[0].sr_xid,
+					str_stage[item->ri_stage]);
+
+		}
 	}
 }
 #endif
