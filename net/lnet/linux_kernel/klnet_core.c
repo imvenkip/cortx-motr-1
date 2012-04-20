@@ -1113,7 +1113,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
 	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
 	bev->cbe_buffer_id = kbp->kb_buffer_id;
-	bev->cbe_time      = now;
+	bev->cbe_time      = c2_time_sub(now, kbp->kb_add_time);
 	bev->cbe_status    = status;
 	bev->cbe_length    = mlength;
 	bev->cbe_offset    = offset;

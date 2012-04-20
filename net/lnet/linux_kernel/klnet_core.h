@@ -157,6 +157,9 @@ struct nlx_kcore_buffer {
 	 */
         enum c2_net_queue_type        kb_qtype;
 
+	/** Time at which a buffer operation is initiated. */
+	c2_time_t                     kb_add_time;
+
 	/** The LNet I/O vector. */
 	lnet_kiov_t                  *kb_kiov;
 

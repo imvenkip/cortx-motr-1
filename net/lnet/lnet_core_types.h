@@ -191,7 +191,7 @@ struct nlx_core_buffer_event {
 	 */
 	nlx_core_opaque_ptr_t        cbe_buffer_id;
 
-	/** Event timestamp */
+	/** Event timestamp, relative to the buffer add time */
 	c2_time_t                    cbe_time;
 
 	/** Status code (-errno). 0 is success */

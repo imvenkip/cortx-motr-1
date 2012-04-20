@@ -159,7 +159,8 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
 
 /**
    Helper subroutine to fill in the common fields of the lnet_md_t associated
-   with a network buffer.
+   with a network buffer and the common fields if of the kcore buffer private
+   data.
    @param kctm Pointer to kcore TM private data.
    @param lcbuf Pointer to core buffer private data with match bits set.
    @param kcb Pointer to kcore buffer private data with match bits set.
@@ -200,6 +201,7 @@ static void nlx_kcore_umd_init(struct nlx_kcore_transfer_mc *kctm,
 	umd->options |= LNET_MD_KIOV;
 	umd->length = kcb->kb_kiov_len;
 	kcb->kb_qtype = lcbuf->cb_qtype;
+	kcb->kb_add_time = c2_time_now();
 	if (isLNetGetOp) {
 		umd->threshold = 2;
 		kcb->kb_ooo_reply   = false;
