@@ -157,7 +157,7 @@ static void test_sunrpc_ep(void)
 		/* skip rest of this test, else C2_ASSERT will occur */
 		c2_net_tm_fini(&d1tm1);
 		c2_net_domain_fini(&dom1);
-		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		C2_UT_FAIL("aborting test case, port in-use?");
 		return;
 	}
 
@@ -376,7 +376,7 @@ static void test_sunrpc_desc(void)
 		/* skip rest of this test, else C2_ASSERT will occur */
 		c2_net_tm_fini(&d1tm1);
 		c2_net_domain_fini(&dom1);
-		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		C2_UT_FAIL("aborting test case, port in-use?");
 		return;
 	}
 
@@ -395,7 +395,7 @@ static void test_sunrpc_desc(void)
 	C2_UT_ASSERT(sd.sbd_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(sd.sbd_total == 2345);
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_addr == htonl(0x7f000001));
-	C2_UT_ASSERT(sd.sbd_passive_ep.sep_port == htons(31111));
+	C2_UT_ASSERT(sd.sbd_passive_ep.sep_port == htons(C2_NET_SUNRPC_PORT));
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_id == 1);
 	c2_net_desc_free(&desc1);
 	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
@@ -452,7 +452,7 @@ static void test_sunrpc_pa(void)
 		/* skip rest of this test, else C2_ASSERT will occur */
 		c2_net_tm_fini(&d1tm1);
 		c2_net_domain_fini(&dom1);
-		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		C2_UT_FAIL("aborting test case, port in-use?");
 		return;
 	}
 
