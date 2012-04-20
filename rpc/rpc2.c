@@ -67,7 +67,7 @@ C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 128,
+	C2_RPC_TM_RECV_BUFFERS_NR = 512,
 };
 
 /* ADDB Instrumentation for rpccore. */
