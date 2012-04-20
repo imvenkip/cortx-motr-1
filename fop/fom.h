@@ -112,8 +112,7 @@ struct c2_fom_locality {
 	 *  Some operations should be performed in parallel with fom state
 	 *  transitions (performed with common fl_group.s_lock held) while
 	 *  still requiring atomicity protection. For example, decrementing
-	 *  of fl_lo_idle_threads_nr in block_leave() or c2_fom_queue()
-	 *  are protected with this lock.
+	 *  of fl_lo_idle_threads_nr in block_leave().
 	 *
 	 *  This lock is private data, i.e. it is not intended for direct
 	 *  usage by fom users.
@@ -388,9 +387,10 @@ struct c2_fom {
  * type is void.
  *
  * @param fom, A fom to be submitted for execution
+ * @pre is_locked(fom)
  * @pre fom->fo_phase == C2_FOPH_INIT || fom->fo_phase == C2_FOPH_FAILURE
  */
-void c2_fom_queue(struct c2_fom_callback *cb);
+void c2_fom_queue(struct c2_fom *fom);
 
 /**
  * Initialises fom allocated by caller.

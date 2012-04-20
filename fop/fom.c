@@ -211,11 +211,11 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	C2_ASSERT(c2_locality_invariant(loc));
 }
 
-void c2_fom_queue(struct c2_fom_callback *cb)
+void c2_fom_queue(struct c2_fom *fom)
 {
-	struct c2_fom *fom = cb->fc_fom;
 	struct c2_fom_locality *loc;
 
+	C2_PRE(is_locked(fom));
 	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
 		fom->fo_phase == C2_FOPH_FAILURE);
 
@@ -718,16 +718,6 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 	fom->fo_fop	= fop;
 	fom->fo_rep_fop = reply;
 
-	/*
-	 * Init fom's AST call-back for the cases when user just want to post
-	 * an AST immediately, i.e. without waiting on the channel and calling
-	 * c2_fom_callback_arm() or c2_fom_wait_on().
-	 * (See c2_fom_queue() example.)
-	 */
-	fom->fo_cb.fc_fom = fom;
-	fom->fo_cb.fc_ast.sa_cb = &fom_ast_cb;
-	fom->fo_cb.fc_state = C2_FCS_TOP_DONE;
-
 	c2_list_link_init(&fom->fo_linkage);
 }
 C2_EXPORTED(c2_fom_init);
@@ -754,11 +744,8 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 
 	if (c2_atomic64_cas(&cb->fc_state, C2_FCS_TOP_DONE, C2_FCS_DONE)) {
 		cb->fc_bottom(cb);
-		/* AST can be posted without waiting on the channel */
-		if (c2_clink_is_armed(&cb->fc_clink)) {
-			c2_clink_del(&cb->fc_clink);
-			c2_clink_fini(&cb->fc_clink);
-		}
+		c2_clink_del(&cb->fc_clink);
+		c2_clink_fini(&cb->fc_clink);
 	}
 }
 
