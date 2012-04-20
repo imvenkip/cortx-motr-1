@@ -68,7 +68,9 @@
 
    <hr>
    @section LNetDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
 
    <hr>
    @section LNetDLD-req Requirements
@@ -577,7 +579,9 @@
    @subsection LNetDLD-lspec-thread Threading and Concurrency Model
    The transport inherits the concurrency model of the Colibri Networking
    Module. All transport operations are protected by some lock or object state,
-   as described in the <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>.
+   as described in the <a href="https://docs.google.com/a/xyratex.com/document/
+d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
+RPC Bulk Transfer Task Plan</a>.
    The Core API is designed to work with this same locking model.
    The locking order figure is repeated here for convenience:
    @dot
@@ -740,8 +744,12 @@
 
    <hr>
    @section LNetDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
+RPC Bulk Transfer Task Plan</a>
    - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD" <!--
      ./bev_cqueue.c -->
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
@@ -758,7 +766,7 @@
  End of DLD
  ******************************************************************************
  */
-
+
 #ifdef __KERNEL__
 #include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
 /* lustre config defines package macros also defined by c2 config */
@@ -790,7 +798,7 @@
 
 /* debug print support */
 #ifdef __KERNEL__
-#undef NLX_DEBUG
+#define NLX_DEBUG
 #else
 #undef NLX_DEBUG
 #endif
@@ -810,16 +818,45 @@ static struct nlx_debug nlx_debug = {
 #else
 #define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
 #endif
-#define NLXDBG(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); stmt; } } while (0)
-#define NLXDBGnl(ptr, dbg, stmt) do { if ((ptr)->_debug_ >= (dbg)) { stmt; } } while (0)
-#define NLXDBGP(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP("%s: %d:\n", __FILE__, __LINE__); NLXP(fmt, ## __VA_ARGS__); } } while (0)
-#define NLXDBGPnl(ptr, dbg, fmt, ...) do { if ((ptr)->_debug_ >= (dbg)) {NLXP(fmt, ## __VA_ARGS__); } } while (0)
-#else
+
+#define NLXDBG(ptr, dbg, stmt)				\
+do {							\
+	if ((ptr)->_debug_ >= (dbg)) {			\
+		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
+		stmt;					\
+	}						\
+} while (0)
+
+#define NLXDBGnl(ptr, dbg, stmt)		\
+do {						\
+	if ((ptr)->_debug_ >= (dbg)) {		\
+		stmt;				\
+	}					\
+} while (0)
+
+#define NLXDBGP(ptr, dbg, fmt, ...)			\
+do {							\
+	if ((ptr)->_debug_ >= (dbg)) {			\
+		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
+		NLXP(fmt, ## __VA_ARGS__);		\
+	}						\
+} while (0)
+
+#define NLXDBGPnl(ptr, dbg, fmt, ...)		\
+do {						\
+	if ((ptr)->_debug_ >= (dbg)) {		\
+		NLXP(fmt, ## __VA_ARGS__);	\
+	}					\
+} while (0)
+
+#else /* !NLX_DEBUG */
+
 #define NLXP(fmt, ...)
 #define NLXDBG(ptr, dbg, stmt) do { ; } while (0)
 #define NLXDBGnl(ptr, dbg, stmt) do { ; } while (0)
 #define NLXDBGP(ptr, dbg, fmt, ...) do { ; } while (0)
 #define NLXDBGPnl(ptr, dbg, fmt, ...) do { ; } while (0)
+
 #endif /* !NLX_DEBUG */
 
 /*
@@ -839,6 +876,10 @@ static struct nlx_debug nlx_debug = {
 #include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
 #include "net/lnet/linux_kernel/klnet_drv.c"
+/* LUSTRE_SRV_LNET_PID is not available in user space, so assert that the
+ * C2 equivalent is valid.
+ */
+C2_BASSERT(C2_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
 #else
 #include "net/lnet/ulnet_core.h"
 #include "net/lnet/ulnet_core.c"
@@ -873,6 +914,7 @@ int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
 		return -1;
 	return strncmp(addr1, addr2, min32(cp1 - addr1, cp2 - addr2));
 }
+C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
 
 int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs)
 {
@@ -882,6 +924,7 @@ int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs)
 	dp = dom->nd_xprt_private;
 	return nlx_core_nidstrs_get(&dp->xd_core, addrs);
 }
+C2_EXPORTED(c2_net_lnet_ifaces_get);
 
 void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs)
 {
@@ -891,6 +934,7 @@ void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs)
 	dp = dom->nd_xprt_private;
 	nlx_core_nidstrs_put(&dp->xd_core, addrs);
 }
+C2_EXPORTED(c2_net_lnet_ifaces_put);
 
 void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
 				      uint64_t secs)
@@ -908,6 +952,7 @@ void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
 	c2_time_set(&tp->xtm_stat_interval, secs, 0);
 	c2_mutex_unlock(&tm->ntm_mutex);
 }
+C2_EXPORTED(c2_net_lnet_tm_stat_interval_set);
 
 uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
 {
@@ -925,6 +970,7 @@ uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return ret;
 }
+C2_EXPORTED(c2_net_lnet_tm_stat_interval_get);
 
 void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
 {
@@ -938,6 +984,7 @@ void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
 	nlx_core_dom_set_debug(&dp->xd_core, dbg);
 	c2_mutex_unlock(&c2_net_mutex);
 }
+C2_EXPORTED(c2_net_lnet_dom_set_debug);
 
 void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
 {
@@ -951,6 +998,7 @@ void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
 	nlx_core_tm_set_debug(&tp->xtm_core, dbg);
 	c2_mutex_unlock(&tm->ntm_mutex);
 }
+C2_EXPORTED(c2_net_lnet_tm_set_debug);
 
 /** @} */ /* LNetDFS */
 

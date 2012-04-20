@@ -65,21 +65,41 @@
    @defgroup LNetDFS LNet Transport
    @ingroup net
 
-   The external interfaces of the LNet transport are obtained by
-   including the file @ref net/lnet/lnet.h.
+   The external interfaces of the LNet transport are obtained by including the
+   file @ref net/lnet/lnet.h.  The ::c2_net_lnet_xprt variable represents the
+   transport itself and is used as an argument to c2_net_domain_init().
+
+   An end point address for this transport is of the form:
+   @code
+     NetworkIdentifierString : PID : PortalNumber : TransferMachineIdentifier
+   @endcode
+
+   For example:
+   @code
+     10.72.49.14@o2ib0:12345:31:0
+     192.168.96.128@tcp1:12345:32:*
+   @endcode
+   The PID value of 12345 is used by Lustre
+   in the kernel and is the only value currently supported. The symbolic
+   constant ::C2_NET_LNET_PID provides this value.
+
+   The "*" indicates a dynamic assignment of a transfer machine identifier.
+   This syntax is valid only when starting a transfer machine with the
+   c2_net_tm_start() subroutine; it is intended for use by ephemeral processes
+   like management utilities and user interactive programs, not by servers.
 
    Some LNet transport idiosyncrasies to be aware of:
    - LNet does not provide any guarantees to a sender of data that the data was
      actually received by its intended recipient.  In LNet semantics, a
-     successful buffer completion callback for C2_NET_QT_MSG_SEND and
-     C2_NET_QT_ACTIVE_BULK_SEND only indicates that the data was successfully
+     successful buffer completion callback for ::C2_NET_QT_MSG_SEND and
+     ::C2_NET_QT_ACTIVE_BULK_SEND only indicates that the data was successfully
      transmitted from the buffer and that the buffer can be reused.  It does
      not provide any indication if recipient was able to store the data or not.
      This makes it very important for an application to keep the unsolicited
-     receive message queue (C2_NET_QT_MSG_RECV) populated at all times.
+     receive message queue (::C2_NET_QT_MSG_RECV) populated at all times.
 
    - Similar to the previous case, LNet may not provide indication that an end
-     point address is invalid during buffer operations. A C2_NET_QT_MSG_SEND
+     point address is invalid during buffer operations. A ::C2_NET_QT_MSG_SEND
      operation may succeed even if the end point provided as the destination
      address does not exist.
 
@@ -95,9 +115,13 @@
 extern struct c2_net_xprt c2_net_lnet_xprt;
 
 enum {
-	/** Maximum LNet end point address length.
-	    @todo XXX Determine exact value for a 4-tuple LNet EP addr
+	/**
+	   The Lustre PID value used in the kernel.
 	 */
+	C2_NET_LNET_PID = 12345,
+	/**
+	   Maximum LNet end point address length.
+	*/
 	C2_NET_LNET_XEP_ADDR_LEN = 80,
 	/**
 	   Report TM statistics once every 5 minutes by default.
