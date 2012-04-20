@@ -1117,7 +1117,7 @@ static int acquire_net_buffer(struct c2_fom *fom)
                      */
                     bpdesc = container_of(fom_obj->fcrw_bp,
                                         struct c2_rios_buffer_pool, rios_bp);
-                    c2_fom_wait_on(fom, &bpdesc->rios_bp_wait, NULL);
+                    c2_fom_wait_on(fom, &bpdesc->rios_bp_wait, &fom->fo_cb);
 
                     fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_WAIT;
                     c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
@@ -1290,7 +1290,7 @@ static int initiate_zero_copy(struct c2_fom *fom)
          * On completion of zero-copy on all buffers rpc_bulk
          * sends signal on channel rbulk->rb_chan.
          */
-        c2_fom_wait_on(fom, &rbulk->rb_chan, NULL);
+        c2_fom_wait_on(fom, &rbulk->rb_chan, &fom->fo_cb);
 
         /*
          * This function deletes c2_rpc_bulk_buf object one

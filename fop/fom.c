@@ -63,7 +63,10 @@ const struct c2_addb_ctx_type c2_fom_addb_ctx_type = {
 	.act_name = "fom"
 };
 
-bool fom_wait_time_is_out(const struct c2_fom_domain *dom, const struct c2_fom *fom);
+static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
+                                 const struct c2_fom *fom);
+static int loc_thr_create(struct c2_fom_locality *loc);
+static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast);
 
 #define FOM_ADDB_ADD(fom, name, rc)  \
 C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
@@ -75,8 +78,6 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name),
 static struct c2_fom_domain_ops c2_fom_dom_ops = {
 	.fdo_time_is_out = fom_wait_time_is_out
 };
-
-static int loc_thr_create(struct c2_fom_locality *loc);
 
 static bool is_locked(const struct c2_fom *fom)
 {
@@ -102,14 +103,12 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	if ( fom == NULL || fom->fo_loc == NULL || fom->fo_type == NULL ||
-		fom->fo_ops == NULL || fom->fo_fop == NULL ||
+	if (fom == NULL || fom->fo_loc == NULL || fom->fo_type == NULL ||
+		fom->fo_ops == NULL || fom->fo_fop == NULL || !is_locked(fom) ||
 		!c2_list_link_invariant(&fom->fo_linkage))
 		return false;
 
 	loc = fom->fo_loc;
-	if (!is_locked(fom))
-		return false;
 
 	switch (fom->fo_state) {
 	case C2_FOS_READY:
@@ -127,7 +126,8 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 	}
 }
 
-bool fom_wait_time_is_out(const struct c2_fom_domain *dom, const struct c2_fom *fom)
+static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
+                                 const struct c2_fom *fom)
 {
 	return false;
 }
@@ -138,21 +138,21 @@ bool fom_wait_time_is_out(const struct c2_fom_domain *dom, const struct c2_fom *
  * This function is invoked when a new fom is submitted for
  * execution or a waiting fom is re scheduled for processing.
  *
- * @pre fom->fo_state == C2_FOS_READY
+ * @pre is_locked(fom)
  * @param fom Ready to be executed fom, is put on locality runq
  */
 static void fom_ready(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
+	C2_PRE(is_locked(fom));
+
 	loc = fom->fo_loc;
 
-	c2_mutex_lock(&loc->fl_lock);
 	fom->fo_state = C2_FOS_READY;
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_runq_nr);
 	c2_chan_signal(&loc->fl_runrun);
-	c2_mutex_unlock(&loc->fl_lock);
 }
 
 void c2_fom_ready(struct c2_fom *fom)
@@ -211,8 +211,9 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	C2_ASSERT(c2_locality_invariant(loc));
 }
 
-void c2_fom_queue(struct c2_fom *fom)
+void c2_fom_queue(struct c2_fom_callback *cb)
 {
+	struct c2_fom *fom = cb->fc_fom;
 	struct c2_fom_locality *loc;
 
 	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
@@ -236,6 +237,7 @@ void c2_fom_queue(struct c2_fom *fom)
  * is performing a blocking operation and c2_fom::fo_state()
  * returns C2_FSO_WAIT.
  *
+ * @pre is_locked(fom)
  * @pre fom->fo_state == C2_FOS_RUNNING
  * @param fom A fom blocking on an operation that is to be
  *		put on the locality wait list
@@ -244,10 +246,10 @@ static void fom_wait(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
+	C2_PRE(is_locked(fom));
 	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
 	loc = fom->fo_loc;
-	C2_ASSERT(is_locked(fom));
 	fom->fo_state = C2_FOS_WAITING;
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
@@ -289,10 +291,11 @@ static void fom_exec(struct c2_fom *fom)
 	} while (rc == C2_FSO_AGAIN);
 
 	C2_ASSERT(rc == C2_FSO_WAIT);
+	C2_ASSERT(is_locked(fom));
+
 	if (fom->fo_phase == C2_FOPH_FINISH) {
 		fom->fo_ops->fo_fini(fom);
 	} else {
-		C2_ASSERT(is_locked(fom));
 		fom_wait(fom);
 		C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
 		C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_linkage));
@@ -312,7 +315,6 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 	struct c2_list_link	*fom_link;
 	struct c2_fom		*fom = NULL;
 
-	c2_mutex_lock(&loc->fl_lock);
 	fom_link = c2_list_first(&loc->fl_runq);
 	if (fom_link != NULL) {
 		c2_list_del(fom_link);
@@ -320,7 +322,6 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 		C2_ASSERT(fom != NULL);
 		C2_CNT_DEC(loc->fl_runq_nr);
 	}
-	c2_mutex_unlock(&loc->fl_lock);
 
 	return fom;
 }
@@ -404,13 +405,13 @@ static int loc_thr_init(struct c2_fom_hthread *th)
 	loc = th->fht_locality;
 	C2_ASSERT(loc != NULL);
 
-	c2_mutex_lock(&loc->fl_group.s_lock);
+	c2_sm_group_lock(&loc->fl_group);
 	rc = c2_thread_confine(&th->fht_thread, &loc->fl_processors);
 	if (rc == 0) {
 		c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
 		C2_CNT_INC(loc->fl_threads_nr);
 	}
-	c2_mutex_unlock(&loc->fl_group.s_lock);
+	c2_sm_group_unlock(&loc->fl_group);
 
 	return rc;
 }
@@ -717,6 +718,16 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 	fom->fo_fop	= fop;
 	fom->fo_rep_fop = reply;
 
+	/*
+	 * Init fom's AST call-back for the cases when user just want to post
+	 * an AST immediately, i.e. without waiting on the channel and calling
+	 * c2_fom_callback_arm() or c2_fom_wait_on().
+	 * (See c2_fom_queue() example.)
+	 */
+	fom->fo_cb.fc_fom = fom;
+	fom->fo_cb.fc_ast.sa_cb = &fom_ast_cb;
+	fom->fo_cb.fc_state = C2_FCS_TOP_DONE;
+
 	c2_list_link_init(&fom->fo_linkage);
 }
 C2_EXPORTED(c2_fom_init);
@@ -725,14 +736,11 @@ static bool fom_clink_cb(struct c2_clink *link)
 {
 	struct c2_fom_callback *cb = container_of(link, struct c2_fom_callback,
 	                                          fc_clink);
-	if (cb->fc_state != C2_FCS_INIT)
-		return true;
+	C2_PRE(cb->fc_state >= C2_FCS_INIT);
 
-	if (cb->fc_top == NULL || !cb->fc_top(cb)) {
-		cb->fc_state = C2_FCS_TOP_DONE;
-		/* Schedule AST for execution */
+	if (c2_atomic64_cas(&cb->fc_state, C2_FCS_INIT, C2_FCS_TOP_DONE) &&
+	    (cb->fc_top == NULL || !cb->fc_top(cb)))
 		c2_sm_ast_post(&cb->fc_fom->fo_loc->fl_group, &cb->fc_ast);
-	}
 
 	return true;
 }
@@ -744,11 +752,13 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	C2_PRE(is_locked(cb->fc_fom));
 	C2_PRE(cb->fc_state >= C2_FCS_TOP_DONE);
 
-	if (cb->fc_state == C2_FCS_TOP_DONE) {
+	if (c2_atomic64_cas(&cb->fc_state, C2_FCS_TOP_DONE, C2_FCS_DONE)) {
 		cb->fc_bottom(cb);
-		cb->fc_state = C2_FCS_DONE;
-		c2_clink_del(&cb->fc_clink);
-		c2_clink_fini(&cb->fc_clink);
+		/* AST can be posted without waiting on the channel */
+		if (c2_clink_is_armed(&cb->fc_clink)) {
+			c2_clink_del(&cb->fc_clink);
+			c2_clink_fini(&cb->fc_clink);
+		}
 	}
 }
 
@@ -774,8 +784,6 @@ static void fom_ready_cb(struct c2_fom_callback *cb)
 void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
                     struct c2_fom_callback *cb)
 {
-	if (cb == NULL)
-		cb = &fom->fo_cb;
 	cb->fc_bottom = fom_ready_cb;
 	c2_fom_callback_arm(fom, chan, cb);
 }
@@ -786,15 +794,19 @@ void c2_fom_callback_fini(struct c2_fom_callback *cb)
 	/* c2_clink_fini() is called in fom_ast_cb() */
 }
 
-void c2_fom_callback_cancel(struct c2_fom_callback *cb)
+bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 {
+	bool result;
 	C2_PRE(cb->fc_state >= C2_FCS_INIT);
 
-	if (cb->fc_state == C2_FCS_INIT) {
-		cb->fc_state = C2_FCS_DONE;
+	result = c2_atomic64_cas(&cb->fc_state, C2_FCS_INIT, C2_FCS_DONE);
+
+	if (result) {
 		c2_clink_del(&cb->fc_clink);
 		c2_clink_fini(&cb->fc_clink);
 	}
+
+	return result;
 }
 
 /** @} endgroup fom */

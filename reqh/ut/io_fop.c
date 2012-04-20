@@ -452,7 +452,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
                         stio->si_opcode = SIO_READ;
                         stio->si_flags  = 0;
 
-                        c2_fom_wait_on(fom, &stio->si_wait, NULL);
+                        c2_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
@@ -560,7 +560,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         stio->si_opcode = SIO_WRITE;
                         stio->si_flags  = 0;
 
-                        c2_fom_wait_on(fom, &stio->si_wait, NULL);
+                        c2_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {

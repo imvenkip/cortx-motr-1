@@ -103,7 +103,7 @@ struct c2_fom_locality {
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 
-	/** State Machine (SM) group for AST callbacks */
+	/** State Machine (SM) group for AST call-backs */
 	struct c2_sm_group	     fl_group;
 
 	/**
@@ -269,7 +269,7 @@ enum c2_fom_phase {
  *
  * @pre dom != NULL
  */
-int  c2_fom_domain_init(struct c2_fom_domain *dom);
+int c2_fom_domain_init(struct c2_fom_domain *dom);
 
 /**
  * Finalises fom domain.
@@ -289,7 +289,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom);
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
 
 /**
- * Fom callback states
+ * Fom call-back states
  */
 enum c2_fc_state {
 	C2_FCS_INIT,
@@ -313,7 +313,7 @@ struct c2_fom_callback {
 	 */
 	struct c2_sm_ast  fc_ast;
 
-	enum c2_fc_state  fc_state;
+	int64_t           fc_state;
 
 	struct c2_fom    *fc_fom;
 	/**
@@ -340,10 +340,10 @@ struct c2_fom_callback {
  */
 struct c2_fom {
 	/**
-	 * State a fom can be in at any given instance throughout its
-	 * life cycle.This feild is protected by c2_fom_locality:fl_group.s_lock
-	 * mutex, except in reqh handler thread, when a fom is dequeued
-	 * from locality runq list for execution.
+	 * State a fom can be in at any given instance throughout its life
+	 * cycle. This field is protected by
+	 * c2_fom_locality:fl_group.s_lock mutex, except in reqh handler thread,
+	 * when a fom is dequeued from locality runq list for execution.
 	 *
 	 * @see c2_fom_locality
 	 */
@@ -354,7 +354,7 @@ struct c2_fom {
 	struct c2_fom_locality	*fo_loc;
 	struct c2_fom_type	*fo_type;
 	const struct c2_fom_ops	*fo_ops;
-	/** AST callback to wake up the FOM */
+	/** AST call-back to wake up the FOM */
 	struct c2_fom_callback	 fo_cb;
 	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx	*fo_fop_ctx;
@@ -390,7 +390,7 @@ struct c2_fom {
  * @param fom, A fom to be submitted for execution
  * @pre fom->fo_phase == C2_FOPH_INIT || fom->fo_phase == C2_FOPH_FAILURE
  */
-void c2_fom_queue(struct c2_fom *fom);
+void c2_fom_queue(struct c2_fom_callback *cb);
 
 /**
  * Initialises fom allocated by caller.
@@ -532,20 +532,21 @@ void c2_fom_block_leave(struct c2_fom *fom);
  * locality runq list changing the state to C2_FOS_READY.
  *
  * @pre fom->fo_state == C2_FOS_WAITING
+ * @pre is_locked(fom)
  * @param fom Ready to be executed fom, is put on locality runq
  */
 void c2_fom_ready(struct c2_fom *fom);
 
 /**
- * Registers AST callback with the channel and a fom executing a blocking
- * operation. Both, the channel and the callback (with initialized fc_bottom)
+ * Registers AST call-back with the channel and a fom executing a blocking
+ * operation. Both, the channel and the call-back (with initialized fc_bottom)
  * are provided by user.
  * Callback will be called with locality lock held.
  *
  * @param fom, A fom executing a blocking operation
  * @param chan, waiting channel registered with the fom during its
  *              blocking operation
- * @param cb, AST callback with initialized fc_bottom
+ * @param cb, AST call-back with initialized fc_bottom
  *            @see sm/sm.h
  */
 void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
@@ -559,24 +560,29 @@ void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
  * @param fom, A fom executing a blocking operation
  * @param chan, waiting channel registered with the fom during its
  *              blocking operation
- * @param cb, AST callback, if NULL - fom->fo_cb is used
+ * @param cb, AST call-back
  *            @see sm/sm.h
   */
 void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
                     struct c2_fom_callback *cb);
 
 /**
- * Optional call just to make sure that the callback can be freed.
- * The actual fini is performed in the AST callback after calling
- * the bottom half routine.
+ * Optional call just to make sure that the call-back can be freed.
+ * The actual fini is performed automatically in the AST call-back
+ * after bottom half is called or (in exception situation) when call-back
+ * is cancelled.
  */
 void c2_fom_callback_fini(struct c2_fom_callback *cb);
 
 /**
- * If something went wrong the callback should be canceled with this routine.
- * @note the callback may not be canceled if the top half was called already.
+ * Attempts to cancel a pending call-back.
+ *
+ * @return true iff the call-back was successfully cancelled. It is guaranteed
+ * that no call-back halves will be called after this point.
+ *
+ * @return false if it is too late to cancel a call-back.
  */
-void c2_fom_callback_cancel(struct c2_fom_callback *cb);
+bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
 /** @} end of fom group */
 

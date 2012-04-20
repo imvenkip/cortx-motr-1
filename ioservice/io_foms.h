@@ -231,7 +231,7 @@ struct c2_io_fom_cob_rw_state_transition {
 /**
  * Returns string representing ioservice name given a fom.
  */
-const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
+const char *c2_io_fom_cob_rw_service_name(struct c2_fom *fom);
 
 /**
  * Function to map the on-wire FOP format to in-core FOP format.
