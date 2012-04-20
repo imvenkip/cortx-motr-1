@@ -1144,8 +1144,6 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	C2_ASSERT(ctm->ctm_kpvt != NULL);
 	C2_ASSERT(ctm->ctm_upvt == utm);
 
-	ctm->ctm_user_space_xo = true;
-
 	rc = nlx_core_new_blessed_bev(cd, ctm, &e1);
 	if (rc == 0)
 		rc = nlx_core_new_blessed_bev(cd, ctm, &e2);

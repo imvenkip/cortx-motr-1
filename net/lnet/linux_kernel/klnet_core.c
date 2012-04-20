@@ -1976,7 +1976,6 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 		goto fail_ktm;
 
 	ctm->ctm_upvt = NULL;
-	ctm->ctm_user_space_xo = false;
 	rc = nlx_core_new_blessed_bev(cd, ctm, &e1);
 	if (rc == 0)
 		rc = nlx_core_new_blessed_bev(cd, ctm, &e2);

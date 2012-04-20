@@ -249,7 +249,6 @@ int test_tms(bool force_cleanup)
 		rc = ioctl(f, C2_LNET_TM_START, &tsp);
 		if (rc != 0)
 			goto out;
-		tm[i]->ctm_user_space_xo = true;
 		if (tm[i]->ctm_upvt != (void *) UT_TM_UPVT) {
 			rc = 1;
 			goto out;
@@ -303,7 +302,6 @@ int test_duptm(void)
 	rc = ioctl(f, C2_LNET_TM_START, &tsp);
 	if (rc != 0)
 		goto out;
-	tm->ctm_user_space_xo = true;
 	if (tm->ctm_upvt != (void *) UT_TM_UPVT) {
 		rc = 1;
 		goto out;

@@ -232,9 +232,6 @@ struct nlx_core_transfer_mc {
 	/** The transfer machine address. */
 	struct nlx_core_ep_addr    ctm_addr;
 
-	/** Boolean indicating if the transport is running in user space. */
-	bool                       ctm_user_space_xo;
-
 	/**
 	   Buffer completion event queue.  The queue is shared between the
 	   transport address space and the kernel.
