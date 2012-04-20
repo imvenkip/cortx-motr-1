@@ -216,6 +216,8 @@ int test_tms(bool force_cleanup)
 	struct c2_lnet_dev_dom_init_params pd;
 	struct nlx_core_domain *dom;
 	struct nlx_core_transfer_mc *tm[MULTI_TM_NR];
+	struct c2_lnet_dev_tm_start_params tsp;
+	struct c2_lnet_dev_tm_stop_params tpp;
 	int f;
 	int i;
 	int rc;
@@ -243,7 +245,8 @@ int test_tms(bool force_cleanup)
 	for (i = 0; i < MULTI_TM_NR; ++i) {
 		tm[i]->ctm_upvt = (void *) UT_TM_UPVT;
 
-		rc = ioctl(f, C2_LNET_TM_START, tm[i]);
+		tsp.dts_ctm = tm[i];
+		rc = ioctl(f, C2_LNET_TM_START, &tsp);
 		if (rc != 0)
 			goto out;
 		tm[i]->ctm_user_space_xo = true;
@@ -255,7 +258,8 @@ int test_tms(bool force_cleanup)
 
 	if (!force_cleanup)
 		for (i = 0; i < MULTI_TM_NR; ++i) {
-			rc = ioctl(f, C2_LNET_TM_STOP, tm[i]->ctm_kpvt);
+			tpp.dts_ktm = tm[i]->ctm_kpvt;
+			rc = ioctl(f, C2_LNET_TM_STOP, &tpp);
 			if (rc != 0)
 				break;
 		}
@@ -273,6 +277,8 @@ int test_duptm(void)
 	struct c2_lnet_dev_dom_init_params pd;
 	struct nlx_core_domain *dom;
 	struct nlx_core_transfer_mc *tm;
+	struct c2_lnet_dev_tm_start_params tsp;
+	struct c2_lnet_dev_tm_stop_params tpp;
 	int f;
 	int rc;
 
@@ -293,7 +299,8 @@ int test_duptm(void)
 		goto out;
 
 	tm->ctm_upvt = (void *) UT_TM_UPVT;
-	rc = ioctl(f, C2_LNET_TM_START, tm);
+	tsp.dts_ctm = tm;
+	rc = ioctl(f, C2_LNET_TM_START, &tsp);
 	if (rc != 0)
 		goto out;
 	tm->ctm_user_space_xo = true;
@@ -303,14 +310,14 @@ int test_duptm(void)
 	}
 
 	/* duplicate tm */
-	rc = ioctl(f, C2_LNET_TM_START, tm);
+	rc = ioctl(f, C2_LNET_TM_START, &tsp);
 	if (rc == 0 || errno != EBADR) {
 		rc = 1;
 		goto out;
 	} else
 		rc = 0;
-
-	rc = ioctl(f, C2_LNET_TM_STOP, tm->ctm_kpvt);
+	tpp.dts_ktm = tm->ctm_kpvt;
+	rc = ioctl(f, C2_LNET_TM_STOP, &tpp);
  out:
 	LUT_FREE_PTR(tm);
 	close(f);

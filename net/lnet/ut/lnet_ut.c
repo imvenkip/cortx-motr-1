@@ -267,6 +267,7 @@ enum {
 	UT_BUFSEGS2  = 2,
 	UT_MSG_SIZE  = 2048,
 	UT_BULK_SIZE = 2 * 4096,
+	UT_PAGE_SHIFT = 12
 };
 struct ut_data {
 	int                            _debug_;
@@ -291,6 +292,10 @@ struct ut_data {
 	struct nlx_core_buf_desc       cbd1;
 	struct nlx_core_buf_desc       cbd2;
 };
+
+#ifdef __KERNEL__
+C2_BASSERT(UT_PAGE_SHIFT == PAGE_SHIFT);
+#endif
 
 #define DOM1 (&td->dom1)
 #define DOM2 (&td->dom2)
@@ -448,9 +453,10 @@ do {									\
 		td->buf_seg_size ## which = max_seg_size;		\
 		for (i = 0; i < UT_BUFS ## which; ++i) {		\
 			nb = &td->bufs ## which [i];			\
-			rc = c2_bufvec_alloc(&nb->nb_buffer,		\
-					     UT_BUFSEGS ## which,	\
-					     max_seg_size);		\
+			rc = c2_bufvec_alloc_aligned(&nb->nb_buffer,	\
+						     UT_BUFSEGS ## which, \
+						     max_seg_size,	\
+						     UT_PAGE_SHIFT);	\
 			C2_UT_ASSERT(rc == 0);				\
 			if (rc != 0) {					\
 				C2_UT_FAIL("aborting: buf alloc failed"); \
@@ -509,7 +515,7 @@ do {									\
 		if (nb->nb_buffer.ov_vec.v_nr == 0)			\
 			continue;					\
 		c2_net_buffer_deregister(nb, dom);			\
-		c2_bufvec_free(&nb->nb_buffer);				\
+		c2_bufvec_free_aligned(&nb->nb_buffer, UT_PAGE_SHIFT);	\
 	}								\
 	if (td->nidstrs ## which != NULL)				\
 		c2_net_lnet_ifaces_put(dom, &td->nidstrs ## which);	\
@@ -810,6 +816,7 @@ static void test_tm_startstop(void)
 		C2_UT_ASSERT(c2_bitmap_init(&procs, 1) == 0);
 		c2_bitmap_set(&procs, 0, true);
 		C2_UT_ASSERT(c2_net_tm_confine(&tm[i], &procs) == 0);
+		c2_bitmap_fini(&procs);
 
 		ecb_reset();
 		c2_clink_add(&tm[i].ntm_chan, &tmwait1);
@@ -1522,7 +1529,8 @@ static int test_bulk_passive_send(struct ut_data *td)
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PS >  AR)\n");
 	C2_UT_ASSERT(pBytes > td->buf_seg_size2); /* sanity */
 	zUT((C2_ALLOC_PTR(nb2s) == NULL), failed);
-	zUT(c2_bufvec_alloc(&nb2s->nb_buffer, 1, td->buf_seg_size2), failed);
+	zUT(c2_bufvec_alloc_aligned(&nb2s->nb_buffer, 1, td->buf_seg_size2,
+				    UT_PAGE_SHIFT), failed);
 	zUT(c2_net_buffer_register(nb2s, DOM2), failed);
 	zUT(c2_net_desc_copy(&nb1->nb_desc, &nb2s->nb_desc), failed);
 	nb2s->nb_length = td->buf_seg_size2;
@@ -1579,7 +1587,7 @@ static int test_bulk_passive_send(struct ut_data *td)
 			c2_net_buffer_deregister(nb2s, DOM2);
 		}
 		if (nb2s->nb_buffer.ov_vec.v_nr != 0)
-			c2_bufvec_free(&nb2s->nb_buffer);
+			c2_bufvec_free_aligned(&nb2s->nb_buffer, UT_PAGE_SHIFT);
 		c2_net_desc_free(&nb2s->nb_desc);
 		c2_free(nb2s);
 	}
@@ -1625,8 +1633,8 @@ static int test_bulk_passive_recv(struct ut_data *td)
 	/* try to send a larger buffer */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PR <  AS)\n");
 	zUT((C2_ALLOC_PTR(nb2l) == NULL), failed);
-	zUT(c2_bufvec_alloc(&nb2l->nb_buffer, UT_BUFSEGS1 + 1,
-			    td->buf_seg_size1), failed);
+	zUT(c2_bufvec_alloc_aligned(&nb2l->nb_buffer, UT_BUFSEGS1 + 1,
+				    td->buf_seg_size1, UT_PAGE_SHIFT), failed);
 	zUT(c2_net_buffer_register(nb2l, DOM2), failed);
 	zUT(c2_net_desc_copy(&nb1->nb_desc, &nb2l->nb_desc), failed);
 	nb2l->nb_length = td->buf_seg_size1 * (UT_BUFSEGS1 + 1);
@@ -1682,7 +1690,7 @@ static int test_bulk_passive_recv(struct ut_data *td)
 			c2_net_buffer_deregister(nb2l, DOM2);
 		}
 		if (nb2l->nb_buffer.ov_vec.v_nr != 0)
-			c2_bufvec_free(&nb2l->nb_buffer);
+			c2_bufvec_free_aligned(&nb2l->nb_buffer, UT_PAGE_SHIFT);
 		c2_net_desc_free(&nb2l->nb_desc);
 		c2_free(nb2l);
 	}

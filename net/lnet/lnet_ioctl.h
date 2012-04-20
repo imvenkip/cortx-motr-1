@@ -59,6 +59,15 @@ struct c2_lnet_dev_buf_register_params {
 };
 
 /**
+   Parameters for the C2_LNET_BUF_DEREGISTER ioctl.
+   @see nlx_dev_ioctl_buf_deregister()
+ */
+struct c2_lnet_dev_buf_deregister_params {
+	/** The nlx_core_buffer::cb_kpvt for the core private TM data. */
+	void                           *dbd_kb;
+};
+
+/**
    Parameters to various ioctl requests that operate on a transfer machine
    and a buffer.  These include:
    - C2_LNET_BUF_MSG_RECV
@@ -119,6 +128,24 @@ struct c2_lnet_dev_nidstrs_get_params {
 };
 
 /**
+   Parameters for the C2_LNET_TM_START ioctl.
+   @see nlx_dev_ioctl_tm_start()
+ */
+struct c2_lnet_dev_tm_start_params {
+	/** The user space core private data pointer for the TM. */
+	struct nlx_core_transfer_mc    *dts_ctm;
+};
+
+/**
+   Parameters for the C2_LNET_TM_STOP ioctl.
+   @see nlx_dev_ioctl_tm_stop()
+ */
+struct c2_lnet_dev_tm_stop_params {
+	/** The nlx_core_transfer_mc::ctm_kpvt for the core private TM data. */
+	void                           *dts_ktm;
+};
+
+/**
    Parameters for the C2_LNET_BEV_BLESS ioctl request.
    @see nlx_dev_ioctl_bev_bless()
  */
@@ -141,7 +168,8 @@ struct c2_lnet_dev_bev_bless_params {
 
 #define C2_LNET_BUF_REGISTER \
 	_IOW(C2_LNET_IOC_MAGIC, 0x26, struct c2_lnet_dev_buf_register_params)
-#define C2_LNET_BUF_DEREGISTER      _IOW(C2_LNET_IOC_MAGIC, 0x27, void *)
+#define C2_LNET_BUF_DEREGISTER \
+	_IOW(C2_LNET_IOC_MAGIC, 0x27, struct c2_lnet_dev_buf_deregister_params)
 #define C2_LNET_BUF_MSG_RECV \
 	_IOW(C2_LNET_IOC_MAGIC, 0x28, struct c2_lnet_dev_buf_queue_params)
 #define C2_LNET_BUF_MSG_SEND \
@@ -167,8 +195,9 @@ struct c2_lnet_dev_bev_bless_params {
 	_IOW(C2_LNET_IOC_MAGIC, 0x32, struct c2_lnet_dev_nidstrs_get_params)
 
 #define C2_LNET_TM_START \
-	_IOW(C2_LNET_IOC_MAGIC, 0x33, struct nlx_core_transfer_mc *)
-#define C2_LNET_TM_STOP             _IOW(C2_LNET_IOC_MAGIC, 0x34, void *)
+	_IOW(C2_LNET_IOC_MAGIC, 0x33, struct c2_lnet_dev_tm_start_params)
+#define C2_LNET_TM_STOP \
+	_IOW(C2_LNET_IOC_MAGIC, 0x34, struct c2_lnet_dev_tm_stop_params)
 
 #define C2_LNET_BEV_BLESS \
 	_IOW(C2_LNET_IOC_MAGIC, 0x35, struct c2_lnet_dev_bev_bless_params)

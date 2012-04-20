@@ -1046,12 +1046,12 @@ static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 /**
    Deregisters a shared memory buffer from the kernel domain.
    @param kd The kernel domain object.
-   @param arg Ioctl request parameter for the kernel buffer object.
+   @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
-					unsigned long arg)
+				   struct c2_lnet_dev_buf_deregister_params *p)
 {
-	struct nlx_kcore_buffer *kb = (struct nlx_kcore_buffer *) arg;
+	struct nlx_kcore_buffer *kb = p->dbd_kb;
 
 	/* protect against user space passing invalid ptr */
 	if (!virt_addr_valid(kb))
@@ -1207,14 +1207,15 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
    The shared transfer machine object is pinned in kernel space and its
    nlx_core_transfer_mc::ctm_kpvt field is set.
    @param kd The kernel domain object.
-   @param utmp User space pointer to a nlx_core_transfer_mc object.
+   @param p Ioctl request parameters.
  */
 static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
-				  unsigned long utmp)
+				  struct c2_lnet_dev_tm_start_params *p)
 {
 	struct page *pg;
 	struct nlx_core_transfer_mc *ctm;
 	struct nlx_kcore_transfer_mc *ktm;
+	unsigned long utmp = (unsigned long) p->dts_ctm;
 	uint32_t off = NLX_PAGE_OFFSET(utmp);
 	int rc;
 
@@ -1295,12 +1296,12 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 /**
    Complete the kernel portion of the TM stop logic.
    @param kd The kernel domain object.
-   @param arg Ioctl request parameter for the kernel transfer machine object.
+   @param p Ioctl request parameters.
  */
-static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd, unsigned long arg)
+static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd,
+				 struct c2_lnet_dev_tm_stop_params *p)
 {
-	struct nlx_kcore_transfer_mc *ktm =
-		    (struct nlx_kcore_transfer_mc *) arg;
+	struct nlx_kcore_transfer_mc *ktm = p->dts_ktm;
 
 	/* protect against user space passing invalid ptr */
 	if (!virt_addr_valid(ktm))
@@ -1386,7 +1387,10 @@ static long nlx_dev_ioctl(struct file *file,
 	    (struct nlx_kcore_domain *) file->private_data;
 	union {
 		struct c2_lnet_dev_dom_init_params       dip;
+		struct c2_lnet_dev_tm_start_params       tsp;
+		struct c2_lnet_dev_tm_stop_params        tpp;
 		struct c2_lnet_dev_buf_register_params   brp;
+		struct c2_lnet_dev_buf_deregister_params bdp;
 		struct c2_lnet_dev_buf_queue_params      bqp;
 		struct c2_lnet_dev_buf_event_wait_params bep;
 		struct c2_lnet_dev_nid_encdec_params     nep;
@@ -1406,7 +1410,7 @@ static long nlx_dev_ioctl(struct file *file,
 		goto done;
 	}
 
-	if ((_IOC_DIR(cmd) & _IOC_WRITE) && sz > sizeof arg) {
+	if (_IOC_DIR(cmd) & _IOC_WRITE) {
 		if (copy_from_user(&p, (void __user *) arg, sz)) {
 			rc = -EFAULT;
 			goto done;
@@ -1418,16 +1422,16 @@ static long nlx_dev_ioctl(struct file *file,
 		rc = nlx_dev_ioctl_dom_init(kd, &p.dip);
 		break;
 	case C2_LNET_TM_START:
-		rc = nlx_dev_ioctl_tm_start(kd, arg);
+		rc = nlx_dev_ioctl_tm_start(kd, &p.tsp);
 		break;
 	case C2_LNET_TM_STOP:
-		rc = nlx_dev_ioctl_tm_stop(kd, arg);
+		rc = nlx_dev_ioctl_tm_stop(kd, &p.tpp);
 		break;
 	case C2_LNET_BUF_REGISTER:
 		rc = nlx_dev_ioctl_buf_register(kd, &p.brp);
 		break;
 	case C2_LNET_BUF_DEREGISTER:
-		rc = nlx_dev_ioctl_buf_deregister(kd, arg);
+		rc = nlx_dev_ioctl_buf_deregister(kd, &p.bdp);
 		break;
 	case C2_LNET_BUF_MSG_RECV:
 		rc = nlx_dev_ioctl_buf_queue_op(&p.bqp,
@@ -1476,7 +1480,7 @@ static long nlx_dev_ioctl(struct file *file,
 		break;
 	}
 
-	if (rc >= 0 && (_IOC_DIR(cmd) & _IOC_READ) && sz > sizeof arg) {
+	if (rc >= 0 && (_IOC_DIR(cmd) & _IOC_READ)) {
 		if (copy_to_user((void __user *) arg, &p, sz))
 			rc = -EFAULT;
 	}

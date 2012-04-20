@@ -772,7 +772,7 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	C2_PRE(cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
 
 	C2_ALLOC_PTR_ADDB(ub, &ud->ud_addb, &nlx_addb_loc);
-	if (ud == NULL)
+	if (ub == NULL)
 		return -ENOMEM;
 	c2_addb_ctx_init(&ub->ub_addb, &nlx_core_domain_addb_ctx, &ud->ud_addb);
 	ub->ub_magic = C2_NET_LNET_UCORE_BUF_MAGIC;
@@ -801,6 +801,7 @@ void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 {
 	struct nlx_ucore_buffer *ub;
 	struct nlx_ucore_domain *ud;
+	struct c2_lnet_dev_buf_deregister_params dp;
 	int rc;
 
 	C2_PRE(cd != NULL);
@@ -810,9 +811,9 @@ void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 	C2_PRE(nlx_core_buffer_invariant(cb));
 	ub = cb->cb_upvt;
 	C2_PRE(nlx_ucore_buffer_invariant(ub));
-
 	C2_PRE(cb->cb_kpvt != NULL);
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BUF_DEREGISTER, cb->cb_kpvt);
+	dp.dbd_kb = cb->cb_kpvt;
+	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BUF_DEREGISTER, &dp);
 	C2_ASSERT(rc == 0);
 
 	c2_addb_ctx_fini(&ub->ub_addb);
@@ -1034,7 +1035,7 @@ int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
 	C2_PRE(nlx_ucore_domain_invariant(ud));
 
 	dnep.dn_nid = nid;
-	dnep.dn_buf[0] = '\0';
+	C2_SET_ARR0(dnep.dn_buf);
 
 	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_NIDSTR_ENCODE, &dnep);
 	if (rc < 0) {
@@ -1087,6 +1088,7 @@ static void nlx_ucore_tm_stop(struct nlx_core_domain *cd,
 			      struct nlx_core_transfer_mc *ctm)
 {
 	struct nlx_ucore_domain *ud;
+	struct c2_lnet_dev_tm_stop_params tpp;
 	int rc;
 
 	C2_PRE(cd != NULL);
@@ -1094,8 +1096,9 @@ static void nlx_ucore_tm_stop(struct nlx_core_domain *cd,
 	C2_PRE(nlx_ucore_domain_invariant(ud));
 	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(ctm->ctm_kpvt != NULL);
+	tpp.dts_ktm = ctm->ctm_kpvt;
 
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_TM_STOP, ctm->ctm_kpvt);
+	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_TM_STOP, &tpp);
 	C2_ASSERT(rc == 0);
 	return;
 }
@@ -1108,6 +1111,9 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	struct nlx_ucore_transfer_mc *utm;
 	struct nlx_core_buffer_event *e1 = NULL;
 	struct nlx_core_buffer_event *e2 = NULL;
+	struct c2_lnet_dev_tm_start_params tsp = {
+		.dts_ctm = ctm,
+	};
 	int rc;
 
 	C2_PRE(tm != NULL);
@@ -1132,7 +1138,7 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	C2_POST(nlx_ucore_tm_invariant(utm));
 	ctm->ctm_upvt = utm;
 
-	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_TM_START, ctm);
+	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_TM_START, &tsp);
 	if (rc < 0)
 		goto fail_start;
 	C2_ASSERT(ctm->ctm_kpvt != NULL);

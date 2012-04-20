@@ -237,6 +237,8 @@ static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 	dp = nb->nb_dom->nd_xprt_private;
 
 	nlx_core_buf_deregister(&dp->xd_core, &bp->xb_core);
+	NLX_FREE_PTR(bp);
+	nb->nb_xprt_private = NULL;
 	return;
 }
 

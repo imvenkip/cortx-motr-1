@@ -1270,7 +1270,7 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 				  struct nlx_kcore_buffer *kb)
 {
 	C2_PRE(nlx_kcore_domain_invariant(kd));
-	kb->kb_magic         = C2_NET_LNET_KCORE_BUF_MAGIC;
+	drv_bufs_tlink_init(kb);
 	kb->kb_ktm           = NULL;
 	kb->kb_buffer_id     = buffer_id;
 	kb->kb_kiov          = NULL;
@@ -1301,6 +1301,7 @@ static void nlx_kcore_buf_deregister(struct nlx_core_buffer *cb,
 {
 	C2_PRE(nlx_kcore_buffer_invariant(kb));
 	C2_PRE(LNetHandleIsInvalid(kb->kb_mdh));
+	drv_bufs_tlink_fini(kb);
 	kb->kb_magic = 0;
 	c2_addb_ctx_fini(&kb->kb_addb);
 	c2_free(kb->kb_kiov);

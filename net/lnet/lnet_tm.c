@@ -287,7 +287,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	C2_SET0(nbev);
 	nbev->nbe_buffer = nb;
 	nbev->nbe_status = lcbev->cbe_status;
-	nbev->nbe_time   = lcbev->cbe_time;
+	nbev->nbe_time   = c2_time_now();
 	if (nbev->nbe_status != 0) {
 		if (nbev->nbe_status == -ECANCELED &&
 		    nb->nb_flags & C2_NET_BUF_TIMED_OUT)
