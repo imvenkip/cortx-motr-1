@@ -25,14 +25,13 @@
  * file.
  */
 
-#include "net/lnet/ut/lnet_ut.h"
+#include "net/lnet/ut/lnet_drv_ut.h"
 
 enum {
 	UT_PROC_WRITE_SIZE = 8,   /**< max size of data to write to proc file */
 	UT_SYNC_DELAY_SEC = 5,    /**< delay for user program to sync */
 };
 
-#define UT_PROC_NAME "c2_lnet_ut"
 static struct proc_dir_entry *proc_lnet_ut;
 
 static struct c2_mutex ktest_mutex;
@@ -1937,7 +1936,94 @@ static void ktest_bulk(void)
 #undef UT_BUFVEC_FREE
 #undef UT_BUFVEC_ALLOC
 
-int ut_dev_opens;
+static int ut_dev_opens;
+static int ut_dev_closes;
+static int ut_dev_cleanups;
+static int ut_dev_dom_inits;
+static int ut_dev_dom_finis;
+static int ut_dev_tm_starts;
+static int ut_dev_tm_stops;
+
+static int ut_kcore_core_dom_init(struct nlx_kcore_domain *kd,
+				  struct nlx_core_domain *cd)
+{
+	int rc = nlx_kcore_core_dom_init(kd, cd);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(nlx_kcore_domain_invariant(kd));
+	C2_UT_ASSERT(!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc));
+	C2_UT_ASSERT(cd->cd_kpvt == kd);
+	ut_dev_dom_inits++;
+	return rc;
+}
+
+static void ut_kcore_core_dom_fini(struct nlx_kcore_domain *kd,
+				   struct nlx_core_domain *cd)
+{
+	C2_UT_ASSERT(drv_bufs_tlist_is_empty(&kd->kd_drv_bufs));
+	C2_UT_ASSERT(drv_tms_tlist_is_empty(&kd->kd_drv_tms));
+	nlx_kcore_core_dom_fini(kd, cd);
+	C2_UT_ASSERT(cd->cd_kpvt == NULL);
+	ut_dev_dom_finis++;
+}
+
+static int ut_kcore_tm_start(struct nlx_kcore_domain *kd,
+			     struct nlx_core_transfer_mc *ctm,
+			     struct nlx_kcore_transfer_mc *ktm)
+{
+	if (kd == NULL || ctm == NULL || ktm == NULL)
+		return 1;
+
+	/* Init just enough of ktm for driver UT (eg no use of ktm_addr).
+	   KCore UT already tested nlx_kcore_tm_start().
+	 */
+	drv_tms_tlink_init(ktm);
+	drv_bevs_tlist_init(&ktm->ktm_drv_bevs);
+	ctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
+	spin_lock_init(&ktm->ktm_bevq_lock);
+	c2_semaphore_init(&ktm->ktm_sem, 0);
+	c2_addb_ctx_init(&ktm->ktm_addb, &nlx_core_tm_addb_ctx, &kd->kd_addb);
+	ctm->ctm_kpvt = ktm;
+	ctm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
+	C2_UT_ASSERT(nlx_kcore_tm_invariant(ktm));
+	C2_UT_ASSERT(nlx_core_tm_invariant(ctm));
+	ut_dev_tm_starts++;
+	return 0;
+}
+
+static void ut_kcore_tm_stop(struct nlx_kcore_domain *kd,
+			     struct nlx_core_transfer_mc *ctm,
+			     struct nlx_kcore_transfer_mc *ktm)
+{
+	C2_UT_ASSERT(nlx_kcore_domain_invariant(kd));
+	C2_UT_ASSERT(nlx_kcore_tm_invariant(ktm));
+	C2_UT_ASSERT(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
+
+	c2_semaphore_fini(&ktm->ktm_sem);
+	c2_addb_ctx_fini(&ktm->ktm_addb);
+	drv_bevs_tlist_fini(&ktm->ktm_drv_bevs);
+	drv_tms_tlink_fini(ktm);
+	ktm->ktm_magic = 0;
+	if (nlx_core_tm_invariant(ctm))
+		ctm->ctm_kpvt = NULL;
+	ut_dev_tm_stops++;
+}
+
+static struct nlx_kcore_ops ut_kcore_ops = {
+	.ko_dom_init = ut_kcore_core_dom_init,
+	.ko_dom_fini = ut_kcore_core_dom_fini,
+	.ko_buf_register = nlx_kcore_buf_register,
+	.ko_buf_deregister = nlx_kcore_buf_deregister,
+	.ko_tm_start = ut_kcore_tm_start,
+	.ko_tm_stop = ut_kcore_tm_stop,
+	.ko_buf_msg_recv = nlx_kcore_buf_msg_recv,
+	.ko_buf_msg_send = nlx_kcore_buf_msg_send,
+	.ko_buf_active_recv = nlx_kcore_buf_active_recv,
+	.ko_buf_active_send = nlx_kcore_buf_active_send,
+	.ko_buf_passive_recv = nlx_kcore_buf_passive_recv,
+	.ko_buf_passive_send = nlx_kcore_buf_passive_send,
+	.ko_buf_del = nlx_kcore_LNetMDUnlink,
+	.ko_buf_event_wait = nlx_kcore_buf_event_wait,
+};
 
 static int ut_dev_open(struct inode *inode, struct file *file)
 {
@@ -1947,51 +2033,76 @@ static int ut_dev_open(struct inode *inode, struct file *file)
 	rc = nlx_dev_open(inode, file);
 	C2_UT_ASSERT(rc == 0 || rc == -EPERM);
 	if (rc == 0) {
+		c2_mutex_lock(&ktest_mutex);
 		ut_dev_opens++;
+		c2_mutex_unlock(&ktest_mutex);
 		kd = file->private_data;
 		C2_UT_ASSERT(nlx_kcore_domain_invariant(kd));
-		if (nlx_kcore_domain_invariant(kd))
+		if (nlx_kcore_domain_invariant(kd)) {
 			C2_UT_ASSERT(nlx_core_kmem_loc_is_empty(
 							      &kd->kd_cd_loc));
+			kd->kd_drv_ops = &ut_kcore_ops;
+		}
 	}
 	return rc;
 }
 
 int ut_dev_close(struct inode *inode, struct file *file)
 {
+	struct nlx_kcore_domain *kd =
+	    (struct nlx_kcore_domain *) file->private_data;
 	int rc;
+
+	C2_UT_ASSERT(nlx_kcore_domain_invariant(kd));
+	if (nlx_kcore_domain_invariant(kd) &&
+	    (!drv_bufs_tlist_is_empty(&kd->kd_drv_bufs) ||
+	     !drv_tms_tlist_is_empty(&kd->kd_drv_tms)))
+		ut_dev_cleanups++;
 
 	rc = nlx_dev_close(inode, file);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(file->private_data == NULL);
+	c2_mutex_lock(&ktest_mutex);
+	ut_dev_closes++;
+	c2_cond_signal(&ktest_cond, &ktest_mutex);
+	c2_mutex_unlock(&ktest_mutex);
 	return rc;
 }
 
-#define WAIT_FOR_USER_HELPER(id)					\
-({									\
-	C2_UT_ASSERT(ktest_id == (id));					\
-	c2_semaphore_up(&ktest_sem);					\
-	to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);			\
-	c2_mutex_lock(&ktest_mutex);					\
-	while (ktest_id == (id) && !ktest_user_failed && ok)		\
-		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);	\
-	c2_mutex_unlock(&ktest_mutex);					\
-	C2_UT_ASSERT(ok);						\
-	C2_UT_ASSERT(!ktest_user_failed);				\
-	if (!ok)							\
-		goto restore_fops;					\
-})
+bool user_helper_wait(int id)
+{
+	c2_time_t to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);
+	bool ok = true;
+
+	C2_UT_ASSERT(ktest_id == id);
+	c2_semaphore_up(&ktest_sem);
+	c2_mutex_lock(&ktest_mutex);
+	while ((ktest_id == id && !ktest_user_failed && ok) ||
+	       ut_dev_opens > ut_dev_closes)
+		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);
+	c2_mutex_unlock(&ktest_mutex);
+	C2_UT_ASSERT(ok);
+	C2_UT_ASSERT(!ktest_user_failed);
+	return ok;
+}
 
 static void ktest_dev(void)
 {
 	bool ok;
 	c2_time_t to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);
 
+#define USER_HELPER_WAIT(id)						\
+({									\
+	ok = user_helper_wait((id));					\
+	if (!ok)							\
+		goto restore_fops;					\
+})
+
 	ut_dev_opens = 0;
 	nlx_dev_file_ops.release = ut_dev_close;
 	nlx_dev_file_ops.open    = ut_dev_open;
 
-	/* initial handshake */
+	/* initial handshake with the user program */
 	c2_mutex_lock(&ktest_mutex);
 	if (ktest_id == UT_TEST_NONE)
 		ok = c2_cond_timedwait(&ktest_cond, &ktest_mutex, to);
@@ -2004,29 +2115,59 @@ static void ktest_dev(void)
 	if (!ok)
 		goto restore_fops;
 
-	/** UT_TEST_DEV: just wait for user program to verify device */
-	WAIT_FOR_USER_HELPER(UT_TEST_DEV);
+	/* UT_TEST_DEV: just wait for user program to verify device */
+	USER_HELPER_WAIT(UT_TEST_DEV);
 
-	/** UT_TEST_OPEN: wait for user program to open/close */
+	/* UT_TEST_OPEN: wait for user program to open/close */
 	C2_UT_ASSERT(ut_dev_opens == 0);
-	WAIT_FOR_USER_HELPER(UT_TEST_OPEN);
+	USER_HELPER_WAIT(UT_TEST_OPEN);
 	C2_UT_ASSERT(ut_dev_opens == 1);
+	C2_UT_ASSERT(ut_dev_cleanups == 0);
 
-	/** UT_TEST_RDWR: wait for user program to try read/write */
-	WAIT_FOR_USER_HELPER(UT_TEST_RDWR);
+	/* UT_TEST_RDWR: wait for user program to try read/write */
+	USER_HELPER_WAIT(UT_TEST_RDWR);
 	C2_UT_ASSERT(ut_dev_opens == 2);
 
-	/** UT_TEST_RDWR: wait for user program to try invalid ioctls */
-	WAIT_FOR_USER_HELPER(UT_TEST_BADIOCTL);
+	/* UT_TEST_RDWR: wait for user program to try invalid ioctls */
+	USER_HELPER_WAIT(UT_TEST_BADIOCTL);
 	C2_UT_ASSERT(ut_dev_opens == 3);
 
-	/** UT_TEST_DOMINIT: wait for user program dominit/fini */
-	WAIT_FOR_USER_HELPER(UT_TEST_DOMINIT);
+	/* UT_TEST_DOMINIT: wait for user program dominit/fini */
+	USER_HELPER_WAIT(UT_TEST_DOMINIT);
 	C2_UT_ASSERT(ut_dev_opens == 4);
+	C2_UT_ASSERT(ut_dev_dom_inits == 1);
+	C2_UT_ASSERT(ut_dev_dom_finis == ut_dev_dom_inits);
+	C2_UT_ASSERT(ut_dev_cleanups == 0);
 
-	/** @todo insert logic for the remaining UT here */
+	/* UT_TEST_TMS */
+	USER_HELPER_WAIT(UT_TEST_TMS);
+	C2_UT_ASSERT(ut_dev_opens == 5);
+	C2_UT_ASSERT(ut_dev_dom_inits == 2);
+	C2_UT_ASSERT(ut_dev_dom_finis == ut_dev_dom_inits);
+	C2_UT_ASSERT(ut_dev_cleanups == 0);
+	C2_UT_ASSERT(ut_dev_tm_starts == MULTI_TM_NR);
+	C2_UT_ASSERT(ut_dev_tm_starts == ut_dev_tm_stops);
+
+	/* UT_TEST_DUPTM */
+	USER_HELPER_WAIT(UT_TEST_DUPTM);
+	C2_UT_ASSERT(ut_dev_opens == 6);
+	C2_UT_ASSERT(ut_dev_dom_inits == 3);
+	C2_UT_ASSERT(ut_dev_dom_finis == ut_dev_dom_inits);
+	C2_UT_ASSERT(ut_dev_cleanups == 0);
+	C2_UT_ASSERT(ut_dev_tm_starts == MULTI_TM_NR + 1);
+	C2_UT_ASSERT(ut_dev_tm_starts == ut_dev_tm_stops);
+
+	/* UT_TEST_TMCLEANUP */
+	USER_HELPER_WAIT(UT_TEST_TMCLEANUP);
+	C2_UT_ASSERT(ut_dev_opens == 7);
+	C2_UT_ASSERT(ut_dev_dom_inits == 4);
+	C2_UT_ASSERT(ut_dev_dom_finis == ut_dev_dom_inits);
+	C2_UT_ASSERT(ut_dev_cleanups == 1);
+	C2_UT_ASSERT(ut_dev_tm_starts == MULTI_TM_NR * 2 + 1);
+	C2_UT_ASSERT(ut_dev_tm_starts == ut_dev_tm_stops);
 
 	/* final handshake before proc file is deregistered */
+	C2_UT_ASSERT(ut_dev_opens == ut_dev_closes);
 	c2_semaphore_up(&ktest_sem);
 	to = c2_time_from_now(UT_SYNC_DELAY_SEC, 0);
 	c2_mutex_lock(&ktest_mutex);
@@ -2036,12 +2177,17 @@ static void ktest_dev(void)
 	C2_UT_ASSERT(ok);
 	C2_UT_ASSERT(!ktest_user_failed);
 	C2_UT_ASSERT(ktest_done);
+
+#undef USER_HELPER_WAIT
+
 restore_fops:
 	nlx_dev_file_ops.open    = nlx_dev_open;
+	c2_mutex_lock(&ktest_mutex);
+	while (ut_dev_opens > ut_dev_closes)
+		c2_cond_wait(&ktest_cond, &ktest_mutex);
+	c2_mutex_unlock(&ktest_mutex);
 	nlx_dev_file_ops.release = nlx_dev_close;
 }
-
-#undef WAIT_FOR_USER_HELPER
 
 /*
  *  Local variables:

@@ -32,15 +32,16 @@
 #include "net/net.h"
 #include "net/lnet/lnet_core_types.h"
 #include "net/lnet/lnet_ioctl.h"
-#include "net/lnet/ut/lnet_ut.h"
+#include "net/lnet/ut/lnet_drv_ut.h"
 
 const char lnet_xprt_dev[] = "/dev/" C2_LNET_DEV;
-const char lnet_ut_proc[]  = "/proc/c2_lnet_ut";
+const char lnet_ut_proc[]  = "/proc/" UT_PROC_NAME;
 
 enum {
 	MAX_PROC_TRIES = 120,
 	PROC_DELAY_SEC = 2,
 	FAIL_UID_GID = 99,
+	UT_TM_UPVT = 0xdeadbeaf,
 };
 
 /**
@@ -52,10 +53,10 @@ enum {
 	(((n) <= 8) ? 3 : ((n) <= 16) ? 4 : ((n) <= 32) ? 5 :           \
 	 ((n) <= 64) ? 6 : ((n) <= 128) ? 7 : ((n) <= 256) ? 8 :        \
 	 ((n) <= 512) ? 9 : ((n) / 0))
-#define LUT_ALLOC_PTR(ptr) \
+#define LUT_ALLOC_PTR(ptr)						\
 	((ptr) = lut_mem_alloc(sizeof ((ptr)[0]),			\
 			       LUT_PO2_SHIFT(sizeof ((ptr)[0]))))
-#define LUT_FREE_PTR(ptr) \
+#define LUT_FREE_PTR(ptr)						\
 	lut_mem_free((ptr), sizeof ((ptr)[0]), LUT_PO2_SHIFT(sizeof ((ptr)[0])))
 
 static void *lut_mem_alloc(size_t size, unsigned shift)
@@ -68,7 +69,7 @@ static void lut_mem_free(void *data, size_t size, unsigned shift)
 	c2_free_aligned(data, size, shift);
 }
 
-int test_dev_exists()
+int test_dev_exists(void)
 {
 	struct stat st;
 	int rc = stat(lnet_xprt_dev, &st);
@@ -84,7 +85,7 @@ int test_dev_exists()
 	return rc;
 }
 
-int test_open_close()
+int test_open_close(void)
 {
 	int f;
 	int rc;
@@ -115,7 +116,7 @@ int test_open_close()
 	return rc;
 }
 
-int test_read_write()
+int test_read_write(void)
 {
 	int f;
 	int rc;
@@ -142,7 +143,7 @@ int test_read_write()
 	_IOWR(C2_LNET_IOC_MAGIC, (C2_LNET_IOC_MAX_NR + 1), \
 	      struct c2_lnet_dev_dom_init_params)
 
-int test_invalid_ioctls()
+int test_invalid_ioctls(void)
 {
 	struct c2_lnet_dev_dom_init_params p;
 	int f;
@@ -176,7 +177,7 @@ int test_invalid_ioctls()
 	return failed ? 1 : 0;
 }
 
-int test_dom_init()
+int test_dom_init(void)
 {
 	struct c2_lnet_dev_dom_init_params p;
 	struct nlx_core_domain *dom;
@@ -210,17 +211,111 @@ int test_dom_init()
 	return rc;
 }
 
-int test_tm()
+int test_tms(bool force_cleanup)
 {
+	struct c2_lnet_dev_dom_init_params pd;
+	struct nlx_core_domain *dom;
+	struct nlx_core_transfer_mc *tm[MULTI_TM_NR];
+	int f;
+	int i;
+	int rc;
+
+	C2_SET0(&pd);
+	LUT_ALLOC_PTR(dom);
+	C2_ASSERT(dom != NULL);
+	pd.ddi_cd = dom;
+
+	for (i = 0; i < MULTI_TM_NR; ++i) {
+		LUT_ALLOC_PTR(tm[i]);
+		C2_ASSERT(tm[i] != NULL);
+	}
+
+	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
+	if (f < 0) {
+		rc = 1;
+		goto out;
+	}
+
+	rc = ioctl(f, C2_LNET_DOM_INIT, &pd);
+	if (rc != 0)
+		goto out;
+
+	for (i = 0; i < MULTI_TM_NR; ++i) {
+		tm[i]->ctm_upvt = (void *) UT_TM_UPVT;
+
+		rc = ioctl(f, C2_LNET_TM_START, tm[i]);
+		if (rc != 0)
+			goto out;
+		tm[i]->ctm_user_space_xo = true;
+		if (tm[i]->ctm_upvt != (void *) UT_TM_UPVT) {
+			rc = 1;
+			goto out;
+		}
+	}
+
+	if (!force_cleanup)
+		for (i = 0; i < MULTI_TM_NR; ++i) {
+			rc = ioctl(f, C2_LNET_TM_STOP, tm[i]->ctm_kpvt);
+			if (rc != 0)
+				break;
+		}
+ out:
+	for (i = 0; i < MULTI_TM_NR; ++i)
+		LUT_FREE_PTR(tm[i]);
+	if (f >= 0)
+		close(f);
+	LUT_FREE_PTR(dom);
+	return rc;
+}
+
+int test_duptm(void)
+{
+	struct c2_lnet_dev_dom_init_params pd;
+	struct nlx_core_domain *dom;
 	struct nlx_core_transfer_mc *tm;
+	int f;
+	int rc;
+
+	C2_SET0(&pd);
+	LUT_ALLOC_PTR(dom);
+	C2_ASSERT(dom != NULL);
+	pd.ddi_cd = dom;
 
 	LUT_ALLOC_PTR(tm);
 	C2_ASSERT(tm != NULL);
-	tm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
+
+	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
+	if (f < 0)
+		goto out;
+
+	rc = ioctl(f, C2_LNET_DOM_INIT, &pd);
+	if (rc != 0)
+		goto out;
+
+	tm->ctm_upvt = (void *) UT_TM_UPVT;
+	rc = ioctl(f, C2_LNET_TM_START, tm);
+	if (rc != 0)
+		goto out;
 	tm->ctm_user_space_xo = true;
-	tm->_debug_ = 15;
+	if (tm->ctm_upvt != (void *) UT_TM_UPVT) {
+		rc = 1;
+		goto out;
+	}
+
+	/* duplicate tm */
+	rc = ioctl(f, C2_LNET_TM_START, tm);
+	if (rc == 0 || errno != EBADR) {
+		rc = 1;
+		goto out;
+	} else
+		rc = 0;
+
+	rc = ioctl(f, C2_LNET_TM_STOP, tm->ctm_kpvt);
+ out:
 	LUT_FREE_PTR(tm);
-	return 0;
+	close(f);
+	LUT_FREE_PTR(dom);
+	return rc;
 }
 
 int main(int argc, char *argv[])
@@ -279,10 +374,15 @@ int main(int argc, char *argv[])
 			rc = test_dom_init();
 			break;
 		case UT_TEST_TMS:
-			rc = test_tm();
+			rc = test_tms(false);
+			break;
+		case UT_TEST_DUPTM:
+			rc = test_duptm();
+			break;
+		case UT_TEST_TMCLEANUP:
+			rc = test_tms(true);
 			break;
 		case UT_TEST_DONE:
-			printf("done testing\n");
 			goto done;
 		default:
 			printf("**** UNKNOWN TEST %d\n", (int) *cmd);
