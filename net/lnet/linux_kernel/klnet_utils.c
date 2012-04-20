@@ -159,8 +159,7 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
 
 /**
    Helper subroutine to fill in the common fields of the lnet_md_t associated
-   with a network buffer and the common fields if of the kcore buffer private
-   data.
+   with a network buffer and the common fields of the kcore buffer private data.
    @param kctm Pointer to kcore TM private data.
    @param lcbuf Pointer to core buffer private data with match bits set.
    @param kcb Pointer to kcore buffer private data with match bits set.
