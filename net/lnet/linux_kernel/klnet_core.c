@@ -1847,6 +1847,7 @@ static void nlx_kcore_tm_stop(struct nlx_kcore_domain *kd,
 	c2_addb_ctx_fini(&ktm->ktm_addb);
 	drv_bevs_tlist_fini(&ktm->ktm_drv_bevs);
 	drv_tms_tlink_fini(ktm);
+	tms_tlink_fini(ktm);
 	ktm->ktm_magic = 0;
 	/* allow kernel cleanup even if core is invalid */
 	if (nlx_core_tm_invariant(ctm))
@@ -1914,12 +1915,6 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
 		goto fail;
 	}
 
-	tms_tlink_init(ktm);
-	drv_tms_tlink_init(ktm);
-	drv_bevs_tlist_init(&ktm->ktm_drv_bevs);
-	ctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
-	spin_lock_init(&ktm->ktm_bevq_lock);
-	c2_semaphore_init(&ktm->ktm_sem, 0);
 	rc = LNetEQAlloc(C2_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &ktm->ktm_eqh);
 	if (rc < 0)
 		goto fail;
@@ -1942,9 +1937,15 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain *kd,
 		goto fail_with_eq;
 	}
 	ktm->ktm_addr = *cepa;
+	tms_tlink_init(ktm);
 	nlx_kcore_tms_list_add(ktm);
 	c2_mutex_unlock(&nlx_kcore_mutex);
 
+	drv_tms_tlink_init(ktm);
+	drv_bevs_tlist_init(&ktm->ktm_drv_bevs);
+	ctm->ctm_mb_counter = C2_NET_LNET_BUFFER_ID_MIN;
+	spin_lock_init(&ktm->ktm_bevq_lock);
+	c2_semaphore_init(&ktm->ktm_sem, 0);
 	c2_addb_ctx_init(&ktm->ktm_addb, &nlx_core_tm_addb_ctx, &kd->kd_addb);
 	ctm->ctm_kpvt = ktm;
 	ctm->ctm_magic = C2_NET_LNET_CORE_TM_MAGIC;
@@ -1990,19 +1991,17 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 
 	ctm->ctm_upvt = NULL;
 	ctm->ctm_user_space_xo = false;
-	nlx_core_new_blessed_bev(cd, ctm, &e1);
-	nlx_core_new_blessed_bev(cd, ctm, &e2);
-	if (e1 == NULL || e2 == NULL) {
-		rc = -ENOMEM;
+	rc = nlx_core_new_blessed_bev(cd, ctm, &e1);
+	if (rc == 0)
+		rc = nlx_core_new_blessed_bev(cd, ctm, &e2);
+	if (rc != 0)
 		goto fail_blessed_bev;
-	}
-
+	C2_ASSERT(e1 != NULL && e2 != NULL);
 	bev_cqueue_init(&ctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_is_empty(&ctm->ctm_bevq));
 	return 0;
 
  fail_blessed_bev:
-	C2_ASSERT(e2 == NULL);
 	if (e1 != NULL)
 		nlx_core_bev_free_cb(&e1->cbe_tm_link);
 	nlx_kcore_tm_stop(kd, ctm, ktm);

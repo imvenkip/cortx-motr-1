@@ -1319,7 +1319,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 
         if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
-	else if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC))
+	if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC))
 		return -EACCES;
 
 	C2_ALLOC_PTR_ADDB(kd, &c2_net_addb, &nlx_addb_loc);
