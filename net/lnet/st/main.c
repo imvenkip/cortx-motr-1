@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 	int			 rc;
 	bool			 client_only = false;
 	bool			 server_only = false;
-	bool			 verbose = false;
+	bool			 quiet = false;
 	int			 loops = PING_DEF_LOOPS;
 	int			 nr_clients = PING_DEF_CLIENT_THREADS;
 	int			 nr_bufs = PING_DEF_BUFS;
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
 				     "%i", &client_debug),
 			C2_FORMATARG('X', "server debug",
 				     "%i", &server_debug),
-			C2_FLAGARG('v', "verbose", &verbose));
+			C2_FLAGARG('q', "quiet", &quiet));
 	if (rc != 0)
 		return rc;
 
@@ -192,13 +192,8 @@ int main(int argc, char *argv[])
 	}
 	if (client_only && server_only)
 		client_only = server_only = false;
-	if (server_network == NULL) {
+	if (!server_only && client_only && server_network == NULL) {
 		fprintf(stderr, "Server LNet interface address missing ("
-			"e.g. 10.1.2.3@tcp0, 1.2.3.4@o2ib1)\n");
-		return 1;
-	}
-	if (!server_only && client_network == NULL) {
-		fprintf(stderr, "Client LNet interface address missing ("
 			"e.g. 10.1.2.3@tcp0, 1.2.3.4@o2ib1)\n");
 		return 1;
 	}
@@ -211,14 +206,15 @@ int main(int argc, char *argv[])
 	if (client_tmid < 0)
 		client_tmid = PING_CLIENT_DYNAMIC_TMID;
 
-	C2_ASSERT(c2_net_xprt_init(&c2_net_lnet_xprt));
+	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
+	C2_ASSERT(rc == 0);
 	c2_mutex_init(&qstats_mutex);
 
 	if (!client_only) {
 		/* start server in background thread */
 		c2_mutex_init(&sctx.pc_mutex);
 		c2_cond_init(&sctx.pc_cond);
-		if (verbose)
+		if (!quiet)
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
@@ -237,7 +233,8 @@ int main(int argc, char *argv[])
 		sctx.pc_tm_debug = server_debug;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
-		printf("Colibri LNet System Test Server Initialized\n");
+		if (!quiet)
+			printf("Colibri LNet System Test Server Initialized\n");
 	}
 
 	if (server_only) {
@@ -281,7 +278,7 @@ int main(int argc, char *argv[])
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;
 			params[i].debug = client_debug;
-			if (verbose)
+			if (!quiet)
 				params[i].ops = &verbose_ops;
 			else
 				params[i].ops = &quiet_ops;
@@ -292,13 +289,14 @@ int main(int argc, char *argv[])
 					    "client_%d", params[i].client_id);
 			C2_ASSERT(rc == 0);
 		}
-		printf("Colibri LNet System Test %d Client(s) Initialized\n",
-		       nr_clients);
+		if (!quiet)
+			printf("Colibri LNet System Test %d Client(s)"
+			       " Initialized\n", nr_clients);
 
 		/* ...and wait for them */
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
-			if (verbose) {
+			if (!quiet) {
 				printf("Client %d: joined\n",
 				       params[i].client_id);
 			}
@@ -308,7 +306,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (!client_only) {
-		if (verbose)
+		if (!quiet)
 			print_qstats(&sctx, false);
 		nlx_ping_server_should_stop(&sctx);
 		c2_thread_join(&server_thread);

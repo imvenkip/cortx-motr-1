@@ -726,6 +726,7 @@ static void test_tm_startstop(void)
 	};
 	static struct c2_clink tmwait1;
 	char * const *nidstrs;
+	const char *nid_to_use;
 	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
@@ -748,10 +749,17 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(dom, &nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
+	nid_to_use = nidstrs[0];
+	for (i = 0; nidstrs[i] != NULL; ++i) {
+		if (strstr(nidstrs[i], "@lo") != NULL)
+			continue;
+		nid_to_use = nidstrs[i];
+		break;
+	}
 	sprintf(epstr, "%s:%d:%d:101",
-		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
+		nid_to_use, STARTSTOP_PID, STARTSTOP_PORTAL);
 	sprintf(dyn_epstr, "%s:%d:%d:*",
-		nidstrs[0], STARTSTOP_PID, STARTSTOP_PORTAL);
+		nid_to_use, STARTSTOP_PID, STARTSTOP_PORTAL);
 	c2_net_lnet_ifaces_put(dom, &nidstrs);
 	C2_UT_ASSERT(nidstrs == NULL);
 	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));

@@ -48,6 +48,7 @@ struct nlx_ping_ctx {
 	uint32_t		              pc_nr_bufs;
 	uint32_t		              pc_segments;
 	uint32_t		              pc_seg_size;
+        uint32_t                              pc_seg_shift;
 	int32_t				      pc_passive_size;
 	struct c2_net_buffer		     *pc_nbs;
 	const struct c2_net_buffer_callbacks *pc_buf_callbacks;
@@ -64,6 +65,7 @@ struct nlx_ping_ctx {
 	int                                   pc_dom_debug;
 	int                                   pc_tm_debug;
 	bool                                  pc_ready;
+	char * const *                        pc_interfaces;
 };
 
 struct nlx_ping_client_params {
@@ -103,8 +105,10 @@ enum {
 
 	PING_CLIENT_SEGMENTS = 8,
 	PING_CLIENT_SEGMENT_SIZE = 4096,
+	PING_CLIENT_SEGMENT_SHIFT = 12,
 	PING_SERVER_SEGMENTS = 8,
 	PING_SERVER_SEGMENT_SIZE = 4096,
+	PING_SERVER_SEGMENT_SHIFT = 12,
 	/* leave some room for overhead */
 	PING_MAX_PASSIVE_SIZE =
 		PING_SERVER_SEGMENTS * PING_SERVER_SEGMENT_SIZE - 1024,

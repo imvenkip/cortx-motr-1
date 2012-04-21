@@ -65,7 +65,7 @@ static c2_time_t ping_c2_time_after_secs(int secs)
 }
 
 static int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
-			 struct c2_net_buffer **out)
+			 unsigned shift, struct c2_net_buffer **out)
 {
 	struct c2_net_buffer *nbs;
 	struct c2_net_buffer *nb;
@@ -77,7 +77,8 @@ static int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
 		return -ENOMEM;
 	for (i = 0; i < num; ++i) {
 		nb = &nbs[i];
-		rc = c2_bufvec_alloc(&nb->nb_buffer, segs, segsize);
+		rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, segs, segsize,
+					     shift);
 		if (rc != 0)
 			break;
 	}
@@ -86,7 +87,7 @@ static int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
 		*out = nbs;
 	else {
 		while (--i >= 0)
-			c2_bufvec_free(&nbs[i].nb_buffer);
+			c2_bufvec_free_aligned(&nbs[i].nb_buffer, shift);
 		c2_free(nbs);
 	}
 	return rc;
@@ -242,6 +243,15 @@ static void msg_free(struct ping_msg *msg)
 		c2_net_desc_free(&msg->pm_u.pm_desc);
 	else
 		c2_free(msg->pm_u.pm_str);
+}
+
+static void ping_print_interfaces(struct nlx_ping_ctx *ctx)
+{
+	int i;
+	ctx->pc_ops->pf("%s: Available interfaces\n", ctx->pc_ident);
+	for (i = 0; ctx->pc_interfaces[i] != NULL; ++i)
+		ctx->pc_ops->pf("\t%s\n", ctx->pc_interfaces[i]);
+	return;
 }
 
 static struct nlx_ping_ctx *
@@ -815,8 +825,20 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 	if (ctx->pc_dom_debug > 0)
 		c2_net_lnet_dom_set_debug(&ctx->pc_dom, ctx->pc_dom_debug);
 
+	rc = c2_net_lnet_ifaces_get(&ctx->pc_dom, &ctx->pc_interfaces);
+	if (rc != 0) {
+		PING_ERR("failed to load interface names: %d\n", rc);
+		goto fail;
+	}
+	C2_ASSERT(ctx->pc_interfaces != NULL);
+
+	if (ctx->pc_interfaces[0] == NULL) {
+		PING_ERR("no interfaces defined locally\n");
+		goto fail;
+	}
+
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
-			   &ctx->pc_nbs);
+			   ctx->pc_seg_shift, &ctx->pc_nbs);
 	if (rc != 0) {
 		PING_ERR("buffer allocation failed: %d\n", rc);
 		goto fail;
@@ -835,6 +857,18 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 		}
 		ctx->pc_nbs[i].nb_callbacks = ctx->pc_buf_callbacks;
 	}
+
+	if (ctx->pc_network == NULL) {
+		ctx->pc_network = ctx->pc_interfaces[0];
+		for (i = 0; ctx->pc_interfaces[i] != NULL; ++i) {
+			if (strstr(ctx->pc_interfaces[i], "@lo") != NULL)
+				continue;
+			ctx->pc_network = ctx->pc_interfaces[i]; /* 1st !@lo */
+			break;
+		}
+	}
+	if (ctx->pc_rnetwork == NULL)
+		ctx->pc_rnetwork = ctx->pc_network;
 
 	if (ctx->pc_tmid >= 0)
 		snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:%u", ctx->pc_network,
@@ -904,11 +938,14 @@ static void ping_fini(struct nlx_ping_ctx *ctx)
 			struct c2_net_buffer *nb = &ctx->pc_nbs[i];
 			C2_ASSERT(nb->nb_flags == C2_NET_BUF_REGISTERED);
 			c2_net_buffer_deregister(nb, &ctx->pc_dom);
-			c2_bufvec_free(&nb->nb_buffer);
+			c2_bufvec_free_aligned(&nb->nb_buffer,
+					       ctx->pc_seg_shift);
 		}
 		c2_free(ctx->pc_nbs);
 		c2_bitmap_fini(&ctx->pc_nbbm);
 	}
+	if (ctx->pc_interfaces != NULL)
+		c2_net_lnet_ifaces_put(&ctx->pc_dom, &ctx->pc_interfaces);
 	if (ctx->pc_dom.nd_xprt != NULL)
 		c2_net_domain_fini(&ctx->pc_dom);
 
@@ -963,6 +1000,8 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	C2_ASSERT(num_recv_bufs >= 2);
 	rc = ping_init(ctx);
 	C2_ASSERT(rc == 0);
+	C2_ASSERT(ctx->pc_network != NULL);
+	ping_print_interfaces(ctx);
 	ctx->pc_ops->pf("Server end point: %s\n", ctx->pc_tm.ntm_ep->nep_addr);
 
 	c2_mutex_lock(&ctx->pc_mutex);
@@ -1056,6 +1095,7 @@ void nlx_ping_server_spawn(struct c2_thread *server_thread,
 	sctx->pc_xprt = &c2_net_lnet_xprt;
 	sctx->pc_segments = PING_SERVER_SEGMENTS;
 	sctx->pc_seg_size = PING_SERVER_SEGMENT_SIZE;
+	sctx->pc_seg_shift = PING_SERVER_SEGMENT_SHIFT;
 	sctx->pc_pid = C2_NET_LNET_PID;
 
 	c2_mutex_lock(&sctx->pc_mutex);
@@ -1360,6 +1400,8 @@ static int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
 		ctx->pc_ident = NULL;
 		return rc;
 	}
+	C2_ASSERT(ctx->pc_network != NULL);
+	C2_ASSERT(ctx->pc_rnetwork != NULL);
 
 	/* need end point for the server */
 	snprintf(addr, ARRAY_SIZE(addr), "%s:%u:%u:%u", ctx->pc_rnetwork,
@@ -1403,6 +1445,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
+		.pc_seg_shift = PING_CLIENT_SEGMENT_SHIFT,
 		.pc_passive_size = params->passive_size,
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
@@ -1428,6 +1471,9 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	rc = nlx_ping_client_init(&cctx, &server_ep);
 	if (rc != 0)
 		goto fail;
+
+	if (params->client_id == 1)
+		ping_print_interfaces(&cctx);
 
 	if (params->passive_size != 0) {
 		bp = c2_alloc(params->passive_size);

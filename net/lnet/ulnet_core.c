@@ -1044,8 +1044,8 @@ int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
 	}
 	C2_POST(dnep.dn_buf[0] != '\0');
 
-	strncpy(nidstr, dnep.dn_buf, ARRAY_SIZE(nidstr) - 1);
-	nidstr[ARRAY_SIZE(nidstr) - 1] = '\0';
+	strncpy(nidstr, dnep.dn_buf, C2_NET_LNET_NIDSTR_SIZE - 1);
+	nidstr[C2_NET_LNET_NIDSTR_SIZE - 1] = '\0';
 	return 0;
 }
 

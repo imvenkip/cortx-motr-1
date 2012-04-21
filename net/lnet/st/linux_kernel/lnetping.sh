@@ -150,7 +150,7 @@ echo $OPARM
 echo $SPARM
 if [ -n "$Pclient_only" ]; then
     echo $CPARM
-    if [ $server_nid = $client_nid ]; then
+    if [ $server_nid = $client_nid -a $client_nid != $NID ]; then
 	echo "Error: Standalone client requires a remote server network"
 	exit 1
     fi
