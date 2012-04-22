@@ -29,6 +29,7 @@
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
 #include "rpc/rpc2.h"
+#include "pool/pool.h"  /* c2_pool */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -194,6 +195,7 @@ enum {
 					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
+	C2T1FS_COB_ID_STRLEN		= 34,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure.
@@ -206,7 +208,7 @@ struct c2t1fs_globals {
 	struct c2_cob_domain_id  g_cob_dom_id;
 
 	struct c2_net_domain     g_ndom;
-	struct c2_rpcmachine     g_rpcmachine;
+	struct c2_rpc_machine    g_rpc_machine;
 	struct c2_cob_domain     g_cob_dom;
 	struct c2_dbenv          g_dbenv;
 };
@@ -315,8 +317,7 @@ struct c2t1fs_sb {
 	/** Total number of containers. */
 	uint32_t                      csb_nr_containers;
 
-	/** Number of target objects, over which file-contents are striped */
-	uint32_t                      csb_pool_width;
+	struct c2_pool                csb_pool;
 
 	/** Number of data units per parity group. N */
 	uint32_t                      csb_nr_data_units;
@@ -428,8 +429,10 @@ struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void          c2t1fs_destroy_inode(struct inode *inode);
 
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-			     uint32_t N, uint32_t K, uint32_t P,
-			     uint64_t unit_size);
+			     struct c2_pool      *pool,
+			     uint32_t             N,
+			     uint32_t             K,
+			     uint64_t             unit_size);
 
 struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index);
 

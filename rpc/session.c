@@ -275,7 +275,7 @@ static void __session_fini(struct c2_rpc_session *session)
 
         /*
          * @todo
-         * This sleep should remove after rpc issues resolved. 
+         * This sleep should remove after rpc issues resolved.
          */
         c2_nanosleep(c2_time_set(&t, 0, 1000), NULL);
 
@@ -696,7 +696,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		 * 1. leave session in TERMNATING state FOREVER.
 		 *    Then when to fini/cleanup session.
 		 *    This will not allow finialising of session, in turn conn,
-		 *    and rpcmachine can't be finalised.
+		 *    and rpc_machine can't be finalised.
 		 *
 		 * 2. Move session to FAILED state.
 		 *    For this session the receiver side state will still
@@ -1206,22 +1206,22 @@ out:
 
 /**
    For all slots belonging to @session,
-     if slot is in c2_rpcmachine::cr_ready_slots list,
+     if slot is in c2_rpc_machine::rm_ready_slots list,
      then remove it from the list.
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 {
-	struct c2_rpc_slot   *slot;
-	struct c2_rpcmachine *machine;
-	int                   i;
+	struct c2_rpc_slot    *slot;
+	struct c2_rpc_machine *machine;
+	int                    i;
 
-	machine = session->s_conn->c_rpcmachine;
+	machine = session->s_conn->c_rpc_machine;
 
 	/*
-	 * XXX lock and unlock of cr_ready_slots_mutex is commented, until
+	 * XXX lock and unlock of rm_ready_slots_mutex is commented, until
 	 * formation adds a fix for correct lock ordering.
 	 */
-	c2_mutex_lock(&machine->cr_ready_slots_mutex);
+	c2_mutex_lock(&machine->rm_ready_slots_mutex);
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
@@ -1232,7 +1232,7 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 			c2_list_del(&slot->sl_link);
 	}
 
-	c2_mutex_unlock(&machine->cr_ready_slots_mutex);
+	c2_mutex_unlock(&machine->rm_ready_slots_mutex);
 }
 
 /** @} end of session group */

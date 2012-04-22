@@ -44,7 +44,7 @@ static struct c2_buf                buf;
 
 static int result;
 
-static void test_init(void) 
+static void test_init(void)
 {
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(result == 0);
@@ -125,7 +125,7 @@ static void test_lookup(void)
 	C2_ASSERT(result == 0);
 
 	C2_ASSERT(dup.fr_desc.rd_lsn == d->rd_lsn);
-	C2_ASSERT(memcmp(&d->rd_header, 
+	C2_ASSERT(memcmp(&d->rd_header,
 			 &dup.fr_desc.rd_header, sizeof d->rd_header) == 0);
 
 	c2_fol_rec_fini(&dup);
@@ -230,7 +230,7 @@ struct c2_ub_set c2_fol_ub = {
 	.us_name = "fol-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name = "insert",
 		  .ut_iter = UB_ITER,
 		  .ut_round = ub_insert },
@@ -247,7 +247,7 @@ struct c2_ub_set c2_fol_ub = {
 	}
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

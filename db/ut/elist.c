@@ -93,7 +93,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

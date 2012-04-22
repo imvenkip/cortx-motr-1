@@ -40,7 +40,7 @@ extern int   optreset;
    @{
  */
 
-static void usage(const char *progname, 
+static void usage(const char *progname,
 		  const struct c2_getopts_opt *opts, unsigned nr)
 {
 	int i;
@@ -53,10 +53,10 @@ static void usage(const char *progname,
 
 		o = &opts[i];
 		fprintf(stderr, "\t -%c %6.6s: %s\n", o->go_opt,
-			o->go_type == GOT_VOID ? "" : 
+			o->go_type == GOT_VOID ? "" :
 			o->go_type == GOT_HELP ? "" :
-			o->go_type == GOT_FLAG ? "" : 
-			o->go_type == GOT_FORMAT ? "arg" : 
+			o->go_type == GOT_FLAG ? "" :
+			o->go_type == GOT_FORMAT ? "arg" :
 			o->go_type == GOT_NUMBER ? "number" : "string",
 			o->go_desc);
 	}
@@ -68,7 +68,7 @@ static int getnum(const char *arg, const char *desc, int64_t *out)
 
 	*out = strtoull(arg, &end, 0);
 	if (*end != 0) {
-		fprintf(stderr, "Failed conversion of \"%s\" to %s\n", 
+		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
 			arg, desc);
 		return -EINVAL;
 	} else
@@ -139,8 +139,8 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
 				result = result == 1 ? 0 : -EINVAL;
 				if (result != 0) {
 					fprintf(stderr, "Cannot scan \"%s\" "
-						"as \"%s\" in \"%s\"\n", 
-						optarg, u->got_fmt.f_string, 
+						"as \"%s\" in \"%s\"\n",
+						optarg, u->got_fmt.f_string,
 						o->go_desc);
 				}
 				break;
@@ -170,7 +170,7 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
 
 /** @} end of getopts group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

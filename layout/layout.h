@@ -50,7 +50,7 @@ struct c2_layout_formula {
 
 struct c2_layout_formula_ops {
 	int (*lfo_subst)(const struct c2_layout_formula *form, uint16_t nr,
-			 const struct c2_layout_parameter *actuals, 
+			 const struct c2_layout_parameter *actuals,
 			 struct c2_layout **out);
 };
 
@@ -81,7 +81,7 @@ struct c2_layout_ops {
 
 struct c2_layout_type {
 	const char  *lt_name;
-	bool       (*lt_equal)(const struct c2_layout *l0, 
+	bool       (*lt_equal)(const struct c2_layout *l0,
 			       const struct c2_layout *l1);
 };
 

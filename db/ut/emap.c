@@ -44,7 +44,7 @@ static struct c2_emap_seg   *seg;
 
 static int result;
 
-static void test_init(void) 
+static void test_init(void)
 {
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(result == 0);
@@ -77,14 +77,14 @@ static void checkpoint(void)
 	C2_ASSERT(result == 0);
 }
 
-static void test_obj_init(void) 
+static void test_obj_init(void)
 {
 	result = c2_emap_obj_insert(&emap, &tx, &prefix, 42);
 	C2_ASSERT(result == 0);
 	checkpoint();
 }
 
-static void test_lookup(void) 
+static void test_lookup(void)
 {
 	result = c2_emap_lookup(&emap, &tx, &prefix, 0, &it);
 	C2_UT_ASSERT(result == 0);
@@ -140,12 +140,12 @@ static void split(c2_bindex_t offset, int nr, bool commit)
 		checkpoint();
 }
 
-static void test_split(void) 
+static void test_split(void)
 {
 	split(0, 100, true);
 }
 
-static void test_print(void) 
+static void test_print(void)
 {
 	int i;
 
@@ -169,7 +169,7 @@ static void test_print(void)
 	c2_emap_close(&it);
 }
 
-static void test_merge(void) 
+static void test_merge(void)
 {
 	result = c2_emap_lookup(&emap, &tx, &prefix, 0, &it);
 	C2_UT_ASSERT(result == 0);
@@ -182,7 +182,7 @@ static void test_merge(void)
 	checkpoint();
 }
 
-static void test_obj_fini(void) 
+static void test_obj_fini(void)
 {
 	result = c2_emap_obj_delete(&emap, &tx, &prefix);
 	C2_UT_ASSERT(result == 0);
@@ -285,7 +285,7 @@ struct c2_ub_set c2_emap_ub = {
 	.us_name = "emap-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name = "obj-init",
 		  .ut_iter = UB_ITER,
 		  .ut_round = ub_obj_init },
@@ -311,7 +311,7 @@ struct c2_ub_set c2_emap_ub = {
 	}
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

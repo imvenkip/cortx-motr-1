@@ -47,7 +47,7 @@ void c2_layouts_fini(void)
 
 /** @} end group layout */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

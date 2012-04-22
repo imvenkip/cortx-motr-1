@@ -31,7 +31,7 @@ DEF(c2_net_buf_desc, SEQUENCE,
 
 /** @} end of net group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

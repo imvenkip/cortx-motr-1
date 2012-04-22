@@ -73,7 +73,7 @@
    @{
  */
 
-struct c2_stob_type linux_stob_type;
+struct c2_stob_type c2_linux_stob_type;
 static const struct c2_stob_type_op linux_stob_type_op;
 static const struct c2_stob_op linux_stob_op;
 static const struct c2_stob_domain_op linux_stob_domain_op;
@@ -190,8 +190,8 @@ static bool linux_stob_invariant(const struct linux_stob *lstob)
 
 	stob = &lstob->sl_stob;
 	return
-		((lstob->sl_fd >= 0) == (stob->so_state == CSS_EXISTS)) &&
-		(lstob->sl_stob.so_domain->sd_type == &linux_stob_type);
+		(lstob->sl_fd >= 0) == (stob->so_state == CSS_EXISTS) &&
+		lstob->sl_stob.so_domain->sd_type == &c2_linux_stob_type;
 }
 
 /**
@@ -272,7 +272,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
  */
 static int linux_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
 {
-	return -ENOSYS;
+	return 0;
 }
 
 /**
@@ -399,7 +399,7 @@ static const struct c2_stob_op linux_stob_op = {
 	.sop_block_shift  = linux_stob_block_shift
 };
 
-struct c2_stob_type linux_stob_type = {
+struct c2_stob_type c2_linux_stob_type = {
 	.st_op    = &linux_stob_type_op,
 	.st_name  = "linuxstob",
 	.st_magic = 0xACC01ADE
@@ -449,12 +449,12 @@ int c2_linux_stobs_init(void)
 {
 	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type,
 			 &c2_addb_global_ctx);
-	return linux_stob_type.st_op->sto_init(&linux_stob_type);
+	return C2_STOB_TYPE_OP(&c2_linux_stob_type, sto_init);
 }
 
 void c2_linux_stobs_fini(void)
 {
-	linux_stob_type.st_op->sto_fini(&linux_stob_type);
+	C2_STOB_TYPE_OP(&c2_linux_stob_type, sto_fini);
 	c2_addb_ctx_fini(&adieu_addb_ctx);
 }
 

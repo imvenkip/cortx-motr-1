@@ -34,7 +34,7 @@ extern struct c2_net_xprt c2_net_usunrpc_xprt;
 
 struct c2_fop_field_type;
 
-bool_t c2_fop_type_uxdr(const struct c2_fop_field_type *ftype, 
+bool_t c2_fop_type_uxdr(const struct c2_fop_field_type *ftype,
 			XDR *xdrs, void *obj);
 bool_t c2_fop_uxdrproc(XDR *xdrs, struct c2_fop *fop);
 int usunrpc_init(void);

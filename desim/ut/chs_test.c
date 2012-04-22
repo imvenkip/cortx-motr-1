@@ -41,7 +41,7 @@
  */
 
 #if 0
-/* 
+/*
  * Seagate Cheetah 15K.7 SAS ST3450857SS
  *
  * http://www.seagate.com/staticfiles/support/disc/manuals/enterprise/cheetah/15K.7/100516226a.pdf
@@ -49,12 +49,12 @@
  * Heads:             3*2
  * Cylinders:         107500
  * Sectors per track: 680--2040 (680 + (i << 7)/10000)
- * Rotational speed:  250 revolutions/sec 
+ * Rotational speed:  250 revolutions/sec
  *
  * Avg rotational latency: 2ms
  *
  * Seek:                read write
- *       average:        3.4 3.9 
+ *       average:        3.4 3.9
  *       track-to-track: 0.2 0.44
  *       full stroke:    6.6 7.4
  */
@@ -107,7 +107,7 @@ static struct elevator el;
 
 static struct sim_thread seek_thr;
 
-static double seekto(struct sim *s, int64_t sector, int sectors) 
+static double seekto(struct sim *s, int64_t sector, int sectors)
 {
 	sim_time_t now;
 
@@ -135,7 +135,7 @@ static void seek_test_thread(struct sim *s, struct sim_thread *t, void *arg)
 	double latency;
 	double seeklat[LBA_D][LBA_D];
 	double seeksqr[LBA_D][LBA_D];
-	
+
 
 	in_num_sect = 1953525168;
 
@@ -155,8 +155,8 @@ static void seek_test_thread(struct sim *s, struct sim_thread *t, void *arg)
 				sqr += latency*latency;
 			}
 			avg /= ROUNDS;
-			printf("reading %4i sectors at %i/%i: %6.0f (%6.0f)\n", 
-			       sectors, i, LBA_D, avg, 
+			printf("reading %4i sectors at %i/%i: %6.0f (%6.0f)\n",
+			       sectors, i, LBA_D, avg,
 			       sqrt(sqr/ROUNDS - avg*avg));
 		}
 	}
@@ -189,7 +189,7 @@ static void seek_test_thread(struct sim *s, struct sim_thread *t, void *arg)
 	for (i = 0; i < LBA_D; ++i) {
 		for (j = 0; j < LBA_D; ++j) {
 			latency = seeklat[i][j] / ROUNDS / TRACK_D;
-			printf("[%6.0f %4.0f]", latency, 
+			printf("[%6.0f %4.0f]", latency,
 			       sqrt(seeksqr[i][j] / ROUNDS / TRACK_D - latency*latency));
 		}
 		printf("\n");
@@ -234,7 +234,7 @@ int main(int argc, char **argv)
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -175,7 +175,7 @@ static char *subsys_str(uint64_t subsys, char *buf)
 	char *s = buf;
 
 	*s++ = '<';
-	for (i = 0; subsys != 0; i++, subsys >>= 1)
+	for (i = 0; i < ARRAY_SIZE(trace_subsys_str); i++, subsys >>= 1)
 		*s++ = (subsys & 1) ? trace_subsys_str[i][0] :
 		              tolower(trace_subsys_str[i][0]);
 	*s++ = '>';
@@ -195,7 +195,7 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 		uint32_t v32;
 		uint64_t v64;
 	} v[C2_TRACE_ARGC_MAX];
-	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT +3];
+	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
 
 	c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-20s "
 			  "%15s:%-3i\n\t",

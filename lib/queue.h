@@ -64,7 +64,7 @@ bool c2_queue_is_empty(const struct c2_queue *q);
 void c2_queue_link_init (struct c2_queue_link *ql);
 void c2_queue_link_fini (struct c2_queue_link *ql);
 bool c2_queue_link_is_in(const struct c2_queue_link *ql);
-bool c2_queue_contains  (const struct c2_queue *q, 
+bool c2_queue_contains  (const struct c2_queue *q,
 			 const struct c2_queue_link *ql);
 size_t c2_queue_length(const struct c2_queue *q);
 
@@ -82,7 +82,7 @@ bool c2_queue_invariant(const struct c2_queue *q);
 /* __COLIBRI_LIB_QUEUE_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -76,7 +76,7 @@ void plprog_ping_1(CLIENT *clnt)
                         continue;
                 }
 
-                fprintf(stdout, "Server handled this ping request at %lu\n", 
+                fprintf(stdout, "Server handled this ping request at %lu\n",
                 	(unsigned long)result.time);
                 if (ping_interval)
                         sleep(ping_interval);
