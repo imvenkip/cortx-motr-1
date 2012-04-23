@@ -102,65 +102,35 @@ static bool           fi_ctl_is_opened = false;
 
 static void *fi_stat_start(struct seq_file *seq, loff_t *pos)
 {
-	u32 *idx;
-
-	if (*pos == 0) {
-		idx = SEQ_START_TOKEN;
+	if (*pos == 0)
 		return SEQ_START_TOKEN;
-	} else if (*pos >= c2_fi_states_get_free_idx()) {
+	else if (*pos >= c2_fi_states_get_free_idx())
 		/* indicate beyond end of file position */
-		idx = NULL;
 		return NULL;
-	}
 
-	idx = kmalloc(sizeof(u32), GFP_KERNEL);
 
-	if (idx == NULL) {
-		pr_err("Failed to alloc seq_file iterator\n");
-		return NULL;
-	}
-
-	*idx = *pos;
-
-	return idx;
+	return (void*)(c2_fi_states_get() + *pos);
 }
 
 static void *fi_stat_next(struct seq_file *seq, void *v, loff_t *pos)
 {
-	u32 *idx = 0;
+	loff_t cur_pos = (*pos)++;
 
-	++(*pos);
-
-	if (v == SEQ_START_TOKEN) {
-		idx = kmalloc(sizeof(u32), GFP_KERNEL);
-		if (idx == NULL) {
-			pr_err("Failed to alloc seq_file iterator\n");
-			return NULL;
-		}
-	} else {
-		idx = v;
-	}
-
-	*idx = *pos - 1;
-
-	if (*idx >= c2_fi_states_get_free_idx()) {
+	if (cur_pos >= c2_fi_states_get_free_idx())
 		/* indicate end of sequence */
-		idx = 0;
-	}
+		return NULL;
 
-	return idx;
+	return (void*)(c2_fi_states_get() + cur_pos);
 }
 
 static void fi_stat_stop(struct seq_file *seq, void *v)
 {
-	kfree(v);
 }
 
 static int fi_stat_show(struct seq_file *seq, void *v)
 {
-	const struct c2_fi_fpoint_state *state;
+	const struct c2_fi_fpoint_state *state = v;
 	struct c2_fi_fpoint_state_info   si;
-	u32                             *idx;
 
 	/* print header */
 	if (SEQ_START_TOKEN == v) {
@@ -174,8 +144,6 @@ static int fi_stat_show(struct seq_file *seq, void *v)
 	/*if (!fi_state_enabled(state))
 		return SEQ_SKIP;*/
 
-	idx = v;
-	state = &c2_fi_states_get()[*idx];
 	c2_fi_states_get_state_info(state, &si);
 
 	seq_printf(seq, c2_fi_states_print_format,
@@ -334,13 +302,14 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 static ssize_t fi_ctl_write(struct file *file, const char __user *user_buf,
 			    size_t size, loff_t *ppos)
 {
-	int    rc;
-	int    i;
-	char   buf[256];
-	int    argc;
-	char **argv;
+	int       rc;
+	int       i;
+	ssize_t   ret_size = size;
+	char      buf[256];
+	int       argc;
+	char    **argv;
 
-	if (size > sizeof(buf) - 1)
+	if (size > sizeof buf - 1)
 		return -EINVAL;
 
 	if (strncpy_from_user(buf, user_buf, size) < 0)
@@ -379,8 +348,8 @@ static ssize_t fi_ctl_write(struct file *file, const char __user *user_buf,
 		return rc;
 
 	/* ignore the rest of the buffer, only one command at a time */
-	*ppos += size;
-	return size;
+	*ppos += ret_size;
+	return ret_size;
 }
 
 static const struct file_operations fi_ctl_fops = {
