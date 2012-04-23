@@ -81,7 +81,7 @@ enum {
 	RID = 1,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID = 13,
-	CONNECT_TIMEOUT = 5,
+	CONNECT_TIMEOUT = 10,
 };
 
 #ifndef __KERNEL__

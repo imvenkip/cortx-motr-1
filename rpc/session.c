@@ -528,9 +528,12 @@ int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
 	state_reached = c2_rpc_session_timedwait(session,
 				C2_RPC_SESSION_IDLE | C2_RPC_SESSION_FAILED,
 				c2_time_from_now(timeout_sec, 0));
-	if (!state_reached)
-		return -ETIMEDOUT;
-
+	/*
+	 * When rpc-timeouts will be implemented !state_reached should never
+	 * arise. Even if we return error e.g. -ETIMEDOUT what to do with
+	 * a session in ESTABLISHING state?
+	 */
+	C2_ASSERT(state_reached);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
 		  session->s_state == C2_RPC_SESSION_FAILED);
 
@@ -645,7 +648,7 @@ static void fop_session_establish_item_free(struct c2_rpc_item *item)
 int c2_rpc_session_terminate(struct c2_rpc_session *session)
 {
 	struct c2_fop                       *fop;
-	struct c2_rpc_fop_session_terminate *fop_st;
+	struct c2_rpc_fop_session_terminate *args;
 	struct c2_rpc_session               *session_0;
 	struct c2_rpc_machine               *machine;
 	struct c2_rpc_conn                  *conn;
@@ -672,32 +675,14 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
-		/*
-		 * There are two choices here:
-		 *
-		 * 1. leave session in TERMNATING state FOREVER.
-		 *    Then when to fini/cleanup session.
-		 *    This will not allow finialising of session, in turn conn,
-		 *    and rpc_machine can't be finalised.
-		 *
-		 * 2. Move session to FAILED state.
-		 *    For this session the receiver side state will still
-		 *    continue to exist. And receiver can send unsolicited
-		 *    items, that will be received on sender i.e. current node.
-		 *    Current code will drop such items. When/how to fini and
-		 *    cleanup receiver side state? XXX
-		 *
-		 * For now, later is chosen. This can be changed in future
-		 * to alternative 1, iff required.
-		 */
+		/* See [^1] about decision to move session to FAILED state */
 		session_failed(session, rc);
 		goto out_unlock;
 	}
 
-
-	fop_st = c2_fop_data(fop);
-	fop_st->rst_sender_id = conn->c_sender_id;
-	fop_st->rst_session_id = session->s_session_id;
+	args                 = c2_fop_data(fop);
+	args->rst_sender_id  = conn->c_sender_id;
+	args->rst_session_id = session->s_session_id;
 
 	session_0 = c2_rpc_conn_session0(conn);
 
@@ -721,7 +706,30 @@ out_unlock:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate);
+/*
+ * c2_rpc_session_terminate
+ * [^1]
+ * There are two choices here:
+ *
+ * 1. leave session in TERMNATING state FOREVER.
+ *    Then when to fini/cleanup session.
+ *    This will not allow finialising of session, in turn conn,
+ *    and rpc_machine can't be finalised.
+ *
+ * 2. Move session to FAILED state.
+ *    For this session the receiver side state will still
+ *    continue to exist. And receiver can send unsolicited
+ *    items, that will be received on sender i.e. current node.
+ *    Current code will drop such items. When/how to fini and
+ *    cleanup receiver side state? XXX
+ *
+ * For now, later is chosen. This can be changed in future
+ * to alternative 1, iff required.
+ */
 
+/*
+ * Terminate the session synchronously.
+ */
 int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 				  uint32_t timeout_sec)
 {
@@ -732,30 +740,24 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 	c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE,
 				 c2_time_from_now(timeout_sec, 0));
 
-	/* Terminate session */
 	rc = c2_rpc_session_terminate(session);
-	if (rc != 0)
-		return rc;
-
-	/* Wait for session to become TERMINATED */
-	state_reached = c2_rpc_session_timedwait(session,
+	if (rc == 0) {
+		state_reached = c2_rpc_session_timedwait(session,
 			    C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
 			    c2_time_from_now(timeout_sec, 0));
-	if (!state_reached)
-		return -ETIMEDOUT;
 
-	switch (session->s_state) {
-	case C2_RPC_SESSION_TERMINATED:
-		rc = 0;
-		break;
-	case C2_RPC_SESSION_FAILED:
-		rc = session->s_rc;
-		break;
-	default:
-		C2_ASSERT("internal logic error in "
-			  "c2_rpc_session_timedwait()" == 0);
+		/*
+		 * In the absense of rpc-timeouts, it is not very clear yet,
+		 * that what to do with a session in TERMINATING state.
+		 */
+		C2_ASSERT(state_reached);
+
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_TERMINATED ||
+			  session->s_state == C2_RPC_SESSION_FAILED);
+
+		rc = session->s_state == C2_RPC_SESSION_TERMINATED ? 0
+							     : session->s_rc;
 	}
-
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate_sync);
@@ -765,11 +767,9 @@ int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
 	int rc;
 
 	rc = c2_rpc_session_terminate_sync(session, timeout_sec);
-	if (rc != 0)
-		return rc;
-
 	c2_rpc_session_fini(session);
 
+	/* Amit: What the sender will do with this return value? Is rc really required? */
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_destroy);
