@@ -40,7 +40,7 @@
  */
 struct c2_net_test_ctx {
 	struct c2_net_transfer_mc	ntc_tm;
-	struct c2_net_tm_callbacks	ntc_tm_cb;	
+	struct c2_net_tm_callbacks	ntc_tm_cb;
 	struct c2_net_buffer_callbacks	ntc_buf_cb;
 	struct c2_net_buffer	       *ntc_buf_ping;
 	int				ntc_buf_ping_nr;
