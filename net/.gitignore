@@ -1,2 +1,2 @@
-net_otw_types_u.c
-net_otw_types_u.h
+net_otw_types_k.[ch]
+net_otw_types_u.[ch]

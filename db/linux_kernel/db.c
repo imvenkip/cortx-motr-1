@@ -64,7 +64,6 @@ int c2_dbenv_sync(struct c2_dbenv *env)
 {
 	return 0;
 }
-C2_EXPORTED(c2_dbenv_sync);
 
 int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 		  const char *name, uint64_t flags,
@@ -75,7 +74,6 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 	c2_mutex_init(&table->t_i.tk_lock);
 	return 0;
 }
-C2_EXPORTED(c2_table_init);
 
 void c2_table_fini(struct c2_table *table)
 {
@@ -91,7 +89,6 @@ void c2_table_fini(struct c2_table *table)
 	c2_mutex_fini(&table->t_i.tk_lock);
 	c2_table_common_fini(table);
 }
-C2_EXPORTED(c2_table_fini);
 
 int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 {
@@ -99,7 +96,6 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	txw_tlist_init(&tx->dt_waiters);
 	return 0;
 }
-C2_EXPORTED(c2_db_tx_init);
 
 int c2_db_tx_commit(struct c2_db_tx *tx)
 {
@@ -115,19 +111,16 @@ int c2_db_tx_commit(struct c2_db_tx *tx)
 	c2_db_common_tx_fini(tx);
 	return 0;
 }
-C2_EXPORTED(c2_db_tx_commit);
 
 int c2_db_tx_abort(struct c2_db_tx *tx)
 {
 	C2_IMPOSSIBLE("Aborting transaction in kernel space.");
 }
-C2_EXPORTED(c2_db_tx_abort);
 
 void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
 {
 	txw_tlist_add(&tx->dt_waiters, w);
 }
-C2_EXPORTED(c2_db_tx_waiter_add);
 
 static int key_cmp(struct c2_table *t,
 		   const struct c2_buf *k0, const struct c2_buf *k1)
@@ -266,7 +259,6 @@ int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	C2_ASSERT(ktable_invariant(pair->dp_table));
 	return result;
 }
-C2_EXPORTED(c2_table_update);
 
 int table_insert(struct c2_db_pair *pair, struct c2_db_kpair **kpair_out)
 {
@@ -303,7 +295,6 @@ int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 
 	return table_insert(pair, &dummy);
 }
-C2_EXPORTED(c2_table_insert);
 
 int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
@@ -319,7 +310,6 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	pair_unlock(pair);
 	return result;
 }
-C2_EXPORTED(c2_table_lookup);
 
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
@@ -340,20 +330,17 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 
 	return result;
 }
-C2_EXPORTED(c2_table_delete);
 
 int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
-		      struct c2_db_tx *tx)
+		      struct c2_db_tx *tx, uint32_t flags)
 {
 	C2_SET0(cursor);
 	return 0;
 }
-C2_EXPORTED(c2_db_cursor_init);
 
 void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 {
 }
-C2_EXPORTED(c2_db_cursor_fini);
 
 int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
@@ -369,7 +356,6 @@ int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	c2_mutex_unlock(&cursor->c_table->t_i.tk_lock);
 	return result;
 }
-C2_EXPORTED(c2_db_cursor_get);
 
 int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
@@ -397,7 +383,6 @@ int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	}
 	return result;
 }
-C2_EXPORTED(c2_db_cursor_next);
 
 int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
@@ -425,7 +410,6 @@ int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	}
 	return result;
 }
-C2_EXPORTED(c2_db_cursor_prev);
 
 int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
@@ -452,7 +436,6 @@ int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	pair_unlock(pair);
 	return result;
 }
-C2_EXPORTED(c2_db_cursor_first);
 
 int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
@@ -479,7 +462,6 @@ int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	pair_unlock(pair);
 	return result;
 }
-C2_EXPORTED(c2_db_cursor_last);
 
 int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
@@ -519,7 +501,6 @@ int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 
 	return result;
 }
-C2_EXPORTED(c2_db_cursor_set);
 
 int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
@@ -527,7 +508,6 @@ int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 
 	return table_insert(pair, &cursor->c_i.ck_current);
 }
-C2_EXPORTED(c2_db_cursor_add);
 
 int c2_db_cursor_del(struct c2_db_cursor *cursor)
 {
@@ -552,7 +532,6 @@ int c2_db_cursor_del(struct c2_db_cursor *cursor)
 	C2_ASSERT(ktable_invariant(cursor->c_table));
 	return result;
 }
-C2_EXPORTED(c2_db_cursor_del);
 
 void c2_db_buf_impl_init(struct c2_db_buf *buf)
 {

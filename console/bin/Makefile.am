@@ -6,4 +6,5 @@ noinst_PROGRAMS			= c2console
 
 c2console_SOURCES		= main.c
 
-c2console_LDADD			= $(top_builddir)/colibri/libcolibri.la
+c2console_LDADD			= $(top_builddir)/colibri/libcolibri.la \
+				  $(top_builddir)/ut/libcolibri-ut.la

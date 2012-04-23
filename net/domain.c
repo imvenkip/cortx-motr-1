@@ -69,6 +69,7 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	dom->nd_xprt_private = NULL;
 	dom->nd_xprt = xprt;
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, &c2_net_addb);
+        dom->nd_pool_colour_counter = 0;
 
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {
@@ -77,7 +78,6 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	}
 	return rc;
 }
-C2_EXPORTED(c2_net__domain_init);
 
 void c2_net__domain_fini(struct c2_net_domain *dom)
 {
@@ -104,7 +104,6 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 	c2_list_fini(&dom->nd_conn);
 	/* end deprecated */
 }
-C2_EXPORTED(c2_net__domain_fini);
 
 #define DOM_GET_PARAM(Fn, Type)				\
 Type c2_net_domain_get_##Fn(struct c2_net_domain *dom)	\
@@ -116,8 +115,7 @@ Type c2_net_domain_get_##Fn(struct c2_net_domain *dom)	\
 	rc = dom->nd_xprt->nx_ops->xo_get_##Fn(dom);	\
 	c2_mutex_unlock(&dom->nd_mutex);		\
 	return rc;					\
-}							\
-C2_EXPORTED(c2_net_domain_get_##Fn)
+}
 
 DOM_GET_PARAM(max_buffer_size, c2_bcount_t);
 DOM_GET_PARAM(max_buffer_segment_size, c2_bcount_t);

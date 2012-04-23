@@ -29,7 +29,7 @@
 
 /* __COLIBRI_LIB_LINUX_KERNEL_TYPES_H_ */
 #endif
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

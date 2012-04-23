@@ -118,8 +118,8 @@ static struct c2_list x86_cpus;
 
    @pre Assumes memory is alloacted for outbmp and it's initialized.
 
-   @see lib/processor.h 
-   @see lib/bitmap.h 
+   @see lib/processor.h
+   @see lib/bitmap.h
 
  */
 static void c2_processors_copy_bitmap(const cpumask_t *src,
@@ -128,9 +128,9 @@ static void c2_processors_copy_bitmap(const cpumask_t *src,
 {
 	uint32_t bit;
 	bool     val;
-	
+
 	C2_ASSERT(dest->b_nr >= bmpsz);
-	
+
 	for (bit=0; bit < bmpsz; bit++) {
 		val = cpumask_test_cpu(bit, src);
 		c2_bitmap_set(dest, bit, val);
@@ -854,17 +854,6 @@ c2_processor_nr_t c2_processor_getcpu(void)
 	cpu = smp_processor_id();
 	return cpu;
 }
-
-/** Export interfaces */
-C2_EXPORTED(c2_processors_init);
-C2_EXPORTED(c2_processors_fini);
-C2_EXPORTED(c2_processor_is_initialized);
-C2_EXPORTED(c2_processor_nr_max);
-C2_EXPORTED(c2_processors_possible);
-C2_EXPORTED(c2_processors_available);
-C2_EXPORTED(c2_processors_online);
-C2_EXPORTED(c2_processor_describe);
-C2_EXPORTED(c2_processor_getcpu);
 
 
 /*

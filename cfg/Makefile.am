@@ -1,4 +1,4 @@
-cfgdir                     = $(includedir)/cfg
+cfgdir                     = $(includedir)/colibri/cfg
 cfg_HEADERS                = cfg.h
 
 noinst_LTLIBRARIES         = libcolibri-cfg.la

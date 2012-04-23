@@ -1,4 +1,4 @@
-layoutdir                     = $(includedir)/layout
+layoutdir                     = $(includedir)/colibri/layout
 layout_HEADERS                = layout.h pdclust.h
 
 noinst_LTLIBRARIES            = libcolibri-layout.la

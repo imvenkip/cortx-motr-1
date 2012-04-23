@@ -1,6 +1,6 @@
 SUBDIRS      = ploss
 
-noinst_PROGRAMS = ut ub
+bin_PROGRAMS = ut ub
 
 libstob_ut   = $(top_builddir)/stob/ut/libstob-ut.la
 
@@ -25,8 +25,10 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/rpc/ut/libonwire-ut.la \
                $(top_builddir)/colibri/ut/libcs-ut.la \
                $(top_builddir)/rpc/ut/librpclib-ut.la \
-               $(top_builddir)/ioservice/ut/libcfm-ut.la \
-               $(top_builddir)/yaml2db/ut/libyaml2db-ut.la
+               $(top_builddir)/ioservice/ut/libioservice-ut.la \
+               $(top_builddir)/yaml2db/ut/libyaml2db-ut.la \
+	       $(top_builddir)/addb/ut/libaddb-ut.la \
+	       $(top_builddir)/balloc/ut/libballoc-ut.la
 
 ub_SOURCES   = ub_main.c common.c common.h
 ub_LDFLAGS   = -pthread
@@ -38,3 +40,4 @@ ub_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
                $(top_builddir)/rm/ut/librm-ut.la
 
+EXTRA_DIST   = linux_kernel/main.c linux_kernel/ut.sh

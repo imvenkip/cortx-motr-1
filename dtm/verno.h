@@ -92,7 +92,7 @@ int c2_verno_cmp(const struct c2_verno *vn0, const struct c2_verno *vn1);
 
    @see c2_verno_is_undoable()
  */
-int c2_verno_is_redoable(const struct c2_verno *unit, 
+int c2_verno_is_redoable(const struct c2_verno *unit,
 			 const struct c2_verno *before_update, bool total);
 
 /**
@@ -112,13 +112,13 @@ int c2_verno_is_redoable(const struct c2_verno *unit,
 
    @see c2_verno_is_redoable()
  */
-int c2_verno_is_undoable(const struct c2_verno *unit, 
+int c2_verno_is_undoable(const struct c2_verno *unit,
 			 const struct c2_verno *before_update, bool total);
 
 /**
    Checks that version number comparison invariant, described in the HLD, holds.
  */
-int c2_verno_cmp_invariant(const struct c2_verno *vn0, 
+int c2_verno_cmp_invariant(const struct c2_verno *vn0,
 			   const struct c2_verno *vn1);
 
 /**
@@ -136,7 +136,7 @@ int c2_verno_cmp_invariant(const struct c2_verno *vn0,
    @post unit->vn_lsn = rec->fr_desc.rd_lsn
    @post c2_verno_cmp(&rec->fr_desc.rd_ref[index].or_before_ver, unit) == -1
  */
-void c2_verno_inc(struct c2_verno *unit, 
+void c2_verno_inc(struct c2_verno *unit,
 		  struct c2_fol_rec *rec, uint32_t index);
 
 /** @} end of dtm group */
@@ -144,7 +144,7 @@ void c2_verno_inc(struct c2_verno *unit,
 /* __COLIBRI_DTM_VERNO_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

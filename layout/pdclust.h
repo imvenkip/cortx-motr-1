@@ -103,7 +103,7 @@ struct c2_pdclust_layout {
 	uint32_t                     pl_P;
 	/**
 	   Number of parity groups in a tile.
-	   
+
 	   @see c2_pdclust_layout::pl_L
 	 */
 	uint32_t                     pl_C;
@@ -113,6 +113,11 @@ struct c2_pdclust_layout {
 	   @see c2_pdclust_layout::pl_L
 	 */
 	uint32_t                     pl_L;
+
+	/**
+	   Stripe unit size. Specified in number of bytes.
+	 */
+	uint64_t                     pl_unit_size;
 
 	/**
 	   Storage pool this layout is for.
@@ -136,14 +141,14 @@ struct c2_pdclust_layout {
 	struct tile_cache {
 		/** Tile to which caches information pertains. */
 		uint64_t  tc_tile_no;
-		/** Column permutation for this tile.  
+		/** Column permutation for this tile.
 
 		    This is an array of c2_pdclust_layout::pl_P elements, each
 		    element less than c2_pdclust_layout::pl_P without
 		    duplicates.
 		 */
 		uint32_t *tc_permute;
-		/** Inverse column permutation. 
+		/** Inverse column permutation.
 
 		    @invariant tc_permute[tc_inverse[x]] == x
 		    @invariant tc_inverse[tc_permute[x]] == x
@@ -183,7 +188,7 @@ enum c2_pdclust_unit_type {
    Returns type of the given unit according to layout information.
  */
 enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit);
 
 
@@ -228,8 +233,8 @@ struct c2_pdclust_tgt_addr {
    to target frames. It is used by client IO code to build IO requests and to
    direct them to the target objects.
  */
-void c2_pdclust_layout_map(struct c2_pdclust_layout *play, 
-			   const struct c2_pdclust_src_addr *src, 
+void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
+			   const struct c2_pdclust_src_addr *src,
 			   struct c2_pdclust_tgt_addr *tgt);
 /**
    Reverse layout mapping function.
@@ -237,13 +242,14 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
    This function is a right inverse of layout mapping function. It is used by
    SNS repair and other server side mechanisms.
  */
-void c2_pdclust_layout_inv(struct c2_pdclust_layout *play, 
+void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   const struct c2_pdclust_tgt_addr *tgt,
 			   struct c2_pdclust_src_addr *src);
 
 void c2_pdclust_fini(struct c2_pdclust_layout *pdl);
 int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
-		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     uint32_t N, uint32_t K, uint64_t unitsize,
+		     const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out);
 
 extern const struct c2_layout_type c2_pdclust_layout_type;

@@ -1,4 +1,4 @@
-capadir                        = $(includedir)/capa
+capadir                        = $(includedir)/colibri/capa
 capa_HEADERS                   = capa.h
 
 noinst_LTLIBRARIES            = libcolibri-capa.la

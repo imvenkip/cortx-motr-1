@@ -61,11 +61,7 @@ static void t3(int n)
 	c2_bitmap_set(&t3bm, 0, true);
 
 	result = c2_thread_confine(&t[n], &t3bm);
-#ifndef __KERNEL__
 	C2_UT_ASSERT(result == 0);
-#else
-	C2_UT_ASSERT(result != 0);
-#endif
 
 	c2_bitmap_fini(&t3bm);
 

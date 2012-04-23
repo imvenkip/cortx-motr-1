@@ -88,7 +88,6 @@ int c2_net_conn_create(struct c2_service_id *nid)
 	}
 	return result;
 }
-C2_EXPORTED(c2_net_conn_create);
 
 struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 {
@@ -112,13 +111,11 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 
 	return found ? conn : NULL;
 }
-C2_EXPORTED(c2_net_conn_find);
 
 void c2_net_conn_release(struct c2_net_conn *conn)
 {
 	c2_ref_put(&conn->nc_refs);
 }
-C2_EXPORTED(c2_net_conn_release);
 
 void c2_net_conn_unlink(struct c2_net_conn *conn)
 {
@@ -137,7 +134,6 @@ void c2_net_conn_unlink(struct c2_net_conn *conn)
 	if (need_put)
 		c2_ref_put(&conn->nc_refs);
 }
-C2_EXPORTED(c2_net_conn_unlink);
 
 /* @} */
 

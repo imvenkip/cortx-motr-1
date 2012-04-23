@@ -37,14 +37,12 @@ bool c2_fid_is_valid(const struct c2_fid *fid)
 {
 	return true;
 }
-C2_EXPORTED(c2_fid_is_valid);
 
 
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
 {
 	return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
-C2_EXPORTED(c2_fid_eq);
 
 /** @} end of fid group */
 

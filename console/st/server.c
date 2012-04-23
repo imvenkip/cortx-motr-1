@@ -21,20 +21,15 @@
 #  include <config.h>
 #endif
 
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <signal.h>
+#include <unistd.h>               /* sleep */
 
-#include "lib/errno.h"            /* ETIMEDOUT */
 #include "net/bulk_sunrpc.h"      /* bulk transport */
 #include "colibri/init.h"         /* c2_init */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
-#include "lib/misc.h"		  /* C2_SET0 */
-#include "lib/processor.h"	  /* c2_processors_init/fini */
+
+#include "rpc/rpclib.h"           /* c2_rpc_server_start */
+#include "ut/rpc.h"               /* C2_RPC_SERVER_CTX_DECLARE */
 
 #include "console/console.h"
 #include "console/console_fop.h"
@@ -44,18 +39,13 @@
    @{
  */
 
-struct c2_console cons_server = {
-	.cons_lhost	      = "localhost",
-	.cons_lport	      = SERVER_PORT,
-	.cons_rhost	      = "localhost",
-	.cons_rport	      = CLIENT_PORT,
-	.cons_db_name	      = "cons_server_db",
-	.cons_cob_dom_id      = { .id = 15 },
-	.cons_nr_slots	      = NR_SLOTS,
-	.cons_rid	      = RID,
-	.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-	.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-};
+#define SERVER_ENDPOINT_ADDR	"127.0.0.1:123457:1"
+#define SERVER_ENDPOINT		"bulk-sunrpc:" SERVER_ENDPOINT_ADDR
+#define SERVER_DB_FILE_NAME	"cons_server.db"
+#define SERVER_STOB_FILE_NAME	"cons_server.stob"
+#define SERVER_LOG_FILE_NAME	"cons_server.log"
+
+extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 static int signaled = 0;
 
@@ -63,90 +53,70 @@ static void sig_handler(int num)
 {
 	signaled = 1;
 }
+
 /**
- * @brief Console is stand alone program to send specified FOP
- *	  to IO service.
+ * @brief Test server for c2console
  *
- *	  Usage:
+ *	  Usage: server options...
  *	  where valid options are
  *
- *	 -l       : show list of fops
- *	 -t    arg: fop type
- *	 -s string: server host name
- *	 -p    arg: server port
- *	 -i       : yaml input
- *	 -y string: yaml file path
- *	 -v       : verbose
- *
- *
- * @return 0 success, -errno failure.
+ *		-v       : verbose
  */
 int main(int argc, char **argv)
 {
-	uint32_t    port = 0;
-	int	    result;
-	const char *client = NULL;
+	int                 result;
+	struct c2_net_xprt  *xprt   = &c2_net_bulk_sunrpc_xprt;
+
+	char *default_server_argv[] = {
+		argv[0], "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
+		"-s", "ds1", "-s", "ds2"
+	};
+
+	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, default_server_argv,
+					 SERVER_LOG_FILE_NAME);
 
 	verbose = false;
-	result = c2_init();
-	if (result != 0) {
-		printf("c2_init failed\n");
-		goto end0;
-	}
 
-	/*
-	 * Gets the info to connect to the service and type of fop to be send.
-	 */
 	result = C2_GETOPTS("server", argc, argv,
-			C2_STRINGARG('s', "remote host name",
-			LAMBDA(void, (const char *name) { client = name; })),
-			C2_FORMATARG('p', "remote host port", "%i", &port),
 			C2_FLAGARG('v', "verbose", &verbose));
 
 	if (result != 0) {
 		printf("c2_getopts failed\n");
-		goto end1;
+		return result;
 	}
 
-	if (client != NULL)
-		cons_server.cons_rhost = client;
-
-	if (port != 0)
-		cons_server.cons_rport = port;
+	result = c2_init();
+	if (result != 0) {
+		printf("c2_init failed\n");
+		return result;
+	}
 
 	result = c2_console_fop_init();
 	if (result != 0) {
 		printf("c2_console_fop_init failed\n");
-		goto end1;
+		goto c2_fini;
 	}
 
-	result = c2_processors_init();
+	result = c2_rpc_server_start(&sctx);
 	if (result != 0) {
-		printf("c2_processors_init failed\n");
-		goto end2;
+		printf("failed to start rpc server\n");
+		goto fop_fini;
 	}
 
-	result = c2_cons_rpc_server_init(&cons_server);
-	if (result != 0) {
-		printf("c2_console_init failed\n");
-		goto fini;
-	}
-
-        printf("Server Address = %s\n", cons_server.cons_laddr);
-        printf("Console Address = %s\n", cons_server.cons_raddr);
-
+        printf("Server Address = %s\n", SERVER_ENDPOINT);
 	printf("Press CTRL+C to quit.\n");
+
 	signal(SIGINT, sig_handler);
-	while (!signaled);
+	while (!signaled)
+		sleep(1);
 	printf("\nExiting Server.\n");
-fini:
-	c2_cons_rpc_server_fini(&cons_server);
-	c2_processors_fini();
-end2:
+
+	c2_rpc_server_stop(&sctx);
+fop_fini:
 	c2_console_fop_fini();
-end1:
+c2_fini:
 	c2_fini();
-end0:
 	return result;
 }
 

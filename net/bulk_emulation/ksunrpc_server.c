@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -28,6 +28,9 @@
 #include <linux/sunrpc/stats.h>
 #include <linux/sunrpc/svc.h>
 #include <linux/sunrpc/svcsock.h>
+#ifdef HAVE_STRUCT_NET
+#include <net/net_namespace.h>
+#endif
 
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -36,8 +39,8 @@
 #include "fop/fop.h"
 #include "addb/addb.h"
 
-#include "ksunrpc.h"
-#include "sunrpc_io_k.h"
+#include "net/ksunrpc/ksunrpc.h"
+#include "net/bulk_emulation/sunrpc_io_k.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "rpc/rpc_opcodes.h"
 
@@ -308,8 +311,13 @@ static int ksunrpc_service_start(struct c2_service *service,
 	xs->s_serv = serv;
 
 	/* create transport/socket */
+#ifdef HAVE_STRUCT_NET
+	rc = svc_create_xprt(serv, "tcp", &init_net, PF_INET, xid->ssi_port,
+			     SVC_SOCK_DEFAULTS);
+#else
 	rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
 			     SVC_SOCK_DEFAULTS);
+#endif
 	if (rc < 0) {
 		ADDB_CALL(service, "svc_create_xprt", rc);
 		goto done;

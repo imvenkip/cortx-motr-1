@@ -57,7 +57,6 @@ bool c2_lsn_is_valid(c2_lsn_t lsn)
 {
 	return lsn > C2_LSN_RESERVED_NR;
 }
-C2_EXPORTED(c2_lsn_is_valid);
 
 int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1)
 {
@@ -66,7 +65,6 @@ int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1)
 
 	return C2_3WAY(lsn0, lsn1);
 }
-C2_EXPORTED(c2_lsn_cmp);
 
 c2_lsn_t lsn_inc(c2_lsn_t lsn)
 {
@@ -192,7 +190,7 @@ static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 	pair = &rec->fr_pair;
 	c2_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
-	return c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx);
+	return c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx, 0);
 }
 
 /**
@@ -282,13 +280,11 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 	C2_POST(ergo(result == 0, c2_lsn_is_valid(fol->f_lsn)));
 	return result;
 }
-C2_EXPORTED(c2_fol_init);
 
 void c2_fol_fini(struct c2_fol *fol)
 {
 	c2_table_fini(&fol->f_table);
 }
-C2_EXPORTED(c2_fol_fini);
 
 c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol)
 {
@@ -305,7 +301,6 @@ c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol)
 	C2_POST(c2_lsn_is_valid(lsn));
 	return lsn;
 }
-C2_EXPORTED(c2_fol_lsn_allocate);
 
 int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 {
@@ -337,7 +332,6 @@ int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 		result = -ENOMEM;
 	return result;
 }
-C2_EXPORTED(c2_fol_rec_pack);
 
 int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	       struct c2_fol_rec_desc *rec)
@@ -354,7 +348,6 @@ int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	}
 	return result;
 }
-C2_EXPORTED(c2_fol_add);
 
 int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 		   struct c2_fol_rec_desc *drec, struct c2_buf *buf)
@@ -368,13 +361,11 @@ int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 			 buf->b_addr, buf->b_nob);
 	return c2_table_insert(tx, &pair);
 }
-C2_EXPORTED(c2_fol_add_buf);
 
 int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto)
 {
 	return c2_dbenv_sync(fol->f_table.t_env);
 }
-C2_EXPORTED(c2_fol_force);
 
 bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 {
@@ -421,7 +412,6 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 #endif
 	return true;
 }
-C2_EXPORTED(c2_fol_rec_invariant);
 
 int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 		      struct c2_fol_rec *out)
@@ -450,7 +440,6 @@ int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 	C2_POST(ergo(result == 0, c2_fol_rec_invariant(&out->fr_desc)));
 	return result;
 }
-C2_EXPORTED(c2_fol_rec_lookup);
 
 void c2_fol_rec_fini(struct c2_fol_rec *rec)
 {
@@ -461,7 +450,6 @@ void c2_fol_rec_fini(struct c2_fol_rec *rec)
 		rtype->rt_ops->rto_fini(&rec->fr_desc);
 	rec_fini(rec);
 }
-C2_EXPORTED(c2_fol_rec_fini);
 
 /*
  * FOL record type code.
@@ -481,14 +469,12 @@ int c2_fols_init(void)
 	c2_mutex_init(&rtypes_lock);
 	return c2_fol_rec_type_register(&anchor_type);
 }
-C2_EXPORTED(c2_fols_init);
 
 void c2_fols_fini(void)
 {
 	c2_fol_rec_type_unregister(&anchor_type);
 	c2_mutex_fini(&rtypes_lock);
 }
-C2_EXPORTED(c2_fols_fini);
 
 int c2_fol_rec_type_register(const struct c2_fol_rec_type *rt)
 {
@@ -506,7 +492,6 @@ int c2_fol_rec_type_register(const struct c2_fol_rec_type *rt)
 	c2_mutex_unlock(&rtypes_lock);
 	return result;
 }
-C2_EXPORTED(c2_fol_rec_type_register);
 
 void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rt)
 {
@@ -518,14 +503,12 @@ void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rt)
 	rtypes[rt->rt_opcode] = NULL;
 	c2_mutex_unlock(&rtypes_lock);
 }
-C2_EXPORTED(c2_fol_rec_type_unregister);
 
 const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t opcode)
 {
 	C2_PRE(IS_IN_ARRAY(opcode, rtypes));
 	return rtypes[opcode];
 }
-C2_EXPORTED(c2_fol_rec_type_lookup);
 
 /** @} end of fol group */
 

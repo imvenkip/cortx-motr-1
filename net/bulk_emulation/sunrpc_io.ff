@@ -40,7 +40,6 @@ DEF(sunrpc_ep, RECORD,
 /* appropriate network buffer descriptor */
 DEF(sunrpc_buf_desc, RECORD,
     _(sbd_id,         U64),
-    _(sbd_active_ep,  sunrpc_ep),
     _(sbd_passive_ep, sunrpc_ep),
     _(sbd_qtype,      U32),
     _(sbd_total,      U32));

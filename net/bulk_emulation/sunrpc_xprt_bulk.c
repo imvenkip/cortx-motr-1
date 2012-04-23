@@ -360,10 +360,6 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		rc = sunrpc_desc_decode(&nb->nb_desc, &sd);
 		if (rc != 0)
 			break;
-		if (!sunrpc_ep_equals_addr(tm->ntm_ep, &sd.sbd_active_ep)) {
-			rc = -EACCES;   /* wrong destination */
-			break;
-		}
 		if (nb->nb_qtype != inverse_qt[sd.sbd_qtype]) {
 			rc = -EPERM;    /* wrong operation */
 			break;

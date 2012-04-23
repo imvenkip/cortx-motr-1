@@ -33,7 +33,7 @@
 /* import */
 struct c2_fol;
 struct c2_fop;
-struct c2_fop_io_vec;
+struct c2_net_buf_desc;
 
 /* export */
 struct c2_fop_type;
@@ -74,6 +74,23 @@ struct c2_fop_type {
 	uint64_t                          ft_magix;
 };
 
+/**
+    Iterates through the registered fop types.
+
+    To iterate across all registered fop types, first call this function with
+    NULL parameter. NULL is returned to indicate end of the iteration.
+
+    If a fop type is registered or unregistered while an iteration is in
+    progress, behaviour is undefined.
+
+    @code
+    ftype = NULL;
+    while ((ftype = c2_fop_type_next(ftype)) != NULL) {
+            do something with ftype
+    }
+    @endcode
+ */
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
 
@@ -84,30 +101,20 @@ struct c2_list;
 
 /** fop type operations. */
 struct c2_fop_type_ops {
-	/** Create a fom that will carry out operation described by the fop. */
-	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
 	/** XXX temporary entry point for threaded fop execution. */
 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
 	/** fol record type operations for this fop type, or NULL is standard
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 	/** Action to be taken on receiving reply of a fop. */
-	void (*fto_fop_replied)(struct c2_fop *fop);
+	void (*fto_fop_replied)(struct c2_fop *fop, struct c2_fop *bfop);
 	/** Return the size of fop object. */
 	size_t (*fto_size_get)(struct c2_fop *fop);
-	/** Return if given fops are of same type or not. */
-	bool (*fto_op_equal)(const struct c2_fop *fop1,
-			const struct c2_fop *fop2);
-	/** Return if given fops refer to same fid or not. */
-	bool (*fto_fid_equal)(struct c2_fop *fop1, struct c2_fop *fop2);
-	/** Return the number of IO fragements in the IO vector. */
-	uint64_t (*fto_get_nfragments)(struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
-	int (*fto_io_coalesce)(const struct c2_list *list, struct c2_fop *fop,
-			struct c2_fop *bkpfop);
-	/** Restore the original IO vector of resultant IO fop on
-	    completion of IO request. */
-	void (*fto_iovec_restore)(struct c2_fop *fop, struct c2_fop *bkpfop);
+	int (*fto_io_coalesce)(struct c2_fop *fop, uint64_t rpc_size);
+	/** Returns the net buf desc in io fop. */
+	void (*fto_io_desc_get)(struct c2_fop *fop,
+			        struct c2_net_buf_desc **desc);
 };
 
 /**

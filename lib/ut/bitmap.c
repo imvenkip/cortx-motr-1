@@ -27,6 +27,36 @@ enum {
 	UT_BITMAP_SIZE = 120
 };
 
+static void test_bitmap_copy(void)
+{
+	struct c2_bitmap src;
+	struct c2_bitmap dst;
+	size_t dst_nr;
+	size_t i;
+	int n;
+
+	C2_UT_ASSERT(c2_bitmap_init(&src, UT_BITMAP_SIZE) == 0);
+	for (i = 0; i < UT_BITMAP_SIZE; i += 3)
+		c2_bitmap_set(&src, i, true);
+
+	for (n = 1; n < 3; ++n) {
+		/* n == 1: equal sized, n == 2: dst size is bigger */
+		dst_nr = n * UT_BITMAP_SIZE;
+		C2_UT_ASSERT(c2_bitmap_init(&dst, dst_nr) == 0);
+		for (i = 1; i < dst_nr; i += 2)
+			c2_bitmap_set(&dst, i, true);
+
+		c2_bitmap_copy(&dst, &src);
+		for (i = 0; i < UT_BITMAP_SIZE; ++i)
+			C2_UT_ASSERT(c2_bitmap_get(&src, i) ==
+				     c2_bitmap_get(&dst, i));
+		for (; i < dst_nr; ++i)
+			C2_UT_ASSERT(!c2_bitmap_get(&dst, i));
+		c2_bitmap_fini(&dst);
+	}
+	c2_bitmap_fini(&src);
+}
+
 void test_bitmap(void)
 {
 	struct c2_bitmap bm;
@@ -80,6 +110,8 @@ void test_bitmap(void)
 	C2_UT_ASSERT(bm.b_nr == 0);
 	C2_UT_ASSERT(bm.b_words != NULL);
 	c2_bitmap_fini(&bm);
+
+	test_bitmap_copy();
 }
 
 enum {

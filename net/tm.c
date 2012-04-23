@@ -31,9 +31,8 @@
  */
 C2_TL_DESCR_DEFINE(tm, "tm list", ,
 		   struct c2_net_buffer, nb_tm_linkage, nb_magic,
-		   NET_BUFFER_LINK_MAGIC, NET_BUFFER_HEAD_MAGIC);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(tm, , struct c2_net_buffer);
-C2_EXPORTED(tm_tl);
 C2_EXPORTED(tm_tlist_is_empty);
 
 bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
@@ -120,7 +119,6 @@ void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 
 	return;
 }
-C2_EXPORTED(c2_net_tm_event_post);
 
 static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 {
@@ -137,8 +135,8 @@ static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 {
-	int result;
-	int i;
+	int               result;
+	int               i;
 
 	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(tm != NULL);
@@ -156,7 +154,9 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 		tm_tlist_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
+        tm->ntm_pool_colour = dom->nd_pool_colour_counter++;
 	tm->ntm_xprt_private = NULL;
+	tm->ntm_bev_auto_deliver = true;
 
 	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);
 	if (result >= 0) {
@@ -297,6 +297,82 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 	return 0;
 }
 C2_EXPORTED(c2_net_tm_stats_get);
+
+int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
+		      const struct c2_bitmap *processors)
+{
+	int result;
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_PRE(processors != NULL);
+	if (tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine != NULL) {
+		result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_confine(tm,
+								     processors);
+	} else
+		result = -ENOSYS;
+	C2_POST(c2_net__tm_invariant(tm));
+	C2_POST(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return result;
+}
+
+int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
+{
+	int result;
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_PRE(tm->ntm_bev_auto_deliver);
+	if (tm->ntm_dom->nd_xprt->nx_ops->xo_bev_deliver_sync != NULL) {
+		result = tm->ntm_dom->nd_xprt->nx_ops->xo_bev_deliver_sync(tm);
+		if (result == 0)
+			tm->ntm_bev_auto_deliver = false;
+	} else
+		result = -ENOSYS;
+	C2_POST(ergo(result == 0, !tm->ntm_bev_auto_deliver));
+	C2_POST(c2_net__tm_invariant(tm));
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return result;
+}
+
+void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
+{
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
+	C2_PRE(!tm->ntm_bev_auto_deliver);
+	tm->ntm_dom->nd_xprt->nx_ops->xo_bev_deliver_all(tm);
+	C2_POST(c2_net__tm_invariant(tm));
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return;
+}
+
+bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
+{
+	bool result;
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
+	C2_PRE(!tm->ntm_bev_auto_deliver);
+	result = tm->ntm_dom->nd_xprt->nx_ops->xo_bev_pending(tm);
+	C2_POST(c2_net__tm_invariant(tm));
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return result;
+}
+
+void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
+				struct c2_chan *chan)
+{
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
+	C2_PRE(!tm->ntm_bev_auto_deliver);
+	tm->ntm_dom->nd_xprt->nx_ops->xo_bev_notify(tm, chan);
+	C2_POST(c2_net__tm_invariant(tm));
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return;
+}
 
 /** @} end of net group */
 

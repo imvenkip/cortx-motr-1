@@ -100,10 +100,6 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		if (rc != 0)
 			break;
 
-		if (!mem_ep_equals_addr(tm->ntm_ep, &md->md_active)) {
-			rc = -EACCES;   /* wrong destination */
-			break;
-		}
 		if (nb->nb_qtype != inverse_qt[md->md_qt]) {
 			rc = -EPERM;    /* wrong operation */
 			break;

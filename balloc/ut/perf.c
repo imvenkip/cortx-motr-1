@@ -28,15 +28,15 @@
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/misc.h"     /* C2_SET0 */
 #include "lib/assert.h"
+#include "lib/memory.h"
 #include "lib/thread.h"
 #include "lib/getopts.h"
 #include "db/db.h"
+#include "lib/ut.h"
 #include "balloc/balloc.h"
 
-extern	struct c2_balloc colibri_balloc;
 const int MAX = 1000 * 1000;
 const int DEF = 1000 * 1;
-
 
 unsigned long timesub(struct timeval *begin, struct timeval *end) {
 	unsigned long interval =
@@ -51,6 +51,7 @@ unsigned long timesub(struct timeval *begin, struct timeval *end) {
 
 int main(int argc, char **argv)
 {
+	struct c2_balloc     *colibri_balloc;
 	const char           *db_name = NULL;
 	struct c2_dbenv       db;
 	struct c2_dtx         dtx;
@@ -105,8 +106,12 @@ int main(int argc, char **argv)
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(result == 0);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, 12);
+	c2_balloc_locate(&colibri_balloc);
+
+	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
+		 BALLOC_DEF_RESERVED_GROUPS);
 
 	for (i = 0; i < loops && result == 0; i++ ) {
 		if (count > 0)
@@ -124,12 +129,14 @@ int main(int argc, char **argv)
 			tmp.e_start = 0;
 
 		gettimeofday(&alloc_begin, NULL);
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, target, &tmp);
+		result = colibri_balloc->cb_ballroom.ab_ops->bo_alloc(
+			    &colibri_balloc->cb_ballroom, &dtx, target, &tmp);
 		gettimeofday(&alloc_end, NULL);
 		alloc_usec += timesub(&alloc_begin, &alloc_end);
 		ext[i] = tmp;
 		if (verbose)
-		printf("%d: rc = %d: requested count=%5d, result count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%d: rc = %d: requested count=%5d, result count=%5d:"
+		       " [%08llx,%08llx)=[%8llu,%8llu)\n",
 			i, result, (int)count,
 			(int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
@@ -145,9 +152,10 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
-	printf("==================\nPerf: alloc/sec = %lu\n", (unsigned long)loops * 1000000 / alloc_usec);
+	printf("==================\nPerf: alloc/sec = %lu\n",
+	       (unsigned long)loops * 1000000 / alloc_usec);
 
-	/* randonmize the array */
+	/* randomize the array */
 	if (r) {
 		for (i = 0; i < loops * 2; i++ ) {
 			int a, b;
@@ -162,12 +170,14 @@ int main(int argc, char **argv)
 		C2_ASSERT(result == 0);
 
 		gettimeofday(&free_begin, NULL);
-		if (ext[i].e_start != 0)
-			result = colibri_balloc.cb_ballroom.ab_ops->bo_free(&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
+		if (ext[i].e_start !=
+		    0) result = colibri_balloc->cb_ballroom.ab_ops->bo_free(
+				&colibri_balloc->cb_ballroom, &dtx, &ext[i]);
 		gettimeofday(&free_end, NULL);
 		free_usec += timesub(&free_begin, &free_end);
 		if (verbose)
-		printf("%d: rc = %d: freed: len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%d: rc = %d: freed: len=%5d: [%08llx,%08llx)=[%8llu,"
+		       "%8llu)\n",
 			i, result, (int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end,
@@ -181,9 +191,10 @@ int main(int argc, char **argv)
 	}
 
 
-	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
+	colibri_balloc->cb_ballroom.ab_ops->bo_fini(&colibri_balloc->cb_ballroom);
 	c2_dbenv_fini(&db);
-	printf("==================\nPerf: free/sec = %lu\n", (unsigned long)loops * 1000000 / free_usec);
+	printf("==================\nPerf: free/sec = %lu\n",
+	       (unsigned long)loops * 1000000 / free_usec);
 	printf("done\n");
 	return 0;
 }

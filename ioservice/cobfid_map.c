@@ -160,7 +160,6 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 	C2_POST(cobfid_map_invariant(cfm));
 	return 0;
 }
-C2_EXPORTED(c2_cobfid_map_init);
 
 void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 {
@@ -170,7 +169,6 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 	c2_table_fini(&cfm->cfm_table);
 	c2_free(cfm->cfm_map_name);
 }
-C2_EXPORTED(c2_cobfid_map_fini);
 
 int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 		      const struct c2_fid file_fid, struct c2_uint128 cob_fid)
@@ -216,7 +214,6 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
 
 	return rc;
 }
-C2_EXPORTED(c2_cobfid_map_add);
 
 int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
 		      const struct c2_fid file_fid)
@@ -262,7 +259,6 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
 
 	return rc;
 }
-C2_EXPORTED(c2_cobfid_map_del);
 
 /*
  *****************************************************************************
@@ -316,7 +312,6 @@ void c2_cobfid_map_iter_fini(struct c2_cobfid_map_iter *iter)
 
 	C2_POST(!cobfid_map_iter_invariant(iter));
 }
-C2_EXPORTED(c2_cobfid_map_iter_fini);
 
 /**
    Internal sub to initialize an iterator.
@@ -427,7 +422,6 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 
 	return 0;
 }
-C2_EXPORTED(c2_cobfid_map_iter_next);
 
 /*
  *****************************************************************************
@@ -462,7 +456,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 		return rc;
 	}
 
-	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx);
+	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
 			    "c2_db_cursor_init", rc);
@@ -473,7 +467,8 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
 	/* Store the last key, to check if there is overrun during iterating
 	   the table */
 	c2_db_pair_setup(&db_pair, &cfm->cfm_table, &last_key,
-			 sizeof(struct cobfid_map_key), NULL, 0);
+			 sizeof(struct cobfid_map_key),
+			 &cob_fid, sizeof(struct c2_uint128));
 
 	rc = c2_db_cursor_last(&db_cursor, &db_pair);
 	if (rc != 0) {
@@ -611,7 +606,6 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
 			    cfm_func_fail, "cobfid_map_iter_init", rc);
 	return rc;
 }
-C2_EXPORTED(c2_cobfid_map_enum);
 
 /*
  *****************************************************************************
@@ -697,7 +691,6 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 	iter->cfmi_next_fid.f_key = 0;
 	return rc;
 }
-C2_EXPORTED(c2_cobfid_map_container_enum);
 
 /** @} cobfidmap */
 

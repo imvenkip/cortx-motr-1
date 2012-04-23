@@ -118,6 +118,18 @@ void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val)
 }
 C2_EXPORTED(c2_bitmap_set);
 
+void c2_bitmap_copy(struct c2_bitmap *dst, const struct c2_bitmap *src)
+{
+	int s = C2_BITMAP_WORDS(src->b_nr);
+	int d = C2_BITMAP_WORDS(dst->b_nr);
+
+	C2_PRE(dst->b_nr >= src->b_nr);
+
+	memcpy(dst->b_words, src->b_words, s * sizeof src->b_words[0]);
+	if (d > s)
+		memset(&dst->b_words[s], 0, (d - s) * sizeof dst->b_words[0]);
+}
+
 /** @} end of bitmap group */
 
 /*

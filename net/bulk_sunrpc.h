@@ -25,15 +25,18 @@
 #include "net/net.h"
 
 /**
-@defgroup bulksunrpc Sunrpc Messaging and Bulk Transfer Emulation Transport
+   @defgroup bulksunrpc Sunrpc Messaging and Bulk Transfer Emulation Transport
+   @ingroup net
 
-   @brief This module provides a network transport with messaging and bulk
+   This module provides a network transport with messaging and bulk
    transfer capabilites implemented over the legacy and now deprecated
    Sunrpc transport.  The bulk transfer support does not provide 0 copy
    semantics. 3-tuple addressing of (host, port, service-id) is used for
    end points, with the further constraint that all transfer machines within
    the same process must use the same host and port, regardless of how many
    bulksunrpc domains are created.
+
+   The transport will fake support for synchronous network buffer delivery.
 
    @{
 **/
@@ -102,6 +105,11 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 */
 uint64_t
 c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
+
+#define C2_NET_SUNRPC_PORT  31111
+#define str(x) #x
+#define SUNRPC_XPRT_ADDR(port, service) "127.0.0.1:"str(port)":"str(service)
+#define EP_SERVICE(sid) SUNRPC_XPRT_ADDR(C2_NET_SUNRPC_PORT, sid)
 
 /**
    @}

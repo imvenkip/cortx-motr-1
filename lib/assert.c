@@ -67,17 +67,13 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 		backtrace_symbols_fd(trace, nr, 2);
 	}
 #endif
-	C2_TRACE_POINT( { /* emit a trace point for panic */
-			const char *expr; 
-			const char *func;
-			const char *file;
-			int         lineno; }, expr, func, file, lineno);
+	C2_LOG("panic: %s %s() (%s:%i)", expr, func, file, lineno);
 	abort();
 }
 
 /** @} end of assert group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

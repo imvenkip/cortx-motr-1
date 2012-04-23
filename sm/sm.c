@@ -41,7 +41,6 @@ void c2_sm_group_init(struct c2_sm_group *grp)
 	c2_clink_init(&grp->s_clink, NULL);
 	c2_clink_add(&grp->s_chan, &grp->s_clink);
 }
-C2_EXPORTED(c2_sm_group_init);
 
 void c2_sm_group_fini(struct c2_sm_group *grp)
 {
@@ -50,21 +49,18 @@ void c2_sm_group_fini(struct c2_sm_group *grp)
 	c2_chan_fini(&grp->s_chan);
 	c2_mutex_fini(&grp->s_lock);
 }
-C2_EXPORTED(c2_sm_group_fini);
 
 void c2_sm_group_lock(struct c2_sm_group *grp)
 {
 	c2_mutex_lock(&grp->s_lock);
 	c2_sm_asts_run(grp);
 }
-C2_EXPORTED(c2_sm_group_lock);
 
 void c2_sm_group_unlock(struct c2_sm_group *grp)
 {
 	c2_sm_asts_run(grp);
 	c2_mutex_unlock(&grp->s_lock);
 }
-C2_EXPORTED(c2_sm_group_unlock);
 
 static bool grp_is_locked(const struct c2_sm_group *grp)
 {
@@ -80,7 +76,6 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	while (!C2_ATOMIC64_CAS(&grp->s_forkq, ast->sa_next, ast));
 	c2_clink_signal(&grp->s_clink);
 }
-C2_EXPORTED(c2_sm_ast_post);
 
 void c2_sm_asts_run(struct c2_sm_group *grp)
 {
@@ -100,7 +95,6 @@ void c2_sm_asts_run(struct c2_sm_group *grp)
 		ast->sa_cb(grp, ast);
 	}
 }
-C2_EXPORTED(c2_sm_asts_run);
 
 static void sm_lock(struct c2_sm *mach)
 {
@@ -191,7 +185,6 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 	c2_chan_init(&mach->sm_chan);
 	C2_POST(c2_sm_invariant(mach));
 }
-C2_EXPORTED(c2_sm_init);
 
 void c2_sm_fini(struct c2_sm *mach)
 {
@@ -199,7 +192,6 @@ void c2_sm_fini(struct c2_sm *mach)
 	C2_PRE(sm_state(mach)->sd_flags & C2_SDF_TERMINAL);
 	c2_chan_fini(&mach->sm_chan);
 }
-C2_EXPORTED(c2_sm_fini);
 
 int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 {
@@ -228,7 +220,6 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 	C2_ASSERT(c2_sm_invariant(mach));
 	return result;
 }
-C2_EXPORTED(c2_sm_timedwait);
 
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {
@@ -240,7 +231,6 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	c2_sm_state_set(mach, fail_state);
 	mach->sm_rc = rc;
 }
-C2_EXPORTED(c2_sm_fail);
 
 void c2_sm_state_set(struct c2_sm *mach, int state)
 {
@@ -260,7 +250,6 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 	c2_chan_broadcast(&mach->sm_chan);
 	C2_POST(c2_sm_invariant(mach));
 }
-C2_EXPORTED(c2_sm_state_set);
 
 /**
     AST call-back for a timeout.
@@ -343,17 +332,13 @@ int c2_sm_timeout(struct c2_sm *mach, struct c2_sm_timeout *to,
 	c2_clink_init(&to->st_clink, sm_timeout_cancel);
 	c2_clink_add(&mach->sm_chan, &to->st_clink);
 	c2_timer_init(tm, C2_TIMER_SOFT,
-		      /* XXX kludge: c2_timer_init() takes a _relative_
-			 deadline. */
-		      c2_time_sub(timeout, c2_time_now()),
-		      1, sm_timeout_top,
+		      timeout, sm_timeout_top,
 		      (unsigned long)to);
 	result = c2_timer_start(tm);
 	if (result != 0)
 		c2_sm_timeout_fini(to);
 	return result;
 }
-C2_EXPORTED(c2_sm_timeout);
 
 void c2_sm_timeout_fini(struct c2_sm_timeout *to)
 {
@@ -366,7 +351,6 @@ void c2_sm_timeout_fini(struct c2_sm_timeout *to)
 		c2_clink_del(&to->st_clink);
 	c2_clink_fini(&to->st_clink);
 }
-C2_EXPORTED(c2_sm_timeout_fini);
 
 /** @} end of sm group */
 

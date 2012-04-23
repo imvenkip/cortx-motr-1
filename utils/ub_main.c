@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
 		c2_ub_run(rounds);
 
-		unit_end(UB_SANDBOX);
+		unit_end(UB_SANDBOX, false);
 	}
 
 	return 0;

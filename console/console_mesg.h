@@ -25,89 +25,40 @@
 #include "rpc/rpc2.h"
 #include "rpc/session.h"
 
-struct c2_cons_mesg;
-
 /**
- * @enum c2_cons_mesg_type
- * @brief Console Notification types.
- */
-enum c2_cons_mesg_type {
-        CMT_DISK_FAILURE,	/**< Disk failure. */
-        CMT_DEVICE_FAILURE,	/**< Device failure */
-        CMT_REPLY_FAILURE,	/**< Reply to Device failure */
-	CMT_MESG_NR
-};
-
-/**
- * @brief c2_cons_mesg represents console message. It has fop message
- *	  and all information required to send rpc item.
- */
-struct c2_cons_mesg {
-	/** Message Name */
-	const char		*cm_name;
-	/** Message type i.e disk or device failure */
-	enum c2_cons_mesg_type	 cm_type;
-	/** fop message to be send using console */
-	struct c2_fop		*cm_fop;
-	/** fop type to be send using console */
-	struct c2_fop_type	*cm_fopt;
-	/** rpc item operation */
-	const struct c2_rpc_item_ops  *cm_item_ops;
-	/** RPC item type */
-	struct c2_rpc_item_type *cm_item_type;
-	/** RPC machine through which mesg to be send */
-	struct c2_rpcmachine	*cm_rpc_mach;
-	/** RPC session */
-	struct c2_rpc_session	*cm_rpc_session;
-};
-
-/**
- *  Prints name and type of console message.
+ *  Prints name and opcode of FOP.
  *  It can be used to print more info if required.
  */
-void c2_cons_mesg_name_print(const struct c2_cons_mesg *mesg);
+void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
 
 /**
- * @brief Builds and send message using rpc_post and waits for reply.
+ * @brief Builds and send FOP using rpc_post and waits for reply.
  *
- * @param mesg console message
- *
- * @return 0 success, !0 failure.
+ * @param ftype	   FOP to be send.
+ * @param session  RPC connection session.
+ * @param deadline Time to to wait for RPC reply.
  */
-int c2_cons_mesg_send(struct c2_cons_mesg *mesg, c2_time_t deadline);
+int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
+		     c2_time_t deadline);
 
 /**
  *  @brief Iterate over FOP fields and print names.
  */
-void c2_cons_mesg_fop_show(struct c2_fop_type *fopt);
+int c2_cons_fop_show(struct c2_fop_type *fopt);
 
 /**
  * @brief Helper function to print list of FOPs.
  */
-void c2_cons_mesg_list_show(void);
+void c2_cons_fop_list_show(void);
 
 /**
- * @brief returns the consle message refrence specific to type.
+ * @brief Find the fop type equals to @opcode and returns.
  *
- * @param type console message type.
+ * @param opcode FOP opcode.
  *
- * @return c2_cons_mesg ref. or NULL
+ * @return c2_fop_type ref. or NULL
  */
-struct c2_cons_mesg *c2_cons_mesg_get(enum c2_cons_mesg_type type);
-
-/**
- * @brief Init console message subsystem. Curently it
- *	  only check for cons_mesg size and assert.
- *
- * @return 0 success, -errno failure.
- */
-int c2_cons_mesg_init(void);
-
-/**
- * @brief Fini console message subsystem. Currently it
- *	  does nothing.
- */
-void c2_cons_mesg_fini(void);
+struct c2_fop_type *c2_cons_fop_type_find(uint32_t opcode);
 
 /* __COLIBRI_CONSOLE_MESG_H__ */
 #endif

@@ -1,4 +1,4 @@
-pooldir                     = $(includedir)/pool
+pooldir                     = $(includedir)/colibri/pool
 pool_HEADERS                = pool.h
 
 noinst_LTLIBRARIES          = libcolibri-pool.la

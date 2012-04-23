@@ -309,7 +309,6 @@ struct c2_net_bulk_mem_ops {
 
 	/** Subroutine to create a buffer descriptor */
 	int  (*bmo_desc_create)(struct c2_net_buf_desc *desc,
-				struct c2_net_end_point *ep,
 				struct c2_net_transfer_mc *tm,
 				enum c2_net_queue_type qt,
 				c2_bcount_t buflen,

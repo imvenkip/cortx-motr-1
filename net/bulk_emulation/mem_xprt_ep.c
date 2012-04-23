@@ -200,7 +200,6 @@ static bool mem_eps_are_equal(const struct c2_net_end_point *ep1,
    @param desc Returns the descriptor
  */
 static int mem_desc_create(struct c2_net_buf_desc *desc,
-			   struct c2_net_end_point *ep,
 			   struct c2_net_transfer_mc *tm,
 			   enum c2_net_queue_type qt,
 			   c2_bcount_t buflen,
@@ -209,8 +208,6 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 	struct mem_desc *md;
 	struct c2_net_bulk_mem_end_point *mep;
 
-	C2_PRE(mem_ep_invariant(ep));
-
 	desc->nbd_len = sizeof *md;
 	md = c2_alloc(desc->nbd_len);
 	desc->nbd_data = (typeof(desc->nbd_data)) md;
@@ -218,10 +215,6 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 		desc->nbd_len = 0;
 		return -ENOMEM;
 	}
-
-	/* copy the active end point address */
-	mep = mem_ep_to_pvt(ep);
-	md->md_active = mep->xep_sa;
 
 	/* copy the passive end point address */
 	mep = mem_ep_to_pvt(tm->ntm_ep);
@@ -269,7 +262,6 @@ static bool mem_desc_equal(struct c2_net_buf_desc *d1,
 	if (rc != 0)
 		return false;
 	if (md1->md_buf_id == md2->md_buf_id &&
-	    mem_sa_eq(&md1->md_active,  &md2->md_active) &&
 	    mem_sa_eq(&md1->md_passive, &md2->md_passive))
 		return true;
 	return false;

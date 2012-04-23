@@ -116,7 +116,7 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur);
 
 /** Vector of extents in a linear name-space */
 struct c2_indexvec {
-	/* Number of buffers and their sizes. */
+	/** Number of extents and their sizes. */
 	struct c2_vec  iv_vec;
 	/** Array of starting extent indices. */
 	c2_bindex_t   *iv_index;
@@ -124,7 +124,7 @@ struct c2_indexvec {
 
 /** Vector of memory buffers */
 struct c2_bufvec {
-	/* Number of buffers and their sizes. */
+	/** Number of buffers and their sizes. */
 	struct c2_vec  ov_vec;
 	/** Array of buffer addresses. */
 	void         **ov_buf;
@@ -169,12 +169,29 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    c2_bcount_t       seg_size);
 
 /**
+   Allocates aligned memory as specified by shift value for a struct c2_bufvec.
+   Currently in kernel mode it supports PAGE_SIZE alignment only.
+ */
+int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
+	                    uint32_t          num_segs,
+	                    c2_bcount_t       seg_size,
+	                    unsigned	      shift);
+
+/**
    Frees the buffers pointed to by c2_bufvec.ov_buf and
    the c2_bufvec.ov_vec vector, using c2_free().
    @param bufvec Pointer to the c2_bufvec.
    @see c2_bufvec_alloc()
  */
 void c2_bufvec_free(struct c2_bufvec *bufvec);
+
+/**
+   Frees the buffers pointed to by c2_bufvec.ov_buf and
+   the c2_bufvec.ov_vec vector, using c2_free_aligned().
+   @param bufvec Pointer to the c2_bufvec.
+   @see c2_bufvec_alloc_aligned()
+ */
+void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
 
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {
@@ -247,6 +264,8 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
    Zero vector is typically allocated by upper layer by following
    the bounds of network layer (max buffer size, max segments,
    max seg size) and adds buffers/pages later as and when needed.
+   Size of z_index array is same as array of buffer addresses and
+   array of segment counts.
  */
 struct c2_0vec {
 	/** Bufvec representing extent of IO vector and array of buffers. */
@@ -259,6 +278,8 @@ enum {
 	C2_0VEC_SHIFT = 12,
 	C2_0VEC_ALIGN = (1 << C2_0VEC_SHIFT),
 	C2_0VEC_MASK = C2_0VEC_ALIGN - 1,
+	C2_SEG_SHIFT = 12,
+	C2_SEG_SIZE  = 4096,
 };
 
 /**

@@ -41,7 +41,8 @@ first. All libraries needed by the current configuration are linked
 together into core/colibri/libcolibri.la. Then binaries, including
 unit tests are built and linked against libcolibri.
 
-Kernel code is built by using Linux kernel build.
+Kernel code is built by using Linux kernel build. The modules for colibri
+components are generated in build_kernel_modules directory
 
 Recipes (for user space code)
 =============================
@@ -57,7 +58,7 @@ commit your changes.
 How headers should be included in C sources?
 --------------------------------------------
 
-First, your .c files should typically start with 
+First, your .c files should typically start with
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -112,7 +113,7 @@ noinst_PROGRAMS    = baz
 baz_SOURCES        = baz.c baz.h ...
 baz_LDADD          = $(top_builddir)/colibri/libcolibri.la
 
-If necessary also add 
+If necessary also add
 
 baz_LDFLAGS   = -pthread ...
 
@@ -206,7 +207,7 @@ In core/utils/ut_main.c add
 
 extern const struct c2_test_suite foo_ut;
 
-declaration and 
+declaration and
 
 	c2_ut_add(&foo_ut);
 
@@ -254,7 +255,28 @@ process directory (except for possibly in its sub-directories).
 How to add a new kernel module?
 -------------------------------
 
-To build a new kernel module core/module create
+A new module can be added to Colibri in two ways,
+  1) functionality built into kcolibri.ko
+  2) Module for stand-alone UT's
+
+1) In colibri all the functionality for kernel side is implemented into
+a single kernel module called kcolibri.ko
+So to add your new kernel source(s) for core/module to kcolibri,
+create core/module/ directory
+
+Add the following lines into build_kernel_modules/Makefile.in:
+In macro dirs:
+add source dir "module"
+
+then the sources for the module are listed as
+module_SOURCES := foo.c bar.c baz.c
+module_HEADERS := foo.h bar.h baz.h
+
+create these source and header files in core/module directory
+
+2) If you want to build the module as separate stand-alone UT named
+core/module, create
+
 core/module/linux_kernel directory and add
 core/module/linux_kernel/Makefile.in into:
 
@@ -281,8 +303,8 @@ Add the following lines into configure.ac:
 In macro AC_CONFIG_FILES:
 add source "core/module/linux_kernel/Makefile".
 
-Add the following lines into build_kernel_modules/Makefile.in:
-In macro subdirs:
-add source dir "../module/linux_kernel/".
+add following lines into build_kernel_modules/Makefile.in:
+In macro testdirs:
+add source dir "module/linux_kernel"
 
 Note: build system should be reconfigured after affected changes.

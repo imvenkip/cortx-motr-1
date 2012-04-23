@@ -393,25 +393,6 @@ static void sunrpc_ep_put_conn(struct c2_net_bulk_sunrpc_conn *sc,
 }
 
 /**
-   Compare an end point with a sunrpc_ep for equality.
-   @param ep End point
-   @param sep sunrpc_ep pointer
-   @param true Match
-   @param false Do not match
- */
-static bool sunrpc_ep_equals_addr(const struct c2_net_end_point *ep,
-				  const struct sunrpc_ep *sep)
-{
-	struct c2_net_bulk_mem_end_point *mep;
-	C2_ASSERT(sunrpc_ep_invariant(ep));
-	mep = mem_ep_to_pvt(ep);
-
-	return (mep->xep_sa.sin_addr.s_addr == sep->sep_addr &&
-		mep->xep_sa.sin_port        == sep->sep_port &&
-		mep->xep_service_id         == sep->sep_id);
-}
-
-/**
    Create a network buffer descriptor from a sunrpc end point.
    The descriptor is XDR encoded and returned as opaque data.
 
@@ -425,7 +406,6 @@ static bool sunrpc_ep_equals_addr(const struct c2_net_end_point *ep,
    @retval -errno failure
  */
 static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
-			      struct c2_net_end_point *ep,
 			      struct c2_net_transfer_mc *tm,
 			      enum c2_net_queue_type qt,
 			      c2_bcount_t buflen,
@@ -436,9 +416,6 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 	    .sbd_qtype               = qt,
 	    .sbd_total               = buflen,
 	    /* address and port numbers in network byte order */
-	    .sbd_active_ep.sep_addr  = mem_ep_addr(ep),
-	    .sbd_active_ep.sep_port  = mem_ep_port(ep),
-	    .sbd_active_ep.sep_id    = mem_ep_sid(ep),
 	    .sbd_passive_ep.sep_addr = mem_ep_addr(tm->ntm_ep),
 	    .sbd_passive_ep.sep_port = mem_ep_port(tm->ntm_ep),
 	    .sbd_passive_ep.sep_id   = mem_ep_sid(tm->ntm_ep),
@@ -499,9 +476,6 @@ static bool sunrpc_desc_equal(const struct c2_net_buf_desc *d1,
 	if (sunrpc_desc_decode(d1, &sd1))
 		return false;
 	if (sd1.sbd_id == sd2->sbd_id &&
-	    sd1.sbd_active_ep.sep_addr == sd2->sbd_active_ep.sep_addr &&
-	    sd1.sbd_active_ep.sep_port == sd2->sbd_active_ep.sep_port &&
-	    sd1.sbd_active_ep.sep_id == sd2->sbd_active_ep.sep_id &&
 	    sd1.sbd_passive_ep.sep_addr == sd2->sbd_passive_ep.sep_addr &&
 	    sd1.sbd_passive_ep.sep_port == sd2->sbd_passive_ep.sep_port &&
 	    sd1.sbd_passive_ep.sep_id == sd2->sbd_passive_ep.sep_id)

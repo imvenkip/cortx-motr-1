@@ -324,7 +324,53 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	return rc;
 }
 
-static const struct c2_net_xprt_ops ut_xprt_ops = {
+static bool ut_tm_confine_called = false;
+static const struct c2_bitmap *ut_tm_confine_bm;
+static int ut_tm_confine(struct c2_net_transfer_mc *tm,
+			 const struct c2_bitmap *processors)
+{
+	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
+	ut_tm_confine_called = true;
+	ut_tm_confine_bm = processors;
+	return 0;
+}
+
+static bool ut_bev_deliver_sync_called = false;
+static int ut_bev_deliver_sync(struct c2_net_transfer_mc *tm)
+{
+	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
+	ut_bev_deliver_sync_called = true;
+	return 0;
+}
+
+static bool ut_bev_deliver_all_called = false;
+static void ut_bev_deliver_all(struct c2_net_transfer_mc *tm)
+{
+	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
+	ut_bev_deliver_all_called = true;
+	return;
+}
+
+static bool ut_bev_pending_called = false;
+static int ut_bev_pending_last = 1;
+static bool ut_bev_pending(struct c2_net_transfer_mc *tm)
+{
+	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
+	ut_bev_pending_called = true;
+	ut_bev_pending_last = 1 - ut_bev_pending_last;
+	return (bool)ut_bev_pending_last;
+}
+
+static bool ut_bev_notify_called = false;
+static void ut_bev_notify(struct c2_net_transfer_mc *tm, struct c2_chan *chan)
+{
+	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_UT_ASSERT(chan == &tm->ntm_chan);
+	ut_bev_notify_called = true;
+	return;
+}
+
+static struct c2_net_xprt_ops ut_xprt_ops = {
 	.xo_dom_init                    = ut_dom_init,
 	.xo_dom_fini                    = ut_dom_fini,
 	.xo_get_max_buffer_size         = ut_get_max_buffer_size,
@@ -339,6 +385,11 @@ static const struct c2_net_xprt_ops ut_xprt_ops = {
 	.xo_tm_fini                     = ut_tm_fini,
 	.xo_tm_start                    = ut_tm_start,
 	.xo_tm_stop                     = ut_tm_stop,
+	// define at runtime .xo_tm_confine
+	// define at runtime .xo_bev_deliver_sync
+        .xo_bev_deliver_all             = ut_bev_deliver_all,
+	.xo_bev_pending                 = ut_bev_pending,
+	.xo_bev_notify                  = ut_bev_notify
 };
 
 static struct c2_net_xprt ut_xprt = {
@@ -363,17 +414,12 @@ allocate_buffers(c2_bcount_t buf_size,
 	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		C2_SET0(nb);
-		if (i == C2_NET_QT_MSG_RECV) {
-			sz = min64(256, buf_seg_size);
-			nr = 1;
+		nr = buf_segs;
+		if ((buf_size / buf_segs) > buf_seg_size) {
+			sz = buf_seg_size;
+			C2_ASSERT((sz * nr) <= buf_size);
 		} else {
-			nr = buf_segs;
-			if ((buf_size / buf_segs) > buf_seg_size) {
-				sz = buf_seg_size;
-				C2_ASSERT((sz * nr) <= buf_size);
-			} else {
-				sz = buf_size/buf_segs;
-			}
+			sz = buf_size/buf_segs;
 		}
 		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, sz);
 		C2_UT_ASSERT(rc == 0);
@@ -401,12 +447,15 @@ static c2_bcount_t total_bytes[C2_NET_QT_NR];
 static c2_bcount_t max_bytes[C2_NET_QT_NR];
 
 static void ut_buffer_event_callback(const struct c2_net_buffer_event *ev,
-				     enum c2_net_queue_type qt)
+				     enum c2_net_queue_type qt,
+				     bool queue_check)
 {
 	c2_bcount_t len = 0;
 	C2_UT_ASSERT(ev->nbe_buffer != NULL);
 	C2_UT_ASSERT(ev->nbe_buffer->nb_qtype == qt);
 	ut_cb_calls[qt]++;
+	if (queue_check)
+		C2_UT_ASSERT(!(ev->nbe_buffer->nb_flags & C2_NET_BUF_QUEUED));
 	/* Collect stats to test the q stats.
 	   Length counted only on success.
 	   Receive buffer lengths are in the event.
@@ -426,11 +475,19 @@ static void ut_buffer_event_callback(const struct c2_net_buffer_event *ev,
 			len = ev->nbe_buffer->nb_length;
 		}
 	}
+	if (qt == C2_NET_QT_MSG_RECV || qt == C2_NET_QT_MSG_SEND) {
+		C2_UT_ASSERT(ev->nbe_buffer->nb_desc.nbd_len == 0);
+	} else if (ev->nbe_status == 0 &&
+		   !(ev->nbe_buffer->nb_flags & C2_NET_BUF_QUEUED)) {
+		C2_UT_ASSERT(ev->nbe_buffer->nb_desc.nbd_len > 0);
+		c2_net_desc_free(&ev->nbe_buffer->nb_desc);
+	}
+
 	total_bytes[qt] += len;
 	max_bytes[qt] = max64u(ev->nbe_buffer->nb_length,max_bytes[qt]);
 }
 
-#define UT_CB_CALL(_qt) ut_buffer_event_callback(ev, _qt)
+#define UT_CB_CALL(_qt) ut_buffer_event_callback(ev, _qt, true)
 static void ut_msg_recv_cb(const struct c2_net_buffer_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_MSG_RECV);
@@ -461,6 +518,20 @@ static void ut_active_bulk_send_cb(const struct c2_net_buffer_event *ev)
 	UT_CB_CALL(C2_NET_QT_ACTIVE_BULK_SEND);
 }
 
+static bool ut_multi_use_expect_queued;
+static struct c2_net_buffer *ut_multi_use_got_buf;
+static void ut_multi_use_cb(const struct c2_net_buffer_event *ev)
+{
+	C2_UT_ASSERT(ev->nbe_buffer != NULL);
+	if (ut_multi_use_expect_queued) {
+		C2_UT_ASSERT(ev->nbe_buffer->nb_flags & C2_NET_BUF_QUEUED);
+	} else {
+		C2_UT_ASSERT(!(ev->nbe_buffer->nb_flags & C2_NET_BUF_QUEUED));
+	}
+	ut_multi_use_got_buf = ev->nbe_buffer;
+	ut_buffer_event_callback(ev, ev->nbe_buffer->nb_qtype, false);
+}
+
 static int ut_tm_event_cb_calls = 0;
 void ut_tm_event_cb(const struct c2_net_tm_event *ev)
 {
@@ -483,6 +554,17 @@ struct c2_net_buffer_callbacks ut_buf_cb = {
 	},
 };
 
+struct c2_net_buffer_callbacks ut_buf_multi_use_cb = {
+	.nbc_cb = {
+		[C2_NET_QT_MSG_RECV]          = ut_multi_use_cb,
+		[C2_NET_QT_MSG_SEND]          = ut_multi_use_cb,
+		[C2_NET_QT_PASSIVE_BULK_RECV] = ut_multi_use_cb,
+		[C2_NET_QT_PASSIVE_BULK_SEND] = ut_multi_use_cb,
+		[C2_NET_QT_ACTIVE_BULK_RECV]  = ut_multi_use_cb,
+		[C2_NET_QT_ACTIVE_BULK_SEND]  = ut_multi_use_cb,
+	},
+};
+
 static struct c2_net_transfer_mc ut_tm = {
 	.ntm_callbacks = &ut_tm_cb,
 	.ntm_state = C2_NET_TM_UNDEFINED
@@ -493,7 +575,8 @@ static struct c2_net_transfer_mc ut_tm = {
  */
 static void test_net_bulk_if(void)
 {
-	int rc, i;
+	int rc, i, reuse_cnt;
+	bool brc;
 	c2_bcount_t buf_size, buf_seg_size;
 	int32_t   buf_segs;
 	struct c2_net_domain *dom = &utdom;
@@ -505,6 +588,8 @@ static void test_net_bulk_if(void)
 	struct c2_clink tmwait;
 	struct c2_net_qstats qs[C2_NET_QT_NR];
 	c2_time_t c2tt_to_period;
+	struct c2_bitmap *procmask = (void *) -1; /* fake not null UT value */
+	enum { NUM_REUSES = 2 };
 
 	C2_SET0(&d1);
 	C2_SET0(&d2);
@@ -598,6 +683,18 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
+	/* check the confine API */
+	C2_UT_ASSERT(dom->nd_xprt->nx_ops->xo_tm_confine == NULL);
+	rc = c2_net_tm_confine(tm, procmask);
+	C2_UT_ASSERT(rc == -ENOSYS); /* optional support */
+	C2_UT_ASSERT(!ut_tm_confine_called);
+	ut_xprt_ops.xo_tm_confine = ut_tm_confine; /* provide the operation */
+	C2_UT_ASSERT(dom->nd_xprt->nx_ops->xo_tm_confine != NULL);
+	rc = c2_net_tm_confine(tm, procmask);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_confine_called);
+	C2_UT_ASSERT(ut_tm_confine_bm == procmask);
+
 	/* TM start */
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait);
@@ -676,6 +773,8 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_timeout = c2_time_sub(c2_time_now(), c2tt_to_period);
+	nb->nb_min_receive_size = buf_size;
+	nb->nb_max_receive_msgs = 1;
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == -ETIME);
 
@@ -685,6 +784,8 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_timeout = c2_time_add(c2_time_now(), c2tt_to_period);
+	nb->nb_min_receive_size = buf_size;
+	nb->nb_max_receive_msgs = 1;
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_buf_add_called);
@@ -739,7 +840,7 @@ static void test_net_bulk_if(void)
 		max_bytes[nb->nb_qtype] = max64u(buf_size,
 						 max_bytes[nb->nb_qtype]);
 	}
-	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 5);
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 3);
 
 	/* fake each type of buffer "post" response.
 	   xprt normally does this
@@ -789,6 +890,7 @@ static void test_net_bulk_if(void)
 	c2_clink_add(&tm->ntm_chan, &tmwait);
 	c2_net_buffer_del(nb, tm);
 	C2_UT_ASSERT(ut_buf_del_called);
+	c2_net_desc_free(&nb->nb_desc);
 	num_dels[nb->nb_qtype]++;
 
 	/* wait on channel for post (and consume UT thread) */
@@ -796,6 +898,110 @@ static void test_net_bulk_if(void)
 	c2_clink_del(&tmwait);
 	rc = c2_thread_join(&ut_del_thread);
 	C2_UT_ASSERT(rc == 0);
+
+	/* Initialize and add buffers for multi-use.
+	   Note: the net API does not restrict multi-use to the recv queue.
+	 */
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
+	for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
+		nb = &nbs[i];
+		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+		nb->nb_qtype = i;
+		nb->nb_callbacks = &ut_buf_multi_use_cb;
+		nb->nb_length = 0;
+		/* NB: real code sets nb_ep to server ep */
+		switch (i) {
+		case C2_NET_QT_MSG_RECV:
+			nb->nb_min_receive_size = buf_size;
+			nb->nb_max_receive_msgs = 2;
+			break;
+		case C2_NET_QT_MSG_SEND:
+			nb->nb_ep = ep2;
+			nb->nb_length = buf_size;
+			break;
+		case C2_NET_QT_PASSIVE_BULK_RECV:
+			nb->nb_ep = ep2;
+			break;
+		case C2_NET_QT_PASSIVE_BULK_SEND:
+			nb->nb_ep = ep2;
+			nb->nb_length = buf_size;
+			break;
+		case C2_NET_QT_ACTIVE_BULK_RECV:
+			make_desc(&nb->nb_desc);
+			break;
+		case C2_NET_QT_ACTIVE_BULK_SEND:
+			nb->nb_length = buf_size;
+			make_desc(&nb->nb_desc);
+			break;
+		}
+		nb->nb_timeout = c2_time_add(c2_time_now(),
+					     c2tt_to_period);
+		nb->nb_tm = NULL;
+		rc = c2_net_buffer_add(nb, tm);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
+		C2_UT_ASSERT(nb->nb_tm == tm);
+		num_adds[nb->nb_qtype]++;
+		max_bytes[nb->nb_qtype] = max64u(buf_size,
+						 max_bytes[nb->nb_qtype]);
+	}
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 3);
+
+	/* Issue multiple fake buffer "post" with the RETAIN flag. */
+	for (reuse_cnt = 0; reuse_cnt < NUM_REUSES; ++reuse_cnt) {
+		bool retain = true;
+		if (reuse_cnt == NUM_REUSES - 1)
+			retain = false;
+		for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
+			c2_time_t to_before;
+			struct c2_net_buffer_event ev = {
+				.nbe_buffer = &nbs[i],
+				.nbe_status = 0,
+			};
+			DELAY_MS(1);
+			ev.nbe_time = c2_time_now();
+			nb = &nbs[i];
+
+			if (i == C2_NET_QT_MSG_RECV) {
+				/* simulate transport ep in recv msg */
+				ev.nbe_ep = ep2;
+				c2_net_end_point_get(ep2);
+			}
+
+			if (i == C2_NET_QT_MSG_RECV ||
+			    i == C2_NET_QT_PASSIVE_BULK_RECV ||
+			    i == C2_NET_QT_ACTIVE_BULK_RECV) {
+				/* fake the length in the event */
+				ev.nbe_length = buf_size;
+				nb->nb_length = 0; /* the tests expect this */
+			}
+
+			nb->nb_flags |= C2_NET_BUF_IN_USE;
+			if (retain) {
+				nb->nb_flags |= C2_NET_BUF_RETAIN;
+				to_before = nb->nb_timeout;
+				ut_multi_use_expect_queued = true;
+				if (i == C2_NET_QT_MSG_SEND)
+					c2_net_end_point_get(ep2); /* adjust */
+			} else {
+				ut_multi_use_expect_queued = false;
+			}
+			c2_net_buffer_event_post(&ev);
+			C2_UT_ASSERT(ut_multi_use_got_buf == nb);
+			C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_RETAIN));
+			if (retain) {
+				C2_UT_ASSERT(to_before == nb->nb_timeout);
+				C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
+				C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_IN_USE);
+			} else {
+				C2_UT_ASSERT(nb->nb_timeout == C2_TIME_NEVER);
+				C2_UT_ASSERT(!(nb->nb_flags &
+					       C2_NET_BUF_QUEUED));
+				C2_UT_ASSERT(!(nb->nb_flags &
+					       C2_NET_BUF_IN_USE));
+			}
+		}
+	}
 
 	/* free end point */
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
@@ -830,7 +1036,7 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(qs[0].nqs_total_bytes == total_bytes[i]);
 	C2_UT_ASSERT(qs[0].nqs_max_bytes == max_bytes[i]);
 	C2_UT_ASSERT((qs[0].nqs_num_f_events + qs[0].nqs_num_s_events)
-		     == num_adds[i]);
+		     == num_adds[i] + reuse_cnt - 1);
 	C2_UT_ASSERT(qs[0].nqs_num_f_events + qs[0].nqs_num_s_events > 0 &&
 		     qs[0].nqs_time_in_queue > 0);
 
@@ -853,7 +1059,7 @@ static void test_net_bulk_if(void)
 		C2_UT_ASSERT(qs[i].nqs_total_bytes >= qs[i].nqs_max_bytes);
 		C2_UT_ASSERT(qs[i].nqs_max_bytes == max_bytes[i]);
 		C2_UT_ASSERT((qs[i].nqs_num_f_events + qs[i].nqs_num_s_events)
-			     == num_adds[i]);
+			     == num_adds[i] + reuse_cnt - 1);
 		C2_UT_ASSERT(qs[i].nqs_num_f_events +
 			     qs[i].nqs_num_s_events > 0 &&
 			     qs[i].nqs_time_in_queue > 0);
@@ -878,6 +1084,72 @@ static void test_net_bulk_if(void)
 
 	/* TM fini releases final end point */
 	C2_UT_ASSERT(ut_last_ep_released == ep2);
+
+	/*
+	 * Test APIs for synchronous buffer event delivery
+	 */
+
+	/* restart the TM */
+	ut_tm_init_called = false;
+	ut_tm_fini_called = false;
+	rc = c2_net_tm_init(tm, dom);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_init_called);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
+	C2_UT_ASSERT(tm->ntm_bev_auto_deliver);
+
+	/* request synchronous buffer event delivery */
+	C2_UT_ASSERT(dom->nd_xprt->nx_ops->xo_bev_deliver_sync == NULL);
+	rc = c2_net_buffer_event_deliver_synchronously(tm);
+	C2_UT_ASSERT(rc == -ENOSYS); /* optional support */
+	C2_UT_ASSERT(tm->ntm_bev_auto_deliver);
+	C2_UT_ASSERT(!ut_bev_deliver_sync_called);
+	ut_xprt_ops.xo_bev_deliver_sync = ut_bev_deliver_sync; /* set op */
+	C2_UT_ASSERT(dom->nd_xprt->nx_ops->xo_bev_deliver_sync != NULL);
+	rc = c2_net_buffer_event_deliver_synchronously(tm);
+	C2_UT_ASSERT(ut_bev_deliver_sync_called);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(!tm->ntm_bev_auto_deliver);
+
+	/* start the TM */
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&tm->ntm_chan, &tmwait);
+	rc = c2_net_tm_start(tm, "addr3");
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
+	c2_thread_join(&ut_tm_thread); /* cleanup thread */
+	c2_thread_fini(&ut_tm_thread);
+
+	/* test the synchronous buffer event delivery APIs */
+	C2_UT_ASSERT(!ut_bev_pending_called);
+	brc = c2_net_buffer_event_pending(tm);
+	C2_UT_ASSERT(ut_bev_pending_called);
+	C2_UT_ASSERT(!brc);
+
+	C2_UT_ASSERT(!ut_bev_notify_called);
+	c2_net_buffer_event_notify(tm, &tm->ntm_chan);
+	C2_UT_ASSERT(ut_bev_notify_called);
+
+	ut_bev_pending_called = false;
+	brc = c2_net_buffer_event_pending(tm);
+	C2_UT_ASSERT(ut_bev_pending_called);
+	C2_UT_ASSERT(brc);
+
+	C2_UT_ASSERT(!ut_bev_deliver_all_called);
+	c2_net_buffer_event_deliver_all(tm);
+	C2_UT_ASSERT(ut_bev_deliver_all_called);
+
+	/* TM stop and fini */
+	c2_clink_add(&tm->ntm_chan, &tmwait);
+	rc = c2_net_tm_stop(tm, false);
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	c2_thread_join(&ut_tm_thread); /* cleanup thread */
+	c2_thread_fini(&ut_tm_thread);
+	c2_clink_fini(&tmwait);
+	c2_net_tm_fini(tm);
 
 	/* de-register and free buffers */
 	for (i = 0; i < C2_NET_QT_NR; ++i) {

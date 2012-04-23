@@ -153,7 +153,6 @@ void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		c2_db_buf_init(&pair->dp_rec, DBT_ALLOC, NULL, 0);
 	C2_POST(c2_db_pair_invariant(pair));
 }
-C2_EXPORTED(c2_db_pair_setup);
 
 void c2_db_pair_fini(struct c2_db_pair *pair)
 {
@@ -162,12 +161,10 @@ void c2_db_pair_fini(struct c2_db_pair *pair)
 	c2_db_buf_fini(&pair->dp_key);
 	C2_SET0(pair);
 }
-C2_EXPORTED(c2_db_pair_fini);
 
 void c2_db_pair_release(struct c2_db_pair *pair)
 {
 }
-C2_EXPORTED(c2_db_pair_release);
 
 void c2_db_common_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env)
 {

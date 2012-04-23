@@ -80,7 +80,6 @@ c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
 	C2_POST(c2_time_after_eq(t1, res));
 	return res;
 }
-C2_EXPORTED(c2_time_sub);
 
 /**
    Is time a after time b?
@@ -89,7 +88,6 @@ bool c2_time_after(const c2_time_t a, const c2_time_t b)
 {
 	return a > b;
 }
-C2_EXPORTED(c2_time_after);
 
 /**
    Is time a after or equal to time b?
@@ -98,7 +96,6 @@ bool c2_time_after_eq(const c2_time_t a, const c2_time_t b)
 {
 	return a >= b;
 }
-C2_EXPORTED(c2_time_after_eq);
 
 /**
    Get "second" part from the time
@@ -130,7 +127,6 @@ c2_time_t c2_time_from_now(uint64_t secs, long ns)
 {
 	return c2_time_now() + secs * C2_TIME_ONE_BILLION + ns;
 }
-C2_EXPORTED(c2_time_from_now);
 
 
 const c2_time_t C2_TIME_NEVER = ~0ULL;

@@ -33,9 +33,9 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb_k.h"
+# include "addb/addb_k.h"
 #else
-# include "addb_u.h"
+# include "addb/addb_u.h"
 #endif
 
 #ifndef __KERNEL__
@@ -198,8 +198,6 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
 }
 
 #endif
-C2_EXPORTED(c2_addb_stob_add);
-C2_EXPORTED(c2_addb_db_add);
 
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 {
@@ -252,7 +250,6 @@ out:
 
 	return result;
 }
-C2_EXPORTED(c2_addb_net_add);
 
 /*
  *  Local variables:

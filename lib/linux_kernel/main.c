@@ -34,8 +34,11 @@ extern void test_refs(void);
 extern void test_rw(void);
 extern void test_thread(void);
 extern void test_time(void);
+extern void test_trace(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
+extern void test_memory(void);
+extern void test_bob(void);
 
 const struct c2_test_suite c2_klibc2_ut = {
 	.ts_name = "klibc2-ut",
@@ -43,6 +46,8 @@ const struct c2_test_suite c2_klibc2_ut = {
 	.ts_fini = NULL,
 	.ts_tests = {
 		{ "bitmap",    test_bitmap    },
+		{ "memory",    test_memory    },
+		{ "bob",       test_bob       },
 		{ "chan",      test_chan      },
 		{ "list",      test_list      },
 		{ "tlist",     test_tlist     },
@@ -52,6 +57,7 @@ const struct c2_test_suite c2_klibc2_ut = {
 		{ "rwlock",    test_rw        },
 		{ "thread",    test_thread    },
 		{ "time",      test_time      },
+		{ "trace",     test_trace     },
 		{ "vec",       test_vec       },
 		{ "zerovec",   test_zerovec   },
 		{ NULL,        NULL           }

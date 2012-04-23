@@ -30,6 +30,11 @@
 #include "lib/tlist.h"
 #include "addb/addb.h"
 #include "sm/sm.h"
+#include "stob/stob_id.h"
+
+#ifndef MAXPATHLEN
+#define MAXPATHLEN 1024
+#endif
 
 /* import */
 struct c2_dtx;
@@ -56,7 +61,6 @@ struct c2_db_tx;
  */
 
 struct c2_stob;
-struct c2_stob_id;
 struct c2_stob_op;
 struct c2_stob_io;
 struct c2_stob_type;
@@ -89,6 +93,11 @@ struct c2_stob_type_op {
 int  c2_stob_type_init(struct c2_stob_type *kind);
 void c2_stob_type_fini(struct c2_stob_type *kind);
 
+#define C2_STOB_TYPE_OP(type, op, ...) (type)->st_op->op((type) , ## __VA_ARGS__)
+
+int c2_stob_domain_locate(struct c2_stob_type *type,
+			  const char *domain_name,
+			  struct c2_stob_domain **dom);
 /**
    stob domain
 
@@ -137,6 +146,8 @@ struct c2_stob_domain_op {
 	   place.
 	 */
 	int (*sdo_tx_make)(struct c2_stob_domain *dom, struct c2_dtx *tx);
+
+	uint32_t (*sdo_block_shift)(struct c2_stob_domain *stob_domain);
 };
 
 void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t);
@@ -161,19 +172,6 @@ enum c2_stob_state {
 	 */
 	CSS_NOENT
 };
-
-/**
-   Unique storage object identifier.
-
-   A storage object in a cluster is identified by identifier of this type.
- */
-struct c2_stob_id {
-	struct c2_uint128 si_bits;
-};
-
-bool c2_stob_id_eq (const struct c2_stob_id *id0, const struct c2_stob_id *id1);
-int  c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
-bool c2_stob_id_is_set(const struct c2_stob_id *id);
 
 /**
    In-memory representation of a storage object.
@@ -362,6 +360,22 @@ void c2_stob_get(struct c2_stob *obj);
    @see c2_stob_find()
  */
 void c2_stob_put(struct c2_stob *obj);
+
+/**
+ * A helper function to create a new stob, if one doesn't exists.
+ *
+ * Looks for the stob with a given identifier in a given domain
+ * (c2_stob_find()), if necessary, fetches stob meta-data (c2_stob_locate()) or
+ * creates the stob (c2_stob_create()).
+ *
+ * All operations are performed in the context of a caller-supplied transaction.
+ *
+ * If object existed of was created successfully, it is stored in "out".
+ */
+int c2_stob_create_helper(struct c2_stob_domain    *dom,
+			  struct c2_dtx            *dtx,
+			  const struct c2_stob_id  *stob_id,
+			  struct c2_stob          **out);
 
 /**
    @name adieu

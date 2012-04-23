@@ -35,7 +35,7 @@
 
 #ifdef HAVE_PTHREAD_BARRIER_T
 enum {
-	NR = 255
+	NR = 64
 };
 
 static struct c2_atomic64 atom;

@@ -66,7 +66,6 @@ void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 		t->fft_child = NULL;
 	}
 }
-C2_EXPORTED(c2_fop_field_type_fini);
 
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
@@ -85,7 +84,6 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 	}
 	c2_addb_ctx_fini(&fopt->ft_addb);
 }
-C2_EXPORTED(c2_fop_type_fini);
 
 
 int c2_fop_type_build(struct c2_fop_type *fopt)
@@ -116,7 +114,6 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 	fop_types_built = true;
 	return result;
 }
-C2_EXPORTED(c2_fop_type_build);
 
 int c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 {
@@ -133,6 +130,22 @@ int c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 	return result;
 }
 C2_EXPORTED(c2_fop_type_build_nr);
+
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
+{
+	struct c2_fop_type *rtype;
+
+	c2_mutex_lock(&fop_types_lock);
+	if (ftype == NULL) {
+		/* Returns head of fop_types_list*/
+		rtype = ft_tlist_head(&fop_types_list);
+	} else {
+		/* Returns Next from fop_types_list*/
+		rtype = ft_tlist_next(&fop_types_list, ftype);
+	}
+	c2_mutex_unlock(&fop_types_lock);
+	return rtype;
+}
 
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 {
@@ -158,7 +171,6 @@ struct c2_fop_field_type C2_FOP_TYPE_VOID = {
 	},
 	.fft_layout = &atom_void_memlayout
 };
-C2_EXPORTED(C2_FOP_TYPE_VOID);
 
 struct c2_fop_memlayout atom_byte_memlayout = {
 	.fm_uxdr   = (xdrproc_t)xdr_char,
@@ -175,7 +187,6 @@ struct c2_fop_field_type C2_FOP_TYPE_BYTE = {
 	},
 	.fft_layout = &atom_byte_memlayout
 };
-C2_EXPORTED(C2_FOP_TYPE_BYTE);
 
 struct c2_fop_memlayout atom_u32_memlayout = {
 	.fm_uxdr   = (xdrproc_t)xdr_uint32_t,
@@ -192,7 +203,6 @@ struct c2_fop_field_type C2_FOP_TYPE_U32 = {
 	},
 	.fft_layout = &atom_u32_memlayout
 };
-C2_EXPORTED(C2_FOP_TYPE_U32);
 
 struct c2_fop_memlayout atom_u64_memlayout = {
 	.fm_uxdr   = (xdrproc_t)xdr_uint64_t,
@@ -209,14 +219,12 @@ struct c2_fop_field_type C2_FOP_TYPE_U64 = {
 	},
 	.fft_layout = &atom_u64_memlayout
 };
-C2_EXPORTED(C2_FOP_TYPE_U64);
 
 int c2_fops_init(void)
 {
 	ft_tlist_init(&fop_types_list);
 	c2_mutex_init(&fop_types_lock);
 	c2_fits_init();
-        c2_fits_all_init();
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
@@ -231,11 +239,9 @@ void c2_fops_fini(void)
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
 	c2_fits_fini();
-        c2_fits_all_fini();
 	c2_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);
 }
-C2_EXPORTED(c2_fops_fini);
 
 /** @} end of fop group */
 

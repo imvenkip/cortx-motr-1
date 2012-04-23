@@ -1,2 +1,2 @@
-sunrpc_io_u.c
-sunrpc_io_u.h
+sunrpc_io_k.[ch]
+sunrpc_io_u.[ch]

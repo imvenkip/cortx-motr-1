@@ -47,7 +47,7 @@
 #include "stob/linux.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpc2.h"
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 #include "rpc/rpc_base.h"
 #include "xcode/bufvec_xcode.h"
 
@@ -55,15 +55,18 @@
 
 #ifdef __KERNEL__
 #include "reqh/reqh_fops_k.h"
-#include "stob/io_fop_k.h"
+#include "io_fop_k.h"
 #else
 #include "reqh/reqh_fops_u.h"
-#include "stob/io_fop_u.h"
+#include "io_fop_u.h"
 #endif
 
-#include "stob/io_fop.h"
+#include "io_fop.h"
 #include "reqh/reqh_fops.ff"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/rpclib.h"
+#include "ut/rpc.h"
+#include "balloc/balloc.h"
 
 /**
    @addtogroup reqh
@@ -74,157 +77,48 @@
  *  Server side structures and objects
  */
 
-enum {
-	PORT = 10001
-};
+#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:21435:1"
+#define SERVER_ENDPOINT_ADDR	"127.0.0.1:21435:2"
+#define CLIENT_DB_NAME		"reqh_ut_stob/cdb"
+#define SERVER_DB_NAME		"reqh_ut_stob/sdb"
 
 enum {
-        MAX_RPCS_IN_FLIGHT = 32,
+	CLIENT_COB_DOM_ID	= 101,
+	SESSION_SLOTS		= 5,
+	MAX_RPCS_IN_FLIGHT	= 32,
+	CONNECT_TIMEOUT		= 5,
 };
 
-static struct c2_stob_domain        *sdom;
-static struct c2_net_domain          cl_ndom;
-static struct c2_net_domain          srv_ndom;
-static struct c2_cob_domain          cl_cob_domain;
-static struct c2_cob_domain_id       cl_cob_dom_id;
-static struct c2_cob_domain          srv_cob_domain;
-static struct c2_cob_domain_id       srv_cob_dom_id;
-static struct c2_rpcmachine          srv_rpc_mach;
-static struct c2_rpcmachine          cl_rpc_mach;
-static struct c2_net_end_point      *cl_rep;
-static struct c2_net_end_point      *srv_rep;
-static struct c2_rpc_conn            cl_conn;
-static struct c2_dbenv               cl_db;
-static struct c2_dbenv               srv_db;
-static struct c2_rpc_session         cl_rpc_session;
-static struct c2_fol                 srv_fol;
+static struct c2_stob_domain   *sdom;
+static struct c2_cob_domain    srv_cob_domain;
+static struct c2_cob_domain_id srv_cob_dom_id;
+static struct c2_rpc_machine   srv_rpc_mach;
+static struct c2_dbenv         srv_db;
+static struct c2_fol           srv_fol;
 
 /**
  * Global reqh object
  */
-struct c2_reqh		reqh;
-
-/**
- * Sends create fop request.
- */
-static void create_send()
-{
-	struct c2_clink                  clink;
-	struct c2_rpc_item              *item;
-	struct c2_fop                   *fop;
-	struct c2_stob_io_create        *rh_io_fop;
-	c2_time_t                        timeout;
-	uint32_t                         i;
-
-	for (i = 0; i < 10; ++i) {
-		fop = c2_fop_alloc(&c2_stob_io_create_fopt, NULL);
-		rh_io_fop = c2_fop_data(fop);
-		rh_io_fop->fic_object.f_seq = i;
-		rh_io_fop->fic_object.f_oid = i;
-
-		item = &fop->f_item;
-		item->ri_deadline = 0;
-		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-		item->ri_group = NULL;
-		item->ri_session = &cl_rpc_session;
-		c2_time_set(&timeout, 60, 0);
-		c2_clink_init(&clink, NULL);
-		c2_clink_add(&item->ri_chan, &clink);
-		timeout = c2_time_add(c2_time_now(), timeout);
-		c2_rpc_post(item);
-		c2_rpc_reply_timedwait(&clink, timeout);
-		c2_clink_del(&clink);
-		c2_clink_fini(&clink);
-	}
-}
-
-/**
- * Sends read fop request.
- */
-static void read_send()
-{
-	struct c2_clink                  clink;
-	struct c2_rpc_item              *item;
-	c2_time_t                        timeout;
-	struct c2_fop                   *fop;
-	struct c2_stob_io_read         *rh_io_fop;
-	uint32_t                         i;
-
-	for (i = 0; i < 10; ++i) {
-		fop = c2_fop_alloc(&c2_stob_io_read_fopt, NULL);
-		rh_io_fop = c2_fop_data(fop);
-		rh_io_fop->fir_object.f_seq = i;
-		rh_io_fop->fir_object.f_oid = i;
-
-		item = &fop->f_item;
-		item->ri_deadline = 0;
-		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-		item->ri_group = NULL;
-		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_session = &cl_rpc_session;
-		c2_time_set(&timeout, 60, 0);
-		c2_clink_init(&clink, NULL);
-		c2_clink_add(&item->ri_chan, &clink);
-		timeout = c2_time_add(c2_time_now(), timeout);
-		c2_rpc_post(item);
-		c2_rpc_reply_timedwait(&clink, timeout);
-		c2_clink_del(&clink);
-		c2_clink_fini(&clink);
-	}
-}
-
-/**
- * Sends write fop request.
- */
-static void write_send()
-{
-	struct c2_clink                  clink;
-	struct c2_rpc_item              *item;
-	struct c2_fop                   *fop;
-	struct c2_stob_io_write         *rh_io_fop;
-	c2_time_t                        timeout;
-	uint32_t                         i;
-
-	for (i = 0; i < 10; ++i) {
-		fop = c2_fop_alloc(&c2_stob_io_write_fopt, NULL);
-		rh_io_fop = c2_fop_data(fop);
-		rh_io_fop->fiw_object.f_seq = i;
-		rh_io_fop->fiw_object.f_oid = i;
-
-		item = &fop->f_item;
-		item->ri_deadline = 0;
-		item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-		item->ri_group = NULL;
-		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_session = &cl_rpc_session;
-		c2_time_set(&timeout, 60, 0);
-		c2_clink_init(&clink, NULL);
-		c2_clink_add(&item->ri_chan, &clink);
-		timeout = c2_time_add(c2_time_now(), timeout);
-		c2_rpc_post(item);
-		c2_rpc_reply_timedwait(&clink, timeout);
-		c2_clink_del(&clink);
-		c2_clink_fini(&clink);
-	}
-}
+static struct c2_reqh  reqh;
 
 /**
  * Helper structures and functions for ad stob.
  * These are used while performing a stob operation.
  */
 struct reqh_ut_balloc {
-	struct c2_mutex  rb_lock;
-	c2_bindex_t      rb_next;
-	struct ad_balloc rb_ballroom;
+	struct c2_mutex     rb_lock;
+	c2_bindex_t         rb_next;
+	struct c2_ad_balloc rb_ballroom;
 };
 
-static struct reqh_ut_balloc *getballoc(struct ad_balloc *ballroom)
+static struct reqh_ut_balloc *getballoc(struct c2_ad_balloc *ballroom)
 {
 	return container_of(ballroom, struct reqh_ut_balloc, rb_ballroom);
 }
 
-static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
-                            uint32_t bshift)
+static int reqh_ut_balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
+			       uint32_t bshift, c2_bindex_t container_size,
+			       c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
@@ -232,14 +126,14 @@ static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	return 0;
 }
 
-static void reqh_ut_balloc_fini(struct ad_balloc *ballroom)
+static void reqh_ut_balloc_fini(struct c2_ad_balloc *ballroom)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
 	c2_mutex_fini(&rb->rb_lock);
 }
 
-static int reqh_ut_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
 	struct reqh_ut_balloc	*rb = getballoc(ballroom);
@@ -252,13 +146,13 @@ static int reqh_ut_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return 0;
 }
 
-static int reqh_ut_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_free(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
                             struct c2_ext *ext)
 {
 	return 0;
 }
 
-static const struct ad_balloc_ops reqh_ut_balloc_ops = {
+static const struct c2_ad_balloc_ops reqh_ut_balloc_ops = {
 	.bo_init  = reqh_ut_balloc_init,
 	.bo_fini  = reqh_ut_balloc_fini,
 	.bo_alloc = reqh_ut_balloc_alloc,
@@ -272,134 +166,14 @@ static struct reqh_ut_balloc rb = {
 	}
 };
 
-static int client_init(char *dbname)
-{
-        int                                rc;
-        c2_time_t                          timeout;
-	struct c2_net_transfer_mc         *cl_tm;
-
-        /* Init client side network domain */
-        rc = c2_net_domain_init(&cl_ndom, &c2_net_bulk_sunrpc_xprt);
-	C2_UT_ASSERT(rc == 0);
-
-        cl_cob_dom_id.id =  101 ;
-
-        /* Init the db */
-        rc = c2_dbenv_init(&cl_db, dbname, 0);
-	C2_UT_ASSERT(rc == 0);
-
-        /* Init the cob domain */
-        rc = c2_cob_domain_init(&cl_cob_domain, &cl_db,
-			&cl_cob_dom_id);
-	C2_UT_ASSERT(rc == 0);
-
-        /* Init the rpcmachine */
-        rc = c2_rpcmachine_init(&cl_rpc_mach, &cl_cob_domain,
-                        &cl_ndom, "127.0.0.1:21435:1", NULL);
-	C2_UT_ASSERT(rc == 0);
-
-        cl_tm = &cl_rpc_mach.cr_tm;
-	C2_UT_ASSERT(cl_tm != NULL);
-
-        /* Create destination endpoint for client i.e server endpoint */
-        rc = c2_net_end_point_create(&cl_rep, cl_tm, "127.0.0.1:21435:2");
-	C2_UT_ASSERT(rc == 0);
-
-        /* Init the connection structure */
-        rc = c2_rpc_conn_init(&cl_conn, cl_rep, &cl_rpc_mach,
-			MAX_RPCS_IN_FLIGHT);
-	C2_UT_ASSERT(rc == 0);
-
-        /* Create RPC connection */
-        rc = c2_rpc_conn_establish(&cl_conn);
-	C2_UT_ASSERT(rc == 0);
-
-        timeout = c2_time_now();
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
-                                c2_time_nanoseconds(timeout));
-
-        C2_UT_ASSERT(c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_ACTIVE |
-                                   C2_RPC_CONN_FAILED, timeout));
-        /* Init session */
-        rc = c2_rpc_session_init(&cl_rpc_session, &cl_conn, 5);
-	C2_UT_ASSERT(rc == 0);
-
-        /* Create RPC session */
-        rc = c2_rpc_session_establish(&cl_rpc_session);
-	C2_UT_ASSERT(rc == 0);
-
-        timeout = c2_time_now();
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
-                                c2_time_nanoseconds(timeout));
-        /* Wait for session to become active */
-        C2_UT_ASSERT(c2_rpc_session_timedwait(&cl_rpc_session,
-                        C2_RPC_SESSION_IDLE, timeout));
-
-	/* send fops */
-	create_send();
-	write_send();
-	read_send();
-
-        rc = c2_rpc_session_terminate(&cl_rpc_session);
-	C2_UT_ASSERT(rc == 0);
-
-        timeout = c2_time_now();
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
-                                c2_time_nanoseconds(timeout));
-        /* Wait for session to terminate */
-        C2_UT_ASSERT(c2_rpc_session_timedwait(&cl_rpc_session,
-                        C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
-                        timeout));
-
-        /* Terminate RPC connection */
-        rc = c2_rpc_conn_terminate(&cl_conn);
-	C2_UT_ASSERT(rc == 0);
-
-        timeout = c2_time_now();
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
-                                c2_time_nanoseconds(timeout));
-
-        C2_UT_ASSERT(c2_rpc_conn_timedwait(&cl_conn, C2_RPC_CONN_TERMINATED |
-                                   C2_RPC_CONN_FAILED, timeout));
-        c2_rpc_session_fini(&cl_rpc_session);
-        c2_rpc_conn_fini(&cl_conn);
-
-	return rc;
-}
-
-static void client_fini()
-{
-	/* Fini the remote net endpoint. */
-        c2_net_end_point_put(cl_rep);
-
-        /* Fini the rpcmachine */
-        c2_rpcmachine_fini(&cl_rpc_mach);
-
-        /* Fini the net domain */
-        c2_net_domain_fini(&cl_ndom);
-
-        /* Fini the cob domain */
-        c2_cob_domain_fini(&cl_cob_domain);
-
-        /* Fini the db */
-        c2_dbenv_fini(&cl_db);
-}
-
 static int server_init(const char *stob_path, const char *srv_db_name,
-			struct c2_stob_id *backid, struct c2_stob_domain **bdom,
-			struct c2_stob **bstore, struct c2_stob **reqh_addb_stob,
+			struct c2_net_domain *net_dom, struct c2_stob_id *backid,
+			struct c2_stob_domain **bdom, struct c2_stob **bstore,
+			struct c2_stob **reqh_addb_stob,
 			struct c2_stob_id *rh_addb_stob_id)
 {
         int                        rc;
 	struct c2_net_transfer_mc *srv_tm;
-
-        /* Init Bulk sunrpc transport */
-        rc = c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
-        C2_UT_ASSERT(rc == 0);
-
-        /* Init server side network domain */
-	rc = c2_net_domain_init(&srv_ndom, &c2_net_bulk_sunrpc_xprt);
-	C2_UT_ASSERT(rc == 0);
 
         srv_cob_dom_id.id = 102;
 
@@ -414,11 +188,10 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	 * Locate and create (if necessary) the backing store object.
 	 */
 
-	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
-							  stob_path, bdom);
+	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path, bdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, backid, bstore);
+	rc = c2_stob_find(*bdom, backid, bstore);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*bstore)->so_state == CSS_UNKNOWN);
 
@@ -429,16 +202,19 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
+	rc = c2_stob_domain_locate(&c2_ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom);
+	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,
+			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCK_SHIFT,
+			      BALLOC_DEF_BLOCKS_PER_GROUP,
+			      BALLOC_DEF_RESERVED_GROUPS);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_stob_put(*bstore);
 
 	/* Create or open a stob into which to store the record. */
-	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
+	rc = c2_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_UNKNOWN);
 
@@ -456,22 +232,19 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
-	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain, &srv_fol);
+	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain,
+			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-        /* Init the rpcmachine */
-        rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain,
-                        &srv_ndom, "127.0.0.1:21435:2", &reqh);
+        /* Init the rpc_machine */
+        rc = c2_rpc_machine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
+				 SERVER_ENDPOINT_ADDR, &reqh);
         C2_UT_ASSERT(rc == 0);
 
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
-        srv_tm = &srv_rpc_mach.cr_tm;
+        srv_tm = &srv_rpc_mach.rm_tm;
 	C2_UT_ASSERT(srv_tm != NULL);
-
-        /* Create destination endpoint for server i.e client endpoint */
-        rc = c2_net_end_point_create(&srv_rep, srv_tm, "127.0.0.1:21435:1");
-	C2_UT_ASSERT(rc == 0);
 
 	return rc;
 }
@@ -480,17 +253,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 static void server_fini(struct c2_stob_domain *bdom,
 		struct c2_stob *reqh_addb_stob)
 {
-        /* Fini the net endpoint. */
-        c2_net_end_point_put(srv_rep);
-
-        /* Fini the rpcmachine */
-        c2_rpcmachine_fini(&srv_rpc_mach);
-
-        /* Fini the net domain */
-        c2_net_domain_fini(&srv_ndom);
-
-        /* Fini the transport */
-        c2_net_xprt_fini(&c2_net_bulk_sunrpc_xprt);
+        /* Fini the rpc_machine */
+        c2_rpc_machine_fini(&srv_rpc_mach);
 
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);
@@ -507,29 +271,116 @@ static void server_fini(struct c2_stob_domain *bdom,
 }
 
 /**
+ * Sends create fop request.
+ */
+static void create_send(struct c2_rpc_session *session)
+{
+	int                      rc;
+	uint32_t                 i;
+	struct c2_fop            *fop;
+	struct c2_stob_io_create *rh_io_fop;
+
+	for (i = 0; i < 10; ++i) {
+		fop = c2_fop_alloc(&c2_stob_io_create_fopt, NULL);
+		rh_io_fop = c2_fop_data(fop);
+		rh_io_fop->fic_object.f_seq = i;
+		rh_io_fop->fic_object.f_oid = i;
+
+		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+						CONNECT_TIMEOUT);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(fop->f_item.ri_error == 0);
+		C2_UT_ASSERT(fop->f_item.ri_reply != 0);
+	}
+}
+
+/**
+ * Sends read fop request.
+ */
+static void read_send(struct c2_rpc_session *session)
+{
+	int                     rc;
+	uint32_t                i;
+	struct c2_fop           *fop;
+	struct c2_stob_io_read  *rh_io_fop;
+
+	for (i = 0; i < 10; ++i) {
+		fop = c2_fop_alloc(&c2_stob_io_read_fopt, NULL);
+		rh_io_fop = c2_fop_data(fop);
+		rh_io_fop->fir_object.f_seq = i;
+		rh_io_fop->fir_object.f_oid = i;
+
+		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+						CONNECT_TIMEOUT);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(fop->f_item.ri_error == 0);
+		C2_UT_ASSERT(fop->f_item.ri_reply != 0);
+	}
+}
+
+/**
+ * Sends write fop request.
+ */
+static void write_send(struct c2_rpc_session *session)
+{
+	int                      rc;
+	uint32_t                 i;
+	struct c2_fop            *fop;
+	struct c2_stob_io_write  *rh_io_fop;
+
+	for (i = 0; i < 10; ++i) {
+		fop = c2_fop_alloc(&c2_stob_io_write_fopt, NULL);
+		rh_io_fop = c2_fop_data(fop);
+		rh_io_fop->fiw_object.f_seq = i;
+		rh_io_fop->fiw_object.f_oid = i;
+
+		rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+						CONNECT_TIMEOUT);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(fop->f_item.ri_error == 0);
+		C2_UT_ASSERT(fop->f_item.ri_reply != 0);
+	}
+}
+
+/**
  * Test function for reqh ut
  */
 void test_reqh(void)
 {
-	int                      result;
-	char                     opath[64];
-	char                     cl_dpath[64];
-	char                     srv_dpath[64];
-	const char                *path;
-	struct c2_stob_domain	  *bdom;
-	struct c2_stob_id	   backid;
-	struct c2_stob		  *bstore;
-	struct c2_stob		  *reqh_addb_stob;
-	struct c2_stob_id          reqh_addb_stob_id = {
+	int                    result;
+	char                   opath[64];
+	const char             *path;
+	struct c2_net_xprt     *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_domain   net_dom = { };
+	struct c2_dbenv        client_dbenv;
+	struct c2_cob_domain   client_cob_dom;
+	struct c2_stob_domain  *bdom;
+	struct c2_stob_id      backid;
+	struct c2_stob         *bstore;
+	struct c2_stob         *reqh_addb_stob;
+
+	struct c2_stob_id      reqh_addb_stob_id = {
 					.si_bits = {
 						.u_hi = 1,
 						.u_lo = 2
 					}
 				};
 
+	struct c2_rpc_client_ctx cctx = {
+		.rcx_net_dom            = &net_dom,
+		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
+		.rcx_db_name            = CLIENT_DB_NAME,
+		.rcx_dbenv              = &client_dbenv,
+		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
+		.rcx_cob_dom            = &client_cob_dom,
+		.rcx_nr_slots           = SESSION_SLOTS,
+		.rcx_timeout_s          = CONNECT_TIMEOUT,
+		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	};
+
 	backid.si_bits.u_hi = 0x0;
 	backid.si_bits.u_lo = 0xdf11e;
-
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -550,28 +401,42 @@ void test_reqh(void)
 	result = mkdir(path, 0700);
 	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 	sprintf(opath, "%s/o", path);
+
 	result = mkdir(opath, 0700);
 	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	sprintf(srv_dpath, "%s/sdb", path);
-	sprintf(cl_dpath, "%s/cdb", path);
-	/* Create listening thread to accept async reply's */
+	result = c2_net_xprt_init(xprt);
+	C2_UT_ASSERT(result == 0);
 
-	server_init(path, srv_dpath, &backid, &bdom, &bstore, &reqh_addb_stob,
-			&reqh_addb_stob_id);
+	result = c2_net_domain_init(&net_dom, xprt);
+	C2_UT_ASSERT(result == 0);
 
-	client_init(cl_dpath);
-	/* Clean up network connections */
+	server_init(path, SERVER_DB_NAME, &net_dom, &backid, &bdom, &bstore,
+			&reqh_addb_stob, &reqh_addb_stob_id);
 
-	client_fini();
+	result = c2_rpc_client_init(&cctx);
+	C2_UT_ASSERT(result == 0);
+
+	/* send fops */
+	create_send(&cctx.rcx_session);
+	write_send(&cctx.rcx_session);
+	read_send(&cctx.rcx_session);
+
+	result = c2_rpc_client_fini(&cctx);
+	C2_UT_ASSERT(result == 0);
+
 	server_fini(bdom, reqh_addb_stob);
+
+	c2_net_domain_fini(&net_dom);
+	c2_net_xprt_fini(xprt);
 	c2_stob_io_fop_fini();
+
 	if (c2_processor_is_initialized())
 		c2_processors_fini();
 }
 
 const struct c2_test_suite reqh_ut = {
-	.ts_name = "reqh-ut...",
+	.ts_name = "reqh-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {

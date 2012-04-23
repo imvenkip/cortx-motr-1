@@ -201,7 +201,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	struct c2_rpc_item  *reply;
 	struct c2_rpc_item  *next;
 	struct c2_rpc_item  *dummy_item;
-	struct c2_fop       *fop;
 	struct c2_list_link *link;
 	int                  count = 0;
 	bool                 first_item = true;
@@ -223,16 +222,17 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 		}
 		reply = item->ri_reply;
 		if (reply != NULL) {
-			c2_rpc_item_fini(reply);
-			fop = c2_rpc_item_to_fop(reply);
-			c2_fop_free(fop);
+			C2_ASSERT(reply->ri_ops != NULL &&
+					reply->ri_ops->rio_free != NULL);
+			reply->ri_ops->rio_free(reply);
 		}
 		item->ri_reply = NULL;
 
 		c2_list_del(&item->ri_slot_refs[0].sr_link);
-		c2_rpc_item_fini(item);
-		fop = c2_rpc_item_to_fop(item);
-		c2_fop_free(fop);
+
+		C2_ASSERT(item->ri_ops != NULL &&
+				item->ri_ops->rio_free != NULL);
+		item->ri_ops->rio_free(item);
 		count++;
 	}
         C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
@@ -759,8 +759,8 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	slot_balance(slot);
 }
 
-static int associate_session_and_slot(struct c2_rpc_item   *item,
-				      struct c2_rpcmachine *machine)
+static int associate_session_and_slot(struct c2_rpc_item    *item,
+				      struct c2_rpc_machine *machine)
 {
 	struct c2_list         *conn_list;
 	struct c2_rpc_conn     *conn;
@@ -775,12 +775,12 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 		return -EINVAL;
 
 	conn_list = c2_rpc_item_is_request(item) ?
-			&machine->cr_incoming_conns :
-			&machine->cr_outgoing_conns;
+			&machine->rm_incoming_conns :
+			&machine->rm_outgoing_conns;
 
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
 
-	c2_mutex_lock(&machine->cr_session_mutex);
+	c2_mutex_lock(&machine->rm_session_mutex);
 	found = false;
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
 
@@ -791,7 +791,7 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 			break;
 
 	}
-	c2_mutex_unlock(&machine->cr_session_mutex);
+	c2_mutex_unlock(&machine->rm_session_mutex);
 	if (!found)
 		return -ENOENT;
 
@@ -818,8 +818,8 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 	return 0;
 }
 
-int c2_rpc_item_received(struct c2_rpc_item   *item,
-			 struct c2_rpcmachine *machine)
+int c2_rpc_item_received(struct c2_rpc_item    *item,
+			 struct c2_rpc_machine *machine)
 {
 	struct c2_rpc_item *req;
 	struct c2_rpc_slot *slot;
@@ -885,17 +885,25 @@ int c2_rpc_item_received(struct c2_rpc_item   *item,
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc)
 {
+	bool broadcast = true;
+
 	item->ri_error = rc;
 	item->ri_reply = reply;
-	c2_chan_broadcast(&item->ri_chan);
+
+	if (c2_rpc_item_is_conn_terminate(item))
+		broadcast = false;
+
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
+
 	/*
 	 * If item is of type conn terminate reply,
 	 * then req and item (including any of its associated
 	 * rpc layer structures e.g. session, frm_sm etc.)
 	 * should not be accessed from this point onwards.
 	 */
+	if (broadcast)
+		c2_chan_broadcast(&item->ri_chan);
 }
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,

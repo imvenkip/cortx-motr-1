@@ -34,7 +34,7 @@
 #else
 #include "rpc/session_u.h"
 #endif
-#include "fop/fop_onwire.h"
+#include "fop/fop_item_type.h"
 
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"
@@ -52,82 +52,26 @@
    belonging to rpc-session module
  */
 
-/**
-   implementation of fop->f_type->ft_ops->fto_fom_init() for conn establish,
-   conn terminate, session establish, session terminate fop types.
- */
-static int session_gen_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	const struct c2_fom_ops *fom_ops;
-	struct c2_fom           *fom;
-	struct c2_fop_type      *reply_fopt;
-	struct c2_fop           *reply_fop;
-	int                      rc;
-
-	C2_ALLOC_PTR(fom);
-	if (fom == NULL)
-		return -ENOMEM;
-
-	c2_fom_init(fom);
-
-	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
-
-		reply_fopt = &c2_rpc_fop_conn_establish_rep_fopt;
-		fom_ops = &c2_rpc_fom_conn_establish_ops;
-
-	} else if (fop->f_type == &c2_rpc_fop_conn_terminate_fopt) {
-
-		reply_fopt = &c2_rpc_fop_conn_terminate_rep_fopt;
-		fom_ops = &c2_rpc_fom_conn_terminate_ops;
-
-	} else if (fop->f_type == &c2_rpc_fop_session_establish_fopt) {
-
-		reply_fopt = &c2_rpc_fop_session_establish_rep_fopt;
-		fom_ops = &c2_rpc_fom_session_establish_ops;
-
-	} else if (fop->f_type == &c2_rpc_fop_session_terminate_fopt) {
-
-		reply_fopt = &c2_rpc_fop_session_terminate_rep_fopt;
-		fom_ops = &c2_rpc_fom_session_terminate_ops;
-
-	} else {
-		reply_fopt = NULL;
-		fom_ops = NULL;
-	}
-
-	if (reply_fopt == NULL || fom_ops == NULL) {
-		rc = -EINVAL;
-		goto out;
-	}
-
-	fom->fo_ops = fom_ops;
-	fom->fo_type = &fop->f_type->ft_fom_type;
-
-	reply_fop = c2_fop_alloc(reply_fopt, NULL);
-	if (reply_fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
-
-	fom->fo_rep_fop = reply_fop;
-	fom->fo_fop = fop;
-	*m = fom;
-	rc = 0;
-
-out:
-	if (rc != 0) {
-		c2_free(fom);
-		*m = NULL;
-	}
-	return rc;
-}
-
 int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
 			    struct c2_fop_ctx *ctx)
 {
 	/* Do nothing */
 	return 0;
 }
+
+static void conn_establish_item_free(struct c2_rpc_item *item)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+	struct c2_fop                        *fop;
+
+	fop = c2_rpc_item_to_fop(item);
+	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
+	c2_free(ctx);
+}
+
+static const struct c2_rpc_item_ops rcv_conn_establish_item_ops = {
+	.rio_free = conn_establish_item_free,
+};
 
 static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 				      struct c2_rpc_item     **item,
@@ -157,7 +101,9 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	if (rc != 0)
 		goto out;
 
-	*item = &fop->f_item;
+	*item           = &fop->f_item;
+	(*item)->ri_ops = &rcv_conn_establish_item_ops;
+
 	return 0;
 out:
 	c2_free(ctx);
@@ -166,7 +112,6 @@ out:
 
 static const struct c2_fop_type_ops default_fop_type_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_fom_init = &session_gen_fom_init,
 };
 
 static const struct c2_fop_type_ops default_reply_fop_type_ops = {
@@ -283,7 +228,7 @@ int c2_rpc_session_fop_init(void)
 
 void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 					struct c2_net_end_point *ep,
-					struct c2_rpcmachine    *machine)
+					struct c2_rpc_machine   *machine)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
@@ -295,25 +240,8 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 
 	c2_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
-	ctx->cec_rpcmachine = machine;
+	ctx->cec_rpc_machine = machine;
 }
-
-
-const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops = {
-	.rio_replied = c2_rpc_conn_establish_reply_received
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops = {
-	.rio_replied = c2_rpc_conn_terminate_reply_received
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_session_establish_ops = {
-	.rio_replied = c2_rpc_session_establish_reply_received
-};
-
-const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops = {
-	.rio_replied = c2_rpc_session_terminate_reply_received
-};
 
 /** @} End of rpc_session group */
 /*

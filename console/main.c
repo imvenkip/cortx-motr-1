@@ -28,6 +28,8 @@
 #include "colibri/init.h"	  /* c2_init */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
+#include "rpc/rpclib.h"
+#include "ut/rpc.h"
 
 #include "console/console.h"
 #include "console/console_mesg.h"
@@ -40,18 +42,7 @@
    @{
  */
 
-static struct c2_console cons_client = {
-	.cons_lhost	      = "localhost",
-	.cons_lport	      = CLIENT_PORT,
-	.cons_rhost	      = "localhost",
-	.cons_rport	      = SERVER_PORT,
-	.cons_db_name	      = "cons_client_db",
-	.cons_cob_dom_id      = { .id = 14 },
-	.cons_nr_slots	      = NR_SLOTS,
-	.cons_rid	      = RID,
-	.cons_xprt	      = &c2_net_bulk_sunrpc_xprt,
-	.cons_items_in_flight = MAX_RPCS_IN_FLIGHT
-};
+uint32_t timeout;
 
 /**
  * @brief Iterator over FOP and prints names of its members.
@@ -59,81 +50,88 @@ static struct c2_console cons_client = {
  * @param type 0 shows list of FOPS.
  *	       ~0 displays info related to FOP.
  */
-static void fop_info_show(enum c2_cons_mesg_type type)
+static int fop_info_show(uint32_t opcode)
 {
-	struct c2_cons_mesg *mesg;
+	struct c2_fop_type *ftype;
 
-	printf("\nInfo for \"");
-	mesg = c2_cons_mesg_get(type);
-	c2_cons_mesg_name_print(mesg);
-	printf("\"\n");
-	c2_cons_mesg_fop_show(mesg->cm_fopt);
+	fprintf(stdout, "\n");
+	ftype = c2_cons_fop_type_find(opcode);
+	if (ftype == NULL) {
+		fprintf(stderr, "Invalid FOP opcode %.2d.\n", opcode);
+		return -EINVAL;
+	}
+	c2_cons_fop_name_print(ftype);
+	fprintf(stdout, "\n");
+	return c2_cons_fop_show(ftype);
 }
 
 /**
  * @brief Build the RPC item using FOP(Embedded into item) and send it.
  *
  * @param cons Console object ref.
- * @param type FOP type(disk failure, device failure).
- *
- * @return item success, NULL failure.
+ * @param opcode FOP opcode.
  */
-static int message_send_and_print(struct c2_console *cons,
-				  enum c2_cons_mesg_type type)
+static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 {
-        struct c2_fit		  it;
-	struct c2_cons_mesg	 *mesg;
-	struct c2_rpc_item	 *item;
-	struct c2_fop		 *fop;
-	c2_time_t		  deadline;
-	int			  rc;
+	struct c2_fop_type *ftype;
+	struct c2_rpc_item *item;
+	struct c2_fop	   *fop;
+	struct c2_fop	   *rfop;
+	int		    rc;
 
-	C2_PRE(cons != NULL);
+	ftype = c2_cons_fop_type_find(opcode);
+	if (ftype == NULL)
+		return -EINVAL;
 
-	deadline = c2_cons_timeout_construct(timeout);
-	mesg = c2_cons_mesg_get(type);
-	mesg->cm_rpc_mach = &cons->cons_rpc_mach;
-	mesg->cm_rpc_session = &cons->cons_rpc_session;
-	printf("\nSending message for ");
-	c2_cons_mesg_name_print(mesg);
-	rc = c2_cons_mesg_send(mesg, deadline);
+	/* Allocate fop */
+	fop = c2_fop_alloc(ftype, NULL);
+	if (fop == NULL)
+		return -EINVAL;
+
+	fprintf(stdout, "\nSending message for ");
+	c2_cons_fop_name_print(ftype);
+	c2_cons_fop_obj_input(fop);
+	rc = c2_rpc_client_call(fop, &cctx->rcx_session,
+				&c2_fop_default_item_ops, timeout);
 	if (rc != 0) {
 		fprintf(stderr, "Sending message failed!\n");
 		return -EINVAL;
 	}
 
 	/* Fetch the FOP reply */
-	item = &mesg->cm_fop->f_item;
+	item = &fop->f_item;
         if (item->ri_error != 0) {
 		fprintf(stderr, "rpc item receive failed.\n");
 		return -EINVAL;
 	}
 
-	fop = c2_rpc_item_to_fop(item->ri_reply);
-	if(fop == NULL) {
+	rfop = c2_rpc_item_to_fop(item->ri_reply);
+	if(rfop == NULL) {
 		fprintf(stderr, "RPC item reply not received.\n");
 		return -EINVAL;
 	}
 
 	/* Print reply */
-	printf("Print reply FOP: \n");
-        c2_fop_all_object_it_init(&it, fop);
-	c2_cons_fop_obj_output(&it);
-        c2_fop_all_object_it_fini(&it);
+	fprintf(stdout, "Print reply FOP: \n");
+	c2_cons_fop_obj_output(rfop);
 
 	return 0;
 }
 
-static void usage(void)
-{
-	fprintf(stderr, "c2console :"
-			" {-l FOP list | -f FOP type}"
-			" [-s server] [-p server port]"
-			" [-c client] [-P client port]"
+const char *usage_msg =	"Usage: c2console "
+			" { -l FOP list | -f FOP opcode }"
+			" [-s server (e.g. 127.0.0.1:1024:1) ]"
+			" [-c client (e.g. 127.0.0.1:1025:1) ]"
 			" [-t timeout]"
 			" [[-i] [-y yaml file path]]"
-			" [-v]\n");
+			" [-h] [-v]";
+
+static void usage(void)
+{
+	fprintf(stderr, "%s\n", usage_msg);
 }
+
+extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 /**
  * @brief The service to connect to is specified at the command line.
@@ -150,7 +148,10 @@ static void usage(void)
  *	  (U32, U64, BYTE and VOID).
  *
  *	  Usage:
- *	  c2console {-l | -f} [-s server] [-p port] [-t timeout] [[-i] [-y yaml file]] [-v]
+ *	  c2console :	{ -l FOP list | -f FOP opcode }
+ *			[-s server (e.g. 127.0.0.1:1024:1) ]
+ *			[-c client (e.g. 127.0.0.1:1025:1) ]
+ *			[-t timeout] [[-i] [-y yaml file path]] [-v]
  *
  * @return 0 success, -errno failure.
  */
@@ -160,43 +161,62 @@ int console_main(int argc, char **argv)
 int main(int argc, char **argv)
 #endif
 {
-	enum c2_cons_mesg_type	type;
-	uint32_t		sport = 0;
-	uint32_t		cport = 0;
-	int			result;
-	bool			show = false;
-	bool			input = false;
-	const char		*server = NULL;
-	const char		*client = NULL;
-	const char		*yaml_path = NULL;
-	const char		*str = NULL;
+	int         result;
+	uint32_t    opcode     = 0;
+	bool        show       = false;
+	bool        input      = false;
+	const char  *server    = NULL;
+	const char  *client    = NULL;
+	const char  *yaml_path = NULL;
+
+	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_domain  client_net_dom = { };
+	struct c2_dbenv       client_dbenv;
+	struct c2_cob_domain  client_cob_dom;
+
+	struct c2_rpc_client_ctx cctx = {
+		.rcx_net_dom            = &client_net_dom,
+		.rcx_local_addr         = "127.0.0.1:123456:1",
+		.rcx_remote_addr        = "127.0.0.1:123457:1",
+		.rcx_db_name            = "cons_client_db",
+		.rcx_dbenv              = &client_dbenv,
+		.rcx_cob_dom_id         = 14,
+		.rcx_cob_dom            = &client_cob_dom,
+		.rcx_nr_slots           = 1,
+		.rcx_timeout_s          = 5,
+		.rcx_max_rpcs_in_flight = 1,
+	};
 
 	verbose = false;
 	yaml_support = false;
-	timeout = TIME_TO_WAIT;
-	type = CMT_MESG_NR;
+	timeout = 10;
 
 	/*
 	 * Gets the info to connect to the service and type of fop to be send.
 	 */
-	result = C2_GETOPTS("console", argc, argv,
+	result = C2_GETOPTS("c2console", argc, argv,
+			    C2_HELPARG('h'),
 			    C2_FLAGARG('l', "show list of fops", &show),
-			    C2_FORMATARG('f', "fop type", "%u", &type),
-			    C2_STRINGARG('s', "server host name",
+			    C2_FORMATARG('f', "fop type", "%u", &opcode),
+			    C2_STRINGARG('s', "server",
 			    LAMBDA(void, (const char *name){ server = name; })),
-			    C2_FORMATARG('p', "server port", "%i", &sport),
-			    C2_STRINGARG('c', "client host name",
+			    C2_STRINGARG('c', "client",
 			    LAMBDA(void, (const char *name){ client = name; })),
-			    C2_FORMATARG('P', "client port", "%i", &sport),
 			    C2_FORMATARG('t', "wait time(in seconds)",
 					 "%u", &timeout),
 			    C2_FLAGARG('i', "yaml input", &input),
 			    C2_STRINGARG('y', "yaml file path",
 			    LAMBDA(void, (const char *name){ yaml_path = name; })),
 			    C2_FLAGARG('v', "verbose", &verbose));
+	if (result != 0)
+		/*
+		 * No need to print "usage" here, C2_GETOPTS will automatically
+		 * do it for us
+		 */
+		return EX_USAGE;
 
 	/* If no argument provided */
-	if (result != 0 || argc == 1) {
+	if (argc == 1) {
 		usage();
 		return EX_USAGE;
 	}
@@ -229,45 +249,19 @@ int main(int argc, char **argv)
 			goto yaml;
 		}
 
-		str = c2_cons_yaml_get_value("sport");
-		if (str == NULL) {
-			fprintf(stderr, "Port assignment failed\n");
-			result = EX_DATAERR;
-			goto yaml;
-		}
-		sport = strtoul(str, NULL, 10);
-
 		client = c2_cons_yaml_get_value("client");
-		if (server == NULL) {
+		if (client == NULL) {
 			fprintf(stderr, "Client assignment failed\n");
 			result = EX_DATAERR;
 			goto yaml;
 		}
-
-		str = c2_cons_yaml_get_value("cport");
-		if (str == NULL) {
-			fprintf(stderr, "client Port assignment failed\n");
-			result = EX_DATAERR;
-			goto yaml;
-		}
-		cport = strtoul(str, NULL, 10);
 	}
 
 	/* Init the console members from CLI input */
 	if (server != NULL)
-		cons_client.cons_rhost = server;
-	if (sport != 0)
-		cons_client.cons_rport = sport;
+		cctx.rcx_remote_addr = server;
 	if (client != NULL)
-		cons_client.cons_lhost = client;
-	if (cport != 0)
-		cons_client.cons_lport = cport;
-
-	result = c2_cons_mesg_init();
-	if (result != 0) {
-		fprintf(stderr, "c2_init failed\n");
-		return EX_SOFTWARE;
-	}
+		cctx.rcx_local_addr = client;
 
 #ifndef CONSOLE_UT
 	result = c2_init();
@@ -289,50 +283,47 @@ int main(int argc, char **argv)
 		goto end1;
 	}
 #endif
-	if (type >= CMT_MESG_NR) {
-		c2_cons_mesg_list_show();
+	if (show && opcode <= 0) {
+		c2_cons_fop_list_show();
 		usage();
 		result = EX_USAGE;
 		goto end1;
 	}
 
-	if (show && type < CMT_MESG_NR){
-		fop_info_show(type);
-		result = EX_OK;
+	if (show && opcode > 0) {
+		result = fop_info_show(opcode);
+		if (result == 0)
+			result = EX_OK;
 		goto end1;
 	}
 
-	result = c2_cons_rpc_client_init(&cons_client);
+	result = c2_net_xprt_init(xprt);
+	C2_ASSERT(result == 0);
+
+	result = c2_net_domain_init(&client_net_dom, xprt);
+	C2_ASSERT(result == 0);
+
+	result = c2_rpc_client_init(&cctx);
 	if (result != 0) {
-		fprintf(stderr, "c2_cons_rpc_client_init failed\n");
+		fprintf(stderr, "c2_rpc_client_init failed\n");
 		result = EX_SOFTWARE;
 		goto end2;
 	}
 
-	printf("Console Address = %s\n", cons_client.cons_laddr);
-	printf("Server Address = %s\n", cons_client.cons_raddr);
-
-	/* Connect to the specified server */
-	result = c2_cons_rpc_client_connect(&cons_client);
-	if (result != 0) {
-		fprintf(stderr, "c2_cons_rpc_client_connect failed\n");
-		result = EX_SOFTWARE;
-		goto fini;
-	}
+	printf("Console Address = %s\n", cctx.rcx_local_addr);
+	printf("Server Address = %s\n", cctx.rcx_remote_addr);
 
 	/* Build the fop/fom/item and send */
-	result = message_send_and_print(&cons_client, type);
+	result = fop_send_and_print(&cctx, opcode);
 	if (result != 0) {
-		fprintf(stderr, "message_send_and_print failed\n");
+		fprintf(stderr, "fop_send_and_print failed\n");
 		result = EX_SOFTWARE;
 		goto cleanup;
 	}
 
 cleanup:
-	/* Close connection */
-	c2_cons_rpc_client_disconnect(&cons_client);
-fini:
-	c2_cons_rpc_client_fini(&cons_client);
+	result = c2_rpc_client_fini(&cctx);
+	C2_ASSERT(result == 0);
 end2:
 #ifndef CONSOLE_UT
 	c2_processors_fini();
@@ -347,8 +338,6 @@ end0:
 yaml:
 	if (input)
 		c2_cons_yaml_fini();
-
-	c2_cons_mesg_fini();
 
 	return result;
 }

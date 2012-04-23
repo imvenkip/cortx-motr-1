@@ -30,16 +30,6 @@
 
 #define DUMMY_IMPLEMENTATION \
 	printk("dummy implementation of %s called\n", __FUNCTION__)
-int c2_trace_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-void c2_trace_fini(void)
-{
-
-}
 
 int c2_memory_init(void)
 {
@@ -114,6 +104,17 @@ int c2_reqhs_init(void)
 }
 
 void c2_reqhs_fini(void)
+{
+
+}
+
+int c2_timers_init(void)
+{
+	DUMMY_IMPLEMENTATION;
+	return 0;
+}
+
+void c2_timers_fini(void)
 {
 
 }

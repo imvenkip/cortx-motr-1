@@ -40,22 +40,23 @@ extern int   optreset;
    @{
  */
 
-static void usage(const char *progname, 
+static void usage(const char *progname,
 		  const struct c2_getopts_opt *opts, unsigned nr)
 {
 	int i;
 
-	fprintf(stderr, "Unknown option '%c'\nUsage: %s options...\n\n"
-		"where valid options are\n\n", optopt, progname);
+	fprintf(stderr, "Usage: %s options...\n\nwhere valid options are\n\n",
+			progname);
 
 	for (i = 0; i < nr; ++i) {
 		const struct c2_getopts_opt *o;
 
 		o = &opts[i];
 		fprintf(stderr, "\t -%c %6.6s: %s\n", o->go_opt,
-			o->go_type == GOT_VOID ? "" : 
-			o->go_type == GOT_FLAG ? "" : 
-			o->go_type == GOT_FORMAT ? "arg" : 
+			o->go_type == GOT_VOID ? "" :
+			o->go_type == GOT_HELP ? "" :
+			o->go_type == GOT_FLAG ? "" :
+			o->go_type == GOT_FORMAT ? "arg" :
 			o->go_type == GOT_NUMBER ? "number" : "string",
 			o->go_desc);
 	}
@@ -67,12 +68,11 @@ static int getnum(const char *arg, const char *desc, int64_t *out)
 
 	*out = strtoull(arg, &end, 0);
 	if (*end != 0) {
-		fprintf(stderr, "Failed conversion of \"%s\" to %s\n", 
+		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
 			arg, desc);
 		return -EINVAL;
 	} else
 		return 0;
-	
 }
 
 int c2_getopts(const char *progname, int argc, char * const *argv,
@@ -93,7 +93,8 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
                     option escape. */
 		C2_ASSERT(opts[i].go_opt != 'W');
 		optstring[scan++] = opts[i].go_opt;
-		if (opts[i].go_type != GOT_VOID && opts[i].go_type != GOT_FLAG)
+		if (opts[i].go_type != GOT_VOID && opts[i].go_type != GOT_FLAG
+		    && opts[i].go_type != GOT_HELP)
 			optstring[scan++] = ':';
 		if (opts[i].go_type == GOT_FLAG)
 			*opts[i].go_u.got_flag = false;
@@ -138,13 +139,17 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
 				result = result == 1 ? 0 : -EINVAL;
 				if (result != 0) {
 					fprintf(stderr, "Cannot scan \"%s\" "
-						"as \"%s\" in \"%s\"\n", 
-						optarg, u->got_fmt.f_string, 
+						"as \"%s\" in \"%s\"\n",
+						optarg, u->got_fmt.f_string,
 						o->go_desc);
 				}
 				break;
 			case GOT_FLAG:
 				*u->got_flag = true;
+				break;
+			case GOT_HELP:
+				usage(progname, opts, nr);
+				exit(EXIT_FAILURE);
 				break;
 			default:
 				C2_IMPOSSIBLE("Wrong option type.");
@@ -153,6 +158,7 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
 		}
 		if (i == nr)  {
 			C2_ASSERT(ch == '?');
+			fprintf(stderr, "Unknown option '%c'\n", optopt);
 			usage(progname, opts, nr);
 			result = -EINVAL;
 		}
@@ -164,7 +170,7 @@ int c2_getopts(const char *progname, int argc, char * const *argv,
 
 /** @} end of getopts group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

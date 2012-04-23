@@ -1,12 +1,16 @@
-UT_SRCDIR          = @SRCDIR@/reqh/ut
+io_fop_u.h io_fop_u.c : io_fop.ff \
+                        $(top_builddir)/fop/rt/libc2rt.la \
+                        $(top_builddir)/fop/fop2c
+			$(top_builddir)/fop/fop2c -u $<
 
-noinst_LTLIBRARIES = libreqh-ut.la
-INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+EXTRA_DIST = io_fop.ff
 
-libreqh_ut_la_SOURCES = reqh_fom_ut.c fom_io.ff
+libreqh_ut_la_SOURCES   = reqh_fom_ut.c io_fop.c io_fop.h io_fop_u.c
 
-EXTRA_DIST = fom_io.ff
+reqh_fom_ut.c : io_fop_u.h
 
-clean-local:
-	cd $(UT_SRCDIR) ; \
-	rm -fr fom_io_[uk].[ch]
+io_fop_u.h : io_fop.ff
+
+INCLUDES                = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+
+noinst_LTLIBRARIES      = libreqh-ut.la

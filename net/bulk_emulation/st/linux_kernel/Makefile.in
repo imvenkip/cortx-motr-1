@@ -17,16 +17,10 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ -I@SRCDIR@/net/ksunrpc @KCFLAGS@
 prepare:
 	ln -fs $(link_st) .
 
-install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/$(NST_MOD) -C @LINUX_OBJ@ M=`pwd` modules_install
-
-uninstall:
-	rm -fr @LUNUX_MOD@/kernel/fs/$(NST_MOD)
-
 clean distclean:
 	$(RM) $(st_src)
 	$(RM) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/$(NST_MOD)/linux_kernel
+	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/net/bulk_emulation/st/linux_kernel

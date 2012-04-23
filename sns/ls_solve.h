@@ -25,7 +25,7 @@
 
 /**
    @defgroup c2_linsys Systems of Linear Equations Solving Algorithm:
-   
+
    A systems of linear equations solving algorithm is a part of C2 core.
    It is based on Gauss method and performs the following:
    @li Solves a linear system of equations represented by (NxN) matrix and (1xN) vector, result is (1xN) vector.

@@ -20,35 +20,41 @@
 
 #include "lib/ut.h"
 #include "lib/memory.h"
-#include "addb/addb.h"
-#include "rpc/session.h"
-#include "rpc/it/ping_fop.h"
-#include "fop/fop.h"
 #include "lib/processor.h"
+#include "lib/trace.h"
+#include "addb/addb.h"
+#include "fop/fop.h"
 #include "reqh/reqh.h"
 
+#include "rpc/session.h"
+#include "rpc/it/ping_fop.h"
 #ifdef __KERNEL__
 #include "rpc/it/ping_fop_k.h"
 #else
 #include "rpc/it/ping_fop_u.h"
 #endif
-
 #include "rpc/rpclib.h"
-#include "ut/rpc.h"
 
+#include "ut/rpc.h"
+#include "ut/cs_service.h"
+#include "ut/cs_fop_foms.h"
+#include "ut/cs_test_fops_u.h"
+
+
+#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12345:2"
+#define CLIENT_DB_NAME		"rpclib_ut_client.db"
 
 #define SERVER_ENDPOINT_ADDR	"127.0.0.1:12345:1"
-#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12345:2"
-#define SERVER_DB_NAME		"rpclib_ut_db_server"
-#define CLIENT_DB_NAME		"rpclib_ut_db_client"
+#define SERVER_ENDPOINT		"bulk-sunrpc:" SERVER_ENDPOINT_ADDR
+#define SERVER_DB_FILE_NAME	"rpclib_ut_server.db"
+#define SERVER_STOB_FILE_NAME	"rpclib_ut_server.stob"
+#define SERVER_LOG_FILE_NAME	"rpclib_ut_server.log"
 
 enum {
 	CLIENT_COB_DOM_ID	= 16,
-	SERVER_COB_DOM_ID	= 17,
 	SESSION_SLOTS		= 1,
 	MAX_RPCS_IN_FLIGHT	= 1,
 	CONNECT_TIMEOUT		= 5,
-	NR_PING_BYTES		= 8,
 };
 
 extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
@@ -56,43 +62,30 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 static int send_fop(struct c2_rpc_session *session)
 {
-	int                rc;
-	int                i;
-	struct c2_fop      *fop;
-	struct c2_fop_ping *ping_fop;
+	int                   rc;
+	struct c2_fop         *fop;
+	struct cs_ds2_req_fop *cs_ds2_fop;
 
-	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
+	fop = c2_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
 	C2_UT_ASSERT(fop != NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
-	ping_fop = c2_fop_data(fop);
-	ping_fop->fp_arr.f_count =
-		NR_PING_BYTES / sizeof(ping_fop->fp_arr.f_data);
+	cs_ds2_fop = c2_fop_data(fop);
+	cs_ds2_fop->csr_value = 0xaaf5;
 
-	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, ping_fop->fp_arr.f_count);
-	C2_UT_ASSERT(ping_fop->fp_arr.f_data != NULL);
-	if (ping_fop->fp_arr.f_data == NULL) {
-		rc = -ENOMEM;
-		goto free_fop;
-	}
-
-	for (i = 0; i < ping_fop->fp_arr.f_count; i++) {
-		ping_fop->fp_arr.f_data[i] = i+100;
-	}
-
-	rc = c2_rpc_client_call(fop, session, CONNECT_TIMEOUT);
+	rc = c2_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
+				CONNECT_TIMEOUT);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(fop->f_item.ri_error == 0);
 	C2_UT_ASSERT(fop->f_item.ri_reply != 0);
 
-	c2_free(ping_fop->fp_arr.f_data);
-free_fop:
 	/* FIXME: freeing fop here will lead to endless loop in
 	 * nr_active_items_count(), which is called from
 	 * c2_rpc_session_terminate() */
+	/*c2_fop_free(fop);*/
 out:
 	return rc;
 }
@@ -101,104 +94,77 @@ static void test_rpclib(void)
 {
 	int rc;
 	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
-	struct c2_net_domain  net_dom = { };
+	struct c2_net_domain  client_net_dom = { };
 	struct c2_dbenv       client_dbenv;
 	struct c2_cob_domain  client_cob_dom;
-	struct c2_dbenv       server_dbenv;
-	struct c2_cob_domain  server_cob_dom;
-	struct c2_reqh        reqh = { };
 
-	struct c2_rpc_ctx server_rctx = {
-		.rx_net_dom            = &net_dom,
-		.rx_reqh               = &reqh,
-		.rx_local_addr         = SERVER_ENDPOINT_ADDR,
-		.rx_remote_addr        = CLIENT_ENDPOINT_ADDR,
-		.rx_db_name            = SERVER_DB_NAME,
-		.rx_dbenv              = &server_dbenv,
-		.rx_cob_dom_id         = SERVER_COB_DOM_ID,
-		.rx_cob_dom            = &server_cob_dom,
-		.rx_nr_slots           = SESSION_SLOTS,
-		.rx_timeout_s          = CONNECT_TIMEOUT,
-		.rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	char *server_argv[] = {
+		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
+		"-s", "ds1", "-s", "ds2"
 	};
 
-	struct c2_rpc_ctx client_rctx = {
-		.rx_net_dom            = &net_dom,
-		.rx_reqh               = NULL,
-		.rx_local_addr         = CLIENT_ENDPOINT_ADDR,
-		.rx_remote_addr        = SERVER_ENDPOINT_ADDR,
-		.rx_db_name            = CLIENT_DB_NAME,
-		.rx_dbenv              = &client_dbenv,
-		.rx_cob_dom_id         = CLIENT_COB_DOM_ID,
-		.rx_cob_dom            = &client_cob_dom,
-		.rx_nr_slots           = SESSION_SLOTS,
-		.rx_timeout_s          = CONNECT_TIMEOUT,
-		.rx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, server_argv,
+				  SERVER_LOG_FILE_NAME);
+
+	struct c2_rpc_client_ctx cctx = {
+		.rcx_net_dom            = &client_net_dom,
+		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
+		.rcx_db_name            = CLIENT_DB_NAME,
+		.rcx_dbenv              = &client_dbenv,
+		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
+		.rcx_cob_dom            = &client_cob_dom,
+		.rcx_nr_slots           = SESSION_SLOTS,
+		.rcx_timeout_s          = CONNECT_TIMEOUT,
+		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};
 
-	rc = c2_net_xprt_init(xprt);
+	/*
+	 * There is no need to initialize xprt explicitly if client and server
+	 * run withing a single process, because in this case transport is
+	 * initialized by c2_rpc_server_start().
+	 */
+
+	rc = c2_net_domain_init(&client_net_dom, xprt);
 	C2_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		goto out;
 
-	rc = c2_net_domain_init(&net_dom, xprt);
+	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);
-	if (rc != 0)
-		goto xprt_fini;
-
-	rc = c2_reqh_init(&reqh, NULL, NULL, NULL, NULL, NULL);
 	if (rc != 0)
 		goto net_dom_fini;
 
-	rc = c2_rpc_server_init(&server_rctx);
-	C2_UT_ASSERT(rc == 0);
-	if (rc != 0)
-		goto reqh_fini;
-
-	rc = c2_rpc_client_init(&client_rctx);
+	rc = c2_rpc_client_init(&cctx);
 	C2_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		goto server_fini;
 
-	rc = send_fop(&client_rctx.rx_session);
+	rc = send_fop(&cctx.rcx_session);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_rpc_client_fini(&client_rctx);
+	rc = c2_rpc_client_fini(&cctx);
 	C2_UT_ASSERT(rc == 0);
 
 server_fini:
-	c2_rpc_server_fini(&server_rctx);
-reqh_fini:
-	c2_reqh_fini(&reqh);
+	c2_rpc_server_stop(&sctx);
 net_dom_fini:
-	c2_net_domain_fini(&net_dom);
-xprt_fini:
-	c2_net_xprt_fini(xprt);
+	c2_net_domain_fini(&client_net_dom);
 out:
 	return;
 }
 
 static int test_rpclib_init(void)
 {
-	int rc;
-
 	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
 	/*c2_addb_choose_default_level(AEL_WARN);*/
 
-	rc = c2_processors_init();
-	C2_ASSERT(rc == 0);
-
-	rc = c2_ping_fop_init();
-	C2_ASSERT(rc == 0);
-
-	return rc;
+	return 0;
 }
 
 static int test_rpclib_fini(void)
 {
-	c2_ping_fop_fini();
-	c2_processors_fini();
-
 	return 0;
 }
 

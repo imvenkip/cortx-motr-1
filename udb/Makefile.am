@@ -1,4 +1,4 @@
-udbdir                        = $(includedir)/udb
+udbdir                        = $(includedir)/colibri/udb
 udb_HEADERS                   = udb.h
 
 noinst_LTLIBRARIES            = libcolibri-udb.la

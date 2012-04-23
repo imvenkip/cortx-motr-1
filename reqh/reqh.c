@@ -68,14 +68,13 @@ const struct c2_tl_descr c2_rh_sl_descr = C2_TL_DESCR("reqh service",
                                                  rs_magic,
                                                  C2_REQH_MAGIC,
                                                  C2_RHS_MAGIC);
-
 /**
    Tlist descriptor for rpc machines.
  */
 const struct c2_tl_descr c2_rh_rpml_descr = C2_TL_DESCR("rpc machines",
-                                                      struct c2_rpcmachine,
-                                                      cr_rh_linkage,
-                                                      cr_magic,
+                                                      struct c2_rpc_machine,
+                                                      rm_rh_linkage,
+                                                      rm_magic,
                                                       C2_REQH_MAGIC,
                                                       C2_RPC_MAGIC);
 
@@ -117,7 +116,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 		reqh->rh_shutdown = false;
                 reqh->rh_fom_dom.fd_reqh = reqh;
                 c2_tlist_init(&c2_rh_sl_descr, &reqh->rh_services);
-                c2_tlist_init(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
+                c2_tlist_init(&c2_rh_rpml_descr, &reqh->rh_rpc_machines);
 		c2_mutex_init(&reqh->rh_lock);
 
 	} else
@@ -125,17 +124,15 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 
 	return result;
 }
-C2_EXPORTED(c2_reqh_init);
 
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
         C2_PRE(reqh != NULL);
         c2_fom_domain_fini(&reqh->rh_fom_dom);
         c2_tlist_fini(&c2_rh_sl_descr, &reqh->rh_services);
-        c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpcmachines);
+        c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpc_machines);
 	c2_mutex_fini(&reqh->rh_lock);
 }
-C2_EXPORTED(c2_reqh_fini);
 
 void c2_reqhs_fini(void)
 {
@@ -143,7 +140,6 @@ void c2_reqhs_fini(void)
 	c2_reqh_service_types_fini();
 	c2_reqh_fop_fini();
 }
-C2_EXPORTED(c2_reqhs_fini);
 
 int c2_reqhs_init(void)
 {
@@ -152,7 +148,6 @@ int c2_reqhs_init(void)
 	c2_reqh_service_types_init();
 	return c2_reqh_fop_init();
 }
-C2_EXPORTED(c2_reqhs_init);
 
 void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 {
@@ -174,23 +169,34 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 		return;
 	}
 
-	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	if (result != -ENOMEM) {
+	C2_ASSERT(fop->f_type != NULL);
+	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops != NULL);
+	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
+
+	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
+	if (result == 0) {
+		C2_ASSERT(fom != NULL);
+
+                /**
+                 * To access service specific data,
+                 * FOM needs pointer to service instance.
+                 */
+                if (fom->fo_ops->fo_service_name != NULL) {
+                        const char *service_name = NULL;
+                        service_name = fom->fo_ops->fo_service_name(fom);
+                        fom->fo_service = c2_reqh_service_get(service_name,
+							      reqh);
+                }
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
 
 		loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
 		C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 		fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-		if (result != 0) {
-			fom->fo_phase = FOPH_FAILURE;
-			fom->fo_rc = result;
-		}
 		c2_fom_queue(fom);
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
 }
-C2_EXPORTED(c2_reqh_fop_handle);
 
 bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 {
@@ -198,6 +204,26 @@ bool c2_reqh_can_shutdown(const struct c2_reqh *reqh)
 
 	return c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) == 0;
 }
+
+struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
+                                            struct c2_reqh *reqh)
+{
+	struct c2_reqh_service *service = NULL;
+
+	C2_PRE(reqh != NULL);
+	C2_PRE(service_name != NULL);
+
+	c2_mutex_lock(&reqh->rh_lock);
+	c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
+		C2_ASSERT(service != NULL);
+		if (strcmp(service->rs_type->rst_name, service_name) == 0)
+			break;
+	} c2_tlist_endfor;
+	c2_mutex_unlock(&reqh->rh_lock);
+
+	return service;
+}
+C2_EXPORTED(c2_reqh_service_get);
 
 /** @} endgroup reqh */
 

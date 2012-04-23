@@ -29,7 +29,7 @@
    iff ql_next is not NULL (see c2_queue_link_is_in()).
 
    When a queue is empty, its head and tail are set to EOQ. This allows
-   iteration over queue elements via loop of the form 
+   iteration over queue elements via loop of the form
 
    @code
    for (scan = q->q_head; scan != EOQ; scan = scan->ql_next) { ... }
@@ -69,7 +69,6 @@ void c2_queue_link_init(struct c2_queue_link *ql)
 {
 	ql->ql_next = NULL;
 }
-C2_EXPORTED(c2_queue_link_init);
 
 void c2_queue_link_fini(struct c2_queue_link *ql)
 {
@@ -81,7 +80,7 @@ bool c2_queue_link_is_in(const struct c2_queue_link *ql)
 	return ql->ql_next != NULL;
 }
 
-bool c2_queue_contains(const struct c2_queue *q, 
+bool c2_queue_contains(const struct c2_queue *q,
 		       const struct c2_queue_link *ql)
 {
 	struct c2_queue_link *scan;
@@ -123,7 +122,7 @@ struct c2_queue_link *c2_queue_get(struct c2_queue *q)
 	}
 	C2_ASSERT(c2_queue_invariant(q));
 	return head;
-		
+
 }
 
 void c2_queue_put(struct c2_queue *q, struct c2_queue_link *ql)
@@ -137,7 +136,6 @@ void c2_queue_put(struct c2_queue *q, struct c2_queue_link *ql)
 	ql->ql_next = EOQ;
 	C2_ASSERT(c2_queue_invariant(q));
 }
-C2_EXPORTED(c2_queue_put);
 
 bool c2_queue_invariant(const struct c2_queue *q)
 {
@@ -159,7 +157,7 @@ bool c2_queue_invariant(const struct c2_queue *q)
 
 /** @} end of queue group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -1,5 +1,6 @@
-rpcdir			= @SRCDIR@/rpc
-rpc_HEADERS		= session.h session_fops.h session_foms.h session_internal.h
+rpcdir			= $(includedir)/colibri/rpc
+rpc_HEADERS		= session.h session_fops.h session_foms.h session_internal.h rpc_opcodes.h \
+			  service.h
 
 session_u.h session_u.c session_k.h session_k.c: session.ff \
 				$(top_builddir)/fop/rt/libc2rt.la \
@@ -12,16 +13,17 @@ libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
 				session_utils.c \
 				session_fops.c session_fops.h \
 				session_foms.c session_foms.h \
-				rpc2.c rpc2.h \
+				rpc2.c rpc2.h rpcdbg.h \
 				rpc_base.c rpc_base.h \
 				formation.h formation.c \
 				rpc_onwire.c rpc_onwire.h \
-				rpclib.c rpclib.h
+				rpclib.c rpclib.h rpc_opcodes.h \
+				service.c
 
 
 INCLUDES		= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include
-EXTRA_DIST     = session.ff
+EXTRA_DIST              = session.ff
 
 clean-local:
-	cd $(rpcdir) ; \
+	cd @SRCDIR@/rpc ; \
 	rm -fr session_[uk].[ch]

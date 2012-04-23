@@ -145,6 +145,14 @@ extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
 #define __layout(x) &(x ## _memlayout)
 #endif
 
+/**
+   Used as a placeholder only to parse .ff files which need definitions
+   from other .ff files to build properly.
+   This macro is used by fop2c.in script to search for dependency .ff files.
+   Otherwise, this macro is just a placeholder and hence NULL here.
+ */
+#define FOPDEP(x)
+
 #define C2_FOP_FIELD_TAG(_tag, _name, _type)	\
 {						\
 	.c_name = #_name,			\
@@ -214,8 +222,7 @@ struct c2_fop_type fopt ## _fopt = {					\
 		.rit_flags  = (itflags),				\
 		.rit_ops    = (itops)					\
 	}								\
-};									\
-C2_EXPORTED(fopt ## _fopt)
+};
 
 #define C2_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags)		\
         C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags,	\

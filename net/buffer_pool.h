@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -33,7 +33,7 @@
 	  Users request a buffer from the pool and after its usage is over
 	  gives back to the pool.
 
-	  It provides suppport for a pool of network buffers involving no higher
+	  It provides support for a pool of network buffers involving no higher
 	  level interfaces than the network module itself.
 	  It is associated with a single network domain.
 	  Non-blocking interfaces are available to get and put network buffers.
@@ -74,7 +74,7 @@
 	struct c2_net_xprt *xprt;
 	...
 	bp.nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096);
+	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10, ...);
 	...
     @endcode
 
@@ -94,7 +94,8 @@
     @endcode
 
     - To get a buffer from the pool:
-	For any colour buffer variable colour should be ~0.
+	To use any colour for the buffer variable colour should be
+	BUFFER_ANY_COLOUR.
     @code
 	c2_net_buffer_pool_lock(&bp);
 	nb = c2_net_buffer_pool_get(&bp, colour);
@@ -106,7 +107,8 @@
     @endcode
 
    - To put back the buffer in the pool:
-	For any colour buffer variable colour should be ~0.
+	To use any colour for the buffer variable colour should be
+	BUFFER_ANY_COLOUR.
     @code
 	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_put(&bp, nb, colour);
@@ -129,6 +131,9 @@
    @{
   */
 
+enum {
+	BUFFER_ANY_COLOUR = ~0
+};
 struct c2_net_buffer_pool;
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
@@ -150,18 +155,18 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool);
    @param seg_nr    Number of segments in each buffer.
    @param colours   Number of colours in the pool.
    @param seg_size  Size of each segment in a buffer.
-   @pre (seg_nr * seg_size) <= c2_net_domain_get_max_buffer_size(ndom) &&
+   @param shift	    Alignment needed for network buffers.
+   @pre seg_nr   <= c2_net_domain_get_max_buffer_segments(ndom) &&
 	seg_size <= c2_net_domain_get_max_buffer_segment_size(ndom)
-   @post c2_net_buffer_pool_invariant(pool)
  */
-void c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
+int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 			    struct c2_net_domain *ndom, uint32_t threshold,
 			    uint32_t seg_nr, c2_bcount_t seg_size,
-			    uint32_t colours);
+			    uint32_t colours, unsigned shift);
 
 /**
    It adds the buf_nr buffers in the buffer pool.
-   Suppose to add 10 items to the pool, c2_net_buffer_pool_provison(pool, 10)
+   Suppose to add 10 items to the pool, c2_net_buffer_pool_provision(pool, 10)
    can be used.
    @pre c2_net_buffer_pool_is_locked(pool)
    @pre seg_size > 0 && seg_nr > 0 && buf_nr > 0
@@ -191,7 +196,7 @@ void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
    list is not empty then the buffer is taken from the head of this list.
    Otherwise the buffer is taken from the head of the per buffer pool list.
    @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == ~0 || colour < pool->nbp_colours_nr
+   @pre colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
  */
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
@@ -202,10 +207,10 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
    If the colour is specfied then the buffer is put at the head of corresponding
    coloured list and also put at the tail of the global list.
    @pre c2_net_buffer_pool_is_locked(pool)
-   @pre colour == ~0 || colour < pool->nbp_colours_nr
+   @pre colour == BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
    @pre pool->nbp_ndom == buf->nb_dom
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
-        !(buf->nb_flags & C2_NET_BUF_IN_USE)
+        !(buf->nb_flags & C2_NET_BUF_QUEUED)
  */
 void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 			    struct c2_net_buffer *buf, uint32_t colour);
@@ -245,7 +250,9 @@ struct c2_net_buffer_pool {
 	    Buffers are linked through c2_net_buffer::nb_tm_linkage to these
 	    lists.
 	*/
-	struct c2_tl			    *nbp_colour;
+	struct c2_tl			    *nbp_colours;
+	/* Alignment for network buffers */
+	unsigned			     nbp_align;
 	/**
 	   A list of all buffers in the pool.
 	   This list is maintained in LRU order. The head of this list (which is

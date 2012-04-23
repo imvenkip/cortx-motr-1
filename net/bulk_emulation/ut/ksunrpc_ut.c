@@ -80,9 +80,6 @@ static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	i = in->sg_desc.sbd_id;
 
 	C2_UT_ASSERT(in->sg_offset == 0);
-	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_addr == IPADDR);
-	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_port == PORT);
-	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_id == S_EPID);
 	C2_UT_ASSERT(in->sg_desc.sbd_passive_ep.sep_addr == IPADDR);
 	C2_UT_ASSERT(in->sg_desc.sbd_passive_ep.sep_port == FAKEPORT);
 	C2_UT_ASSERT(in->sg_desc.sbd_passive_ep.sep_id == C_EPID);
@@ -115,9 +112,6 @@ static int sunrpc_ut_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	i = in->sp_desc.sbd_id;
 
 	C2_UT_ASSERT(in->sp_offset == 0);
-	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_addr == IPADDR);
-	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_port == PORT);
-	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_id == S_EPID);
 	C2_UT_ASSERT(in->sp_desc.sbd_passive_ep.sep_addr == IPADDR);
 	C2_UT_ASSERT(in->sp_desc.sbd_passive_ep.sep_port == FAKEPORT);
 	C2_UT_ASSERT(in->sp_desc.sbd_passive_ep.sep_id == C_EPID);
@@ -156,9 +150,6 @@ int get_call(struct c2_net_conn *conn, int i)
 	struct sunrpc_get_resp  *rep;
 	struct sunrpc_buf_desc   fake_desc = {
 		.sbd_id = i,
-		.sbd_active_ep.sep_addr = IPADDR,
-		.sbd_active_ep.sep_port = PORT,
-		.sbd_active_ep.sep_id = S_EPID,
 		.sbd_passive_ep.sep_addr = IPADDR,
 		.sbd_passive_ep.sep_port = FAKEPORT,
 		.sbd_passive_ep.sep_id = C_EPID,
@@ -222,9 +213,6 @@ int put_call(struct c2_net_conn *conn, int i)
 	struct sunrpc_put_resp  *rep;
 	struct sunrpc_buf_desc   fake_desc = {
 		.sbd_id = i,
-		.sbd_active_ep.sep_addr = IPADDR,
-		.sbd_active_ep.sep_port = PORT,
-		.sbd_active_ep.sep_id = S_EPID,
 		.sbd_passive_ep.sep_addr = IPADDR,
 		.sbd_passive_ep.sep_port = FAKEPORT,
 		.sbd_passive_ep.sep_id = C_EPID,

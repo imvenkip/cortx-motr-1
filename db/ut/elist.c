@@ -21,6 +21,7 @@
 #include <stdio.h>        /* fprintf */
 #include <errno.h>
 #include <err.h>
+#include <sysexits.h>
 
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/misc.h"     /* C2_SET0 */
@@ -68,7 +69,7 @@ int main(int argc, char **argv)
 			prefix = seg->ee_pre;
 			continue;
 		} else if (result != 0)
-			err(1, "c2_emap_lookup(): %i", result);
+			err(EX_SOFTWARE, "c2_emap_lookup(): %i", result);
 
 		printf("%010lx:%010lx:\n", prefix.u_hi, prefix.u_lo);
 		for (i = 0; ; ++i) {
@@ -92,7 +93,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

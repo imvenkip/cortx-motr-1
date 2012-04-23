@@ -23,8 +23,6 @@
 #include <config.h>
 #endif
 
-#include <errno.h>
-
 #include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/memory.h"
@@ -32,85 +30,67 @@
 #include "rpc/rpc2.h"
 #include "net/net.h"
 #include "fop/fop.h"
-#include "reqh/reqh.h"
 
 #include "rpc/rpclib.h"
 
 
-static int init_cob(struct c2_rpc_ctx *rctx)
+static int init_cob(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
-	struct c2_cob_domain_id   cob_dom_id = { .id = rctx->rx_cob_dom_id };
+	struct c2_cob_domain_id   cob_dom_id = { .id = cctx->rcx_cob_dom_id };
 
-	rc = c2_dbenv_init(rctx->rx_dbenv, rctx->rx_db_name, 0);
+	rc = c2_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_cob_domain_init(rctx->rx_cob_dom, rctx->rx_dbenv, &cob_dom_id);
+	rc = c2_cob_domain_init(cctx->rcx_cob_dom, cctx->rcx_dbenv, &cob_dom_id);
 	if (rc != 0)
 		goto dbenv_fini;
 
 	return rc;
 
 dbenv_fini:
-	c2_dbenv_fini(rctx->rx_dbenv);
+	c2_dbenv_fini(cctx->rcx_dbenv);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
 
-static void fini_cob(struct c2_rpc_ctx *rctx)
+static void fini_cob(struct c2_rpc_client_ctx *cctx)
 {
-	c2_cob_domain_fini(rctx->rx_cob_dom);
-	c2_dbenv_fini(rctx->rx_dbenv);
+	c2_cob_domain_fini(cctx->rcx_cob_dom);
+	c2_dbenv_fini(cctx->rcx_dbenv);
 
 	return;
 }
 
-static int init_helper(int (*start_func)(struct c2_rpc_ctx *rctx),
-		       struct c2_rpc_ctx *rctx)
+int c2_rpc_client_init(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	rc = init_cob(rctx);
+	rc = init_cob(cctx);
 	if (rc != 0)
 		goto fini_cob;
 
-	rc = start_func(rctx);
+	rc = c2_rpc_client_start(cctx);
 
 	return rc;
 
 fini_cob:
-	fini_cob(rctx);
+	fini_cob(cctx);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
-
-int c2_rpc_server_init(struct c2_rpc_ctx *rctx)
-{
-	return init_helper(c2_rpc_server_start, rctx);
-}
-
-void c2_rpc_server_fini(struct c2_rpc_ctx *rctx)
-{
-	c2_rpc_server_stop(rctx);
-	fini_cob(rctx);
-}
-
-int c2_rpc_client_init(struct c2_rpc_ctx *rctx)
-{
-	return init_helper(c2_rpc_client_start, rctx);
-}
 C2_EXPORTED(c2_rpc_client_init);
 
-int c2_rpc_client_fini(struct c2_rpc_ctx *rctx)
+int c2_rpc_client_fini(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	rc = c2_rpc_client_stop(rctx);
+	rc = c2_rpc_client_stop(cctx);
 	if (rc != 0)
 		return rc;
 
-	fini_cob(rctx);
+	fini_cob(cctx);
 
 	return rc;
 }

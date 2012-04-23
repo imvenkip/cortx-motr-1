@@ -26,19 +26,16 @@ void *c2_bitstring_buf_get(struct c2_bitstring *c)
 {
 	return c->b_data;
 }
-C2_EXPORTED(c2_bitstring_buf_get);
 
 uint32_t c2_bitstring_len_get(const struct c2_bitstring *c)
 {
 	return c->b_len;
 }
-C2_EXPORTED(c2_bitstring_len_get);
 
 void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
 {
 	c->b_len = len;
 }
-C2_EXPORTED(c2_bitstring_len_set);
 
 /**
    String-like compare: alphanumeric for the length of the shortest string.
@@ -71,7 +68,6 @@ int c2_bitstring_cmp(const struct c2_bitstring *c1,
         /* Everything matches through the shortest string, so compare length */
         return C2_3WAY(c1->b_len, c2->b_len);
 }
-C2_EXPORTED(c2_bitstring_cmp);
 
 /*
  *  Local variables:

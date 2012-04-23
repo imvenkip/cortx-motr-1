@@ -21,6 +21,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/arith.h"
+#include "lib/trace.h"
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "rpc/session_internal.h"
@@ -259,7 +260,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 end:
 	return rc;
 }
-C2_EXPORTED(c2_rpc_encode);
 
 int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 {
@@ -301,9 +301,9 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	C2_ASSERT(offset < len);
 	/*
 	   - Iterate through the each rpc item and for each rpc item.
-	   - Deserialize the opcode and get corrosponding item_type by
+	   - Deserialize the opcode and get corresponding item_type by
              iterating through the item_types_list to find it.
-	   - Call the corrosponding item decode function for that item type.
+	   - Call the corresponding item decode function for that item type.
          */
 	for (i = 0; i < item_count; ++i) {
 		rc = c2_bufvec_uint32(&cur, &opcode, C2_BUFVEC_DECODE);
@@ -324,7 +324,6 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	}
 	return rc;
 }
-C2_EXPORTED(c2_rpc_decode);
 
 /*
  *  Local variables:

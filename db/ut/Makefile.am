@@ -5,6 +5,6 @@ INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 noinst_PROGRAMS  = elist
 
 elist_SOURCES   = elist.c
-elist_LDFLAGS   = 
+elist_LDFLAGS   =
 elist_LDADD     = $(top_builddir)/colibri/libcolibri.la
 

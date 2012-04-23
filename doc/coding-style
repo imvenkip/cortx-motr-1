@@ -46,6 +46,13 @@ To summarise:
 
     * braces around single statement blocks can be optionally omitted;
 
+    * continuation line starts one column after the last unclosed
+      opening parenthesis:
+
+	C2_ASSERT(ergo(service != NULL,
+		       c2_rpc_service_invariant(service) &&
+		       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
+
 In addition to the above syntactic conventions, Colibri code should
 try to adhere to some higher level idioms.
 
@@ -69,7 +76,7 @@ try to adhere to some higher level idioms.
                 enum reason   mit_why;
         };
 
-      (Rationale: his makes search for field name usage easier.)     
+      (Rationale: his makes search for field name usage easier.)
 
     * typedefs are used only for "scalar" data types, including
       function pointers, but excluding enums. Compound data types

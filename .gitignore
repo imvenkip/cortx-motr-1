@@ -3,11 +3,14 @@
 .tmp_versions
 aclocal.m4
 autom4te.cache
+c2.trace.*
+colibri.spec
 compile
 config.cache
 config.guess
 config.h
 config.h.in
+\[config.h\].in
 config.log
 config.status
 config.sub
@@ -46,6 +49,7 @@ missing
 *.gcda
 *.gcno
 *.gcov
+*.swp
 *~
 doc/html/
 .#*
@@ -68,7 +72,6 @@ ut-sandbox
 ub-sandbox
 gmon.out
 doxygen_*tmp
-colibri/colibri_setup
-colibri/ut/cs_test_fops_u.[ch]
 cscope.out
 tags
+TAGS*

@@ -387,7 +387,6 @@ int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *cur, struct c2_fop *fop,
 	return c2_xcode_bufvec_fop_type(cur, fop->f_type->ft_top,
 	                                c2_fop_data(fop), what);
 }
-C2_EXPORTED(c2_xcode_bufvec_fop);
 /** @} */
 
 /*

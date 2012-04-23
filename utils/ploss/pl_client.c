@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sysexits.h>
 #include "pl.h"
 
 void usage(const char *prog)
@@ -44,7 +45,7 @@ void usage(const char *prog)
 "-d delay:      Delay time before server starting to handle the ping requests.\n"
 "-h:            Show this message.\n",
                 prog);
-        exit(-1);
+        exit(EX_USAGE);
 }
 
 static int ping_seqno    = 0;
@@ -75,7 +76,7 @@ void plprog_ping_1(CLIENT *clnt)
                         continue;
                 }
 
-                fprintf(stdout, "Server handled this ping request at %lu\n", 
+                fprintf(stdout, "Server handled this ping request at %lu\n",
                 	(unsigned long)result.time);
                 if (ping_interval)
                         sleep(ping_interval);
@@ -116,7 +117,7 @@ main (int argc, char *argv[])
                         interval = strtol(optarg, &endptr, 10);
                         if (*endptr) {
                                 fprintf(stderr, "Wrong option %s for interval\n", optarg);
-                                exit(1);
+                                exit(EX_USAGE);
                         }
                         break;
                 case 's':
@@ -124,7 +125,7 @@ main (int argc, char *argv[])
                         verbose = strtol(optarg, &endptr, 10);
                         if (*endptr || verbose < 0 || verbose > 5) {
                                 fprintf(stderr, "Wrong option %s for verbose\n", optarg);
-                                exit(1);
+                                exit(EX_USAGE);
                         }
                         break;
                 case 'p':
@@ -132,7 +133,7 @@ main (int argc, char *argv[])
                         prop = strtol(optarg, &endptr, 10);
                         if (*endptr || prop < 0 || prop > 100) {
                                 fprintf(stderr, "Wrong option %s for prop\n", optarg);
-                                exit(1);
+                                exit(EX_USAGE);
                         }
                         break;
                 case 'd':
@@ -140,7 +141,7 @@ main (int argc, char *argv[])
                         delay = strtol(optarg, &endptr, 10);
                         if (*endptr || delay < 0) {
                                 fprintf(stderr, "Wrong option %s for delay\n", optarg);
-                                exit(1);
+                                exit(EX_USAGE);
                         }
                         break;
                 case 'h':
@@ -158,7 +159,7 @@ main (int argc, char *argv[])
 	clnt = clnt_create (host, PLPROG, PLVER, "udp");
 	if (clnt == NULL) {
 		clnt_pcreateerror (host);
-		exit (1);
+		exit(EX_UNAVAILABLE);
         }
 
 
@@ -178,11 +179,11 @@ main (int argc, char *argv[])
                         retval = setconfig_1(&config, &config_res, clnt);
 	                if (retval != RPC_SUCCESS) {
 		                clnt_perror (clnt, "call failed");
-                                exit(1);
+                                exit(EX_CONFIG);
 	                }
                         if (config_res.op != PL_PROPABILITY) {
                                 fprintf(stderr, "fatal error: server unsderstands something wrong!\n");
-                                exit(1);
+                                exit(EX_PROTOCOL);
                         }
                         if (reply->res)
                                 fprintf(stderr, "Set prop error due to %s\n", strerror(reply->res));
@@ -198,12 +199,12 @@ main (int argc, char *argv[])
                         retval = setconfig_1(&config, &config_res, clnt);
 	                if (retval != RPC_SUCCESS) {
 		                clnt_perror (clnt, "call failed");
-                                exit(1);
+                                exit(EX_CONFIG);
 	                }
 
                         if (config_res.op != PL_DELAY) {
                                 fprintf(stderr, "fatal error: server unsderstands something wrong!\n");
-                                exit(1);
+                                exit(EX_PROTOCOL);
                         }
                         if (reply->res)
                                 fprintf(stderr, "Set delay error due to %s\n", strerror(reply->res));
@@ -219,11 +220,11 @@ main (int argc, char *argv[])
                         retval = setconfig_1(&config, &config_res, clnt);
 	                if (retval != RPC_SUCCESS) {
 		                clnt_perror (clnt, "call failed");
-                                exit(1);
+                                exit(EX_CONFIG);
 	                }
                         if (config_res.op != PL_VERBOSE) {
                                 fprintf(stderr, "fatal error: server unsderstands something wrong!\n");
-                                exit(1);
+                                exit(EX_PROTOCOL);
                         }
                         if (reply->res)
                                 fprintf(stderr, "Set verbose error due to %s\n", strerror(reply->res));

@@ -39,7 +39,7 @@
    //...
    int ret;
    int i;
-   struct c2_rpcmachine mach;
+   struct c2_rpc_machine mach;
    uint64_t session_id;
    struct c2_update_stream *update_stream;
    struct c2_rpc_item item[] = {DUMMY_INITIALIZER, DUMMY_INITIALIZER, ...};
@@ -58,7 +58,7 @@
    // and executed as a part of c2_init().
 
    // create rpc machine.
-   ret = c2_rpcmachine_init(&mach, cob_domain, net_domain, ep_addr);
+   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr);
    // create/get update stream used for interaction between endpoints
    ret = c2_rpc_update_stream_get(&mach, &srvid,
 	C2_UPDATE_STREAM_SHARED_SLOT, &us_ops, &update_stream);
@@ -150,6 +150,7 @@
 #include "dtm/verno.h"		/* for c2_verno */
 #include "lib/time.h"
 #include "lib/timer.h"
+#include "lib/tlist.h"
 
 #include "cob/cob.h"
 #include "rpc/session_internal.h"
@@ -175,7 +176,7 @@ struct c2_rpc_conn;
 struct c2_fop_type;
 struct c2_fop_io_vec;
 struct c2_rpc_group;
-struct c2_rpcmachine;
+struct c2_rpc_machine;
 struct c2_update_stream;
 struct c2_update_stream_ops;
 struct c2_rpc_frm_item_coalesced;
@@ -218,6 +219,14 @@ struct c2_rpc_item_ops {
 	   the time this method is called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item);
+
+	/**
+	   Finalise and free item.
+	   @see c2_fop_default_item_ops
+	   @see c2_fop_item_free(), can be used with fops that are not embedded
+	   in any other object.
+	 */
+	void (*rio_free)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {
@@ -249,13 +258,13 @@ enum c2_update_stream_state {
    @li Signal about events (state transitions, etc.) happened in sessions layer.
  */
 struct c2_update_stream {
-	/* linkage to c2_rpcmachine::c2_rpc_processing::crp_us_list */
+	/* linkage to c2_rpc_machine::c2_rpc_processing::crp_us_list */
 	struct c2_list_link		   us_linkage;
 
 	uint64_t			   us_session_id;
 	uint64_t		           us_slot_id;
 	const struct c2_update_stream_ops *us_ops;
-	struct c2_rpcmachine		  *us_mach;
+	struct c2_rpc_machine		  *us_mach;
 	enum c2_update_stream_state        us_state;
         struct c2_mutex			   us_guard;
 };
@@ -328,6 +337,11 @@ enum {
 	MAX_SLOT_REF = 1
 };
 
+enum {
+	C2_RPC_ITEM_FIELD_MAGIC = 0xf12acec12c611111ULL,
+	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
+};
+
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -357,9 +371,6 @@ struct c2_rpc_item {
 	struct c2_list_link		 ri_unformed_linkage;
 	/** Linkage to the group c2_rpc_group, needed for grouping */
 	struct c2_list_link		 ri_group_linkage;
-	/** Linkage to list of items which are coalesced, anchored
-	    at c2_rpc_frm_item_coalesced::ic_member_list. */
-	struct c2_list_link		 ri_coalesced_linkage;
 	/** Timer associated with this rpc item.*/
 	struct c2_timer			 ri_timer;
 	/** reply item */
@@ -370,6 +381,15 @@ struct c2_rpc_item {
 	struct c2_queue_link		 ri_dummy_qlinkage;
 	/** Time spent in rpc layer. */
 	c2_time_t			 ri_rpc_time;
+	/** Magic constant to verify sanity of ambient structure. */
+	uint64_t			 ri_head_magic;
+	/** List of compound items. */
+	struct c2_tl			 ri_compound_items;
+	/** Link through which items are anchored on list of
+	    c2_rpc_item:ri_compound_items. */
+	struct c2_tlink			 ri_field;
+	/** Magic constatnt to verify sanity of linked rpc items. */
+	uint64_t			 ri_link_magic;
 };
 
 /** Enum to distinguish if the path is incoming or outgoing */
@@ -380,7 +400,7 @@ enum c2_rpc_item_path {
 };
 
 /**
-  Statistical data maintained for each item in the rpcmachine.
+  Statistical data maintained for each item in the rpc_machine.
   It is upto the higher level layers to retrieve and process this data
  */
 struct c2_rpc_stats {
@@ -424,7 +444,7 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
 struct c2_rpc_group {
-	struct c2_rpcmachine	*rg_mach;
+	struct c2_rpc_machine	*rg_mach;
 	/** List of rpc items linked through c2_rpc_item:ri_group_linkage. */
 	struct c2_list		 rg_items;
 	/** expected number of items in the group */
@@ -438,7 +458,7 @@ struct c2_rpc_group {
 
 /**
    Struct c2_rpc_chan provides information about a target network endpoint.
-   An rpc machine (struct c2_rpcmachine) contains list of c2_rpc_chan structures
+   An rpc machine (struct c2_rpc_machine) contains list of c2_rpc_chan structures
    targeting different net endpoints.
    Rationale A physical node can have multiple endpoints associated with it.
    And multiple services can share endpoints for transport.
@@ -450,7 +470,7 @@ struct c2_rpc_group {
    it is working with.
  */
 struct c2_rpc_chan {
-	/** Linkage to the list maintained by c2_rpcmachine.*/
+	/** Linkage to the list maintained by c2_rpc_machine.*/
 	struct c2_list_link		  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
@@ -458,59 +478,65 @@ struct c2_rpc_chan {
 	struct c2_rpc_frm_sm		  rc_frmsm;
 	/** Destination end point to which rpcs will be sent. */
 	struct c2_net_end_point		 *rc_destep;
-	/** The rpcmachine, this chan structure is associated with.*/
-	struct c2_rpcmachine		 *rc_rpcmachine;
+	/** The rpc_machine, this chan structure is associated with.*/
+	struct c2_rpc_machine		 *rc_rpc_machine;
 };
 
 /**
    RPC machine is an instance of RPC item (FOP/ADDB) processing context.
    Several such contexts might be existing simultaneously.
  */
-struct c2_rpcmachine {
+struct c2_rpc_machine {
 	/** Mutex protecting list of c2_rpc_chan structures. */
-	struct c2_mutex			  cr_chan_mutex;
+	struct c2_mutex			  rm_chan_mutex;
 	/** List of c2_rpc_chan structures. */
-	struct c2_list			  cr_chans;
+	struct c2_list			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	  cr_tm;
+	struct c2_net_transfer_mc	  rm_tm;
 	/** Pool of receive buffers associated with this transfer machine. */
-	struct c2_net_buffer		**cr_rcv_buffers;
+	struct c2_net_buffer		**rm_rcv_buffers;
 	/** Cob domain in which cobs related to session will be stored */
-	struct c2_cob_domain		 *cr_dom;
+	struct c2_cob_domain		 *rm_dom;
 	/** List of rpc connections
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list			  cr_incoming_conns;
-	struct c2_list			  cr_outgoing_conns;
+	struct c2_list			  rm_incoming_conns;
+	struct c2_list			  rm_outgoing_conns;
 	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
-	struct c2_mutex			  cr_session_mutex;
+	struct c2_mutex			  rm_session_mutex;
 	/** Mutex to protect list of ready slots. */
-	struct c2_mutex			  cr_ready_slots_mutex;
+	struct c2_mutex			  rm_ready_slots_mutex;
 	/** list of ready slots. */
-	struct c2_list			  cr_ready_slots;
-	/** ADDB context for this rpcmachine */
-	struct c2_addb_ctx		  cr_rpc_machine_addb;
+	struct c2_list			  rm_ready_slots;
+	/** ADDB context for this rpc_machine */
+	struct c2_addb_ctx		  rm_rpc_machine_addb;
 	/** Statistics for both incoming and outgoing paths */
-	struct c2_rpc_stats		  cr_rpc_stats[C2_RPC_PATH_NR];
+	struct c2_rpc_stats		  rm_rpc_stats[C2_RPC_PATH_NR];
 	/** Mutex to protect stats */
-	struct c2_mutex			  cr_stats_mutex;
+	struct c2_mutex			  rm_stats_mutex;
 	/**
-	    Request handler this rpcmachine belongs to.
+	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
 		request handler (or any other handler for future use)
 		with the rpc machine and a ops vector specifying a
 		method to be invoked for futher processing,
 		e.g. c2_reqh_fop_handle(), in case of reqh.
 	*/
-	struct c2_reqh                   *cr_reqh;
+	struct c2_reqh                   *rm_reqh;
 
         /**
 	    Linkage into request handler's list of rpc machines.
-	    c2_reqh::rh_rpcmachines
+	    c2_reqh::rh_rpc_machines
 	 */
-        struct c2_tlink                   cr_rh_linkage;
+        struct c2_tlink                   rm_rh_linkage;
 
-	uint64_t                          cr_magic;
+	/**
+	    List of c2_rpc_service instances placed using svc_tlink.
+	    tl_descr: c2_rpc_services_tl
+	 */
+	struct c2_tl                      rm_services;
+
+	uint64_t                          rm_magic;
 };
 
 /**
@@ -528,23 +554,23 @@ void c2_rpc_core_fini(void);
    module, a formation module, sending/receiving logic and statistics
    components are associated.
 
-   @param machine Input rpcmachine object.
+   @param machine Input rpc_machine object.
    @param dom cob domain that contains cobs representing slots
-   @param net_dom Network domain, this rpcmachine is associated with.
+   @param net_dom Network domain, this rpc_machine is associated with.
    @param ep_addr Source end point address to associate with the transfer mc.
    @pre c2_rpc_core_init().
  */
-int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom,
-			struct c2_net_domain	*net_dom,
-			const char		*ep_addr,
-			struct c2_reqh          *reqh);
+int  c2_rpc_machine_init(struct c2_rpc_machine	*machine,
+			 struct c2_cob_domain	*dom,
+			 struct c2_net_domain	*net_dom,
+			 const char		*ep_addr,
+			 struct c2_reqh         *reqh);
 
 /**
-   Destruct rpcmachine
-   @param machine rpcmachine operation applied to.
+   Destruct rpc_machine
+   @param machine rpc_machine operation applied to.
  */
-void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
+void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 
 /**
   Posts an unbound item to the rpc layer.
@@ -597,26 +623,26 @@ int c2_rpc_reply_post(struct c2_rpc_item *request,
 /**
    Generate group used to treat rpc items as a group.
 
-   @param machine rpcmachine operation applied to.
+   @param machine rpc_machine operation applied to.
    @param group returned from the function
 
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0 success
    @return -ENOMEM failure
  */
-int c2_rpc_group_open(struct c2_rpcmachine *machine,
-		      struct c2_rpc_group **group);
+int c2_rpc_group_open(struct c2_rpc_machine  *machine,
+		      struct c2_rpc_group   **group);
 
 /**
    Tell RPC layer core that group is closed
    and it can be processed by RPC core processing
 
-   @param machine rpcmachine operation applied to.
+   @param machine rpc_machine operation applied to.
    @param group return value from the function
 
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0  success
    @return <0 failure
  */
@@ -634,7 +660,7 @@ int c2_rpc_group_close(struct c2_rpc_group *group);
    @param deadline maximum processing time of this item
 
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0  success
    @return <0 failure
  */
@@ -649,7 +675,7 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
 
    @param The clink on which caller is waiting for item reply.
    @param timeout time to wait for item being sent
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
    invoking this function
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
@@ -662,7 +688,7 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout);
    @param group used treat rpc items as a group.
    @param timeout time to wait for item being sent
    @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @pre c2_rpc_machine_init()
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
  */
@@ -670,18 +696,18 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
 
 /**
    Retrurns update stream associated with given service id.
-   @param machine rpcmachine operation applied to.
+   @param machine rpc_machine operation applied to.
    @param session_id session id for which update stream is being retrieved.
    @param flag specifies features of update stream, @see c2_update_stream_flags
    @param ops operations associated with the update stream
    @param out update associated with given session
 
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
    invoking this function
    @return 0  success
    @return <0 failure
  */
-int c2_rpc_update_stream_get(struct c2_rpcmachine *machine,
+int c2_rpc_update_stream_get(struct c2_rpc_machine *machine,
 			     struct c2_service_id *srvid,
 			     enum c2_update_stream_flags flag,
 			     const struct c2_update_stream_ops *ops,
@@ -690,39 +716,42 @@ int c2_rpc_update_stream_get(struct c2_rpcmachine *machine,
 /**
    Releases given update stream.
    @param us update stream to be released
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
 
 */
 void c2_rpc_update_stream_put(struct c2_update_stream *us);
 
 /**
    @name stat_ifs STATISTICS IFs
-   Iterfaces, returning different properties of rpcmachine.
+   Iterfaces, returning different properties of rpc_machine.
    @{
  */
 
 /**
    Returns average time spent in the cache for one RPC-item
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
-   @param machine rpcmachine operation applied to.
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
+   @param machine rpc_machine operation applied to.
    @param path Incoming or outgoing path of rpc item.
  */
-c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
+c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
 			       const enum c2_rpc_item_path path);
 
 /**
    Returns transmission speed in bytes per second.
-   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
-   @param machine rpcmachine operation applied to.
+   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
+   @param machine rpc_machine operation applied to.
    @param path Incoming or outgoing path of rpc item.
  */
-size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
+size_t c2_rpc_bytes_per_sec(struct c2_rpc_machine *machine,
 			    const enum c2_rpc_item_path path);
 
 /** @} end name stat_ifs */
+/** @} end group rpc_layer_core */
 
 /**
-   @defgroup rpc_bulk Bulk IO support for RPC layer.
+   @section bulkclientDFSrpcbulk RPC layer abstraction over bulk IO.
+
+   @addtogroup bulkclientDFS
    @{
 
    Detailed Level Design for bulk IO interface from rpc layer.
@@ -747,75 +776,36 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
    net buffers.
    These descriptors are sent to the other side which asks for
    buffers identified by the supplied buffer descriptors.
-   Please find below, 2 particular use cases of using bulk interface.
-   @verbatim
 
    Sequence of events in case of write IO call for rpc layer.
    Assumptions
    - Write request call has IO buffers associated with it.
    - Underlying transport supports zero-copy.
 
-			Client			Server
+   @msc
+   client,crpc,srpc,server;
 
-- Init rpc machine.	  |			| - Init rpc machine.
-			  |			|
-- Init Transfer Mc.	  |			| - Init Transfer Mc.
-			  |			|
-- Start Transfer Mc.	  |			| - Start Transfer Mc.
-			  |			|
-- Add recv buffers.	  |			| - Add recv buffers.
-			  |   Net buffer sent	|
-- Incoming write req.	  |	     +--------->| - Net buffer received.
-			  |	     |		|
-- Rpc formation finds	  |	     |		| - Decode and retrieve rpc
-  given item is write	  |	     |		|   items.
-  IO request.		  |	     |		|
-			  |	     |		|
-- Remove data buffers	  |	     |		| - Call an rpc_item_type_op
-  from rpc item & copy	  |	     |		|   which will act if item
-  net_buf_desc which	  |	     |		|   is write IO and it contains
-  are bundled with	  |	     |		|   c2_net_buf_desc. Buf desc
-  given rpc item.	  |	     |		|   are decoded and are copied
-  Net buffers are added	  |	     |		|   into recv buffers.
-  for these data buffs	  |	     |		|   @see
-  in C2_NET_QT_PASSIVE	  |	     |		|   c2_rpc_bulkio_desc_received
-  BULK_SEND		  |	     |		|
-  queue of TM. Buffer	  |	     |		|
-  descriptors are	  |	     |		|
-  encoded and packed	  |	     |		|
-  with rpc.		  |	     |		|
-  @see			  |	     |		|
-c2_rpc_bulkio_desc_send   |	     |		|
-			  |	     |		|
-- Free the net_buf_desc	  |	     |		| - If item is write request,
-  after bundling	  |	     |		|   allocate c2_net_buffer/s,
-  with rpc item.	  |	     |		|   add it to TM in C2_NET_QT
-			  |	     |		|   _ACTIVE_BULK_RECV queue.
-			  |	     |		|
-- Send rpc over wire.	  |--------->+		| - So server calls c2_rpc_
-			  |		0-copy	|   zero_copy_init(active_buffs
-			  |		 init	|   , passive_descs, bufs_nr)
-			  |	    +<----------|   which should
-			  |	    |		|   initiate zero copy operation
-			  |	    |		|   at the transport level.
-			  |	    |		|
-- Transport zero copies	  |	    |		| - Proceed with the write FOM
-  the IO buffers	  |	    |	 +----->|   and complete write IO
-  identified by		  |<--------+	 |	|   request.
-  passive_descs		  |		 |	|
-  to active buffers	  |	    +----+	|
-  on server.		  |	    |  0-copy	|
-			  |-------->+ Complete	|
-			  |			|
-			  |			|
-- Free net buffers used	  |	    +<----------| - Write IO complete. Send
-  for write IO.		  |	    |  Net buf	|   write reply to rpc layer.
-			  |	    |	sent	|
-- Receive net buffer.	  |<--------+		|
-			  |			|
-- Send reply to write	  |			| - Free net buffers used
-  FOM.			  |			|   for zero copy.
-			  |			|
+   client=>crpc [ label = "Incoming write request" ];
+   client=>crpc [ label = "Adds pages to rpc bulk" ];
+   crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
+   crpc=>crpc [ label = "net buffer enqueued to
+		C2_NET_QT_PASSIVE_BULK_SEND queue" ];
+   crpc=>srpc [ label = "Sends fop over wire" ];
+   srpc=>server [ label = "IO fop submitted to ioservice" ];
+   server=>srpc [ label = "Adds pages to rpc bulk" ];
+   server=>srpc [ label = "Net buffer enqueued to C2_NET_QT_ACTIVE_BULK_RECV
+		  queue" ];
+   server=>srpc [ label = "Start zero copy" ];
+   srpc=>crpc [ label = "Start zero copy" ];
+   crpc=>srpc [ label = "Zero copy complete" ];
+   srpc=>server [ label = "Zero copy complete" ];
+   server=>server [ label = "Dispatch IO request" ];
+   server=>server [ label = "IO request complete" ];
+   server=>srpc [ label = "Send reply fop" ];
+   srpc=>crpc [ label = "Send reply fop" ];
+   crpc=>client [ label = "Reply received" ];
+
+   @endmsc
 
    Sequence of events in case of read IO call for rpc layer.
    Assumptions
@@ -825,159 +815,251 @@ c2_rpc_bulkio_desc_send   |	     |		|
    - And read reply fop consists of number of bytes read.
    - Underlying transport supports zero-copy.
 
-			Client			Server
+   @msc
+   client,crpc,srpc,server;
 
-- Init rpc machine.	  |			| - Init rpc machine.
-			  |			|
-- Init Transfer Mc.	  |			| - Init Transfer Mc.
-			  |			|
-- Start Transfer Mc.	  |			| - Start Transfer Mc.
-			  |			|
-- Add recv buffers.	  |			| - Add recv buffers.
-			  |   Net buffer sent	|
-- Incoming read req.	  |	      +-------->| - Net buffer received.
-			  |	      |		|
-- Remove data buffers	  |	      |		| - Decode and retrieve rpc
-  from fop and replace	  |	      |		|   items.
-  it by c2_net_buf_desc	  |	      |		|
-  The net buffers are	  |	      |		|
-  added to C2_NET_QT_	  |	      |		|
-  PASSIVE_BULK_RECV	  |	      |		|
-  queue of TM and rpc	  |	      |		|
-  is sent over wire.	  |---------->+		|
-			  |			|
-- Transport zero copies	  |<----------+		| - Dispatch rpc item for
-  the data into		  |	      |		|   execution and read FOM.
-  destination net	  |	      |		|   starts.
-  identified by source	  |	      |		|
-  net buf descriptors.	  |---->+     |		|
-			  |	|     |		|
-- Net buffer received	  |<-+	|     |  0-copy	| - Read FOM allocates net
-			  |  |	|     |	  init	|   buffers and registers them
-			  |  |	|     |		|   with the net domain. This
-			  |  |	|     |		|   makes sure that data path
-			  |  |	|     |		|   complies with zero-copy.
-			  |  |	|     |		|
-- Rpc checks if rcvd	  |  |	|     +<--------| - Server initiates zero_copy
-  item belongs to read	  |  |	|		|   by supplying the just
-  request & deallocates	  |  |	+-----+		|   allocated net buffers and
-  net buffers used for	  |  |	      |		|   source net buf descriptors.
-  copying data.		  |  |	      |		|   The net buffers are added
-			  |  |	      |		|   C2_NET_QT_ACTIVE_BULK_SEND
-			  |  |	      |	0-copy	|   queue of TM.
-			  |  |	      | complete|   The transport layer from
-			  |  |	      |		|   client and server zero
-			  |  |	      |		|   copies the read data from
-			  |  |	      +-------->|   server to client buffers.
-			  |  |			|
- - Send reply to read	  |  |			| - Read reply is posted to rpc
-   FOM.			  |  +<-----------------|   & RPC is sent over wire.
-			  |	  Net buffer	|
-			  |	    sent	|
-   @endverbatim
+   client=>crpc [ label = "Incoming read request" ];
+   client=>crpc [ label = "Adds pages to rpc bulk" ];
+   crpc=>crpc [ label = "Populates net buf desc from IO fop" ];
+   crpc=>crpc [ label = "net buffer enqueued to
+		C2_NET_QT_PASSIVE_BULK_RECV queue" ];
+   crpc=>srpc [ label = "Sends fop over wire" ];
+   srpc=>server [ label = "IO fop submitted to ioservice" ];
+   server=>srpc [ label = "Adds pages to rpc bulk" ];
+   server=>srpc [ label = "Net buffer enqueued to C2_NET_QT_ACTIVE_BULK_SEND
+		  queue" ];
+   server=>server [ label = "Dispatch IO request" ];
+   server=>server [ label = "IO request complete" ];
+   server=>srpc [ label = "Start zero copy" ];
+   srpc=>crpc [ label = "Start zero copy" ];
+   crpc=>srpc [ label = "Zero copy complete" ];
+   srpc=>server [ label = "Zero copy complete" ];
+   srpc=>crpc [ label = "Send reply fop" ];
+   crpc=>client [ label = "Reply received" ];
 
+   @endmsc
  */
 
 /**
-   A magic constant for sanity of struct c2_rpc_bulk.
+   Magic constants to check sanity of rpc bulk structures.
  */
 enum {
+	C2_RPC_BULK_BUF_MAGIC = 0xfacade12c3ed1b1eULL, /* facadeincredible */
 	C2_RPC_BULK_MAGIC = 0xfedcba0123456789ULL,
 };
 
 /**
+   Represents attributes of struct c2_rpc_bulk_buf.
+ */
+enum {
+	/**
+	 * The net buffer belonging to struct c2_rpc_bulk_buf is
+	 * allocated by rpc bulk APIs.
+	 * So it should be deallocated by rpc bulk APIs as well.
+	 */
+	C2_RPC_BULK_NETBUF_ALLOCATED = 1,
+	/**
+	 * The net buffer belonging to struct c2_rpc_bulk_buf is
+	 * registered with net domain by rpc bulk APIs.
+	 * So it should be deregistered by rpc bulk APIs as well.
+	 */
+	C2_RPC_BULK_NETBUF_REGISTERED,
+};
+
+/**
+   Represents rpc bulk equivalent of a c2_net_buffer. Contains a net buffer
+   pointer, a zero vector which does all the in-memory manipulations
+   and a backlink to c2_rpc_bulk structure to report back the status.
+ */
+struct c2_rpc_bulk_buf {
+	/** Magic constant to verify sanity of data. */
+	uint64_t		 bb_magic;
+	/** Net buffer containing IO data. */
+	struct c2_net_buffer	*bb_nbuf;
+	/** Zero vector pointing to user data. */
+	struct c2_0vec		 bb_zerovec;
+	/** Linkage into list of c2_rpc_bulk_buf hanging off
+	    c2_rpc_bulk::rb_buflist. */
+	struct c2_tlink		 bb_link;
+	/** Back link to parent c2_rpc_bulk structure. */
+	struct c2_rpc_bulk	*bb_rbulk;
+	/** Flags bearing attributes of c2_rpc_bulk_buf structure. */
+	uint64_t		 bb_flags;
+};
+
+/**
+   Adds a c2_rpc_bulk_buf structure to the list of such structures in a
+   c2_rpc_bulk structure.
+   @param segs_nr Number of segments needed in new c2_rpc_bulk_buf
+   structure.
+   @param netdom The c2_net_domain structure to which new c2_rpc_bulk_buf
+   structure will belong to. It is primarily used to keep a check on
+   thresholds like max_seg_size, max_buf_size and max_number_of_segs.
+   @param nb Net buf pointer if user wants to use preallocated network
+   buffer. (nb == NULL) implies that net buffer should be allocated by
+   c2_rpc_bulk_buf_add().
+   @param out Out parameter through which newly created c2_rpc_bulk_buf
+   structure is returned back to the caller.
+   Users need not remove the c2_rpc_bulk_buf structures manually.
+   These structures are removed by rpc bulk callback.
+   @see rpc_bulk_buf_cb().
+   @pre rbulk != NULL && segs_nr != 0.
+   @post (rc == 0 && *out != NULL) || rc != 0.
+   @see c2_rpc_bulk.
+ */
+int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
+			uint32_t segs_nr,
+			struct c2_net_domain *netdom,
+			struct c2_net_buffer *nb,
+			struct c2_rpc_bulk_buf **out);
+
+/**
+   Adds a data buffer to zero vector referred to by rpc bulk structure.
+   @param rbulk rpc bulk structure to which data buffer will be added.
+   @param buf User space buffer starting address.
+   @param count Number of bytes in user space buffer.
+   @param index Index of target object to which io is targeted.
+   @param netdom Net domain to which the net buffer from c2_rpc_bulk_buf
+   belongs.
+   @pre buf != NULL && count != 0 && netdom != NULL &&
+   rpc_bulk_invariant(rbulk).
+   @post rpc_bulk_invariant(rbulk).
+ */
+int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
+			        void *buf,
+			        c2_bcount_t count,
+			        c2_bindex_t index,
+				struct c2_net_domain *netdom);
+
+/**
    An abstract data structure that avails bulk transport for io operations.
-   End users will register the io vectors using this structure and bulk
+   End users will register the IO vectors using this structure and bulk
    transfer apis will take care of doing the data transfer in zero-copy
    fashion.
+   These APIs are primarily used by another in-memory structure c2_io_fop.
+   @see c2_io_fop.
+   @note Passive entities engaging in bulk transfer do not block for
+   c2_rpc_bulk callback. Only active entities are blocked since they
+   can not proceed until bulk transfer is complete.
+   @see rpc_bulk_buf_cb().
  */
 struct c2_rpc_bulk {
 	/** Magic to verify sanity of struct c2_rpc_bulk. */
 	uint64_t		 rb_magic;
-	/** Net buffer that will contain the io data. */
-	struct c2_net_buffer	 rb_nbuf;
-	/** Zero vector representing io data. */
-	struct c2_0vec		 rb_zerovec;
+	/** Mutex to protect access on list rb_buflist. */
+	struct c2_mutex		 rb_mutex;
+	/**
+	 * List of c2_rpc_bulk_buf structures linkged through
+	 * c2_rpc_bulk_buf::rb_link.
+	 */
+	struct c2_tl		 rb_buflist;
 	/** Channel to wait on rpc bulk to complete the io. */
 	struct c2_chan		 rb_chan;
-	/** Return value of results like addition of buffers to transfer
-	    machine and zero-copy operation. This field is updated by
-	    net buffer send/receive callbacks. */
+	/** Number of bytes read/written through this structure. */
+	c2_bcount_t		 rb_bytes;
+	/**
+	 * Return value of operations like addition of buffers to transfer
+	 * machine and zero-copy operation. This field is updated by
+	 * net buffer send/receive callbacks.
+	 */
 	int32_t			 rb_rc;
 };
 
 /**
-   Initialize a rpc bulk structure.
+   Initializes a rpc bulk structure.
    @param rbulk rpc bulk structure to be initialized.
-   @param segs_nr Number of segments to be contained by zero vector.
-   @param seg_size Size of each segment contained by zero vector.
-   @param netdom Net domain to which the zero vector belongs.
-   @pre rbulk != NULL
-   @post rpc_bulk_invariant(rbulk) = true.
+   @pre rbulk != NULL.
+   @post rpc_bulk_invariant(rbulk).
  */
-int c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk,
-		     uint32_t segs_nr,
-		     c2_bcount_t seg_size,
-		     struct c2_net_domain *netdom);
+void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk);
 
 /**
-   Finalize the rpc bulk structure.
-   @pre rbulk != NULL
+   Removes all c2_rpc_bulk_buf structures from list of such structures in
+   c2_rpc_bulk structure and deallocates it.
+   @pre rbulk != NULL.
+   @post rpcbulk_tlist_length(&rbulk->rb_buflist) = 0.
+ */
+void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk);
+
+/**
+   Finalizes the rpc bulk structure.
+   @pre rbulk != NULL && rpc_bulk_invariant(rbulk).
  */
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk);
 
 /**
-   Add a buffer/page to the zero vector referred by rpc bulk structure.
-   @param rbulk rpc bulk structure to which a page/buffer will be added.
-   @param pg Buffer referring to user data.
-   @param index Index of target object to which io is targeted.
-   @pre rbulk != NULL
-   @pre pg != NULL
-   @post rpc_bulk_invariant(rbulk) = true.
+   Enum to identify the type of bulk operation going on.
  */
-int c2_rpc_bulk_page_add(struct c2_rpc_bulk *rbulk, struct page *pg,
-			 c2_bindex_t index);
+enum c2_rpc_bulk_op_type {
+	/**
+	 * Store the net buf descriptors from net buffers to io fops.
+	 * Typically used by bulk client.
+	 */
+	C2_RPC_BULK_STORE = (1 << 0),
+	/**
+	 * Load the net buf descriptors from io fops to destination
+	 * net buffers.
+	 * Typically used by bulk server.
+	 */
+	C2_RPC_BULK_LOAD  = (1 << 1),
+};
 
 /**
-   Add a user space buffer to zero vector referred to by rpc bulk structure.
-   @param rbulk rpc bulk structure to which user space buffer will be added.
-   @param buf User space buffer starting address.
-   @param count Number of bytes in user space buffer.
-   @param index Index of target object to which io is targeted.
-   @post rpc_bulk_invariant(rbulk) = true.
+   Assigns queue type for buffers maintained in rbulk->rb_buflist from
+   argument q.
+   @param rbulk c2_rpc_bulk structure containing list of c2_rpc_bulk_buf
+   structures whose net buffers queue type has to be assigned.
+   @param q Queue type for c2_net_buffer structures.
+   @pre rbulk != NULL && !c2_tlist_is_empty(rbulk->rb_buflist) &&
+   c2_mutex_is_locked(&rbulk->rb_mutex) &&
+   q == C2_NET_QT_PASSIVE_BULK_RECV || q == C2_NET_QT_PASSIVE_BULK_SEND ||
+   q == C2_NET_QT_ACTIVE_BULK_RECV  || q == C2_NET_QT_ACTIVE_BULK_SEND.
  */
-int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
-			void *buf,
-			c2_bcount_t count,
-			c2_bindex_t index);
+void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q);
 
 /**
-   Stores the c2_net_buf_desc for the net buffer pointed to by c2_rpc_bulk
-   structure in the provided buffer descriptor. This API is typically invoked
-   from the sender side.
-   @param rbulk Rpc bulk structure whose net buf descriptor is to be stored.
-   @param item Rpc item belonging to fop whose net buf descriptor will
-   be populated.
+   Stores the c2_net_buf_desc/s for net buffer/s pointed to by c2_rpc_bulk_buf
+   structure/s in the io fop wire format.
+   This API is typically invoked by bulk client in a zero-copy buffer
+   transfer.
+   @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
+   structures, the net buf descriptors of io fops will be populated.
+   @param conn The c2_rpc_conn object that represents the rpc connection
+   made with receiving node.
    @param to_desc Net buf descriptor from fop which will be populated.
-   @post rpc_bulk_invariant(rbulk) = true.
+   @pre rbuf != NULL && item != NULL && to_desc != NULL &&
+   (rbuf->bb_nbuf & C2_NET_BUF_REGISTERED) &&
+   (rbuf->bb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
+    rbuf->bb_nbuf.nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND).
+   @post rpc_bulk_invariant(rbulk).
  */
-int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item,
+int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
+		      const struct c2_rpc_conn *conn,
 		      struct c2_net_buf_desc *to_desc);
 
 /**
-   Loads the c2_net_buf_desc pointing to the net buffer contained by
-   c2_rpc_bulk structure and starts RDMA transfer of buffers.
-   This API is typically used by receiver side.
-   @param rbulk Rpc bulk structure whose net buffer is to be transferred.
-   @param item Rpc item which contains the c2_net_buf_desc which is the
-   key for zero copy of buffers.
-   @post rpc_bulk_invariant(rbulk) = true.
+   Loads the c2_net_buf_desc/s pointing to net buffer/s contained by
+   c2_rpc_bulk_buf structure/s in rbulk->rb_buflist and starts RDMA transfer
+   of buffers.
+   This API is typically used by bulk server in a zero-copy buffer transfer.
+   @param rbulk Rpc bulk structure from whose list of c2_rpc_bulk_buf
+   structures, net buffers will be added to transfer machine.
+   @param conn The c2_rpc_conn object which represents the rpc connection
+   made with receiving node.
+   @param from_desc The source net buf descriptor which points to the source
+   buffer from which data is copied.
+   @pre rbuf != NULL && item != NULL && from_desc != NULL &&
+   (rbuf->bb_nbuf & C2_NET_BUF_REGISTERED) &&
+   (rbuf->bb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
+    rbuf->bb_nbuf.nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND).
+   @post rpc_bulk_invariant(rbulk).
  */
-int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk, struct c2_rpc_item *item);
+int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
+		     const struct c2_rpc_conn *conn,
+		     struct c2_net_buf_desc *from_desc);
 
-/** @} endgroup of rpc_bulk */
+/** @} bulkclientDFS end group */
 
-/** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */
 #endif
 

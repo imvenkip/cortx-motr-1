@@ -76,6 +76,8 @@
    text, though be careful while doing so as text formatters do not
    understand Doxygen syntax and significant line breaks.
 
+   Please link your DLD to the index of all detailed designs maintained
+   in @ref DLDIX "Detailed Designs". <!-- doc/dld-index.c -->
 
    <b>Purpose of a DLD</b><br>
    The purpose of the Detailed Level Design (DLD) specification of a
@@ -481,6 +483,9 @@
    It is acceptable that this section be located in a separate @@subpage like
    along the lines of the Functional Specification.  This can be deferred
    to the UT phase where additional details on the unit tests are available.
+
+   Use the Doxygen @@test tag to identify each test.  Doxygen collects these
+   and displays them on a "Test List" page.
 
    <hr>
    @section DLD-st System Tests

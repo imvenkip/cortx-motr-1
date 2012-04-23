@@ -35,9 +35,8 @@ int c2_verno_cmp(const struct c2_verno *vn0, const struct c2_verno *vn1)
 	//return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn);
 	return C2_3WAY(vn0->vn_vc, vn1->vn_vc);
 }
-C2_EXPORTED(c2_verno_cmp);
 
-int c2_verno_is_redoable(const struct c2_verno *unit, 
+int c2_verno_is_redoable(const struct c2_verno *unit,
 			 const struct c2_verno *before_update, bool total)
 {
 	int result;
@@ -55,9 +54,8 @@ int c2_verno_is_redoable(const struct c2_verno *unit,
 		result = 0;
 	return result;
 }
-C2_EXPORTED(c2_verno_is_redoable);
 
-int c2_verno_is_undoable(const struct c2_verno *unit, 
+int c2_verno_is_undoable(const struct c2_verno *unit,
 			 const struct c2_verno *before_update, bool total)
 {
 	int result;
@@ -98,7 +96,7 @@ void c2_verno_inc(struct c2_verno *unit, struct c2_fol_rec *rec, uint32_t index)
 
 /** @} end of dtm group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

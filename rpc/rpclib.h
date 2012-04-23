@@ -18,123 +18,184 @@
  * Original creation date: 09/28/2011
  */
 
-#ifndef __COLIBRI_RPC_RPC_LIB_H__
-#define __COLIBRI_RPC_RPC_LIB_H__
+#ifndef __COLIBRI_RPC_RPCLIB_H__
+#define __COLIBRI_RPC_RPCLIB_H__
 
-#include "lib/types.h"
-#include "rpc/rpc2.h" /* struct c2_rpcmachine, c2_rpc_item */
+#ifndef __KERNEL__
+#include <stdio.h> /* FILE */
+#endif
+
+#include "rpc/rpc2.h"    /* struct c2_rpc_machine, c2_rpc_item */
 #include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
 #include "net/net.h"     /* struct c2_net_end_point */
 
+#ifndef __KERNEL__
+#include "colibri/colibri_setup.h" /* struct c2_colibri */
+#endif
 
-struct c2_net_xprt;
-struct c2_net_domain;
+
+#ifndef __KERNEL__
 struct c2_reqh;
+struct c2_reqh_service_type;
 
 /**
- * RPC context structure.
- * Contains all required data to initialize RPC client and server.
+ * RPC server context structure.
+ *
+ * Contains all required data to initialize an RPC server,
+ * using colibri-setup API.
  */
-struct c2_rpc_ctx {
+struct c2_rpc_server_ctx {
+
+	/** a pointer to array of transports, which can be used by server */
+	struct c2_net_xprt          **rsx_xprts;
+	/** number of transports in array */
+	int                         rsx_xprts_nr;
 
 	/**
-	 * Input parameters.
-	 *
-	 * They are initialized and filled in by a caller of
-	 * c2_rpc_server_init() and c2_rpc_client_init().
+	 * ARGV-like array of CLI options to configure colibri-setup, which is
+	 * passed to c2_cs_setup_env()
 	 */
+	char                        **rsx_argv;
+	/** number of elements in rsx_argv array */
+	int                         rsx_argc;
 
-        struct c2_net_domain    *rx_net_dom;
+	/** a pointer to array of service types, which can be used by server */
+	struct c2_reqh_service_type **rsx_service_types;
+	/** number of service types in array */
+	int                         rsx_service_types_nr;
 
-	/** Can be NULL. In this case a default reqh will be allocated and
-	 * initialized by c2_rpc_(server|client)_init() */
-	struct c2_reqh          *rx_reqh;
+	const char                  *rsx_log_file_name;
 
-	/** Transport specific local address */
-	const char              *rx_local_addr;
-
-	/** Transport specific remote address */
-	const char              *rx_remote_addr;
-
-	/** Name of database used by the RPC machine */
-	const char              *rx_db_name;
-
-        struct c2_dbenv         *rx_dbenv;
-
-	/** Identity of cob used by the RPC machine */
-	uint32_t                rx_cob_dom_id;
-
-        struct c2_cob_domain    *rx_cob_dom;
-
-	/** Number of session slots */
-	uint32_t                rx_nr_slots;
-
-	uint64_t                rx_max_rpcs_in_flight;
-
-	/** Time in seconds after which connection/session
-	 *  establishment is aborted */
-	uint32_t                rx_timeout_s;
+	/** an embedded colibri context structure */
+	struct c2_colibri           rsx_colibri_ctx;
 
 	/**
-	 * Output parameters.
-	 *
-	 * They are initialized and filled in by c2_rpc_server_init() and
-	 * c2_rpc_client_init().
+	 * this is an internal variable, which is used by c2_rpc_server_stop()
+	 * to close log file; it should not be initialized by a caller
 	 */
-
-	struct c2_rpcmachine    rx_rpc_machine;
-        struct c2_net_end_point	*rx_remote_ep;
-        struct c2_rpc_conn      rx_connection;
-        struct c2_rpc_session   rx_session;
+	FILE                        *rsx_log_file;
 };
 
 /**
   Starts server's rpc machine.
 
-  @param rctx  Initialized rpc context structure.
+  @param sctx  Initialized rpc context structure.
 
-  @pre rctx->rx_dbenv and rctx->rx_cob_dom are initialized
+  @pre sctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
 */
-int c2_rpc_server_start(struct c2_rpc_ctx *rctx);
+int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx);
 
 /**
   Stops RPC server.
 
-  @param rctx  Initialized rpc context structure.
+  @param sctx  Initialized rpc context structure.
 */
-void c2_rpc_server_stop(struct c2_rpc_ctx *rctx);
+void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx);
+#endif
+
+struct c2_net_xprt;
+struct c2_net_domain;
+
+/**
+ * RPC client context structure.
+ *
+ * Contains all required data to initialize an RPC client and connect to server.
+ */
+struct c2_rpc_client_ctx {
+
+	/**
+	 * Input parameters.
+	 *
+	 * They are initialized and filled in by a caller of
+	 * c2_rpc_server_start() and c2_rpc_client_stop().
+	 */
+
+	/**
+	 * A pointer to net domain struct which will be initialized and used by
+	 * c2_rpc_client_start()
+	 */
+	struct c2_net_domain    *rcx_net_dom;
+
+	/** Transport specific local address (client's address) */
+	const char              *rcx_local_addr;
+
+	/** Transport specific remote address (server's address) */
+	const char              *rcx_remote_addr;
+
+	/** Name of database used by the RPC machine */
+	const char              *rcx_db_name;
+
+	/**
+	 * A pointer to dbenv struct which will be initialized and used by
+	 * c2_rpc_client_start()
+	 */
+	struct c2_dbenv         *rcx_dbenv;
+
+	/** Identity of cob used by the RPC machine */
+	uint32_t                rcx_cob_dom_id;
+
+	/**
+	 * A pointer to cob domain struct which will be initialized and used by
+	 * c2_rpc_client_start()
+	 */
+	struct c2_cob_domain    *rcx_cob_dom;
+
+	/** Number of session slots */
+	uint32_t                rcx_nr_slots;
+
+	uint64_t                rcx_max_rpcs_in_flight;
+
+	/**
+	 * Time in seconds after which connection/session
+	 * establishment is aborted.
+	 */
+	uint32_t                rcx_timeout_s;
+
+	/**
+	 * Output parameters.
+	 *
+	 * They are initialized and filled in by c2_rpc_server_init() and
+	 * c2_rpc_client_start().
+	 */
+
+	struct c2_rpc_machine    rcx_rpc_machine;
+	struct c2_net_end_point *rcx_remote_ep;
+	struct c2_rpc_conn       rcx_connection;
+	struct c2_rpc_session    rcx_session;
+};
 
 /**
   Starts client's rpc machine. Creates a connection to a server and establishes
   an rpc session on top of it.  Created session object can be set in an rpc item
   and used in c2_rpc_post().
 
-  @param rctx  Initialized rpc context structure.
+  @param cctx  Initialized rpc context structure.
 
-  @pre rctx->rx_dbenv and rctx->rx_cob_dom are initialized
+  @pre cctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
 */
-int c2_rpc_client_start(struct c2_rpc_ctx *rctx);
+int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx);
 
 /**
   Make an RPC call to a server, blocking for a reply if desired.
 
-  @param item The rpc item to send.  Presumably ri_reply will hold the reply upon
-              successful return.
+  @param item        The rpc item to send.  Presumably ri_reply will hold the
+                     reply upon successful return.
   @param rpc_session The session to be used for the client call.
-  @param timeout_s Timeout in seconds.  0 implies don't wait for a reply.
+  @param ri_ops      Pointer to RPC item ops structure.
+  @param timeout_s   Timeout in seconds.  0 implies don't wait for a reply.
 */
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
-		       uint32_t timeout_s);
+		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s);
 
 /**
   Terminates RPC session and connection with server and finalize client's RPC
   machine.
 
-  @param rctx  Initialized rpc context structure.
+  @param cctx  Initialized rpc context structure.
 */
-int c2_rpc_client_stop(struct c2_rpc_ctx *rctx);
+int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
 
-#endif /* __COLIBRI_RPC_RPC_LIB_H__ */
+#endif /* __COLIBRI_RPC_RPCLIB_H__ */
 

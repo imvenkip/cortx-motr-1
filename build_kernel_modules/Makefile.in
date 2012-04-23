@@ -1,55 +1,217 @@
-CORE_SRCDIR = @SRCDIR@
-C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
-KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
-FOPDIR = @SRCDIR@/fop
-STOBDIR = @SRCDIR@/stob/ut
+CORE_SRCDIR     = @SRCDIR@
+BUILD_DIR       = $(CORE_SRCDIR)/build_kernel_modules
+KERNEL_BUILDDIR = @LINUX_OBJ@
 
-GCOV_PROFILE := @K_ENABLE_COVERAGE@
+GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
-testdirs := ../net/bulk_emulation/st/linux_kernel/ \
-            ../rpc/it/linux_kernel/ \
-	    ../utils/linux_kernel/
+testdirs        = ../net/bulk_emulation/st/linux_kernel/        \
+                  ../rpc/it/linux_kernel/                       \
+                  ../utils/linux_kernel/
 
-subdirs := ../rpc/linux_kernel/ ../c2t1fs/ \
-           ../net/linux_kernel/ ../lib/linux_kernel/ ../fid/linux_kernel/ \
-           ../fop/linux_kernel/ ../addb/linux_kernel/ \
-           ../db/linux_kernel/ ../sns/linux_kernel/ ../galois/linux_kernel/ \
-           ../pool/linux_kernel/ ../layout/linux_kernel/ \
-           ../sm/linux_kernel/ ../stob/linux_kernel/ \
-           ../ioservice/linux_kernel/ ../xcode/linux_kernel/ \
-           ../fol/linux_kernel/ ../dtm/linux_kernel/ ../cob/linux_kernel/
+EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
-EXTRA_CFLAGS = -I$(CORE_SRCDIR)
-obj-y += $(subdirs)
+#       NOTE:
+#       It is assumed that user space build is done before starting to
+#       build kernel modules.
+
+#       Below is the directory listing from which we have to create kcolibri.ko
+#       To add a new directory 'd' to this list, add directory name
+#       to $(dirs); then add the names of '.c' files to d_SOURCES and the
+#       headers to d_HEADERS.
+
+#       The $(dirs) list is maintained alphabetically
+
+dirs  = addb                                                                  \
+        addb/linux_kernel                                                     \
+        c2t1fs/linux_kernel                                                   \
+        cob                                                                   \
+        colibri                                                               \
+        db                                                                    \
+        db/linux_kernel                                                       \
+        dtm                                                                   \
+        fid                                                                   \
+        fol                                                                   \
+        fop                                                                   \
+        ioservice                                                             \
+        ioservice/ut                                                          \
+        layout                                                                \
+        lib                                                                   \
+        lib/linux_kernel                                                      \
+        lib/ut                                                                \
+        net                                                                   \
+        net/bulk_emulation                                                    \
+        net/bulk_emulation/ut                                                 \
+        net/ksunrpc                                                           \
+        net/ut                                                                \
+        pool                                                                  \
+        rpc                                                                   \
+        rpc/ut                                                                \
+        sm                                                                    \
+        sns                                                                   \
+        stob                                                                  \
+        ut                                                                    \
+        xcode                                                                 \
+        xcode/ut
+
+#       Source Listing
+
+#       NOTE: Currently due to the way `.ff' files are processed, a `*_k.c' file
+#       searches for its corresponding `*_k.h' in the same directory; So only
+#       headers that need to be included in following listing are those of
+#       type `*_k.h'; rest of the headers will be assumed relative to `core/'
+
+addb_SOURCES                    := addb.c addb_fop.c addb_k.c
+addb_HEADERS                    := addb_k.h
+
+addb_linux_kernel_SOURCES       := addb_console.c
+
+#       If there's a directory 'd' in $(dirs) then the listing of files given
+#       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
+
+c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
+
+cob_SOURCES                     := cob.c
+
+colibri_SOURCES                 := init.c
+
+db_SOURCES                      := db_common.c
+
+db_linux_kernel_SOURCES         := db.c
+
+dtm_SOURCES                     := verno.c dtm.c
+
+fid_SOURCES                     := fid.c
+
+fol_SOURCES                     := fol.c
+
+fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c    \
+                                   fop_base.c fop_item_type.c
+
+ioservice_SOURCES               := io_fops.c io_fops_k.c
+ioservice_HEADERS               := io_fops_k.h
+
+ioservice_ut_SOURCES            := bulkio_client.c
+
+layout_SOURCES                  := layout.c pdclust.c
+
+lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
+                                   time.c bitmap.c chan.c misc.c buf.c cond.c \
+                                   thread.c tlist.c bob.c trace.c
+
+lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
+                                   kthread.c semaphore.c processor.c kvec.c   \
+                                   ktrace.c ut.c main.c
+
+lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
+                                   mutex.c queue.c refs.c tlist.c time.c      \
+                                   vec.c zerovec.c thread.c bob.c trace.c     \
+                                   memory.c
+
+net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
+                                   tm.c connection.c net_cli.c net_utils.c    \
+                                   net_srv.c net_otw_types_k.c
+net_HEADERS                     := net_otw_types_k.h
+
+net_bulk_emulation_SOURCES      := ksunrpc_server.c sunrpc_io_k.c
+net_bulk_emulation_HEADERS      := sunrpc_io_k.h
+
+net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
+
+net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
+
+net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
+
+pool_SOURCES                    := pool.c
+
+rpc_SOURCES                     := formation.c rpc2.c rpc_base.c service.c    \
+                                   session.c session_foms.c conn.c slot.c     \
+                                   session_utils.c session_fops.c             \
+                                   rpc_onwire.c session_k.c rpclib.c
+rpc_HEADERS                     := session_k.h
+
+rpc_ut_SOURCES                  := service.c
+
+sm_SOURCES                      := sm.c
+
+sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
+                                   parity_ops.c
+
+stob_SOURCES                    := stob.c stob_id.c
+
+ut_SOURCES                      := rpc.c
+
+xcode_SOURCES                   := bufvec_xcode.c bufvec_xcode_fop.c          \
+                                   bufvec_xcode_size.c xcode.c
+
+xcode_ut_SOURCES                := xcode.c
+
+#       Following lines create the list of objects required for creating
+#       kcolibri by putting %.o for each %.c file listed for each target of
+#       $(dirs). The following definition of kcolibri_objects is functionally
+#       equivalent to following shell script code snippet
+#       for d in $(dirs); do
+#               var=`echo $d | sed 's/\//_/'`
+#               varsrc="${var}_SOURCES"
+#               for f in ${!varsrc}; do
+#                       objfname=`basename $f | sed 's/.c$/.o'`
+#                       kcolibri_objects = "$kcolibri_objects $d/$objfname"
+#               done
+#       done
+#       $(notdir names...)
+#               extracts all but the directory-part of each file name in names
+#       e.g. $(notdir src/foo.c hacks) Produces the result 'foo.c hacks'
+
+kcolibri_objects = $(foreach d, $(dirs), $(foreach f,                         \
+                        $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,      \
+                                $(subst .c,.o, $(notdir $(f))))))
 
 obj-m += kcolibri.o
-kcolibri-y += main.o init.o dummy_init_fini.o built-in.o
+
+kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
+
+#       Besides the kcolibri.ko, the UT's would be build separately by
+#       recursing into directories specified by $(testdirs)
 
 obj-y += $(testdirs)
 
-all:
-	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
-	for s in $(testdirs) ;do $(MAKE) -C $$s prepare ;done
-	ln -sf $(CORE_SRCDIR)/colibri/init.c .
-	# DO NOT append 'modules' target to the following $(MAKE)
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd`
+create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f))     \
+                2> /dev/null)
 
-clean distclean:
-	for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
-	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-	$(RM) Module.markers modules.order
-	$(RM) init.c
+all:
+	@echo $(kcolibri-y)
+	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
+#       Following lines create links to files from core/ tree to
+#       build_kernel_modules/ tree if links does not already exists.
+#       for d in $(dirs); do
+#               for f in $(d)_SOURCES; do
+#                   ln -sf core/$(d)/$(f) core/build_kernel_modules/$(d)/$(f)
+#               done
+#       done
+
+	$(foreach d, $(dirs), $(shell  [ -d $(d) ] || mkdir -p $(d)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),      \
+		$(create_links)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
+		$(create_links)))
+#       DO NOT append 'modules' target to the following $(MAKE)
+	$(MAKE) -C $(KERNEL_BUILDDIR) KBUILD_EXTRA_SYMBOLS=@GALOIS_SYMVERS@   \
+		M=`pwd`
 
 install modules_install:
-	for s in $(subdirs) ;do $(MAKE) -C $$s install ;done
-	for s in $(testdirs) ;do $(MAKE) -C $$s install ;done
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C $(KERNEL_BUILDDIR) M=`pwd` modules_install
 
 uninstall:
-	for s in $(subdirs) ;do $(MAKE) -C $$s uninstall ;done
-	for s in $(testdirs) ;do $(MAKE) -C $$s uninstall ;done
+	su -c "$(RM) -r @LINUX_MOD@/kernel/fs/colibri && \
+	       $(RM) -r @LINUX_MOD@/kernel/fs/utils && \
+	       $(RM) -r @LINUX_MOD@/kernel/fs/rpc && \
+	       $(RM) -r @LINUX_MOD@/kernel/fs/net && /sbin/depmod -a"
 
 dist distdir:
-	for s in $(subdirs) ;do $(MAKE) -C $$s distdir ;done
-	for s in $(testdirs) ;do $(MAKE) -C $$s distdir ;done
+	cp -v dummy_init_fini.[ch] main.c Makefile.in \
+		@top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
 
+clean distclean:
+	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
+	$(RM) Module.markers modules.order
+	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
+	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done
