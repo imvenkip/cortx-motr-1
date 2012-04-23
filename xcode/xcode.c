@@ -122,7 +122,7 @@ enum xcode_op {
    Handles memory allocation during decoding.
 
    This function takes an xcode iteration cursor and, if necessary, allocates
-   memory where the object currently being decoded object will reside.
+   memory where the object currently being decoded will reside.
 
    The pointer to the allocated memory is returned in c2_xcode_obj::xo_ptr. In
    addition, this pointer is stored at the appropriate offset in the parent
