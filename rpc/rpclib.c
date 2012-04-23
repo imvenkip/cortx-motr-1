@@ -109,12 +109,12 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	int rc;
 	struct c2_net_transfer_mc *tm;
 
-	rc = c2_rpcmachine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
+	rc = c2_rpc_machine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
 				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL);
 	if (rc != 0)
 		return rc;
 
-	tm = &cctx->rcx_rpc_machine.cr_tm;
+	tm = &cctx->rcx_rpc_machine.rm_tm;
 
 	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm, cctx->rcx_remote_addr);
 	if (rc != 0)
@@ -139,7 +139,7 @@ conn_destroy:
 ep_put:
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
-	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
@@ -200,7 +200,7 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 		return rc;
 
 	c2_net_end_point_put(cctx->rcx_remote_ep);
-	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
 	return rc;
 }

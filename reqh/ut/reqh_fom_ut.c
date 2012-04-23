@@ -55,13 +55,13 @@
 
 #ifdef __KERNEL__
 #include "reqh/reqh_fops_k.h"
-#include "stob/io_fop_k.h"
+#include "io_fop_k.h"
 #else
 #include "reqh/reqh_fops_u.h"
-#include "stob/io_fop_u.h"
+#include "io_fop_u.h"
 #endif
 
-#include "stob/io_fop.h"
+#include "io_fop.h"
 #include "reqh/reqh_fops.ff"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
@@ -92,7 +92,7 @@ enum {
 static struct c2_stob_domain   *sdom;
 static struct c2_cob_domain    srv_cob_domain;
 static struct c2_cob_domain_id srv_cob_dom_id;
-static struct c2_rpcmachine    srv_rpc_mach;
+static struct c2_rpc_machine   srv_rpc_mach;
 static struct c2_dbenv         srv_db;
 static struct c2_fol           srv_fol;
 
@@ -106,17 +106,17 @@ static struct c2_reqh  reqh;
  * These are used while performing a stob operation.
  */
 struct reqh_ut_balloc {
-	struct c2_mutex  rb_lock;
-	c2_bindex_t      rb_next;
-	struct ad_balloc rb_ballroom;
+	struct c2_mutex     rb_lock;
+	c2_bindex_t         rb_next;
+	struct c2_ad_balloc rb_ballroom;
 };
 
-static struct reqh_ut_balloc *getballoc(struct ad_balloc *ballroom)
+static struct reqh_ut_balloc *getballoc(struct c2_ad_balloc *ballroom)
 {
 	return container_of(ballroom, struct reqh_ut_balloc, rb_ballroom);
 }
 
-static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+static int reqh_ut_balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 			       uint32_t bshift, c2_bindex_t container_size,
 			       c2_bcount_t groupsize, c2_bcount_t res_groups)
 {
@@ -126,14 +126,14 @@ static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	return 0;
 }
 
-static void reqh_ut_balloc_fini(struct ad_balloc *ballroom)
+static void reqh_ut_balloc_fini(struct c2_ad_balloc *ballroom)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
 	c2_mutex_fini(&rb->rb_lock);
 }
 
-static int reqh_ut_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_alloc(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
 	struct reqh_ut_balloc	*rb = getballoc(ballroom);
@@ -146,13 +146,13 @@ static int reqh_ut_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return 0;
 }
 
-static int reqh_ut_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_free(struct c2_ad_balloc *ballroom, struct c2_dtx *tx,
                             struct c2_ext *ext)
 {
 	return 0;
 }
 
-static const struct ad_balloc_ops reqh_ut_balloc_ops = {
+static const struct c2_ad_balloc_ops reqh_ut_balloc_ops = {
 	.bo_init  = reqh_ut_balloc_init,
 	.bo_fini  = reqh_ut_balloc_fini,
 	.bo_alloc = reqh_ut_balloc_alloc,
@@ -188,11 +188,10 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	 * Locate and create (if necessary) the backing store object.
 	 */
 
-	rc = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
-							  stob_path, bdom);
+	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path, bdom);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, backid, bstore);
+	rc = c2_stob_find(*bdom, backid, bstore);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*bstore)->so_state == CSS_UNKNOWN);
 
@@ -203,7 +202,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	rc = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
+	rc = c2_stob_domain_locate(&c2_ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,
@@ -215,7 +214,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	c2_stob_put(*bstore);
 
 	/* Create or open a stob into which to store the record. */
-	rc = (*bdom)->sd_ops->sdo_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
+	rc = c2_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_UNKNOWN);
 
@@ -233,17 +232,18 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
-	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain, &srv_fol);
+	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain,
+			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-        /* Init the rpcmachine */
-        rc = c2_rpcmachine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
-				SERVER_ENDPOINT_ADDR, &reqh);
+        /* Init the rpc_machine */
+        rc = c2_rpc_machine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
+				 SERVER_ENDPOINT_ADDR, &reqh);
         C2_UT_ASSERT(rc == 0);
 
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
-        srv_tm = &srv_rpc_mach.cr_tm;
+        srv_tm = &srv_rpc_mach.rm_tm;
 	C2_UT_ASSERT(srv_tm != NULL);
 
 	return rc;
@@ -253,8 +253,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 static void server_fini(struct c2_stob_domain *bdom,
 		struct c2_stob *reqh_addb_stob)
 {
-        /* Fini the rpcmachine */
-        c2_rpcmachine_fini(&srv_rpc_mach);
+        /* Fini the rpc_machine */
+        c2_rpc_machine_fini(&srv_rpc_mach);
 
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);

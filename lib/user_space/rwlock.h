@@ -42,7 +42,7 @@ struct c2_rwlock {
 /* __COLIBRI_LIB_USER_SPACE_RWLOCK_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

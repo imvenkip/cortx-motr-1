@@ -24,8 +24,8 @@ Colibri filesystem development environment.
 %setup  -q -n %{name}-%{version}
 
 %build
-%configure --program-prefix=%{?_program_prefix:%{_program_prefix}}
-make 
+%configure --enable-rpm --program-prefix=%{?_program_prefix:%{_program_prefix}}
+make
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -38,6 +38,7 @@ DESTDIR="$RPM_BUILD_ROOT" make install
 %{_libdir}/libcolibri*.so*
 /lib/modules/*
 /usr/sbin/*
+/usr/bin/*
 
 %post
 /sbin/depmod -a

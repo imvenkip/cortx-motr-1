@@ -171,18 +171,18 @@ static bool it_prefix_ok(const struct c2_emap_cursor *it)
 	return c2_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
 }
 
-#define IT_DO_OPEN(it, func)						\
-({									\
-	int __result;							\
-	struct c2_emap_cursor *__it = (it);				\
-									\
-	__result = ((*(func))(&__it->ec_cursor, &__it->ec_pair));	\
-	if (__result == 0) {						\
-		it_open(__it);						\
-		if (!it_prefix_ok(__it))				\
-			__result = -ESRCH;				\
-	}								\
-	__result;							\
+#define IT_DO_OPEN(it, func)					\
+({								\
+	int __result;						\
+	struct c2_emap_cursor *__it = (it);			\
+								\
+	__result = (*(func))(&__it->ec_cursor, &__it->ec_pair);	\
+	if (__result == 0) {					\
+		it_open(__it);					\
+		if (!it_prefix_ok(__it))			\
+			__result = -ESRCH;			\
+	}							\
+	__result;						\
 })
 
 #define IT_DO_PACK(it, func)				\
@@ -190,7 +190,7 @@ static bool it_prefix_ok(const struct c2_emap_cursor *it)
 	struct c2_emap_cursor *__it = (it);		\
 							\
 	it_pack(__it);					\
-	((*(func))(&__it->ec_cursor, &__it->ec_pair));	\
+	(*(func))(&__it->ec_cursor, &__it->ec_pair);	\
 })
 
 static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
@@ -482,7 +482,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	 * latter.
 	 *
 	 * The solution is to insert the new extent as the last step, but the
-	 * more important morale of this melancholy story is
+	 * more important moral of this melancholy story is
 	 *
 	 *         Thou shalt wit thine abstraction levels.
 	 *

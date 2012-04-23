@@ -80,7 +80,7 @@ int c2_fom_ping_state(struct c2_fom *fom)
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_group = NULL;
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
 
 	return 0;
 }
@@ -103,10 +103,7 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
         C2_ASSERT(fom_type != NULL);
         fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fp_gen;
-	c2_fom_init(fom);
-	fom->fo_type = fom_type;
-	fom->fo_ops = &c2_fom_ping_ops;
-	fom->fo_fop = fop;
+	c2_fom_init(fom, fom_type, &c2_fom_ping_ops, fop, NULL);
 	fom_obj->fp_fop = fop;
 	*m = fom;
 	return 0;

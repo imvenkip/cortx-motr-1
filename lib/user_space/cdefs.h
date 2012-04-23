@@ -41,12 +41,12 @@
 #define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
 #endif
 
-#define C2_EXPORTED(s) 
+#define C2_EXPORTED(s)
 
 /* __COLIBRI_LIB_USER_SPACE_CDEFS_H_ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

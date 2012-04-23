@@ -76,7 +76,7 @@
 
  */
 
-/*import */
+/* import */
 struct c2_fop; /* deprecated */
 struct c2_bitmap;
 

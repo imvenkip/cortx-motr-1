@@ -44,7 +44,7 @@ void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop);
 /* __COLIBRI_NRS_NRS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -62,7 +62,7 @@ void chs_conf_init(struct chs_conf *conf)
 	unsigned   cyl_in_zone;
 
 	/*
-	 * Assuming seek time of the form 
+	 * Assuming seek time of the form
 	 *
 	 *     seek_time(d) = track + alpha * (d - 1) + beta * sqrt(d - 1)
 	 *
@@ -200,10 +200,10 @@ static unsigned chs_sector_cylinder(struct chs_conf *conf, sector_t sector)
 	return i;
 }
 
-/* 
+/*
  * Convert LBA into CHS base.
  */
-static void chs_sector_to_chs(struct chs_conf *conf, sector_t sector, 
+static void chs_sector_to_chs(struct chs_conf *conf, sector_t sector,
 			      unsigned *head, unsigned *cylinder,
 			      sector_t *sect_in_track)
 {
@@ -282,9 +282,9 @@ static sim_time_t chs_req(struct chs_dev *dev, enum storage_req_type type,
 
 	/* Cylinder seek. */
 	if (armmove != 0) {
-		seek = 
+		seek =
 			conf->cc_seek_track_to_track +
-			conf->cc_alpha * (armmove - 1) + 
+			conf->cc_alpha * (armmove - 1) +
 			conf->cc_beta * sqrt(armmove - 1);
 
 		if (type == SRT_WRITE)
@@ -302,7 +302,7 @@ static sim_time_t chs_req(struct chs_dev *dev, enum storage_req_type type,
 	track_sects = chs_tracks(conf, cylinder);
 
 	/* sector currently under the head, ignoring skew */
-	sector_at = 
+	sector_at =
 		/* linear speed in tracks per second for this cylinder */
 		(track_sects * conf->cc_rps *
 		 /* time since the beginning of simulation in seconds */
@@ -327,7 +327,7 @@ static sim_time_t chs_req(struct chs_dev *dev, enum storage_req_type type,
 				sects_dist = count;
 			xfer += chs_sect_time(conf, track_sects, sects_dist);
 			count -= sects_dist;
-			sector_target = 0; 
+			sector_target = 0;
 			if (count > 0)
 				xfer += conf->cc_head_switch;
 			else
@@ -388,7 +388,7 @@ static void chs_submit(struct storage_dev *sdev,
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

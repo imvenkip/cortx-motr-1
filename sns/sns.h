@@ -24,7 +24,7 @@
 /* __COLIBRI_SNS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

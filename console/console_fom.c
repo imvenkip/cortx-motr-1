@@ -84,8 +84,8 @@ static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 		return -ENOMEM;
 	}
 
-	c2_fom_create(fom, &fop->f_type->ft_fom_type, &c2_cons_fom_device_ops,
-			fop, rep_fop);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, &c2_cons_fom_device_ops,
+		    fop, rep_fop);
 
         *m = fom;
         return 0;
@@ -115,7 +115,7 @@ static int cons_fom_state(struct c2_fom *fom)
 
 	/* Reply item */
 	reply_item = &rfop->f_item;
-	fom->fo_phase = FOPH_FINISH;
+	fom->fo_phase = C2_FOPH_FINISH;
         return c2_rpc_reply_post(req_item, reply_item);
 }
 

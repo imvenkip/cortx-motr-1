@@ -759,8 +759,8 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	slot_balance(slot);
 }
 
-static int associate_session_and_slot(struct c2_rpc_item   *item,
-				      struct c2_rpcmachine *machine)
+static int associate_session_and_slot(struct c2_rpc_item    *item,
+				      struct c2_rpc_machine *machine)
 {
 	struct c2_list         *conn_list;
 	struct c2_rpc_conn     *conn;
@@ -775,12 +775,12 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 		return -EINVAL;
 
 	conn_list = c2_rpc_item_is_request(item) ?
-			&machine->cr_incoming_conns :
-			&machine->cr_outgoing_conns;
+			&machine->rm_incoming_conns :
+			&machine->rm_outgoing_conns;
 
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
 
-	c2_mutex_lock(&machine->cr_session_mutex);
+	c2_mutex_lock(&machine->rm_session_mutex);
 	found = false;
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
 
@@ -791,7 +791,7 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 			break;
 
 	}
-	c2_mutex_unlock(&machine->cr_session_mutex);
+	c2_mutex_unlock(&machine->rm_session_mutex);
 	if (!found)
 		return -ENOENT;
 
@@ -818,8 +818,8 @@ static int associate_session_and_slot(struct c2_rpc_item   *item,
 	return 0;
 }
 
-int c2_rpc_item_received(struct c2_rpc_item   *item,
-			 struct c2_rpcmachine *machine)
+int c2_rpc_item_received(struct c2_rpc_item    *item,
+			 struct c2_rpc_machine *machine)
 {
 	struct c2_rpc_item *req;
 	struct c2_rpc_slot *slot;

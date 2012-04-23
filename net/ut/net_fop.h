@@ -28,7 +28,7 @@ int nettest_fop_init(void);
 void nettest_fop_fini(void);
 
 #endif /* !_NET_FOP_H_ */
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

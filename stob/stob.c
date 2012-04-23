@@ -66,6 +66,12 @@ void c2_stob_type_fini(struct c2_stob_type *kind)
 	dom_tlist_fini(&kind->st_domains);
 }
 
+int c2_stob_domain_locate(struct c2_stob_type *type, const char *domain_name,
+			  struct c2_stob_domain **dom)
+{
+	return C2_STOB_TYPE_OP(type, sto_domain_locate, domain_name, dom);
+}
+
 void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 {
 	c2_rwlock_init(&dom->sd_guard);
@@ -104,27 +110,6 @@ void c2_stob_fini(struct c2_stob *obj)
 }
 
 C2_BASSERT(sizeof(struct c2_uint128) == sizeof(struct c2_stob_id));
-
-bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
-{
-	return c2_uint128_eq(&id0->si_bits, &id1->si_bits);
-}
-
-int c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
-{
-	return c2_uint128_cmp(&id0->si_bits, &id1->si_bits);
-}
-
-bool c2_stob_id_is_set(const struct c2_stob_id *id)
-{
-	static const struct c2_stob_id zero = {
-		.si_bits = {
-			.u_hi = 0,
-			.u_lo = 0
-		}
-	};
-	return !c2_stob_id_eq(id, &zero);
-}
 
 int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
@@ -240,7 +225,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_PRE(io->si_obj == NULL);
 	C2_PRE(io->si_state == SIS_IDLE);
 	C2_PRE(io->si_opcode != SIO_INVALID);
-	C2_PRE(c2_vec_count(&io->si_user.ov_vec) == 
+	C2_PRE(c2_vec_count(&io->si_user.ov_vec) ==
 	       c2_vec_count(&io->si_stob.iv_vec));
 	C2_PRE(c2_stob_io_user_is_valid(&io->si_user));
 	C2_PRE(c2_stob_io_stob_is_valid(&io->si_stob));
@@ -301,6 +286,33 @@ void *c2_stob_addr_open(const void *buf, uint32_t shift)
 
 	C2_PRE(((addr << shift) >> shift) == addr);
 	return (void *)(addr << shift);
+}
+
+int c2_stob_create_helper(struct c2_stob_domain    *dom,
+			  struct c2_dtx            *dtx,
+			  const struct c2_stob_id  *stob_id,
+			  struct c2_stob          **out)
+{
+	struct c2_stob *stob;
+	int             rc;
+
+	rc = c2_stob_find(dom, stob_id, &stob);
+	if (rc == 0) {
+		/*
+		 * Here, stob != NULL and c2_stob_find() has taken reference on
+		 * stob. On error must call c2_stob_put() on stob, after this
+		 * point.
+		 */
+		if (stob->so_state == CSS_UNKNOWN)
+			rc = c2_stob_locate(stob, dtx);
+		if (stob->so_state == CSS_NOENT)
+			rc = c2_stob_create(stob, dtx);
+
+		*out = stob->so_state == CSS_EXISTS ? stob : NULL;
+		if (rc != 0)
+			c2_stob_put(stob);
+	}
+	return rc;
 }
 
 /** @} end group stob */

@@ -3,6 +3,7 @@
 .tmp_versions
 aclocal.m4
 autom4te.cache
+c2.trace.*
 colibri.spec
 compile
 config.cache
@@ -64,7 +65,6 @@ nohup.out
 test_db*
 build/
 c2ut.log-Results.xml
-c2.trace.*
 *.errlog
 *.msglog
 ut-sandbox

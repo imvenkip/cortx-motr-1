@@ -48,7 +48,7 @@ void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp)
 
 /** @} end of addb group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

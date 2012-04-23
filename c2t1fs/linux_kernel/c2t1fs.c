@@ -21,7 +21,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
-#include "c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
 #include "net/bulk_sunrpc.h"
@@ -160,7 +160,7 @@ static int c2t1fs_rpc_init(void)
 	struct c2_dbenv          *dbenv;
 	struct c2_cob_domain     *cob_dom;
 	struct c2_cob_domain_id  *cob_dom_id;
-	struct c2_rpcmachine     *rpcmachine;
+	struct c2_rpc_machine    *rpc_machine;
 	struct c2_net_domain     *ndom;
 	char                     *laddr;
 	char                     *db_name;
@@ -182,11 +182,12 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto dbenv_fini;
 
-	ndom       = &c2t1fs_globals.g_ndom;
-	laddr      =  c2t1fs_globals.g_laddr;
-	rpcmachine = &c2t1fs_globals.g_rpcmachine;
+	ndom        = &c2t1fs_globals.g_ndom;
+	laddr       =  c2t1fs_globals.g_laddr;
+	rpc_machine = &c2t1fs_globals.g_rpc_machine;
 
-	rc = c2_rpcmachine_init(rpcmachine, cob_dom, ndom, laddr, NULL/*reqh*/);
+	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom,
+				 laddr, NULL/*reqh*/);
 	if (rc != 0)
 		goto cob_dom_fini;
 
@@ -208,7 +209,7 @@ static void c2t1fs_rpc_fini(void)
 {
 	C2_ENTRY();
 
-	c2_rpcmachine_fini(&c2t1fs_globals.g_rpcmachine);
+	c2_rpc_machine_fini(&c2t1fs_globals.g_rpc_machine);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
 

@@ -59,7 +59,7 @@ struct cl_ctx {
 };
 
 /* Configures colibri environment with given parameters. */
-static char *cs_ut_service_one_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_service_one_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "bulk-sunrpc:127.0.0.1:34567:2",
                                 "-s", "ds1"};
@@ -70,7 +70,7 @@ static char *cs_ut_services_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
 
-static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
                                 "-e", "bulk-sunrpc:127.0.0.1:34567:2",
                                 "-s", "ds1",

@@ -134,6 +134,7 @@ int c2_trace_parse(void)
 	unsigned                     pos = 0;
 	unsigned                     nr;
 	unsigned                     n2r;
+	int                          size;
 
 	printf("   no   |    tstamp     |stack|       subsys     |"
 	       "        func        |        src        \n");
@@ -141,15 +142,17 @@ int c2_trace_parse(void)
 	       "----------------------------------------\n");
 
 	while (!feof(stdin)) {
-		char *buf = NULL;
+		char *buf;
 
 		pos = align(8, pos); /* At the beginning of a record */
-
 		/* Find the complete record */
 		do {
-			nr = fread(&trh.trh_magic, 1, sizeof trh.trh_magic, stdin);
+			nr = fread(&trh.trh_magic, 1,
+				   sizeof trh.trh_magic, stdin);
 			if (nr != sizeof trh.trh_magic) {
-				C2_ASSERT(feof(stdin));
+				if (!feof(stdin))
+					errx(EX_DATAERR,
+					     "Got %u bytes of magic", nr);
 				return EX_OK;
 			}
 			pos += nr;
@@ -157,23 +160,23 @@ int c2_trace_parse(void)
 
 		/* Now we might have complete record */
 		n2r = sizeof trh - sizeof trh.trh_magic;
-		nr = fread(&trh.trh_sp, 1, n2r, stdin);
-		C2_ASSERT(nr == n2r);
+		nr  = fread(&trh.trh_sp, 1, n2r, stdin);
+		if (nr != n2r)
+			errx(EX_DATAERR, "Got %u bytes of record (need %u)",
+			     nr, n2r);
 		pos += nr;
-
-		td = trh.trh_descr;
-
-		buf = c2_alloc(td->td_size);
-		C2_ASSERT(buf != NULL);
-
-		nr = fread(buf, 1, td->td_size, stdin);
-		C2_ASSERT(nr == td->td_size);
+		td   = trh.trh_descr;
+		size = td->td_size;
+		buf  = c2_alloc(size);
+		if (buf == NULL)
+			err(EX_TEMPFAIL, "Cannot allocate %i bytes", size);
+		nr = fread(buf, 1, size, stdin);
+		if (nr != size)
+			errx(EX_DATAERR, "Got %u bytes of data (need %i)",
+			     nr, size);
 		pos += nr;
-
 		c2_trace_record_print(&trh, buf);
-
-		if (buf)
-			c2_free(buf);
+		c2_free(buf);
 	}
 	return EX_OK;
 }

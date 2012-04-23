@@ -21,10 +21,9 @@
 #include <linux/slab.h>      /* kmem_cache */
 
 #include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
-#include "pool/pool.h"       /* c2_pool_init(), c2_pool_fini()        */
 #include "lib/misc.h"        /* C2_SET0()                             */
 #include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
-#include "c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"       /* C2_LOG and C2_ENTRY */
 
@@ -117,12 +116,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
-					pl_layout);
-	if (pd_layout != NULL) {
-		c2_pool_fini(pd_layout->pl_pool);
-		c2_free(pd_layout->pl_pool);
-		c2_pdclust_fini(pd_layout);
-	}
+				 pl_layout);
+	c2_pdclust_fini(pd_layout);
 
 	C2_LEAVE();
 }
@@ -340,54 +335,32 @@ out_err:
 }
 
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-				uint32_t N, uint32_t K, uint32_t P,
-				uint64_t unit_size)
+			     struct c2_pool      *pool,
+			     uint32_t             N,
+			     uint32_t             K,
+			     uint64_t             unit_size)
 {
 	struct c2_pdclust_layout *pd_layout;
 	struct c2_uint128         layout_id;
 	struct c2_uint128         seed;
-	struct c2_pool           *pool;
 	int                       rc;
 
 	C2_ENTRY();
+	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
 
 	C2_LOG("fid[%lu:%lu]: N: %d K: %d P: %d",
 			(unsigned long)ci->ci_fid.f_container,
 			(unsigned long)ci->ci_fid.f_key,
-			N, K, P);
-
-	C2_ALLOC_PTR(pool);
-	if (pool == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
+			N, K, pool->po_width);
 
 	c2_uint128_init(&layout_id, "jinniesisjillous");
 	c2_uint128_init(&seed,      "upjumpandpumpim,");
 
-	rc = c2_pool_init(pool, P);
-	if (rc != 0)
-		goto out_free;
-
 	rc = c2_pdclust_build(pool, &layout_id, N, K, unit_size,
 				&seed, &pd_layout);
-	if (rc != 0)
-		goto out_fini;
+	ci->ci_layout = rc == 0 ? &pd_layout->pl_layout : NULL;
 
-	ci->ci_layout = &pd_layout->pl_layout;
-
-	C2_LEAVE("rc: 0");
-	return 0;
-
-out_fini:
-	c2_pool_fini(pool);
-
-out_free:
-	c2_free(pool);
-
-out:
 	C2_LEAVE("rc: %d", rc);
-	C2_ASSERT(rc != 0);
 	return rc;
 }
 

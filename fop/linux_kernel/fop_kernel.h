@@ -33,7 +33,7 @@ typedef void *xdrproc_t;
 /* __COLIBRI_FOP_FOP_KERNEL_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
