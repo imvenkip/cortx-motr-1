@@ -18,25 +18,13 @@
  * Original creation date: 03/22/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
+#ifndef __NET_TEST_LINUX_KERNEL_CONFIG_H__
+#define __NET_TEST_LINUX_KERNEL_CONFIG_H__
 
-#include "net/test/stats.h"
+#include <linux/module.h>
+#include <linux/kernel.h>
 
-/**
-   @defgroup NetTestStatsInternals Colibri Network Benchmark \
-			           Statistics Collector Internals
-
-   @see
-   @ref net-test
-
-   @{
- */
-
-/**
-   @} end of NetTestStatsInternals
-*/
+#endif /*  ___NET_TEST_LINUX_KERNEL_CONFIG_H__ */
 
 /*
  *  Local variables:

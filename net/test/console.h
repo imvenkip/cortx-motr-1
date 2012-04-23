@@ -80,7 +80,7 @@
 */
 
 /**
-   Initialize client data structures.
+   Initialize console data structures.
    c2_net_test_network_init() and c2_net_test_config_init() must be called
    before this function.
    @see @ref net-test-console-lspec
@@ -88,21 +88,21 @@
 int c2_net_test_console_init(void);
 
 /**
-   Finalize client data structures.
+   Finalize console data structures.
    @see @ref net-test-console-lspec
  */
 void c2_net_test_console_fini(void);
 
 /**
-   Start test client.
-   This function will return only after test client finished or interrupted
+   Start test console.
+   This function will return only after test console finished or interrupted
    with c2_net_test_console_stop().
    @see @ref net-test-console-lspec
  */
 int c2_net_test_console_start(void);
 
 /**
-   Stop test client.
+   Stop test console.
    @see @ref net-test-console-lspec
  */
 void c2_net_test_console_stop(void);

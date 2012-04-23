@@ -21,56 +21,84 @@
 #ifndef __NET_TEST_NETWORK_H__
 #define __NET_TEST_NETWORK_H__
 
-/**
-   @page net-test-network-fspec Functional Specification
-
-   - @ref net-test-network-fspec-ds
-   - @ref net-test-network-fspec-sub
-   - @ref net-test-network-fspec-cli
-   - @ref net-test-network-fspec-usecases
-   - @subpage NetTestNetworkDFS "Detailed Functional Specification"
-   - @subpage NetTestNetworkInternals "Internals"
-
-   @section net-test-network-fspec-ds Data Structures
-
-   @section net-test-network-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
-
-   @subsection net-test-network-fspec-sub-cons Constructors and Destructors
-
-   @subsection net-test-network-fspec-sub-acc Accessors and Invariants
-
-   @subsection net-test-network-fspec-sub-opi Operational Interfaces
-
-   @section net-test-network-fspec-cli Command Usage
-   <i>Mandatory for command line programs.  Components that provide programs
-   would provide a specification of the command line invocation arguments.  In
-   addition, the format of any any structured file consumed or produced by the
-   interface must be described in this section.</i>
-
-   @section net-test-network-fspec-usecases Recipes
-   <i>This section could briefly explain what sequence of interface calls or
-   what program invocation flags are required to solve specific usage
-   scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.</i>
-   @todo add
-
-   @see
-   @ref net-test-network @n
-   @ref NetTestNetworkDFS "Detailed Functional Specification" @n
-   @ref NetTestNetworkInternals "Internals" @n
- */
+#include "net/net.h"
 
 /**
-   @defgroup NetTestNetworkDFS Colibri Network Benchmark Network
+   @defgroup NetTestNetworkDFS Colibri Network Benchmark Network \
+			       Detailed Functional Specification
 
    @see
-   @ref net-test-network
+   @ref net-test
 
    @{
 */
+
+/**
+   Net test network context structure.
+   Contains transfer machine, tm and buffer callbacks, endpoints,
+   ping and bulk message buffers.
+ */
+struct c2_net_test_ctx {
+	struct c2_net_transfer_mc	ntc_tm;
+	struct c2_net_tm_callbacks	ntc_tm_cb;	
+	struct c2_net_buffer_callbacks	ntc_buf_cb;
+	struct c2_net_buffer	       *ntc_buf_ping;
+	int				ntc_buf_ping_nr;
+	struct c2_net_buffer	       *ntc_buf_bulk;
+	int				ntc_buf_bulk_nr;
+	struct c2_end_point	       *ntc_ep;
+	int				ntc_ep_nr;
+	int				ntc_ep_max;
+};
+
+/**
+   Initialize c2_net structures.
+   Call c2_net_xprt_init(), c2_net_domain_init().
+ */
+int c2_net_test_net_init(void);
+void c2_net_test_net_fini(void);
+
+/**
+   Initialize c2_net_test_ctx structure.
+   Allocate ping and bulk buffers.
+ */
+int c2_net_test_net_ctx_init(struct c2_net_test_ctx *ctx,
+		const char *tm_addr,
+		const struct c2_net_tm_callbacks *tm_cb,
+		const struct c2_net_buffer_callbacks *buf_cb,
+		const int buf_ping_size,
+		const int buf_ping_nr,
+		const int buf_bulk_size,
+		const int buf_bulk_nr,
+		const int ep_max);
+void c2_net_test_net_ctx_fini(struct c2_net_test_ctx *ctx);
+
+/**
+   Add entry point to c2_net_test_ctx structure.
+   @return entry point number.
+ */
+int c2_net_test_net_ep_add(struct c2_net_test_ctx *ctx,
+		const char *ep_addr);
+
+/**
+   Send/receive ping messages.
+ */
+int c2_net_test_net_msg_send(struct c2_net_test_ctx *ctx,
+		int buf_ping_index, int ep_index);
+int c2_net_test_net_msg_recv(struct c2_net_test_ctx *ctx,
+		int buf_ping_index, int ep_index);
+
+/**
+   Send/receive bulk messages.
+ */
+int c2_net_test_net_bulk_send_passive(struct c2_net_test_ctx *ctx,
+		int buf_bulk_index, int ep_index);
+int c2_net_test_net_bulk_recv_passive(struct c2_net_test_ctx *ctx,
+		int buf_bulk_index, int ep_index);
+int c2_net_test_net_bulk_send_active(struct c2_net_test_ctx *ctx,
+		int buf_bulk_index, int buf_ping_index);
+int c2_net_test_net_bulk_recv_active(struct c2_net_test_ctx *ctx,
+		int buf_bulk_index, int buf_ping_index);
 
 /**
    @} end NetTestNetworkDFS

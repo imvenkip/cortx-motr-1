@@ -673,6 +673,7 @@ AC_CONFIG_FILES([
 		 net/bulk_emulation/st/Makefile
 		 net/bulk_emulation/st/linux_kernel/Makefile
 		 net/bulk_emulation/ut/Makefile
+		 net/test/linux_kernel/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile

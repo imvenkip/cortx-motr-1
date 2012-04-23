@@ -18,65 +18,6 @@
  * Original creation date: 03/22/2012
  */
 
-/**
-   @page net-test-network Network
-
-   - @ref net-test-network-ovw
-   - @ref net-test-network-def
-   - @subpage net-test-network-fspec "Functional Specification"
-   - @ref net-test-network-lspec
-   - @ref net-test-network-lspec-thread
-   - @ref net-test-network-lspec-numa
-   - @ref net-test-network-ut
-   - @ref net-test-network-O
-   - @ref net-test-network-ref
-
-   <hr>
-   @section net-test-network-ovw Overview
-
-   This document is intended to describe network subsystem of @ref net-test.
-   @note I will fill it on CODE phase.
-
-   <hr>
-   @section net-test-network-def Definitions
-
-   <hr>
-   @section net-test-network-lspec Logical Specification
-
-   @subsection net-test-network-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
-
-   @subsection net-test-network-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
-
-   <hr>
-   @section net-test-network-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
-   @todo add
-
-   <hr>
-   @section net-test-network-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
-
-   <hr>
-   @section net-test-network-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
-
-   @ref net-test
-
- */
-
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -87,7 +28,7 @@
    @defgroup NetTestNetworkInternals Colibri Network Bencmark Network Internals
 
    @see
-   @ref net-test-network
+   @ref net-test
 
    @{
  */

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -32,7 +32,20 @@
    - @ref net-test-fspec-sub
    - @ref net-test-fspec-cli
    - @ref net-test-fspec-usecases
-   - @ref NetTestDFS "Detailed Functional Specification" <!-- Note link -->
+   - @subpage NetTestDFS
+     - @subpage NetTestStatsDFS "Statistics Collector"
+     - @subpage NetTestConfigDFS "Configuration"
+     - @subpage NetTestClientDFS "Test Client"
+     - @subpage NetTestServerDFS "Test Server"
+     - @subpage NetTestNetworkDFS "Network"
+     - @subpage NetTestConsoleDFS "Console"
+   - @subpage NetTestInternals "Internals"
+     - @subpage NetTestStatsInternals "Statistics Collector"
+     - @subpage NetTestConfigInternals "Configuration"
+     - @subpage NetTestClientInternals "Test Client"
+     - @subpage NetTestServerInternals "Test Server"
+     - @subpage NetTestNetworkInternals "Network"
+     - @subpage NetTestConsoleInternals "Console"
 
    @section net-test-fspec-ds Data Structures
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -40,6 +53,9 @@
    major externally visible data structures defined by this component.  No
    details of the data structure are required here, just the salient
    points.</i>
+
+   - c2_net_test_stats
+   - c2_net_test_ctx
 
    @section net-test-fspec-sub Subroutines
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -49,10 +65,46 @@
    @subsection net-test-fspec-sub-cons Constructors and Destructors
 
    - c2_net_test_main()
+   - c2_net_test_config_init()
+   - c2_net_test_config_fini()
+   - c2_net_test_stats_init()
+   - c2_net_test_stats_init_zero()
+   - c2_net_test_stats_fini()
+   - c2_net_test_client_init()
+   - c2_net_test_client_fini()
+   - c2_net_test_server_init()
+   - c2_net_test_server_fini()
+   - c2_net_test_net_init()
+   - c2_net_test_net_fini()
+   - c2_net_test_net_ctx_init()
+   - c2_net_test_net_ctx_fini()
 
    @subsection net-test-fspec-sub-acc Accessors and Invariants
 
+   - c2_net_test_config_invariant()
+
    @subsection net-test-fspec-sub-opi Operational Interfaces
+
+   - c2_net_test_stats_add()
+   - c2_net_test_stats_add_stats()
+   - c2_net_test_stats_min()
+   - c2_net_test_stats_max()
+   - c2_net_test_stats_avg()
+   - c2_net_test_stats_stddev()
+   - c2_net_test_stats_count()
+
+   - c2_net_test_client_start()
+   - c2_net_test_client_stop()
+   - c2_net_test_server_start()
+   - c2_net_test_server_stop()
+
+   - c2_net_test_net_ep_add()
+   - c2_net_test_net_msg_send()
+   - c2_net_test_net_msg_recv()
+   - c2_net_test_net_bulk_send_passive()
+   - c2_net_test_net_bulk_recv_passive()
+   - c2_net_test_net_bulk_send_active()
+   - c2_net_test_net_bulk_recv_active()
 
    @section net-test-fspec-cli Command Usage
    <i>Mandatory for command line programs.  Components that provide programs
@@ -60,7 +112,22 @@
    addition, the format of any any structured file consumed or produced by the
    interface must be described in this section.</i>
 
-   @see @ref net-test-config-fspec-cli
+   This command line options are valid for both client and server testing role.
+
+   - <b>role</b> Program role. Mandatory option.
+     - <b>client</b> Program will act as test client.
+     - <b>server</b> Program will act as test server.
+   - <b>type</b> Test type. Mandatory option.
+     - <b>ping</b> Ping test will be executed.
+     - <b>bulk</b> Bulk test will be executed.
+   - <b>count</b> Number of test messages to exchange between test client
+                  and test server. Makes sense for test client only.
+		  Default value is 16.
+   - <b>size</b> Size of bulk messages, bytes. Makes sense for bulk test only.
+	         Default value is 1048576 (1Mb).
+   - <b>target</b> Test servers list for the test client and vice versa.
+		   Items in list are comma-separated. Mandatory option.
+   - <b>console</b> Console hostname. Mandatory option.
 
    @section net-test-fspec-usecases Recipes
    <i>This section could briefly explain what sequence of interface calls or
@@ -68,11 +135,18 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
+   role=client type=ping count=10 target=s1,s2,s3 @n
+   Run ping test as test client with 10 test messages to servers s1, s2 and s3.
+   @n @n
+   role=server type=bulk target=c1,c2 @n
+   Run bulk test as test server with 1Mb bulk message size and
+   test clients c1 and c2.
+
    @see @ref net-test
  */
 
 /**
-   @defgroup NetTestDFS Colibri Network Benchmark.
+   @defgroup NetTestDFS Detailed Functional Specification
    @brief Detailed functional specification for Colibri Network Benchmark.
 
    @see @ref net-test
@@ -85,10 +159,10 @@
    It will determine whether it is a client or a server and
    will run corresponding subroutine.
 */
-void c2_net_test_main(void);
+void c2_net_test_main(int ignored);
 
 /**
-   @} NetTestDFS end group
+   @} end of NetTestDFS
 */
 
 #endif /*  __NET_TEST_MAIN_H__ */

@@ -5,6 +5,7 @@ KERNEL_BUILDDIR = @LINUX_OBJ@
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
 testdirs        = ../net/bulk_emulation/st/linux_kernel/        \
+		  ../net/test/linux_kernel/			\
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
@@ -42,6 +43,7 @@ dirs  = addb                                                                  \
         net/bulk_emulation                                                    \
         net/bulk_emulation/ut                                                 \
         net/ksunrpc                                                           \
+	net/test							      \
         net/ut                                                                \
         pool                                                                  \
         rpc                                                                   \
@@ -118,6 +120,13 @@ net_bulk_emulation_HEADERS      := sunrpc_io_k.h
 net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
 net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
+
+net_test_SOURCES		:= client.c network.c \
+				   linux_kernel/node_config_k.c node_config.c \
+				   node_main.c server.c stats.c
+net_test_HEADERS		:= client.h network.h \
+				   linux_kernel/node_config_k.h node_config.h \
+				   node_main.h server.h stats.h
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 
