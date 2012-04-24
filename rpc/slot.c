@@ -941,9 +941,10 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
    Just for debugging purpose.
  */
 #ifndef __KERNEL__
-void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active)
+int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int count)
 {
 	struct c2_rpc_item *item;
+	bool                first = true;
 	char                str_stage[][20] = {
 				"INVALID",
 				"PAST_COMMITTED",
@@ -955,18 +956,24 @@ void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active)
 	c2_list_for_each_entry(&slot->sl_item_list, item,
 				struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
-
+		/* Skip dummy item */
+		if (first) {
+			first = false;
+			continue;
+		}
 		if (ergo(only_active,
 			 item->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS ||
 			 item->ri_stage == RPC_ITEM_STAGE_FUTURE)) {
 
-			printf("item %p <%u, %lu>  state %s\n", item,
+			printf("%d: item %p <%u, %lu>  state %s\n",
+					++count,
+					item,
 					slot->sl_slot_id,
 					item->ri_slot_refs[0].sr_xid,
 					str_stage[item->ri_stage]);
-
 		}
 	}
+	return count;
 }
 #endif
 bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)

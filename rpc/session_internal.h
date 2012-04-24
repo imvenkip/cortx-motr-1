@@ -533,7 +533,8 @@ bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
 bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
 
 #ifndef __KERNEL__
-void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active);
+int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
+				int count);
 #endif
 
 /** @}  End of rpc_session group */

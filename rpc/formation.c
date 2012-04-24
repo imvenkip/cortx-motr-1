@@ -121,6 +121,20 @@ static void frm_item_state_set(const struct c2_rpc *rpc, const enum
 	}
 }
 
+static void frm_item_state_failed(const struct c2_rpc *rpc, int error)
+{
+	struct c2_rpc_item *item;
+
+	C2_PRE(rpc != NULL);
+
+	c2_list_for_each_entry(&rpc->r_items, item,
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
+		item->ri_state = RPC_ITEM_SEND_FAILED;
+		item->ri_error = error;
+	}
+}
+
 void c2_rpcobj_init(struct c2_rpc *rpc)
 {
 	C2_PRE(rpc != NULL);
@@ -391,7 +405,8 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		C2_ADDB_ADD(&fb->fb_frm_sm->fs_rpc_form_addb,
 			    &frm_addb_loc, formation_func_fail,
 			    "net buf send failed", ev->nbe_status);
-		frm_item_state_set(rpc, RPC_ITEM_SEND_FAILED);
+		frm_item_state_failed(rpc, ev->nbe_status);
+		C2_ASSERT("BUF_SEND_FAILED" == NULL);
 
 	}
 

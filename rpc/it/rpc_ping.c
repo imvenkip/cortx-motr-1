@@ -32,6 +32,7 @@
 #include "lib/thread.h"
 #include "lib/processor.h"
 #include "lib/trace.h"
+#include "lib/time.h"
 #include "net/net.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpc2.h"
@@ -417,10 +418,26 @@ static int run_client(void)
 
 	for (i = 0; i < nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		rc = C2_THREAD_INIT(&client_thread[i], struct c2_rpc_session*,
-				NULL, &send_ping_fop,
-				&cctx.rcx_session, "client_%d", i);
-		C2_ASSERT(rc == 0);
+
+		while (1) {
+			c2_time_t t;
+
+			rc = C2_THREAD_INIT(&client_thread[i],
+					    struct c2_rpc_session*,
+					    NULL, &send_ping_fop,
+					    &cctx.rcx_session, "client_%d", i);
+			if (rc == 0) {
+				break;
+			} else if (rc == EAGAIN) {
+#ifndef __KERNEL__
+				printf("Retrying thread init\n");
+#endif
+				c2_thread_fini(&client_thread[i]);
+				c2_nanosleep(c2_time_set(&t, 1, 0), NULL);
+			} else {
+				C2_ASSERT("THREAD_INIT_FAILED" == NULL);
+			}
+		}
 	}
 
 	for (i = 0; i < nr_client_threads; i++) {

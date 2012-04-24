@@ -553,16 +553,16 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	c2_free(machine->rm_rcv_buffers);
 }
 
-int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
+int c2_rpc_reply_timedwait( struct c2_clink *clink, const c2_time_t timeout)
 {
-	bool	rc;
+	bool got_signal;
 
 	C2_PRE(clink != NULL);
 	C2_PRE(c2_clink_is_armed(clink));
 
-	rc = c2_chan_timedwait(clink, timeout);
+	got_signal = c2_chan_timedwait(clink, timeout);
 
-	return rc ? 0 : -ETIMEDOUT;
+	return got_signal ? 0 : -ETIMEDOUT;
 }
 C2_EXPORTED(c2_rpc_reply_timedwait);
 

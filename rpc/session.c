@@ -1131,17 +1131,18 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 }
 #ifndef __KERNEL__
 /* for debugging  */
-void c2_rpc_session_items_print(struct c2_rpc_session *session,
-				bool                   only_active)
+int c2_rpc_session_items_print(struct c2_rpc_session *session, bool only_active)
 {
 	struct c2_rpc_slot *slot;
+	int                 count;
 	int                 i;
 
+	count = 0;
 	for (i = 0; i < session->s_nr_slots; i++) {
-
-		slot = session->s_slot_table[i];
-		c2_rpc_slot_item_list_print(slot, only_active);
+		slot  = session->s_slot_table[i];
+		count = c2_rpc_slot_item_list_print(slot, only_active, count);
 	}
+	return count;
 }
 #endif
 /** @} end of session group */
